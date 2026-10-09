@@ -1,0 +1,174 @@
+/* Design tokens (3.3, 3.5). Palette shared with cyex logs.
+   Accent variables are overwritten at runtime from cyex_core::color (see theme.ts). */
+
+:root {
+  color-scheme: dark;
+  --bg: #1e1f23;
+  --surface: #26272c;
+  --surface-hover: #2d2e34;
+  --elevated: #2f3037;
+  --elevated-2: #353640;
+  --border: #34353c;
+  --border-strong: #43454d;
+  --text: #e8e8ea;
+  --muted: #b4b5bb;
+  --dim: #91939c;
+  --shadow: rgba(0, 0, 0, 0.35);
+  --overlay: rgba(14, 15, 18, 0.6);
+  --row-hover: rgba(255, 255, 255, 0.035);
+  --row-alt: rgba(255, 255, 255, 0.015);
+  --red: #ff6b6b;
+  --yellow: #ffb545;
+  --green: #33d68f;
+  --twitch: #a970ff;
+
+  --accent: #145aff;
+  --accent-hover: #3773ff;
+  --accent-ink: #ffffff;
+  --accent-text: #7ea4ff;
+  --accent-dim: rgba(20, 90, 255, 0.14);
+  --accent-wash: rgba(20, 90, 255, 0.22);
+  --accent-border: rgba(20, 90, 255, 0.55);
+
+  --font-ui: 'IBM Plex Sans', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'Cascadia Mono', Consolas, monospace;
+  --chat-font: var(--font-ui);
+  --chat-size: 13px;
+
+  --radius: 3px;
+  --chrome-h: 38px;
+  --fast: 0.12s;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --z-popover: 300;
+  --z-tooltip: 390;
+  --z-toast: 600;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f3f3f4;
+  --surface: #ffffff;
+  --surface-hover: #f6f6f7;
+  --elevated: #ffffff;
+  --elevated-2: #f4f4f6;
+  --border: #dcdde1;
+  --border-strong: #c4c6cc;
+  --text: #1b1c20;
+  --muted: #4f515a;
+  --dim: #6b6d76;
+  --shadow: rgba(20, 22, 30, 0.12);
+  --overlay: rgba(243, 243, 244, 0.7);
+  --row-hover: rgba(20, 22, 30, 0.035);
+  --row-alt: rgba(20, 22, 30, 0.015);
+  --red: #c1352f;
+  --yellow: #9a5c05;
+  --green: #0f8a55;
+  --twitch: #772ce8;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.45 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+  cursor: default;
+}
+
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+input,
+textarea {
+  user-select: text;
+}
+
+h2 {
+  margin: 0 0 14px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+::selection {
+  background: var(--border-strong);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--dim);
+}
+
+/* Shared form field look. */
+.field {
+  height: 30px;
+  padding: 0 10px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  outline: none;
+  transition: border-color var(--fast);
+}
+.field:focus {
+  border-color: var(--accent-border);
+}
+.field::placeholder {
+  color: var(--dim);
+}
+
+.label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+  }
+}

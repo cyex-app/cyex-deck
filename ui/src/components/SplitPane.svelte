@@ -1,0 +1,108 @@
+<!-- Two panes with a draggable divider (3.11). `ratio` is the first pane's share, 0 to 1.
+     Panes reflow with the window (3.10); the divider clamps so neither pane collapses. -->
+<script lang="ts">
+  import type { Snippet } from 'svelte';
+
+  interface Props {
+    direction?: 'row' | 'column';
+    ratio: number;
+    min?: number;
+    onchange: (ratio: number) => void;
+    first: Snippet;
+    second: Snippet;
+  }
+
+  let { direction = 'row', ratio, min = 0.15, onchange, first, second }: Props = $props();
+
+  let container: HTMLDivElement;
+  let dragging = $state(false);
+  let live = $state<number | null>(null);
+  const shown = $derived(live ?? ratio);
+
+  function clamp(value: number): number {
+    return Math.min(Math.max(value, min), 1 - min);
+  }
+
+  function onPointerDown(e: PointerEvent) {
+    dragging = true;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }
+
+  function onPointerMove(e: PointerEvent) {
+    if (!dragging) return;
+    const r = container.getBoundingClientRect();
+    live = clamp(direction === 'row' ? (e.clientX - r.left) / r.width : (e.clientY - r.top) / r.height);
+  }
+
+  function onPointerUp() {
+    if (!dragging) return;
+    dragging = false;
+    if (live !== null) onchange(live);
+    live = null;
+  }
+</script>
+
+<div class="split {direction}" class:dragging bind:this={container}>
+  <div class="pane" style:flex-basis="{shown * 100}%">{@render first()}</div>
+  <div
+    class="divider"
+    role="separator"
+    aria-orientation={direction === 'row' ? 'vertical' : 'horizontal'}
+    onpointerdown={onPointerDown}
+    onpointermove={onPointerMove}
+    onpointerup={onPointerUp}
+    onpointercancel={onPointerUp}
+  ></div>
+  <div class="pane rest">{@render second()}</div>
+</div>
+
+<style>
+  .split {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+  }
+  .column {
+    flex-direction: column;
+  }
+  .pane {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    flex-grow: 0;
+    flex-shrink: 0;
+  }
+  .rest {
+    flex: 1;
+  }
+  .divider {
+    flex: none;
+    background: var(--border);
+    transition: background var(--fast);
+  }
+  .row > .divider {
+    width: 1px;
+    cursor: col-resize;
+  }
+  .column > .divider {
+    height: 1px;
+    cursor: row-resize;
+  }
+  /* Wider hit area than the visible line. */
+  .divider {
+    position: relative;
+  }
+  .divider::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+  }
+  .divider:hover,
+  .dragging .divider {
+    background: var(--accent-border);
+  }
+  .dragging {
+    user-select: none;
+  }
+</style>

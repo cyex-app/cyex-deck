@@ -1,0 +1,38 @@
+[workspace]
+resolver = "3"
+members = ["app", "crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace.dependencies]
+cyex-core = { path = "crates/core" }
+cyex-settings = { path = "crates/settings" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+time = { version = "0.3", features = ["local-offset", "formatting", "parsing", "macros"] }
+base64 = "0.23"
+ts-rs = { version = "12", features = ["serde-json-impl", "no-serde-warnings"] }
+
+tauri = { version = "2.12", features = ["tray-icon", "image-png"] }
+tauri-build = { version = "2.7", features = [] }
+tauri-plugin-single-instance = "2.5"
+tauri-plugin-dialog = "2.8"
+tauri-plugin-opener = "2"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true

@@ -1,0 +1,23 @@
+import type { Partition } from '../ipc/bindings/Partition';
+
+/** Display names for settings partitions, in settings-menu order. */
+export const PARTITION_LABELS: Record<Partition, string> = {
+  general: 'General',
+  appearance: 'Appearance',
+  chat: 'Chat',
+  highlights: 'Highlights',
+  commands: 'Commands',
+  hotkeys: 'Hotkeys',
+  tabs: 'Tabs',
+  accounts: 'Accounts',
+  miner: 'Miner',
+  modview: 'Mod view',
+  notifications: 'Notifications',
+  windows: 'Windows and layouts',
+};
+
+export const ALL_PARTITIONS = Object.keys(PARTITION_LABELS) as Partition[];
+
+export function partitionList(partitions: Partition[]): string {
+  return partitions.map((p) => PARTITION_LABELS[p]).join(', ');
+}

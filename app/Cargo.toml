@@ -1,0 +1,24 @@
+[package]
+name = "cyex-viewer"
+description = "cyex viewer desktop app"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+cyex-core.workspace = true
+cyex-settings.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+time.workspace = true
+ts-rs.workspace = true
+tauri.workspace = true
+tauri-plugin-single-instance.workspace = true
+tauri-plugin-dialog.workspace = true
+tauri-plugin-opener.workspace = true
+
+[lints]
+workspace = true

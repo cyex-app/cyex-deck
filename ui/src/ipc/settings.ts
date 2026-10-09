@@ -1,0 +1,60 @@
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+
+import type { Accounts } from './bindings/Accounts';
+import type { Appearance } from './bindings/Appearance';
+import type { Chat } from './bindings/Chat';
+import type { Commands } from './bindings/Commands';
+import type { General } from './bindings/General';
+import type { Highlights } from './bindings/Highlights';
+import type { Hotkeys } from './bindings/Hotkeys';
+import type { Miner } from './bindings/Miner';
+import type { Modview } from './bindings/Modview';
+import type { Notifications } from './bindings/Notifications';
+import type { Partition } from './bindings/Partition';
+import type { Tabs } from './bindings/Tabs';
+import type { Windows } from './bindings/Windows';
+
+/** Every partition with its typed shape. */
+export interface SettingsValues {
+  general: General;
+  appearance: Appearance;
+  chat: Chat;
+  highlights: Highlights;
+  commands: Commands;
+  hotkeys: Hotkeys;
+  tabs: Tabs;
+  accounts: Accounts;
+  miner: Miner;
+  modview: Modview;
+  notifications: Notifications;
+  windows: Windows;
+}
+
+/** JSON merge patch shape: nested objects merge, arrays replace, `null` resets to default. */
+export type DeepPartial<T> = {
+  [K in keyof T]?: T[K] extends readonly unknown[]
+    ? T[K] | null
+    : T[K] extends object
+      ? DeepPartial<T[K]> | null
+      : T[K] | null;
+};
+
+export const settingsIpc = {
+  all: () => invoke<SettingsValues>('settings_all'),
+  patch: <P extends Partition>(partition: P, patch: DeepPartial<SettingsValues[P]>) =>
+    invoke<SettingsValues[P]>('settings_patch', { partition, patch }),
+  reset: <P extends Partition>(partition: P) => invoke<SettingsValues[P]>('settings_reset', { partition }),
+  exportFile: (partitions: Partition[]) => invoke<boolean>('settings_export_file', { partitions }),
+  importFile: () => invoke<Partition[]>('settings_import_file'),
+  shareCode: (partitions: Partition[]) => invoke<string>('settings_share_code', { partitions }),
+  importCode: (code: string) => invoke<Partition[]>('settings_import_code', { code }),
+  backups: () => invoke<string[]>('settings_backups'),
+  restoreBackup: (date: string) => invoke<Partition[]>('settings_restore_backup', { date }),
+  openFolder: () => invoke<void>('settings_open_folder'),
+  takeLoadReport: () => invoke<Partition[]>('settings_take_load_report'),
+  onChanged: (handler: (partition: Partition, value: unknown) => void) =>
+    listen<{ partition: Partition; value: unknown }>('settings:changed', (e) =>
+      handler(e.payload.partition, e.payload.value),
+    ),
+};
