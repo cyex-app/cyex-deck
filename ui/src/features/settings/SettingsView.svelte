@@ -5,6 +5,7 @@
   import Button from '../../components/Button.svelte';
   import Icon from '../../components/Icon.svelte';
   import type { IconName } from '../../components/icons';
+  import AccountsSection from './sections/AccountsSection.svelte';
   import AppearanceSection from './sections/AppearanceSection.svelte';
   import ChatSection from './sections/ChatSection.svelte';
   import DataSection from './sections/DataSection.svelte';
@@ -15,12 +16,15 @@
   interface Props {
     popout?: boolean;
     onpopout?: () => void;
+    /** Open section id. Bindable so other views can jump to a section. */
+    section?: string;
   }
 
-  let { popout = false, onpopout }: Props = $props();
+  let { popout = false, onpopout, section = $bindable('general') }: Props = $props();
 
   const SECTIONS: { id: string; label: string; icon: IconName; component: Component }[] = [
     { id: 'general', label: 'General', icon: 'sliders', component: GeneralSection },
+    { id: 'accounts', label: 'Accounts', icon: 'user', component: AccountsSection },
     { id: 'appearance', label: 'Appearance', icon: 'palette', component: AppearanceSection },
     { id: 'chat', label: 'Chat', icon: 'chat', component: ChatSection },
     { id: 'hotkeys', label: 'Hotkeys', icon: 'keyboard', component: HotkeysSection },
@@ -28,14 +32,13 @@
     { id: 'data', label: 'Backup and sharing', icon: 'archive', component: DataSection },
   ];
 
-  let current = $state('general');
-  const Section = $derived(SECTIONS.find((s) => s.id === current)!.component);
+  const Section = $derived((SECTIONS.find((s) => s.id === section) ?? SECTIONS[0]).component);
 </script>
 
 <div class="settings">
   <nav>
     {#each SECTIONS as s (s.id)}
-      <button class:on={current === s.id} onclick={() => (current = s.id)} title={s.label}>
+      <button class:on={section === s.id} onclick={() => (section = s.id)} title={s.label}>
         <Icon name={s.icon} size={15} />
         <span>{s.label}</span>
       </button>

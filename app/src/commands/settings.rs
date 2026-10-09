@@ -11,6 +11,7 @@ use tauri_plugin_opener::OpenerExt;
 use time::Date;
 use time::macros::format_description;
 
+use crate::auth;
 use crate::settings::Settings;
 
 type CmdResult<T> = Result<T, String>;
@@ -31,12 +32,22 @@ pub fn settings_patch(
     partition: Partition,
     patch: Value,
 ) -> CmdResult<Value> {
+    rust_owned(partition)?;
     settings.patch(&app, partition, &patch, true)
 }
 
 #[tauri::command]
-pub fn settings_reset(app: AppHandle, settings: State<Settings>, partition: Partition) -> Value {
-    settings.reset(&app, partition)
+pub fn settings_reset(app: AppHandle, settings: State<Settings>, partition: Partition) -> CmdResult<Value> {
+    rust_owned(partition)?;
+    Ok(settings.reset(&app, partition))
+}
+
+/// The accounts list points at stored tokens, so only the account manager changes it.
+fn rust_owned(partition: Partition) -> CmdResult<()> {
+    if partition == Partition::Accounts {
+        return Err("Accounts are changed in the account manager.".into());
+    }
+    Ok(())
 }
 
 /// Opens a save dialog. Returns false if the user cancelled.
@@ -122,7 +133,11 @@ pub fn settings_restore_backup(
     date: String,
 ) -> CmdResult<Vec<Partition>> {
     let date = Date::parse(&date, UI_DATE).map_err(|_| format!("\"{date}\" isn't a backup date"))?;
-    settings.restore_backup(&app, date)
+    let restored = settings.restore_backup(&app, date)?;
+    if restored.contains(&Partition::Accounts) {
+        auth::reload(&app);
+    }
+    Ok(restored)
 }
 
 #[tauri::command]

@@ -2,7 +2,9 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod auth;
 mod commands;
+mod connections;
 mod icons;
 mod settings;
 mod tray;
@@ -21,6 +23,8 @@ fn main() {
         .setup(|app| {
             let handle = app.handle();
             settings::init(handle)?;
+            connections::init(handle);
+            auth::init(handle)?;
             windows::init(handle)?;
             tray::init(handle)?;
             Ok(())

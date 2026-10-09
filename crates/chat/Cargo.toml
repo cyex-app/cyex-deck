@@ -1,0 +1,13 @@
+[package]
+name = "cyex-chat"
+description = "Twitch chat: IRC, parsing, join budget"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+ts-rs.workspace = true
+
+[lints]
+workspace = true

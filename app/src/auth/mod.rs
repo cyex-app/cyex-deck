@@ -1,0 +1,134 @@
+//! Accounts and sign-in (spec 01) wired to Tauri: shared state, the `accounts:changed`
+//! event, the token keeper. Logic lives in `cyex_auth`.
+
+mod keeper;
+mod sign_in;
+
+pub use sign_in::{DeviceStart, add_pasted, remove_account, remove_token, sign_in_device};
+
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex, MutexGuard};
+
+use cyex_auth::secrets::KeyringStore;
+use cyex_auth::{AccountView, Vault, client_id, views};
+use cyex_settings::Partition;
+use cyex_settings::schema::Accounts;
+use cyex_twitch::Http;
+use serde::Serialize;
+use tauri::{AppHandle, Emitter, Manager};
+use tokio::sync::watch;
+use ts_rs::TS;
+
+use crate::settings::Settings;
+
+const CHANGED_EVENT: &str = "accounts:changed";
+
+pub struct Auth {
+    pub http: Http,
+    pub vault: Vault,
+    client_id: Mutex<Option<String>>,
+    /// `.env` in the app data folder, where the first-run prompt saves the client ID.
+    env_file: PathBuf,
+    /// Cancels the Device Code sign-in that's running, if any.
+    sign_in: Mutex<Option<watch::Sender<bool>>>,
+}
+
+#[derive(Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AuthSnapshot {
+    pub accounts: Vec<AccountView>,
+    /// False until this app's Twitch client ID is set (D5).
+    pub has_client_id: bool,
+}
+
+pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    let env_file = app.path().config_dir()?.join("cyex-viewer").join(".env");
+    let mut env_files = vec![env_file.clone()];
+    if cfg!(debug_assertions) {
+        // `npm run dev`: the repo's own .env.
+        env_files.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.env"));
+    }
+    let vault = Vault::new(Arc::new(KeyringStore));
+    for e in vault.load(&accounts(app)) {
+        eprintln!("auth: couldn't read a token: {e}");
+    }
+    app.manage(Auth {
+        http: Http::new()?,
+        vault,
+        client_id: Mutex::new(client_id::resolve(&env_files)),
+        env_file,
+        sign_in: Mutex::default(),
+    });
+    keeper::spawn(app.clone());
+    Ok(())
+}
+
+impl Auth {
+    pub fn client_id(&self) -> Option<String> {
+        lock(&self.client_id).clone()
+    }
+
+    pub fn set_client_id(&self, id: &str) -> Result<(), String> {
+        let id = id.trim();
+        if !client_id::is_valid(id) {
+            return Err("That doesn't look like a client ID.".into());
+        }
+        client_id::save(&self.env_file, id).map_err(|e| format!("Couldn't save it: {e}"))?;
+        *lock(&self.client_id) = Some(id.to_owned());
+        Ok(())
+    }
+
+    /// Starts tracking a new sign-in and cancels the previous one.
+    fn begin_sign_in(&self) -> watch::Receiver<bool> {
+        let (tx, rx) = watch::channel(false);
+        if let Some(old) = lock(&self.sign_in).replace(tx) {
+            let _ = old.send(true);
+        }
+        rx
+    }
+
+    pub fn cancel_sign_in(&self) {
+        if let Some(tx) = lock(&self.sign_in).take() {
+            let _ = tx.send(true);
+        }
+    }
+}
+
+fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|p| p.into_inner())
+}
+
+pub fn accounts(app: &AppHandle) -> Accounts {
+    app.state::<Settings>().read(Partition::Accounts)
+}
+
+/// Changes the accounts list and saves it if `f` returns true.
+pub fn update_accounts(app: &AppHandle, f: impl FnOnce(&mut Accounts) -> bool) -> Result<(), String> {
+    app.state::<Settings>().update(app, Partition::Accounts, f)
+}
+
+pub fn snapshot(app: &AppHandle) -> AuthSnapshot {
+    let auth = app.state::<Auth>();
+    AuthSnapshot {
+        accounts: views(&accounts(app), &auth.vault),
+        has_client_id: auth.client_id().is_some(),
+    }
+}
+
+pub fn notify(app: &AppHandle) {
+    let _ = app.emit(CHANGED_EVENT, snapshot(app));
+    crate::connections::notify(app);
+}
+
+/// After settings were restored from a backup: re-read tokens for the restored list.
+pub fn reload(app: &AppHandle) {
+    for e in app.state::<Auth>().vault.load(&accounts(app)) {
+        eprintln!("auth: couldn't read a token: {e}");
+    }
+    notify(app);
+}
+
+pub fn unix_now() -> i64 {
+    time::OffsetDateTime::now_utc().unix_timestamp()
+}

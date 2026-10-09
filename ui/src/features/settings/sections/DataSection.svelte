@@ -4,14 +4,14 @@
   import Row from '../../../components/Row.svelte';
   import type { Partition } from '../../../ipc/bindings/Partition';
   import { settingsIpc } from '../../../ipc/settings';
-  import { ALL_PARTITIONS, PARTITION_LABELS, partitionList } from '../../../lib/partitions';
+  import { PARTITION_LABELS, PORTABLE_PARTITIONS, partitionList } from '../../../lib/partitions';
   import { toast } from '../../../lib/toast.svelte';
 
   let picked = $state<Partition[]>(['general', 'appearance', 'chat', 'highlights', 'commands', 'hotkeys']);
   let code = $state('');
   let backups = $state<string[]>([]);
 
-  const allPicked = $derived(picked.length === ALL_PARTITIONS.length);
+  const allPicked = $derived(picked.length === PORTABLE_PARTITIONS.length);
 
   $effect(() => {
     void refreshBackups();
@@ -26,7 +26,7 @@
   }
 
   function toggle(p: Partition) {
-    picked = picked.includes(p) ? picked.filter((x) => x !== p) : ALL_PARTITIONS.filter((x) => x === p || picked.includes(x));
+    picked = picked.includes(p) ? picked.filter((x) => x !== p) : PORTABLE_PARTITIONS.filter((x) => x === p || picked.includes(x));
   }
 
   async function attempt<T>(action: () => Promise<T>): Promise<T | undefined> {
@@ -78,18 +78,18 @@
     <input
       type="checkbox"
       checked={allPicked}
-      onchange={() => (picked = allPicked ? [] : [...ALL_PARTITIONS])}
+      onchange={() => (picked = allPicked ? [] : [...PORTABLE_PARTITIONS])}
     />
     Everything
   </label>
-  {#each ALL_PARTITIONS as p (p)}
+  {#each PORTABLE_PARTITIONS as p (p)}
     <label class="pick">
       <input type="checkbox" checked={picked.includes(p)} onchange={() => toggle(p)} />
       {PARTITION_LABELS[p]}
     </label>
   {/each}
 </div>
-<p class="note">Sign-ins and tokens are never included.</p>
+<p class="note">Accounts and sign-ins are never included.</p>
 <div class="actions">
   <Button icon="download" disabled={!picked.length} onclick={exportFile}>Export file</Button>
   <Button icon="copy" disabled={!picked.length} onclick={copyCode}>Copy share code</Button>

@@ -14,7 +14,7 @@ mod notifications;
 mod tabs;
 mod windows;
 
-pub use accounts::Accounts;
+pub use accounts::{Account, Accounts, TokenMeta, TokenSource};
 pub use appearance::{Appearance, TabBarSide, TabDensity};
 pub use chat::{BadgeToggles, Chat, GifMode, PaintToggles, Timestamps, UnlistedEmotes};
 pub use commands::Commands;

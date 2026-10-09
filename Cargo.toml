@@ -10,6 +10,9 @@ publish = false
 [workspace.dependencies]
 cyex-core = { path = "crates/core" }
 cyex-settings = { path = "crates/settings" }
+cyex-twitch = { path = "crates/twitch" }
+cyex-auth = { path = "crates/auth" }
+cyex-chat = { path = "crates/chat" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -17,6 +20,13 @@ thiserror = "2"
 time = { version = "0.3", features = ["local-offset", "formatting", "parsing", "macros"] }
 base64 = "0.23"
 ts-rs = { version = "12", features = ["serde-json-impl", "no-serde-warnings"] }
+# TLS through Windows SChannel (native-tls): no crypto library in the binary.
+reqwest = { version = "0.13", default-features = false, features = ["native-tls", "json", "form", "query"] }
+tokio = { version = "1", features = ["time", "sync", "macros", "rt"] }
+# Windows Credential Manager on Windows (v1 mode only compiles the platform store).
+keyring = "4.2"
+url = "2"
+tracing = { version = "0.1", default-features = false, features = ["std"] }
 
 tauri = { version = "2.12", features = ["tray-icon", "image-png"] }
 tauri-build = { version = "2.7", features = [] }

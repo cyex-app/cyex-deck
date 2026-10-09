@@ -117,20 +117,29 @@ impl Store {
         Ok(())
     }
 
+    /// Partitions that can't leave this machine (accounts) are skipped.
     pub fn export(&self, partitions: &[Partition]) -> Bundle {
         let picked = partitions
             .iter()
+            .filter(|p| p.is_portable())
             .map(|p| (p.key().to_owned(), self.values[p].clone()))
             .collect();
         Bundle::new(picked, self.clock.now())
     }
 
     /// Applies every partition in the bundle, or none if any of them is invalid.
+    /// Partitions that can't come from another machine (accounts) are ignored.
     pub fn import(&mut self, bundle: Bundle) -> Result<Vec<Partition>> {
+        self.apply(bundle, false)
+    }
+
+    fn apply(&mut self, bundle: Bundle, local: bool) -> Result<Vec<Partition>> {
         let mut checked = Vec::with_capacity(bundle.partitions.len());
         for (key, value) in bundle.partitions {
             let p = Partition::from_key(&key).ok_or(Error::UnknownPartition(key))?;
-            checked.push((p, p.normalize(value)?));
+            if local || p.is_portable() {
+                checked.push((p, p.normalize(value)?));
+            }
         }
         for (p, value) in &checked {
             self.set(*p, value.clone())?;
@@ -155,7 +164,7 @@ impl Store {
                 restored.insert(p.key().to_owned(), value);
             }
         }
-        self.import(Bundle::new(restored, self.clock.now()))
+        self.apply(Bundle::new(restored, self.clock.now()), true)
     }
 }
 
@@ -301,6 +310,28 @@ mod tests {
         .unwrap();
         assert!(matches!(store.import(bad), Err(Error::UnknownPartition(k)) if k == "nope"));
         assert!(store.read::<General>(Partition::General).tooltips);
+    }
+
+    #[test]
+    fn accounts_never_leave_the_machine() {
+        let tmp = TempDir::new("store-local");
+        let (mut store, _) = open(tmp.path(), &Arc::new(FakeClock::at(day(9))));
+        store
+            .patch(
+                Partition::Accounts,
+                &json!({"list": [{"userId": "1", "login": "a"}]}),
+            )
+            .unwrap();
+        let bundle = store.export(&[Partition::Accounts, Partition::General]);
+        assert_eq!(bundle.partitions.keys().collect::<Vec<_>>(), ["general"]);
+        let foreign = Bundle::from_json(
+            &json!({"format": "cyex-settings", "version": 1, "exported": "",
+                "partitions": {"accounts": {"list": []}}})
+            .to_string(),
+        )
+        .unwrap();
+        assert!(store.import(foreign).unwrap().is_empty());
+        assert_eq!(store.get(Partition::Accounts)["list"][0]["login"], "a");
     }
 
     #[test]

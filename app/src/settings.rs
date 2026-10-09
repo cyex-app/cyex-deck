@@ -68,6 +68,27 @@ impl Settings {
         Ok(value)
     }
 
+    /// Reads a partition typed, lets `f` change it and, if `f` returns true, saves it and
+    /// tells every window.
+    pub fn update<T: Schema>(
+        &self,
+        app: &AppHandle,
+        p: Partition,
+        f: impl FnOnce(&mut T) -> bool,
+    ) -> Result<(), String> {
+        let value = {
+            let mut store = self.lock();
+            let mut typed: T = store.read(p);
+            if !f(&mut typed) {
+                return Ok(());
+            }
+            let value = serde_json::to_value(typed).map_err(|e| e.to_string())?;
+            store.set(p, value).map_err(|e| e.to_string())?.clone()
+        };
+        self.after_change(app, &[(p, &value)], true);
+        Ok(())
+    }
+
     pub fn reset(&self, app: &AppHandle, p: Partition) -> Value {
         let value = self.lock().reset(p).clone();
         self.after_change(app, &[(p, &value)], true);

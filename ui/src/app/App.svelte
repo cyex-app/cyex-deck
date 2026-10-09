@@ -5,6 +5,8 @@
   import Toasts from '../components/Toasts.svelte';
   import TooltipHost from '../components/TooltipHost.svelte';
   import WindowChrome from '../components/WindowChrome.svelte';
+  import AccountMenu from '../features/accounts/AccountMenu.svelte';
+  import ConnectionCounter from '../features/accounts/ConnectionCounter.svelte';
   import DiscoverView from '../features/discover/DiscoverView.svelte';
   import HomeView from '../features/home/HomeView.svelte';
   import SettingsView from '../features/settings/SettingsView.svelte';
@@ -16,6 +18,7 @@
   type View = 'home' | 'discover' | 'settings';
 
   let view = $state<View>('home');
+  let settingsSection = $state('general');
 
   useRootEffects();
   useHotkeys({
@@ -24,6 +27,11 @@
     'settings.open': () => (view = 'settings'),
     'window.pin': () => currentWindow.togglePin(),
   });
+
+  function manageAccounts() {
+    settingsSection = 'accounts';
+    view = 'settings';
+  }
 
   async function popOutSettings() {
     if (await popOut('settings')) view = 'home';
@@ -50,6 +58,8 @@
     </nav>
   {/snippet}
   {#snippet end()}
+    <ConnectionCounter />
+    <AccountMenu onmanage={manageAccounts} />
     <IconButton icon="settings" label="Settings" active={view === 'settings'} onclick={() => (view = 'settings')} />
   {/snippet}
 </WindowChrome>
@@ -60,7 +70,7 @@
   {:else if view === 'discover'}
     <DiscoverView />
   {:else}
-    <SettingsView onpopout={popOutSettings} />
+    <SettingsView onpopout={popOutSettings} bind:section={settingsSection} />
   {/if}
 </main>
 

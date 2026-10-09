@@ -60,6 +60,12 @@ impl Partition {
         Self::ALL.into_iter().find(|p| p.key() == key)
     }
 
+    /// Accounts point at tokens in this machine's credential store, so they stay out of
+    /// exports and share codes. Backups still include them.
+    pub fn is_portable(self) -> bool {
+        self != Partition::Accounts
+    }
+
     pub fn file_name(self) -> String {
         format!("{}.json", self.key())
     }
