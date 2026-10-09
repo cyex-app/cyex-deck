@@ -8,6 +8,7 @@
   import { chatIpc } from '../../ipc/chat';
   import type { Points } from '../../ipc/bindings/Points';
   import { accounts } from '../../lib/accounts.svelte';
+  import { formatNumber, formatShort } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import type { ChatRoom } from './room.svelte';
 
@@ -40,7 +41,6 @@
 
   const canRedeem = $derived(room.account !== null && accounts.can('points', room.account));
   const name = $derived(points?.name ?? 'Channel points');
-  const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
 
   const choices = $derived.by((): Choice[] => {
     if (!points) return [];
@@ -115,20 +115,20 @@
 <div class="points">
   <button class="trigger" onclick={toggle} use:tooltip={{ label: name, hint: 'Rewards you can redeem here.' }}>
     {#if points?.icon}<img src={points.icon} alt="" />{:else}<Icon name="points" size={16} />{/if}
-    {#if points?.balance != null}<span>{compact.format(points.balance)}</span>{/if}
+    {#if points?.balance != null}<span>{formatShort(points.balance)}</span>{/if}
   </button>
   <Popover bind:open align="start" side="above">
     <div class="menu">
       <header>
         <strong>{name}</strong>
-        {#if points?.balance != null}<span class="balance">{points.balance.toLocaleString()}</span>{/if}
+        {#if points?.balance != null}<span class="balance">{formatNumber(points.balance)}</span>{/if}
       </header>
       {#if !canRedeem}
         <p class="note">Add a GQL sign-in for this account in Settings → Accounts to redeem.</p>
       {/if}
       {#if picked}
         <div class="confirm">
-          <div class="title">{picked.title} · {picked.cost.toLocaleString()}</div>
+          <div class="title">{picked.title} · {formatNumber(picked.cost)}</div>
           {#if picked.prompt}<p class="note">{picked.prompt}</p>{/if}
           {#if picked.needsText}
             <!-- svelte-ignore a11y_autofocus -->
@@ -164,7 +164,7 @@
             >
               <span class="tile">{#if c.image}<img src={c.image} alt="" />{/if}</span>
               <span class="rt">{c.title}</span>
-              <span class="cost">{c.cost.toLocaleString()}</span>
+              <span class="cost">{formatNumber(c.cost)}</span>
             </button>
           {/each}
         </div>

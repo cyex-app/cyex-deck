@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { formatDate, formatDuration, formatTime, parseDuration } from './format.ts';
+import { formatDate, formatDuration, formatNumber, formatShort, formatTime, parseDuration } from './format.ts';
 
 const at = new Date(2026, 9, 9, 14, 3, 7);
 const morning = new Date(2026, 0, 2, 0, 5, 0);
@@ -50,4 +50,21 @@ test('format and parse round trip', () => {
   for (const secs of [60, 600, 3600, 86_400, 5400]) {
     assert.equal(parseDuration(formatDuration(secs)), secs);
   }
+});
+
+test('numbers group with dots (3.13)', () => {
+  assert.equal(formatNumber(0), '0');
+  assert.equal(formatNumber(999), '999');
+  assert.equal(formatNumber(1000), '1.000');
+  assert.equal(formatNumber(1_234_567), '1.234.567');
+  assert.equal(formatNumber(-45_000), '-45.000');
+});
+
+test('short numbers round down with a comma decimal', () => {
+  assert.equal(formatShort(950), '950');
+  assert.equal(formatShort(1000), '1K');
+  assert.equal(formatShort(1250), '1,2K');
+  assert.equal(formatShort(999_999), '999,9K');
+  assert.equal(formatShort(2_900_000), '2,9M');
+  assert.equal(formatShort(3_000_000_000), '3B');
 });

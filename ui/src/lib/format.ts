@@ -1,7 +1,29 @@
-// Date, time and duration formatting. Dates are yyyy/mm/dd (3.1), times 24-hour (3.2)
-// unless chat timestamps are set to 12-hour (2.10).
+// Date, time, number and duration formatting. Dates are yyyy/mm/dd (3.1), times 24-hour (3.2)
+// unless chat timestamps are set to 12-hour (2.10), numbers grouped with dots (3.13).
 
 const pad = (n: number) => String(n).padStart(2, '0');
+
+/** 1234567 → "1.234.567". Never the OS locale's separator (3.13). */
+export function formatNumber(n: number): string {
+  const digits = String(Math.trunc(Math.abs(n))).replace(/\B(?=(\d{3})+$)/g, '.');
+  return n <= -1 ? `-${digits}` : digits;
+}
+
+const SHORT: [suffix: string, size: number][] = [
+  ['B', 1e9],
+  ['M', 1e6],
+  ['K', 1e3],
+];
+
+/** 999 → "999", 1250 → "1,2K", 2_000_000 → "2M". Rounds down; comma decimal so it can't read as a grouped number. */
+export function formatShort(n: number): string {
+  const abs = Math.abs(n);
+  const unit = SHORT.find(([, size]) => abs >= size);
+  if (!unit) return formatNumber(n);
+  const tenths = Math.floor((abs * 10) / unit[1]);
+  const text = `${tenths % 10 ? (tenths / 10).toFixed(1).replace('.', ',') : tenths / 10}${unit[0]}`;
+  return n < 0 ? `-${text}` : text;
+}
 
 export function formatDate(d: Date): string {
   return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;

@@ -9,7 +9,7 @@
   import type { Profile } from '../../ipc/bindings/Profile';
   import { chatIpc } from '../../ipc/chat';
   import { systemIpc } from '../../ipc/system';
-  import { formatDate } from '../../lib/format';
+  import { formatDate, formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { catalogs } from '../chat/catalog.svelte';
@@ -97,7 +97,7 @@
       <dt>Created</dt>
       <dd>{profile.createdAt ? formatDate(new Date(profile.createdAt)) : '—'}</dd>
       <dt>Followers</dt>
-      <dd>{profile.followers?.toLocaleString() ?? '—'}</dd>
+      <dd>{profile.followers != null ? formatNumber(profile.followers) : '—'}</dd>
     </dl>
 
     {#if !isChannel}

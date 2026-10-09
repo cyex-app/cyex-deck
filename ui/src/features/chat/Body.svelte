@@ -2,6 +2,7 @@
      Clicks and tooltips are handled by the list through data attributes. -->
 <script lang="ts">
   import type { Fragment } from '../../ipc/bindings/Fragment';
+  import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
   import { catalogs } from './catalog.svelte';
   import { cheerImg, cheerTier, emoteImg } from './urls';
@@ -21,7 +22,7 @@
   {:else if f.t === 'cheer'}
     {@const c = catalogs.cheermote(channel, f.prefix)}
     {@const tier = c && cheerTier(c, f.amount)}
-    <span class="cheer" style:color={tier?.color} data-tip="{f.amount} bits">
+    <span class="cheer" style:color={tier?.color} data-tip="{formatNumber(f.amount)} bits">
       {#if c && tier}
         {@const img = cheerImg(c, tier, theme)}
         <img class="emote" src={img.src} srcset={img.srcset} alt={f.prefix} loading="lazy" decoding="async" />{f.amount}

@@ -3,7 +3,7 @@
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
-  import { formatTime } from '../../lib/format';
+  import { formatNumber, formatTime } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
   import Badges from './Badges.svelte';
   import Body from './Body.svelte';
@@ -54,7 +54,7 @@
   {#if m.reward}
     <div class="context reward">
       <Icon name="points" size={12} />
-      {#if m.reward.title}Redeemed <b>{m.reward.title}</b>{#if m.reward.cost} · {m.reward.cost.toLocaleString()}{/if}{:else}Redeemed a reward{/if}
+      {#if m.reward.title}Redeemed <b>{m.reward.title}</b>{#if m.reward.cost} · {formatNumber(m.reward.cost)}{/if}{:else}Redeemed a reward{/if}
     </div>
   {/if}
   {#if notice}
