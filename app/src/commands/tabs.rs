@@ -15,6 +15,24 @@ pub fn tabs_apply(app: AppHandle, op: TabOp) -> CmdResult<tabs::TabsApplied> {
     tabs::apply(&app, op)
 }
 
+/// U10 Reopens what the last close took. `made` is the tab it shows, if any.
+#[tauri::command]
+pub fn tabs_reopen(app: AppHandle) -> CmdResult<tabs::TabsApplied> {
+    tabs::reopen(&app)
+}
+
+/// U10 Whether something can be reopened. Changes arrive as `tabs:reopenable`.
+#[tauri::command]
+pub fn tabs_reopenable(app: AppHandle) -> bool {
+    tabs::reopenable(&app)
+}
+
+/// U9 Chats with news nobody has seen. Changes arrive as `chat:unread`.
+#[tauri::command]
+pub fn tabs_unread(app: AppHandle) -> Vec<crate::chat::unread::RoomUnread> {
+    crate::chat::unread::snapshot(&app)
+}
+
 /// 1.14 Channels matching a name, user id or twitch.tv link.
 #[tauri::command]
 pub async fn tabs_lookup(app: AppHandle, input: String) -> CmdResult<Vec<ChannelInfo>> {

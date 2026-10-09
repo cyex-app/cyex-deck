@@ -10,6 +10,7 @@ export const ACTIONS = {
   'tabs.switcher': { label: 'Go to a tab or channel', default: 'Ctrl+K' },
   'tabs.new': { label: 'Add a tab', default: 'Ctrl+T' },
   'tabs.close': { label: 'Close the tab', default: 'Ctrl+W' },
+  'tabs.reopen': { label: 'Reopen closed tab', default: 'Ctrl+Shift+T' },
   'tabs.next': { label: 'Next tab', default: 'Ctrl+Tab' },
   'tabs.prev': { label: 'Previous tab', default: 'Ctrl+Shift+Tab' },
 } as const satisfies Record<string, { label: string; default: string }>;

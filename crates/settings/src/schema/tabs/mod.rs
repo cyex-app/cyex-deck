@@ -2,10 +2,12 @@
 //! their login and name are refreshed from Twitch (`resolve`). Every edit goes through
 //! [`TabOp`], so all windows and the joined rooms follow the same list.
 
+mod closed;
 mod ops;
 mod order;
 mod resolve;
 
+pub use closed::Closed;
 pub use ops::{TabError, TabOp, Zone};
 pub use resolve::Resolved;
 

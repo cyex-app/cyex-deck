@@ -9,6 +9,7 @@ use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc;
 
 use super::creds::AccountCreds;
+use super::unread::{self, Unread};
 use super::{Chat, Identity, Inner, RoomKey, Session, budget, mention, now_ms, queue};
 
 /// The session for `identity`, started if needed.
@@ -91,6 +92,12 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
     let was_privileged = entry.room.privileged();
     let events = entry.room.handle_line(&line, now_ms(), &NoEmotes);
     let privileged = entry.room.privileged();
+    // U9 Only rooms no view shows collect news.
+    let news = if entry.views.is_empty() { unread::level(&events) } else { Unread::Seen };
+    let lit = news > entry.unread;
+    if lit {
+        entry.unread = news;
+    }
     let mentions: Vec<_> = events
         .iter()
         .filter_map(|e| match e {
@@ -115,6 +122,9 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
     }
     for m in mentions {
         mention::notify(app, channel, &m);
+    }
+    if lit {
+        unread::emit(app, &key, news);
     }
 }
 

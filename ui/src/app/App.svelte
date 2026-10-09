@@ -61,6 +61,7 @@
     'tabs.switcher': () => (switcher = true),
     'tabs.new': () => openAdd(),
     'tabs.close': () => current && tabs.close([current]),
+    'tabs.reopen': () => void tabs.reopen().then((id) => id && open(id)),
     'tabs.next': () => step(1),
     'tabs.prev': () => step(-1),
   });

@@ -1,4 +1,5 @@
-<!-- U5 A tab group's label. Click folds its tabs away; dropping a tab on it adds the tab. -->
+<!-- U5 A tab group's label. Click folds its tabs away; dropping a tab on it adds the tab.
+     A folded group lights up like its brightest tab (U9). -->
 <script lang="ts">
   import { tooltip } from '../../components/tooltip.svelte';
   import type { TabGroup } from '../../ipc/bindings/TabGroup';
@@ -15,6 +16,18 @@
 
   let { group, count, vertical, onmenu }: Props = $props();
 
+  const unread = $derived.by(() => {
+    if (!group.collapsed) return null;
+    let state: 'message' | 'mention' | null = null;
+    for (const t of tabs.list) {
+      if (t.group !== group.id) continue;
+      const u = tabs.unreadState(t);
+      if (u === 'mention') return u;
+      state ??= u;
+    }
+    return state;
+  });
+
   const over = $derived(drag.item?.kind === 'tab' && drag.target?.kind === 'group' && drag.target.id === group.id);
 
   function toggle() {
@@ -27,6 +40,8 @@
   class:vertical
   class:collapsed={group.collapsed}
   class:over
+  class:message={unread === 'message'}
+  class:mention={unread === 'mention'}
   data-group-id={group.id}
   style:--group={GROUP_COLORS[group.color].css}
   onclick={toggle}
@@ -86,5 +101,12 @@
   .count {
     color: var(--muted);
     font-weight: 600;
+  }
+  .message .count,
+  .mention .count {
+    color: var(--text);
+  }
+  .mention {
+    box-shadow: inset 0 2px var(--accent);
   }
 </style>

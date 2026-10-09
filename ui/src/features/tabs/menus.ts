@@ -3,6 +3,7 @@
 import type { MenuEntry } from '../../components/menu.svelte';
 import type { Tab } from '../../ipc/bindings/Tab';
 import type { TabGroup } from '../../ipc/bindings/TabGroup';
+import { bindingOf } from '../../lib/hotkeys.svelte';
 import { openAdd, openEdit, openGroupDialog } from './dialog.svelte';
 import { COLOR_ORDER, GROUP_COLORS } from './groupColors';
 import { tabs, tiles } from './tabs.svelte';
@@ -33,8 +34,20 @@ export function tabMenu(tab: Tab, targets: Tab[]): MenuEntry[] {
     { label: one ? 'Close' : `Close ${targets.length} tabs`, icon: 'x', run: () => tabs.close(ids) },
     { label: 'Close other tabs', disabled: !others.length, run: () => tabs.close(others) },
     { label: 'Close tabs after this', disabled: !after.length, run: () => tabs.close(after) },
+    reopenEntry(),
   );
   return entries;
+}
+
+/** U10 */
+function reopenEntry(): MenuEntry {
+  return {
+    label: 'Reopen closed tab',
+    icon: 'undo',
+    hint: bindingOf('tabs.reopen') || undefined,
+    disabled: !tabs.reopenable,
+    run: () => void tabs.reopen(),
+  };
 }
 
 function groupItems(targets: Tab[]): MenuEntry[] {

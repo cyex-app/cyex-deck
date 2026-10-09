@@ -1,10 +1,13 @@
 //! Channel tabs (spec 02) wired to Tauri: edits from any window, the chat rooms tabs keep
-//! joined (1.10), live dots and renamed channels (1.15, 1.29), following (1.11). The tab
-//! model and its rules live in `cyex_settings::schema::tabs`.
+//! joined (1.10), live dots and renamed channels (1.15, 1.29), following (1.11), reopening
+//! closed tabs (U10). The tab model and its rules live in `cyex_settings::schema::tabs`.
 
+mod closed;
 pub mod follow;
 mod live;
 mod rooms;
+
+pub use closed::any as reopenable;
 
 pub use live::snapshot as live;
 
@@ -17,6 +20,7 @@ use ts_rs::TS;
 use crate::settings::Settings;
 
 pub fn init(app: &AppHandle) {
+    app.manage(closed::ClosedTabs::default());
     rooms::sync(app);
     live::spawn(app);
 }
@@ -46,18 +50,40 @@ pub struct TabsApplied {
 pub fn apply(app: &AppHandle, op: TabOp) -> Result<TabsApplied, String> {
     let settings = app.state::<Settings>();
     let mut outcome = Ok(None);
-    settings.update::<Tabs>(app, Partition::Tabs, |t| match t.apply(op, &mut random_id) {
-        Ok(made) => {
-            outcome = Ok(made);
-            true
-        }
-        Err(e) => {
-            outcome = Err(e.to_string());
-            false
+    let mut closing = Vec::new();
+    settings.update::<Tabs>(app, Partition::Tabs, |t| {
+        closing = t.closing(&op);
+        match t.apply(op, &mut random_id) {
+            Ok(made) => {
+                outcome = Ok(made);
+                true
+            }
+            Err(e) => {
+                outcome = Err(e.to_string());
+                false
+            }
         }
     })?;
+    let made = outcome?;
+    closed::push(app, closing);
     Ok(TabsApplied {
-        made: outcome?,
+        made,
+        tabs: settings.read(Partition::Tabs),
+    })
+}
+
+/// U10 Brings back what the last close took, where it was, and shows it.
+pub fn reopen(app: &AppHandle) -> Result<TabsApplied, String> {
+    let settings = app.state::<Settings>();
+    let mut made = None;
+    if let Some(last) = closed::pop(app) {
+        settings.update::<Tabs>(app, Partition::Tabs, |t| {
+            made = t.restore(last, &mut random_id);
+            made.is_some()
+        })?;
+    }
+    Ok(TabsApplied {
+        made,
         tabs: settings.read(Partition::Tabs),
     })
 }

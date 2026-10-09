@@ -102,10 +102,10 @@ const NO_TABS: TabError = TabError("Pick at least one tab.");
 
 /// Where a tile sits.
 #[derive(Clone, Copy, Debug)]
-struct At {
-    tab: usize,
-    column: usize,
-    row: usize,
+pub(super) struct At {
+    pub tab: usize,
+    pub column: usize,
+    pub row: usize,
 }
 
 impl Tabs {
@@ -326,7 +326,7 @@ impl Tabs {
             .unwrap_or(self.tabs.len())
     }
 
-    fn locate(&self, tile: &str) -> Result<At, TabError> {
+    pub(super) fn locate(&self, tile: &str) -> Result<At, TabError> {
         for (tab, t) in self.tabs.iter().enumerate() {
             for (column, c) in t.columns.iter().enumerate() {
                 if let Some(row) = c.tiles.iter().position(|x| x.id == tile) {
@@ -433,7 +433,7 @@ impl Tabs {
 }
 
 /// A new column's width: the average of the others, so it gets a fair share.
-fn average_width(tab: &Tab) -> f32 {
+pub(super) fn average_width(tab: &Tab) -> f32 {
     if tab.columns.is_empty() {
         return 1.0;
     }

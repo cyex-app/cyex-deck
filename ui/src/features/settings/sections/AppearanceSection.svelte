@@ -6,6 +6,7 @@
   import { previewAccent } from '../../../design/theme';
   import type { TabBarSide } from '../../../ipc/bindings/TabBarSide';
   import type { TabDensity } from '../../../ipc/bindings/TabDensity';
+import type { TabUnread } from '../../../ipc/bindings/TabUnread';
   import type { Theme } from '../../../ipc/bindings/Theme';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
@@ -30,6 +31,12 @@
     { value: 'bottom', label: 'Bottom' },
     { value: 'left', label: 'Left' },
     { value: 'right', label: 'Right' },
+  ];
+
+  const UNREAD: { value: TabUnread; label: string }[] = [
+    { value: 'all', label: 'Messages' },
+    { value: 'mentions', label: 'Mentions' },
+    { value: 'off', label: 'Off' },
   ];
 
   // 3.3: tell the user when their color was nudged to stay visible.
@@ -107,6 +114,15 @@
     options={SIDES}
     value={a.tabBarSide}
     onchange={(v) => settings.patch('appearance', { tabBarSide: v })}
+  />
+</Row>
+
+<Row label="Light up tabs" hint="Background tabs light up on new chat, brighter for mentions.">
+  <Segmented
+    label="Light up tabs"
+    options={UNREAD}
+    value={a.tabUnread}
+    onchange={(v) => settings.patch('appearance', { tabUnread: v })}
   />
 </Row>
 

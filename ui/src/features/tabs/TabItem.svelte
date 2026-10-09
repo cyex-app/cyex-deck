@@ -1,5 +1,5 @@
-<!-- One channel tab (1.10): name or alias (1.22), live dot (1.29), close button (1.25).
-     Double click edits (1.18), middle click closes, drag reorders (U5). -->
+<!-- One channel tab (1.10): name or alias (1.22), live dot (1.29), close button (1.25),
+     lit by unread chat (U9). Double click edits (1.18), middle click closes, drag reorders (U5). -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
@@ -27,6 +27,7 @@
 
   const name = $derived(label(tab));
   const live = $derived(tabs.liveState(tab));
+  const unread = $derived(tabs.unreadState(tab));
   const popped = $derived(tabs.popped.has(tab.id));
   const closeButton = $derived(settings.v.appearance.tabCloseButton);
 
@@ -70,6 +71,8 @@
   class:selected
   class:vertical
   class:grouped={!!groupColor}
+  class:message={unread === 'message'}
+  class:mention={unread === 'mention'}
   data-tab-id={tab.id}
   data-vertical={vertical ? '1' : undefined}
   data-mark={mark}
@@ -126,6 +129,10 @@
   .tab.vertical {
     max-width: none;
   }
+  /* The bar clips anything outside the tab. */
+  .tab:focus-visible {
+    outline-offset: -2px;
+  }
   .tab:hover {
     background: var(--surface-hover);
     color: var(--text);
@@ -133,6 +140,17 @@
   .tab.active {
     background: var(--accent-dim);
     color: var(--accent-text);
+  }
+  /* U9 New messages brighten the name; mentions also get an accent edge. */
+  .message,
+  .mention {
+    color: var(--text);
+  }
+  .mention {
+    box-shadow: inset 0 2px var(--accent);
+  }
+  .vertical.mention {
+    box-shadow: inset -2px 0 var(--accent);
   }
   .tab.selected:not(.active) {
     background: var(--surface-hover);

@@ -18,6 +18,8 @@ pub struct Appearance {
     pub tab_close_button: bool,
     /// U5
     pub tab_bar_side: TabBarSide,
+    /// U9 What lights up a tab in the background.
+    pub tab_unread: TabUnread,
 }
 
 impl Default for Appearance {
@@ -28,6 +30,7 @@ impl Default for Appearance {
             tab_density: TabDensity::Normal,
             tab_close_button: true,
             tab_bar_side: TabBarSide::Top,
+            tab_unread: TabUnread::All,
         }
     }
 }
@@ -57,4 +60,15 @@ pub enum TabBarSide {
     Bottom,
     Left,
     Right,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum TabUnread {
+    /// New messages, mentions stronger.
+    #[default]
+    All,
+    Mentions,
+    Off,
 }

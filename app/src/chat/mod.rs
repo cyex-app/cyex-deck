@@ -10,9 +10,12 @@ mod mention;
 pub mod points;
 mod send;
 mod session;
+pub mod unread;
 
 pub use send::send;
 pub use session::retry_refused;
+
+use unread::Unread;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -74,6 +77,8 @@ struct Entry {
     outbox: Vec<RoomEvent>,
     /// C21 Last text we sent here, to dodge Twitch's duplicate check.
     last_sent: Option<(String, i64)>,
+    /// U9 News since a view last showed it.
+    unread: Unread,
 }
 
 #[derive(Serialize, TS)]
@@ -140,6 +145,7 @@ pub fn open(
     inner.views.insert(id, (key.clone(), window.to_owned()));
     let entry = inner.rooms.get_mut(&key).expect("inserted above");
     entry.views.push((id, view));
+    let was_unread = std::mem::take(&mut entry.unread) != Unread::Seen;
     let opened = ChatOpened {
         view: id,
         account: match &identity {
@@ -150,6 +156,9 @@ pub fn open(
     };
     let budget_full = entry.room.status == ConnStatus::BudgetFull;
     drop(inner);
+    if was_unread {
+        unread::emit(app, &key, Unread::Seen);
+    }
     if fresh {
         after_join(app, key, budget_full);
     } else {
@@ -182,6 +191,7 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
             views: Vec::new(),
             outbox: Vec::new(),
             last_sent: None,
+            unread: Unread::Seen,
         },
     );
     true
@@ -199,8 +209,9 @@ fn after_join(app: &AppHandle, key: RoomKey, budget_full: bool) {
 
 /// Leaves a room. Returns true if an account's join count changed.
 fn leave(app: &AppHandle, inner: &mut Inner, key: &RoomKey) -> bool {
-    if inner.rooms.remove(key).is_none() {
-        return false;
+    let Some(entry) = inner.rooms.remove(key) else { return false };
+    if entry.unread != Unread::Seen {
+        unread::emit(app, key, Unread::Seen);
     }
     let (identity, login) = key;
     if let Some(s) = inner.sessions.get(identity) {
