@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use cyex_settings::Partition;
 use cyex_settings::schema::Windows;
-use tauri::{AppHandle, LogicalPosition, Manager, WebviewUrl};
+use tauri::{AppHandle, Manager, PhysicalPosition, WebviewUrl};
 
 use super::panels::{PanelRegistry, label_for};
 use crate::icons;
@@ -74,31 +74,35 @@ pub fn open(app: &AppHandle, channel: &str, login: &str) -> tauri::Result<()> {
         .filter(|g| g.width >= MIN_SIZE.0 as u32 && g.height >= MIN_SIZE.1 as u32);
     let (w, h) = saved.map_or(SIZE, |g| (f64::from(g.width), f64::from(g.height)));
     let url = WebviewUrl::App(format!("index.html#/panel/{route}").into());
-    let mut builder = super::builder(app, &label, url)
+    let window = super::builder(app, &label, url)
         .title(login)
         .inner_size(w, h)
         .min_inner_size(MIN_SIZE.0, MIN_SIZE.1)
-        .skip_taskbar(true);
-    builder = match near_cursor(app, w, h) {
-        Some(p) => builder.position(p.x, p.y),
-        None => builder.center(),
-    };
-    let window = builder.build()?;
+        .skip_taskbar(true)
+        .center()
+        .build()?;
+    // Placed in physical pixels while still hidden: the mouse may be on a monitor with
+    // another scale than the one the window was created on, and Windows rescales it
+    // when it moves there.
+    if let Some(p) = near_cursor(app, w, h) {
+        window.set_position(p)?;
+    }
     app.state::<PanelRegistry>().insert(&label, &route);
     icons::apply(&window.as_ref().window());
     window.show()?;
     window.set_focus()
 }
 
-/// Just right of and below the mouse, kept on its monitor.
-fn near_cursor(app: &AppHandle, w: f64, h: f64) -> Option<LogicalPosition<f64>> {
+/// Just right of and below the mouse, kept on its monitor. Physical pixels.
+fn near_cursor(app: &AppHandle, w: f64, h: f64) -> Option<PhysicalPosition<i32>> {
     let cursor = app.cursor_position().ok()?;
     let monitor = app.monitor_from_point(cursor.x, cursor.y).ok().flatten()?;
     let scale = monitor.scale_factor();
-    let c = cursor.to_logical::<f64>(scale);
-    let pos = monitor.position().to_logical::<f64>(scale);
-    let size = monitor.size().to_logical::<f64>(scale);
-    let x = (c.x + 12.0).min(pos.x + size.width - w).max(pos.x);
-    let y = (c.y + 12.0).min(pos.y + size.height - h).max(pos.y);
-    Some(LogicalPosition::new(x, y))
+    let (pos, size) = (monitor.position(), monitor.size());
+    let (w, h) = (w * scale, h * scale);
+    let right = f64::from(pos.x) + f64::from(size.width) - w;
+    let bottom = f64::from(pos.y) + f64::from(size.height) - h;
+    let x = (cursor.x + 12.0 * scale).min(right).max(f64::from(pos.x));
+    let y = (cursor.y + 12.0 * scale).min(bottom).max(f64::from(pos.y));
+    Some(PhysicalPosition::new(x as i32, y as i32))
 }
