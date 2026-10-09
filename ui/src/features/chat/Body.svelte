@@ -18,7 +18,13 @@
     {@const img = emoteImg(f.provider, f.id, theme)}
     <img class="emote" src={img.src} srcset={img.srcset} alt={f.name} data-tip={f.name} loading="lazy" decoding="async" />
   {:else if f.t === 'mention'}<span class="mention" role="link" tabindex="-1" data-user={f.login}>{f.text}</span>
-  {:else if f.t === 'link'}<a class="link" href={f.url} data-link={f.url} data-host={f.host}>{f.text}</a>
+  {:else if f.t === 'link'}<a
+      class="link"
+      href={f.url}
+      data-link={f.url}
+      data-host={f.host}
+      data-target={f.target ? JSON.stringify(f.target) : undefined}>{f.text}</a
+    >
   {:else if f.t === 'cheer'}
     {@const c = catalogs.cheermote(channel, f.prefix)}
     {@const tier = c && cheerTier(c, f.amount)}

@@ -21,4 +21,8 @@ ratio: number,
 /**
  * Height share within its column.
  */
-size: number, };
+size: number, 
+/**
+ * The player's volume, 0 to 1, kept per tile so a muted stream stays muted.
+ */
+volume: number, muted: boolean, };

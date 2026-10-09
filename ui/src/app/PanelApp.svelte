@@ -5,6 +5,7 @@
   import Toasts from '../components/Toasts.svelte';
   import TooltipHost from '../components/TooltipHost.svelte';
   import WindowChrome from '../components/WindowChrome.svelte';
+  import { playerHotkeys } from '../features/player/players.svelte';
   import TabOverlays from '../features/tabs/TabOverlays.svelte';
   import { useHotkeys } from '../lib/hotkeys.svelte';
   import { currentWindow } from '../lib/window.svelte';
@@ -16,7 +17,7 @@
   const panel = $derived(panelFor(route));
 
   useRootEffects();
-  useHotkeys({ 'window.pin': () => currentWindow.togglePin() });
+  useHotkeys({ 'window.pin': () => currentWindow.togglePin(), ...playerHotkeys });
 </script>
 
 <WindowChrome title={titleFor(route)} compact={panel?.compact} />

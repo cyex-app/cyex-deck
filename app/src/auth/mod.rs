@@ -125,11 +125,20 @@ pub fn notify(app: &AppHandle) {
 
 /// The account's usable GQL token and the client ID it was issued to.
 pub fn gql_token(app: &AppHandle, user_id: &str) -> Option<(String, String)> {
+    token(app, user_id, TokenKind::Gql)
+}
+
+/// The account's usable Helix token and the client ID it was issued to.
+pub fn helix_token(app: &AppHandle, user_id: &str) -> Option<(String, String)> {
+    token(app, user_id, TokenKind::Helix)
+}
+
+fn token(app: &AppHandle, user_id: &str, kind: TokenKind) -> Option<(String, String)> {
     let auth = app.state::<Auth>();
     auth.vault
-        .state(user_id, TokenKind::Gql)
+        .state(user_id, kind)
         .usable()
-        .then(|| auth.vault.secret(user_id, TokenKind::Gql))
+        .then(|| auth.vault.secret(user_id, kind))
         .flatten()
         .map(|s| (s.access, s.client_id))
 }

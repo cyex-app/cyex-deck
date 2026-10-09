@@ -16,6 +16,8 @@ const WARM_MS = 400;
 
 let timer: ReturnType<typeof setTimeout> | undefined;
 let lastHidden = 0;
+/** The element the tip shows (or is about to show) for: only it may retitle it. */
+let owner: HTMLElement | null = null;
 
 /** For lists that delegate: one listener on the list instead of one per item. */
 export function showTip(node: HTMLElement, opts: TipOptions): void {
@@ -33,6 +35,7 @@ export function retitleTip(label: string): void {
 
 function show(node: HTMLElement, opts: TipOptions): void {
   clearTimeout(timer);
+  owner = node;
   const delay = performance.now() - lastHidden < WARM_MS ? 0 : SHOW_DELAY_MS;
   timer = setTimeout(() => {
     const r = node.getBoundingClientRect();
@@ -48,6 +51,7 @@ function hide(): void {
   clearTimeout(timer);
   if (tip.visible) lastHidden = performance.now();
   tip.visible = false;
+  owner = null;
 }
 
 /** `use:tooltip={{ label, hint }}` or `use:tooltip={'Label'}`. */
@@ -60,10 +64,10 @@ export function tooltip(node: HTMLElement, initial: TipOptions | string) {
   return {
     update(next: TipOptions | string) {
       opts = typeof next === 'string' ? { label: next } : next;
-      if (tip.visible) tip.label = opts.label;
+      if (tip.visible && owner === node) tip.label = opts.label;
     },
     destroy() {
-      hide();
+      if (owner === node) hide();
       node.removeEventListener('mouseenter', enter);
       node.removeEventListener('mouseleave', hide);
       node.removeEventListener('mousedown', hide);

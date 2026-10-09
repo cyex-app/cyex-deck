@@ -2,6 +2,7 @@
 
 mod accounts;
 mod chat;
+mod player;
 mod settings;
 mod system;
 mod tabs;
@@ -29,6 +30,24 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         chat::chat_user_messages,
         chat::chat_resolve_link,
         chat::user_profile,
+        player::player_live,
+        player::player_vod,
+        player::player_close,
+        player::player_clip,
+        player::player_video,
+        player::player_storyboard,
+        player::player_comments,
+        player::player_position,
+        player::player_save_position,
+        player::player_create_clip,
+        player::player_proxy,
+        player::player_set_proxy,
+        player::channel_about,
+        player::channel_clips,
+        player::channel_videos,
+        player::channel_story_ring,
+        player::channel_stories,
+        player::channel_stories_seen,
         settings::settings_all,
         settings::settings_patch,
         settings::settings_reset,

@@ -6,6 +6,7 @@
 
   import Icon from '../../components/Icon.svelte';
   import { hideTip, retitleTip, showTip } from '../../components/tooltip.svelte';
+  import type { LinkTarget } from '../../ipc/bindings/LinkTarget';
   import { chatIpc } from '../../ipc/chat';
   import { systemIpc } from '../../ipc/system';
   import { settings } from '../../lib/settings.svelte';
@@ -19,9 +20,11 @@
     readKey?: string;
     canReply: boolean;
     onreply: (id: string) => void;
+    /** Twitch clips and VODs open in the app (1.19, 1.20, P7) instead of the browser. */
+    onlink?: (target: LinkTarget) => void;
   }
 
-  let { room, readKey, canReply, onreply }: Props = $props();
+  let { room, readKey, canReply, onreply, onlink }: Props = $props();
 
   const c = $derived(settings.v.chat);
 
@@ -130,6 +133,7 @@
     const d = el.dataset;
     if (d.link) {
       e.preventDefault();
+      if (d.target && onlink) return onlink(JSON.parse(d.target) as LinkTarget);
       systemIpc.openChatLink(d.link).catch((err) => toast.error(String(err)));
     } else if (d.user) {
       chatIpc.openUsercard(room.login, d.user).catch((err) => toast.error(String(err)));

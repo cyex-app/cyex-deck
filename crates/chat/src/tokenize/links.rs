@@ -4,6 +4,8 @@
 
 use url::Url;
 
+use crate::model::LinkTarget;
+
 /// Common TLDs for links typed without a scheme. Sorted for binary search.
 const TLDS: &[&str] = &[
     "ai", "am", "app", "ar", "art", "at", "au", "be", "bio", "biz", "blog", "br", "ca", "cc", "ch",
@@ -25,6 +27,8 @@ pub struct Link<'a> {
     pub tail: &'a str,
     pub url: String,
     pub host: String,
+    /// Twitch clips and VODs open in the app.
+    pub target: Option<LinkTarget>,
 }
 
 pub fn detect(word: &str) -> Option<Link<'_>> {
@@ -57,6 +61,7 @@ pub fn detect(word: &str) -> Option<Link<'_>> {
         lead,
         text,
         tail,
+        target: super::targets::target(&url),
         url: url.into(),
         host,
     })
@@ -116,6 +121,14 @@ mod tests {
         assert_eq!((l.lead, l.text, l.tail), ("(", "twitch.tv", ")"));
         let l = detect("x.com.").unwrap();
         assert_eq!((l.text, l.tail), ("x.com", "."));
+    }
+
+    #[test]
+    fn twitch_links_carry_what_they_open() {
+        let target = |w: &str| detect(w).and_then(|l| l.target);
+        assert!(matches!(target("clips.twitch.tv/Funny-AbC"), Some(LinkTarget::Clip { slug }) if slug == "Funny-AbC"));
+        assert!(matches!(target("twitch.tv/videos/12"), Some(LinkTarget::Video { id, at: 0 }) if id == "12"));
+        assert_eq!(target("twitch.tv/xqc"), None);
     }
 
     #[test]

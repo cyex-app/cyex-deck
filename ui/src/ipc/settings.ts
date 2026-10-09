@@ -12,6 +12,7 @@ import type { Miner } from './bindings/Miner';
 import type { Modview } from './bindings/Modview';
 import type { Notifications } from './bindings/Notifications';
 import type { Partition } from './bindings/Partition';
+import type { Player } from './bindings/Player';
 import type { Tabs } from './bindings/Tabs';
 import type { Windows } from './bindings/Windows';
 
@@ -20,6 +21,7 @@ export interface SettingsValues {
   general: General;
   appearance: Appearance;
   chat: Chat;
+  player: Player;
   highlights: Highlights;
   commands: Commands;
   hotkeys: Hotkeys;

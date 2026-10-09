@@ -1,0 +1,87 @@
+<!-- A channel's videos (1.21): past streams, highlights, uploads. At most 100 signed out. -->
+<script lang="ts">
+  import EmptyState from '../../components/EmptyState.svelte';
+  import Segmented from '../../components/Segmented.svelte';
+  import type { Video } from '../../ipc/bindings/Video';
+  import type { VideoSort } from '../../ipc/bindings/VideoSort';
+  import { channelIpc } from '../../ipc/player';
+  import { formatDate, formatShort } from '../../lib/format';
+  import { clock } from '../player/time';
+  import Card from './Card.svelte';
+
+  let { login, onplay }: { login: string; onplay: (id: string) => void } = $props();
+
+  const KINDS = [
+    { value: 'all', label: 'All' },
+    { value: 'archive', label: 'Past streams' },
+    { value: 'highlight', label: 'Highlights' },
+    { value: 'upload', label: 'Uploads' },
+  ] as const;
+  const SORTS = [
+    { value: 'newest', label: 'Newest' },
+    { value: 'views', label: 'Most viewed' },
+  ] as const;
+
+  let kind = $state<(typeof KINDS)[number]['value']>('all');
+  let sort = $state<VideoSort>('newest');
+  let videos = $state<Video[] | null>(null);
+  let problem = $state<string | null>(null);
+
+  $effect(() => {
+    const [l, k, s] = [login, kind, sort];
+    let alive = true;
+    videos = null;
+    problem = null;
+    channelIpc
+      .videos(l, k === 'all' ? null : k, s)
+      .then((list) => alive && (videos = list))
+      .catch((e) => alive && (problem = String(e)));
+    return () => (alive = false);
+  });
+</script>
+
+<div class="page">
+  <div class="filters">
+    <Segmented label="Kind" options={KINDS} value={kind} onchange={(v) => (kind = v)} />
+    <Segmented label="Order" options={SORTS} value={sort} onchange={(v) => (sort = v)} />
+  </div>
+  {#if problem}
+    <EmptyState icon="alert" text={problem} />
+  {:else if videos && !videos.length}
+    <EmptyState icon="film" text="No videos here." />
+  {:else if videos}
+    <div class="grid">
+      {#each videos as v (v.id)}
+        <Card
+          image={v.thumbnail}
+          title={v.title}
+          sub={[v.game, formatDate(new Date(v.publishedAt))].filter(Boolean).join(' · ')}
+          corner={clock(v.length)}
+          views={`${formatShort(v.views)} views`}
+          badge={v.recording ? 'LIVE' : v.restricted ? 'Subs' : null}
+          onclick={() => onplay(v.id)}
+        />
+      {/each}
+    </div>
+  {/if}
+</div>
+
+<style>
+  .page {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 12px;
+  }
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px 12px;
+  }
+</style>

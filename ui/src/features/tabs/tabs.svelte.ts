@@ -21,14 +21,19 @@ export type LiveState = 'live' | 'rerun' | null;
 export type UnreadState = 'message' | 'mention' | null;
 
 const TAB_ROUTE = 'tab/';
+const CHAT_ROUTE = 'chat/';
 
 export const tabRoute = (id: string) => `${TAB_ROUTE}${id}`;
+/** 1.58 A tile's chat on its own. */
+export const chatRoute = (tileId: string) => `${CHAT_ROUTE}${tileId}`;
 
 class TabsStore {
   /** Last live check, by channel id. */
   live = $state.raw<Record<string, ChannelInfo>>({});
   /** Tabs shown in their own window. */
   popped = $state.raw<Set<string>>(new Set());
+  /** 1.58 Tiles whose chat is in its own window. */
+  chats = $state.raw<Set<string>>(new Set());
   /** U9 Chats with news, by `account/login`. */
   unread = $state.raw<Record<string, Unread>>({});
   /** U10 Something closed can come back. */
@@ -146,6 +151,11 @@ class TabsStore {
     windowsIpc.closePanel(tabRoute(id)).catch((e) => toast.error(String(e)));
   }
 
+  /** 3.14 The chat's window closes; it's back next to the stream. */
+  dockChat(tileId: string): void {
+    windowsIpc.closePanel(chatRoute(tileId)).catch((e) => toast.error(String(e)));
+  }
+
   private setLive(list: ChannelInfo[]): void {
     this.live = Object.fromEntries(list.map((c) => [c.id, c]));
   }
@@ -161,7 +171,9 @@ class TabsStore {
   }
 
   private setPopped(routes: string[]): void {
-    this.popped = new Set(routes.filter((r) => r.startsWith(TAB_ROUTE)).map((r) => r.slice(TAB_ROUTE.length)));
+    const ids = (prefix: string) => new Set(routes.filter((r) => r.startsWith(prefix)).map((r) => r.slice(prefix.length)));
+    this.popped = ids(TAB_ROUTE);
+    this.chats = ids(CHAT_ROUTE);
   }
 }
 

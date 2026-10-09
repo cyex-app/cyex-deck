@@ -10,9 +10,11 @@
     onchange: (ratio: number) => void;
     first: Snippet;
     second: Snippet;
+    /** Folds one pane away without unmounting the other, e.g. a playing stream. */
+    hide?: 'first' | 'second';
   }
 
-  let { direction = 'row', ratio, min = 0.15, onchange, first, second }: Props = $props();
+  let { direction = 'row', ratio, min = 0.15, onchange, first, second, hide }: Props = $props();
 
   let container: HTMLDivElement;
   let dragging = $state(false);
@@ -43,17 +45,21 @@
 </script>
 
 <div class="split {direction}" class:dragging bind:this={container}>
-  <div class="pane" style:flex-basis="{shown * 100}%">{@render first()}</div>
-  <div
-    class="divider"
-    role="separator"
-    aria-orientation={direction === 'row' ? 'vertical' : 'horizontal'}
-    onpointerdown={onPointerDown}
-    onpointermove={onPointerMove}
-    onpointerup={onPointerUp}
-    onpointercancel={onPointerUp}
-  ></div>
-  <div class="pane rest">{@render second()}</div>
+  <div class="pane" class:gone={hide === 'first'} class:rest={hide === 'second'} style:flex-basis="{shown * 100}%">
+    {@render first()}
+  </div>
+  {#if !hide}
+    <div
+      class="divider"
+      role="separator"
+      aria-orientation={direction === 'row' ? 'vertical' : 'horizontal'}
+      onpointerdown={onPointerDown}
+      onpointermove={onPointerMove}
+      onpointerup={onPointerUp}
+      onpointercancel={onPointerUp}
+    ></div>
+  {/if}
+  <div class="pane rest" class:gone={hide === 'second'}>{@render second()}</div>
 </div>
 
 <style>
@@ -75,6 +81,9 @@
   }
   .rest {
     flex: 1;
+  }
+  .gone {
+    display: none;
   }
   .divider {
     flex: none;

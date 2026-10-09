@@ -9,9 +9,10 @@ pub mod gql;
 pub mod helix;
 mod http;
 pub mod id;
-mod random;
+pub mod random;
 pub mod recent;
 pub mod resolver;
+pub mod usher;
 
 pub use error::{Error, Result};
 pub use http::Http;

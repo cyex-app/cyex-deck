@@ -25,6 +25,8 @@ const MAX_ALIAS_CHARS: usize = 60;
 const MAX_GROUP_NAME_CHARS: usize = 40;
 /// 3.11 Chat's share of a tile that also shows the stream.
 pub const DEFAULT_RATIO: f32 = 0.28;
+/// A player's starting volume, 0 to 1.
+pub const DEFAULT_VOLUME: f32 = 0.5;
 const RATIO_RANGE: (f32, f32) = (0.1, 0.9);
 /// U3 Relative sizes of columns and tiles.
 const SIZE_RANGE: (f32, f32) = (0.05, 20.0);
@@ -42,6 +44,8 @@ pub struct Tabs {
     pub last_show: TileShow,
     /// 3.11 Last chat share set by the user. New tiles start from it.
     pub last_ratio: f32,
+    /// Last volume set in a player. New tiles start from it.
+    pub last_volume: f32,
 }
 
 impl Default for Tabs {
@@ -52,6 +56,7 @@ impl Default for Tabs {
             active: None,
             last_show: TileShow::default(),
             last_ratio: DEFAULT_RATIO,
+            last_volume: DEFAULT_VOLUME,
         }
     }
 }
@@ -108,6 +113,9 @@ pub struct Tile {
     pub ratio: f32,
     /// Height share within its column.
     pub size: f32,
+    /// The player's volume, 0 to 1, kept per tile so a muted stream stays muted.
+    pub volume: f32,
+    pub muted: bool,
 }
 
 impl Default for Tile {
@@ -119,6 +127,8 @@ impl Default for Tile {
             account: None,
             ratio: DEFAULT_RATIO,
             size: 1.0,
+            volume: DEFAULT_VOLUME,
+            muted: false,
         }
     }
 }
@@ -279,6 +289,7 @@ impl Schema for Tabs {
             self.active = None;
         }
         self.last_ratio = clamp(self.last_ratio, RATIO_RANGE, DEFAULT_RATIO);
+        self.last_volume = clamp(self.last_volume, (0.0, 1.0), DEFAULT_VOLUME);
         if !self.last_show.player && !self.last_show.chat {
             self.last_show.chat = true;
         }
@@ -291,6 +302,7 @@ fn sanitize_tile(tile: &mut Tile) {
     }
     tile.ratio = clamp(tile.ratio, RATIO_RANGE, DEFAULT_RATIO);
     tile.size = clamp(tile.size, SIZE_RANGE, 1.0);
+    tile.volume = clamp(tile.volume, (0.0, 1.0), DEFAULT_VOLUME);
     tile.channel.login = tile.channel.login.trim().to_ascii_lowercase();
     if tile.channel.name.trim().is_empty() {
         tile.channel.name = tile.channel.login.clone();

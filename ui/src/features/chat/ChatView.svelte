@@ -6,6 +6,7 @@
   import { tooltip } from '../../components/tooltip.svelte';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import type { ConnStatus } from '../../ipc/bindings/ConnStatus';
+  import type { LinkTarget } from '../../ipc/bindings/LinkTarget';
   import { chatIpc } from '../../ipc/chat';
   import { formatDuration } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
@@ -27,9 +28,11 @@
     actions?: Snippet;
     onheaderdown?: (e: PointerEvent) => void;
     onsignin?: () => void;
+    /** Clips and VODs linked in chat open here (1.19, 1.20, P7). */
+    onlink?: (target: LinkTarget) => void;
   }
 
-  let { login, name, account, readKey, actions, onheaderdown, onsignin = () => {} }: Props = $props();
+  let { login, name, account, readKey, actions, onheaderdown, onsignin = () => {}, onlink }: Props = $props();
 
   // A chat view shows one channel for its whole life; a different one is a new view.
   // svelte-ignore state_referenced_locally
@@ -95,7 +98,7 @@
     </p>
   {/if}
   {#if room.pinned}<PinnedBanner pin={room.pinned} channel={login} />{/if}
-  <MessageList {room} {readKey} canReply={room.account !== null} onreply={reply} />
+  <MessageList {room} {readKey} canReply={room.account !== null} onreply={reply} {onlink} />
   <ChatInput {room} bind:replyTo {onsignin} />
 </section>
 

@@ -5,8 +5,9 @@
 import type { Component } from 'svelte';
 
 import SettingsView from '../features/settings/SettingsView.svelte';
+import ChatPanel from '../features/tabs/ChatPanel.svelte';
 import TabPanel from '../features/tabs/TabPanel.svelte';
-import { label, tabs } from '../features/tabs/tabs.svelte';
+import { label, tabs, tiles } from '../features/tabs/tabs.svelte';
 import UsercardView from '../features/usercard/UsercardView.svelte';
 import { windowsIpc } from '../ipc/windows';
 import { toast } from '../lib/toast.svelte';
@@ -23,6 +24,7 @@ export interface PanelKind {
 export const PANELS: Record<string, PanelKind> = {
   settings: { title: 'Settings', width: 820, height: 620, component: SettingsView },
   tab: { title: 'Tab', width: 420, height: 680, component: TabPanel },
+  chat: { title: 'Chat', width: 380, height: 680, component: ChatPanel },
   usercard: { title: 'User', width: 340, height: 480, compact: true, component: UsercardView },
 };
 
@@ -36,6 +38,10 @@ export function titleFor(route: string): string {
   if (kind === 'tab' && a) {
     const tab = tabs.tab(a);
     if (tab) return label(tab);
+  }
+  if (kind === 'chat' && a) {
+    const tile = tabs.list.flatMap(tiles).find((t) => t.id === a);
+    if (tile) return `${tile.channel.name} chat`;
   }
   if (kind === 'usercard' && b) return b;
   return PANELS[kind]?.title ?? 'cyex';

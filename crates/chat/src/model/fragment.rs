@@ -26,6 +26,8 @@ pub enum Fragment {
         text: String,
         url: String,
         host: String,
+        /// Twitch clips and VODs open in the app.
+        target: Option<LinkTarget>,
     },
     /// Bits: `cheer100`.
     Cheer {
@@ -37,6 +39,17 @@ pub enum Fragment {
         id: String,
         url: String,
     },
+}
+
+/// What a Twitch link opens in the app.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+#[ts(export)]
+pub enum LinkTarget {
+    /// 1.19, 1.20
+    Clip { slug: String },
+    /// P7 `at`: seconds to start from.
+    Video { id: String, at: u32 },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]

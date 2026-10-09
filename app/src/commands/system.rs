@@ -8,7 +8,7 @@ type CmdResult<T> = Result<T, String>;
 
 /// Hosts the UI may open. Everything else is refused, so a bad link in chat or a token
 /// field can't launch arbitrary URLs.
-const ALLOWED_HOSTS: [&str; 3] = ["twitch.tv", "www.twitch.tv", "dev.twitch.tv"];
+const ALLOWED_HOSTS: [&str; 4] = ["twitch.tv", "www.twitch.tv", "dev.twitch.tv", "clips.twitch.tv"];
 
 #[tauri::command]
 pub fn system_open_link(app: AppHandle, url: String) -> CmdResult<()> {

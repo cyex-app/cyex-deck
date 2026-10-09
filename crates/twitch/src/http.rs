@@ -11,13 +11,23 @@ pub struct Http(pub(crate) reqwest::Client);
 
 impl Http {
     pub fn new() -> Result<Self> {
-        let client = reqwest::Client::builder()
+        Self::build(None)
+    }
+
+    /// P10 Everything through an HTTP proxy, e.g. `http://user:pass@host:8080`.
+    pub fn with_proxy(url: &str) -> Result<Self> {
+        Self::build(Some(url))
+    }
+
+    fn build(proxy: Option<&str>) -> Result<Self> {
+        let mut builder = reqwest::Client::builder()
             .user_agent(concat!("cyex-viewer/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(Duration::from_secs(10))
-            .timeout(Duration::from_secs(20))
-            .build()
-            .map_err(Error::Network)?;
-        Ok(Self(client))
+            .timeout(Duration::from_secs(20));
+        if let Some(url) = proxy {
+            builder = builder.proxy(reqwest::Proxy::all(url).map_err(Error::Network)?);
+        }
+        builder.build().map(Self).map_err(Error::Network)
     }
 }
 

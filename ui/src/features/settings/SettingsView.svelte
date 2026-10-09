@@ -11,6 +11,7 @@
   import DataSection from './sections/DataSection.svelte';
   import GeneralSection from './sections/GeneralSection.svelte';
   import HotkeysSection from './sections/HotkeysSection.svelte';
+  import PlayerSection from './sections/PlayerSection.svelte';
   import WindowsSection from './sections/WindowsSection.svelte';
 
   interface Props {
@@ -29,6 +30,7 @@
     { id: 'accounts', label: 'Accounts', icon: 'user', component: AccountsSection },
     { id: 'appearance', label: 'Appearance', icon: 'palette', component: AppearanceSection },
     { id: 'chat', label: 'Chat', icon: 'chat', component: ChatSection },
+    { id: 'player', label: 'Player', icon: 'tv', component: PlayerSection },
     { id: 'hotkeys', label: 'Hotkeys', icon: 'keyboard', component: HotkeysSection },
     { id: 'windows', label: 'Windows', icon: 'layout', component: WindowsSection },
     { id: 'data', label: 'Backup and sharing', icon: 'archive', component: DataSection },

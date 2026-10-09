@@ -3,6 +3,7 @@
 
 mod moderation;
 mod privmsg;
+pub mod replay;
 pub mod sender;
 mod state;
 mod usernotice;

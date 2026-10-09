@@ -1,6 +1,7 @@
 <!-- Main window: title bar with the fixed views and the channel tabs (02), the tab bar on
      the side set in Settings (U5), then the view or tab on screen. -->
 <script lang="ts">
+  import { listen } from '@tauri-apps/api/event';
   import { untrack } from 'svelte';
 
   import IconButton from '../components/IconButton.svelte';
@@ -19,7 +20,9 @@
   import TabBar from '../features/tabs/TabBar.svelte';
   import TabOverlays from '../features/tabs/TabOverlays.svelte';
   import TabView from '../features/tabs/TabView.svelte';
-  import { tabs } from '../features/tabs/tabs.svelte';
+  import { openTarget, playerHotkeys } from '../features/player/players.svelte';
+  import { tabs, tiles } from '../features/tabs/tabs.svelte';
+  import type { LinkTarget } from '../ipc/bindings/LinkTarget';
   import { chatIpc } from '../ipc/chat';
   import { useHotkeys } from '../lib/hotkeys.svelte';
   import { settings } from '../lib/settings.svelte';
@@ -64,10 +67,23 @@
     'tabs.reopen': () => void tabs.reopen().then((id) => id && open(id)),
     'tabs.next': () => step(1),
     'tabs.prev': () => step(-1),
+    ...playerHotkeys,
   });
 
   $effect(() => {
     const off = chatIpc.onMention(() => mentionChime());
+    return () => void off.then((f) => f());
+  });
+
+  // 1.58 A clip or VOD linked in a popped-out chat opens with the stream here.
+  $effect(() => {
+    const off = listen<{ tile: string; target: LinkTarget }>('tile:link', (e) => {
+      const tab = tabs.tabOf(e.payload.tile);
+      const tile = tab && tiles(tab).find((t) => t.id === e.payload.tile);
+      if (!tab || !tile) return;
+      openTarget(tile, e.payload.target);
+      if (!tabs.popped.has(tab.id)) open(tab.id);
+    });
     return () => void off.then((f) => f());
   });
 

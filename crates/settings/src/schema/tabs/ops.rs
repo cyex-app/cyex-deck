@@ -55,6 +55,8 @@ pub enum TabOp {
     },
     /// 3.11 Chat's share of the tile.
     Ratio { tile: String, ratio: f32 },
+    /// The tile's player volume.
+    Sound { tile: String, volume: f32, muted: bool },
     /// U5 `None` takes the tabs out of their group.
     Group { tabs: Vec<String>, group: Option<String> },
     NewGroup {
@@ -148,6 +150,8 @@ impl Tabs {
                     account,
                     ratio: self.last_ratio,
                     size: 1.0,
+                    volume: self.last_volume,
+                    muted: false,
                 };
                 let i = self.tab_index(&tab_id)?;
                 let size = average_width(&self.tabs[i]);
@@ -262,6 +266,13 @@ impl Tabs {
                 let at = self.locate(&tile)?;
                 self.tile_mut(at).ratio = ratio;
                 self.last_ratio = ratio;
+                Ok(None)
+            }
+            TabOp::Sound { tile, volume, muted } => {
+                let at = self.locate(&tile)?;
+                let t = self.tile_mut(at);
+                (t.volume, t.muted) = (volume, muted);
+                self.last_volume = volume;
                 Ok(None)
             }
             TabOp::Group { tabs, group } => {
@@ -738,6 +749,12 @@ mod tests {
             },
         );
         assert_eq!((t.tabs[0].columns[0].tiles[0].ratio, t.last_ratio), (0.4, 0.4));
+
+        apply(&mut t, TabOp::Sound { tile: "a-1".into(), volume: 0.8, muted: true });
+        let tile = &t.tabs[0].columns[0].tiles[0];
+        assert_eq!((tile.volume, tile.muted, t.last_volume), (0.8, true, 0.8));
+        apply(&mut t, TabOp::Sound { tile: "a-1".into(), volume: 7.0, muted: false });
+        assert_eq!(t.tabs[0].columns[0].tiles[0].volume, 1.0, "clamped");
     }
 
     #[test]

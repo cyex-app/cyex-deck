@@ -758,6 +758,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "cyex-player"
+version = "0.1.0"
+dependencies = [
+ "cyex-twitch",
+ "serde",
+ "time",
+ "tokio",
+ "ts-rs",
+]
+
+[[package]]
 name = "cyex-settings"
 version = "0.1.0"
 dependencies = [
@@ -774,6 +785,8 @@ dependencies = [
 name = "cyex-twitch"
 version = "0.1.0"
 dependencies = [
+ "cyex-core",
+ "keyring",
  "reqwest",
  "serde",
  "serde_json",
@@ -790,6 +803,7 @@ dependencies = [
  "cyex-auth",
  "cyex-chat",
  "cyex-core",
+ "cyex-player",
  "cyex-settings",
  "cyex-twitch",
  "serde",

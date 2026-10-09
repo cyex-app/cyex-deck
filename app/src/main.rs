@@ -7,6 +7,7 @@ mod chat;
 mod commands;
 mod connections;
 mod icons;
+mod player;
 mod settings;
 mod tabs;
 mod tray;
@@ -22,6 +23,7 @@ fn main() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .register_asynchronous_uri_scheme_protocol(player::SCHEME, player::handle)
         .setup(|app| {
             let handle = app.handle();
             settings::init(handle)?;
@@ -29,6 +31,7 @@ fn main() {
             auth::init(handle)?;
             chat::init(handle);
             tabs::init(handle);
+            player::init(handle);
             windows::init(handle)?;
             tray::init(handle)?;
             Ok(())

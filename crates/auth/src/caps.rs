@@ -27,6 +27,8 @@ pub enum Feature {
     ModView,
     StreamManager,
     MassbanHelix,
+    /// P9
+    Clips,
     // GQL
     Follow,
     Points,
@@ -56,7 +58,7 @@ const MOD_FEEDS: &[&str] = &[
 ];
 
 impl Feature {
-    pub const ALL: [Feature; 23] = [
+    pub const ALL: [Feature; 24] = [
         Feature::SendChat,
         Feature::FollowedList,
         Feature::ChatColor,
@@ -67,6 +69,7 @@ impl Feature {
         Feature::ModView,
         Feature::StreamManager,
         Feature::MassbanHelix,
+        Feature::Clips,
         Feature::Follow,
         Feature::Points,
         Feature::BadgePicker,
@@ -87,7 +90,7 @@ impl Feature {
         match self {
             SendChat => Tier::Either,
             FollowedList | ChatColor | Bio | Whispers | Blocks | ModTools | ModView
-            | StreamManager | MassbanHelix => Tier::Helix,
+            | StreamManager | MassbanHelix | Clips => Tier::Helix,
             _ => Tier::Gql,
         }
     }
@@ -105,6 +108,7 @@ impl Feature {
             ModTools | MassbanHelix => &["moderator:manage:banned_users", "moderator:manage:chat_messages"],
             ModView => MOD_FEEDS,
             StreamManager => &["channel:manage:broadcast"],
+            Clips => &["clips:edit"],
             _ => &[],
         }
     }

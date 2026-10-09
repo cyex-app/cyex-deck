@@ -14,6 +14,7 @@ cyex-settings.workspace = true
 cyex-twitch.workspace = true
 cyex-auth.workspace = true
 cyex-chat.workspace = true
+cyex-player.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 time.workspace = true

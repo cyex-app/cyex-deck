@@ -13,6 +13,9 @@ export const ACTIONS = {
   'tabs.reopen': { label: 'Reopen closed tab', default: 'Ctrl+Shift+T' },
   'tabs.next': { label: 'Next tab', default: 'Ctrl+Tab' },
   'tabs.prev': { label: 'Previous tab', default: 'Ctrl+Shift+Tab' },
+  'player.playPause': { label: 'Play or pause', default: 'Space' },
+  'player.mute': { label: 'Mute', default: 'M' },
+  'player.fullscreen': { label: 'Fullscreen', default: 'F' },
 } as const satisfies Record<string, { label: string; default: string }>;
 
 export type ActionId = keyof typeof ACTIONS;
@@ -70,8 +73,9 @@ function isTyping(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA)$/.test(target.tagName));
 }
 
-/** Runs the handlers for their bound combos while the calling component is mounted. */
-export function useHotkeys(handlers: Partial<Record<ActionId, () => void>>): void {
+/** Runs the handlers for their bound combos while the calling component is mounted. A
+ *  handler that returns `false` leaves the key to the page, e.g. Space on a button. */
+export function useHotkeys(handlers: Partial<Record<ActionId, () => unknown>>): void {
   $effect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (recording.active) return;
@@ -81,10 +85,7 @@ export function useHotkeys(handlers: Partial<Record<ActionId, () => void>>): voi
       if (isTyping(e.target) && !/^(Ctrl|Alt)\+/.test(combo)) return;
       const id = actionFor(combo);
       const run = id && handlers[id];
-      if (run) {
-        e.preventDefault();
-        run();
-      }
+      if (run && run() !== false) e.preventDefault();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

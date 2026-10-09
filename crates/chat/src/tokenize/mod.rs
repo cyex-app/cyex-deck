@@ -3,6 +3,7 @@
 
 mod links;
 mod ranges;
+mod targets;
 
 pub use links::detect as detect_link;
 
@@ -140,6 +141,7 @@ impl Builder<'_> {
                 text: link.text.to_owned(),
                 url: link.url,
                 host: link.host,
+                target: link.target,
             });
             self.pending.push_str(link.tail);
             return;
@@ -267,7 +269,8 @@ mod tests {
                 Fragment::Link {
                     text: "twitch.tv/bar".into(),
                     url: "https://twitch.tv/bar".into(),
-                    host: "twitch.tv".into()
+                    host: "twitch.tv".into(),
+                    target: None,
                 },
                 Fragment::text("."),
             ]

@@ -25,6 +25,54 @@ async fn chat_catalogs() {
 
 #[tokio::test]
 #[ignore = "network"]
+async fn channel_pages() {
+    use gql::{ClipPeriod, ClipSort, VideoSort};
+    let http = Http::new().unwrap();
+    let about = gql::about(&http, "zackrawrr").await.unwrap().unwrap();
+    println!(
+        "about: {} followers, {} socials, {} panels, last {:?}",
+        about.followers,
+        about.socials.len(),
+        about.panels.len(),
+        about.last_stream.as_ref().map(|l| &l.started_at)
+    );
+    assert!(about.followers > 0);
+    let clips = gql::channel_clips(&http, "zackrawrr", ClipPeriod::Week, ClipSort::Views).await.unwrap();
+    println!("clips: {}", clips.len());
+    let slug = &clips.first().expect("a clip this week").slug;
+    let play = gql::clip(&http, slug).await.unwrap().unwrap();
+    println!("clip: {} {:?} vod {:?}", play.clip.title, play.qualities.iter().map(|q| q.height).collect::<Vec<_>>(), play.vod_id);
+    assert!(play.qualities[0].url.contains("sig="));
+    let videos = gql::channel_videos(&http, "zackrawrr", None, VideoSort::Newest).await.unwrap();
+    println!("videos: {} first {:?}", videos.len(), videos.first().map(|v| (&v.title, v.kind, v.recording)));
+    let one = gql::video(&http, &videos[0].id).await.unwrap().unwrap();
+    assert_eq!(one.channel_login, "zackrawrr");
+}
+
+#[tokio::test]
+#[ignore = "network"]
+async fn playback() {
+    use cyex_twitch::usher;
+    use gql::{Auth, Player};
+    let http = Http::new().unwrap();
+    let ids: Vec<String> = ["71092938", "207813352", "121059319", "26261471"].map(String::from).to_vec();
+    let live = gql::channels_by_ids(&http, &ids).await.unwrap();
+    let login = &live.iter().find(|c| c.stream.is_some()).expect("one of them live").login;
+    let token = gql::stream_token(&http, Auth::PUBLIC, None, login, Player::SITE).await.unwrap();
+    let master = usher::text(&http, &usher::live_url(login, &token, "h264")).await.unwrap();
+    assert!(master.starts_with("#EXTM3U") && master.contains("#EXT-X-STREAM-INF"));
+    let media_url = master.lines().find(|l| l.starts_with("https://")).unwrap();
+    let media = usher::text(&http, media_url).await.unwrap();
+    println!("{login}: {} lines, prefetch {}", media.lines().count(), media.contains("PREFETCH"));
+    assert!(media.contains("#EXTINF"));
+
+    let offline = gql::stream_token(&http, Auth::PUBLIC, None, "twitch", Player::SITE).await.unwrap();
+    let err = usher::text(&http, &usher::live_url("twitch", &offline, "h264")).await;
+    println!("offline: {:?}", err.as_ref().map_err(|e| e.api_message()));
+}
+
+#[tokio::test]
+#[ignore = "network"]
 async fn tab_channels() {
     let http = Http::new().unwrap();
     let ids: Vec<String> = ["71092938", "44445592", "1"].map(String::from).to_vec();

@@ -1,7 +1,9 @@
 //! Helix (api.twitch.tv/helix). One file per endpoint group.
 
+mod clips;
 mod users;
 
+pub use clips::{CreatedClip, create_clip};
 pub use users::{User, users_by_id};
 
 use reqwest::RequestBuilder;
@@ -26,6 +28,13 @@ struct Data<T> {
 fn get(http: &Http, auth: Auth<'_>, path: &str) -> RequestBuilder {
     http.0
         .get(format!("{BASE}{path}"))
+        .header("Client-Id", auth.client_id)
+        .bearer_auth(auth.token)
+}
+
+fn post(http: &Http, auth: Auth<'_>, path: &str) -> RequestBuilder {
+    http.0
+        .post(format!("{BASE}{path}"))
         .header("Client-Id", auth.client_id)
         .bearer_auth(auth.token)
 }

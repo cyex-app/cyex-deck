@@ -19,4 +19,8 @@ lastShow: TileShow,
 /**
  * 3.11 Last chat share set by the user. New tiles start from it.
  */
-lastRatio: number, };
+lastRatio: number, 
+/**
+ * Last volume set in a player. New tiles start from it.
+ */
+lastVolume: number, };

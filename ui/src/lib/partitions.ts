@@ -5,6 +5,7 @@ export const PARTITION_LABELS: Record<Partition, string> = {
   general: 'General',
   appearance: 'Appearance',
   chat: 'Chat',
+  player: 'Player',
   highlights: 'Highlights',
   commands: 'Commands',
   hotkeys: 'Hotkeys',

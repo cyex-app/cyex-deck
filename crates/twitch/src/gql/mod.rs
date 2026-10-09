@@ -1,13 +1,23 @@
 //! GQL (gql.twitch.tv), Twitch's private API. Can change without notice. Persisted query
 //! hashes live next to the operation that uses them; raw queries are used where they work.
 
+mod about;
 mod channels;
 mod chat;
+mod clips;
+mod comments;
 mod follows;
+mod playback;
 mod points;
+mod stories;
 mod users;
+mod videos;
 
+pub use about::{About, LastStream, Panel, Social, about};
 pub use channels::{ChannelInfo, StreamInfo, channels_by_ids, lookup};
+pub use clips::{Clip, ClipPeriod, ClipPlayback, ClipQuality, ClipSort, channel_clips, clip};
+pub use comments::{Comment, comments};
+pub use videos::{Storyboard, Video, VideoKind, VideoSort, channel_videos, storyboard, video};
 
 pub use chat::{
     BadgeInfo, ChannelChat, CheerTier, Cheermote, GlobalChat, PinFragment, PinSender, PinnedMessage, channel_chat,
@@ -18,6 +28,8 @@ pub use points::{
     unlock_random_emote,
 };
 pub use follows::{follow, is_following, unfollow};
+pub use playback::{AccessToken, Player, stream_token, video_token};
+pub use stories::{Story, StoryRing, mark_seen, stories, story_ring};
 pub use users::{GqlUser, Profile, profile, user_by_id};
 
 use std::sync::OnceLock;
@@ -70,7 +82,22 @@ pub(crate) async fn query<T: DeserializeOwned>(
     query: &str,
     variables: Value,
 ) -> Result<T> {
-    let req = request(http, auth).json(&json!({ "query": query, "variables": variables }));
+    query_with(http, auth, &[], query, variables).await
+}
+
+/// Runs a raw query with extra headers.
+pub(crate) async fn query_with<T: DeserializeOwned>(
+    http: &Http,
+    auth: Auth<'_>,
+    headers: &[(&str, &str)],
+    query: &str,
+    variables: Value,
+) -> Result<T> {
+    let mut req = request(http, auth);
+    for (k, v) in headers {
+        req = req.header(*k, *v);
+    }
+    let req = req.json(&json!({ "query": query, "variables": variables }));
     unwrap(send_json(req).await?)
 }
 
