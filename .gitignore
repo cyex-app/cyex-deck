@@ -1,0 +1,15 @@
+# Build output
+/target/
+/ui/node_modules/
+/ui/dist/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Local noise
+*.log
+.DS_Store
+Thumbs.db
+.claude/settings.local.json
