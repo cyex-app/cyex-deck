@@ -17,7 +17,7 @@
 </script>
 
 {#if src && !failed}
-  <img class="avatar" {src} alt="" width={size} height={size} referrerpolicy="no-referrer" onerror={() => (failed = true)} />
+  <img class="avatar" {src} alt="" width={size} height={size} loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror={() => (failed = true)} />
 {:else}
   <span class="avatar letter" style:width="{size}px" style:height="{size}px" style:font-size="{Math.round(size * 0.45)}px">
     {name.slice(0, 1).toUpperCase()}

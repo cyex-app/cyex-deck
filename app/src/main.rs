@@ -3,6 +3,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod auth;
+mod browse;
 mod chat;
 mod commands;
 mod connections;
@@ -32,6 +33,7 @@ fn main() {
             chat::init(handle);
             tabs::init(handle);
             player::init(handle);
+            browse::init(handle);
             windows::init(handle)?;
             tray::init(handle)?;
             Ok(())

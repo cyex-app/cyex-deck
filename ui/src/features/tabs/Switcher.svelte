@@ -1,11 +1,16 @@
-<!-- U1 Quick switcher (Ctrl+K): jump to a tab or view, or open any channel. -->
+<!-- U1 Quick switcher (Ctrl+K): jump to a tab or view, or open any channel. Followed
+     channels (1.6) show once something is typed. -->
 <script lang="ts">
+  import { onMount } from 'svelte';
+
   import Icon from '../../components/Icon.svelte';
   import type { IconName } from '../../components/icons';
   import type { Tab } from '../../ipc/bindings/Tab';
   import { tabsIpc } from '../../ipc/tabs';
   import { accounts } from '../../lib/accounts.svelte';
   import { toast } from '../../lib/toast.svelte';
+  import { openChannel } from '../browse/open.svelte';
+  import { home } from '../home/home.svelte';
   import { openAdd } from './dialog.svelte';
   import { label, tabs, tiles } from './tabs.svelte';
 
@@ -36,7 +41,11 @@
   let index = $state(0);
   let field = $state<HTMLInputElement>();
 
+  /** Followed channels shown at most. */
+  const FOLLOWED = 8;
+
   $effect(() => field?.focus());
+  onMount(() => home.ensure());
 
   const choices = $derived.by((): Choice[] => {
     const q = query.trim().toLowerCase();
@@ -55,10 +64,29 @@
     const views = VIEWS.filter((v) => q && matches(v.label)).map(
       (v): Choice => ({ key: v.view, label: v.label, icon: v.icon, run: () => onview(v.view) }),
     );
-    const open: Choice[] = q
-      ? [{ key: '+', label: `Open ${query.trim()}`, hint: 'New tab', icon: 'plus', run: () => void openChannel() }]
+    const inTabs = new Set(tabs.list.flatMap((t) => tiles(t).map((x) => x.channel.id)));
+    const followed = q
+      ? (home.follows ?? [])
+          .filter((c) => !inTabs.has(c.id) && (matches(c.login) || matches(c.name)))
+          .sort((a, b) => (b.stream?.viewers ?? -1) - (a.stream?.viewers ?? -1))
+          .slice(0, FOLLOWED)
+          .map(
+            (c): Choice => ({
+              key: `f${c.id}`,
+              label: c.name,
+              hint: c.stream ? (c.stream.game?.name ?? 'Live') : 'Followed',
+              live: c.stream ? (c.stream.rerun ? 'rerun' : 'live') : null,
+              icon: c.stream ? undefined : 'heart',
+              run: () => void openChannel({ show: onopen, account: () => home.account }, c),
+            }),
+          )
       : [];
-    return [...tabChoices, ...views, ...open];
+    const exact = followed.some((c) => c.label.toLowerCase() === q);
+    const open: Choice[] =
+      q && !exact
+        ? [{ key: '+', label: `Open ${query.trim()}`, hint: 'New tab', icon: 'plus', run: () => void openTyped() }]
+        : [];
+    return [...tabChoices, ...followed, ...views, ...open];
   });
 
   $effect(() => {
@@ -73,7 +101,7 @@
     return stream ? (stream.game ?? 'Live') : undefined;
   }
 
-  async function openChannel() {
+  async function openTyped() {
     const input = query.trim();
     onclose();
     try {

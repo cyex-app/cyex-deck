@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 
 import type { Accounts } from './bindings/Accounts';
 import type { Appearance } from './bindings/Appearance';
+import type { Browse } from './bindings/Browse';
 import type { Chat } from './bindings/Chat';
 import type { Commands } from './bindings/Commands';
 import type { General } from './bindings/General';
@@ -26,6 +27,7 @@ export interface SettingsValues {
   commands: Commands;
   hotkeys: Hotkeys;
   tabs: Tabs;
+  browse: Browse;
   accounts: Accounts;
   miner: Miner;
   modview: Modview;

@@ -21,6 +21,13 @@ pub enum TabOp {
         alias: Option<String>,
         into: Option<String>,
     },
+    /// H3 Several channels side by side in one new tab, as a grid. Only the first plays
+    /// sound. Shows it. New single tabs keep starting from `last_show`.
+    AddMany {
+        channels: Vec<TabChannel>,
+        show: TileShow,
+        account: Option<String>,
+    },
     /// 1.18 Another channel, stream/chat choice or account for a tile.
     Edit {
         tile: String,
@@ -101,6 +108,10 @@ const GONE_TAB: TabError = TabError("That tab is closed.");
 const GONE_TILE: TabError = TabError("That channel isn't open anymore.");
 const GONE_GROUP: TabError = TabError("That group is gone.");
 const NO_TABS: TabError = TabError("Pick at least one tab.");
+const NO_CHANNELS: TabError = TabError("Pick at least one channel.");
+
+/// H3 A 3 by 3 grid at most.
+pub const MAX_MULTI: usize = 9;
 
 /// Where a tile sits.
 #[derive(Clone, Copy, Debug)]
@@ -159,6 +170,40 @@ impl Tabs {
                 self.last_show = show;
                 self.active = Some(tab_id.clone());
                 Ok(Some(tab_id))
+            }
+            TabOp::AddMany {
+                channels,
+                show,
+                account,
+            } => {
+                if channels.is_empty() {
+                    return Err(NO_CHANNELS);
+                }
+                let id = self.fresh(new_id);
+                let count = channels.len().min(MAX_MULTI);
+                let mut columns = vec![Column::default(); grid_columns(count)];
+                let width = columns.len();
+                for (i, channel) in channels.into_iter().take(MAX_MULTI).enumerate() {
+                    let tile = Tile {
+                        id: self.fresh(new_id),
+                        channel,
+                        show,
+                        account: account.clone(),
+                        ratio: self.last_ratio,
+                        size: 1.0,
+                        volume: self.last_volume,
+                        muted: i > 0,
+                    };
+                    columns[i % width].tiles.push(tile);
+                }
+                self.tabs.push(Tab {
+                    id: id.clone(),
+                    alias: None,
+                    group: None,
+                    columns,
+                });
+                self.active = Some(id.clone());
+                Ok(Some(id))
             }
             TabOp::Edit {
                 tile,
@@ -444,6 +489,15 @@ impl Tabs {
 }
 
 /// A new column's width: the average of the others, so it gets a fair share.
+/// H3 Up to three side by side, then a square-ish grid filled row by row.
+fn grid_columns(count: usize) -> usize {
+    if count <= 3 {
+        count
+    } else {
+        (count as f64).sqrt().ceil() as usize
+    }
+}
+
 pub(super) fn average_width(tab: &Tab) -> f32 {
     if tab.columns.is_empty() {
         return 1.0;
@@ -508,6 +562,38 @@ mod tests {
         let tile = &t.tabs[1].columns[0].tiles[0];
         assert_ne!(tile.id, id);
         assert_eq!(tile.account.as_deref(), Some("me"));
+    }
+
+    #[test]
+    fn adding_many_makes_a_grid() {
+        let mut t = tabs(&["a"]);
+        let many = |logins: &[&str]| TabOp::AddMany {
+            channels: logins.iter().map(|l| channel(l)).collect(),
+            show: TileShow {
+                player: true,
+                chat: false,
+            },
+            account: None,
+        };
+        let id = apply(&mut t, many(&["x", "y", "z"])).unwrap();
+        assert_eq!(t.active.as_deref(), Some(id.as_str()));
+        assert_eq!(layout(t.tab(&id).unwrap()), [["x"], ["y"], ["z"]]);
+        let muted: Vec<bool> = t.tab(&id).unwrap().tiles().map(|x| x.muted).collect();
+        assert_eq!(muted, [false, true, true]);
+        assert!(t.last_show.chat);
+
+        let id = apply(&mut t, many(&["1", "2", "3", "4", "5"])).unwrap();
+        assert_eq!(
+            layout(t.tab(&id).unwrap()),
+            [vec!["1", "4"], vec!["2", "5"], vec!["3"]]
+        );
+        let id = apply(&mut t, many(&["1", "2", "3", "4"])).unwrap();
+        assert_eq!(layout(t.tab(&id).unwrap()), [["1", "3"], ["2", "4"]]);
+        let lots: Vec<String> = (0..12).map(|i| i.to_string()).collect();
+        let lots: Vec<&str> = lots.iter().map(String::as_str).collect();
+        let id = apply(&mut t, many(&lots)).unwrap();
+        assert_eq!(t.tab(&id).unwrap().tiles().count(), MAX_MULTI);
+        assert_eq!(t.apply(many(&[]), &mut counter()), Err(NO_CHANNELS));
     }
 
     #[test]

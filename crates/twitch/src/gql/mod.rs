@@ -2,21 +2,26 @@
 //! hashes live next to the operation that uses them; raw queries are used where they work.
 
 mod about;
+mod cards;
 mod channels;
 mod chat;
 mod clips;
 mod comments;
+mod directory;
 mod follows;
 mod playback;
 mod points;
+mod search;
 mod stories;
 mod users;
 mod videos;
 
 pub use about::{About, LastStream, Panel, Social, about};
+pub use cards::{Category, ChannelCard, GameRef, LiveStream, Page, cards};
 pub use channels::{ChannelInfo, StreamInfo, channels_by_ids, lookup};
 pub use clips::{Clip, ClipPeriod, ClipPlayback, ClipQuality, ClipSort, channel_clips, clip};
 pub use comments::{Comment, comments};
+pub use directory::{CategoryStreams, StreamFilter, StreamSort, category, top_categories, top_streams};
 pub use videos::{Storyboard, Video, VideoKind, VideoSort, channel_videos, storyboard, video};
 
 pub use chat::{
@@ -27,8 +32,9 @@ pub use points::{
     AutoReward, CustomReward, Points, Redeemed, balance, redeem_custom, send_highlighted, send_in_sub_mode,
     unlock_random_emote,
 };
-pub use follows::{follow, is_following, unfollow};
+pub use follows::{follow, followed_categories, followed_ids, followed_live, is_following, unfollow};
 pub use playback::{AccessToken, Player, stream_token, video_token};
+pub use search::{SearchResults, search, search_channels};
 pub use stories::{Story, StoryRing, mark_seen, stories, story_ring};
 pub use users::{GqlUser, Profile, profile, user_by_id};
 

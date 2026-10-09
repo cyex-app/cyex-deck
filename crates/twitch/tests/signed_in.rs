@@ -84,3 +84,38 @@ async fn stories_and_signed_in_playback() {
         }
     }
 }
+
+/// Reads the account's follows, live follows and followed categories. Prints counts only.
+#[tokio::test]
+#[ignore = "network, signed in"]
+async fn follows() {
+    let http = Http::new().unwrap();
+    let (token, client_id) = gql_sign_in();
+    let auth = Auth {
+        client_id: &client_id,
+        token: Some(&token),
+    };
+    let ids = gql::followed_ids(&http, auth).await.unwrap().unwrap();
+    let cards = gql::cards(&http, &ids).await.unwrap();
+    let live = gql::followed_live(&http, auth).await.unwrap().unwrap();
+    let games = gql::followed_categories(&http, auth).await.unwrap();
+    println!(
+        "follows {} (cards {}, live in cards {}), live {}, never live {}, categories {}",
+        ids.len(),
+        cards.len(),
+        cards.iter().filter(|c| c.stream.is_some()).count(),
+        live.len(),
+        cards.iter().filter(|c| c.last_live.is_none()).count(),
+        games.len()
+    );
+    // Whether a signed-in token gets past the paging check signed-out requests fail.
+    let top = gql::top_streams(&http, auth, &gql::StreamFilter::default(), None)
+        .await
+        .unwrap();
+    let next = gql::top_streams(&http, auth, &gql::StreamFilter::default(), top.cursor.as_deref()).await;
+    println!(
+        "top streams page 2 signed in: {:?}",
+        next.map(|p| p.items.len())
+            .map_err(|e| e.api_message().map(str::to_owned))
+    );
+}

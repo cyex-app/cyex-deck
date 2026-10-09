@@ -86,3 +86,112 @@ async fn tab_channels() {
     let none = gql::lookup(&http, "id:1").await.unwrap();
     println!("id 1: {:?}", none.first().map(|c| &c.login));
 }
+
+#[tokio::test]
+#[ignore = "network"]
+async fn discover() {
+    use gql::{Auth, StreamFilter, StreamSort};
+    let http = Http::new().unwrap();
+    let all = StreamFilter::default();
+    let top = gql::top_streams(&http, Auth::PUBLIC, &all, None).await.unwrap();
+    assert!(top.items.len() > 20 && top.cursor.is_some());
+    let first = &top.items[0];
+    println!(
+        "top: {} streams, first {} {:?}",
+        top.items.len(),
+        first.login,
+        first.stream.as_ref().map(|s| s.viewers)
+    );
+    // Signed out, Twitch serves only the first page.
+    let next = gql::top_streams(&http, Auth::PUBLIC, &all, top.cursor.as_deref()).await;
+    println!(
+        "page 2 signed out: {:?}",
+        next.as_ref()
+            .map(|p| p.items.len())
+            .map_err(|e| e.api_message().map(str::to_owned))
+    );
+
+    let german = StreamFilter {
+        sort: StreamSort::Recent,
+        languages: vec!["DE".into()],
+        tag: None,
+    };
+    let de = gql::top_streams(&http, Auth::PUBLIC, &german, None)
+        .await
+        .unwrap();
+    println!("newest german: {}", de.items.len());
+    let tagged = StreamFilter {
+        tag: Some("vtuber".into()),
+        ..StreamFilter::default()
+    };
+    let vt = gql::top_streams(&http, Auth::PUBLIC, &tagged, None)
+        .await
+        .unwrap();
+    assert!(vt.items.iter().all(|c| {
+        c.stream
+            .as_ref()
+            .unwrap()
+            .tags
+            .iter()
+            .any(|t| t.eq_ignore_ascii_case("vtuber"))
+    }));
+
+    let cats = gql::top_categories(&http, Auth::PUBLIC, None).await.unwrap();
+    assert!(cats.items.len() > 50);
+    let slug = &cats.items[0].slug;
+    let cat = gql::category(&http, Auth::PUBLIC, slug, &all, None)
+        .await
+        .unwrap()
+        .unwrap();
+    println!(
+        "{}: {} viewers, {} streams",
+        cat.category.name,
+        cat.category.viewers,
+        cat.streams.items.len()
+    );
+    assert!(
+        cat.streams
+            .items
+            .iter()
+            .all(|c| c.stream.as_ref().unwrap().game.as_ref().unwrap().slug == *slug)
+    );
+    assert!(
+        gql::category(&http, Auth::PUBLIC, "no-such-category-x9", &all, None)
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    let found = gql::search(&http, Auth::PUBLIC, "chess").await.unwrap();
+    println!(
+        "search chess: {} channels, {} categories",
+        found.channels.items.len(),
+        found.categories.len()
+    );
+    let slugs: Vec<&str> = found.categories.iter().take(3).map(|c| c.slug.as_str()).collect();
+    println!("categories: {slugs:?}");
+    assert!(found.categories.iter().any(|c| c.name == "Chess"));
+    let more = gql::search_channels(
+        &http,
+        Auth::PUBLIC,
+        "chess",
+        found.channels.cursor.as_deref().unwrap(),
+    )
+    .await
+    .unwrap();
+    assert!(!more.items.is_empty());
+    assert!(
+        more.items
+            .iter()
+            .all(|c| !found.channels.items.iter().any(|f| f.id == c.id))
+    );
+
+    let ids = vec![
+        "71092938".to_owned(),
+        "999999999999".to_owned(),
+        "12826".to_owned(),
+    ];
+    let cards = gql::cards(&http, &ids).await.unwrap();
+    assert_eq!(cards.len(), 2);
+    println!("xqc last live {:?}", cards[0].last_live);
+}

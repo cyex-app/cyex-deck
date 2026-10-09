@@ -3,4 +3,4 @@
 /**
  * One settings file each. Export and import work per partition (2.9).
  */
-export type Partition = "general" | "appearance" | "chat" | "player" | "highlights" | "commands" | "hotkeys" | "tabs" | "accounts" | "miner" | "modview" | "notifications" | "windows";
+export type Partition = "general" | "appearance" | "chat" | "player" | "highlights" | "commands" | "hotkeys" | "tabs" | "browse" | "accounts" | "miner" | "modview" | "notifications" | "windows";

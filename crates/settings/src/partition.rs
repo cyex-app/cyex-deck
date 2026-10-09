@@ -17,6 +17,7 @@ pub enum Partition {
     Commands,
     Hotkeys,
     Tabs,
+    Browse,
     Accounts,
     Miner,
     Modview,
@@ -25,7 +26,7 @@ pub enum Partition {
 }
 
 impl Partition {
-    pub const ALL: [Partition; 13] = [
+    pub const ALL: [Partition; 14] = [
         Partition::General,
         Partition::Appearance,
         Partition::Chat,
@@ -34,6 +35,7 @@ impl Partition {
         Partition::Commands,
         Partition::Hotkeys,
         Partition::Tabs,
+        Partition::Browse,
         Partition::Accounts,
         Partition::Miner,
         Partition::Modview,
@@ -51,6 +53,7 @@ impl Partition {
             Partition::Commands => "commands",
             Partition::Hotkeys => "hotkeys",
             Partition::Tabs => "tabs",
+            Partition::Browse => "browse",
             Partition::Accounts => "accounts",
             Partition::Miner => "miner",
             Partition::Modview => "modview",
@@ -85,6 +88,7 @@ impl Partition {
             Partition::Commands => roundtrip::<schema::Commands>(value),
             Partition::Hotkeys => roundtrip::<schema::Hotkeys>(value),
             Partition::Tabs => roundtrip::<schema::Tabs>(value),
+            Partition::Browse => roundtrip::<schema::Browse>(value),
             Partition::Accounts => roundtrip::<schema::Accounts>(value),
             Partition::Miner => roundtrip::<schema::Miner>(value),
             Partition::Modview => roundtrip::<schema::Modview>(value),

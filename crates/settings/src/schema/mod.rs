@@ -3,6 +3,7 @@
 
 mod accounts;
 mod appearance;
+mod browse;
 mod chat;
 mod commands;
 mod general;
@@ -17,6 +18,7 @@ mod windows;
 
 pub use accounts::{Account, Accounts, TokenMeta, TokenSource};
 pub use appearance::{Appearance, TabBarSide, TabDensity, TabUnread};
+pub use browse::{Browse, HomeLayout, LiveSort, OfflineSort};
 pub use chat::{
     BadgeToggles, Chat, DeletedStyle, GifMode, NameStyle, PaintToggles, PauseKey, Timestamps, UnlistedEmotes, UserNote,
 };

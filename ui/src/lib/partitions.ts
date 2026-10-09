@@ -10,6 +10,7 @@ export const PARTITION_LABELS: Record<Partition, string> = {
   commands: 'Commands',
   hotkeys: 'Hotkeys',
   tabs: 'Tabs',
+  browse: 'Home and discover',
   accounts: 'Accounts',
   miner: 'Miner',
   modview: 'Mod view',

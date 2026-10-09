@@ -1,9 +1,11 @@
 //! Helix (api.twitch.tv/helix). One file per endpoint group.
 
 mod clips;
+mod follows;
 mod users;
 
 pub use clips::{CreatedClip, create_clip};
+pub use follows::{followed_ids, followed_live_ids};
 pub use users::{User, users_by_id};
 
 use reqwest::RequestBuilder;

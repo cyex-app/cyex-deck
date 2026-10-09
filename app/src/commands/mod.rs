@@ -1,6 +1,7 @@
 //! IPC commands, one file per area. Names are `<area>_<verb>`.
 
 mod accounts;
+mod browse;
 mod chat;
 mod player;
 mod settings;
@@ -20,6 +21,14 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         accounts::accounts_set_default,
         accounts::accounts_set_client_id,
         accounts::connections_counts,
+        browse::home_follows,
+        browse::home_channels,
+        browse::discover_streams,
+        browse::discover_categories,
+        browse::discover_category,
+        browse::discover_search,
+        browse::discover_search_more,
+        browse::discover_followed_categories,
         chat::chat_open,
         chat::chat_close,
         chat::chat_send,

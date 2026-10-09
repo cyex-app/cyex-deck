@@ -161,11 +161,11 @@
         {/key}
       {/if}
     {:else if fixed === 'discover'}
-      <DiscoverView />
+      <DiscoverView onopen={open} />
     {:else if fixed === 'settings'}
       <SettingsView onpopout={popOutSettings} bind:section={settingsSection} />
     {:else}
-      <HomeView />
+      <HomeView onopen={open} ondiscover={() => show('discover')} onsignin={manageAccounts} />
     {/if}
   </main>
 </div>

@@ -8,7 +8,7 @@ use ts_rs::TS;
 pub enum Tier {
     Helix,
     Gql,
-    /// Helix with the scopes, or any GQL token (first-party tokens work on IRC).
+    /// Helix with the scopes, or any GQL token.
     Either,
 }
 
@@ -18,6 +18,7 @@ pub enum Tier {
 pub enum Feature {
     // Helix
     SendChat,
+    /// 1.6 Home. GQL works too.
     FollowedList,
     ChatColor,
     Bio,
@@ -88,8 +89,8 @@ impl Feature {
     pub fn tier(self) -> Tier {
         use Feature::*;
         match self {
-            SendChat => Tier::Either,
-            FollowedList | ChatColor | Bio | Whispers | Blocks | ModTools | ModView
+            SendChat | FollowedList => Tier::Either,
+            ChatColor | Bio | Whispers | Blocks | ModTools | ModView
             | StreamManager | MassbanHelix | Clips => Tier::Helix,
             _ => Tier::Gql,
         }
