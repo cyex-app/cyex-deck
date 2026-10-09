@@ -1,6 +1,6 @@
 //! Chat data from GQL (1.9, 1.40): badges and cheermotes, global once per run and per
 //! channel on join; reward names for redemptions; the pinned message, checked every
-//! minute while a chat is open (live pin updates come with Hermes in phase 9).
+//! minute while a chat is on screen (live pin updates come with Hermes in phase 9).
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -138,11 +138,26 @@ pub fn load_for_room(app: AppHandle, key: RoomKey) {
     });
 }
 
+/// A view opened on a room that was joined already: its pin may be old.
+pub fn refresh_pin_now(app: AppHandle, key: RoomKey) {
+    tauri::async_runtime::spawn(async move {
+        if let Some(c) = cached(&app, &key.1) {
+            refresh_pin(&app, &key, &c.channel_id).await;
+        }
+    });
+}
+
+/// Rooms on screen only. Tabs in the background catch up when shown.
 async fn poll_pins(app: &AppHandle) {
     let rooms: Vec<RoomKey> = {
         let chat = app.state::<Chat>();
         let inner = chat.lock();
-        inner.rooms.keys().cloned().collect()
+        inner
+            .rooms
+            .iter()
+            .filter(|(_, e)| !e.views.is_empty())
+            .map(|(k, _)| k.clone())
+            .collect()
     };
     for key in rooms {
         if let Some(c) = cached(app, &key.1) {

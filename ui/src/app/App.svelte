@@ -1,50 +1,68 @@
-<!-- Main window: title bar with the fixed tabs and open chats, then the active view.
-     The chat list here is a stand-in until phase 4 brings real channel tabs. -->
+<!-- Main window: title bar with the fixed views and the channel tabs (02), the tab bar on
+     the side set in Settings (U5), then the view or tab on screen. -->
 <script lang="ts">
+  import { untrack } from 'svelte';
+
   import IconButton from '../components/IconButton.svelte';
-  import Icon from '../components/Icon.svelte';
-  import Popover from '../components/Popover.svelte';
+  import MenuHost from '../components/MenuHost.svelte';
   import Toasts from '../components/Toasts.svelte';
   import TooltipHost from '../components/TooltipHost.svelte';
   import WindowChrome from '../components/WindowChrome.svelte';
   import AccountMenu from '../features/accounts/AccountMenu.svelte';
   import ConnectionCounter from '../features/accounts/ConnectionCounter.svelte';
-  import ChatView from '../features/chat/ChatView.svelte';
   import DiscoverView from '../features/discover/DiscoverView.svelte';
   import HomeView from '../features/home/HomeView.svelte';
   import SettingsView from '../features/settings/SettingsView.svelte';
+  import { openAdd } from '../features/tabs/dialog.svelte';
+  import PoppedOut from '../features/tabs/PoppedOut.svelte';
+  import Switcher from '../features/tabs/Switcher.svelte';
+  import TabBar from '../features/tabs/TabBar.svelte';
+  import TabOverlays from '../features/tabs/TabOverlays.svelte';
+  import TabView from '../features/tabs/TabView.svelte';
+  import { tabs } from '../features/tabs/tabs.svelte';
   import { chatIpc } from '../ipc/chat';
-  import { accounts } from '../lib/accounts.svelte';
   import { useHotkeys } from '../lib/hotkeys.svelte';
+  import { settings } from '../lib/settings.svelte';
   import { mentionChime } from '../lib/sound';
-  import { toast } from '../lib/toast.svelte';
   import { currentWindow } from '../lib/window.svelte';
   import { popOut } from './panels';
   import { useRootEffects } from './root.svelte';
 
-  interface OpenChat {
-    key: string;
-    login: string;
-    account: string | null;
-  }
+  type Fixed = 'home' | 'discover' | 'settings';
 
-  let view = $state('home');
+  /** A fixed view, or `null` while a tab shows. */
+  let fixed = $state<Fixed | null>(tabs.active ? null : 'home');
+  /** The tab picked here, shown before Rust confirms it as the active one. */
+  let picked = $state<string | null>(tabs.active);
   let settingsSection = $state('general');
-  let chats = $state<OpenChat[]>([]);
-  let adding = $state(false);
-  let newLogin = $state('');
-  let addField = $state<HTMLInputElement>();
+  let switcher = $state(false);
 
+  const side = $derived(settings.v.appearance.tabBarSide);
+  const current = $derived(fixed ? null : tabs.tab(picked) ? picked : tabs.active);
+  const tab = $derived(tabs.tab(current));
+
+  // Follow the active tab when an edit moves it, e.g. closing the shown tab.
   $effect(() => {
-    if (adding) addField?.focus();
+    const active = tabs.active;
+    if (active) untrack(() => (picked = active));
+  });
+
+  // The last tab closed: back to home.
+  $effect(() => {
+    if (!fixed && !tab) fixed = 'home';
   });
 
   useRootEffects();
   useHotkeys({
-    'nav.home': () => (view = 'home'),
-    'nav.discover': () => (view = 'discover'),
-    'settings.open': () => (view = 'settings'),
+    'nav.home': () => show('home'),
+    'nav.discover': () => show('discover'),
+    'settings.open': () => show('settings'),
     'window.pin': () => currentWindow.togglePin(),
+    'tabs.switcher': () => (switcher = true),
+    'tabs.new': () => openAdd(),
+    'tabs.close': () => current && tabs.close([current]),
+    'tabs.next': () => step(1),
+    'tabs.prev': () => step(-1),
   });
 
   $effect(() => {
@@ -52,37 +70,33 @@
     return () => void off.then((f) => f());
   });
 
+  function show(view: Fixed) {
+    fixed = view;
+    tabs.activate(null);
+  }
+
+  function open(id: string) {
+    picked = id;
+    fixed = null;
+    tabs.activate(id);
+  }
+
+  /** Next or previous visible tab, wrapping around. */
+  function step(by: number) {
+    const list = tabs.list.filter((t) => !tabs.group(t.group)?.collapsed || t.id === current);
+    if (!list.length) return;
+    const at = list.findIndex((t) => t.id === current);
+    const next = at < 0 ? (by > 0 ? 0 : list.length - 1) : (at + by + list.length) % list.length;
+    open(list[next].id);
+  }
+
   function manageAccounts() {
     settingsSection = 'accounts';
-    view = 'settings';
+    show('settings');
   }
 
   async function popOutSettings() {
-    if (await popOut('settings')) view = 'home';
-  }
-
-  function openChat(e: SubmitEvent) {
-    e.preventDefault();
-    const login = newLogin.trim().replace(/^#/, '').toLowerCase();
-    if (!/^\w{1,25}$/.test(login)) {
-      toast.error('That isn’t a Twitch channel name.');
-      return;
-    }
-    const account = accounts.current?.userId ?? null;
-    const key = `${login}/${account ?? 'anon'}`;
-    if (!chats.some((c) => c.key === key)) chats.push({ key, login, account });
-    view = `chat:${key}`;
-    newLogin = '';
-    adding = false;
-  }
-
-  function closeChat(key: string) {
-    chats = chats.filter((c) => c.key !== key);
-    if (view === `chat:${key}`) view = 'home';
-  }
-
-  async function popOutChat(c: OpenChat) {
-    if (await popOut(`chat/${c.key}`, c.login)) closeChat(c.key);
+    if (await popOut('settings')) show('home');
   }
 </script>
 
@@ -93,56 +107,57 @@
         icon="house"
         label="Home"
         hint="Channels you follow, live ones first."
-        active={view === 'home'}
-        onclick={() => (view = 'home')}
+        active={fixed === 'home'}
+        onclick={() => show('home')}
       />
       <IconButton
         icon="compass"
         label="Discover"
         hint="Find new streams and categories."
-        active={view === 'discover'}
-        onclick={() => (view = 'discover')}
+        active={fixed === 'discover'}
+        onclick={() => show('discover')}
       />
     </nav>
-    <nav class="chats">
-      {#each chats as c (c.key)}
-        <div class="chat-tab" class:active={view === `chat:${c.key}`}>
-          <button class="open" onclick={() => (view = `chat:${c.key}`)}>{c.login}</button>
-          <button class="x" aria-label="Close {c.login}" onclick={() => closeChat(c.key)}><Icon name="x" size={12} /></button>
-        </div>
-      {/each}
-      <div class="add">
-        <IconButton icon="plus" label="Open a chat" size={15} onclick={() => (adding = !adding)} />
-        <Popover bind:open={adding} align="start">
-          <form class="add-form" onsubmit={openChat}>
-            <input class="field" placeholder="Channel name" bind:value={newLogin} bind:this={addField} />
-          </form>
-        </Popover>
-      </div>
-    </nav>
+    {#if side === 'top'}<TabBar {current} onopen={open} />{/if}
   {/snippet}
   {#snippet end()}
+    <IconButton icon="search" label="Go to" hint="Jump to a tab or open a channel (Ctrl+K)." onclick={() => (switcher = true)} />
     <ConnectionCounter />
     <AccountMenu onmanage={manageAccounts} />
-    <IconButton icon="settings" label="Settings" active={view === 'settings'} onclick={() => (view = 'settings')} />
+    <IconButton icon="settings" label="Settings" active={fixed === 'settings'} onclick={() => show('settings')} />
   {/snippet}
 </WindowChrome>
 
-<main>
-  {#each chats as c (c.key)}
-    <div class="chat-view" class:hidden={view !== `chat:${c.key}`}>
-      <ChatView login={c.login} account={c.account} onpopout={() => popOutChat(c)} onsignin={manageAccounts} />
+<div class="body {side}">
+  {#if side !== 'top'}
+    <div class="side-bar">
+      <TabBar vertical={side !== 'bottom'} {current} onopen={open} />
     </div>
-  {/each}
-  {#if view === 'home'}
-    <HomeView />
-  {:else if view === 'discover'}
-    <DiscoverView />
-  {:else if view === 'settings'}
-    <SettingsView onpopout={popOutSettings} bind:section={settingsSection} />
   {/if}
-</main>
+  <main>
+    {#if tab}
+      {#if tabs.popped.has(tab.id)}
+        <PoppedOut {tab} />
+      {:else}
+        {#key tab.id}
+          <TabView {tab} onsignin={manageAccounts} />
+        {/key}
+      {/if}
+    {:else if fixed === 'discover'}
+      <DiscoverView />
+    {:else if fixed === 'settings'}
+      <SettingsView onpopout={popOutSettings} bind:section={settingsSection} />
+    {:else}
+      <HomeView />
+    {/if}
+  </main>
+</div>
 
+{#if switcher}
+  <Switcher onopen={open} onview={show} onclose={() => (switcher = false)} />
+{/if}
+<TabOverlays onopen={open} />
+<MenuHost />
 <TooltipHost />
 <Toasts />
 
@@ -154,66 +169,36 @@
     margin-right: 4px;
     border-right: 1px solid var(--border);
   }
-  .chats {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    min-width: 0;
-  }
-  .chat-tab {
-    display: flex;
-    align-items: center;
-    height: 28px;
-    border-radius: var(--radius);
-  }
-  .chat-tab:hover {
-    background: var(--surface-hover);
-  }
-  .chat-tab.active {
-    background: var(--accent-dim);
-    color: var(--accent-text);
-  }
-  .chat-tab .open {
-    padding: 0 4px 0 10px;
-    background: none;
-    border: 0;
-    font-weight: 600;
-  }
-  .chat-tab .x {
-    display: grid;
-    place-items: center;
-    width: 20px;
-    height: 20px;
-    margin-right: 4px;
-    padding: 0;
-    background: none;
-    border: 0;
-    border-radius: var(--radius);
-    color: var(--dim);
-  }
-  .chat-tab .x:hover {
-    color: var(--text);
-  }
-  .add {
-    position: relative;
-  }
-  .add-form {
-    padding: 4px;
-  }
-  .add-form .field {
-    width: 100%;
-  }
-  main {
+  .body {
     flex: 1;
     display: flex;
     min-height: 0;
   }
-  .chat-view {
-    flex: 1;
-    min-width: 0;
-    display: flex;
+  .body.right {
+    flex-direction: row-reverse;
   }
-  .hidden {
-    display: none;
+  .body.bottom {
+    flex-direction: column-reverse;
+  }
+  .side-bar {
+    display: flex;
+    min-height: 0;
+    background: var(--bg);
+  }
+  .left .side-bar {
+    border-right: 1px solid var(--border);
+  }
+  .right .side-bar {
+    border-left: 1px solid var(--border);
+  }
+  .bottom .side-bar {
+    padding: 3px 6px;
+    border-top: 1px solid var(--border);
+  }
+  main {
+    flex: 1;
+    display: flex;
+    min-width: 0;
+    min-height: 0;
   }
 </style>

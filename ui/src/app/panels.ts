@@ -4,8 +4,9 @@
 
 import type { Component } from 'svelte';
 
-import ChatPanel from '../features/chat/ChatPanel.svelte';
 import SettingsView from '../features/settings/SettingsView.svelte';
+import TabPanel from '../features/tabs/TabPanel.svelte';
+import { label, tabs } from '../features/tabs/tabs.svelte';
 import UsercardView from '../features/usercard/UsercardView.svelte';
 import { windowsIpc } from '../ipc/windows';
 import { toast } from '../lib/toast.svelte';
@@ -21,7 +22,7 @@ export interface PanelKind {
 
 export const PANELS: Record<string, PanelKind> = {
   settings: { title: 'Settings', width: 820, height: 620, component: SettingsView },
-  chat: { title: 'Chat', width: 380, height: 640, component: ChatPanel },
+  tab: { title: 'Tab', width: 420, height: 680, component: TabPanel },
   usercard: { title: 'User', width: 340, height: 480, compact: true, component: UsercardView },
 };
 
@@ -29,10 +30,13 @@ export function panelFor(route: string): PanelKind | undefined {
   return PANELS[route.split('/')[0]];
 }
 
-/** Window title for a route, e.g. the channel name for a chat. */
+/** Window title for a route, e.g. the tab's name. */
 export function titleFor(route: string): string {
   const [kind, a, b] = route.split('/');
-  if (kind === 'chat' && a) return a;
+  if (kind === 'tab' && a) {
+    const tab = tabs.tab(a);
+    if (tab) return label(tab);
+  }
   if (kind === 'usercard' && b) return b;
   return PANELS[kind]?.title ?? 'cyex';
 }

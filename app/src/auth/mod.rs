@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use cyex_auth::secrets::KeyringStore;
-use cyex_auth::{AccountView, Vault, client_id, views};
+use cyex_auth::{AccountView, TokenKind, Vault, client_id, views};
 use cyex_settings::Partition;
 use cyex_settings::schema::Accounts;
 use cyex_twitch::Http;
@@ -120,6 +120,18 @@ pub fn notify(app: &AppHandle) {
     let _ = app.emit(CHANGED_EVENT, snapshot(app));
     crate::connections::notify(app);
     crate::chat::retry_refused(app);
+    crate::tabs::on_accounts_changed(app);
+}
+
+/// The account's usable GQL token and the client ID it was issued to.
+pub fn gql_token(app: &AppHandle, user_id: &str) -> Option<(String, String)> {
+    let auth = app.state::<Auth>();
+    auth.vault
+        .state(user_id, TokenKind::Gql)
+        .usable()
+        .then(|| auth.vault.secret(user_id, TokenKind::Gql))
+        .flatten()
+        .map(|s| (s.access, s.client_id))
 }
 
 /// After settings were restored from a backup: re-read tokens for the restored list.

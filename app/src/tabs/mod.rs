@@ -1,0 +1,63 @@
+//! Channel tabs (spec 02) wired to Tauri: edits from any window, the chat rooms tabs keep
+//! joined (1.10), live dots and renamed channels (1.15, 1.29), following (1.11). The tab
+//! model and its rules live in `cyex_settings::schema::tabs`.
+
+pub mod follow;
+mod live;
+mod rooms;
+
+pub use live::snapshot as live;
+
+use cyex_settings::Partition;
+use cyex_settings::schema::{TabOp, Tabs, random_id};
+use serde::Serialize;
+use tauri::{AppHandle, Manager};
+use ts_rs::TS;
+
+use crate::settings::Settings;
+
+pub fn init(app: &AppHandle) {
+    rooms::sync(app);
+    live::spawn(app);
+}
+
+/// The tabs partition changed, from any window, an import or a restored backup.
+pub fn on_changed(app: &AppHandle) {
+    rooms::sync(app);
+    live::nudge(app);
+}
+
+/// Accounts changed: a removed account's tabs now read anonymously.
+pub fn on_accounts_changed(app: &AppHandle) {
+    rooms::sync(app);
+}
+
+/// What an edit made, and the list after it, so the window that asked can show it
+/// right away (the `settings:changed` event follows).
+#[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TabsApplied {
+    /// The id of a new tab or group.
+    pub made: Option<String>,
+    pub tabs: Tabs,
+}
+
+pub fn apply(app: &AppHandle, op: TabOp) -> Result<TabsApplied, String> {
+    let settings = app.state::<Settings>();
+    let mut outcome = Ok(None);
+    settings.update::<Tabs>(app, Partition::Tabs, |t| match t.apply(op, &mut random_id) {
+        Ok(made) => {
+            outcome = Ok(made);
+            true
+        }
+        Err(e) => {
+            outcome = Err(e.to_string());
+            false
+        }
+    })?;
+    Ok(TabsApplied {
+        made: outcome?,
+        tabs: settings.read(Partition::Tabs),
+    })
+}

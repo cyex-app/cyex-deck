@@ -12,6 +12,9 @@ import type { RoomState } from '../../ipc/bindings/RoomState';
  * Rust keeps 500 per room for usercards. */
 export const MAX_LINES = 200;
 
+/** C5 Last message seen per tile, for the last-read line after switching tabs. */
+export const readMarks = new Map<string, string>();
+
 const EMPTY_STATE: RoomState = {
   channelId: null,
   slow: 0,

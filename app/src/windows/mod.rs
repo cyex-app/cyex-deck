@@ -6,7 +6,7 @@ mod panels;
 mod usercard;
 
 pub use layouts::{apply_layout, delete_layout, save_layout};
-pub use panels::{PanelRegistry, open_panel, route_of};
+pub use panels::{PanelRegistry, close as close_panel, open_panel, route_of, routes as panel_routes};
 pub use usercard::open as open_usercard;
 
 use cyex_core::color::Theme;

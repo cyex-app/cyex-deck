@@ -1,0 +1,54 @@
+<script lang="ts">
+  import Icon from './Icon.svelte';
+
+  interface Props {
+    checked: boolean;
+    label: string;
+    disabled?: boolean;
+    onchange: (checked: boolean) => void;
+  }
+
+  let { checked, label, disabled = false, onchange }: Props = $props();
+</script>
+
+<label class="check" class:disabled>
+  <input type="checkbox" {checked} {disabled} onchange={(e) => onchange(e.currentTarget.checked)} />
+  <span class="box">{#if checked}<Icon name="check" size={12} />{/if}</span>
+  {label}
+</label>
+
+<style>
+  .check {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+  }
+  .disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .box {
+    display: grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--accent-ink);
+  }
+  input:checked + .box {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  input:focus-visible + .box {
+    outline: 2px solid var(--accent-border);
+    outline-offset: 2px;
+  }
+</style>

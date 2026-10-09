@@ -1,7 +1,7 @@
 <!-- Profile picture with a letter fallback when there's none or it fails to load. -->
 <script lang="ts">
   interface Props {
-    src: string;
+    src: string | null | undefined;
     name: string;
     size?: number;
   }

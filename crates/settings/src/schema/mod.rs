@@ -26,7 +26,7 @@ pub use hotkeys::Hotkeys;
 pub use miner::Miner;
 pub use modview::Modview;
 pub use notifications::Notifications;
-pub use tabs::Tabs;
+pub use tabs::{Column, GroupColor, Resolved, Tab, TabChannel, TabError, TabGroup, TabOp, Tabs, Tile, TileShow, Zone, random_id};
 pub use windows::{Geometry, Layout, PanelWindow, Windows};
 
 use serde::Serialize;

@@ -22,3 +22,19 @@ async fn chat_catalogs() {
     let lines = recent::recent_messages(&http, "twitch").await.unwrap();
     assert!(lines.iter().all(|l| l.contains("historical=1")));
 }
+
+#[tokio::test]
+#[ignore = "network"]
+async fn tab_channels() {
+    let http = Http::new().unwrap();
+    let ids: Vec<String> = ["71092938", "44445592", "1"].map(String::from).to_vec();
+    let list = gql::channels_by_ids(&http, &ids).await.unwrap();
+    assert!(list.iter().any(|c| c.login == "xqc"));
+    println!("live: {:?}", list.iter().map(|c| (&c.login, c.stream.is_some())).collect::<Vec<_>>());
+    let found = gql::lookup(&http, "https://www.twitch.tv/pokimane").await.unwrap();
+    assert_eq!(found[0].id, "44445592");
+    let both = gql::lookup(&http, "71092938").await.unwrap();
+    assert_eq!(both.len(), 2);
+    let none = gql::lookup(&http, "id:1").await.unwrap();
+    println!("id 1: {:?}", none.first().map(|c| &c.login));
+}

@@ -4,6 +4,7 @@ mod accounts;
 mod chat;
 mod settings;
 mod system;
+mod tabs;
 mod theme;
 mod windows;
 
@@ -41,10 +42,18 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         settings::settings_take_load_report,
         system::system_open_link,
         system::system_open_chat_link,
+        tabs::tabs_apply,
+        tabs::tabs_lookup,
+        tabs::tabs_live,
+        tabs::channel_following,
+        tabs::channel_follow,
         theme::theme_accent_tokens,
         windows::window_info,
         windows::window_set_pinned,
+        windows::window_set_title,
         windows::window_open_panel,
+        windows::window_close_panel,
+        windows::window_panels,
         windows::window_open_usercard,
         windows::layout_save,
         windows::layout_apply,

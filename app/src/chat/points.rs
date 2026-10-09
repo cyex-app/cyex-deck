@@ -1,12 +1,11 @@
 //! Channel points as a viewer (1.9): the rewards menu and redeeming, with the account's
 //! GQL token.
 
-use cyex_auth::TokenKind;
 use cyex_twitch::gql::{self, Points, Redeemed};
 use tauri::{AppHandle, Manager};
 
 use super::{Chat, Identity, catalog};
-use crate::auth::Auth;
+use crate::auth::{Auth, gql_token};
 
 /// What the chat a view shows belongs to: channel login and the reading account.
 fn view_key(app: &AppHandle, view: u32) -> Result<(String, Option<String>), String> {
@@ -18,17 +17,6 @@ fn view_key(app: &AppHandle, view: u32) -> Result<(String, Option<String>), Stri
         Identity::Anon => None,
     };
     Ok((login, account))
-}
-
-/// The account's GQL token and its client ID.
-fn gql_token(app: &AppHandle, user_id: &str) -> Option<(String, String)> {
-    let auth = app.state::<Auth>();
-    auth.vault
-        .state(user_id, TokenKind::Gql)
-        .usable()
-        .then(|| auth.vault.secret(user_id, TokenKind::Gql))
-        .flatten()
-        .map(|s| (s.access, s.client_id))
 }
 
 /// Rewards right now, plus the balance when the account has a GQL token.

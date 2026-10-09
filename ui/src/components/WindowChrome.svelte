@@ -27,7 +27,8 @@
   {:else}
     <span class="title" data-tauri-drag-region>{title}</span>
   {/if}
-  <div class="fill" data-tauri-drag-region></div>
+  <!-- Also where a dragged tile becomes its own tab (U3). -->
+  <div class="fill" data-tauri-drag-region data-drop-bar></div>
   {#if end}<div class="end">{@render end()}</div>{/if}
   <div class="controls">
     <IconButton

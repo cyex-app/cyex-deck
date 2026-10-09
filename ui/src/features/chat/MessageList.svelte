@@ -11,15 +11,17 @@
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import Line from './Line.svelte';
-  import type { ChatRoom } from './room.svelte';
+  import { readMarks, type ChatRoom } from './room.svelte';
 
   interface Props {
     room: ChatRoom;
+    /** Where the last-read line sits is kept under this key while the view is closed. */
+    readKey?: string;
     canReply: boolean;
     onreply: (id: string) => void;
   }
 
-  let { room, canReply, onreply }: Props = $props();
+  let { room, readKey, canReply, onreply }: Props = $props();
 
   const c = $derived(settings.v.chat);
 
@@ -28,7 +30,8 @@
   let following = $state(true);
   let hovering = $state(false);
   let keyHeld = $state(false);
-  let lastRead = $state<string | null>(null);
+  // svelte-ignore state_referenced_locally
+  let lastRead = $state<string | null>((readKey && readMarks.get(readKey)) || null);
   const paused = $derived((hovering && c.pauseOnHover) || keyHeld);
   /** Last message when the pause began, to tell if anything arrived since. */
   let pausedAt = $state<string | undefined>();
@@ -67,7 +70,7 @@
     };
   });
 
-  // C5 Last-read line: placed when the window loses focus.
+  // C5 Last-read line: placed when the window loses focus or the tab is left.
   $effect(() => {
     if (!c.lastReadLine) {
       lastRead = null;
@@ -75,7 +78,11 @@
     }
     const mark = () => (lastRead = room.messages.at(-1)?.id ?? null);
     addEventListener('blur', mark);
-    return () => removeEventListener('blur', mark);
+    return () => {
+      removeEventListener('blur', mark);
+      const last = room.messages.at(-1)?.id;
+      if (readKey && last) readMarks.set(readKey, last);
+    };
   });
 
   function toBottom() {

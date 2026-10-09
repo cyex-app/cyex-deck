@@ -1,9 +1,13 @@
 //! GQL (gql.twitch.tv), Twitch's private API. Can change without notice. Persisted query
 //! hashes live next to the operation that uses them; raw queries are used where they work.
 
+mod channels;
 mod chat;
+mod follows;
 mod points;
 mod users;
+
+pub use channels::{ChannelInfo, StreamInfo, channels_by_ids, lookup};
 
 pub use chat::{
     BadgeInfo, ChannelChat, CheerTier, Cheermote, GlobalChat, PinFragment, PinSender, PinnedMessage, channel_chat,
@@ -13,6 +17,7 @@ pub use points::{
     AutoReward, CustomReward, Points, Redeemed, balance, redeem_custom, send_highlighted, send_in_sub_mode,
     unlock_random_emote,
 };
+pub use follows::{follow, is_following, unfollow};
 pub use users::{GqlUser, Profile, profile, user_by_id};
 
 use std::sync::OnceLock;

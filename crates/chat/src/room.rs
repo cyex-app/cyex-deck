@@ -86,9 +86,15 @@ impl Room {
     }
 
     pub fn snapshot(&self) -> RoomSnapshot {
+        self.snapshot_tail(BUFFER)
+    }
+
+    /// Like `snapshot`, with only the last `lines` messages.
+    pub fn snapshot_tail(&self, lines: usize) -> RoomSnapshot {
+        let skip = self.buffer.len().saturating_sub(lines);
         RoomSnapshot {
             login: self.login.clone(),
-            messages: self.buffer.iter().cloned().collect(),
+            messages: self.buffer.iter().skip(skip).cloned().collect(),
             state: self.state.clone(),
             status: self.status,
             pinned: self.pinned.clone(),

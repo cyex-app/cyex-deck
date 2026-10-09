@@ -1,9 +1,8 @@
 <!-- A channel's chat (1.8, 1.9): header with room modes and status, pinned message,
-     messages, message box. Can pop out into its own window (1.51). -->
+     messages, message box. The header carries the tile's buttons and drag handle. -->
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, type Snippet } from 'svelte';
 
-  import IconButton from '../../components/IconButton.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import type { ConnStatus } from '../../ipc/bindings/ConnStatus';
@@ -18,14 +17,19 @@
 
   interface Props {
     login: string;
+    /** Display name for the header. */
+    name?: string;
     /** User id of the reading account; `null` reads anonymously. */
     account: string | null;
-    popout?: boolean;
-    onpopout?: () => void;
+    /** Keeps the last-read line (C5) across tab switches. */
+    readKey?: string;
+    /** Buttons at the end of the header. */
+    actions?: Snippet;
+    onheaderdown?: (e: PointerEvent) => void;
     onsignin?: () => void;
   }
 
-  let { login, account, popout = false, onpopout, onsignin = () => {} }: Props = $props();
+  let { login, name, account, readKey, actions, onheaderdown, onsignin = () => {} }: Props = $props();
 
   // A chat view shows one channel for its whole life; a different one is a new view.
   // svelte-ignore state_referenced_locally
@@ -72,16 +76,16 @@
 </script>
 
 <section class="chat">
-  <header>
-    <button class="channel" onclick={openChannelCard} use:tooltip={'Channel info'}>{login}</button>
+  <!-- The header drags a tile in a tiled tab (U3); its buttons stay clickable. -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <header onpointerdown={onheaderdown}>
+    <button class="channel" onclick={openChannelCard} use:tooltip={'Channel info'}>{name ?? login}</button>
     <div class="modes">
       {#each modes as m (m.label)}
         <span class="mode" use:tooltip={{ label: m.label, hint: m.hint }}>{m.label}</span>
       {/each}
     </div>
-    {#if !popout && onpopout}
-      <IconButton icon="popout" label="Pop out chat" size={14} onclick={onpopout} />
-    {/if}
+    {@render actions?.()}
   </header>
   {#if room.error}
     <p class="status bad">{room.error}</p>
@@ -91,7 +95,7 @@
     </p>
   {/if}
   {#if room.pinned}<PinnedBanner pin={room.pinned} channel={login} />{/if}
-  <MessageList {room} canReply={room.account !== null} onreply={reply} />
+  <MessageList {room} {readKey} canReply={room.account !== null} onreply={reply} />
   <ChatInput {room} bind:replyTo {onsignin} />
 </section>
 
@@ -107,9 +111,9 @@
   header {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     height: 36px;
-    padding: 0 6px 0 10px;
+    padding: 0 6px 0 8px;
     border-bottom: 1px solid var(--border);
   }
   .channel {

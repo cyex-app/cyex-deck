@@ -7,6 +7,11 @@ export const ACTIONS = {
   'nav.discover': { label: 'Go to discover', default: 'Ctrl+2' },
   'settings.open': { label: 'Open settings', default: 'Ctrl+,' },
   'window.pin': { label: 'Pin window on top', default: 'Ctrl+Shift+P' },
+  'tabs.switcher': { label: 'Go to a tab or channel', default: 'Ctrl+K' },
+  'tabs.new': { label: 'Add a tab', default: 'Ctrl+T' },
+  'tabs.close': { label: 'Close the tab', default: 'Ctrl+W' },
+  'tabs.next': { label: 'Next tab', default: 'Ctrl+Tab' },
+  'tabs.prev': { label: 'Previous tab', default: 'Ctrl+Shift+Tab' },
 } as const satisfies Record<string, { label: string; default: string }>;
 
 export type ActionId = keyof typeof ACTIONS;

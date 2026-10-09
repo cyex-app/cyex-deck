@@ -1,6 +1,7 @@
 //! Chat (1.8, 1.9) wired to Tauri. One IRC session per identity (an account or
 //! anonymous), one room per channel and identity, and views that stream a room's events
-//! to a window in 50 ms batches. Parsing and room logic live in `cyex_chat`.
+//! to a window in 50 ms batches. Tabs keep their rooms joined while no view shows them
+//! (1.10). Parsing and room logic live in `cyex_chat`.
 
 pub mod catalog;
 mod creds;
@@ -13,7 +14,7 @@ mod session;
 pub use send::send;
 pub use session::retry_refused;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use cyex_chat::build::Me;
@@ -41,6 +42,9 @@ pub enum Identity {
 type RoomKey = (Identity, String);
 type View = Channel<Vec<RoomEvent>>;
 
+/// Lines a view gets when it opens. The UI shows as many (`MAX_LINES`).
+const VIEW_LINES: usize = 200;
+
 pub struct Chat {
     inner: Mutex<Inner>,
     /// Wakes the flush task when a room has events waiting.
@@ -54,6 +58,8 @@ struct Inner {
     /// View id → its room and the window showing it.
     views: HashMap<u32, (RoomKey, String)>,
     next_view: u32,
+    /// Rooms the tabs keep joined even when no view shows them.
+    held: HashSet<RoomKey>,
 }
 
 struct Session {
@@ -112,7 +118,7 @@ fn identity_for(app: &AppHandle, account: Option<&str>) -> (Identity, Option<Me>
     }
 }
 
-/// Opens a view on a channel's chat, joining it if no other view has it open.
+/// Opens a view on a channel's chat, joining it if it isn't joined yet.
 pub fn open(
     app: &AppHandle,
     window: &str,
@@ -128,30 +134,7 @@ pub fn open(
     let chat = app.state::<Chat>();
     let mut inner = chat.lock();
     let key = (identity.clone(), login.clone());
-    let fresh = !inner.rooms.contains_key(&key);
-    if fresh {
-        let mut room = Room::new(&login, me);
-        let budget_ok = match &identity {
-            Identity::Anon => true,
-            Identity::Account(id) => budget(app, |b| {
-                b.entry(id.clone()).or_default().join(&login, false)
-            }),
-        };
-        if budget_ok {
-            session::ensure(app, &mut inner, &identity).client.join(&login);
-        } else {
-            room.set_status(ConnStatus::BudgetFull);
-        }
-        inner.rooms.insert(
-            key.clone(),
-            Entry {
-                room,
-                views: Vec::new(),
-                outbox: Vec::new(),
-                last_sent: None,
-            },
-        );
-    }
+    let fresh = ensure_room(app, &mut inner, &key, me);
     inner.next_view += 1;
     let id = inner.next_view;
     inner.views.insert(id, (key.clone(), window.to_owned()));
@@ -163,48 +146,129 @@ pub fn open(
             Identity::Account(id) => Some(id.clone()),
             Identity::Anon => None,
         },
-        snapshot: entry.room.snapshot(),
+        snapshot: entry.room.snapshot_tail(VIEW_LINES),
     };
     let budget_full = entry.room.status == ConnStatus::BudgetFull;
     drop(inner);
     if fresh {
-        crate::connections::notify(app);
-        catalog::load_for_room(app.clone(), key.clone());
-        let history = app.state::<Settings>().read::<ChatSettings>(Partition::Chat).history;
-        if history && !budget_full {
-            session::load_history(app.clone(), key);
-        }
+        after_join(app, key, budget_full);
+    } else {
+        // Pins are only checked for rooms on screen, so this one may be old.
+        catalog::refresh_pin_now(app.clone(), key);
     }
     Ok(opened)
 }
 
-/// Closes a view. The last view on a room leaves the channel.
+/// Joins a room unless it's joined already. Returns true if it's new.
+fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>) -> bool {
+    if inner.rooms.contains_key(key) {
+        return false;
+    }
+    let (identity, login) = key;
+    let mut room = Room::new(login, me);
+    let budget_ok = match identity {
+        Identity::Anon => true,
+        Identity::Account(id) => budget(app, |b| b.entry(id.clone()).or_default().join(login, false)),
+    };
+    if budget_ok {
+        session::ensure(app, inner, identity).client.join(login);
+    } else {
+        room.set_status(ConnStatus::BudgetFull);
+    }
+    inner.rooms.insert(
+        key.clone(),
+        Entry {
+            room,
+            views: Vec::new(),
+            outbox: Vec::new(),
+            last_sent: None,
+        },
+    );
+    true
+}
+
+/// Work for a new room once the lock is released: counter, catalogs, history.
+fn after_join(app: &AppHandle, key: RoomKey, budget_full: bool) {
+    crate::connections::notify(app);
+    catalog::load_for_room(app.clone(), key.clone());
+    let history = app.state::<Settings>().read::<ChatSettings>(Partition::Chat).history;
+    if history && !budget_full {
+        session::load_history(app.clone(), key);
+    }
+}
+
+/// Leaves a room. Returns true if an account's join count changed.
+fn leave(app: &AppHandle, inner: &mut Inner, key: &RoomKey) -> bool {
+    if inner.rooms.remove(key).is_none() {
+        return false;
+    }
+    let (identity, login) = key;
+    if let Some(s) = inner.sessions.get(identity) {
+        s.client.part(login);
+    }
+    let still_used = inner.rooms.keys().any(|(i, _)| i == identity);
+    if !still_used && let Some(s) = inner.sessions.remove(identity) {
+        s.client.stop();
+    }
+    let Identity::Account(id) = identity else { return false };
+    budget(app, |b| {
+        if let Some(b) = b.get_mut(id) {
+            b.part(login);
+        }
+    });
+    true
+}
+
+/// Closes a view. A room no other view shows and no tab holds is left.
 pub fn close(app: &AppHandle, view: u32) {
     let chat = app.state::<Chat>();
     let mut inner = chat.lock();
     let Some((key, _)) = inner.views.remove(&view) else { return };
     let Some(entry) = inner.rooms.get_mut(&key) else { return };
     entry.views.retain(|(id, _)| *id != view);
-    if !entry.views.is_empty() {
+    if !entry.views.is_empty() || inner.held.contains(&key) {
         return;
     }
-    inner.rooms.remove(&key);
-    let (identity, login) = key;
-    if let Some(s) = inner.sessions.get(&identity) {
-        s.client.part(&login);
+    let counted = leave(app, &mut inner, &key);
+    drop(inner);
+    if counted {
+        crate::connections::notify(app);
     }
-    let still_used = inner.rooms.keys().any(|(i, _)| *i == identity);
-    if !still_used && let Some(s) = inner.sessions.remove(&identity) {
-        s.client.stop();
+}
+
+/// 1.10 The rooms the tabs want joined, as (account, login). Joins new ones and leaves
+/// the ones no tab holds and no view shows anymore.
+pub fn hold(app: &AppHandle, wanted: &[(Option<String>, String)]) {
+    let mut keys: HashMap<RoomKey, Option<Me>> = HashMap::new();
+    for (account, login) in wanted {
+        if !valid_login(login) {
+            continue;
+        }
+        let (identity, me) = identity_for(app, account.as_deref());
+        keys.entry((identity, login.clone())).or_insert(me);
+    }
+    let Some(chat) = app.try_state::<Chat>() else { return };
+    let mut inner = chat.lock();
+    let old = std::mem::replace(&mut inner.held, keys.keys().cloned().collect());
+    let mut counted = false;
+    for key in old.iter().filter(|k| !keys.contains_key(*k)) {
+        if inner.rooms.get(key).is_some_and(|e| e.views.is_empty()) {
+            counted |= leave(app, &mut inner, key);
+        }
+    }
+    let mut joined = Vec::new();
+    for (key, me) in keys {
+        if ensure_room(app, &mut inner, &key, me) {
+            let full = inner.rooms.get(&key).is_some_and(|e| e.room.status == ConnStatus::BudgetFull);
+            joined.push((key, full));
+        }
     }
     drop(inner);
-    if let Identity::Account(id) = &identity {
-        budget(app, |b| {
-            if let Some(b) = b.get_mut(id) {
-                b.part(&login);
-            }
-        });
+    if counted && joined.is_empty() {
         crate::connections::notify(app);
+    }
+    for (key, full) in joined {
+        after_join(app, key, full);
     }
 }
 

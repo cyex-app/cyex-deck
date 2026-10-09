@@ -35,6 +35,24 @@ pub fn window_set_pinned(app: AppHandle, window: WebviewWindow, pinned: bool) ->
     Ok(pinned)
 }
 
+/// The calling window's title, as the taskbar shows it.
+#[tauri::command]
+pub fn window_set_title(window: WebviewWindow, title: String) -> CmdResult<()> {
+    window.set_title(&title).map_err(|e| e.to_string())
+}
+
+/// Routes of the open pop-outs. Changes arrive as `panels:changed`.
+#[tauri::command]
+pub fn window_panels(app: AppHandle) -> Vec<String> {
+    windows::panel_routes(&app)
+}
+
+/// 3.14 Closes a pop-out; its panel docks back into the main window.
+#[tauri::command]
+pub fn window_close_panel(app: AppHandle, route: String) -> CmdResult<()> {
+    windows::close_panel(&app, &route).map_err(|e| e.to_string())
+}
+
 /// Async on purpose: creating a window from a sync command deadlocks WebView2 on Windows.
 #[tauri::command]
 pub async fn window_open_panel(

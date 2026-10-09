@@ -7,12 +7,13 @@ use std::sync::Mutex;
 use cyex_settings::Partition;
 use cyex_settings::schema::Windows;
 use serde_json::json;
-use tauri::{AppHandle, Manager, WebviewUrl};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl};
 
 use super::geometry;
 use crate::icons;
 use crate::settings::Settings;
 
+const CHANGED_EVENT: &str = "panels:changed";
 const DEFAULT_SIZE: (f64, f64) = (480.0, 640.0);
 const MIN_SIZE: (f64, f64) = (320.0, 240.0);
 
@@ -63,8 +64,38 @@ pub fn open_panels(app: &AppHandle) -> Vec<(String, tauri::WebviewWindow)> {
         .collect()
 }
 
+/// Routes of the open pop-outs, usercards left out.
+pub fn routes(app: &AppHandle) -> Vec<String> {
+    let mut routes: Vec<String> = app
+        .state::<PanelRegistry>()
+        .lock()
+        .values()
+        .filter(|r| !super::usercard::is_usercard(r))
+        .cloned()
+        .collect();
+    routes.sort();
+    routes
+}
+
+/// Tells every window which panels are popped out, so the main window can show a
+/// popped-out tab as such and take it back when its window closes (3.14).
+fn notify(app: &AppHandle) {
+    let _ = app.emit(CHANGED_EVENT, routes(app));
+}
+
 pub fn forget(app: &AppHandle, label: &str) {
-    app.state::<PanelRegistry>().lock().remove(label);
+    let removed = app.state::<PanelRegistry>().lock().remove(label);
+    if removed.is_some_and(|r| !super::usercard::is_usercard(&r)) {
+        notify(app);
+    }
+}
+
+/// 3.14 Closing a pop-out docks its panel back.
+pub fn close(app: &AppHandle, route: &str) -> tauri::Result<()> {
+    match app.get_webview_window(&label_for(route)) {
+        Some(w) => w.close(),
+        None => Ok(()),
+    }
 }
 
 /// Opens the panel, or focuses it if it's already open. Restores its last position
@@ -95,6 +126,7 @@ pub fn open_panel(app: &AppHandle, route: &str, title: &str, size: Option<(f64, 
     app.state::<PanelRegistry>()
         .lock()
         .insert(label, route.to_owned());
+    notify(app);
 
     if saved.geometry.is_some_and(|g| g.maximized) {
         window.maximize()?;

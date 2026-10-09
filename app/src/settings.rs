@@ -121,6 +121,9 @@ impl Settings {
     }
 
     fn after_change(&self, app: &AppHandle, changed: &[(Partition, &Value)], notify: bool) {
+        if changed.iter().any(|(p, _)| *p == Partition::Tabs) {
+            crate::tabs::on_changed(app);
+        }
         if notify {
             for (partition, value) in changed {
                 let _ = app.emit(

@@ -8,6 +8,7 @@ mod commands;
 mod connections;
 mod icons;
 mod settings;
+mod tabs;
 mod tray;
 mod windows;
 
@@ -27,6 +28,7 @@ fn main() {
             connections::init(handle);
             auth::init(handle)?;
             chat::init(handle);
+            tabs::init(handle);
             windows::init(handle)?;
             tray::init(handle)?;
             Ok(())

@@ -2,6 +2,7 @@
 //! stores them. Also the two third-party services chat uses: recent messages (C1) and
 //! Chatterino's link resolver (D8).
 
+pub mod channel_input;
 pub mod clients;
 mod error;
 pub mod gql;
