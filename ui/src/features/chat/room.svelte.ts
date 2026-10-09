@@ -8,8 +8,9 @@ import type { Pinned } from '../../ipc/bindings/Pinned';
 import type { RoomEvent } from '../../ipc/bindings/RoomEvent';
 import type { RoomState } from '../../ipc/bindings/RoomState';
 
-/** Lines kept on screen. Older ones drop off the top. */
-export const MAX_LINES = 500;
+/** Lines kept on screen, like Twitch's own chat (about 150). Older ones drop off the top;
+ * Rust keeps 500 per room for usercards. */
+export const MAX_LINES = 200;
 
 const EMPTY_STATE: RoomState = {
   channelId: null,
@@ -33,12 +34,16 @@ export class ChatRoom {
   error = $state('');
   view = 0;
   closed = false;
+  /** Batches that arrive before the snapshot; applied right after it. */
+  private early: RoomEvent[][] | null = [];
 
   constructor(readonly login: string) {}
 
   async open(account: string | null): Promise<void> {
     try {
-      const opened = await chatIpc.open(this.login, account, (events) => this.apply(events));
+      const opened = await chatIpc.open(this.login, account, (events) =>
+        this.early ? this.early.push(events) : this.apply(events),
+      );
       if (this.closed) {
         void chatIpc.close(opened.view);
         return;
@@ -50,6 +55,9 @@ export class ChatRoom {
       this.state = s.state;
       this.status = s.status;
       this.pinned = s.pinned;
+      const early = this.early ?? [];
+      this.early = null;
+      for (const events of early) this.apply(events);
     } catch (e) {
       this.error = String(e);
     }

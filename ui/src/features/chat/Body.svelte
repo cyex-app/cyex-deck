@@ -15,7 +15,7 @@
 {#each fragments as f, i (i)}
   {#if f.t === 'text'}{f.text}{:else if f.t === 'emote'}
     {@const img = emoteImg(f.provider, f.id, theme)}
-    <img class="emote" src={img.src} srcset={img.srcset} alt={f.name} data-tip={f.name} />
+    <img class="emote" src={img.src} srcset={img.srcset} alt={f.name} data-tip={f.name} loading="lazy" decoding="async" />
   {:else if f.t === 'mention'}<span class="mention" role="link" tabindex="-1" data-user={f.login}>{f.text}</span>
   {:else if f.t === 'link'}<a class="link" href={f.url} data-link={f.url} data-host={f.host}>{f.text}</a>
   {:else if f.t === 'cheer'}
@@ -24,11 +24,11 @@
     <span class="cheer" style:color={tier?.color} data-tip="{f.amount} bits">
       {#if c && tier}
         {@const img = cheerImg(c, tier, theme)}
-        <img class="emote" src={img.src} srcset={img.srcset} alt={f.prefix} />{f.amount}
+        <img class="emote" src={img.src} srcset={img.srcset} alt={f.prefix} loading="lazy" decoding="async" />{f.amount}
       {:else}{f.prefix}{f.amount}{/if}
     </span>
   {:else if f.t === 'gif'}
-    {#if gifs === 'show'}<img class="gif" src={f.url} alt="GIF" data-tip="GIF" />
+    {#if gifs === 'show'}<img class="gif" src={f.url} alt="GIF" data-tip="GIF" loading="lazy" decoding="async" />
     {:else if gifs === 'link'}<a class="link" href={f.url} data-link={f.url} data-host="GIF">GIF</a>
     {:else}[GIF]{/if}
   {/if}

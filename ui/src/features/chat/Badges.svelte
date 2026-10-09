@@ -23,6 +23,8 @@
       alt={b.title}
       data-tip={b.title}
       data-hint={hint(ref, b)}
+      loading="lazy"
+      decoding="async"
     />
   {/if}
 {/each}

@@ -82,17 +82,32 @@
     if (list) list.scrollTop = list.scrollHeight;
   }
 
-  // While paused, lines dropping off the top move the scroll position; that isn't
-  // the user scrolling away, so only the wheel counts then.
+  /** Set while the user drags the scrollbar. */
+  let dragging = false;
+
+  // Only the user leaves the bottom: wheel, keys or the scrollbar. Lines loading above,
+  // images sizing in and old lines dropping off also move the position; while
+  // following, those just snap back down.
   function onscroll() {
     if (!list) return;
     const bottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 24;
     if (bottom) following = true;
-    else if (!paused) following = false;
+    else if (dragging) following = false;
+    else if (following && !paused) toBottom();
   }
 
   function onwheel(e: WheelEvent) {
     if (e.deltaY < 0) following = false;
+  }
+
+  function onkeydown(e: KeyboardEvent) {
+    if (['PageUp', 'ArrowUp', 'Home'].includes(e.key)) following = false;
+  }
+
+  function onpointerdown(e: PointerEvent) {
+    if (!list || e.clientX < list.getBoundingClientRect().right - 14) return;
+    dragging = true;
+    addEventListener('pointerup', () => (dragging = false), { once: true });
   }
 
   function jumpDown() {
@@ -159,6 +174,8 @@
     bind:this={list}
     {onscroll}
     {onwheel}
+    {onkeydown}
+    {onpointerdown}
     {onclick}
     {onmouseover}
     {onmouseout}
