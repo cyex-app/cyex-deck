@@ -119,6 +119,7 @@ pub fn snapshot(app: &AppHandle) -> AuthSnapshot {
 pub fn notify(app: &AppHandle) {
     let _ = app.emit(CHANGED_EVENT, snapshot(app));
     crate::connections::notify(app);
+    crate::chat::retry_refused(app);
 }
 
 /// After settings were restored from a backup: re-read tokens for the restored list.

@@ -13,9 +13,11 @@
     start?: Snippet;
     /** Content right before the window controls. */
     end?: Snippet;
+    /** Small windows (usercards): no minimize. */
+    compact?: boolean;
   }
 
-  let { title = '', start, end }: Props = $props();
+  let { title = '', start, end, compact = false }: Props = $props();
 </script>
 
 <header class="chrome" data-tauri-drag-region>
@@ -36,7 +38,9 @@
       active={currentWindow.pinned}
       onclick={() => currentWindow.togglePin()}
     />
-    <IconButton chrome icon="minimize" label="Minimize" onclick={currentWindow.minimize} />
+    {#if !compact}
+      <IconButton chrome icon="minimize" label="Minimize" onclick={currentWindow.minimize} />
+    {/if}
     {#if currentWindow.isMain}
       <IconButton
         chrome

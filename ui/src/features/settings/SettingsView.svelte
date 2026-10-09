@@ -18,6 +18,8 @@
     onpopout?: () => void;
     /** Open section id. Bindable so other views can jump to a section. */
     section?: string;
+    /** Panel route, given to every pop-out; settings has no parameters. */
+    route?: string;
   }
 
   let { popout = false, onpopout, section = $bindable('general') }: Props = $props();

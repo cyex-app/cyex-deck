@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -6,6 +8,8 @@ use super::Schema;
 /// Twitch's longest timeout: 14 days.
 const MAX_TIMEOUT_SECS: u32 = 1_209_600;
 const MAX_TIMEOUT_PRESETS: usize = 8;
+const MAX_NICKNAME_CHARS: usize = 25;
+const MAX_NOTE_CHARS: usize = 500;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(default, rename_all = "camelCase")]
@@ -27,6 +31,28 @@ pub struct Chat {
     pub timestamps: Timestamps,
     /// 2.11 Quick timeout durations in seconds, shortest first.
     pub timeout_presets: Vec<u32>,
+    /// C1 Load recent messages when joining.
+    pub history: bool,
+    /// C14
+    pub deleted: DeletedStyle,
+    /// C15
+    pub alternate_lines: bool,
+    /// C15
+    pub separators: bool,
+    /// C20
+    pub names: NameStyle,
+    /// C5 Stop scrolling while the mouse is over chat.
+    pub pause_on_hover: bool,
+    /// C5 Stop scrolling while this key is held.
+    pub pause_key: PauseKey,
+    /// C5 Mark where you stopped reading when the window loses focus.
+    pub last_read_line: bool,
+    /// U6 Setting, off by default (D10).
+    pub mention_sound: bool,
+    /// U6 Setting, off by default (D10).
+    pub mention_flash: bool,
+    /// C3 Local nicknames and notes, by user id.
+    pub users: BTreeMap<String, UserNote>,
 }
 
 impl Default for Chat {
@@ -40,6 +66,17 @@ impl Default for Chat {
             gifs: GifMode::Show,
             timestamps: Timestamps::default(),
             timeout_presets: vec![60, 600, 3600, 86_400],
+            history: true,
+            deleted: DeletedStyle::Strike,
+            alternate_lines: false,
+            separators: false,
+            names: NameStyle::Both,
+            pause_on_hover: true,
+            pause_key: PauseKey::Alt,
+            last_read_line: true,
+            mention_sound: false,
+            mention_flash: false,
+            users: BTreeMap::new(),
         }
     }
 }
@@ -51,7 +88,56 @@ impl Schema for Chat {
         presets.sort_unstable();
         presets.dedup();
         presets.truncate(MAX_TIMEOUT_PRESETS);
+        self.users.retain(|id, u| {
+            u.nickname = u.nickname.trim().chars().take(MAX_NICKNAME_CHARS).collect();
+            u.note = u.note.trim().chars().take(MAX_NOTE_CHARS).collect();
+            !id.is_empty() && !(u.nickname.is_empty() && u.note.is_empty())
+        });
     }
+}
+
+/// C14 How deleted messages look.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum DeletedStyle {
+    #[default]
+    Strike,
+    Faded,
+    Hidden,
+}
+
+/// C20 Which name to show for users with a localized display name.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum NameStyle {
+    Display,
+    Login,
+    /// Display name, plus the login when they differ.
+    #[default]
+    Both,
+}
+
+/// C5
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum PauseKey {
+    None,
+    Ctrl,
+    #[default]
+    Alt,
+    Shift,
+}
+
+/// C3
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(default, rename_all = "camelCase")]
+#[ts(export)]
+pub struct UserNote {
+    pub nickname: String,
+    pub note: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -129,5 +215,29 @@ impl Default for Timestamps {
             seconds: false,
             hour12: false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanitize_trims_notes_and_drops_empty_ones() {
+        let mut c = Chat::default();
+        c.users.insert(
+            "1".into(),
+            UserNote {
+                nickname: format!("  {}  ", "n".repeat(40)),
+                note: " hi ".into(),
+            },
+        );
+        c.users.insert("2".into(), UserNote::default());
+        c.timeout_presets = vec![600, 0, 60, 60, 2_000_000];
+        c.sanitize();
+        assert_eq!(c.users.len(), 1);
+        assert_eq!(c.users["1"].nickname.len(), MAX_NICKNAME_CHARS);
+        assert_eq!(c.users["1"].note, "hi");
+        assert_eq!(c.timeout_presets, [60, 600]);
     }
 }

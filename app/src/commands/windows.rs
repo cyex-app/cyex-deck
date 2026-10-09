@@ -48,6 +48,16 @@ pub async fn window_open_panel(
     windows::open_panel(&app, &route, &title, size).map_err(|e| e.to_string())
 }
 
+/// 1.36 Async for the same reason as `window_open_panel`.
+#[tauri::command]
+pub async fn window_open_usercard(app: AppHandle, channel: String, login: String) -> CmdResult<()> {
+    let valid = |s: &str| (1..=25).contains(&s.len()) && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_');
+    if !valid(&channel) || !valid(&login) {
+        return Err("That isn't a Twitch name.".into());
+    }
+    windows::open_usercard(&app, &channel.to_ascii_lowercase(), &login.to_ascii_lowercase()).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn layout_save(app: AppHandle, name: String) -> CmdResult<()> {
     windows::save_layout(&app, &name)

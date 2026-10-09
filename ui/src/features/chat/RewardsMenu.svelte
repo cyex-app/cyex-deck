@@ -1,0 +1,280 @@
+<!-- Channel points (1.9, 1.40): balance next to the message box and the rewards menu.
+     Redeeming needs the account's GQL sign-in; without one the menu only lists rewards. -->
+<script lang="ts">
+  import Button from '../../components/Button.svelte';
+  import Icon from '../../components/Icon.svelte';
+  import Popover from '../../components/Popover.svelte';
+  import { tooltip } from '../../components/tooltip.svelte';
+  import { chatIpc } from '../../ipc/chat';
+  import type { Points } from '../../ipc/bindings/Points';
+  import { accounts } from '../../lib/accounts.svelte';
+  import { toast } from '../../lib/toast.svelte';
+  import type { ChatRoom } from './room.svelte';
+
+  let { room }: { room: ChatRoom } = $props();
+
+  interface Choice {
+    id: string;
+    title: string;
+    cost: number;
+    color: string;
+    image: string | null;
+    prompt: string | null;
+    needsText: boolean;
+    available: boolean;
+  }
+
+  /** Built-in rewards this app can redeem. The emote pickers come with the emote menu. */
+  const AUTOMATIC: Record<string, { title: string; needsText: boolean }> = {
+    SEND_HIGHLIGHTED_MESSAGE: { title: 'Highlight my message', needsText: true },
+    SINGLE_MESSAGE_BYPASS_SUB_MODE: { title: 'Send a message in sub-only mode', needsText: true },
+    RANDOM_SUB_EMOTE_UNLOCK: { title: 'Unlock a random sub emote', needsText: false },
+  };
+
+  let open = $state(false);
+  let points = $state<Points | null>(null);
+  let loaded = $state(false);
+  let picked = $state<Choice | null>(null);
+  let text = $state('');
+  let busy = $state(false);
+
+  const canRedeem = $derived(room.account !== null && accounts.can('points', room.account));
+  const name = $derived(points?.name ?? 'Channel points');
+  const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
+
+  const choices = $derived.by((): Choice[] => {
+    if (!points) return [];
+    const auto = points.automatic
+      .filter((r) => AUTOMATIC[r.kind])
+      .map((r) => ({
+        id: r.id,
+        title: AUTOMATIC[r.kind].title,
+        cost: r.cost,
+        color: r.color,
+        image: r.image,
+        prompt: null,
+        needsText: AUTOMATIC[r.kind].needsText,
+        available: r.available,
+      }));
+    const custom = points.custom.map((r) => ({
+      id: r.id,
+      title: r.title,
+      cost: r.cost,
+      color: r.color,
+      image: r.image,
+      prompt: r.prompt,
+      needsText: r.inputRequired,
+      available: r.available,
+    }));
+    return [...auto, ...custom].sort((a, b) => a.cost - b.cost);
+  });
+
+  // The balance shows next to the box once the chat is open.
+  $effect(() => {
+    if (room.view && canRedeem && !loaded) void load();
+  });
+
+  async function load() {
+    try {
+      points = await chatIpc.points(room.view);
+    } catch {
+      points = null;
+    }
+    loaded = true;
+  }
+
+  function toggle() {
+    open = !open;
+    picked = null;
+    if (open) void load();
+  }
+
+  /** Every reward asks once more before spending points. */
+  function pick(c: Choice) {
+    if (!canRedeem || !c.available) return;
+    picked = c;
+    text = '';
+  }
+
+  async function redeem() {
+    if (!picked || busy) return;
+    busy = true;
+    try {
+      toast.info(await chatIpc.redeem(room.view, picked.id, picked.needsText ? text : undefined));
+      open = false;
+      picked = null;
+      void load();
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      busy = false;
+    }
+  }
+</script>
+
+<div class="points">
+  <button class="trigger" onclick={toggle} use:tooltip={{ label: name, hint: 'Rewards you can redeem here.' }}>
+    {#if points?.icon}<img src={points.icon} alt="" />{:else}<Icon name="points" size={16} />{/if}
+    {#if points?.balance != null}<span>{compact.format(points.balance)}</span>{/if}
+  </button>
+  <Popover bind:open align="start" side="above">
+    <div class="menu">
+      <header>
+        <strong>{name}</strong>
+        {#if points?.balance != null}<span class="balance">{points.balance.toLocaleString()}</span>{/if}
+      </header>
+      {#if !canRedeem}
+        <p class="note">Add a GQL sign-in for this account in Settings → Accounts to redeem.</p>
+      {/if}
+      {#if picked}
+        <div class="confirm">
+          <div class="title">{picked.title} · {picked.cost.toLocaleString()}</div>
+          {#if picked.prompt}<p class="note">{picked.prompt}</p>{/if}
+          {#if picked.needsText}
+            <!-- svelte-ignore a11y_autofocus -->
+            <input
+              class="field"
+              bind:value={text}
+              maxlength="500"
+              placeholder="Your message"
+              autofocus
+              onkeydown={(e) => e.key === 'Enter' && void redeem()}
+            />
+          {/if}
+          <div class="actions">
+            <Button small variant="ghost" onclick={() => (picked = null)}>Back</Button>
+            <Button small variant="primary" disabled={busy || (picked.needsText && !text.trim())} onclick={redeem}>
+              Redeem
+            </Button>
+          </div>
+        </div>
+      {:else if !loaded}
+        <p class="note">Loading…</p>
+      {:else if !choices.length}
+        <p class="note">No rewards here.</p>
+      {:else}
+        <div class="grid">
+          {#each choices as c (c.id)}
+            <button
+              class="reward"
+              disabled={!canRedeem || !c.available}
+              style:--rc={c.color}
+              onclick={() => pick(c)}
+              use:tooltip={{ label: c.title, hint: c.prompt ?? undefined }}
+            >
+              <span class="tile">{#if c.image}<img src={c.image} alt="" />{/if}</span>
+              <span class="rt">{c.title}</span>
+              <span class="cost">{c.cost.toLocaleString()}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
+  </Popover>
+</div>
+
+<style>
+  .points {
+    position: relative;
+  }
+  .trigger {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 34px;
+    padding: 0 8px;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    color: var(--muted);
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+  .trigger:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+  }
+  .trigger img {
+    width: 16px;
+    height: 16px;
+  }
+  .menu {
+    width: 320px;
+    padding: 6px;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .balance {
+    font-weight: 700;
+    color: var(--twitch);
+  }
+  .note {
+    margin: 4px 0 8px;
+    color: var(--dim);
+    font-size: 0.8rem;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .reward {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 0.75rem;
+  }
+  .reward:hover:not(:disabled) {
+    border-color: var(--rc);
+  }
+  .reward:disabled {
+    opacity: 0.45;
+  }
+  .tile {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    background: var(--rc);
+    border-radius: var(--radius);
+  }
+  .tile img {
+    width: 28px;
+    height: 28px;
+  }
+  .rt {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-align: center;
+  }
+  .cost {
+    color: var(--dim);
+    font-weight: 700;
+  }
+  .confirm .title {
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .confirm .field {
+    width: 100%;
+  }
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 8px;
+  }
+</style>

@@ -86,6 +86,7 @@ pub fn remember(app: &AppHandle, window: &Window) {
         let Some(route) = route_of(app, window.label()) else {
             return;
         };
+        let route = super::usercard::settings_key(&route).to_owned();
         let previous = saved.panels.get(&route).and_then(|p| p.geometry);
         let Some(g) = capture(window, previous) else {
             return;

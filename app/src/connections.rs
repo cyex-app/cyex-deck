@@ -11,7 +11,7 @@ const CHANGED_EVENT: &str = "connections:changed";
 
 /// Join budget per account, by user id.
 #[derive(Default)]
-pub struct Connections(Mutex<HashMap<String, JoinBudget>>);
+pub struct Connections(pub Mutex<HashMap<String, JoinBudget>>);
 
 pub fn init(app: &AppHandle) {
     app.manage(Connections::default());

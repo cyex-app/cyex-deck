@@ -166,6 +166,15 @@ pub fn normalize_accent(input: &str) -> Option<String> {
     Rgb::parse(input).map(Rgb::to_hex)
 }
 
+/// C8 Name colors in chat: nudged toward the theme's text color until they read at 4.5:1
+/// on the page and on raised surfaces, so dark names stay visible in dark mode.
+pub fn readable_name(color: Rgb, theme: Theme) -> Rgb {
+    let [page, surface] = theme.backgrounds();
+    push_until(color, theme.away_from_background(), |c| {
+        contrast(c, page) >= TEXT_CONTRAST && contrast(c, surface) >= TEXT_CONTRAST
+    })
+}
+
 /// Blends `color` toward `target` in 5% steps until `ok` holds.
 fn push_until(color: Rgb, target: Rgb, ok: impl Fn(Rgb) -> bool) -> Rgb {
     (0..=20)
@@ -244,6 +253,20 @@ mod tests {
             DARK_INK.to_hex()
         );
         assert_eq!(accent_tokens("#145aff", Theme::Dark).accent_ink, "#ffffff");
+    }
+
+    #[test]
+    fn name_colors_stay_readable_and_keep_their_hue() {
+        for theme in [Theme::Dark, Theme::Light] {
+            for input in ["#0000ff", "#000000", "#ffffff", "#ff0000", "#1e1f23", "#9acd32"] {
+                let c = readable_name(rgb(input), theme);
+                for bg in theme.backgrounds() {
+                    assert!(contrast(c, bg) >= TEXT_CONTRAST, "{input} {theme:?}");
+                }
+            }
+        }
+        // Already readable: unchanged.
+        assert_eq!(readable_name(rgb("#ff69b4"), Theme::Dark), rgb("#ff69b4"));
     }
 
     #[test]

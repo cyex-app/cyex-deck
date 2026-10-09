@@ -16,7 +16,9 @@ mod windows;
 
 pub use accounts::{Account, Accounts, TokenMeta, TokenSource};
 pub use appearance::{Appearance, TabBarSide, TabDensity};
-pub use chat::{BadgeToggles, Chat, GifMode, PaintToggles, Timestamps, UnlistedEmotes};
+pub use chat::{
+    BadgeToggles, Chat, DeletedStyle, GifMode, NameStyle, PaintToggles, PauseKey, Timestamps, UnlistedEmotes, UserNote,
+};
 pub use commands::Commands;
 pub use general::{ChatPosition, General};
 pub use highlights::Highlights;

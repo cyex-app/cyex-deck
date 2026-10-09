@@ -1,0 +1,140 @@
+//! IRC sessions: one client per identity and the task that routes its lines to rooms.
+
+use std::sync::Arc;
+
+use cyex_chat::irc::{self, Anonymous, Client, Credentials, Event, Line, LinkStatus, Window};
+use cyex_chat::model::{ConnStatus, Flag, RoomEvent};
+use cyex_chat::tokenize::NoEmotes;
+use tauri::{AppHandle, Manager};
+use tokio::sync::mpsc;
+
+use super::creds::AccountCreds;
+use super::{Chat, Identity, Inner, RoomKey, Session, budget, mention, now_ms, queue};
+
+/// The session for `identity`, started if needed.
+pub fn ensure<'a>(app: &AppHandle, inner: &'a mut Inner, identity: &Identity) -> &'a Session {
+    inner.sessions.entry(identity.clone()).or_insert_with(|| {
+        let creds: Arc<dyn Credentials> = match identity {
+            Identity::Anon => Arc::new(Anonymous),
+            Identity::Account(id) => Arc::new(AccountCreds::new(app.clone(), id.clone())),
+        };
+        let (tx, rx) = mpsc::unbounded_channel();
+        let (client, task) = Client::new(creds, irc::tls(), tx);
+        tauri::async_runtime::spawn(task);
+        tauri::async_runtime::spawn(pump(app.clone(), identity.clone(), rx));
+        Session {
+            client,
+            sends: Window::sends(),
+        }
+    })
+}
+
+/// Sessions Twitch refused log in again, e.g. after the account signed in anew.
+pub fn retry_refused(app: &AppHandle) {
+    let Some(chat) = app.try_state::<Chat>() else { return };
+    let inner = chat.lock();
+    for (identity, session) in &inner.sessions {
+        let refused = inner
+            .rooms
+            .iter()
+            .any(|((id, _), e)| id == identity && e.room.status == ConnStatus::AuthFailed);
+        if refused {
+            session.client.reconnect();
+        }
+    }
+}
+
+async fn pump(app: AppHandle, identity: Identity, mut rx: mpsc::UnboundedReceiver<Event>) {
+    while let Some(event) = rx.recv().await {
+        match event {
+            Event::Status(s) => link_status(&app, &identity, s),
+            Event::Line(raw) => line(&app, &identity, &raw),
+        }
+    }
+}
+
+fn link_status(app: &AppHandle, identity: &Identity, link: LinkStatus) {
+    let chat = app.state::<Chat>();
+    let mut inner = chat.lock();
+    for ((id, _), entry) in inner.rooms.iter_mut() {
+        if id != identity || entry.room.status == ConnStatus::BudgetFull {
+            continue;
+        }
+        let status = match link {
+            // Rooms count as joined once Twitch confirms the JOIN.
+            LinkStatus::Connected => continue,
+            LinkStatus::Connecting if entry.room.status == ConnStatus::Joined => ConnStatus::Reconnecting,
+            LinkStatus::Connecting => continue,
+            LinkStatus::Reconnecting => ConnStatus::Reconnecting,
+            LinkStatus::AuthFailed => ConnStatus::AuthFailed,
+        };
+        if let Some(ev) = entry.room.set_status(status) {
+            queue(entry, [ev], &chat.wake);
+        }
+    }
+}
+
+fn line(app: &AppHandle, identity: &Identity, raw: &str) {
+    let Some(line) = Line::parse(raw) else { return };
+    let Some(channel) = line.channel() else { return };
+    let chat = app.state::<Chat>();
+    let mut inner = chat.lock();
+    let key = (identity.clone(), channel.to_owned());
+    let Some(entry) = inner.rooms.get_mut(&key) else { return };
+
+    if line.command == "JOIN" {
+        if let Some(ev) = entry.room.set_status(ConnStatus::Joined) {
+            queue(entry, [ev], &chat.wake);
+        }
+        return;
+    }
+    let was_privileged = entry.room.privileged();
+    let events = entry.room.handle_line(&line, now_ms(), &NoEmotes);
+    let privileged = entry.room.privileged();
+    let mentions: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            RoomEvent::Message { message } if message.has(Flag::Mention) && !message.has(Flag::History) => {
+                Some(message.clone())
+            }
+            _ => None,
+        })
+        .collect();
+    queue(entry, events, &chat.wake);
+    drop(inner);
+
+    if privileged != was_privileged
+        && let Identity::Account(id) = identity
+    {
+        budget(app, |b| {
+            if let Some(b) = b.get_mut(id) {
+                b.set_privileged(channel, privileged);
+            }
+        });
+        crate::connections::notify(app);
+    }
+    for m in mentions {
+        mention::notify(app, channel, &m);
+    }
+}
+
+/// C1 Fetches recent messages in the background and adds them above the live ones.
+pub fn load_history(app: AppHandle, key: RoomKey) {
+    tauri::async_runtime::spawn(async move {
+        let http = app.state::<crate::auth::Auth>().http.clone();
+        let lines = match cyex_twitch::recent::recent_messages(&http, &key.1).await {
+            Ok(lines) => lines,
+            Err(e) => {
+                eprintln!("chat: no history for {}: {e}", key.1);
+                return;
+            }
+        };
+        let chat = app.state::<Chat>();
+        let mut inner = chat.lock();
+        let Some(entry) = inner.rooms.get_mut(&key) else { return };
+        let messages = entry.room.history(&lines, now_ms(), &NoEmotes);
+        if !messages.is_empty() {
+            queue(entry, [RoomEvent::History { messages }], &chat.wake);
+        }
+    });
+}

@@ -24,6 +24,10 @@ impl PanelRegistry {
     fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<String, String>> {
         self.0.lock().unwrap_or_else(|p| p.into_inner())
     }
+
+    pub fn insert(&self, label: &str, route: &str) {
+        self.lock().insert(label.to_owned(), route.to_owned());
+    }
 }
 
 pub fn label_for(route: &str) -> String {
@@ -44,12 +48,13 @@ pub fn route_of(app: &AppHandle, label: &str) -> Option<String> {
     app.state::<PanelRegistry>().lock().get(label).cloned()
 }
 
-/// Open panels as (route, window).
+/// Open panels as (route, window). Usercards aren't panels for layouts.
 pub fn open_panels(app: &AppHandle) -> Vec<(String, tauri::WebviewWindow)> {
     let routes: Vec<(String, String)> = app
         .state::<PanelRegistry>()
         .lock()
         .iter()
+        .filter(|(_, route)| !super::usercard::is_usercard(route))
         .map(|(label, route)| (label.clone(), route.clone()))
         .collect();
     routes

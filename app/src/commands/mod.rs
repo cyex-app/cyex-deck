@@ -1,6 +1,7 @@
 //! IPC commands, one file per area. Names are `<area>_<verb>`.
 
 mod accounts;
+mod chat;
 mod settings;
 mod system;
 mod theme;
@@ -17,6 +18,16 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         accounts::accounts_set_default,
         accounts::accounts_set_client_id,
         accounts::connections_counts,
+        chat::chat_open,
+        chat::chat_close,
+        chat::chat_send,
+        chat::chat_global_catalog,
+        chat::chat_channel_catalog,
+        chat::chat_points,
+        chat::chat_redeem,
+        chat::chat_user_messages,
+        chat::chat_resolve_link,
+        chat::user_profile,
         settings::settings_all,
         settings::settings_patch,
         settings::settings_reset,
@@ -29,10 +40,12 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         settings::settings_open_folder,
         settings::settings_take_load_report,
         system::system_open_link,
+        system::system_open_chat_link,
         theme::theme_accent_tokens,
         windows::window_info,
         windows::window_set_pinned,
         windows::window_open_panel,
+        windows::window_open_usercard,
         windows::layout_save,
         windows::layout_apply,
         windows::layout_delete,

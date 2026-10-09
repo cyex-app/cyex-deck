@@ -1,15 +1,16 @@
-<!-- Dropdown under its trigger. Put it next to the trigger inside a `position: relative`
-     wrapper; clicks outside that wrapper and Escape close it. -->
+<!-- Dropdown under (or above) its trigger. Put it next to the trigger inside a
+     `position: relative` wrapper; clicks outside that wrapper and Escape close it. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
   interface Props {
     open: boolean;
     align?: 'start' | 'end';
+    side?: 'below' | 'above';
     children: Snippet;
   }
 
-  let { open = $bindable(), align = 'end', children }: Props = $props();
+  let { open = $bindable(), align = 'end', side = 'below', children }: Props = $props();
 
   let box = $state<HTMLElement>();
 
@@ -35,7 +36,7 @@
 </script>
 
 {#if open}
-  <div class="popover {align}" bind:this={box} role="menu">
+  <div class="popover {align} {side}" bind:this={box} role="menu">
     {@render children()}
   </div>
 {/if}
@@ -43,7 +44,6 @@
 <style>
   .popover {
     position: absolute;
-    top: calc(100% + 6px);
     z-index: var(--z-popover);
     min-width: 220px;
     padding: 4px;
@@ -51,6 +51,12 @@
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
     box-shadow: 0 8px 24px var(--shadow);
+  }
+  .below {
+    top: calc(100% + 6px);
+  }
+  .above {
+    bottom: calc(100% + 6px);
   }
   .start {
     left: 0;

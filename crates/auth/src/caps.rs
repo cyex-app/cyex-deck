@@ -8,6 +8,8 @@ use ts_rs::TS;
 pub enum Tier {
     Helix,
     Gql,
+    /// Helix with the scopes, or any GQL token (first-party tokens work on IRC).
+    Either,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
@@ -83,7 +85,8 @@ impl Feature {
     pub fn tier(self) -> Tier {
         use Feature::*;
         match self {
-            SendChat | FollowedList | ChatColor | Bio | Whispers | Blocks | ModTools | ModView
+            SendChat => Tier::Either,
+            FollowedList | ChatColor | Bio | Whispers | Blocks | ModTools | ModView
             | StreamManager | MassbanHelix => Tier::Helix,
             _ => Tier::Gql,
         }
@@ -111,11 +114,14 @@ impl Feature {
 pub fn features(helix_scopes: Option<&[String]>, gql: bool) -> Vec<Feature> {
     Feature::ALL
         .into_iter()
-        .filter(|f| match f.tier() {
-            Tier::Helix => {
-                helix_scopes.is_some_and(|granted| f.scopes().iter().all(|s| granted.iter().any(|g| g == s)))
+        .filter(|f| {
+            let helix =
+                || helix_scopes.is_some_and(|granted| f.scopes().iter().all(|s| granted.iter().any(|g| g == s)));
+            match f.tier() {
+                Tier::Helix => helix(),
+                Tier::Gql => gql,
+                Tier::Either => gql || helix(),
             }
-            Tier::Gql => gql,
         })
         .collect()
 }
@@ -140,7 +146,9 @@ mod tests {
     fn gql_only_hides_helix_tools() {
         let f = features(None, true);
         assert!(f.contains(&Feature::Miner) && f.contains(&Feature::Follow));
-        assert!(!f.contains(&Feature::SendChat));
+        assert!(!f.contains(&Feature::ModTools));
+        // Chat works with either token (phase 3).
+        assert!(f.contains(&Feature::SendChat));
     }
 
     #[test]

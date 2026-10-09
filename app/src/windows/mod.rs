@@ -3,9 +3,11 @@
 mod geometry;
 mod layouts;
 mod panels;
+mod usercard;
 
 pub use layouts::{apply_layout, delete_layout, save_layout};
 pub use panels::{PanelRegistry, open_panel, route_of};
+pub use usercard::open as open_usercard;
 
 use cyex_core::color::Theme;
 use cyex_settings::Partition;
@@ -82,7 +84,8 @@ pub fn set_pinned(app: &AppHandle, window: &tauri::Window, pinned: bool) -> Resu
     let patch = if window.label() == MAIN {
         json!({ "mainPinned": pinned })
     } else {
-        let Some(route) = route_of(app, window.label()) else {
+        // Usercards pin per window; a new one always starts unpinned.
+        let Some(route) = route_of(app, window.label()).filter(|r| !usercard::is_usercard(r)) else {
             return Ok(());
         };
         json!({ "panels": { route: { "pinned": pinned } } })
@@ -110,8 +113,14 @@ pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
         }
         WindowEvent::Moved(_) | WindowEvent::Resized(_) => geometry::remember(app, window),
         WindowEvent::ThemeChanged(_) => icons::apply(window),
+        WindowEvent::Focused(focused) if route_of(app, window.label()).is_some_and(|r| usercard::is_usercard(&r)) => {
+            usercard::on_focus(window, *focused);
+        }
         WindowEvent::Destroyed if window.label() == MAIN => app.exit(0),
-        WindowEvent::Destroyed => panels::forget(app, window.label()),
+        WindowEvent::Destroyed => {
+            crate::chat::close_window(app, window.label());
+            panels::forget(app, window.label());
+        }
         _ => {}
     }
 }

@@ -37,7 +37,7 @@
 <h3 class="label">Other ways to sign in</h3>
 <Row
   label="GQL tools only"
-  hint="Signs in through Twitch's Android TV app. Gives the miner, following, channel points, GIFs and power-ups, but no chat or mod tools."
+  hint="Signs in through Twitch's Android TV app. Gives chat, the miner, following, channel points, GIFs and power-ups, but no mod tools."
 >
   <Button small icon="key" disabled={signIn.kind !== null} onclick={() => signIn.start('gql')}>Sign in</Button>
 </Row>

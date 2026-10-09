@@ -2,7 +2,10 @@
   import Row from '../../../components/Row.svelte';
   import Segmented from '../../../components/Segmented.svelte';
   import Toggle from '../../../components/Toggle.svelte';
+  import type { DeletedStyle } from '../../../ipc/bindings/DeletedStyle';
   import type { GifMode } from '../../../ipc/bindings/GifMode';
+  import type { NameStyle } from '../../../ipc/bindings/NameStyle';
+  import type { PauseKey } from '../../../ipc/bindings/PauseKey';
   import type { UnlistedEmotes } from '../../../ipc/bindings/UnlistedEmotes';
   import { formatDuration, formatTime, parseDuration } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
@@ -30,6 +33,22 @@
     { value: 'show', label: 'Show GIF' },
     { value: 'link', label: 'Link' },
     { value: 'text', label: 'Plain text' },
+  ];
+  const DELETED: { value: DeletedStyle; label: string }[] = [
+    { value: 'strike', label: 'Strike' },
+    { value: 'faded', label: 'Faded' },
+    { value: 'hidden', label: 'Hidden' },
+  ];
+  const NAMES: { value: NameStyle; label: string }[] = [
+    { value: 'display', label: 'Display name' },
+    { value: 'login', label: 'Login' },
+    { value: 'both', label: 'Both' },
+  ];
+  const PAUSE_KEYS: { value: PauseKey; label: string }[] = [
+    { value: 'none', label: 'None' },
+    { value: 'ctrl', label: 'Ctrl' },
+    { value: 'alt', label: 'Alt' },
+    { value: 'shift', label: 'Shift' },
   ];
   const SAMPLE_TIME = new Date(2026, 0, 1, 14, 3, 27);
 
@@ -120,6 +139,56 @@
     checked={c.timestamps.hour12}
     onchange={(v) => settings.patch('chat', { timestamps: { hour12: v } })}
   />
+</Row>
+
+<h3 class="label">Messages</h3>
+<Row label="Recent history" hint="Shows the last messages, dimmed, when you open a chat.">
+  <Toggle label="Recent history" checked={c.history} onchange={(v) => settings.patch('chat', { history: v })} />
+</Row>
+<Row label="Deleted messages" hint="Removed by a mod, or from someone timed out or banned.">
+  <Segmented
+    label="Deleted messages"
+    options={DELETED}
+    value={c.deleted}
+    onchange={(v) => settings.patch('chat', { deleted: v })}
+  />
+</Row>
+<Row label="Names" hint="Both adds the login when the display name is in another script.">
+  <Segmented label="Names" options={NAMES} value={c.names} onchange={(v) => settings.patch('chat', { names: v })} />
+</Row>
+<Row label="Alternate line backgrounds">
+  <Toggle
+    label="Alternate line backgrounds"
+    checked={c.alternateLines}
+    onchange={(v) => settings.patch('chat', { alternateLines: v })}
+  />
+</Row>
+<Row label="Lines between messages">
+  <Toggle label="Lines between messages" checked={c.separators} onchange={(v) => settings.patch('chat', { separators: v })} />
+</Row>
+
+<h3 class="label">Scrolling</h3>
+<Row label="Pause on hover" hint="Chat stops moving while the mouse is over it.">
+  <Toggle label="Pause on hover" checked={c.pauseOnHover} onchange={(v) => settings.patch('chat', { pauseOnHover: v })} />
+</Row>
+<Row label="Pause while holding">
+  <Segmented
+    label="Pause while holding"
+    options={PAUSE_KEYS}
+    value={c.pauseKey}
+    onchange={(v) => settings.patch('chat', { pauseKey: v })}
+  />
+</Row>
+<Row label="Last-read line" hint="Marks where you were when you switched away.">
+  <Toggle label="Last-read line" checked={c.lastReadLine} onchange={(v) => settings.patch('chat', { lastReadLine: v })} />
+</Row>
+
+<h3 class="label">Mentions</h3>
+<Row label="Sound" hint="Plays when someone mentions you or replies to you.">
+  <Toggle label="Mention sound" checked={c.mentionSound} onchange={(v) => settings.patch('chat', { mentionSound: v })} />
+</Row>
+<Row label="Flash the taskbar" hint="When the app isn't in front.">
+  <Toggle label="Flash the taskbar" checked={c.mentionFlash} onchange={(v) => settings.patch('chat', { mentionFlash: v })} />
 </Row>
 
 <h3 class="label">Moderation</h3>

@@ -77,6 +77,7 @@ pub const HELIX: &[&str] = &[
 /// What the Android TV client asks for (miner sign-in, D6). GQL ignores scopes.
 pub const GQL: &[&str] = &[
     "channel_read",
+    "chat:edit", // 1.8 chat for GQL-only accounts
     "chat:read",
     "user_blocks_edit",
     "user_blocks_read",

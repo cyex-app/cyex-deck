@@ -17,6 +17,20 @@ const WARM_MS = 400;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let lastHidden = 0;
 
+/** For lists that delegate: one listener on the list instead of one per item. */
+export function showTip(node: HTMLElement, opts: TipOptions): void {
+  show(node, opts);
+}
+
+export function hideTip(): void {
+  hide();
+}
+
+/** Changes the visible tip's text, e.g. once a link resolves. */
+export function retitleTip(label: string): void {
+  if (tip.visible) tip.label = label;
+}
+
 function show(node: HTMLElement, opts: TipOptions): void {
   clearTimeout(timer);
   const delay = performance.now() - lastHidden < WARM_MS ? 0 : SHOW_DELAY_MS;

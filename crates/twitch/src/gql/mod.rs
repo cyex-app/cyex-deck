@@ -1,24 +1,49 @@
-//! GQL (gql.twitch.tv), Twitch's private API. Can change without notice. All persisted
-//! query hashes will live in one registry file; raw queries are used where they work.
+//! GQL (gql.twitch.tv), Twitch's private API. Can change without notice. Persisted query
+//! hashes live next to the operation that uses them; raw queries are used where they work.
 
+mod chat;
+mod points;
 mod users;
 
-pub use users::{GqlUser, user_by_id};
+pub use chat::{
+    BadgeInfo, ChannelChat, CheerTier, Cheermote, GlobalChat, PinFragment, PinSender, PinnedMessage, channel_chat,
+    global_chat, pinned,
+};
+pub use points::{
+    AutoReward, CustomReward, Points, Redeemed, balance, redeem_custom, send_highlighted, send_in_sub_mode,
+    unlock_random_emote,
+};
+pub use users::{GqlUser, Profile, profile, user_by_id};
 
+use std::sync::OnceLock;
+
+use reqwest::RequestBuilder;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
 use crate::http::json as send_json;
-use crate::{Error, Http, Result};
+use crate::random::hex;
+use crate::{Error, Http, Result, clients};
 
 const URL: &str = "https://gql.twitch.tv/gql";
+/// Fallback for the `Client-Version` twitch.tv sends; GQL accepts a stale one.
+const CLIENT_VERSION: &str = "ef928475-9403-42f2-8a34-55784bd08e16";
+const TV_USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 7.1; Smart Box C1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36";
 
 /// Client ID plus an optional user token. Without a token, only public data is readable.
 #[derive(Clone, Copy)]
 pub struct Auth<'a> {
     pub client_id: &'a str,
     pub token: Option<&'a str>,
+}
+
+impl Auth<'static> {
+    /// Public data, as twitch.tv reads it signed out.
+    pub const PUBLIC: Auth<'static> = Auth {
+        client_id: clients::WEB,
+        token: None,
+    };
 }
 
 #[derive(Deserialize)]
@@ -40,15 +65,50 @@ pub(crate) async fn query<T: DeserializeOwned>(
     query: &str,
     variables: Value,
 ) -> Result<T> {
-    let mut req = http
-        .0
-        .post(URL)
-        .header("Client-Id", auth.client_id)
-        .json(&json!({ "query": query, "variables": variables }));
+    let req = request(http, auth).json(&json!({ "query": query, "variables": variables }));
+    unwrap(send_json(req).await?)
+}
+
+/// Runs a persisted query by its hash.
+pub(crate) async fn persisted<T: DeserializeOwned>(
+    http: &Http,
+    auth: Auth<'_>,
+    operation: &str,
+    hash: &str,
+    variables: Value,
+) -> Result<T> {
+    let req = request(http, auth).json(&json!({
+        "operationName": operation,
+        "variables": variables,
+        "extensions": { "persistedQuery": { "version": 1, "sha256Hash": hash } },
+    }));
+    unwrap(send_json(req).await?)
+}
+
+/// Signed-in requests look like the Android TV app's: the tools that redeem rewards with
+/// its tokens send these headers and need no integrity token (research, phase 3).
+fn request(http: &Http, auth: Auth<'_>) -> RequestBuilder {
+    let mut req = http.0.post(URL).header("Client-Id", auth.client_id);
     if let Some(token) = auth.token {
         req = req.header("Authorization", format!("OAuth {token}"));
+        if auth.client_id == clients::ANDROID_TV {
+            let ids = session_ids();
+            req = req
+                .header("Client-Session-Id", &ids.0)
+                .header("X-Device-Id", &ids.1)
+                .header("Client-Version", CLIENT_VERSION)
+                .header("User-Agent", TV_USER_AGENT)
+                .header("Origin", "https://android.tv.twitch.tv")
+                .header("Referer", "https://android.tv.twitch.tv/");
+        }
     }
-    unwrap(send_json(req).await?)
+    req
+}
+
+/// Session and device ids, new each run.
+fn session_ids() -> &'static (String, String) {
+    static IDS: OnceLock<(String, String)> = OnceLock::new();
+    IDS.get_or_init(|| (hex(16), hex(16)))
 }
 
 fn unwrap<T>(res: Response<T>) -> Result<T> {

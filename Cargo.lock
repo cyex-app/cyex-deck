@@ -741,8 +741,12 @@ dependencies = [
 name = "cyex-chat"
 version = "0.1.0"
 dependencies = [
+ "cyex-core",
  "serde",
+ "tokio",
+ "tokio-native-tls",
  "ts-rs",
+ "url",
 ]
 
 [[package]]
@@ -774,6 +778,9 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+ "tokio",
+ "ts-rs",
+ "url",
 ]
 
 [[package]]

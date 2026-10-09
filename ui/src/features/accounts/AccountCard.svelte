@@ -16,7 +16,7 @@
   let { account }: { account: AccountView } = $props();
 
   const TOKENS: { kind: TokenKind; title: string; none: string }[] = [
-    { kind: 'helix', title: 'Twitch', none: 'Not signed in. Needed to chat, moderate and see who you follow.' },
+    { kind: 'helix', title: 'Twitch', none: 'Not signed in. Needed to moderate and see who you follow.' },
     {
       kind: 'gql',
       title: 'GQL tools',

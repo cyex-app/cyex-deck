@@ -6,7 +6,7 @@
   import WindowChrome from '../components/WindowChrome.svelte';
   import { useHotkeys } from '../lib/hotkeys.svelte';
   import { currentWindow } from '../lib/window.svelte';
-  import { panelFor } from './panels';
+  import { panelFor, titleFor } from './panels';
   import { useRootEffects } from './root.svelte';
 
   let { route }: { route: string } = $props();
@@ -17,11 +17,11 @@
   useHotkeys({ 'window.pin': () => currentWindow.togglePin() });
 </script>
 
-<WindowChrome title={panel?.title ?? 'cyex'} />
+<WindowChrome title={titleFor(route)} compact={panel?.compact} />
 
 <main>
   {#if panel}
-    <panel.component popout />
+    <panel.component popout {route} />
   {:else}
     <EmptyState icon="x" text="This window has nothing to show." />
   {/if}

@@ -1,0 +1,104 @@
+//! Usercard windows (1.36): small pop-ups next to the mouse. Unpinned ones close when
+//! they lose focus; pinned ones stay on top until closed. They share one saved size.
+
+use std::collections::HashSet;
+use std::sync::{Mutex, OnceLock};
+use std::time::Duration;
+
+use cyex_settings::Partition;
+use cyex_settings::schema::Windows;
+use tauri::{AppHandle, LogicalPosition, Manager, WebviewUrl};
+
+use super::panels::{PanelRegistry, label_for};
+use crate::icons;
+use crate::settings::Settings;
+
+const KIND: &str = "usercard";
+const SIZE: (f64, f64) = (340.0, 480.0);
+const MIN_SIZE: (f64, f64) = (280.0, 260.0);
+/// Focus can bounce between the window and its webview; only a lasting loss counts.
+const BLUR_GRACE: Duration = Duration::from_millis(250);
+
+/// Cards that have had focus. A card that never had it isn't closed for losing it,
+/// e.g. while it's still being created.
+fn focused_once() -> &'static Mutex<HashSet<String>> {
+    static SET: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    SET.get_or_init(Mutex::default)
+}
+
+/// 1.36 An unpinned card closes when you click elsewhere.
+pub fn on_focus(window: &tauri::Window, focused: bool) {
+    let label = window.label().to_owned();
+    let mut seen = focused_once().lock().unwrap_or_else(|p| p.into_inner());
+    if focused {
+        seen.insert(label);
+        return;
+    }
+    if !seen.contains(&label) {
+        return;
+    }
+    drop(seen);
+    let window = window.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(BLUR_GRACE).await;
+        let still_away = !window.is_focused().unwrap_or(false);
+        if still_away && !window.is_always_on_top().unwrap_or(false) {
+            focused_once().lock().unwrap_or_else(|p| p.into_inner()).remove(window.label());
+            let _ = window.close();
+        }
+    });
+}
+
+pub fn is_usercard(route: &str) -> bool {
+    route == KIND || route.starts_with("usercard/")
+}
+
+/// Settings key for a route: all usercards share one entry.
+pub fn settings_key(route: &str) -> &str {
+    if is_usercard(route) { KIND } else { route }
+}
+
+pub fn open(app: &AppHandle, channel: &str, login: &str) -> tauri::Result<()> {
+    let route = format!("{KIND}/{channel}/{login}");
+    let label = label_for(&route);
+    if let Some(existing) = app.get_webview_window(&label) {
+        existing.show()?;
+        return existing.set_focus();
+    }
+    let saved = app
+        .state::<Settings>()
+        .read::<Windows>(Partition::Windows)
+        .panels
+        .remove(KIND)
+        .and_then(|p| p.geometry)
+        .filter(|g| g.width >= MIN_SIZE.0 as u32 && g.height >= MIN_SIZE.1 as u32);
+    let (w, h) = saved.map_or(SIZE, |g| (f64::from(g.width), f64::from(g.height)));
+    let url = WebviewUrl::App(format!("index.html#/panel/{route}").into());
+    let mut builder = super::builder(app, &label, url)
+        .title(login)
+        .inner_size(w, h)
+        .min_inner_size(MIN_SIZE.0, MIN_SIZE.1)
+        .skip_taskbar(true);
+    builder = match near_cursor(app, w, h) {
+        Some(p) => builder.position(p.x, p.y),
+        None => builder.center(),
+    };
+    let window = builder.build()?;
+    app.state::<PanelRegistry>().insert(&label, &route);
+    icons::apply(&window.as_ref().window());
+    window.show()?;
+    window.set_focus()
+}
+
+/// Just right of and below the mouse, kept on its monitor.
+fn near_cursor(app: &AppHandle, w: f64, h: f64) -> Option<LogicalPosition<f64>> {
+    let cursor = app.cursor_position().ok()?;
+    let monitor = app.monitor_from_point(cursor.x, cursor.y).ok().flatten()?;
+    let scale = monitor.scale_factor();
+    let c = cursor.to_logical::<f64>(scale);
+    let pos = monitor.position().to_logical::<f64>(scale);
+    let size = monitor.size().to_logical::<f64>(scale);
+    let x = (c.x + 12.0).min(pos.x + size.width - w).max(pos.x);
+    let y = (c.y + 12.0).min(pos.y + size.height - h).max(pos.y);
+    Some(LogicalPosition::new(x, y))
+}

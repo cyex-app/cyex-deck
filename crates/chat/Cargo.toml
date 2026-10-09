@@ -1,13 +1,20 @@
 [package]
 name = "cyex-chat"
-description = "Twitch chat: IRC, parsing, join budget"
+description = "Twitch chat: IRC, parsing, tokenizing, rooms, join budget"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+cyex-core.workspace = true
 serde.workspace = true
+tokio = { workspace = true, features = ["net", "io-util"] }
+tokio-native-tls.workspace = true
 ts-rs.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "rt", "macros"] }
 
 [lints]
 workspace = true
