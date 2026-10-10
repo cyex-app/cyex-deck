@@ -28,7 +28,6 @@
   }
 
   function open(e: MouseEvent) {
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const items: MenuEntry[] = accounts.list.map((a) => ({
       label: a.displayName,
       icon: 'user',
@@ -39,7 +38,7 @@
     if (account && (accounts.can('badgePicker', account.userId) || accounts.can('chatColor', account.userId))) {
       items.push('separator', { label: 'Badge and color…', icon: 'badge', run: () => (identity = true) });
     }
-    openMenu({ clientX: r.left, clientY: r.bottom + 4 }, items);
+    openMenu(e.currentTarget as HTMLElement, items);
   }
 </script>
 

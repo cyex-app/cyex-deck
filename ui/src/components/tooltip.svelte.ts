@@ -2,6 +2,7 @@
 // explanation underneath is the "new user" part and follows the tooltips setting (2.7).
 
 import type { LinkText } from '../ipc/bindings/LinkText';
+import type { Rect } from '../lib/place';
 import { settings } from '../lib/settings.svelte';
 
 export interface TipOptions {
@@ -24,8 +25,8 @@ export const tip = $state({
   hint: '',
   image: '',
   preview: null as LinkPreview | null,
-  x: 0,
-  y: 0,
+  /** The element it shows for, as it was when the tip opened. */
+  anchor: null as Rect | null,
   visible: false,
 });
 
@@ -62,13 +63,11 @@ function show(node: HTMLElement, opts: TipOptions): void {
   owner = node;
   const delay = performance.now() - lastHidden < WARM_MS ? 0 : SHOW_DELAY_MS;
   timer = setTimeout(() => {
-    const r = node.getBoundingClientRect();
     tip.label = opts.label;
     tip.hint = opts.image ? (opts.hint ?? '') : settings.v.general?.tooltips ? (opts.hint ?? '') : '';
     tip.image = opts.image ?? '';
     tip.preview = null;
-    tip.x = r.left + r.width / 2;
-    tip.y = r.bottom + 6;
+    tip.anchor = node.getBoundingClientRect();
     tip.visible = true;
   }, delay);
 }

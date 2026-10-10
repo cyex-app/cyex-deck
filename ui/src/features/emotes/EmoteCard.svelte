@@ -1,6 +1,6 @@
-<!-- 1.41 Emote card: opens beside a clicked emote, never over it. Shows where the emote
-     comes from, who made and added it, what's stacked on it, and links to its page.
-     Closes on Escape, a click elsewhere, or scrolling. -->
+<!-- 1.41 Emote card: opens beside a clicked emote, never over it, and fully inside the
+     window (V101-04). Shows where the emote comes from, who made and added it, what's
+     stacked on it, and links to its page. Closes on Escape, a click elsewhere, or scrolling. -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import type { EmoteCard } from '../../ipc/bindings/EmoteCard';
@@ -8,6 +8,7 @@
   import { emotesIpc } from '../../ipc/emotes';
   import { systemIpc } from '../../ipc/system';
   import { formatDate } from '../../lib/format';
+  import { floating } from '../../lib/place';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { emoteLarge } from '../chat/urls';
@@ -24,7 +25,6 @@
   let { target, login, onclose }: Props = $props();
 
   const WIDTH = 300;
-  const GAP = 8;
 
   // The card is rebuilt for each new target, so the first pick is enough.
   // svelte-ignore state_referenced_locally
@@ -32,18 +32,9 @@
   let info = $state<EmoteCard | null>(null);
   let failed = $state(false);
   let box = $state<HTMLElement>();
-  let height = $state(0);
 
   const theme = $derived(settings.v.appearance.theme);
   const others = $derived([target.emote, ...target.stack].filter((l) => l.id !== shown.id));
-
-  // Beside the emote: right if there's room, else left; never over it.
-  const left = $derived.by(() => {
-    const r = target.rect;
-    if (r.right + GAP + WIDTH <= innerWidth - GAP) return r.right + GAP;
-    return Math.max(GAP, r.left - GAP - WIDTH);
-  });
-  const top = $derived(Math.min(Math.max(GAP, target.rect.top - 20), innerHeight - height - GAP));
 
   $effect(() => {
     const e = shown;
@@ -96,9 +87,7 @@
 <div
   class="card"
   bind:this={box}
-  bind:clientHeight={height}
-  style:left="{left}px"
-  style:top="{top}px"
+  use:floating={{ anchor: target.rect, side: 'right', gap: 8 }}
   style:width="{WIDTH}px"
   role="dialog"
   aria-label={shown.name}

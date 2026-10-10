@@ -6,6 +6,7 @@
   import type { Gif } from '../../ipc/bindings/Gif';
   import type { GifInfo } from '../../ipc/bindings/GifInfo';
   import { chatxIpc } from '../../ipc/chatx';
+  import { floating } from '../../lib/place';
   import { toast } from '../../lib/toast.svelte';
   import type { ChatRoom } from './room.svelte';
 
@@ -90,7 +91,7 @@
 <div class="wrap" bind:this={wrap}>
   <button class="gif-btn" class:on={open} aria-label="GIFs" use:tooltip={{ label: 'GIFs', hint: 'Search and send a GIF here.' }} onclick={toggle}>GIF</button>
   {#if open}
-    <div class="pop">
+    <div class="pop" use:floating={{ anchor: wrap, side: 'above', align: 'end', gap: 8 }}>
       {#if !info}
         <p class="note">Loading…</p>
       {:else if !info.canSend}

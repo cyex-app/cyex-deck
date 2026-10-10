@@ -63,7 +63,7 @@
     border: 0;
     color: var(--text);
     text-align: left;
-    font: var(--chat-size) / 1.5 var(--chat-font);
+    font: var(--chat-size) / var(--chat-line) var(--chat-font);
     overflow-wrap: anywhere;
   }
   .folded .text {

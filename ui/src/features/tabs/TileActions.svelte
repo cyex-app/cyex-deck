@@ -21,8 +21,7 @@
   let { tile, tab, tiled, popout }: Props = $props();
 
   function more(e: MouseEvent) {
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    openMenu({ clientX: r.right - 200, clientY: r.bottom + 4 }, [
+    openMenu(e.currentTarget as HTMLElement, [
       ...(tile.feed ? [] : [{ label: 'Edit', icon: 'pencil' as const, run: () => openEdit(tab.id, tile.id) }]),
       {
         label: 'Move to its own tab',
@@ -31,7 +30,7 @@
       },
       'separator',
       { label: 'Close', icon: 'x', run: () => void tabs.apply({ op: 'closeTile', tile: tile.id }) },
-    ]);
+    ], 'end');
   }
 </script>
 

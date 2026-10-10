@@ -2,6 +2,7 @@
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
+  import { floating } from '../../lib/place';
   import EmoteMenu from '../emotes/EmoteMenu.svelte';
 
   interface Props {
@@ -37,7 +38,9 @@
     <Icon name="smile" size={17} />
   </button>
   {#if open}
-    <div class="pop"><EmoteMenu {login} {account} {oninsert} /></div>
+    <div class="pop" use:floating={{ anchor: wrap, side: 'above', align: 'end', gap: 8 }}>
+      <EmoteMenu {login} {account} {oninsert} />
+    </div>
   {/if}
 </div>
 

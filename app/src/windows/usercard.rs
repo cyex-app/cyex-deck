@@ -93,12 +93,14 @@ pub fn open(app: &AppHandle, channel: &str, login: &str) -> tauri::Result<()> {
     window.set_focus()
 }
 
-/// Just right of and below the mouse, kept on its monitor. Physical pixels.
+/// Just right of and below the mouse, kept on its monitor and off the taskbar (V101-04).
+/// Physical pixels.
 fn near_cursor(app: &AppHandle, w: f64, h: f64) -> Option<PhysicalPosition<i32>> {
     let cursor = app.cursor_position().ok()?;
     let monitor = app.monitor_from_point(cursor.x, cursor.y).ok().flatten()?;
     let scale = monitor.scale_factor();
-    let (pos, size) = (monitor.position(), monitor.size());
+    let area = monitor.work_area();
+    let (pos, size) = (area.position, area.size);
     let (w, h) = (w * scale, h * scale);
     let right = f64::from(pos.x) + f64::from(size.width) - w;
     let bottom = f64::from(pos.y) + f64::from(size.height) - h;

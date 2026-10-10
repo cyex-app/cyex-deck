@@ -1,18 +1,13 @@
-<!-- Draws the shared right-click menu at the pointer, kept inside the window. -->
+<!-- Draws the shared right-click menu at the pointer, kept inside the window (V101-04). -->
 <script lang="ts">
+  import { floating } from '../lib/place';
   import Icon from './Icon.svelte';
   import { back, closeMenu, menu, pick } from './menu.svelte';
 
-  const EDGE = 6;
   let box = $state<HTMLElement>();
-  let width = $state(0);
-  let height = $state(0);
-  let vw = $state(0);
-  let vh = $state(0);
-
-  const left = $derived(Math.max(EDGE, Math.min(menu.x, vw - width - EDGE)));
-  const top = $derived(Math.max(EDGE, Math.min(menu.y, vh - height - EDGE)));
   const list = $derived(menu.stack.at(-1));
+  /** A button's menu sits just under it; one at the pointer starts right there. */
+  const gap = $derived(menu.anchor.bottom > menu.anchor.top ? 4 : 0);
 
   $effect(() => {
     if (!menu.open) return;
@@ -35,18 +30,13 @@
   });
 </script>
 
-<svelte:window bind:innerWidth={vw} bind:innerHeight={vh} />
-
 {#if menu.open && list}
   <div
     class="menu"
     role="menu"
     tabindex="-1"
     bind:this={box}
-    bind:clientWidth={width}
-    bind:clientHeight={height}
-    style:left="{left}px"
-    style:top="{top}px"
+    use:floating={{ anchor: menu.anchor, align: menu.align, gap, edge: 6 }}
     oncontextmenu={(e) => e.preventDefault()}
   >
     {#if menu.stack.length > 1}

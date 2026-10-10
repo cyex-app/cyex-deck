@@ -1,6 +1,7 @@
 <!-- The picture `peekAt` (peeking.svelte.ts) asks for. One per view. -->
 <script lang="ts">
   import { formatShort } from '../../lib/format';
+  import { floating } from '../../lib/place';
   import { preview } from './lists';
   import { peek } from './peeking.svelte';
 
@@ -8,7 +9,7 @@
 </script>
 
 {#if peek.card && stream}
-  <div class="peek" style:left="{peek.x}px" style:top="{peek.y}px">
+  <div class="peek" use:floating={{ anchor: peek.anchor, gap: 4 }}>
     <img src={preview(peek.card.login, 320, 180)} alt="" />
     <div class="text">
       <span class="title">{stream.title || 'Untitled'}</span>

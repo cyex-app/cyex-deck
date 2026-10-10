@@ -22,9 +22,11 @@
     canReply?: boolean;
     /** In the whispers view: no "Whisper" label over each line. */
     inWhispers?: boolean;
+    /** V101-01 The tinted one of alternating lines. */
+    stripe?: boolean;
   }
 
-  let { m, channel, canReply = false, inWhispers = false }: Props = $props();
+  let { m, channel, canReply = false, inWhispers = false, stripe = false }: Props = $props();
 
   const c = $derived(settings.v.chat);
   const has = (flag: ChatMessage['flags'][number]) => m.flags.includes(flag);
@@ -53,6 +55,7 @@
 
 <div
   class="line kind-{notice?.kind ?? 'chat'} {hl.cls}"
+  class:stripe
   class:history={has('history')}
   class:similar={has('similar')}
   class:effect={!!effect}
@@ -122,12 +125,17 @@
 <style>
   .line {
     position: relative;
-    padding: 3px 10px;
-    font: var(--chat-size) / 1.55 var(--chat-font);
+    padding: 2px 10px;
+    /* V101-37 Same height with or without emotes; --chat-line fits a whole one. */
+    font: var(--chat-size) / var(--chat-line) var(--chat-font);
     overflow-wrap: anywhere;
     user-select: text;
     content-visibility: auto;
-    contain-intrinsic-size: auto 24px;
+    contain-intrinsic-size: auto calc(var(--chat-line) * var(--chat-size) + 4px);
+  }
+  /* V101-01 Alternating lines (2.1): the stripe stays with its line (stripes.ts). */
+  .stripe {
+    background: var(--row-alt);
   }
   .line:hover {
     background: var(--row-hover);

@@ -1,5 +1,6 @@
 // Right-click menus. One shared menu per window, drawn by MenuHost.
 
+import { type Align, point, type Rect } from '../lib/place';
 import type { IconName } from './icons';
 
 export interface MenuItem {
@@ -20,15 +21,21 @@ export type MenuEntry = MenuItem | 'separator';
 
 export const menu = $state({
   open: false,
-  x: 0,
-  y: 0,
+  /** The pointer, or the button it opened from. */
+  anchor: point(0, 0) as Rect,
+  align: 'start' as Align,
   /** Lists shown so far; the last one is on screen. */
   stack: [] as { title: string; items: MenuEntry[] }[],
 });
 
-export function openMenu(at: { clientX: number; clientY: number }, items: MenuEntry[]): void {
-  menu.x = at.clientX;
-  menu.y = at.clientY;
+/** At the pointer, or under a button (`align: 'end'` lines it up with the button's right edge). */
+export function openMenu(
+  at: { clientX: number; clientY: number } | Element,
+  items: MenuEntry[],
+  align: Align = 'start',
+): void {
+  menu.anchor = at instanceof Element ? at.getBoundingClientRect() : point(at.clientX, at.clientY);
+  menu.align = align;
   menu.stack = [{ title: '', items }];
   menu.open = true;
 }

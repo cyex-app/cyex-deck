@@ -1,7 +1,10 @@
 <!-- Dropdown under (or above) its trigger. Put it next to the trigger inside a
-     `position: relative` wrapper; clicks outside that wrapper and Escape close it. -->
+     `position: relative` wrapper; clicks outside that wrapper and Escape close it.
+     Flips to the other side and stays inside the window when there's no room (V101-04). -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
+
+  import { floating } from '../lib/place';
 
   interface Props {
     open: boolean;
@@ -36,7 +39,7 @@
 </script>
 
 {#if open}
-  <div class="popover {align} {side}" bind:this={box} role="menu">
+  <div class="popover" bind:this={box} use:floating={{ anchor: box?.parentElement, side, align }} role="menu">
     {@render children()}
   </div>
 {/if}
@@ -51,17 +54,5 @@
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
     box-shadow: 0 8px 24px var(--shadow);
-  }
-  .below {
-    top: calc(100% + 6px);
-  }
-  .above {
-    bottom: calc(100% + 6px);
-  }
-  .start {
-    left: 0;
-  }
-  .end {
-    right: 0;
   }
 </style>

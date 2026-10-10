@@ -28,6 +28,7 @@
   import { runEntry, toItems, userMenus } from './menus.svelte';
   import { plainText } from './text';
   import { readMarks, type ChatRoom } from './room.svelte';
+  import { stripes } from './stripes';
   import { whispers } from '../whispers/whispers.svelte';
   import { accounts } from '../../lib/accounts.svelte';
 
@@ -54,6 +55,8 @@
   let list = $state<HTMLElement>();
   /** Stays true while the user wants new messages in view. Scrolling up ends it. */
   let following = $state(true);
+  /** V101-31 Lines out of view below. Without any there's no "More messages". */
+  let below = $state(false);
   let hovering = $state(false);
   let keyHeld = $state(false);
   // svelte-ignore state_referenced_locally
@@ -87,7 +90,8 @@
   // Follow new messages unless paused or scrolled up. Also catches up after a pause.
   $effect(() => {
     void room.messages;
-    if (following && !paused) void tick().then(toBottom);
+    const follow = following && !paused;
+    void tick().then(() => (follow ? toBottom() : measure()));
   });
 
   // C5 Pause key.
@@ -153,9 +157,25 @@
     return starts;
   });
 
+  /** V101-01 Stripe per line, kept while it's shown. */
+  let striped = new Map<string, boolean>();
+  const stripe = $derived.by(() => {
+    if (!c.alternateLines) return null;
+    striped = stripes(shown.map((m) => m.id), striped);
+    return striped;
+  });
+
   function toBottom() {
     if (list) list.scrollTop = list.scrollHeight;
+    measure();
   }
+
+  function measure() {
+    if (list) below = list.scrollTop + list.clientHeight < list.scrollHeight - 24;
+  }
+
+  /** V101-31 An empty or short chat has nothing to scroll to. */
+  const scrolls = () => !!list && list.scrollHeight > list.clientHeight;
 
   /** Set while the user drags the scrollbar. */
   let dragging = false;
@@ -165,18 +185,18 @@
   // following, those just snap back down.
   function onscroll() {
     if (!list) return;
-    const bottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 24;
-    if (bottom) following = true;
+    measure();
+    if (!below) following = true;
     else if (dragging) following = false;
     else if (following && !paused) toBottom();
   }
 
   function onwheel(e: WheelEvent) {
-    if (e.deltaY < 0) following = false;
+    if (e.deltaY < 0 && scrolls()) following = false;
   }
 
   function onkeydown(e: KeyboardEvent) {
-    if (['PageUp', 'ArrowUp', 'Home'].includes(e.key)) following = false;
+    if (['PageUp', 'ArrowUp', 'Home'].includes(e.key) && scrolls()) following = false;
   }
 
   function onpointerdown(e: PointerEvent) {
@@ -377,7 +397,6 @@
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions, a11y_mouse_events_have_key_events -->
   <div
     class="list"
-    class:alt={c.alternateLines}
     class:sep={c.separators}
     bind:this={list}
     {onscroll}
@@ -395,14 +414,14 @@
   >
     {#each shown as m (m.id)}
       {#if dayStarts.has(m.id)}<p class="day" role="separator">{formatDate(new Date(m.ts))}</p>{/if}
-      <Line {m} channel={room.login} {canReply} />
+      <Line {m} channel={room.login} {canReply} stripe={stripe?.get(m.id) ?? false} />
       {#if m.id === lastRead && m.id !== shown.at(-1)?.id}<hr class="last-read" />{/if}
     {/each}
   </div>
   {#if card}
     {#key card}<EmoteCard target={card} login={room.login} onclose={() => (card = null)} />{/key}
   {/if}
-  {#if !following || newWhilePaused}
+  {#if below && (!following || newWhilePaused)}
     <button class="more" onclick={jumpDown}>
       <Icon name="arrowDown" size={13} />
       {following ? 'Paused' : 'More messages'}
@@ -437,9 +456,6 @@
     overflow-y: auto;
     overflow-x: hidden;
     padding: 4px 0;
-  }
-  .alt :global(.line:nth-of-type(even)) {
-    background: var(--row-alt);
   }
   .sep :global(.line) {
     border-bottom: 1px solid var(--border);

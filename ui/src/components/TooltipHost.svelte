@@ -1,17 +1,11 @@
 <script lang="ts">
+  import { floating } from '../lib/place';
   import { tip } from './tooltip.svelte';
-
-  const EDGE = 8;
-  let width = $state(0);
-  let viewport = $state(0);
-
-  const left = $derived(Math.min(Math.max(tip.x - width / 2, EDGE), viewport - width - EDGE));
 </script>
 
-<svelte:window bind:innerWidth={viewport} />
-
 {#if tip.visible}
-  <div class="tip" class:pic={!!tip.image} role="tooltip" bind:clientWidth={width} style:left="{left}px" style:top="{tip.y}px">
+  <!-- V101-04 Under its element, or above it when there's no room below. -->
+  <div class="tip" class:pic={!!tip.image} role="tooltip" use:floating={{ anchor: tip.anchor, align: 'center' }}>
     {#if tip.image}<img src={tip.image} alt="" />{/if}
     <span class="name">{tip.label}</span>
     {#if tip.hint}<span class="hint">{tip.hint}</span>{/if}

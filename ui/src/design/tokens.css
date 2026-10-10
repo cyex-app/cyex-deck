@@ -38,6 +38,9 @@
   --font-mono: 'IBM Plex Mono', 'Cascadia Mono', Consolas, monospace;
   --chat-font: var(--font-ui);
   --chat-size: 13px;
+  /* V101-37 Chat line height, as a multiple of the chat font size: room for a whole
+     emote (2.15em at the E3 emote size), so a line with one is as tall as one without. */
+  --chat-line: max(1.55, calc(2.15 * var(--emote-scale, 1)));
 
   --radius: 3px;
   --chrome-h: 38px;
