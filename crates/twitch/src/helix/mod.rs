@@ -1,14 +1,19 @@
 //! Helix (api.twitch.tv/helix). One file per endpoint group.
 
+pub mod ads;
 pub mod blocks;
+pub mod channel;
 mod chat;
 mod clips;
 pub mod eventsub;
 mod follows;
+pub mod gueststar;
 pub mod moderation;
 pub mod modes;
 pub mod roles;
+pub mod stats;
 mod users;
+pub mod votes;
 
 pub use chat::{set_chat_color, user_emotes};
 pub use clips::{CreatedClip, create_clip};

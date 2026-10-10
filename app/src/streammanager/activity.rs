@@ -1,0 +1,298 @@
+//! 1.35 The stream manager's activity feed: follows, subs, gifts, cheers, raids and
+//! redemptions on the broadcaster's own channel, from its own EventSub session (D26). The
+//! UI filters by kind (`streammanager` settings). Works whether or not the chat is open.
+
+use cyex_core::number::grouped;
+use cyex_eventsub::events::{Activity, Who, parse_activity};
+use cyex_eventsub::session::{self, Out, Session};
+use cyex_eventsub::subs;
+use cyex_twitch::helix;
+use serde::Serialize;
+use tauri::{AppHandle, Manager};
+use ts_rs::TS;
+
+use super::{State, lock, push_activity};
+use crate::auth;
+
+/// One line in the feed.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename = "SmActivity")]
+pub struct Item {
+    pub id: String,
+    /// `follow`, `sub`, `gift`, `cheer`, `raid` or `redemption`; the filter keys.
+    pub kind: String,
+    pub text: String,
+    /// Login of who did it, for the usercard; `None` when anonymous.
+    pub user: Option<String>,
+    /// Unix ms.
+    #[ts(type = "number")]
+    pub ts: i64,
+}
+
+/// Starts the session; its events land in the feed. Dropping the handle ends it.
+pub fn start(app: &AppHandle) -> Session {
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    let (session, task) = session::start(tx);
+    tauri::async_runtime::spawn(task);
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        while let Some(out) = rx.recv().await {
+            handle(&app, out);
+        }
+    });
+    session
+}
+
+fn handle(app: &AppHandle, out: Out) {
+    match out {
+        Out::Welcome(id) => {
+            let target = {
+                let st = app.state::<State>();
+                let mut live = lock(&st.live);
+                let Some(live) = live.as_mut() else { return };
+                live.session_id = Some(id.clone());
+                (live.account.clone(), live.channel_id.clone())
+            };
+            subscribe(app, target.0, target.1, id);
+        }
+        Out::Lost => {
+            let st = app.state::<State>();
+            if let Some(live) = lock(&st.live).as_mut() {
+                live.session_id = None;
+            }
+        }
+        Out::Notification { kind, event, .. } => {
+            if let Some(a) = parse_activity(&kind, &event) {
+                let (kind, text, user) = describe(&a);
+                push_activity(
+                    app,
+                    Item {
+                        id: cyex_chat::build::local_id(),
+                        kind: kind.into(),
+                        text,
+                        user,
+                        ts: crate::chat::now_ms(),
+                    },
+                );
+            }
+        }
+        Out::Revoked { kind, .. } => eprintln!("stream manager: lost {kind}"),
+    }
+}
+
+/// Subscribes every activity type on the new session (Helix). A type the token lacks the
+/// scope for fails on its own; the rest still come in.
+fn subscribe(app: &AppHandle, account: String, channel_id: String, session_id: String) {
+    let Some((token, client_id)) = auth::helix_token(app, &account) else {
+        return;
+    };
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let http = app.state::<auth::Auth>().http.clone();
+        let auth = helix::Auth {
+            client_id: &client_id,
+            token: &token,
+        };
+        for (kind, version, cond) in subs::for_broadcaster(&channel_id, &account) {
+            if let Err(e) = helix::eventsub::subscribe(&http, auth, &session_id, kind, version, &cond).await
+                && !e.api_message().is_some_and(|m| m.contains("already"))
+            {
+                eprintln!("stream manager: couldn't follow {kind}: {e}");
+            }
+        }
+    });
+}
+
+fn name(w: &Who) -> String {
+    if w.name.is_empty() {
+        w.login.clone()
+    } else {
+        w.name.clone()
+    }
+}
+
+/// `"1000"` → `"Tier 1"`.
+fn tier(t: &str) -> &'static str {
+    match t {
+        "2000" => "Tier 2",
+        "3000" => "Tier 3",
+        _ => "Tier 1",
+    }
+}
+
+/// Appends `: text` when there's a message, in place of the line's closing period.
+fn with_text(line: String, text: &str) -> String {
+    let text = text.trim();
+    if text.is_empty() {
+        line
+    } else {
+        format!("{}: {text}", line.trim_end_matches('.'))
+    }
+}
+
+/// The filter key, the line shown and who did it.
+pub fn describe(a: &Activity) -> (&'static str, String, Option<String>) {
+    match a {
+        Activity::Follow { user, .. } => (
+            "follow",
+            format!("{} followed.", name(user)),
+            Some(user.login.clone()),
+        ),
+        Activity::Subscribe { user, tier: t, gift } => {
+            let line = if *gift {
+                format!("{} got a gifted {} sub.", name(user), tier(t))
+            } else {
+                format!("{} subscribed at {}.", name(user), tier(t))
+            };
+            ("sub", line, Some(user.login.clone()))
+        }
+        Activity::SubGift { user, tier: t, total } => {
+            let who = user.as_ref().map_or_else(|| "Someone".to_owned(), name);
+            let what = if *total == 1 {
+                format!("a {} sub", tier(t))
+            } else {
+                format!("{} {} subs", grouped(*total), tier(t))
+            };
+            (
+                "gift",
+                format!("{who} gifted {what}."),
+                user.as_ref().map(|u| u.login.clone()),
+            )
+        }
+        Activity::Resub {
+            user,
+            tier: t,
+            months,
+            streak,
+            text,
+        } => {
+            let mut line = format!(
+                "{} resubscribed at {} for {} months",
+                name(user),
+                tier(t),
+                grouped(*months)
+            );
+            if let Some(s) = streak {
+                line.push_str(&format!(", {} in a row", grouped(*s)));
+            }
+            line.push('.');
+            ("sub", with_text(line, text), Some(user.login.clone()))
+        }
+        Activity::Cheer { user, bits, text } => {
+            let who = user.as_ref().map_or_else(|| "Someone".to_owned(), name);
+            let unit = if *bits == 1 { "bit" } else { "bits" };
+            let line = format!("{who} cheered {} {unit}.", grouped(*bits));
+            (
+                "cheer",
+                with_text(line, text),
+                user.as_ref().map(|u| u.login.clone()),
+            )
+        }
+        Activity::Raid { from, viewers } => (
+            "raid",
+            format!("{} raided with {} viewers.", name(from), grouped(*viewers)),
+            Some(from.login.clone()),
+        ),
+        Activity::Redemption {
+            user,
+            reward,
+            cost,
+            input,
+        } => {
+            let line = format!("{} redeemed {reward} · {}", name(user), grouped(*cost));
+            ("redemption", with_text(line, input), Some(user.login.clone()))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn who(login: &str, name: &str) -> Who {
+        Who {
+            id: "1".into(),
+            login: login.into(),
+            name: name.into(),
+        }
+    }
+
+    #[test]
+    fn lines_read_well() {
+        let u = who("kuni", "Kuni");
+        assert_eq!(
+            describe(&Activity::Follow {
+                user: u.clone(),
+                at: String::new()
+            })
+            .1,
+            "Kuni followed."
+        );
+        assert_eq!(
+            describe(&Activity::Subscribe {
+                user: u.clone(),
+                tier: "2000".into(),
+                gift: false
+            })
+            .1,
+            "Kuni subscribed at Tier 2."
+        );
+        assert_eq!(
+            describe(&Activity::SubGift {
+                user: None,
+                tier: "1000".into(),
+                total: 1500
+            })
+            .1,
+            "Someone gifted 1.500 Tier 1 subs."
+        );
+        assert_eq!(
+            describe(&Activity::SubGift {
+                user: Some(u.clone()),
+                tier: "1000".into(),
+                total: 1
+            })
+            .1,
+            "Kuni gifted a Tier 1 sub."
+        );
+        assert_eq!(
+            describe(&Activity::Resub {
+                user: u.clone(),
+                tier: "1000".into(),
+                months: 12,
+                streak: Some(3),
+                text: "hi".into()
+            })
+            .1,
+            "Kuni resubscribed at Tier 1 for 12 months, 3 in a row: hi"
+        );
+        let (kind, line, user) = describe(&Activity::Cheer {
+            user: None,
+            bits: 1,
+            text: " ".into(),
+        });
+        assert_eq!(
+            (kind, line.as_str(), user),
+            ("cheer", "Someone cheered 1 bit.", None)
+        );
+        assert_eq!(
+            describe(&Activity::Raid {
+                from: who("r", ""),
+                viewers: 1234
+            })
+            .1,
+            "r raided with 1.234 viewers."
+        );
+        assert_eq!(
+            describe(&Activity::Redemption {
+                user: u,
+                reward: "Hydrate".into(),
+                cost: 3220,
+                input: String::new()
+            })
+            .1,
+            "Kuni redeemed Hydrate · 3.220"
+        );
+    }
+}

@@ -122,6 +122,9 @@ pub fn notify(app: &AppHandle) {
     crate::chat::retry_refused(app);
     crate::tabs::on_accounts_changed(app);
     crate::moderation::feeds::sync(app);
+    if app.try_state::<crate::streammanager::State>().is_some() {
+        crate::streammanager::accounts_changed(app);
+    }
     if app.try_state::<crate::chat::rules::RuleState>().is_some() {
         crate::chat::rules::load_blocked(app.clone());
     }

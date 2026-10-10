@@ -20,6 +20,7 @@
   import MinerSection from './sections/MinerSection.svelte';
   import PlayerSection from './sections/PlayerSection.svelte';
   import RecordingsSection from './sections/RecordingsSection.svelte';
+  import StreamManagerSection from './sections/StreamManagerSection.svelte';
   import WindowsSection from './sections/WindowsSection.svelte';
 
   interface Props {
@@ -46,6 +47,7 @@
     { id: 'recordings', label: 'Recordings', icon: 'record', component: RecordingsSection },
     { id: 'emotes', label: 'Emotes', icon: 'smile', component: EmotesSection },
     { id: 'miner', label: 'Miner', icon: 'pickaxe', component: MinerSection },
+    { id: 'streammanager', label: 'Stream manager', icon: 'radio', component: StreamManagerSection },
     { id: 'player', label: 'Player', icon: 'tv', component: PlayerSection },
     { id: 'hotkeys', label: 'Hotkeys', icon: 'keyboard', component: HotkeysSection },
     { id: 'windows', label: 'Windows', icon: 'layout', component: WindowsSection },

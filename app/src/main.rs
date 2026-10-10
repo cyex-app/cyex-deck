@@ -14,6 +14,7 @@ mod miner;
 mod moderation;
 mod player;
 mod settings;
+mod streammanager;
 mod tabs;
 mod tray;
 mod windows;
@@ -42,6 +43,7 @@ fn main() {
             browse::init(handle);
             miner::init(handle);
             moderation::init(handle);
+            streammanager::init(handle);
             windows::init(handle)?;
             tray::init(handle)?;
             Ok(())

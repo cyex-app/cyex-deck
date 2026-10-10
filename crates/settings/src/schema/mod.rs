@@ -14,6 +14,7 @@ mod miner;
 mod modview;
 mod notifications;
 mod player;
+mod streammanager;
 mod tabs;
 mod windows;
 
@@ -36,6 +37,7 @@ pub use miner::{BetFilter, Bets, ChatPresence, DelayMode, FilterBy, FilterCmp, M
 pub use modview::Modview;
 pub use notifications::Notifications;
 pub use player::{Player, Quality};
+pub use streammanager::{ActivityFilters, Obs, StreamManager};
 pub use tabs::{
     Closed, Column, GroupColor, Resolved, Tab, TabChannel, TabError, TabGroup, TabOp, Tabs, Tile, TileShow, Zone, random_id,
 };

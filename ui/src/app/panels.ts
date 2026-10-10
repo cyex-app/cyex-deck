@@ -7,6 +7,7 @@ import type { Component } from 'svelte';
 import RecordingView from '../features/chat/RecordingView.svelte';
 import ModViewPanel from '../features/modview/ModViewPanel.svelte';
 import SettingsView from '../features/settings/SettingsView.svelte';
+import StreamManagerView from '../features/streammanager/StreamManagerView.svelte';
 import ChatPanel from '../features/tabs/ChatPanel.svelte';
 import TabPanel from '../features/tabs/TabPanel.svelte';
 import { label, tabs, tiles } from '../features/tabs/tabs.svelte';
@@ -30,6 +31,7 @@ export const PANELS: Record<string, PanelKind> = {
   usercard: { title: 'User', width: 340, height: 480, compact: true, component: UsercardView },
   recording: { title: 'Recording', width: 400, height: 640, component: RecordingView },
   modview: { title: 'Mod view', width: 920, height: 680, component: ModViewPanel },
+  streammanager: { title: 'Stream manager', width: 1000, height: 760, component: StreamManagerView },
 };
 
 export function panelFor(route: string): PanelKind | undefined {

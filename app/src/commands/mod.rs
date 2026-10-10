@@ -10,6 +10,7 @@ mod moderation;
 mod player;
 mod rules;
 mod settings;
+mod streammanager;
 pub mod system;
 mod tabs;
 mod theme;
@@ -100,6 +101,34 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         moderation::mod_nuke_preview,
         moderation::mod_massban,
         moderation::mod_massban_stop,
+        streammanager::sm_manager,
+        streammanager::sm_open,
+        streammanager::sm_close,
+        streammanager::sm_info,
+        streammanager::sm_set_info,
+        streammanager::sm_categories,
+        streammanager::sm_marker,
+        streammanager::sm_markers,
+        streammanager::sm_modes,
+        streammanager::sm_set_mode,
+        streammanager::sm_commercial,
+        streammanager::sm_ad_schedule,
+        streammanager::sm_snooze,
+        streammanager::sm_raid,
+        streammanager::sm_unraid,
+        streammanager::sm_votes,
+        streammanager::sm_create_poll,
+        streammanager::sm_end_poll,
+        streammanager::sm_create_prediction,
+        streammanager::sm_end_prediction,
+        streammanager::sm_together,
+        streammanager::sm_together_start,
+        streammanager::sm_together_end,
+        streammanager::sm_together_invite,
+        streammanager::sm_together_uninvite,
+        streammanager::sm_together_slot,
+        streammanager::sm_obs_folder,
+        streammanager::sm_obs_open,
         emotes::emotes_looks,
         emotes::emotes_menu,
         emotes::emotes_card,

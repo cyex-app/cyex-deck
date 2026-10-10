@@ -16,6 +16,7 @@
   import { miner } from '../features/miner/miner.svelte';
   import MinerView from '../features/miner/MinerView.svelte';
   import SettingsView from '../features/settings/SettingsView.svelte';
+  import StreamManagerView from '../features/streammanager/StreamManagerView.svelte';
   import { openAdd } from '../features/tabs/dialog.svelte';
   import PoppedOut from '../features/tabs/PoppedOut.svelte';
   import Switcher from '../features/tabs/Switcher.svelte';
@@ -34,7 +35,7 @@
   import { popOut } from './panels';
   import { useRootEffects } from './root.svelte';
 
-  type Fixed = 'home' | 'discover' | 'miner' | 'settings';
+  type Fixed = 'home' | 'discover' | 'miner' | 'streamManager' | 'settings';
 
   /** A fixed view, or `null` while a tab shows. */
   let fixed = $state<Fixed | null>(tabs.active ? null : 'home');
@@ -48,6 +49,8 @@
   const tab = $derived(tabs.tab(current));
   /** 08 The miner shows once an account has a GQL sign-in. */
   const canMine = $derived(accounts.list.some((a) => a.features.includes('miner')));
+  /** 10 The stream manager shows once an account can run its own channel (D26). */
+  const canManage = $derived(accounts.list.some((a) => a.features.includes('streamManager')));
 
   // Follow the active tab when an edit moves it, e.g. closing the shown tab.
   $effect(() => {
@@ -65,6 +68,7 @@
     'nav.home': () => show('home'),
     'nav.discover': () => show('discover'),
     'nav.miner': () => canMine && show('miner'),
+    'nav.streamManager': () => canManage && show('streamManager'),
     'settings.open': () => show('settings'),
     'window.pin': () => currentWindow.togglePin(),
     'tabs.switcher': () => (switcher = true),
@@ -130,6 +134,10 @@
   async function popOutSettings() {
     if (await popOut('settings')) show('home');
   }
+
+  async function popOutManager() {
+    if (await popOut('streammanager')) show('home');
+  }
 </script>
 
 <WindowChrome>
@@ -157,6 +165,15 @@
           active={fixed === 'miner'}
           badge={miner.mining.length > 0}
           onclick={() => show('miner')}
+        />
+      {/if}
+      {#if canManage}
+        <IconButton
+          icon="radio"
+          label="Stream manager"
+          hint="Run your own stream: title, ads, polls, raids and more."
+          active={fixed === 'streamManager'}
+          onclick={() => show('streamManager')}
         />
       {/if}
     </nav>
@@ -189,6 +206,8 @@
       <DiscoverView onopen={open} />
     {:else if fixed === 'miner' && canMine}
       <MinerView onsettings={minerSettings} onsignin={manageAccounts} />
+    {:else if fixed === 'streamManager' && canManage}
+      <StreamManagerView onpopout={popOutManager} onsignin={manageAccounts} />
     {:else if fixed === 'settings'}
       <SettingsView onpopout={popOutSettings} bind:section={settingsSection} />
     {:else}

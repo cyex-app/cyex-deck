@@ -281,12 +281,132 @@ fn held(e: &Value) -> Option<Held> {
     })
 }
 
+/// 1.35 Things that happen on the broadcaster's own channel, for the stream manager's
+/// activity feed. A separate enum from the mod `Event`s so each stays focused.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Activity {
+    Follow { user: Who, at: String },
+    /// A new sub (not a resub). `tier` is Twitch's `"1000"`/`"2000"`/`"3000"`.
+    Subscribe { user: Who, tier: String, gift: bool },
+    /// A gift of `total` subs; `user` is the gifter unless anonymous.
+    SubGift { user: Option<Who>, tier: String, total: u64 },
+    /// A resub announced in chat, with the sub streak when the viewer shares it.
+    Resub {
+        user: Who,
+        tier: String,
+        months: u64,
+        streak: Option<u64>,
+        text: String,
+    },
+    /// Bits; `user` is `None` when cheered anonymously.
+    Cheer { user: Option<Who>, bits: u64, text: String },
+    /// Someone raided in.
+    Raid { from: Who, viewers: u64 },
+    Redemption {
+        user: Who,
+        reward: String,
+        cost: u64,
+        input: String,
+    },
+}
+
+pub fn parse_activity(kind: &str, e: &Value) -> Option<Activity> {
+    let str_of = |k: &str| e.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
+    let num_of = |k: &str| e.get(k).and_then(Value::as_u64);
+    Some(match kind {
+        "channel.follow" => Activity::Follow {
+            user: Who::user(e)?,
+            at: str_of("followed_at"),
+        },
+        "channel.subscribe" => Activity::Subscribe {
+            user: Who::user(e)?,
+            tier: str_of("tier"),
+            gift: e.get("is_gift").and_then(Value::as_bool).unwrap_or(false),
+        },
+        "channel.subscription.gift" => Activity::SubGift {
+            user: Who::user(e),
+            tier: str_of("tier"),
+            total: num_of("total").unwrap_or(1),
+        },
+        "channel.subscription.message" => Activity::Resub {
+            user: Who::user(e)?,
+            tier: str_of("tier"),
+            months: num_of("cumulative_months").unwrap_or(0),
+            streak: num_of("streak_months").filter(|&s| s > 0),
+            text: e
+                .get("message")
+                .and_then(|m| m.get("text"))
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned(),
+        },
+        "channel.cheer" => Activity::Cheer {
+            user: Who::user(e),
+            bits: num_of("bits").unwrap_or(0),
+            text: str_of("message"),
+        },
+        "channel.raid" => Activity::Raid {
+            from: Who::read(e, "from_broadcaster_user")?,
+            viewers: num_of("viewers").unwrap_or(0),
+        },
+        "channel.channel_points_custom_reward_redemption.add" => Activity::Redemption {
+            user: Who::user(e)?,
+            reward: e
+                .get("reward")
+                .and_then(|r| r.get("title"))
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned(),
+            cost: e.get("reward").and_then(|r| r.get("cost")).and_then(Value::as_u64).unwrap_or(0),
+            input: str_of("user_input"),
+        },
+        _ => return None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn ev(kind: &str, json: &str) -> Event {
         parse(kind, &serde_json::from_str(json).unwrap()).unwrap()
+    }
+
+    fn act(kind: &str, json: &str) -> Activity {
+        parse_activity(kind, &serde_json::from_str(json).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn activity_subs_gifts_cheers_raids_redemptions() {
+        assert!(matches!(
+            act("channel.subscribe", r#"{"user_id":"3","user_login":"u","user_name":"U","tier":"1000","is_gift":false}"#),
+            Activity::Subscribe { ref tier, gift: false, .. } if tier == "1000"
+        ));
+        assert_eq!(
+            act("channel.subscription.gift", r#"{"user_id":"3","user_login":"u","user_name":"U","total":5,"tier":"1000","is_anonymous":false}"#),
+            Activity::SubGift { user: Some(Who { id: "3".into(), login: "u".into(), name: "U".into() }), tier: "1000".into(), total: 5 }
+        );
+        let anon = act("channel.subscription.gift", r#"{"user_id":null,"total":1,"tier":"2000","is_anonymous":true}"#);
+        assert!(matches!(anon, Activity::SubGift { user: None, total: 1, .. }));
+        assert!(matches!(
+            act("channel.subscription.message", r#"{"user_id":"3","user_login":"u","user_name":"U","tier":"1000",
+            "cumulative_months":12,"streak_months":3,"duration_months":1,"message":{"text":"hi","emotes":[]}}"#),
+            Activity::Resub { months: 12, streak: Some(3), ref text, .. } if text == "hi"
+        ));
+        assert!(matches!(
+            act("channel.cheer", r#"{"is_anonymous":true,"user_id":null,"bits":100,"message":"cheer100 yo"}"#),
+            Activity::Cheer { user: None, bits: 100, .. }
+        ));
+        assert!(matches!(
+            act("channel.raid", r#"{"from_broadcaster_user_id":"9","from_broadcaster_user_login":"r","from_broadcaster_user_name":"R","viewers":42}"#),
+            Activity::Raid { viewers: 42, ref from } if from.login == "r"
+        ));
+        assert!(matches!(
+            act("channel.channel_points_custom_reward_redemption.add", r#"{"user_id":"3","user_login":"u","user_name":"U",
+            "user_input":"hello","reward":{"id":"r1","title":"Hydrate","cost":500,"prompt":""}}"#),
+            Activity::Redemption { cost: 500, ref reward, ref input, .. } if reward == "Hydrate" && input == "hello"
+        ));
+        assert!(parse_activity("channel.unknown", &serde_json::json!({})).is_none());
     }
 
     #[test]

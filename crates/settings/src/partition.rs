@@ -22,12 +22,15 @@ pub enum Partition {
     Accounts,
     Miner,
     Modview,
+    /// One lowercase word like the other files.
+    #[serde(rename = "streammanager")]
+    StreamManager,
     Notifications,
     Windows,
 }
 
 impl Partition {
-    pub const ALL: [Partition; 15] = [
+    pub const ALL: [Partition; 16] = [
         Partition::General,
         Partition::Appearance,
         Partition::Chat,
@@ -41,6 +44,7 @@ impl Partition {
         Partition::Accounts,
         Partition::Miner,
         Partition::Modview,
+        Partition::StreamManager,
         Partition::Notifications,
         Partition::Windows,
     ];
@@ -60,6 +64,7 @@ impl Partition {
             Partition::Accounts => "accounts",
             Partition::Miner => "miner",
             Partition::Modview => "modview",
+            Partition::StreamManager => "streammanager",
             Partition::Notifications => "notifications",
             Partition::Windows => "windows",
         }
@@ -96,6 +101,7 @@ impl Partition {
             Partition::Accounts => roundtrip::<schema::Accounts>(value),
             Partition::Miner => roundtrip::<schema::Miner>(value),
             Partition::Modview => roundtrip::<schema::Modview>(value),
+            Partition::StreamManager => roundtrip::<schema::StreamManager>(value),
             Partition::Notifications => roundtrip::<schema::Notifications>(value),
             Partition::Windows => roundtrip::<schema::Windows>(value),
         }

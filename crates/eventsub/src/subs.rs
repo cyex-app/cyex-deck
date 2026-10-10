@@ -48,9 +48,33 @@ pub fn for_moderator(broadcaster_id: &str, moderator_id: &str) -> Vec<Sub> {
         .collect()
 }
 
+/// 1.35 What the stream manager's session follows for the broadcaster's own channel: each
+/// type with its version and condition. `channel.follow` names the moderator (cost 0);
+/// `channel.raid` watches raids coming *in* (`to_broadcaster_user_id`); the rest name only
+/// the broadcaster. Subs, cheers and redemptions need their read scopes.
+pub fn for_broadcaster(broadcaster_id: &str, moderator_id: &str) -> Vec<(&'static str, &'static str, Value)> {
+    let b = || json!({ "broadcaster_user_id": broadcaster_id });
+    vec![
+        (
+            "channel.follow",
+            "2",
+            json!({ "broadcaster_user_id": broadcaster_id, "moderator_user_id": moderator_id }),
+        ),
+        ("channel.subscribe", "1", b()),
+        ("channel.subscription.gift", "1", b()),
+        ("channel.subscription.message", "1", b()),
+        ("channel.cheer", "1", b()),
+        ("channel.raid", "1", json!({ "to_broadcaster_user_id": broadcaster_id })),
+        ("channel.channel_points_custom_reward_redemption.add", "1", b()),
+    ]
+}
+
 /// The channel an event or revocation is about.
 pub fn channel_of(condition: &Value) -> Option<&str> {
-    condition.get("broadcaster_user_id")?.as_str()
+    condition
+        .get("broadcaster_user_id")
+        .or_else(|| condition.get("to_broadcaster_user_id"))?
+        .as_str()
 }
 
 #[cfg(test)]
@@ -64,5 +88,15 @@ mod tests {
         let c = subs[0].condition();
         assert_eq!((c["broadcaster_user_id"].as_str(), c["moderator_user_id"].as_str()), (Some("1"), Some("2")));
         assert_eq!(channel_of(&c), Some("1"));
+    }
+
+    #[test]
+    fn broadcaster_conditions() {
+        let subs = for_broadcaster("1", "2");
+        assert_eq!(subs.len(), 7);
+        // follow names the moderator; a raid names the channel it comes in to.
+        assert_eq!(subs[0].2["moderator_user_id"].as_str(), Some("2"));
+        let raid = &subs.iter().find(|(k, _, _)| *k == "channel.raid").unwrap().2;
+        assert_eq!(channel_of(raid), Some("1"));
     }
 }
