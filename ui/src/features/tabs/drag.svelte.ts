@@ -3,7 +3,7 @@
 
 import type { Zone } from '../../ipc/bindings/Zone';
 import { tabs, tiles } from './tabs.svelte';
-import { groupAt, zoneAt } from './zones';
+import { groupAt, rowSlot, zoneAt } from './zones';
 
 export type DragItem = { kind: 'tab'; id: string } | { kind: 'tile'; id: string };
 
@@ -38,7 +38,7 @@ class Drag {
       }
       this.x = ev.clientX;
       this.y = ev.clientY;
-      this.target = hit(ev.clientX, ev.clientY);
+      this.target = hit(ev.clientX, ev.clientY, item.kind);
     };
     const end = (drop: boolean) => {
       removeEventListener('pointermove', move);
@@ -62,7 +62,7 @@ class Drag {
 
 export const drag = new Drag();
 
-function hit(x: number, y: number): DropTarget | null {
+function hit(x: number, y: number, kind: DragItem['kind']): DropTarget | null {
   const el = document.elementFromPoint(x, y);
   if (!el) return null;
   const tab = el.closest<HTMLElement>('[data-tab-id]');
@@ -73,7 +73,17 @@ function hit(x: number, y: number): DropTarget | null {
   }
   const group = el.closest<HTMLElement>('[data-group-id]');
   if (group) return { kind: 'group', id: group.dataset.groupId! };
-  if (el.closest('[data-tab-bar], [data-drop-bar]')) return { kind: 'bar' };
+  const bar = el.closest<HTMLElement>('[data-tab-bar]');
+  // Tabs in a gap of a wrapped bar land next to the closest tab (V101-38).
+  if (bar && kind === 'tab' && !bar.matches('[aria-orientation="vertical"]')) {
+    const cells = [...bar.querySelectorAll<HTMLElement>('[data-tab-id]')].map((c) => ({
+      id: c.dataset.tabId!,
+      rect: c.getBoundingClientRect(),
+    }));
+    const slot = rowSlot(cells, x, y);
+    if (slot) return { kind: 'tab', ...slot };
+  }
+  if (bar || el.closest('[data-drop-bar]')) return { kind: 'bar' };
   const tile = el.closest<HTMLElement>('[data-tile-id]');
   if (tile) return { kind: 'tile', id: tile.dataset.tileId!, zone: zoneAt(tile.getBoundingClientRect(), x, y) };
   return null;

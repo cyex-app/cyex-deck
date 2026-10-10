@@ -1,6 +1,6 @@
-<!-- Buttons in a tile's header: account (1.12), follow (1.11), pop out (1.51), and for
-     tiled tabs a menu to edit, split off or close the tile (U3). Feed tiles (F4) have no
-     channel, so only the last two. -->
+<!-- Buttons in a tile's header: account (1.12), follow (1.11, not on your own channel),
+     pop out (1.51), and for tiled tabs a menu to edit, hide the chat or stream (V101-20),
+     split off or close the tile (U3). Feed tiles (F4) have no channel, so only the last two. -->
 <script lang="ts">
   import IconButton from '../../components/IconButton.svelte';
   import { openMenu } from '../../components/menu.svelte';
@@ -9,6 +9,7 @@
   import AccountChip from './AccountChip.svelte';
   import { openEdit } from './dialog.svelte';
   import FollowButton from './FollowButton.svelte';
+  import { showEntries } from './menus';
   import { tabs } from './tabs.svelte';
 
   interface Props {
@@ -22,7 +23,7 @@
 
   function more(e: MouseEvent) {
     openMenu(e.currentTarget as HTMLElement, [
-      ...(tile.feed ? [] : [{ label: 'Edit', icon: 'pencil' as const, run: () => openEdit(tab.id, tile.id) }]),
+      ...(tile.feed ? [] : [{ label: 'Edit', icon: 'pencil' as const, run: () => openEdit(tab.id, tile.id) }, ...showEntries(tile)]),
       {
         label: 'Move to its own tab',
         icon: 'popout',
@@ -36,7 +37,7 @@
 
 {#if !tile.feed}
   <AccountChip {tile} />
-  <FollowButton channelId={tile.channel.id} account={tile.account} />
+  {#if tile.channel.id !== tile.account}<FollowButton channelId={tile.channel.id} account={tile.account} />{/if}
 {/if}
 {#if tiled}
   <IconButton icon="more" label="More" hint="Edit, move to its own tab or close." size={15} onclick={more} />

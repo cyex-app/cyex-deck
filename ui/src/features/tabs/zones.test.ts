@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { groupAt, zoneAt } from './zones.ts';
+import { groupAt, rowSlot, zoneAt } from './zones.ts';
 
 const box = { left: 100, top: 100, width: 200, height: 100 };
 
@@ -35,4 +35,22 @@ test('anywhere else, a tab leaves its group', () => {
   assert.equal(groupAt(g('a'), g(null), null), null);
   assert.equal(groupAt(g('a'), g('b'), 'c'), null);
   assert.equal(groupAt(undefined, undefined, 'a'), null);
+});
+
+// Two rows of a wrapped bar (V101-38): a, b on top, c below with room after it.
+const cell = (id: string, left: number, top: number) => ({ id, rect: { left, top, width: 100, height: 34 } });
+const cells = [cell('a', 0, 0), cell('b', 102, 0), cell('c', 0, 34)];
+
+test('a tab dropped in the gap between two tabs lands between them', () => {
+  assert.deepEqual(rowSlot(cells, 101, 10), { id: 'b', after: false });
+  assert.deepEqual(rowSlot(cells, 30, 10), { id: 'a', after: false });
+});
+
+test('past a row’s last tab, it goes after that tab, not to the end of the bar', () => {
+  assert.deepEqual(rowSlot(cells, 400, 10), { id: 'b', after: true });
+  assert.deepEqual(rowSlot(cells, 400, 50), { id: 'c', after: true });
+});
+
+test('below every row it is the end of the bar', () => {
+  assert.equal(rowSlot(cells, 50, 90), null);
 });

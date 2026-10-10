@@ -1,5 +1,7 @@
 <!-- One channel tab (1.10): name or alias (1.22), live dot (1.29), close button (1.25),
-     lit by unread chat (U9). Double click edits (1.18), middle click closes, drag reorders (U5). -->
+     lit by unread chat (U9). Double click edits (1.18), middle click closes, drag reorders (U5).
+     The tab is the whole cell of its row, up to the window's top edge (V101-19); the pill
+     inside is what shows. A thin divider sits between two plain tabs (V101-11). -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
@@ -92,32 +94,47 @@
   onpointerdown={(e) => drag.begin(e, { kind: 'tab', id: tab.id }, name)}
   use:tooltip={tip}
 >
-  {#if live}<span class="dot {live}"></span>{/if}
-  <span class="name">{name}</span>
-  {#if popped}<span class="popped"><Icon name="popout" size={12} /></span>{/if}
-  {#if closeButton}
-    <button
-      class="x"
-      aria-label="Close {name}"
-      onclick={(e) => {
-        e.stopPropagation();
-        onclose();
-      }}
-      onpointerdown={(e) => e.stopPropagation()}
-    >
-      <Icon name="x" size={12} />
-    </button>
-  {/if}
+  <span class="pill">
+    {#if live}<span class="dot {live}"></span>{/if}
+    <span class="name">{name}</span>
+    {#if popped}<span class="popped"><Icon name="popout" size={12} /></span>{/if}
+    {#if closeButton}
+      <button
+        class="x"
+        aria-label="Close {name}"
+        onclick={(e) => {
+          e.stopPropagation();
+          onclose();
+        }}
+        onpointerdown={(e) => e.stopPropagation()}
+      >
+        <Icon name="x" size={12} />
+      </button>
+    {/if}
+  </span>
 </div>
 
 <style>
+  /* The cell fills its row: one row is as tall as the title bar, so it meets the top edge. */
   .tab {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 6px;
     flex: none;
     max-width: 200px;
+    min-height: calc(var(--tab-h) + 2 * var(--row-g, 0px));
+  }
+  .tab.vertical {
+    max-width: none;
+    min-height: 0;
+    height: var(--tab-h);
+  }
+  .pill {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
     height: var(--tab-h);
     padding: 0 var(--tab-pad);
     border-radius: var(--radius);
@@ -126,37 +143,64 @@
     color: var(--muted);
     white-space: nowrap;
   }
-  .tab.vertical {
-    max-width: none;
+  .vertical .pill {
+    flex: 1;
   }
-  /* The bar clips anything outside the tab. */
   .tab:focus-visible {
+    outline: none;
+  }
+  .tab:focus-visible .pill {
+    outline: 2px solid var(--accent-border);
     outline-offset: -2px;
   }
-  .tab:hover {
+  .tab:hover .pill {
     background: var(--surface-hover);
     color: var(--text);
   }
-  .tab.active {
+  .active .pill {
     background: var(--accent-dim);
     color: var(--accent-text);
   }
   /* U9 New messages brighten the name; mentions also get an accent edge. */
-  .message,
-  .mention {
+  .message .pill,
+  .mention .pill {
     color: var(--text);
   }
-  .mention {
+  .mention .pill {
     box-shadow: inset 0 2px var(--accent);
   }
-  .vertical.mention {
+  .vertical.mention .pill {
     box-shadow: inset -2px 0 var(--accent);
   }
-  .tab.selected:not(.active) {
+  .selected:not(.active) .pill {
     background: var(--surface-hover);
     box-shadow: inset 0 0 0 1px var(--border-strong);
   }
-  .grouped::after {
+  /* V101-11 In the 2px gap before the tab. The bar clips the one at a row's start. The
+     tab before is another instance, hence global. */
+  :global(.tab) + .tab::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: -1.5px;
+    width: 1px;
+    height: calc(var(--tab-h) * 0.5);
+    translate: 0 -50%;
+    background: var(--border-strong);
+    pointer-events: none;
+  }
+  :global(.vertical) + .vertical::before {
+    top: -1.5px;
+    left: 25%;
+    width: 50%;
+    height: 1px;
+    translate: none;
+  }
+  .tab:is(:hover, .active, .selected)::before,
+  :global(.tab:is(:hover, .active, .selected)) + .tab::before {
+    opacity: 0;
+  }
+  .grouped .pill::after {
     content: '';
     position: absolute;
     left: 6px;
@@ -166,7 +210,7 @@
     border-radius: 1px;
     background: var(--group);
   }
-  .vertical.grouped::after {
+  .vertical.grouped .pill::after {
     left: 1px;
     right: auto;
     top: 6px;
@@ -215,37 +259,39 @@
     background: var(--surface);
     color: var(--text);
   }
-  [data-mark='before']::before,
-  [data-mark='after']::before {
+  /* Drop marks sit just inside the pill, so a row's first tab shows one too. */
+  [data-mark='before'] .pill::before,
+  [data-mark='after'] .pill::before {
     content: '';
     position: absolute;
     top: 3px;
     bottom: 3px;
     width: 2px;
+    border-radius: 1px;
     background: var(--accent);
   }
-  [data-mark='before']::before {
-    left: -2px;
+  [data-mark='before'] .pill::before {
+    left: 0;
   }
-  [data-mark='after']::before {
-    right: -2px;
+  [data-mark='after'] .pill::before {
+    right: 0;
   }
-  .vertical[data-mark='before']::before,
-  .vertical[data-mark='after']::before {
+  .vertical[data-mark='before'] .pill::before,
+  .vertical[data-mark='after'] .pill::before {
     left: 3px;
     right: 3px;
     width: auto;
     height: 2px;
   }
-  .vertical[data-mark='before']::before {
-    top: -2px;
+  .vertical[data-mark='before'] .pill::before {
+    top: 0;
     bottom: auto;
   }
-  .vertical[data-mark='after']::before {
+  .vertical[data-mark='after'] .pill::before {
     top: auto;
-    bottom: -2px;
+    bottom: 0;
   }
-  [data-mark='into'] {
+  [data-mark='into'] .pill {
     box-shadow: inset 0 0 0 2px var(--accent-border);
   }
 </style>

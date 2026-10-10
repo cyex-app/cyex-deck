@@ -1,5 +1,7 @@
 <!-- Channel tabs (1.10) on any side of the window (U5), with groups, size (1.24),
-     several selected at once (Ctrl or Shift click) and dragging to reorder. -->
+     several selected at once (Ctrl or Shift click) and dragging to reorder. Across the
+     top or bottom, tabs wrap onto more rows of one height instead of scrolling (V101-38);
+     in the title bar the gaps between them still drag the window. -->
 <script lang="ts">
   import IconButton from '../../components/IconButton.svelte';
   import { openMenu } from '../../components/menu.svelte';
@@ -15,12 +17,14 @@
 
   interface Props {
     vertical?: boolean;
+    /** In the title bar. */
+    chrome?: boolean;
     /** The tab on screen, `null` while a fixed view (home, settings) shows. */
     current: string | null;
     onopen: (id: string) => void;
   }
 
-  let { vertical = false, current, onopen }: Props = $props();
+  let { vertical = false, chrome = false, current, onopen }: Props = $props();
 
   type Item = { kind: 'group'; group: TabGroup; count: number } | { kind: 'tab'; tab: Tab; color?: string };
 
@@ -90,23 +94,22 @@
     tabs.close([tab.id]);
   }
 
-  function onwheel(e: WheelEvent) {
-    if (!vertical && bar && e.deltaY) bar.scrollLeft += e.deltaY;
-  }
 </script>
 
 <div
   class="bar"
   class:vertical
+  class:chrome
   data-tab-bar
+  data-tauri-drag-region={chrome ? '' : undefined}
   role="tablist"
   aria-orientation={vertical ? 'vertical' : 'horizontal'}
   tabindex="-1"
   bind:this={bar}
-  {onwheel}
   style:--tab-h="{size.h}px"
   style:--tab-pad="{size.pad}px"
   style:--tab-font={size.font}
+  style:--row-g={vertical ? undefined : '3px'}
   style:--bar-w="{size.width}px"
 >
   {#each items as item (item.kind === 'tab' ? item.tab.id : `g:${item.group.id}`)}
@@ -137,30 +140,43 @@
 </div>
 
 <style>
+  /* Rows stretch to fill a taller parent, so one row in the title bar is as tall as the
+     bar and reaches its top edge (V101-19). No side padding: the divider before a row's
+     first tab falls outside and is clipped. */
   .bar {
     display: flex;
-    align-items: center;
-    gap: 2px;
-    min-width: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-  }
-  .bar::-webkit-scrollbar {
-    display: none;
-  }
-  .vertical {
-    flex-direction: column;
+    flex-wrap: wrap;
     align-items: stretch;
-    width: var(--bar-w);
-    flex: none;
-    padding: 6px;
+    align-content: stretch;
+    column-gap: 2px;
+    min-width: 0;
+    max-height: 40vh;
     overflow-x: hidden;
     overflow-y: auto;
     scrollbar-width: thin;
   }
-  .add {
+  .chrome {
+    flex: 0 1 auto;
+    align-self: stretch;
+  }
+  .vertical {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-content: normal;
+    gap: 2px;
+    width: var(--bar-w);
+    max-height: none;
     flex: none;
+    padding: 6px;
+  }
+  .add {
+    display: flex;
+    flex: none;
+    align-self: center;
+  }
+  /* As tall as a tab, so the row it ends up in is no taller than the others. */
+  .add :global(.icon-btn) {
+    height: var(--tab-h);
   }
   .vertical .add {
     align-self: flex-start;

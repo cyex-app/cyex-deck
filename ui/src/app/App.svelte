@@ -240,7 +240,7 @@
         />
       {/if}
     </nav>
-    {#if side === 'top'}<TabBar {current} onopen={open} />{/if}
+    {#if side === 'top'}<TabBar chrome {current} onopen={open} />{/if}
   {/snippet}
   {#snippet end()}
     {#if streamer.active || streamer.state.forced}
@@ -314,12 +314,21 @@
 <Toasts />
 
 <style>
+  /* Spans every tab row; the buttons stay on the first. */
   .fixed-tabs {
     display: flex;
+    align-self: stretch;
+    align-items: flex-start;
     gap: 2px;
-    padding-right: 8px;
+    padding: 3.5px 8px 0 0;
     margin-right: 4px;
     border-right: 1px solid var(--border);
+  }
+  /* V101-19 Up to the window's top edge. */
+  .fixed-tabs :global(.icon-btn::after) {
+    content: '';
+    position: absolute;
+    inset: -3.5px 0;
   }
   .with-count {
     position: relative;

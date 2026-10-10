@@ -35,6 +35,9 @@ pub enum TabOp {
         show: TileShow,
         account: Option<String>,
     },
+    /// V101-20 Stream only, chat only or both, from the tab menu. Unlike `Edit`, new tabs
+    /// keep starting from `last_show`.
+    Show { tile: String, show: TileShow },
     /// 1.22 `None` goes back to the channel names.
     Rename { tab: String, alias: Option<String> },
     Activate { tab: Option<String> },
@@ -225,6 +228,14 @@ impl Tabs {
                 t.show = show;
                 t.account = account;
                 self.last_show = show;
+                Ok(None)
+            }
+            TabOp::Show { tile, show } => {
+                if !show.player && !show.chat {
+                    return Ok(None);
+                }
+                let at = self.locate(&tile)?;
+                self.tile_mut(at).show = show;
                 Ok(None)
             }
             TabOp::Rename { tab, alias } => {
@@ -662,6 +673,23 @@ mod tests {
         assert_eq!(tile.channel.login, "pokimane");
         assert!(tile.show.player && !tile.show.chat);
         assert_eq!(tile.account, None);
+    }
+
+    #[test]
+    fn showing_hides_chat_or_stream_without_changing_the_default() {
+        let mut t = tabs(&["a"]);
+        let before = t.last_show;
+        let show = |player, chat| TabOp::Show {
+            tile: "a-1".into(),
+            show: TileShow { player, chat },
+        };
+        apply(&mut t, show(true, false));
+        let tile = &t.tabs[0].columns[0].tiles[0];
+        assert!(tile.show.player && !tile.show.chat);
+        assert_eq!(t.last_show, before);
+        // Never neither.
+        apply(&mut t, show(false, false));
+        assert!(t.tabs[0].columns[0].tiles[0].show.player);
     }
 
     #[test]

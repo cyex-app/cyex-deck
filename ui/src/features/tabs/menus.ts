@@ -1,8 +1,10 @@
-// Right-click menus for tabs and tab groups (1.18, 1.51, U3, U5), with "Mine first" (1.44).
+// Right-click menus for tabs and tab groups (1.18, 1.51, U3, U5), with "Mine first" (1.44)
+// and hiding a tile's chat or stream (V101-20).
 
 import type { MenuEntry } from '../../components/menu.svelte';
 import type { Tab } from '../../ipc/bindings/Tab';
 import type { TabGroup } from '../../ipc/bindings/TabGroup';
+import type { Tile } from '../../ipc/bindings/Tile';
 import { bindingOf } from '../../lib/hotkeys.svelte';
 import { settings } from '../../lib/settings.svelte';
 import { mineFirstEntry } from '../miner/first';
@@ -30,6 +32,7 @@ export function tabMenu(tab: Tab, targets: Tab[]): MenuEntry[] {
         ? { label: 'Bring back', icon: 'undo', run: () => tabs.dock(tab.id) }
         : { label: 'Pop out', icon: 'popout', run: () => tabs.popOut(tab) },
     );
+    if (tiles(tab).length === 1) entries.push(...showEntries(tiles(tab)[0]));
   }
   const mute = muteEntry(targets);
   if (mute) entries.push(mute);
@@ -44,6 +47,19 @@ export function tabMenu(tab: Tab, targets: Tab[]): MenuEntry[] {
     reopenEntry(),
   );
   return entries;
+}
+
+/** V101-20 Hide the chat or the stream, or bring it back, without the edit dialog. */
+export function showEntries(tile: Tile): MenuEntry[] {
+  const set = (player: boolean, chat: boolean) => () => void tabs.apply({ op: 'show', tile: tile.id, show: { player, chat } });
+  const { player, chat } = tile.show;
+  if (player && chat) {
+    return [
+      { label: 'Hide chat', icon: 'chat', run: set(true, false) },
+      { label: 'Hide stream', icon: 'tv', run: set(false, true) },
+    ];
+  }
+  return [player ? { label: 'Show chat', icon: 'chat', run: set(true, true) } : { label: 'Show stream', icon: 'tv', run: set(true, true) }];
 }
 
 /** C27 Keeps the tabs' chats from playing sounds or flashing. */

@@ -31,3 +31,13 @@ export function groupAt(prev: Grouped | undefined, next: Grouped | undefined, ow
   if (own && (prev?.group === own || next?.group === own)) return own;
   return null;
 }
+
+/** V101-38 A tab dropped in a gap of a wrapped bar, or past a row's last tab: the slot
+ * next to the closest tab in that row. `cells` are the tabs in bar order. `null` below
+ * every row, which means the end of the bar. */
+export function rowSlot(cells: { id: string; rect: Rect }[], x: number, y: number): { id: string; after: boolean } | null {
+  const row = cells.filter((c) => y >= c.rect.top && y < c.rect.top + c.rect.height);
+  if (!row.length) return null;
+  const next = row.find((c) => x < c.rect.left + c.rect.width / 2);
+  return next ? { id: next.id, after: false } : { id: row[row.length - 1].id, after: true };
+}

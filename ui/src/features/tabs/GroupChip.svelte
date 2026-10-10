@@ -75,6 +75,9 @@
     font-weight: 700;
     color: var(--text);
   }
+  .chip:not(.vertical) {
+    align-self: center;
+  }
   .chip.vertical {
     max-width: none;
     margin-top: 4px;

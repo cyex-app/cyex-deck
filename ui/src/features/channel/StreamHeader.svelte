@@ -27,8 +27,9 @@
   let { tile, info, page, onpage, onstories, actions, onheaderdown }: Props = $props();
 
   const stream = $derived(info?.stream);
+  /** "Stream" isn't the stream manager's `radio`, which looked like the same button (V101-28). */
   const PAGES: { kind: 'stream' | 'about' | 'clips' | 'videos'; label: string; icon: IconName }[] = [
-    { kind: 'stream', label: 'Stream', icon: 'radio' },
+    { kind: 'stream', label: 'Stream', icon: 'tv' },
     { kind: 'about', label: 'About', icon: 'info' },
     { kind: 'clips', label: 'Clips', icon: 'clapper' },
     { kind: 'videos', label: 'Videos', icon: 'film' },

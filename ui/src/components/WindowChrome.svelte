@@ -1,5 +1,6 @@
 <!-- Title bar for every window (3.9): mark, title or custom content, pin, minimize,
-     maximize (main only), close. Empty areas drag the window. -->
+     maximize (main only), close. Empty areas drag the window. Grows with content that wraps
+     (the main window's tab rows, V101-38); everything else stays on the first row. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
@@ -57,9 +58,10 @@
 
 <style>
   .chrome {
+    --row: calc(var(--chrome-h) - 1px);
     display: flex;
-    align-items: center;
-    height: var(--chrome-h);
+    align-items: flex-start;
+    min-height: var(--chrome-h);
     flex: none;
     background: var(--page);
     border-bottom: 1px solid var(--border);
@@ -67,13 +69,15 @@
   .brand {
     display: grid;
     place-items: center;
+    flex: none;
     width: 46px;
-    height: 100%;
+    height: var(--row);
   }
   .brand :global(.mark) {
     transform: scale(0.72);
   }
   .title {
+    align-self: center;
     font-size: 0.82rem;
     font-weight: 600;
     color: var(--muted);
@@ -81,18 +85,28 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  /* Always some room to drag by, however many tabs. */
   .fill {
-    flex: 1;
+    flex: 1 0 32px;
     align-self: stretch;
   }
   .end {
     display: flex;
     align-items: center;
+    flex: none;
     gap: 2px;
+    height: var(--row);
     padding-right: 6px;
+  }
+  /* V101-19 Up to the window's top edge. */
+  .end :global(.icon-btn::after) {
+    content: '';
+    position: absolute;
+    inset: -3.5px 0;
   }
   .controls {
     display: flex;
-    align-self: stretch;
+    flex: none;
+    height: var(--row);
   }
 </style>
