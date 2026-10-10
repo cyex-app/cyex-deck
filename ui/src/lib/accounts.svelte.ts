@@ -23,6 +23,11 @@ class AccountsStore {
     return account?.features.includes(feature) ?? false;
   }
 
+  /** Whether any signed-in account can use a tool. */
+  any(feature: Feature): boolean {
+    return this.list.some((a) => a.features.includes(feature));
+  }
+
   connectionsOf(userId: string): ConnectionCount | undefined {
     return this.connections.find((c) => c.userId === userId);
   }

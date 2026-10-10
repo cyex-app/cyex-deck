@@ -58,9 +58,9 @@
   const current = $derived(fixed ? null : tabs.tab(picked) ? picked : tabs.active);
   const tab = $derived(tabs.tab(current));
   /** 08 The miner shows once an account has a GQL sign-in. */
-  const canMine = $derived(accounts.list.some((a) => a.features.includes('miner')));
+  const canMine = $derived(accounts.any('miner'));
   /** 10 The stream manager shows once an account can run its own channel (D26). */
-  const canManage = $derived(accounts.list.some((a) => a.features.includes('streamManager')));
+  const canManage = $derived(accounts.any('streamManager'));
   /** 1.26 Whispers show once the default account can whisper. */
   const canWhisper = $derived(accounts.can('whispers'));
 

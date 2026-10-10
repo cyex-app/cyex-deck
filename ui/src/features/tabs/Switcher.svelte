@@ -16,7 +16,7 @@
 
   interface Props {
     onopen: (id: string) => void;
-    onview: (view: 'home' | 'discover' | 'settings') => void;
+    onview: (view: View) => void;
     onclose: () => void;
   }
 
@@ -31,10 +31,16 @@
     run: () => void;
   }
 
+  type View = (typeof VIEWS)[number]['view'];
+
+  /** The fixed views, each only while the title bar shows it (U11). */
   const VIEWS = [
-    { view: 'home', label: 'Home', icon: 'house' },
-    { view: 'discover', label: 'Discover', icon: 'compass' },
-    { view: 'settings', label: 'Settings', icon: 'settings' },
+    { view: 'home', label: 'Home', icon: 'house', shown: () => true },
+    { view: 'discover', label: 'Discover', icon: 'compass', shown: () => true },
+    { view: 'miner', label: 'Miner', icon: 'pickaxe', shown: () => accounts.any('miner') },
+    { view: 'streamManager', label: 'Stream manager', icon: 'radio', shown: () => accounts.any('streamManager') },
+    { view: 'whispers', label: 'Whispers', icon: 'whisper', shown: () => accounts.can('whispers') },
+    { view: 'settings', label: 'Settings', icon: 'settings', shown: () => true },
   ] as const;
 
   let query = $state('');
@@ -61,7 +67,7 @@
       }));
     // Live tabs first, then the bar's order.
     tabChoices.sort((a, b) => Number(!!b.live) - Number(!!a.live));
-    const views = VIEWS.filter((v) => q && matches(v.label)).map(
+    const views = VIEWS.filter((v) => q && matches(v.label) && v.shown()).map(
       (v): Choice => ({ key: v.view, label: v.label, icon: v.icon, run: () => onview(v.view) }),
     );
     const inTabs = new Set(tabs.list.flatMap((t) => tiles(t).map((x) => x.channel.id)));
