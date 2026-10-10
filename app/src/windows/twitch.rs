@@ -7,15 +7,13 @@
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use cyex_core::color::{Theme, accent_tokens};
-use cyex_settings::Partition;
-use cyex_settings::schema::Appearance;
+use cyex_core::color::Theme;
+use cyex_core::palette;
 use tauri::webview::{NewWindowFeatures, NewWindowResponse};
-use tauri::window::Color;
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
-use crate::settings::Settings;
+use crate::theme::{self, ThemeLook};
 
 const PREFIX: &str = "twitch-";
 
@@ -41,7 +39,7 @@ pub async fn open(app: &AppHandle, account: &str, url: &str) -> Result<(), Strin
         let _ = w.set_focus();
         return Ok(());
     }
-    let (theme, accent) = look(app);
+    let look = theme::look(app);
     let dir = profile_dir(app, account).ok_or("Couldn't find the app data folder.")?;
     let nav_app = app.clone();
     let pop_app = app.clone();
@@ -49,13 +47,13 @@ pub async fn open(app: &AppHandle, account: &str, url: &str) -> Result<(), Strin
         .title(format!("Twitch · {name}"))
         .inner_size(1100.0, 820.0)
         .min_inner_size(480.0, 420.0)
-        .theme(Some(match theme {
+        .theme(Some(match look.theme {
             Theme::Dark => tauri::Theme::Dark,
             Theme::Light => tauri::Theme::Light,
         }))
-        .background_color(background(theme))
+        .background_color(theme::background(app))
         .data_directory(dir)
-        .initialization_script(skin(theme, &accent))
+        .initialization_script(skin(&look))
         .on_navigation(move |u| {
             let ok = is_twitch(u) || is_payment(u) || u.scheme() == "about";
             if !ok && u.scheme() == "https" {
@@ -158,30 +156,30 @@ fn is_payment(url: &Url) -> bool {
     .any(|d| host_is(url, d))
 }
 
-fn look(app: &AppHandle) -> (Theme, String) {
-    let a: Appearance = app.state::<Settings>().read(Partition::Appearance);
-    (a.theme, a.accent)
-}
-
-fn background(theme: Theme) -> Color {
-    match theme {
-        Theme::Light => Color(0xf3, 0xf3, 0xf4, 0xff),
-        Theme::Dark => Color(0x1e, 0x1f, 0x23, 0xff),
-    }
-}
-
 /// The skin: Twitch's theme variables set to the app's tokens (`ui/src/design/tokens.css`),
 /// the accent in place of Twitch purple, small corners, the app font, no side or top nav.
 /// Runs in every frame, so it checks it's Twitch's top page before touching anything.
-pub fn skin(theme: Theme, accent: &str) -> String {
-    let a = accent_tokens(accent, theme);
-    let (bg, surface, elevated, elevated2, border, text, muted, mix_to, twilight) = match theme {
-        Theme::Dark => (
-            "#1e1f23", "#26272c", "#2f3037", "#353640", "#34353c", "#e8e8ea", "#b4b5bb", "black", 1,
-        ),
-        Theme::Light => (
-            "#f3f3f4", "#ffffff", "#ffffff", "#f4f4f6", "#dcdde1", "#1b1c20", "#4f515a", "white", 0,
-        ),
+pub fn skin(look: &ThemeLook) -> String {
+    let theme = look.theme;
+    let a = &look.accent;
+    // A custom theme's colors (U8), else the built-in ones.
+    let p = look
+        .palette
+        .clone()
+        .unwrap_or_else(|| palette::palette(theme, &Default::default()));
+    let token = |k: &str| p.tokens.get(k).map_or("", String::as_str);
+    let (bg, surface, elevated, elevated2, border, text, muted) = (
+        token("bg"),
+        token("surface"),
+        token("elevated"),
+        token("elevated-2"),
+        token("border"),
+        token("text"),
+        token("muted"),
+    );
+    let (mix_to, twilight) = match theme {
+        Theme::Dark => ("black", 1),
+        Theme::Light => ("white", 0),
     };
     let (fill, hover, link, ink) = (&a.accent, &a.accent_hover, &a.accent_text, &a.accent_ink);
     // Twitch's accent scale (`--color-accent-primary-1..5`): dark pages use 4 for fills and 5
@@ -330,7 +328,14 @@ mod tests {
 
     #[test]
     fn skin_is_one_guarded_script() {
-        let js = skin(Theme::Dark, "#145aff");
+        let look = ThemeLook {
+            theme: Theme::Dark,
+            palette: None,
+            accent: cyex_core::color::accent_tokens("#145aff", Theme::Dark),
+            wallpaper: None,
+        };
+        let js = skin(&look);
+        assert!(js.contains("--color-background-body: #1e1f23"));
         assert!(js.starts_with("(() => {") && js.contains("window.top !== window"));
         assert!(js.contains("--color-twitch-purple-9: #") && js.contains("twilight.theme', '1'"));
     }

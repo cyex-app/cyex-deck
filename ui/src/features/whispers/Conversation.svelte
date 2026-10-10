@@ -201,7 +201,7 @@
       {#if thread.other.name.toLowerCase() !== thread.other.login}<span class="login">{thread.other.login}</span>{/if}
       {#if thread.muted}<span class="tag">Muted</span>{/if}
       <span class="grow"></span>
-      <IconButton icon="more" label="Options" onclick={options} />
+      <IconButton icon="more" label="Options" hint="Mute, archive or block." onclick={options} />
     </header>
   {/if}
   {#if thread?.spam}

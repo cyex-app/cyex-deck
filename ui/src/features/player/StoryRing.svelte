@@ -38,7 +38,7 @@
 </script>
 
 {#if ring}
-  <button class="ring" class:unseen={ring.unseen} style:--size="{size}px" use:tooltip={'Stories'} onclick={onopen}>
+  <button class="ring" class:unseen={ring.unseen} style:--size="{size}px" use:tooltip={{ label: 'Stories', hint: 'Short posts from the streamer.' }} onclick={onopen}>
     <Avatar src={avatar} {name} size={size - 6} />
   </button>
 {:else if onplain}

@@ -7,6 +7,7 @@ mod chat_extra;
 mod emotes;
 mod miner;
 mod moderation;
+mod modes;
 mod notify;
 mod player;
 mod rules;
@@ -208,6 +209,17 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         tabs::channel_following,
         tabs::channel_follow,
         theme::theme_accent_tokens,
+        theme::theme_look,
+        theme::theme_presets,
+        theme::theme_add,
+        theme::theme_code,
+        theme::theme_import,
+        theme::theme_pick_wallpaper,
+        modes::streamer_state,
+        modes::streamer_toggle,
+        modes::overlay_click_through,
+        modes::overlay_set_click_through,
+        modes::hotkeys_failed,
         windows::window_info,
         windows::window_set_pinned,
         windows::window_set_title,

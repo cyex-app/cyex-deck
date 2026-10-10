@@ -31,6 +31,9 @@
   --accent-wash: rgba(20, 90, 255, 0.22);
   --accent-border: rgba(20, 90, 255, 0.55);
 
+  /* Behind whole views (chat, title bar, side bar). A wallpaper (U8) makes it see-through. */
+  --page: var(--bg);
+
   --font-ui: 'IBM Plex Sans', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', 'Cascadia Mono', Consolas, monospace;
   --chat-font: var(--font-ui);
@@ -88,6 +91,28 @@ body {
   overflow: hidden;
   user-select: none;
   cursor: default;
+}
+
+/* U7 Chat overlays draw their own see-through background. */
+:root.overlay,
+:root.overlay body {
+  background: transparent;
+}
+
+/* U8 Wallpaper behind the whole window: views turn see-through, cards and menus stay
+   solid. Values come from design/theme.ts; the chat-only kind is in ChatView. */
+:root[data-wall='window'] {
+  --page: transparent;
+}
+:root[data-wall='window'] body::before {
+  content: '';
+  position: fixed;
+  inset: calc(var(--wall-blur) * -2);
+  z-index: -1;
+  pointer-events: none;
+  background: var(--wall-image) center / var(--wall-size) var(--wall-repeat);
+  opacity: var(--wall-opacity);
+  filter: blur(var(--wall-blur));
 }
 
 #app {

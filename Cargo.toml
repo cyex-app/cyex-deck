@@ -45,6 +45,11 @@ tauri-plugin-dialog = "2.8"
 tauri-plugin-opener = "2"
 # Windows toasts with click handling (live alerts, whispers, the bell; phase 12).
 tauri-winrt-notification = "0.8"
+# Global hotkeys (S2, U7; approved in phase 13, D28).
+tauri-plugin-global-shortcut = "2"
+# Windows calls for app/src/sys only (D28): already in the build through tauri and wry.
+windows = "0.62"
+webview2-com = "0.39"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

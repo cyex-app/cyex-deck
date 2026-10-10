@@ -38,6 +38,7 @@
       onfilters={(filters) => void tabs.apply({ op: 'filters', tile: tileId, filters })}
       onsignin={() => void popOut('settings')}
       onlink={(target) => void emitTo('main', 'tile:link', { tile: tileId, target })}
+      onoverlay={() => void popOut(`overlay/${tileId}`)}
     />
   {/key}
 {/if}

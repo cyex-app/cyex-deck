@@ -30,6 +30,16 @@ tauri-plugin-single-instance.workspace = true
 tauri-plugin-dialog.workspace = true
 tauri-plugin-opener.workspace = true
 tauri-winrt-notification.workspace = true
+tauri-plugin-global-shortcut.workspace = true
 
-[lints]
-workspace = true
+[target.'cfg(windows)'.dependencies]
+webview2-com.workspace = true
+windows = { workspace = true, features = ["Win32_Foundation", "Win32_System_Diagnostics_ToolHelp"] }
+
+# The workspace lints, except that `unsafe` is denied instead of forbidden, so the one
+# Windows module (`src/sys`) can allow it (D28).
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

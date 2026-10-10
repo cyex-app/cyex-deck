@@ -7,14 +7,27 @@
     type ActionId,
     bindingOf,
     comboFromEvent,
+    isGlobal,
     rebind,
     recording,
     resetBinding,
   } from '../../../lib/hotkeys.svelte';
+  import { modesIpc } from '../../../ipc/modes';
   import { toast } from '../../../lib/toast.svelte';
   import ResetSection from '../ResetSection.svelte';
 
   let editing = $state<ActionId | null>(null);
+  /** Global combos another app already holds. */
+  let failed = $state<string[]>([]);
+
+  $effect(() => {
+    void modesIpc.hotkeysFailed().then((f) => (failed = f));
+    const un = modesIpc.onHotkeysFailed((f) => (failed = f));
+    return () => void un.then((f) => f());
+  });
+
+  const local = ACTION_IDS.filter((id) => !isGlobal(id));
+  const everywhere = ACTION_IDS.filter(isGlobal);
 
   function start(id: ActionId) {
     editing = id;
@@ -34,6 +47,10 @@
     const combo = e.key === 'Backspace' || e.key === 'Delete' ? '' : comboFromEvent(e);
     if (combo === null) return; // lone modifier, keep listening
     const id = editing;
+    if (combo && isGlobal(id) && !/(^|\+)(Ctrl|Alt|Win)\+/.test(combo)) {
+      toast.error('Hotkeys that work everywhere need Ctrl, Alt or Win.');
+      return stop();
+    }
     stop();
     const moved = await rebind(id, combo);
     if (moved) toast.info(`Removed it from "${ACTIONS[moved].label}".`);
@@ -47,9 +64,9 @@
 <h2>Hotkeys</h2>
 <p class="intro">Click a shortcut, then press the new keys. Esc cancels, Backspace clears it.</p>
 
-{#each ACTION_IDS as id (id)}
+{#snippet binding(id: ActionId)}
   {@const combo = bindingOf(id)}
-  <Row label={ACTIONS[id].label}>
+  <Row label={ACTIONS[id].label} hint={combo && isGlobal(id) && failed.includes(combo) ? 'Another app already uses these keys.' : undefined}>
     <button class="combo" class:listening={editing === id} onclick={() => start(id)}>
       {#if editing === id}
         Press keys…
@@ -59,13 +76,25 @@
         <span class="none">Not set</span>
       {/if}
     </button>
-    <Button variant="ghost" small disabled={combo === ACTIONS[id].default} onclick={() => resetBinding(id)}>Default</Button>
+    <Button variant="ghost" small disabled={combo === ACTIONS[id].default} onclick={() => resetBinding(id)}
+      >{ACTIONS[id].default ? 'Default' : 'Clear'}</Button
+    >
   </Row>
-{/each}
+{/snippet}
+
+{#each local as id (id)}{@render binding(id)}{/each}
+
+<h3>Work everywhere</h3>
+<p class="intro">These work even while a game or another app is in front.</p>
+{#each everywhere as id (id)}{@render binding(id)}{/each}
 
 <ResetSection partition="hotkeys" />
 
 <style>
+  h3 {
+    margin: 22px 0 8px;
+    font-size: 0.92rem;
+  }
   .intro {
     margin: -6px 0 6px;
     color: var(--dim);

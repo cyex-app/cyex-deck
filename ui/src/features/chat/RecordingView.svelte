@@ -144,7 +144,7 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
-    background: var(--bg);
+    background: var(--page);
   }
   header {
     display: flex;

@@ -16,6 +16,7 @@
   import { systemIpc } from '../../ipc/system';
   import { formatDate } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
+  import { streamer } from '../../lib/streamer.svelte';
   import { toast } from '../../lib/toast.svelte';
   import EmoteCard from '../emotes/EmoteCard.svelte';
   import type { CardTarget } from '../emotes/emotes';
@@ -121,7 +122,19 @@
 
   /** F6 Near-duplicates go when the setting says hide. */
   const hideSimilar = $derived(settings.v.highlights.similar.hide);
-  const shown = $derived(hideSimilar ? room.messages.filter((m) => !m.flags.includes('similar')) : room.messages);
+  /** U4 Streamer mode keeps mod actions, deleted lines and whispers off the stream. */
+  const hideMod = $derived(streamer.hides('hideModActions'));
+  const hideWhispers = $derived(streamer.hides('hideWhispers'));
+  const shown = $derived(
+    hideSimilar || hideMod || hideWhispers
+      ? room.messages.filter(
+          (m) =>
+            !(hideSimilar && m.flags.includes('similar')) &&
+            !(hideMod && (m.notice?.kind === 'moderation' || m.flags.includes('deleted'))) &&
+            !(hideWhispers && m.flags.includes('whisper')),
+        )
+      : room.messages,
+  );
 
   $effect(() => userMenus.track());
 
@@ -337,7 +350,7 @@
           const finalHost = new URL(info.link).hostname.replace(/^www\./, '');
           if (finalHost !== host) retitleTip(`Opens ${host}, ends up on ${finalHost}`);
         }
-        if (c.linkPreviews && (info.lines.length || info.thumbnail)) {
+        if (c.linkPreviews && !streamer.hides('hideLinkPreviews') && (info.lines.length || info.thumbnail)) {
           previewTip(el, { lines: info.lines, thumbnail: info.thumbnail ?? '', thumbWidth: THUMBS[c.linkThumbnails] });
         }
       })
@@ -390,6 +403,21 @@
     flex: 1;
     min-height: 0;
     display: flex;
+  }
+  /* U8 Wallpaper behind chat only (design/theme.ts sets the values). */
+  :global(:root[data-wall='chat']) .wrap {
+    isolation: isolate;
+    overflow: hidden;
+  }
+  :global(:root[data-wall='chat']) .wrap::before {
+    content: '';
+    position: absolute;
+    inset: calc(var(--wall-blur) * -2);
+    z-index: -1;
+    pointer-events: none;
+    background: var(--wall-image) center / var(--wall-size) var(--wall-repeat);
+    opacity: var(--wall-opacity);
+    filter: blur(var(--wall-blur));
   }
   .list {
     flex: 1;

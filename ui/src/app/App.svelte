@@ -38,6 +38,7 @@
   import { accounts } from '../lib/accounts.svelte';
   import { useHotkeys } from '../lib/hotkeys.svelte';
   import { settings } from '../lib/settings.svelte';
+  import { streamer } from '../lib/streamer.svelte';
   import { mentionChime } from '../lib/sound';
   import { toast } from '../lib/toast.svelte';
   import { currentWindow } from '../lib/window.svelte';
@@ -178,6 +179,17 @@
     show('settings');
   }
 
+  /** U4 Why streamer mode is on (or was turned off) and what a click does. */
+  const streamerHint = $derived(
+    !streamer.active
+      ? 'Turned off by hand. Click to turn it back on.'
+      : streamer.state.forced
+        ? 'Turned on by hand. Click to turn it off.'
+        : streamer.state.appRunning
+          ? 'Your streaming app is running, so links, pictures and mod actions stay off your stream. Click to turn it off for now.'
+          : 'Links, pictures and mod actions stay off your stream. Click to turn it off for now.',
+  );
+
   async function popOutSettings() {
     if (await popOut('settings')) show('home');
   }
@@ -231,6 +243,15 @@
     {#if side === 'top'}<TabBar {current} onopen={open} />{/if}
   {/snippet}
   {#snippet end()}
+    {#if streamer.active || streamer.state.forced}
+      <IconButton
+        icon="eyeOff"
+        label={streamer.active ? 'Streamer mode is on' : 'Streamer mode is off for now'}
+        hint={streamerHint}
+        active={streamer.active}
+        onclick={() => streamer.toggle()}
+      />
+    {/if}
     <IconButton icon="search" label="Go to" hint="Jump to a tab or open a channel (Ctrl+K)." onclick={() => (switcher = true)} />
     <BellButton onchannel={(l) => void openLogin(l)} />
     {#if canWhisper}
@@ -247,7 +268,7 @@
     {/if}
     <ConnectionCounter />
     <AccountMenu onmanage={manageAccounts} onsubs={() => show('subs')} />
-    <IconButton icon="settings" label="Settings" active={fixed === 'settings'} onclick={() => show('settings')} />
+    <IconButton icon="settings" label="Settings" hint="Everything you can change (Ctrl+,)." active={fixed === 'settings'} onclick={() => show('settings')} />
   {/snippet}
 </WindowChrome>
 
@@ -334,7 +355,7 @@
   .side-bar {
     display: flex;
     min-height: 0;
-    background: var(--bg);
+    background: var(--page);
   }
   .left .side-bar {
     border-right: 1px solid var(--border);

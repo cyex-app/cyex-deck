@@ -88,7 +88,7 @@
 </script>
 
 <div class="wrap" bind:this={wrap}>
-  <button class="gif-btn" class:on={open} aria-label="GIFs" use:tooltip={'GIFs'} onclick={toggle}>GIF</button>
+  <button class="gif-btn" class:on={open} aria-label="GIFs" use:tooltip={{ label: 'GIFs', hint: 'Search and send a GIF here.' }} onclick={toggle}>GIF</button>
   {#if open}
     <div class="pop">
       {#if !info}

@@ -40,7 +40,7 @@
 </script>
 
 <div class="wrap">
-  <button class="ctl" aria-label="Settings" use:tooltip={{ label: 'Quality and more' }} onclick={() => (open = !open)}>
+  <button class="ctl" aria-label="Settings" use:tooltip={{ label: 'Quality and more', hint: 'Quality, audio only, speed and video stats.' }} onclick={() => (open = !open)}>
     <Icon name="settings" size={17} />
   </button>
   <Popover bind:open side="above">

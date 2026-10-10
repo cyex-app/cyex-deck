@@ -114,10 +114,12 @@ pub(super) fn incoming(app: &AppHandle, thread_id: &str, m: api::Message, to: Op
     }
     emit_line(app, thread_id, &line);
     emit_changed(app);
-    if n.whispers.inline {
+    // U4 Streamer mode keeps whispers off chat and the screen.
+    let hidden = crate::streamer::hides(app, |s| s.hide_whispers);
+    if n.whispers.inline && !hidden {
         crate::chat::whisper_line(app, line.clone());
     }
-    let Some((_, Some((login, name, avatar)))) = alert else {
+    let Some((_, Some((login, name, avatar)))) = alert.filter(|_| !hidden) else {
         return;
     };
     if n.whispers.sound {

@@ -92,6 +92,8 @@ pub struct Chat {
     pub effects: bool,
     /// C3 Local nicknames and notes, by user id.
     pub users: BTreeMap<String, UserNote>,
+    /// U7 How chat overlays look.
+    pub overlay: Overlay,
 }
 
 impl Default for Chat {
@@ -130,6 +132,7 @@ impl Default for Chat {
             spell_check: false,
             effects: true,
             users: BTreeMap::new(),
+            overlay: Overlay::default(),
         }
     }
 }
@@ -164,6 +167,43 @@ impl Schema for Chat {
             u.note = u.note.trim().chars().take(MAX_NOTE_CHARS).collect();
             !id.is_empty() && !(u.nickname.is_empty() && u.note.is_empty())
         });
+        let o = &mut self.overlay;
+        o.background = o.background.min(100);
+        o.scale = o.scale.clamp(*OVERLAY_SCALES.start(), *OVERLAY_SCALES.end());
+        o.fade_after = o.fade_after.min(MAX_OVERLAY_FADE);
+    }
+}
+
+/// U7 Percent of the chat's text size in an overlay.
+const OVERLAY_SCALES: std::ops::RangeInclusive<u16> = 50..=300;
+/// U7 Longest wait before overlay lines fade, in seconds.
+const MAX_OVERLAY_FADE: u16 = 600;
+
+/// U7 A chat overlay: a see-through window over games or other apps.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(default, rename_all = "camelCase")]
+#[ts(export)]
+pub struct Overlay {
+    /// How solid the background is, in percent. 0 is fully see-through.
+    pub background: u8,
+    /// Text size in percent of the chat's.
+    pub scale: u16,
+    /// Lines fade after this many seconds; 0 keeps them.
+    pub fade_after: u16,
+    /// A dark outline around letters, readable on any background.
+    pub outline: bool,
+    pub badges: bool,
+}
+
+impl Default for Overlay {
+    fn default() -> Self {
+        Self {
+            background: 25,
+            scale: 100,
+            fade_after: 0,
+            outline: true,
+            badges: true,
+        }
     }
 }
 

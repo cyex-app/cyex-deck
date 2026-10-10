@@ -61,7 +61,7 @@
     align-items: center;
     height: var(--chrome-h);
     flex: none;
-    background: var(--bg);
+    background: var(--page);
     border-bottom: 1px solid var(--border);
   }
   .brand {

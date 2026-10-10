@@ -6,6 +6,7 @@ import type { EmoteSource } from "./EmoteSource";
 import type { GifMode } from "./GifMode";
 import type { LinkThumbs } from "./LinkThumbs";
 import type { NameStyle } from "./NameStyle";
+import type { Overlay } from "./Overlay";
 import type { PaintToggles } from "./PaintToggles";
 import type { PauseKey } from "./PauseKey";
 import type { Timestamps } from "./Timestamps";
@@ -145,4 +146,8 @@ effects: boolean,
 /**
  * C3 Local nicknames and notes, by user id.
  */
-users: { [key in string]: UserNote }, };
+users: { [key in string]: UserNote }, 
+/**
+ * U7 How chat overlays look.
+ */
+overlay: Overlay, };

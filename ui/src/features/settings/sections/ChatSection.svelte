@@ -13,6 +13,16 @@
   import ResetSection from '../ResetSection.svelte';
 
   const c = $derived(settings.v.chat);
+  const o = $derived(c.overlay);
+
+  /** U7 Seconds before overlay lines fade. */
+  const FADES: { value: number; label: string }[] = [
+    { value: 0, label: 'Never' },
+    { value: 15, label: '15 s' },
+    { value: 30, label: '30 s' },
+    { value: 60, label: '1 min' },
+    { value: 300, label: '5 min' },
+  ];
 
   const GIFS: { value: GifMode; label: string }[] = [
     { value: 'show', label: 'Show GIF' },
@@ -242,11 +252,69 @@
   {/if}
 </Row>
 
+<h3 class="label">Overlay</h3>
+<p class="intro">A chat over games: ⋯ on a chat → Overlay. It stays on top and can let clicks through.</p>
+<Row label="Background" hint="0 % is fully see-through.">
+  <input
+    type="range"
+    min="0"
+    max="100"
+    step="5"
+    value={o.background}
+    aria-label="Overlay background"
+    oninput={(e) => settings.patch('chat', { overlay: { background: Number(e.currentTarget.value) } })}
+  />
+  <span class="num">{o.background} %</span>
+</Row>
+<Row label="Text size" hint="Compared to chat.">
+  <input
+    type="range"
+    min="50"
+    max="300"
+    step="10"
+    value={o.scale}
+    aria-label="Overlay text size"
+    oninput={(e) => settings.patch('chat', { overlay: { scale: Number(e.currentTarget.value) } })}
+  />
+  <span class="num">{o.scale} %</span>
+</Row>
+<Row label="Fade lines after">
+  <Segmented
+    label="Fade lines after"
+    options={FADES}
+    value={o.fadeAfter}
+    onchange={(v) => settings.patch('chat', { overlay: { fadeAfter: v } })}
+  />
+</Row>
+<Row label="Outline letters" hint="Readable over anything.">
+  <Toggle
+    label="Outline letters"
+    checked={o.outline}
+    onchange={(v) => settings.patch('chat', { overlay: { outline: v } })}
+  />
+</Row>
+<Row label="Badges">
+  <Toggle label="Badges" checked={o.badges} onchange={(v) => settings.patch('chat', { overlay: { badges: v } })} />
+</Row>
+
 <ResetSection partition="chat" />
 
 <style>
   h3 {
     margin: 22px 0 2px;
+  }
+  .intro {
+    margin: 4px 0 2px;
+    color: var(--dim);
+  }
+  input[type='range'] {
+    width: 160px;
+    accent-color: var(--accent);
+  }
+  .num {
+    min-width: 44px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
   }
   .chip {
     display: inline-flex;

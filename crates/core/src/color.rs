@@ -1,6 +1,8 @@
 //! Accent color (3.3, 3.4). Every accent token is derived from the one color the user
 //! picks, then nudged until it meets WCAG contrast, so the accent never hurts readability.
 
+use std::sync::RwLock;
+
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -11,8 +13,8 @@ const FILL_CONTRAST: f64 = 3.0;
 /// Accent-colored text needs 4.5:1 against every surface it sits on (WCAG 1.4.3).
 const TEXT_CONTRAST: f64 = 4.5;
 
-const WHITE: Rgb = Rgb::new(0xff, 0xff, 0xff);
-const BLACK: Rgb = Rgb::new(0, 0, 0);
+pub const WHITE: Rgb = Rgb::new(0xff, 0xff, 0xff);
+pub const BLACK: Rgb = Rgb::new(0, 0, 0);
 const DARK_INK: Rgb = Rgb::new(0x0e, 0x0f, 0x12);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -24,17 +26,36 @@ pub enum Theme {
     Light,
 }
 
+/// U8 A custom theme's page and surface, per base theme (dark, light). `None` is the
+/// built-in pair. Accent and name colors are made readable against these.
+static CUSTOM_BACKGROUNDS: RwLock<[Option<[Rgb; 2]>; 2]> = RwLock::new([None, None]);
+
+/// U8 Sets (or with `None` clears) the backgrounds a custom theme uses for `theme`.
+pub fn set_backgrounds(theme: Theme, backgrounds: Option<[Rgb; 2]>) {
+    let mut all = CUSTOM_BACKGROUNDS.write().unwrap_or_else(|p| p.into_inner());
+    all[theme as usize] = backgrounds;
+}
+
 impl Theme {
     /// Page background and raised surface. Keep in sync with `ui/src/design/tokens.css`.
-    fn backgrounds(self) -> [Rgb; 2] {
+    pub fn builtin_backgrounds(self) -> [Rgb; 2] {
         match self {
             Theme::Dark => [Rgb::new(0x1e, 0x1f, 0x23), Rgb::new(0x26, 0x27, 0x2c)],
             Theme::Light => [Rgb::new(0xf3, 0xf3, 0xf4), WHITE],
         }
     }
 
+    /// The backgrounds in use: a custom theme's, else the built-in ones.
+    pub fn backgrounds(self) -> [Rgb; 2] {
+        let custom = CUSTOM_BACKGROUNDS
+            .read()
+            .map(|all| all[self as usize])
+            .unwrap_or(None);
+        custom.unwrap_or_else(|| self.builtin_backgrounds())
+    }
+
     /// Direction that adds contrast against this theme's backgrounds.
-    fn away_from_background(self) -> Rgb {
+    pub fn away_from_background(self) -> Rgb {
         match self {
             Theme::Dark => WHITE,
             Theme::Light => BLACK,
@@ -72,7 +93,7 @@ impl Rgb {
         format!("#{:02x}{:02x}{:02x}", self.r, self.g, self.b)
     }
 
-    fn rgba(self, alpha: f64) -> String {
+    pub fn rgba(self, alpha: f64) -> String {
         format!("rgba({}, {}, {}, {alpha})", self.r, self.g, self.b)
     }
 
@@ -128,8 +149,12 @@ pub struct AccentTokens {
 
 /// Derives all accent tokens from the user's color. Invalid input falls back to the default.
 pub fn accent_tokens(input: &str, theme: Theme) -> AccentTokens {
+    accent_tokens_on(input, theme, theme.backgrounds())
+}
+
+/// Accent tokens readable on the given page and surface (a custom theme's, U8).
+pub fn accent_tokens_on(input: &str, theme: Theme, [page, surface]: [Rgb; 2]) -> AccentTokens {
     let base = Rgb::parse(input).unwrap_or(Rgb::new(0x14, 0x5a, 0xff));
-    let [page, surface] = theme.backgrounds();
     let away = theme.away_from_background();
 
     let fill = push_until(base, away, |c| contrast(c, page) >= FILL_CONTRAST);
@@ -176,7 +201,7 @@ pub fn readable_name(color: Rgb, theme: Theme) -> Rgb {
 }
 
 /// Blends `color` toward `target` in 5% steps until `ok` holds.
-fn push_until(color: Rgb, target: Rgb, ok: impl Fn(Rgb) -> bool) -> Rgb {
+pub fn push_until(color: Rgb, target: Rgb, ok: impl Fn(Rgb) -> bool) -> Rgb {
     (0..=20)
         .map(|step| color.mix(target, f64::from(step) * 0.05))
         .find(|c| ok(*c))

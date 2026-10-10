@@ -6,6 +6,7 @@ import type { Component } from 'svelte';
 
 import RecordingView from '../features/chat/RecordingView.svelte';
 import ModViewPanel from '../features/modview/ModViewPanel.svelte';
+import OverlayView from '../features/overlay/OverlayView.svelte';
 import SettingsView from '../features/settings/SettingsView.svelte';
 import StreamManagerView from '../features/streammanager/StreamManagerView.svelte';
 import ChatPanel from '../features/tabs/ChatPanel.svelte';
@@ -22,6 +23,8 @@ export interface PanelKind {
   height: number;
   /** Small window: no minimize button. */
   compact?: boolean;
+  /** No title bar: the panel draws its own (U7 overlays). */
+  bare?: boolean;
   component: Component<{ popout?: boolean; route: string }>;
 }
 
@@ -34,6 +37,7 @@ export const PANELS: Record<string, PanelKind> = {
   modview: { title: 'Mod view', width: 920, height: 680, component: ModViewPanel },
   streammanager: { title: 'Stream manager', width: 1000, height: 760, component: StreamManagerView },
   whispers: { title: 'Whispers', width: 720, height: 560, component: WhispersView },
+  overlay: { title: 'Overlay', width: 340, height: 420, bare: true, component: OverlayView },
 };
 
 export function panelFor(route: string): PanelKind | undefined {
@@ -54,6 +58,10 @@ export function titleFor(route: string): string {
   if (kind === 'usercard' && b) return b;
   if (kind === 'modview' && a) return `Mod view · ${a}`;
   if (kind === 'whispers' && a) return `Whispers · ${a}`;
+  if (kind === 'overlay' && a) {
+    const tile = tabs.list.flatMap(tiles).find((t) => t.id === a);
+    if (tile) return `${tile.channel.name} overlay`;
+  }
   return PANELS[kind]?.title ?? 'cyex';
 }
 

@@ -136,6 +136,15 @@ impl Settings {
         if changed.iter().any(|(p, _)| *p == Partition::Commands) {
             crate::chat::run::rebuild(app);
         }
+        if changed.iter().any(|(p, _)| *p == Partition::General) {
+            crate::streamer::on_settings(app);
+        }
+        if changed.iter().any(|(p, _)| *p == Partition::Hotkeys) {
+            crate::hotkeys::apply(app);
+        }
+        if changed.iter().any(|(p, _)| *p == Partition::Appearance) {
+            crate::theme::on_settings(app);
+        }
         if notify {
             for (partition, value) in changed {
                 let _ = app.emit(

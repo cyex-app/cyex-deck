@@ -11,15 +11,19 @@ mod commands;
 mod connections;
 mod emotes;
 mod hermes;
+mod hotkeys;
 mod icons;
 mod miner;
 mod moderation;
 mod player;
 mod profile;
 mod settings;
+mod streamer;
 mod streammanager;
 mod subs;
+mod sys;
 mod tabs;
+mod theme;
 mod toasts;
 mod tray;
 mod whispers;
@@ -35,10 +39,14 @@ fn main() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(hotkeys::plugin())
         .register_asynchronous_uri_scheme_protocol(player::SCHEME, player::handle)
+        .register_uri_scheme_protocol(theme::SCHEME, theme::handle)
         .setup(|app| {
             let handle = app.handle();
             settings::init(handle)?;
+            theme::init(handle);
+            streamer::init(handle);
             connections::init(handle);
             auth::init(handle)?;
             hermes::init(handle);
@@ -55,6 +63,7 @@ fn main() {
             alerts::init(handle);
             windows::init(handle)?;
             tray::init(handle)?;
+            hotkeys::init(handle);
             Ok(())
         })
         .on_window_event(windows::on_window_event)

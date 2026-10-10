@@ -74,7 +74,7 @@
     <span class="status" class:on={miner.mining.length > 0}>{line}</span>
     <span class="grow"></span>
     <Toggle label="Mine" checked={s.enabled} onchange={(enabled) => void settings.patch('miner', { enabled })} />
-    <IconButton icon="settings" label="Miner settings" onclick={onsettings} />
+    <IconButton icon="settings" label="Miner settings" hint="Which channels win, raids, bets and drops." onclick={onsettings} />
   </header>
 
   <div class="scroll">

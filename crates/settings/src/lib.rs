@@ -13,6 +13,7 @@ mod merge;
 mod partition;
 pub mod schema;
 mod store;
+pub mod theme_code;
 mod transfer;
 
 #[cfg(test)]

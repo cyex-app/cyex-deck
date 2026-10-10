@@ -98,7 +98,7 @@
           <Icon name="search" size={14} />
           <input bind:value={query} placeholder="Find or start a conversation" spellcheck="false" />
         </div>
-        <IconButton icon="more" label="Options" onclick={more} />
+        <IconButton icon="more" label="Options" hint="Mark all read, and who may whisper you." onclick={more} />
       </div>
       <div class="threads" {onscroll}>
         {#if fresh}
@@ -171,7 +171,7 @@
     flex-direction: column;
     min-height: 0;
     border-right: 1px solid var(--border);
-    background: var(--bg);
+    background: var(--page);
   }
   .top {
     display: flex;
@@ -310,6 +310,6 @@
     display: flex;
     min-width: 0;
     min-height: 0;
-    background: var(--bg);
+    background: var(--page);
   }
 </style>

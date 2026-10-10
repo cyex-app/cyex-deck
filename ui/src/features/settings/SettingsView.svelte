@@ -22,6 +22,7 @@
   import PlayerSection from './sections/PlayerSection.svelte';
   import RecordingsSection from './sections/RecordingsSection.svelte';
   import StreamManagerSection from './sections/StreamManagerSection.svelte';
+  import StreamerSection from './sections/StreamerSection.svelte';
   import WindowsSection from './sections/WindowsSection.svelte';
 
   interface Props {
@@ -39,6 +40,7 @@
     { id: 'general', label: 'General', icon: 'sliders', component: GeneralSection },
     { id: 'accounts', label: 'Accounts', icon: 'user', component: AccountsSection },
     { id: 'notifications', label: 'Notifications', icon: 'bell', component: NotificationsSection },
+    { id: 'streamer', label: 'Streamer mode', icon: 'monitor', component: StreamerSection },
     { id: 'appearance', label: 'Appearance', icon: 'palette', component: AppearanceSection },
     { id: 'chat', label: 'Chat', icon: 'chat', component: ChatSection },
     { id: 'highlights', label: 'Highlights', icon: 'star', component: HighlightsSection },

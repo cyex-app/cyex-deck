@@ -100,6 +100,7 @@
         filters={tile.filters}
         onfilters={(filters) => void tabs.apply({ op: 'filters', tile: tile.id, filters })}
         onpopout={tile.show.player && !popout ? popChat : undefined}
+        onoverlay={() => void popOut(`overlay/${tile.id}`)}
       />
     {/key}
   {/if}

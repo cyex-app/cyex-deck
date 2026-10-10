@@ -98,7 +98,7 @@
     <Checkbox label={r.label} checked={on} onchange={(v) => toggleRule(r.value, v)} />
     <span class="hint">{r.hint}</span>
     {#if on}
-      <IconButton icon="chevronUp" label="Earlier" size={14} onclick={() => moveRule(r.value, -1)} />
+      <IconButton icon="chevronUp" label="Earlier" hint="Rules higher up win." size={14} onclick={() => moveRule(r.value, -1)} />
       <IconButton icon="chevronDown" label="Later" size={14} onclick={() => moveRule(r.value, 1)} />
     {/if}
   </div>

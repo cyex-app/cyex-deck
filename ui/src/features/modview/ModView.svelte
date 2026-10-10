@@ -93,6 +93,7 @@
     <IconButton
       icon={locked ? 'lock' : 'grid'}
       label={locked ? 'Unlock layout' : 'Lock layout'}
+      hint={locked ? undefined : 'Stops widgets from moving when you drag by accident.'}
       size={15}
       onclick={() => void settings.patch('modview', { locked: !locked })}
     />
@@ -142,7 +143,7 @@
     flex-direction: column;
     height: 100%;
     min-height: 0;
-    background: var(--bg);
+    background: var(--page);
   }
   header {
     display: flex;

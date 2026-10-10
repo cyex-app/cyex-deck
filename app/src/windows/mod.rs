@@ -2,6 +2,7 @@
 
 mod geometry;
 mod layouts;
+pub mod overlay;
 mod panels;
 pub mod twitch;
 mod usercard;
@@ -10,11 +11,9 @@ pub use layouts::{apply_layout, delete_layout, save_layout};
 pub use panels::{PanelRegistry, close as close_panel, open_panel, route_of, routes as panel_routes};
 pub use usercard::open as open_usercard;
 
-use cyex_core::color::Theme;
 use cyex_settings::Partition;
-use cyex_settings::schema::{Appearance, General, Windows};
+use cyex_settings::schema::{General, Windows};
 use serde_json::json;
-use tauri::window::Color;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent, Wry};
 
 use crate::icons;
@@ -23,9 +22,11 @@ use crate::settings::Settings;
 pub const MAIN: &str = "main";
 
 /// WebView2 flags for every window. All webviews in one profile must use the same set.
-/// Turns off background services the app never uses (saves ~6 MB, measured 2026/10/09).
+/// Turns off background services the app never uses (saves ~6 MB, measured 2026/10/09) and
+/// runs the network service inside the browser process (one process fewer, ~8 MB, D13).
 const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,Translate,\
-OptimizationHints,AutofillServerCommunication --disable-background-networking --process-per-site";
+OptimizationHints,AutofillServerCommunication --enable-features=NetworkServiceInProcess2 \
+--disable-background-networking --process-per-site";
 
 /// Shared setup for every window: frameless, hidden until placed, painted in the theme's
 /// background so there's no white flash before the UI loads.
@@ -37,24 +38,14 @@ pub fn builder<'a>(
     WebviewWindowBuilder::new(app, label, url)
         .decorations(false)
         .visible(false)
-        .background_color(background(app))
+        .background_color(crate::theme::background(app))
         .additional_browser_args(BROWSER_ARGS)
-}
-
-fn background(app: &AppHandle) -> Color {
-    // Keep in sync with --bg in ui/src/design/tokens.css.
-    match app
-        .state::<Settings>()
-        .read::<Appearance>(Partition::Appearance)
-        .theme
-    {
-        Theme::Light => Color(0xf3, 0xf3, 0xf4, 0xff),
-        Theme::Dark => Color(0x1e, 0x1f, 0x23, 0xff),
-    }
 }
 
 pub fn init(app: &AppHandle) -> tauri::Result<()> {
     app.manage(PanelRegistry::default());
+    app.manage(overlay::ClickThrough::default());
+    app.manage(LowMemory::default());
     let saved: Windows = app.state::<Settings>().read(Partition::Windows);
     let main = builder(app, MAIN, WebviewUrl::default())
         .title("cyex viewer")
@@ -76,6 +67,19 @@ pub fn show_main(app: &AppHandle) {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
+    }
+}
+
+/// S2 global hotkey: brings the app up, or puts it away when it's already in front.
+pub fn toggle_main(app: &AppHandle) {
+    let Some(w) = app.get_webview_window(MAIN) else { return };
+    let in_front = w.is_visible().unwrap_or(false)
+        && !w.is_minimized().unwrap_or(false)
+        && w.is_focused().unwrap_or(false);
+    if in_front {
+        let _ = w.minimize(); // goes on to the tray when that's set (U2)
+    } else {
+        show_main(app);
     }
 }
 
@@ -108,6 +112,9 @@ pub fn is_pinned(app: &AppHandle, label: &str) -> bool {
 
 pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
     let app = window.app_handle();
+    if let WindowEvent::Resized(_) = event {
+        memory_level(app, window);
+    }
     match event {
         WindowEvent::Resized(_) if window.label() == MAIN && hides_to_tray(app, window) => {
             let _ = window.hide();
@@ -121,8 +128,38 @@ pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
         WindowEvent::Destroyed => {
             crate::chat::close_window(app, window.label());
             panels::forget(app, window.label());
+            overlay::forget(app, window.label());
+            low_memory_windows(app).remove(window.label());
         }
         _ => {}
+    }
+}
+
+/// Windows that WebView2 was asked to keep small (D28).
+#[derive(Default)]
+pub struct LowMemory(std::sync::Mutex<std::collections::HashSet<String>>);
+
+fn low_memory_windows(app: &AppHandle) -> std::sync::MutexGuard<'_, std::collections::HashSet<String>> {
+    app.state::<LowMemory>().inner()
+        .0
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+}
+
+/// A minimized window (or one in the tray) lets WebView2 give memory back; it goes back to
+/// normal once restored. Each change is sent once.
+fn memory_level(app: &AppHandle, window: &tauri::Window) {
+    let low = window.is_minimized().unwrap_or(false);
+    let changed = {
+        let mut set = low_memory_windows(app);
+        if low {
+            set.insert(window.label().to_owned())
+        } else {
+            set.remove(window.label())
+        }
+    };
+    if changed && let Some(w) = app.get_webview_window(window.label()) {
+        crate::sys::low_memory(&w, low);
     }
 }
 

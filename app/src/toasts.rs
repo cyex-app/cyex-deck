@@ -46,8 +46,12 @@ pub struct Pop {
     pub open: Open,
 }
 
-/// Shows a toast. Pictures are fetched first, so this returns before it shows.
+/// Shows a toast. Pictures are fetched first, so this returns before it shows. Streamer
+/// mode (U4) can keep them off the screen.
 pub fn show(app: &AppHandle, pop: Pop) {
+    if crate::streamer::hides(app, |s| s.no_notifications) {
+        return;
+    }
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let avatar = match &pop.avatar {
@@ -79,8 +83,11 @@ pub fn show(app: &AppHandle, pop: Pop) {
     });
 }
 
-/// The main window plays the app's sound.
+/// The main window plays the app's sound, unless streamer mode mutes it (U4).
 pub fn sound(app: &AppHandle) {
+    if crate::streamer::hides(app, |s| s.mute_sounds) {
+        return;
+    }
     let _ = app.emit_to(MAIN, SOUND_EVENT, ());
 }
 

@@ -7,6 +7,7 @@
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import { formatNumber, formatTime } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
+  import { streamer } from '../../lib/streamer.svelte';
   import { looks } from '../emotes/looks.svelte';
   import Badges from './Badges.svelte';
   import Body from './Body.svelte';
@@ -43,7 +44,11 @@
   /** 1.26 A whisper shown in a chat: who it's with, for the label and a click. */
   const whisperWith = $derived(has('whisper') && !inWhispers ? (m.whisperTo ?? sender?.login ?? null) : null);
   /** C30 The first link, for a card under the message. */
-  const firstLink = $derived(c.linkCards && c.linkPreviews ? m.body.find((f) => f.t === 'link' && !f.target) : undefined);
+  const firstLink = $derived(
+    c.linkCards && c.linkPreviews && !streamer.hides('hideLinkPreviews')
+      ? m.body.find((f) => f.t === 'link' && !f.target)
+      : undefined,
+  );
 </script>
 
 <div

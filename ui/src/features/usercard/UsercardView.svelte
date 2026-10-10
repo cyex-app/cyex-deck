@@ -12,6 +12,7 @@
   import { systemIpc } from '../../ipc/system';
   import { formatDate, formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
+  import { streamer } from '../../lib/streamer.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { catalogs } from '../chat/catalog.svelte';
   import Line from '../chat/Line.svelte';
@@ -90,7 +91,11 @@
     <p class="muted">{error || `No user called ${login}.`}</p>
   {:else}
     <header>
-      <Avatar src={avatars.of(profile.login) ?? profile.avatar ?? ''} name={profile.displayName} size={56} />
+      <Avatar
+        src={streamer.hides('hideAvatars') ? '' : (avatars.of(profile.login) ?? profile.avatar ?? '')}
+        name={profile.displayName}
+        size={56}
+      />
       <div class="who">
         <div class="name">
           <strong>{note?.nickname || profile.displayName}</strong>

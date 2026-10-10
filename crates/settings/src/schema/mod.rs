@@ -19,15 +19,17 @@ mod tabs;
 mod windows;
 
 pub use accounts::{Account, Accounts, TokenMeta, TokenSource};
-pub use appearance::{Appearance, TabBarSide, TabDensity, TabUnread};
+pub use appearance::{
+    Appearance, CustomTheme, TabBarSide, TabDensity, TabUnread, Wallpaper, WallpaperArea, WallpaperFit, preset_themes,
+};
 pub use browse::{Browse, HomeLayout, LiveSort, OfflineSort};
 pub use chat::{
-    BadgeToggles, Chat, DeletedStyle, GifMode, LinkThumbs, NameStyle, PaintToggles, PauseKey, Timestamps, UnlistedEmotes,
-    UserNote,
+    BadgeToggles, Chat, DeletedStyle, GifMode, LinkThumbs, NameStyle, Overlay, PaintToggles, PauseKey,
+    Timestamps, UnlistedEmotes, UserNote,
 };
 pub use commands::{Access, Automation, Commands, SavedTimer, TriggerMatch};
 pub use emotes::{EmoteKey, EmoteSource, EmoteUse, Emotes};
-pub use general::{ChatPosition, General};
+pub use general::{ChatPosition, General, StreamerMode, StreamerWhen};
 pub use highlights::{
     Alert, AppRule, BadgeRule, Blocked, BlockedShow, BuiltIn, FilterDef, HiddenUser, Highlights, IgnoreRule, PhraseRule,
     SentFrom, Similarity, UserRule,

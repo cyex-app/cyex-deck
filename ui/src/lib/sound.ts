@@ -1,8 +1,12 @@
 // U6 Mention sound: a short two-note chime made with Web Audio, so no sound file ships.
+// Streamer mode can mute it (U4).
+
+import { streamer } from './streamer.svelte';
 
 let ctx: AudioContext | undefined;
 
 export function mentionChime(): void {
+  if (streamer.hides('muteSounds')) return;
   ctx ??= new AudioContext();
   const t = ctx.currentTime;
   const osc = ctx.createOscillator();

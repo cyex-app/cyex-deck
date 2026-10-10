@@ -17,6 +17,8 @@ pub struct General {
     pub tooltips: bool,
     /// U2 Minimizing the main window hides it to the tray.
     pub minimize_to_tray: bool,
+    /// U4
+    pub streamer: StreamerMode,
 }
 
 impl Default for General {
@@ -27,6 +29,7 @@ impl Default for General {
             chat_position: ChatPosition::Right,
             tooltips: true,
             minimize_to_tray: false,
+            streamer: StreamerMode::default(),
         }
     }
 }
@@ -35,7 +38,82 @@ impl Schema for General {
     fn sanitize(&mut self) {
         self.chat_font_size = self.chat_font_size.clamp(9, 32);
         self.chat_font_family = self.chat_font_family.trim().chars().take(100).collect();
+        let apps = &mut self.streamer.apps;
+        for a in apps.iter_mut() {
+            *a = a.trim().chars().take(MAX_APP_CHARS).collect();
+        }
+        let mut seen: Vec<String> = Vec::new();
+        apps.retain(|a| {
+            let key = a.to_lowercase();
+            let keep = !a.is_empty() && !seen.contains(&key);
+            seen.push(key);
+            keep
+        });
+        apps.truncate(MAX_APPS);
     }
+}
+
+const MAX_APPS: usize = 30;
+const MAX_APP_CHARS: usize = 80;
+
+/// U4 Streamer mode hides what viewers of your stream shouldn't see.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(default, rename_all = "camelCase")]
+#[ts(export)]
+pub struct StreamerMode {
+    pub when: StreamerWhen,
+    /// Exe names that count as streaming for `Auto`.
+    pub apps: Vec<String>,
+    /// Link previews, thumbnails and cards.
+    pub hide_link_previews: bool,
+    /// Profile pictures on usercards.
+    pub hide_avatars: bool,
+    /// Timeouts, bans and deleted-message lines.
+    pub hide_mod_actions: bool,
+    /// Whispers in chat and their pop-ups.
+    pub hide_whispers: bool,
+    /// Windows notifications.
+    pub no_notifications: bool,
+    /// Mention, highlight and whisper sounds.
+    pub mute_sounds: bool,
+}
+
+impl Default for StreamerMode {
+    fn default() -> Self {
+        Self {
+            when: StreamerWhen::Auto,
+            apps: DEFAULT_APPS.iter().map(|a| (*a).to_owned()).collect(),
+            hide_link_previews: true,
+            hide_avatars: true,
+            hide_mod_actions: true,
+            hide_whispers: true,
+            no_notifications: true,
+            mute_sounds: false,
+        }
+    }
+}
+
+/// Streaming and recording apps Chatterino also looks for, plus Streamlabs.
+const DEFAULT_APPS: [&str; 8] = [
+    "obs64.exe",
+    "obs32.exe",
+    "obs.exe",
+    "Streamlabs OBS.exe",
+    "PRISMLiveStudio.exe",
+    "XSplit.Core.exe",
+    "TwitchStudio.exe",
+    "vMix64.exe",
+];
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum StreamerWhen {
+    Off,
+    On,
+    /// While one of the apps runs.
+    #[default]
+    Auto,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]

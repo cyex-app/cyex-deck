@@ -20,7 +20,7 @@
   useHotkeys({ 'window.pin': () => currentWindow.togglePin(), ...playerHotkeys });
 </script>
 
-<WindowChrome title={titleFor(route)} compact={panel?.compact} />
+{#if !panel?.bare}<WindowChrome title={titleFor(route)} compact={panel?.compact} />{/if}
 
 <main>
   {#if panel}

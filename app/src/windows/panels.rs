@@ -64,6 +64,15 @@ pub fn open_panels(app: &AppHandle) -> Vec<(String, tauri::WebviewWindow)> {
         .collect()
 }
 
+/// Every open panel as (route, label), usercards and overlays too.
+pub fn open_panels_all(app: &AppHandle) -> Vec<(String, String)> {
+    app.state::<PanelRegistry>()
+        .lock()
+        .iter()
+        .map(|(label, route)| (route.clone(), label.clone()))
+        .collect()
+}
+
 /// Routes of the open pop-outs, usercards left out.
 pub fn routes(app: &AppHandle) -> Vec<String> {
     let mut routes: Vec<String> = app
@@ -116,17 +125,26 @@ pub fn open_panel(app: &AppHandle, route: &str, title: &str, size: Option<(f64, 
         .unwrap_or_default();
     let (width, height) = size.unwrap_or(DEFAULT_SIZE);
     let url = WebviewUrl::App(format!("index.html#/panel/{route}").into());
+    let overlay = super::overlay::is_overlay(route);
     let builder = super::builder(app, &label, url)
         .title(title)
         .inner_size(width, height)
         .min_inner_size(MIN_SIZE.0, MIN_SIZE.1)
         .always_on_top(saved.pinned);
+    let builder = if overlay {
+        super::overlay::style(builder)
+    } else {
+        builder
+    };
     let builder = geometry::on_builder(app, builder, saved.geometry.as_ref());
     let window = builder.build()?;
     app.state::<PanelRegistry>()
         .lock()
         .insert(label, route.to_owned());
     notify(app);
+    if overlay {
+        super::overlay::sync_tray(app);
+    }
 
     if saved.geometry.is_some_and(|g| g.maximized) {
         window.maximize()?;

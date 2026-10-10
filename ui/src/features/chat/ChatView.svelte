@@ -62,6 +62,8 @@
     onfilters?: (ids: string[]) => void;
     /** `/popout` (1.58). */
     onpopout?: () => void;
+    /** U7 Opens this chat as an overlay. */
+    onoverlay?: () => void;
   }
 
   let {
@@ -76,6 +78,7 @@
     filters = [],
     onfilters,
     onpopout,
+    onoverlay,
   }: Props = $props();
 
   // A chat view shows one channel for its whole life; a different one is a new view.
@@ -184,6 +187,7 @@
         run: () => void settings.patch('highlights', { muted: toggled(settings.v.highlights.muted, !muted) }),
       },
       { label: recording ? 'Stop recording' : 'Record chat', icon: 'record', run: record },
+      ...(onoverlay ? [{ label: 'Overlay', icon: 'layers' as const, hint: 'Over games', run: onoverlay }] : []),
       ...(account && accounts.can('subs', account)
         ? [{ label: 'Subscribe', icon: 'star' as const, run: () => (subscribing = true) }]
         : []),
@@ -246,10 +250,10 @@
   <!-- The header drags a tile in a tiled tab (U3); its buttons stay clickable. -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <header onpointerdown={onheaderdown}>
-    <button class="channel" onclick={openChannelCard} use:tooltip={'Channel info'}>{name ?? login}</button>
+    <button class="channel" onclick={openChannelCard} use:tooltip={{ label: 'Channel info', hint: 'Followers, roles and when they joined.' }}>{name ?? login}</button>
     <div class="modes">
       {#if recording}<span class="mode rec" use:tooltip={'Recording this chat'}>REC</span>{/if}
-      {#if filters.length}<span class="mode" use:tooltip={'Shown through filters'}>Filtered</span>{/if}
+      {#if filters.length}<span class="mode" use:tooltip={{ label: 'Shown through filters', hint: 'Change them in ⋯ → Filters.' }}>Filtered</span>{/if}
       {#each modes as m (m.label)}
         <span class="mode" use:tooltip={{ label: m.label, hint: m.hint }}>{m.label}</span>
       {/each}
@@ -258,11 +262,12 @@
       <IconButton
         icon="shield"
         label="Mod view"
+        hint="Mod tools for this chat, in their own window."
         size={15}
         onclick={() => void popOut(`modview/${login}`, `Mod view · ${login}`)}
       />
     {/if}
-    <IconButton icon="more" label="More" size={15} onclick={more} />
+    <IconButton icon="more" label="More" hint="Search, translate, record, overlay, filters." size={15} onclick={more} />
     {@render actions?.()}
   </header>
   {#if room.error}
@@ -305,7 +310,7 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
-    background: var(--bg);
+    background: var(--page);
   }
   header {
     display: flex;

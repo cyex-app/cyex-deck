@@ -1,4 +1,5 @@
 // Hotkeys (S2). Each action declares its default combo here; settings only store overrides.
+// `global` ones work while another app is in front; Rust registers those (app/src/hotkeys.rs).
 
 import { settings } from './settings.svelte';
 
@@ -22,11 +23,18 @@ export const ACTIONS = {
   'chat.search': { label: 'Search this chat', default: 'Ctrl+F' },
   'chat.searchAll': { label: 'Search every chat', default: 'Ctrl+Shift+F' },
   'chat.similar': { label: 'Hide or show near-duplicates', default: 'Ctrl+H' },
-} as const satisfies Record<string, { label: string; default: string }>;
+  'global.show': { label: 'Show or hide cyex', default: '', global: true },
+  'global.streamer': { label: 'Streamer mode on or off', default: '', global: true },
+  'global.clickThrough': { label: 'Overlay click-through on or off', default: '', global: true },
+} as const satisfies Record<string, { label: string; default: string; global?: boolean }>;
 
 export type ActionId = keyof typeof ACTIONS;
 
 export const ACTION_IDS = Object.keys(ACTIONS) as ActionId[];
+
+export function isGlobal(id: ActionId): boolean {
+  return 'global' in ACTIONS[id];
+}
 
 /** True while the hotkey editor is listening, so shortcuts don't fire. */
 export const recording = $state({ active: false });

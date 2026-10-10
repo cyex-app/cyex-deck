@@ -153,10 +153,10 @@
       <input bind:value={query} placeholder="Find a channel" spellcheck="false" autocomplete="off" />
     </label>
     <span class="grow"></span>
-    <IconButton icon="sliders" label="Sort" onclick={sortMenu} />
-    <IconButton icon="grid" label="Grid" active={grid} onclick={() => setLayout('grid')} />
-    <IconButton icon="list" label="List" active={!grid} onclick={() => setLayout('list')} />
-    <IconButton icon="refresh" label="Refresh" disabled={home.loading} onclick={() => void home.refresh(true)} />
+    <IconButton icon="sliders" label="Sort" hint="Order of live and offline channels." onclick={sortMenu} />
+    <IconButton icon="grid" label="Grid" hint="Cards with preview pictures." active={grid} onclick={() => setLayout('grid')} />
+    <IconButton icon="list" label="List" hint="One row per channel." active={!grid} onclick={() => setLayout('list')} />
+    <IconButton icon="refresh" label="Refresh" hint="Load who you follow again." disabled={home.loading} onclick={() => void home.refresh(true)} />
   </header>
 
   <div class="scroll">
