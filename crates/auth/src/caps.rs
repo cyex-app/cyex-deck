@@ -93,9 +93,8 @@ impl Feature {
     pub fn tier(self) -> Tier {
         use Feature::*;
         match self {
-            SendChat | FollowedList | EmoteMenu | ChatColor => Tier::Either,
-            Bio | Whispers | Blocks | ModTools | ModView
-            | StreamManager | MassbanHelix | Clips => Tier::Helix,
+            SendChat | FollowedList | EmoteMenu | ChatColor | Blocks => Tier::Either,
+            Bio | Whispers | ModTools | ModView | StreamManager | MassbanHelix | Clips => Tier::Helix,
             _ => Tier::Gql,
         }
     }

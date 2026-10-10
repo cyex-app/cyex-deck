@@ -23,6 +23,10 @@ use super::Schema;
 /// 1.22
 const MAX_ALIAS_CHARS: usize = 60;
 const MAX_GROUP_NAME_CHARS: usize = 40;
+/// F4
+const MAX_FEED_CHARS: usize = 40;
+/// F3
+const MAX_TILE_FILTERS: usize = 10;
 /// 3.11 Chat's share of a tile that also shows the stream.
 pub const DEFAULT_RATIO: f32 = 0.28;
 /// A player's starting volume, 0 to 1.
@@ -116,6 +120,10 @@ pub struct Tile {
     /// The player's volume, 0 to 1, kept per tile so a muted stream stays muted.
     pub volume: f32,
     pub muted: bool,
+    /// F4 A feed tab's name instead of a channel: shows what rules send there.
+    pub feed: Option<String>,
+    /// F3 Filter ids the chat shows messages through.
+    pub filters: Vec<String>,
 }
 
 impl Default for Tile {
@@ -129,6 +137,8 @@ impl Default for Tile {
             size: 1.0,
             volume: DEFAULT_VOLUME,
             muted: false,
+            feed: None,
+            filters: Vec::new(),
         }
     }
 }
@@ -200,7 +210,7 @@ impl Tabs {
     pub fn channel_ids(&self) -> Vec<String> {
         let mut seen = HashSet::new();
         self.tiles()
-            .filter(|t| seen.insert(t.channel.id.as_str()))
+            .filter(|t| !t.channel.id.is_empty() && seen.insert(t.channel.id.as_str()))
             .map(|t| t.channel.id.clone())
             .collect()
     }
@@ -267,7 +277,8 @@ impl Schema for Tabs {
             for column in &mut t.columns {
                 column.size = clamp(column.size, SIZE_RANGE, 1.0);
                 column.tiles.retain_mut(|tile| {
-                    if tile.id.is_empty() || tile.channel.id.is_empty() || !tile_ids.insert(tile.id.clone()) {
+                    let empty = tile.channel.id.is_empty() && tile.feed.as_deref().is_none_or(|f| f.trim().is_empty());
+                    if tile.id.is_empty() || empty || !tile_ids.insert(tile.id.clone()) {
                         return false;
                     }
                     sanitize_tile(tile);
@@ -308,6 +319,10 @@ fn sanitize_tile(tile: &mut Tile) {
         tile.channel.name = tile.channel.login.clone();
     }
     tile.account = tile.account.take().filter(|a| !a.is_empty());
+    tile.feed = tile.feed.take().map(|f| clip(f.trim(), MAX_FEED_CHARS)).filter(|f| !f.is_empty());
+    tile.filters.retain(|f| !f.is_empty());
+    tile.filters.dedup();
+    tile.filters.truncate(MAX_TILE_FILTERS);
 }
 
 /// Scales shares so they average 1. The UI uses them as flex-grow, where shares that

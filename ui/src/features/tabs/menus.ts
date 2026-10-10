@@ -4,6 +4,7 @@ import type { MenuEntry } from '../../components/menu.svelte';
 import type { Tab } from '../../ipc/bindings/Tab';
 import type { TabGroup } from '../../ipc/bindings/TabGroup';
 import { bindingOf } from '../../lib/hotkeys.svelte';
+import { settings } from '../../lib/settings.svelte';
 import { openAdd, openEdit, openGroupDialog } from './dialog.svelte';
 import { COLOR_ORDER, GROUP_COLORS } from './groupColors';
 import { tabs, tiles } from './tabs.svelte';
@@ -17,9 +18,10 @@ export function tabMenu(tab: Tab, targets: Tab[]): MenuEntry[] {
   const after = all.slice(index + 1).map((t) => t.id);
   const others = all.filter((t) => !ids.includes(t.id)).map((t) => t.id);
   const popped = tabs.popped.has(tab.id);
+  const feed = tiles(tab).some((t) => t.feed);
 
   const entries: MenuEntry[] = [];
-  if (one) {
+  if (one && !feed) {
     entries.push(
       { label: 'Edit', icon: 'pencil', hint: 'Double-click', run: () => openEdit(tab.id, tiles(tab)[0].id) },
       { label: 'Add a channel here', icon: 'columns', run: () => openAdd(tab.id) },
@@ -28,6 +30,8 @@ export function tabMenu(tab: Tab, targets: Tab[]): MenuEntry[] {
         : { label: 'Pop out', icon: 'popout', run: () => tabs.popOut(tab) },
     );
   }
+  const mute = muteEntry(targets);
+  if (mute) entries.push(mute);
   entries.push(
     { label: one ? 'Group' : `Group ${targets.length} tabs`, icon: 'tag', items: groupItems(targets) },
     'separator',
@@ -37,6 +41,21 @@ export function tabMenu(tab: Tab, targets: Tab[]): MenuEntry[] {
     reopenEntry(),
   );
   return entries;
+}
+
+/** C27 Keeps the tabs' chats from playing sounds or flashing. */
+function muteEntry(targets: Tab[]): MenuEntry | null {
+  const logins = targets.flatMap(tiles).filter((t) => !t.feed && t.channel.login).map((t) => t.channel.login);
+  if (!logins.length) return null;
+  const muted = settings.v.highlights.muted;
+  const all = logins.every((l) => muted.includes(l));
+  const next = all ? muted.filter((l) => !logins.includes(l)) : [...new Set([...muted, ...logins])];
+  return {
+    label: 'Mute sounds',
+    icon: 'bellOff',
+    checked: all,
+    run: () => void settings.patch('highlights', { muted: next }),
+  };
 }
 
 /** U10 */

@@ -23,6 +23,15 @@ pub async fn recent_messages(http: &Http, login: &str) -> Result<Vec<String>> {
     unwrap(json(req).await?)
 }
 
+/// C24 Lines sent between two moments (unix ms), at most `limit`.
+pub async fn recent_between(http: &Http, login: &str, after_ms: i64, before_ms: i64, limit: u32) -> Result<Vec<String>> {
+    let req = http
+        .0
+        .get(format!("{URL}/{login}"))
+        .query(&[("limit", i64::from(limit)), ("after", after_ms), ("before", before_ms)]);
+    unwrap(json(req).await?)
+}
+
 fn unwrap(r: Response) -> Result<Vec<String>> {
     match r.error_code.as_deref() {
         // Still recovering: it sends what it has.

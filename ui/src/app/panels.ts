@@ -4,6 +4,7 @@
 
 import type { Component } from 'svelte';
 
+import RecordingView from '../features/chat/RecordingView.svelte';
 import SettingsView from '../features/settings/SettingsView.svelte';
 import ChatPanel from '../features/tabs/ChatPanel.svelte';
 import TabPanel from '../features/tabs/TabPanel.svelte';
@@ -26,6 +27,7 @@ export const PANELS: Record<string, PanelKind> = {
   tab: { title: 'Tab', width: 420, height: 680, component: TabPanel },
   chat: { title: 'Chat', width: 380, height: 680, component: ChatPanel },
   usercard: { title: 'User', width: 340, height: 480, compact: true, component: UsercardView },
+  recording: { title: 'Recording', width: 400, height: 640, component: RecordingView },
 };
 
 export function panelFor(route: string): PanelKind | undefined {

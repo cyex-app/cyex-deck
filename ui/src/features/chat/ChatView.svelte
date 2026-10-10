@@ -1,20 +1,42 @@
 <!-- A channel's chat (1.8, 1.9): header with room modes and status, pinned message,
      messages, message box. The header carries the tile's buttons and drag handle. -->
+<script module lang="ts">
+  const views = new Set<HTMLElement>();
+  let lastUsed: HTMLElement | null = null;
+
+  /** The chat a chat hotkey is for: the focused one, else the last one used, else the first on screen. */
+  function hotkeyTarget(): HTMLElement | null {
+    const shown = [...views].filter((v) => v.checkVisibility());
+    const focused = shown.find((v) => v.contains(document.activeElement));
+    return focused ?? (lastUsed && shown.includes(lastUsed) ? lastUsed : (shown[0] ?? null));
+  }
+</script>
+
 <script lang="ts">
   import { onDestroy, type Snippet } from 'svelte';
 
+  import IconButton from '../../components/IconButton.svelte';
+  import { openMenu, type MenuEntry } from '../../components/menu.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import type { ConnStatus } from '../../ipc/bindings/ConnStatus';
   import type { LinkTarget } from '../../ipc/bindings/LinkTarget';
+  import type { UiAction } from '../../ipc/bindings/UiAction';
   import { chatIpc } from '../../ipc/chat';
+  import { chatxIpc } from '../../ipc/chatx';
   import { formatDuration } from '../../lib/format';
+  import { useHotkeys } from '../../lib/hotkeys.svelte';
+  import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { catalogs } from './catalog.svelte';
   import ChatInput from './ChatInput.svelte';
+  import { runEntry, toItems, userMenus } from './menus.svelte';
   import MessageList from './MessageList.svelte';
   import PinnedBanner from './PinnedBanner.svelte';
   import { ChatRoom } from './room.svelte';
+  import SearchPopup from './SearchPopup.svelte';
+  import { votes } from './votes.svelte';
+  import VotesBanner from './VotesBanner.svelte';
 
   interface Props {
     login: string;
@@ -30,21 +52,144 @@
     onsignin?: () => void;
     /** Clips and VODs linked in chat open here (1.19, 1.20, P7). */
     onlink?: (target: LinkTarget) => void;
+    /** F3 Filter ids this chat shows messages through, and where a change goes. */
+    filters?: string[];
+    onfilters?: (ids: string[]) => void;
+    /** `/popout` (1.58). */
+    onpopout?: () => void;
   }
 
-  let { login, name, account, readKey, actions, onheaderdown, onsignin = () => {}, onlink }: Props = $props();
+  let {
+    login,
+    name,
+    account,
+    readKey,
+    actions,
+    onheaderdown,
+    onsignin = () => {},
+    onlink,
+    filters = [],
+    onfilters,
+    onpopout,
+  }: Props = $props();
 
   // A chat view shows one channel for its whole life; a different one is a new view.
   // svelte-ignore state_referenced_locally
   const room = new ChatRoom(login);
+  // A filter change keys a new view, so the list it opened with stays right.
   // svelte-ignore state_referenced_locally
-  void room.open(account);
+  void room.open(account, filters).then(() => {
+    if (room.view) chatxIpc.recording(room.view).then((r) => (recording = r)).catch(() => {});
+  });
   void catalogs.loadGlobal();
   // svelte-ignore state_referenced_locally
   void catalogs.loadChannel(login);
+  // svelte-ignore state_referenced_locally
+  votes.watch(login);
   onDestroy(() => room.close());
 
+  let el = $state<HTMLElement>();
+  let input = $state<ChatInput>();
   let replyTo = $state<ChatMessage | null>(null);
+  let search = $state<{ query: string; all: boolean } | null>(null);
+  let recording = $state(false);
+
+  $effect(() => {
+    if (!el) return;
+    const me = el;
+    views.add(me);
+    return () => {
+      views.delete(me);
+      if (lastUsed === me) lastUsed = null;
+    };
+  });
+
+  $effect(() => {
+    let stop: (() => void) | undefined;
+    let gone = false;
+    void chatxIpc
+      .onRecording((e) => {
+        if (e.channel === login) recording = e.recording;
+      })
+      .then((u) => (gone ? u() : (stop = u)));
+    return () => {
+      gone = true;
+      stop?.();
+    };
+  });
+
+  $effect(() => userMenus.track());
+
+  const mine = (run: () => void) => () => (hotkeyTarget() === el ? run() : false);
+  useHotkeys({
+    'chat.search': mine(() => (search = { query: search?.query ?? '', all: false })),
+    'chat.searchAll': mine(() => (search = { query: search?.query ?? '', all: true })),
+    'chat.similar': mine(() => {
+      const hide = !settings.v.highlights.similar.hide;
+      void settings.patch('highlights', { similar: { hide } });
+      toast.info(hide ? 'Near-duplicates hidden' : 'Near-duplicates shown');
+    }),
+  });
+
+  function onaction(a: UiAction) {
+    if (a.type === 'search') search = { query: a.query, all: false };
+    else if (a.type === 'popout') {
+      if (onpopout) onpopout();
+      else toast.info('Only a chat next to a stream pops out.');
+    }
+  }
+
+  const translating = $derived(settings.v.chat.translateChats.includes(login));
+  const muted = $derived(settings.v.highlights.muted.includes(login));
+
+  /** Adds or removes this chat from a list setting. */
+  const toggled = (list: string[], on: boolean) => (on ? [...list, login] : list.filter((l) => l !== login));
+
+  function record() {
+    chatxIpc
+      .record(room.view, !recording)
+      .then((r) => {
+        recording = r;
+        toast.info(r ? 'Recording this chat' : 'Recording saved. Find it in Settings → Recordings.');
+      })
+      .catch((e) => toast.error(String(e)));
+  }
+
+  function more(e: MouseEvent) {
+    const defs = settings.v.highlights.filters;
+    const flip = (id: string) => onfilters?.(filters.includes(id) ? filters.filter((f) => f !== id) : [...filters, id]);
+    const own = userMenus.current.channel;
+    const ctx = { login, userId: null, display: name ?? login, msgId: null, msg: null, msgTime: null };
+    const items: MenuEntry[] = [
+      { label: 'Search', icon: 'search', hint: 'Ctrl+F', run: () => (search = { query: '', all: false }) },
+      {
+        label: 'Translate messages',
+        icon: 'languages',
+        checked: translating,
+        run: () => void settings.patch('chat', { translateChats: toggled(settings.v.chat.translateChats, !translating) }),
+      },
+      {
+        label: 'Mute sounds',
+        icon: 'bellOff',
+        checked: muted,
+        run: () => void settings.patch('highlights', { muted: toggled(settings.v.highlights.muted, !muted) }),
+      },
+      { label: recording ? 'Stop recording' : 'Record chat', icon: 'record', run: record },
+      ...(onfilters
+        ? [
+            {
+              label: 'Filters',
+              icon: 'filter' as const,
+              items: defs.length
+                ? defs.map((d) => ({ label: d.name, checked: filters.includes(d.id), run: () => flip(d.id) }))
+                : [{ label: 'Make filters in Settings → Filters', disabled: true }],
+            },
+          ]
+        : []),
+      ...(own.length ? ['separator' as const, ...toItems(own, (cmd) => runEntry(room.view, cmd, ctx, onaction))] : []),
+    ];
+    openMenu(e, items);
+  }
 
   const STATUS: Partial<Record<ConnStatus, string>> = {
     connecting: 'Connecting…',
@@ -78,16 +223,26 @@
   }
 </script>
 
-<section class="chat">
+<!-- Remembers which chat was used last, for chat hotkeys. -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<section
+  class="chat"
+  bind:this={el}
+  onpointerdown={() => (lastUsed = el ?? null)}
+  onfocusin={() => (lastUsed = el ?? null)}
+>
   <!-- The header drags a tile in a tiled tab (U3); its buttons stay clickable. -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <header onpointerdown={onheaderdown}>
     <button class="channel" onclick={openChannelCard} use:tooltip={'Channel info'}>{name ?? login}</button>
     <div class="modes">
+      {#if recording}<span class="mode rec" use:tooltip={'Recording this chat'}>REC</span>{/if}
+      {#if filters.length}<span class="mode" use:tooltip={'Shown through filters'}>Filtered</span>{/if}
       {#each modes as m (m.label)}
         <span class="mode" use:tooltip={{ label: m.label, hint: m.hint }}>{m.label}</span>
       {/each}
     </div>
+    <IconButton icon="more" label="More" size={15} onclick={more} />
     {@render actions?.()}
   </header>
   {#if room.error}
@@ -98,12 +253,31 @@
     </p>
   {/if}
   {#if room.pinned}<PinnedBanner pin={room.pinned} channel={login} />{/if}
-  <MessageList {room} {readKey} canReply={room.account !== null} onreply={reply} {onlink} />
-  <ChatInput {room} bind:replyTo {onsignin} />
+  <VotesBanner channel={login} view={() => room.view} signedIn={room.account !== null} />
+  <MessageList
+    {room}
+    {readKey}
+    canReply={room.account !== null}
+    onreply={reply}
+    {onlink}
+    onmention={(l) => input?.mention(l)}
+    {onaction}
+  />
+  <ChatInput bind:this={input} {room} bind:replyTo {onsignin} {onaction} />
+  {#if search}
+    <SearchPopup
+      view={room.view}
+      channel={login}
+      query={search.query}
+      all={search.all}
+      onclose={() => (search = null)}
+    />
+  {/if}
 </section>
 
 <style>
   .chat {
+    position: relative;
     flex: 1;
     min-width: 0;
     min-height: 0;
@@ -144,6 +318,10 @@
     font-size: 0.72rem;
     font-weight: 600;
     white-space: nowrap;
+  }
+  .mode.rec {
+    color: var(--red);
+    border-color: var(--red);
   }
   .status {
     margin: 0;

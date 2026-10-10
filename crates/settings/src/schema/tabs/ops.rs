@@ -60,6 +60,10 @@ pub enum TabOp {
         columns: Vec<f32>,
         rows: Vec<Vec<f32>>,
     },
+    /// F4 A new tab showing a feed. Shows it.
+    AddFeed { name: String },
+    /// F3 The filters a tile's chat shows messages through.
+    Filters { tile: String, filters: Vec<String> },
     /// 3.11 Chat's share of the tile.
     Ratio { tile: String, ratio: f32 },
     /// The tile's player volume.
@@ -163,6 +167,8 @@ impl Tabs {
                     size: 1.0,
                     volume: self.last_volume,
                     muted: false,
+                    feed: None,
+                    filters: Vec::new(),
                 };
                 let i = self.tab_index(&tab_id)?;
                 let size = average_width(&self.tabs[i]);
@@ -193,6 +199,8 @@ impl Tabs {
                         size: 1.0,
                         volume: self.last_volume,
                         muted: i > 0,
+                        feed: None,
+                        filters: Vec::new(),
                     };
                     columns[i % width].tiles.push(tile);
                 }
@@ -305,6 +313,32 @@ impl Tabs {
                         }
                     }
                 }
+                Ok(None)
+            }
+            TabOp::AddFeed { name } => {
+                let name = name.trim().to_owned();
+                if name.is_empty() {
+                    return Err(TabError("Give the feed a name."));
+                }
+                let id = self.fresh(new_id);
+                let tile = Tile {
+                    id: self.fresh(new_id),
+                    show: TileShow { player: false, chat: true },
+                    feed: Some(name),
+                    ..Tile::default()
+                };
+                self.tabs.push(Tab {
+                    id: id.clone(),
+                    alias: None,
+                    group: None,
+                    columns: vec![Column::of(tile, 1.0)],
+                });
+                self.active = Some(id.clone());
+                Ok(Some(id))
+            }
+            TabOp::Filters { tile, filters } => {
+                let at = self.locate(&tile)?;
+                self.tile_mut(at).filters = filters;
                 Ok(None)
             }
             TabOp::Ratio { tile, ratio } => {
@@ -841,6 +875,20 @@ mod tests {
         assert_eq!((tile.volume, tile.muted, t.last_volume), (0.8, true, 0.8));
         apply(&mut t, TabOp::Sound { tile: "a-1".into(), volume: 7.0, muted: false });
         assert_eq!(t.tabs[0].columns[0].tiles[0].volume, 1.0, "clamped");
+    }
+
+    #[test]
+    fn feeds_and_filters() {
+        let mut t = Tabs::default();
+        apply(&mut t, TabOp::AddFeed { name: " Pings ".into() });
+        let tile = &t.tabs[0].columns[0].tiles[0];
+        assert_eq!((tile.feed.as_deref(), tile.show.player), (Some("Pings"), false));
+        assert!(t.channel_ids().is_empty(), "feeds have no channel");
+        let id = tile.id.clone();
+        apply(&mut t, TabOp::Filters { tile: id, filters: vec!["f1".into(), "f1".into()] });
+        assert_eq!(t.tabs[0].columns[0].tiles[0].filters, ["f1"]);
+        let mut fresh = || "x".to_owned();
+        assert!(t.apply(TabOp::AddFeed { name: " ".into() }, &mut fresh).is_err());
     }
 
     #[test]

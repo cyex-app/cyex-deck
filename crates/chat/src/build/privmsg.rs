@@ -1,7 +1,8 @@
-//! PRIVMSG → chat message (1.8, 1.9): replies, rewards, shared chat, power-ups.
+//! PRIVMSG → chat message (1.8, 1.9): replies, rewards, shared chat, power-ups, the
+//! app it came from (C26).
 
 use crate::irc::Line;
-use crate::model::{ChatMessage, Flag, Fragment, Reply, RewardRef, SharedSource};
+use crate::model::{ChatMessage, Client, Flag, Fragment, Meta, Reply, RewardRef, SharedSource};
 use crate::tokenize::{Input, tokenize};
 
 use super::sender::{badges, sender};
@@ -84,6 +85,13 @@ pub fn privmsg(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Option<ChatMessage> {
         }),
         source,
         flags,
+        meta: Meta {
+            client: Client::from_nonce(line.raw_tag("client-nonce").unwrap_or("")),
+            effect: (line.raw_tag("msg-id") == Some("animated-message"))
+                .then(|| line.tag_nonempty("animation-id").map(str::to_owned))
+                .flatten(),
+            ..Meta::default()
+        },
     })
 }
 
@@ -206,5 +214,7 @@ mod tests {
         assert_eq!(m.reward.as_ref().unwrap().id, "r1");
         assert_eq!(m.source.as_ref().unwrap().room_id, "2");
         assert!(m.has(Flag::Gigantified) && m.has(Flag::FirstMessage));
+        let m = build("@id=m6;user-id=7;msg-id=animated-message;animation-id=simmer :foo!foo@foo.tmi.twitch.tv PRIVMSG #bar :hey", None);
+        assert_eq!(m.meta.effect.as_deref(), Some("simmer"));
     }
 }

@@ -4,7 +4,7 @@
 
 mod closed;
 pub mod follow;
-mod live;
+pub mod live;
 mod rooms;
 
 pub use closed::any as reopenable;

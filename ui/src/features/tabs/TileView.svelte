@@ -11,6 +11,7 @@
   import { settings } from '../../lib/settings.svelte';
   import StreamSide from '../channel/StreamSide.svelte';
   import ChatView from '../chat/ChatView.svelte';
+  import FeedView from '../chat/FeedView.svelte';
   import ReplayChat from '../chat/ReplayChat.svelte';
   import ClipPlayer from '../player/ClipPlayer.svelte';
   import { openTarget, tileState } from '../player/players.svelte';
@@ -73,6 +74,8 @@
 {#snippet chat()}
   {#if !showChat}
     <!-- Folded away: the chat is in its own window or turned off. -->
+  {:else if tile.feed}
+    <FeedView name={tile.feed} {actions} {onheaderdown} />
   {:else if replay}
     <ReplayChat
       videoId={replay.id}
@@ -84,7 +87,7 @@
       {onheaderdown}
     />
   {:else}
-    {#key `${tile.channel.login}/${tile.account}`}
+    {#key `${tile.channel.login}/${tile.account}/${tile.filters.join()}`}
       <ChatView
         login={tile.channel.login}
         name={tile.channel.name}
@@ -94,6 +97,9 @@
         {onheaderdown}
         {onsignin}
         onlink={(t) => openTarget(tile, t)}
+        filters={tile.filters}
+        onfilters={(filters) => void tabs.apply({ op: 'filters', tile: tile.id, filters })}
+        onpopout={tile.show.player && !popout ? popChat : undefined}
       />
     {/key}
   {/if}

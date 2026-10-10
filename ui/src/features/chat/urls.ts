@@ -4,6 +4,7 @@ import type { Cheermote } from '../../ipc/bindings/Cheermote';
 import type { CheerTier } from '../../ipc/bindings/CheerTier';
 import type { Provider } from '../../ipc/bindings/Provider';
 import type { Theme } from '../../ipc/bindings/Theme';
+import { saved } from './saved.ts';
 
 export interface Img {
   src: string;
@@ -34,6 +35,8 @@ function emoteUrl(provider: Provider, id: string, theme: Theme, scale: 1 | 2 | 4
 }
 
 export function emoteImg(provider: Provider, id: string, theme: Theme, f: Frames = {}): Img {
+  const copy = saved(`emote:${provider}:${id}`);
+  if (copy) return { src: copy, srcset: '' };
   return {
     src: emoteUrl(provider, id, theme, 1, f),
     srcset: `${emoteUrl(provider, id, theme, 2, f)} 2x, ${emoteUrl(provider, id, theme, 4, f)} 4x`,
@@ -42,7 +45,7 @@ export function emoteImg(provider: Provider, id: string, theme: Theme, f: Frames
 
 /** The biggest picture, for hover previews (E6) and emote cards (1.41). */
 export function emoteLarge(provider: Provider, id: string, theme: Theme, f: Frames = {}): string {
-  return emoteUrl(provider, id, theme, 4, f);
+  return saved(`emote:${provider}:${id}`) ?? emoteUrl(provider, id, theme, 4, f);
 }
 
 /** The tier a cheer of `bits` shows as: the highest one it reaches. */

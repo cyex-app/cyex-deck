@@ -3,12 +3,15 @@
 mod accounts;
 mod browse;
 mod chat;
+mod chat_extra;
 mod emotes;
 mod player;
+mod rules;
 mod settings;
-mod system;
+pub mod system;
 mod tabs;
 mod theme;
+mod usercard;
 mod windows;
 
 pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
@@ -44,6 +47,35 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         chat::chat_user_messages,
         chat::chat_resolve_link,
         chat::user_profile,
+        chat::chat_menu,
+        chat_extra::chat_search,
+        chat_extra::feed_open,
+        chat_extra::feed_close,
+        chat_extra::chat_translate,
+        chat_extra::chat_set_language,
+        chat_extra::chat_record,
+        chat_extra::chat_recording_state,
+        chat_extra::recordings_list,
+        chat_extra::recording_load,
+        chat_extra::recording_delete,
+        chat_extra::chat_votes,
+        chat_extra::chat_vote,
+        chat_extra::chat_predict,
+        chat_extra::chat_power_ups,
+        chat_extra::chat_power_up,
+        chat_extra::chat_gif_info,
+        chat_extra::chat_gif_search,
+        chat_extra::chat_gif_send,
+        rules::filter_check,
+        rules::filter_names,
+        rules::commands_check,
+        rules::chat_menus,
+        usercard::user_sub_status,
+        usercard::user_follow_age,
+        usercard::user_name_history,
+        usercard::user_logs,
+        usercard::usercard_run,
+        usercard::user_blocked,
         emotes::emotes_looks,
         emotes::emotes_menu,
         emotes::emotes_card,

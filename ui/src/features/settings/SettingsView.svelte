@@ -7,12 +7,18 @@
   import type { IconName } from '../../components/icons';
   import AccountsSection from './sections/AccountsSection.svelte';
   import AppearanceSection from './sections/AppearanceSection.svelte';
+  import AutomationsSection from './sections/AutomationsSection.svelte';
   import ChatSection from './sections/ChatSection.svelte';
+  import CommandsSection from './sections/CommandsSection.svelte';
   import DataSection from './sections/DataSection.svelte';
   import EmotesSection from './sections/EmotesSection.svelte';
+  import FiltersSection from './sections/FiltersSection.svelte';
   import GeneralSection from './sections/GeneralSection.svelte';
+  import HighlightsSection from './sections/HighlightsSection.svelte';
   import HotkeysSection from './sections/HotkeysSection.svelte';
+  import IgnoresSection from './sections/IgnoresSection.svelte';
   import PlayerSection from './sections/PlayerSection.svelte';
+  import RecordingsSection from './sections/RecordingsSection.svelte';
   import WindowsSection from './sections/WindowsSection.svelte';
 
   interface Props {
@@ -31,6 +37,12 @@
     { id: 'accounts', label: 'Accounts', icon: 'user', component: AccountsSection },
     { id: 'appearance', label: 'Appearance', icon: 'palette', component: AppearanceSection },
     { id: 'chat', label: 'Chat', icon: 'chat', component: ChatSection },
+    { id: 'highlights', label: 'Highlights', icon: 'star', component: HighlightsSection },
+    { id: 'ignores', label: 'Ignores', icon: 'eyeOff', component: IgnoresSection },
+    { id: 'filters', label: 'Filters', icon: 'filter', component: FiltersSection },
+    { id: 'commands', label: 'Commands', icon: 'pencil', component: CommandsSection },
+    { id: 'automations', label: 'Automations', icon: 'zap', component: AutomationsSection },
+    { id: 'recordings', label: 'Recordings', icon: 'record', component: RecordingsSection },
     { id: 'emotes', label: 'Emotes', icon: 'smile', component: EmotesSection },
     { id: 'player', label: 'Player', icon: 'tv', component: PlayerSection },
     { id: 'hotkeys', label: 'Hotkeys', icon: 'keyboard', component: HotkeysSection },

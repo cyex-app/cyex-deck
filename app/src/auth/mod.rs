@@ -121,6 +121,9 @@ pub fn notify(app: &AppHandle) {
     crate::connections::notify(app);
     crate::chat::retry_refused(app);
     crate::tabs::on_accounts_changed(app);
+    if app.try_state::<crate::chat::rules::RuleState>().is_some() {
+        crate::chat::rules::load_blocked(app.clone());
+    }
 }
 
 /// The account's usable GQL token and the client ID it was issued to.

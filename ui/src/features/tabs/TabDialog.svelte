@@ -1,6 +1,6 @@
 <!-- Add or edit a tab (1.14, 1.16, 1.17, 1.18, 1.22): the channel, stream and/or chat,
      the account it joins on, and an optional tab name. Also adds a channel into an
-     existing tab (U3). -->
+     existing tab (U3), or a feed tab (F4). -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import Checkbox from '../../components/Checkbox.svelte';
@@ -43,6 +43,8 @@
   let anon = $state(tile ? tile.account === null : fallbackAccount === null);
   let alias = $state(editing ? (tab?.alias ?? '') : '');
   let busy = $state(false);
+  /** F4 Making a feed tab instead of a channel tab. */
+  let feed = $state<string | null>(null);
 
   const title = editing ? 'Edit tab' : into ? `Add a channel to ${tab ? label(tab) : 'this tab'}` : 'Add a tab';
   const named = !into;
@@ -61,9 +63,10 @@
     return accounts.list.find((a) => a.userId === account)?.displayName ?? 'This account';
   });
 
-  const ready = $derived(!!picked && (show.player || show.chat) && !busy);
+  const ready = $derived(feed !== null ? !!feed.trim() && !busy : !!picked && (show.player || show.chat) && !busy);
 
   async function submit() {
+    if (feed !== null) return void addFeed(feed);
     if (!ready || !picked) return;
     busy = true;
     const channel = { id: picked.id, login: picked.login, name: picked.name };
@@ -85,71 +88,101 @@
     closeTabDialog();
   }
 
+  async function addFeed(name: string) {
+    if (!name.trim()) return;
+    busy = true;
+    const id = await tabs.apply({ op: 'addFeed', name });
+    busy = false;
+    if (id) onopen(id);
+    closeTabDialog();
+  }
+
   function goTo(id: string) {
     onopen(id);
     closeTabDialog();
   }
 </script>
 
-<Dialog {title} width={440} onclose={closeTabDialog}>
-  <div class="form">
-    <section>
-      <span class="label">Channel</span>
-      <ChannelPicker bind:text bind:picked onsubmit={submit} />
-      {#if existing}
-        <p class="note">
-          Already open in {label(existing)}.
-          <button class="link" onclick={() => goTo(existing.id)}>Go there</button>
-        </p>
-      {/if}
-    </section>
-
-    <section>
-      <span class="label">Show</span>
-      <div class="row">
-        <Checkbox
-          label="Stream"
-          checked={show.player}
-          disabled={show.player && !show.chat}
-          onchange={(v) => (show = { ...show, player: v })}
-        />
-        <Checkbox
-          label="Chat"
-          checked={show.chat}
-          disabled={show.chat && !show.player}
-          onchange={(v) => (show = { ...show, chat: v })}
-        />
-      </div>
-    </section>
-
-    <section>
-      <span class="label">Account</span>
-      <AccountPicker bind:account bind:anon />
-      {#if full}
-        <p class="note warn">
-          {full} is in 100 chats, Twitch's limit, so this chat won't join. Pick another account or go anonymous.
-        </p>
-      {/if}
-    </section>
-
-    {#if named}
+<Dialog title={feed !== null ? 'Add a feed tab' : title} width={440} onclose={closeTabDialog}>
+  {#if feed !== null}
+    <div class="form">
       <section>
-        <span class="label">Tab name</span>
+        <span class="label">Feed name</span>
         <input
           class="field"
           maxlength="60"
-          placeholder={picked?.name ?? 'Channel name'}
-          bind:value={alias}
+          placeholder="Mentions"
+          bind:value={feed}
           onkeydown={(e) => e.key === 'Enter' && submit()}
         />
+        <p class="note">
+          Highlight rules with “Also show in” and this name send their messages here, from every open chat.
+        </p>
       </section>
-    {/if}
-  </div>
+    </div>
+  {:else}
+    <div class="form">
+      <section>
+        <span class="label">Channel</span>
+        <ChannelPicker bind:text bind:picked onsubmit={submit} />
+        {#if existing}
+          <p class="note">
+            Already open in {label(existing)}.
+            <button class="link" onclick={() => goTo(existing.id)}>Go there</button>
+          </p>
+        {/if}
+      </section>
+
+      <section>
+        <span class="label">Show</span>
+        <div class="row">
+          <Checkbox
+            label="Stream"
+            checked={show.player}
+            disabled={show.player && !show.chat}
+            onchange={(v) => (show = { ...show, player: v })}
+          />
+          <Checkbox
+            label="Chat"
+            checked={show.chat}
+            disabled={show.chat && !show.player}
+            onchange={(v) => (show = { ...show, chat: v })}
+          />
+        </div>
+      </section>
+
+      <section>
+        <span class="label">Account</span>
+        <AccountPicker bind:account bind:anon />
+        {#if full}
+          <p class="note warn">
+            {full} is in 100 chats, Twitch's limit, so this chat won't join. Pick another account or go anonymous.
+          </p>
+        {/if}
+      </section>
+
+      {#if named}
+        <section>
+          <span class="label">Tab name</span>
+          <input
+            class="field"
+            maxlength="60"
+            placeholder={picked?.name ?? 'Channel name'}
+            bind:value={alias}
+            onkeydown={(e) => e.key === 'Enter' && submit()}
+          />
+        </section>
+      {/if}
+      {#if !editing && !into}
+        <button class="link" onclick={() => (feed = '')}>Make a feed tab instead</button>
+      {/if}
+    </div>
+  {/if}
 
   {#snippet footer()}
     <Button variant="ghost" onclick={closeTabDialog}>Cancel</Button>
     <Button variant="primary" disabled={!ready} onclick={submit}>
-      {editing ? 'Save' : into ? 'Add channel' : 'Add tab'}
+      {editing ? 'Save' : into ? 'Add channel' : feed !== null ? 'Add feed' : 'Add tab'}
     </Button>
   {/snippet}
 </Dialog>
@@ -181,6 +214,7 @@
     color: var(--yellow);
   }
   .link {
+    align-self: flex-start;
     padding: 0;
     background: none;
     border: 0;

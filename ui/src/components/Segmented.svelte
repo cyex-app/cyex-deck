@@ -1,4 +1,4 @@
-<script lang="ts" generics="T extends string">
+<script lang="ts" generics="T extends string | number">
   interface Props {
     options: readonly { value: T; label: string }[];
     value: T;

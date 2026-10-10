@@ -25,4 +25,12 @@ size: number,
 /**
  * The player's volume, 0 to 1, kept per tile so a muted stream stays muted.
  */
-volume: number, muted: boolean, };
+volume: number, muted: boolean, 
+/**
+ * F4 A feed tab's name instead of a channel: shows what rules send there.
+ */
+feed: string | null, 
+/**
+ * F3 Filter ids the chat shows messages through.
+ */
+filters: Array<string>, };

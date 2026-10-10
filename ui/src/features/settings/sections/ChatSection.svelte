@@ -4,6 +4,7 @@
   import Toggle from '../../../components/Toggle.svelte';
   import type { DeletedStyle } from '../../../ipc/bindings/DeletedStyle';
   import type { GifMode } from '../../../ipc/bindings/GifMode';
+  import type { LinkThumbs } from '../../../ipc/bindings/LinkThumbs';
   import type { NameStyle } from '../../../ipc/bindings/NameStyle';
   import type { PauseKey } from '../../../ipc/bindings/PauseKey';
   import { formatDuration, formatTime, parseDuration } from '../../../lib/format';
@@ -35,6 +36,41 @@
     { value: 'shift', label: 'Shift' },
   ];
   const SAMPLE_TIME = new Date(2026, 0, 1, 14, 3, 27);
+  const SIMILAR: { value: number; label: string }[] = [
+    { value: 60, label: 'Loosely' },
+    { value: 80, label: 'Mostly' },
+    { value: 100, label: 'Exactly' },
+  ];
+  const THUMBS: { value: LinkThumbs; label: string }[] = [
+    { value: 'off', label: 'None' },
+    { value: 'small', label: 'Small' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'large', label: 'Large' },
+  ];
+  /** C19 FFZ's steps, in tenths of a second. */
+  const DELAYS = [0, 3, 12, 50, 100, 150, 200, 300, 600].map((t) => ({
+    value: t,
+    label: t === 0 ? 'Off' : `${(t / 10).toString().replace('.', ',')} s`,
+  }));
+  const LANGUAGES = [
+    { value: '', label: 'Same as Windows' },
+    { value: 'en', label: 'English' },
+    { value: 'de', label: 'Deutsch' },
+    { value: 'es', label: 'Español' },
+    { value: 'fr', label: 'Français' },
+    { value: 'it', label: 'Italiano' },
+    { value: 'pt', label: 'Português' },
+    { value: 'nl', label: 'Nederlands' },
+    { value: 'pl', label: 'Polski' },
+    { value: 'tr', label: 'Türkçe' },
+    { value: 'ru', label: 'Русский' },
+    { value: 'uk', label: 'Українська' },
+    { value: 'sv', label: 'Svenska' },
+    { value: 'ja', label: '日本語' },
+    { value: 'ko', label: '한국어' },
+    { value: 'zh-CN', label: '中文' },
+    { value: 'ar', label: 'العربية' },
+  ];
 
   let newPreset = $state('');
 
@@ -55,9 +91,12 @@
 
 <h2>Chat</h2>
 
-<h3 class="label">GIFs</h3>
+<h3 class="label">GIFs and effects</h3>
 <Row label="GIFs">
   <Segmented label="GIFs" options={GIFS} value={c.gifs} onchange={(v) => settings.patch('chat', { gifs: v })} />
+</Row>
+<Row label="Effects" hint="Animated messages, giant emotes and celebrations, as Twitch shows them.">
+  <Toggle label="Effects" checked={c.effects} onchange={(v) => settings.patch('chat', { effects: v })} />
 </Row>
 
 <h3 class="label">Timestamps</h3>
@@ -127,12 +166,60 @@
   <Toggle label="Last-read line" checked={c.lastReadLine} onchange={(v) => settings.patch('chat', { lastReadLine: v })} />
 </Row>
 
-<h3 class="label">Mentions</h3>
-<Row label="Sound" hint="Plays when someone mentions you or replies to you.">
-  <Toggle label="Mention sound" checked={c.mentionSound} onchange={(v) => settings.patch('chat', { mentionSound: v })} />
+<Row label="Count repeats" hint="Someone saying the same thing again adds a count to their line.">
+  <Toggle label="Count repeats" checked={c.repeats} onchange={(v) => settings.patch('chat', { repeats: v })} />
 </Row>
-<Row label="Flash the taskbar" hint="When the app isn't in front.">
-  <Toggle label="Flash the taskbar" checked={c.mentionFlash} onchange={(v) => settings.patch('chat', { mentionFlash: v })} />
+{#if c.repeats}
+  <Row label="Counts as the same">
+    <Segmented
+      label="Counts as the same"
+      options={SIMILAR}
+      value={c.repeatSimilarity}
+      onchange={(v) => settings.patch('chat', { repeatSimilarity: v })}
+    />
+  </Row>
+{/if}
+<Row label="Show where it was sent from" hint="An icon for messages from the website or the phone apps.">
+  <Toggle label="Show where it was sent from" checked={c.showClient} onchange={(v) => settings.patch('chat', { showClient: v })} />
+</Row>
+<Row label="Hold chat back" hint="Waits this long before showing messages, to match the stream's delay.">
+  <select
+    class="field"
+    value={c.delayTenths}
+    onchange={(e) => settings.patch('chat', { delayTenths: Number(e.currentTarget.value) })}
+  >
+    {#each DELAYS as d (d.value)}<option value={d.value}>{d.label}</option>{/each}
+  </select>
+</Row>
+
+<h3 class="label">Links</h3>
+<Row label="Previews" hint="Hover a link for its title and picture.">
+  <Toggle label="Previews" checked={c.linkPreviews} onchange={(v) => settings.patch('chat', { linkPreviews: v })} />
+</Row>
+<Row label="Picture size">
+  <Segmented
+    label="Picture size"
+    options={THUMBS}
+    value={c.linkThumbnails}
+    onchange={(v) => settings.patch('chat', { linkThumbnails: v })}
+  />
+</Row>
+<Row label="Cards under messages" hint="Also shows the preview below the message.">
+  <Toggle label="Cards under messages" checked={c.linkCards} onchange={(v) => settings.patch('chat', { linkCards: v })} />
+</Row>
+
+<h3 class="label">Writing and reading</h3>
+<Row label="Spell check" hint="Underlines typos in the message box. Right-click one for fixes.">
+  <Toggle label="Spell check" checked={c.spellCheck} onchange={(v) => settings.patch('chat', { spellCheck: v })} />
+</Row>
+<Row label="Translate into" hint="For Translate and /translate. Each chat's menu can translate everything.">
+  <select
+    class="field"
+    value={c.translateTo}
+    onchange={(e) => settings.patch('chat', { translateTo: e.currentTarget.value })}
+  >
+    {#each LANGUAGES as l (l.value)}<option value={l.value}>{l.label}</option>{/each}
+  </select>
 </Row>
 
 <h3 class="label">Moderation</h3>

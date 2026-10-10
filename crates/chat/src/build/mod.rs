@@ -15,7 +15,7 @@ pub use sender::Colors;
 pub use state::{RoomStateUpdate, UserState};
 
 use crate::irc::Line;
-use crate::model::{ChatMessage, Notice, NoticeKind};
+use crate::model::{ChatMessage, Meta, Notice, NoticeKind};
 use crate::tokenize::{Emotes, NoEmotes};
 
 /// The signed-in account reading this room.
@@ -140,5 +140,6 @@ pub fn system(kind: NoticeKind, text: impl Into<String>, ts: i64) -> ChatMessage
         reward: None,
         source: None,
         flags: Vec::new(),
+        meta: Meta::default(),
     }
 }

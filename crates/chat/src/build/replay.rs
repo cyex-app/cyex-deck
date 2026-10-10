@@ -3,7 +3,7 @@
 
 use super::Ctx;
 use super::sender::default_color;
-use crate::model::{Badge, ChatMessage, Flag, Sender};
+use crate::model::{Badge, ChatMessage, Flag, Meta, Sender};
 use crate::tokenize::{Input, tokenize};
 
 pub struct Comment<'a> {
@@ -68,6 +68,7 @@ pub fn replay(c: &Comment<'_>, ctx: &mut Ctx<'_>) -> ChatMessage {
         reward: None,
         source: None,
         flags: Vec::new(),
+        meta: Meta::default(),
     };
     if tokens.mentions_me {
         msg.set(Flag::Mention);

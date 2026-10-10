@@ -1,6 +1,6 @@
 //! One websocket that follows a set of topics: connects while there are any, sends them
-//! all again after every reconnect, and retries with backoff. 7TV's EventAPI and BTTV's
-//! socket both run on it.
+//! all again after every reconnect, and retries with backoff. 7TV's EventAPI, BTTV's
+//! socket and Twitch's Hermes run on it.
 
 use std::collections::HashSet;
 use std::hash::Hash;

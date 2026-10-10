@@ -2,6 +2,7 @@
 //! hashes live next to the operation that uses them; raw queries are used where they work.
 
 mod about;
+pub mod blocks;
 mod cards;
 mod channels;
 mod chat;
@@ -10,9 +11,13 @@ mod comments;
 mod directory;
 mod emotes;
 mod follows;
+pub mod gifs;
 mod identity;
 mod playback;
 mod points;
+pub mod polls;
+pub mod powerups;
+pub mod predictions;
 mod search;
 mod stories;
 mod users;
@@ -131,6 +136,17 @@ pub(crate) async fn persisted<T: DeserializeOwned>(
         "extensions": { "persistedQuery": { "version": 1, "sha256Hash": hash } },
     }));
     unwrap(send_json(req).await?)
+}
+
+/// A persisted operation, sent as raw text when Twitch no longer knows the hash.
+/// `op` is (name, sha256, text).
+pub(crate) async fn persisted_or_raw(http: &Http, auth: Auth<'_>, op: (&str, &str, &str), variables: Value) -> Result<Value> {
+    match persisted::<Value>(http, auth, op.0, op.1, variables.clone()).await {
+        Err(e) if e.api_message().is_some_and(|m| m.contains("PersistedQueryNotFound")) => {
+            query(http, auth, op.2, variables).await
+        }
+        other => other,
+    }
 }
 
 /// Signed-in requests look like the Android TV app's: the tools that redeem rewards with

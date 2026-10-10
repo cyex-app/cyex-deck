@@ -1,6 +1,6 @@
-<!-- Usercard (1.36, shell): who someone is, their last messages here, and your own
-     nickname and note for them (C3). Route: `usercard/<channel>/<login>`. Sub status,
-     follow age, name history and logs come in phase 8. -->
+<!-- Usercard (1.36): who someone is, sub status, follow age, earlier names, their last
+     messages here and older ones from the logs, your buttons (S1), block and hide, and
+     your own nickname and note for them (C3). Route: `usercard/<channel>/<login>`. -->
 <script lang="ts">
   import Avatar from '../../components/Avatar.svelte';
   import { avatars } from '../emotes/avatars.svelte';
@@ -15,6 +15,9 @@
   import { toast } from '../../lib/toast.svelte';
   import { catalogs } from '../chat/catalog.svelte';
   import Line from '../chat/Line.svelte';
+  import Actions from './Actions.svelte';
+  import Facts from './Facts.svelte';
+  import Logs from './Logs.svelte';
 
   let { route }: { route: string; popout?: boolean } = $props();
 
@@ -100,11 +103,13 @@
       <dt>Followers</dt>
       <dd>{profile.followers != null ? formatNumber(profile.followers) : '—'}</dd>
     </dl>
+    <Facts {profile} {channel} />
 
     {#if !isChannel}
       <button class="link" onclick={() => systemIpc.openLink(`https://www.twitch.tv/${profile!.login}`)}>
         <Icon name="popout" size={13} /> Open profile on Twitch
       </button>
+      <Actions {profile} {channel} />
     {/if}
 
     <label class="label" for="nick">Nickname</label>
@@ -135,6 +140,7 @@
         <p class="muted">Nothing here since you opened the chat.</p>
       {/each}
     </div>
+    <Logs {channel} userId={profile.id} login={profile.login} />
   {/if}
 </div>
 
@@ -197,7 +203,7 @@
     display: grid;
     grid-template-columns: auto 1fr;
     gap: 2px 12px;
-    margin: 12px 0;
+    margin: 12px 0 2px;
     font-size: 0.85rem;
   }
   dt {

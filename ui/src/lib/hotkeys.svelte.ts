@@ -16,6 +16,9 @@ export const ACTIONS = {
   'player.playPause': { label: 'Play or pause', default: 'Space' },
   'player.mute': { label: 'Mute', default: 'M' },
   'player.fullscreen': { label: 'Fullscreen', default: 'F' },
+  'chat.search': { label: 'Search this chat', default: 'Ctrl+F' },
+  'chat.searchAll': { label: 'Search every chat', default: 'Ctrl+Shift+F' },
+  'chat.similar': { label: 'Hide or show near-duplicates', default: 'Ctrl+H' },
 } as const satisfies Record<string, { label: string; default: string }>;
 
 export type ActionId = keyof typeof ACTIONS;

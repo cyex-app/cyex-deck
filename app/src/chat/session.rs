@@ -56,6 +56,7 @@ async fn pump(app: AppHandle, identity: Identity, mut rx: mpsc::UnboundedReceive
 fn link_status(app: &AppHandle, identity: &Identity, link: LinkStatus) {
     let chat = app.state::<Chat>();
     let mut inner = chat.lock();
+    let now = now_ms();
     for ((id, _), entry) in inner.rooms.iter_mut() {
         if id != identity || entry.room.status == ConnStatus::BudgetFull {
             continue;
@@ -68,6 +69,9 @@ fn link_status(app: &AppHandle, identity: &Identity, link: LinkStatus) {
             LinkStatus::Reconnecting => ConnStatus::Reconnecting,
             LinkStatus::AuthFailed => ConnStatus::AuthFailed,
         };
+        if status == ConnStatus::Reconnecting {
+            entry.room.lost(now);
+        }
         if let Some(ev) = entry.room.set_status(status) {
             queue(entry, [ev], &chat.wake);
         }
@@ -86,6 +90,11 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
     if line.command == "JOIN" {
         if let Some(ev) = entry.room.set_status(ConnStatus::Joined) {
             queue(entry, [ev], &chat.wake);
+        }
+        let gap = entry.room.take_gap(now_ms());
+        drop(inner);
+        if let Some(span) = gap {
+            fill_gap(app.clone(), key, span);
         }
         return;
     }
@@ -107,15 +116,19 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
             _ => None,
         })
         .collect();
-    let mentions: Vec<_> = events
+    let outcomes = entry.room.take_outcomes();
+    let live: Vec<_> = events
         .iter()
         .filter_map(|e| match e {
-            RoomEvent::Message { message } if message.has(Flag::Mention) && !message.has(Flag::History) => {
-                Some(message.clone())
-            }
+            RoomEvent::Message { message } if !message.has(Flag::History) => Some(message.clone()),
             _ => None,
         })
         .collect();
+    super::record::events(app, &key, &events);
+    let moderated = events
+        .iter()
+        .any(|e| matches!(e, RoomEvent::Delete { .. } | RoomEvent::ClearUser { .. }))
+        .then(|| events.clone());
     queue(entry, events, &chat.wake);
     drop(inner);
 
@@ -129,8 +142,23 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
         });
         crate::connections::notify(app);
     }
-    for m in mentions {
-        mention::notify(app, channel, &m);
+    let muted = super::rules::current(app).muted(channel);
+    for (m, outcome) in outcomes {
+        if (outcome.sound || outcome.flash) && !muted {
+            mention::notify(app, channel, &m, &outcome);
+        }
+        if !outcome.routes.is_empty() {
+            super::feeds::route(app, channel, &m, &outcome.routes);
+        }
+    }
+    if let Some(events) = moderated {
+        super::feeds::moderate(app, channel, &events);
+    }
+    if !live.is_empty() {
+        super::translate::auto(app, &key, &live);
+        for m in &live {
+            super::run::automate(app, &key, m);
+        }
     }
     for m in own {
         crate::emotes::record_usage(app, &m.body);
@@ -138,6 +166,32 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
     if lit {
         unread::emit(app, &key, news);
     }
+}
+
+/// C24 Fetches what was said while the connection was gone and puts it in by time.
+fn fill_gap(app: AppHandle, key: RoomKey, (after, before, limit): (i64, i64, u32)) {
+    let history = app.state::<crate::settings::Settings>().read::<cyex_settings::schema::Chat>(cyex_settings::Partition::Chat).history;
+    if !history {
+        return;
+    }
+    tauri::async_runtime::spawn(async move {
+        let http = app.state::<crate::auth::Auth>().http.clone();
+        let lines = match cyex_twitch::recent::recent_between(&http, &key.1, after, before, limit).await {
+            Ok(lines) => lines,
+            Err(e) => {
+                eprintln!("chat: couldn't fill the gap in {}: {e}", key.1);
+                return;
+            }
+        };
+        let emotes = crate::emotes::room(&app, account_of(&key.0), &key.1);
+        let chat = app.state::<Chat>();
+        let mut inner = chat.lock();
+        let Some(entry) = inner.rooms.get_mut(&key) else { return };
+        let messages = entry.room.fill_gap(&lines, now_ms(), &emotes);
+        if !messages.is_empty() {
+            queue(entry, [RoomEvent::Gap { messages }], &chat.wake);
+        }
+    });
 }
 
 /// C1 Fetches recent messages in the background and adds them above the live ones.

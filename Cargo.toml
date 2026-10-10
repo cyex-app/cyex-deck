@@ -32,6 +32,7 @@ futures-util = { version = "0.3", default-features = false, features = ["sink", 
 # Windows Credential Manager on Windows (v1 mode only compiles the platform store).
 keyring = "4.2"
 url = "2"
+regex = "1"
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 
 tauri = { version = "2.12", features = ["tray-icon", "image-png"] }

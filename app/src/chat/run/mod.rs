@@ -1,0 +1,346 @@
+//! 1.8 What happens to a line typed in a chat: `//` and custom commands are filled in
+//! (Chatty's syntax), the app's own commands run (`builtin`), and the rest goes to
+//! Twitch. Menu entries (S1) and automations (S4) run through here too.
+
+mod builtin;
+mod host;
+pub mod timers;
+
+use std::sync::{Arc, Mutex};
+
+use cyex_chat::automate::Automations;
+use cyex_chat::commands::{self, CommandList, Params};
+use cyex_chat::model::{ChatMessage, NoticeKind};
+use cyex_settings::Partition;
+use cyex_settings::schema::Commands;
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Manager};
+use ts_rs::TS;
+
+use super::{Chat, Identity, RoomKey};
+use crate::settings::Settings;
+use host::AppHost;
+
+/// Commands calling commands stop here.
+const MAX_DEPTH: u32 = 8;
+
+#[derive(Default)]
+pub struct CommandsState {
+    list: Mutex<Arc<CommandList>>,
+    pub(super) autos: Mutex<Automations>,
+}
+
+pub fn init(app: &AppHandle) {
+    app.manage(CommandsState::default());
+    rebuild(app);
+    timers::restore(app);
+}
+
+/// After the commands settings changed.
+pub fn rebuild(app: &AppHandle) {
+    let Some(state) = app.try_state::<CommandsState>() else {
+        return;
+    };
+    let c: Commands = app.state::<Settings>().read(Partition::Commands);
+    *state.list.lock().unwrap_or_else(|p| p.into_inner()) = Arc::new(CommandList::new(&c.lines));
+    state.autos.lock().unwrap_or_else(|p| p.into_inner()).update(&c);
+}
+
+fn list(app: &AppHandle) -> Arc<CommandList> {
+    app.state::<CommandsState>()
+        .list
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .clone()
+}
+
+/// Where a line runs.
+#[derive(Clone, Debug)]
+pub struct Place {
+    pub view: Option<u32>,
+    pub key: RoomKey,
+}
+
+impl Place {
+    pub fn channel(&self) -> &str {
+        &self.key.1
+    }
+
+    pub fn account(&self) -> Option<&str> {
+        match &self.key.0 {
+            Identity::Account(id) => Some(id),
+            Identity::Anon => None,
+        }
+    }
+}
+
+/// What the window should do after a line ran.
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(tag = "type", rename_all = "camelCase")]
+#[ts(export)]
+pub enum UiAction {
+    /// F1
+    Search {
+        query: String,
+    },
+    Popout,
+}
+
+/// S1 Who and what a menu entry was picked on.
+#[derive(Clone, Debug, Default, Deserialize, TS)]
+#[serde(default, rename_all = "camelCase")]
+#[ts(export)]
+pub struct MenuContext {
+    pub login: Option<String>,
+    pub user_id: Option<String>,
+    pub display: Option<String>,
+    pub msg_id: Option<String>,
+    pub msg: Option<String>,
+    #[ts(type = "number | null")]
+    pub msg_time: Option<i64>,
+}
+
+/// A line typed in a chat view.
+pub async fn input(
+    app: &AppHandle,
+    view: u32,
+    text: &str,
+    reply_to: Option<String>,
+) -> Result<Option<UiAction>, String> {
+    let place = place_of(app, view)?;
+    line(app, &place, text, reply_to, true, 0).await
+}
+
+/// S1 A menu entry or usercard button: its command is filled in, then run.
+pub async fn menu(
+    app: &AppHandle,
+    view: u32,
+    command: &str,
+    ctx: MenuContext,
+) -> Result<Option<UiAction>, String> {
+    let place = place_of(app, view)?;
+    let mut p = params(app, &place, ctx.login.as_deref().unwrap_or(""));
+    for (k, v) in [
+        ("nick", &ctx.login),
+        ("display-nick", &ctx.display),
+        ("user-id", &ctx.user_id),
+        ("msg-id", &ctx.msg_id),
+        ("msg", &ctx.msg),
+    ] {
+        if let Some(v) = v {
+            p.set(k, v.clone());
+        }
+    }
+    if let Some(t) = ctx.msg_time {
+        p.set("msg-time", t.to_string());
+    }
+    let filled = fill(app, &place, command, p)
+        .await?
+        .ok_or("Something this needs is missing.")?;
+    line(app, &place, &filled, None, true, 0).await
+}
+
+/// S4 An automation went off in a room.
+pub async fn automation(
+    app: &AppHandle,
+    key: RoomKey,
+    response: &str,
+    args: &str,
+    nick: &str,
+    count: u64,
+    reply_to: Option<String>,
+) {
+    let place = Place { view: None, key };
+    let mut p = params(app, &place, args);
+    p.set("nick", nick);
+    p.set("count", count.to_string());
+    let result = match fill(app, &place, response, p).await {
+        Ok(Some(filled)) => line(app, &place, &filled, reply_to, true, 0).await.map(drop),
+        Ok(None) => Ok(()),
+        Err(e) => Err(e),
+    };
+    if let Err(e) = result {
+        local(app, &place.key, NoticeKind::Error, &format!("Automation: {e}"));
+    }
+}
+
+/// S1 A usercard button: runs in an open view of the card's channel, a signed-in one first.
+pub async fn menu_in(
+    app: &AppHandle,
+    channel: &str,
+    command: &str,
+    ctx: MenuContext,
+) -> Result<Option<UiAction>, String> {
+    let view = {
+        let chat = app.state::<Chat>();
+        let inner = chat.lock();
+        let mut open: Vec<(u32, bool)> = inner
+            .views
+            .iter()
+            .filter(|(_, (key, _))| key.1 == channel)
+            .map(|(id, (key, _))| (*id, matches!(key.0, Identity::Account(_))))
+            .collect();
+        open.sort_by_key(|(id, signed)| (!signed, *id));
+        open.first().map(|(id, _)| *id)
+    };
+    menu(app, view.ok_or("Open the chat first.")?, command, ctx).await
+}
+
+fn place_of(app: &AppHandle, view: u32) -> Result<Place, String> {
+    let chat = app.state::<Chat>();
+    let key = chat
+        .lock()
+        .views
+        .get(&view)
+        .map(|v| v.0.clone())
+        .ok_or("This chat is closed.")?;
+    Ok(Place {
+        view: Some(view),
+        key,
+    })
+}
+
+/// Runs one line. `custom` lets it be a custom command.
+fn line<'a>(
+    app: &'a AppHandle,
+    place: &'a Place,
+    text: &'a str,
+    reply_to: Option<String>,
+    custom: bool,
+    depth: u32,
+) -> std::pin::Pin<Box<dyn Future<Output = Result<Option<UiAction>, String>> + Send + 'a>> {
+    Box::pin(async move {
+        let text = text.trim();
+        if text.is_empty() {
+            return Ok(None);
+        }
+        if depth > MAX_DEPTH {
+            return Err("Too many commands in a row.".into());
+        }
+        if let Some(body) = text.strip_prefix("//") {
+            let p = params(app, place, "");
+            let filled = fill(app, place, &format!("/{body}"), p)
+                .await?
+                .ok_or("Something this needs is missing.")?;
+            return line(app, place, &filled, reply_to, false, depth + 1).await;
+        }
+        let Some(rest) = text
+            .strip_prefix('/')
+            .or_else(|| text.strip_prefix('.').filter(|r| !r.starts_with('.')))
+        else {
+            return send(app, place, text, reply_to).map(|()| None);
+        };
+        let (name, args) = rest
+            .split_once(char::is_whitespace)
+            .map_or((rest, ""), |(n, a)| (n, a.trim()));
+        let name = name.to_ascii_lowercase();
+        if custom && let Some(body) = list(app).command(&name, place.channel()) {
+            let p = params(app, place, args);
+            let filled = run_body(app, place, body, p)
+                .await?
+                .ok_or_else(|| format!("/{name} needs more after it."))?;
+            return line(app, place, &filled, reply_to, false, depth + 1).await;
+        }
+        builtin::run(app, place, &name, args, text, reply_to, depth).await
+    })
+}
+
+/// Plain text (or `/me`) to Twitch.
+fn send(app: &AppHandle, place: &Place, text: &str, reply_to: Option<String>) -> Result<(), String> {
+    super::send_to(app, &place.key, text, reply_to)
+}
+
+/// The values every command can read.
+fn params(app: &AppHandle, place: &Place, args: &str) -> Params {
+    let mut p = Params::new(args);
+    p.set("chan", place.channel());
+    p.set("stream", place.channel());
+    p.set("chans", super::open_channels(app).join(" "));
+    if let Some(info) = crate::tabs::live::snapshot(app)
+        .into_iter()
+        .find(|c| c.login == place.channel())
+    {
+        p.set("streamname", info.name.clone());
+        p.set("streamdisplayname", info.name);
+        match info.stream {
+            Some(s) => {
+                p.set("streamtitle", s.title.clone());
+                p.set("streamgame", s.game.clone().unwrap_or_default());
+                p.set("streamviewers", s.viewers.to_string());
+                p.set(
+                    "streamstatus",
+                    format!("{} ({})", s.title, s.game.unwrap_or_default()),
+                );
+            }
+            None => p.set("streamstatus", "Offline"),
+        }
+    }
+    if let Some(a) = place
+        .account()
+        .and_then(|id| crate::auth::accounts(app).get(id).cloned())
+    {
+        p.set("my-nick", a.login);
+        p.set("my-display-nick", a.display_name);
+        p.set("my-user-id", a.user_id);
+    }
+    p
+}
+
+/// Fills in a body typed out as text.
+async fn fill(app: &AppHandle, place: &Place, body: &str, p: Params) -> Result<Option<String>, String> {
+    let items = commands::parse(body).map_err(|e| format!("Can't read that command: {e}"))?;
+    run_body(app, place, Arc::new(items), p).await
+}
+
+/// `$request` waits on the network, so bodies run off the async threads.
+async fn run_body(
+    app: &AppHandle,
+    place: &Place,
+    body: Arc<commands::Items>,
+    p: Params,
+) -> Result<Option<String>, String> {
+    let mut host = AppHost {
+        app: app.clone(),
+        list: list(app),
+        channel: place.channel().to_owned(),
+        runtime: tokio::runtime::Handle::current(),
+    };
+    tokio::task::spawn_blocking(move || commands::run(&body, &p, &mut host))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// A line only you see, in every view of the room.
+pub fn local(app: &AppHandle, key: &RoomKey, kind: NoticeKind, text: &str) {
+    super::local_line(app, key, kind, text);
+}
+
+/// S4 Checks a live message against the automations.
+pub fn automate(app: &AppHandle, key: &RoomKey, m: &ChatMessage) {
+    let live = crate::tabs::live::is_live(app, &key.1);
+    let fired = {
+        let state = app.state::<CommandsState>();
+        let mut autos = state.autos.lock().unwrap_or_else(|p| p.into_inner());
+        if autos.is_empty() || key.0 == Identity::Anon {
+            return;
+        }
+        autos.check(&key.1, m, live, super::now_ms())
+    };
+    let Some(f) = fired else { return };
+    let nick = m.sender.as_ref().map(|s| s.login.clone()).unwrap_or_default();
+    let (app, key) = (app.clone(), key.clone());
+    let _ = app
+        .state::<Settings>()
+        .update::<Commands>(&app, Partition::Commands, |c| {
+            match c.automations.get_mut(f.rule) {
+                Some(a) => {
+                    a.count = f.count;
+                    true
+                }
+                None => false,
+            }
+        });
+    tauri::async_runtime::spawn(async move {
+        automation(&app, key, &f.response, &f.args, &nick, f.count, f.reply_to).await;
+    });
+}

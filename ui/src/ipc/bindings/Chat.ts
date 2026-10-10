@@ -4,6 +4,7 @@ import type { DeletedStyle } from "./DeletedStyle";
 import type { EmoteKey } from "./EmoteKey";
 import type { EmoteSource } from "./EmoteSource";
 import type { GifMode } from "./GifMode";
+import type { LinkThumbs } from "./LinkThumbs";
 import type { NameStyle } from "./NameStyle";
 import type { PaintToggles } from "./PaintToggles";
 import type { PauseKey } from "./PauseKey";
@@ -98,13 +99,49 @@ pauseKey: PauseKey,
  */
 lastReadLine: boolean, 
 /**
- * U6 Setting, off by default (D10).
+ * C2 One line with a count when someone repeats themselves. Setting, off.
  */
-mentionSound: boolean, 
+repeats: boolean, 
 /**
- * U6 Setting, off by default (D10).
+ * C2 Percent alike that counts as a repeat.
  */
-mentionFlash: boolean, 
+repeatSimilarity: number, 
+/**
+ * C26 Show which app sent a message. Setting, off.
+ */
+showClient: boolean, 
+/**
+ * 1.52 Hover a link for a preview.
+ */
+linkPreviews: boolean, 
+/**
+ * 1.52
+ */
+linkThumbnails: LinkThumbs, 
+/**
+ * C30 Link cards under messages too. Setting, off.
+ */
+linkCards: boolean, 
+/**
+ * C17 Language to translate into. Empty: the app's language.
+ */
+translateTo: string, 
+/**
+ * C17 Chats (logins) whose messages are translated as they arrive.
+ */
+translateChats: Array<string>, 
+/**
+ * C19 Hold chat back this long to match the stream, in tenths of a second. 0 is off.
+ */
+delayTenths: number, 
+/**
+ * C18 Spell check in the message box. Setting, off.
+ */
+spellCheck: boolean, 
+/**
+ * 1.42 Message effects and gigantified emotes as Twitch draws them.
+ */
+effects: boolean, 
 /**
  * C3 Local nicknames and notes, by user id.
  */

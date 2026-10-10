@@ -5,26 +5,29 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use cyex_chat::model::{ChatMessage, RoomEvent};
 use cyex_twitch::gql::{self, Points, Profile};
-use cyex_twitch::resolver;
+use cyex_twitch::resolver::{self, LinkInfo};
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, WebviewWindow};
 
 use crate::auth::Auth;
 use crate::chat::catalog::{self, ChannelCatalog, GlobalCatalog};
+use crate::chat::run::{MenuContext, UiAction};
 use crate::chat::{self, ChatOpened};
 
 type CmdResult<T> = Result<T, String>;
 
-/// Opens a chat view; events stream over `on_event` until `chat_close`.
+/// Opens a chat view; events stream over `on_event` until `chat_close`. `filters` are
+/// the F3 filter ids the panel shows messages through.
 #[tauri::command]
 pub fn chat_open(
     app: AppHandle,
     window: WebviewWindow,
     login: String,
     account: Option<String>,
+    filters: Option<Vec<String>>,
     on_event: Channel<Vec<RoomEvent>>,
 ) -> CmdResult<ChatOpened> {
-    chat::open(&app, window.label(), &login, account.as_deref(), on_event)
+    chat::open(&app, window.label(), &login, account.as_deref(), &filters.unwrap_or_default(), on_event)
 }
 
 #[tauri::command]
@@ -32,9 +35,17 @@ pub fn chat_close(app: AppHandle, view: u32) {
     chat::close(&app, view);
 }
 
+/// A typed line: custom and built-in commands, then Twitch (1.8). Some commands ask the
+/// window to do something.
 #[tauri::command]
-pub fn chat_send(app: AppHandle, view: u32, text: String, reply_to: Option<String>) -> CmdResult<()> {
-    chat::send(&app, view, &text, reply_to)
+pub async fn chat_send(app: AppHandle, view: u32, text: String, reply_to: Option<String>) -> CmdResult<Option<UiAction>> {
+    chat::run::input(&app, view, &text, reply_to).await
+}
+
+/// S1 A menu entry or usercard button.
+#[tauri::command]
+pub async fn chat_menu(app: AppHandle, view: u32, command: String, context: MenuContext) -> CmdResult<Option<UiAction>> {
+    chat::run::menu(&app, view, &command, context).await
 }
 
 #[tauri::command]
@@ -102,16 +113,16 @@ pub fn chat_user_messages(app: AppHandle, channel: String, user_id: String) -> V
     chat::recent_from(&app, &channel, &user_id)
 }
 
-/// X2 Where a link really goes. Cached for the run.
+/// X2 Where a link really goes, and 1.52 its preview. Cached for the run.
 #[tauri::command]
-pub async fn chat_resolve_link(app: AppHandle, url: String) -> CmdResult<Option<String>> {
-    static CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
+pub async fn chat_resolve_link(app: AppHandle, url: String) -> CmdResult<Option<LinkInfo>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, Option<LinkInfo>>>> = OnceLock::new();
     let cache = CACHE.get_or_init(Mutex::default);
     if let Some(hit) = cache.lock().unwrap_or_else(|p| p.into_inner()).get(&url) {
         return Ok(hit.clone());
     }
     let http = app.state::<Auth>().http.clone();
-    let resolved = resolver::final_url(&http, &url).await.map_err(|e| e.to_string())?;
+    let resolved = resolver::resolve(&http, &url).await.map_err(|e| e.to_string())?;
     let mut cache = cache.lock().unwrap_or_else(|p| p.into_inner());
     if cache.len() > 2000 {
         cache.clear();

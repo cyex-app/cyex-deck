@@ -753,7 +753,11 @@ name = "cyex-chat"
 version = "0.1.0"
 dependencies = [
  "cyex-core",
+ "cyex-settings",
+ "regex",
  "serde",
+ "serde_json",
+ "time",
  "tokio",
  "tokio-native-tls",
  "ts-rs",
@@ -811,12 +815,14 @@ name = "cyex-twitch"
 version = "0.1.0"
 dependencies = [
  "cyex-core",
+ "futures-util",
  "keyring",
  "reqwest",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
  "tokio",
+ "tokio-tungstenite",
  "ts-rs",
  "url",
 ]

@@ -6,6 +6,9 @@ mod notice;
 mod room;
 
 pub use fragment::{EmoteLook, Fragment, Layer, LinkTarget, Provider, mods, plain};
-pub use message::{Badge, ChatMessage, Flag, NameColor, Reply, RewardRef, Sender, SharedSource};
+pub use message::{
+    Badge, ChatMessage, Client, Flag, Highlight, HighlightKind, Meta, NameColor, Reply, RewardRef, Sender, SharedSource,
+    Translation,
+};
 pub use notice::{Notice, NoticeKind};
 pub use room::{ConnStatus, Pinned, RoomEvent, RoomState, SelfState};

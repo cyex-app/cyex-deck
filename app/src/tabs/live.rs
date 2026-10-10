@@ -57,6 +57,17 @@ pub fn snapshot(app: &AppHandle) -> Vec<ChannelInfo> {
         .unwrap_or_default()
 }
 
+/// F3 Whether a tab's channel was live at the last poll.
+pub fn is_live(app: &AppHandle, login: &str) -> bool {
+    app.try_state::<Live>().is_some_and(|l| {
+        l.channels
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .iter()
+            .any(|c| c.login == login && c.stream.is_some())
+    })
+}
+
 async fn poll(app: &AppHandle) {
     let ids = app.state::<Settings>().read::<Tabs>(Partition::Tabs).channel_ids();
     let live = app.state::<Live>();

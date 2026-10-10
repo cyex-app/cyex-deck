@@ -1,5 +1,9 @@
 //! One joined channel (1.8): message buffer, room state, our sends and their echoes,
-//! deletions, history (C1). Pure state: the app feeds it lines and streams the events.
+//! deletions, history (C1), the user's rules (`checks`). Pure state: the app feeds it
+//! lines and streams the events.
+
+mod checks;
+mod gap;
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
@@ -9,8 +13,10 @@ use ts_rs::TS;
 
 use crate::build::{self, Colors, Ctx, GiftLink, Incoming, Me, UserState};
 use crate::irc::Line;
+use crate::rules::{Outcome, Rules};
+use crate::similar::Repeats;
 use crate::model::{
-    ChatMessage, ConnStatus, Flag, NoticeKind, Pinned, Reply, RoomEvent, RoomState, Sender, plain,
+    ChatMessage, ConnStatus, Flag, Meta, NoticeKind, Pinned, Reply, RoomEvent, RoomState, Sender, plain,
 };
 use crate::tokenize::{Emotes, Input, tokenize};
 
@@ -63,6 +69,12 @@ pub struct Room {
     rewards: HashMap<String, (String, u32)>,
     pinned: Option<Pinned>,
     colors: Colors,
+    rules: Arc<Rules>,
+    repeats: Repeats,
+    /// What live messages should make the app do, until it takes them.
+    outcomes: Vec<(Arc<ChatMessage>, Outcome)>,
+    /// C24 When the connection dropped, while it's gone.
+    lost_at: Option<i64>,
 }
 
 impl Room {
@@ -78,6 +90,10 @@ impl Room {
             rewards: HashMap::new(),
             pinned: None,
             colors: Colors::default(),
+            rules: Arc::default(),
+            repeats: Repeats::default(),
+            outcomes: Vec::new(),
+            lost_at: None,
         }
     }
 
@@ -207,8 +223,8 @@ impl Room {
     pub fn apply(&mut self, incoming: Incoming, now_ms: i64, emotes: &dyn Emotes) -> Vec<RoomEvent> {
         let mut events = Vec::new();
         match incoming {
-            Incoming::Message(m) => events.push(self.add(m)),
-            Incoming::Gift { message, gift } => events.push(self.gift(message, gift, now_ms)),
+            Incoming::Message(m) => events.extend(self.add(m, now_ms)),
+            Incoming::Gift { message, gift } => events.extend(self.gift(message, gift, now_ms)),
             Incoming::Delete { id } => {
                 self.mark_deleted(|m| m.id == id);
                 events.push(RoomEvent::Delete { id });
@@ -217,12 +233,12 @@ impl Room {
                 self.mark_deleted(|m| m.notice.is_none() && m.sender_id() == Some(user_id.as_str()));
                 let me = self.me.as_ref().is_some_and(|m| m.user_id == user_id);
                 events.push(RoomEvent::ClearUser { user_id });
-                events.push(self.add(notice));
+                events.extend(self.add(notice, now_ms));
                 if me && let Some(secs) = secs {
                     events.extend(self.wait(now_ms + secs as i64 * 1000));
                 }
             }
-            Incoming::Clear { notice } => events.push(self.add(notice)),
+            Incoming::Clear { notice } => events.extend(self.add(notice, now_ms)),
             Incoming::RoomState(update) => {
                 update.apply(&mut self.state);
                 events.push(RoomEvent::State {
@@ -243,7 +259,7 @@ impl Room {
                     self.expire(now_ms);
                     if let Some(p) = self.pending.pop_front() {
                         let m = self.echo(p, &us, id, now_ms, emotes);
-                        events.push(self.add(m));
+                        events.extend(self.add(m, now_ms));
                         let slow = self.state.slow;
                         let exempt = self.state.own.as_ref().is_some_and(|o| o.fast_lane());
                         if slow > 0 && !exempt {
@@ -265,7 +281,7 @@ impl Room {
                 {
                     events.extend(self.wait(now_ms + secs * 1000));
                 }
-                events.push(self.add(notice));
+                events.extend(self.add(notice, now_ms));
             }
         }
         events
@@ -288,7 +304,7 @@ impl Room {
                     | Incoming::Clear { notice: mut m }
                     | Incoming::Gift { message: mut m, .. },
                 ) => {
-                    if !known.contains(&m.id) {
+                    if !known.contains(&m.id) && self.screen_old(&mut m) {
                         m.set(Flag::History);
                         old.push(m);
                     }
@@ -320,7 +336,7 @@ impl Room {
     }
 
     /// C16 Adds a single gift to its mass gift's line, or the notice as its own line.
-    fn gift(&mut self, message: ChatMessage, gift: GiftLink, now_ms: i64) -> RoomEvent {
+    fn gift(&mut self, message: ChatMessage, gift: GiftLink, now_ms: i64) -> Option<RoomEvent> {
         self.gifts.retain(|g| g.expires_ms > now_ms);
         match gift {
             GiftLink::Mass { origin, count } => {
@@ -330,16 +346,16 @@ impl Room {
                     size: count,
                     expires_ms: now_ms + GIFT_MERGE_MS,
                 });
-                self.add(message)
+                self.add(message, now_ms)
             }
             GiftLink::Single {
                 community: Some(origin),
                 recipient,
             } => match self.merge_gift(&origin, recipient) {
-                Some(ev) => ev,
-                None => self.add(message),
+                Some(ev) => Some(ev),
+                None => self.add(message, now_ms),
             },
-            GiftLink::Single { community: None, .. } => self.add(message),
+            GiftLink::Single { community: None, .. } => self.add(message, now_ms),
         }
     }
 
@@ -369,16 +385,27 @@ impl Room {
         })
     }
 
-    fn add(&mut self, mut m: ChatMessage) -> RoomEvent {
+    /// A live message, unless the user's rules hide it.
+    fn add(&mut self, mut m: ChatMessage, now_ms: i64) -> Option<RoomEvent> {
         if let Some(r) = m.reward.as_mut().filter(|r| r.title.is_none())
             && let Some((title, cost)) = self.rewards.get(&r.id)
         {
             r.title = Some(title.clone());
             r.cost = Some(*cost);
         }
+        let (shown, outcome) = self.screen(&mut m, now_ms);
         let m = Arc::new(m);
+        if outcome.sound || outcome.flash || !outcome.routes.is_empty() {
+            self.outcomes.push((m.clone(), outcome));
+        }
+        if !shown {
+            return None;
+        }
+        if let Some(ev) = self.collapse(&m) {
+            return Some(ev);
+        }
         self.push(m.clone());
-        RoomEvent::Message { message: m }
+        Some(RoomEvent::Message { message: m })
     }
 
     fn push(&mut self, m: Arc<ChatMessage>) {
@@ -437,6 +464,7 @@ impl Room {
             reward: None,
             source: None,
             flags,
+            meta: Meta::default(),
         }
     }
 }

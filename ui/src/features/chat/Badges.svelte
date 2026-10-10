@@ -9,6 +9,7 @@
   import { looks } from '../emotes/looks.svelte';
   import { rooms } from '../emotes/rooms.svelte';
   import { catalogs } from './catalog.svelte';
+  import { saved } from './saved';
 
   type Ref = { set: string; version: string; info?: string };
 
@@ -74,7 +75,10 @@
       {@render provider(sub)}
     {:else}
       {@const b = catalogs.badge(channel, ref.set, ref.version)}
-      {#if b}
+      {@const copy = saved(`badge:${ref.set}/${ref.version}`)}
+      {#if copy}
+        <img class="badge" src={copy} alt={b?.title ?? ref.set} data-tip={b?.title ?? ref.set} />
+      {:else if b}
         <img
           class="badge"
           src={b.image1x}

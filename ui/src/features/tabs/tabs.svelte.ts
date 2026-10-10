@@ -191,5 +191,5 @@ export function tiles(tab: Tab): Tile[] {
 
 /** 1.22 The alias, or the channel names. */
 export function label(tab: Tab): string {
-  return tab.alias ?? tiles(tab).map((t) => t.channel.name).join(', ');
+  return tab.alias ?? tiles(tab).map((t) => t.feed ?? t.channel.name).join(', ');
 }

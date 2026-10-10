@@ -15,6 +15,19 @@
     {#if tip.image}<img src={tip.image} alt="" />{/if}
     <span class="name">{tip.label}</span>
     {#if tip.hint}<span class="hint">{tip.hint}</span>{/if}
+    {#if tip.preview}
+      {@const p = tip.preview}
+      <div class="preview">
+        {#if p.thumbnail && p.thumbWidth}
+          <img class="thumb" src={p.thumbnail} alt="" style:max-width="{p.thumbWidth}px" referrerpolicy="no-referrer" />
+        {/if}
+        {#each p.lines as line, i (i)}
+          {#if line.length}
+            <p>{#each line as part, j (j)}{#if part.bold}<b>{part.text}</b>{:else}{part.text}{/if}{/each}</p>
+          {:else}<hr />{/if}
+        {/each}
+      </div>
+    {/if}
   </div>
 {/if}
 
@@ -52,6 +65,34 @@
   .hint {
     font-size: 0.76rem;
     color: var(--muted);
+  }
+  .tip:has(.preview) {
+    max-width: 320px;
+  }
+  .preview {
+    margin-top: 4px;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+  .preview p {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  .preview b {
+    color: var(--text);
+  }
+  .preview hr {
+    margin: 4px 0;
+    border: 0;
+    border-top: 1px solid var(--border);
+  }
+  .thumb {
+    display: block;
+    width: 100%;
+    max-height: 200px;
+    object-fit: contain;
+    margin-bottom: 4px;
+    border-radius: var(--radius);
   }
   @keyframes in {
     from {

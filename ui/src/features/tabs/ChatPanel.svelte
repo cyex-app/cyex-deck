@@ -28,12 +28,14 @@
 </script>
 
 {#if tile}
-  {#key `${tile.channel.login}/${tile.account}`}
+  {#key `${tile.channel.login}/${tile.account}/${tile.filters.join()}`}
     <ChatView
       login={tile.channel.login}
       name={tile.channel.name}
       account={tile.account}
       readKey={tile.id}
+      filters={tile.filters}
+      onfilters={(filters) => void tabs.apply({ op: 'filters', tile: tileId, filters })}
       onsignin={() => void popOut('settings')}
       onlink={(target) => void emitTo('main', 'tile:link', { tile: tileId, target })}
     />

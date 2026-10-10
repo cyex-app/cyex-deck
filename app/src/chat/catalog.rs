@@ -93,6 +93,18 @@ pub async fn channel(app: &AppHandle, login: &str, fresh: bool) -> Result<Option
     Ok(Some(c))
 }
 
+/// X6 A Twitch badge's 2x picture: the channel's own first, then the global one.
+pub fn badge_url(app: &AppHandle, login: &str, set: &str, version: &str) -> Option<String> {
+    let hit = |b: &&BadgeInfo| b.set == set && b.version == version;
+    if let Some(c) = cached(app, login)
+        && let Some(b) = c.badges.iter().find(hit)
+    {
+        return Some(b.image2x.clone());
+    }
+    let global = app.state::<Catalogs>().global.get().cloned()?;
+    global.badges.iter().find(hit).map(|b| b.image2x.clone())
+}
+
 pub fn cached(app: &AppHandle, login: &str) -> Option<Arc<ChannelChat>> {
     app.state::<Catalogs>()
         .channels
@@ -232,6 +244,7 @@ fn to_pinned(p: PinnedMessage, me: Option<&Me>, colors: &mut cyex_chat::build::C
             reward: None,
             source: None,
             flags: if own { vec![cyex_chat::model::Flag::Own] } else { Vec::new() },
+            meta: cyex_chat::model::Meta::default(),
         },
     }
 }

@@ -1,9 +1,11 @@
-<!-- Channel points (1.9, 1.40): balance next to the message box and the rewards menu.
-     Redeeming needs the account's GQL sign-in; without one the menu only lists rewards. -->
+<!-- Channel points (1.9, 1.40): balance next to the message box and the rewards menu,
+     with power-ups paid in Bits (1.42) on a second page. Redeeming needs the account's
+     GQL sign-in; without one the menu only lists rewards. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import Icon from '../../components/Icon.svelte';
   import Popover from '../../components/Popover.svelte';
+  import Segmented from '../../components/Segmented.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import { chatIpc } from '../../ipc/chat';
   import type { Points } from '../../ipc/bindings/Points';
@@ -11,6 +13,7 @@
   import { formatNumber, formatShort } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import EmotePick from './EmotePick.svelte';
+  import PowerUps from './PowerUps.svelte';
   import type { ChatRoom } from './room.svelte';
 
   let { room }: { room: ChatRoom } = $props();
@@ -44,6 +47,7 @@
   let text = $state('');
   let emote = $state<string | null>(null);
   let busy = $state(false);
+  let page = $state<'points' | 'bits'>('points');
 
   const canRedeem = $derived(room.account !== null && accounts.can('points', room.account));
   const name = $derived(points?.name ?? 'Channel points');
@@ -93,6 +97,7 @@
   function toggle() {
     open = !open;
     picked = null;
+    page = 'points';
     if (open) void load();
   }
 
@@ -130,13 +135,27 @@
   <Popover bind:open align="start" side="above">
     <div class="menu">
       <header>
-        <strong>{name}</strong>
-        {#if points?.balance != null}<span class="balance">{formatNumber(points.balance)}</span>{/if}
+        {#if canRedeem}
+          <Segmented
+            label="Pay with"
+            options={[
+              { value: 'points', label: name },
+              { value: 'bits', label: 'Power-ups' },
+            ]}
+            value={page}
+            onchange={(v) => (page = v)}
+          />
+        {:else}
+          <strong>{name}</strong>
+        {/if}
+        {#if points?.balance != null && page === 'points'}<span class="balance">{formatNumber(points.balance)}</span>{/if}
       </header>
       {#if !canRedeem}
         <p class="note">Add a GQL sign-in for this account in Settings → Accounts to redeem.</p>
       {/if}
-      {#if picked}
+      {#if page === 'bits'}
+        <PowerUps {room} ondone={() => (open = false)} />
+      {:else if picked}
         <div class="confirm">
           <div class="title">{picked.title} · {formatNumber(picked.cost)}</div>
           {#if picked.prompt}<p class="note">{picked.prompt}</p>{/if}
@@ -222,6 +241,7 @@
   }
   header {
     display: flex;
+    align-items: center;
     justify-content: space-between;
     margin-bottom: 8px;
   }

@@ -8,9 +8,13 @@
   import Icon from '../../components/Icon.svelte';
   import { chatIpc } from '../../ipc/chat';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
+  import type { UiAction } from '../../ipc/bindings/UiAction';
   import { accounts } from '../../lib/accounts.svelte';
+  import { settings } from '../../lib/settings.svelte';
   import { complete, insert, wordAt, type Word } from './completion';
+  import { chatxIpc } from '../../ipc/chatx';
   import EmoteButton from './EmoteButton.svelte';
+  import GifButton from './GifButton.svelte';
   import RewardsMenu from './RewardsMenu.svelte';
   import type { ChatRoom } from './room.svelte';
   import { Sources } from './sources.svelte';
@@ -22,9 +26,11 @@
     room: ChatRoom;
     replyTo: ChatMessage | null;
     onsignin: () => void;
+    /** What a command asked the window to do (S1). */
+    onaction?: (a: UiAction) => void;
   }
 
-  let { room, replyTo = $bindable(), onsignin }: Props = $props();
+  let { room, replyTo = $bindable(), onsignin, onaction }: Props = $props();
 
   const MAX = 500;
   const HISTORY = 20;
@@ -35,6 +41,8 @@
   let sent: string[] = [];
   let recall = -1;
   let now = $state(Date.now());
+  /** 1.43 Shown once Twitch says this account can send GIFs here; asked on first focus. */
+  let gifs = $state<boolean | null>(null);
 
   interface Suggest {
     word: Word;
@@ -85,6 +93,22 @@
     box?.setSelectionRange(caret, caret);
   }
 
+  function focused() {
+    sources.load();
+    if (gifs !== null || !room.view) return;
+    gifs = false;
+    chatxIpc
+      .gifInfo(room.view)
+      .then((i) => (gifs = i.canSend))
+      .catch(() => {});
+  }
+
+  /** Puts `@login` in the box, from a name's menu. */
+  export function mention(login: string) {
+    box?.focus();
+    void insertAtCaret(`@${login}`);
+  }
+
   async function put(word: Word, value: string) {
     const next = insert(text, word, value);
     text = next.text;
@@ -123,8 +147,9 @@
     const value = text.trim();
     if (!value || !canChat) return;
     try {
-      await chatIpc.send(room.view, value, replyTo?.id);
+      const action = await chatIpc.send(room.view, value, replyTo?.id);
       error = '';
+      if (action) onaction?.(action);
       sent = [value, ...sent.filter((s) => s !== value)].slice(0, HISTORY);
       recall = -1;
       if (!keep) text = '';
@@ -174,7 +199,7 @@
   }
 </script>
 
-<div class="input">
+<div class="input" class:gifs>
   {#if replyTo}
     <div class="reply-bar">
       <Icon name="reply" size={13} />
@@ -194,13 +219,14 @@
         rows="1"
         maxlength={MAX * 2}
         placeholder={replyTo ? 'Write a reply' : `Message #${room.login}`}
-        spellcheck="false"
+        spellcheck={settings.v.chat.spellCheck}
         oninput={updateSuggest}
         onclick={updateSuggest}
-        onfocus={() => sources.load()}
+        onfocus={focused}
         onblur={() => (suggest = null)}
         {onkeydown}
       ></textarea>
+      {#if gifs}<GifButton {room} />{/if}
       <EmoteButton login={room.login} account={room.account} oninsert={(v) => void insertAtCaret(v)} />
       <div class="meta">
         {#if waitMs > 0}<span class="wait" data-tip="You can talk again then">{Math.ceil(waitMs / 1000)}s</span>{/if}
@@ -254,6 +280,9 @@
     pointer-events: none;
     font: 600 0.72rem var(--font-mono);
     color: var(--dim);
+  }
+  .gifs .meta {
+    right: 96px;
   }
   .meta .wait {
     color: var(--yellow);

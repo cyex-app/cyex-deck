@@ -1,14 +1,11 @@
-//! U6 Mentions: flash the taskbar and tell the main window to play the sound, if the
-//! user turned those on.
+//! U6, 2.6 Highlights that asked for it flash the taskbar or tell the main window to play
+//! the sound.
 
 use cyex_chat::model::{ChatMessage, plain};
-use cyex_settings::Partition;
-use cyex_settings::schema::Chat as ChatSettings;
+use cyex_chat::rules::Outcome;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, UserAttentionType};
 use ts_rs::TS;
-
-use crate::settings::Settings;
 
 const EVENT: &str = "chat:mention";
 
@@ -21,18 +18,14 @@ pub struct Mention {
     pub text: String,
 }
 
-pub fn notify(app: &AppHandle, channel: &str, m: &ChatMessage) {
-    let s: ChatSettings = app.state::<Settings>().read(Partition::Chat);
-    if !s.mention_sound && !s.mention_flash {
-        return;
-    }
-    if s.mention_flash
+pub fn notify(app: &AppHandle, channel: &str, m: &ChatMessage, outcome: &Outcome) {
+    if outcome.flash
         && let Some(w) = app.get_webview_window("main")
         && !w.is_focused().unwrap_or(true)
     {
         let _ = w.request_user_attention(Some(UserAttentionType::Informational));
     }
-    if s.mention_sound {
+    if outcome.sound {
         let _ = app.emit_to(
             "main",
             EVENT,

@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use tokio::sync::mpsc;
 
 use crate::model::Emote;
-use crate::ws::{Protocol, Step};
+use cyex_twitch::ws::{Protocol, Step};
 
 const URL: &str = "wss://sockets.betterttv.net/ws";
 /// BTTV sends no heartbeat; a quiet socket is renewed now and then.

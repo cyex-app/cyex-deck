@@ -125,7 +125,7 @@
         {vertical}
         groupColor={item.color}
         onselect={(e) => select(item.tab, e)}
-        onedit={() => openEdit(item.tab.id, tiles(item.tab)[0].id)}
+        onedit={() => !tiles(item.tab)[0].feed && openEdit(item.tab.id, tiles(item.tab)[0].id)}
         onclose={() => close(item.tab)}
         onmenu={(e) => menuFor(item.tab, e)}
       />

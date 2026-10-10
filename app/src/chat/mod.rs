@@ -5,23 +5,33 @@
 
 pub mod catalog;
 mod creds;
+pub mod feeds;
 mod flush;
 pub mod identity;
 mod mention;
 pub mod points;
+pub mod powerups;
+pub mod record;
+pub mod rules;
+pub mod run;
 mod send;
 mod session;
+pub mod translate;
+pub mod usercard;
 pub mod unread;
+pub mod votes;
 
-pub use send::send;
+pub use send::send_to;
 pub use session::retry_refused;
 
 use unread::Unread;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use cyex_chat::build::Me;
+use cyex_chat::filter::Filter;
 use cyex_chat::irc::{Client, Window};
 use cyex_chat::model::{ChatMessage, ConnStatus, NoticeKind, RoomEvent};
 use cyex_chat::{Room, RoomSnapshot};
@@ -43,7 +53,7 @@ pub enum Identity {
     Account(String),
 }
 
-type RoomKey = (Identity, String);
+pub type RoomKey = (Identity, String);
 type View = Channel<Vec<RoomEvent>>;
 
 /// Lines a view gets when it opens. The UI shows as many (`MAX_LINES`).
@@ -53,6 +63,8 @@ pub struct Chat {
     inner: Mutex<Inner>,
     /// Wakes the flush task when a room has events waiting.
     wake: Arc<Notify>,
+    /// C19 How long views hold messages back, in ms.
+    delay_ms: AtomicI64,
 }
 
 #[derive(Default)]
@@ -72,10 +84,19 @@ struct Session {
     sends: Window,
 }
 
+/// A view and the filters it shows messages through (F3).
+struct Sink {
+    id: u32,
+    view: View,
+    filters: Vec<Arc<Filter>>,
+}
+
 struct Entry {
     room: Room,
-    views: Vec<(u32, View)>,
+    views: Vec<Sink>,
     outbox: Vec<RoomEvent>,
+    /// C19 Messages held back until their time, oldest first.
+    delayed: VecDeque<(i64, RoomEvent)>,
     /// C21 Last text we sent here, to dodge Twitch's duplicate check.
     last_sent: Option<(String, i64)>,
     /// U9 News since a view last showed it.
@@ -97,14 +118,28 @@ pub fn init(app: &AppHandle) {
     app.manage(Chat {
         inner: Mutex::default(),
         wake: wake.clone(),
+        delay_ms: AtomicI64::new(0),
     });
+    on_settings(app);
     flush::spawn(app.clone(), wake);
     catalog::init(app);
+    feeds::init(app);
+    rules::init(app);
+    run::init(app);
+    powerups::init(app);
+    record::init(app);
+    translate::init(app);
+    votes::init(app);
 }
 
 impl Chat {
     fn lock(&self) -> MutexGuard<'_, Inner> {
         self.inner.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    /// The room a view shows.
+    pub fn view_key(&self, view: u32) -> Option<RoomKey> {
+        self.lock().views.get(&view).map(|v| v.0.clone())
     }
 }
 
@@ -124,12 +159,44 @@ fn identity_for(app: &AppHandle, account: Option<&str>) -> (Identity, Option<Me>
     }
 }
 
-/// Opens a view on a channel's chat, joining it if it isn't joined yet.
+/// After chat or highlight settings changed.
+pub fn on_settings(app: &AppHandle) {
+    let Some(chat) = app.try_state::<Chat>() else { return };
+    let delay = app.state::<Settings>().read::<ChatSettings>(Partition::Chat).delay_tenths;
+    chat.delay_ms.store(i64::from(delay) * 100, Ordering::Relaxed);
+    if app.try_state::<rules::RuleState>().is_some() {
+        rules::rebuild(app);
+    }
+}
+
+/// F3 The filters with these ids, ready. Ones that don't read are left out.
+fn filters(app: &AppHandle, ids: &[String]) -> Vec<Arc<Filter>> {
+    if ids.is_empty() {
+        return Vec::new();
+    }
+    let defs = app.state::<Settings>().read::<cyex_settings::schema::Highlights>(Partition::Highlights).filters;
+    defs.iter()
+        .filter(|d| ids.contains(&d.id))
+        .filter_map(|d| Filter::parse(&d.expr).ok().map(Arc::new))
+        .collect()
+}
+
+/// Whether a view with these filters shows a message.
+fn passes(filters: &[Arc<Filter>], m: &ChatMessage, channel: &str, live: bool) -> bool {
+    filters.is_empty() || {
+        let facts = cyex_chat::filter::Facts { msg: m, channel, live };
+        filters.iter().all(|f| f.matches(&facts))
+    }
+}
+
+/// Opens a view on a channel's chat, joining it if it isn't joined yet. `filter_ids`
+/// pick the F3 filters it shows messages through.
 pub fn open(
     app: &AppHandle,
     window: &str,
     login: &str,
     account: Option<&str>,
+    filter_ids: &[String],
     view: View,
 ) -> Result<ChatOpened, String> {
     let login = login.trim().trim_start_matches('#').to_ascii_lowercase();
@@ -137,6 +204,8 @@ pub fn open(
         return Err("That isn't a Twitch channel name.".into());
     }
     let (identity, me) = identity_for(app, account);
+    let filters = filters(app, filter_ids);
+    let live = !filters.is_empty() && crate::tabs::live::is_live(app, &login);
     let chat = app.state::<Chat>();
     let mut inner = chat.lock();
     let key = (identity.clone(), login.clone());
@@ -145,7 +214,13 @@ pub fn open(
     let id = inner.next_view;
     inner.views.insert(id, (key.clone(), window.to_owned()));
     let entry = inner.rooms.get_mut(&key).expect("inserted above");
-    entry.views.push((id, view));
+    let mut snapshot = entry.room.snapshot_tail(if filters.is_empty() { VIEW_LINES } else { cyex_chat::BUFFER });
+    if !filters.is_empty() {
+        snapshot.messages.retain(|m| passes(&filters, m, &login, live));
+        let skip = snapshot.messages.len().saturating_sub(VIEW_LINES);
+        snapshot.messages.drain(..skip);
+    }
+    entry.views.push(Sink { id, view, filters });
     let was_unread = std::mem::take(&mut entry.unread) != Unread::Seen;
     let opened = ChatOpened {
         view: id,
@@ -153,7 +228,7 @@ pub fn open(
             Identity::Account(id) => Some(id.clone()),
             Identity::Anon => None,
         },
-        snapshot: entry.room.snapshot_tail(VIEW_LINES),
+        snapshot,
     };
     let budget_full = entry.room.status == ConnStatus::BudgetFull;
     drop(inner);
@@ -169,6 +244,7 @@ pub fn open(
     if let Some(a) = &opened.account {
         crate::emotes::presence::touch(app, a, &login);
     }
+    votes::watch(app, &login, opened.account.clone());
     Ok(opened)
 }
 
@@ -179,6 +255,7 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
     }
     let (identity, login) = key;
     let mut room = Room::new(login, me);
+    room.set_rules(rules::current(app));
     let budget_ok = match identity {
         Identity::Anon => true,
         Identity::Account(id) => budget(app, |b| b.entry(id.clone()).or_default().join(login, false)),
@@ -194,6 +271,7 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
             room,
             views: Vec::new(),
             outbox: Vec::new(),
+            delayed: VecDeque::new(),
             last_sent: None,
             unread: Unread::Seen,
         },
@@ -239,8 +317,9 @@ pub fn close(app: &AppHandle, view: u32) {
     let chat = app.state::<Chat>();
     let mut inner = chat.lock();
     let Some((key, _)) = inner.views.remove(&view) else { return };
+    votes::unwatch(app, &key.1);
     let Some(entry) = inner.rooms.get_mut(&key) else { return };
-    entry.views.retain(|(id, _)| *id != view);
+    entry.views.retain(|s| s.id != view);
     if !entry.views.is_empty() || inner.held.contains(&key) {
         return;
     }
@@ -314,6 +393,68 @@ pub fn recent_from(app: &AppHandle, channel: &str, user_id: &str) -> Vec<Arc<Cha
         .map(|(_, e)| e.room.recent_from(user_id, 10))
         .max_by_key(Vec::len)
         .unwrap_or_default()
+}
+
+/// A line only the user sees, in every view of one room.
+pub fn local_line(app: &AppHandle, key: &RoomKey, kind: NoticeKind, text: &str) {
+    let Some(chat) = app.try_state::<Chat>() else { return };
+    let mut inner = chat.lock();
+    if let Some(entry) = inner.rooms.get_mut(key) {
+        let ev = entry.room.system(kind, text, now_ms());
+        queue(entry, [ev], &chat.wake);
+    }
+}
+
+/// The room for `channel`, read by `identity` if it's joined that way, else any.
+pub fn room_for(app: &AppHandle, identity: &Identity, channel: &str) -> Option<RoomKey> {
+    let chat = app.state::<Chat>();
+    let inner = chat.lock();
+    let own = (identity.clone(), channel.to_owned());
+    if inner.rooms.contains_key(&own) {
+        return Some(own);
+    }
+    inner.rooms.keys().find(|(_, l)| l == channel).cloned()
+}
+
+/// F1 Messages matching a search, oldest first. `view` searches its own chat; `None`
+/// searches every joined chat (C29).
+pub fn search(app: &AppHandle, view: Option<u32>, query: &str) -> Result<Vec<feeds::FeedLine>, String> {
+    const MAX: usize = 300;
+    let q = cyex_chat::search::Query::parse(query);
+    if q.is_empty() {
+        return Ok(Vec::new());
+    }
+    let chat = app.state::<Chat>();
+    let inner = chat.lock();
+    let only = match view {
+        Some(v) => Some(inner.views.get(&v).map(|v| v.0.clone()).ok_or("This chat is closed.")?),
+        None => None,
+    };
+    let mut out: Vec<feeds::FeedLine> = Vec::new();
+    let mut seen = HashSet::new();
+    for (key, entry) in &inner.rooms {
+        if only.as_ref().is_some_and(|o| o != key) {
+            continue;
+        }
+        for m in entry.room.snapshot().messages {
+            if q.matches(&m, &key.1) && seen.insert(m.id.clone()) {
+                out.push(feeds::FeedLine { channel: key.1.clone(), message: m });
+            }
+        }
+    }
+    out.sort_by_key(|l| l.message.ts);
+    let skip = out.len().saturating_sub(MAX);
+    out.drain(..skip);
+    Ok(out)
+}
+
+/// Every joined channel, A-Z.
+pub fn open_channels(app: &AppHandle) -> Vec<String> {
+    let chat = app.state::<Chat>();
+    let mut out: Vec<String> = chat.lock().rooms.keys().map(|(_, l)| l.clone()).collect();
+    out.sort_unstable();
+    out.dedup();
+    out
 }
 
 /// C10 A system line in every room of a channel, e.g. "x added the 7TV emote y."

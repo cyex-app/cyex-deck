@@ -2,7 +2,7 @@
 //! Twitch's `system-msg` is the line's text; the user's own message, if any, is the body.
 
 use crate::irc::Line;
-use crate::model::{ChatMessage, Flag, Notice, NoticeKind, SharedSource};
+use crate::model::{ChatMessage, Flag, Meta, Notice, NoticeKind, SharedSource};
 use crate::tokenize::{Input, tokenize};
 
 use super::sender::{badges, sender};
@@ -71,6 +71,7 @@ pub fn usernotice(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Option<Incoming> {
         reward: None,
         source,
         flags,
+        meta: Meta::default(),
     };
     let param = |key: &str| {
         line.tag(&format!("msg-param-{key}"))

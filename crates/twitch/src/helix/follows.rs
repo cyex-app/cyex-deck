@@ -1,5 +1,6 @@
 //! 1.6 Who an account follows, for accounts with only a Helix sign-in. Needs
-//! `user:read:follows`. Only ids come from here; the rest is public GQL.
+//! `user:read:follows`. Only ids come from here; the rest is public GQL. Also when
+//! someone followed a channel you moderate (1.36).
 
 use serde::Deserialize;
 
@@ -42,6 +43,19 @@ pub async fn followed_ids(http: &Http, auth: Auth<'_>, user_id: &str) -> Result<
 pub async fn followed_live_ids(http: &Http, auth: Auth<'_>, user_id: &str) -> Result<Vec<String>> {
     let pages = all::<Stream>(http, auth, "/streams/followed", user_id).await?;
     Ok(pages.into_iter().map(|s| s.user_id).collect())
+}
+
+#[derive(Deserialize)]
+struct Follower {
+    followed_at: String,
+}
+
+/// 1.36 When `user_id` followed the channel. Only answered for its broadcaster and mods
+/// (`moderator:read:followers`); `None` if they don't follow.
+pub async fn followed_at(http: &Http, auth: Auth<'_>, broadcaster_id: &str, user_id: &str) -> Result<Option<String>> {
+    let req = get(http, auth, "/channels/followers").query(&[("broadcaster_id", broadcaster_id), ("user_id", user_id)]);
+    let page: Page<Follower> = json(req).await?;
+    Ok(page.data.into_iter().next().map(|f| f.followed_at))
 }
 
 async fn all<T: serde::de::DeserializeOwned>(

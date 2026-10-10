@@ -35,6 +35,30 @@ impl Http {
         json(self.0.get(url)).await
     }
 
+    /// 1.8 `$request` in custom commands: any web page as text, at most `max` bytes.
+    pub async fn get_text(&self, url: &str, headers: &[(String, String)], max: usize) -> Result<String> {
+        let mut req = self.0.get(url);
+        for (k, v) in headers {
+            req = req.header(k.as_str(), v.as_str());
+        }
+        let res = req.send().await.map_err(Error::Network)?;
+        let bytes = res.bytes().await.map_err(Error::Network)?;
+        Ok(String::from_utf8_lossy(&bytes[..bytes.len().min(max)]).into_owned())
+    }
+
+    /// X6 A picture to keep, refused when bigger than `max`.
+    pub async fn get_bytes(&self, url: &str, max: usize) -> Result<Vec<u8>> {
+        let req = self.0.get(url).header("Accept", "image/webp,image/*");
+        let bytes = body(req).await?;
+        if bytes.len() > max {
+            return Err(Error::Api {
+                status: 413,
+                message: "too big".into(),
+            });
+        }
+        Ok(bytes)
+    }
+
     /// POST a JSON body to another service and decode the JSON answer.
     pub async fn post_json<T: DeserializeOwned>(&self, url: &str, body: &serde_json::Value) -> Result<T> {
         json(self.0.post(url).json(body)).await

@@ -11,16 +11,24 @@ import type { EmoteRewardChoices } from './bindings/EmoteRewardChoices';
 import type { Points } from './bindings/Points';
 import type { Profile } from './bindings/Profile';
 import type { RoomEvent } from './bindings/RoomEvent';
+import type { LinkInfo } from './bindings/LinkInfo';
+import type { MenuContext } from './bindings/MenuContext';
+import type { UiAction } from './bindings/UiAction';
 
 export const chatIpc = {
   /** Opens a view on a channel's chat. Events arrive in 50 ms batches until `close`. */
-  open: (login: string, account: string | null, onEvents: (events: RoomEvent[]) => void) => {
+  /** `filters`: F3 filter ids the view shows messages through. */
+  open: (login: string, account: string | null, filters: string[], onEvents: (events: RoomEvent[]) => void) => {
     const channel = new Channel<RoomEvent[]>();
     channel.onmessage = onEvents;
-    return invoke<ChatOpened>('chat_open', { login, account, onEvent: channel });
+    return invoke<ChatOpened>('chat_open', { login, account, filters, onEvent: channel });
   },
   close: (view: number) => invoke<void>('chat_close', { view }),
-  send: (view: number, text: string, replyTo?: string) => invoke<void>('chat_send', { view, text, replyTo }),
+  /** Commands run in Rust (1.8); some ask the window to do something. */
+  send: (view: number, text: string, replyTo?: string) => invoke<UiAction | null>('chat_send', { view, text, replyTo }),
+  /** S1 A menu entry or usercard button. */
+  menu: (view: number, command: string, context: MenuContext) =>
+    invoke<UiAction | null>('chat_menu', { view, command, context }),
   globalCatalog: () => invoke<GlobalCatalog>('chat_global_catalog'),
   channelCatalog: (login: string) => invoke<ChannelCatalog | null>('chat_channel_catalog', { login }),
   points: (view: number) => invoke<Points | null>('chat_points', { view }),
@@ -38,8 +46,8 @@ export const chatIpc = {
   setColor: (account: string, color: string) => invoke<void>('chat_set_color', { account, color }),
   userMessages: (channel: string, userId: string) =>
     invoke<ChatMessage[]>('chat_user_messages', { channel, userId }),
-  /** X2: where a link ends up after redirects. */
-  resolveLink: (url: string) => invoke<string | null>('chat_resolve_link', { url }),
+  /** X2 Where a link ends up after redirects, and 1.52 its preview. */
+  resolveLink: (url: string) => invoke<LinkInfo | null>('chat_resolve_link', { url }),
   profile: (login?: string, id?: string) => invoke<Profile | null>('user_profile', { login, id }),
   openUsercard: (channel: string, login: string) => invoke<void>('window_open_usercard', { channel, login }),
   /** U6: only the main window gets these. */

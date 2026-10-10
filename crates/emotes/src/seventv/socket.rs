@@ -8,7 +8,7 @@ use serde_json::json;
 use tokio::sync::mpsc;
 
 use super::events::{Event, Frame, parse};
-use crate::ws::{Protocol, Step};
+use cyex_twitch::ws::{Protocol, Step};
 
 const URL: &str = "wss://events.7tv.io/v3?app=cyex-viewer&version=";
 /// 7TV allows 500 topics; each channel subscription also costs a hidden one.

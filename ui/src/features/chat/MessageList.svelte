@@ -1,21 +1,28 @@
 <!-- Scrolling message list (1.8). Follows new messages while at the bottom; pauses on
-     hover or while the pause key is held (C5); marks where you stopped reading (C5).
+     hover or while the pause key is held (C5); marks where you stopped reading (C5); a
+     dated line where chat crosses midnight (C25).
      Clicks and tooltips are delegated here instead of being set on every line. -->
 <script lang="ts">
   import { tick, untrack } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
-  import { openMenu } from '../../components/menu.svelte';
-  import { hideTip, retitleTip, showTip } from '../../components/tooltip.svelte';
+  import { menu, openMenu as showMenu, type MenuEntry } from '../../components/menu.svelte';
+  import { hideTip, previewTip, retitleTip, showTip } from '../../components/tooltip.svelte';
+  import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import type { LinkTarget } from '../../ipc/bindings/LinkTarget';
+  import type { UiAction } from '../../ipc/bindings/UiAction';
   import { chatIpc } from '../../ipc/chat';
+  import { chatxIpc } from '../../ipc/chatx';
   import { systemIpc } from '../../ipc/system';
+  import { formatDate } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import EmoteCard from '../emotes/EmoteCard.svelte';
   import type { CardTarget } from '../emotes/emotes';
   import { hidden } from '../emotes/hidden.svelte';
   import Line from './Line.svelte';
+  import { runEntry, toItems, userMenus } from './menus.svelte';
+  import { plainText } from './text';
   import { readMarks, type ChatRoom } from './room.svelte';
 
   interface Props {
@@ -26,11 +33,17 @@
     onreply: (id: string) => void;
     /** Twitch clips and VODs open in the app (1.19, 1.20, P7) instead of the browser. */
     onlink?: (target: LinkTarget) => void;
+    /** Puts `@login` in the message box. */
+    onmention?: (login: string) => void;
+    /** A command asked the window to do something (search, pop out). */
+    onaction?: (a: UiAction) => void;
   }
 
-  let { room, readKey, canReply, onreply, onlink }: Props = $props();
+  let { room, readKey, canReply, onreply, onlink, onmention, onaction }: Props = $props();
 
   const c = $derived(settings.v.chat);
+  /** 1.52 Picture widths, Chatterino's sizes. */
+  const THUMBS = { off: 0, small: 100, medium: 200, large: 300 } as const;
 
   let list = $state<HTMLElement>();
   /** Stays true while the user wants new messages in view. Scrolling up ends it. */
@@ -39,7 +52,18 @@
   let keyHeld = $state(false);
   // svelte-ignore state_referenced_locally
   let lastRead = $state<string | null>((readKey && readMarks.get(readKey)) || null);
-  const paused = $derived((hovering && c.pauseOnHover) || keyHeld);
+  /** A menu opened from this list keeps it still until it closes. */
+  let menuHere = $state(false);
+  const paused = $derived((hovering && c.pauseOnHover) || keyHeld || (menuHere && menu.open));
+
+  function openMenu(e: MouseEvent, items: MenuEntry[]) {
+    menuHere = true;
+    showMenu(e, items);
+  }
+
+  $effect(() => {
+    if (!menu.open) menuHere = false;
+  });
   /** Last message when the pause began, to tell if anything arrived since. */
   let pausedAt = $state<string | undefined>();
   const newWhilePaused = $derived(paused && pausedAt !== undefined && room.messages.at(-1)?.id !== pausedAt);
@@ -92,6 +116,25 @@
     };
   });
 
+  /** F6 Near-duplicates go when the setting says hide. */
+  const hideSimilar = $derived(settings.v.highlights.similar.hide);
+  const shown = $derived(hideSimilar ? room.messages.filter((m) => !m.flags.includes('similar')) : room.messages);
+
+  $effect(() => userMenus.track());
+
+  /** C25 Messages that start a new day, by id. */
+  const dayStarts = $derived.by(() => {
+    const starts = new Set<string>();
+    let last = -1;
+    for (const m of shown) {
+      const d = new Date(m.ts);
+      const day = d.getFullYear() * 10_000 + d.getMonth() * 100 + d.getDate();
+      if (last !== -1 && day !== last) starts.add(m.id);
+      last = day;
+    }
+    return starts;
+  });
+
   function toBottom() {
     if (list) list.scrollTop = list.scrollHeight;
   }
@@ -139,10 +182,83 @@
     return { ...d, rect: el.getBoundingClientRect() };
   }
 
-  /** E4 Right-click an emote: card, copy, hide. */
+  /** Runs a typed command for the menus, e.g. `/hideuser x`. */
+  function command(text: string) {
+    chatIpc
+      .send(room.view, text)
+      .then((a) => a && onaction?.(a))
+      .catch((err) => toast.error(String(err)));
+  }
+
+  function context(m: ChatMessage | undefined, login: string) {
+    return {
+      login,
+      userId: m?.sender?.login === login ? m.sender.id : null,
+      display: m?.sender?.login === login ? m.sender.display : null,
+      msgId: m?.id ?? null,
+      msg: m ? plainText(m.body) : null,
+      msgTime: m?.ts ?? null,
+    };
+  }
+
+  /** Right-click a name: usercard, mention, search, hide or block, your own entries (S1). */
+  function userMenu(e: MouseEvent, login: string, m: ChatMessage | undefined) {
+    const own = userMenus.current.user;
+    const ctx = context(m, login);
+    openMenu(e, [
+      { label: 'Usercard', icon: 'user', run: () => chatIpc.openUsercard(room.login, login).catch(() => {}) },
+      { label: 'Mention', icon: 'reply', run: () => onmention?.(login) },
+      { label: 'Their messages', icon: 'search', run: () => onaction?.({ type: 'search', query: `from:${login}` }) },
+      { label: 'Copy name', icon: 'copy', run: () => void navigator.clipboard.writeText(login) },
+      'separator',
+      { label: 'Hide for me', icon: 'eyeOff', hint: 'Only for you, not on Twitch', run: () => command(`/hideuser ${login}`) },
+      ...(room.account ? [{ label: 'Block on Twitch', icon: 'ban' as const, danger: true, run: () => command(`/block ${login}`) }] : []),
+      ...(own.length ? ['separator' as const, ...toItems(own, (cmd) => runEntry(room.view, cmd, ctx, onaction))] : []),
+    ]);
+  }
+
+  /** Right-click a message: reply, copy, translate (C17), your own entries (S1). */
+  function messageMenu(e: MouseEvent, m: ChatMessage) {
+    const own = userMenus.current.message;
+    const login = m.sender?.login ?? '';
+    const ctx = context(m, login);
+    openMenu(e, [
+      ...(canReply && m.sender && !m.notice ? [{ label: 'Reply', icon: 'reply' as const, run: () => onreply(m.id) }] : []),
+      { label: 'Copy message', icon: 'copy', run: () => void navigator.clipboard.writeText(plainText(m.body)) },
+      ...(m.sender && !m.notice
+        ? [
+            {
+              label: m.translation ? 'Translate again' : 'Translate',
+              icon: 'languages' as const,
+              run: () => chatxIpc.translate(room.view, m.id).catch((err) => toast.error(String(err))),
+            },
+            { label: 'Their messages', icon: 'search' as const, run: () => onaction?.({ type: 'search', query: `from:${login}` }) },
+          ]
+        : []),
+      ...(own.length ? ['separator' as const, ...toItems(own, (cmd) => runEntry(room.view, cmd, ctx, onaction))] : []),
+    ]);
+  }
+
+  /** E4 Right-click an emote: card, copy, hide. Names and messages get their own menus. */
   function oncontextmenu(e: MouseEvent) {
-    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-emote]');
-    if (!el) return;
+    const target = e.target as HTMLElement;
+    const el = target.closest<HTMLElement>('[data-emote]');
+    if (!el) {
+      if (target.closest('a, input, textarea')) return;
+      const line = target.closest<HTMLElement>('[data-id]');
+      const m = line ? room.find(line.dataset.id!) : undefined;
+      const name = target.closest<HTMLElement>('[data-user]');
+      if (name) {
+        e.preventDefault();
+        hideTip();
+        userMenu(e, name.dataset.user!, m);
+      } else if (m && window.getSelection()?.isCollapsed !== false) {
+        e.preventDefault();
+        hideTip();
+        messageMenu(e, m);
+      }
+      return;
+    }
     e.preventDefault();
     const t = emoteAt(el);
     const { emote } = t;
@@ -194,17 +310,23 @@
     if (from && !from.contains(e.relatedTarget as Node)) hideTip();
   }
 
-  /** X2: the real domain right away, the final one once redirects are followed. */
+  /** X2: the real domain right away, the final one once redirects are followed; 1.52 a
+   * preview with it when previews are on. */
   function showLinkTip(el: HTMLElement) {
     const url = el.dataset.link!;
     const host = el.dataset.host!;
     showTip(el, { label: `Opens ${host}` });
     chatIpc
       .resolveLink(url)
-      .then((final) => {
-        if (!final) return;
-        const finalHost = new URL(final).hostname.replace(/^www\./, '');
-        if (finalHost !== host) retitleTip(`Opens ${host}, ends up on ${finalHost}`);
+      .then((info) => {
+        if (!info) return;
+        if (info.link) {
+          const finalHost = new URL(info.link).hostname.replace(/^www\./, '');
+          if (finalHost !== host) retitleTip(`Opens ${host}, ends up on ${finalHost}`);
+        }
+        if (c.linkPreviews && (info.lines.length || info.thumbnail)) {
+          previewTip(el, { lines: info.lines, thumbnail: info.thumbnail ?? '', thumbWidth: THUMBS[c.linkThumbnails] });
+        }
       })
       .catch(() => {});
   }
@@ -232,9 +354,10 @@
     role="log"
     aria-live="off"
   >
-    {#each room.messages as m (m.id)}
+    {#each shown as m (m.id)}
+      {#if dayStarts.has(m.id)}<p class="day" role="separator">{formatDate(new Date(m.ts))}</p>{/if}
       <Line {m} channel={room.login} {canReply} />
-      {#if m.id === lastRead && m.id !== room.messages.at(-1)?.id}<hr class="last-read" />{/if}
+      {#if m.id === lastRead && m.id !== shown.at(-1)?.id}<hr class="last-read" />{/if}
     {/each}
   </div>
   {#if card}
@@ -266,6 +389,20 @@
   }
   .sep :global(.line) {
     border-bottom: 1px solid var(--border);
+  }
+  .day {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 10px;
+    color: var(--dim);
+    font: 600 0.72rem var(--font-mono);
+  }
+  .day::before,
+  .day::after {
+    content: '';
+    flex: 1;
+    border-top: 1px solid var(--border);
   }
   .last-read {
     margin: 2px 10px;

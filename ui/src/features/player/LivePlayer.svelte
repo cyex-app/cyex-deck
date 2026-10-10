@@ -13,6 +13,7 @@
   import { playerIpc } from '../../ipc/player';
   import { bindingOf } from '../../lib/hotkeys.svelte';
   import { settings } from '../../lib/settings.svelte';
+  import Celebration from './Celebration.svelte';
   import { Engine } from './engine.svelte';
   import type { Choice } from './quality';
   import SettingsMenu from './SettingsMenu.svelte';
@@ -142,6 +143,7 @@
     {#if ad === 'backup' || ad === 'showing'}
       <span class="chip">{ad === 'backup' ? 'Skipping an ad break' : 'Ad'}</span>
     {/if}
+    {#if !mini}<Celebration login={tile.channel.login} />{/if}
     {#if stats && engine}
       <Stats read={() => engine!.stats()} onclose={() => (stats = false)} />
     {/if}

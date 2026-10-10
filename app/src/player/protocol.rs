@@ -2,7 +2,8 @@
 //! origin, so they're fetched in Rust and served from here. Paths:
 //! `live/<id>/master.m3u8`, `live/<id>/audio.m3u8`, `live/<id>/<variant>.m3u8`,
 //! `vod/<id>/master.m3u8`, `vod/<id>/audio.m3u8`, `vod/<id>/<variant>/index.m3u8`,
-//! `vod/<id>/<variant>/<segment>`.
+//! `vod/<id>/<variant>/<segment>`. Also the pictures of chat recordings (X6):
+//! `rec/<id>/<file>`.
 
 use cyex_twitch::Error;
 use tauri::http::{Request, Response};
@@ -35,6 +36,10 @@ pub fn handle(ctx: UriSchemeContext<'_, Wry>, req: Request<Vec<u8>>, responder: 
 
 async fn route(app: &AppHandle, path: &str) -> Result<Response<Vec<u8>>, Error> {
     let parts: Vec<&str> = path.trim_matches('/').split('/').collect();
+    if let ["rec", id, file] = parts.as_slice() {
+        let (bytes, kind) = crate::chat::record::asset(app, id, file).ok_or_else(missing)?;
+        return Ok(response(200, kind, bytes));
+    }
     let (kind, id) = match parts.as_slice() {
         [kind, id, ..] => (*kind, *id),
         _ => return Err(missing()),

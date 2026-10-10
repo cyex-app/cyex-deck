@@ -1,6 +1,7 @@
 // Tooltips (3.6). One shared tip for the whole window. The label always shows; the
 // explanation underneath is the "new user" part and follows the tooltips setting (2.7).
 
+import type { LinkText } from '../ipc/bindings/LinkText';
 import { settings } from '../lib/settings.svelte';
 
 export interface TipOptions {
@@ -10,7 +11,23 @@ export interface TipOptions {
   image?: string;
 }
 
-export const tip = $state({ label: '', hint: '', image: '', x: 0, y: 0, visible: false });
+/** 1.52 A link's preview under the label. */
+export interface LinkPreview {
+  lines: LinkText[][];
+  thumbnail: string;
+  /** 0 hides the picture. */
+  thumbWidth: number;
+}
+
+export const tip = $state({
+  label: '',
+  hint: '',
+  image: '',
+  preview: null as LinkPreview | null,
+  x: 0,
+  y: 0,
+  visible: false,
+});
 
 const SHOW_DELAY_MS = 150;
 /** Moving between buttons right after a tip closed shows the next one instantly. */
@@ -35,6 +52,11 @@ export function retitleTip(label: string): void {
   if (tip.visible) tip.label = label;
 }
 
+/** 1.52 Adds a link's preview to the tip `node` shows, once it's known. */
+export function previewTip(node: HTMLElement, preview: LinkPreview): void {
+  if (owner === node) tip.preview = preview;
+}
+
 function show(node: HTMLElement, opts: TipOptions): void {
   clearTimeout(timer);
   owner = node;
@@ -44,6 +66,7 @@ function show(node: HTMLElement, opts: TipOptions): void {
     tip.label = opts.label;
     tip.hint = opts.image ? (opts.hint ?? '') : settings.v.general?.tooltips ? (opts.hint ?? '') : '';
     tip.image = opts.image ?? '';
+    tip.preview = null;
     tip.x = r.left + r.width / 2;
     tip.y = r.bottom + 6;
     tip.visible = true;

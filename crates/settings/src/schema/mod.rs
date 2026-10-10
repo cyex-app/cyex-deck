@@ -21,12 +21,16 @@ pub use accounts::{Account, Accounts, TokenMeta, TokenSource};
 pub use appearance::{Appearance, TabBarSide, TabDensity, TabUnread};
 pub use browse::{Browse, HomeLayout, LiveSort, OfflineSort};
 pub use chat::{
-    BadgeToggles, Chat, DeletedStyle, GifMode, NameStyle, PaintToggles, PauseKey, Timestamps, UnlistedEmotes, UserNote,
+    BadgeToggles, Chat, DeletedStyle, GifMode, LinkThumbs, NameStyle, PaintToggles, PauseKey, Timestamps, UnlistedEmotes,
+    UserNote,
 };
-pub use commands::Commands;
+pub use commands::{Access, Automation, Commands, SavedTimer, TriggerMatch};
 pub use emotes::{EmoteKey, EmoteSource, EmoteUse, Emotes};
 pub use general::{ChatPosition, General};
-pub use highlights::Highlights;
+pub use highlights::{
+    Alert, AppRule, BadgeRule, Blocked, BlockedShow, BuiltIn, FilterDef, HiddenUser, Highlights, IgnoreRule, PhraseRule,
+    SentFrom, Similarity, UserRule,
+};
 pub use hotkeys::Hotkeys;
 pub use miner::Miner;
 pub use modview::Modview;

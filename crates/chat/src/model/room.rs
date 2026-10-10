@@ -113,6 +113,11 @@ pub enum RoomEvent {
         #[ts(as = "Vec<ChatMessage>")]
         messages: Vec<Arc<ChatMessage>>,
     },
+    /// C24 Messages missed while disconnected, to put in by time.
+    Gap {
+        #[ts(as = "Vec<ChatMessage>")]
+        messages: Vec<Arc<ChatMessage>>,
+    },
     State { state: RoomState },
     Status { status: ConnStatus },
 }

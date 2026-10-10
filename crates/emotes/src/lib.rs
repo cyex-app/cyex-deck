@@ -7,7 +7,6 @@ pub mod ffz;
 pub mod index;
 pub mod model;
 pub mod seventv;
-pub mod ws;
 
 pub use cosmetics::{BadgeDef, BadgeRef, Cosmetics, Look, Looks};
 pub use index::{Lookup, RoomEmotes};

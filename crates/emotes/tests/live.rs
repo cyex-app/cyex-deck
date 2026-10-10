@@ -4,7 +4,8 @@
 use std::time::Duration;
 
 use cyex_emotes::seventv::socket::{EventApi, Topic};
-use cyex_emotes::{bttv, ffz, seventv, ws};
+use cyex_emotes::{bttv, ffz, seventv};
+use cyex_twitch::ws;
 use cyex_twitch::Http;
 
 const XQC: &str = "71092938";

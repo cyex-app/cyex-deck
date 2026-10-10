@@ -22,9 +22,10 @@ use std::time::{Duration, Instant};
 use cyex_chat::model::Provider;
 use cyex_emotes::index::ordered;
 use cyex_emotes::seventv::socket::{EventApi, Topic as SevenTopic};
-use cyex_emotes::{Cosmetics, EmoteSet, Lookup, RoomEmotes, ws};
+use cyex_emotes::{Cosmetics, EmoteSet, Lookup, RoomEmotes};
 use cyex_settings::Partition;
 use cyex_settings::schema::{Chat as ChatSettings, EmoteSource};
+use cyex_twitch::ws;
 use tauri::{AppHandle, Manager};
 use tokio::sync::watch;
 

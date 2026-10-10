@@ -42,9 +42,10 @@ export class ChatRoom {
 
   constructor(readonly login: string) {}
 
-  async open(account: string | null): Promise<void> {
+  /** `filters`: F3 filter ids. */
+  async open(account: string | null, filters: string[] = []): Promise<void> {
     try {
-      const opened = await chatIpc.open(this.login, account, (events) =>
+      const opened = await chatIpc.open(this.login, account, filters, (events) =>
         this.early ? this.early.push(events) : this.apply(events),
       );
       if (this.closed) {
@@ -106,6 +107,10 @@ export class ChatRoom {
           changed = true;
           break;
         }
+        case 'gap':
+          list = mergeByTime(list, e.messages);
+          changed = true;
+          break;
         case 'pinned':
           this.pinned = e.pin;
           break;
@@ -119,6 +124,18 @@ export class ChatRoom {
     }
     if (changed) this.messages = list.length > MAX_LINES ? list.slice(-MAX_LINES) : list;
   }
+}
+
+/** C24 Missed messages go before the first chat line that's newer. */
+function mergeByTime(list: ChatMessage[], missed: ChatMessage[]): ChatMessage[] {
+  const known = new Set(list.map((m) => m.id));
+  const out = list.slice();
+  for (const m of missed) {
+    if (known.has(m.id)) continue;
+    const at = out.findIndex((x) => x.sender && x.ts > m.ts);
+    out.splice(at === -1 ? out.length : at, 0, m);
+  }
+  return out;
 }
 
 function deleted(m: ChatMessage): ChatMessage | null {

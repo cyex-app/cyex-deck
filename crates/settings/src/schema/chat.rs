@@ -14,6 +14,12 @@ const MAX_NOTE_CHARS: usize = 500;
 const MAX_HIDDEN_EMOTES: usize = 500;
 /// E3 Percent of the normal size.
 const EMOTE_SIZES: std::ops::RangeInclusive<u16> = 50..=300;
+/// C2 Percent alike that counts as a repeat.
+const REPEAT_SIMILARITY: std::ops::RangeInclusive<u8> = 60..=100;
+/// C19 Longest delay, in tenths of a second.
+const MAX_DELAY_TENTHS: u16 = 600;
+/// C17 A language code like `en` or `pt-BR`.
+const MAX_LANGUAGE_CHARS: usize = 10;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(default, rename_all = "camelCase")]
@@ -62,10 +68,28 @@ pub struct Chat {
     pub pause_key: PauseKey,
     /// C5 Mark where you stopped reading when the window loses focus.
     pub last_read_line: bool,
-    /// U6 Setting, off by default (D10).
-    pub mention_sound: bool,
-    /// U6 Setting, off by default (D10).
-    pub mention_flash: bool,
+    /// C2 One line with a count when someone repeats themselves. Setting, off.
+    pub repeats: bool,
+    /// C2 Percent alike that counts as a repeat.
+    pub repeat_similarity: u8,
+    /// C26 Show which app sent a message. Setting, off.
+    pub show_client: bool,
+    /// 1.52 Hover a link for a preview.
+    pub link_previews: bool,
+    /// 1.52
+    pub link_thumbnails: LinkThumbs,
+    /// C30 Link cards under messages too. Setting, off.
+    pub link_cards: bool,
+    /// C17 Language to translate into. Empty: the app's language.
+    pub translate_to: String,
+    /// C17 Chats (logins) whose messages are translated as they arrive.
+    pub translate_chats: Vec<String>,
+    /// C19 Hold chat back this long to match the stream, in tenths of a second. 0 is off.
+    pub delay_tenths: u16,
+    /// C18 Spell check in the message box. Setting, off.
+    pub spell_check: bool,
+    /// 1.42 Message effects and gigantified emotes as Twitch draws them.
+    pub effects: bool,
     /// C3 Local nicknames and notes, by user id.
     pub users: BTreeMap<String, UserNote>,
 }
@@ -94,8 +118,17 @@ impl Default for Chat {
             pause_on_hover: true,
             pause_key: PauseKey::Alt,
             last_read_line: true,
-            mention_sound: false,
-            mention_flash: false,
+            repeats: false,
+            repeat_similarity: 80,
+            show_client: false,
+            link_previews: true,
+            link_thumbnails: LinkThumbs::Medium,
+            link_cards: false,
+            translate_to: String::new(),
+            translate_chats: Vec::new(),
+            delay_tenths: 0,
+            spell_check: false,
+            effects: true,
             users: BTreeMap::new(),
         }
     }
@@ -118,6 +151,14 @@ impl Schema for Chat {
         self.emote_priority = order;
         self.emote_size = self.emote_size.clamp(*EMOTE_SIZES.start(), *EMOTE_SIZES.end());
         dedupe(&mut self.hidden_emotes, MAX_HIDDEN_EMOTES);
+        self.repeat_similarity = self.repeat_similarity.clamp(*REPEAT_SIMILARITY.start(), *REPEAT_SIMILARITY.end());
+        self.delay_tenths = self.delay_tenths.min(MAX_DELAY_TENTHS);
+        let lang = self.translate_to.trim();
+        let valid = lang.len() <= MAX_LANGUAGE_CHARS && lang.chars().all(|c| c.is_ascii_alphabetic() || c == '-');
+        self.translate_to = if valid { lang.to_owned() } else { String::new() };
+        self.translate_chats.retain(|c| !c.is_empty() && c.len() <= 25);
+        self.translate_chats.sort_unstable();
+        self.translate_chats.dedup();
         self.users.retain(|id, u| {
             u.nickname = u.nickname.trim().chars().take(MAX_NICKNAME_CHARS).collect();
             u.note = u.note.trim().chars().take(MAX_NOTE_CHARS).collect();
@@ -212,6 +253,18 @@ pub enum UnlistedEmotes {
     #[default]
     Blur,
     Show,
+}
+
+/// 1.52 Preview picture size: none, or 100, 200, 300 px wide (Chatterino's sizes).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum LinkThumbs {
+    Off,
+    Small,
+    #[default]
+    Medium,
+    Large,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
