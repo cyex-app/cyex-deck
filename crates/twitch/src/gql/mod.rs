@@ -15,6 +15,8 @@ mod follows;
 pub mod gifs;
 mod identity;
 pub mod miner;
+pub mod moderation;
+pub mod modlogs;
 mod playback;
 mod points;
 pub mod polls;
@@ -149,6 +151,29 @@ pub(crate) async fn persisted_or_raw(http: &Http, auth: Auth<'_>, op: (&str, &st
         }
         other => other,
     }
+}
+
+/// Twitch's GQL endpoint runs a JSON array of operations in one request (verified: 35 at
+/// most, more fails the batch whole). Answers come back in order, errors kept per entry.
+pub const BATCH_MAX: usize = 35;
+
+/// Runs several raw operations in one request. `ops` is (query, variables) each; the
+/// result is each operation's `data` or an `Err` carrying its first GQL error, in order.
+pub(crate) async fn batch(
+    http: &Http,
+    auth: Auth<'_>,
+    ops: &[(&str, Value)],
+) -> Result<Vec<Result<Value>>> {
+    if ops.is_empty() {
+        return Ok(Vec::new());
+    }
+    let body: Vec<Value> = ops
+        .iter()
+        .map(|(q, v)| json!({ "query": q, "variables": v }))
+        .collect();
+    let req = request(http, auth).json(&body);
+    let responses: Vec<Response<Value>> = send_json(req).await?;
+    Ok(responses.into_iter().map(unwrap).collect())
 }
 
 /// Signed-in requests look like the Android TV app's: the tools that redeem rewards with

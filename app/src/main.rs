@@ -11,6 +11,7 @@ mod emotes;
 mod hermes;
 mod icons;
 mod miner;
+mod moderation;
 mod player;
 mod settings;
 mod tabs;
@@ -40,6 +41,7 @@ fn main() {
             player::init(handle);
             browse::init(handle);
             miner::init(handle);
+            moderation::init(handle);
             windows::init(handle)?;
             tray::init(handle)?;
             Ok(())

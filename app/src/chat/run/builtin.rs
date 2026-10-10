@@ -174,9 +174,31 @@ pub async fn run(
             done
         }
         "w" | "whisper" => Err("Whispers come in a later update.".into()),
-        _ if MOD_COMMANDS.contains(&name) => Err("Mod commands come with the mod tools.".into()),
+        "nuke" => {
+            let account = place.account().ok_or("Sign in to use /nuke.")?.to_owned();
+            crate::moderation::nuke::run(app, &account, place.channel(), args).await?;
+            done
+        }
+        _ if is_mod_command(name) => run_mod(app, place, name, args).await,
         _ => Err(format!("Unknown command /{name}. /help lists them.")),
     }
+}
+
+/// Twitch's own mod and broadcaster commands (1.49, 1.50), run through `moderation`.
+fn is_mod_command(name: &str) -> bool {
+    cyex_moderation::command::NAMES.contains(&name) || MOD_COMMANDS.contains(&name)
+}
+
+async fn run_mod(app: &AppHandle, place: &Place, name: &str, args: &str) -> Result<Option<UiAction>, String> {
+    let account = place.account().ok_or("Sign in with a moderator account to use that.")?.to_owned();
+    let Some(parsed) = cyex_moderation::command::parse(name, args) else {
+        return Err(format!("/{name} isn't supported yet."));
+    };
+    let cmd = parsed?;
+    if let Some(line) = crate::moderation::run::command(app, &account, place.channel(), cmd).await? {
+        local(app, &place.key, NoticeKind::Info, &line);
+    }
+    Ok(None)
 }
 
 fn login_arg(args: &str) -> Result<String, String> {

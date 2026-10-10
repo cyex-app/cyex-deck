@@ -96,12 +96,70 @@ pub(crate) async fn empty(req: RequestBuilder) -> Result<()> {
 }
 
 async fn body(req: RequestBuilder) -> Result<Vec<u8>> {
-    let res = req.send().await.map_err(Error::Network)?;
+    limited(req).await.0
+}
+
+/// Helix's points bucket after a request (`Ratelimit-*` headers), per token.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RateLimit {
+    pub limit: u32,
+    pub remaining: u32,
+    /// Unix seconds when the bucket is full again.
+    pub reset: i64,
+}
+
+impl RateLimit {
+    fn read(headers: &reqwest::header::HeaderMap) -> Option<Self> {
+        let num = |k: &str| headers.get(k)?.to_str().ok()?.trim().parse::<i64>().ok();
+        Some(Self {
+            limit: u32::try_from(num("ratelimit-limit")?).ok()?,
+            remaining: u32::try_from(num("ratelimit-remaining")?).ok()?,
+            reset: num("ratelimit-reset")?,
+        })
+    }
+}
+
+/// Like `body`, plus the rate limit Twitch reported, if any (mod tools pace by it).
+pub(crate) async fn limited(req: RequestBuilder) -> (Result<Vec<u8>>, Option<RateLimit>) {
+    let res = match req.send().await {
+        Ok(r) => r,
+        Err(e) => return (Err(Error::Network(e)), None),
+    };
     let status = res.status();
-    let body = res.bytes().await.map_err(Error::Network)?;
-    if status.is_success() {
+    let limit = RateLimit::read(res.headers());
+    let body = match res.bytes().await {
+        Ok(b) => b,
+        Err(e) => return (Err(Error::Network(e)), limit),
+    };
+    let out = if status.is_success() {
         Ok(body.to_vec())
     } else {
         Err(Error::api(status.as_u16(), &body))
+    };
+    (out, limit)
+}
+
+#[cfg(test)]
+mod tests {
+    use reqwest::header::{HeaderMap, HeaderValue};
+
+    use super::RateLimit;
+
+    #[test]
+    fn rate_limit_headers() {
+        let mut h = HeaderMap::new();
+        h.insert("Ratelimit-Limit", HeaderValue::from_static("800"));
+        h.insert("Ratelimit-Remaining", HeaderValue::from_static("799"));
+        h.insert("Ratelimit-Reset", HeaderValue::from_static("1760000000"));
+        assert_eq!(
+            RateLimit::read(&h),
+            Some(RateLimit {
+                limit: 800,
+                remaining: 799,
+                reset: 1_760_000_000
+            })
+        );
+        h.remove("Ratelimit-Reset");
+        assert_eq!(RateLimit::read(&h), None);
     }
 }

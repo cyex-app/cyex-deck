@@ -15,9 +15,11 @@
   import { toast } from '../../lib/toast.svelte';
   import { catalogs } from '../chat/catalog.svelte';
   import Line from '../chat/Line.svelte';
+  import { modIpc } from '../../ipc/moderation';
   import Actions from './Actions.svelte';
   import Facts from './Facts.svelte';
   import Logs from './Logs.svelte';
+  import ModSection from './ModSection.svelte';
 
   let { route }: { route: string; popout?: boolean } = $props();
 
@@ -29,6 +31,12 @@
   let profile = $state<Profile | null | undefined>(undefined);
   let messages = $state.raw<ChatMessage[]>([]);
   let error = $state('');
+  // 1.57 The account (if any) that moderates this channel, for the mod section.
+  let modAccount = $state<string | null>(null);
+  // svelte-ignore state_referenced_locally
+  if (channel && login !== channel) {
+    void modIpc.moderating(channel).then((a) => (modAccount = a)).catch(() => {});
+  }
 
   const note = $derived(profile ? settings.v.chat.users[profile.id] : undefined);
   const localized = $derived(profile ? profile.displayName.toLowerCase() !== profile.login : false);
@@ -109,6 +117,7 @@
       <button class="link" onclick={() => systemIpc.openLink(`https://www.twitch.tv/${profile!.login}`)}>
         <Icon name="popout" size={13} /> Open profile on Twitch
       </button>
+      {#if modAccount}<ModSection {profile} {channel} account={modAccount} />{/if}
       <Actions {profile} {channel} />
     {/if}
 

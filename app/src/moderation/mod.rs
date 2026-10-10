@@ -1,0 +1,111 @@
+//! Moderation (spec 09) wired to Tauri. Actions go through Helix when the account has the
+//! mod scopes, else the matching raw GQL mutations, so a GQL-only account can still
+//! moderate (D25). The role gate (1.57) decides whether any mod control shows. EventSub
+//! feeds live in `feeds`; the mod view in `view`; mass actions in `massban` and `nuke`.
+
+pub mod codes;
+pub mod feeds;
+pub mod massban;
+pub mod nuke;
+pub mod queue;
+pub mod run;
+pub mod view;
+
+use cyex_twitch::gql;
+use cyex_twitch::helix;
+use tauri::{AppHandle, Manager};
+
+use crate::auth::{self, Auth};
+
+pub fn init(app: &AppHandle) {
+    view::init(app);
+    feeds::init(app);
+    massban::init(app);
+}
+
+/// The role an account holds in a channel. Ordered: a broadcaster can do everything a mod can.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Role {
+    Moderator,
+    Broadcaster,
+}
+
+/// The account's role in a channel, from its open chat's USERSTATE (1.57). Lead mods wear
+/// the `lead_moderator` badge, which chat already folds into `moderator`.
+pub fn role(app: &AppHandle, account: &str, login: &str) -> Option<Role> {
+    let own = crate::chat::own_state(app, account, login)?;
+    if own.broadcaster {
+        Some(Role::Broadcaster)
+    } else if own.moderator {
+        Some(Role::Moderator)
+    } else {
+        None
+    }
+}
+
+/// The channel id for a login, from an open room's state or the chat catalog.
+pub fn channel_id(app: &AppHandle, login: &str) -> Option<String> {
+    crate::chat::channel_id_of(app, login)
+        .or_else(|| crate::chat::catalog::cached(app, &login.to_ascii_lowercase()).map(|c| c.channel_id.clone()))
+}
+
+fn http(app: &AppHandle) -> cyex_twitch::Http {
+    app.state::<Auth>().http.clone()
+}
+
+/// How an account moderates: its tokens and ids, resolved once per action.
+pub struct Actor {
+    pub account: String,
+    pub channel_id: String,
+    helix: Option<(String, String)>,
+    gql: Option<(String, String)>,
+}
+
+impl Actor {
+    /// The Helix auth, only when the token carries `scope`.
+    pub fn helix_scoped<'a>(&'a self, app: &AppHandle, scope: &str) -> Option<helix::Auth<'a>> {
+        auth::helix_scoped(app, &self.account, scope)?;
+        self.helix.as_ref().map(|(token, client_id)| helix::Auth { client_id, token })
+    }
+
+    /// Any usable Helix mod token (our sign-in asks for every mod scope at once, so a
+    /// Helix token has them; a pasted one short of a scope gets a 403 from Twitch).
+    pub fn helix_any(&self) -> Option<(helix::Auth<'_>, helix::Room<'_>)> {
+        self.helix.as_ref().map(|(token, client_id)| {
+            (helix::Auth { client_id, token }, self.room())
+        })
+    }
+
+    pub fn gql(&self) -> Option<gql::Auth<'_>> {
+        self.gql.as_ref().map(|(token, client_id)| gql::Auth {
+            client_id,
+            token: Some(token),
+        })
+    }
+
+    pub fn room(&self) -> helix::Room<'_> {
+        helix::Room {
+            broadcaster_id: &self.channel_id,
+            moderator_id: &self.account,
+        }
+    }
+}
+
+/// Resolves the acting account's tokens for a channel, or says why it can't moderate.
+pub fn actor(app: &AppHandle, account: &str, login: &str) -> Result<Actor, String> {
+    if role(app, account, login).is_none() {
+        return Err("You're not a moderator here.".into());
+    }
+    let channel_id = channel_id(app, login).ok_or("Still loading this channel.")?;
+    let helix = auth::helix_token(app, account);
+    let gql = auth::gql_token(app, account);
+    if helix.is_none() && gql.is_none() {
+        return Err("This account can't moderate. Sign in again in Settings → Accounts.".into());
+    }
+    Ok(Actor {
+        account: account.to_owned(),
+        channel_id,
+        helix,
+        gql,
+    })
+}

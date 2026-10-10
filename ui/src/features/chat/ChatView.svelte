@@ -37,6 +37,8 @@
   import SearchPopup from './SearchPopup.svelte';
   import { votes } from './votes.svelte';
   import VotesBanner from './VotesBanner.svelte';
+  import { popOut } from '../../app/panels';
+  import { mods } from '../modview/moderation.svelte';
 
   interface Props {
     login: string;
@@ -141,6 +143,8 @@
 
   const translating = $derived(settings.v.chat.translateChats.includes(login));
   const muted = $derived(settings.v.highlights.muted.includes(login));
+  // 1.46 The shield shows only when this account moderates here.
+  const modRole = $derived(mods.role(account, login));
 
   /** Adds or removes this chat from a list setting. */
   const toggled = (list: string[], on: boolean) => (on ? [...list, login] : list.filter((l) => l !== login));
@@ -242,6 +246,14 @@
         <span class="mode" use:tooltip={{ label: m.label, hint: m.hint }}>{m.label}</span>
       {/each}
     </div>
+    {#if modRole}
+      <IconButton
+        icon="shield"
+        label="Mod view"
+        size={15}
+        onclick={() => void popOut(`modview/${login}`, `Mod view · ${login}`)}
+      />
+    {/if}
     <IconButton icon="more" label="More" size={15} onclick={more} />
     {@render actions?.()}
   </header>

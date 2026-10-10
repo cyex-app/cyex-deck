@@ -331,6 +331,8 @@ pub fn close(app: &AppHandle, view: u32) {
     if counted {
         crate::connections::notify(app);
     }
+    // A closed channel may end this account's mod feeds (1.46).
+    crate::moderation::feeds::sync(app);
 }
 
 /// 1.10 The rooms the tabs want joined, as (account, login). Joins new ones and leaves
@@ -367,6 +369,7 @@ pub fn hold(app: &AppHandle, wanted: &[(Option<String>, String)]) {
     for (key, full) in joined {
         after_join(app, key, full);
     }
+    crate::moderation::feeds::sync(app);
 }
 
 /// Closes every view a window had, e.g. a popped-out chat that was closed.
@@ -406,6 +409,53 @@ pub fn local_line(app: &AppHandle, key: &RoomKey, kind: NoticeKind, text: &str) 
         let ev = entry.room.system(kind, text, now_ms());
         queue(entry, [ev], &chat.wake);
     }
+}
+
+/// 1.57 The account's own role flags in a channel, from its open room's USERSTATE.
+pub fn own_state(app: &AppHandle, account: &str, login: &str) -> Option<cyex_chat::model::SelfState> {
+    let chat = app.try_state::<Chat>()?;
+    let key = (Identity::Account(account.to_owned()), login.to_ascii_lowercase());
+    chat.lock().rooms.get(&key)?.room.state.own.clone()
+}
+
+/// The channel id for a login, from whichever open room knows it.
+pub fn channel_id_of(app: &AppHandle, login: &str) -> Option<String> {
+    let chat = app.try_state::<Chat>()?;
+    let login = login.to_ascii_lowercase();
+    let inner = chat.lock();
+    inner
+        .rooms
+        .iter()
+        .find(|((_, l), _)| *l == login)
+        .and_then(|(_, e)| e.room.state.channel_id.clone())
+}
+
+/// (account id, login) for every open room where the account is broadcaster or mod (1.46).
+pub fn moderated_open(app: &AppHandle) -> Vec<(String, String)> {
+    let Some(chat) = app.try_state::<Chat>() else { return Vec::new() };
+    let inner = chat.lock();
+    inner
+        .rooms
+        .iter()
+        .filter_map(|((identity, login), e)| {
+            let Identity::Account(acc) = identity else { return None };
+            e.room.state.own.as_ref().filter(|o| o.privileged()).map(|_| (acc.clone(), login.clone()))
+        })
+        .collect()
+}
+
+/// A channel's buffered messages, from whichever open room has the most (for `/nuke`).
+pub fn messages_of(app: &AppHandle, login: &str) -> Vec<Arc<ChatMessage>> {
+    let Some(chat) = app.try_state::<Chat>() else { return Vec::new() };
+    let login = login.to_ascii_lowercase();
+    let inner = chat.lock();
+    inner
+        .rooms
+        .iter()
+        .filter(|((_, l), _)| *l == login)
+        .map(|(_, e)| e.room.snapshot().messages)
+        .max_by_key(Vec::len)
+        .unwrap_or_default()
 }
 
 /// The room for `channel`, read by `identity` if it's joined that way, else any.
@@ -528,6 +578,6 @@ fn budget<T>(app: &AppHandle, f: impl FnOnce(&mut HashMap<String, cyex_chat::Joi
 }
 
 /// Unix milliseconds.
-fn now_ms() -> i64 {
+pub(crate) fn now_ms() -> i64 {
     (time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64
 }

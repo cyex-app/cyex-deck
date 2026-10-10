@@ -787,12 +787,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "cyex-eventsub"
+version = "0.1.0"
+dependencies = [
+ "futures-util",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+ "ts-rs",
+]
+
+[[package]]
 name = "cyex-miner"
 version = "0.1.0"
 dependencies = [
  "cyex-settings",
  "serde",
  "serde_json",
+ "ts-rs",
+]
+
+[[package]]
+name = "cyex-moderation"
+version = "0.1.0"
+dependencies = [
+ "cyex-chat",
+ "cyex-core",
+ "cyex-eventsub",
+ "cyex-twitch",
+ "regex",
+ "serde",
  "ts-rs",
 ]
 
@@ -846,7 +871,9 @@ dependencies = [
  "cyex-chat",
  "cyex-core",
  "cyex-emotes",
+ "cyex-eventsub",
  "cyex-miner",
+ "cyex-moderation",
  "cyex-player",
  "cyex-settings",
  "cyex-twitch",

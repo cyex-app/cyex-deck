@@ -21,4 +21,4 @@ pub mod usher;
 pub mod ws;
 
 pub use error::{Error, Result};
-pub use http::Http;
+pub use http::{Http, RateLimit};

@@ -6,6 +6,7 @@ mod chat;
 mod chat_extra;
 mod emotes;
 mod miner;
+mod moderation;
 mod player;
 mod rules;
 mod settings;
@@ -84,6 +85,21 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         usercard::user_logs,
         usercard::usercard_run,
         usercard::user_blocked,
+        moderation::mod_role,
+        moderation::mod_moderating,
+        moderation::mod_run,
+        moderation::mod_channel_id,
+        moderation::mod_view,
+        moderation::mod_automod,
+        moderation::mod_unban_requests,
+        moderation::mod_resolve_unban,
+        moderation::mod_history,
+        moderation::mod_comment_add,
+        moderation::mod_comment_delete,
+        moderation::mod_chatters,
+        moderation::mod_nuke_preview,
+        moderation::mod_massban,
+        moderation::mod_massban_stop,
         emotes::emotes_looks,
         emotes::emotes_menu,
         emotes::emotes_card,

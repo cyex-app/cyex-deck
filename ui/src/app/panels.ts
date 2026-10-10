@@ -5,6 +5,7 @@
 import type { Component } from 'svelte';
 
 import RecordingView from '../features/chat/RecordingView.svelte';
+import ModViewPanel from '../features/modview/ModViewPanel.svelte';
 import SettingsView from '../features/settings/SettingsView.svelte';
 import ChatPanel from '../features/tabs/ChatPanel.svelte';
 import TabPanel from '../features/tabs/TabPanel.svelte';
@@ -28,6 +29,7 @@ export const PANELS: Record<string, PanelKind> = {
   chat: { title: 'Chat', width: 380, height: 680, component: ChatPanel },
   usercard: { title: 'User', width: 340, height: 480, compact: true, component: UsercardView },
   recording: { title: 'Recording', width: 400, height: 640, component: RecordingView },
+  modview: { title: 'Mod view', width: 920, height: 680, component: ModViewPanel },
 };
 
 export function panelFor(route: string): PanelKind | undefined {
@@ -46,6 +48,7 @@ export function titleFor(route: string): string {
     if (tile) return `${tile.channel.name} chat`;
   }
   if (kind === 'usercard' && b) return b;
+  if (kind === 'modview' && a) return `Mod view · ${a}`;
   return PANELS[kind]?.title ?? 'cyex';
 }
 

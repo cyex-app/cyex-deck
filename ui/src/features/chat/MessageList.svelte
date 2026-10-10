@@ -20,6 +20,7 @@
   import EmoteCard from '../emotes/EmoteCard.svelte';
   import type { CardTarget } from '../emotes/emotes';
   import { hidden } from '../emotes/hidden.svelte';
+  import { messageItems, mods, userItems } from '../modview/moderation.svelte';
   import Line from './Line.svelte';
   import { runEntry, toItems, userMenus } from './menus.svelte';
   import { plainText } from './text';
@@ -201,15 +202,19 @@
     };
   }
 
-  /** Right-click a name: usercard, mention, search, hide or block, your own entries (S1). */
+  /** Right-click a name: usercard, mention, search, mod actions, hide or block, your own (S1). */
   function userMenu(e: MouseEvent, login: string, m: ChatMessage | undefined) {
     const own = userMenus.current.user;
     const ctx = context(m, login);
+    // 1.57 Mod actions only when this account moderates here, and not on the broadcaster.
+    const role = mods.role(room.account, room.login);
+    const canMod = role && login !== room.login;
     openMenu(e, [
       { label: 'Usercard', icon: 'user', run: () => chatIpc.openUsercard(room.login, login).catch(() => {}) },
       { label: 'Mention', icon: 'reply', run: () => onmention?.(login) },
       { label: 'Their messages', icon: 'search', run: () => onaction?.({ type: 'search', query: `from:${login}` }) },
       { label: 'Copy name', icon: 'copy', run: () => void navigator.clipboard.writeText(login) },
+      ...(canMod ? ['separator' as const, ...userItems(role, login, command)] : []),
       'separator',
       { label: 'Hide for me', icon: 'eyeOff', hint: 'Only for you, not on Twitch', run: () => command(`/hideuser ${login}`) },
       ...(room.account ? [{ label: 'Block on Twitch', icon: 'ban' as const, danger: true, run: () => command(`/block ${login}`) }] : []),
@@ -222,6 +227,8 @@
     const own = userMenus.current.message;
     const login = m.sender?.login ?? '';
     const ctx = context(m, login);
+    const role = mods.role(room.account, room.login);
+    const canMod = role && m.sender && !m.notice && login !== room.login;
     openMenu(e, [
       ...(canReply && m.sender && !m.notice ? [{ label: 'Reply', icon: 'reply' as const, run: () => onreply(m.id) }] : []),
       { label: 'Copy message', icon: 'copy', run: () => void navigator.clipboard.writeText(plainText(m.body)) },
@@ -235,6 +242,7 @@
             { label: 'Their messages', icon: 'search' as const, run: () => onaction?.({ type: 'search', query: `from:${login}` }) },
           ]
         : []),
+      ...(canMod ? ['separator' as const, ...messageItems(m.id, command), ...userItems(role, login, command)] : []),
       ...(own.length ? ['separator' as const, ...toItems(own, (cmd) => runEntry(room.view, cmd, ctx, onaction))] : []),
     ]);
   }

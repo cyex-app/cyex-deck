@@ -141,6 +141,8 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
             }
         });
         crate::connections::notify(app);
+        // 1.46 A role change here may open or close this account's mod feeds.
+        crate::moderation::feeds::sync(app);
     }
     let muted = super::rules::current(app).muted(channel);
     for (m, outcome) in outcomes {
