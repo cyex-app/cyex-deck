@@ -14,6 +14,7 @@ pub mod roles;
 pub mod stats;
 mod users;
 pub mod votes;
+pub mod whispers;
 
 pub use chat::{set_chat_color, user_emotes};
 pub use clips::{CreatedClip, create_clip};

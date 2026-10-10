@@ -1,7 +1,7 @@
 //! Hermes, Twitch's websocket for the old PubSub topics (`docs/research/twitch-api.md`).
 //! Channel topics are read anonymously: polls and predictions (C4), celebrations (1.42),
 //! pins and redemptions (1.9), and what the miner follows (08). User topics (points,
-//! your bets) need a signed-in connection: welcome, then `authenticate`, then topics.
+//! your bets, whispers and the bell) need a signed-in connection: welcome, then `authenticate`, then topics.
 //! Subscription ids encode their topic, so a notification names its channel.
 
 use std::time::Duration;
@@ -11,6 +11,7 @@ use serde_json::{Value, json};
 use tokio::sync::mpsc;
 
 use crate::clients;
+use crate::clock::now_iso;
 use crate::ws::{Protocol, Step};
 
 /// Twitch asks for a keepalive every 15 s; two missed ones end the connection.
@@ -36,9 +37,13 @@ pub enum Kind {
     UserPoints,
     /// The user's bets and their results. Signed in only.
     UserPredictions,
+    /// 1.26 The user's whispers, sent and received, and thread changes. Signed in only.
+    Whispers,
+    /// 1.26 The user's bell (onsite notifications). Signed in only.
+    Onsite,
 }
 
-const KINDS: [Kind; 10] = [
+const KINDS: [Kind; 12] = [
     Kind::Polls,
     Kind::Predictions,
     Kind::Celebrations,
@@ -49,6 +54,8 @@ const KINDS: [Kind; 10] = [
     Kind::Moments,
     Kind::UserPoints,
     Kind::UserPredictions,
+    Kind::Whispers,
+    Kind::Onsite,
 ];
 
 impl Kind {
@@ -64,6 +71,8 @@ impl Kind {
             Kind::Moments => "community-moments-channel-v1.",
             Kind::UserPoints => "community-points-user-v1.",
             Kind::UserPredictions => "predictions-user-v1.",
+            Kind::Whispers => "whispers.",
+            Kind::Onsite => "onsite-notifications.",
         }
     }
 
@@ -79,6 +88,8 @@ impl Kind {
             Kind::Moments => 'm',
             Kind::UserPoints => 'u',
             Kind::UserPredictions => 'b',
+            Kind::Whispers => 'w',
+            Kind::Onsite => 'o',
         }
     }
 
@@ -229,31 +240,6 @@ fn authenticate(token: &str) -> String {
     .to_string()
 }
 
-/// UTC now as `2026-10-10T08:59:33.045Z`; Hermes wants the milliseconds.
-fn now_iso() -> String {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default();
-    let (secs, ms) = (now.as_secs() as i64, now.subsec_millis());
-    let (days, rest) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
-    // Days to a civil date (Howard Hinnant's algorithm).
-    let z = days + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    let y = yoe + era * 400 + i64::from(m <= 2);
-    format!(
-        "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}.{ms:03}Z",
-        rest / 3600,
-        rest % 3600 / 60,
-        rest % 60
-    )
-}
-
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Frame {
@@ -291,13 +277,6 @@ impl Notification {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn iso_time_looks_right() {
-        let t = now_iso();
-        assert_eq!((t.len(), &t[4..5], &t[10..11], &t[19..20]), (24, "-", "T", "."));
-        assert!(t.starts_with("20"));
-    }
 
     #[test]
     fn frames() {

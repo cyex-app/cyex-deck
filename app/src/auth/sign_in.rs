@@ -85,6 +85,8 @@ pub fn remove_account(app: &AppHandle, user_id: &str) -> Result<(), String> {
         roster::remove_account(a, user_id);
         true
     })?;
+    // 3.8 Its Twitch-page sign-in goes too.
+    crate::windows::twitch::forget(app, user_id);
     notify(app);
     Ok(())
 }

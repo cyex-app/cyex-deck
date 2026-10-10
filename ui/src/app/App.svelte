@@ -10,6 +10,8 @@
   import TooltipHost from '../components/TooltipHost.svelte';
   import WindowChrome from '../components/WindowChrome.svelte';
   import AccountMenu from '../features/accounts/AccountMenu.svelte';
+  import BellButton from '../features/bell/BellButton.svelte';
+  import { follow } from '../features/bell/follow';
   import ConnectionCounter from '../features/accounts/ConnectionCounter.svelte';
   import DiscoverView from '../features/discover/DiscoverView.svelte';
   import HomeView from '../features/home/HomeView.svelte';
@@ -17,6 +19,9 @@
   import MinerView from '../features/miner/MinerView.svelte';
   import SettingsView from '../features/settings/SettingsView.svelte';
   import StreamManagerView from '../features/streammanager/StreamManagerView.svelte';
+  import SubsView from '../features/subs/SubsView.svelte';
+  import { whispers } from '../features/whispers/whispers.svelte';
+  import WhispersView from '../features/whispers/WhispersView.svelte';
   import { openAdd } from '../features/tabs/dialog.svelte';
   import PoppedOut from '../features/tabs/PoppedOut.svelte';
   import Switcher from '../features/tabs/Switcher.svelte';
@@ -24,18 +29,22 @@
   import TabOverlays from '../features/tabs/TabOverlays.svelte';
   import TabView from '../features/tabs/TabView.svelte';
   import { openTarget, playerHotkeys } from '../features/player/players.svelte';
+  import { openChannel } from '../features/browse/open.svelte';
   import { tabs, tiles } from '../features/tabs/tabs.svelte';
   import type { LinkTarget } from '../ipc/bindings/LinkTarget';
   import { chatIpc } from '../ipc/chat';
+  import { notifyEvents } from '../ipc/notify';
+  import { tabsIpc } from '../ipc/tabs';
   import { accounts } from '../lib/accounts.svelte';
   import { useHotkeys } from '../lib/hotkeys.svelte';
   import { settings } from '../lib/settings.svelte';
   import { mentionChime } from '../lib/sound';
+  import { toast } from '../lib/toast.svelte';
   import { currentWindow } from '../lib/window.svelte';
   import { popOut } from './panels';
   import { useRootEffects } from './root.svelte';
 
-  type Fixed = 'home' | 'discover' | 'miner' | 'streamManager' | 'settings';
+  type Fixed = 'home' | 'discover' | 'miner' | 'streamManager' | 'whispers' | 'subs' | 'settings';
 
   /** A fixed view, or `null` while a tab shows. */
   let fixed = $state<Fixed | null>(tabs.active ? null : 'home');
@@ -51,6 +60,8 @@
   const canMine = $derived(accounts.list.some((a) => a.features.includes('miner')));
   /** 10 The stream manager shows once an account can run its own channel (D26). */
   const canManage = $derived(accounts.list.some((a) => a.features.includes('streamManager')));
+  /** 1.26 Whispers show once the default account can whisper. */
+  const canWhisper = $derived(accounts.can('whispers'));
 
   // Follow the active tab when an edit moves it, e.g. closing the shown tab.
   $effect(() => {
@@ -69,6 +80,7 @@
     'nav.discover': () => show('discover'),
     'nav.miner': () => canMine && show('miner'),
     'nav.streamManager': () => canManage && show('streamManager'),
+    'nav.whispers': () => canWhisper && show('whispers'),
     'settings.open': () => show('settings'),
     'window.pin': () => currentWindow.togglePin(),
     'tabs.switcher': () => (switcher = true),
@@ -87,6 +99,30 @@
   $effect(() => {
     const off = chatIpc.onMention(() => mentionChime());
     return () => void off.then((f) => f());
+  });
+
+  $effect(() => {
+    void whispers.start();
+  });
+
+  // 1.26 Someone asked for a conversation: a name's menu, an inline line, `/w`.
+  $effect(() => {
+    if (whispers.asks) untrack(() => show('whispers'));
+  });
+
+  // 2.2, 1.26 Toasts: a click opens the channel, the conversation or the link; the sound
+  // plays here.
+  $effect(() => {
+    const open = notifyEvents.onOpen((o) => {
+      if (o.kind === 'channel') void openLogin(o.login);
+      else if (o.kind === 'whisper') whispers.show(o.login);
+      else follow(o.url, (l) => void openLogin(l));
+    });
+    const sound = notifyEvents.onSound(() => mentionChime());
+    return () => {
+      void open.then((f) => f());
+      void sound.then((f) => f());
+    };
   });
 
   // 1.58 A clip or VOD linked in a popped-out chat opens with the stream here.
@@ -121,6 +157,17 @@
     open(list[next].id);
   }
 
+  /** Opens a channel by login, as a tab of its own. */
+  async function openLogin(login: string) {
+    try {
+      const c = (await tabsIpc.lookup(login)).find((x) => x.login === login.toLowerCase());
+      if (!c) return toast.error(`No channel called ${login}.`);
+      await openChannel({ show: open, account: () => accounts.current?.userId ?? null }, c);
+    } catch (e) {
+      toast.error(String(e));
+    }
+  }
+
   function manageAccounts() {
     settingsSection = 'accounts';
     show('settings');
@@ -137,6 +184,10 @@
 
   async function popOutManager() {
     if (await popOut('streammanager')) show('home');
+  }
+
+  async function popOutWhispers() {
+    if (await popOut('whispers')) show('home');
   }
 </script>
 
@@ -181,8 +232,21 @@
   {/snippet}
   {#snippet end()}
     <IconButton icon="search" label="Go to" hint="Jump to a tab or open a channel (Ctrl+K)." onclick={() => (switcher = true)} />
+    <BellButton onchannel={(l) => void openLogin(l)} />
+    {#if canWhisper}
+      <div class="with-count">
+        <IconButton
+          icon="whisper"
+          label="Whispers"
+          hint={whispers.state.unread ? `${whispers.state.unread} unread` : 'Your whispers (Ctrl+5).'}
+          active={fixed === 'whispers'}
+          onclick={() => show('whispers')}
+        />
+        {#if whispers.state.unread}<span class="count">{whispers.state.unread > 99 ? '99+' : whispers.state.unread}</span>{/if}
+      </div>
+    {/if}
     <ConnectionCounter />
-    <AccountMenu onmanage={manageAccounts} />
+    <AccountMenu onmanage={manageAccounts} onsubs={() => show('subs')} />
     <IconButton icon="settings" label="Settings" active={fixed === 'settings'} onclick={() => show('settings')} />
   {/snippet}
 </WindowChrome>
@@ -208,6 +272,10 @@
       <MinerView onsettings={minerSettings} onsignin={manageAccounts} />
     {:else if fixed === 'streamManager' && canManage}
       <StreamManagerView onpopout={popOutManager} onsignin={manageAccounts} />
+    {:else if fixed === 'whispers' && canWhisper}
+      <WhispersView onpopout={popOutWhispers} onsignin={manageAccounts} />
+    {:else if fixed === 'subs'}
+      <SubsView onchannel={(c) => void openChannel({ show: open, account: () => accounts.current?.userId ?? null }, c)} onsignin={manageAccounts} />
     {:else if fixed === 'settings'}
       <SettingsView onpopout={popOutSettings} bind:section={settingsSection} />
     {:else}
@@ -231,6 +299,26 @@
     padding-right: 8px;
     margin-right: 4px;
     border-right: 1px solid var(--border);
+  }
+  .with-count {
+    position: relative;
+  }
+  .count {
+    position: absolute;
+    top: 1px;
+    right: 0;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 15px;
+    text-align: center;
+    pointer-events: none;
+    box-shadow: 0 0 0 2px var(--bg);
   }
   .body {
     flex: 1;

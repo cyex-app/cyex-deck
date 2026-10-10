@@ -1,7 +1,7 @@
 //! 1.11 Follow and unfollow. Helix can't do this anymore, so it needs the account's GQL
 //! token. Raw mutations, schema-checked 2026/10/09 (moltorino7 and FFZ use the same).
 //! 1.6 Who the account follows, for home: raw `currentUser` queries, schema-checked
-//! 2026/10/10.
+//! 2026/10/10. 2.2 Live alerts read the same list with each channel's Twitch bell.
 
 use serde::Deserialize;
 use serde_json::json;
@@ -148,6 +148,80 @@ pub async fn followed_live(http: &Http, auth: Auth<'_>) -> Result<Option<Vec<Cha
         let data: Me<LiveFollows> = query(http, auth, &q, json!({ "after": after })).await?;
         let Some(me) = data.current_user else { return Ok(None) };
         let Some(page) = me.followed_live_users.map(|c| c.into_page(|n| Some(ChannelCard::from(n)))) else {
+            break;
+        };
+        out.extend(page.items);
+        after = page.cursor;
+        if after.is_none() {
+            break;
+        }
+    }
+    Ok(Some(out))
+}
+
+/// 2.2 A followed channel live now, and whether its Twitch bell (live notifications) is on.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LiveAlert {
+    pub card: ChannelCard,
+    pub bell: bool,
+}
+
+#[derive(Deserialize)]
+struct BellNode {
+    #[serde(flatten)]
+    card: RawCard,
+    #[serde(rename = "self")]
+    me: Option<BellSelf>,
+}
+
+#[derive(Deserialize)]
+struct BellSelf {
+    follower: Option<BellFollower>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BellFollower {
+    notification_settings: Option<BellSettings>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BellSettings {
+    #[serde(default)]
+    is_enabled: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LiveBells {
+    followed_live_users: Option<RawConnection<BellNode>>,
+}
+
+/// 2.2 Followed channels live now with their bell state, for live alerts. One call
+/// answers both, the way Xtra decides its alerts.
+pub async fn followed_live_alerts(http: &Http, auth: Auth<'_>) -> Result<Option<Vec<LiveAlert>>> {
+    let q = format!(
+        "query($after: Cursor) {{ currentUser {{ followedLiveUsers(first: 100, after: $after, sort: RELEVANCE) {{          edges {{ cursor node {{ ...Card self {{ follower {{ notificationSettings {{ isEnabled }} }} }} }} }}          pageInfo {{ hasNextPage }} }} }} }} {CARD}"
+    );
+    let mut out = Vec::new();
+    let mut after: Option<String> = None;
+    for _ in 0..MAX_PAGES {
+        let data: Me<LiveBells> = query(http, auth, &q, json!({ "after": after })).await?;
+        let Some(me) = data.current_user else { return Ok(None) };
+        let Some(page) = me.followed_live_users.map(|c| {
+            c.into_page(|n| {
+                let bell = n
+                    .me
+                    .and_then(|s| s.follower)
+                    .and_then(|f| f.notification_settings)
+                    .is_some_and(|s| s.is_enabled);
+                Some(LiveAlert {
+                    card: ChannelCard::from(n.card),
+                    bell,
+                })
+            })
+        }) else {
             break;
         };
         out.extend(page.items);

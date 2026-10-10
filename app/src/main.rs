@@ -2,7 +2,9 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod alerts;
 mod auth;
+mod bell;
 mod browse;
 mod chat;
 mod commands;
@@ -13,10 +15,14 @@ mod icons;
 mod miner;
 mod moderation;
 mod player;
+mod profile;
 mod settings;
 mod streammanager;
+mod subs;
 mod tabs;
+mod toasts;
 mod tray;
+mod whispers;
 mod windows;
 
 use tauri::RunEvent;
@@ -44,6 +50,9 @@ fn main() {
             miner::init(handle);
             moderation::init(handle);
             streammanager::init(handle);
+            whispers::init(handle);
+            bell::init(handle);
+            alerts::init(handle);
             windows::init(handle)?;
             tray::init(handle)?;
             Ok(())

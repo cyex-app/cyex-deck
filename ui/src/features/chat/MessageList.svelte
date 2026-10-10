@@ -25,6 +25,8 @@
   import { runEntry, toItems, userMenus } from './menus.svelte';
   import { plainText } from './text';
   import { readMarks, type ChatRoom } from './room.svelte';
+  import { whispers } from '../whispers/whispers.svelte';
+  import { accounts } from '../../lib/accounts.svelte';
 
   interface Props {
     room: ChatRoom;
@@ -212,6 +214,7 @@
     openMenu(e, [
       { label: 'Usercard', icon: 'user', run: () => chatIpc.openUsercard(room.login, login).catch(() => {}) },
       { label: 'Mention', icon: 'reply', run: () => onmention?.(login) },
+      ...(accounts.can('whispers') ? [{ label: 'Whisper', icon: 'whisper' as const, run: () => whispers.show(login) }] : []),
       { label: 'Their messages', icon: 'search', run: () => onaction?.({ type: 'search', query: `from:${login}` }) },
       { label: 'Copy name', icon: 'copy', run: () => void navigator.clipboard.writeText(login) },
       ...(canMod ? ['separator' as const, ...userItems(role, login, command)] : []),
@@ -284,7 +287,7 @@
 
   function onclick(e: MouseEvent) {
     const el = (e.target as HTMLElement).closest<HTMLElement>(
-      '[data-user],[data-link],[data-reply],[data-jump],[data-emote]',
+      '[data-user],[data-link],[data-reply],[data-jump],[data-emote],[data-whisper]',
     );
     if (!el) return;
     const d = el.dataset;
@@ -297,6 +300,8 @@
       systemIpc.openChatLink(d.link).catch((err) => toast.error(String(err)));
     } else if (d.user) {
       chatIpc.openUsercard(room.login, d.user).catch((err) => toast.error(String(err)));
+    } else if (d.whisper) {
+      whispers.show(d.whisper);
     } else if (d.reply) {
       onreply(d.reply);
     } else if (d.jump) {

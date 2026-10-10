@@ -29,6 +29,16 @@ export function formatDate(d: Date): string {
   return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
 }
 
+/** How long ago, short: "now", "5m", "3h", "2d", then the date. */
+export function ago(ms: number, now = Date.now()): string {
+  const s = Math.max(0, Math.floor((now - ms) / 1000));
+  if (s < 60) return 'now';
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86_400) return `${Math.floor(s / 3600)}h`;
+  if (s < 7 * 86_400) return `${Math.floor(s / 86_400)}d`;
+  return formatDate(new Date(ms));
+}
+
 export interface TimeOptions {
   seconds?: boolean;
   hour12?: boolean;

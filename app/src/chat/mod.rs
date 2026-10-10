@@ -411,6 +411,16 @@ pub fn local_line(app: &AppHandle, key: &RoomKey, kind: NoticeKind, text: &str) 
     }
 }
 
+/// 1.26 A whisper shown inline in every open room (Settings → Notifications).
+pub fn whisper_line(app: &AppHandle, m: Arc<ChatMessage>) {
+    let Some(chat) = app.try_state::<Chat>() else { return };
+    let mut inner = chat.lock();
+    for entry in inner.rooms.values_mut() {
+        let ev = entry.room.local(m.clone());
+        queue(entry, [ev], &chat.wake);
+    }
+}
+
 /// 1.57 The account's own role flags in a channel, from its open room's USERSTATE.
 pub fn own_state(app: &AppHandle, account: &str, login: &str) -> Option<cyex_chat::model::SelfState> {
     let chat = app.try_state::<Chat>()?;

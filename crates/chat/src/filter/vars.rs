@@ -134,9 +134,8 @@ impl Facts<'_> {
             Var::BitsAmount => Value::Int(bits(m)),
             Var::ChannelName => Value::Str(self.channel.to_owned()),
             Var::ChannelLive => Value::Bool(self.live),
-            Var::ChannelWatching | Var::ElevatedMessage | Var::HypeChat | Var::Whisper | Var::Automod => {
-                Value::Bool(false)
-            }
+            Var::ChannelWatching | Var::ElevatedMessage | Var::HypeChat | Var::Automod => Value::Bool(false),
+            Var::Whisper => has(Flag::Whisper),
             Var::Restricted | Var::Monitored => Value::Bool(false),
             Var::Action => has(Flag::Action),
             Var::Highlighted => Value::Bool(m.meta.highlight.is_some()),

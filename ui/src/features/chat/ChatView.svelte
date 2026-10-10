@@ -38,7 +38,10 @@
   import { votes } from './votes.svelte';
   import VotesBanner from './VotesBanner.svelte';
   import { popOut } from '../../app/panels';
+  import { accounts } from '../../lib/accounts.svelte';
   import { mods } from '../modview/moderation.svelte';
+  import ResubBanner from '../subs/ResubBanner.svelte';
+  import SubDialog from '../subs/SubDialog.svelte';
 
   interface Props {
     login: string;
@@ -95,6 +98,8 @@
   let replyTo = $state<ChatMessage | null>(null);
   let search = $state<{ query: string; all: boolean } | null>(null);
   let recording = $state(false);
+  /** 1.28 The subscribe dialog is open. */
+  let subscribing = $state(false);
 
   $effect(() => {
     if (!el) return;
@@ -179,6 +184,9 @@
         run: () => void settings.patch('highlights', { muted: toggled(settings.v.highlights.muted, !muted) }),
       },
       { label: recording ? 'Stop recording' : 'Record chat', icon: 'record', run: record },
+      ...(account && accounts.can('subs', account)
+        ? [{ label: 'Subscribe', icon: 'star' as const, run: () => (subscribing = true) }]
+        : []),
       ...(onfilters
         ? [
             {
@@ -275,7 +283,9 @@
     onmention={(l) => input?.mention(l)}
     {onaction}
   />
+  <ResubBanner {account} {login} />
   <ChatInput bind:this={input} {room} bind:replyTo {onsignin} {onaction} />
+  {#if subscribing && account}<SubDialog {account} {login} onclose={() => (subscribing = false)} />{/if}
   {#if search}
     <SearchPopup
       view={room.view}

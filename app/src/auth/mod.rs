@@ -125,6 +125,8 @@ pub fn notify(app: &AppHandle) {
     if app.try_state::<crate::streammanager::State>().is_some() {
         crate::streammanager::accounts_changed(app);
     }
+    crate::whispers::accounts_changed(app);
+    crate::bell::accounts_changed(app);
     if app.try_state::<crate::chat::rules::RuleState>().is_some() {
         crate::chat::rules::load_blocked(app.clone());
     }

@@ -179,6 +179,21 @@ pub fn room(app: &AppHandle, account: Option<&str>, login: &str) -> RoomEmotes {
     }
 }
 
+/// 1.26 What whispers are tokenized with: the global sets and personal emotes, no
+/// channel. Starts loading the global sets if no chat has yet.
+pub fn global(app: &AppHandle) -> RoomEmotes {
+    let Some(state) = app.try_state::<Emotes>() else {
+        return RoomEmotes::default();
+    };
+    load::globals(app);
+    let inner = state.lock();
+    RoomEmotes {
+        lookup: Arc::new(Lookup::build(ordered(&inner.globals, &inner.priority))),
+        personal: inner.personal.clone(),
+        mine: None,
+    }
+}
+
 /// A channel's chat joined: loads its emotes unless they're loaded or loading.
 pub fn join(app: &AppHandle, login: &str, channel_id: &str, account: Option<&str>) {
     let state = app.state::<Emotes>();

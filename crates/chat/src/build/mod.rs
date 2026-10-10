@@ -7,6 +7,7 @@ pub mod replay;
 pub mod sender;
 mod state;
 mod usernotice;
+pub mod whisper;
 
 use std::sync::atomic::{AtomicU64, Ordering};
 

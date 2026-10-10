@@ -17,15 +17,19 @@ mod identity;
 pub mod miner;
 pub mod moderation;
 pub mod modlogs;
+pub mod notifications;
 mod playback;
 mod points;
 pub mod polls;
 pub mod powerups;
 pub mod predictions;
+pub mod profile;
 mod search;
 mod stories;
+pub mod subs;
 mod users;
 mod videos;
+pub mod whispers;
 
 pub use about::{About, LastStream, Panel, Social, about};
 pub use cards::{Category, ChannelCard, GameRef, LiveStream, Page, cards};
@@ -51,7 +55,9 @@ pub use points::{
     emote_choices, redeem_custom, send_highlighted, send_in_sub_mode, unlock_chosen_emote, unlock_modified_emote,
     unlock_random_emote,
 };
-pub use follows::{follow, followed_categories, followed_ids, followed_live, is_following, unfollow};
+pub use follows::{
+    LiveAlert, follow, followed_categories, followed_ids, followed_live, followed_live_alerts, is_following, unfollow,
+};
 pub use playback::{AccessToken, Player, stream_token, video_token};
 pub use search::{SearchResults, search, search_channels};
 pub use stories::{Story, StoryRing, mark_seen, stories, story_ring};

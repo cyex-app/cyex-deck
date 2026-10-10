@@ -200,6 +200,12 @@ impl Room {
         RoomEvent::Message { message: m }
     }
 
+    /// 1.26 A finished line from outside the room, e.g. a whisper shown inline.
+    pub fn local(&mut self, m: Arc<ChatMessage>) -> RoomEvent {
+        self.push(m.clone());
+        RoomEvent::Message { message: m }
+    }
+
     pub fn sending(&mut self, send: PendingSend) {
         self.expire(send.at_ms);
         self.pending.push_back(send);

@@ -58,7 +58,12 @@ fn open(emotes: impl IntoIterator<Item = Emote>) -> Vec<MenuEmote> {
 }
 
 pub async fn menu(app: &AppHandle, login: &str, account: Option<&str>) -> Result<EmoteMenu, String> {
-    let channel_id = super::channel_id(app, login).ok_or("This chat isn't open.")?;
+    // 1.26 Whispers have no channel: the account's own channel stands in.
+    let channel_id = match super::channel_id(app, login) {
+        Some(id) => id,
+        None if login.is_empty() => account.ok_or("Sign in to use emotes.")?.to_owned(),
+        None => return Err("This chat isn't open.".into()),
+    };
     let (mine, note) = match account {
         Some(a) => match load::twitch_sets(app, a, &channel_id, false).await {
             Ok(sets) => (Some(sets), None),

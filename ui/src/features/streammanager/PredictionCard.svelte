@@ -9,7 +9,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { predictionLeft, votes } from '../chat/votes.svelte';
   import Card from './Card.svelte';
-  import ConfirmButton from './ConfirmButton.svelte';
+  import ConfirmButton from '../../components/ConfirmButton.svelte';
   import { shares } from './logic';
 
   const WINDOWS = [30, 60, 120, 300, 600, 1800];

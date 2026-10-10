@@ -524,3 +524,40 @@ mod tests {
         assert!(parse("channel.unknown", &serde_json::json!({})).is_none());
     }
 }
+
+/// 1.26 A whisper from EventSub (`user.whisper.message`): plain text, no emotes or color.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Whisper {
+    pub id: String,
+    pub from: Who,
+    pub text: String,
+}
+
+pub fn parse_whisper(kind: &str, e: &Value) -> Option<Whisper> {
+    if kind != "user.whisper.message" {
+        return None;
+    }
+    Some(Whisper {
+        id: e.get("whisper_id")?.as_str()?.to_owned(),
+        from: Who::read(e, "from_user")?,
+        text: e.get("whisper")?.get("text")?.as_str()?.to_owned(),
+    })
+}
+
+#[cfg(test)]
+mod whisper_tests {
+    use super::*;
+
+    #[test]
+    fn whisper_parses() {
+        let e: Value = serde_json::from_str(
+            r#"{"from_user_id":"423374343","from_user_login":"glowingglove","from_user_name":"glowingglove",
+              "to_user_id":"424596340","to_user_login":"quotrok","to_user_name":"quotrok",
+              "whisper_id":"some-whisper-id","whisper":{"text":"a secret"}}"#,
+        )
+        .unwrap();
+        let w = parse_whisper("user.whisper.message", &e).unwrap();
+        assert_eq!((w.from.login.as_str(), w.text.as_str(), w.id.as_str()), ("glowingglove", "a secret", "some-whisper-id"));
+        assert!(parse_whisper("channel.follow", &e).is_none());
+    }
+}

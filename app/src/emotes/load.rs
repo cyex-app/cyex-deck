@@ -22,7 +22,7 @@ fn http(app: &AppHandle) -> Http {
 }
 
 /// Global sets, once. Lookups are rebuilt when they arrive.
-fn globals(app: &AppHandle) {
+pub(super) fn globals(app: &AppHandle) {
     let state = app.state::<Emotes>();
     {
         let mut inner = state.lock();

@@ -1,4 +1,5 @@
-<!-- Top-bar account button (1.3, 1.23): pick the default account, open the manager. -->
+<!-- Top-bar account button (1.3, 1.23): pick the default account, open the manager, your
+     subscriptions (1.28) and Twitch's payment methods in the app (1.27). -->
 <script lang="ts">
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
@@ -6,11 +7,12 @@
   import Popover from '../../components/Popover.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import { accountsIpc } from '../../ipc/accounts';
+  import { subsIpc } from '../../ipc/subs';
   import { accounts } from '../../lib/accounts.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { accountName, accountNeedsAttention } from './status';
 
-  let { onmanage }: { onmanage: () => void } = $props();
+  let { onmanage, onsubs }: { onmanage: () => void; onsubs: () => void } = $props();
 
   let open = $state(false);
 
@@ -25,6 +27,16 @@
   function manage() {
     open = false;
     onmanage();
+  }
+
+  function subs() {
+    open = false;
+    onsubs();
+  }
+
+  function wallet() {
+    open = false;
+    if (current) subsIpc.page(current.userId, 'wallet').catch((e) => toast.error(String(e)));
   }
 </script>
 
@@ -54,6 +66,15 @@
         {#if a.isDefault}<span class="check"><Icon name="check" size={14} /></span>{/if}
       </button>
     {/each}
+    <hr />
+    <button class="item" role="menuitem" onclick={subs}>
+      <Icon name="star" size={15} />
+      <span class="name">Subscriptions</span>
+    </button>
+    <button class="item" role="menuitem" onclick={wallet}>
+      <Icon name="card" size={15} />
+      <span class="name">Payment methods</span>
+    </button>
     <hr />
     <button class="item" role="menuitem" onclick={manage}>
       <Icon name="user" size={15} />

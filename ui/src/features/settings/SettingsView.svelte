@@ -18,6 +18,7 @@
   import HotkeysSection from './sections/HotkeysSection.svelte';
   import IgnoresSection from './sections/IgnoresSection.svelte';
   import MinerSection from './sections/MinerSection.svelte';
+  import NotificationsSection from './sections/NotificationsSection.svelte';
   import PlayerSection from './sections/PlayerSection.svelte';
   import RecordingsSection from './sections/RecordingsSection.svelte';
   import StreamManagerSection from './sections/StreamManagerSection.svelte';
@@ -37,6 +38,7 @@
   const SECTIONS: { id: string; label: string; icon: IconName; component: Component }[] = [
     { id: 'general', label: 'General', icon: 'sliders', component: GeneralSection },
     { id: 'accounts', label: 'Accounts', icon: 'user', component: AccountsSection },
+    { id: 'notifications', label: 'Notifications', icon: 'bell', component: NotificationsSection },
     { id: 'appearance', label: 'Appearance', icon: 'palette', component: AppearanceSection },
     { id: 'chat', label: 'Chat', icon: 'chat', component: ChatSection },
     { id: 'highlights', label: 'Highlights', icon: 'star', component: HighlightsSection },

@@ -53,7 +53,7 @@ const MOD_COMMANDS: &[&str] = &[
     "unrestrict",
 ];
 
-const HELP: &str = "/me, /echo, /set var, /chain, /foreach, /runin, /timer, /user, /logs, /block, /unblock, /hideuser, /unhideuser, /mutepings, /tl, /translate, /vote, /search, /popout, /color. Your own commands are in Settings → Commands.";
+const HELP: &str = "/me, /echo, /set var, /chain, /foreach, /runin, /timer, /user, /logs, /block, /unblock, /hideuser, /unhideuser, /mutepings, /tl, /translate, /vote, /search, /popout, /color, /w, /r. Your own commands are in Settings → Commands.";
 
 pub async fn run(
     app: &AppHandle,
@@ -173,7 +173,15 @@ pub async fn run(
             local(app, &place.key, NoticeKind::Info, "Name color changed.");
             done
         }
-        "w" | "whisper" => Err("Whispers come in a later update.".into()),
+        // 1.26 Whispers go out from the default account, like the whispers view.
+        "w" | "whisper" => {
+            let (to, text) = args.trim().split_once(' ').ok_or("Usage: /w name message")?;
+            whisper(app, place, to, text).await
+        }
+        "r" => {
+            let to = crate::whispers::reply_target(app).ok_or("Nobody has whispered you yet.")?;
+            whisper(app, place, &to, args).await
+        }
         "nuke" => {
             let account = place.account().ok_or("Sign in to use /nuke.")?.to_owned();
             crate::moderation::nuke::run(app, &account, place.channel(), args).await?;
@@ -182,6 +190,16 @@ pub async fn run(
         _ if is_mod_command(name) => run_mod(app, place, name, args).await,
         _ => Err(format!("Unknown command /{name}. /help lists them.")),
     }
+}
+
+/// Sends a whisper; with inline whispers off, a short note says it went.
+async fn whisper(app: &AppHandle, place: &Place, to: &str, text: &str) -> Result<Option<UiAction>, String> {
+    crate::whispers::send(app, to, text).await?;
+    let n: cyex_settings::schema::Notifications = app.state::<Settings>().read(Partition::Notifications);
+    if !n.whispers.inline {
+        local(app, &place.key, NoticeKind::Info, &format!("Whisper sent to {}.", to.trim_start_matches('@')));
+    }
+    Ok(None)
 }
 
 /// Twitch's own mod and broadcaster commands (1.49, 1.50), run through `moderation`.
@@ -249,6 +267,12 @@ async fn user_id(app: &AppHandle, login: &str) -> Result<String, String> {
 /// F2 Blocks or unblocks on Twitch, Helix first, else GQL.
 async fn block(app: &AppHandle, place: &Place, login: &str, on: bool) -> Result<(), String> {
     let account = place.account().ok_or("Sign in to block people.")?.to_owned();
+    block_user(app, &account, login, on).await
+}
+
+/// F2 Blocks or unblocks `login` for `account`; also used by whispers (1.26).
+pub async fn block_user(app: &AppHandle, account: &str, login: &str, on: bool) -> Result<(), String> {
+    let account = account.to_owned();
     let target = user_id(app, login).await?;
     let http = app.state::<crate::auth::Auth>().http.clone();
     let result = if let Some((token, client_id)) =

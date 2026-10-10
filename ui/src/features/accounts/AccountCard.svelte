@@ -1,15 +1,18 @@
-<!-- One account in the account manager (1.23): tokens, joined chats, default, remove. -->
+<!-- One account in the account manager (1.23): tokens, joined chats, default, remove, its
+     Twitch profile (2.2) and its sign-in on Twitch's pages in the app (3.8). -->
 <script lang="ts">
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import { accountsIpc } from '../../ipc/accounts';
+  import { subsIpc } from '../../ipc/subs';
   import type { AccountView } from '../../ipc/bindings/AccountView';
   import type { TokenKind } from '../../ipc/bindings/TokenKind';
   import type { TokenView } from '../../ipc/bindings/TokenView';
   import { accounts } from '../../lib/accounts.svelte';
   import { toast } from '../../lib/toast.svelte';
+  import ProfileEditor from './ProfileEditor.svelte';
   import { signIn } from './signIn.svelte';
   import { accountName, missingScopesText, needsSignIn, tokenStatus } from './status';
 
@@ -28,6 +31,7 @@
   const bothTokens = $derived(account.helix !== null && account.gql !== null);
 
   let armed = $state(false);
+  let editing = $state(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   function tokenOf(kind: TokenKind): TokenView | null {
@@ -114,7 +118,25 @@
     </span>
   </div>
 
+  {#if editing}<ProfileEditor account={account.userId} />{/if}
+
   <footer>
+    {#if accounts.can('displayName', account.userId)}
+      <Button small variant="ghost" icon="pencil" onclick={() => (editing = !editing)}>
+        {editing ? 'Close profile' : 'Twitch profile'}
+      </Button>
+    {/if}
+    <Button
+      small
+      variant="ghost"
+      onclick={() =>
+        attempt(async () => {
+          await subsIpc.signOut(account.userId);
+          toast.info('Signed out of Twitch pages in the app.');
+        })}
+    >
+      Sign out of Twitch pages
+    </Button>
     <Button small variant={armed ? 'danger' : 'ghost'} icon="trash" onclick={removeAccount}>
       {armed ? 'Click again to remove' : 'Remove account'}
     </Button>
@@ -194,6 +216,8 @@
   }
   footer {
     display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
     justify-content: flex-end;
     padding-top: 8px;
     border-top: 1px solid var(--border);

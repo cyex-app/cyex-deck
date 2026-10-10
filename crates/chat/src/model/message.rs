@@ -64,6 +64,10 @@ pub struct Meta {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub effect: Option<String>,
+    /// 1.26 Who an own whisper went to (login), for inline whisper lines.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub whisper_to: Option<String>,
 }
 
 /// 2.6
@@ -266,6 +270,8 @@ pub enum Flag {
     Paid,
     /// F6 Close to one of the sender's last few messages.
     Similar,
+    /// 1.26 A whisper, in the whispers view or inline in chat.
+    Whisper,
 }
 
 #[cfg(test)]

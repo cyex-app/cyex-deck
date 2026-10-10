@@ -25,6 +25,7 @@ pub enum Feature {
     /// 1.40 GQL works too.
     ChatColor,
     Bio,
+    /// 1.26 GQL works too (and brings history).
     Whispers,
     Blocks,
     ModTools,
@@ -38,7 +39,10 @@ pub enum Feature {
     Points,
     BadgePicker,
     DisplayName,
+    /// 1.26 The bell, and Twitch's own notification settings (2.2).
     OnsiteNotifications,
+    /// 1.28 Your subs, resub sharing, Prime subs.
+    Subs,
     ViewerPins,
     SendGifs,
     PowerUps,
@@ -62,7 +66,7 @@ const MOD_FEEDS: &[&str] = &[
 ];
 
 impl Feature {
-    pub const ALL: [Feature; 25] = [
+    pub const ALL: [Feature; 26] = [
         Feature::SendChat,
         Feature::FollowedList,
         Feature::EmoteMenu,
@@ -80,6 +84,7 @@ impl Feature {
         Feature::BadgePicker,
         Feature::DisplayName,
         Feature::OnsiteNotifications,
+        Feature::Subs,
         Feature::ViewerPins,
         Feature::SendGifs,
         Feature::PowerUps,
@@ -93,8 +98,8 @@ impl Feature {
     pub fn tier(self) -> Tier {
         use Feature::*;
         match self {
-            SendChat | FollowedList | EmoteMenu | ChatColor | Blocks => Tier::Either,
-            Bio | Whispers | ModTools | ModView | StreamManager | MassbanHelix | Clips => Tier::Helix,
+            SendChat | FollowedList | EmoteMenu | ChatColor | Blocks | Whispers => Tier::Either,
+            Bio | ModTools | ModView | StreamManager | MassbanHelix | Clips => Tier::Helix,
             _ => Tier::Gql,
         }
     }
@@ -155,6 +160,7 @@ mod tests {
     fn gql_only_hides_helix_tools() {
         let f = features(None, true);
         assert!(f.contains(&Feature::Miner) && f.contains(&Feature::Follow));
+        assert!(f.contains(&Feature::Whispers) && f.contains(&Feature::Subs));
         assert!(!f.contains(&Feature::ModTools));
         // Chat works with either token (phase 3).
         assert!(f.contains(&Feature::SendChat));

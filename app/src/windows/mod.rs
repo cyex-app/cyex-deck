@@ -3,6 +3,7 @@
 mod geometry;
 mod layouts;
 mod panels;
+pub mod twitch;
 mod usercard;
 
 pub use layouts::{apply_layout, delete_layout, save_layout};

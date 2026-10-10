@@ -26,4 +26,8 @@ translation?: Translation,
 /**
  * 1.42 A message effect power-up: `simmer`, `rainbow-eclipse`, `cosmic-abyss`.
  */
-effect?: string, };
+effect?: string, 
+/**
+ * 1.26 Who an own whisper went to (login), for inline whisper lines.
+ */
+whisperTo?: string, };

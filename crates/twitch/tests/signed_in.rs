@@ -119,3 +119,134 @@ async fn follows() {
             .map_err(|e| e.api_message().map(str::to_owned))
     );
 }
+
+/// 1.26, 1.28, 2.2 reads: whisper threads, the bell, Twitch's notification settings, the
+/// profile, live alerts and subs. Prints counts and flags only, never message text.
+#[tokio::test]
+#[ignore = "network, signed in"]
+async fn phase12_reads() {
+    use gql::{notifications, profile, subs, whispers};
+    let http = Http::new().unwrap();
+    let (token, client_id) = gql_sign_in();
+    let auth = Auth {
+        client_id: &client_id,
+        token: Some(&token),
+    };
+    let me = profile::profile(&http, auth).await.unwrap();
+    println!(
+        "profile: bio {} chars, color set {}, any color {}, language {:?}",
+        me.bio.chars().count(),
+        !me.color.is_empty(),
+        me.any_color,
+        me.language
+    );
+    match whispers::threads(&http, auth, &me.id, None).await {
+        Ok(t) => {
+            println!(
+                "whispers: {} threads, more {}, unread {}, spam {}, block strangers {}",
+                t.threads.len(),
+                t.cursor.is_some(),
+                t.threads.iter().map(|x| x.unread).sum::<u32>(),
+                t.threads.iter().filter(|x| x.spam).count(),
+                t.block_strangers
+            );
+            if let Some(first) = t.threads.first() {
+                let page = whispers::thread(&http, auth, &me.id, &first.id, whispers::MESSAGES_PAGE, None).await.unwrap();
+                let (_, msgs) = page.unwrap();
+                println!(
+                    "thread: {} messages, more {}, with nonce {}, emotes {}",
+                    msgs.messages.len(),
+                    msgs.cursor.is_some(),
+                    msgs.messages.iter().filter(|m| m.nonce.is_some()).count(),
+                    msgs.messages.iter().map(|m| m.emotes.len()).sum::<usize>()
+                );
+            }
+        }
+        Err(e) => println!("whispers: error {:?}", e.api_message()),
+    }
+    match notifications::list(&http, auth, notifications::List::Viewer, None).await {
+        Ok(p) => println!(
+            "bell: {} items, more {}, unread {}, with url {}, kinds {:?}",
+            p.items.len(),
+            p.cursor.is_some(),
+            p.items.iter().filter(|i| !i.read).count(),
+            p.items.iter().filter(|i| i.url.is_some()).count(),
+            p.items.iter().map(|i| i.kind.as_str()).collect::<std::collections::BTreeSet<_>>()
+        ),
+        Err(e) => println!("bell: error {:?}", e.api_message()),
+    }
+    println!("bell unseen: {:?}", notifications::unseen(&http, auth).await.map_err(|e| e.api_message().map(str::to_owned)));
+    match notifications::settings(&http, auth, None).await {
+        Ok(s) => println!(
+            "twitch notify: {} switches, categories {:?}, {} channels, more {}, states {:?}",
+            s.switches.len(),
+            s.switches.iter().map(|x| x.category.as_str()).collect::<std::collections::BTreeSet<_>>(),
+            s.channels.len(),
+            s.cursor.is_some(),
+            s.channels.iter().map(|c| c.state.as_str()).collect::<std::collections::BTreeSet<_>>()
+        ),
+        Err(e) => println!("twitch notify: error {:?}", e.api_message()),
+    }
+    match gql::followed_live_alerts(&http, auth).await {
+        Ok(Some(l)) => println!("live alerts: {} live, bell on {}", l.len(), l.iter().filter(|a| a.bell).count()),
+        other => println!("live alerts: {:?}", other.map_err(|e| e.api_message().map(str::to_owned)).map(|o| o.map(|l| l.len()))),
+    }
+    match subs::mine(&http, auth).await {
+        Ok(s) => println!("subs: {} active, {} expired, prime {}", s.active.len(), s.expired.len(), s.has_prime),
+        Err(e) => println!("subs: error {:?}", e.api_message()),
+    }
+    match subs::channel(&http, auth, "xqc").await {
+        Ok(Some(c)) => println!(
+            "sub in xqc: subbed {}, resub {}, can prime {}, sells {}",
+            c.sub.is_some(),
+            c.resub.is_some(),
+            c.can_prime,
+            c.sells
+        ),
+        other => println!("sub in xqc: {:?}", other.map(|o| o.is_some()).map_err(|e| e.api_message().map(str::to_owned))),
+    }
+}
+
+/// Whether Hermes takes the whisper and bell topics with the account's GQL token. Only
+/// subscribes; prints Twitch's answers.
+#[tokio::test]
+#[ignore = "network, signed in"]
+async fn phase12_hermes_topics() {
+    use futures_util::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::Message;
+    let http = Http::new().unwrap();
+    let (token, client_id) = gql_sign_in();
+    let auth = Auth {
+        client_id: &client_id,
+        token: Some(&token),
+    };
+    let me = gql::profile::profile(&http, auth).await.unwrap();
+    let url = format!("wss://hermes.twitch.tv/v1?clientId={}", cyex_twitch::clients::WEB);
+    let (mut ws, _) = tokio_tungstenite::connect_async(url.as_str()).await.unwrap();
+    let ts = cyex_twitch::clock::now_iso();
+    let mut sent_auth = false;
+    let mut subscribed = false;
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(20);
+    while let Ok(Some(Ok(msg))) = tokio::time::timeout_at(deadline, ws.next()).await {
+        let Message::Text(text) = msg else { continue };
+        let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let kind = v["type"].as_str().unwrap_or_default().to_owned();
+        if kind == "welcome" && !sent_auth {
+            sent_auth = true;
+            let a = serde_json::json!({"type":"authenticate","id":"a1","authenticate":{"token":token},"timestamp":ts});
+            ws.send(Message::Text(a.to_string().into())).await.unwrap();
+        } else if kind == "authenticateResponse" {
+            println!("auth: {}", v["authenticateResponse"]);
+            if !subscribed {
+                subscribed = true;
+                for (sid, topic) in [("w", format!("whispers.{}", me.id)), ("o", format!("onsite-notifications.{}", me.id))] {
+                    let s = serde_json::json!({"type":"subscribe","id":format!("r{sid}"),
+                        "subscribe":{"id":sid,"type":"pubsub","pubsub":{"topic":topic}},"timestamp":ts});
+                    ws.send(Message::Text(s.to_string().into())).await.unwrap();
+                }
+            }
+        } else if kind == "subscribeResponse" {
+            println!("subscribe {}: {}", v["parentId"], v["subscribeResponse"]);
+        }
+    }
+}

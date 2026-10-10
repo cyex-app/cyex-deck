@@ -33,6 +33,14 @@ impl Error {
         matches!(self, Error::Api { status, .. } if *status >= 500)
     }
 
+    /// The HTTP status Twitch answered with, if this is an API error.
+    pub fn status(&self) -> Option<u16> {
+        match self {
+            Error::Api { status, .. } => Some(*status),
+            _ => None,
+        }
+    }
+
     /// The `message` Twitch sent, if this is an API error.
     pub fn api_message(&self) -> Option<&str> {
         match self {

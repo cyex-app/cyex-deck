@@ -7,14 +7,17 @@ mod chat_extra;
 mod emotes;
 mod miner;
 mod moderation;
+mod notify;
 mod player;
 mod rules;
 mod settings;
 mod streammanager;
+mod subs;
 pub mod system;
 mod tabs;
 mod theme;
 mod usercard;
+mod whispers;
 mod windows;
 
 pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
@@ -28,6 +31,36 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         accounts::accounts_set_default,
         accounts::accounts_set_client_id,
         accounts::connections_counts,
+        whispers::whispers_state,
+        whispers::whispers_more,
+        whispers::whispers_open,
+        whispers::whispers_older,
+        whispers::whispers_send,
+        whispers::whispers_read,
+        whispers::whispers_edit,
+        whispers::whispers_read_all,
+        whispers::whispers_block_strangers,
+        whispers::whispers_viewing,
+        whispers::whispers_block,
+        notify::bell_state,
+        notify::bell_list,
+        notify::bell_seen,
+        notify::bell_read,
+        notify::bell_read_all,
+        notify::bell_delete,
+        notify::profile_get,
+        notify::profile_save,
+        notify::twitch_notify_get,
+        notify::twitch_notify_switch,
+        notify::twitch_notify_channel,
+        subs::subs_mine,
+        subs::subs_channel,
+        subs::subs_share_resub,
+        subs::subs_prime,
+        subs::subs_stop_renewal,
+        subs::twitch_page,
+        subs::twitch_open,
+        subs::twitch_sign_out,
         browse::home_follows,
         miner::miner_status,
         miner::miner_log,

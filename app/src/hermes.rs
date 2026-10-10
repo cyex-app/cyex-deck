@@ -1,6 +1,6 @@
 //! One place for Hermes (D14): anonymous connections for channel topics, shared by chat
 //! (pins, redemptions, polls, predictions, celebrations) and the miner, and one signed-in
-//! connection per account for its own topics (points, bets). Topics are counted, so two
+//! connection per account for its own topics (points, bets, whispers, the bell). Topics are counted, so two
 //! features can follow the same one. Events go to whoever handles their kind.
 
 use std::collections::HashMap;
@@ -87,6 +87,8 @@ async fn pump(app: AppHandle, mut rx: mpsc::UnboundedReceiver<Event>) {
             }
             Kind::Playback | Kind::Raid | Kind::Moments => crate::miner::on_channel_event(&app, &e),
             Kind::UserPoints | Kind::UserPredictions => crate::miner::on_user_event(&app, &e),
+            Kind::Whispers => crate::whispers::on_hermes(&app, &e),
+            Kind::Onsite => crate::bell::on_event(&app, &e),
         }
     }
 }

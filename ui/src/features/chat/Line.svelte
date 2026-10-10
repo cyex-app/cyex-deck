@@ -1,7 +1,7 @@
 <!-- One chat line (1.8, 1.9): user message, notice or system line. Name colors are
      readable per theme (C8); deleted lines follow the C14 setting. Highlights (2.6),
      repeat counts (C2), near-duplicates (F6), the app it came from (C26), translations
-     (C17), power-ups (1.42) and link cards (C30). -->
+     (C17), power-ups (1.42), link cards (C30) and inline whispers (1.26). -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
@@ -19,9 +19,11 @@
     channel: string;
     /** Show the reply button on hover. */
     canReply?: boolean;
+    /** In the whispers view: no "Whisper" label over each line. */
+    inWhispers?: boolean;
   }
 
-  let { m, channel, canReply = false }: Props = $props();
+  let { m, channel, canReply = false, inWhispers = false }: Props = $props();
 
   const c = $derived(settings.v.chat);
   const has = (flag: ChatMessage['flags'][number]) => m.flags.includes(flag);
@@ -38,6 +40,8 @@
   const hl = $derived(highlightStyle(m));
   const client = $derived(c.showClient && m.client ? CLIENTS[m.client] : null);
   const effect = $derived(c.effects ? effectOf(m) : null);
+  /** 1.26 A whisper shown in a chat: who it's with, for the label and a click. */
+  const whisperWith = $derived(has('whisper') && !inWhispers ? (m.whisperTo ?? sender?.login ?? null) : null);
   /** C30 The first link, for a card under the message. */
   const firstLink = $derived(c.linkCards && c.linkPreviews ? m.body.find((f) => f.t === 'link' && !f.target) : undefined);
 </script>
@@ -51,13 +55,19 @@
   class:del-faded={deleted && c.deleted === 'faded'}
   class:del-hidden={deleted && c.deleted === 'hidden'}
   class:system={notice && !sender}
+  class:whisper={!!whisperWith}
   data-id={m.id}
   style="{colorVars};{hl.vars}"
 >
   {#if effect}<div class="fx fx-{effect}" aria-hidden="true">
       {#if effect === 'cosmic-abyss'}<video src={COSMIC} autoplay loop muted playsinline></video>{/if}
     </div>{/if}
-  {#if m.reply}
+  {#if whisperWith}
+    <div class="context" data-whisper={whisperWith}>
+      <Icon name="whisper" size={12} />
+      <span>{m.whisperTo ? `Whisper to ${m.whisperTo}` : 'Whisper'}</span>
+    </div>
+  {:else if m.reply}
     <div class="context" data-jump={m.reply.parentId}>
       <Icon name="reply" size={12} />
       <span>Replying to <b>@{m.reply.parentDisplay}</b>: {m.reply.parentBody}</span>
@@ -156,11 +166,17 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .context[data-jump] {
+  .context[data-jump],
+  .context[data-whisper] {
     cursor: pointer;
   }
-  .context[data-jump]:hover {
+  .context[data-jump]:hover,
+  .context[data-whisper]:hover {
     color: var(--muted);
+  }
+  .whisper {
+    border-left: 3px solid var(--cyan);
+    background: color-mix(in srgb, var(--cyan) 7%, transparent);
   }
   .reward {
     color: var(--twitch);

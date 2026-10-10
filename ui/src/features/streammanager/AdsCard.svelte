@@ -8,7 +8,7 @@
   import { formatDuration } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import Card from './Card.svelte';
-  import ConfirmButton from './ConfirmButton.svelte';
+  import ConfirmButton from '../../components/ConfirmButton.svelte';
   import { adIn } from './logic';
   import { sm } from './streammanager.svelte';
 

@@ -12,6 +12,7 @@ import ChatPanel from '../features/tabs/ChatPanel.svelte';
 import TabPanel from '../features/tabs/TabPanel.svelte';
 import { label, tabs, tiles } from '../features/tabs/tabs.svelte';
 import UsercardView from '../features/usercard/UsercardView.svelte';
+import WhispersView from '../features/whispers/WhispersView.svelte';
 import { windowsIpc } from '../ipc/windows';
 import { toast } from '../lib/toast.svelte';
 
@@ -32,6 +33,7 @@ export const PANELS: Record<string, PanelKind> = {
   recording: { title: 'Recording', width: 400, height: 640, component: RecordingView },
   modview: { title: 'Mod view', width: 920, height: 680, component: ModViewPanel },
   streammanager: { title: 'Stream manager', width: 1000, height: 760, component: StreamManagerView },
+  whispers: { title: 'Whispers', width: 720, height: 560, component: WhispersView },
 };
 
 export function panelFor(route: string): PanelKind | undefined {
@@ -51,6 +53,7 @@ export function titleFor(route: string): string {
   }
   if (kind === 'usercard' && b) return b;
   if (kind === 'modview' && a) return `Mod view · ${a}`;
+  if (kind === 'whispers' && a) return `Whispers · ${a}`;
   return PANELS[kind]?.title ?? 'cyex';
 }
 

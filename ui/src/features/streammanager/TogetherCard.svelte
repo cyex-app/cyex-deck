@@ -8,7 +8,7 @@
   import { smIpc } from '../../ipc/streammanager';
   import { toast } from '../../lib/toast.svelte';
   import Card from './Card.svelte';
-  import ConfirmButton from './ConfirmButton.svelte';
+  import ConfirmButton from '../../components/ConfirmButton.svelte';
 
   /** Twitch allows the host plus five guests. */
   const SLOTS = 5;

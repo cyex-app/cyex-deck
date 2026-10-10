@@ -69,6 +69,12 @@ pub fn for_broadcaster(broadcaster_id: &str, moderator_id: &str) -> Vec<(&'stati
     ]
 }
 
+/// 1.26 Whispers to `user_id`, for accounts with only a Helix sign-in (`user:read:whispers`).
+/// Received ones only; Twitch doesn't echo what you send.
+pub fn whispers(user_id: &str) -> (&'static str, &'static str, Value) {
+    ("user.whisper.message", "1", json!({ "user_id": user_id }))
+}
+
 /// The channel an event or revocation is about.
 pub fn channel_of(condition: &Value) -> Option<&str> {
     condition
