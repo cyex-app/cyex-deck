@@ -1,0 +1,26 @@
+{
+ "data": {
+  "emote": {
+   "id": "emotesv2_3a5b59f49ec2433bb76a0071ec4997bb",
+   "token": "xqcSlam",
+   "type": "SUBSCRIPTIONS",
+   "setID": "359369083",
+   "assetType": "ANIMATED",
+   "subscriptionTier": "TIER_1",
+   "suffix": "Slam",
+   "state": "ACTIVE",
+   "artist": null,
+   "owner": {
+    "id": "71092938",
+    "login": "xqc",
+    "displayName": "xQc",
+    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/xqc-profile_image-9298dca608632101-70x70.jpeg"
+   },
+   "bitsBadgeTierSummary": null
+  }
+ },
+ "extensions": {
+  "durationMilliseconds": 42,
+  "requestID": "01M4J9HK0N3P8HHNFZZP44C2YY"
+ }
+}

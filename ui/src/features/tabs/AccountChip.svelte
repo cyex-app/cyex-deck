@@ -6,9 +6,12 @@
   import { tooltip } from '../../components/tooltip.svelte';
   import type { Tile } from '../../ipc/bindings/Tile';
   import { accounts } from '../../lib/accounts.svelte';
+  import IdentityDialog from '../chat/IdentityDialog.svelte';
   import { tabs } from './tabs.svelte';
 
   let { tile }: { tile: Tile } = $props();
+
+  let identity = $state(false);
 
   const account = $derived(tile.account ? accounts.list.find((a) => a.userId === tile.account) : undefined);
   const label = $derived(
@@ -33,6 +36,9 @@
       run: () => set(a.userId),
     }));
     items.push('separator', { label: 'Anonymous', icon: 'eyeOff', checked: !account, run: () => set(null) });
+    if (account && (accounts.can('badgePicker', account.userId) || accounts.can('chatColor', account.userId))) {
+      items.push('separator', { label: 'Badge and color…', icon: 'badge', run: () => (identity = true) });
+    }
     openMenu({ clientX: r.left, clientY: r.bottom + 4 }, items);
   }
 </script>
@@ -51,6 +57,10 @@
       <Icon name="eyeOff" size={15} />
     {/if}
   </button>
+{/if}
+
+{#if identity && account}
+  <IdentityDialog account={account.userId} login={tile.channel.login} onclose={() => (identity = false)} />
 {/if}
 
 <style>

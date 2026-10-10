@@ -6,9 +6,11 @@ import { settings } from '../lib/settings.svelte';
 export interface TipOptions {
   label: string;
   hint?: string;
+  /** E6 A bigger picture above the label, e.g. an emote's. */
+  image?: string;
 }
 
-export const tip = $state({ label: '', hint: '', x: 0, y: 0, visible: false });
+export const tip = $state({ label: '', hint: '', image: '', x: 0, y: 0, visible: false });
 
 const SHOW_DELAY_MS = 150;
 /** Moving between buttons right after a tip closed shows the next one instantly. */
@@ -40,7 +42,8 @@ function show(node: HTMLElement, opts: TipOptions): void {
   timer = setTimeout(() => {
     const r = node.getBoundingClientRect();
     tip.label = opts.label;
-    tip.hint = settings.v.general?.tooltips ? (opts.hint ?? '') : '';
+    tip.hint = opts.image ? (opts.hint ?? '') : settings.v.general?.tooltips ? (opts.hint ?? '') : '';
+    tip.image = opts.image ?? '';
     tip.x = r.left + r.width / 2;
     tip.y = r.bottom + 6;
     tip.visible = true;

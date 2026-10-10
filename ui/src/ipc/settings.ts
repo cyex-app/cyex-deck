@@ -6,6 +6,7 @@ import type { Appearance } from './bindings/Appearance';
 import type { Browse } from './bindings/Browse';
 import type { Chat } from './bindings/Chat';
 import type { Commands } from './bindings/Commands';
+import type { Emotes } from './bindings/Emotes';
 import type { General } from './bindings/General';
 import type { Highlights } from './bindings/Highlights';
 import type { Hotkeys } from './bindings/Hotkeys';
@@ -28,6 +29,7 @@ export interface SettingsValues {
   hotkeys: Hotkeys;
   tabs: Tabs;
   browse: Browse;
+  emotes: Emotes;
   accounts: Accounts;
   miner: Miner;
   modview: Modview;

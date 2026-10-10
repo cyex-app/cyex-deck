@@ -1,0 +1,77 @@
+{
+ "data": {
+  "emoteSets": {
+   "emoteSet": {
+    "id": "01GN7SRYE8000EK2J7DFXT0WE5",
+    "name": "Personal Emotes",
+    "kind": "PERSONAL",
+    "ownerId": "01FE9DRF000009TR6M9N941CYW",
+    "emotes": {
+     "totalCount": 3,
+     "items": [
+      {
+       "id": "01F78CHJ2G0005TDSTZFBDGMK4",
+       "alias": "monkaS",
+       "addedAt": "2023-06-17T01:57:08.107+00:00",
+       "addedById": "01FRDZ6DGR0007ABTNBF6YJG4A",
+       "flags": {
+        "zeroWidth": false
+       },
+       "emote": {
+        "defaultName": "monkaS",
+        "aspectRatio": 1,
+        "flags": {
+         "animated": false,
+         "publicListed": true,
+         "approvedPersonal": true
+        }
+       }
+      },
+      {
+       "id": "01GGDTCD1000059GKENEHRC1VX",
+       "alias": "myreact",
+       "addedAt": "2023-10-23T23:33:10.221+00:00",
+       "addedById": "01G5MK9K8800060KXFGRT23XZM",
+       "flags": {
+        "zeroWidth": false
+       },
+       "emote": {
+        "defaultName": "myreact",
+        "aspectRatio": 1.0196078431372548,
+        "flags": {
+         "animated": true,
+         "publicListed": true,
+         "approvedPersonal": true
+        }
+       }
+      },
+      {
+       "id": "01H27GW5E8000D9DEP10Z94X79",
+       "alias": "cuh",
+       "addedAt": "2026-08-04T07:14:52.176+00:00",
+       "addedById": "01FFRYC79R0007P57XYW0BJDJQ",
+       "flags": {
+        "zeroWidth": false
+       },
+       "emote": {
+        "defaultName": "cuh",
+        "aspectRatio": 1,
+        "flags": {
+         "animated": false,
+         "publicListed": true,
+         "approvedPersonal": true
+        }
+       }
+      }
+     ]
+    }
+   }
+  }
+ },
+ "extensions": {
+  "analyzer": {
+   "complexity": 22,
+   "depth": 7
+  }
+ }
+}

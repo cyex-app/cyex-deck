@@ -9,6 +9,7 @@
   import AppearanceSection from './sections/AppearanceSection.svelte';
   import ChatSection from './sections/ChatSection.svelte';
   import DataSection from './sections/DataSection.svelte';
+  import EmotesSection from './sections/EmotesSection.svelte';
   import GeneralSection from './sections/GeneralSection.svelte';
   import HotkeysSection from './sections/HotkeysSection.svelte';
   import PlayerSection from './sections/PlayerSection.svelte';
@@ -30,6 +31,7 @@
     { id: 'accounts', label: 'Accounts', icon: 'user', component: AccountsSection },
     { id: 'appearance', label: 'Appearance', icon: 'palette', component: AppearanceSection },
     { id: 'chat', label: 'Chat', icon: 'chat', component: ChatSection },
+    { id: 'emotes', label: 'Emotes', icon: 'smile', component: EmotesSection },
     { id: 'player', label: 'Player', icon: 'tv', component: PlayerSection },
     { id: 'hotkeys', label: 'Hotkeys', icon: 'keyboard', component: HotkeysSection },
     { id: 'windows', label: 'Windows', icon: 'layout', component: WindowsSection },

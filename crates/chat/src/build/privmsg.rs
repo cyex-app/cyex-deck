@@ -18,6 +18,7 @@ pub fn privmsg(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Option<ChatMessage> {
     let tokens = tokenize(
         &Input {
             text,
+            sender: &sender.id,
             emotes: line.raw_tag("emotes").unwrap_or(""),
             gifs: line.raw_tag("gifs").unwrap_or(""),
             bits: line.tag_num("bits").unwrap_or(0),

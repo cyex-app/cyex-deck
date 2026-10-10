@@ -1,0 +1,182 @@
+{
+ "default_sets": [
+  3,
+  1539687
+ ],
+ "sets": {
+  "3": {
+   "id": 3,
+   "_type": 1,
+   "icon": null,
+   "title": "Global Emotes",
+   "css": null,
+   "emoticons": [
+    {
+     "id": 9,
+     "name": "ZrehplaR",
+     "height": 30,
+     "width": 33,
+     "public": false,
+     "hidden": true,
+     "modifier": false,
+     "modifier_flags": 0,
+     "offset": null,
+     "margins": null,
+     "css": null,
+     "owner": {
+      "_id": 2,
+      "name": "dansalvato",
+      "display_name": "dansalvato"
+     },
+     "artist": null,
+     "urls": {
+      "1": "https://cdn.frankerfacez.com/emote/9/1",
+      "2": "https://cdn.frankerfacez.com/emote/9/2",
+      "4": "https://cdn.frankerfacez.com/emote/9/4"
+     },
+     "status": 1,
+     "usage_count": 1,
+     "created_at": "2015-02-07T05:33:23.123Z",
+     "last_updated": "2015-05-30T18:32:47.401Z"
+    }
+   ]
+  },
+  "1532818": {
+   "id": 1532818,
+   "_type": 1,
+   "icon": null,
+   "title": "Subwoofer Emote Effects",
+   "css": null,
+   "emoticons": [
+    {
+     "id": 720507,
+     "name": "ffzHyper",
+     "height": 32,
+     "width": 32,
+     "public": false,
+     "hidden": false,
+     "modifier": true,
+     "modifier_flags": 12289,
+     "offset": null,
+     "margins": null,
+     "css": null,
+     "owner": {
+      "_id": 1,
+      "name": "sirstendec",
+      "display_name": "SirStendec"
+     },
+     "artist": null,
+     "urls": {
+      "1": "https://cdn.frankerfacez.com/emote/720507/1",
+      "2": "https://cdn.frankerfacez.com/emote/720507/2",
+      "4": "https://cdn.frankerfacez.com/emote/720507/4"
+     },
+     "status": 1,
+     "usage_count": 1,
+     "created_at": "2023-03-04T20:17:47.814Z",
+     "last_updated": "2023-03-04T20:17:47.814Z"
+    },
+    {
+     "id": 720510,
+     "name": "ffzRainbow",
+     "height": 32,
+     "width": 32,
+     "public": false,
+     "hidden": false,
+     "modifier": true,
+     "modifier_flags": 2049,
+     "offset": null,
+     "margins": null,
+     "css": null,
+     "owner": {
+      "_id": 1,
+      "name": "sirstendec",
+      "display_name": "SirStendec"
+     },
+     "artist": null,
+     "urls": {
+      "1": "https://cdn.frankerfacez.com/emote/720510/1",
+      "2": "https://cdn.frankerfacez.com/emote/720510/2",
+      "4": "https://cdn.frankerfacez.com/emote/720510/4"
+     },
+     "status": 1,
+     "usage_count": 1,
+     "created_at": "2023-03-04T20:17:47.861Z",
+     "last_updated": "2023-03-04T20:17:47.861Z"
+    }
+   ]
+  },
+  "1539687": {
+   "id": 1539687,
+   "_type": 2,
+   "icon": null,
+   "title": "Emote Effects",
+   "css": null,
+   "emoticons": [
+    {
+     "id": 723890,
+     "name": "ffzW",
+     "height": 32,
+     "width": 32,
+     "public": false,
+     "hidden": false,
+     "modifier": true,
+     "modifier_flags": 9,
+     "offset": null,
+     "margins": null,
+     "css": null,
+     "owner": {
+      "_id": 1,
+      "name": "sirstendec",
+      "display_name": "SirStendec"
+     },
+     "artist": null,
+     "urls": {
+      "1": "https://cdn.frankerfacez.com/emote/723890/1",
+      "2": "https://cdn.frankerfacez.com/emote/723890/2",
+      "4": "https://cdn.frankerfacez.com/emote/723890/4"
+     },
+     "status": 1,
+     "usage_count": 1,
+     "created_at": "2023-03-27T22:17:16.460Z",
+     "last_updated": "2023-03-27T22:17:16.460Z"
+    },
+    {
+     "id": 720508,
+     "name": "ffzX",
+     "height": 32,
+     "width": 32,
+     "public": false,
+     "hidden": false,
+     "modifier": true,
+     "modifier_flags": 3,
+     "offset": null,
+     "margins": null,
+     "css": null,
+     "owner": {
+      "_id": 1,
+      "name": "sirstendec",
+      "display_name": "SirStendec"
+     },
+     "artist": null,
+     "urls": {
+      "1": "https://cdn.frankerfacez.com/emote/720508/1",
+      "2": "https://cdn.frankerfacez.com/emote/720508/2",
+      "4": "https://cdn.frankerfacez.com/emote/720508/4"
+     },
+     "status": 1,
+     "usage_count": 1,
+     "created_at": "2023-03-04T20:17:47.845Z",
+     "last_updated": "2023-03-04T20:17:47.845Z"
+    }
+   ]
+  }
+ },
+ "user_ids": {
+  "1532818": [
+   469444238,
+   489223884,
+   92088347
+  ]
+ }
+}

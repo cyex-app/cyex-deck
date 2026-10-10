@@ -1,0 +1,55 @@
+{
+ "id": "574e63ce66a2002d3bcc6f92",
+ "bots": [
+  "markov_chain_bot",
+  "sumbot_"
+ ],
+ "avatar": "https://static-cdn.jtvnw.net/jtv_user_pictures/3973e918fe7cc8c8-profile_image-300x300.png",
+ "channelEmotes": [
+  {
+   "id": "5f1caf2d713a6144748a2372",
+   "code": "fuBaldi",
+   "imageType": "gif",
+   "animated": true,
+   "userId": "574e63ce66a2002d3bcc6f92"
+  },
+  {
+   "id": "5f76b04eccde1f4a870bf570",
+   "code": "BANERS",
+   "imageType": "gif",
+   "animated": true,
+   "userId": "574e63ce66a2002d3bcc6f92",
+   "width": 28,
+   "height": 27
+  }
+ ],
+ "sharedEmotes": [
+  {
+   "id": "59474044e949fe3b435e3135",
+   "code": "DUUR",
+   "imageType": "png",
+   "animated": false,
+   "user": {
+    "id": "561c219aef87f8db05aca668",
+    "name": "tastymcpanda",
+    "displayName": "TastyMcPanda",
+    "providerId": "38098373"
+   },
+   "codeOriginal": "FeelsTastyMan"
+  },
+  {
+   "id": "55189a5062e6bd0027aee082",
+   "code": "YetiZ",
+   "imageType": "png",
+   "animated": false,
+   "width": 60,
+   "height": 30,
+   "user": {
+    "id": "5561169bd6b9d206222a8c19",
+    "name": "nightdev",
+    "displayName": "NightDev",
+    "providerId": "29045896"
+   }
+  }
+ ]
+}

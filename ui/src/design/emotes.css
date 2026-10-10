@@ -1,0 +1,171 @@
+/* Emotes everywhere: size (E3), zero-width stacks and modifiers (C7), unlisted blur (2.4),
+   paints (1.37). Modifier transforms add up through variables. */
+
+.emote {
+  height: calc(var(--chat-size) * 2.15 * var(--emote-scale, 1));
+  margin: -0.45em 0 -0.35em;
+  vertical-align: middle;
+}
+.stack {
+  display: inline-grid;
+  margin: -0.45em 0 -0.35em;
+  vertical-align: middle;
+}
+.stack > .emote {
+  grid-area: 1 / 1;
+  margin: auto;
+}
+
+.unlisted {
+  filter: blur(3px) saturate(0.6);
+  clip-path: inset(0 round 1px);
+  opacity: 0.9;
+}
+.unlisted:hover {
+  filter: blur(2px) saturate(0.85);
+}
+
+/* 1.37 Paints: the class per paint sets the picture; the name's color shows through. */
+.painted {
+  background-color: currentcolor;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  -webkit-background-clip: text;
+}
+
+/* C7 Modifiers (FFZ numbering). */
+.m-flipX,
+.m-flipY,
+.m-rotate90,
+.m-growX {
+  transform: scale(var(--sx, 1), var(--sy, 1)) rotate(var(--rot, 0deg));
+}
+.m-flipX {
+  --sx: -1;
+}
+.m-flipY {
+  --sy: -1;
+}
+.m-rotate90 {
+  --rot: 90deg;
+}
+.m-growX {
+  width: auto;
+  aspect-ratio: auto;
+  margin-inline: 0.5em;
+  --sx: 2;
+}
+.m-flipX.m-growX {
+  --sx: -2;
+}
+.m-greyscale {
+  filter: grayscale(1);
+}
+.m-sepia {
+  filter: sepia(1);
+}
+.m-hyperRed {
+  filter: brightness(0.2) sepia(1) brightness(2.2) saturate(10);
+}
+.m-rainbow {
+  animation: emote-rainbow 2s linear infinite;
+}
+.m-rotate {
+  animation: emote-spin 1.5s linear infinite;
+}
+.m-shake {
+  animation: emote-shake 0.25s linear infinite;
+}
+.m-jam {
+  animation: emote-jam 0.6s ease-in-out infinite;
+}
+.m-bounce {
+  animation: emote-bounce 0.5s ease-in-out infinite alternate;
+}
+.m-slide {
+  animation: emote-slide 3s linear infinite;
+}
+.m-appear {
+  animation: emote-appear 3s linear infinite;
+}
+.m-leave {
+  animation: emote-leave 3s linear infinite;
+}
+.m-cursed {
+  filter: contrast(2) brightness(0.8) saturate(2) hue-rotate(180deg);
+}
+
+@keyframes emote-rainbow {
+  to {
+    filter: hue-rotate(360deg) saturate(2);
+  }
+}
+@keyframes emote-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes emote-shake {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-2px, 1px);
+  }
+  50% {
+    transform: translate(2px, -1px);
+  }
+  75% {
+    transform: translate(-1px, -2px);
+  }
+}
+@keyframes emote-jam {
+  50% {
+    transform: rotate(-8deg) translateY(-2px);
+  }
+}
+@keyframes emote-bounce {
+  to {
+    transform: translateY(-25%);
+  }
+}
+@keyframes emote-slide {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  50% {
+    clip-path: inset(0 0 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 100%);
+  }
+}
+@keyframes emote-appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes emote-leave {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* E2 Nothing moves while the window isn't focused. */
+:root.still .m-rainbow,
+:root.still .m-rotate,
+:root.still .m-shake,
+:root.still .m-jam,
+:root.still .m-bounce,
+:root.still .m-slide,
+:root.still .m-appear,
+:root.still .m-leave {
+  animation-play-state: paused;
+}

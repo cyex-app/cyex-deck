@@ -3,6 +3,7 @@
      follow age, name history and logs come in phase 8. -->
 <script lang="ts">
   import Avatar from '../../components/Avatar.svelte';
+  import { avatars } from '../emotes/avatars.svelte';
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
@@ -78,7 +79,7 @@
     <p class="muted">{error || `No user called ${login}.`}</p>
   {:else}
     <header>
-      <Avatar src={profile.avatar ?? ''} name={profile.displayName} size={56} />
+      <Avatar src={avatars.of(profile.login) ?? profile.avatar ?? ''} name={profile.displayName} size={56} />
       <div class="who">
         <div class="name">
           <strong>{note?.nickname || profile.displayName}</strong>

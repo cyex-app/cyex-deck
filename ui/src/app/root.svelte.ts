@@ -1,6 +1,9 @@
-// Effects every window runs: theme, accent and chat font follow the settings.
+// Effects every window runs: theme, accent and chat font follow the settings; emote size
+// (E3), still pictures while unfocused (E2) and who wears what (1.37-1.39).
 
 import { applyAppearance } from '../design/theme';
+import { looks } from '../features/emotes/looks.svelte';
+import { focus } from '../lib/focus.svelte';
 import { settings } from '../lib/settings.svelte';
 
 export function useRootEffects(): void {
@@ -14,4 +17,15 @@ export function useRootEffects(): void {
     style.setProperty('--chat-font', chatFontFamily ? `"${chatFontFamily}", var(--font-ui)` : 'var(--font-ui)');
     style.setProperty('--chat-size', `${chatFontSize}px`);
   });
+
+  $effect(() => {
+    document.documentElement.style.setProperty('--emote-scale', String(settings.v.chat.emoteSize / 100));
+  });
+
+  $effect(() => {
+    document.documentElement.classList.toggle('still', focus.still);
+  });
+
+  $effect(() => focus.start());
+  $effect(() => looks.start());
 }

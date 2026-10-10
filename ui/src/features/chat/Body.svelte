@@ -5,7 +5,8 @@
   import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
   import { catalogs } from './catalog.svelte';
-  import { cheerImg, cheerTier, emoteImg } from './urls';
+  import ChatEmote from './ChatEmote.svelte';
+  import { cheerImg, cheerTier } from './urls';
 
   let { fragments, channel }: { fragments: Fragment[]; channel: string } = $props();
 
@@ -14,10 +15,7 @@
 </script>
 
 {#each fragments as f, i (i)}
-  {#if f.t === 'text'}{f.text}{:else if f.t === 'emote'}
-    {@const img = emoteImg(f.provider, f.id, theme)}
-    <img class="emote" src={img.src} srcset={img.srcset} alt={f.name} data-tip={f.name} loading="lazy" decoding="async" />
-  {:else if f.t === 'mention'}<span class="mention" role="link" tabindex="-1" data-user={f.login}>{f.text}</span>
+  {#if f.t === 'text'}{f.text}{:else if f.t === 'emote'}<ChatEmote {f} />{:else if f.t === 'mention'}<span class="mention" role="link" tabindex="-1" data-user={f.login}>{f.text}</span>
   {:else if f.t === 'link'}<a
       class="link"
       href={f.url}
@@ -42,11 +40,6 @@
 {/each}
 
 <style>
-  .emote {
-    height: calc(var(--chat-size) * 2.15);
-    margin: -0.45em 0 -0.35em;
-    vertical-align: middle;
-  }
   .gif {
     display: block;
     max-width: min(240px, 100%);

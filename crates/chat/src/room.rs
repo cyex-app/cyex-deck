@@ -150,6 +150,26 @@ impl Room {
         out
     }
 
+    /// C9 A sender's emotes arrived: their messages since `since_ms` are read again.
+    pub fn retokenize_from(&mut self, user_id: &str, since_ms: i64, emotes: &dyn Emotes) -> Vec<RoomEvent> {
+        let mut events = Vec::new();
+        for slot in self.buffer.iter_mut().rev() {
+            if slot.ts < since_ms {
+                break;
+            }
+            if slot.sender_id() != Some(user_id) {
+                continue;
+            }
+            if let Some(body) = crate::tokenize::retokenize(&slot.body, user_id, emotes) {
+                let mut m = (**slot).clone();
+                m.body = body;
+                *slot = Arc::new(m);
+                events.push(RoomEvent::Update { message: slot.clone() });
+            }
+        }
+        events
+    }
+
     pub fn set_status(&mut self, status: ConnStatus) -> Option<RoomEvent> {
         (self.status != status).then(|| {
             self.status = status;
@@ -384,6 +404,7 @@ impl Room {
         let tokens = tokenize(
             &Input {
                 text: &p.text,
+                sender: self.me.as_ref().map_or("", |m| m.user_id.as_str()),
                 emotes: "",
                 gifs: "",
                 bits: 0,

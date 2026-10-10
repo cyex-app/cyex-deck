@@ -1,0 +1,45 @@
+[
+ {
+  "name": "!discord",
+  "provider": "fossabot",
+  "providerId": "CAEQBhoENDA4Mg",
+  "userLevel": "everyone",
+  "arguments": []
+ },
+ {
+  "name": "!resetdead",
+  "provider": "fossabot",
+  "providerId": "CAEQBhoGMzY3ODQx",
+  "userLevel": [
+   "moderator",
+   "broadcaster"
+  ],
+  "arguments": []
+ },
+ {
+  "name": "~wut",
+  "provider": "nightbot",
+  "providerId": "6084071a6dfc9a2842783311",
+  "userLevel": "moderator",
+  "arguments": []
+ },
+ {
+  "name": "!helix",
+  "userLevel": "everyone",
+  "providerId": "6abd65d3c6d33a17a3250c64",
+  "provider": "streamelements",
+  "arguments": []
+ },
+ {
+  "name": "!webcam",
+  "provider": "nightbot",
+  "providerId": "66872910912ffbac16cbac21",
+  "userLevel": "everyone",
+  "arguments": [
+   {
+    "name": "User",
+    "type": "user"
+   }
+  ]
+ }
+]

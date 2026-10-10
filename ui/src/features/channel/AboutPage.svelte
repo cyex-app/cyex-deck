@@ -44,7 +44,15 @@
   {:else if about}
     {#if about.banner}<img class="banner" src={about.banner} alt="" />{/if}
     <div class="head">
-      <StoryRing channelId={about.id} {account} avatar={about.avatar} name={about.name} size={64} onopen={onstories} />
+      <StoryRing
+        channelId={about.id}
+        {account}
+        avatar={about.avatar}
+        name={about.name}
+        login={about.login}
+        size={64}
+        onopen={onstories}
+      />
       <div class="who">
         <h2>
           {about.name}

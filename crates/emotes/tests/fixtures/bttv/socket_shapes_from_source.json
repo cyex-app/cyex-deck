@@ -1,0 +1,14 @@
+{
+ "_note": "NOT captured live (no events seen in ~15 min on 37 channels). Shapes reconstructed from BTTV extension src (socket-client.js, subscribers, personal-emotes, channel-emotes) and chatterino BttvLiveUpdateMessages.cpp. Values are placeholders.",
+ "outbound": [
+  {"name": "join_channel", "data": {"name": "twitch:71092938"}},
+  {"name": "part_channel", "data": {"name": "twitch:71092938"}},
+  {"name": "broadcast_me", "data": {"provider": "twitch", "providerId": "<own twitch user id>", "channel": "twitch:71092938"}}
+ ],
+ "inbound": [
+  {"name": "lookup_user", "data": {"providerId": "12345678", "pro": true, "subscribed": false, "badge": {"url": "<badge image url>", "startedAt": "2024-01-01T00:00:00.000Z"}, "usernameEffect": "supernova", "usernameHoverEffect": "wave", "emotes": [{"id": "5f3eb452b2efd65d77e867ed", "channel": "someuser", "code": "forsenBlunder", "animated": false}]}},
+  {"name": "emote_create", "data": {"channel": "twitch:71092938", "emote": {"id": "58cd5f2357baeb710f65a5d1", "code": "RareHug", "imageType": "gif", "animated": true, "user": {"id": "55ae669b911d882c66cfbfd8", "name": "lirik", "displayName": "LIRIK", "providerId": "23161357"}}}},
+  {"name": "emote_update", "data": {"channel": "twitch:71092938", "emote": {"id": "58cd5f2357baeb710f65a5d1", "code": "RareHugRenamed"}}},
+  {"name": "emote_delete", "data": {"channel": "twitch:71092938", "emoteId": "58cd5f2357baeb710f65a5d1"}}
+ ]
+}

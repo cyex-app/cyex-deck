@@ -29,6 +29,12 @@ const RANDOM_EMOTE: (&str, &str) = (
     "UnlockRandomSubscriberEmote",
     "f548e89966b21d0094f3dc35233232eb6ec76d63e02594c8a494407712a85350",
 );
+const CHOSEN_EMOTE: &str = "mutation($input: UnlockChosenSubscriberEmoteInput!) {     unlockChosenSubscriberEmote(input: $input) { balance error { code } } }";
+const MODIFIED_EMOTE: (&str, &str) = (
+    "UnlockModifiedEmote",
+    "30e8cc29b1d6d96809f5e35f5e7a550ae8bf5d26966a9637d919477ffd0bfc52",
+);
+const EMOTE_CHOICES: &str = "query($login: String!) { emoteModifiers { id title }     channel(name: $login) { communityPointsSettings { emoteVariants { id isUnlockable emote { id token }       modifications { id emote { id token } modifier { id } } } } } }";
 const SUB_MODE: &str = "mutation($input: SendChatMessageThroughSubscriberModeInput!) { \
     sendChatMessageThroughSubscriberMode(input: $input) { balance error { code } } }";
 
@@ -90,6 +96,46 @@ pub struct Redeemed {
     pub emote: Option<String>,
 }
 
+/// What the two "choose an emote" rewards offer: the channel's sub emotes and the ways
+/// one can be modified.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct EmoteChoices {
+    pub emotes: Vec<EmoteChoice>,
+    pub modifiers: Vec<EmoteModifier>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct EmoteChoice {
+    pub id: String,
+    pub name: String,
+    /// The "unlock a sub emote" reward can pick it.
+    pub unlockable: bool,
+    pub modifications: Vec<Modification>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Modification {
+    /// `<emote id>_<code>`, e.g. `1480140_BW`.
+    pub id: String,
+    pub name: String,
+    /// `MOD_BW`.
+    pub modifier: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct EmoteModifier {
+    pub id: String,
+    pub title: String,
+}
+
 pub async fn balance(http: &Http, auth: Auth<'_>, login: &str) -> Result<Option<u64>> {
     let v: Value = query(http, auth, BALANCE, json!({ "login": login })).await?;
     Ok(v.pointer("/channel/self/communityPoints/balance").and_then(Value::as_u64))
@@ -138,6 +184,39 @@ pub async fn unlock_random_emote(http: &Http, auth: Auth<'_>, channel_id: &str, 
     Ok(outcome(&v, "unlockRandomSubscriberEmote"))
 }
 
+/// Readable signed out.
+pub async fn emote_choices(http: &Http, login: &str) -> Result<EmoteChoices> {
+    let data: RawChoices = query(http, Auth::PUBLIC, EMOTE_CHOICES, json!({ "login": login })).await?;
+    Ok(data.into())
+}
+
+/// "Unlock a sub emote of your choice".
+pub async fn unlock_chosen_emote(
+    http: &Http,
+    auth: Auth<'_>,
+    channel_id: &str,
+    cost: u32,
+    emote_id: &str,
+) -> Result<Redeemed> {
+    let input = json!({ "channelID": channel_id, "cost": cost, "emoteID": emote_id, "transactionID": hex(16) });
+    let v: Value = query(http, auth, CHOSEN_EMOTE, json!({ "input": input })).await?;
+    Ok(outcome(&v, "unlockChosenSubscriberEmote"))
+}
+
+/// "Modify a single emote": `modification_id` like `1480140_BW`.
+pub async fn unlock_modified_emote(
+    http: &Http,
+    auth: Auth<'_>,
+    channel_id: &str,
+    cost: u32,
+    modification_id: &str,
+) -> Result<Redeemed> {
+    let input =
+        json!({ "channelID": channel_id, "cost": cost, "emoteID": modification_id, "transactionID": hex(16) });
+    let v: Value = persisted(http, auth, MODIFIED_EMOTE.0, MODIFIED_EMOTE.1, json!({ "input": input })).await?;
+    Ok(outcome(&v, "unlockChosenModifiedSubscriberEmote"))
+}
+
 fn message_input(channel_id: &str, cost: u32, message: &str) -> Value {
     json!({ "channelID": channel_id, "cost": cost, "message": message, "transactionID": hex(16) })
 }
@@ -155,6 +234,102 @@ fn outcome(v: &Value, field: &str) -> Redeemed {
 }
 
 // Raw shapes.
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawChoices {
+    #[serde(default)]
+    emote_modifiers: Option<Vec<EmoteModifierRaw>>,
+    channel: Option<RawChoicesChannel>,
+}
+
+#[derive(Deserialize)]
+struct EmoteModifierRaw {
+    id: String,
+    title: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawChoicesChannel {
+    community_points_settings: Option<RawVariants>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawVariants {
+    #[serde(default)]
+    emote_variants: Option<Vec<RawVariant>>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawVariant {
+    #[serde(default)]
+    is_unlockable: bool,
+    emote: Option<RawToken>,
+    #[serde(default)]
+    modifications: Option<Vec<RawModification>>,
+}
+
+#[derive(Deserialize)]
+struct RawToken {
+    id: String,
+    token: String,
+}
+
+#[derive(Deserialize)]
+struct RawModification {
+    id: String,
+    emote: Option<RawToken>,
+    modifier: Option<RawModifierId>,
+}
+
+#[derive(Deserialize)]
+struct RawModifierId {
+    id: String,
+}
+
+impl From<RawChoices> for EmoteChoices {
+    fn from(c: RawChoices) -> Self {
+        let variants = c
+            .channel
+            .and_then(|c| c.community_points_settings)
+            .and_then(|s| s.emote_variants)
+            .unwrap_or_default();
+        Self {
+            emotes: variants
+                .into_iter()
+                .filter_map(|v| {
+                    let e = v.emote?;
+                    Some(EmoteChoice {
+                        id: e.id,
+                        name: e.token,
+                        unlockable: v.is_unlockable,
+                        modifications: v
+                            .modifications
+                            .unwrap_or_default()
+                            .into_iter()
+                            .filter_map(|m| {
+                                Some(Modification {
+                                    name: m.emote.map(|e| e.token).unwrap_or_else(|| m.id.clone()),
+                                    modifier: m.modifier?.id,
+                                    id: m.id,
+                                })
+                            })
+                            .collect(),
+                    })
+                })
+                .collect(),
+            modifiers: c
+                .emote_modifiers
+                .unwrap_or_default()
+                .into_iter()
+                .map(|m| EmoteModifier { id: m.id, title: m.title })
+                .collect(),
+        }
+    }
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -268,6 +443,17 @@ impl From<RawPointsSettings> for Points {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn emote_choices_parse() {
+        let v: Value = serde_json::from_str(include_str!("../../tests/fixtures/emote_choices.json")).unwrap();
+        let c = EmoteChoices::from(serde_json::from_value::<RawChoices>(v["data"].clone()).unwrap());
+        assert_eq!(c.modifiers.len(), 5);
+        let a = c.emotes.iter().find(|e| e.name == "xqcA").unwrap();
+        assert!(a.unlockable);
+        assert_eq!(a.modifications[0].id, "1480140_BW");
+        assert_eq!(a.modifications[0].modifier, "MOD_BW");
+    }
 
     #[test]
     fn settings_parse_with_defaults() {

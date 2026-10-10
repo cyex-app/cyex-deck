@@ -10,6 +10,7 @@
   import { accounts } from '../../lib/accounts.svelte';
   import { formatNumber, formatShort } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
+  import EmotePick from './EmotePick.svelte';
   import type { ChatRoom } from './room.svelte';
 
   let { room }: { room: ChatRoom } = $props();
@@ -22,14 +23,18 @@
     image: string | null;
     prompt: string | null;
     needsText: boolean;
+    /** The reward picks an emote. */
+    emote?: 'unlock' | 'modify';
     available: boolean;
   }
 
-  /** Built-in rewards this app can redeem. The emote pickers come with the emote menu. */
-  const AUTOMATIC: Record<string, { title: string; needsText: boolean }> = {
+  /** Built-in rewards this app can redeem. */
+  const AUTOMATIC: Record<string, { title: string; needsText: boolean; emote?: 'unlock' | 'modify' }> = {
     SEND_HIGHLIGHTED_MESSAGE: { title: 'Highlight my message', needsText: true },
     SINGLE_MESSAGE_BYPASS_SUB_MODE: { title: 'Send a message in sub-only mode', needsText: true },
     RANDOM_SUB_EMOTE_UNLOCK: { title: 'Unlock a random sub emote', needsText: false },
+    CHOSEN_SUB_EMOTE_UNLOCK: { title: 'Unlock a sub emote', needsText: false, emote: 'unlock' },
+    CHOSEN_MODIFIED_SUB_EMOTE_UNLOCK: { title: 'Modify an emote', needsText: false, emote: 'modify' },
   };
 
   let open = $state(false);
@@ -37,6 +42,7 @@
   let loaded = $state(false);
   let picked = $state<Choice | null>(null);
   let text = $state('');
+  let emote = $state<string | null>(null);
   let busy = $state(false);
 
   const canRedeem = $derived(room.account !== null && accounts.can('points', room.account));
@@ -54,6 +60,7 @@
         image: r.image,
         prompt: null,
         needsText: AUTOMATIC[r.kind].needsText,
+        emote: AUTOMATIC[r.kind].emote,
         available: r.available,
       }));
     const custom = points.custom.map((r) => ({
@@ -94,13 +101,16 @@
     if (!canRedeem || !c.available) return;
     picked = c;
     text = '';
+    emote = null;
   }
 
   async function redeem() {
     if (!picked || busy) return;
     busy = true;
     try {
-      toast.info(await chatIpc.redeem(room.view, picked.id, picked.needsText ? text : undefined));
+      toast.info(
+        await chatIpc.redeem(room.view, picked.id, picked.needsText ? text : undefined, emote ?? undefined),
+      );
       open = false;
       picked = null;
       void load();
@@ -130,6 +140,9 @@
         <div class="confirm">
           <div class="title">{picked.title} · {formatNumber(picked.cost)}</div>
           {#if picked.prompt}<p class="note">{picked.prompt}</p>{/if}
+          {#if picked.emote}
+            <EmotePick view={room.view} kind={picked.emote} bind:picked={emote} />
+          {/if}
           {#if picked.needsText}
             <!-- svelte-ignore a11y_autofocus -->
             <input
@@ -143,7 +156,12 @@
           {/if}
           <div class="actions">
             <Button small variant="ghost" onclick={() => (picked = null)}>Back</Button>
-            <Button small variant="primary" disabled={busy || (picked.needsText && !text.trim())} onclick={redeem}>
+            <Button
+              small
+              variant="primary"
+              disabled={busy || (picked.needsText && !text.trim()) || (!!picked.emote && !emote)}
+              onclick={redeem}
+            >
               Redeem
             </Button>
           </div>

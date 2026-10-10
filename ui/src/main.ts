@@ -1,6 +1,7 @@
 import { mount } from 'svelte';
 
 import './design/tokens.css';
+import './design/emotes.css';
 import App from './app/App.svelte';
 import PanelApp from './app/PanelApp.svelte';
 import { applyCachedTheme } from './design/theme';

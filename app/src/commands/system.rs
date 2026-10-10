@@ -8,7 +8,17 @@ type CmdResult<T> = Result<T, String>;
 
 /// Hosts the UI may open. Everything else is refused, so a bad link in chat or a token
 /// field can't launch arbitrary URLs.
-const ALLOWED_HOSTS: [&str; 4] = ["twitch.tv", "www.twitch.tv", "dev.twitch.tv", "clips.twitch.tv"];
+/// Twitch, and the emote providers' pages (1.41 emote cards).
+const ALLOWED_HOSTS: [&str; 8] = [
+    "twitch.tv",
+    "www.twitch.tv",
+    "dev.twitch.tv",
+    "clips.twitch.tv",
+    "7tv.app",
+    "betterttv.com",
+    "www.frankerfacez.com",
+    "frankerfacez.com",
+];
 
 #[tauri::command]
 pub fn system_open_link(app: AppHandle, url: String) -> CmdResult<()> {
@@ -59,6 +69,7 @@ mod tests {
             "https://www.twitch.tv/activate?public=true&device-code=ABCD"
         ));
         assert!(is_allowed("https://dev.twitch.tv/console/apps"));
+        assert!(is_allowed("https://7tv.app/emotes/01FG70GMPR00021TQRJX35KWP1"));
         assert!(!is_allowed("http://www.twitch.tv/activate"));
         assert!(!is_allowed("https://twitch.tv.evil.example/"));
         assert!(!is_allowed("file:///C:/Windows"));

@@ -3,6 +3,7 @@
 mod accounts;
 mod browse;
 mod chat;
+mod emotes;
 mod player;
 mod settings;
 mod system;
@@ -36,9 +37,19 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         chat::chat_channel_catalog,
         chat::chat_points,
         chat::chat_redeem,
+        chat::chat_emote_choices,
+        chat::chat_identity,
+        chat::chat_pick_badge,
+        chat::chat_set_color,
         chat::chat_user_messages,
         chat::chat_resolve_link,
         chat::user_profile,
+        emotes::emotes_looks,
+        emotes::emotes_menu,
+        emotes::emotes_card,
+        emotes::emotes_room_badges,
+        emotes::emotes_bot_commands,
+        emotes::emotes_avatar,
         player::player_live,
         player::player_vod,
         player::player_close,

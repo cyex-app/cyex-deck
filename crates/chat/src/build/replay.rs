@@ -37,6 +37,7 @@ pub fn replay(c: &Comment<'_>, ctx: &mut Ctx<'_>) -> ChatMessage {
     let me: &[String] = ctx.me.map_or(&[], |m| m.names.as_slice());
     let input = Input {
         text: text.trim_end(),
+        sender: c.user_id,
         emotes: &tag,
         gifs: "",
         bits: 0,
@@ -102,11 +103,7 @@ mod tests {
         let msg = replay(&c, &mut Ctx::new(None, &mut colors, 0));
         assert_eq!(
             msg.body[1],
-            Fragment::Emote {
-                provider: Provider::Twitch,
-                id: "25".into(),
-                name: "Kappa".into()
-            }
+            Fragment::emote(Provider::Twitch, "25", "Kappa")
         );
         assert!(matches!(&msg.body[3], Fragment::Link { url, .. } if url == "https://twitch.tv/x"));
         let s = msg.sender.unwrap();

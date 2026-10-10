@@ -1,0 +1,89 @@
+{
+ "data": {
+  "emoteSets": {
+   "global": {
+    "id": "01GD17VE2R000E0RPNH2V9Z16G",
+    "name": "Halloween Global Emotes",
+    "emotes": {
+     "totalCount": 45,
+     "items": [
+      {
+       "id": "01FGH8NE3800064MEQW00DNBNG",
+       "alias": "reckH",
+       "addedAt": "2022-09-15T18:51:24.364+00:00",
+       "addedById": "01FBJ5134G0002BEVDT2R3WG7S",
+       "flags": {
+        "zeroWidth": false
+       },
+       "emote": {
+        "defaultName": "reckH",
+        "aspectRatio": 1,
+        "flags": {
+         "animated": false,
+         "publicListed": true
+        }
+       }
+      },
+      {
+       "id": "01GCMQJGB0000D8ZK13J8KVCDX",
+       "alias": "PepePls",
+       "addedAt": "2022-09-15T18:57:25.164+00:00",
+       "addedById": "01FBJ5134G0002BEVDT2R3WG7S",
+       "flags": {
+        "zeroWidth": false
+       },
+       "emote": {
+        "defaultName": "PepePls",
+        "aspectRatio": 0.6796875,
+        "flags": {
+         "animated": true,
+         "publicListed": true
+        }
+       }
+      },
+      {
+       "id": "01FSNK0GP000038GDBZ91HT6SQ",
+       "alias": "PETPET",
+       "addedAt": "2022-09-15T18:52:04.469+00:00",
+       "addedById": "01FBJ5134G0002BEVDT2R3WG7S",
+       "flags": {
+        "zeroWidth": true
+       },
+       "emote": {
+        "defaultName": "PETPET",
+        "aspectRatio": 1,
+        "flags": {
+         "animated": true,
+         "publicListed": true
+        }
+       }
+      },
+      {
+       "id": "01FSNK8QC80000JPZ36BHMFQWQ",
+       "alias": "SteerR",
+       "addedAt": "2022-09-15T18:52:21.126+00:00",
+       "addedById": "01FBJ5134G0002BEVDT2R3WG7S",
+       "flags": {
+        "zeroWidth": true
+       },
+       "emote": {
+        "defaultName": "SteerR",
+        "aspectRatio": 1,
+        "flags": {
+         "animated": true,
+         "publicListed": true
+        }
+       }
+      }
+     ]
+    }
+   }
+  }
+ },
+ "extensions": {
+  "analyzer": {
+   "complexity": 19,
+   "depth": 7
+  }
+ }
+}

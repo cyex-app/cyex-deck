@@ -6,7 +6,6 @@
   import type { GifMode } from '../../../ipc/bindings/GifMode';
   import type { NameStyle } from '../../../ipc/bindings/NameStyle';
   import type { PauseKey } from '../../../ipc/bindings/PauseKey';
-  import type { UnlistedEmotes } from '../../../ipc/bindings/UnlistedEmotes';
   import { formatDuration, formatTime, parseDuration } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
@@ -14,21 +13,6 @@
 
   const c = $derived(settings.v.chat);
 
-  const BADGES = [
-    { key: 'twitch', label: 'Twitch' },
-    { key: 'seventv', label: '7TV' },
-    { key: 'bttv', label: 'BTTV' },
-    { key: 'ffz', label: 'FFZ' },
-  ] as const;
-  const PAINTS = [
-    { key: 'seventv', label: '7TV' },
-    { key: 'bttv', label: 'BTTV' },
-  ] as const;
-  const UNLISTED: { value: UnlistedEmotes; label: string }[] = [
-    { value: 'hide', label: 'Hide' },
-    { value: 'blur', label: 'Blur' },
-    { value: 'show', label: 'Show' },
-  ];
   const GIFS: { value: GifMode; label: string }[] = [
     { value: 'show', label: 'Show GIF' },
     { value: 'link', label: 'Link' },
@@ -71,47 +55,7 @@
 
 <h2>Chat</h2>
 
-<h3 class="label">Badges</h3>
-{#each BADGES as b (b.key)}
-  <Row label="{b.label} badges">
-    <Toggle
-      label="{b.label} badges"
-      checked={c.badges[b.key]}
-      onchange={(v) => settings.patch('chat', { badges: { [b.key]: v } })}
-    />
-  </Row>
-{/each}
-
-<h3 class="label">Name paints</h3>
-{#each PAINTS as p (p.key)}
-  <Row label="{p.label} name paints">
-    <Toggle
-      label="{p.label} name paints"
-      checked={c.paints[p.key]}
-      onchange={(v) => settings.patch('chat', { paints: { [p.key]: v } })}
-    />
-  </Row>
-{/each}
-
-<h3 class="label">Emotes</h3>
-<Row label="Twitch emotes">
-  <Toggle label="Twitch emotes" checked={c.twitchEmotes} onchange={(v) => settings.patch('chat', { twitchEmotes: v })} />
-</Row>
-<Row label="7TV, BTTV and FFZ emotes">
-  <Toggle
-    label="7TV, BTTV and FFZ emotes"
-    checked={c.thirdPartyEmotes}
-    onchange={(v) => settings.patch('chat', { thirdPartyEmotes: v })}
-  />
-</Row>
-<Row label="Unlisted 7TV emotes" hint="Emotes 7TV hasn't approved for public listing.">
-  <Segmented
-    label="Unlisted 7TV emotes"
-    options={UNLISTED}
-    value={c.unlistedEmotes}
-    onchange={(v) => settings.patch('chat', { unlistedEmotes: v })}
-  />
-</Row>
+<h3 class="label">GIFs</h3>
 <Row label="GIFs">
   <Segmented label="GIFs" options={GIFS} value={c.gifs} onchange={(v) => settings.patch('chat', { gifs: v })} />
 </Row>

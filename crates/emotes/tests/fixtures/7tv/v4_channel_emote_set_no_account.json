@@ -1,0 +1,13 @@
+{
+ "data": {
+  "users": {
+   "userByConnection": null
+  }
+ },
+ "extensions": {
+  "analyzer": {
+   "complexity": 23,
+   "depth": 9
+  }
+ }
+}

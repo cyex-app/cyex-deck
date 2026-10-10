@@ -1,0 +1,93 @@
+{
+ "data": {
+  "emotes": {
+   "emote": {
+    "id": "01FG70GMPR00021TQRJX35KWP1",
+    "defaultName": "notL",
+    "ownerId": "01F6MTQK0R0000QWQEJTQA0MJ7",
+    "owner": {
+     "id": "01F6MTQK0R0000QWQEJTQA0MJ7",
+     "mainConnection": {
+      "platform": "TWITCH",
+      "platformId": "405469399",
+      "platformDisplayName": "bodybuffalo28"
+     }
+    },
+    "flags": {
+     "animated": true,
+     "defaultZeroWidth": true,
+     "publicListed": true,
+     "private": false,
+     "nsfw": false,
+     "approvedPersonal": false,
+     "deniedPersonal": false
+    },
+    "tags": [
+     "xqcl",
+     "notxqcl",
+     "finger",
+     "4weird",
+     "xqc"
+    ],
+    "aspectRatio": 1,
+    "deleted": false,
+    "updatedAt": "2026-10-09T17:00:45.174+00:00",
+    "attribution": [],
+    "events": [
+     {
+      "createdAt": "2022-07-27T23:20:36+00:00",
+      "data": {
+       "__typename": "EventEmoteDataProcess"
+      }
+     },
+     {
+      "createdAt": "2021-09-22T15:03:19+00:00",
+      "data": {
+       "__typename": "EventEmoteDataUpload"
+      }
+     }
+    ],
+    "images": [
+     {
+      "url": "https://cdn.7tv.app/emote/01FG70GMPR00021TQRJX35KWP1/2x.webp",
+      "mime": "image/webp",
+      "scale": 2,
+      "width": 64,
+      "height": 64,
+      "frameCount": 58
+     },
+     {
+      "url": "https://cdn.7tv.app/emote/01FG70GMPR00021TQRJX35KWP1/1x.webp",
+      "mime": "image/webp",
+      "scale": 1,
+      "width": 32,
+      "height": 32,
+      "frameCount": 58
+     },
+     {
+      "url": "https://cdn.7tv.app/emote/01FG70GMPR00021TQRJX35KWP1/4x.webp",
+      "mime": "image/webp",
+      "scale": 4,
+      "width": 128,
+      "height": 128,
+      "frameCount": 58
+     },
+     {
+      "url": "https://cdn.7tv.app/emote/01FG70GMPR00021TQRJX35KWP1/3x.webp",
+      "mime": "image/webp",
+      "scale": 3,
+      "width": 96,
+      "height": 96,
+      "frameCount": 58
+     }
+    ]
+   }
+  }
+ },
+ "extensions": {
+  "analyzer": {
+   "complexity": 36,
+   "depth": 5
+  }
+ }
+}

@@ -1,9 +1,11 @@
 //! Helix (api.twitch.tv/helix). One file per endpoint group.
 
+mod chat;
 mod clips;
 mod follows;
 mod users;
 
+pub use chat::{set_chat_color, user_emotes};
 pub use clips::{CreatedClip, create_clip};
 pub use follows::{followed_ids, followed_live_ids};
 pub use users::{User, users_by_id};

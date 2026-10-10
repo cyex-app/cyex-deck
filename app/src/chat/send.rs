@@ -73,6 +73,9 @@ pub fn send(app: &AppHandle, view: u32, text: &str, reply_to: Option<String>) ->
         reply,
         at_ms: now,
     });
+    if let Identity::Account(account) = &key.0 {
+        crate::emotes::presence::touch(app, account, &key.1);
+    }
     client.send(write::privmsg(
         &key.1,
         &write::Outgoing {

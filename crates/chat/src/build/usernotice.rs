@@ -33,6 +33,7 @@ pub fn usernotice(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Option<Incoming> {
         tokenize(
             &Input {
                 text,
+                sender: line.raw_tag("user-id").unwrap_or(""),
                 emotes: line.raw_tag("emotes").unwrap_or(""),
                 gifs: "",
                 bits: 0,

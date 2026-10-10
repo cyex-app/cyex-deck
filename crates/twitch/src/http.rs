@@ -29,6 +29,16 @@ impl Http {
         }
         builder.build().map(Self).map_err(Error::Network)
     }
+
+    /// GET JSON from another service (emote providers).
+    pub async fn get_json<T: DeserializeOwned>(&self, url: &str) -> Result<T> {
+        json(self.0.get(url)).await
+    }
+
+    /// POST a JSON body to another service and decode the JSON answer.
+    pub async fn post_json<T: DeserializeOwned>(&self, url: &str, body: &serde_json::Value) -> Result<T> {
+        json(self.0.post(url).json(body)).await
+    }
 }
 
 /// Sends the request and decodes a JSON body, or turns an error status into `Error::Api`.

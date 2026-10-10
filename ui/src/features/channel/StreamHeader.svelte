@@ -51,6 +51,7 @@
     account={tile.account}
     avatar={info?.avatar}
     name={tile.channel.name}
+    login={tile.channel.login}
     onopen={onstories}
     onplain={() => onpage({ kind: 'about' })}
   />

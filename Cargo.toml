@@ -14,6 +14,7 @@ cyex-twitch = { path = "crates/twitch" }
 cyex-auth = { path = "crates/auth" }
 cyex-chat = { path = "crates/chat" }
 cyex-player = { path = "crates/player" }
+cyex-emotes = { path = "crates/emotes" }
 
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
@@ -25,6 +26,9 @@ ts-rs = { version = "12", features = ["serde-json-impl", "no-serde-warnings"] }
 reqwest = { version = "0.13", default-features = false, features = ["native-tls", "json", "form", "query"] }
 tokio = { version = "1", features = ["time", "sync", "macros", "rt"] }
 tokio-native-tls = "0.3"
+# 7TV EventAPI and the BTTV socket (D3, D14), TLS through SChannel like everything else.
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "handshake", "native-tls"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 # Windows Credential Manager on Windows (v1 mode only compiles the platform store).
 keyring = "4.2"
 url = "2"

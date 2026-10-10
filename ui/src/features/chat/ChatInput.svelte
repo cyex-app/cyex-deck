@@ -1,20 +1,22 @@
-<!-- Message box (1.8, C6, C21): `@` and `:` suggestions, Tab completion, length counter,
-     slow mode and timeout countdown, replies. Enter sends; Ctrl+Enter sends and keeps
-     the text for sending again. Up recalls what you sent. -->
+<!-- Message box (1.8, C6, C21): `@`, `:` and `!` suggestions (emotes, emoji E1, bot
+     commands C13), Tab completion, the emote menu (1.40), length counter, slow mode and
+     timeout countdown, replies. Enter sends; Ctrl+Enter sends and keeps the text for
+     sending again. Up recalls what you sent. -->
 <script lang="ts">
   import { tick } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
   import { chatIpc } from '../../ipc/chat';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
-  import type { Provider } from '../../ipc/bindings/Provider';
   import { accounts } from '../../lib/accounts.svelte';
-  import { settings } from '../../lib/settings.svelte';
   import { complete, insert, wordAt, type Word } from './completion';
+  import EmoteButton from './EmoteButton.svelte';
   import RewardsMenu from './RewardsMenu.svelte';
   import type { ChatRoom } from './room.svelte';
+  import { Sources } from './sources.svelte';
+  import SuggestList from './SuggestList.svelte';
+  import type { Item } from './suggestions';
   import { plainText } from './text';
-  import { emoteImg } from './urls';
 
   interface Props {
     room: ChatRoom;
@@ -36,10 +38,8 @@
 
   interface Suggest {
     word: Word;
-    items: string[];
+    items: Item[];
     index: number;
-    /** `:` shows emote pictures. */
-    emotes: boolean;
   }
   let suggest = $state<Suggest | null>(null);
   /** Tab cycling through matches for one word. */
@@ -48,7 +48,9 @@
   const canChat = $derived(room.account !== null && accounts.can('sendChat', room.account));
   const chars = $derived([...text].length);
   const waitMs = $derived(room.state.waitUntil ? room.state.waitUntil - now : 0);
-  const theme = $derived(settings.v.appearance.theme);
+  // The room never changes for one box.
+  // svelte-ignore state_referenced_locally
+  const sources = new Sources(room);
 
   // Ticks the countdown only while there's one to show.
   $effect(() => {
@@ -64,44 +66,23 @@
     if (replyTo) void tick().then(() => box?.focus());
   });
 
-  /** Recent chatters, newest first. */
-  function chatters(): string[] {
-    const names: string[] = [];
-    const seen = new Set<string>();
-    for (let i = room.messages.length - 1; i >= 0 && names.length < 500; i--) {
-      const s = room.messages[i].sender;
-      if (s && !seen.has(s.id)) {
-        seen.add(s.id);
-        names.push(s.display);
-      }
-    }
-    return names;
-  }
-
-  /** Emotes seen in this chat, by name. Phase 7 adds the providers' sets. */
-  function emotes(): Map<string, { provider: Provider; id: string }> {
-    const map = new Map<string, { provider: Provider; id: string }>();
-    for (const m of room.messages) {
-      for (const f of m.body) if (f.t === 'emote') map.set(f.name, { provider: f.provider, id: f.id });
-    }
-    return map;
-  }
-
-  let emoteMap = $state.raw(new Map<string, { provider: Provider; id: string }>());
-
   function updateSuggest() {
-    const caret = box?.selectionStart ?? text.length;
-    const word = wordAt(text, caret);
-    if (word.text.startsWith('@') && word.text.length >= 2) {
-      const items = complete(word.text.slice(1), chatters()).map((n) => `@${n}`);
-      suggest = items.length ? { word, items, index: 0, emotes: false } : null;
-    } else if (word.text.startsWith(':') && word.text.length >= 3) {
-      emoteMap = emotes();
-      const items = complete(word.text.slice(1), emoteMap.keys());
-      suggest = items.length ? { word, items, index: 0, emotes: true } : null;
-    } else {
-      suggest = null;
-    }
+    const word = wordAt(text, box?.selectionStart ?? text.length);
+    const items = sources.items(word);
+    suggest = items.length ? { word, items, index: 0 } : null;
+  }
+
+  /** 1.40 Puts an emote or emoji at the caret, with spaces around it. */
+  async function insertAtCaret(value: string) {
+    const start = box?.selectionStart ?? text.length;
+    const end = box?.selectionEnd ?? start;
+    const before = text.slice(0, start);
+    const after = text.slice(end);
+    const lead = before && !before.endsWith(' ') ? ' ' : '';
+    text = `${before}${lead}${value} ${after.replace(/^ /, '')}`;
+    await tick();
+    const caret = before.length + lead.length + value.length + 1;
+    box?.setSelectionRange(caret, caret);
   }
 
   async function put(word: Word, value: string) {
@@ -113,7 +94,7 @@
 
   function accept(i = suggest?.index ?? 0) {
     if (!suggest) return;
-    void put(suggest.word, suggest.items[i]);
+    void put(suggest.word, suggest.items[i].value);
     suggest = null;
   }
 
@@ -131,8 +112,8 @@
     const word = wordAt(text, box?.selectionStart ?? text.length);
     const bare = word.text.replace(/^@/, '');
     if (!bare) return;
-    const people = chatters().map((n) => (word.text.startsWith('@') ? `@${n}` : n));
-    const items = complete(bare, [...emotes().keys(), ...people], 30);
+    const people = sources.chatters().map((n) => (word.text.startsWith('@') ? `@${n}` : n));
+    const items = complete(bare, [...sources.emotes().map((e) => e.name), ...people], 30);
     if (!items.length) return;
     void put(word, items[0]);
     cycle = { word: { start: word.start, end: word.start + items[0].length, text: items[0] }, items, index: 0 };
@@ -202,26 +183,7 @@
     </div>
   {/if}
   {#if suggest}
-    <div class="suggest" role="listbox">
-      {#each suggest.items as item, i (item)}
-        <button
-          class="item"
-          class:on={i === suggest.index}
-          role="option"
-          aria-selected={i === suggest.index}
-          onmousedown={(e) => {
-            e.preventDefault();
-            accept(i);
-          }}
-        >
-          {#if suggest.emotes}
-            {@const e = emoteMap.get(item)}
-            {#if e}<img src={emoteImg(e.provider, e.id, theme).src} alt="" />{/if}
-          {/if}
-          {item}
-        </button>
-      {/each}
-    </div>
+    <SuggestList items={suggest.items} index={suggest.index} onpick={accept} />
   {/if}
   <div class="row">
     <RewardsMenu {room} />
@@ -235,9 +197,11 @@
         spellcheck="false"
         oninput={updateSuggest}
         onclick={updateSuggest}
+        onfocus={() => sources.load()}
         onblur={() => (suggest = null)}
         {onkeydown}
       ></textarea>
+      <EmoteButton login={room.login} account={room.account} oninsert={(v) => void insertAtCaret(v)} />
       <div class="meta">
         {#if waitMs > 0}<span class="wait" data-tip="You can talk again then">{Math.ceil(waitMs / 1000)}s</span>{/if}
         {#if chars > 0}<span class="count" class:over={chars > MAX} class:near={chars > MAX - 50}>{chars}/{MAX}</span>{/if}
@@ -283,7 +247,7 @@
   }
   .meta {
     position: absolute;
-    right: 16px;
+    right: 56px;
     bottom: 15px;
     display: flex;
     gap: 8px;
@@ -338,39 +302,6 @@
   }
   .reply-bar button:hover {
     color: var(--text);
-  }
-  .suggest {
-    position: absolute;
-    bottom: calc(100% - 2px);
-    left: 8px;
-    right: 8px;
-    z-index: var(--z-popover);
-    max-height: 260px;
-    overflow-y: auto;
-    padding: 4px;
-    background: var(--elevated);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius);
-    box-shadow: 0 8px 24px var(--shadow);
-  }
-  .item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    height: 30px;
-    padding: 0 8px;
-    background: none;
-    border: 0;
-    border-radius: var(--radius);
-    text-align: left;
-  }
-  .item img {
-    height: 22px;
-  }
-  .item.on,
-  .item:hover {
-    background: var(--accent-dim);
   }
   .error {
     margin: 6px 2px 0;

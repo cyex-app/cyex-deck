@@ -133,6 +133,15 @@ pub fn helix_token(app: &AppHandle, user_id: &str) -> Option<(String, String)> {
     token(app, user_id, TokenKind::Helix)
 }
 
+/// The Helix token, only if it was granted `scope`.
+pub fn helix_scoped(app: &AppHandle, user_id: &str, scope: &str) -> Option<(String, String)> {
+    let scoped = accounts(app)
+        .get(user_id)
+        .and_then(|a| a.helix.as_ref())
+        .is_some_and(|m| m.scopes.iter().any(|s| s == scope));
+    scoped.then(|| helix_token(app, user_id)).flatten()
+}
+
 fn token(app: &AppHandle, user_id: &str, kind: TokenKind) -> Option<(String, String)> {
     let auth = app.state::<Auth>();
     auth.vault

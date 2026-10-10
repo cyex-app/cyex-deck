@@ -4,13 +4,12 @@ use std::sync::Arc;
 
 use cyex_chat::irc::{self, Anonymous, Client, Credentials, Event, Line, LinkStatus, Window};
 use cyex_chat::model::{ConnStatus, Flag, RoomEvent};
-use cyex_chat::tokenize::NoEmotes;
 use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc;
 
 use super::creds::AccountCreds;
 use super::unread::{self, Unread};
-use super::{Chat, Identity, Inner, RoomKey, Session, budget, mention, now_ms, queue};
+use super::{Chat, Identity, Inner, RoomKey, Session, account_of, budget, mention, now_ms, queue};
 
 /// The session for `identity`, started if needed.
 pub fn ensure<'a>(app: &AppHandle, inner: &'a mut Inner, identity: &Identity) -> &'a Session {
@@ -78,6 +77,7 @@ fn link_status(app: &AppHandle, identity: &Identity, link: LinkStatus) {
 fn line(app: &AppHandle, identity: &Identity, raw: &str) {
     let Some(line) = Line::parse(raw) else { return };
     let Some(channel) = line.channel() else { return };
+    let emotes = crate::emotes::room(app, account_of(identity), channel);
     let chat = app.state::<Chat>();
     let mut inner = chat.lock();
     let key = (identity.clone(), channel.to_owned());
@@ -90,7 +90,7 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
         return;
     }
     let was_privileged = entry.room.privileged();
-    let events = entry.room.handle_line(&line, now_ms(), &NoEmotes);
+    let events = entry.room.handle_line(&line, now_ms(), &emotes);
     let privileged = entry.room.privileged();
     // U9 Only rooms no view shows collect news.
     let news = if entry.views.is_empty() { unread::level(&events) } else { Unread::Seen };
@@ -98,6 +98,15 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
     if lit {
         entry.unread = news;
     }
+    let own: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            RoomEvent::Message { message } if message.has(Flag::Own) && !message.has(Flag::History) => {
+                Some(message.clone())
+            }
+            _ => None,
+        })
+        .collect();
     let mentions: Vec<_> = events
         .iter()
         .filter_map(|e| match e {
@@ -123,6 +132,9 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
     for m in mentions {
         mention::notify(app, channel, &m);
     }
+    for m in own {
+        crate::emotes::record_usage(app, &m.body);
+    }
     if lit {
         unread::emit(app, &key, news);
     }
@@ -139,10 +151,11 @@ pub fn load_history(app: AppHandle, key: RoomKey) {
                 return;
             }
         };
+        let emotes = crate::emotes::room(&app, account_of(&key.0), &key.1);
         let chat = app.state::<Chat>();
         let mut inner = chat.lock();
         let Some(entry) = inner.rooms.get_mut(&key) else { return };
-        let messages = entry.room.history(&lines, now_ms(), &NoEmotes);
+        let messages = entry.room.history(&lines, now_ms(), &emotes);
         if !messages.is_empty() {
             queue(entry, [RoomEvent::History { messages }], &chat.wake);
         }

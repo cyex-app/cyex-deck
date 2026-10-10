@@ -5,19 +5,24 @@
   import { tooltip } from '../../components/tooltip.svelte';
   import type { StoryRing } from '../../ipc/bindings/StoryRing';
   import { channelIpc } from '../../ipc/player';
+  import { avatars } from '../emotes/avatars.svelte';
 
   interface Props {
     channelId: string;
     account: string | null;
     avatar: string | null | undefined;
     name: string;
+    /** For the channel's 7TV picture (C23). */
+    login?: string;
     size?: number;
     /** Opens the stories; without stories the avatar does `onplain`. */
     onopen: () => void;
     onplain?: () => void;
   }
 
-  let { channelId, account, avatar, name, size = 24, onopen, onplain }: Props = $props();
+  let { channelId, account, avatar: twitch, name, login, size = 24, onopen, onplain }: Props = $props();
+
+  const avatar = $derived(avatars.of(login) ?? twitch);
 
   let ring = $state<StoryRing | null>(null);
 

@@ -5,6 +5,7 @@
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import { formatNumber, formatTime } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
+  import { looks } from '../emotes/looks.svelte';
   import Badges from './Badges.svelte';
   import Body from './Body.svelte';
   import { shownName } from './names';
@@ -27,6 +28,8 @@
   const notice = $derived(m.notice);
   const time = $derived(c.timestamps.show ? formatTime(new Date(m.ts), c.timestamps) : '');
   const colorVars = $derived(sender ? `--cd:${sender.color.dark};--cl:${sender.color.light}` : '');
+  /** 1.37 The sender's 7TV paint, as a class. */
+  const paint = $derived(sender && c.paints.seventv ? looks.paintClass(looks.look(sender.id)?.paint ?? null) : null);
   const recipients = $derived(notice?.recipients ?? []);
 </script>
 
@@ -67,8 +70,9 @@
     <div class="msg">
       {#if time}<span class="ts">{time}</span>{/if}
       {#if m.source}<Badges badges={m.source.badges} {channel} />{/if}
-      <Badges badges={sender.badges} {channel} />
-      <span class="name" role="link" tabindex="-1" data-user={sender.login}>{name.name}</span
+      <Badges badges={sender.badges} {channel} userId={sender.id} />
+      <span class="name {paint ?? ''}" class:painted={!!paint} role="link" tabindex="-1" data-user={sender.login}
+        >{name.name}</span
       >{#if name.extra}<span class="extra">{` (${name.extra})`}</span>{/if}{#if !action}<span class="colon">{': '}</span>{:else}{' '}{/if}<span
         class="body"
         class:action><Body fragments={m.body} {channel} /></span

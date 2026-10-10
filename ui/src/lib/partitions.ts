@@ -11,6 +11,7 @@ export const PARTITION_LABELS: Record<Partition, string> = {
   hotkeys: 'Hotkeys',
   tabs: 'Tabs',
   browse: 'Home and discover',
+  emotes: 'Emote favorites',
   accounts: 'Accounts',
   miner: 'Miner',
   modview: 'Mod view',

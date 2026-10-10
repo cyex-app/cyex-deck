@@ -11,7 +11,8 @@
 <svelte:window bind:innerWidth={viewport} />
 
 {#if tip.visible}
-  <div class="tip" role="tooltip" bind:clientWidth={width} style:left="{left}px" style:top="{tip.y}px">
+  <div class="tip" class:pic={!!tip.image} role="tooltip" bind:clientWidth={width} style:left="{left}px" style:top="{tip.y}px">
+    {#if tip.image}<img src={tip.image} alt="" />{/if}
     <span class="name">{tip.label}</span>
     {#if tip.hint}<span class="hint">{tip.hint}</span>{/if}
   </div>
@@ -32,6 +33,16 @@
     box-shadow: 0 4px 14px var(--shadow);
     pointer-events: none;
     animation: in var(--fast) ease-out;
+  }
+  .pic {
+    align-items: center;
+    text-align: center;
+  }
+  .pic img {
+    max-width: 224px;
+    height: 112px;
+    object-fit: contain;
+    margin-bottom: 4px;
   }
   .name {
     font-size: 0.8rem;

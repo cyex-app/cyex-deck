@@ -22,6 +22,7 @@
     account={tile.account}
     avatar={info?.avatar}
     name={tile.channel.name}
+    login={tile.channel.login}
     size={72}
     onopen={onstories}
   />

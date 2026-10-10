@@ -1,8 +1,12 @@
 //! Channel points as a viewer (1.9): the rewards menu and redeeming, with the account's
-//! GQL token.
+//! GQL token. The two rewards that pick an emote list what's left to pick (phase 7).
 
-use cyex_twitch::gql::{self, Points, Redeemed};
+use std::collections::{HashMap, HashSet};
+
+use cyex_twitch::gql::{self, EmoteChoice, EmoteModifier, Points, Redeemed};
+use serde::Serialize;
 use tauri::{AppHandle, Manager};
+use ts_rs::TS;
 
 use super::{Chat, Identity, catalog};
 use crate::auth::{Auth, gql_token};
@@ -37,8 +41,68 @@ pub async fn points(app: &AppHandle, view: u32) -> Result<Option<Points>, String
     Ok(Some(p))
 }
 
-/// Redeems a reward. Returns a short line for the UI, e.g. the unlocked emote.
-pub async fn redeem(app: &AppHandle, view: u32, reward_id: &str, text: Option<String>) -> Result<String, String> {
+/// What the two "choose an emote" rewards can still give this account.
+#[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct EmoteRewardChoices {
+    /// Sub emotes to unlock.
+    pub unlock: Vec<EmoteChoice>,
+    /// Emotes you have, with the versions you don't have yet.
+    pub modify: Vec<EmoteChoice>,
+    pub modifiers: Vec<EmoteModifier>,
+}
+
+pub async fn emote_choices(app: &AppHandle, view: u32) -> Result<EmoteRewardChoices, String> {
+    let (login, account) = view_key(app, view)?;
+    let account = account.ok_or("Sign in to use channel points.")?;
+    let c = catalog::channel(app, &login, false).await?.ok_or("Channel not found.")?;
+    let http = app.state::<Auth>().http.clone();
+    let (choices, sets) = tokio::join!(
+        gql::emote_choices(&http, &login),
+        crate::emotes::twitch_sets(app, &account, &c.channel_id, true)
+    );
+    let choices = choices.map_err(|e| e.to_string())?;
+    let sets = sets?;
+    let owned: HashMap<&str, &[String]> = sets
+        .iter()
+        .flat_map(|s| s.emotes.iter())
+        .map(|e| (e.id.as_str(), e.modifiers.as_slice()))
+        .collect();
+    let mut unlock = Vec::new();
+    let mut modify = Vec::new();
+    for mut e in choices.emotes {
+        match owned.get(e.id.as_str()) {
+            Some(codes) => {
+                let have: HashSet<String> = codes.iter().map(|c| format!("{}_{c}", e.id)).collect();
+                e.modifications.retain(|m| !have.contains(&m.id));
+                if !e.modifications.is_empty() {
+                    modify.push(e);
+                }
+            }
+            None if e.unlockable => {
+                e.modifications.clear();
+                unlock.push(e);
+            }
+            None => {}
+        }
+    }
+    Ok(EmoteRewardChoices {
+        unlock,
+        modify,
+        modifiers: choices.modifiers,
+    })
+}
+
+/// Redeems a reward. Returns a short line for the UI, e.g. the unlocked emote. `emote`
+/// is the pick for the two emote rewards.
+pub async fn redeem(
+    app: &AppHandle,
+    view: u32,
+    reward_id: &str,
+    text: Option<String>,
+    emote: Option<String>,
+) -> Result<String, String> {
     let (login, account) = view_key(app, view)?;
     let account = account.ok_or("Sign in to use channel points.")?;
     let (token, client_id) =
@@ -67,6 +131,14 @@ pub async fn redeem(app: &AppHandle, view: u32, reward_id: &str, text: Option<St
                 gql::send_in_sub_mode(&http, auth, id, r.cost, text.as_deref().ok_or("Write the message first.")?).await
             }
             "RANDOM_SUB_EMOTE_UNLOCK" => gql::unlock_random_emote(&http, auth, id, r.cost).await,
+            "CHOSEN_SUB_EMOTE_UNLOCK" => {
+                let emote = emote.as_deref().ok_or("Pick an emote first.")?;
+                gql::unlock_chosen_emote(&http, auth, id, r.cost, emote).await
+            }
+            "CHOSEN_MODIFIED_SUB_EMOTE_UNLOCK" => {
+                let emote = emote.as_deref().ok_or("Pick an emote first.")?;
+                gql::unlock_modified_emote(&http, auth, id, r.cost, emote).await
+            }
             _ => return Err("This reward isn't supported yet.".into()),
         }
     } else {
@@ -74,6 +146,10 @@ pub async fn redeem(app: &AppHandle, view: u32, reward_id: &str, text: Option<St
     }
     .map_err(|e| e.to_string())?;
 
+    if result.error.is_none() && points.automatic.iter().any(|r| r.id == reward_id) {
+        // A new emote: the menu and our own lines should know it.
+        crate::emotes::refresh_mine(app, &account, id);
+    }
     match result.error {
         Some(code) => Err(error_text(&code)),
         None => Ok(match result.emote {

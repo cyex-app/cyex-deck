@@ -1,0 +1,52 @@
+{
+ "d": {
+  "type": "entitlement.create",
+  "body": {
+   "id": "00000000000000000000000000",
+   "kind": 10,
+   "object": {
+    "id": "00000000000000000000000000",
+    "kind": "BADGE",
+    "ref_id": "01JAT9B20KQK8DK8FT13XV83YC",
+    "user": {
+     "id": "01G8AADDBG000BHEQKFW9ZNC08",
+     "username": "trillamil",
+     "display_name": "trillamil",
+     "avatar_url": "//cdn.7tv.app/user/01G8AADDBG000BHEQKFW9ZNC08/profile-picture/01GG9B4S800000N51Z44PPKFGP/3x.avif",
+     "style": {
+      "color": -5635841,
+      "paint_id": "01GEWY836G000EZEK94KRK9Y6T",
+      "badge_id": "01JAT9B20KQK8DK8FT13XV83YC"
+     },
+     "role_ids": [
+      "01F37R3RFR0000K96678WEQT01",
+      "01G68MMQFR0007J6GNM9E2M0TM"
+     ],
+     "connections": [
+      {
+       "id": "100816422",
+       "platform": "TWITCH",
+       "username": "trillamil",
+       "display_name": "trillamil",
+       "linked_at": 1658203846739,
+       "emote_capacity": 1000,
+       "emote_set_id": null
+      },
+      {
+       "id": "8547806",
+       "platform": "KICK",
+       "username": "trillamil",
+       "display_name": "trillamil",
+       "linked_at": 1687067864325,
+       "emote_capacity": 1000,
+       "emote_set_id": null
+      }
+     ]
+    }
+   }
+  }
+ },
+ "op": 0,
+ "t": 1791615283800,
+ "s": 26
+}

@@ -1,0 +1,62 @@
+{
+ "d": {
+  "type": "cosmetic.create",
+  "body": {
+   "id": "01KQARKPY5QDJTKEQ4SST2450F",
+   "kind": 10,
+   "object": {
+    "id": "01KQARKPY5QDJTKEQ4SST2450F",
+    "kind": "PAINT",
+    "data": {
+     "id": "01KQARKPY5QDJTKEQ4SST2450F",
+     "name": "Tuxedo Cat",
+     "color": null,
+     "gradients": [],
+     "shadows": [
+      {
+       "x_offset": 0,
+       "y_offset": 0,
+       "radius": 3,
+       "color": 303174399
+      }
+     ],
+     "text": null,
+     "function": "RADIAL_GRADIENT",
+     "repeat": false,
+     "angle": 0,
+     "shape": "circle",
+     "image_url": "",
+     "stops": [
+      {
+       "at": 0,
+       "color": 1667458047
+      },
+      {
+       "at": 0.27,
+       "color": 909522687
+      },
+      {
+       "at": 0.36,
+       "color": -17305089
+      },
+      {
+       "at": 0.65,
+       "color": -67372033
+      },
+      {
+       "at": 0.8,
+       "color": 1162167807
+      },
+      {
+       "at": 1,
+       "color": 909522687
+      }
+     ]
+    }
+   }
+  }
+ },
+ "op": 0,
+ "t": 1791615342581,
+ "s": 78
+}

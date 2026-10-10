@@ -5,12 +5,16 @@
   import { tick, untrack } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
+  import { openMenu } from '../../components/menu.svelte';
   import { hideTip, retitleTip, showTip } from '../../components/tooltip.svelte';
   import type { LinkTarget } from '../../ipc/bindings/LinkTarget';
   import { chatIpc } from '../../ipc/chat';
   import { systemIpc } from '../../ipc/system';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
+  import EmoteCard from '../emotes/EmoteCard.svelte';
+  import type { CardTarget } from '../emotes/emotes';
+  import { hidden } from '../emotes/hidden.svelte';
   import Line from './Line.svelte';
   import { readMarks, type ChatRoom } from './room.svelte';
 
@@ -127,11 +131,43 @@
     toBottom();
   }
 
+  /** 1.41 The emote card on screen. */
+  let card = $state<CardTarget | null>(null);
+
+  function emoteAt(el: HTMLElement): CardTarget {
+    const d = JSON.parse(el.dataset.emote!) as Omit<CardTarget, 'rect'>;
+    return { ...d, rect: el.getBoundingClientRect() };
+  }
+
+  /** E4 Right-click an emote: card, copy, hide. */
+  function oncontextmenu(e: MouseEvent) {
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-emote]');
+    if (!el) return;
+    e.preventDefault();
+    const t = emoteAt(el);
+    const { emote } = t;
+    hideTip();
+    openMenu(e, [
+      { label: 'Emote card', run: () => (card = t) },
+      { label: 'Copy name', run: () => void navigator.clipboard.writeText(emote.name) },
+      'separator',
+      {
+        label: `Hide ${emote.name}`,
+        run: () => hidden.hide({ source: emote.provider, id: emote.id, name: emote.name }),
+      },
+    ]);
+  }
+
   function onclick(e: MouseEvent) {
-    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-user],[data-link],[data-reply],[data-jump]');
+    const el = (e.target as HTMLElement).closest<HTMLElement>(
+      '[data-user],[data-link],[data-reply],[data-jump],[data-emote]',
+    );
     if (!el) return;
     const d = el.dataset;
-    if (d.link) {
+    if (d.emote) {
+      hideTip();
+      card = emoteAt(el);
+    } else if (d.link) {
       e.preventDefault();
       if (d.target && onlink) return onlink(JSON.parse(d.target) as LinkTarget);
       systemIpc.openChatLink(d.link).catch((err) => toast.error(String(err)));
@@ -150,7 +186,7 @@
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-tip],[data-link]');
     if (!el) return;
     if (el.dataset.link) return showLinkTip(el);
-    showTip(el, { label: el.dataset.tip ?? '', hint: el.dataset.hint });
+    showTip(el, { label: el.dataset.tip ?? '', hint: el.dataset.hint, image: el.dataset.tipImg });
   }
 
   function onmouseout(e: MouseEvent) {
@@ -188,6 +224,7 @@
     {onkeydown}
     {onpointerdown}
     {onclick}
+    {oncontextmenu}
     {onmouseover}
     {onmouseout}
     onmouseenter={() => (hovering = true)}
@@ -200,6 +237,9 @@
       {#if m.id === lastRead && m.id !== room.messages.at(-1)?.id}<hr class="last-read" />{/if}
     {/each}
   </div>
+  {#if card}
+    {#key card}<EmoteCard target={card} login={room.login} onclose={() => (card = null)} />{/key}
+  {/if}
   {#if !following || newWhilePaused}
     <button class="more" onclick={jumpDown}>
       <Icon name="arrowDown" size={13} />

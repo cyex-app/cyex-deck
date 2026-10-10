@@ -6,6 +6,7 @@
 pub mod catalog;
 mod creds;
 mod flush;
+pub mod identity;
 mod mention;
 pub mod points;
 mod send;
@@ -22,7 +23,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use cyex_chat::build::Me;
 use cyex_chat::irc::{Client, Window};
-use cyex_chat::model::{ChatMessage, ConnStatus, RoomEvent};
+use cyex_chat::model::{ChatMessage, ConnStatus, NoticeKind, RoomEvent};
 use cyex_chat::{Room, RoomSnapshot};
 use cyex_settings::Partition;
 use cyex_settings::schema::Chat as ChatSettings;
@@ -165,6 +166,9 @@ pub fn open(
         // Pins are only checked for rooms on screen, so this one may be old.
         catalog::refresh_pin_now(app.clone(), key);
     }
+    if let Some(a) = &opened.account {
+        crate::emotes::presence::touch(app, a, &login);
+    }
     Ok(opened)
 }
 
@@ -200,11 +204,8 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
 /// Work for a new room once the lock is released: counter, catalogs, history.
 fn after_join(app: &AppHandle, key: RoomKey, budget_full: bool) {
     crate::connections::notify(app);
-    catalog::load_for_room(app.clone(), key.clone());
     let history = app.state::<Settings>().read::<ChatSettings>(Partition::Chat).history;
-    if history && !budget_full {
-        session::load_history(app.clone(), key);
-    }
+    catalog::load_for_room(app.clone(), key, history && !budget_full);
 }
 
 /// Leaves a room. Returns true if an account's join count changed.
@@ -220,6 +221,9 @@ fn leave(app: &AppHandle, inner: &mut Inner, key: &RoomKey) -> bool {
     let still_used = inner.rooms.keys().any(|(i, _)| i == identity);
     if !still_used && let Some(s) = inner.sessions.remove(identity) {
         s.client.stop();
+    }
+    if !inner.rooms.keys().any(|(_, l)| l == login) {
+        crate::emotes::leave(app, login);
     }
     let Identity::Account(id) = identity else { return false };
     budget(app, |b| {
@@ -310,6 +314,46 @@ pub fn recent_from(app: &AppHandle, channel: &str, user_id: &str) -> Vec<Arc<Cha
         .map(|(_, e)| e.room.recent_from(user_id, 10))
         .max_by_key(Vec::len)
         .unwrap_or_default()
+}
+
+/// C10 A system line in every room of a channel, e.g. "x added the 7TV emote y."
+pub fn system_line(app: &AppHandle, login: &str, text: &str) {
+    let Some(chat) = app.try_state::<Chat>() else { return };
+    let mut inner = chat.lock();
+    let now = now_ms();
+    for ((_, l), entry) in inner.rooms.iter_mut() {
+        if l == login {
+            let ev = entry.room.system(NoticeKind::Info, text, now);
+            queue(entry, [ev], &chat.wake);
+        }
+    }
+}
+
+/// C9 People's personal emotes just arrived: their last few seconds of messages are
+/// read again, since they often chat right before their emotes show up.
+pub fn retokenize_users(app: &AppHandle, users: &[String]) {
+    let Some(chat) = app.try_state::<Chat>() else { return };
+    let since = now_ms() - 15_000;
+    let keys: Vec<RoomKey> = chat.lock().rooms.keys().cloned().collect();
+    for key in keys {
+        let emotes = crate::emotes::room(app, account_of(&key.0), &key.1);
+        let mut inner = chat.lock();
+        let Some(entry) = inner.rooms.get_mut(&key) else { continue };
+        for u in users {
+            let events = entry.room.retokenize_from(u, since, &emotes);
+            if !events.is_empty() {
+                queue(entry, events, &chat.wake);
+            }
+        }
+    }
+}
+
+/// The account reading a room, if any.
+fn account_of(identity: &Identity) -> Option<&str> {
+    match identity {
+        Identity::Account(id) => Some(id),
+        Identity::Anon => None,
+    }
 }
 
 /// Queues events for a room's views and wakes the flush task.

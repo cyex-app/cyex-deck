@@ -1,0 +1,18 @@
+{
+ "data": {
+  "users": {
+   "userByConnection": {
+    "id": "01HDQCR7S800007M8FGZ7E4GBG",
+    "style": {
+     "activeEmoteSet": null
+    }
+   }
+  }
+ },
+ "extensions": {
+  "analyzer": {
+   "complexity": 23,
+   "depth": 9
+  }
+ }
+}

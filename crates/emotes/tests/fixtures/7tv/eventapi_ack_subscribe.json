@@ -1,0 +1,17 @@
+{
+ "d": {
+  "command": "SUBSCRIBE",
+  "data": {
+   "id": 5,
+   "type": "cosmetic.*",
+   "condition": {
+    "ctx": "channel",
+    "platform": "TWITCH",
+    "id": "71092938"
+   }
+  }
+ },
+ "op": 5,
+ "t": 1791615282839,
+ "s": 5
+}

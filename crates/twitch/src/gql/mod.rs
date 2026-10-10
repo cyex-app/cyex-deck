@@ -8,7 +8,9 @@ mod chat;
 mod clips;
 mod comments;
 mod directory;
+mod emotes;
 mod follows;
+mod identity;
 mod playback;
 mod points;
 mod search;
@@ -22,6 +24,13 @@ pub use channels::{ChannelInfo, StreamInfo, channels_by_ids, lookup};
 pub use clips::{Clip, ClipPeriod, ClipPlayback, ClipQuality, ClipSort, channel_clips, clip};
 pub use comments::{Comment, comments};
 pub use directory::{CategoryStreams, StreamFilter, StreamSort, category, top_categories, top_streams};
+pub use emotes::{
+    BitsEmote, ChannelEmotes, EmoteKind, EmoteOwner, EmoteSet, SubTier, TwitchEmote, TwitchEmoteInfo, available_emotes,
+    channel_emotes, emote_info,
+};
+pub use identity::{
+    BadgePick, ChatIdentity, chat_color, chat_identity, pick_channel_badge, pick_global_badge, set_chat_color,
+};
 pub use videos::{Storyboard, Video, VideoKind, VideoSort, channel_videos, storyboard, video};
 
 pub use chat::{
@@ -29,7 +38,8 @@ pub use chat::{
     global_chat, pinned,
 };
 pub use points::{
-    AutoReward, CustomReward, Points, Redeemed, balance, redeem_custom, send_highlighted, send_in_sub_mode,
+    AutoReward, CustomReward, EmoteChoice, EmoteChoices, EmoteModifier, Modification, Points, Redeemed, balance,
+    emote_choices, redeem_custom, send_highlighted, send_in_sub_mode, unlock_chosen_emote, unlock_modified_emote,
     unlock_random_emote,
 };
 pub use follows::{follow, followed_categories, followed_ids, followed_live, is_following, unfollow};

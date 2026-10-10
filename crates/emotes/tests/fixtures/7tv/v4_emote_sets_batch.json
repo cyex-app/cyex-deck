@@ -1,0 +1,98 @@
+{
+ "data": {
+  "emoteSets": {
+   "emoteSets": [
+    {
+     "id": "01GN7SRYE8000EK2J7DFXT0WE5",
+     "name": "Personal Emotes",
+     "kind": "PERSONAL",
+     "ownerId": "01FE9DRF000009TR6M9N941CYW",
+     "emotes": {
+      "items": [
+       {
+        "id": "01F78CHJ2G0005TDSTZFBDGMK4",
+        "alias": "monkaS",
+        "flags": {
+         "zeroWidth": false
+        },
+        "emote": {
+         "defaultName": "monkaS",
+         "aspectRatio": 1,
+         "flags": {
+          "animated": false,
+          "publicListed": true,
+          "approvedPersonal": true
+         }
+        }
+       },
+       {
+        "id": "01GGDTCD1000059GKENEHRC1VX",
+        "alias": "myreact",
+        "flags": {
+         "zeroWidth": false
+        },
+        "emote": {
+         "defaultName": "myreact",
+         "aspectRatio": 1.0196078431372548,
+         "flags": {
+          "animated": true,
+          "publicListed": true,
+          "approvedPersonal": true
+         }
+        }
+       }
+      ]
+     }
+    },
+    {
+     "id": "01KAY8SHD31MDFYZMGC0D7005G",
+     "name": "NNYS 2025",
+     "kind": "SPECIAL",
+     "ownerId": null,
+     "emotes": {
+      "items": [
+       {
+        "id": "01KAY51DS96NVMY2YHN3KZ8W9B",
+        "alias": "nnysClap",
+        "flags": {
+         "zeroWidth": false
+        },
+        "emote": {
+         "defaultName": "nnysClap",
+         "aspectRatio": 1.1945392491467577,
+         "flags": {
+          "animated": true,
+          "publicListed": true,
+          "approvedPersonal": true
+         }
+        }
+       },
+       {
+        "id": "01KAXZW85H9QYSMPGDQTGJGJX9",
+        "alias": "nnysNoted",
+        "flags": {
+         "zeroWidth": false
+        },
+        "emote": {
+         "defaultName": "nnysNoted",
+         "aspectRatio": 1,
+         "flags": {
+          "animated": true,
+          "publicListed": true,
+          "approvedPersonal": true
+         }
+        }
+       }
+      ]
+     }
+    }
+   ]
+  }
+ },
+ "extensions": {
+  "analyzer": {
+   "complexity": 19,
+   "depth": 7
+  }
+ }
+}

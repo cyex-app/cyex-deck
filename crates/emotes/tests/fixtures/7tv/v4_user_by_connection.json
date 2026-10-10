@@ -1,0 +1,143 @@
+{
+ "data": {
+  "users": {
+   "userByConnection": {
+    "id": "01FQTEV0PG000ABDQW9GHC33SW",
+    "mainConnection": {
+     "platformId": "184983261",
+     "platformUsername": "mopolo",
+     "platformDisplayName": "mopolo",
+     "platformAvatarUrl": "https://static-cdn.jtvnw.net/jtv_user_pictures/3a755d7d-c44f-4489-9136-05a269c6761c-profile_image-300x300.png"
+    },
+    "highestRoleColor": {
+     "hex": "#B1EB34FF"
+    },
+    "style": {
+     "activePaintId": "01JEDE45FTB7XTQGRFXP0BA2PT",
+     "activeBadgeId": "01KHK4KRBFABAFH4YF6ZA6KT03",
+     "activeEmoteSetId": "01GF278X7G000BJ4F8N4T6562W",
+     "activeProfilePicture": {
+      "images": [
+       {
+        "url": "https://cdn.7tv.app/user/01FQTEV0PG000ABDQW9GHC33SW/profile-picture/01KT78NSD6MEAAVAB8VHCM88N5/1x_static.webp",
+        "mime": "image/webp",
+        "scale": 1,
+        "width": 32,
+        "height": 32,
+        "frameCount": 1
+       },
+       {
+        "url": "https://cdn.7tv.app/user/01FQTEV0PG000ABDQW9GHC33SW/profile-picture/01KT78NSD6MEAAVAB8VHCM88N5/2x_static.webp",
+        "mime": "image/webp",
+        "scale": 2,
+        "width": 64,
+        "height": 64,
+        "frameCount": 1
+       },
+       {
+        "url": "https://cdn.7tv.app/user/01FQTEV0PG000ABDQW9GHC33SW/profile-picture/01KT78NSD6MEAAVAB8VHCM88N5/3x_static.webp",
+        "mime": "image/webp",
+        "scale": 3,
+        "width": 96,
+        "height": 96,
+        "frameCount": 1
+       },
+       {
+        "url": "https://cdn.7tv.app/user/01FQTEV0PG000ABDQW9GHC33SW/profile-picture/01KT78NSD6MEAAVAB8VHCM88N5/4x_static.webp",
+        "mime": "image/webp",
+        "scale": 4,
+        "width": 128,
+        "height": 128,
+        "frameCount": 1
+       },
+       {
+        "url": "https://cdn.7tv.app/user/01FQTEV0PG000ABDQW9GHC33SW/profile-picture/01KT78NSD6MEAAVAB8VHCM88N5/1x.webp",
+        "mime": "image/webp",
+        "scale": 1,
+        "width": 32,
+        "height": 32,
+        "frameCount": 16
+       },
+       {
+        "url": "https://cdn.7tv.app/user/01FQTEV0PG000ABDQW9GHC33SW/profile-picture/01KT78NSD6MEAAVAB8VHCM88N5/2x.webp",
+        "mime": "image/webp",
+        "scale": 2,
+        "width": 64,
+        "height": 64,
+        "frameCount": 16
+       },
+       {
+        "url": "https://cdn.7tv.app/user/01FQTEV0PG000ABDQW9GHC33SW/profile-picture/01KT78NSD6MEAAVAB8VHCM88N5/3x.webp",
+        "mime": "image/webp",
+        "scale": 3,
+        "width": 96,
+        "height": 96,
+        "frameCount": 16
+       },
+       {
+        "url": "https://cdn.7tv.app/user/01FQTEV0PG000ABDQW9GHC33SW/profile-picture/01KT78NSD6MEAAVAB8VHCM88N5/4x.webp",
+        "mime": "image/webp",
+        "scale": 4,
+        "width": 128,
+        "height": 128,
+        "frameCount": 16
+       }
+      ]
+     }
+    },
+    "personalEmoteSet": {
+     "id": "01GN7SRZDG000EK2J7DFXT0X0B",
+     "name": "Personal Emotes",
+     "kind": "PERSONAL",
+     "capacity": 5,
+     "emotes": {
+      "totalCount": 5,
+      "items": [
+       {
+        "id": "01FE2EQAAG000F9GR5H89Z6TTA",
+        "alias": "YesHoney",
+        "flags": {
+         "zeroWidth": false
+        }
+       },
+       {
+        "id": "01GTQGC4E0000D50ZC809HKY6M",
+        "alias": "TrollAware",
+        "flags": {
+         "zeroWidth": false
+        }
+       },
+       {
+        "id": "01GQF7KXJ8000ERT2YB38Q65VR",
+        "alias": "GULP",
+        "flags": {
+         "zeroWidth": false
+        }
+       },
+       {
+        "id": "01G61H421G0006Z5WTGWA7994Q",
+        "alias": "wawa",
+        "flags": {
+         "zeroWidth": false
+        }
+       },
+       {
+        "id": "01K3GZQ6YVJ4ZHE3XNR9N0SN9F",
+        "alias": "IShowFinance",
+        "flags": {
+         "zeroWidth": false
+        }
+       }
+      ]
+     }
+    }
+   }
+  }
+ },
+ "extensions": {
+  "analyzer": {
+   "complexity": 34,
+   "depth": 7
+  }
+ }
+}

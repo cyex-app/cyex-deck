@@ -124,6 +124,9 @@ impl Settings {
         if changed.iter().any(|(p, _)| *p == Partition::Tabs) {
             crate::tabs::on_changed(app);
         }
+        if changed.iter().any(|(p, _)| *p == Partition::Chat) {
+            crate::emotes::on_settings(app);
+        }
         if notify {
             for (partition, value) in changed {
                 let _ = app.emit(

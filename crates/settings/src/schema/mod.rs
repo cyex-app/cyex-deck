@@ -6,6 +6,7 @@ mod appearance;
 mod browse;
 mod chat;
 mod commands;
+mod emotes;
 mod general;
 mod highlights;
 mod hotkeys;
@@ -23,6 +24,7 @@ pub use chat::{
     BadgeToggles, Chat, DeletedStyle, GifMode, NameStyle, PaintToggles, PauseKey, Timestamps, UnlistedEmotes, UserNote,
 };
 pub use commands::Commands;
+pub use emotes::{EmoteKey, EmoteSource, EmoteUse, Emotes};
 pub use general::{ChatPosition, General};
 pub use highlights::Highlights;
 pub use hotkeys::Hotkeys;

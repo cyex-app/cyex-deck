@@ -9,7 +9,7 @@ use super::points::{Points, RawPointsSettings};
 use super::{Auth, query};
 use crate::{Http, Result};
 
-const BADGE_FIELDS: &str = "setID version title description clickURL \
+pub(crate) const BADGE_FIELDS: &str = "setID version title description clickURL \
     image1x: imageURL(size: NORMAL) image2x: imageURL(size: DOUBLE) image4x: imageURL(size: QUADRUPLE)";
 
 const GLOBAL: &str = "query { badges { BADGE } \
@@ -248,7 +248,7 @@ struct RawTier {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct RawBadge {
+pub(crate) struct RawBadge {
     #[serde(rename = "setID")]
     set_id: String,
     version: String,

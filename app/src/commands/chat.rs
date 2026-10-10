@@ -55,8 +55,45 @@ pub async fn chat_points(app: AppHandle, view: u32) -> CmdResult<Option<Points>>
 }
 
 #[tauri::command]
-pub async fn chat_redeem(app: AppHandle, view: u32, reward_id: String, text: Option<String>) -> CmdResult<String> {
-    chat::points::redeem(&app, view, &reward_id, text).await
+pub async fn chat_redeem(
+    app: AppHandle,
+    view: u32,
+    reward_id: String,
+    text: Option<String>,
+    emote: Option<String>,
+) -> CmdResult<String> {
+    chat::points::redeem(&app, view, &reward_id, text, emote).await
+}
+
+/// What the two "choose an emote" rewards can give.
+#[tauri::command]
+pub async fn chat_emote_choices(app: AppHandle, view: u32) -> CmdResult<chat::points::EmoteRewardChoices> {
+    chat::points::emote_choices(&app, view).await
+}
+
+/// 1.40 The account's badge picks and name color in a channel.
+#[tauri::command]
+pub async fn chat_identity(app: AppHandle, account: String, login: String) -> CmdResult<gql::ChatIdentity> {
+    chat::identity::identity(&app, &account, &login).await
+}
+
+/// 1.40 Wears a badge. `channel_id` `None` = everywhere; `set` `None` takes it off.
+#[tauri::command]
+pub async fn chat_pick_badge(
+    app: AppHandle,
+    account: String,
+    channel_id: Option<String>,
+    set: Option<String>,
+    version: Option<String>,
+) -> CmdResult<()> {
+    let badge = set.as_deref().zip(version.as_deref());
+    chat::identity::pick_badge(&app, &account, channel_id.as_deref(), badge).await
+}
+
+/// 1.40 Name color, `#RRGGBB`.
+#[tauri::command]
+pub async fn chat_set_color(app: AppHandle, account: String, color: String) -> CmdResult<()> {
+    chat::identity::set_color(&app, &account, &color).await
 }
 
 /// The user's last messages in a channel (usercard, 1.36).

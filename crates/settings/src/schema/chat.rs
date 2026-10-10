@@ -4,12 +4,16 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use super::Schema;
+use super::emotes::{EmoteKey, EmoteSource, dedupe};
 
 /// Twitch's longest timeout: 14 days.
 const MAX_TIMEOUT_SECS: u32 = 1_209_600;
 const MAX_TIMEOUT_PRESETS: usize = 8;
 const MAX_NICKNAME_CHARS: usize = 25;
 const MAX_NOTE_CHARS: usize = 500;
+const MAX_HIDDEN_EMOTES: usize = 500;
+/// E3 Percent of the normal size.
+const EMOTE_SIZES: std::ops::RangeInclusive<u16> = 50..=300;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(default, rename_all = "camelCase")]
@@ -17,7 +21,7 @@ const MAX_NOTE_CHARS: usize = 500;
 pub struct Chat {
     /// 2.3 Badges per provider, each its own toggle.
     pub badges: BadgeToggles,
-    /// 2.3 Name paints per provider.
+    /// 2.3 Name paints per provider. BTTV's were dropped (D22).
     pub paints: PaintToggles,
     /// 2.3
     pub twitch_emotes: bool,
@@ -25,6 +29,17 @@ pub struct Chat {
     pub third_party_emotes: bool,
     /// 2.4
     pub unlisted_emotes: UnlistedEmotes,
+    /// C11 Which provider wins when several have an emote by the same name.
+    pub emote_priority: Vec<EmoteSource>,
+    /// E3 Percent of the normal size.
+    pub emote_size: u16,
+    /// E2 Animated emotes and paints stand still while the window isn't focused.
+    pub animate_only_focused: bool,
+    /// E4 Shown as text everywhere.
+    pub hidden_emotes: Vec<EmoteKey>,
+    /// D21 Tell 7TV and BTTV which channel you're in, so others see your paint, badge
+    /// and personal emotes.
+    pub share_presence: bool,
     /// 2.5
     pub gifs: GifMode,
     /// 2.10
@@ -63,6 +78,11 @@ impl Default for Chat {
             twitch_emotes: true,
             third_party_emotes: true,
             unlisted_emotes: UnlistedEmotes::Blur,
+            emote_priority: EmoteSource::THIRD_PARTY.to_vec(),
+            emote_size: 100,
+            animate_only_focused: false,
+            hidden_emotes: Vec::new(),
+            share_presence: true,
             gifs: GifMode::Show,
             timestamps: Timestamps::default(),
             timeout_presets: vec![60, 600, 3600, 86_400],
@@ -88,6 +108,16 @@ impl Schema for Chat {
         presets.sort_unstable();
         presets.dedup();
         presets.truncate(MAX_TIMEOUT_PRESETS);
+        // C11 Each third-party provider once; missing ones go last in the default order.
+        let mut order: Vec<EmoteSource> = Vec::new();
+        for s in self.emote_priority.iter().chain(EmoteSource::THIRD_PARTY.iter()) {
+            if EmoteSource::THIRD_PARTY.contains(s) && !order.contains(s) {
+                order.push(*s);
+            }
+        }
+        self.emote_priority = order;
+        self.emote_size = self.emote_size.clamp(*EMOTE_SIZES.start(), *EMOTE_SIZES.end());
+        dedupe(&mut self.hidden_emotes, MAX_HIDDEN_EMOTES);
         self.users.retain(|id, u| {
             u.nickname = u.nickname.trim().chars().take(MAX_NICKNAME_CHARS).collect();
             u.note = u.note.trim().chars().take(MAX_NOTE_CHARS).collect();
@@ -166,15 +196,11 @@ impl Default for BadgeToggles {
 #[ts(export)]
 pub struct PaintToggles {
     pub seventv: bool,
-    pub bttv: bool,
 }
 
 impl Default for PaintToggles {
     fn default() -> Self {
-        Self {
-            seventv: true,
-            bttv: true,
-        }
+        Self { seventv: true }
     }
 }
 
@@ -239,5 +265,17 @@ mod tests {
         assert_eq!(c.users["1"].nickname.len(), MAX_NICKNAME_CHARS);
         assert_eq!(c.users["1"].note, "hi");
         assert_eq!(c.timeout_presets, [60, 600]);
+    }
+
+    #[test]
+    fn sanitize_completes_the_emote_priority() {
+        let mut c = Chat {
+            emote_priority: vec![EmoteSource::Ffz, EmoteSource::Twitch, EmoteSource::Ffz],
+            emote_size: 1,
+            ..Chat::default()
+        };
+        c.sanitize();
+        assert_eq!(c.emote_priority, [EmoteSource::Ffz, EmoteSource::Seventv, EmoteSource::Bttv]);
+        assert_eq!(c.emote_size, 50);
     }
 }

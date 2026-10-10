@@ -1,0 +1,37 @@
+{
+ "d": {
+  "type": "cosmetic.create",
+  "body": {
+   "id": "01KV4PWWEZCAEW63A9EPPAYTNE",
+   "kind": 10,
+   "object": {
+    "id": "01KV4PWWEZCAEW63A9EPPAYTNE",
+    "kind": "PAINT",
+    "data": {
+     "id": "01KV4PWWEZCAEW63A9EPPAYTNE",
+     "name": "4th of July",
+     "color": null,
+     "gradients": [],
+     "shadows": [
+      {
+       "x_offset": 0,
+       "y_offset": 0,
+       "radius": 2,
+       "color": 255
+      }
+     ],
+     "text": null,
+     "function": "URL",
+     "repeat": false,
+     "angle": 0,
+     "shape": "circle",
+     "image_url": "https://cdn.7tv.app/paint/01KV4PWWEZCAEW63A9EPPAYTNE/layer/01KV4QBDYP2ZMXH8KJ6VMP3NNM/1x.webp",
+     "stops": []
+    }
+   }
+  }
+ },
+ "op": 0,
+ "t": 1791615564169,
+ "s": 120
+}

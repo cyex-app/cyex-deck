@@ -20,6 +20,9 @@ pub enum Feature {
     SendChat,
     /// 1.6 Home. GQL works too.
     FollowedList,
+    /// 1.40 Your Twitch emotes in the emote menu. GQL works too.
+    EmoteMenu,
+    /// 1.40 GQL works too.
     ChatColor,
     Bio,
     Whispers,
@@ -59,9 +62,10 @@ const MOD_FEEDS: &[&str] = &[
 ];
 
 impl Feature {
-    pub const ALL: [Feature; 24] = [
+    pub const ALL: [Feature; 25] = [
         Feature::SendChat,
         Feature::FollowedList,
+        Feature::EmoteMenu,
         Feature::ChatColor,
         Feature::Bio,
         Feature::Whispers,
@@ -89,8 +93,8 @@ impl Feature {
     pub fn tier(self) -> Tier {
         use Feature::*;
         match self {
-            SendChat | FollowedList => Tier::Either,
-            ChatColor | Bio | Whispers | Blocks | ModTools | ModView
+            SendChat | FollowedList | EmoteMenu | ChatColor => Tier::Either,
+            Bio | Whispers | Blocks | ModTools | ModView
             | StreamManager | MassbanHelix | Clips => Tier::Helix,
             _ => Tier::Gql,
         }
@@ -102,6 +106,7 @@ impl Feature {
         match self {
             SendChat => &["chat:edit"],
             FollowedList => &["user:read:follows"],
+            EmoteMenu => &["user:read:emotes"],
             ChatColor => &["user:manage:chat_color"],
             Bio => &["user:edit"],
             Whispers => &["user:manage:whispers", "user:read:whispers"],
