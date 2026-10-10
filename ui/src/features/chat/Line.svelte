@@ -179,7 +179,8 @@
   .kind-raid,
   .kind-announcement,
   .kind-bits,
-  .kind-milestone {
+  .kind-milestone,
+  .kind-redemption {
     border-left: 3px solid var(--twitch);
     background: color-mix(in srgb, var(--twitch) 7%, transparent);
   }

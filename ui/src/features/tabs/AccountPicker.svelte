@@ -10,9 +10,11 @@
   interface Props {
     account: string | null;
     anon: boolean;
+    /** 1.34 Anonymous greyed out, e.g. for a channel going to the miner. */
+    noAnon?: boolean;
   }
 
-  let { account = $bindable(), anon = $bindable() }: Props = $props();
+  let { account = $bindable(), anon = $bindable(), noAnon = false }: Props = $props();
 
   let open = $state(false);
 
@@ -66,7 +68,7 @@
         </Popover>
       </div>
     {/if}
-    <Checkbox label="Anonymous" checked={anon} onchange={(v) => (anon = v)} />
+    <Checkbox label="Anonymous" checked={anon} disabled={noAnon} onchange={(v) => (anon = v)} />
   </div>
   {#if anon}<p class="plain">Reads chat and watches, can't send messages.</p>{/if}
 {/if}

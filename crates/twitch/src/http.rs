@@ -59,6 +59,25 @@ impl Http {
         Ok(bytes)
     }
 
+    /// The status of a HEAD request (watch time touches a segment like a player would).
+    pub async fn head(&self, url: &str, user_agent: &str) -> Result<u16> {
+        let res = self.0.head(url).header("User-Agent", user_agent).send().await.map_err(Error::Network)?;
+        Ok(res.status().as_u16())
+    }
+
+    /// POST a form and return the status, e.g. spade's 204.
+    pub async fn post_form(&self, url: &str, form: &[(&str, &str)], user_agent: &str) -> Result<u16> {
+        let res = self
+            .0
+            .post(url)
+            .header("User-Agent", user_agent)
+            .form(form)
+            .send()
+            .await
+            .map_err(Error::Network)?;
+        Ok(res.status().as_u16())
+    }
+
     /// POST a JSON body to another service and decode the JSON answer.
     pub async fn post_json<T: DeserializeOwned>(&self, url: &str, body: &serde_json::Value) -> Result<T> {
         json(self.0.post(url).json(body)).await

@@ -5,6 +5,7 @@ mod browse;
 mod chat;
 mod chat_extra;
 mod emotes;
+mod miner;
 mod player;
 mod rules;
 mod settings;
@@ -26,6 +27,13 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         accounts::accounts_set_client_id,
         accounts::connections_counts,
         browse::home_follows,
+        miner::miner_status,
+        miner::miner_log,
+        miner::miner_stats_channels,
+        miner::miner_stats,
+        miner::miner_stats_clear,
+        miner::miner_add,
+        miner::miner_first,
         browse::home_channels,
         browse::discover_streams,
         browse::discover_categories,

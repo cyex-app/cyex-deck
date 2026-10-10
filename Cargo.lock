@@ -787,6 +787,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "cyex-miner"
+version = "0.1.0"
+dependencies = [
+ "cyex-settings",
+ "serde",
+ "serde_json",
+ "ts-rs",
+]
+
+[[package]]
 name = "cyex-player"
 version = "0.1.0"
 dependencies = [
@@ -814,6 +824,7 @@ dependencies = [
 name = "cyex-twitch"
 version = "0.1.0"
 dependencies = [
+ "base64 0.23.1",
  "cyex-core",
  "futures-util",
  "keyring",
@@ -835,6 +846,7 @@ dependencies = [
  "cyex-chat",
  "cyex-core",
  "cyex-emotes",
+ "cyex-miner",
  "cyex-player",
  "cyex-settings",
  "cyex-twitch",

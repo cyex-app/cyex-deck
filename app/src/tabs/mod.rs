@@ -29,11 +29,18 @@ pub fn init(app: &AppHandle) {
 pub fn on_changed(app: &AppHandle) {
     rooms::sync(app);
     live::nudge(app);
+    crate::miner::on_settings(app);
+}
+
+/// Joins and leaves rooms again, e.g. when the chats the miner sits in change.
+pub fn sync_rooms(app: &AppHandle) {
+    rooms::sync(app);
 }
 
 /// Accounts changed: a removed account's tabs now read anonymously.
 pub fn on_accounts_changed(app: &AppHandle) {
     rooms::sync(app);
+    crate::miner::on_settings(app);
 }
 
 /// What an edit made, and the list after it, so the window that asked can show it

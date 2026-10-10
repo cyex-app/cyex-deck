@@ -13,6 +13,8 @@
     size?: number;
     /** Window-control look: wide, flat, full height. */
     chrome?: boolean;
+    /** A small dot in the corner, e.g. the miner at work. */
+    badge?: boolean;
     onclick?: (e: MouseEvent) => void;
   }
 
@@ -25,6 +27,7 @@
     disabled = false,
     size = 16,
     chrome = false,
+    badge = false,
     onclick,
   }: Props = $props();
 </script>
@@ -41,10 +44,12 @@
   use:tooltip={{ label, hint }}
 >
   <Icon name={icon} {size} />
+  {#if badge}<span class="badge"></span>{/if}
 </button>
 
 <style>
   .icon-btn {
+    position: relative;
     display: grid;
     place-items: center;
     width: 30px;
@@ -80,5 +85,14 @@
   .chrome.danger:hover {
     background: #e81123;
     color: #fff;
+  }
+  .badge {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
   }
 </style>

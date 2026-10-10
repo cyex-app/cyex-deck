@@ -52,6 +52,8 @@ struct Session {
     window: String,
     used: Instant,
     ad: AdState,
+    /// W1 A live stream's channel and the account watching it.
+    live: Option<(String, Option<String>)>,
 }
 
 /// What a player loads: `url` is the master playlist for hls.js, `audio` the one with
@@ -131,16 +133,32 @@ pub fn open_live(app: &AppHandle, window: &str, login: &str, account: Option<&st
         low_latency: s.low_latency,
         block_ads: s.block_ads,
     };
-    let live = Live::new(fetch(app, account), &login.to_ascii_lowercase(), options);
-    open(app, window, Kind::Live(Arc::new(live)), "live")
+    let login = login.to_ascii_lowercase();
+    let live = Live::new(fetch(app, account), &login, options);
+    let who = Some((login, account.map(str::to_owned)));
+    open(app, window, Kind::Live(Arc::new(live)), "live", who)
 }
 
 pub fn open_vod(app: &AppHandle, window: &str, id: &str, account: Option<&str>) -> PlayerSession {
     let vod = Vod::new(fetch(app, account), id);
-    open(app, window, Kind::Vod(Arc::new(vod)), "vod")
+    open(app, window, Kind::Vod(Arc::new(vod)), "vod", None)
 }
 
-fn open(app: &AppHandle, window: &str, kind: Kind, path: &str) -> PlayerSession {
+/// W1 Live streams playing now (hls.js asked for their playlist in the last 15 s), as
+/// (login, account), once each.
+pub fn playing_live(app: &AppHandle) -> Vec<(String, Option<String>)> {
+    let now = Instant::now();
+    let mut out: Vec<(String, Option<String>)> = lock(app)
+        .values()
+        .filter(|s| now.duration_since(s.used) < Duration::from_secs(15))
+        .filter_map(|s| s.live.clone())
+        .collect();
+    out.sort();
+    out.dedup();
+    out
+}
+
+fn open(app: &AppHandle, window: &str, kind: Kind, path: &str, live: Option<(String, Option<String>)>) -> PlayerSession {
     let id = random_id();
     lock(app).insert(
         id.clone(),
@@ -149,6 +167,7 @@ fn open(app: &AppHandle, window: &str, kind: Kind, path: &str) -> PlayerSession 
             window: window.to_owned(),
             used: Instant::now(),
             ad: AdState::None,
+            live,
         },
     );
     let base = format!("{}{path}/{id}/", protocol::base());

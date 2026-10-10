@@ -17,6 +17,7 @@
   import HighlightsSection from './sections/HighlightsSection.svelte';
   import HotkeysSection from './sections/HotkeysSection.svelte';
   import IgnoresSection from './sections/IgnoresSection.svelte';
+  import MinerSection from './sections/MinerSection.svelte';
   import PlayerSection from './sections/PlayerSection.svelte';
   import RecordingsSection from './sections/RecordingsSection.svelte';
   import WindowsSection from './sections/WindowsSection.svelte';
@@ -44,6 +45,7 @@
     { id: 'automations', label: 'Automations', icon: 'zap', component: AutomationsSection },
     { id: 'recordings', label: 'Recordings', icon: 'record', component: RecordingsSection },
     { id: 'emotes', label: 'Emotes', icon: 'smile', component: EmotesSection },
+    { id: 'miner', label: 'Miner', icon: 'pickaxe', component: MinerSection },
     { id: 'player', label: 'Player', icon: 'tv', component: PlayerSection },
     { id: 'hotkeys', label: 'Hotkeys', icon: 'keyboard', component: HotkeysSection },
     { id: 'windows', label: 'Windows', icon: 'layout', component: WindowsSection },

@@ -13,6 +13,8 @@
   import ConnectionCounter from '../features/accounts/ConnectionCounter.svelte';
   import DiscoverView from '../features/discover/DiscoverView.svelte';
   import HomeView from '../features/home/HomeView.svelte';
+  import { miner } from '../features/miner/miner.svelte';
+  import MinerView from '../features/miner/MinerView.svelte';
   import SettingsView from '../features/settings/SettingsView.svelte';
   import { openAdd } from '../features/tabs/dialog.svelte';
   import PoppedOut from '../features/tabs/PoppedOut.svelte';
@@ -24,6 +26,7 @@
   import { tabs, tiles } from '../features/tabs/tabs.svelte';
   import type { LinkTarget } from '../ipc/bindings/LinkTarget';
   import { chatIpc } from '../ipc/chat';
+  import { accounts } from '../lib/accounts.svelte';
   import { useHotkeys } from '../lib/hotkeys.svelte';
   import { settings } from '../lib/settings.svelte';
   import { mentionChime } from '../lib/sound';
@@ -31,7 +34,7 @@
   import { popOut } from './panels';
   import { useRootEffects } from './root.svelte';
 
-  type Fixed = 'home' | 'discover' | 'settings';
+  type Fixed = 'home' | 'discover' | 'miner' | 'settings';
 
   /** A fixed view, or `null` while a tab shows. */
   let fixed = $state<Fixed | null>(tabs.active ? null : 'home');
@@ -43,6 +46,8 @@
   const side = $derived(settings.v.appearance.tabBarSide);
   const current = $derived(fixed ? null : tabs.tab(picked) ? picked : tabs.active);
   const tab = $derived(tabs.tab(current));
+  /** 08 The miner shows once an account has a GQL sign-in. */
+  const canMine = $derived(accounts.list.some((a) => a.features.includes('miner')));
 
   // Follow the active tab when an edit moves it, e.g. closing the shown tab.
   $effect(() => {
@@ -59,6 +64,7 @@
   useHotkeys({
     'nav.home': () => show('home'),
     'nav.discover': () => show('discover'),
+    'nav.miner': () => canMine && show('miner'),
     'settings.open': () => show('settings'),
     'window.pin': () => currentWindow.togglePin(),
     'tabs.switcher': () => (switcher = true),
@@ -68,6 +74,10 @@
     'tabs.next': () => step(1),
     'tabs.prev': () => step(-1),
     ...playerHotkeys,
+  });
+
+  $effect(() => {
+    void miner.start();
   });
 
   $effect(() => {
@@ -112,6 +122,11 @@
     show('settings');
   }
 
+  function minerSettings() {
+    settingsSection = 'miner';
+    show('settings');
+  }
+
   async function popOutSettings() {
     if (await popOut('settings')) show('home');
   }
@@ -134,6 +149,16 @@
         active={fixed === 'discover'}
         onclick={() => show('discover')}
       />
+      {#if canMine}
+        <IconButton
+          icon="pickaxe"
+          label="Miner"
+          hint={miner.mining.length ? `Mining ${miner.mining.join(' and ')}.` : 'Collects channel points while you do other things.'}
+          active={fixed === 'miner'}
+          badge={miner.mining.length > 0}
+          onclick={() => show('miner')}
+        />
+      {/if}
     </nav>
     {#if side === 'top'}<TabBar {current} onopen={open} />{/if}
   {/snippet}
@@ -162,6 +187,8 @@
       {/if}
     {:else if fixed === 'discover'}
       <DiscoverView onopen={open} />
+    {:else if fixed === 'miner' && canMine}
+      <MinerView onsettings={minerSettings} onsignin={manageAccounts} />
     {:else if fixed === 'settings'}
       <SettingsView onpopout={popOutSettings} bind:section={settingsSection} />
     {:else}

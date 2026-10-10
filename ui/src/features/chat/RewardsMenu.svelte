@@ -1,6 +1,7 @@
 <!-- Channel points (1.9, 1.40): balance next to the message box and the rewards menu,
      with power-ups paid in Bits (1.42) on a second page. Redeeming needs the account's
-     GQL sign-in; without one the menu only lists rewards. -->
+     GQL sign-in; without one the menu only lists rewards. The balance follows Hermes
+     (points earned, chests, 08). -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import Icon from '../../components/Icon.svelte';
@@ -8,6 +9,7 @@
   import Segmented from '../../components/Segmented.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import { chatIpc } from '../../ipc/chat';
+  import { minerIpc } from '../../ipc/miner';
   import type { Points } from '../../ipc/bindings/Points';
   import { accounts } from '../../lib/accounts.svelte';
   import { formatNumber, formatShort } from '../../lib/format';
@@ -83,6 +85,15 @@
   // The balance shows next to the box once the chat is open.
   $effect(() => {
     if (room.view && canRedeem && !loaded) void load();
+  });
+
+  $effect(() => {
+    const off = minerIpc.onBalance((b) => {
+      if (points && b.account === room.account && b.channelId === room.state.channelId) {
+        points = { ...points, balance: b.balance };
+      }
+    });
+    return () => void off.then((f) => f());
   });
 
   async function load() {

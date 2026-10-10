@@ -35,6 +35,7 @@
     color: var(--muted);
     font-size: 0.8rem;
     font-weight: 600;
+    white-space: nowrap;
     transition:
       background var(--fast),
       color var(--fast);

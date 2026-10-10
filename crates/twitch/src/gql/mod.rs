@@ -9,10 +9,12 @@ mod chat;
 mod clips;
 mod comments;
 mod directory;
+pub mod drops;
 mod emotes;
 mod follows;
 pub mod gifs;
 mod identity;
+pub mod miner;
 mod playback;
 mod points;
 pub mod polls;
@@ -67,7 +69,7 @@ use crate::{Error, Http, Result, clients};
 const URL: &str = "https://gql.twitch.tv/gql";
 /// Fallback for the `Client-Version` twitch.tv sends; GQL accepts a stale one.
 const CLIENT_VERSION: &str = "ef928475-9403-42f2-8a34-55784bd08e16";
-const TV_USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 7.1; Smart Box C1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36";
+pub const TV_USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 7.1; Smart Box C1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36";
 
 /// Client ID plus an optional user token. Without a token, only public data is readable.
 #[derive(Clone, Copy)]

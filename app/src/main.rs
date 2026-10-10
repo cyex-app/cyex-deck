@@ -8,7 +8,9 @@ mod chat;
 mod commands;
 mod connections;
 mod emotes;
+mod hermes;
 mod icons;
+mod miner;
 mod player;
 mod settings;
 mod tabs;
@@ -31,11 +33,13 @@ fn main() {
             settings::init(handle)?;
             connections::init(handle);
             auth::init(handle)?;
+            hermes::init(handle);
             emotes::init(handle);
             chat::init(handle);
             tabs::init(handle);
             player::init(handle);
             browse::init(handle);
+            miner::init(handle);
             windows::init(handle)?;
             tray::init(handle)?;
             Ok(())

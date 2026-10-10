@@ -130,6 +130,9 @@ impl Settings {
         if changed.iter().any(|(p, _)| matches!(p, Partition::Chat | Partition::Highlights)) {
             crate::chat::on_settings(app);
         }
+        if changed.iter().any(|(p, _)| *p == Partition::Miner) {
+            crate::miner::on_settings(app);
+        }
         if changed.iter().any(|(p, _)| *p == Partition::Commands) {
             crate::chat::run::rebuild(app);
         }

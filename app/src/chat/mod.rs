@@ -8,6 +8,7 @@ mod creds;
 pub mod feeds;
 mod flush;
 pub mod identity;
+pub mod live;
 mod mention;
 pub mod points;
 pub mod powerups;
@@ -123,6 +124,7 @@ pub fn init(app: &AppHandle) {
     on_settings(app);
     flush::spawn(app.clone(), wake);
     catalog::init(app);
+    live::init(app);
     feeds::init(app);
     rules::init(app);
     run::init(app);
@@ -302,6 +304,7 @@ fn leave(app: &AppHandle, inner: &mut Inner, key: &RoomKey) -> bool {
     }
     if !inner.rooms.keys().any(|(_, l)| l == login) {
         crate::emotes::leave(app, login);
+        live::left(app, login);
     }
     let Identity::Account(id) = identity else { return false };
     budget(app, |b| {
@@ -459,15 +462,27 @@ pub fn open_channels(app: &AppHandle) -> Vec<String> {
 
 /// C10 A system line in every room of a channel, e.g. "x added the 7TV emote y."
 pub fn system_line(app: &AppHandle, login: &str, text: &str) {
+    notice_line(app, login, NoticeKind::Info, text);
+}
+
+/// A line of `kind` in every room of a channel.
+pub fn notice_line(app: &AppHandle, login: &str, kind: NoticeKind, text: &str) {
     let Some(chat) = app.try_state::<Chat>() else { return };
     let mut inner = chat.lock();
     let now = now_ms();
     for ((_, l), entry) in inner.rooms.iter_mut() {
         if l == login {
-            let ev = entry.room.system(NoticeKind::Info, text, now);
+            let ev = entry.room.system(kind, text, now);
             queue(entry, [ev], &chat.wake);
         }
     }
+}
+
+/// Every room of a channel, by login.
+pub fn rooms_of(app: &AppHandle, login: &str) -> Vec<RoomKey> {
+    let Some(chat) = app.try_state::<Chat>() else { return Vec::new() };
+    let inner = chat.lock();
+    inner.rooms.keys().filter(|(_, l)| l == login).cloned().collect()
 }
 
 /// C9 People's personal emotes just arrived: their last few seconds of messages are

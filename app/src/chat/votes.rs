@@ -1,21 +1,20 @@
 //! C4 Polls and predictions as a viewer, and on-screen celebrations (1.42), for the chats
 //! on screen. Read once from GQL when a chat opens, then kept current over Hermes
-//! (anonymous). Your own votes and bets come from the chat's GQL sign-in.
+//! (anonymous, `crate::hermes`). Your own votes and bets come from the chat's GQL sign-in.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
 
 use cyex_twitch::gql::{self, polls::Poll, predictions::Prediction};
-use cyex_twitch::hermes::{Event, Hermes, Kind, Topic};
-use cyex_twitch::ws;
+use cyex_twitch::hermes::{Event, Kind};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
-use tokio::sync::mpsc;
 use ts_rs::TS;
 
 use super::run::Place;
 
 const EVENT: &str = "chat:votes";
+const KINDS: [Kind; 3] = [Kind::Polls, Kind::Predictions, Kind::Celebrations];
 const CELEBRATION: &str = "player:celebration";
 
 #[derive(Clone, Debug, Default, Serialize, TS)]
@@ -48,18 +47,12 @@ struct Watched {
 }
 
 pub struct Votes {
-    topics: ws::Topics<Topic>,
     /// By channel login.
     channels: Mutex<HashMap<String, Watched>>,
 }
 
 pub fn init(app: &AppHandle) {
-    let (tx, rx) = mpsc::unbounded_channel();
-    let (topics, task) = ws::start(Hermes, tx);
-    tauri::async_runtime::spawn(task);
-    tauri::async_runtime::spawn(pump(app.clone(), rx));
     app.manage(Votes {
-        topics,
         channels: Mutex::default(),
     });
 }
@@ -103,11 +96,8 @@ pub fn unwatch(app: &AppHandle, login: &str) {
         && let Some(w) = map.remove(login)
         && !w.id.is_empty()
     {
-        for kind in [Kind::Polls, Kind::Predictions, Kind::Celebrations] {
-            votes.topics.remove(Topic {
-                kind,
-                channel_id: w.id.clone(),
-            });
+        for kind in KINDS {
+            crate::hermes::remove(app, kind, &w.id);
         }
     }
 }
@@ -132,11 +122,8 @@ async fn load(app: &AppHandle, login: &str, account: Option<&str>, subscribe: bo
         let mut map = votes.channels.lock().unwrap_or_else(|p| p.into_inner());
         let Some(w) = map.get_mut(login) else { return };
         if subscribe && w.id.is_empty() {
-            for kind in [Kind::Polls, Kind::Predictions, Kind::Celebrations] {
-                votes.topics.add(Topic {
-                    kind,
-                    channel_id: id.clone(),
-                });
+            for kind in KINDS {
+                crate::hermes::add(app, kind, &id);
             }
         }
         w.id = id;
@@ -156,13 +143,8 @@ pub fn state(app: &AppHandle, login: &str) -> Option<VotesUpdate> {
     map.get(login).map(|w| w.state.clone())
 }
 
-async fn pump(app: AppHandle, mut rx: mpsc::UnboundedReceiver<Event>) {
-    while let Some(e) = rx.recv().await {
-        on_event(&app, e);
-    }
-}
-
-fn on_event(app: &AppHandle, e: Event) {
+/// A Hermes event for polls, predictions or celebrations (`crate::hermes`).
+pub fn on_event(app: &AppHandle, e: &Event) {
     let votes = app.state::<Votes>();
     let mut map = votes.channels.lock().unwrap_or_else(|p| p.into_inner());
     let Some((login, w)) = map.iter_mut().find(|(_, w)| w.id == e.topic.channel_id) else {
@@ -202,6 +184,7 @@ fn on_event(app: &AppHandle, e: Event) {
             }
             w.state.prediction = Some(p);
         }
+        _ => return,
     }
     let _ = app.emit(EVENT, w.state.clone());
 }

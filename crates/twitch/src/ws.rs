@@ -1,9 +1,11 @@
 //! One websocket that follows a set of topics: connects while there are any, sends them
 //! all again after every reconnect, and retries with backoff. 7TV's EventAPI, BTTV's
-//! socket and Twitch's Hermes run on it.
+//! socket and Twitch's Hermes run on it. `Pool` spreads topics over several connections.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
+use std::pin::Pin;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
@@ -27,12 +29,20 @@ pub trait Protocol: Send + 'static {
     fn idle(&self) -> Duration;
     /// Reads one text frame.
     fn read(&mut self, text: &str, out: &mpsc::UnboundedSender<Self::Event>) -> Step;
+    /// Topics wait until `read` answers `Step::Ready`, e.g. until signed in.
+    fn gated(&self) -> bool {
+        false
+    }
 }
 
 pub enum Step {
     Continue,
     /// The server asked for a fresh connection.
     Reconnect,
+    /// Send this line now, e.g. signing in after a welcome.
+    Reply(String),
+    /// Signed in: topics go out now.
+    Ready,
 }
 
 pub enum Cmd<T> {
@@ -105,9 +115,13 @@ async fn run<P: Protocol>(
             continue;
         };
         let (mut sink, mut stream) = ws.split();
+        let gated = p.gated();
+        let mut ready = !gated;
         let mut ok = true;
-        for t in &topics {
-            ok &= sink.send(Message::text(p.subscribe(t))).await.is_ok();
+        if ready {
+            for t in &topics {
+                ok &= sink.send(Message::text(p.subscribe(t))).await.is_ok();
+            }
         }
         let mut deadline = Instant::now() + p.idle();
         let mut heard = false;
@@ -116,12 +130,22 @@ async fn run<P: Protocol>(
                 msg = stream.next() => match msg {
                     Some(Ok(Message::Text(text))) => {
                         deadline = Instant::now() + p.idle();
-                        if !heard {
-                            heard = true;
+                        if !heard && !gated {
                             backoff = Duration::ZERO;
                         }
-                        if let Step::Reconnect = p.read(&text, &events) {
-                            break;
+                        heard = true;
+                        match p.read(&text, &events) {
+                            Step::Continue => {}
+                            Step::Reconnect => break,
+                            Step::Reply(line) => ok = sink.send(Message::text(line)).await.is_ok(),
+                            Step::Ready if !ready => {
+                                ready = true;
+                                backoff = Duration::ZERO;
+                                for t in &topics {
+                                    ok &= sink.send(Message::text(p.subscribe(t))).await.is_ok();
+                                }
+                            }
+                            Step::Ready => {}
                         }
                     }
                     Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break,
@@ -130,8 +154,8 @@ async fn run<P: Protocol>(
                 c = cmds.recv() => {
                     let Some(c) = c else { return };
                     let line = match &c {
-                        Cmd::Add(t) if !topics.contains(t) && topics.len() < p.limit() => Some(p.subscribe(t)),
-                        Cmd::Remove(t) if topics.contains(t) => Some(p.unsubscribe(t)),
+                        Cmd::Add(t) if ready && !topics.contains(t) && topics.len() < p.limit() => Some(p.subscribe(t)),
+                        Cmd::Remove(t) if ready && topics.contains(t) => Some(p.unsubscribe(t)),
                         Cmd::Send(line) => Some(line.clone()),
                         _ => None,
                     };
@@ -150,6 +174,79 @@ async fn run<P: Protocol>(
         if !topics.is_empty() {
             backoff = next_backoff(backoff);
         }
+    }
+}
+
+type Spawn = fn(Pin<Box<dyn Future<Output = ()> + Send>>);
+
+/// Topics over as many connections as they need, each holding up to the protocol's
+/// limit. A topic added twice needs removing twice.
+pub struct Pool<P: Protocol> {
+    make: Box<dyn Fn() -> P + Send + Sync>,
+    events: mpsc::UnboundedSender<P::Event>,
+    spawn: Spawn,
+    limit: usize,
+    inner: Mutex<PoolInner<P::Topic>>,
+}
+
+struct PoolInner<T> {
+    conns: Vec<(Topics<T>, usize)>,
+    /// Topic → (connection, how many asked for it).
+    topics: HashMap<T, (usize, usize)>,
+}
+
+impl<P: Protocol> Pool<P> {
+    /// `spawn` runs each connection's task, e.g. on the app's runtime.
+    pub fn new(make: impl Fn() -> P + Send + Sync + 'static, events: mpsc::UnboundedSender<P::Event>, spawn: Spawn) -> Self {
+        let limit = make().limit();
+        Self {
+            make: Box::new(make),
+            events,
+            spawn,
+            limit,
+            inner: Mutex::new(PoolInner {
+                conns: Vec::new(),
+                topics: HashMap::new(),
+            }),
+        }
+    }
+
+    pub fn add(&self, topic: P::Topic) {
+        let mut inner = self.inner.lock().unwrap_or_else(|p| p.into_inner());
+        if let Some(t) = inner.topics.get_mut(&topic) {
+            t.1 += 1;
+            return;
+        }
+        let at = match inner.conns.iter().position(|(_, n)| *n < self.limit) {
+            Some(at) => at,
+            None => {
+                let (handle, task) = start((self.make)(), self.events.clone());
+                (self.spawn)(Box::pin(task));
+                inner.conns.push((handle, 0));
+                inner.conns.len() - 1
+            }
+        };
+        inner.conns[at].0.add(topic.clone());
+        inner.conns[at].1 += 1;
+        inner.topics.insert(topic, (at, 1));
+    }
+
+    pub fn remove(&self, topic: &P::Topic) {
+        let mut inner = self.inner.lock().unwrap_or_else(|p| p.into_inner());
+        let Some(t) = inner.topics.get_mut(topic) else { return };
+        t.1 -= 1;
+        if t.1 > 0 {
+            return;
+        }
+        let at = t.0;
+        inner.topics.remove(topic);
+        inner.conns[at].0.remove(topic.clone());
+        inner.conns[at].1 -= 1;
+    }
+
+    pub fn has(&self, topic: &P::Topic) -> bool {
+        let inner = self.inner.lock().unwrap_or_else(|p| p.into_inner());
+        inner.topics.contains_key(topic)
     }
 }
 
@@ -186,6 +283,51 @@ mod tests {
         let first = next_backoff(Duration::ZERO);
         assert!((1000..5000).contains(&(first.as_millis() as u64)));
         assert_eq!(next_backoff(Duration::from_secs(100)), MAX_BACKOFF);
+    }
+
+    struct Dummy;
+
+    impl Protocol for Dummy {
+        type Topic = u32;
+        type Event = ();
+        fn url(&self) -> String {
+            String::new()
+        }
+        fn subscribe(&self, _: &u32) -> String {
+            String::new()
+        }
+        fn unsubscribe(&self, _: &u32) -> String {
+            String::new()
+        }
+        fn limit(&self) -> usize {
+            2
+        }
+        fn idle(&self) -> Duration {
+            Duration::from_secs(1)
+        }
+        fn read(&mut self, _: &str, _: &mpsc::UnboundedSender<()>) -> Step {
+            Step::Continue
+        }
+    }
+
+    fn no_spawn(_: Pin<Box<dyn Future<Output = ()> + Send>>) {}
+
+    #[test]
+    fn pool_spreads_topics_and_counts_them() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let pool = Pool::new(|| Dummy, tx, no_spawn);
+        for t in [1, 2, 3] {
+            pool.add(t);
+        }
+        let conns = |p: &Pool<Dummy>| p.inner.lock().unwrap().conns.len();
+        assert_eq!(conns(&pool), 2);
+        pool.add(1);
+        pool.remove(&1);
+        assert!(pool.has(&1));
+        pool.remove(&1);
+        assert!(!pool.has(&1));
+        pool.add(4);
+        assert_eq!(conns(&pool), 2);
     }
 
     #[test]

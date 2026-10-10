@@ -1,6 +1,6 @@
 //! Chat data from GQL (1.9, 1.40): badges and cheermotes, global once per run and per
-//! channel on join; reward names for redemptions; the pinned message, checked every
-//! minute while a chat is on screen (live pin updates come with Hermes in phase 9).
+//! channel on join; reward names for redemptions; the pinned message, read on join and
+//! again when Hermes says it changed (`live.rs`), plus every 5 minutes while on screen.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -17,7 +17,7 @@ use ts_rs::TS;
 use super::{Chat, RoomKey, now_ms, queue};
 use crate::auth::Auth;
 
-const PIN_POLL: Duration = Duration::from_secs(60);
+const PIN_POLL: Duration = Duration::from_secs(300);
 
 #[derive(Default)]
 pub struct Catalogs {
@@ -143,6 +143,7 @@ pub fn load_for_room(app: AppHandle, key: RoomKey, history: bool) {
             }
         };
         crate::emotes::join(&app, &key.1, &c.channel_id, super::account_of(&key.0));
+        super::live::joined(&app, &key.1, &c.channel_id);
         if history {
             crate::emotes::ready(&app, &key.1, std::time::Duration::from_secs(4)).await;
             super::session::load_history(app.clone(), key.clone());
@@ -192,7 +193,7 @@ async fn poll_pins(app: &AppHandle) {
     }
 }
 
-async fn refresh_pin(app: &AppHandle, key: &RoomKey, channel_id: &str) {
+pub(super) async fn refresh_pin(app: &AppHandle, key: &RoomKey, channel_id: &str) {
     let http = app.state::<Auth>().http.clone();
     let Ok(pin) = gql::pinned(&http, channel_id).await else { return };
     let chat = app.state::<Chat>();

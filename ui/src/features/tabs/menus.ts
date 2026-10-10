@@ -1,10 +1,11 @@
-// Right-click menus for tabs and tab groups (1.18, 1.51, U3, U5).
+// Right-click menus for tabs and tab groups (1.18, 1.51, U3, U5), with "Mine first" (1.44).
 
 import type { MenuEntry } from '../../components/menu.svelte';
 import type { Tab } from '../../ipc/bindings/Tab';
 import type { TabGroup } from '../../ipc/bindings/TabGroup';
 import { bindingOf } from '../../lib/hotkeys.svelte';
 import { settings } from '../../lib/settings.svelte';
+import { mineFirstEntry } from '../miner/first';
 import { openAdd, openEdit, openGroupDialog } from './dialog.svelte';
 import { COLOR_ORDER, GROUP_COLORS } from './groupColors';
 import { tabs, tiles } from './tabs.svelte';
@@ -32,6 +33,8 @@ export function tabMenu(tab: Tab, targets: Tab[]): MenuEntry[] {
   }
   const mute = muteEntry(targets);
   if (mute) entries.push(mute);
+  const first = one && !feed ? mineFirstEntry(tiles(tab).map((t) => t.channel)) : null;
+  if (first) entries.push(first);
   entries.push(
     { label: one ? 'Group' : `Group ${targets.length} tabs`, icon: 'tag', items: groupItems(targets) },
     'separator',

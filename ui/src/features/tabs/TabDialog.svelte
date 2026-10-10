@@ -1,13 +1,15 @@
 <!-- Add or edit a tab (1.14, 1.16, 1.17, 1.18, 1.22): the channel, stream and/or chat,
      the account it joins on, and an optional tab name. Also adds a channel into an
-     existing tab (U3), or a feed tab (F4). -->
+     existing tab (U3), or a feed tab (F4), and can put the channel in the miner (1.34). -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import Checkbox from '../../components/Checkbox.svelte';
   import Dialog from '../../components/Dialog.svelte';
   import type { ChannelInfo } from '../../ipc/bindings/ChannelInfo';
   import type { TileShow } from '../../ipc/bindings/TileShow';
+  import { minerIpc } from '../../ipc/miner';
   import { accounts } from '../../lib/accounts.svelte';
+  import { settings } from '../../lib/settings.svelte';
   import AccountPicker from './AccountPicker.svelte';
   import ChannelPicker from './ChannelPicker.svelte';
   import { closeTabDialog, type TabDialogMode } from './dialog.svelte';
@@ -45,6 +47,17 @@
   let busy = $state(false);
   /** F4 Making a feed tab instead of a channel tab. */
   let feed = $state<string | null>(null);
+  /** 1.34 */
+  const canMine = accounts.list.some((a) => a.features.includes('miner'));
+  const wasMined = !!tile && settings.v.miner.channels.some((c) => c.id === tile.channel.id);
+  let mine = $state(wasMined);
+  /** Adding a channel the miner has already. */
+  const mined = $derived(!editing && !!picked && settings.v.miner.channels.some((c) => c.id === picked!.id));
+
+  // Mined channels need an account.
+  $effect(() => {
+    if (mine && anon) anon = false;
+  });
 
   const title = editing ? 'Edit tab' : into ? `Add a channel to ${tab ? label(tab) : 'this tab'}` : 'Add a tab';
   const named = !into;
@@ -80,10 +93,14 @@
         who !== tile.account;
       if (changed) await tabs.apply({ op: 'edit', tile: tile.id, channel, show, account: who });
       if (name !== tab.alias) await tabs.apply({ op: 'rename', tab: tab.id, alias: name });
+      if (wasMined && !mine) {
+        void settings.patch('miner', { channels: settings.v.miner.channels.filter((c) => c.id !== tile.channel.id) });
+      }
     } else {
       const id = await tabs.apply({ op: 'add', channel, show, account: who, alias: name, into: into ?? null });
       if (id) onopen(id);
     }
+    if (mine) void minerIpc.add(channel);
     busy = false;
     closeTabDialog();
   }
@@ -153,13 +170,24 @@
 
       <section>
         <span class="label">Account</span>
-        <AccountPicker bind:account bind:anon />
+        <AccountPicker bind:account bind:anon noAnon={mine} />
         {#if full}
           <p class="note warn">
             {full} is in 100 chats, Twitch's limit, so this chat won't join. Pick another account or go anonymous.
           </p>
         {/if}
       </section>
+
+      {#if canMine}
+        <section>
+          {#if mined}
+            <p class="note">In the miner already.</p>
+          {:else}
+            <Checkbox label="Add to the miner" checked={mine} onchange={(v) => (mine = v)} />
+            {#if mine}<p class="note">Goes at the bottom of the miner’s list. Mined channels need an account.</p>{/if}
+          {/if}
+        </section>
+      {/if}
 
       {#if named}
         <section>

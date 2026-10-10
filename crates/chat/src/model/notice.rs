@@ -40,6 +40,8 @@ pub enum NoticeKind {
     Bits,
     /// Watch streaks and other viewer milestones.
     Milestone,
+    /// 1.9 A channel point reward redeemed without a message (Hermes).
+    Redemption,
     /// Timeouts, bans, deletions, chat clears.
     Moderation,
     /// Room modes, joins and other info from Twitch.
