@@ -3,7 +3,7 @@
 //! Twitch. Menu entries (S1) and automations (S4) run through here too.
 
 mod builtin;
-pub use builtin::block_user;
+pub use builtin::{block_user, reserved};
 mod host;
 pub mod timers;
 
@@ -229,7 +229,7 @@ fn line<'a>(
             .strip_prefix('/')
             .or_else(|| text.strip_prefix('.').filter(|r| !r.starts_with('.')))
         else {
-            return send(app, place, text, reply_to).map(|()| None);
+            return send(app, place, text, reply_to).await.map(|()| None);
         };
         let (name, args) = rest
             .split_once(char::is_whitespace)
@@ -242,13 +242,24 @@ fn line<'a>(
                 .ok_or_else(|| format!("/{name} needs more after it."))?;
             return line(app, place, &filled, reply_to, false, depth + 1).await;
         }
+        // S5 A plugin's command; what it returns runs as if typed.
+        if let Some(p) = crate::plugins::calls::command_owner(app, &name) {
+            let out = crate::plugins::calls::command(&p, &name, args, place.channel())
+                .await
+                .map_err(|e| format!("/{name}: {e}"))?;
+            return match out {
+                Some(next) => line(app, place, &next, reply_to, false, depth + 1).await,
+                None => Ok(None),
+            };
+        }
         builtin::run(app, place, &name, args, text, reply_to, depth).await
     })
 }
 
-/// Plain text (or `/me`) to Twitch.
-fn send(app: &AppHandle, place: &Place, text: &str, reply_to: Option<String>) -> Result<(), String> {
-    super::send_to(app, &place.key, text, reply_to)
+/// Plain text (or `/me`) to Twitch, after plugins had their say (S5).
+async fn send(app: &AppHandle, place: &Place, text: &str, reply_to: Option<String>) -> Result<(), String> {
+    let text = crate::plugins::calls::sending(app, place.channel(), text).await?;
+    super::send_to(app, &place.key, &text, reply_to)
 }
 
 /// The values every command can read.

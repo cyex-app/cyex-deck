@@ -13,6 +13,8 @@
   import { settings } from '../../lib/settings.svelte';
   import { complete, insert, wordAt, type Word } from './completion';
   import { chatxIpc } from '../../ipc/chatx';
+  import { pluginsIpc } from '../../ipc/plugins';
+  import { plugins } from '../plugins/plugins.svelte';
   import EmoteButton from './EmoteButton.svelte';
   import GifButton from './GifButton.svelte';
   import RewardsMenu from './RewardsMenu.svelte';
@@ -52,6 +54,8 @@
   let suggest = $state<Suggest | null>(null);
   /** Tab cycling through matches for one word. */
   let cycle: { word: Word; items: string[]; index: number } | null = null;
+  /** S5 Plugins are being asked for matches. */
+  let asking = false;
 
   const canChat = $derived(room.account !== null && accounts.can('sendChat', room.account));
   const chars = $derived([...text].length);
@@ -122,8 +126,8 @@
     suggest = null;
   }
 
-  /** C6 Tab: complete the word, Tab again for the next match. */
-  function tabComplete(back: boolean) {
+  /** C6 Tab: complete the word, Tab again for the next match. Plugins' matches (S5) go first. */
+  async function tabComplete(back: boolean) {
     if (cycle) {
       const n = cycle.items.length;
       cycle.index = (cycle.index + (back ? n - 1 : 1)) % n;
@@ -133,11 +137,24 @@
       cycle.word = { start: word.start, end: word.start + value.length, text: value };
       return;
     }
-    const word = wordAt(text, box?.selectionStart ?? text.length);
+    const before = text;
+    const caret = box?.selectionStart ?? text.length;
+    const word = wordAt(text, caret);
     const bare = word.text.replace(/^@/, '');
-    if (!bare) return;
-    const people = sources.chatters().map((n) => (word.text.startsWith('@') ? `@${n}` : n));
-    const items = complete(bare, [...sources.emotes().map((e) => e.name), ...people], 30);
+    if (asking) return;
+    asking = plugins.completes && !!room.view;
+    const fromPlugins = asking
+      ? await pluginsIpc.complete(room.view!, word.text, text, caret, word.start === 0).catch(() => null)
+      : null;
+    asking = false;
+    // The box changed while plugins thought about it.
+    if (text !== before) return;
+    const own = () => {
+      if (!bare) return [];
+      const people = sources.chatters().map((n) => (word.text.startsWith('@') ? `@${n}` : n));
+      return complete(bare, [...sources.emotes().map((e) => e.name), ...people], 30);
+    };
+    const items = [...new Set([...(fromPlugins?.values ?? []), ...(fromPlugins?.hideOthers ? [] : own())])];
     if (!items.length) return;
     void put(word, items[0]);
     cycle = { word: { start: word.start, end: word.start + items[0].length, text: items[0] }, items, index: 0 };
@@ -181,7 +198,7 @@
     }
     if (e.key === 'Tab') {
       e.preventDefault();
-      tabComplete(e.shiftKey);
+      void tabComplete(e.shiftKey);
     } else if (e.key === 'Enter') {
       e.preventDefault();
       void send(e.ctrlKey);

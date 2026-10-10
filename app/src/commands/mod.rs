@@ -10,6 +10,7 @@ mod moderation;
 mod modes;
 mod notify;
 mod player;
+mod plugins;
 mod rules;
 mod settings;
 mod streammanager;
@@ -220,6 +221,17 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         modes::overlay_click_through,
         modes::overlay_set_click_through,
         modes::hotkeys_failed,
+        plugins::plugins_view,
+        plugins::plugins_set_on,
+        plugins::plugins_set_value,
+        plugins::plugins_reload,
+        plugins::plugins_open_folder,
+        plugins::plugins_logs,
+        plugins::plugins_clear_log,
+        plugins::plugins_repl,
+        plugins::plugins_complete,
+        plugins::plugins_menus,
+        plugins::plugins_menu_run,
         windows::window_info,
         windows::window_set_pinned,
         windows::window_set_title,

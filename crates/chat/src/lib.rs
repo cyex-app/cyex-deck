@@ -16,4 +16,4 @@ pub mod similar;
 pub mod tokenize;
 
 pub use budget::{ConnectionCount, JoinBudget, ROOM_LIMIT};
-pub use room::{BUFFER, PendingSend, Room, RoomSnapshot};
+pub use room::{BUFFER, LineChange, LineHook, PendingSend, Room, RoomSnapshot};

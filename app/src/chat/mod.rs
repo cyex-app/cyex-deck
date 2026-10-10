@@ -10,6 +10,7 @@ mod flush;
 pub mod identity;
 pub mod live;
 mod mention;
+pub mod peek;
 pub mod points;
 pub mod powerups;
 pub mod record;
@@ -258,6 +259,7 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
     let (identity, login) = key;
     let mut room = Room::new(login, me);
     room.set_rules(rules::current(app));
+    room.set_hook(crate::plugins::line_hook(app));
     let budget_ok = match identity {
         Identity::Anon => true,
         Identity::Account(id) => budget(app, |b| b.entry(id.clone()).or_default().join(login, false)),

@@ -13,6 +13,7 @@
   import type { UiAction } from '../../ipc/bindings/UiAction';
   import { chatIpc } from '../../ipc/chat';
   import { chatxIpc } from '../../ipc/chatx';
+  import { pluginsIpc } from '../../ipc/plugins';
   import { systemIpc } from '../../ipc/system';
   import { formatDate } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
@@ -22,6 +23,7 @@
   import type { CardTarget } from '../emotes/emotes';
   import { hidden } from '../emotes/hidden.svelte';
   import { messageItems, mods, userItems } from '../modview/moderation.svelte';
+  import { plugins } from '../plugins/plugins.svelte';
   import Line from './Line.svelte';
   import { runEntry, toItems, userMenus } from './menus.svelte';
   import { plainText } from './text';
@@ -238,7 +240,7 @@
     ]);
   }
 
-  /** Right-click a message: reply, copy, translate (C17), your own entries (S1). */
+  /** Right-click a message: reply, copy, translate (C17), your own entries (S1), plugins' (S5). */
   function messageMenu(e: MouseEvent, m: ChatMessage) {
     const own = userMenus.current.message;
     const login = m.sender?.login ?? '';
@@ -260,6 +262,17 @@
         : []),
       ...(canMod ? ['separator' as const, ...messageItems(m.id, command), ...userItems(role, login, command)] : []),
       ...(own.length ? ['separator' as const, ...toItems(own, (cmd) => runEntry(room.view, cmd, ctx, onaction))] : []),
+      // S5 Entries plugins added.
+      ...(plugins.menus.length
+        ? [
+            'separator' as const,
+            ...plugins.menus.map((p) => ({
+              label: p.label,
+              icon: 'puzzle' as const,
+              run: () => pluginsIpc.runMenu(room.view, p.plugin, p.index, m.id).catch((err) => toast.error(String(err))),
+            })),
+          ]
+        : []),
     ]);
   }
 

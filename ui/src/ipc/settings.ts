@@ -15,6 +15,7 @@ import type { Modview } from './bindings/Modview';
 import type { Notifications } from './bindings/Notifications';
 import type { Partition } from './bindings/Partition';
 import type { Player } from './bindings/Player';
+import type { Plugins } from './bindings/Plugins';
 import type { StreamManager } from './bindings/StreamManager';
 import type { Tabs } from './bindings/Tabs';
 import type { Windows } from './bindings/Windows';
@@ -37,6 +38,7 @@ export interface SettingsValues {
   streammanager: StreamManager;
   notifications: Notifications;
   windows: Windows;
+  plugins: Plugins;
 }
 
 /** JSON merge patch shape: nested objects merge, arrays replace, `null` resets to default. */

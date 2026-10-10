@@ -27,10 +27,11 @@ pub enum Partition {
     StreamManager,
     Notifications,
     Windows,
+    Plugins,
 }
 
 impl Partition {
-    pub const ALL: [Partition; 16] = [
+    pub const ALL: [Partition; 17] = [
         Partition::General,
         Partition::Appearance,
         Partition::Chat,
@@ -47,6 +48,7 @@ impl Partition {
         Partition::StreamManager,
         Partition::Notifications,
         Partition::Windows,
+        Partition::Plugins,
     ];
 
     pub fn key(self) -> &'static str {
@@ -67,6 +69,7 @@ impl Partition {
             Partition::StreamManager => "streammanager",
             Partition::Notifications => "notifications",
             Partition::Windows => "windows",
+            Partition::Plugins => "plugins",
         }
     }
 
@@ -74,10 +77,11 @@ impl Partition {
         Self::ALL.into_iter().find(|p| p.key() == key)
     }
 
-    /// Accounts point at tokens in this machine's credential store, so they stay out of
-    /// exports and share codes. Backups still include them.
+    /// Accounts point at tokens in this machine's credential store, and plugins' settings
+    /// can hold their keys, so both stay out of exports and share codes. Backups still
+    /// include them.
     pub fn is_portable(self) -> bool {
-        self != Partition::Accounts
+        !matches!(self, Partition::Accounts | Partition::Plugins)
     }
 
     pub fn file_name(self) -> String {
@@ -104,6 +108,7 @@ impl Partition {
             Partition::StreamManager => roundtrip::<schema::StreamManager>(value),
             Partition::Notifications => roundtrip::<schema::Notifications>(value),
             Partition::Windows => roundtrip::<schema::Windows>(value),
+            Partition::Plugins => roundtrip::<schema::Plugins>(value),
         }
     }
 

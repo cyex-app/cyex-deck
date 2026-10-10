@@ -66,7 +66,7 @@ pub async fn run(
 ) -> Result<Option<UiAction>, String> {
     let done = Ok(None);
     match name {
-        "me" => send(app, place, text, reply_to).map(|()| None),
+        "me" => send(app, place, text, reply_to).await.map(|()| None),
         "echo" => {
             local(app, &place.key, NoticeKind::Info, args);
             done
@@ -146,7 +146,7 @@ pub async fn run(
                 .split_once(char::is_whitespace)
                 .ok_or("Usage: /tl de your message")?;
             let out = translate_one(app, rest.trim(), lang).await?;
-            send(app, place, &out, reply_to).map(|()| None)
+            send(app, place, &out, reply_to).await.map(|()| None)
         }
         "translate" => {
             if args.is_empty() {
@@ -200,6 +200,18 @@ async fn whisper(app: &AppHandle, place: &Place, to: &str, text: &str) -> Result
         local(app, &place.key, NoticeKind::Info, &format!("Whisper sent to {}.", to.trim_start_matches('@')));
     }
     Ok(None)
+}
+
+/// The app's own commands, which plugins can't take over (S5).
+const OWN: &[&str] = &[
+    "me", "echo", "help", "commands", "set", "chain", "foreach", "runin", "timer", "user", "usercard", "logs",
+    "block", "unblock", "hideuser", "unhideuser", "mutepings", "tl", "translate", "vote", "search", "popout",
+    "color", "w", "whisper", "r", "nuke",
+];
+
+/// S5 Names plugins can't register: the app's commands and Twitch's.
+pub fn reserved(name: &str) -> bool {
+    OWN.contains(&name) || is_mod_command(name)
 }
 
 /// Twitch's own mod and broadcaster commands (1.49, 1.50), run through `moderation`.

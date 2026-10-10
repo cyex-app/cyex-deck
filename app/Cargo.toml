@@ -19,6 +19,7 @@ cyex-emotes.workspace = true
 cyex-miner.workspace = true
 cyex-eventsub.workspace = true
 cyex-moderation.workspace = true
+cyex-plugins.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 time.workspace = true

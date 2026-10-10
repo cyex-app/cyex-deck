@@ -20,6 +20,7 @@
   import MinerSection from './sections/MinerSection.svelte';
   import NotificationsSection from './sections/NotificationsSection.svelte';
   import PlayerSection from './sections/PlayerSection.svelte';
+  import PluginsSection from './sections/PluginsSection.svelte';
   import RecordingsSection from './sections/RecordingsSection.svelte';
   import StreamManagerSection from './sections/StreamManagerSection.svelte';
   import StreamerSection from './sections/StreamerSection.svelte';
@@ -48,6 +49,7 @@
     { id: 'filters', label: 'Filters', icon: 'filter', component: FiltersSection },
     { id: 'commands', label: 'Commands', icon: 'pencil', component: CommandsSection },
     { id: 'automations', label: 'Automations', icon: 'zap', component: AutomationsSection },
+    { id: 'plugins', label: 'Plugins', icon: 'puzzle', component: PluginsSection },
     { id: 'recordings', label: 'Recordings', icon: 'record', component: RecordingsSection },
     { id: 'emotes', label: 'Emotes', icon: 'smile', component: EmotesSection },
     { id: 'miner', label: 'Miner', icon: 'pickaxe', component: MinerSection },

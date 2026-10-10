@@ -7,6 +7,8 @@ import type { Component } from 'svelte';
 import RecordingView from '../features/chat/RecordingView.svelte';
 import ModViewPanel from '../features/modview/ModViewPanel.svelte';
 import OverlayView from '../features/overlay/OverlayView.svelte';
+import ConsoleView from '../features/plugins/ConsoleView.svelte';
+import { plugins } from '../features/plugins/plugins.svelte';
 import SettingsView from '../features/settings/SettingsView.svelte';
 import StreamManagerView from '../features/streammanager/StreamManagerView.svelte';
 import ChatPanel from '../features/tabs/ChatPanel.svelte';
@@ -38,6 +40,7 @@ export const PANELS: Record<string, PanelKind> = {
   streammanager: { title: 'Stream manager', width: 1000, height: 760, component: StreamManagerView },
   whispers: { title: 'Whispers', width: 720, height: 560, component: WhispersView },
   overlay: { title: 'Overlay', width: 340, height: 420, bare: true, component: OverlayView },
+  plugin: { title: 'Plugin console', width: 620, height: 420, component: ConsoleView },
 };
 
 export function panelFor(route: string): PanelKind | undefined {
@@ -58,6 +61,7 @@ export function titleFor(route: string): string {
   if (kind === 'usercard' && b) return b;
   if (kind === 'modview' && a) return `Mod view · ${a}`;
   if (kind === 'whispers' && a) return `Whispers · ${a}`;
+  if (kind === 'plugin' && a) return `${plugins.view?.list.find((p) => p.id === a)?.info?.name ?? a} console`;
   if (kind === 'overlay' && a) {
     const tile = tabs.list.flatMap(tiles).find((t) => t.id === a);
     if (tile) return `${tile.channel.name} overlay`;

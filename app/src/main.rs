@@ -16,6 +16,7 @@ mod icons;
 mod miner;
 mod moderation;
 mod player;
+mod plugins;
 mod profile;
 mod settings;
 mod streamer;
@@ -51,6 +52,7 @@ fn main() {
             auth::init(handle)?;
             hermes::init(handle);
             emotes::init(handle);
+            plugins::init(handle);
             chat::init(handle);
             tabs::init(handle);
             player::init(handle);
