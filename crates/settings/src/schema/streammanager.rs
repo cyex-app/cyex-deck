@@ -15,6 +15,24 @@ pub struct StreamManager {
     /// D4 The channel's alerts were seen playing in Twitch's alert box, so the feed offers
     /// Replay and Skip. Learned, not set by hand.
     pub alert_box: bool,
+    /// V102-22 Your chat next to the cards.
+    pub chat: ManagerChat,
+}
+
+/// V102-22 The stream manager's chat panel: on the right by default, its width dragged.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(default, rename_all = "camelCase")]
+#[ts(export)]
+pub struct ManagerChat {
+    pub shown: bool,
+    /// The chat's share of the width, 0.15 to 0.85.
+    pub share: f32,
+}
+
+impl Default for ManagerChat {
+    fn default() -> Self {
+        Self { shown: true, share: 0.3 }
+    }
 }
 
 /// Each activity kind the feed can show. All on until the user hides one.
@@ -64,7 +82,12 @@ pub struct Obs {
     pub folder: String,
 }
 
-impl Schema for StreamManager {}
+impl Schema for StreamManager {
+    fn sanitize(&mut self) {
+        let share = self.chat.share;
+        self.chat.share = if share.is_finite() { share.clamp(0.15, 0.85) } else { ManagerChat::default().share };
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -78,5 +101,13 @@ mod tests {
         let old: ActivityFilters = serde_json::from_str(r#"{"follows":false}"#).unwrap();
         assert!(!old.follows && old.streaks && old.power_ups && old.goals);
         assert!(!Obs::default().enabled);
+    }
+
+    #[test]
+    fn chat_shows_by_default_and_keeps_a_sane_width() {
+        let mut sm: StreamManager = serde_json::from_str(r#"{"chat":{"share":4}}"#).unwrap();
+        assert!(sm.chat.shown);
+        sm.sanitize();
+        assert_eq!(sm.chat.share, 0.85);
     }
 }

@@ -151,7 +151,7 @@
   {@const name = 'char' in e ? e.names[0] : e.name}
   <button
     class="cell emoji"
-    data-tip={'char' in e ? emojiLabel(e) : name.replaceAll('_', ' ')}
+    data-tip={'char' in e ? emojiLabel(e) : name}
     onclick={() => oninsert(char)}
     oncontextmenu={(ev) => toggleFavorite(ev, { source: 'emoji', id: char, name })}>{char}</button
   >
@@ -248,6 +248,9 @@
     flex-direction: column;
     width: min(380px, calc(100vw - 24px));
     height: 380px;
+    /* V102-03 Shorter when the window is. */
+    flex: 0 1 auto;
+    min-height: 0;
     background: var(--elevated);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);

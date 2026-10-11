@@ -1,6 +1,8 @@
 <!-- Two panes with a draggable divider (3.11). `ratio` is the first pane's share, 0 to 1.
      Panes reflow with the window (3.10); the divider clamps so neither pane collapses.
-     A double-click on the divider goes back to `reset` (V101-14). -->
+     A double-click on the divider goes back to `reset` (V101-14). `reverse` shows the
+     second pane first without moving it in the page, so a playing stream never restarts
+     when the chat changes sides (V102-23, V102-24). -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
@@ -15,9 +17,11 @@
     hide?: 'first' | 'second';
     /** The first pane's default share. */
     reset?: number;
+    /** The second pane on the left or top. */
+    reverse?: boolean;
   }
 
-  let { direction = 'row', ratio, min = 0.15, onchange, first, second, hide, reset }: Props = $props();
+  let { direction = 'row', ratio, min = 0.15, onchange, first, second, hide, reset, reverse = false }: Props = $props();
 
   let container: HTMLDivElement;
   let dragging = $state(false);
@@ -36,7 +40,8 @@
   function onPointerMove(e: PointerEvent) {
     if (!dragging) return;
     const r = container.getBoundingClientRect();
-    live = clamp(direction === 'row' ? (e.clientX - r.left) / r.width : (e.clientY - r.top) / r.height);
+    const at = direction === 'row' ? (e.clientX - r.left) / r.width : (e.clientY - r.top) / r.height;
+    live = clamp(reverse ? 1 - at : at);
   }
 
   function onPointerUp() {
@@ -47,7 +52,7 @@
   }
 </script>
 
-<div class="split {direction}" class:dragging bind:this={container}>
+<div class="split {direction}" class:reverse class:dragging bind:this={container}>
   <div class="pane" class:gone={hide === 'first'} class:rest={hide === 'second'} style:flex-basis="{shown * 100}%">
     {@render first()}
   </div>
@@ -75,6 +80,12 @@
   }
   .column {
     flex-direction: column;
+  }
+  .row.reverse {
+    flex-direction: row-reverse;
+  }
+  .column.reverse {
+    flex-direction: column-reverse;
   }
   .pane {
     display: flex;

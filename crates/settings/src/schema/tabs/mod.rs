@@ -18,7 +18,7 @@ use std::hash::{BuildHasher, Hasher};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use super::Schema;
+use super::{ChatPosition, Schema};
 
 /// 1.22
 const MAX_ALIAS_CHARS: usize = 60;
@@ -124,6 +124,9 @@ pub struct Tile {
     pub feed: Option<String>,
     /// F3 Filter ids the chat shows messages through.
     pub filters: Vec<String>,
+    /// V102-23 Where the chat sits next to the stream, dragged with the tab's panels
+    /// unlocked. `None` follows Settings (2.1); "Reset layout" goes back to it.
+    pub chat_side: Option<ChatPosition>,
 }
 
 impl Default for Tile {
@@ -139,6 +142,7 @@ impl Default for Tile {
             muted: false,
             feed: None,
             filters: Vec::new(),
+            chat_side: None,
         }
     }
 }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { groupAt, rowSlot, zoneAt } from './zones.ts';
+import { edgeAt, groupAt, rowSlot, sideAfterDrop, zoneAt } from './zones.ts';
 
 const box = { left: 100, top: 100, width: 200, height: 100 };
 
@@ -53,4 +53,13 @@ test('past a row’s last tab, it goes after that tab, not to the end of the bar
 
 test('below every row it is the end of the bar', () => {
   assert.equal(rowSlot(cells, 50, 90), null);
+});
+
+test('a panel dropped on its partner lands on the closest edge (V102-23)', () => {
+  assert.equal(edgeAt(box, 200, 110), 'top');
+  assert.equal(edgeAt(box, 290, 150), 'right');
+  assert.equal(edgeAt(box, 200, 195), 'bottom');
+  assert.equal(sideAfterDrop('chat', 'bottom'), 'bottom', 'chat dropped under the stream');
+  assert.equal(sideAfterDrop('stream', 'bottom'), 'top', 'stream dropped under the chat');
+  assert.equal(sideAfterDrop('stream', 'left'), 'right');
 });

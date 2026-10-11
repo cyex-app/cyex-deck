@@ -1,5 +1,6 @@
-// Right-click menus for tabs and tab groups (1.18, 1.51, U3, U5), with "Mine first" (1.44)
-// and hiding a tile's chat or stream (V101-20).
+// Right-click menus for tabs and tab groups (1.18, 1.51, U3, U5), with "Mine first" (1.44),
+// hiding a tile's chat or stream (V101-20), moving its panels (V102-23) and stopping a
+// stream that plays out of sight (V102-15).
 
 import type { MenuEntry } from '../../components/menu.svelte';
 import type { Tab } from '../../ipc/bindings/Tab';
@@ -10,6 +11,7 @@ import { settings } from '../../lib/settings.svelte';
 import { mineFirstEntry } from '../miner/first';
 import { openAdd, openEdit, openGroupDialog } from './dialog.svelte';
 import { COLOR_ORDER, GROUP_COLORS } from './groupColors';
+import { dragged, layout } from './layout.svelte';
 import { tabs, tiles } from './tabs.svelte';
 
 /** Menu for `tab`. `targets` are the selected tabs it acts on (`tab` included). */
@@ -34,8 +36,13 @@ export function tabMenu(tab: Tab, targets: Tab[]): MenuEntry[] {
     );
     if (tiles(tab).length === 1) entries.push(...showEntries(tiles(tab)[0]));
   }
+  if (one && tabs.held === tab.id) {
+    entries.push({ label: 'Stop playing', icon: 'pause', run: () => (tabs.held = null) });
+  }
   const mute = muteEntry(targets);
   if (mute) entries.push(mute);
+  // A popped-out tab's panels move in its own window, from the chat's menu.
+  if (one && !popped) entries.push(...layoutEntries(tab));
   const first = one && !feed ? mineFirstEntry(tiles(tab).map((t) => t.channel)) : null;
   if (first) entries.push(first);
   entries.push(
@@ -55,8 +62,20 @@ export function tileEntries(tab: Tab, tile: Tile): MenuEntry[] {
   return [
     ...(tile.feed ? [] : [{ label: 'Edit', icon: 'pencil' as const, run: () => openEdit(tab.id, tile.id) }, ...showEntries(tile)]),
     { label: 'Move to its own tab', icon: 'popout', run: () => void tabs.apply({ op: 'detach', tile: tile.id, before: null }) },
+    ...layoutEntries(tab),
     'separator',
     { label: 'Close', icon: 'x', run: () => void tabs.apply({ op: 'closeTile', tile: tile.id }) },
+  ];
+}
+
+/** V102-23 Unlock the tab's panels to drag them, or put every chat back. Only where a
+ * chat and a stream share a tile. */
+export function layoutEntries(tab: Tab): MenuEntry[] {
+  if (!tiles(tab).some((t) => t.show.player && t.show.chat)) return [];
+  const on = layout.isUnlocked(tab.id);
+  return [
+    ...(dragged(tab) ? [{ label: 'Reset layout', icon: 'undo' as const, run: () => layout.reset(tab) }] : []),
+    { label: 'Move panels', icon: 'layout', checked: on, run: () => layout.setUnlocked(tab.id, !on) },
   ];
 }
 

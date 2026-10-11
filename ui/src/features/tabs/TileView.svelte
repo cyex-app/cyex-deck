@@ -1,14 +1,18 @@
 <!-- One channel in a tab (U3): stream, chat or both, split by a draggable divider (3.11)
      on the side set in Settings (2.1). A clip or VOD linked in a chat-only tile opens
      beside the chat (1.19, P7); while a VOD plays here the chat can replay it (P8). The
-     chat can pop out on its own (1.58). In tiled tabs the header drags the tile. -->
+     chat can pop out on its own (1.58). In tiled tabs the header drags the tile; in an
+     unlocked tab it drags the chat or stream to a side of the other (V102-23). Too small
+     for both, the panels turn round until there's room again (V102-24). -->
 <script lang="ts">
+  import { untrack } from 'svelte';
+
   import { popOut } from '../../app/panels';
   import Icon from '../../components/Icon.svelte';
   import SplitPane from '../../components/SplitPane.svelte';
   import type { Tab } from '../../ipc/bindings/Tab';
   import type { Tile } from '../../ipc/bindings/Tile';
-  import { settings } from '../../lib/settings.svelte';
+  import { type Box, fitTile, type TileFit } from '../../lib/fit';
   import StreamSide from '../channel/StreamSide.svelte';
   import ChatView from '../chat/ChatView.svelte';
   import FeedView from '../chat/FeedView.svelte';
@@ -16,33 +20,81 @@
   import ClipPlayer from '../player/ClipPlayer.svelte';
   import { openTarget, tileState } from '../player/players.svelte';
   import VodPlayer from '../player/VodPlayer.svelte';
-  import { drag } from './drag.svelte';
-  import { tileEntries } from './menus';
+  import { drag, type Panel } from './drag.svelte';
+  import { chatSide, layout } from './layout.svelte';
+  import { layoutEntries, tileEntries } from './menus';
   import TileActions from './TileActions.svelte';
   import { chatRoute, DEFAULT_RATIO, tabs, tiles } from './tabs.svelte';
+  import { sideAfterDrop } from './zones';
 
   interface Props {
     tile: Tile;
     tab: Tab;
     popout: boolean;
     onsignin: () => void;
+    /** V102-15 Kept playing out of sight: the chat folds away meanwhile. */
+    background?: boolean;
   }
 
-  let { tile, tab, popout, onsignin }: Props = $props();
+  let { tile, tab, popout, onsignin, background = false }: Props = $props();
 
   const tiled = $derived(tiles(tab).length > 1);
-  const position = $derived(settings.v.general.chatPosition);
-  const chatFirst = $derived(position === 'left' || position === 'top');
   const shared = $derived(tileState(tile.id));
   const chatPopped = $derived(tabs.chats.has(tile.id));
-  const showChat = $derived(tile.show.chat && !chatPopped);
+  const showChat = $derived(tile.show.chat && !chatPopped && !background);
   /** 1.19, P7 Only beside a chat-only tile. */
   const side = $derived(tile.show.player ? null : shared.side);
   const replay = $derived(shared.replay ? shared.vod : null);
+  /** The chat shares the tile with the stream or a clip. */
+  const paired = $derived(showChat && (tile.show.player || side !== null));
 
-  const onheaderdown = $derived(
-    tiled ? (e: PointerEvent) => drag.begin(e, { kind: 'tile', id: tile.id }, tile.channel.name) : undefined,
-  );
+  // V102-24 Measured, then fitted: the user's side (V102-23, else Settings 2.1), the chat
+  // widened or turned round when it would be too small. Held while something's dragged.
+  let root = $state<HTMLElement>();
+  let box = $state<Box>({ w: 0, h: 0 });
+  let fit = $state<TileFit | null>(null);
+  /** A divider dragged while the panels are turned round: kept until they turn back. */
+  let movedRatio = $state<number | null>(null);
+
+  $effect(() => {
+    if (!root) return;
+    const ro = new ResizeObserver(([e]) => (box = { w: e.contentRect.width, h: e.contentRect.height }));
+    ro.observe(root);
+    return () => ro.disconnect();
+  });
+
+  $effect(() => {
+    if (drag.item) return;
+    const b = box;
+    if (!paired) {
+      fit = null;
+      return;
+    }
+    // Out of sight (a tab kept playing) nothing changes.
+    if (b.w <= 0 || b.h <= 0) return;
+    const next = fitTile(b, chatSide(tile), tile.ratio, untrack(() => fit?.moved ?? false));
+    if (!next.moved) movedRatio = null;
+    fit = next;
+  });
+
+  const shownSide = $derived(fit?.side ?? chatSide(tile));
+  const row = $derived(shownSide === 'left' || shownSide === 'right');
+  const chatFirst = $derived(shownSide === 'left' || shownSide === 'top');
+  const ratio = $derived(fit?.moved ? (movedRatio ?? fit.ratio) : (fit?.ratio ?? tile.ratio));
+
+  const unlocked = $derived(layout.isUnlocked(tab.id));
+
+  /** In an unlocked tab a panel drags to a side of the other (V102-23); in a tiled tab the
+   * header drags the tile (U3). */
+  function headerDown(panel: Panel) {
+    if (unlocked && paired) {
+      const label = `${tile.channel.name} ${panel === 'chat' ? 'chat' : 'stream'}`;
+      return (e: PointerEvent) => drag.begin(e, { kind: 'panel', tile: tile.id, panel }, label);
+    }
+    return tiled ? (e: PointerEvent) => drag.begin(e, { kind: 'tile', id: tile.id }, tile.channel.name) : undefined;
+  }
+  const onheaderdown = $derived(headerDown('chat'));
+  const onstreamdown = $derived(headerDown('stream'));
 
   /** Drop zone shown while something that can land here is dragged over. */
   const zone = $derived.by(() => {
@@ -50,13 +102,23 @@
     const t = drag.target;
     if (!item || t?.kind !== 'tile' || t.id !== tile.id) return null;
     if (item.kind === 'tile') return item.id === tile.id ? null : t.zone;
+    if (item.kind === 'panel') return item.tile === tile.id ? null : t.zone;
     const from = tabs.tab(item.id);
     return from && from.id !== tab.id && tiles(from).length === 1 ? t.zone : null;
   });
 
-  function setRatio(first: number) {
-    const ratio = chatFirst ? first : 1 - first;
-    void tabs.apply({ op: 'ratio', tile: tile.id, ratio });
+  /** V102-23 Where the chat lands if the panel is dropped now. */
+  const landing = $derived.by(() => {
+    const item = drag.item;
+    const t = drag.target;
+    if (item?.kind !== 'panel' || t?.kind !== 'panel' || t.tile !== tile.id) return null;
+    return sideAfterDrop(item.panel, t.edge);
+  });
+
+  /** `share` is the chat's. Turned round, the divider only moves it for now. */
+  function setRatio(share: number) {
+    if (fit?.moved) movedRatio = share;
+    else void tabs.apply({ op: 'ratio', tile: tile.id, ratio: share });
   }
 
   /** 1.58 */
@@ -103,7 +165,7 @@
         account={tile.account}
         readKey={tile.id}
         actions={chatActions}
-        tileMenu={tiled ? () => tileEntries(tab, tile) : undefined}
+        tileMenu={tiled ? () => tileEntries(tab, tile) : () => layoutEntries(tab)}
         {onheaderdown}
         {onsignin}
         onlink={(t) => openTarget(tile, t)}
@@ -120,7 +182,7 @@
   <StreamSide
     {tile}
     actions={showChat ? undefined : actions}
-    {onheaderdown}
+    onheaderdown={onstreamdown}
     onpopchat={tile.show.chat && !chatPopped && !popout ? popChat : undefined}
     onbringchat={chatPopped ? () => tabs.dockChat(tile.id) : undefined}
   />
@@ -137,29 +199,46 @@
   </div>
 {/snippet}
 
-<div class="tile" data-tile-id={tile.id}>
+{#snippet chatPanel()}
+  <div class="panel" data-panel="chat">{@render chat()}</div>
+{/snippet}
+
+{#snippet streamPanel()}
+  <div class="panel" data-panel="stream">{@render stream()}</div>
+{/snippet}
+
+{#snippet besidePanel()}
+  <div class="panel" data-panel="stream">{@render beside()}</div>
+{/snippet}
+
+<div class="tile" data-tile-id={tile.id} bind:this={root}>
   {#if tile.show.player}
-    <!-- One split either way, so the stream keeps playing when the chat pops out (1.58). -->
+    <!-- One split either way, the stream always first in the page, so it keeps playing
+         when the chat pops out (1.58) or changes sides (V102-23, V102-24). -->
     <SplitPane
-      direction={position === 'left' || position === 'right' ? 'row' : 'column'}
-      ratio={chatFirst ? tile.ratio : 1 - tile.ratio}
-      reset={chatFirst ? DEFAULT_RATIO : 1 - DEFAULT_RATIO}
-      onchange={setRatio}
-      first={chatFirst ? chat : stream}
-      second={chatFirst ? stream : chat}
-      hide={showChat ? undefined : chatFirst ? 'first' : 'second'}
+      direction={row ? 'row' : 'column'}
+      reverse={chatFirst}
+      ratio={1 - ratio}
+      reset={1 - DEFAULT_RATIO}
+      onchange={(first) => setRatio(1 - first)}
+      first={streamPanel}
+      second={chatPanel}
+      hide={showChat ? undefined : 'second'}
     />
   {:else if showChat && side}
     <SplitPane
-      direction={position === 'left' || position === 'right' ? 'row' : 'column'}
-      ratio={chatFirst ? tile.ratio : 1 - tile.ratio}
-      reset={chatFirst ? DEFAULT_RATIO : 1 - DEFAULT_RATIO}
-      onchange={setRatio}
-      first={chatFirst ? chat : beside}
-      second={chatFirst ? beside : chat}
+      direction={row ? 'row' : 'column'}
+      reverse={chatFirst}
+      ratio={1 - ratio}
+      reset={1 - DEFAULT_RATIO}
+      onchange={(first) => setRatio(1 - first)}
+      first={besidePanel}
+      second={chatPanel}
     />
   {:else if showChat}
     {@render chat()}
+  {:else if background}
+    <!-- V102-15 Out of sight. -->
   {:else}
     <div class="popped">
       Chat is in its own window.
@@ -167,11 +246,18 @@
     </div>
   {/if}
   {#if zone}<div class="drop {zone}"></div>{/if}
+  {#if landing}<div class="drop chat-{landing}" style:--share={ratio}></div>{/if}
 </div>
 
 <style>
   .tile {
     position: relative;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+  }
+  .panel {
     flex: 1;
     min-width: 0;
     min-height: 0;
@@ -239,5 +325,18 @@
   }
   .bottom {
     inset: 50% 0 0 0;
+  }
+  /* V102-23 Where the chat goes. */
+  .chat-left {
+    inset: 0 calc((1 - var(--share)) * 100%) 0 0;
+  }
+  .chat-right {
+    inset: 0 0 0 calc((1 - var(--share)) * 100%);
+  }
+  .chat-top {
+    inset: 0 0 calc((1 - var(--share)) * 100%) 0;
+  }
+  .chat-bottom {
+    inset: calc((1 - var(--share)) * 100%) 0 0 0;
   }
 </style>

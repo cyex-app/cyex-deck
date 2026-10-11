@@ -65,10 +65,11 @@
     color: var(--text);
     background: var(--surface-hover);
   }
+  /* V102-03 Fixed to the window, so panels around a chat can't cut it off. */
   .pop {
-    position: absolute;
-    right: 0;
-    bottom: calc(100% + 8px);
+    position: fixed;
     z-index: var(--z-popover);
+    display: flex;
+    flex-direction: column;
   }
 </style>

@@ -42,12 +42,12 @@ export function emojiGroups(): Promise<EmojiGroup[]> {
   return groups;
 }
 
-/** V102-07 What an emoji is called on hover: its short name as words, no colons ("eyes",
- * "heart eyes"). A wordy name beats `+1`; flags read "flag germany", not "de". */
+/** V102-07 What an emoji is called on hover: its short name, no colons ("eyes",
+ * "heart_eyes"). A wordy name beats `+1`; flags read "flag_germany", not "de". */
 export function emojiLabel(e: Emoji): string {
   const name = e.names.find((n) => /[a-z]{3}/.test(n));
-  if (name) return name.replaceAll('_', ' ');
-  return e.words || e.names[0];
+  if (name) return name;
+  return e.words ? e.words.replaceAll(' ', '_') : e.names[0];
 }
 
 /** Hover names by emoji, built from the same list. */

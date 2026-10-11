@@ -104,18 +104,49 @@ pub fn open(app: &AppHandle, channel: &str, login: &str) -> tauri::Result<()> {
     window.set_focus()
 }
 
-/// Just right of and below the mouse, kept on its monitor and off the taskbar (V101-04).
-/// Physical pixels.
-fn near_cursor(app: &AppHandle, w: f64, h: f64) -> Option<PhysicalPosition<i32>> {
+/// Right of and below the mouse, or left of and above it where that side has no room, so
+/// the card doesn't land on the name it's for; kept on its monitor and off the taskbar
+/// (V101-04, V102-03). `w` and `h` are logical; the result is physical pixels. Also
+/// places the chats opened from a `#channel` (V102-05).
+pub fn near_cursor(app: &AppHandle, w: f64, h: f64) -> Option<PhysicalPosition<i32>> {
     let cursor = app.cursor_position().ok()?;
     let monitor = app.monitor_from_point(cursor.x, cursor.y).ok().flatten()?;
     let scale = monitor.scale_factor();
     let area = monitor.work_area();
     let (pos, size) = (area.position, area.size);
-    let (w, h) = (w * scale, h * scale);
-    let right = f64::from(pos.x) + f64::from(size.width) - w;
-    let bottom = f64::from(pos.y) + f64::from(size.height) - h;
-    let x = (cursor.x + 12.0 * scale).min(right).max(f64::from(pos.x));
-    let y = (cursor.y + 12.0 * scale).min(bottom).max(f64::from(pos.y));
+    let gap = 12.0 * scale;
+    let x = beside(cursor.x, w * scale, gap, f64::from(pos.x), f64::from(size.width));
+    let y = beside(cursor.y, h * scale, gap, f64::from(pos.y), f64::from(size.height));
     Some(PhysicalPosition::new(x as i32, y as i32))
+}
+
+/// Along one axis: after `at` when the window fits there, else before it when it fits
+/// there, else on the roomier side; always inside `start..start + len`.
+fn beside(at: f64, size: f64, gap: f64, start: f64, len: f64) -> f64 {
+    let end = start + len;
+    let (after, before) = (at + gap, at - gap - size);
+    let x = if after + size <= end || (before < start && end - at >= at - start) {
+        after
+    } else {
+        before
+    };
+    x.min(end - size).max(start)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::beside;
+
+    #[test]
+    fn cards_open_beside_the_mouse_and_flip_near_the_edge() {
+        // Room on the right: just after the mouse.
+        assert_eq!(beside(100.0, 380.0, 12.0, 0.0, 1920.0), 112.0);
+        // Near the right edge: left of the mouse, not over it.
+        assert_eq!(beside(1800.0, 380.0, 12.0, 0.0, 1920.0), 1408.0);
+        // Second monitor starting at 1920.
+        assert_eq!(beside(1930.0, 380.0, 12.0, 1920.0, 1920.0), 1942.0);
+        // Taller than either side: the roomier side, kept on screen.
+        assert_eq!(beside(500.0, 900.0, 12.0, 0.0, 1040.0), 140.0);
+        assert_eq!(beside(300.0, 900.0, 12.0, 0.0, 1040.0), 140.0);
+    }
 }

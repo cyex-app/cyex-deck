@@ -25,7 +25,7 @@ test('names first, then search words', () => {
   );
 });
 
-test('hover names have no colons and read as words (V102-07)', () => {
+test('hover names have no colons and keep underscores (V102-07)', () => {
   const list = parseGroups([
     ['People & Body', '👍 +1 thumbsup|approve ok\n👀 eyes|look see watch'],
     ['Smileys & Emotion', '😍 heart_eyes|love crush\n❤️ heart|love'],
@@ -34,9 +34,9 @@ test('hover names have no colons and read as words (V102-07)', () => {
   const map = nameMap(list);
   assert.equal(map.get(emojiKey('👀')), 'eyes');
   assert.equal(map.get(emojiKey('👍🏽')), 'thumbsup', 'skin tones share the name');
-  assert.equal(map.get(emojiKey('😍')), 'heart eyes');
+  assert.equal(map.get(emojiKey('😍')), 'heart_eyes');
   assert.equal(map.get(emojiKey('❤')), 'heart', 'with or without the variation selector');
-  assert.equal(map.get(emojiKey('🇩🇪')), 'flag germany');
+  assert.equal(map.get(emojiKey('🇩🇪')), 'flag_germany');
 });
 
 test('emoji are found in chat text', () => {

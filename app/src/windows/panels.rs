@@ -149,6 +149,13 @@ pub fn open_panel(app: &AppHandle, route: &str, title: &str, size: Option<(f64, 
 
     if saved.geometry.is_some_and(|g| g.maximized) {
         window.maximize()?;
+    } else if route.starts_with("room/")
+        && let (Ok(size), Ok(scale)) = (window.inner_size(), window.scale_factor())
+        && let Some(at) = super::usercard::near_cursor(app, f64::from(size.width) / scale, f64::from(size.height) / scale)
+    {
+        // V102-03 A `#channel` chat opens next to where it was clicked, like a usercard,
+        // not on top of the last one.
+        window.set_position(at)?;
     }
     icons::apply(&window.as_ref().window());
     window.show()?;

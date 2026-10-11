@@ -29,6 +29,8 @@
   .tip {
     position: fixed;
     z-index: var(--z-tooltip);
+    /* V102-03 Its own width wherever it lands, so a long name wraps the same everywhere. */
+    width: max-content;
     max-width: 260px;
     padding: 6px 9px;
     display: flex;
@@ -54,7 +56,7 @@
   .name {
     font-size: 0.8rem;
     font-weight: 600;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
   .hint {
     font-size: 0.76rem;

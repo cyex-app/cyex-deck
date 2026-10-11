@@ -137,11 +137,12 @@
     color: var(--text);
     background: var(--surface-hover);
   }
+  /* V102-03 Fixed to the window; the grid gets shorter when the window is. */
   .pop {
-    position: absolute;
-    right: 0;
-    bottom: calc(100% + 8px);
+    position: fixed;
     z-index: var(--z-popover);
+    display: flex;
+    flex-direction: column;
     width: 320px;
     padding: 8px;
     background: var(--elevated);
@@ -160,6 +161,8 @@
     height: 28px;
   }
   .grid {
+    flex: 0 1 auto;
+    min-height: 0;
     columns: 2;
     column-gap: 6px;
     height: 320px;

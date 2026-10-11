@@ -25,11 +25,25 @@ test('near the top a tooltip that prefers above goes below', () => {
   assert.equal(p.top, 54);
 });
 
-test('no room on either side: it stays inside, even over the anchor', () => {
+test('no room above or below: it goes beside instead of over the anchor (V102-03)', () => {
   const tall = { width: 120, height: 580 };
   const p = place(box(300, 280), tall, view);
-  assert.equal(p.top, 12);
-  assert.ok(p.top + tall.height <= 600 - 8);
+  assert.equal(p.side, 'right');
+  assert.equal(p.left, 334);
+  assert.ok(p.top >= 8 && p.top + tall.height <= 600 - 8);
+});
+
+test('no room on any side: it shrinks into the larger one and never covers the anchor', () => {
+  // Suggestions over a full-width message box in a short window.
+  const p = place(box(0, 300, 800, 40), { width: 800, height: 400 }, view, { side: 'above' });
+  assert.deepEqual(p, { left: 8, top: 8, side: 'above', maxHeight: 286, maxWidth: 784 });
+  assert.ok(p.top + p.maxHeight! <= 300 - 6);
+});
+
+test('a dropdown near the right edge with no room under it opens to the left of its button', () => {
+  const p = place(box(700, 150, 80, 30), { width: 220, height: 350 }, { width: 800, height: 400 });
+  assert.equal(p.side, 'left');
+  assert.ok(p.left + 220 <= 700);
 });
 
 test('sideways it is pushed back in from the left and right edges', () => {
@@ -59,7 +73,7 @@ test('an end-aligned dropdown near the left edge lines up with the start instead
   assert.equal(p.left, 20);
 });
 
-test('bigger than the window: the top-left corner stays visible', () => {
+test('bigger than the window: shrunk to it, under its anchor', () => {
   const p = place(box(10, 10), { width: 900, height: 700 }, view);
-  assert.deepEqual([p.left, p.top], [8, 8]);
+  assert.deepEqual(p, { left: 8, top: 44, side: 'below', maxHeight: 548, maxWidth: 784 });
 });

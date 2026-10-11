@@ -1,7 +1,16 @@
 <!-- A tab's content (U3): columns of tiles with draggable dividers. Sizes are shares,
-     so the layout follows the window (3.10). -->
+     so the layout follows the window (3.10). Columns too narrow for their chats stack
+     into one until there's room again (V102-24). Unlocked, a bar says how to move the
+     panels (V102-23). -->
 <script lang="ts">
+  import { untrack } from 'svelte';
+
+  import Button from '../../components/Button.svelte';
   import type { Tab } from '../../ipc/bindings/Tab';
+  import { type Box, stackColumns, tileNeed } from '../../lib/fit';
+  import { tileState } from '../player/players.svelte';
+  import { drag } from './drag.svelte';
+  import { dragged, layout } from './layout.svelte';
   import TileView from './TileView.svelte';
   import { tabs } from './tabs.svelte';
 
@@ -9,9 +18,11 @@
     tab: Tab;
     popout?: boolean;
     onsignin: () => void;
+    /** V102-15 Kept playing out of sight. */
+    background?: boolean;
   }
 
-  let { tab, popout = false, onsignin }: Props = $props();
+  let { tab, popout = false, onsignin, background = false }: Props = $props();
 
   /** Smallest column or tile while dragging a divider, in px. */
   const MIN_PX = 140;
@@ -23,6 +34,30 @@
   );
 
   let root = $state<HTMLElement>();
+  let box = $state<Box>({ w: 0, h: 0 });
+  /** V102-24 The columns shown one under the other, for now. */
+  let stacked = $state(false);
+
+  $effect(() => {
+    if (!root) return;
+    const ro = new ResizeObserver(([e]) => (box = { w: e.contentRect.width, h: e.contentRect.height }));
+    ro.observe(root);
+    return () => ro.disconnect();
+  });
+
+  $effect(() => {
+    // Not while a tile, panel or divider is being dragged.
+    if (drag.item || live) return;
+    const b = box;
+    if (b.w <= 0 || b.h <= 0) return;
+    const columns = tab.columns.map((c) => ({
+      size: c.size,
+      tiles: c.tiles.map((t) => tileNeed(t.show.player || tileState(t.id).side !== null, t.show.chat && !tabs.chats.has(t.id))),
+    }));
+    stacked = stackColumns(b, columns, untrack(() => stacked));
+  });
+
+  const unlocked = $derived(layout.isUnlocked(tab.id) && !background);
 
   /** Drags the divider before column `ci`, or before tile `ri` in column `ci`. */
   function resize(e: PointerEvent, ci: number, ri?: number) {
@@ -59,32 +94,72 @@
   }
 </script>
 
-<div class="tab-view" bind:this={root}>
-  {#each tab.columns as column, ci (ci)}
-    {#if ci > 0}
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="divider col" onpointerdown={(e) => resize(e, ci)}></div>
-    {/if}
-    <div class="column" style:flex-grow={sizes.columns[ci] ?? 1}>
-      {#each column.tiles as tile, ri (tile.id)}
-        {#if ri > 0}
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="divider row" onpointerdown={(e) => resize(e, ci, ri)}></div>
-        {/if}
-        <div class="cell" style:flex-grow={sizes.rows[ci]?.[ri] ?? 1}>
-          <TileView {tile} {tab} {popout} {onsignin} />
-        </div>
-      {/each}
+<div class="tab-wrap" data-tab-view={tab.id}>
+  {#if unlocked}
+    <div class="unlocked">
+      <span>Drag a chat or stream by its title bar onto a side of the other.</span>
+      {#if dragged(tab)}<Button variant="ghost" small icon="undo" onclick={() => layout.reset(tab)}>Reset layout</Button>{/if}
+      <Button variant="primary" small icon="lock" onclick={() => layout.setUnlocked(tab.id, false)}>Done</Button>
     </div>
-  {/each}
+  {/if}
+  <div class="tab-view" class:stacked bind:this={root}>
+    {#each tab.columns as column, ci (ci)}
+      {#if ci > 0}
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="divider col" onpointerdown={(e) => resize(e, ci)}></div>
+      {/if}
+      <div class="column" style:flex-grow={sizes.columns[ci] ?? 1}>
+        {#each column.tiles as tile, ri (tile.id)}
+          {#if ri > 0}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div class="divider row" onpointerdown={(e) => resize(e, ci, ri)}></div>
+          {/if}
+          <div class="cell" style:flex-grow={stacked ? 1 : (sizes.rows[ci]?.[ri] ?? 1)}>
+            <TileView {tile} {tab} {popout} {onsignin} {background} />
+          </div>
+        {/each}
+      </div>
+    {/each}
+  </div>
 </div>
 
 <style>
+  .tab-wrap {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .unlocked {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    padding: 4px 8px 4px 12px;
+    background: var(--accent-dim);
+    border-bottom: 1px solid var(--accent-border);
+    font-size: 0.8rem;
+  }
+  .unlocked span {
+    flex: 1;
+    min-width: 0;
+  }
   .tab-view {
     flex: 1;
     min-width: 0;
     min-height: 0;
     display: flex;
+  }
+  /* V102-24 One under the other: the columns step aside, no dividers. */
+  .stacked {
+    flex-direction: column;
+  }
+  .stacked > .column {
+    display: contents;
+  }
+  .stacked .divider {
+    display: none;
   }
   .column {
     flex: 1 1 0;
@@ -95,8 +170,15 @@
   }
   .cell {
     flex: 1 1 0;
+    min-width: 0;
     min-height: 0;
     display: flex;
+  }
+  .stacked .cell {
+    border-top: 1px solid var(--border-strong);
+  }
+  .stacked > .column:first-child > .cell:first-child {
+    border-top: 0;
   }
   .divider {
     position: relative;

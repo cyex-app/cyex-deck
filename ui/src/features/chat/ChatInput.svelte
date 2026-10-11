@@ -42,6 +42,8 @@
   const HISTORY = 20;
 
   let box = $state<HTMLTextAreaElement>();
+  /** The message box with its buttons: suggestions line up with it (V102-03). */
+  let row = $state<HTMLElement>();
   let text = $state('');
   let error = $state('');
   let sent: string[] = [];
@@ -267,9 +269,9 @@
     </div>
   {/if}
   {#if suggest}
-    <SuggestList items={suggest.items} index={suggest.index} onpick={accept} />
+    <SuggestList items={suggest.items} index={suggest.index} onpick={accept} anchor={row} />
   {/if}
-  <div class="row">
+  <div class="row" bind:this={row}>
     <RewardsMenu {room} />
     {#if canChat}
       <textarea

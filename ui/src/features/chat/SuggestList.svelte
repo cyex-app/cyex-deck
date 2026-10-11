@@ -1,5 +1,7 @@
-<!-- C6 The list of suggestions above the message box. -->
+<!-- C6 The list of suggestions above the message box, as wide as it; below it or shorter
+     when there's no room above (V102-03). -->
 <script lang="ts">
+  import { floating } from '../../lib/place';
   import { settings } from '../../lib/settings.svelte';
   import type { Item } from './suggestions';
   import { emoteImg } from './urls';
@@ -8,14 +10,16 @@
     items: Item[];
     index: number;
     onpick: (i: number) => void;
+    /** The message box's row. */
+    anchor: HTMLElement | undefined;
   }
 
-  let { items, index, onpick }: Props = $props();
+  let { items, index, onpick, anchor }: Props = $props();
 
   const theme = $derived(settings.v.appearance.theme);
 </script>
 
-<div class="suggest" role="listbox">
+<div class="suggest" role="listbox" use:floating={{ anchor, side: 'above', gap: 4, matchWidth: true }}>
   {#each items as item, i (item.value)}
     <button
       class="item"
@@ -38,10 +42,7 @@
 
 <style>
   .suggest {
-    position: absolute;
-    bottom: calc(100% - 2px);
-    left: 8px;
-    right: 8px;
+    position: fixed;
     z-index: var(--z-popover);
     max-height: 260px;
     overflow-y: auto;

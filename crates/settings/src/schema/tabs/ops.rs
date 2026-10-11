@@ -7,7 +7,7 @@ use serde::Deserialize;
 use ts_rs::TS;
 
 use super::order::neighbor;
-use super::{Column, GroupColor, Schema, Tab, TabChannel, TabGroup, Tabs, Tile, TileShow};
+use super::{ChatPosition, Column, GroupColor, Schema, Tab, TabChannel, TabGroup, Tabs, Tile, TileShow};
 
 #[derive(Clone, Debug, Deserialize, TS)]
 #[serde(tag = "op", rename_all = "camelCase")]
@@ -69,6 +69,11 @@ pub enum TabOp {
     Filters { tile: String, filters: Vec<String> },
     /// 3.11 Chat's share of the tile.
     Ratio { tile: String, ratio: f32 },
+    /// V102-23 Where a tile's chat sits next to its stream. `None` follows Settings (2.1),
+    /// which this never changes.
+    ChatSide { tile: String, side: Option<ChatPosition> },
+    /// V102-23 Every chat in the tab back where Settings puts it.
+    ResetLayout { tab: String },
     /// The tile's player volume.
     Sound { tile: String, volume: f32, muted: bool },
     /// U5 `None` takes the tabs out of their group.
@@ -172,6 +177,7 @@ impl Tabs {
                     muted: false,
                     feed: None,
                     filters: Vec::new(),
+                    chat_side: None,
                 };
                 let i = self.tab_index(&tab_id)?;
                 let size = average_width(&self.tabs[i]);
@@ -204,6 +210,7 @@ impl Tabs {
                         muted: i > 0,
                         feed: None,
                         filters: Vec::new(),
+                        chat_side: None,
                     };
                     columns[i % width].tiles.push(tile);
                 }
@@ -356,6 +363,20 @@ impl Tabs {
                 let at = self.locate(&tile)?;
                 self.tile_mut(at).ratio = ratio;
                 self.last_ratio = ratio;
+                Ok(None)
+            }
+            TabOp::ChatSide { tile, side } => {
+                let at = self.locate(&tile)?;
+                self.tile_mut(at).chat_side = side;
+                Ok(None)
+            }
+            TabOp::ResetLayout { tab } => {
+                let i = self.tab_index(&tab)?;
+                for column in &mut self.tabs[i].columns {
+                    for t in &mut column.tiles {
+                        t.chat_side = None;
+                    }
+                }
                 Ok(None)
             }
             TabOp::Sound { tile, volume, muted } => {
@@ -925,5 +946,33 @@ mod tests {
         assert!(matches!(op, TabOp::MoveTile { zone: Zone::Left, .. }));
         let op: TabOp = serde_json::from_str(r#"{"op":"activate","tab":null}"#).unwrap();
         assert!(matches!(op, TabOp::Activate { tab: None }));
+        let op: TabOp = serde_json::from_str(r#"{"op":"chatSide","tile":"x","side":"bottom"}"#).unwrap();
+        assert!(matches!(op, TabOp::ChatSide { side: Some(ChatPosition::Bottom), .. }));
+    }
+
+    #[test]
+    fn dragged_chat_sides_stay_per_tile_until_reset() {
+        let mut t = tabs(&["a", "b"]);
+        add(&mut t, "c", Some("a"));
+        let side = |t: &Tabs, tab: usize, col: usize| t.tabs[tab].columns[col].tiles[0].chat_side;
+        let (a1, c) = (t.tabs[0].columns[0].tiles[0].id.clone(), t.tabs[0].columns[1].tiles[0].id.clone());
+        let b1 = t.tabs[1].columns[0].tiles[0].id.clone();
+        for (tile, s) in [(&a1, ChatPosition::Bottom), (&b1, ChatPosition::Left)] {
+            apply(&mut t, TabOp::ChatSide { tile: tile.clone(), side: Some(s) });
+        }
+        // V102-23 Moving one chat leaves the others where they were.
+        assert_eq!((side(&t, 0, 0), side(&t, 0, 1)), (Some(ChatPosition::Bottom), None));
+
+        // It goes with its tile when tiles swap, and is kept on disk.
+        apply(&mut t, TabOp::MoveTile { tile: c, target: a1, zone: Zone::Center });
+        assert_eq!((side(&t, 0, 0), side(&t, 0, 1)), (None, Some(ChatPosition::Bottom)));
+        let back: Tabs = serde_json::from_value(serde_json::to_value(&t).unwrap()).unwrap();
+        assert_eq!(side(&back, 0, 1), Some(ChatPosition::Bottom));
+
+        apply(&mut t, TabOp::ResetLayout { tab: "a".into() });
+        assert_eq!((side(&t, 0, 0), side(&t, 0, 1)), (None, None));
+        assert_eq!(side(&t, 1, 0), Some(ChatPosition::Left), "only that tab");
+        let mut fresh = || "x".to_owned();
+        assert!(t.apply(TabOp::ResetLayout { tab: "gone".into() }, &mut fresh).is_err());
     }
 }

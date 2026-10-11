@@ -39,9 +39,9 @@
   import ViewerList from './ViewerList.svelte';
   import { votes } from './votes.svelte';
   import VotesBanner from './VotesBanner.svelte';
-  import { popOut } from '../../app/panels';
   import { accounts } from '../../lib/accounts.svelte';
   import { mods } from '../modview/moderation.svelte';
+  import { modviewPlace } from '../modview/where.svelte';
   import { pluginItems } from '../plugins/pluginMenus';
   import { plugins } from '../plugins/plugins.svelte';
   import { pluginsIpc } from '../../ipc/plugins';
@@ -298,9 +298,9 @@
       <IconButton
         icon="shield"
         label="Mod view"
-        hint="Mod tools for this chat, in their own window."
+        hint="Mod tools for this chat."
         size={15}
-        onclick={() => void popOut(`modview/${login}`, `Mod view · ${login}`)}
+        onclick={() => modviewPlace.open(login)}
       />
     {/if}
     <IconButton
@@ -327,14 +327,17 @@
       {STATUS[room.status]}
     </p>
   {/if}
-  {#if room.pinned}
-    <PinnedBanner
-      pin={room.pinned}
-      channel={login}
-      onunpin={modRole && !room.pinned.paid ? () => void chatIpc.send(room.view, '/unpin').catch((e) => toast.error(String(e))) : undefined}
-    />
-  {/if}
-  <VotesBanner channel={login} view={() => room.view} signedIn={room.account !== null} />
+  <!-- V102-24 A short chat keeps its messages and message box: these scroll instead. -->
+  <div class="banners">
+    {#if room.pinned}
+      <PinnedBanner
+        pin={room.pinned}
+        channel={login}
+        onunpin={modRole && !room.pinned.paid ? () => void chatIpc.send(room.view, '/unpin').catch((e) => toast.error(String(e))) : undefined}
+      />
+    {/if}
+    <VotesBanner channel={login} view={() => room.view} signedIn={room.account !== null} />
+  </div>
   <div class="body">
     <MessageList
       {room}
@@ -414,11 +417,20 @@
     color: var(--red);
     border-color: var(--red);
   }
+  .banners {
+    flex: none;
+    max-height: 40%;
+    overflow-y: auto;
+  }
   .body {
     position: relative;
     flex: 1;
     min-height: 0;
     display: flex;
+  }
+  /* The message box always shows. */
+  .chat > :global(.input) {
+    flex: none;
   }
   .viewers {
     position: absolute;

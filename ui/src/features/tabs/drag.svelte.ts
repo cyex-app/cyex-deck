@@ -1,11 +1,15 @@
-// Dragging tabs and tiles (U3, U5) with pointer events: reorder tabs, tile one tab's
-// channel into another, move tiles around or out into their own tab.
+// Dragging tabs, tiles and panels (U3, U5, V102-23) with pointer events: reorder tabs,
+// tile one tab's channel into another, move tiles around or out into their own tab, and
+// in an unlocked tab put a chat on any side of its stream.
 
+import type { ChatPosition } from '../../ipc/bindings/ChatPosition';
 import type { Zone } from '../../ipc/bindings/Zone';
 import { tabs, tiles } from './tabs.svelte';
-import { groupAt, rowSlot, zoneAt } from './zones';
+import { edgeAt, groupAt, rowSlot, sideAfterDrop, zoneAt } from './zones';
 
-export type DragItem = { kind: 'tab'; id: string } | { kind: 'tile'; id: string };
+export type Panel = 'chat' | 'stream';
+
+export type DragItem = { kind: 'tab'; id: string } | { kind: 'tile'; id: string } | { kind: 'panel'; tile: string; panel: Panel };
 
 export type DropTarget =
   /** Next to a tab in the bar, or into it for a tile. */
@@ -13,7 +17,9 @@ export type DropTarget =
   | { kind: 'group'; id: string }
   /** The bar's empty end. */
   | { kind: 'bar' }
-  | { kind: 'tile'; id: string; zone: Zone };
+  | { kind: 'tile'; id: string; zone: Zone }
+  /** V102-23 On an edge of the other panel of the same tile. */
+  | { kind: 'panel'; tile: string; edge: ChatPosition };
 
 /** Pixels the pointer moves before a press turns into a drag. */
 const THRESHOLD = 5;
@@ -38,7 +44,7 @@ class Drag {
       }
       this.x = ev.clientX;
       this.y = ev.clientY;
-      this.target = hit(ev.clientX, ev.clientY, item.kind);
+      this.target = hit(ev.clientX, ev.clientY, item);
     };
     const end = (drop: boolean) => {
       removeEventListener('pointermove', move);
@@ -62,9 +68,21 @@ class Drag {
 
 export const drag = new Drag();
 
-function hit(x: number, y: number, kind: DragItem['kind']): DropTarget | null {
+function hit(x: number, y: number, item: DragItem): DropTarget | null {
   const el = document.elementFromPoint(x, y);
   if (!el) return null;
+  const kind = item.kind;
+  if (item.kind === 'panel') {
+    // V102-23 Onto the other panel, or another tile to move the whole tile (U3).
+    const tile = el.closest<HTMLElement>('[data-tile-id]');
+    const panel = el.closest<HTMLElement>('[data-panel]');
+    if (!tile) return null;
+    if (tile.dataset.tileId !== item.tile) {
+      return { kind: 'tile', id: tile.dataset.tileId!, zone: zoneAt(tile.getBoundingClientRect(), x, y) };
+    }
+    if (!panel || panel.dataset.panel === item.panel) return null;
+    return { kind: 'panel', tile: item.tile, edge: edgeAt(panel.getBoundingClientRect(), x, y) };
+  }
   const tab = el.closest<HTMLElement>('[data-tab-id]');
   if (tab) {
     const r = tab.getBoundingClientRect();
@@ -91,7 +109,9 @@ function hit(x: number, y: number, kind: DragItem['kind']): DropTarget | null {
 
 function apply(item: DragItem, target: DropTarget): void {
   if (item.kind === 'tab') dropTab(item.id, target);
-  else dropTile(item.id, target);
+  else if (item.kind === 'tile') dropTile(item.id, target);
+  else if (target.kind === 'panel') void tabs.apply({ op: 'chatSide', tile: item.tile, side: sideAfterDrop(item.panel, target.edge) });
+  else if (target.kind === 'tile') dropTile(item.tile, target);
 }
 
 function dropTab(id: string, target: DropTarget): void {

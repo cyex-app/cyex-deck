@@ -1,6 +1,9 @@
 <!-- 1.46 The moderator view for a channel the account mods: a grid of widgets, dragged to
      rearrange and lockable (1.53). Opened from the shield on a chat (1.46) and poppable
-     out (1.47). The layout is one for every channel, in the `modview` settings. -->
+     out (1.47). The layout is one for every channel, in the `modview` settings. The chat
+     widget (V102-22) is a view on the room the tab already has open, as the moderating
+     account, with its own scroll and pause; with no tab on that channel it joins for as
+     long as the widget shows. -->
 <script lang="ts">
   import { onDestroy } from 'svelte';
 
@@ -12,16 +15,18 @@
   import { toast } from '../../lib/toast.svelte';
   import ActivityFeed from './ActivityFeed.svelte';
   import AutomodQueue from './AutomodQueue.svelte';
+  import ChatView from '../chat/ChatView.svelte';
   import ViewerList from '../chat/ViewerList.svelte';
   import MassActions from './MassActions.svelte';
   import ModActions from './ModActions.svelte';
   import UnbanQueue from './UnbanQueue.svelte';
 
-  /** The channel login; `account` mods it. */
-  let { login, account }: { login: string; account: string } = $props();
+  /** The channel login; `account` mods it. `onpopout` shows in the main window (V102-16). */
+  let { login, account, onpopout }: { login: string; account: string; onpopout?: () => void } = $props();
 
-  type Widget = 'activity' | 'actions' | 'automod' | 'unban' | 'chatters' | 'mass';
+  type Widget = 'chat' | 'activity' | 'actions' | 'automod' | 'unban' | 'chatters' | 'mass';
   const TITLES: Record<Widget, string> = {
+    chat: 'Chat',
     activity: 'Activity',
     actions: 'Mod actions',
     automod: 'AutoMod queue',
@@ -29,7 +34,7 @@
     chatters: 'Viewers',
     mass: 'Mass actions',
   };
-  const DEFAULT: Widget[] = ['activity', 'actions', 'automod', 'unban', 'chatters', 'mass'];
+  const DEFAULT: Widget[] = ['chat', 'activity', 'actions', 'automod', 'unban', 'chatters', 'mass'];
 
   let channelId = $state<string | null>(null);
   let board = $state<Board0>({ activity: [], actions: [], held: [], suspicious: [] });
@@ -97,6 +102,9 @@
       size={15}
       onclick={() => void settings.patch('modview', { locked: !locked })}
     />
+    {#if onpopout}
+      <IconButton icon="popout" label="Pop out" hint="Open the mod view in its own window." size={15} onclick={onpopout} />
+    {/if}
   </header>
 
   <div class="grid">
@@ -104,6 +112,7 @@
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <section
         class="widget"
+        class:tall={w === 'chat'}
         class:dragging={dragging === w}
         draggable={!locked}
         ondragstart={() => (dragging = w)}
@@ -118,7 +127,9 @@
           {/if}
         </div>
         <div class="wbody">
-          {#if w === 'activity'}
+          {#if w === 'chat'}
+            <ChatView {login} {account} />
+          {:else if w === 'activity'}
             <ActivityFeed items={board.activity} suspicious={board.suspicious} />
           {:else if w === 'actions'}
             <ModActions items={board.actions} />
@@ -139,6 +150,8 @@
 
 <style>
   .modview {
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -189,6 +202,12 @@
     border-radius: var(--radius);
     overflow: hidden;
   }
+  /* V102-22 Room for a chat: two rows high. */
+  .widget.tall {
+    grid-row: span 2;
+    height: min(72vh, 640px);
+    max-height: none;
+  }
   .widget.dragging {
     opacity: 0.5;
   }
@@ -219,5 +238,9 @@
     flex: 1;
     min-height: 0;
     overflow: auto;
+  }
+  .tall .wbody {
+    display: flex;
+    overflow: hidden;
   }
 </style>

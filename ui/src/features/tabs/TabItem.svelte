@@ -31,13 +31,15 @@
   const live = $derived(tabs.liveState(tab));
   const unread = $derived(tabs.unreadState(tab));
   const popped = $derived(tabs.popped.has(tab.id));
+  /** V102-15 Still playing while something else shows. */
+  const held = $derived(tabs.held === tab.id);
   const closeButton = $derived(settings.v.appearance.tabCloseButton);
 
   /** Drop marker while something is dragged over this tab. */
   const mark = $derived.by(() => {
     const t = drag.target;
     if (!drag.item || t?.kind !== 'tab' || t.id !== tab.id) return null;
-    if (drag.item.kind === 'tile') return 'into';
+    if (drag.item.kind !== 'tab') return 'into';
     if (drag.item.id === tab.id) return null;
     return t.after ? 'after' : 'before';
   });
@@ -56,7 +58,8 @@
     const first = tiles(tab)[0];
     const account = first?.account ? accounts.list.find((a) => a.userId === first.account) : undefined;
     const who = account ? `as ${account.displayName}` : 'anonymous';
-    return { label: parts.length ? parts.join(' · ') : `${name} · offline`, hint: hint ? `${hint} (${who})` : who };
+    const label = parts.length ? parts.join(' · ') : `${name} · offline`;
+    return { label: held ? `${label} · playing` : label, hint: hint ? `${hint} (${who})` : who };
   });
 
   function onauxclick(e: MouseEvent) {
@@ -98,6 +101,7 @@
     {#if live}<span class="dot {live}"></span>{/if}
     <span class="name">{name}</span>
     {#if popped}<span class="popped"><Icon name="popout" size={12} /></span>{/if}
+    {#if held}<span class="popped"><Icon name="volume" size={12} /></span>{/if}
     {#if closeButton}
       <button
         class="x"

@@ -1,5 +1,7 @@
 <!-- Main window: title bar with the fixed views and the channel tabs (02), the tab bar on
-     the side set in Settings (U5), then the view or tab on screen. -->
+     the side set in Settings (U5), then the view or tab on screen. A tab left while its
+     stream plays keeps playing out of sight (V102-15). A view popped out of here comes back
+     where it was when its window closes (V102-16). -->
 <script lang="ts">
   import { listen } from '@tauri-apps/api/event';
   import { untrack } from 'svelte';
@@ -17,6 +19,8 @@
   import HomeView from '../features/home/HomeView.svelte';
   import { miner } from '../features/miner/miner.svelte';
   import MinerView from '../features/miner/MinerView.svelte';
+  import ModViewPanel from '../features/modview/ModViewPanel.svelte';
+  import { modviewPlace, modviewRoute } from '../features/modview/where.svelte';
   import SettingsView from '../features/settings/SettingsView.svelte';
   import StreamManagerView from '../features/streammanager/StreamManagerView.svelte';
   import SubsView from '../features/subs/SubsView.svelte';
@@ -31,13 +35,16 @@
   import { openTarget, playerHotkeys } from '../features/player/players.svelte';
   import { openChannel } from '../features/browse/open.svelte';
   import { stepTab } from '../features/tabs/cycle';
+  import { nextHeld } from '../features/tabs/hold';
   import { tabs, tiles } from '../features/tabs/tabs.svelte';
+  import type { Tab } from '../ipc/bindings/Tab';
   import type { LinkTarget } from '../ipc/bindings/LinkTarget';
   import { accountsIpc } from '../ipc/accounts';
   import { chatIpc } from '../ipc/chat';
   import { notifyEvents } from '../ipc/notify';
   import { pluginsIpc } from '../ipc/plugins';
   import { tabsIpc } from '../ipc/tabs';
+  import { windowsIpc } from '../ipc/windows';
   import { accounts } from '../lib/accounts.svelte';
   import { gate } from '../lib/gate.svelte';
   import { useHotkeys } from '../lib/hotkeys.svelte';
@@ -50,7 +57,9 @@
   import { popOut } from './panels';
   import { useRootEffects } from './root.svelte';
 
-  type Fixed = 'home' | 'discover' | 'miner' | 'streamManager' | 'whispers' | 'subs' | 'settings';
+  type Fixed = 'home' | 'discover' | 'miner' | 'streamManager' | 'whispers' | 'subs' | 'settings' | 'modview';
+  /** Somewhere the main window can show. */
+  type Place = { tab: string } | { view: Fixed };
 
   /** A fixed view, or `null` while a tab shows. */
   let fixed = $state<Fixed | null>(tabs.active ? null : 'home');
@@ -62,6 +71,49 @@
   const side = $derived(settings.v.appearance.tabBarSide);
   const current = $derived(fixed ? null : tabs.tab(picked) ? picked : tabs.active);
   const tab = $derived(tabs.tab(current));
+  /** The tab drawn here now, not in its own window. */
+  const shownTab = $derived(tab && !tabs.popped.has(tab.id) ? tab.id : null);
+
+  // V102-15 Which tab plays out of sight, worked out before the old tab leaves the page. A
+  // tab picked while it's in its own window counts too: its live stream plays there.
+  let shownBefore: string | null = null;
+  $effect.pre(() => {
+    const to = current;
+    const now = shownTab;
+    untrack(() => {
+      const held = tabs.held && tabs.tab(tabs.held) && !tabs.popped.has(tabs.held) ? tabs.held : null;
+      tabs.held = nextHeld({ held, from: shownBefore, to, playing, liveViewer });
+      shownBefore = now;
+    });
+  });
+
+  // Closed or popped out: nothing left to keep playing here.
+  $effect(() => {
+    const h = tabs.held;
+    if (h && (!tabs.tab(h) || tabs.popped.has(h))) tabs.held = null;
+  });
+
+  /** The tab on screen, and the one playing out of sight before it so it never moves. */
+  const mounted = $derived.by(() => {
+    const list: Tab[] = [];
+    const held = tabs.held && tabs.held !== shownTab ? tabs.tab(tabs.held) : undefined;
+    if (held && !tabs.popped.has(held.id)) list.push(held);
+    const shown = tabs.tab(shownTab);
+    if (shown) list.push(shown);
+    return list;
+  });
+
+  /** A stream or video plays in the tab now, and can be heard: a muted one stops as before. */
+  function playing(id: string): boolean {
+    const view = document.querySelector(`[data-tab-view="${CSS.escape(id)}"]`);
+    return [...(view?.querySelectorAll('video') ?? [])].some((v) => !v.paused && !v.ended && !v.muted && v.volume > 0);
+  }
+
+  /** The tab shows a stream and that channel is live. */
+  function liveViewer(id: string): boolean {
+    const t = tabs.tab(id);
+    return Boolean(t && tiles(t).some((x) => x.show.player && tabs.live[x.channel.id]?.stream));
+  }
   /** 08 The miner works once an account has a GQL sign-in; until then it's greyed out (V102-20). */
   const canMine = $derived(accounts.any('miner'));
   /** 10 The stream manager shows once an account can run its own channel (D26). */
@@ -125,6 +177,26 @@
     if (whispers.asks) untrack(() => show('whispers'));
   });
 
+  // 1.46 The shield on a chat here: that channel's mod view.
+  $effect(() => {
+    if (modviewPlace.asks) untrack(() => show('modview'));
+  });
+
+  // V102-16 Views popped out of here, by route: what they were and where this window went.
+  const docked = new Map<string, { view: Fixed; at: Place }>();
+  $effect(() => {
+    const off = windowsIpc.onPanels((routes) => {
+      for (const [route, d] of docked) {
+        if (routes.includes(route)) continue;
+        docked.delete(route);
+        if (d.view === 'modview') modviewPlace.login = route.slice(route.indexOf('/') + 1);
+        // Back where it was, unless you went somewhere else meanwhile.
+        if (isHere(d.at)) show(d.view);
+      }
+    });
+    return () => void off.then((f) => f());
+  });
+
   // 2.2, 1.26 Toasts: a click opens the channel, the conversation or the link; the sound
   // plays here.
   $effect(() => {
@@ -161,15 +233,44 @@
     return () => void off.then((f) => f());
   });
 
+  /** Where the main window was before the place it shows now. */
+  let before: Place | null = null;
+
+  function here(): Place | null {
+    if (fixed) return { view: fixed };
+    return current ? { tab: current } : null;
+  }
+
+  function isHere(p: Place): boolean {
+    return 'tab' in p ? !fixed && current === p.tab : fixed === p.view;
+  }
+
+  function moved() {
+    const now = here();
+    if (now) before = now;
+  }
+
   function show(view: Fixed) {
+    if (fixed !== view) moved();
     fixed = view;
     tabs.activate(null);
   }
 
   function open(id: string) {
+    if (fixed || current !== id) moved();
     picked = id;
     fixed = null;
     tabs.activate(id);
+  }
+
+  /** V102-16 Pops a view out of here and goes back to where you were before it; when its
+   * window closes the view comes back, if you're still there. */
+  async function popOutView(view: Fixed, route: string, title?: string) {
+    if (!(await popOut(route, title))) return;
+    const back: Place = before && !('view' in before && before.view === view) ? before : { view: 'home' };
+    if ('tab' in back && tabs.tab(back.tab) && !tabs.popped.has(back.tab)) open(back.tab);
+    else show('view' in back ? back.view : 'home');
+    docked.set(route, { view, at: here() ?? { view: 'home' } });
   }
 
   /** Next or previous visible tab, wrapping around. */
@@ -210,16 +311,12 @@
           : 'Links, pictures and mod actions stay off your stream. Click to turn it off for now.',
   );
 
-  async function popOutSettings() {
-    if (await popOut('settings')) show('home');
-  }
-
-  async function popOutManager() {
-    if (await popOut('streammanager')) show('home');
-  }
-
-  async function popOutWhispers() {
-    if (await popOut('whispers')) show('home');
+  const popOutSettings = () => void popOutView('settings', 'settings');
+  const popOutManager = () => void popOutView('streamManager', 'streammanager');
+  const popOutWhispers = () => void popOutView('whispers', 'whispers');
+  function popOutModview() {
+    const login = modviewPlace.login;
+    if (login) void popOutView('modview', modviewRoute(login), `Mod view · ${login}`);
   }
 </script>
 
@@ -298,14 +395,19 @@
     </div>
   {/if}
   <main>
+    {#each mounted as t (t.id)}
+      <div class="slot" class:away={t.id !== shownTab}>
+        <TabView tab={t} background={t.id !== shownTab} onsignin={manageAccounts} />
+      </div>
+    {/each}
     {#if tab}
       {#if tabs.popped.has(tab.id)}
         <PoppedOut {tab} />
-      {:else}
-        {#key tab.id}
-          <TabView {tab} onsignin={manageAccounts} />
-        {/key}
       {/if}
+    {:else if fixed === 'modview' && modviewPlace.login}
+      {#key modviewPlace.login}
+        <ModViewPanel route={modviewRoute(modviewPlace.login)} onpopout={popOutModview} />
+      {/key}
     {:else if fixed === 'discover'}
       <DiscoverView onopen={open} />
     {:else if fixed === 'miner' && canMine}
@@ -406,5 +508,15 @@
     display: flex;
     min-width: 0;
     min-height: 0;
+  }
+  .slot {
+    flex: 1;
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+  }
+  /* V102-15 Playing out of sight. */
+  .away {
+    display: none;
   }
 </style>

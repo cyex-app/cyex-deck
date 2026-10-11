@@ -1,6 +1,7 @@
 // Channel tabs (spec 02). Rust owns the list (the `tabs` settings partition) and every
 // edit goes through `apply`. This adds what isn't stored: live status (1.29), which tabs
-// are popped out (1.51, 3.14), unread chats (U9) and whether a close can be undone (U10).
+// are popped out (1.51, 3.14), unread chats (U9), whether a close can be undone (U10) and
+// which tab plays out of sight (V102-15).
 
 import { popOut } from '../../app/panels';
 import type { ChannelInfo } from '../../ipc/bindings/ChannelInfo';
@@ -42,6 +43,8 @@ class TabsStore {
   unread = $state.raw<Record<string, Unread>>({});
   /** U10 Something closed can come back. */
   reopenable = $state(false);
+  /** V102-15 The tab whose stream keeps playing while another tab or view shows. */
+  held = $state<string | null>(null);
 
   get list(): Tab[] {
     return settings.v.tabs?.tabs ?? [];
