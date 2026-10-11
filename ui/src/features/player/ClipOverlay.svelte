@@ -1,11 +1,12 @@
 <!-- 1.20 A clip from chat over the stream, inside the window. The stream is silent until
-     it closes. A clip the user just made (P9) can be edited on Twitch from here. -->
+     it closes. V103-09 A clip just made without Sign in with Twitch shows here as made (the
+     last 30 seconds), with a note that the sign-in lets you pick the start and end. -->
 <script lang="ts">
+  import GateFlag from '../../components/GateFlag.svelte';
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { ClipPlayback } from '../../ipc/bindings/ClipPlayback';
   import type { Tile } from '../../ipc/bindings/Tile';
-  import { subsIpc } from '../../ipc/subs';
   import { systemIpc } from '../../ipc/system';
   import { formatDate, formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
@@ -14,24 +15,17 @@
   interface Props {
     slug: string;
     tile: Tile | undefined;
-    /** P9 The editor for a clip just made. */
-    editUrl?: string | null;
+    /** V103-09 Just made, without Twitch's editor. */
+    made?: boolean;
     onclose: () => void;
   }
 
-  let { slug, tile, editUrl = null, onclose }: Props = $props();
+  let { slug, tile, made = false, onclose }: Props = $props();
 
   let clip = $state<ClipPlayback | null>(null);
 
   function open(url: string) {
     systemIpc.openLink(url).catch((e) => toast.error(String(e)));
-  }
-
-  /** V102-08 Twitch's clip editor in the app's Twitch window, as the account that made it. */
-  function edit(url: string) {
-    const account = tile?.account;
-    if (account) subsIpc.open(account, url).catch((e) => toast.error(String(e)));
-    else open(url);
   }
 
   function onkeydown(e: KeyboardEvent) {
@@ -55,8 +49,9 @@
           </span>
         {/if}
       </div>
-      {#if editUrl}
-        <button class="link" onclick={() => edit(editUrl!)}>Edit on Twitch</button>
+      {#if made}
+        <span class="note">Last 30 seconds. Sign in with Twitch to pick the start and end.</span>
+        <GateFlag kind="helix" />
       {/if}
       <button class="icon" aria-label="Open on Twitch" use:tooltip={'Open on Twitch'} onclick={() => open(`https://clips.twitch.tv/${slug}`)}>
         <Icon name="popout" size={15} />
@@ -64,7 +59,7 @@
       <button class="icon" aria-label="Close" use:tooltip={'Close (Esc)'} onclick={onclose}><Icon name="x" size={16} /></button>
     </header>
     <div class="screen">
-      <ClipPlayer {slug} {tile} fresh={!!editUrl} onloaded={(c) => (clip = c)} />
+      <ClipPlayer {slug} {tile} fresh={made} onloaded={(c) => (clip = c)} />
     </div>
   </div>
 </div>
@@ -136,12 +131,13 @@
     background: var(--surface-hover);
     color: var(--text);
   }
-  .link {
-    padding: 4px 10px;
-    background: var(--accent-dim);
-    border: 0;
-    border-radius: var(--radius);
-    color: var(--accent-text);
-    font-weight: 600;
+  .note {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--dim);
+    font-size: 0.8rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>

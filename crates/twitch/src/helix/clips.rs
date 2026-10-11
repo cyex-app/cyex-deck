@@ -2,14 +2,12 @@
 //! from the last seconds of the stream; it can be trimmed and titled at `edit_url`.
 
 use serde::{Deserialize, Serialize};
-use ts_rs::TS;
 
 use super::{Auth, Data, post};
 use crate::http::json;
 use crate::{Error, Http, Result};
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreatedClip {
     /// The clip's slug. It takes a few seconds to be watchable.
     pub id: String,

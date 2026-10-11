@@ -1,7 +1,8 @@
-<!-- Code to approve on twitch.tv/activate while a Device Code sign-in runs (1.5). -->
+<!-- Code to approve on twitch.tv/activate while a Device Code sign-in runs (1.5). V103-01
+     Twitch's page opens in the app's Twitch window with the code filled in, not the browser. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
-  import { systemIpc } from '../../ipc/system';
+  import { accountsIpc } from '../../ipc/accounts';
   import { accounts } from '../../lib/accounts.svelte';
   import { formatDuration } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
@@ -22,7 +23,7 @@
   async function open() {
     if (!signIn.code) return;
     try {
-      await systemIpc.openLink(signIn.code.uri);
+      await accountsIpc.openActivation(signIn.forUser, signIn.code.uri);
     } catch (e) {
       toast.error(String(e));
     }
@@ -37,15 +38,15 @@
 
 <div class="device">
   {#if signIn.code}
-    <p class="lead">Enter this code on Twitch{as ? `, signed in as ${as}` : ''}</p>
+    <p class="lead">Approve this code in the Twitch window{as ? `, as ${as}` : ''}</p>
     <div class="code">{signIn.code.userCode}</div>
     <div class="actions">
-      <Button variant="primary" icon="popout" onclick={open}>Open twitch.tv/activate</Button>
+      <Button variant="primary" icon="popout" onclick={open}>Show Twitch</Button>
       <Button icon="copy" onclick={copy}>Copy code</Button>
       <Button variant="ghost" onclick={() => signIn.cancel()}>Cancel</Button>
     </div>
     <p class="note">
-      Waiting for you to approve. The code works for {formatDuration(left)}.
+      Log in there if Twitch asks. The code works for {formatDuration(left)}.
     </p>
   {:else}
     <p class="lead">Getting a code…</p>

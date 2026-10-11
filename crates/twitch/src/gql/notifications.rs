@@ -69,10 +69,7 @@ pub async fn list(http: &Http, auth: Auth<'_>, which: List, after: Option<&str>)
         .ok_or_else(signed_out)?
         .notifications
         .unwrap_or_default();
-    let more = conn.page_info.is_some_and(|p| p.has_next_page);
-    let cursor = more
-        .then(|| conn.edges.last().map(|e| e.cursor.clone()))
-        .flatten();
+    let cursor = conn.next_cursor();
     Ok(Page {
         items: conn
             .edges
@@ -260,10 +257,7 @@ pub async fn settings(http: &Http, auth: Auth<'_>, after: Option<&str>) -> Resul
         })
         .collect();
     let conn = me.notification_enrollment_follows.unwrap_or_default();
-    let more = conn.page_info.is_some_and(|p| p.has_next_page);
-    let cursor = more
-        .then(|| conn.edges.last().map(|e| e.cursor.clone()))
-        .flatten();
+    let cursor = conn.next_cursor();
     let channels = conn
         .edges
         .into_iter()
@@ -398,6 +392,17 @@ struct Connection<T, X = ()> {
     page_info: Option<PageInfo>,
 }
 
+impl<T, X> Connection<T, X> {
+    /// The cursor for the next page. V103-10: the bell gives only the last edge a cursor
+    /// and `null` on the others (all of them when there's no next page).
+    fn next_cursor(&self) -> Option<String> {
+        let more = self.page_info.as_ref().is_some_and(|p| p.has_next_page);
+        more.then(|| self.edges.last().and_then(|e| e.cursor.clone()))
+            .flatten()
+            .filter(|c| !c.is_empty())
+    }
+}
+
 impl<T, X> Default for Connection<T, X> {
     fn default() -> Self {
         Self {
@@ -411,7 +416,7 @@ impl<T, X> Default for Connection<T, X> {
 #[serde(rename_all = "camelCase")]
 struct Edge<T, X> {
     #[serde(default)]
-    cursor: String,
+    cursor: Option<String>,
     node: Option<T>,
     notification_settings: Option<X>,
 }
@@ -484,6 +489,32 @@ mod tests {
         let item = conn.edges.into_iter().next().unwrap().node.unwrap().into_item();
         assert_eq!(item.url.as_deref(), Some("https://www.twitch.tv/xqc"));
         assert_eq!((item.kind.as_str(), item.read), ("streamup", false));
+    }
+
+    /// V103-10 What the bell really sends: `null` cursors, one on the last edge only when
+    /// there's a next page. A string cursor was required, so any account with items got
+    /// "Twitch didn't answer".
+    #[test]
+    fn list_takes_null_cursors() {
+        let edge = |id: &str, cursor: &str| {
+            format!(
+                r#"{{"cursor":{cursor},"node":{{"id":"{id}","type":"streamup","body":"b","createdAt":"x","isRead":true,"thumbnailURL":null,"actions":[]}}}}"#
+            )
+        };
+        let page = |more: bool, edges: &[String]| -> Connection<RawItem> {
+            let d: Me<ListUser> = serde_json::from_str(&format!(
+                r#"{{"currentUser":{{"id":"1","notifications":{{"pageInfo":{{"hasNextPage":{more}}},"edges":[{}]}}}}}}"#,
+                edges.join(",")
+            ))
+            .unwrap();
+            d.current_user.unwrap().notifications.unwrap()
+        };
+        let last = page(false, &[edge("a", "null"), edge("b", "null")]);
+        assert_eq!((last.edges.len(), last.next_cursor()), (2, None));
+        let first = page(true, &[edge("a", "null"), edge("b", r#""next""#)]);
+        assert_eq!(first.next_cursor().as_deref(), Some("next"));
+        // A next page without a cursor to get it: stop rather than loop on page one.
+        assert_eq!(page(true, &[edge("a", "null")]).next_cursor(), None);
     }
 
     #[test]

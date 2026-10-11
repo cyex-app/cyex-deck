@@ -4,7 +4,6 @@
 
 pub mod caps;
 mod chat;
-pub mod client_id;
 pub mod device;
 mod error;
 pub mod inspect;

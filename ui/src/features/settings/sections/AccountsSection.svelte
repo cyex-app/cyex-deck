@@ -7,16 +7,13 @@
 
   import Button from '../../../components/Button.svelte';
   import Icon from '../../../components/Icon.svelte';
-  import Row from '../../../components/Row.svelte';
   import AccountCard from '../../accounts/AccountCard.svelte';
-  import ClientIdSetup from '../../accounts/ClientIdSetup.svelte';
   import DeviceCode from '../../accounts/DeviceCode.svelte';
   import { signIn } from '../../accounts/signIn.svelte';
   import { accounts } from '../../../lib/accounts.svelte';
   import { signInTarget } from '../../../lib/gate';
   import { gate } from '../../../lib/gate.svelte';
 
-  let changingClientId = $state(false);
   let twitchWay = $state<HTMLElement>();
   let codeWay = $state<HTMLElement>();
   let cards = $state<HTMLElement>();
@@ -43,7 +40,6 @@
 
 <h2>Accounts</h2>
 
-{#if !accounts.hasClientId}<ClientIdSetup />{/if}
 {#if signIn.kind}<DeviceCode />{/if}
 
 <div bind:this={cards}>
@@ -62,7 +58,7 @@
       <strong>Sign in with Twitch</strong>
       <span>Chat, mod tools, your follows, payment methods and subscriptions. The GQL tools can be added after.</span>
     </div>
-    <Button variant="primary" small disabled={!accounts.hasClientId || signIn.kind !== null} onclick={() => signIn.start('helix')}>
+    <Button variant="primary" small disabled={signIn.kind !== null} onclick={() => signIn.start('helix')}>
       Sign in
     </Button>
   </div>
@@ -75,16 +71,6 @@
     <Button small disabled={signIn.kind !== null} onclick={() => signIn.start('gql')}>Get a code</Button>
   </div>
 </div>
-
-{#if accounts.hasClientId}
-  {#if changingClientId}
-    <ClientIdSetup onsaved={() => (changingClientId = false)} />
-  {:else}
-    <Row label="Twitch client ID" hint="For Sign in with Twitch. Saved on this PC. Change it if Twitch doesn't recognize it.">
-      <Button small onclick={() => (changingClientId = true)}>Change</Button>
-    </Row>
-  {/if}
-{/if}
 
 <style>
   .note {

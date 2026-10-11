@@ -12,11 +12,12 @@ pub use cyex_twitch::id::DeviceCode;
 use crate::secrets::Secret;
 use crate::{AuthError, TokenKind, scopes};
 
-/// Helix sign-in uses this app's client ID; GQL sign-in always uses `clients::GQL` (V102-19).
-pub fn client_for(kind: TokenKind, app_client_id: Option<&str>) -> Result<String, AuthError> {
+/// Helix sign-in uses this app's client (V103-01); GQL sign-in always `clients::GQL`
+/// (V102-19).
+pub fn client_for(kind: TokenKind) -> &'static str {
     match kind {
-        TokenKind::Helix => app_client_id.map(str::to_owned).ok_or(AuthError::NoClientId),
-        TokenKind::Gql => Ok(clients::GQL.to_owned()),
+        TokenKind::Helix => clients::SIGN_IN,
+        TokenKind::Gql => clients::GQL,
     }
 }
 
@@ -105,12 +106,8 @@ mod tests {
     }
 
     #[test]
-    fn helix_needs_the_app_client_id() {
-        assert!(matches!(
-            client_for(TokenKind::Helix, None),
-            Err(AuthError::NoClientId)
-        ));
-        assert_eq!(client_for(TokenKind::Helix, Some("mine")).unwrap(), "mine");
-        assert_eq!(client_for(TokenKind::Gql, None).unwrap(), clients::GQL);
+    fn each_sign_in_has_its_client() {
+        assert_eq!(client_for(TokenKind::Helix), clients::SIGN_IN);
+        assert_eq!(client_for(TokenKind::Gql), clients::GQL);
     }
 }

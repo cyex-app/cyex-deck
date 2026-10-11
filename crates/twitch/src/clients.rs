@@ -1,7 +1,11 @@
-//! Twitch's own public client IDs, in one place (V102-19). They ship inside every
-//! twitch.tv page and Twitch app, so they aren't secrets. This app's own client ID is
-//! never here: it's read from `.env` at runtime (D5).
+//! Client IDs, in one place (V102-19). Client IDs are public: Twitch's ship inside every
+//! twitch.tv page and Twitch app, and this app's own goes to Twitch on every sign-in. No
+//! secrets here; there aren't any (the sign-in client is Public).
 
+/// V103-01 This app's own Twitch client: "Sign in with Twitch" (Helix, IRC, EventSub).
+/// Registered as a Public client, so the Device Code flow needs no secret and no
+/// redirect URL. Replaces the client ID that was read from `.env` (D5).
+pub const SIGN_IN: &str = "qxkwgjhfx94qiqjycyzttz1lnuzjn8";
 /// The client ID for GQL, always: sign-in with a code makes tokens for it, and a pasted
 /// GQL token has to be made for it (V102-19). It's Twitch's TV app (D6).
 pub const GQL: &str = "ue6666qo983tsx6so1t0vnawi233wa";

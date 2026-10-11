@@ -1,9 +1,7 @@
 /// Sign-in errors, worded for the UI.
 #[derive(Debug, thiserror::Error)]
 pub enum AuthError {
-    #[error("Add your Twitch client ID first.")]
-    NoClientId,
-    #[error("Twitch doesn't recognize your client ID. Check it under Twitch client ID.")]
+    #[error("Twitch turned the app's sign-in down. Try again later.")]
     BadClientId,
     #[error("Couldn't reach Twitch. Check your connection and try again.")]
     Offline,

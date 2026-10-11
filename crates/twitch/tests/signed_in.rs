@@ -5,13 +5,17 @@
 use cyex_twitch::gql::{self, Auth, Player};
 use cyex_twitch::{Http, usher};
 
-/// The default account's GQL token and its client ID.
+/// The default account's GQL token and its client ID. `CYEX_TEST_ACCOUNT=<user id>` picks
+/// another account.
 fn gql_sign_in() -> (String, String) {
-    let dir = std::env::var("APPDATA").unwrap();
-    let accounts: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(format!("{dir}/cyex-deck/settings/accounts.json")).unwrap())
-            .unwrap();
-    let id = accounts["defaultId"].as_str().unwrap();
+    let id = std::env::var("CYEX_TEST_ACCOUNT").unwrap_or_else(|_| {
+        let dir = std::env::var("APPDATA").unwrap();
+        let accounts: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(format!("{dir}/cyex-deck/settings/accounts.json")).unwrap(),
+        )
+        .unwrap();
+        accounts["defaultId"].as_str().unwrap().to_owned()
+    });
     let secret = keyring::Entry::new("cyex-deck", &format!("{id}.gql"))
         .and_then(|e| e.get_password())
         .unwrap();
@@ -375,4 +379,79 @@ async fn usercard_mod_history() {
     }
     let p = gql::profile(&http, Some("twitch"), None).await.unwrap().unwrap();
     println!("banner: {}", p.banner.is_some());
+}
+
+/// V103-10: the bell's list query sent raw, with the same headers as the app. Prints the
+/// HTTP status, GQL errors and the answer's shape; never notification text or the token.
+#[tokio::test]
+#[ignore = "network, signed in"]
+async fn bell_raw() {
+    use gql::notifications::{self, List};
+    let http = Http::new().unwrap();
+    let (token, client_id) = gql_sign_in();
+    let auth = Auth {
+        client_id: &client_id,
+        token: Some(&token),
+    };
+    for which in [List::Viewer, List::Creator] {
+        match notifications::list(&http, auth, which, None).await {
+            Ok(p) => println!("{which:?}: {} items, more {}", p.items.len(), p.cursor.is_some()),
+            Err(e) => println!("{which:?}: error {e:?}"),
+        }
+    }
+    println!(
+        "unseen: {:?}",
+        notifications::unseen(&http, auth)
+            .await
+            .map_err(|e| format!("{e:?}"))
+    );
+}
+
+/// V103-10: the raw answer of the bell's viewer list, every string replaced by `"s"`, so
+/// a field that comes back null shows. Same headers as the app's TV-client requests.
+#[tokio::test]
+#[ignore = "network, signed in"]
+async fn bell_raw_shape() {
+    fn shape(v: &serde_json::Value) -> serde_json::Value {
+        use serde_json::Value;
+        match v {
+            Value::String(_) => Value::String("s".into()),
+            Value::Array(a) => Value::Array(a.iter().map(shape).collect()),
+            Value::Object(o) => Value::Object(o.iter().map(|(k, v)| (k.clone(), shape(v))).collect()),
+            other => other.clone(),
+        }
+    }
+    let (token, client_id) = gql_sign_in();
+    // `BELL_FIRST` and `BELL_EXTRA` (more `pageInfo` fields) to look at paging.
+    let first = std::env::var("BELL_FIRST").unwrap_or_else(|_| "20".into());
+    let extra = std::env::var("BELL_EXTRA").unwrap_or_default();
+    let q = format!(
+        "query {{ currentUser {{ id notifications(first: {first}, displayType: VIEWER) {{ pageInfo {{ hasNextPage {extra} }} \
+         edges {{ cursor node {{ id type body createdAt isRead thumbnailURL actions {{ label url }} }} }} }} }} }}"
+    );
+    let res = reqwest::Client::new()
+        .post("https://gql.twitch.tv/gql")
+        .header("Client-Id", &client_id)
+        .header("Authorization", format!("OAuth {token}"))
+        .header("User-Agent", gql::TV_USER_AGENT)
+        .header("Origin", "https://android.tv.twitch.tv")
+        .header("Referer", "https://android.tv.twitch.tv/")
+        .json(&serde_json::json!({ "query": q }))
+        .send()
+        .await
+        .unwrap();
+    println!("status {}", res.status());
+    let v: serde_json::Value = res.json().await.unwrap();
+    println!("errors {}", v["errors"]);
+    let n = &v["data"]["currentUser"]["notifications"];
+    let edges = n["edges"].as_array().map_or(&[][..], Vec::as_slice);
+    println!(
+        "edges {}, null cursors {}, pageInfo {}",
+        edges.len(),
+        edges.iter().filter(|e| e["cursor"].is_null()).count(),
+        shape(&n["pageInfo"])
+    );
+    if std::env::var("BELL_FULL").is_ok() {
+        println!("{}", serde_json::to_string_pretty(&shape(&v["data"])).unwrap());
+    }
 }

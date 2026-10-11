@@ -8,7 +8,7 @@ import type { Clip } from './bindings/Clip';
 import type { ClipPeriod } from './bindings/ClipPeriod';
 import type { ClipPlayback } from './bindings/ClipPlayback';
 import type { ClipSort } from './bindings/ClipSort';
-import type { CreatedClip } from './bindings/CreatedClip';
+import type { MadeClip } from './bindings/MadeClip';
 import type { PlayerSession } from './bindings/PlayerSession';
 import type { Story } from './bindings/Story';
 import type { Storyboard } from './bindings/Storyboard';
@@ -27,7 +27,8 @@ export const playerIpc = {
   comments: (videoId: string, offset: number) => invoke<ChatMessage[]>('player_comments', { videoId, offset }),
   position: (id: string) => invoke<number | null>('player_position', { id }),
   savePosition: (id: string, at: number, length: number) => invoke<void>('player_save_position', { id, at, length }),
-  createClip: (account: string, channelId: string) => invoke<CreatedClip>('player_create_clip', { account, channelId }),
+  /** V103-09 With Sign in with Twitch, Twitch's editor opens in the account's Twitch window. */
+  createClip: (account: string, channelId: string) => invoke<MadeClip>('player_create_clip', { account, channelId }),
   proxy: () => invoke<string | null>('player_proxy'),
   setProxy: (url: string | null) => invoke<void>('player_set_proxy', { url }),
   onAds: (handler: (id: string, state: AdState) => void) =>

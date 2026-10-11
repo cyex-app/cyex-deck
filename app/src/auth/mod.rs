@@ -6,11 +6,10 @@ mod sign_in;
 
 pub use sign_in::{DeviceStart, SignedIn, add_gql_token, remove_account, remove_token, sign_in_device};
 
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use cyex_auth::secrets::KeyringStore;
-use cyex_auth::{AccountView, TokenKind, Vault, client_id, views};
+use cyex_auth::{AccountView, TokenKind, Vault, views};
 use cyex_settings::Partition;
 use cyex_settings::schema::Accounts;
 use cyex_twitch::Http;
@@ -26,9 +25,6 @@ const CHANGED_EVENT: &str = "accounts:changed";
 pub struct Auth {
     pub http: Http,
     pub vault: Vault,
-    client_id: Mutex<Option<String>>,
-    /// `.env` in the app data folder, where the first-run prompt saves the client ID.
-    env_file: PathBuf,
     /// Cancels the Device Code sign-in that's running, if any.
     sign_in: Mutex<Option<watch::Sender<bool>>>,
 }
@@ -38,17 +34,11 @@ pub struct Auth {
 #[ts(export)]
 pub struct AuthSnapshot {
     pub accounts: Vec<AccountView>,
-    /// False until this app's Twitch client ID is set (D5).
-    pub has_client_id: bool,
 }
 
+/// V103-01 The sign-in's client ID is built in (`clients::SIGN_IN`); a `.env` left in the
+/// app's data folder from before isn't read any more.
 pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    let env_file = crate::paths::config(app)?.join(".env");
-    let mut env_files = vec![env_file.clone()];
-    if cfg!(debug_assertions) {
-        // `npm run dev`: the repo's own .env.
-        env_files.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.env"));
-    }
     let vault = Vault::new(Arc::new(KeyringStore));
     for e in vault.load(&accounts(app)) {
         eprintln!("auth: couldn't read a token: {e}");
@@ -56,8 +46,6 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(Auth {
         http: Http::new()?,
         vault,
-        client_id: Mutex::new(client_id::resolve(&env_files)),
-        env_file,
         sign_in: Mutex::default(),
     });
     keeper::spawn(app.clone());
@@ -65,20 +53,6 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 impl Auth {
-    pub fn client_id(&self) -> Option<String> {
-        lock(&self.client_id).clone()
-    }
-
-    pub fn set_client_id(&self, id: &str) -> Result<(), String> {
-        let id = id.trim();
-        if !client_id::is_valid(id) {
-            return Err("That doesn't look like a client ID.".into());
-        }
-        client_id::save(&self.env_file, id).map_err(|e| format!("Couldn't save it: {e}"))?;
-        *lock(&self.client_id) = Some(id.to_owned());
-        Ok(())
-    }
-
     /// Starts tracking a new sign-in and cancels the previous one.
     fn begin_sign_in(&self) -> watch::Receiver<bool> {
         let (tx, rx) = watch::channel(false);
@@ -92,6 +66,13 @@ impl Auth {
         if let Some(tx) = lock(&self.sign_in).take() {
             let _ = tx.send(true);
         }
+    }
+
+    /// Whether another sign-in started after the one `mine` belongs to.
+    fn sign_in_replaced(&self, mine: &watch::Receiver<bool>) -> bool {
+        lock(&self.sign_in)
+            .as_ref()
+            .is_some_and(|tx| !tx.subscribe().same_channel(mine))
     }
 }
 
@@ -112,7 +93,6 @@ pub fn snapshot(app: &AppHandle) -> AuthSnapshot {
     let auth = app.state::<Auth>();
     AuthSnapshot {
         accounts: views(&accounts(app), &auth.vault),
-        has_client_id: auth.client_id().is_some(),
     }
 }
 

@@ -7,7 +7,6 @@ use cyex_chat::model::ChatMessage;
 use cyex_twitch::gql::{
     self, About, Clip, ClipPeriod, ClipPlayback, ClipSort, Story, StoryRing, Storyboard, Video, VideoKind, VideoSort,
 };
-use cyex_twitch::helix::CreatedClip;
 use tauri::{AppHandle, Manager, Window};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
@@ -100,7 +99,7 @@ pub fn player_save_position(app: AppHandle, id: String, at: f64, length: f64) {
 
 /// P9, V102-08 Clips the last seconds of the stream as `account`.
 #[tauri::command]
-pub async fn player_create_clip(app: AppHandle, account: String, channel_id: String) -> CmdResult<CreatedClip> {
+pub async fn player_create_clip(app: AppHandle, account: String, channel_id: String) -> CmdResult<player::clips::MadeClip> {
     player::clips::create(&app, &account, &channel_id).await
 }
 

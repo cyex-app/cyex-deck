@@ -17,6 +17,8 @@ export const accountsIpc = {
     return invoke<SignedIn>('accounts_sign_in', { kind, userId, onCode: channel });
   },
   cancelSignIn: () => invoke<void>('accounts_cancel_sign_in'),
+  /** V103-01 Twitch's page for the running sign-in's code, in the app's Twitch window. */
+  openActivation: (userId: string | null, uri: string) => invoke<void>('accounts_open_activation', { userId, uri }),
   /** V102-19 A GQL token for an account signed in with Twitch. */
   addGqlToken: (userId: string, token: string) => invoke<SignedIn>('accounts_add_gql_token', { userId, token }),
   /** V102-20 Brings the main window up on the sign-in that unlocks a greyed-out tool. */
@@ -26,7 +28,6 @@ export const accountsIpc = {
   remove: (userId: string) => invoke<void>('accounts_remove', { userId }),
   removeToken: (userId: string, kind: TokenKind) => invoke<void>('accounts_remove_token', { userId, kind }),
   setDefault: (userId: string) => invoke<void>('accounts_set_default', { userId }),
-  setClientId: (clientId: string) => invoke<void>('accounts_set_client_id', { clientId }),
   connections: () => invoke<ConnectionCount[]>('connections_counts'),
   onChanged: (handler: (snapshot: AuthSnapshot) => void) =>
     listen<AuthSnapshot>('accounts:changed', (e) => handler(e.payload)),

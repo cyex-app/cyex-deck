@@ -68,12 +68,11 @@ pub fn accounts_set_default(app: AppHandle, user_id: String) -> CmdResult<()> {
     Ok(())
 }
 
-/// First-run prompt (D5): saves this app's Twitch client ID to the app data `.env`.
+/// V103-01 Twitch's page for the running sign-in's code, in the app's Twitch window again
+/// (the sign-in opens it once by itself).
 #[tauri::command]
-pub fn accounts_set_client_id(app: AppHandle, auth: State<Auth>, client_id: String) -> CmdResult<()> {
-    auth.set_client_id(&client_id)?;
-    auth::notify(&app);
-    Ok(())
+pub async fn accounts_open_activation(app: AppHandle, user_id: Option<String>, uri: String) -> CmdResult<()> {
+    crate::windows::twitch::open_activation(&app, user_id.as_deref(), &uri).await
 }
 
 #[tauri::command]

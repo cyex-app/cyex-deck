@@ -49,8 +49,8 @@
   const listing = $derived(page.kind === 'about' || page.kind === 'clips' || page.kind === 'videos');
   /** P4 The small stream was closed by hand. */
   let miniClosed = $state(false);
-  /** P9 A clip just made can be edited on Twitch. */
-  let editUrl = $state<string | null>(null);
+  /** V103-09 The overlay shows a clip just made without Twitch's editor. */
+  let made = $state(false);
 
   const account = $derived(tile.account && accounts.list.some((a) => a.userId === tile.account) ? tile.account : null);
   const canClip = $derived(live && account !== null && accounts.can('clips', account));
@@ -70,9 +70,14 @@
     if (!account) return;
     toast.info('Making a clip…');
     try {
-      const made = await playerIpc.createClip(account, tile.channel.id);
-      editUrl = made.edit_url;
-      shared.overlay = made.id;
+      const clip = await playerIpc.createClip(account, tile.channel.id);
+      // V103-09 Twitch's editor is the next step, like on Twitch.
+      if (clip.editing) {
+        toast.info('Pick the start and end in the Twitch window.');
+        return;
+      }
+      made = true;
+      shared.overlay = clip.slug;
     } catch (e) {
       toast.error(String(e));
     }
@@ -80,7 +85,7 @@
 
   function closeOverlay() {
     shared.overlay = null;
-    editUrl = null;
+    made = false;
   }
 </script>
 
@@ -137,7 +142,7 @@
       <Offline {tile} {info} onpage={go} onstories={() => (shared.stories = true)} />
     {/if}
     {#if shared.overlay}
-      <ClipOverlay slug={shared.overlay} {tile} {editUrl} onclose={closeOverlay} />
+      <ClipOverlay slug={shared.overlay} {tile} {made} onclose={closeOverlay} />
     {/if}
     {#if shared.stories && account}
       <StoryViewer

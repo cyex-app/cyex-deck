@@ -10,8 +10,10 @@ use tauri::{AppHandle, Manager};
 use ts_rs::TS;
 
 use super::{Auth, accounts, notify, unix_now, update_accounts};
+use crate::windows::twitch;
 
-/// What the UI shows while the user approves the sign-in on twitch.tv.
+/// What the UI shows while the user approves the sign-in on Twitch, in the app's Twitch
+/// window (V103-01).
 #[derive(Clone, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -31,9 +33,10 @@ pub struct SignedIn {
     pub display_name: String,
 }
 
-/// Device Code sign-in. Calls `on_code` once the code is ready, then waits for approval.
-/// With `user_id`, the sign-in is added to that account and must be the same user
-/// (V102-19); a code approved by someone else is undone.
+/// Device Code sign-in. Calls `on_code` once the code is ready and opens Twitch's page
+/// for it in the app (V103-01), then waits for approval. With `user_id`, the sign-in is
+/// added to that account and must be the same user (V102-19); a code approved by someone
+/// else is undone.
 pub async fn sign_in_device(
     app: &AppHandle,
     kind: TokenKind,
@@ -41,15 +44,36 @@ pub async fn sign_in_device(
     on_code: impl FnOnce(DeviceStart),
 ) -> Result<SignedIn, AuthError> {
     let auth = app.state::<Auth>();
-    let client_id = device::client_for(kind, auth.client_id().as_deref())?;
+    let client_id = device::client_for(kind);
     let cancel = auth.begin_sign_in();
-    let code = device::start(&auth.http, &client_id, kind).await?;
+    let mine = cancel.clone();
+    let code = device::start(&auth.http, client_id, kind).await?;
     on_code(DeviceStart {
         user_code: code.user_code.clone(),
         uri: code.verification_uri.clone(),
         expires_in: u32::try_from(code.expires_in).unwrap_or(u32::MAX),
     });
-    let secret = device::wait(&auth.http, &client_id, kind, &code, cancel).await?;
+    if let Err(e) = twitch::open_activation(app, user_id, &code.verification_uri).await {
+        eprintln!("sign-in: couldn't open Twitch's page: {e}");
+    }
+    let result = approved(app, kind, user_id, client_id, &code, cancel).await;
+    // A sign-in started after this one owns the window now.
+    if !auth.sign_in_replaced(&mine) {
+        twitch::sign_in_done(app, user_id, result.as_ref().ok().map(|s| s.user_id.as_str()));
+    }
+    result
+}
+
+async fn approved(
+    app: &AppHandle,
+    kind: TokenKind,
+    user_id: Option<&str>,
+    client_id: &str,
+    code: &device::DeviceCode,
+    cancel: tokio::sync::watch::Receiver<bool>,
+) -> Result<SignedIn, AuthError> {
+    let auth = app.state::<Auth>();
+    let secret = device::wait(&auth.http, client_id, kind, code, cancel).await?;
     let who = inspect(&auth.http, &secret.access).await?;
     if let Some(id) = user_id
         && let Err(e) = paste::same_user(&who.validation, id)

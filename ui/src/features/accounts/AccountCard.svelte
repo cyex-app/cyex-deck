@@ -22,7 +22,7 @@
   let { account }: { account: AccountView } = $props();
 
   const TOKENS: { kind: TokenKind; title: string; none: string }[] = [
-    { kind: 'helix', title: 'Twitch', none: 'Not signed in. Needed for payment methods, subscriptions and mod tools.' },
+    { kind: 'helix', title: 'Twitch', none: 'Needed for payment methods, subscriptions and mod tools.' },
     { kind: 'gql', title: 'GQL tools', none: 'Not added. Needed for the miner, following, channel points, GIFs and power-ups.' },
   ];
 
@@ -71,9 +71,6 @@
     unlocking = false;
     if (signIn.offer === account.userId) signIn.offer = null;
   }
-
-  /** Helix sign-in needs this app's client ID; GQL sign-in doesn't. */
-  const blocked = (kind: TokenKind) => kind === 'helix' && !accounts.hasClientId;
 </script>
 
 <section class="card">
@@ -98,7 +95,7 @@
         {@const status = tokenStatus(token)}
         <span class="status {status.tone}">{status.text}</span>
         {#if needsSignIn(token)}
-          <Button small disabled={blocked(t.kind) || signIn.kind !== null} onclick={() => add(t.kind)}>
+          <Button small disabled={signIn.kind !== null} onclick={() => add(t.kind)}>
             Sign in again
           </Button>
         {/if}
@@ -109,7 +106,7 @@
         {/if}
       {:else}
         <span class="status muted">{t.none}</span>
-        <Button small disabled={blocked(t.kind) || signIn.kind !== null || (t.kind === 'gql' && showUnlock)} onclick={() => add(t.kind)}>
+        <Button small disabled={signIn.kind !== null || (t.kind === 'gql' && showUnlock)} onclick={() => add(t.kind)}>
           {t.kind === 'helix' ? 'Sign in' : 'Add'}
         </Button>
       {/if}

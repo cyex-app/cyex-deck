@@ -182,11 +182,21 @@ fn account(app: &AppHandle) -> Result<GqlCall, String> {
 }
 
 fn failed(e: cyex_twitch::Error) -> String {
-    if e.is_network() {
-        "Couldn't reach Twitch.".into()
-    } else {
-        eprintln!("bell: {e}");
-        "Twitch didn't answer. Try again in a bit.".into()
+    eprintln!("bell: {e:?}");
+    explain(&e)
+}
+
+/// V103-10 Says what went wrong instead of always "Twitch didn't answer".
+fn explain(e: &cyex_twitch::Error) -> String {
+    use cyex_twitch::Error;
+    match e {
+        Error::Network(_) => "Couldn't reach Twitch.".into(),
+        e if e.is_unauthorized() || e.api_message() == Some("unauthenticated") => {
+            "Your GQL sign-in ran out. Sign in again in Settings → Accounts.".into()
+        }
+        e if e.is_server_error() || e.is_rate_limited() => "Twitch didn't answer. Try again in a bit.".into(),
+        Error::Decode(_) => "Couldn't read Twitch's answer.".into(),
+        Error::Api { message, .. } | Error::Refused(message) => format!("Twitch said: {message}"),
     }
 }
 
@@ -238,5 +248,20 @@ mod tests {
     #[test]
     fn marks_go() {
         assert_eq!(unmark("**xqc** went live: __Chess__"), "xqc went live: Chess");
+    }
+
+    #[test]
+    fn errors_say_what_went_wrong() {
+        use cyex_twitch::Error;
+        let api = |status, m: &str| Error::Api {
+            status,
+            message: m.into(),
+        };
+        assert!(explain(&api(401, "invalid oauth token")).contains("Sign in again"));
+        assert!(explain(&api(200, "unauthenticated")).contains("Sign in again"));
+        assert!(explain(&api(503, "x")).starts_with("Twitch didn't answer"));
+        let decode = serde_json::from_str::<String>("null").unwrap_err();
+        assert_eq!(explain(&Error::Decode(decode)), "Couldn't read Twitch's answer.");
+        assert_eq!(explain(&api(200, "service error")), "Twitch said: service error");
     }
 }

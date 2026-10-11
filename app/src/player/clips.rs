@@ -1,28 +1,56 @@
 //! P9, V102-08 Making a clip from the player as the tile's account: Helix when it was
 //! granted `clips:edit`, else its GQL sign-in, the way Twitch's player does it. Anonymous
 //! tabs can't clip, and neither can anyone while the channel is offline.
+//! V103-09 With Sign in with Twitch, Twitch's own clip editor opens right away in the
+//! account's Twitch window (start, end, title, publish). Without it the clip is the last
+//! 30 seconds, made as is.
 
 use cyex_twitch::gql::clip_create;
-use cyex_twitch::helix::{self, CreatedClip};
+use cyex_twitch::helix;
 use cyex_twitch::{Error, gql};
+use serde::Serialize;
 use tauri::{AppHandle, Manager};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
+use ts_rs::TS;
 
 use crate::auth::{self, Auth};
 
 const OFFLINE: &str = "Clips only work while the channel is live.";
 
-pub async fn create(app: &AppHandle, account: &str, channel_id: &str) -> Result<CreatedClip, String> {
+/// A clip just made (V103-09).
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MadeClip {
+    pub slug: String,
+    /// Twitch's editor opened in the account's Twitch window. False: the default last
+    /// 30 seconds, nothing to edit here.
+    pub editing: bool,
+}
+
+pub async fn create(app: &AppHandle, account: &str, channel_id: &str) -> Result<MadeClip, String> {
     let http = app.state::<Auth>().http.clone();
     if let Some((token, client_id)) = auth::helix_scoped(app, account, "clips:edit") {
         let auth = helix::Auth {
             client_id: &client_id,
             token: &token,
         };
-        return helix::create_clip(&http, auth, channel_id)
+        let made = helix::create_clip(&http, auth, channel_id)
             .await
-            .map_err(helix_error);
+            .map_err(helix_error)?;
+        // Twitch keeps the editor open until the clip is published, up to 24 hours.
+        let editing = match crate::windows::twitch::open(app, account, &made.edit_url).await {
+            Ok(()) => true,
+            Err(e) => {
+                eprintln!("clips: couldn't open the editor: {e}");
+                false
+            }
+        };
+        return Ok(MadeClip {
+            slug: made.id,
+            editing,
+        });
     }
     let (token, client_id) = auth::gql_token(app, account).ok_or("Clips need this tab to be signed in.")?;
     let auth = gql::Auth {
@@ -37,10 +65,7 @@ pub async fn create(app: &AppHandle, account: &str, channel_id: &str) -> Result<
     let slug = clip_create::create_clip(&http, auth, channel_id, &broadcast, offset)
         .await
         .map_err(gql_error)?;
-    Ok(CreatedClip {
-        edit_url: format!("https://clips.twitch.tv/{slug}/edit"),
-        id: slug,
-    })
+    Ok(MadeClip { slug, editing: false })
 }
 
 /// Seconds into the broadcast right now: the clip ends there.

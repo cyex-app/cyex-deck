@@ -9,7 +9,6 @@ import type { Feature } from '../ipc/bindings/Feature';
 
 class AccountsStore {
   list = $state<AccountView[]>([]);
-  hasClientId = $state(true);
   connections = $state<ConnectionCount[]>([]);
 
   /** The default account, used for new tabs and the top bar. */
@@ -42,7 +41,6 @@ class AccountsStore {
 
   private apply(snapshot: AuthSnapshot): void {
     this.list = snapshot.accounts;
-    this.hasClientId = snapshot.hasClientId;
   }
 }
 

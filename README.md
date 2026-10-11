@@ -81,16 +81,9 @@ The first build downloads NSIS by itself. The installer isn't signed, so Windows
 You can watch streams and read chat without an account. To sign in, open **Settings → Accounts**:
 
 - **Sign in with a code** works right away. It gives you chat, the miner, following, channel points, GIFs and power-ups, but no mod tools, payment methods or subscriptions.
-- **Sign in with Twitch** gives you mod tools, payment methods and subscriptions. Afterwards the account card offers the GQL tools too: a code, or a GQL token you paste. It needs a Twitch client ID. Ask for the one already in use, or make your own:
-  1. Go to [dev.twitch.tv/console/apps](https://dev.twitch.tv/console/apps) and register an app. Twitch asks for two-factor authentication on your account first.
-  2. Fill it in:
-     - **Name:** anything.
-     - **OAuth Redirect URLs:** `http://localhost`.
-     - **Category:** Application Integration.
-     - **Client Type:** **Public**.
-  3. Paste the client ID into Settings → Accounts.
+- **Sign in with Twitch** gives you mod tools, payment methods and subscriptions. Afterwards the account card offers the GQL tools too: a code, or a GQL token you paste.
 
-  For `npm run dev`, you can also copy `.env.example` to `.env` and put the client ID there. `.env` is never committed.
+Both show a code and open Twitch in a window of the app with the code filled in. Log in there if Twitch asks, then approve. That login stays with the account, so payment methods and subscriptions open signed in.
 
 Anything your sign-in can't do is greyed out with a flag that says what it needs, **GQL only** or **Twitch sign-in**. Click the flag to sign in.
 
@@ -99,7 +92,6 @@ Anything your sign-in can't do is greyed out with a flag that says what it needs
 | What | Where |
 |---|---|
 | Settings, with daily backups kept for 3 days | `%APPDATA%\cyex-deck\settings\` |
-| Client ID | `%APPDATA%\cyex-deck\.env` |
 | Plugins | `%APPDATA%\cyex-deck\plugins\` |
 | Sign-in tokens | Windows Credential Manager, never in files |
 | Twitch's pages in the app | `%LOCALAPPDATA%\cyex-deck\twitch\` |
