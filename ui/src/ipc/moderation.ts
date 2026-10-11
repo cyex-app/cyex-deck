@@ -5,7 +5,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
 import type { Board0 } from './bindings/Board0';
-import type { Chatters } from './bindings/Chatters';
 import type { MassbanProgress } from './bindings/MassbanProgress';
 import type { ModHistory } from './bindings/ModHistory';
 import type { NukePreview } from './bindings/NukePreview';
@@ -35,7 +34,6 @@ export const modIpc = {
     invoke<void>('mod_comment_add', { account, channel, targetId, text, shareable }),
   deleteComment: (account: string, channel: string, id: string) =>
     invoke<void>('mod_comment_delete', { account, channel, id }),
-  chatters: (account: string, channel: string) => invoke<Chatters>('mod_chatters', { account, channel }),
   nukePreview: (account: string, channel: string, args: string) =>
     invoke<NukePreview>('mod_nuke_preview', { account, channel, args }),
   massban: (account: string, channel: string, logins: string[], secs: number | null, reason: string) =>

@@ -1,5 +1,6 @@
 <!-- Two panes with a draggable divider (3.11). `ratio` is the first pane's share, 0 to 1.
-     Panes reflow with the window (3.10); the divider clamps so neither pane collapses. -->
+     Panes reflow with the window (3.10); the divider clamps so neither pane collapses.
+     A double-click on the divider goes back to `reset` (V101-14). -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
@@ -12,9 +13,11 @@
     second: Snippet;
     /** Folds one pane away without unmounting the other, e.g. a playing stream. */
     hide?: 'first' | 'second';
+    /** The first pane's default share. */
+    reset?: number;
   }
 
-  let { direction = 'row', ratio, min = 0.15, onchange, first, second, hide }: Props = $props();
+  let { direction = 'row', ratio, min = 0.15, onchange, first, second, hide, reset }: Props = $props();
 
   let container: HTMLDivElement;
   let dragging = $state(false);
@@ -57,6 +60,7 @@
       onpointermove={onPointerMove}
       onpointerup={onPointerUp}
       onpointercancel={onPointerUp}
+      ondblclick={() => reset !== undefined && onchange(clamp(reset))}
     ></div>
   {/if}
   <div class="pane rest" class:gone={hide === 'second'}>{@render second()}</div>
@@ -98,9 +102,10 @@
     height: 1px;
     cursor: row-resize;
   }
-  /* Wider hit area than the visible line. */
+  /* Wider hit area than the visible line, above both panes (V101-14: easy to double-click). */
   .divider {
     position: relative;
+    z-index: 1;
   }
   .divider::after {
     content: '';

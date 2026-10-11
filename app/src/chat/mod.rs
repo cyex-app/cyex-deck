@@ -29,7 +29,7 @@ pub use session::retry_refused;
 use unread::Unread;
 
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use cyex_chat::build::Me;
@@ -58,15 +58,14 @@ pub enum Identity {
 pub type RoomKey = (Identity, String);
 type View = Channel<Vec<RoomEvent>>;
 
-/// Lines a view gets when it opens. The UI shows as many (`MAX_LINES`).
-const VIEW_LINES: usize = 200;
-
 pub struct Chat {
     inner: Mutex<Inner>,
     /// Wakes the flush task when a room has events waiting.
     wake: Arc<Notify>,
     /// C19 How long views hold messages back, in ms.
     delay_ms: AtomicI64,
+    /// V101-02 Messages each chat keeps; a view gets as many when it opens.
+    scrollback: AtomicUsize,
 }
 
 #[derive(Default)]
@@ -121,6 +120,7 @@ pub fn init(app: &AppHandle) {
         inner: Mutex::default(),
         wake: wake.clone(),
         delay_ms: AtomicI64::new(0),
+        scrollback: AtomicUsize::new(cyex_chat::BUFFER),
     });
     on_settings(app);
     flush::spawn(app.clone(), wake);
@@ -165,8 +165,14 @@ fn identity_for(app: &AppHandle, account: Option<&str>) -> (Identity, Option<Me>
 /// After chat or highlight settings changed.
 pub fn on_settings(app: &AppHandle) {
     let Some(chat) = app.try_state::<Chat>() else { return };
-    let delay = app.state::<Settings>().read::<ChatSettings>(Partition::Chat).delay_tenths;
-    chat.delay_ms.store(i64::from(delay) * 100, Ordering::Relaxed);
+    let c = app.state::<Settings>().read::<ChatSettings>(Partition::Chat);
+    chat.delay_ms.store(i64::from(c.delay_tenths) * 100, Ordering::Relaxed);
+    let keep = c.scrollback as usize;
+    if chat.scrollback.swap(keep, Ordering::Relaxed) != keep {
+        for entry in chat.lock().rooms.values_mut() {
+            entry.room.set_keep(keep);
+        }
+    }
     if app.try_state::<rules::RuleState>().is_some() {
         rules::rebuild(app);
     }
@@ -217,10 +223,11 @@ pub fn open(
     let id = inner.next_view;
     inner.views.insert(id, (key.clone(), window.to_owned()));
     let entry = inner.rooms.get_mut(&key).expect("inserted above");
-    let mut snapshot = entry.room.snapshot_tail(if filters.is_empty() { VIEW_LINES } else { cyex_chat::BUFFER });
+    let lines = chat.scrollback.load(Ordering::Relaxed);
+    let mut snapshot = entry.room.snapshot_tail(if filters.is_empty() { lines } else { entry.room.keep() });
     if !filters.is_empty() {
         snapshot.messages.retain(|m| passes(&filters, m, &login, live));
-        let skip = snapshot.messages.len().saturating_sub(VIEW_LINES);
+        let skip = snapshot.messages.len().saturating_sub(lines);
         snapshot.messages.drain(..skip);
     }
     entry.views.push(Sink { id, view, filters });
@@ -258,6 +265,7 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
     }
     let (identity, login) = key;
     let mut room = Room::new(login, me);
+    room.set_keep(app.state::<Chat>().scrollback.load(Ordering::Relaxed));
     room.set_rules(rules::current(app));
     room.set_hook(crate::plugins::line_hook(app));
     let budget_ok = match identity {
@@ -267,7 +275,7 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
     if budget_ok {
         session::ensure(app, inner, identity).client.join(login);
     } else {
-        room.set_status(ConnStatus::BudgetFull);
+        room.set_status(ConnStatus::BudgetFull, now_ms());
     }
     inner.rooms.insert(
         key.clone(),
@@ -286,8 +294,9 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
 /// Work for a new room once the lock is released: counter, catalogs, history.
 fn after_join(app: &AppHandle, key: RoomKey, budget_full: bool) {
     crate::connections::notify(app);
-    let history = app.state::<Settings>().read::<ChatSettings>(Partition::Chat).history;
-    catalog::load_for_room(app.clone(), key, history && !budget_full);
+    let c = app.state::<Settings>().read::<ChatSettings>(Partition::Chat);
+    let history = (c.history && !budget_full).then_some(c.history_lines);
+    catalog::load_for_room(app.clone(), key, history);
 }
 
 /// Leaves a room. Returns true if an account's join count changed.

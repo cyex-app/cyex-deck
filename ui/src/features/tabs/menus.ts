@@ -49,6 +49,17 @@ export function tabMenu(tab: Tab, targets: Tab[]): MenuEntry[] {
   return entries;
 }
 
+/** A tile's own entries in a tiled tab (U3): edit, hide (V101-20), split off or close. In a
+ * chat they follow the chat's entries in one menu (V101-21). */
+export function tileEntries(tab: Tab, tile: Tile): MenuEntry[] {
+  return [
+    ...(tile.feed ? [] : [{ label: 'Edit', icon: 'pencil' as const, run: () => openEdit(tab.id, tile.id) }, ...showEntries(tile)]),
+    { label: 'Move to its own tab', icon: 'popout', run: () => void tabs.apply({ op: 'detach', tile: tile.id, before: null }) },
+    'separator',
+    { label: 'Close', icon: 'x', run: () => void tabs.apply({ op: 'closeTile', tile: tile.id }) },
+  ];
+}
+
 /** V101-20 Hide the chat or the stream, or bring it back, without the edit dialog. */
 export function showEntries(tile: Tile): MenuEntry[] {
   const set = (player: boolean, chat: boolean) => () => void tabs.apply({ op: 'show', tile: tile.id, show: { player, chat } });

@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use cyex_chat::irc::{self, Anonymous, Client, Credentials, Event, Line, LinkStatus, Window};
-use cyex_chat::model::{ConnStatus, Flag, RoomEvent};
+use cyex_chat::model::{ConnStatus, Flag, NoticeKind, RoomEvent};
 use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc;
 
@@ -72,9 +72,8 @@ fn link_status(app: &AppHandle, identity: &Identity, link: LinkStatus) {
         if status == ConnStatus::Reconnecting {
             entry.room.lost(now);
         }
-        if let Some(ev) = entry.room.set_status(status) {
-            queue(entry, [ev], &chat.wake);
-        }
+        let events = entry.room.set_status(status, now);
+        queue(entry, events, &chat.wake);
     }
 }
 
@@ -88,9 +87,8 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
     let Some(entry) = inner.rooms.get_mut(&key) else { return };
 
     if line.command == "JOIN" {
-        if let Some(ev) = entry.room.set_status(ConnStatus::Joined) {
-            queue(entry, [ev], &chat.wake);
-        }
+        let events = entry.room.set_status(ConnStatus::Joined, now_ms());
+        queue(entry, events, &chat.wake);
         let gap = entry.room.take_gap(now_ms());
         drop(inner);
         if let Some(span) = gap {
@@ -182,6 +180,7 @@ fn fill_gap(app: AppHandle, key: RoomKey, (after, before, limit): (i64, i64, u32
             Ok(lines) => lines,
             Err(e) => {
                 eprintln!("chat: couldn't fill the gap in {}: {e}", key.1);
+                say(&app, &key, "Couldn't load what was missed while disconnected");
                 return;
             }
         };
@@ -196,14 +195,16 @@ fn fill_gap(app: AppHandle, key: RoomKey, (after, before, limit): (i64, i64, u32
     });
 }
 
-/// C1 Fetches recent messages in the background and adds them above the live ones.
-pub fn load_history(app: AppHandle, key: RoomKey) {
+/// C1 Fetches up to `limit` recent messages in the background and adds them above the
+/// live ones.
+pub fn load_history(app: AppHandle, key: RoomKey, limit: u32) {
     tauri::async_runtime::spawn(async move {
         let http = app.state::<crate::auth::Auth>().http.clone();
-        let lines = match cyex_twitch::recent::recent_messages(&http, &key.1).await {
+        let lines = match cyex_twitch::recent::recent_messages(&http, &key.1, limit).await {
             Ok(lines) => lines,
             Err(e) => {
                 eprintln!("chat: no history for {}: {e}", key.1);
+                say(&app, &key, &cyex_twitch::recent::unavailable(&e));
                 return;
             }
         };
@@ -216,4 +217,13 @@ pub fn load_history(app: AppHandle, key: RoomKey) {
             queue(entry, [RoomEvent::History { messages }], &chat.wake);
         }
     });
+}
+
+/// V101-32 A line of ours in a room that's still open.
+fn say(app: &AppHandle, key: &RoomKey, text: &str) {
+    let chat = app.state::<Chat>();
+    let mut inner = chat.lock();
+    let Some(entry) = inner.rooms.get_mut(key) else { return };
+    let ev = entry.room.system(NoticeKind::Info, text, now_ms());
+    queue(entry, [ev], &chat.wake);
 }

@@ -2,6 +2,7 @@ import { Channel, invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
 import type { ChannelCatalog } from './bindings/ChannelCatalog';
+import type { Chatters } from './bindings/Chatters';
 import type { ChatMessage } from './bindings/ChatMessage';
 import type { ChatOpened } from './bindings/ChatOpened';
 import type { GlobalCatalog } from './bindings/GlobalCatalog';
@@ -31,7 +32,9 @@ export const chatIpc = {
     invoke<UiAction | null>('chat_menu', { view, command, context }),
   globalCatalog: () => invoke<GlobalCatalog>('chat_global_catalog'),
   channelCatalog: (login: string) => invoke<ChannelCatalog | null>('chat_channel_catalog', { login }),
-  points: (view: number) => invoke<Points | null>('chat_points', { view }),
+  points: (view: number, fresh = true) => invoke<Points | null>('chat_points', { view, fresh }),
+  /** 1.48, V101-35 Everyone when `account` moderates there, else Twitch's sample. */
+  viewers: (account: string | null, channel: string) => invoke<Chatters>('chat_viewers', { account, channel }),
   /** Resolves with a short line to show, e.g. "Redeemed." */
   /** `emote` is the pick for the two emote rewards. */
   redeem: (view: number, rewardId: string, text?: string, emote?: string) =>

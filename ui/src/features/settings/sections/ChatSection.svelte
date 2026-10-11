@@ -7,7 +7,7 @@
   import type { LinkThumbs } from '../../../ipc/bindings/LinkThumbs';
   import type { NameStyle } from '../../../ipc/bindings/NameStyle';
   import type { PauseKey } from '../../../ipc/bindings/PauseKey';
-  import { formatDuration, formatTime, parseDuration } from '../../../lib/format';
+  import { formatDuration, formatNumber, formatTime, parseDuration } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
   import ResetSection from '../ResetSection.svelte';
@@ -57,6 +57,14 @@
     { value: 'medium', label: 'Medium' },
     { value: 'large', label: 'Large' },
   ];
+  /** V101-02, V101-03 Chatterino goes up to 8.000 kept and 2.000 loaded. */
+  const KEPT = [100, 200, 500, 1000, 2000, 4000, 8000].map((n) => ({ value: n, label: formatNumber(n) }));
+  const LOADED = [50, 100, 200, 500, 800, 1000, 2000].map((n) => ({ value: n, label: formatNumber(n) }));
+  /** V101-15 Tenths of a second; 0 waits for the mouse to leave. */
+  const STILL = [0, 5, 10, 20, 50].map((t) => ({
+    value: t,
+    label: t === 0 ? 'Until the mouse leaves' : `${(t / 10).toString().replace('.', ',')} s`,
+  }));
   /** C19 FFZ's steps, in tenths of a second. */
   const DELAYS = [0, 3, 12, 50, 100, 150, 200, 300, 600].map((t) => ({
     value: t,
@@ -138,6 +146,25 @@
 <Row label="Recent history" hint="Shows the last messages, dimmed, when you open a chat.">
   <Toggle label="Recent history" checked={c.history} onchange={(v) => settings.patch('chat', { history: v })} />
 </Row>
+<Row label="History to load" hint="Up to this many. The history service keeps 800 per channel.">
+  <select
+    class="field"
+    disabled={!c.history}
+    value={c.historyLines}
+    onchange={(e) => settings.patch('chat', { historyLines: Number(e.currentTarget.value) })}
+  >
+    {#each LOADED as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
+  </select>
+</Row>
+<Row label="Messages kept" hint="Per chat. Older ones drop off the top; more uses more memory.">
+  <select
+    class="field"
+    value={c.scrollback}
+    onchange={(e) => settings.patch('chat', { scrollback: Number(e.currentTarget.value) })}
+  >
+    {#each KEPT as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
+  </select>
+</Row>
 <Row label="Deleted messages" hint="Removed by a mod, or from someone timed out or banned.">
   <Segmented
     label="Deleted messages"
@@ -163,6 +190,16 @@
 <h3 class="label">Scrolling</h3>
 <Row label="Pause on hover" hint="Chat stops moving while the mouse is over it.">
   <Toggle label="Pause on hover" checked={c.pauseOnHover} onchange={(v) => settings.patch('chat', { pauseOnHover: v })} />
+</Row>
+<Row label="Pause lasts" hint="Once the mouse stops moving over chat. Moving it pauses again.">
+  <select
+    class="field"
+    disabled={!c.pauseOnHover}
+    value={c.pauseStillTenths}
+    onchange={(e) => settings.patch('chat', { pauseStillTenths: Number(e.currentTarget.value) })}
+  >
+    {#each STILL as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
+  </select>
 </Row>
 <Row label="Pause while holding">
   <Segmented

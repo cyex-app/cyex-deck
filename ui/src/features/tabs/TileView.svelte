@@ -17,8 +17,9 @@
   import { openTarget, tileState } from '../player/players.svelte';
   import VodPlayer from '../player/VodPlayer.svelte';
   import { drag } from './drag.svelte';
+  import { tileEntries } from './menus';
   import TileActions from './TileActions.svelte';
-  import { chatRoute, tabs, tiles } from './tabs.svelte';
+  import { chatRoute, DEFAULT_RATIO, tabs, tiles } from './tabs.svelte';
 
   interface Props {
     tile: Tile;
@@ -71,6 +72,14 @@
   <TileActions {tile} {tab} {tiled} {popout} />
 {/snippet}
 
+<!-- V101-21 A live chat's ⋯ holds the tile's entries too. -->
+{#snippet chatActions()}
+  {#if shared.vod && !shared.replay}
+    <button class="replay-btn" onclick={() => (shared.replay = true)}>Chat replay</button>
+  {/if}
+  <TileActions {tile} {tab} {tiled} {popout} menu={false} />
+{/snippet}
+
 {#snippet chat()}
   {#if !showChat}
     <!-- Folded away: the chat is in its own window or turned off. -->
@@ -93,7 +102,8 @@
         name={tile.channel.name}
         account={tile.account}
         readKey={tile.id}
-        {actions}
+        actions={chatActions}
+        tileMenu={tiled ? () => tileEntries(tab, tile) : undefined}
         {onheaderdown}
         {onsignin}
         onlink={(t) => openTarget(tile, t)}
@@ -133,6 +143,7 @@
     <SplitPane
       direction={position === 'left' || position === 'right' ? 'row' : 'column'}
       ratio={chatFirst ? tile.ratio : 1 - tile.ratio}
+      reset={chatFirst ? DEFAULT_RATIO : 1 - DEFAULT_RATIO}
       onchange={setRatio}
       first={chatFirst ? chat : stream}
       second={chatFirst ? stream : chat}
@@ -142,6 +153,7 @@
     <SplitPane
       direction={position === 'left' || position === 'right' ? 'row' : 'column'}
       ratio={chatFirst ? tile.ratio : 1 - tile.ratio}
+      reset={chatFirst ? DEFAULT_RATIO : 1 - DEFAULT_RATIO}
       onchange={setRatio}
       first={chatFirst ? chat : beside}
       second={chatFirst ? beside : chat}

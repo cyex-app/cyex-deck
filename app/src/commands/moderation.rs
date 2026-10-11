@@ -2,7 +2,7 @@
 //! mod view's snapshot and queue actions, mass actions and `/nuke`.
 
 use cyex_moderation::command;
-use cyex_twitch::gql::modlogs::{Chatters, ModHistory, UnbanRequest};
+use cyex_twitch::gql::modlogs::{ModHistory, UnbanRequest};
 use tauri::AppHandle;
 
 use crate::moderation::nuke::NukePreview;
@@ -80,11 +80,6 @@ pub async fn mod_comment_add(app: AppHandle, account: String, channel: String, t
 #[tauri::command]
 pub async fn mod_comment_delete(app: AppHandle, account: String, channel: String, id: String) -> Result<(), String> {
     moderation::queue::delete_comment(&app, &account, &channel, &id).await
-}
-
-#[tauri::command]
-pub async fn mod_chatters(app: AppHandle, account: String, channel: String) -> Result<Chatters, String> {
-    moderation::queue::chatters(&app, &account, &channel).await
 }
 
 /// M1 A `/nuke` preview: who it would hit, before running it.

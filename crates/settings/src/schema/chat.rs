@@ -20,6 +20,12 @@ const REPEAT_SIMILARITY: std::ops::RangeInclusive<u8> = 60..=100;
 const MAX_DELAY_TENTHS: u16 = 600;
 /// C17 A language code like `en` or `pt-BR`.
 const MAX_LANGUAGE_CHARS: usize = 10;
+/// V101-02 Messages a chat keeps (Chatterino allows up to 8.000).
+pub const SCROLLBACK: std::ops::RangeInclusive<u32> = 100..=8000;
+/// V101-03 History lines to ask for when a chat opens. The service keeps 800 today.
+pub const HISTORY_LINES: std::ops::RangeInclusive<u32> = 50..=2000;
+/// V101-15 Longest hover pause after the mouse stops, in tenths of a second.
+const MAX_PAUSE_STILL_TENTHS: u16 = 600;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(default, rename_all = "camelCase")]
@@ -54,6 +60,10 @@ pub struct Chat {
     pub timeout_presets: Vec<u32>,
     /// C1 Load recent messages when joining.
     pub history: bool,
+    /// V101-03 How many, at most.
+    pub history_lines: u32,
+    /// V101-02 Messages each chat keeps; older ones drop off the top.
+    pub scrollback: u32,
     /// C14
     pub deleted: DeletedStyle,
     /// C15
@@ -64,6 +74,9 @@ pub struct Chat {
     pub names: NameStyle,
     /// C5 Stop scrolling while the mouse is over chat.
     pub pause_on_hover: bool,
+    /// V101-15 Once the mouse stops moving over chat, scrolling goes on after this long,
+    /// in tenths of a second. 0: only when the mouse leaves.
+    pub pause_still_tenths: u16,
     /// C5 Stop scrolling while this key is held.
     pub pause_key: PauseKey,
     /// C5 Mark where you stopped reading when the window loses focus.
@@ -113,11 +126,14 @@ impl Default for Chat {
             timestamps: Timestamps::default(),
             timeout_presets: vec![60, 600, 3600, 86_400],
             history: true,
+            history_lines: 500,
+            scrollback: 1000,
             deleted: DeletedStyle::Strike,
             alternate_lines: false,
             separators: false,
             names: NameStyle::Both,
             pause_on_hover: true,
+            pause_still_tenths: 0,
             pause_key: PauseKey::Alt,
             last_read_line: true,
             repeats: false,
@@ -156,6 +172,9 @@ impl Schema for Chat {
         dedupe(&mut self.hidden_emotes, MAX_HIDDEN_EMOTES);
         self.repeat_similarity = self.repeat_similarity.clamp(*REPEAT_SIMILARITY.start(), *REPEAT_SIMILARITY.end());
         self.delay_tenths = self.delay_tenths.min(MAX_DELAY_TENTHS);
+        self.scrollback = self.scrollback.clamp(*SCROLLBACK.start(), *SCROLLBACK.end());
+        self.history_lines = self.history_lines.clamp(*HISTORY_LINES.start(), *HISTORY_LINES.end());
+        self.pause_still_tenths = self.pause_still_tenths.min(MAX_PAUSE_STILL_TENTHS);
         let lang = self.translate_to.trim();
         let valid = lang.len() <= MAX_LANGUAGE_CHARS && lang.chars().all(|c| c.is_ascii_alphabetic() || c == '-');
         self.translate_to = if valid { lang.to_owned() } else { String::new() };
@@ -370,5 +389,22 @@ mod tests {
         c.sanitize();
         assert_eq!(c.emote_priority, [EmoteSource::Ffz, EmoteSource::Seventv, EmoteSource::Bttv]);
         assert_eq!(c.emote_size, 50);
+    }
+
+    #[test]
+    fn scrollback_and_history_stay_in_range() {
+        let d = Chat::default();
+        assert_eq!((d.scrollback, d.history_lines, d.pause_still_tenths), (1000, 500, 0));
+        let mut c = Chat {
+            scrollback: 9_000_000,
+            history_lines: 0,
+            pause_still_tenths: 10_000,
+            ..Chat::default()
+        };
+        c.sanitize();
+        assert_eq!((c.scrollback, c.history_lines, c.pause_still_tenths), (8000, 50, 600));
+        let old: Chat = serde_json::from_str(r#"{"history":false}"#).unwrap();
+        assert!(!old.history);
+        assert_eq!(old.scrollback, 1000);
     }
 }

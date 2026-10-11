@@ -27,6 +27,10 @@ export const tabRoute = (id: string) => `${TAB_ROUTE}${id}`;
 /** 1.58 A tile's chat on its own. */
 export const chatRoute = (tileId: string) => `${CHAT_ROUTE}${tileId}`;
 
+/** 3.11, V101-14 The chat's share of a tile by default, as `DEFAULT_RATIO` in
+ * crates/settings/src/schema/tabs/mod.rs. */
+export const DEFAULT_RATIO = 0.28;
+
 class TabsStore {
   /** Last live check, by channel id. */
   live = $state.raw<Record<string, ChannelInfo>>({});

@@ -3,7 +3,7 @@
      dated line where chat crosses midnight (C25).
      Clicks and tooltips are delegated here instead of being set on every line. -->
 <script lang="ts">
-  import { tick, untrack } from 'svelte';
+  import { onDestroy, tick, untrack } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
   import { menu, openMenu as showMenu, type MenuEntry } from '../../components/menu.svelte';
@@ -63,7 +63,23 @@
   let lastRead = $state<string | null>((readKey && readMarks.get(readKey)) || null);
   /** A menu opened from this list keeps it still until it closes. */
   let menuHere = $state(false);
-  const paused = $derived((hovering && c.pauseOnHover) || keyHeld || (menuHere && menu.open));
+  /** V101-15 The mouse rested over chat for the set time: chat moves on until it moves. */
+  let still = $state(false);
+  let stillTimer: ReturnType<typeof setTimeout> | undefined;
+  const paused = $derived((hovering && c.pauseOnHover && !still) || keyHeld || (menuHere && menu.open));
+
+  function onmousemove() {
+    still = false;
+    clearTimeout(stillTimer);
+    if (c.pauseOnHover && c.pauseStillTenths) stillTimer = setTimeout(() => (still = true), c.pauseStillTenths * 100);
+  }
+
+  function onmouseleave() {
+    hovering = false;
+    still = false;
+    clearTimeout(stillTimer);
+  }
+  onDestroy(() => clearTimeout(stillTimer));
 
   function openMenu(e: MouseEvent, items: MenuEntry[]) {
     menuHere = true;
@@ -407,8 +423,9 @@
     {oncontextmenu}
     {onmouseover}
     {onmouseout}
-    onmouseenter={() => (hovering = true)}
-    onmouseleave={() => (hovering = false)}
+    {onmousemove}
+    onmouseenter={() => ((hovering = true), onmousemove())}
+    {onmouseleave}
     role="log"
     aria-live="off"
   >

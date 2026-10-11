@@ -7,8 +7,6 @@ use crate::http::json;
 use crate::{Error, Http, Result};
 
 const URL: &str = "https://recent-messages.robotty.de/api/v2/recent-messages";
-/// Lines to ask for. The service keeps up to 800.
-pub const LIMIT: u32 = 200;
 
 #[derive(Deserialize)]
 struct Response {
@@ -18,9 +16,21 @@ struct Response {
     error: Option<String>,
 }
 
-pub async fn recent_messages(http: &Http, login: &str) -> Result<Vec<String>> {
-    let req = http.0.get(format!("{URL}/{login}")).query(&[("limit", LIMIT)]);
+/// At most `limit` lines (V101-03); the service keeps up to 800.
+pub async fn recent_messages(http: &Http, login: &str, limit: u32) -> Result<Vec<String>> {
+    let req = http.0.get(format!("{URL}/{login}")).query(&[("limit", limit)]);
     unwrap(json(req).await?)
+}
+
+/// V101-32 Why there's no history, as a line for the chat.
+pub fn unavailable(e: &Error) -> String {
+    let ignored = e.api_message().is_some_and(|m| m.contains("ignored") || m.contains("excluded"));
+    match e.status() {
+        _ if ignored => "Chat history is off for this channel".into(),
+        Some(status) if status != 200 => format!("Chat history unavailable (error {status})"),
+        _ if e.is_network() => "Chat history unavailable: couldn't reach the service".into(),
+        _ => "Chat history unavailable right now".into(),
+    }
 }
 
 /// C24 Lines sent between two moments (unix ms), at most `limit`.
@@ -38,7 +48,7 @@ fn unwrap(r: Response) -> Result<Vec<String>> {
         None | Some("channel_not_joined") => Ok(r.messages),
         Some(code) => Err(Error::Api {
             status: 200,
-            message: r.error.unwrap_or_else(|| code.to_owned()),
+            message: format!("{code}: {}", r.error.unwrap_or_default()),
         }),
     }
 }
@@ -57,5 +67,15 @@ mod tests {
         let bad: Response =
             serde_json::from_str(r#"{"messages":[],"error":"ignored","error_code":"channel_ignored"}"#).unwrap();
         assert!(unwrap(bad).is_err());
+    }
+
+    #[test]
+    fn reasons_read_short() {
+        let ignored = unwrap(serde_json::from_str(r#"{"messages":[],"error":"x","error_code":"channel_ignored"}"#).unwrap());
+        assert_eq!(unavailable(&ignored.unwrap_err()), "Chat history is off for this channel");
+        let forbidden = Error::api(403, br#"{"status":403,"error":"Forbidden"}"#);
+        assert_eq!(unavailable(&forbidden), "Chat history unavailable (error 403)");
+        let odd = unwrap(serde_json::from_str(r#"{"messages":[],"error":"x","error_code":"other"}"#).unwrap());
+        assert_eq!(unavailable(&odd.unwrap_err()), "Chat history unavailable right now");
     }
 }

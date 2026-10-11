@@ -28,10 +28,16 @@ export interface EmojiName {
   name: string;
 }
 
-/** Emotes first, then emoji by short name. */
-export function emoteItems(prefix: string, emotes: EmoteName[], emoji: EmojiName[], limit = 8): Item[] {
+/** Emotes first, then emoji by short name. `used` as in `complete`. */
+export function emoteItems(
+  prefix: string,
+  emotes: EmoteName[],
+  emoji: EmojiName[],
+  limit = 8,
+  used?: (name: string) => number,
+): Item[] {
   const byName = new Map(emotes.map((e) => [e.name, e]));
-  const names = complete(prefix, byName.keys(), limit);
+  const names = complete(prefix, byName.keys(), limit, used);
   const items: Item[] = names.map((n) => {
     const e = byName.get(n)!;
     return { value: n, label: n, emote: { provider: e.provider, id: e.id, animated: e.animated } };

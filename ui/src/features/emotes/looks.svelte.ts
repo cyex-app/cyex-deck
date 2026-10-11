@@ -20,6 +20,8 @@ class LooksStore {
   private queue = new Set<string>();
   private timer: ReturnType<typeof setTimeout> | undefined;
   private paints = new Set<string>();
+  /** V101-36 Paint names by id, for the tip on a painted name. */
+  private paintNames = new Map<string, string>();
   private sheet: HTMLStyleElement | null = null;
   private started = false;
 
@@ -37,6 +39,11 @@ class LooksStore {
   /** CSS class for a paint, or `null` if it can't be drawn. */
   paintClass(id: string | null): string | null {
     return id && this.paints.has(id) ? `paint-${id}` : null;
+  }
+
+  /** V101-36 What 7TV calls a paint. */
+  paintName(id: string | null): string | null {
+    return (id && this.paintNames.get(id)) || null;
   }
 
   start(): () => void {
@@ -72,6 +79,7 @@ class LooksStore {
   }
 
   private addPaint(p: PaintStyle) {
+    if (p.name.trim()) this.paintNames.set(p.id, p.name.trim());
     if (this.paints.has(p.id) || !SAFE_ID.test(p.id)) return;
     this.sheet ??= document.head.appendChild(document.createElement('style'));
     const rule = (sel: string, css: string) => `${sel}{${css.replace(/[{}<]/g, '')}}`;

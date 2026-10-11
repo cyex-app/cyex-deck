@@ -35,6 +35,7 @@
   import PinnedBanner from './PinnedBanner.svelte';
   import { ChatRoom } from './room.svelte';
   import SearchPopup from './SearchPopup.svelte';
+  import ViewerList from './ViewerList.svelte';
   import { votes } from './votes.svelte';
   import VotesBanner from './VotesBanner.svelte';
   import { popOut } from '../../app/panels';
@@ -64,6 +65,8 @@
     onpopout?: () => void;
     /** U7 Opens this chat as an overlay. */
     onoverlay?: () => void;
+    /** V101-21 A tiled tab's entries for this tile, after the chat's in its one menu. */
+    tileMenu?: () => MenuEntry[];
   }
 
   let {
@@ -79,6 +82,7 @@
     onfilters,
     onpopout,
     onoverlay,
+    tileMenu,
   }: Props = $props();
 
   // A chat view shows one channel for its whole life; a different one is a new view.
@@ -97,6 +101,8 @@
   onDestroy(() => room.close());
 
   let el = $state<HTMLElement>();
+  /** V101-35 The viewer list shows instead of the messages. */
+  let viewers = $state(false);
   let input = $state<ChatInput>();
   let replyTo = $state<ChatMessage | null>(null);
   let search = $state<{ query: string; all: boolean } | null>(null);
@@ -203,8 +209,9 @@
           ]
         : []),
       ...(own.length ? ['separator' as const, ...toItems(own, (cmd) => runEntry(room.view, cmd, ctx, onaction))] : []),
+      ...(tileMenu ? ['separator' as const, ...tileMenu()] : []),
     ];
-    openMenu(e, items);
+    openMenu(e.currentTarget as HTMLElement, items, 'end');
   }
 
   const STATUS: Partial<Record<ConnStatus, string>> = {
@@ -267,8 +274,22 @@
         onclick={() => void popOut(`modview/${login}`, `Mod view · ${login}`)}
       />
     {/if}
-    <IconButton icon="more" label="More" hint="Search, translate, record, overlay, filters." size={15} onclick={more} />
+    <IconButton
+      icon="users"
+      label="Viewers"
+      hint="Who's in this chat."
+      size={15}
+      active={viewers}
+      onclick={() => (viewers = !viewers)}
+    />
     {@render actions?.()}
+    <IconButton
+      icon="more"
+      label="More"
+      hint="Search, translate, record, filters and more."
+      size={15}
+      onclick={more}
+    />
   </header>
   {#if room.error}
     <p class="status bad">{room.error}</p>
@@ -279,15 +300,21 @@
   {/if}
   {#if room.pinned}<PinnedBanner pin={room.pinned} channel={login} />{/if}
   <VotesBanner channel={login} view={() => room.view} signedIn={room.account !== null} />
-  <MessageList
-    {room}
-    {readKey}
-    canReply={room.account !== null}
-    onreply={reply}
-    {onlink}
-    onmention={(l) => input?.mention(l)}
-    {onaction}
-  />
+  <div class="body">
+    <MessageList
+      {room}
+      {readKey}
+      canReply={room.account !== null}
+      onreply={reply}
+      {onlink}
+      onmention={(l) => input?.mention(l)}
+      {onaction}
+    />
+    <!-- V101-35 Over the messages, so the list keeps its place underneath. -->
+    {#if viewers}
+      <div class="viewers"><ViewerList account={room.account} {login} onclose={() => (viewers = false)} /></div>
+    {/if}
+  </div>
   <ResubBanner {account} {login} />
   <ChatInput bind:this={input} {room} bind:replyTo {onsignin} {onaction} />
   {#if subscribing && account}<SubDialog {account} {login} onclose={() => (subscribing = false)} />{/if}
@@ -349,6 +376,19 @@
   .mode.rec {
     color: var(--red);
     border-color: var(--red);
+  }
+  .body {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+  }
+  .viewers {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    background: var(--page);
   }
   .status {
     margin: 0;

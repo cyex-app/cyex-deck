@@ -4,7 +4,9 @@
 
 import type { BotCommand } from '../../ipc/bindings/BotCommand';
 import { emotesIpc } from '../../ipc/emotes';
+import { settings } from '../../lib/settings.svelte';
 import { emojiGroups, findEmoji, type EmojiGroup } from '../emotes/emoji';
+import { emoteKey } from '../emotes/emotes';
 import { usable } from '../emotes/menu';
 import { emoteMenu } from '../emotes/menus';
 import { complete, type Word } from './completion';
@@ -61,6 +63,18 @@ export class Sources {
     return out;
   }
 
+  /** V101-16 Among equal matches, emotes you use most come first: their place in the
+   * most-used list (C12). */
+  used(): (name: string) => number {
+    const order = new Map(settings.v.emotes.usage.map((u, i) => [emoteKey(u.emote.source, u.emote.id), i]));
+    const byName = new Map<string, number>();
+    for (const e of this.emotes()) {
+      const i = order.get(emoteKey(e.provider, e.id));
+      if (i !== undefined && i < (byName.get(e.name) ?? Infinity)) byName.set(e.name, i);
+    }
+    return (name) => byName.get(name) ?? Infinity;
+  }
+
   /** Suggestions for the word at the caret. */
   items(word: Word): Item[] {
     if (word.text.startsWith('@') && word.text.length >= 2) {
@@ -69,7 +83,7 @@ export class Sources {
     if (word.text.startsWith(':') && word.text.length >= 3) {
       const q = word.text.slice(1).replace(/:$/, '');
       const found = this.emoji ? findEmoji(this.emoji, q, 8).map((e) => ({ char: e.char, name: e.names[0] })) : [];
-      return emoteItems(q, this.emotes(), found);
+      return emoteItems(q, this.emotes(), found, 8, this.used());
     }
     if (word.start === 0 && word.text.startsWith('!') && word.text.length >= 2 && this.commands) {
       const own = this.room.state.own;

@@ -37,8 +37,10 @@
   const notice = $derived(m.notice);
   const time = $derived(c.timestamps.show ? formatTime(new Date(m.ts), c.timestamps) : '');
   const colorVars = $derived(sender ? `--cd:${sender.color.dark};--cl:${sender.color.light}` : '');
-  /** 1.37 The sender's 7TV paint, as a class. */
-  const paint = $derived(sender && c.paints.seventv ? looks.paintClass(looks.look(sender.id)?.paint ?? null) : null);
+  /** 1.37 The sender's 7TV paint, as a class, and its name for a tip (V101-36). */
+  const paintId = $derived(sender && c.paints.seventv ? (looks.look(sender.id)?.paint ?? null) : null);
+  const paint = $derived(looks.paintClass(paintId));
+  const paintName = $derived(paint ? looks.paintName(paintId) : null);
   const recipients = $derived(notice?.recipients ?? []);
   const hl = $derived(highlightStyle(m));
   const client = $derived(c.showClient && m.client ? CLIENTS[m.client] : null);
@@ -101,8 +103,14 @@
       {#if client}<span class="client" data-tip={client.label}><Icon name={client.icon} size={12} /></span>{/if}
       {#if m.source}<Badges badges={m.source.badges} {channel} />{/if}
       <Badges badges={sender.badges} {channel} userId={sender.id} />
-      <span class="name {paint ?? ''}" class:painted={!!paint} role="link" tabindex="-1" data-user={sender.login}
-        >{name.name}</span
+      <span
+        class="name {paint ?? ''}"
+        class:painted={!!paint}
+        role="link"
+        tabindex="-1"
+        data-user={sender.login}
+        data-tip={paintName}
+        data-hint={paintName ? '7TV paint' : null}>{name.name}</span
       >{#if name.extra}<span class="extra">{` (${name.extra})`}</span>{/if}{#if !action}<span class="colon">{': '}</span>{:else}{' '}{/if}<span
         class="body"
         class:action><Body fragments={m.body} {channel} giant={has('gigantified')} /></span

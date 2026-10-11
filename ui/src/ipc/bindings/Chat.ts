@@ -72,6 +72,14 @@ timeoutPresets: Array<number>,
  */
 history: boolean, 
 /**
+ * V101-03 How many, at most.
+ */
+historyLines: number, 
+/**
+ * V101-02 Messages each chat keeps; older ones drop off the top.
+ */
+scrollback: number, 
+/**
  * C14
  */
 deleted: DeletedStyle, 
@@ -91,6 +99,11 @@ names: NameStyle,
  * C5 Stop scrolling while the mouse is over chat.
  */
 pauseOnHover: boolean, 
+/**
+ * V101-15 Once the mouse stops moving over chat, scrolling goes on after this long,
+ * in tenths of a second. 0: only when the mouse leaves.
+ */
+pauseStillTenths: number, 
 /**
  * C5 Stop scrolling while this key is held.
  */

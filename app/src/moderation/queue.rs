@@ -2,6 +2,8 @@
 //! unban request queue, a user's mod history and comments, and the chatter list. Each
 //! picks Helix when the account has the scope, else GQL (D25).
 
+use std::collections::HashSet;
+
 use cyex_twitch::gql;
 use cyex_twitch::gql::modlogs::{Chatters, ModHistory, UnbanRequest};
 use cyex_twitch::helix::moderation as hm;
@@ -85,24 +87,26 @@ pub async fn delete_comment(app: &AppHandle, account: &str, login: &str, id: &st
     gql::modlogs::delete_comment(&http(app), g, &actor.channel_id, id).await.map_err(err)
 }
 
-/// 1.48 The chatter list, grouped. Reads with the Android TV client (signed out works).
-pub async fn chatters(app: &AppHandle, account: &str, login: &str) -> Result<Chatters, String> {
-    let actor = super::actor(app, account, login)?;
-    if let Some(h) = actor.helix_scoped(app, "moderator:read:chatters") {
-        let (list, count) = cyex_twitch::helix::roles::chatters(&http(app), h, actor.room()).await.map_err(err)?;
-        return Ok(Chatters {
-            count,
-            broadcasters: Vec::new(),
-            moderators: Vec::new(),
-            vips: Vec::new(),
-            staff: Vec::new(),
-            viewers: list.into_iter().map(|u| u.user_login).collect(),
-        });
-    }
-    // GQL's grouped chatters read works with the Android TV client.
+/// 1.48, V101-35 Who's in a chat. Twitch's grouped list over GQL works for anyone; a
+/// moderator with a Helix sign-in gets every viewer instead of Twitch's sample of 100.
+pub async fn chatters(app: &AppHandle, account: Option<&str>, login: &str) -> Result<Chatters, String> {
+    // The grouped read works signed out with the Android TV client.
     let auth = gql::Auth {
         client_id: cyex_twitch::clients::ANDROID_TV,
         token: None,
     };
-    gql::modlogs::chatters(&http(app), auth, login).await.map_err(err)
+    let grouped = gql::modlogs::chatters(&http(app), auth, login).await;
+    let actor = account.and_then(|a| super::actor(app, a, login).ok());
+    let helix = actor.as_ref().and_then(|a| Some((a.helix_scoped(app, "moderator:read:chatters")?, a.room())));
+    let Some((h, room)) = helix else {
+        return grouped.map_err(err)?.ok_or_else(|| "This channel doesn't exist or is suspended.".into());
+    };
+    let (list, count) = cyex_twitch::helix::roles::chatters(&http(app), h, room).await.map_err(err)?;
+    let mut c = grouped.ok().flatten().unwrap_or_default();
+    let named: HashSet<String> = [&c.broadcasters, &c.moderators, &c.vips, &c.staff].into_iter().flatten().cloned().collect();
+    c.viewers = list.into_iter().map(|u| u.user_login).filter(|l| !named.contains(l)).collect();
+    c.viewers.sort_unstable();
+    c.count = count;
+    c.complete = c.listed() as u64 >= count;
+    Ok(c)
 }

@@ -23,10 +23,11 @@ fn view_key(app: &AppHandle, view: u32) -> Result<(String, Option<String>), Stri
     Ok((login, account))
 }
 
-/// Rewards right now, plus the balance when the account has a GQL token.
-pub async fn points(app: &AppHandle, view: u32) -> Result<Option<Points>, String> {
+/// Rewards, plus the balance when the account has a GQL token. `fresh` reads them as
+/// they are now; otherwise as joining loaded them (V101-13: the icon on open).
+pub async fn points(app: &AppHandle, view: u32, fresh: bool) -> Result<Option<Points>, String> {
     let (login, account) = view_key(app, view)?;
-    let Some(c) = catalog::channel(app, &login, true).await? else {
+    let Some(c) = catalog::channel(app, &login, fresh).await? else {
         return Ok(None);
     };
     let Some(mut p) = c.points.clone() else { return Ok(None) };

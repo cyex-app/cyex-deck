@@ -7,10 +7,11 @@ import type { ConnStatus } from '../../ipc/bindings/ConnStatus';
 import type { Pinned } from '../../ipc/bindings/Pinned';
 import type { RoomEvent } from '../../ipc/bindings/RoomEvent';
 import type { RoomState } from '../../ipc/bindings/RoomState';
+import { settings } from '../../lib/settings.svelte';
 
-/** Lines kept on screen, like Twitch's own chat (about 150). Older ones drop off the top;
- * Rust keeps 500 per room for usercards. */
-export const MAX_LINES = 200;
+/** V101-02 Lines kept on screen, as set; older ones drop off the top. Rust keeps as many
+ * per room, and at least 500 for usercards. */
+const maxLines = () => settings.v.chat?.scrollback ?? 1000;
 
 /** C5 Last message seen per tile, for the last-read line after switching tabs. */
 export const readMarks = new Map<string, string>();
@@ -35,7 +36,8 @@ export class ChatRoom {
   /** The account reading this chat, `null` when anonymous. */
   account = $state<string | null>(null);
   error = $state('');
-  view = 0;
+  /** Set once Rust opened the view; effects can wait on it (V101-13). */
+  view = $state(0);
   closed = false;
   /** Batches that arrive before the snapshot; applied right after it. */
   private early: RoomEvent[][] | null = [];
@@ -55,7 +57,7 @@ export class ChatRoom {
       this.view = opened.view;
       this.account = opened.account;
       const s = opened.snapshot;
-      this.messages = s.messages.slice(-MAX_LINES);
+      this.messages = s.messages.slice(-maxLines());
       this.state = s.state;
       this.status = s.status;
       this.pinned = s.pinned;
@@ -122,7 +124,8 @@ export class ChatRoom {
           break;
       }
     }
-    if (changed) this.messages = list.length > MAX_LINES ? list.slice(-MAX_LINES) : list;
+    const max = maxLines();
+    if (changed) this.messages = list.length > max ? list.slice(-max) : list;
   }
 }
 

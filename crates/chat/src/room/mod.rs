@@ -23,7 +23,8 @@ use crate::model::{
 };
 use crate::tokenize::{Emotes, Input, tokenize};
 
-/// Messages kept per room for new views and usercards.
+/// Fewest messages kept per room, for new views and usercards. The scrollback setting
+/// can raise it (V101-02).
 pub const BUFFER: usize = 500;
 /// A send without an answer from Twitch after this long is forgotten.
 const PENDING_TTL_MS: i64 = 15_000;
@@ -66,6 +67,8 @@ pub struct Room {
     pub status: ConnStatus,
     me: Option<Me>,
     buffer: VecDeque<Arc<ChatMessage>>,
+    /// V101-02 Messages kept, at least `BUFFER`.
+    keep: usize,
     pending: VecDeque<PendingSend>,
     gifts: Vec<GiftGroup>,
     /// 1.9 Reward titles and costs by id, to name redemptions.
@@ -90,6 +93,7 @@ impl Room {
             status: ConnStatus::Connecting,
             me,
             buffer: VecDeque::new(),
+            keep: BUFFER,
             pending: VecDeque::new(),
             gifts: Vec::new(),
             rewards: HashMap::new(),
@@ -118,7 +122,22 @@ impl Room {
     }
 
     pub fn snapshot(&self) -> RoomSnapshot {
-        self.snapshot_tail(BUFFER)
+        self.snapshot_tail(self.keep)
+    }
+
+    /// V101-02 Messages kept from now on; never fewer than `BUFFER`.
+    pub fn set_keep(&mut self, lines: usize) {
+        self.keep = lines.max(BUFFER);
+        self.trim();
+    }
+
+    pub fn keep(&self) -> usize {
+        self.keep
+    }
+
+    fn trim(&mut self) {
+        let over = self.buffer.len().saturating_sub(self.keep);
+        self.buffer.drain(..over);
     }
 
     /// Like `snapshot`, with only the last `lines` messages.
@@ -202,11 +221,21 @@ impl Room {
         events
     }
 
-    pub fn set_status(&mut self, status: ConnStatus) -> Option<RoomEvent> {
-        (self.status != status).then(|| {
-            self.status = status;
-            RoomEvent::Status { status }
-        })
+    /// The new status, and a line in chat when the link comes or goes (V101-32).
+    pub fn set_status(&mut self, status: ConnStatus, now_ms: i64) -> Vec<RoomEvent> {
+        if self.status == status {
+            return Vec::new();
+        }
+        let line = match (self.status, status) {
+            (ConnStatus::Reconnecting, ConnStatus::Joined) => Some("Reconnected"),
+            (_, ConnStatus::Joined) => Some("Joined chat"),
+            (ConnStatus::Joined, ConnStatus::Reconnecting) => Some("Disconnected"),
+            _ => None,
+        };
+        self.status = status;
+        let mut events = vec![RoomEvent::Status { status }];
+        events.extend(line.map(|text| self.system(NoticeKind::Info, text, now_ms)));
+        events
     }
 
     /// A line of ours, e.g. a send error found before reaching Twitch.
@@ -296,7 +325,7 @@ impl Room {
                     self.pending.pop_front();
                 }
                 if msg_id == "msg_channel_suspended" {
-                    events.extend(self.set_status(ConnStatus::Unavailable));
+                    events.extend(self.set_status(ConnStatus::Unavailable, now_ms));
                 }
                 if matches!(msg_id.as_str(), "msg_slowmode" | "msg_timedout")
                     && let Some(secs) = seconds_in(notice.notice.as_ref().map_or("", |n| n.text.as_str()))
@@ -348,7 +377,7 @@ impl Room {
                 _ => {}
             }
         }
-        let room = BUFFER.saturating_sub(self.buffer.len());
+        let room = self.keep.saturating_sub(self.buffer.len());
         let skip = old.len().saturating_sub(room);
         let old: Vec<Arc<ChatMessage>> = old.into_iter().skip(skip).map(Arc::new).collect();
         for m in old.iter().rev() {
@@ -434,10 +463,8 @@ impl Room {
     }
 
     fn push(&mut self, m: Arc<ChatMessage>) {
-        if self.buffer.len() >= BUFFER {
-            self.buffer.pop_front();
-        }
         self.buffer.push_back(m);
+        self.trim();
     }
 
     fn mark_deleted(&mut self, hit: impl Fn(&ChatMessage) -> bool) {
@@ -528,6 +555,41 @@ mod tests {
         let s = r.snapshot();
         assert_eq!(s.messages.len(), BUFFER);
         assert_eq!(s.messages[0].id, "10");
+    }
+
+    #[test]
+    fn scrollback_raises_the_cap_but_never_below_the_floor() {
+        let mut r = room();
+        r.set_keep(1_000);
+        for i in 0..1_005 {
+            feed(&mut r, &msg(&i.to_string(), "7"));
+        }
+        assert_eq!(r.snapshot().messages.len(), 1_000);
+        r.set_keep(100);
+        assert_eq!(r.keep(), BUFFER);
+        let s = r.snapshot();
+        assert_eq!(s.messages.len(), BUFFER);
+        assert_eq!(s.messages[0].id, "505");
+    }
+
+    #[test]
+    fn link_changes_leave_a_line() {
+        let mut r = room();
+        let text = |evs: &[RoomEvent]| -> Vec<String> {
+            evs.iter()
+                .filter_map(|e| match e {
+                    RoomEvent::Message { message } => message.notice.as_ref().map(|n| n.text.clone()),
+                    _ => None,
+                })
+                .collect()
+        };
+        assert_eq!(text(&r.set_status(ConnStatus::Joined, 1)), ["Joined chat"]);
+        assert!(r.set_status(ConnStatus::Joined, 2).is_empty());
+        assert_eq!(text(&r.set_status(ConnStatus::Reconnecting, 3)), ["Disconnected"]);
+        assert_eq!(text(&r.set_status(ConnStatus::Joined, 4)), ["Reconnected"]);
+        let auth = r.set_status(ConnStatus::AuthFailed, 5);
+        assert!(matches!(auth.as_slice(), [RoomEvent::Status { status: ConnStatus::AuthFailed }]));
+        assert_eq!(r.snapshot().messages.len(), 3);
     }
 
     #[test]

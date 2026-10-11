@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use cyex_chat::model::{ChatMessage, RoomEvent};
+use cyex_twitch::gql::modlogs::Chatters;
 use cyex_twitch::gql::{self, Points, Profile};
 use cyex_twitch::resolver::{self, LinkInfo};
 use tauri::ipc::Channel;
@@ -61,8 +62,14 @@ pub async fn chat_channel_catalog(app: AppHandle, login: String) -> CmdResult<Op
 }
 
 #[tauri::command]
-pub async fn chat_points(app: AppHandle, view: u32) -> CmdResult<Option<Points>> {
-    chat::points::points(&app, view).await
+pub async fn chat_points(app: AppHandle, view: u32, fresh: bool) -> CmdResult<Option<Points>> {
+    chat::points::points(&app, view, fresh).await
+}
+
+/// 1.48, V101-35 Who's in a channel's chat; every viewer when `account` moderates there.
+#[tauri::command]
+pub async fn chat_viewers(app: AppHandle, account: Option<String>, channel: String) -> CmdResult<Chatters> {
+    crate::moderation::queue::chatters(&app, account.as_deref(), &channel).await
 }
 
 #[tauri::command]

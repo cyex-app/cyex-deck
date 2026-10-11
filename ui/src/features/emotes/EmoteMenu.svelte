@@ -27,7 +27,9 @@
   let { login, account, oninsert }: Props = $props();
 
   type Tab = 'favorites' | ProviderTab | 'emoji';
-  const TAB_KEY = 'cyex.emoteMenuTab';
+  /** V101-12 Twitch the first time, then the tab used last. A new key starts everyone
+   * on Twitch once. */
+  const TAB_KEY = 'cyex.emoteTab';
 
   let menu = $state<EmoteMenu | null>(null);
   let error = $state('');
@@ -69,9 +71,9 @@
 
   function readTab(): Tab {
     try {
-      return (localStorage.getItem(TAB_KEY) as Tab) || 'favorites';
+      return (localStorage.getItem(TAB_KEY) as Tab) || 'twitch';
     } catch {
-      return 'favorites';
+      return 'twitch';
     }
   }
 

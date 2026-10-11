@@ -82,9 +82,10 @@
     return [...auto, ...custom].sort((a, b) => a.cost - b.cost);
   });
 
-  // The balance shows next to the box once the chat is open.
+  // V101-13 The channel's own points icon, and the balance with a GQL sign-in, show
+  // next to the box once the chat is open, from what joining already loaded.
   $effect(() => {
-    if (room.view && canRedeem && !loaded) void load();
+    if (room.view && !loaded) void load(false);
   });
 
   $effect(() => {
@@ -96,13 +97,14 @@
     return () => void off.then((f) => f());
   });
 
-  async function load() {
-    try {
-      points = await chatIpc.points(room.view);
-    } catch {
-      points = null;
-    }
+  /** `fresh`: rewards as they are now, not as they were when the chat opened. */
+  async function load(fresh = true) {
     loaded = true;
+    try {
+      points = await chatIpc.points(room.view, fresh);
+    } catch {
+      if (fresh) points = null;
+    }
   }
 
   function toggle() {

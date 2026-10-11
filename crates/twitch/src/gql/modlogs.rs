@@ -174,7 +174,7 @@ pub async fn resolve_unban(http: &Http, auth: Auth<'_>, id: &str, approve: bool,
     Ok(())
 }
 
-/// 1.48 The chatters in a channel, grouped, with the total Twitch reports.
+/// 1.48, V101-35 The chatters in a channel, grouped, with the total Twitch reports.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -185,8 +185,20 @@ pub struct Chatters {
     pub moderators: Vec<String>,
     pub vips: Vec<String>,
     pub staff: Vec<String>,
-    /// A random sample, A-Z, capped at 100 by Twitch.
+    /// A random sample, A-Z, capped at 100 by Twitch, unless `complete`.
     pub viewers: Vec<String>,
+    /// Everyone in chat is listed: a small chat, or the whole list a moderator gets.
+    pub complete: bool,
+}
+
+impl Chatters {
+    /// Names listed across the groups.
+    pub fn listed(&self) -> usize {
+        [&self.broadcasters, &self.moderators, &self.vips, &self.staff, &self.viewers]
+            .iter()
+            .map(|g| g.len())
+            .sum()
+    }
 }
 
 const CHATTERS: &str = "query C($name: String!) {
@@ -208,17 +220,26 @@ fn logins(v: &Value, field: &str) -> Vec<String> {
 }
 
 /// Works signed out with the Android TV client (the web client fails the integrity check).
-pub async fn chatters(http: &Http, auth: Auth<'_>, name: &str) -> Result<Chatters> {
+/// `None` if the channel doesn't exist.
+pub async fn chatters(http: &Http, auth: Auth<'_>, name: &str) -> Result<Option<Chatters>> {
     let data: Value = query(http, auth, CHATTERS, json!({ "name": name })).await?;
-    let c = data.pointer("/channel/chatters").cloned().unwrap_or(Value::Null);
-    Ok(Chatters {
+    Ok(read_chatters(&data))
+}
+
+fn read_chatters(data: &Value) -> Option<Chatters> {
+    let channel = data.get("channel").filter(|c| !c.is_null())?;
+    let c = channel.get("chatters").cloned().unwrap_or(Value::Null);
+    let mut out = Chatters {
         count: c.get("count").and_then(Value::as_u64).unwrap_or(0),
         broadcasters: logins(&c, "broadcasters"),
         moderators: logins(&c, "moderators"),
         vips: logins(&c, "vips"),
         staff: logins(&c, "staff"),
         viewers: logins(&c, "viewers"),
-    })
+        complete: false,
+    };
+    out.complete = out.listed() as u64 >= out.count;
+    Some(out)
 }
 
 /// Reads whether this account may see the viewer-card mod logs for a channel.
@@ -275,9 +296,14 @@ mod tests {
             "count": 37308, "broadcasters": [{ "login": "b" }], "moderators": [{ "login": "m1" }, { "login": "m2" }],
             "vips": [], "staff": [], "viewers": [{ "login": "v1" }]
         }}});
-        let c = data.pointer("/channel/chatters").cloned().unwrap();
-        assert_eq!(c.get("count").and_then(Value::as_u64), Some(37308));
-        assert_eq!(logins(&c, "moderators"), ["m1", "m2"]);
-        assert!(logins(&c, "vips").is_empty());
+        let c = read_chatters(&data).unwrap();
+        assert_eq!(c.count, 37308);
+        assert_eq!(c.moderators, ["m1", "m2"]);
+        assert!(c.vips.is_empty());
+        assert_eq!(c.listed(), 4);
+        assert!(!c.complete);
+        let small = json!({ "channel": { "chatters": { "count": 1, "broadcasters": [{ "login": "b" }] } } });
+        assert!(read_chatters(&small).unwrap().complete);
+        assert_eq!(read_chatters(&json!({ "channel": null })), None);
     }
 }

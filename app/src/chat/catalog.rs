@@ -123,30 +123,30 @@ pub fn channel_view(c: &ChannelChat) -> ChannelCatalog {
 }
 
 /// After a fresh join: reward names into the room, the channel's emotes, history once
-/// they're in (C1), then the current pin.
-pub fn load_for_room(app: AppHandle, key: RoomKey, history: bool) {
+/// they're in (C1, `history` lines at most), then the current pin.
+pub fn load_for_room(app: AppHandle, key: RoomKey, history: Option<u32>) {
     tauri::async_runtime::spawn(async move {
         let c = match channel(&app, &key.1, false).await {
             Ok(Some(c)) => c,
             Ok(None) => {
-                if history {
-                    super::session::load_history(app.clone(), key);
+                if let Some(lines) = history {
+                    super::session::load_history(app.clone(), key, lines);
                 }
                 return;
             }
             Err(e) => {
                 eprintln!("chat: no catalog for {}: {e}", key.1);
-                if history {
-                    super::session::load_history(app.clone(), key);
+                if let Some(lines) = history {
+                    super::session::load_history(app.clone(), key, lines);
                 }
                 return;
             }
         };
         crate::emotes::join(&app, &key.1, &c.channel_id, super::account_of(&key.0));
         super::live::joined(&app, &key.1, &c.channel_id);
-        if history {
+        if let Some(lines) = history {
             crate::emotes::ready(&app, &key.1, std::time::Duration::from_secs(4)).await;
-            super::session::load_history(app.clone(), key.clone());
+            super::session::load_history(app.clone(), key.clone(), lines);
         }
         let rewards: HashMap<String, (String, u32)> = c
             .points

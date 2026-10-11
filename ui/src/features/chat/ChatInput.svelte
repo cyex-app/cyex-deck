@@ -152,7 +152,7 @@
     const own = () => {
       if (!bare) return [];
       const people = sources.chatters().map((n) => (word.text.startsWith('@') ? `@${n}` : n));
-      return complete(bare, [...sources.emotes().map((e) => e.name), ...people], 30);
+      return complete(bare, [...sources.emotes().map((e) => e.name), ...people], 30, sources.used());
     };
     const items = [...new Set([...(fromPlugins?.values ?? []), ...(fromPlugins?.hideOthers ? [] : own())])];
     if (!items.length) return;

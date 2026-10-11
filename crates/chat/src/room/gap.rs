@@ -4,7 +4,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use super::{BUFFER, Room};
+use super::Room;
 use crate::build::{self, Ctx, Incoming};
 use crate::irc::Line;
 use crate::model::{ChatMessage, ConnStatus, Flag};
@@ -68,17 +68,11 @@ impl Room {
         }
         let added: Vec<Arc<ChatMessage>> = added.into_iter().map(Arc::new).collect();
         for m in &added {
-            // Before the first chat line that's newer; system lines carry our clock.
-            let at = self
-                .buffer
-                .iter()
-                .position(|b| b.sender.is_some() && b.ts > m.ts)
-                .unwrap_or(self.buffer.len());
+            // Before the first line that's newer, so above "Reconnected" (V101-32).
+            let at = self.buffer.iter().position(|b| b.ts > m.ts).unwrap_or(self.buffer.len());
             self.buffer.insert(at, m.clone());
         }
-        while self.buffer.len() > BUFFER {
-            self.buffer.pop_front();
-        }
+        self.trim();
         added
     }
 }
@@ -95,15 +89,16 @@ mod tests {
     #[test]
     fn gap_fills_in_order() {
         let mut r = Room::new("chan", None);
-        r.set_status(ConnStatus::Joined);
+        r.set_status(ConnStatus::Joined, 500);
         r.handle_line(
             &Line::parse(&line("a", 1_000).replace(";historical=1", "")).unwrap(),
             1_000,
             &NoEmotes,
         );
         r.lost(2_000);
+        r.set_status(ConnStatus::Reconnecting, 2_000);
         r.lost(3_000);
-        r.set_status(ConnStatus::Joined);
+        r.set_status(ConnStatus::Joined, 8_500);
         r.handle_line(
             &Line::parse(&line("d", 9_000).replace(";historical=1", "")).unwrap(),
             9_000,
@@ -118,7 +113,13 @@ mod tests {
         );
         assert_eq!(added.len(), 2);
         assert!(!added[0].has(Flag::History));
-        let ids: Vec<_> = r.snapshot().messages.iter().map(|m| m.id.clone()).collect();
-        assert_eq!(ids, ["a", "b", "c", "d"]);
+        // V101-32 What was missed sits between the drop and the way back.
+        let ids: Vec<_> = r
+            .snapshot()
+            .messages
+            .iter()
+            .map(|m| m.notice.as_ref().filter(|_| m.sender.is_none()).map_or(m.id.clone(), |n| n.text.clone()))
+            .collect();
+        assert_eq!(ids, ["Joined chat", "a", "Disconnected", "b", "c", "Reconnected", "d"]);
     }
 }

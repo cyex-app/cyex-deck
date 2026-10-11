@@ -12,7 +12,7 @@
   import { toast } from '../../lib/toast.svelte';
   import ActivityFeed from './ActivityFeed.svelte';
   import AutomodQueue from './AutomodQueue.svelte';
-  import ChattersWidget from './Chatters.svelte';
+  import ViewerList from '../chat/ViewerList.svelte';
   import MassActions from './MassActions.svelte';
   import ModActions from './ModActions.svelte';
   import UnbanQueue from './UnbanQueue.svelte';
@@ -127,7 +127,7 @@
           {:else if w === 'unban'}
             <UnbanQueue {account} {login} />
           {:else if w === 'chatters'}
-            <ChattersWidget {account} {login} />
+            <ViewerList {account} {login} />
           {:else if w === 'mass'}
             <MassActions {account} {login} channelId={channelId} />
           {/if}
