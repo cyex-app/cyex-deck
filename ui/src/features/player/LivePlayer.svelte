@@ -1,13 +1,15 @@
 <!-- A live stream (1.1) with the ad filter (1.2) behind it in Rust. Plays with the tile's
-     account when it has a GQL sign-in (D19). Volume is kept per tile. -->
+     account when it has a GQL sign-in (D19). Volume is kept per tile. While the channel's
+     pages show it plays small in a corner, dragged to any corner (P4, V101-25). -->
 <script lang="ts">
-  import { onDestroy, untrack } from 'svelte';
+  import { onDestroy, tick, untrack } from 'svelte';
 
   import Avatar from '../../components/Avatar.svelte';
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { AdState } from '../../ipc/bindings/AdState';
   import type { ChannelInfo } from '../../ipc/bindings/ChannelInfo';
+  import type { Corner } from '../../ipc/bindings/Corner';
   import type { PlayerSession } from '../../ipc/bindings/PlayerSession';
   import type { Tile } from '../../ipc/bindings/Tile';
   import { playerIpc } from '../../ipc/player';
@@ -15,11 +17,13 @@
   import { settings } from '../../lib/settings.svelte';
   import Celebration from './Celebration.svelte';
   import { Engine } from './engine.svelte';
-  import type { Choice } from './quality';
+  import { playerMenu } from './menu';
+  import { type Choice, qualityOptions } from './quality';
   import SettingsMenu from './SettingsMenu.svelte';
   import Shell from './Shell.svelte';
   import Stats from './Stats.svelte';
   import { useSound } from './sound.svelte';
+  import { copyText, openLink, pipFor, playerKeys } from './tools';
   import Volume from './Volume.svelte';
 
   interface Props {
@@ -98,19 +102,125 @@
     await e.start(session, choice);
   }
 
+  function reload() {
+    tries = 0;
+    if (engine) void start(engine, engine.choice, login, account);
+  }
+
   const controls = {
     togglePlay: () => video && (video.paused ? void video.play() : video.pause()),
     toggleMute: () => sound.toggleMute(),
-    toggleFullscreen: () => shell?.fullscreen(),
+    // P4 Small, a double-click brings the stream back instead.
+    toggleFullscreen: () => (mini ? onexpand?.() : shell?.fullscreen()),
+    play: () => void video?.play(),
+    pause: () => video?.pause(),
+    media: () => ({ title: info?.stream?.title || tile.channel.name, artist: tile.channel.name, artwork: info?.avatar }),
   };
+
+  /** V101-17 */
+  function menu() {
+    const e = engine;
+    return playerMenu({
+      kind: 'live',
+      playing: Boolean(e?.playing),
+      muted: sound.muted,
+      fullscreen: Boolean(document.fullscreenElement),
+      keys: playerKeys(),
+      quality: e
+        ? qualityOptions(e.levels, e.level, e.choice).map((o) => ({ ...o, on: o.choice === e.choice, pick: () => void e.choose(o.choice) }))
+        : [],
+      togglePlay: controls.togglePlay,
+      toggleMute: controls.toggleMute,
+      toggleFullscreen: () => {
+        if (mini) onexpand?.();
+        shell?.fullscreen();
+      },
+      pip: pipFor(video),
+      stats: { on: stats, toggle: () => (stats = !stats) },
+      reload,
+      link: `https://www.twitch.tv/${login}`,
+      copy: copyText,
+      open: openLink,
+    });
+  }
+
+  // V101-25 The small stream follows the pointer and lands in the nearest corner, which
+  // new ones start in too.
+  let box = $state<HTMLElement>();
+  /** Picked here, until the setting has it. */
+  let placed = $state<Corner | null>(null);
+  const corner = $derived(placed ?? settings.v.player.miniCorner ?? 'bottomRight');
+  let drag = $state<{ x: number; y: number; dx: number; dy: number; moved: boolean } | null>(null);
+  /** The click that ends a drag doesn't pause the stream. */
+  let dropped = false;
+
+  function ondown(e: PointerEvent) {
+    dropped = false;
+    if (!mini || !box || e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
+    drag = { x: e.clientX, y: e.clientY, dx: 0, dy: 0, moved: false };
+    box.setPointerCapture(e.pointerId);
+  }
+
+  function onmove(e: PointerEvent) {
+    if (!drag || !box?.parentElement) return;
+    let dx = e.clientX - drag.x;
+    let dy = e.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 5) return;
+    // Kept inside the stream side.
+    const area = box.parentElement.getBoundingClientRect();
+    const r = box.getBoundingClientRect();
+    const left = r.left - drag.dx;
+    const top = r.top - drag.dy;
+    dx = Math.min(Math.max(dx, area.left - left), area.right - (left + r.width));
+    dy = Math.min(Math.max(dy, area.top - top), area.bottom - (top + r.height));
+    drag = { ...drag, dx, dy, moved: true };
+  }
+
+  async function onup() {
+    const d = drag;
+    drag = null;
+    if (!d?.moved || !box?.parentElement) return;
+    dropped = true;
+    const area = box.parentElement.getBoundingClientRect();
+    const before = box.getBoundingClientRect();
+    const x = before.left + before.width / 2 - area.left < area.width / 2 ? 'Left' : 'Right';
+    const next = `${before.top + before.height / 2 - area.top < area.height / 2 ? 'top' : 'bottom'}${x}` as Corner;
+    placed = next;
+    await tick();
+    const after = box.getBoundingClientRect();
+    box.animate([{ translate: `${before.left - after.left}px ${before.top - after.top}px` }, { translate: '0 0' }], {
+      duration: 180,
+      easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+    });
+    if (next !== settings.v.player.miniCorner) await settings.patch('player', { miniCorner: next });
+    placed = null;
+  }
+
+  function onclickcapture(e: MouseEvent) {
+    if (!dropped) return;
+    dropped = false;
+    e.stopPropagation();
+  }
 
   const failure = $derived(engine?.failure);
   const key = (id: Parameters<typeof bindingOf>[0], label: string) =>
     bindingOf(id) ? `${label} (${bindingOf(id)})` : label;
 </script>
 
-<div class="live" class:mini>
-  <Shell bind:this={shell} {controls} pinned={!engine?.playing} onvolume={(s) => sound.step(s)}>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+  class="live {mini ? corner : ''}"
+  class:mini
+  class:dragging={drag?.moved}
+  bind:this={box}
+  style:translate={drag?.moved ? `${drag.dx}px ${drag.dy}px` : null}
+  onpointerdown={ondown}
+  onpointermove={onmove}
+  onpointerup={onup}
+  onpointercancel={() => (drag = null)}
+  {onclickcapture}
+>
+  <Shell bind:this={shell} {controls} {menu} pinned={!engine?.playing} onvolume={(s) => sound.step(s)}>
     <video bind:this={video} playsinline></video>
     {#if engine?.choice === 'audio'}
       <div class="center">
@@ -201,8 +311,6 @@
   }
   .mini {
     position: absolute;
-    right: 12px;
-    bottom: 12px;
     z-index: 4;
     width: min(320px, 45%);
     aspect-ratio: 16 / 9;
@@ -210,6 +318,30 @@
     border-radius: var(--radius);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
     overflow: hidden;
+    touch-action: none;
+  }
+  .topLeft {
+    top: 12px;
+    left: 12px;
+  }
+  .topRight {
+    top: 12px;
+    right: 12px;
+  }
+  .bottomLeft {
+    bottom: 12px;
+    left: 12px;
+  }
+  .bottomRight {
+    bottom: 12px;
+    right: 12px;
+  }
+  .dragging {
+    cursor: grabbing;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  }
+  .dragging :global(.shell) {
+    cursor: grabbing;
   }
   .center {
     position: absolute;

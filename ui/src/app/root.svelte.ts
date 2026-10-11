@@ -1,9 +1,10 @@
 // Effects every window runs: theme, accent and chat font follow the settings; emote size
 // (E3), still pictures while unfocused (E2), streamer mode (U4), who wears what
-// (1.37-1.39) and plugins (S5).
+// (1.37-1.39), plugins (S5) and media keys (V101-29).
 
 import { applyAppearance } from '../design/theme';
 import { looks } from '../features/emotes/looks.svelte';
+import { useMediaSession } from '../features/player/media.svelte';
 import { plugins } from '../features/plugins/plugins.svelte';
 import { focus } from '../lib/focus.svelte';
 import { settings } from '../lib/settings.svelte';
@@ -33,4 +34,5 @@ export function useRootEffects(): void {
   $effect(() => streamer.start());
   $effect(() => looks.start());
   $effect(() => plugins.start());
+  useMediaSession();
 }

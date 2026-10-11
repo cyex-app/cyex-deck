@@ -4,4 +4,8 @@ import type { StreamInfo } from "./StreamInfo";
 /**
  * A channel and whether it's live right now.
  */
-export type ChannelInfo = { id: string, login: string, name: string, avatar: string | null, stream: StreamInfo | null, };
+export type ChannelInfo = { id: string, login: string, name: string, avatar: string | null, 
+/**
+ * V101-22 The picture Twitch's player shows while the channel is offline.
+ */
+offlineImage: string | null, stream: StreamInfo | null, };

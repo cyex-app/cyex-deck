@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { levelName, pickLevel } from './quality.ts';
+import { levelName, pickLevel, qualityOptions } from './quality.ts';
 
 // hls.js sorts levels by bitrate, lowest first.
 const levels = [
@@ -28,4 +28,25 @@ test('fixed choices cap the height', () => {
 test('names like Twitch', () => {
   assert.equal(levelName(levels[4]), '1080p60');
   assert.equal(levelName(levels[2]), '480p');
+});
+
+test('the quality list: auto, levels best first, audio only', () => {
+  const named = [
+    { index: 4, name: '1080p60', height: 1080 },
+    { index: 3, name: '720p60', height: 720 },
+    { index: 0, name: '160p', height: 160 },
+    { index: 5, name: 'Audio only', height: 0 },
+  ];
+  const list = qualityOptions(named, 3, 'auto');
+  assert.deepEqual(
+    list.map((o) => [o.label, o.hint, o.choice]),
+    [
+      ['Auto', '720p60', 'auto'],
+      ['1080p60', 'Source', 'source'],
+      ['720p60', undefined, '720'],
+      ['160p', undefined, '160'],
+      ['Audio only', undefined, 'audio'],
+    ],
+  );
+  assert.equal(qualityOptions(named, 3, '720')[0].hint, undefined, 'a fixed choice shows no auto note');
 });

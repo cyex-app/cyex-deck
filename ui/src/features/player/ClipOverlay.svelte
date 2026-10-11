@@ -27,7 +27,7 @@
   }
 
   function onkeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') onclose();
+    if (e.key === 'Escape' && !e.defaultPrevented) onclose();
   }
 </script>
 
@@ -81,6 +81,10 @@
     border-radius: var(--radius);
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
     overflow: hidden;
+  }
+  /* V101-26 As big as the screen allows, header included. */
+  :global(:fullscreen) > .overlay .box {
+    width: min(100%, calc((100vh - 90px) * 16 / 9));
   }
   header {
     display: flex;

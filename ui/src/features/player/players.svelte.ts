@@ -1,5 +1,5 @@
-// Players on screen and what each tile shows next to its chat. Player hotkeys (S2) go to
-// the player used last. A tile's state is shared by its stream side and its chat side:
+// Players on screen and what each tile shows next to its chat. Player hotkeys (S2), media
+// keys and Windows' media controls (V101-29) go to the player used or opened last. A tile's state is shared by its stream side and its chat side:
 // pages (1.21), a clip over the stream (1.20), a clip or VOD beside a chat-only tile
 // (1.19, P7), the VOD the chat replays (P8).
 
@@ -8,19 +8,35 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { LinkTarget } from '../../ipc/bindings/LinkTarget';
 import type { TileShow } from '../../ipc/bindings/TileShow';
 
+/** V101-29 What Windows' media controls show for a player. */
+export interface MediaInfo {
+  title: string;
+  artist: string;
+  artwork?: string | null;
+}
+
 export interface PlayerControls {
   togglePlay(): void;
   toggleMute(): void;
   toggleFullscreen(): void;
+  /** V101-29 Media keys. */
+  play?(): void;
+  pause?(): void;
+  /** VODs and clips: seconds ahead, negative to go back. */
+  seekBy?(seconds: number): void;
+  /** Read in an effect: follows the player's state. */
+  media?(): MediaInfo | null;
 }
 
 class Players {
-  private list: PlayerControls[] = [];
-  private last: PlayerControls | null = null;
+  private list = $state.raw<PlayerControls[]>([]);
+  private last = $state.raw<PlayerControls | null>(null);
 
-  /** Returns the function that takes the player off the list. */
+  /** A player that opens takes over, e.g. a clip over the stream. Returns the function
+   *  that takes it off the list. */
   register(p: PlayerControls): () => void {
-    this.list.push(p);
+    this.list = [...this.list, p];
+    this.last = p;
     return () => {
       this.list = this.list.filter((x) => x !== p);
       if (this.last === p) this.last = null;
@@ -97,7 +113,9 @@ export function openTarget(tile: { id: string; show: TileShow }, target: LinkTar
   else s.page = { kind: 'vod', id: target.id, at: target.at };
 }
 
-/** 1.58 Fullscreen: the element fills the window and the window fills the screen. */
+/** 1.58 Fullscreen: the element fills the window and the window fills the screen. A
+ *  player inside a `[data-fullscreen]` surface takes the surface along, so a clip over the
+ *  stream still shows (V101-26). */
 export async function toggleFullscreen(el: HTMLElement): Promise<void> {
   if (document.fullscreenElement) await document.exitFullscreen();
   else await el.requestFullscreen();

@@ -37,6 +37,7 @@
   import { tabsIpc } from '../ipc/tabs';
   import { accounts } from '../lib/accounts.svelte';
   import { useHotkeys } from '../lib/hotkeys.svelte';
+  import { followFullscreen } from '../lib/layers';
   import { settings } from '../lib/settings.svelte';
   import { streamer } from '../lib/streamer.svelte';
   import { mentionChime } from '../lib/sound';
@@ -309,11 +310,17 @@
   <Switcher onopen={open} onview={show} onclose={() => (switcher = false)} />
 {/if}
 <TabOverlays onopen={open} />
-<MenuHost />
-<TooltipHost />
-<Toasts />
+<!-- V101-26 Kept on screen in fullscreen. -->
+<div class="layers" use:followFullscreen>
+  <MenuHost />
+  <TooltipHost />
+  <Toasts />
+</div>
 
 <style>
+  .layers {
+    display: contents;
+  }
   /* Spans every tab row; the buttons stay on the first. */
   .fixed-tabs {
     display: flex;

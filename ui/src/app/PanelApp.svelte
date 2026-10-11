@@ -8,6 +8,7 @@
   import { playerHotkeys } from '../features/player/players.svelte';
   import TabOverlays from '../features/tabs/TabOverlays.svelte';
   import { useHotkeys } from '../lib/hotkeys.svelte';
+  import { followFullscreen } from '../lib/layers';
   import { currentWindow } from '../lib/window.svelte';
   import { panelFor, titleFor } from './panels';
   import { useRootEffects } from './root.svelte';
@@ -31,11 +32,17 @@
 </main>
 
 <TabOverlays onopen={() => {}} />
-<MenuHost />
-<TooltipHost />
-<Toasts />
+<!-- V101-26 Kept on screen in fullscreen. -->
+<div class="layers" use:followFullscreen>
+  <MenuHost />
+  <TooltipHost />
+  <Toasts />
+</div>
 
 <style>
+  .layers {
+    display: contents;
+  }
   main {
     flex: 1;
     display: flex;

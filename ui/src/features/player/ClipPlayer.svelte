@@ -1,5 +1,6 @@
 <!-- A clip (1.19, 1.20): a plain MP4 from Twitch's CDN, in the quality that fits the
-     player. A clip that was just made (P9) may need a few seconds before it plays. -->
+     player unless one is picked (V101-17). A clip that was just made (P9) may need a few
+     seconds before it plays. -->
 <script lang="ts">
   import { onDestroy } from 'svelte';
 
@@ -9,10 +10,12 @@
   import type { Tile } from '../../ipc/bindings/Tile';
   import { playerIpc } from '../../ipc/player';
   import { bindingOf } from '../../lib/hotkeys.svelte';
+  import { playerMenu } from './menu';
   import SeekBar from './SeekBar.svelte';
   import Shell from './Shell.svelte';
   import { useSound } from './sound.svelte';
   import { clock } from './time';
+  import { copyText, openLink, playerKeys } from './tools';
   import Volume from './Volume.svelte';
 
   interface Props {
@@ -33,6 +36,8 @@
   let duration = $state(0);
   let buffered = $state(0);
   let height = $state(720);
+  /** A file picked from the menu, by its place in the list; `null` fits the player. */
+  let picked = $state<number | null>(null);
   let waitTimer: ReturnType<typeof setTimeout> | undefined;
 
   // svelte-ignore state_referenced_locally
@@ -60,12 +65,15 @@
     }
   }
 
-  /** The smallest file at least as tall as the player. */
-  const src = $derived.by(() => {
+  /** The picked file, else the smallest one at least as tall as the player. */
+  const file = $derived.by(() => {
     const q = clip?.qualities ?? [];
+    if (picked !== null && q[picked]) return q[picked];
     const fits = q.filter((x) => x.height >= height);
-    return (fits.length ? fits[fits.length - 1] : q[0])?.url;
+    return fits.length ? fits[fits.length - 1] : q[0];
   });
+  const src = $derived(file?.url);
+  const name = (q: { height: number; frameRate: number }) => `${q.height}p${q.frameRate > 31 ? Math.round(q.frameRate) : ''}`;
 
   $effect(() => {
     if (video) sound.apply(video);
@@ -90,11 +98,38 @@
     togglePlay: () => video && (video.paused ? void video.play() : video.pause()),
     toggleMute: () => sound.toggleMute(),
     toggleFullscreen: () => shell?.fullscreen(),
+    play: () => void video?.play(),
+    pause: () => video?.pause(),
+    seekBy: (s: number) => video && (video.currentTime = Math.min(Math.max(0, video.currentTime + s), duration || Infinity)),
+    media: () =>
+      clip && { title: clip.clip.title || 'Clip', artist: clip.clip.channelName, artwork: clip.clip.thumbnail },
   };
+
+  /** V101-17 */
+  function menu() {
+    const files = clip?.qualities ?? [];
+    return playerMenu({
+      kind: 'clip',
+      playing,
+      muted: sound.muted,
+      fullscreen: Boolean(document.fullscreenElement),
+      keys: playerKeys(),
+      quality: [
+        { label: 'Auto', hint: picked === null && file ? name(file) : undefined, on: picked === null, pick: () => (picked = null) },
+        ...files.map((q, i) => ({ label: name(q), on: picked === i, pick: () => (picked = i) })),
+      ],
+      togglePlay: controls.togglePlay,
+      toggleMute: controls.toggleMute,
+      toggleFullscreen: controls.toggleFullscreen,
+      link: `https://clips.twitch.tv/${slug}`,
+      copy: copyText,
+      open: openLink,
+    });
+  }
   const key = (k: Parameters<typeof bindingOf>[0], label: string) => (bindingOf(k) ? `${label} (${bindingOf(k)})` : label);
 </script>
 
-<Shell bind:this={shell} {controls} pinned={!playing} onvolume={(s) => sound.step(s)}>
+<Shell bind:this={shell} {controls} {menu} pinned={!playing} onvolume={(s) => sound.step(s)}>
   {#if src}
     <!-- The clip's place in the stream keeps going when the quality changes. Twitch clips
          have no captions. -->

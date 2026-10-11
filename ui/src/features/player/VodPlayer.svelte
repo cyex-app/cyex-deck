@@ -14,13 +14,16 @@
   import { bindingOf } from '../../lib/hotkeys.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { Engine } from './engine.svelte';
+  import { playerMenu } from './menu';
   import type { TileState } from './players.svelte';
+  import { qualityOptions } from './quality';
   import SeekBar from './SeekBar.svelte';
   import SettingsMenu from './SettingsMenu.svelte';
   import Shell from './Shell.svelte';
   import { useSound } from './sound.svelte';
   import Stats from './Stats.svelte';
-  import { clock } from './time';
+  import { clock, linkTime } from './time';
+  import { copyText, openLink, pipFor, playerKeys } from './tools';
   import Volume from './Volume.svelte';
 
   interface Props {
@@ -79,7 +82,8 @@
   });
 
   $effect(() => {
-    if (video) video.playbackRate = speed;
+    // The default too: a reload (quality, audio only, V101-17) would reset it.
+    if (video) video.playbackRate = video.defaultPlaybackRate = speed;
   });
 
   onDestroy(() => {
@@ -105,21 +109,62 @@
     void playerIpc.savePosition(id, saved, duration);
   }
 
+  function seek(t: number) {
+    if (video) video.currentTime = Math.max(0, duration ? Math.min(t, duration) : t);
+  }
+
+  /** A fresh session, carrying on where it was. */
+  async function reload() {
+    const e = engine;
+    if (!e || !video) return;
+    const at = video.currentTime;
+    if (session) void playerIpc.close(session.id);
+    session = await playerIpc.vod(id, account);
+    await e.start(session, e.choice, at);
+  }
+
   const controls = {
     togglePlay: () => video && (video.paused ? void video.play() : video.pause()),
     toggleMute: () => sound.toggleMute(),
     toggleFullscreen: () => shell?.fullscreen(),
+    play: () => void video?.play(),
+    pause: () => video?.pause(),
+    seekBy: (s: number) => video && seek(video.currentTime + s),
+    media: () => ({ title: info?.title || 'Video', artist: info?.channelName || tile?.channel.name || '', artwork: info?.thumbnail }),
   };
 
-  function seek(t: number) {
-    if (video) video.currentTime = t;
+  /** V101-17 */
+  function menu() {
+    const e = engine;
+    const link = `https://www.twitch.tv/videos/${id}`;
+    return playerMenu({
+      kind: 'vod',
+      playing: Boolean(e?.playing),
+      muted: sound.muted,
+      fullscreen: Boolean(document.fullscreenElement),
+      keys: playerKeys(),
+      quality: e
+        ? qualityOptions(e.levels, e.level, e.choice).map((o) => ({ ...o, on: o.choice === e.choice, pick: () => void e.choose(o.choice) }))
+        : [],
+      togglePlay: controls.togglePlay,
+      toggleMute: controls.toggleMute,
+      toggleFullscreen: controls.toggleFullscreen,
+      speed: { now: speed, set: (s) => (speed = s) },
+      pip: pipFor(video),
+      stats: { on: stats, toggle: () => (stats = !stats) },
+      reload: () => void reload(),
+      link,
+      linkAt: `${link}?t=${linkTime(video?.currentTime ?? 0)}`,
+      copy: copyText,
+      open: openLink,
+    });
   }
 
   const failure = $derived(engine?.failure);
   const key = (k: Parameters<typeof bindingOf>[0], label: string) => (bindingOf(k) ? `${label} (${bindingOf(k)})` : label);
 </script>
 
-<Shell bind:this={shell} {controls} pinned={!engine?.playing} onvolume={(s) => sound.step(s)}>
+<Shell bind:this={shell} {controls} {menu} pinned={!engine?.playing} onvolume={(s) => sound.step(s)}>
   <video bind:this={video} playsinline {ontimeupdate} ondurationchange={ontimeupdate}></video>
   {#if failure}
     <div class="center">

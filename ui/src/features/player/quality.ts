@@ -36,3 +36,36 @@ export function levelName(l: LevelLike): string {
   const fps = Math.round(l.frameRate ?? 0);
   return `${l.height}p${fps > 30 ? fps : ''}`;
 }
+
+/** A level as the player names it. */
+export interface NamedLevel {
+  index: number;
+  name: string;
+  height: number;
+}
+
+export interface QualityOption {
+  label: string;
+  /** What "Auto" plays now, or "Source" on the best level. */
+  hint?: string;
+  choice: Choice;
+}
+
+/** The fixed choice that caps at a level's height. */
+function choiceOf(height: number): Choice {
+  const fixed = ['1080', '720', '480', '360', '160'] as const;
+  return fixed.find((h) => Number(h) <= height) ?? '160';
+}
+
+/** P1, V101-17 What a player's quality list offers: auto, each level best first, audio only.
+ *  `levels` come sorted best first; `level` is the one playing. */
+export function qualityOptions(levels: NamedLevel[], level: number, choice: Choice): QualityOption[] {
+  const playing = levels.find((l) => l.index === level);
+  return [
+    { label: 'Auto', hint: choice === 'auto' ? playing?.name : undefined, choice: 'auto' },
+    ...levels
+      .filter((l) => l.height > 0)
+      .map((l, i): QualityOption => (i === 0 ? { label: l.name, hint: 'Source', choice: 'source' } : { label: l.name, choice: choiceOf(l.height) })),
+    { label: 'Audio only', choice: 'audio' },
+  ];
+}

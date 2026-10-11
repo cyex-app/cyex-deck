@@ -1,4 +1,5 @@
-<!-- The stream side while the channel is offline: its videos and clips are a click away. -->
+<!-- The stream side while the channel is offline: its videos and clips are a click away,
+     over the channel's offline picture, dimmed (V101-22). -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import type { ChannelInfo } from '../../ipc/bindings/ChannelInfo';
@@ -16,7 +17,7 @@
   let { tile, info, onpage, onstories }: Props = $props();
 </script>
 
-<div class="offline">
+<div class="offline" style:--picture={info?.offlineImage ? `url("${info.offlineImage}")` : null}>
   <StoryRing
     channelId={tile.channel.id}
     account={tile.account}
@@ -42,7 +43,10 @@
     align-items: center;
     justify-content: center;
     gap: 12px;
-    background: #000;
+    background:
+      linear-gradient(rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.72)),
+      var(--picture, none) center / cover no-repeat,
+      #000;
     color: #c8c9ce;
   }
   .go {

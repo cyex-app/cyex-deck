@@ -37,7 +37,7 @@
   let text = $state(tile?.channel.login ?? prefill);
   let picked = $state<ChannelInfo | null>(
     tile
-      ? (tabs.live[tile.channel.id] ?? { ...tile.channel, avatar: null, stream: null })
+      ? (tabs.live[tile.channel.id] ?? { ...tile.channel, avatar: null, offlineImage: null, stream: null })
       : null,
   );
   let show = $state<TileShow>({ ...(tile?.show ?? tabs.lastShow) });

@@ -12,7 +12,7 @@ use crate::{Http, Result};
 /// `users(ids:)` takes more, but large calls sometimes fail with "server error".
 const BATCH: usize = 100;
 
-const FIELDS: &str = "fragment C on User { id login displayName profileImageURL(width: 70) \
+const FIELDS: &str = "fragment C on User { id login displayName profileImageURL(width: 70) offlineImageURL \
     stream { type title viewersCount createdAt game { displayName } freeformTags { name } } }";
 
 /// A channel and whether it's live right now.
@@ -24,6 +24,8 @@ pub struct ChannelInfo {
     pub login: String,
     pub name: String,
     pub avatar: Option<String>,
+    /// V101-22 The picture Twitch's player shows while the channel is offline.
+    pub offline_image: Option<String>,
     pub stream: Option<StreamInfo>,
 }
 
@@ -48,6 +50,8 @@ struct RawUser {
     display_name: String,
     #[serde(rename = "profileImageURL")]
     profile_image_url: Option<String>,
+    #[serde(rename = "offlineImageURL")]
+    offline_image_url: Option<String>,
     stream: Option<RawStream>,
 }
 
@@ -82,6 +86,7 @@ impl From<RawUser> for ChannelInfo {
             login: u.login,
             name: u.display_name,
             avatar: u.profile_image_url,
+            offline_image: u.offline_image_url.filter(|u| !u.is_empty()),
             stream: u.stream.map(|s| {
                 // Chatterino's forks also count a "Rerun" tag.
                 let tagged = s.freeform_tags.unwrap_or_default().iter().any(|t| t.name.eq_ignore_ascii_case("rerun"));
@@ -171,12 +176,12 @@ mod tests {
     fn users_parse_with_reruns_and_gaps() {
         let d: Users = serde_json::from_str(
             r#"{"users":[
-              {"id":"1","login":"a","displayName":"A","profileImageURL":"p","stream":{"type":"live","title":"hi",
+              {"id":"1","login":"a","displayName":"A","profileImageURL":"p","offlineImageURL":"o","stream":{"type":"live","title":"hi",
                "viewersCount":5,"createdAt":"2026-10-09T10:00:00Z","game":{"displayName":"Chess"},"freeformTags":[]}},
               null,
               {"id":"2","login":"b","displayName":"B","profileImageURL":null,"stream":{"type":"live","title":"",
                "viewersCount":1,"createdAt":"x","game":null,"freeformTags":[{"name":"Rerun"}]}},
-              {"id":"3","login":"c","displayName":"C","profileImageURL":null,"stream":null}]}"#,
+              {"id":"3","login":"c","displayName":"C","profileImageURL":null,"offlineImageURL":"","stream":null}]}"#,
         )
         .unwrap();
         let list: Vec<ChannelInfo> = d.users.into_iter().flatten().map(Into::into).collect();
@@ -186,6 +191,7 @@ mod tests {
         assert_eq!((live.viewers, live.game.as_deref()), (5, Some("Chess")));
         assert!(list[1].stream.as_ref().unwrap().rerun);
         assert!(list[2].stream.is_none());
+        assert_eq!((list[0].offline_image.as_deref(), list[2].offline_image.as_deref()), (Some("o"), None));
     }
 
     #[test]

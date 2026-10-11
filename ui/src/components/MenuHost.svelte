@@ -15,15 +15,19 @@
       if (!box?.contains(e.target as Node)) closeMenu();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeMenu();
+      if (e.key !== 'Escape') return;
+      // Closes the menu only, not what it sits on (e.g. a clip).
+      e.preventDefault();
+      closeMenu();
     };
     addEventListener('mousedown', onDown, true);
-    addEventListener('keydown', onKey);
+    // Before anything that also closes on Escape.
+    addEventListener('keydown', onKey, true);
     addEventListener('blur', closeMenu);
     addEventListener('resize', closeMenu);
     return () => {
       removeEventListener('mousedown', onDown, true);
-      removeEventListener('keydown', onKey);
+      removeEventListener('keydown', onKey, true);
       removeEventListener('blur', closeMenu);
       removeEventListener('resize', closeMenu);
     };

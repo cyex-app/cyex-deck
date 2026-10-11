@@ -1,6 +1,7 @@
 <!-- The stream side of a tile: the live stream (1.1) or the channel's pages (1.21), with
      clips over the stream (1.20) and stories. While a page shows, the stream keeps
-     playing small in a corner (P4); a VOD or clip from a list stops it. -->
+     playing small in a corner (P4); a VOD or clip from a list stops it. Fullscreen takes
+     the whole body, so a clip opened over the stream shows there too (V101-26). -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
@@ -80,7 +81,7 @@
       <button onclick={onbringchat}>Bring it back</button>
     </div>
   {/if}
-  <div class="body">
+  <div class="body" data-fullscreen>
     {#if page.kind === 'about'}
       <AboutPage login={tile.channel.login} {account} onstories={() => (shared.stories = true)} />
     {:else if page.kind === 'clips'}
@@ -137,6 +138,9 @@
     flex: 1;
     min-height: 0;
     display: flex;
+  }
+  .body:fullscreen {
+    background: #000;
   }
   .popped {
     display: flex;

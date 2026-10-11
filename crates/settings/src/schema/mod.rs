@@ -39,7 +39,7 @@ pub use hotkeys::Hotkeys;
 pub use miner::{BetFilter, Bets, ChatPresence, DelayMode, FilterBy, FilterCmp, MAX_FIRST, MineSource, Miner, Rule, Strategy};
 pub use modview::Modview;
 pub use notifications::Notifications;
-pub use player::{Player, Quality};
+pub use player::{Corner, Player, Quality};
 pub use plugins::{PluginEntry, Plugins};
 pub use streammanager::{ActivityFilters, Obs, StreamManager};
 pub use tabs::{

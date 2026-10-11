@@ -1,10 +1,13 @@
 <!-- The frame every player shares: controls that show while the mouse moves, click to
-     play or pause, double-click for fullscreen (1.58), scroll for volume (P2). The
-     player used last gets the hotkeys (S2). -->
+     play or pause, double-click for fullscreen (1.58, V101-27), scroll for volume (P2),
+     right-click for the player's menu (V101-17). The player used or opened last gets the
+     hotkeys (S2) and the media keys (V101-29). -->
 <script lang="ts">
   import { onDestroy, type Snippet } from 'svelte';
 
+  import { type MenuEntry, openMenu } from '../../components/menu.svelte';
   import { type PlayerControls, players, toggleFullscreen } from './players.svelte';
+  import { hitInside } from './shell';
 
   interface Props {
     controls: PlayerControls;
@@ -12,12 +15,14 @@
     pinned?: boolean;
     /** P2 Scroll steps, + louder. */
     onvolume?: (step: number) => void;
+    /** V101-17 The right-click menu. */
+    menu?: () => MenuEntry[];
     top?: Snippet;
     bar?: Snippet;
     children: Snippet;
   }
 
-  let { controls, pinned = false, onvolume, top, bar, children }: Props = $props();
+  let { controls, pinned = false, onvolume, menu, top, bar, children }: Props = $props();
 
   let root = $state<HTMLElement>();
   let active = $state(false);
@@ -28,7 +33,11 @@
   const self: PlayerControls = {
     togglePlay: () => controls.togglePlay(),
     toggleMute: () => controls.toggleMute(),
-    toggleFullscreen: () => root && void toggleFullscreen(root),
+    toggleFullscreen: () => controls.toggleFullscreen(),
+    play: () => controls.play?.(),
+    pause: () => controls.pause?.(),
+    seekBy: controls.seekBy && ((s) => controls.seekBy?.(s)),
+    media: () => controls.media?.() ?? null,
   };
   const unregister = players.register(self);
   onDestroy(() => {
@@ -37,9 +46,10 @@
     clearTimeout(click);
   });
 
-  /** For the fullscreen button in the bar. */
+  /** For the player's `toggleFullscreen`. The surface around the player goes along, so
+   *  what shows over it stays on screen (V101-26). */
   export function fullscreen() {
-    self.toggleFullscreen();
+    if (root) void toggleFullscreen(root.closest<HTMLElement>('[data-fullscreen]') ?? root);
   }
 
   function wake() {
@@ -48,24 +58,35 @@
     idle = setTimeout(() => (active = false), 2500);
   }
 
+  /** Whether the event landed on this player's own controls (V101-27). */
+  const on = (e: Event, selector: string) => !root || hitInside(e.target as HTMLElement, root, selector);
+
   /** Clicks on the picture, not on the controls. */
   function onclick(e: MouseEvent) {
-    if ((e.target as HTMLElement).closest('.bar, .top, button, input, a')) return;
+    if (on(e, '.bar, .top, button, input, a')) return;
     clearTimeout(click);
     click = setTimeout(() => controls.togglePlay(), 220);
   }
 
   function ondblclick(e: MouseEvent) {
-    if ((e.target as HTMLElement).closest('.bar, .top')) return;
+    if (on(e, '.bar, .top, button, input, a')) return;
     clearTimeout(click);
     self.toggleFullscreen();
   }
 
   function onwheel(e: WheelEvent) {
-    if (!onvolume || (e.target as HTMLElement).closest('.menu')) return;
+    if (!onvolume || on(e, '.menu')) return;
     e.preventDefault();
     onvolume(e.deltaY < 0 ? 1 : -1);
     wake();
+  }
+
+  function oncontextmenu(e: MouseEvent) {
+    if (!menu || on(e, 'input')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    players.use(self);
+    openMenu(e, menu());
   }
 </script>
 
@@ -82,6 +103,7 @@
   {onclick}
   {ondblclick}
   {onwheel}
+  {oncontextmenu}
 >
   {@render children()}
   {#if top}<div class="top">{@render top()}</div>{/if}

@@ -5,7 +5,8 @@
   import Popover from '../../components/Popover.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { Level } from './engine.svelte';
-  import type { Choice } from './quality';
+  import { SPEEDS } from './menu';
+  import { type Choice, qualityOptions } from './quality';
 
   interface Props {
     levels: Level[];
@@ -23,15 +24,8 @@
   let { levels, level, choice, onchoose, stats, onstats, speed, onspeed }: Props = $props();
 
   let open = $state(false);
-  const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
-  const playing = $derived(levels.find((l) => l.index === level));
-
-  /** Fixed choices: the height each level caps at. */
-  function choiceOf(height: number): Choice {
-    const fixed = ['1080', '720', '480', '360', '160'] as const;
-    return fixed.find((h) => Number(h) <= height) ?? '160';
-  }
+  const options = $derived(qualityOptions(levels, level, choice));
 
   function pick(c: Choice) {
     onchoose(c);
@@ -46,16 +40,11 @@
   <Popover bind:open side="above">
     <div class="menu">
       <p class="head">Quality</p>
-      <button class:on={choice === 'auto'} onclick={() => pick('auto')}>
-        Auto{#if choice === 'auto' && playing}<span class="note">{playing.name}</span>{/if}
-      </button>
-      {#each levels.filter((l) => l.height > 0) as l, i (l.index)}
-        {@const c = i === 0 ? 'source' : choiceOf(l.height)}
-        <button class:on={choice === c} onclick={() => pick(c)}>
-          {l.name}{#if i === 0}<span class="note">Source</span>{/if}
+      {#each options as o, i (i)}
+        <button class:on={choice === o.choice} onclick={() => pick(o.choice)}>
+          {o.label}{#if o.hint}<span class="note">{o.hint}</span>{/if}
         </button>
       {/each}
-      <button class:on={choice === 'audio'} onclick={() => pick('audio')}>Audio only</button>
       {#if speed !== undefined && onspeed}
         <p class="head">Speed</p>
         <div class="speeds">

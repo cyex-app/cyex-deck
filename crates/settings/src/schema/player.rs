@@ -14,6 +14,8 @@ pub struct Player {
     pub low_latency: bool,
     /// What a player starts in. A player's own menu only changes that player.
     pub quality: Quality,
+    /// P4, V101-25 Where the small stream sits while the channel's pages show.
+    pub mini_corner: Corner,
 }
 
 impl Default for Player {
@@ -22,6 +24,7 @@ impl Default for Player {
             block_ads: true,
             low_latency: true,
             quality: Quality::Auto,
+            mini_corner: Corner::BottomRight,
         }
     }
 }
@@ -49,6 +52,18 @@ pub enum Quality {
     P160,
 }
 
+/// A corner of the player.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum Corner {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    #[default]
+    BottomRight,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -58,5 +73,8 @@ mod tests {
         let p: Player = serde_json::from_str(r#"{"quality":"720","blockAds":false}"#).unwrap();
         assert_eq!((p.quality, p.block_ads, p.low_latency), (Quality::P720, false, true));
         assert_eq!(serde_json::to_value(Quality::Auto).unwrap(), "auto");
+        assert_eq!(p.mini_corner, Corner::BottomRight);
+        let p: Player = serde_json::from_str(r#"{"miniCorner":"topLeft"}"#).unwrap();
+        assert_eq!(p.mini_corner, Corner::TopLeft);
     }
 }

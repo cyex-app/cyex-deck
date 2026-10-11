@@ -135,7 +135,8 @@ export class Engine {
         .map((l, index) => ({ index, name: l.height ? levelName(l) : 'Audio only', height: l.height }))
         .sort((a, b) => b.height - a.height);
       this.apply(false);
-      hls.startLoad();
+      // With autoStartLoad off hls.js skips `startPosition`: a VOD would start at 0 (P5, P7).
+      hls.startLoad(this.live ? -1 : this.startAt);
       void this.video.play().catch(() => {});
     });
     hls.on(Hls.Events.LEVEL_SWITCHED, (_, d) => (this.level = d.level));
