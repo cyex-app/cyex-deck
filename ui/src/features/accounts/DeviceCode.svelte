@@ -42,7 +42,6 @@
     </div>
     <p class="note">
       Waiting for you to approve. The code works for {formatDuration(left)}.
-      {#if signIn.kind === 'gql'}This signs in through Twitch's Android TV app.{/if}
     </p>
   {:else}
     <p class="lead">Getting a code…</p>

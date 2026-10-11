@@ -237,6 +237,7 @@
         maxlength={MAX * 2}
         placeholder={replyTo ? 'Write a reply' : `Message #${room.login}`}
         spellcheck={settings.v.chat.spellCheck}
+        data-native-menu={settings.v.chat.spellCheck ? '' : undefined}
         oninput={updateSuggest}
         onclick={updateSuggest}
         onfocus={focused}

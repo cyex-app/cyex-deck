@@ -7,7 +7,7 @@
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
   import IconButton from '../../components/IconButton.svelte';
-  import { openMenu, type MenuEntry } from '../../components/menu.svelte';
+  import { openMenuAt, type MenuEntry } from '../../components/menu.svelte';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import type { WhisperConversation } from '../../ipc/bindings/WhisperConversation';
   import type { WhisperEdit } from '../../ipc/bindings/WhisperEdit';
@@ -165,7 +165,7 @@
     if (history) {
       items.push(
         {
-          label: thread.muted ? 'Turn alerts back on' : 'Mute',
+          label: thread.muted ? 'Unmute alerts' : 'Mute alerts',
           icon: 'bellOff',
           run: () => void edit({ muted: !thread.muted }),
         },
@@ -179,14 +179,14 @@
         items.push({
           label: 'Take back their access',
           icon: 'lock',
-          hint: 'You whispered them, so they can whisper you for 48 hours.',
+          note: 'You whispered them, so they can whisper you for 48 hours.',
           run: () => void edit({ revoke: true }, 'They can’t whisper you anymore.'),
         });
       }
       items.push('separator');
     }
-    items.push({ label: `Block ${thread.other.name}`, icon: 'ban', danger: true, run: () => void block() });
-    openMenu(e, items);
+    items.push({ label: 'Block on Twitch', icon: 'ban', danger: true, run: () => void block() });
+    openMenuAt(e, items);
   }
 
   /** A date line where the day changes. */

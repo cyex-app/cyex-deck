@@ -13,6 +13,12 @@ pub enum AuthError {
     AppToken,
     #[error("That doesn't look like a token.")]
     NotAToken,
+    /// V101-08 The manual screen's name or user ID isn't the token's.
+    #[error("That token belongs to {0}.")]
+    OtherUser(String),
+    /// V101-08 The manual screen's client ID isn't the one the token was made for.
+    #[error("That token was made for client ID {0}.")]
+    OtherClient(String),
     #[error("The code expired. Start again.")]
     Expired,
     #[error("Sign-in was declined on Twitch.")]

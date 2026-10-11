@@ -5,6 +5,7 @@ mod browse;
 mod chat;
 mod chat_extra;
 mod emotes;
+mod fonts;
 mod miner;
 mod moderation;
 mod modes;
@@ -27,7 +28,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         accounts::accounts_snapshot,
         accounts::accounts_sign_in,
         accounts::accounts_cancel_sign_in,
-        accounts::accounts_add_token,
+        accounts::accounts_add_manual,
         accounts::accounts_remove,
         accounts::accounts_remove_token,
         accounts::accounts_set_default,
@@ -216,6 +217,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         theme::theme_code,
         theme::theme_import,
         theme::theme_pick_wallpaper,
+        fonts::fonts_add,
+        fonts::fonts_remove,
         modes::streamer_state,
         modes::streamer_toggle,
         modes::overlay_click_through,

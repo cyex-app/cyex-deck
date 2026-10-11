@@ -30,7 +30,7 @@ pub use chat::{
 };
 pub use commands::{Access, Automation, Commands, SavedTimer, TriggerMatch};
 pub use emotes::{EmoteKey, EmoteSource, EmoteUse, Emotes};
-pub use general::{ChatPosition, General, StreamerMode, StreamerWhen};
+pub use general::{ChatPosition, CustomFont, FONT_TYPES, General, font_name, StreamerMode, StreamerWhen};
 pub use highlights::{
     Alert, AppRule, BadgeRule, Blocked, BlockedShow, BuiltIn, FilterDef, HiddenUser, Highlights, IgnoreRule, PhraseRule,
     SentFrom, Similarity, UserRule,

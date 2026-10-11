@@ -10,6 +10,7 @@ mod chat;
 mod commands;
 mod connections;
 mod emotes;
+mod fonts;
 mod hermes;
 mod hotkeys;
 mod icons;
@@ -43,10 +44,12 @@ fn main() {
         .plugin(hotkeys::plugin())
         .register_asynchronous_uri_scheme_protocol(player::SCHEME, player::handle)
         .register_uri_scheme_protocol(theme::SCHEME, theme::handle)
+        .register_uri_scheme_protocol(fonts::SCHEME, fonts::handle)
         .setup(|app| {
             let handle = app.handle();
             settings::init(handle)?;
             theme::init(handle);
+            fonts::init(handle);
             streamer::init(handle);
             connections::init(handle);
             auth::init(handle)?;

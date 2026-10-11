@@ -109,12 +109,67 @@
 
 <h2>Chat</h2>
 
-<h3 class="label">GIFs and effects</h3>
-<Row label="GIFs">
-  <Segmented label="GIFs" options={GIFS} value={c.gifs} onchange={(v) => settings.patch('chat', { gifs: v })} />
+<h3 class="label">History</h3>
+<Row label="Recent history" hint="Shows the last messages, dimmed, when you open a chat.">
+  <Toggle label="Recent history" checked={c.history} onchange={(v) => settings.patch('chat', { history: v })} />
 </Row>
-<Row label="Effects" hint="Animated messages, giant emotes and celebrations, as Twitch shows them.">
-  <Toggle label="Effects" checked={c.effects} onchange={(v) => settings.patch('chat', { effects: v })} />
+<Row label="History to load" hint="Up to this many. The history service keeps 800 per channel.">
+  <select
+    class="field"
+    disabled={!c.history}
+    value={c.historyLines}
+    onchange={(e) => settings.patch('chat', { historyLines: Number(e.currentTarget.value) })}
+  >
+    {#each LOADED as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
+  </select>
+</Row>
+<Row label="Messages kept" hint="Per chat. Older ones drop off the top; more uses more memory.">
+  <select
+    class="field"
+    value={c.scrollback}
+    onchange={(e) => settings.patch('chat', { scrollback: Number(e.currentTarget.value) })}
+  >
+    {#each KEPT as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
+  </select>
+</Row>
+
+<h3 class="label">Messages</h3>
+<Row label="Names" hint="Both adds the login when the display name is in another script.">
+  <Segmented label="Names" options={NAMES} value={c.names} onchange={(v) => settings.patch('chat', { names: v })} />
+</Row>
+<Row label="Deleted messages" hint="Removed by a mod, or from someone timed out or banned.">
+  <Segmented
+    label="Deleted messages"
+    options={DELETED}
+    value={c.deleted}
+    onchange={(v) => settings.patch('chat', { deleted: v })}
+  />
+</Row>
+<Row label="Count repeats" hint="Someone saying the same thing again adds a count to their line.">
+  <Toggle label="Count repeats" checked={c.repeats} onchange={(v) => settings.patch('chat', { repeats: v })} />
+</Row>
+{#if c.repeats}
+  <Row label="Counts as the same">
+    <Segmented
+      label="Counts as the same"
+      options={SIMILAR}
+      value={c.repeatSimilarity}
+      onchange={(v) => settings.patch('chat', { repeatSimilarity: v })}
+    />
+  </Row>
+{/if}
+<Row label="Show where it was sent from" hint="An icon for messages from the website or the phone apps.">
+  <Toggle label="Show where it was sent from" checked={c.showClient} onchange={(v) => settings.patch('chat', { showClient: v })} />
+</Row>
+<Row label="Alternate line backgrounds">
+  <Toggle
+    label="Alternate line backgrounds"
+    checked={c.alternateLines}
+    onchange={(v) => settings.patch('chat', { alternateLines: v })}
+  />
+</Row>
+<Row label="Lines between messages">
+  <Toggle label="Lines between messages" checked={c.separators} onchange={(v) => settings.patch('chat', { separators: v })} />
 </Row>
 
 <h3 class="label">Timestamps</h3>
@@ -142,51 +197,6 @@
   />
 </Row>
 
-<h3 class="label">Messages</h3>
-<Row label="Recent history" hint="Shows the last messages, dimmed, when you open a chat.">
-  <Toggle label="Recent history" checked={c.history} onchange={(v) => settings.patch('chat', { history: v })} />
-</Row>
-<Row label="History to load" hint="Up to this many. The history service keeps 800 per channel.">
-  <select
-    class="field"
-    disabled={!c.history}
-    value={c.historyLines}
-    onchange={(e) => settings.patch('chat', { historyLines: Number(e.currentTarget.value) })}
-  >
-    {#each LOADED as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
-  </select>
-</Row>
-<Row label="Messages kept" hint="Per chat. Older ones drop off the top; more uses more memory.">
-  <select
-    class="field"
-    value={c.scrollback}
-    onchange={(e) => settings.patch('chat', { scrollback: Number(e.currentTarget.value) })}
-  >
-    {#each KEPT as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
-  </select>
-</Row>
-<Row label="Deleted messages" hint="Removed by a mod, or from someone timed out or banned.">
-  <Segmented
-    label="Deleted messages"
-    options={DELETED}
-    value={c.deleted}
-    onchange={(v) => settings.patch('chat', { deleted: v })}
-  />
-</Row>
-<Row label="Names" hint="Both adds the login when the display name is in another script.">
-  <Segmented label="Names" options={NAMES} value={c.names} onchange={(v) => settings.patch('chat', { names: v })} />
-</Row>
-<Row label="Alternate line backgrounds">
-  <Toggle
-    label="Alternate line backgrounds"
-    checked={c.alternateLines}
-    onchange={(v) => settings.patch('chat', { alternateLines: v })}
-  />
-</Row>
-<Row label="Lines between messages">
-  <Toggle label="Lines between messages" checked={c.separators} onchange={(v) => settings.patch('chat', { separators: v })} />
-</Row>
-
 <h3 class="label">Scrolling</h3>
 <Row label="Pause on hover" hint="Chat stops moving while the mouse is over it.">
   <Toggle label="Pause on hover" checked={c.pauseOnHover} onchange={(v) => settings.patch('chat', { pauseOnHover: v })} />
@@ -212,23 +222,6 @@
 <Row label="Last-read line" hint="Marks where you were when you switched away.">
   <Toggle label="Last-read line" checked={c.lastReadLine} onchange={(v) => settings.patch('chat', { lastReadLine: v })} />
 </Row>
-
-<Row label="Count repeats" hint="Someone saying the same thing again adds a count to their line.">
-  <Toggle label="Count repeats" checked={c.repeats} onchange={(v) => settings.patch('chat', { repeats: v })} />
-</Row>
-{#if c.repeats}
-  <Row label="Counts as the same">
-    <Segmented
-      label="Counts as the same"
-      options={SIMILAR}
-      value={c.repeatSimilarity}
-      onchange={(v) => settings.patch('chat', { repeatSimilarity: v })}
-    />
-  </Row>
-{/if}
-<Row label="Show where it was sent from" hint="An icon for messages from the website or the phone apps.">
-  <Toggle label="Show where it was sent from" checked={c.showClient} onchange={(v) => settings.patch('chat', { showClient: v })} />
-</Row>
 <Row label="Hold chat back" hint="Waits this long before showing messages, to match the stream's delay.">
   <select
     class="field"
@@ -253,6 +246,14 @@
 </Row>
 <Row label="Cards under messages" hint="Also shows the preview below the message.">
   <Toggle label="Cards under messages" checked={c.linkCards} onchange={(v) => settings.patch('chat', { linkCards: v })} />
+</Row>
+
+<h3 class="label">GIFs and effects</h3>
+<Row label="GIFs">
+  <Segmented label="GIFs" options={GIFS} value={c.gifs} onchange={(v) => settings.patch('chat', { gifs: v })} />
+</Row>
+<Row label="Effects" hint="Animated messages, giant emotes and celebrations, as Twitch shows them.">
+  <Toggle label="Effects" checked={c.effects} onchange={(v) => settings.patch('chat', { effects: v })} />
 </Row>
 
 <h3 class="label">Writing and reading</h3>

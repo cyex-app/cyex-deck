@@ -7,7 +7,7 @@
   import EmptyState from '../../components/EmptyState.svelte';
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
-  import { openMenu } from '../../components/menu.svelte';
+  import { openMenuAt } from '../../components/menu.svelte';
   import type { WhisperThread } from '../../ipc/bindings/WhisperThread';
   import { whispersIpc } from '../../ipc/whispers';
   import { ago } from '../../lib/format';
@@ -60,7 +60,7 @@
   }
 
   function more(e: MouseEvent) {
-    openMenu(e, [
+    openMenuAt(e, [
       {
         label: 'Mark all read',
         icon: 'checkCheck',
@@ -68,7 +68,9 @@
         run: () => whispersIpc.readAll().catch((err) => toast.error(String(err))),
       },
       {
-        label: 'Only people I follow or whispered can whisper me',
+        label: 'Block whispers from strangers',
+        icon: 'lock',
+        note: 'Only people you follow or whispered can whisper you.',
         checked: s.blockStrangers,
         disabled: !s.history,
         run: () => whispersIpc.blockStrangers(!s.blockStrangers).catch((err) => toast.error(String(err))),

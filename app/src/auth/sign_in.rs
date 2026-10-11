@@ -1,6 +1,7 @@
 //! Adding and removing accounts (1.3, 1.4, 1.5, 1.23).
 
 use cyex_auth::inspect::{Inspected, inspect};
+use cyex_auth::paste::ManualToken;
 use cyex_auth::{AuthError, Secret, TokenKind, device, paste, roster};
 use cyex_settings::schema::TokenSource;
 use serde::Serialize;
@@ -41,11 +42,14 @@ pub async fn sign_in_device(
     save(app, &who, kind, secret, TokenSource::Device)
 }
 
-/// Adds a pasted token (1.4). First-party tokens become the GQL token, others Helix.
-pub async fn add_pasted(app: &AppHandle, text: &str) -> Result<String, AuthError> {
-    let token = paste::token_from(text).ok_or(AuthError::NotAToken)?;
+/// Adds a token someone has (1.4, V101-08): the token alone in any common form, or with
+/// the name, user ID and client ID Chatterino asks for, which must then be the token's own.
+/// First-party tokens become the GQL token, others Helix.
+pub async fn add_manual(app: &AppHandle, fields: &ManualToken) -> Result<String, AuthError> {
+    let token = paste::token_from(&fields.token).ok_or(AuthError::NotAToken)?;
     let auth = app.state::<Auth>();
     let who = inspect(&auth.http, &token).await?;
+    paste::check(fields, &who.validation)?;
     let kind = TokenKind::for_client(&who.validation.client_id);
     let secret = Secret {
         access: token,

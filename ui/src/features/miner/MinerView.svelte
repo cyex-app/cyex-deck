@@ -5,7 +5,7 @@
   import Button from '../../components/Button.svelte';
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
-  import { type MenuEntry, openMenu } from '../../components/menu.svelte';
+  import { type MenuEntry, openMenuAt } from '../../components/menu.svelte';
   import Segmented from '../../components/Segmented.svelte';
   import Toggle from '../../components/Toggle.svelte';
   import { accounts } from '../../lib/accounts.svelte';
@@ -56,7 +56,7 @@
       checked: a.userId === miner.status?.account,
       run: () => void settings.patch('miner', { account: a.userId }),
     }));
-    openMenu(e, items);
+    openMenuAt(e, items);
   }
 </script>
 

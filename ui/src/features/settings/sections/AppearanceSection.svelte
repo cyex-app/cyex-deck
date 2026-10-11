@@ -77,10 +77,13 @@
   }
 
   async function presets(e: MouseEvent) {
+    // Under the button (V101-30); the event's target is gone after the wait.
+    const at = e.currentTarget as HTMLElement;
     const list = await themeIpc.presets();
     openMenu(
-      e,
+      at,
       list.map((p) => ({ label: p.name, run: () => void add(p) })),
+      'end',
     );
   }
 
@@ -134,6 +137,7 @@
 
 <h2>Appearance</h2>
 
+<h3 class="label">Colors</h3>
 <Row label="Theme" hint="Make your own with New, or paste a code someone shared." stacked>
   <div class="themes" role="radiogroup" aria-label="Theme">
     {#each BASES as base (base)}
@@ -185,6 +189,7 @@
   <Toggle label="Sample" checked={true} onchange={() => {}} />
 </div>
 
+<h3 class="label">Tabs</h3>
 <Row label="Tab size" hint="Compact fits more tabs.">
   <Segmented
     label="Tab size"
@@ -202,9 +207,9 @@
   />
 </Row>
 
-<Row label="Tab bar position">
+<Row label="Bar position">
   <Segmented
-    label="Tab bar position"
+    label="Bar position"
     options={SIDES}
     value={a.tabBarSide}
     onchange={(v) => settings.patch('appearance', { tabBarSide: v })}
@@ -223,6 +228,9 @@
 <ResetSection partition="appearance" />
 
 <style>
+  h3 {
+    margin: 22px 0 2px;
+  }
   .themes {
     display: flex;
     flex-wrap: wrap;

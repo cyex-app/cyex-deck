@@ -79,9 +79,10 @@ export function userItems(role: ModRole, login: string, run: Run): MenuEntry[] {
       icon: 'clock',
       items: timeouts().map((t) => ({ label: t.label, run: () => run(`/timeout ${login} ${t.secs}`) })),
     },
-    { label: 'Ban', icon: 'ban', danger: true, run: () => run(`/ban ${login}`) },
-    { label: 'Unban', icon: 'undo', run: () => run(`/unban ${login}`) },
     { label: 'Warn', icon: 'alert', run: () => run(`/warn ${login} `) },
+    { label: 'Unban', icon: 'undo', run: () => run(`/unban ${login}`) },
+    // V101-30 What can't be undone comes last.
+    { label: 'Ban', icon: 'ban', danger: true, run: () => run(`/ban ${login}`) },
     'separator',
     ...treatItems(role, login, run),
   ];
@@ -112,11 +113,11 @@ export function pinItems(msgId: string, run: Run): MenuEntry[] {
   }));
 }
 
-/** Mod actions on a message: delete, pin (1.49, 1.9). */
+/** Mod actions on a message: pin, delete (1.49, 1.9). */
 export function messageItems(msgId: string, run: Run): MenuEntry[] {
   return [
-    { label: 'Delete message', icon: 'trash', danger: true, run: () => run(`/delete ${msgId}`) },
     { label: 'Pin message', icon: 'pin', items: pinItems(msgId, run) },
+    { label: 'Delete message', icon: 'trash', danger: true, run: () => run(`/delete ${msgId}`) },
   ];
 }
 

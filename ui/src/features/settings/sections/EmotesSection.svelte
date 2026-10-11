@@ -46,7 +46,7 @@
   );
 </script>
 
-<h2>Emotes</h2>
+<h2>Emotes and badges</h2>
 
 <h3 class="label">Emotes</h3>
 <Row label="Twitch emotes">

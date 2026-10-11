@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { group } from './notify.ts';
+import { countOn, group, sends } from './notify.ts';
 
 test("Twitch's switches group like twitch.tv", () => {
-  const groups = group([
+  const s = group([
     { category: 'LIVE', platform: 'email', on: false },
     { category: 'LIVE', platform: 'onsite', on: true },
     { category: 'LIVE', platform: 'smart', on: true },
@@ -12,14 +12,33 @@ test("Twitch's switches group like twitch.tv", () => {
     { category: 'following_category', platform: 'email', on: true },
     { category: 'CHAT', platform: 'push', on: true },
     { category: 'NEW_THING', platform: 'push', on: false },
+    { category: 'new_category', platform: 'push', on: true },
   ]);
   assert.deepEqual(
-    groups.map((g) => [g.label, g.categories.map((c) => c.label)]),
+    s.groups.map((g) => [g.label, g.master?.id ?? null, g.categories.map((c) => c.label)]),
     [
-      ['Channels you follow', ['Going live']],
-      ['People', ['Chat mentions']],
-      ['Other', ['New thing']],
+      ['Channels you follow', 'following_category', ['Going live']],
+      ['People', null, ['Chat mentions']],
+      ['Other', null, ['New thing']],
     ],
   );
-  assert.deepEqual(groups[0].categories[0].on, { email: false, onsite: true });
+  assert.deepEqual(s.groups[0].categories[0].on, { email: false, onsite: true });
+  assert.deepEqual(s.all?.on, { email: true });
+});
+
+test('V101-06 a group sends only while it and Everything are on', () => {
+  const s = group([
+    { category: 'ALL', platform: 'email', on: false },
+    { category: 'ALL', platform: 'push', on: true },
+    { category: 'social_category', platform: 'push', on: false },
+    { category: 'social_category', platform: 'onsite', on: true },
+    { category: 'CHAT', platform: 'onsite', on: true },
+    { category: 'CLIPS', platform: 'onsite', on: false },
+  ]);
+  const people = s.groups[0];
+  assert.equal(sends(s, people, 'email'), false);
+  assert.equal(sends(s, people, 'push'), false);
+  assert.equal(sends(s, people, 'onsite'), true);
+  assert.deepEqual(countOn(people, 'onsite'), [1, 2]);
+  assert.deepEqual(countOn(people, 'email'), [0, 0]);
 });

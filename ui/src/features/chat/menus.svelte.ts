@@ -46,9 +46,9 @@ export function toItems(entries: MenuEntry[], run: (command: string) => void): I
       case 'separator':
         return 'separator';
       case 'sub':
-        return { label: e.label, items: toItems(e.items, run) };
+        return { label: e.label, icon: 'list', items: toItems(e.items, run) };
       case 'item':
-        return { label: e.label, run: () => run(e.command) };
+        return { label: e.label, icon: 'terminal', run: () => run(e.command) };
     }
   });
 }

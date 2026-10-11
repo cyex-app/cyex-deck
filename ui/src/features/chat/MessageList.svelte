@@ -268,7 +268,8 @@
     };
   }
 
-  /** Right-click a name: usercard, mention, search, mod actions, hide or block, your own (S1). */
+  /** Right-click a name: usercard, mention, search, mod actions, hide or block, your own (S1).
+   * Same order as every menu (V101-30): main action, others, go somewhere, copy, then red last. */
   function userMenu(e: MouseEvent, login: string, m: ChatMessage | undefined) {
     const own = userMenus.current.user;
     const ctx = context(m, login);
@@ -283,7 +284,7 @@
       { label: 'Copy name', icon: 'copy', run: () => void navigator.clipboard.writeText(login) },
       ...(canMod ? ['separator' as const, ...userItems(role, login, command)] : []),
       'separator',
-      { label: 'Hide for me', icon: 'eyeOff', hint: 'Only for you, not on Twitch', run: () => command(`/hideuser ${login}`) },
+      { label: 'Hide for me', icon: 'eyeOff', note: 'Only for you, not on Twitch', run: () => command(`/hideuser ${login}`) },
       ...(room.account ? [{ label: 'Block on Twitch', icon: 'ban' as const, danger: true, run: () => command(`/block ${login}`) }] : []),
       ...(own.length ? ['separator' as const, ...toItems(own, (cmd) => runEntry(room.view, cmd, ctx, onaction))] : []),
     ]);
@@ -300,7 +301,6 @@
     const canPin = role && m.sender && !m.notice && !canMod;
     openMenu(e, [
       ...(canReply && m.sender && !m.notice ? [{ label: 'Reply', icon: 'reply' as const, run: () => onreply(m.id) }] : []),
-      { label: 'Copy message', icon: 'copy', run: () => void navigator.clipboard.writeText(plainText(m.body)) },
       ...(m.sender && !m.notice
         ? [
             {
@@ -311,7 +311,10 @@
             { label: 'Their messages', icon: 'search' as const, run: () => onaction?.({ type: 'search', query: `from:${login}` }) },
           ]
         : []),
-      ...(canMod ? ['separator' as const, ...messageItems(m.id, command), ...userItems(role, login, command)] : []),
+      { label: 'Copy message', icon: 'copy', run: () => void navigator.clipboard.writeText(plainText(m.body)) },
+      ...(canMod
+        ? ['separator' as const, ...messageItems(m.id, command), 'separator' as const, ...userItems(role, login, command)]
+        : []),
       ...(canPin ? ['separator' as const, { label: 'Pin message', icon: 'pin' as const, items: pinItems(m.id, command) }] : []),
       ...(own.length ? ['separator' as const, ...toItems(own, (cmd) => runEntry(room.view, cmd, ctx, onaction))] : []),
       // S5 Entries plugins added.
@@ -353,11 +356,12 @@
     const { emote } = t;
     hideTip();
     openMenu(e, [
-      { label: 'Emote card', run: () => (card = t) },
-      { label: 'Copy name', run: () => void navigator.clipboard.writeText(emote.name) },
+      { label: 'Emote card', icon: 'smile', run: () => (card = t) },
+      { label: 'Copy name', icon: 'copy', run: () => void navigator.clipboard.writeText(emote.name) },
       'separator',
       {
         label: `Hide ${emote.name}`,
+        icon: 'eyeOff',
         run: () => hidden.hide({ source: emote.provider, id: emote.id, name: emote.name }),
       },
     ]);

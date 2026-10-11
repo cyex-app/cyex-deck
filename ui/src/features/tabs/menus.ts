@@ -42,8 +42,8 @@ export function tabMenu(tab: Tab, targets: Tab[]): MenuEntry[] {
     { label: one ? 'Group' : `Group ${targets.length} tabs`, icon: 'tag', items: groupItems(targets) },
     'separator',
     { label: one ? 'Close' : `Close ${targets.length} tabs`, icon: 'x', run: () => tabs.close(ids) },
-    { label: 'Close other tabs', disabled: !others.length, run: () => tabs.close(others) },
-    { label: 'Close tabs after this', disabled: !after.length, run: () => tabs.close(after) },
+    { label: 'Close other tabs', icon: 'x', disabled: !others.length, run: () => tabs.close(others) },
+    { label: 'Close tabs after this', icon: 'x', disabled: !after.length, run: () => tabs.close(after) },
     reopenEntry(),
   );
   return entries;
@@ -114,6 +114,7 @@ function groupItems(targets: Tab[]): MenuEntry[] {
   if (targets.some((t) => t.group)) {
     items.push('separator', {
       label: 'Remove from group',
+      icon: 'x',
       run: () => void tabs.apply({ op: 'group', tabs: ids, group: null }),
     });
   }
@@ -144,6 +145,7 @@ export function groupMenu(group: TabGroup): MenuEntry[] {
     },
     { label: 'Ungroup', icon: 'tag', run: () => void tabs.apply({ op: 'ungroup', group: group.id }) },
     'separator',
-    { label: `Close ${members.length} tabs`, icon: 'x', danger: true, run: () => tabs.close(members) },
+    // V101-30 Not red: closed tabs come back with Reopen closed tab.
+    { label: `Close ${members.length} tabs`, icon: 'x', run: () => tabs.close(members) },
   ];
 }

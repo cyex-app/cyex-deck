@@ -1,23 +1,10 @@
-// Right-click menus. One shared menu per window, drawn by MenuHost.
+// Right-click and ⋯ menus. One shared menu per window, drawn by MenuHost. The rules every
+// menu follows are in `menuItems.ts` (V101-30).
 
 import { type Align, point, type Rect } from '../lib/place';
-import type { IconName } from './icons';
+import { type MenuEntry, type MenuItem, tidy } from './menuItems';
 
-export interface MenuItem {
-  label: string;
-  icon?: IconName;
-  /** A color dot instead of an icon, e.g. a tab group's color. */
-  swatch?: string;
-  hint?: string;
-  checked?: boolean;
-  danger?: boolean;
-  disabled?: boolean;
-  run?: () => void;
-  /** Opens a second list in place of this one. */
-  items?: MenuEntry[];
-}
-
-export type MenuEntry = MenuItem | 'separator';
+export type { MenuEntry, MenuItem } from './menuItems';
 
 export const menu = $state({
   open: false,
@@ -36,8 +23,13 @@ export function openMenu(
 ): void {
   menu.anchor = at instanceof Element ? at.getBoundingClientRect() : point(at.clientX, at.clientY);
   menu.align = align;
-  menu.stack = [{ title: '', items }];
+  menu.stack = [{ title: '', items: tidy(items) }];
   menu.open = true;
+}
+
+/** Under the button that was clicked, lined up with its right edge (⋯ buttons and pickers). */
+export function openMenuAt(e: { currentTarget: EventTarget | null }, items: MenuEntry[]): void {
+  if (e.currentTarget instanceof Element) openMenu(e.currentTarget, items, 'end');
 }
 
 export function closeMenu(): void {
@@ -47,7 +39,7 @@ export function closeMenu(): void {
 export function pick(item: MenuItem): void {
   if (item.disabled) return;
   if (item.items) {
-    menu.stack = [...menu.stack, { title: item.label, items: item.items }];
+    menu.stack = [...menu.stack, { title: item.label, items: tidy(item.items) }];
     return;
   }
   menu.open = false;

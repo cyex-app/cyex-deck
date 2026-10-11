@@ -1,6 +1,7 @@
 //! Account commands (1.3, 1.4, 1.5, 1.13, 1.23).
 
 use cyex_auth::TokenKind;
+use cyex_auth::paste::ManualToken;
 use cyex_chat::ConnectionCount;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, State};
@@ -35,10 +36,11 @@ pub fn accounts_cancel_sign_in(auth: State<Auth>) {
     auth.cancel_sign_in();
 }
 
-/// Adds a pasted token (1.4). Resolves with the display name.
+/// Adds a token someone has (1.4, V101-08): name, user ID, client ID and token, where only
+/// the token is needed. Resolves with the display name.
 #[tauri::command]
-pub async fn accounts_add_token(app: AppHandle, text: String) -> CmdResult<String> {
-    auth::add_pasted(&app, &text).await.map_err(|e| e.to_string())
+pub async fn accounts_add_manual(app: AppHandle, fields: ManualToken) -> CmdResult<String> {
+    auth::add_manual(&app, &fields).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]

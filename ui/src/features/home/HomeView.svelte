@@ -7,7 +7,7 @@
   import Button from '../../components/Button.svelte';
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
-  import { type MenuEntry, openMenu } from '../../components/menu.svelte';
+  import { type MenuEntry, openMenuAt } from '../../components/menu.svelte';
   import type { ChannelCard } from '../../ipc/bindings/ChannelCard';
   import type { GameRef } from '../../ipc/bindings/GameRef';
   import type { LiveSort } from '../../ipc/bindings/LiveSort';
@@ -75,7 +75,7 @@
       const a = accounts.list.find((x) => x.userId === id)!;
       return { label: a.displayName, checked: id === home.account, run: () => (home.picked = id) };
     });
-    openMenu(e, items);
+    openMenuAt(e, items);
   }
 
   function sortMenu(e: MouseEvent) {
@@ -88,7 +88,7 @@
       ['lastLive', 'Live most recently'],
       ['name', 'Name'],
     ];
-    openMenu(e, [
+    openMenuAt(e, [
       {
         label: 'Live channels',
         items: live.map(([v, label]) => ({

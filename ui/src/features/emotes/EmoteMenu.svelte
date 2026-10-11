@@ -100,6 +100,7 @@
     openMenu(e, [
       {
         label: on ? 'Remove from favorites' : 'Add to favorites',
+        icon: on ? 'starFilled' : 'star',
         run: () =>
           void settings.patch('emotes', {
             favorites: on

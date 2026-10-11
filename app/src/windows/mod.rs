@@ -40,6 +40,9 @@ pub fn builder<'a>(
         .visible(false)
         .background_color(crate::theme::background(app))
         .additional_browser_args(BROWSER_ARGS)
+        // V101-30 Paste in the app's own right-click menu. Only the app's pages run here;
+        // plugins are Lua and Twitch's pages have their own window.
+        .enable_clipboard_access()
 }
 
 pub fn init(app: &AppHandle) -> tauri::Result<()> {

@@ -60,6 +60,8 @@ export function previewTip(node: HTMLElement, preview: LinkPreview): void {
 
 function show(node: HTMLElement, opts: TipOptions): void {
   clearTimeout(timer);
+  // Nothing to say, e.g. a menu item without a note.
+  if (!opts.label && !opts.image) return;
   owner = node;
   const delay = performance.now() - lastHidden < WARM_MS ? 0 : SHOW_DELAY_MS;
   timer = setTimeout(() => {

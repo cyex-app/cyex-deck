@@ -1,13 +1,38 @@
-<!-- Draws the shared right-click menu at the pointer, kept inside the window (V101-04). -->
+<!-- Draws the shared menu at the pointer or under its button, kept inside the window
+     (V101-04). Arrow keys move through it, Right opens a submenu, Left goes back (V101-30). -->
 <script lang="ts">
   import { floating } from '../lib/place';
+  import { settings } from '../lib/settings.svelte';
+  import Avatar from './Avatar.svelte';
   import Icon from './Icon.svelte';
   import { back, closeMenu, menu, pick } from './menu.svelte';
+  import { tooltip } from './tooltip.svelte';
 
   let box = $state<HTMLElement>();
   const list = $derived(menu.stack.at(-1));
   /** A button's menu sits just under it; one at the pointer starts right there. */
   const gap = $derived(menu.anchor.bottom > menu.anchor.top ? 4 : 0);
+
+  /** Moves the keyboard focus through the items that can be picked. */
+  function move(step: number) {
+    const items = [...(box?.querySelectorAll<HTMLButtonElement>('.item:not(:disabled)') ?? [])];
+    if (!items.length) return;
+    const at = items.indexOf(document.activeElement as HTMLButtonElement);
+    const next = at < 0 ? (step > 0 ? 0 : items.length - 1) : Math.min(Math.max(at + step, 0), items.length - 1);
+    items[next].focus();
+  }
+
+  // Keys go to the menu while it's open; focus goes back where it was when it closes.
+  $effect(() => {
+    if (!menu.open || !box) return;
+    const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    box.focus({ preventScroll: true });
+    return () => {
+      if (before?.isConnected && (document.activeElement === document.body || document.activeElement === null)) {
+        before.focus({ preventScroll: true });
+      }
+    };
+  });
 
   $effect(() => {
     if (!menu.open) return;
@@ -15,10 +40,17 @@
       if (!box?.contains(e.target as Node)) closeMenu();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      // Closes the menu only, not what it sits on (e.g. a clip).
+      const steps: Record<string, number> = { ArrowDown: 1, ArrowUp: -1, Home: -999, End: 999 };
+      if (e.key in steps) move(steps[e.key]);
+      else if (e.key === 'ArrowLeft' && menu.stack.length > 1) back();
+      else if (e.key === 'ArrowRight' && document.activeElement instanceof HTMLElement && document.activeElement.dataset.sub) {
+        document.activeElement.click();
+      } else if (e.key === 'Escape') {
+        // Closes the menu only, not what it sits on (e.g. a clip).
+        closeMenu();
+      } else return;
       e.preventDefault();
-      closeMenu();
+      e.stopPropagation();
     };
     addEventListener('mousedown', onDown, true);
     // Before anything that also closes on Escape.
@@ -60,13 +92,17 @@
           role={entry.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
           aria-checked={entry.checked}
           disabled={entry.disabled}
+          data-sub={entry.items ? '1' : undefined}
           onclick={() => pick(entry)}
+          use:tooltip={{ label: entry.note && settings.v.general.tooltips ? entry.note : '' }}
         >
           {#if entry.swatch}<span class="swatch" style:background={entry.swatch}></span>
+          {:else if entry.avatar !== undefined}<Avatar src={entry.avatar} name={entry.label} size={18} />
           {:else if entry.icon}<Icon name={entry.icon} size={14} />
           {:else}<span class="blank"></span>{/if}
           <span class="text">{entry.label}</span>
           {#if entry.hint}<span class="hint">{entry.hint}</span>{/if}
+          {#if entry.warn}<span class="warn"><Icon name="alert" size={14} /></span>{/if}
           {#if entry.checked}<span class="check"><Icon name="check" size={14} /></span>{/if}
           {#if entry.items}<Icon name="chevronRight" size={13} />{/if}
         </button>
@@ -102,8 +138,13 @@
     color: var(--text);
     text-align: left;
   }
-  .item:hover:not(:disabled) {
+  .item:hover:not(:disabled),
+  .item:focus-visible {
     background: var(--surface-hover);
+    outline: none;
+  }
+  .menu:focus {
+    outline: none;
   }
   .item:disabled {
     opacity: 0.45;
@@ -137,6 +178,10 @@
   .check {
     display: flex;
     color: var(--accent-text);
+  }
+  .warn {
+    display: flex;
+    color: var(--yellow);
   }
   hr {
     margin: 4px 0;

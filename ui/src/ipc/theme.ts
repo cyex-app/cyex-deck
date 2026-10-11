@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 
 import type { AccentTokens } from './bindings/AccentTokens';
+import type { CustomFont } from './bindings/CustomFont';
 import type { CustomTheme } from './bindings/CustomTheme';
 import type { ThemeLook } from './bindings/ThemeLook';
 import type { Theme } from './bindings/Theme';
@@ -17,4 +18,12 @@ export const themeIpc = {
   import: (code: string) => invoke<string>('theme_import', { code }),
   /** File name in the app's wallpapers folder, or null when cancelled. */
   pickWallpaper: () => invoke<string | null>('theme_pick_wallpaper'),
+};
+
+/** V101-10 Chat font files the user adds. */
+export const fontsIpc = {
+  /** Picks a font file and makes it the chat font; null when cancelled. */
+  add: () => invoke<CustomFont | null>('fonts_add'),
+  /** Forgets an added font and deletes its copy. */
+  remove: (name: string) => invoke<void>('fonts_remove', { name }),
 };

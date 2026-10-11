@@ -1,4 +1,5 @@
-<!-- Settings (spec 12). Opens in the main window or as its own window. -->
+<!-- Settings (spec 12). Opens in the main window or as its own window. The list is in groups
+     (V101-07); narrow windows show icons only, with lines between the groups. -->
 <script lang="ts">
   import type { Component } from 'svelte';
 
@@ -37,39 +38,70 @@
 
   let { popout = false, onpopout, section = $bindable('general') }: Props = $props();
 
-  const SECTIONS: { id: string; label: string; icon: IconName; component: Component }[] = [
-    { id: 'general', label: 'General', icon: 'sliders', component: GeneralSection },
-    { id: 'accounts', label: 'Accounts', icon: 'user', component: AccountsSection },
-    { id: 'notifications', label: 'Notifications', icon: 'bell', component: NotificationsSection },
-    { id: 'streamer', label: 'Streamer mode', icon: 'monitor', component: StreamerSection },
-    { id: 'appearance', label: 'Appearance', icon: 'palette', component: AppearanceSection },
-    { id: 'chat', label: 'Chat', icon: 'chat', component: ChatSection },
-    { id: 'highlights', label: 'Highlights', icon: 'star', component: HighlightsSection },
-    { id: 'ignores', label: 'Ignores', icon: 'eyeOff', component: IgnoresSection },
-    { id: 'filters', label: 'Filters', icon: 'filter', component: FiltersSection },
-    { id: 'commands', label: 'Commands', icon: 'pencil', component: CommandsSection },
-    { id: 'automations', label: 'Automations', icon: 'zap', component: AutomationsSection },
-    { id: 'plugins', label: 'Plugins', icon: 'puzzle', component: PluginsSection },
-    { id: 'recordings', label: 'Recordings', icon: 'record', component: RecordingsSection },
-    { id: 'emotes', label: 'Emotes', icon: 'smile', component: EmotesSection },
-    { id: 'miner', label: 'Miner', icon: 'pickaxe', component: MinerSection },
-    { id: 'streammanager', label: 'Stream manager', icon: 'radio', component: StreamManagerSection },
-    { id: 'player', label: 'Player', icon: 'tv', component: PlayerSection },
-    { id: 'hotkeys', label: 'Hotkeys', icon: 'keyboard', component: HotkeysSection },
-    { id: 'windows', label: 'Windows', icon: 'layout', component: WindowsSection },
-    { id: 'data', label: 'Backup and sharing', icon: 'archive', component: DataSection },
+  type Entry = { id: string; label: string; icon: IconName; component: Component };
+
+  const GROUPS: { label: string; sections: Entry[] }[] = [
+    {
+      label: 'App',
+      sections: [
+        { id: 'general', label: 'General', icon: 'sliders', component: GeneralSection },
+        { id: 'appearance', label: 'Appearance', icon: 'palette', component: AppearanceSection },
+        { id: 'windows', label: 'Windows', icon: 'layout', component: WindowsSection },
+        { id: 'hotkeys', label: 'Hotkeys', icon: 'keyboard', component: HotkeysSection },
+        { id: 'plugins', label: 'Plugins', icon: 'puzzle', component: PluginsSection },
+        { id: 'data', label: 'Backup and sharing', icon: 'archive', component: DataSection },
+      ],
+    },
+    {
+      label: 'Account',
+      sections: [
+        { id: 'accounts', label: 'Accounts', icon: 'user', component: AccountsSection },
+        { id: 'notifications', label: 'Notifications', icon: 'bell', component: NotificationsSection },
+      ],
+    },
+    {
+      label: 'Chat',
+      sections: [
+        { id: 'chat', label: 'Chat', icon: 'chat', component: ChatSection },
+        { id: 'emotes', label: 'Emotes and badges', icon: 'smile', component: EmotesSection },
+        { id: 'highlights', label: 'Highlights', icon: 'star', component: HighlightsSection },
+        { id: 'ignores', label: 'Ignores', icon: 'eyeOff', component: IgnoresSection },
+        { id: 'filters', label: 'Filters', icon: 'filter', component: FiltersSection },
+        { id: 'commands', label: 'Commands', icon: 'pencil', component: CommandsSection },
+        { id: 'automations', label: 'Automations', icon: 'zap', component: AutomationsSection },
+        { id: 'recordings', label: 'Recordings', icon: 'record', component: RecordingsSection },
+      ],
+    },
+    {
+      label: 'Watching',
+      sections: [
+        { id: 'player', label: 'Player', icon: 'tv', component: PlayerSection },
+        { id: 'miner', label: 'Miner', icon: 'pickaxe', component: MinerSection },
+      ],
+    },
+    {
+      label: 'Streaming',
+      sections: [
+        { id: 'streammanager', label: 'Stream manager', icon: 'radio', component: StreamManagerSection },
+        { id: 'streamer', label: 'Streamer mode', icon: 'monitor', component: StreamerSection },
+      ],
+    },
   ];
+  const SECTIONS = GROUPS.flatMap((g) => g.sections);
 
   const Section = $derived((SECTIONS.find((s) => s.id === section) ?? SECTIONS[0]).component);
 </script>
 
 <div class="settings">
   <nav>
-    {#each SECTIONS as s (s.id)}
-      <button class:on={section === s.id} onclick={() => (section = s.id)} title={s.label}>
-        <Icon name={s.icon} size={15} />
-        <span>{s.label}</span>
-      </button>
+    {#each GROUPS as g (g.label)}
+      <div class="group">{g.label}</div>
+      {#each g.sections as s (s.id)}
+        <button class:on={section === s.id} onclick={() => (section = s.id)} title={s.label}>
+          <Icon name={s.icon} size={15} />
+          <span>{s.label}</span>
+        </button>
+      {/each}
     {/each}
     {#if !popout && onpopout}
       <div class="foot">
@@ -95,14 +127,24 @@
     gap: 2px;
     width: 210px;
     flex: none;
-    padding: 14px 10px;
+    padding: 4px 10px 14px;
+    overflow-y: auto;
     border-right: 1px solid var(--border);
+  }
+  .group {
+    padding: 12px 10px 4px;
+    color: var(--dim);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
   nav button {
     display: flex;
     align-items: center;
     gap: 10px;
-    height: 32px;
+    flex: none;
+    height: 30px;
     padding: 0 10px;
     background: none;
     border: 0;
@@ -139,6 +181,17 @@
     }
     nav button span,
     .foot {
+      display: none;
+    }
+    .group {
+      height: 1px;
+      margin: 8px 4px;
+      padding: 0;
+      overflow: hidden;
+      background: var(--border);
+      color: transparent;
+    }
+    .group:first-child {
       display: none;
     }
     .inner {

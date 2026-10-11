@@ -25,7 +25,7 @@
   import { chatIpc } from '../../ipc/chat';
   import { chatxIpc } from '../../ipc/chatx';
   import { formatDuration } from '../../lib/format';
-  import { useHotkeys } from '../../lib/hotkeys.svelte';
+  import { bindingOf, useHotkeys } from '../../lib/hotkeys.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { catalogs } from './catalog.svelte';
@@ -179,8 +179,15 @@
     const flip = (id: string) => onfilters?.(filters.includes(id) ? filters.filter((f) => f !== id) : [...filters, id]);
     const own = userMenus.current.channel;
     const ctx = { login, userId: null, display: name ?? login, msgId: null, msg: null, msgTime: null };
+    // V101-30 Actions first, then switches; the search key is the one bound in Hotkeys.
     const items: MenuEntry[] = [
-      { label: 'Search', icon: 'search', hint: 'Ctrl+F', run: () => (search = { query: '', all: false }) },
+      { label: 'Search', icon: 'search', hint: bindingOf('chat.search'), run: () => (search = { query: '', all: false }) },
+      { label: recording ? 'Stop recording' : 'Record chat', icon: 'record', run: record },
+      ...(account && accounts.can('subs', account)
+        ? [{ label: 'Subscribe', icon: 'star' as const, run: () => (subscribing = true) }]
+        : []),
+      ...(onoverlay ? [{ label: 'Overlay', icon: 'layers' as const, note: 'This chat over games, always on top', run: onoverlay }] : []),
+      'separator',
       {
         label: 'Translate messages',
         icon: 'languages',
@@ -193,11 +200,6 @@
         checked: muted,
         run: () => void settings.patch('highlights', { muted: toggled(settings.v.highlights.muted, !muted) }),
       },
-      { label: recording ? 'Stop recording' : 'Record chat', icon: 'record', run: record },
-      ...(onoverlay ? [{ label: 'Overlay', icon: 'layers' as const, hint: 'Over games', run: onoverlay }] : []),
-      ...(account && accounts.can('subs', account)
-        ? [{ label: 'Subscribe', icon: 'star' as const, run: () => (subscribing = true) }]
-        : []),
       ...(onfilters
         ? [
             {

@@ -4,7 +4,7 @@
 mod keeper;
 mod sign_in;
 
-pub use sign_in::{DeviceStart, add_pasted, remove_account, remove_token, sign_in_device};
+pub use sign_in::{DeviceStart, add_manual, remove_account, remove_token, sign_in_device};
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard};

@@ -1,9 +1,11 @@
 <!-- Notifications (2.2, 1.26): the app's own alerts (followed channels going live, whispers,
-     Twitch's bell) and Twitch's settings for the default account: its email, phone and
-     on-Twitch switches, and what each followed channel sends. -->
+     Twitch's bell) and Twitch's settings for the default account: what each followed channel
+     sends, and its email, phone and on-Twitch switches as closed groups under Twitch's own
+     group switches (V101-06). -->
 <script lang="ts">
   import Avatar from '../../../components/Avatar.svelte';
   import Button from '../../../components/Button.svelte';
+  import Icon from '../../../components/Icon.svelte';
   import Row from '../../../components/Row.svelte';
   import Toggle from '../../../components/Toggle.svelte';
   import type { TwitchChannelNotify } from '../../../ipc/bindings/TwitchChannelNotify';
@@ -13,7 +15,7 @@
   import { accounts } from '../../../lib/accounts.svelte';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
-  import { CHANNEL_STATES, group, PLATFORMS } from '../notify';
+  import { CHANNEL_STATES, countOn, group, PLATFORMS, sends, type Category, type Group } from '../notify';
 
   const n = $derived(settings.v.notifications);
   const account = $derived(accounts.current);
@@ -26,8 +28,10 @@
   let loading = $state(false);
   let error = $state('');
   let query = $state('');
+  let showChannels = $state(false);
+  let opened = $state<string[]>([]);
 
-  const groups = $derived(group(switches));
+  const sw = $derived(group(switches));
   const q = $derived(query.trim().toLowerCase());
   const shown = $derived(channels.filter((c) => !q || c.login.includes(q) || c.name.toLowerCase().includes(q)));
 
@@ -94,23 +98,49 @@
       toast.error(String(e));
     }
   }
+
+  const has = (c: Category | null | undefined, p: string) => c?.on[p] !== undefined;
+  /** A group of one is a single row: it switches the group and its one setting together. */
+  const single = (g: Group) => g.categories.length === 1;
+  const isOn = (g: Group, p: string) =>
+    single(g) ? g.master?.on[p] !== false && !!g.categories[0].on[p] : !!g.master?.on[p];
+  const groupHas = (g: Group, p: string) => (g.master ? has(g.master, p) : single(g) && has(g.categories[0], p));
+
+  function setGroup(g: Group, p: string, on: boolean) {
+    if (g.master && has(g.master, p) && g.master.on[p] !== on) void setSwitch(g.master.id, p, on);
+    const only = g.categories[0];
+    if (single(g) && has(only, p) && only.on[p] !== on) void setSwitch(only.id, p, on);
+  }
+
+  /** Some switches in a closed group are off where the group itself is on. */
+  const mixed = (g: Group) =>
+    PLATFORMS.some((p) => {
+      const [on, all] = countOn(g, p.id);
+      return sends(sw, g, p.id) && on < all;
+    });
+
+  function toggleOpen(label: string) {
+    opened = opened.includes(label) ? opened.filter((l) => l !== label) : [...opened, label];
+  }
 </script>
 
 <h2>Notifications</h2>
 
 <h3 class="label">When channels go live</h3>
-<Row label="Live alerts" hint="For channels the default account follows. Each one follows its Twitch bell unless you pick here.">
+<Row label="Live alerts" hint="For channels the default account follows. Each one follows its Twitch bell unless you pick below.">
   <Toggle label="Live alerts" checked={n.live.enabled} onchange={(on) => patch({ live: { enabled: on } })} />
 </Row>
-<Row label="Pop-up" hint="A Windows notification. Click it to open the channel.">
-  <Toggle label="Pop-up" checked={n.live.toast} disabled={!n.live.enabled} onchange={(on) => patch({ live: { toast: on } })} />
-</Row>
-<Row label="Sound">
-  <Toggle label="Sound" checked={n.live.sound} disabled={!n.live.enabled} onchange={(on) => patch({ live: { sound: on } })} />
-</Row>
-<Row label="Quiet at start" hint="No alerts for channels that were already live when the app opened.">
-  <Toggle label="Quiet at start" checked={n.live.skipAtStart} disabled={!n.live.enabled} onchange={(on) => patch({ live: { skipAtStart: on } })} />
-</Row>
+{#if n.live.enabled}
+  <Row label="Pop-up" hint="A Windows notification. Click it to open the channel.">
+    <Toggle label="Pop-up" checked={n.live.toast} onchange={(on) => patch({ live: { toast: on } })} />
+  </Row>
+  <Row label="Sound">
+    <Toggle label="Sound" checked={n.live.sound} onchange={(on) => patch({ live: { sound: on } })} />
+  </Row>
+  <Row label="Quiet at start" hint="No alerts for channels that were already live when the app opened.">
+    <Toggle label="Quiet at start" checked={n.live.skipAtStart} onchange={(on) => patch({ live: { skipAtStart: on } })} />
+  </Row>
+{/if}
 
 <h3 class="label">Whispers</h3>
 <Row label="Pop-up" hint="While the app isn't in front.">
@@ -132,56 +162,102 @@
 </Row>
 
 {#if account}
-  <h3 class="label">Channels</h3>
-  <p class="note">
-    {#if twitch}
-      <b>Alert</b> is this app. <b>On Twitch</b> is what Twitch itself sends {account.displayName} for the channel.
-    {:else}
-      Sign in with GQL to see and change Twitch's own choice per channel.
+  <h3 class="label">Per channel</h3>
+  <button class="fold" aria-expanded={showChannels} onclick={() => (showChannels = !showChannels)}>
+    <Icon name={showChannels ? 'chevronDown' : 'chevronRight'} size={14} />
+    <span>{channels.length ? `${channels.length}${cursor ? '+' : ''} followed channel${channels.length === 1 && !cursor ? '' : 's'}` : 'Followed channels'}</span>
+    <span class="dim">{twitch ? 'Alerts here and what Twitch sends' : 'Alerts here'}</span>
+  </button>
+  {#if showChannels}
+    <p class="note">
+      {#if twitch}
+        <b>Alert</b> is this app. <b>On Twitch</b> is what Twitch itself sends {account.displayName} for the channel.
+      {:else}
+        Sign in with GQL to see and change Twitch's own choice per channel.
+      {/if}
+    </p>
+    {#if channels.length > 8}
+      <input class="field filter" placeholder="Find a channel" bind:value={query} spellcheck="false" />
     {/if}
-  </p>
-  {#if channels.length > 8}
-    <input class="field filter" placeholder="Find a channel" bind:value={query} spellcheck="false" />
-  {/if}
-  {#if error}<p class="note err">{error}</p>{/if}
-  <div class="channels">
-    {#each shown as c (c.id)}
-      <div class="channel">
-        <Avatar src={c.avatar} name={c.name} size={24} />
-        <span class="name">{c.name}</span>
-        {#if twitch}
-          <select class="field" aria-label="On Twitch" value={c.state} onchange={(e) => void setTwitchChannel(c, e.currentTarget.value)}>
-            {#each CHANNEL_STATES as s (s.value)}<option value={s.value}>{s.label}</option>{/each}
-          </select>
-        {/if}
-        <Toggle label="Alert" checked={alerts(c)} disabled={!n.live.enabled} onchange={(on) => setAlert(c, on)} />
-      </div>
-    {:else}
-      {#if !loading && !error}<p class="note">No followed channels.</p>{/if}
-    {/each}
-  </div>
-  {#if cursor}
-    <Button small disabled={loading} onclick={() => account && void load(account.userId, true)}>Show more</Button>
+    {#if error}<p class="note err">{error}</p>{/if}
+    <div class="channels">
+      {#each shown as c (c.id)}
+        <div class="channel">
+          <Avatar src={c.avatar} name={c.name} size={24} />
+          <span class="name">{c.name}</span>
+          {#if twitch}
+            <select class="field" aria-label="On Twitch" value={c.state} onchange={(e) => void setTwitchChannel(c, e.currentTarget.value)}>
+              {#each CHANNEL_STATES as s (s.value)}<option value={s.value}>{s.label}</option>{/each}
+            </select>
+          {/if}
+          <Toggle label="Alert" checked={alerts(c)} disabled={!n.live.enabled} onchange={(on) => setAlert(c, on)} />
+        </div>
+      {:else}
+        {#if !loading && !error}<p class="note">No followed channels.</p>{/if}
+      {/each}
+    </div>
+    {#if cursor}
+      <Button small disabled={loading} onclick={() => account && void load(account.userId, true)}>Show more</Button>
+    {/if}
   {/if}
 
-  {#if twitch && groups.length}
+  {#if twitch && sw.groups.length}
     <h3 class="label">What Twitch sends</h3>
-    <p class="note">Twitch's own settings for {account.displayName}, saved on Twitch.</p>
+    <p class="note">Twitch's own settings for {account.displayName}, saved on Twitch. Open a group to pick single ones.</p>
     <div class="grid">
       <span></span>
       {#each PLATFORMS as p (p.id)}<span class="head">{p.label}</span>{/each}
-      {#each groups as g (g.label)}
-        <span class="group">{g.label}</span>
-        {#each g.categories as c (c.id)}
-          <span class="cat">{c.label}</span>
-          {#each PLATFORMS as p (p.id)}
-            <span class="cell">
-              {#if c.on[p.id] !== undefined}
-                <Toggle label="{c.label}: {p.label}" checked={!!c.on[p.id]} onchange={(on) => void setSwitch(c.id, p.id, on)} />
-              {/if}
-            </span>
-          {/each}
+      {#if sw.all}
+        {@const all = sw.all}
+        <span class="cat strong single">Everything</span>
+        {#each PLATFORMS as p (p.id)}
+          <span class="cell">
+            {#if has(all, p.id)}
+              <Toggle label="Everything: {p.label}" checked={!!all.on[p.id]} onchange={(on) => void setSwitch(all.id, p.id, on)} />
+            {/if}
+          </span>
         {/each}
+      {/if}
+      {#each sw.groups as g (g.label)}
+        {@const open = opened.includes(g.label)}
+        {#if single(g)}
+          <span class="cat strong single">{g.label}</span>
+        {:else}
+          <button class="group" aria-expanded={open} onclick={() => toggleOpen(g.label)}>
+            <Icon name={open ? 'chevronDown' : 'chevronRight'} size={14} />
+            <span class="strong">{g.label}</span>
+            {#if !open && mixed(g)}<span class="dim">Some off</span>{/if}
+          </button>
+        {/if}
+        {#each PLATFORMS as p (p.id)}
+          <span class="cell">
+            {#if groupHas(g, p.id)}
+              <Toggle
+                label="{g.label}: {p.label}"
+                checked={isOn(g, p.id)}
+                disabled={sw.all?.on[p.id] === false}
+                onchange={(on) => setGroup(g, p.id, on)}
+              />
+            {/if}
+          </span>
+        {/each}
+        {#if open && !single(g)}
+          {#each g.categories as c (c.id)}
+            <span class="cat sub">{c.label}</span>
+            {#each PLATFORMS as p (p.id)}
+              <span class="cell">
+                {#if has(c, p.id)}
+                  <Toggle
+                    label="{c.label}: {p.label}"
+                    checked={!!c.on[p.id]}
+                    disabled={!sends(sw, g, p.id)}
+                    onchange={(on) => void setSwitch(c.id, p.id, on)}
+                  />
+                {/if}
+              </span>
+            {/each}
+          {/each}
+        {/if}
       {/each}
     </div>
   {/if}
@@ -226,9 +302,44 @@
   .channel select {
     width: 120px;
   }
+  .fold,
+  .group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 4px;
+    background: none;
+    border: 0;
+    border-radius: var(--radius);
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+  }
+  .fold {
+    width: 100%;
+    margin-bottom: 6px;
+  }
+  .fold:hover,
+  .group:hover {
+    background: var(--row-hover);
+  }
+  .fold :global(svg),
+  .group :global(svg) {
+    flex: none;
+    color: var(--dim);
+  }
+  .dim {
+    margin-left: auto;
+    overflow: hidden;
+    color: var(--dim);
+    font-size: 0.76rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .grid {
     display: grid;
-    grid-template-columns: 1fr repeat(3, 76px);
+    grid-template-columns: minmax(0, 1fr) repeat(3, 76px);
     align-items: center;
     row-gap: 4px;
   }
@@ -237,15 +348,20 @@
     font-size: 0.76rem;
     text-align: center;
   }
-  .group {
-    grid-column: 1 / -1;
-    margin-top: 12px;
-    color: var(--muted);
-    font-size: 0.8rem;
+  .cat {
+    min-width: 0;
+    padding-left: 4px;
+  }
+  .strong {
     font-weight: 600;
   }
-  .cat {
-    padding-left: 4px;
+  /* Lines up with the names of groups that open. */
+  .single {
+    padding-left: 24px;
+  }
+  .sub {
+    padding-left: 44px;
+    color: var(--muted);
   }
   .cell {
     display: flex;

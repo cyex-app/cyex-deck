@@ -3,7 +3,7 @@
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
-  import { openMenu } from '../../components/menu.svelte';
+  import { openMenuAt } from '../../components/menu.svelte';
   import Segmented from '../../components/Segmented.svelte';
   import type { Category } from '../../ipc/bindings/Category';
   import type { GameRef } from '../../ipc/bindings/GameRef';
@@ -71,7 +71,7 @@
   }
 
   function sortMenu(e: MouseEvent) {
-    openMenu(
+    openMenuAt(
       e,
       SORTS.map(([value, label]) => ({ label, checked: discover.sort === value, run: () => (discover.sort = value) })),
     );

@@ -187,6 +187,15 @@ async fn phase12_reads() {
         ),
         Err(e) => println!("twitch notify: error {:?}", e.api_message()),
     }
+    // V101-06 The master switches and the platforms they come in.
+    if let Ok(s) = notifications::settings(&http, auth, None).await {
+        let masters = s.switches.iter().filter(|x| x.category == "ALL" || x.category.ends_with("_category"));
+        println!("twitch notify masters: {:?}", masters.map(|x| format!("{}/{}={}", x.category, x.platform, x.on)).collect::<Vec<_>>());
+        println!(
+            "twitch notify platforms: {:?}",
+            s.switches.iter().map(|x| x.platform.as_str()).collect::<std::collections::BTreeSet<_>>()
+        );
+    }
     match gql::followed_live_alerts(&http, auth).await {
         Ok(Some(l)) => println!("live alerts: {} live, bell on {}", l.len(), l.iter().filter(|a| a.bell).count()),
         other => println!("live alerts: {:?}", other.map_err(|e| e.api_message().map(str::to_owned)).map(|o| o.map(|l| l.len()))),
