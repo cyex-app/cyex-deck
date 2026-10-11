@@ -85,6 +85,8 @@ pub struct Chat {
     pub pause_key: PauseKey,
     /// C5 Mark where you stopped reading when the window loses focus.
     pub last_read_line: bool,
+    /// V103-12 New messages slide in instead of popping up. Fast chats skip the slide.
+    pub smooth_new_messages: bool,
     /// C2 One line with a count when someone repeats themselves. Setting, off.
     pub repeats: bool,
     /// C2 Percent alike that counts as a repeat.
@@ -145,6 +147,7 @@ impl Default for Chat {
             pause_still_tenths: 0,
             pause_key: PauseKey::Alt,
             last_read_line: true,
+            smooth_new_messages: false,
             repeats: false,
             repeat_similarity: 80,
             show_client: false,

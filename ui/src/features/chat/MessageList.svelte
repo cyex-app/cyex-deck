@@ -1,6 +1,6 @@
-<!-- Scrolling message list (1.8). Follows new messages while at the bottom; pauses on
-     hover or while the pause key is held (C5); marks where you stopped reading (C5); a
-     dated line where chat crosses midnight (C25).
+<!-- Scrolling message list (1.8). Follows new messages while at the bottom, sliding them
+     in when set (V103-12); pauses on hover or while the pause key is held (C5); marks where
+     you stopped reading (C5); a dated line where chat crosses midnight (C25).
      Clicks and tooltips are delegated here instead of being set on every line. -->
 <script lang="ts">
   import { onDestroy, tick, untrack } from 'svelte';
@@ -32,6 +32,7 @@
   import { standingOf } from '../modview/standing';
   import { lineKind, pluginItems } from '../plugins/pluginMenus';
   import { plugins } from '../plugins/plugins.svelte';
+  import { glideMs } from './glide';
   import Line from './Line.svelte';
   import { runEntry, toItems, userMenus } from './menus.svelte';
   import { roomRoute } from './roomRoute';
@@ -78,6 +79,8 @@
   const THUMBS = { off: 0, small: 100, medium: 200, large: 300 } as const;
 
   let list = $state<HTMLElement>();
+  /** The lines inside `list`; V103-12 slides move this. */
+  let lines = $state<HTMLElement>();
   /** Stays true while the user wants new messages in view. Scrolling up ends it. */
   let following = $state(true);
   /** V101-31 Lines out of view below. Without any there's no "More messages". */
@@ -128,28 +131,85 @@
     });
   });
 
+  /** V103-12 A line and where it showed, to slide the lines in from. */
+  type Mark = { el: Element; top: number };
+  /** Where the newest line showed before new ones were put in. */
+  let before: Mark | null = null;
+  /** The slide playing, when it ends, and when lines last came (all `performance.now()`). */
+  let slide: Animation | null = null;
+  let slideEnds = 0;
+  let lastLines = -Infinity;
+
+  $effect.pre(() => {
+    void room.messages;
+    untrack(() => (before = c.smoothNewMessages && following && !paused ? mark() : null));
+  });
+
   // Follow new messages unless paused or scrolled up. Also catches up after a pause.
   $effect(() => {
     void room.messages;
     const follow = following && !paused;
     void tick().then(() => {
       if (!follow) return measure();
+      const at = before ?? (c.smoothNewMessages ? mark() : null);
+      before = null;
+      const top = list?.scrollTop;
       toBottom();
+      // Nothing new on screen (a filtered line): a playing slide goes on.
+      if (at && list?.scrollTop !== top) glide(at);
       watchNewest();
     });
   });
 
   // New lines get their real height a frame late (content-visibility), so a line that
-  // wraps grows after the jump down without a scroll event. Snap back down then.
+  // wraps grows after the jump down without a scroll event. Snap back down then; a slide
+  // that's playing takes the growth along for the rest of its time.
   const grown = new ResizeObserver(() => {
-    if (following && !paused) toBottom();
+    if (!following || paused || !list) return;
+    const at = slide ? mark() : null;
+    const top = list.scrollTop;
+    toBottom();
+    if (at && list.scrollTop !== top) glide(at, true);
   });
   onDestroy(() => grown.disconnect());
 
   function watchNewest() {
     grown.disconnect();
-    let el = list?.lastElementChild;
+    let el = lines?.lastElementChild;
     for (let i = 0; el && i < 10; i++, el = el.previousElementSibling) grown.observe(el);
+  }
+
+  function mark(): Mark | null {
+    const el = lines?.lastElementChild;
+    return el ? { el, top: el.getBoundingClientRect().top } : null;
+  }
+
+  /** V103-12 Already at the bottom: the lines move from where `at` showed, on the
+   * compositor (a transform), so scrolling and stick-to-bottom never wait on it. Fast
+   * chats skip or shorten it (glide.ts). `carry` keeps the playing slide's end time. */
+  function glide(at: Mark, carry = false) {
+    const left = carry && slide ? slideEnds - performance.now() : 0;
+    stopGlide();
+    if (!lines || !list || !at.el.isConnected) return;
+    const distance = at.top - at.el.getBoundingClientRect().top;
+    if (!(distance >= 1)) return;
+    const now = performance.now();
+    const ms = carry
+      ? Math.min(left, glideMs(distance, list.clientHeight, Infinity))
+      : glideMs(distance, list.clientHeight, now - lastLines);
+    if (!carry) lastLines = now;
+    if (ms <= 0) return;
+    slide = lines.animate([{ transform: `translateY(${distance}px)` }, { transform: 'none' }], {
+      duration: ms,
+      easing: 'ease-out',
+    });
+    slideEnds = now + ms;
+  }
+
+  /** The user scrolls or jumps: the lines go where they really are. */
+  function stopGlide() {
+    slide?.cancel();
+    slide = null;
   }
 
   // C5 Pause key.
@@ -237,29 +297,41 @@
 
   /** Set while the user drags the scrollbar. */
   let dragging = false;
+  /** Where the list was at the last scroll event, to tell up from down. */
+  let lastTop = 0;
 
   // Only the user leaves the bottom: wheel, keys or the scrollbar. Lines loading above,
   // images sizing in and old lines dropping off also move the position; while
-  // following, those just snap back down.
+  // following, those just snap back down. Following starts again on the way down, or
+  // when nothing is left to scroll: a smooth scroll up (V103-11) spends its first frames
+  // near the bottom.
   function onscroll() {
     if (!list) return;
     measure();
-    if (!below) following = true;
+    const down = list.scrollTop >= lastTop;
+    lastTop = list.scrollTop;
+    if (!below && (down || !scrolls())) following = true;
     else if (dragging) following = false;
     else if (following && !paused) toBottom();
   }
 
+  function leave() {
+    following = false;
+    stopGlide();
+  }
+
   function onwheel(e: WheelEvent) {
-    if (e.deltaY < 0 && scrolls()) following = false;
+    if (e.deltaY < 0 && scrolls()) leave();
   }
 
   function onkeydown(e: KeyboardEvent) {
-    if (['PageUp', 'ArrowUp', 'Home'].includes(e.key) && scrolls()) following = false;
+    if (['PageUp', 'ArrowUp', 'Home'].includes(e.key) && scrolls()) leave();
   }
 
   function onpointerdown(e: PointerEvent) {
     if (!list || e.clientX < list.getBoundingClientRect().right - 14) return;
     dragging = true;
+    stopGlide();
     addEventListener('pointerup', () => (dragging = false), { once: true });
   }
 
@@ -267,6 +339,7 @@
     following = true;
     hovering = false;
     keyHeld = false;
+    stopGlide();
     toBottom();
   }
 
@@ -456,6 +529,7 @@
   }
 
   function jump(id: string) {
+    stopGlide();
     const target = list?.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`);
     target?.scrollIntoView({ block: 'center' });
     target?.animate([{ background: 'var(--accent-wash)' }, { background: 'transparent' }], { duration: 1200 });
@@ -546,11 +620,13 @@
     role="log"
     aria-live="off"
   >
-    {#each shown as m (m.id)}
-      {#if dayStarts.has(m.id)}<p class="day" role="separator">{formatDate(new Date(m.ts))}</p>{/if}
-      <Line {m} channel={room.login} {canReply} stripe={stripe?.get(m.id) ?? false} mod={lineMod} />
-      {#if m.id === lastRead && m.id !== shown.at(-1)?.id}<hr class="last-read" />{/if}
-    {/each}
+    <div bind:this={lines}>
+      {#each shown as m (m.id)}
+        {#if dayStarts.has(m.id)}<p class="day" role="separator">{formatDate(new Date(m.ts))}</p>{/if}
+        <Line {m} channel={room.login} {canReply} stripe={stripe?.get(m.id) ?? false} mod={lineMod} />
+        {#if m.id === lastRead && m.id !== shown.at(-1)?.id}<hr class="last-read" />{/if}
+      {/each}
+    </div>
   </div>
   {#if card}
     {#key card}<EmoteCard target={card} login={room.login} onclose={() => (card = null)} />{/key}

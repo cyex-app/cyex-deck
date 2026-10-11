@@ -29,6 +29,11 @@ tooltips: boolean,
  */
 minimizeToTray: boolean, 
 /**
+ * V103-11 Wheel and key scrolling glides in every scrollable area. WebView2 does it,
+ * so it applies from the next start.
+ */
+smoothScroll: boolean, 
+/**
  * U4
  */
 streamer: StreamerMode, };

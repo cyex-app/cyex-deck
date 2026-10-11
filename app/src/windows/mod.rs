@@ -4,6 +4,7 @@ mod geometry;
 mod layouts;
 pub mod overlay;
 mod panels;
+mod scroll;
 pub mod twitch;
 mod usercard;
 
@@ -39,7 +40,7 @@ pub fn builder<'a>(
         .decorations(false)
         .visible(false)
         .background_color(crate::theme::background(app))
-        .additional_browser_args(BROWSER_ARGS)
+        .additional_browser_args(scroll::browser_args(app, BROWSER_ARGS))
         // V101-30 Paste in the app's own right-click menu. Only the app's pages run here;
         // plugins are Lua and Twitch's pages have their own window.
         .enable_clipboard_access()

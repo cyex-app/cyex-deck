@@ -19,6 +19,9 @@ pub struct General {
     pub tooltips: bool,
     /// U2 Minimizing the main window hides it to the tray.
     pub minimize_to_tray: bool,
+    /// V103-11 Wheel and key scrolling glides in every scrollable area. WebView2 does it,
+    /// so it applies from the next start.
+    pub smooth_scroll: bool,
     /// U4
     pub streamer: StreamerMode,
 }
@@ -32,6 +35,7 @@ impl Default for General {
             chat_position: ChatPosition::Right,
             tooltips: true,
             minimize_to_tray: false,
+            smooth_scroll: true,
             streamer: StreamerMode::default(),
         }
     }

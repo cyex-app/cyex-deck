@@ -1,11 +1,14 @@
-<!-- 1.9 The channel's pinned message, above the chat. Can be folded to one line or hidden
-     until the pin changes; mods can take it down (V101-34). -->
+<!-- 1.9 The channel's pinned message, above the chat. Can be folded to one line, hidden
+     into the events button while it's pinned (V103-04) or closed until the pin changes;
+     mods can take it down (V101-34). -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import type { Pinned } from '../../ipc/bindings/Pinned';
   import { tooltip } from '../../components/tooltip.svelte';
   import { settings } from '../../lib/settings.svelte';
   import Body from './Body.svelte';
+  import { pinKey, pinLive, shows } from './eventStrip';
+  import { eventStrip } from './eventStrip.svelte';
   import { shownName } from './names';
 
   interface Props {
@@ -18,14 +21,14 @@
   let { pin, channel, onunpin }: Props = $props();
 
   let folded = $state(false);
-  let hiddenId = $state<string | null>(null);
 
+  const key = $derived(pinKey(pin.id));
   const c = $derived(settings.v.chat);
   const sender = $derived(pin.message.sender);
   const name = $derived(sender ? shownName(sender, c.names, c.users[sender.id]) : null);
 </script>
 
-{#if hiddenId !== pin.id}
+{#if shows(eventStrip.of(channel), key)}
   <div class="pin" class:paid={pin.paid} class:folded>
     <Icon name="pin" size={14} />
     <button class="text" onclick={() => (folded = !folded)} aria-expanded={!folded}>
@@ -43,7 +46,22 @@
         <Icon name="trash" size={13} />
       </button>
     {/if}
-    <button class="close" aria-label="Hide pinned message" use:tooltip={'Hide for me'} onclick={() => (hiddenId = pin.id)}>
+    {#if pinLive(pin, Date.now())}
+      <button
+        class="close"
+        aria-label="Hide pinned message"
+        use:tooltip={{ label: 'Hide', hint: 'Tucks it into the events button.' }}
+        onclick={() => eventStrip.hide(channel, { key, live: true })}
+      >
+        <Icon name="chevronUp" size={13} />
+      </button>
+    {/if}
+    <button
+      class="close"
+      aria-label="Close pinned message"
+      use:tooltip={{ label: 'Close', hint: 'Only for you, until the next pin.' }}
+      onclick={() => eventStrip.close(channel, key)}
+    >
       <Icon name="x" size={13} />
     </button>
   </div>
