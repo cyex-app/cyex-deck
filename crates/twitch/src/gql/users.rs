@@ -8,9 +8,26 @@ use crate::{Http, Result};
 const USER_BY_ID: &str =
     "query($id: ID!) { user(id: $id) { id login displayName profileImageURL(width: 70) } }";
 
-const PROFILE: &str = "query($login: String, $id: ID) { user(login: $login, id: $id, lookupType: ALL) { \
-    id login displayName description createdAt profileImageURL(width: 150) bannerImageURL chatColor \
-    roles { isAffiliate isPartner isStaff } followers { totalCount } } }";
+const PROFILE: &str = "id login displayName description createdAt profileImageURL(width: 150) bannerImageURL \
+    chatColor roles { isAffiliate isPartner isStaff } followers { totalCount }";
+
+/// V102-25 Why Twitch hides the account, asked next to the profile. `lookupType: ALL`
+/// still finds suspended and closed accounts (checked 2026/10/11); this says which.
+const WHY: &str = "{ __typename ... on UserDoesNotExist { reason } }";
+
+/// By login or by id; Twitch's `userResult` fields want the one that's set.
+fn profile_query(by_id: bool) -> String {
+    let (var, arg, why) = if by_id {
+        ("$id: ID!", "id: $id", "userResultByID(id: $id)")
+    } else {
+        (
+            "$login: String!",
+            "login: $login",
+            "userResultByLogin(login: $login)",
+        )
+    };
+    format!("query({var}) {{ user({arg}, lookupType: ALL) {{ {PROFILE} }} why: {why} {WHY} }}")
+}
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -53,12 +70,55 @@ pub struct Profile {
     pub staff: bool,
     #[ts(type = "number | null")]
     pub followers: Option<u64>,
+    /// V102-25 Hidden on Twitch: suspended, taken down or closed. `None` for everyone else.
+    pub suspended: Option<Suspension>,
+}
+
+/// V102-25 Why Twitch hides an account (`UserDoesNotExist.reason`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum Suspension {
+    /// `TOS_TEMPORARY`
+    Temporary,
+    /// `TOS_INDEFINITE`
+    Indefinite,
+    /// `DMCA`
+    Dmca,
+    /// `DEACTIVATED`: closed by its owner.
+    Deactivated,
+    /// A reason Twitch added since.
+    Other,
+}
+
+impl Suspension {
+    /// `UNKNOWN` is Twitch's answer for a name nobody has, so it's no reason.
+    pub fn from_reason(reason: &str) -> Option<Self> {
+        Some(match reason {
+            "TOS_TEMPORARY" => Self::Temporary,
+            "TOS_INDEFINITE" => Self::Indefinite,
+            "DMCA" => Self::Dmca,
+            "DEACTIVATED" => Self::Deactivated,
+            "" | "UNKNOWN" => return None,
+            _ => Self::Other,
+        })
+    }
 }
 
 /// By login or by id. `None` if there's no such user.
 pub async fn profile(http: &Http, login: Option<&str>, id: Option<&str>) -> Result<Option<Profile>> {
-    let data: RawProfileData = query(http, Auth::PUBLIC, PROFILE, json!({ "login": login, "id": id })).await?;
-    Ok(data.user.map(|u| {
+    let (q, vars) = match (login, id) {
+        (Some(login), _) => (profile_query(false), json!({ "login": login })),
+        (None, Some(id)) => (profile_query(true), json!({ "id": id })),
+        (None, None) => return Ok(None),
+    };
+    let data: RawProfileData = query(http, Auth::PUBLIC, &q, vars).await?;
+    Ok(read_profile(data))
+}
+
+fn read_profile(data: RawProfileData) -> Option<Profile> {
+    let suspended = data.why.and_then(|w| w.suspension());
+    data.user.map(|u| {
         let roles = u.roles.unwrap_or_default();
         Profile {
             id: u.id,
@@ -73,13 +133,33 @@ pub async fn profile(http: &Http, login: Option<&str>, id: Option<&str>) -> Resu
             affiliate: roles.is_affiliate.unwrap_or(false),
             staff: roles.is_staff.unwrap_or(false),
             followers: u.followers.map(|f| f.total_count),
+            suspended,
         }
-    }))
+    })
 }
 
 #[derive(Deserialize)]
 struct RawProfileData {
     user: Option<RawProfile>,
+    #[serde(default)]
+    why: Option<RawWhy>,
+}
+
+/// `User` when the account is fine, `UserDoesNotExist` with a reason when it's hidden.
+#[derive(Deserialize)]
+struct RawWhy {
+    #[serde(rename = "__typename")]
+    kind: String,
+    reason: Option<String>,
+}
+
+impl RawWhy {
+    fn suspension(&self) -> Option<Suspension> {
+        if self.kind != "UserDoesNotExist" {
+            return None;
+        }
+        Suspension::from_reason(self.reason.as_deref().unwrap_or_default())
+    }
 }
 
 #[derive(Deserialize)]
@@ -139,5 +219,72 @@ mod tests {
         let u = d.user.unwrap();
         assert!(u.roles.as_ref().unwrap().is_staff.is_none());
         assert_eq!(u.followers.unwrap().total_count, 5);
+    }
+
+    #[test]
+    fn suspension_reasons() {
+        assert_eq!(
+            Suspension::from_reason("TOS_TEMPORARY"),
+            Some(Suspension::Temporary)
+        );
+        assert_eq!(
+            Suspension::from_reason("TOS_INDEFINITE"),
+            Some(Suspension::Indefinite)
+        );
+        assert_eq!(Suspension::from_reason("DMCA"), Some(Suspension::Dmca));
+        assert_eq!(
+            Suspension::from_reason("DEACTIVATED"),
+            Some(Suspension::Deactivated)
+        );
+        assert_eq!(
+            Suspension::from_reason("TOS_SOMETHING_NEW"),
+            Some(Suspension::Other)
+        );
+        assert_eq!(Suspension::from_reason("UNKNOWN"), None, "nobody has the name");
+        assert_eq!(Suspension::from_reason(""), None);
+    }
+
+    /// V102-25 Shapes from live anonymous reads, 2026/10/11.
+    #[test]
+    fn suspended_profiles_still_read() {
+        let raw = |user: &str, why: &str| -> RawProfileData {
+            serde_json::from_str(&format!(r#"{{"user":{user},"why":{why}}}"#)).unwrap()
+        };
+        let user = r#"{"id":"15950","login":"diddy","displayName":"diddy","description":null,
+            "createdAt":"2007-05-22T10:40:26.603601Z","profileImageURL":"a","bannerImageURL":null,"chatColor":null,
+            "roles":{"isAffiliate":false,"isPartner":false,"isStaff":null},"followers":{"totalCount":0}}"#;
+        let p = read_profile(raw(
+            user,
+            r#"{"__typename":"UserDoesNotExist","reason":"TOS_INDEFINITE"}"#,
+        ))
+        .unwrap();
+        assert_eq!(
+            (p.id.as_str(), p.suspended),
+            ("15950", Some(Suspension::Indefinite))
+        );
+        let p = read_profile(raw(
+            user,
+            r#"{"__typename":"UserDoesNotExist","reason":"DEACTIVATED"}"#,
+        ))
+        .unwrap();
+        assert_eq!(p.suspended, Some(Suspension::Deactivated));
+        let p = read_profile(raw(user, r#"{"__typename":"User"}"#)).unwrap();
+        assert_eq!(p.suspended, None);
+        // Nobody by that name.
+        let none = raw("null", r#"{"__typename":"UserDoesNotExist","reason":"UNKNOWN"}"#);
+        assert!(read_profile(none).is_none());
+        // An answer without `why` still reads.
+        let old: RawProfileData = serde_json::from_str(&format!(r#"{{"user":{user}}}"#)).unwrap();
+        assert_eq!(read_profile(old).unwrap().suspended, None);
+    }
+
+    #[test]
+    fn queries_ask_by_what_is_set() {
+        let by_login = profile_query(false);
+        assert!(by_login.contains("user(login: $login, lookupType: ALL)"));
+        assert!(by_login.contains("why: userResultByLogin(login: $login)"));
+        let by_id = profile_query(true);
+        assert!(by_id.starts_with("query($id: ID!)"));
+        assert!(by_id.contains("why: userResultByID(id: $id)"));
     }
 }

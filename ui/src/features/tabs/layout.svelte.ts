@@ -24,7 +24,7 @@ class Layout {
     this.unlocked = next;
   }
 
-  /** Every chat in the tab back where Settings puts it. */
+  /** Every chat in the tab back where Settings puts it, every mod view divider (V102-26) to half. */
   reset(tab: Tab): void {
     void tabs.apply({ op: 'resetLayout', tab: tab.id });
   }
@@ -37,7 +37,7 @@ export function chatSide(tile: Tile): ChatPosition {
   return tile.chatSide ?? settings.v.general.chatPosition;
 }
 
-/** Some chat in the tab was dragged away from Settings' side. */
+/** Some chat in the tab was dragged away from Settings' side, or a mod view's divider moved (V102-26). */
 export function dragged(tab: Tab): boolean {
-  return tiles(tab).some((t) => t.chatSide !== null && t.chatSide !== undefined);
+  return tiles(tab).some((t) => (t.chatSide ?? null) !== null || (t.modviewShare ?? null) !== null);
 }

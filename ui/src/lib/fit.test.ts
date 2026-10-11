@@ -1,7 +1,19 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { CARDS, fitTile, HYSTERESIS, MIN, stackColumns, tileNeed } from './fit.ts';
+import {
+  CARDS,
+  fitModview,
+  fitTile,
+  HYSTERESIS,
+  MIN,
+  type ModArea,
+  MODVIEW,
+  MODVIEW_SHARE,
+  stackColumns,
+  STREAM_HEAD,
+  tileNeed,
+} from './fit.ts';
 
 test('a roomy tile keeps the user layout', () => {
   assert.deepEqual(fitTile({ w: 1600, h: 900 }, 'right', 0.28), { side: 'right', ratio: 0.28, moved: false });
@@ -64,4 +76,66 @@ test('the stream manager chat goes under the cards when both do not fit side by 
   assert.deepEqual(fitTile({ w: 1000, h: 700 }, 'right', 0.3, false, CARDS), { side: 'right', ratio: 0.3, moved: false });
   const f = fitTile({ w: 500, h: 700 }, 'right', 0.3, false, CARDS);
   assert.deepEqual([f.side, f.moved, f.ratio], ['bottom', true, 0.45]);
+});
+
+// V102-26 The mod view inside a tab.
+const area = (w: number, h: number, chat: ModArea['chat'] = null, partner: ModArea['partner'] = 'stream', share = MODVIEW_SHARE) => ({
+  tile: { w, h },
+  chat,
+  partner,
+  share,
+});
+
+test('chat under a wide stream: the mod view on the left half of the stream area', () => {
+  const f = fitModview(area(2000, 1050, { side: 'bottom', ratio: 0.4 }));
+  assert.deepEqual(f, { row: true, share: 0.5, hideChat: false, out: false });
+});
+
+test('chat beside a taller stream area: stream on top, the mod view below', () => {
+  const f = fitModview(area(2000, 1050, { side: 'right', ratio: 0.28 }));
+  assert.deepEqual(f, { row: false, share: 0.5, hideChat: false, out: false });
+});
+
+test('a stream-only tile splits by its shape, turning only past the hysteresis', () => {
+  assert.equal(fitModview(area(1200, 700)).row, true);
+  // About 20 px narrower than 16:9 under the header.
+  const h = Math.round(((1000 + 20) * 9) / 16) + STREAM_HEAD;
+  assert.equal(fitModview(area(1000, h)).row, false, 'taller than 16:9: top and bottom');
+  const side = { row: true, share: 0.5, hideChat: false, out: false };
+  assert.equal(fitModview(area(1000, h), side).row, true, 'within the hysteresis it stays side by side');
+  const far = Math.round(((1000 + HYSTERESIS + 10) * 9) / 16) + STREAM_HEAD;
+  assert.equal(fitModview(area(1000, far), side).row, false);
+});
+
+test('a dragged share keeps both panels at their minimum', () => {
+  const f = fitModview(area(1000, 400, null, 'stream', 0.9));
+  assert.equal(f.row, true);
+  assert.equal(f.share, 1 - MIN.streamW / 1000);
+  assert.equal(fitModview(area(1000, 400, null, 'stream', 0.1)).share, MIN.modviewW / 1000);
+});
+
+test('no room beside the chat: the chat steps aside, and needs extra room to come back', () => {
+  const chat = { side: 'right' as const, ratio: MIN.chatW / 600 };
+  const f = fitModview(area(600, 420, chat));
+  assert.deepEqual([f.row, f.hideChat, f.out], [true, true, false]);
+  // Just enough for the mod view next to the chat again: only once the chat wasn't hidden.
+  const h = MIN.modviewH + MIN.streamH + STREAM_HEAD;
+  const wide = { side: 'right' as const, ratio: MIN.chatW / (MIN.chatW + 400) };
+  assert.equal(fitModview(area(MIN.chatW + 400, h + 10, wide)).hideChat, false);
+  assert.equal(fitModview(area(MIN.chatW + 400, h + 10, wide), { ...f, row: false }).hideChat, true, 'within the hysteresis');
+  assert.equal(fitModview(area(MIN.chatW + 400, h + HYSTERESIS, wide), { ...f, row: false }).hideChat, false);
+});
+
+test('no room even without the chat: it pops out', () => {
+  const f = fitModview(area(400, 300, { side: 'bottom', ratio: 0.4 }));
+  assert.deepEqual([f.out, f.hideChat], [true, false]);
+  assert.equal(fitModview(area(MIN.modviewW + MIN.streamW - 1, MIN.modviewH + MIN.streamH + STREAM_HEAD - 1)).out, true);
+  assert.equal(fitModview(area(MIN.modviewW + MIN.streamW, MIN.modviewH + STREAM_HEAD)).out, false, 'side by side just fits');
+});
+
+test('beside a chat with no stream it takes the whole rest', () => {
+  assert.deepEqual(fitModview(area(900, 600, { side: 'right', ratio: 0.3 }, null)), { row: true, share: 1, hideChat: false, out: false });
+  assert.equal(fitModview(area(500, 600, { side: 'right', ratio: 0.5 }, null)).hideChat, true);
+  // The chat goes under the mod view before that (V102-24 with the mod view's size).
+  assert.equal(fitTile({ w: 500, h: 700 }, 'right', 0.3, false, MODVIEW).side, 'bottom');
 });

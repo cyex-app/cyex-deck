@@ -3,7 +3,7 @@
      out (1.47). The layout is one for every channel, in the `modview` settings. The chat
      widget (V102-22) is a view on the room the tab already has open, as the moderating
      account, with its own scroll and pause; with no tab on that channel it joins for as
-     long as the widget shows. -->
+     long as the widget shows. V102-26 Inside a tab it has a close button. -->
 <script lang="ts">
   import { onDestroy } from 'svelte';
 
@@ -19,10 +19,13 @@
   import ViewerList from '../chat/ViewerList.svelte';
   import MassActions from './MassActions.svelte';
   import ModActions from './ModActions.svelte';
+  import { mods } from './moderation.svelte';
   import UnbanQueue from './UnbanQueue.svelte';
 
-  /** The channel login; `account` mods it. `onpopout` shows in the main window (V102-16). */
-  let { login, account, onpopout }: { login: string; account: string; onpopout?: () => void } = $props();
+  /** The channel login; `account` mods it. `onpopout` shows in the main window (V102-16)
+   * and in a tab, `onclose` in a tab (V102-26). */
+  let { login, account, onpopout, onclose }: { login: string; account: string; onpopout?: () => void; onclose?: () => void } =
+    $props();
 
   type Widget = 'chat' | 'activity' | 'actions' | 'automod' | 'unban' | 'chatters' | 'mass';
   const TITLES: Record<Widget, string> = {
@@ -47,10 +50,16 @@
     return full.filter((w) => !mv.hidden.includes(w)) as Widget[];
   });
 
-  // svelte-ignore state_referenced_locally
-  void modIpc.channelId(login).then((id) => {
-    channelId = id;
-    if (id) modIpc.view(id).then((b) => (board = b)).catch(() => {});
+  // The id comes from an open room. V102-26 From a tab with only the stream, that's this
+  // view's chat widget joining: asked again whenever the roles change until it's known.
+  $effect(() => {
+    if (channelId) return;
+    void mods.role(account, login);
+    void modIpc.channelId(login).then((id) => {
+      if (!id || channelId) return;
+      channelId = id;
+      modIpc.view(id).then((b) => (board = b)).catch(() => {});
+    });
   });
 
   $effect(() => {
@@ -105,6 +114,9 @@
     {#if onpopout}
       <IconButton icon="popout" label="Pop out" hint="Open the mod view in its own window." size={15} onclick={onpopout} />
     {/if}
+    {#if onclose}
+      <IconButton icon="x" label="Close mod view" size={15} onclick={onclose} />
+    {/if}
   </header>
 
   <div class="grid">
@@ -128,7 +140,7 @@
         </div>
         <div class="wbody">
           {#if w === 'chat'}
-            <ChatView {login} {account} />
+            <ChatView {login} {account} onmodview={null} />
           {:else if w === 'activity'}
             <ActivityFeed items={board.activity} suspicious={board.suspicious} />
           {:else if w === 'actions'}

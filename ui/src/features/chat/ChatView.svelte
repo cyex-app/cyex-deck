@@ -71,6 +71,11 @@
     onoverlay?: () => void;
     /** V101-21 A tiled tab's entries for this tile, after the chat's in its one menu. */
     tileMenu?: () => MenuEntry[];
+    /** V102-26 The shield: in a tab it opens the mod view in the tab, open (`modviewOpen`)
+     * it closes it. `null` leaves it out (the mod view's own chat). By default it opens the
+     * mod view next to the tabs or in its own window (V102-16). */
+    onmodview?: (() => void) | null;
+    modviewOpen?: boolean;
   }
 
   let {
@@ -87,6 +92,8 @@
     onpopout,
     onoverlay,
     tileMenu,
+    onmodview = () => modviewPlace.open(login),
+    modviewOpen = false,
   }: Props = $props();
 
   // A chat view shows one channel for its whole life; a different one is a new view.
@@ -295,13 +302,16 @@
         active={modMode}
         onclick={() => mods.setModMode(login, !modMode)}
       />
-      <IconButton
-        icon="shield"
-        label="Mod view"
-        hint="Mod tools for this chat."
-        size={15}
-        onclick={() => modviewPlace.open(login)}
-      />
+      {#if onmodview}
+        <IconButton
+          icon="shield"
+          label={modviewOpen ? 'Close mod view' : 'Mod view'}
+          hint="Mod tools for this chat."
+          size={15}
+          active={modviewOpen}
+          onclick={onmodview}
+        />
+      {/if}
     {/if}
     <IconButton
       icon="users"

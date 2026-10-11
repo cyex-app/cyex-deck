@@ -3,8 +3,11 @@
 //! what IRC never says (being modded or unmodded while a chat is open): Twitch's public
 //! moderated-channel answer every 30 s, and mod/unmod events and revoked mod
 //! subscriptions from the mod feeds. Every change goes to all windows as `mod:roles`.
+//! V102-26 A tab that shows only the stream has no room to say our role, so the same
+//! answer covers it: the channel's shield and its mod view show from it until a room
+//! opens (the mod view's chat). Mod actions still wait for the room.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -37,7 +40,27 @@ struct Roles {
     /// The check's last answer per (account, channel). Only a change acts, so a stale
     /// answer never overrules a fresh USERSTATE.
     answers: Mutex<HashMap<(String, String), bool>>,
+    /// V102-26 Stream-only tiles signed in to an account: (account, login) → what we know.
+    watched: Mutex<Watched>,
     wake: Notify,
+}
+
+/// V102-26 A channel shown without its chat, as one account.
+#[derive(Clone, Debug, PartialEq)]
+struct Watch {
+    channel_id: String,
+    /// Twitch's last answer. The account's own channel needs none.
+    moderator: bool,
+}
+
+impl Watch {
+    fn role(&self, account: &str) -> Option<ModRole> {
+        if account == self.channel_id {
+            Some(ModRole::Broadcaster)
+        } else {
+            self.moderator.then_some(ModRole::Moderator)
+        }
+    }
 }
 
 pub fn init(app: &AppHandle) {
@@ -72,6 +95,7 @@ pub fn snapshot(app: &AppHandle) -> Vec<RoleEntry> {
     let Some(chat) = app.try_state::<Chat>() else {
         return Vec::new();
     };
+    let mut rooms = HashSet::new();
     let mut list: Vec<RoleEntry> = chat
         .lock()
         .rooms
@@ -80,6 +104,7 @@ pub fn snapshot(app: &AppHandle) -> Vec<RoleEntry> {
             let Identity::Account(account) = identity else {
                 return None;
             };
+            rooms.insert((account.clone(), login.clone()));
             Some(RoleEntry {
                 account: account.clone(),
                 channel: login.clone(),
@@ -87,8 +112,76 @@ pub fn snapshot(app: &AppHandle) -> Vec<RoleEntry> {
             })
         })
         .collect();
+    if let Some(roles) = app.try_state::<Roles>() {
+        let watched = roles.watched.lock().unwrap_or_else(|p| p.into_inner());
+        list.extend(watched_roles(&watched, &rooms));
+    }
     list.sort();
     list
+}
+
+/// V102-26 Roles of the stream-only tiles where that account has no room (a room knows
+/// better).
+fn watched_roles(watched: &Watched, rooms: &HashSet<(String, String)>) -> Vec<RoleEntry> {
+    watched
+        .iter()
+        .filter(|(key, _)| !rooms.contains(*key))
+        .filter_map(|((account, login), w)| {
+            Some(RoleEntry {
+                account: account.clone(),
+                channel: login.clone(),
+                role: w.role(account)?,
+            })
+        })
+        .collect()
+}
+
+/// V102-26 The tiles that show a channel's stream without its chat, signed in, as
+/// (account, login, channel id). New ones are asked about soon; the windows hear of a
+/// role that came or went with them.
+pub fn watch(app: &AppHandle, tiles: Vec<(String, String, String)>) {
+    let Some(roles) = app.try_state::<Roles>() else {
+        return;
+    };
+    let fresh = {
+        let mut watched = roles.watched.lock().unwrap_or_else(|p| p.into_inner());
+        let (next, fresh) = rewatch(&watched, tiles);
+        *watched = next;
+        fresh
+    };
+    if fresh {
+        roles.wake.notify_one();
+    }
+    emit(app);
+}
+
+type Watched = HashMap<(String, String), Watch>;
+
+/// The new watch list, keeping what Twitch said about tiles that stay; `true` when a
+/// tile needs asking.
+fn rewatch(old: &Watched, tiles: Vec<(String, String, String)>) -> (Watched, bool) {
+    let mut fresh = false;
+    let next = tiles
+        .into_iter()
+        .map(|(account, login, channel_id)| {
+            let key = (account, login.to_ascii_lowercase());
+            let moderator = match old.get(&key) {
+                Some(w) if w.channel_id == channel_id => w.moderator,
+                _ => {
+                    fresh |= key.0 != channel_id;
+                    false
+                }
+            };
+            (
+                key,
+                Watch {
+                    channel_id,
+                    moderator,
+                },
+            )
+        })
+        .collect();
+    (next, fresh)
 }
 
 /// Tells every window the roles, when they changed since last time. Cheap to call after
@@ -216,6 +309,58 @@ async fn check(app: &AppHandle) {
         .lock()
         .unwrap_or_else(|p| p.into_inner())
         .retain(|k, _| seen.contains(k));
+    check_watched(app, &http).await;
+}
+
+/// V102-26 The same answer for stream-only tiles whose account has no room there.
+async fn check_watched(app: &AppHandle, http: &cyex_twitch::Http) {
+    let Some(chat) = app.try_state::<Chat>() else {
+        return;
+    };
+    let rooms: HashSet<(String, String)> = chat
+        .lock()
+        .rooms
+        .keys()
+        .filter_map(|(identity, login)| match identity {
+            Identity::Account(a) => Some((a.clone(), login.clone())),
+            Identity::Anon => None,
+        })
+        .collect();
+    let mut asks: HashMap<String, Vec<(String, String)>> = HashMap::new();
+    {
+        let roles = app.state::<Roles>();
+        let watched = roles.watched.lock().unwrap_or_else(|p| p.into_inner());
+        for ((account, login), w) in watched.iter() {
+            if *account != w.channel_id && !rooms.contains(&(account.clone(), login.clone())) {
+                asks.entry(account.clone())
+                    .or_default()
+                    .push((login.clone(), w.channel_id.clone()));
+            }
+        }
+    }
+    let mut changed = false;
+    for (account, list) in asks {
+        for chunk in list.chunks(cyex_twitch::gql::viewer::MODERATES_MAX) {
+            let ids: Vec<String> = chunk.iter().map(|c| c.1.clone()).collect();
+            let Ok(answers) = cyex_twitch::gql::viewer::moderates(http, &account, &ids).await else {
+                continue;
+            };
+            let roles = app.state::<Roles>();
+            let mut watched = roles.watched.lock().unwrap_or_else(|p| p.into_inner());
+            for ((login, cid), on) in chunk.iter().zip(answers) {
+                if let Some(w) = watched.get_mut(&(account.clone(), login.clone()))
+                    && w.channel_id == *cid
+                    && w.moderator != on
+                {
+                    w.moderator = on;
+                    changed = true;
+                }
+            }
+        }
+    }
+    if changed {
+        emit(app);
+    }
 }
 
 /// Whether an answer from the check changes the room: when it differs from the last one
@@ -230,7 +375,11 @@ fn acts(before: Option<bool>, now: bool, known: bool) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::acts;
+    use std::collections::{HashMap, HashSet};
+
+    use cyex_chat::model::ModRole;
+
+    use super::{Watch, acts, rewatch, watched_roles};
 
     #[test]
     fn only_changes_in_the_answer_act() {
@@ -247,5 +396,51 @@ mod tests {
         assert!(acts(Some(true), false, true));
         assert!(!acts(Some(true), true, true));
         assert!(!acts(Some(false), false, true));
+    }
+
+    fn tile(account: &str, login: &str, id: &str) -> (String, String, String) {
+        (account.into(), login.into(), id.into())
+    }
+
+    /// V102-26 Stream-only tiles: asked once, answers kept while the tile stays.
+    #[test]
+    fn stream_only_tiles_keep_their_answer() {
+        let (mut w, fresh) = rewatch(&HashMap::new(), vec![tile("me", "XQC", "71092938")]);
+        assert!(fresh, "a new tile is asked about");
+        let key = ("me".to_owned(), "xqc".to_owned());
+        assert!(!w[&key].moderator, "no role until Twitch says so");
+        w.get_mut(&key).unwrap().moderator = true;
+
+        let (again, fresh) = rewatch(&w, vec![tile("me", "xqc", "71092938")]);
+        assert!(!fresh);
+        assert!(again[&key].moderator, "kept");
+        // Another channel under that name (renamed): asked again.
+        let (other, fresh) = rewatch(&w, vec![tile("me", "xqc", "1")]);
+        assert!(fresh && !other[&key].moderator);
+        // Your own channel needs no asking.
+        let (own, fresh) = rewatch(&HashMap::new(), vec![tile("42", "me", "42")]);
+        assert!(!fresh);
+        let mine = &own[&("42".to_owned(), "me".to_owned())];
+        assert_eq!(mine.role("42"), Some(ModRole::Broadcaster));
+    }
+
+    #[test]
+    fn a_room_knows_better_than_the_watch() {
+        let w = |moderator| Watch {
+            channel_id: "c".into(),
+            moderator,
+        };
+        let watched = HashMap::from([
+            (("me".to_owned(), "a".to_owned()), w(true)),
+            (("me".to_owned(), "b".to_owned()), w(true)),
+            (("me".to_owned(), "n".to_owned()), w(false)),
+        ]);
+        let rooms = HashSet::from([("me".to_owned(), "b".to_owned())]);
+        let roles = watched_roles(&watched, &rooms);
+        assert_eq!(roles.len(), 1, "b has a room, n isn't a mod");
+        assert_eq!(
+            (roles[0].channel.as_str(), roles[0].role),
+            ("a", ModRole::Moderator)
+        );
     }
 }

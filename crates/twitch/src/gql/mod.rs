@@ -64,7 +64,7 @@ pub use follows::{
 pub use playback::{AccessToken, Player, stream_token, video_token};
 pub use search::{SearchResults, search, search_channels};
 pub use stories::{Story, StoryRing, mark_seen, stories, story_ring};
-pub use users::{GqlUser, Profile, profile, user_by_id};
+pub use users::{GqlUser, Profile, Suspension, profile, user_by_id};
 
 use std::sync::OnceLock;
 

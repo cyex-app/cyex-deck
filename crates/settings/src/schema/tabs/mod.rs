@@ -127,6 +127,9 @@ pub struct Tile {
     /// V102-23 Where the chat sits next to the stream, dragged with the tab's panels
     /// unlocked. `None` follows Settings (2.1); "Reset layout" goes back to it.
     pub chat_side: Option<ChatPosition>,
+    /// V102-26 The mod view's share of the stream area, its divider dragged. `None` is the
+    /// default half; "Reset layout" goes back to it.
+    pub modview_share: Option<f32>,
 }
 
 impl Default for Tile {
@@ -143,6 +146,7 @@ impl Default for Tile {
             feed: None,
             filters: Vec::new(),
             chat_side: None,
+            modview_share: None,
         }
     }
 }
@@ -316,6 +320,7 @@ fn sanitize_tile(tile: &mut Tile) {
         tile.show.chat = true;
     }
     tile.ratio = clamp(tile.ratio, RATIO_RANGE, DEFAULT_RATIO);
+    tile.modview_share = tile.modview_share.filter(|s| s.is_finite()).map(|s| s.clamp(RATIO_RANGE.0, RATIO_RANGE.1));
     tile.size = clamp(tile.size, SIZE_RANGE, 1.0);
     tile.volume = clamp(tile.volume, (0.0, 1.0), DEFAULT_VOLUME);
     tile.channel.login = tile.channel.login.trim().to_ascii_lowercase();

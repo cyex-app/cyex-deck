@@ -1,7 +1,7 @@
 <!-- V101-05 The usercard's head, after the 7TV extension's: banner behind, picture, name in
      its color or 7TV paint, the paint's name, roles and every badge they own (V102-13), and
      small buttons for the note, the logs and the Twitch profile. V101-23 switches the 7TV
-     picture for Twitch's. -->
+     picture for Twitch's. V102-25 A flag when Twitch hides the account. -->
 <script lang="ts">
   import Avatar from '../../components/Avatar.svelte';
   import Icon from '../../components/Icon.svelte';
@@ -15,6 +15,7 @@
   import { streamer } from '../../lib/streamer.svelte';
   import { toast } from '../../lib/toast.svelte';
   import EarnedBadges from './EarnedBadges.svelte';
+  import { suspendedFlag } from './suspended';
   import { avatars } from '../emotes/avatars.svelte';
   import { looks } from '../emotes/looks.svelte';
   import { toggleWatch, watched } from './watch';
@@ -45,6 +46,7 @@
   const paintName = $derived(paint ? looks.paintName(paintId) : null);
   const colorVars = $derived(color ? `--cd:${color.dark};--cl:${color.light}` : '');
   const bell = $derived(watched(settings.v.highlights.users, profile.login));
+  const flag = $derived(suspendedFlag(profile.suspended));
 
   function flipBell() {
     void settings.patch('highlights', { users: toggleWatch(settings.v.highlights.users, profile.login) });
@@ -77,6 +79,7 @@
     </div>
     {#if paintName}<span class="paint" style={colorVars}>{paintName}</span>{/if}
     <div class="marks">
+      {#if flag}<span class="role suspended {flag.tone}" use:tooltip={flag.hint}>{flag.label}</span>{/if}
       {#if profile.staff}<span class="role staff">Staff</span>{/if}
       {#if profile.partner}<span class="role partner">Partner</span>{/if}
       {#if profile.affiliate}<span class="role affiliate">Affiliate</span>{/if}
@@ -220,6 +223,19 @@
   .affiliate {
     background: var(--accent-dim);
     color: var(--accent-text);
+  }
+  /* V102-25 */
+  .suspended.red {
+    background: color-mix(in srgb, var(--red) 20%, transparent);
+    color: var(--red);
+  }
+  .suspended.yellow {
+    background: color-mix(in srgb, var(--yellow) 20%, transparent);
+    color: var(--yellow);
+  }
+  .suspended.grey {
+    background: var(--surface-hover);
+    color: var(--muted);
   }
   .id {
     align-self: flex-start;

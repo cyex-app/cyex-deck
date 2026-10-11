@@ -1,10 +1,13 @@
 <!-- The stream side of a tile: the live stream (1.1) or the channel's pages (1.21), with
      clips over the stream (1.20) and stories. While a page shows, the stream keeps
      playing small in a corner (P4); a VOD or clip from a list stops it. Fullscreen takes
-     the whole body, so a clip opened over the stream shows there too (V101-26). -->
+     the whole body, so a clip opened over the stream shows there too (V101-26). V102-26 The
+     channel's mod view can split the body with the stream, under the header; the stream
+     stays in the page either way, so it never restarts. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
+  import SplitPane from '../../components/SplitPane.svelte';
   import type { Tile } from '../../ipc/bindings/Tile';
   import { playerIpc } from '../../ipc/player';
   import { accounts } from '../../lib/accounts.svelte';
@@ -31,9 +34,13 @@
     onpopchat?: () => void;
     /** 3.14 The chat is in its own window: this brings it back. */
     onbringchat?: () => void;
+    /** V102-26 The mod view beside the stream, and how they split: side by side (the mod
+     * view left) or the stream on top; the mod view's share, and where a drag sends it. */
+    modview?: Snippet;
+    modSplit?: { row: boolean; share: number; reset: number; onshare: (share: number) => void };
   }
 
-  let { tile, actions, onheaderdown, onpopchat, onbringchat }: Props = $props();
+  let { tile, actions, onheaderdown, onpopchat, onbringchat, modview, modSplit }: Props = $props();
 
   const shared = $derived(tileState(tile.id));
   const info = $derived(tabs.live[tile.channel.id]);
@@ -85,6 +92,21 @@
       <button onclick={onbringchat}>Bring it back</button>
     </div>
   {/if}
+  <SplitPane
+    direction={modSplit?.row === false ? 'column' : 'row'}
+    reverse={modSplit?.row !== false}
+    ratio={1 - (modSplit?.share ?? 0)}
+    reset={1 - (modSplit?.reset ?? 0)}
+    onchange={(first) => modSplit?.onshare(1 - first)}
+    first={body}
+    second={modview ?? nothing}
+    hide={modview ? undefined : 'second'}
+  />
+</section>
+
+{#snippet nothing()}{/snippet}
+
+{#snippet body()}
   <div class="body" data-fullscreen>
     {#if page.kind === 'about'}
       <AboutPage login={tile.channel.login} {account} onstories={() => (shared.stories = true)} />
@@ -127,7 +149,7 @@
       />
     {/if}
   </div>
-</section>
+{/snippet}
 
 <style>
   .side {
@@ -141,6 +163,7 @@
   .body {
     position: relative;
     flex: 1;
+    min-width: 0;
     min-height: 0;
     display: flex;
   }

@@ -1,6 +1,7 @@
 // V102-24 When a panel gets too small to use and where it goes instead. The sizes live
 // here and nowhere else (logged in DECISIONS.md). A moved layout is never saved: the
 // user's own (Settings 2.1 or dragged, V102-23) comes back once there's room again.
+// V102-26 The mod view inside a tab is placed here too.
 
 /** Smallest usable sizes, in CSS pixels. */
 export const MIN = {
@@ -18,7 +19,17 @@ export const MIN = {
   /** The stream manager's cards (V102-22): one column of them. */
   cardsW: 300,
   cardsH: 240,
+  /** V102-26 The mod view in a tab: one column of widgets, its header and one widget. */
+  modviewW: 320,
+  modviewH: 260,
 };
+
+/** V102-26 The channel header over a stream (StreamHeader and its border). The mod view
+ * splits what's under it. */
+export const STREAM_HEAD = 37;
+
+/** V102-26 The mod view's share of the stream area until its divider is dragged. */
+export const MODVIEW_SHARE = 0.5;
 
 /** How far past a limit the space has to grow before a moved layout goes back. */
 export const HYSTERESIS = 48;
@@ -66,6 +77,9 @@ export const STREAM: Partner = { min: { w: MIN.streamW, h: MIN.streamH }, stacke
 
 /** V102-22 The stream manager's cards. */
 export const CARDS: Partner = { min: { w: MIN.cardsW, h: MIN.cardsH }, stacked: (box) => Math.max(MIN.chatH / box.h, 0.45) };
+
+/** V102-26 A mod view beside a chat that has no stream. */
+export const MODVIEW: Partner = { min: { w: MIN.modviewW, h: MIN.modviewH }, stacked: (box) => Math.max(MIN.chatH / box.h, 0.45) };
 
 /** Where a tile's chat goes in `box` (stream and chat, or a clip beside a chat). The
  * user's side when both panels fit, the chat widened up to its minimum if needed; else
@@ -120,4 +134,73 @@ export function stackColumns(box: Box, columns: ColumnNeed[], stacked = false): 
   const all = columns.flatMap((c) => c.tiles);
   const high = box.h / all.length;
   return all.every((t) => high >= t.h - margin && box.w >= t.w);
+}
+
+/** V102-26 Where a tile's mod view goes. */
+export interface ModFit {
+  /** Side by side, the mod view on the left; else the stream on top, the mod view below. */
+  row: boolean;
+  /** The mod view's share of what it splits with the stream. */
+  share: number;
+  /** The tab's chat steps aside for room (the mod view has its own, V102-22). */
+  hideChat: boolean;
+  /** No room even then: it pops out (V102-16 docks it back). */
+  out: boolean;
+}
+
+export interface ModArea {
+  tile: Box;
+  /** The tile's chat as fitted (V102-24), or null when it doesn't show. */
+  chat: { side: Side; ratio: number } | null;
+  /** What it shares the area with: the stream (under its header), a clip, or nothing. */
+  partner: 'stream' | 'clip' | null;
+  /** The mod view's share, as dragged. */
+  share: number;
+}
+
+/** What's left of the tile beside its chat, under the stream's header. */
+function modSpace(a: ModArea, withChat: boolean): Box {
+  let { w, h } = a.tile;
+  if (withChat && a.chat) {
+    if (across(a.chat.side)) w *= 1 - a.chat.ratio;
+    else h *= 1 - a.chat.ratio;
+  }
+  return { w, h: a.partner === 'stream' ? h - STREAM_HEAD : h };
+}
+
+/** The mod view's share along `len`, or null when it and the stream can't both have their
+ * least room, plus `margin`. */
+function cut(len: number, want: number, own: number, other: number, margin: number): number | null {
+  if (len < own + other + margin) return null;
+  return Math.min(Math.max(want, own / len), 1 - other / len);
+}
+
+/** How the mod view splits `area`: side by side when it's wider than 16:9, else top and
+ * bottom, or the other way when only that fits. `row` is the last answer: the shape has
+ * to pass 16:9 by the hysteresis to turn. */
+function split(area: Box, a: ModArea, margin: number, row?: boolean): { row: boolean; share: number } | null {
+  if (!a.partner) return area.w >= MIN.modviewW + margin && area.h >= MIN.modviewH + margin ? { row: true, share: 1 } : null;
+  const bias = row === undefined ? 0 : row ? -HYSTERESIS : HYSTERESIS;
+  const wide = area.w - (area.h * 16) / 9 > bias;
+  for (const r of wide ? [true, false] : [false, true]) {
+    const [len, cross, own, other, need] = r
+      ? [area.w, area.h, MIN.modviewW, MIN.streamW, Math.max(MIN.modviewH, MIN.streamH)]
+      : [area.h, area.w, MIN.modviewH, MIN.streamH, Math.max(MIN.modviewW, MIN.streamW)];
+    const s = cross >= need + margin ? cut(len, a.share, own, other, margin) : null;
+    if (s !== null) return { row: r, share: s };
+  }
+  return null;
+}
+
+/** V102-26 The mod view inside a tile, in the stream's area: beside the tab's chat when
+ * there's room, else in the chat's place too, else out in its own window. Showing the chat
+ * again takes the hysteresis more room. `last` is the last answer. */
+export function fitModview(a: ModArea, last: ModFit | null = null): ModFit {
+  if (a.chat) {
+    const s = split(modSpace(a, true), a, last?.hideChat ? HYSTERESIS : 0, last?.row);
+    if (s) return { ...s, hideChat: false, out: false };
+  }
+  const s = split(modSpace(a, false), a, 0, last?.row);
+  if (s) return { ...s, hideChat: a.chat !== null, out: false };
+  return { row: last?.row ?? false, share: a.share, hideChat: false, out: true };
 }

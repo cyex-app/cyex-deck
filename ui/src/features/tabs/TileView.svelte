@@ -3,16 +3,19 @@
      beside the chat (1.19, P7); while a VOD plays here the chat can replay it (P8). The
      chat can pop out on its own (1.58). In tiled tabs the header drags the tile; in an
      unlocked tab it drags the chat or stream to a side of the other (V102-23). Too small
-     for both, the panels turn round until there's room again (V102-24). -->
+     for both, the panels turn round until there's room again (V102-24). The shield opens
+     the channel's mod view in the stream's area, the chat stepping aside or the view
+     popping out when there's no room (V102-26, `fitModview`). -->
 <script lang="ts">
   import { untrack } from 'svelte';
 
   import { popOut } from '../../app/panels';
   import Icon from '../../components/Icon.svelte';
+  import IconButton from '../../components/IconButton.svelte';
   import SplitPane from '../../components/SplitPane.svelte';
   import type { Tab } from '../../ipc/bindings/Tab';
   import type { Tile } from '../../ipc/bindings/Tile';
-  import { type Box, fitTile, type TileFit } from '../../lib/fit';
+  import { type Box, fitModview, fitTile, type ModFit, MODVIEW, MODVIEW_SHARE, STREAM, type TileFit } from '../../lib/fit';
   import StreamSide from '../channel/StreamSide.svelte';
   import ChatView from '../chat/ChatView.svelte';
   import FeedView from '../chat/FeedView.svelte';
@@ -20,6 +23,9 @@
   import ClipPlayer from '../player/ClipPlayer.svelte';
   import { openTarget, tileState } from '../player/players.svelte';
   import VodPlayer from '../player/VodPlayer.svelte';
+  import { mods } from '../modview/moderation.svelte';
+  import ModViewPanel from '../modview/ModViewPanel.svelte';
+  import { modviewPlace, modviewRoute } from '../modview/where.svelte';
   import { drag, type Panel } from './drag.svelte';
   import { chatSide, layout } from './layout.svelte';
   import { layoutEntries, tileEntries } from './menus';
@@ -41,12 +47,21 @@
   const tiled = $derived(tiles(tab).length > 1);
   const shared = $derived(tileState(tile.id));
   const chatPopped = $derived(tabs.chats.has(tile.id));
-  const showChat = $derived(tile.show.chat && !chatPopped && !background);
+  /** The chat shows here unless the mod view needs its room (V102-26). */
+  const chatWanted = $derived(tile.show.chat && !chatPopped && !background);
   /** 1.19, P7 Only beside a chat-only tile. */
   const side = $derived(tile.show.player ? null : shared.side);
   const replay = $derived(shared.replay ? shared.vod : null);
-  /** The chat shares the tile with the stream or a clip. */
-  const paired = $derived(showChat && (tile.show.player || side !== null));
+
+  // V102-26 The channel's mod view in this tile, for an account that mods it (V102-21).
+  const canMod = $derived(!tile.feed && mods.moderating(tile.channel.login) !== null);
+  const modOpen = $derived(modviewPlace.isOpen(tile.id));
+  const modWanted = $derived(canMod && modviewPlace.isIn(tile.id) && !background);
+  let modFit = $state<ModFit | null>(null);
+  const modShown = $derived(modWanted && modFit !== null && !modFit.out);
+  const showChat = $derived(chatWanted && !(modWanted && modFit?.hideChat));
+  /** The chat shares the tile with the stream, a clip or the mod view. */
+  const paired = $derived(chatWanted && (tile.show.player || side !== null || modWanted));
 
   // V102-24 Measured, then fitted: the user's side (V102-23, else Settings 2.1), the chat
   // widened or turned round when it would be too small. Held while something's dragged.
@@ -72,7 +87,9 @@
     }
     // Out of sight (a tab kept playing) nothing changes.
     if (b.w <= 0 || b.h <= 0) return;
-    const next = fitTile(b, chatSide(tile), tile.ratio, untrack(() => fit?.moved ?? false));
+    // Beside a chat with no stream the mod view needs its own room (V102-26).
+    const partner = tile.show.player || side !== null ? STREAM : MODVIEW;
+    const next = fitTile(b, chatSide(tile), tile.ratio, untrack(() => fit?.moved ?? false), partner);
     if (!next.moved) movedRatio = null;
     fit = next;
   });
@@ -81,6 +98,47 @@
   const row = $derived(shownSide === 'left' || shownSide === 'right');
   const chatFirst = $derived(shownSide === 'left' || shownSide === 'top');
   const ratio = $derived(fit?.moved ? (movedRatio ?? fit.ratio) : (fit?.ratio ?? tile.ratio));
+
+  // V102-26 Where the mod view goes in the stream's area, next to the chat as fitted above.
+  $effect(() => {
+    if (drag.item) return;
+    const b = box;
+    if (!modWanted) {
+      modFit = null;
+      return;
+    }
+    if (b.w <= 0 || b.h <= 0) return;
+    const chat = chatWanted ? { side: shownSide, ratio } : null;
+    const partner = tile.show.player ? 'stream' : side ? 'clip' : null;
+    const share = tile.modviewShare ?? MODVIEW_SHARE;
+    modFit = fitModview({ tile: b, chat, partner, share }, untrack(() => modFit));
+  });
+
+  /** A moment with no room before it pops out: not while a window is dragged smaller past it. */
+  const OUT_AFTER_MS = 400;
+  $effect(() => {
+    const f = modFit;
+    const id = tile.id;
+    if (!f) return;
+    if (!f.out) {
+      untrack(() => modviewPlace.fitted(id, false));
+      return;
+    }
+    const t = setTimeout(() => modviewPlace.fitted(id, true), OUT_AFTER_MS);
+    return () => clearTimeout(t);
+  });
+
+  const modRow = $derived(modFit?.row ?? true);
+  const modShare = $derived(modFit?.share ?? MODVIEW_SHARE);
+
+  /** Kept with the tile; the default half is saved as none, so "Reset layout" has nothing to undo. */
+  function setModShare(share: number) {
+    void tabs.apply({ op: 'modviewShare', tile: tile.id, share: Math.abs(share - MODVIEW_SHARE) < 0.005 ? null : share });
+  }
+
+  function toggleMod() {
+    modviewPlace.toggleIn(tile.id, tile.channel.login);
+  }
 
   const unlocked = $derived(layout.isUnlocked(tab.id));
 
@@ -128,6 +186,17 @@
 </script>
 
 {#snippet actions()}
+  {#if canMod && !showChat}
+    <!-- V102-26 Where no chat carries the shield. -->
+    <IconButton
+      icon="shield"
+      label={modOpen ? 'Close mod view' : 'Mod view'}
+      hint="Mod tools for this channel."
+      size={15}
+      active={modOpen}
+      onclick={toggleMod}
+    />
+  {/if}
   {#if shared.vod && !shared.replay}
     <button class="replay-btn" onclick={() => (shared.replay = true)}>Chat replay</button>
   {/if}
@@ -173,6 +242,8 @@
         onfilters={(filters) => void tabs.apply({ op: 'filters', tile: tile.id, filters })}
         onpopout={tile.show.player && !popout ? popChat : undefined}
         onoverlay={() => void popOut(`overlay/${tile.id}`)}
+        onmodview={toggleMod}
+        modviewOpen={modOpen}
       />
     {/key}
   {/if}
@@ -185,8 +256,20 @@
     onheaderdown={onstreamdown}
     onpopchat={tile.show.chat && !chatPopped && !popout ? popChat : undefined}
     onbringchat={chatPopped ? () => tabs.dockChat(tile.id) : undefined}
+    modview={modShown ? modview : undefined}
+    modSplit={{ row: modRow, share: modShare, reset: MODVIEW_SHARE, onshare: setModShare }}
   />
 {/snippet}
+
+{#snippet modview()}
+  <ModViewPanel
+    route={modviewRoute(tile.channel.login)}
+    onpopout={() => modviewPlace.popOut(tile.id)}
+    onclose={() => modviewPlace.close(tile.id)}
+  />
+{/snippet}
+
+{#snippet nothing()}{/snippet}
 
 {#snippet beside()}
   <div class="beside">
@@ -207,8 +290,20 @@
   <div class="panel" data-panel="stream">{@render stream()}</div>
 {/snippet}
 
+<!-- A clip beside a chat-only tile's chat, the mod view (V102-26), or both split like a stream. -->
 {#snippet besidePanel()}
-  <div class="panel" data-panel="stream">{@render beside()}</div>
+  <div class="panel" data-panel="stream">
+    <SplitPane
+      direction={modRow ? 'row' : 'column'}
+      reverse={modRow}
+      ratio={1 - modShare}
+      reset={1 - MODVIEW_SHARE}
+      onchange={(first) => setModShare(1 - first)}
+      first={beside}
+      second={modShown ? modview : nothing}
+      hide={!side ? 'first' : modShown ? undefined : 'second'}
+    />
+  </div>
 {/snippet}
 
 <div class="tile" data-tile-id={tile.id} bind:this={root}>
@@ -225,7 +320,7 @@
       second={chatPanel}
       hide={showChat ? undefined : 'second'}
     />
-  {:else if showChat && side}
+  {:else if (showChat && side) || modShown}
     <SplitPane
       direction={row ? 'row' : 'column'}
       reverse={chatFirst}
@@ -234,6 +329,7 @@
       onchange={(first) => setRatio(1 - first)}
       first={besidePanel}
       second={chatPanel}
+      hide={showChat ? undefined : 'second'}
     />
   {:else if showChat}
     {@render chat()}

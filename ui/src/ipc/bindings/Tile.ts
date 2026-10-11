@@ -39,4 +39,9 @@ filters: Array<string>,
  * V102-23 Where the chat sits next to the stream, dragged with the tab's panels
  * unlocked. `None` follows Settings (2.1); "Reset layout" goes back to it.
  */
-chatSide: ChatPosition | null, };
+chatSide: ChatPosition | null, 
+/**
+ * V102-26 The mod view's share of the stream area, its divider dragged. `None` is the
+ * default half; "Reset layout" goes back to it.
+ */
+modviewShare: number | null, };

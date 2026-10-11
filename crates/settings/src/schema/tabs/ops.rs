@@ -72,7 +72,11 @@ pub enum TabOp {
     /// V102-23 Where a tile's chat sits next to its stream. `None` follows Settings (2.1),
     /// which this never changes.
     ChatSide { tile: String, side: Option<ChatPosition> },
-    /// V102-23 Every chat in the tab back where Settings puts it.
+    /// V102-26 The mod view's share of a tile's stream area, its divider dragged. `None`
+    /// goes back to the default.
+    ModviewShare { tile: String, share: Option<f32> },
+    /// V102-23 Every chat in the tab back where Settings puts it, and V102-26 every mod view
+    /// divider back to its default.
     ResetLayout { tab: String },
     /// The tile's player volume.
     Sound { tile: String, volume: f32, muted: bool },
@@ -178,6 +182,7 @@ impl Tabs {
                     feed: None,
                     filters: Vec::new(),
                     chat_side: None,
+                    modview_share: None,
                 };
                 let i = self.tab_index(&tab_id)?;
                 let size = average_width(&self.tabs[i]);
@@ -211,6 +216,7 @@ impl Tabs {
                         feed: None,
                         filters: Vec::new(),
                         chat_side: None,
+                        modview_share: None,
                     };
                     columns[i % width].tiles.push(tile);
                 }
@@ -370,11 +376,17 @@ impl Tabs {
                 self.tile_mut(at).chat_side = side;
                 Ok(None)
             }
+            TabOp::ModviewShare { tile, share } => {
+                let at = self.locate(&tile)?;
+                self.tile_mut(at).modview_share = share;
+                Ok(None)
+            }
             TabOp::ResetLayout { tab } => {
                 let i = self.tab_index(&tab)?;
                 for column in &mut self.tabs[i].columns {
                     for t in &mut column.tiles {
                         t.chat_side = None;
+                        t.modview_share = None;
                     }
                 }
                 Ok(None)
@@ -969,9 +981,20 @@ mod tests {
         let back: Tabs = serde_json::from_value(serde_json::to_value(&t).unwrap()).unwrap();
         assert_eq!(side(&back, 0, 1), Some(ChatPosition::Bottom));
 
+        // V102-26 The mod view's divider is kept with the tile too, and reset with it.
+        apply(&mut t, TabOp::ModviewShare { tile: b1.clone(), share: Some(0.6) });
+        let share = |t: &Tabs, tab: usize| t.tabs[tab].columns[0].tiles[0].modview_share;
+        assert_eq!(share(&t, 1), Some(0.6));
+        apply(&mut t, TabOp::ModviewShare { tile: b1.clone(), share: Some(7.0) });
+        assert_eq!(share(&t, 1), Some(0.9), "clamped");
+        let op: TabOp = serde_json::from_str(r#"{"op":"modviewShare","tile":"x","share":null}"#).unwrap();
+        assert!(matches!(op, TabOp::ModviewShare { share: None, .. }));
+
         apply(&mut t, TabOp::ResetLayout { tab: "a".into() });
         assert_eq!((side(&t, 0, 0), side(&t, 0, 1)), (None, None));
         assert_eq!(side(&t, 1, 0), Some(ChatPosition::Left), "only that tab");
+        apply(&mut t, TabOp::ResetLayout { tab: "b".into() });
+        assert_eq!(share(&t, 1), None);
         let mut fresh = || "x".to_owned();
         assert!(t.apply(TabOp::ResetLayout { tab: "gone".into() }, &mut fresh).is_err());
     }
