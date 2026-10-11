@@ -14,15 +14,17 @@
     onclose?: () => void;
     host?: string | null;
     ongrab?: (e: PointerEvent) => void;
+    /** V103-22 In a tab whose own chat shows. */
+    chatNear?: boolean;
   }
 
-  let { route, onpopout, onclose, host = null, ongrab }: Props = $props();
+  let { route, onpopout, onclose, host = null, ongrab, chatNear = false }: Props = $props();
   const login = $derived(route.split('/')[1] ?? '');
   const account = $derived(mods.moderating(login));
 </script>
 
 {#if account}
-  {#key account}<ModView {login} {account} {onpopout} {onclose} {host} {ongrab} />{/key}
+  {#key account}<ModView {login} {account} {onpopout} {onclose} {host} {ongrab} {chatNear} />{/key}
 {:else}
   <p class="gone">You're not moderating {login} right now. Open its chat with your mod account first.</p>
 {/if}

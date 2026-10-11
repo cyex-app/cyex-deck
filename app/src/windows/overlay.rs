@@ -28,6 +28,11 @@ pub fn is_overlay(route: &str) -> bool {
     route.starts_with(PREFIX)
 }
 
+/// An overlay's window, by its label (`panels::label_for` of its route).
+pub fn is_overlay_window(label: &str) -> bool {
+    label.starts_with(&super::panels::label_for(PREFIX))
+}
+
 /// See-through, on top, no shadow and no taskbar button.
 pub fn style<'a>(
     builder: WebviewWindowBuilder<'a, Wry, AppHandle>,
@@ -95,11 +100,19 @@ pub fn sync_tray(app: &AppHandle) {
 
 #[cfg(test)]
 mod tests {
-    use super::is_overlay;
+    use super::{is_overlay, is_overlay_window};
+    use crate::windows::panels::label_for;
 
     #[test]
     fn routes() {
         assert!(is_overlay("overlay/abc"));
         assert!(!is_overlay("chat/abc"));
+    }
+
+    #[test]
+    fn window_labels() {
+        assert!(is_overlay_window(&label_for("overlay/abc")));
+        assert!(!is_overlay_window(&label_for("chat/abc")));
+        assert!(!is_overlay_window("main"));
     }
 }

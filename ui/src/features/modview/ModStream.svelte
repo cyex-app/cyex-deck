@@ -1,12 +1,27 @@
 <!-- V103-07 The mod view's stream panel when no tab in this window shows the channel's
      player to borrow (in its own window, or next to the tabs): a player of its own, as the
-     moderating account. Its sound stays with it, not with any tab. -->
+     moderating account. Its sound stays with it, not with any tab. When another window or
+     tab plays the stream already, it starts paused and muted, so only that one plays on. -->
 <script lang="ts">
   import type { Tile } from '../../ipc/bindings/Tile';
+  import { playerIpc } from '../../ipc/player';
   import LivePlayer from '../player/LivePlayer.svelte';
   import { tabs } from '../tabs/tabs.svelte';
 
   let { login, account, channelId }: { login: string; account: string; channelId: string } = $props();
+
+  /** Another player plays it now; asked once when the panel opens. */
+  let elsewhere = $state<boolean | null>(null);
+  $effect(() => {
+    let gone = false;
+    playerIpc
+      .playing(login)
+      .then((v) => !gone && (elsewhere = v))
+      .catch(() => !gone && (elsewhere = false));
+    return () => {
+      gone = true;
+    };
+  });
 
   const info = $derived(tabs.live[channelId]);
   const tile = $derived<Tile>({
@@ -17,7 +32,7 @@
     ratio: 0.28,
     size: 1,
     volume: 0.5,
-    muted: false,
+    muted: elsewhere === true,
     feed: null,
     filters: [],
     chatSide: null,
@@ -29,9 +44,9 @@
   {#if info && !info.stream}
     <!-- Known to be offline from a tab's live check: no stream to ask Twitch for. -->
     <p class="off">{tile.channel.name} is offline.</p>
-  {:else}
+  {:else if elsewhere !== null}
     {#key `${login}/${account}`}
-      <LivePlayer {tile} {info} />
+      <LivePlayer {tile} {info} held={elsewhere} />
     {/key}
   {/if}
 </div>

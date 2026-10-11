@@ -4,7 +4,9 @@
      a view on the room a tab may already have open, with its own scroll. V103-06 The
      panels are the shared panel layout (`PanelLayout`): unlocked, they drag onto a side of
      another and resize; locked, neither. Closed ones wait in the corner. Too narrow, they
-     go one under the other (V102-24). V103-15 Mod actions have their own panel. -->
+     go one under the other (V102-24). V103-15 Mod actions have their own panel. V103-22
+     One chat per channel: your chat starts closed when it shows in another window, else as
+     a whole column on the right. Markers and Stream Together start in the corner. -->
 <script lang="ts">
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
@@ -15,8 +17,28 @@
   import PanelLayout from '../../components/PanelLayout.svelte';
   import type { Board0 } from '../../ipc/bindings/Board0';
   import type { ModActionFilters } from '../../ipc/bindings/ModActionFilters';
+  import { chatIpc } from '../../ipc/chat';
   import { modIpc } from '../../ipc/moderation';
-  import { asPatch, type Box, type Edge, fitTree, has, leaf, minOf, move, type Node, prune, remove, restore, setSizes, split, stacked } from '../../lib/panels';
+  import {
+    asPatch,
+    type Box,
+    chatStart,
+    type Edge,
+    extend,
+    fitTree,
+    has,
+    leaf,
+    minOf,
+    move,
+    type Node,
+    prune,
+    remove,
+    restore,
+    setSizes,
+    split,
+    stacked,
+    withChat,
+  } from '../../lib/panels';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { uptimeShort } from '../browse/lists';
@@ -95,7 +117,7 @@
       ],
       [1 - chatShare, chatShare],
     );
-  /** Open the rest from the corner (assumption, DECISIONS.md). */
+  /** Open the rest from the corner (confirmed by the user, DECISIONS.md). */
   const START_CLOSED: string[] = ['markers', 'together'];
   const GAP = 8;
   const PAD = 8;
@@ -103,9 +125,29 @@
 
   const FULL = $derived(full(cfg.chat.share));
   /** The arrangement; before V103-06 only the chat's place and width were kept. */
-  const tree = $derived<Node | null>(
+  const stored = $derived<Node | null>(
     cfg.layout ?? prune(FULL, (id) => !START_CLOSED.includes(id) && (id !== 'chat' || cfg.chat.shown)),
   );
+
+  // V103-22 One chat per channel, asked once your channel is known: shown in another window,
+  // this one starts closed; else it opens as a whole column. Changed by hand, it stays so.
+  let chatAway = $state<boolean | null>(null);
+  let touched = $state(false);
+  const own = $derived(m?.login ?? null);
+  $effect(() => {
+    const login = own;
+    if (!login) return;
+    let gone = false;
+    chatAway = null;
+    chatIpc
+      .shownElsewhere(login)
+      .then((v) => !gone && (chatAway = v))
+      .catch(() => !gone && (chatAway = false));
+    return () => {
+      gone = true;
+    };
+  });
+  const tree = $derived(withChat(stored, 'chat', chatStart(touched, chatAway, false), 'right', cfg.chat.share));
   const closed = $derived(ORDER.filter((id) => !has(tree, id)).map((id) => ({ id, title: INFO[id].title, hint: INFO[id].hint })));
   const chatShown = $derived(has(tree, 'chat'));
 
@@ -119,8 +161,9 @@
     return fitTree(tree, box, { min, gap: GAP, pad: PAD });
   });
 
+  /** What shows is saved, the chat as it is now included. */
   function save(next: Node | null) {
-    if (next) void settings.patch('streammanager', { layout: asPatch(next) as never });
+    if (next) void settings.patch('streammanager', { layout: asPatch(next) as never }).then(() => (touched = true));
   }
 
   function drop(panel: string, target: string | null, edge: Edge) {
@@ -133,12 +176,18 @@
     if (n && 'dir' in n) save(setSizes(tree, path, n.parts.map(() => 1)));
   }
 
+  /** V103-22 The chat comes back as a whole column on the right, not next to one card. */
+  function bring(id: string) {
+    save(id === 'chat' ? extend(tree, 'chat', 'right', cfg.chat.share) : restore(tree, id, FULL));
+  }
+
   function toggleChat() {
-    save(chatShown ? remove(tree, 'chat') : restore(tree, 'chat', FULL));
+    if (chatShown) save(remove(tree, 'chat'));
+    else bring('chat');
   }
 
   function resetLayout() {
-    void settings.patch('streammanager', { layout: null as never, chat: { shown: true } });
+    void settings.patch('streammanager', { layout: null as never, chat: { shown: true } }).then(() => (touched = false));
     toast.info('Stream manager layout reset.');
   }
 
@@ -251,7 +300,7 @@
       onreset={(path) => even(path)}
       ondrop={drop}
       onclose={(id) => save(remove(tree, id))}
-      onrestore={(id) => save(restore(tree, id, FULL))}
+      onrestore={bring}
     />
   {/if}
 </div>

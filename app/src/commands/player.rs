@@ -33,6 +33,12 @@ pub fn player_close(app: AppHandle, id: String) {
     player::close(&app, &id);
 }
 
+/// V103-07 Whether another player plays this channel now, so a new one can start paused.
+#[tauri::command]
+pub fn player_playing(app: AppHandle, login: String) -> bool {
+    player::plays(&app, &login)
+}
+
 /// 1.19, 1.20 A clip with its video files. `None` if it was deleted.
 #[tauri::command]
 pub async fn player_clip(app: AppHandle, slug: String) -> CmdResult<Option<ClipPlayback>> {

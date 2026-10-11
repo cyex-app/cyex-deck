@@ -446,6 +446,7 @@
       onclose={() => modviewPlace.close(tile.id)}
       host={tile.show.player ? tile.id : null}
       ongrab={ctl.grab && count > 1 ? ctl.grab : undefined}
+      chatNear={showChat || (tile.show.chat && chatPopped)}
     />
   {/if}
 {/snippet}

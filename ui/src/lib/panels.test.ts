@@ -3,9 +3,11 @@ import { test } from 'node:test';
 
 import {
   asPatch,
+  chatStart,
   clampSizes,
   dragSizes,
   ensure,
+  extend,
   fitTree,
   insert,
   layout,
@@ -23,6 +25,7 @@ import {
   type Split,
   splitKey,
   stacked,
+  withChat,
 } from './panels.ts';
 
 const near = (a: number[], b: number[]) => a.every((x, i) => Math.abs(x - b[i]) < 1e-6);
@@ -177,4 +180,42 @@ test('a layout patch clears the other kind of node', () => {
     panel: null,
   });
   assert.equal(asPatch(null), null);
+});
+
+test('V103-22 a chat that is the only one opens as a whole column', () => {
+  const cols = split('row', [leaf('chat'), leaf('activity'), leaf('automod')], [0.2, 0.4, 0.4]);
+  // A whole column already: it keeps its place and grows to its share.
+  const grown = extend(cols, 'chat', 'left', 0.34) as Split;
+  assert.deepEqual(leaves(grown), ['chat', 'activity', 'automod']);
+  assert.ok(near(grown.sizes, [0.34, 0.33, 0.33]));
+  // Wide enough already: nothing changes.
+  assert.equal(extend(grown, 'chat', 'left', 0.3), grown);
+  // Under the stream: moved out to the left, the stream keeps the column.
+  const under = split('row', [split('column', [leaf('stream'), leaf('chat')], [0.4, 0.6]), leaf('activity')], [0.5, 0.5]);
+  const out = extend(under, 'chat', 'left', 0.34) as Split;
+  assert.deepEqual(out.parts[0], leaf('chat'));
+  assert.ok(near(out.sizes, [0.34, 0.33, 0.33]));
+  assert.deepEqual(leaves(out), ['chat', 'stream', 'activity']);
+  // The stream manager's chat goes right; closed before, it comes back there.
+  const sm = split('row', [leaf('stream'), leaf('info')]);
+  const right = extend(sm, 'chat', 'right', 0.3) as Split;
+  assert.deepEqual(leaves(right), ['stream', 'info', 'chat']);
+  assert.ok(near(right.sizes, [0.35, 0.35, 0.3]));
+  assert.deepEqual(extend(null, 'chat', 'left', 0.3), leaf('chat'));
+});
+
+test('V103-22 one chat per channel decides how the chat panel starts', () => {
+  // The tab's own chat beside it closes the view's at once, before Rust answers.
+  assert.equal(chatStart(false, null, true), 'closed');
+  assert.equal(chatStart(false, null, false), 'wait');
+  assert.equal(chatStart(false, true, false), 'closed');
+  assert.equal(chatStart(false, false, false), 'extended');
+  // Changed by hand: the layout as the user left it.
+  assert.equal(chatStart(true, false, true), null);
+  const t = split('row', [leaf('chat'), leaf('activity')], [0.5, 0.5]);
+  assert.deepEqual(withChat(t, 'chat', 'closed', 'left', 0.34), leaf('activity'));
+  assert.deepEqual(withChat(t, 'chat', 'wait', 'left', 0.34), leaf('activity'));
+  assert.equal(withChat(t, 'chat', null, 'left', 0.34), t);
+  assert.equal(withChat(t, 'chat', 'extended', 'left', 0.34), t);
+  assert.deepEqual(leaves(withChat(leaf('activity'), 'chat', 'extended', 'left', 0.34)), ['chat', 'activity']);
 });

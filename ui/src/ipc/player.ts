@@ -21,6 +21,8 @@ export const playerIpc = {
   live: (login: string, account: string | null) => invoke<PlayerSession>('player_live', { login, account }),
   vod: (id: string, account: string | null) => invoke<PlayerSession>('player_vod', { id, account }),
   close: (id: string) => invoke<void>('player_close', { id }),
+  /** V103-07 Another player plays this channel now, in any window. */
+  playing: (login: string) => invoke<boolean>('player_playing', { login }),
   clip: (slug: string) => invoke<ClipPlayback | null>('player_clip', { slug }),
   video: (id: string) => invoke<Video | null>('player_video', { id }),
   storyboard: (id: string) => invoke<Storyboard | null>('player_storyboard', { id }),

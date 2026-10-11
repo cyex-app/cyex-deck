@@ -6,7 +6,9 @@
      open, as the moderating account; with no tab on that channel it joins while it shows.
      V102-26 Inside a tab it has a close button. V103-07 The stream panel, closed at first,
      shows the tab's own player when the view sits in that tab, else a player of its own.
-     V103-15 Mod actions have their own panel next to the activity. -->
+     V103-15 Mod actions have their own panel next to the activity. V103-22 One chat per
+     channel: its chat starts closed when the channel's chat shows elsewhere, else as a
+     whole column. -->
 <script lang="ts">
   import IconButton from '../../components/IconButton.svelte';
   import { grabFrom, type PanelCtl } from '../../components/panel';
@@ -14,8 +16,27 @@
   import PanelLayout from '../../components/PanelLayout.svelte';
   import type { Board0 } from '../../ipc/bindings/Board0';
   import type { ModActionFilters } from '../../ipc/bindings/ModActionFilters';
+  import { chatIpc } from '../../ipc/chat';
   import { modIpc } from '../../ipc/moderation';
-  import { asPatch, type Box, type Edge, fitTree, has, leaf, minOf, move, type Node, prune, remove, restore, setSizes, split, stacked } from '../../lib/panels';
+  import {
+    asPatch,
+    type Box,
+    chatStart,
+    type Edge,
+    fitTree,
+    has,
+    leaf,
+    minOf,
+    move,
+    type Node,
+    prune,
+    remove,
+    restore,
+    setSizes,
+    split,
+    stacked,
+    withChat,
+  } from '../../lib/panels';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import ChatView from '../chat/ChatView.svelte';
@@ -41,9 +62,11 @@
     host?: string | null;
     /** V103-05 In an unlocked tab: drags the mod view by its header. */
     ongrab?: (e: PointerEvent) => void;
+    /** V103-22 In a tab: the tab's own chat shows (in the tile or its own window). */
+    chatNear?: boolean;
   }
 
-  let { login, account, onpopout, onclose, host = null, ongrab }: Props = $props();
+  let { login, account, onpopout, onclose, host = null, ongrab, chatNear = false }: Props = $props();
 
   type Id = 'chat' | 'activity' | 'actions' | 'automod' | 'unban' | 'chatters' | 'mass' | 'stream';
   const INFO: Record<Id, { title: string; hint: string; min: Box; tall: number }> = {
@@ -70,6 +93,8 @@
   );
   /** V103-07 Closed until asked for. */
   const START_CLOSED: string[] = ['stream'];
+  /** V103-22 The chat's column in `FULL`, kept when it opens as the only chat. */
+  const CHAT_SHARE = 0.34;
   const GAP = 8;
   const PAD = 8;
   const min = (id: string) => INFO[id as Id]?.min ?? { w: 200, h: 110 };
@@ -80,9 +105,25 @@
   const mv = $derived(settings.v.modview);
   const locked = $derived(mv.locked);
   /** The arrangement; before V103-06 only which widgets were removed was kept. */
-  const tree = $derived<Node | null>(
+  const stored = $derived<Node | null>(
     mv.layout ?? prune(FULL, (id) => !START_CLOSED.includes(id) && !mv.hidden.includes(id)),
   );
+
+  // V103-22 One chat per channel, asked once when the view opens: shown in another window,
+  // this one starts closed; else it opens as a whole column. Changed by hand, it stays so.
+  let chatAway = $state<boolean | null>(null);
+  let touched = $state(false);
+  $effect(() => {
+    let gone = false;
+    chatIpc
+      .shownElsewhere(login)
+      .then((v) => !gone && (chatAway = v))
+      .catch(() => !gone && (chatAway = false));
+    return () => {
+      gone = true;
+    };
+  });
+  const tree = $derived(withChat(stored, 'chat', chatStart(touched, chatAway, chatNear), 'left', CHAT_SHARE));
   const closed = $derived(ORDER.filter((id) => !has(tree, id)).map((id) => ({ id, title: INFO[id].title, hint: INFO[id].hint })));
 
   // The id comes from an open room. V102-26 From a tab with only the stream, that's this
@@ -125,9 +166,10 @@
     return fitTree(tree, box, { min, gap: GAP, pad: PAD });
   });
 
+  /** What shows is saved, the chat as it is now included. */
   function save(next: Node | null) {
     if (!next) return;
-    void settings.patch('modview', { layout: asPatch(next) as never });
+    void settings.patch('modview', { layout: asPatch(next) as never }).then(() => (touched = true));
   }
 
   function drop(panel: string, target: string | null, edge: Edge) {
@@ -145,7 +187,7 @@
   }
 
   function resetLayout() {
-    void settings.patch('modview', { order: [], hidden: [], layout: null as never });
+    void settings.patch('modview', { order: [], hidden: [], layout: null as never }).then(() => (touched = false));
     toast.info('Mod view layout reset.');
   }
 

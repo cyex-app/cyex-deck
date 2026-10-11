@@ -137,7 +137,7 @@ impl<F: Fetch> Live<F> {
         }
         // Segments still being made could turn out to be ads: only when it's all stream.
         if self.options.low_latency && !ads::marks(&from).contains(&true) {
-            out.push_prefetch(source, &from.prefetch);
+            out.push_prefetch(source, from.segments.last(), &from.prefetch);
         }
         Ok((out.render(), ad))
     }

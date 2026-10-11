@@ -25,6 +25,8 @@ export const chatIpc = {
     return invoke<ChatOpened>('chat_open', { login, account, filters, onEvent: channel });
   },
   close: (view: number) => invoke<void>('chat_close', { view }),
+  /** V103-22 The channel's chat shows in another window (overlays don't count). */
+  shownElsewhere: (login: string) => invoke<boolean>('chat_shown_elsewhere', { login }),
   /** Commands run in Rust (1.8); some ask the window to do something. */
   send: (view: number, text: string, replyTo?: string) => invoke<UiAction | null>('chat_send', { view, text, replyTo }),
   /** S1 A menu entry or usercard button. */

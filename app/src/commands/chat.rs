@@ -36,6 +36,13 @@ pub fn chat_close(app: AppHandle, view: u32) {
     chat::close(&app, view);
 }
 
+/// V103-22 Whether the channel's chat shows in another window, so a view's own chat panel
+/// can start closed.
+#[tauri::command]
+pub fn chat_shown_elsewhere(app: AppHandle, window: WebviewWindow, login: String) -> bool {
+    chat::shown_elsewhere(&app, &login, window.label())
+}
+
 /// A typed line: custom and built-in commands, then Twitch (1.8). Some commands ask the
 /// window to do something.
 #[tauri::command]

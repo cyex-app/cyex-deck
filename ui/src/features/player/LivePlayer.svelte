@@ -41,9 +41,11 @@
     onclip?: () => void;
     /** V102-08 Why clipping is off here, e.g. an anonymous tab: the button shows greyed. */
     clipOff?: string | null;
+    /** V103-07 Another player plays this stream: this one starts paused (and its tile muted). */
+    held?: boolean;
   }
 
-  let { tile, info, hushed = false, mini = false, onexpand, onclose, onpopchat, onclip, clipOff = null }: Props = $props();
+  let { tile, info, hushed = false, mini = false, onexpand, onclose, onpopchat, onclip, clipOff = null, held = false }: Props = $props();
 
   let video = $state<HTMLVideoElement>();
   let shell = $state<Shell>();
@@ -72,7 +74,7 @@
     const e = new Engine(video, true, lowLatency);
     engine = e;
     // The setting is where new players start; a change doesn't restart this one.
-    void start(e, untrack(() => settings.v.player.quality), login, account);
+    void start(e, untrack(() => settings.v.player.quality), login, account, untrack(() => held));
     const ro = new ResizeObserver(([entry]) => e.fit(entry.contentRect.height * devicePixelRatio));
     ro.observe(video);
     return () => {
@@ -97,11 +99,11 @@
     if (session) void playerIpc.close(session.id);
   });
 
-  async function start(e: Engine, choice: Choice, channel: string, as: string | null) {
+  async function start(e: Engine, choice: Choice, channel: string, as: string | null, hold = false) {
     if (session) void playerIpc.close(session.id);
     session = await playerIpc.live(channel, as);
     ad = 'none';
-    await e.start(session, choice);
+    await e.start(session, choice, -1, hold);
   }
 
   function reload() {
@@ -249,6 +251,9 @@
       <div class="center">
         <span>Ad break. The stream comes back right after.</span>
       </div>
+    {:else if engine?.holding}
+      <!-- V103-07 A click anywhere plays it (Shell). -->
+      <div class="center held">Playing elsewhere. Click to play here.</div>
     {:else if engine?.waiting}
       <div class="spinner" aria-label="Loading"></div>
     {/if}
@@ -366,6 +371,10 @@
     text-align: center;
     color: #ddd;
     background: rgba(0, 0, 0, 0.55);
+  }
+  .center.held {
+    font-size: 0.85rem;
+    pointer-events: none;
   }
   .retry {
     display: flex;

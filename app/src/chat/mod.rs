@@ -588,6 +588,26 @@ pub fn open_channels(app: &AppHandle) -> Vec<String> {
     out
 }
 
+/// V103-22 Whether `login`'s chat shows in a window other than `own`, as any account.
+/// Overlays (U7) don't count: they sit over a game, not next to the view.
+pub fn shown_elsewhere(app: &AppHandle, login: &str, own: &str) -> bool {
+    let Some(chat) = app.try_state::<Chat>() else { return false };
+    let login = login.trim().trim_start_matches('#').to_ascii_lowercase();
+    let inner = chat.lock();
+    other_window(
+        inner
+            .views
+            .values()
+            .filter(|((_, l), _)| *l == login)
+            .map(|(_, w)| w.as_str()),
+        own,
+    )
+}
+
+fn other_window<'a>(mut windows: impl Iterator<Item = &'a str>, own: &str) -> bool {
+    windows.any(|w| w != own && !crate::windows::overlay::is_overlay_window(w))
+}
+
 /// C10 A system line in every room of a channel, e.g. "x added the 7TV emote y."
 pub fn system_line(app: &AppHandle, login: &str, text: &str) {
     notice_line(app, login, NoticeKind::Info, text);
@@ -658,4 +678,22 @@ fn budget<T>(app: &AppHandle, f: impl FnOnce(&mut HashMap<String, cyex_chat::Joi
 /// Unix milliseconds.
 pub(crate) fn now_ms() -> i64 {
     (time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::other_window;
+
+    #[test]
+    fn a_chat_in_another_window_counts_an_overlay_does_not() {
+        let own = "panel-modview_xqc";
+        assert!(!other_window([].into_iter(), own));
+        assert!(!other_window([own, own].into_iter(), own));
+        assert!(other_window([own, "main"].into_iter(), own));
+        assert!(!other_window(["panel-overlay_t1"].into_iter(), own));
+        assert!(other_window(
+            ["panel-overlay_t1", "panel-chat_t1"].into_iter(),
+            "main"
+        ));
+    }
 }

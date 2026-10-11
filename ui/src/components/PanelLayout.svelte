@@ -4,7 +4,8 @@
      page and a playing stream never restarts. The owner fits the tree to `box` and passes
      the result as `shown`. Unlocked, a panel drags by its title bar onto a side of
      another (or of the whole layout) and a box shows where it lands; dividers drag where
-     `resizable`. Closed panels wait in the corner (`PanelTray`). V103-07 A `hosted` panel
+     `resizable`. Closed panels wait in a strip under the panels while it's unlocked and
+     only then (`PanelTray`), taking their own room. V103-07 A `hosted` panel
      shows over a place elsewhere in the layout, e.g. its tile's player in the mod view. -->
 <script lang="ts">
   import { type Snippet, untrack } from 'svelte';
@@ -190,53 +191,56 @@
 </script>
 
 <div class="panels" class:dragging={drag.item?.kind === 'panel'}>
-  <div class="scroll" class:scrolls data-layout={key} bind:this={root}>
-    <div class="inner" style:width={scrolls ? px(room.w) : '100%'} style:height={scrolls ? px(room.h) : '100%'} bind:this={inner}>
-      {#each visible as id (id)}
-        {@const r = rectOf(id)}
-        {@const c = ctl(id)}
-        <div
-          class="panel"
-          class:hosted={id in hosted}
-          class:away={!r}
-          class:dim={dragging(id)}
-          data-panel={id}
-          data-panel-of={id in hosted ? undefined : key}
-          style:left={px(r?.x ?? 0)}
-          style:top={px(r?.y ?? 0)}
-          style:width={px(r?.w ?? 0)}
-          style:height={px(r?.h ?? 0)}
-        >
-          <PanelBox ctl={c}>{@render panel(id, c)}</PanelBox>
-        </div>
-      {/each}
-      {#each laid.dividers as d (`${d.path.join('.')}:${d.index}`)}
-        {@const row = d.dir === 'row'}
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div
-          class="divider"
-          class:row
-          class:col={!row}
-          class:fixed={!resizable}
-          class:line={gap === 0}
-          style:left={px(row ? d.at - 4 : d.rect.x)}
-          style:top={px(row ? d.rect.y : d.at - 4)}
-          style:width={px(row ? 8 : d.rect.w)}
-          style:height={px(row ? d.rect.h : 8)}
-          onpointerdown={(e) => resizeStart(e, d)}
-          ondblclick={() => resizable && onreset?.(d.path, d.index)}
-        ></div>
-      {/each}
-      {#if landing}
-        <div class="landing" style:left={px(landing.x)} style:top={px(landing.y)} style:width={px(landing.w)} style:height={px(landing.h)}></div>
+  <div class="area">
+    <div class="scroll" class:scrolls data-layout={key} bind:this={root}>
+      <div class="inner" style:width={scrolls ? px(room.w) : '100%'} style:height={scrolls ? px(room.h) : '100%'} bind:this={inner}>
+        {#each visible as id (id)}
+          {@const r = rectOf(id)}
+          {@const c = ctl(id)}
+          <div
+            class="panel"
+            class:hosted={id in hosted}
+            class:away={!r}
+            class:dim={dragging(id)}
+            data-panel={id}
+            data-panel-of={id in hosted ? undefined : key}
+            style:left={px(r?.x ?? 0)}
+            style:top={px(r?.y ?? 0)}
+            style:width={px(r?.w ?? 0)}
+            style:height={px(r?.h ?? 0)}
+          >
+            <PanelBox ctl={c}>{@render panel(id, c)}</PanelBox>
+          </div>
+        {/each}
+        {#each laid.dividers as d (`${d.path.join('.')}:${d.index}`)}
+          {@const row = d.dir === 'row'}
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div
+            class="divider"
+            class:row
+            class:col={!row}
+            class:fixed={!resizable}
+            class:line={gap === 0}
+            style:left={px(row ? d.at - 4 : d.rect.x)}
+            style:top={px(row ? d.rect.y : d.at - 4)}
+            style:width={px(row ? 8 : d.rect.w)}
+            style:height={px(row ? d.rect.h : 8)}
+            onpointerdown={(e) => resizeStart(e, d)}
+            ondblclick={() => resizable && onreset?.(d.path, d.index)}
+          ></div>
+        {/each}
+        {#if landing}
+          <div class="landing" style:left={px(landing.x)} style:top={px(landing.y)} style:width={px(landing.w)} style:height={px(landing.h)}></div>
+        {/if}
+      </div>
+      {#if !visible.length && empty}
+        <p class="empty">{empty}</p>
       {/if}
     </div>
-    {#if !visible.length && empty}
-      <p class="empty">{empty}</p>
-    {/if}
   </div>
-  {#if tray?.length && onrestore}
-    <PanelTray layout={key} items={tray} {unlocked} {onrestore} />
+  <!-- V103-06 Hidden while locked; under the panels, never over them. -->
+  {#if unlocked && tray?.length && onrestore}
+    <PanelTray layout={key} items={tray} {onrestore} />
   {/if}
 </div>
 
@@ -247,6 +251,12 @@
     min-width: 0;
     min-height: 0;
     display: flex;
+    flex-direction: column;
+  }
+  .area {
+    position: relative;
+    flex: 1;
+    min-height: 0;
   }
   .scroll {
     position: absolute;
@@ -265,7 +275,7 @@
     min-width: 0;
     min-height: 0;
   }
-  /* V103-07 Over the panel that gave it a place; under dividers, the corner and pop-ups. */
+  /* V103-07 Over the panel that gave it a place; under dividers and pop-ups. */
   .panel.hosted {
     z-index: 7;
   }

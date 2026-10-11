@@ -159,6 +159,12 @@ pub fn playing_live(app: &AppHandle) -> Vec<(String, Option<String>)> {
     out
 }
 
+/// V103-07 A live player of `login` plays now, in any window, as any account.
+pub fn plays(app: &AppHandle, login: &str) -> bool {
+    let login = login.to_ascii_lowercase();
+    playing_live(app).iter().any(|(l, _)| *l == login)
+}
+
 fn open(app: &AppHandle, window: &str, kind: Kind, path: &str, live: Option<(String, Option<String>)>) -> PlayerSession {
     let id = random_id();
     lock(app).insert(

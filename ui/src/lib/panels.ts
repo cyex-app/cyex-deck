@@ -172,6 +172,41 @@ export function restore(n: Node | null, id: string, full: Node): Node {
   return insert(n, slot.target, slot.edge, id, slot.share);
 }
 
+/** V103-22 `id` as a whole column (or row) along `edge` of the layout with at least `share`
+ * of it: left where it is when it's one already, else moved there. */
+export function extend(n: Node | null, id: string, edge: Edge, share: number): Node {
+  const s = Math.min(Math.max(share, 0.1), 0.9);
+  if (n && !isSplit(n) && n.panel === id) return n;
+  if (n && isSplit(n) && n.dir === axisOf(edge)) {
+    const i = n.parts.findIndex((p) => !isSplit(p) && p.panel === id);
+    if (i >= 0) {
+      if (n.sizes[i] >= s) return n;
+      // Grown to its share; the others give it up in proportion.
+      const rest = 1 - n.sizes[i];
+      const sizes = n.sizes.map((x, j) => (j === i ? s : rest > 0 ? (x * (1 - s)) / rest : (1 - s) / (n.parts.length - 1)));
+      return { ...n, sizes };
+    }
+  }
+  return insert(n, null, edge, id, s);
+}
+
+/** V103-22 How a view's chat panel starts: `closed` when the channel's chat already shows
+ * elsewhere, `extended` (a whole column, `extend`) when it's the only one, `wait` (out)
+ * until that's known. `null` once the user changed the panels: their layout as it is. */
+export type ChatStart = 'wait' | 'closed' | 'extended' | null;
+
+export function chatStart(touched: boolean, elsewhere: boolean | null, near: boolean): ChatStart {
+  if (touched) return null;
+  if (near) return 'closed';
+  return elsewhere === null ? 'wait' : elsewhere ? 'closed' : 'extended';
+}
+
+/** The layout with the chat panel `id` as `start` says. */
+export function withChat(n: Node | null, id: string, start: ChatStart, edge: Edge, share: number): Node | null {
+  if (start === null) return n;
+  return start === 'extended' ? extend(n, id, edge, share) : remove(n, id);
+}
+
 /** Panels the layout doesn't have yet, each put back where `full` has it. */
 export function ensure(n: Node | null, ids: string[], full: Node): Node | null {
   return ids.reduce<Node | null>((t, id) => restore(t, id, full), n);

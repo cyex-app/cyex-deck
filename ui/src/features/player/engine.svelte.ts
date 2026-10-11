@@ -43,6 +43,8 @@ export class Engine {
   playing = $state(false);
   waiting = $state(true);
   failure = $state<Failure | null>(null);
+  /** V103-07 Started paused: the levels are read, nothing loads until it plays. */
+  holding = $state(false);
 
   private hls: HlsType | null = null;
   private session: PlayerSession | null = null;
@@ -63,6 +65,7 @@ export class Engine {
   ) {
     const on = (name: string, f: () => void) => video.addEventListener(name, f);
     const set = {
+      play: () => this.release(),
       playing: () => ((this.playing = true), (this.waiting = false)),
       pause: () => (this.playing = false),
       waiting: () => (this.waiting = true),
@@ -76,10 +79,12 @@ export class Engine {
     };
   }
 
-  async start(session: PlayerSession, choice: Choice, startAt = -1): Promise<void> {
+  /** `hold`: paused until played (V103-07). */
+  async start(session: PlayerSession, choice: Choice, startAt = -1, hold = false): Promise<void> {
     this.session = session;
     this.choice = choice;
     this.startAt = startAt;
+    this.holding = hold;
     await this.load();
   }
 
@@ -146,6 +151,10 @@ export class Engine {
         .map((l, index) => ({ index, name: l.height ? levelName(l) : 'Audio only', height: l.height }))
         .sort((a, b) => b.height - a.height);
       this.apply(false);
+      if (this.holding) {
+        this.waiting = false;
+        return;
+      }
       // With autoStartLoad off hls.js skips `startPosition`: a VOD would start at 0 (P5, P7).
       hls.startLoad(this.live ? -1 : this.startAt);
       void this.video.play().catch(() => {});
@@ -190,8 +199,31 @@ export class Engine {
       hls.startLevel = i;
       hls.loadLevel = i;
     } else if (i !== hls.loadLevel) {
+      this.fresh(i);
       hls.nextLevel = i;
     }
+  }
+
+  /** V103-03 A live quality switched to is read afresh. hls.js keeps the playlist of a
+   *  quality it left, and our proxy numbers each quality's segments only while it's
+   *  served, so a quality back after a while looked as if no time had passed: hls.js put
+   *  the stream minutes off and jumped there. Read afresh, it's lined up with the one
+   *  playing by the segments' times. */
+  private fresh(i: number): void {
+    const hls = this.hls;
+    if (!this.live || !hls || i === hls.currentLevel) return;
+    const level = hls.levels[i];
+    if (level) level.details = undefined;
+  }
+
+  /** V103-07 Played while held: loading starts now. Before the levels are read, they
+   *  start it themselves. */
+  private release(): void {
+    if (!this.holding) return;
+    this.holding = false;
+    if (!this.hls?.levels.length) return;
+    this.waiting = true;
+    this.hls.startLoad(this.live ? -1 : this.startAt);
   }
 
   /** V103-03 Out of sight is hidden on the page and not in picture in picture. */
@@ -206,7 +238,9 @@ export class Engine {
     const hls = this.hls;
     if (!hls || this.choice === 'audio') return;
     const i = lowestLevel(hls.levels);
-    if (i >= 0) hls.loadLevel = i;
+    if (i < 0 || i === hls.loadLevel) return;
+    this.fresh(i);
+    hls.loadLevel = i;
   }
 
   private onError(Hls: typeof HlsType, d: ErrorData): void {

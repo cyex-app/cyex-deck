@@ -90,14 +90,17 @@ impl Stitcher {
     }
 
     /// Next segments that are still being made (low latency): they're listed as normal
-    /// ones, timed on from the last. The player's request waits until each is ready.
-    pub fn push_prefetch(&mut self, source: Source, uris: &[String]) {
-        let Some(last) = &self.last else { return };
+    /// ones, timed on from `after`, the last finished segment of the same playlist. The
+    /// player's request waits until each is ready. Timed from that and not from the last
+    /// one listed here: that's often last poll's prefetch, so each poll would put the
+    /// stream 2 s further ahead and break it up at every segment (V103-03).
+    pub fn push_prefetch(&mut self, source: Source, after: Option<&Segment>, uris: &[String]) {
+        let (Some(last), Some(after)) = (&self.last, after) else { return };
         if last.source != source {
             return;
         }
-        let (mut time, duration, mut seq) = (last.time, last.duration.max(1.0), last.seq);
-        let map = self.window.back().and_then(|o| o.segment.map.clone());
+        let (mut time, duration, mut seq) = (after.time, after.duration.max(1.0), after.seq);
+        let map = after.map.clone();
         let next: Vec<Segment> = uris
             .iter()
             .map(|uri| {
@@ -228,7 +231,7 @@ mod tests {
         let mut s = Stitcher::default();
         let m = media::parse(LIVE);
         s.push(0, m.target_duration, &m.segments);
-        s.push_prefetch(0, &m.prefetch);
+        s.push_prefetch(0, m.segments.last(), &m.prefetch);
         assert_eq!(s.window.len(), 4);
         assert_eq!(s.window[3].segment.time, Some(m.segments[1].time.unwrap() + 4000));
         // Next poll: the prefetched ones are real now, plus one new.
@@ -242,6 +245,23 @@ mod tests {
         s.push(0, 6, &next);
         assert_eq!(s.window.len(), 5);
         assert!(s.render().contains("#EXT-X-PROGRAM-DATE-TIME:2026-10-09T12:00:08.000Z\n#EXTINF:2.000,live\nhttps://edge.example/v1/segment/104.ts"));
+    }
+
+    #[test]
+    fn prefetch_listed_again_keeps_the_stream_in_step() {
+        // V103-03 Each poll lists the next two as prefetch; the second was prefetch last
+        // time too. The stream stays 2 s a segment, in one piece.
+        let mut s = Stitcher::default();
+        let all = segs("edge", 0, 20, 0);
+        let uri = |n: usize| all[n].uri.clone();
+        for edge in 4..12 {
+            s.push(0, 6, &all[edge - 4..=edge]);
+            s.push_prefetch(0, Some(&all[edge]), &[uri(edge + 1), uri(edge + 2)]);
+        }
+        let times: Vec<i64> = s.window.iter().filter_map(|o| o.segment.time).collect();
+        assert!(times.windows(2).all(|w| w[1] - w[0] == 2000), "{times:?}");
+        assert!(s.window.iter().all(|o| !o.discontinuity));
+        assert_eq!(s.window.back().map(|o| o.segment.time), Some(all[13].time));
     }
 
     #[test]
