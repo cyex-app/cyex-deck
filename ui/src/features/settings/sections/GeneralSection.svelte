@@ -108,6 +108,10 @@
 <Row label="Tooltips" hint="Short explanations when you hover buttons.">
   <Toggle label="Tooltips" checked={g.tooltips} onchange={(v) => settings.patch('general', { tooltips: v })} />
 </Row>
+<!-- V103-11 WebView2 scrolls smoothly itself; its flag is set when the app starts. -->
+<Row label="Smooth scrolling" hint="Scrolling glides instead of jumping, everywhere in the app. Applies after a restart.">
+  <Toggle label="Smooth scrolling" checked={g.smoothScroll} onchange={(v) => settings.patch('general', { smoothScroll: v })} />
+</Row>
 <Row label="Minimize to tray" hint="Minimizing hides cyex deck in the tray instead of the taskbar.">
   <Toggle
     label="Minimize to tray"

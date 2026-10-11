@@ -1,12 +1,16 @@
 <!-- C4 The chat's poll and prediction above the messages: results as they come in,
-     voting and betting when signed in. Can be folded, or hidden until the next one. -->
+     voting and betting when signed in. Can be folded, hidden into the events button while
+     it runs (V103-04), or closed until the next one. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import Icon from '../../components/Icon.svelte';
+  import { tooltip } from '../../components/tooltip.svelte';
   import type { Outcome } from '../../ipc/bindings/Outcome';
   import { chatxIpc } from '../../ipc/chatx';
   import { formatDuration, formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
+  import { pollKey, pollLive, predictionKey, predictionLive, shows } from './eventStrip';
+  import { eventStrip } from './eventStrip.svelte';
   import { pollLeft, predictionLeft, votes } from './votes.svelte';
 
   let { channel, view, signedIn }: { channel: string; view: () => number; signedIn: boolean } = $props();
@@ -15,9 +19,10 @@
   const poll = $derived(v?.poll && !['ARCHIVED', 'MODERATED'].includes(v.poll.status) ? v.poll : null);
   const pred = $derived(v?.prediction && v.prediction.status !== 'CANCELED' ? v.prediction : null);
 
+  const strip = $derived(eventStrip.of(channel));
+
   let now = $state(Date.now());
   let folded = $state(false);
-  let hidden = $state<string[]>([]);
   let busy = $state(false);
   /** A paid extra vote waiting for a yes. */
   let extra = $state<string | null>(null);
@@ -69,18 +74,28 @@
   };
 </script>
 
-{#snippet head(icon: 'poll' | 'points', title: string, info: string, id: string)}
+{#snippet head(icon: 'poll' | 'points', title: string, info: string, key: string, live: boolean)}
   <div class="head">
     <Icon name={icon} size={14} />
     <button class="title" onclick={() => (folded = !folded)} aria-expanded={!folded}>{title}</button>
     <span class="info">{info}</span>
-    <button class="close" aria-label="Hide" onclick={() => (hidden = [...hidden, id])}>
+    {#if live}
+      <button
+        class="close"
+        aria-label="Hide"
+        use:tooltip={{ label: 'Hide', hint: 'Tucks it into the events button.' }}
+        onclick={() => eventStrip.hide(channel, { key, live })}
+      >
+        <Icon name="chevronUp" size={13} />
+      </button>
+    {/if}
+    <button class="close" aria-label="Close" use:tooltip={'Close'} onclick={() => eventStrip.close(channel, key)}>
       <Icon name="x" size={13} />
     </button>
   </div>
 {/snippet}
 
-{#if poll && !hidden.includes(poll.id)}
+{#if poll && shows(strip, pollKey(poll.id))}
   {@const left = pollLeft(v!, now)}
   {@const total = poll.totalVotes}
   <div class="box" class:folded>
@@ -88,7 +103,8 @@
       'poll',
       poll.title,
       poll.status === 'ACTIVE' ? formatDuration(left) : 'Ended',
-      poll.id,
+      pollKey(poll.id),
+      pollLive(poll.status),
     )}
     {#if !folded}
       {@const top = Math.max(...poll.choices.map((c) => c.votes))}
@@ -122,7 +138,7 @@
   </div>
 {/if}
 
-{#if pred && !hidden.includes(pred.id)}
+{#if pred && shows(strip, predictionKey(pred.id))}
   {@const left = predictionLeft(v!, now)}
   {@const total = pred.outcomes.reduce((s, o) => s + o.points, 0)}
   {@const open = pred.status === 'ACTIVE' && left > 0}
@@ -132,7 +148,8 @@
       'points',
       pred.title,
       open ? formatDuration(left) : winner ? `${winner.title} won` : (PRED_STATUS[pred.status] ?? 'Closed'),
-      pred.id,
+      predictionKey(pred.id),
+      predictionLive(pred.status),
     )}
     {#if !folded}
       <div class="rows">

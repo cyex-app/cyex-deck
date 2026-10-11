@@ -233,6 +233,13 @@
     onchange={(v) => settings.patch('chat', { pauseKey: v })}
   />
 </Row>
+<Row label="Smooth new messages" hint="New messages slide in. Fast chats skip it, so you never fall behind.">
+  <Toggle
+    label="Smooth new messages"
+    checked={c.smoothNewMessages}
+    onchange={(v) => settings.patch('chat', { smoothNewMessages: v })}
+  />
+</Row>
 <Row label="Last-read line" hint="Marks where you were when you switched away.">
   <Toggle label="Last-read line" checked={c.lastReadLine} onchange={(v) => settings.patch('chat', { lastReadLine: v })} />
 </Row>

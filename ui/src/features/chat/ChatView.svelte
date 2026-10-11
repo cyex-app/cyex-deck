@@ -31,6 +31,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { catalogs } from './catalog.svelte';
   import ChatInput from './ChatInput.svelte';
+  import EventsButton from './EventsButton.svelte';
   import { runEntry, toItems, userMenus } from './menus.svelte';
   import MessageList from './MessageList.svelte';
   import PinnedBanner from './PinnedBanner.svelte';
@@ -339,6 +340,7 @@
   {/if}
   <!-- V102-24 A short chat keeps its messages and message box: these scroll instead. -->
   <div class="banners">
+    <EventsButton channel={login} pin={room.pinned} />
     {#if room.pinned}
       <PinnedBanner
         pin={room.pinned}

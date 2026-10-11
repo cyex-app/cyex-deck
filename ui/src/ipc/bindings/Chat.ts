@@ -118,6 +118,10 @@ pauseKey: PauseKey,
  */
 lastReadLine: boolean, 
 /**
+ * V103-12 New messages slide in instead of popping up. Fast chats skip the slide.
+ */
+smoothNewMessages: boolean, 
+/**
  * C2 One line with a count when someone repeats themselves. Setting, off.
  */
 repeats: boolean, 
