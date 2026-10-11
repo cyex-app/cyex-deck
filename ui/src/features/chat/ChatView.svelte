@@ -25,6 +25,7 @@
   import { chatIpc } from '../../ipc/chat';
   import { chatxIpc } from '../../ipc/chatx';
   import { formatDuration } from '../../lib/format';
+  import { lockFor } from '../../lib/gate';
   import { bindingOf, useHotkeys } from '../../lib/hotkeys.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
@@ -186,8 +187,16 @@
     const items: MenuEntry[] = [
       { label: 'Search', icon: 'search', hint: bindingOf('chat.search'), run: () => (search = { query: '', all: false }) },
       { label: recording ? 'Stop recording' : 'Record chat', icon: 'record', run: record },
-      ...(account && accounts.can('subs', account)
-        ? [{ label: 'Subscribe', icon: 'star' as const, run: () => (subscribing = true) }]
+      // V102-20 Greyed out with its flag until the account can.
+      ...(account
+        ? [
+            {
+              label: 'Subscribe',
+              icon: 'star' as const,
+              lock: lockFor(accounts.can('wallet', account), 'helix') ?? lockFor(accounts.can('subs', account), 'gql'),
+              run: () => (subscribing = true),
+            },
+          ]
         : []),
       ...(onoverlay ? [{ label: 'Overlay', icon: 'layers' as const, note: 'This chat over games, always on top', run: onoverlay }] : []),
       'separator',

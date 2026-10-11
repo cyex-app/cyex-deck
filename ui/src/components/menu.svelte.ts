@@ -1,6 +1,7 @@
 // Right-click and ⋯ menus. One shared menu per window, drawn by MenuHost. The rules every
 // menu follows are in `menuItems.ts` (V101-30).
 
+import { gate } from '../lib/gate.svelte';
 import { type Align, point, type Rect } from '../lib/place';
 import { type MenuEntry, type MenuItem, tidy } from './menuItems';
 
@@ -38,6 +39,11 @@ export function closeMenu(): void {
 
 export function pick(item: MenuItem): void {
   if (item.disabled) return;
+  if (item.lock) {
+    menu.open = false;
+    gate.ask(item.lock);
+    return;
+  }
   if (item.items) {
     menu.stack = [...menu.stack, { title: item.label, items: tidy(item.items) }];
     return;

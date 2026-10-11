@@ -30,10 +30,7 @@ fn dir(app: &AppHandle, account: &str) -> Option<PathBuf> {
     if !digits(account) {
         return None;
     }
-    app.path()
-        .config_dir()
-        .ok()
-        .map(|d| d.join("cyex-viewer").join("miner").join(account))
+    crate::paths::config(app).ok().map(|d| d.join("miner").join(account))
 }
 
 fn file(app: &AppHandle, account: &str, channel_id: &str) -> Option<PathBuf> {

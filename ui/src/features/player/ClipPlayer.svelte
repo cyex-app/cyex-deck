@@ -23,9 +23,11 @@
     tile: Tile | undefined;
     /** Once its details are in, for the frame around it. */
     onloaded?: (clip: ClipPlayback) => void;
+    /** V102-08 Made just now: Twitch needs a few seconds before it plays. */
+    fresh?: boolean;
   }
 
-  let { slug, tile, onloaded }: Props = $props();
+  let { slug, tile, onloaded, fresh = false }: Props = $props();
 
   let video = $state<HTMLVideoElement>();
   let shell = $state<Shell>();
@@ -40,6 +42,9 @@
    * `null` fits the player with a landscape file. */
   let picked = $state<number | null>(null);
   let waitTimer: ReturnType<typeof setTimeout> | undefined;
+  /** V102-08 The file failed and is being asked for again. */
+  let retrying = $state(false);
+  let fileTries = 0;
 
   // svelte-ignore state_referenced_locally
   const sound = useSound(() => tile);
@@ -62,8 +67,27 @@
         problem = 'This clip is gone.';
       }
     } catch (e) {
-      problem = String(e);
+      // V102-08 A clip just made can answer oddly until Twitch is done with it.
+      if (fresh && tries < 10) {
+        problem = 'Getting the clip ready…';
+        waitTimer = setTimeout(() => void load(s, tries + 1), 3000);
+      } else {
+        problem = String(e);
+      }
     }
+  }
+
+  /** V102-08 Twitch lists a new clip's files a moment before its servers have them, and a
+   * video that failed doesn't ask again on its own. */
+  function onerror() {
+    if (!video || fileTries >= 10) {
+      retrying = false;
+      return;
+    }
+    fileTries++;
+    retrying = true;
+    clearTimeout(waitTimer);
+    waitTimer = setTimeout(() => video?.load(), 2000);
   }
 
   /** The picked file, else the smallest one at least as tall as the player. */
@@ -148,8 +172,11 @@
       onplay={() => (playing = true)}
       onpause={() => (playing = false)}
       onloadedmetadata={() => video && time && (video.currentTime = time)}
+      oncanplay={() => (retrying = false)}
+      {onerror}
       {ontimeupdate}
     ></video>
+    {#if retrying}<div class="center over">Getting the clip ready…</div>{/if}
   {:else}
     <div class="center">{problem ?? ''}</div>
   {/if}
@@ -173,6 +200,11 @@
 </Shell>
 
 <style>
+  .center.over {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
   .center {
     flex: 1;
     display: grid;

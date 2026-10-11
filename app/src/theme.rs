@@ -120,10 +120,7 @@ pub fn init(app: &AppHandle) {
 }
 
 fn wallpapers_dir(app: &AppHandle) -> Option<PathBuf> {
-    app.path()
-        .config_dir()
-        .ok()
-        .map(|d| d.join("cyex-viewer").join("wallpapers"))
+    crate::paths::config(app).ok().map(|d| d.join("wallpapers"))
 }
 
 /// The page's address for a wallpaper file. WebView2 serves custom schemes as

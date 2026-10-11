@@ -40,10 +40,7 @@ pub fn folder(app: &AppHandle) -> Option<PathBuf> {
     if !set.is_empty() {
         return Some(PathBuf::from(set));
     }
-    app.path()
-        .config_dir()
-        .ok()
-        .map(|d| d.join("cyex-viewer").join("stream-status"))
+    crate::paths::config(app).ok().map(|d| d.join("stream-status"))
 }
 
 /// `H:MM` since `started_at`, or `offline`.

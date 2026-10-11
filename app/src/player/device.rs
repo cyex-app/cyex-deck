@@ -3,10 +3,10 @@
 
 use std::fs;
 
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 pub fn id(app: &AppHandle) -> String {
-    let path = app.path().config_dir().map(|d| d.join("cyex-viewer").join("device-id"));
+    let path = crate::paths::config(app).map(|d| d.join("device-id"));
     if let Ok(p) = &path
         && let Ok(saved) = fs::read_to_string(p)
         && valid(saved.trim())

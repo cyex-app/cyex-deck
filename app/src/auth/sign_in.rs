@@ -1,8 +1,9 @@
-//! Adding and removing accounts (1.3, 1.4, 1.5, 1.23).
+//! Adding and removing accounts (1.3, 1.5, 1.23, V102-19): Twitch's sign-in, a code, or a
+//! GQL token pasted for an account signed in with Twitch.
 
 use cyex_auth::inspect::{Inspected, inspect};
-use cyex_auth::paste::ManualToken;
 use cyex_auth::{AuthError, Secret, TokenKind, device, paste, roster};
+use cyex_twitch::clients;
 use cyex_settings::schema::TokenSource;
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
@@ -21,13 +22,24 @@ pub struct DeviceStart {
     pub expires_in: u32,
 }
 
+/// What a finished sign-in tells the UI.
+#[derive(Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SignedIn {
+    pub user_id: String,
+    pub display_name: String,
+}
+
 /// Device Code sign-in. Calls `on_code` once the code is ready, then waits for approval.
-/// Returns the account's display name.
+/// With `user_id`, the sign-in is added to that account and must be the same user
+/// (V102-19); a code approved by someone else is undone.
 pub async fn sign_in_device(
     app: &AppHandle,
     kind: TokenKind,
+    user_id: Option<&str>,
     on_code: impl FnOnce(DeviceStart),
-) -> Result<String, AuthError> {
+) -> Result<SignedIn, AuthError> {
     let auth = app.state::<Auth>();
     let client_id = device::client_for(kind, auth.client_id().as_deref())?;
     let cancel = auth.begin_sign_in();
@@ -39,24 +51,35 @@ pub async fn sign_in_device(
     });
     let secret = device::wait(&auth.http, &client_id, kind, &code, cancel).await?;
     let who = inspect(&auth.http, &secret.access).await?;
+    if let Some(id) = user_id
+        && let Err(e) = paste::same_user(&who.validation, id)
+    {
+        let http = auth.http.clone();
+        tauri::async_runtime::spawn(async move {
+            let _ = cyex_twitch::id::revoke(&http, &secret.client_id, &secret.access).await;
+        });
+        return Err(e);
+    }
     save(app, &who, kind, secret, TokenSource::Device)
 }
 
-/// Adds a token someone has (1.4, V101-08): the token alone in any common form, or with
-/// the name, user ID and client ID Chatterino asks for, which must then be the token's own.
-/// First-party tokens become the GQL token, others Helix.
-pub async fn add_manual(app: &AppHandle, fields: &ManualToken) -> Result<String, AuthError> {
-    let token = paste::token_from(&fields.token).ok_or(AuthError::NotAToken)?;
+/// V102-19 A GQL token pasted for an account signed in with Twitch, like Chatterino's
+/// advanced sign-in without the other fields: the name and user ID are the account's.
+/// The token has to be made for the GQL client ID and be that account's.
+pub async fn add_gql_token(app: &AppHandle, user_id: &str, pasted: &str) -> Result<SignedIn, AuthError> {
+    if accounts(app).get(user_id).is_none() {
+        return Err(AuthError::NoAccount);
+    }
+    let token = paste::token_from(pasted).ok_or(AuthError::NotAToken)?;
     let auth = app.state::<Auth>();
     let who = inspect(&auth.http, &token).await?;
-    paste::check(fields, &who.validation)?;
-    let kind = TokenKind::for_client(&who.validation.client_id);
+    paste::check_gql(&who.validation, user_id)?;
     let secret = Secret {
         access: token,
         refresh: None,
-        client_id: who.validation.client_id.clone(),
+        client_id: clients::GQL.to_owned(),
     };
-    save(app, &who, kind, secret, TokenSource::Pasted)
+    save(app, &who, TokenKind::Gql, secret, TokenSource::Pasted)
 }
 
 fn save(
@@ -65,7 +88,7 @@ fn save(
     kind: TokenKind,
     secret: Secret,
     source: TokenSource,
-) -> Result<String, AuthError> {
+) -> Result<SignedIn, AuthError> {
     let user_id = &who.validation.user_id;
     app.state::<Auth>()
         .vault
@@ -78,7 +101,10 @@ fn save(
     })
     .map_err(AuthError::Store)?;
     notify(app);
-    Ok(who.display_name.clone())
+    Ok(SignedIn {
+        user_id: user_id.clone(),
+        display_name: who.display_name.clone(),
+    })
 }
 
 pub fn remove_account(app: &AppHandle, user_id: &str) -> Result<(), String> {

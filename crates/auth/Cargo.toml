@@ -6,6 +6,7 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+cyex-core.workspace = true
 cyex-settings.workspace = true
 cyex-twitch.workspace = true
 keyring.workspace = true

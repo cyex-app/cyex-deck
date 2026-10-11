@@ -5,6 +5,7 @@
   import { tooltip } from '../../components/tooltip.svelte';
   import type { ClipPlayback } from '../../ipc/bindings/ClipPlayback';
   import type { Tile } from '../../ipc/bindings/Tile';
+  import { subsIpc } from '../../ipc/subs';
   import { systemIpc } from '../../ipc/system';
   import { formatDate, formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
@@ -24,6 +25,13 @@
 
   function open(url: string) {
     systemIpc.openLink(url).catch((e) => toast.error(String(e)));
+  }
+
+  /** V102-08 Twitch's clip editor in the app's Twitch window, as the account that made it. */
+  function edit(url: string) {
+    const account = tile?.account;
+    if (account) subsIpc.open(account, url).catch((e) => toast.error(String(e)));
+    else open(url);
   }
 
   function onkeydown(e: KeyboardEvent) {
@@ -48,7 +56,7 @@
         {/if}
       </div>
       {#if editUrl}
-        <button class="link" onclick={() => open(editUrl!)}>Edit on Twitch</button>
+        <button class="link" onclick={() => edit(editUrl!)}>Edit on Twitch</button>
       {/if}
       <button class="icon" aria-label="Open on Twitch" use:tooltip={'Open on Twitch'} onclick={() => open(`https://clips.twitch.tv/${slug}`)}>
         <Icon name="popout" size={15} />
@@ -56,7 +64,7 @@
       <button class="icon" aria-label="Close" use:tooltip={'Close (Esc)'} onclick={onclose}><Icon name="x" size={16} /></button>
     </header>
     <div class="screen">
-      <ClipPlayer {slug} {tile} onloaded={(c) => (clip = c)} />
+      <ClipPlayer {slug} {tile} fresh={!!editUrl} onloaded={(c) => (clip = c)} />
     </div>
   </div>
 </div>

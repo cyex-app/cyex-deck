@@ -14,7 +14,7 @@ struct Items {
 }
 
 pub fn init(app: &AppHandle) -> tauri::Result<()> {
-    let show = MenuItem::with_id(app, "show", "Show cyex", true, None::<&str>)?;
+    let show = MenuItem::with_id(app, "show", "Show cyex deck", true, None::<&str>)?;
     let streamer = CheckMenuItem::with_id(app, "streamer", "Streamer mode", true, false, None::<&str>)?;
     let click_through = CheckMenuItem::with_id(
         app,
@@ -42,7 +42,7 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
 
     TrayIconBuilder::with_id("main")
         .icon(icons::for_theme(theme))
-        .tooltip("cyex viewer")
+        .tooltip(cyex_core::app::NAME)
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {

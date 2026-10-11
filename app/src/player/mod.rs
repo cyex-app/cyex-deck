@@ -2,6 +2,7 @@
 //! hls.js over `cyexhls://` (`protocol.rs`). Sessions nobody asked about for a while are
 //! dropped, so a closed window can't leave one behind.
 
+pub mod clips;
 mod device;
 pub mod positions;
 mod protocol;
@@ -75,7 +76,7 @@ struct AdChanged<'a> {
 }
 
 pub fn init(app: &AppHandle) {
-    let dir = app.path().config_dir().ok().map(|d| d.join("cyex-viewer"));
+    let dir = crate::paths::config(app).ok();
     app.manage(Players {
         http: app.state::<Auth>().http.clone(),
         device_id: device::id(app),

@@ -6,6 +6,7 @@ pub mod blocks;
 mod cards;
 mod channels;
 mod chat;
+pub mod clip_create;
 mod clips;
 mod comments;
 pub mod dashboard;
@@ -183,13 +184,14 @@ pub(crate) async fn batch(
     Ok(responses.into_iter().map(unwrap).collect())
 }
 
-/// Signed-in requests look like the Android TV app's: the tools that redeem rewards with
-/// its tokens send these headers and need no integrity token (research, phase 3).
+/// Signed-in requests look like Twitch's TV app's (`clients::GQL`): the tools that
+/// redeem rewards with its tokens send these headers and need no integrity token
+/// (research, phase 3).
 fn request(http: &Http, auth: Auth<'_>) -> RequestBuilder {
     let mut req = http.0.post(URL).header("Client-Id", auth.client_id);
     if let Some(token) = auth.token {
         req = req.header("Authorization", format!("OAuth {token}"));
-        if auth.client_id == clients::ANDROID_TV {
+        if auth.client_id == clients::GQL {
             let ids = session_ids();
             req = req
                 .header("Client-Session-Id", &ids.0)

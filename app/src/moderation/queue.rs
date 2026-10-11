@@ -105,9 +105,9 @@ pub async fn delete_comment(app: &AppHandle, account: &str, login: &str, id: &st
 /// 1.48, V101-35 Who's in a chat. Twitch's grouped list over GQL works for anyone; a
 /// moderator with a Helix sign-in gets every viewer instead of Twitch's sample of 100.
 pub async fn chatters(app: &AppHandle, account: Option<&str>, login: &str) -> Result<Chatters, String> {
-    // The grouped read works signed out with the Android TV client.
+    // The grouped read works signed out with the GQL client.
     let auth = gql::Auth {
-        client_id: cyex_twitch::clients::ANDROID_TV,
+        client_id: cyex_twitch::clients::GQL,
         token: None,
     };
     let grouped = gql::modlogs::chatters(&http(app), auth, login).await;

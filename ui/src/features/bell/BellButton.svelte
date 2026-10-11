@@ -85,6 +85,9 @@
       </div>
     </Popover>
   </div>
+{:else}
+  <!-- V102-20 Greyed out until the default account has a GQL sign-in. -->
+  <IconButton icon="bell" label="Notifications" lock="gql" />
 {/if}
 
 <style>

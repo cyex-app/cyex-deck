@@ -6,6 +6,7 @@
   import Button from '../../components/Button.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
   import EmptyState from '../../components/EmptyState.svelte';
+  import GateFlag from '../../components/GateFlag.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import type { MySubs } from '../../ipc/bindings/MySubs';
   import type { SubChannel } from '../../ipc/bindings/SubChannel';
@@ -27,7 +28,9 @@
   let loading = $state(false);
 
   const account = $derived(accounts.current?.userId ?? null);
-  const can = $derived(account !== null && accounts.can('subs', account));
+  /** V102-20 The tab needs Sign in with Twitch; the list needs GQL on top. */
+  const twitch = $derived(account !== null && accounts.can('wallet', account));
+  const can = $derived(twitch && account !== null && accounts.can('subs', account));
 
   $effect(() => {
     if (can) void load();
@@ -65,7 +68,7 @@
 <div class="subs">
   <header>
     <h2>Subscriptions</h2>
-    {#if account}
+    {#if account && twitch}
       <Button small icon="card" onclick={() => page('wallet')}>Payment methods</Button>
       <Button small variant="ghost" onclick={() => page('subscriptions')}>Twitch’s page</Button>
       {#if can}<IconButton icon="refresh" label="Refresh" onclick={() => void load()} disabled={loading} />{/if}
@@ -76,9 +79,15 @@
       <EmptyState icon="star" text="Sign in to see your subscriptions." />
       <Button variant="primary" icon="login" onclick={onsignin}>Sign in</Button>
     </div>
+  {:else if !twitch}
+    <div class="none">
+      <EmptyState icon="star" text="Subscriptions and payment methods need Sign in with Twitch." />
+      <GateFlag kind="helix" />
+    </div>
   {:else if !can}
     <div class="none">
       <EmptyState icon="star" text="Your subs show here with a GQL sign-in. Twitch’s page works either way." />
+      <GateFlag kind="gql" />
       <Button onclick={() => page('subscriptions')}>Open Twitch’s page</Button>
     </div>
   {:else if error}

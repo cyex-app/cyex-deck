@@ -28,7 +28,7 @@ struct Changed<'a> {
 }
 
 pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    let dir = app.path().config_dir()?.join("cyex-viewer").join("settings");
+    let dir = crate::paths::config(app)?.join("settings");
     let (store, report) = Store::open(dir, Arc::new(SystemClock))?;
     app.manage(Settings {
         store: Mutex::new(store),

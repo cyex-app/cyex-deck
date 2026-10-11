@@ -7,12 +7,12 @@ use cyex_chat::model::ChatMessage;
 use cyex_twitch::gql::{
     self, About, Clip, ClipPeriod, ClipPlayback, ClipSort, Story, StoryRing, Storyboard, Video, VideoKind, VideoSort,
 };
-use cyex_twitch::helix::{self, CreatedClip};
+use cyex_twitch::helix::CreatedClip;
 use tauri::{AppHandle, Manager, Window};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
-use crate::auth::{Auth, gql_token, helix_token, unix_now};
+use crate::auth::{Auth, gql_token, unix_now};
 use crate::player::{self, PlayerSession, Players};
 
 type CmdResult<T> = Result<T, String>;
@@ -37,7 +37,11 @@ pub fn player_close(app: AppHandle, id: String) {
 /// 1.19, 1.20 A clip with its video files. `None` if it was deleted.
 #[tauri::command]
 pub async fn player_clip(app: AppHandle, slug: String) -> CmdResult<Option<ClipPlayback>> {
-    gql::clip(&http(&app), &slug).await.map_err(message)
+    gql::clip(&http(&app), &slug).await.map_err(|e| match e {
+        // V102-08
+        cyex_twitch::Error::Refused(_) => "Twitch couldn't make this clip.".into(),
+        e => message(e),
+    })
 }
 
 #[tauri::command]
@@ -94,23 +98,10 @@ pub fn player_save_position(app: AppHandle, id: String, at: f64, length: f64) {
     app.state::<Players>().positions.save(&id, at, length, unix_now());
 }
 
-/// P9 Clips the last seconds of the stream as `account`.
+/// P9, V102-08 Clips the last seconds of the stream as `account`.
 #[tauri::command]
 pub async fn player_create_clip(app: AppHandle, account: String, channel_id: String) -> CmdResult<CreatedClip> {
-    let (token, client_id) =
-        helix_token(&app, &account).ok_or("Making clips needs a Twitch sign-in. Add it in Settings → Accounts.")?;
-    let auth = helix::Auth {
-        client_id: &client_id,
-        token: &token,
-    };
-    helix::create_clip(&http(&app), auth, &channel_id).await.map_err(|e| match e.api_message() {
-        None => "Couldn't reach Twitch.".into(),
-        Some(m) if m.contains("scope") || m.contains("Missing") => {
-            "Sign in again in Settings → Accounts to allow making clips.".into()
-        }
-        Some(m) if m.contains("not live") || m.contains("offline") => "Clips only work while the channel is live.".into(),
-        Some(m) => format!("Twitch said: {m}"),
-    })
+    player::clips::create(&app, &account, &channel_id).await
 }
 
 /// P10 The proxy as settings show it: `host:port`.

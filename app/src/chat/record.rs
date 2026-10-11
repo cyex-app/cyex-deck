@@ -54,10 +54,7 @@ pub fn init(app: &AppHandle) {
 }
 
 pub fn dir(app: &AppHandle) -> Option<PathBuf> {
-    app.path()
-        .config_dir()
-        .ok()
-        .map(|d| d.join("cyex-viewer").join("recordings"))
+    crate::paths::config(app).ok().map(|d| d.join("recordings"))
 }
 
 /// Recording ids are folder names: letters, digits, `-` and `_`.

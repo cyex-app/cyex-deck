@@ -4,7 +4,7 @@
 mod keeper;
 mod sign_in;
 
-pub use sign_in::{DeviceStart, add_manual, remove_account, remove_token, sign_in_device};
+pub use sign_in::{DeviceStart, SignedIn, add_gql_token, remove_account, remove_token, sign_in_device};
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -43,7 +43,7 @@ pub struct AuthSnapshot {
 }
 
 pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    let env_file = app.path().config_dir()?.join("cyex-viewer").join(".env");
+    let env_file = crate::paths::config(app)?.join(".env");
     let mut env_files = vec![env_file.clone()];
     if cfg!(debug_assertions) {
         // `npm run dev`: the repo's own .env.

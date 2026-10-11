@@ -10,6 +10,7 @@ mod clock;
 mod error;
 mod fsutil;
 mod merge;
+pub mod migrate;
 mod partition;
 pub mod schema;
 mod store;

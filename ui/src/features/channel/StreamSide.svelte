@@ -47,6 +47,10 @@
 
   const account = $derived(tile.account && accounts.list.some((a) => a.userId === tile.account) ? tile.account : null);
   const canClip = $derived(live && account !== null && accounts.can('clips', account));
+  /** V102-08 Why the clip button is greyed out, if it is: clips are made as the tab's account. */
+  const clipOff = $derived(
+    account === null ? 'Open this tab signed in to clip.' : canClip ? null : 'This account can’t clip. Check Settings → Accounts.',
+  );
   const hushed = $derived(shared.overlay !== null || shared.stories);
 
   function go(p: Page) {
@@ -105,6 +109,7 @@
         onclose={() => (miniClosed = true)}
         {onpopchat}
         onclip={canClip ? makeClip : undefined}
+        {clipOff}
       />
     {:else if page.kind === 'stream'}
       <Offline {tile} {info} onpage={go} onstories={() => (shared.stories = true)} />

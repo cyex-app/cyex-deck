@@ -1,42 +1,30 @@
-//! Pulls a token out of whatever the user pasted (1.4): a bare token, `oauth:...`, an
+//! Pulls a token out of whatever the user pasted: a bare token, `oauth:...`, an
 //! `Authorization` header, Chatterino's `oauth_token=...;client_id=...` line, or a
-//! redirect URL with `#access_token=...`. Also checks the manual screen's other fields
-//! against what Twitch says about the token (V101-08).
+//! redirect URL with `#access_token=...`. Then checks it against the account it's added
+//! to (V102-19).
 
+use cyex_twitch::clients;
 use cyex_twitch::id::Validation;
-use serde::Deserialize;
-use ts_rs::TS;
 
 use crate::AuthError;
 
-/// V101-08 The manual screen, the same fields Chatterino asks for. Empty ones are taken
-/// from Twitch. No `Debug`: it holds the token.
-#[derive(Clone, Default, Deserialize, TS)]
-#[serde(default, rename_all = "camelCase")]
-#[ts(export)]
-pub struct ManualToken {
-    pub login: String,
-    pub user_id: String,
-    pub client_id: String,
-    pub token: String,
+/// V102-19 A GQL token pasted for an account signed in with Twitch: it has to be made for
+/// the GQL client ID and be that account's. The name and user ID come from the account.
+pub fn check_gql(v: &Validation, user_id: &str) -> Result<(), AuthError> {
+    if v.client_id != clients::GQL {
+        return Err(AuthError::NotGql);
+    }
+    same_user(v, user_id)
 }
 
-/// The filled-in fields must be the token's own: a token only works with the client ID it
-/// was made for, and the account is the token's user.
-pub fn check(m: &ManualToken, v: &Validation) -> Result<(), AuthError> {
-    let login = m.login.trim().trim_start_matches('@');
-    if !login.is_empty() && !login.eq_ignore_ascii_case(&v.login) {
-        return Err(AuthError::OtherUser(v.login.clone()));
+/// V102-19 A token added to an existing account (pasted, or from a code or Twitch's
+/// sign-in) must be that account's: one account then holds both sign-ins.
+pub fn same_user(v: &Validation, user_id: &str) -> Result<(), AuthError> {
+    if v.user_id == user_id {
+        Ok(())
+    } else {
+        Err(AuthError::OtherUser(v.login.clone()))
     }
-    let user_id = m.user_id.trim();
-    if !user_id.is_empty() && user_id != v.user_id {
-        return Err(AuthError::OtherUser(v.login.clone()));
-    }
-    let client_id = m.client_id.trim();
-    if !client_id.is_empty() && client_id != v.client_id {
-        return Err(AuthError::OtherClient(v.client_id.clone()));
-    }
-    Ok(())
 }
 
 const KEYS: [&str; 3] = ["oauth_token", "access_token", "token"];
@@ -73,33 +61,30 @@ fn clean(value: &str) -> Option<String> {
 mod tests {
     use super::*;
 
-    fn validation() -> Validation {
+    fn validation(client_id: &str, user_id: &str) -> Validation {
         Validation {
-            client_id: "clientid123".into(),
+            client_id: client_id.into(),
             login: "someone".into(),
-            user_id: "42".into(),
+            user_id: user_id.into(),
             scopes: None,
             expires_in: 0,
         }
     }
 
-    fn manual(login: &str, user_id: &str, client_id: &str) -> ManualToken {
-        ManualToken {
-            login: login.into(),
-            user_id: user_id.into(),
-            client_id: client_id.into(),
-            token: String::new(),
-        }
+    #[test]
+    fn a_gql_token_is_for_the_gql_client_and_the_same_user() {
+        assert!(check_gql(&validation(clients::GQL, "42"), "42").is_ok());
+        // Made for another app, even Twitch's website.
+        assert!(matches!(check_gql(&validation(clients::WEB, "42"), "42"), Err(AuthError::NotGql)));
+        assert!(matches!(check_gql(&validation("someappclientid000000000000", "42"), "42"), Err(AuthError::NotGql)));
+        // Someone else's token.
+        assert!(matches!(check_gql(&validation(clients::GQL, "7"), "42"), Err(AuthError::OtherUser(l)) if l == "someone"));
     }
 
     #[test]
-    fn manual_fields_match_the_token_or_are_empty() {
-        let v = validation();
-        assert!(check(&manual("", "", ""), &v).is_ok());
-        assert!(check(&manual(" @SomeOne ", "42", "clientid123"), &v).is_ok());
-        assert!(matches!(check(&manual("other", "", ""), &v), Err(AuthError::OtherUser(l)) if l == "someone"));
-        assert!(matches!(check(&manual("", "7", ""), &v), Err(AuthError::OtherUser(_))));
-        assert!(matches!(check(&manual("", "", "nope"), &v), Err(AuthError::OtherClient(c)) if c == "clientid123"));
+    fn a_code_approved_by_someone_else_is_refused() {
+        assert!(same_user(&validation("app", "42"), "42").is_ok());
+        assert!(matches!(same_user(&validation("app", "7"), "42"), Err(AuthError::OtherUser(_))));
     }
 
     const T: &str = "abcdefghijklmnopqrstuvwxyz0123";

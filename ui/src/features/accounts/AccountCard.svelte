@@ -1,8 +1,10 @@
-<!-- One account in the account manager (1.23): tokens, joined chats, default, remove, its
-     Twitch profile (2.2) and its sign-in on Twitch's pages in the app (3.8). -->
+<!-- One account in the account manager (1.23): its two sign-ins, joined chats, default,
+     remove, its Twitch profile (2.2) and its sign-in on Twitch's pages in the app (3.8).
+     A missing sign-in is added to this same account (V102-19). -->
 <script lang="ts">
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
+  import GateFlag from '../../components/GateFlag.svelte';
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import { accountsIpc } from '../../ipc/accounts';
@@ -12,6 +14,7 @@
   import type { TokenView } from '../../ipc/bindings/TokenView';
   import { accounts } from '../../lib/accounts.svelte';
   import { toast } from '../../lib/toast.svelte';
+  import GqlUnlock from './GqlUnlock.svelte';
   import ProfileEditor from './ProfileEditor.svelte';
   import { signIn } from './signIn.svelte';
   import { accountName, missingScopesText, needsSignIn, tokenStatus } from './status';
@@ -19,16 +22,17 @@
   let { account }: { account: AccountView } = $props();
 
   const TOKENS: { kind: TokenKind; title: string; none: string }[] = [
-    { kind: 'helix', title: 'Twitch', none: 'Not signed in. Needed to moderate and see who you follow.' },
-    {
-      kind: 'gql',
-      title: 'GQL tools',
-      none: 'Not added. Needed for the miner, following, channel points, GIFs and power-ups.',
-    },
+    { kind: 'helix', title: 'Twitch', none: 'Not signed in. Needed for payment methods, subscriptions and mod tools.' },
+    { kind: 'gql', title: 'GQL tools', none: 'Not added. Needed for the miner, following, channel points, GIFs and power-ups.' },
   ];
 
   const conn = $derived(accounts.connectionsOf(account.userId));
   const bothTokens = $derived(account.helix !== null && account.gql !== null);
+  /** V102-19 The GQL options: asked for, or offered right after Sign in with Twitch. */
+  let unlocking = $state(false);
+  const showUnlock = $derived(
+    (unlocking || signIn.offer === account.userId) && (account.gql === null || needsSignIn(account.gql)),
+  );
 
   let armed = $state(false);
   let editing = $state(false);
@@ -57,6 +61,17 @@
     void attempt(() => accountsIpc.remove(account.userId));
   }
 
+  /** Twitch's sign-in runs right away; GQL shows its two options first. */
+  function add(kind: TokenKind) {
+    if (kind === 'helix') void signIn.start('helix', account.userId);
+    else unlocking = true;
+  }
+
+  function closeUnlock() {
+    unlocking = false;
+    if (signIn.offer === account.userId) signIn.offer = null;
+  }
+
   /** Helix sign-in needs this app's client ID; GQL sign-in doesn't. */
   const blocked = (kind: TokenKind) => kind === 'helix' && !accounts.hasClientId;
 </script>
@@ -83,7 +98,7 @@
         {@const status = tokenStatus(token)}
         <span class="status {status.tone}">{status.text}</span>
         {#if needsSignIn(token)}
-          <Button small disabled={blocked(t.kind) || signIn.kind !== null} onclick={() => signIn.start(t.kind)}>
+          <Button small disabled={blocked(t.kind) || signIn.kind !== null} onclick={() => add(t.kind)}>
             Sign in again
           </Button>
         {/if}
@@ -94,11 +109,12 @@
         {/if}
       {:else}
         <span class="status muted">{t.none}</span>
-        <Button small disabled={blocked(t.kind) || signIn.kind !== null} onclick={() => signIn.start(t.kind)}>
-          Add
+        <Button small disabled={blocked(t.kind) || signIn.kind !== null || (t.kind === 'gql' && showUnlock)} onclick={() => add(t.kind)}>
+          {t.kind === 'helix' ? 'Sign in' : 'Add'}
         </Button>
       {/if}
     </div>
+    {#if t.kind === 'gql' && showUnlock}<GqlUnlock {account} onclose={closeUnlock} />{/if}
   {/each}
 
   {#if account.helix && !needsSignIn(account.helix) && account.missingScopes.length}
@@ -125,6 +141,9 @@
       <Button small variant="ghost" icon="pencil" onclick={() => (editing = !editing)}>
         {editing ? 'Close profile' : 'Twitch profile'}
       </Button>
+    {:else}
+      <!-- V102-20 -->
+      <span class="locked"><Button small variant="ghost" icon="pencil" disabled>Twitch profile</Button><GateFlag kind="gql" /></span>
     {/if}
     <Button
       small
@@ -213,6 +232,11 @@
     padding: 8px 0;
     border-top: 1px solid var(--border);
     font-size: 0.82rem;
+  }
+  .locked {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
   }
   footer {
     display: flex;

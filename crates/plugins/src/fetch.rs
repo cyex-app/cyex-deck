@@ -19,7 +19,7 @@ pub const MAX_RESPONSE: usize = 5 << 20;
 pub fn client() -> Client {
     Client::builder()
         .redirect(reqwest::redirect::Policy::none())
-        .user_agent(concat!("cyex-viewer/", env!("CARGO_PKG_VERSION"), " (plugin)"))
+        .user_agent(format!("{} (plugin)", cyex_core::app::user_agent()))
         .build()
         .unwrap_or_default()
 }

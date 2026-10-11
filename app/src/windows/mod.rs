@@ -51,7 +51,7 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
     app.manage(LowMemory::default());
     let saved: Windows = app.state::<Settings>().read(Partition::Windows);
     let main = builder(app, MAIN, WebviewUrl::default())
-        .title("cyex viewer")
+        .title(cyex_core::app::NAME)
         .inner_size(1280.0, 800.0)
         .min_inner_size(720.0, 420.0)
         .always_on_top(saved.main_pinned);

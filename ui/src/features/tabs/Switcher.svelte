@@ -8,6 +8,8 @@
   import type { Tab } from '../../ipc/bindings/Tab';
   import { tabsIpc } from '../../ipc/tabs';
   import { accounts } from '../../lib/accounts.svelte';
+  import { FLAGS, lockFor } from '../../lib/gate';
+  import { gate } from '../../lib/gate.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { openChannel } from '../browse/open.svelte';
   import { home } from '../home/home.svelte';
@@ -37,7 +39,8 @@
   const VIEWS = [
     { view: 'home', label: 'Home', icon: 'house', shown: () => true },
     { view: 'discover', label: 'Discover', icon: 'compass', shown: () => true },
-    { view: 'miner', label: 'Miner', icon: 'pickaxe', shown: () => accounts.any('miner') },
+    // V102-20 Greyed out in the title bar without a GQL sign-in; here it says so.
+    { view: 'miner', label: 'Miner', icon: 'pickaxe', shown: () => true },
     { view: 'streamManager', label: 'Stream manager', icon: 'radio', shown: () => accounts.any('streamManager') },
     { view: 'whispers', label: 'Whispers', icon: 'whisper', shown: () => accounts.can('whispers') },
     { view: 'settings', label: 'Settings', icon: 'settings', shown: () => true },
@@ -67,9 +70,12 @@
       }));
     // Live tabs first, then the bar's order.
     tabChoices.sort((a, b) => Number(!!b.live) - Number(!!a.live));
-    const views = VIEWS.filter((v) => q && matches(v.label) && v.shown()).map(
-      (v): Choice => ({ key: v.view, label: v.label, icon: v.icon, run: () => onview(v.view) }),
-    );
+    const views = VIEWS.filter((v) => q && matches(v.label) && v.shown()).map((v): Choice => {
+      const lock = v.view === 'miner' ? lockFor(accounts.any('miner'), 'gql') : null;
+      return lock
+        ? { key: v.view, label: v.label, icon: v.icon, hint: FLAGS[lock].label, run: () => gate.ask(lock) }
+        : { key: v.view, label: v.label, icon: v.icon, run: () => onview(v.view) };
+    });
     const inTabs = new Set(tabs.list.flatMap((t) => tiles(t).map((x) => x.channel.id)));
     const followed = q
       ? (home.follows ?? [])

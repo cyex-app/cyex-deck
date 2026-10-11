@@ -53,7 +53,7 @@ const MOD_COMMANDS: &[&str] = &[
     "unrestrict",
 ];
 
-const HELP: &str = "/me, /echo, /set var, /chain, /foreach, /runin, /timer, /user, /logs, /block, /unblock, /hideuser, /unhideuser, /mutepings, /tl, /translate, /vote, /search, /popout, /color, /w, /r. Your own commands are in Settings → Commands.";
+const HELP: &str = "/me, /echo, /set var, /chain, /foreach, /runin, /timer, /user, /logs, /block, /unblock, /hideuser, /unhideuser, /mutepings, /tl, /translate, /vote, /search, /popout, /color, /w, /r. Mods: /ban, /timeout, /unban, /warn and Twitch's other mod commands. Your own commands are in Settings → Commands.";
 
 pub async fn run(
     app: &AppHandle,
@@ -231,17 +231,12 @@ async fn run_mod(app: &AppHandle, place: &Place, name: &str, args: &str) -> Resu
     Ok(None)
 }
 
+/// The name after `/user`, `/logs`, `/block` and the like: `@Name`, `name` or `name,`,
+/// checked like the mod commands' (V102-10).
 fn login_arg(args: &str) -> Result<String, String> {
-    let login = args
-        .split_whitespace()
-        .next()
-        .unwrap_or("")
-        .trim_start_matches('@')
-        .to_ascii_lowercase();
-    if login.is_empty() {
-        Err("Say who: a login after the command.".into())
-    } else {
-        Ok(login)
+    match args.split_whitespace().next() {
+        None => Err("Say who: a name after the command.".into()),
+        Some(word) => cyex_moderation::command::login(word).ok_or_else(|| format!("{word} isn't a Twitch name.")),
     }
 }
 
@@ -363,4 +358,29 @@ async fn translate_one(app: &AppHandle, text: &str, to: &str) -> Result<String, 
         .next()
         .map(|t| t.text)
         .ok_or_else(|| "Nothing came back.".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn user_takes_one_twitch_name() {
+        // V102-10 `/user <name>` opens that name's card in this chat.
+        assert_eq!(login_arg("@SomeOne").unwrap(), "someone");
+        assert_eq!(login_arg("  foo_bar,  extra words").unwrap(), "foo_bar");
+        assert!(login_arg("").unwrap_err().starts_with("Say who"));
+        // Nothing that would break the card's window route.
+        assert!(login_arg("a/b").is_err());
+        assert!(login_arg("ünïcode").is_err());
+    }
+
+    #[test]
+    fn mod_commands_are_twitchs() {
+        // V102-11 They run through the mod tools, so plugins can't take them over.
+        for name in ["ban", "timeout", "unban", "untimeout", "warn"] {
+            assert!(is_mod_command(name) && reserved(name), "{name}");
+        }
+        assert!(reserved("user"));
+    }
 }

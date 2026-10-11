@@ -32,11 +32,13 @@
   import { openChannel } from '../features/browse/open.svelte';
   import { tabs, tiles } from '../features/tabs/tabs.svelte';
   import type { LinkTarget } from '../ipc/bindings/LinkTarget';
+  import { accountsIpc } from '../ipc/accounts';
   import { chatIpc } from '../ipc/chat';
   import { notifyEvents } from '../ipc/notify';
   import { pluginsIpc } from '../ipc/plugins';
   import { tabsIpc } from '../ipc/tabs';
   import { accounts } from '../lib/accounts.svelte';
+  import { gate } from '../lib/gate.svelte';
   import { useHotkeys } from '../lib/hotkeys.svelte';
   import { followFullscreen } from '../lib/layers';
   import { settings } from '../lib/settings.svelte';
@@ -59,7 +61,7 @@
   const side = $derived(settings.v.appearance.tabBarSide);
   const current = $derived(fixed ? null : tabs.tab(picked) ? picked : tabs.active);
   const tab = $derived(tabs.tab(current));
-  /** 08 The miner shows once an account has a GQL sign-in. */
+  /** 08 The miner works once an account has a GQL sign-in; until then it's greyed out (V102-20). */
   const canMine = $derived(accounts.any('miner'));
   /** 10 The stream manager shows once an account can run its own channel (D26). */
   const canManage = $derived(accounts.any('streamManager'));
@@ -81,7 +83,7 @@
   useHotkeys({
     'nav.home': () => show('home'),
     'nav.discover': () => show('discover'),
-    'nav.miner': () => canMine && show('miner'),
+    'nav.miner': () => (canMine ? show('miner') : gate.ask('gql')),
     'nav.streamManager': () => canManage && show('streamManager'),
     'nav.whispers': () => canWhisper && show('whispers'),
     'settings.open': () => show('settings'),
@@ -106,6 +108,15 @@
 
   $effect(() => {
     void whispers.start();
+  });
+
+  // V102-20 A greyed-out tool's flag, in any window: Settings → Accounts on that sign-in.
+  $effect(() => {
+    const off = accountsIpc.onShowSignIn((kind) => {
+      manageAccounts();
+      gate.shown(kind);
+    });
+    return () => void off.then((f) => f());
   });
 
   // 1.26 Someone asked for a conversation: a name's menu, an inline line, `/w`.
@@ -231,16 +242,15 @@
         active={fixed === 'discover'}
         onclick={() => show('discover')}
       />
-      {#if canMine}
-        <IconButton
-          icon="pickaxe"
-          label="Miner"
-          hint={miner.mining.length ? `Mining ${miner.mining.join(' and ')}.` : 'Collects channel points while you do other things.'}
-          active={fixed === 'miner'}
-          badge={miner.mining.length > 0}
-          onclick={() => show('miner')}
-        />
-      {/if}
+      <IconButton
+        icon="pickaxe"
+        label="Miner"
+        hint={miner.mining.length ? `Mining ${miner.mining.join(' and ')}.` : 'Collects channel points while you do other things.'}
+        active={fixed === 'miner'}
+        badge={miner.mining.length > 0}
+        lock={canMine ? null : 'gql'}
+        onclick={() => show('miner')}
+      />
       {#if canManage}
         <IconButton
           icon="radio"
@@ -301,7 +311,7 @@
     {:else if fixed === 'discover'}
       <DiscoverView onopen={open} />
     {:else if fixed === 'miner' && canMine}
-      <MinerView onsettings={minerSettings} onsignin={manageAccounts} />
+      <MinerView onsettings={minerSettings} />
     {:else if fixed === 'streamManager' && canManage}
       <StreamManagerView onpopout={popOutManager} onsignin={manageAccounts} />
     {:else if fixed === 'whispers' && canWhisper}

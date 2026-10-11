@@ -39,9 +39,11 @@
     onpopchat?: () => void;
     /** P9 */
     onclip?: () => void;
+    /** V102-08 Why clipping is off here, e.g. an anonymous tab: the button shows greyed. */
+    clipOff?: string | null;
   }
 
-  let { tile, info, hushed = false, mini = false, onexpand, onclose, onpopchat, onclip }: Props = $props();
+  let { tile, info, hushed = false, mini = false, onexpand, onclose, onpopchat, onclip, clipOff = null }: Props = $props();
 
   let video = $state<HTMLVideoElement>();
   let shell = $state<Shell>();
@@ -278,6 +280,10 @@
           <button class="ctl" aria-label="Clip" use:tooltip={{ label: 'Clip', hint: 'Clips the last seconds of the stream.' }} onclick={onclip}>
             <Icon name="scissors" size={17} />
           </button>
+        {:else if clipOff}
+          <button class="ctl off" aria-label="Clip" aria-disabled="true" use:tooltip={{ label: 'Clip', hint: clipOff }}>
+            <Icon name="scissors" size={17} />
+          </button>
         {/if}
         {#if onpopchat}
           <button class="ctl" aria-label="Pop out chat" use:tooltip={{ label: 'Pop out chat', hint: 'Chat in its own window, the stream here.' }} onclick={onpopchat}>
@@ -303,6 +309,11 @@
 </div>
 
 <style>
+  /* V102-08 */
+  .ctl.off {
+    opacity: 0.4;
+    cursor: default;
+  }
   .live {
     flex: 1;
     min-width: 0;

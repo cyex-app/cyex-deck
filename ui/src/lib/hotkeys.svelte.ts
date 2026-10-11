@@ -23,7 +23,7 @@ export const ACTIONS = {
   'chat.search': { label: 'Search this chat', default: 'Ctrl+F' },
   'chat.searchAll': { label: 'Search every chat', default: 'Ctrl+Shift+F' },
   'chat.similar': { label: 'Hide or show near-duplicates', default: 'Ctrl+H' },
-  'global.show': { label: 'Show or hide cyex', default: '', global: true },
+  'global.show': { label: 'Show or hide cyex deck', default: '', global: true },
   'global.streamer': { label: 'Streamer mode on or off', default: '', global: true },
   'global.clickThrough': { label: 'Overlay click-through on or off', default: '', global: true },
 } as const satisfies Record<string, { label: string; default: string; global?: boolean }>;

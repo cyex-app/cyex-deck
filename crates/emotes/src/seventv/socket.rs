@@ -10,7 +10,7 @@ use tokio::sync::mpsc;
 use super::events::{Event, Frame, parse};
 use cyex_twitch::ws::{Protocol, Step};
 
-const URL: &str = "wss://events.7tv.io/v3?app=cyex-viewer&version=";
+const URL: &str = "wss://events.7tv.io/v3";
 /// 7TV allows 500 topics; each channel subscription also costs a hidden one.
 const LIMIT: usize = 400;
 
@@ -68,7 +68,7 @@ impl Protocol for EventApi {
     type Event = Event;
 
     fn url(&self) -> String {
-        format!("{URL}{}", env!("CARGO_PKG_VERSION"))
+        format!("{URL}?app={}&version={}", cyex_core::app::SLUG, env!("CARGO_PKG_VERSION"))
     }
 
     fn subscribe(&self, topic: &Topic) -> String {

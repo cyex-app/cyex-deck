@@ -99,15 +99,20 @@ pub async fn channel_clips(http: &Http, login: &str, period: ClipPeriod, sort: C
     Ok(edges.into_iter().filter_map(|e| e.node).map(Clip::from).collect())
 }
 
-/// `None` if the clip was deleted or isn't ready yet.
+/// `None` if the clip was deleted or isn't ready yet: a clip just made stays `CREATING`
+/// for a few seconds, and its files play black until then (V102-08). [`Error::Refused`]
+/// with `CLIP_FAILED` when Twitch couldn't make it.
 pub async fn clip(http: &Http, slug: &str) -> Result<Option<ClipPlayback>> {
     let q = format!(
-        "query($slug: ID!) {{ clip(slug: $slug) {{ ...C videoOffsetSeconds video {{ id }} \
+        "query($slug: ID!) {{ clip(slug: $slug) {{ ...C creationState videoOffsetSeconds video {{ id }} \
          playbackAccessToken(params: {{platform: \"web\", playerBackend: \"mediaplayer\", playerType: \"site\"}}) \
          {{ signature value }} videoQualities {{ frameRate quality sourceURL }} \
          assets {{ type videoQualities {{ frameRate quality sourceURL }} }} }} }} {FIELDS}"
     );
     let raw: Value = query(http, Auth::PUBLIC, &q, json!({ "slug": slug })).await?;
+    if !made(&raw)? {
+        return Ok(None);
+    }
     match serde_json::from_value::<ClipData>(raw.clone()) {
         Ok(data) => Ok(data.clip.and_then(playback)),
         Err(e) => {
@@ -115,6 +120,16 @@ pub async fn clip(http: &Http, slug: &str) -> Result<Option<ClipPlayback>> {
             eprintln!("clips: unexpected answer for {slug}: {e}: {}", redacted(raw));
             Err(Error::Decode(e))
         }
+    }
+}
+
+/// V102-08 Whether Twitch has made the clip. Read before the rest: a clip still being made
+/// lacks what Twitch fills in later, so its answer isn't read at all until then.
+fn made(raw: &Value) -> Result<bool> {
+    match raw["clip"]["creationState"].as_str() {
+        Some("CREATING") => Ok(false),
+        Some("FAILED") => Err(Error::Refused("CLIP_FAILED".into())),
+        _ => Ok(true),
     }
 }
 
@@ -367,6 +382,20 @@ mod tests {
         )
         .unwrap();
         assert!(playback(empty.clip.unwrap()).is_none());
+    }
+
+    #[test]
+    fn a_clip_still_being_made_waits() {
+        // V102-08 Still being made: its answer isn't read, whatever shape it has.
+        let making = json!({ "clip": { "slug": "Fresh-AbC", "creationState": "CREATING", "durationSeconds": null,
+            "videoQualities": "not even a list" } });
+        assert!(!made(&making).unwrap());
+        let failed = json!({ "clip": { "creationState": "FAILED" } });
+        assert!(matches!(made(&failed), Err(Error::Refused(c)) if c == "CLIP_FAILED"));
+        // Made, deleted, or an older clip without the field: read as usual.
+        assert!(made(&json!({ "clip": { "creationState": "CREATED" } })).unwrap());
+        assert!(made(&json!({ "clip": null })).unwrap());
+        assert!(made(&json!({ "clip": { "slug": "Old" } })).unwrap());
     }
 
     #[test]

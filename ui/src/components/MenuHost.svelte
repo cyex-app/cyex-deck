@@ -4,6 +4,7 @@
   import { floating } from '../lib/place';
   import { settings } from '../lib/settings.svelte';
   import Avatar from './Avatar.svelte';
+  import GateFlag from './GateFlag.svelte';
   import Icon from './Icon.svelte';
   import { back, closeMenu, menu, pick } from './menu.svelte';
   import { tooltip } from './tooltip.svelte';
@@ -89,6 +90,7 @@
         <button
           class="item"
           class:danger={entry.danger}
+          class:locked={!!entry.lock}
           role={entry.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
           aria-checked={entry.checked}
           disabled={entry.disabled}
@@ -102,6 +104,7 @@
           {:else}<span class="blank"></span>{/if}
           <span class="text">{entry.label}</span>
           {#if entry.hint}<span class="hint">{entry.hint}</span>{/if}
+          {#if entry.lock}<GateFlag kind={entry.lock} still />{/if}
           {#if entry.warn}<span class="warn"><Icon name="alert" size={14} /></span>{/if}
           {#if entry.checked}<span class="check"><Icon name="check" size={14} /></span>{/if}
           {#if entry.items}<Icon name="chevronRight" size={13} />{/if}
@@ -147,6 +150,12 @@
     outline: none;
   }
   .item:disabled {
+    opacity: 0.45;
+  }
+  /* V102-20 Greyed out, but the flag still takes you to the sign-in. */
+  .item.locked .text,
+  .item.locked .swatch,
+  .item.locked > :global(svg) {
     opacity: 0.45;
   }
   .item.danger {

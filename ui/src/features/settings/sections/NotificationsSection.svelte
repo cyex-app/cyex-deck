@@ -5,6 +5,7 @@
 <script lang="ts">
   import Avatar from '../../../components/Avatar.svelte';
   import Button from '../../../components/Button.svelte';
+  import GateFlag from '../../../components/GateFlag.svelte';
   import Icon from '../../../components/Icon.svelte';
   import Row from '../../../components/Row.svelte';
   import Toggle from '../../../components/Toggle.svelte';
@@ -174,7 +175,7 @@
       {#if twitch}
         <b>Alert</b> is this app. <b>On Twitch</b> is what Twitch itself sends {account.displayName} for the channel.
       {:else}
-        Sign in with GQL to see and change Twitch's own choice per channel.
+        Twitch's own choice per channel needs a GQL sign-in. <GateFlag kind="gql" />
       {/if}
     </p>
     {#if channels.length > 8}
@@ -200,6 +201,12 @@
     {#if cursor}
       <Button small disabled={loading} onclick={() => account && void load(account.userId, true)}>Show more</Button>
     {/if}
+  {/if}
+
+  {#if account && !twitch}
+    <!-- V102-20 Greyed out, not hidden. -->
+    <h3 class="label">What Twitch sends</h3>
+    <p class="note gated">Twitch's own settings need a GQL sign-in. <GateFlag kind="gql" /></p>
   {/if}
 
   {#if twitch && sw.groups.length}
@@ -274,6 +281,12 @@
     margin: 4px 0 10px;
     color: var(--muted);
     font-size: 0.82rem;
+  }
+  .gated {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
   }
   .err {
     color: var(--red);

@@ -9,10 +9,10 @@ use cyex_twitch::{Http, usher};
 fn gql_sign_in() -> (String, String) {
     let dir = std::env::var("APPDATA").unwrap();
     let accounts: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(format!("{dir}/cyex-viewer/settings/accounts.json")).unwrap())
+        serde_json::from_str(&std::fs::read_to_string(format!("{dir}/cyex-deck/settings/accounts.json")).unwrap())
             .unwrap();
     let id = accounts["defaultId"].as_str().unwrap();
-    let secret = keyring::Entry::new("cyex-viewer", &format!("{id}.gql"))
+    let secret = keyring::Entry::new("cyex-deck", &format!("{id}.gql"))
         .and_then(|e| e.get_password())
         .unwrap();
     let secret: serde_json::Value = serde_json::from_str(&secret).unwrap();

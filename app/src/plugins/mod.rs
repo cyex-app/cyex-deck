@@ -1,4 +1,4 @@
-//! S5 Lua plugins in the app. Each is a folder in `%APPDATA%\cyex-viewer\plugins`. One
+//! S5 Lua plugins in the app. Each is a folder in `%APPDATA%\cyex-deck\plugins`. One
 //! runs when plugins are on, the plugin is on and the user agreed to what its info file
 //! asks for. `--safe-mode` lists them without running any. The Lua side is
 //! `cyex_plugins`; here are the folder, settings, chat hooks and the console's log.
@@ -99,10 +99,8 @@ pub struct PluginsView {
 }
 
 pub fn init(app: &AppHandle) {
-    let dir = app
-        .path()
-        .config_dir()
-        .map(|d| d.join("cyex-viewer").join("plugins"))
+    let dir = crate::paths::config(app)
+        .map(|d| d.join("plugins"))
         .unwrap_or_else(|_| PathBuf::from("plugins"));
     let _ = std::fs::create_dir_all(&dir);
     let safe_mode = std::env::args().any(|a| a == SAFE_MODE_ARG);

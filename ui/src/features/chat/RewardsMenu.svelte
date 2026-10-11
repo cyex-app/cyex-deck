@@ -4,6 +4,7 @@
      (points earned, chests, 08). -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
+  import GateFlag from '../../components/GateFlag.svelte';
   import Icon from '../../components/Icon.svelte';
   import Popover from '../../components/Popover.svelte';
   import Segmented from '../../components/Segmented.svelte';
@@ -164,7 +165,8 @@
         {#if points?.balance != null && page === 'points'}<span class="balance">{formatNumber(points.balance)}</span>{/if}
       </header>
       {#if !canRedeem}
-        <p class="note">Add a GQL sign-in for this account in Settings → Accounts to redeem.</p>
+        <!-- V102-20 -->
+        <p class="note locked">Redeeming needs a GQL sign-in for this account. <GateFlag kind="gql" /></p>
       {/if}
       {#if page === 'bits'}
         <PowerUps {room} ondone={() => (open = false)} />
@@ -266,6 +268,12 @@
     margin: 4px 0 8px;
     color: var(--dim);
     font-size: 0.8rem;
+  }
+  .note.locked {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
   }
   .grid {
     display: grid;

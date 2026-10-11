@@ -89,10 +89,7 @@ pub fn forget(app: &AppHandle, account: &str) {
 fn profile_dir(app: &AppHandle, account: &str) -> Option<PathBuf> {
     let safe: String = account.chars().filter(char::is_ascii_alphanumeric).collect();
     (!safe.is_empty()).then(|| {
-        app.path()
-            .local_data_dir()
-            .ok()
-            .map(|d| d.join("cyex-viewer").join("twitch").join(safe))
+        crate::paths::local(app).ok().map(|d| d.join("twitch").join(safe))
     })?
 }
 

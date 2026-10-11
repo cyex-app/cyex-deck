@@ -9,6 +9,7 @@
 // - Labels: a verb first where there is one, sentence case, no full stop.
 // - A menu from a button opens under it; a right-click menu opens at the pointer.
 
+import type { TokenKind } from '../ipc/bindings/TokenKind';
 import type { IconName } from './icons';
 
 export interface MenuItem {
@@ -27,6 +28,8 @@ export interface MenuItem {
   /** A warning sign at the end, e.g. an account that needs signing in again. */
   warn?: boolean;
   disabled?: boolean;
+  /** V102-20 Greyed out with the sign-in flag; picking it goes to that sign-in. */
+  lock?: TokenKind | null;
   run?: () => void;
   /** Opens a second list in place of this one. */
   items?: MenuEntry[];

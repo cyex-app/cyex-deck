@@ -21,7 +21,7 @@ impl Http {
 
     fn build(proxy: Option<&str>) -> Result<Self> {
         let mut builder = reqwest::Client::builder()
-            .user_agent(concat!("cyex-viewer/", env!("CARGO_PKG_VERSION")))
+            .user_agent(cyex_core::app::user_agent())
             .connect_timeout(Duration::from_secs(10))
             .timeout(Duration::from_secs(20));
         if let Some(url) = proxy {

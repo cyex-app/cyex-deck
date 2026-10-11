@@ -304,6 +304,21 @@ mod tests {
     }
 
     #[test]
+    fn twitchs_own_syntax_and_its_edges() {
+        // V102-11 user, optional length and reason; a warning needs a reason.
+        assert_eq!(ok("ban x"), ModCommand::Ban { login: "x".into(), reason: String::new() });
+        assert!(matches!(ok("timeout x 1209600"), ModCommand::Timeout { secs: 1_209_600, .. }));
+        assert!(err("timeout x 1209601").contains("2 weeks"));
+        assert!(err("timeout x 0").contains("1 second"));
+        assert!(err("timeout").starts_with("Usage: /timeout"));
+        assert_eq!(ok("unban @SomeOne"), ModCommand::Unban { login: "someone".into() });
+        assert!(err("unban").starts_with("Usage"));
+        assert_eq!(ok("warn x stop it"), ModCommand::Warn { login: "x".into(), reason: "stop it".into() });
+        assert!(err("warn").starts_with("Usage: /warn"));
+        assert!(err("ban not/a/name").starts_with("Usage"));
+    }
+
+    #[test]
     fn modes() {
         assert_eq!(ok("slow"), ModCommand::Mode(ModeChange::Slow(Some(30))));
         assert_eq!(ok("slow 10"), ModCommand::Mode(ModeChange::Slow(Some(10))));

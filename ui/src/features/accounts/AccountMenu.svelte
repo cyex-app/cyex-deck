@@ -1,6 +1,6 @@
 <!-- Top-bar account button (1.3, 1.23): pick the default account, open the manager, your
      subscriptions (1.28) and Twitch's payment methods in the app (1.27). The shared menu
-     since V101-30. -->
+     since V101-30. The last two need Sign in with Twitch, else they're greyed out (V102-20). -->
 <script lang="ts">
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
@@ -9,6 +9,7 @@
   import { accountsIpc } from '../../ipc/accounts';
   import { subsIpc } from '../../ipc/subs';
   import { accounts } from '../../lib/accounts.svelte';
+  import { lockFor } from '../../lib/gate';
   import { toast } from '../../lib/toast.svelte';
   import { accountName, accountNeedsAttention } from './status';
 
@@ -16,6 +17,7 @@
 
   const current = $derived(accounts.current);
   const attention = $derived(accounts.list.some(accountNeedsAttention));
+  const walletLock = $derived(lockFor(!!current && accounts.can('wallet', current.userId), 'helix'));
 
   function pick(userId: string) {
     accountsIpc.setDefault(userId).catch((e) => toast.error(String(e)));
@@ -36,8 +38,9 @@
         run: () => pick(a.userId),
       })),
       'separator',
-      { label: 'Subscriptions', icon: 'star', run: onsubs },
-      { label: 'Payment methods', icon: 'card', run: wallet },
+      // V102-20 Only with Twitch's own sign-in.
+      { label: 'Subscriptions', icon: 'star', lock: walletLock, run: onsubs },
+      { label: 'Payment methods', icon: 'card', lock: walletLock, run: wallet },
       'separator',
       { label: 'Manage accounts', icon: 'user', run: onmanage },
     ];

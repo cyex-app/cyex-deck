@@ -748,6 +748,7 @@ dependencies = [
 name = "cyex-auth"
 version = "0.1.0"
 dependencies = [
+ "cyex-core",
  "cyex-settings",
  "cyex-twitch",
  "keyring",
@@ -783,10 +784,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "cyex-deck"
+version = "0.1.0"
+dependencies = [
+ "cyex-auth",
+ "cyex-chat",
+ "cyex-core",
+ "cyex-emotes",
+ "cyex-eventsub",
+ "cyex-miner",
+ "cyex-moderation",
+ "cyex-player",
+ "cyex-plugins",
+ "cyex-settings",
+ "cyex-twitch",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-global-shortcut",
+ "tauri-plugin-opener",
+ "tauri-plugin-single-instance",
+ "tauri-winrt-notification",
+ "time",
+ "tokio",
+ "ts-rs",
+ "url",
+ "webview2-com",
+ "windows",
+]
+
+[[package]]
 name = "cyex-emotes"
 version = "0.1.0"
 dependencies = [
  "cyex-chat",
+ "cyex-core",
  "cyex-twitch",
  "futures-util",
  "serde",
@@ -846,6 +880,7 @@ dependencies = [
 name = "cyex-plugins"
 version = "0.1.0"
 dependencies = [
+ "cyex-core",
  "futures-util",
  "mlua",
  "reqwest",
@@ -886,38 +921,6 @@ dependencies = [
  "tokio-tungstenite",
  "ts-rs",
  "url",
-]
-
-[[package]]
-name = "cyex-viewer"
-version = "0.1.0"
-dependencies = [
- "cyex-auth",
- "cyex-chat",
- "cyex-core",
- "cyex-emotes",
- "cyex-eventsub",
- "cyex-miner",
- "cyex-moderation",
- "cyex-player",
- "cyex-plugins",
- "cyex-settings",
- "cyex-twitch",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-global-shortcut",
- "tauri-plugin-opener",
- "tauri-plugin-single-instance",
- "tauri-winrt-notification",
- "time",
- "tokio",
- "ts-rs",
- "url",
- "webview2-com",
- "windows",
 ]
 
 [[package]]

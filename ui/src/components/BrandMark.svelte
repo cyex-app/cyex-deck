@@ -4,7 +4,7 @@
   // No props: the mark always uses the current --text and --accent.
 </script>
 
-<span class="mark" role="img" aria-label="cyex"><i></i><i></i><i></i></span>
+<span class="mark" role="img" aria-label="cyex deck"><i></i><i></i><i></i></span>
 
 <style>
   .mark {

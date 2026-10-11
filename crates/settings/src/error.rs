@@ -11,7 +11,7 @@ pub enum Error {
     Json(#[from] serde_json::Error),
     #[error("that isn't a cyex settings file")]
     NotSettings,
-    #[error("these settings come from a newer version of cyex")]
+    #[error("these settings come from a newer version of cyex deck")]
     TooNew,
     #[error("unknown settings section \"{0}\"")]
     UnknownPartition(String),

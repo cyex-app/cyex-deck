@@ -1,12 +1,11 @@
-//! Account commands (1.3, 1.4, 1.5, 1.13, 1.23).
+//! Account commands (1.3, 1.5, 1.13, 1.23, V102-19).
 
 use cyex_auth::TokenKind;
-use cyex_auth::paste::ManualToken;
 use cyex_chat::ConnectionCount;
 use tauri::ipc::Channel;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
-use crate::auth::{self, Auth, AuthSnapshot, DeviceStart};
+use crate::auth::{self, Auth, AuthSnapshot, DeviceStart, SignedIn};
 use crate::connections;
 
 type CmdResult<T> = Result<T, String>;
@@ -16,15 +15,17 @@ pub fn accounts_snapshot(app: AppHandle) -> AuthSnapshot {
     auth::snapshot(&app)
 }
 
-/// Device Code sign-in. Sends the code over `on_code`, then resolves with the display
-/// name once the user approves on twitch.tv.
+/// Device Code sign-in. Sends the code over `on_code`, then resolves with the account
+/// once the user approves on Twitch. With `user_id`, it's added to that account and has
+/// to be the same user (V102-19).
 #[tauri::command]
 pub async fn accounts_sign_in(
     app: AppHandle,
     kind: TokenKind,
+    user_id: Option<String>,
     on_code: Channel<DeviceStart>,
-) -> CmdResult<String> {
-    auth::sign_in_device(&app, kind, |code| {
+) -> CmdResult<SignedIn> {
+    auth::sign_in_device(&app, kind, user_id.as_deref(), |code| {
         let _ = on_code.send(code);
     })
     .await
@@ -36,11 +37,18 @@ pub fn accounts_cancel_sign_in(auth: State<Auth>) {
     auth.cancel_sign_in();
 }
 
-/// Adds a token someone has (1.4, V101-08): name, user ID, client ID and token, where only
-/// the token is needed. Resolves with the display name.
+/// V102-20 A greyed-out tool's flag was clicked, in any window: the main window comes up
+/// on the sign-in that unlocks it.
 #[tauri::command]
-pub async fn accounts_add_manual(app: AppHandle, fields: ManualToken) -> CmdResult<String> {
-    auth::add_manual(&app, &fields).await.map_err(|e| e.to_string())
+pub fn accounts_show_sign_in(app: AppHandle, kind: TokenKind) {
+    crate::windows::show_main(&app);
+    let _ = app.emit_to(crate::windows::MAIN, "accounts:sign-in", kind);
+}
+
+/// V102-19 A GQL token pasted for an account signed in with Twitch.
+#[tauri::command]
+pub async fn accounts_add_gql_token(app: AppHandle, user_id: String, token: String) -> CmdResult<SignedIn> {
+    auth::add_gql_token(&app, &user_id, &token).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]

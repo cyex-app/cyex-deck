@@ -1,6 +1,6 @@
 [package]
-name = "cyex-viewer"
-description = "cyex viewer desktop app"
+name = "cyex-deck"
+description = "cyex deck desktop app"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true

@@ -39,10 +39,7 @@ pub fn init(app: &AppHandle) {
 }
 
 fn fonts_dir(app: &AppHandle) -> Option<PathBuf> {
-    app.path()
-        .config_dir()
-        .ok()
-        .map(|d| d.join("cyex-viewer").join("fonts"))
+    crate::paths::config(app).ok().map(|d| d.join("fonts"))
 }
 
 /// Copies a font file into the fonts folder. Named after the file, made unique.

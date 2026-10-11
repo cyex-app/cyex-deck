@@ -12,11 +12,11 @@ pub use cyex_twitch::id::DeviceCode;
 use crate::secrets::Secret;
 use crate::{AuthError, TokenKind, scopes};
 
-/// Helix sign-in uses this app's client ID; GQL sign-in uses Twitch's Android TV app.
+/// Helix sign-in uses this app's client ID; GQL sign-in always uses `clients::GQL` (V102-19).
 pub fn client_for(kind: TokenKind, app_client_id: Option<&str>) -> Result<String, AuthError> {
     match kind {
         TokenKind::Helix => app_client_id.map(str::to_owned).ok_or(AuthError::NoClientId),
-        TokenKind::Gql => Ok(clients::ANDROID_TV.to_owned()),
+        TokenKind::Gql => Ok(clients::GQL.to_owned()),
     }
 }
 
@@ -111,6 +111,6 @@ mod tests {
             Err(AuthError::NoClientId)
         ));
         assert_eq!(client_for(TokenKind::Helix, Some("mine")).unwrap(), "mine");
-        assert_eq!(client_for(TokenKind::Gql, None).unwrap(), clients::ANDROID_TV);
+        assert_eq!(client_for(TokenKind::Gql, None).unwrap(), clients::GQL);
     }
 }

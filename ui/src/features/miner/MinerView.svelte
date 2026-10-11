@@ -2,7 +2,7 @@
      1.33, 1.44, W3), stats (1.32) and log (W4). Settings → Miner has the rest. -->
 <script lang="ts">
   import Avatar from '../../components/Avatar.svelte';
-  import Button from '../../components/Button.svelte';
+  import GateFlag from '../../components/GateFlag.svelte';
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import { type MenuEntry, openMenuAt } from '../../components/menu.svelte';
@@ -18,10 +18,9 @@
   interface Props {
     /** Opens Settings → Miner. */
     onsettings: () => void;
-    onsignin: () => void;
   }
 
-  let { onsettings, onsignin }: Props = $props();
+  let { onsettings }: Props = $props();
 
   type Page = 'channels' | 'stats' | 'log';
   const PAGES: { value: Page; label: string }[] = [
@@ -81,7 +80,7 @@
     {#if !able.length}
       <div class="note">
         <span>The miner needs an account with a GQL sign-in.</span>
-        <Button onclick={onsignin}>Accounts</Button>
+        <GateFlag kind="gql" />
       </div>
     {:else if page === 'channels'}
       <MinerChannels />

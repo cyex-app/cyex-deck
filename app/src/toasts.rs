@@ -15,7 +15,7 @@ use crate::windows::{self, MAIN};
 
 /// The installer gives the Start menu shortcut this id (tauri.conf `identifier`), which
 /// Windows needs to show an app's toasts.
-const APP_ID: &str = "app.cyex.viewer";
+const APP_ID: &str = cyex_core::app::ID;
 const OPEN_EVENT: &str = "notify:open";
 const SOUND_EVENT: &str = "notify:sound";
 const AVATAR_MAX: usize = 512 * 1024;
@@ -117,12 +117,7 @@ fn app_id() -> &'static str {
 }
 
 async fn cached_avatar(app: &AppHandle, url: &str) -> Option<PathBuf> {
-    let dir = app
-        .path()
-        .local_data_dir()
-        .ok()?
-        .join("cyex-viewer")
-        .join("toast-avatars");
+    let dir = crate::paths::local(app).ok()?.join("toast-avatars");
     let mut h = DefaultHasher::new();
     url.hash(&mut h);
     let ext = if url.ends_with(".jpg") || url.ends_with(".jpeg") {

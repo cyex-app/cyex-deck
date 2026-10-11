@@ -7,6 +7,7 @@ publish.workspace = true
 
 [dependencies]
 cyex-chat.workspace = true
+cyex-core.workspace = true
 cyex-twitch.workspace = true
 serde.workspace = true
 serde_json.workspace = true

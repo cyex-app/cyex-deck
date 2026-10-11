@@ -66,7 +66,7 @@ export function titleFor(route: string): string {
     const tile = tabs.list.flatMap(tiles).find((t) => t.id === a);
     if (tile) return `${tile.channel.name} overlay`;
   }
-  return PANELS[kind]?.title ?? 'cyex';
+  return PANELS[kind]?.title ?? 'cyex deck';
 }
 
 export async function popOut(route: string, title?: string): Promise<boolean> {

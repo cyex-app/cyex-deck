@@ -2,6 +2,7 @@
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import { systemIpc } from '../../ipc/system';
+  import { accounts } from '../../lib/accounts.svelte';
   import { formatDuration } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import { signIn } from './signIn.svelte';
@@ -12,6 +13,9 @@
     const timer = setInterval(() => (now = Date.now()), 1000);
     return () => clearInterval(timer);
   });
+
+  /** V102-19 Adding to an account: the code has to be approved as that account. */
+  const as = $derived(signIn.forUser ? accounts.list.find((a) => a.userId === signIn.forUser)?.displayName : undefined);
 
   const left = $derived(signIn.code ? signIn.code.expiresIn - (now - signIn.codeAt) / 1000 : 0);
 
@@ -33,7 +37,7 @@
 
 <div class="device">
   {#if signIn.code}
-    <p class="lead">Enter this code on Twitch</p>
+    <p class="lead">Enter this code on Twitch{as ? `, signed in as ${as}` : ''}</p>
     <div class="code">{signIn.code.userCode}</div>
     <div class="actions">
       <Button variant="primary" icon="popout" onclick={open}>Open twitch.tv/activate</Button>

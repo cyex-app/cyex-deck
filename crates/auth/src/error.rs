@@ -13,12 +13,15 @@ pub enum AuthError {
     AppToken,
     #[error("That doesn't look like a token.")]
     NotAToken,
-    /// V101-08 The manual screen's name or user ID isn't the token's.
-    #[error("That token belongs to {0}.")]
+    /// V102-19 A token or code for another account than the one it's added to.
+    #[error("That's {0}, not this account.")]
     OtherUser(String),
-    /// V101-08 The manual screen's client ID isn't the one the token was made for.
-    #[error("That token was made for client ID {0}.")]
-    OtherClient(String),
+    /// V102-19 A pasted token made for another app than GQL.
+    #[error("That token isn't a GQL token.")]
+    NotGql,
+    /// V102-19 A GQL token pasted for an account that isn't here.
+    #[error("Sign in with Twitch first.")]
+    NoAccount,
     #[error("The code expired. Start again.")]
     Expired,
     #[error("Sign-in was declined on Twitch.")]

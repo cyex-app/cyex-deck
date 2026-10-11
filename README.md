@@ -5,7 +5,7 @@
   </picture>
 </p>
 
-<h1 align="center">cyex viewer</h1>
+<h1 align="center">cyex deck</h1>
 
 <p align="center">A light Twitch app for Windows: streams, chat, the miner, mod tools and more, without twitch.tv or Chatterino.</p>
 
@@ -71,8 +71,8 @@ npm run build
 ```
 
 The build creates two files:
-- `target\release\cyex-viewer.exe`, which runs on its own.
-- `target\release\bundle\nsis\cyex viewer_0.1.0_x64-setup.exe`, the installer.
+- `target\release\cyex-deck.exe`, which runs on its own.
+- `target\release\bundle\nsis\cyex deck_0.1.0_x64-setup.exe`, the installer.
 
 The first build downloads NSIS by itself. The installer isn't signed, so Windows SmartScreen may warn about it: click **More info**, then **Run anyway**.
 
@@ -80,8 +80,8 @@ The first build downloads NSIS by itself. The installer isn't signed, so Windows
 
 You can watch streams and read chat without an account. To sign in, open **Settings → Accounts**:
 
-- **GQL tools only** works right away. It gives you chat, the miner, following, channel points, GIFs and power-ups, but no mod tools.
-- **Sign in with Twitch** gives you everything, including mod tools and the stream manager. It needs a Twitch client ID. Ask for the one already in use, or make your own:
+- **Sign in with a code** works right away. It gives you chat, the miner, following, channel points, GIFs and power-ups, but no mod tools, payment methods or subscriptions.
+- **Sign in with Twitch** gives you mod tools, payment methods and subscriptions. Afterwards the account card offers the GQL tools too: a code, or a GQL token you paste. It needs a Twitch client ID. Ask for the one already in use, or make your own:
   1. Go to [dev.twitch.tv/console/apps](https://dev.twitch.tv/console/apps) and register an app. Twitch asks for two-factor authentication on your account first.
   2. Fill it in:
      - **Name:** anything.
@@ -96,17 +96,20 @@ You can watch streams and read chat without an account. To sign in, open **Setti
 
 | What | Where |
 |---|---|
-| Settings, with daily backups kept for 3 days | `%APPDATA%\cyex-viewer\settings\` |
-| Client ID | `%APPDATA%\cyex-viewer\.env` |
-| Plugins | `%APPDATA%\cyex-viewer\plugins\` |
+| Settings, with daily backups kept for 3 days | `%APPDATA%\cyex-deck\settings\` |
+| Client ID | `%APPDATA%\cyex-deck\.env` |
+| Plugins | `%APPDATA%\cyex-deck\plugins\` |
 | Sign-in tokens | Windows Credential Manager, never in files |
-| Browser cache | `%LOCALAPPDATA%\app.cyex.viewer\` |
+| Twitch's pages in the app | `%LOCALAPPDATA%\cyex-deck\twitch\` |
+| Browser cache | `%LOCALAPPDATA%\app.cyex.deck\` |
 
-Uninstalling the app leaves all of this in place. To start fresh, close the app and delete both folders.
+Uninstalling the app leaves all of this in place. To start fresh, close the app and delete these folders.
+
+The app used to have another name. On its first start under this one, it copies the old folders and sign-ins over and leaves the old ones as they were. Once everything works, the old folders (`cyex-viewer` and `app.cyex.viewer`) and the old `cyex-viewer` entries in the Credential Manager can go, and the old app can be uninstalled.
 
 ## Good to know
 
-- `cyex-viewer.exe --safe-mode` starts the app without running any plugin.
+- `cyex-deck.exe --safe-mode` starts the app without running any plugin.
 - To write a plugin, see [docs/plugins.md](docs/plugins.md).
 - Settings → Backup and sharing exports your settings to a file or copies them as a share code.
 

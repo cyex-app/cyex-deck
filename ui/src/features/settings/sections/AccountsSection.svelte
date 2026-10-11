@@ -1,19 +1,44 @@
-<!-- Account manager (1.3, 1.23) and the three ways to add an account (V101-08): Twitch's
-     sign-in (1.5), a code to approve on Twitch, or a token you have (1.4). The last two
-     unlock the GQL tools (1.54). -->
+<!-- Account manager (1.3, 1.23) and the two ways to add an account (V102-19): Sign in
+     with Twitch (1.5), then optionally the GQL tools on the account card; or sign in with
+     a code for the GQL tools alone. A flag on a greyed-out tool lands here, on the sign-in
+     that unlocks it (V102-20). -->
 <script lang="ts">
+  import { tick } from 'svelte';
+
   import Button from '../../../components/Button.svelte';
   import Icon from '../../../components/Icon.svelte';
   import Row from '../../../components/Row.svelte';
   import AccountCard from '../../accounts/AccountCard.svelte';
   import ClientIdSetup from '../../accounts/ClientIdSetup.svelte';
   import DeviceCode from '../../accounts/DeviceCode.svelte';
-  import TokenForm from '../../accounts/TokenForm.svelte';
   import { signIn } from '../../accounts/signIn.svelte';
   import { accounts } from '../../../lib/accounts.svelte';
+  import { signInTarget } from '../../../lib/gate';
+  import { gate } from '../../../lib/gate.svelte';
 
   let changingClientId = $state(false);
-  let manual = $state(false);
+  let twitchWay = $state<HTMLElement>();
+  let codeWay = $state<HTMLElement>();
+  let cards = $state<HTMLElement>();
+  /** The way a flag pointed at, lit up for a moment. */
+  let lit = $state<'twitch' | 'code' | null>(null);
+
+  $effect(() => {
+    if (!gate.asks || !gate.want) return;
+    const target = signInTarget(gate.want, accounts.current);
+    gate.want = null;
+    void show(target);
+  });
+
+  async function show(target: 'account' | 'twitch' | 'code') {
+    if (target === 'account' && accounts.current) signIn.offer = accounts.current.userId;
+    await tick();
+    const el = target === 'account' ? cards : target === 'twitch' ? twitchWay : codeWay;
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (target === 'account') return;
+    lit = target;
+    setTimeout(() => (lit = null), 1600);
+  }
 </script>
 
 <h2>Accounts</h2>
@@ -21,41 +46,34 @@
 {#if !accounts.hasClientId}<ClientIdSetup />{/if}
 {#if signIn.kind}<DeviceCode />{/if}
 
-{#each accounts.list as account (account.userId)}
-  <AccountCard {account} />
-{:else}
-  <p class="note">No accounts yet. You can watch streams and read chat without one.</p>
-{/each}
+<div bind:this={cards}>
+  {#each accounts.list as account (account.userId)}
+    <AccountCard {account} />
+  {:else}
+    <p class="note">No accounts yet. You can watch streams and read chat without one.</p>
+  {/each}
+</div>
 
 <h3 class="label">{accounts.list.length ? 'Add another account' : 'Add an account'}</h3>
 <div class="ways">
-  <div class="way">
+  <div class="way" class:lit={lit === 'twitch'} bind:this={twitchWay}>
     <Icon name="login" size={18} />
     <div class="text">
       <strong>Sign in with Twitch</strong>
-      <span>The usual Twitch sign-in. Chat, moderation and who you follow.</span>
+      <span>Chat, mod tools, your follows, payment methods and subscriptions. The GQL tools can be added after.</span>
     </div>
     <Button variant="primary" small disabled={!accounts.hasClientId || signIn.kind !== null} onclick={() => signIn.start('helix')}>
       Sign in
     </Button>
   </div>
-  <div class="way">
+  <div class="way" class:lit={lit === 'code'} bind:this={codeWay}>
     <Icon name="key" size={18} />
     <div class="text">
       <strong>Sign in with a code</strong>
-      <span>Approve a short code on Twitch. Chat, the miner, following, channel points, GIFs and power-ups; no mod tools.</span>
+      <span>Approve a short code on Twitch. Chat and the GQL tools: the miner, following, channel points, GIFs and power-ups. Payment methods and subscriptions need Sign in with Twitch too.</span>
     </div>
     <Button small disabled={signIn.kind !== null} onclick={() => signIn.start('gql')}>Get a code</Button>
   </div>
-  <div class="way">
-    <Icon name="pencil" size={18} />
-    <div class="text">
-      <strong>Use a token you have</strong>
-      <span>From Chatterino or another app. Tokens from Twitch's own apps unlock the same tools as a code.</span>
-    </div>
-    <Button small variant={manual ? 'ghost' : undefined} onclick={() => (manual = !manual)}>{manual ? 'Close' : 'Enter token'}</Button>
-  </div>
-  {#if manual}<TokenForm ondone={() => (manual = false)} />{/if}
 </div>
 
 {#if accounts.hasClientId}
@@ -89,6 +107,10 @@
     padding: 10px 14px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
+    transition: border-color var(--fast);
+  }
+  .way.lit {
+    border-color: var(--accent-border);
   }
   .way > :global(svg) {
     flex: none;

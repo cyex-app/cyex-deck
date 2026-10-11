@@ -1,4 +1,4 @@
-//! cyex viewer: Tauri shell. Commands live in `commands/`, window handling in `windows/`.
+//! cyex deck: Tauri shell. Commands live in `commands/`, window handling in `windows/`.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -16,6 +16,7 @@ mod hotkeys;
 mod icons;
 mod miner;
 mod moderation;
+mod paths;
 mod player;
 mod plugins;
 mod profile;
@@ -47,6 +48,8 @@ fn main() {
         .register_uri_scheme_protocol(fonts::SCHEME, fonts::handle)
         .setup(|app| {
             let handle = app.handle();
+            // V102-02 Before anything reads its files.
+            paths::migrate(handle);
             settings::init(handle)?;
             theme::init(handle);
             fonts::init(handle);
@@ -74,7 +77,7 @@ fn main() {
         .on_window_event(windows::on_window_event)
         .invoke_handler(commands::handler())
         .build(tauri::generate_context!())
-        .expect("cyex viewer failed to start");
+        .expect("cyex deck failed to start");
 
     app.run(|app, event| {
         if let RunEvent::Exit = event {

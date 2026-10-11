@@ -108,7 +108,7 @@
 <Row label="Tooltips" hint="Short explanations when you hover buttons.">
   <Toggle label="Tooltips" checked={g.tooltips} onchange={(v) => settings.patch('general', { tooltips: v })} />
 </Row>
-<Row label="Minimize to tray" hint="Minimizing hides cyex in the tray instead of the taskbar.">
+<Row label="Minimize to tray" hint="Minimizing hides cyex deck in the tray instead of the taskbar.">
   <Toggle
     label="Minimize to tray"
     checked={g.minimizeToTray}

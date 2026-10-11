@@ -1,12 +1,12 @@
 //! Token storage. Real tokens go to the Windows Credential Manager, one entry per account
-//! and token kind. Tests use the in-memory store.
+//! and token kind. Tests use the in-memory store. Entries saved under the app's old name
+//! are copied to the new one the first time they're read (V102-02).
 
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+use cyex_core::app::{OLD_SLUG, SLUG};
 use serde::{Deserialize, Serialize};
-
-const SERVICE: &str = "cyex-viewer";
 
 /// What's kept in the credential store for one token.
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -30,11 +30,30 @@ pub trait SecretStore: Send + Sync {
     fn delete(&self, key: &str) -> Result<(), String>;
 }
 
+/// The Credential Manager under the app's name. Reads fall back to the old name once
+/// (V102-02).
 pub struct KeyringStore;
 
 impl SecretStore for KeyringStore {
     fn load(&self, key: &str) -> Result<Option<String>, String> {
-        match keyring::Entry::new(SERVICE, key).and_then(|e| e.get_password()) {
+        load_or_copy(&Service(SLUG), &Service(OLD_SLUG), key)
+    }
+
+    fn save(&self, key: &str, value: &str) -> Result<(), String> {
+        Service(SLUG).save(key, value)
+    }
+
+    fn delete(&self, key: &str) -> Result<(), String> {
+        delete_both(&Service(SLUG), &Service(OLD_SLUG), key)
+    }
+}
+
+/// One Credential Manager service name. The entries' target names hold it.
+struct Service(&'static str);
+
+impl SecretStore for Service {
+    fn load(&self, key: &str) -> Result<Option<String>, String> {
+        match keyring::Entry::new(self.0, key).and_then(|e| e.get_password()) {
             Ok(value) => Ok(Some(value)),
             Err(keyring::Error::NoEntry) => Ok(None),
             Err(e) => Err(e.to_string()),
@@ -42,17 +61,37 @@ impl SecretStore for KeyringStore {
     }
 
     fn save(&self, key: &str, value: &str) -> Result<(), String> {
-        keyring::Entry::new(SERVICE, key)
+        keyring::Entry::new(self.0, key)
             .and_then(|e| e.set_password(value))
             .map_err(|e| e.to_string())
     }
 
     fn delete(&self, key: &str) -> Result<(), String> {
-        match keyring::Entry::new(SERVICE, key).and_then(|e| e.delete_credential()) {
+        match keyring::Entry::new(self.0, key).and_then(|e| e.delete_credential()) {
             Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
             Err(e) => Err(e.to_string()),
         }
     }
+}
+
+/// V102-02 The entry under the new name, else the old name's, copied over the first time
+/// it's needed. The old entry stays.
+fn load_or_copy(new: &dyn SecretStore, old: &dyn SecretStore, key: &str) -> Result<Option<String>, String> {
+    if let Some(value) = new.load(key)? {
+        return Ok(Some(value));
+    }
+    let Some(value) = old.load(key)? else {
+        return Ok(None);
+    };
+    new.save(key, &value)?;
+    Ok(Some(value))
+}
+
+/// A token (or the proxy) removed in the app goes under the old name too, so the next
+/// read doesn't copy it back.
+fn delete_both(new: &dyn SecretStore, old: &dyn SecretStore, key: &str) -> Result<(), String> {
+    new.delete(key)?;
+    old.delete(key)
 }
 
 #[derive(Default)]
@@ -105,6 +144,23 @@ mod tests {
         store.delete(key).unwrap();
         assert_eq!(store.load(key).unwrap(), None);
         store.delete(key).unwrap();
+    }
+
+    #[test]
+    fn old_entries_are_copied_once_and_go_when_deleted() {
+        let (new, old) = (MemoryStore::default(), MemoryStore::default());
+        old.save("1.gql", "from before").unwrap();
+        assert_eq!(load_or_copy(&new, &old, "1.gql").unwrap().as_deref(), Some("from before"));
+        // Copied, and the old entry stays.
+        assert_eq!(new.load("1.gql").unwrap().as_deref(), Some("from before"));
+        assert_eq!(old.load("1.gql").unwrap().as_deref(), Some("from before"));
+        // Once there's a new entry, it wins.
+        new.save("1.gql", "refreshed").unwrap();
+        assert_eq!(load_or_copy(&new, &old, "1.gql").unwrap().as_deref(), Some("refreshed"));
+        // A removed token doesn't come back from the old name.
+        delete_both(&new, &old, "1.gql").unwrap();
+        assert_eq!(load_or_copy(&new, &old, "1.gql").unwrap(), None);
+        assert_eq!(load_or_copy(&new, &old, "2.helix").unwrap(), None);
     }
 
     #[test]

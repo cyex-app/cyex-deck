@@ -103,10 +103,8 @@ async fn connect(req: &SocketRequest, local: bool) -> Result<Ws, String> {
         let value = HeaderValue::from_str(v).map_err(|_| format!("Bad header {k}."))?;
         headers.insert(name, value);
     }
-    headers.insert(
-        USER_AGENT,
-        HeaderValue::from_static(concat!("cyex-viewer/", env!("CARGO_PKG_VERSION"), " (plugin)")),
-    );
+    let agent = format!("{} (plugin)", cyex_core::app::user_agent());
+    headers.insert(USER_AGENT, HeaderValue::from_str(&agent).map_err(|_| "Bad user agent.".to_owned())?);
     let config = WebSocketConfig::default()
         .max_message_size(Some(MAX_MESSAGE))
         .max_frame_size(Some(MAX_MESSAGE));

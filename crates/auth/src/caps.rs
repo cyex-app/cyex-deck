@@ -1,5 +1,6 @@
-//! Capability gating (1.54). Every gated tool is listed once with what it needs. The UI
-//! hides a tool when the account can't use it. Anonymous features aren't listed.
+//! Capability gating (1.54, V102-20). Every gated tool is listed once with what it needs.
+//! The UI greys out a tool the account can't use, with a flag saying which sign-in it
+//! needs. Anonymous features aren't listed.
 
 use serde::Serialize;
 use ts_rs::TS;
@@ -33,8 +34,11 @@ pub enum Feature {
     /// 1.35 GQL first, like Twitch's dashboard; Helix with the scope works too (V101-28).
     StreamManager,
     MassbanHelix,
-    /// P9
+    /// P9 Helix with the scope, or GQL like Twitch's player (V102-08).
     Clips,
+    /// 1.27, 1.28 The payment methods and subscriptions tabs: only with Twitch's own
+    /// sign-in, any scopes (V102-20).
+    Wallet,
     // GQL
     Follow,
     Points,
@@ -67,7 +71,7 @@ const MOD_FEEDS: &[&str] = &[
 ];
 
 impl Feature {
-    pub const ALL: [Feature; 26] = [
+    pub const ALL: [Feature; 27] = [
         Feature::SendChat,
         Feature::FollowedList,
         Feature::EmoteMenu,
@@ -80,6 +84,7 @@ impl Feature {
         Feature::StreamManager,
         Feature::MassbanHelix,
         Feature::Clips,
+        Feature::Wallet,
         Feature::Follow,
         Feature::Points,
         Feature::BadgePicker,
@@ -99,8 +104,8 @@ impl Feature {
     pub fn tier(self) -> Tier {
         use Feature::*;
         match self {
-            SendChat | FollowedList | EmoteMenu | ChatColor | Blocks | Whispers | StreamManager => Tier::Either,
-            Bio | ModTools | ModView | MassbanHelix | Clips => Tier::Helix,
+            SendChat | FollowedList | EmoteMenu | ChatColor | Blocks | Whispers | StreamManager | Clips => Tier::Either,
+            Bio | ModTools | ModView | MassbanHelix | Wallet => Tier::Helix,
             _ => Tier::Gql,
         }
     }
@@ -167,6 +172,19 @@ mod tests {
         assert!(!f.contains(&Feature::ModTools));
         // Chat works with either token (phase 3).
         assert!(f.contains(&Feature::SendChat));
+        // V102-08 Clips too, like Twitch's player.
+        assert!(f.contains(&Feature::Clips));
+        // V102-20 Payment methods and subscriptions wait for Twitch's sign-in.
+        assert!(!f.contains(&Feature::Wallet));
+    }
+
+    #[test]
+    fn twitchs_sign_in_opens_the_wallet_with_any_scopes() {
+        assert!(features(Some(&[]), false).contains(&Feature::Wallet));
+        // Clips with Helix only when it was allowed to make them.
+        assert!(!features(Some(&[]), false).contains(&Feature::Clips));
+        let clips = vec!["clips:edit".to_owned()];
+        assert!(features(Some(&clips), false).contains(&Feature::Clips));
     }
 
     #[test]

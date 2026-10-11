@@ -1,9 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "cyex viewer",
-  "mainBinaryName": "cyex-viewer",
+  "productName": "cyex deck",
+  "mainBinaryName": "cyex-deck",
   "version": "0.1.0",
-  "identifier": "app.cyex.viewer",
+  "identifier": "app.cyex.deck",
   "build": {
     "frontendDist": "../ui/dist",
     "devUrl": "http://localhost:5173",
