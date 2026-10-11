@@ -16,17 +16,19 @@ export function wordAt(text: string, caret: number): Word {
 /** V101-16 How well a name matches what's typed, best first. Match-sorter's order (Kent C.
  * Dodds): exact, starts with, a word starts with, contains, acronym, letters in order.
  * Emote names have no spaces, so words split where the case changes, at digits and at
- * `_` or `-` ("peepoHappy" is "peepo" "Happy", acronym "ph"). */
+ * `_` or `-` ("peepoHappy" is "peepo" "Happy", acronym "ph"). Settings search (V103-13)
+ * ranks with it too, so spaces split words as well. */
 export const RANK = { caseEqual: 7, equal: 6, starts: 5, word: 4, contains: 3, acronym: 2, letters: 1, none: 0 } as const;
 
 const kind = (ch: string) => (/\d/.test(ch) ? 'digit' : /[a-z]/.test(ch) ? 'lower' : /[A-Z]/.test(ch) ? 'upper' : 'other');
+const gap = (ch: string) => ch === '_' || ch === '-' || /\s/.test(ch);
 
 /** Where each word of `name` starts. */
 export function wordStarts(name: string): number[] {
   const out: number[] = [];
   for (let i = 0; i < name.length; i++) {
     const c = name[i];
-    if (c === '_' || c === '-') continue;
+    if (gap(c)) continue;
     if (i === 0) {
       out.push(i);
       continue;
@@ -34,7 +36,7 @@ export function wordStarts(name: string): number[] {
     const prev = name[i - 1];
     const k = kind(c);
     const pk = kind(prev);
-    if (prev === '_' || prev === '-' || (k === 'upper' && pk === 'lower') || (k === 'digit') !== (pk === 'digit')) out.push(i);
+    if (gap(prev) || (k === 'upper' && pk === 'lower') || (k === 'digit') !== (pk === 'digit')) out.push(i);
   }
   return out;
 }

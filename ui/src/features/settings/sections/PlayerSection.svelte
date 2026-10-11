@@ -41,15 +41,15 @@
 
 <h2>Player</h2>
 
-<Row label="Block ads" hint="Cuts Twitch's ads out of streams, or plays a clean copy while they run.">
+<Row setting="player.blockAds" label="Block ads" hint="Cuts Twitch's ads out of streams, or plays a clean copy while they run.">
   <Toggle label="Block ads" checked={p.blockAds} onchange={(v) => settings.patch('player', { blockAds: v })} />
 </Row>
 
-<Row label="Low latency" hint="A few seconds behind the stream instead of about ten.">
+<Row setting="player.lowLatency" label="Low latency" hint="A few seconds behind the stream instead of about ten.">
   <Toggle label="Low latency" checked={p.lowLatency} onchange={(v) => settings.patch('player', { lowLatency: v })} />
 </Row>
 
-<Row label="Quality" hint="What players start in. Each player's gear menu changes its own.">
+<Row setting="player.quality" label="Quality" hint="What players start in. Each player's gear menu changes its own.">
   <select
     class="field"
     value={p.quality}
@@ -60,6 +60,7 @@
 </Row>
 
 <Row
+  setting="player:proxy"
   label="Ad-block proxy"
   hint="When no clean copy is found, streams load through this HTTP proxy, e.g. one in a country without ads."
   stacked

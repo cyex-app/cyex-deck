@@ -310,7 +310,6 @@
           : 'Links, pictures and mod actions stay off your stream. Click to turn it off for now.',
   );
 
-  const popOutSettings = () => void popOutView('settings', 'settings');
   const popOutManager = () => void popOutView('streamManager', 'streammanager');
   const popOutWhispers = () => void popOutView('whispers', 'whispers');
   function popOutModview() {
@@ -418,7 +417,7 @@
     {:else if fixed === 'subs'}
       <SubsView onchannel={(c) => void openChannel({ show: open, account: () => accounts.current?.userId ?? null }, c)} onsignin={manageAccounts} />
     {:else if fixed === 'settings'}
-      <SettingsView onpopout={popOutSettings} bind:section={settingsSection} />
+      <SettingsView bind:section={settingsSection} />
     {:else}
       <HomeView onopen={open} ondiscover={() => show('discover')} onsignin={manageAccounts} />
     {/if}

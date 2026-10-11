@@ -33,7 +33,7 @@
   const long = (r: RecordingMeta) => formatDuration(Math.max(0, Math.floor((r.endedMs - r.startedMs) / 1000)));
 </script>
 
-<h2>Recordings</h2>
+<h2 data-setting="recordings:list">Recordings</h2>
 
 {#if list === null}
   <p class="empty">Loading…</p>

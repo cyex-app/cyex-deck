@@ -39,10 +39,10 @@
 <h2>Stream manager</h2>
 
 <h3 class="label">Files for OBS</h3>
-<Row label="Write status files" hint="Updated about every 30 seconds while the stream manager is open.">
+<Row setting="streammanager.obs.enabled" label="Write status files" hint="Updated about every 30 seconds while the stream manager is open.">
   <Toggle label="Write status files" checked={obs.enabled} onchange={(on) => void settings.patch('streammanager', { obs: { enabled: on } })} />
 </Row>
-<Row label="Folder" hint="Leave empty for a stream-status folder next to the settings." stacked>
+<Row setting="streammanager.obs.folder" label="Folder" hint="Leave empty for a stream-status folder next to the settings." stacked>
   <form
     class="folder"
     onsubmit={(e) => {

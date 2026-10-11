@@ -6,7 +6,8 @@ import type HlsType from 'hls.js';
 import type { ErrorData, HlsConfig } from 'hls.js';
 
 import type { PlayerSession } from '../../ipc/bindings/PlayerSession';
-import { type Choice, levelName, pickLevel } from './quality';
+import { Away } from './away';
+import { type Choice, levelFor, levelName, lowestLevel } from './quality';
 
 let hlsModule: Promise<typeof HlsType> | null = null;
 
@@ -49,6 +50,10 @@ export class Engine {
   private startAt = -1;
   private playerPx = 720;
   private recovered = 0;
+  /** V103-03 */
+  private readonly away = new Away(() => this.drop());
+  /** The page hides the player: its tab plays in the background (V102-15). */
+  private hidden = false;
   private readonly off: () => void;
 
   constructor(
@@ -62,6 +67,8 @@ export class Engine {
       pause: () => (this.playing = false),
       waiting: () => (this.waiting = true),
       canplay: () => (this.waiting = false),
+      enterpictureinpicture: () => this.sight(),
+      leavepictureinpicture: () => this.sight(),
     };
     for (const [name, f] of Object.entries(set)) on(name, f);
     this.off = () => {
@@ -86,11 +93,14 @@ export class Engine {
     await this.load();
   }
 
-  /** The player's height on screen, in device pixels: "auto" picks by it. */
+  /** The player's height on screen, in device pixels: "auto" picks by it. 0 is out of
+   *  sight: the quality stays for a minute, then drops until it shows again (V103-03). */
   fit(px: number): void {
-    if (Math.abs(px - this.playerPx) < 40) return;
-    this.playerPx = px;
-    if (this.choice === 'auto') this.apply(true);
+    this.hidden = px <= 0;
+    if (this.hidden) return this.sight();
+    const moved = Math.abs(px - this.playerPx) >= 40;
+    if (moved) this.playerPx = px;
+    if (this.away.show() || (moved && this.choice === 'auto')) this.apply(true);
   }
 
   stats(): Stats {
@@ -114,6 +124,7 @@ export class Engine {
   }
 
   destroy(): void {
+    this.away.stop();
     this.off();
     this.hls?.destroy();
     this.hls = null;
@@ -172,7 +183,7 @@ export class Engine {
   private apply(smooth: boolean): void {
     const hls = this.hls;
     if (!hls || this.choice === 'audio') return;
-    const i = pickLevel(hls.levels, this.choice, this.playerPx);
+    const i = levelFor(hls.levels, this.choice, this.playerPx, this.away.low);
     if (i < 0) return;
     if (!smooth) {
       // A manual level keeps hls.js's own switching off.
@@ -181,6 +192,21 @@ export class Engine {
     } else if (i !== hls.loadLevel) {
       hls.nextLevel = i;
     }
+  }
+
+  /** V103-03 Out of sight is hidden on the page and not in picture in picture. */
+  private sight(): void {
+    if (this.hidden && document.pictureInPictureElement !== this.video) this.away.hide();
+    else if (this.away.show()) this.apply(true);
+  }
+
+  /** V103-03 A minute out of sight: the lowest quality from the next segment on. What's
+   *  loaded already plays out, nobody sees it. Audio only stays as it is. */
+  private drop(): void {
+    const hls = this.hls;
+    if (!hls || this.choice === 'audio') return;
+    const i = lowestLevel(hls.levels);
+    if (i >= 0) hls.loadLevel = i;
   }
 
   private onError(Hls: typeof HlsType, d: ErrorData): void {

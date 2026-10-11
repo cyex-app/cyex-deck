@@ -1,6 +1,6 @@
-//! V102-02 Where the app keeps its files: `%APPDATA%\cyex-deck` (settings, `.env`,
-//! plugins, recordings and the rest) and `%LOCALAPPDATA%\cyex-deck` (the Twitch window's
-//! profiles, toast pictures). Both are copied once from the old name's folders.
+//! V102-02 Where the app keeps its files: `%APPDATA%\cyex-deck` (settings, plugins,
+//! recordings and the rest) and `%LOCALAPPDATA%\cyex-deck` (the Twitch window's profiles,
+//! toast pictures). Both are copied once from the old name's folders.
 
 use std::path::PathBuf;
 
@@ -49,5 +49,17 @@ pub fn migrate(app: &AppHandle) {
                 base.join(SLUG).display()
             ),
         }
+    }
+}
+
+/// Runs on every start, after `migrate` (which may have just copied it): deletes
+/// `%APPDATA%\cyex-deck\.env`, unused since the client ID is built in (V103-01). Only that
+/// file; `%APPDATA%\cyex-viewer` is never touched.
+pub fn remove_old_env(app: &AppHandle) {
+    let Ok(dir) = config(app) else { return };
+    match migrate::remove_old_env(&dir) {
+        Ok(true) => eprintln!("paths: deleted the old .env"),
+        Ok(false) => {}
+        Err(e) => eprintln!("paths: couldn't delete the old .env: {e}"),
     }
 }

@@ -46,6 +46,7 @@
       if (fresh) {
         items = got;
         from = at;
+        following = true;
       } else {
         const seen = new Set(items.map((i) => i.m.id));
         items = [...items, ...got.filter((i) => !seen.has(i.m.id))].slice(-600);
@@ -74,9 +75,22 @@
     if (following) void tick().then(() => list && (list.scrollTop = list.scrollHeight));
   });
 
+  /** Where the list was at the last scroll event. */
+  let lastTop = 0;
+
+  // V103-11 The wheel up leaves the bottom right away and following starts again only on
+  // the way down: a smooth scroll up spends its first frames near the bottom.
   function onscroll() {
     if (!list) return;
-    following = list.scrollTop + list.clientHeight >= list.scrollHeight - 24;
+    const near = list.scrollTop + list.clientHeight >= list.scrollHeight - 24;
+    const down = list.scrollTop >= lastTop;
+    lastTop = list.scrollTop;
+    if (!near) following = false;
+    else if (down || list.scrollHeight <= list.clientHeight) following = true;
+  }
+
+  function onwheel(e: WheelEvent) {
+    if (e.deltaY < 0 && list && list.scrollHeight > list.clientHeight) following = false;
   }
 </script>
 
@@ -89,7 +103,7 @@
     <button class="switch" onclick={onlive}>Live chat</button>
     {@render actions?.()}
   </header>
-  <div class="list" bind:this={list} {onscroll}>
+  <div class="list" bind:this={list} {onscroll} {onwheel}>
     {#each shown as i (i.m.id)}
       <Line m={i.m} channel={login} />
     {:else}

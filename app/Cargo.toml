@@ -35,7 +35,13 @@ tauri-plugin-global-shortcut.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 webview2-com.workspace = true
-windows = { workspace = true, features = ["Win32_Foundation", "Win32_System_Diagnostics_ToolHelp"] }
+windows = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_System_Diagnostics_ToolHelp",
+    # V103-14 Already built for tao: nothing new comes in.
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
 
 # The workspace lints, except that `unsafe` is denied instead of forbidden, so the one
 # Windows module (`src/sys`) can allow it (D28).

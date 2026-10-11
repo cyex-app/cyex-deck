@@ -51,11 +51,13 @@ pub fn save_layout(app: &AppHandle, name: &str) -> Result<(), String> {
 pub fn apply_layout(app: &AppHandle, name: &str) -> Result<(), String> {
     let settings = app.state::<Settings>();
     let saved: Windows = settings.read(Partition::Windows);
-    let layout = saved
+    let mut layout = saved
         .layouts
         .into_iter()
         .find(|l| l.name == name)
         .ok_or_else(|| format!("No layout called \"{name}\""))?;
+    // V103-08 Settings saved as a pop-out stay in the main window.
+    layout.panels.retain(|route, _| panels::pops_out(route));
 
     if let (Some(g), Some(main)) = (layout.main, app.get_webview_window(MAIN)) {
         geometry::apply(&main.as_ref().window(), &g);

@@ -49,17 +49,17 @@
 <h2>Emotes and badges</h2>
 
 <h3 class="label">Emotes</h3>
-<Row label="Twitch emotes">
+<Row setting="chat.twitchEmotes" label="Twitch emotes">
   <Toggle label="Twitch emotes" checked={c.twitchEmotes} onchange={(v) => settings.patch('chat', { twitchEmotes: v })} />
 </Row>
-<Row label="7TV, BTTV and FFZ emotes">
+<Row setting="chat.thirdPartyEmotes" label="7TV, BTTV and FFZ emotes">
   <Toggle
     label="7TV, BTTV and FFZ emotes"
     checked={c.thirdPartyEmotes}
     onchange={(v) => settings.patch('chat', { thirdPartyEmotes: v })}
   />
 </Row>
-<Row label="Unlisted 7TV emotes" hint="Emotes 7TV hasn't approved for public listing.">
+<Row setting="chat.unlistedEmotes" label="Unlisted 7TV emotes" hint="Emotes 7TV hasn't approved for public listing.">
   <Segmented
     label="Unlisted 7TV emotes"
     options={UNLISTED}
@@ -67,17 +67,17 @@
     onchange={(v) => settings.patch('chat', { unlistedEmotes: v })}
   />
 </Row>
-<Row label="Size">
+<Row setting="chat.emoteSize" label="Size">
   <Segmented label="Emote size" options={SIZES} value={size} onchange={(v) => settings.patch('chat', { emoteSize: Number(v) })} />
 </Row>
-<Row label="Only move while the window is focused" hint="Emotes, badges and paints stand still otherwise. Saves some power.">
+<Row setting="chat.animateOnlyFocused" label="Only move while the window is focused" hint="Emotes, badges and paints stand still otherwise. Saves some power.">
   <Toggle
     label="Only move while the window is focused"
     checked={c.animateOnlyFocused}
     onchange={(v) => settings.patch('chat', { animateOnlyFocused: v })}
   />
 </Row>
-<Row label="Which wins" hint="When two have an emote with the same name. The channel's emotes still beat global ones.">
+<Row setting="chat.emotePriority" label="Which wins" hint="When two have an emote with the same name. The channel's emotes still beat global ones.">
   <ol class="order">
     {#each c.emotePriority as s, i (s)}
       <li>
@@ -92,7 +92,7 @@
     {/each}
   </ol>
 </Row>
-<Row label="Hidden emotes" hint="Right-click an emote in chat to hide it. Hidden ones show as text." stacked>
+<Row setting="chat.hiddenEmotes" label="Hidden emotes" hint="Right-click an emote in chat to hide it. Hidden ones show as text." stacked>
   {#if c.hiddenEmotes.length}
     <div class="chips">
       {#each c.hiddenEmotes as e (`${e.source}:${e.id}`)}
@@ -110,7 +110,7 @@
 
 <h3 class="label">Badges</h3>
 {#each BADGES as b (b.key)}
-  <Row label="{b.label} badges">
+  <Row setting="chat.badges.{b.key}" label="{b.label} badges">
     <Toggle
       label="{b.label} badges"
       checked={c.badges[b.key]}
@@ -118,7 +118,7 @@
     />
   </Row>
 {/each}
-<Row label="7TV name paints">
+<Row setting="chat.paints.seventv" label="7TV name paints">
   <Toggle
     label="7TV name paints"
     checked={c.paints.seventv}
@@ -128,6 +128,7 @@
 
 <h3 class="label">Sharing</h3>
 <Row
+  setting="chat.sharePresence"
   label="Show my 7TV and BTTV look to others"
   hint="Tells 7TV and BTTV which channel you're chatting in, so other viewers see your paint, badge and personal emotes."
 >

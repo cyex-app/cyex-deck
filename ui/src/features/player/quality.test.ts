@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { levelName, pickLevel, qualityOptions } from './quality.ts';
+import { levelFor, levelName, lowestLevel, pickLevel, qualityOptions } from './quality.ts';
 
 // hls.js sorts levels by bitrate, lowest first.
 const levels = [
@@ -23,6 +23,16 @@ test('fixed choices cap the height', () => {
   assert.equal(pickLevel(levels, '720', 2000), 3);
   assert.equal(pickLevel(levels.slice(2), '360', 2000), 0, 'nothing that small: the lowest');
   assert.equal(pickLevel([], 'auto', 100), -1);
+});
+
+test('out of sight a minute: the lowest, then the choice again (V103-03)', () => {
+  const withAudio = [{ height: 0, bitrate: 160_000 }, ...levels];
+  assert.equal(lowestLevel(withAudio), 1, 'audio only is not a video level');
+  assert.equal(lowestLevel([]), -1);
+  assert.equal(levelFor(levels, '720', 2000, true), 0, 'a fixed choice drops too');
+  assert.equal(levelFor(levels, '720', 2000, false), 3, 'and comes back as it was');
+  assert.equal(levelFor(levels, 'auto', 400, true), 0);
+  assert.equal(levelFor(levels, 'auto', 400, false), 2);
 });
 
 test('names like Twitch', () => {

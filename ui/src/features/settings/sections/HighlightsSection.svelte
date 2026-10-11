@@ -79,6 +79,7 @@
 <h3 class="label">Built in</h3>
 {#each BUILT_IN as b (b.key)}
   <RuleRow
+    setting={`highlights.${b.key}`}
     title={b.label}
     item={h[b.key] as BuiltIn}
     fields={builtInFields}
@@ -89,6 +90,7 @@
 
 <h3 class="label">Words</h3>
 <RuleList
+  setting="highlights.phrases"
   items={h.phrases}
   fields={phraseFields}
   make={() => ({ ...blank, pattern: '', regex: false, caseSensitive: false })}
@@ -98,6 +100,7 @@
 
 <h3 class="label">People</h3>
 <RuleList
+  setting="highlights.users"
   items={h.users}
   fields={userFields}
   make={() => ({ ...blank, login: '', regex: false })}
@@ -107,6 +110,7 @@
 
 <h3 class="label">Badges</h3>
 <RuleList
+  setting="highlights.badges"
   items={h.badges}
   fields={badgeFields}
   make={() => ({ ...blank, badge: '' })}
@@ -115,6 +119,7 @@
 
 <h3 class="label">Sent from</h3>
 <RuleList
+  setting="highlights.apps"
   items={h.apps}
   fields={appFields}
   make={(): AppRule => ({ ...blank, app: 'mobile' })}
@@ -123,7 +128,7 @@
 />
 
 <h3 class="label">Quiet</h3>
-<Row label="Never highlight" hint="These names never light up or play sounds, e.g. bots." stacked>
+<Row setting="highlights.never" label="Never highlight" hint="These names never light up or play sounds, e.g. bots." stacked>
   <input
     class="field"
     placeholder="nightbot, streamelements"
@@ -131,7 +136,7 @@
     onchange={(e) => save({ never: splitList(e.currentTarget.value.toLowerCase()) })}
   />
 </Row>
-<Row label="Silent chats" hint="These chats never play sounds or flash. Also in a chat's menu." stacked>
+<Row setting="highlights.muted" label="Silent chats" hint="These chats never play sounds or flash. Also in a chat's menu." stacked>
   <input
     class="field"
     placeholder="Channel names"
@@ -139,7 +144,7 @@
     onchange={(e) => save({ muted: splitList(e.currentTarget.value.toLowerCase()) })}
   />
 </Row>
-<Row label="Look-alike letters" hint="Words match even when written with look-alike letters, like Cyrillic а or 𝐟𝐚𝐧𝐜𝐲 text.">
+<Row setting="highlights.lookalikes" label="Look-alike letters" hint="Words match even when written with look-alike letters, like Cyrillic а or 𝐟𝐚𝐧𝐜𝐲 text.">
   <Toggle label="Look-alike letters" checked={h.lookalikes} onchange={(v) => save({ lookalikes: v })} />
 </Row>
 

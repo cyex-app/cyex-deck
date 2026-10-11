@@ -59,7 +59,7 @@
       <button class="icon" aria-label="Close" use:tooltip={'Close (Esc)'} onclick={onclose}><Icon name="x" size={16} /></button>
     </header>
     <div class="screen">
-      <ClipPlayer {slug} {tile} fresh={made} onloaded={(c) => (clip = c)} />
+      <ClipPlayer {slug} {tile} fresh={made} alone onloaded={(c) => (clip = c)} />
     </div>
   </div>
 </div>

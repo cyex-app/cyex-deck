@@ -1,0 +1,26 @@
+// V103-13 Settings kept in the files but not changed in Settings, so search leaves them
+// out. A key here also covers every key under it (`tabs` is the whole partition).
+
+export const UNLISTED: Record<string, string> = {
+  tabs: 'The tabs as you arrange them.',
+  browse: 'Home and Discover remember their own sort and favorites.',
+  emotes: 'The emote menu’s favorites and most used.',
+  modview: 'The mod view’s own layout.',
+  'windows.main': 'Where the main window was.',
+  'windows.mainPinned': 'Pinned from the title bar.',
+  'windows.panels': 'Where each pop-out was.',
+  'chat.translateChats': 'Per chat, from its menu.',
+  'chat.modMode': 'Per channel, from the chat.',
+  'chat.users': 'Notes on usercards.',
+  'commands.vars': 'Set with /set in chat.',
+  'player.miniCorner': 'Where you drag the mini player.',
+  'miner.enabled': 'Started and stopped in the miner.',
+  'miner.account': 'Picked in the miner.',
+  'miner.source': 'Picked in the miner.',
+  'miner.channels': 'Picked in the miner.',
+  'miner.skip': 'Picked in the miner.',
+  'miner.first': 'Starred in the miner.',
+  'streammanager.activity': 'The activity filter in the stream manager.',
+  'streammanager.alertBox': 'Turned on in the stream manager.',
+  'streammanager.chat': 'The chat beside the stream manager.',
+};

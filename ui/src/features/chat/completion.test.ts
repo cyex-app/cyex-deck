@@ -22,6 +22,9 @@ test('V101-16 words split on case, digits and underscores', () => {
   assert.deepEqual(wordStarts('KEKW'), [0]);
   assert.deepEqual(wordStarts('forsen1_2Head'), [0, 6, 8, 9]);
   assert.deepEqual(wordStarts('_cat'), [1]);
+  // V103-13 Settings names have spaces.
+  assert.deepEqual(wordStarts('Show timestamps'), [0, 5]);
+  assert.deepEqual(wordStarts('7TV name  paints'), [0, 1, 4, 10]);
 });
 
 test('V101-16 match-sorter order', () => {

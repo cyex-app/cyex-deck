@@ -42,7 +42,7 @@
 
 {#if signIn.kind}<DeviceCode />{/if}
 
-<div bind:this={cards}>
+<div bind:this={cards} data-setting="accounts.list accounts.defaultId accounts:profile">
   {#each accounts.list as account (account.userId)}
     <AccountCard {account} />
   {:else}
@@ -52,7 +52,7 @@
 
 <h3 class="label">{accounts.list.length ? 'Add another account' : 'Add an account'}</h3>
 <div class="ways">
-  <div class="way" class:lit={lit === 'twitch'} bind:this={twitchWay}>
+  <div class="way" class:lit={lit === 'twitch'} bind:this={twitchWay} data-setting="accounts:twitch">
     <Icon name="login" size={18} />
     <div class="text">
       <strong>Sign in with Twitch</strong>
@@ -62,7 +62,7 @@
       Sign in
     </Button>
   </div>
-  <div class="way" class:lit={lit === 'code'} bind:this={codeWay}>
+  <div class="way" class:lit={lit === 'code'} bind:this={codeWay} data-setting="accounts:code">
     <Icon name="key" size={18} />
     <div class="text">
       <strong>Sign in with a code</strong>
