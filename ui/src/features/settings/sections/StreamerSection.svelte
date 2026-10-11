@@ -52,12 +52,12 @@
 <h2>Streamer mode</h2>
 <p class="intro">Keeps things off your stream that viewers shouldn't see. {status}</p>
 
-<Row label="Turn on" hint="While streaming: when one of the apps below runs.">
+<Row setting="general.streamer.when" label="Turn on" hint="While streaming: when one of the apps below runs.">
   <Segmented label="Turn on" options={WHEN} value={s.when} onchange={(when) => patch({ when })} />
 </Row>
 
 {#if s.when === 'auto'}
-  <Row label="Streaming apps" hint="Their program file names, like obs64.exe." stacked>
+  <Row setting="general.streamer.apps" label="Streaming apps" hint="Their program file names, like obs64.exe." stacked>
     <div class="apps">
       {#each s.apps as app (app)}
         <span class="chip"
@@ -80,7 +80,7 @@
 
 <h3 class="label">Hide</h3>
 {#each HIDES as h (h.key)}
-  <Row label={h.label} hint={h.hint}>
+  <Row setting="general.streamer.{h.key}" label={h.label} hint={h.hint}>
     <Toggle label={h.label} checked={s[h.key]} onchange={(v) => patch({ [h.key]: v })} />
   </Row>
 {/each}

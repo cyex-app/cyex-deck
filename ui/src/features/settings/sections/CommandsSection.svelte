@@ -42,6 +42,7 @@
 <h2>Commands</h2>
 
 <Row
+  setting="commands.lines"
   label="Your commands"
   hint="One per line: /name what it sends. $1 is the first word after it, $1- the rest, $(nick) the name it was used on. # starts a comment."
   stacked
@@ -62,7 +63,7 @@
 <h3 class="label">Menus</h3>
 <p class="note">One per line: <code>Label=command</code>. <code>@Name</code> starts a submenu, <code>.Label=command</code> goes in it, <code>-</code> draws a line.</p>
 {#each MENUS as m (m.key)}
-  <Row label={m.label} hint={m.hint} stacked>
+  <Row setting="commands.{m.key}" label={m.label} hint={m.hint} stacked>
     <textarea
       class="field code"
       rows="3"
@@ -74,7 +75,7 @@
   </Row>
 {/each}
 
-<h3 class="label">Timers</h3>
+<h3 class="label" data-setting="commands.timers">Timers</h3>
 {#each c.timers as t (t.id)}
   <Row label={t.command} hint="{when(t.atMs)} in {t.channel}">
     <IconButton

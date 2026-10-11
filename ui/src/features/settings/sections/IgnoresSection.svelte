@@ -36,6 +36,7 @@
 
 <h3 class="label">Words</h3>
 <RuleList
+  setting="highlights.ignores"
   items={h.ignores}
   {fields}
   make={() => ({
@@ -52,14 +53,14 @@
 />
 
 <h3 class="label">Blocked on Twitch</h3>
-<Row label="Hide people you blocked" hint="Read from each signed-in account.">
+<Row setting="highlights.blocked.enabled" label="Hide people you blocked" hint="Read from each signed-in account.">
   <Toggle
     label="Hide people you blocked"
     checked={h.blocked.enabled}
     onchange={(v) => save({ blocked: { ...h.blocked, enabled: v } })}
   />
 </Row>
-<Row label="Still show them" hint="Where you might need to act on what they say.">
+<Row setting="highlights.blocked.show" label="Still show them" hint="Where you might need to act on what they say.">
   <Segmented
     label="Still show blocked people"
     options={SHOW}
@@ -68,7 +69,7 @@
   />
 </Row>
 
-<h3 class="label">Hidden for you</h3>
+<h3 class="label" data-setting="highlights.hiddenUsers">Hidden for you</h3>
 {#each h.hiddenUsers as u (u.id)}
   <Row label={u.login}>
     <Button small variant="ghost" onclick={() => save({ hiddenUsers: h.hiddenUsers.filter((x) => x.id !== u.id) })}>

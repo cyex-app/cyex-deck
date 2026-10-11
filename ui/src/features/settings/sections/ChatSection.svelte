@@ -121,10 +121,10 @@
 <h2>Chat</h2>
 
 <h3 class="label">History</h3>
-<Row label="Recent history" hint="Shows the last messages, dimmed, when you open a chat.">
+<Row setting="chat.history" label="Recent history" hint="Shows the last messages, dimmed, when you open a chat.">
   <Toggle label="Recent history" checked={c.history} onchange={(v) => settings.patch('chat', { history: v })} />
 </Row>
-<Row label="History to load" hint="Up to this many. The history service keeps 800 per channel.">
+<Row setting="chat.historyLines" label="History to load" hint="Up to this many. The history service keeps 800 per channel.">
   <select
     class="field"
     disabled={!c.history}
@@ -134,7 +134,7 @@
     {#each LOADED as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
   </select>
 </Row>
-<Row label="Messages kept" hint="Per chat. Older ones drop off the top; more uses more memory.">
+<Row setting="chat.scrollback" label="Messages kept" hint="Per chat. Older ones drop off the top; more uses more memory.">
   <select
     class="field"
     value={c.scrollback}
@@ -145,10 +145,10 @@
 </Row>
 
 <h3 class="label">Messages</h3>
-<Row label="Names" hint="Both adds the login when the display name is in another script.">
+<Row setting="chat.names" label="Names" hint="Both adds the login when the display name is in another script.">
   <Segmented label="Names" options={NAMES} value={c.names} onchange={(v) => settings.patch('chat', { names: v })} />
 </Row>
-<Row label="Deleted messages" hint="Removed by a mod, or from someone timed out or banned.">
+<Row setting="chat.deleted" label="Deleted messages" hint="Removed by a mod, or from someone timed out or banned.">
   <Segmented
     label="Deleted messages"
     options={DELETED}
@@ -156,11 +156,11 @@
     onchange={(v) => settings.patch('chat', { deleted: v })}
   />
 </Row>
-<Row label="Count repeats" hint="Someone saying the same thing again adds a count to their line.">
+<Row setting="chat.repeats" label="Count repeats" hint="Someone saying the same thing again adds a count to their line.">
   <Toggle label="Count repeats" checked={c.repeats} onchange={(v) => settings.patch('chat', { repeats: v })} />
 </Row>
 {#if c.repeats}
-  <Row label="Counts as the same">
+  <Row setting="chat.repeatSimilarity" label="Counts as the same">
     <Segmented
       label="Counts as the same"
       options={SIMILAR}
@@ -169,32 +169,32 @@
     />
   </Row>
 {/if}
-<Row label="Joins and leaves" hint="Who opens or leaves the chat, a line every 10 seconds. Twitch only says so in chats under 1.000 people.">
+<Row setting="chat.joinsLeaves" label="Joins and leaves" hint="Who opens or leaves the chat, a line every 10 seconds. Twitch only says so in chats under 1.000 people.">
   <Toggle label="Joins and leaves" checked={c.joinsLeaves} onchange={(v) => settings.patch('chat', { joinsLeaves: v })} />
 </Row>
-<Row label="Show where it was sent from" hint="An icon for messages from the website or the phone apps.">
+<Row setting="chat.showClient" label="Show where it was sent from" hint="An icon for messages from the website or the phone apps.">
   <Toggle label="Show where it was sent from" checked={c.showClient} onchange={(v) => settings.patch('chat', { showClient: v })} />
 </Row>
-<Row label="Alternate line backgrounds">
+<Row setting="chat.alternateLines" label="Alternate line backgrounds">
   <Toggle
     label="Alternate line backgrounds"
     checked={c.alternateLines}
     onchange={(v) => settings.patch('chat', { alternateLines: v })}
   />
 </Row>
-<Row label="Lines between messages">
+<Row setting="chat.separators" label="Lines between messages">
   <Toggle label="Lines between messages" checked={c.separators} onchange={(v) => settings.patch('chat', { separators: v })} />
 </Row>
 
 <h3 class="label">Timestamps</h3>
-<Row label="Show timestamps" hint={c.timestamps.show ? `Looks like ${formatTime(SAMPLE_TIME, c.timestamps)}` : undefined}>
+<Row setting="chat.timestamps.show" label="Show timestamps" hint={c.timestamps.show ? `Looks like ${formatTime(SAMPLE_TIME, c.timestamps)}` : undefined}>
   <Toggle
     label="Show timestamps"
     checked={c.timestamps.show}
     onchange={(v) => settings.patch('chat', { timestamps: { show: v } })}
   />
 </Row>
-<Row label="Seconds">
+<Row setting="chat.timestamps.seconds" label="Seconds">
   <Toggle
     label="Seconds"
     disabled={!c.timestamps.show}
@@ -202,7 +202,7 @@
     onchange={(v) => settings.patch('chat', { timestamps: { seconds: v } })}
   />
 </Row>
-<Row label="12-hour clock">
+<Row setting="chat.timestamps.hour12" label="12-hour clock">
   <Toggle
     label="12-hour clock"
     disabled={!c.timestamps.show}
@@ -212,10 +212,10 @@
 </Row>
 
 <h3 class="label">Scrolling</h3>
-<Row label="Pause on hover" hint="Chat stops moving while the mouse is over it.">
+<Row setting="chat.pauseOnHover" label="Pause on hover" hint="Chat stops moving while the mouse is over it.">
   <Toggle label="Pause on hover" checked={c.pauseOnHover} onchange={(v) => settings.patch('chat', { pauseOnHover: v })} />
 </Row>
-<Row label="Pause lasts" hint="Once the mouse stops moving over chat. Moving it pauses again.">
+<Row setting="chat.pauseStillTenths" label="Pause lasts" hint="Once the mouse stops moving over chat. Moving it pauses again.">
   <select
     class="field"
     disabled={!c.pauseOnHover}
@@ -225,7 +225,7 @@
     {#each STILL as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
   </select>
 </Row>
-<Row label="Pause while holding">
+<Row setting="chat.pauseKey" label="Pause while holding">
   <Segmented
     label="Pause while holding"
     options={PAUSE_KEYS}
@@ -240,10 +240,10 @@
     onchange={(v) => settings.patch('chat', { smoothNewMessages: v })}
   />
 </Row>
-<Row label="Last-read line" hint="Marks where you were when you switched away.">
+<Row setting="chat.lastReadLine" label="Last-read line" hint="Marks where you were when you switched away.">
   <Toggle label="Last-read line" checked={c.lastReadLine} onchange={(v) => settings.patch('chat', { lastReadLine: v })} />
 </Row>
-<Row label="Hold chat back" hint="Waits this long before showing messages, to match the stream's delay.">
+<Row setting="chat.delayTenths" label="Hold chat back" hint="Waits this long before showing messages, to match the stream's delay.">
   <select
     class="field"
     value={c.delayTenths}
@@ -254,10 +254,10 @@
 </Row>
 
 <h3 class="label">Links</h3>
-<Row label="Previews" hint="Hover a link for its title and picture.">
+<Row setting="chat.linkPreviews" label="Previews" hint="Hover a link for its title and picture.">
   <Toggle label="Previews" checked={c.linkPreviews} onchange={(v) => settings.patch('chat', { linkPreviews: v })} />
 </Row>
-<Row label="Picture size">
+<Row setting="chat.linkThumbnails" label="Picture size">
   <Segmented
     label="Picture size"
     options={THUMBS}
@@ -265,23 +265,23 @@
     onchange={(v) => settings.patch('chat', { linkThumbnails: v })}
   />
 </Row>
-<Row label="Cards under messages" hint="Also shows the preview below the message.">
+<Row setting="chat.linkCards" label="Cards under messages" hint="Also shows the preview below the message.">
   <Toggle label="Cards under messages" checked={c.linkCards} onchange={(v) => settings.patch('chat', { linkCards: v })} />
 </Row>
 
 <h3 class="label">GIFs and effects</h3>
-<Row label="GIFs">
+<Row setting="chat.gifs" label="GIFs">
   <Segmented label="GIFs" options={GIFS} value={c.gifs} onchange={(v) => settings.patch('chat', { gifs: v })} />
 </Row>
-<Row label="Effects" hint="Animated messages, giant emotes and celebrations, as Twitch shows them.">
+<Row setting="chat.effects" label="Effects" hint="Animated messages, giant emotes and celebrations, as Twitch shows them.">
   <Toggle label="Effects" checked={c.effects} onchange={(v) => settings.patch('chat', { effects: v })} />
 </Row>
 
 <h3 class="label">Writing and reading</h3>
-<Row label="Spell check" hint="Underlines typos in the message box. Right-click one for fixes.">
+<Row setting="chat.spellCheck" label="Spell check" hint="Underlines typos in the message box. Right-click one for fixes.">
   <Toggle label="Spell check" checked={c.spellCheck} onchange={(v) => settings.patch('chat', { spellCheck: v })} />
 </Row>
-<Row label="Translate into" hint="For Translate and /translate. Each chat's menu can translate everything.">
+<Row setting="chat.translateTo" label="Translate into" hint="For Translate and /translate. Each chat's menu can translate everything.">
   <select
     class="field"
     value={c.translateTo}
@@ -292,7 +292,7 @@
 </Row>
 
 <h3 class="label">Moderation</h3>
-<Row label="Timeout buttons" hint="Quick durations in chat and on user cards. Up to 8." stacked>
+<Row setting="chat.timeoutPresets" label="Timeout buttons" hint="Quick durations in chat and on user cards. Up to 8." stacked>
   {#each c.timeoutPresets as secs (secs)}
     <span class="chip">
       {formatDuration(secs)}
@@ -310,7 +310,7 @@
     </form>
   {/if}
 </Row>
-<Row label="Mod mode buttons" hint="In front of lines while mod mode is on. Up to 4 timeouts." stacked>
+<Row setting="chat.modButtons" label="Mod mode buttons" hint="In front of lines while mod mode is on. Up to 4 timeouts." stacked>
   <button class="pick" aria-pressed={mb.delete} onclick={() => flipMod({ delete: !mb.delete })}>Delete</button>
   {#each modTimes as secs (secs)}
     {@const on = mb.timeouts.includes(secs)}
@@ -324,7 +324,7 @@
 
 <h3 class="label">Overlay</h3>
 <p class="intro">A chat over games: ⋯ on a chat → Overlay. It stays on top and can let clicks through.</p>
-<Row label="Background" hint="0 % is fully see-through.">
+<Row setting="chat.overlay.background" label="Background" hint="0 % is fully see-through.">
   <input
     type="range"
     min="0"
@@ -336,7 +336,7 @@
   />
   <span class="num">{o.background} %</span>
 </Row>
-<Row label="Text size" hint="Compared to chat.">
+<Row setting="chat.overlay.scale" label="Text size" hint="Compared to chat.">
   <input
     type="range"
     min="50"
@@ -348,7 +348,7 @@
   />
   <span class="num">{o.scale} %</span>
 </Row>
-<Row label="Fade lines after">
+<Row setting="chat.overlay.fadeAfter" label="Fade lines after">
   <Segmented
     label="Fade lines after"
     options={FADES}
@@ -356,14 +356,14 @@
     onchange={(v) => settings.patch('chat', { overlay: { fadeAfter: v } })}
   />
 </Row>
-<Row label="Outline letters" hint="Readable over anything.">
+<Row setting="chat.overlay.outline" label="Outline letters" hint="Readable over anything.">
   <Toggle
     label="Outline letters"
     checked={o.outline}
     onchange={(v) => settings.patch('chat', { overlay: { outline: v } })}
   />
 </Row>
-<Row label="Badges">
+<Row setting="chat.overlay.badges" label="Badges">
   <Toggle label="Badges" checked={o.badges} onchange={(v) => settings.patch('chat', { overlay: { badges: v } })} />
 </Row>
 

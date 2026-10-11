@@ -138,7 +138,7 @@
 <h2>Appearance</h2>
 
 <h3 class="label">Colors</h3>
-<Row label="Theme" hint="Make your own with New, or paste a code someone shared." stacked>
+<Row setting="appearance.theme appearance.themes" label="Theme" hint="Make your own with New, or paste a code someone shared." stacked>
   <div class="themes" role="radiogroup" aria-label="Theme">
     {#each BASES as base (base)}
       {@const b = BUILT_IN[base]}
@@ -169,7 +169,7 @@
   <ThemeEditor theme={active} {look} onchange={saveTheme} ondelete={() => deleteTheme(active.id)} />
 {/if}
 
-<Row label="Accent color" hint={adjusted ? 'Shown a bit lighter or darker here so it stays visible.' : undefined}>
+<Row setting="appearance.accent" label="Accent color" hint={adjusted ? 'Shown a bit lighter or darker here so it stays visible.' : undefined}>
   <input
     type="color"
     class="swatch"
@@ -190,7 +190,7 @@
 </div>
 
 <h3 class="label">Tabs</h3>
-<Row label="Tab size" hint="Compact fits more tabs.">
+<Row setting="appearance.tabDensity" label="Tab size" hint="Compact fits more tabs.">
   <Segmented
     label="Tab size"
     options={DENSITIES}
@@ -199,7 +199,7 @@
   />
 </Row>
 
-<Row label="Close button on tabs" hint="Middle click still closes a tab when this is off.">
+<Row setting="appearance.tabCloseButton" label="Close button on tabs" hint="Middle click still closes a tab when this is off.">
   <Toggle
     label="Close button on tabs"
     checked={a.tabCloseButton}
@@ -207,7 +207,7 @@
   />
 </Row>
 
-<Row label="Bar position">
+<Row setting="appearance.tabBarSide" label="Bar position">
   <Segmented
     label="Bar position"
     options={SIDES}
@@ -216,7 +216,7 @@
   />
 </Row>
 
-<Row label="Light up tabs" hint="Background tabs light up on new chat, brighter for mentions.">
+<Row setting="appearance.tabUnread" label="Light up tabs" hint="Background tabs light up on new chat, brighter for mentions.">
   <Segmented
     label="Light up tabs"
     options={UNREAD}

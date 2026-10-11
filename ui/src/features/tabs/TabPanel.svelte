@@ -3,8 +3,8 @@
 <script lang="ts">
   import { getCurrentWindow } from '@tauri-apps/api/window';
 
-  import { popOut } from '../../app/panels';
   import { windowsIpc } from '../../ipc/windows';
+  import { gate } from '../../lib/gate.svelte';
   import { useHotkeys } from '../../lib/hotkeys.svelte';
   import TabView from './TabView.svelte';
   import { label, tabs } from './tabs.svelte';
@@ -27,5 +27,5 @@
 </script>
 
 {#if tab}
-  <TabView {tab} popout onsignin={() => void popOut('settings')} />
+  <TabView {tab} popout onsignin={() => gate.ask('helix')} />
 {/if}

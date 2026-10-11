@@ -129,42 +129,42 @@
 <h2>Notifications</h2>
 
 <h3 class="label">When channels go live</h3>
-<Row label="Live alerts" hint="For channels the default account follows. Each one follows its Twitch bell unless you pick below.">
+<Row setting="notifications.live.enabled" label="Live alerts" hint="For channels the default account follows. Each one follows its Twitch bell unless you pick below.">
   <Toggle label="Live alerts" checked={n.live.enabled} onchange={(on) => patch({ live: { enabled: on } })} />
 </Row>
 {#if n.live.enabled}
-  <Row label="Pop-up" hint="A Windows notification. Click it to open the channel.">
+  <Row setting="notifications.live.toast" label="Pop-up" hint="A Windows notification. Click it to open the channel.">
     <Toggle label="Pop-up" checked={n.live.toast} onchange={(on) => patch({ live: { toast: on } })} />
   </Row>
-  <Row label="Sound">
+  <Row setting="notifications.live.sound" label="Sound">
     <Toggle label="Sound" checked={n.live.sound} onchange={(on) => patch({ live: { sound: on } })} />
   </Row>
-  <Row label="Quiet at start" hint="No alerts for channels that were already live when the app opened.">
+  <Row setting="notifications.live.skipAtStart" label="Quiet at start" hint="No alerts for channels that were already live when the app opened.">
     <Toggle label="Quiet at start" checked={n.live.skipAtStart} onchange={(on) => patch({ live: { skipAtStart: on } })} />
   </Row>
 {/if}
 
 <h3 class="label">Whispers</h3>
-<Row label="Pop-up" hint="While the app isn't in front.">
+<Row setting="notifications.whispers.toast" label="Pop-up" hint="While the app isn't in front.">
   <Toggle label="Whisper pop-up" checked={n.whispers.toast} onchange={(on) => patch({ whispers: { toast: on } })} />
 </Row>
-<Row label="Sound">
+<Row setting="notifications.whispers.sound" label="Sound">
   <Toggle label="Whisper sound" checked={n.whispers.sound} onchange={(on) => patch({ whispers: { sound: on } })} />
 </Row>
-<Row label="Flash the taskbar">
+<Row setting="notifications.whispers.flash" label="Flash the taskbar">
   <Toggle label="Flash the taskbar" checked={n.whispers.flash} onchange={(on) => patch({ whispers: { flash: on } })} />
 </Row>
-<Row label="Show in chat" hint="Whispers also show as lines in the chats on screen.">
+<Row setting="notifications.whispers.inline" label="Show in chat" hint="Whispers also show as lines in the chats on screen.">
   <Toggle label="Show whispers in chat" checked={n.whispers.inline} onchange={(on) => patch({ whispers: { inline: on } })} />
 </Row>
 
 <h3 class="label">Twitch's bell</h3>
-<Row label="Pop-ups" hint="When Twitch marks a notification as a pop-up, show it as a Windows notification too.">
+<Row setting="notifications.bell.toast" label="Pop-ups" hint="When Twitch marks a notification as a pop-up, show it as a Windows notification too.">
   <Toggle label="Bell pop-ups" checked={n.bell.toast} onchange={(on) => patch({ bell: { toast: on } })} />
 </Row>
 
 {#if account}
-  <h3 class="label">Per channel</h3>
+  <h3 class="label" data-setting="notifications.live.channels">Per channel</h3>
   <button class="fold" aria-expanded={showChannels} onclick={() => (showChannels = !showChannels)}>
     <Icon name={showChannels ? 'chevronDown' : 'chevronRight'} size={14} />
     <span>{channels.length ? `${channels.length}${cursor ? '+' : ''} followed channel${channels.length === 1 && !cursor ? '' : 's'}` : 'Followed channels'}</span>
@@ -205,12 +205,12 @@
 
   {#if account && !twitch}
     <!-- V102-20 Greyed out, not hidden. -->
-    <h3 class="label">What Twitch sends</h3>
+    <h3 class="label" data-setting="notifications:twitch">What Twitch sends</h3>
     <p class="note gated">Twitch's own settings need a GQL sign-in. <GateFlag kind="gql" /></p>
   {/if}
 
   {#if twitch && sw.groups.length}
-    <h3 class="label">What Twitch sends</h3>
+    <h3 class="label" data-setting="notifications:twitch">What Twitch sends</h3>
     <p class="note">Twitch's own settings for {account.displayName}, saved on Twitch. Open a group to pick single ones.</p>
     {#if smartOn !== null}
       <Row label="Smart delivery" hint="Live alerts reach you once: on Twitch while you're there, else by phone or email.">

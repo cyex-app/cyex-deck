@@ -1,11 +1,15 @@
-<!-- Settings (spec 12). Opens in the main window or as its own window. The list is in groups
-     (V101-07); narrow windows show icons only, with lines between the groups. -->
+<!-- Settings (spec 12), in the main window only: they don't pop out (V103-08). The list is
+     in groups (V101-07); narrow windows show icons only, with lines between the groups.
+     Search finds any setting in the registry and jumps to it (V103-13). -->
 <script lang="ts">
-  import type { Component } from 'svelte';
+  import { tick, type Component } from 'svelte';
 
-  import Button from '../../components/Button.svelte';
   import Icon from '../../components/Icon.svelte';
-  import type { IconName } from '../../components/icons';
+  import { ACTIONS } from '../../lib/hotkeys.svelte';
+  import { ENTRIES, GROUPS, hotkeyEntries, PAGES, type PageId } from './registry/index';
+  import { reveal } from './reveal';
+  import { buildIndex, search, type Hit } from './search';
+  import SearchResults from './SearchResults.svelte';
   import AccountsSection from './sections/AccountsSection.svelte';
   import AppearanceSection from './sections/AppearanceSection.svelte';
   import AutomationsSection from './sections/AutomationsSection.svelte';
@@ -28,89 +32,111 @@
   import WindowsSection from './sections/WindowsSection.svelte';
 
   interface Props {
-    popout?: boolean;
-    onpopout?: () => void;
-    /** Open section id. Bindable so other views can jump to a section. */
+    /** Open page id. Bindable so other views can jump to a page. */
     section?: string;
-    /** Panel route, given to every pop-out; settings has no parameters. */
-    route?: string;
   }
 
-  let { popout = false, onpopout, section = $bindable('general') }: Props = $props();
+  let { section = $bindable('general') }: Props = $props();
 
-  type Entry = { id: string; label: string; icon: IconName; component: Component };
+  const VIEWS: Record<PageId, Component> = {
+    general: GeneralSection,
+    appearance: AppearanceSection,
+    windows: WindowsSection,
+    hotkeys: HotkeysSection,
+    plugins: PluginsSection,
+    data: DataSection,
+    accounts: AccountsSection,
+    notifications: NotificationsSection,
+    chat: ChatSection,
+    emotes: EmotesSection,
+    highlights: HighlightsSection,
+    ignores: IgnoresSection,
+    filters: FiltersSection,
+    commands: CommandsSection,
+    automations: AutomationsSection,
+    recordings: RecordingsSection,
+    player: PlayerSection,
+    miner: MinerSection,
+    streammanager: StreamManagerSection,
+    streamer: StreamerSection,
+  };
 
-  const GROUPS: { label: string; sections: Entry[] }[] = [
-    {
-      label: 'App',
-      sections: [
-        { id: 'general', label: 'General', icon: 'sliders', component: GeneralSection },
-        { id: 'appearance', label: 'Appearance', icon: 'palette', component: AppearanceSection },
-        { id: 'windows', label: 'Windows', icon: 'layout', component: WindowsSection },
-        { id: 'hotkeys', label: 'Hotkeys', icon: 'keyboard', component: HotkeysSection },
-        { id: 'plugins', label: 'Plugins', icon: 'puzzle', component: PluginsSection },
-        { id: 'data', label: 'Backup and sharing', icon: 'archive', component: DataSection },
-      ],
-    },
-    {
-      label: 'Account',
-      sections: [
-        { id: 'accounts', label: 'Accounts', icon: 'user', component: AccountsSection },
-        { id: 'notifications', label: 'Notifications', icon: 'bell', component: NotificationsSection },
-      ],
-    },
-    {
-      label: 'Chat',
-      sections: [
-        { id: 'chat', label: 'Chat', icon: 'chat', component: ChatSection },
-        { id: 'emotes', label: 'Emotes and badges', icon: 'smile', component: EmotesSection },
-        { id: 'highlights', label: 'Highlights', icon: 'star', component: HighlightsSection },
-        { id: 'ignores', label: 'Ignores', icon: 'eyeOff', component: IgnoresSection },
-        { id: 'filters', label: 'Filters', icon: 'filter', component: FiltersSection },
-        { id: 'commands', label: 'Commands', icon: 'pencil', component: CommandsSection },
-        { id: 'automations', label: 'Automations', icon: 'zap', component: AutomationsSection },
-        { id: 'recordings', label: 'Recordings', icon: 'record', component: RecordingsSection },
-      ],
-    },
-    {
-      label: 'Watching',
-      sections: [
-        { id: 'player', label: 'Player', icon: 'tv', component: PlayerSection },
-        { id: 'miner', label: 'Miner', icon: 'pickaxe', component: MinerSection },
-      ],
-    },
-    {
-      label: 'Streaming',
-      sections: [
-        { id: 'streammanager', label: 'Stream manager', icon: 'radio', component: StreamManagerSection },
-        { id: 'streamer', label: 'Streamer mode', icon: 'monitor', component: StreamerSection },
-      ],
-    },
-  ];
-  const SECTIONS = GROUPS.flatMap((g) => g.sections);
+  const Section = $derived(VIEWS[section as PageId] ?? GeneralSection);
 
-  const Section = $derived((SECTIONS.find((s) => s.id === section) ?? SECTIONS[0]).component);
+  const docs = buildIndex([...ENTRIES, ...hotkeyEntries(ACTIONS)], PAGES);
+  let query = $state('');
+  let active = $state(0);
+  let content = $state<HTMLElement>();
+  const searching = $derived(query.trim() !== '');
+  const hits = $derived(search(docs, query));
+
+  function open(id: string) {
+    query = '';
+    section = id;
+  }
+
+  async function jump(hit: Hit) {
+    open(hit.entry.page);
+    await tick();
+    if (content) reveal(content, hit.entry.anchor ? [hit.entry.id, hit.entry.anchor] : [hit.entry.id]);
+  }
+
+  function onkey(e: KeyboardEvent) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      active = Math.max(0, Math.min(hits.length - 1, active + (e.key === 'ArrowDown' ? 1 : -1)));
+    } else if (e.key === 'Enter' && hits[active]) {
+      e.preventDefault();
+      void jump(hits[active]);
+    } else if (e.key === 'Escape' && query) {
+      e.stopPropagation();
+      query = '';
+    }
+  }
 </script>
+
+<!-- One box, drawn in the list or, in narrow windows, above the page. -->
+{#snippet searchBox(where: string)}
+  <div class="search {where}">
+    <Icon name="search" size={14} />
+    <input
+      class="field"
+      type="search"
+      placeholder="Search settings"
+      aria-label="Search settings"
+      spellcheck="false"
+      bind:value={query}
+      oninput={() => (active = 0)}
+      onkeydown={onkey}
+    />
+    {#if query}
+      <button class="clear" aria-label="Clear search" onclick={() => (query = '')}><Icon name="x" size={12} /></button>
+    {/if}
+  </div>
+{/snippet}
 
 <div class="settings">
   <nav>
+    {@render searchBox('side')}
     {#each GROUPS as g (g.label)}
       <div class="group">{g.label}</div>
-      {#each g.sections as s (s.id)}
-        <button class:on={section === s.id} onclick={() => (section = s.id)} title={s.label}>
-          <Icon name={s.icon} size={15} />
-          <span>{s.label}</span>
+      {#each g.pages as p (p.id)}
+        <button class:on={!searching && section === p.id} onclick={() => open(p.id)} title={p.label}>
+          <Icon name={p.icon} size={15} />
+          <span>{p.label}</span>
         </button>
       {/each}
     {/each}
-    {#if !popout && onpopout}
-      <div class="foot">
-        <Button variant="ghost" small icon="popout" onclick={onpopout}>Pop out</Button>
-      </div>
-    {/if}
   </nav>
-  <div class="content">
-    <div class="inner"><Section /></div>
+  <div class="content" bind:this={content}>
+    <div class="inner">
+      {@render searchBox('top')}
+      {#if searching}
+        <SearchResults {hits} {query} {active} onpick={(hit) => void jump(hit)} />
+      {:else}
+        <Section />
+      {/if}
+    </div>
   </div>
 </div>
 
@@ -130,6 +156,49 @@
     padding: 4px 10px 14px;
     overflow-y: auto;
     border-right: 1px solid var(--border);
+  }
+  .search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: none;
+  }
+  .search.side {
+    margin: 8px 0 2px;
+  }
+  .search.top {
+    display: none;
+    margin-bottom: 16px;
+  }
+  .search > :global(svg) {
+    position: absolute;
+    left: 9px;
+    color: var(--dim);
+    pointer-events: none;
+  }
+  .search input {
+    width: 100%;
+    padding: 0 28px 0 29px;
+  }
+  .search input::-webkit-search-cancel-button {
+    display: none;
+  }
+  .clear {
+    position: absolute;
+    right: 4px;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: var(--radius);
+    color: var(--dim);
+  }
+  .clear:hover {
+    background: var(--surface-hover);
+    color: var(--text);
   }
   .group {
     padding: 12px 10px 4px;
@@ -162,9 +231,6 @@
     background: var(--accent-dim);
     color: var(--accent-text);
   }
-  .foot {
-    margin-top: auto;
-  }
   .content {
     flex: 1;
     overflow-y: auto;
@@ -173,15 +239,34 @@
     max-width: 680px;
     padding: 22px 28px 32px;
   }
-  /* Narrow windows: icons only (3.10). */
+  /* V103-13 A setting search jumped to: tinted over its own background, then fades. */
+  .content :global(.found),
+  .content :global(.fading) {
+    border-radius: var(--radius);
+  }
+  .content :global(.found) {
+    box-shadow:
+      inset 0 0 0 100vmax var(--accent-dim),
+      0 0 0 4px var(--accent-dim);
+  }
+  .content :global(.fading) {
+    box-shadow:
+      inset 0 0 0 100vmax transparent,
+      0 0 0 4px transparent;
+    transition: box-shadow 0.7s var(--ease);
+  }
+  /* Narrow windows: icons only (3.10), search above the page. */
   @container (max-width: 600px) {
     nav {
       width: 52px;
       padding-inline: 8px;
     }
     nav button span,
-    .foot {
+    .search.side {
       display: none;
+    }
+    .search.top {
+      display: flex;
     }
     .group {
       height: 1px;
@@ -191,7 +276,7 @@
       background: var(--border);
       color: transparent;
     }
-    .group:first-child {
+    .search.side + .group {
       display: none;
     }
     .inner {

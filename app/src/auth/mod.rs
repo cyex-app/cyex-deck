@@ -37,7 +37,7 @@ pub struct AuthSnapshot {
 }
 
 /// V103-01 The sign-in's client ID is built in (`clients::SIGN_IN`); a `.env` left in the
-/// app's data folder from before isn't read any more.
+/// app's data folder from before isn't read, and is deleted on start (`paths::remove_old_env`).
 pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let vault = Vault::new(Arc::new(KeyringStore));
     for e in vault.load(&accounts(app)) {

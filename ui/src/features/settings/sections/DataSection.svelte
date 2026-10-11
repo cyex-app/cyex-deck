@@ -90,13 +90,13 @@
   {/each}
 </div>
 <p class="note">Accounts and sign-ins are never included.</p>
-<div class="actions">
+<div class="actions" data-setting="data:export">
   <Button icon="download" disabled={!picked.length} onclick={exportFile}>Export file</Button>
   <Button icon="copy" disabled={!picked.length} onclick={copyCode}>Copy share code</Button>
 </div>
 
 <h3 class="label">Import</h3>
-<div class="actions">
+<div class="actions" data-setting="data:import">
   <Button icon="upload" onclick={importFile}>Import file</Button>
 </div>
 <form class="code" onsubmit={importCode}>
@@ -105,7 +105,7 @@
 </form>
 
 <h3 class="label">Backups</h3>
-<p class="note">A copy of your settings is kept for each of the last 3 days.</p>
+<p class="note" data-setting="data:backups">A copy of your settings is kept for each of the last 3 days.</p>
 {#each backups as date (date)}
   <Row label={date}>
     <Button small onclick={() => restore(date)}>Restore</Button>
@@ -113,7 +113,7 @@
 {:else}
   <p class="note">No backups yet. The first one is made tomorrow.</p>
 {/each}
-<div class="actions">
+<div class="actions" data-setting="data:folder">
   <Button variant="ghost" small icon="folder" onclick={() => attempt(() => settingsIpc.openFolder())}>Open settings folder</Button>
 </div>
 

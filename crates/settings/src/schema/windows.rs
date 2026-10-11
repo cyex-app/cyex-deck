@@ -14,7 +14,7 @@ const MAX_LAYOUTS: usize = 20;
 pub struct Windows {
     pub main: Option<Geometry>,
     pub main_pinned: bool,
-    /// Last state of each popped-out panel, keyed by panel route (e.g. `settings`).
+    /// Last state of each popped-out panel, keyed by panel route (e.g. `streammanager`).
     pub panels: BTreeMap<String, PanelWindow>,
     pub layouts: Vec<Layout>,
 }

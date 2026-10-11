@@ -1,6 +1,6 @@
 // Panels that can pop out into their own window (1.51). A route is `<kind>` or
 // `<kind>/<params>`; the kind picks the component. Usercards (1.36) open through
-// `chatIpc.openUsercard`, not `popOut`, but render here too.
+// `chatIpc.openUsercard`, not `popOut`, but render here too. Settings never pop out (V103-08).
 
 import type { Component } from 'svelte';
 
@@ -10,7 +10,6 @@ import ModViewPanel from '../features/modview/ModViewPanel.svelte';
 import OverlayView from '../features/overlay/OverlayView.svelte';
 import ConsoleView from '../features/plugins/ConsoleView.svelte';
 import { plugins } from '../features/plugins/plugins.svelte';
-import SettingsView from '../features/settings/SettingsView.svelte';
 import StreamManagerView from '../features/streammanager/StreamManagerView.svelte';
 import ChatPanel from '../features/tabs/ChatPanel.svelte';
 import TabPanel from '../features/tabs/TabPanel.svelte';
@@ -32,7 +31,6 @@ export interface PanelKind {
 }
 
 export const PANELS: Record<string, PanelKind> = {
-  settings: { title: 'Settings', width: 820, height: 620, component: SettingsView },
   tab: { title: 'Tab', width: 420, height: 680, component: TabPanel },
   chat: { title: 'Chat', width: 380, height: 680, component: ChatPanel },
   room: { title: 'Chat', width: 380, height: 640, component: RoomPanel },
