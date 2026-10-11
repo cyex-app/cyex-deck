@@ -18,7 +18,7 @@ use std::hash::{BuildHasher, Hasher};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use super::{ChatPosition, Schema};
+use super::{ChatPosition, PanelNode, Schema, sanitize_panels};
 
 /// 1.22
 const MAX_ALIAS_CHARS: usize = 60;
@@ -130,6 +130,10 @@ pub struct Tile {
     /// V102-26 The mod view's share of the stream area, its divider dragged. `None` is the
     /// default half; "Reset layout" goes back to it.
     pub modview_share: Option<f32>,
+    /// V103-05 Panels arranged by hand with the tab unlocked (stream, chat, mod view):
+    /// `None` is the layout above, `chat_side` and `modview_share`. "Reset layout" clears it.
+    #[ts(optional = nullable)]
+    pub layout: Option<PanelNode>,
 }
 
 impl Default for Tile {
@@ -147,6 +151,7 @@ impl Default for Tile {
             filters: Vec::new(),
             chat_side: None,
             modview_share: None,
+            layout: None,
         }
     }
 }
@@ -321,6 +326,7 @@ fn sanitize_tile(tile: &mut Tile) {
     }
     tile.ratio = clamp(tile.ratio, RATIO_RANGE, DEFAULT_RATIO);
     tile.modview_share = tile.modview_share.filter(|s| s.is_finite()).map(|s| s.clamp(RATIO_RANGE.0, RATIO_RANGE.1));
+    tile.layout = sanitize_panels(tile.layout.take());
     tile.size = clamp(tile.size, SIZE_RANGE, 1.0);
     tile.volume = clamp(tile.volume, (0.0, 1.0), DEFAULT_VOLUME);
     tile.channel.login = tile.channel.login.trim().to_ascii_lowercase();

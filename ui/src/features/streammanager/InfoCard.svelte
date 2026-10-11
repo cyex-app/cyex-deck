@@ -5,7 +5,7 @@
   import type { CategoryHit } from '../../ipc/bindings/CategoryHit';
   import { smIpc } from '../../ipc/streammanager';
   import { toast } from '../../lib/toast.svelte';
-  import Card from './Card.svelte';
+  import Card from '../../components/PanelCard.svelte';
 
   const TITLE_MAX = 140;
 

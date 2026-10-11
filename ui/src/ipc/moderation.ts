@@ -26,6 +26,10 @@ export const modIpc = {
     invoke<void>('mod_pin_send', { account, channel, text, secs }),
   channelId: (channel: string) => invoke<string | null>('mod_channel_id', { channel }),
   view: (channelId: string) => invoke<Board0>('mod_view', { channelId }),
+  /** V103-15 Twitch's history of the channel's mod actions into its board: the first page
+   * once, or with `older` the next one. GQL sign-in only. */
+  actionsHistory: (account: string, channel: string, older: boolean) =>
+    invoke<void>('mod_actions_history', { account, channel, older }),
   automod: (account: string, channel: string, msgId: string, allow: boolean) =>
     invoke<void>('mod_automod', { account, channel, msgId, allow }),
   unbanRequests: (account: string, channel: string) =>

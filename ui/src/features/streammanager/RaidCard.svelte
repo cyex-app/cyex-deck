@@ -9,7 +9,7 @@
   import { smIpc } from '../../ipc/streammanager';
   import { formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
-  import Card from './Card.svelte';
+  import Card from '../../components/PanelCard.svelte';
   import { raidCountdown } from './logic';
   import { sm } from './streammanager.svelte';
 

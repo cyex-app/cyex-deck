@@ -449,6 +449,115 @@ pub async fn can_see_mod_logs(http: &Http, auth: Auth<'_>, name: &str) -> Result
         .unwrap_or(false))
 }
 
+/// V103-15 One line of a channel's mod-action history (`moderationActionLogs`), read
+/// signed in with the TV client (checked 2026/10/11 on two channels). Twitch words each
+/// line itself: the title names the target (or says what changed), the content says what
+/// was done and by whom ("Banned by @mod"), the body holds a reason or a note.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ChannelAction {
+    pub id: String,
+    /// RFC 3339, with nanoseconds.
+    pub at: String,
+    /// `BAN`, `SWORD`, `HALT`, `AUTOMOD`, …
+    pub icon: String,
+    /// `BANS_AND_UNBANS`, `MODS_AND_VIPS`, `CHAT_MODE_CHANGES`, `AUTOMOD_LEVEL_CHANGES`, …
+    pub category: String,
+    /// Who did it: `(login, display name)`.
+    pub moderator: Option<(String, String)>,
+    /// The title's user, when it names one: `(login, display name)`.
+    pub target: Option<(String, String)>,
+    /// The title's own text when it names no user, e.g. "Clear Chat".
+    pub title: String,
+    /// The content without its trailing "by @mod", e.g. "Banned".
+    pub done: String,
+    pub reason: String,
+    pub note: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ChannelActionsPage {
+    pub actions: Vec<ChannelAction>,
+    /// For the next, older page.
+    pub cursor: Option<String>,
+}
+
+const CHANNEL_ACTIONS: &str = "query Actions($id: ID!, $after: Cursor) { channel(id: $id) {
+  moderationActionLogs(first: 50, after: $after) {
+    ... on ModerationActionLogsError { code }
+    ... on ModerationActionLogsConnection { pageInfo { hasNextPage } edges { cursor node {
+      id createdAt icon filterCategoryID
+      details { ... on ModerationActionBanDetails { reason } }
+      user { ... on User { login displayName } }
+      title { ...Text } content { ...Text } contentBody { ...Text } } } }
+  } } }
+fragment Text on ModActionsLocalizedText { localizedStringFragments { token {
+  __typename ... on ModActionsLocalizedTextToken { text } ... on User { login displayName } } } }";
+
+/// V103-15 A page of the channel's mod actions, newest first; `after` pages back.
+pub async fn channel_actions(http: &Http, auth: Auth<'_>, channel_id: &str, after: Option<&str>) -> Result<ChannelActionsPage> {
+    let data: Value = query(http, auth, CHANNEL_ACTIONS, json!({ "id": channel_id, "after": after })).await?;
+    read_channel_actions(&data)
+}
+
+/// A user token as `(login, display name)`.
+fn person(t: &Value) -> Option<(String, String)> {
+    let login = t.get("login")?.as_str()?.to_owned();
+    let name = t.get("displayName").and_then(Value::as_str).filter(|n| !n.is_empty()).unwrap_or(&login).to_owned();
+    Some((login, name))
+}
+
+fn tokens(v: &Value) -> &[Value] {
+    v.get("localizedStringFragments").and_then(Value::as_array).map_or(&[], Vec::as_slice)
+}
+
+fn text_of(ts: &[Value]) -> String {
+    ts.iter()
+        .filter_map(|f| {
+            let t = f.get("token")?;
+            t.get("text").or_else(|| t.get("displayName")).or_else(|| t.get("login"))?.as_str()
+        })
+        .collect::<String>()
+        .trim()
+        .to_owned()
+}
+
+fn read_channel_actions(data: &Value) -> Result<ChannelActionsPage> {
+    let logs = data.get("channel").and_then(|c| c.get("moderationActionLogs")).unwrap_or(&Value::Null);
+    if let Some(code) = logs.get("code").and_then(Value::as_str) {
+        return Err(crate::Error::Refused(code.to_owned()));
+    }
+    let edges = logs.get("edges").and_then(Value::as_array).map_or(&[][..], Vec::as_slice);
+    let more = logs.pointer("/pageInfo/hasNextPage").and_then(Value::as_bool).unwrap_or(false);
+    let actions = edges
+        .iter()
+        .filter_map(|e| {
+            let n = e.get("node")?;
+            let text = |k: &str| n.get(k).map(tokens).unwrap_or_default();
+            let title = text("title");
+            let content = text("content");
+            let target = title.iter().find_map(|f| person(f.get("token")?));
+            // "Banned by @mod": the words before the last user.
+            let by = content.iter().rposition(|f| f.pointer("/token/login").is_some());
+            let done = text_of(&content[..by.unwrap_or(content.len())]);
+            let done = done.strip_suffix(" by").unwrap_or(&done).trim().to_owned();
+            Some(ChannelAction {
+                id: n.get("id")?.as_str()?.to_owned(),
+                at: n.get("createdAt").and_then(Value::as_str).unwrap_or_default().to_owned(),
+                icon: n.get("icon").and_then(Value::as_str).unwrap_or_default().to_owned(),
+                category: n.get("filterCategoryID").and_then(Value::as_str).unwrap_or_default().to_owned(),
+                moderator: n.get("user").and_then(person),
+                title: if target.is_some() { String::new() } else { text_of(title) },
+                target,
+                done,
+                reason: n.pointer("/details/reason").and_then(Value::as_str).unwrap_or_default().trim().to_owned(),
+                note: text_of(text("contentBody")),
+            })
+        })
+        .collect();
+    let cursor = edges.last().and_then(|e| e.get("cursor")).and_then(Value::as_str).filter(|_| more).map(str::to_owned);
+    Ok(ChannelActionsPage { actions, cursor })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -562,5 +671,42 @@ mod tests {
         let small = json!({ "channel": { "chatters": { "count": 1, "broadcasters": [{ "login": "b" }] } } });
         assert!(read_chatters(&small).unwrap().complete);
         assert_eq!(read_chatters(&json!({ "channel": null })), None);
+    }
+
+    #[test]
+    fn channel_actions_read_twitchs_wording() {
+        // V103-15 As Twitch answered on 2026/10/11, names changed.
+        let user = |l: &str| json!({ "token": { "__typename": "User", "login": l, "displayName": l.to_uppercase() } });
+        let word = |t: &str| json!({ "token": { "__typename": "ModActionsLocalizedTextToken", "text": t } });
+        let data = json!({ "channel": { "moderationActionLogs": {
+            "pageInfo": { "hasNextPage": true },
+            "edges": [
+                { "cursor": "c1", "node": { "id": "1", "createdAt": "2026-10-11T17:12:28.25Z", "icon": "BAN",
+                  "filterCategoryID": "BANS_AND_UNBANS", "details": { "reason": " spam " },
+                  "user": { "login": "kuni", "displayName": "Kuni" },
+                  "title": { "localizedStringFragments": [user("x")] },
+                  "content": { "localizedStringFragments": [word("Banned by "), user("kuni")] },
+                  "contentBody": { "localizedStringFragments": [] } } },
+                { "cursor": "c2", "node": { "id": "2", "createdAt": "2026-08-19T11:56:51Z", "icon": "HALT",
+                  "filterCategoryID": "CHAT_MODE_CHANGES", "details": null,
+                  "user": { "login": "kuni", "displayName": "" },
+                  "title": { "localizedStringFragments": [word("Clear Chat")] },
+                  "content": { "localizedStringFragments": [word("Done by "), user("kuni")] },
+                  "contentBody": { "localizedStringFragments": [word("Chat was cleared.")] } } }
+            ] } } });
+        let page = read_channel_actions(&data).unwrap();
+        assert_eq!(page.cursor.as_deref(), Some("c2"));
+        let [ban, clear] = &page.actions[..] else { panic!() };
+        assert_eq!((ban.done.as_str(), ban.reason.as_str()), ("Banned", "spam"));
+        assert_eq!(ban.target, Some(("x".into(), "X".into())));
+        assert_eq!(ban.moderator, Some(("kuni".into(), "Kuni".into())));
+        assert_eq!((clear.title.as_str(), clear.done.as_str(), clear.note.as_str()), ("Clear Chat", "Done", "Chat was cleared."));
+        assert_eq!(clear.moderator, Some(("kuni".into(), "kuni".into())));
+        assert!(clear.target.is_none());
+        // The last page has no cursor; Twitch's own refusal comes back as one.
+        let last = json!({ "channel": { "moderationActionLogs": { "pageInfo": { "hasNextPage": false }, "edges": [] } } });
+        assert_eq!(read_channel_actions(&last).unwrap(), ChannelActionsPage::default());
+        let no = json!({ "channel": { "moderationActionLogs": { "code": "FORBIDDEN" } } });
+        assert!(matches!(read_channel_actions(&no), Err(crate::Error::Refused(c)) if c == "FORBIDDEN"));
     }
 }

@@ -4,7 +4,7 @@
   import Avatar from '../../components/Avatar.svelte';
   import { formatNumber } from '../../lib/format';
   import { preview, uptimeShort } from '../browse/lists';
-  import Card from './Card.svelte';
+  import Card from '../../components/PanelCard.svelte';
   import { graph } from './logic';
   import { sm } from './streammanager.svelte';
 

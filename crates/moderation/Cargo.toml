@@ -12,6 +12,7 @@ cyex-eventsub.workspace = true
 cyex-twitch.workspace = true
 regex.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 ts-rs.workspace = true
 
 [lints]

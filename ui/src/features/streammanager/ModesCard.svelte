@@ -6,7 +6,7 @@
   import type { SmMode } from '../../ipc/bindings/SmMode';
   import { smIpc } from '../../ipc/streammanager';
   import { toast } from '../../lib/toast.svelte';
-  import Card from './Card.svelte';
+  import Card from '../../components/PanelCard.svelte';
 
   /** Minimum follow age, in minutes. 0 = any follower. */
   const FOLLOW: { value: number; label: string }[] = [

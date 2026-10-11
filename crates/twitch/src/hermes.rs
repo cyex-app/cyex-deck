@@ -51,9 +51,14 @@ pub enum Kind {
     AdsManager,
     /// D6 Creators asking to join your Stream Together. Signed in as the host.
     GuestStarUser,
+    /// V103-15 Mod actions in a channel the user mods (`<user>.<channel>`). Signed in.
+    ModActions,
+    /// V103-15 AutoMod's held messages and the decisions on them (`<user>.<channel>`).
+    /// Signed in as a mod there.
+    AutomodQueue,
 }
 
-const KINDS: [Kind; 17] = [
+const KINDS: [Kind; 19] = [
     Kind::Polls,
     Kind::Predictions,
     Kind::Celebrations,
@@ -71,6 +76,8 @@ const KINDS: [Kind; 17] = [
     Kind::BroadcastSettings,
     Kind::AdsManager,
     Kind::GuestStarUser,
+    Kind::ModActions,
+    Kind::AutomodQueue,
 ];
 
 impl Kind {
@@ -93,11 +100,13 @@ impl Kind {
             Kind::BroadcastSettings => "broadcast-settings-update.",
             Kind::AdsManager => "ads-manager.",
             Kind::GuestStarUser => "guest-star-user-v1.",
+            Kind::ModActions => "chat_moderator_actions.",
+            Kind::AutomodQueue => "automod-queue.",
         }
     }
 
     /// The topic for a channel or user id. The broadcaster's feed and ads name the channel
-    /// twice (user, then channel).
+    /// twice (user, then channel); mod topics get `<user>.<channel>` as their id.
     fn topic(self, id: &str) -> String {
         match self {
             Kind::ActivityFeed | Kind::AdsManager => format!("{}{id}.{id}", self.prefix()),
@@ -124,6 +133,8 @@ impl Kind {
             Kind::BroadcastSettings => 'g',
             Kind::AdsManager => 'k',
             Kind::GuestStarUser => 'j',
+            Kind::ModActions => 'x',
+            Kind::AutomodQueue => 'q',
         }
     }
 
@@ -363,5 +374,17 @@ mod tests {
         assert!(feed.contains(r#""topic":"activity-feed-broadcaster-v2.7.7""#));
         let alerts = Hermes::anonymous().subscribe(&Topic::new(Kind::ActivityAlerts, "7"));
         assert!(alerts.contains(r#""topic":"activity-feed-alerts-v2.7""#));
+    }
+
+    #[test]
+    fn mod_topics_name_the_user_and_the_channel() {
+        // V103-15 Taken with a mod's GQL token (checked 2026/10/11); the id stays short.
+        let t = Topic::new(Kind::ModActions, "1294600497.71092938");
+        let sub = Hermes::anonymous().subscribe(&t);
+        assert!(sub.contains(r#""topic":"chat_moderator_actions.1294600497.71092938""#));
+        assert!(t.sub_id().len() < 30);
+        assert_eq!(Topic::from_sub_id(&t.sub_id()), Some(t));
+        let q = Hermes::anonymous().subscribe(&Topic::new(Kind::AutomodQueue, "1.2"));
+        assert!(q.contains(r#""topic":"automod-queue.1.2""#));
     }
 }

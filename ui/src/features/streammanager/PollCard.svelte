@@ -8,7 +8,7 @@
   import { formatDuration, formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import { pollLeft, votes } from '../chat/votes.svelte';
-  import Card from './Card.svelte';
+  import Card from '../../components/PanelCard.svelte';
 
   const DURATIONS = [60, 120, 180, 300, 600, 900];
 

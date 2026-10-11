@@ -13,6 +13,7 @@ mod hotkeys;
 mod miner;
 mod modview;
 mod notifications;
+mod panels;
 mod player;
 mod plugins;
 mod streammanager;
@@ -39,9 +40,10 @@ pub use hotkeys::Hotkeys;
 pub use miner::{BetFilter, Bets, ChatPresence, DelayMode, FilterBy, FilterCmp, MAX_FIRST, MineSource, Miner, Rule, Strategy};
 pub use modview::Modview;
 pub use notifications::Notifications;
+pub use panels::{PanelNode, SplitDir, sanitize as sanitize_panels};
 pub use player::{Corner, Player, Quality};
 pub use plugins::{PluginEntry, Plugins};
-pub use streammanager::{ActivityFilters, Obs, StreamManager};
+pub use streammanager::{ActivityFilters, ModActionFilters, Obs, StreamManager};
 pub use tabs::{
     Closed, Column, GroupColor, Resolved, Tab, TabChannel, TabError, TabGroup, TabOp, Tabs, Tile, TileShow, Zone, random_id,
 };

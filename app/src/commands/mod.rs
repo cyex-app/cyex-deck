@@ -131,6 +131,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         moderation::mod_pin_send,
         moderation::mod_channel_id,
         moderation::mod_view,
+        moderation::mod_actions_history,
         moderation::mod_automod,
         moderation::mod_unban_requests,
         moderation::mod_resolve_unban,

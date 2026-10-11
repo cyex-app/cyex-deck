@@ -132,6 +132,9 @@ fn start(app: &AppHandle) {
         session_id: None,
         stop,
     });
+    drop(live);
+    // V103-15 Its mod actions, chat open or not.
+    crate::moderation::feeds::sync(app);
 }
 
 /// Ends the feed (dropping the session closes its socket) and the poller.
@@ -148,7 +151,17 @@ fn stop(app: &AppHandle) {
         } else {
             activity::stop_gql(app, &live.account);
         }
+        crate::moderation::feeds::sync(app);
     }
+}
+
+/// V103-15 The manager's own channel while it's open, for the mod feeds: (account,
+/// channel id, login).
+pub(crate) fn own_channel(app: &AppHandle) -> Option<(String, String, String)> {
+    let st = state(app);
+    let live = lock(&st.live);
+    let l = live.as_ref()?;
+    Some((l.account.clone(), l.channel_id.clone(), l.login.clone()))
 }
 
 /// The EventSub feed, when the manager runs on Helix: (account, channel id, session id).

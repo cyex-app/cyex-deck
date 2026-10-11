@@ -1,5 +1,5 @@
-// Where dragged tabs, tiles and panels land (U3, U5, V102-23). Plain functions so they
-// can be tested.
+// Where dragged tabs, tiles and panels land (U3, U5, V102-23, V103-05). Plain functions so
+// they can be tested.
 
 import type { ChatPosition } from '../../ipc/bindings/ChatPosition';
 import type { Zone } from '../../ipc/bindings/Zone';
@@ -22,20 +22,12 @@ export function zoneAt(r: Rect, x: number, y: number): Zone {
   return fy < 0.5 ? 'top' : 'bottom';
 }
 
-/** V102-23 A panel dropped on the other panel of its tile: the closest edge, no middle. */
+/** V102-23, V103-05 A panel dropped on another panel: the closest edge, no middle. */
 export function edgeAt(r: Rect, x: number, y: number): ChatPosition {
   const fx = (x - r.left) / r.width;
   const fy = (y - r.top) / r.height;
   if (Math.min(fx, 1 - fx) < Math.min(fy, 1 - fy)) return fx < 0.5 ? 'left' : 'right';
   return fy < 0.5 ? 'top' : 'bottom';
-}
-
-const OPPOSITE: Record<ChatPosition, ChatPosition> = { left: 'right', right: 'left', top: 'bottom', bottom: 'top' };
-
-/** V102-23 The chat's side after a drop: the chat dropped on a side of its stream goes
- * there; the stream dropped on a side of its chat leaves the chat on the other side. */
-export function sideAfterDrop(panel: 'chat' | 'stream', edge: ChatPosition): ChatPosition {
-  return panel === 'chat' ? edge : OPPOSITE[edge];
 }
 
 interface Grouped {

@@ -862,6 +862,7 @@ dependencies = [
  "cyex-twitch",
  "regex",
  "serde",
+ "serde_json",
  "ts-rs",
 ]
 

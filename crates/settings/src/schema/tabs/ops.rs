@@ -7,7 +7,7 @@ use serde::Deserialize;
 use ts_rs::TS;
 
 use super::order::neighbor;
-use super::{ChatPosition, Column, GroupColor, Schema, Tab, TabChannel, TabGroup, Tabs, Tile, TileShow};
+use super::{ChatPosition, Column, GroupColor, PanelNode, Schema, Tab, TabChannel, TabGroup, Tabs, Tile, TileShow};
 
 #[derive(Clone, Debug, Deserialize, TS)]
 #[serde(tag = "op", rename_all = "camelCase")]
@@ -75,8 +75,10 @@ pub enum TabOp {
     /// V102-26 The mod view's share of a tile's stream area, its divider dragged. `None`
     /// goes back to the default.
     ModviewShare { tile: String, share: Option<f32> },
-    /// V102-23 Every chat in the tab back where Settings puts it, and V102-26 every mod view
-    /// divider back to its default.
+    /// V103-05 A tile's panels as arranged by hand. `None` goes back to the default.
+    Layout { tile: String, layout: Option<PanelNode> },
+    /// V102-23 Every chat in the tab back where Settings puts it, V102-26 every mod view
+    /// divider back to its default, V103-05 every hand-made arrangement gone.
     ResetLayout { tab: String },
     /// The tile's player volume.
     Sound { tile: String, volume: f32, muted: bool },
@@ -183,6 +185,7 @@ impl Tabs {
                     filters: Vec::new(),
                     chat_side: None,
                     modview_share: None,
+                    layout: None,
                 };
                 let i = self.tab_index(&tab_id)?;
                 let size = average_width(&self.tabs[i]);
@@ -217,6 +220,7 @@ impl Tabs {
                         filters: Vec::new(),
                         chat_side: None,
                         modview_share: None,
+                        layout: None,
                     };
                     columns[i % width].tiles.push(tile);
                 }
@@ -381,12 +385,18 @@ impl Tabs {
                 self.tile_mut(at).modview_share = share;
                 Ok(None)
             }
+            TabOp::Layout { tile, layout } => {
+                let at = self.locate(&tile)?;
+                self.tile_mut(at).layout = layout;
+                Ok(None)
+            }
             TabOp::ResetLayout { tab } => {
                 let i = self.tab_index(&tab)?;
                 for column in &mut self.tabs[i].columns {
                     for t in &mut column.tiles {
                         t.chat_side = None;
                         t.modview_share = None;
+                        t.layout = None;
                     }
                 }
                 Ok(None)
@@ -997,5 +1007,25 @@ mod tests {
         assert_eq!(share(&t, 1), None);
         let mut fresh = || "x".to_owned();
         assert!(t.apply(TabOp::ResetLayout { tab: "gone".into() }, &mut fresh).is_err());
+    }
+
+    #[test]
+    fn hand_made_panel_layouts_are_kept_per_tile_until_reset() {
+        let mut t = tabs(&["a"]);
+        let tile = t.tabs[0].columns[0].tiles[0].id.clone();
+        let op: TabOp = serde_json::from_value(serde_json::json!({
+            "op": "layout", "tile": tile,
+            "layout": {"dir": "row", "parts": [{"panel": "modview"}, {"dir": "column", "parts": [{"panel": "stream"}, {"panel": "chat"}], "sizes": [3, 1]}], "sizes": [1, 1]}
+        }))
+        .unwrap();
+        apply(&mut t, op);
+        let layout = |t: &Tabs| t.tabs[0].columns[0].tiles[0].layout.clone();
+        // V103-05 Stored as given, sizes made shares.
+        let Some(crate::schema::PanelNode::Split { parts, sizes, .. }) = layout(&t) else { panic!() };
+        assert_eq!((parts.len(), sizes), (2, vec![0.5, 0.5]));
+        let back: Tabs = serde_json::from_value(serde_json::to_value(&t).unwrap()).unwrap();
+        assert_eq!(layout(&back), layout(&t));
+        apply(&mut t, TabOp::ResetLayout { tab: "a".into() });
+        assert_eq!(layout(&t), None);
     }
 }

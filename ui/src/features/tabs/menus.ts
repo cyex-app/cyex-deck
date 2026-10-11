@@ -1,6 +1,6 @@
 // Right-click menus for tabs and tab groups (1.18, 1.51, U3, U5), with "Mine first" (1.44),
-// hiding a tile's chat or stream (V101-20), moving its panels (V102-23) and stopping a
-// stream that plays out of sight (V102-15).
+// hiding a tile's chat or stream (V101-20), moving its panels (V102-23, V103-05) and
+// stopping a stream that plays out of sight (V102-15).
 
 import type { MenuEntry } from '../../components/menu.svelte';
 import type { Tab } from '../../ipc/bindings/Tab';
@@ -9,6 +9,8 @@ import type { Tile } from '../../ipc/bindings/Tile';
 import { bindingOf } from '../../lib/hotkeys.svelte';
 import { settings } from '../../lib/settings.svelte';
 import { mineFirstEntry } from '../miner/first';
+import { modviewPlace } from '../modview/where.svelte';
+import { tileState } from '../player/players.svelte';
 import { openAdd, openEdit, openGroupDialog } from './dialog.svelte';
 import { COLOR_ORDER, GROUP_COLORS } from './groupColors';
 import { dragged, layout } from './layout.svelte';
@@ -68,10 +70,12 @@ export function tileEntries(tab: Tab, tile: Tile): MenuEntry[] {
   ];
 }
 
-/** V102-23 Unlock the tab's panels to drag them, or put every chat back. Only where a
- * chat and a stream share a tile. */
+/** V102-23 Unlock the tab's panels to drag them, or put every chat back. V103-05 Wherever
+ * a tile has two panels or more (stream, chat, mod view, a clip beside the chat). */
 export function layoutEntries(tab: Tab): MenuEntry[] {
-  if (!tiles(tab).some((t) => t.show.player && t.show.chat)) return [];
+  const panels = (t: Tile) =>
+    Number(t.show.player || (t.show.chat && tileState(t.id).side !== null)) + Number(t.show.chat) + Number(modviewPlace.isIn(t.id));
+  if (!tiles(tab).some((t) => panels(t) > 1) && !dragged(tab)) return [];
   const on = layout.isUnlocked(tab.id);
   return [
     ...(dragged(tab) ? [{ label: 'Reset layout', icon: 'undo' as const, run: () => layout.reset(tab) }] : []),

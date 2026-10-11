@@ -49,6 +49,11 @@ pub fn remove(app: &AppHandle, kind: Kind, channel_id: &str) {
 
 /// Follows one of an account's own topics, signed in with its GQL token.
 pub fn add_user(app: &AppHandle, account: &str, kind: Kind) {
+    add_user_topic(app, account, kind, account);
+}
+
+/// Like `add_user`, for a topic with its own id, e.g. V103-15's `<user>.<channel>`.
+pub fn add_user_topic(app: &AppHandle, account: &str, kind: Kind, id: &str) {
     let Some(hub) = app.try_state::<Hub>() else { return };
     let mut users = hub.users.lock().unwrap_or_else(|p| p.into_inner());
     let pool = users.entry(account.to_owned()).or_insert_with(|| {
@@ -61,14 +66,18 @@ pub fn add_user(app: &AppHandle, account: &str, kind: Kind) {
         };
         Pool::new(make, hub.events.clone(), spawn)
     });
-    pool.add(Topic::new(kind, account));
+    pool.add(Topic::new(kind, id));
 }
 
 pub fn remove_user(app: &AppHandle, account: &str, kind: Kind) {
+    remove_user_topic(app, account, kind, account);
+}
+
+pub fn remove_user_topic(app: &AppHandle, account: &str, kind: Kind, id: &str) {
     let Some(hub) = app.try_state::<Hub>() else { return };
     let users = hub.users.lock().unwrap_or_else(|p| p.into_inner());
     if let Some(pool) = users.get(account) {
-        pool.remove(&Topic::new(kind, account));
+        pool.remove(&Topic::new(kind, id));
     }
 }
 
@@ -98,6 +107,7 @@ async fn pump(app: AppHandle, mut rx: mpsc::UnboundedReceiver<Event>) {
             | Kind::BroadcastSettings
             | Kind::AdsManager
             | Kind::GuestStarUser => crate::streammanager::on_hermes(&app, &e),
+            Kind::ModActions | Kind::AutomodQueue => crate::moderation::feeds::on_hermes(&app, &e),
         }
     }
 }

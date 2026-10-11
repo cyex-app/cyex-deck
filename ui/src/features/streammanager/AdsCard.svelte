@@ -12,7 +12,7 @@
   import { smIpc } from '../../ipc/streammanager';
   import { formatDuration } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
-  import Card from './Card.svelte';
+  import Card from '../../components/PanelCard.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
   import { adIn, adIntervals, adLengths } from './logic';
   import { sm } from './streammanager.svelte';

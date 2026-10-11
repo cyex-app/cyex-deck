@@ -8,7 +8,7 @@
   import { formatDuration, formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import { predictionLeft, votes } from '../chat/votes.svelte';
-  import Card from './Card.svelte';
+  import Card from '../../components/PanelCard.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
   import { shares } from './logic';
 

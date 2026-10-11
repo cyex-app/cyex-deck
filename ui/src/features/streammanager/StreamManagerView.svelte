@@ -1,20 +1,27 @@
 <!-- 1.35 The stream manager: your own channel at a glance and the tools to run it. A fixed
      view in the main window that pops out (route `streammanager`), e.g. onto a second
-     screen. Needs a Twitch sign-in for your channel (D30). Your chat sits on the right
-     (V102-22), a view on the room a tab may already have open, with its own scroll; it
-     goes under the cards when the window is too narrow for both (V102-24). -->
+     screen. Needs a Twitch sign-in for your channel (D30). Your chat is a panel (V102-22),
+     a view on the room a tab may already have open, with its own scroll. V103-06 The
+     panels are the shared panel layout (`PanelLayout`): unlocked, they drag onto a side of
+     another and resize; locked, neither. Closed ones wait in the corner. Too narrow, they
+     go one under the other (V102-24). V103-15 Mod actions have their own panel. -->
 <script lang="ts">
-  import { untrack } from 'svelte';
-
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
   import EmptyState from '../../components/EmptyState.svelte';
   import IconButton from '../../components/IconButton.svelte';
-  import SplitPane from '../../components/SplitPane.svelte';
-  import { type Box, CARDS, fitTile, type TileFit } from '../../lib/fit';
+  import type { PanelCtl } from '../../components/panel';
+  import Card from '../../components/PanelCard.svelte';
+  import PanelLayout from '../../components/PanelLayout.svelte';
+  import type { Board0 } from '../../ipc/bindings/Board0';
+  import type { ModActionFilters } from '../../ipc/bindings/ModActionFilters';
+  import { modIpc } from '../../ipc/moderation';
+  import { asPatch, type Box, type Edge, fitTree, has, leaf, minOf, move, type Node, prune, remove, restore, setSizes, split, stacked } from '../../lib/panels';
   import { settings } from '../../lib/settings.svelte';
+  import { toast } from '../../lib/toast.svelte';
   import { uptimeShort } from '../browse/lists';
   import ChatView from '../chat/ChatView.svelte';
+  import ModActions from '../modview/ModActions.svelte';
   import ActivityCard from './ActivityCard.svelte';
   import AdsCard from './AdsCard.svelte';
   import InfoCard from './InfoCard.svelte';
@@ -50,61 +57,136 @@
 
   const m = $derived(sm.manager);
   const s = $derived(sm.stats);
+  const cfg = $derived(settings.v.streammanager);
+  const locked = $derived(cfg.locked);
 
-  // V102-22 The chat's width is saved; turned round to fit (V102-24), a drag lasts until
-  // there's room again.
-  const chat = $derived(settings.v.streammanager.chat);
-  let body = $state<HTMLElement>();
+  type Id = 'stream' | 'info' | 'activity' | 'actions' | 'modes' | 'poll' | 'prediction' | 'raid' | 'ads' | 'markers' | 'together' | 'chat';
+  const INFO: Record<Id, { title: string; hint: string; min: Box; tall: number }> = {
+    stream: { title: 'Stream', hint: 'Preview, viewers, followers, subs.', min: { w: 220, h: 200 }, tall: 320 },
+    info: { title: 'Stream info', hint: 'Title, category, tags.', min: { w: 220, h: 160 }, tall: 280 },
+    activity: { title: 'Activity', hint: 'Follows, subs, cheers, raids, rewards.', min: { w: 240, h: 150 }, tall: 320 },
+    actions: { title: 'Mod actions', hint: 'Bans, timeouts, deletes and more.', min: { w: 240, h: 150 }, tall: 300 },
+    modes: { title: 'Chat settings', hint: 'Slow, followers-only, sub-only, emote-only.', min: { w: 200, h: 110 }, tall: 220 },
+    poll: { title: 'Poll', hint: 'Start or end a poll.', min: { w: 200, h: 110 }, tall: 280 },
+    prediction: { title: 'Prediction', hint: 'Start, lock or pay out.', min: { w: 200, h: 110 }, tall: 300 },
+    raid: { title: 'Raid', hint: 'Raid another channel.', min: { w: 200, h: 110 }, tall: 240 },
+    ads: { title: 'Ads', hint: 'Run an ad, snooze, schedule.', min: { w: 200, h: 110 }, tall: 260 },
+    markers: { title: 'Markers', hint: 'Mark moments for your VOD.', min: { w: 200, h: 110 }, tall: 200 },
+    together: { title: 'Stream Together', hint: 'Guests and join requests.', min: { w: 200, h: 110 }, tall: 260 },
+    chat: { title: 'Chat', hint: 'Your chat, as you.', min: { w: 240, h: 200 }, tall: 460 },
+  };
+  /** Page order; never changes. The chat is last, so stacked it's at the bottom. */
+  const ORDER: Id[] = ['stream', 'info', 'modes', 'activity', 'actions', 'poll', 'prediction', 'raid', 'ads', 'markers', 'together', 'chat'];
+  /** Where every panel sits by default; a closed one comes back here. */
+  const full = (chatShare: number): Node =>
+    split(
+      'row',
+      [
+        split(
+          'row',
+          [
+            split('column', [leaf('stream'), leaf('info'), leaf('modes')], [0.4, 0.35, 0.25]),
+            split('column', [leaf('activity'), leaf('actions')], [0.6, 0.4]),
+            split('column', [leaf('poll'), leaf('prediction'), leaf('raid'), leaf('ads'), leaf('markers'), leaf('together')]),
+          ],
+          [0.36, 0.37, 0.27],
+        ),
+        leaf('chat'),
+      ],
+      [1 - chatShare, chatShare],
+    );
+  /** Open the rest from the corner (assumption, DECISIONS.md). */
+  const START_CLOSED: string[] = ['markers', 'together'];
+  const GAP = 8;
+  const PAD = 8;
+  const min = (id: string) => INFO[id as Id]?.min ?? { w: 200, h: 110 };
+
+  const FULL = $derived(full(cfg.chat.share));
+  /** The arrangement; before V103-06 only the chat's place and width were kept. */
+  const tree = $derived<Node | null>(
+    cfg.layout ?? prune(FULL, (id) => !START_CLOSED.includes(id) && (id !== 'chat' || cfg.chat.shown)),
+  );
+  const closed = $derived(ORDER.filter((id) => !has(tree, id)).map((id) => ({ id, title: INFO[id].title, hint: INFO[id].hint })));
+  const chatShown = $derived(has(tree, 'chat'));
+
   let box = $state<Box>({ w: 0, h: 0 });
-  let fit = $state<TileFit | null>(null);
-  let movedShare = $state<number | null>(null);
-
-  $effect(() => {
-    if (!body) return;
-    const ro = new ResizeObserver(([e]) => (box = { w: e.contentRect.width, h: e.contentRect.height }));
-    ro.observe(body);
-    return () => ro.disconnect();
+  const narrow = $derived(
+    tree !== null && box.w > 0 && minOf(tree, (id) => ({ w: min(id).w + GAP, h: 0 })).w - GAP + 2 * PAD > box.w,
+  );
+  const fitted = $derived.by(() => {
+    if (!tree || box.w <= 0 || box.h <= 0) return null;
+    if (narrow) return stacked(tree, box.w, (id) => INFO[id as Id]?.tall ?? 240, GAP, PAD);
+    return fitTree(tree, box, { min, gap: GAP, pad: PAD });
   });
 
+  function save(next: Node | null) {
+    if (next) void settings.patch('streammanager', { layout: asPatch(next) as never });
+  }
+
+  function drop(panel: string, target: string | null, edge: Edge) {
+    save(move(tree, panel, target, edge));
+  }
+
+  function even(path: number[]) {
+    if (!tree || narrow) return;
+    const n = path.reduce<Node | null>((x, i) => (x && 'dir' in x ? x.parts[i] : null), tree);
+    if (n && 'dir' in n) save(setSizes(tree, path, n.parts.map(() => 1)));
+  }
+
+  function toggleChat() {
+    save(chatShown ? remove(tree, 'chat') : restore(tree, 'chat', FULL));
+  }
+
+  function resetLayout() {
+    void settings.patch('streammanager', { layout: null as never, chat: { shown: true } });
+    toast.info('Stream manager layout reset.');
+  }
+
+  // V103-15 The mod actions on your channel: the same board as its mod view.
+  let board = $state<Board0>({ activity: [], actions: [], held: [], suspicious: [], older: false });
   $effect(() => {
-    const b = box;
-    if (!chat.shown || b.w <= 0 || b.h <= 0) return;
-    const next = fitTile(b, 'right', chat.share, untrack(() => fit?.moved ?? false), CARDS);
-    if (!next.moved) movedShare = null;
-    fit = next;
+    const id = m?.accountId;
+    if (!id) return;
+    let stop: (() => void) | undefined;
+    let gone = false;
+    // Listening first, then the snapshot, so nothing in between is missed.
+    void modIpc.onBoard(id, (b) => (board = b)).then((u) => {
+      if (gone) return u();
+      stop = u;
+      modIpc.view(id).then((b) => !gone && (board = b)).catch(() => {});
+    });
+    return () => {
+      gone = true;
+      stop?.();
+    };
   });
 
-  const row = $derived(!fit || fit.side === 'right');
-  const share = $derived(fit?.moved ? (movedShare ?? fit.ratio) : (fit?.ratio ?? chat.share));
-
-  function setShare(v: number) {
-    if (fit?.moved) movedShare = v;
-    else void settings.patch('streammanager', { chat: { share: v } });
+  function flip(key: keyof ModActionFilters) {
+    void settings.patch('streammanager', { modActions: { [key]: !cfg.modActions[key] } });
   }
 </script>
 
-{#snippet cards()}
+{#snippet panel(id: string, _ctl: PanelCtl)}
   {#if m}
-    <div class="grid">
-      <StreamCard />
-      <InfoCard />
-      <ActivityCard />
-      <PollCard login={m.login} />
-      <PredictionCard login={m.login} />
-      <ModesCard />
-      <AdsCard />
-      <RaidCard />
-      <MarkersCard />
-      <TogetherCard />
-    </div>
-  {/if}
-{/snippet}
-
-{#snippet chatPane()}
-  {#if m}
-    <div class="chat">
-      {#key m.accountId}<ChatView login={m.login} name={m.display} account={m.accountId} />{/key}
-    </div>
+    {#if id === 'stream'}<StreamCard />
+    {:else if id === 'info'}<InfoCard />
+    {:else if id === 'activity'}<ActivityCard />
+    {:else if id === 'actions'}
+      <ModActions items={board.actions} older={board.older} filters={cfg.modActions} onflip={flip} account={m.accountId} login={m.login} />
+    {:else if id === 'poll'}<PollCard login={m.login} />
+    {:else if id === 'prediction'}<PredictionCard login={m.login} />
+    {:else if id === 'modes'}<ModesCard />
+    {:else if id === 'ads'}<AdsCard />
+    {:else if id === 'raid'}<RaidCard />
+    {:else if id === 'markers'}<MarkersCard />
+    {:else if id === 'together'}<TogetherCard />
+    {:else if id === 'chat'}
+      <Card title="Chat" flush>
+        <div class="chat">
+          {#key m.accountId}<ChatView login={m.login} name={m.display} account={m.accountId} />{/key}
+        </div>
+      </Card>
+    {/if}
   {/if}
 {/snippet}
 
@@ -126,33 +208,51 @@
       {:else if s}
         <span class="off">Offline</span>
       {/if}
+      {#if !locked}<span class="hint">Drag panels by their title.</span>{/if}
       <span class="spacer"></span>
+      {#if cfg.layout}
+        <button class="link" onclick={resetLayout}>Reset layout</button>
+      {/if}
       <IconButton
         icon="chat"
-        label={chat.shown ? 'Hide chat' : 'Show chat'}
+        label={chatShown ? 'Hide chat' : 'Show chat'}
         hint="Your chat next to the cards."
         size={15}
-        active={chat.shown}
-        onclick={() => void settings.patch('streammanager', { chat: { shown: !chat.shown } })}
+        active={chatShown}
+        onclick={toggleChat}
+      />
+      <IconButton
+        icon={locked ? 'lock' : 'grid'}
+        label={locked ? 'Unlock layout' : 'Lock layout'}
+        hint={locked ? 'Move, resize and close panels.' : 'Stops panels from moving when you drag by accident.'}
+        size={15}
+        onclick={() => void settings.patch('streammanager', { locked: !locked })}
       />
       {#if !popout && onpopout}
         <IconButton icon="popout" label="Pop out" hint="Open the stream manager in its own window." size={15} onclick={onpopout} />
       {/if}
     </header>
-    <div class="body" bind:this={body}>
-      {#if chat.shown}
-        <SplitPane
-          direction={row ? 'row' : 'column'}
-          ratio={1 - share}
-          reset={0.7}
-          onchange={(first) => setShare(1 - first)}
-          first={cards}
-          second={chatPane}
-        />
-      {:else}
-        {@render cards()}
-      {/if}
-    </div>
+    <PanelLayout
+      key="streammanager"
+      shown={fitted?.tree ?? null}
+      size={fitted?.box ?? null}
+      order={ORDER}
+      {panel}
+      unlocked={!locked}
+      resizable={!locked && !narrow}
+      gap={GAP}
+      pad={PAD}
+      bind:box
+      {min}
+      label={(id) => INFO[id as Id]?.title ?? id}
+      tray={closed}
+      empty="Every panel is closed."
+      onresize={(path, sizes) => tree && !narrow && save(setSizes(tree, path, sizes))}
+      onreset={(path) => even(path)}
+      ondrop={drop}
+      onclose={(id) => save(remove(tree, id))}
+      onrestore={(id) => save(restore(tree, id, FULL))}
+    />
   {/if}
 </div>
 
@@ -206,30 +306,31 @@
     font-size: 0.8rem;
     font-variant-numeric: tabular-nums;
   }
+  .hint {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 0.75rem;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
   .spacer {
     flex: 1;
   }
-  .body {
-    flex: 1;
-    min-height: 0;
-    display: flex;
+  .link {
+    background: none;
+    border: 0;
+    color: var(--muted);
+    font-size: 0.8rem;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .link:hover {
+    color: var(--text);
   }
   .chat {
     flex: 1;
     min-width: 0;
     min-height: 0;
     display: flex;
-  }
-  .grid {
-    flex: 1;
-    min-width: 0;
-    min-height: 0;
-    overflow: auto;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    grid-auto-rows: max-content;
-    gap: 10px;
-    padding: 10px;
-    align-content: start;
   }
 </style>

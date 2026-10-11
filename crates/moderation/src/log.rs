@@ -51,6 +51,9 @@ pub fn describe(m: &Moderate, secs: Option<u64>) -> String {
         "approve_unban_request" => why(format!("{by} approved {who}'s unban request")),
         "deny_unban_request" => why(format!("{by} denied {who}'s unban request")),
         "warn" => why(format!("{by} warned {who}")),
+        "approved_automod_message" => format!("{by} approved a held message from {who}."),
+        "denied_automod_message" => format!("{by} denied a held message from {who}."),
+        "shield" | "shieldoff" => toggled("shield mode", action == "shield"),
         other => format!("{by}: {other}."),
     };
     match &m.source_channel {

@@ -1,7 +1,7 @@
 <!-- A tab's content (U3): columns of tiles with draggable dividers. Sizes are shares,
      so the layout follows the window (3.10). Columns too narrow for their chats stack
      into one until there's room again (V102-24). Unlocked, a bar says how to move the
-     panels (V102-23). -->
+     panels (V102-23, V103-05). -->
 <script lang="ts">
   import { untrack } from 'svelte';
 
@@ -97,7 +97,7 @@
 <div class="tab-wrap" data-tab-view={tab.id}>
   {#if unlocked}
     <div class="unlocked">
-      <span>Drag a chat or stream by its title bar onto a side of the other.</span>
+      <span>Drag a panel by its title bar onto a side of another.</span>
       {#if dragged(tab)}<Button variant="ghost" small icon="undo" onclick={() => layout.reset(tab)}>Reset layout</Button>{/if}
       <Button variant="primary" small icon="lock" onclick={() => layout.setUnlocked(tab.id, false)}>Done</Button>
     </div>

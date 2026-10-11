@@ -5,7 +5,7 @@
   import IconButton from '../../components/IconButton.svelte';
   import { smIpc } from '../../ipc/streammanager';
   import { toast } from '../../lib/toast.svelte';
-  import Card from './Card.svelte';
+  import Card from '../../components/PanelCard.svelte';
   import { sm } from './streammanager.svelte';
 
   const MAX = 140;

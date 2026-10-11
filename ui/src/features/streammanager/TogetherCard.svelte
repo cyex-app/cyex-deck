@@ -10,7 +10,7 @@
   import type { SmTogether } from '../../ipc/bindings/SmTogether';
   import { smIpc } from '../../ipc/streammanager';
   import { toast } from '../../lib/toast.svelte';
-  import Card from './Card.svelte';
+  import Card from '../../components/PanelCard.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
 
   /** Twitch allows the host plus five guests. */

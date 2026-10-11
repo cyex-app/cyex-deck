@@ -1,7 +1,8 @@
 // V102-24 When a panel gets too small to use and where it goes instead. The sizes live
 // here and nowhere else (logged in DECISIONS.md). A moved layout is never saved: the
 // user's own (Settings 2.1 or dragged, V102-23) comes back once there's room again.
-// V102-26 The mod view inside a tab is placed here too.
+// V102-26 The mod view inside a tab is placed here too. V103-06 The mod view's and the stream
+// manager's own panels fit through `lib/panels.ts` (`fitTree`), with their sizes there.
 
 /** Smallest usable sizes, in CSS pixels. */
 export const MIN = {
@@ -16,9 +17,6 @@ export const MIN = {
   /** The picture with its controls. */
   streamW: 240,
   streamH: 135,
-  /** The stream manager's cards (V102-22): one column of them. */
-  cardsW: 300,
-  cardsH: 240,
   /** V102-26 The mod view in a tab: one column of widgets, its header and one widget. */
   modviewW: 320,
   modviewH: 260,
@@ -74,9 +72,6 @@ export interface Partner {
 }
 
 export const STREAM: Partner = { min: { w: MIN.streamW, h: MIN.streamH }, stacked: stackedShare };
-
-/** V102-22 The stream manager's cards. */
-export const CARDS: Partner = { min: { w: MIN.cardsW, h: MIN.cardsH }, stacked: (box) => Math.max(MIN.chatH / box.h, 0.45) };
 
 /** V102-26 A mod view beside a chat that has no stream. */
 export const MODVIEW: Partner = { min: { w: MIN.modviewW, h: MIN.modviewH }, stacked: (box) => Math.max(MIN.chatH / box.h, 0.45) };

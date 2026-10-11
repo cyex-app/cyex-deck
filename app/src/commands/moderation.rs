@@ -46,6 +46,13 @@ pub fn mod_view(app: AppHandle, channel_id: String) -> Board0 {
     moderation::view::snapshot(&app, &channel_id)
 }
 
+/// V103-15 Reads Twitch's history of the channel's mod actions into its board: the first
+/// page once, or with `older` the next older one.
+#[tauri::command]
+pub async fn mod_actions_history(app: AppHandle, account: String, channel: String, older: bool) -> Result<(), String> {
+    moderation::queue::channel_history(&app, &account, &channel, older).await
+}
+
 #[tauri::command]
 pub async fn mod_automod(app: AppHandle, account: String, channel: String, msg_id: String, allow: bool) -> Result<(), String> {
     moderation::queue::resolve_automod(&app, &account, &channel, &msg_id, allow).await

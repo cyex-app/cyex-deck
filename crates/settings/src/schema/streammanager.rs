@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use super::Schema;
+use super::{PanelNode, Schema, sanitize_panels};
 
 /// 1.35, X4 Stream manager options: the activity-feed filters and the OBS status files.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(default, rename_all = "camelCase")]
 #[ts(export)]
 pub struct StreamManager {
@@ -15,8 +15,68 @@ pub struct StreamManager {
     /// D4 The channel's alerts were seen playing in Twitch's alert box, so the feed offers
     /// Replay and Skip. Learned, not set by hand.
     pub alert_box: bool,
-    /// V102-22 Your chat next to the cards.
+    /// V102-22 Your chat next to the cards. Its width is only read while `layout` is unset.
     pub chat: ManagerChat,
+    /// V103-06 The panels as arranged; the ones missing wait in the closed-panels corner.
+    /// `None` is the UI's default.
+    #[ts(optional = nullable)]
+    pub layout: Option<PanelNode>,
+    /// V103-06 When on, panels can't be dragged or resized. On until the user unlocks it.
+    pub locked: bool,
+    /// V103-15 Which mod actions the "Mod actions" panel shows.
+    pub mod_actions: ModActionFilters,
+}
+
+impl Default for StreamManager {
+    fn default() -> Self {
+        Self {
+            activity: ActivityFilters::default(),
+            obs: Obs::default(),
+            alert_box: false,
+            chat: ManagerChat::default(),
+            layout: None,
+            locked: true,
+            mod_actions: ModActionFilters::default(),
+        }
+    }
+}
+
+/// V103-15 The kinds of mod action a "Mod actions" panel shows; all on until one is hidden.
+/// Shared by the mod view (`modview.modActions`) and the stream manager.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(default, rename_all = "camelCase")]
+#[ts(export)]
+pub struct ModActionFilters {
+    /// Bans and unbans.
+    pub bans: bool,
+    /// Timeouts and lifted timeouts.
+    pub timeouts: bool,
+    pub warnings: bool,
+    /// Deleted messages and cleared chats.
+    pub deletions: bool,
+    /// Chat modes: slow, followers, subscribers, emote-only, unique chat, shield mode.
+    pub modes: bool,
+    /// Mods and VIPs added or removed.
+    pub roles: bool,
+    /// AutoMod decisions, blocked and allowed terms.
+    pub automod: bool,
+    /// Unban requests answered, raids and anything else.
+    pub other: bool,
+}
+
+impl Default for ModActionFilters {
+    fn default() -> Self {
+        Self {
+            bans: true,
+            timeouts: true,
+            warnings: true,
+            deletions: true,
+            modes: true,
+            roles: true,
+            automod: true,
+            other: true,
+        }
+    }
 }
 
 /// V102-22 The stream manager's chat panel: on the right by default, its width dragged.
@@ -86,6 +146,7 @@ impl Schema for StreamManager {
     fn sanitize(&mut self) {
         let share = self.chat.share;
         self.chat.share = if share.is_finite() { share.clamp(0.15, 0.85) } else { ManagerChat::default().share };
+        self.layout = sanitize_panels(self.layout.take());
     }
 }
 
@@ -109,5 +170,14 @@ mod tests {
         assert!(sm.chat.shown);
         sm.sanitize();
         assert_eq!(sm.chat.share, 0.85);
+    }
+
+    #[test]
+    fn panels_start_locked_with_every_mod_action_shown() {
+        // V103-06 Files from before the panel layout get it locked and unset.
+        let sm: StreamManager = serde_json::from_str(r#"{"chat":{"shown":false}}"#).unwrap();
+        assert!(sm.locked && sm.layout.is_none() && !sm.chat.shown);
+        let f: ModActionFilters = serde_json::from_str(r#"{"bans":false}"#).unwrap();
+        assert!(!f.bans && f.timeouts && f.automod && f.other);
     }
 }

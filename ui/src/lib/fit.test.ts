@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
-  CARDS,
   fitModview,
   fitTile,
   HYSTERESIS,
@@ -70,12 +69,6 @@ test('narrow columns of chats stack, and come back with room to spare', () => {
   // Too short to stack them all: stays in columns.
   assert.equal(stackColumns({ w: 600, h: 500 }, cols(3)), false);
   assert.equal(stackColumns({ w: 600, h: 800 }, cols(1)), false, 'one column has nothing to stack');
-});
-
-test('the stream manager chat goes under the cards when both do not fit side by side (V102-22)', () => {
-  assert.deepEqual(fitTile({ w: 1000, h: 700 }, 'right', 0.3, false, CARDS), { side: 'right', ratio: 0.3, moved: false });
-  const f = fitTile({ w: 500, h: 700 }, 'right', 0.3, false, CARDS);
-  assert.deepEqual([f.side, f.moved, f.ratio], ['bottom', true, 0.45]);
 });
 
 // V102-26 The mod view inside a tab.

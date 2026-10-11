@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { edgeAt, groupAt, rowSlot, sideAfterDrop, zoneAt } from './zones.ts';
+import { edgeAt, groupAt, rowSlot, zoneAt } from './zones.ts';
 
 const box = { left: 100, top: 100, width: 200, height: 100 };
 
@@ -59,7 +59,4 @@ test('a panel dropped on its partner lands on the closest edge (V102-23)', () =>
   assert.equal(edgeAt(box, 200, 110), 'top');
   assert.equal(edgeAt(box, 290, 150), 'right');
   assert.equal(edgeAt(box, 200, 195), 'bottom');
-  assert.equal(sideAfterDrop('chat', 'bottom'), 'bottom', 'chat dropped under the stream');
-  assert.equal(sideAfterDrop('stream', 'bottom'), 'top', 'stream dropped under the chat');
-  assert.equal(sideAfterDrop('stream', 'left'), 'right');
 });

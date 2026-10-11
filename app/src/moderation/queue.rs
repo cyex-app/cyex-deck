@@ -4,10 +4,13 @@
 
 use std::collections::HashSet;
 
+use cyex_moderation::actions::ModLine;
 use cyex_twitch::gql;
 use cyex_twitch::gql::modlogs::{Chatters, ModHistory, UnbanRequest};
 use cyex_twitch::helix::moderation as hm;
 use tauri::AppHandle;
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 
 use super::{codes, http};
 
@@ -72,6 +75,39 @@ pub async fn history(app: &AppHandle, account: &str, login: &str, target_id: &st
     let g = actor.gql().ok_or("Mod history needs a GQL sign-in.")?;
     let channel_id = actor.channel_id.clone();
     gql::modlogs::history(&http(app), g, &channel_id, target_id).await.map_err(err)
+}
+
+/// V103-15 The next page of the channel's mod-action history into its board (GQL only):
+/// the first page once, or with `older` the page after the ones shown. Mods only (V102-21).
+pub async fn channel_history(app: &AppHandle, account: &str, login: &str, older: bool) -> Result<(), String> {
+    // Your own channel needs no open chat to say you're its broadcaster (the stream manager).
+    let own = crate::auth::accounts(app)
+        .list
+        .iter()
+        .any(|a| a.user_id == account && a.login.eq_ignore_ascii_case(login));
+    let cid = if own { account.to_owned() } else { super::actor(app, account, login)?.channel_id };
+    let (token, client_id) = crate::auth::gql_token(app, account).ok_or("Earlier mod actions need a GQL sign-in.")?;
+    let g = gql::Auth {
+        client_id: &client_id,
+        token: Some(&token),
+    };
+    let Some(after) = super::view::history_next(app, &cid, older) else { return Ok(()) };
+    match gql::modlogs::channel_actions(&http(app), g, &cid, after.as_deref()).await {
+        Ok(page) => {
+            let lines = page.actions.iter().map(|a| ModLine::past(a, millis(&a.at))).collect();
+            super::view::add_history(app, &cid, Some((lines, page.cursor)), after);
+            Ok(())
+        }
+        Err(e) => {
+            super::view::add_history(app, &cid, None, after);
+            Err(err(e))
+        }
+    }
+}
+
+/// RFC 3339 as unix milliseconds; 0 when unreadable.
+fn millis(at: &str) -> i64 {
+    OffsetDateTime::parse(at, &Rfc3339).map_or(0, |t| (t.unix_timestamp_nanos() / 1_000_000) as i64)
 }
 
 /// M8 A page of a user's messages from the channel's mod logs (GQL only).

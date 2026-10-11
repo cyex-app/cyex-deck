@@ -455,3 +455,116 @@ async fn bell_raw_shape() {
         println!("{}", serde_json::to_string_pretty(&shape(&v["data"])).unwrap());
     }
 }
+
+/// V103-15: the channel's mod-action history (`moderationActionLogs`) on the account's own
+/// channel, and which mod topics Hermes takes with its token. Reads and subscribes only.
+/// Prints the answer's shape and the first few lines' kinds, never names or the token.
+#[tokio::test]
+#[ignore = "network, signed in"]
+async fn mod_actions_history_and_topics() {
+    use futures_util::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::Message;
+    let http = Http::new().unwrap();
+    let (token, client_id) = gql_sign_in();
+    let auth = Auth {
+        client_id: &client_id,
+        token: Some(&token),
+    };
+    let me = gql::profile::profile(&http, auth).await.unwrap();
+    let channel = std::env::var("MODLOG_CHANNEL").unwrap_or_else(|_| me.id.clone());
+    let tokens = "localizedStringFragments { token { __typename ... on ModActionsLocalizedTextToken { text } ... on User { id login } } }";
+    let q = format!(
+        "query {{ channel(id: \"{channel}\") {{ moderationActionLogs(first: 100) {{ __typename \
+         ... on ModerationActionLogsError {{ code }} \
+         ... on ModerationActionLogsConnection {{ pageInfo {{ hasNextPage }} edges {{ cursor node {{ id createdAt icon filterCategoryID \
+         details {{ __typename }} user {{ __typename ... on User {{ id }} }} title {{ {tokens} }} content {{ {tokens} }} contentBody {{ {tokens} }} }} }} }} }} }} }}"
+    );
+    let res = reqwest::Client::new()
+        .post("https://gql.twitch.tv/gql")
+        .header("Client-Id", &client_id)
+        .header("Authorization", format!("OAuth {token}"))
+        .header("User-Agent", gql::TV_USER_AGENT)
+        .header("Origin", "https://android.tv.twitch.tv")
+        .header("Referer", "https://android.tv.twitch.tv/")
+        .json(&serde_json::json!({ "query": q }))
+        .send()
+        .await
+        .unwrap();
+    println!("status {}", res.status());
+    let v: serde_json::Value = res.json().await.unwrap();
+    println!("errors {}", v["errors"]);
+    let logs = &v["data"]["channel"]["moderationActionLogs"];
+    println!("type {} code {} more {}", logs["__typename"], logs["code"], logs["pageInfo"]["hasNextPage"]);
+    let edges = logs["edges"].as_array().map_or(&[][..], Vec::as_slice);
+    println!("edges {}", edges.len());
+    // The app's own reader, two pages.
+    let page = gql::modlogs::channel_actions(&http, auth, &channel, None).await.unwrap();
+    let older = match page.cursor.as_deref() {
+        Some(c) => gql::modlogs::channel_actions(&http, auth, &channel, Some(c)).await.unwrap().actions.len(),
+        None => 0,
+    };
+    println!("reader: {} lines, older page {older}", page.actions.len());
+    // Kinds only: text tokens as they are, users as `@user`.
+    let render = |t: &serde_json::Value| -> String {
+        t["localizedStringFragments"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|f| match f["token"]["__typename"].as_str() {
+                Some("User") => "@user".to_owned(),
+                _ => f["token"]["text"].as_str().unwrap_or("?").to_owned(),
+            })
+            .collect()
+    };
+    let mut seen = std::collections::HashSet::new();
+    for e in edges {
+        let n = &e["node"];
+        // One line per kind of wording.
+        if !seen.insert(format!("{}{}{}", n["icon"], render(&n["content"]), render(&n["title"]).len().min(1))) {
+            continue;
+        }
+        println!(
+            "{} {} {} details={} user={} cursor={} | title: {} | content: {} | body: {}",
+            n["createdAt"],
+            n["icon"],
+            n["filterCategoryID"],
+            n["details"]["__typename"],
+            n["user"]["__typename"],
+            e["cursor"].is_string(),
+            render(&n["title"]),
+            render(&n["content"]),
+            if std::env::var("MODLOG_BODY").is_ok() { render(&n["contentBody"]) } else if render(&n["contentBody"]).is_empty() { String::new() } else { "<text>".into() },
+        );
+    }
+
+    let url = format!("wss://hermes.twitch.tv/v1?clientId={}", cyex_twitch::clients::WEB);
+    let (mut ws, _) = tokio_tungstenite::connect_async(url.as_str()).await.unwrap();
+    let ts = cyex_twitch::clock::now_iso();
+    let id = me.id.as_str();
+    let topics = [
+        ("c", format!("chat_moderator_actions.{id}.{channel}")),
+        ("m", format!("moderator-actions.{id}.{channel}")),
+        ("a", format!("automod-queue.{id}.{channel}")),
+    ];
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(12);
+    while let Ok(Some(Ok(msg))) = tokio::time::timeout_at(deadline, ws.next()).await {
+        let Message::Text(text) = msg else { continue };
+        let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+        match v["type"].as_str().unwrap_or_default() {
+            "welcome" => {
+                let a = serde_json::json!({"type":"authenticate","id":"a1","authenticate":{"token":token},"timestamp":ts});
+                ws.send(Message::Text(a.to_string().into())).await.unwrap();
+            }
+            "authenticateResponse" => {
+                println!("auth: {}", v["authenticateResponse"]["result"]);
+                for (sid, topic) in &topics {
+                    let s = serde_json::json!({"type":"subscribe","id":format!("r{sid}"),
+                        "subscribe":{"id":sid,"type":"pubsub","pubsub":{"topic":topic}},"timestamp":ts});
+                    ws.send(Message::Text(s.to_string().into())).await.unwrap();
+                }
+            }
+            "subscribeResponse" => println!("subscribe {}: {}", v["parentId"], v["subscribeResponse"]),
+            _ => {}
+        }
+    }
+}
