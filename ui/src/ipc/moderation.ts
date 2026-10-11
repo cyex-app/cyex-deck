@@ -20,6 +20,9 @@ export const modIpc = {
   /** Runs a mod command, e.g. name "ban", args "spammer bots". Returns a line to show. */
   run: (account: string, channel: string, name: string, args: string) =>
     invoke<string | null>('mod_run', { account, channel, name, args }),
+  /** M11 Sends a message and pins it for `secs`. */
+  pinSend: (account: string, channel: string, text: string, secs: number) =>
+    invoke<void>('mod_pin_send', { account, channel, text, secs }),
   channelId: (channel: string) => invoke<string | null>('mod_channel_id', { channel }),
   view: (channelId: string) => invoke<Board0>('mod_view', { channelId }),
   automod: (account: string, channel: string, msgId: string, allow: boolean) =>

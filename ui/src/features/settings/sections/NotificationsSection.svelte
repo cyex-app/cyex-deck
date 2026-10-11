@@ -15,7 +15,7 @@
   import { accounts } from '../../../lib/accounts.svelte';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
-  import { CHANNEL_STATES, countOn, group, PLATFORMS, sends, type Category, type Group } from '../notify';
+  import { CHANNEL_STATES, countOn, group, PLATFORMS, sends, smart, type Category, type Group } from '../notify';
 
   const n = $derived(settings.v.notifications);
   const account = $derived(accounts.current);
@@ -32,6 +32,7 @@
   let opened = $state<string[]>([]);
 
   const sw = $derived(group(switches));
+  const smartOn = $derived(smart(switches));
   const q = $derived(query.trim().toLowerCase());
   const shown = $derived(channels.filter((c) => !q || c.login.includes(q) || c.name.toLowerCase().includes(q)));
 
@@ -204,6 +205,11 @@
   {#if twitch && sw.groups.length}
     <h3 class="label">What Twitch sends</h3>
     <p class="note">Twitch's own settings for {account.displayName}, saved on Twitch. Open a group to pick single ones.</p>
+    {#if smartOn !== null}
+      <Row label="Smart delivery" hint="Live alerts reach you once: on Twitch while you're there, else by phone or email.">
+        <Toggle label="Smart delivery" checked={smartOn} onchange={(on) => void setSwitch('LIVE', 'smart', on)} />
+      </Row>
+    {/if}
     <div class="grid">
       <span></span>
       {#each PLATFORMS as p (p.id)}<span class="head">{p.label}</span>{/each}

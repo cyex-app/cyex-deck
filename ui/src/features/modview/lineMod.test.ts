@@ -3,7 +3,8 @@ import { test } from 'node:test';
 
 import { modButtonsFor, type LineMod } from './lineMod.ts';
 
-const mod: LineMod = { me: '1', broadcaster: false, inline: true, timeout: 60 };
+const buttons = { delete: true, timeouts: [60], warn: false, ban: true };
+const mod: LineMod = { me: '1', broadcaster: false, inline: true, buttons };
 const user = (id: string, login: string, ...sets: string[]) => ({ id, login, badges: sets.map((set) => ({ set })) });
 
 test('mod mode puts buttons on viewers only (V101-33)', () => {

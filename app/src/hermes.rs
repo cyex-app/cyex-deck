@@ -85,11 +85,19 @@ async fn pump(app: AppHandle, mut rx: mpsc::UnboundedReceiver<Event>) {
                 crate::chat::live::on_event(&app, &e);
                 crate::miner::on_channel_event(&app, &e);
             }
-            Kind::Playback | Kind::Raid | Kind::Moments => crate::miner::on_channel_event(&app, &e),
+            Kind::Playback | Kind::Raid => {
+                crate::miner::on_channel_event(&app, &e);
+                crate::streammanager::on_hermes(&app, &e);
+            }
+            Kind::Moments => crate::miner::on_channel_event(&app, &e),
             Kind::UserPoints | Kind::UserPredictions => crate::miner::on_user_event(&app, &e),
             Kind::Whispers => crate::whispers::on_hermes(&app, &e),
             Kind::Onsite => crate::bell::on_event(&app, &e),
-            Kind::ActivityAlerts | Kind::ActivityFeed => crate::streammanager::on_hermes(&app, &e),
+            Kind::ActivityAlerts
+            | Kind::ActivityFeed
+            | Kind::BroadcastSettings
+            | Kind::AdsManager
+            | Kind::GuestStarUser => crate::streammanager::on_hermes(&app, &e),
         }
     }
 }

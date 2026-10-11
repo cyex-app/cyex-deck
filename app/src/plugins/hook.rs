@@ -83,7 +83,9 @@ pub fn to_line(channel: &str, m: &ChatMessage) -> Line {
         id: m.id.clone(),
         channel: channel.to_owned(),
         time: m.ts,
-        kind: if m.notice.is_some() {
+        kind: if m.meta.plugin.is_some() {
+            "plugin"
+        } else if m.notice.is_some() {
             "notice"
         } else if m.has(Flag::Action) {
             "action"
@@ -119,5 +121,6 @@ pub fn to_line(channel: &str, m: &ChatMessage) -> Line {
             first: m.has(Flag::FirstMessage),
             deleted: m.has(Flag::Deleted),
         },
+        plugin: m.meta.plugin.as_ref().map(|p| p.id.clone()),
     }
 }

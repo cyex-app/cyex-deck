@@ -1,14 +1,15 @@
 //! 1.40 For accounts with only a Helix sign-in: the emotes they can use
-//! (`user:read:emotes`) and their name color (`user:manage:chat_color`).
+//! (`user:read:emotes`), their name color (`user:manage:chat_color`) and, for M11,
+//! sending a message to learn its id (`user:write:chat`).
 
 use std::collections::HashMap;
 
 use serde::Deserialize;
 
-use super::{Auth, get};
+use super::{Auth, get, post};
 use crate::gql::{EmoteKind, EmoteOwner, EmoteSet, TwitchEmote};
 use crate::http::{empty, json};
-use crate::{Http, Result};
+use crate::{Error, Http, Result};
 
 const MAX_PAGES: usize = 30;
 
@@ -94,6 +95,38 @@ fn group(raw: Vec<RawEmote>) -> Vec<EmoteSet> {
         });
     }
     order.into_iter().filter_map(|id| sets.remove(&id)).collect()
+}
+
+/// M11 Sends a chat message and returns its id; [`Error::Refused`] with Twitch's reason
+/// when it was dropped (AutoMod, slow mode, …).
+pub async fn send_message(http: &Http, auth: Auth<'_>, broadcaster_id: &str, sender_id: &str, text: &str) -> Result<String> {
+    let req = post(http, auth, "/chat/messages")
+        .json(&serde_json::json!({ "broadcaster_id": broadcaster_id, "sender_id": sender_id, "message": text }));
+    let page: Sent = json(req).await?;
+    let first = page.data.into_iter().next().ok_or_else(|| Error::Refused("NOT_SENT".into()))?;
+    match (first.is_sent, first.message_id) {
+        (true, Some(id)) if !id.is_empty() => Ok(id),
+        _ => Err(Error::Refused(
+            first.drop_reason.map(|d| d.message).unwrap_or_else(|| "Twitch didn't send it.".into()),
+        )),
+    }
+}
+
+#[derive(Deserialize)]
+struct Sent {
+    data: Vec<SentMessage>,
+}
+
+#[derive(Deserialize)]
+struct SentMessage {
+    message_id: Option<String>,
+    is_sent: bool,
+    drop_reason: Option<DropReason>,
+}
+
+#[derive(Deserialize)]
+struct DropReason {
+    message: String,
 }
 
 /// A named color (`blue_violet`) or `#RRGGBB` (Prime or Turbo only).

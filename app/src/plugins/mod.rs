@@ -4,8 +4,10 @@
 //! `cyex_plugins`; here are the folder, settings, chat hooks and the console's log.
 
 pub mod calls;
+pub mod events;
 mod hook;
 mod host;
+mod lines;
 pub mod logs;
 
 pub use hook::to_line as hook_line;
@@ -36,8 +38,12 @@ pub struct PluginState {
     syncing: Mutex<()>,
     /// Some running plugin has a Message callback.
     wants_lines: AtomicBool,
+    /// S8 Some running plugin follows chat events.
+    wants_events: AtomicBool,
     pub logs: logs::Logs,
     http: cyex_plugins::fetch::Client,
+    /// S7 Plugins' lines, in order.
+    lines: tokio::sync::mpsc::UnboundedSender<lines::Queued>,
 }
 
 struct Found {
@@ -104,8 +110,10 @@ pub fn init(app: &AppHandle) {
         found: RwLock::new(found),
         syncing: Mutex::new(()),
         wants_lines: AtomicBool::new(false),
+        wants_events: AtomicBool::new(false),
         logs: logs::Logs::default(),
         http: cyex_plugins::fetch::client(),
+        lines: lines::start(app),
     });
     sync_later(app);
 }
@@ -162,8 +170,11 @@ fn wants_lines(app: &AppHandle) -> bool {
 /// After a plugin registered or dropped something.
 pub fn exports_changed(app: &AppHandle) {
     if let Some(state) = app.try_state::<PluginState>() {
-        let any = running(app).iter().any(|p| p.has(Event::Message));
+        let running = running(app);
+        let any = running.iter().any(|p| p.has(Event::Message));
         state.wants_lines.store(any, Ordering::Relaxed);
+        let events = running.iter().any(|p| Event::CHAT.iter().any(|e| p.has(*e)));
+        state.wants_events.store(events, Ordering::Relaxed);
     }
     let _ = app.emit(CHANGED_EVENT, ());
 }

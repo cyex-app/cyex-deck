@@ -5,7 +5,8 @@
  */
 export type SmActivity = { id: string, 
 /**
- * `follow`, `sub`, `gift`, `cheer`, `raid`, `redemption` or `streak`; the filter keys.
+ * `follow`, `sub`, `gift`, `cheer`, `raid`, `redemption`, `streak`, `powerup`, `hype`
+ * or `goal`; the filter keys.
  */
 kind: string, text: string, 
 /**
@@ -15,4 +16,12 @@ user: string | null,
 /**
  * Unix ms.
  */
-ts: number, };
+ts: number, 
+/**
+ * D4 Its alert in Twitch's alert box, for Replay and Skip; `None` without one.
+ */
+alert: string | null, 
+/**
+ * D4 Where that alert is: `QUEUED`, `PLAYING`, `PLAYED`, `SKIPPED`, …
+ */
+status: string | null, };

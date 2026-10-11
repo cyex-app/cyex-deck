@@ -41,6 +41,9 @@
   import { popOut } from '../../app/panels';
   import { accounts } from '../../lib/accounts.svelte';
   import { mods } from '../modview/moderation.svelte';
+  import { pluginItems } from '../plugins/pluginMenus';
+  import { plugins } from '../plugins/plugins.svelte';
+  import { pluginsIpc } from '../../ipc/plugins';
   import ResubBanner from '../subs/ResubBanner.svelte';
   import SubDialog from '../subs/SubDialog.svelte';
 
@@ -212,6 +215,11 @@
           ]
         : []),
       ...(own.length ? ['separator' as const, ...toItems(own, (cmd) => runEntry(room.view, cmd, ctx, onaction))] : []),
+      // S9 Entries plugins put in a chat's menu.
+      'separator',
+      ...pluginItems(plugins.menus, 'chat', null, (p) =>
+        pluginsIpc.runMenu(room.view, p.plugin, p.index, null).catch((err) => toast.error(String(err))),
+      ),
       ...(tileMenu ? ['separator' as const, ...tileMenu()] : []),
     ];
     openMenu(e.currentTarget as HTMLElement, items, 'end');
@@ -326,6 +334,8 @@
       onreply={reply}
       {onlink}
       onmention={(l) => input?.mention(l)}
+      onprefill={(t) => input?.prefill(t)}
+      oninsert={(t) => input?.insertText(t)}
       {onaction}
     />
     <!-- V101-35 Over the messages, so the list keeps its place underneath. -->

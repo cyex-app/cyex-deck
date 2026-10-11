@@ -36,7 +36,8 @@
   let duration = $state(0);
   let buffered = $state(0);
   let height = $state(720);
-  /** A file picked from the menu, by its place in the list; `null` fits the player. */
+  /** A file picked from the menu, by its place in the list (landscape, then portrait, P11);
+   * `null` fits the player with a landscape file. */
   let picked = $state<number | null>(null);
   let waitTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -66,9 +67,10 @@
   }
 
   /** The picked file, else the smallest one at least as tall as the player. */
+  const all = $derived([...(clip?.qualities ?? []), ...(clip?.portrait ?? [])]);
   const file = $derived.by(() => {
     const q = clip?.qualities ?? [];
-    if (picked !== null && q[picked]) return q[picked];
+    if (picked !== null && all[picked]) return all[picked];
     const fits = q.filter((x) => x.height >= height);
     return fits.length ? fits[fits.length - 1] : q[0];
   });
@@ -107,7 +109,7 @@
 
   /** V101-17 */
   function menu() {
-    const files = clip?.qualities ?? [];
+    const landscape = clip?.qualities.length ?? 0;
     return playerMenu({
       kind: 'clip',
       playing,
@@ -116,7 +118,11 @@
       keys: playerKeys(),
       quality: [
         { label: 'Auto', hint: picked === null && file ? name(file) : undefined, on: picked === null, pick: () => (picked = null) },
-        ...files.map((q, i) => ({ label: name(q), on: picked === i, pick: () => (picked = i) })),
+        ...all.map((q, i) => ({
+          label: i < landscape ? name(q) : `Portrait ${name(q)}`,
+          on: picked === i,
+          pick: () => (picked = i),
+        })),
       ],
       togglePlay: controls.togglePlay,
       toggleMute: controls.toggleMute,

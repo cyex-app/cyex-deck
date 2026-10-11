@@ -6,6 +6,9 @@ use super::line::escape;
 pub const MAX_MESSAGE_CHARS: usize = 500;
 
 pub const CAPS: &str = "CAP REQ :twitch.tv/tags twitch.tv/commands";
+/// C37 Joins and leaves of others, in chats under 1.000 people. Can't be taken back until
+/// the next connect.
+pub const MEMBERSHIP: &str = "CAP REQ :twitch.tv/membership";
 
 /// `JOIN #a,#b`. Each channel still counts toward the join limit.
 pub fn join(channels: &[String]) -> String {

@@ -1,9 +1,12 @@
-//! S5 `cyex.Channel`: an open chat by login, with Chatterino's method names.
+//! S5 `cyex.Channel`: an open chat by login, with Chatterino's method names. S7 Plugins add
+//! lines of their own, swap them, change any line (ChangeChat) and look one up (ReadChat).
 
 use mlua::{Lua, LuaSerdeExt, Table, UserData, UserDataMethods, Value};
 
+use super::{events, message};
 use crate::host::ChannelInfo;
-use crate::state::{self, State};
+use crate::runtime::Event;
+use crate::state::{self, LINE_LIMIT, State};
 
 const MAX_SYSTEM: usize = 500;
 const MAX_SNAPSHOT: usize = 500;
@@ -44,6 +47,20 @@ fn info(lua: &Lua, login: &str) -> mlua::Result<ChannelInfo> {
             .channel(login)
             .ok_or_else(|| mlua::Error::runtime(format!("the chat of {login} isn't open")))
     })?
+}
+
+/// S7 Room in the plugin's line limit.
+fn take_line(s: &mut State) -> mlua::Result<()> {
+    if s.take_line() {
+        Ok(())
+    } else {
+        Err(mlua::Error::runtime(format!("up to {LINE_LIMIT} lines a second")))
+    }
+}
+
+/// S7 A plugin's own line ids start with this.
+fn own_prefix(s: &State) -> String {
+    format!("p:{}:", s.id)
 }
 
 fn need_read(s: &State) -> mlua::Result<()> {
@@ -92,6 +109,68 @@ impl UserData for ChannelRef {
             let text: String = text.chars().take(MAX_SYSTEM).collect();
             state::with(lua, |s| s.host.system(&s.id, &this.0, &text))
         });
+        m.add_method("add_message", |lua, this, msg: Table| {
+            state::with(lua, |s| {
+                take_line(s)?;
+                let mut line = message::read(&msg, &s.granted).map_err(mlua::Error::runtime)?;
+                let own = if line.id.is_empty() {
+                    s.next_id().to_string()
+                } else {
+                    line.id.clone()
+                };
+                line.id = format!("{}{own}", own_prefix(s));
+                let id = line.id.clone();
+                s.host.add_line(&s.id, &this.0, line);
+                Ok(id)
+            })?
+        });
+        m.add_method("replace_message", |lua, this, (id, msg): (String, Table)| {
+            state::with(lua, |s| {
+                if !id.starts_with(&own_prefix(s)) {
+                    return Err(mlua::Error::runtime("only lines this plugin added can be replaced"));
+                }
+                take_line(s)?;
+                let mut line = message::read(&msg, &s.granted).map_err(mlua::Error::runtime)?;
+                line.id = id;
+                s.host.replace_line(&s.id, &this.0, line);
+                Ok(())
+            })?
+        });
+        m.add_method("change_message", |lua, this, (id, change): (String, Value)| {
+            let change = crate::convert::change(&change)
+                .map_err(mlua::Error::runtime)?
+                .unwrap_or_default();
+            state::with(lua, |s| {
+                if !s.granted.change_chat {
+                    return Err(mlua::Error::runtime("changing lines needs the ChangeChat permission"));
+                }
+                take_line(s)?;
+                s.host.change_line(&s.id, &this.0, &id, change);
+                Ok(())
+            })?
+        });
+        m.add_method("find_message_by_id", |lua, this, id: String| {
+            let line = state::with(lua, |s| {
+                need_read(s)?;
+                if s.in_line {
+                    return Err(mlua::Error::runtime("can't read chat inside a Message callback"));
+                }
+                Ok(s.host.find_line(&this.0, &id))
+            })??;
+            match line {
+                Some(l) => crate::convert::line(lua, &l),
+                None => Ok(Value::Nil),
+            }
+        });
+        // S8 Chatterino's per-channel handlers; each hands back a handle.
+        for (name, event) in [
+            ("on_message_appended", Event::MessageAppended),
+            ("on_message_replaced", Event::MessageReplaced),
+            ("on_messages_cleared", Event::ChatCleared),
+            ("on_display_name_changed", Event::ChannelRenamed),
+        ] {
+            m.add_method(name, move |lua, this, f: mlua::Function| events::watch(lua, &this.0, event, f));
+        }
         m.add_method("message_snapshot", |lua, this, n: Option<usize>| {
             let lines = state::with(lua, |s| {
                 need_read(s)?;

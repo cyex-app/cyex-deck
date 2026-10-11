@@ -17,7 +17,7 @@ use ts_rs::TS;
 
 use crate::api;
 use crate::convert;
-use crate::host::{Change, Completion, CompletionRequest, Host, HttpResponse, Level, Line, Sent};
+use crate::host::{Change, ChatEvent, Completion, CompletionRequest, Host, HttpResponse, Level, Line, Sent, SocketEvent};
 use crate::manifest::{DATA, ENTRY};
 use crate::perm::Granted;
 use crate::repl;
@@ -32,6 +32,8 @@ pub const CALLBACK: Duration = Duration::from_millis(500);
 pub const REPL: Duration = Duration::from_secs(2);
 /// Lines waiting for a plugin that reads chat; more are skipped.
 const MAX_QUEUED_LINES: usize = 500;
+/// S8 Chat events waiting for a plugin; more are skipped.
+const MAX_QUEUED_EVENTS: usize = 1000;
 /// Too-slow line callbacks in a row before they're paused.
 const STRIKES: u32 = 3;
 
@@ -47,14 +49,38 @@ pub enum Event {
     /// The user sends a line; the callback may change or stop it.
     Sending,
     SettingsChanged,
+    /// S8 A line is in (ReadChat).
+    MessageAppended,
+    /// S8 A line was replaced (ReadChat).
+    MessageReplaced,
+    /// S8 Lines were deleted (ReadChat).
+    MessageDeleted,
+    /// S8 A mod cleared a chat (ReadChat).
+    ChatCleared,
+    /// S8 A tab's channel was renamed on Twitch.
+    ChannelRenamed,
 }
 
 impl Event {
-    pub const ALL: [Event; 4] = [
+    pub const ALL: [Event; 9] = [
         Event::CompletionRequested,
         Event::Message,
         Event::Sending,
         Event::SettingsChanged,
+        Event::MessageAppended,
+        Event::MessageReplaced,
+        Event::MessageDeleted,
+        Event::ChatCleared,
+        Event::ChannelRenamed,
+    ];
+
+    /// S8 The events that come after the fact.
+    pub const CHAT: [Event; 5] = [
+        Event::MessageAppended,
+        Event::MessageReplaced,
+        Event::MessageDeleted,
+        Event::ChatCleared,
+        Event::ChannelRenamed,
     ];
 
     pub fn name(self) -> &'static str {
@@ -63,6 +89,11 @@ impl Event {
             Event::Message => "Message",
             Event::Sending => "Sending",
             Event::SettingsChanged => "SettingsChanged",
+            Event::MessageAppended => "MessageAppended",
+            Event::MessageReplaced => "MessageReplaced",
+            Event::MessageDeleted => "MessageDeleted",
+            Event::ChatCleared => "ChatCleared",
+            Event::ChannelRenamed => "ChannelRenamed",
         }
     }
 }
@@ -75,10 +106,36 @@ pub struct Exports {
     /// Without the slash.
     pub commands: Vec<String>,
     pub events: Vec<Event>,
-    /// Message menu entries, in order.
-    pub menu: Vec<String>,
+    /// Menu entries, in order (S9: on messages or the chat's ⋯ menu, maybe in a group).
+    pub menu: Vec<MenuExport>,
     /// The line callback was too slow too often; a reload brings it back.
     pub paused: bool,
+}
+
+/// S9 Where a menu entry shows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename = "PluginMenuPlace")]
+pub enum MenuPlace {
+    /// A line's right-click menu.
+    #[default]
+    Message,
+    /// The chat's ⋯ menu.
+    Chat,
+}
+
+/// S9 A menu entry a plugin registered.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename = "PluginMenuExport")]
+pub struct MenuExport {
+    pub label: String,
+    pub place: MenuPlace,
+    /// Entries with the same group share a submenu.
+    pub group: Option<String>,
+    /// Message entries: the kinds of line that show it (`chat`, `action`, `notice`,
+    /// `plugin`); empty for all.
+    pub lines: Vec<String>,
 }
 
 pub enum Msg {
@@ -116,6 +173,13 @@ pub enum Msg {
         id: u64,
         res: HttpResponse,
     },
+    /// S6
+    Socket {
+        id: u64,
+        event: SocketEvent,
+    },
+    /// S8
+    Chat(Vec<ChatEvent>),
     Stop,
 }
 
@@ -134,6 +198,9 @@ pub struct Plugin {
     tx: Sender<Msg>,
     exports: Arc<Mutex<Exports>>,
     queued_lines: Arc<AtomicUsize>,
+    /// S8 Chat events on their way, and whether some were skipped since it caught up.
+    queued_events: Arc<AtomicUsize>,
+    skipped: Arc<AtomicUsize>,
 }
 
 impl Plugin {
@@ -143,12 +210,16 @@ impl Plugin {
         let (ready_tx, ready_rx) = mpsc::sync_channel(1);
         let exports = Arc::new(Mutex::new(Exports::default()));
         let queued_lines = Arc::new(AtomicUsize::new(0));
+        let queued_events = Arc::new(AtomicUsize::new(0));
+        let skipped = Arc::new(AtomicUsize::new(0));
         let plugin = Plugin {
             id: cfg.id.clone(),
             granted: cfg.granted.clone(),
             tx: tx.clone(),
             exports: exports.clone(),
             queued_lines: queued_lines.clone(),
+            queued_events: queued_events.clone(),
+            skipped: skipped.clone(),
         };
         let name = format!("plugin {}", cfg.id);
         std::thread::Builder::new()
@@ -157,7 +228,7 @@ impl Plugin {
                 let Some((lua, deadline)) = boot(cfg, tx, exports, &ready_tx) else {
                     return;
                 };
-                serve(&lua, &deadline, &rx, &queued_lines);
+                serve(&lua, &deadline, &rx, &queued_lines, (&queued_events, &skipped));
             })
             .map_err(|e| e.to_string())?;
         match ready_rx.recv_timeout(INIT + Duration::from_secs(1)) {
@@ -189,6 +260,17 @@ impl Plugin {
     /// Lines are still waiting for it: a chat shouldn't wait on it now.
     pub fn behind(&self) -> bool {
         self.queued_lines.load(Ordering::Relaxed) > 0
+    }
+
+    /// S8 Chat events, skipped (and counted) while the plugin is far behind.
+    pub fn chat(&self, events: Vec<ChatEvent>) -> bool {
+        let n = events.len();
+        if self.queued_events.load(Ordering::Relaxed) + n > MAX_QUEUED_EVENTS {
+            self.skipped.fetch_add(n, Ordering::Relaxed);
+            return false;
+        }
+        self.queued_events.fetch_add(n, Ordering::Relaxed);
+        self.send(Msg::Chat(events))
     }
 
     pub fn sending(&self, channel: &str, text: &str, reply: Reply<Sent>) -> bool {
@@ -287,6 +369,11 @@ fn boot(
         settings: cfg.settings,
         next_id: 0,
         sends: VecDeque::new(),
+        sockets: std::collections::HashSet::new(),
+        connects: VecDeque::new(),
+        line_ops: VecDeque::new(),
+        watches: Vec::new(),
+        socket_backlog: Arc::default(),
         in_line: false,
         ready: false,
     });
@@ -312,7 +399,13 @@ fn boot(
     Some((lua, deadline))
 }
 
-fn serve(lua: &Lua, deadline: &Deadline, rx: &mpsc::Receiver<Msg>, queued_lines: &AtomicUsize) {
+fn serve(
+    lua: &Lua,
+    deadline: &Deadline,
+    rx: &mpsc::Receiver<Msg>,
+    queued_lines: &AtomicUsize,
+    (queued_events, skipped): (&AtomicUsize, &AtomicUsize),
+) {
     let mut strikes = 0;
     loop {
         let next = state::with(lua, |s| s.timers.iter().map(|t| t.0).min())
@@ -337,6 +430,14 @@ fn serve(lua: &Lua, deadline: &Deadline, rx: &mpsc::Receiver<Msg>, queued_lines:
                 if let Some(reply) = reply {
                     reply(change);
                 }
+            }
+            Some(Msg::Chat(events)) => {
+                queued_events.fetch_sub(events.len(), Ordering::Relaxed);
+                let missed = skipped.swap(0, Ordering::Relaxed);
+                if missed > 0 {
+                    warn(lua, &format!("Skipped {missed} chat events: the plugin fell behind."));
+                }
+                api::events::deliver(lua, deadline, events);
             }
             Some(m) => handle(lua, deadline, m),
             None => {}
@@ -482,7 +583,8 @@ fn handle(lua: &Lua, deadline: &Deadline, msg: Msg) {
             }
         }
         Msg::Http { id, res } => api::http::finish(lua, deadline, id, res),
-        Msg::Line { .. } | Msg::Stop => {}
+        Msg::Socket { id, event } => api::socket::deliver(lua, deadline, id, event),
+        Msg::Line { .. } | Msg::Chat(_) | Msg::Stop => {}
     }
 }
 

@@ -11,7 +11,7 @@ use cyex_chat::model::{ChatMessage, Flag, RoomEvent};
 use tauri::{AppHandle, Manager};
 use tokio::sync::Notify;
 
-use super::{Chat, Entry, now_ms, passes};
+use super::{Chat, Entry, RoomKey, now_ms, passes};
 
 const BATCH: Duration = Duration::from_millis(50);
 
@@ -42,7 +42,17 @@ fn flush(app: &AppHandle) -> Option<i64> {
     let now = now_ms();
     let mut next: Option<i64> = None;
     let mut inner = chat.lock();
-    for ((_, login), entry) in inner.rooms.iter_mut() {
+    // S8 One room per channel tells plugins what happened.
+    let reporters: Vec<RoomKey> = if crate::plugins::events::wanted(app) {
+        let mut logins: Vec<&String> = inner.rooms.keys().map(|k| &k.1).collect();
+        logins.sort();
+        logins.dedup();
+        logins.into_iter().filter_map(|l| super::peek::pick(&inner, l)).collect()
+    } else {
+        Vec::new()
+    };
+    for (key, entry) in inner.rooms.iter_mut() {
+        let login = &key.1;
         let mut batch = std::mem::take(&mut entry.outbox);
         if delay > 0 || !entry.delayed.is_empty() {
             batch = hold(entry, batch, now, delay);
@@ -52,6 +62,9 @@ fn flush(app: &AppHandle) -> Option<i64> {
         }
         if batch.is_empty() {
             continue;
+        }
+        if reporters.contains(key) {
+            crate::plugins::events::room(app, login, &batch);
         }
         let filtered = entry.views.iter().any(|s| !s.filters.is_empty());
         let live = filtered && crate::tabs::live::is_live(app, login);

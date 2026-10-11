@@ -16,7 +16,7 @@ mod users;
 pub mod votes;
 pub mod whispers;
 
-pub use chat::{set_chat_color, user_emotes};
+pub use chat::{send_message, set_chat_color, user_emotes};
 pub use clips::{CreatedClip, create_clip};
 pub use follows::{followed_at, followed_ids, followed_live_ids};
 pub use users::{User, users_by_id};

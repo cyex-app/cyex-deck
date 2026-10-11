@@ -15,6 +15,7 @@
   import Badges from '../chat/Badges.svelte';
   import { avatars } from '../emotes/avatars.svelte';
   import { looks } from '../emotes/looks.svelte';
+  import { toggleWatch, watched } from './watch';
 
   interface Props {
     profile: Profile;
@@ -41,6 +42,11 @@
   const paint = $derived(looks.paintClass(paintId));
   const paintName = $derived(paint ? looks.paintName(paintId) : null);
   const colorVars = $derived(color ? `--cd:${color.dark};--cl:${color.light}` : '');
+  const bell = $derived(watched(settings.v.highlights.users, profile.login));
+
+  function flipBell() {
+    void settings.patch('highlights', { users: toggleWatch(settings.v.highlights.users, profile.login) });
+  }
 
   async function copyId() {
     await navigator.clipboard.writeText(profile.id);
@@ -81,6 +87,14 @@
       size={14}
       active={editing}
       onclick={() => (editing = !editing)}
+    />
+    <IconButton
+      icon="bell"
+      label={bell ? 'Stop highlighting' : 'Highlight their messages'}
+      hint="In every chat. Color and sound in Settings → Highlights."
+      size={14}
+      active={bell}
+      onclick={flipBell}
     />
     {#if logsUrl}
       <IconButton icon="scroll" label="All logs" hint="logs.cyex.app" size={14} onclick={() => systemIpc.openLink(logsUrl)} />

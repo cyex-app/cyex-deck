@@ -1,6 +1,7 @@
-//! GQL-only mod reads and writes: the viewer card's mod history and comments (M3), the
-//! unban request queue (M2), blocked terms (1.48) and the chatter list (1.48). Raw
-//! operations checked against Twitch's schema (research, phase 10).
+//! GQL-only mod reads and writes: the viewer card's mod history and comments (M3), a
+//! user's messages from the mod logs (M8), the unban request queue (M2), blocked terms
+//! (1.48) and the chatter list (1.48). Raw operations checked against Twitch's schema
+//! (research, phase 10).
 
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -70,7 +71,7 @@ const VIEWER_CARD: &str = "query Card($channelID: ID!, $targetID: ID!) {
   ban: chatRoomBanStatus(channelID: $channelID, userID: $targetID) {
     expiresAt isPermanent reason moderator { login displayName } }
   viewerCardModLogs(channelID: $channelID, targetID: $targetID) {
-    messages(first: 1) { ... on ViewerCardModLogsMessagesConnection { count } }
+    messages(first: 1000) { ... on ViewerCardModLogsMessagesConnection { count } }
     bans: targetedActions(first: 99, type: BAN) { ...Actions }
     timeouts: targetedActions(first: 99, type: TIMEOUT) { ...Actions }
     warns: targetedActions(first: 99, type: WARN) { ...Actions }
@@ -85,6 +86,113 @@ fragment Actions on ModLogsTargetedActionsResult {
     localizedLabel { fallbackString localizedStringFragments { token {
       ... on ModActionsLocalizedTextToken { text } ... on User { login displayName } } } } } } }
 }";
+
+/// M8 A page of someone's messages from the channel's mod logs, newest first. Twitch keeps
+/// them for mods even where logs.cyex.app has none.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ModLogPage {
+    pub messages: Vec<ModLogMessage>,
+    /// For the next, older page.
+    pub cursor: Option<String>,
+    pub more: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ModLogMessage {
+    /// Twitch's chat message id, the same as in logs.cyex.app.
+    pub id: String,
+    /// RFC 3339, with nanoseconds.
+    pub sent_at: String,
+    pub user_id: String,
+    pub login: String,
+    pub display: String,
+    pub color: Option<String>,
+    /// `(set, version)`.
+    pub badges: Vec<(String, String)>,
+    /// Text pieces, each with the Twitch emote id it shows, if any.
+    pub pieces: Vec<(String, Option<String>)>,
+    pub deleted: bool,
+}
+
+/// M8 `ViewerCardModLogsMessagesBySender`, as Twitch's viewer card asks it (research,
+/// v1.01 batch 7). Only chat messages: actions have their own tabs.
+const MESSAGES: &str = "query Messages($channelID: ID!, $senderID: ID!, $cursor: Cursor) {
+  viewerCardModLogs(channelID: $channelID, targetID: $senderID) {
+    messages(first: 50, after: $cursor) {
+      ... on ViewerCardModLogsMessagesConnection {
+        edges { cursor node { __typename
+          ... on ViewerCardModLogsChatMessage { id sentAt isDeleted
+            sender { id login displayName chatColor }
+            senderBadges(channelID: $channelID) { setID version }
+            content { text fragments { text content { __typename ... on Emote { emoteID: id } } } } } } }
+        pageInfo { hasNextPage }
+      }
+    }
+  }
+}";
+
+/// M8 A page of `sender_id`'s messages in the channel; `cursor` from the page before.
+pub async fn messages(
+    http: &Http,
+    auth: Auth<'_>,
+    channel_id: &str,
+    sender_id: &str,
+    cursor: Option<&str>,
+) -> Result<ModLogPage> {
+    let vars = json!({ "channelID": channel_id, "senderID": sender_id, "cursor": cursor });
+    let data: Value = query(http, auth, MESSAGES, vars).await?;
+    Ok(page_of(&data))
+}
+
+fn page_of(data: &Value) -> ModLogPage {
+    let conn = &data["viewerCardModLogs"]["messages"];
+    let edges = conn["edges"].as_array().map(Vec::as_slice).unwrap_or_default();
+    let str_of = |v: &Value| v.as_str().unwrap_or_default().to_owned();
+    let messages = edges
+        .iter()
+        .filter_map(|e| {
+            let n = &e["node"];
+            if n["__typename"] != "ViewerCardModLogsChatMessage" {
+                return None;
+            }
+            let sender = &n["sender"];
+            let fragments = n["content"]["fragments"].as_array().map(Vec::as_slice).unwrap_or_default();
+            let mut pieces: Vec<(String, Option<String>)> = fragments
+                .iter()
+                .map(|f| {
+                    let emote = (f["content"]["__typename"] == "Emote")
+                        .then(|| f["content"]["emoteID"].as_str().map(str::to_owned))
+                        .flatten();
+                    (str_of(&f["text"]), emote)
+                })
+                .collect();
+            if pieces.is_empty() {
+                pieces.push((str_of(&n["content"]["text"]), None));
+            }
+            Some(ModLogMessage {
+                id: n["id"].as_str()?.to_owned(),
+                sent_at: str_of(&n["sentAt"]),
+                user_id: str_of(&sender["id"]),
+                login: str_of(&sender["login"]),
+                display: sender["displayName"].as_str().unwrap_or(sender["login"].as_str().unwrap_or("?")).to_owned(),
+                color: sender["chatColor"].as_str().filter(|c| !c.is_empty()).map(str::to_owned),
+                badges: n["senderBadges"]
+                    .as_array()
+                    .map(|b| b.iter().map(|b| (str_of(&b["setID"]), str_of(&b["version"]))).collect())
+                    .unwrap_or_default(),
+                pieces,
+                deleted: n["isDeleted"].as_bool().unwrap_or(false),
+            })
+        })
+        .collect();
+    // Every edge on a page carries the same cursor; the last one is safe either way.
+    let cursor = edges.last().and_then(|e| e["cursor"].as_str()).map(str::to_owned);
+    ModLogPage {
+        messages,
+        more: conn["pageInfo"]["hasNextPage"].as_bool().unwrap_or(false) && cursor.is_some(),
+        cursor,
+    }
+}
 
 fn count_of(v: &Value, field: &str) -> u32 {
     v.get(field)
@@ -344,6 +452,39 @@ pub async fn can_see_mod_logs(http: &Http, auth: Auth<'_>, name: &str) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mod_log_messages_read_newest_first_with_emotes() {
+        let data = json!({ "viewerCardModLogs": { "messages": {
+            "edges": [
+                { "cursor": "c1", "node": { "__typename": "ViewerCardModLogsChatMessage", "id": "m2",
+                    "sentAt": "2026-08-22T10:16:21.180548189Z", "isDeleted": true,
+                    "sender": { "id": "7", "login": "vay", "displayName": "Vay", "chatColor": null },
+                    "senderBadges": [{ "setID": "subscriber", "version": "12" }],
+                    "content": { "text": "hi Kappa", "fragments": [
+                        { "text": "hi ", "content": null },
+                        { "text": "Kappa", "content": { "__typename": "Emote", "emoteID": "25" } } ] } } },
+                { "cursor": "c1", "node": { "__typename": "ViewerCardModLogsModActionsMessage" } },
+                { "cursor": "c1", "node": { "__typename": "ViewerCardModLogsChatMessage", "id": "m1",
+                    "sentAt": "2026-08-22T10:00:00Z", "isDeleted": false,
+                    "sender": { "id": "7", "login": "vay", "displayName": null, "chatColor": "#FF0000" },
+                    "senderBadges": null, "content": { "text": "first", "fragments": null } } }
+            ],
+            "pageInfo": { "hasNextPage": true } } } });
+        let p = page_of(&data);
+        assert_eq!(p.messages.len(), 2);
+        let m = &p.messages[0];
+        assert_eq!((m.id.as_str(), m.deleted, m.color.as_deref()), ("m2", true, None));
+        assert_eq!(m.pieces, [("hi ".to_owned(), None), ("Kappa".to_owned(), Some("25".to_owned()))]);
+        assert_eq!(m.badges, [("subscriber".to_owned(), "12".to_owned())]);
+        let old = &p.messages[1];
+        assert_eq!((old.display.as_str(), old.color.as_deref()), ("vay", Some("#FF0000")));
+        assert_eq!(old.pieces, [("first".to_owned(), None)]);
+        assert_eq!((p.cursor.as_deref(), p.more), (Some("c1"), true));
+        // No access or nothing logged: an empty connection, no error.
+        let none = page_of(&json!({ "viewerCardModLogs": { "messages": { "edges": [], "pageInfo": { "hasNextPage": false } } } }));
+        assert_eq!(none, ModLogPage::default());
+    }
 
     #[test]
     fn history_counts_and_comments() {

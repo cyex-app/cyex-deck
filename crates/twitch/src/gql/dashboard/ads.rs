@@ -1,8 +1,10 @@
 //! 1.35 Ads on your own channel: run one, read the schedule, snooze the next one. The
 //! schedule is the broadcaster's own read (`adProperties`); pre-roll-free time is public.
+//! D5 The schedule's settings: on or off, how long, how often, the reminder.
 
-use serde::Deserialize;
-use serde_json::json;
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
+use ts_rs::TS;
 
 use super::Refusal;
 use crate::gql::{Auth, query};
@@ -15,6 +17,12 @@ const START: &str = "mutation($input: StartAdInput!) { startAd(input: $input) { 
 const SCHEDULE: &str = "query($id: ID!) { user(id: $id) { prerollFreeTimeSeconds adProperties { \
     lastTriggeredAt density { adSchedule { runAtTime durationSeconds } snooze { currentAmount refreshAt } } } } }";
 const SNOOZE: &str = "mutation($input: SnoozeAdInput!) { snoozeAd(input: $input) { status } }";
+const SETTINGS: &str = "query($id: ID!) { user(id: $id) { adProperties { density { isAdScheduleEnabled
+  interval { desiredSeconds minSeconds maxSeconds } duration { desiredSeconds minSeconds maxSeconds }
+  reminder { isEnabled seconds maxSeconds } } } } }";
+/// No `error` on this payload: Twitch answers failures as top-level errors.
+const SET_SETTINGS: &str = "mutation($input: SetChannelAdScheduleInput!) { \
+    setChannelAdSchedule(input: $input) { targetChannelID } }";
 
 /// Prefix of the refusal when Twitch wants a pause between ads; the seconds follow.
 pub const RETRY_AFTER: &str = "RETRY_AFTER ";
@@ -160,9 +168,113 @@ pub async fn snooze(http: &Http, auth: Auth<'_>, channel_id: &str) -> Result<Sno
     })
 }
 
+/// D5 A setting Twitch keeps within limits for the channel, in seconds.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, TS)]
+#[ts(export, rename = "SmAdRange")]
+pub struct Range {
+    pub value: u32,
+    pub min: u32,
+    pub max: u32,
+}
+
+/// D5 The ad schedule's settings (Twitch's ads manager).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename = "SmAdSettings")]
+pub struct AdSettings {
+    pub enabled: bool,
+    /// Ad length; Twitch takes steps of 30 s.
+    pub duration: Range,
+    /// Time between ads.
+    pub interval: Range,
+    pub reminder: bool,
+    /// How long before an ad the reminder comes.
+    pub reminder_secs: u32,
+    pub reminder_max: u32,
+}
+
+/// D5 What to change; the rest stays.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename = "SmAdEdit", optional_fields)]
+pub struct AdEdit {
+    pub enabled: Option<bool>,
+    pub duration: Option<u32>,
+    pub interval: Option<u32>,
+    pub reminder: Option<bool>,
+    pub reminder_secs: Option<u32>,
+}
+
+pub async fn settings(http: &Http, auth: Auth<'_>, channel_id: &str) -> Result<AdSettings> {
+    let data: Value = query(http, auth, SETTINGS, json!({ "id": channel_id })).await?;
+    Ok(settings_from(&data))
+}
+
+fn settings_from(data: &Value) -> AdSettings {
+    let d = &data["user"]["adProperties"]["density"];
+    let n = |v: &Value| v.as_u64().unwrap_or(0) as u32;
+    let range = |v: &Value| Range {
+        value: n(&v["desiredSeconds"]),
+        min: n(&v["minSeconds"]),
+        max: n(&v["maxSeconds"]),
+    };
+    AdSettings {
+        enabled: d["isAdScheduleEnabled"].as_bool().unwrap_or(false),
+        duration: range(&d["duration"]),
+        interval: range(&d["interval"]),
+        reminder: d["reminder"]["isEnabled"].as_bool().unwrap_or(false),
+        reminder_secs: n(&d["reminder"]["seconds"]),
+        reminder_max: n(&d["reminder"]["maxSeconds"]),
+    }
+}
+
+/// D5 Saves the changed settings only.
+pub async fn set_settings(http: &Http, auth: Auth<'_>, channel_id: &str, edit: &AdEdit) -> Result<()> {
+    query::<Value>(http, auth, SET_SETTINGS, json!({ "input": edit_input(channel_id, edit) })).await?;
+    Ok(())
+}
+
+fn edit_input(channel_id: &str, e: &AdEdit) -> Value {
+    let mut input = json!({ "targetChannelID": channel_id });
+    let fields = [
+        ("isAdScheduleEnabled", e.enabled.map(Value::from)),
+        ("scheduledAdDurationPreferenceSeconds", e.duration.map(Value::from)),
+        ("scheduledAdIntervalPreferenceSeconds", e.interval.map(Value::from)),
+        ("isAdReminderEnabled", e.reminder.map(Value::from)),
+        ("adReminderTimeSeconds", e.reminder_secs.map(Value::from)),
+    ];
+    for (k, v) in fields {
+        if let Some(v) = v {
+            input[k] = v;
+        }
+    }
+    input
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ad_settings_read_and_write_only_what_changed() {
+        let data = json!({ "user": { "adProperties": { "density": { "isAdScheduleEnabled": false,
+            "duration": { "desiredSeconds": 90, "minSeconds": 30, "maxSeconds": 180 },
+            "interval": { "desiredSeconds": 1800, "minSeconds": 480, "maxSeconds": 3600 },
+            "reminder": { "isEnabled": false, "seconds": 300, "maxSeconds": 1200 } } } } });
+        let s = settings_from(&data);
+        assert_eq!(s.duration, Range { value: 90, min: 30, max: 180 });
+        assert_eq!((s.interval.min, s.reminder_secs, s.reminder_max), (480, 300, 1200));
+        let edit = AdEdit {
+            duration: Some(60),
+            reminder: Some(true),
+            ..AdEdit::default()
+        };
+        assert_eq!(
+            edit_input("7", &edit),
+            json!({ "targetChannelID": "7", "scheduledAdDurationPreferenceSeconds": 60, "isAdReminderEnabled": true })
+        );
+        assert_eq!(settings_from(&json!({ "user": null })), AdSettings::default());
+    }
 
     #[test]
     fn schedule_reads_the_first_slot() {

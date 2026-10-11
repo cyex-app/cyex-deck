@@ -1,7 +1,8 @@
-//! 1.35 Live numbers, polled every 30 s while the tab is open: stream (viewers, uptime),
-//! title and category, follower total, subscriber total and sub points. GQL first, Helix
-//! otherwise (D30). Each tick feeds the X4 viewer graph and the OBS status files. A failed
-//! read keeps the last value.
+//! 1.35 Live numbers while the tab is open: stream (viewers, uptime), title and category,
+//! follower total, subscriber total and sub points. GQL first, Helix otherwise (D30). D7
+//! Viewers, title and category come live from Hermes (`live`); the full read runs every
+//! 2 minutes for followers and subs, which have no live updates. Each tick feeds the X4
+//! viewer graph and the OBS status files. A failed read keeps the last value.
 
 use std::time::Duration;
 
@@ -15,7 +16,7 @@ use ts_rs::TS;
 use super::{Call, State, lock, push_viewers};
 use crate::auth;
 
-const EVERY: Duration = Duration::from_secs(30);
+const EVERY: Duration = Duration::from_secs(120);
 const EVENT: &str = "stream:stats";
 
 /// What the stats widget and the OBS files show.
@@ -57,6 +58,23 @@ pub fn spawn(app: &AppHandle, mut stop: watch::Receiver<bool>) {
             }
         }
     });
+}
+
+/// D7 A live change: applied to the latest numbers, then the OBS files and the views.
+pub(crate) fn pushed(app: &AppHandle, change: impl FnOnce(&mut Stats)) {
+    let s = {
+        let st = app.state::<State>();
+        let mut cur = lock(&st.stats);
+        let mut s = cur.clone().unwrap_or_default();
+        change(&mut s);
+        if cur.as_ref() == Some(&s) {
+            return;
+        }
+        *cur = Some(s.clone());
+        s
+    };
+    super::obs::write(app, &s);
+    let _ = app.emit(EVENT, s);
 }
 
 /// Reads again now, e.g. right after the title changed.

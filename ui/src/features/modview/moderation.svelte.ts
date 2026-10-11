@@ -71,15 +71,16 @@ export const mods = new Mods();
 /** Runs a mod line through the chat command path; toasts an error. */
 type Run = (line: string) => void;
 
-/** Mod actions on a user, for the name menu (1.49). */
-export function userItems(role: ModRole, login: string, run: Run): MenuEntry[] {
+/** Mod actions on a user, for the name menu (1.49) and the viewer list (C36). `warn` asks
+ * for the reason: the chat box in a chat, the usercard elsewhere. */
+export function userItems(role: ModRole, login: string, run: Run, warn: () => void): MenuEntry[] {
   const items: MenuEntry[] = [
     {
       label: 'Timeout',
       icon: 'clock',
       items: timeouts().map((t) => ({ label: t.label, run: () => run(`/timeout ${login} ${t.secs}`) })),
     },
-    { label: 'Warn', icon: 'alert', run: () => run(`/warn ${login} `) },
+    { label: 'Warn', icon: 'alert', run: warn },
     { label: 'Unban', icon: 'undo', run: () => run(`/unban ${login}`) },
     // V101-30 What can't be undone comes last.
     { label: 'Ban', icon: 'ban', danger: true, run: () => run(`/ban ${login}`) },

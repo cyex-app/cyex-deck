@@ -308,6 +308,23 @@ pub enum Activity {
         cost: u64,
         input: String,
     },
+    /// D3 Bits on a power-up. `what` reads in a line: "a message effect", "Hydrate".
+    PowerUp {
+        user: Option<Who>,
+        bits: u64,
+        what: String,
+        text: String,
+    },
+    /// D3 Twitch's hype train, `state` as Twitch says it (`STARTED`, `LEVEL_ACHIEVED`, …).
+    HypeTrain { state: String, level: u64 },
+    /// D3 A creator goal, e.g. `FOLLOWERS`, and how far it got.
+    Goal {
+        kind: String,
+        state: String,
+        current: u64,
+        target: u64,
+        text: String,
+    },
 }
 
 pub fn parse_activity(kind: &str, e: &Value) -> Option<Activity> {

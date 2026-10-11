@@ -14,8 +14,16 @@ use crate::settings::Settings;
 pub const SCHEME: &str = "cyexfont";
 /// Fonts with every script can be big; more than this is never a chat font.
 const MAX_FONT_BYTES: u64 = 30 * 1024 * 1024;
-/// Names the bundled fonts use (`design/fonts.css`), so an added file doesn't hide one.
-const BUNDLED: [&str; 5] = ["Inter", "Roboto", "Open Sans", "Lato", "JetBrains Mono"];
+/// Names the bundled fonts use (`design/fonts.css`, U13 the app font), so an added file
+/// doesn't hide one.
+const BUNDLED: [&str; 6] = [
+    "IBM Plex Sans",
+    "Inter",
+    "Roboto",
+    "Open Sans",
+    "Lato",
+    "JetBrains Mono",
+];
 
 /// Files no saved font points to any more.
 pub fn init(app: &AppHandle) {

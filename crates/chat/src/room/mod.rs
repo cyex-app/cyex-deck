@@ -5,6 +5,7 @@
 mod checks;
 mod gap;
 mod hook;
+mod presence;
 
 pub use hook::{LineChange, LineHook};
 
@@ -83,6 +84,8 @@ pub struct Room {
     outcomes: Vec<(Arc<ChatMessage>, Outcome)>,
     /// C24 When the connection dropped, while it's gone.
     lost_at: Option<i64>,
+    /// C37 The joins or leaves line still taking names.
+    presence: Option<presence::Open>,
 }
 
 impl Room {
@@ -104,6 +107,7 @@ impl Room {
             repeats: Repeats::default(),
             outcomes: Vec::new(),
             lost_at: None,
+            presence: None,
         }
     }
 
@@ -289,7 +293,10 @@ impl Room {
                     events.extend(self.wait(now_ms + secs as i64 * 1000));
                 }
             }
-            Incoming::Clear { notice } => events.extend(self.add(notice, now_ms, emotes)),
+            Incoming::Clear { notice } => {
+                events.push(RoomEvent::Cleared);
+                events.extend(self.add(notice, now_ms, emotes));
+            }
             Incoming::RoomState(update) => {
                 update.apply(&mut self.state);
                 events.push(RoomEvent::State {
@@ -334,6 +341,7 @@ impl Room {
                 }
                 events.extend(self.add(notice, now_ms, emotes));
             }
+            Incoming::Presence { login, joined } => events.extend(self.presence(login, joined, now_ms)),
         }
         events
     }

@@ -1,8 +1,9 @@
 //! 1.35 The stream manager's activity feed: follows, subs, gifts, cheers, raids and
-//! redemptions on the broadcaster's own channel. With a GQL sign-in it comes from Hermes,
-//! like Twitch's dashboard (`gql_feed`, D30); otherwise from its own EventSub session
-//! (D26). The UI filters by kind (`streammanager` settings). Works whether or not the
-//! chat is open.
+//! redemptions on the broadcaster's own channel, and with a GQL sign-in power-ups, hype
+//! trains and goals (D3). With a GQL sign-in it comes from Hermes, like Twitch's dashboard,
+//! and opens with the last 100 events (`gql_feed`, D30, D1); otherwise from its own
+//! EventSub session (D26). The UI filters by kind (`streammanager` settings). Works
+//! whether or not the chat is open.
 
 use cyex_core::number::grouped;
 use cyex_eventsub::events::{Activity, Who, parse_activity};
@@ -22,7 +23,8 @@ use crate::auth;
 #[ts(export, rename = "SmActivity")]
 pub struct Item {
     pub id: String,
-    /// `follow`, `sub`, `gift`, `cheer`, `raid`, `redemption` or `streak`; the filter keys.
+    /// `follow`, `sub`, `gift`, `cheer`, `raid`, `redemption`, `streak`, `powerup`, `hype`
+    /// or `goal`; the filter keys.
     pub kind: String,
     pub text: String,
     /// Login of who did it, for the usercard; `None` when anonymous.
@@ -30,6 +32,10 @@ pub struct Item {
     /// Unix ms.
     #[ts(type = "number")]
     pub ts: i64,
+    /// D4 Its alert in Twitch's alert box, for Replay and Skip; `None` without one.
+    pub alert: Option<String>,
+    /// D4 Where that alert is: `QUEUED`, `PLAYING`, `PLAYED`, `SKIPPED`, …
+    pub status: Option<String>,
 }
 
 /// Starts the feed for `account`'s channel. With a GQL sign-in it follows Hermes topics;
@@ -120,17 +126,21 @@ fn subscribe(app: &AppHandle, account: String, channel_id: String, session_id: S
 
 /// Adds a line for `a` to the feed.
 pub(crate) fn push(app: &AppHandle, a: &Activity) {
+    push_activity(app, item(a, cyex_chat::build::local_id(), crate::chat::now_ms()));
+}
+
+/// The feed line for `a`.
+pub(crate) fn item(a: &Activity, id: String, ts: i64) -> Item {
     let (kind, text, user) = describe(a);
-    push_activity(
-        app,
-        Item {
-            id: cyex_chat::build::local_id(),
-            kind: kind.into(),
-            text,
-            user,
-            ts: crate::chat::now_ms(),
-        },
-    );
+    Item {
+        id,
+        kind: kind.into(),
+        text,
+        user,
+        ts,
+        alert: None,
+        status: None,
+    }
 }
 
 fn name(w: &Who) -> String {
@@ -232,6 +242,46 @@ pub fn describe(a: &Activity) -> (&'static str, String, Option<String>) {
             let line = format!("{} redeemed {reward} · {}", name(user), grouped(*cost));
             ("redemption", with_text(line, input), Some(user.login.clone()))
         }
+        Activity::PowerUp { user, bits, what, text } => {
+            let who = user.as_ref().map_or_else(|| "Someone".to_owned(), name);
+            let line = format!("{who} used {what} · {} bits", grouped(*bits));
+            ("powerup", with_text(line, text), user.as_ref().map(|u| u.login.clone()))
+        }
+        Activity::HypeTrain { state, level } => {
+            let line = match state.as_str() {
+                "STARTED" | "START" | "STARTING" => "Hype train started.".to_owned(),
+                "LEVEL_ACHIEVED" | "LEVEL_UP" => format!("Hype train reached level {level}."),
+                "COMPLETED" | "ENDED" | "END" | "EXPIRED" | "SUCCEEDED" => format!("Hype train ended at level {level}."),
+                _ => format!("Hype train at level {level}."),
+            };
+            ("hype", line, None)
+        }
+        Activity::Goal {
+            kind,
+            state,
+            current,
+            target,
+            text,
+        } => {
+            let goal = match kind.as_str() {
+                "FOLLOWERS" | "FOLLOWER" => "Follower goal",
+                "SUBSCRIPTIONS" | "SUBSCRIPTION_COUNT" | "SUBS" => "Sub goal",
+                "NEW_SUBSCRIPTIONS" | "NEW_SUBSCRIPTION_COUNT" => "New sub goal",
+                _ => "Goal",
+            };
+            let how = match state.as_str() {
+                "STARTED" | "CREATED" | "ACTIVE" => "started",
+                "ACHIEVED" | "COMPLETED" | "SUCCEEDED" => "reached",
+                "ENDED" | "FINISHED" | "EXPIRED" | "CANCELED" => "ended",
+                _ => "moved",
+            };
+            let line = if *target > 0 {
+                format!("{goal} {how}, {} of {}.", grouped(*current), grouped(*target))
+            } else {
+                format!("{goal} {how}.")
+            };
+            ("goal", with_text(line, text), None)
+        }
     }
 }
 
@@ -315,13 +365,43 @@ mod tests {
         );
         assert_eq!(
             describe(&Activity::Redemption {
-                user: u,
+                user: u.clone(),
                 reward: "Hydrate".into(),
                 cost: 3220,
                 input: String::new()
             })
             .1,
             "Kuni redeemed Hydrate · 3.220"
+        );
+        // D3
+        assert_eq!(
+            describe(&Activity::PowerUp {
+                user: Some(u),
+                bits: 1000,
+                what: "a message effect".into(),
+                text: "gg".into()
+            }),
+            ("powerup", "Kuni used a message effect · 1.000 bits: gg".into(), Some("kuni".into()))
+        );
+        let hype = |state: &str| {
+            describe(&Activity::HypeTrain {
+                state: state.into(),
+                level: 3,
+            })
+            .1
+        };
+        assert_eq!(hype("LEVEL_ACHIEVED"), "Hype train reached level 3.");
+        assert_eq!(hype("COMPLETED"), "Hype train ended at level 3.");
+        assert_eq!(
+            describe(&Activity::Goal {
+                kind: "FOLLOWERS".into(),
+                state: "STARTED".into(),
+                current: 12052,
+                target: 13000,
+                text: "road to 13k".into()
+            })
+            .1,
+            "Follower goal started, 12.052 of 13.000: road to 13k"
         );
     }
 }

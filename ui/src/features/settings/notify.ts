@@ -132,6 +132,12 @@ export function group(switches: TwitchNotifySwitch[]): Switches {
   return { all, groups };
 }
 
+/** T5 Twitch's "Smart delivery" (`LIVE` on its `smart` platform): live alerts go where you're
+ * active. `null` when Twitch doesn't offer it. */
+export function smart(switches: TwitchNotifySwitch[]): boolean | null {
+  return switches.find((s) => s.category === 'LIVE' && s.platform === 'smart')?.on ?? null;
+}
+
 /** Whether Twitch sends a group's notifications on a platform: its master and `ALL` both on. */
 export function sends(s: Switches, g: Group | null, platform: string): boolean {
   return s.all?.on[platform] !== false && g?.master?.on[platform] !== false;

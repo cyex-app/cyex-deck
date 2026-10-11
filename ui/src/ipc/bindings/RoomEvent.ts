@@ -4,4 +4,4 @@ import type { ConnStatus } from "./ConnStatus";
 import type { Pinned } from "./Pinned";
 import type { RoomState } from "./RoomState";
 
-export type RoomEvent = { "type": "message", message: ChatMessage, } | { "type": "update", message: ChatMessage, } | { "type": "delete", id: string, } | { "type": "clearUser", userId: string, } | { "type": "pinned", pin: Pinned | null, } | { "type": "history", messages: Array<ChatMessage>, } | { "type": "gap", messages: Array<ChatMessage>, } | { "type": "state", state: RoomState, } | { "type": "status", status: ConnStatus, };
+export type RoomEvent = { "type": "message", message: ChatMessage, } | { "type": "update", message: ChatMessage, } | { "type": "delete", id: string, } | { "type": "clearUser", userId: string, } | { "type": "cleared" } | { "type": "pinned", pin: Pinned | null, } | { "type": "history", messages: Array<ChatMessage>, } | { "type": "gap", messages: Array<ChatMessage>, } | { "type": "state", state: RoomState, } | { "type": "status", status: ConnStatus, };

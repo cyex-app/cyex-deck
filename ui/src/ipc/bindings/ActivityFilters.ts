@@ -7,4 +7,8 @@ export type ActivityFilters = { follows: boolean, subs: boolean, gifts: boolean,
 /**
  * Watch streaks; only a GQL sign-in gets them (D30).
  */
-streaks: boolean, };
+streaks: boolean, 
+/**
+ * D3 Power-ups, hype trains and goals; GQL sign-in only.
+ */
+powerUps: boolean, hypeTrains: boolean, goals: boolean, };

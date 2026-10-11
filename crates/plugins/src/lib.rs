@@ -10,6 +10,7 @@ pub mod perm;
 mod repl;
 mod runtime;
 mod sandbox;
+pub mod socket;
 mod state;
 
 #[cfg(test)]
@@ -17,9 +18,10 @@ mod tests;
 
 pub use convert::color;
 pub use host::{
-    Account, Change, ChannelInfo, Completion, CompletionRequest, Flags, Host, HttpRequest, HttpResponse,
-    Level, Line, ReplyTo, RoomModes, Sender, Sent, StreamStatus,
+    Account, Change, ChannelInfo, ChatEvent, Completion, CompletionRequest, Emit, Flags, Host, HttpRequest, HttpResponse,
+    Layout, LayoutTab, LayoutTile, Level, Line, LineLink, NewLine, Piece, PieceColor, PieceStyle, ReplyTo, RoomModes,
+    Sender, Sent, SocketEvent, SocketOut, SocketRequest, StreamStatus,
 };
 pub use manifest::{Field, FieldKind, Manifest, Permission};
 pub use perm::{Granted, check_url};
-pub use runtime::{CALLBACK, Config, Event, Exports, LINE, Plugin, QUICK, Reply};
+pub use runtime::{CALLBACK, Config, Event, Exports, LINE, MenuExport, MenuPlace, Plugin, QUICK, Reply};

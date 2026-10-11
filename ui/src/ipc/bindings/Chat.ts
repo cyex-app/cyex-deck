@@ -5,6 +5,7 @@ import type { EmoteKey } from "./EmoteKey";
 import type { EmoteSource } from "./EmoteSource";
 import type { GifMode } from "./GifMode";
 import type { LinkThumbs } from "./LinkThumbs";
+import type { ModButtons } from "./ModButtons";
 import type { NameStyle } from "./NameStyle";
 import type { Overlay } from "./Overlay";
 import type { PaintToggles } from "./PaintToggles";
@@ -71,6 +72,10 @@ timeoutPresets: Array<number>,
  * C1 Load recent messages when joining.
  */
 history: boolean, 
+/**
+ * C37 Who joins and leaves, as lines. Twitch only tells in chats under 1.000 people.
+ */
+joinsLeaves: boolean, 
 /**
  * V101-03 How many, at most.
  */
@@ -148,6 +153,10 @@ translateChats: Array<string>,
  * V101-33 Chats (logins) in mod mode: delete, timeout and ban before each line.
  */
 modMode: Array<string>, 
+/**
+ * M10 Which buttons mod mode shows.
+ */
+modButtons: ModButtons, 
 /**
  * C19 Hold chat back this long to match the stream, in tenths of a second. 0 is off.
  */

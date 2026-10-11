@@ -9,6 +9,7 @@
   import { menu, openMenu as showMenu, type MenuEntry } from '../../components/menu.svelte';
   import { hideTip, previewTip, retitleTip, showTip } from '../../components/tooltip.svelte';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
+  import type { Act } from '../../ipc/bindings/Act';
   import type { LinkTarget } from '../../ipc/bindings/LinkTarget';
   import type { UiAction } from '../../ipc/bindings/UiAction';
   import { chatIpc } from '../../ipc/chat';
@@ -24,6 +25,7 @@
   import { hidden } from '../emotes/hidden.svelte';
   import type { LineMod } from '../modview/lineMod';
   import { messageItems, mods, pinItems, userItems } from '../modview/moderation.svelte';
+  import { lineKind, pluginItems } from '../plugins/pluginMenus';
   import { plugins } from '../plugins/plugins.svelte';
   import Line from './Line.svelte';
   import { runEntry, toItems, userMenus } from './menus.svelte';
@@ -43,11 +45,15 @@
     onlink?: (target: LinkTarget) => void;
     /** Puts `@login` in the message box. */
     onmention?: (login: string) => void;
+    /** M10 Puts text in the message box, for a warning's reason. */
+    onprefill?: (text: string) => void;
+    /** S7 Puts text at the caret in the message box. */
+    oninsert?: (text: string) => void;
     /** A command asked the window to do something (search, pop out). */
     onaction?: (a: UiAction) => void;
   }
 
-  let { room, readKey, canReply, onreply, onlink, onmention, onaction }: Props = $props();
+  let { room, readKey, canReply, onreply, onlink, onmention, onprefill, oninsert, onaction }: Props = $props();
 
   const c = $derived(settings.v.chat);
   /** 1.57 Only where this account moderates: the pin button and mod mode (V101-33/34). */
@@ -58,7 +64,7 @@
           me: room.account,
           broadcaster: role === 'broadcaster',
           inline: mods.modMode(room.login),
-          timeout: c.timeoutPresets[0] ?? null,
+          buttons: c.modButtons,
         }
       : null,
   );
@@ -120,8 +126,25 @@
   $effect(() => {
     void room.messages;
     const follow = following && !paused;
-    void tick().then(() => (follow ? toBottom() : measure()));
+    void tick().then(() => {
+      if (!follow) return measure();
+      toBottom();
+      watchNewest();
+    });
   });
+
+  // New lines get their real height a frame late (content-visibility), so a line that
+  // wraps grows after the jump down without a scroll event. Snap back down then.
+  const grown = new ResizeObserver(() => {
+    if (following && !paused) toBottom();
+  });
+  onDestroy(() => grown.disconnect());
+
+  function watchNewest() {
+    grown.disconnect();
+    let el = list?.lastElementChild;
+    for (let i = 0; el && i < 10; i++, el = el.previousElementSibling) grown.observe(el);
+  }
 
   // C5 Pause key.
   $effect(() => {
@@ -268,6 +291,9 @@
     };
   }
 
+  /** Warn asks for the reason in the message box (M10). */
+  const warn = (login: string) => () => onprefill?.(`/warn ${login} `);
+
   /** Right-click a name: usercard, mention, search, mod actions, hide or block, your own (S1).
    * Same order as every menu (V101-30): main action, others, go somewhere, copy, then red last. */
   function userMenu(e: MouseEvent, login: string, m: ChatMessage | undefined) {
@@ -282,7 +308,7 @@
       ...(accounts.can('whispers') ? [{ label: 'Whisper', icon: 'whisper' as const, run: () => whispers.show(login) }] : []),
       { label: 'Their messages', icon: 'search', run: () => onaction?.({ type: 'search', query: `from:${login}` }) },
       { label: 'Copy name', icon: 'copy', run: () => void navigator.clipboard.writeText(login) },
-      ...(canMod ? ['separator' as const, ...userItems(role, login, command)] : []),
+      ...(canMod ? ['separator' as const, ...userItems(role, login, command, warn(login))] : []),
       'separator',
       { label: 'Hide for me', icon: 'eyeOff', note: 'Only for you, not on Twitch', run: () => command(`/hideuser ${login}`) },
       ...(room.account ? [{ label: 'Block on Twitch', icon: 'ban' as const, danger: true, run: () => command(`/block ${login}`) }] : []),
@@ -313,21 +339,15 @@
         : []),
       { label: 'Copy message', icon: 'copy', run: () => void navigator.clipboard.writeText(plainText(m.body)) },
       ...(canMod
-        ? ['separator' as const, ...messageItems(m.id, command), 'separator' as const, ...userItems(role, login, command)]
+        ? ['separator' as const, ...messageItems(m.id, command), 'separator' as const, ...userItems(role, login, command, warn(login))]
         : []),
       ...(canPin ? ['separator' as const, { label: 'Pin message', icon: 'pin' as const, items: pinItems(m.id, command) }] : []),
       ...(own.length ? ['separator' as const, ...toItems(own, (cmd) => runEntry(room.view, cmd, ctx, onaction))] : []),
-      // S5 Entries plugins added.
-      ...(plugins.menus.length
-        ? [
-            'separator' as const,
-            ...plugins.menus.map((p) => ({
-              label: p.label,
-              icon: 'puzzle' as const,
-              run: () => pluginsIpc.runMenu(room.view, p.plugin, p.index, m.id).catch((err) => toast.error(String(err))),
-            })),
-          ]
-        : []),
+      // S5, S9 Entries plugins added, for this kind of line.
+      'separator',
+      ...pluginItems(plugins.menus, 'message', lineKind(m), (p) =>
+        pluginsIpc.runMenu(room.view, p.plugin, p.index, m.id).catch((err) => toast.error(String(err))),
+      ),
     ]);
   }
 
@@ -369,12 +389,14 @@
 
   function onclick(e: MouseEvent) {
     const el = (e.target as HTMLElement).closest<HTMLElement>(
-      '[data-user],[data-link],[data-reply],[data-jump],[data-emote],[data-whisper],[data-mod],[data-pin]',
+      '[data-user],[data-link],[data-reply],[data-jump],[data-emote],[data-whisper],[data-mod],[data-pin],[data-act]',
     );
     if (!el) return;
     const d = el.dataset;
     if (d.mod) {
       modClick(el, d.mod);
+    } else if (d.act) {
+      actClick(JSON.parse(d.act) as Act);
     } else if (d.pin) {
       hideTip();
       menuHere = true;
@@ -393,19 +415,34 @@
     } else if (d.reply) {
       onreply(d.reply);
     } else if (d.jump) {
-      const target = list?.querySelector<HTMLElement>(`[data-id="${CSS.escape(d.jump)}"]`);
-      target?.scrollIntoView({ block: 'center' });
-      target?.animate([{ background: 'var(--accent-wash)' }, { background: 'transparent' }], { duration: 1200 });
+      jump(d.jump);
     }
   }
 
-  /** V101-33 Mod mode's buttons: delete the line, time out or ban its sender. */
+  function jump(id: string) {
+    const target = list?.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`);
+    target?.scrollIntoView({ block: 'center' });
+    target?.animate([{ background: 'var(--accent-wash)' }, { background: 'transparent' }], { duration: 1200 });
+  }
+
+  /** S7 A plugin's piece was clicked. Links go through the link path instead. */
+  function actClick(a: Act) {
+    if (a.kind === 'user') chatIpc.openUsercard(room.login, a.login).catch((err) => toast.error(String(err)));
+    else if (a.kind === 'run') command(a.text);
+    else if (a.kind === 'jump') jump(a.id);
+    else if (a.kind === 'copy') void navigator.clipboard.writeText(a.text).then(() => toast.info('Copied.'));
+    else if (a.kind === 'insert') oninsert?.(a.text);
+  }
+
+  /** V101-33 Mod mode's buttons (M10): delete the line, time out, warn or ban its sender. */
   function modClick(el: HTMLElement, action: string) {
     const id = el.closest<HTMLElement>('[data-id]')?.dataset.id;
     const login = el.closest<HTMLElement>('[data-login]')?.dataset.login;
+    const secs = Number(el.dataset.secs);
     if (!id || !login) return;
     if (action === 'delete') command(`/delete ${id}`);
-    else if (action === 'timeout' && lineMod?.timeout) command(`/timeout ${login} ${lineMod.timeout}`);
+    else if (action === 'timeout' && secs > 0) command(`/timeout ${login} ${secs}`);
+    else if (action === 'warn') onprefill?.(`/warn ${login} `);
     else if (action === 'ban') command(`/ban ${login}`);
   }
 

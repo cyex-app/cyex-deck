@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { countOn, group, sends } from './notify.ts';
+import { countOn, group, sends, smart } from './notify.ts';
+
+test('smart delivery is the LIVE switch on the smart platform (T5)', () => {
+  assert.equal(smart([{ category: 'LIVE', platform: 'smart', on: true }]), true);
+  assert.equal(smart([{ category: 'ALL', platform: 'smart', on: true }, { category: 'LIVE', platform: 'smart', on: false }]), false);
+  assert.equal(smart([{ category: 'LIVE', platform: 'email', on: true }]), null);
+});
 
 test("Twitch's switches group like twitch.tv", () => {
   const s = group([

@@ -846,10 +846,13 @@ dependencies = [
 name = "cyex-plugins"
 version = "0.1.0"
 dependencies = [
+ "futures-util",
  "mlua",
  "reqwest",
  "serde",
  "serde_json",
+ "tokio",
+ "tokio-tungstenite",
  "ts-rs",
  "url",
 ]

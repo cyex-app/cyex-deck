@@ -1,9 +1,11 @@
 //! 1.36 What the usercard adds to the public profile: sub status (api.ivr.fi, D23), when
 //! they followed (only where the chat's account moderates, a Twitch limit), their name
-//! history and logs (logs.cyex.app). Logged lines become chat lines with emotes.
+//! history and logs (logs.cyex.app; for mods Twitch's mod logs where it has none, M8).
+//! Logged lines become chat lines with emotes.
 
 use std::sync::Arc;
 
+use cyex_chat::build::replay::{Comment, replay};
 use cyex_chat::build::{self, Colors, Ctx, Incoming, Me};
 use cyex_chat::irc::Line;
 use cyex_chat::model::{ChatMessage, Flag};
@@ -101,6 +103,8 @@ pub struct LogPage {
     pub more: bool,
     /// The browser page for these logs.
     pub url: String,
+    /// M8 Where Twitch's mod logs go on, for their next page.
+    pub cursor: Option<String>,
 }
 
 /// A page of someone's logs in a channel, newest first.
@@ -126,6 +130,7 @@ pub async fn logs(
                 state: "none".into(),
                 more: false,
                 url,
+                cursor: None,
             });
         }
         Logs::OptedOut => {
@@ -134,6 +139,7 @@ pub async fn logs(
                 state: "optedOut".into(),
                 more: false,
                 url,
+                cursor: None,
             });
         }
     };
@@ -162,5 +168,56 @@ pub async fn logs(
         state: "lines".into(),
         more,
         url,
+        cursor: None,
+    })
+}
+
+/// M8 A page of someone's messages from Twitch's mod logs, newest first, for a mod where
+/// logs.cyex.app has none.
+pub async fn mod_logs(
+    app: &AppHandle,
+    account: &str,
+    channel: &str,
+    user_id: &str,
+    cursor: Option<&str>,
+) -> Result<LogPage, String> {
+    let page = crate::moderation::queue::mod_log_messages(app, account, channel, user_id, cursor).await?;
+    let emotes = crate::emotes::room(app, None, channel);
+    let mut colors = Colors::default();
+    let mut ctx = Ctx::new(None, &mut colors, super::now_ms());
+    ctx.emotes = &emotes;
+    let messages = page
+        .messages
+        .iter()
+        .map(|m| {
+            let ts = time::OffsetDateTime::parse(&m.sent_at, &time::format_description::well_known::Rfc3339)
+                .map(|t| (t.unix_timestamp_nanos() / 1_000_000) as i64)
+                .unwrap_or(0);
+            let mut msg = replay(
+                &Comment {
+                    id: &m.id,
+                    ts,
+                    user_id: &m.user_id,
+                    login: &m.login,
+                    display: &m.display,
+                    color: m.color.as_deref(),
+                    badges: &m.badges,
+                    pieces: &m.pieces,
+                },
+                &mut ctx,
+            );
+            msg.set(Flag::History);
+            if m.deleted {
+                msg.set(Flag::Deleted);
+            }
+            Arc::new(msg)
+        })
+        .collect::<Vec<_>>();
+    Ok(LogPage {
+        state: if messages.is_empty() { "none" } else { "lines" }.into(),
+        messages,
+        more: page.more,
+        url: String::new(),
+        cursor: page.cursor,
     })
 }

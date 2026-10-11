@@ -10,7 +10,7 @@ use serde_json::{Map, json};
 use crate::host::*;
 use crate::manifest::DATA;
 use crate::perm::Granted;
-use crate::runtime::{Config, Event, Plugin, Reply};
+use crate::runtime::{Config, Event, MenuPlace, Plugin, Reply};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
@@ -30,6 +30,11 @@ struct Fake {
     system: Mutex<Vec<(String, String)>>,
     requests: Mutex<Vec<HttpRequest>>,
     changed: AtomicUsize,
+    /// S6 Sockets the plugin opened: what it asked for, what it sends, and its events.
+    sockets: Mutex<Vec<(SocketRequest, tokio::sync::mpsc::Receiver<SocketOut>, Emit)>>,
+    /// S7 Lines added (`add`), replaced (`replace`) and changed (`change`), in order.
+    lines: Mutex<Vec<(&'static str, String, NewLine)>>,
+    changes: Mutex<Vec<(String, Change)>>,
 }
 
 impl Fake {
@@ -80,6 +85,38 @@ impl Host for Fake {
             data: br#"{"n": 7}"#.to_vec(),
             error: None,
         });
+    }
+    fn socket(&self, req: SocketRequest, out: tokio::sync::mpsc::Receiver<SocketOut>, emit: Emit) {
+        self.sockets.lock().unwrap().push((req, out, emit));
+    }
+    fn add_line(&self, _plugin: &str, login: &str, line: NewLine) {
+        self.lines.lock().unwrap().push(("add", login.into(), line));
+    }
+    fn replace_line(&self, _plugin: &str, login: &str, line: NewLine) {
+        self.lines.lock().unwrap().push(("replace", login.into(), line));
+    }
+    fn change_line(&self, _plugin: &str, _login: &str, id: &str, change: Change) {
+        self.changes.lock().unwrap().push((id.into(), change));
+    }
+    fn find_line(&self, login: &str, id: &str) -> Option<Line> {
+        (id == "m1").then(|| line(login, "found"))
+    }
+    fn layout(&self) -> Layout {
+        Layout {
+            active: Some("t1".into()),
+            tabs: vec![LayoutTab {
+                id: "t1".into(),
+                name: "Open".into(),
+                group: None,
+                columns: vec![vec![LayoutTile {
+                    id: "x".into(),
+                    channel: "open".into(),
+                    name: "Open".into(),
+                    chat: true,
+                    ..LayoutTile::default()
+                }]],
+            }],
+        }
     }
     fn reserved(&self, command: &str) -> bool {
         command == "ban"
@@ -485,7 +522,7 @@ fn print_logs_and_menu_entries() {
     )
     .unwrap();
     assert_eq!(fake.logs(), ["hello 1 nil", "careful"]);
-    assert_eq!(p.exports().menu, ["Count words"]);
+    assert_eq!(p.exports().menu.iter().map(|m| m.label.as_str()).collect::<Vec<_>>(), ["Count words"]);
     assert_eq!(ask(|r| p.menu(0, "open", Some(line("open", "abc")), r)), Ok(()));
     assert_eq!(repl(&p, "words"), Ok("\"3 in open\"".into()));
     assert_eq!(repl(&p, "cyex.current_account().login"), Ok("\"me\"".into()));
@@ -493,4 +530,238 @@ fn print_logs_and_menu_entries() {
     let before = fake.changed.load(Ordering::Relaxed);
     repl(&p, "cyex.register_command('later', function() end)").unwrap();
     assert_eq!(fake.changed.load(Ordering::Relaxed), before + 1);
+}
+
+/// Waits until `f` holds, for things that happen on the plugin's thread.
+fn soon(f: impl Fn() -> bool) {
+    for _ in 0..100 {
+        if f() {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    panic!("never happened");
+}
+
+#[test]
+fn sockets_need_network_and_stay_on_listed_hosts() {
+    let (p, _, _) = start("", Granted::default()).unwrap();
+    assert!(repl(&p, "cyex.WebSocket.new('wss://feed.example.com')").unwrap_err().contains("Network"));
+    let granted = Granted {
+        network: Some(vec!["feed.example.com".into()]),
+        ..Granted::default()
+    };
+    let (p, fake, _) = start("", granted).unwrap();
+    assert!(repl(&p, "cyex.WebSocket.new('wss://other.com')").is_err());
+    assert!(repl(&p, "cyex.WebSocket.new('ws://127.0.0.1:9')").is_err());
+    assert!(repl(&p, "cyex.WebSocket.new('https://feed.example.com')").is_err());
+    let bad_header = "cyex.WebSocket.new('wss://feed.example.com', { headers = { ['Sec-WebSocket-Key'] = 'x' } })";
+    assert!(repl(&p, bad_header).is_err());
+    // Four at once.
+    let open = "s = {} for i = 1, 4 do s[i] = cyex.WebSocket.new('wss://feed.example.com/' .. i) end";
+    assert_eq!(repl(&p, open), Ok(String::new()));
+    assert!(repl(&p, "cyex.WebSocket.new('wss://feed.example.com/5')").unwrap_err().contains("4 open"));
+    assert_eq!(fake.sockets.lock().unwrap().len(), 4);
+    // One closes on the far side: room for another.
+    let emit = fake.sockets.lock().unwrap().remove(0).2;
+    emit(SocketEvent::Closed {
+        code: Some(1000),
+        reason: String::new(),
+    });
+    soon(|| repl(&p, "s5 = cyex.WebSocket.new('wss://feed.example.com/5')").is_ok());
+}
+
+#[test]
+fn socket_events_reach_their_handlers() {
+    let granted = Granted {
+        network: Some(vec![]),
+        ..Granted::default()
+    };
+    let (p, fake, _) = start(
+        r#"
+        got = {}
+        ws = cyex.WebSocket.new("wss://feed.example.com/live", {
+          headers = { Authorization = "Bearer x" },
+          on_open = function() ws:send_text("hello") end,
+          on_close = function(code, why) closed = tostring(code) .. ":" .. why end,
+        })
+        ws.on_text = function(data) got[#got + 1] = data end
+        "#,
+        granted,
+    )
+    .unwrap();
+    let (req, mut out, emit) = fake.sockets.lock().unwrap().pop().unwrap();
+    assert_eq!(req.url, "wss://feed.example.com/live");
+    assert_eq!(req.headers, [("Authorization".to_owned(), "Bearer x".to_owned())]);
+    assert!(emit(SocketEvent::Open));
+    assert!(emit(SocketEvent::Text("a".into())));
+    assert!(emit(SocketEvent::Text("b".into())));
+    soon(|| repl(&p, "#got").as_deref() == Ok("2"));
+    assert_eq!(out.try_recv(), Ok(SocketOut::Text("hello".into())));
+    assert_eq!(repl(&p, "got[1] .. got[2]"), Ok("\"ab\"".into()));
+    assert_eq!(repl(&p, "type(ws.on_text)"), Ok("\"function\"".into()));
+    // Closing from Lua ends what it sends; the far side's close runs on_close.
+    assert_eq!(repl(&p, "ws:close()"), Ok(String::new()));
+    assert!(repl(&p, "ws:send_text('late')").unwrap_err().contains("closed"));
+    assert_eq!(out.try_recv(), Err(tokio::sync::mpsc::error::TryRecvError::Disconnected));
+    emit(SocketEvent::Closed {
+        code: Some(1000),
+        reason: "bye".into(),
+    });
+    soon(|| repl(&p, "closed").as_deref() == Ok("\"1000:bye\""));
+}
+
+#[test]
+fn collected_sockets_close() {
+    let granted = Granted {
+        network: Some(vec![]),
+        ..Granted::default()
+    };
+    let (p, fake, _) = start("", granted).unwrap();
+    // The handler holds its own socket; it still goes once nothing else does.
+    let code = "do local ws; ws = cyex.WebSocket.new('wss://feed.example.com', { on_text = function() ws:close() end }) end";
+    assert_eq!(repl(&p, code), Ok(String::new()));
+    assert_eq!(repl(&p, "collectgarbage(); collectgarbage()"), Ok(String::new()));
+    let mut out = fake.sockets.lock().unwrap().pop().unwrap().1;
+    assert_eq!(out.try_recv(), Err(tokio::sync::mpsc::error::TryRecvError::Disconnected));
+}
+
+#[test]
+fn plugins_build_lines_from_pieces() {
+    let granted = Granted {
+        network: Some(vec!["cdn.example.com".into()]),
+        ..read_only()
+    };
+    let (p, fake, _) = start(
+        r##"
+        local ch = cyex.Channel.by_name("open")
+        local sun = cyex.Image.from_url("https://cdn.example.com/sun.png", 0.5, { 56, 56 })
+        local msg = cyex.Message.new({
+          id = "weather",
+          highlight_color = "#f00",
+          elements = {
+            { type = "text", text = "Sunny ", color = "#00ff00", tooltip = "22 °C" },
+            { type = "text", text = "Vote", style = "button", link = { type = cyex.LinkType.UserAction, value = "/weather vote" } },
+            { type = "mention", display_name = "@Bob", login_name = "bob" },
+            { type = "linebreak" },
+            { type = "image", image = sun },
+            { type = "scaling-image", images = cyex.ImageSet.new("https://cdn.example.com/a.png", "https://cdn.example.com/b.png") },
+            { type = "text", text = "relay: hi", parse = true },
+          },
+        })
+        first = ch:add_message(msg)
+        second = ch:add_message(cyex.Message.new({ elements = { { type = "text", text = "x" } } }))
+        "##,
+        granted,
+    )
+    .unwrap();
+    assert_eq!(repl(&p, "first"), Ok("\"p:test:weather\"".into()));
+    assert_eq!(repl(&p, "second:sub(1, 7)"), Ok("\"p:test:\"".into()));
+    let lines = fake.lines.lock().unwrap().clone();
+    let (op, login, line) = &lines[0];
+    assert_eq!((*op, login.as_str(), line.highlight.as_deref()), ("add", "open", Some("#ff0000")));
+    assert_eq!(line.pieces.len(), 7);
+    assert!(matches!(&line.pieces[0], Piece::Text { color: Some(PieceColor::Rgb(c)), tip: Some(_), .. } if c == "#00ff00"));
+    assert!(matches!(&line.pieces[1], Piece::Text { style: Some(PieceStyle::Button), link: Some(LineLink::Run(t)), .. } if t == "/weather vote"));
+    assert!(matches!(&line.pieces[3], Piece::Break));
+    // A 2x picture: 56 px at 2x is 28 px on the line.
+    assert!(matches!(&line.pieces[4], Piece::Image { urls, size: Some((28, 28)), .. } if urls[0].1 == 2));
+    assert!(matches!(&line.pieces[5], Piece::Image { urls, .. } if urls.len() == 2 && urls[1].1 == 2));
+    assert!(matches!(&line.pieces[6], Piece::Text { parse: true, .. }));
+}
+
+#[test]
+fn plugin_lines_follow_the_rules() {
+    let (p, fake, _) = start("ch = cyex.Channel.by_name('open')", read_only()).unwrap();
+    let text = |s: &str| format!("cyex.Message.new({{ elements = {{ {s} }} }})");
+    // Pictures need Network and https.
+    assert!(repl(&p, "cyex.Image.from_url('https://cdn.example.com/a.png')").unwrap_err().contains("Network"));
+    // Text that isn't a command would send a message.
+    let say = text("{ type = 'text', text = 'x', link = { type = 'UserAction', value = 'hi all' } }");
+    assert!(repl(&p, &say).unwrap_err().contains("SendMessages"));
+    assert!(repl(&p, &text("{ type = 'timestamp' }")).unwrap_err().contains("isn't in cyex"));
+    assert!(repl(&p, &text("{ type = 'text', text = 'x', color = 'blue' }")).is_err());
+    assert!(repl(&p, &text("{ type = 'text', text = 'x', link = { type = 'Url', value = 'file:///c' } }")).is_err());
+    assert!(repl(&p, &format!("ch:add_message({})", text(&format!("{{ type = 'text', text = '{}' }}", "a".repeat(1001))))).is_err());
+    // Someone else's line can't be swapped; changing any needs ChangeChat.
+    let one = text("{ type = 'text', text = 'x' }");
+    assert!(repl(&p, &format!("ch:replace_message('m1', {one})")).unwrap_err().contains("only lines"));
+    assert!(repl(&p, "ch:change_message('m1', { hide = true })").unwrap_err().contains("ChangeChat"));
+    assert_eq!(repl(&p, &format!("ch:replace_message(ch:add_message({one}), {one})")), Ok(String::new()));
+    assert_eq!(fake.lines.lock().unwrap().iter().map(|l| l.0).collect::<Vec<_>>(), ["add", "replace"]);
+    assert_eq!(repl(&p, "ch:find_message_by_id('m1').text"), Ok("\"found\"".into()));
+    // Twenty a second.
+    assert!(repl(&p, &format!("for i = 1, 25 do ch:add_message({one}) end")).unwrap_err().contains("20 lines"));
+    let (p, fake, _) = start("ch = cyex.Channel.by_name('open')", Granted::all()).unwrap();
+    assert_eq!(repl(&p, "ch:change_message('m1', { text = 'new', highlight = true })"), Ok(String::new()));
+    let changes = fake.changes.lock().unwrap();
+    assert_eq!((changes[0].0.as_str(), changes[0].1.text.as_deref()), ("m1", Some("new")));
+}
+
+#[test]
+fn chat_events_reach_callbacks_and_channel_handlers() {
+    let (p, _, _) = start(
+        r#"
+        n = 0
+        cleared = 0
+        cyex.register_callback(cyex.EventType.MessageAppended, function(l) n = n + 1; last = l.text end)
+        cyex.register_callback(cyex.EventType.MessageDeleted, function(e) gone = e.id end)
+        h = cyex.Channel.by_name("open"):on_messages_cleared(function() cleared = cleared + 1 end)
+        "#,
+        read_only(),
+    )
+    .unwrap();
+    assert!(p.has(Event::MessageAppended) && p.has(Event::ChatCleared));
+    let cleared = |channel: &str| ChatEvent::Cleared {
+        channel: channel.into(),
+    };
+    assert!(p.chat(vec![
+        ChatEvent::Appended(line("open", "hi")),
+        ChatEvent::Deleted {
+            channel: "open".into(),
+            id: Some("m1".into()),
+            user_id: None
+        },
+        cleared("open"),
+        cleared("other"),
+    ]));
+    soon(|| repl(&p, "cleared").as_deref() == Ok("1"));
+    assert_eq!(repl(&p, "n, last, gone"), Ok("1\t\"hi\"\t\"m1\"".into()));
+    // Blocked handlers wait; disconnected ones are gone.
+    assert_eq!(repl(&p, "h:block()"), Ok(String::new()));
+    assert!(p.chat(vec![cleared("open"), ChatEvent::Appended(line("open", "again"))]));
+    soon(|| repl(&p, "n").as_deref() == Ok("2"));
+    assert_eq!(repl(&p, "cleared, h:is_blocked(), h:is_connected()"), Ok("1\ttrue\ttrue".into()));
+    assert_eq!(repl(&p, "h:disconnect(); return h:is_connected()"), Ok("false".into()));
+    assert!(!p.has(Event::ChatCleared));
+}
+
+#[test]
+fn chat_events_need_read_chat_but_renames_dont() {
+    let (p, _, _) = start("", Granted::default()).unwrap();
+    let err = repl(&p, "cyex.register_callback(cyex.EventType.MessageAppended, function() end)").unwrap_err();
+    assert!(err.contains("ReadChat"));
+    assert!(repl(&p, "cyex.Channel.by_name('open'):on_message_appended(function() end)").is_err());
+    let ok = "cyex.register_callback(cyex.EventType.ChannelRenamed, function() end)";
+    assert_eq!(repl(&p, ok), Ok(String::new()));
+    assert!(p.has(Event::ChannelRenamed));
+}
+
+#[test]
+fn menu_entries_go_where_asked_and_layout_reads() {
+    let (p, _, _) = start(
+        r#"
+        cyex.register_menu_entry("translate it.", function() end, { lines = { "chat", "action" } })
+        cyex.register_menu_entry("Forecast", function() end, { where = "chat", group = "weather" })
+        "#,
+        Granted::default(),
+    )
+    .unwrap();
+    let menu = p.exports().menu;
+    assert_eq!((menu[0].label.as_str(), menu[0].place, menu[0].lines.len()), ("Translate it", MenuPlace::Message, 2));
+    assert_eq!((menu[1].place, menu[1].group.as_deref()), (MenuPlace::Chat, Some("Weather")));
+    assert!(repl(&p, "cyex.register_menu_entry('x', function() end, { where = 'tab' })").is_err());
+    assert!(repl(&p, "cyex.register_menu_entry('x', function() end, { lines = { 'whisper' } })").is_err());
+    let layout = "local l = cyex.get_layout() return l.active, l.tabs[1].columns[1][1].channel, l.tabs[1].columns[1][1].chat";
+    assert_eq!(repl(&p, layout), Ok("\"t1\"\t\"open\"\ttrue".into()));
 }

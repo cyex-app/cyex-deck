@@ -45,9 +45,15 @@ pub enum Kind {
     ActivityAlerts,
     /// 1.35 Your channel's dashboard feed lines, for watch streaks. Signed in as the broadcaster.
     ActivityFeed,
+    /// D7 Title and category changes (`broadcast-settings-update`).
+    BroadcastSettings,
+    /// D7 Your ad schedule and snoozes. Signed in as the broadcaster.
+    AdsManager,
+    /// D6 Creators asking to join your Stream Together. Signed in as the host.
+    GuestStarUser,
 }
 
-const KINDS: [Kind; 14] = [
+const KINDS: [Kind; 17] = [
     Kind::Polls,
     Kind::Predictions,
     Kind::Celebrations,
@@ -62,6 +68,9 @@ const KINDS: [Kind; 14] = [
     Kind::Onsite,
     Kind::ActivityAlerts,
     Kind::ActivityFeed,
+    Kind::BroadcastSettings,
+    Kind::AdsManager,
+    Kind::GuestStarUser,
 ];
 
 impl Kind {
@@ -81,13 +90,17 @@ impl Kind {
             Kind::Onsite => "onsite-notifications.",
             Kind::ActivityAlerts => "activity-feed-alerts-v2.",
             Kind::ActivityFeed => "activity-feed-broadcaster-v2.",
+            Kind::BroadcastSettings => "broadcast-settings-update.",
+            Kind::AdsManager => "ads-manager.",
+            Kind::GuestStarUser => "guest-star-user-v1.",
         }
     }
 
-    /// The topic for a channel or user id. The broadcaster's feed names the channel twice.
+    /// The topic for a channel or user id. The broadcaster's feed and ads name the channel
+    /// twice (user, then channel).
     fn topic(self, id: &str) -> String {
         match self {
-            Kind::ActivityFeed => format!("{}{id}.{id}", self.prefix()),
+            Kind::ActivityFeed | Kind::AdsManager => format!("{}{id}.{id}", self.prefix()),
             _ => format!("{}{id}", self.prefix()),
         }
     }
@@ -108,6 +121,9 @@ impl Kind {
             Kind::Onsite => 'o',
             Kind::ActivityAlerts => 'l',
             Kind::ActivityFeed => 'f',
+            Kind::BroadcastSettings => 'g',
+            Kind::AdsManager => 'k',
+            Kind::GuestStarUser => 'j',
         }
     }
 

@@ -106,6 +106,8 @@ pub enum Incoming {
     UserState(UserState),
     /// NOTICE from Twitch, e.g. why a message wasn't sent.
     Notice { msg_id: String, notice: ChatMessage },
+    /// C37 Someone else opened or left the chat (JOIN, PART with `twitch.tv/membership`).
+    Presence { login: String, joined: bool },
 }
 
 /// `None` for lines a room doesn't care about.
@@ -118,8 +120,22 @@ pub fn build(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Option<Incoming> {
         "NOTICE" => Some(moderation::notice(line, ctx)),
         "ROOMSTATE" => Some(Incoming::RoomState(RoomStateUpdate::from_line(line))),
         "USERSTATE" => Some(Incoming::UserState(UserState::from_line(line))),
+        "JOIN" | "PART" => presence(line, ctx),
         _ => None,
     }
+}
+
+/// C37 Signed-in people only: anonymous readers (`justinfan…`) and we ourselves aren't news.
+fn presence(line: &Line<'_>, ctx: &Ctx<'_>) -> Option<Incoming> {
+    let login = line.nick();
+    let me = ctx.me.is_some_and(|m| m.login.eq_ignore_ascii_case(login));
+    if login.is_empty() || me || login.starts_with("justinfan") {
+        return None;
+    }
+    Some(Incoming::Presence {
+        login: login.to_ascii_lowercase(),
+        joined: line.command == "JOIN",
+    })
 }
 
 /// `tmi-sent-ts`, else the history service's receive time, else now.

@@ -64,6 +64,7 @@ pub async fn command(app: &AppHandle, account: &str, login: &str, cmd: ModComman
             Ok(Some(if on { "Shield mode on.".into() } else { "Shield mode off.".into() }))
         }
         C::Pin { msg_id, secs } => pin(app, &actor, &msg_id, secs).await.map(|()| Some("Pinned.".into())),
+        C::PinSend { text, secs } => pin_send(app, &actor, &text, secs.unwrap_or(PIN_SEND_SECS)).await.map(|()| None),
         C::Unpin => unpin(app, &actor).await.map(|()| Some("Unpinned.".into())),
         C::Raid { login: who } => {
             let to = user_id(app, &who).await?;
@@ -159,6 +160,37 @@ async fn pin(app: &AppHandle, actor: &Actor, msg_id: &str, secs: Option<u32>) ->
     }
     if let Some(g) = actor.gql() {
         return refuse(gql::moderation::pin(&http(app), g, &actor.channel_id, msg_id, secs).await, "that message");
+    }
+    Err(no_token())
+}
+
+/// M11 Twitch's web chat pins for 20 minutes.
+const PIN_SEND_SECS: u32 = 1200;
+
+/// M11 Sends a line and pins it: Twitch's own send-and-pin over GQL, else Helix sends it
+/// and pins it by the id it gets back. The line itself comes in over IRC like any other.
+async fn pin_send(app: &AppHandle, actor: &Actor, text: &str, secs: u32) -> Result<(), String> {
+    if text.chars().count() > cyex_chat::irc::write::MAX_MESSAGE_CHARS {
+        return Err("That's over 500 characters.".into());
+    }
+    let http = http(app);
+    if let Some(g) = actor.gql() {
+        let pin_id = match gql::moderation::send_pinned(&http, g, &actor.channel_id, text).await {
+            Ok(id) => id,
+            Err(cyex_twitch::Error::Refused(c)) => return Err(codes::gql(&c, "that message")),
+            Err(e) => return Err(e.to_string()),
+        };
+        return refuse(gql::moderation::update_pin(&http, g, &pin_id, secs).await, "that pin");
+    }
+    let pins = actor.helix_scoped(app, "moderator:manage:chat_messages").is_some();
+    if let Some(h) = actor.helix_scoped(app, "user:write:chat").filter(|_| pins) {
+        let room = actor.room();
+        let id = match cyex_twitch::helix::send_message(&http, h, room.broadcaster_id, room.moderator_id, text).await {
+            Ok(id) => id,
+            Err(cyex_twitch::Error::Refused(why)) => return Err(why),
+            Err(e) => return Err(helix_err(e)),
+        };
+        return hm::pin(&http, h, room, &id, Some(secs)).await.map_err(helix_err);
     }
     Err(no_token())
 }

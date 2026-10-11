@@ -1,7 +1,8 @@
 //! 1.35 What the stream manager does to the broadcaster's own channel: title and
 //! category, markers, chat modes, ads, raids, polls and predictions, and Stream Together.
 //! Each runs GQL first, like Twitch's dashboard, and Helix otherwise (D30); Twitch's
-//! errors come back as short lines. None run in testing.
+//! errors come back as short lines. D2, D4, D5, D6 (raid now and suggestions, alerts, ad
+//! settings, join requests) are GQL only, as on Twitch's dashboard. None run in testing.
 
 use cyex_twitch::gql::{self, dashboard as dash};
 use cyex_twitch::helix::{self, ads, channel, gueststar, modes, roles, votes};
@@ -9,7 +10,16 @@ use serde::Deserialize;
 use tauri::{AppHandle, Manager};
 use ts_rs::TS;
 
-use super::{Call, either, obs, stats};
+use super::{Call, either, obs, stats, words};
+
+/// For what only Twitch's own sign-in can do.
+const GQL_ONLY: &str = "This needs the sign-in with a code (Settings → Accounts).";
+
+/// The manager's GQL sign-in, or the line to show.
+fn gql_call(app: &AppHandle) -> Result<Call, String> {
+    let c = Call::new(app)?;
+    if c.has_gql() { Ok(c) } else { Err(GQL_ONLY.into()) }
+}
 
 /// Twitch user id for a login, from public GQL.
 async fn user_id(app: &AppHandle, login: &str) -> Result<String, String> {
@@ -168,6 +178,56 @@ pub async fn raid(app: &AppHandle, login: String) -> Result<(), String> {
     .await
 }
 
+/// D2 Sends the raid now instead of waiting out the countdown.
+pub async fn raid_now(app: &AppHandle) -> Result<(), String> {
+    let c = gql_call(app)?;
+    dash::raids::go(&c.http, c.gql(), &c.channel_id).await.map_err(|e| words::gql(&e))
+}
+
+/// D2 Twitch's raid suggestions; none without a GQL sign-in.
+pub async fn raid_picks(app: &AppHandle) -> Result<Vec<dash::raids::RaidPick>, String> {
+    let Ok(c) = gql_call(app) else { return Ok(Vec::new()) };
+    dash::raids::suggestions(&c.http, c.gql(), &c.channel_id).await.map_err(|e| words::gql(&e))
+}
+
+/// D4 Plays an alert again, or skips it, in Twitch's alert box.
+pub async fn alert(app: &AppHandle, id: String, replay: bool) -> Result<(), String> {
+    let c = gql_call(app)?;
+    dash::feed::set_alert(&c.http, c.gql(), &id, replay).await.map_err(|e| words::gql(&e))
+}
+
+/// D5 The ad schedule's settings; `None` without a GQL sign-in.
+pub async fn ad_settings(app: &AppHandle) -> Result<Option<dash::ads::AdSettings>, String> {
+    let Ok(c) = gql_call(app) else { return Ok(None) };
+    dash::ads::settings(&c.http, c.gql(), &c.channel_id)
+        .await
+        .map(Some)
+        .map_err(|e| words::gql(&e))
+}
+
+pub async fn set_ad_settings(app: &AppHandle, edit: dash::ads::AdEdit) -> Result<(), String> {
+    let c = gql_call(app)?;
+    dash::ads::set_settings(&c.http, c.gql(), &c.channel_id, &edit)
+        .await
+        .map_err(|e| words::gql(&e))
+}
+
+/// D6 Lets a creator into the Stream Together, or not.
+pub async fn join_answer(app: &AppHandle, user_id: String, approve: bool) -> Result<(), String> {
+    let c = gql_call(app)?;
+    dash::together::answer(&c.http, c.gql(), &user_id, approve)
+        .await
+        .map_err(|e| words::gql(&e))
+}
+
+/// D6 Guests show on stream once they're set up: for the session, or the next one.
+pub async fn auto_add(app: &AppHandle, session: Option<String>, on: bool) -> Result<(), String> {
+    let c = gql_call(app)?;
+    dash::together::set_auto_add(&c.http, c.gql(), session.as_deref(), on)
+        .await
+        .map_err(|e| words::gql(&e))
+}
+
 pub async fn unraid(app: &AppHandle) -> Result<(), String> {
     either(
         app,
@@ -314,6 +374,10 @@ pub async fn end_prediction(app: &AppHandle, id: String, end: PredictionEnd) -> 
 pub struct Together {
     pub session: Option<gueststar::Session>,
     pub invites: Vec<InviteRow>,
+    /// D6 Creators asking to join (GQL sign-in only).
+    pub requests: Vec<dash::together::JoinRequest>,
+    /// D6 Guests show on stream once set up; `None` when unknown (no GQL sign-in).
+    pub auto_add: Option<bool>,
 }
 
 /// A pending invite with the guest's name (Twitch only gives the id).
@@ -329,12 +393,24 @@ pub struct InviteRow {
 }
 
 pub async fn together(app: &AppHandle) -> Result<Together, String> {
+    let login = super::manager(app).map(|m| m.login).unwrap_or_default();
     either(
         app,
         async |c: &Call| {
-            let found = dash::together::session(&c.http, c.gql(), &c.channel_id).await?;
-            let Some((session, invited)) = found else {
-                return Ok(Together::default());
+            let (found, requests, auto_add) = tokio::join!(
+                dash::together::session(&c.http, c.gql(), &c.channel_id),
+                dash::together::join_requests(&c.http, c.gql(), &c.channel_id),
+                dash::together::auto_add(&c.http, c.gql(), &c.channel_id, &login),
+            );
+            // Both are extras: the session still shows without them.
+            let requests = requests.unwrap_or_default();
+            let auto_add = auto_add.ok().flatten();
+            let Some((session, invited)) = found? else {
+                return Ok(Together {
+                    requests,
+                    auto_add,
+                    ..Together::default()
+                });
             };
             let invites = invited
                 .into_iter()
@@ -348,6 +424,8 @@ pub async fn together(app: &AppHandle) -> Result<Together, String> {
             Ok(Together {
                 session: Some(session),
                 invites,
+                requests,
+                auto_add,
             })
         },
         async |c: &Call| {
@@ -377,7 +455,11 @@ pub async fn together(app: &AppHandle) -> Result<Together, String> {
                     }
                 })
                 .collect();
-            Ok(Together { session, invites })
+            Ok(Together {
+                session,
+                invites,
+                ..Together::default()
+            })
         },
     )
     .await

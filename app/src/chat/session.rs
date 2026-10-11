@@ -2,12 +2,15 @@
 
 use std::sync::Arc;
 
-use cyex_chat::irc::{self, Anonymous, Client, Credentials, Event, Line, LinkStatus, Window};
+use std::sync::atomic::Ordering;
+
+use cyex_chat::build::Me;
+use cyex_chat::irc::{self, Client, Credentials, Event, Line, LinkStatus, Window};
 use cyex_chat::model::{ConnStatus, Flag, NoticeKind, RoomEvent};
 use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc;
 
-use super::creds::AccountCreds;
+use super::creds::{AccountCreds, AnonCreds};
 use super::unread::{self, Unread};
 use super::{Chat, Identity, Inner, RoomKey, Session, account_of, budget, mention, now_ms, queue};
 
@@ -15,7 +18,7 @@ use super::{Chat, Identity, Inner, RoomKey, Session, account_of, budget, mention
 pub fn ensure<'a>(app: &AppHandle, inner: &'a mut Inner, identity: &Identity) -> &'a Session {
     inner.sessions.entry(identity.clone()).or_insert_with(|| {
         let creds: Arc<dyn Credentials> = match identity {
-            Identity::Anon => Arc::new(Anonymous),
+            Identity::Anon => Arc::new(AnonCreds(app.clone())),
             Identity::Account(id) => Arc::new(AccountCreds::new(app.clone(), id.clone())),
         };
         let (tx, rx) = mpsc::unbounded_channel();
@@ -77,6 +80,15 @@ fn link_status(app: &AppHandle, identity: &Identity, link: LinkStatus) {
     }
 }
 
+/// Our own JOIN: the account's login, or the anonymous `justinfan…` nick. With C37 on,
+/// other people's come in too.
+fn own(me: Option<&Me>, nick: &str) -> bool {
+    match me {
+        Some(m) => m.login.eq_ignore_ascii_case(nick),
+        None => nick.starts_with("justinfan"),
+    }
+}
+
 fn line(app: &AppHandle, identity: &Identity, raw: &str) {
     let Some(line) = Line::parse(raw) else { return };
     let Some(channel) = line.channel() else { return };
@@ -86,7 +98,7 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
     let key = (identity.clone(), channel.to_owned());
     let Some(entry) = inner.rooms.get_mut(&key) else { return };
 
-    if line.command == "JOIN" {
+    if line.command == "JOIN" && own(entry.room.me(), line.nick()) {
         let events = entry.room.set_status(ConnStatus::Joined, now_ms());
         queue(entry, events, &chat.wake);
         let gap = entry.room.take_gap(now_ms());
@@ -94,6 +106,10 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
         if let Some(span) = gap {
             fill_gap(app.clone(), key, span);
         }
+        return;
+    }
+    // C37 Lines asked for before the setting went off, until the next connect.
+    if matches!(line.command, "JOIN" | "PART") && !chat.joins.load(Ordering::Relaxed) {
         return;
     }
     let was_privileged = entry.room.privileged();
@@ -195,17 +211,34 @@ fn fill_gap(app: AppHandle, key: RoomKey, (after, before, limit): (i64, i64, u32
     });
 }
 
+/// C35 How far back history from logs.cyex.app may go.
+const LOGS_HISTORY_SECS: i64 = 24 * 3600;
+
 /// C1 Fetches up to `limit` recent messages in the background and adds them above the
-/// live ones.
+/// live ones. C35 Where the history service has none, logs.cyex.app stands in.
 pub fn load_history(app: AppHandle, key: RoomKey, limit: u32) {
     tauri::async_runtime::spawn(async move {
         let http = app.state::<crate::auth::Auth>().http.clone();
-        let lines = match cyex_twitch::recent::recent_messages(&http, &key.1, limit).await {
-            Ok(lines) => lines,
-            Err(e) => {
-                eprintln!("chat: no history for {}: {e}", key.1);
-                say(&app, &key, &cyex_twitch::recent::unavailable(&e));
-                return;
+        let recent = cyex_twitch::recent::recent_messages(&http, &key.1, limit).await;
+        let lines = match recent {
+            Ok(lines) if !lines.is_empty() => lines,
+            other => {
+                let now = now_ms() / 1000;
+                let from = cyex_twitch::clock::rfc3339(now - LOGS_HISTORY_SECS);
+                let to = cyex_twitch::clock::rfc3339(now);
+                match cyex_twitch::logs::channel_lines(&http, &key.1, limit, &from, &to).await {
+                    Ok(lines) if !lines.is_empty() => {
+                        say(&app, &key, "Chat history from logs.cyex.app");
+                        lines
+                    }
+                    _ => {
+                        if let Err(e) = other {
+                            eprintln!("chat: no history for {}: {e}", key.1);
+                            say(&app, &key, &cyex_twitch::recent::unavailable(&e));
+                        }
+                        return;
+                    }
+                }
             }
         };
         let emotes = crate::emotes::room(&app, account_of(&key.0), &key.1);
@@ -226,4 +259,18 @@ fn say(app: &AppHandle, key: &RoomKey, text: &str) {
     let Some(entry) = inner.rooms.get_mut(key) else { return };
     let ev = entry.room.system(NoticeKind::Info, text, now_ms());
     queue(entry, [ev], &chat.wake);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_our_own_join_counts_as_joined() {
+        let me = Me::new("1", "me", "Me");
+        assert!(own(Some(&me), "me"));
+        assert!(!own(Some(&me), "ana"), "C37: someone else's JOIN");
+        assert!(own(None, "justinfan4821"));
+        assert!(!own(None, "ana"));
+    }
 }

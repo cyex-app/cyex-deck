@@ -15,6 +15,12 @@ export function plainText(body: Fragment[]): string {
           return `${f.prefix}${f.amount}`;
         case 'gif':
           return 'GIF';
+        case 'span':
+          return f.text;
+        case 'image':
+          return f.alt;
+        case 'break':
+          return '\n';
       }
     })
     .join('');

@@ -12,6 +12,9 @@ pub struct StreamManager {
     pub activity: ActivityFilters,
     /// X4 Status files for OBS.
     pub obs: Obs,
+    /// D4 The channel's alerts were seen playing in Twitch's alert box, so the feed offers
+    /// Replay and Skip. Learned, not set by hand.
+    pub alert_box: bool,
 }
 
 /// Each activity kind the feed can show. All on until the user hides one.
@@ -27,6 +30,10 @@ pub struct ActivityFilters {
     pub redemptions: bool,
     /// Watch streaks; only a GQL sign-in gets them (D30).
     pub streaks: bool,
+    /// D3 Power-ups, hype trains and goals; GQL sign-in only.
+    pub power_ups: bool,
+    pub hype_trains: bool,
+    pub goals: bool,
 }
 
 impl Default for ActivityFilters {
@@ -39,6 +46,9 @@ impl Default for ActivityFilters {
             raids: true,
             redemptions: true,
             streaks: true,
+            power_ups: true,
+            hype_trains: true,
+            goals: true,
         }
     }
 }
@@ -66,7 +76,7 @@ mod tests {
         assert!(f.follows && f.subs && f.gifts && f.cheers && f.raids && f.redemptions && f.streaks);
         // Files saved before streaks existed get them on.
         let old: ActivityFilters = serde_json::from_str(r#"{"follows":false}"#).unwrap();
-        assert!(!old.follows && old.streaks);
+        assert!(!old.follows && old.streaks && old.power_ups && old.goals);
         assert!(!Obs::default().enabled);
     }
 }

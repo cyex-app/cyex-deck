@@ -74,6 +74,21 @@ pub async fn history(app: &AppHandle, account: &str, login: &str, target_id: &st
     gql::modlogs::history(&http(app), g, &channel_id, target_id).await.map_err(err)
 }
 
+/// M8 A page of a user's messages from the channel's mod logs (GQL only).
+pub async fn mod_log_messages(
+    app: &AppHandle,
+    account: &str,
+    login: &str,
+    target_id: &str,
+    cursor: Option<&str>,
+) -> Result<gql::modlogs::ModLogPage, String> {
+    let actor = super::actor(app, account, login)?;
+    let g = actor.gql().ok_or("Mod logs need a GQL sign-in.")?;
+    gql::modlogs::messages(&http(app), g, &actor.channel_id, target_id, cursor)
+        .await
+        .map_err(err)
+}
+
 /// M3 Writes a mod comment on a user.
 pub async fn add_comment(app: &AppHandle, account: &str, login: &str, target_id: &str, text: &str, shareable: bool) -> Result<(), String> {
     let actor = super::actor(app, account, login)?;

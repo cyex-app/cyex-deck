@@ -1,9 +1,11 @@
 //! 1.35 Stream Together (Twitch's Guest Star) hosted from your own channel: the session,
 //! its invites, and the host's moves. Joining someone else's needs a camera and mic on a
-//! WebRTC call, which stays on Twitch.
+//! WebRTC call, which stays on Twitch. D6 Other creators asking to join, and whether
+//! guests show on stream as soon as they're set up.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use ts_rs::TS;
 
 use super::mutate;
 use crate::gql::{Auth, query};
@@ -25,6 +27,92 @@ const ASSIGN: &str = "mutation($input: AssignUserToGuestStarSlotInput!) { \
     assignUserToGuestStarSlot(input: $input) { error { code } } }";
 const UNASSIGN: &str = "mutation($input: RemoveUserFromGuestStarSlotInput!) { \
     removeUserFromGuestStarSlot(input: $input) { error { code } } }";
+
+const REQUESTS: &str = "query($id: ID!) { guestStarJoinRequests(hostID: $id) { status inviteMessage \
+    user { id login displayName profileImageURL(width: 70) } } }";
+const ANSWER: &str = "mutation($input: UpdateGuestStarJoinRequestStatusInput!) { \
+    updateGuestStarJoinRequestStatus(input: $input) { error { code } } }";
+const AUTO_READ: &str = "query($id: ID!, $login: String!) { \
+    guestStarSession(options: { channelID: $id }) { id settings { isAutoPushEnabled } } \
+    guestStarSettings(userLogin: $login) { hostSettings { isAutoPushEnabled } } }";
+/// No `error` here: top-level errors.
+const AUTO_SESSION: &str = "mutation($input: SetGuestStarSessionSettingsInput!) { \
+    setGuestStarSessionSettings(input: $input) { session { id } } }";
+const AUTO_HOST: &str = "mutation($input: SetGuestStarUserSettingsInput!) { \
+    setGuestStarUserSettings(input: $input) { error { code } } }";
+
+/// D6 A creator asking to join your Stream Together.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename = "SmJoinRequest")]
+pub struct JoinRequest {
+    pub user_id: String,
+    pub login: String,
+    pub name: String,
+    pub avatar: String,
+    pub message: String,
+}
+
+/// D6 Requests still waiting for an answer.
+pub async fn join_requests(http: &Http, auth: Auth<'_>, channel_id: &str) -> Result<Vec<JoinRequest>> {
+    let data: Value = query(http, auth, REQUESTS, json!({ "id": channel_id })).await?;
+    Ok(requests_from(&data))
+}
+
+fn requests_from(data: &Value) -> Vec<JoinRequest> {
+    let s = |v: &Value| v.as_str().unwrap_or_default().to_owned();
+    data["guestStarJoinRequests"]
+        .as_array()
+        .map(|list| {
+            list.iter()
+                .filter(|r| r["status"].as_str().is_none_or(|s| s == "PENDING"))
+                .filter_map(|r| {
+                    let u = &r["user"];
+                    let login = u["login"].as_str()?.to_owned();
+                    Some(JoinRequest {
+                        user_id: u["id"].as_str()?.to_owned(),
+                        name: u["displayName"].as_str().map_or_else(|| login.clone(), str::to_owned),
+                        login,
+                        avatar: s(&u["profileImageURL"]),
+                        message: s(&r["inviteMessage"]),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// D6 Lets them in, or not.
+pub async fn answer(http: &Http, auth: Auth<'_>, user_id: &str, approve: bool) -> Result<()> {
+    let status = if approve { "APPROVED" } else { "DENIED" };
+    let input = json!({ "userID": user_id, "requestStatus": status });
+    mutate(http, auth, ANSWER, "updateGuestStarJoinRequestStatus", input).await
+}
+
+/// D6 Whether guests show on stream once they're set up: the session's setting while one
+/// runs, else the host's default for the next.
+pub async fn auto_add(http: &Http, auth: Auth<'_>, channel_id: &str, login: &str) -> Result<Option<bool>> {
+    let data: Value = query(http, auth, AUTO_READ, json!({ "id": channel_id, "login": login })).await?;
+    Ok(auto_from(&data))
+}
+
+fn auto_from(data: &Value) -> Option<bool> {
+    data["guestStarSession"]["settings"]["isAutoPushEnabled"]
+        .as_bool()
+        .or_else(|| data["guestStarSettings"]["hostSettings"]["isAutoPushEnabled"].as_bool())
+}
+
+/// D6 Sets it for the running session, or as the host's default.
+pub async fn set_auto_add(http: &Http, auth: Auth<'_>, session_id: Option<&str>, on: bool) -> Result<()> {
+    match session_id {
+        Some(id) => {
+            let input = json!({ "sessionID": id, "isAutoPushEnabled": on });
+            query::<Value>(http, auth, AUTO_SESSION, json!({ "input": input })).await?;
+            Ok(())
+        }
+        None => mutate(http, auth, AUTO_HOST, "setGuestStarUserSettings", json!({ "isAutoPushEnabled": on })).await,
+    }
+}
 
 /// A pending invite, with the guest's name.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -209,5 +297,22 @@ mod tests {
         assert_eq!(s.guests.len(), 1);
         assert_eq!((s.guests[0].slot_id.as_str(), s.guests[0].is_live), ("0", true));
         assert_eq!((inv[0].name.as_str(), inv[0].status.as_str()), ("Kuni", "READY"));
+    }
+
+    #[test]
+    fn join_requests_and_auto_add_read() {
+        let data = json!({ "guestStarJoinRequests": [
+            { "status": "PENDING", "inviteMessage": "collab?", "user": { "id": "9", "login": "kuni", "displayName": "Kuni",
+                "profileImageURL": "https://p" } },
+            { "status": "DENIED", "user": { "id": "8", "login": "x" } } ] });
+        let r = requests_from(&data);
+        assert_eq!(r.len(), 1);
+        assert_eq!((r[0].name.as_str(), r[0].message.as_str()), ("Kuni", "collab?"));
+        let session = json!({ "guestStarSession": { "settings": { "isAutoPushEnabled": false } },
+            "guestStarSettings": { "hostSettings": { "isAutoPushEnabled": true } } });
+        assert_eq!(auto_from(&session), Some(false));
+        let host = json!({ "guestStarSession": null, "guestStarSettings": { "hostSettings": { "isAutoPushEnabled": true } } });
+        assert_eq!(auto_from(&host), Some(true));
+        assert_eq!(auto_from(&json!({})), None);
     }
 }

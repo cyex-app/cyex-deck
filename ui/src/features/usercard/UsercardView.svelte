@@ -192,6 +192,7 @@
           name={note?.nickname || profile.displayName}
           live={messages}
           bind:url={logsUrl}
+          {modAccount}
         />
       </div>
     </div>

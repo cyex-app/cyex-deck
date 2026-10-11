@@ -3,15 +3,18 @@
 
 pub mod channel;
 mod data;
+pub mod events;
 pub mod http;
 mod json;
+mod message;
+pub mod socket;
 
 use std::time::{Duration, Instant};
 
 use mlua::{Function, Lua, LuaSerdeExt, MultiValue, Table, Value};
 
 use crate::host::Level;
-use crate::runtime::Event;
+use crate::runtime::{Event, MenuExport, MenuPlace};
 use crate::state::{self, MAX_TIMERS};
 
 const MAX_COMMANDS: usize = 50;
@@ -31,9 +34,18 @@ pub fn install(lua: &Lua) -> mlua::Result<()> {
     cyex.set("register_menu_entry", lua.create_function(register_menu_entry)?)?;
     cyex.set("later", lua.create_function(later)?)?;
     cyex.set("current_account", lua.create_function(current_account)?)?;
+    cyex.set(
+        "get_layout",
+        lua.create_function(|lua, ()| {
+            let layout = state::with(lua, |s| s.host.layout())?;
+            lua.to_value(&layout)
+        })?,
+    )?;
     cyex.set("get_setting", lua.create_function(get_setting)?)?;
     cyex.set("Channel", channel::table(lua)?)?;
     cyex.set("HTTPRequest", http::table(lua)?)?;
+    cyex.set("WebSocket", socket::table(lua)?)?;
+    message::install(lua, &cyex)?;
     cyex.set("json", json::table(lua)?)?;
     cyex.set("data", data::table(lua)?)?;
     let g = lua.globals();
@@ -117,15 +129,19 @@ fn register_callback(lua: &Lua, (event, f): (String, Function)) -> mlua::Result<
     let key = lua.create_registry_value(f)?;
     state::with(lua, |s| {
         let allowed = match e {
-            Event::Message => s.granted.read_chat,
+            Event::Message
+            | Event::MessageAppended
+            | Event::MessageReplaced
+            | Event::MessageDeleted
+            | Event::ChatCleared => s.granted.read_chat,
             Event::Sending => s.granted.send,
-            Event::CompletionRequested | Event::SettingsChanged => true,
+            Event::CompletionRequested | Event::SettingsChanged | Event::ChannelRenamed => true,
         };
         if !allowed {
-            let need = if e == Event::Message {
-                "ReadChat or ChangeChat"
-            } else {
+            let need = if e == Event::Sending {
                 "SendMessages"
+            } else {
+                "ReadChat or ChangeChat"
             };
             return Err(mlua::Error::runtime(format!(
                 "{} needs the {need} permission",
@@ -133,18 +149,35 @@ fn register_callback(lua: &Lua, (event, f): (String, Function)) -> mlua::Result<
             )));
         }
         s.callbacks.insert(e, key);
-        let mut events: Vec<Event> = s.callbacks.keys().copied().collect();
-        events.sort_by_key(|e| e.name());
-        s.publish(|x| x.events = events);
+        s.publish_events();
         Ok(())
     })?
 }
 
-/// An entry in the message right-click menu. Returns its index.
-fn register_menu_entry(lua: &Lua, (label, f): (String, Function)) -> mlua::Result<usize> {
-    let label: String = label.trim().chars().take(40).collect();
-    if label.is_empty() {
-        return Err(mlua::Error::runtime("the label is empty"));
+/// An entry in a line's right-click menu, or (S9) the chat's ⋯ menu with
+/// `{ where = "chat" }`. `group` puts entries in a submenu; `lines` limits message
+/// entries to some kinds of line. Returns its index.
+fn register_menu_entry(lua: &Lua, (label, f, options): (String, Function, Option<Table>)) -> mlua::Result<usize> {
+    let label = menu_label(&label).ok_or_else(|| mlua::Error::runtime("the label is empty"))?;
+    let mut entry = MenuExport {
+        label,
+        ..MenuExport::default()
+    };
+    if let Some(o) = options {
+        entry.place = match o.get::<Option<String>>("where")?.as_deref() {
+            None | Some("message") => MenuPlace::Message,
+            Some("chat") => MenuPlace::Chat,
+            Some(other) => return Err(mlua::Error::runtime(format!("where \"{other}\" isn't message or chat"))),
+        };
+        entry.group = o.get::<Option<String>>("group")?.and_then(|g| menu_label(&g));
+        if let Some(lines) = o.get::<Option<Vec<String>>>("lines")? {
+            for l in &lines {
+                if !LINE_KINDS.contains(&l.as_str()) {
+                    return Err(mlua::Error::runtime(format!("lines takes chat, action, notice and plugin, not \"{l}\"")));
+                }
+            }
+            entry.lines = lines;
+        }
     }
     let key = lua.create_registry_value(f)?;
     state::with(lua, |s| {
@@ -153,9 +186,21 @@ fn register_menu_entry(lua: &Lua, (label, f): (String, Function)) -> mlua::Resul
         }
         s.menu.push(key);
         let index = s.menu.len() - 1;
-        s.publish(|x| x.menu.push(label));
+        s.publish(|x| x.menu.push(entry));
         Ok(index)
     })?
+}
+
+/// S9 The kinds of line a message entry can be limited to.
+const LINE_KINDS: [&str; 4] = ["chat", "action", "notice", "plugin"];
+
+/// A label as menus write them (V101-30): trimmed, up to 40, a capital first, no period.
+fn menu_label(raw: &str) -> Option<String> {
+    let s: String = raw.trim().chars().take(40).collect();
+    let s = s.trim_end_matches('.').trim_end();
+    let mut chars = s.chars();
+    let first = chars.next()?;
+    Some(first.to_uppercase().chain(chars).collect())
 }
 
 /// Calls `f` once after `ms` milliseconds.

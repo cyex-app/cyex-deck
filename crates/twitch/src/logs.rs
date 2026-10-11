@@ -1,5 +1,6 @@
 //! 1.36 The usercard's outside data: chat logs and name history from logs.cyex.app (a
-//! rustlog instance), and sub status from api.ivr.fi (D23), both public.
+//! rustlog instance), and sub status from api.ivr.fi (D23), both public. C35 Chat history
+//! comes from there too where the recent-messages service has none.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -101,6 +102,28 @@ pub async fn user_logs(
     }
 }
 
+/// C35 A channel's newest `limit` lines between `from` and `to` (RFC 3339), oldest first.
+/// Empty when the channel isn't logged or opted out.
+pub async fn channel_lines(http: &Http, channel: &str, limit: u32, from: &str, to: &str) -> Result<Vec<String>> {
+    let req = http.0.get(format!("{LOGS}/channel/{channel}")).query(&[
+        ("from", from),
+        ("to", to),
+        ("json", "1"),
+        ("reverse", "1"),
+        ("limit", &limit.to_string()),
+    ]);
+    match json::<RawLogs>(req).await {
+        Ok(l) => Ok(oldest_first(l)),
+        Err(Error::Api { status: 403 | 404, .. }) => Ok(Vec::new()),
+        Err(e) => Err(e),
+    }
+}
+
+/// `reverse=1` gives the newest lines first; chat history wants them the other way.
+fn oldest_first(l: RawLogs) -> Vec<String> {
+    l.messages.into_iter().rev().map(|m| m.raw).collect()
+}
+
 pub async fn sub_status(http: &Http, user: &str, channel: &str) -> Result<SubStatus> {
     let raw: RawSubAge = json(http.0.get(format!("{IVR}/subage/{user}/{channel}"))).await?;
     Ok(raw.into())
@@ -172,6 +195,15 @@ impl From<RawSubAge> for SubStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn channel_lines_come_oldest_first() {
+        let l: RawLogs = serde_json::from_str(
+            r#"{"messages":[{"raw":"@id=b :u!u@u PRIVMSG #c :new","text":"new"},{"raw":"@id=a :u!u@u PRIVMSG #c :old"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(oldest_first(l), ["@id=a :u!u@u PRIVMSG #c :old", "@id=b :u!u@u PRIVMSG #c :new"]);
+    }
 
     #[test]
     fn sub_age() {

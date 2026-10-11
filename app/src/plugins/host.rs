@@ -3,12 +3,16 @@
 
 use cyex_chat::model::NoticeKind;
 use cyex_plugins::{
-    Account, ChannelInfo, Host, HttpRequest, HttpResponse, Level, Line, RoomModes, StreamStatus,
+    Account, Change, ChannelInfo, Emit, Host, HttpRequest, HttpResponse, Layout, LayoutTab, LayoutTile, Level, Line,
+    NewLine, RoomModes, SocketOut, SocketRequest, StreamStatus,
 };
+use cyex_settings::Partition;
+use cyex_settings::schema::Tabs;
 use tauri::{AppHandle, Manager};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
+use super::lines::{self, Op};
 use super::{PluginState, hook, logs};
 use crate::chat::peek;
 
@@ -108,6 +112,65 @@ impl Host for AppHost {
         tauri::async_runtime::spawn(async move {
             done(cyex_plugins::fetch::fetch(&client, req).await);
         });
+    }
+
+    fn add_line(&self, plugin: &str, login: &str, line: NewLine) {
+        lines::queue(&self.app, plugin, login, Op::Add(line));
+    }
+
+    fn replace_line(&self, plugin: &str, login: &str, line: NewLine) {
+        lines::queue(&self.app, plugin, login, Op::Replace(line));
+    }
+
+    fn change_line(&self, plugin: &str, login: &str, id: &str, change: Change) {
+        lines::queue(&self.app, plugin, login, Op::Change(id.to_owned(), change));
+    }
+
+    fn find_line(&self, login: &str, id: &str) -> Option<Line> {
+        peek::find(&self.app, login, id).map(|m| hook::to_line(login, &m))
+    }
+
+    fn layout(&self) -> Layout {
+        let tabs: Tabs = self.app.state::<crate::settings::Settings>().read(Partition::Tabs);
+        let group = |id: &Option<String>| {
+            id.as_ref()
+                .and_then(|g| tabs.groups.iter().find(|x| &x.id == g))
+                .map(|g| g.name.clone())
+        };
+        Layout {
+            active: tabs.active.clone(),
+            tabs: tabs
+                .tabs
+                .iter()
+                .map(|t| LayoutTab {
+                    id: t.id.clone(),
+                    name: t.label(),
+                    group: group(&t.group),
+                    columns: t
+                        .columns
+                        .iter()
+                        .map(|c| {
+                            c.tiles
+                                .iter()
+                                .map(|tile| LayoutTile {
+                                    id: tile.id.clone(),
+                                    channel: tile.channel.login.clone(),
+                                    name: tile.channel.name.clone(),
+                                    chat: tile.show.chat,
+                                    player: tile.show.player,
+                                    feed: tile.feed.clone(),
+                                    signed_in: tile.account.is_some(),
+                                })
+                                .collect()
+                        })
+                        .collect(),
+                })
+                .collect(),
+        }
+    }
+
+    fn socket(&self, req: SocketRequest, out: tokio::sync::mpsc::Receiver<SocketOut>, emit: Emit) {
+        tauri::async_runtime::spawn(cyex_plugins::socket::run(req, out, emit));
     }
 
     fn reserved(&self, command: &str) -> bool {

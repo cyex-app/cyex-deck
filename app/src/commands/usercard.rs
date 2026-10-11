@@ -35,6 +35,18 @@ pub async fn user_logs(
     usercard::logs(&app, &channel, &user_id, &user, offset).await
 }
 
+/// M8 Someone's messages from Twitch's mod logs, for a mod.
+#[tauri::command]
+pub async fn user_mod_logs(
+    app: AppHandle,
+    account: String,
+    channel: String,
+    user_id: String,
+    cursor: Option<String>,
+) -> CmdResult<LogPage> {
+    usercard::mod_logs(&app, &account, &channel, &user_id, cursor.as_deref()).await
+}
+
 /// S1 A usercard button, run in the card's channel.
 #[tauri::command]
 pub async fn usercard_run(

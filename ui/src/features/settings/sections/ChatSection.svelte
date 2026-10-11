@@ -5,6 +5,7 @@
   import type { DeletedStyle } from '../../../ipc/bindings/DeletedStyle';
   import type { GifMode } from '../../../ipc/bindings/GifMode';
   import type { LinkThumbs } from '../../../ipc/bindings/LinkThumbs';
+  import type { ModButtons } from '../../../ipc/bindings/ModButtons';
   import type { NameStyle } from '../../../ipc/bindings/NameStyle';
   import type { PauseKey } from '../../../ipc/bindings/PauseKey';
   import { formatDuration, formatNumber, formatTime, parseDuration } from '../../../lib/format';
@@ -105,6 +106,16 @@
   function removePreset(secs: number) {
     void settings.patch('chat', { timeoutPresets: c.timeoutPresets.filter((s) => s !== secs) });
   }
+
+  /** M10 Mod mode's buttons: your timeout lengths plus any already picked. */
+  const mb = $derived(c.modButtons);
+  const modTimes = $derived([...new Set([...c.timeoutPresets, ...mb.timeouts])].sort((a, b) => a - b));
+  const flipMod = (patch: Partial<ModButtons>) => void settings.patch('chat', { modButtons: patch });
+
+  function flipTime(secs: number) {
+    const on = mb.timeouts.includes(secs);
+    flipMod({ timeouts: on ? mb.timeouts.filter((s) => s !== secs) : [...mb.timeouts, secs] });
+  }
 </script>
 
 <h2>Chat</h2>
@@ -158,6 +169,9 @@
     />
   </Row>
 {/if}
+<Row label="Joins and leaves" hint="Who opens or leaves the chat. Twitch only says so in chats under 1.000 people.">
+  <Toggle label="Joins and leaves" checked={c.joinsLeaves} onchange={(v) => settings.patch('chat', { joinsLeaves: v })} />
+</Row>
 <Row label="Show where it was sent from" hint="An icon for messages from the website or the phone apps.">
   <Toggle label="Show where it was sent from" checked={c.showClient} onchange={(v) => settings.patch('chat', { showClient: v })} />
 </Row>
@@ -289,6 +303,17 @@
     </form>
   {/if}
 </Row>
+<Row label="Mod mode buttons" hint="In front of lines while mod mode is on. Up to 4 timeouts." stacked>
+  <button class="pick" aria-pressed={mb.delete} onclick={() => flipMod({ delete: !mb.delete })}>Delete</button>
+  {#each modTimes as secs (secs)}
+    {@const on = mb.timeouts.includes(secs)}
+    <button class="pick" aria-pressed={on} disabled={!on && mb.timeouts.length >= 4} onclick={() => flipTime(secs)}
+      >{formatDuration(secs)}</button
+    >
+  {/each}
+  <button class="pick" aria-pressed={mb.warn} onclick={() => flipMod({ warn: !mb.warn })}>Warn</button>
+  <button class="pick" aria-pressed={mb.ban} onclick={() => flipMod({ ban: !mb.ban })}>Ban</button>
+</Row>
 
 <h3 class="label">Overlay</h3>
 <p class="intro">A chat over games: ⋯ on a chat → Overlay. It stays on top and can let clicks through.</p>
@@ -379,5 +404,25 @@
   .add {
     width: 130px;
     height: 28px;
+  }
+  .pick {
+    height: 28px;
+    padding: 0 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .pick:hover:not(:disabled) {
+    background: var(--surface-hover);
+    color: var(--text);
+  }
+  .pick[aria-pressed='true'] {
+    border-color: var(--accent-border);
+    color: var(--text);
+  }
+  .pick:disabled {
+    opacity: 0.5;
   }
 </style>

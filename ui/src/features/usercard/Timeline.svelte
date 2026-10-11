@@ -1,6 +1,7 @@
 <!-- V101-05 The usercard's messages in one scroll window of its own, oldest at the top as in
      chat: logs.cyex.app by day, then what's still loaded in the open chat under "Live"
-     (the 7TV extension's way). Scrolling to the top loads older logs. -->
+     (the 7TV extension's way). Scrolling to the top loads older logs. M8 Where
+     logs.cyex.app has none, a mod gets Twitch's own mod logs instead. -->
 <script lang="ts">
   import { tick } from 'svelte';
 
@@ -17,14 +18,19 @@
     live: ChatMessage[];
     /** The logs' page on logs.cyex.app, once known. */
     url?: string;
+    /** The account that moderates here, for Twitch's mod logs (M8). */
+    modAccount?: string | null;
   }
 
-  let { channel, userId, login, name, live, url = $bindable('') }: Props = $props();
+  let { channel, userId, login, name, live, url = $bindable(''), modAccount = null }: Props = $props();
 
   /** From the logs, oldest first. */
   let older = $state.raw<ChatMessage[]>([]);
   let fetched = 0;
   let status = $state<'loading' | 'lines' | 'none' | 'optedOut' | 'failed'>('loading');
+  /** M8 Twitch's mod logs, once logs.cyex.app had nothing. */
+  let fromMod = $state(false);
+  let cursor: string | null = null;
   let more = $state(true);
   let busy = false;
   let box = $state<HTMLElement>();
@@ -50,12 +56,16 @@
     busy = true;
     const from = box ? box.scrollHeight - box.scrollTop : 0;
     try {
-      const page = await usercardIpc.logs(channel, userId, login, fetched);
+      const page =
+        fromMod && modAccount
+          ? await usercardIpc.modLogs(modAccount, channel, userId, cursor)
+          : await usercardIpc.logs(channel, userId, login, fetched);
       fetched += page.messages.length;
+      cursor = page.cursor;
       older = [...[...page.messages].reverse(), ...older];
       status = older.length ? 'lines' : (page.state as typeof status);
       more = page.more;
-      url = page.url;
+      if (!fromMod) url = page.url;
     } catch {
       if (!older.length) status = 'failed';
       more = false;
@@ -87,12 +97,23 @@
     return () => ro.disconnect();
   });
 
+  // M8 Nothing on logs.cyex.app: a mod reads Twitch's own logs, once the account is known.
+  $effect(() => {
+    if (modAccount && !fromMod && !older.length && (status === 'none' || status === 'optedOut' || status === 'failed')) {
+      fromMod = true;
+      more = true;
+      status = 'loading';
+      void loadOlder();
+    }
+  });
+
   void loadOlder();
 </script>
 
 <div class="list" bind:this={box} {onscroll}>
   <div bind:this={inner}>
     {#if status === 'optedOut'}<p class="note">They opted out of logs.</p>{/if}
+    {#if fromMod && older.length}<p class="note">From Twitch's mod logs.</p>{/if}
     {#if status === 'failed'}<p class="note">Couldn’t load logs.</p>{/if}
     {#each sections as s (s.label)}
       <div class="day" class:live={s.live}><span>{s.label}</span></div>

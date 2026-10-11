@@ -5,10 +5,10 @@ mod message;
 mod notice;
 mod room;
 
-pub use fragment::{EmoteLook, Fragment, Layer, LinkTarget, Provider, mods, plain};
+pub use fragment::{Act, EmoteLook, Fragment, Layer, LinkTarget, Provider, SpanColor, SpanStyle, mods, plain};
 pub use message::{
-    Badge, ChatMessage, Client, Flag, Highlight, HighlightKind, Meta, NameColor, Reply, RewardRef, Sender, SharedSource,
-    Translation,
+    Badge, ChatMessage, Client, Flag, Highlight, HighlightKind, Meta, NameColor, PluginTag, Reply, RewardRef, Sender,
+    SharedSource, Translation,
 };
 pub use notice::{Notice, NoticeKind};
 pub use room::{ConnStatus, Pinned, RoomEvent, RoomState, SelfState};

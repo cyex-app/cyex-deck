@@ -54,6 +54,85 @@ pub enum Fragment {
         id: String,
         url: String,
     },
+    /// S7 Text from a plugin: its own color and style, a tip, and what a click does.
+    Span {
+        text: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        color: Option<SpanColor>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        style: Option<SpanStyle>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        tip: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        act: Option<Act>,
+    },
+    /// S10 A plugin's picture, at most 112 px high.
+    Image {
+        src: String,
+        /// `url 2x, url 4x` for sharper screens.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        srcset: Option<String>,
+        alt: String,
+        /// Size at 1x in px, so the line doesn't jump while it loads.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        size: Option<(u16, u16)>,
+        round: bool,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        tip: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        act: Option<Act>,
+    },
+    /// S7 A line break in a plugin's line.
+    Break,
+}
+
+/// S7 A plugin span's color: the theme's link or system color, or its own made readable.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum SpanColor {
+    Link,
+    System,
+    Rgb(super::NameColor),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum SpanStyle {
+    Bold,
+    Italic,
+    Button,
+}
+
+/// S7 What clicking a plugin's piece does (Chatterino's link types).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+#[ts(export)]
+pub enum Act {
+    /// Opens it like a link in chat (X2: `host` is the real domain).
+    Url {
+        url: String,
+        host: String,
+        target: Option<LinkTarget>,
+    },
+    /// Opens the usercard.
+    User { login: String },
+    /// Runs it as if typed in the chat.
+    Run { text: String },
+    /// Scrolls to a line.
+    Jump { id: String },
+    Copy { text: String },
+    /// Puts it in the chat box.
+    Insert { text: String },
 }
 
 /// How a provider emote's picture is drawn. Twitch emotes leave it empty.
@@ -153,12 +232,15 @@ impl Fragment {
     /// The text this fragment came from, for copying and searching.
     pub fn source(&self) -> String {
         match self {
-            Fragment::Text { text } | Fragment::Mention { text, .. } | Fragment::Link { text, .. } => {
-                text.clone()
-            }
+            Fragment::Text { text }
+            | Fragment::Mention { text, .. }
+            | Fragment::Link { text, .. }
+            | Fragment::Span { text, .. } => text.clone(),
             Fragment::Emote { name, .. } => name.clone(),
             Fragment::Cheer { prefix, amount } => format!("{prefix}{amount}"),
             Fragment::Gif { url, .. } => url.clone(),
+            Fragment::Image { alt, .. } => alt.clone(),
+            Fragment::Break => "\n".into(),
         }
     }
 }

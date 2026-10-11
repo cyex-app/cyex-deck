@@ -47,6 +47,11 @@ pub struct Login {
 pub trait Credentials: Send + Sync + 'static {
     /// `None` reads anonymously.
     fn login(&self) -> Option<Login>;
+
+    /// C37 Ask for joins and leaves too.
+    fn membership(&self) -> bool {
+        false
+    }
 }
 
 /// Anonymous reading.
@@ -216,6 +221,9 @@ async fn session(
     let mut out = Writer(writer);
 
     let mut hello = vec![write::CAPS.to_owned()];
+    if creds.membership() {
+        hello.push(write::MEMBERSHIP.to_owned());
+    }
     match creds.login() {
         Some(l) => {
             hello.push(format!("PASS oauth:{}", l.token));

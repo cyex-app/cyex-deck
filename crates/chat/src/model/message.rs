@@ -68,6 +68,19 @@ pub struct Meta {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub whisper_to: Option<String>,
+    /// S7 A line a plugin made.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub plugin: Option<PluginTag>,
+}
+
+/// S7 Which plugin made a line, for its mark.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PluginTag {
+    pub id: String,
+    pub name: String,
 }
 
 /// 2.6

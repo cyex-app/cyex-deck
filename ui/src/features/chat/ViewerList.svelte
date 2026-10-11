@@ -1,13 +1,17 @@
 <!-- 1.48, V101-35 Who's in a chat, grouped like Twitch's community tab. Anyone gets
      Twitch's list (mods, VIPs and a sample of viewers); a moderator with a Helix sign-in
-     gets every viewer. Click a name for its usercard. Used in chat and the mod view. -->
+     gets every viewer. Click a name for its usercard, right-click for mod actions (C36).
+     Used in chat and the mod view. -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
+  import { openMenu, type MenuEntry } from '../../components/menu.svelte';
   import type { Chatters } from '../../ipc/bindings/Chatters';
   import { chatIpc } from '../../ipc/chat';
+  import { modIpc } from '../../ipc/moderation';
   import { formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
+  import { mods, userItems } from '../modview/moderation.svelte';
 
   interface Props {
     account: string | null;
@@ -56,6 +60,28 @@
   function open(name: string) {
     chatIpc.openUsercard(login, name).catch((e) => toast.error(String(e)));
   }
+
+  /** `/timeout name 600` through the mod path, as the usercard runs it. */
+  function run(line: string) {
+    if (!account) return;
+    const [cmd, ...args] = line.slice(1).split(' ');
+    modIpc
+      .run(account, login, cmd, args.join(' '))
+      .then((said) => said && toast.info(said))
+      .catch((e) => toast.error(String(e)));
+  }
+
+  /** C36 Right-click a name: usercard and copy, plus mod actions where the account moderates. */
+  function menu(e: MouseEvent, name: string) {
+    e.preventDefault();
+    const role = mods.role(account, login);
+    const items: MenuEntry[] = [
+      { label: 'Usercard', icon: 'user', run: () => open(name) },
+      { label: 'Copy name', icon: 'copy', run: () => void navigator.clipboard.writeText(name) },
+    ];
+    if (role && name !== login) items.push('separator', ...userItems(role, name, run, () => open(name)));
+    openMenu(e, items);
+  }
 </script>
 
 <div class="viewers">
@@ -81,7 +107,7 @@
       {#each groups as g (g.label)}
         <div class="group">{g.label} · {formatNumber(g.list.length)}</div>
         {#each g.list.slice(0, SHOWN) as name (name)}
-          <button class="name" onclick={() => open(name)}>{name}</button>
+          <button class="name" onclick={() => open(name)} oncontextmenu={(e) => menu(e, name)}>{name}</button>
         {/each}
         {#if g.list.length > SHOWN}
           <p class="note">{formatNumber(g.list.length - SHOWN)} more. Type a name to find them.</p>

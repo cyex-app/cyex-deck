@@ -1,9 +1,12 @@
 <!-- 1.35 Stream Together (Twitch's Guest Star): start a session, invite channels, put guests
      who are ready on stream or take them off, end it. Guests join from their own Twitch;
-     joining someone else's session happens on Twitch too. -->
+     joining someone else's session happens on Twitch too. D6 Creators asking to join get an
+     answer here, and guests can show on stream as soon as they're set up. -->
 <script lang="ts">
+  import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
   import IconButton from '../../components/IconButton.svelte';
+  import Toggle from '../../components/Toggle.svelte';
   import type { SmTogether } from '../../ipc/bindings/SmTogether';
   import { smIpc } from '../../ipc/streammanager';
   import { toast } from '../../lib/toast.svelte';
@@ -34,6 +37,20 @@
   }
   load();
 
+  // D6 Join requests come and go on Twitch's side.
+  $effect(() => {
+    const off = smIpc.onTogether(load);
+    return () => void off.then((f) => f());
+  });
+
+  function autoAdd(on: boolean) {
+    if (together) together = { ...together, autoAdd: on };
+    smIpc.autoAdd(session?.id ?? null, on).catch((e) => {
+      toast.error(String(e));
+      load();
+    });
+  }
+
   /** Runs an action, then reads the session again. */
   function act(p: Promise<void>, done?: string) {
     busy = true;
@@ -57,6 +74,25 @@
   {#snippet tools()}
     <IconButton icon="refresh" label="Refresh" size={14} onclick={load} />
   {/snippet}
+  {#if together?.requests.length}
+    <span class="label">Asking to join</span>
+    <ul>
+      {#each together.requests as r (r.userId)}
+        <li>
+          <Avatar src={r.avatar} name={r.name} size={20} />
+          <span class="name" title={r.message || undefined}>{r.name}</span>
+          <button class="link" disabled={busy} onclick={() => act(smIpc.joinAnswer(r.userId, true), `${r.name} can join.`)}>Let in</button>
+          <button class="link" disabled={busy} onclick={() => act(smIpc.joinAnswer(r.userId, false))}>Decline</button>
+        </li>
+      {/each}
+    </ul>
+  {/if}
+  {#if together && together.autoAdd !== null}
+    <div class="line">
+      <Toggle label="Show guests right away" checked={together.autoAdd} onchange={autoAdd} />
+      <span>Show guests right away</span>
+    </div>
+  {/if}
   {#if !together}
     <p class="note">Loading…</p>
   {:else if !session}

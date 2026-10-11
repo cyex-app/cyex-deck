@@ -3,12 +3,14 @@
 //! polls, predictions and chat modes, hosts Stream Together, shows a live activity feed
 //! (`activity`) and stats (`stats`), and keeps OBS status files (`obs`). GQL first, the way
 //! Twitch's dashboard works; Helix when the account has no GQL sign-in (D30, V101-28).
+//! Viewers, title, category and raids come live from Hermes (`live`, D7, D2).
 //! Actions are in `actions`; no write is run in testing.
 
 pub mod actions;
 pub mod activity;
 pub mod follows;
 mod gql_feed;
+pub mod live;
 pub mod obs;
 pub mod stats;
 pub mod words;
@@ -42,6 +44,8 @@ pub struct State {
     series: Mutex<VecDeque<(i64, u64)>>,
     /// The newest stats tick.
     stats: Mutex<Option<stats::Stats>>,
+    /// D2 The raid counting down from the channel.
+    raid: Mutex<Option<cyex_twitch::gql::dashboard::raids::RaidStatus>>,
     /// The running feed and poller, while the tab is open. Ref-counted by `opens`.
     live: Mutex<Option<Live>>,
     opens: Mutex<u32>,
@@ -115,6 +119,7 @@ fn start(app: &AppHandle) {
     }
     let Some(m) = manager(app) else { return };
     let session = activity::start(app, &m.account_id);
+    live::start(app, &m.account_id);
     let (stop, stop_rx) = tokio::sync::watch::channel(false);
     stats::spawn(app, stop_rx);
     // The broadcaster's own poll and prediction, kept live by the chat's vote watcher.
@@ -135,6 +140,7 @@ fn stop(app: &AppHandle) {
     if let Some(live) = live {
         let _ = live.stop.send(true);
         crate::chat::votes::unwatch(app, &live.login);
+        self::live::stop(app, &live.channel_id);
         if live.session.is_some() {
             drop(live.session);
             // Its `channel.follow` is gone with it; the mod feed takes follows back.
@@ -163,22 +169,61 @@ pub(crate) fn follow_released(app: &AppHandle, channel_id: &str) {
     }
 }
 
-/// A dashboard topic message from Hermes (GQL feed, D30).
+/// A dashboard topic message from Hermes (GQL feed, D30), or a live one (D7, D2).
 pub fn on_hermes(app: &AppHandle, e: &cyex_twitch::hermes::Event) {
-    gql_feed::on_event(app, e);
+    use cyex_twitch::hermes::Kind;
+    match e.topic.kind {
+        Kind::Playback | Kind::Raid | Kind::BroadcastSettings => live::on_event(app, e),
+        _ => gql_feed::on_event(app, e),
+    }
 }
 
-/// Appends an activity item and tells open views.
+/// Appends an activity item and tells open views. One the feed has already is skipped.
 pub(crate) fn push_activity(app: &AppHandle, item: activity::Item) {
     let st = state(app);
     {
         let mut buf = lock(&st.activity);
+        if buf.iter().any(|i| i.id == item.id) {
+            return;
+        }
         buf.push_back(item.clone());
         while buf.len() > MAX_ACTIVITY {
             buf.pop_front();
         }
     }
     let _ = tauri::Emitter::emit(app, "stream:activity", item);
+}
+
+/// D1 Older items from the feed's history: put in by time, and views get the whole feed.
+pub(crate) fn merge_activity(app: &AppHandle, items: Vec<activity::Item>) {
+    let all: Vec<activity::Item> = {
+        let st = state(app);
+        let mut buf = lock(&st.activity);
+        let mut all: Vec<activity::Item> = buf.drain(..).collect();
+        for it in items {
+            if !all.iter().any(|i| i.id == it.id) {
+                all.push(it);
+            }
+        }
+        all.sort_by_key(|i| i.ts);
+        let skip = all.len().saturating_sub(MAX_ACTIVITY);
+        buf.extend(all.drain(skip..));
+        buf.iter().cloned().collect()
+    };
+    let _ = tauri::Emitter::emit(app, "stream:activity-all", all);
+}
+
+/// D4 Where an alert is now in Twitch's alert box.
+pub(crate) fn set_status(app: &AppHandle, alert: &str, status: &str) {
+    {
+        let st = state(app);
+        let mut buf = lock(&st.activity);
+        let Some(item) = buf.iter_mut().find(|i| i.alert.as_deref() == Some(alert)) else {
+            return;
+        };
+        item.status = Some(status.to_owned());
+    }
+    let _ = tauri::Emitter::emit(app, "stream:alert", (alert, status));
 }
 
 /// Records a viewer-count sample for the X4 graph.

@@ -1,5 +1,5 @@
 //! S5 What a running plugin may do: the permissions in its info file that the user
-//! agreed to, web addresses it may reach, file names in its data folder.
+//! agreed to, web addresses it may reach (S6 sockets too), file names in its data folder.
 
 use std::net::IpAddr;
 
@@ -116,7 +116,22 @@ fn host_matches(pattern: &str, host: &str) -> bool {
     }
 }
 
-fn public(ip: IpAddr) -> bool {
+/// S6 A socket address (`ws://` or `wss://`) under the same rules as web addresses.
+pub fn check_ws_url(url: &str, hosts: &[String]) -> Result<Url, String> {
+    let u = Url::parse(url).map_err(|_| format!("Can't read the address {url}."))?;
+    let web = match u.scheme() {
+        "ws" => "http",
+        "wss" => "https",
+        _ => return Err("Only ws and wss addresses work.".into()),
+    };
+    let mut probe = u.clone();
+    probe.set_scheme(web).map_err(|()| format!("Can't read the address {url}."))?;
+    check_url(probe.as_str(), hosts)?;
+    Ok(u)
+}
+
+/// Not a local, private or reserved address.
+pub(crate) fn public(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => {
             let [a, b, ..] = v4.octets();
@@ -194,6 +209,20 @@ mod tests {
         let m = manifest(r#"[{"type": "Network", "hosts": ["a.com"]}, {"type": "Network"}]"#);
         let g = Granted::new(&m, &m.keys()).unwrap();
         assert_eq!(g.network, Some(vec![]));
+    }
+
+    #[test]
+    fn sockets_follow_the_same_rules() {
+        let list = vec!["feed.example.com".to_owned()];
+        assert_eq!(
+            check_ws_url("wss://feed.example.com/live", &list).map(|u| u.scheme().to_owned()),
+            Ok("wss".into())
+        );
+        assert!(check_ws_url("ws://feed.example.com", &list).is_ok());
+        assert!(check_ws_url("https://feed.example.com", &list).is_err());
+        assert!(check_ws_url("wss://other.example.com", &list).is_err());
+        assert!(check_ws_url("ws://localhost:8080", &[]).is_err());
+        assert!(check_ws_url("ws://192.168.1.1", &[]).is_err());
     }
 
     #[test]

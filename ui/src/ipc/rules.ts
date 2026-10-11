@@ -26,6 +26,9 @@ export const usercardIpc = {
   nameHistory: (userId: string) => invoke<NameChange[]>('user_name_history', { userId }),
   logs: (channel: string, userId: string, user: string, offset: number) =>
     invoke<LogPage>('user_logs', { channel, userId, user, offset }),
+  /** M8 Twitch's mod logs, for a mod where logs.cyex.app has none. */
+  modLogs: (account: string, channel: string, userId: string, cursor: string | null) =>
+    invoke<LogPage>('user_mod_logs', { account, channel, userId, cursor }),
   /** S1 A usercard button, run in an open view of `channel`. */
   run: (channel: string, command: string, context: MenuContext) =>
     invoke<UiAction | null>('usercard_run', { channel, command, context }),

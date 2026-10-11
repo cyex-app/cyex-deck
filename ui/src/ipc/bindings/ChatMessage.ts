@@ -4,6 +4,7 @@ import type { Flag } from "./Flag";
 import type { Fragment } from "./Fragment";
 import type { Highlight } from "./Highlight";
 import type { Notice } from "./Notice";
+import type { PluginTag } from "./PluginTag";
 import type { Reply } from "./Reply";
 import type { RewardRef } from "./RewardRef";
 import type { Sender } from "./Sender";
@@ -54,4 +55,8 @@ effect?: string,
 /**
  * 1.26 Who an own whisper went to (login), for inline whisper lines.
  */
-whisperTo?: string, };
+whisperTo?: string, 
+/**
+ * S7 A line a plugin made.
+ */
+plugin?: PluginTag, };

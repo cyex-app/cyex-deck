@@ -1,7 +1,7 @@
 //! Lua plugins (S5): the list in Settings, turning them on, their settings, the console,
 //! Tab completion and message menu entries.
 
-use cyex_plugins::CompletionRequest;
+use cyex_plugins::{CompletionRequest, MenuPlace};
 use serde::Serialize;
 use serde_json::Value;
 use tauri::AppHandle;
@@ -104,6 +104,11 @@ pub struct PluginMenuEntry {
     pub plugin: String,
     pub index: usize,
     pub label: String,
+    /// S9 A line's menu or the chat's ⋯ menu.
+    pub place: MenuPlace,
+    pub group: Option<String>,
+    /// Kinds of line that show it; empty for all.
+    pub lines: Vec<String>,
 }
 
 /// Every running plugin's message menu entries.
@@ -116,10 +121,13 @@ pub fn plugins_menus(app: AppHandle) -> Vec<PluginMenuEntry> {
                 .menu
                 .into_iter()
                 .enumerate()
-                .map(|(index, label)| PluginMenuEntry {
+                .map(|(index, e)| PluginMenuEntry {
                     plugin: p.id.clone(),
                     index,
-                    label,
+                    label: e.label,
+                    place: e.place,
+                    group: e.group,
+                    lines: e.lines,
                 })
         })
         .collect()

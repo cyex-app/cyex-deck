@@ -69,7 +69,7 @@
 <ul>
   <li><Icon name="cake" size={14} />Created {profile.createdAt ? day(profile.createdAt) : '—'}</li>
   {#if profile.followers != null}
-    <li><Icon name="users" size={14} />{formatNumber(profile.followers)} followers</li>
+    <li><Icon name="users" size={14} />{formatNumber(profile.followers)} {profile.followers === 1 ? 'follower' : 'followers'}</li>
   {/if}
   {#if !own}
     <li class:dim={!sub?.active}><Icon name="star" size={14} />{subText}</li>

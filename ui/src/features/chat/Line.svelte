@@ -104,17 +104,39 @@
       {#if recipients.length}<span class="recipients"> To {recipients.join(', ')}.</span>{/if}
     </div>
   {/if}
+  {#if m.plugin && !sender && !notice}
+    <!-- S7 A plugin's line: always its mark, never a name. -->
+    <div class="msg">
+      {#if time}<span class="ts">{time}</span>{/if}
+      <span class="from-plugin" data-tip="From {m.plugin.name}" data-hint="A plugin"><Icon name="puzzle" size={12} /></span>
+      <span class="body"><Body fragments={m.body} {channel} /></span>
+    </div>
+  {/if}
   {#if sender && name && (!notice || m.body.length)}
     <div class="msg">
       {#if modButtons && mod}
+        {@const b = mod.buttons}
         <span class="mods" data-login={sender.login}>
-          <button class="mb" aria-label="Delete" data-mod="delete" data-tip="Delete"><Icon name="trash" size={13} /></button>
-          {#if mod.timeout}
-            <button class="mb" aria-label="Time out" data-mod="timeout" data-tip="Time out {formatDuration(mod.timeout)}"
-              ><Icon name="clock" size={13} /></button
-            >
+          {#if b.delete}
+            <button class="mb" aria-label="Delete" data-mod="delete" data-tip="Delete"><Icon name="trash" size={13} /></button>
           {/if}
-          <button class="mb ban" aria-label="Ban" data-mod="ban" data-tip="Ban"><Icon name="gavel" size={13} /></button>
+          {#each b.timeouts as secs (secs)}
+            <button
+              class="mb"
+              class:len={b.timeouts.length > 1}
+              aria-label="Time out {formatDuration(secs)}"
+              data-mod="timeout"
+              data-secs={secs}
+              data-tip="Time out {formatDuration(secs)}"
+              >{#if b.timeouts.length > 1}{formatDuration(secs).replace(' ', '')}{:else}<Icon name="clock" size={13} />{/if}</button
+            >
+          {/each}
+          {#if b.warn}
+            <button class="mb" aria-label="Warn" data-mod="warn" data-tip="Warn"><Icon name="alert" size={13} /></button>
+          {/if}
+          {#if b.ban}
+            <button class="mb ban" aria-label="Ban" data-mod="ban" data-tip="Ban"><Icon name="gavel" size={13} /></button>
+          {/if}
         </span>
       {/if}
       {#if time}<span class="ts">{time}</span>{/if}
@@ -192,6 +214,12 @@
   .extra {
     color: var(--dim);
     font-size: 0.9em;
+  }
+  .from-plugin {
+    display: inline-flex;
+    margin-right: 4px;
+    color: var(--dim);
+    vertical-align: -1px;
   }
   .action {
     color: var(--cd);
@@ -431,5 +459,11 @@
   }
   .mb.ban:hover {
     color: var(--red);
+  }
+  /* M10 Several timeouts: their lengths instead of the clock. */
+  .mb.len {
+    width: auto;
+    padding: 0 3px;
+    font: 600 0.7rem var(--font-mono);
   }
 </style>

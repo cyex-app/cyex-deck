@@ -13,4 +13,9 @@ activity: ActivityFilters,
 /**
  * X4 Status files for OBS.
  */
-obs: Obs, };
+obs: Obs, 
+/**
+ * D4 The channel's alerts were seen playing in Twitch's alert box, so the feed offers
+ * Replay and Skip. Learned, not set by hand.
+ */
+alertBox: boolean, };

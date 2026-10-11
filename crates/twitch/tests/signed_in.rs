@@ -282,6 +282,27 @@ async fn stream_manager_reads() {
     println!("stats: {:?}", stats::numbers_now(&http, auth, id).await.map(|n| (n.live, n.followers, n.subs)));
 }
 
+/// D1, D2, D5, D6: the feed's history, raid suggestions, ad settings, join requests and
+/// auto-add on the account's own channel. Reads only.
+#[tokio::test]
+#[ignore = "network, signed in"]
+async fn stream_manager_batch7_reads() {
+    use cyex_twitch::gql::dashboard::{ads, feed, raids, together};
+    let http = Http::new().unwrap();
+    let (token, client_id) = gql_sign_in();
+    let auth = Auth {
+        client_id: &client_id,
+        token: Some(&token),
+    };
+    let me = gql::profile::profile(&http, auth).await.unwrap();
+    let id = me.id.as_str();
+    println!("history: {:?}", feed::history(&http, auth, id).await.map(|n| n.len()));
+    println!("picks: {:?}", raids::suggestions(&http, auth, id).await.map(|p| p.len()));
+    println!("ad settings: {:?}", ads::settings(&http, auth, id).await);
+    println!("join requests: {:?}", together::join_requests(&http, auth, id).await.map(|r| r.len()));
+    println!("auto add: {:?}", together::auto_add(&http, auth, id, &me.login).await);
+}
+
 /// V101-28: which dashboard topics the signed-in account may follow on its own channel.
 /// Subscribes only; nothing is written.
 #[tokio::test]

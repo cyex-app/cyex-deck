@@ -1,8 +1,13 @@
 //! IRC login for an account, read fresh on every connect so refreshed tokens are used.
+//! Both kinds of reader also say whether to ask for joins and leaves (C37).
 
 use cyex_auth::chat_token;
+use std::sync::atomic::Ordering;
+
 use cyex_chat::irc::{Credentials, Login};
 use tauri::{AppHandle, Manager};
+
+use super::Chat;
 
 use crate::auth::{Auth, accounts};
 
@@ -31,4 +36,25 @@ impl Credentials for AccountCreds {
             token,
         })
     }
+
+    fn membership(&self) -> bool {
+        joins(&self.app)
+    }
+}
+
+/// Reading without an account.
+pub struct AnonCreds(pub AppHandle);
+
+impl Credentials for AnonCreds {
+    fn login(&self) -> Option<Login> {
+        None
+    }
+
+    fn membership(&self) -> bool {
+        joins(&self.0)
+    }
+}
+
+fn joins(app: &AppHandle) -> bool {
+    app.try_state::<Chat>().is_some_and(|c| c.joins.load(Ordering::Relaxed))
 }

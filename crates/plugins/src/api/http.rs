@@ -13,7 +13,7 @@ const METHODS: [&str; 6] = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"];
 const DEFAULT_TIMEOUT_MS: u64 = 10_000;
 const MAX_TIMEOUT_MS: u64 = 60_000;
 const MAX_BODY: usize = 1 << 20;
-const MAX_HEADERS: usize = 30;
+pub(crate) const MAX_HEADERS: usize = 30;
 /// Headers the HTTP client sets itself.
 const FIXED: [&str; 5] = [
     "host",
@@ -56,6 +56,20 @@ pub fn table(lua: &Lua) -> mlua::Result<Table> {
         })?,
     )?;
     Ok(t)
+}
+
+/// A header a plugin may set: a plain name, one line, not one the client sets itself.
+pub(crate) fn check_header(name: &str, value: &str) -> mlua::Result<()> {
+    let lower = name.to_ascii_lowercase();
+    let ok_name = !name.is_empty()
+        && name.len() <= 100
+        && name.bytes().all(|b| b.is_ascii_alphanumeric() || b"-_".contains(&b))
+        && !FIXED.contains(&lower.as_str())
+        && !lower.starts_with("sec-websocket");
+    if !ok_name || value.len() > 2000 || value.contains(['\r', '\n']) {
+        return Err(mlua::Error::runtime(format!("can't set the header {name}")));
+    }
+    Ok(())
 }
 
 fn not_sent(r: &Request) -> mlua::Result<()> {
@@ -103,15 +117,7 @@ impl UserData for Request {
         });
         m.add_method_mut("set_header", |_, this, (name, value): (String, String)| {
             not_sent(this)?;
-            let ok_name = !name.is_empty()
-                && name.len() <= 100
-                && name
-                    .bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || b"-_".contains(&b))
-                && !FIXED.contains(&name.to_ascii_lowercase().as_str());
-            if !ok_name || value.len() > 2000 || value.contains(['\r', '\n']) {
-                return Err(mlua::Error::runtime(format!("can't set the header {name}")));
-            }
+            check_header(&name, &value)?;
             if this.req.headers.len() >= MAX_HEADERS {
                 return Err(mlua::Error::runtime(format!("up to {MAX_HEADERS} headers")));
             }

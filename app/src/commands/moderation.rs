@@ -41,6 +41,13 @@ pub async fn mod_run(app: AppHandle, account: String, channel: String, name: Str
     moderation::run::command(&app, &account, &channel, parsed?).await
 }
 
+/// M11 Sends a message and pins it for `secs`, after the chat box asked how long.
+#[tauri::command]
+pub async fn mod_pin_send(app: AppHandle, account: String, channel: String, text: String, secs: u32) -> Result<(), String> {
+    let cmd = command::ModCommand::PinSend { text, secs: Some(secs) };
+    moderation::run::command(&app, &account, &channel, cmd).await.map(drop)
+}
+
 /// The channel id for a login, so the UI can read its board and subscribe to updates.
 #[tauri::command]
 pub fn mod_channel_id(app: AppHandle, channel: String) -> Option<String> {

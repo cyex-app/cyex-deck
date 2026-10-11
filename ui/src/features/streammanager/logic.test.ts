@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import type { ActivityFilters } from '../../ipc/bindings/ActivityFilters';
 import type { SmActivity } from '../../ipc/bindings/SmActivity';
-import { adIn, capPush, graph, shares, visibleActivity } from './logic.ts';
+import { adIn, adIntervals, adLengths, alertAction, capPush, graph, raidCountdown, shares, visibleActivity } from './logic.ts';
 
 const ALL: ActivityFilters = {
   follows: true,
@@ -13,11 +13,35 @@ const ALL: ActivityFilters = {
   raids: true,
   redemptions: true,
   streaks: true,
+  powerUps: true,
+  hypeTrains: true,
+  goals: true,
 };
 
 function item(id: string, kind: string): SmActivity {
-  return { id, kind, text: id, user: null, ts: 0 };
+  return { id, kind, text: id, user: null, ts: 0, alert: null, status: null };
 }
+
+test('alerts offer skip while waiting or playing, else replay (D4)', () => {
+  assert.equal(alertAction('QUEUED'), 'skip');
+  assert.equal(alertAction('PLAYING'), 'skip');
+  assert.equal(alertAction('PLAYED'), 'replay');
+  assert.equal(alertAction('SKIPPED'), 'replay');
+  assert.equal(alertAction(null), null);
+});
+
+test('the raid countdown opens Raid now after 10 s (D2)', () => {
+  assert.deepEqual(raidCountdown(1000, 1090, 1005), { left: 85, ready: false });
+  assert.deepEqual(raidCountdown(1000, 1090, 1010.5), { left: 80, ready: true });
+  assert.deepEqual(raidCountdown(1000, 1090, 2000), { left: 0, ready: true });
+});
+
+test('ad settings offer what Twitch allows (D5)', () => {
+  assert.deepEqual(adLengths(30, 180, 90), [30, 60, 90, 120, 150, 180]);
+  assert.deepEqual(adLengths(30, 90, 45), [30, 45, 60, 90]);
+  assert.deepEqual(adIntervals(480, 3600, 1800), [480, 600, 900, 1200, 1500, 1800, 2400, 2700, 3000, 3600]);
+  assert.deepEqual(adIntervals(900, 1800, 1000), [900, 1000, 1200, 1500, 1800]);
+});
 
 test('activity is newest first and filtered by kind', () => {
   const items = [item('a', 'follow'), item('b', 'sub'), item('c', 'cheer'), item('d', 'mystery')];

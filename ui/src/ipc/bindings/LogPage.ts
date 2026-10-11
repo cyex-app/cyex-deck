@@ -13,4 +13,8 @@ more: boolean,
 /**
  * The browser page for these logs.
  */
-url: string, };
+url: string, 
+/**
+ * M8 Where Twitch's mod logs go on, for their next page.
+ */
+cursor: string | null, };

@@ -3,6 +3,7 @@
 //! Answers reuse the Helix types, so the UI doesn't care which API ran.
 
 pub mod ads;
+pub mod feed;
 pub mod info;
 pub mod modes;
 pub mod raids;

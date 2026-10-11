@@ -7,7 +7,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use super::{Auth, BATCH_MAX, batch, query};
-use crate::{Http, Result};
+use crate::{Error, Http, Result};
 
 /// A ban, or a timeout when `expires_in` is set (`"10m"`, `"1h"`, `"1d"`, up to `"14d"`).
 pub const BAN: &str = "mutation Ban($input: BanUserFromChatRoomInput!) {
@@ -183,6 +183,33 @@ fn pin_vars(channel_id: &str, message_id: &str, secs: Option<u32>) -> Value {
         input["durationSeconds"] = json!(s.clamp(30, 1800));
     }
     json!({ "input": input })
+}
+
+/// M11 Sends a message and pins it, as Twitch's own `/pin <text>` does (schema-checked
+/// 2026/10/11). The pin's id; [`Error::Refused`] with Twitch's code when it says no.
+pub async fn send_pinned(http: &Http, auth: Auth<'_>, channel_id: &str, text: &str) -> Result<String> {
+    const Q: &str = "mutation S($input: SendPinnedChatMessageInput!) {
+      sendPinnedChatMessage(input: $input) { pinnedChatMessage { id } error { code } }
+    }";
+    let vars = json!({ "input": { "channelID": channel_id, "messageText": text } });
+    let data: Value = query(http, auth, Q, vars).await?;
+    if let Some(c) = code(&data, "sendPinnedChatMessage") {
+        return Err(Error::Refused(c));
+    }
+    data["sendPinnedChatMessage"]["pinnedChatMessage"]["id"]
+        .as_str()
+        .map(str::to_owned)
+        .ok_or_else(|| Error::Refused("NO_PIN".into()))
+}
+
+/// M11 How long a pin stays, 30 to 1800 s. `pin_id` is the pin's own id.
+pub async fn update_pin(http: &Http, auth: Auth<'_>, pin_id: &str, secs: u32) -> Result<Option<String>> {
+    const Q: &str = "mutation U($input: UpdatePinnedChatMessageInput!) {
+      updatePinnedChatMessage(input: $input) { error { code } }
+    }";
+    let vars = json!({ "input": { "id": pin_id, "durationSeconds": secs.clamp(30, 1800) } });
+    let data: Value = query(http, auth, Q, vars).await?;
+    Ok(code(&data, "updatePinnedChatMessage"))
 }
 
 /// V101-34 Takes a pin down. `pin_id` is the pin's own id, not the message's.

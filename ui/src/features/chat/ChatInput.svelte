@@ -6,7 +6,9 @@
   import { tick } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
+  import { openMenuAt } from '../../components/menu.svelte';
   import { chatIpc } from '../../ipc/chat';
+  import { modIpc } from '../../ipc/moderation';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import type { UiAction } from '../../ipc/bindings/UiAction';
   import { accounts } from '../../lib/accounts.svelte';
@@ -14,6 +16,7 @@
   import { complete, insert, wordAt, type Word } from './completion';
   import { chatxIpc } from '../../ipc/chatx';
   import { pluginsIpc } from '../../ipc/plugins';
+  import { mods, PIN_LENGTHS } from '../modview/moderation.svelte';
   import { plugins } from '../plugins/plugins.svelte';
   import EmoteButton from './EmoteButton.svelte';
   import GifButton from './GifButton.svelte';
@@ -22,6 +25,7 @@
   import { Sources } from './sources.svelte';
   import SuggestList from './SuggestList.svelte';
   import type { Item } from './suggestions';
+  import { pinText } from './pinSend';
   import { plainText } from './text';
 
   interface Props {
@@ -113,6 +117,20 @@
     void insertAtCaret(`@${login}`);
   }
 
+  /** S7 Puts text at the caret, from a plugin's piece. */
+  export function insertText(value: string) {
+    box?.focus();
+    void insertAtCaret(value);
+  }
+
+  /** M10 Replaces the box's text, caret at the end: `/warn login ` waits for the reason. */
+  export async function prefill(value: string) {
+    text = value;
+    box?.focus();
+    await tick();
+    box?.setSelectionRange(value.length, value.length);
+  }
+
   async function put(word: Word, value: string) {
     const next = insert(text, word, value);
     text = next.text;
@@ -163,6 +181,9 @@
   async function send(keep: boolean) {
     const value = text.trim();
     if (!value || !canChat) return;
+    // M11 A mod's `/pin <text>`: how long first, then send and pin.
+    const pinned = pinText(value);
+    if (pinned !== null && room.account && mods.role(room.account, room.login)) return askPin(room.account, value, pinned);
     try {
       const action = await chatIpc.send(room.view, value, replyTo?.id);
       error = '';
@@ -171,6 +192,27 @@
       recall = -1;
       if (!keep) text = '';
       replyTo = null;
+    } catch (e) {
+      error = String(e);
+      setTimeout(() => (error = ''), 4000);
+    }
+  }
+
+  /** M11 Escape keeps the text in the box. */
+  function askPin(account: string, line: string, pinned: string) {
+    const lengths = PIN_LENGTHS.flatMap((p) => (p.secs === null ? [] : [{ label: p.label, secs: p.secs }]));
+    openMenuAt(
+      { currentTarget: box ?? null },
+      lengths.map((p) => ({ label: `Pin for ${p.label}`, icon: 'pin' as const, run: () => void pinSend(account, line, pinned, p.secs) })),
+    );
+  }
+
+  async function pinSend(account: string, line: string, pinned: string, secs: number) {
+    try {
+      await modIpc.pinSend(account, room.login, pinned, secs);
+      sent = [line, ...sent.filter((s) => s !== line)].slice(0, HISTORY);
+      recall = -1;
+      text = '';
     } catch (e) {
       error = String(e);
       setTimeout(() => (error = ''), 4000);

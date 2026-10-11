@@ -9,6 +9,8 @@ use super::emotes::{EmoteKey, EmoteSource, dedupe};
 /// Twitch's longest timeout: 14 days.
 const MAX_TIMEOUT_SECS: u32 = 1_209_600;
 const MAX_TIMEOUT_PRESETS: usize = 8;
+/// M10 Timeout buttons mod mode can show.
+const MAX_MOD_TIMEOUTS: usize = 4;
 const MAX_NICKNAME_CHARS: usize = 25;
 const MAX_NOTE_CHARS: usize = 500;
 const MAX_HIDDEN_EMOTES: usize = 500;
@@ -60,6 +62,8 @@ pub struct Chat {
     pub timeout_presets: Vec<u32>,
     /// C1 Load recent messages when joining.
     pub history: bool,
+    /// C37 Who joins and leaves, as lines. Twitch only tells in chats under 1.000 people.
+    pub joins_leaves: bool,
     /// V101-03 How many, at most.
     pub history_lines: u32,
     /// V101-02 Messages each chat keeps; older ones drop off the top.
@@ -99,6 +103,8 @@ pub struct Chat {
     pub translate_chats: Vec<String>,
     /// V101-33 Chats (logins) in mod mode: delete, timeout and ban before each line.
     pub mod_mode: Vec<String>,
+    /// M10 Which buttons mod mode shows.
+    pub mod_buttons: ModButtons,
     /// C19 Hold chat back this long to match the stream, in tenths of a second. 0 is off.
     pub delay_tenths: u16,
     /// C18 Spell check in the message box. Setting, off.
@@ -128,6 +134,7 @@ impl Default for Chat {
             timestamps: Timestamps::default(),
             timeout_presets: vec![60, 600, 3600, 86_400],
             history: true,
+            joins_leaves: false,
             history_lines: 500,
             scrollback: 1000,
             deleted: DeletedStyle::Strike,
@@ -147,6 +154,7 @@ impl Default for Chat {
             translate_to: String::new(),
             translate_chats: Vec::new(),
             mod_mode: Vec::new(),
+            mod_buttons: ModButtons::default(),
             delay_tenths: 0,
             spell_check: false,
             effects: true,
@@ -183,6 +191,11 @@ impl Schema for Chat {
         self.translate_to = if valid { lang.to_owned() } else { String::new() };
         logins(&mut self.translate_chats);
         logins(&mut self.mod_mode);
+        let t = &mut self.mod_buttons.timeouts;
+        t.retain(|s| (1..=MAX_TIMEOUT_SECS).contains(s));
+        t.sort_unstable();
+        t.dedup();
+        t.truncate(MAX_MOD_TIMEOUTS);
         self.users.retain(|id, u| {
             u.nickname = u.nickname.trim().chars().take(MAX_NICKNAME_CHARS).collect();
             u.note = u.note.trim().chars().take(MAX_NOTE_CHARS).collect();
@@ -268,6 +281,30 @@ pub enum PauseKey {
     #[default]
     Alt,
     Shift,
+}
+
+/// M10 Mod mode's buttons, in this order: delete, timeouts (shortest first), warn, ban.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(default, rename_all = "camelCase")]
+#[ts(export)]
+pub struct ModButtons {
+    pub delete: bool,
+    /// Seconds, one button each.
+    pub timeouts: Vec<u32>,
+    /// Puts `/warn <login> ` in the chat box for the reason.
+    pub warn: bool,
+    pub ban: bool,
+}
+
+impl Default for ModButtons {
+    fn default() -> Self {
+        Self {
+            delete: true,
+            timeouts: vec![60],
+            warn: false,
+            ban: true,
+        }
+    }
 }
 
 /// C3
@@ -426,5 +463,14 @@ mod tests {
         c.sanitize();
         assert_eq!(c.mod_mode, ["a", "b"]);
         assert!(Chat::default().mod_mode.is_empty());
+    }
+
+    #[test]
+    fn mod_buttons_keep_a_few_real_timeouts() {
+        let mut c = Chat::default();
+        c.mod_buttons.timeouts = vec![600, 0, 60, 60, 2_000_000, 5, 30, 90];
+        c.sanitize();
+        assert_eq!(c.mod_buttons.timeouts, [5, 30, 60, 90]);
+        assert_eq!(Chat::default().mod_buttons.timeouts, [60]);
     }
 }

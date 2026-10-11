@@ -20,6 +20,7 @@ pub fn gql(code: &str, who: &str) -> String {
         "MAX_VIPS_REACHED" => "No VIP slots left.".into(),
         "VIP_ACHIEVEMENT_INCOMPLETE" => "This channel can't add VIPs yet.".into(),
         "REQUEST_NOT_FOUND" => "That request is gone.".into(),
+        "RATE_LIMITED" => "Too many pins too quickly. Try again in a moment.".into(),
         other => format!("Twitch refused it ({other})."),
     }
 }

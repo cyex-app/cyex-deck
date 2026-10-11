@@ -55,6 +55,8 @@ pub fn seen(app: &AppHandle, channel_id: &str, user: &Who) {
                 text,
                 user: Some(user.login.clone()),
                 ts: crate::chat::now_ms(),
+                alert: None,
+                status: None,
             },
         );
     }

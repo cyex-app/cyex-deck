@@ -7,6 +7,11 @@ import type { ClipQuality } from "./ClipQuality";
  */
 export type ClipPlayback = { clip: Clip, qualities: Array<ClipQuality>, 
 /**
+ * P11 Twitch's portrait (9:16) cut, best first; empty for older clips. `height` is
+ * the short side here too (972 is 972 × 1728), so labels read like landscape ones.
+ */
+portrait: Array<ClipQuality>, 
+/**
  * The VOD it came from, if that's still up.
  */
 vodId: string | null, 

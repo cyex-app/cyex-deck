@@ -58,6 +58,9 @@ pub struct Clip {
 pub struct ClipPlayback {
     pub clip: Clip,
     pub qualities: Vec<ClipQuality>,
+    /// P11 Twitch's portrait (9:16) cut, best first; empty for older clips. `height` is
+    /// the short side here too (972 is 972 × 1728), so labels read like landscape ones.
+    pub portrait: Vec<ClipQuality>,
     /// The VOD it came from, if that's still up.
     pub vod_id: Option<String>,
     /// Where in that VOD, in seconds.
@@ -130,36 +133,61 @@ fn redacted(mut raw: Value) -> String {
 fn playback(raw: RawPlayableClip) -> Option<ClipPlayback> {
     let token = raw.playback_access_token?;
     let (signature, value) = (token.signature?, token.value?);
+    let portrait_of = |a: &RawAsset| a.kind.as_deref() == Some("RECOMPOSED");
+    // P11 The same token signs the portrait cut.
+    let portrait = raw
+        .assets
+        .iter()
+        .find(|a| portrait_of(a))
+        .map(|a| sign(&a.video_qualities, &signature, &value))
+        .unwrap_or_default();
     // Newer clips keep their files under `assets`, the stream's own shape first.
-    let files = if raw.video_qualities.is_empty() {
-        let mut assets = raw.assets;
-        assets.sort_by_key(|a| a.kind.as_deref() != Some("SOURCE"));
-        assets.into_iter().map(|a| a.video_qualities).find(|q| !q.is_empty()).unwrap_or_default()
+    let qualities = if raw.video_qualities.is_empty() {
+        let mut assets: Vec<&RawAsset> = raw.assets.iter().collect();
+        assets.sort_by_key(|a| (portrait_of(a), a.kind.as_deref() != Some("SOURCE")));
+        assets
+            .into_iter()
+            .map(|a| sign(&a.video_qualities, &signature, &value))
+            .find(|q| !q.is_empty())
+            .unwrap_or_default()
     } else {
-        raw.video_qualities
+        sign(&raw.video_qualities, &signature, &value)
     };
-    let mut qualities: Vec<ClipQuality> = files
-        .into_iter()
-        .filter_map(|q| {
-            let mut url = Url::parse(q.source_url.as_deref()?).ok()?;
-            url.query_pairs_mut().append_pair("sig", &signature).append_pair("token", &value);
-            Some(ClipQuality {
-                height: q.quality?.parse().ok()?,
-                frame_rate: q.frame_rate.unwrap_or(30.0),
-                url: url.into(),
-            })
-        })
-        .collect();
-    qualities.sort_by(|a, b| b.height.cmp(&a.height).then(b.frame_rate.total_cmp(&a.frame_rate)));
     if qualities.is_empty() {
         return None;
     }
+    // Only a portrait cut: it's the clip, not an extra.
+    let portrait = if qualities == portrait {
+        Vec::new()
+    } else {
+        portrait
+    };
     Some(ClipPlayback {
         vod_id: raw.video.map(|v| v.id),
         vod_offset: raw.video_offset_seconds,
         clip: raw.clip.into(),
         qualities,
+        portrait,
     })
+}
+
+/// Signed file URLs, best first. Portrait files name their short side, so `height` is
+/// the quality's number either way.
+fn sign(files: &[RawQuality], signature: &str, value: &str) -> Vec<ClipQuality> {
+    let mut out: Vec<ClipQuality> = files
+        .iter()
+        .filter_map(|q| {
+            let mut url = Url::parse(q.source_url.as_deref()?).ok()?;
+            url.query_pairs_mut().append_pair("sig", signature).append_pair("token", value);
+            Some(ClipQuality {
+                height: q.quality.as_deref()?.parse().ok()?,
+                frame_rate: q.frame_rate.unwrap_or(30.0),
+                url: url.into(),
+            })
+        })
+        .collect();
+    out.sort_by(|a, b| b.height.cmp(&a.height).then(b.frame_rate.total_cmp(&a.frame_rate)));
+    out
 }
 
 #[derive(Deserialize)]
@@ -331,11 +359,26 @@ mod tests {
         assert_eq!((p.clip.clipped_by, p.clip.game), (None, None));
         assert_eq!(p.qualities.len(), 1);
         assert_eq!(p.qualities[0].url, "https://c/l/720.mp4?sig=s&token=v");
+        // P11 The portrait cut comes along, signed the same way.
+        assert_eq!(p.portrait.len(), 1);
+        assert_eq!((p.portrait[0].height, p.portrait[0].url.as_str()), (1080, "https://c/p/1080.mp4?sig=s&token=v"));
         let empty: ClipData = serde_json::from_str(
             r#"{"clip":{"slug":"x","playbackAccessToken":{"signature":null,"value":null},"videoQualities":[],"assets":null}}"#,
         )
         .unwrap();
         assert!(playback(empty.clip.unwrap()).is_none());
+    }
+
+    #[test]
+    fn a_clip_with_only_a_portrait_cut_plays_it() {
+        let d: ClipData = serde_json::from_str(
+            r#"{"clip":{"slug":"P-AbC","playbackAccessToken":{"signature":"s","value":"v"},"videoQualities":[],
+              "assets":[{"type":"RECOMPOSED","videoQualities":[{"frameRate":30,"quality":"720","sourceURL":"https://c/p/720.mp4"}]}]}}"#,
+        )
+        .unwrap();
+        let p = playback(d.clip.unwrap()).unwrap();
+        assert_eq!(p.qualities.len(), 1);
+        assert!(p.portrait.is_empty());
     }
 
     #[test]

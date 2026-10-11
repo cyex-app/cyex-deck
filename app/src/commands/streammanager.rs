@@ -9,6 +9,9 @@ use tauri_plugin_opener::OpenerExt;
 use ts_rs::TS;
 
 use crate::chat::votes::VotesUpdate;
+use cyex_twitch::gql::dashboard::ads::{AdEdit, AdSettings};
+use cyex_twitch::gql::dashboard::raids::{RaidPick, RaidStatus};
+
 use crate::streammanager::actions::{self, Mode, NewPoll, NewPrediction, PredictionEnd, Together};
 use crate::streammanager::activity::Item;
 use crate::streammanager::stats::Stats;
@@ -25,6 +28,8 @@ pub struct Opened {
     /// X4 viewer graph: (unix seconds, viewers).
     #[ts(type = "Array<[number, number]>")]
     pub series: Vec<(i64, u64)>,
+    /// D2 A raid counting down right now.
+    pub raid: Option<RaidStatus>,
 }
 
 /// The account that runs the manager, or null when none can (the tab hides).
@@ -41,6 +46,7 @@ pub fn sm_open(app: AppHandle) -> Opened {
         activity,
         stats: streammanager::stats::latest(&app),
         series: streammanager::series(&app),
+        raid: streammanager::live::raid(&app),
     }
 }
 
@@ -108,6 +114,41 @@ pub async fn sm_raid(app: AppHandle, login: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn sm_unraid(app: AppHandle) -> Result<(), String> {
     actions::unraid(&app).await
+}
+
+#[tauri::command]
+pub async fn sm_raid_now(app: AppHandle) -> Result<(), String> {
+    actions::raid_now(&app).await
+}
+
+#[tauri::command]
+pub async fn sm_raid_picks(app: AppHandle) -> Result<Vec<RaidPick>, String> {
+    actions::raid_picks(&app).await
+}
+
+#[tauri::command]
+pub async fn sm_alert(app: AppHandle, id: String, replay: bool) -> Result<(), String> {
+    actions::alert(&app, id, replay).await
+}
+
+#[tauri::command]
+pub async fn sm_ad_settings(app: AppHandle) -> Result<Option<AdSettings>, String> {
+    actions::ad_settings(&app).await
+}
+
+#[tauri::command]
+pub async fn sm_set_ad_settings(app: AppHandle, edit: AdEdit) -> Result<(), String> {
+    actions::set_ad_settings(&app, edit).await
+}
+
+#[tauri::command]
+pub async fn sm_join_answer(app: AppHandle, user_id: String, approve: bool) -> Result<(), String> {
+    actions::join_answer(&app, user_id, approve).await
+}
+
+#[tauri::command]
+pub async fn sm_auto_add(app: AppHandle, session: Option<String>, on: bool) -> Result<(), String> {
+    actions::auto_add(&app, session, on).await
 }
 
 /// The channel's poll and prediction now; updates come as `chat:votes` for its login.

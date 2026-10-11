@@ -8,7 +8,7 @@ use tauri::{AppHandle, Manager};
 
 use super::{Chat, Identity, Inner, RoomKey};
 
-fn pick(inner: &Inner, login: &str) -> Option<RoomKey> {
+pub(super) fn pick(inner: &Inner, login: &str) -> Option<RoomKey> {
     let shown = |k: &RoomKey| inner.views.values().any(|(v, _)| v == k);
     let mut keys: Vec<&RoomKey> = inner.rooms.keys().filter(|k| k.1 == login).collect();
     keys.sort_by_key(|k| (!shown(k), k.0 == Identity::Anon));
@@ -54,6 +54,14 @@ pub fn message(app: &AppHandle, view: u32, id: &str) -> Option<(String, Arc<Chat
     let key = inner.views.get(&view)?.0.clone();
     let m = inner.rooms.get(&key)?.room.message(id)?;
     Some((key.1, m))
+}
+
+/// S7 A line by its id in the room a channel's lines go to.
+pub fn find(app: &AppHandle, login: &str, id: &str) -> Option<Arc<ChatMessage>> {
+    let chat = app.try_state::<Chat>()?;
+    let inner = chat.lock();
+    let key = pick(&inner, login)?;
+    inner.rooms.get(&key)?.room.message(id)
 }
 
 /// The channel a view shows.

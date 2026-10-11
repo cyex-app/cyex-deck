@@ -44,6 +44,9 @@ pub enum ModCommand {
     Marker { text: String },
     /// 1.9 Pins a message, for `secs` or until the stream ends.
     Pin { msg_id: String, secs: Option<u32> },
+    /// M11 Sends a message and pins it, like Twitch's own `/pin <text>`. Twitch's usual
+    /// 20 minutes when `secs` isn't given.
+    PinSend { text: String, secs: Option<u32> },
     /// Takes the current pin down.
     Unpin,
 }
@@ -85,6 +88,13 @@ pub fn parse(name: &str, args: &str) -> Option<Result<ModCommand, String>> {
         return None;
     }
     Some(read(name, args.trim()))
+}
+
+/// Twitch's message ids: a UUID in lowercase hex.
+fn is_message_id(s: &str) -> bool {
+    s.len() == 36
+        && s.char_indices()
+            .all(|(i, c)| if matches!(i, 8 | 13 | 18 | 23) { c == '-' } else { c.is_ascii_hexdigit() })
 }
 
 fn read(name: &str, args: &str) -> Result<ModCommand, String> {
@@ -210,7 +220,13 @@ fn read(name: &str, args: &str) -> Result<ModCommand, String> {
         "marker" => C::Marker { text: args.to_owned() },
         "pin" => {
             if first.is_empty() {
-                return Err("Usage: /pin message-id [5m]".into());
+                return Err("Usage: /pin message, or /pin message-id [5m]".into());
+            }
+            if !is_message_id(first) {
+                return Ok(C::PinSend {
+                    text: args.to_owned(),
+                    secs: None,
+                });
             }
             let secs = match rest {
                 "" => None,
@@ -319,5 +335,26 @@ mod tests {
         assert_eq!(ok("unmod x").needs(), Need::Broadcaster);
         assert_eq!(ok("restrict x").needs(), Need::Mod);
         assert!(parse("me", "hi").is_none());
+    }
+
+    #[test]
+    fn pin_takes_a_message_id_or_text_to_send() {
+        let id = "bddd8905-c104-4f7a-9c2e-0a1b2c3d4e5f";
+        assert_eq!(
+            ok(&format!("pin {id} 5m")),
+            ModCommand::Pin {
+                msg_id: id.into(),
+                secs: Some(300)
+            }
+        );
+        // M11 Anything else is a message to send and pin.
+        assert_eq!(
+            ok("pin Giveaway at 8, type !join"),
+            ModCommand::PinSend {
+                text: "Giveaway at 8, type !join".into(),
+                secs: None
+            }
+        );
+        assert!(err("pin").contains("Usage"));
     }
 }

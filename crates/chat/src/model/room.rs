@@ -103,6 +103,8 @@ pub enum RoomEvent {
         #[serde(rename = "userId")]
         user_id: String,
     },
+    /// S8 A mod cleared the chat; its notice line comes too.
+    Cleared,
     /// 1.9 The pinned message changed or went away.
     Pinned {
         #[ts(as = "Option<Pinned>")]

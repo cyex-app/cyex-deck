@@ -1,8 +1,9 @@
 //! S5 What a plugin's thread keeps next to its Lua: callbacks by kind, timers, requests
 //! in flight, settings values, and the time limit of the call that's running.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
+use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -19,6 +20,12 @@ pub const SEND_LIMIT: usize = 10;
 pub const SEND_WINDOW: Duration = Duration::from_secs(30);
 pub const MAX_TIMERS: usize = 100;
 pub const MAX_REQUESTS: usize = 10;
+/// S7 Lines a plugin may add, replace or change in [`LINE_WINDOW`].
+pub const LINE_LIMIT: usize = 20;
+pub const LINE_WINDOW: Duration = Duration::from_secs(1);
+/// S6 New sockets a plugin may open in [`CONNECT_WINDOW`].
+pub const CONNECT_LIMIT: usize = 10;
+pub const CONNECT_WINDOW: Duration = Duration::from_secs(60);
 
 pub struct State {
     pub id: String,
@@ -35,6 +42,15 @@ pub struct State {
     pub settings: Map<String, Value>,
     pub next_id: u64,
     pub sends: VecDeque<Instant>,
+    /// S6 Sockets not closed yet, by id.
+    pub sockets: HashSet<u64>,
+    pub connects: VecDeque<Instant>,
+    /// S7 Its lines added, replaced or changed lately.
+    pub line_ops: VecDeque<Instant>,
+    /// S8 Per-channel handlers.
+    pub watches: Vec<crate::api::events::Watch>,
+    /// S6 Socket events on their way to the plugin's thread.
+    pub socket_backlog: Arc<AtomicUsize>,
     /// A line callback is running: chat state is locked by whoever waits on it.
     pub in_line: bool,
     /// Done loading: later changes are announced.
@@ -63,26 +79,50 @@ impl State {
         }
     }
 
+    /// Tells the app which events the plugin follows: its callbacks and handlers.
+    pub fn publish_events(&self) {
+        let mut events: Vec<Event> = self
+            .callbacks
+            .keys()
+            .copied()
+            .chain(self.watches.iter().map(|w| w.event))
+            .collect();
+        events.sort_by_key(|e| e.name());
+        events.dedup();
+        self.publish(|x| x.events = events);
+    }
+
     pub fn log(&self, level: Level, text: &str) {
         self.host.log(&self.id, level, text);
     }
 
     /// Room for one more message in the plugin's send limit.
     pub fn take_send(&mut self) -> bool {
-        let now = Instant::now();
-        while self
-            .sends
-            .front()
-            .is_some_and(|t| now.duration_since(*t) > SEND_WINDOW)
-        {
-            self.sends.pop_front();
-        }
-        if self.sends.len() >= SEND_LIMIT {
-            return false;
-        }
-        self.sends.push_back(now);
-        true
+        take(&mut self.sends, SEND_LIMIT, SEND_WINDOW)
     }
+
+    /// S7 Room for one more line added, replaced or changed.
+    pub fn take_line(&mut self) -> bool {
+        take(&mut self.line_ops, LINE_LIMIT, LINE_WINDOW)
+    }
+
+    /// S6 Room for one more new socket.
+    pub fn take_connect(&mut self) -> bool {
+        take(&mut self.connects, CONNECT_LIMIT, CONNECT_WINDOW)
+    }
+}
+
+/// A rate window: `limit` times in `span`, the oldest falling out.
+fn take(times: &mut VecDeque<Instant>, limit: usize, span: Duration) -> bool {
+    let now = Instant::now();
+    while times.front().is_some_and(|t| now.duration_since(*t) > span) {
+        times.pop_front();
+    }
+    if times.len() >= limit {
+        return false;
+    }
+    times.push_back(now);
+    true
 }
 
 /// Runs `f` with the plugin's state borrowed. Errors instead of panicking when it's

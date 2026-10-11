@@ -29,7 +29,7 @@ pub use session::retry_refused;
 use unread::Unread;
 
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use cyex_chat::build::Me;
@@ -66,6 +66,8 @@ pub struct Chat {
     delay_ms: AtomicI64,
     /// V101-02 Messages each chat keeps; a view gets as many when it opens.
     scrollback: AtomicUsize,
+    /// C37 Joins and leaves as lines.
+    joins: AtomicBool,
 }
 
 #[derive(Default)]
@@ -121,6 +123,7 @@ pub fn init(app: &AppHandle) {
         wake: wake.clone(),
         delay_ms: AtomicI64::new(0),
         scrollback: AtomicUsize::new(cyex_chat::BUFFER),
+        joins: AtomicBool::new(false),
     });
     on_settings(app);
     flush::spawn(app.clone(), wake);
@@ -167,6 +170,12 @@ pub fn on_settings(app: &AppHandle) {
     let Some(chat) = app.try_state::<Chat>() else { return };
     let c = app.state::<Settings>().read::<ChatSettings>(Partition::Chat);
     chat.delay_ms.store(i64::from(c.delay_tenths) * 100, Ordering::Relaxed);
+    // C37 Connections ask for them from now on; the open ones are asked right away.
+    if chat.joins.swap(c.joins_leaves, Ordering::Relaxed) != c.joins_leaves && c.joins_leaves {
+        for s in chat.lock().sessions.values() {
+            s.client.send(cyex_chat::irc::write::MEMBERSHIP.to_owned());
+        }
+    }
     let keep = c.scrollback as usize;
     if chat.scrollback.swap(keep, Ordering::Relaxed) != keep {
         for entry in chat.lock().rooms.values_mut() {
@@ -421,6 +430,39 @@ pub fn local_line(app: &AppHandle, key: &RoomKey, kind: NoticeKind, text: &str) 
         let ev = entry.room.system(kind, text, now_ms());
         queue(entry, [ev], &chat.wake);
     }
+}
+
+/// S7 A plugin's line in every room of the channel, anonymous and signed in. `false`:
+/// none is open.
+pub fn plugin_line(app: &AppHandle, login: &str, m: Arc<ChatMessage>) -> bool {
+    each_room(app, login, |room| vec![room.local(m.clone())])
+}
+
+/// S7 A plugin's line swapped for a new one. `false`: it's gone.
+pub fn plugin_replace(app: &AppHandle, login: &str, m: Arc<ChatMessage>) -> bool {
+    each_room(app, login, |room| room.replace(m.clone()).into_iter().collect())
+}
+
+/// S7 A plugin's change to any line. `false`: it's gone.
+pub fn plugin_change(app: &AppHandle, login: &str, id: &str, change: &cyex_chat::LineChange) -> bool {
+    let emotes = crate::emotes::room(app, None, login);
+    each_room(app, login, |room| room.change(id, change, &emotes))
+}
+
+/// Runs `f` on every room of a channel and queues what comes back. `true` when any did.
+fn each_room(app: &AppHandle, login: &str, mut f: impl FnMut(&mut cyex_chat::Room) -> Vec<RoomEvent>) -> bool {
+    let Some(chat) = app.try_state::<Chat>() else { return false };
+    let mut inner = chat.lock();
+    let mut any = false;
+    for ((_, l), entry) in inner.rooms.iter_mut() {
+        if l != login {
+            continue;
+        }
+        let events = f(&mut entry.room);
+        any |= !events.is_empty();
+        queue(entry, events, &chat.wake);
+    }
+    any
 }
 
 /// 1.26 A whisper shown inline in every open room (Settings → Notifications).

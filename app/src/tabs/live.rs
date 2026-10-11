@@ -102,6 +102,15 @@ async fn poll(app: &AppHandle) {
 
     let changed = {
         let mut last = live.channels.lock().unwrap_or_else(|p| p.into_inner());
+        // S8 Channels whose login or display name changed since the last look.
+        let renamed: Vec<(String, String, String)> = channels
+            .iter()
+            .filter_map(|c| {
+                let old = last.iter().find(|o| o.id == c.id)?;
+                (old.login != c.login || old.name != c.name).then(|| (c.login.clone(), old.login.clone(), c.name.clone()))
+            })
+            .collect();
+        crate::plugins::events::renamed(app, renamed);
         let changed = *last != channels;
         *last = channels.clone();
         changed
