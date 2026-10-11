@@ -13,6 +13,7 @@
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { mods, timeouts, treatItems } from '../modview/moderation.svelte';
+  import type { Standing } from '../modview/standing';
 
   interface Props {
     profile: Profile;
@@ -22,9 +23,11 @@
     ban: BanStatus | null | undefined;
     /** After an action, so the card reads the logs again. */
     onchange: () => void;
+    /** M12 Mod or VIP, from their last line's badges. */
+    is?: Standing;
   }
 
-  let { profile, channel, account, ban, onchange }: Props = $props();
+  let { profile, channel, account, ban, onchange, is }: Props = $props();
 
   const role = $derived(mods.role(account, channel));
   let busy = $state(false);
@@ -60,7 +63,7 @@
     };
     openMenu(
       e.currentTarget as HTMLElement,
-      [...(ban ? [] : [{ label: 'Unban', icon: 'undo' as const, run: () => line(`/unban ${profile.login}`) }]), ...treatItems(role, profile.login, line)],
+      [...(ban ? [] : [{ label: 'Unban', icon: 'undo' as const, run: () => line(`/unban ${profile.login}`) }]), ...treatItems(role, profile.login, line, is)],
       'end',
     );
   }

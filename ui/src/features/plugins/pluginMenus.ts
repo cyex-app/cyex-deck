@@ -1,5 +1,5 @@
-// S5, S9 Plugins' menu entries as menu items: on lines (for the kinds they ask for) or in
-// the chat's ⋯ menu, entries with a group in a submenu of that name.
+// S5, S9 Plugins' menu entries as menu items: on lines (for the kinds they ask for), in
+// the chat's ⋯ menu or (S11) on names, entries with a group in a submenu of that name.
 
 import type { MenuEntry, MenuItem } from '../../components/menuItems';
 import type { ChatMessage } from '../../ipc/bindings/ChatMessage';

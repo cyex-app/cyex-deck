@@ -1,5 +1,6 @@
 //! S5 `cyex.Channel`: an open chat by login, with Chatterino's method names. S7 Plugins add
 //! lines of their own, swap them, change any line (ChangeChat) and look one up (ReadChat).
+//! S14 They take their own lines back and clear a chat on screen (ChangeChat).
 
 use mlua::{Lua, LuaSerdeExt, Table, UserData, UserDataMethods, Value};
 
@@ -133,6 +134,27 @@ impl UserData for ChannelRef {
                 let mut line = message::read(&msg, &s.granted).map_err(mlua::Error::runtime)?;
                 line.id = id;
                 s.host.replace_line(&s.id, &this.0, line);
+                Ok(())
+            })?
+        });
+        m.add_method("remove_message", |lua, this, id: String| {
+            state::with(lua, |s| {
+                if !id.starts_with(&own_prefix(s)) {
+                    return Err(mlua::Error::runtime("only lines this plugin added can be taken back"));
+                }
+                take_line(s)?;
+                s.host.remove_line(&s.id, &this.0, &id);
+                Ok(())
+            })?
+        });
+        // Chatterino's name. Only on the user's screen, never on Twitch.
+        m.add_method("clear_messages", |lua, this, ()| {
+            state::with(lua, |s| {
+                if !s.granted.change_chat {
+                    return Err(mlua::Error::runtime("clearing a chat needs the ChangeChat permission"));
+                }
+                take_line(s)?;
+                s.host.clear_lines(&s.id, &this.0);
                 Ok(())
             })?
         });

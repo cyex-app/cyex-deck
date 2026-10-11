@@ -1,7 +1,8 @@
 <!-- 1.48, V101-35 Who's in a chat, grouped like Twitch's community tab. Anyone gets
      Twitch's list (mods, VIPs and a sample of viewers); a moderator with a Helix sign-in
-     gets every viewer. Click a name for its usercard, right-click for mod actions (C36).
-     Used in chat and the mod view. -->
+     gets every viewer. Click a name for its usercard, right-click for mod actions (C36),
+     with Unmod or Remove VIP for those who are one (M12), and plugins' entries (S11). Used
+     in chat and the mod view. -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
@@ -9,9 +10,13 @@
   import type { Chatters } from '../../ipc/bindings/Chatters';
   import { chatIpc } from '../../ipc/chat';
   import { modIpc } from '../../ipc/moderation';
+  import { pluginsIpc } from '../../ipc/plugins';
   import { formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import { mods, userItems } from '../modview/moderation.svelte';
+  import type { Standing } from '../modview/standing';
+  import { pluginItems } from '../plugins/pluginMenus';
+  import { plugins } from '../plugins/plugins.svelte';
 
   interface Props {
     account: string | null;
@@ -44,12 +49,13 @@
     if (!data) return [];
     const q = query.trim().toLowerCase();
     const pick = (list: string[]) => (q ? list.filter((n) => n.includes(q)) : list);
+    const no = { mod: false, vip: false };
     return [
-      { label: 'Broadcaster', list: pick(data.broadcasters) },
-      { label: 'Moderators', list: pick(data.moderators) },
-      { label: 'VIPs', list: pick(data.vips) },
-      { label: 'Staff', list: pick(data.staff) },
-      { label: 'Viewers', list: pick(data.viewers) },
+      { label: 'Broadcaster', list: pick(data.broadcasters), is: no },
+      { label: 'Moderators', list: pick(data.moderators), is: { mod: true, vip: false } },
+      { label: 'VIPs', list: pick(data.vips), is: { mod: false, vip: true } },
+      { label: 'Staff', list: pick(data.staff), is: no },
+      { label: 'Viewers', list: pick(data.viewers), is: no },
     ].filter((g) => g.list.length);
   });
 
@@ -71,15 +77,22 @@
       .catch((e) => toast.error(String(e)));
   }
 
-  /** C36 Right-click a name: usercard and copy, plus mod actions where the account moderates. */
-  function menu(e: MouseEvent, name: string) {
+  /** C36 Right-click a name: usercard and copy, plus mod actions where the account moderates,
+   * then plugins' entries (S11). */
+  function menu(e: MouseEvent, name: string, is: Standing) {
     e.preventDefault();
     const role = mods.role(account, login);
     const items: MenuEntry[] = [
       { label: 'Usercard', icon: 'user', run: () => open(name) },
       { label: 'Copy name', icon: 'copy', run: () => void navigator.clipboard.writeText(name) },
     ];
-    if (role && name !== login) items.push('separator', ...userItems(role, name, run, () => open(name)));
+    if (role && name !== login) items.push('separator', ...userItems(role, name, run, () => open(name), is));
+    items.push(
+      'separator',
+      ...pluginItems(plugins.menus, 'name', null, (p) =>
+        pluginsIpc.runName(p.plugin, p.index, login, name, null, null).catch((err) => toast.error(String(err))),
+      ),
+    );
     openMenu(e, items);
   }
 </script>
@@ -107,7 +120,7 @@
       {#each groups as g (g.label)}
         <div class="group">{g.label} · {formatNumber(g.list.length)}</div>
         {#each g.list.slice(0, SHOWN) as name (name)}
-          <button class="name" onclick={() => open(name)} oncontextmenu={(e) => menu(e, name)}>{name}</button>
+          <button class="name" onclick={() => open(name)} oncontextmenu={(e) => menu(e, name, g.is)}>{name}</button>
         {/each}
         {#if g.list.length > SHOWN}
           <p class="note">{formatNumber(g.list.length - SHOWN)} more. Type a name to find them.</p>

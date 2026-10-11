@@ -1,10 +1,12 @@
 //! Live dots (1.29) and renamed channels (1.15). Every tab channel is looked up by id
-//! once a minute, and right away when a tab brings a new one.
+//! once a minute, and right away when a tab brings a new one. Plugins hear of renames
+//! (S8) and streams starting or ending (S12).
 
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use cyex_plugins::LiveChange;
 use cyex_settings::Partition;
 use cyex_settings::schema::{Resolved, Tabs};
 use cyex_twitch::gql::{self, ChannelInfo};
@@ -111,6 +113,21 @@ async fn poll(app: &AppHandle) {
             })
             .collect();
         crate::plugins::events::renamed(app, renamed);
+        // S12 Channels whose stream started or ended. Nothing on the first look.
+        let flips: Vec<LiveChange> = channels
+            .iter()
+            .filter_map(|c| {
+                let old = last.iter().find(|o| o.id == c.id)?;
+                (old.stream.is_some() != c.stream.is_some()).then(|| LiveChange {
+                    channel: c.login.clone(),
+                    name: c.name.clone(),
+                    live: c.stream.is_some(),
+                    title: c.stream.as_ref().map(|s| s.title.clone()),
+                    game: c.stream.as_ref().and_then(|s| s.game.clone()),
+                })
+            })
+            .collect();
+        crate::plugins::events::live(app, flips);
         let changed = *last != channels;
         *last = channels.clone();
         changed

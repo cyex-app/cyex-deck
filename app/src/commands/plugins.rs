@@ -1,7 +1,7 @@
 //! Lua plugins (S5): the list in Settings, turning them on, their settings, the console,
-//! Tab completion and message menu entries.
+//! Tab completion and menu entries on lines, chats and names.
 
-use cyex_plugins::{CompletionRequest, MenuPlace};
+use cyex_plugins::{CompletionRequest, MenuPlace, NameUser};
 use serde::Serialize;
 use serde_json::Value;
 use tauri::AppHandle;
@@ -149,5 +149,33 @@ pub async fn plugins_menu_run(
         }
         None => (peek::channel_of(&app, view).ok_or("This chat is closed.")?, None),
     };
-    calls::menu(&p, index, &channel, line).await
+    calls::menu(&p, index, &channel, (line, None)).await
+}
+
+/// S11 A plugin's entry on a name: who, in which chat, and the line the name was on. Their
+/// id and display name come from that line or their latest one in the chat.
+#[tauri::command]
+pub async fn plugins_name_run(
+    app: AppHandle,
+    plugin: String,
+    index: usize,
+    channel: String,
+    login: String,
+    view: Option<u32>,
+    msg_id: Option<String>,
+) -> CmdResult<()> {
+    let p = plugins::get(&app, &plugin).ok_or("That plugin isn't running.")?;
+    let line = view
+        .zip(msg_id)
+        .and_then(|(v, id)| peek::message(&app, v, &id))
+        .map(|(c, m)| hook_line(&c, &m));
+    let (id, name) = line
+        .as_ref()
+        .and_then(|l| l.sender.as_ref())
+        .filter(|s| s.login == login)
+        .map(|s| (s.id.clone(), s.name.clone()))
+        .or_else(|| peek::sender(&app, &channel, &login))
+        .unzip();
+    let user = NameUser { login, id, name };
+    calls::menu(&p, index, &channel, (line, Some(user))).await
 }

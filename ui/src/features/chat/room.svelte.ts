@@ -103,6 +103,15 @@ export class ChatRoom {
         case 'clearUser':
           edit((m) => (!m.notice && m.sender?.id === e.userId ? deleted(m) : null));
           break;
+        // S14 A plugin took its line back, or emptied the chat on screen.
+        case 'remove':
+          list = list.filter((m) => m.id !== e.id);
+          changed = true;
+          break;
+        case 'wipe':
+          list = [];
+          changed = true;
+          break;
         case 'history': {
           const known = new Set(list.map((m) => m.id));
           list = [...e.messages.filter((m) => !known.has(m.id)), ...list];

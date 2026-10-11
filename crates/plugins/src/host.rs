@@ -128,7 +128,8 @@ pub struct LayoutTile {
     pub signed_in: bool,
 }
 
-/// S8 Something that happened in a chat, after the fact.
+/// S8 Something that happened in a chat, after the fact. S12 Also a tab's channel going
+/// live or offline, and the tabs changing.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ChatEvent {
     Appended(Line),
@@ -144,6 +145,34 @@ pub enum ChatEvent {
     Cleared { channel: String },
     /// The channel's login or display name changed on Twitch.
     Renamed { channel: String, old: String, name: String },
+    /// S12 A tab's channel went live or offline, seen by the once-a-minute check.
+    Live(LiveChange),
+    /// S12 Tabs were added, closed, moved or switched, or a tile changed.
+    Layout(Layout),
+}
+
+/// S12 A channel's stream started or ended.
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+pub struct LiveChange {
+    pub channel: String,
+    pub name: String,
+    pub live: bool,
+    /// The stream's, while live.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub game: Option<String>,
+}
+
+/// S11 The person whose name was right-clicked. A name in the viewer list comes with its
+/// login only.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct NameUser {
+    pub login: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 /// S7 A line a plugin built (`cyex.Message.new`).
@@ -354,6 +383,14 @@ pub trait Host: Send + Sync + 'static {
     fn find_line(&self, login: &str, id: &str) -> Option<Line>;
     /// S9 The tabs and what each shows.
     fn layout(&self) -> Layout;
+    /// S13 Switches to the first tab showing `login`, or opens a tab for it. Queued.
+    fn open_channel(&self, plugin: &str, login: &str);
+    /// S13 Switches to the tab `id`. Queued.
+    fn select_tab(&self, plugin: &str, id: &str);
+    /// S14 Takes back the plugin's own line `id` from every open chat of `login`.
+    fn remove_line(&self, plugin: &str, login: &str, id: &str);
+    /// S14 Empties every open chat of `login` on the user's screen (not on Twitch).
+    fn clear_lines(&self, plugin: &str, login: &str);
     /// The app's own and Twitch's commands, which plugins can't take over.
     fn reserved(&self, command: &str) -> bool;
     /// Commands, callbacks or menu entries changed.

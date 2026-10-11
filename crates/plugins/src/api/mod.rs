@@ -42,6 +42,8 @@ pub fn install(lua: &Lua) -> mlua::Result<()> {
         })?,
     )?;
     cyex.set("get_setting", lua.create_function(get_setting)?)?;
+    cyex.set("open_channel", lua.create_function(open_channel)?)?;
+    cyex.set("select_tab", lua.create_function(select_tab)?)?;
     cyex.set("Channel", channel::table(lua)?)?;
     cyex.set("HTTPRequest", http::table(lua)?)?;
     cyex.set("WebSocket", socket::table(lua)?)?;
@@ -135,7 +137,11 @@ fn register_callback(lua: &Lua, (event, f): (String, Function)) -> mlua::Result<
             | Event::MessageDeleted
             | Event::ChatCleared => s.granted.read_chat,
             Event::Sending => s.granted.send,
-            Event::CompletionRequested | Event::SettingsChanged | Event::ChannelRenamed => true,
+            Event::CompletionRequested
+            | Event::SettingsChanged
+            | Event::ChannelRenamed
+            | Event::LiveChanged
+            | Event::LayoutChanged => true,
         };
         if !allowed {
             let need = if e == Event::Sending {
@@ -155,8 +161,8 @@ fn register_callback(lua: &Lua, (event, f): (String, Function)) -> mlua::Result<
 }
 
 /// An entry in a line's right-click menu, or (S9) the chat's ⋯ menu with
-/// `{ where = "chat" }`. `group` puts entries in a submenu; `lines` limits message
-/// entries to some kinds of line. Returns its index.
+/// `{ where = "chat" }`, or (S11) a name's with `{ where = "name" }`. `group` puts entries
+/// in a submenu; `lines` limits message entries to some kinds of line. Returns its index.
 fn register_menu_entry(lua: &Lua, (label, f, options): (String, Function, Option<Table>)) -> mlua::Result<usize> {
     let label = menu_label(&label).ok_or_else(|| mlua::Error::runtime("the label is empty"))?;
     let mut entry = MenuExport {
@@ -167,7 +173,10 @@ fn register_menu_entry(lua: &Lua, (label, f, options): (String, Function, Option
         entry.place = match o.get::<Option<String>>("where")?.as_deref() {
             None | Some("message") => MenuPlace::Message,
             Some("chat") => MenuPlace::Chat,
-            Some(other) => return Err(mlua::Error::runtime(format!("where \"{other}\" isn't message or chat"))),
+            Some("name") => MenuPlace::Name,
+            Some(other) => {
+                return Err(mlua::Error::runtime(format!("where \"{other}\" isn't message, chat or name")));
+            }
         };
         entry.group = o.get::<Option<String>>("group")?.and_then(|g| menu_label(&g));
         if let Some(lines) = o.get::<Option<Vec<String>>>("lines")? {
@@ -230,6 +239,46 @@ fn current_account(lua: &Lua, (): ()) -> mlua::Result<Value> {
     t.set("id", a.id)?;
     t.set("name", a.name)?;
     Ok(Value::Table(t))
+}
+
+/// S13 Room in the Tabs permission and its limit.
+fn take_tab(s: &mut state::State) -> mlua::Result<()> {
+    if !s.granted.tabs {
+        return Err(mlua::Error::runtime("tabs need the Tabs permission"));
+    }
+    if !s.take_tab() {
+        return Err(mlua::Error::runtime(format!(
+            "up to {} tab switches a minute",
+            state::TAB_LIMIT
+        )));
+    }
+    Ok(())
+}
+
+/// S13 Switches to the first tab showing the channel, or opens a tab for it.
+fn open_channel(lua: &Lua, login: String) -> mlua::Result<()> {
+    let login = login.trim().trim_start_matches('#').to_ascii_lowercase();
+    let ok = (1..=25).contains(&login.len()) && login.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+    if !ok {
+        return Err(mlua::Error::runtime(format!("\"{login}\" isn't a Twitch login")));
+    }
+    state::with(lua, |s| {
+        take_tab(s)?;
+        s.host.open_channel(&s.id, &login);
+        Ok(())
+    })?
+}
+
+/// S13 Switches to a tab by its id from `get_layout`.
+fn select_tab(lua: &Lua, id: String) -> mlua::Result<()> {
+    if id.is_empty() || id.len() > 64 {
+        return Err(mlua::Error::runtime("that isn't a tab id"));
+    }
+    state::with(lua, |s| {
+        take_tab(s)?;
+        s.host.select_tab(&s.id, &id);
+        Ok(())
+    })?
 }
 
 fn get_setting(lua: &Lua, key: String) -> mlua::Result<Value> {

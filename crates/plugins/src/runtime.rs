@@ -17,7 +17,9 @@ use ts_rs::TS;
 
 use crate::api;
 use crate::convert;
-use crate::host::{Change, ChatEvent, Completion, CompletionRequest, Host, HttpResponse, Level, Line, Sent, SocketEvent};
+use crate::host::{
+    Change, ChatEvent, Completion, CompletionRequest, Host, HttpResponse, Level, Line, NameUser, Sent, SocketEvent,
+};
 use crate::manifest::{DATA, ENTRY};
 use crate::perm::Granted;
 use crate::repl;
@@ -59,10 +61,14 @@ pub enum Event {
     ChatCleared,
     /// S8 A tab's channel was renamed on Twitch.
     ChannelRenamed,
+    /// S12 A tab's channel went live or offline.
+    LiveChanged,
+    /// S12 The tabs changed.
+    LayoutChanged,
 }
 
 impl Event {
-    pub const ALL: [Event; 9] = [
+    pub const ALL: [Event; 11] = [
         Event::CompletionRequested,
         Event::Message,
         Event::Sending,
@@ -72,9 +78,11 @@ impl Event {
         Event::MessageDeleted,
         Event::ChatCleared,
         Event::ChannelRenamed,
+        Event::LiveChanged,
+        Event::LayoutChanged,
     ];
 
-    /// S8 The events that come after the fact.
+    /// S8 The events rooms report after the fact.
     pub const CHAT: [Event; 5] = [
         Event::MessageAppended,
         Event::MessageReplaced,
@@ -94,6 +102,8 @@ impl Event {
             Event::MessageDeleted => "MessageDeleted",
             Event::ChatCleared => "ChatCleared",
             Event::ChannelRenamed => "ChannelRenamed",
+            Event::LiveChanged => "LiveChanged",
+            Event::LayoutChanged => "LayoutChanged",
         }
     }
 }
@@ -106,7 +116,8 @@ pub struct Exports {
     /// Without the slash.
     pub commands: Vec<String>,
     pub events: Vec<Event>,
-    /// Menu entries, in order (S9: on messages or the chat's ⋯ menu, maybe in a group).
+    /// Menu entries, in order (S9: on messages or the chat's ⋯ menu, maybe in a group;
+    /// S11 on names).
     pub menu: Vec<MenuExport>,
     /// The line callback was too slow too often; a reload brings it back.
     pub paused: bool,
@@ -122,6 +133,8 @@ pub enum MenuPlace {
     Message,
     /// The chat's ⋯ menu.
     Chat,
+    /// S11 A name's right-click menu, in chat and the viewer list.
+    Name,
 }
 
 /// S9 A menu entry a plugin registered.
@@ -162,6 +175,8 @@ pub enum Msg {
         index: usize,
         channel: String,
         line: Option<Line>,
+        /// S11 For name entries.
+        user: Option<NameUser>,
         reply: Reply<Result<(), String>>,
     },
     Repl {
@@ -304,13 +319,14 @@ impl Plugin {
         &self,
         index: usize,
         channel: &str,
-        line: Option<Line>,
+        (line, user): (Option<Line>, Option<NameUser>),
         reply: Reply<Result<(), String>>,
     ) -> bool {
         self.send(Msg::Menu {
             index,
             channel: channel.to_owned(),
             line,
+            user,
             reply,
         })
     }
@@ -372,6 +388,7 @@ fn boot(
         sockets: std::collections::HashSet::new(),
         connects: VecDeque::new(),
         line_ops: VecDeque::new(),
+        tab_ops: VecDeque::new(),
         watches: Vec::new(),
         socket_backlog: Arc::default(),
         in_line: false,
@@ -558,6 +575,7 @@ fn handle(lua: &Lua, deadline: &Deadline, msg: Msg) {
             index,
             channel,
             line,
+            user,
             reply,
         } => {
             let f = state::with(lua, |s| s.menu.get(index).and_then(|k| function(lua, k)))
@@ -566,7 +584,7 @@ fn handle(lua: &Lua, deadline: &Deadline, msg: Msg) {
             let Some(f) = f else {
                 return reply(Err("That entry is gone.".into()));
             };
-            let out = convert::menu_ctx(lua, &channel, line.as_ref())
+            let out = convert::menu_ctx(lua, &channel, line.as_ref(), user.as_ref())
                 .map_err(|e| describe(&e))
                 .and_then(|ctx| call::<Value>(deadline, CALLBACK, &f, ctx));
             reply(out.map(drop));

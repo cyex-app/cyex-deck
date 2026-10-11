@@ -449,6 +449,17 @@ pub fn plugin_change(app: &AppHandle, login: &str, id: &str, change: &cyex_chat:
     each_room(app, login, |room| room.change(id, change, &emotes))
 }
 
+/// S14 A plugin's own line taken back. `false`: it's gone.
+pub fn plugin_remove(app: &AppHandle, login: &str, id: &str) -> bool {
+    each_room(app, login, |room| room.remove(id).into_iter().collect())
+}
+
+/// S14 A chat emptied on screen by a plugin, with a line saying which. `false`: not open.
+pub fn plugin_clear(app: &AppHandle, login: &str, text: &str) -> bool {
+    let now = now_ms();
+    each_room(app, login, |room| vec![room.wipe(), room.system(NoticeKind::Info, text, now)])
+}
+
 /// Runs `f` on every room of a channel and queues what comes back. `true` when any did.
 fn each_room(app: &AppHandle, login: &str, mut f: impl FnMut(&mut cyex_chat::Room) -> Vec<RoomEvent>) -> bool {
     let Some(chat) = app.try_state::<Chat>() else { return false };

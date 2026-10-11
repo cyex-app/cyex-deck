@@ -17,6 +17,8 @@ pub struct Granted {
     pub network: Option<Vec<String>>,
     pub fs_read: bool,
     pub fs_write: bool,
+    /// S13 Open and switch tabs.
+    pub tabs: bool,
 }
 
 impl Granted {
@@ -45,6 +47,7 @@ impl Granted {
                 }
                 Permission::FilesystemRead => g.fs_read = true,
                 Permission::FilesystemWrite => g.fs_write = true,
+                Permission::Tabs => g.tabs = true,
             }
         }
         Some(g)
@@ -60,6 +63,7 @@ impl Granted {
             network: Some(Vec::new()),
             fs_read: true,
             fs_write: true,
+            tabs: true,
         }
     }
 }

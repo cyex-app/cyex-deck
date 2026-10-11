@@ -13,7 +13,7 @@
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import PluginField from './PluginField.svelte';
-  import { STATUS, permissionText } from './permissions';
+  import { STATUS, menuSummary, permissionText } from './permissions';
 
   interface Props {
     plugin: PluginInfo;
@@ -86,7 +86,7 @@
     <p class="meta muted">
       {#if plugin.exports.commands.length}Commands: {plugin.exports.commands.map((c) => `/${c}`).join(', ')}{/if}
       {#if plugin.exports.commands.length && plugin.exports.menu.length}·{/if}
-      {#if plugin.exports.menu.length}Message menu: {plugin.exports.menu.join(', ')}{/if}
+      {#if plugin.exports.menu.length}Menu entries: {menuSummary(plugin.exports.menu)}{/if}
     </p>
   {/if}
   {#if plugin.exports.paused}

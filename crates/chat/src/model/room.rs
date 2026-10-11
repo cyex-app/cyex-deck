@@ -105,6 +105,10 @@ pub enum RoomEvent {
     },
     /// S8 A mod cleared the chat; its notice line comes too.
     Cleared,
+    /// S14 A plugin took back its own line.
+    Remove { id: String },
+    /// S14 A plugin emptied the chat on the user's screen, not on Twitch.
+    Wipe,
     /// 1.9 The pinned message changed or went away.
     Pinned {
         #[ts(as = "Option<Pinned>")]

@@ -35,6 +35,10 @@ struct Fake {
     /// S7 Lines added (`add`), replaced (`replace`) and changed (`change`), in order.
     lines: Mutex<Vec<(&'static str, String, NewLine)>>,
     changes: Mutex<Vec<(String, Change)>>,
+    /// S13 Tabs asked for: (`open` or `select`, login or id).
+    tabs: Mutex<Vec<(&'static str, String)>>,
+    /// S14 Lines taken back (`remove`, id) and chats cleared (`clear`, login).
+    gone: Mutex<Vec<(&'static str, String)>>,
 }
 
 impl Fake {
@@ -117,6 +121,18 @@ impl Host for Fake {
                 }]],
             }],
         }
+    }
+    fn open_channel(&self, _plugin: &str, login: &str) {
+        self.tabs.lock().unwrap().push(("open", login.into()));
+    }
+    fn select_tab(&self, _plugin: &str, id: &str) {
+        self.tabs.lock().unwrap().push(("select", id.into()));
+    }
+    fn remove_line(&self, _plugin: &str, _login: &str, id: &str) {
+        self.gone.lock().unwrap().push(("remove", id.into()));
+    }
+    fn clear_lines(&self, _plugin: &str, login: &str) {
+        self.gone.lock().unwrap().push(("clear", login.into()));
     }
     fn reserved(&self, command: &str) -> bool {
         command == "ban"
@@ -523,7 +539,7 @@ fn print_logs_and_menu_entries() {
     .unwrap();
     assert_eq!(fake.logs(), ["hello 1 nil", "careful"]);
     assert_eq!(p.exports().menu.iter().map(|m| m.label.as_str()).collect::<Vec<_>>(), ["Count words"]);
-    assert_eq!(ask(|r| p.menu(0, "open", Some(line("open", "abc")), r)), Ok(()));
+    assert_eq!(ask(|r| p.menu(0, "open", (Some(line("open", "abc")), None), r)), Ok(()));
     assert_eq!(repl(&p, "words"), Ok("\"3 in open\"".into()));
     assert_eq!(repl(&p, "cyex.current_account().login"), Ok("\"me\"".into()));
     // Registering after start tells the app.
@@ -764,4 +780,88 @@ fn menu_entries_go_where_asked_and_layout_reads() {
     assert!(repl(&p, "cyex.register_menu_entry('x', function() end, { lines = { 'whisper' } })").is_err());
     let layout = "local l = cyex.get_layout() return l.active, l.tabs[1].columns[1][1].channel, l.tabs[1].columns[1][1].chat";
     assert_eq!(repl(&p, layout), Ok("\"t1\"\t\"open\"\ttrue".into()));
+}
+
+#[test]
+fn name_entries_get_who_was_clicked() {
+    let (p, _, _) = start(
+        r#"cyex.register_menu_entry("Look up", function(ctx) who = ctx.user.login .. " " .. tostring(ctx.user.id) .. " " .. tostring(ctx.message) end, { where = "name" })"#,
+        Granted::default(),
+    )
+    .unwrap();
+    assert_eq!(p.exports().menu[0].place, MenuPlace::Name);
+    let user = NameUser {
+        login: "bob".into(),
+        ..NameUser::default()
+    };
+    assert_eq!(ask(|r| p.menu(0, "open", (None, Some(user)), r)), Ok(()));
+    assert_eq!(repl(&p, "who"), Ok("\"bob nil nil\"".into()));
+}
+
+#[test]
+fn live_and_layout_events_need_no_permission() {
+    let (p, _, _) = start(
+        r#"
+        cyex.register_callback(cyex.EventType.LiveChanged, function(e) live = e.channel .. " " .. tostring(e.live) .. " " .. (e.title or "-") end)
+        cyex.register_callback(cyex.EventType.LayoutChanged, function(l) tabs = #l.tabs; active = l.active end)
+        "#,
+        Granted::default(),
+    )
+    .unwrap();
+    assert!(p.has(Event::LiveChanged) && p.has(Event::LayoutChanged));
+    assert!(p.chat(vec![
+        ChatEvent::Live(LiveChange {
+            channel: "open".into(),
+            name: "Open".into(),
+            live: true,
+            title: Some("hi".into()),
+            game: None,
+        }),
+        ChatEvent::Layout(Layout {
+            active: Some("t2".into()),
+            tabs: vec![LayoutTab::default(), LayoutTab::default()],
+        }),
+    ]));
+    soon(|| repl(&p, "tabs").as_deref() == Ok("2"));
+    assert_eq!(repl(&p, "live, active"), Ok("\"open true hi\"	\"t2\"".into()));
+}
+
+#[test]
+fn tabs_need_the_tabs_permission_and_stay_in_a_limit() {
+    let (p, _, _) = start("", Granted::default()).unwrap();
+    assert!(repl(&p, "cyex.open_channel('xqc')").unwrap_err().contains("Tabs permission"));
+    let (p, fake, _) = start(
+        "",
+        Granted {
+            tabs: true,
+            ..Granted::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(repl(&p, "cyex.open_channel(' #XQC ')"), Ok(String::new()));
+    assert_eq!(repl(&p, "cyex.select_tab('t1')"), Ok(String::new()));
+    assert!(repl(&p, "cyex.open_channel('not a login')").unwrap_err().contains("isn't a Twitch login"));
+    assert_eq!(*fake.tabs.lock().unwrap(), [("open", "xqc".to_owned()), ("select", "t1".to_owned())]);
+    let err = repl(&p, "for i = 1, 20 do cyex.select_tab('t1') end").unwrap_err();
+    assert!(err.contains("up to 10 tab switches a minute"), "{err}");
+    assert_eq!(fake.tabs.lock().unwrap().len(), 10);
+}
+
+#[test]
+fn plugins_take_back_their_lines_and_clear_only_with_change_chat() {
+    let (p, fake, _) = start("ch = cyex.Channel.by_name('open')", Granted::default()).unwrap();
+    assert_eq!(repl(&p, "ch:remove_message('p:test:1')"), Ok(String::new()));
+    assert!(repl(&p, "ch:remove_message('p:other:1')").unwrap_err().contains("only lines this plugin added"));
+    assert!(repl(&p, "ch:clear_messages()").unwrap_err().contains("ChangeChat"));
+    let (p, fake2, _) = start(
+        "ch = cyex.Channel.by_name('open')",
+        Granted {
+            change_chat: true,
+            ..read_only()
+        },
+    )
+    .unwrap();
+    assert_eq!(repl(&p, "ch:clear_messages()"), Ok(String::new()));
+    assert_eq!(*fake.gone.lock().unwrap(), [("remove", "p:test:1".to_owned())]);
+    assert_eq!(*fake2.gone.lock().unwrap(), [("clear", "open".to_owned())]);
 }

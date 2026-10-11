@@ -30,6 +30,7 @@ pub fn on_changed(app: &AppHandle) {
     rooms::sync(app);
     live::nudge(app);
     crate::miner::on_settings(app);
+    crate::plugins::events::layout(app);
 }
 
 /// Joins and leaves rooms again, e.g. when the chats the miner sits in change.

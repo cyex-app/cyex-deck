@@ -26,6 +26,9 @@ pub const LINE_WINDOW: Duration = Duration::from_secs(1);
 /// S6 New sockets a plugin may open in [`CONNECT_WINDOW`].
 pub const CONNECT_LIMIT: usize = 10;
 pub const CONNECT_WINDOW: Duration = Duration::from_secs(60);
+/// S13 Tabs a plugin may open or switch to in [`TAB_WINDOW`].
+pub const TAB_LIMIT: usize = 10;
+pub const TAB_WINDOW: Duration = Duration::from_secs(60);
 
 pub struct State {
     pub id: String,
@@ -47,6 +50,8 @@ pub struct State {
     pub connects: VecDeque<Instant>,
     /// S7 Its lines added, replaced or changed lately.
     pub line_ops: VecDeque<Instant>,
+    /// S13 Tabs it opened or switched to lately.
+    pub tab_ops: VecDeque<Instant>,
     /// S8 Per-channel handlers.
     pub watches: Vec<crate::api::events::Watch>,
     /// S6 Socket events on their way to the plugin's thread.
@@ -104,6 +109,11 @@ impl State {
     /// S7 Room for one more line added, replaced or changed.
     pub fn take_line(&mut self) -> bool {
         take(&mut self.line_ops, LINE_LIMIT, LINE_WINDOW)
+    }
+
+    /// S13 Room for one more tab opened or switched to.
+    pub fn take_tab(&mut self) -> bool {
+        take(&mut self.tab_ops, TAB_LIMIT, TAB_WINDOW)
     }
 
     /// S6 Room for one more new socket.

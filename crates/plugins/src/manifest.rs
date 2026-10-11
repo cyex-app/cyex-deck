@@ -59,6 +59,8 @@ pub enum Permission {
     /// Files in the plugin's own `data` folder.
     FilesystemRead,
     FilesystemWrite,
+    /// S13 Open channels in tabs and switch between tabs.
+    Tabs,
 }
 
 impl Permission {
@@ -77,6 +79,7 @@ impl Permission {
             }
             Permission::FilesystemRead => "FilesystemRead".into(),
             Permission::FilesystemWrite => "FilesystemWrite".into(),
+            Permission::Tabs => "Tabs".into(),
         }
     }
 }

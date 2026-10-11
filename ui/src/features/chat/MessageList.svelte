@@ -25,6 +25,7 @@
   import { hidden } from '../emotes/hidden.svelte';
   import type { LineMod } from '../modview/lineMod';
   import { messageItems, mods, pinItems, userItems } from '../modview/moderation.svelte';
+  import { standingOf } from '../modview/standing';
   import { lineKind, pluginItems } from '../plugins/pluginMenus';
   import { plugins } from '../plugins/plugins.svelte';
   import Line from './Line.svelte';
@@ -294,8 +295,19 @@
   /** Warn asks for the reason in the message box (M10). */
   const warn = (login: string) => () => onprefill?.(`/warn ${login} `);
 
-  /** Right-click a name: usercard, mention, search, mod actions, hide or block, your own (S1).
-   * Same order as every menu (V101-30): main action, others, go somewhere, copy, then red last. */
+  /** M12 Their badges: the line the name was on, else their latest line here. */
+  function badgesOf(login: string, m: ChatMessage | undefined) {
+    if (m?.sender?.login === login) return m.sender.badges;
+    for (let i = room.messages.length - 1; i >= 0; i--) {
+      const s = room.messages[i].sender;
+      if (s?.login === login) return s.badges;
+    }
+    return undefined;
+  }
+
+  /** Right-click a name: usercard, mention, search, mod actions, hide or block, your own (S1),
+   * plugins' (S11). Same order as every menu (V101-30): main action, others, go somewhere,
+   * copy, then red last. */
   function userMenu(e: MouseEvent, login: string, m: ChatMessage | undefined) {
     const own = userMenus.current.user;
     const ctx = context(m, login);
@@ -308,11 +320,17 @@
       ...(accounts.can('whispers') ? [{ label: 'Whisper', icon: 'whisper' as const, run: () => whispers.show(login) }] : []),
       { label: 'Their messages', icon: 'search', run: () => onaction?.({ type: 'search', query: `from:${login}` }) },
       { label: 'Copy name', icon: 'copy', run: () => void navigator.clipboard.writeText(login) },
-      ...(canMod ? ['separator' as const, ...userItems(role, login, command, warn(login))] : []),
+      ...(canMod ? ['separator' as const, ...userItems(role, login, command, warn(login), standingOf(badgesOf(login, m)))] : []),
       'separator',
       { label: 'Hide for me', icon: 'eyeOff', note: 'Only for you, not on Twitch', run: () => command(`/hideuser ${login}`) },
       ...(room.account ? [{ label: 'Block on Twitch', icon: 'ban' as const, danger: true, run: () => command(`/block ${login}`) }] : []),
       ...(own.length ? ['separator' as const, ...toItems(own, (cmd) => runEntry(room.view, cmd, ctx, onaction))] : []),
+      'separator',
+      ...pluginItems(plugins.menus, 'name', null, (p) =>
+        pluginsIpc
+          .runName(p.plugin, p.index, room.login, login, room.view, m?.id ?? null)
+          .catch((err) => toast.error(String(err))),
+      ),
     ]);
   }
 
@@ -339,7 +357,12 @@
         : []),
       { label: 'Copy message', icon: 'copy', run: () => void navigator.clipboard.writeText(plainText(m.body)) },
       ...(canMod
-        ? ['separator' as const, ...messageItems(m.id, command), 'separator' as const, ...userItems(role, login, command, warn(login))]
+        ? [
+            'separator' as const,
+            ...messageItems(m.id, command),
+            'separator' as const,
+            ...userItems(role, login, command, warn(login), standingOf(m.sender?.badges)),
+          ]
         : []),
       ...(canPin ? ['separator' as const, { label: 'Pin message', icon: 'pin' as const, items: pinItems(m.id, command) }] : []),
       ...(own.length ? ['separator' as const, ...toItems(own, (cmd) => runEntry(room.view, cmd, ctx, onaction))] : []),

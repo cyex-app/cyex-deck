@@ -11,7 +11,8 @@ export type PluginExports = {
  */
 commands: Array<string>, events: Array<PluginEvent>, 
 /**
- * Menu entries, in order (S9: on messages or the chat's ⋯ menu, maybe in a group).
+ * Menu entries, in order (S9: on messages or the chat's ⋯ menu, maybe in a group;
+ * S11 on names).
  */
 menu: Array<PluginMenuExport>, 
 /**

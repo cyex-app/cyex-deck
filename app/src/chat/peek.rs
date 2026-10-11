@@ -64,6 +64,18 @@ pub fn find(app: &AppHandle, login: &str, id: &str) -> Option<Arc<ChatMessage>> 
     inner.rooms.get(&key)?.room.message(id)
 }
 
+/// S11 Someone's id and display name, from their latest line in the channel's room.
+pub fn sender(app: &AppHandle, login: &str, who: &str) -> Option<(String, String)> {
+    let chat = app.try_state::<Chat>()?;
+    let inner = chat.lock();
+    let key = pick(&inner, login)?;
+    let room = &inner.rooms.get(&key)?.room;
+    room.snapshot_tail(room.keep()).messages.iter().rev().find_map(|m| {
+        let s = m.sender.as_ref()?;
+        (s.login == who).then(|| (s.id.clone(), s.display.clone()))
+    })
+}
+
 /// The channel a view shows.
 pub fn channel_of(app: &AppHandle, view: u32) -> Option<String> {
     let chat = app.try_state::<Chat>()?;

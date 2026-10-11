@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use cyex_plugins::{CALLBACK, Completion, CompletionRequest, Event, Line, Plugin, QUICK, Reply, Sent};
+use cyex_plugins::{CALLBACK, Completion, CompletionRequest, Event, Line, NameUser, Plugin, QUICK, Reply, Sent};
 use tauri::AppHandle;
 use tokio::sync::oneshot;
 
@@ -67,8 +67,9 @@ pub async fn complete(app: &AppHandle, req: CompletionRequest) -> Completion {
     out
 }
 
-pub async fn menu(p: &Plugin, index: usize, channel: &str, line: Option<Line>) -> Result<(), String> {
-    ask(CALLBACK + BUSY, |r| p.menu(index, channel, line, r))
+/// A menu entry; name entries (S11) come with who was clicked.
+pub async fn menu(p: &Plugin, index: usize, channel: &str, on: (Option<Line>, Option<NameUser>)) -> Result<(), String> {
+    ask(CALLBACK + BUSY, |r| p.menu(index, channel, on, r))
         .await
         .ok_or_else(|| "The plugin didn't answer.".to_owned())?
 }

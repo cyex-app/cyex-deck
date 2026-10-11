@@ -7,6 +7,7 @@ import { formatDuration } from '../../lib/format';
 import { settings } from '../../lib/settings.svelte';
 import { toast } from '../../lib/toast.svelte';
 import { modIpc, type ModRole } from '../../ipc/moderation';
+import { roleItems, type Standing } from './standing';
 
 /** 2.11 The quick timeout lengths from Settings → Chat, shortest first. */
 export function timeouts(): { label: string; secs: number }[] {
@@ -73,7 +74,7 @@ type Run = (line: string) => void;
 
 /** Mod actions on a user, for the name menu (1.49) and the viewer list (C36). `warn` asks
  * for the reason: the chat box in a chat, the usercard elsewhere. */
-export function userItems(role: ModRole, login: string, run: Run, warn: () => void): MenuEntry[] {
+export function userItems(role: ModRole, login: string, run: Run, warn: () => void, is?: Standing): MenuEntry[] {
   const items: MenuEntry[] = [
     {
       label: 'Timeout',
@@ -85,24 +86,20 @@ export function userItems(role: ModRole, login: string, run: Run, warn: () => vo
     // V101-30 What can't be undone comes last.
     { label: 'Ban', icon: 'ban', danger: true, run: () => run(`/ban ${login}`) },
     'separator',
-    ...treatItems(role, login, run),
+    ...treatItems(role, login, run, is),
   ];
   return items;
 }
 
-/** Monitor, restrict, and mod/VIP for the broadcaster: the less used user actions. */
-export function treatItems(role: ModRole, login: string, run: Run): MenuEntry[] {
+/** Monitor, restrict, and mod/VIP for the broadcaster: the less used user actions. M12 A
+ * mod gets Unmod (Twitch won't make a mod a VIP), a VIP gets Remove VIP; unknown gets both
+ * Mod and VIP. */
+export function treatItems(role: ModRole, login: string, run: Run, is?: Standing): MenuEntry[] {
   const items: MenuEntry[] = [
     { label: 'Monitor', icon: 'eye', run: () => run(`/monitor ${login}`) },
     { label: 'Restrict', icon: 'eyeOff', run: () => run(`/restrict ${login}`) },
   ];
-  if (role === 'broadcaster') {
-    items.push('separator', { label: 'Mod', icon: 'shield', run: () => run(`/mod ${login}`) }, {
-      label: 'VIP',
-      icon: 'gem',
-      run: () => run(`/vip ${login}`),
-    });
-  }
+  if (role === 'broadcaster') items.push('separator', ...roleItems(login, run, is));
   return items;
 }
 

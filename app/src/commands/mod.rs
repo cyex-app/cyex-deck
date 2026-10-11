@@ -244,6 +244,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         plugins::plugins_complete,
         plugins::plugins_menus,
         plugins::plugins_menu_run,
+        plugins::plugins_name_run,
         windows::window_info,
         windows::window_set_pinned,
         windows::window_set_title,

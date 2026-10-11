@@ -1,9 +1,10 @@
 //! S8 Chat events after the fact: a line came in or was replaced, lines were deleted, a
 //! chat was cleared, a channel was renamed. Through `cyex.register_callback` for every chat,
 //! or Chatterino's per-channel `ch:on_message_appended(fn)` and friends, which hand back a
-//! handle to disconnect or block. A plugin never hears about its own lines.
+//! handle to disconnect or block. A plugin never hears about its own lines. S12 Live and
+//! offline and layout changes come the same way, through `cyex.register_callback` only.
 
-use mlua::{Function, Lua, RegistryKey, UserData, UserDataMethods, Value};
+use mlua::{Function, Lua, LuaSerdeExt, RegistryKey, UserData, UserDataMethods, Value};
 
 use crate::host::ChatEvent;
 use crate::runtime::{Event, QUICK, warn};
@@ -89,6 +90,8 @@ impl ChatEvent {
             ChatEvent::Deleted { .. } => Event::MessageDeleted,
             ChatEvent::Cleared { .. } => Event::ChatCleared,
             ChatEvent::Renamed { .. } => Event::ChannelRenamed,
+            ChatEvent::Live(_) => Event::LiveChanged,
+            ChatEvent::Layout(_) => Event::LayoutChanged,
         }
     }
 
@@ -98,15 +101,19 @@ impl ChatEvent {
             ChatEvent::Deleted { channel, .. } | ChatEvent::Cleared { channel } | ChatEvent::Renamed { channel, .. } => {
                 channel
             }
+            ChatEvent::Live(c) => &c.channel,
+            ChatEvent::Layout(_) => "",
         }
     }
 }
 
-/// The event as Lua sees it: a line table, or `{ channel, … }`.
+/// The event as Lua sees it: a line table, the layout, or `{ channel, … }`.
 fn to_lua(lua: &Lua, e: &ChatEvent) -> mlua::Result<Value> {
     let t = lua.create_table()?;
     match e {
         ChatEvent::Appended(l) | ChatEvent::Replaced(l) => return crate::convert::line(lua, l),
+        ChatEvent::Live(c) => return lua.to_value(c),
+        ChatEvent::Layout(l) => return lua.to_value(l),
         ChatEvent::Deleted { channel, id, user_id } => {
             t.set("channel", channel.as_str())?;
             t.set("id", id.as_deref())?;

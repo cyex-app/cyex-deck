@@ -131,42 +131,23 @@ impl Host for AppHost {
     }
 
     fn layout(&self) -> Layout {
-        let tabs: Tabs = self.app.state::<crate::settings::Settings>().read(Partition::Tabs);
-        let group = |id: &Option<String>| {
-            id.as_ref()
-                .and_then(|g| tabs.groups.iter().find(|x| &x.id == g))
-                .map(|g| g.name.clone())
-        };
-        Layout {
-            active: tabs.active.clone(),
-            tabs: tabs
-                .tabs
-                .iter()
-                .map(|t| LayoutTab {
-                    id: t.id.clone(),
-                    name: t.label(),
-                    group: group(&t.group),
-                    columns: t
-                        .columns
-                        .iter()
-                        .map(|c| {
-                            c.tiles
-                                .iter()
-                                .map(|tile| LayoutTile {
-                                    id: tile.id.clone(),
-                                    channel: tile.channel.login.clone(),
-                                    name: tile.channel.name.clone(),
-                                    chat: tile.show.chat,
-                                    player: tile.show.player,
-                                    feed: tile.feed.clone(),
-                                    signed_in: tile.account.is_some(),
-                                })
-                                .collect()
-                        })
-                        .collect(),
-                })
-                .collect(),
-        }
+        layout(&self.app)
+    }
+
+    fn open_channel(&self, plugin: &str, login: &str) {
+        super::tabs::open_channel(&self.app, plugin, login);
+    }
+
+    fn select_tab(&self, plugin: &str, id: &str) {
+        super::tabs::select_tab(&self.app, plugin, id);
+    }
+
+    fn remove_line(&self, plugin: &str, login: &str, id: &str) {
+        lines::queue(&self.app, plugin, login, Op::Remove(id.to_owned()));
+    }
+
+    fn clear_lines(&self, plugin: &str, login: &str) {
+        lines::queue(&self.app, plugin, login, Op::Clear);
     }
 
     fn socket(&self, req: SocketRequest, out: tokio::sync::mpsc::Receiver<SocketOut>, emit: Emit) {
@@ -179,5 +160,45 @@ impl Host for AppHost {
 
     fn exports_changed(&self, _plugin: &str) {
         super::exports_changed(&self.app);
+    }
+}
+
+/// S9, S12 The tabs as plugins see them.
+pub fn layout(app: &AppHandle) -> Layout {
+    let tabs: Tabs = app.state::<crate::settings::Settings>().read(Partition::Tabs);
+    let group = |id: &Option<String>| {
+        id.as_ref()
+            .and_then(|g| tabs.groups.iter().find(|x| &x.id == g))
+            .map(|g| g.name.clone())
+    };
+    Layout {
+        active: tabs.active.clone(),
+        tabs: tabs
+            .tabs
+            .iter()
+            .map(|t| LayoutTab {
+                id: t.id.clone(),
+                name: t.label(),
+                group: group(&t.group),
+                columns: t
+                    .columns
+                    .iter()
+                    .map(|c| {
+                        c.tiles
+                            .iter()
+                            .map(|tile| LayoutTile {
+                                id: tile.id.clone(),
+                                channel: tile.channel.login.clone(),
+                                name: tile.channel.name.clone(),
+                                chat: tile.show.chat,
+                                player: tile.show.player,
+                                feed: tile.feed.clone(),
+                                signed_in: tile.account.is_some(),
+                            })
+                            .collect()
+                    })
+                    .collect(),
+            })
+            .collect(),
     }
 }

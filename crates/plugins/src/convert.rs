@@ -4,7 +4,7 @@ use mlua::{Lua, LuaSerdeExt, Table, Value};
 use serde::Serialize;
 
 use crate::api::channel::ChannelRef;
-use crate::host::{Change, Completion, Line, Sent};
+use crate::host::{Change, Completion, Line, NameUser, Sent};
 use crate::state;
 
 /// Longest text a callback may put in a line.
@@ -117,11 +117,14 @@ pub fn command_ctx(lua: &Lua, words: Vec<String>, channel: &str) -> mlua::Result
     Ok(t)
 }
 
-pub fn menu_ctx(lua: &Lua, channel: &str, message: Option<&Line>) -> mlua::Result<Table> {
+pub fn menu_ctx(lua: &Lua, channel: &str, message: Option<&Line>, user: Option<&NameUser>) -> mlua::Result<Table> {
     let t = lua.create_table()?;
     t.set("channel", ChannelRef::new(channel))?;
     if let Some(m) = message {
         t.set("message", line(lua, m)?)?;
+    }
+    if let Some(u) = user {
+        t.set("user", lua.to_value(u)?)?;
     }
     Ok(t)
 }

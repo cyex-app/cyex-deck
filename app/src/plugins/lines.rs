@@ -1,6 +1,6 @@
 //! S7, S10 Plugins' own lines: built into chat lines and put in every open room of the
 //! channel, one at a time in the order they came, so quick lines keep their order. Changes
-//! to lines take the same queue. A plugin may call these inside its Message callback while
+//! to lines, taking them back and clearing a chat (S14) take the same queue. A plugin may call these inside its Message callback while
 //! a room waits on it, so nothing here runs on the plugin's thread.
 
 use std::sync::Arc;
@@ -21,6 +21,10 @@ pub enum Op {
     Add(NewLine),
     Replace(NewLine),
     Change(String, Change),
+    /// S14 Takes back one of its own lines.
+    Remove(String),
+    /// S14 Empties the chat on screen.
+    Clear,
 }
 
 pub struct Queued {
@@ -68,6 +72,11 @@ fn apply(app: &AppHandle, q: Queued) {
                 highlight: c.highlight,
             };
             crate::chat::plugin_change(app, &q.login, &id, &change)
+        }
+        Op::Remove(id) => crate::chat::plugin_remove(app, &q.login, &id),
+        Op::Clear => {
+            let text = format!("{} cleared this chat on your screen.", super::name_of(app, &q.plugin));
+            crate::chat::plugin_clear(app, &q.login, &text)
         }
     };
     if !found {

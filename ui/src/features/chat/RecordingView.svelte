@@ -62,6 +62,10 @@
         return mark((m) => m.id === e.id);
       case 'clearUser':
         return mark((m) => !m.notice && m.sender?.id === e.userId);
+      case 'remove':
+        return out.filter((m) => m.id !== e.id);
+      case 'wipe':
+        return [];
       default:
         return out;
     }

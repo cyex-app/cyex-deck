@@ -1,6 +1,7 @@
 //! S5 Plugins see a line before the user's rules do and may hide it, change its text or
 //! highlight it. The app implements [`LineHook`]; rooms only apply what comes back. S7
-//! Plugins can change lines that are in already, and swap their own for new ones.
+//! Plugins can change lines that are in already, and swap their own for new ones. S14
+//! They take lines back and empty a chat on screen.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -61,6 +62,20 @@ impl Room {
         let slot = self.buffer.iter_mut().find(|old| old.id == m.id)?;
         *slot = m.clone();
         Some(RoomEvent::Update { message: m })
+    }
+
+    /// S14 Takes a line out. `None`: it's gone already.
+    pub fn remove(&mut self, id: &str) -> Option<RoomEvent> {
+        let at = self.buffer.iter().position(|m| m.id == id)?;
+        self.buffer.remove(at);
+        Some(RoomEvent::Remove { id: id.to_owned() })
+    }
+
+    /// S14 Empties the chat on screen. A window opened later starts empty too; the
+    /// connection and the room's state stay.
+    pub fn wipe(&mut self) -> RoomEvent {
+        self.buffer.clear();
+        RoomEvent::Wipe
     }
 }
 
@@ -203,5 +218,20 @@ mod tests {
         let snap = r.snapshot();
         assert_eq!(plain(&snap.messages[0].body), "swapped");
         assert!(snap.messages[1].has(Flag::Deleted));
+    }
+
+    #[test]
+    fn lines_come_out_and_chats_empty() {
+        let mut r = Room::new("chan", None);
+        feed(&mut r, "1", "first", "");
+        feed(&mut r, "2", "second", "");
+        assert!(matches!(r.remove("1"), Some(RoomEvent::Remove { id }) if id == "1"));
+        assert!(r.remove("1").is_none());
+        assert_eq!(r.snapshot().messages.len(), 1);
+        assert!(matches!(r.wipe(), RoomEvent::Wipe));
+        assert!(r.snapshot().messages.is_empty());
+        // New lines come in as before.
+        assert_eq!(feed(&mut r, "3", "third", "").len(), 1);
+        assert_eq!(r.snapshot().messages.len(), 1);
     }
 }

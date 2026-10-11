@@ -3,4 +3,4 @@
 /**
  * Chatterino's `c2.EventType`, plus line hooks.
  */
-export type PluginEvent = "CompletionRequested" | "Message" | "Sending" | "SettingsChanged" | "MessageAppended" | "MessageReplaced" | "MessageDeleted" | "ChatCleared" | "ChannelRenamed";
+export type PluginEvent = "CompletionRequested" | "Message" | "Sending" | "SettingsChanged" | "MessageAppended" | "MessageReplaced" | "MessageDeleted" | "ChatCleared" | "ChannelRenamed" | "LiveChanged" | "LayoutChanged";

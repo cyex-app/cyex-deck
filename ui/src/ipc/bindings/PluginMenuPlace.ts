@@ -3,4 +3,4 @@
 /**
  * S9 Where a menu entry shows.
  */
-export type PluginMenuPlace = "message" | "chat";
+export type PluginMenuPlace = "message" | "chat" | "name";

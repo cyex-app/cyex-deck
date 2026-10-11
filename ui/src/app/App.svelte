@@ -34,6 +34,7 @@
   import type { LinkTarget } from '../ipc/bindings/LinkTarget';
   import { chatIpc } from '../ipc/chat';
   import { notifyEvents } from '../ipc/notify';
+  import { pluginsIpc } from '../ipc/plugins';
   import { tabsIpc } from '../ipc/tabs';
   import { accounts } from '../lib/accounts.svelte';
   import { useHotkeys } from '../lib/hotkeys.svelte';
@@ -135,6 +136,15 @@
       if (!tab || !tile) return;
       openTarget(tile, e.payload.target);
       if (!tabs.popped.has(tab.id)) open(tab.id);
+    });
+    return () => void off.then((f) => f());
+  });
+
+  // S13 A plugin asks for a tab or a channel. A popped-out tab stays in its own window.
+  $effect(() => {
+    const off = pluginsIpc.onOpen((o) => {
+      if (o.kind === 'channel') void openChannel({ show: open, account: () => accounts.current?.userId ?? null }, o.channel);
+      else if (tabs.tab(o.id) && !tabs.popped.has(o.id)) open(o.id);
     });
     return () => void off.then((f) => f());
   });

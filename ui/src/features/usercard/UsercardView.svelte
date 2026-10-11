@@ -14,6 +14,7 @@
   import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
   import { catalogs } from '../chat/catalog.svelte';
+  import { standingOf } from '../modview/standing';
   import ActionList from './ActionList.svelte';
   import Actions from './Actions.svelte';
   import Comments from './Comments.svelte';
@@ -138,7 +139,14 @@
       {#if !isChannel}
         <Actions {profile} {channel} />
         {#if modAccount}
-          <ModBar {profile} {channel} account={modAccount} ban={history ? history.ban : undefined} onchange={changed} />
+          <ModBar
+            {profile}
+            {channel}
+            account={modAccount}
+            ban={history ? history.ban : undefined}
+            onchange={changed}
+            is={standingOf(last?.sender?.badges)}
+          />
         {/if}
       {/if}
     </div>

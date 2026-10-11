@@ -19,8 +19,8 @@ mod tests;
 pub use convert::color;
 pub use host::{
     Account, Change, ChannelInfo, ChatEvent, Completion, CompletionRequest, Emit, Flags, Host, HttpRequest, HttpResponse,
-    Layout, LayoutTab, LayoutTile, Level, Line, LineLink, NewLine, Piece, PieceColor, PieceStyle, ReplyTo, RoomModes,
-    Sender, Sent, SocketEvent, SocketOut, SocketRequest, StreamStatus,
+    Layout, LayoutTab, LayoutTile, Level, Line, LineLink, LiveChange, NameUser, NewLine, Piece, PieceColor, PieceStyle,
+    ReplyTo, RoomModes, Sender, Sent, SocketEvent, SocketOut, SocketRequest, StreamStatus,
 };
 pub use manifest::{Field, FieldKind, Manifest, Permission};
 pub use perm::{Granted, check_url};

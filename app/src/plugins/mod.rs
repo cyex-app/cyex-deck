@@ -9,6 +9,7 @@ mod hook;
 mod host;
 mod lines;
 pub mod logs;
+mod tabs;
 
 pub use hook::to_line as hook_line;
 
@@ -44,6 +45,8 @@ pub struct PluginState {
     http: cyex_plugins::fetch::Client,
     /// S7 Plugins' lines, in order.
     lines: tokio::sync::mpsc::UnboundedSender<lines::Queued>,
+    /// S12 The tabs as plugins last saw them.
+    last_layout: Mutex<cyex_plugins::Layout>,
 }
 
 struct Found {
@@ -114,6 +117,7 @@ pub fn init(app: &AppHandle) {
         logs: logs::Logs::default(),
         http: cyex_plugins::fetch::client(),
         lines: lines::start(app),
+        last_layout: Mutex::new(host::layout(app)),
     });
     sync_later(app);
 }
