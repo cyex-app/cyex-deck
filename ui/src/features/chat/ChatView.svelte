@@ -340,7 +340,7 @@
   {/if}
   <!-- V102-24 A short chat keeps its messages and message box: these scroll instead. -->
   <div class="banners">
-    <EventsButton channel={login} pin={room.pinned} />
+    <EventsButton channel={login} pin={room.pinned} pinKnown={room.pinKnown} />
     {#if room.pinned}
       <PinnedBanner
         pin={room.pinned}

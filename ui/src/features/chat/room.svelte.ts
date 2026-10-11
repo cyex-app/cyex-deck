@@ -33,6 +33,8 @@ export class ChatRoom {
   state = $state.raw<RoomState>(EMPTY_STATE);
   status = $state<ConnStatus>('connecting');
   pinned = $state.raw<Pinned | null>(null);
+  /** V103-04 The pin was read: a null `pinned` means nothing is pinned, not "not yet". */
+  pinKnown = $state(false);
   /** The account reading this chat, `null` when anonymous. */
   account = $state<string | null>(null);
   error = $state('');
@@ -61,6 +63,7 @@ export class ChatRoom {
       this.state = s.state;
       this.status = s.status;
       this.pinned = s.pinned;
+      this.pinKnown = s.pinKnown;
       const early = this.early ?? [];
       this.early = null;
       for (const events of early) this.apply(events);
@@ -124,6 +127,7 @@ export class ChatRoom {
           break;
         case 'pinned':
           this.pinned = e.pin;
+          this.pinKnown = true;
           break;
         case 'state':
           this.state = e.state;

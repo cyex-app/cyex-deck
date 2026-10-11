@@ -49,6 +49,14 @@ export function chatEvents(pin: Pinned | null, votes: VotesUpdate | undefined, n
   return out;
 }
 
+/** A chat that opens again (its tab came back) reads its pin a moment later. Until then a
+ * hidden pin isn't gone, just not known yet, so it stays in the button. */
+export function withUnreadPin(events: ChatEvent[], s: StripState, pinKnown: boolean): ChatEvent[] {
+  if (pinKnown) return events;
+  const waiting = [...s.hidden].filter((k) => k.startsWith(pinKey('')) && !events.some((e) => e.key === k));
+  return [...events, ...waiting.map((key) => ({ key, live: true }))];
+}
+
 /** Brings the state up to date with what the chat has now. Returns `s` itself when
  * nothing changed. */
 export function settle(s: StripState, events: readonly ChatEvent[]): StripState {

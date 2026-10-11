@@ -7,4 +7,9 @@ import type { RoomState } from "./RoomState";
 /**
  * What a chat view needs when it opens.
  */
-export type RoomSnapshot = { login: string, messages: Array<ChatMessage>, state: RoomState, status: ConnStatus, pinned: Pinned | null, };
+export type RoomSnapshot = { login: string, messages: Array<ChatMessage>, state: RoomState, status: ConnStatus, pinned: Pinned | null, 
+/**
+ * V103-04 The pin was read since the room opened, so `pinned: None` means there is
+ * none rather than not known yet.
+ */
+pinKnown: boolean, };

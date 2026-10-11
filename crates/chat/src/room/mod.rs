@@ -44,6 +44,9 @@ pub struct RoomSnapshot {
     pub state: RoomState,
     pub status: ConnStatus,
     pub pinned: Option<Pinned>,
+    /// V103-04 The pin was read since the room opened, so `pinned: None` means there is
+    /// none rather than not known yet.
+    pub pin_known: bool,
 }
 
 /// A message we sent that Twitch hasn't confirmed yet.
@@ -76,6 +79,7 @@ pub struct Room {
     /// 1.9 Reward titles and costs by id, to name redemptions.
     rewards: HashMap<String, (String, u32)>,
     pinned: Option<Pinned>,
+    pin_known: bool,
     colors: Colors,
     rules: Arc<Rules>,
     /// S5 Plugins' look at each line.
@@ -102,6 +106,7 @@ impl Room {
             gifts: Vec::new(),
             rewards: HashMap::new(),
             pinned: None,
+            pin_known: false,
             colors: Colors::default(),
             rules: Arc::default(),
             hook: None,
@@ -156,6 +161,7 @@ impl Room {
             state: self.state.clone(),
             status: self.status,
             pinned: self.pinned.clone(),
+            pin_known: self.pin_known,
         }
     }
 
@@ -168,9 +174,11 @@ impl Room {
         self.rewards = rewards;
     }
 
-    /// Returns an event if the pin changed.
+    /// Returns an event if the pin changed, and on the first read: "nothing pinned" is news
+    /// then too (V103-04).
     pub fn set_pinned(&mut self, pin: Option<Pinned>) -> Option<RoomEvent> {
-        (self.pinned != pin).then(|| {
+        let first = !std::mem::replace(&mut self.pin_known, true);
+        (first || self.pinned != pin).then(|| {
             self.pinned = pin.clone();
             RoomEvent::Pinned { pin: pin.map(Box::new) }
         })
@@ -742,5 +750,14 @@ mod tests {
         }
         let last = r.recent_from("7", 3);
         assert_eq!(last.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(), ["m10", "m12", "m14"]);
+    }
+
+    #[test]
+    fn the_first_pin_read_is_news_even_with_nothing_pinned() {
+        let mut r = room();
+        assert!(!r.snapshot().pin_known);
+        assert!(r.set_pinned(None).is_some(), "V103-04 first read");
+        assert!(r.snapshot().pin_known);
+        assert!(r.set_pinned(None).is_none(), "unchanged");
     }
 }

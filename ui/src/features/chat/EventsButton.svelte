@@ -2,14 +2,17 @@
      at the top of the chat; a click shows them again. It also keeps the count right as
      they come and end (rules in eventStrip.ts). -->
 <script lang="ts">
+  import { untrack } from 'svelte';
+
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { Pinned } from '../../ipc/bindings/Pinned';
-  import { chatEvents, eventsLabel } from './eventStrip';
+  import { chatEvents, eventsLabel, withUnreadPin } from './eventStrip';
   import { eventStrip } from './eventStrip.svelte';
   import { votes } from './votes.svelte';
 
-  let { channel, pin }: { channel: string; pin: Pinned | null } = $props();
+  /** `pinKnown`: the room has read its pin; before that a null `pin` isn't news. */
+  let { channel, pin, pinKnown }: { channel: string; pin: Pinned | null; pinKnown: boolean } = $props();
 
   /** Bumped when a timed pin runs out, so it leaves the count. */
   let clock = $state(0);
@@ -22,7 +25,9 @@
 
   $effect(() => {
     void clock;
-    eventStrip.settle(channel, chatEvents(pin, votes.byChannel.get(channel), Date.now()));
+    const events = chatEvents(pin, votes.byChannel.get(channel), Date.now());
+    const known = pinKnown;
+    eventStrip.settle(channel, untrack(() => withUnreadPin(events, eventStrip.of(channel), known)));
   });
 
   const count = $derived(eventStrip.of(channel).hidden.size);

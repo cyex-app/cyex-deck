@@ -12,6 +12,7 @@ import {
   reopen,
   settle,
   shows,
+  withUnreadPin,
   type ChatEvent,
 } from './eventStrip.ts';
 
@@ -19,6 +20,19 @@ const pin: ChatEvent = { key: 'pin:1', live: true };
 const poll: ChatEvent = { key: 'poll:2', live: true };
 const pred: ChatEvent = { key: 'prediction:3', live: true };
 const ended = (e: ChatEvent): ChatEvent => ({ ...e, live: false });
+
+test('a chat that opens again keeps a hidden pin until it has read the pin (V103-04)', () => {
+  let s = hide(settle(EMPTY_STRIP, [pin, poll]), pin);
+  // Reopened: no pin read yet, the poll is there.
+  s = settle(s, withUnreadPin([poll], s, false));
+  assert.deepEqual([...s.hidden], ['pin:1']);
+  // Read: still pinned, still hidden.
+  s = settle(s, withUnreadPin([pin, poll], s, true));
+  assert.deepEqual([...s.hidden], ['pin:1']);
+  // Read: taken down meanwhile, it leaves the count.
+  const gone = settle(s, withUnreadPin([poll], s, true));
+  assert.equal(gone.hidden.size, 0);
+});
 
 test('the label says Event for one, Events for more (V103-04)', () => {
   assert.equal(eventsLabel(1), '1 Event');
