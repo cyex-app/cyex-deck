@@ -4,7 +4,6 @@ mod geometry;
 mod layouts;
 pub mod overlay;
 mod panels;
-mod scroll;
 pub mod twitch;
 mod usercard;
 
@@ -25,9 +24,11 @@ pub const MAIN: &str = "main";
 /// WebView2 flags for every window. All webviews in one profile must use the same set.
 /// Turns off background services the app never uses (saves ~6 MB, measured 2026/10/09) and
 /// runs the network service inside the browser process (one process fewer, ~8 MB, D13).
+/// V103-11 WebView2's own scroll animation stays off: the page glides the wheel itself
+/// (`ui/src/lib/smoothScroll.ts`), so the setting applies at once; keys jump, as in Chatterino.
 const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,Translate,\
 OptimizationHints,AutofillServerCommunication --enable-features=NetworkServiceInProcess2 \
---disable-background-networking --process-per-site";
+--disable-background-networking --process-per-site --disable-smooth-scrolling";
 
 /// Shared setup for every window: frameless, hidden until placed, painted in the theme's
 /// background so there's no white flash before the UI loads.
@@ -40,7 +41,7 @@ pub fn builder<'a>(
         .decorations(false)
         .visible(false)
         .background_color(crate::theme::background(app))
-        .additional_browser_args(scroll::browser_args(app, BROWSER_ARGS))
+        .additional_browser_args(BROWSER_ARGS)
         // V101-30 Paste in the app's own right-click menu. Only the app's pages run here;
         // plugins are Lua and Twitch's pages have their own window.
         .enable_clipboard_access()

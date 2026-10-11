@@ -29,8 +29,8 @@ tooltips: boolean,
  */
 minimizeToTray: boolean, 
 /**
- * V103-11 Wheel and key scrolling glides in every scrollable area. WebView2 does it,
- * so it applies from the next start.
+ * V103-11 The mouse wheel glides in every scrollable area, as in Chatterino. The page
+ * does it, so a change applies at once.
  */
 smoothScroll: boolean, 
 /**

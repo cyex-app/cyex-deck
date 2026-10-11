@@ -19,8 +19,8 @@ pub struct General {
     pub tooltips: bool,
     /// U2 Minimizing the main window hides it to the tray.
     pub minimize_to_tray: bool,
-    /// V103-11 Wheel and key scrolling glides in every scrollable area. WebView2 does it,
-    /// so it applies from the next start.
+    /// V103-11 The mouse wheel glides in every scrollable area, as in Chatterino. The page
+    /// does it, so a change applies at once.
     pub smooth_scroll: bool,
     /// U4
     pub streamer: StreamerMode,

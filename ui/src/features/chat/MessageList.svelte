@@ -18,7 +18,9 @@
   import { pluginsIpc } from '../../ipc/plugins';
   import { systemIpc } from '../../ipc/system';
   import { formatDate } from '../../lib/format';
+  import { EASE_OUT_CUBIC } from '../../lib/scrollMath';
   import { settings } from '../../lib/settings.svelte';
+  import { stopScroll } from '../../lib/smoothScroll';
   import { streamer } from '../../lib/streamer.svelte';
   import { toast } from '../../lib/toast.svelte';
   import EmoteCard from '../emotes/EmoteCard.svelte';
@@ -201,7 +203,7 @@
     if (ms <= 0) return;
     slide = lines.animate([{ transform: `translateY(${distance}px)` }, { transform: 'none' }], {
       duration: ms,
-      easing: 'ease-out',
+      easing: EASE_OUT_CUBIC,
     });
     slideEnds = now + ms;
   }
@@ -284,7 +286,10 @@
   });
 
   function toBottom() {
-    if (list) list.scrollTop = list.scrollHeight;
+    if (list) {
+      stopScroll(list);
+      list.scrollTop = list.scrollHeight;
+    }
     measure();
   }
 
@@ -530,6 +535,7 @@
 
   function jump(id: string) {
     stopGlide();
+    if (list) stopScroll(list);
     const target = list?.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`);
     target?.scrollIntoView({ block: 'center' });
     target?.animate([{ background: 'var(--accent-wash)' }, { background: 'transparent' }], { duration: 1200 });
