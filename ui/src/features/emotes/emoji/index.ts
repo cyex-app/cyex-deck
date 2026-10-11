@@ -1,4 +1,7 @@
-// E1 Emoji for the emote menu and `:name:` completion. The list loads on first use.
+// E1 Emoji for the emote menu and `:name:` completion, and V102-07 their names on hover.
+// The list loads on first use.
+
+import { emojiKey } from './split.ts';
 
 export interface Emoji {
   char: string;
@@ -37,6 +40,34 @@ export function parseGroups(raw: [string, string][]): EmojiGroup[] {
 export function emojiGroups(): Promise<EmojiGroup[]> {
   groups ??= import('./data').then((m) => parseGroups(m.EMOJI));
   return groups;
+}
+
+/** V102-07 What an emoji is called on hover: its short name as words, no colons ("eyes",
+ * "heart eyes"). A wordy name beats `+1`; flags read "flag germany", not "de". */
+export function emojiLabel(e: Emoji): string {
+  const name = e.names.find((n) => /[a-z]{3}/.test(n));
+  if (name) return name.replaceAll('_', ' ');
+  return e.words || e.names[0];
+}
+
+/** Hover names by emoji, built from the same list. */
+export function nameMap(all: EmojiGroup[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const g of all) {
+    for (const e of g.emoji) {
+      const key = emojiKey(e.char);
+      if (!map.has(key)) map.set(key, emojiLabel(e));
+    }
+  }
+  return map;
+}
+
+let names: Promise<Map<string, string>> | null = null;
+
+/** The hover name for an emoji as found in chat, or null when it isn't in the list. */
+export async function emojiName(char: string): Promise<string | null> {
+  names ??= emojiGroups().then(nameMap);
+  return (await names).get(emojiKey(char)) ?? null;
 }
 
 /** Names starting with `q` first, then ones containing it, then search words. */

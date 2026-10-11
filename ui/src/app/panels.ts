@@ -5,6 +5,7 @@
 import type { Component } from 'svelte';
 
 import RecordingView from '../features/chat/RecordingView.svelte';
+import RoomPanel from '../features/chat/RoomPanel.svelte';
 import ModViewPanel from '../features/modview/ModViewPanel.svelte';
 import OverlayView from '../features/overlay/OverlayView.svelte';
 import ConsoleView from '../features/plugins/ConsoleView.svelte';
@@ -34,6 +35,7 @@ export const PANELS: Record<string, PanelKind> = {
   settings: { title: 'Settings', width: 820, height: 620, component: SettingsView },
   tab: { title: 'Tab', width: 420, height: 680, component: TabPanel },
   chat: { title: 'Chat', width: 380, height: 680, component: ChatPanel },
+  room: { title: 'Chat', width: 380, height: 640, component: RoomPanel },
   usercard: { title: 'User', width: 380, height: 560, compact: true, component: UsercardView },
   recording: { title: 'Recording', width: 400, height: 640, component: RecordingView },
   modview: { title: 'Mod view', width: 920, height: 680, component: ModViewPanel },
@@ -49,7 +51,7 @@ export function panelFor(route: string): PanelKind | undefined {
 
 /** Window title for a route, e.g. the tab's name. */
 export function titleFor(route: string): string {
-  const [kind, a, b] = route.split('/');
+  const [kind, a] = route.split('/');
   if (kind === 'tab' && a) {
     const tab = tabs.tab(a);
     if (tab) return label(tab);
@@ -58,7 +60,9 @@ export function titleFor(route: string): string {
     const tile = tabs.list.flatMap(tiles).find((t) => t.id === a);
     if (tile) return `${tile.channel.name} chat`;
   }
-  if (kind === 'usercard' && b) return b;
+  // V102-14 The channel: the name is on the card already.
+  if (kind === 'usercard' && a) return `#${a}`;
+  if (kind === 'room' && a) return `${a} chat`;
   if (kind === 'modview' && a) return `Mod view · ${a}`;
   if (kind === 'whispers' && a) return `Whispers · ${a}`;
   if (kind === 'plugin' && a) return `${plugins.view?.list.find((p) => p.id === a)?.info?.name ?? a} console`;

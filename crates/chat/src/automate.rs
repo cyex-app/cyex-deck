@@ -8,7 +8,7 @@ use std::collections::{HashMap, VecDeque};
 use cyex_settings::schema::{Access, Automation, Commands, TriggerMatch};
 use regex::{Regex, RegexBuilder};
 
-use crate::model::{ChatMessage, Flag, plain};
+use crate::model::{ChatMessage, Flag, ModRole, plain};
 
 const GAP_MS: i64 = 1500;
 const WINDOW_MS: i64 = 30_000;
@@ -159,7 +159,7 @@ fn matches(a: &Automation, regex: Option<&Regex>, text: &str) -> Option<String> 
 fn allowed(who: Access, m: &ChatMessage) -> bool {
     let Some(s) = m.sender.as_ref() else { return false };
     let has = |set: &str| s.badges.iter().any(|b| b.set == set);
-    if has("broadcaster") || has("moderator") || has("lead_moderator") {
+    if ModRole::of_badges(&s.badges).is_some() {
         return true;
     }
     match who {

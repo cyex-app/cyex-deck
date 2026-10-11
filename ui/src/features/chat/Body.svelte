@@ -1,4 +1,5 @@
-<!-- Message fragments (1.8): text, emotes, mentions, links (X2), cheers, GIFs (1.43),
+<!-- Message fragments (1.8): text (emoji named on hover, V102-07), emotes, mentions,
+     `#channel` (V102-05), links (X2), cheers, GIFs (1.43),
      and plugins' spans, pictures and line breaks (S7, S10). A gigantified message (1.42)
      draws its last Twitch emote big. Clicks and tooltips are handled by the list through
      data attributes. -->
@@ -7,6 +8,7 @@
   import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
   import { catalogs } from './catalog.svelte';
+  import { splitEmoji } from '../emotes/emoji/split';
   import ChatEmote from './ChatEmote.svelte';
   import { actTip, picSize, spanColor } from './pluginLine';
   import { saved } from './saved';
@@ -31,9 +33,14 @@
 </script>
 
 {#each fragments as f, i (i)}
-  {#if f.t === 'text'}{f.text}{:else if f.t === 'emote'}{#if i === big}<span class="giant"><ChatEmote {f} /></span>{:else}<ChatEmote
+  {#if f.t === 'text'}{#each splitEmoji(f.text) as p, j (j)}{#if p.emoji}<span class="emoji" data-emoji={p.text}
+          >{p.text}</span
+        >{:else}{p.text}{/if}{/each}{:else if f.t === 'emote'}{#if i === big}<span class="giant"><ChatEmote {f} /></span>{:else}<ChatEmote
         {f}
-      />{/if}{:else if f.t === 'mention'}<span class="mention" role="link" tabindex="-1" data-user={f.login}>{f.text}</span>
+      />{/if}{:else if f.t === 'mention'}<span class="mention" role="link" tabindex="-1" data-user={f.login}>{f.text}</span
+    >{:else if f.t === 'channel'}<span class="channel" role="link" tabindex="-1" data-channel={f.login} data-tip="Open this chat"
+      >{f.text}</span
+    >
   {:else if f.t === 'link'}<a
       class="link"
       href={f.url}
@@ -125,6 +132,14 @@
     cursor: pointer;
   }
   .mention:hover {
+    text-decoration: underline;
+  }
+  /* V102-05 `#channel` opens its chat. */
+  .channel {
+    color: var(--accent-text);
+    cursor: pointer;
+  }
+  .channel:hover {
     text-decoration: underline;
   }
   .link {

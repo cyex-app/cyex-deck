@@ -12,6 +12,7 @@
   import type { Act } from '../../ipc/bindings/Act';
   import type { LinkTarget } from '../../ipc/bindings/LinkTarget';
   import type { UiAction } from '../../ipc/bindings/UiAction';
+  import { popOut } from '../../app/panels';
   import { chatIpc } from '../../ipc/chat';
   import { chatxIpc } from '../../ipc/chatx';
   import { pluginsIpc } from '../../ipc/plugins';
@@ -21,15 +22,19 @@
   import { streamer } from '../../lib/streamer.svelte';
   import { toast } from '../../lib/toast.svelte';
   import EmoteCard from '../emotes/EmoteCard.svelte';
+  import { emojiName } from '../emotes/emoji';
   import type { CardTarget } from '../emotes/emotes';
   import { hidden } from '../emotes/hidden.svelte';
+  import { flipUnlisted, unlistedBlurred } from '../emotes/unlisted';
   import type { LineMod } from '../modview/lineMod';
   import { messageItems, mods, pinItems, userItems } from '../modview/moderation.svelte';
+  import { allows } from '../modview/roles';
   import { standingOf } from '../modview/standing';
   import { lineKind, pluginItems } from '../plugins/pluginMenus';
   import { plugins } from '../plugins/plugins.svelte';
   import Line from './Line.svelte';
   import { runEntry, toItems, userMenus } from './menus.svelte';
+  import { roomRoute } from './roomRoute';
   import { plainText } from './text';
   import { readMarks, type ChatRoom } from './room.svelte';
   import { stripes } from './stripes';
@@ -63,7 +68,7 @@
     role
       ? {
           me: room.account,
-          broadcaster: role === 'broadcaster',
+          broadcaster: allows(role, 'broadcaster'),
           inline: mods.modMode(room.login),
           buttons: c.modButtons,
         }
@@ -407,12 +412,16 @@
         icon: 'eyeOff',
         run: () => hidden.hide({ source: emote.provider, id: emote.id, name: emote.name }),
       },
+      // V102-01 One switch for every unlisted 7TV emote, in every chat.
+      ...(el.dataset.unlisted !== undefined
+        ? ['separator' as const, { label: 'Blur unlisted emotes', icon: 'eye' as const, checked: unlistedBlurred(), run: flipUnlisted }]
+        : []),
     ]);
   }
 
   function onclick(e: MouseEvent) {
     const el = (e.target as HTMLElement).closest<HTMLElement>(
-      '[data-user],[data-link],[data-reply],[data-jump],[data-emote],[data-whisper],[data-mod],[data-pin],[data-act]',
+      '[data-user],[data-channel],[data-link],[data-reply],[data-jump],[data-emote],[data-whisper],[data-mod],[data-pin],[data-act]',
     );
     if (!el) return;
     const d = el.dataset;
@@ -431,6 +440,10 @@
       e.preventDefault();
       if (d.target && onlink) return onlink(JSON.parse(d.target) as LinkTarget);
       systemIpc.openChatLink(d.link).catch((err) => toast.error(String(err)));
+    } else if (d.channel) {
+      // V102-05 As this chat's account, or anonymously like it.
+      hideTip();
+      void popOut(roomRoute(d.channel, room.account), `${d.channel} chat`);
     } else if (d.user) {
       chatIpc.openUsercard(room.login, d.user).catch((err) => toast.error(String(err)));
     } else if (d.whisper) {
@@ -470,15 +483,23 @@
   }
 
   function onmouseover(e: MouseEvent) {
-    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-tip],[data-link]');
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-tip],[data-link],[data-emoji]');
     if (!el) return;
     if (el.dataset.link) return showLinkTip(el);
+    if (el.dataset.emoji) return showEmojiTip(el);
     showTip(el, { label: el.dataset.tip ?? '', hint: el.dataset.hint, image: el.dataset.tipImg });
   }
 
   function onmouseout(e: MouseEvent) {
-    const from = (e.target as HTMLElement).closest('[data-tip],[data-link]');
+    const from = (e.target as HTMLElement).closest('[data-tip],[data-link],[data-emoji]');
     if (from && !from.contains(e.relatedTarget as Node)) hideTip();
+  }
+
+  /** V102-07 An emoji's name, once the list has loaded (the first time only). */
+  function showEmojiTip(el: HTMLElement) {
+    emojiName(el.dataset.emoji!)
+      .then((name) => name && el.matches(':hover') && showTip(el, { label: name }))
+      .catch(() => {});
   }
 
   /** X2: the real domain right away, the final one once redirects are followed; 1.52 a
@@ -543,9 +564,13 @@
 </div>
 
 <style>
+  /* V102-17 min-width 0: as a flex item of the chat's body it would otherwise be as wide as
+     the widest line that can't wrap (a reply's one-line "Replying to …" header), and every
+     line in a narrow chat got that width and was cut off on the right. */
   .wrap {
     position: relative;
     flex: 1;
+    min-width: 0;
     min-height: 0;
     display: flex;
   }

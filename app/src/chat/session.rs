@@ -12,7 +12,7 @@ use tokio::sync::mpsc;
 
 use super::creds::{AccountCreds, AnonCreds};
 use super::unread::{self, Unread};
-use super::{Chat, Identity, Inner, RoomKey, Session, account_of, budget, mention, now_ms, queue};
+use super::{Chat, Identity, Inner, RoomKey, Session, account_of, mention, now_ms, queue};
 
 /// The session for `identity`, started if needed.
 pub fn ensure<'a>(app: &AppHandle, inner: &'a mut Inner, identity: &Identity) -> &'a Session {
@@ -112,9 +112,9 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
     if matches!(line.command, "JOIN" | "PART") && !chat.joins.load(Ordering::Relaxed) {
         return;
     }
-    let was_privileged = entry.room.privileged();
+    let role_before = entry.room.role();
     let events = entry.room.handle_line(&line, now_ms(), &emotes);
-    let privileged = entry.room.privileged();
+    let role = entry.room.role();
     // U9 Only rooms no view shows collect news.
     let news = if entry.views.is_empty() { unread::level(&events) } else { Unread::Seen };
     let lit = news > entry.unread;
@@ -146,17 +146,11 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
     queue(entry, events, &chat.wake);
     drop(inner);
 
-    if privileged != was_privileged
+    // V102-21 A role change here: budget, mod feeds (1.46) and every window.
+    if role != role_before
         && let Identity::Account(id) = identity
     {
-        budget(app, |b| {
-            if let Some(b) = b.get_mut(id) {
-                b.set_privileged(channel, privileged);
-            }
-        });
-        crate::connections::notify(app);
-        // 1.46 A role change here may open or close this account's mod feeds.
-        crate::moderation::feeds::sync(app);
+        super::roles::changed(app, id, channel, role.is_some());
     }
     let muted = super::rules::current(app).muted(channel);
     for (m, outcome) in outcomes {

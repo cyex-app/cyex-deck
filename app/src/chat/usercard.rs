@@ -29,6 +29,13 @@ pub async fn sub_status(app: &AppHandle, user: &str, channel: &str) -> Result<Su
         .map_err(|_| "Couldn't get the sub status.".into())
 }
 
+/// V102-13 Every Twitch badge they own in this channel. Public, so no sign-in needed.
+pub async fn badges(app: &AppHandle, user: &str, channel: &str) -> Result<Vec<cyex_twitch::gql::BadgeInfo>, String> {
+    cyex_twitch::gql::viewer::earned_badges(&http(app), user, channel)
+        .await
+        .map_err(|_| "Couldn't load their badges.".into())
+}
+
 pub async fn name_history(app: &AppHandle, user_id: &str) -> Result<Vec<NameChange>, String> {
     logs::name_history(&http(app), user_id)
         .await

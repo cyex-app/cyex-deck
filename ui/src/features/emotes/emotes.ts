@@ -37,6 +37,13 @@ export const MOD = {
   noSpace: 1 << 17,
 } as const;
 
+/** V102-06 Room for an emote before its picture loads: its size when the provider gave
+ * one, else a square. `auto` lets the picture's own shape win once it's there, so a
+ * 24×18 Twitch smiley like `:/` is never stretched to a square. */
+export function emoteRatio(size: readonly [number, number] | null | undefined): string {
+  return size ? `auto ${size[0]} / ${size[1]}` : 'auto 1 / 1';
+}
+
 /** Classes for an emote's modifiers; the look lives in `design/emotes.css`. */
 export function modClasses(mods: number | undefined): string {
   if (!mods) return '';

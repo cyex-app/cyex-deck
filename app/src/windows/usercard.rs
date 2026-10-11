@@ -54,9 +54,16 @@ pub fn is_usercard(route: &str) -> bool {
     route == KIND || route.starts_with("usercard/")
 }
 
-/// Settings key for a route: all usercards share one entry.
+/// Settings key for a route: all usercards share one entry, and so do the chats opened
+/// from a `#channel` (V102-05), so `windows` doesn't grow with every channel.
 pub fn settings_key(route: &str) -> &str {
-    if is_usercard(route) { KIND } else { route }
+    if is_usercard(route) {
+        KIND
+    } else if route.starts_with("room/") {
+        "room"
+    } else {
+        route
+    }
 }
 
 pub fn open(app: &AppHandle, channel: &str, login: &str) -> tauri::Result<()> {
@@ -77,7 +84,8 @@ pub fn open(app: &AppHandle, channel: &str, login: &str) -> tauri::Result<()> {
     let (w, h) = (saved.unwrap_or(SIZE.0), SIZE.1);
     let url = WebviewUrl::App(format!("index.html#/panel/{route}").into());
     let window = super::builder(app, &label, url)
-        .title(login)
+        // V102-14 The channel: the name is on the card already.
+        .title(format!("#{channel}"))
         .inner_size(w, h)
         .min_inner_size(*WIDTHS.start(), h)
         .max_inner_size(*WIDTHS.end(), h)

@@ -2,14 +2,15 @@
 //! scopes, else the raw GQL mutation (D25). Bans, timeouts, deletes and role changes stay
 //! quiet since EventSub and IRC echo them; the rest get a short local confirmation.
 
-use cyex_moderation::command::{ModCommand, Need, Treatment};
+use cyex_chat::model::ModRole;
+use cyex_moderation::command::{ModCommand, Treatment};
 use cyex_twitch::gql;
 use cyex_twitch::helix::modes::ModeChange;
 use cyex_twitch::helix::moderation as hm;
 use cyex_twitch::helix::roles::{self as hr, Role as HRole};
 use tauri::AppHandle;
 
-use super::{Actor, Role, codes, http, role};
+use super::{Actor, codes, http};
 
 /// Looks up a login's user id (for actions that need an id).
 async fn user_id(app: &AppHandle, login: &str) -> Result<String, String> {
@@ -28,10 +29,7 @@ fn expires_in(secs: u32) -> String {
 /// Runs a parsed command. `Ok(Some(line))` shows a local confirmation; `Ok(None)` stays
 /// quiet (the action echoes over EventSub/IRC).
 pub async fn command(app: &AppHandle, account: &str, login: &str, cmd: ModCommand) -> Result<Option<String>, String> {
-    let actor = super::actor(app, account, login)?;
-    if cmd.needs() == Need::Broadcaster && role(app, account, login) != Some(Role::Broadcaster) {
-        return Err("Only the broadcaster can do that.".into());
-    }
+    let actor = super::actor_for(app, account, login, cmd.needs())?;
     use ModCommand as C;
     match cmd {
         C::Ban { login: who, reason } => ban(app, &actor, &who, None, &reason).await.map(|()| None),
@@ -240,8 +238,11 @@ async fn treat(app: &AppHandle, actor: &Actor, who: &str, how: Treatment) -> Res
 }
 
 async fn set_role(app: &AppHandle, actor: &Actor, who: &str, mod_role: bool, on: bool) -> Result<(), String> {
-    // Only the broadcaster may change roles over Helix; lead mods fall back to GQL.
-    if let Some(h) = actor.helix_scoped(app, if mod_role { "channel:manage:moderators" } else { "channel:manage:vips" }) {
+    // Only the broadcaster may change roles over Helix; lead mods go through GQL.
+    let scope = if mod_role { "channel:manage:moderators" } else { "channel:manage:vips" };
+    if actor.role == ModRole::Broadcaster
+        && let Some(h) = actor.helix_scoped(app, scope)
+    {
         let hrole = if mod_role { HRole::Mod } else { HRole::Vip };
         return hr::set_role(&http(app), h, &actor.channel_id, &target_id(app, who).await?, hrole, on)
             .await

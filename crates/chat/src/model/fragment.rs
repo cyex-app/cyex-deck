@@ -36,6 +36,11 @@ pub enum Fragment {
         text: String,
         login: String,
     },
+    /// V102-05 `#channel`. Clicking it opens that channel's chat in its own window.
+    Channel {
+        text: String,
+        login: String,
+    },
     /// X2: `host` is the real domain (IDN shown as punycode), so look-alikes stand out.
     Link {
         text: String,
@@ -234,6 +239,7 @@ impl Fragment {
         match self {
             Fragment::Text { text }
             | Fragment::Mention { text, .. }
+            | Fragment::Channel { text, .. }
             | Fragment::Link { text, .. }
             | Fragment::Span { text, .. } => text.clone(),
             Fragment::Emote { name, .. } => name.clone(),

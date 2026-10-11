@@ -6,7 +6,9 @@ import type { MenuEntry } from '../../components/menu.svelte';
 import { formatDuration } from '../../lib/format';
 import { settings } from '../../lib/settings.svelte';
 import { toast } from '../../lib/toast.svelte';
+import type { RoleEntry } from '../../ipc/bindings/RoleEntry';
 import { modIpc, type ModRole } from '../../ipc/moderation';
+import { allows } from './roles';
 import { roleItems, type Standing } from './standing';
 
 /** 2.11 The quick timeout lengths from Settings → Chat, shortest first. */
@@ -25,35 +27,47 @@ export const PIN_LENGTHS: { label: string; secs: number | null }[] = [
 ];
 
 class Mods {
-  /** `${account}\n${channel}` → role, or null when checked and not a mod. */
-  private roles = $state<Record<string, ModRole | null>>({});
-  private pending = new Set<string>();
+  /** V102-21 Every open account's role per channel, as Rust keeps it; replaced on each
+   * `mod:roles`, so mod controls come and go while a chat is open. */
+  private list = $state.raw<RoleEntry[]>([]);
+  private started = false;
 
-  private key(account: string | null, channel: string): string {
-    return `${account ?? ''}\n${channel}`;
+  private start(): void {
+    if (this.started) return;
+    this.started = true;
+    let events = 0;
+    void modIpc
+      .onRoles((list) => {
+        events++;
+        this.list = list;
+      })
+      .then(() => {
+        const before = events;
+        return modIpc.roles().then((list) => {
+          if (events === before) this.list = list;
+        });
+      })
+      .catch(() => {});
   }
 
-  /** The account's role here; triggers a lookup the first time, re-reads live after. */
+  /** The account's role here, or null: anonymous, not a mod, or the chat isn't open. */
   role(account: string | null, channel: string): ModRole | null {
+    this.start();
     if (!account) return null;
-    const k = this.key(account, channel);
-    if (!(k in this.roles) && !this.pending.has(k)) {
-      this.pending.add(k);
-      modIpc
-        .role(account, channel)
-        .then((r) => (this.roles[k] = r))
-        .catch(() => (this.roles[k] = null))
-        .finally(() => this.pending.delete(k));
-    }
-    return this.roles[k] ?? null;
+    const login = channel.toLowerCase();
+    return this.list.find((e) => e.account === account && e.channel === login)?.role ?? null;
   }
 
-  /** Re-checks a role, e.g. after a reconnect changed it. */
-  refresh(account: string | null, channel: string): void {
-    if (!account) return;
-    const k = this.key(account, channel);
-    delete this.roles[k];
-    this.role(account, channel);
+  /** 1.46 An open account that moderates the channel, the highest role first. */
+  moderating(channel: string): string | null {
+    this.start();
+    const login = channel.toLowerCase();
+    let best: RoleEntry | null = null;
+    for (const e of this.list) {
+      if (e.channel !== login) continue;
+      if (!best || (allows(e.role, 'lead') && !allows(best.role, 'lead')) || allows(e.role, 'broadcaster')) best = e;
+    }
+    return best?.account ?? null;
   }
 
   /** V101-33 Mod mode is on for this chat (remembered per channel). */
@@ -91,7 +105,7 @@ export function userItems(role: ModRole, login: string, run: Run, warn: () => vo
   return items;
 }
 
-/** Monitor, restrict, and mod/VIP for the broadcaster: the less used user actions. M12 A
+/** Monitor, restrict, and mod/VIP for the broadcaster and lead mods (1.50): the less used user actions. M12 A
  * mod gets Unmod (Twitch won't make a mod a VIP), a VIP gets Remove VIP; unknown gets both
  * Mod and VIP. */
 export function treatItems(role: ModRole, login: string, run: Run, is?: Standing): MenuEntry[] {
@@ -99,7 +113,7 @@ export function treatItems(role: ModRole, login: string, run: Run, is?: Standing
     { label: 'Monitor', icon: 'eye', run: () => run(`/monitor ${login}`) },
     { label: 'Restrict', icon: 'eyeOff', run: () => run(`/restrict ${login}`) },
   ];
-  if (role === 'broadcaster') items.push('separator', ...roleItems(login, run, is));
+  if (allows(role, 'lead')) items.push('separator', ...roleItems(login, run, is));
   return items;
 }
 

@@ -118,10 +118,11 @@ pub fn open_panel(app: &AppHandle, route: &str, title: &str, size: Option<(f64, 
     }
 
     let settings = app.state::<Settings>();
+    let key = super::usercard::settings_key(route);
     let saved = settings
         .read::<Windows>(Partition::Windows)
         .panels
-        .remove(route)
+        .remove(key)
         .unwrap_or_default();
     let (width, height) = size.unwrap_or(DEFAULT_SIZE);
     let url = WebviewUrl::App(format!("index.html#/panel/{route}").into());
@@ -154,7 +155,7 @@ pub fn open_panel(app: &AppHandle, route: &str, title: &str, size: Option<(f64, 
     window.set_focus()?;
 
     // Titles are kept so saved layouts can reopen panels.
-    let patch = json!({ "panels": { route: { "title": title } } });
+    let patch = json!({ "panels": { key: { "title": title } } });
     let _ = settings.patch(app, Partition::Windows, &patch, false);
     Ok(())
 }

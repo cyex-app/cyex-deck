@@ -5,7 +5,7 @@
 use cyex_moderation::nuke::{Hit, Nuke, Punish};
 use cyex_moderation::pacer::Pacer;
 use cyex_core::number::grouped;
-use cyex_chat::model::plain;
+use cyex_chat::model::{ModRole, plain};
 use serde::Serialize;
 use tauri::AppHandle;
 use ts_rs::TS;
@@ -41,7 +41,7 @@ fn protected(app: &AppHandle, login: &str) -> std::collections::HashSet<String> 
     let mut out = std::collections::HashSet::new();
     for m in crate::chat::messages_of(app, login) {
         if let Some(s) = &m.sender
-            && s.badges.iter().any(|b| matches!(b.set.as_str(), "broadcaster" | "moderator" | "lead_moderator" | "vip"))
+            && (ModRole::of_badges(&s.badges).is_some() || s.badges.iter().any(|b| b.set == "vip"))
         {
             out.insert(s.id.clone());
         }

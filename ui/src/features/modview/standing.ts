@@ -2,6 +2,7 @@
 // instead of Mod and VIP.
 
 import type { MenuEntry } from '../../components/menuItems';
+import { roleOf } from './roles.ts';
 
 /** What someone already is here, as far as their badges or the viewer list tell. */
 export interface Standing {
@@ -12,8 +13,8 @@ export interface Standing {
 /** From a line's badges. Head mods count as mods. */
 export function standingOf(badges: readonly { set: string }[] | undefined): Standing | undefined {
   if (!badges) return undefined;
-  const has = (set: string) => badges.some((b) => b.set === set);
-  return { mod: has('moderator') || has('lead_moderator'), vip: has('vip') };
+  const role = roleOf(badges);
+  return { mod: role === 'moderator' || role === 'leadModerator', vip: badges.some((b) => b.set === 'vip') };
 }
 
 /** A mod gets Unmod only (Twitch won't make a mod a VIP), a VIP gets Mod and Remove VIP,

@@ -14,6 +14,7 @@
   import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
   import { catalogs } from '../chat/catalog.svelte';
+  import { mods } from '../modview/moderation.svelte';
   import { standingOf } from '../modview/standing';
   import ActionList from './ActionList.svelte';
   import Actions from './Actions.svelte';
@@ -38,18 +39,14 @@
   let profile = $state<Profile | null | undefined>(undefined);
   let messages = $state.raw<ChatMessage[]>([]);
   let error = $state('');
-  // 1.57 The account (if any) that moderates this channel, for the mod bar and tabs.
-  let modAccount = $state<string | null>(null);
+  // 1.57 The account (if any) that moderates this channel, for the mod bar and tabs; live
+  // (V102-21).
+  const modAccount = $derived(channel && login !== channel ? mods.moderating(channel) : null);
   let history = $state<ModHistory | null>(null);
   let tab = $state<Tab>('messages');
   let editing = $state(false);
   let logsUrl = $state('');
   let settle: ReturnType<typeof setTimeout> | undefined;
-
-  // svelte-ignore state_referenced_locally
-  if (channel && login !== channel) {
-    void modIpc.moderating(channel).then((a) => (modAccount = a)).catch(() => {});
-  }
 
   const note = $derived(profile ? settings.v.chat.users[profile.id] : undefined);
   const isChannel = $derived(login === channel);
@@ -92,6 +89,8 @@
   }
   $effect(() => {
     if (modAccount && profile?.id) untrack(readHistory);
+    // Unmodded while the card is open: the mod tabs go.
+    else if (!modAccount) history = null;
   });
   function changed() {
     clearTimeout(settle);

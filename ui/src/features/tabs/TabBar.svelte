@@ -1,5 +1,6 @@
 <!-- Channel tabs (1.10) on any side of the window (U5), with groups, size (1.24),
-     several selected at once (Ctrl or Shift click) and dragging to reorder. Across the
+     several selected at once (Ctrl or Shift click), dragging to reorder and the mouse
+     wheel to step through them (V102-04). Across the
      top or bottom, tabs wrap onto more rows of one height instead of scrolling (V101-38);
      in the title bar the gaps between them still drag the window. -->
 <script lang="ts">
@@ -11,6 +12,7 @@
   import { openAdd, openEdit } from './dialog.svelte';
   import GroupChip from './GroupChip.svelte';
   import { GROUP_COLORS } from './groupColors';
+  import { stepTab, WheelSteps } from './cycle';
   import { groupMenu, tabMenu } from './menus';
   import TabItem from './TabItem.svelte';
   import { tabs, tiles } from './tabs.svelte';
@@ -58,6 +60,24 @@
   $effect(() => {
     if (!current || !bar) return;
     bar.querySelector(`[data-tab-id="${CSS.escape(current)}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  });
+
+  // V102-04 The wheel over the bar steps through tabs: down is the next one, up the one
+  // before, stopping at the ends. It doesn't scroll the bar; the shown tab stays in view.
+  const wheel = new WheelSteps();
+  $effect(() => {
+    const el = bar;
+    if (!el) return;
+    const onwheel = (e: WheelEvent) => {
+      if (e.ctrlKey) return;
+      e.preventDefault();
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      const by = wheel.step(delta, e.deltaMode !== WheelEvent.DOM_DELTA_PIXEL, e.timeStamp);
+      const next = stepTab(tabs.shownIds(current), current, by, false);
+      if (next) onopen(next);
+    };
+    el.addEventListener('wheel', onwheel, { passive: false });
+    return () => el.removeEventListener('wheel', onwheel);
   });
 
   function select(tab: Tab, e: MouseEvent) {

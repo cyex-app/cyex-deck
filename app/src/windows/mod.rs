@@ -96,7 +96,7 @@ pub fn set_pinned(app: &AppHandle, window: &tauri::Window, pinned: bool) -> Resu
         let Some(route) = route_of(app, window.label()).filter(|r| !usercard::is_usercard(r)) else {
             return Ok(());
         };
-        json!({ "panels": { route: { "pinned": pinned } } })
+        json!({ "panels": { usercard::settings_key(&route): { "pinned": pinned } } })
     };
     app.state::<Settings>()
         .patch(app, Partition::Windows, &patch, false)?;
@@ -109,7 +109,7 @@ pub fn is_pinned(app: &AppHandle, label: &str) -> bool {
         return saved.main_pinned;
     }
     route_of(app, label)
-        .and_then(|route| saved.panels.get(&route).map(|p| p.pinned))
+        .and_then(|route| saved.panels.get(usercard::settings_key(&route)).map(|p| p.pinned))
         .unwrap_or(false)
 }
 

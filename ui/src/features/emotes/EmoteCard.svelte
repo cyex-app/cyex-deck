@@ -14,6 +14,7 @@
   import { emoteLarge } from '../chat/urls';
   import { type CardTarget, PROVIDER_NAMES } from './emotes';
   import { hidden } from './hidden.svelte';
+  import { flipUnlisted, unlistedBlurred } from './unlisted';
 
   interface Props {
     target: CardTarget;
@@ -137,6 +138,12 @@
       <button class="link" onclick={() => open(info!.page!)}><Icon name="popout" size={13} />Emote page</button>
     {/if}
     <span class="grow"></span>
+    {#if info?.unlisted && settings.v.chat.unlistedEmotes !== 'hide'}
+      <!-- V102-01 The same switch as the emote's menu. -->
+      <button class="link" onclick={flipUnlisted} data-tip="All unlisted emotes, every chat">
+        <Icon name={unlistedBlurred() ? 'eye' : 'eyeOff'} size={13} />{unlistedBlurred() ? 'Unblur' : 'Blur'}
+      </button>
+    {/if}
     <button class="link" onclick={() => void navigator.clipboard.writeText(shown.name)}><Icon name="copy" size={13} />Copy</button>
     <button class="link" onclick={hide}><Icon name="eyeOff" size={13} />Hide</button>
   </div>

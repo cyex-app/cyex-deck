@@ -30,6 +30,7 @@
   import TabView from '../features/tabs/TabView.svelte';
   import { openTarget, playerHotkeys } from '../features/player/players.svelte';
   import { openChannel } from '../features/browse/open.svelte';
+  import { stepTab } from '../features/tabs/cycle';
   import { tabs, tiles } from '../features/tabs/tabs.svelte';
   import type { LinkTarget } from '../ipc/bindings/LinkTarget';
   import { accountsIpc } from '../ipc/accounts';
@@ -173,11 +174,8 @@
 
   /** Next or previous visible tab, wrapping around. */
   function step(by: number) {
-    const list = tabs.list.filter((t) => !tabs.group(t.group)?.collapsed || t.id === current);
-    if (!list.length) return;
-    const at = list.findIndex((t) => t.id === current);
-    const next = at < 0 ? (by > 0 ? 0 : list.length - 1) : (at + by + list.length) % list.length;
-    open(list[next].id);
+    const next = stepTab(tabs.shownIds(current), current, by, true);
+    if (next) open(next);
   }
 
   /** Opens a channel by login, as a tab of its own. */

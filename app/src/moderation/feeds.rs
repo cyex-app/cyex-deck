@@ -149,7 +149,15 @@ fn handle(app: &AppHandle, account: &str, out: Out) {
                 route(app, &cid, login.as_deref(), ev);
             }
         }
-        Out::Revoked { kind, .. } => eprintln!("eventsub: {account} lost {kind}"),
+        Out::Revoked { kind, status, condition } => {
+            eprintln!("eventsub: {account} lost {kind} ({status})");
+            // V102-21 Twitch ends a mod's subscriptions when they're unmodded.
+            if status == "moderator_removed"
+                && let Some(cid) = subs::channel_of(&condition)
+            {
+                crate::chat::roles::set_moderator_in(app, account, cid, false);
+            }
+        }
     }
 }
 
@@ -226,6 +234,10 @@ fn route(app: &AppHandle, channel_id: &str, login: Option<&str>, ev: Event) {
     let id = || cyex_chat::build::local_id();
     match ev {
         Event::Moderate(m) => {
+            // V102-21 One of our accounts modded or unmodded here: its controls follow now.
+            if let Some(t) = m.target.as_ref().filter(|_| matches!(m.action.as_str(), "mod" | "unmod")) {
+                crate::chat::roles::set_moderator_in(app, &t.id, channel_id, m.action == "mod");
+            }
             let secs = timeout_secs(&m, now);
             let text = cyex_moderation::log::describe(&m, secs);
             view::add_action(

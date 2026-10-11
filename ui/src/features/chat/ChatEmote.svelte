@@ -7,7 +7,7 @@
   import type { Provider } from '../../ipc/bindings/Provider';
   import { focus } from '../../lib/focus.svelte';
   import { settings } from '../../lib/settings.svelte';
-  import { PROVIDER_NAMES, modClasses } from '../emotes/emotes';
+  import { PROVIDER_NAMES, emoteRatio, modClasses } from '../emotes/emotes';
   import { hidden } from '../emotes/hidden.svelte';
   import { emoteImg, emoteLarge } from './urls';
 
@@ -41,7 +41,7 @@
     src={img.src}
     srcset={img.srcset}
     alt={e.name}
-    style:aspect-ratio={e.size ? `${e.size[0]} / ${e.size[1]}` : e.provider === 'twitch' ? '1' : undefined}
+    style:aspect-ratio={emoteRatio(e.size)}
     loading="lazy"
     decoding="async"
   />
@@ -56,6 +56,7 @@
     role="button"
     tabindex="-1"
     data-emote={card}
+    data-unlisted={f.unlisted ? '' : undefined}
     data-tip={[f.name, ...layers.map((l) => l.name)].join(' ')}
     data-tip-img={emoteLarge(f.provider, f.id, theme, { animated: f.animated, still })}
     data-hint={PROVIDER_NAMES[f.provider]}

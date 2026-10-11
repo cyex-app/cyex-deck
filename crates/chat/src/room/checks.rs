@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use super::Room;
-use crate::model::{ChatMessage, Flag, RoomEvent, Translation, plain};
+use crate::model::{ChatMessage, Flag, ModRole, RoomEvent, Translation, plain};
 use crate::rules::{Outcome, Role, Rules};
 use crate::similar::{SimilarCheck, dice, lcs_ratio, normalize};
 
@@ -44,11 +44,12 @@ impl Room {
         (!text.is_empty()).then(|| text.join(" "))
     }
 
-    fn role(&self) -> Role {
-        match &self.state.own {
-            Some(o) if o.broadcaster => Role::Broadcaster,
-            Some(o) if o.moderator => Role::Moderator,
-            _ => Role::Viewer,
+    /// F2 Rules for blocked users depend on our role (V102-21's one check).
+    fn rules_role(&self) -> Role {
+        match self.role() {
+            Some(ModRole::Broadcaster) => Role::Broadcaster,
+            Some(_) => Role::Moderator,
+            None => Role::Viewer,
         }
     }
 
@@ -56,7 +57,7 @@ impl Room {
     pub(super) fn screen(&mut self, m: &mut ChatMessage, now_ms: i64) -> (bool, Outcome) {
         let rules = self.rules.clone();
         let mut routes = Vec::new();
-        if m.sender.is_some() && rules.hidden(m, self.role(), &mut routes) {
+        if m.sender.is_some() && rules.hidden(m, self.rules_role(), &mut routes) {
             return (
                 false,
                 Outcome {
@@ -94,7 +95,7 @@ impl Room {
     /// History: hidden ones are left out, the rest highlighted, without sounds.
     pub(super) fn screen_old(&mut self, m: &mut ChatMessage) -> bool {
         let rules = self.rules.clone();
-        if m.sender.is_some() && rules.hidden(m, self.role(), &mut Vec::new()) {
+        if m.sender.is_some() && rules.hidden(m, self.rules_role(), &mut Vec::new()) {
             return false;
         }
         rules.replace(m);

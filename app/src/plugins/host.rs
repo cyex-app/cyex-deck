@@ -44,8 +44,9 @@ impl Host for AppHost {
             login: login.to_owned(),
             name: live.as_ref().map_or_else(|| login.to_owned(), |c| c.name.clone()),
             id: st.channel_id.clone().unwrap_or_default(),
-            broadcaster: own.is_some_and(|o| o.broadcaster),
-            moderator: own.is_some_and(|o| o.moderator),
+            broadcaster: own.is_some_and(|o| o.broadcaster()),
+            // Chatterino's `is_mod`: a mod or lead mod, not the broadcaster.
+            moderator: own.is_some_and(|o| o.privileged() && !o.broadcaster()),
             vip: own.is_some_and(|o| o.vip),
             modes: RoomModes {
                 subscriber_only: st.subs_only,

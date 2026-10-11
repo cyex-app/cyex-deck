@@ -224,6 +224,14 @@ impl Builder<'_> {
             self.pending.push_str(tail);
             return;
         }
+        if let Some((login, tail)) = channel(word) {
+            self.push(Fragment::Channel {
+                text: word[..word.len() - tail.len()].to_owned(),
+                login: login.to_ascii_lowercase(),
+            });
+            self.pending.push_str(tail);
+            return;
+        }
         if let Some((prefix, amount)) = cheer(word, self.bits_left) {
             self.bits_left -= amount;
             self.push(Fragment::Cheer {
@@ -357,6 +365,18 @@ fn mention(word: &str) -> Option<(&str, &str)> {
     (1..=25).contains(&end).then(|| rest.split_at(end))
 }
 
+/// V102-05 `#name,` → (`name`, `,`). Three to 25 name characters, not starting with `_`
+/// and not only digits, so `#1` and `#2026` stay text.
+fn channel(word: &str) -> Option<(&str, &str)> {
+    let rest = word.strip_prefix('#')?;
+    let end = rest
+        .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+        .unwrap_or(rest.len());
+    let name = &rest[..end];
+    let ok = (3..=25).contains(&end) && !name.starts_with('_') && !name.bytes().all(|b| b.is_ascii_digit());
+    ok.then(|| rest.split_at(end))
+}
+
 /// `cheer100` → (`cheer`, 100), only while the message's bits aren't used up.
 fn cheer(word: &str, bits_left: u32) -> Option<(&str, u32)> {
     if bits_left == 0 {
@@ -416,6 +436,30 @@ mod tests {
     #[test]
     fn bad_emote_ranges_are_ignored() {
         assert_eq!(run("hi", "25:0-9"), [Fragment::text("hi")]);
+    }
+
+    #[test]
+    fn channel_names() {
+        assert_eq!(
+            run("go to #Forsen, or #xqc!", ""),
+            [
+                Fragment::text("go to "),
+                Fragment::Channel {
+                    text: "#Forsen".into(),
+                    login: "forsen".into()
+                },
+                Fragment::text(", or "),
+                Fragment::Channel {
+                    text: "#xqc".into(),
+                    login: "xqc".into()
+                },
+                Fragment::text("!"),
+            ]
+        );
+        // Too short, only digits, a leading underscore, a lone `#`: plain text.
+        for text in ["#1", "#gg", "#2026", "#_abc", "#", "##", "a#bcd"] {
+            assert_eq!(run(text, ""), [Fragment::text(text)], "{text}");
+        }
     }
 
     #[test]

@@ -5,6 +5,8 @@ use cyex_twitch::helix::modes::{ANNOUNCE_COLORS, MAX_FOLLOW_MINUTES, ModeChange}
 use cyex_twitch::helix::moderation::MAX_TIMEOUT_SECS;
 use cyex_twitch::helix::roles::Role;
 
+use cyex_chat::model::ModRole;
+
 use crate::duration;
 
 /// Default timeout, like Twitch's: 10 minutes.
@@ -51,19 +53,42 @@ pub enum ModCommand {
     Unpin,
 }
 
-/// Who may run a command.
+/// Who may run a command (1.57). Checked against the account's role by `Need::allows`,
+/// the one check every mod-only action goes through (V102-21).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Need {
+    /// Moderators, lead moderators and the broadcaster.
     Mod,
-    /// 1.50 Lead moderators can't change roles through Helix.
+    /// 1.50 Giving and taking mod and VIP: the broadcaster or a lead moderator.
+    Lead,
     Broadcaster,
+}
+
+impl Need {
+    pub fn allows(self, role: Option<ModRole>) -> bool {
+        let least = match self {
+            Need::Mod => ModRole::Moderator,
+            Need::Lead => ModRole::LeadModerator,
+            Need::Broadcaster => ModRole::Broadcaster,
+        };
+        role.is_some_and(|r| r >= least)
+    }
+
+    /// What a role that falls short is told.
+    pub fn refusal(self) -> &'static str {
+        match self {
+            Need::Mod => "You're not a moderator here.",
+            Need::Lead => "Only the broadcaster or a lead mod can do that.",
+            Need::Broadcaster => "Only the broadcaster can do that.",
+        }
+    }
 }
 
 impl ModCommand {
     pub fn needs(&self) -> Need {
         match self {
-            ModCommand::SetRole { .. }
-            | ModCommand::ListRole(_)
+            ModCommand::SetRole { .. } => Need::Lead,
+            ModCommand::ListRole(_)
             | ModCommand::Raid { .. }
             | ModCommand::Unraid
             | ModCommand::Commercial { .. }
@@ -347,9 +372,31 @@ mod tests {
                 on: true
             }
         );
-        assert_eq!(ok("unmod x").needs(), Need::Broadcaster);
+        assert_eq!(ok("unmod x").needs(), Need::Lead);
+        assert_eq!(ok("mods").needs(), Need::Broadcaster);
         assert_eq!(ok("restrict x").needs(), Need::Mod);
         assert!(parse("me", "hi").is_none());
+    }
+
+    /// V102-21 The one check: every role reaches what it should and nothing more.
+    #[test]
+    fn roles_meet_needs() {
+        use ModRole::{Broadcaster, LeadModerator, Moderator};
+        for (role, mod_, lead, owner) in [
+            (None, false, false, false),
+            (Some(Moderator), true, false, false),
+            (Some(LeadModerator), true, true, false),
+            (Some(Broadcaster), true, true, true),
+        ] {
+            assert_eq!(Need::Mod.allows(role), mod_, "{role:?}");
+            assert_eq!(Need::Lead.allows(role), lead, "{role:?}");
+            assert_eq!(Need::Broadcaster.allows(role), owner, "{role:?}");
+        }
+        // The ban family is open to every mod, as V102-11 asks.
+        for line in ["ban x", "timeout x 10", "unban x", "warn x be nice"] {
+            assert!(ok(line).needs().allows(Some(Moderator)), "{line}");
+            assert!(!ok(line).needs().allows(None), "{line}");
+        }
     }
 
     #[test]

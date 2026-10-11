@@ -11,6 +11,8 @@ pub mod queue;
 pub mod run;
 pub mod view;
 
+use cyex_chat::model::ModRole;
+use cyex_moderation::command::Need;
 use cyex_twitch::gql;
 use cyex_twitch::helix;
 use tauri::{AppHandle, Manager};
@@ -23,24 +25,10 @@ pub fn init(app: &AppHandle) {
     massban::init(app);
 }
 
-/// The role an account holds in a channel. Ordered: a broadcaster can do everything a mod can.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Role {
-    Moderator,
-    Broadcaster,
-}
-
-/// The account's role in a channel, from its open chat's USERSTATE (1.57). Lead mods wear
-/// the `lead_moderator` badge, which chat already folds into `moderator`.
-pub fn role(app: &AppHandle, account: &str, login: &str) -> Option<Role> {
-    let own = crate::chat::own_state(app, account, login)?;
-    if own.broadcaster {
-        Some(Role::Broadcaster)
-    } else if own.moderator {
-        Some(Role::Moderator)
-    } else {
-        None
-    }
+/// The account's role in a channel (1.57, V102-21): the one source, kept live in
+/// `chat::roles`.
+pub fn role(app: &AppHandle, account: &str, login: &str) -> Option<ModRole> {
+    crate::chat::roles::role(app, account, login)
 }
 
 /// The channel id for a login, from an open room's state or the chat catalog.
@@ -57,6 +45,7 @@ fn http(app: &AppHandle) -> cyex_twitch::Http {
 pub struct Actor {
     pub account: String,
     pub channel_id: String,
+    pub role: ModRole,
     helix: Option<(String, String)>,
     gql: Option<(String, String)>,
 }
@@ -93,9 +82,17 @@ impl Actor {
 
 /// Resolves the acting account's tokens for a channel, or says why it can't moderate.
 pub fn actor(app: &AppHandle, account: &str, login: &str) -> Result<Actor, String> {
-    if role(app, account, login).is_none() {
-        return Err("You're not a moderator here.".into());
+    actor_for(app, account, login, Need::Mod)
+}
+
+/// Like `actor`, for an action that needs more than a mod (1.50, raids, ads). Every
+/// mod-only action passes `Need::allows` here (V102-21).
+pub fn actor_for(app: &AppHandle, account: &str, login: &str, need: Need) -> Result<Actor, String> {
+    let role = role(app, account, login);
+    if !need.allows(role) {
+        return Err(need.refusal().into());
     }
+    let role = role.expect("allowed roles are set");
     let channel_id = channel_id(app, login).ok_or("Still loading this channel.")?;
     let helix = auth::helix_token(app, account);
     let gql = auth::gql_token(app, account);
@@ -105,6 +102,7 @@ pub fn actor(app: &AppHandle, account: &str, login: &str) -> Result<Actor, Strin
     Ok(Actor {
         account: account.to_owned(),
         channel_id,
+        role,
         helix,
         gql,
     })

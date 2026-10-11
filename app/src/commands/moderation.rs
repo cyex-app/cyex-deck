@@ -7,27 +7,14 @@ use tauri::AppHandle;
 
 use crate::moderation::nuke::NukePreview;
 use crate::moderation::view::Board0;
-use crate::moderation::{self, Role};
+use crate::chat::roles::RoleEntry;
+use crate::moderation;
 
-/// 1.57 "broadcaster", "moderator", or null. The UI shows mod controls only when set.
+/// 1.57, V102-21 Every open account's role per channel; `mod:roles` brings changes. The
+/// UI shows mod controls only where an entry says so.
 #[tauri::command]
-pub fn mod_role(app: AppHandle, account: String, channel: String) -> Option<String> {
-    moderation::role(&app, &account, &channel).map(|r| {
-        match r {
-            Role::Broadcaster => "broadcaster",
-            Role::Moderator => "moderator",
-        }
-        .to_owned()
-    })
-}
-
-/// Which open account moderates a channel, for the tab's mod-view shield.
-#[tauri::command]
-pub fn mod_moderating(app: AppHandle, channel: String) -> Option<String> {
-    crate::chat::moderated_open(&app)
-        .into_iter()
-        .find(|(_, l)| *l == channel.to_ascii_lowercase())
-        .map(|(acc, _)| acc)
+pub fn mod_roles(app: AppHandle) -> Vec<RoleEntry> {
+    crate::chat::roles::snapshot(&app)
 }
 
 /// Runs a mod command typed or clicked, e.g. `ban spammer bots`. Returns a line to show.

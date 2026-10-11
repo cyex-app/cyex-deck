@@ -1,8 +1,10 @@
 <!-- V101-05 The usercard's head, after the 7TV extension's: banner behind, picture, name in
-     its color or 7TV paint, the paint's name, badges and roles, and small buttons for the
-     note, the logs and the Twitch profile. V101-23 switches the 7TV picture for Twitch's. -->
+     its color or 7TV paint, the paint's name, roles and every badge they own (V102-13), and
+     small buttons for the note, the logs and the Twitch profile. V101-23 switches the 7TV
+     picture for Twitch's. -->
 <script lang="ts">
   import Avatar from '../../components/Avatar.svelte';
+  import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { Badge } from '../../ipc/bindings/Badge';
@@ -12,7 +14,7 @@
   import { settings } from '../../lib/settings.svelte';
   import { streamer } from '../../lib/streamer.svelte';
   import { toast } from '../../lib/toast.svelte';
-  import Badges from '../chat/Badges.svelte';
+  import EarnedBadges from './EarnedBadges.svelte';
   import { avatars } from '../emotes/avatars.svelte';
   import { looks } from '../emotes/looks.svelte';
   import { toggleWatch, watched } from './watch';
@@ -58,10 +60,13 @@
   <div class="pic">
     <Avatar src={picture} name={profile.displayName} size={60} />
     {#if seventv && profile.avatar && !streamer.hides('hideAvatars')}
+      <!-- V102-12 The logo of the picture shown; a click shows the other one. -->
       <button
         class="which"
+        aria-label={twitchPic ? 'Twitch picture' : '7TV picture'}
         onclick={() => (twitchPic = !twitchPic)}
-        use:tooltip={twitchPic ? 'Show the 7TV picture' : 'Show the Twitch picture'}>{twitchPic ? 'Twitch' : '7TV'}</button
+        use:tooltip={twitchPic ? 'Show the 7TV picture' : 'Show the Twitch picture'}
+        ><Icon name={twitchPic ? 'twitch' : 'seventv'} size={11} /></button
       >
     {/if}
   </div>
@@ -72,11 +77,11 @@
     </div>
     {#if paintName}<span class="paint" style={colorVars}>{paintName}</span>{/if}
     <div class="marks">
-      {#if badges.length}<Badges {badges} {channel} userId={profile.id} />{/if}
       {#if profile.staff}<span class="role staff">Staff</span>{/if}
       {#if profile.partner}<span class="role partner">Partner</span>{/if}
       {#if profile.affiliate}<span class="role affiliate">Affiliate</span>{/if}
     </div>
+    <EarnedBadges login={profile.login} userId={profile.id} {channel} fallback={badges} />
     <button class="id" onclick={copyId} use:tooltip={'Copy user ID'}>ID {profile.id}</button>
   </div>
   <div class="tools">
@@ -125,26 +130,25 @@
       linear-gradient(color-mix(in srgb, var(--surface) 72%, transparent), var(--surface)),
       var(--banner) center top / cover;
   }
+  /* V102-09 The picture is square (Avatar's small corner radius). */
   .pic {
     position: relative;
     flex: none;
     align-self: flex-start;
   }
-  .pic :global(.avatar) {
-    border-radius: 50%;
-  }
   .which {
     position: absolute;
     right: -6px;
     bottom: -4px;
-    padding: 0 4px;
+    display: grid;
+    place-items: center;
+    width: 19px;
+    height: 17px;
+    padding: 0;
     background: var(--elevated);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
     color: var(--muted);
-    font-size: 0.65rem;
-    font-weight: 700;
-    line-height: 1.4;
   }
   .which:hover {
     color: var(--text);

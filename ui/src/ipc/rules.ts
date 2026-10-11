@@ -2,6 +2,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 
+import type { BadgeInfo } from './bindings/BadgeInfo';
 import type { CommandLineError } from './bindings/CommandLineError';
 import type { FilterName } from './bindings/FilterName';
 import type { FollowAge } from './bindings/FollowAge';
@@ -24,6 +25,8 @@ export const usercardIpc = {
   subStatus: (user: string, channel: string) => invoke<SubStatus>('user_sub_status', { user, channel }),
   followAge: (channel: string, userId: string) => invoke<FollowAge>('user_follow_age', { channel, userId }),
   nameHistory: (userId: string) => invoke<NameChange[]>('user_name_history', { userId }),
+  /** V102-13 Every Twitch badge they own in the channel. */
+  badges: (user: string, channel: string) => invoke<BadgeInfo[]>('user_badges', { user, channel }),
   logs: (channel: string, userId: string, user: string, offset: number) =>
     invoke<LogPage>('user_logs', { channel, userId, user, offset }),
   /** M8 Twitch's mod logs, for a mod where logs.cyex.app has none. */

@@ -19,6 +19,12 @@ pub async fn user_follow_age(app: AppHandle, channel: String, user_id: String) -
     usercard::follow_age(&app, &channel, &user_id).await
 }
 
+/// V102-13 All their Twitch badges in the channel.
+#[tauri::command]
+pub async fn user_badges(app: AppHandle, user: String, channel: String) -> CmdResult<Vec<cyex_twitch::gql::BadgeInfo>> {
+    usercard::badges(&app, &user, &channel).await
+}
+
 #[tauri::command]
 pub async fn user_name_history(app: AppHandle, user_id: String) -> CmdResult<Vec<NameChange>> {
     usercard::name_history(&app, &user_id).await

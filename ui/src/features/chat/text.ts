@@ -7,6 +7,7 @@ export function plainText(body: Fragment[]): string {
       switch (f.t) {
         case 'text':
         case 'mention':
+        case 'channel':
         case 'link':
           return f.text;
         case 'emote':

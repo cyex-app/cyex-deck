@@ -31,6 +31,7 @@ mod stories;
 pub mod subs;
 mod users;
 mod videos;
+pub mod viewer;
 pub mod whispers;
 
 pub use about::{About, LastStream, Panel, Social, about};

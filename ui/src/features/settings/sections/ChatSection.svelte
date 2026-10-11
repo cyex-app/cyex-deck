@@ -169,7 +169,7 @@
     />
   </Row>
 {/if}
-<Row label="Joins and leaves" hint="Who opens or leaves the chat. Twitch only says so in chats under 1.000 people.">
+<Row label="Joins and leaves" hint="Who opens or leaves the chat, a line every 10 seconds. Twitch only says so in chats under 1.000 people.">
   <Toggle label="Joins and leaves" checked={c.joinsLeaves} onchange={(v) => settings.patch('chat', { joinsLeaves: v })} />
 </Row>
 <Row label="Show where it was sent from" hint="An icon for messages from the website or the phone apps.">

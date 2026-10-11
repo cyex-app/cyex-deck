@@ -6,6 +6,7 @@ mod checks;
 mod gap;
 mod hook;
 mod presence;
+mod role;
 
 pub use hook::{LineChange, LineHook};
 
@@ -84,13 +85,13 @@ pub struct Room {
     outcomes: Vec<(Arc<ChatMessage>, Outcome)>,
     /// C24 When the connection dropped, while it's gone.
     lost_at: Option<i64>,
-    /// C37 The joins or leaves line still taking names.
-    presence: Option<presence::Open>,
+    /// C37, V102-18 The joins and leaves lines still taking names.
+    presence: presence::Batches,
 }
 
 impl Room {
     pub fn new(login: &str, me: Option<Me>) -> Self {
-        Self {
+        let mut room = Self {
             login: login.to_ascii_lowercase(),
             state: RoomState::default(),
             status: ConnStatus::Connecting,
@@ -107,8 +108,10 @@ impl Room {
             repeats: Repeats::default(),
             outcomes: Vec::new(),
             lost_at: None,
-            presence: None,
-        }
+            presence: presence::Batches::default(),
+        };
+        room.state.own = room.initial_own();
+        room
     }
 
     /// S5 `None` when no plugin reads chat.
@@ -186,9 +189,9 @@ impl Room {
         })
     }
 
-    /// Broadcaster or moderator here (D7, slow mode).
+    /// Broadcaster, lead moderator or moderator here (D7, slow mode).
     pub fn privileged(&self) -> bool {
-        self.state.own.as_ref().is_some_and(|o| o.privileged())
+        self.role().is_some()
     }
 
     /// The last `n` messages from a user, oldest first (usercard, 1.36).
@@ -278,7 +281,17 @@ impl Room {
     pub fn apply(&mut self, incoming: Incoming, now_ms: i64, emotes: &dyn Emotes) -> Vec<RoomEvent> {
         let mut events = Vec::new();
         match incoming {
-            Incoming::Message(m) => events.extend(self.add(m, now_ms, emotes)),
+            Incoming::Message(m) => {
+                // V102-21 Our own line from another app carries fresh badges.
+                if m.has(Flag::Own)
+                    && !m.has(Flag::History)
+                    && m.source.is_none()
+                    && let Some(s) = &m.sender
+                {
+                    events.extend(self.own_line(&s.badges));
+                }
+                events.extend(self.add(m, now_ms, emotes));
+            }
             Incoming::Gift { message, gift } => events.extend(self.gift(message, gift, now_ms, emotes)),
             Incoming::Delete { id } => {
                 self.mark_deleted(|m| m.id == id);
@@ -305,13 +318,8 @@ impl Room {
             }
             Incoming::UserState(us) => {
                 if let Some(me) = &self.me {
-                    let own = Some(us.to_self(&me.login));
-                    if own != self.state.own {
-                        self.state.own = own;
-                        events.push(RoomEvent::State {
-                            state: self.state.clone(),
-                        });
-                    }
+                    let own = us.to_self(&me.login, self.owner());
+                    events.extend(self.set_own(own));
                 }
                 if let Some(id) = us.sent_id.clone() {
                     self.expire(now_ms);

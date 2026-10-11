@@ -13,8 +13,8 @@
   import { focus } from '../../lib/focus.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { emoteImg, emoteLarge } from '../chat/urls';
-  import { emojiGroups, findEmoji, type Emoji, type EmojiGroup } from './emoji';
-  import { PROVIDER_NAMES, emoteKey } from './emotes';
+  import { emojiGroups, emojiLabel, findEmoji, type Emoji, type EmojiGroup } from './emoji';
+  import { PROVIDER_NAMES, emoteKey, emoteRatio } from './emotes';
   import { PROVIDER_TABS, type ProviderTab, pick, search, usable } from './menu';
   import { emoteMenu } from './menus';
 
@@ -138,7 +138,7 @@
       src={img.src}
       srcset={img.srcset}
       alt={m.name}
-      style:aspect-ratio={m.size ? `${m.size[0]} / ${m.size[1]}` : '1'}
+      style:aspect-ratio={emoteRatio(m.size)}
       loading="lazy"
       decoding="async"
     />
@@ -151,7 +151,7 @@
   {@const name = 'char' in e ? e.names[0] : e.name}
   <button
     class="cell emoji"
-    data-tip=":{name}:"
+    data-tip={'char' in e ? emojiLabel(e) : name.replaceAll('_', ' ')}
     onclick={() => oninsert(char)}
     oncontextmenu={(ev) => toggleFavorite(ev, { source: 'emoji', id: char, name })}>{char}</button
   >

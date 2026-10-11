@@ -26,7 +26,7 @@ animated?: boolean,
 /**
  * Size at 1x in px, when the provider says, so lines don't jump as pictures load.
  */
-size?: [number, number], } | { "t": "mention", text: string, login: string, } | { "t": "link", text: string, url: string, host: string, 
+size?: [number, number], } | { "t": "mention", text: string, login: string, } | { "t": "channel", text: string, login: string, } | { "t": "link", text: string, url: string, host: string, 
 /**
  * Twitch clips and VODs open in the app.
  */

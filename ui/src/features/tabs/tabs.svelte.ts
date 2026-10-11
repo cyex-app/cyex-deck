@@ -67,6 +67,12 @@ class TabsStore {
     return id ? this.groups.find((g) => g.id === id) : undefined;
   }
 
+  /** Tab ids in the bar's order, without those folded into a collapsed group (the one on
+   * screen stays). What Ctrl+Tab and the wheel step through (V102-04). */
+  shownIds(current: string | null): string[] {
+    return this.list.filter((t) => !this.group(t.group)?.collapsed || t.id === current).map((t) => t.id);
+  }
+
   /** The tab holding a tile. */
   tabOf(tileId: string): Tab | undefined {
     return this.list.find((t) => tiles(t).some((x) => x.id === tileId));

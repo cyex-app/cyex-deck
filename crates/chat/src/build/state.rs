@@ -76,21 +76,16 @@ impl UserState {
         }
     }
 
-    pub fn to_self(&self, login: &str) -> SelfState {
-        let has = |set: &str| self.badges.iter().any(|b| b.set == set);
-        SelfState {
-            login: login.to_owned(),
-            badges: self.badges.clone(),
-            broadcaster: has("broadcaster"),
-            moderator: self.moderator || has("moderator") || has("lead_moderator"),
-            vip: has("vip"),
-        }
+    /// `owner`: the room is the account's own channel (V102-21).
+    pub fn to_self(&self, login: &str, owner: bool) -> SelfState {
+        SelfState::new(login, self.badges.clone(), self.moderator, owner)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::ModRole;
 
     #[test]
     fn roomstate_full_then_partial() {
@@ -118,7 +113,16 @@ mod tests {
             &Line::parse("@badges=vip/1;color=#FF0000;display-name=Me;id=abc;mod=0 :tmi.twitch.tv USERSTATE #c").unwrap(),
         );
         assert_eq!(u.sent_id.as_deref(), Some("abc"));
-        let me = u.to_self("me");
-        assert!(me.vip && !me.moderator && me.fast_lane() && !me.privileged());
+        let me = u.to_self("me", false);
+        assert!(me.vip && me.role.is_none() && me.fast_lane() && !me.privileged());
+        // V102-21 Lead mods, `mod=1` alone, and the channel's own account.
+        let lead = UserState::from_line(
+            &Line::parse("@badges=lead_moderator/1;mod=1 :tmi.twitch.tv USERSTATE #c").unwrap(),
+        );
+        assert_eq!(lead.to_self("me", false).role, Some(ModRole::LeadModerator));
+        let tagged = UserState::from_line(&Line::parse("@badges=;mod=1 :tmi.twitch.tv USERSTATE #c").unwrap());
+        assert_eq!(tagged.to_self("me", false).role, Some(ModRole::Moderator));
+        let own = UserState::from_line(&Line::parse("@badges=;mod=0 :tmi.twitch.tv USERSTATE #me").unwrap());
+        assert_eq!(own.to_self("me", true).role, Some(ModRole::Broadcaster));
     }
 }

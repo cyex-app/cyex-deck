@@ -5,7 +5,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use ts_rs::TS;
 
-use super::{Badge, ChatMessage};
+use super::{Badge, ChatMessage, ModRole};
 
 /// 1.9 A pinned message.
 #[derive(Clone, Debug, PartialEq, Serialize, TS)]
@@ -43,21 +43,39 @@ pub struct RoomState {
     pub wait_until: Option<i64>,
 }
 
+/// Our account in a room: badges from USERSTATE (or our own lines), and the role the
+/// one check reads (V102-21).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct SelfState {
     pub login: String,
     pub badges: Vec<Badge>,
-    pub broadcaster: bool,
-    pub moderator: bool,
+    /// 1.57 `None`: no mod rights here.
+    pub role: Option<ModRole>,
     pub vip: bool,
 }
 
 impl SelfState {
-    /// Broadcaster or moderator: free from slow mode and the join budget.
+    /// From badges and USERSTATE's `mod` tag. `owner`: the channel is the account's own.
+    pub fn new(login: &str, badges: Vec<Badge>, mod_tag: bool, owner: bool) -> Self {
+        let role = ModRole::of(badges.iter().map(|b| b.set.as_str()), mod_tag, owner);
+        let vip = badges.iter().any(|b| b.set == "vip");
+        Self {
+            login: login.to_owned(),
+            badges,
+            role,
+            vip,
+        }
+    }
+
+    pub fn broadcaster(&self) -> bool {
+        self.role == Some(ModRole::Broadcaster)
+    }
+
+    /// Broadcaster, lead moderator or moderator: free from slow mode and the join budget.
     pub fn privileged(&self) -> bool {
-        self.broadcaster || self.moderator
+        self.role.is_some()
     }
 
     /// 100 messages per 30 s instead of 20.

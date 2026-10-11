@@ -26,5 +26,8 @@ test('bot commands by level', () => {
     commandItems('!d', cmds, 0).map((i) => i.value),
     ['!discord'],
   );
-  assert.equal(commandItems('!s', cmds, viewerLevel({ broadcaster: false, moderator: true, vip: false, sub: false }))[0].label, '!so <User>');
+  assert.equal(commandItems('!s', cmds, viewerLevel({ role: 'moderator', vip: false, sub: false }))[0].label, '!so <User>');
+  // V102-21 Lead mods count as mods, the channel's own account as the streamer.
+  assert.equal(viewerLevel({ role: 'leadModerator', vip: false, sub: false }), 4);
+  assert.equal(viewerLevel({ role: 'broadcaster', vip: false, sub: false }), 5);
 });

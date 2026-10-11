@@ -14,6 +14,7 @@ pub mod peek;
 pub mod points;
 pub mod powerups;
 pub mod record;
+pub mod roles;
 pub mod rules;
 pub mod run;
 mod send;
@@ -136,6 +137,7 @@ pub fn init(app: &AppHandle) {
     record::init(app);
     translate::init(app);
     votes::init(app);
+    roles::init(app);
 }
 
 impl Chat {
@@ -279,7 +281,11 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
     room.set_hook(crate::plugins::line_hook(app));
     let budget_ok = match identity {
         Identity::Anon => true,
-        Identity::Account(id) => budget(app, |b| b.entry(id.clone()).or_default().join(login, false)),
+        // V102-21 The account's own channel never counts.
+        Identity::Account(id) => {
+            let own = room.privileged();
+            budget(app, |b| b.entry(id.clone()).or_default().join(login, own))
+        }
     };
     if budget_ok {
         session::ensure(app, inner, identity).client.join(login);
@@ -303,6 +309,8 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
 /// Work for a new room once the lock is released: counter, catalogs, history.
 fn after_join(app: &AppHandle, key: RoomKey, budget_full: bool) {
     crate::connections::notify(app);
+    roles::emit(app);
+    roles::check_soon(app);
     let c = app.state::<Settings>().read::<ChatSettings>(Partition::Chat);
     let history = (c.history && !budget_full).then_some(c.history_lines);
     catalog::load_for_room(app.clone(), key, history);
@@ -353,6 +361,7 @@ pub fn close(app: &AppHandle, view: u32) {
     }
     // A closed channel may end this account's mod feeds (1.46).
     crate::moderation::feeds::sync(app);
+    roles::emit(app);
 }
 
 /// 1.10 The rooms the tabs want joined, as (account, login). Joins new ones and leaves
@@ -390,6 +399,7 @@ pub fn hold(app: &AppHandle, wanted: &[(Option<String>, String)]) {
         after_join(app, key, full);
     }
     crate::moderation::feeds::sync(app);
+    roles::emit(app);
 }
 
 /// Closes every view a window had, e.g. a popped-out chat that was closed.
@@ -486,13 +496,6 @@ pub fn whisper_line(app: &AppHandle, m: Arc<ChatMessage>) {
     }
 }
 
-/// 1.57 The account's own role flags in a channel, from its open room's USERSTATE.
-pub fn own_state(app: &AppHandle, account: &str, login: &str) -> Option<cyex_chat::model::SelfState> {
-    let chat = app.try_state::<Chat>()?;
-    let key = (Identity::Account(account.to_owned()), login.to_ascii_lowercase());
-    chat.lock().rooms.get(&key)?.room.state.own.clone()
-}
-
 /// The channel id for a login, from whichever open room knows it.
 pub fn channel_id_of(app: &AppHandle, login: &str) -> Option<String> {
     let chat = app.try_state::<Chat>()?;
@@ -514,7 +517,7 @@ pub fn moderated_open(app: &AppHandle) -> Vec<(String, String)> {
         .iter()
         .filter_map(|((identity, login), e)| {
             let Identity::Account(acc) = identity else { return None };
-            e.room.state.own.as_ref().filter(|o| o.privileged()).map(|_| (acc.clone(), login.clone()))
+            e.room.role().map(|_| (acc.clone(), login.clone()))
         })
         .collect()
 }

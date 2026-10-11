@@ -5,18 +5,19 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
 import type { Board0 } from './bindings/Board0';
+import type { ModRole } from './bindings/ModRole';
+import type { RoleEntry } from './bindings/RoleEntry';
 import type { MassbanProgress } from './bindings/MassbanProgress';
 import type { ModHistory } from './bindings/ModHistory';
 import type { NukePreview } from './bindings/NukePreview';
 import type { UnbanRequest } from './bindings/UnbanRequest';
 
-export type ModRole = 'broadcaster' | 'moderator';
+export type { ModRole };
 
 export const modIpc = {
-  /** 1.57 The account's role in a channel, or null when it can't moderate. */
-  role: (account: string, channel: string) => invoke<ModRole | null>('mod_role', { account, channel }),
-  /** Which open account moderates a channel, for the tab's shield. */
-  moderating: (channel: string) => invoke<string | null>('mod_moderating', { channel }),
+  /** 1.57, V102-21 Every open account's role per channel; `onRoles` brings changes. */
+  roles: () => invoke<RoleEntry[]>('mod_roles'),
+  onRoles: (handler: (list: RoleEntry[]) => void) => listen<RoleEntry[]>('mod:roles', (e) => handler(e.payload)),
   /** Runs a mod command, e.g. name "ban", args "spammer bots". Returns a line to show. */
   run: (account: string, channel: string, name: string, args: string) =>
     invoke<string | null>('mod_run', { account, channel, name, args }),

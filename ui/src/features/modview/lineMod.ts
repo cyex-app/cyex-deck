@@ -2,6 +2,7 @@
 // picked in Settings → Chat (M10) in front (1.57: only where the account moderates).
 
 import type { ModButtons } from '../../ipc/bindings/ModButtons';
+import { roleOf } from './roles.ts';
 
 export interface LineMod {
   /** The account's user id: its own lines get no buttons. */
@@ -25,5 +26,5 @@ export function modButtonsFor(mod: LineMod | null, sender: Who | null | undefine
   if (!mod?.inline || !sender || sender.id === mod.me || sender.login === channel) return false;
   const b = mod.buttons;
   if (!b.delete && !b.warn && !b.ban && !b.timeouts.length) return false;
-  return mod.broadcaster || !sender.badges.some((b) => b.set === 'moderator' || b.set === 'lead_moderator');
+  return mod.broadcaster || roleOf(sender.badges) === null;
 }

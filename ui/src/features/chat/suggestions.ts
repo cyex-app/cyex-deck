@@ -2,7 +2,9 @@
 // commands you're allowed to run (C13).
 
 import type { BotCommand } from '../../ipc/bindings/BotCommand';
+import type { ModRole } from '../../ipc/bindings/ModRole';
 import type { Provider } from '../../ipc/bindings/Provider';
+import { allows } from '../modview/roles.ts';
 import { complete } from './completion.ts';
 
 export interface Item {
@@ -50,10 +52,10 @@ export function emoteItems(
 }
 
 /** C13 What a viewer may run: 0 everyone, 1 subs, 3 VIPs, 4 mods, 5 the streamer. */
-export function viewerLevel(own: { broadcaster: boolean; moderator: boolean; vip: boolean; sub: boolean } | null): number {
+export function viewerLevel(own: { role: ModRole | null; vip: boolean; sub: boolean } | null): number {
   if (!own) return 0;
-  if (own.broadcaster) return 5;
-  if (own.moderator) return 4;
+  if (allows(own.role, 'broadcaster')) return 5;
+  if (allows(own.role, 'mod')) return 4;
   if (own.vip) return 3;
   return own.sub ? 1 : 0;
 }
