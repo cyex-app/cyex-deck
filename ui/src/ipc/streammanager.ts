@@ -1,5 +1,5 @@
-// Stream manager (10, 1.35, X4): the broadcaster's own channel. Every action is Helix and
-// works on the manager account's channel.
+// Stream manager (10, 1.35, X4): the broadcaster's own channel. Every action runs GQL
+// first, Helix otherwise (D30), on the manager account's channel.
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';

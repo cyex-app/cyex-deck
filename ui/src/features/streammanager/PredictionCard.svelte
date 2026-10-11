@@ -1,6 +1,6 @@
 <!-- 1.35 Start a prediction, lock betting, pay out the winning side or refund everyone.
      Paying out and refunding take a second click. Live state comes from the chat's vote
-     watcher; the actions are Helix. -->
+     watcher; the actions go GQL first, Helix otherwise (D30). -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import type { SmPredictionEnd } from '../../ipc/bindings/SmPredictionEnd';

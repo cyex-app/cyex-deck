@@ -8,6 +8,7 @@ mod channels;
 mod chat;
 mod clips;
 mod comments;
+pub mod dashboard;
 mod directory;
 pub mod drops;
 mod emotes;

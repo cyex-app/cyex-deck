@@ -1,5 +1,5 @@
-<!-- 1.35 What's happening on your channel: follows, subs (with streaks), gifts, cheers,
-     raids and reward redemptions, newest first. The chips filter by kind and are saved. -->
+<!-- 1.35 What's happening on your channel: follows, subs, gifts, cheers, raids, reward
+     redemptions and watch streaks, newest first. The chips filter by kind and are saved. -->
 <script lang="ts">
   import type { ActivityFilters } from '../../ipc/bindings/ActivityFilters';
   import { formatTime } from '../../lib/format';
@@ -28,7 +28,7 @@
   {/snippet}
   {#if rows.length === 0}
     <p class="note">
-      {sm.activity.length ? 'Nothing matches the filters.' : 'New follows, subs, gifts, cheers, raids and rewards show up here.'}
+      {sm.activity.length ? 'Nothing matches the filters.' : 'New follows, subs, gifts, cheers, raids, rewards and streaks show up here.'}
     </p>
   {:else}
     <ul>

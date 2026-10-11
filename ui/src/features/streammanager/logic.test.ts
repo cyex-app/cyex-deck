@@ -5,7 +5,15 @@ import type { ActivityFilters } from '../../ipc/bindings/ActivityFilters';
 import type { SmActivity } from '../../ipc/bindings/SmActivity';
 import { adIn, capPush, graph, shares, visibleActivity } from './logic.ts';
 
-const ALL: ActivityFilters = { follows: true, subs: true, gifts: true, cheers: true, raids: true, redemptions: true };
+const ALL: ActivityFilters = {
+  follows: true,
+  subs: true,
+  gifts: true,
+  cheers: true,
+  raids: true,
+  redemptions: true,
+  streaks: true,
+};
 
 function item(id: string, kind: string): SmActivity {
   return { id, kind, text: id, user: null, ts: 0 };

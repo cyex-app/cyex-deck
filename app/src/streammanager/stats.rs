@@ -1,16 +1,18 @@
 //! 1.35 Live numbers, polled every 30 s while the tab is open: stream (viewers, uptime),
-//! title and category, follower total, subscriber total and sub points. Each tick feeds the
-//! X4 viewer graph and the OBS status files. A failed read keeps the last value.
+//! title and category, follower total, subscriber total and sub points. GQL first, Helix
+//! otherwise (D30). Each tick feeds the X4 viewer graph and the OBS status files. A failed
+//! read keeps the last value.
 
 use std::time::Duration;
 
+use cyex_twitch::gql::dashboard::stats::{Numbers, numbers_now};
 use cyex_twitch::helix;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::watch;
 use ts_rs::TS;
 
-use super::{State, lock, push_viewers};
+use super::{Call, State, lock, push_viewers};
 use crate::auth;
 
 const EVERY: Duration = Duration::from_secs(30);
@@ -41,14 +43,14 @@ pub fn latest(app: &AppHandle) -> Option<Stats> {
     lock(&app.state::<State>().stats).clone()
 }
 
-pub fn spawn(app: &AppHandle, account: String, mut stop: watch::Receiver<bool>) {
+pub fn spawn(app: &AppHandle, mut stop: watch::Receiver<bool>) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         loop {
             if *stop.borrow() {
                 return;
             }
-            tick(&app, &account).await;
+            tick(&app).await;
             tokio::select! {
                 _ = tokio::time::sleep(EVERY) => {}
                 _ = stop.changed() => return,
@@ -59,32 +61,59 @@ pub fn spawn(app: &AppHandle, account: String, mut stop: watch::Receiver<bool>) 
 
 /// Reads again now, e.g. right after the title changed.
 pub fn refresh(app: &AppHandle) {
-    let Some(account) = lock(&app.state::<State>().live)
-        .as_ref()
-        .map(|l| l.account.clone())
-    else {
+    if lock(&app.state::<State>().live).is_none() {
         return;
-    };
+    }
     let app = app.clone();
-    tauri::async_runtime::spawn(async move { tick(&app, &account).await });
+    tauri::async_runtime::spawn(async move { tick(&app).await });
 }
 
-async fn tick(app: &AppHandle, account: &str) {
-    let Some((token, client_id)) = auth::helix_token(app, account) else {
-        return;
-    };
-    let http = app.state::<auth::Auth>().http.clone();
-    let auth = helix::Auth {
-        client_id: &client_id,
-        token: &token,
-    };
-    let (stream, info, followers, subs) = tokio::join!(
-        helix::stats::stream(&http, auth, account),
-        helix::channel::info(&http, auth, account),
-        helix::stats::followers_total(&http, auth, account),
-        helix::stats::subscriptions(&http, auth, account),
-    );
+async fn tick(app: &AppHandle) {
+    let Ok(c) = Call::new(app) else { return };
     let mut s = latest(app).unwrap_or_default();
+    let gql = if c.has_gql() {
+        Some(numbers_now(&c.http, c.gql(), &c.channel_id).await)
+    } else {
+        None
+    };
+    match gql {
+        Some(Ok(n)) => apply(&mut s, n),
+        Some(Err(e)) if !(e.is_schema_error() && c.has_helix()) => {}
+        // No GQL sign-in, or GQL no longer knows the query.
+        _ => helix_tick(&c, &mut s).await,
+    }
+    if s.live {
+        push_viewers(app, auth::unix_now(), s.viewers);
+    }
+    *lock(&app.state::<State>().stats) = Some(s.clone());
+    super::obs::write(app, &s);
+    let _ = app.emit(EVENT, s);
+}
+
+/// GQL's numbers into the stats. A missing sub read keeps the last one.
+fn apply(s: &mut Stats, n: Numbers) {
+    s.live = n.live;
+    s.viewers = n.viewers;
+    s.started_at = n.started_at;
+    s.title = n.title;
+    s.game = n.game;
+    if n.followers.is_some() {
+        s.followers = n.followers;
+    }
+    if let Some((subs, points)) = n.subs {
+        s.subs = Some(subs);
+        s.sub_points = Some(points);
+    }
+}
+
+async fn helix_tick(c: &Call, s: &mut Stats) {
+    let (http, auth, id) = (&c.http, c.helix(), c.channel_id.as_str());
+    let (stream, info, followers, subs) = tokio::join!(
+        helix::stats::stream(http, auth, id),
+        helix::channel::info(http, auth, id),
+        helix::stats::followers_total(http, auth, id),
+        helix::stats::subscriptions(http, auth, id),
+    );
     match stream {
         Ok(Some(st)) => {
             s.live = true;
@@ -112,10 +141,4 @@ async fn tick(app: &AppHandle, account: &str) {
         s.subs = Some(sub.total);
         s.sub_points = Some(sub.points);
     }
-    if s.live {
-        push_viewers(app, auth::unix_now(), s.viewers);
-    }
-    *lock(&app.state::<State>().stats) = Some(s.clone());
-    super::obs::write(app, &s);
-    let _ = app.emit(EVENT, s);
 }

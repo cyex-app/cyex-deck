@@ -3,4 +3,8 @@
 /**
  * Each activity kind the feed can show. All on until the user hides one.
  */
-export type ActivityFilters = { follows: boolean, subs: boolean, gifts: boolean, cheers: boolean, raids: boolean, redemptions: boolean, };
+export type ActivityFilters = { follows: boolean, subs: boolean, gifts: boolean, cheers: boolean, raids: boolean, redemptions: boolean, 
+/**
+ * Watch streaks; only a GQL sign-in gets them (D30).
+ */
+streaks: boolean, };

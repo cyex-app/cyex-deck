@@ -12,6 +12,7 @@ export const ACTIVITY_KINDS: { kind: string; key: keyof ActivityFilters; label: 
   { kind: 'cheer', key: 'cheers', label: 'Cheers' },
   { kind: 'raid', key: 'raids', label: 'Raids' },
   { kind: 'redemption', key: 'redemptions', label: 'Rewards' },
+  { kind: 'streak', key: 'streaks', label: 'Streaks' },
 ];
 
 /** Newest first, only the kinds switched on. Unknown kinds always show. */

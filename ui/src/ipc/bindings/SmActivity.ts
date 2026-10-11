@@ -5,7 +5,7 @@
  */
 export type SmActivity = { id: string, 
 /**
- * `follow`, `sub`, `gift`, `cheer`, `raid` or `redemption`; the filter keys.
+ * `follow`, `sub`, `gift`, `cheer`, `raid`, `redemption` or `streak`; the filter keys.
  */
 kind: string, text: string, 
 /**

@@ -89,6 +89,7 @@ async fn pump(app: AppHandle, mut rx: mpsc::UnboundedReceiver<Event>) {
             Kind::UserPoints | Kind::UserPredictions => crate::miner::on_user_event(&app, &e),
             Kind::Whispers => crate::whispers::on_hermes(&app, &e),
             Kind::Onsite => crate::bell::on_event(&app, &e),
+            Kind::ActivityAlerts | Kind::ActivityFeed => crate::streammanager::on_hermes(&app, &e),
         }
     }
 }

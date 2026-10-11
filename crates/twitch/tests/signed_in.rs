@@ -250,3 +250,71 @@ async fn phase12_hermes_topics() {
         }
     }
 }
+
+/// V101-28: the stream manager's GQL reads on the signed-in account's own channel. Reads
+/// only; the dashboard's writes are schema-checked, never run.
+#[tokio::test]
+#[ignore = "network, signed in"]
+async fn stream_manager_reads() {
+    use cyex_twitch::gql::dashboard::{ads, info, modes, stats, together};
+    let http = Http::new().unwrap();
+    let (token, client_id) = gql_sign_in();
+    let auth = Auth {
+        client_id: &client_id,
+        token: Some(&token),
+    };
+    let me = gql::profile::profile(&http, auth).await.unwrap();
+    let id = me.id.as_str();
+    println!("info: {:?}", info::info(&http, auth, id).await.map(|i| (i.game_name, i.broadcaster_language, i.tags.len())));
+    println!("categories: {:?}", info::categories(&http, auth, "just chat").await.map(|c| c.into_iter().take(2).collect::<Vec<_>>()));
+    println!("ads: {:?}", ads::schedule(&http, auth, id).await);
+    println!("modes: {:?}", modes::modes(&http, auth, id).await);
+    println!("together: {:?}", together::session(&http, auth, id).await);
+    println!("stats: {:?}", stats::numbers_now(&http, auth, id).await.map(|n| (n.live, n.followers, n.subs)));
+}
+
+/// V101-28: which dashboard topics the signed-in account may follow on its own channel.
+/// Subscribes only; nothing is written.
+#[tokio::test]
+#[ignore = "network, signed in"]
+async fn stream_manager_topics() {
+    use futures_util::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::Message;
+    let http = Http::new().unwrap();
+    let (token, client_id) = gql_sign_in();
+    let auth = Auth {
+        client_id: &client_id,
+        token: Some(&token),
+    };
+    let me = gql::profile::profile(&http, auth).await.unwrap();
+    let id = me.id.as_str();
+    let url = format!("wss://hermes.twitch.tv/v1?clientId={}", cyex_twitch::clients::WEB);
+    let (mut ws, _) = tokio_tungstenite::connect_async(url.as_str()).await.unwrap();
+    let ts = cyex_twitch::clock::now_iso();
+    let topics = [
+        ("f", format!("activity-feed-broadcaster-v2.{id}.{id}")),
+        ("l", format!("activity-feed-alerts-v2.{id}")),
+        ("s", format!("ads-manager.{id}.{id}")),
+    ];
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(15);
+    while let Ok(Some(Ok(msg))) = tokio::time::timeout_at(deadline, ws.next()).await {
+        let Message::Text(text) = msg else { continue };
+        let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+        match v["type"].as_str().unwrap_or_default() {
+            "welcome" => {
+                let a = serde_json::json!({"type":"authenticate","id":"a1","authenticate":{"token":token},"timestamp":ts});
+                ws.send(Message::Text(a.to_string().into())).await.unwrap();
+            }
+            "authenticateResponse" => {
+                println!("auth: {}", v["authenticateResponse"]["result"]);
+                for (sid, topic) in &topics {
+                    let s = serde_json::json!({"type":"subscribe","id":format!("r{sid}"),
+                        "subscribe":{"id":sid,"type":"pubsub","pubsub":{"topic":topic}},"timestamp":ts});
+                    ws.send(Message::Text(s.to_string().into())).await.unwrap();
+                }
+            }
+            "subscribeResponse" => println!("subscribe {}: {}", v["parentId"], v["subscribeResponse"]),
+            _ => {}
+        }
+    }
+}

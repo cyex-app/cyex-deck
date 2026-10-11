@@ -41,9 +41,13 @@ pub enum Kind {
     Whispers,
     /// 1.26 The user's bell (onsite notifications). Signed in only.
     Onsite,
+    /// 1.35 Your channel's dashboard alerts: follows, subs, gifts, cheers, raids, rewards (D30).
+    ActivityAlerts,
+    /// 1.35 Your channel's dashboard feed lines, for watch streaks. Signed in as the broadcaster.
+    ActivityFeed,
 }
 
-const KINDS: [Kind; 12] = [
+const KINDS: [Kind; 14] = [
     Kind::Polls,
     Kind::Predictions,
     Kind::Celebrations,
@@ -56,6 +60,8 @@ const KINDS: [Kind; 12] = [
     Kind::UserPredictions,
     Kind::Whispers,
     Kind::Onsite,
+    Kind::ActivityAlerts,
+    Kind::ActivityFeed,
 ];
 
 impl Kind {
@@ -73,6 +79,16 @@ impl Kind {
             Kind::UserPredictions => "predictions-user-v1.",
             Kind::Whispers => "whispers.",
             Kind::Onsite => "onsite-notifications.",
+            Kind::ActivityAlerts => "activity-feed-alerts-v2.",
+            Kind::ActivityFeed => "activity-feed-broadcaster-v2.",
+        }
+    }
+
+    /// The topic for a channel or user id. The broadcaster's feed names the channel twice.
+    fn topic(self, id: &str) -> String {
+        match self {
+            Kind::ActivityFeed => format!("{}{id}.{id}", self.prefix()),
+            _ => format!("{}{id}", self.prefix()),
         }
     }
 
@@ -90,6 +106,8 @@ impl Kind {
             Kind::UserPredictions => 'b',
             Kind::Whispers => 'w',
             Kind::Onsite => 'o',
+            Kind::ActivityAlerts => 'l',
+            Kind::ActivityFeed => 'f',
         }
     }
 
@@ -170,7 +188,7 @@ impl Protocol for Hermes {
         json!({
             "type": "subscribe",
             "id": format!("r{id}"),
-            "subscribe": { "id": id, "type": "pubsub", "pubsub": { "topic": format!("{}{}", t.kind.prefix(), t.channel_id) } },
+            "subscribe": { "id": id, "type": "pubsub", "pubsub": { "topic": t.kind.topic(&t.channel_id) } },
             "timestamp": now_iso(),
         })
         .to_string()
@@ -321,5 +339,13 @@ mod tests {
             let t = Topic::new(k, "42");
             assert_eq!(Topic::from_sub_id(&t.sub_id()), Some(t));
         }
+    }
+
+    #[test]
+    fn the_broadcaster_feed_names_the_channel_twice() {
+        let feed = Hermes::anonymous().subscribe(&Topic::new(Kind::ActivityFeed, "7"));
+        assert!(feed.contains(r#""topic":"activity-feed-broadcaster-v2.7.7""#));
+        let alerts = Hermes::anonymous().subscribe(&Topic::new(Kind::ActivityAlerts, "7"));
+        assert!(alerts.contains(r#""topic":"activity-feed-alerts-v2.7""#));
     }
 }

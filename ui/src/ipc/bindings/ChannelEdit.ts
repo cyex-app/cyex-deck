@@ -7,4 +7,8 @@ export type ChannelEdit = { title: string | null,
 /**
  * `""` clears the category.
  */
-gameId: string | null, language: string | null, tags: Array<string> | null, };
+gameId: string | null, 
+/**
+ * The category's name. GQL sends it next to the id (D30); Helix ignores it.
+ */
+gameName: string | null, language: string | null, tags: Array<string> | null, };

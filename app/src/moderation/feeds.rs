@@ -50,7 +50,15 @@ pub fn sync(app: &AppHandle) {
         }
     }
     let mut map = feeds.0.lock().unwrap_or_else(|p| p.into_inner());
-    map.retain(|acc, _| wanted.contains_key(acc));
+    // Channels whose session closes here: the stream manager may need their follows back.
+    let mut released = Vec::new();
+    map.retain(|acc, entry| {
+        let keep = wanted.contains_key(acc);
+        if !keep {
+            released.extend(entry.subscribed.iter().cloned());
+        }
+        keep
+    });
     for (acc, channels) in wanted {
         let entry = map.entry(acc.clone()).or_insert_with(|| start(app, &acc));
         entry.wanted = channels;
@@ -58,6 +66,39 @@ pub fn sync(app: &AppHandle) {
         if entry.session_id.is_some() {
             subscribe_new(app, &acc, entry);
         }
+    }
+    drop(map);
+    for cid in released {
+        crate::streammanager::follow_released(app, &cid);
+    }
+}
+
+/// The stream manager let go of `channel.follow` for a channel (D30): a mod feed that has
+/// the channel takes it over.
+pub fn follow_released(app: &AppHandle, channel_id: &str) {
+    let Some(feeds) = app.try_state::<Feeds>() else { return };
+    let holders: Vec<(String, String)> = {
+        let map = feeds.0.lock().unwrap_or_else(|p| p.into_inner());
+        map.iter()
+            .filter(|(_, e)| e.wanted.contains_key(channel_id) || e.subscribed.contains(channel_id))
+            .filter_map(|(acc, e)| Some((acc.clone(), e.session_id.clone()?)))
+            .collect()
+    };
+    for (acc, session_id) in holders {
+        crate::streammanager::follows::take_over(app, &acc, channel_id, &session_id);
+    }
+}
+
+/// A follow line in the mod view, when a mod feed covers the channel.
+pub fn follow_line(app: &AppHandle, channel_id: &str, text: String, login: String) {
+    let Some(feeds) = app.try_state::<Feeds>() else { return };
+    let covered = {
+        let map = feeds.0.lock().unwrap_or_else(|p| p.into_inner());
+        map.values()
+            .any(|e| e.wanted.contains_key(channel_id) || e.subscribed.contains(channel_id))
+    };
+    if covered {
+        activity(app, channel_id, "follow", text, Some(login), crate::chat::now_ms());
     }
 }
 
@@ -226,7 +267,8 @@ fn route(app: &AppHandle, channel_id: &str, login: Option<&str>, ev: Event) {
             }
         }
         Event::HeldDone { message_id, .. } => view::resolve_held(app, channel_id, &message_id),
-        Event::Follow { user, .. } => activity(app, channel_id, "follow", format!("{} followed.", display(&user)), Some(user.login), now),
+        // Shared with the stream manager's feed (D30).
+        Event::Follow { user, .. } => crate::streammanager::follows::seen(app, channel_id, &user),
         Event::Suspicious { user, status, message, .. } => {
             view::add_suspicious(
                 app,

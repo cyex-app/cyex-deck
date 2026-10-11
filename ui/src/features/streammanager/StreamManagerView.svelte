@@ -1,6 +1,6 @@
 <!-- 1.35 The stream manager: your own channel at a glance and the tools to run it. A fixed
      view in the main window that pops out (route `streammanager`), e.g. onto a second
-     screen. Needs a Twitch sign-in for your channel (D26). -->
+     screen. Needs a Twitch sign-in for your channel (D30). -->
 <script lang="ts">
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';

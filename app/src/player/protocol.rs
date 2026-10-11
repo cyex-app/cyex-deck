@@ -78,6 +78,7 @@ fn failure(e: &Error) -> Response<Vec<u8>> {
         Error::Api { status, message } => (*status, message.clone()),
         Error::Network(_) => (502, "network".to_owned()),
         Error::Decode(_) => (502, "unexpected answer".to_owned()),
+        Error::Refused(code) => (403, code.clone()),
     };
     response(status, "text/plain", text.into_bytes())
 }

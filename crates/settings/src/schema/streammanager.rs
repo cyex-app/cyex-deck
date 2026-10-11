@@ -25,6 +25,8 @@ pub struct ActivityFilters {
     pub cheers: bool,
     pub raids: bool,
     pub redemptions: bool,
+    /// Watch streaks; only a GQL sign-in gets them (D30).
+    pub streaks: bool,
 }
 
 impl Default for ActivityFilters {
@@ -36,6 +38,7 @@ impl Default for ActivityFilters {
             cheers: true,
             raids: true,
             redemptions: true,
+            streaks: true,
         }
     }
 }
@@ -60,7 +63,10 @@ mod tests {
     #[test]
     fn filters_default_on() {
         let f = ActivityFilters::default();
-        assert!(f.follows && f.subs && f.gifts && f.cheers && f.raids && f.redemptions);
+        assert!(f.follows && f.subs && f.gifts && f.cheers && f.raids && f.redemptions && f.streaks);
+        // Files saved before streaks existed get them on.
+        let old: ActivityFilters = serde_json::from_str(r#"{"follows":false}"#).unwrap();
+        assert!(!old.follows && old.streaks);
         assert!(!Obs::default().enabled);
     }
 }

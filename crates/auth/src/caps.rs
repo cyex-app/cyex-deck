@@ -30,6 +30,7 @@ pub enum Feature {
     Blocks,
     ModTools,
     ModView,
+    /// 1.35 GQL first, like Twitch's dashboard; Helix with the scope works too (V101-28).
     StreamManager,
     MassbanHelix,
     /// P9
@@ -98,8 +99,8 @@ impl Feature {
     pub fn tier(self) -> Tier {
         use Feature::*;
         match self {
-            SendChat | FollowedList | EmoteMenu | ChatColor | Blocks | Whispers => Tier::Either,
-            Bio | ModTools | ModView | StreamManager | MassbanHelix | Clips => Tier::Helix,
+            SendChat | FollowedList | EmoteMenu | ChatColor | Blocks | Whispers | StreamManager => Tier::Either,
+            Bio | ModTools | ModView | MassbanHelix | Clips => Tier::Helix,
             _ => Tier::Gql,
         }
     }
@@ -161,6 +162,8 @@ mod tests {
         let f = features(None, true);
         assert!(f.contains(&Feature::Miner) && f.contains(&Feature::Follow));
         assert!(f.contains(&Feature::Whispers) && f.contains(&Feature::Subs));
+        // The stream manager runs on GQL like Twitch's dashboard (V101-28).
+        assert!(f.contains(&Feature::StreamManager));
         assert!(!f.contains(&Feature::ModTools));
         // Chat works with either token (phase 3).
         assert!(f.contains(&Feature::SendChat));

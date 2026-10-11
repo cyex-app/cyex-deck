@@ -61,6 +61,7 @@
       .setInfo({
         title: t !== saved.title ? t : null,
         gameId: game.id !== saved.gameId ? game.id : null,
+        gameName: game.id !== saved.gameId ? game.name : null,
         language: null,
         tags: null,
       })

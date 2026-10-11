@@ -43,6 +43,9 @@ pub struct Edit {
     pub title: Option<String>,
     /// `""` clears the category.
     pub game_id: Option<String>,
+    /// The category's name. GQL sends it next to the id (D30); Helix ignores it.
+    #[serde(default)]
+    pub game_name: Option<String>,
     pub language: Option<String>,
     pub tags: Option<Vec<String>>,
 }

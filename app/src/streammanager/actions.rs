@@ -1,14 +1,15 @@
-//! 1.35 What the stream manager does to the broadcaster's own channel, all over Helix
-//! (D26): title and category, markers, chat modes, ads, raids, polls and predictions, and
-//! Stream Together. Each is a thin wrapper that words Twitch's errors. None run in testing.
+//! 1.35 What the stream manager does to the broadcaster's own channel: title and
+//! category, markers, chat modes, ads, raids, polls and predictions, and Stream Together.
+//! Each runs GQL first, like Twitch's dashboard, and Helix otherwise (D30); Twitch's
+//! errors come back as short lines. None run in testing.
 
-use cyex_twitch::gql;
+use cyex_twitch::gql::{self, dashboard as dash};
 use cyex_twitch::helix::{self, ads, channel, gueststar, modes, roles, votes};
 use serde::Deserialize;
 use tauri::{AppHandle, Manager};
 use ts_rs::TS;
 
-use super::{obs, stats, with_helix};
+use super::{Call, either, obs, stats};
 
 /// Twitch user id for a login, from public GQL.
 async fn user_id(app: &AppHandle, login: &str) -> Result<String, String> {
@@ -25,9 +26,11 @@ async fn user_id(app: &AppHandle, login: &str) -> Result<String, String> {
 }
 
 pub async fn info(app: &AppHandle) -> Result<channel::ChannelInfo, String> {
-    with_helix(app, |http, c| async move {
-        channel::info(&http, c.auth(), &c.channel_id).await
-    })
+    either(
+        app,
+        async |c: &Call| dash::info::info(&c.http, c.gql(), &c.channel_id).await,
+        async |c: &Call| channel::info(&c.http, c.helix(), &c.channel_id).await,
+    )
     .await
 }
 
@@ -36,9 +39,11 @@ pub async fn set_info(app: &AppHandle, edit: channel::Edit) -> Result<(), String
     if edit.title.as_deref().is_some_and(|t| t.trim().is_empty()) {
         return Err("The title can't be empty.".into());
     }
-    with_helix(app, |http, c| async move {
-        channel::set_info(&http, c.auth(), &c.channel_id, &edit).await
-    })
+    either(
+        app,
+        async |c: &Call| dash::info::set_info(&c.http, c.gql(), &c.channel_id, &edit).await,
+        async |c: &Call| channel::set_info(&c.http, c.helix(), &c.channel_id, &edit).await,
+    )
     .await?;
     stats::refresh(app);
     Ok(())
@@ -48,27 +53,34 @@ pub async fn categories(app: &AppHandle, query: String) -> Result<Vec<channel::C
     if query.trim().is_empty() {
         return Ok(Vec::new());
     }
-    with_helix(app, |http, c| async move {
-        channel::search_categories(&http, c.auth(), query.trim()).await
-    })
+    let q = query.trim();
+    either(
+        app,
+        async |c: &Call| dash::info::categories(&c.http, c.gql(), q).await,
+        async |c: &Call| channel::search_categories(&c.http, c.helix(), q).await,
+    )
     .await
 }
 
 /// Places a stream marker (live only) and logs it (X4).
 pub async fn marker(app: &AppHandle, description: String) -> Result<(), String> {
-    let text = description.clone();
-    with_helix(app, |http, c| async move {
-        roles::marker(&http, c.auth(), &c.channel_id, &text).await
-    })
+    let text = description.trim();
+    either(
+        app,
+        async |c: &Call| dash::info::marker(&c.http, c.gql(), &c.channel_id, text).await,
+        async |c: &Call| roles::marker(&c.http, c.helix(), &c.channel_id, text).await,
+    )
     .await?;
     obs::log_marker(app, &description);
     Ok(())
 }
 
 pub async fn chat_modes(app: &AppHandle) -> Result<modes::ChatModes, String> {
-    with_helix(app, |http, c| async move {
-        modes::modes(&http, c.auth(), c.room()).await
-    })
+    either(
+        app,
+        async |c: &Call| dash::modes::modes(&c.http, c.gql(), &c.channel_id).await,
+        async |c: &Call| modes::modes(&c.http, c.helix(), c.room()).await,
+    )
     .await
 }
 
@@ -110,46 +122,58 @@ impl From<Mode> for modes::ModeChange {
 
 pub async fn set_mode(app: &AppHandle, mode: Mode) -> Result<modes::ChatModes, String> {
     let change = modes::ModeChange::from(mode);
-    with_helix(app, |http, c| async move {
-        modes::set_mode(&http, c.auth(), c.room(), change).await
-    })
+    either(
+        app,
+        async |c: &Call| dash::modes::set_mode(&c.http, c.gql(), &c.channel_id, change).await,
+        async |c: &Call| modes::set_mode(&c.http, c.helix(), c.room(), change).await,
+    )
     .await
 }
 
 /// Runs an ad; returns the length Twitch picked.
 pub async fn commercial(app: &AppHandle, secs: u32) -> Result<u32, String> {
-    with_helix(app, |http, c| async move {
-        roles::commercial(&http, c.auth(), &c.channel_id, secs).await
-    })
+    either(
+        app,
+        async |c: &Call| dash::ads::start(&c.http, c.gql(), &c.channel_id, secs).await,
+        async |c: &Call| roles::commercial(&c.http, c.helix(), &c.channel_id, secs).await,
+    )
     .await
 }
 
 pub async fn ad_schedule(app: &AppHandle) -> Result<ads::AdSchedule, String> {
-    with_helix(app, |http, c| async move {
-        ads::ad_schedule(&http, c.auth(), &c.channel_id).await
-    })
+    either(
+        app,
+        async |c: &Call| dash::ads::schedule(&c.http, c.gql(), &c.channel_id).await,
+        async |c: &Call| ads::ad_schedule(&c.http, c.helix(), &c.channel_id).await,
+    )
     .await
 }
 
 pub async fn snooze(app: &AppHandle) -> Result<ads::Snoozed, String> {
-    with_helix(app, |http, c| async move {
-        ads::snooze(&http, c.auth(), &c.channel_id).await
-    })
+    either(
+        app,
+        async |c: &Call| dash::ads::snooze(&c.http, c.gql(), &c.channel_id).await,
+        async |c: &Call| ads::snooze(&c.http, c.helix(), &c.channel_id).await,
+    )
     .await
 }
 
 pub async fn raid(app: &AppHandle, login: String) -> Result<(), String> {
     let to = user_id(app, &login).await?;
-    with_helix(app, |http, c| async move {
-        roles::raid(&http, c.auth(), &c.channel_id, &to).await
-    })
+    either(
+        app,
+        async |c: &Call| dash::raids::start(&c.http, c.gql(), &c.channel_id, &to).await,
+        async |c: &Call| roles::raid(&c.http, c.helix(), &c.channel_id, &to).await,
+    )
     .await
 }
 
 pub async fn unraid(app: &AppHandle) -> Result<(), String> {
-    with_helix(app, |http, c| async move {
-        roles::unraid(&http, c.auth(), &c.channel_id).await
-    })
+    either(
+        app,
+        async |c: &Call| dash::raids::cancel(&c.http, c.gql(), &c.channel_id).await,
+        async |c: &Call| roles::unraid(&c.http, c.helix(), &c.channel_id).await,
+    )
     .await
 }
 
@@ -186,26 +210,25 @@ pub fn check_poll(p: &NewPoll) -> Result<Vec<String>, String> {
 
 pub async fn create_poll(app: &AppHandle, p: NewPoll) -> Result<(), String> {
     let choices = check_poll(&p)?;
-    with_helix(app, |http, c| async move {
-        votes::create_poll(
-            &http,
-            c.auth(),
-            &c.channel_id,
-            p.title.trim(),
-            &choices,
-            p.duration,
-            p.points_per_vote,
-        )
-        .await
-    })
+    let (title, secs, points) = (p.title.trim(), p.duration, p.points_per_vote);
+    either(
+        app,
+        async |c: &Call| dash::votes::create_poll(&c.http, c.gql(), &c.channel_id, title, &choices, secs, points).await,
+        async |c: &Call| {
+            votes::create_poll(&c.http, c.helix(), &c.channel_id, title, &choices, secs, points)
+                .await
+                .map(|_| ())
+        },
+    )
     .await
-    .map(|_| ())
 }
 
 pub async fn end_poll(app: &AppHandle, id: String, archive: bool) -> Result<(), String> {
-    with_helix(app, |http, c| async move {
-        votes::end_poll(&http, c.auth(), &c.channel_id, &id, archive).await
-    })
+    either(
+        app,
+        async |c: &Call| dash::votes::end_poll(&c.http, c.gql(), &id, archive).await,
+        async |c: &Call| votes::end_poll(&c.http, c.helix(), &c.channel_id, &id, archive).await,
+    )
     .await
 }
 
@@ -240,19 +263,17 @@ pub fn check_prediction(p: &NewPrediction) -> Result<Vec<String>, String> {
 
 pub async fn create_prediction(app: &AppHandle, p: NewPrediction) -> Result<(), String> {
     let outcomes = check_prediction(&p)?;
-    with_helix(app, |http, c| async move {
-        votes::create_prediction(
-            &http,
-            c.auth(),
-            &c.channel_id,
-            p.title.trim(),
-            &outcomes,
-            p.window,
-        )
-        .await
-    })
+    let (title, window) = (p.title.trim(), p.window);
+    either(
+        app,
+        async |c: &Call| dash::votes::create_prediction(&c.http, c.gql(), &c.channel_id, title, &outcomes, window).await,
+        async |c: &Call| {
+            votes::create_prediction(&c.http, c.helix(), &c.channel_id, title, &outcomes, window)
+                .await
+                .map(|_| ())
+        },
+    )
     .await
-    .map(|_| ())
 }
 
 /// How a prediction ends: lock betting, pay out a winner, or refund everyone.
@@ -266,14 +287,23 @@ pub enum PredictionEnd {
 }
 
 pub async fn end_prediction(app: &AppHandle, id: String, end: PredictionEnd) -> Result<(), String> {
-    let (status, winner) = match end {
+    let (status, winner) = match &end {
         PredictionEnd::Lock => ("LOCKED", None),
-        PredictionEnd::Resolve { winner } => ("RESOLVED", Some(winner)),
+        PredictionEnd::Resolve { winner } => ("RESOLVED", Some(winner.as_str())),
         PredictionEnd::Cancel => ("CANCELED", None),
     };
-    with_helix(app, |http, c| async move {
-        votes::end_prediction(&http, c.auth(), &c.channel_id, &id, status, winner.as_deref()).await
-    })
+    either(
+        app,
+        async |c: &Call| {
+            let (http, auth) = (&c.http, c.gql());
+            match winner {
+                Some(w) => dash::votes::resolve_prediction(http, auth, &id, w).await,
+                None if status == "LOCKED" => dash::votes::lock_prediction(http, auth, &id).await,
+                None => dash::votes::cancel_prediction(http, auth, &id).await,
+            }
+        },
+        async |c: &Call| votes::end_prediction(&c.http, c.helix(), &c.channel_id, &id, status, winner).await,
+    )
     .await
 }
 
@@ -299,66 +329,99 @@ pub struct InviteRow {
 }
 
 pub async fn together(app: &AppHandle) -> Result<Together, String> {
-    with_helix(app, |http, c| async move {
-        let session = gueststar::session(&http, c.auth(), &c.channel_id, &c.channel_id).await?;
-        let invites = match &session {
-            Some(s) => gueststar::invites(&http, c.auth(), c.in_session(&s.id)).await?,
-            None => Vec::new(),
-        };
-        // Names are a nicety: without them the id shows.
-        let ids: Vec<&str> = invites.iter().map(|i| i.user_id.as_str()).collect();
-        let users = if ids.is_empty() {
-            Vec::new()
-        } else {
-            helix::users_by_id(&http, c.auth(), &ids)
-                .await
-                .unwrap_or_default()
-        };
-        let invites = invites
-            .into_iter()
-            .map(|i| {
-                let user = users.iter().find(|u| u.id == i.user_id);
-                InviteRow {
-                    login: user.map(|u| u.login.clone()).unwrap_or_default(),
-                    name: user.map_or_else(|| i.user_id.clone(), |u| u.display_name.clone()),
+    either(
+        app,
+        async |c: &Call| {
+            let found = dash::together::session(&c.http, c.gql(), &c.channel_id).await?;
+            let Some((session, invited)) = found else {
+                return Ok(Together::default());
+            };
+            let invites = invited
+                .into_iter()
+                .map(|i| InviteRow {
                     user_id: i.user_id,
+                    login: i.login,
+                    name: i.name,
                     status: i.status,
-                }
+                })
+                .collect();
+            Ok(Together {
+                session: Some(session),
+                invites,
             })
-            .collect();
-        Ok(Together { session, invites })
-    })
+        },
+        async |c: &Call| {
+            let session = gueststar::session(&c.http, c.helix(), &c.channel_id, &c.channel_id).await?;
+            let invites = match &session {
+                Some(s) => gueststar::invites(&c.http, c.helix(), c.in_session(&s.id)).await?,
+                None => Vec::new(),
+            };
+            // Names are a nicety: without them the id shows.
+            let ids: Vec<&str> = invites.iter().map(|i| i.user_id.as_str()).collect();
+            let users = if ids.is_empty() {
+                Vec::new()
+            } else {
+                helix::users_by_id(&c.http, c.helix(), &ids)
+                    .await
+                    .unwrap_or_default()
+            };
+            let invites = invites
+                .into_iter()
+                .map(|i| {
+                    let user = users.iter().find(|u| u.id == i.user_id);
+                    InviteRow {
+                        login: user.map(|u| u.login.clone()).unwrap_or_default(),
+                        name: user.map_or_else(|| i.user_id.clone(), |u| u.display_name.clone()),
+                        user_id: i.user_id,
+                        status: i.status,
+                    }
+                })
+                .collect();
+            Ok(Together { session, invites })
+        },
+    )
     .await
 }
 
 pub async fn together_start(app: &AppHandle) -> Result<(), String> {
-    with_helix(app, |http, c| async move {
-        gueststar::create_session(&http, c.auth(), &c.channel_id).await
-    })
-    .await?;
-    Ok(())
+    either(
+        app,
+        async |c: &Call| dash::together::start(&c.http, c.gql(), &c.channel_id).await,
+        async |c: &Call| {
+            gueststar::create_session(&c.http, c.helix(), &c.channel_id)
+                .await
+                .map(|_| ())
+        },
+    )
+    .await
 }
 
 pub async fn together_end(app: &AppHandle, session: String) -> Result<(), String> {
-    with_helix(app, |http, c| async move {
-        gueststar::end_session(&http, c.auth(), &c.channel_id, &session).await
-    })
+    either(
+        app,
+        async |c: &Call| dash::together::end(&c.http, c.gql(), &session).await,
+        async |c: &Call| gueststar::end_session(&c.http, c.helix(), &c.channel_id, &session).await,
+    )
     .await
 }
 
 /// Invites a channel by name to the session.
 pub async fn together_invite(app: &AppHandle, session: String, login: String) -> Result<(), String> {
     let guest = user_id(app, &login).await?;
-    with_helix(app, |http, c| async move {
-        gueststar::send_invite(&http, c.auth(), c.in_session(&session), &guest).await
-    })
+    either(
+        app,
+        async |c: &Call| dash::together::invite(&c.http, c.gql(), &session, &guest).await,
+        async |c: &Call| gueststar::send_invite(&c.http, c.helix(), c.in_session(&session), &guest).await,
+    )
     .await
 }
 
 pub async fn together_uninvite(app: &AppHandle, session: String, guest: String) -> Result<(), String> {
-    with_helix(app, |http, c| async move {
-        gueststar::delete_invite(&http, c.auth(), c.in_session(&session), &guest).await
-    })
+    either(
+        app,
+        async |c: &Call| dash::together::uninvite(&c.http, c.gql(), &session, &guest).await,
+        async |c: &Call| gueststar::delete_invite(&c.http, c.helix(), c.in_session(&session), &guest).await,
+    )
     .await
 }
 
@@ -370,13 +433,23 @@ pub async fn together_slot(
     slot: String,
     clear: bool,
 ) -> Result<(), String> {
-    with_helix(app, |http, c| async move {
-        if clear {
-            gueststar::delete_slot(&http, c.auth(), c.in_session(&session), &guest, &slot, true).await
-        } else {
-            gueststar::assign_slot(&http, c.auth(), c.in_session(&session), &guest, &slot).await
-        }
-    })
+    either(
+        app,
+        async |c: &Call| {
+            if clear {
+                dash::together::unassign(&c.http, c.gql(), &session, &guest, &slot).await
+            } else {
+                dash::together::assign(&c.http, c.gql(), &session, &guest, &slot).await
+            }
+        },
+        async |c: &Call| {
+            if clear {
+                gueststar::delete_slot(&c.http, c.helix(), c.in_session(&session), &guest, &slot, true).await
+            } else {
+                gueststar::assign_slot(&c.http, c.helix(), c.in_session(&session), &guest, &slot).await
+            }
+        },
+    )
     .await
 }
 

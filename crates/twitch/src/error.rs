@@ -12,6 +12,9 @@ pub enum Error {
     Api { status: u16, message: String },
     #[error("unexpected answer from Twitch")]
     Decode(#[source] serde_json::Error),
+    /// GQL ran the mutation and said no: the code from its payload's `error`.
+    #[error("Twitch said no: {0}")]
+    Refused(String),
 }
 
 impl Error {
@@ -41,6 +44,20 @@ impl Error {
         }
     }
 
+    /// GQL turned the query itself down because a field, type or argument changed on
+    /// Twitch's side. Nothing ran, so another API can try.
+    pub fn is_schema_error(&self) -> bool {
+        const SIGNS: [&str; 6] = [
+            "Cannot query field",
+            "Unknown type",
+            "Unknown argument",
+            "is not defined by type",
+            "of required type",
+            "PersistedQueryNotFound",
+        ];
+        matches!(self, Error::Api { status: 200, message } if SIGNS.iter().any(|s| message.contains(s)))
+    }
+
     /// The `message` Twitch sent, if this is an API error.
     pub fn api_message(&self) -> Option<&str> {
         match self {
@@ -67,6 +84,15 @@ impl Error {
 #[cfg(test)]
 mod tests {
     use super::Error;
+
+    #[test]
+    fn schema_errors_are_told_apart() {
+        let e = |m: &str| Error::Api { status: 200, message: m.into() };
+        assert!(e(r#"Cannot query field "startAd" on type "Mutation"."#).is_schema_error());
+        assert!(e(r#"Field "StartAdInput.channelID" of required type "ID!" was not provided."#).is_schema_error());
+        assert!(!e("service timeout").is_schema_error());
+        assert!(!Error::Refused("FORBIDDEN".into()).is_schema_error());
+    }
 
     #[test]
     fn api_errors_use_the_message_field() {

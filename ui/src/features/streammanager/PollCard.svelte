@@ -1,5 +1,6 @@
 <!-- 1.35 Start a poll and watch it run: live results, end it early or hide it. Results
-     come from the chat's vote watcher (GQL, then Hermes); starting and ending are Helix. -->
+     come from the chat's vote watcher (GQL, then Hermes); starting and ending
+     go GQL first, Helix otherwise (D30). -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import Checkbox from '../../components/Checkbox.svelte';

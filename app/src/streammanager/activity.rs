@@ -1,6 +1,8 @@
 //! 1.35 The stream manager's activity feed: follows, subs, gifts, cheers, raids and
-//! redemptions on the broadcaster's own channel, from its own EventSub session (D26). The
-//! UI filters by kind (`streammanager` settings). Works whether or not the chat is open.
+//! redemptions on the broadcaster's own channel. With a GQL sign-in it comes from Hermes,
+//! like Twitch's dashboard (`gql_feed`, D30); otherwise from its own EventSub session
+//! (D26). The UI filters by kind (`streammanager` settings). Works whether or not the
+//! chat is open.
 
 use cyex_core::number::grouped;
 use cyex_eventsub::events::{Activity, Who, parse_activity};
@@ -20,7 +22,7 @@ use crate::auth;
 #[ts(export, rename = "SmActivity")]
 pub struct Item {
     pub id: String,
-    /// `follow`, `sub`, `gift`, `cheer`, `raid` or `redemption`; the filter keys.
+    /// `follow`, `sub`, `gift`, `cheer`, `raid`, `redemption` or `streak`; the filter keys.
     pub kind: String,
     pub text: String,
     /// Login of who did it, for the usercard; `None` when anonymous.
@@ -30,8 +32,22 @@ pub struct Item {
     pub ts: i64,
 }
 
-/// Starts the session; its events land in the feed. Dropping the handle ends it.
-pub fn start(app: &AppHandle) -> Session {
+/// Starts the feed for `account`'s channel. With a GQL sign-in it follows Hermes topics;
+/// otherwise it opens an EventSub session, whose handle comes back (dropping it ends it).
+pub fn start(app: &AppHandle, account: &str) -> Option<Session> {
+    if auth::gql_token(app, account).is_some() {
+        super::gql_feed::start(app, account);
+        return None;
+    }
+    Some(start_eventsub(app))
+}
+
+/// Ends the Hermes feed.
+pub fn stop_gql(app: &AppHandle, account: &str) {
+    super::gql_feed::stop(app, account);
+}
+
+fn start_eventsub(app: &AppHandle) -> Session {
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     let (session, task) = session::start(tx);
     tauri::async_runtime::spawn(task);
@@ -62,21 +78,19 @@ fn handle(app: &AppHandle, out: Out) {
                 live.session_id = None;
             }
         }
-        Out::Notification { kind, event, .. } => {
-            if let Some(a) = parse_activity(&kind, &event) {
-                let (kind, text, user) = describe(&a);
-                push_activity(
-                    app,
-                    Item {
-                        id: cyex_chat::build::local_id(),
-                        kind: kind.into(),
-                        text,
-                        user,
-                        ts: crate::chat::now_ms(),
-                    },
-                );
+        Out::Notification { kind, event, .. } => match parse_activity(&kind, &event) {
+            // Shared with the mod feed, which may hold the follow subscription (D30).
+            Some(Activity::Follow { user, .. }) => {
+                let channel = lock(&app.state::<State>().live)
+                    .as_ref()
+                    .map(|l| l.channel_id.clone());
+                if let Some(channel) = channel {
+                    super::follows::seen(app, &channel, &user);
+                }
             }
-        }
+            Some(a) => push(app, &a),
+            None => {}
+        },
         Out::Revoked { kind, .. } => eprintln!("stream manager: lost {kind}"),
     }
 }
@@ -104,6 +118,21 @@ fn subscribe(app: &AppHandle, account: String, channel_id: String, session_id: S
     });
 }
 
+/// Adds a line for `a` to the feed.
+pub(crate) fn push(app: &AppHandle, a: &Activity) {
+    let (kind, text, user) = describe(a);
+    push_activity(
+        app,
+        Item {
+            id: cyex_chat::build::local_id(),
+            kind: kind.into(),
+            text,
+            user,
+            ts: crate::chat::now_ms(),
+        },
+    );
+}
+
 fn name(w: &Who) -> String {
     if w.name.is_empty() {
         w.login.clone()
@@ -122,7 +151,7 @@ fn tier(t: &str) -> &'static str {
 }
 
 /// Appends `: text` when there's a message, in place of the line's closing period.
-fn with_text(line: String, text: &str) -> String {
+pub(crate) fn with_text(line: String, text: &str) -> String {
     let text = text.trim();
     if text.is_empty() {
         line
