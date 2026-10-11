@@ -13,15 +13,15 @@
 
 ## What's in it
 
-- **Tabs and tiles:** any number of streams and chats side by side, groups, pop-out windows and saved layouts.
-- **Player:** live, VODs and clips, with ad blocking and resuming VODs where you left off.
-- **Chat:** 7TV, BTTV and FFZ emotes, highlights, filters, ignores, search, custom commands, recordings and replies.
-- **Browsing:** home and discover, followed channels, and a usercard for every chatter.
+- **Tabs and tiles:** any number of streams and chats side by side, groups, pop-out windows and saved layouts. Drag a chat to any side of its stream. Layouts rearrange themselves in small windows, and a stream you switch away from keeps playing until another live one is on screen.
+- **Player:** live, VODs and clips, with ad blocking, resuming VODs where you left off, making clips and media keys.
+- **Chat:** 7TV, BTTV and FFZ emotes, highlights, filters, ignores, search, custom commands, recordings, replies and pins. History from logs.cyex.app when Twitch has none, and `#channel` opens that chat in its own window.
+- **Browsing:** home and discover, followed channels, and a usercard for every chatter with their logs and earned badges.
 - **Channel points:** a miner that watches channels for points and drops, with bets and streaks.
-- **Mod view:** mod tools, the mod log, AutoMod and mass actions.
-- **For streamers:** a stream manager with title, category, stats, ads, polls and OBS text files.
+- **Mod view:** mod tools, the mod log, AutoMod, mass actions and a chat of its own. Mod mode puts delete, timeout and ban in front of every chat line.
+- **For streamers:** a stream manager with title, category, stats, alerts, raids, ads, polls, chat and OBS text files.
 - **Twitch account:** whispers, notifications and subscriptions.
-- **Make it yours:** themes, streamer mode, chat overlays, global hotkeys and Lua plugins.
+- **Make it yours:** themes, fonts, streamer mode, chat overlays, global hotkeys and Lua plugins.
 
 ## Build it
 
@@ -91,6 +91,8 @@ You can watch streams and read chat without an account. To sign in, open **Setti
   3. Paste the client ID into Settings → Accounts.
 
   For `npm run dev`, you can also copy `.env.example` to `.env` and put the client ID there. `.env` is never committed.
+
+Anything your sign-in can't do is greyed out with a flag that says what it needs, **GQL only** or **Twitch sign-in**. Click the flag to sign in.
 
 ## Where your data lives
 
