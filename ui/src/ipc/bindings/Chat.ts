@@ -145,6 +145,10 @@ translateTo: string,
  */
 translateChats: Array<string>, 
 /**
+ * V101-33 Chats (logins) in mod mode: delete, timeout and ban before each line.
+ */
+modMode: Array<string>, 
+/**
  * C19 Hold chat back this long to match the stream, in tenths of a second. 0 is off.
  */
 delayTenths: number, 

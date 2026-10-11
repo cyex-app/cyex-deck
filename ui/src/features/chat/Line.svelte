@@ -5,7 +5,8 @@
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
-  import { formatNumber, formatTime } from '../../lib/format';
+  import { formatDuration, formatNumber, formatTime } from '../../lib/format';
+  import { modButtonsFor, type LineMod } from '../modview/lineMod';
   import { settings } from '../../lib/settings.svelte';
   import { streamer } from '../../lib/streamer.svelte';
   import { looks } from '../emotes/looks.svelte';
@@ -24,9 +25,11 @@
     inWhispers?: boolean;
     /** V101-01 The tinted one of alternating lines. */
     stripe?: boolean;
+    /** 1.57 Set only where this account moderates the chat. */
+    mod?: LineMod | null;
   }
 
-  let { m, channel, canReply = false, inWhispers = false, stripe = false }: Props = $props();
+  let { m, channel, canReply = false, inWhispers = false, stripe = false, mod = null }: Props = $props();
 
   const c = $derived(settings.v.chat);
   const has = (flag: ChatMessage['flags'][number]) => m.flags.includes(flag);
@@ -47,6 +50,10 @@
   const effect = $derived(c.effects ? effectOf(m) : null);
   /** 1.26 A whisper shown in a chat: who it's with, for the label and a click. */
   const whisperWith = $derived(has('whisper') && !inWhispers ? (m.whisperTo ?? sender?.login ?? null) : null);
+  /** V101-34 Any chat message can be pinned, a mod's or the broadcaster's too. */
+  const canPin = $derived(!!mod && !!sender && !notice && !deleted && !has('history'));
+  /** V101-33 Mod mode's buttons, for people this account can act on. */
+  const modButtons = $derived(!notice && !deleted && modButtonsFor(mod, sender, channel));
   /** C30 The first link, for a card under the message. */
   const firstLink = $derived(
     c.linkCards && c.linkPreviews && !streamer.hides('hideLinkPreviews')
@@ -99,6 +106,17 @@
   {/if}
   {#if sender && name && (!notice || m.body.length)}
     <div class="msg">
+      {#if modButtons && mod}
+        <span class="mods" data-login={sender.login}>
+          <button class="mb" aria-label="Delete" data-mod="delete" data-tip="Delete"><Icon name="trash" size={13} /></button>
+          {#if mod.timeout}
+            <button class="mb" aria-label="Time out" data-mod="timeout" data-tip="Time out {formatDuration(mod.timeout)}"
+              ><Icon name="clock" size={13} /></button
+            >
+          {/if}
+          <button class="mb ban" aria-label="Ban" data-mod="ban" data-tip="Ban"><Icon name="gavel" size={13} /></button>
+        </span>
+      {/if}
       {#if time}<span class="ts">{time}</span>{/if}
       {#if client}<span class="client" data-tip={client.label}><Icon name={client.icon} size={12} /></span>{/if}
       {#if m.source}<Badges badges={m.source.badges} {channel} />{/if}
@@ -126,6 +144,11 @@
   {#if canReply && sender && !notice}
     <button class="reply" aria-label="Reply" data-reply={m.id} data-tip="Reply">
       <Icon name="reply" size={14} />
+    </button>
+  {/if}
+  {#if canPin}
+    <button class="reply pin" class:alone={!canReply} aria-label="Pin" data-pin={m.id} data-tip="Pin">
+      <Icon name="pin" size={14} />
     </button>
   {/if}
 </div>
@@ -376,5 +399,37 @@
   }
   .reply:hover {
     color: var(--text);
+  }
+  /* V101-34 Left of Reply, or in its place. */
+  .pin {
+    right: 34px;
+  }
+  .pin.alone {
+    right: 6px;
+  }
+  /* V101-33 Mod mode's buttons, in front of the line. */
+  .mods {
+    display: inline-flex;
+    gap: 1px;
+    margin-right: 5px;
+    vertical-align: -3px;
+  }
+  .mb {
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: var(--radius);
+    color: var(--dim);
+  }
+  .mb:hover {
+    background: var(--row-hover);
+    color: var(--text);
+  }
+  .mb.ban:hover {
+    color: var(--red);
   }
 </style>

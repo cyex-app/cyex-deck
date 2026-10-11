@@ -318,3 +318,31 @@ async fn stream_manager_topics() {
         }
     }
 }
+
+/// V101-05: the usercard's mod history (lists, ban status) on the account's own channel,
+/// and a profile banner. Reads only.
+#[tokio::test]
+#[ignore = "network, signed in"]
+async fn usercard_mod_history() {
+    let http = Http::new().unwrap();
+    let (token, client_id) = gql_sign_in();
+    let auth = Auth {
+        client_id: &client_id,
+        token: Some(&token),
+    };
+    let me = gql::profile::profile(&http, auth).await.unwrap();
+    for target in [me.id.as_str(), "12826"] {
+        let h = gql::modlogs::history(&http, auth, &me.id, target).await.unwrap();
+        println!(
+            "{target}: msgs {} bans {} timeouts {} warns {} actions {} ban {:?}",
+            h.message_count,
+            h.bans,
+            h.timeouts,
+            h.warnings,
+            h.actions.len(),
+            h.ban
+        );
+    }
+    let p = gql::profile(&http, Some("twitch"), None).await.unwrap().unwrap();
+    println!("banner: {}", p.banner.is_some());
+}

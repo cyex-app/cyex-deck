@@ -54,8 +54,14 @@ pub fn page_url(channel: &str, user: &str) -> String {
 
 pub async fn name_history(http: &Http, user_id: &str) -> Result<Vec<NameChange>> {
     let raw: Vec<RawName> = json(http.0.get(format!("{LOGS}/namehistory/{user_id}"))).await?;
+    Ok(names(raw))
+}
+
+/// Newest first. The service sometimes lists a name that's empty; those are left out.
+fn names(raw: Vec<RawName>) -> Vec<NameChange> {
     let mut out: Vec<NameChange> = raw
         .into_iter()
+        .filter(|n| !n.user_login.trim().is_empty())
         .map(|n| NameChange {
             login: n.user_login,
             first_seen: n.first_timestamp,
@@ -63,7 +69,7 @@ pub async fn name_history(http: &Http, user_id: &str) -> Result<Vec<NameChange>>
         })
         .collect();
     out.sort_by(|a, b| b.last_seen.cmp(&a.last_seen));
-    Ok(out)
+    out
 }
 
 /// The newest `limit` lines from `offset` on, by channel login and user id. `now` is
@@ -185,6 +191,18 @@ mod tests {
         let never: RawSubAge =
             serde_json::from_str(r#"{"statusHidden":false,"cumulative":null,"meta":null}"#).unwrap();
         assert_eq!(SubStatus::from(never).months, 0);
+    }
+
+    #[test]
+    fn empty_names_are_left_out() {
+        let raw: Vec<RawName> = serde_json::from_str(
+            r#"[{"user_login":"a","first_timestamp":"2024-01-01","last_timestamp":"2026-01-01"},
+                {"user_login":"","first_timestamp":"2026-08-31","last_timestamp":"2026-09-05"},
+                {"user_login":"b","first_timestamp":"2020-01-01","last_timestamp":"2023-01-01"}]"#,
+        )
+        .unwrap();
+        let n = names(raw);
+        assert_eq!(n.iter().map(|x| x.login.as_str()).collect::<Vec<_>>(), ["a", "b"]);
     }
 
     #[test]

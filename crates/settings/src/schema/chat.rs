@@ -97,6 +97,8 @@ pub struct Chat {
     pub translate_to: String,
     /// C17 Chats (logins) whose messages are translated as they arrive.
     pub translate_chats: Vec<String>,
+    /// V101-33 Chats (logins) in mod mode: delete, timeout and ban before each line.
+    pub mod_mode: Vec<String>,
     /// C19 Hold chat back this long to match the stream, in tenths of a second. 0 is off.
     pub delay_tenths: u16,
     /// C18 Spell check in the message box. Setting, off.
@@ -144,6 +146,7 @@ impl Default for Chat {
             link_cards: false,
             translate_to: String::new(),
             translate_chats: Vec::new(),
+            mod_mode: Vec::new(),
             delay_tenths: 0,
             spell_check: false,
             effects: true,
@@ -178,9 +181,8 @@ impl Schema for Chat {
         let lang = self.translate_to.trim();
         let valid = lang.len() <= MAX_LANGUAGE_CHARS && lang.chars().all(|c| c.is_ascii_alphabetic() || c == '-');
         self.translate_to = if valid { lang.to_owned() } else { String::new() };
-        self.translate_chats.retain(|c| !c.is_empty() && c.len() <= 25);
-        self.translate_chats.sort_unstable();
-        self.translate_chats.dedup();
+        logins(&mut self.translate_chats);
+        logins(&mut self.mod_mode);
         self.users.retain(|id, u| {
             u.nickname = u.nickname.trim().chars().take(MAX_NICKNAME_CHARS).collect();
             u.note = u.note.trim().chars().take(MAX_NOTE_CHARS).collect();
@@ -191,6 +193,13 @@ impl Schema for Chat {
         o.scale = o.scale.clamp(*OVERLAY_SCALES.start(), *OVERLAY_SCALES.end());
         o.fade_after = o.fade_after.min(MAX_OVERLAY_FADE);
     }
+}
+
+/// A list of channel logins: sorted, each once, no empty or overlong ones.
+fn logins(list: &mut Vec<String>) {
+    list.retain(|c| !c.is_empty() && c.len() <= 25);
+    list.sort_unstable();
+    list.dedup();
 }
 
 /// U7 Percent of the chat's text size in an overlay.
@@ -406,5 +415,16 @@ mod tests {
         let old: Chat = serde_json::from_str(r#"{"history":false}"#).unwrap();
         assert!(!old.history);
         assert_eq!(old.scrollback, 1000);
+    }
+
+    #[test]
+    fn mod_mode_keeps_each_chat_once() {
+        let mut c = Chat {
+            mod_mode: vec!["b".into(), String::new(), "a".into(), "b".into(), "x".repeat(26)],
+            ..Chat::default()
+        };
+        c.sanitize();
+        assert_eq!(c.mod_mode, ["a", "b"]);
+        assert!(Chat::default().mod_mode.is_empty());
     }
 }

@@ -1,13 +1,21 @@
 <!-- 1.9 The channel's pinned message, above the chat. Can be folded to one line or hidden
-     until the pin changes. -->
+     until the pin changes; mods can take it down (V101-34). -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import type { Pinned } from '../../ipc/bindings/Pinned';
+  import { tooltip } from '../../components/tooltip.svelte';
   import { settings } from '../../lib/settings.svelte';
   import Body from './Body.svelte';
   import { shownName } from './names';
 
-  let { pin, channel }: { pin: Pinned; channel: string } = $props();
+  interface Props {
+    pin: Pinned;
+    channel: string;
+    /** Only for mods (1.57). */
+    onunpin?: () => void;
+  }
+
+  let { pin, channel, onunpin }: Props = $props();
 
   let folded = $state(false);
   let hiddenId = $state<string | null>(null);
@@ -30,7 +38,12 @@
       <Body fragments={pin.message.body} {channel} />
       {#if pin.by && !folded}<span class="by">Pinned by {pin.by}</span>{/if}
     </button>
-    <button class="close" aria-label="Hide pinned message" onclick={() => (hiddenId = pin.id)}>
+    {#if onunpin}
+      <button class="close" aria-label="Unpin" use:tooltip={{ label: 'Unpin', hint: 'Takes it down for everyone.' }} onclick={onunpin}>
+        <Icon name="trash" size={13} />
+      </button>
+    {/if}
+    <button class="close" aria-label="Hide pinned message" use:tooltip={'Hide for me'} onclick={() => (hiddenId = pin.id)}>
       <Icon name="x" size={13} />
     </button>
   </div>

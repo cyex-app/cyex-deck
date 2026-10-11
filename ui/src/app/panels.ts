@@ -34,7 +34,7 @@ export const PANELS: Record<string, PanelKind> = {
   settings: { title: 'Settings', width: 820, height: 620, component: SettingsView },
   tab: { title: 'Tab', width: 420, height: 680, component: TabPanel },
   chat: { title: 'Chat', width: 380, height: 680, component: ChatPanel },
-  usercard: { title: 'User', width: 340, height: 480, compact: true, component: UsercardView },
+  usercard: { title: 'User', width: 380, height: 560, compact: true, component: UsercardView },
   recording: { title: 'Recording', width: 400, height: 640, component: RecordingView },
   modview: { title: 'Mod view', width: 920, height: 680, component: ModViewPanel },
   streammanager: { title: 'Stream manager', width: 1000, height: 760, component: StreamManagerView },

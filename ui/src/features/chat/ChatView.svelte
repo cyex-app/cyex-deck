@@ -159,6 +159,7 @@
   const muted = $derived(settings.v.highlights.muted.includes(login));
   // 1.46 The shield shows only when this account moderates here.
   const modRole = $derived(mods.role(account, login));
+  const modMode = $derived(mods.modMode(login));
 
   /** Adds or removes this chat from a list setting. */
   const toggled = (list: string[], on: boolean) => (on ? [...list, login] : list.filter((l) => l !== login));
@@ -266,6 +267,15 @@
       {/each}
     </div>
     {#if modRole}
+      <!-- V101-33 Mod mode: delete, timeout and ban in front of each line, per chat. -->
+      <IconButton
+        icon="sword"
+        label={modMode ? 'Mod mode on' : 'Mod mode'}
+        hint="Delete, timeout and ban buttons in front of each message."
+        size={15}
+        active={modMode}
+        onclick={() => mods.setModMode(login, !modMode)}
+      />
       <IconButton
         icon="shield"
         label="Mod view"
@@ -298,7 +308,13 @@
       {STATUS[room.status]}
     </p>
   {/if}
-  {#if room.pinned}<PinnedBanner pin={room.pinned} channel={login} />{/if}
+  {#if room.pinned}
+    <PinnedBanner
+      pin={room.pinned}
+      channel={login}
+      onunpin={modRole && !room.pinned.paid ? () => void chatIpc.send(room.view, '/unpin').catch((e) => toast.error(String(e))) : undefined}
+    />
+  {/if}
   <VotesBanner channel={login} view={() => room.view} signedIn={room.account !== null} />
   <div class="body">
     <MessageList

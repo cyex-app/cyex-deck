@@ -81,6 +81,6 @@
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    margin: 10px 0;
+    padding: 0 14px 8px;
   }
 </style>

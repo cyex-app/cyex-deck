@@ -167,6 +167,34 @@ pub async fn set_role(http: &Http, auth: Auth<'_>, channel_id: &str, login: &str
     Ok(code(&data, field))
 }
 
+/// V101-34 Pins a chat message for `secs` (30 to 1800), or until the stream ends.
+/// Schema-checked 2026/10/11; the web client and the 7TV extension send `type: MOD`.
+pub async fn pin(http: &Http, auth: Auth<'_>, channel_id: &str, message_id: &str, secs: Option<u32>) -> Result<Option<String>> {
+    const Q: &str = "mutation P($input: PinChatMessageInput!) {
+      pinChatMessage(input: $input) { error { code } }
+    }";
+    let data: Value = query(http, auth, Q, pin_vars(channel_id, message_id, secs)).await?;
+    Ok(code(&data, "pinChatMessage"))
+}
+
+fn pin_vars(channel_id: &str, message_id: &str, secs: Option<u32>) -> Value {
+    let mut input = json!({ "channelID": channel_id, "messageID": message_id, "type": "MOD" });
+    if let Some(s) = secs {
+        input["durationSeconds"] = json!(s.clamp(30, 1800));
+    }
+    json!({ "input": input })
+}
+
+/// V101-34 Takes a pin down. `pin_id` is the pin's own id, not the message's.
+pub async fn unpin(http: &Http, auth: Auth<'_>, pin_id: &str) -> Result<Option<String>> {
+    const Q: &str = "mutation U($input: UnpinChatMessageInput!) {
+      unpinChatMessage(input: $input) { error { code } }
+    }";
+    let vars = json!({ "input": { "id": pin_id, "reason": "UNPIN" } });
+    let data: Value = query(http, auth, Q, vars).await?;
+    Ok(code(&data, "unpinChatMessage"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,6 +207,16 @@ mod tests {
         assert_eq!(v["input"]["expiresIn"], "10m");
         // A permanent ban sends an empty string, as the reference does.
         assert_eq!(ban_vars("1", "x", None, "")["input"]["expiresIn"], "");
+    }
+
+    #[test]
+    fn pin_vars_shape() {
+        let v = pin_vars("1", "m", Some(5));
+        assert_eq!(v["input"]["type"], "MOD");
+        assert_eq!(v["input"]["messageID"], "m");
+        assert_eq!(v["input"]["durationSeconds"], 30);
+        // Until the stream ends: no duration at all.
+        assert!(pin_vars("1", "m", None)["input"].get("durationSeconds").is_none());
     }
 
     #[test]

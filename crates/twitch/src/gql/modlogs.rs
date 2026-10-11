@@ -20,6 +20,35 @@ pub struct ModHistory {
     pub timeouts: u32,
     pub warnings: u32,
     pub comments: Vec<ModComment>,
+    /// V101-05 Their bans, timeouts and warnings here, newest first.
+    pub actions: Vec<ModAction>,
+    /// V101-05 Banned or timed out right now.
+    pub ban: Option<BanStatus>,
+}
+
+/// V101-05 One ban, timeout or warning from the channel's mod logs.
+#[derive(Clone, Debug, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ModAction {
+    pub id: String,
+    /// `BAN`, `TIMEOUT` or `WARN`.
+    pub kind: String,
+    /// RFC 3339.
+    pub at: String,
+    /// Twitch's own wording, joined from its label.
+    pub text: String,
+}
+
+/// V101-05 A ban or timeout in force.
+#[derive(Clone, Debug, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct BanStatus {
+    /// RFC 3339; `None` for a ban.
+    pub until: Option<String>,
+    pub by: Option<String>,
+    pub reason: String,
 }
 
 /// M3 A moderator's note on a user.
@@ -36,17 +65,25 @@ pub struct ModComment {
     pub shared: bool,
 }
 
+/// V101-05 The lists as the 7TV extension reads them (schema-checked 2026/10/11).
 const VIEWER_CARD: &str = "query Card($channelID: ID!, $targetID: ID!) {
+  ban: chatRoomBanStatus(channelID: $channelID, userID: $targetID) {
+    expiresAt isPermanent reason moderator { login displayName } }
   viewerCardModLogs(channelID: $channelID, targetID: $targetID) {
     messages(first: 1) { ... on ViewerCardModLogsMessagesConnection { count } }
-    bans: targetedActions(first: 1, type: BAN) { ... on ModLogsTargetedActionsConnection { count } }
-    timeouts: targetedActions(first: 1, type: TIMEOUT) { ... on ModLogsTargetedActionsConnection { count } }
-    warns: targetedActions(first: 1, type: WARN) { ... on ModLogsTargetedActionsConnection { count } }
+    bans: targetedActions(first: 99, type: BAN) { ...Actions }
+    timeouts: targetedActions(first: 99, type: TIMEOUT) { ...Actions }
+    warns: targetedActions(first: 99, type: WARN) { ...Actions }
     comments(first: 100) { ... on ModLogsCommentConnection {
       edges { node { id text timestamp author { login displayName } } } } }
     sharedComments(first: 50) { ... on SharedModLogsCommentConnection {
       edges { node { id text timestamp author { login displayName } } } } }
   }
+}
+fragment Actions on ModLogsTargetedActionsResult {
+  ... on ModLogsTargetedActionsConnection { count edges { node { id timestamp type
+    localizedLabel { fallbackString localizedStringFragments { token {
+      ... on ModActionsLocalizedTextToken { text } ... on User { login displayName } } } } } } }
 }";
 
 fn count_of(v: &Value, field: &str) -> u32 {
@@ -83,6 +120,53 @@ fn comments_of(v: &Value, field: &str, shared: bool) -> Vec<ModComment> {
         .unwrap_or_default()
 }
 
+fn actions_of(v: &Value, field: &str) -> Vec<ModAction> {
+    let edges = v.get(field).and_then(|c| c.get("edges")).and_then(Value::as_array);
+    edges
+        .into_iter()
+        .flatten()
+        .filter_map(|e| {
+            let n = e.get("node")?;
+            let label = n.get("localizedLabel");
+            let joined: String = label
+                .and_then(|l| l.get("localizedStringFragments"))
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(|f| {
+                    let t = f.get("token")?;
+                    t.get("text").or_else(|| t.get("displayName")).or_else(|| t.get("login"))?.as_str()
+                })
+                .collect();
+            let text = if joined.trim().is_empty() {
+                label.and_then(|l| l.get("fallbackString")).and_then(Value::as_str).unwrap_or_default().to_owned()
+            } else {
+                joined
+            };
+            Some(ModAction {
+                id: n.get("id")?.as_str()?.to_owned(),
+                kind: n.get("type").and_then(Value::as_str).unwrap_or_default().to_owned(),
+                at: n.get("timestamp").and_then(Value::as_str).unwrap_or_default().to_owned(),
+                text: text.trim().to_owned(),
+            })
+        })
+        .collect()
+}
+
+fn ban_of(data: &Value) -> Option<BanStatus> {
+    let b = data.get("ban").filter(|b| b.is_object())?;
+    let permanent = b.get("isPermanent").and_then(Value::as_bool).unwrap_or(false);
+    Some(BanStatus {
+        until: if permanent { None } else { b.get("expiresAt").and_then(Value::as_str).map(str::to_owned) },
+        by: b
+            .get("moderator")
+            .and_then(|m| m.get("displayName").or_else(|| m.get("login")))
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        reason: b.get("reason").and_then(Value::as_str).unwrap_or_default().to_owned(),
+    })
+}
+
 /// Needs a token that moderates the channel; errors or empty otherwise.
 pub async fn history(http: &Http, auth: Auth<'_>, channel_id: &str, target_id: &str) -> Result<ModHistory> {
     let vars = json!({ "channelID": channel_id, "targetID": target_id });
@@ -90,12 +174,17 @@ pub async fn history(http: &Http, auth: Auth<'_>, channel_id: &str, target_id: &
     let logs = data.get("viewerCardModLogs").cloned().unwrap_or(Value::Null);
     let mut comments = comments_of(&logs, "comments", false);
     comments.extend(comments_of(&logs, "sharedComments", true));
+    let mut actions: Vec<ModAction> = ["bans", "timeouts", "warns"].iter().flat_map(|f| actions_of(&logs, f)).collect();
+    // RFC 3339 in UTC sorts as text.
+    actions.sort_by(|a, b| b.at.cmp(&a.at));
     Ok(ModHistory {
         message_count: count_of(&logs, "messages"),
         bans: count_of(&logs, "bans"),
         timeouts: count_of(&logs, "timeouts"),
         warnings: count_of(&logs, "warns"),
         comments,
+        actions,
+        ban: ban_of(&data),
     })
 }
 
@@ -276,6 +365,33 @@ mod tests {
         assert_eq!(comments.len(), 2);
         assert_eq!((comments[0].author.as_str(), comments[0].shared), ("Mod1", false));
         assert!(comments[1].shared);
+    }
+
+    #[test]
+    fn actions_read_twitchs_wording() {
+        let logs = json!({ "timeouts": { "count": 1, "edges": [{ "node": { "id": "a1", "timestamp": "2026-01-02T00:00:00Z",
+            "type": "TIMEOUT", "localizedLabel": { "fallbackString": "{0} timed out {1}", "localizedStringFragments": [
+              { "token": { "displayName": "Mod1", "login": "mod1" } },
+              { "token": { "text": " timed out " } },
+              { "token": { "displayName": "U", "login": "u" } },
+              { "token": { "text": " for 10m" } }] } } }] },
+          "bans": { "count": 1, "edges": [{ "node": { "id": "a2", "timestamp": "2026-01-01T00:00:00Z", "type": "BAN",
+            "localizedLabel": { "fallbackString": "Banned", "localizedStringFragments": [] } } }] } });
+        let t = actions_of(&logs, "timeouts");
+        assert_eq!((t[0].kind.as_str(), t[0].text.as_str()), ("TIMEOUT", "Mod1 timed out U for 10m"));
+        assert_eq!(actions_of(&logs, "bans")[0].text, "Banned");
+        assert!(actions_of(&logs, "warns").is_empty());
+    }
+
+    #[test]
+    fn ban_status_reads_timeouts_and_bans() {
+        let t = json!({ "ban": { "expiresAt": "2026-01-01T00:10:00Z", "isPermanent": false, "reason": "",
+            "moderator": { "login": "m", "displayName": "M" } } });
+        let b = ban_of(&t).unwrap();
+        assert_eq!((b.until.as_deref(), b.by.as_deref()), (Some("2026-01-01T00:10:00Z"), Some("M")));
+        let p = json!({ "ban": { "expiresAt": null, "isPermanent": true, "reason": "spam", "moderator": null } });
+        assert!(ban_of(&p).unwrap().until.is_none());
+        assert!(ban_of(&json!({ "ban": null })).is_none());
     }
 
     #[test]

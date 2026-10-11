@@ -9,7 +9,7 @@ const USER_BY_ID: &str =
     "query($id: ID!) { user(id: $id) { id login displayName profileImageURL(width: 70) } }";
 
 const PROFILE: &str = "query($login: String, $id: ID) { user(login: $login, id: $id, lookupType: ALL) { \
-    id login displayName description createdAt profileImageURL(width: 150) chatColor \
+    id login displayName description createdAt profileImageURL(width: 150) bannerImageURL chatColor \
     roles { isAffiliate isPartner isStaff } followers { totalCount } } }";
 
 #[derive(Clone, Debug, Deserialize)]
@@ -45,6 +45,8 @@ pub struct Profile {
     /// RFC 3339.
     pub created_at: String,
     pub avatar: Option<String>,
+    /// V101-05 The profile banner, behind the usercard's header.
+    pub banner: Option<String>,
     pub color: Option<String>,
     pub partner: bool,
     pub affiliate: bool,
@@ -65,6 +67,7 @@ pub async fn profile(http: &Http, login: Option<&str>, id: Option<&str>) -> Resu
             bio: u.description.unwrap_or_default(),
             created_at: u.created_at.unwrap_or_default(),
             avatar: u.profile_image_url,
+            banner: u.banner_image_url.filter(|b| !b.is_empty()),
             color: u.chat_color.filter(|c| !c.is_empty()),
             partner: roles.is_partner.unwrap_or(false),
             affiliate: roles.is_affiliate.unwrap_or(false),
@@ -89,6 +92,8 @@ struct RawProfile {
     created_at: Option<String>,
     #[serde(rename = "profileImageURL")]
     profile_image_url: Option<String>,
+    #[serde(rename = "bannerImageURL", default)]
+    banner_image_url: Option<String>,
     chat_color: Option<String>,
     roles: Option<RawRoles>,
     followers: Option<RawFollowers>,

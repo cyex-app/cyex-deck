@@ -398,7 +398,7 @@ pub fn close_window(app: &AppHandle, window: &str) {
     }
 }
 
-/// A user's last 10 messages in a channel, from whichever open room has the most
+/// A user's messages still loaded in a channel, from whichever open room has the most
 /// (usercard, 1.36).
 pub fn recent_from(app: &AppHandle, channel: &str, user_id: &str) -> Vec<Arc<ChatMessage>> {
     let chat = app.state::<Chat>();
@@ -407,7 +407,8 @@ pub fn recent_from(app: &AppHandle, channel: &str, user_id: &str) -> Vec<Arc<Cha
         .rooms
         .iter()
         .filter(|((_, login), _)| login == channel)
-        .map(|(_, e)| e.room.recent_from(user_id, 10))
+        // V101-05 All of theirs still loaded; the card scrolls.
+        .map(|(_, e)| e.room.recent_from(user_id, usize::MAX))
         .max_by_key(Vec::len)
         .unwrap_or_default()
 }

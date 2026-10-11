@@ -7,4 +7,8 @@ export type Profile = { id: string, login: string, displayName: string, bio: str
 /**
  * RFC 3339.
  */
-createdAt: string, avatar: string | null, color: string | null, partner: boolean, affiliate: boolean, staff: boolean, followers: number | null, };
+createdAt: string, avatar: string | null, 
+/**
+ * V101-05 The profile banner, behind the usercard's header.
+ */
+banner: string | null, color: string | null, partner: boolean, affiliate: boolean, staff: boolean, followers: number | null, };

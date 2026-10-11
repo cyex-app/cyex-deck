@@ -1,21 +1,26 @@
 // Moderation in the UI (09): the role gate (1.57) and the mod menu entries shared by the
-// chat name/message menus and the usercard. Actions run as chat commands, so Helix or GQL
-// is picked in Rust (D25).
+// chat name/message menus, mod mode's buttons and the usercard. Actions run as chat
+// commands, so Helix or GQL is picked in Rust (D25).
 
 import type { MenuEntry } from '../../components/menu.svelte';
+import { formatDuration } from '../../lib/format';
+import { settings } from '../../lib/settings.svelte';
 import { toast } from '../../lib/toast.svelte';
 import { modIpc, type ModRole } from '../../ipc/moderation';
 
-/** Timeout presets for the mod menus and usercard (seconds, label). */
-export const TIMEOUTS: { label: string; secs: number }[] = [
-  { label: '1s', secs: 1 },
-  { label: '30s', secs: 30 },
-  { label: '1m', secs: 60 },
-  { label: '5m', secs: 300 },
-  { label: '10m', secs: 600 },
-  { label: '1h', secs: 3600 },
-  { label: '1d', secs: 86400 },
-  { label: '1w', secs: 604800 },
+/** 2.11 The quick timeout lengths from Settings → Chat, shortest first. */
+export function timeouts(): { label: string; secs: number }[] {
+  return settings.v.chat.timeoutPresets.map((secs) => ({ label: formatDuration(secs), secs }));
+}
+
+/** V101-34 How long a pin stays: Twitch takes 30 s to 30 min, or until the stream ends. */
+export const PIN_LENGTHS: { label: string; secs: number | null }[] = [
+  { label: 'Until the stream ends', secs: null },
+  { label: '30 seconds', secs: 30 },
+  { label: '1 minute', secs: 60 },
+  { label: '5 minutes', secs: 300 },
+  { label: '10 minutes', secs: 600 },
+  { label: '30 minutes', secs: 1800 },
 ];
 
 class Mods {
@@ -49,6 +54,16 @@ class Mods {
     delete this.roles[k];
     this.role(account, channel);
   }
+
+  /** V101-33 Mod mode is on for this chat (remembered per channel). */
+  modMode(channel: string): boolean {
+    return settings.v.chat.modMode.includes(channel);
+  }
+
+  setModMode(channel: string, on: boolean): void {
+    const list = settings.v.chat.modMode.filter((c) => c !== channel);
+    void settings.patch('chat', { modMode: on ? [...list, channel] : list });
+  }
 }
 
 export const mods = new Mods();
@@ -56,18 +71,26 @@ export const mods = new Mods();
 /** Runs a mod line through the chat command path; toasts an error. */
 type Run = (line: string) => void;
 
-/** Mod actions on a user, for the name menu and usercard (1.49). */
+/** Mod actions on a user, for the name menu (1.49). */
 export function userItems(role: ModRole, login: string, run: Run): MenuEntry[] {
   const items: MenuEntry[] = [
     {
       label: 'Timeout',
       icon: 'clock',
-      items: TIMEOUTS.map((t) => ({ label: t.label, run: () => run(`/timeout ${login} ${t.secs}`) })),
+      items: timeouts().map((t) => ({ label: t.label, run: () => run(`/timeout ${login} ${t.secs}`) })),
     },
     { label: 'Ban', icon: 'ban', danger: true, run: () => run(`/ban ${login}`) },
     { label: 'Unban', icon: 'undo', run: () => run(`/unban ${login}`) },
     { label: 'Warn', icon: 'alert', run: () => run(`/warn ${login} `) },
     'separator',
+    ...treatItems(role, login, run),
+  ];
+  return items;
+}
+
+/** Monitor, restrict, and mod/VIP for the broadcaster: the less used user actions. */
+export function treatItems(role: ModRole, login: string, run: Run): MenuEntry[] {
+  const items: MenuEntry[] = [
     { label: 'Monitor', icon: 'eye', run: () => run(`/monitor ${login}`) },
     { label: 'Restrict', icon: 'eyeOff', run: () => run(`/restrict ${login}`) },
   ];
@@ -81,11 +104,19 @@ export function userItems(role: ModRole, login: string, run: Run): MenuEntry[] {
   return items;
 }
 
+/** V101-34 The pin lengths, for the message menu and the pin button. */
+export function pinItems(msgId: string, run: Run): MenuEntry[] {
+  return PIN_LENGTHS.map((p) => ({
+    label: p.label,
+    run: () => run(p.secs === null ? `/pin ${msgId}` : `/pin ${msgId} ${p.secs}s`),
+  }));
+}
+
 /** Mod actions on a message: delete, pin (1.49, 1.9). */
 export function messageItems(msgId: string, run: Run): MenuEntry[] {
   return [
     { label: 'Delete message', icon: 'trash', danger: true, run: () => run(`/delete ${msgId}`) },
-    { label: 'Pin message', icon: 'pin', run: () => run(`/pin ${msgId}`) },
+    { label: 'Pin message', icon: 'pin', items: pinItems(msgId, run) },
   ];
 }
 

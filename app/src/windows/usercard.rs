@@ -1,5 +1,6 @@
 //! Usercard windows (1.36): small pop-ups next to the mouse. Unpinned ones close when
-//! they lose focus; pinned ones stay on top until closed. They share one saved size.
+//! they lose focus; pinned ones stay on top until closed. They share one saved width; the
+//! height is fixed and the messages scroll inside (V101-05).
 
 use std::collections::HashSet;
 use std::sync::{Mutex, OnceLock};
@@ -14,8 +15,8 @@ use crate::icons;
 use crate::settings::Settings;
 
 const KIND: &str = "usercard";
-const SIZE: (f64, f64) = (340.0, 480.0);
-const MIN_SIZE: (f64, f64) = (280.0, 260.0);
+const SIZE: (f64, f64) = (380.0, 560.0);
+const WIDTHS: std::ops::RangeInclusive<f64> = 340.0..=640.0;
 /// Focus can bounce between the window and its webview; only a lasting loss counts.
 const BLUR_GRACE: Duration = Duration::from_millis(250);
 
@@ -71,13 +72,15 @@ pub fn open(app: &AppHandle, channel: &str, login: &str) -> tauri::Result<()> {
         .panels
         .remove(KIND)
         .and_then(|p| p.geometry)
-        .filter(|g| g.width >= MIN_SIZE.0 as u32 && g.height >= MIN_SIZE.1 as u32);
-    let (w, h) = saved.map_or(SIZE, |g| (f64::from(g.width), f64::from(g.height)));
+        .map(|g| f64::from(g.width))
+        .filter(|w| WIDTHS.contains(w));
+    let (w, h) = (saved.unwrap_or(SIZE.0), SIZE.1);
     let url = WebviewUrl::App(format!("index.html#/panel/{route}").into());
     let window = super::builder(app, &label, url)
         .title(login)
         .inner_size(w, h)
-        .min_inner_size(MIN_SIZE.0, MIN_SIZE.1)
+        .min_inner_size(*WIDTHS.start(), h)
+        .max_inner_size(*WIDTHS.end(), h)
         .skip_taskbar(true)
         .center()
         .build()?;

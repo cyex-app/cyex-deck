@@ -63,13 +63,8 @@ pub async fn command(app: &AppHandle, account: &str, login: &str, cmd: ModComman
             hm::set_shield(&http, auth, room, on).await.map_err(helix_err)?;
             Ok(Some(if on { "Shield mode on.".into() } else { "Shield mode off.".into() }))
         }
-        C::Pin { msg_id, secs } => {
-            let (auth, room) = helix_for(&actor, "pin messages")?;
-            let http = http(app);
-            hm::pin(&http, auth, room, &msg_id, secs).await.map_err(helix_err)?;
-            Ok(Some("Pinned.".into()))
-        }
-        C::Unpin => Err("Unpin from the pinned message itself.".into()),
+        C::Pin { msg_id, secs } => pin(app, &actor, &msg_id, secs).await.map(|()| Some("Pinned.".into())),
+        C::Unpin => unpin(app, &actor).await.map(|()| Some("Unpinned.".into())),
         C::Raid { login: who } => {
             let to = user_id(app, &who).await?;
             let (auth, _) = helix_for(&actor, "raid")?;
@@ -153,6 +148,33 @@ async fn warn(app: &AppHandle, actor: &Actor, who: &str, reason: &str) -> Result
     }
     if let Some(g) = actor.gql() {
         return refuse(gql::moderation::warn(&http(app), g, &actor.channel_id, who, reason, &[]).await, who);
+    }
+    Err(no_token())
+}
+
+/// V101-34 Helix pins when the account has the scope, GQL otherwise (both GA since 2026/05).
+async fn pin(app: &AppHandle, actor: &Actor, msg_id: &str, secs: Option<u32>) -> Result<(), String> {
+    if let Some(h) = actor.helix_scoped(app, "moderator:manage:chat_messages") {
+        return hm::pin(&http(app), h, actor.room(), msg_id, secs).await.map_err(helix_err);
+    }
+    if let Some(g) = actor.gql() {
+        return refuse(gql::moderation::pin(&http(app), g, &actor.channel_id, msg_id, secs).await, "that message");
+    }
+    Err(no_token())
+}
+
+/// V101-34 Takes down the channel's current pin. Helix wants the message's id, GQL the pin's.
+async fn unpin(app: &AppHandle, actor: &Actor) -> Result<(), String> {
+    let http = http(app);
+    let pin = gql::pinned(&http, &actor.channel_id)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or("Nothing is pinned.")?;
+    if let Some(h) = actor.helix_scoped(app, "moderator:manage:chat_messages") {
+        return hm::unpin(&http, h, actor.room(), &pin.message_id).await.map_err(helix_err);
+    }
+    if let Some(g) = actor.gql() {
+        return refuse(gql::moderation::unpin(&http, g, &pin.id).await, "that pin");
     }
     Err(no_token())
 }

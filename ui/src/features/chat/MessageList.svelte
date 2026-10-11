@@ -22,7 +22,8 @@
   import EmoteCard from '../emotes/EmoteCard.svelte';
   import type { CardTarget } from '../emotes/emotes';
   import { hidden } from '../emotes/hidden.svelte';
-  import { messageItems, mods, userItems } from '../modview/moderation.svelte';
+  import type { LineMod } from '../modview/lineMod';
+  import { messageItems, mods, pinItems, userItems } from '../modview/moderation.svelte';
   import { plugins } from '../plugins/plugins.svelte';
   import Line from './Line.svelte';
   import { runEntry, toItems, userMenus } from './menus.svelte';
@@ -49,6 +50,18 @@
   let { room, readKey, canReply, onreply, onlink, onmention, onaction }: Props = $props();
 
   const c = $derived(settings.v.chat);
+  /** 1.57 Only where this account moderates: the pin button and mod mode (V101-33/34). */
+  const role = $derived(mods.role(room.account, room.login));
+  const lineMod = $derived<LineMod | null>(
+    role
+      ? {
+          me: room.account,
+          broadcaster: role === 'broadcaster',
+          inline: mods.modMode(room.login),
+          timeout: c.timeoutPresets[0] ?? null,
+        }
+      : null,
+  );
   /** 1.52 Picture widths, Chatterino's sizes. */
   const THUMBS = { off: 0, small: 100, medium: 200, large: 300 } as const;
 
@@ -283,6 +296,8 @@
     const ctx = context(m, login);
     const role = mods.role(room.account, room.login);
     const canMod = role && m.sender && !m.notice && login !== room.login;
+    // V101-34 The broadcaster's messages can be pinned too.
+    const canPin = role && m.sender && !m.notice && !canMod;
     openMenu(e, [
       ...(canReply && m.sender && !m.notice ? [{ label: 'Reply', icon: 'reply' as const, run: () => onreply(m.id) }] : []),
       { label: 'Copy message', icon: 'copy', run: () => void navigator.clipboard.writeText(plainText(m.body)) },
@@ -297,6 +312,7 @@
           ]
         : []),
       ...(canMod ? ['separator' as const, ...messageItems(m.id, command), ...userItems(role, login, command)] : []),
+      ...(canPin ? ['separator' as const, { label: 'Pin message', icon: 'pin' as const, items: pinItems(m.id, command) }] : []),
       ...(own.length ? ['separator' as const, ...toItems(own, (cmd) => runEntry(room.view, cmd, ctx, onaction))] : []),
       // S5 Entries plugins added.
       ...(plugins.menus.length
@@ -349,11 +365,17 @@
 
   function onclick(e: MouseEvent) {
     const el = (e.target as HTMLElement).closest<HTMLElement>(
-      '[data-user],[data-link],[data-reply],[data-jump],[data-emote],[data-whisper]',
+      '[data-user],[data-link],[data-reply],[data-jump],[data-emote],[data-whisper],[data-mod],[data-pin]',
     );
     if (!el) return;
     const d = el.dataset;
-    if (d.emote) {
+    if (d.mod) {
+      modClick(el, d.mod);
+    } else if (d.pin) {
+      hideTip();
+      menuHere = true;
+      showMenu(el, pinItems(d.pin, command), 'end');
+    } else if (d.emote) {
       hideTip();
       card = emoteAt(el);
     } else if (d.link) {
@@ -371,6 +393,16 @@
       target?.scrollIntoView({ block: 'center' });
       target?.animate([{ background: 'var(--accent-wash)' }, { background: 'transparent' }], { duration: 1200 });
     }
+  }
+
+  /** V101-33 Mod mode's buttons: delete the line, time out or ban its sender. */
+  function modClick(el: HTMLElement, action: string) {
+    const id = el.closest<HTMLElement>('[data-id]')?.dataset.id;
+    const login = el.closest<HTMLElement>('[data-login]')?.dataset.login;
+    if (!id || !login) return;
+    if (action === 'delete') command(`/delete ${id}`);
+    else if (action === 'timeout' && lineMod?.timeout) command(`/timeout ${login} ${lineMod.timeout}`);
+    else if (action === 'ban') command(`/ban ${login}`);
   }
 
   function onmouseover(e: MouseEvent) {
@@ -431,7 +463,7 @@
   >
     {#each shown as m (m.id)}
       {#if dayStarts.has(m.id)}<p class="day" role="separator">{formatDate(new Date(m.ts))}</p>{/if}
-      <Line {m} channel={room.login} {canReply} stripe={stripe?.get(m.id) ?? false} />
+      <Line {m} channel={room.login} {canReply} stripe={stripe?.get(m.id) ?? false} mod={lineMod} />
       {#if m.id === lastRead && m.id !== shown.at(-1)?.id}<hr class="last-read" />{/if}
     {/each}
   </div>
