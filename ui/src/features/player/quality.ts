@@ -31,6 +31,19 @@ export function pickLevel(levels: LevelLike[], choice: Quality, playerPx: number
   return (best.find(({ l }) => l.height <= max) ?? best[best.length - 1]).i;
 }
 
+/** V103-03 The lowest video level, -1 when there's none. */
+export function lowestLevel(levels: LevelLike[]): number {
+  const video = levels.map((l, i) => ({ l, i })).filter(({ l }) => l.height > 0);
+  video.sort((a, b) => a.l.height - b.l.height || a.l.bitrate - b.l.bitrate);
+  return video[0]?.i ?? -1;
+}
+
+/** The level to play: the lowest after a minute out of sight (`away`, V103-03), else what
+ *  `choice` picks for the player's size. A fixed choice drops too and comes back as it was. */
+export function levelFor(levels: LevelLike[], choice: Quality, playerPx: number, away: boolean): number {
+  return away ? lowestLevel(levels) : pickLevel(levels, choice, playerPx);
+}
+
 /** "1080p60", "720p", like Twitch names them. */
 export function levelName(l: LevelLike): string {
   const fps = Math.round(l.frameRate ?? 0);
