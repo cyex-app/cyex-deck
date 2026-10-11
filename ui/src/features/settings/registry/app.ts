@@ -42,6 +42,13 @@ export const APP: Entry[] = [
     keywords: ['hints', 'hover', 'help'],
   },
   {
+    id: 'general.smoothScroll',
+    page: 'general',
+    label: 'Smooth scrolling',
+    description: 'Scrolling glides instead of jumping, everywhere in the app. Applies after a restart.',
+    keywords: ['scroll', 'scrolling', 'smooth', 'glide', 'wheel', 'animation', 'restart'],
+  },
+  {
     id: 'general.minimizeToTray',
     page: 'general',
     label: 'Minimize to tray',

@@ -233,7 +233,7 @@
     onchange={(v) => settings.patch('chat', { pauseKey: v })}
   />
 </Row>
-<Row label="Smooth new messages" hint="New messages slide in. Fast chats skip it, so you never fall behind.">
+<Row setting="chat.smoothNewMessages" label="Smooth new messages" hint="New messages slide in. Fast chats skip it, so you never fall behind.">
   <Toggle
     label="Smooth new messages"
     checked={c.smoothNewMessages}

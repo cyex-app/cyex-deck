@@ -117,6 +117,13 @@ export const CHAT: Entry[] = [
     keywords: ['scrolling', 'ctrl', 'alt', 'shift'],
   },
   {
+    id: 'chat.smoothNewMessages',
+    page: 'chat',
+    label: 'Smooth new messages',
+    description: 'New messages slide in. Fast chats skip it, so you never fall behind.',
+    keywords: ['smooth', 'slide', 'glide', 'animation', 'new messages', 'scrolling', 'chat speed'],
+  },
+  {
     id: 'chat.lastReadLine',
     page: 'chat',
     label: 'Last-read line',
