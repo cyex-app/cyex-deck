@@ -5,7 +5,7 @@ export const UNLISTED: Record<string, string> = {
   tabs: 'The tabs as you arrange them.',
   browse: 'Home and Discover remember their own sort and favorites.',
   emotes: 'The emote menu’s favorites and most used.',
-  modview: 'The mod view’s own layout.',
+  modview: 'The mod view’s own layout and mod actions filter.',
   'windows.main': 'Where the main window was.',
   'windows.mainPinned': 'Pinned from the title bar.',
   'windows.panels': 'Where each pop-out was.',
@@ -23,4 +23,7 @@ export const UNLISTED: Record<string, string> = {
   'streammanager.activity': 'The activity filter in the stream manager.',
   'streammanager.alertBox': 'Turned on in the stream manager.',
   'streammanager.chat': 'The chat beside the stream manager.',
+  'streammanager.layout': 'The stream manager’s panels as you arrange them.',
+  'streammanager.locked': 'Locked and unlocked in the stream manager.',
+  'streammanager.modActions': 'The mod actions filter in the stream manager.',
 };
