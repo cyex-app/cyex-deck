@@ -45,8 +45,8 @@ export const APP: Entry[] = [
     id: 'general.smoothScroll',
     page: 'general',
     label: 'Smooth scrolling',
-    description: 'Scrolling glides instead of jumping, everywhere in the app. Applies after a restart.',
-    keywords: ['scroll', 'scrolling', 'smooth', 'glide', 'wheel', 'animation', 'restart'],
+    description: 'The mouse wheel glides instead of jumping, everywhere in the app.',
+    keywords: ['scroll', 'scrolling', 'smooth', 'glide', 'wheel', 'mouse', 'animation', 'chatterino'],
   },
   {
     id: 'general.minimizeToTray',

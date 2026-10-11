@@ -5,6 +5,7 @@
 
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import { playerIpc } from '../../ipc/player';
+  import { stopScroll } from '../../lib/smoothScroll';
   import { catalogs } from './catalog.svelte';
   import Line from './Line.svelte';
 
@@ -72,8 +73,14 @@
 
   $effect(() => {
     void shown;
-    if (following) void tick().then(() => list && (list.scrollTop = list.scrollHeight));
+    if (following) void tick().then(toBottom);
   });
+
+  function toBottom() {
+    if (!list) return;
+    stopScroll(list);
+    list.scrollTop = list.scrollHeight;
+  }
 
   /** Where the list was at the last scroll event. */
   let lastTop = 0;
