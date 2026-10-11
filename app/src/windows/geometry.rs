@@ -15,10 +15,14 @@ use crate::settings::Settings;
 const MIN_SANE: (u32, u32) = (200, 150);
 
 /// Current geometry. While maximized, the last normal size is kept so un-maximizing
-/// after a restart lands where it was.
+/// after a restart lands where it was. Fullscreen keeps what it had before (V103-14): a
+/// window closed in fullscreen came back as big as the screen.
 pub fn capture(window: &Window, previous: Option<Geometry>) -> Option<Geometry> {
     if window.is_minimized().ok()? {
         return None;
+    }
+    if window.is_fullscreen().ok()? {
+        return previous;
     }
     if window.is_maximized().ok()? {
         return Some(Geometry {

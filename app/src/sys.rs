@@ -81,6 +81,63 @@ pub fn low_memory(window: &tauri::WebviewWindow, low: bool) {
 #[cfg(not(windows))]
 pub fn low_memory(_window: &tauri::WebviewWindow, _low: bool) {}
 
+/// V103-14 Fullscreen covers the whole monitor, also from a maximized window. tao keeps a
+/// window maximized in fullscreen and gives a maximized frameless window only the monitor's
+/// work area, so the taskbar's strip stayed empty next to the stream. This answers
+/// WM_NCCALCSIZE first while the window is maximized and has no caption, which tao takes
+/// away only for fullscreen: the client area is then the whole window, which tao sized to
+/// the monitor. Every other message goes on to tao as before.
+#[cfg(windows)]
+pub fn fill_fullscreen(window: &tauri::WebviewWindow) {
+    use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+    use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GWL_STYLE, GetWindowLongW, IsZoomed, WM_NCCALCSIZE, WM_NCDESTROY, WS_CAPTION,
+    };
+
+    /// "cyex", next to Tauri's own subclass on the same window.
+    const ID: usize = 0x6379_6578;
+
+    unsafe extern "system" fn on_message(
+        hwnd: HWND,
+        msg: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+        _id: usize,
+        _data: usize,
+    ) -> LRESULT {
+        // SAFETY: Windows calls this with a live window on the thread that owns it; the
+        // calls only read the window's state or pass the message on.
+        unsafe {
+            if msg == WM_NCCALCSIZE
+                && wparam.0 != 0
+                && IsZoomed(hwnd).as_bool()
+                && (GetWindowLongW(hwnd, GWL_STYLE) as u32 & WS_CAPTION.0) == 0
+            {
+                return LRESULT(0);
+            }
+            if msg == WM_NCDESTROY {
+                let _ = RemoveWindowSubclass(hwnd, Some(on_message), ID);
+            }
+            DefSubclassProc(hwnd, msg, wparam, lparam)
+        }
+    }
+
+    let Ok(hwnd) = window.hwnd() else { return };
+    // A window handle can't cross threads; its number can.
+    let raw = hwnd.0 as isize;
+    let _ = window.run_on_main_thread(move || {
+        // SAFETY: runs on the thread that owns the window, as subclassing requires. Setting
+        // it again only updates the same subclass.
+        if !unsafe { SetWindowSubclass(HWND(raw as _), Some(on_message), ID, 0) }.as_bool() {
+            eprintln!("sys: fullscreen fill not set");
+        }
+    });
+}
+
+#[cfg(not(windows))]
+pub fn fill_fullscreen(_window: &tauri::WebviewWindow) {}
+
 #[cfg(all(test, windows))]
 mod tests {
     use super::*;

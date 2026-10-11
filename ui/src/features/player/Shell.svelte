@@ -17,12 +17,15 @@
     onvolume?: (step: number) => void;
     /** V101-17 The right-click menu. */
     menu?: () => MenuEntry[];
+    /** V103-14 Fullscreen takes only this player, not the surface around it: a clip over
+     *  the stream fills the screen instead of staying in its box. */
+    alone?: boolean;
     top?: Snippet;
     bar?: Snippet;
     children: Snippet;
   }
 
-  let { controls, pinned = false, onvolume, menu, top, bar, children }: Props = $props();
+  let { controls, pinned = false, onvolume, menu, alone = false, top, bar, children }: Props = $props();
 
   let root = $state<HTMLElement>();
   let active = $state(false);
@@ -49,7 +52,7 @@
   /** For the player's `toggleFullscreen`. The surface around the player goes along, so
    *  what shows over it stays on screen (V101-26). */
   export function fullscreen() {
-    if (root) void toggleFullscreen(root.closest<HTMLElement>('[data-fullscreen]') ?? root);
+    if (root) void toggleFullscreen((!alone && root.closest<HTMLElement>('[data-fullscreen]')) || root);
   }
 
   function wake() {

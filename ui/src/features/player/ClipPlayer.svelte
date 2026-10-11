@@ -25,9 +25,11 @@
     onloaded?: (clip: ClipPlayback) => void;
     /** V102-08 Made just now: Twitch needs a few seconds before it plays. */
     fresh?: boolean;
+    /** V103-14 Over the stream (1.20): fullscreen is the clip alone. */
+    alone?: boolean;
   }
 
-  let { slug, tile, onloaded, fresh = false }: Props = $props();
+  let { slug, tile, onloaded, fresh = false, alone = false }: Props = $props();
 
   let video = $state<HTMLVideoElement>();
   let shell = $state<Shell>();
@@ -107,7 +109,10 @@
 
   $effect(() => {
     if (!video) return;
-    const ro = new ResizeObserver(([e]) => (height = e.contentRect.height * devicePixelRatio));
+    // V103-03 Out of sight (0 px) keeps the file: another one would load again on return.
+    const ro = new ResizeObserver(([e]) => {
+      if (e.contentRect.height > 0) height = e.contentRect.height * devicePixelRatio;
+    });
     ro.observe(video);
     return () => ro.disconnect();
   });
@@ -159,7 +164,7 @@
   const key = (k: Parameters<typeof bindingOf>[0], label: string) => (bindingOf(k) ? `${label} (${bindingOf(k)})` : label);
 </script>
 
-<Shell bind:this={shell} {controls} {menu} pinned={!playing} onvolume={(s) => sound.step(s)}>
+<Shell bind:this={shell} {controls} {menu} {alone} pinned={!playing} onvolume={(s) => sound.step(s)}>
   {#if src}
     <!-- The clip's place in the stream keeps going when the quality changes. Twitch clips
          have no captions. -->

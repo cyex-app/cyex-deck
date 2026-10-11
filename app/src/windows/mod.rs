@@ -61,6 +61,7 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
         main.maximize()?;
     }
     icons::apply(&main.as_ref().window());
+    crate::sys::fill_fullscreen(&main);
     main.show()?;
     Ok(())
 }
