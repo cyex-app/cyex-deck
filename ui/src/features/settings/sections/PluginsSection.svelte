@@ -28,11 +28,11 @@
   <p class="note">Started with --safe-mode, so no plugin runs.</p>
 {/if}
 
-<Row label="Turn on plugins" hint="Only add plugins from people you trust.">
+<Row setting="plugins.enabled" label="Turn on plugins" hint="Only add plugins from people you trust.">
   <Toggle label="Turn on plugins" checked={enabled} onchange={(v) => settings.patch('plugins', { enabled: v })} />
 </Row>
 
-<div class="actions">
+<div class="actions" data-setting="plugins.list">
   <Button small icon="folder" onclick={() => void pluginsIpc.openFolder()}>Open plugins folder</Button>
   <Button small icon="refresh" onclick={lookAgain}>Look again</Button>
 </div>

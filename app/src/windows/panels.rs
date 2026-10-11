@@ -1,5 +1,5 @@
 //! Pop-out panels (1.51): any panel opens in its own frameless window, addressed by a
-//! route like `settings` or `chat/12345`. One window per route.
+//! route like `streammanager` or `chat/12345`. One window per route.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -43,6 +43,12 @@ pub fn label_for(route: &str) -> String {
         })
         .collect();
     format!("panel-{safe}")
+}
+
+/// V103-08 Settings stay in the main window: a `settings` pop-out saved in a layout, or
+/// asked for by anything else, doesn't open.
+pub fn pops_out(route: &str) -> bool {
+    route != "settings"
 }
 
 pub fn route_of(app: &AppHandle, label: &str) -> Option<String> {
@@ -110,6 +116,9 @@ pub fn close(app: &AppHandle, route: &str) -> tauri::Result<()> {
 /// Opens the panel, or focuses it if it's already open. Restores its last position
 /// and pinned state.
 pub fn open_panel(app: &AppHandle, route: &str, title: &str, size: Option<(f64, f64)>) -> tauri::Result<()> {
+    if !pops_out(route) {
+        return Ok(());
+    }
     let label = label_for(route);
     if let Some(existing) = app.get_webview_window(&label) {
         existing.unminimize()?;
@@ -169,12 +178,19 @@ pub fn open_panel(app: &AppHandle, route: &str, title: &str, size: Option<(f64, 
 
 #[cfg(test)]
 mod tests {
-    use super::label_for;
+    use super::{label_for, pops_out};
 
     #[test]
     fn labels_only_use_safe_characters() {
         assert_eq!(label_for("settings"), "panel-settings");
         assert_eq!(label_for("chat/12345"), "panel-chat_12345");
         assert_eq!(label_for("a b:c"), "panel-a_b_c");
+    }
+
+    #[test]
+    fn settings_never_pop_out() {
+        assert!(!pops_out("settings"));
+        assert!(pops_out("streammanager"));
+        assert!(pops_out("modview/xqc"));
     }
 }

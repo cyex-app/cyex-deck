@@ -88,7 +88,7 @@
 
 <h2>Miner</h2>
 
-<h3 class="label">What goes first</h3>
+<h3 class="label" data-setting="miner.order">What goes first</h3>
 <p class="note">
   Twitch counts two channels at a time. After the two you star in the miner, these decide which; then the list order.
 </p>
@@ -105,66 +105,67 @@
 {/each}
 
 <h3 class="label">Claims</h3>
-<Row label="Bonus chests in open tabs" hint="With each tab’s account, not only in mined channels.">
+<Row setting="miner.claimInTabs" label="Bonus chests in open tabs" hint="With each tab’s account, not only in mined channels.">
   <Toggle label="Bonus chests in open tabs" checked={m.claimInTabs} onchange={(v) => save({ claimInTabs: v })} />
 </Row>
-<Row label="Moments">
+<Row setting="miner.claimMoments" label="Moments">
   <Toggle label="Moments" checked={m.claimMoments} onchange={(v) => save({ claimMoments: v })} />
 </Row>
-<Row label="Join raids" hint="Goes along with a raid for its points.">
+<Row setting="miner.joinRaids" label="Join raids" hint="Goes along with a raid for its points.">
   <Toggle label="Join raids" checked={m.joinRaids} onchange={(v) => save({ joinRaids: v })} />
 </Row>
-<Row label="Drops" hint="Twitch wants the game account linked first.">
+<Row setting="miner.claimDrops" label="Drops" hint="Twitch wants the game account linked first.">
   <Toggle label="Drops" checked={m.claimDrops} onchange={(v) => save({ claimDrops: v })} />
 </Row>
 
 <h3 class="label">More</h3>
 <Row
+  setting="miner.watchingEarns"
   label="Watching here earns points"
   hint="Streams you watch in the app count like on twitch.tv, drops included. The miner uses the slots left."
 >
   <Toggle label="Watching here earns points" checked={m.watchingEarns} onchange={(v) => save({ watchingEarns: v })} />
 </Row>
-<Row label="Community goals" hint="Puts points toward a channel’s goals on its own. Spends points.">
+<Row setting="miner.goals" label="Community goals" hint="Puts points toward a channel’s goals on its own. Spends points.">
   <Toggle label="Community goals" checked={m.goals} onchange={(v) => save({ goals: v })} />
 </Row>
-<Row label="Sit in their chats" hint="Some channel bots reward people in chat. Each chat counts toward the 100.">
+<Row setting="miner.chat" label="Sit in their chats" hint="Some channel bots reward people in chat. Each chat counts toward the 100.">
   <Segmented label="Sit in their chats" options={PRESENCE} value={m.chat} onchange={(chat) => save({ chat })} />
 </Row>
 
 <h3 class="label">Predictions</h3>
-<Row label="Bet on predictions" hint="Spends points. The first bet accepts Twitch’s prediction terms.">
+<Row setting="miner.bets.enabled" label="Bet on predictions" hint="Spends points. The first bet accepts Twitch’s prediction terms.">
   <Toggle label="Bet on predictions" checked={b.enabled} onchange={(enabled) => bet({ enabled })} />
 </Row>
 {#if b.enabled}
-  <Row label="Pick">
+  <Row setting="miner.bets.strategy" label="Pick">
     <select class="field" aria-label="Pick" value={b.strategy} onchange={(e) => bet({ strategy: e.currentTarget.value as Strategy })}>
       {#each STRATEGIES as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
     </select>
   </Row>
   {#if b.strategy === 'outcome'}
-    <Row label="Side" hint="1 is the first (blue) side.">
+    <Row setting="miner.bets.outcome" label="Side" hint="1 is the first (blue) side.">
       <input class="field num" type="number" min="1" max="10" value={b.outcome} onchange={(e) => bet({ outcome: num(e, 1, 10) })} />
     </Row>
   {/if}
   {#if b.strategy === 'smart'}
-    <Row label="Close is under" hint="Gap between the two sides’ voters, in percent. Close bets go to the better payout.">
+    <Row setting="miner.bets.gap" label="Close is under" hint="Gap between the two sides’ voters, in percent. Close bets go to the better payout.">
       <input class="field num" type="number" min="0" max="100" value={b.gap} onchange={(e) => bet({ gap: num(e, 0, 100) })} />
     </Row>
   {/if}
-  <Row label="Bet" hint="Percent of your balance.">
+  <Row setting="miner.bets.percent" label="Bet" hint="Percent of your balance.">
     <input class="field num" type="number" min="1" max="100" value={b.percent} onchange={(e) => bet({ percent: num(e, 1, 100) })} />
   </Row>
-  <Row label="At most" hint="Points per bet.">
+  <Row setting="miner.bets.maxPoints" label="At most" hint="Points per bet.">
     <input class="field num" type="number" min="10" value={b.maxPoints} onchange={(e) => bet({ maxPoints: num(e, 10, 1e9) })} />
   </Row>
-  <Row label="Keep" hint="No bets while the balance is at or under this.">
+  <Row setting="miner.bets.keep" label="Keep" hint="No bets while the balance is at or under this.">
     <input class="field num" type="number" min="0" value={b.keep} onchange={(e) => bet({ keep: num(e, 0, 1e9) })} />
   </Row>
-  <Row label="Stay small" hint="Never bet more than the biggest bet on that side.">
+  <Row setting="miner.bets.stealth" label="Stay small" hint="Never bet more than the biggest bet on that side.">
     <Toggle label="Stay small" checked={b.stealth} onchange={(stealth) => bet({ stealth })} />
   </Row>
-  <Row label="When">
+  <Row setting="miner.bets.delay" label="When">
     <span class="pair">
       <input
         class="field num"
@@ -179,7 +180,7 @@
       </select>
     </span>
   </Row>
-  <Row label="Only if">
+  <Row setting="miner.bets.filter" label="Only if">
     <span class="pair">
       <select
         class="field"

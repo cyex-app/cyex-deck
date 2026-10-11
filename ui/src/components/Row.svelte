@@ -7,13 +7,15 @@
     hint?: string;
     /** Puts the control under the label instead of beside it. */
     stacked?: boolean;
+    /** V103-13 Registry ids of what it changes, space-separated: settings search jumps here. */
+    setting?: string;
     children: Snippet;
   }
 
-  let { label, hint, stacked = false, children }: Props = $props();
+  let { label, hint, stacked = false, setting, children }: Props = $props();
 </script>
 
-<div class="row" class:stacked>
+<div class="row" class:stacked data-setting={setting}>
   <div class="text">
     <span class="title">{label}</span>
     {#if hint}<span class="hint">{hint}</span>{/if}

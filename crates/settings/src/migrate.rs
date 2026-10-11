@@ -1,6 +1,7 @@
 //! V102-02 The app was renamed. On the first start under the new name, the old name's
 //! folder is copied over once: every settings partition, the 3-day backups, `.env`,
-//! plugins and the rest. The old folder is left as it was.
+//! plugins and the rest. The old folder is left as it was. Since v1.03 the copied `.env`
+//! is deleted from the new folder on start (`remove_old_env`).
 
 use std::fs;
 use std::io;
@@ -65,10 +66,25 @@ fn copy_dir(from: &Path, to: &Path, skip: &[&str]) -> io::Result<()> {
     Ok(())
 }
 
+/// V103 batch 2 The sign-in's client ID is built in since V103-01, so the `.env` the app
+/// kept in `dir` (its own data folder) has no use left. Deletes that one file and nothing
+/// else: it's never opened, and a folder or link named `.env` is left alone. True when a
+/// file was deleted.
+pub fn remove_old_env(dir: &Path) -> io::Result<bool> {
+    let env = dir.join(".env");
+    match fs::symlink_metadata(&env) {
+        Ok(meta) if meta.is_file() => fs::remove_file(&env).map(|()| true),
+        Ok(_) => Ok(false),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(e),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::testutil::TempDir;
+    use cyex_core::app::{OLD_SLUG, SLUG};
 
     fn put(path: &Path, bytes: &[u8]) {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -133,5 +149,36 @@ mod tests {
         assert!(new.join("twitch/1/EBWebView/Default/Network/Cookies").is_file());
         assert!(!new.join("twitch/1/EBWebView/Default/Cache").exists());
         assert!(!new.join("twitch/half").exists());
+    }
+
+    #[test]
+    fn deletes_only_the_new_folders_env() {
+        let t = TempDir::new("old-env");
+        let (deck, viewer) = (t.path().join(SLUG), t.path().join(OLD_SLUG));
+        put(&deck.join(".env"), b"x");
+        put(&deck.join(".env.example"), b"x");
+        put(&deck.join("settings/.env"), b"x");
+        put(&deck.join("settings/chat.json"), b"{}");
+        put(&viewer.join(".env"), b"x");
+
+        assert!(remove_old_env(&deck).unwrap());
+        assert!(!deck.join(".env").exists());
+        // Everything else stays, the old name's `.env` too.
+        assert!(deck.join(".env.example").is_file());
+        assert!(deck.join("settings/.env").is_file());
+        assert!(deck.join("settings/chat.json").is_file());
+        assert_eq!(fs::read(viewer.join(".env")).unwrap(), b"x");
+        // Gone already: nothing to do, on every later start.
+        assert!(!remove_old_env(&deck).unwrap());
+    }
+
+    #[test]
+    fn leaves_a_folder_named_env_and_a_missing_folder() {
+        let t = TempDir::new("old-env-dir");
+        let deck = t.path().join(SLUG);
+        put(&deck.join(".env/keep"), b"x");
+        assert!(!remove_old_env(&deck).unwrap());
+        assert!(deck.join(".env/keep").is_file());
+        assert!(!remove_old_env(&t.path().join("nothing")).unwrap());
     }
 }

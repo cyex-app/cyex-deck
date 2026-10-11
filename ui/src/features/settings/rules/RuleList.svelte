@@ -13,12 +13,14 @@
     addLabel?: string;
     empty?: string;
     problem?: (item: T) => string | null;
+    /** V103-13 Registry id: settings search jumps here. */
+    setting?: string;
   }
 
-  let { items, fields, make, onchange, addLabel = 'Add', empty, problem }: Props = $props();
+  let { items, fields, make, onchange, addLabel = 'Add', empty, problem, setting }: Props = $props();
 </script>
 
-<div class="list">
+<div class="list" data-setting={setting}>
   {#each items as item, i (i)}
     <RuleRow
       {item}

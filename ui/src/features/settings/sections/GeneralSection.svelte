@@ -48,7 +48,7 @@
 <h2>General</h2>
 
 <h3 class="label">Chat text</h3>
-<Row label="Font" hint="These come with the app. Add your own from a font file." stacked>
+<Row setting="general.chatFontFamily general.fonts" label="Font" hint="These come with the app. Add your own from a font file." stacked>
   <div class="fonts" role="radiogroup" aria-label="Chat font">
     <button class="font" role="radio" aria-checked={!g.chatFontFamily} onclick={() => pick('')}>App font</button>
     {#each BUNDLED_FONTS as f (f)}
@@ -67,7 +67,7 @@
     <button class="font add" onclick={addFont}><Icon name="plus" size={13} />Add a font file</button>
   </div>
 </Row>
-<Row label="Installed font" hint="Any other font on this PC, by name. Helvetica only works if it's installed.">
+<Row setting="general:installedFont" label="Installed font" hint="Any other font on this PC, by name. Helvetica only works if it's installed.">
   <input
     class="field"
     list="chat-fonts"
@@ -79,7 +79,7 @@
     {#each INSTALLED as font (font)}<option value={font}></option>{/each}
   </datalist>
 </Row>
-<Row label="Size">
+<Row setting="general.chatFontSize" label="Size">
   <Stepper
     label="Chat font size"
     value={g.chatFontSize}
@@ -95,7 +95,7 @@
 </div>
 
 <h3 class="label">Layout</h3>
-<Row label="Chat position" hint="Which side of the player or a clip the chat sits on.">
+<Row setting="general.chatPosition" label="Chat position" hint="Which side of the player or a clip the chat sits on.">
   <Segmented
     label="Chat position"
     options={POSITIONS}
@@ -105,10 +105,10 @@
 </Row>
 
 <h3 class="label">App</h3>
-<Row label="Tooltips" hint="Short explanations when you hover buttons.">
+<Row setting="general.tooltips" label="Tooltips" hint="Short explanations when you hover buttons.">
   <Toggle label="Tooltips" checked={g.tooltips} onchange={(v) => settings.patch('general', { tooltips: v })} />
 </Row>
-<Row label="Minimize to tray" hint="Minimizing hides cyex deck in the tray instead of the taskbar.">
+<Row setting="general.minimizeToTray" label="Minimize to tray" hint="Minimizing hides cyex deck in the tray instead of the taskbar.">
   <Toggle
     label="Minimize to tray"
     checked={g.minimizeToTray}

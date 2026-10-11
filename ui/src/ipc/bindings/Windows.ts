@@ -8,6 +8,6 @@ import type { PanelWindow } from "./PanelWindow";
  */
 export type Windows = { main: Geometry | null, mainPinned: boolean, 
 /**
- * Last state of each popped-out panel, keyed by panel route (e.g. `settings`).
+ * Last state of each popped-out panel, keyed by panel route (e.g. `streammanager`).
  */
 panels: { [key in string]: PanelWindow }, layouts: Array<Layout>, };

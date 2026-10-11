@@ -50,6 +50,7 @@ fn main() {
             let handle = app.handle();
             // V102-02 Before anything reads its files.
             paths::migrate(handle);
+            paths::remove_old_env(handle);
             settings::init(handle)?;
             theme::init(handle);
             fonts::init(handle);

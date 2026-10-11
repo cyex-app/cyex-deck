@@ -5,7 +5,7 @@
 <script lang="ts">
   import { getCurrentWindow } from '@tauri-apps/api/window';
 
-  import { popOut } from '../../app/panels';
+  import { gate } from '../../lib/gate.svelte';
   import { useHotkeys } from '../../lib/hotkeys.svelte';
   import ChatView from './ChatView.svelte';
   import { parseRoomRoute } from './roomRoute';
@@ -19,6 +19,6 @@
 
 {#if target}
   {#key route}
-    <ChatView login={target.login} account={target.account} onsignin={() => void popOut('settings')} />
+    <ChatView login={target.login} account={target.account} onsignin={() => gate.ask('helix')} />
   {/key}
 {/if}

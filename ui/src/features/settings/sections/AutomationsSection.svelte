@@ -64,14 +64,14 @@
 
 <h2>Automations</h2>
 
-<Row label="Run automations" hint="They answer as your account, so keep them friendly and slow.">
+<Row setting="commands.automationsOn" label="Run automations" hint="They answer as your account, so keep them friendly and slow.">
   <Toggle
     label="Run automations"
     checked={c.automationsOn}
     onchange={(v) => void settings.patch('commands', { automationsOn: v })}
   />
 </Row>
-<Row label="At most" hint="Automatic messages per chat in 30 seconds.">
+<Row setting="commands.automationLimit" label="At most" hint="Automatic messages per chat in 30 seconds.">
   <input
     class="field num"
     type="number"
@@ -87,6 +87,7 @@
 </Row>
 
 <RuleList
+  setting="commands.automations"
   items={c.automations}
   {fields}
   {make}

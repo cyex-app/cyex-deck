@@ -62,11 +62,11 @@
 <svelte:window onkeydown={onKey} />
 
 <h2>Hotkeys</h2>
-<p class="intro">Click a shortcut, then press the new keys. Esc cancels, Backspace clears it.</p>
+<p class="intro" data-setting="hotkeys.bindings">Click a shortcut, then press the new keys. Esc cancels, Backspace clears it.</p>
 
 {#snippet binding(id: ActionId)}
   {@const combo = bindingOf(id)}
-  <Row label={ACTIONS[id].label} hint={combo && isGlobal(id) && failed.includes(combo) ? 'Another app already uses these keys.' : undefined}>
+  <Row setting={`hotkey:${id}`} label={ACTIONS[id].label} hint={combo && isGlobal(id) && failed.includes(combo) ? 'Another app already uses these keys.' : undefined}>
     <button class="combo" class:listening={editing === id} onclick={() => start(id)}>
       {#if editing === id}
         Press keys…

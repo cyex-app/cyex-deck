@@ -16,9 +16,11 @@
     problem?: string | null;
     /** CSS color an empty color field stands for. */
     fallback?: string;
+    /** V103-13 Registry id: settings search jumps here. */
+    setting?: string;
   }
 
-  let { item, fields, title, onchange, ondelete, problem, fallback = 'var(--red)' }: Props = $props();
+  let { item, fields, title, onchange, ondelete, problem, fallback = 'var(--red)', setting }: Props = $props();
 
   function set(key: keyof T, value: unknown) {
     if (item[key] === value) return;
@@ -28,7 +30,7 @@
   const text = (v: unknown) => (Array.isArray(v) ? v.join(', ') : String(v ?? ''));
 </script>
 
-<div class="rule" class:off={item.enabled === false}>
+<div class="rule" class:off={item.enabled === false} data-setting={setting}>
   {#if title}<span class="title">{title}</span>{/if}
   {#each fields as f (f.key)}
     {@const v = item[f.key]}

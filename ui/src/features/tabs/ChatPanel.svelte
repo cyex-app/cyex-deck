@@ -7,6 +7,7 @@
 
   import { popOut } from '../../app/panels';
   import { windowsIpc } from '../../ipc/windows';
+  import { gate } from '../../lib/gate.svelte';
   import { useHotkeys } from '../../lib/hotkeys.svelte';
   import ChatView from '../chat/ChatView.svelte';
   import { tabs, tiles } from './tabs.svelte';
@@ -36,7 +37,7 @@
       readKey={tile.id}
       filters={tile.filters}
       onfilters={(filters) => void tabs.apply({ op: 'filters', tile: tileId, filters })}
-      onsignin={() => void popOut('settings')}
+      onsignin={() => gate.ask('helix')}
       onlink={(target) => void emitTo('main', 'tile:link', { tile: tileId, target })}
       onoverlay={() => void popOut(`overlay/${tileId}`)}
     />
