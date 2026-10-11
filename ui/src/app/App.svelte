@@ -35,7 +35,7 @@
   import { openTarget, playerHotkeys } from '../features/player/players.svelte';
   import { openChannel } from '../features/browse/open.svelte';
   import { stepTab } from '../features/tabs/cycle';
-  import { nextHeld } from '../features/tabs/hold';
+  import { nextHeld, playingNow } from '../features/tabs/hold';
   import { tabs, tiles } from '../features/tabs/tabs.svelte';
   import type { Tab } from '../ipc/bindings/Tab';
   import type { LinkTarget } from '../ipc/bindings/LinkTarget';
@@ -103,10 +103,9 @@
     return list;
   });
 
-  /** A stream or video plays in the tab now, and can be heard: a muted one stops as before. */
+  /** A stream or video plays in the tab now, muted or not. */
   function playing(id: string): boolean {
-    const view = document.querySelector(`[data-tab-view="${CSS.escape(id)}"]`);
-    return [...(view?.querySelectorAll('video') ?? [])].some((v) => !v.paused && !v.ended && !v.muted && v.volume > 0);
+    return playingNow(document.querySelector(`[data-tab-view="${CSS.escape(id)}"]`)?.querySelectorAll('video') ?? []);
   }
 
   /** The tab shows a stream and that channel is live. */

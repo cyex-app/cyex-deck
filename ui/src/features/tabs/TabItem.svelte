@@ -31,8 +31,9 @@
   const live = $derived(tabs.liveState(tab));
   const unread = $derived(tabs.unreadState(tab));
   const popped = $derived(tabs.popped.has(tab.id));
-  /** V102-15 Still playing while something else shows. */
+  /** V102-15 Still playing while something else shows; crossed out when every stream in it is muted. */
   const held = $derived(tabs.held === tab.id);
+  const heldMuted = $derived(held && tiles(tab).filter((t) => t.show.player).every((t) => t.muted));
   const closeButton = $derived(settings.v.appearance.tabCloseButton);
 
   /** Drop marker while something is dragged over this tab. */
@@ -59,7 +60,8 @@
     const account = first?.account ? accounts.list.find((a) => a.userId === first.account) : undefined;
     const who = account ? `as ${account.displayName}` : 'anonymous';
     const label = parts.length ? parts.join(' · ') : `${name} · offline`;
-    return { label: held ? `${label} · playing` : label, hint: hint ? `${hint} (${who})` : who };
+    const playing = heldMuted ? ' · playing muted' : held ? ' · playing' : '';
+    return { label: `${label}${playing}`, hint: hint ? `${hint} (${who})` : who };
   });
 
   function onauxclick(e: MouseEvent) {
@@ -101,7 +103,7 @@
     {#if live}<span class="dot {live}"></span>{/if}
     <span class="name">{name}</span>
     {#if popped}<span class="popped"><Icon name="popout" size={12} /></span>{/if}
-    {#if held}<span class="popped"><Icon name="volume" size={12} /></span>{/if}
+    {#if held}<span class="popped"><Icon name={heldMuted ? 'volumeOff' : 'volume'} size={12} /></span>{/if}
     {#if closeButton}
       <button
         class="x"

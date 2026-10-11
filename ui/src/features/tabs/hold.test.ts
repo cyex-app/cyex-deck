@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { nextHeld } from './hold.ts';
+import { nextHeld, playingNow } from './hold.ts';
 
 // a plays; b is chat only; c is offline; d shows a live stream.
 const playing = (t: string) => t === 'a';
@@ -22,6 +22,13 @@ test('a tab with a live stream on screen stops it', () => {
 
 test('back on the tab it is simply on screen again', () => {
   assert.equal(go('a', 'b', 'a'), null);
+});
+
+test('a muted stream counts as playing; a paused or ended one does not', () => {
+  const v = (paused: boolean, ended = false, muted = false) => ({ paused, ended, muted });
+  assert.equal(playingNow([v(false, false, true)]), true);
+  assert.equal(playingNow([v(true), v(false, true)]), false);
+  assert.equal(playingNow([]), false);
 });
 
 test('nothing was playing: nothing is kept', () => {
