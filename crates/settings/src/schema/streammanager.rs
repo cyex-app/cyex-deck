@@ -25,6 +25,10 @@ pub struct StreamManager {
     pub locked: bool,
     /// V103-15 Which mod actions the "Mod actions" panel shows.
     pub mod_actions: ModActionFilters,
+    /// V103-22 The chat panel brought back (`true`) or closed (`false`) by hand: it stays so
+    /// until "Reset layout". `None` follows your channel's regular chat.
+    #[ts(optional = nullable)]
+    pub chat_kept: Option<bool>,
 }
 
 impl Default for StreamManager {
@@ -37,6 +41,7 @@ impl Default for StreamManager {
             layout: None,
             locked: true,
             mod_actions: ModActionFilters::default(),
+            chat_kept: None,
         }
     }
 }
@@ -177,6 +182,10 @@ mod tests {
         // V103-06 Files from before the panel layout get it locked and unset.
         let sm: StreamManager = serde_json::from_str(r#"{"chat":{"shown":false}}"#).unwrap();
         assert!(sm.locked && sm.layout.is_none() && !sm.chat.shown);
+        // V103-22 The chat follows the regular one until it's set by hand.
+        assert_eq!(sm.chat_kept, None);
+        let kept: StreamManager = serde_json::from_str(r#"{"chatKept":false}"#).unwrap();
+        assert_eq!(kept.chat_kept, Some(false));
         let f: ModActionFilters = serde_json::from_str(r#"{"bans":false}"#).unwrap();
         assert!(!f.bans && f.timeouts && f.automod && f.other);
     }

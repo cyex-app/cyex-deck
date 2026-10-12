@@ -18,7 +18,8 @@ use crate::chat::{self, ChatOpened};
 type CmdResult<T> = Result<T, String>;
 
 /// Opens a chat view; events stream over `on_event` until `chat_close`. `filters` are
-/// the F3 filter ids the panel shows messages through.
+/// the F3 filter ids the panel shows messages through. `follows`: the mod view's or the
+/// stream manager's own chat, which isn't a regular chat (V103-22).
 #[tauri::command]
 pub fn chat_open(
     app: AppHandle,
@@ -26,9 +27,18 @@ pub fn chat_open(
     login: String,
     account: Option<String>,
     filters: Option<Vec<String>>,
+    follows: Option<bool>,
     on_event: Channel<Vec<RoomEvent>>,
 ) -> CmdResult<ChatOpened> {
-    chat::open(&app, window.label(), &login, account.as_deref(), &filters.unwrap_or_default(), on_event)
+    chat::open(
+        &app,
+        window.label(),
+        &login,
+        account.as_deref(),
+        &filters.unwrap_or_default(),
+        follows.unwrap_or(false),
+        on_event,
+    )
 }
 
 #[tauri::command]
@@ -36,11 +46,11 @@ pub fn chat_close(app: AppHandle, view: u32) {
     chat::close(&app, view);
 }
 
-/// V103-22 Whether the channel's chat shows in another window, so a view's own chat panel
-/// can start closed.
+/// V103-22 Where the regular chats show and which windows are still loading; changes come
+/// as `chat:shown`.
 #[tauri::command]
-pub fn chat_shown_elsewhere(app: AppHandle, window: WebviewWindow, login: String) -> bool {
-    chat::shown_elsewhere(&app, &login, window.label())
+pub fn chat_shown(app: AppHandle) -> chat::shown::ChatShown {
+    chat::shown::current(&app)
 }
 
 /// A typed line: custom and built-in commands, then Twitch (1.8). Some commands ask the

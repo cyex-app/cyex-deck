@@ -14,7 +14,8 @@ pub use usercard::open as open_usercard;
 use cyex_settings::Partition;
 use cyex_settings::schema::{General, Windows};
 use serde_json::json;
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent, Wry};
+use tauri::webview::{PageLoadEvent, PageLoadPayload};
+use tauri::{AppHandle, Manager, Webview, WebviewUrl, WebviewWindowBuilder, WindowEvent, Wry};
 
 use crate::icons;
 use crate::settings::Settings;
@@ -133,11 +134,25 @@ pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
         WindowEvent::Destroyed if window.label() == MAIN => app.exit(0),
         WindowEvent::Destroyed => {
             crate::chat::close_window(app, window.label());
+            crate::chat::shown::gone(app, window.label());
             panels::forget(app, window.label());
             overlay::forget(app, window.label());
             low_memory_windows(app).remove(window.label());
         }
         _ => {}
+    }
+}
+
+/// V103-22 A window that can show chats counts as loading until a moment after its page
+/// loaded, so the views' own chats don't decide while its chats are still opening.
+pub fn on_page_load(webview: &Webview, payload: &PageLoadPayload<'_>) {
+    let app = webview.app_handle();
+    let label = webview.label();
+    let shows_chats = || label == MAIN || route_of(app, label).is_some_and(|r| panels::shows_chats(&r));
+    match payload.event() {
+        PageLoadEvent::Started if shows_chats() => crate::chat::shown::loading(app, label),
+        PageLoadEvent::Started => {}
+        PageLoadEvent::Finished => crate::chat::shown::loaded(app, label),
     }
 }
 

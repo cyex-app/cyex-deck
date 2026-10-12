@@ -19,6 +19,7 @@ pub mod rules;
 pub mod run;
 mod send;
 mod session;
+pub mod shown;
 pub mod translate;
 pub mod usercard;
 pub mod unread;
@@ -77,6 +78,9 @@ struct Inner {
     rooms: HashMap<RoomKey, Entry>,
     /// View id → its room and the window showing it.
     views: HashMap<u32, (RoomKey, String)>,
+    /// V103-22 Views that are a mod view's or the stream manager's own chat: they follow the
+    /// regular chats (`shown`) and don't count as one.
+    follows: HashSet<u32>,
     next_view: u32,
     /// Rooms the tabs keep joined even when no view shows them.
     held: HashSet<RoomKey>,
@@ -127,6 +131,7 @@ pub fn init(app: &AppHandle) {
         joins: AtomicBool::new(false),
     });
     on_settings(app);
+    shown::init(app);
     flush::spawn(app.clone(), wake);
     catalog::init(app);
     live::init(app);
@@ -210,13 +215,15 @@ fn passes(filters: &[Arc<Filter>], m: &ChatMessage, channel: &str, live: bool) -
 }
 
 /// Opens a view on a channel's chat, joining it if it isn't joined yet. `filter_ids`
-/// pick the F3 filters it shows messages through.
+/// pick the F3 filters it shows messages through. `follows`: a view's own chat panel
+/// (V103-22), not a regular chat.
 pub fn open(
     app: &AppHandle,
     window: &str,
     login: &str,
     account: Option<&str>,
     filter_ids: &[String],
+    follows: bool,
     view: View,
 ) -> Result<ChatOpened, String> {
     let login = login.trim().trim_start_matches('#').to_ascii_lowercase();
@@ -233,6 +240,9 @@ pub fn open(
     inner.next_view += 1;
     let id = inner.next_view;
     inner.views.insert(id, (key.clone(), window.to_owned()));
+    if follows {
+        inner.follows.insert(id);
+    }
     let entry = inner.rooms.get_mut(&key).expect("inserted above");
     let lines = chat.scrollback.load(Ordering::Relaxed);
     let mut snapshot = entry.room.snapshot_tail(if filters.is_empty() { lines } else { entry.room.keep() });
@@ -253,6 +263,9 @@ pub fn open(
     };
     let budget_full = entry.room.status == ConnStatus::BudgetFull;
     drop(inner);
+    if !follows {
+        shown::changed(app);
+    }
     if was_unread {
         unread::emit(app, &key, Unread::Seen);
     }
@@ -348,6 +361,9 @@ pub fn close(app: &AppHandle, view: u32) {
     let chat = app.state::<Chat>();
     let mut inner = chat.lock();
     let Some((key, _)) = inner.views.remove(&view) else { return };
+    if !inner.follows.remove(&view) {
+        shown::changed(app);
+    }
     votes::unwatch(app, &key.1);
     let Some(entry) = inner.rooms.get_mut(&key) else { return };
     entry.views.retain(|s| s.id != view);
@@ -588,26 +604,6 @@ pub fn open_channels(app: &AppHandle) -> Vec<String> {
     out
 }
 
-/// V103-22 Whether `login`'s chat shows in a window other than `own`, as any account.
-/// Overlays (U7) don't count: they sit over a game, not next to the view.
-pub fn shown_elsewhere(app: &AppHandle, login: &str, own: &str) -> bool {
-    let Some(chat) = app.try_state::<Chat>() else { return false };
-    let login = login.trim().trim_start_matches('#').to_ascii_lowercase();
-    let inner = chat.lock();
-    other_window(
-        inner
-            .views
-            .values()
-            .filter(|((_, l), _)| *l == login)
-            .map(|(_, w)| w.as_str()),
-        own,
-    )
-}
-
-fn other_window<'a>(mut windows: impl Iterator<Item = &'a str>, own: &str) -> bool {
-    windows.any(|w| w != own && !crate::windows::overlay::is_overlay_window(w))
-}
-
 /// C10 A system line in every room of a channel, e.g. "x added the 7TV emote y."
 pub fn system_line(app: &AppHandle, login: &str, text: &str) {
     notice_line(app, login, NoticeKind::Info, text);
@@ -678,22 +674,4 @@ fn budget<T>(app: &AppHandle, f: impl FnOnce(&mut HashMap<String, cyex_chat::Joi
 /// Unix milliseconds.
 pub(crate) fn now_ms() -> i64 {
     (time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64
-}
-
-#[cfg(test)]
-mod tests {
-    use super::other_window;
-
-    #[test]
-    fn a_chat_in_another_window_counts_an_overlay_does_not() {
-        let own = "panel-modview_xqc";
-        assert!(!other_window([].into_iter(), own));
-        assert!(!other_window([own, own].into_iter(), own));
-        assert!(other_window([own, "main"].into_iter(), own));
-        assert!(!other_window(["panel-overlay_t1"].into_iter(), own));
-        assert!(other_window(
-            ["panel-overlay_t1", "panel-chat_t1"].into_iter(),
-            "main"
-        ));
-    }
 }

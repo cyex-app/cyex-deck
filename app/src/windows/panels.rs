@@ -45,6 +45,12 @@ pub fn label_for(route: &str) -> String {
     format!("panel-{safe}")
 }
 
+/// V103-22 Pop-outs that can show a channel's regular chat: a tab, a tile's chat, a
+/// `#channel` chat.
+pub fn shows_chats(route: &str) -> bool {
+    matches!(route.split('/').next(), Some("tab" | "chat" | "room"))
+}
+
 /// V103-08 Settings stay in the main window: a `settings` pop-out saved in a layout, or
 /// asked for by anything else, doesn't open.
 pub fn pops_out(route: &str) -> bool {
@@ -136,6 +142,9 @@ pub fn open_panel(app: &AppHandle, route: &str, title: &str, size: Option<(f64, 
     let (width, height) = size.unwrap_or(DEFAULT_SIZE);
     let url = WebviewUrl::App(format!("index.html#/panel/{route}").into());
     let overlay = super::overlay::is_overlay(route);
+    if shows_chats(route) {
+        crate::chat::shown::loading(app, &label);
+    }
     let builder = super::builder(app, &label, url)
         .title(title)
         .inner_size(width, height)
@@ -147,7 +156,7 @@ pub fn open_panel(app: &AppHandle, route: &str, title: &str, size: Option<(f64, 
         builder
     };
     let builder = geometry::on_builder(app, builder, saved.geometry.as_ref());
-    let window = builder.build()?;
+    let window = builder.build().inspect_err(|_| crate::chat::shown::gone(app, &label))?;
     app.state::<PanelRegistry>()
         .lock()
         .insert(label, route.to_owned());
@@ -179,7 +188,7 @@ pub fn open_panel(app: &AppHandle, route: &str, title: &str, size: Option<(f64, 
 
 #[cfg(test)]
 mod tests {
-    use super::{label_for, pops_out};
+    use super::{label_for, pops_out, shows_chats};
 
     #[test]
     fn labels_only_use_safe_characters() {
@@ -193,5 +202,12 @@ mod tests {
         assert!(!pops_out("settings"));
         assert!(pops_out("streammanager"));
         assert!(pops_out("modview/xqc"));
+    }
+
+    #[test]
+    fn tabs_and_chats_show_regular_chats() {
+        assert!(shows_chats("tab/a1") && shows_chats("chat/t1") && shows_chats("room/xqc"));
+        assert!(!shows_chats("modview/xqc") && !shows_chats("streammanager") && !shows_chats("overlay/t1"));
+        assert!(!shows_chats("usercard/xqc/x") && !shows_chats("chats"));
     }
 }

@@ -46,11 +46,15 @@ export class ChatRoom {
 
   constructor(readonly login: string) {}
 
-  /** `filters`: F3 filter ids. */
-  async open(account: string | null, filters: string[] = []): Promise<void> {
+  /** `filters`: F3 filter ids. `follows`: a view's own chat (V103-22). */
+  async open(account: string | null, filters: string[] = [], follows = false): Promise<void> {
     try {
-      const opened = await chatIpc.open(this.login, account, filters, (events) =>
-        this.early ? this.early.push(events) : this.apply(events),
+      const opened = await chatIpc.open(
+        this.login,
+        account,
+        filters,
+        (events) => (this.early ? this.early.push(events) : this.apply(events)),
+        follows,
       );
       if (this.closed) {
         void chatIpc.close(opened.view);

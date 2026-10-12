@@ -5,6 +5,7 @@ import type { ChannelCatalog } from './bindings/ChannelCatalog';
 import type { Chatters } from './bindings/Chatters';
 import type { ChatMessage } from './bindings/ChatMessage';
 import type { ChatOpened } from './bindings/ChatOpened';
+import type { ChatShown } from './bindings/ChatShown';
 import type { GlobalCatalog } from './bindings/GlobalCatalog';
 import type { Mention } from './bindings/Mention';
 import type { ChatIdentity } from './bindings/ChatIdentity';
@@ -18,15 +19,23 @@ import type { UiAction } from './bindings/UiAction';
 
 export const chatIpc = {
   /** Opens a view on a channel's chat. Events arrive in 50 ms batches until `close`. */
-  /** `filters`: F3 filter ids the view shows messages through. */
-  open: (login: string, account: string | null, filters: string[], onEvents: (events: RoomEvent[]) => void) => {
+  /** `filters`: F3 filter ids the view shows messages through. `follows`: the mod view's
+   * or the stream manager's own chat, not a regular one (V103-22). */
+  open: (
+    login: string,
+    account: string | null,
+    filters: string[],
+    onEvents: (events: RoomEvent[]) => void,
+    follows = false,
+  ) => {
     const channel = new Channel<RoomEvent[]>();
     channel.onmessage = onEvents;
-    return invoke<ChatOpened>('chat_open', { login, account, filters, onEvent: channel });
+    return invoke<ChatOpened>('chat_open', { login, account, filters, follows, onEvent: channel });
   },
   close: (view: number) => invoke<void>('chat_close', { view }),
-  /** V103-22 The channel's chat shows in another window (overlays don't count). */
-  shownElsewhere: (login: string) => invoke<boolean>('chat_shown_elsewhere', { login }),
+  /** V103-22 Where the regular chats show, by window, and which windows still load. */
+  shown: () => invoke<ChatShown>('chat_shown'),
+  onShown: (handler: (s: ChatShown) => void) => listen<ChatShown>('chat:shown', (e) => handler(e.payload)),
   /** Commands run in Rust (1.8); some ask the window to do something. */
   send: (view: number, text: string, replyTo?: string) => invoke<UiAction | null>('chat_send', { view, text, replyTo }),
   /** S1 A menu entry or usercard button. */

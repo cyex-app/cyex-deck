@@ -7,8 +7,9 @@
      V102-26 Inside a tab it has a close button. V103-07 The stream panel, closed at first,
      shows the tab's own player when the view sits in that tab, else a player of its own.
      V103-15 Mod actions have their own panel next to the activity. V103-22 One chat per
-     channel: its chat starts closed when the channel's chat shows elsewhere, else as a
-     whole column. -->
+     channel: its chat follows the channel's regular chat, out while that shows (in the
+     tab or another window), in as a whole column while it doesn't; brought back or closed
+     by hand, it stays so until "Reset layout". -->
 <script lang="ts">
   import IconButton from '../../components/IconButton.svelte';
   import { grabFrom, type PanelCtl } from '../../components/panel';
@@ -16,13 +17,13 @@
   import PanelLayout from '../../components/PanelLayout.svelte';
   import type { Board0 } from '../../ipc/bindings/Board0';
   import type { ModActionFilters } from '../../ipc/bindings/ModActionFilters';
-  import { chatIpc } from '../../ipc/chat';
   import { modIpc } from '../../ipc/moderation';
   import {
     asPatch,
     type Box,
-    chatStart,
+    chatShows,
     type Edge,
+    extend,
     fitTree,
     has,
     leaf,
@@ -40,6 +41,7 @@
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import ChatView from '../chat/ChatView.svelte';
+  import { chatShown } from '../chat/shown.svelte';
   import ViewerList from '../chat/ViewerList.svelte';
   import { layout } from '../tabs/layout.svelte';
   import ActivityFeed from './ActivityFeed.svelte';
@@ -109,21 +111,12 @@
     mv.layout ?? prune(FULL, (id) => !START_CLOSED.includes(id) && !mv.hidden.includes(id)),
   );
 
-  // V103-22 One chat per channel, asked once when the view opens: shown in another window,
-  // this one starts closed; else it opens as a whole column. Changed by hand, it stays so.
-  let chatAway = $state<boolean | null>(null);
-  let touched = $state(false);
-  $effect(() => {
-    let gone = false;
-    chatIpc
-      .shownElsewhere(login)
-      .then((v) => !gone && (chatAway = v))
-      .catch(() => !gone && (chatAway = false));
-    return () => {
-      gone = true;
-    };
-  });
-  const tree = $derived(withChat(stored, 'chat', chatStart(touched, chatAway, chatNear), 'left', CHAT_SHARE));
+  // V103-22 One chat per channel: the chat follows the channel's regular chat, the tab's own
+  // right away, other windows' as Rust tells (`chatShown`). Kept by hand, it stays so.
+  $effect(() => chatShown.start());
+  const kept = $derived(mv.chatKept ?? null);
+  const regular = $derived(chatNear ? true : chatShown.elsewhere(login));
+  const tree = $derived(withChat(stored, 'chat', chatShows(kept, regular), 'left', CHAT_SHARE));
   const closed = $derived(ORDER.filter((id) => !has(tree, id)).map((id) => ({ id, title: INFO[id].title, hint: INFO[id].hint })));
 
   // The id comes from an open room. V102-26 From a tab with only the stream, that's this
@@ -166,14 +159,21 @@
     return fitTree(tree, box, { min, gap: GAP, pad: PAD });
   });
 
-  /** What shows is saved, the chat as it is now included. */
-  function save(next: Node | null) {
+  /** What shows is saved. `chat`: the chat brought back or closed by hand (V103-22). */
+  function save(next: Node | null, chat?: boolean) {
     if (!next) return;
-    void settings.patch('modview', { layout: asPatch(next) as never }).then(() => (touched = true));
+    void settings.patch('modview', { layout: asPatch(next) as never, ...(chat === undefined ? {} : { chatKept: chat }) });
   }
 
   function drop(panel: string, target: string | null, edge: Edge) {
-    save(move(tree, panel, target, edge));
+    // From the corner it's brought back by hand.
+    save(move(tree, panel, target, edge), panel === 'chat' && !has(tree, 'chat') ? true : undefined);
+  }
+
+  /** V103-22 The chat comes back as a whole column, as it opens by itself. */
+  function bring(id: string) {
+    if (id === 'chat') save(extend(tree, 'chat', 'left', CHAT_SHARE), true);
+    else save(restore(tree, id, FULL));
   }
 
   function resize(path: number[], sizes: number[]) {
@@ -187,7 +187,7 @@
   }
 
   function resetLayout() {
-    void settings.patch('modview', { order: [], hidden: [], layout: null as never }).then(() => (touched = false));
+    void settings.patch('modview', { order: [], hidden: [], layout: null as never, chatKept: null as never });
     toast.info('Mod view layout reset.');
   }
 
@@ -215,7 +215,7 @@
 {#snippet panel(id: string, _ctl: PanelCtl)}
   {#if id === 'chat'}
     <Card title="Chat" flush>
-      <div class="chat"><ChatView {login} {account} onmodview={null} /></div>
+      <div class="chat"><ChatView {login} {account} onmodview={null} follows /></div>
     </Card>
   {:else if id === 'activity'}
     <Card title="Activity" flush><ActivityFeed items={board.activity} suspicious={board.suspicious} /></Card>
@@ -246,7 +246,7 @@
     <h2>Mod view · {login}</h2>
     {#if !locked}<span class="hint">Drag panels by their title.</span>{/if}
     <div class="spacer"></div>
-    {#if mv.layout || mv.hidden.length}
+    {#if mv.layout || mv.hidden.length || mv.chatKept != null}
       <button class="link" onclick={resetLayout}>Reset layout</button>
     {/if}
     <IconButton
@@ -282,8 +282,8 @@
     onresize={resize}
     onreset={(path) => even(path)}
     ondrop={drop}
-    onclose={(id) => save(remove(tree, id))}
-    onrestore={(id) => save(restore(tree, id, FULL))}
+    onclose={(id) => save(remove(tree, id), id === 'chat' ? false : undefined)}
+    onrestore={bring}
   />
 </div>
 

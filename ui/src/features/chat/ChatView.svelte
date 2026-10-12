@@ -77,6 +77,9 @@
      * mod view next to the tabs or in its own window (V102-16). */
     onmodview?: (() => void) | null;
     modviewOpen?: boolean;
+    /** V103-22 The mod view's or the stream manager's own chat: it follows the channel's
+     * regular chats and doesn't count as one. */
+    follows?: boolean;
   }
 
   let {
@@ -95,6 +98,7 @@
     tileMenu,
     onmodview = () => modviewPlace.open(login),
     modviewOpen = false,
+    follows = false,
   }: Props = $props();
 
   // A chat view shows one channel for its whole life; a different one is a new view.
@@ -102,7 +106,7 @@
   const room = new ChatRoom(login);
   // A filter change keys a new view, so the list it opened with stays right.
   // svelte-ignore state_referenced_locally
-  void room.open(account, filters).then(() => {
+  void room.open(account, filters, follows).then(() => {
     if (room.view) chatxIpc.recording(room.view).then((r) => (recording = r)).catch(() => {});
   });
   void catalogs.loadGlobal();

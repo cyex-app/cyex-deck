@@ -5,8 +5,10 @@
      panels are the shared panel layout (`PanelLayout`): unlocked, they drag onto a side of
      another and resize; locked, neither. Closed ones wait in the corner. Too narrow, they
      go one under the other (V102-24). V103-15 Mod actions have their own panel. V103-22
-     One chat per channel: your chat starts closed when it shows in another window, else as
-     a whole column on the right. Markers and Stream Together start in the corner. -->
+     One chat per channel: your chat follows your channel's regular chat, out while that
+     shows in another window, in as a whole column on the right while it doesn't; shown or
+     hidden by hand, it stays so until "Reset layout". Markers and Stream Together start
+     in the corner. -->
 <script lang="ts">
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
@@ -17,12 +19,11 @@
   import PanelLayout from '../../components/PanelLayout.svelte';
   import type { Board0 } from '../../ipc/bindings/Board0';
   import type { ModActionFilters } from '../../ipc/bindings/ModActionFilters';
-  import { chatIpc } from '../../ipc/chat';
   import { modIpc } from '../../ipc/moderation';
   import {
     asPatch,
     type Box,
-    chatStart,
+    chatShows,
     type Edge,
     extend,
     fitTree,
@@ -43,6 +44,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { uptimeShort } from '../browse/lists';
   import ChatView from '../chat/ChatView.svelte';
+  import { chatShown } from '../chat/shown.svelte';
   import ModActions from '../modview/ModActions.svelte';
   import ActivityCard from './ActivityCard.svelte';
   import AdsCard from './AdsCard.svelte';
@@ -129,27 +131,15 @@
     cfg.layout ?? prune(FULL, (id) => !START_CLOSED.includes(id) && (id !== 'chat' || cfg.chat.shown)),
   );
 
-  // V103-22 One chat per channel, asked once your channel is known: shown in another window,
-  // this one starts closed; else it opens as a whole column. Changed by hand, it stays so.
-  let chatAway = $state<boolean | null>(null);
-  let touched = $state(false);
-  const own = $derived(m?.login ?? null);
-  $effect(() => {
-    const login = own;
-    if (!login) return;
-    let gone = false;
-    chatAway = null;
-    chatIpc
-      .shownElsewhere(login)
-      .then((v) => !gone && (chatAway = v))
-      .catch(() => !gone && (chatAway = false));
-    return () => {
-      gone = true;
-    };
-  });
-  const tree = $derived(withChat(stored, 'chat', chatStart(touched, chatAway, false), 'right', cfg.chat.share));
+  // V103-22 One chat per channel: your chat follows your channel's regular chat in other
+  // windows, as Rust tells (`chatShown`). Shown or hidden by hand, it stays so. Hidden
+  // before the panel layout (V102-22) counts as hidden by hand.
+  $effect(() => chatShown.start());
+  const kept = $derived(cfg.chatKept ?? (!cfg.layout && !cfg.chat.shown ? false : null));
+  const regular = $derived(m ? chatShown.elsewhere(m.login) : null);
+  const tree = $derived(withChat(stored, 'chat', chatShows(kept, regular), 'right', cfg.chat.share));
   const closed = $derived(ORDER.filter((id) => !has(tree, id)).map((id) => ({ id, title: INFO[id].title, hint: INFO[id].hint })));
-  const chatShown = $derived(has(tree, 'chat'));
+  const chatOn = $derived(has(tree, 'chat'));
 
   let box = $state<Box>({ w: 0, h: 0 });
   const narrow = $derived(
@@ -161,13 +151,15 @@
     return fitTree(tree, box, { min, gap: GAP, pad: PAD });
   });
 
-  /** What shows is saved, the chat as it is now included. */
-  function save(next: Node | null) {
-    if (next) void settings.patch('streammanager', { layout: asPatch(next) as never }).then(() => (touched = true));
+  /** What shows is saved. `chat`: the chat shown or hidden by hand (V103-22). */
+  function save(next: Node | null, chat?: boolean) {
+    if (!next) return;
+    void settings.patch('streammanager', { layout: asPatch(next) as never, ...(chat === undefined ? {} : { chatKept: chat }) });
   }
 
   function drop(panel: string, target: string | null, edge: Edge) {
-    save(move(tree, panel, target, edge));
+    // From the corner it's brought back by hand.
+    save(move(tree, panel, target, edge), panel === 'chat' && !has(tree, 'chat') ? true : undefined);
   }
 
   function even(path: number[]) {
@@ -178,16 +170,17 @@
 
   /** V103-22 The chat comes back as a whole column on the right, not next to one card. */
   function bring(id: string) {
-    save(id === 'chat' ? extend(tree, 'chat', 'right', cfg.chat.share) : restore(tree, id, FULL));
+    if (id === 'chat') save(extend(tree, 'chat', 'right', cfg.chat.share), true);
+    else save(restore(tree, id, FULL));
   }
 
   function toggleChat() {
-    if (chatShown) save(remove(tree, 'chat'));
+    if (chatOn) save(remove(tree, 'chat'), false);
     else bring('chat');
   }
 
   function resetLayout() {
-    void settings.patch('streammanager', { layout: null as never, chat: { shown: true } }).then(() => (touched = false));
+    void settings.patch('streammanager', { layout: null as never, chat: { shown: true }, chatKept: null as never });
     toast.info('Stream manager layout reset.');
   }
 
@@ -232,7 +225,7 @@
     {:else if id === 'chat'}
       <Card title="Chat" flush>
         <div class="chat">
-          {#key m.accountId}<ChatView login={m.login} name={m.display} account={m.accountId} />{/key}
+          {#key m.accountId}<ChatView login={m.login} name={m.display} account={m.accountId} follows />{/key}
         </div>
       </Card>
     {/if}
@@ -259,15 +252,15 @@
       {/if}
       {#if !locked}<span class="hint">Drag panels by their title.</span>{/if}
       <span class="spacer"></span>
-      {#if cfg.layout}
+      {#if cfg.layout || cfg.chatKept != null}
         <button class="link" onclick={resetLayout}>Reset layout</button>
       {/if}
       <IconButton
         icon="chat"
-        label={chatShown ? 'Hide chat' : 'Show chat'}
+        label={chatOn ? 'Hide chat' : 'Show chat'}
         hint="Your chat next to the cards."
         size={15}
-        active={chatShown}
+        active={chatOn}
         onclick={toggleChat}
       />
       <IconButton
@@ -299,7 +292,7 @@
       onresize={(path, sizes) => tree && !narrow && save(setSizes(tree, path, sizes))}
       onreset={(path) => even(path)}
       ondrop={drop}
-      onclose={(id) => save(remove(tree, id))}
+      onclose={(id) => save(remove(tree, id), id === 'chat' ? false : undefined)}
       onrestore={bring}
     />
   {/if}

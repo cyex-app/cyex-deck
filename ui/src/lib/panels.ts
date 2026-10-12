@@ -190,21 +190,19 @@ export function extend(n: Node | null, id: string, edge: Edge, share: number): N
   return insert(n, null, edge, id, s);
 }
 
-/** V103-22 How a view's chat panel starts: `closed` when the channel's chat already shows
- * elsewhere, `extended` (a whole column, `extend`) when it's the only one, `wait` (out)
- * until that's known. `null` once the user changed the panels: their layout as it is. */
-export type ChatStart = 'wait' | 'closed' | 'extended' | null;
-
-export function chatStart(touched: boolean, elsewhere: boolean | null, near: boolean): ChatStart {
-  if (touched) return null;
-  if (near) return 'closed';
-  return elsewhere === null ? 'wait' : elsewhere ? 'closed' : 'extended';
+/** V103-22 Whether a view's own chat panel shows: as the user kept it (`kept`, brought back
+ * or closed by hand), else only while the channel's regular chat shows nowhere else.
+ * `regular` is `null` until that's known; the chat stays out meanwhile, so it never joins
+ * and leaves again. */
+export function chatShows(kept: boolean | null, regular: boolean | null): boolean {
+  return kept ?? regular === false;
 }
 
-/** The layout with the chat panel `id` as `start` says. */
-export function withChat(n: Node | null, id: string, start: ChatStart, edge: Edge, share: number): Node | null {
-  if (start === null) return n;
-  return start === 'extended' ? extend(n, id, edge, share) : remove(n, id);
+/** The layout with the chat panel `id` shown or not: where the layout has it, else as a
+ * whole column along `edge` (`extend`). */
+export function withChat(n: Node | null, id: string, show: boolean, edge: Edge, share: number): Node | null {
+  if (!show) return remove(n, id);
+  return has(n, id) ? n : extend(n, id, edge, share);
 }
 
 /** Panels the layout doesn't have yet, each put back where `full` has it. */

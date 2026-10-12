@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import {
   asPatch,
-  chatStart,
+  chatShows,
   clampSizes,
   dragSizes,
   ensure,
@@ -204,18 +204,24 @@ test('V103-22 a chat that is the only one opens as a whole column', () => {
   assert.deepEqual(extend(null, 'chat', 'left', 0.3), leaf('chat'));
 });
 
-test('V103-22 one chat per channel decides how the chat panel starts', () => {
-  // The tab's own chat beside it closes the view's at once, before Rust answers.
-  assert.equal(chatStart(false, null, true), 'closed');
-  assert.equal(chatStart(false, null, false), 'wait');
-  assert.equal(chatStart(false, true, false), 'closed');
-  assert.equal(chatStart(false, false, false), 'extended');
-  // Changed by hand: the layout as the user left it.
-  assert.equal(chatStart(true, false, true), null);
+test('V103-22 a view chat follows the regular chat until kept by hand', () => {
+  // Out until it's known, out while the regular chat shows, in when it doesn't.
+  assert.equal(chatShows(null, null), false);
+  assert.equal(chatShows(null, true), false);
+  assert.equal(chatShows(null, false), true);
+  // Brought back or closed by hand: that wins either way.
+  assert.equal(chatShows(true, true), true);
+  assert.equal(chatShows(true, null), true);
+  assert.equal(chatShows(false, false), false);
   const t = split('row', [leaf('chat'), leaf('activity')], [0.5, 0.5]);
-  assert.deepEqual(withChat(t, 'chat', 'closed', 'left', 0.34), leaf('activity'));
-  assert.deepEqual(withChat(t, 'chat', 'wait', 'left', 0.34), leaf('activity'));
-  assert.equal(withChat(t, 'chat', null, 'left', 0.34), t);
-  assert.equal(withChat(t, 'chat', 'extended', 'left', 0.34), t);
-  assert.deepEqual(leaves(withChat(leaf('activity'), 'chat', 'extended', 'left', 0.34)), ['chat', 'activity']);
+  assert.deepEqual(withChat(t, 'chat', false, 'left', 0.34), leaf('activity'));
+  // Shown where the layout has it, even narrower than a column or moved by hand.
+  assert.equal(withChat(t, 'chat', true, 'left', 0.34), t);
+  const under = split('column', [leaf('activity'), leaf('chat')], [0.8, 0.2]);
+  assert.equal(withChat(under, 'chat', true, 'left', 0.34), under);
+  // Missing from the layout, it comes as a whole column on its side.
+  const back = withChat(leaf('activity'), 'chat', true, 'left', 0.34) as Split;
+  assert.deepEqual(leaves(back), ['chat', 'activity']);
+  assert.ok(near(back.sizes, [0.34, 0.66]));
+  assert.deepEqual(leaves(withChat(leaf('activity'), 'chat', true, 'right', 0.3)), ['activity', 'chat']);
 });

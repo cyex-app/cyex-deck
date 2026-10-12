@@ -38,4 +38,9 @@ locked: boolean,
 /**
  * V103-15 Which mod actions the "Mod actions" panel shows.
  */
-modActions: ModActionFilters, };
+modActions: ModActionFilters, 
+/**
+ * V103-22 The chat panel brought back (`true`) or closed (`false`) by hand: it stays so
+ * until "Reset layout". `None` follows your channel's regular chat.
+ */
+chatKept?: boolean | null, };

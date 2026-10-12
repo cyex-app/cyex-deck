@@ -21,6 +21,10 @@ pub struct Modview {
     pub layout: Option<PanelNode>,
     /// V103-15 Which mod actions its "Mod actions" panel shows.
     pub mod_actions: ModActionFilters,
+    /// V103-22 The chat panel brought back (`true`) or closed (`false`) by hand: it stays so
+    /// until "Reset layout". `None` follows the channel's regular chat.
+    #[ts(optional = nullable)]
+    pub chat_kept: Option<bool>,
 }
 
 impl Schema for Modview {

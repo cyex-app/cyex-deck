@@ -72,6 +72,14 @@ pub fn apply_layout(app: &AppHandle, name: &str) -> Result<(), String> {
     // Store each panel's saved state first so opening it restores that state.
     let patch = json!({ "panels": layout.panels });
     settings.patch(app, Partition::Windows, &patch, false)?;
+    // V103-22 Every window with chats counts as loading before the first one opens, so a
+    // mod view opened first waits for the tab's chat instead of showing its own.
+    for route in layout.panels.keys().filter(|r| panels::shows_chats(r)) {
+        let label = panels::label_for(route);
+        if app.get_webview_window(&label).is_none() {
+            crate::chat::shown::loading(app, &label);
+        }
+    }
     for (route, panel) in &layout.panels {
         let label = panels::label_for(route);
         if let Some(open) = app.get_webview_window(&label) {

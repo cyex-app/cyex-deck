@@ -76,6 +76,7 @@ fn main() {
             Ok(())
         })
         .on_window_event(windows::on_window_event)
+        .on_page_load(windows::on_page_load)
         .invoke_handler(commands::handler())
         .build(tauri::generate_context!())
         .expect("cyex deck failed to start");

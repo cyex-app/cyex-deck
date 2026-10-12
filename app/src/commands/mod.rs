@@ -82,7 +82,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         browse::discover_followed_categories,
         chat::chat_open,
         chat::chat_close,
-        chat::chat_shown_elsewhere,
+        chat::chat_shown,
         chat::chat_send,
         chat::chat_global_catalog,
         chat::chat_channel_catalog,
