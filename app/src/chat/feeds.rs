@@ -1,5 +1,6 @@
 //! F4 Feed tabs: messages that match a rule with "Also show in" are copied into the feed
-//! with that name, from every joined chat. A feed keeps its last lines while no tab shows
+//! with that name, from every joined chat. Mentions (V104-01) and global mentions from
+//! the firehose (V104-02) go to the one named "Mentions". A feed keeps its last lines while no tab shows
 //! it, and deletions and timeouts in the source chat apply to the copies too.
 
 use std::collections::{HashMap, VecDeque};
@@ -22,6 +23,8 @@ pub struct FeedLine {
     pub channel: String,
     #[ts(as = "ChatMessage")]
     pub message: Arc<ChatMessage>,
+    /// V104-02 Found in logs.cyex.app's firehose, not in an open chat.
+    pub global: bool,
 }
 
 #[derive(Clone, Debug, Serialize, TS)]
@@ -63,18 +66,29 @@ pub fn init(app: &AppHandle) {
 
 /// Copies a message into the feeds it was routed to.
 pub fn route(app: &AppHandle, channel: &str, message: &Arc<ChatMessage>, routes: &[String]) {
+    push(app, channel, message, routes, false);
+}
+
+/// V104-02 A global mention's message, marked as such.
+pub fn route_global(app: &AppHandle, channel: &str, message: &Arc<ChatMessage>, routes: &[String]) {
+    push(app, channel, message, routes, true);
+}
+
+fn push(app: &AppHandle, channel: &str, message: &Arc<ChatMessage>, routes: &[String], global: bool) {
     let Some(feeds) = app.try_state::<Feeds>() else {
         return;
     };
     let mut map = feeds.feeds.lock().unwrap_or_else(|p| p.into_inner());
     for name in routes {
         let feed = map.entry(key(name)).or_default();
+        // The same message from an open chat and from the firehose shows once.
         if feed.lines.iter().any(|l| l.message.id == message.id) {
             continue;
         }
         let line = FeedLine {
             channel: channel.to_owned(),
             message: message.clone(),
+            global,
         };
         if feed.lines.len() >= LINES {
             feed.lines.pop_front();

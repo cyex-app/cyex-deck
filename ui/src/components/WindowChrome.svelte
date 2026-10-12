@@ -1,6 +1,7 @@
-<!-- Title bar for every window (3.9): mark, title or custom content, pin, minimize,
-     maximize (main only), close. Empty areas drag the window. Grows with content that wraps
-     (the main window's tab rows, V101-38); everything else stays on the first row. -->
+<!-- Title bar of the main window and usercards (3.9): mark, title or custom content, pin,
+     minimize, maximize (main only), close. Pop-outs have PopoutFrame (V104-03). Empty
+     areas drag the window. Grows with content that wraps (the main window's tab rows,
+     V101-38); everything else stays on the first row. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
@@ -14,7 +15,7 @@
     start?: Snippet;
     /** Content right before the window controls. */
     end?: Snippet;
-    /** Small windows (usercards): no minimize. */
+    /** Usercards: no minimize. */
     compact?: boolean;
   }
 

@@ -37,6 +37,9 @@ futures-util = { version = "0.3", default-features = false, features = ["sink", 
 keyring = "4.2"
 url = "2"
 regex = "1"
+# V104-01 Mentions with lookaround and backreferences (approved 2026/10/12). Plain
+# patterns run on the regex crate underneath, which is already in the build.
+fancy-regex = "0.19"
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 
 tauri = { version = "2.12", features = ["tray-icon", "image-png"] }

@@ -1,30 +1,58 @@
 //! What the user's rules do to a message as it arrives (2.6, F2, F4, F6, C2): hide it,
 //! swap words, highlight it, flag near-duplicates, count repeats, and name the feed tabs
-//! it's copied into. Built once from settings; every room shares it.
+//! it's copied into. Mentions (V104-01) ping first. Built once from settings; every room
+//! shares it.
 
 mod compile;
-mod lookalike;
 
 use std::collections::HashSet;
 
-use cyex_settings::schema::{Alert, BlockedShow, Highlights};
+use cyex_settings::schema::{Alert, BlockedShow, Highlights, MentionAlert, Mentions};
 
-use crate::model::{ChatMessage, Client, Flag, Fragment, Highlight, HighlightKind, NoticeKind};
+use crate::lookalike;
+use crate::mentions::{self, MentionSet};
+use crate::model::{ChatMessage, Client, Flag, Fragment, Highlight, HighlightKind, NoticeKind, plain};
 use crate::similar::{RepeatCheck, SimilarCheck};
 use compile::Rule;
 
-/// What happened to a message, for the app: sounds, the taskbar, feed tabs.
+/// What happened to a message, for the app: sounds, the taskbar, pop-ups, feed tabs.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Outcome {
     pub sound: bool,
     pub flash: bool,
+    /// V104-01 A Windows pop-up.
+    pub notify: bool,
+    /// V104-01 The first mention's own sound file, played instead of the chime.
+    pub sound_file: Option<String>,
     /// F4 Feed tabs to copy it into.
     pub routes: Vec<String>,
+}
+
+impl Outcome {
+    /// V104-01 Adds a mention's alerts. "Show in Mentions" is the Mentions feed tab.
+    pub fn add_mention(&mut self, a: &MentionAlert) {
+        self.sound |= a.sound;
+        self.flash |= a.flash;
+        self.notify |= a.notify;
+        if a.sound && !a.sound_file.is_empty() && self.sound_file.is_none() {
+            self.sound_file = Some(a.sound_file.clone());
+        }
+        if a.show && !self.routes.iter().any(|r| r.eq_ignore_ascii_case(mentions::FEED)) {
+            self.routes.push(mentions::FEED.to_owned());
+        }
+    }
+
+    pub fn pings(&self) -> bool {
+        self.sound || self.flash || self.notify
+    }
 }
 
 #[derive(Default)]
 pub struct Rules {
     builtin: Vec<(HighlightKind, Alert)>,
+    /// V104-01 Your name, when that's on.
+    me: Option<MentionAlert>,
+    mentions: MentionSet,
     phrases: Vec<Rule>,
     users: Vec<Rule>,
     badges: Vec<(String, Option<String>, Alert)>,
@@ -46,9 +74,8 @@ pub struct Rules {
 }
 
 impl Rules {
-    pub fn new(h: &Highlights) -> Self {
+    pub fn new(h: &Highlights, m: &Mentions) -> Self {
         let builtin = [
-            (HighlightKind::Mention, &h.mention),
             (HighlightKind::FirstMessage, &h.first_message),
             (HighlightKind::Redeemed, &h.redeemed),
             (HighlightKind::Sub, &h.subs),
@@ -63,6 +90,8 @@ impl Rules {
         let s = &h.similar;
         Self {
             builtin,
+            me: m.me.enabled.then(|| m.me.alert.clone()),
+            mentions: MentionSet::new(&m.list),
             phrases: compile::phrases(&h.phrases),
             users: compile::users(&h.users),
             badges: h
@@ -166,45 +195,38 @@ impl Rules {
     }
 
     /// 2.6 Picks the highlight; the first rule to match sets the color (Chatterino's
-    /// order), and every match adds its sound, flash and feed tabs.
+    /// order, mentions first), and every match adds its sound, flash and feed tabs.
     pub fn highlight(&self, m: &mut ChatMessage) -> Outcome {
-        let mut out = Outcome::default();
-        let mut hit: Option<Highlight> = None;
-        let mut take = |kind: HighlightKind, a: &Alert| {
-            if hit.is_none() {
-                hit = Some(Highlight {
-                    kind,
-                    color: (!a.color.is_empty()).then(|| a.color.clone()),
-                });
-            }
-            out.sound |= a.sound;
-            out.flash |= a.flash;
-            if !a.route.is_empty() && !out.routes.contains(&a.route) {
-                out.routes.push(a.route.clone());
-            }
-        };
+        let mut pick = Pick::default();
         let builtin = |k: HighlightKind| self.builtin.iter().find(|(b, _)| *b == k).map(|(_, a)| a);
+        let mut mentioned = false;
         if let Some(sender) = m.sender.as_ref() {
             if self.never.contains(&sender.login) {
                 return Outcome::default();
             }
             let own = m.has(Flag::Own);
             if m.has(Flag::Mention)
-                && let Some(a) = builtin(HighlightKind::Mention)
+                && let Some(a) = &self.me
             {
-                take(HighlightKind::Mention, a);
+                pick.mention(a);
+            }
+            if !own && !self.mentions.is_empty() {
+                self.mentions.each_match(&plain(&m.body), &mut String::new(), |r| {
+                    pick.mention(&r.alert);
+                    mentioned = true;
+                });
             }
             if !own {
                 let text = self.text_of(m);
                 for r in self.phrases.iter().filter(|r| r.matcher.is_match(&text)) {
-                    take(HighlightKind::Rule, &r.alert);
+                    pick.take(HighlightKind::Rule, &r.alert);
                 }
             }
             if own && let Some(a) = builtin(HighlightKind::Own) {
-                take(HighlightKind::Own, a);
+                pick.take(HighlightKind::Own, a);
             }
             for r in self.users.iter().filter(|r| r.matcher.is_match(&sender.login)) {
-                take(HighlightKind::Rule, &r.alert);
+                pick.take(HighlightKind::Rule, &r.alert);
             }
             for (set, version, a) in &self.badges {
                 if sender
@@ -212,23 +234,23 @@ impl Rules {
                     .iter()
                     .any(|b| b.set == *set && version.as_ref().is_none_or(|v| *v == b.version))
                 {
-                    take(HighlightKind::Rule, a);
+                    pick.take(HighlightKind::Rule, a);
                 }
             }
             if let Some(client) = m.meta.client {
                 for (_, a) in self.apps.iter().filter(|(c, _)| *c == client) {
-                    take(HighlightKind::Rule, a);
+                    pick.take(HighlightKind::Rule, a);
                 }
             }
             if m.has(Flag::Highlighted)
                 && let Some(a) = builtin(HighlightKind::Redeemed)
             {
-                take(HighlightKind::Redeemed, a);
+                pick.take(HighlightKind::Redeemed, a);
             }
             if m.has(Flag::FirstMessage)
                 && let Some(a) = builtin(HighlightKind::FirstMessage)
             {
-                take(HighlightKind::FirstMessage, a);
+                pick.take(HighlightKind::FirstMessage, a);
             }
         }
         let notice = match m.notice.as_ref().map(|n| n.kind) {
@@ -240,12 +262,49 @@ impl Rules {
         if let Some(kind) = notice
             && let Some(a) = builtin(kind)
         {
-            take(kind, a);
+            pick.take(kind, a);
         }
-        if hit.is_some() {
-            m.meta.highlight = hit;
+        // V104-01 One of your mentions counts like your name: the tab lights up, filters
+        // and search see it.
+        if mentioned {
+            m.set(Flag::Mention);
         }
-        out
+        if pick.hit.is_some() {
+            m.meta.highlight = pick.hit;
+        }
+        pick.out
+    }
+}
+
+/// The highlight so far and what every match asked for.
+#[derive(Default)]
+struct Pick {
+    out: Outcome,
+    hit: Option<Highlight>,
+}
+
+impl Pick {
+    fn color(&mut self, kind: HighlightKind, color: &str) {
+        if self.hit.is_none() {
+            self.hit = Some(Highlight {
+                kind,
+                color: (!color.is_empty()).then(|| color.to_owned()),
+            });
+        }
+    }
+
+    fn take(&mut self, kind: HighlightKind, a: &Alert) {
+        self.color(kind, &a.color);
+        self.out.sound |= a.sound;
+        self.out.flash |= a.flash;
+        if !a.route.is_empty() && !self.out.routes.contains(&a.route) {
+            self.out.routes.push(a.route.clone());
+        }
+    }
+
+    fn mention(&mut self, a: &MentionAlert) {
+        self.color(HighlightKind::Mention, &a.color);
+        self.out.add_mention(a);
     }
 }
 

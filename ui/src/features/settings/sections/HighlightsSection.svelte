@@ -1,4 +1,5 @@
 <!-- Highlights (2.6): built-in ones, then your own by phrase, user, badge and app (C26).
+     Your name moved to Mentions (V104-01).
      Each can color the line, play a sound, flash the taskbar and copy the message into a
      feed tab (F4). Also: who never highlights, chats that stay quiet (C27), look-alike
      letters (C32). -->
@@ -32,7 +33,6 @@
 
   /** Colors match the chat's own (Line.svelte). */
   const BUILT_IN: { key: keyof Highlights; label: string; color: string }[] = [
-    { key: 'mention', label: 'Your name', color: 'var(--accent)' },
     { key: 'firstMessage', label: 'First messages', color: 'var(--green)' },
     { key: 'redeemed', label: 'Highlighted with points', color: 'var(--twitch)' },
     { key: 'subs', label: 'Subs and gifts', color: 'var(--twitch)' },

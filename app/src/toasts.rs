@@ -1,7 +1,7 @@
-//! Windows pop-ups for live alerts (2.2), whispers and Twitch's bell (1.26). A click brings
-//! the main window up and tells it what to open. Toasts are silent; the window plays the
-//! app's own sound when that's on. Windows only shows local pictures, so avatars are
-//! cached in the local app data folder.
+//! Windows pop-ups for live alerts (2.2), whispers, Twitch's bell (1.26) and mentions
+//! (V104-01). A click brings the main window up and tells it what to open. Toasts are
+//! silent; the window plays the app's own sound when that's on. Windows only shows local
+//! pictures, so avatars are cached in the local app data folder.
 
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::PathBuf;
@@ -29,6 +29,11 @@ pub enum Open {
         login: String,
     },
     Whisper {
+        login: String,
+    },
+    /// V104-02 A global mention: that channel's `#channel` window (V102-05), read
+    /// anonymously.
+    Room {
         login: String,
     },
     /// Twitch's bell: the window decides between a channel, an in-app Twitch page and

@@ -154,8 +154,8 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
     }
     let muted = super::rules::current(app).muted(channel);
     for (m, outcome) in outcomes {
-        if (outcome.sound || outcome.flash) && !muted {
-            mention::notify(app, channel, &m, &outcome);
+        if outcome.pings() && !muted {
+            mention::notify(app, channel, &m, &outcome, false);
         }
         if !outcome.routes.is_empty() {
             super::feeds::route(app, channel, &m, &outcome.routes);

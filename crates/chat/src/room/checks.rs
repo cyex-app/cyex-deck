@@ -88,6 +88,7 @@ impl Room {
         if m.has(Flag::Similar) {
             outcome.sound = false;
             outcome.flash = false;
+            outcome.notify = false;
         }
         (true, outcome)
     }
@@ -157,7 +158,7 @@ mod tests {
     use crate::model::RoomEvent;
     use crate::similar::RepeatCheck;
     use crate::tokenize::NoEmotes;
-    use cyex_settings::schema::{Highlights, IgnoreRule, PhraseRule, Similarity};
+    use cyex_settings::schema::{Highlights, IgnoreRule, MentionAlert, MentionRule, Mentions, PhraseRule, Similarity};
 
     fn feed(r: &mut Room, id: &str, user: &str, text: &str) -> Vec<RoomEvent> {
         let raw = format!("@id={id};user-id={user};tmi-sent-ts={id}000 :u{user}!u@u PRIVMSG #chan :{text}");
@@ -194,7 +195,18 @@ mod tests {
             },
             ..Highlights::default()
         };
-        let mut rules = Rules::new(&h);
+        let mentions = Mentions {
+            list: vec![MentionRule {
+                pattern: "pasta".into(),
+                alert: MentionAlert {
+                    notify: true,
+                    ..MentionAlert::default()
+                },
+                ..MentionRule::default()
+            }],
+            ..Mentions::default()
+        };
+        let mut rules = Rules::new(&h, &mentions);
         rules.repeat = Some(RepeatCheck {
             threshold: 0.8,
             min: 2,
@@ -231,5 +243,15 @@ mod tests {
             panic!()
         };
         assert_eq!(message.meta.repeat, Some(3), "a new line once someone else spoke");
+
+        // V104-01 A mention of yours: flagged like your name, a pop-up, the Mentions tab.
+        let ev = feed(&mut r, "6", "9", "PASTA later?");
+        let RoomEvent::Message { message } = &ev[0] else {
+            panic!()
+        };
+        assert!(message.has(Flag::Mention));
+        let out = r.take_outcomes();
+        let (_, o) = out.last().unwrap();
+        assert!(o.notify && !o.sound && o.routes == ["Mentions"]);
     }
 }

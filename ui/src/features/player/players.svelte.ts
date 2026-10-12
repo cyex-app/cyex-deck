@@ -7,6 +7,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import type { LinkTarget } from '../../ipc/bindings/LinkTarget';
 import type { TileShow } from '../../ipc/bindings/TileShow';
+import { currentWindow } from '../../lib/window.svelte';
 
 /** V101-29 What Windows' media controls show for a player. */
 export interface MediaInfo {
@@ -122,5 +123,6 @@ export async function toggleFullscreen(el: HTMLElement): Promise<void> {
 }
 
 document.addEventListener('fullscreenchange', () => {
-  void getCurrentWindow().setFullscreen(Boolean(document.fullscreenElement));
+  // V104-03 A pop-out the frame made fullscreen stays so when the player leaves its own.
+  void getCurrentWindow().setFullscreen(Boolean(document.fullscreenElement) || currentWindow.fullscreen);
 });

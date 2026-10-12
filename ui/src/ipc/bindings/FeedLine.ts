@@ -5,4 +5,8 @@ export type FeedLine = {
 /**
  * Channel login it was said in.
  */
-channel: string, message: ChatMessage, };
+channel: string, message: ChatMessage, 
+/**
+ * V104-02 Found in logs.cyex.app's firehose, not in an open chat.
+ */
+global: boolean, };

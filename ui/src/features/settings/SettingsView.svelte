@@ -22,6 +22,7 @@
   import HighlightsSection from './sections/HighlightsSection.svelte';
   import HotkeysSection from './sections/HotkeysSection.svelte';
   import IgnoresSection from './sections/IgnoresSection.svelte';
+  import MentionsSection from './sections/MentionsSection.svelte';
   import MinerSection from './sections/MinerSection.svelte';
   import NotificationsSection from './sections/NotificationsSection.svelte';
   import PlayerSection from './sections/PlayerSection.svelte';
@@ -50,6 +51,7 @@
     chat: ChatSection,
     emotes: EmotesSection,
     highlights: HighlightsSection,
+    mentions: MentionsSection,
     ignores: IgnoresSection,
     filters: FiltersSection,
     commands: CommandsSection,

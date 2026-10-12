@@ -1,10 +1,12 @@
 //! Twitch API clients. One shared HTTP client; callers pass tokens in, nothing here
 //! stores them. Also the third-party services chat uses: recent messages (C1),
-//! Chatterino's link resolver (D8), translation (C17) and logs.cyex.app (1.36).
+//! Chatterino's link resolver (D8), translation (C17) and logs.cyex.app (1.36, its firehose
+//! V104-02).
 
 pub mod channel_input;
 pub mod clients;
 pub mod clock;
+pub mod firehose;
 pub mod giphy;
 mod error;
 pub mod gql;

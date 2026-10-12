@@ -7,6 +7,7 @@ pub mod catalog;
 mod creds;
 pub mod feeds;
 mod flush;
+pub mod global;
 pub mod identity;
 pub mod live;
 mod mention;
@@ -137,6 +138,7 @@ pub fn init(app: &AppHandle) {
     live::init(app);
     feeds::init(app);
     rules::init(app);
+    global::init(app);
     run::init(app);
     powerups::init(app);
     record::init(app);
@@ -585,7 +587,11 @@ pub fn search(app: &AppHandle, view: Option<u32>, query: &str) -> Result<Vec<fee
         }
         for m in entry.room.snapshot().messages {
             if q.matches(&m, &key.1) && seen.insert(m.id.clone()) {
-                out.push(feeds::FeedLine { channel: key.1.clone(), message: m });
+                out.push(feeds::FeedLine {
+                    channel: key.1.clone(),
+                    message: m,
+                    global: false,
+                });
             }
         }
     }

@@ -10,6 +10,7 @@ import type { Emotes } from './bindings/Emotes';
 import type { General } from './bindings/General';
 import type { Highlights } from './bindings/Highlights';
 import type { Hotkeys } from './bindings/Hotkeys';
+import type { Mentions } from './bindings/Mentions';
 import type { Miner } from './bindings/Miner';
 import type { Modview } from './bindings/Modview';
 import type { Notifications } from './bindings/Notifications';
@@ -27,6 +28,7 @@ export interface SettingsValues {
   chat: Chat;
   player: Player;
   highlights: Highlights;
+  mentions: Mentions;
   commands: Commands;
   hotkeys: Hotkeys;
   tabs: Tabs;

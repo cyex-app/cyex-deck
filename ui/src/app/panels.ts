@@ -23,22 +23,24 @@ export interface PanelKind {
   title: string;
   width: number;
   height: number;
-  /** Small window: no minimize button. */
+  /** A pop-up (usercards), not a pop-out: the small title bar with its own x. */
   compact?: boolean;
+  /** V104-03 Closing docks it back into the main window (3.14, V102-16). */
+  docks?: boolean;
   /** No title bar: the panel draws its own (U7 overlays). */
   bare?: boolean;
   component: Component<{ popout?: boolean; route: string }>;
 }
 
 export const PANELS: Record<string, PanelKind> = {
-  tab: { title: 'Tab', width: 420, height: 680, component: TabPanel },
-  chat: { title: 'Chat', width: 380, height: 680, component: ChatPanel },
+  tab: { title: 'Tab', width: 420, height: 680, docks: true, component: TabPanel },
+  chat: { title: 'Chat', width: 380, height: 680, docks: true, component: ChatPanel },
   room: { title: 'Chat', width: 380, height: 640, component: RoomPanel },
   usercard: { title: 'User', width: 380, height: 560, compact: true, component: UsercardView },
   recording: { title: 'Recording', width: 400, height: 640, component: RecordingView },
-  modview: { title: 'Mod view', width: 920, height: 680, component: ModViewPanel },
-  streammanager: { title: 'Stream manager', width: 1000, height: 760, component: StreamManagerView },
-  whispers: { title: 'Whispers', width: 720, height: 560, component: WhispersView },
+  modview: { title: 'Mod view', width: 920, height: 680, docks: true, component: ModViewPanel },
+  streammanager: { title: 'Stream manager', width: 1000, height: 760, docks: true, component: StreamManagerView },
+  whispers: { title: 'Whispers', width: 720, height: 560, docks: true, component: WhispersView },
   overlay: { title: 'Overlay', width: 340, height: 420, bare: true, component: OverlayView },
   plugin: { title: 'Plugin console', width: 620, height: 420, component: ConsoleView },
 };

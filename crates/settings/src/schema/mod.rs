@@ -10,6 +10,7 @@ mod emotes;
 mod general;
 mod highlights;
 mod hotkeys;
+mod mentions;
 mod miner;
 mod modview;
 mod notifications;
@@ -37,6 +38,7 @@ pub use highlights::{
     SentFrom, Similarity, UserRule,
 };
 pub use hotkeys::Hotkeys;
+pub use mentions::{MentionAlert, MentionRule, Mentions, RegexFlavor, SOUND_TYPES, YourName, is_sound_file};
 pub use miner::{BetFilter, Bets, ChatPresence, DelayMode, FilterBy, FilterCmp, MAX_FIRST, MineSource, Miner, Rule, Strategy};
 pub use modview::Modview;
 pub use notifications::Notifications;

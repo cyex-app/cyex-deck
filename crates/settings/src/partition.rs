@@ -14,6 +14,8 @@ pub enum Partition {
     Chat,
     Player,
     Highlights,
+    /// V104-01
+    Mentions,
     Commands,
     Hotkeys,
     Tabs,
@@ -31,12 +33,13 @@ pub enum Partition {
 }
 
 impl Partition {
-    pub const ALL: [Partition; 17] = [
+    pub const ALL: [Partition; 18] = [
         Partition::General,
         Partition::Appearance,
         Partition::Chat,
         Partition::Player,
         Partition::Highlights,
+        Partition::Mentions,
         Partition::Commands,
         Partition::Hotkeys,
         Partition::Tabs,
@@ -58,6 +61,7 @@ impl Partition {
             Partition::Chat => "chat",
             Partition::Player => "player",
             Partition::Highlights => "highlights",
+            Partition::Mentions => "mentions",
             Partition::Commands => "commands",
             Partition::Hotkeys => "hotkeys",
             Partition::Tabs => "tabs",
@@ -97,6 +101,7 @@ impl Partition {
             Partition::Chat => roundtrip::<schema::Chat>(value),
             Partition::Player => roundtrip::<schema::Player>(value),
             Partition::Highlights => roundtrip::<schema::Highlights>(value),
+            Partition::Mentions => roundtrip::<schema::Mentions>(value),
             Partition::Commands => roundtrip::<schema::Commands>(value),
             Partition::Hotkeys => roundtrip::<schema::Hotkeys>(value),
             Partition::Tabs => roundtrip::<schema::Tabs>(value),

@@ -1,5 +1,5 @@
-// V103-13 Settings in the Chat group: Chat, Emotes and badges, Highlights, Ignores,
-// Filters, Commands, Automations, Recordings.
+// V103-13 Settings in the Chat group: Chat, Emotes and badges, Highlights, Mentions,
+// Ignores, Filters, Commands, Automations, Recordings.
 
 import type { Entry } from './entry';
 
@@ -264,7 +264,37 @@ export const CHAT: Entry[] = [
   },
 
   // Highlights
-  builtIn('mention', 'Your name', 'Messages that mention you.', ['mention', 'ping', '@']),
+  // Mentions (V104-01, V104-02)
+  {
+    id: 'mentions.me.enabled',
+    page: 'mentions',
+    label: 'Your name',
+    description: 'Messages with your name, and replies to you.',
+    keywords: ['mention', 'ping', '@', 'self', 'highlight', 'sound', 'flash', 'pop-up', 'notification'],
+    keys: ['show', 'flash', 'notify', 'sound', 'soundFile', 'color'].map((f) => `mentions.me.${f}`),
+  },
+  {
+    id: 'mentions.list',
+    page: 'mentions',
+    label: 'Your words',
+    description: 'Words that ping you in any open chat, each with its own options.',
+    keywords: ['mention', 'ping', 'keywords', 'regex', 'look-alike', 'cyrillic', 'case', 'whole word', 'sound file', 'pop-up'],
+  },
+  {
+    id: 'mentions.global',
+    page: 'mentions',
+    label: 'Global mentions',
+    description: 'From logs.cyex.app: every chat it logs. Your list stays on this PC.',
+    keywords: ['firehose', 'logs', 'everywhere', 'all chats', 'mention'],
+  },
+  {
+    id: 'mentions.globalList',
+    page: 'mentions',
+    label: 'Global mention words',
+    description: 'Words to find in any chat, open or not.',
+    keywords: ['firehose', 'logs.cyex.app', 'keywords', 'regex'],
+    anchor: 'mentions.global',
+  },
   builtIn('firstMessage', 'First messages', 'Someone’s first message in a chat.', ['first time chatter']),
   builtIn('redeemed', 'Highlighted with points', 'Messages highlighted with channel points.', ['channel points', 'redeem']),
   builtIn('subs', 'Subs and gifts', 'Subs, resubs and gifted subs.', ['subscriptions', 'resub', 'gift subs']),

@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
 use std::time::Duration;
 
+use cyex_settings::schema::{Highlights, Mentions};
 use cyex_settings::{Bundle, Partition, Schema, Store, SystemClock};
 use serde::Serialize;
 use serde_json::Value;
@@ -29,7 +30,14 @@ struct Changed<'a> {
 
 pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let dir = crate::paths::config(app)?.join("settings");
-    let (store, report) = Store::open(dir, Arc::new(SystemClock))?;
+    // V104-01 Mentions got their own file; the first start with it takes your name's
+    // options from Highlights.
+    let first_mentions = !dir.join(Partition::Mentions.file_name()).exists();
+    let (mut store, report) = Store::open(dir, Arc::new(SystemClock))?;
+    if first_mentions {
+        let h: Highlights = store.read(Partition::Highlights);
+        let _ = store.set(Partition::Mentions, serde_json::to_value(Mentions::from_highlights(&h))?);
+    }
     app.manage(Settings {
         store: Mutex::new(store),
         save_queued: AtomicBool::new(false),
@@ -127,8 +135,14 @@ impl Settings {
         if changed.iter().any(|(p, _)| *p == Partition::Chat) {
             crate::emotes::on_settings(app);
         }
-        if changed.iter().any(|(p, _)| matches!(p, Partition::Chat | Partition::Highlights)) {
+        if changed
+            .iter()
+            .any(|(p, _)| matches!(p, Partition::Chat | Partition::Highlights | Partition::Mentions))
+        {
             crate::chat::on_settings(app);
+        }
+        if changed.iter().any(|(p, _)| *p == Partition::Mentions) {
+            crate::chat::global::sync(app);
         }
         if changed.iter().any(|(p, _)| *p == Partition::Miner) {
             crate::miner::on_settings(app);

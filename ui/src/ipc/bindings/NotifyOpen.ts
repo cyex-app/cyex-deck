@@ -3,4 +3,4 @@
 /**
  * What a click opens in the main window.
  */
-export type NotifyOpen = { "kind": "channel", login: string, } | { "kind": "whisper", login: string, } | { "kind": "link", url: string, };
+export type NotifyOpen = { "kind": "channel", login: string, } | { "kind": "whisper", login: string, } | { "kind": "room", login: string, } | { "kind": "link", url: string, };

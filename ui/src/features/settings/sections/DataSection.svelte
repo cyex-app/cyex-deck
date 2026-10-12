@@ -7,7 +7,7 @@
   import { PARTITION_LABELS, PORTABLE_PARTITIONS, partitionList } from '../../../lib/partitions';
   import { toast } from '../../../lib/toast.svelte';
 
-  let picked = $state<Partition[]>(['general', 'appearance', 'chat', 'highlights', 'commands', 'hotkeys']);
+  let picked = $state<Partition[]>(['general', 'appearance', 'chat', 'highlights', 'mentions', 'commands', 'hotkeys']);
   let code = $state('');
   let backups = $state<string[]>([]);
 

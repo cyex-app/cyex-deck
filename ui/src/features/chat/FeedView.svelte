@@ -1,14 +1,20 @@
 <!-- F4 A feed tab: messages that highlight rules send here ("Also show in"), from every
-     joined chat. Read only; names and links open like in a chat. -->
+     joined chat. Read only; names and links open like in a chat. The Mentions tab (V104-01)
+     is one too: global mentions (V104-02) are marked, and a channel opens its own small
+     chat window (V102-05). -->
 <script lang="ts">
   import { onDestroy, tick, type Snippet } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
   import type { FeedEvent } from '../../ipc/bindings/FeedEvent';
   import type { FeedLine } from '../../ipc/bindings/FeedLine';
+  import { popOut } from '../../app/panels';
   import { chatxIpc } from '../../ipc/chatx';
+  import { settings } from '../../lib/settings.svelte';
   import { lineClick } from './clicks';
   import Line from './Line.svelte';
+  import { isMentionsFeed, whenText } from './mentionsTab';
+  import { roomRoute } from './roomRoute';
 
   interface Props {
     name: string;
@@ -56,6 +62,13 @@
     closed = true;
     if (view) void chatxIpc.feedClose(view);
   });
+
+  const mentions = $derived(isMentionsFeed(name));
+  const stamped = $derived(settings.v.chat.timestamps.show);
+
+  function openRoom(channel: string) {
+    void popOut(roomRoute(channel, null), `${channel} chat`);
+  }
 </script>
 
 <section class="feed">
@@ -69,11 +82,23 @@
   <div class="lines" bind:this={list} onclick={lineClick}>
     {#each lines as l (`${l.channel}/${l.message.id}`)}
       <div data-channel={l.channel}>
-        <div class="chan">#{l.channel}</div>
+        <div class="chan">
+          <button class="room" title="Open this chat" onclick={(e) => (e.stopPropagation(), openRoom(l.channel))}>
+            #{l.channel}
+          </button>
+          {#if l.global}<span class="global" title="From logs.cyex.app">global</span>{/if}
+          <span class="when">{whenText(l.message.ts, stamped)}</span>
+        </div>
         <Line m={l.message} channel={l.channel} />
       </div>
     {:else}
-      <p class="empty">Nothing yet. Messages land here when a highlight rule says “Also show in {name}”.</p>
+      <p class="empty">
+        {#if mentions}
+          Nothing yet. Mentions with “Show in Mentions” land here.
+        {:else}
+          Nothing yet. Messages land here when a highlight rule says “Also show in {name}”.
+        {/if}
+      </p>
     {/each}
   </div>
 </section>
@@ -107,10 +132,36 @@
     padding: 4px 0;
   }
   .chan {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
     padding: 4px 10px 0;
     color: var(--dim);
     font-size: 0.72rem;
     font-weight: 700;
+  }
+  .room {
+    padding: 0;
+    background: none;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  .room:hover {
+    color: var(--text);
+    text-decoration: underline;
+  }
+  .global {
+    padding: 0 4px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    font-weight: 600;
+  }
+  .when {
+    margin-left: auto;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
   }
   .empty {
     padding: 10px 12px;

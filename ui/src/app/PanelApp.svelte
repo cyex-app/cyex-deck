@@ -1,7 +1,9 @@
-<!-- A popped-out panel window (1.51): title bar plus the panel for its route. -->
+<!-- A popped-out panel window (1.51): the shared pop-out frame (V104-03) plus the panel for
+     its route. Usercards keep their small title bar; overlays draw their own. -->
 <script lang="ts">
   import EmptyState from '../components/EmptyState.svelte';
   import MenuHost from '../components/MenuHost.svelte';
+  import PopoutFrame from '../components/PopoutFrame.svelte';
   import Toasts from '../components/Toasts.svelte';
   import TooltipHost from '../components/TooltipHost.svelte';
   import WindowChrome from '../components/WindowChrome.svelte';
@@ -21,7 +23,11 @@
   useHotkeys({ 'window.pin': () => currentWindow.togglePin(), ...playerHotkeys });
 </script>
 
-{#if !panel?.bare}<WindowChrome title={titleFor(route)} compact={panel?.compact} />{/if}
+{#if panel?.compact}
+  <WindowChrome title={titleFor(route)} compact />
+{:else if !panel?.bare}
+  <PopoutFrame title={titleFor(route)} docks={panel?.docks} />
+{/if}
 
 <main>
   {#if panel}

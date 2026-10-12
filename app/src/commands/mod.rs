@@ -6,6 +6,7 @@ mod chat;
 mod chat_extra;
 mod emotes;
 mod fonts;
+mod mentions;
 mod miner;
 mod moderation;
 mod modes;
@@ -231,6 +232,10 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         theme::theme_import,
         theme::theme_pick_wallpaper,
         fonts::fonts_add,
+        mentions::mentions_check,
+        mentions::mentions_global_status,
+        mentions::mentions_pick_sound,
+        mentions::mentions_sound,
         fonts::fonts_remove,
         modes::streamer_state,
         modes::streamer_toggle,

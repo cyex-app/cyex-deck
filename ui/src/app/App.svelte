@@ -25,6 +25,9 @@
   import StreamManagerView from '../features/streammanager/StreamManagerView.svelte';
   import SubsView from '../features/subs/SubsView.svelte';
   import { whispers } from '../features/whispers/whispers.svelte';
+  import { isMentionsFeed, MENTIONS_FEED } from '../features/chat/mentionsTab';
+  import { mentionsTab } from '../features/chat/mentionsTab.svelte';
+  import { roomRoute } from '../features/chat/roomRoute';
   import WhispersView from '../features/whispers/WhispersView.svelte';
   import { openAdd } from '../features/tabs/dialog.svelte';
   import PoppedOut from '../features/tabs/PoppedOut.svelte';
@@ -51,7 +54,7 @@
   import { followFullscreen } from '../lib/layers';
   import { settings } from '../lib/settings.svelte';
   import { streamer } from '../lib/streamer.svelte';
-  import { mentionChime } from '../lib/sound';
+  import { mentionChime, mentionSound } from '../lib/sound';
   import { toast } from '../lib/toast.svelte';
   import { currentWindow } from '../lib/window.svelte';
   import { popOut } from './panels';
@@ -154,8 +157,19 @@
   });
 
   $effect(() => {
-    const off = chatIpc.onMention(() => mentionChime());
+    const off = chatIpc.onMention((m) => void mentionSound(m.sound));
     return () => void off.then((f) => f());
+  });
+
+  // V104-01 "Open the Mentions tab" in Settings: the feed tab named Mentions, added if
+  // there's none.
+  $effect(() => {
+    if (!mentionsTab.asks) return;
+    untrack(async () => {
+      const have = tabs.list.find((t) => tiles(t).some((x) => isMentionsFeed(x.feed)));
+      const id = have?.id ?? (await tabs.apply({ op: 'addFeed', name: MENTIONS_FEED }));
+      if (id) open(id);
+    });
   });
 
   $effect(() => {
@@ -202,6 +216,7 @@
     const open = notifyEvents.onOpen((o) => {
       if (o.kind === 'channel') void openLogin(o.login);
       else if (o.kind === 'whisper') whispers.show(o.login);
+      else if (o.kind === 'room') void popOut(roomRoute(o.login, null), `${o.login} chat`);
       else follow(o.url, (l) => void openLogin(l));
     });
     const sound = notifyEvents.onSound(() => mentionChime());

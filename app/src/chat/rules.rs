@@ -1,4 +1,5 @@
-//! 2.6, F2, F6, C2 The user's rules, built from settings and shared by every room.
+//! 2.6, F2, F6, C2, V104-01 The user's rules and mentions, built from settings and shared
+//! by every room.
 //! Twitch blocks (F2) come from each signed-in account when chat starts and after
 //! account changes; `/block` and `/unblock` update them right away.
 
@@ -8,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use cyex_chat::rules::Rules;
 use cyex_chat::similar::RepeatCheck;
 use cyex_settings::Partition;
-use cyex_settings::schema::{Chat as ChatSettings, Highlights};
+use cyex_settings::schema::{Chat as ChatSettings, Highlights, Mentions};
 use cyex_twitch::{gql, helix};
 use tauri::{AppHandle, Manager};
 
@@ -39,8 +40,9 @@ pub fn current(app: &AppHandle) -> Arc<Rules> {
 pub fn rebuild(app: &AppHandle) {
     let settings = app.state::<Settings>();
     let h: Highlights = settings.read(Partition::Highlights);
+    let m: Mentions = settings.read(Partition::Mentions);
     let c: ChatSettings = settings.read(Partition::Chat);
-    let mut rules = Rules::new(&h);
+    let mut rules = Rules::new(&h, &m);
     rules.repeat = c.repeats.then(|| RepeatCheck {
         threshold: f32::from(c.repeat_similarity) / 100.0,
         min: 2,
