@@ -172,6 +172,13 @@ export const APP: Entry[] = [
     keywords: ['load', 'share code', 'restore'],
   },
   {
+    id: 'data:chatterino',
+    page: 'data',
+    label: 'Import from Chatterino',
+    description: 'Your Chatterino tabs, in order and with their names.',
+    keywords: ['chatterino', 'chatterino7', 'window-layout.json', 'tabs', 'layout', 'migrate'],
+  },
+  {
     id: 'data:backups',
     page: 'data',
     label: 'Backups',

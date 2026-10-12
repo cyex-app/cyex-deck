@@ -1,9 +1,11 @@
 //! Channel tabs (spec 02) wired to Tauri: edits from any window, the chat rooms tabs keep
 //! joined (1.10), live dots and renamed channels (1.15, 1.29), following (1.11), reopening
-//! closed tabs (U10). The tab model and its rules live in `cyex_settings::schema::tabs`.
+//! closed tabs (U10), importing a Chatterino layout (V1041-02). The tab model and its rules
+//! live in `cyex_settings::schema::tabs`.
 
 mod closed;
 pub mod follow;
+pub mod import;
 pub mod live;
 mod rooms;
 
@@ -21,6 +23,7 @@ use crate::settings::Settings;
 
 pub fn init(app: &AppHandle) {
     app.manage(closed::ClosedTabs::default());
+    import::init(app);
     rooms::sync(app);
     live::spawn(app);
 }

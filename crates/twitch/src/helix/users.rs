@@ -15,7 +15,17 @@ pub struct User {
 
 /// Up to 100 ids per call.
 pub async fn users_by_id(http: &Http, auth: Auth<'_>, ids: &[&str]) -> Result<Vec<User>> {
-    let query: Vec<(&str, &str)> = ids.iter().take(100).map(|id| ("id", *id)).collect();
+    users(http, auth, "id", ids).await
+}
+
+/// V1041-02 Up to 100 logins per call. Logins nobody has (renamed, banned, deleted) are
+/// left out of the answer.
+pub async fn users_by_login(http: &Http, auth: Auth<'_>, logins: &[&str]) -> Result<Vec<User>> {
+    users(http, auth, "login", logins).await
+}
+
+async fn users(http: &Http, auth: Auth<'_>, key: &str, values: &[&str]) -> Result<Vec<User>> {
+    let query: Vec<(&str, &str)> = values.iter().take(100).map(|v| (key, *v)).collect();
     let data: Data<User> = json(get(http, auth, "/users").query(&query)).await?;
     Ok(data.data)
 }

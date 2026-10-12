@@ -1,0 +1,74 @@
+{
+    "windows": [
+        {
+            "type": "main",
+            "x": 0,
+            "y": 0,
+            "width": 900,
+            "height": 600,
+            "emotePopup": { "x": 0, "y": 0 },
+            "tabs": [
+                {
+                    "title": "Old",
+                    "selected": true,
+                    "highlightsEnabled": true,
+                    "splits": [
+                        [
+                            { "type": "twitch", "name": "hotel_eight" },
+                            { "type": "twitch", "name": "India_Nine" }
+                        ],
+                        [
+                            { "type": "twitch", "name": "juliet_ten" },
+                            { "type": "whispers" }
+                        ]
+                    ]
+                },
+                {
+                    "highlightsEnabled": true,
+                    "splits2": {
+                        "type": "split",
+                        "moderationMode": false,
+                        "data": { "type": "irc", "server": 1, "channel": "#lounge" },
+                        "filters": [],
+                        "flexh": 1,
+                        "flexv": 1
+                    }
+                },
+                {
+                    "splits2": {
+                        "type": "horizontal",
+                        "items": [
+                            {
+                                "type": "split",
+                                "moderationMode": false,
+                                "data": { "type": "twitch", "name": "kilo_eleven" },
+                                "flexh": 1,
+                                "flexv": 1
+                            },
+                            {
+                                "type": "split",
+                                "moderationMode": false,
+                                "data": { "type": "None", "name": "" },
+                                "flexh": 1,
+                                "flexv": 1
+                            }
+                        ]
+                    }
+                },
+                {
+                    "splits": [[{ "type": "irc", "server": 2, "channel": "#help" }]]
+                },
+                {
+                    "title": "Teams",
+                    "splits2": {
+                        "type": "split",
+                        "moderationMode": false,
+                        "data": { "type": "teams", "name": "squad" },
+                        "flexh": 1,
+                        "flexv": 1
+                    }
+                }
+            ]
+        }
+    ]
+}

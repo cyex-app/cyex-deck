@@ -1,0 +1,106 @@
+{
+    "windows": [
+        {
+            "type": "main",
+            "x": 40,
+            "y": 40,
+            "width": 1000,
+            "height": 700,
+            "emotePopup": { "x": 0, "y": 0, "width": 0, "height": 0 },
+            "tabs": [
+                {
+                    "title": "Merged",
+                    "selected": true,
+                    "highlightsEnabled": true,
+                    "splits2": {
+                        "type": "split",
+                        "moderationMode": false,
+                        "data": {
+                            "type": "multi",
+                            "children": [
+                                { "platform": "Twitch", "channel": "lima_twelve" },
+                                { "platform": "Kick", "channel": "kick_side" },
+                                { "platform": "Twitch", "channel": "Mike_Thirteen" }
+                            ],
+                            "indicatorMode": "PlatformBadgeIfUnselected",
+                            "activeIndex": 0
+                        },
+                        "filters": [],
+                        "flexh": 1,
+                        "flexv": 1
+                    }
+                },
+                {
+                    "highlightsEnabled": true,
+                    "splits2": {
+                        "type": "horizontal",
+                        "flexh": 1,
+                        "flexv": 1,
+                        "items": [
+                            {
+                                "type": "split",
+                                "moderationMode": false,
+                                "data": { "type": "twitch", "name": "november_14", "anonymous": true, "autoModChannel": "" },
+                                "filters": [],
+                                "flexh": 1,
+                                "flexv": 1
+                            },
+                            {
+                                "type": "vertical",
+                                "flexh": 1,
+                                "flexv": 1,
+                                "items": [
+                                    {
+                                        "type": "split",
+                                        "moderationMode": false,
+                                        "data": { "type": "twitch", "name": "oscar_15" },
+                                        "filters": [],
+                                        "flexh": 1,
+                                        "flexv": 1
+                                    },
+                                    {
+                                        "type": "split",
+                                        "moderationMode": false,
+                                        "data": { "type": "kick", "name": "kick_only", "roomID": 11, "userID": 12, "channelID": 13 },
+                                        "filters": [],
+                                        "flexh": 1,
+                                        "flexv": 1
+                                    },
+                                    {
+                                        "type": "split",
+                                        "moderationMode": false,
+                                        "data": {
+                                            "type": "multi",
+                                            "children": [
+                                                { "platform": "Twitch", "channel": "papa_16" },
+                                                { "platform": "Somewhere", "channel": "elsewhere" }
+                                            ],
+                                            "indicatorMode": "Always",
+                                            "activeIndex": 1
+                                        },
+                                        "filters": [],
+                                        "flexh": 1,
+                                        "flexv": 1
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Elsewhere",
+                    "highlightsEnabled": true,
+                    "splits2": {
+                        "type": "horizontal",
+                        "flexh": 1,
+                        "flexv": 1,
+                        "items": [
+                            { "type": "split", "moderationMode": false, "data": { "type": "youtube", "name": "some_video" }, "filters": [], "flexh": 1, "flexv": 1 },
+                            { "type": "split", "moderationMode": false, "data": { "type": "tiktok", "name": "some_live" }, "filters": [], "flexh": 1, "flexv": 1 }
+                        ]
+                    }
+                }
+            ]
+        }
+    ]
+}

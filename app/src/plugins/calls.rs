@@ -42,6 +42,14 @@ pub fn command_owner(app: &AppHandle, name: &str) -> Option<std::sync::Arc<Plugi
         .find(|p| p.exports().commands.iter().any(|c| c == name))
 }
 
+/// V1041-01 Every running plugin's commands, for Tab completion.
+pub fn command_names(app: &AppHandle) -> Vec<String> {
+    super::running(app)
+        .into_iter()
+        .flat_map(|p| p.exports().commands)
+        .collect()
+}
+
 /// Runs a plugin's command. `Ok(Some(text))`: run that as if typed.
 pub async fn command(p: &Plugin, name: &str, args: &str, channel: &str) -> Result<Option<String>, String> {
     let mut words = vec![format!("/{name}")];

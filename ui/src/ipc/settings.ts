@@ -10,6 +10,7 @@ import type { Emotes } from './bindings/Emotes';
 import type { General } from './bindings/General';
 import type { Highlights } from './bindings/Highlights';
 import type { Hotkeys } from './bindings/Hotkeys';
+import type { ImportReport } from './bindings/ImportReport';
 import type { Mentions } from './bindings/Mentions';
 import type { Miner } from './bindings/Miner';
 import type { Modview } from './bindings/Modview';
@@ -59,6 +60,10 @@ export const settingsIpc = {
   reset: <P extends Partition>(partition: P) => invoke<SettingsValues[P]>('settings_reset', { partition }),
   exportFile: (partitions: Partition[]) => invoke<boolean>('settings_export_file', { partitions }),
   importFile: () => invoke<Partition[]>('settings_import_file'),
+  /** V1041-02 Opens a file picker; `null` when cancelled. */
+  chatterinoPreview: () => invoke<ImportReport | null>('settings_chatterino_preview'),
+  /** V1041-02 Adds the previewed tabs, with the stream too if `player`. */
+  chatterinoImport: (player: boolean) => invoke<ImportReport>('settings_chatterino_import', { player }),
   shareCode: (partitions: Partition[]) => invoke<string>('settings_share_code', { partitions }),
   importCode: (code: string) => invoke<Partition[]>('settings_import_code', { code }),
   backups: () => invoke<string[]>('settings_backups'),

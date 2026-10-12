@@ -48,7 +48,8 @@ pub use player::{Corner, Player, Quality};
 pub use plugins::{PluginEntry, Plugins};
 pub use streammanager::{ActivityFilters, ModActionFilters, Obs, StreamManager};
 pub use tabs::{
-    Closed, Column, GroupColor, Resolved, Tab, TabChannel, TabError, TabGroup, TabOp, Tabs, Tile, TileShow, Zone, random_id,
+    Closed, Column, GroupColor, ImportTab, Resolved, Tab, TabChannel, TabError, TabGroup, TabOp, Tabs, Tile, TileShow, Zone,
+    random_id,
 };
 pub use windows::{Geometry, Layout, PanelWindow, Windows};
 

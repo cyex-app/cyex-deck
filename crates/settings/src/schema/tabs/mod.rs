@@ -3,11 +3,13 @@
 //! [`TabOp`], so all windows and the joined rooms follow the same list.
 
 mod closed;
+mod import;
 mod ops;
 mod order;
 mod resolve;
 
 pub use closed::Closed;
+pub use import::ImportTab;
 pub use ops::{TabError, TabOp, Zone};
 pub use resolve::Resolved;
 

@@ -6,6 +6,7 @@
 //! validation against their schema.
 
 mod backup;
+pub mod chatterino;
 mod clock;
 mod error;
 mod fsutil;

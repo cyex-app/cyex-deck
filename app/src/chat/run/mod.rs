@@ -4,6 +4,7 @@
 
 mod builtin;
 pub use builtin::{block_user, reserved};
+pub mod complete;
 mod host;
 pub mod timers;
 

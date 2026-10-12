@@ -1,0 +1,223 @@
+{
+    "windows": [
+        {
+            "type": "main",
+            "x": 120,
+            "y": 80,
+            "width": 1200,
+            "height": 800,
+            "emotePopup": { "x": 0, "y": 0, "width": 0, "height": 0 },
+            "tabs": [
+                {
+                    "title": "Morning",
+                    "highlightsEnabled": true,
+                    "splits2": {
+                        "type": "split",
+                        "moderationMode": false,
+                        "data": { "type": "twitch", "name": "alpha_one" },
+                        "filters": ["8a3c4b2e-1d6f-4e8a-9b0c-2f7d5e1a3c9b"],
+                        "checkSpelling": false,
+                        "flexh": 1,
+                        "flexv": 1
+                    }
+                },
+                {
+                    "highlightsEnabled": true,
+                    "splits2": {
+                        "type": "horizontal",
+                        "flexh": 1,
+                        "flexv": 1,
+                        "items": [
+                            {
+                                "type": "split",
+                                "moderationMode": true,
+                                "data": { "type": "twitch", "name": "bravo_two" },
+                                "filters": [],
+                                "flexh": 2,
+                                "flexv": 1
+                            },
+                            {
+                                "type": "vertical",
+                                "flexh": 1,
+                                "flexv": 1,
+                                "items": [
+                                    {
+                                        "type": "split",
+                                        "moderationMode": false,
+                                        "data": { "type": "twitch", "name": "charlie_three" },
+                                        "filters": [],
+                                        "flexh": 1,
+                                        "flexv": 1
+                                    },
+                                    {
+                                        "type": "split",
+                                        "moderationMode": false,
+                                        "data": { "type": "mentions" },
+                                        "filters": [],
+                                        "flexh": 1,
+                                        "flexv": 1
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Pings",
+                    "highlightsEnabled": false,
+                    "splits2": {
+                        "type": "split",
+                        "moderationMode": false,
+                        "data": { "type": "mentions" },
+                        "filters": [],
+                        "flexh": 1,
+                        "flexv": 1
+                    }
+                },
+                {
+                    "highlightsEnabled": true,
+                    "splits2": {
+                        "type": "split",
+                        "moderationMode": false,
+                        "data": { "type": "" },
+                        "filters": [],
+                        "flexh": 1,
+                        "flexv": 1
+                    }
+                },
+                {
+                    "title": "Delta_Four",
+                    "highlightsEnabled": true,
+                    "splits2": {
+                        "type": "split",
+                        "moderationMode": false,
+                        "data": { "type": "twitch", "name": "Delta_Four" },
+                        "filters": [],
+                        "flexh": 1,
+                        "flexv": 1
+                    }
+                },
+                {
+                    "title": "🎮 Mixed",
+                    "selected": true,
+                    "highlightsEnabled": true,
+                    "splits2": {
+                        "type": "vertical",
+                        "flexh": 1,
+                        "flexv": 1,
+                        "items": [
+                            {
+                                "type": "split",
+                                "moderationMode": false,
+                                "data": { "type": "whispers" },
+                                "filters": [],
+                                "flexh": 1,
+                                "flexv": 1
+                            },
+                            {
+                                "type": "split",
+                                "moderationMode": false,
+                                "data": { "type": "twitch", "name": "echo_five" },
+                                "filters": [],
+                                "flexh": 1,
+                                "flexv": 2
+                            },
+                            {
+                                "type": "horizontal",
+                                "flexh": 1,
+                                "flexv": 1,
+                                "items": [
+                                    {
+                                        "type": "split",
+                                        "moderationMode": false,
+                                        "data": { "type": "twitch", "name": "golf_seven" },
+                                        "filters": [],
+                                        "flexh": 1,
+                                        "flexv": 1
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "type": "popup",
+            "popupID": 1,
+            "state": "maximized",
+            "x": -1,
+            "y": -1,
+            "width": -1,
+            "height": -1,
+            "emotePopup": { "x": 0, "y": 0, "width": 0, "height": 0 },
+            "tabs": [
+                {
+                    "title": "Pop",
+                    "selected": true,
+                    "highlightsEnabled": true,
+                    "splits2": {
+                        "type": "split",
+                        "moderationMode": false,
+                        "data": { "type": "twitch", "name": "#Foxtrot_Six" },
+                        "filters": [],
+                        "flexh": 1,
+                        "flexv": 1
+                    }
+                },
+                {
+                    "title": "Feeds",
+                    "highlightsEnabled": true,
+                    "splits2": {
+                        "type": "horizontal",
+                        "flexh": 1,
+                        "flexv": 1,
+                        "items": [
+                            { "type": "split", "moderationMode": false, "data": { "type": "live" }, "filters": [], "flexh": 1, "flexv": 1 },
+                            { "type": "split", "moderationMode": false, "data": { "type": "watching" }, "filters": [], "flexh": 1, "flexv": 1 },
+                            { "type": "split", "moderationMode": false, "data": { "type": "automod" }, "filters": [], "flexh": 1, "flexv": 1 }
+                        ]
+                    }
+                },
+                {
+                    "highlightsEnabled": true,
+                    "splits2": {
+                        "type": "split",
+                        "moderationMode": false,
+                        "data": { "type": "misc", "name": "$$$" },
+                        "filters": [],
+                        "flexh": 1,
+                        "flexv": 1
+                    }
+                },
+                {
+                    "highlightsEnabled": true,
+                    "splits2": { "type": "horizontal", "flexh": 1, "flexv": 1, "items": [] }
+                },
+                {
+                    "highlightsEnabled": true,
+                    "splits2": {
+                        "type": "split",
+                        "moderationMode": false,
+                        "data": { "type": "twitch", "name": "alpha_one" },
+                        "filters": [],
+                        "flexh": 1,
+                        "flexv": 1
+                    }
+                },
+                {
+                    "title": "Blank",
+                    "highlightsEnabled": true,
+                    "splits2": {
+                        "type": "split",
+                        "moderationMode": false,
+                        "data": { "type": "twitch", "name": "  " },
+                        "filters": [],
+                        "flexh": 1,
+                        "flexv": 1
+                    }
+                }
+            ]
+        }
+    ]
+}

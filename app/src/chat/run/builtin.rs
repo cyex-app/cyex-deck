@@ -4,7 +4,8 @@
 //! everything else go on to Twitch or say why not.
 
 use cyex_chat::commands::chain::{split_chain, split_foreach};
-use cyex_chat::model::NoticeKind;
+use cyex_chat::model::{ModRole, NoticeKind};
+use cyex_moderation::command::Need;
 use cyex_settings::Partition;
 use cyex_settings::schema::{Commands, HiddenUser, Highlights};
 use cyex_twitch::{gql, helix};
@@ -219,6 +220,31 @@ fn is_mod_command(name: &str) -> bool {
     cyex_moderation::command::NAMES.contains(&name) || MOD_COMMANDS.contains(&name)
 }
 
+/// V1041-01 The app's commands that send or act as the chat's account.
+const SIGNED_IN: &[&str] = &["me", "tl", "vote", "color", "block", "unblock", "w", "whisper", "r"];
+
+/// V1041-01 Who may run a built-in (1.57): Twitch's mod commands as they parse, `/nuke` any
+/// mod, the rest anyone.
+fn need(name: &str) -> Option<Need> {
+    cyex_moderation::command::need(name).or_else(|| is_mod_command(name).then_some(Need::Mod))
+}
+
+/// V1041-01 The app's and Twitch's commands a chat can use, for Tab completion: mod-only
+/// ones where the role allows (`Need::allows`, V102-21), none that send in an anonymous
+/// chat. Sorted, no `/`.
+pub fn usable(role: Option<ModRole>, signed_in: bool) -> Vec<&'static str> {
+    let mut names: Vec<&'static str> = OWN
+        .iter()
+        .chain(MOD_COMMANDS)
+        .chain(cyex_moderation::command::NAMES)
+        .copied()
+        .filter(|n| need(n).is_none_or(|it| it.allows(role)) && (signed_in || !SIGNED_IN.contains(n)))
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    names
+}
+
 async fn run_mod(app: &AppHandle, place: &Place, name: &str, args: &str) -> Result<Option<UiAction>, String> {
     let account = place.account().ok_or("Sign in with a moderator account to use that.")?.to_owned();
     let Some(parsed) = cyex_moderation::command::parse(name, args) else {
@@ -382,5 +408,31 @@ mod tests {
             assert!(is_mod_command(name) && reserved(name), "{name}");
         }
         assert!(reserved("user"));
+    }
+
+    #[test]
+    fn completion_offers_what_the_chat_can_use() {
+        // V1041-01 Every built-in is offered somewhere: mod commands have a need.
+        for name in OWN.iter().chain(MOD_COMMANDS) {
+            assert!(!is_mod_command(name) || need(name).is_some(), "{name}");
+        }
+        let has = |list: &[&str], names: &[&str]| names.iter().all(|n| list.contains(n));
+        let none = |list: &[&str], names: &[&str]| names.iter().all(|n| !list.contains(n));
+        // Anonymous: nothing that sends.
+        let anon = usable(None, false);
+        assert!(has(&anon, &["user", "usercard", "logs", "search", "popout", "help", "echo"]));
+        assert!(none(&anon, &["me", "w", "r", "tl", "color", "block", "vote", "ban", "nuke"]));
+        let viewer = usable(None, true);
+        assert!(has(&viewer, &["me", "w", "whisper", "tl", "color", "user"]));
+        assert!(none(&viewer, &["ban", "timeout", "unban", "warn", "nuke", "slow", "mods"]));
+        let m = usable(Some(ModRole::Moderator), true);
+        assert!(has(&m, &["ban", "timeout", "unban", "untimeout", "warn", "nuke", "so", "pin", "r9kbeta"]));
+        assert!(none(&m, &["mod", "unmod", "vip", "unvip", "raid", "mods", "commercial"]));
+        let lead = usable(Some(ModRole::LeadModerator), true);
+        assert!(has(&lead, &["mod", "unvip"]) && none(&lead, &["raid", "vips", "marker"]));
+        let owner = usable(Some(ModRole::Broadcaster), true);
+        assert!(has(&owner, &["raid", "unraid", "mods", "vips", "commercial", "marker", "ban"]));
+        // Sorted, once each.
+        assert!(owner.windows(2).all(|w| w[0] < w[1]));
     }
 }

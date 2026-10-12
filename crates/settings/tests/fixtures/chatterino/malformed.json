@@ -1,0 +1,10 @@
+{
+    "windows": [
+        {
+            "type": "main",
+            "tabs": [
+                {
+                    "title": "Cut off",
+                    "splits2": {
+                        "type": "split",
+                        "data": { "type": "twitch", "name": "quebec_

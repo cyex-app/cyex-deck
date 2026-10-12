@@ -115,6 +115,16 @@ pub fn parse(name: &str, args: &str) -> Option<Result<ModCommand, String>> {
     Some(read(name, args.trim()))
 }
 
+/// V1041-01 What a command name needs, for Tab completion; `None` when it isn't one of
+/// these. Read from what the name parses to, so [`ModCommand::needs`] stays the one place
+/// that says it: a name and a word fit every command here, and lengths take nothing.
+pub fn need(name: &str) -> Option<Need> {
+    ["x y", ""]
+        .into_iter()
+        .find_map(|args| parse(name, args)?.ok())
+        .map(|c| c.needs())
+}
+
 /// Twitch's message ids: a UUID in lowercase hex.
 fn is_message_id(s: &str) -> bool {
     s.len() == 36
@@ -397,6 +407,20 @@ mod tests {
             assert!(ok(line).needs().allows(Some(Moderator)), "{line}");
             assert!(!ok(line).needs().allows(None), "{line}");
         }
+    }
+
+    /// V1041-01 Every name has a need, the same one its parsed command has.
+    #[test]
+    fn every_name_has_a_need() {
+        for name in NAMES {
+            assert!(need(name).is_some(), "{name}");
+        }
+        assert_eq!(need("ban"), Some(Need::Mod));
+        assert_eq!(need("slow"), Some(Need::Mod));
+        assert_eq!(need("vip"), Some(Need::Lead));
+        assert_eq!(need("mods"), Some(Need::Broadcaster));
+        assert_eq!(need("commercial"), Some(Need::Broadcaster));
+        assert_eq!(need("me"), None);
     }
 
     #[test]

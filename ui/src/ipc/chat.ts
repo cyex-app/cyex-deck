@@ -41,6 +41,8 @@ export const chatIpc = {
   /** S1 A menu entry or usercard button. */
   menu: (view: number, command: string, context: MenuContext) =>
     invoke<UiAction | null>('chat_menu', { view, command, context }),
+  /** V1041-01 Command names (no `/`) this view can use, for Tab completion. */
+  commands: (view: number) => invoke<string[]>('chat_commands', { view }),
   globalCatalog: () => invoke<GlobalCatalog>('chat_global_catalog'),
   channelCatalog: (login: string) => invoke<ChannelCatalog | null>('chat_channel_catalog', { login }),
   points: (view: number, fresh = true) => invoke<Points | null>('chat_points', { view, fresh }),

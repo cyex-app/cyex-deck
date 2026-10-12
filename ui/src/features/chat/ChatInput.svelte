@@ -14,6 +14,7 @@
   import { accounts } from '../../lib/accounts.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { complete, insert, wordAt, type Word } from './completion';
+  import { commandAt, commandMatches } from './commandTab';
   import { chatxIpc } from '../../ipc/chatx';
   import { pluginsIpc } from '../../ipc/plugins';
   import { mods, PIN_LENGTHS } from '../modview/moderation.svelte';
@@ -146,7 +147,8 @@
     suggest = null;
   }
 
-  /** C6 Tab: complete the word, Tab again for the next match. Plugins' matches (S5) go first. */
+  /** C6 Tab: complete the word, Tab again for the next match. Plugins' matches (S5) go first.
+   * V1041-01 The first word after `/` completes to the commands this chat can use. */
   async function tabComplete(back: boolean) {
     if (cycle) {
       const n = cycle.items.length;
@@ -161,20 +163,30 @@
     const caret = box?.selectionStart ?? text.length;
     const word = wordAt(text, caret);
     const bare = word.text.replace(/^@/, '');
+    const command = commandAt(text, word);
     if (asking) return;
-    asking = plugins.completes && !!room.view;
-    const fromPlugins = asking
-      ? await pluginsIpc.complete(room.view!, word.text, text, caret, word.start === 0).catch(() => null)
-      : null;
-    asking = false;
-    // The box changed while plugins thought about it.
-    if (text !== before) return;
-    const own = () => {
+    const view = room.view;
+    const own = async (): Promise<string[]> => {
+      if (command !== null) {
+        if (!command || !view) return [];
+        return commandMatches(command, await chatIpc.commands(view).catch(() => []));
+      }
       if (!bare) return [];
       const people = sources.chatters().map((n) => (word.text.startsWith('@') ? `@${n}` : n));
       return complete(bare, [...sources.emotes().map((e) => e.name), ...people], 30, sources.used());
     };
-    const items = [...new Set([...(fromPlugins?.values ?? []), ...(fromPlugins?.hideOthers ? [] : own())])];
+    const all = async () => {
+      const fromPlugins =
+        plugins.completes && view
+          ? await pluginsIpc.complete(view, word.text, text, caret, word.start === 0).catch(() => null)
+          : null;
+      return [...(fromPlugins?.values ?? []), ...(fromPlugins?.hideOthers ? [] : await own())];
+    };
+    asking = true;
+    const found = await all().finally(() => (asking = false));
+    // The box changed while plugins or Rust thought about it.
+    if (text !== before) return;
+    const items = [...new Set(found)];
     if (!items.length) return;
     void put(word, items[0]);
     cycle = { word: { start: word.start, end: word.start + items[0].length, text: items[0] }, items, index: 0 };

@@ -1,7 +1,8 @@
-<!-- Export, import, share codes (2.9, X6) and daily backups (2.8). -->
+<!-- Export, import, share codes (2.9, X6), Chatterino tabs (V1041-02) and daily backups (2.8). -->
 <script lang="ts">
   import Button from '../../../components/Button.svelte';
   import Row from '../../../components/Row.svelte';
+  import ChatterinoImport from '../chatterino/ChatterinoImport.svelte';
   import type { Partition } from '../../../ipc/bindings/Partition';
   import { settingsIpc } from '../../../ipc/settings';
   import { PARTITION_LABELS, PORTABLE_PARTITIONS, partitionList } from '../../../lib/partitions';
@@ -103,6 +104,8 @@
   <input class="field" placeholder="Paste a share code" bind:value={code} />
   <Button type="submit" disabled={!code.trim()}>Import code</Button>
 </form>
+
+<ChatterinoImport />
 
 <h3 class="label">Backups</h3>
 <p class="note" data-setting="data:backups">A copy of your settings is kept for each of the last 3 days.</p>

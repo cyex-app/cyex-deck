@@ -66,6 +66,12 @@ pub async fn chat_menu(app: AppHandle, view: u32, command: String, context: Menu
     chat::run::menu(&app, view, &command, context).await
 }
 
+/// V1041-01 Command names Tab completes after `/` in this view.
+#[tauri::command]
+pub fn chat_commands(app: AppHandle, view: u32) -> CmdResult<Vec<String>> {
+    chat::run::complete::names(&app, view)
+}
+
 #[tauri::command]
 pub async fn chat_global_catalog(app: AppHandle) -> CmdResult<Arc<GlobalCatalog>> {
     catalog::global(&app).await
