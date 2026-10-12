@@ -100,6 +100,21 @@ export const APP: Entry[] = [
     keywords: ['vertical tabs', 'side bar', 'left', 'right', 'top', 'bottom'],
   },
   {
+    id: 'appearance.tabRows',
+    page: 'appearance',
+    label: 'Rows of tabs',
+    description: 'For a bar at the top or bottom. Past that it scrolls.',
+    keywords: ['many tabs', 'tab rows', 'scrollbar', 'show all tabs', 'wrap', 'lines'],
+    keys: ['appearance.tabMaxRows'],
+  },
+  {
+    id: 'appearance.tabOnlyLive',
+    page: 'appearance',
+    label: 'Only live tabs',
+    description: "Hides tabs whose channels are offline. The one you're on stays.",
+    keywords: ['hide offline', 'offline tabs', 'live only', 'filter tabs'],
+  },
+  {
     id: 'appearance.tabUnread',
     page: 'appearance',
     label: 'Light up tabs',

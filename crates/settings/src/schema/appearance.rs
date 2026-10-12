@@ -21,6 +21,13 @@ pub struct Appearance {
     pub tab_close_button: bool,
     /// U5
     pub tab_bar_side: TabBarSide,
+    /// F16 (v1.04 batch 2b) A bar across the top or bottom: up to `tab_max_rows` rows and
+    /// then a scrollbar, or every row.
+    pub tab_rows: TabRows,
+    /// F16 1 to 10.
+    pub tab_max_rows: u8,
+    /// F17 Hide tabs whose channels are all offline (the one on screen stays).
+    pub tab_only_live: bool,
     /// U9 What lights up a tab in the background.
     pub tab_unread: TabUnread,
     /// U8 Themes made in the theme editor.
@@ -37,6 +44,9 @@ impl Default for Appearance {
             tab_density: TabDensity::Normal,
             tab_close_button: true,
             tab_bar_side: TabBarSide::Top,
+            tab_rows: TabRows::Limit,
+            tab_max_rows: DEFAULT_TAB_ROWS,
+            tab_only_live: false,
             tab_unread: TabUnread::All,
             themes: Vec::new(),
             theme_id: String::new(),
@@ -44,8 +54,13 @@ impl Default for Appearance {
     }
 }
 
+/// F16 How many rows of tabs a bar shows before it scrolls.
+pub const TAB_ROWS: std::ops::RangeInclusive<u8> = 1..=10;
+pub const DEFAULT_TAB_ROWS: u8 = 3;
+
 impl Schema for Appearance {
     fn sanitize(&mut self) {
+        self.tab_max_rows = self.tab_max_rows.clamp(*TAB_ROWS.start(), *TAB_ROWS.end());
         self.accent = normalize_accent(&self.accent).unwrap_or_else(|| DEFAULT_ACCENT.into());
         let mut seen = Vec::new();
         self.themes.retain_mut(|t| {
@@ -293,6 +308,18 @@ pub enum TabBarSide {
     Right,
 }
 
+/// F16
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum TabRows {
+    /// Up to `tab_max_rows`, then a scrollbar.
+    #[default]
+    Limit,
+    /// Every row, however many.
+    All,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -314,6 +341,24 @@ mod tests {
             themes: vec![t],
             ..Appearance::default()
         }
+    }
+
+    #[test]
+    fn tab_rows_are_clamped() {
+        let mut a = Appearance {
+            tab_max_rows: 0,
+            ..Appearance::default()
+        };
+        a.sanitize();
+        assert_eq!(a.tab_max_rows, 1);
+        a.tab_max_rows = 40;
+        a.sanitize();
+        assert_eq!(a.tab_max_rows, 10);
+        let old: Appearance = serde_json::from_str(r#"{"tabDensity":"compact"}"#).unwrap();
+        assert_eq!(
+            (old.tab_rows, old.tab_max_rows, old.tab_only_live),
+            (TabRows::Limit, 3, false)
+        );
     }
 
     #[test]

@@ -38,14 +38,19 @@ pub fn builder<'a>(
     label: &'a str,
     url: WebviewUrl,
 ) -> WebviewWindowBuilder<'a, Wry, AppHandle> {
-    WebviewWindowBuilder::new(app, label, url)
+    let builder = WebviewWindowBuilder::new(app, label, url)
         .decorations(false)
         .visible(false)
         .background_color(crate::theme::background(app))
         .additional_browser_args(BROWSER_ARGS)
         // V101-30 Paste in the app's own right-click menu. Only the app's pages run here;
         // plugins are Lua and Twitch's pages have their own window.
-        .enable_clipboard_access()
+        .enable_clipboard_access();
+    // T01 A test run keeps its WebView2 folder in the test folder too.
+    match crate::paths::webview(app) {
+        Some(dir) => builder.data_directory(dir),
+        None => builder,
+    }
 }
 
 pub fn init(app: &AppHandle) -> tauri::Result<()> {

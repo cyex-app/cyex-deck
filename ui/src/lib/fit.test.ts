@@ -49,10 +49,24 @@ test('a chat below a short stream goes beside it', () => {
   assert.deepEqual([f.side, f.moved], ['right', true]);
 });
 
-test('nothing fits: the user side, the stream keeps its minimum', () => {
+test('F04 nothing fits: the chat keeps its minimum, the stream gets the rest', () => {
+  // Beside leaves a 160 px wide stream (160x90 picture), under a 50 px tall one: beside.
   const f = fitTile({ w: 400, h: 250 }, 'right', 0.28);
   assert.deepEqual([f.side, f.moved], ['right', false]);
-  assert.equal(Math.round(400 * (1 - f.ratio)), MIN.streamW);
+  assert.equal(Math.round(400 * f.ratio), MIN.chatW);
+  // A tab pop-out at its smallest, under its 28 px bar.
+  const pop = fitTile({ w: 320, h: 212 }, 'right', 0.28);
+  assert.deepEqual([pop.side, Math.round(320 * pop.ratio)], ['right', MIN.chatW]);
+  // One of three tiles in a 720x420 window: 240 wide, so the chat goes under a 130 px stream.
+  const third = fitTile({ w: 240, h: 330 }, 'right', 0.28);
+  assert.deepEqual([third.side, third.moved, Math.round(330 * third.ratio)], ['bottom', true, MIN.chatH]);
+  // A chat on top stays on top when under wins.
+  assert.equal(fitTile({ w: 240, h: 330 }, 'top', 0.28).side, 'top');
+});
+
+test('F04 smaller than the chat both ways: the chat takes the tile, the user side stays', () => {
+  const f = fitTile({ w: 200, h: 150 }, 'left', 0.28);
+  assert.deepEqual(f, { side: 'left', ratio: 1, moved: false });
 });
 
 test('a hidden tile (no size) keeps what it had', () => {

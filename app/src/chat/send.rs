@@ -22,7 +22,9 @@ pub fn send_to(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<Stri
     }
     let (body, action) = match text.strip_prefix("/me ").or_else(|| text.strip_prefix(".me ")) {
         Some(rest) => (rest.trim(), true),
-        None if text.starts_with('/') || text.starts_with('.') && text.len() > 1 && !text[1..].starts_with('.') => {
+        // F14 Commands don't go out as text: any "/" one, and a dot before the app's or
+        // Twitch's own ones. ".gg" does.
+        None if super::typed::command(text, super::run::reserved).is_some() => {
             let word = text.split_whitespace().next().unwrap_or(text);
             return Err(format!("Unknown command {word}."));
         }

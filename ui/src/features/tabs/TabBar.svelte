@@ -1,19 +1,22 @@
 <!-- Channel tabs (1.10) on any side of the window (U5), with groups, size (1.24),
      several selected at once (Ctrl or Shift click), dragging to reorder and the mouse
      wheel to step through them (V102-04). Across the
-     top or bottom, tabs wrap onto more rows of one height instead of scrolling (V101-38);
-     in the title bar the gaps between them still drag the window. -->
+     top or bottom, tabs wrap onto more rows of one height (V101-38), up to the set number
+     of rows and then a scrollbar, or all of them (F16); in the title bar the gaps between
+     them still drag the window. "Only live tabs" leaves offline ones out (F17). -->
 <script lang="ts">
   import IconButton from '../../components/IconButton.svelte';
   import { openMenu } from '../../components/menu.svelte';
+  import { tooltip } from '../../components/tooltip.svelte';
   import type { Tab } from '../../ipc/bindings/Tab';
   import type { TabGroup } from '../../ipc/bindings/TabGroup';
   import { settings } from '../../lib/settings.svelte';
   import { openAdd, openEdit } from './dialog.svelte';
   import GroupChip from './GroupChip.svelte';
   import { GROUP_COLORS } from './groupColors';
+  import { barMaxHeight } from './barLayout';
   import { stepTab, WheelSteps } from './cycle';
-  import { groupMenu, tabMenu } from './menus';
+  import { barMenu, groupMenu, tabMenu } from './menus';
   import TabItem from './TabItem.svelte';
   import { tabs, tiles } from './tabs.svelte';
 
@@ -36,11 +39,22 @@
     compact: { h: 23, pad: 7, font: '0.78rem', width: 148 },
   };
   const size = $derived(DENSITY[settings.v.appearance.tabDensity]);
+  /** F16 A row is a tab and its gaps above and below (`--row-g`). In the title bar the
+   * first row is as tall as the bar anyway. */
+  const maxHeight = $derived.by(() => {
+    if (vertical) return undefined;
+    const a = settings.v.appearance;
+    const rows = barMaxHeight(a.tabRows, a.tabMaxRows, size.h + 6);
+    return chrome && a.tabRows === 'limit' ? `max(var(--row, 0px), ${rows})` : rows;
+  });
+  /** F17 */
+  const hidden = $derived(tabs.hidden(current));
 
   const items = $derived.by(() => {
     const out: Item[] = [];
     let last: string | null = null;
     for (const tab of tabs.list) {
+      if (hidden.has(tab.id)) continue;
       const group = tabs.group(tab.group);
       if (group && group.id !== last) {
         out.push({ kind: 'group', group, count: tabs.list.filter((t) => t.group === group.id).length });
@@ -114,6 +128,13 @@
     tabs.close([tab.id]);
   }
 
+  /** Right-click between tabs; tabs and group chips open their own menus. */
+  function onbarmenu(e: MouseEvent) {
+    if (e.defaultPrevented) return;
+    e.preventDefault();
+    openMenu(e, barMenu());
+  }
+
 </script>
 
 <div
@@ -131,6 +152,8 @@
   style:--tab-font={size.font}
   style:--row-g={vertical ? undefined : '3px'}
   style:--bar-w="{size.width}px"
+  style:max-height={maxHeight}
+  oncontextmenu={onbarmenu}
 >
   {#each items as item (item.kind === 'tab' ? item.tab.id : `g:${item.group.id}`)}
     {#if item.kind === 'group'}
@@ -154,6 +177,15 @@
       />
     {/if}
   {/each}
+  {#if hidden.size}
+    <button
+      class="offline"
+      use:tooltip={{ label: 'Only live tabs', hint: 'Click to show offline tabs too.' }}
+      onclick={() => void settings.patch('appearance', { tabOnlyLive: false })}
+    >
+      {hidden.size} offline
+    </button>
+  {/if}
   <div class="add">
     <IconButton icon="plus" label="Add a tab" hint="Any channel, by name, user id or link." size={15} onclick={() => openAdd()} />
   </div>
@@ -170,7 +202,6 @@
     align-content: stretch;
     column-gap: 2px;
     min-width: 0;
-    max-height: 40vh;
     overflow-x: hidden;
     overflow-y: auto;
     scrollbar-width: thin;
@@ -199,6 +230,27 @@
     height: var(--tab-h);
   }
   .vertical .add {
+    align-self: flex-start;
+  }
+  /* F17 How many tabs "Only live tabs" leaves out; a click shows them again. */
+  .offline {
+    flex: none;
+    align-self: center;
+    height: calc(var(--tab-h) - 6px);
+    padding: 0 8px;
+    background: none;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius);
+    color: var(--dim);
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .offline:hover {
+    color: var(--text);
+    background: var(--surface-hover);
+  }
+  .vertical .offline {
     align-self: flex-start;
   }
 </style>

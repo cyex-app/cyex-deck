@@ -36,7 +36,8 @@ type TwitchSets = Arc<Vec<cyex_twitch::gql::EmoteSet>>;
 
 pub struct Emotes {
     inner: Mutex<Inner>,
-    seventv: ws::Topics<SevenTopic>,
+    /// F18 As many 7TV connections as the chats need.
+    seventv: ws::Pool<EventApi>,
     /// BTTV socket, by channel id.
     bttv: ws::Topics<String>,
     /// Global sets are in (or failed).
@@ -85,8 +86,7 @@ struct Channel {
 
 pub fn init(app: &AppHandle) {
     let (events, rx) = tokio::sync::mpsc::unbounded_channel();
-    let (seventv, task) = ws::start(EventApi::new(), events);
-    tauri::async_runtime::spawn(task);
+    let seventv = ws::Pool::new(EventApi::new, events, spawn);
     let (events, bttv_rx) = tokio::sync::mpsc::unbounded_channel();
     let (bttv, task) = ws::start(cyex_emotes::bttv::socket::Socket, events);
     tauri::async_runtime::spawn(task);
@@ -104,6 +104,10 @@ pub fn init(app: &AppHandle) {
     live::spawn(app.clone(), rx);
     providers::spawn_bttv(app.clone(), bttv_rx);
     looks::spawn(app.clone());
+}
+
+fn spawn(task: std::pin::Pin<Box<dyn Future<Output = ()> + Send>>) {
+    tauri::async_runtime::spawn(task);
 }
 
 impl Emotes {
@@ -239,14 +243,14 @@ pub fn leave(app: &AppHandle, login: &str) {
         return;
     };
     for t in SevenTopic::channel(&c.id) {
-        state.seventv.remove(t);
+        state.seventv.remove(&t);
     }
     state.bttv.remove(c.id.clone());
     for set in c.sets.iter().filter(|s| s.provider == Provider::Seventv) {
-        state.seventv.remove(SevenTopic::Set(set.id.clone()));
+        state.seventv.remove(&SevenTopic::Set(set.id.clone()));
     }
     if let Some(u) = c.seventv_user {
-        state.seventv.remove(SevenTopic::User(u));
+        state.seventv.remove(&SevenTopic::User(u));
     }
 }
 

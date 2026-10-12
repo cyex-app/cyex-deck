@@ -48,7 +48,8 @@ fn main() {
         .register_uri_scheme_protocol(fonts::SCHEME, fonts::handle)
         .setup(|app| {
             let handle = app.handle();
-            // V102-02 Before anything reads its files.
+            // T01 Which folders this run uses, then V102-02, before anything reads its files.
+            paths::init(handle)?;
             paths::migrate(handle);
             paths::remove_old_env(handle);
             settings::init(handle)?;

@@ -44,7 +44,7 @@ export function leaves(n: Node | null): string[] {
 export const has = (n: Node | null, id: string) => leaves(n).includes(id);
 
 /** Shares that add up to one; bad ones become even. */
-function shares(sizes: number[], count: number): number[] {
+export function shares(sizes: number[], count: number): number[] {
   const s = Array.from({ length: count }, (_, i) => (Number.isFinite(sizes[i]) && sizes[i] > 0 ? sizes[i] : 1));
   const total = s.reduce((a, b) => a + b, 0);
   return s.map((x) => x / total);

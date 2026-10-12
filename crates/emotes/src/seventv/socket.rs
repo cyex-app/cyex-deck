@@ -1,6 +1,7 @@
 //! 7TV EventAPI connection: per channel, cosmetics, entitlements and the channel's set;
 //! plus sets and users by id. Resume never works there, so every reconnect subscribes
-//! again (research/providers.md).
+//! again (research/providers.md). F18 (v1.04 batch 2b) The app runs it as a `ws::Pool`: a
+//! full connection (about 80 chats) opens another, so no chat goes without live updates.
 
 use std::time::Duration;
 
@@ -11,8 +12,11 @@ use super::events::{Event, Frame, parse};
 use cyex_twitch::ws::{Protocol, Step};
 
 const URL: &str = "wss://events.7tv.io/v3";
-/// 7TV allows 500 topics; each channel subscription also costs a hidden one.
-const LIMIT: usize = 400;
+/// 7TV allows 500 topics a connection (HELLO's `subscription_limit`, over it closes 4005).
+/// A channel's three topics cost 4 there, so `cost` counts its `cosmetic.*` twice; with a
+/// chat's user and set that's 6 a chat, 80 a connection. 20 to spare for a channel split
+/// over two connections.
+const LIMIT: usize = 480;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Topic {
@@ -83,6 +87,13 @@ impl Protocol for EventApi {
         LIMIT
     }
 
+    fn cost(&self, topic: &Topic) -> usize {
+        match topic {
+            Topic::Channel { kind, .. } if *kind == "cosmetic.*" => 2,
+            _ => 1,
+        }
+    }
+
     fn idle(&self) -> Duration {
         self.idle
     }
@@ -106,6 +117,43 @@ impl Protocol for EventApi {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cyex_twitch::ws::Pool;
+
+    fn join(pool: &Pool<EventApi>, i: usize) {
+        for t in Topic::channel(&i.to_string()) {
+            pool.add(t);
+        }
+        pool.add(Topic::User(format!("u{i}")));
+        pool.add(Topic::Set(format!("s{i}")));
+    }
+
+    #[test]
+    fn a_full_connection_opens_another() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let pool = Pool::new(EventApi::new, tx, |_| {});
+        for i in 0..80 {
+            join(&pool, i);
+        }
+        assert_eq!(pool.loads(), vec![480], "80 chats fill one");
+        join(&pool, 80);
+        assert_eq!(pool.loads(), vec![480, 6]);
+        // A chat that leaves makes room in the first again.
+        for t in Topic::channel("3") {
+            pool.remove(&t);
+        }
+        pool.remove(&Topic::User("u3".into()));
+        pool.remove(&Topic::Set("s3".into()));
+        assert_eq!(pool.loads(), vec![474, 6]);
+        join(&pool, 81);
+        assert_eq!(pool.loads(), vec![480, 6]);
+    }
+
+    #[test]
+    fn a_channel_costs_four() {
+        let api = EventApi::new();
+        assert_eq!(Topic::channel("1").iter().map(|t| api.cost(t)).sum::<usize>(), 4);
+        assert_eq!(api.cost(&Topic::Set("s".into())), 1);
+    }
 
     #[test]
     fn subscriptions_look_like_7tvs() {

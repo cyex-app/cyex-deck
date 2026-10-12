@@ -23,8 +23,12 @@ pub trait Protocol: Send + 'static {
     fn url(&self) -> String;
     fn subscribe(&self, topic: &Self::Topic) -> String;
     fn unsubscribe(&self, topic: &Self::Topic) -> String;
-    /// Most topics one connection may hold.
+    /// Most topics one connection may hold, counted by `cost`.
     fn limit(&self) -> usize;
+    /// F18 What a topic counts toward `limit` in a `Pool`; some cost the server more.
+    fn cost(&self, _topic: &Self::Topic) -> usize {
+        1
+    }
     /// Silence longer than this means the connection is dead.
     fn idle(&self) -> Duration;
     /// Reads one text frame.
@@ -180,31 +184,36 @@ async fn run<P: Protocol>(
 type Spawn = fn(Pin<Box<dyn Future<Output = ()> + Send>>);
 
 /// Topics over as many connections as they need, each holding up to the protocol's
-/// limit. A topic added twice needs removing twice.
+/// limit (by `cost`). A topic added twice needs removing twice.
 pub struct Pool<P: Protocol> {
     make: Box<dyn Fn() -> P + Send + Sync>,
     events: mpsc::UnboundedSender<P::Event>,
     spawn: Spawn,
     limit: usize,
-    inner: Mutex<PoolInner<P::Topic>>,
+    inner: Mutex<PoolInner<P>>,
 }
 
-struct PoolInner<T> {
-    conns: Vec<(Topics<T>, usize)>,
+struct PoolInner<P: Protocol> {
+    /// Asked what each topic costs.
+    probe: P,
+    /// Each connection and the cost of what it holds.
+    conns: Vec<(Topics<P::Topic>, usize)>,
     /// Topic → (connection, how many asked for it).
-    topics: HashMap<T, (usize, usize)>,
+    topics: HashMap<P::Topic, (usize, usize)>,
 }
 
 impl<P: Protocol> Pool<P> {
     /// `spawn` runs each connection's task, e.g. on the app's runtime.
     pub fn new(make: impl Fn() -> P + Send + Sync + 'static, events: mpsc::UnboundedSender<P::Event>, spawn: Spawn) -> Self {
-        let limit = make().limit();
+        let probe = make();
+        let limit = probe.limit();
         Self {
             make: Box::new(make),
             events,
             spawn,
             limit,
             inner: Mutex::new(PoolInner {
+                probe,
                 conns: Vec::new(),
                 topics: HashMap::new(),
             }),
@@ -217,7 +226,8 @@ impl<P: Protocol> Pool<P> {
             t.1 += 1;
             return;
         }
-        let at = match inner.conns.iter().position(|(_, n)| *n < self.limit) {
+        let cost = inner.probe.cost(&topic);
+        let at = match inner.conns.iter().position(|(_, n)| n + cost <= self.limit) {
             Some(at) => at,
             None => {
                 let (handle, task) = start((self.make)(), self.events.clone());
@@ -227,7 +237,7 @@ impl<P: Protocol> Pool<P> {
             }
         };
         inner.conns[at].0.add(topic.clone());
-        inner.conns[at].1 += 1;
+        inner.conns[at].1 += cost;
         inner.topics.insert(topic, (at, 1));
     }
 
@@ -240,13 +250,20 @@ impl<P: Protocol> Pool<P> {
         }
         let at = t.0;
         inner.topics.remove(topic);
+        let cost = inner.probe.cost(topic);
         inner.conns[at].0.remove(topic.clone());
-        inner.conns[at].1 -= 1;
+        inner.conns[at].1 = inner.conns[at].1.saturating_sub(cost);
     }
 
     pub fn has(&self, topic: &P::Topic) -> bool {
         let inner = self.inner.lock().unwrap_or_else(|p| p.into_inner());
         inner.topics.contains_key(topic)
+    }
+
+    /// What each connection holds, by cost.
+    pub fn loads(&self) -> Vec<usize> {
+        let inner = self.inner.lock().unwrap_or_else(|p| p.into_inner());
+        inner.conns.iter().map(|(_, n)| *n).collect()
     }
 }
 
@@ -319,7 +336,7 @@ mod tests {
         for t in [1, 2, 3] {
             pool.add(t);
         }
-        let conns = |p: &Pool<Dummy>| p.inner.lock().unwrap().conns.len();
+        let conns = |p: &Pool<Dummy>| p.loads().len();
         assert_eq!(conns(&pool), 2);
         pool.add(1);
         pool.remove(&1);

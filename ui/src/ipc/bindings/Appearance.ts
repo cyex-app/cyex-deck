@@ -2,6 +2,7 @@
 import type { CustomTheme } from "./CustomTheme";
 import type { TabBarSide } from "./TabBarSide";
 import type { TabDensity } from "./TabDensity";
+import type { TabRows } from "./TabRows";
 import type { TabUnread } from "./TabUnread";
 import type { Theme } from "./Theme";
 
@@ -26,6 +27,19 @@ tabCloseButton: boolean,
  * U5
  */
 tabBarSide: TabBarSide, 
+/**
+ * F16 (v1.04 batch 2b) A bar across the top or bottom: up to `tab_max_rows` rows and
+ * then a scrollbar, or every row.
+ */
+tabRows: TabRows, 
+/**
+ * F16 1 to 10.
+ */
+tabMaxRows: number, 
+/**
+ * F17 Hide tabs whose channels are all offline (the one on screen stays).
+ */
+tabOnlyLive: boolean, 
 /**
  * U9 What lights up a tab in the background.
  */

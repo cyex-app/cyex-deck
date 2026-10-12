@@ -23,7 +23,8 @@ mod windows;
 
 pub use accounts::{Account, Accounts, TokenMeta, TokenSource};
 pub use appearance::{
-    Appearance, CustomTheme, TabBarSide, TabDensity, TabUnread, Wallpaper, WallpaperArea, WallpaperFit, preset_themes,
+    Appearance, CustomTheme, TabBarSide, TabDensity, TabRows, TabUnread, Wallpaper, WallpaperArea, WallpaperFit,
+    preset_themes,
 };
 pub use browse::{Browse, HomeLayout, LiveSort, OfflineSort};
 pub use chat::{

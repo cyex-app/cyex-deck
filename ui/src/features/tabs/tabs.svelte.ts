@@ -17,6 +17,7 @@ import { windowsIpc } from '../../ipc/windows';
 import { accounts } from '../../lib/accounts.svelte';
 import { settings } from '../../lib/settings.svelte';
 import { toast } from '../../lib/toast.svelte';
+import { hiddenTabs } from './barLayout';
 
 export type LiveState = 'live' | 'rerun' | null;
 export type UnreadState = 'message' | 'mention' | null;
@@ -70,10 +71,20 @@ class TabsStore {
     return id ? this.groups.find((g) => g.id === id) : undefined;
   }
 
-  /** Tab ids in the bar's order, without those folded into a collapsed group (the one on
-   * screen stays). What Ctrl+Tab and the wheel step through (V102-04). */
+  /** F17 Tabs "Only live tabs" leaves out of the bar now: the one on screen, one playing
+   * out of sight and popped-out ones stay. */
+  hidden(current: string | null): Set<string> {
+    return hiddenTabs(this.list, settings.v.appearance.tabOnlyLive, [current, this.held, ...this.popped], this.live);
+  }
+
+  /** Tab ids in the bar's order, without those folded into a collapsed group or left out by
+   * "Only live tabs" (the one on screen stays). What Ctrl+Tab and the wheel step through
+   * (V102-04). */
   shownIds(current: string | null): string[] {
-    return this.list.filter((t) => !this.group(t.group)?.collapsed || t.id === current).map((t) => t.id);
+    const hidden = this.hidden(current);
+    return this.list
+      .filter((t) => !hidden.has(t.id) && (!this.group(t.group)?.collapsed || t.id === current))
+      .map((t) => t.id);
   }
 
   /** The tab holding a tile. */

@@ -225,15 +225,10 @@ fn line<'a>(
                 .ok_or("Something this needs is missing.")?;
             return line(app, place, &filled, reply_to, false, depth + 1).await;
         }
-        let Some(rest) = text
-            .strip_prefix('/')
-            .or_else(|| text.strip_prefix('.').filter(|r| !r.starts_with('.')))
-        else {
+        // F14 A dot starts a command only when the app knows it; ".gg" goes out as typed.
+        let Some((name, args)) = super::typed::command(text, |n| known(app, place, n, custom)) else {
             return send(app, place, text, reply_to).await.map(|()| None);
         };
-        let (name, args) = rest
-            .split_once(char::is_whitespace)
-            .map_or((rest, ""), |(n, a)| (n, a.trim()));
         let name = name.to_ascii_lowercase();
         if custom && let Some(body) = list(app).command(&name, place.channel()) {
             let p = params(app, place, args);
@@ -254,6 +249,14 @@ fn line<'a>(
         }
         builtin::run(app, place, &name, args, text, reply_to, depth).await
     })
+}
+
+/// F14 A command by that (lower-case) name exists here: the app's or Twitch's, a plugin's
+/// (S5), or, where `custom`, your own for this channel.
+fn known(app: &AppHandle, place: &Place, name: &str, custom: bool) -> bool {
+    reserved(name)
+        || crate::plugins::calls::command_owner(app, name).is_some()
+        || (custom && list(app).command(name, place.channel()).is_some())
 }
 
 /// Plain text (or `/me`) to Twitch, after plugins had their say (S5).

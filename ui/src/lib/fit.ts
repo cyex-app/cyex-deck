@@ -64,22 +64,35 @@ function stackedShare(box: Box): number {
   return Math.max(MIN.chatH, box.h - (box.w * 9) / 16) / box.h;
 }
 
-/** What shares the space with the chat: its smallest size, and the chat's share when the
- * chat goes under it. */
+/** What shares the space with the chat: its smallest size, the chat's share when the
+ * chat goes under it, and how much of it shows in a box (F04). */
 export interface Partner {
   min: Box;
   stacked: (box: Box) => number;
+  shows: (box: Box) => number;
 }
 
-export const STREAM: Partner = { min: { w: MIN.streamW, h: MIN.streamH }, stacked: stackedShare };
+/** F04 The area of a 16:9 picture fitted into `box`. */
+export function pictureArea(box: Box): number {
+  const w = Math.max(0, Math.min(box.w, (box.h * 16) / 9));
+  return w * ((w * 9) / 16);
+}
+
+export const STREAM: Partner = { min: { w: MIN.streamW, h: MIN.streamH }, stacked: stackedShare, shows: pictureArea };
 
 /** V102-26 A mod view beside a chat that has no stream. */
-export const MODVIEW: Partner = { min: { w: MIN.modviewW, h: MIN.modviewH }, stacked: (box) => Math.max(MIN.chatH / box.h, 0.45) };
+export const MODVIEW: Partner = {
+  min: { w: MIN.modviewW, h: MIN.modviewH },
+  stacked: (box) => Math.max(MIN.chatH / box.h, 0.45),
+  shows: (box) => Math.max(0, box.w) * Math.max(0, box.h),
+};
 
 /** Where a tile's chat goes in `box` (stream and chat, or a clip beside a chat). The
  * user's side when both panels fit, the chat widened up to its minimum if needed; else
  * the other way round (chat below the stream, or beside one that's too short) when that
- * fits; else the user's side as it is. `moved` is the last answer, for the hysteresis. */
+ * fits; else (F04) the chat keeps its minimum and the other panel gets the rest, even
+ * below its own: beside or under, whichever shows more of it (the stream's picture).
+ * `moved` is the last answer, for the hysteresis. */
 export function fitTile(box: Box, side: Side, ratio: number, moved = false, partner: Partner = STREAM): TileFit {
   const keep = { side, ratio, moved: false };
   if (box.w <= 0 || box.h <= 0) return keep;
@@ -93,11 +106,12 @@ export function fitTile(box: Box, side: Side, ratio: number, moved = false, part
     ? share(box.h, partner.stacked(box), MIN.chatH, p.h, -margin)
     : share(box.w, SIDE_SHARE, MIN.chatW, p.w, -margin);
   if (alt !== null) return { side: row ? 'bottom' : 'right', ratio: alt, moved: true };
-  // Neither fits: the user's way, with the chat as big as the other panel allows.
-  const len = row ? box.w : box.h;
-  const [chat, other] = row ? [MIN.chatW, p.w] : [MIN.chatH, p.h];
-  const best = Math.min(Math.max(ratio, chat / len), Math.max(ratio, 1 - other / len));
-  return { side, ratio: best, moved: false };
+  // F04 Neither fits: the chat keeps its least room, the other panel takes what's left.
+  const beside = partner.shows({ w: box.w - MIN.chatW, h: box.h });
+  const under = partner.shows({ w: box.w, h: box.h - MIN.chatH });
+  const goRow = beside === under ? row : beside > under;
+  const to: Side = goRow === row ? side : goRow ? 'right' : 'bottom';
+  return { side: to, ratio: Math.min(1, goRow ? MIN.chatW / box.w : MIN.chatH / box.h), moved: to !== side };
 }
 
 /** The least room a tile needs to be usable, whichever way round its panels go. */

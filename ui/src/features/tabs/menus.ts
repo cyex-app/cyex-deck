@@ -1,6 +1,6 @@
-// Right-click menus for tabs and tab groups (1.18, 1.51, U3, U5), with "Mine first" (1.44),
-// hiding a tile's chat or stream (V101-20), moving its panels (V102-23, V103-05) and
-// stopping a stream that plays out of sight (V102-15).
+// Right-click menus for tabs, tab groups and the bar itself (1.18, 1.51, U3, U5), with
+// "Mine first" (1.44), hiding a tile's chat or stream (V101-20), moving its panels (V102-23,
+// V103-05), stopping a stream that plays out of sight (V102-15) and "Only live tabs" (F17).
 
 import type { MenuEntry } from '../../components/menu.svelte';
 import type { Tab } from '../../ipc/bindings/Tab';
@@ -49,6 +49,7 @@ export function tabMenu(tab: Tab, targets: Tab[]): MenuEntry[] {
   if (first) entries.push(first);
   entries.push(
     { label: one ? 'Group' : `Group ${targets.length} tabs`, icon: 'tag', items: groupItems(targets) },
+    onlyLiveEntry(),
     'separator',
     { label: one ? 'Close' : `Close ${targets.length} tabs`, icon: 'x', run: () => tabs.close(ids) },
     { label: 'Close other tabs', icon: 'x', disabled: !others.length, run: () => tabs.close(others) },
@@ -108,6 +109,27 @@ function muteEntry(targets: Tab[]): MenuEntry | null {
     icon: 'bellOff',
     checked: all,
     run: () => void settings.patch('highlights', { muted: next }),
+  };
+}
+
+/** Right-click on the bar between tabs. */
+export function barMenu(): MenuEntry[] {
+  return [
+    { label: 'Add a tab', icon: 'plus', hint: bindingOf('tabs.new') || undefined, run: () => openAdd() },
+    onlyLiveEntry(),
+    'separator',
+    reopenEntry(),
+  ];
+}
+
+/** F17 Hides tabs whose channels are offline. */
+function onlyLiveEntry(): MenuEntry {
+  const on = settings.v.appearance.tabOnlyLive;
+  return {
+    label: 'Only live tabs',
+    icon: 'filter',
+    checked: on,
+    run: () => void settings.patch('appearance', { tabOnlyLive: !on }),
   };
 }
 

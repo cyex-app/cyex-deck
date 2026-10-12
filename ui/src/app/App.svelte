@@ -1,5 +1,6 @@
 <!-- Main window: title bar with the fixed views and the channel tabs (02), the tab bar on
-     the side set in Settings (U5), then the view or tab on screen. A tab left while its
+     the side set in Settings (U5), then the view or tab on screen. Below 900 px wide, top
+     tabs get a full-width row under the title bar (F03). A tab left while its
      stream plays keeps playing out of sight (V102-15). A view popped out of here comes back
      where it was when its window closes (V102-16). -->
 <script lang="ts">
@@ -37,6 +38,7 @@
   import TabView from '../features/tabs/TabView.svelte';
   import { openTarget, playerHotkeys } from '../features/player/players.svelte';
   import { openChannel } from '../features/browse/open.svelte';
+  import { barPlace } from '../features/tabs/barLayout';
   import { stepTab } from '../features/tabs/cycle';
   import { nextHeld, playingNow } from '../features/tabs/hold';
   import { tabs, tiles } from '../features/tabs/tabs.svelte';
@@ -72,6 +74,9 @@
   let switcher = $state(false);
 
   const side = $derived(settings.v.appearance.tabBarSide);
+  let width = $state(innerWidth);
+  /** F03 Where the tab bar goes now. */
+  const place = $derived(barPlace(side, width));
   const current = $derived(fixed ? null : tabs.tab(picked) ? picked : tabs.active);
   const tab = $derived(tabs.tab(current));
   /** The tab drawn here now, not in its own window. */
@@ -369,7 +374,7 @@
         />
       {/if}
     </nav>
-    {#if side === 'top'}<TabBar chrome {current} onopen={open} />{/if}
+    {#if place === 'chrome'}<TabBar chrome {current} onopen={open} />{/if}
   {/snippet}
   {#snippet end()}
     {#if streamer.active || streamer.state.forced}
@@ -400,6 +405,14 @@
     <IconButton icon="settings" label="Settings" hint="Everything you can change (Ctrl+,)." active={fixed === 'settings'} onclick={() => show('settings')} />
   {/snippet}
 </WindowChrome>
+
+<svelte:window bind:innerWidth={width} />
+
+{#if place === 'row'}
+  <div class="tab-row">
+    <TabBar {current} onopen={open} />
+  </div>
+{/if}
 
 <div class="body {side}">
   {#if side !== 'top'}
@@ -515,6 +528,15 @@
   .bottom .side-bar {
     padding: 3px 6px;
     border-top: 1px solid var(--border);
+  }
+  /* F03 Top tabs in a narrow window: a full-width row under the title bar. */
+  .tab-row {
+    display: flex;
+    flex-direction: column;
+    flex: none;
+    padding: 0 6px;
+    background: var(--page);
+    border-bottom: 1px solid var(--border);
   }
   main {
     flex: 1;

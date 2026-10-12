@@ -3,11 +3,13 @@
   import { openMenu } from '../../../components/menu.svelte';
   import Row from '../../../components/Row.svelte';
   import Segmented from '../../../components/Segmented.svelte';
+  import Stepper from '../../../components/Stepper.svelte';
   import Toggle from '../../../components/Toggle.svelte';
   import type { CustomTheme } from '../../../ipc/bindings/CustomTheme';
   import type { ThemeLook } from '../../../ipc/bindings/ThemeLook';
   import type { TabBarSide } from '../../../ipc/bindings/TabBarSide';
   import type { TabDensity } from '../../../ipc/bindings/TabDensity';
+  import type { TabRows } from '../../../ipc/bindings/TabRows';
   import type { TabUnread } from '../../../ipc/bindings/TabUnread';
   import type { Theme } from '../../../ipc/bindings/Theme';
   import { themeIpc } from '../../../ipc/theme';
@@ -107,6 +109,11 @@
     { value: 'bottom', label: 'Bottom' },
     { value: 'left', label: 'Left' },
     { value: 'right', label: 'Right' },
+  ];
+  /** F16 */
+  const ROWS: { value: TabRows; label: string }[] = [
+    { value: 'limit', label: 'Up to' },
+    { value: 'all', label: 'All' },
   ];
 
   const UNREAD: { value: TabUnread; label: string }[] = [
@@ -213,6 +220,27 @@
     options={SIDES}
     value={a.tabBarSide}
     onchange={(v) => settings.patch('appearance', { tabBarSide: v })}
+  />
+</Row>
+
+<Row setting="appearance.tabRows" label="Rows of tabs" hint="For a bar at the top or bottom. Past that it scrolls.">
+  <Segmented label="Rows of tabs" options={ROWS} value={a.tabRows} onchange={(v) => settings.patch('appearance', { tabRows: v })} />
+  {#if a.tabRows === 'limit'}
+    <Stepper
+      label="Most rows"
+      value={a.tabMaxRows}
+      min={1}
+      max={10}
+      onchange={(v) => settings.patch('appearance', { tabMaxRows: v })}
+    />
+  {/if}
+</Row>
+
+<Row setting="appearance.tabOnlyLive" label="Only live tabs" hint="Hides tabs whose channels are offline. The one you're on stays.">
+  <Toggle
+    label="Only live tabs"
+    checked={a.tabOnlyLive}
+    onchange={(v) => settings.patch('appearance', { tabOnlyLive: v })}
   />
 </Row>
 

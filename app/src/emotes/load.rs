@@ -128,7 +128,7 @@ pub fn seventv_set(app: AppHandle, login: String, set_id: Option<String>) {
             old
         };
         for id in old {
-            state.seventv.remove(SevenTopic::Set(id));
+            state.seventv.remove(&SevenTopic::Set(id));
         }
         if let Some(id) = set_id {
             state.seventv.add(SevenTopic::Set(id));
