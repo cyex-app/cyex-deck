@@ -127,7 +127,8 @@
     display: flex;
     align-items: center;
     flex: none;
-    max-width: 200px;
+    /* Never wider than the bar: in a narrow window the name ends in "…" instead of being cut. */
+    max-width: min(200px, 100%);
     min-height: calc(var(--tab-h) + 2 * var(--row-g, 0px));
   }
   .tab.vertical {

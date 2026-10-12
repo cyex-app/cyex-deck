@@ -179,10 +179,11 @@ pub fn on_settings(app: &AppHandle) {
     let Some(chat) = app.try_state::<Chat>() else { return };
     let c = app.state::<Settings>().read::<ChatSettings>(Partition::Chat);
     chat.delay_ms.store(i64::from(c.delay_tenths) * 100, Ordering::Relaxed);
-    // C37 Connections ask for them from now on; the open ones are asked right away.
+    // C37 Connections ask for them when they log in. Asked on an open connection, Twitch
+    // sent nothing for the chats already joined (V104-04), so open ones log in again.
     if chat.joins.swap(c.joins_leaves, Ordering::Relaxed) != c.joins_leaves && c.joins_leaves {
         for s in chat.lock().sessions.values() {
-            s.client.send(cyex_chat::irc::write::MEMBERSHIP.to_owned());
+            s.client.reconnect();
         }
     }
     let keep = c.scrollback as usize;

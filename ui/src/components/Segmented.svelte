@@ -18,8 +18,11 @@
 </div>
 
 <style>
+  /* Wraps in a narrow panel instead of running past its edge (the ad lengths did). */
   .seg {
     display: inline-flex;
+    flex-wrap: wrap;
+    max-width: 100%;
     padding: 2px;
     gap: 2px;
     background: var(--surface);

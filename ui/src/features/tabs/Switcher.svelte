@@ -207,9 +207,13 @@
     padding-top: 10vh;
     background: var(--overlay);
   }
+  /* In a short window the list gets shorter, so the box ends inside the window. */
   .switcher {
+    display: flex;
+    flex-direction: column;
     width: 460px;
     max-width: calc(100vw - 24px);
+    max-height: calc(90vh - 12px);
     background: var(--elevated);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
@@ -217,6 +221,7 @@
     overflow: hidden;
   }
   .search {
+    flex: none;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -233,6 +238,8 @@
     font-size: 0.95rem;
   }
   .list {
+    flex: 0 1 auto;
+    min-height: 0;
     max-height: 360px;
     overflow-y: auto;
     padding: 4px;

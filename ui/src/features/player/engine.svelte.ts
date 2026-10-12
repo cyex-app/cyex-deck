@@ -172,6 +172,11 @@ export class Engine {
       autoStartLoad: false,
       capLevelToPlayerSize: false,
       maxBufferSize: 30 * 1000 * 1000,
+      // Nothing reads metadata cues (ads are found in Rust). Their track's `data:` source
+      // broke the CSP's media-src with an error for every stream.
+      enableID3MetadataCues: false,
+      enableEmsgMetadataCues: false,
+      enableDateRangeMetadataCues: false,
     };
     if (!this.live) {
       return { ...common, backBufferLength: 20, maxBufferLength: 30, maxMaxBufferLength: 40, startPosition: this.startAt };

@@ -102,6 +102,12 @@
     background: var(--bg);
     min-width: 0;
   }
+  /* A short panel scrolls; its fields and rows keep their height (the poll's question
+     field was squashed flat). */
+  .body > :global(.field),
+  .body > :global(.line) {
+    flex: none;
+  }
   .body :global(.note) {
     margin: 0;
     font-size: 0.78rem;

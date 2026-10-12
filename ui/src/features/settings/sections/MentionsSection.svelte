@@ -49,7 +49,7 @@
 </div>
 
 <h3 class="label">Global mentions</h3>
-<Row setting="mentions.global" label="Global mentions" hint="From logs.cyex.app: every chat it logs. Your list stays on this PC.">
+<Row setting="mentions.global" label="Global mentions" hint="From logs.cyex.app: every chat it logs. Uses about 0,8 GB an hour while on. Your list stays on this PC.">
   <Toggle label="Global mentions" checked={m.global} onchange={(v) => save({ global: v })} />
 </Row>
 {#if m.global}

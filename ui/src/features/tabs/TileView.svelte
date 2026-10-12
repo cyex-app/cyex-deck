@@ -290,7 +290,9 @@
     if (!s || !isSplit(s)) return;
     if (!custom) {
       const which = shareOf(s);
-      if (which?.kind === 'chat') setRatio(DEFAULT_RATIO);
+      // Turned round to fit, the chat goes back to its fitted share, not 28 % of the height.
+      if (which?.kind === 'chat' && fit?.moved) movedRatio = null;
+      else if (which?.kind === 'chat') setRatio(DEFAULT_RATIO);
       else if (which?.kind === 'modview') setModShare(MODVIEW_SHARE);
       return;
     }

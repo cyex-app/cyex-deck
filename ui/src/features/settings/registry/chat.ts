@@ -284,7 +284,7 @@ export const CHAT: Entry[] = [
     id: 'mentions.global',
     page: 'mentions',
     label: 'Global mentions',
-    description: 'From logs.cyex.app: every chat it logs. Your list stays on this PC.',
+    description: 'From logs.cyex.app: every chat it logs. Uses about 0,8 GB an hour while on. Your list stays on this PC.',
     keywords: ['firehose', 'logs', 'everywhere', 'all chats', 'mention'],
   },
   {

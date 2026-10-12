@@ -171,7 +171,16 @@
       return (row ? m.w : m.h) + gap;
     });
     const el = inner;
+    // V101-14 The page goes mouse-blind only once the divider moves: from the press on, the
+    // click and double-click landed on the body and never reset the divider.
+    const [x0, y0] = [e.clientX, e.clientY];
+    let moving = false;
     const move = (ev: PointerEvent) => {
+      if (!moving) {
+        if (Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) < 3) return;
+        moving = true;
+        document.body.classList.add(row ? 'panel-resize-col' : 'panel-resize-row');
+      }
       const r = el.getBoundingClientRect();
       live = { path: d.path, sizes: dragSizes(s, d.rect, d.index, row ? ev.clientX - r.left : ev.clientY - r.top, mins) };
     };
@@ -182,7 +191,6 @@
       if (live) onresize?.(live.path, live.sizes);
       live = null;
     };
-    document.body.classList.add(row ? 'panel-resize-col' : 'panel-resize-row');
     addEventListener('pointermove', move);
     addEventListener('pointerup', up);
   }

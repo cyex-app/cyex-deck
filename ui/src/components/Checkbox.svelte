@@ -18,7 +18,10 @@
 </label>
 
 <style>
+  /* Holds its hidden input: without it the input sat outside any scrolling list, made the
+     page taller, and focusing it (Tab, a click) scrolled the whole window up. */
   .check {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 7px;

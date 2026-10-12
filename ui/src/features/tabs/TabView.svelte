@@ -185,10 +185,16 @@
     flex: none;
     background: var(--border-strong);
   }
+  /* A wider grip, only across the divider: past its ends it made the page 3 px taller. */
   .divider::after {
     content: '';
     position: absolute;
-    inset: -3px;
+  }
+  .col::after {
+    inset: 0 -3px;
+  }
+  .row::after {
+    inset: -3px 0;
   }
   .divider:hover {
     background: var(--accent-border);
