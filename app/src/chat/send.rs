@@ -7,12 +7,10 @@ use cyex_chat::model::ConnStatus;
 use tauri::{AppHandle, Manager};
 use tokio::time::Instant;
 
-use super::{Chat, Identity, RoomKey, now_ms};
+use super::{Chat, Identity, RoomKey, now_ms, typed};
 
 /// Twitch rejects the same text twice within this window.
 const DUPLICATE_MS: i64 = 30_000;
-/// Invisible, so the message looks the same (Chatterino's suffix).
-const DUPLICATE_SUFFIX: &str = " \u{34F}";
 
 /// Sends in a room, shown or not (timers and automations send to rooms no view shows).
 pub fn send_to(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<String>) -> Result<(), String> {
@@ -80,6 +78,8 @@ pub fn send_to(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<Stri
     if let Identity::Account(account) = &key.0 {
         crate::emotes::presence::touch(app, account, &key.1);
     }
+    // F20 ".gg" as text, not as Twitch's command.
+    let out = if action { out } else { typed::escape(out) };
     client.send(write::privmsg(
         &key.1,
         &write::Outgoing {
@@ -92,21 +92,28 @@ pub fn send_to(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<Stri
     Ok(())
 }
 
-/// Chatterino's trick: double the first space, or add an invisible character.
+/// Chatterino's trick: double the first space, or add an invisible character. Runs before
+/// [`typed::escape`], so the first space of ". hi" is text and doubling it works.
 fn dodge_duplicate(text: &str) -> String {
     match text.find(' ') {
         Some(i) => format!("{} {}", &text[..i], &text[i..]),
-        None => format!("{text}{DUPLICATE_SUFFIX}"),
+        None => format!("{text} {}", typed::INVISIBLE),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::dodge_duplicate;
+    use super::{dodge_duplicate, typed};
 
     #[test]
     fn duplicates_change_invisibly() {
         assert_eq!(dodge_duplicate("hi there"), "hi  there");
         assert_eq!(dodge_duplicate("hi"), "hi \u{34F}");
+    }
+
+    #[test]
+    fn a_dot_line_sent_twice_stays_text() {
+        assert_eq!(typed::escape(dodge_duplicate(". hi")), "\u{34F}.  hi");
+        assert_eq!(typed::escape(dodge_duplicate(".gg")), "\u{34F}.gg \u{34F}");
     }
 }

@@ -22,7 +22,7 @@ mod send;
 mod session;
 pub mod shown;
 pub mod translate;
-mod typed;
+pub mod typed;
 pub mod usercard;
 pub mod unread;
 pub mod votes;

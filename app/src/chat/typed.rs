@@ -1,6 +1,27 @@
 //! F14 (v1.04 batch 2b) Which typed lines are commands. "/" always starts one. A dot does
 //! only when the word right after it is a command the app knows (Twitch's, the app's, your
 //! own, a plugin's), so ".gg", ".5k is crazy" and ". hi" go out as typed. ".." never does.
+//! F20 Twitch itself reads a line that starts like a command as one, so those get [`escape`]d.
+
+/// Invisible, and Twitch keeps it (Chatterino's duplicate suffix is " \u{34F}").
+pub const INVISIBLE: char = '\u{34F}';
+
+/// F20 Text Twitch would take for a command gets [`INVISIBLE`] in front, so it arrives as
+/// typed instead of "unrecognized command" or cut (". hi" would post "hi"). Twitch's rule as
+/// Chatterino has it (`isUnknownCommand`): "/", or a dot before anything but a dot or the end.
+/// "/me" and ".me" stay Twitch's action (text sent through Helix or GQL can hold them).
+pub fn escape(text: String) -> String {
+    let rest = text.strip_prefix('/').or_else(|| {
+        text.strip_prefix('.')
+            .filter(|r| !r.is_empty() && !r.starts_with('.'))
+    });
+    let Some(rest) = rest else {
+        return text;
+    };
+    let me = rest.get(..2).is_some_and(|w| w.eq_ignore_ascii_case("me"))
+        && rest[2..].chars().next().is_none_or(char::is_whitespace);
+    if me { text } else { format!("{INVISIBLE}{text}") }
+}
 
 /// The command in `text`: its name as typed and what follows it, trimmed. `known` gets the
 /// name in lower case and only for a dot.
@@ -17,7 +38,57 @@ pub fn command(text: &str, known: impl Fn(&str) -> bool) -> Option<(&str, &str)>
 
 #[cfg(test)]
 mod tests {
-    use super::command;
+    use super::{INVISIBLE, command, escape};
+
+    fn escaped(text: &str) -> bool {
+        escape(text.to_owned()) == format!("{INVISIBLE}{text}")
+    }
+
+    #[test]
+    fn twitch_commands_get_escaped() {
+        for text in [
+            ".gg",
+            ".5k is crazy",
+            ". hi",
+            ".gg.",
+            ".mewaves",
+            ". .gg",
+            ".\u{34F}",
+            "/gg",
+            "/",
+            "/ hi",
+        ] {
+            assert!(escaped(text), "{text}");
+        }
+        assert_eq!(escape(".gg".into()), "\u{34F}.gg");
+        assert_eq!(
+            escape(". hi".into()).chars().skip(1).collect::<String>(),
+            ". hi",
+            "the rest stays"
+        );
+    }
+
+    #[test]
+    fn plain_text_stays_as_is() {
+        for text in [
+            "gg",
+            "hi .gg",
+            ".",
+            "..",
+            "...",
+            "..gg",
+            "... hi",
+            "",
+            " .gg",
+            "\u{34F}.gg",
+            "/me waves",
+            ".me waves",
+            ".ME\twaves",
+            "/me",
+        ] {
+            assert_eq!(escape(text.to_owned()), text, "{text}");
+        }
+    }
 
     fn known(name: &str) -> bool {
         ["me", "ban", "w", "mycmd"].contains(&name)
