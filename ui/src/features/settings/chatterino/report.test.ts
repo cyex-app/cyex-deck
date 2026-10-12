@@ -2,9 +2,28 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { ImportReport } from '../../../ipc/bindings/ImportReport';
-import { counts, leftOut } from './report.ts';
+import { anonymousNote, anonymousOffer, counts, leftOut } from './report.ts';
 
-const empty: ImportReport = { tabs: 0, channels: 0, alreadyOpen: [], notChannels: [], unresolved: [], overLimit: [] };
+const empty: ImportReport = {
+  tabs: 0,
+  channels: 0,
+  anonymous: 0,
+  alreadyOpen: [],
+  notChannels: [],
+  unresolved: [],
+  overLimit: [],
+};
+
+test('X12 the offer names how many', () => {
+  assert.equal(anonymousOffer(1), 'Add the 1 channel past the limit as an anonymous tab');
+  assert.equal(anonymousOffer(1024), 'Add the 1.024 channels past the limit as anonymous tabs');
+});
+
+test('X12 the result says how many joined anonymously', () => {
+  assert.equal(anonymousNote(empty), null);
+  assert.equal(anonymousNote({ anonymous: 1 }), '1 channel past the limit joined anonymously and can only read chat.');
+  assert.equal(anonymousNote({ anonymous: 1024 }), '1.024 channels past the limit joined anonymously and can only read chat.');
+});
 
 test('V1041-02 counts read like the preview', () => {
   assert.equal(counts({ tabs: 1, channels: 1 }), '1 tab, 1 channel');

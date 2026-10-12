@@ -1,6 +1,6 @@
 //! V1041-02 What a read layout adds to the tabs: Chatterino's order, channels that have a
-//! tab already skipped, up to the join limit (1.10). Nothing is dropped without a line in
-//! the report.
+//! tab already skipped, up to the join limit (1.10), the rest anonymously if wanted (X12).
+//! Nothing is dropped without a line in the report.
 
 use std::collections::{HashMap, HashSet};
 
@@ -12,6 +12,7 @@ use crate::schema::{ImportTab, TabChannel, Tabs};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Plan {
+    /// The account's tabs, then the anonymous ones (X12), each in Chatterino's order.
     pub tabs: Vec<ImportTab>,
     pub report: ImportReport,
 }
@@ -21,16 +22,18 @@ pub struct Plan {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ImportReport {
-    /// Tabs and channels that go in.
+    /// Tabs and channels that go in, anonymous ones included.
     pub tabs: u32,
     pub channels: u32,
+    /// X12 Of those channels, the ones past the limit that go in anonymously.
+    pub anonymous: u32,
     /// Logins that have a tab already, or came up twice.
     pub already_open: Vec<String>,
     /// Splits that aren't Twitch channels.
     pub not_channels: Vec<NotChannel>,
     /// Names Twitch doesn't know: renamed, banned or deleted.
     pub unresolved: Vec<String>,
-    /// Logins past the chats one account can join (1.10).
+    /// Logins past the chats one account can join (1.10) that stay out.
     pub over_limit: Vec<String>,
 }
 
@@ -49,6 +52,9 @@ pub struct Joins<'a> {
     pub slots: usize,
     /// Channel ids that never count: its own (V102-21) and the ones it moderates.
     pub free: &'a [String],
+    /// X12 Channels past the limit go in as anonymous tabs instead of staying out.
+    /// Anonymous chats have no join limit in the app, only the IRC client's pacing.
+    pub rest_anonymous: bool,
 }
 
 /// `found` maps logins to channels (see `resolve`); `tabs` are the tabs open now.
@@ -56,6 +62,7 @@ pub fn plan(layout: &Layout, found: &HashMap<String, TabChannel>, tabs: &Tabs, j
     let mut open: HashSet<String> = tabs.channel_ids().into_iter().collect();
     let mut slots = joins.slots;
     let mut plan = Plan::default();
+    let mut anonymous = Vec::new();
     let report = &mut plan.report;
     report.not_channels = layout
         .skipped
@@ -64,9 +71,10 @@ pub fn plan(layout: &Layout, found: &HashMap<String, TabChannel>, tabs: &Tabs, j
         .collect();
 
     for tab in &layout.tabs {
-        let mut columns = Vec::new();
+        // A tab the limit cuts in two: what fits as the account, the rest anonymously.
+        let (mut signed, mut anon) = (Vec::new(), Vec::new());
         for column in &tab.columns {
-            let mut tiles = Vec::new();
+            let (mut signed_tiles, mut anon_tiles) = (Vec::new(), Vec::new());
             for name in column {
                 let Some(channel) = found.get(name) else {
                     add_once(&mut report.unresolved, name);
@@ -75,28 +83,44 @@ pub fn plan(layout: &Layout, found: &HashMap<String, TabChannel>, tabs: &Tabs, j
                 let free = joins.free.contains(&channel.id);
                 if open.contains(&channel.id) {
                     add_once(&mut report.already_open, &channel.login);
-                } else if !free && slots == 0 {
-                    add_once(&mut report.over_limit, &channel.login);
-                } else {
+                } else if free || slots > 0 {
                     open.insert(channel.id.clone());
                     slots -= usize::from(!free);
-                    tiles.push(channel.clone());
+                    signed_tiles.push(channel.clone());
+                } else if joins.rest_anonymous {
+                    open.insert(channel.id.clone());
+                    anon_tiles.push(channel.clone());
+                } else {
+                    add_once(&mut report.over_limit, &channel.login);
                 }
             }
-            if !tiles.is_empty() {
-                columns.push(tiles);
+            for (tiles, into) in [(signed_tiles, &mut signed), (anon_tiles, &mut anon)] {
+                if !tiles.is_empty() {
+                    into.push(tiles);
+                }
             }
         }
-        if columns.is_empty() {
-            continue;
+        for (columns, is_anon) in [(signed, false), (anon, true)] {
+            if columns.is_empty() {
+                continue;
+            }
+            let count = columns.iter().map(Vec::len).sum::<usize>() as u32;
+            report.tabs += 1;
+            report.channels += count;
+            let made = ImportTab {
+                alias: alias(tab),
+                columns,
+                anonymous: is_anon,
+            };
+            if is_anon {
+                report.anonymous += count;
+                anonymous.push(made);
+            } else {
+                plan.tabs.push(made);
+            }
         }
-        report.tabs += 1;
-        report.channels += columns.iter().map(Vec::len).sum::<usize>() as u32;
-        plan.tabs.push(ImportTab {
-            alias: alias(tab),
-            columns,
-        });
     }
+    plan.tabs.extend(anonymous);
     plan
 }
 
@@ -154,7 +178,103 @@ mod tests {
     const PLENTY: Joins<'static> = Joins {
         slots: 100,
         free: &[],
+        rest_anonymous: false,
     };
+
+    /// No room left for the account; the rest anonymously or not.
+    const fn full(slots: usize, rest_anonymous: bool) -> Joins<'static> {
+        Joins {
+            slots,
+            free: &[],
+            rest_anonymous,
+        }
+    }
+
+    /// Anonymous, alias, logins per column.
+    type Summary<'a> = (bool, Option<&'a str>, Vec<Vec<&'a str>>);
+
+    fn summary(plan: &Plan) -> Vec<Summary<'_>> {
+        plan.tabs
+            .iter()
+            .map(|t| (t.anonymous, t.alias.as_deref(), logins(t)))
+            .collect()
+    }
+
+    #[test]
+    fn x12_the_rest_goes_in_anonymously_after_the_account_tabs() {
+        let layout = fixture("many.json");
+        let found = found(&layout, &[]);
+
+        // Off (the default): as before, listed and left out.
+        let off = plan(&layout, &found, &Tabs::default(), full(95, false));
+        assert_eq!(
+            (off.report.tabs, off.report.anonymous, off.report.over_limit.len()),
+            (95, 0, 25)
+        );
+        assert!(off.tabs.iter().all(|t| !t.anonymous));
+
+        let on = plan(&layout, &found, &Tabs::default(), full(95, true));
+        let r = &on.report;
+        assert_eq!((r.tabs, r.channels, r.anonymous), (110, 120, 25));
+        assert!(r.over_limit.is_empty());
+        let tabs = summary(&on);
+        assert!(tabs[..95].iter().all(|t| !t.0) && tabs[95..].iter().all(|t| t.0));
+        // Chatterino's order and the same alias rule: "Tab 97" was titled, 96 wasn't.
+        assert_eq!(tabs[95], (true, None, vec![vec!["chan_096"]]));
+        assert_eq!(tabs[96], (true, Some("Tab 97"), vec![vec!["chan_097"]]));
+        assert_eq!(
+            tabs[109],
+            (true, Some("Pair 10"), vec![vec!["chan_119"], vec!["chan_120"]])
+        );
+
+        // A tab the limit cuts: its first half as the account, the rest anonymously,
+        // both under its title, the anonymous half after every account tab.
+        let cut = plan(&layout, &found, &Tabs::default(), full(101, true));
+        let cut = summary(&cut);
+        assert_eq!(cut.len(), 111);
+        assert_eq!(cut[100], (false, Some("Pair 1"), vec![vec!["chan_101"]]));
+        assert_eq!(cut[101], (true, Some("Pair 1"), vec![vec!["chan_102"]]));
+        assert_eq!(
+            cut[102],
+            (true, Some("Pair 2"), vec![vec!["chan_103"], vec!["chan_104"]])
+        );
+    }
+
+    #[test]
+    fn x12_already_open_and_repeated_channels_stay_out_of_the_anonymous_ones() {
+        // Past the limit but open in a tab already: still "already open".
+        let layout = fixture("many.json");
+        let tile = Tile {
+            id: "x1".into(),
+            channel: channel("chan_120"),
+            ..Tile::default()
+        };
+        let open = Tabs {
+            tabs: vec![Tab {
+                id: "x".into(),
+                columns: vec![Column {
+                    size: 1.0,
+                    tiles: vec![tile],
+                }],
+                ..Tab::default()
+            }],
+            ..Tabs::default()
+        };
+        let p = plan(&layout, &found(&layout, &[]), &open, full(95, true));
+        assert_eq!(
+            (p.report.anonymous, p.report.already_open.clone()),
+            (24, vec!["chan_120".to_owned()])
+        );
+        assert_eq!(summary(&p).last().unwrap().2, [["chan_119"]]);
+
+        // No room at all: everything anonymous, a channel twice in the file goes in once.
+        let layout = fixture("current.json");
+        let p = plan(&layout, &found(&layout, &[]), &Tabs::default(), full(0, true));
+        let r = &p.report;
+        assert_eq!((r.tabs, r.channels, r.anonymous), (5, 7, 7));
+        assert_eq!(r.already_open, ["alpha_one"]);
+        assert!(r.over_limit.is_empty() && p.tabs.iter().all(|t| t.anonymous));
+    }
 
     #[test]
     fn tabs_keep_their_order_titles_and_splits() {
@@ -213,7 +333,16 @@ mod tests {
     fn the_join_limit_cuts_in_order_and_lists_the_rest() {
         let layout = fixture("many.json");
         let found = found(&layout, &[]);
-        let plan = plan(&layout, &found, &Tabs::default(), Joins { slots: 95, free: &[] });
+        let plan = plan(
+            &layout,
+            &found,
+            &Tabs::default(),
+            Joins {
+                slots: 95,
+                free: &[],
+                rest_anonymous: false,
+            },
+        );
         let r = &plan.report;
         assert_eq!((r.tabs, r.channels), (95, 95));
         assert_eq!(r.over_limit.len(), 25);
@@ -247,7 +376,16 @@ mod tests {
         slots: usize,
         free: &[String],
     ) -> Plan {
-        plan(layout, found, &Tabs::default(), Joins { slots, free })
+        plan(
+            layout,
+            found,
+            &Tabs::default(),
+            Joins {
+                slots,
+                free,
+                rest_anonymous: false,
+            },
+        )
     }
 
     #[test]
@@ -308,9 +446,14 @@ mod tests {
                 .map(|n| format!("{:?} {}", n.kind, n.count))
                 .collect();
             let aliases = p.tabs.iter().filter(|t| t.alias.is_some()).count();
+            let rest = Joins {
+                rest_anonymous: true,
+                ..PLENTY
+            };
+            let anon = plan(&layout, &all, &Tabs::default(), rest).report.anonymous;
             println!(
                 "{file}: windows {windows}, tabs with channels {}, channels {}, unique {}, not channels [{}]; \
-                 import: tabs {}, channels {}, aliases {aliases}, already open {}, over limit {}, not found {}",
+                 import: tabs {}, channels {}, aliases {aliases}, already open {}, over limit {} (anonymously: {anon}), not found {}",
                 layout.tabs.len(),
                 layout.channel_count(),
                 names(&layout).len(),

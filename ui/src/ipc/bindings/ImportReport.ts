@@ -6,9 +6,13 @@ import type { NotChannel } from "./NotChannel";
  */
 export type ImportReport = { 
 /**
- * Tabs and channels that go in.
+ * Tabs and channels that go in, anonymous ones included.
  */
 tabs: number, channels: number, 
+/**
+ * X12 Of those channels, the ones past the limit that go in anonymously.
+ */
+anonymous: number, 
 /**
  * Logins that have a tab already, or came up twice.
  */
@@ -22,6 +26,6 @@ notChannels: Array<NotChannel>,
  */
 unresolved: Array<string>, 
 /**
- * Logins past the chats one account can join (1.10).
+ * Logins past the chats one account can join (1.10) that stay out.
  */
 overLimit: Array<string>, };

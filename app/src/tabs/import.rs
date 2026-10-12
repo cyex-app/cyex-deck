@@ -93,20 +93,21 @@ pub async fn preview(app: &AppHandle, path: &Path) -> Result<ImportReport, Strin
         free,
     };
     let tabs: Tabs = app.state::<Settings>().read(Partition::Tabs);
-    let report = chatterino::plan(&lookup.layout, &lookup.found, &tabs, joins(app, &lookup)).report;
+    let report = chatterino::plan(&lookup.layout, &lookup.found, &tabs, joins(app, &lookup, false)).report;
     *lock(app) = Some(lookup);
     Ok(report)
 }
 
 /// Adds what the last preview found, chat only or with the stream, joined as the default
-/// account. Checked again against the tabs open now.
-pub fn confirm(app: &AppHandle, player: bool) -> Result<ImportReport, String> {
+/// account; with `anonymous`, what is past its limit too, anonymously (X12). Checked again
+/// against the tabs open now.
+pub fn confirm(app: &AppHandle, player: bool, anonymous: bool) -> Result<ImportReport, String> {
     let lookup = lock(app).take().ok_or("Pick the layout file again.")?;
     let account = auth::accounts(app).default_account().map(|a| a.user_id.clone());
     if account.as_deref() != Some(lookup.account.as_str()) {
         return Err("The default account changed. Pick the layout file again.".into());
     }
-    let joins = joins(app, &lookup);
+    let joins = joins(app, &lookup, anonymous);
     let show = TileShow { player, chat: true };
     let mut report = ImportReport::default();
     app.state::<Settings>()
@@ -135,13 +136,15 @@ fn read(path: &Path) -> Result<Layout, String> {
 }
 
 /// 1.10 The chats the account can still join: its joined rooms that count are taken.
-fn joins<'a>(app: &AppHandle, lookup: &'a Lookup) -> Joins<'a> {
+/// X12 Anonymous chats have no such limit (only the IRC client paces their joins).
+fn joins<'a>(app: &AppHandle, lookup: &'a Lookup, rest_anonymous: bool) -> Joins<'a> {
     let budgets = app.state::<Connections>();
     let budgets = budgets.0.lock().unwrap_or_else(|p| p.into_inner());
     let taken = budgets.get(&lookup.account).map_or(0, |b| b.counted());
     Joins {
         slots: ROOM_LIMIT.saturating_sub(taken),
         free: &lookup.free,
+        rest_anonymous,
     }
 }
 
