@@ -1,0 +1,27 @@
+{
+ "room": {
+  "_id": 1676099,
+  "twitch_id": 121059319,
+  "youtube_id": null,
+  "id": "moonmoon",
+  "is_group": false,
+  "display_name": "MOONMOON",
+  "set": 1676121,
+  "moderator_badge": null,
+  "vip_badge": null,
+  "mod_urls": null,
+  "user_badges": {},
+  "user_badge_ids": {},
+  "css": null
+ },
+ "sets": {
+  "1676121": {
+   "id": 1676121,
+   "_type": 1,
+   "icon": null,
+   "title": "Channel: MOONMOON",
+   "css": null,
+   "emoticons": []
+  }
+ }
+}

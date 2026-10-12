@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Safari pinned tabs take a single-colour silhouette and recolour it
+       themselves, so no fills here. -->
+  <rect x="3" y="5" width="15" height="6"/>
+  <rect x="10" y="13" width="18" height="6"/>
+  <rect x="3" y="21" width="15" height="6"/>
+</svg>

@@ -1,0 +1,35 @@
+[
+ {
+  "id": "54ee2465b822020506c52a52",
+  "name": "night",
+  "displayName": "Night",
+  "providerId": "11785491",
+  "badge": {
+   "type": 1,
+   "description": "NightDev Developer",
+   "svg": "https://cdn.betterttv.net/badges/developer.svg"
+  }
+ },
+ {
+  "id": "54fa268a8edd5fcd455f2350",
+  "name": "glowey",
+  "displayName": "Glowey",
+  "providerId": "20767358",
+  "badge": {
+   "type": 4,
+   "description": "BetterTTV Translator",
+   "svg": "https://cdn.betterttv.net/badges/translator.svg"
+  }
+ },
+ {
+  "id": "550ab236a607044d1a3dd28f",
+  "name": "xgerhard",
+  "displayName": "xgerhard",
+  "providerId": "49056910",
+  "badge": {
+   "type": 2,
+   "description": "NightDev Support Volunteer",
+   "svg": "https://cdn.betterttv.net/badges/support_volunteer.svg"
+  }
+ }
+]

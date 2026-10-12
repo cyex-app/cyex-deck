@@ -1,0 +1,84 @@
+{
+ "badges": [
+  {
+   "id": 2,
+   "name": "bot",
+   "title": "Bot",
+   "slot": 1,
+   "replaces": "moderator",
+   "color": "#595959",
+   "image": "https://cdn.frankerfacez.com/badge/2/1",
+   "urls": {
+    "1": "https://cdn.frankerfacez.com/badge/2/1",
+    "2": "https://cdn.frankerfacez.com/badge/2/2",
+    "4": "https://cdn.frankerfacez.com/badge/2/4"
+   },
+   "css": null
+  },
+  {
+   "id": 3,
+   "name": "supporter",
+   "title": "FFZ Supporter",
+   "slot": 5,
+   "replaces": null,
+   "color": "#755000",
+   "image": "https://cdn.frankerfacez.com/badge/3/1",
+   "urls": {
+    "1": "https://cdn.frankerfacez.com/badge/3/1",
+    "2": "https://cdn.frankerfacez.com/badge/3/2",
+    "4": "https://cdn.frankerfacez.com/badge/3/4"
+   },
+   "css": null
+  },
+  {
+   "id": 1,
+   "name": "developer",
+   "title": "FFZ Developer",
+   "slot": 5,
+   "replaces": null,
+   "color": "#FAAF19",
+   "image": "https://cdn.frankerfacez.com/badge/1/1",
+   "urls": {
+    "1": "https://cdn.frankerfacez.com/badge/1/1",
+    "2": "https://cdn.frankerfacez.com/badge/1/2",
+    "4": "https://cdn.frankerfacez.com/badge/1/4"
+   },
+   "css": null
+  },
+  {
+   "id": 4,
+   "name": "subwoofer",
+   "title": "FFZ Subwoofer",
+   "slot": 5,
+   "replaces": null,
+   "color": "#3D64B6",
+   "image": "https://cdn.frankerfacez.com/badge/4/1",
+   "urls": {
+    "1": "https://cdn.frankerfacez.com/badge/4/1",
+    "2": "https://cdn.frankerfacez.com/badge/4/2",
+    "4": "https://cdn.frankerfacez.com/badge/4/4"
+   },
+   "css": null
+  }
+ ],
+ "users": {
+  "1": [
+   47852576
+  ],
+  "2": [
+   73227142,
+   82455692,
+   70325788
+  ],
+  "3": [
+   88100526,
+   236301220,
+   100139411
+  ],
+  "4": [
+   49267024,
+   222216085,
+   4867723
+  ]
+ }
+}

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Adaptive icon: follows the viewer's OS/browser colour scheme on its
+       own, with no script involved. This is the icon declared in the HTML,
+       so it is what search crawlers and any no-JS client pick up. -->
+  <style>
+    .row{fill:#1b1c20}   /* --text, light */
+    .mid{fill:#14e6ff}   /* --accent, light */
+    @media (prefers-color-scheme: dark){
+      .row{fill:#e8e8ea} /* --text, dark */
+      .mid{fill:#145aff} /* --accent, dark */
+    }
+  </style>
+  <!-- The header's .brand .mark, 1:1: three 6-tall bars on a 32x32 grid, the
+       middle one longer and offset right. Square, no glow. -->
+  <rect class="row" x="3" y="5" width="15" height="6"/>
+  <rect class="mid" x="10" y="13" width="18" height="6"/>
+  <rect class="row" x="3" y="21" width="15" height="6"/>
+</svg>

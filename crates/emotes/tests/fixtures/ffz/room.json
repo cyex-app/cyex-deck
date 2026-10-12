@@ -1,0 +1,135 @@
+{
+ "room": {
+  "_id": 64515,
+  "twitch_id": 11148817,
+  "youtube_id": null,
+  "id": "pajlada",
+  "is_group": false,
+  "display_name": "pajlada",
+  "set": 64515,
+  "moderator_badge": "https://cdn.frankerfacez.com/room-badge/mod/id/11148817/v/e47297b4/1",
+  "vip_badge": {
+   "1": "https://cdn.frankerfacez.com/room-badge/vip/id/11148817/v/bc2bbe0d/1",
+   "2": "https://cdn.frankerfacez.com/room-badge/vip/id/11148817/v/bc2bbe0d/2",
+   "4": "https://cdn.frankerfacez.com/room-badge/vip/id/11148817/v/bc2bbe0d/4"
+  },
+  "mod_urls": {
+   "1": "https://cdn.frankerfacez.com/room-badge/mod/id/11148817/v/e47297b4/1",
+   "2": "https://cdn.frankerfacez.com/room-badge/mod/id/11148817/v/e47297b4/2",
+   "4": "https://cdn.frankerfacez.com/room-badge/mod/id/11148817/v/e47297b4/4"
+  },
+  "user_badges": {
+   "2": [
+    "pajbot",
+    "supibot"
+   ]
+  },
+  "user_badge_ids": {
+   "2": [
+    82008718,
+    68136884
+   ]
+  },
+  "css": null
+ },
+ "sets": {
+  "64515": {
+   "id": 64515,
+   "_type": 1,
+   "icon": null,
+   "title": "Channel: pajlada",
+   "css": null,
+   "emoticons": [
+    {
+     "id": 720707,
+     "name": "forsenLaughingAtYou",
+     "height": 28,
+     "width": 28,
+     "public": true,
+     "hidden": false,
+     "modifier": false,
+     "modifier_flags": 0,
+     "offset": null,
+     "margins": null,
+     "css": null,
+     "owner": {
+      "_id": 1090286,
+      "name": "sadgw",
+      "display_name": "sadgw"
+     },
+     "artist": null,
+     "urls": {
+      "1": "https://cdn.frankerfacez.com/emote/720707/1",
+      "2": "https://cdn.frankerfacez.com/emote/720707/2",
+      "4": "https://cdn.frankerfacez.com/emote/720707/4"
+     },
+     "animated": {
+      "1": "https://cdn.frankerfacez.com/emote/720707/animated/1",
+      "2": "https://cdn.frankerfacez.com/emote/720707/animated/2",
+      "4": "https://cdn.frankerfacez.com/emote/720707/animated/4"
+     },
+     "status": 1,
+     "usage_count": 15,
+     "created_at": "2023-03-05T05:15:56.058Z",
+     "last_updated": "2023-03-05T09:44:16.754Z"
+    },
+    {
+     "id": 155074,
+     "name": "pajaGhetti",
+     "height": 20,
+     "width": 41,
+     "public": true,
+     "hidden": false,
+     "modifier": false,
+     "modifier_flags": 0,
+     "offset": null,
+     "margins": null,
+     "css": null,
+     "owner": {
+      "_id": 60769,
+      "name": "lilguy_",
+      "display_name": "lilguy_"
+     },
+     "artist": null,
+     "urls": {
+      "1": "https://cdn.frankerfacez.com/emote/155074/1",
+      "2": "https://cdn.frankerfacez.com/emote/155074/2",
+      "4": "https://cdn.frankerfacez.com/emote/155074/4"
+     },
+     "status": 1,
+     "usage_count": 6,
+     "created_at": "2017-01-20T17:17:43.819Z",
+     "last_updated": "2017-01-20T19:41:38.004Z"
+    },
+    {
+     "id": 18290,
+     "name": "TuckMeIn",
+     "height": 28,
+     "width": 28,
+     "public": true,
+     "hidden": false,
+     "modifier": false,
+     "modifier_flags": 0,
+     "offset": null,
+     "margins": null,
+     "css": null,
+     "owner": {
+      "_id": 2683,
+      "name": "wyattw8",
+      "display_name": "wyattw8"
+     },
+     "artist": null,
+     "urls": {
+      "1": "https://cdn.frankerfacez.com/emote/18290/1",
+      "2": "https://cdn.frankerfacez.com/emote/18290/2",
+      "4": "https://cdn.frankerfacez.com/emote/18290/4"
+     },
+     "status": 1,
+     "usage_count": 109,
+     "created_at": "2014-11-09T01:13:21.086Z",
+     "last_updated": "2015-05-30T22:25:50.799Z"
+    }
+   ]
+  }
+ }
+}

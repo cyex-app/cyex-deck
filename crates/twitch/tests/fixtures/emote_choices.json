@@ -1,0 +1,155 @@
+{
+ "data": {
+  "emoteModifiers": [
+   {
+    "id": "MOD_BW",
+    "title": "Greyscale"
+   },
+   {
+    "id": "MOD_HF",
+    "title": "Horizontal Flip"
+   },
+   {
+    "id": "MOD_SG",
+    "title": "Sunglasses"
+   },
+   {
+    "id": "MOD_SQ",
+    "title": "Squished"
+   },
+   {
+    "id": "MOD_TK",
+    "title": "Thinking"
+   }
+  ],
+  "channel": {
+   "id": "71092938",
+   "communityPointsSettings": {
+    "automaticRewards": [
+     {
+      "id": "71092938:CHOSEN_MODIFIED_SUB_EMOTE_UNLOCK",
+      "type": "CHOSEN_MODIFIED_SUB_EMOTE_UNLOCK",
+      "cost": 5000,
+      "isEnabled": true,
+      "pricingType": "POINTS"
+     },
+     {
+      "id": "71092938:SEND_ANIMATED_MESSAGE",
+      "type": "SEND_ANIMATED_MESSAGE",
+      "cost": null,
+      "isEnabled": true,
+      "pricingType": "BITS"
+     },
+     {
+      "id": "71092938:SEND_GIGANTIFIED_EMOTE",
+      "type": "SEND_GIGANTIFIED_EMOTE",
+      "cost": null,
+      "isEnabled": true,
+      "pricingType": "BITS"
+     },
+     {
+      "id": "71092938:CELEBRATION",
+      "type": "CELEBRATION",
+      "cost": null,
+      "isEnabled": true,
+      "pricingType": "BITS"
+     },
+     {
+      "id": "71092938:SINGLE_MESSAGE_BYPASS_SUB_MODE",
+      "type": "SINGLE_MESSAGE_BYPASS_SUB_MODE",
+      "cost": 3000,
+      "isEnabled": false,
+      "pricingType": "POINTS"
+     },
+     {
+      "id": "71092938:SEND_HIGHLIGHTED_MESSAGE",
+      "type": "SEND_HIGHLIGHTED_MESSAGE",
+      "cost": 100,
+      "isEnabled": false,
+      "pricingType": "POINTS"
+     },
+     {
+      "id": "71092938:RANDOM_SUB_EMOTE_UNLOCK",
+      "type": "RANDOM_SUB_EMOTE_UNLOCK",
+      "cost": 320,
+      "isEnabled": false,
+      "pricingType": "POINTS"
+     },
+     {
+      "id": "71092938:CHOSEN_SUB_EMOTE_UNLOCK",
+      "type": "CHOSEN_SUB_EMOTE_UNLOCK",
+      "cost": 480,
+      "isEnabled": false,
+      "pricingType": "POINTS"
+     }
+    ],
+    "emoteVariants": [
+     {
+      "id": "1480140",
+      "isUnlockable": true,
+      "emote": {
+       "id": "1480140",
+       "token": "xqcA"
+      },
+      "modifications": [
+       {
+        "id": "1480140_BW",
+        "emote": {
+         "id": "1480140_BW",
+         "token": "xqcA_BW"
+        },
+        "modifier": {
+         "id": "MOD_BW"
+        }
+       },
+       {
+        "id": "1480140_HF",
+        "emote": {
+         "id": "1480140_HF",
+         "token": "xqcA_HF"
+        },
+        "modifier": {
+         "id": "MOD_HF"
+        }
+       }
+      ]
+     },
+     {
+      "id": "emotesv2_9a892d42b94f46659175a31d0813e58c",
+      "isUnlockable": false,
+      "emote": {
+       "id": "emotesv2_9a892d42b94f46659175a31d0813e58c",
+       "token": "xqcClown"
+      },
+      "modifications": [
+       {
+        "id": "emotesv2_9a892d42b94f46659175a31d0813e58c_BW",
+        "emote": {
+         "id": "emotesv2_9a892d42b94f46659175a31d0813e58c_BW",
+         "token": "xqcClown_BW"
+        },
+        "modifier": {
+         "id": "MOD_BW"
+        }
+       },
+       {
+        "id": "emotesv2_9a892d42b94f46659175a31d0813e58c_HF",
+        "emote": {
+         "id": "emotesv2_9a892d42b94f46659175a31d0813e58c_HF",
+         "token": "xqcClown_HF"
+        },
+        "modifier": {
+         "id": "MOD_HF"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  }
+ },
+ "extensions": {
+  "durationMilliseconds": 46,
+  "requestID": "01M4J9HM30MXW9WK1641PZ3H0F"
+ }
+}

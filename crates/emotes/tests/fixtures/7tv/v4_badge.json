@@ -1,0 +1,80 @@
+{
+ "id": "01JJJ74CRHZBRMCM8F4Y2WBN6R",
+ "name": "Minecraft Event Winner",
+ "description": "Minecraft Event Winner",
+ "tags": [],
+ "images": [
+  {
+   "url": "https://cdn.7tv.app/badge/01JJJ74CRHZBRMCM8F4Y2WBN6R/1x_static.webp",
+   "mime": "image/webp",
+   "size": 942,
+   "scale": 1,
+   "width": 18,
+   "height": 18,
+   "frameCount": 1
+  },
+  {
+   "url": "https://cdn.7tv.app/badge/01JJJ74CRHZBRMCM8F4Y2WBN6R/2x_static.webp",
+   "mime": "image/webp",
+   "size": 3052,
+   "scale": 2,
+   "width": 36,
+   "height": 36,
+   "frameCount": 1
+  },
+  {
+   "url": "https://cdn.7tv.app/badge/01JJJ74CRHZBRMCM8F4Y2WBN6R/3x_static.webp",
+   "mime": "image/webp",
+   "size": 5842,
+   "scale": 3,
+   "width": 54,
+   "height": 54,
+   "frameCount": 1
+  },
+  {
+   "url": "https://cdn.7tv.app/badge/01JJJ74CRHZBRMCM8F4Y2WBN6R/4x_static.webp",
+   "mime": "image/webp",
+   "size": 9092,
+   "scale": 4,
+   "width": 72,
+   "height": 72,
+   "frameCount": 1
+  },
+  {
+   "url": "https://cdn.7tv.app/badge/01JJJ74CRHZBRMCM8F4Y2WBN6R/1x.webp",
+   "mime": "image/webp",
+   "size": 43862,
+   "scale": 1,
+   "width": 18,
+   "height": 18,
+   "frameCount": 100
+  },
+  {
+   "url": "https://cdn.7tv.app/badge/01JJJ74CRHZBRMCM8F4Y2WBN6R/2x.webp",
+   "mime": "image/webp",
+   "size": 96400,
+   "scale": 2,
+   "width": 36,
+   "height": 36,
+   "frameCount": 100
+  },
+  {
+   "url": "https://cdn.7tv.app/badge/01JJJ74CRHZBRMCM8F4Y2WBN6R/3x.webp",
+   "mime": "image/webp",
+   "size": 171064,
+   "scale": 3,
+   "width": 54,
+   "height": 54,
+   "frameCount": 100
+  },
+  {
+   "url": "https://cdn.7tv.app/badge/01JJJ74CRHZBRMCM8F4Y2WBN6R/4x.webp",
+   "mime": "image/webp",
+   "size": 243020,
+   "scale": 4,
+   "width": 72,
+   "height": 72,
+   "frameCount": 100
+  }
+ ]
+}

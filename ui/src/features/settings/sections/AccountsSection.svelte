@@ -1,0 +1,116 @@
+<!-- Account manager (1.3, 1.23) and the two ways to add an account (V102-19): Sign in
+     with Twitch (1.5), then optionally the GQL tools on the account card; or sign in with
+     a code for the GQL tools alone. A flag on a greyed-out tool lands here, on the sign-in
+     that unlocks it (V102-20). -->
+<script lang="ts">
+  import { tick } from 'svelte';
+
+  import Button from '../../../components/Button.svelte';
+  import Icon from '../../../components/Icon.svelte';
+  import AccountCard from '../../accounts/AccountCard.svelte';
+  import DeviceCode from '../../accounts/DeviceCode.svelte';
+  import { signIn } from '../../accounts/signIn.svelte';
+  import { accounts } from '../../../lib/accounts.svelte';
+  import { signInTarget } from '../../../lib/gate';
+  import { gate } from '../../../lib/gate.svelte';
+
+  let twitchWay = $state<HTMLElement>();
+  let codeWay = $state<HTMLElement>();
+  let cards = $state<HTMLElement>();
+  /** The way a flag pointed at, lit up for a moment. */
+  let lit = $state<'twitch' | 'code' | null>(null);
+
+  $effect(() => {
+    if (!gate.asks || !gate.want) return;
+    const target = signInTarget(gate.want, accounts.current);
+    gate.want = null;
+    void show(target);
+  });
+
+  async function show(target: 'account' | 'twitch' | 'code') {
+    if (target === 'account' && accounts.current) signIn.offer = accounts.current.userId;
+    await tick();
+    const el = target === 'account' ? cards : target === 'twitch' ? twitchWay : codeWay;
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (target === 'account') return;
+    lit = target;
+    setTimeout(() => (lit = null), 1600);
+  }
+</script>
+
+<h2>Accounts</h2>
+
+{#if signIn.kind}<DeviceCode />{/if}
+
+<div bind:this={cards} data-setting="accounts.list accounts.defaultId accounts:profile">
+  {#each accounts.list as account (account.userId)}
+    <AccountCard {account} />
+  {:else}
+    <p class="note">No accounts yet. You can watch streams and read chat without one.</p>
+  {/each}
+</div>
+
+<h3 class="label">{accounts.list.length ? 'Add another account' : 'Add an account'}</h3>
+<div class="ways">
+  <div class="way" class:lit={lit === 'twitch'} bind:this={twitchWay} data-setting="accounts:twitch">
+    <Icon name="login" size={18} />
+    <div class="text">
+      <strong>Sign in with Twitch</strong>
+      <span>Chat, mod tools, your follows, payment methods and subscriptions. The GQL tools can be added after.</span>
+    </div>
+    <Button variant="primary" small disabled={signIn.kind !== null} onclick={() => signIn.start('helix')}>
+      Sign in
+    </Button>
+  </div>
+  <div class="way" class:lit={lit === 'code'} bind:this={codeWay} data-setting="accounts:code">
+    <Icon name="key" size={18} />
+    <div class="text">
+      <strong>Sign in with a code</strong>
+      <span>Approve a short code on Twitch. Chat and the GQL tools: the miner, following, channel points, GIFs and power-ups. Payment methods and subscriptions need Sign in with Twitch too.</span>
+    </div>
+    <Button small disabled={signIn.kind !== null} onclick={() => signIn.start('gql')}>Get a code</Button>
+  </div>
+</div>
+
+<style>
+  .note {
+    margin: 4px 0 14px;
+    color: var(--dim);
+  }
+  h3 {
+    margin: 24px 0 8px;
+  }
+  .ways {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 18px;
+  }
+  .way {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    transition: border-color var(--fast);
+  }
+  .way.lit {
+    border-color: var(--accent-border);
+  }
+  .way > :global(svg) {
+    flex: none;
+    color: var(--dim);
+  }
+  .text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .text span {
+    color: var(--muted);
+    font-size: 0.82rem;
+  }
+</style>

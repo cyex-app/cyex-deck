@@ -1,0 +1,38 @@
+{
+ "d": {
+  "type": "entitlement.create",
+  "body": {
+   "id": "00000000000000000000000000",
+   "kind": 5,
+   "object": {
+    "id": "00000000000000000000000000",
+    "kind": "EMOTE_SET",
+    "ref_id": "01KAY8SHD31MDFYZMGC0D7005G",
+    "user": {
+     "id": "01G6GTGSK80007CQBJPSBDEFQ2",
+     "username": "babaquon",
+     "display_name": "babaquon",
+     "avatar_url": "https://static-cdn.jtvnw.net/jtv_user_pictures/d10c7124-f804-4f4a-a57c-33ed2ba7d4c9-profile_image-300x300.png",
+     "style": {},
+     "role_ids": [
+      "01G68MMQFR0007J6GNM9E2M0TM"
+     ],
+     "connections": [
+      {
+       "id": "494270118",
+       "platform": "TWITCH",
+       "username": "babaquon",
+       "display_name": "babaquon",
+       "linked_at": 1656274577000,
+       "emote_capacity": 1000,
+       "emote_set_id": "01G6GTGSK80007CQBJPSBDEFQ2"
+      }
+     ]
+    }
+   }
+  }
+ },
+ "op": 0,
+ "t": 1791615283217,
+ "s": 17
+}

@@ -1,0 +1,71 @@
+[workspace]
+resolver = "3"
+members = ["app", "crates/*"]
+
+[workspace.package]
+version = "0.1.4"
+edition = "2024"
+publish = false
+
+[workspace.dependencies]
+cyex-core = { path = "crates/core" }
+cyex-settings = { path = "crates/settings" }
+cyex-twitch = { path = "crates/twitch" }
+cyex-auth = { path = "crates/auth" }
+cyex-chat = { path = "crates/chat" }
+cyex-player = { path = "crates/player" }
+cyex-emotes = { path = "crates/emotes" }
+cyex-miner = { path = "crates/miner" }
+cyex-eventsub = { path = "crates/eventsub" }
+cyex-moderation = { path = "crates/moderation" }
+cyex-plugins = { path = "crates/plugins" }
+
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"
+thiserror = "2"
+time = { version = "0.3", features = ["local-offset", "formatting", "parsing", "macros"] }
+base64 = "0.23"
+ts-rs = { version = "12", features = ["serde-json-impl", "no-serde-warnings"] }
+# TLS through Windows SChannel (native-tls): no crypto library in the binary.
+reqwest = { version = "0.13", default-features = false, features = ["native-tls", "json", "form", "query"] }
+tokio = { version = "1", features = ["time", "sync", "macros", "rt"] }
+tokio-native-tls = "0.3"
+# 7TV EventAPI and the BTTV socket (D3, D14), TLS through SChannel like everything else.
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "handshake", "native-tls"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+# Windows Credential Manager on Windows (v1 mode only compiles the platform store).
+keyring = "4.2"
+url = "2"
+regex = "1"
+# V104-01 Mentions with lookaround and backreferences (approved 2026/10/12). Plain
+# patterns run on the regex crate underneath, which is already in the build.
+fancy-regex = "0.19"
+tracing = { version = "0.1", default-features = false, features = ["std"] }
+
+tauri = { version = "2.12", features = ["tray-icon", "image-png"] }
+tauri-build = { version = "2.7", features = [] }
+tauri-plugin-single-instance = "2.5"
+tauri-plugin-dialog = "2.8"
+tauri-plugin-opener = "2"
+# Windows toasts with click handling (live alerts, whispers, the bell; phase 12).
+tauri-winrt-notification = "0.8"
+# Global hotkeys (S2, U7; approved in phase 13, D28).
+tauri-plugin-global-shortcut = "2"
+# Windows calls for app/src/sys only (D28): already in the build through tauri and wry.
+windows = "0.62"
+webview2-com = "0.39"
+# Lua 5.4 for plugins (S5; approved in phase 14, D29), built from source with the MSVC tools.
+mlua = { version = "0.12", features = ["lua54", "vendored", "serde"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true

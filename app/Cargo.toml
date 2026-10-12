@@ -1,0 +1,52 @@
+[package]
+name = "cyex-deck"
+description = "cyex deck desktop app"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+cyex-core.workspace = true
+cyex-settings.workspace = true
+cyex-twitch.workspace = true
+cyex-auth.workspace = true
+cyex-chat.workspace = true
+cyex-player.workspace = true
+cyex-emotes.workspace = true
+cyex-miner.workspace = true
+cyex-eventsub.workspace = true
+cyex-moderation.workspace = true
+cyex-plugins.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+time.workspace = true
+tokio.workspace = true
+url.workspace = true
+ts-rs.workspace = true
+tauri.workspace = true
+tauri-plugin-single-instance.workspace = true
+tauri-plugin-dialog.workspace = true
+tauri-plugin-opener.workspace = true
+tauri-winrt-notification.workspace = true
+tauri-plugin-global-shortcut.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+webview2-com.workspace = true
+windows = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_System_Diagnostics_ToolHelp",
+    # V103-14 Already built for tao: nothing new comes in.
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+# The workspace lints, except that `unsafe` is denied instead of forbidden, so the one
+# Windows module (`src/sys`) can allow it (D28).
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

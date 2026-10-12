@@ -1,0 +1,30 @@
+{
+ "data": {
+  "users": {
+   "u0": {
+    "id": "01FE9DRF000009TR6M9N941CYW",
+    "mainConnection": {
+     "platformDisplayName": "xQc"
+    }
+   },
+   "u1": {
+    "id": "01GC7TAGC00004KGVJA52HBSQF",
+    "mainConnection": {
+     "platformDisplayName": "forgettrance"
+    }
+   },
+   "u2": {
+    "id": "01FR9SYE88000FCH58CJT43WD1",
+    "mainConnection": {
+     "platformDisplayName": "its_Physikz"
+    }
+   }
+  }
+ },
+ "extensions": {
+  "analyzer": {
+   "complexity": 73,
+   "depth": 4
+  }
+ }
+}

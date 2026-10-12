@@ -1,0 +1,71 @@
+{
+ "d": {
+  "type": "emote_set.update",
+  "body": {
+   "id": "01KAY8SHD31MDFYZMGC0D7005G",
+   "kind": 3,
+   "pushed": [
+    {
+     "key": "emotes",
+     "index": 0,
+     "type": "object",
+     "value": {
+      "id": "01KAY51DS96NVMY2YHN3KZ8W9B",
+      "name": "nnysClap",
+      "flags": 0,
+      "timestamp": 1764095997737,
+      "actor_id": "01F6MBDQ7R0005TFYTWP1R54KA",
+      "data": {
+       "id": "01KAY51DS96NVMY2YHN3KZ8W9B",
+       "name": "nnysClap",
+       "flags": 1,
+       "lifecycle": 3,
+       "state": [
+        "PERSONAL",
+        "LISTED"
+       ],
+       "listed": true,
+       "animated": true,
+       "owner": {
+        "id": "01F6MBDQ7R0005TFYTWP1R54KA",
+        "username": "ayyybubu",
+        "display_name": "ayyybubu",
+        "style": {
+         "color": 849892095,
+         "paint_id": "01GCCF52Q000056Z5R14NPVHTC",
+         "badge_id": "01JM3F4N2Y65KKHDGWDEDFTJNA"
+        },
+        "connections": [
+         {
+          "id": "157054245",
+          "platform": "TWITCH",
+          "username": "ayyybubu",
+          "display_name": "ayyybubu"
+         }
+        ]
+       },
+       "host": {
+        "url": "//cdn.7tv.app/emote/01KAY51DS96NVMY2YHN3KZ8W9B",
+        "files": [
+         {
+          "name": "1x.webp",
+          "static_name": "1x_static.webp",
+          "width": 38,
+          "height": 32,
+          "frame_count": 26,
+          "size": 24908,
+          "format": "WEBP"
+         }
+        ]
+       }
+      },
+      "origin_id": null
+     }
+    }
+   ]
+  }
+ },
+ "op": 0,
+ "t": 1791615283217,
+ "s": 16
+}

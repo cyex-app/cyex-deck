@@ -1,0 +1,35 @@
+{
+ "d": {
+  "type": "emote_set.create",
+  "body": {
+   "id": "01KAY8SHD31MDFYZMGC0D7005G",
+   "kind": 3,
+   "object": {
+    "id": "01KAY8SHD31MDFYZMGC0D7005G",
+    "name": "NNYS 2025",
+    "flags": 11,
+    "tags": [],
+    "immutable": true,
+    "privileged": true,
+    "capacity": 5,
+    "owner": {
+     "id": "01G6GTGSK80007CQBJPSBDEFQ2",
+     "username": "babaquon",
+     "display_name": "babaquon",
+     "style": {},
+     "connections": [
+      {
+       "id": "494270118",
+       "platform": "TWITCH",
+       "username": "babaquon",
+       "display_name": "babaquon"
+      }
+     ]
+    }
+   }
+  }
+ },
+ "op": 0,
+ "t": 1791615283217,
+ "s": 15
+}

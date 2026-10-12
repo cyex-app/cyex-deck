@@ -1,0 +1,74 @@
+{
+ "id": "01FG70GMPR00021TQRJX35KWP1",
+ "name": "notL",
+ "flags": 256,
+ "tags": [
+  "xqcl",
+  "notxqcl",
+  "finger",
+  "4weird",
+  "xqc"
+ ],
+ "lifecycle": 3,
+ "state": [
+  "LISTED"
+ ],
+ "listed": true,
+ "animated": true,
+ "owner": {
+  "id": "01F6MTQK0R0000QWQEJTQA0MJ7",
+  "username": "bodybuffalo28",
+  "display_name": "bodybuffalo28",
+  "style": {},
+  "connections": [
+   {
+    "id": "405469399",
+    "platform": "TWITCH",
+    "username": "bodybuffalo28",
+    "display_name": "bodybuffalo28"
+   }
+  ]
+ },
+ "host": {
+  "url": "//cdn.7tv.app/emote/01FG70GMPR00021TQRJX35KWP1",
+  "files": [
+   {
+    "name": "1x.webp",
+    "static_name": "1x_static.webp",
+    "width": 32,
+    "height": 32,
+    "frame_count": 58,
+    "size": 32798,
+    "format": "WEBP"
+   }
+  ]
+ },
+ "versions": [
+  {
+   "id": "01FG70GMPR00021TQRJX35KWP1",
+   "name": "notL",
+   "description": "",
+   "lifecycle": 3,
+   "state": [
+    "LISTED"
+   ],
+   "listed": true,
+   "animated": true,
+   "host": {
+    "url": "//cdn.7tv.app/emote/01FG70GMPR00021TQRJX35KWP1",
+    "files": [
+     {
+      "name": "1x.webp",
+      "static_name": "1x_static.webp",
+      "width": 32,
+      "height": 32,
+      "frame_count": 58,
+      "size": 32798,
+      "format": "WEBP"
+     }
+    ]
+   },
+   "createdAt": 1632322999000
+  }
+ ]
+}

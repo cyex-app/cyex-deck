@@ -1,0 +1,112 @@
+{
+ "data": {
+  "users": {
+   "userByConnection": {
+    "id": "01FE9DRF000009TR6M9N941CYW",
+    "style": {
+     "activeEmoteSet": {
+      "id": "01J9MMS2R800036CR40E1041ED",
+      "name": "Halloween Emotes 2026",
+      "capacity": 1000,
+      "emotes": {
+       "totalCount": 987,
+       "items": [
+        {
+         "id": "01G3WEGZN0000ET2J0MQP5YJ0G",
+         "alias": "GAMBA",
+         "addedAt": "2022-07-12T20:26:41.505+00:00",
+         "addedById": null,
+         "flags": {
+          "zeroWidth": false
+         },
+         "emote": {
+          "defaultName": "GAMBA",
+          "aspectRatio": 1.2109375,
+          "flags": {
+           "animated": true,
+           "publicListed": true
+          }
+         }
+        },
+        {
+         "id": "01FG70GMPR00021TQRJX35KWP1",
+         "alias": "notL",
+         "addedAt": "2022-09-28T17:31:43.795+00:00",
+         "addedById": "01F7MSXWXR0001THV7TZX9W4ZK",
+         "flags": {
+          "zeroWidth": true
+         },
+         "emote": {
+          "defaultName": "notL",
+          "aspectRatio": 1,
+          "flags": {
+           "animated": true,
+           "publicListed": true
+          }
+         }
+        },
+        {
+         "id": "01GNMDPAR00003C5ERVD9E0W5S",
+         "alias": "AlienRave",
+         "addedAt": "2023-04-30T13:18:56.520+00:00",
+         "addedById": "01G5MK9K8800060KXFGRT23XZM",
+         "flags": {
+          "zeroWidth": false
+         },
+         "emote": {
+          "defaultName": "AlienRave",
+          "aspectRatio": 1,
+          "flags": {
+           "animated": true,
+           "publicListed": false
+          }
+         }
+        },
+        {
+         "id": "01EZPGQES8000C438200A44F0M",
+         "alias": "reeferSad",
+         "addedAt": "2022-09-27T00:00:45.646+00:00",
+         "addedById": "01FFQYAMY80000JT8GHDKHJ77X",
+         "flags": {
+          "zeroWidth": false
+         },
+         "emote": {
+          "defaultName": "TriSad",
+          "aspectRatio": 1,
+          "flags": {
+           "animated": true,
+           "publicListed": true
+          }
+         }
+        },
+        {
+         "id": "01GMMC1B8G00040AZPK7XP3XGQ",
+         "alias": "SHOCK",
+         "addedAt": "2023-02-09T14:35:11.936+00:00",
+         "addedById": "01FFQYAMY80000JT8GHDKHJ77X",
+         "flags": {
+          "zeroWidth": false
+         },
+         "emote": {
+          "defaultName": "WideEyes",
+          "aspectRatio": 1,
+          "flags": {
+           "animated": false,
+           "publicListed": true
+          }
+         }
+        }
+       ]
+      }
+     }
+    }
+   }
+  }
+ },
+ "extensions": {
+  "analyzer": {
+   "complexity": 23,
+   "depth": 9
+  }
+ }
+}

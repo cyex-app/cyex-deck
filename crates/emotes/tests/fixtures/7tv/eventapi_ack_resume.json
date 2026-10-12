@@ -1,0 +1,13 @@
+{
+ "d": {
+  "command": "RESUME",
+  "data": {
+   "success": false,
+   "dispatches_replayed": 0,
+   "subscriptions_restored": 0
+  }
+ },
+ "op": 5,
+ "t": 1791615282839,
+ "s": 14
+}

@@ -1,0 +1,107 @@
+{
+ "id": "01JHXJFACX42RV996VE9933TB8",
+ "name": "Emerald Doppler",
+ "data": {
+  "layers": [
+   {
+    "id": "01JMMQ2PBAK6PK2XYX8NT1QYB4",
+    "opacity": 1,
+    "ty": {
+     "__typename": "PaintLayerTypeImage",
+     "images": [
+      {
+       "url": "https://cdn.7tv.app/paint/01JHXJFACX42RV996VE9933TB8/layer/01JMMQ2PBAK6PK2XYX8NT1QYB4/1x_static.webp",
+       "mime": "image/webp",
+       "size": 3910,
+       "scale": 1,
+       "width": 96,
+       "height": 32,
+       "frameCount": 1
+      },
+      {
+       "url": "https://cdn.7tv.app/paint/01JHXJFACX42RV996VE9933TB8/layer/01JMMQ2PBAK6PK2XYX8NT1QYB4/2x_static.webp",
+       "mime": "image/webp",
+       "size": 9542,
+       "scale": 2,
+       "width": 192,
+       "height": 64,
+       "frameCount": 1
+      },
+      {
+       "url": "https://cdn.7tv.app/paint/01JHXJFACX42RV996VE9933TB8/layer/01JMMQ2PBAK6PK2XYX8NT1QYB4/3x_static.webp",
+       "mime": "image/webp",
+       "size": 15030,
+       "scale": 3,
+       "width": 288,
+       "height": 96,
+       "frameCount": 1
+      },
+      {
+       "url": "https://cdn.7tv.app/paint/01JHXJFACX42RV996VE9933TB8/layer/01JMMQ2PBAK6PK2XYX8NT1QYB4/4x_static.webp",
+       "mime": "image/webp",
+       "size": 20686,
+       "scale": 4,
+       "width": 384,
+       "height": 128,
+       "frameCount": 1
+      },
+      {
+       "url": "https://cdn.7tv.app/paint/01JHXJFACX42RV996VE9933TB8/layer/01JMMQ2PBAK6PK2XYX8NT1QYB4/1x.webp",
+       "mime": "image/webp",
+       "size": 65282,
+       "scale": 1,
+       "width": 96,
+       "height": 32,
+       "frameCount": 125
+      },
+      {
+       "url": "https://cdn.7tv.app/paint/01JHXJFACX42RV996VE9933TB8/layer/01JMMQ2PBAK6PK2XYX8NT1QYB4/2x.webp",
+       "mime": "image/webp",
+       "size": 123858,
+       "scale": 2,
+       "width": 192,
+       "height": 64,
+       "frameCount": 125
+      },
+      {
+       "url": "https://cdn.7tv.app/paint/01JHXJFACX42RV996VE9933TB8/layer/01JMMQ2PBAK6PK2XYX8NT1QYB4/3x.webp",
+       "mime": "image/webp",
+       "size": 196980,
+       "scale": 3,
+       "width": 288,
+       "height": 96,
+       "frameCount": 125
+      },
+      {
+       "url": "https://cdn.7tv.app/paint/01JHXJFACX42RV996VE9933TB8/layer/01JMMQ2PBAK6PK2XYX8NT1QYB4/4x.webp",
+       "mime": "image/webp",
+       "size": 267336,
+       "scale": 4,
+       "width": 384,
+       "height": 128,
+       "frameCount": 125
+      }
+     ]
+    }
+   }
+  ],
+  "shadows": [
+   {
+    "offsetX": 0,
+    "offsetY": 0,
+    "blur": 0.1,
+    "color": {
+     "hex": "#39D21EFF"
+    }
+   },
+   {
+    "offsetX": 1,
+    "offsetY": 1,
+    "blur": 0.1,
+    "color": {
+     "hex": "#005557FF"
+    }
+   }
+  ]
+ }
+}

@@ -1,0 +1,84 @@
+{
+ "d": {
+  "type": "cosmetic.create",
+  "body": {
+   "id": "01GEWY836G000EZEK94KRK9Y6T",
+   "kind": 10,
+   "object": {
+    "id": "01GEWY836G000EZEK94KRK9Y6T",
+    "kind": "PAINT",
+    "data": {
+     "id": "01GEWY836G000EZEK94KRK9Y6T",
+     "name": "Ice Cold",
+     "color": null,
+     "gradients": [],
+     "shadows": [
+      {
+       "x_offset": 0,
+       "y_offset": 0,
+       "radius": 0.1,
+       "color": 1132460543
+      },
+      {
+       "x_offset": 0,
+       "y_offset": 0,
+       "radius": 4,
+       "color": 1132460543
+      }
+     ],
+     "text": null,
+     "function": "LINEAR_GRADIENT",
+     "repeat": false,
+     "angle": 90,
+     "shape": "circle",
+     "image_url": "",
+     "stops": [
+      {
+       "at": 0,
+       "color": 1132460543
+      },
+      {
+       "at": 0.2,
+       "color": 1132460543
+      },
+      {
+       "at": 0.2,
+       "color": 1252391167
+      },
+      {
+       "at": 0.4,
+       "color": 1252391167
+      },
+      {
+       "at": 0.4,
+       "color": -302515969
+      },
+      {
+       "at": 0.6,
+       "color": -302515969
+      },
+      {
+       "at": 0.6,
+       "color": -1476789761
+      },
+      {
+       "at": 0.8,
+       "color": -1476789761
+      },
+      {
+       "at": 0.8,
+       "color": 1842281727
+      },
+      {
+       "at": 1,
+       "color": 1842281727
+      }
+     ]
+    }
+   }
+  }
+ },
+ "op": 0,
+ "t": 1791615283800,
+ "s": 23
+}

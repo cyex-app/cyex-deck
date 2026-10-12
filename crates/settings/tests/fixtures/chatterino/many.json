@@ -1,0 +1,1784 @@
+{
+ "windows": [
+  {
+   "type": "main",
+   "x": 0,
+   "y": 0,
+   "width": 1280,
+   "height": 720,
+   "emotePopup": {
+    "x": 0,
+    "y": 0,
+    "width": 0,
+    "height": 0
+   },
+   "tabs": [
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_001"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 1",
+     "selected": true
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_002"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_003"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_004"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 4"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_005"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_006"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_007"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 7"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_008"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_009"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_010"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 10"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_011"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_012"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_013"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 13"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_014"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_015"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_016"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 16"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_017"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_018"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_019"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 19"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_020"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_021"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_022"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 22"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_023"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_024"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_025"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 25"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_026"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_027"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_028"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 28"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_029"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_030"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_031"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 31"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_032"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_033"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_034"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 34"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_035"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_036"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_037"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 37"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_038"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_039"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_040"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 40"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_041"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_042"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_043"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 43"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_044"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_045"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_046"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 46"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_047"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_048"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_049"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 49"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_050"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_051"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_052"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 52"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_053"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_054"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_055"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 55"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_056"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_057"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_058"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 58"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_059"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_060"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_061"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 61"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_062"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_063"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_064"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 64"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_065"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_066"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_067"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 67"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_068"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_069"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_070"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 70"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_071"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_072"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_073"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 73"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_074"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_075"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_076"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 76"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_077"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_078"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_079"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 79"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_080"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_081"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_082"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 82"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_083"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_084"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_085"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 85"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_086"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_087"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_088"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 88"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_089"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_090"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_091"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 91"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_092"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_093"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_094"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 94"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_095"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_096"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_097"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 97"
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_098"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_099"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     }
+    },
+    {
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "split",
+      "moderationMode": false,
+      "data": {
+       "type": "twitch",
+       "name": "chan_100"
+      },
+      "filters": [],
+      "flexh": 1,
+      "flexv": 1
+     },
+     "title": "Tab 100"
+    },
+    {
+     "title": "Pair 1",
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "horizontal",
+      "flexh": 1,
+      "flexv": 1,
+      "items": [
+       {
+        "type": "split",
+        "moderationMode": false,
+        "data": {
+         "type": "twitch",
+         "name": "chan_101"
+        },
+        "filters": [],
+        "flexh": 1,
+        "flexv": 1
+       },
+       {
+        "type": "split",
+        "moderationMode": false,
+        "data": {
+         "type": "twitch",
+         "name": "chan_102"
+        },
+        "filters": [],
+        "flexh": 1,
+        "flexv": 1
+       }
+      ]
+     }
+    },
+    {
+     "title": "Pair 2",
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "horizontal",
+      "flexh": 1,
+      "flexv": 1,
+      "items": [
+       {
+        "type": "split",
+        "moderationMode": false,
+        "data": {
+         "type": "twitch",
+         "name": "chan_103"
+        },
+        "filters": [],
+        "flexh": 1,
+        "flexv": 1
+       },
+       {
+        "type": "split",
+        "moderationMode": false,
+        "data": {
+         "type": "twitch",
+         "name": "chan_104"
+        },
+        "filters": [],
+        "flexh": 1,
+        "flexv": 1
+       }
+      ]
+     }
+    },
+    {
+     "title": "Pair 3",
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "horizontal",
+      "flexh": 1,
+      "flexv": 1,
+      "items": [
+       {
+        "type": "split",
+        "moderationMode": false,
+        "data": {
+         "type": "twitch",
+         "name": "chan_105"
+        },
+        "filters": [],
+        "flexh": 1,
+        "flexv": 1
+       },
+       {
+        "type": "split",
+        "moderationMode": false,
+        "data": {
+         "type": "twitch",
+         "name": "chan_106"
+        },
+        "filters": [],
+        "flexh": 1,
+        "flexv": 1
+       }
+      ]
+     }
+    },
+    {
+     "title": "Pair 4",
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "horizontal",
+      "flexh": 1,
+      "flexv": 1,
+      "items": [
+       {
+        "type": "split",
+        "moderationMode": false,
+        "data": {
+         "type": "twitch",
+         "name": "chan_107"
+        },
+        "filters": [],
+        "flexh": 1,
+        "flexv": 1
+       },
+       {
+        "type": "split",
+        "moderationMode": false,
+        "data": {
+         "type": "twitch",
+         "name": "chan_108"
+        },
+        "filters": [],
+        "flexh": 1,
+        "flexv": 1
+       }
+      ]
+     }
+    },
+    {
+     "title": "Pair 5",
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "horizontal",
+      "flexh": 1,
+      "flexv": 1,
+      "items": [
+       {
+        "type": "split",
+        "moderationMode": false,
+        "data": {
+         "type": "twitch",
+         "name": "chan_109"
+        },
+        "filters": [],
+        "flexh": 1,
+        "flexv": 1
+       },
+       {
+        "type": "split",
+        "moderationMode": false,
+        "data": {
+         "type": "twitch",
+         "name": "chan_110"
+        },
+        "filters": [],
+        "flexh": 1,
+        "flexv": 1
+       }
+      ]
+     }
+    },
+    {
+     "title": "Pair 6",
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "horizontal",
+      "flexh": 1,
+      "flexv": 1,
+      "items": [
+       {
+        "type": "split",
+        "moderationMode": false,
+        "data": {
+         "type": "twitch",
+         "name": "chan_111"
+        },
+        "filters": [],
+        "flexh": 1,
+        "flexv": 1
+       },
+       {
+        "type": "split",
+        "moderationMode": false,
+        "data": {
+         "type": "twitch",
+         "name": "chan_112"
+        },
+        "filters": [],
+        "flexh": 1,
+        "flexv": 1
+       }
+      ]
+     }
+    },
+    {
+     "title": "Pair 7",
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "horizontal",
+      "flexh": 1,
+      "flexv": 1,
+      "items": [
+       {
+        "type": "split",
+        "moderationMode": false,
+        "data": {
+         "type": "twitch",
+         "name": "chan_113"
+        },
+        "filters": [],
+        "flexh": 1,
+        "flexv": 1
+       },
+       {
+        "type": "split",
+        "moderationMode": false,
+        "data": {
+         "type": "twitch",
+         "name": "chan_114"
+        },
+        "filters": [],
+        "flexh": 1,
+        "flexv": 1
+       }
+      ]
+     }
+    },
+    {
+     "title": "Pair 8",
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "horizontal",
+      "flexh": 1,
+      "flexv": 1,
+      "items": [
+       {
+        "type": "split",
+        "moderationMode": false,
+        "data": {
+         "type": "twitch",
+         "name": "chan_115"
+        },
+        "filters": [],
+        "flexh": 1,
+        "flexv": 1
+       },
+       {
+        "type": "split",
+        "moderationMode": false,
+        "data": {
+         "type": "twitch",
+         "name": "chan_116"
+        },
+        "filters": [],
+        "flexh": 1,
+        "flexv": 1
+       }
+      ]
+     }
+    },
+    {
+     "title": "Pair 9",
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "horizontal",
+      "flexh": 1,
+      "flexv": 1,
+      "items": [
+       {
+        "type": "split",
+        "moderationMode": false,
+        "data": {
+         "type": "twitch",
+         "name": "chan_117"
+        },
+        "filters": [],
+        "flexh": 1,
+        "flexv": 1
+       },
+       {
+        "type": "split",
+        "moderationMode": false,
+        "data": {
+         "type": "twitch",
+         "name": "chan_118"
+        },
+        "filters": [],
+        "flexh": 1,
+        "flexv": 1
+       }
+      ]
+     }
+    },
+    {
+     "title": "Pair 10",
+     "highlightsEnabled": true,
+     "splits2": {
+      "type": "horizontal",
+      "flexh": 1,
+      "flexv": 1,
+      "items": [
+       {
+        "type": "split",
+        "moderationMode": false,
+        "data": {
+         "type": "twitch",
+         "name": "chan_119"
+        },
+        "filters": [],
+        "flexh": 1,
+        "flexv": 1
+       },
+       {
+        "type": "split",
+        "moderationMode": false,
+        "data": {
+         "type": "twitch",
+         "name": "chan_120"
+        },
+        "filters": [],
+        "flexh": 1,
+        "flexv": 1
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}

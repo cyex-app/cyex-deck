@@ -1,0 +1,65 @@
+{
+ "id": "01GHA42XER0001KT343YQ6DM2E",
+ "name": "Ginger Tabby S",
+ "data": {
+  "layers": [
+   {
+    "id": "01JAMR1W4SCDHV2K4VYPMRRRNG",
+    "opacity": 1,
+    "ty": {
+     "__typename": "PaintLayerTypeLinearGradient",
+     "angle": 66,
+     "repeating": true,
+     "stops": [
+      {
+       "at": 0.57,
+       "color": {
+        "hex": "#CA804EFF"
+       }
+      },
+      {
+       "at": 0.65,
+       "color": {
+        "hex": "#503611FF"
+       }
+      },
+      {
+       "at": 0.67,
+       "color": {
+        "hex": "#DC8B18FF"
+       }
+      },
+      {
+       "at": 0.8,
+       "color": {
+        "hex": "#402807FF"
+       }
+      },
+      {
+       "at": 0.87,
+       "color": {
+        "hex": "#FFEACCFF"
+       }
+      },
+      {
+       "at": 1,
+       "color": {
+        "hex": "#C89041FF"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "shadows": [
+   {
+    "offsetX": 0,
+    "offsetY": 0,
+    "blur": 0.5,
+    "color": {
+     "hex": "#000000FF"
+    }
+   }
+  ]
+ }
+}

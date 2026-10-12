@@ -1,0 +1,46 @@
+[
+ {
+  "id": "55b6524154eefd53777b2580",
+  "code": "FeelsBirthdayMan",
+  "imageType": "png",
+  "animated": false,
+  "userId": "5561169bd6b9d206222a8c19",
+  "modifier": false,
+  "width": 19,
+  "height": 28
+ },
+ {
+  "id": "566ca1a365dbbdab32ec055b",
+  "code": "AngelThump",
+  "imageType": "png",
+  "animated": false,
+  "userId": "5561169bd6b9d206222a8c19",
+  "modifier": false,
+  "width": 84,
+  "height": 28
+ },
+ {
+  "id": "5e76d338d6581c3724c0f0b2",
+  "code": "cvHazmat",
+  "imageType": "png",
+  "animated": false,
+  "userId": "54ee2465b822020506c52a52",
+  "modifier": false
+ },
+ {
+  "id": "64e3b31920cb0d25d950a9f9",
+  "code": "w!",
+  "imageType": "png",
+  "animated": false,
+  "userId": "5561169bd6b9d206222a8c19",
+  "modifier": true
+ },
+ {
+  "id": "566ca38765dbbdab32ec0560",
+  "code": "SourPls",
+  "imageType": "gif",
+  "animated": true,
+  "userId": "5561169bd6b9d206222a8c19",
+  "modifier": false
+ }
+]

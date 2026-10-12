@@ -1,0 +1,3 @@
+{
+ "message": "querystring/botProviders must be array, querystring/botProviders must be equal to one of the allowed values, querystring/botProviders must match exactly one schema in oneOf"
+}

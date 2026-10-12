@@ -1,0 +1,214 @@
+//! Capability gating (1.54, V102-20). Every gated tool is listed once with what it needs.
+//! The UI greys out a tool the account can't use, with a flag saying which sign-in it
+//! needs. Anonymous features aren't listed.
+
+use serde::Serialize;
+use ts_rs::TS;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Tier {
+    Helix,
+    Gql,
+    /// Helix with the scopes, or any GQL token.
+    Either,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum Feature {
+    // Helix
+    SendChat,
+    /// 1.6 Home. GQL works too.
+    FollowedList,
+    /// 1.40 Your Twitch emotes in the emote menu. GQL works too.
+    EmoteMenu,
+    /// 1.40 GQL works too.
+    ChatColor,
+    Bio,
+    /// 1.26 GQL works too (and brings history).
+    Whispers,
+    Blocks,
+    ModTools,
+    ModView,
+    /// 1.35 GQL first, like Twitch's dashboard; Helix with the scope works too (V101-28).
+    StreamManager,
+    MassbanHelix,
+    /// P9 Helix with the scope, or GQL like Twitch's player (V102-08).
+    Clips,
+    /// 1.27, 1.28 The payment methods and subscriptions tabs: only with Twitch's own
+    /// sign-in, any scopes (V102-20).
+    Wallet,
+    // GQL
+    Follow,
+    Points,
+    BadgePicker,
+    DisplayName,
+    /// 1.26 The bell, and Twitch's own notification settings (2.2).
+    OnsiteNotifications,
+    /// 1.28 Your subs, resub sharing, Prime subs.
+    Subs,
+    ViewerPins,
+    SendGifs,
+    PowerUps,
+    ViewerVotes,
+    JoinRaids,
+    Miner,
+    LeadModRoles,
+    MassbanGql,
+}
+
+const MOD_FEEDS: &[&str] = &[
+    "moderator:read:banned_users",
+    "moderator:read:blocked_terms",
+    "moderator:read:chat_messages",
+    "moderator:read:chat_settings",
+    "moderator:read:moderators",
+    "moderator:read:unban_requests",
+    "moderator:read:vips",
+    "moderator:read:warnings",
+    "moderator:manage:automod",
+];
+
+impl Feature {
+    pub const ALL: [Feature; 27] = [
+        Feature::SendChat,
+        Feature::FollowedList,
+        Feature::EmoteMenu,
+        Feature::ChatColor,
+        Feature::Bio,
+        Feature::Whispers,
+        Feature::Blocks,
+        Feature::ModTools,
+        Feature::ModView,
+        Feature::StreamManager,
+        Feature::MassbanHelix,
+        Feature::Clips,
+        Feature::Wallet,
+        Feature::Follow,
+        Feature::Points,
+        Feature::BadgePicker,
+        Feature::DisplayName,
+        Feature::OnsiteNotifications,
+        Feature::Subs,
+        Feature::ViewerPins,
+        Feature::SendGifs,
+        Feature::PowerUps,
+        Feature::ViewerVotes,
+        Feature::JoinRaids,
+        Feature::Miner,
+        Feature::LeadModRoles,
+        Feature::MassbanGql,
+    ];
+
+    pub fn tier(self) -> Tier {
+        use Feature::*;
+        match self {
+            SendChat | FollowedList | EmoteMenu | ChatColor | Blocks | Whispers | StreamManager | Clips => Tier::Either,
+            Bio | ModTools | ModView | MassbanHelix | Wallet => Tier::Helix,
+            _ => Tier::Gql,
+        }
+    }
+
+    /// Helix scopes it needs. GQL features need none.
+    pub fn scopes(self) -> &'static [&'static str] {
+        use Feature::*;
+        match self {
+            SendChat => &["chat:edit"],
+            FollowedList => &["user:read:follows"],
+            EmoteMenu => &["user:read:emotes"],
+            ChatColor => &["user:manage:chat_color"],
+            Bio => &["user:edit"],
+            Whispers => &["user:manage:whispers", "user:read:whispers"],
+            Blocks => &["user:manage:blocked_users", "user:read:blocked_users"],
+            ModTools | MassbanHelix => &["moderator:manage:banned_users", "moderator:manage:chat_messages"],
+            ModView => MOD_FEEDS,
+            StreamManager => &["channel:manage:broadcast"],
+            Clips => &["clips:edit"],
+            _ => &[],
+        }
+    }
+}
+
+/// Features an account can use. `helix_scopes` is `None` without a usable Helix token.
+pub fn features(helix_scopes: Option<&[String]>, gql: bool) -> Vec<Feature> {
+    Feature::ALL
+        .into_iter()
+        .filter(|f| {
+            let helix =
+                || helix_scopes.is_some_and(|granted| f.scopes().iter().all(|s| granted.iter().any(|g| g == s)));
+            match f.tier() {
+                Tier::Helix => helix(),
+                Tier::Gql => gql,
+                Tier::Either => gql || helix(),
+            }
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::scopes::HELIX;
+
+    fn all_scopes() -> Vec<String> {
+        HELIX.iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    #[test]
+    fn helix_only_hides_gql_tools() {
+        let f = features(Some(&all_scopes()), false);
+        assert!(f.contains(&Feature::SendChat) && f.contains(&Feature::MassbanHelix));
+        assert!(!f.contains(&Feature::Miner) && !f.contains(&Feature::MassbanGql));
+    }
+
+    #[test]
+    fn gql_only_hides_helix_tools() {
+        let f = features(None, true);
+        assert!(f.contains(&Feature::Miner) && f.contains(&Feature::Follow));
+        assert!(f.contains(&Feature::Whispers) && f.contains(&Feature::Subs));
+        // The stream manager runs on GQL like Twitch's dashboard (V101-28).
+        assert!(f.contains(&Feature::StreamManager));
+        assert!(!f.contains(&Feature::ModTools));
+        // Chat works with either token (phase 3).
+        assert!(f.contains(&Feature::SendChat));
+        // V102-08 Clips too, like Twitch's player.
+        assert!(f.contains(&Feature::Clips));
+        // V102-20 Payment methods and subscriptions wait for Twitch's sign-in.
+        assert!(!f.contains(&Feature::Wallet));
+    }
+
+    #[test]
+    fn twitchs_sign_in_opens_the_wallet_with_any_scopes() {
+        assert!(features(Some(&[]), false).contains(&Feature::Wallet));
+        // Clips with Helix only when it was allowed to make them.
+        assert!(!features(Some(&[]), false).contains(&Feature::Clips));
+        let clips = vec!["clips:edit".to_owned()];
+        assert!(features(Some(&clips), false).contains(&Feature::Clips));
+    }
+
+    #[test]
+    fn a_missing_scope_hides_only_its_tools() {
+        let granted: Vec<String> = all_scopes().into_iter().filter(|s| s != "user:edit").collect();
+        let f = features(Some(&granted), false);
+        assert!(!f.contains(&Feature::Bio));
+        assert!(f.contains(&Feature::ChatColor));
+    }
+
+    #[test]
+    fn every_scope_a_feature_needs_is_requested() {
+        for f in Feature::ALL {
+            for s in f.scopes() {
+                assert!(
+                    HELIX.contains(s),
+                    "{f:?} needs {s}, which sign-in doesn't ask for"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn anonymous_gets_nothing() {
+        assert!(features(None, false).is_empty());
+    }
+}

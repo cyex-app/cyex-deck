@@ -1,0 +1,14 @@
+{
+ "d": {
+  "heartbeat_interval": 45701,
+  "session_id": "01M4J9FBFFEQJWWV74W8FYPF5C",
+  "subscription_limit": 500,
+  "instance": {
+   "name": "event-api-7",
+   "population": 64759
+  }
+ },
+ "op": 1,
+ "t": 1791615282671,
+ "s": 0
+}

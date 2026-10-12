@@ -1,0 +1,71 @@
+{
+ "type": "cosmetic.create",
+ "body": {
+  "id": "01FQTEV0PG000ABDQW9GHC33SW",
+  "kind": 10,
+  "contextual": true,
+  "object": {
+   "id": "01FQTEV0PG000ABDQW9GHC33SW",
+   "kind": "AVATAR",
+   "data": {
+    "id": "01KT78NSD6MEAAVAB8VHCM88N5",
+    "user": {
+     "id": "01FQTEV0PG000ABDQW9GHC33SW",
+     "username": "mopolo",
+     "connections": [
+      {
+       "id": "184983261",
+       "platform": "TWITCH",
+       "username": "mopolo",
+       "display_name": "mopolo",
+       "linked_at": 1640491746000,
+       "emote_capacity": 1000,
+       "emote_set_id": "01GF278X7G000BJ4F8N4T6562W"
+      }
+     ]
+    },
+    "host": {
+     "url": "https://cdn.7tv.app/user/01FQTEV0PG000ABDQW9GHC33SW/profile-picture/01KT78NSD6MEAAVAB8VHCM88N5",
+     "files": [
+      {
+       "name": "1x.webp",
+       "static_name": "1x_static.webp",
+       "width": 32,
+       "height": 32,
+       "frame_count": 16,
+       "size": 6948,
+       "format": "WEBP"
+      },
+      {
+       "name": "2x.webp",
+       "static_name": "2x_static.webp",
+       "width": 64,
+       "height": 64,
+       "frame_count": 16,
+       "size": 15750,
+       "format": "WEBP"
+      },
+      {
+       "name": "3x.webp",
+       "static_name": "3x_static.webp",
+       "width": 96,
+       "height": 96,
+       "frame_count": 16,
+       "size": 23216,
+       "format": "WEBP"
+      },
+      {
+       "name": "4x.webp",
+       "static_name": "4x_static.webp",
+       "width": 128,
+       "height": 128,
+       "frame_count": 16,
+       "size": 29106,
+       "format": "WEBP"
+      }
+     ]
+    }
+   }
+  }
+ }
+}

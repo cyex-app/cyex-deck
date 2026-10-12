@@ -1,0 +1,121 @@
+{
+ "data": {
+  "user": {
+   "id": "71092938",
+   "login": "xqc",
+   "displayName": "xQc",
+   "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/xqc-profile_image-9298dca608632101-70x70.jpeg",
+   "subscriptionProducts": [
+    {
+     "id": "13522",
+     "tier": "1000",
+     "name": "xqcow",
+     "price": "$5.99",
+     "url": "https://www.twitch.tv/products/xqcow",
+     "emoteSetID": "19503",
+     "emotes": [
+      {
+       "id": "emotesv2_3a5b59f49ec2433bb76a0071ec4997bb",
+       "token": "xqcSlam",
+       "type": "SUBSCRIPTIONS",
+       "setID": "359369083",
+       "assetType": "ANIMATED"
+      },
+      {
+       "id": "emotesv2_d9dc5705d728493ebf3f0ae0be3fc578",
+       "token": "xqcCheer",
+       "type": "SUBSCRIPTIONS",
+       "setID": "359369083",
+       "assetType": "ANIMATED"
+      },
+      {
+       "id": "305535174",
+       "token": "xqcOmega",
+       "type": "SUBSCRIPTIONS",
+       "setID": "19503",
+       "assetType": "STATIC"
+      },
+      {
+       "id": "305362983",
+       "token": "xqcHead",
+       "type": "SUBSCRIPTIONS",
+       "setID": "19503",
+       "assetType": "STATIC"
+      }
+     ]
+    },
+    {
+     "id": "25482",
+     "tier": "2000",
+     "name": "xqcow_2000",
+     "price": "$9.99",
+     "url": "https://www.twitch.tv/products/xqcow_2000",
+     "emoteSetID": "31465",
+     "emotes": [
+      {
+       "id": "emotesv2_adcbb7248fc44fee98d1476d7a6d6170",
+       "token": "xqcSheesh",
+       "type": "SUBSCRIPTIONS",
+       "setID": "31465",
+       "assetType": "STATIC"
+      },
+      {
+       "id": "emotesv2_2ef385f010a845ada7cce161a51f220b",
+       "token": "xqcJoy",
+       "type": "SUBSCRIPTIONS",
+       "setID": "31465",
+       "assetType": "STATIC"
+      }
+     ]
+    },
+    {
+     "id": "25483",
+     "tier": "3000",
+     "name": "xqcow_3000",
+     "price": "$24.99",
+     "url": "https://www.twitch.tv/products/xqcow_3000",
+     "emoteSetID": "31466",
+     "emotes": [
+      {
+       "id": "300696047",
+       "token": "xqcLove",
+       "type": "SUBSCRIPTIONS",
+       "setID": "31466",
+       "assetType": "STATIC"
+      },
+      {
+       "id": "emotesv2_7c18e529dac4445c823af5e20a8c92e3",
+       "token": "xqcWtf",
+       "type": "SUBSCRIPTIONS",
+       "setID": "31466",
+       "assetType": "STATIC"
+      }
+     ]
+    }
+   ],
+   "cheer": {
+    "badgeTierEmotes": []
+   },
+   "channel": {
+    "localEmoteSets": [
+     {
+      "id": "dbf661ed-d900-40dd-9df9-29e48b96581f",
+      "emotes": [
+       {
+        "id": "emotesv2_04dd118ef04a49c1aa0caa7fc3144369",
+        "token": "xqcLL",
+        "type": "FOLLOWER",
+        "setID": "dbf661ed-d900-40dd-9df9-29e48b96581f",
+        "assetType": "STATIC"
+       }
+      ]
+     }
+    ]
+   }
+  }
+ },
+ "extensions": {
+  "durationMilliseconds": 63,
+  "requestID": "01M4J9HKQ4M4Z8D309J8R4BG0M"
+ }
+}

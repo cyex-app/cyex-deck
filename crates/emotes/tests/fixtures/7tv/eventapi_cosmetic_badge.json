@@ -1,0 +1,63 @@
+{
+ "d": {
+  "type": "cosmetic.create",
+  "body": {
+   "id": "01JAT9B20KQK8DK8FT13XV83YC",
+   "kind": 10,
+   "object": {
+    "id": "01JAT9B20KQK8DK8FT13XV83YC",
+    "kind": "BADGE",
+    "data": {
+     "id": "01JAT9B20KQK8DK8FT13XV83YC",
+     "name": "7TV Subscriber - 3 Years",
+     "tag": "sub36",
+     "tooltip": "7TV Subscriber (3 Years)",
+     "host": {
+      "url": "//cdn.7tv.app/badge/01JAT9B20KQK8DK8FT13XV83YC",
+      "files": [
+       {
+        "name": "1x.webp",
+        "static_name": "1x_static.webp",
+        "width": 18,
+        "height": 18,
+        "frame_count": 200,
+        "size": 70830,
+        "format": "WEBP"
+       },
+       {
+        "name": "2x.webp",
+        "static_name": "2x_static.webp",
+        "width": 36,
+        "height": 36,
+        "frame_count": 200,
+        "size": 133828,
+        "format": "WEBP"
+       },
+       {
+        "name": "3x.webp",
+        "static_name": "3x_static.webp",
+        "width": 54,
+        "height": 54,
+        "frame_count": 200,
+        "size": 202540,
+        "format": "WEBP"
+       },
+       {
+        "name": "4x.webp",
+        "static_name": "4x_static.webp",
+        "width": 72,
+        "height": 72,
+        "frame_count": 200,
+        "size": 260330,
+        "format": "WEBP"
+       }
+      ]
+     }
+    }
+   }
+  }
+ },
+ "op": 0,
+ "t": 1791615283800,
+ "s": 22
+}
