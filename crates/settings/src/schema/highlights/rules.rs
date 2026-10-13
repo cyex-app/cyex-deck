@@ -287,3 +287,35 @@ pub struct HiddenUser {
     pub id: String,
     pub login: String,
 }
+
+// V105-12 An empty rule (one just added, being filled in) matches nothing, and goes once
+// the settings page is left. One definition for both.
+impl PhraseRule {
+    pub fn is_blank(&self) -> bool {
+        self.pattern.trim().is_empty()
+    }
+}
+
+impl UserRule {
+    pub fn is_blank(&self) -> bool {
+        self.login.trim().is_empty()
+    }
+}
+
+impl BadgeRule {
+    pub fn is_blank(&self) -> bool {
+        self.badge.trim().is_empty()
+    }
+}
+
+impl IgnoreRule {
+    pub fn is_blank(&self) -> bool {
+        self.pattern.trim().is_empty()
+    }
+}
+
+impl FilterDef {
+    pub fn is_blank(&self) -> bool {
+        self.name.trim().is_empty() && self.expr.trim().is_empty()
+    }
+}

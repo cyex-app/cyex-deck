@@ -97,7 +97,7 @@ impl Rules {
             badges: h
                 .badges
                 .iter()
-                .filter(|b| b.enabled && !b.badge.is_empty())
+                .filter(|b| b.enabled && !b.is_blank())
                 .map(|b| match b.badge.split_once('/') {
                     Some((set, v)) => (set.to_owned(), Some(v.to_owned()), b.alert.clone()),
                     None => (b.badge.clone(), None, b.alert.clone()),

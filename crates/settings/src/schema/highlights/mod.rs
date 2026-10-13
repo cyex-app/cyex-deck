@@ -165,11 +165,11 @@ impl Highlights {
     pub fn prune_blank(&mut self) -> bool {
         let count = |h: &Self| (h.phrases.len(), h.users.len(), h.badges.len(), h.ignores.len(), h.filters.len());
         let before = count(self);
-        self.phrases.retain(|r| !r.pattern.trim().is_empty());
-        self.users.retain(|r| !r.login.is_empty());
-        self.badges.retain(|r| !r.badge.is_empty());
-        self.ignores.retain(|r| !r.pattern.trim().is_empty());
-        self.filters.retain(|f| !(f.name.trim().is_empty() && f.expr.trim().is_empty()));
+        self.phrases.retain(|r| !r.is_blank());
+        self.users.retain(|r| !r.is_blank());
+        self.badges.retain(|r| !r.is_blank());
+        self.ignores.retain(|r| !r.is_blank());
+        self.filters.retain(|f| !f.is_blank());
         before != count(self)
     }
 
