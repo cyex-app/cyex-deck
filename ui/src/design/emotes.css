@@ -29,8 +29,11 @@
   filter: blur(2px) saturate(0.85);
 }
 
-/* 1.37 Paints: the class per paint sets the picture; the name's color shows through. */
+/* 1.37 Paints: the class per paint sets the picture; the name's color shows through.
+   The paint's shadows and the overlay's outline (V105-01) are drop-shadows: a text-shadow
+   would cover the picture. */
 .painted {
+  filter: var(--paint-shadow,) var(--name-outline,);
   background-color: currentcolor;
   -webkit-text-fill-color: transparent;
   background-clip: text;

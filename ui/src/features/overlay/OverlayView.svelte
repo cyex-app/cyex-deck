@@ -12,6 +12,7 @@
   import { settings } from '../../lib/settings.svelte';
   import { streamer } from '../../lib/streamer.svelte';
   import { toast } from '../../lib/toast.svelte';
+  import { catalogs } from '../chat/catalog.svelte';
   import Line from '../chat/Line.svelte';
   import { ChatRoom } from '../chat/room.svelte';
   import { tabs, tiles } from '../tabs/tabs.svelte';
@@ -41,6 +42,9 @@
     const r = new ChatRoom(t.channel.login);
     void r.open(t.account, t.filters);
     room = r;
+    // V105-01 Twitch badges and cheers draw once their catalog is here, like in the chat.
+    void catalogs.loadGlobal();
+    void catalogs.loadChannel(t.channel.login);
     return () => r.close();
   });
 
@@ -172,11 +176,16 @@
       opacity: 0;
     }
   }
+  /* V105-01 A painted name keeps its picture: its outline is a drop-shadow (emotes.css). */
   .outline .list {
     text-shadow:
       0 0 2px #000,
       0 0 2px #000,
       1px 1px 1px #000;
+    --name-outline: drop-shadow(0 0 1px #000) drop-shadow(1px 1px 1px #000);
+  }
+  .outline .list :global(.painted) {
+    text-shadow: none;
   }
   .no-badges .list :global(.badge),
   .list :global(.ts) {

@@ -148,7 +148,8 @@ impl Paint {
                     )
                 })
                 .collect();
-            let _ = write!(css, "filter:{};", shadows.join(" "));
+            // V105-01 Shadows go in a variable, so the overlay's outline can join them (emotes.css).
+            let _ = write!(css, "--paint-shadow:{};", shadows.join(" "));
         }
         css
     }
@@ -271,7 +272,8 @@ mod tests {
             s.css
         );
         assert!(s.css.contains("background-size:100% 100%"));
-        assert!(s.css.contains("filter:drop-shadow(0px 0px 0.1px "));
+        assert!(s.css.contains("--paint-shadow:drop-shadow(0px 0px 0.1px "));
+        assert!(!s.css.contains("filter:"));
         assert!(s.still.is_none());
     }
 
