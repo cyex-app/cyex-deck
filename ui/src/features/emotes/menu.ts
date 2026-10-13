@@ -10,6 +10,11 @@ export type ProviderTab = 'twitch' | 'seventv' | 'bttv' | 'ffz';
 
 export const PROVIDER_TABS: ProviderTab[] = ['twitch', 'seventv', 'bttv', 'ffz'];
 
+/** V105-04 A cell's key: one emote can sit in a set under two names. */
+export function cellKey(m: MenuEmote): string {
+  return `${emoteKey(m.provider, m.id)}:${m.name}`;
+}
+
 export function sections(menu: EmoteMenu): MenuSection[] {
   return PROVIDER_TABS.flatMap((t) => menu[t]);
 }
@@ -39,7 +44,7 @@ export function search(menu: EmoteMenu, q: string, limit = 200): MenuEmote[] {
   const buckets: MenuEmote[][] = [[], [], [], []];
   for (const s of sections(menu)) {
     for (const e of s.emotes) {
-      const k = emoteKey(e.provider, e.id);
+      const k = cellKey(e);
       const name = e.name.toLowerCase();
       if (seen.has(k) || !name.includes(p)) continue;
       seen.add(k);

@@ -130,6 +130,7 @@ fn provider_sections(sets: &[Arc<EmoteSet>], provider: Provider) -> Vec<MenuSect
         (Scope::Channel, "Channel"),
         (Scope::Global, "Global"),
     ] {
+        // V105-04 Names are unique per section, so one emote under two names is listed twice, once per name.
         let mut seen = HashSet::new();
         let emotes: Vec<Emote> = sets
             .iter()
@@ -175,26 +176,23 @@ fn twitch_sections(
             });
             match owner {
                 Some(o) if o.id == channel_id => {
-                    here.get_or_insert_with(|| {
+                    let s = here.get_or_insert_with(|| {
                         section(format!("twitch-{}", o.id), &o.name, o.avatar.clone())
-                    })
-                    .emotes
-                    .push(MenuEmote { emote, locked: None });
+                    });
+                    push_once(s, MenuEmote { emote, locked: None });
                 }
                 Some(o) if e.kind != EmoteKind::Bits => {
-                    by_owner
+                    let s = by_owner
                         .entry(o.name.to_lowercase())
-                        .or_insert_with(|| section(format!("twitch-{}", o.id), &o.name, o.avatar.clone()))
-                        .emotes
-                        .push(MenuEmote { emote, locked: None });
+                        .or_insert_with(|| section(format!("twitch-{}", o.id), &o.name, o.avatar.clone()));
+                    push_once(s, MenuEmote { emote, locked: None });
                 }
                 _ => {
                     let (rank, id, title) = kind_section(e.kind);
-                    kinds
+                    let s = kinds
                         .entry(rank)
-                        .or_insert_with(|| section(id.into(), title, None))
-                        .emotes
-                        .push(MenuEmote { emote, locked: None });
+                        .or_insert_with(|| section(id.into(), title, None));
+                    push_once(s, MenuEmote { emote, locked: None });
                 }
             }
         }
@@ -243,6 +241,13 @@ fn twitch_sections(
     out.extend(by_owner.into_values());
     out.extend(kinds.into_values());
     out
+}
+
+/// V105-04 A section lists each emote once: Twitch can put one emote in two sets.
+fn push_once(s: &mut MenuSection, m: MenuEmote) {
+    if !s.emotes.iter().any(|x| x.emote.id == m.emote.id && x.emote.name == m.emote.name) {
+        s.emotes.push(m);
+    }
 }
 
 fn section(id: String, title: &str, avatar: Option<String>) -> MenuSection {
@@ -330,5 +335,40 @@ mod tests {
             .map(|m| (m.emote.id.as_str(), m.locked.as_deref()))
             .collect();
         assert_eq!(here, [("70", None), ("71", None), ("72", Some("Tier 2"))]);
+    }
+
+    #[test]
+    fn aliases_are_listed_once_each() {
+        let set = Arc::new(EmoteSet::new(
+            "c",
+            Provider::Seventv,
+            Scope::Channel,
+            vec![
+                Emote::new(Provider::Seventv, "A", "uncPls"),
+                Emote::new(Provider::Seventv, "A", "Oldheaddance"),
+                Emote::new(Provider::Seventv, "B", "x"),
+                Emote::new(Provider::Seventv, "C", "x"),
+            ],
+        ));
+        let s = provider_sections(&[set], Provider::Seventv);
+        assert_eq!(s.len(), 1);
+        let got: Vec<(&str, &str)> = s[0]
+            .emotes
+            .iter()
+            .map(|m| (m.emote.id.as_str(), m.emote.name.as_str()))
+            .collect();
+        assert_eq!(got, [("A", "uncPls"), ("A", "Oldheaddance"), ("B", "x")]);
+    }
+
+    #[test]
+    fn twitch_repeats_are_listed_once() {
+        let set = |id: &str| TwitchSet {
+            id: id.into(),
+            owner: None,
+            emotes: vec![e("25", EmoteKind::Global)],
+        };
+        let s = twitch_sections(&[set("0"), set("1")], None, "7");
+        let global = s.iter().find(|s| s.id == "twitch-global").unwrap();
+        assert_eq!(global.emotes.len(), 1);
     }
 }

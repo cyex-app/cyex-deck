@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import type { EmoteMenu } from '../../ipc/bindings/EmoteMenu';
 import type { MenuEmote } from '../../ipc/bindings/MenuEmote';
-import { pick, search, usable } from './menu.ts';
+import { cellKey, pick, search, usable } from './menu.ts';
 
 function e(provider: MenuEmote['provider'], id: string, name: string, locked: string | null = null): MenuEmote {
   return {
@@ -55,4 +55,29 @@ test('favorites only show when usable here', () => {
     favs.map((m) => m.name),
     ['xLULx'],
   );
+});
+
+const aliased: EmoteMenu = {
+  twitch: [],
+  twitchNote: null,
+  seventv: [
+    { id: 's', title: 'Channel', avatar: null, emotes: [e('seventv', 'A', 'uncPls'), e('seventv', 'A', 'Oldheaddance')] },
+  ],
+  bttv: [],
+  ffz: [],
+};
+
+test('V105-04 cellKey differs for one emote under two names', () => {
+  assert.notEqual(cellKey(e('seventv', 'A', 'uncPls')), cellKey(e('seventv', 'A', 'Oldheaddance')));
+});
+
+test('V105-04 both aliases can be found', () => {
+  assert.deepEqual(search(aliased, 'pls').map((m) => m.name), ['uncPls']);
+  assert.deepEqual(search(aliased, 'old').map((m) => m.name), ['Oldheaddance']);
+});
+
+test('V105-04 usable keeps one entry per emote id', () => {
+  const u = usable(aliased);
+  assert.equal(u.size, 1);
+  assert.ok(u.has('seventv:A'));
 });

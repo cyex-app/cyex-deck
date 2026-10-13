@@ -15,7 +15,7 @@
   import { emoteImg, emoteLarge } from '../chat/urls';
   import { emojiGroups, emojiLabel, findEmoji, type Emoji, type EmojiGroup } from './emoji';
   import { PROVIDER_NAMES, emoteKey, emoteRatio } from './emotes';
-  import { PROVIDER_TABS, type ProviderTab, pick, search, usable } from './menu';
+  import { PROVIDER_TABS, type ProviderTab, cellKey, pick, search, usable } from './menu';
   import { emoteMenu } from './menus';
 
   interface Props {
@@ -182,7 +182,7 @@
     {:else if query.trim()}
       {#if found.length || foundEmoji.length}
         <div class="grid">
-          {#each found as m (emoteKey(m.provider, m.id))}{@render emote(m)}{/each}
+          {#each found as m (cellKey(m))}{@render emote(m)}{/each}
           {#each foundEmoji as e (e.char)}{@render emojiCell(e)}{/each}
         </div>
       {:else}
@@ -193,7 +193,7 @@
         <section>
           <h4>Favorites</h4>
           <div class="grid">
-            {#each favEmotes as m (emoteKey(m.provider, m.id))}{@render emote(m)}{/each}
+            {#each favEmotes as m (cellKey(m))}{@render emote(m)}{/each}
             {#each favEmoji as e (e.id)}{@render emojiCell(e)}{/each}
           </div>
         </section>
@@ -202,7 +202,7 @@
         <section>
           <h4>Most used</h4>
           <div class="grid">
-            {#each used as m (emoteKey(m.provider, m.id))}{@render emote(m)}{/each}
+            {#each used as m (cellKey(m))}{@render emote(m)}{/each}
           </div>
         </section>
       {/if}
@@ -231,7 +231,7 @@
             {s.title}
           </h4>
           <div class="grid">
-            {#each s.emotes as m (emoteKey(m.provider, m.id))}{@render emote(m)}{/each}
+            {#each s.emotes as m (cellKey(m))}{@render emote(m)}{/each}
           </div>
         </section>
       {/each}
