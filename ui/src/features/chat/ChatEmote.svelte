@@ -1,14 +1,17 @@
 <!-- One emote in a chat line, with zero-width emotes stacked on top and modifiers (C7).
      Shown as its name when its kind is turned off (2.3), it's unlisted and hidden (2.4) or
-     the user hid it (E4). Clicks and the bigger hover picture (E6) go through the list. -->
+     the user hid it (E4). Clicks and the bigger hover picture (E6) go through the list.
+     One picture URL per emote and moving modifiers on one clock keep copies in step (V105-08). -->
 <script lang="ts">
   import type { Fragment } from '../../ipc/bindings/Fragment';
   import type { Layer } from '../../ipc/bindings/Layer';
   import type { Provider } from '../../ipc/bindings/Provider';
   import { focus } from '../../lib/focus.svelte';
+  import { density } from '../../lib/density.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { PROVIDER_NAMES, emoteRatio, modClasses } from '../emotes/emotes';
   import { hidden } from '../emotes/hidden.svelte';
+  import { inStep, moves } from '../emotes/phase';
   import { emoteImg, emoteLarge } from './urls';
 
   type EmoteFragment = Extract<Fragment, { t: 'emote' }>;
@@ -35,15 +38,15 @@
 </script>
 
 {#snippet picture(e: Layer, classes: string)}
-  {@const img = emoteImg(e.provider, e.id, theme, { animated: e.animated, still })}
+  {@const img = emoteImg(e.provider, e.id, theme, { animated: e.animated, still, scale: density.scale })}
   <img
     class="emote {classes}"
     src={img.src}
-    srcset={img.srcset}
     alt={e.name}
     style:aspect-ratio={emoteRatio(e.size)}
     loading="lazy"
     decoding="async"
+    use:inStep={moves(classes)}
   />
 {/snippet}
 

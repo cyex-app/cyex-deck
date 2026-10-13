@@ -10,6 +10,7 @@
   import type { EmoteKey } from '../../ipc/bindings/EmoteKey';
   import type { EmoteMenu } from '../../ipc/bindings/EmoteMenu';
   import type { MenuEmote } from '../../ipc/bindings/MenuEmote';
+  import { density } from '../../lib/density.svelte';
   import { focus } from '../../lib/focus.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { emoteImg, emoteLarge } from '../chat/urls';
@@ -124,7 +125,7 @@
 </script>
 
 {#snippet emote(m: MenuEmote)}
-  {@const img = emoteImg(m.provider, m.id, theme, { animated: m.animated, still: focus.still })}
+  {@const img = emoteImg(m.provider, m.id, theme, { animated: m.animated, still: focus.still, scale: density.scale })}
   <button
     class="cell"
     class:locked={!!m.locked}
@@ -136,7 +137,6 @@
   >
     <img
       src={img.src}
-      srcset={img.srcset}
       alt={m.name}
       style:aspect-ratio={emoteRatio(m.size)}
       loading="lazy"

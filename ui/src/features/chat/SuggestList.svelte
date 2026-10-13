@@ -1,6 +1,7 @@
 <!-- C6 The list of suggestions above the message box, as wide as it; below it or shorter
      when there's no room above (V102-03). -->
 <script lang="ts">
+  import { density } from '../../lib/density.svelte';
   import { floating } from '../../lib/place';
   import { settings } from '../../lib/settings.svelte';
   import type { Item } from './suggestions';
@@ -32,7 +33,7 @@
       }}
     >
       {#if item.emote}
-        <img src={emoteImg(item.emote.provider, item.emote.id, theme, { animated: item.emote.animated }).src} alt="" />
+        <img src={emoteImg(item.emote.provider, item.emote.id, theme, { animated: item.emote.animated, scale: density.scale }).src} alt="" />
       {:else if item.glyph}<span class="glyph">{item.glyph}</span>{/if}
       {item.label}
       {#if item.hint}<span class="hint">{item.hint}</span>{/if}

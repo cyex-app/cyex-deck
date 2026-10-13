@@ -7,8 +7,10 @@
   import type { Badge } from '../../ipc/bindings/Badge';
   import type { BadgeInfo } from '../../ipc/bindings/BadgeInfo';
   import { usercardIpc } from '../../ipc/rules';
+  import { density } from '../../lib/density.svelte';
   import { settings } from '../../lib/settings.svelte';
   import Badges from '../chat/Badges.svelte';
+  import { badgeSrc } from '../chat/urls';
 
   interface Props {
     login: string;
@@ -58,8 +60,7 @@
     {#each earned as b (`${b.set}/${b.version}`)}
       <img
         class="badge"
-        src={b.image1x}
-        srcset="{b.image2x} 2x, {b.image4x} 4x"
+        src={badgeSrc(b, density.scale)}
         alt={b.title}
         loading="lazy"
         decoding="async"

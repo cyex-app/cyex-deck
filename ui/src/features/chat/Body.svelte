@@ -5,6 +5,7 @@
      data attributes. -->
 <script lang="ts">
   import type { Fragment } from '../../ipc/bindings/Fragment';
+  import { density } from '../../lib/density.svelte';
   import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
   import { catalogs } from './catalog.svelte';
@@ -53,8 +54,8 @@
     {@const tier = c && cheerTier(c, f.amount)}
     <span class="cheer" style:color={tier?.color} data-tip="{formatNumber(f.amount)} bits">
       {#if c && tier}
-        {@const img = cheerImg(c, tier, theme)}
-        <img class="emote" src={img.src} srcset={img.srcset} alt={f.prefix} loading="lazy" decoding="async" />{f.amount}
+        {@const img = cheerImg(c, tier, theme, density.scale)}
+        <img class="emote" src={img.src} alt={f.prefix} loading="lazy" decoding="async" />{f.amount}
       {:else}{f.prefix}{f.amount}{/if}
     </span>
   {:else if f.t === 'gif'}

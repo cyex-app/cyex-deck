@@ -41,6 +41,7 @@
 }
 
 /* C7 Modifiers (FFZ numbering). */
+/* V105-08 Every moving modifier's period divides 6 s (phase.ts, MOD_CYCLE_MS). */
 .m-flipX,
 .m-flipY,
 .m-rotate90,

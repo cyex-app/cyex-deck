@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { cheerImg, cheerTier, emoteImg, emoteLarge } from './urls.ts';
+import { badgeSrc, cheerImg, cheerTier, emoteImg, emoteLarge, pictureScale } from './urls.ts';
 
 const cheer = {
   prefix: 'Cheer',
@@ -23,7 +23,20 @@ test('cheers use the highest tier they reach', () => {
 test('twitch emotes follow the theme', () => {
   const img = emoteImg('twitch', '25', 'light');
   assert.equal(img.src, 'https://static-cdn.jtvnw.net/emoticons/v2/25/default/light/1.0');
-  assert.match(img.srcset, /3\.0 4x$/);
+  assert.ok(emoteImg('twitch', '25', 'light', { scale: 4 }).src.endsWith('/3.0'));
+});
+
+test('one url per picture, from the screen density (V105-08)', () => {
+  assert.ok(emoteImg('bttv', 'b', 'dark', { scale: 4 }).src.endsWith('/3x.webp'));
+  assert.equal(emoteImg('seventv', 'a', 'dark', { scale: 2 }).src, 'https://cdn.7tv.app/emote/a/2x.webp');
+  assert.equal(emoteImg('seventv', 'a', 'dark').src, 'https://cdn.7tv.app/emote/a/1x.webp');
+  assert.deepEqual(
+    [1, 1.25, 1.5, 2, 2.5, 3].map(pictureScale),
+    [1, 2, 2, 2, 4, 4],
+  );
+  assert.ok(cheerImg(cheer, cheerTier(cheer, 150)!, 'dark', 2).src.endsWith('/2.gif'));
+  const b = { image1x: 'a', image2x: 'b', image4x: 'c' };
+  assert.deepEqual([1, 2, 4].map((s) => badgeSrc(b, s as 1 | 2 | 4)), ['a', 'b', 'c']);
 });
 
 test('still frames for moving emotes', () => {

@@ -6,6 +6,7 @@
   import type { EmoteChoice } from '../../ipc/bindings/EmoteChoice';
   import type { EmoteRewardChoices } from '../../ipc/bindings/EmoteRewardChoices';
   import { chatIpc } from '../../ipc/chat';
+  import { density } from '../../lib/density.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { emoteImg } from './urls';
 
@@ -34,7 +35,7 @@
   });
 
   function img(id: string) {
-    return emoteImg('twitch', id, theme);
+    return emoteImg('twitch', id, theme, { scale: density.scale });
   }
 </script>
 
@@ -49,7 +50,7 @@
   <div class="grid">
     {#each base.modifications as m (m.id)}
       <button class="cell wide" class:on={picked === m.id} onclick={() => (picked = m.id)}>
-        <img src={img(m.id).src} srcset={img(m.id).srcset} alt={m.name} />
+        <img src={img(m.id).src} alt={m.name} />
         <span>{title(m.modifier)}</span>
       </button>
     {/each}
@@ -70,7 +71,7 @@
         title={e.name}
         onclick={() => (kind === 'unlock' ? (picked = e.id) : (base = e))}
       >
-        <img src={img(e.id).src} srcset={img(e.id).srcset} alt={e.name} />
+        <img src={img(e.id).src} alt={e.name} />
       </button>
     {/each}
   </div>

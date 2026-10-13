@@ -4,12 +4,14 @@
 <script lang="ts">
   import type { BadgeDef } from '../../ipc/bindings/BadgeDef';
   import type { BadgeInfo } from '../../ipc/bindings/BadgeInfo';
+  import { density } from '../../lib/density.svelte';
   import { focus } from '../../lib/focus.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { looks } from '../emotes/looks.svelte';
   import { rooms } from '../emotes/rooms.svelte';
   import { catalogs } from './catalog.svelte';
   import { saved } from './saved';
+  import { badgeSrc } from './urls';
 
   type Ref = { set: string; version: string; info?: string };
 
@@ -59,8 +61,7 @@
     class="badge"
     class:tile={!!b.color}
     style:background-color={b.color}
-    src={focus.still && b.still ? b.still : b.image1x}
-    srcset={focus.still && b.still ? undefined : `${b.image2x} 2x, ${b.image4x} 4x`}
+    src={focus.still && b.still ? b.still : badgeSrc(b, density.scale)}
     alt={b.title}
     data-tip={b.title}
     loading="lazy"
@@ -81,8 +82,7 @@
       {:else if b}
         <img
           class="badge"
-          src={b.image1x}
-          srcset="{b.image2x} 2x, {b.image4x} 4x"
+          src={badgeSrc(b, density.scale)}
           alt={b.title}
           data-tip={b.title}
           data-hint={hint(ref, b)}
