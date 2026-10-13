@@ -1,6 +1,7 @@
 <!-- U7 A tab's chat over games and other apps: see-through, always on top, no message
      box. Its bar shows on hover: drag it to move, the pointer lets clicks through to the
-     window below (the tray or a global hotkey takes them back). Looks are in Settings →
+     window below. The bar stays reachable while clicks go through (V105-02); the tray or a
+     global hotkey take them back too. Looks are in Settings →
      Chat → Overlay. Route: `overlay/<tile id>`. -->
 <script lang="ts">
   import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -27,6 +28,8 @@
 
   let room = $state<ChatRoom | null>(null);
   let clickThrough = $state(false);
+  /** V105-02 The cursor is on the bar while clicks go through. */
+  let barHover = $state(false);
 
   $effect(() => {
     if (!tile) void getCurrentWindow().close();
@@ -51,7 +54,11 @@
   $effect(() => {
     void modesIpc.clickThrough().then((on) => (clickThrough = on));
     const un = modesIpc.onClickThrough((on) => (clickThrough = on));
-    return () => void un.then((f) => f());
+    const unBar = modesIpc.onBar((on) => (barHover = on));
+    return () => {
+      void un.then((f) => f());
+      void unBar.then((f) => f());
+    };
   });
 
   const hideMod = $derived(streamer.hides('hideModActions'));
@@ -70,10 +77,11 @@
     return `${o.fadeAfter - (Date.now() - ts) / 1000}s`;
   }
 
-  async function letClicksThrough() {
+  async function toggleClickThrough() {
     try {
-      await modesIpc.setClickThrough(true);
-      toast.info('Clicks go through now. Take them back from the tray icon.');
+      const on = !clickThrough;
+      await modesIpc.setClickThrough(on);
+      if (on) toast.info('Clicks go through now. Hover the top to take them back.');
     } catch (e) {
       toast.error(String(e));
     }
@@ -88,19 +96,20 @@
   style:--overlay-bg="color-mix(in srgb, var(--bg) {o.background}%, transparent)"
   style:--chat-size="calc({settings.v.general.chatFontSize}px * {o.scale / 100})"
 >
-  {#if !clickThrough}
-    <div class="bar" data-tauri-drag-region>
-      <span class="title" data-tauri-drag-region>{tile?.channel.name ?? ''}</span>
-      <IconButton
-        icon="pointer"
-        label="Let clicks through"
-        hint="The mouse reaches the window below. The tray icon or a hotkey brings it back."
-        size={14}
-        onclick={letClicksThrough}
-      />
-      <IconButton icon="x" label="Close" size={14} onclick={() => void getCurrentWindow().close()} />
-    </div>
-  {/if}
+  <div class="bar" class:shown={clickThrough && barHover} data-tauri-drag-region>
+    <span class="title" data-tauri-drag-region>{tile?.channel.name ?? ''}</span>
+    <IconButton
+      icon="pointer"
+      active={clickThrough}
+      label={clickThrough ? 'Take clicks back' : 'Let clicks through'}
+      hint={clickThrough
+        ? 'The overlay takes the mouse again.'
+        : 'The mouse reaches the window below, except on this bar.'}
+      size={14}
+      onclick={toggleClickThrough}
+    />
+    <IconButton icon="x" label="Close" size={14} onclick={() => void getCurrentWindow().close()} />
+  </div>
   <!-- Newest at the bottom; older lines run off the top. -->
   <div class="list">
     {#each shown as m (m.id)}
@@ -137,7 +146,8 @@
     opacity: 0;
     transition: opacity var(--fast);
   }
-  .overlay:hover .bar {
+  .overlay:hover .bar,
+  .bar.shown {
     opacity: 1;
   }
   .title {

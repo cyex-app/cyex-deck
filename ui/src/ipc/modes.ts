@@ -12,6 +12,7 @@ export const modesIpc = {
   clickThrough: () => invoke<boolean>('overlay_click_through'),
   setClickThrough: (on: boolean) => invoke<void>('overlay_set_click_through', { on }),
   onClickThrough: (cb: (on: boolean) => void) => listen<boolean>('overlay:clickThrough', (e) => cb(e.payload)),
+  onBar: (cb: (on: boolean) => void) => listen<boolean>('overlay:bar', (e) => cb(e.payload)),
   /** S2 Global combos another app already holds. */
   hotkeysFailed: () => invoke<string[]>('hotkeys_failed'),
   onHotkeysFailed: (cb: (combos: string[]) => void) => listen<string[]>('hotkeys:failed', (e) => cb(e.payload)),

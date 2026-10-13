@@ -1,27 +1,54 @@
 //! U7 Chat overlays: a tab's chat in a see-through window that stays on top, e.g. over a
 //! game. Route `overlay/<tile id>`; position and size are kept like any pop-out. With
-//! click-through on, the mouse goes to whatever is below; it's turned off again from the
-//! tray or a global hotkey (S2).
+//! click-through on, the mouse goes to whatever is below, except on the overlay's top bar
+//! (V105-02); it's turned off again from that bar, the tray or a global hotkey (S2).
 
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard};
+use std::time::Duration;
 
 use tauri::window::Color;
 use tauri::{AppHandle, Emitter, Manager, WebviewWindowBuilder, Wry};
 
 const PREFIX: &str = "overlay/";
 const CLICK_THROUGH_EVENT: &str = "overlay:clickThrough";
+/// V105-02 Height of the overlay's top bar (OverlayView.svelte, .bar), logical px.
+const BAR_HEIGHT: f64 = 30.0;
+const WATCH_EVERY: Duration = Duration::from_millis(50);
+const BAR_EVENT: &str = "overlay:bar";
 
-/// Labels of the overlays that let clicks through.
 #[derive(Default)]
-pub struct ClickThrough(Mutex<HashSet<String>>);
+pub struct ClickThrough {
+    /// Overlays that let clicks through.
+    on: Mutex<HashSet<String>>,
+    /// V105-02 Of those, the ones whose bar is under the cursor right now (they take the mouse).
+    bar: Mutex<HashSet<String>>,
+    /// The cursor watch is running.
+    watching: AtomicBool,
+}
 
 fn lock(app: &AppHandle) -> MutexGuard<'_, HashSet<String>> {
     app.state::<ClickThrough>()
         .inner()
-        .0
+        .on
         .lock()
         .unwrap_or_else(|p| p.into_inner())
+}
+
+fn bars(app: &AppHandle) -> MutexGuard<'_, HashSet<String>> {
+    app.state::<ClickThrough>()
+        .inner()
+        .bar
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+}
+
+/// Whether the cursor (physical px) is on the bar of a window at `pos` with `width` (physical px).
+fn on_bar(cursor: (f64, f64), pos: (i32, i32), width: u32, scale: f64) -> bool {
+    let (x, y) = cursor;
+    let (left, top) = (f64::from(pos.0), f64::from(pos.1));
+    x >= left && x < left + f64::from(width) && y >= top && y < top + BAR_HEIGHT * scale
 }
 
 pub fn is_overlay(route: &str) -> bool {
@@ -53,10 +80,23 @@ fn overlay_labels(app: &AppHandle) -> Vec<String> {
         .collect()
 }
 
-/// Turns click-through on or off for one overlay.
+/// Turns click-through on or off for one overlay. Runs on the main thread, so the cursor
+/// watch and the bar, tray and hotkey can't race (V105-02).
 pub fn set_click_through(app: &AppHandle, label: &str, on: bool) -> Result<(), String> {
-    let window = app.get_webview_window(label).ok_or("That overlay is closed.")?;
-    window.set_ignore_cursor_events(on).map_err(|e| e.to_string())?;
+    app.get_webview_window(label).ok_or("That overlay is closed.")?;
+    let (a, l) = (app.clone(), label.to_owned());
+    app.run_on_main_thread(move || apply(&a, &l, on))
+        .map_err(|e| e.to_string())
+}
+
+/// Main thread only.
+fn apply(app: &AppHandle, label: &str, on: bool) {
+    let Some(window) = app.get_webview_window(label) else {
+        return;
+    };
+    if window.set_ignore_cursor_events(on).is_err() {
+        return;
+    }
     {
         let mut set = lock(app);
         if on {
@@ -65,9 +105,72 @@ pub fn set_click_through(app: &AppHandle, label: &str, on: bool) -> Result<(), S
             set.remove(label);
         }
     }
+    bars(app).remove(label);
     let _ = app.emit_to(label, CLICK_THROUGH_EVENT, on);
+    let _ = app.emit_to(label, BAR_EVENT, false);
     sync_tray(app);
-    Ok(())
+    if on {
+        watch(app);
+    }
+}
+
+/// V105-02 While an overlay lets clicks through, its top bar takes the mouse when the
+/// cursor is over it. Runs only while at least one overlay is click-through.
+fn watch(app: &AppHandle) {
+    if app.state::<ClickThrough>().watching.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(WATCH_EVERY).await;
+            if !app.state::<ClickThrough>().watching.load(Ordering::SeqCst) {
+                break;
+            }
+            let a = app.clone();
+            if app.run_on_main_thread(move || tick(&a)).is_err() {
+                break;
+            }
+        }
+    });
+}
+
+/// Main thread only.
+fn tick(app: &AppHandle) {
+    let labels = lock(app).clone();
+    if labels.is_empty() {
+        bars(app).clear();
+        app.state::<ClickThrough>()
+            .watching
+            .store(false, Ordering::SeqCst);
+        return;
+    }
+    let Ok(cursor) = app.cursor_position() else {
+        return;
+    };
+    for label in labels {
+        let Some(window) = app.get_webview_window(&label) else {
+            continue;
+        };
+        let (Ok(pos), Ok(size), Ok(scale)) = (
+            window.inner_position(),
+            window.inner_size(),
+            window.scale_factor(),
+        ) else {
+            continue;
+        };
+        let over = on_bar((cursor.x, cursor.y), (pos.x, pos.y), size.width, scale);
+        let had = bars(app).contains(&label);
+        if over != had {
+            let _ = window.set_ignore_cursor_events(!over);
+            if over {
+                bars(app).insert(label.clone());
+            } else {
+                bars(app).remove(&label);
+            }
+            let _ = app.emit_to(&label, BAR_EVENT, over);
+        }
+    }
 }
 
 /// The global hotkey and the tray: if any open overlay takes clicks, all let them
@@ -87,6 +190,7 @@ pub fn is_click_through(app: &AppHandle, label: &str) -> bool {
 pub fn forget(app: &AppHandle, label: &str) {
     if app.try_state::<ClickThrough>().is_some() {
         lock(app).remove(label);
+        bars(app).remove(label);
         sync_tray(app);
     }
 }
@@ -100,13 +204,28 @@ pub fn sync_tray(app: &AppHandle) {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_overlay, is_overlay_window};
+    use super::{is_overlay, is_overlay_window, on_bar};
     use crate::windows::panels::label_for;
 
     #[test]
     fn routes() {
         assert!(is_overlay("overlay/abc"));
         assert!(!is_overlay("chat/abc"));
+    }
+
+    #[test]
+    fn bar_hit() {
+        for scale in [1.0, 1.5] {
+            let h = 30.0 * scale;
+            let (pos, w) = ((100, 50), 400);
+            assert!(on_bar((100.0, 50.0), pos, w, scale));
+            assert!(on_bar((300.0, 50.0 + h - 1.0), pos, w, scale));
+            assert!(!on_bar((300.0, 50.0 + h), pos, w, scale));
+            assert!(!on_bar((500.0, 60.0), pos, w, scale));
+            assert!(on_bar((499.0, 60.0), pos, w, scale));
+            assert!(!on_bar((99.0, 60.0), pos, w, scale));
+            assert!(!on_bar((300.0, 49.0), pos, w, scale));
+        }
     }
 
     #[test]
