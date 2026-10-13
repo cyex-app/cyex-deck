@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::fs;
 
 use cyex_settings::chatterino::ImportReport;
+use cyex_settings::schema::{Commands, Highlights, Mentions};
 use cyex_settings::{Bundle, Clock, Partition, SystemClock, suggested_file_name};
 use serde_json::Value;
 use tauri::{AppHandle, State};
@@ -41,6 +42,20 @@ pub fn settings_patch(
 ) -> CmdResult<Value> {
     rust_owned(partition)?;
     settings.patch(&app, partition, &patch, true)
+}
+
+/// V105-12 The settings page was left: empty rules go. Returns the partitions it looks at.
+#[tauri::command]
+pub fn settings_prune_blank(app: AppHandle, settings: State<Settings>) -> CmdResult<BTreeMap<Partition, Value>> {
+    settings.update::<Highlights>(&app, Partition::Highlights, Highlights::prune_blank)?;
+    settings.update::<Mentions>(&app, Partition::Mentions, Mentions::prune_blank)?;
+    settings.update::<Commands>(&app, Partition::Commands, Commands::prune_blank)?;
+    Ok(settings.with(|s| {
+        [Partition::Highlights, Partition::Mentions, Partition::Commands]
+            .into_iter()
+            .map(|p| (p, s.get(p).clone()))
+            .collect()
+    }))
 }
 
 #[tauri::command]

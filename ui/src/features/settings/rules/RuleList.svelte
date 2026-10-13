@@ -2,6 +2,7 @@
 <script lang="ts" generics="T extends Record<string, unknown>">
   import Button from '../../../components/Button.svelte';
   import type { Field } from './fields';
+  import { focusLast } from './focus';
   import RuleRow from './RuleRow.svelte';
 
   interface Props {
@@ -18,9 +19,11 @@
   }
 
   let { items, fields, make, onchange, addLabel = 'Add', empty, problem, setting }: Props = $props();
+
+  let el = $state<HTMLDivElement>();
 </script>
 
-<div class="list" data-setting={setting}>
+<div class="list" data-setting={setting} bind:this={el}>
   {#each items as item, i (i)}
     <RuleRow
       {item}
@@ -32,7 +35,16 @@
   {:else}
     {#if empty}<p class="empty">{empty}</p>{/if}
   {/each}
-  <div class="add"><Button small icon="plus" onclick={() => onchange([...items, make()])}>{addLabel}</Button></div>
+  <div class="add">
+    <Button
+      small
+      icon="plus"
+      onclick={() => {
+        onchange([...items, make()]);
+        void focusLast(el, '.rule');
+      }}>{addLabel}</Button
+    >
+  </div>
 </div>
 
 <style>

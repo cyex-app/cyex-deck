@@ -166,6 +166,28 @@ mod tests {
     }
 
     #[test]
+    fn blank_rules_match_nothing() {
+        use cyex_settings::schema::{BadgeRule, UserRule};
+        let h = Highlights {
+            phrases: vec![PhraseRule::default()],
+            users: vec![UserRule::default()],
+            badges: vec![BadgeRule::default()],
+            ignores: vec![IgnoreRule {
+                block: true,
+                ..IgnoreRule::default()
+            }],
+            ..Highlights::default()
+        };
+        let mut r = Room::new("chan", Some(Me::new("42", "me", "Me")));
+        r.set_rules(Arc::new(Rules::new(&h, &Mentions::default())));
+        let ev = feed(&mut r, "1", "7", "hello");
+        let RoomEvent::Message { message } = &ev[0] else {
+            panic!("blocked by a blank ignore")
+        };
+        assert!(message.meta.highlight.is_none());
+    }
+
+    #[test]
     fn rules_hide_replace_highlight_and_flag() {
         let h = Highlights {
             phrases: vec![PhraseRule {

@@ -20,6 +20,7 @@ const MAX_NEVER: usize = 500;
 const MAX_FILTERS: usize = 50;
 const MAX_FILTER_CHARS: usize = 2000;
 const MAX_NAME_CHARS: usize = 40;
+const MAX_BADGE_CHARS: usize = 60;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(default, rename_all = "camelCase")]
@@ -102,27 +103,26 @@ impl Schema for Highlights {
         ] {
             b.alert.sanitize();
         }
-        self.phrases.retain(|r| !r.pattern.trim().is_empty());
+        // V105-12 Saving keeps empty rules: one was just added and is being filled in. prune_blank drops them once the page is left.
         self.phrases.truncate(MAX_RULES);
         for r in &mut self.phrases {
             clip(&mut r.pattern, MAX_PATTERN_CHARS);
             r.alert.sanitize();
         }
-        self.users.retain_mut(|r| {
+        for r in &mut self.users {
             r.login = r.login.trim().trim_start_matches('@').to_owned();
             if !r.regex {
                 r.login.make_ascii_lowercase();
             }
             clip(&mut r.login, MAX_PATTERN_CHARS);
             r.alert.sanitize();
-            !r.login.is_empty()
-        });
+        }
         self.users.truncate(MAX_RULES);
-        self.badges.retain_mut(|r| {
+        for r in &mut self.badges {
             r.badge = r.badge.trim().to_ascii_lowercase();
+            clip(&mut r.badge, MAX_BADGE_CHARS);
             r.alert.sanitize();
-            !r.badge.is_empty() && r.badge.len() <= 60
-        });
+        }
         self.badges.truncate(MAX_RULES);
         for r in &mut self.apps {
             r.alert.sanitize();
@@ -140,7 +140,6 @@ impl Schema for Highlights {
         self.hidden_users.retain(|u| !u.id.is_empty());
         self.hidden_users.dedup_by(|a, b| a.id == b.id);
         self.hidden_users.truncate(MAX_NEVER);
-        self.ignores.retain(|r| !r.pattern.trim().is_empty());
         self.ignores.truncate(MAX_RULES);
         for r in &mut self.ignores {
             clip(&mut r.pattern, MAX_PATTERN_CHARS);
@@ -162,6 +161,18 @@ impl Schema for Highlights {
 }
 
 impl Highlights {
+    /// V105-12 Drops the rules left empty. True when something went.
+    pub fn prune_blank(&mut self) -> bool {
+        let count = |h: &Self| (h.phrases.len(), h.users.len(), h.badges.len(), h.ignores.len(), h.filters.len());
+        let before = count(self);
+        self.phrases.retain(|r| !r.pattern.trim().is_empty());
+        self.users.retain(|r| !r.login.is_empty());
+        self.badges.retain(|r| !r.badge.is_empty());
+        self.ignores.retain(|r| !r.pattern.trim().is_empty());
+        self.filters.retain(|f| !(f.name.trim().is_empty() && f.expr.trim().is_empty()));
+        before != count(self)
+    }
+
     /// F4 Every feed tab name the rules send messages to, A-Z.
     pub fn routes(&self) -> Vec<String> {
         let builtins = [
@@ -227,12 +238,93 @@ mod tests {
         h.mention.alert.color = "red".into();
         h.similar.threshold = 10;
         h.sanitize();
-        assert_eq!(h.phrases.len(), 1);
-        assert_eq!(h.phrases[0].alert.color, "#ff0000");
+        assert_eq!(h.phrases.len(), 2);
+        assert_eq!(h.phrases[1].alert.color, "#ff0000");
         assert_eq!(h.mention.alert.color, "");
         assert_eq!(h.users[0].login, "bob");
         assert_eq!(h.never, ["nightbot"]);
         assert_eq!(h.similar.threshold, 50);
         assert_eq!(h.routes(), ["Pings", "spam"]);
+    }
+
+    #[test]
+    fn sanitize_keeps_empty_rules() {
+        let mut h = Highlights {
+            phrases: vec![PhraseRule::default()],
+            users: vec![UserRule::default()],
+            badges: vec![BadgeRule {
+                badge: "x".repeat(70),
+                ..BadgeRule::default()
+            }],
+            ignores: vec![IgnoreRule::default()],
+            apps: vec![AppRule::default()],
+            filters: vec![FilterDef {
+                id: "f".into(),
+                ..FilterDef::default()
+            }],
+            ..Highlights::default()
+        };
+        h.sanitize();
+        assert_eq!(h.phrases.len(), 1);
+        assert_eq!(h.users.len(), 1);
+        assert_eq!(h.badges.len(), 1);
+        assert_eq!(h.badges[0].badge.len(), 60);
+        assert_eq!(h.ignores.len(), 1);
+        assert_eq!(h.apps.len(), 1);
+        assert_eq!(h.filters.len(), 1);
+    }
+
+    #[test]
+    fn prune_blank_drops_only_empty_rules() {
+        let mut h = Highlights {
+            phrases: vec![
+                PhraseRule::default(),
+                PhraseRule {
+                    pattern: "hi".into(),
+                    ..PhraseRule::default()
+                },
+            ],
+            users: vec![
+                UserRule::default(),
+                UserRule {
+                    login: "bob".into(),
+                    ..UserRule::default()
+                },
+            ],
+            badges: vec![
+                BadgeRule::default(),
+                BadgeRule {
+                    badge: "vip".into(),
+                    ..BadgeRule::default()
+                },
+            ],
+            ignores: vec![
+                IgnoreRule::default(),
+                IgnoreRule {
+                    pattern: "x".into(),
+                    ..IgnoreRule::default()
+                },
+            ],
+            filters: vec![
+                FilterDef {
+                    id: "a".into(),
+                    ..FilterDef::default()
+                },
+                FilterDef {
+                    id: "b".into(),
+                    name: "n".into(),
+                    ..FilterDef::default()
+                },
+            ],
+            ..Highlights::default()
+        };
+        assert!(h.prune_blank());
+        assert_eq!(h.phrases.len(), 1);
+        assert_eq!(h.users.len(), 1);
+        assert_eq!(h.badges.len(), 1);
+        assert_eq!(h.ignores.len(), 1);
+        assert_eq!(h.filters.len(), 1);
+        assert_eq!(h.filters[0].id, "b");
+        assert!(!h.prune_blank());
     }
 }

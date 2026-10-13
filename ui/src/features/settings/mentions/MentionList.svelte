@@ -5,6 +5,7 @@
   import type { MentionCheck } from '../../../ipc/bindings/MentionCheck';
   import type { MentionRule } from '../../../ipc/bindings/MentionRule';
   import { mentionsIpc } from '../../../ipc/mentions';
+  import { focusLast } from '../rules/focus';
   import MentionRow from './MentionRow.svelte';
   import { newMention } from './status';
 
@@ -18,6 +19,7 @@
 
   let { items, onchange, empty, setting }: Props = $props();
 
+  let el = $state<HTMLDivElement>();
   let checks = $state.raw<MentionCheck[]>([]);
   $effect(() => {
     const list = items;
@@ -30,7 +32,7 @@
   });
 </script>
 
-<div class="list" data-setting={setting}>
+<div class="list" data-setting={setting} bind:this={el}>
   {#each items as item, i (i)}
     <MentionRow
       {item}
@@ -41,7 +43,16 @@
   {:else}
     <p class="empty">{empty}</p>
   {/each}
-  <div class="add"><Button small icon="plus" onclick={() => onchange([...items, newMention()])}>Add</Button></div>
+  <div class="add">
+    <Button
+      small
+      icon="plus"
+      onclick={() => {
+        onchange([...items, newMention()]);
+        void focusLast(el, '.mention');
+      }}>Add</Button
+    >
+  </div>
 </div>
 
 <style>

@@ -2,10 +2,11 @@
      in groups (V101-07); narrow windows show icons only, with lines between the groups.
      Search finds any setting in the registry and jumps to it (V103-13). -->
 <script lang="ts">
-  import { tick, type Component } from 'svelte';
+  import { onDestroy, tick, untrack, type Component } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
   import { ACTIONS } from '../../lib/hotkeys.svelte';
+  import { settings } from '../../lib/settings.svelte';
   import { ENTRIES, GROUPS, hotkeyEntries, PAGES, type PageId } from './registry/index';
   import { reveal } from './reveal';
   import { buildIndex, search, type Hit } from './search';
@@ -64,6 +65,16 @@
   };
 
   const Section = $derived(VIEWS[section as PageId] ?? GeneralSection);
+
+  // V105-12 Leaving a page (or Settings) clears the rules left empty; never while you can still type in them.
+  let shown = untrack(() => section);
+  $effect(() => {
+    if (section !== shown) {
+      shown = section;
+      void settings.pruneBlank();
+    }
+  });
+  onDestroy(() => void settings.pruneBlank());
 
   const docs = buildIndex([...ENTRIES, ...hotkeyEntries(ACTIONS)], PAGES);
   let query = $state('');

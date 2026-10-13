@@ -40,6 +40,23 @@ class SettingsStore {
     this.v[partition] = value ?? (await settingsIpc.all())[partition];
   }
 
+  /** V105-12 Empty rules go once the page is left. Counts as the newest edit of each part, so
+   * an edit still on its way (a field that saved as the page changed) can't bring them back. */
+  async pruneBlank(): Promise<void> {
+    const parts = ['highlights', 'mentions', 'commands'] as const;
+    const started = parts.map((p) => [p, this.flight.start(p)] as const);
+    let values: Partial<SettingsValues> = {};
+    try {
+      values = await settingsIpc.pruneBlank();
+    } catch (e) {
+      toast.error(String(e));
+    }
+    for (const [p, n] of started) {
+      const v = values[p];
+      if (this.flight.settle(p, n) && v) (this.v as Record<Partition, unknown>)[p] = v;
+    }
+  }
+
   async reset<P extends Partition>(partition: P): Promise<void> {
     this.v[partition] = await settingsIpc.reset(partition);
   }

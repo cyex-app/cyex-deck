@@ -155,6 +155,16 @@ fn clip(lines: &mut Vec<String>) {
     }
 }
 
+impl Commands {
+    /// V105-12 Drops the automations left empty. True when something went.
+    pub fn prune_blank(&mut self) -> bool {
+        let before = self.automations.len();
+        self.automations
+            .retain(|a| !(a.name.trim().is_empty() && a.trigger.trim().is_empty() && a.response.trim().is_empty()));
+        before != self.automations.len()
+    }
+}
+
 impl Schema for Commands {
     fn sanitize(&mut self) {
         for list in [
@@ -208,5 +218,23 @@ mod tests {
         assert_eq!(c.automations[0].channels, ["forsen"]);
         assert_eq!(c.automations[0].cooldown_secs, 86_400);
         assert!(c.timers.is_empty());
+    }
+
+    #[test]
+    fn prune_blank_drops_empty_automations() {
+        let mut c = Commands {
+            automations: vec![
+                Automation::default(),
+                Automation {
+                    name: "hi".into(),
+                    ..Automation::default()
+                },
+            ],
+            ..Commands::default()
+        };
+        assert!(c.prune_blank());
+        assert_eq!(c.automations.len(), 1);
+        assert_eq!(c.automations[0].name, "hi");
+        assert!(!c.prune_blank());
     }
 }

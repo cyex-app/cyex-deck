@@ -60,10 +60,11 @@ pub struct Ignore {
     pub route: String,
 }
 
+/// V105-12 Empty rules (one being filled in) match nothing.
 pub fn phrases(rules: &[PhraseRule]) -> Vec<Rule> {
     rules
         .iter()
-        .filter(|r| r.enabled)
+        .filter(|r| r.enabled && !r.pattern.trim().is_empty())
         .map(|r| Rule {
             matcher: if r.regex {
                 Matcher::build(&r.pattern, r.case_sensitive)
@@ -78,7 +79,7 @@ pub fn phrases(rules: &[PhraseRule]) -> Vec<Rule> {
 pub fn users(rules: &[UserRule]) -> Vec<Rule> {
     rules
         .iter()
-        .filter(|r| r.enabled)
+        .filter(|r| r.enabled && !r.login.trim().is_empty())
         .map(|r| Rule {
             matcher: if r.regex {
                 Matcher::build(&r.login, false)
@@ -93,7 +94,7 @@ pub fn users(rules: &[UserRule]) -> Vec<Rule> {
 pub fn ignores(rules: &[IgnoreRule]) -> Vec<Ignore> {
     rules
         .iter()
-        .filter(|r| r.enabled)
+        .filter(|r| r.enabled && !r.pattern.trim().is_empty())
         .map(|r| Ignore {
             matcher: if r.regex {
                 Matcher::build(&r.pattern, r.case_sensitive)

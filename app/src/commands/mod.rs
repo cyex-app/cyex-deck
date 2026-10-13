@@ -206,6 +206,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         player::channel_stories_seen,
         settings::settings_all,
         settings::settings_patch,
+        settings::settings_prune_blank,
         settings::settings_reset,
         settings::settings_export_file,
         settings::settings_import_file,

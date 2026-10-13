@@ -158,6 +158,14 @@ impl Schema for Mentions {
 }
 
 impl Mentions {
+    /// V105-12 Drops the rules left empty. True when something went.
+    pub fn prune_blank(&mut self) -> bool {
+        let before = (self.list.len(), self.global_list.len());
+        self.list.retain(|m| !m.pattern.trim().is_empty());
+        self.global_list.retain(|m| !m.pattern.trim().is_empty());
+        before != (self.list.len(), self.global_list.len())
+    }
+
     /// Global mentions to look for: on, with something to find.
     pub fn global_active(&self) -> bool {
         self.global
@@ -212,6 +220,23 @@ mod tests {
         assert_eq!(m.list[0].alert.color, "#abcdef");
         assert_eq!(m.list[0].alert.sound_file, "", "not a sound file");
         assert_eq!(m.me.alert.sound_file, r"C:\Sounds\Ping.WAV");
+    }
+
+    #[test]
+    fn prune_blank_drops_empty_mentions() {
+        let named = |p: &str| MentionRule {
+            pattern: p.into(),
+            ..MentionRule::default()
+        };
+        let mut m = Mentions {
+            list: vec![named(" "), named("a")],
+            global_list: vec![named(""), named("b")],
+            ..Mentions::default()
+        };
+        assert!(m.prune_blank());
+        assert_eq!(m.list.len(), 1);
+        assert_eq!(m.global_list.len(), 1);
+        assert!(!m.prune_blank());
     }
 
     #[test]
