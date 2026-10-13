@@ -42,6 +42,15 @@ impl Credentials for AccountCreds {
     }
 }
 
+/// V105-06 The account's writer: same login, never asks for joins and leaves (it joins no chat).
+pub struct WriterCreds(pub AccountCreds);
+
+impl Credentials for WriterCreds {
+    fn login(&self) -> Option<Login> {
+        self.0.login()
+    }
+}
+
 /// Reading without an account.
 pub struct AnonCreds(pub AppHandle);
 

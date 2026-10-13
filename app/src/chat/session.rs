@@ -1,8 +1,9 @@
-//! IRC sessions: one client per identity and the task that routes its lines to rooms.
+//! IRC sessions: two clients per account (reader and writer, V105-06), one for anonymous
+//! reading, and the tasks that route their lines to rooms.
 
 use std::sync::Arc;
 
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use cyex_chat::build::Me;
 use cyex_chat::irc::{self, Client, Credentials, Event, Line, LinkStatus, Window};
@@ -10,9 +11,9 @@ use cyex_chat::model::{ConnStatus, Flag, NoticeKind, RoomEvent};
 use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc;
 
-use super::creds::{AccountCreds, AnonCreds};
+use super::creds::{AccountCreds, AnonCreds, WriterCreds};
 use super::unread::{self, Unread};
-use super::{Chat, Identity, Inner, RoomKey, Session, account_of, mention, now_ms, queue};
+use super::{Chat, Identity, Inner, RoomKey, Session, Writer, account_of, mention, now_ms, queue};
 
 /// The session for `identity`, started if needed.
 pub fn ensure<'a>(app: &AppHandle, inner: &'a mut Inner, identity: &Identity) -> &'a Session {
@@ -25,8 +26,22 @@ pub fn ensure<'a>(app: &AppHandle, inner: &'a mut Inner, identity: &Identity) ->
         let (client, task) = Client::new(creds, irc::tls(), tx);
         tauri::async_runtime::spawn(task);
         tauri::async_runtime::spawn(pump(app.clone(), identity.clone(), rx));
+        // V105-06 Sends go out on a second connection that joins nothing.
+        let writer = match identity {
+            Identity::Anon => None,
+            Identity::Account(id) => {
+                let (wtx, wrx) = mpsc::unbounded_channel();
+                let creds = Arc::new(WriterCreds(AccountCreds::new(app.clone(), id.clone())));
+                let (wclient, wtask) = Client::new(creds, irc::tls(), wtx);
+                tauri::async_runtime::spawn(wtask);
+                let up = Arc::new(AtomicBool::new(false));
+                tauri::async_runtime::spawn(pump_writer(app.clone(), identity.clone(), up.clone(), wrx));
+                Some(Writer { client: wclient, up })
+            }
+        };
         Session {
             client,
+            writer,
             sends: Window::sends(),
         }
     })
@@ -43,6 +58,9 @@ pub fn retry_refused(app: &AppHandle) {
             .any(|((id, _), e)| id == identity && e.room.status == ConnStatus::AuthFailed);
         if refused {
             session.client.reconnect();
+            if let Some(w) = &session.writer {
+                w.client.reconnect();
+            }
         }
     }
 }
@@ -51,6 +69,17 @@ async fn pump(app: AppHandle, identity: Identity, mut rx: mpsc::UnboundedReceive
     while let Some(event) = rx.recv().await {
         match event {
             Event::Status(s) => link_status(&app, &identity, s),
+            Event::Line(raw) => line(&app, &identity, &raw),
+        }
+    }
+}
+
+/// V105-06 The writer's lines (USERSTATE and NOTICE after a send) go to the rooms like the
+/// reader's; its link only decides whether sending is possible.
+async fn pump_writer(app: AppHandle, identity: Identity, up: Arc<AtomicBool>, mut rx: mpsc::UnboundedReceiver<Event>) {
+    while let Some(event) = rx.recv().await {
+        match event {
+            Event::Status(s) => up.store(s == LinkStatus::Connected, Ordering::Relaxed),
             Event::Line(raw) => line(&app, &identity, &raw),
         }
     }

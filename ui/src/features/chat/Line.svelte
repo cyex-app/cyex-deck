@@ -89,7 +89,9 @@
       <Icon name="reply" size={12} />
       <span>Replying to <b>@{m.reply.parentDisplay}</b>: {m.reply.parentBody}</span>
     </div>
-  {:else if has('firstMessage')}
+  {/if}
+  <!-- V105-06 A first message can also be a reply: both show. -->
+  {#if has('firstMessage')}
     <div class="context">First message</div>
   {/if}
   {#if m.reward}

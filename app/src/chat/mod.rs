@@ -89,9 +89,19 @@ struct Inner {
 }
 
 struct Session {
+    /// The reader: joins every channel and gets every line.
     client: Client,
+    /// V105-06 Sends for an account go out here, so the reading connection gets our lines back
+    /// from Twitch with every tag. `None` for anonymous reading.
+    writer: Option<Writer>,
     /// Messages sent in the last 30 s (20, or 100 where we're mod or VIP).
     sends: Window,
+}
+
+struct Writer {
+    client: Client,
+    /// Logged in and able to send.
+    up: Arc<AtomicBool>,
 }
 
 /// A view and the filters it shows messages through (F3).
@@ -346,6 +356,9 @@ fn leave(app: &AppHandle, inner: &mut Inner, key: &RoomKey) -> bool {
     let still_used = inner.rooms.keys().any(|(i, _)| i == identity);
     if !still_used && let Some(s) = inner.sessions.remove(identity) {
         s.client.stop();
+        if let Some(w) = &s.writer {
+            w.client.stop();
+        }
     }
     if !inner.rooms.keys().any(|(_, l)| l == login) {
         crate::emotes::leave(app, login);

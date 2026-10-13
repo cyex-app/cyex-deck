@@ -298,7 +298,14 @@ impl Room {
                 {
                     events.extend(self.own_line(&s.badges));
                 }
-                events.extend(self.add(m, now_ms, emotes));
+                // V105-06 Our line as Twitch relayed it replaces the echo built from USERSTATE.
+                let echoed = (m.has(Flag::Own) && !m.has(Flag::History))
+                    .then(|| self.buffer.iter().position(|b| b.id == m.id))
+                    .flatten();
+                match echoed {
+                    Some(i) => events.extend(self.upgrade(i, m)),
+                    None => events.extend(self.add(m, now_ms, emotes)),
+                }
             }
             Incoming::Gift { message, gift } => events.extend(self.gift(message, gift, now_ms, emotes)),
             Incoming::Delete { id } => {
@@ -332,8 +339,11 @@ impl Room {
                 if let Some(id) = us.sent_id.clone() {
                     self.expire(now_ms);
                     if let Some(p) = self.pending.pop_front() {
-                        let m = self.echo(p, &us, id, now_ms, emotes);
-                        events.extend(self.add(m, now_ms, emotes));
+                        // V105-06 The reader may have brought our line already.
+                        if !self.buffer.iter().any(|b| b.id == id) {
+                            let m = self.echo(p, &us, id, now_ms, emotes);
+                            events.extend(self.add(m, now_ms, emotes));
+                        }
                         let slow = self.state.slow;
                         let exempt = self.state.own.as_ref().is_some_and(|o| o.fast_lane());
                         if slow > 0 && !exempt {
@@ -501,8 +511,31 @@ impl Room {
         }
     }
 
-    /// Twitch doesn't echo our messages; USERSTATE with an id confirms one. Built from
-    /// what we sent plus our badges and color in this room.
+    /// V105-06 Our line as Twitch relayed it, in place of the echo built from USERSTATE: same
+    /// spot and time, now with Twitch's tags (first message, reply, emote positions). Like
+    /// history, it's highlighted without sounds, and plugins don't see it twice.
+    fn upgrade(&mut self, i: usize, mut m: ChatMessage) -> Option<RoomEvent> {
+        if !self.screen_old(&mut m) {
+            return None;
+        }
+        let old = &self.buffer[i];
+        m.ts = old.ts;
+        for f in [Flag::Similar, Flag::Deleted] {
+            if old.has(f) {
+                m.set(f);
+            }
+        }
+        m.meta.repeat = old.meta.repeat;
+        m.meta.translation = old.meta.translation.clone();
+        m.meta.plugin = old.meta.plugin.clone();
+        let m = Arc::new(m);
+        self.buffer[i] = m.clone();
+        Some(RoomEvent::Update { message: m })
+    }
+
+    /// Twitch doesn't echo our messages to the connection that sent them; USERSTATE with an
+    /// id confirms one. Shown at once, built from what we sent plus our badges and color in
+    /// this room; the reader's copy replaces it (V105-06).
     fn echo(&mut self, p: PendingSend, us: &UserState, id: String, now_ms: i64, emotes: &dyn Emotes) -> ChatMessage {
         let tokens = tokenize(
             &Input {
@@ -646,6 +679,95 @@ mod tests {
         assert_eq!((message.id.as_str(), plain(&message.body).as_str()), ("sent1", "hi there"));
         assert!(message.has(Flag::Own));
         assert_eq!(message.sender.as_ref().unwrap().badges[0].set, "moderator");
+    }
+
+    /// V105-06 A room whose rules highlight first messages.
+    fn first_room() -> Room {
+        use crate::rules::Rules;
+        use cyex_settings::schema::{Highlights, Mentions};
+        let mut r = room();
+        r.set_rules(Arc::new(Rules::new(&Highlights::default(), &Mentions::default())));
+        r
+    }
+
+    fn sent(r: &mut Room) {
+        r.sending(PendingSend {
+            text: "hi".into(),
+            action: false,
+            reply: None,
+            at_ms: 900,
+        });
+    }
+
+    /// Only the events that add or change a line.
+    fn lines(ev: Vec<RoomEvent>) -> Vec<RoomEvent> {
+        ev.into_iter()
+            .filter(|e| matches!(e, RoomEvent::Message { .. } | RoomEvent::Update { .. }))
+            .collect()
+    }
+
+    const US: &str = "@badges=;color=#FF0000;display-name=Me;id=s1;mod=0 :tmi.twitch.tv USERSTATE #chan";
+    const RELAYED: &str = "@badge-info=;badges=;color=#FF0000;display-name=Me;first-msg=1;id=s1;room-id=1;tmi-sent-ts=1;user-id=42;mod=0 :me!me@me.tmi.twitch.tv PRIVMSG #chan :hi";
+
+    #[test]
+    fn relayed_own_line_replaces_the_echo() {
+        use crate::model::HighlightKind;
+        let mut r = first_room();
+        sent(&mut r);
+        let ev = lines(feed(&mut r, US));
+        assert!(matches!(ev.as_slice(), [RoomEvent::Message { .. }]), "{ev:?}");
+        let ev = lines(feed(&mut r, RELAYED));
+        let [RoomEvent::Update { message }] = ev.as_slice() else { panic!("{ev:?}") };
+        assert!(message.has(Flag::FirstMessage) && message.has(Flag::Own));
+        assert_eq!(message.meta.highlight.as_ref().map(|h| h.kind), Some(HighlightKind::FirstMessage));
+        let s = r.snapshot();
+        assert_eq!(s.messages.iter().filter(|m| m.id == "s1").count(), 1);
+    }
+
+    #[test]
+    fn reader_first_then_userstate_adds_one_line() {
+        let mut r = room();
+        feed(&mut r, "@slow=10;room-id=1 :tmi.twitch.tv ROOMSTATE #chan");
+        sent(&mut r);
+        let ev = lines(feed(&mut r, RELAYED));
+        assert!(matches!(ev.as_slice(), [RoomEvent::Message { .. }]), "{ev:?}");
+        let ev = feed(&mut r, US);
+        assert!(ev.iter().all(|e| !matches!(e, RoomEvent::Message { .. })), "{ev:?}");
+        assert!(r.state.wait_until.is_some(), "slow mode wait still set");
+        assert_eq!(r.snapshot().messages.iter().filter(|m| m.id == "s1").count(), 1);
+    }
+
+    #[test]
+    fn own_line_from_another_app_is_added() {
+        let mut r = room();
+        let ev = lines(feed(&mut r, RELAYED));
+        assert!(matches!(ev.as_slice(), [RoomEvent::Message { .. }]), "{ev:?}");
+    }
+
+    #[test]
+    fn upgrade_keeps_deleted() {
+        let mut r = first_room();
+        sent(&mut r);
+        feed(&mut r, US);
+        feed(&mut r, "@target-msg-id=s1 :tmi.twitch.tv CLEARMSG #chan :hi");
+        let ev = lines(feed(&mut r, RELAYED));
+        let [RoomEvent::Update { message }] = ev.as_slice() else { panic!("{ev:?}") };
+        assert!(message.has(Flag::Deleted));
+    }
+
+    #[test]
+    fn reply_to_a_reply_keeps_the_clicked_parent() {
+        let mut r = room();
+        feed(&mut r, "@id=r;user-id=7;tmi-sent-ts=5 :u7!u@u PRIVMSG #chan :root");
+        feed(&mut r, "@id=c;user-id=8;tmi-sent-ts=6;reply-parent-msg-id=r;reply-thread-parent-msg-id=r;reply-parent-user-id=7;reply-parent-user-login=u7;reply-parent-display-name=u7;reply-parent-msg-body=root :u8!u@u PRIVMSG #chan :@u7 a");
+        feed(&mut r, "@id=d;user-id=9;tmi-sent-ts=7;reply-parent-msg-id=c;reply-thread-parent-msg-id=r;reply-parent-user-id=8;reply-parent-user-login=u8;reply-parent-display-name=u8;reply-parent-msg-body=a :u9!u@u PRIVMSG #chan :@u8 b");
+        let ids = |id: &str| {
+            let x = r.reply_to(id).unwrap();
+            (x.parent_id, x.thread_id)
+        };
+        assert_eq!(ids("d"), ("d".to_string(), "r".to_string()));
+        assert_eq!(ids("c"), ("c".to_string(), "r".to_string()));
+        assert_eq!(ids("r").1, "r");
     }
 
     #[test]

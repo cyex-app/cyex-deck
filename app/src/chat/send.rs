@@ -1,5 +1,8 @@
 //! Sending (1.8, 1.9): checks before a message leaves, so problems show right away
-//! instead of as a Twitch notice. C21 dodges Twitch's 30 s duplicate check.
+//! instead of as a Twitch notice. Sends go out on the account's writer connection (V105-06).
+//! C21 dodges Twitch's 30 s duplicate check.
+
+use std::sync::atomic::Ordering;
 
 use cyex_chat::PendingSend;
 use cyex_chat::irc::{Window, write};
@@ -53,12 +56,19 @@ pub fn send_to(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<Stri
     let reply = reply_to.as_deref().and_then(|id| entry.room.reply_to(id));
 
     let session = inner.sessions.get_mut(&key.0).ok_or("Not connected yet.")?;
+    // V105-06 Sends go out on the account's writer.
+    let Some(writer) = session.writer.as_ref() else {
+        return Err("Sign in to chat.".into());
+    };
+    if !writer.up.load(Ordering::Relaxed) {
+        return Err("Not connected yet.".into());
+    }
+    let client = writer.client.clone();
     let limit = if fast { Window::SEND_LIMIT_FAST } else { Window::SEND_LIMIT };
     if !session.sends.try_take(limit, Instant::now()) {
         let wait = session.sends.wait(limit, Instant::now()).unwrap_or_default();
         return Err(format!("Slow down: wait {}s.", wait.as_secs() + 1));
     }
-    let client = session.client.clone();
 
     let entry = inner.rooms.get_mut(&key).ok_or("This chat is closed.")?;
     let mut out = body.to_owned();
