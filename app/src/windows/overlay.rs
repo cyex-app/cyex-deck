@@ -124,8 +124,15 @@ fn watch(app: &AppHandle) {
     tauri::async_runtime::spawn(async move {
         loop {
             tokio::time::sleep(WATCH_EVERY).await;
-            if !app.state::<ClickThrough>().watching.load(Ordering::SeqCst) {
-                break;
+            if lock(&app).is_empty() {
+                bars(&app).clear();
+                let watching = &app.state::<ClickThrough>().watching;
+                watching.store(false, Ordering::SeqCst);
+                // One was turned on just now: keep going, unless its own watch already started.
+                if lock(&app).is_empty() || watching.swap(true, Ordering::SeqCst) {
+                    break;
+                }
+                continue;
             }
             let a = app.clone();
             if app.run_on_main_thread(move || tick(&a)).is_err() {
@@ -139,10 +146,6 @@ fn watch(app: &AppHandle) {
 fn tick(app: &AppHandle) {
     let labels = lock(app).clone();
     if labels.is_empty() {
-        bars(app).clear();
-        app.state::<ClickThrough>()
-            .watching
-            .store(false, Ordering::SeqCst);
         return;
     }
     let Ok(cursor) = app.cursor_position() else {
