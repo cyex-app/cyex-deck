@@ -79,4 +79,15 @@ mod tests {
         );
         assert_eq!(join(&["a".into(), "b".into()]), "JOIN #a,#b");
     }
+
+    /// V105-09 A reply names the clicked message, even one deep in a thread.
+    #[test]
+    fn reply_parent_is_the_given_id() {
+        let o = Outgoing {
+            text: "yo".into(),
+            reply_to: Some("d".into()),
+            ..Default::default()
+        };
+        assert_eq!(privmsg("c", &o), "@reply-parent-msg-id=d PRIVMSG #c :yo");
+    }
 }
