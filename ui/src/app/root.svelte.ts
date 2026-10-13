@@ -1,7 +1,7 @@
 // Effects every window runs: theme, accent and chat font (with added font files, V101-10)
 // follow the settings; emote size (E3), still pictures while unfocused (E2), streamer mode
 // (U4), who wears what (1.37-1.39), plugins (S5), media keys (V101-29), our own menu in place
-// of the browser's (V101-30) and smooth scrolling (V103-11).
+// of the browser's (V101-30), smooth scrolling (V103-11) and outside drops (V105-14).
 
 import { applyAppearance } from '../design/theme';
 import { applyUserFonts } from '../design/userFonts';
@@ -9,6 +9,7 @@ import { looks } from '../features/emotes/looks.svelte';
 import { useMediaSession } from '../features/player/media.svelte';
 import { plugins } from '../features/plugins/plugins.svelte';
 import { focus } from '../lib/focus.svelte';
+import { guardDrops } from '../lib/drops';
 import { guardNativeMenu } from '../lib/nativeMenu';
 import { settings } from '../lib/settings.svelte';
 import { startSmoothScroll } from '../lib/smoothScroll';
@@ -37,6 +38,7 @@ export function useRootEffects(): void {
   });
 
   $effect(() => guardNativeMenu());
+  $effect(() => guardDrops());
   $effect(() => (settings.v.general.smoothScroll ? startSmoothScroll() : undefined));
   $effect(() => focus.start());
   $effect(() => streamer.start());

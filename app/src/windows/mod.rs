@@ -45,7 +45,10 @@ pub fn builder<'a>(
         .additional_browser_args(BROWSER_ARGS)
         // V101-30 Paste in the app's own right-click menu. Only the app's pages run here;
         // plugins are Lua and Twitch's pages have their own window.
-        .enable_clipboard_access();
+        .enable_clipboard_access()
+        // V105-14 HTML5 drag and drop (the miner list) needs WebView2's own handler; nothing here
+        // uses Tauri's file drops. ui/src/lib/drops.ts keeps outside drops from opening.
+        .disable_drag_drop_handler();
     // T01 A test run keeps its WebView2 folder in the test folder too.
     match crate::paths::webview(app) {
         Some(dir) => builder.data_directory(dir),

@@ -14,6 +14,7 @@
   import ChannelPicker from '../tabs/ChannelPicker.svelte';
   import { miner } from './miner.svelte';
   import MinerRow from './MinerRow.svelte';
+  import { moveTo } from './order';
 
   const SOURCES: { value: MineSource; label: string }[] = [
     { value: 'list', label: 'Your list' },
@@ -35,7 +36,7 @@
   let text = $state('');
   let picked = $state<ChannelInfo | null>(null);
   let dragging = $state<number | null>(null);
-  let over = $state<number | null>(null);
+  let over = $state<{ index: number; after: boolean } | null>(null);
 
   const strip = (c: { id: string; login: string; name: string }): TabChannel => ({
     id: c.id,
@@ -67,13 +68,12 @@
     void settings.patch('miner', { skip: on ? [...s.skip, strip(c)] : s.skip.filter((x) => x.id !== c.id) });
   }
 
-  function drop(to: number) {
+  function drop() {
     const from = dragging;
+    const at = over;
     dragging = over = null;
-    if (from === null || from === to) return;
-    const next = [...list];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
+    if (from === null || !at) return;
+    const next = moveTo(list, from, at.index, at.after);
     void settings.patch('miner', { channels: [...s.channels.filter((c) => firstIds.has(c.id)), ...next] });
   }
 </script>
@@ -105,21 +105,26 @@
     {#each list as c, i (c.id)}
       <div
         class="drag"
-        class:over={over === i && dragging !== i}
+        class:before={over?.index === i && !over.after && dragging !== i}
+        class:after={over?.index === i && over.after && dragging !== i}
+        class:lifted={dragging === i}
         role="listitem"
         draggable="true"
         ondragstart={(e) => {
           dragging = i;
+          if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
           e.dataTransfer?.setData('text/plain', c.id);
         }}
         ondragover={(e) => {
+          if (dragging === null) return;
           e.preventDefault();
-          over = i;
+          const r = e.currentTarget.getBoundingClientRect();
+          over = { index: i, after: e.clientY > r.top + r.height / 2 };
         }}
         ondragend={() => (dragging = over = null)}
         ondrop={(e) => {
           e.preventDefault();
-          drop(i);
+          drop();
         }}
       >
         <MinerRow
@@ -216,10 +221,16 @@
     min-width: 0;
   }
   .drag {
-    border-top: 2px solid transparent;
+    border-block: 2px solid transparent;
   }
-  .drag.over {
+  .drag.before {
     border-top-color: var(--accent);
+  }
+  .drag.after {
+    border-bottom-color: var(--accent);
+  }
+  .drag.lifted {
+    opacity: 0.5;
   }
   .grip {
     display: inline-flex;
