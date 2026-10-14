@@ -73,7 +73,7 @@
       opacity 0.15s;
   }
   .volume:hover > input[type='range'],
-  .volume > input[type='range']:focus-visible {
+  .volume:has(:focus-visible) > input[type='range'] {
     width: 72px;
     margin: 0 8px 0 2px;
     opacity: 1;
@@ -96,8 +96,9 @@
     font-weight: 600;
     cursor: pointer;
   }
+  /* Keyboard: Tab from the slider reaches the box, so it shows while either has focus. */
   .volume:hover .boost,
-  .boost:focus-within {
+  .volume:has(:focus-visible) .boost {
     display: inline-flex;
   }
   .boost input {
@@ -129,7 +130,7 @@
     font-variant-numeric: tabular-nums;
   }
   .volume:hover > input.boosted,
-  .volume > input.boosted:focus-visible {
+  .volume:has(:focus-visible) > input.boosted {
     width: 120px;
   }
   .volume > input.boosted {

@@ -39,7 +39,9 @@ export function useSound(tile: () => Tile | undefined, hushed: () => boolean = (
       const next = local;
       // V103-07 A player that isn't a tab's (the mod view's own) keeps its sound to itself.
       if (!t || !next || !tabs.tabOf(t.id)) return;
-      void tabs.apply({ op: 'sound', tile: t.id, volume: next.volume, muted: next.muted, boost: next.boost }).then(() => {
+      // V105-10 A clip over a boosted stream (1.20) keeps the stream's boost.
+      const boost = canBoost ? next.boost : t.boost;
+      void tabs.apply({ op: 'sound', tile: t.id, volume: next.volume, muted: next.muted, boost }).then(() => {
         if (local === next) local = null;
       });
     }, 400);
