@@ -6,9 +6,15 @@ import { streamer } from './streamer.svelte';
 
 let ctx: AudioContext | undefined;
 
+/** The window's one AudioContext: mention sounds and the volume boost (V105-10). */
+export function audio(): AudioContext {
+  ctx ??= new AudioContext();
+  return ctx;
+}
+
 export function mentionChime(): void {
   if (streamer.hides('muteSounds')) return;
-  ctx ??= new AudioContext();
+  const ctx = audio();
   const t = ctx.currentTime;
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
@@ -31,18 +37,17 @@ const MAX_FILES = 8;
 export async function mentionSound(path?: string): Promise<void> {
   if (!path) return mentionChime();
   if (streamer.hides('muteSounds')) return;
-  ctx ??= new AudioContext();
-  const audio = ctx;
+  const audioCtx = audio();
   try {
     let buffer = files.get(path);
     if (!buffer) {
-      buffer = mentionsIpc.sound(path).then((bytes) => audio.decodeAudioData(bytes));
+      buffer = mentionsIpc.sound(path).then((bytes) => audioCtx.decodeAudioData(bytes));
       if (files.size >= MAX_FILES) files.delete(files.keys().next().value as string);
       files.set(path, buffer);
     }
-    const src = audio.createBufferSource();
+    const src = audioCtx.createBufferSource();
     src.buffer = await buffer;
-    src.connect(audio.destination);
+    src.connect(audioCtx.destination);
     src.start();
   } catch {
     files.delete(path);

@@ -33,6 +33,8 @@ const MAX_TILE_FILTERS: usize = 10;
 pub const DEFAULT_RATIO: f32 = 0.28;
 /// A player's starting volume, 0 to 1.
 pub const DEFAULT_VOLUME: f32 = 0.5;
+/// V105-10 Highest volume with the boost on (500 %).
+pub const MAX_BOOST: f32 = 5.0;
 const RATIO_RANGE: (f32, f32) = (0.1, 0.9);
 /// U3 Relative sizes of columns and tiles.
 const SIZE_RANGE: (f32, f32) = (0.05, 20.0);
@@ -119,9 +121,11 @@ pub struct Tile {
     pub ratio: f32,
     /// Height share within its column.
     pub size: f32,
-    /// The player's volume, 0 to 1, kept per tile so a muted stream stays muted.
+    /// The player's volume, 0 to 1, up to MAX_BOOST with the boost on; kept per tile so a muted stream stays muted.
     pub volume: f32,
     pub muted: bool,
+    /// V105-10 The volume can go past 100 %.
+    pub boost: bool,
     /// F4 A feed tab's name instead of a channel: shows what rules send there.
     pub feed: Option<String>,
     /// F3 Filter ids the chat shows messages through.
@@ -149,6 +153,7 @@ impl Default for Tile {
             size: 1.0,
             volume: DEFAULT_VOLUME,
             muted: false,
+            boost: false,
             feed: None,
             filters: Vec::new(),
             chat_side: None,
@@ -330,7 +335,7 @@ fn sanitize_tile(tile: &mut Tile) {
     tile.modview_share = tile.modview_share.filter(|s| s.is_finite()).map(|s| s.clamp(RATIO_RANGE.0, RATIO_RANGE.1));
     tile.layout = sanitize_panels(tile.layout.take());
     tile.size = clamp(tile.size, SIZE_RANGE, 1.0);
-    tile.volume = clamp(tile.volume, (0.0, 1.0), DEFAULT_VOLUME);
+    tile.volume = clamp(tile.volume, (0.0, if tile.boost { MAX_BOOST } else { 1.0 }), DEFAULT_VOLUME);
     tile.channel.login = tile.channel.login.trim().to_ascii_lowercase();
     if tile.channel.name.trim().is_empty() {
         tile.channel.name = tile.channel.login.clone();

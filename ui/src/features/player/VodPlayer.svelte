@@ -53,7 +53,7 @@
   let saved = 0;
 
   // svelte-ignore state_referenced_locally
-  const sound = useSound(() => tile, () => hushed);
+  const sound = useSound(() => tile, () => hushed, true);
 
   $effect(() => {
     if (!video) return;
@@ -198,7 +198,7 @@
         <button class="ctl" aria-label={engine?.playing ? 'Pause' : 'Play'} use:tooltip={key('player.playPause', engine?.playing ? 'Pause' : 'Play')} onclick={controls.togglePlay}>
           <Icon name={engine?.playing ? 'pause' : 'play'} size={18} />
         </button>
-        <Volume volume={sound.volume} muted={sound.muted} onchange={sound.set} />
+        <Volume volume={sound.volume} muted={sound.muted} boost={sound.boost} onchange={sound.set} onboost={sound.setBoost} />
         <span class="clock">{clock(time)} / {clock(duration)}</span>
         <span class="grow"></span>
         {#if engine}

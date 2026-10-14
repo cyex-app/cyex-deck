@@ -33,6 +33,7 @@
     size: 1,
     volume: 0.5,
     muted: elsewhere === true,
+    boost: false,
     feed: null,
     filters: [],
     chatSide: null,

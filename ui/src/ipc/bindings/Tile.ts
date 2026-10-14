@@ -25,9 +25,13 @@ ratio: number,
  */
 size: number, 
 /**
- * The player's volume, 0 to 1, kept per tile so a muted stream stays muted.
+ * The player's volume, 0 to 1, up to MAX_BOOST with the boost on; kept per tile so a muted stream stays muted.
  */
 volume: number, muted: boolean, 
+/**
+ * V105-10 The volume can go past 100 %.
+ */
+boost: boolean, 
 /**
  * F4 A feed tab's name instead of a channel: shows what rules send there.
  */

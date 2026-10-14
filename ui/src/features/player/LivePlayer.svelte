@@ -57,7 +57,7 @@
   let retry: ReturnType<typeof setTimeout> | undefined;
 
   // svelte-ignore state_referenced_locally
-  const sound = useSound(() => tile, () => hushed);
+  const sound = useSound(() => tile, () => hushed, true);
 
   const stopAds = playerIpc.onAds((id, state) => {
     if (id === session?.id) ad = state;
@@ -278,7 +278,7 @@
         <button class="ctl" aria-label={engine?.playing ? 'Pause' : 'Play'} use:tooltip={key('player.playPause', engine?.playing ? 'Pause' : 'Play')} onclick={controls.togglePlay}>
           <Icon name={engine?.playing ? 'pause' : 'play'} size={18} />
         </button>
-        <Volume volume={sound.volume} muted={sound.muted} onchange={sound.set} />
+        <Volume volume={sound.volume} muted={sound.muted} boost={sound.boost} onchange={sound.set} onboost={sound.setBoost} />
         <span class="live-badge">LIVE</span>
         <span class="grow"></span>
         {#if onclip}

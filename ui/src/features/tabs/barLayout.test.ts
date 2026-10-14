@@ -15,6 +15,7 @@ function tile(channel: string, feed: string | null = null): Tile {
     size: 1,
     volume: 1,
     muted: false,
+    boost: false,
     feed,
     filters: [],
     chatSide: null,

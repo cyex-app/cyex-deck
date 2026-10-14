@@ -80,8 +80,8 @@ pub enum TabOp {
     /// V102-23 Every chat in the tab back where Settings puts it, V102-26 every mod view
     /// divider back to its default, V103-05 every hand-made arrangement gone.
     ResetLayout { tab: String },
-    /// The tile's player volume.
-    Sound { tile: String, volume: f32, muted: bool },
+    /// The tile's player volume; V105-10 with the boost.
+    Sound { tile: String, volume: f32, muted: bool, boost: bool },
     /// U5 `None` takes the tabs out of their group.
     Group { tabs: Vec<String>, group: Option<String> },
     NewGroup {
@@ -181,6 +181,7 @@ impl Tabs {
                     size: 1.0,
                     volume: self.last_volume,
                     muted: false,
+                    boost: false,
                     feed: None,
                     filters: Vec::new(),
                     chat_side: None,
@@ -216,6 +217,7 @@ impl Tabs {
                         size: 1.0,
                         volume: self.last_volume,
                         muted: i > 0,
+                        boost: false,
                         feed: None,
                         filters: Vec::new(),
                         chat_side: None,
@@ -401,11 +403,12 @@ impl Tabs {
                 }
                 Ok(None)
             }
-            TabOp::Sound { tile, volume, muted } => {
+            TabOp::Sound { tile, volume, muted, boost } => {
                 let at = self.locate(&tile)?;
                 let t = self.tile_mut(at);
-                (t.volume, t.muted) = (volume, muted);
-                self.last_volume = volume;
+                (t.volume, t.muted, t.boost) = (volume, muted, boost);
+                // V105-10 New tiles start at 100 % at most, never boosted.
+                self.last_volume = volume.min(1.0);
                 Ok(None)
             }
             TabOp::Group { tabs, group } => {
@@ -941,11 +944,20 @@ mod tests {
         );
         assert_eq!((t.tabs[0].columns[0].tiles[0].ratio, t.last_ratio), (0.4, 0.4));
 
-        apply(&mut t, TabOp::Sound { tile: "a-1".into(), volume: 0.8, muted: true });
+        apply(&mut t, TabOp::Sound { tile: "a-1".into(), volume: 0.8, muted: true, boost: false });
         let tile = &t.tabs[0].columns[0].tiles[0];
         assert_eq!((tile.volume, tile.muted, t.last_volume), (0.8, true, 0.8));
-        apply(&mut t, TabOp::Sound { tile: "a-1".into(), volume: 7.0, muted: false });
+        apply(&mut t, TabOp::Sound { tile: "a-1".into(), volume: 7.0, muted: false, boost: false });
         assert_eq!(t.tabs[0].columns[0].tiles[0].volume, 1.0, "clamped");
+
+        // V105-10 The boost lifts the cap to 500 % and keeps new tiles at 100 % at most.
+        apply(&mut t, TabOp::Sound { tile: "a-1".into(), volume: 3.0, muted: false, boost: true });
+        let tile = &t.tabs[0].columns[0].tiles[0];
+        assert_eq!((tile.volume, tile.boost, t.last_volume), (3.0, true, 1.0));
+        apply(&mut t, TabOp::Sound { tile: "a-1".into(), volume: 9.0, muted: false, boost: true });
+        assert_eq!(t.tabs[0].columns[0].tiles[0].volume, 5.0);
+        apply(&mut t, TabOp::Sound { tile: "a-1".into(), volume: 3.0, muted: false, boost: false });
+        assert_eq!(t.tabs[0].columns[0].tiles[0].volume, 1.0);
     }
 
     #[test]
