@@ -1,7 +1,8 @@
 // Dragging tabs, tiles and panels (U3, U5, V102-23) with pointer events: reorder tabs,
 // tile one tab's channel into another, move tiles around or out into their own tab, and
 // with a layout unlocked put any panel on a side of another (V103-05, V103-06): in a tab,
-// the mod view or the stream manager, from its place or from the closed-panels corner, and reorder a list's rows (V105-14, V105-15).
+// the mod view or the stream manager, from its place or from the closed-panels corner, and
+// reorder a list's rows (V105-14, V105-15).
 
 import type { Zone } from '../../ipc/bindings/Zone';
 import type { Edge } from '../../lib/panels';

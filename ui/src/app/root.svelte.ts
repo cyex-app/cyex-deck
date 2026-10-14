@@ -1,6 +1,6 @@
 // Effects every window runs: theme, accent, chat font (with added font files, V101-10)
-// and the pinned message's size (V105-03) follow the settings; emote size (E3), still pictures while unfocused (E2), streamer mode
-// (U4), who wears what (1.37-1.39), plugins (S5), media keys (V101-29), our own menu in place
+// and the pinned message's size (V105-03) follow the settings; emote size (E3), still
+// pictures while unfocused (E2), streamer mode (U4), who wears what (1.37-1.39), plugins (S5), media keys (V101-29), our own menu in place
 // of the browser's (V101-30), smooth scrolling (V103-11) and picture scale (V105-08).
 
 import { applyAppearance } from '../design/theme';

@@ -1,5 +1,6 @@
 // V101-33/34 What a mod gets on chat lines: the pin button, and in mod mode the buttons
-// picked in Settings → Chat (M10), in the order dragged there (V105-15), in front (1.57: only where the account moderates).
+// picked in Settings → Chat (M10), in the order dragged there (V105-15), in front (1.57:
+// only where the account moderates).
 
 import type { ModButton } from '../../ipc/bindings/ModButton';
 import type { ModButtons } from '../../ipc/bindings/ModButtons';
