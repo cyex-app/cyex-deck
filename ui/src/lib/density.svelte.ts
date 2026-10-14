@@ -1,9 +1,9 @@
 // V105-08 The screen's density as a picture scale. One value per window, so every copy of an
 // emote asks for the same file; when the window moves to another screen, all switch at once.
-import { pictureScale } from '../features/chat/urls';
+import { pictureScale, type Scale } from './scale';
 
 class Density {
-  scale = $state<1 | 2 | 4>(pictureScale(devicePixelRatio));
+  scale = $state<Scale>(pictureScale(devicePixelRatio));
 
   start(): () => void {
     let query: MediaQueryList | null = null;

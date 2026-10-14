@@ -6,33 +6,33 @@ import type { Cheermote } from '../../ipc/bindings/Cheermote';
 import type { CheerTier } from '../../ipc/bindings/CheerTier';
 import type { Provider } from '../../ipc/bindings/Provider';
 import type { Theme } from '../../ipc/bindings/Theme';
+import { type Scale } from '../../lib/scale.ts';
 import { saved } from './saved.ts';
 
 export interface Img {
   src: string;
 }
 
-export interface Frames {
+/** How a picture moves. */
+export interface Motion {
   /** The provider has a moving version (7TV, FFZ need to know). */
   animated?: boolean;
   /** E2 Show the still frame. */
   still?: boolean;
-  /** Picture scale, from `density`; 1 when left out. */
-  scale?: 1 | 2 | 4;
 }
 
-/** V105-08 Picture scale for a screen density: what a 1x/2x/4x srcset would pick. */
-export function pictureScale(dpr: number): 1 | 2 | 4 {
-  return dpr <= 1 ? 1 : dpr <= 2 ? 2 : 4;
+export interface Frames extends Motion {
+  /** Picture scale, from `density`. */
+  scale: Scale;
 }
 
 /** V105-08 One badge picture for the scale. */
-export function badgeSrc(b: { image1x: string; image2x: string; image4x: string }, scale: 1 | 2 | 4): string {
+export function badgeSrc(b: { image1x: string; image2x: string; image4x: string }, scale: Scale): string {
   return scale === 1 ? b.image1x : scale === 2 ? b.image2x : b.image4x;
 }
 
 /** Picture URL at a scale: 1, 2 or 4 (3 for providers that stop there). */
-function emoteUrl(provider: Provider, id: string, theme: Theme, scale: 1 | 2 | 4, f: Frames): string {
+function emoteUrl(provider: Provider, id: string, theme: Theme, scale: Scale, f: Motion): string {
   const e = encodeURIComponent(id);
   switch (provider) {
     case 'twitch':
@@ -47,14 +47,14 @@ function emoteUrl(provider: Provider, id: string, theme: Theme, scale: 1 | 2 | 4
   }
 }
 
-export function emoteImg(provider: Provider, id: string, theme: Theme, f: Frames = {}): Img {
+export function emoteImg(provider: Provider, id: string, theme: Theme, f: Frames): Img {
   const copy = saved(`emote:${provider}:${id}`);
   if (copy) return { src: copy };
-  return { src: emoteUrl(provider, id, theme, f.scale ?? 1, f) };
+  return { src: emoteUrl(provider, id, theme, f.scale, f) };
 }
 
 /** The biggest picture, for hover previews (E6) and emote cards (1.41). */
-export function emoteLarge(provider: Provider, id: string, theme: Theme, f: Frames = {}): string {
+export function emoteLarge(provider: Provider, id: string, theme: Theme, f: Motion = {}): string {
   return saved(`emote:${provider}:${id}`) ?? emoteUrl(provider, id, theme, 4, f);
 }
 
@@ -65,7 +65,7 @@ export function cheerTier(c: Cheermote, bits: number): CheerTier | undefined {
   return best ?? c.tiers[0];
 }
 
-export function cheerImg(c: Cheermote, tier: CheerTier, theme: Theme, scale: 1 | 2 | 4 = 1): Img {
+export function cheerImg(c: Cheermote, tier: CheerTier, theme: Theme, scale: Scale): Img {
   const url = (scale: string) =>
     c.template
       .replace('PREFIX', c.prefix.toLowerCase())
