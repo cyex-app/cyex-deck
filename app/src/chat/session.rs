@@ -149,9 +149,14 @@ fn link_status(app: &AppHandle, identity: &Identity, link: LinkStatus) {
     let chat = app.state::<Chat>();
     let mut inner = chat.lock();
     let now = now_ms();
+    let mut moved = false;
     for ((id, _), entry) in inner.rooms.iter_mut() {
         if id != identity {
             continue;
+        }
+        // V105-05 A JOIN in flight died with the link: the 20 s wait isn't Twitch's answer.
+        if matches!(link, LinkStatus::Reconnecting | LinkStatus::AuthFailed) {
+            entry.join_sent = None;
         }
         let status = match link {
             // A fresh connect alone doesn't clear the warning; Twitch's JOIN echo does (V105-05).
@@ -166,8 +171,14 @@ fn link_status(app: &AppHandle, identity: &Identity, link: LinkStatus) {
         if status == ConnStatus::Reconnecting {
             entry.room.lost(now);
         }
+        moved |= entry.room.status == ConnStatus::Refused;
         let events = entry.room.set_status(status, now);
         queue(entry, events, &chat.wake);
+    }
+    drop(inner);
+    // V105-05 A refused chat that lost its link isn't refused anymore: the counter follows.
+    if moved {
+        crate::connections::notify(app);
     }
 }
 

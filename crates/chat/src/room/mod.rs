@@ -256,11 +256,17 @@ impl Room {
     /// V105-05 Our JOIN went unanswered: the chat counts as refused, unless it got in or
     /// went away for another reason meanwhile.
     pub fn join_unanswered(&mut self, now_ms: i64) -> Vec<RoomEvent> {
-        if matches!(self.status, ConnStatus::Connecting | ConnStatus::Reconnecting) {
+        if self.waiting() {
             self.set_status(ConnStatus::Refused, now_ms)
         } else {
             Vec::new()
         }
+    }
+
+    /// V105-05 Our JOIN is out and Twitch hasn't confirmed it. A suspended, refused or
+    /// rejected chat isn't waiting anymore.
+    fn waiting(&self) -> bool {
+        matches!(self.status, ConnStatus::Connecting | ConnStatus::Reconnecting)
     }
 
     /// A line of ours, e.g. a send error found before reaching Twitch.
@@ -370,7 +376,7 @@ impl Room {
                 };
                 if msg_id == "msg_channel_suspended" {
                     events.extend(self.set_status(ConnStatus::Unavailable, now_ms));
-                } else if !answered && self.me.is_some() && self.status != ConnStatus::Joined {
+                } else if !answered && self.me.is_some() && self.waiting() {
                     // V105-05 Twitch spoke instead of letting us in (Chatterino shows such notices
                     // where they're aimed; here the chat also counts as not joined).
                     events.extend(self.set_status(ConnStatus::Refused, now_ms));
@@ -686,6 +692,9 @@ mod tests {
     fn suspended_is_unavailable_not_refused() {
         let mut r = room();
         feed(&mut r, &notice("msg_channel_suspended"));
+        assert_eq!(r.status, ConnStatus::Unavailable);
+        // Review: a second notice keeps it suspended, not refused.
+        feed(&mut r, &notice("some_new_reason"));
         assert_eq!(r.status, ConnStatus::Unavailable);
     }
 
