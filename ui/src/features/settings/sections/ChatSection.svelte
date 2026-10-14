@@ -1,16 +1,21 @@
 <script lang="ts">
+  import DragList from '../../../components/DragList.svelte';
+  import Icon from '../../../components/Icon.svelte';
+  import type { IconName } from '../../../components/icons';
   import Row from '../../../components/Row.svelte';
   import Segmented from '../../../components/Segmented.svelte';
   import Toggle from '../../../components/Toggle.svelte';
   import type { DeletedStyle } from '../../../ipc/bindings/DeletedStyle';
   import type { GifMode } from '../../../ipc/bindings/GifMode';
   import type { LinkThumbs } from '../../../ipc/bindings/LinkThumbs';
+  import type { ModButton } from '../../../ipc/bindings/ModButton';
   import type { ModButtons } from '../../../ipc/bindings/ModButtons';
   import type { NameStyle } from '../../../ipc/bindings/NameStyle';
   import type { PauseKey } from '../../../ipc/bindings/PauseKey';
   import { formatDuration, formatNumber, formatTime, parseDuration } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
+  import { buttonKey, fullOrder } from '../../modview/lineMod';
   import ResetSection from '../ResetSection.svelte';
 
   const c = $derived(settings.v.chat);
@@ -116,6 +121,14 @@
     const on = mb.timeouts.includes(secs);
     flipMod({ timeouts: on ? mb.timeouts.filter((s) => s !== secs) : [...mb.timeouts, secs] });
   }
+
+  /** V105-15 The order list: every button with its place, as it looks in chat. */
+  const modOrder = $derived(fullOrder(mb));
+  const modName = (b: ModButton) =>
+    typeof b !== 'string' ? `Time out ${formatDuration(b.timeout)}` : b === 'delete' ? 'Delete' : b === 'warn' ? 'Warn' : 'Ban';
+  const modIcon = (b: ModButton): IconName =>
+    typeof b !== 'string' ? 'clock' : b === 'delete' ? 'trash' : b === 'warn' ? 'alert' : 'gavel';
+  const modOn = (b: ModButton) => typeof b !== 'string' || mb[b];
 </script>
 
 <h2>Chat</h2>
@@ -321,6 +334,20 @@
   <button class="pick" aria-pressed={mb.warn} onclick={() => flipMod({ warn: !mb.warn })}>Warn</button>
   <button class="pick" aria-pressed={mb.ban} onclick={() => flipMod({ ban: !mb.ban })}>Ban</button>
 </Row>
+<Row setting="chat.modButtons.order" label="Button order" hint="Drag them into the order they show in chat." stacked>
+  <div class="order">
+    <DragList key="modButtons" items={modOrder} id={buttonKey} label={modName} onmove={(order) => flipMod({ order })}>
+      {#snippet row(b)}
+        <div class="slot" class:off={!modOn(b)}>
+          <span class="grip"><Icon name="grip" size={14} /></span>
+          <Icon name={modIcon(b)} size={14} />
+          <span class="slot-name">{modName(b)}</span>
+          {#if !modOn(b)}<span class="slot-note">Off</span>{/if}
+        </div>
+      {/snippet}
+    </DragList>
+  </div>
+</Row>
 
 <h3 class="label">Overlay</h3>
 <p class="intro">A chat over games: ⋯ on a chat → Overlay. It stays on top and can let clicks through.</p>
@@ -370,6 +397,38 @@
 <ResetSection partition="chat" />
 
 <style>
+  .order {
+    width: 100%;
+    max-width: 320px;
+  }
+  .slot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 30px;
+    padding: 0 10px 0 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-weight: 600;
+  }
+  .slot.off {
+    color: var(--dim);
+  }
+  .grip {
+    display: grid;
+    place-items: center;
+    color: var(--dim);
+  }
+  .slot-name {
+    flex: 1;
+  }
+  .slot-note {
+    color: var(--dim);
+    font-weight: 400;
+    font-size: 0.78rem;
+  }
   h3 {
     margin: 22px 0 2px;
   }

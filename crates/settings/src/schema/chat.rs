@@ -199,6 +199,17 @@ impl Schema for Chat {
         t.sort_unstable();
         t.dedup();
         t.truncate(MAX_MOD_TIMEOUTS);
+        // V105-15 Each button once, timeouts only while picked; the rest last, in the default order.
+        let b = &mut self.mod_buttons;
+        let timeouts = b.timeouts.clone();
+        let valid = |x: &ModButton| !matches!(x, ModButton::Timeout(s) if !timeouts.contains(s));
+        let mut kept: Vec<ModButton> = Vec::new();
+        for x in b.order.iter().chain(default_order(&timeouts).iter()) {
+            if valid(x) && !kept.contains(x) {
+                kept.push(*x);
+            }
+        }
+        b.order = kept;
         self.users.retain(|id, u| {
             u.nickname = u.nickname.trim().chars().take(MAX_NICKNAME_CHARS).collect();
             u.note = u.note.trim().chars().take(MAX_NOTE_CHARS).collect();
@@ -286,7 +297,28 @@ pub enum PauseKey {
     Shift,
 }
 
-/// M10 Mod mode's buttons, in this order: delete, timeouts (shortest first), warn, ban.
+/// V105-15 One of mod mode's buttons, for the order they show in. Each timeout length has
+/// its own place.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum ModButton {
+    Delete,
+    /// Seconds, one of `ModButtons::timeouts`.
+    Timeout(u32),
+    Warn,
+    Ban,
+}
+
+/// V105-15 The order with nothing dragged: delete, timeouts shortest first, warn, ban.
+fn default_order(timeouts: &[u32]) -> Vec<ModButton> {
+    let mut out = vec![ModButton::Delete];
+    out.extend(timeouts.iter().map(|&s| ModButton::Timeout(s)));
+    out.extend([ModButton::Warn, ModButton::Ban]);
+    out
+}
+
+/// M10 Mod mode's buttons; V105-15 in the order the user dragged them into.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(default, rename_all = "camelCase")]
 #[ts(export)]
@@ -297,6 +329,10 @@ pub struct ModButtons {
     /// Puts `/warn <login> ` in the chat box for the reason.
     pub warn: bool,
     pub ban: bool,
+    /// V105-15 Left to right. Each button once; timeouts only while picked. Settings from
+    /// before this field start empty, so `sanitize` fills in the default order.
+    #[serde(default)]
+    pub order: Vec<ModButton>,
 }
 
 impl Default for ModButtons {
@@ -306,6 +342,7 @@ impl Default for ModButtons {
             timeouts: vec![60],
             warn: false,
             ban: true,
+            order: default_order(&[60]),
         }
     }
 }
@@ -475,5 +512,45 @@ mod tests {
         c.sanitize();
         assert_eq!(c.mod_buttons.timeouts, [5, 30, 60, 90]);
         assert_eq!(Chat::default().mod_buttons.timeouts, [60]);
+    }
+
+    #[test]
+    fn mod_button_order_keeps_each_once() {
+        use ModButton::*;
+        let mut c = Chat::default();
+        c.mod_buttons.timeouts = vec![60, 600];
+        c.mod_buttons.order = vec![Ban, Timeout(600), Ban, Timeout(999)];
+        c.sanitize();
+        assert_eq!(c.mod_buttons.order, [Ban, Timeout(600), Delete, Timeout(60), Warn]);
+    }
+
+    #[test]
+    fn mod_button_order_drops_unpicked_timeouts() {
+        use ModButton::*;
+        let mut c = Chat::default();
+        c.mod_buttons.timeouts = vec![60];
+        c.mod_buttons.order = vec![Timeout(600), Delete, Timeout(60), Warn, Ban];
+        c.sanitize();
+        assert_eq!(c.mod_buttons.order, [Delete, Timeout(60), Warn, Ban]);
+    }
+
+    #[test]
+    fn mod_button_order_defaults() {
+        use ModButton::*;
+        let mut c = Chat::default();
+        c.mod_buttons.timeouts = vec![30, 60];
+        c.mod_buttons.order = vec![];
+        c.sanitize();
+        assert_eq!(c.mod_buttons.order, [Delete, Timeout(30), Timeout(60), Warn, Ban]);
+        assert_eq!(Chat::default().mod_buttons.order, [Delete, Timeout(60), Warn, Ban]);
+    }
+
+    #[test]
+    fn old_settings_get_the_default_order() {
+        use ModButton::*;
+        let mut c: Chat =
+            serde_json::from_str(r#"{"modButtons":{"delete":true,"timeouts":[60,600],"warn":false,"ban":true}}"#).unwrap();
+        c.sanitize();
+        assert_eq!(c.mod_buttons.order, [Delete, Timeout(60), Timeout(600), Warn, Ban]);
     }
 }

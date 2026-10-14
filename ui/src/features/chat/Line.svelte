@@ -117,28 +117,26 @@
   {#if sender && name && (!notice || m.body.length)}
     <div class="msg">
       {#if modButtons && mod}
-        {@const b = mod.buttons}
         <span class="mods" data-login={sender.login}>
-          {#if b.delete}
-            <button class="mb" aria-label="Delete" data-mod="delete" data-tip="Delete"><Icon name="trash" size={13} /></button>
-          {/if}
-          {#each b.timeouts as secs (secs)}
-            <button
-              class="mb"
-              class:len={b.timeouts.length > 1}
-              aria-label="Time out {formatDuration(secs)}"
-              data-mod="timeout"
-              data-secs={secs}
-              data-tip="Time out {formatDuration(secs)}"
-              >{#if b.timeouts.length > 1}{formatDuration(secs).replace(' ', '')}{:else}<Icon name="clock" size={13} />{/if}</button
-            >
+          {#each mod.slots as s (s.key)}
+            {#if s.kind === 'timeout'}
+              <button
+                class="mb"
+                class:len={s.short}
+                aria-label="Time out {formatDuration(s.secs)}"
+                data-mod="timeout"
+                data-secs={s.secs}
+                data-tip="Time out {formatDuration(s.secs)}"
+                >{#if s.short}{formatDuration(s.secs).replace(' ', '')}{:else}<Icon name="clock" size={13} />{/if}</button
+              >
+            {:else if s.kind === 'delete'}
+              <button class="mb" aria-label="Delete" data-mod="delete" data-tip="Delete"><Icon name="trash" size={13} /></button>
+            {:else if s.kind === 'warn'}
+              <button class="mb" aria-label="Warn" data-mod="warn" data-tip="Warn"><Icon name="alert" size={13} /></button>
+            {:else}
+              <button class="mb ban" aria-label="Ban" data-mod="ban" data-tip="Ban"><Icon name="gavel" size={13} /></button>
+            {/if}
           {/each}
-          {#if b.warn}
-            <button class="mb" aria-label="Warn" data-mod="warn" data-tip="Warn"><Icon name="alert" size={13} /></button>
-          {/if}
-          {#if b.ban}
-            <button class="mb ban" aria-label="Ban" data-mod="ban" data-tip="Ban"><Icon name="gavel" size={13} /></button>
-          {/if}
         </span>
       {/if}
       {#if time}<span class="ts">{time}</span>{/if}

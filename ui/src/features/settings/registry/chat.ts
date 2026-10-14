@@ -196,6 +196,13 @@ export const CHAT: Entry[] = [
     keys: ['chat.modButtons.delete', 'chat.modButtons.timeouts', 'chat.modButtons.warn', 'chat.modButtons.ban'],
   },
   {
+    id: 'chat.modButtons.order',
+    page: 'chat',
+    label: 'Mod mode button order',
+    description: 'Drag them into the order they show in chat.',
+    keywords: ['moderation', 'order', 'arrange', 'reorder', 'timeout'],
+  },
+  {
     id: 'chat.overlay.background',
     page: 'chat',
     label: 'Overlay background',

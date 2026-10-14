@@ -28,7 +28,7 @@
   import type { CardTarget } from '../emotes/emotes';
   import { hidden } from '../emotes/hidden.svelte';
   import { flipUnlisted, unlistedBlurred } from '../emotes/unlisted';
-  import type { LineMod } from '../modview/lineMod';
+  import { modSlots, type LineMod } from '../modview/lineMod';
   import { messageItems, mods, pinItems, userItems } from '../modview/moderation.svelte';
   import { allows } from '../modview/roles';
   import { standingOf } from '../modview/standing';
@@ -73,7 +73,7 @@
           me: room.account,
           broadcaster: allows(role, 'broadcaster'),
           inline: mods.modMode(room.login),
-          buttons: c.modButtons,
+          slots: modSlots(c.modButtons),
         }
       : null,
   );

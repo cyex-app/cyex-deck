@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { modButtonsFor, type LineMod } from './lineMod.ts';
+import type { ModButtons } from '../../ipc/bindings/ModButtons';
+import { buttonKey, fullOrder, modButtonsFor, modSlots, type LineMod } from './lineMod.ts';
 
-const buttons = { delete: true, timeouts: [60], warn: false, ban: true };
-const mod: LineMod = { me: '1', broadcaster: false, inline: true, buttons };
+const buttons: ModButtons = { delete: true, timeouts: [60], warn: false, ban: true, order: ['delete', { timeout: 60 }, 'warn', 'ban'] };
+const mod: LineMod = { me: '1', broadcaster: false, inline: true, slots: modSlots(buttons) };
 const user = (id: string, login: string, ...sets: string[]) => ({ id, login, badges: sets.map((set) => ({ set })) });
 
 test('mod mode puts buttons on viewers only (V101-33)', () => {
@@ -24,4 +25,37 @@ test('nothing with mod mode off or without a mod role', () => {
   assert.equal(modButtonsFor({ ...mod, inline: false }, user('2', 'viewer'), 'chan'), false);
   assert.equal(modButtonsFor(null, user('2', 'viewer'), 'chan'), false);
   assert.equal(modButtonsFor(mod, null, 'chan'), false);
+});
+
+test('V105-15 buttons follow the order, each timeout on its own', () => {
+  const b: ModButtons = {
+    delete: true,
+    timeouts: [60, 600],
+    warn: false,
+    ban: true,
+    order: [{ timeout: 600 }, 'ban', 'delete', { timeout: 60 }, 'warn'],
+  };
+  const slots = modSlots(b);
+  assert.deepEqual(slots.map((s) => s.key), ['t600', 'ban', 'delete', 't60']);
+  assert.ok(slots.filter((s) => s.kind === 'timeout').every((s) => s.kind === 'timeout' && s.short));
+  const one = modSlots({ ...b, timeouts: [60], order: ['delete', { timeout: 60 }, 'warn', 'ban'] });
+  const t = one.find((s) => s.kind === 'timeout');
+  assert.ok(t && t.kind === 'timeout' && !t.short);
+});
+
+test('V105-15 a just-picked timeout goes last; an unpicked one goes', () => {
+  const b: ModButtons = {
+    delete: true,
+    timeouts: [60, 300],
+    warn: false,
+    ban: true,
+    order: ['ban', { timeout: 60 }, { timeout: 30 }, 'delete', 'warn'],
+  };
+  assert.deepEqual(fullOrder(b).map(buttonKey), ['ban', 't60', 'delete', 'warn', 't300']);
+});
+
+test('no buttons, no mod mode on lines', () => {
+  const none: ModButtons = { delete: false, timeouts: [], warn: false, ban: false, order: [] };
+  assert.deepEqual(modSlots(none), []);
+  assert.equal(modButtonsFor({ ...mod, slots: [] }, user('2', 'viewer'), 'chan'), false);
 });
