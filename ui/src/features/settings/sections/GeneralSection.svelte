@@ -95,7 +95,7 @@
     value={g.pinnedSizeStep}
     min={0}
     max={8}
-    unit=" px larger"
+    unit="px larger"
     onchange={(v) => settings.patch('general', { pinnedSizeStep: v })}
   />
 </Row>
