@@ -26,7 +26,7 @@
 
 {#if !tile.feed}
   <AccountChip {tile} />
-  {#if tile.channel.id !== tile.account}<FollowButton channelId={tile.channel.id} account={tile.account} />{/if}
+  {#if tile.channel.id !== tile.account}<FollowButton channelId={tile.channel.id} name={tile.channel.name} account={tile.account} />{/if}
 {/if}
 {#if tiled}
   {#if menu}

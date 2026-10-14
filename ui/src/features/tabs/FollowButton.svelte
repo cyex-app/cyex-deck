@@ -1,6 +1,6 @@
 <!-- 1.11 Follow or unfollow, as the tile's account. Needs its GQL sign-in, so it's greyed
      out without one (V102-20); anonymous tiles don't show it. Unfollowing takes a second
-     click. -->
+     click. Every follow and unfollow says how it went (V105-07). -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
@@ -8,8 +8,9 @@
   import { tabsIpc } from '../../ipc/tabs';
   import { accounts } from '../../lib/accounts.svelte';
   import { toast } from '../../lib/toast.svelte';
+  import { followToast } from './followText';
 
-  let { channelId, account }: { channelId: string; account: string | null } = $props();
+  let { channelId, name, account }: { channelId: string; name: string; account: string | null } = $props();
 
   const CONFIRM_MS = 3000;
 
@@ -42,12 +43,15 @@
     busy = true;
     const next = !following;
     following = next;
+    let error: unknown;
     try {
       await tabsIpc.follow(channelId, account, next);
     } catch (e) {
       following = !next;
-      toast.error(String(e));
+      error = e ?? null;
     }
+    const t = followToast(next, name, error);
+    toast[t.kind](t.text);
     busy = false;
   }
 </script>
