@@ -1,16 +1,14 @@
 <!-- V1041-02 Tabs from a Chatterino layout: pick the file, see what goes in and what stays
-     out, then open them as chat tabs or chat + viewer tabs, joined as the default account.
-     X12 Channels past its 100-chat limit can go in as anonymous tabs, if picked. -->
+     out, then open them as chat tabs or chat + viewer tabs, joined as the default account. -->
 <script lang="ts">
   import Button from '../../../components/Button.svelte';
-  import Checkbox from '../../../components/Checkbox.svelte';
   import Card from '../../../components/PanelCard.svelte';
   import Segmented from '../../../components/Segmented.svelte';
   import type { ImportReport } from '../../../ipc/bindings/ImportReport';
   import { settingsIpc } from '../../../ipc/settings';
   import { accounts } from '../../../lib/accounts.svelte';
   import { toast } from '../../../lib/toast.svelte';
-  import { anonymousNote, anonymousOffer, counts, leftOut } from './report';
+  import { counts, leftOut } from './report';
 
   type OpenAs = 'chat' | 'both';
   const OPEN_AS = [
@@ -23,15 +21,11 @@
   let done = $state(false);
   let busy = $state(false);
   let openAs = $state<OpenAs>('chat');
-  /** X12 Off by default. */
-  let anonymous = $state(false);
 
   const account = $derived(accounts.current?.displayName || accounts.current?.login);
   const lines = $derived(report ? leftOut(report) : []);
-  const overflow = $derived(report?.overLimit.length ?? 0);
-  /** Something would go in: tabs for the account, or the rest anonymously. */
-  const ready = $derived(!!report && (report.tabs > 0 || (anonymous && overflow > 0)));
-  const asked = $derived(!!report && !done && (report.tabs > 0 || overflow > 0));
+  const ready = $derived(!!report && report.tabs > 0);
+  const asked = $derived(!!report && !done && report.tabs > 0);
 
   async function attempt(action: () => Promise<void>) {
     busy = true;
@@ -50,13 +44,12 @@
       if (!preview) return;
       report = preview;
       done = false;
-      anonymous = false;
     });
   }
 
   function run() {
     return attempt(async () => {
-      report = await settingsIpc.chatterinoImport(openAs === 'both', anonymous && overflow > 0);
+      report = await settingsIpc.chatterinoImport(openAs === 'both');
       done = true;
     }).finally(() => {
       // A failed import needs a fresh pick: the lookup is used up.
@@ -80,8 +73,6 @@
       <p class="headline">
         {#if report.tabs}
           {done ? `Added ${counts(report)}.` : counts(report)}
-        {:else if !done && overflow}
-          No room left under the 100-chat limit.
         {:else}
           {done ? 'Nothing was added.' : 'Nothing to import.'}
         {/if}
@@ -89,19 +80,12 @@
       {#each lines as line (line.label)}
         <p class="note"><span class="why">{line.label}:</span> {line.text}</p>
       {/each}
-      {#if done && anonymousNote(report)}
-        <p class="note">{anonymousNote(report)}</p>
-      {/if}
       {#if asked}
         <div class="line">
           <span class="ask">Open them as</span>
           <Segmented options={OPEN_AS} value={openAs} label="Open them as" onchange={(v) => (openAs = v)} />
         </div>
         {#if account}<p class="note">Joined as {account}.</p>{/if}
-        {#if overflow}
-          <Checkbox label={anonymousOffer(overflow)} checked={anonymous} onchange={(v) => (anonymous = v)} />
-          <p class="note">Anonymous tabs can only read chat.</p>
-        {/if}
         <div class="actions">
           <Button variant="primary" disabled={busy || !ready} onclick={run}>Import</Button>
           <Button variant="ghost" disabled={busy} onclick={close}>Cancel</Button>

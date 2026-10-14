@@ -8,13 +8,11 @@ pub struct ImportTab {
     pub alias: Option<String>,
     /// U3 Left to right, each column top to bottom.
     pub columns: Vec<Vec<TabChannel>>,
-    /// X12 Read-only: joins without the account.
-    pub anonymous: bool,
 }
 
 impl Tabs {
-    /// Adds the tabs after the others, joined as `account` unless they are anonymous
-    /// (X12). The shown tab and the add-tab defaults stay as they are. Like H3, only a tab's first channel plays sound.
+    /// Adds the tabs after the others, joined as `account`. The shown tab and the add-tab
+    /// defaults stay as they are. Like H3, only a tab's first channel plays sound.
     pub fn import(
         &mut self,
         tabs: Vec<ImportTab>,
@@ -31,7 +29,7 @@ impl Tabs {
                 columns: Vec::new(),
             });
             let at = self.tabs.len() - 1;
-            let joins = if imported.anonymous { None } else { account.clone() };
+            let joins = account.clone();
             let mut muted = false;
             for channels in imported.columns {
                 self.tabs[at].columns.push(Column::default());
@@ -87,12 +85,10 @@ mod tests {
             ImportTab {
                 alias: Some("🎮 games".into()),
                 columns: vec![vec![channel("b"), channel("c")], vec![channel("d")]],
-                anonymous: false,
             },
             ImportTab {
                 alias: None,
                 columns: vec![vec![channel("e")]],
-                anonymous: true,
             },
         ];
         t.import(tabs, show, Some("me".into()), &mut counter());
@@ -114,12 +110,11 @@ mod tests {
                 .tiles()
                 .all(|x| x.account.as_deref() == Some("me") && x.show == show)
         );
-        // X12 The anonymous one joins without the account, and plays like any other.
         let e = &t.tabs[2];
         assert_eq!(e.label(), "e");
         assert!(
             e.tiles()
-                .all(|x| x.account.is_none() && x.show == show && !x.muted)
+                .all(|x| x.account.as_deref() == Some("me") && x.show == show && !x.muted)
         );
     }
 

@@ -63,10 +63,8 @@ export const settingsIpc = {
   importFile: () => invoke<Partition[]>('settings_import_file'),
   /** V1041-02 Opens a file picker; `null` when cancelled. */
   chatterinoPreview: () => invoke<ImportReport | null>('settings_chatterino_preview'),
-  /** V1041-02 Adds the previewed tabs, with the stream too if `player`; X12 the ones past the
-   * 100-chat limit as anonymous tabs if `anonymous`. */
-  chatterinoImport: (player: boolean, anonymous: boolean) =>
-    invoke<ImportReport>('settings_chatterino_import', { player, anonymous }),
+  /** V1041-02 Adds the previewed tabs, with the stream too if `player`. */
+  chatterinoImport: (player: boolean) => invoke<ImportReport>('settings_chatterino_import', { player }),
   shareCode: (partitions: Partition[]) => invoke<string>('settings_share_code', { partitions }),
   importCode: (code: string) => invoke<Partition[]>('settings_import_code', { code }),
   backups: () => invoke<string[]>('settings_backups'),

@@ -8,6 +8,7 @@
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import { accountsIpc } from '../../ipc/accounts';
+  import { formatNumber } from '../../lib/format';
   import { subsIpc } from '../../ipc/subs';
   import type { AccountView } from '../../ipc/bindings/AccountView';
   import type { TokenKind } from '../../ipc/bindings/TokenKind';
@@ -124,9 +125,9 @@
   <div class="line">
     <span class="name">Joined chats</span>
     <span class="status">
-      {conn?.counted ?? 0}/{conn?.limit ?? 100}
-      {#if conn && conn.total > conn.counted}
-        <span class="muted">· {conn.total - conn.counted} you moderate, not counted</span>
+      {formatNumber(conn?.joined ?? 0)}
+      {#if conn?.refused.length}
+        <span class="warn">· Twitch refused {conn.refused.map((l) => `#${l}`).join(', ')}</span>
       {/if}
     </span>
   </div>

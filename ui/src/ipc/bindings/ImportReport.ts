@@ -6,13 +6,9 @@ import type { NotChannel } from "./NotChannel";
  */
 export type ImportReport = { 
 /**
- * Tabs and channels that go in, anonymous ones included.
+ * Tabs and channels that go in.
  */
 tabs: number, channels: number, 
-/**
- * X12 Of those channels, the ones past the limit that go in anonymously.
- */
-anonymous: number, 
 /**
  * Logins that have a tab already, or came up twice.
  */
@@ -24,8 +20,4 @@ notChannels: Array<NotChannel>,
 /**
  * Names Twitch doesn't know: renamed, banned or deleted.
  */
-unresolved: Array<string>, 
-/**
- * Logins past the chats one account can join (1.10) that stay out.
- */
-overLimit: Array<string>, };
+unresolved: Array<string>, };

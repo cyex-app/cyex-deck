@@ -6,6 +6,7 @@
   import Icon from '../../components/Icon.svelte';
   import Popover from '../../components/Popover.svelte';
   import { accounts } from '../../lib/accounts.svelte';
+  import { formatNumber } from '../../lib/format';
 
   interface Props {
     account: string | null;
@@ -23,7 +24,7 @@
 
   function count(userId: string): string {
     const c = accounts.connectionsOf(userId);
-    return c ? `${c.counted}/${c.limit}` : '';
+    return c ? formatNumber(c.joined) : '';
   }
 
   function pick(userId: string) {

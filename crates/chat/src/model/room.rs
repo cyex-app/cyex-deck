@@ -73,7 +73,7 @@ impl SelfState {
         self.role == Some(ModRole::Broadcaster)
     }
 
-    /// Broadcaster, lead moderator or moderator: free from slow mode and the join budget.
+    /// Broadcaster, lead moderator or moderator: free from slow mode.
     pub fn privileged(&self) -> bool {
         self.role.is_some()
     }
@@ -97,8 +97,9 @@ pub enum ConnStatus {
     AuthFailed,
     /// The channel is suspended or doesn't exist.
     Unavailable,
-    /// The account's 100-room budget is full (D7).
-    BudgetFull,
+    /// V105-05 Twitch didn't let us in: no answer to our JOIN within 20 s, or a notice instead.
+    /// Usually too many chats joined.
+    Refused,
 }
 
 #[derive(Clone, Debug, Serialize, TS)]

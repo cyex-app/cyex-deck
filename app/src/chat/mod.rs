@@ -49,7 +49,6 @@ use tauri::{AppHandle, Manager};
 use tokio::sync::Notify;
 use ts_rs::TS;
 
-use crate::connections::Connections;
 use crate::settings::Settings;
 
 /// Who reads a room: a signed-in account (by user id) or nobody.
@@ -121,6 +120,8 @@ struct Entry {
     last_sent: Option<(String, i64)>,
     /// U9 News since a view last showed it.
     unread: Unread,
+    /// V105-05 When our JOIN for this room last went out (ms), to time Twitch's answer.
+    join_sent: Option<i64>,
 }
 
 #[derive(Serialize, TS)]
@@ -275,7 +276,6 @@ pub fn open(
         },
         snapshot,
     };
-    let budget_full = entry.room.status == ConnStatus::BudgetFull;
     drop(inner);
     if !follows {
         shown::changed(app);
@@ -284,7 +284,7 @@ pub fn open(
         unread::emit(app, &key, Unread::Seen);
     }
     if fresh {
-        after_join(app, key, budget_full);
+        after_join(app, key);
     } else {
         // Pins are only checked for rooms on screen, so this one may be old.
         catalog::refresh_pin_now(app.clone(), key);
@@ -306,19 +306,7 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
     room.set_keep(app.state::<Chat>().scrollback.load(Ordering::Relaxed));
     room.set_rules(rules::current(app));
     room.set_hook(crate::plugins::line_hook(app));
-    let budget_ok = match identity {
-        Identity::Anon => true,
-        // V102-21 The account's own channel never counts.
-        Identity::Account(id) => {
-            let own = room.privileged();
-            budget(app, |b| b.entry(id.clone()).or_default().join(login, own))
-        }
-    };
-    if budget_ok {
-        session::ensure(app, inner, identity).client.join(login);
-    } else {
-        room.set_status(ConnStatus::BudgetFull, now_ms());
-    }
+    session::ensure(app, inner, identity).client.join(login);
     inner.rooms.insert(
         key.clone(),
         Entry {
@@ -328,18 +316,19 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
             delayed: VecDeque::new(),
             last_sent: None,
             unread: Unread::Seen,
+            join_sent: None,
         },
     );
     true
 }
 
 /// Work for a new room once the lock is released: counter, catalogs, history.
-fn after_join(app: &AppHandle, key: RoomKey, budget_full: bool) {
+fn after_join(app: &AppHandle, key: RoomKey) {
     crate::connections::notify(app);
     roles::emit(app);
     roles::check_soon(app);
     let c = app.state::<Settings>().read::<ChatSettings>(Partition::Chat);
-    let history = (c.history && !budget_full).then_some(c.history_lines);
+    let history = c.history.then_some(c.history_lines);
     catalog::load_for_room(app.clone(), key, history);
 }
 
@@ -364,13 +353,7 @@ fn leave(app: &AppHandle, inner: &mut Inner, key: &RoomKey) -> bool {
         crate::emotes::leave(app, login);
         live::left(app, login);
     }
-    let Identity::Account(id) = identity else { return false };
-    budget(app, |b| {
-        if let Some(b) = b.get_mut(id) {
-            b.part(login);
-        }
-    });
-    true
+    matches!(identity, Identity::Account(_))
 }
 
 /// Closes a view. A room no other view shows and no tab holds is left.
@@ -420,16 +403,15 @@ pub fn hold(app: &AppHandle, wanted: &[(Option<String>, String)]) {
     let mut joined = Vec::new();
     for (key, me) in keys {
         if ensure_room(app, &mut inner, &key, me) {
-            let full = inner.rooms.get(&key).is_some_and(|e| e.room.status == ConnStatus::BudgetFull);
-            joined.push((key, full));
+            joined.push(key);
         }
     }
     drop(inner);
     if counted && joined.is_empty() {
         crate::connections::notify(app);
     }
-    for (key, full) in joined {
-        after_join(app, key, full);
+    for key in joined {
+        after_join(app, key);
     }
     crate::moderation::feeds::sync(app);
     roles::emit(app);
@@ -686,10 +668,24 @@ fn queue(entry: &mut Entry, events: impl IntoIterator<Item = RoomEvent>, wake: &
     }
 }
 
-fn budget<T>(app: &AppHandle, f: impl FnOnce(&mut HashMap<String, cyex_chat::JoinBudget>) -> T) -> T {
-    let conns = app.state::<Connections>();
-    let mut map = conns.0.lock().unwrap_or_else(|p| p.into_inner());
-    f(&mut map)
+/// 1.13 Per account: chats open (refused ones not) and the logins Twitch refused (V105-05).
+/// Takes the chat lock: callers must not hold it.
+pub(crate) fn account_rooms(app: &AppHandle) -> HashMap<String, (u32, Vec<String>)> {
+    let mut out: HashMap<String, (u32, Vec<String>)> = HashMap::new();
+    let Some(chat) = app.try_state::<Chat>() else { return out };
+    for ((identity, login), e) in &chat.lock().rooms {
+        let Identity::Account(id) = identity else { continue };
+        let n = out.entry(id.clone()).or_default();
+        if e.room.status == ConnStatus::Refused {
+            n.1.push(login.clone());
+        } else {
+            n.0 += 1;
+        }
+    }
+    for n in out.values_mut() {
+        n.1.sort();
+    }
+    out
 }
 
 /// Unix milliseconds.

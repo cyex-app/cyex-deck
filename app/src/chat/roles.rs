@@ -201,15 +201,8 @@ pub fn emit(app: &AppHandle) {
     let _ = app.emit("mod:roles", now);
 }
 
-/// After a role changed in one room: the join budget (mods don't count), the counter,
-/// the mod feeds (1.46) and the windows.
-pub fn changed(app: &AppHandle, account: &str, login: &str, privileged: bool) {
-    super::budget(app, |b| {
-        if let Some(b) = b.get_mut(account) {
-            b.set_privileged(login, privileged);
-        }
-    });
-    crate::connections::notify(app);
+/// After a role changed in one room: the mod feeds (1.46) and the windows.
+pub fn changed(app: &AppHandle) {
     crate::moderation::feeds::sync(app);
     emit(app);
 }
@@ -227,7 +220,7 @@ pub fn set_moderator(app: &AppHandle, account: &str, login: &str, on: bool) {
         return;
     };
     let key = (Identity::Account(account.to_owned()), login.to_ascii_lowercase());
-    let change = {
+    let moved = {
         let mut inner = chat.lock();
         let Some(entry) = inner.rooms.get_mut(&key) else {
             return;
@@ -236,10 +229,10 @@ pub fn set_moderator(app: &AppHandle, account: &str, login: &str, on: bool) {
         let ev = entry.room.set_moderator(on);
         let after = entry.room.role();
         queue(entry, ev, &chat.wake);
-        (before != after).then_some(after.is_some())
+        before != after
     };
-    if let Some(privileged) = change {
-        changed(app, account, &key.1, privileged);
+    if moved {
+        changed(app);
     }
 }
 

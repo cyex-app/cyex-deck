@@ -67,15 +67,6 @@
     picked ? tabs.list.find((t) => tiles(t).some((x) => x.channel.id === picked!.id && x.id !== tile?.id)) : undefined,
   );
 
-  /** 1.10 The account can't join another room. */
-  const full = $derived.by(() => {
-    if (anon || !account || !show.chat) return null;
-    const c = accounts.connectionsOf(account);
-    const joined = tile?.account === account && tile.channel.id === picked?.id;
-    if (!c || joined || c.counted < c.limit) return null;
-    return accounts.list.find((a) => a.userId === account)?.displayName ?? 'This account';
-  });
-
   const ready = $derived(feed !== null ? !!feed.trim() && !busy : !!picked && (show.player || show.chat) && !busy);
 
   async function submit() {
@@ -171,11 +162,6 @@
       <section>
         <span class="label">Account</span>
         <AccountPicker bind:account bind:anon noAnon={mine} />
-        {#if full}
-          <p class="note warn">
-            {full} is in 100 chats, Twitch's limit, so this chat won't join. Pick another account or go anonymous.
-          </p>
-        {/if}
       </section>
 
       {#if canMine}
@@ -237,9 +223,6 @@
     margin: 2px 0 0;
     color: var(--muted);
     font-size: 0.82rem;
-  }
-  .warn {
-    color: var(--yellow);
   }
   .link {
     align-self: flex-start;

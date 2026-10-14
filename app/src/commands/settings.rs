@@ -141,11 +141,10 @@ pub async fn settings_chatterino_preview(app: AppHandle) -> CmdResult<Option<Imp
     chatterino::preview(&app, &path).await.map(Some)
 }
 
-/// V1041-02 Adds the previewed tabs: chat only, or chat and the stream (`player`). X12 With
-/// `anonymous`, the channels past the 100-chat limit go in as anonymous tabs.
+/// V1041-02 Adds the previewed tabs: chat only, or chat and the stream (`player`).
 #[tauri::command]
-pub fn settings_chatterino_import(app: AppHandle, player: bool, anonymous: bool) -> CmdResult<ImportReport> {
-    chatterino::confirm(&app, player, anonymous)
+pub fn settings_chatterino_import(app: AppHandle, player: bool) -> CmdResult<ImportReport> {
+    chatterino::confirm(&app, player)
 }
 
 #[tauri::command]

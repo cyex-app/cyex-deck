@@ -251,7 +251,7 @@
     reconnecting: 'Reconnecting…',
     authFailed: 'Twitch didn’t accept this account. Sign in again in Settings → Accounts.',
     unavailable: 'This channel is suspended or doesn’t exist.',
-    budgetFull: 'This account is in 100 chats, Twitch’s limit. Close one to join this.',
+    refused: 'Too many chats joined. Close a few, then open this one again.',
   };
 
   const modes = $derived.by(() => {
@@ -338,7 +338,7 @@
   {#if room.error}
     <p class="status bad">{room.error}</p>
   {:else if STATUS[room.status]}
-    <p class="status" class:bad={['authFailed', 'unavailable', 'budgetFull'].includes(room.status)}>
+    <p class="status" class:bad={['authFailed', 'unavailable', 'refused'].includes(room.status)}>
       {STATUS[room.status]}
     </p>
   {/if}

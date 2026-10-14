@@ -1,38 +1,33 @@
-//! Connection counter (1.13, 1.23, D7): joined chat rooms per account against Twitch's
-//! limit. Chat (phase 3) updates the budgets; this module reports them.
+//! Connection counter (1.13, 1.23, D7): the chats each account has open, and the ones
+//! Twitch refused (V105-05). Read from the chat rooms; no limit of our own.
 
-use std::collections::HashMap;
-use std::sync::Mutex;
-
-use cyex_chat::{ConnectionCount, JoinBudget};
-use tauri::{AppHandle, Emitter, Manager};
+use serde::Serialize;
+use tauri::{AppHandle, Emitter};
+use ts_rs::TS;
 
 const CHANGED_EVENT: &str = "connections:changed";
 
-/// Join budget per account, by user id.
-#[derive(Default)]
-pub struct Connections(pub Mutex<HashMap<String, JoinBudget>>);
-
-pub fn init(app: &AppHandle) {
-    app.manage(Connections::default());
+/// One account's numbers for the counter in the top bar and the account manager.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ConnectionCount {
+    pub user_id: String,
+    /// Chats it has open, mod channels too, refused ones not.
+    pub joined: u32,
+    /// V105-05 Channels (logins) Twitch didn't let it join, while their chat is open.
+    pub refused: Vec<String>,
 }
 
 /// One entry per signed-in account, zeros included.
 pub fn counts(app: &AppHandle) -> Vec<ConnectionCount> {
-    let budgets = app
-        .state::<Connections>()
-        .0
-        .lock()
-        .unwrap_or_else(|p| p.into_inner())
-        .clone();
+    let rooms = crate::chat::account_rooms(app);
     crate::auth::accounts(app)
         .list
         .iter()
         .map(|a| {
-            ConnectionCount::of(
-                &a.user_id,
-                budgets.get(&a.user_id).unwrap_or(&JoinBudget::default()),
-            )
+            let (joined, refused) = rooms.get(&a.user_id).cloned().unwrap_or_default();
+            ConnectionCount { user_id: a.user_id.clone(), joined, refused }
         })
         .collect()
 }

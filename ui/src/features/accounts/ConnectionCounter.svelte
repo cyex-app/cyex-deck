@@ -1,34 +1,24 @@
-<!-- Joined-chat counter in the top bar (1.13, D7). One account reads "37/100"; several
-     show the total, with each account's share in the tooltip. -->
+<!-- Joined-chat counter in the top bar (1.13, D7): the chats the account picked here has open.
+     Turns yellow and names them when Twitch refused some (V105-05). -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import { accounts } from '../../lib/accounts.svelte';
+  import { counterView } from './counter';
 
-  /** Turns yellow from here on. */
-  const NEAR_LIMIT = 0.9;
-
-  const counts = $derived(accounts.connections);
-  const total = $derived(counts.reduce((n, c) => n + c.counted, 0));
-  const near = $derived(counts.some((c) => c.counted >= c.limit * NEAR_LIMIT));
-  const text = $derived(counts.length === 1 ? `${total}/${counts[0].limit}` : String(total));
-  const label = $derived(
-    counts.length === 1
-      ? 'Joined chats'
-      : `Joined chats: ${counts
-          .map((c) => `${accounts.list.find((a) => a.userId === c.userId)?.displayName ?? c.userId} ${c.counted}/${c.limit}`)
-          .join(', ')}`,
+  const v = $derived(
+    counterView(
+      accounts.connections,
+      accounts.current?.userId ?? '',
+      (id) => accounts.list.find((a) => a.userId === id)?.displayName ?? id,
+    ),
   );
 </script>
 
-{#if counts.length}
-  <span
-    class="counter"
-    class:near
-    use:tooltip={{ label, hint: "Twitch allows 100 per account at a time. Chats you moderate don't count." }}
-  >
-    <Icon name="chat" size={13} />
-    {text}
+{#if accounts.current}
+  <span class="counter" class:warn={v.warn} use:tooltip={{ label: v.label, hint: v.hint }}>
+    <Icon name={v.warn ? 'alert' : 'chat'} size={13} />
+    {v.text}
   </span>
 {/if}
 
@@ -49,7 +39,7 @@
     background: var(--surface-hover);
     color: var(--muted);
   }
-  .near {
+  .warn {
     color: var(--yellow);
   }
 </style>

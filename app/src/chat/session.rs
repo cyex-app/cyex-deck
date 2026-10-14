@@ -70,6 +70,7 @@ async fn pump(app: AppHandle, identity: Identity, mut rx: mpsc::UnboundedReceive
         match event {
             Event::Status(s) => link_status(&app, &identity, s),
             Event::Line(raw) => line(&app, &identity, &raw),
+            Event::Joining(channels) => joining(&app, &identity, channels),
         }
     }
 }
@@ -80,8 +81,67 @@ async fn pump_writer(app: AppHandle, identity: Identity, up: Arc<AtomicBool>, mu
     while let Some(event) = rx.recv().await {
         match event {
             Event::Status(s) => up.store(s == LinkStatus::Connected, Ordering::Relaxed),
-            Event::Line(raw) => line(&app, &identity, &raw),
+            Event::Line(raw) => {
+                // An untargeted NOTICE on the writer says nothing about our chats.
+                if !Line::parse(&raw).is_some_and(|l| for_every_room(&l)) {
+                    line(&app, &identity, &raw)
+                }
+            }
+            Event::Joining(_) => {}
         }
+    }
+}
+
+/// V105-05 How long Twitch gets to confirm a JOIN. It answers within a second; over the
+/// account's chat limit it may stay silent.
+const JOIN_ANSWER: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// V105-05 Our JOINs went out: an account's chats Twitch hasn't confirmed by then count
+/// as refused. Anonymous chats have no limit.
+fn joining(app: &AppHandle, identity: &Identity, channels: Vec<String>) {
+    if matches!(identity, Identity::Anon) {
+        return;
+    }
+    let stamp = now_ms();
+    {
+        let chat = app.state::<Chat>();
+        let mut inner = chat.lock();
+        for c in &channels {
+            if let Some(e) = inner.rooms.get_mut(&(identity.clone(), c.clone())) {
+                e.join_sent = Some(stamp);
+            }
+        }
+    }
+    let (app, identity) = (app.clone(), identity.clone());
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(JOIN_ANSWER).await;
+        unanswered(&app, &identity, &channels, stamp);
+    });
+}
+
+/// The chats of `channels` still waiting on the JOIN sent at `stamp` become refused.
+fn unanswered(app: &AppHandle, identity: &Identity, channels: &[String], stamp: i64) {
+    let chat = app.state::<Chat>();
+    let mut inner = chat.lock();
+    let now = now_ms();
+    let mut any = false;
+    for c in channels {
+        let Some(e) = inner.rooms.get_mut(&(identity.clone(), c.clone())) else { continue };
+        // Sent again since (a reconnect): that JOIN has its own wait.
+        if e.join_sent != Some(stamp) {
+            continue;
+        }
+        let events = e.room.join_unanswered(now);
+        if events.is_empty() {
+            continue;
+        }
+        eprintln!("chat: no answer to JOIN #{c} in 20 s, counted as refused");
+        queue(e, events, &chat.wake);
+        any = true;
+    }
+    drop(inner);
+    if any {
+        crate::connections::notify(app);
     }
 }
 
@@ -90,10 +150,12 @@ fn link_status(app: &AppHandle, identity: &Identity, link: LinkStatus) {
     let mut inner = chat.lock();
     let now = now_ms();
     for ((id, _), entry) in inner.rooms.iter_mut() {
-        if id != identity || entry.room.status == ConnStatus::BudgetFull {
+        if id != identity {
             continue;
         }
         let status = match link {
+            // A fresh connect alone doesn't clear the warning; Twitch's JOIN echo does (V105-05).
+            LinkStatus::Connecting if entry.room.status == ConnStatus::Refused => continue,
             // Rooms count as joined once Twitch confirms the JOIN.
             LinkStatus::Connected => continue,
             LinkStatus::Connecting if entry.room.status == ConnStatus::Joined => ConnStatus::Reconnecting,
@@ -118,20 +180,59 @@ fn own(me: Option<&Me>, nick: &str) -> bool {
     }
 }
 
+/// V105-05 A NOTICE aimed at no single chat (`*`, `#jtv`). Chatterino shows these in every
+/// channel (IrcMessageHandler::handleNoticeMessage); here they go to every chat of the account.
+fn for_every_room(line: &Line<'_>) -> bool {
+    line.command == "NOTICE" && matches!(line.channel(), None | Some("jtv"))
+}
+
 fn line(app: &AppHandle, identity: &Identity, raw: &str) {
     let Some(line) = Line::parse(raw) else { return };
+    if for_every_room(&line) {
+        // Anonymous chats are never refused; their untargeted notices stay dropped.
+        if matches!(identity, Identity::Account(_)) {
+            eprintln!("chat: notice for every chat: {raw}");
+            let logins: Vec<String> = app
+                .state::<Chat>()
+                .lock()
+                .rooms
+                .keys()
+                .filter(|(i, _)| i == identity)
+                .map(|(_, l)| l.clone())
+                .collect();
+            for login in &logins {
+                room_line(app, identity, login, &line, raw);
+            }
+        }
+        return;
+    }
     let Some(channel) = line.channel() else { return };
+    room_line(app, identity, channel, &line, raw);
+}
+
+fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_>, raw: &str) {
     let emotes = crate::emotes::room(app, account_of(identity), channel);
     let chat = app.state::<Chat>();
     let mut inner = chat.lock();
     let key = (identity.clone(), channel.to_owned());
     let Some(entry) = inner.rooms.get_mut(&key) else { return };
+    // V105-05 The counter changes when a chat turns refused or gets in after all.
+    let was_refused = entry.room.status == ConnStatus::Refused;
+    // Twitch's answer to a JOIN past the limit isn't documented: keep what it says before
+    // a JOIN is confirmed. NOTICEs carry no tokens.
+    if line.command == "NOTICE" && entry.room.status != ConnStatus::Joined && matches!(identity, Identity::Account(_)) {
+        eprintln!("chat: before joining #{channel}: {raw}");
+    }
 
     if line.command == "JOIN" && own(entry.room.me(), line.nick()) {
+        entry.join_sent = None;
         let events = entry.room.set_status(ConnStatus::Joined, now_ms());
         queue(entry, events, &chat.wake);
         let gap = entry.room.take_gap(now_ms());
         drop(inner);
+        if was_refused {
+            crate::connections::notify(app);
+        }
         if let Some(span) = gap {
             fill_gap(app.clone(), key, span);
         }
@@ -142,7 +243,8 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
         return;
     }
     let role_before = entry.room.role();
-    let events = entry.room.handle_line(&line, now_ms(), &emotes);
+    let events = entry.room.handle_line(line, now_ms(), &emotes);
+    let refused = entry.room.status == ConnStatus::Refused;
     let role = entry.room.role();
     // U9 Only rooms no view shows collect news.
     let news = if entry.views.is_empty() { unread::level(&events) } else { Unread::Seen };
@@ -175,11 +277,12 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
     queue(entry, events, &chat.wake);
     drop(inner);
 
-    // V102-21 A role change here: budget, mod feeds (1.46) and every window.
-    if role != role_before
-        && let Identity::Account(id) = identity
-    {
-        super::roles::changed(app, id, channel, role.is_some());
+    if refused != was_refused {
+        crate::connections::notify(app);
+    }
+    // V102-21 A role change here: mod feeds (1.46) and every window.
+    if role != role_before && let Identity::Account(_) = identity {
+        super::roles::changed(app);
     }
     let muted = super::rules::current(app).muted(channel);
     for (m, outcome) in outcomes {
@@ -295,5 +398,17 @@ mod tests {
         assert!(!own(Some(&me), "ana"), "C37: someone else's JOIN");
         assert!(own(None, "justinfan4821"));
         assert!(!own(None, "ana"));
+    }
+
+    fn every(raw: &str) -> bool {
+        for_every_room(&Line::parse(raw).unwrap())
+    }
+
+    #[test]
+    fn untargeted_notices_go_to_every_chat() {
+        assert!(every(":tmi.twitch.tv NOTICE * :x"));
+        assert!(every(":tmi.twitch.tv NOTICE #jtv :x"));
+        assert!(!every(":tmi.twitch.tv NOTICE #chan :x"));
+        assert!(!every(":a!a@a PRIVMSG #chan :x"));
     }
 }

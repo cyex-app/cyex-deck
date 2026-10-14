@@ -1,6 +1,7 @@
 //! One IRC connection for one identity, an account or anonymous (1.8). Logs in, joins
 //! under the rate limit, answers PINGs, notices dead links and reconnects with backoff.
-//! Lines go out as events; rooms parse them.
+//! Lines go out as events; rooms parse them. Tells the app which JOINs went out (V105-05),
+//! so it can tell one Twitch never confirms.
 
 use std::collections::{BTreeSet, VecDeque};
 use std::future::{Future, pending};
@@ -75,6 +76,8 @@ pub enum LinkStatus {
 pub enum Event {
     Status(LinkStatus),
     Line(String),
+    /// V105-05 JOIN lines just went out for these channels. Twitch confirms each with our own JOIN.
+    Joining(Vec<String>),
 }
 
 enum Cmd {
@@ -269,8 +272,12 @@ async fn session(
     let mut tick = interval(Duration::from_secs(5));
 
     loop {
-        if out.flush_joins(&mut queue, &mut joins).await.is_err() {
-            return lost;
+        match out.flush_joins(&mut queue, &mut joins).await {
+            Err(_) => return lost,
+            Ok(sent) if !sent.is_empty() => {
+                let _ = events.send(Event::Joining(sent));
+            }
+            Ok(_) => {}
         }
         let join_wait = (!queue.is_empty())
             .then(|| joins.wait(Window::JOIN_LIMIT, Instant::now()))
@@ -342,13 +349,14 @@ impl Writer {
     }
 
     /// Sends as many queued JOINs as the rate limit allows, a few per line.
-    async fn flush_joins(&mut self, queue: &mut VecDeque<String>, limit: &mut Window) -> io::Result<()> {
+    async fn flush_joins(&mut self, queue: &mut VecDeque<String>, limit: &mut Window) -> io::Result<Vec<String>> {
         let mut batch: Vec<String> = Vec::new();
+        let mut sent: Vec<String> = Vec::new();
         let mut len = 0;
         while let Some(next) = queue.front() {
             if len + next.len() + 2 > MAX_JOIN_LINE && !batch.is_empty() {
                 self.line(&write::join(&batch)).await?;
-                batch.clear();
+                sent.append(&mut batch);
                 len = 0;
                 continue;
             }
@@ -360,8 +368,9 @@ impl Writer {
         }
         if !batch.is_empty() {
             self.line(&write::join(&batch)).await?;
+            sent.append(&mut batch);
         }
-        Ok(())
+        Ok(sent)
     }
 }
 
@@ -465,6 +474,7 @@ mod tests {
         assert_eq!(s.read().await, "JOIN #foo");
         assert_eq!(events.recv().await, Some(Event::Status(LinkStatus::Connecting)));
         assert_eq!(events.recv().await, Some(Event::Status(LinkStatus::Connected)));
+        assert_eq!(events.recv().await, Some(Event::Joining(vec!["foo".into()])));
 
         s.say("PING :tmi.twitch.tv").await;
         assert_eq!(s.read().await, "PONG :tmi.twitch.tv");
@@ -509,6 +519,14 @@ mod tests {
             joined += s.read().await.matches('#').count();
         }
         assert_eq!(joined, Window::JOIN_LIMIT);
+        // V105-05 The client reported exactly those JOINs.
+        let mut reported = 0;
+        while let Ok(ev) = events.try_recv() {
+            if let Event::Joining(sent) = ev {
+                reported += sent.len();
+            }
+        }
+        assert_eq!(reported, Window::JOIN_LIMIT);
         // The rest follow once the window moves on.
         let rest = s.read().await;
         assert_eq!(rest.matches('#').count(), 25 - Window::JOIN_LIMIT);

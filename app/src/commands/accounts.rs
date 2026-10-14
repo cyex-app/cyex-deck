@@ -1,7 +1,7 @@
 //! Account commands (1.3, 1.5, 1.13, 1.23, V102-19).
 
 use cyex_auth::TokenKind;
-use cyex_chat::ConnectionCount;
+use crate::connections::ConnectionCount;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, State};
 

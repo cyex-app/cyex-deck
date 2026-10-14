@@ -26,20 +26,6 @@ export function counts(r: Pick<ImportReport, 'tabs' | 'channels'>): string {
   return `${plural(r.tabs, 'tab')}, ${plural(r.channels, 'channel')}`;
 }
 
-/** X12 The opt-in for the channels past the limit. */
-export function anonymousOffer(n: number): string {
-  return n === 1
-    ? 'Add the 1 channel past the limit as an anonymous tab'
-    : `Add the ${formatNumber(n)} channels past the limit as anonymous tabs`;
-}
-
-/** X12 After the import: how many went in anonymously, or nothing if none did. */
-export function anonymousNote(r: Pick<ImportReport, 'anonymous'>): string | null {
-  if (!r.anonymous) return null;
-  const which = r.anonymous === 1 ? 'channel past the limit joined' : 'channels past the limit joined';
-  return `${formatNumber(r.anonymous)} ${which} anonymously and can only read chat.`;
-}
-
 export interface Line {
   label: string;
   text: string;
@@ -57,6 +43,5 @@ export function leftOut(r: ImportReport): Line[] {
   const skipped = [...kinds].map(([label, n]) => (n > 1 ? `${label} ×${formatNumber(n)}` : label));
   add('Not channels', r.notChannels.reduce((sum, k) => sum + k.count, 0), skipped.join(', '));
   add('Not found on Twitch', r.unresolved.length, r.unresolved.join(', '));
-  add('Past the 100-chat limit', r.overLimit.length, r.overLimit.join(', '));
   return lines;
 }

@@ -56,7 +56,6 @@ fn main() {
             theme::init(handle);
             fonts::init(handle);
             streamer::init(handle);
-            connections::init(handle);
             auth::init(handle)?;
             hermes::init(handle);
             emotes::init(handle);

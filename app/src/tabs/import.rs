@@ -6,15 +6,13 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 
-use cyex_chat::ROOM_LIMIT;
 use cyex_settings::Partition;
-use cyex_settings::chatterino::{self, ImportReport, Joins, Layout};
+use cyex_settings::chatterino::{self, ImportReport, Layout};
 use cyex_settings::schema::{TabChannel, Tabs, TileShow, random_id};
 use cyex_twitch::helix;
 use tauri::{AppHandle, Manager};
 
 use crate::auth::{self, Auth};
-use crate::connections::Connections;
 use crate::settings::Settings;
 
 /// Layouts are tens of KB; a file this big isn't one.
@@ -23,7 +21,6 @@ const NOT_A_LAYOUT: &str = "That file isn't a Chatterino layout.";
 const NEEDS_ACCOUNT: &str = "Looking up the channels needs a Twitch account. Add one in Settings → Accounts.";
 const SIGN_IN_AGAIN: &str =
     "Looking up the channels needs a fresh sign-in. Sign in again in Settings → Accounts.";
-const MOD_SCOPE: &str = "user:read:moderated_channels";
 
 /// The layout picked last and what the lookup found, until the import or the next pick.
 #[derive(Default)]
@@ -33,8 +30,6 @@ struct Lookup {
     account: String,
     layout: Layout,
     found: HashMap<String, TabChannel>,
-    /// Channels that don't count toward the account's 100 (1.10).
-    free: Vec<String>,
 }
 
 pub fn init(app: &AppHandle) {
@@ -77,42 +72,30 @@ pub async fn preview(app: &AppHandle, path: &Path) -> Result<ImportReport, Strin
     .await
     .map_err(lookup_error)?;
 
-    // 1.10 Channels it moderates never count. Without the scope, every channel counts.
-    let mut free = Vec::new();
-    if auth::helix_scoped(app, &account, MOD_SCOPE).is_some() {
-        free = helix::roles::moderated(&http, helix_auth, &account)
-            .await
-            .unwrap_or_default();
-    }
-    free.push(account.clone());
-
     let lookup = Lookup {
         account,
         layout,
         found,
-        free,
     };
     let tabs: Tabs = app.state::<Settings>().read(Partition::Tabs);
-    let report = chatterino::plan(&lookup.layout, &lookup.found, &tabs, joins(app, &lookup, false)).report;
+    let report = chatterino::plan(&lookup.layout, &lookup.found, &tabs).report;
     *lock(app) = Some(lookup);
     Ok(report)
 }
 
 /// Adds what the last preview found, chat only or with the stream, joined as the default
-/// account; with `anonymous`, what is past its limit too, anonymously (X12). Checked again
-/// against the tabs open now.
-pub fn confirm(app: &AppHandle, player: bool, anonymous: bool) -> Result<ImportReport, String> {
+/// account. Checked again against the tabs open now.
+pub fn confirm(app: &AppHandle, player: bool) -> Result<ImportReport, String> {
     let lookup = lock(app).take().ok_or("Pick the layout file again.")?;
     let account = auth::accounts(app).default_account().map(|a| a.user_id.clone());
     if account.as_deref() != Some(lookup.account.as_str()) {
         return Err("The default account changed. Pick the layout file again.".into());
     }
-    let joins = joins(app, &lookup, anonymous);
     let show = TileShow { player, chat: true };
     let mut report = ImportReport::default();
     app.state::<Settings>()
         .update::<Tabs>(app, Partition::Tabs, |tabs| {
-            let plan = chatterino::plan(&lookup.layout, &lookup.found, tabs, joins);
+            let plan = chatterino::plan(&lookup.layout, &lookup.found, tabs);
             report = plan.report;
             if plan.tabs.is_empty() {
                 return false;
@@ -133,19 +116,6 @@ fn read(path: &Path) -> Result<Layout, String> {
     let bytes = std::fs::read(path).map_err(|_| "Couldn't open that file.")?;
     let text = String::from_utf8(bytes).map_err(|_| NOT_A_LAYOUT)?;
     chatterino::parse(&text).map_err(|_| NOT_A_LAYOUT.into())
-}
-
-/// 1.10 The chats the account can still join: its joined rooms that count are taken.
-/// X12 Anonymous chats have no such limit (only the IRC client paces their joins).
-fn joins<'a>(app: &AppHandle, lookup: &'a Lookup, rest_anonymous: bool) -> Joins<'a> {
-    let budgets = app.state::<Connections>();
-    let budgets = budgets.0.lock().unwrap_or_else(|p| p.into_inner());
-    let taken = budgets.get(&lookup.account).map_or(0, |b| b.counted());
-    Joins {
-        slots: ROOM_LIMIT.saturating_sub(taken),
-        free: &lookup.free,
-        rest_anonymous,
-    }
 }
 
 fn channel(user: helix::User) -> TabChannel {

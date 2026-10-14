@@ -253,6 +253,16 @@ impl Room {
         events
     }
 
+    /// V105-05 Our JOIN went unanswered: the chat counts as refused, unless it got in or
+    /// went away for another reason meanwhile.
+    pub fn join_unanswered(&mut self, now_ms: i64) -> Vec<RoomEvent> {
+        if matches!(self.status, ConnStatus::Connecting | ConnStatus::Reconnecting) {
+            self.set_status(ConnStatus::Refused, now_ms)
+        } else {
+            Vec::new()
+        }
+    }
+
     /// A line of ours, e.g. a send error found before reaching Twitch.
     pub fn system(&mut self, kind: NoticeKind, text: &str, now_ms: i64) -> RoomEvent {
         let m = Arc::new(build::system(kind, text, now_ms));
@@ -353,12 +363,17 @@ impl Room {
                 }
             }
             Incoming::Notice { msg_id, notice } => {
-                if msg_id.starts_with("msg_") {
+                // A send's answer (V105-06 the writer's NOTICE for a pending line).
+                let answered = msg_id.starts_with("msg_") && {
                     self.expire(now_ms);
-                    self.pending.pop_front();
-                }
+                    self.pending.pop_front().is_some()
+                };
                 if msg_id == "msg_channel_suspended" {
                     events.extend(self.set_status(ConnStatus::Unavailable, now_ms));
+                } else if !answered && self.me.is_some() && self.status != ConnStatus::Joined {
+                    // V105-05 Twitch spoke instead of letting us in (Chatterino shows such notices
+                    // where they're aimed; here the chat also counts as not joined).
+                    events.extend(self.set_status(ConnStatus::Refused, now_ms));
                 }
                 if matches!(msg_id.as_str(), "msg_slowmode" | "msg_timedout")
                     && let Some(secs) = seconds_in(notice.notice.as_ref().map_or("", |n| n.text.as_str()))
@@ -647,6 +662,89 @@ mod tests {
         let auth = r.set_status(ConnStatus::AuthFailed, 5);
         assert!(matches!(auth.as_slice(), [RoomEvent::Status { status: ConnStatus::AuthFailed }]));
         assert_eq!(r.snapshot().messages.len(), 3);
+    }
+
+    fn notice(id: &str) -> String {
+        format!("@msg-id={id} :tmi.twitch.tv NOTICE #chan :You can't join more chats.")
+    }
+
+    fn has_status(ev: &[RoomEvent], want: ConnStatus) -> bool {
+        ev.iter().any(|e| matches!(e, RoomEvent::Status { status } if *status == want))
+    }
+
+    #[test]
+    fn notice_before_join_refuses() {
+        let mut r = room();
+        let ev = feed(&mut r, &notice("some_new_reason"));
+        assert!(has_status(&ev, ConnStatus::Refused));
+        assert!(ev.iter().any(|e| matches!(e, RoomEvent::Message { message }
+            if message.notice.as_ref().is_some_and(|n| n.text.contains("can't join")))));
+        assert_eq!(r.status, ConnStatus::Refused);
+    }
+
+    #[test]
+    fn suspended_is_unavailable_not_refused() {
+        let mut r = room();
+        feed(&mut r, &notice("msg_channel_suspended"));
+        assert_eq!(r.status, ConnStatus::Unavailable);
+    }
+
+    #[test]
+    fn notice_after_join_changes_nothing() {
+        let mut r = room();
+        r.set_status(ConnStatus::Joined, 0);
+        let ev = feed(&mut r, &notice("some_new_reason"));
+        assert_eq!(r.status, ConnStatus::Joined);
+        assert!(ev.iter().any(|e| matches!(e, RoomEvent::Message { .. })));
+    }
+
+    #[test]
+    fn send_answer_before_join_is_not_a_refusal() {
+        let mut r = room();
+        r.sending(PendingSend {
+            text: "hi".into(),
+            action: false,
+            reply: None,
+            at_ms: 900,
+        });
+        feed(&mut r, &notice("msg_duplicate"));
+        assert_eq!(r.status, ConnStatus::Connecting);
+    }
+
+    #[test]
+    fn anonymous_rooms_are_never_refused() {
+        let mut r = Room::new("Chan", None);
+        feed(&mut r, &notice("some_new_reason"));
+        assert_eq!(r.status, ConnStatus::Connecting);
+    }
+
+    #[test]
+    fn unanswered_join_refuses_only_while_waiting() {
+        let mut r = room();
+        let ev = r.join_unanswered(5);
+        assert!(matches!(ev.as_slice(), [RoomEvent::Status { status: ConnStatus::Refused }]));
+        let mut r = room();
+        r.set_status(ConnStatus::Joined, 0);
+        r.set_status(ConnStatus::Reconnecting, 1);
+        assert!(has_status(&r.join_unanswered(5), ConnStatus::Refused));
+        let mut r = room();
+        r.set_status(ConnStatus::Joined, 0);
+        assert!(r.join_unanswered(5).is_empty());
+        assert_eq!(r.status, ConnStatus::Joined);
+        let mut r = room();
+        r.set_status(ConnStatus::Unavailable, 0);
+        assert!(r.join_unanswered(5).is_empty());
+        assert_eq!(r.status, ConnStatus::Unavailable);
+    }
+
+    #[test]
+    fn refused_room_joins_later() {
+        let mut r = room();
+        r.join_unanswered(1);
+        let ev = r.set_status(ConnStatus::Joined, 2);
+        assert_eq!(r.status, ConnStatus::Joined);
+        assert!(ev.iter().any(|e| matches!(e, RoomEvent::Message { message }
+            if message.notice.as_ref().is_some_and(|n| n.text == "Joined chat"))));
     }
 
     #[test]

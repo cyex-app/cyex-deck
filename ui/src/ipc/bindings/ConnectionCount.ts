@@ -5,10 +5,10 @@
  */
 export type ConnectionCount = { userId: string, 
 /**
- * Rooms that count toward the limit.
+ * Chats it has open, mod channels too, refused ones not.
  */
-counted: number, 
+joined: number, 
 /**
- * All joined rooms, moderated ones included.
+ * V105-05 Channels (logins) Twitch didn't let it join, while their chat is open.
  */
-total: number, limit: number, };
+refused: Array<string>, };
