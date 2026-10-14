@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { moveTo } from './order.ts';
+import { moveKey, moveTo } from './order.ts';
 
 const abcd = ['a', 'b', 'c', 'd'];
 
@@ -21,4 +21,13 @@ test('does not touch the input', () => {
   const list = [...abcd];
   moveTo(list, 0, 3, true);
   assert.deepEqual(list, abcd);
+});
+
+test('moves by key', () => {
+  const key = (s: string) => s;
+  assert.deepEqual(moveKey(abcd, key, 'a', 'c', true), ['b', 'c', 'a', 'd']);
+  assert.deepEqual(moveKey(abcd, key, 'd', 'a', false), ['d', 'a', 'b', 'c']);
+  assert.equal(moveKey(abcd, key, 'b', 'b', false), null);
+  assert.equal(moveKey(abcd, key, 'b', 'a', true), null);
+  assert.equal(moveKey(abcd, key, 'x', 'a', false), null);
 });

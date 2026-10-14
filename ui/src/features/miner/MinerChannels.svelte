@@ -3,6 +3,7 @@
      being earned. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
+  import DragList from '../../components/DragList.svelte';
   import Icon from '../../components/Icon.svelte';
   import Segmented from '../../components/Segmented.svelte';
   import type { ChannelInfo } from '../../ipc/bindings/ChannelInfo';
@@ -14,7 +15,6 @@
   import ChannelPicker from '../tabs/ChannelPicker.svelte';
   import { miner } from './miner.svelte';
   import MinerRow from './MinerRow.svelte';
-  import { moveTo } from './order';
 
   const SOURCES: { value: MineSource; label: string }[] = [
     { value: 'list', label: 'Your list' },
@@ -35,8 +35,6 @@
 
   let text = $state('');
   let picked = $state<ChannelInfo | null>(null);
-  let dragging = $state<number | null>(null);
-  let over = $state<{ index: number; after: boolean } | null>(null);
 
   const strip = (c: { id: string; login: string; name: string }): TabChannel => ({
     id: c.id,
@@ -68,12 +66,8 @@
     void settings.patch('miner', { skip: on ? [...s.skip, strip(c)] : s.skip.filter((x) => x.id !== c.id) });
   }
 
-  function drop() {
-    const from = dragging;
-    const at = over;
-    dragging = over = null;
-    if (from === null || !at) return;
-    const next = moveTo(list, from, at.index, at.after);
+  /** V105-14 The list dragged into a new order; the first two stay where they are. */
+  function reorder(next: TabChannel[]) {
     void settings.patch('miner', { channels: [...s.channels.filter((c) => firstIds.has(c.id)), ...next] });
   }
 </script>
@@ -102,45 +96,24 @@
       <div class="picker"><ChannelPicker bind:text bind:picked onsubmit={() => void add()} /></div>
       <Button disabled={!picked} onclick={() => void add()}>Add</Button>
     </div>
-    {#each list as c, i (c.id)}
-      <div
-        class="drag"
-        class:before={over?.index === i && !over.after && dragging !== i}
-        class:after={over?.index === i && over.after && dragging !== i}
-        class:lifted={dragging === i}
-        role="listitem"
-        draggable="true"
-        ondragstart={(e) => {
-          dragging = i;
-          if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
-          e.dataTransfer?.setData('text/plain', c.id);
-        }}
-        ondragover={(e) => {
-          if (dragging === null) return;
-          e.preventDefault();
-          const r = e.currentTarget.getBoundingClientRect();
-          over = { index: i, after: e.clientY > r.top + r.height / 2 };
-        }}
-        ondragend={() => (dragging = over = null)}
-        ondrop={(e) => {
-          e.preventDefault();
-          drop();
-        }}
-      >
-        <MinerRow
-          channel={c}
-          info={info.get(c.id)}
-        {idle}
-          first={false}
-          onfirst={(on) => void setFirst(c, on)}
-          onremove={() => remove(c.id)}
-        >
-          {#snippet handle()}<span class="grip"><Icon name="grip" size={14} /></span>{/snippet}
-        </MinerRow>
-      </div>
+    {#if list.length}
+      <DragList key="miner" items={list} id={(c) => c.id} label={(c) => c.name} onmove={reorder}>
+        {#snippet row(c)}
+          <MinerRow
+            channel={c}
+            info={info.get(c.id)}
+            {idle}
+            first={false}
+            onfirst={(on) => void setFirst(c, on)}
+            onremove={() => remove(c.id)}
+          >
+            {#snippet handle()}<span class="grip"><Icon name="grip" size={14} /></span>{/snippet}
+          </MinerRow>
+        {/snippet}
+      </DragList>
     {:else}
       <p class="empty">Add channels here, or with “Add to the miner” when adding a tab.</p>
-    {/each}
+    {/if}
   {:else}
     <h2>Your follows <span class="count">{follows.length}</span></h2>
     {#each follows as c (c.id)}
@@ -219,18 +192,6 @@
   .picker {
     flex: 0 1 380px;
     min-width: 0;
-  }
-  .drag {
-    border-block: 2px solid transparent;
-  }
-  .drag.before {
-    border-top-color: var(--accent);
-  }
-  .drag.after {
-    border-bottom-color: var(--accent);
-  }
-  .drag.lifted {
-    opacity: 0.5;
   }
   .grip {
     display: inline-flex;

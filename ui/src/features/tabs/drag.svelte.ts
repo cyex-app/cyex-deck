@@ -1,7 +1,7 @@
 // Dragging tabs, tiles and panels (U3, U5, V102-23) with pointer events: reorder tabs,
 // tile one tab's channel into another, move tiles around or out into their own tab, and
 // with a layout unlocked put any panel on a side of another (V103-05, V103-06): in a tab,
-// the mod view or the stream manager, from its place or from the closed-panels corner.
+// the mod view or the stream manager, from its place or from the closed-panels corner, and reorder a list's rows (V105-14, V105-15).
 
 import type { Zone } from '../../ipc/bindings/Zone';
 import type { Edge } from '../../lib/panels';
@@ -19,7 +19,14 @@ export interface PanelItem {
   tray?: boolean;
 }
 
-export type DragItem = { kind: 'tab'; id: string } | { kind: 'tile'; id: string } | PanelItem;
+/** V105-14 A row of a list drawn by `DragList`, by the list's key and the row's id. */
+export interface RowItem {
+  kind: 'row';
+  list: string;
+  id: string;
+}
+
+export type DragItem = { kind: 'tab'; id: string } | { kind: 'tile'; id: string } | PanelItem | RowItem;
 
 export type DropTarget =
   /** Next to a tab in the bar, or into it for a tile. */
@@ -29,10 +36,15 @@ export type DropTarget =
   | { kind: 'bar' }
   | { kind: 'tile'; id: string; zone: Zone }
   /** V103-05 On an edge of another panel of the same layout, or of the whole layout. */
-  | { kind: 'panel'; layout: string; panel: string | null; edge: Edge };
+  | { kind: 'panel'; layout: string; panel: string | null; edge: Edge }
+  /** V105-14 Before or after a row of the same list. */
+  | { kind: 'row'; list: string; id: string; after: boolean };
 
 /** V103-05 What each layout on screen does with a panel dropped on it, by its key. */
 export const panelDrops = new Map<string, (panel: string, target: string | null, edge: Edge) => void>();
+
+/** V105-14 What each list on screen does with a row dropped on another, by its key. */
+export const rowDrops = new Map<string, (from: string, to: string, after: boolean) => void>();
 
 /** Pixels the pointer moves before a press turns into a drag. */
 const THRESHOLD = 5;
@@ -85,6 +97,12 @@ function hit(x: number, y: number, item: DragItem): DropTarget | null {
   const el = document.elementFromPoint(x, y);
   if (!el) return null;
   const kind = item.kind;
+  if (item.kind === 'row') {
+    const row = el.closest<HTMLElement>(`[data-row-of="${CSS.escape(item.list)}"]`);
+    if (!row) return null;
+    const r = row.getBoundingClientRect();
+    return { kind: 'row', list: item.list, id: row.dataset.rowId!, after: y > r.top + r.height / 2 };
+  }
   if (item.kind === 'panel') {
     // V103-05 Onto another panel of its layout, or the layout itself; a tab's panel onto
     // another tile moves the whole tile (U3).
@@ -127,6 +145,10 @@ function hit(x: number, y: number, item: DragItem): DropTarget | null {
 }
 
 function apply(item: DragItem, target: DropTarget): void {
+  if (item.kind === 'row') {
+    if (target.kind === 'row') rowDrops.get(item.list)?.(item.id, target.id, target.after);
+    return;
+  }
   if (item.kind === 'tab') dropTab(item.id, target);
   else if (item.kind === 'tile') dropTile(item.id, target);
   else if (target.kind === 'panel') panelDrops.get(item.layout)?.(item.panel, target.panel, target.edge);
