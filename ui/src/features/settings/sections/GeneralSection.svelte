@@ -89,6 +89,16 @@
     onchange={(v) => settings.patch('general', { chatFontSize: v })}
   />
 </Row>
+<Row setting="general.pinnedSizeStep" label="Pinned messages" hint="How much larger than chat text.">
+  <Stepper
+    label="Pinned message size"
+    value={g.pinnedSizeStep}
+    min={0}
+    max={8}
+    unit=" px larger"
+    onchange={(v) => settings.patch('general', { pinnedSizeStep: v })}
+  />
+</Row>
 <div class="preview">
   <span class="time">{formatTime(new Date())}</span>
   <b>seryxx</b>: this is how chat will look

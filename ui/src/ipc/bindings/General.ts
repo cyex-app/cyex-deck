@@ -13,6 +13,10 @@ chatFontFamily: string,
  */
 chatFontSize: number, 
 /**
+ * V105-03 How many px larger than chat text the pinned message is.
+ */
+pinnedSizeStep: number, 
+/**
  * V101-10 Font files the user added, offered next to the bundled ones.
  */
 fonts: Array<CustomFont>, 

@@ -27,6 +27,7 @@ export const APP: Entry[] = [
     keywords: ['chat font', 'Segoe UI', 'Arial', 'Helvetica'],
   },
   { id: 'general.chatFontSize', page: 'general', label: 'Chat font size', keywords: ['text size', 'bigger', 'smaller', 'zoom'] },
+  { id: 'general.pinnedSizeStep', page: 'general', label: 'Pinned message size', description: 'How much larger than chat text.', keywords: ['pinned', 'pin', 'text size', 'bigger'] },
   {
     id: 'general.chatPosition',
     page: 'general',

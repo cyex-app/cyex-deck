@@ -1,5 +1,5 @@
-// Effects every window runs: theme, accent and chat font (with added font files, V101-10)
-// follow the settings; emote size (E3), still pictures while unfocused (E2), streamer mode
+// Effects every window runs: theme, accent, chat font (with added font files, V101-10)
+// and the pinned message's size (V105-03) follow the settings; emote size (E3), still pictures while unfocused (E2), streamer mode
 // (U4), who wears what (1.37-1.39), plugins (S5), media keys (V101-29), our own menu in place
 // of the browser's (V101-30), smooth scrolling (V103-11) and picture scale (V105-08).
 
@@ -22,10 +22,11 @@ export function useRootEffects(): void {
   });
 
   $effect(() => {
-    const { chatFontFamily, chatFontSize } = settings.v.general;
+    const { chatFontFamily, chatFontSize, pinnedSizeStep } = settings.v.general;
     const style = document.documentElement.style;
     style.setProperty('--chat-font', chatFontFamily ? `"${chatFontFamily}", var(--font-ui)` : 'var(--font-ui)');
     style.setProperty('--chat-size', `${chatFontSize}px`);
+    style.setProperty('--pinned-step', `${pinnedSizeStep}px`);
   });
 
   $effect(() => applyUserFonts(settings.v.general.fonts));

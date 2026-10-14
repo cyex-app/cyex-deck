@@ -11,6 +11,8 @@ pub struct General {
     pub chat_font_family: String,
     /// 2.1 Chat font size in px.
     pub chat_font_size: u8,
+    /// V105-03 How many px larger than chat text the pinned message is.
+    pub pinned_size_step: u8,
     /// V101-10 Font files the user added, offered next to the bundled ones.
     pub fonts: Vec<CustomFont>,
     /// 2.1 Side the chat sits on, next to the player or a clip (1.19).
@@ -31,6 +33,7 @@ impl Default for General {
         Self {
             chat_font_family: String::new(),
             chat_font_size: 13,
+            pinned_size_step: 1,
             fonts: Vec::new(),
             chat_position: ChatPosition::Right,
             tooltips: true,
@@ -44,6 +47,7 @@ impl Default for General {
 impl Schema for General {
     fn sanitize(&mut self) {
         self.chat_font_size = self.chat_font_size.clamp(9, 32);
+        self.pinned_size_step = self.pinned_size_step.min(MAX_PINNED_STEP);
         self.chat_font_family = self.chat_font_family.trim().chars().take(100).collect();
         let mut names: Vec<String> = Vec::new();
         self.fonts.retain_mut(|f| {
@@ -69,6 +73,8 @@ impl Schema for General {
     }
 }
 
+/// V105-03 Most the pinned message can be larger than chat text, in px.
+const MAX_PINNED_STEP: u8 = 8;
 const MAX_APPS: usize = 30;
 const MAX_APP_CHARS: usize = 80;
 const MAX_FONTS: usize = 20;
@@ -208,5 +214,17 @@ mod tests {
         };
         g.sanitize();
         assert_eq!(g.fonts, vec![font("My Font", "abc123.ttf"), font("Web", "bbb.woff2")]);
+    }
+
+    #[test]
+    fn pinned_step_defaults_to_one_and_stops_at_eight() {
+        assert_eq!(General::default().pinned_size_step, 1);
+        assert_eq!(serde_json::from_str::<General>("{}").unwrap().pinned_size_step, 1);
+        let mut g = General { pinned_size_step: 20, ..General::default() };
+        g.sanitize();
+        assert_eq!(g.pinned_size_step, 8);
+        g.pinned_size_step = 0;
+        g.sanitize();
+        assert_eq!(g.pinned_size_step, 0);
     }
 }

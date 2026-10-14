@@ -1,6 +1,7 @@
 <!-- 1.9 The channel's pinned message, above the chat. Can be folded to one line, hidden
      into the events button while it's pinned (V103-04) or closed until the pin changes;
-     mods can take it down (V101-34). -->
+     mods can take it down (V101-34). Its text is semibold and a step larger than chat
+     (Settings → General, V105-03), so it reads at a glance. -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import type { Pinned } from '../../ipc/bindings/Pinned';
@@ -94,7 +95,7 @@
     border: 0;
     color: var(--text);
     text-align: left;
-    font: var(--chat-size) / var(--chat-line) var(--chat-font);
+    font: 600 calc(var(--chat-size) + var(--pinned-step)) / var(--chat-line) var(--chat-font);
     overflow-wrap: anywhere;
   }
   .folded .text {
@@ -114,6 +115,7 @@
     margin-top: 2px;
     color: var(--dim);
     font-size: 0.8em;
+    font-weight: 400;
   }
   .close {
     display: grid;
