@@ -20,14 +20,14 @@
   exports.
 </p>
 
-<Row setting="uploader.enabled" label="Upload pasted images">
-  <Toggle label="Upload pasted images" checked={u.enabled} onchange={(v) => save({ enabled: v })} />
+<Row setting="uploader.enabled" label="Upload images you paste or drop">
+  <Toggle label="Upload images you paste or drop" checked={u.enabled} onchange={(v) => save({ enabled: v })} />
 </Row>
 
 <Row
   setting="uploader.confirm"
   label="Ask before uploading"
-  hint="Asks before an image you paste or drop is uploaded."
+  hint="One question per paste or drop."
 >
   <Toggle label="Ask before uploading" checked={u.confirm} onchange={(v) => save({ confirm: v })} />
 </Row>

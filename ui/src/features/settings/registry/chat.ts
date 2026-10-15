@@ -524,7 +524,7 @@ export const CHAT: Entry[] = [
   {
     id: 'uploader.enabled',
     page: 'uploads',
-    label: 'Upload pasted images',
+    label: 'Upload images you paste or drop',
     description: 'Images you paste or drop into the chat box go to your upload host.',
     keywords: ['image', 'upload', 'paste', 'imgur', 'nuuls', 'sharex'],
   },
@@ -532,7 +532,7 @@ export const CHAT: Entry[] = [
     id: 'uploader.confirm',
     page: 'uploads',
     label: 'Ask before uploading',
-    description: 'Asks before an image you paste or drop is uploaded.',
+    description: 'One question per paste or drop.',
     keywords: ['image', 'upload', 'paste', 'confirm', 'ask', 'question'],
   },
   {
