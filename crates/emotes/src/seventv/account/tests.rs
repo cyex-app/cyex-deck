@@ -59,8 +59,8 @@ const FAKE: &str = "aaa.bbb.ccc";
 async fn inventory_sends_no_token() {
     let body = r#"{"data":{"users":{"userByConnection":{"id":"01X"}}}}"#;
     let (base, h) = serve(vec![reply("200 OK", body)]);
-    let inv = client(&base).inventory("123").await.unwrap().unwrap();
-    assert_eq!(inv["id"], "01X");
+    let inv = client(&base).inventory("123").await.unwrap().read().unwrap().unwrap();
+    assert_eq!(inv.seventv_id, "01X");
     let req = h.join().unwrap().remove(0).to_lowercase();
     assert!(!req.contains("authorization"));
     assert!(req.contains("x-ignore-auth-failure: true"));
@@ -73,7 +73,8 @@ async fn no_user_is_none() {
         "200 OK",
         r#"{"data":{"users":{"userByConnection":null}}}"#,
     )]);
-    assert_eq!(client(&base).inventory("1").await.unwrap(), None);
+    let answer = client(&base).inventory("1").await.unwrap();
+    assert!(answer.read().unwrap().is_none());
 }
 
 #[tokio::test]
@@ -139,7 +140,7 @@ async fn a_closed_port_is_down() {
     let l = TcpListener::bind("127.0.0.1:0").unwrap();
     let base = format!("http://{}", l.local_addr().unwrap());
     drop(l);
-    assert_eq!(client(&base).inventory("1").await, Err(Error::Down));
+    assert_eq!(client(&base).inventory("1").await.err(), Some(Error::Down));
 }
 
 #[tokio::test]

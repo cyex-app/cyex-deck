@@ -91,10 +91,10 @@ impl CosmeticsView {
 
 pub fn paint_item(e: &PaintEntry) -> PaintItem {
     PaintItem {
-        style: e.paint.style(),
+        style: e.style.clone(),
         animated: e.animated,
         usable: e.usable,
-        added: added(&e.paint.id),
+        added: added(&e.style.id),
     }
 }
 
@@ -175,7 +175,7 @@ mod tests {
     #[test]
     fn view_from_fixture() {
         let user = super::super::model::tests::fixture("v4_inventory_cyexbot.json");
-        let inv = parse_user(&user).unwrap().unwrap();
+        let inv = parse_user(user).unwrap().unwrap();
         let v = CosmeticsView::from_inventory(&inv, Status::Ready, None);
         assert_eq!(v.sub_end.as_deref(), Some("2026/11/15"));
         let b = v.badges.iter().find(|b| b.animated).unwrap();
@@ -205,7 +205,7 @@ mod tests {
             .collect();
         let user = serde_json::json!({"id": "u", "inventory": {"paints": paints, "badges": badges}});
         let t = std::time::Instant::now();
-        let inv = parse_user(&user).unwrap().unwrap();
+        let inv = parse_user(user).unwrap().unwrap();
         let v = CosmeticsView::from_inventory(&inv, Status::Ready, None);
         assert_eq!(v.paints.len(), 2000);
         assert_eq!(v.badges.len(), 300);

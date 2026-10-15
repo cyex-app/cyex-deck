@@ -17,7 +17,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use cyex_auth::{SevenTvToken, SevenTvTokens, seventv_date};
-use cyex_emotes::seventv::account::model::{self, Inventory};
+use cyex_emotes::seventv::account::model::Inventory;
 use cyex_emotes::seventv::account::view::{CosmeticsView, Status};
 use cyex_emotes::seventv::account::{Client, Error};
 use cyex_settings::schema::SevenTvConsent;
@@ -93,12 +93,13 @@ impl Cosmetics {
         {
             return Ok(Some(inv));
         }
-        let Some(raw) = self.api.inventory(account).await? else {
+        let answer = self.api.inventory(account).await?;
+        let t = Instant::now();
+        let Some(inv) = answer.read()? else {
             lock(&self.cache).remove(account);
             return Ok(None);
         };
-        let t = Instant::now();
-        let inv = Arc::new(model::parse_user(&raw)?.ok_or(Error::Bad)?);
+        let inv = Arc::new(inv);
         if self.timed {
             let n = inv.paints.len() + inv.badges.len();
             eprintln!("cosmetics: parsed {n} in {:.1} ms", t.elapsed().as_secs_f64() * 1000.0);

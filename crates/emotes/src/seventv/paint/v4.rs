@@ -103,7 +103,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR")
         );
         let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
-        parse_user(v.pointer("/data/users/userByConnection").unwrap())
+        parse_user(v.pointer("/data/users/userByConnection").unwrap().clone())
             .unwrap()
             .unwrap()
             .paints
@@ -111,7 +111,7 @@ mod tests {
 
     #[test]
     fn linear_paint_with_shadows() {
-        let css = cyexbot()[0].paint.style().css;
+        let css = cyexbot()[0].style.css.clone();
         assert!(css.starts_with("background-image:linear-gradient("), "{css}");
         assert!(css.contains("--paint-shadow:drop-shadow("), "{css}");
     }
@@ -120,7 +120,7 @@ mod tests {
     fn image_paint_has_an_explicit_still() {
         let e = &cyexbot()[2];
         assert!(e.animated);
-        let s = e.paint.style();
+        let s = e.style.clone();
         assert!(s.css.contains("/1x.webp"), "{}", s.css);
         let still = s.still.unwrap();
         assert!(still.contains("/1x_static.webp"), "{still}");

@@ -30,7 +30,7 @@ mod tests {
     use super::*;
 
     fn inv() -> Inventory {
-        cyex_emotes::seventv::account::model::parse_user(&serde_json::json!({ "id": "01X" }))
+        cyex_emotes::seventv::account::model::parse_user(serde_json::json!({ "id": "01X" }))
             .unwrap()
             .unwrap()
     }

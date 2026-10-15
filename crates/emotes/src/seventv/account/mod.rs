@@ -56,14 +56,11 @@ impl Client {
         format!("{}/login?platform=twitch", self.auth)
     }
 
-    /// The account's public inventory as 7TV answered it (`None`: no 7TV user). `model::parse_user` types it.
-    pub async fn inventory(&self, twitch_id: &str) -> Result<Option<Value>, Error> {
+    /// The account's public inventory as 7TV answered it; `Answer::read` types it.
+    pub async fn inventory(&self, twitch_id: &str) -> Result<model::Answer, Error> {
         let vars = json!({ "tw": twitch_id, "product": SUB_PRODUCT });
-        let data = self.gql(None, query::INVENTORY, vars).await?;
-        Ok(data
-            .pointer("/users/userByConnection")
-            .filter(|u| !u.is_null())
-            .cloned())
+        let (status, reset, body) = self.post(None, query::INVENTORY, vars).await?;
+        Ok(model::Answer { status, reset, body })
     }
 
     pub async fn me(&self, token: &str) -> Result<Me, Error> {
@@ -123,18 +120,27 @@ impl Client {
     }
 
     async fn gql(&self, token: Option<&str>, query: &str, vars: Value) -> Result<Value, Error> {
+        let (status, reset, bytes) = self.post(token, query, vars).await?;
+        error::classify(status, reset, &bytes)
+    }
+
+    /// Every GQL call goes through here: the status, the rate-limit hint and the body.
+    async fn post(
+        &self,
+        token: Option<&str>,
+        query: &str,
+        vars: Value,
+    ) -> Result<(u16, Option<u64>, Vec<u8>), Error> {
         let body = json!({ "query": query, "variables": vars });
         let headers: &[(&str, &str)] = if token.is_none() {
             &[("x-ignore-auth-failure", "true")]
         } else {
             &[]
         };
-        let (status, reset, bytes) = self
-            .http
+        self.http
             .post_json_raw(&self.gql, token, headers, &body)
             .await
-            .map_err(error::transport)?;
-        error::classify(status, reset, &bytes)
+            .map_err(error::transport)
     }
 }
 

@@ -6,7 +6,7 @@ use std::sync::Arc;
 use cyex_auth::SevenTvTokens;
 use cyex_emotes::seventv::account::Error;
 use cyex_emotes::seventv::account::model::Inventory;
-use cyex_emotes::seventv::account::view::{badge_item, paint_item};
+use cyex_emotes::seventv::account::view::badge_item;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 use ts_rs::TS;
@@ -163,8 +163,8 @@ fn worn(inv: &Inventory, kind: Kind, id: Option<&str>) -> Worn {
         Kind::Paint => Worn::Paint(id.and_then(|id| {
             inv.paints
                 .iter()
-                .find(|e| e.paint.id == id)
-                .map(|e| paint_item(e).style)
+                .find(|e| e.style.id == id)
+                .map(|e| e.style.clone())
         })),
         Kind::Badge => {
             Worn::Badge(id.and_then(|id| inv.badges.iter().find(|e| e.id == id).map(|e| badge_item(e).def)))

@@ -19,7 +19,7 @@ fn entries(inv: &Inventory, kind: Kind) -> Vec<(&str, &str, bool)> {
         Kind::Paint => inv
             .paints
             .iter()
-            .map(|e| (e.paint.id.as_str(), e.paint.name.as_str(), e.usable))
+            .map(|e| (e.style.id.as_str(), e.style.name.as_str(), e.usable))
             .collect(),
         Kind::Badge => inv
             .badges
@@ -99,12 +99,18 @@ pub fn names(inv: &Inventory, kind: Kind) -> Vec<String> {
 #[cfg(test)]
 pub(super) mod tests {
     use cyex_emotes::seventv::account::model::{BadgeEntry, Inventory, PaintEntry};
+    use cyex_emotes::seventv::paint::PaintStyle;
 
     use super::*;
 
     pub fn paint(id: &str, name: &str, usable: bool) -> PaintEntry {
         PaintEntry {
-            paint: serde_json::from_value(serde_json::json!({"id": id, "name": name})).unwrap(),
+            style: PaintStyle {
+                id: id.into(),
+                name: name.into(),
+                css: "color:red".into(),
+                still: None,
+            },
             animated: false,
             usable,
         }

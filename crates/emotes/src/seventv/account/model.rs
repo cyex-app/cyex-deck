@@ -6,7 +6,8 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use super::Error;
-use crate::seventv::paint::{self, Paint};
+use super::error::classify;
+use crate::seventv::paint::{self, PaintStyle};
 
 /// A public account's cosmetics.
 #[derive(Debug, Clone)]
@@ -25,7 +26,8 @@ pub struct Inventory {
 
 #[derive(Debug, Clone)]
 pub struct PaintEntry {
-    pub paint: Paint,
+    /// Built once here: the menu, the chat and the lookups all use this one.
+    pub style: PaintStyle,
     pub animated: bool,
     pub usable: bool,
 }
@@ -40,6 +42,47 @@ pub struct BadgeEntry {
     pub stills: [Option<String>; 4],
     pub animated: bool,
     pub usable: bool,
+}
+
+/// The inventory query's answer, read straight into types (no `Value` in between: 2.300
+/// items cost about half then).
+#[derive(Deserialize)]
+struct Envelope {
+    #[serde(default)]
+    errors: Vec<serde::de::IgnoredAny>,
+    data: Option<Data>,
+}
+
+#[derive(Deserialize)]
+struct Data {
+    users: Option<Users>,
+}
+
+#[derive(Deserialize)]
+struct Users {
+    #[serde(rename = "userByConnection")]
+    user: Option<RawUser>,
+}
+
+/// 7TV's answer to the inventory query, not read yet (so the read can be timed).
+pub struct Answer {
+    pub(super) status: u16,
+    pub(super) reset: Option<u64>,
+    pub(super) body: Vec<u8>,
+}
+
+impl Answer {
+    /// The account's cosmetics; `None` is no 7TV user.
+    pub fn read(&self) -> Result<Option<Inventory>, Error> {
+        if (200..300).contains(&self.status)
+            && let Ok(Envelope { errors, data: Some(d) }) = serde_json::from_slice(&self.body)
+            && errors.is_empty()
+        {
+            return Ok(d.users.and_then(|u| u.user).map(inventory));
+        }
+        // Anything else says why through the one error mapping.
+        classify(self.status, self.reset, &self.body).and(Err(Error::Bad))
+    }
 }
 
 #[derive(Deserialize)]
@@ -226,12 +269,13 @@ pub(crate) fn still_webp(images: &[V4Image], scale: u32) -> Option<&V4Image> {
     images.iter().find(|i| i.webp_at(scale) && i.frame_count <= 1)
 }
 
-/// Reads `users.userByConnection`. `null` is no 7TV user.
-pub fn parse_user(user: &Value) -> Result<Option<Inventory>, Error> {
-    if user.is_null() {
-        return Ok(None);
-    }
-    let raw: RawUser = serde_json::from_value(user.clone()).map_err(|_| Error::Bad)?;
+/// Reads a `users.userByConnection` value. `null` is no 7TV user.
+pub fn parse_user(user: Value) -> Result<Option<Inventory>, Error> {
+    let raw: Option<RawUser> = serde_json::from_value(user).map_err(|_| Error::Bad)?;
+    Ok(raw.map(inventory))
+}
+
+fn inventory(raw: RawUser) -> Inventory {
     let period = raw
         .billing
         .and_then(|b| b.subscription_info)
@@ -255,8 +299,8 @@ pub fn parse_user(user: &Value) -> Result<Option<Inventory>, Error> {
             paints[i].usable |= edge.accessible;
             continue;
         }
-        let mapped = paint::from_v4(&p);
-        if mapped.style().css.is_empty() {
+        let style = paint::from_v4(&p).style();
+        if style.css.is_empty() {
             skipped += 1;
             continue;
         }
@@ -266,7 +310,7 @@ pub fn parse_user(user: &Value) -> Result<Option<Inventory>, Error> {
             _ => false,
         });
         paints.push(PaintEntry {
-            paint: mapped,
+            style,
             animated,
             usable: edge.accessible,
         });
@@ -286,7 +330,7 @@ pub fn parse_user(user: &Value) -> Result<Option<Inventory>, Error> {
         badges.push(badge_entry(b, edge.accessible));
     }
 
-    Ok(Some(Inventory {
+    Inventory {
         seventv_id: raw.id,
         paint,
         badge,
@@ -295,7 +339,7 @@ pub fn parse_user(user: &Value) -> Result<Option<Inventory>, Error> {
         paints,
         badges,
         skipped,
-    }))
+    }
 }
 
 fn badge_entry(b: RawBadge, usable: bool) -> BadgeEntry {
@@ -331,7 +375,7 @@ pub(crate) mod tests {
 
     #[test]
     fn cyexbot_inventory() {
-        let inv = parse_user(&fixture("v4_inventory_cyexbot.json"))
+        let inv = parse_user(fixture("v4_inventory_cyexbot.json"))
             .unwrap()
             .unwrap();
         assert!(inv.subscribed);
@@ -344,7 +388,7 @@ pub(crate) mod tests {
 
     #[test]
     fn dedupes_and_usable_from_any_edge() {
-        let inv = parse_user(&fixture("v4_inventory_no_sub.json")).unwrap().unwrap();
+        let inv = parse_user(fixture("v4_inventory_no_sub.json")).unwrap().unwrap();
         assert!(!inv.subscribed);
         assert_eq!(inv.paints.len(), 3);
         let usable: Vec<_> = inv.paints.iter().map(|p| p.usable).collect();
@@ -354,12 +398,12 @@ pub(crate) mod tests {
     #[test]
     fn no_user_is_none() {
         let v = fixture("v4_inventory_no_user.json");
-        assert!(parse_user(&v).unwrap().is_none());
+        assert!(parse_user(v).unwrap().is_none());
     }
 
     #[test]
     fn badge_pictures_are_webp_only() {
-        let inv = parse_user(&fixture("v4_inventory_cyexbot.json"))
+        let inv = parse_user(fixture("v4_inventory_cyexbot.json"))
             .unwrap()
             .unwrap();
         let moving = inv.badges.iter().find(|b| b.animated).unwrap();
