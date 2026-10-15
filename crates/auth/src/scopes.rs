@@ -16,7 +16,7 @@ pub const HELIX: &[&str] = &[
     "user:manage:whispers",         // 1.26 send whispers
     "user:read:blocked_users",      // F2 block list
     "user:read:follows",            // 1.6 home, 1.11
-    "user:read:moderated_channels", // 1.57 role gate, 1.10 join budget
+    "user:read:moderated_channels", // 1.57 role gate
     "user:read:subscriptions",      // 1.28 own subs
     // Moderation
     "moderation:read",                   // 1.50 mod list

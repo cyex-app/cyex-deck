@@ -21,18 +21,6 @@ pub struct ListedUser {
     pub user_name: String,
 }
 
-#[derive(Deserialize)]
-struct Moderated {
-    broadcaster_id: String,
-}
-
-/// 1.57 Ids of every channel the account moderates (`user:read:moderated_channels`).
-pub async fn moderated(http: &Http, auth: Auth<'_>, user_id: &str) -> Result<Vec<String>> {
-    let make = || get(http, auth, "/moderation/channels").query(&[("user_id", user_id), ("first", "100")]);
-    let (list, _) = pages::<Moderated>(30, make).await?;
-    Ok(list.into_iter().map(|m| m.broadcaster_id).collect())
-}
-
 /// Mods of the broadcaster's own channel (`moderation:read`).
 pub async fn moderators(http: &Http, auth: Auth<'_>, broadcaster_id: &str) -> Result<Vec<ListedUser>> {
     let make = || get(http, auth, "/moderation/moderators").query(&[("broadcaster_id", broadcaster_id), ("first", "100")]);
