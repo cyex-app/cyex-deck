@@ -3,7 +3,7 @@
 
 use cyex_chat::mentions::{self, MentionCheck};
 use cyex_settings::Partition;
-use cyex_settings::schema::{MentionRule, Mentions, SOUND_TYPES, is_sound_file};
+use cyex_settings::schema::{Highlights, MentionRule, Mentions, SOUND_TYPES, is_sound_file};
 use tauri::ipc::Response;
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
@@ -43,16 +43,25 @@ pub async fn mentions_pick_sound(app: AppHandle) -> CmdResult<Option<String>> {
     Ok(Some(path.to_string_lossy().into_owned()))
 }
 
-/// A mention's sound file, for the main window to play. Only files a mention names.
+/// A mention's or highlight's sound file, for the main window to play. Only files your settings name.
 #[tauri::command]
 pub fn mentions_sound(settings: State<Settings>, path: String) -> CmdResult<Response> {
     let m: Mentions = settings.read(Partition::Mentions);
+    let h: Highlights = settings.read(Partition::Highlights);
     let named = std::iter::once(&m.me.alert)
         .chain(m.list.iter().map(|r| &r.alert))
         .chain(m.global_list.iter().map(|r| &r.alert))
-        .any(|a| a.sound_file == path);
+        .any(|a| a.sound_file == path)
+        || h.phrases
+            .iter()
+            .map(|r| &r.alert)
+            .chain(h.users.iter().map(|r| &r.alert))
+            .chain(h.badges.iter().map(|r| &r.alert))
+            .chain(h.apps.iter().map(|r| &r.alert))
+            .chain([&h.first_message, &h.redeemed, &h.subs, &h.announcements, &h.watch_streaks, &h.own].map(|b| &b.alert))
+            .any(|a| a.sound_file == path);
     if !named || !is_sound_file(&path) {
-        return Err("Not a mention's sound.".into());
+        return Err("Not a sound from your settings.".into());
     }
     let size = std::fs::metadata(&path)
         .map_err(|_| "The sound file is gone.".to_owned())?

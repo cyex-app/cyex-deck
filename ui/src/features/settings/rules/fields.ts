@@ -4,7 +4,8 @@ export interface Field<T> {
   key: keyof T & string;
   /** Checkbox text, tooltip and accessible name. */
   label: string;
-  kind: 'text' | 'area' | 'check' | 'color' | 'number' | 'select' | 'list';
+  /** V105-17 A sound file: an upload button, then its name with play and ×. */
+  kind: 'text' | 'area' | 'check' | 'color' | 'number' | 'select' | 'list' | 'sound';
   placeholder?: string;
   options?: readonly { value: string; label: string }[];
   /** CSS width; text fields grow when unset. */

@@ -9,7 +9,9 @@ const rule = (login: string, extra: Partial<UserRule> = {}): UserRule => ({
   regex: false,
   color: '',
   sound: false,
+  soundFile: '',
   flash: false,
+  show: false,
   route: '',
   ...extra,
 });

@@ -3,7 +3,7 @@
 
 import type { Entry } from './entry';
 
-/** A built-in highlight's row: one entry for its switch, color, sound, flash and feed. */
+/** A built-in highlight's row: one entry for its switch, color, sound, sound file, flash, Mentions tab and feed. */
 function builtIn(key: string, label: string, description: string, keywords: string[] = []): Entry {
   const id = `highlights.${key}`;
   return {
@@ -12,7 +12,7 @@ function builtIn(key: string, label: string, description: string, keywords: stri
     label,
     description,
     keywords: ['highlight', 'color', 'sound', 'flash', ...keywords],
-    keys: ['enabled', 'color', 'sound', 'flash', 'route'].map((f) => `${id}.${f}`),
+    keys: ['enabled', 'color', 'sound', 'soundFile', 'flash', 'show', 'route'].map((f) => `${id}.${f}`),
   };
 }
 
@@ -313,7 +313,7 @@ export const CHAT: Entry[] = [
     page: 'highlights',
     label: 'Highlight words',
     description: 'Messages with these words light up.',
-    keywords: ['keywords', 'phrases', 'regex'],
+    keywords: ['keywords', 'phrases', 'regex', 'sound file', 'mentions tab'],
   },
   {
     id: 'highlights.users',

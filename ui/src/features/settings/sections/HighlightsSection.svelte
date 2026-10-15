@@ -2,7 +2,8 @@
      Your name moved to Mentions (V104-01).
      Each can color the line, play a sound, flash the taskbar and copy the message into a
      feed tab (F4). Also: who never highlights, chats that stay quiet (C27), look-alike
-     letters (C32). -->
+     letters (C32).
+     V105-17 Each can also go to the Mentions tab and play its own sound file. -->
 <script lang="ts">
   import Row from '../../../components/Row.svelte';
   import Toggle from '../../../components/Toggle.svelte';
@@ -20,16 +21,18 @@
   const h = $derived(settings.v.highlights);
   const save = (patch: Partial<Highlights>) => void settings.patch('highlights', patch);
 
-  type Alert = { color: string; sound: boolean; flash: boolean; route: string };
+  type Alert = { color: string; sound: boolean; soundFile: string; flash: boolean; show: boolean; route: string };
   const ALERT: Field<Alert>[] = [
     { key: 'color', label: 'Color', kind: 'color' },
     { key: 'sound', label: 'Sound', kind: 'check' },
+    { key: 'soundFile', label: 'Sound file', kind: 'sound' },
     { key: 'flash', label: 'Flash', kind: 'check' },
+    { key: 'show', label: 'Show in Mentions', kind: 'check' },
     { key: 'route', label: 'Also show in feed', kind: 'text', placeholder: 'Feed', width: '90px' },
   ];
   const alert = <T extends Alert>() => ALERT as unknown as Field<T>[];
   const on = <T,>(): Field<T & { enabled: boolean }> => ({ key: 'enabled', label: 'On', kind: 'check' });
-  const blank = { enabled: true, color: '', sound: false, flash: false, route: '' };
+  const blank = { enabled: true, color: '', sound: false, soundFile: '', flash: false, show: false, route: '' };
 
   /** Colors match the chat's own (Line.svelte). */
   const BUILT_IN: { key: keyof Highlights; label: string; color: string }[] = [

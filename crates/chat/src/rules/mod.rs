@@ -29,17 +29,22 @@ pub struct Outcome {
 }
 
 impl Outcome {
-    /// V104-01 Adds a mention's alerts. "Show in Mentions" is the Mentions feed tab.
-    pub fn add_mention(&mut self, a: &MentionAlert) {
-        self.sound |= a.sound;
-        self.flash |= a.flash;
-        self.notify |= a.notify;
-        if a.sound && !a.sound_file.is_empty() && self.sound_file.is_none() {
-            self.sound_file = Some(a.sound_file.clone());
+    /// What every match adds: sound (its own file wins if it's the first), flash, the Mentions tab.
+    fn add_alert(&mut self, sound: bool, sound_file: &str, flash: bool, show: bool) {
+        self.sound |= sound;
+        self.flash |= flash;
+        if sound && !sound_file.is_empty() && self.sound_file.is_none() {
+            self.sound_file = Some(sound_file.to_owned());
         }
-        if a.show && !self.routes.iter().any(|r| r.eq_ignore_ascii_case(mentions::FEED)) {
+        if show && !self.routes.iter().any(|r| r.eq_ignore_ascii_case(mentions::FEED)) {
             self.routes.push(mentions::FEED.to_owned());
         }
+    }
+
+    /// V104-01 Adds a mention's alerts. "Show in Mentions" is the Mentions feed tab.
+    pub fn add_mention(&mut self, a: &MentionAlert) {
+        self.add_alert(a.sound, &a.sound_file, a.flash, a.show);
+        self.notify |= a.notify;
     }
 
     pub fn pings(&self) -> bool {
@@ -295,8 +300,7 @@ impl Pick {
 
     fn take(&mut self, kind: HighlightKind, a: &Alert) {
         self.color(kind, &a.color);
-        self.out.sound |= a.sound;
-        self.out.flash |= a.flash;
+        self.out.add_alert(a.sound, &a.sound_file, a.flash, a.show);
         if !a.route.is_empty() && !self.out.routes.contains(&a.route) {
             self.out.routes.push(a.route.clone());
         }

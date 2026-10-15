@@ -15,17 +15,18 @@ pub struct Alert {
     pub color: String,
     pub sound: bool,
     pub flash: bool,
+    /// V105-17 Also copy the message into the Mentions tab.
+    pub show: bool,
+    /// V105-17 A sound file played instead of the chime. Empty: the chime.
+    pub sound_file: String,
     /// F4 Also copy the message into the feed tab with this name. Empty: nowhere.
     pub route: String,
 }
 
 impl Alert {
     pub(super) fn sanitize(&mut self) {
-        let hex = self.color.strip_prefix('#').unwrap_or("");
-        if !(matches!(hex.len(), 6 | 8) && hex.bytes().all(|b| b.is_ascii_hexdigit())) {
-            self.color.clear();
-        }
-        self.color.make_ascii_lowercase();
+        crate::schema::mentions::clean_color(&mut self.color);
+        crate::schema::mentions::clean_sound_file(&mut self.sound_file);
         self.route = self.route.trim().chars().take(MAX_ROUTE_CHARS).collect();
     }
 }
@@ -49,6 +50,8 @@ impl BuiltIn {
                 color: String::new(),
                 sound: false,
                 flash: false,
+                show: false,
+                sound_file: String::new(),
                 route: String::new(),
             },
         }

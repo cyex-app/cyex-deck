@@ -327,4 +327,37 @@ mod tests {
         assert_eq!(h.filters[0].id, "b");
         assert!(!h.prune_blank());
     }
+
+    // V105-17
+    #[test]
+    fn alert_keeps_a_sound_file_and_drops_others() {
+        let mut h = Highlights {
+            phrases: vec![
+                PhraseRule {
+                    pattern: "a".into(),
+                    alert: Alert {
+                        sound_file: "C:\\x.mp3".into(),
+                        show: true,
+                        ..Alert::default()
+                    },
+                    ..PhraseRule::default()
+                },
+                PhraseRule {
+                    pattern: "b".into(),
+                    alert: Alert {
+                        sound_file: "C:\\x.exe".into(),
+                        ..Alert::default()
+                    },
+                    ..PhraseRule::default()
+                },
+            ],
+            ..Highlights::default()
+        };
+        h.sanitize();
+        assert_eq!(h.phrases[0].alert.sound_file, "C:\\x.mp3");
+        assert_eq!(h.phrases[1].alert.sound_file, "");
+        let json = serde_json::to_value(&h.phrases[0].alert).unwrap();
+        assert_eq!(json["show"], true);
+        assert_eq!(json["soundFile"], "C:\\x.mp3");
+    }
 }

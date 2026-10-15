@@ -13,5 +13,5 @@ export function toggleWatch(users: UserRule[], login: string): UserRule[] {
   if (users.some((r) => mine(r, login))) {
     return users.map((r) => (mine(r, login) ? { ...r, enabled: on } : r));
   }
-  return [...users, { enabled: true, login: login.toLowerCase(), regex: false, color: '', sound: false, flash: false, route: '' }];
+  return [...users, { enabled: true, login: login.toLowerCase(), regex: false, color: '', sound: false, soundFile: '', flash: false, show: false, route: '' }];
 }

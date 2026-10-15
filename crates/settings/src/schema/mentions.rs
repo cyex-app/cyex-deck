@@ -47,15 +47,25 @@ impl Default for MentionAlert {
 
 impl MentionAlert {
     fn sanitize(&mut self) {
-        let hex = self.color.strip_prefix('#').unwrap_or("");
-        if !(matches!(hex.len(), 6 | 8) && hex.bytes().all(|b| b.is_ascii_hexdigit())) {
-            self.color.clear();
-        }
-        self.color.make_ascii_lowercase();
-        self.sound_file = self.sound_file.trim().to_owned();
-        if !is_sound_file(&self.sound_file) || self.sound_file.chars().count() > MAX_PATH_CHARS {
-            self.sound_file.clear();
-        }
+        clean_color(&mut self.color);
+        clean_sound_file(&mut self.sound_file);
+    }
+}
+
+/// `#rrggbb` or `#rrggbbaa`, lowercase; anything else becomes empty (the default color).
+pub(crate) fn clean_color(color: &mut String) {
+    let hex = color.strip_prefix('#').unwrap_or("");
+    if !(matches!(hex.len(), 6 | 8) && hex.bytes().all(|b| b.is_ascii_hexdigit())) {
+        color.clear();
+    }
+    color.make_ascii_lowercase();
+}
+
+/// A playable sound file path, or empty.
+pub(crate) fn clean_sound_file(path: &mut String) {
+    *path = path.trim().to_owned();
+    if !is_sound_file(path) || path.chars().count() > MAX_PATH_CHARS {
+        path.clear();
     }
 }
 

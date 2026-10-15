@@ -10,6 +10,14 @@ export type BadgeRule = { enabled: boolean, badge: string,
  */
 color: string, sound: boolean, flash: boolean, 
 /**
+ * V105-17 Also copy the message into the Mentions tab.
+ */
+show: boolean, 
+/**
+ * V105-17 A sound file played instead of the chime. Empty: the chime.
+ */
+soundFile: string, 
+/**
  * F4 Also copy the message into the feed tab with this name. Empty: nowhere.
  */
 route: string, };

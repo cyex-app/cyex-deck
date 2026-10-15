@@ -276,4 +276,44 @@ mod tests {
         let (_, o) = out.last().unwrap();
         assert!(o.notify && !o.sound && o.routes == ["Mentions"]);
     }
+
+    // V105-17 A highlight can copy into Mentions and bring its own sound file.
+    #[test]
+    fn highlights_show_in_mentions_and_play_their_file() {
+        use cyex_settings::schema::Alert;
+        let phrase = |p: &str, show: bool, file: &str| PhraseRule {
+            pattern: p.into(),
+            alert: Alert {
+                sound: true,
+                show,
+                sound_file: file.into(),
+                ..Alert::default()
+            },
+            ..PhraseRule::default()
+        };
+        let h = Highlights {
+            phrases: vec![
+                phrase("alpha", true, "C:\\a.wav"),
+                phrase("beta", true, "C:\\b.wav"),
+                phrase("gamma", false, ""),
+            ],
+            ..Highlights::default()
+        };
+        let mut r = Room::new("chan", Some(Me::new("42", "me", "Me")));
+        r.set_rules(Arc::new(Rules::new(&h, &Mentions::default())));
+
+        feed(&mut r, "1", "7", "alpha");
+        let out = r.take_outcomes();
+        assert_eq!(out[0].1.routes, ["Mentions"]);
+        assert_eq!(out[0].1.sound_file.as_deref(), Some("C:\\a.wav"));
+
+        feed(&mut r, "2", "7", "beta alpha");
+        let out = r.take_outcomes();
+        assert_eq!(out[0].1.routes, ["Mentions"], "once");
+        assert_eq!(out[0].1.sound_file.as_deref(), Some("C:\\a.wav"), "the first one's file");
+
+        feed(&mut r, "3", "7", "gamma");
+        let out = r.take_outcomes();
+        assert!(out[0].1.routes.is_empty() && out[0].1.sound_file.is_none());
+    }
 }
