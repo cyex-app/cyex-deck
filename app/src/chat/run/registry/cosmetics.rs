@@ -60,7 +60,7 @@ pub(super) const CMDS: &[Cmd] = &[
         "You have 50 combos. Delete one first.",
         "That combo is gone.",
     ])
-    .notes("Results are local lines; nothing goes to the channel. Needs a signed-in chat and 7TV allowed. A ⚠ after a name in /combo list means a part isn’t usable. Tab completes combo names."),
+    .notes("Results are local lines; nothing goes to the channel. Needs a signed-in chat; wearing and saving also need 7TV allowed. A ⚠ after a name in /combo list means a part isn’t usable. Tab completes combo names."),
     Cmd::new("paint", "/paint name | none", "Wears one of your 7TV paints, or none.", "V1051-04")
         .help("/paint")
         .args(&[req("name", "paint").values(&["none"]).note("The rest of the line; no quotes needed. \"None\" in quotes means a paint called None.")])
