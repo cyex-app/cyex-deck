@@ -10,7 +10,7 @@ use serde::Serialize;
 use tauri::webview::{NewWindowResponse, WebviewWindow};
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WindowEvent};
 use tauri_plugin_opener::OpenerExt;
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, error::TryRecvError};
 use ts_rs::TS;
 
 use crate::theme;
@@ -101,8 +101,13 @@ fn label_of(account: &str) -> String {
 pub async fn capture(app: &AppHandle, account: &str, login_url: String) -> Result<SevenTvToken, SignIn> {
     let label = label_of(account);
     if let Some(w) = app.get_webview_window(&label) {
-        let _ = w.unminimize();
-        let _ = w.set_focus();
+        if gone(&w) {
+            // A page that closed itself left an empty window behind.
+            let _ = w.destroy();
+        } else {
+            let _ = w.unminimize();
+            let _ = w.set_focus();
+        }
         return Err(SignIn::Cancelled);
     }
     let url = Url::parse(&login_url).map_err(|_| SignIn::Failed)?;
@@ -152,33 +157,54 @@ pub async fn capture(app: &AppHandle, account: &str, login_url: String) -> Resul
     });
 
     let result = wait(&window, &mut rx, mock.as_deref()).await;
-    let _ = window.close();
+    // `destroy`, not `close`: it frees the label even when the page is already gone.
+    let _ = window.destroy();
     result
 }
 
+/// The page called `window.close()`: wry drops the webview but keeps the window, and no
+/// `Destroyed` comes. All that's left to see is that its address can't be read any more.
+fn gone(w: &WebviewWindow) -> bool {
+    w.url().is_err()
+}
+
+/// Waits for 7TV's callback, then looks for the session for up to `POLL_FOR`. Closing the
+/// window, or the page closing itself, is a cancel.
 async fn wait(
     window: &WebviewWindow,
     rx: &mut mpsc::UnboundedReceiver<Event>,
     mock: Option<&str>,
 ) -> Result<SevenTvToken, SignIn> {
-    if !matches!(rx.recv().await, Some(Event::Callback(Callback::Code))) {
-        return Err(SignIn::Cancelled);
-    }
-    let start = tokio::time::Instant::now();
-    while start.elapsed() < POLL_FOR {
-        if matches!(rx.try_recv(), Ok(Event::Closed)) {
+    let mut until: Option<tokio::time::Instant> = None;
+    loop {
+        loop {
+            match rx.try_recv() {
+                Ok(Event::Callback(Callback::Code)) => {
+                    until.get_or_insert_with(|| tokio::time::Instant::now() + POLL_FOR);
+                }
+                Ok(Event::Callback(Callback::Error) | Event::Closed) | Err(TryRecvError::Disconnected) => {
+                    return Err(SignIn::Cancelled);
+                }
+                Err(TryRecvError::Empty) => break,
+            }
+        }
+        if gone(window) {
             return Err(SignIn::Cancelled);
         }
-        if on_7tv(window, mock)
-            && let Some(raw) = crate::sys::run_script(window, "localStorage.getItem('7tv-token')").await
-            && let Ok(Some(jwt)) = serde_json::from_str::<Option<String>>(&raw)
-        {
-            let _ = crate::sys::run_script(window, "localStorage.removeItem('7tv-token')").await;
-            return SevenTvToken::parse(&jwt).ok_or(SignIn::Failed);
+        if let Some(until) = until {
+            if tokio::time::Instant::now() >= until {
+                return Err(SignIn::Failed);
+            }
+            if on_7tv(window, mock)
+                && let Some(raw) = crate::sys::run_script(window, "localStorage.getItem('7tv-token')").await
+                && let Ok(Some(jwt)) = serde_json::from_str::<Option<String>>(&raw)
+            {
+                let _ = crate::sys::run_script(window, "localStorage.removeItem('7tv-token')").await;
+                return SevenTvToken::parse(&jwt).ok_or(SignIn::Failed);
+            }
         }
         tokio::time::sleep(POLL_EVERY).await;
     }
-    Err(SignIn::Failed)
 }
 
 #[cfg(test)]
