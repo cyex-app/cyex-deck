@@ -1,4 +1,4 @@
-//! V1051-01 Names every audio session of the app and of the processes below it (WebView2's),
+//! V1051-01 Names every audio session of the app and of its WebView2 processes,
 //! as they appear. Windows forgets a session's name, so each new one is named again.
 
 use std::collections::HashSet;
@@ -101,7 +101,7 @@ fn run(
     let root = std::process::id();
     loop {
         watch_new(&en, &created, &mut watched)?;
-        let ours = crate::sys::descendants(root);
+        let ours = crate::sys::webview_tree(root);
         for (_, manager) in &watched {
             style(manager, root, &ours, icon, &streams, &sounds);
         }

@@ -69,22 +69,25 @@ pub fn running_exes() -> Vec<String> {
     Vec::new()
 }
 
-/// V1051-01 `root` and every process started below it (WebView2's).
+/// V1051-01 `root` and the WebView2 processes started below it. Only WebView2's: a browser
+/// the app opened a link in also starts as its child, and its sound isn't the app's.
 #[cfg(windows)]
-pub fn descendants(root: u32) -> std::collections::HashSet<u32> {
+pub fn webview_tree(root: u32) -> std::collections::HashSet<u32> {
     use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::System::Diagnostics::ToolHelp::{
         CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
     };
 
-    let mut pairs = Vec::new();
+    let mut procs = Vec::new();
     // SAFETY: a process snapshot read into a local struct and closed here.
     unsafe {
         if let Ok(snap) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
             let mut e = PROCESSENTRY32W { dwSize: size_of::<PROCESSENTRY32W>() as u32, ..Default::default() };
             if Process32FirstW(snap, &mut e).is_ok() {
                 loop {
-                    pairs.push((e.th32ProcessID, e.th32ParentProcessID));
+                    let len = e.szExeFile.iter().position(|&c| c == 0).unwrap_or(e.szExeFile.len());
+                    let exe = String::from_utf16_lossy(&e.szExeFile[..len]);
+                    procs.push((e.th32ProcessID, e.th32ParentProcessID, exe.eq_ignore_ascii_case(WEBVIEW_EXE)));
                     if Process32NextW(snap, &mut e).is_err() {
                         break;
                     }
@@ -93,12 +96,22 @@ pub fn descendants(root: u32) -> std::collections::HashSet<u32> {
             let _ = CloseHandle(snap);
         }
     }
+    tree(root, &procs)
+}
+
+/// WebView2's process, whatever its version.
+#[cfg(windows)]
+const WEBVIEW_EXE: &str = "msedgewebview2.exe";
+
+/// `root` and every WebView2 process below it, from (pid, parent, is WebView2) rows.
+#[cfg(windows)]
+fn tree(root: u32, procs: &[(u32, u32, bool)]) -> std::collections::HashSet<u32> {
     let mut set = std::collections::HashSet::from([root]);
     loop {
         let before = set.len();
-        for (pid, parent) in &pairs {
-            if set.contains(parent) {
-                set.insert(*pid);
+        for &(pid, parent, webview) in procs {
+            if webview && pid != parent && set.contains(&parent) {
+                set.insert(pid);
             }
         }
         if set.len() == before {
@@ -323,7 +336,16 @@ mod tests {
 
     #[test]
     fn the_tree_has_this_process() {
-        assert!(descendants(std::process::id()).contains(&std::process::id()));
+        assert!(webview_tree(std::process::id()).contains(&std::process::id()));
+    }
+
+    #[test]
+    fn only_webview2_below_the_app_is_ours() {
+        // 1 the app, 2 WebView2's browser, 3 its audio, 4 a browser a link started, 5 its audio.
+        let procs = [(1, 0, false), (2, 1, true), (3, 2, true), (4, 1, false), (5, 4, true), (6, 9, true)];
+        let mut ours: Vec<_> = tree(1, &procs).into_iter().collect();
+        ours.sort();
+        assert_eq!(ours, [1, 2, 3]);
     }
 }
 
