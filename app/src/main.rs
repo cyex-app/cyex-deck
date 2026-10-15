@@ -8,6 +8,7 @@ mod bell;
 mod browse;
 mod chat;
 mod commands;
+mod cosmetics;
 mod connections;
 mod emotes;
 mod fonts;
@@ -61,6 +62,7 @@ fn main() {
             auth::init(handle)?;
             hermes::init(handle);
             emotes::init(handle);
+            cosmetics::init(handle);
             plugins::init(handle);
             chat::init(handle);
             tabs::init(handle);

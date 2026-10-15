@@ -13,7 +13,7 @@ mod providers;
 
 pub use card::{EmoteCard, card};
 pub use load::twitch_sets;
-pub use looks::looks_for;
+pub use looks::{Worn, looks_for, wear};
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};

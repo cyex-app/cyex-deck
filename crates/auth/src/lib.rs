@@ -22,6 +22,6 @@ pub use chat::{chat_token, chat_token_kind};
 pub use error::AuthError;
 pub use kind::TokenKind;
 pub use secrets::Secret;
-pub use seventv::{SevenTvToken, SevenTvTokens};
+pub use seventv::{SevenTvToken, SevenTvTokens, date as seventv_date};
 pub use vault::{TokenState, Vault};
 pub use view::{AccountView, SevenTvView, TokenView, views};

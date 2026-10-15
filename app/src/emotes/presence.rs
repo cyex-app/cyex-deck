@@ -84,3 +84,72 @@ pub fn touch(app: &AppHandle, account: &str, login: &str) {
         }
     });
 }
+
+/// V1051-03 The account's 7TV user id, as the cosmetics menu learned it.
+pub fn remember_seventv(app: &AppHandle, account: &str, id: Option<String>) {
+    app.state::<Presence>()
+        .seventv
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .insert(account.to_owned(), id);
+}
+
+/// Chats the account was in this recently count for `resend`.
+const RECENT: Duration = Duration::from_secs(60 * 60);
+
+/// V1051-03 After a paint or badge change: tell 7TV again in every chat this account was
+/// in lately, once, past the minute's limit, so others see the change soon.
+pub fn resend(app: &AppHandle, account: &str) {
+    let logins = {
+        let presence = app.state::<Presence>();
+        let mut last = presence.last.lock().unwrap_or_else(|p| p.into_inner());
+        let recent: Vec<(String, String)> = last
+            .iter()
+            .filter(|(_, t)| t.elapsed() < RECENT)
+            .map(|(k, _)| k.clone())
+            .collect();
+        let logins = due_for(account, &recent);
+        for login in &logins {
+            last.remove(&(account.to_owned(), login.clone()));
+        }
+        logins
+    };
+    if logins.is_empty() {
+        return;
+    }
+    let app = app.clone();
+    let account = account.to_owned();
+    tauri::async_runtime::spawn(async move {
+        // 7TV caches the user for a second (research §8).
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        // `touch` still checks the presence setting and that the chat is joined, so
+        // turning presence off turns this off too.
+        for login in logins {
+            touch(&app, &account, &login);
+        }
+    });
+}
+
+/// The logins of this account's chats among `keys` (account, login).
+fn due_for(account: &str, keys: &[(String, String)]) -> Vec<String> {
+    keys.iter()
+        .filter(|(a, _)| a == account)
+        .map(|(_, l)| l.clone())
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::due_for;
+
+    #[test]
+    fn picks_only_that_accounts_logins() {
+        let keys = vec![
+            ("1".to_owned(), "a".to_owned()),
+            ("2".to_owned(), "b".to_owned()),
+            ("1".to_owned(), "c".to_owned()),
+        ];
+        assert_eq!(due_for("1", &keys), vec!["a", "c"]);
+        assert!(due_for("3", &keys).is_empty());
+    }
+}

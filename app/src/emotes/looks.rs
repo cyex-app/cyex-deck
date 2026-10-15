@@ -6,6 +6,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use cyex_emotes::Looks;
+use cyex_emotes::cosmetics::SevenChange;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::Notify;
 
@@ -57,4 +58,35 @@ pub fn looks_for(app: &AppHandle, users: &[String]) -> Looks {
     let state = app.state::<Emotes>();
     let inner = state.lock();
     inner.cosmetics.looks(users.iter().take(500).map(String::as_str))
+}
+
+/// V1051-03 What an account now wears.
+pub enum Worn {
+    Paint(Option<cyex_emotes::seventv::paint::PaintStyle>),
+    Badge(Option<cyex_emotes::cosmetics::BadgeDef>),
+}
+
+/// V1051-03 The account's own new paint or badge, shown at once (before 7TV's events arrive).
+pub fn wear(app: &AppHandle, twitch_id: &str, change: Worn) {
+    {
+        let state = app.state::<Emotes>();
+        let mut inner = state.lock();
+        match &change {
+            Worn::Paint(p) => {
+                if let Some(p) = p {
+                    inner.cosmetics.add_paint(p.clone());
+                }
+                let id = p.as_ref().map(|p| p.id.as_str());
+                inner.cosmetics.set_seventv(twitch_id, SevenChange::Paint(id));
+            }
+            Worn::Badge(b) => {
+                if let Some(b) = b {
+                    inner.cosmetics.add_badge(b.clone());
+                }
+                let id = b.as_ref().map(|b| b.id.as_str());
+                inner.cosmetics.set_seventv(twitch_id, SevenChange::Badge(id));
+            }
+        }
+    }
+    changed(app, [twitch_id.to_owned()]);
 }

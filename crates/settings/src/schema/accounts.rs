@@ -128,4 +128,13 @@ mod tests {
         empty.sanitize();
         assert_eq!(empty.default_id, None);
     }
+
+    #[test]
+    fn an_old_file_without_7tv_still_loads() {
+        let old = r#"{"list":[{"userId":"1","login":"a","displayName":"A","avatar":""}],"defaultId":"1"}"#;
+        let a: Accounts = serde_json::from_str(old).unwrap();
+        assert!(a.list[0].seventv.is_none());
+        let out = serde_json::to_string(&a).unwrap();
+        assert!(!out.contains("seventv"));
+    }
 }

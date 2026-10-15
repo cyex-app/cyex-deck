@@ -4,6 +4,7 @@ mod accounts;
 mod browse;
 mod chat;
 mod chat_extra;
+mod cosmetics;
 mod emotes;
 mod fonts;
 pub mod highlights;
@@ -190,6 +191,11 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         streammanager::sm_together_slot,
         streammanager::sm_obs_folder,
         streammanager::sm_obs_open,
+        cosmetics::cosmetics_view,
+        cosmetics::cosmetics_allow,
+        cosmetics::cosmetics_select,
+        cosmetics::cosmetics_sign_out,
+        cosmetics::cosmetics_withdraw,
         emotes::emotes_looks,
         emotes::emotes_menu,
         emotes::emotes_card,

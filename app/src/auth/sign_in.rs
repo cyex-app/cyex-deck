@@ -139,6 +139,8 @@ pub fn remove_account(app: &AppHandle, user_id: &str) -> Result<(), String> {
         roster::remove_account(a, user_id);
         true
     })?;
+    // V1051-02 Its 7TV session goes too.
+    crate::cosmetics::forget_account(app, user_id);
     // 3.8 Its Twitch-page sign-in goes too.
     crate::windows::twitch::forget(app, user_id);
     notify(app);

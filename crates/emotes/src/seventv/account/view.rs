@@ -89,7 +89,7 @@ impl CosmeticsView {
     }
 }
 
-fn paint_item(e: &PaintEntry) -> PaintItem {
+pub fn paint_item(e: &PaintEntry) -> PaintItem {
     PaintItem {
         style: e.paint.style(),
         animated: e.animated,
@@ -98,7 +98,7 @@ fn paint_item(e: &PaintEntry) -> PaintItem {
     }
 }
 
-fn badge_item(e: &BadgeEntry) -> BadgeItem {
+pub fn badge_item(e: &BadgeEntry) -> BadgeItem {
     let all = |a: &[Option<String>; 4]| -> Vec<String> {
         a.iter().map(|u| u.clone().unwrap_or_default()).collect()
     };
