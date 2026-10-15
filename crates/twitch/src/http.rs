@@ -97,14 +97,20 @@ impl Http {
         for (k, v) in headers {
             req = req.header(k.as_str(), v.as_str());
         }
-        let res = req
+        let mut res = req
             .timeout(Duration::from_secs(120))
             .send()
             .await
             .map_err(|e| Error::Network(e.without_url()))?;
         let status = res.status().as_u16();
-        let bytes = res.bytes().await.map_err(|e| Error::Network(e.without_url()))?;
-        let mut out = bytes.to_vec();
+        // Only what's needed: a host that answers with a huge body isn't read to the end.
+        let mut out = Vec::new();
+        while out.len() < max {
+            match res.chunk().await.map_err(|e| Error::Network(e.without_url()))? {
+                Some(chunk) => out.extend_from_slice(&chunk),
+                None => break,
+            }
+        }
         out.truncate(max);
         Ok((status, out))
     }

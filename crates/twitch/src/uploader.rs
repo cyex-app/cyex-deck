@@ -216,4 +216,18 @@ mod tests {
         h.join().unwrap();
         assert_eq!(error_text(status, &answer), "413 - error: too big");
     }
+
+    // V105-11 review: only `max` bytes of the answer are kept.
+    #[tokio::test]
+    async fn answer_is_capped() {
+        let (url, h) = serve(reply("200 OK", "0123456789"));
+        let (ct, body) = multipart("file", "control_v.png", "image/png", b"x");
+        let (_, answer) = Http::new()
+            .unwrap()
+            .post_body(&url, &[], &ct, body, 4)
+            .await
+            .unwrap();
+        h.join().unwrap();
+        assert_eq!(answer, b"0123");
+    }
 }
