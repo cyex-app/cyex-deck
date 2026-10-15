@@ -1,5 +1,7 @@
 <!-- V1051-03 Your look in both themes, drawn by the chat's own line, plus the save status. -->
 <script lang="ts">
+  import type { Snippet } from 'svelte';
+
   import Button from '../../components/Button.svelte';
   import { looks } from '../emotes/looks.svelte';
   import Line from '../chat/Line.svelte';
@@ -9,16 +11,20 @@
     store: CosmeticsStore;
     who: { userId: string; login: string; displayName: string };
     compact: boolean;
+    /** What's shown: the draft while a combo is edited. */
+    shown: { paint: string | null; badge: string | null };
+    /** Takes the place of the status line. */
+    bar?: Snippet;
   }
 
-  let { store, who, compact }: Props = $props();
+  let { store, who, compact, shown, bar }: Props = $props();
 
   const current = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
   const other = current === 'dark' ? 'light' : 'dark';
   const boxes = $derived([current, other] as const);
 
-  const paint = $derived(store.shown.paint ? store.paintById.get(store.shown.paint) : undefined);
-  const badge = $derived(store.shown.badge ? store.badgeById.get(store.shown.badge) : undefined);
+  const paint = $derived(shown.paint ? store.paintById.get(shown.paint) : undefined);
+  const badge = $derived(shown.badge ? store.badgeById.get(shown.badge) : undefined);
   const look = $derived({
     paint: paint?.style.id ?? null,
     badges: badge ? [{ provider: 'seventv' as const, id: badge.def.id }] : [],
@@ -41,11 +47,16 @@
     {/each}
   </div>
   <div class="status" aria-live="polite">
-    {#if status === 'saving'}
+    {#if bar}
+      {@render bar()}
+    {:else if store.note}
+      <span>{store.note.text}</span>
+      {#if store.note.undo}<Button variant="ghost" small onclick={() => store.undo()}>Undo</Button>{/if}
+    {:else if status === 'saving'}
       <span>Saving…</span>
     {:else if status === 'saved'}
       <span>Saved</span>
-      {#if store.canUndo}<Button variant="ghost" small onclick={() => store.sel.undo()}>Undo</Button>{/if}
+      {#if store.canUndo}<Button variant="ghost" small onclick={() => store.undo()}>Undo</Button>{/if}
     {:else if typeof status === 'object'}
       <span class="err">{errorText(status.error)}</span>
     {/if}

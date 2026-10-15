@@ -8,6 +8,8 @@
   import { systemIpc } from '../../ipc/system';
   import { accounts } from '../../lib/accounts.svelte';
   import { formatNumber } from '../../lib/format';
+  import { ComboStore } from './combos.svelte';
+  import ComboStrip from './ComboStrip.svelte';
   import { CosmeticsStore } from './cosmetics.svelte';
   import Consent from './Consent.svelte';
   import Pane from './Pane.svelte';
@@ -26,6 +28,8 @@
   // The view remounts the panel per account, so the store never outlives its account.
   // svelte-ignore state_referenced_locally
   const store = new CosmeticsStore(account);
+  // svelte-ignore state_referenced_locally
+  const combos = new ComboStore(store);
   const who = $derived(accounts.list.find((a) => a.userId === account));
   const view = $derived(store.view);
   const status = $derived(store.status);
@@ -44,6 +48,12 @@
   const items = $derived(view && (status === 'ready' || status === 'signedOut' || status === 'expired'));
   const ink = (n: number) => formatNumber(n);
 
+  /** A pick goes to 7TV, or into the draft while a combo is edited. */
+  function pick(kind: 'paint' | 'badge', id: string | null, usable: boolean) {
+    if (combos.editing && usable) combos.pick(kind, id);
+    else store.pick(kind, id, usable);
+  }
+
   function onkeydown(e: KeyboardEvent) {
     const typing = e.target instanceof HTMLInputElement;
     if ((e.key === '/' && !typing) || (e.ctrlKey && e.key.toLowerCase() === 'f')) {
@@ -51,12 +61,21 @@
       root?.querySelector<HTMLInputElement>('input[type="search"]')?.focus();
     } else if (e.ctrlKey && !typing && e.key.toLowerCase() === 'z') {
       e.preventDefault();
-      store.sel.undo();
-    } else if (e.key === 'Escape' && compact) {
-      onclose?.();
+      store.undo();
+    } else if (e.key === 'Escape') {
+      if (combos.editing) {
+        combos.cancel();
+        e.stopPropagation();
+      } else if (compact) onclose?.();
     }
   }
 </script>
+
+{#snippet editBar()}
+  <span>Editing “{combos.editing?.name}”. Pick a paint and a badge.</span>
+  <Button variant="primary" small onclick={() => void combos.commit()}>Save</Button>
+  <Button variant="ghost" small onclick={() => combos.cancel()}>Cancel</Button>
+{/snippet}
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="panel" bind:this={root} {onkeydown}>
@@ -87,7 +106,9 @@
       </div>
     {/if}
 
-    <Preview {store} who={who} {compact} />
+    <ComboStrip {combos} {store} name={who.displayName} />
+
+    <Preview {store} who={who} {compact} shown={combos.shown} bar={combos.editing ? editBar : undefined} />
 
     {#if compact}
       <Segmented
@@ -109,10 +130,10 @@
           onquery={(q) => (store.paintsQ = q)}
           rows={store.paintsShown}
           total={view.paints.length}
-          selected={store.shown.paint}
+          selected={combos.shown.paint}
           name={who.displayName}
           allUsable={store.allUsable}
-          onpick={(id, usable) => store.pick('paint', id, usable)}
+          onpick={(id, usable) => pick('paint', id, usable)}
         />
       {/if}
       {#if !compact || tab === 'badges'}
@@ -123,10 +144,10 @@
           onquery={(q) => (store.badgesQ = q)}
           rows={store.badgesShown}
           total={view.badges.length}
-          selected={store.shown.badge}
+          selected={combos.shown.badge}
           name={who.displayName}
           allUsable={store.allUsable}
-          onpick={(id, usable) => store.pick('badge', id, usable)}
+          onpick={(id, usable) => pick('badge', id, usable)}
         />
       {/if}
     </div>

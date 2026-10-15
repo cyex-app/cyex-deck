@@ -1,12 +1,17 @@
 import { invoke } from '@tauri-apps/api/core';
 
+import type { Applied } from './bindings/Applied';
+import type { Combo } from './bindings/Combo';
+import type { ComboDone } from './bindings/ComboDone';
+import type { ComboItem } from './bindings/ComboItem';
+import type { ComboOp } from './bindings/ComboOp';
 import type { CosmeticsView } from './bindings/CosmeticsView';
 import type { Kind } from './bindings/Kind';
 import type { Picked } from './bindings/Picked';
 import type { SelectError } from './bindings/SelectError';
 import type { SignIn } from './bindings/SignIn';
 
-export type { CosmeticsView, Kind, Picked, SelectError, SignIn };
+export type { Applied, Combo, ComboDone, ComboItem, ComboOp, CosmeticsView, Kind, Picked, SelectError, SignIn };
 
 export const cosmeticsIpc = {
   /** V1051-02 The account's paints and badges. `fresh` skips Rust's 5 minute copy. */
@@ -21,4 +26,9 @@ export const cosmeticsIpc = {
   signOut: (account: string) => invoke<void>('cosmetics_sign_out', { account }),
   /** Signs out and takes the consent back. */
   withdraw: (account: string) => invoke<void>('cosmetics_withdraw', { account }),
+  /** V1051-04 Puts a combo's paint and badge on at once. Rejects with a `SelectError`; `null` takes the part off. */
+  apply: (account: string, paint: ComboItem | null, badge: ComboItem | null, name: string | null) =>
+    invoke<Applied>('cosmetics_apply', { account, paint, badge, name }),
+  /** V1051-04 Rejects with the message to show. */
+  combosChange: (account: string, op: ComboOp) => invoke<ComboDone>('combos_change', { account, op }),
 };

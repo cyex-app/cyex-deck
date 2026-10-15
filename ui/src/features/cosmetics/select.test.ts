@@ -122,3 +122,29 @@ test('paint and badge timers are independent', async () => {
   ]);
   assert.equal(s.status, 'saved');
 });
+
+test('adopt cancels a pending send and takes the pair', async () => {
+  const { s, sched, sent } = make();
+  s.pick('paint', 'a');
+  s.adopt({ paint: 'x', badge: 'y' });
+  sched.tick(1000);
+  await flush();
+  assert.equal(sent.length, 0);
+  assert.deepEqual(s.shown, { paint: 'x', badge: 'y' });
+  assert.deepEqual(s.confirmed, { paint: 'x', badge: 'y' });
+  assert.equal(s.status, 'idle');
+});
+
+test('undo after adopt waits for a save that follows it', async () => {
+  const { s, sched } = make();
+  s.pick('paint', 'a');
+  sched.tick(400);
+  await flush();
+  assert.deepEqual(s.undoable, { kind: 'paint', id: 'p0' });
+  s.adopt({ paint: 'x', badge: 'b0' });
+  assert.equal(s.undoable, null);
+  s.pick('paint', 'z');
+  sched.tick(400);
+  await flush();
+  assert.deepEqual(s.undoable, { kind: 'paint', id: 'x' });
+});

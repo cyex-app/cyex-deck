@@ -9,7 +9,7 @@ import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
 import { accounts } from '../../lib/accounts.svelte';
 import { toast } from '../../lib/toast.svelte';
 import { emptyQuery, filterItems, type Query } from './filter';
-import { Selection } from './select';
+import { Selection, UNDO_MS } from './select';
 import { menuSheet } from './sheet';
 
 const toPaint = (item: PaintItem) => ({
@@ -71,6 +71,9 @@ export class CosmeticsStore {
   private sheet: ReturnType<typeof menuSheet> | null = null;
   private handled: unknown = null;
   private noted = false;
+  /** V1051-04 The one message under the preview, and the one Undo (a pick, a combo, a delete). */
+  note = $state.raw<{ text: string; undo: (() => void) | null } | null>(null);
+  private noteTimer: ReturnType<typeof setTimeout> | undefined;
   readonly sel: Selection;
 
   constructor(account: string) {
@@ -100,11 +103,33 @@ export class CosmeticsStore {
   });
   canUndo = $derived.by(() => {
     void this.tick;
-    return this.sel.undoable !== null;
+    return this.note ? this.note.undo !== null : this.sel.undoable !== null;
   });
+
+  /** Says something for a moment; an Undo lasts five seconds. */
+  say(text: string, undo: (() => void) | null = null) {
+    clearTimeout(this.noteTimer);
+    this.note = { text, undo };
+    if (undo) this.noteTimer = setTimeout(() => (this.note = null), UNDO_MS);
+  }
+
+  clearNote() {
+    clearTimeout(this.noteTimer);
+    this.note = null;
+  }
+
+  /** Undo and Ctrl+Z: whichever happened last. */
+  undo() {
+    const n = this.note;
+    if (n?.undo) {
+      this.clearNote();
+      n.undo();
+    } else this.sel.undo();
+  }
 
   private changed() {
     this.tick++;
+    if (this.sel.status === 'saving') this.clearNote();
     const s = this.sel.status;
     if (typeof s !== 'object' || s === this.handled) return;
     this.handled = s;
@@ -183,6 +208,7 @@ export class CosmeticsStore {
   }
 
   destroy() {
+    clearTimeout(this.noteTimer);
     this.sheet?.drop();
     this.sheet = null;
   }

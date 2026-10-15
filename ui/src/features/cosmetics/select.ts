@@ -59,6 +59,12 @@ export class Selection {
     this.onstate();
   }
 
+  /** V1051-04 Takes a pair as worn (after a combo or from outside): cancels pending sends,
+   * sets shown and confirmed, no request. */
+  adopt(pair: Pair) {
+    this.reset(pair.paint, pair.badge);
+  }
+
   pick(kind: Kind, id: string | null) {
     this.shown = { ...this.shown, [kind]: id };
     this.status = 'saving';
