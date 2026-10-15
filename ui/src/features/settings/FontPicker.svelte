@@ -22,6 +22,7 @@
   let list = $state<FontChoice[]>([]);
   let active = $state(0);
   let search = $state<HTMLInputElement>();
+  let listEl = $state<HTMLUListElement>();
 
   // Installed fonts the webview can't draw by that name would fall back silently (fontProbe).
   const load = () =>
@@ -66,7 +67,7 @@
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       if (rows.length) active = (active + (e.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length;
-      void tick().then(() => document.querySelector('.fp-list li.hot')?.scrollIntoView({ block: 'nearest' }));
+      void tick().then(() => listEl?.querySelector('li.hot')?.scrollIntoView({ block: 'nearest' }));
     } else if (e.key === 'Enter' && rows[active]) {
       e.preventDefault();
       pick(rows[active].name);
@@ -91,7 +92,7 @@
         oninput={() => (active = 0)}
         onkeydown={onkey}
       />
-      <ul class="fp-list" role="listbox" aria-label="Chat font">
+      <ul class="fp-list" role="listbox" bind:this={listEl} aria-label="Chat font">
         {#each rows as f, i (f.name)}
           <li role="option" aria-selected={selected(f.name)} class:hot={i === active}>
             <button class="row" class:on={selected(f.name)} onclick={() => pick(f.name)} onmousemove={() => (active = i)}>
@@ -187,7 +188,8 @@
     position: absolute;
     top: 50%;
     right: 26px;
-    display: none;
+    display: grid;
+    opacity: 0;
     place-items: center;
     width: 20px;
     height: 20px;
@@ -198,9 +200,10 @@
     color: var(--dim);
     transform: translateY(-50%);
   }
+  /* Hidden until hover, but still focusable by Tab (display: none would skip it). */
   li:hover .remove,
-  .remove:focus-visible {
-    display: grid;
+  li:focus-within .remove {
+    opacity: 1;
   }
   .remove:hover {
     background: var(--surface-hover);

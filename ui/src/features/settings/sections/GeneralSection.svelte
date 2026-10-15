@@ -169,6 +169,10 @@
     font-family: var(--font-ui);
     font-size: 0.82rem;
   }
+  .add:hover {
+    color: var(--text);
+    background: var(--surface-hover);
+  }
   .checked {
     color: var(--muted);
     font-size: 0.85rem;
