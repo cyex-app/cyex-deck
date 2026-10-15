@@ -8,8 +8,9 @@ use crate::sound;
 
 type CmdResult<T> = Result<T, String>;
 
+/// Async, so listing the devices never holds the window's thread.
 #[tauri::command]
-pub fn sound_devices() -> Vec<OutputDevice> {
+pub async fn sound_devices() -> Vec<OutputDevice> {
     sound::devices()
 }
 
