@@ -40,7 +40,6 @@ $effect.root(() => {
     for (const ctx of contexts) setSink(ctx as unknown as Sinkable, id);
   });
 });
-navigator.mediaDevices?.addEventListener('devicechange', () => void resolve());
 void soundIpc.onSinkReady(() => void resolve());
 
 function setSink(target: Sinkable, id: string): void {
@@ -51,6 +50,8 @@ function setSink(target: Sinkable, id: string): void {
 function use(): void {
   if (used) return;
   used = true;
+  // Listening for device changes starts the audio process too, so only now.
+  navigator.mediaDevices?.addEventListener('devicechange', () => void resolve());
   void resolve();
 }
 
