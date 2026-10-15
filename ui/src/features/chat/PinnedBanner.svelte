@@ -85,7 +85,7 @@
   }
   .pin > :global(svg) {
     flex: none;
-    margin-top: 3px;
+    margin-top: 2px;
   }
   .text {
     flex: 1;
@@ -95,8 +95,14 @@
     border: 0;
     color: var(--text);
     text-align: left;
-    font: 600 calc(var(--chat-size) + var(--pinned-step)) / var(--chat-line) var(--chat-font);
+    /* V105-03 Tight lines; a line with an emote grows to fit it (below). */
+    font: 600 calc(var(--chat-size) + var(--pinned-step)) / 1.3 var(--chat-font);
     overflow-wrap: anywhere;
+  }
+  .text :global(.emote),
+  .text :global(.stack) {
+    margin: 0;
+    vertical-align: middle;
   }
   .folded .text {
     white-space: nowrap;
