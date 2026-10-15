@@ -282,7 +282,7 @@
   }
 </script>
 
-<div class="input" class:gifs>
+<div class="input">
   {#if replyTo}
     <div class="reply-bar">
       <Icon name="reply" size={13} />

@@ -9,8 +9,6 @@ import { settings } from '../../lib/settings.svelte';
 import { uploadIpc } from '../../ipc/upload';
 import { extOfMime, hostOf, imagePaths } from './upload';
 
-export { hostOf, IMAGE_EXTS, imagePaths } from './upload';
-
 /** The image files on the clipboard (image data or copied files). */
 export function imageFiles(e: ClipboardEvent): File[] {
   return [...(e.clipboardData?.files ?? [])].filter((f) => f.type.startsWith('image/'));

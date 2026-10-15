@@ -109,11 +109,11 @@ fn load(app: &AppHandle, item: &UploadItem) -> Result<Image, String> {
             let p = Path::new(path);
             let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("");
             let mime = mime(ext).ok_or(BAD_TYPE)?;
-            let len = fs::metadata(p).map_err(|_| "Can't read that file.")?.len();
+            let len = fs::metadata(p).map_err(|_| "Couldn't open that file.")?.len();
             if len > MAX_BYTES as u64 {
                 return Err(TOO_BIG.into());
             }
-            let bytes = fs::read(p).map_err(|_| "Can't read that file.")?;
+            let bytes = fs::read(p).map_err(|_| "Couldn't open that file.")?;
             let name = p
                 .file_name()
                 .and_then(|n| n.to_str())
