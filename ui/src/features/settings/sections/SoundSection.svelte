@@ -11,9 +11,14 @@
 
   const s = $derived(settings.v.general.sound);
   let devices = $state<OutputDevice[]>([]);
+  /** Until the first list arrives, a saved device isn't called "not connected". */
+  let listed = $state(false);
 
   function refresh() {
-    void soundIpc.devices().then((d) => (devices = d));
+    void soundIpc.devices().then((d) => {
+      devices = d;
+      listed = true;
+    });
   }
   refresh();
 
@@ -38,7 +43,7 @@
     <option value="">Same as Windows</option>
     {#each devices as d (d.id)}<option value={d.id}>{d.name}</option>{/each}
     {#if current && !devices.some((d) => d.id === current.id)}
-      <option value={current.id}>{current.name} (not connected)</option>
+      <option value={current.id}>{current.name}{listed ? ' (not connected)' : ''}</option>
     {/if}
   </select>
 {/snippet}
