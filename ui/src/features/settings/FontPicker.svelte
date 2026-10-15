@@ -4,6 +4,7 @@
 
   import Icon from '../../components/Icon.svelte';
   import Popover from '../../components/Popover.svelte';
+  import { draws } from '../../design/fontProbe';
   import type { FontChoice } from '../../ipc/bindings/FontChoice';
   import { fontsIpc } from '../../ipc/theme';
 
@@ -22,10 +23,11 @@
   let active = $state(0);
   let search = $state<HTMLInputElement>();
 
+  // Installed fonts the webview can't draw by that name would fall back silently (fontProbe).
   const load = () =>
     fontsIpc
       .list()
-      .then((l) => (list = l))
+      .then((l) => (list = l.filter((f) => f.kind !== 'installed' || draws(f.name))))
       .catch(() => {});
   $effect(() => {
     void load();
