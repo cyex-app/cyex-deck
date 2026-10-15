@@ -7,6 +7,7 @@ mod cosmetics;
 pub use builtin::{block_user, reserved};
 pub mod complete;
 mod host;
+pub mod registry;
 pub mod timers;
 
 use std::sync::{Arc, Mutex};
@@ -15,7 +16,8 @@ use cyex_chat::automate::Automations;
 use cyex_chat::commands::{self, CommandList, Params};
 use cyex_chat::model::{ChatMessage, NoticeKind};
 use cyex_settings::Partition;
-use cyex_settings::schema::Commands;
+use cyex_settings::schema::{Account, Commands};
+use cyex_twitch::gql::ChannelInfo;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 use ts_rs::TS;
@@ -126,19 +128,13 @@ pub async fn menu(
 ) -> Result<Option<UiAction>, String> {
     let place = place_of(app, view)?;
     let mut p = params(app, &place, ctx.login.as_deref().unwrap_or(""));
-    for (k, v) in [
-        ("nick", &ctx.login),
-        ("display-nick", &ctx.display),
-        ("user-id", &ctx.user_id),
-        ("msg-id", &ctx.msg_id),
-        ("msg", &ctx.msg),
-    ] {
+    for (k, v) in MENU_VALUES.into_iter().zip([&ctx.login, &ctx.display, &ctx.user_id, &ctx.msg_id, &ctx.msg]) {
         if let Some(v) = v {
             p.set(k, v.clone());
         }
     }
     if let Some(t) = ctx.msg_time {
-        p.set("msg-time", t.to_string());
+        p.set(MSG_TIME, t.to_string());
     }
     let filled = fill(app, &place, command, p)
         .await?
@@ -158,8 +154,9 @@ pub async fn automation(
 ) {
     let place = Place { view: None, key };
     let mut p = params(app, &place, args);
-    p.set("nick", nick);
-    p.set("count", count.to_string());
+    let [nick_key, count_key] = AUTOMATION_VALUES;
+    p.set(nick_key, nick);
+    p.set(count_key, count.to_string());
     let result = match fill(app, &place, response, p).await {
         Ok(Some(filled)) => line(app, &place, &filled, reply_to, true, 0).await.map(drop),
         Ok(None) => Ok(()),
@@ -270,38 +267,52 @@ async fn send(app: &AppHandle, place: &Place, text: &str, reply_to: Option<Strin
     super::send_to(app, &place.key, &text, reply_to)
 }
 
+/// V1051-04 What a menu entry or user card button adds, in the order of `menu()`'s context
+/// (the registry checks these names), and `msg-time` after them.
+const MENU_VALUES: [&str; 5] = ["nick", "display-nick", "user-id", "msg-id", "msg"];
+const MSG_TIME: &str = "msg-time";
+/// What an automation adds.
+const AUTOMATION_VALUES: [&str; 2] = ["nick", "count"];
+
 /// The values every command can read.
 fn params(app: &AppHandle, place: &Place, args: &str) -> Params {
-    let mut p = Params::new(args);
-    p.set("chan", place.channel());
-    p.set("stream", place.channel());
-    p.set("chans", super::open_channels(app).join(" "));
-    if let Some(info) = crate::tabs::live::snapshot(app)
+    let live = crate::tabs::live::snapshot(app)
         .into_iter()
-        .find(|c| c.login == place.channel())
-    {
+        .find(|c| c.login == place.channel());
+    let me = place
+        .account()
+        .and_then(|id| crate::auth::accounts(app).get(id).cloned());
+    let mut p = values(place.channel(), &super::open_channels(app), live.as_ref(), me.as_ref());
+    p.set_args(args);
+    p
+}
+
+/// The pure part of `params`: the channel, the open chats, the stream and the account.
+fn values(channel: &str, open: &[String], live: Option<&ChannelInfo>, me: Option<&Account>) -> Params {
+    let mut p = Params::default();
+    p.set("chan", channel);
+    p.set("stream", channel);
+    p.set("chans", open.join(" "));
+    if let Some(info) = live {
         p.set("streamname", info.name.clone());
-        p.set("streamdisplayname", info.name);
-        match info.stream {
+        p.set("streamdisplayname", info.name.clone());
+        match &info.stream {
             Some(s) => {
                 p.set("streamtitle", s.title.clone());
                 p.set("streamgame", s.game.clone().unwrap_or_default());
                 p.set("streamviewers", s.viewers.to_string());
                 p.set(
                     "streamstatus",
-                    format!("{} ({})", s.title, s.game.unwrap_or_default()),
+                    format!("{} ({})", s.title, s.game.clone().unwrap_or_default()),
                 );
             }
             None => p.set("streamstatus", "Offline"),
         }
     }
-    if let Some(a) = place
-        .account()
-        .and_then(|id| crate::auth::accounts(app).get(id).cloned())
-    {
-        p.set("my-nick", a.login);
-        p.set("my-display-nick", a.display_name);
-        p.set("my-user-id", a.user_id);
+    if let Some(a) = me {
+        p.set("my-nick", a.login.clone());
+        p.set("my-display-nick", a.display_name.clone());
+        p.set("my-user-id", a.user_id.clone());
     }
     p
 }

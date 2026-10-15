@@ -15,7 +15,7 @@ use super::{Place, UiAction, fill, line, local, params, send};
 use crate::settings::Settings;
 
 /// Twitch's mod and broadcaster commands; they come with the mod tools (phase 10).
-const MOD_COMMANDS: &[&str] = &[
+pub(super) const MOD_COMMANDS: &[&str] = &[
     "ban",
     "unban",
     "timeout",
@@ -54,8 +54,6 @@ const MOD_COMMANDS: &[&str] = &[
     "unrestrict",
 ];
 
-const HELP: &str = "/me, /echo, /set var, /chain, /foreach, /runin, /timer, /user, /logs, /block, /unblock, /hideuser, /unhideuser, /mutepings, /tl, /translate, /vote, /search, /popout, /color, /cosmetics, /combo, /paint, /badge, /w, /r. Mods: /ban, /timeout, /unban, /warn and Twitch’s other mod commands. Your own commands are in Settings → Commands.";
-
 pub async fn run(
     app: &AppHandle,
     place: &Place,
@@ -73,7 +71,7 @@ pub async fn run(
             done
         }
         "help" | "commands" => {
-            local(app, &place.key, NoticeKind::Info, HELP);
+            local(app, &place.key, NoticeKind::Info, &super::registry::help_line());
             done
         }
         // V1051-04
@@ -214,7 +212,7 @@ async fn whisper(app: &AppHandle, place: &Place, to: &str, text: &str) -> Result
 }
 
 /// The app's own commands, which plugins can't take over (S5).
-const OWN: &[&str] = &[
+pub(super) const OWN: &[&str] = &[
     "me", "echo", "help", "commands", "set", "chain", "foreach", "runin", "timer", "user", "usercard", "logs",
     "block", "unblock", "hideuser", "unhideuser", "mutepings", "tl", "translate", "vote", "search", "popout",
     "color", "cosmetics", "w", "whisper", "r", "nuke",
@@ -233,14 +231,14 @@ fn is_mod_command(name: &str) -> bool {
 }
 
 /// V1041-01 The app's commands that send or act as the chat's account.
-const SIGNED_IN: &[&str] = &["me", "tl", "vote", "color", "cosmetics", "block", "unblock", "w", "whisper", "r",
+pub(super) const SIGNED_IN: &[&str] = &["me", "tl", "vote", "color", "cosmetics", "block", "unblock", "w", "whisper", "r",
     // V1051-04
     "combo", "paint", "badge",
 ];
 
 /// V1041-01 Who may run a built-in (1.57): Twitch's mod commands as they parse, `/nuke` any
 /// mod, the rest anyone.
-fn need(name: &str) -> Option<Need> {
+pub(super) fn need(name: &str) -> Option<Need> {
     cyex_moderation::command::need(name).or_else(|| is_mod_command(name).then_some(Need::Mod))
 }
 
