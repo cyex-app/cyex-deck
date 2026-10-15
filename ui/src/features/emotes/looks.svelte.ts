@@ -14,6 +14,12 @@ const BATCH_MS = 60;
 /** Paint ids are 7TV ULIDs; anything else never becomes a class name. */
 const SAFE_ID = /^[0-9A-Za-z]{1,40}$/;
 
+/** V1051-03 Both CSS rules of a paint. `.still` also matches inside any still container. */
+export function paintRules(p: PaintStyle): string {
+  const rule = (sel: string, css: string) => `${sel}{${css.replace(/[{}<]/g, '')}}`;
+  return rule(`.paint-${p.id}`, p.css) + (p.still ? rule(`.still .paint-${p.id}`, p.still) : '') + '\n';
+}
+
 class LooksStore {
   private users = new SvelteMap<string, Look | null>();
   private badges = new SvelteMap<string, BadgeDef>();
@@ -73,20 +79,33 @@ class LooksStore {
   }
 
   private apply(l: Looks) {
-    for (const p of l.paints) this.addPaint(p);
+    this.append(this.fresh(l.paints));
     for (const b of l.badges) this.badges.set(`${b.provider}:${b.id}`, b);
     for (const [id, look] of Object.entries(l.users)) this.users.set(id, look ?? null);
   }
 
-  private addPaint(p: PaintStyle) {
-    if (p.name.trim()) this.paintNames.set(p.id, p.name.trim());
-    if (this.paints.has(p.id) || !SAFE_ID.test(p.id)) return;
+  /** V1051-03 Definitions without users (the cosmetics preview's paint and badge). */
+  define(paints: PaintStyle[], badges: BadgeDef[]) {
+    this.append(this.fresh(paints));
+    for (const b of badges) this.badges.set(`${b.provider}:${b.id}`, b);
+  }
+
+  /** Notes names; returns the rules of paints whose class is new. */
+  private fresh(paints: PaintStyle[]): string {
+    let css = '';
+    for (const p of paints) {
+      if (p.name.trim()) this.paintNames.set(p.id, p.name.trim());
+      if (this.paints.has(p.id) || !SAFE_ID.test(p.id)) continue;
+      this.paints.add(p.id);
+      css += paintRules(p);
+    }
+    return css;
+  }
+
+  private append(css: string) {
+    if (!css) return;
     this.sheet ??= document.head.appendChild(document.createElement('style'));
-    const rule = (sel: string, css: string) => `${sel}{${css.replace(/[{}<]/g, '')}}`;
-    this.sheet.append(
-      rule(`.paint-${p.id}`, p.css) + (p.still ? rule(`:root.still .paint-${p.id}`, p.still) : '') + '\n',
-    );
-    this.paints.add(p.id);
+    this.sheet.append(css);
   }
 }
 

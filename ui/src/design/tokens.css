@@ -1,7 +1,9 @@
 /* Design tokens (3.3, 3.5). Palette shared with cyex logs.
    Accent variables are overwritten at runtime from cyex_core::color (see theme.ts). */
 
-:root {
+/* V1051-03 .theme-dark / .theme-light: the other theme inside one box (cosmetics preview). */
+:root,
+.theme-dark {
   color-scheme: dark;
   --bg: #1e1f23;
   --surface: #26272c;
@@ -53,7 +55,8 @@
   --z-toast: 600;
 }
 
-:root[data-theme='light'] {
+:root[data-theme='light'],
+.theme-light {
   color-scheme: light;
   --bg: #f3f3f4;
   --surface: #ffffff;

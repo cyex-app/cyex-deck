@@ -5,6 +5,7 @@
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
+  import type { Look } from '../../ipc/bindings/Look';
   import { formatDuration, formatNumber, formatTime } from '../../lib/format';
   import { modButtonsFor, type LineMod } from '../modview/lineMod';
   import { settings } from '../../lib/settings.svelte';
@@ -28,9 +29,11 @@
     stripe?: boolean;
     /** 1.57 Set only where this account moderates the chat. */
     mod?: LineMod | null;
+    /** V1051-03 The cosmetics preview: draw this look instead of the sender's. */
+    look?: Look | null;
   }
 
-  let { m, channel, canReply = false, inWhispers = false, stripe = false, mod = null }: Props = $props();
+  let { m, channel, canReply = false, inWhispers = false, stripe = false, mod = null, look }: Props = $props();
 
   const c = $derived(settings.v.chat);
   const has = (flag: ChatMessage['flags'][number]) => m.flags.includes(flag);
@@ -44,7 +47,7 @@
   const time = $derived(c.timestamps.show ? formatTime(new Date(m.ts), c.timestamps) : '');
   const colorVars = $derived(sender ? `--cd:${sender.color.dark};--cl:${sender.color.light}` : '');
   /** 1.37 The sender's 7TV paint, as a class, and its name for a tip (V101-36). */
-  const paintId = $derived(sender && c.paints.seventv ? (looks.look(sender.id)?.paint ?? null) : null);
+  const paintId = $derived(sender && c.paints.seventv ? (look !== undefined ? (look?.paint ?? null) : (looks.look(sender.id)?.paint ?? null)) : null);
   const paint = $derived(looks.paintClass(paintId));
   const paintName = $derived(paint ? looks.paintName(paintId) : null);
   const recipients = $derived(notice?.recipients ?? []);
@@ -146,7 +149,7 @@
       {#if time}<span class="ts">{time}</span>{/if}
       {#if client}<span class="client" data-tip={client.label}><Icon name={client.icon} size={12} /></span>{/if}
       {#if m.source}<Badges badges={m.source.badges} {channel} />{/if}
-      <Badges badges={sender.badges} {channel} userId={sender.id} />
+      <Badges badges={sender.badges} {channel} userId={sender.id} {look} />
       <span
         class="name {paint ?? ''}"
         class:painted={!!paint}

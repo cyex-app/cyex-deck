@@ -4,6 +4,7 @@
 <script lang="ts">
   import type { BadgeDef } from '../../ipc/bindings/BadgeDef';
   import type { BadgeInfo } from '../../ipc/bindings/BadgeInfo';
+  import type { Look } from '../../ipc/bindings/Look';
   import { density } from '../../lib/density.svelte';
   import { focus } from '../../lib/focus.svelte';
   import { settings } from '../../lib/settings.svelte';
@@ -20,15 +21,17 @@
     channel: string;
     /** The sender, for provider badges. Left out for shared-chat source badges. */
     userId?: string;
+    /** V1051-03 The cosmetics preview: draw this look instead of the user's. */
+    look?: Look | null;
   }
 
-  let { badges, channel, userId }: Props = $props();
+  let { badges, channel, userId, look: override }: Props = $props();
 
   const on = $derived(settings.v.chat.badges);
   const room = $derived(on.ffz ? rooms.get(channel) : undefined);
   const extra = $derived.by(() => {
-    if (!userId) return [];
-    const look = looks.look(userId);
+    if (!userId && override === undefined) return [];
+    const look = override !== undefined ? override : looks.look(userId!);
     if (!look) return [];
     return look.badges
       .filter((b) => on[b.provider])
