@@ -9,7 +9,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 use ts_rs::TS;
 
-use super::lookup::{Have, have, worn};
+use super::lookup::{Have, have};
 use super::{Kind, Picked, SelectError, Why, has_consent, read, select, state, words};
 use crate::auth::Auth;
 
@@ -36,7 +36,9 @@ pub enum Part {
 pub struct Applied {
     pub paint: Part,
     pub badge: Part,
+    /// The paint id worn afterwards.
     pub now_paint: Option<String>,
+    /// The badge id worn afterwards.
     pub now_badge: Option<String>,
     pub line: String,
 }
@@ -127,13 +129,12 @@ pub async fn apply(
     let [paint, badge] = parts;
     // `select` kept the cached inventory's active ids current.
     let now = state(app).cached(account).map_or(inv, |(_, i)| i);
-    let (np, nb) = worn(&now);
     let line = words::applied(name, &paint, &badge);
     Ok(Applied {
         paint,
         badge,
-        now_paint: np.map(|i| i.name),
-        now_badge: nb.map(|i| i.name),
+        now_paint: now.paint.clone(),
+        now_badge: now.badge.clone(),
         line,
     })
 }
