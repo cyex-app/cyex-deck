@@ -83,6 +83,44 @@ impl Http {
         json(self.0.post(url).json(body)).await
     }
 
+    /// V1051-02 POST JSON with an optional bearer token and extra headers; returns the status,
+    /// the rate-limit reset (seconds, if sent) and the body. Errors never carry the URL.
+    pub async fn post_json_raw(
+        &self,
+        url: &str,
+        bearer: Option<&str>,
+        headers: &[(&str, &str)],
+        body: &serde_json::Value,
+    ) -> Result<(u16, Option<u64>, Vec<u8>)> {
+        const MAX: usize = 4 << 20;
+        let mut req = self.0.post(url).json(body);
+        if let Some(b) = bearer {
+            req = req.bearer_auth(b);
+        }
+        for (k, v) in headers {
+            req = req.header(*k, *v);
+        }
+        let mut res = req.send().await.map_err(|e| Error::Network(e.without_url()))?;
+        let status = res.status().as_u16();
+        let reset = ["retry-after", "x-ratelimit-reset"].iter().find_map(|h| {
+            res.headers()
+                .get(*h)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.trim().parse::<u64>().ok())
+        });
+        let mut out = Vec::new();
+        while let Some(chunk) = res.chunk().await.map_err(|e| Error::Network(e.without_url()))? {
+            out.extend_from_slice(&chunk);
+            if out.len() > MAX {
+                return Err(Error::Api {
+                    status: 413,
+                    message: "too big".into(),
+                });
+            }
+        }
+        Ok((status, reset, out))
+    }
+
     /// V105-11 POST a ready body (the image uploader's multipart form) with extra headers.
     /// Returns the status and up to `max` bytes of the answer. Errors never carry the URL.
     pub async fn post_body(

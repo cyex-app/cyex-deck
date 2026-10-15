@@ -9,7 +9,8 @@ pub use sign_in::{DeviceStart, SignedIn, add_gql_token, remove_account, remove_t
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use cyex_auth::secrets::KeyringStore;
-use cyex_auth::{AccountView, TokenKind, Vault, views};
+use cyex_auth::secrets::{MemoryStore, SecretStore};
+use cyex_auth::{AccountView, SevenTvTokens, TokenKind, Vault, views};
 use cyex_settings::Partition;
 use cyex_settings::schema::Accounts;
 use cyex_twitch::Http;
@@ -25,6 +26,8 @@ const CHANGED_EVENT: &str = "accounts:changed";
 pub struct Auth {
     pub http: Http,
     pub vault: Vault,
+    /// V1051-02 7TV sessions (own keys; a test run keeps them in memory).
+    pub seventv: SevenTvTokens,
     /// Cancels the Device Code sign-in that's running, if any.
     sign_in: Mutex<Option<watch::Sender<bool>>>,
 }
@@ -43,9 +46,15 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     for e in vault.load(&accounts(app)) {
         eprintln!("auth: couldn't read a token: {e}");
     }
+    let store: Arc<dyn SecretStore> = if crate::paths::webview(app).is_some() {
+        Arc::new(MemoryStore::default())
+    } else {
+        Arc::new(KeyringStore)
+    };
     app.manage(Auth {
         http: Http::new()?,
         vault,
+        seventv: SevenTvTokens::new(store),
         sign_in: Mutex::default(),
     });
     keeper::spawn(app.clone());
@@ -92,7 +101,7 @@ pub fn update_accounts(app: &AppHandle, f: impl FnOnce(&mut Accounts) -> bool) -
 pub fn snapshot(app: &AppHandle) -> AuthSnapshot {
     let auth = app.state::<Auth>();
     AuthSnapshot {
-        accounts: views(&accounts(app), &auth.vault),
+        accounts: views(&accounts(app), &auth.vault, &auth.seventv),
     }
 }
 

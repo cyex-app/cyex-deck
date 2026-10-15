@@ -13,6 +13,7 @@ pub mod paste;
 pub mod roster;
 pub mod scopes;
 pub mod secrets;
+mod seventv;
 mod vault;
 mod view;
 
@@ -21,5 +22,6 @@ pub use chat::{chat_token, chat_token_kind};
 pub use error::AuthError;
 pub use kind::TokenKind;
 pub use secrets::Secret;
+pub use seventv::{SevenTvToken, SevenTvTokens};
 pub use vault::{TokenState, Vault};
-pub use view::{AccountView, TokenView, views};
+pub use view::{AccountView, SevenTvView, TokenView, views};

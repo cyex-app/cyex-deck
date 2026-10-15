@@ -22,7 +22,7 @@ mod tabs;
 mod uploader;
 mod windows;
 
-pub use accounts::{Account, Accounts, TokenMeta, TokenSource};
+pub use accounts::{Account, Accounts, SevenTvConsent, TokenMeta, TokenSource};
 pub use appearance::{
     Appearance, CustomTheme, TabBarSide, TabDensity, TabRows, TabUnread, Wallpaper, WallpaperArea, WallpaperFit,
     preset_themes,

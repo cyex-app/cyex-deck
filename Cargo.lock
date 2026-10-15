@@ -748,6 +748,7 @@ dependencies = [
 name = "cyex-auth"
 version = "0.1.5"
 dependencies = [
+ "base64 0.23.1",
  "cyex-core",
  "cyex-settings",
  "cyex-twitch",

@@ -27,6 +27,16 @@ pub struct Account {
     pub helix: Option<TokenMeta>,
     /// First-party token for GQL-only tools (1.54).
     pub gql: Option<TokenMeta>,
+    /// V1051-02 Consent to use 7TV with this account (date given, `yyyy-mm-dd`). Not a secret.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seventv: Option<SevenTvConsent>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(default, rename_all = "camelCase")]
+#[ts(export)]
+pub struct SevenTvConsent {
+    pub since: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]

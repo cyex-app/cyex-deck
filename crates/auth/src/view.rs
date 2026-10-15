@@ -4,7 +4,7 @@ use cyex_settings::schema::{Accounts, TokenSource};
 use serde::Serialize;
 use ts_rs::TS;
 
-use crate::{Feature, TokenKind, TokenState, Vault, caps, scopes};
+use crate::{Feature, SevenTvTokens, TokenKind, TokenState, Vault, caps, scopes, seventv};
 
 #[derive(Clone, Debug, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -20,6 +20,18 @@ pub struct AccountView {
     /// Helix scopes the token lacks. Tools that need them stay hidden.
     pub missing_scopes: Vec<String>,
     pub features: Vec<Feature>,
+    pub seventv: SevenTvView,
+}
+
+/// V1051-02 Where an account stands with 7TV. Never the token.
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SevenTvView {
+    pub consent: bool,
+    pub signed_in: bool,
+    /// The session's last day, `yyyy/mm/dd`; `None` when signed out.
+    pub until: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, TS)]
@@ -33,7 +45,7 @@ pub struct TokenView {
     pub state: TokenState,
 }
 
-pub fn views(accounts: &Accounts, vault: &Vault) -> Vec<AccountView> {
+pub fn views(accounts: &Accounts, vault: &Vault, seventv: &SevenTvTokens) -> Vec<AccountView> {
     accounts
         .list
         .iter()
@@ -53,7 +65,13 @@ pub fn views(accounts: &Accounts, vault: &Vault) -> Vec<AccountView> {
                 .as_ref()
                 .filter(|_| usable(&helix))
                 .map(|m| m.scopes.as_slice());
+            let token = seventv.get(&a.user_id);
             AccountView {
+                seventv: SevenTvView {
+                    consent: a.seventv.is_some(),
+                    signed_in: token.is_some(),
+                    until: token.and_then(|t| t.expires()).map(seventv::date),
+                },
                 user_id: a.user_id.clone(),
                 login: a.login.clone(),
                 display_name: a.display_name.clone(),
@@ -96,6 +114,7 @@ mod tests {
             default_id: Some("1".into()),
         };
         let vault = Vault::new(Arc::new(MemoryStore::default()));
+        let tokens = SevenTvTokens::new(Arc::new(MemoryStore::default()));
         let secret = Secret {
             access: "a".into(),
             refresh: None,
@@ -103,7 +122,7 @@ mod tests {
         };
         vault.put("1", TokenKind::Helix, secret).unwrap();
 
-        let v = &views(&accounts, &vault)[0];
+        let v = &views(&accounts, &vault, &tokens)[0];
         assert!(v.is_default && v.missing_scopes.is_empty());
         assert!(v.features.contains(&Feature::SendChat));
         // The GQL token isn't in the credential store, so GQL tools stay hidden.
@@ -111,6 +130,6 @@ mod tests {
         assert!(!v.features.contains(&Feature::Miner));
 
         vault.mark("1", TokenKind::Helix, TokenState::Invalid);
-        assert!(views(&accounts, &vault)[0].features.is_empty());
+        assert!(views(&accounts, &vault, &tokens)[0].features.is_empty());
     }
 }
