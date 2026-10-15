@@ -10,9 +10,8 @@
   import type { MentionRule } from '../../../ipc/bindings/MentionRule';
   import type { RegexFlavor } from '../../../ipc/bindings/RegexFlavor';
   import { mentionsIpc } from '../../../ipc/mentions';
-  import { mentionSound } from '../../../lib/sound';
   import { withAlpha } from '../rules/fields';
-  import { fileName } from './status';
+  import SoundFile from './SoundFile.svelte';
 
   type Item = MentionAlert & { enabled: boolean } & Partial<MentionRule>;
 
@@ -97,11 +96,7 @@
     <Checkbox label="Pop-up" checked={item.notify} onchange={(v) => set('notify', v)} />
     <Checkbox label="Sound" checked={item.sound} onchange={(v) => set('sound', v)} />
     {#if item.soundFile}
-      <span class="file" title={item.soundFile}>
-        {fileName(item.soundFile)}
-        <IconButton icon="play" label="Play" size={12} onclick={() => void mentionSound(item.soundFile)} />
-        <IconButton icon="x" label="Use the chime" size={12} onclick={() => set('soundFile', '')} />
-      </span>
+      <SoundFile path={item.soundFile} onclear={() => set('soundFile', '')} />
     {:else}
       <button class="link" onclick={pickSound}>Sound file…</button>
     {/if}
@@ -168,20 +163,6 @@
   }
   .clear:hover {
     color: var(--text);
-  }
-  .file {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    max-width: 180px;
-    overflow: hidden;
-    color: var(--muted);
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-  .file :global(.icon-btn) {
-    width: 22px;
-    height: 22px;
   }
   .link {
     padding: 0;

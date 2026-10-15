@@ -4,8 +4,7 @@
   import Checkbox from '../../../components/Checkbox.svelte';
   import IconButton from '../../../components/IconButton.svelte';
   import { mentionsIpc } from '../../../ipc/mentions';
-  import { mentionSound } from '../../../lib/sound';
-  import { fileName } from '../mentions/status';
+  import SoundFile from '../mentions/SoundFile.svelte';
   import { splitList, withAlpha, type Field } from './fields';
 
   interface Props {
@@ -82,11 +81,7 @@
       ></textarea>
     {:else if f.kind === 'sound'}
       {#if v}
-        <span class="file" title={String(v)}>
-          {fileName(String(v))}
-          <IconButton icon="play" label="Play" size={12} onclick={() => void mentionSound(String(v))} />
-          <IconButton icon="x" label="Use the chime" size={12} onclick={() => set(f.key, '')} />
-        </span>
+        <SoundFile path={String(v)} onclear={() => set(f.key, '')} />
       {:else}
         <IconButton icon="upload" label={f.label} hint="Plays this file instead of the chime." size={14} onclick={() => void pickSound(f.key)} />
       {/if}
@@ -176,20 +171,6 @@
   }
   .clear:hover {
     color: var(--text);
-  }
-  .file {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    max-width: 180px;
-    overflow: hidden;
-    color: var(--muted);
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-  .file :global(.icon-btn) {
-    width: 22px;
-    height: 22px;
   }
   .problem {
     flex-basis: 100%;
