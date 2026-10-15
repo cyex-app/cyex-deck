@@ -328,6 +328,7 @@
   {#if up.pending}
     <UploadConfirm
       host={up.pending.host}
+      count={up.pending.count}
       onyes={() => {
         const go = up.pending!.go;
         up.pending = null;

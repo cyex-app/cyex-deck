@@ -15,6 +15,7 @@
   import { CLIENTS, COSMIC, effectOf, highlightStyle } from './highlight';
   import LinkCard from './LinkCard.svelte';
   import { shownName } from './names';
+  import { uploadLine } from './upload';
 
   interface Props {
     m: ChatMessage;
@@ -38,6 +39,8 @@
   const action = $derived(has('action'));
   const deleted = $derived(has('deleted'));
   const notice = $derived(m.notice);
+  /** V105-11 Our own upload line: both links are clickable. */
+  const upLine = $derived(notice && !sender && notice.kind === 'info' ? uploadLine(notice.text) : null);
   const time = $derived(c.timestamps.show ? formatTime(new Date(m.ts), c.timestamps) : '');
   const colorVars = $derived(sender ? `--cd:${sender.color.dark};--cl:${sender.color.light}` : '');
   /** 1.37 The sender's 7TV paint, as a class, and its name for a tip (V101-36). */
@@ -102,7 +105,8 @@
   {/if}
   {#if notice}
     <div class="notice-text">
-      {#if !sender && time}<span class="ts">{time}</span>{/if}{notice.text}
+      {#if !sender && time}<span class="ts">{time}</span>{/if}{#if upLine}Uploaded <a class="up" href={upLine.link} data-upload={upLine.link}>{upLine.link}</a>{#if upLine.deletion}
+        · delete: <a class="up" href={upLine.deletion} data-upload={upLine.deletion}>{upLine.deletion}</a>{/if}{:else}{notice.text}{/if}
       {#if recipients.length}<span class="recipients"> To {recipients.join(', ')}.</span>{/if}
     </div>
   {/if}
@@ -255,6 +259,14 @@
   }
   .notice-text {
     color: var(--muted);
+  }
+  .up {
+    color: var(--accent-text);
+    text-decoration: none;
+    word-break: break-all;
+  }
+  .up:hover {
+    text-decoration: underline;
   }
   .recipients {
     color: var(--dim);

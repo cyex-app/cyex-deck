@@ -499,7 +499,7 @@
 
   function onclick(e: MouseEvent) {
     const el = (e.target as HTMLElement).closest<HTMLElement>(
-      '[data-user],[data-channel],[data-link],[data-reply],[data-jump],[data-emote],[data-whisper],[data-mod],[data-pin],[data-act]',
+      '[data-user],[data-channel],[data-link],[data-upload],[data-reply],[data-jump],[data-emote],[data-whisper],[data-mod],[data-pin],[data-act]',
     );
     if (!el) return;
     const d = el.dataset;
@@ -518,6 +518,9 @@
       e.preventDefault();
       if (d.target && onlink) return onlink(JSON.parse(d.target) as LinkTarget);
       systemIpc.openChatLink(d.link).catch((err) => toast.error(String(err)));
+    } else if (d.upload) {
+      e.preventDefault();
+      systemIpc.openUpload(d.upload).catch((err) => toast.error(String(err)));
     } else if (d.channel) {
       // V102-05 As this chat's account, or anonymously like it.
       hideTip();

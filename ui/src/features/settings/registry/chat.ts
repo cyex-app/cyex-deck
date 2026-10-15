@@ -529,6 +529,13 @@ export const CHAT: Entry[] = [
     keywords: ['image', 'upload', 'paste', 'imgur', 'nuuls', 'sharex'],
   },
   {
+    id: 'uploader.confirm',
+    page: 'uploads',
+    label: 'Ask before uploading',
+    description: 'Asks before an image you paste or drop is uploaded.',
+    keywords: ['image', 'upload', 'paste', 'confirm', 'ask', 'question'],
+  },
+  {
     id: 'uploader.url',
     page: 'uploads',
     label: 'Upload URL',

@@ -30,3 +30,9 @@ pub async fn upload_images(
 ) {
     upload::run(app, channel, items, on_event).await;
 }
+
+/// A link or delete link from an "Uploaded ..." chat line, on a user click. Only the ones recorded.
+#[tauri::command]
+pub fn upload_open_link(app: AppHandle, url: String) -> CmdResult<()> {
+    upload::open_link(&app, &url)
+}

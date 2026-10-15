@@ -20,8 +20,8 @@ pub struct Uploader {
     /// Where the image link is in the answer, e.g. `{data.link}`. Empty: the whole answer.
     pub link: String,
     pub deletion_link: String,
-    /// Hosts the user said yes to once.
-    pub trusted_hosts: Vec<String>,
+    /// Ask before an image you paste or drop is uploaded (off by default).
+    pub confirm: bool,
 }
 
 fn clip(s: &mut String, max: usize) {
@@ -42,13 +42,6 @@ impl Schema for Uploader {
         clip(&mut self.headers, 4000);
         trim_clip(&mut self.link, 500);
         trim_clip(&mut self.deletion_link, 500);
-        for h in &mut self.trusted_hosts {
-            *h = h.trim().to_lowercase();
-        }
-        self.trusted_hosts.retain(|h| !h.is_empty());
-        self.trusted_hosts.sort();
-        self.trusted_hosts.dedup();
-        self.trusted_hosts.truncate(50);
     }
 }
 
@@ -57,18 +50,31 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sanitize_clips_and_dedups_hosts() {
+    fn sanitize_clips() {
         let mut u = Uploader {
             url: format!("  {}  ", "a".repeat(2500)),
             form_field: " file ".into(),
             headers: "h".repeat(5000),
-            trusted_hosts: vec![" B.com ".into(), "a.com".into(), "b.com".into(), "".into()],
             ..Uploader::default()
         };
         u.sanitize();
         assert_eq!(u.url.chars().count(), 2000);
         assert_eq!(u.form_field, "file");
         assert_eq!(u.headers.chars().count(), 4000);
-        assert_eq!(u.trusted_hosts, vec!["a.com", "b.com"]);
+    }
+
+    #[test]
+    fn confirm_is_off_by_default() {
+        assert!(!Uploader::default().confirm);
+        let u: Uploader = serde_json::from_str("{}").unwrap();
+        assert!(!u.confirm);
+    }
+
+    #[test]
+    fn old_trusted_hosts_field_is_ignored() {
+        let u: Uploader =
+            serde_json::from_str(r#"{"enabled":true,"url":"http://x/up","trustedHosts":["x"]}"#).unwrap();
+        assert!(u.enabled && !u.confirm);
+        assert_eq!(u.url, "http://x/up");
     }
 }

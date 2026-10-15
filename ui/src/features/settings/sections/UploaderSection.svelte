@@ -24,9 +24,17 @@
   <Toggle label="Upload pasted images" checked={u.enabled} onchange={(v) => save({ enabled: v })} />
 </Row>
 
+<Row
+  setting="uploader.confirm"
+  label="Ask before uploading"
+  hint="Asks before an image you paste or drop is uploaded."
+>
+  <Toggle label="Ask before uploading" checked={u.confirm} onchange={(v) => save({ confirm: v })} />
+</Row>
+
 <Row setting="uploader.url" label="Upload URL" stacked>
   <input
-    class="field"
+    class="field wide"
     spellcheck="false"
     autocomplete="off"
     aria-label="Upload URL"
@@ -37,7 +45,7 @@
 
 <Row setting="uploader.formField" label="Form field" stacked>
   <input
-    class="field"
+    class="field wide"
     spellcheck="false"
     autocomplete="off"
     aria-label="Form field"
@@ -50,7 +58,7 @@
 <Row setting="uploader.headers" label="Headers" stacked>
   <div class="secret">
     <input
-      class="field"
+      class="field wide"
       type={show ? 'text' : 'password'}
       spellcheck="false"
       autocomplete="off"
@@ -70,7 +78,7 @@
   stacked
 >
   <input
-    class="field"
+    class="field wide"
     spellcheck="false"
     autocomplete="off"
     aria-label="Image link"
@@ -82,7 +90,7 @@
 
 <Row setting="uploader.deletionLink" label="Delete link" stacked>
   <input
-    class="field"
+    class="field wide"
     spellcheck="false"
     autocomplete="off"
     aria-label="Delete link"
@@ -99,7 +107,12 @@
     margin: -6px 0 6px;
     color: var(--dim);
   }
+  .wide {
+    width: 100%;
+    min-width: 0;
+  }
   .secret {
+    width: 100%;
     display: flex;
     align-items: center;
     gap: 4px;

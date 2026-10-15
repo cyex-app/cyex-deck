@@ -29,6 +29,8 @@ pub struct Uploads {
     /// Pasted image data waiting for its upload, oldest first (id, bytes, extension).
     staged: Mutex<Vec<(String, Vec<u8>, String)>>,
     busy: AtomicBool,
+    /// Links (and delete links) of this session's uploads: the only ones the chat line may open.
+    links: Mutex<Vec<String>>,
 }
 
 pub fn init(app: &AppHandle) {
@@ -159,6 +161,7 @@ async fn send_all(
     } else {
         cfg.form_field.as_str()
     };
+    let uploads = app.state::<Uploads>();
     let total = items.len() as u32;
     for (n, item) in items.iter().enumerate() {
         let _ = on.send(UploadEvent::Started {
@@ -183,6 +186,13 @@ async fn send_all(
         } else {
             fill(&cfg.deletion_link, &answer)
         };
+        {
+            let mut links = uploads.links.lock().unwrap_or_else(|e| e.into_inner());
+            links.push(link.clone());
+            if !deletion.is_empty() {
+                links.push(deletion.clone());
+            }
+        }
         let _ = on.send(UploadEvent::Done { link: link.clone() });
         let tail = if deletion.is_empty() {
             String::new()
@@ -199,6 +209,32 @@ async fn send_all(
         }
     }
     Ok(())
+}
+
+/// True when `url` is a web address that equals a link or delete link we recorded:
+/// this session's list or `uploads.json`. Nothing else may be opened from a chat line.
+pub fn may_open(url: &str, session: &[String], logged: &[Value]) -> bool {
+    let web = url::Url::parse(url).is_ok_and(|u| matches!(u.scheme(), "http" | "https") && u.host_str().is_some());
+    web && (session.iter().any(|l| l == url)
+        || logged
+            .iter()
+            .any(|e| ["link", "deletion"].iter().any(|k| e.get(k).and_then(Value::as_str) == Some(url))))
+}
+
+/// V105-11 Opens an upload link or delete link in the browser, if we recorded it.
+pub fn open_link(app: &AppHandle, url: &str) -> Result<(), String> {
+    let session = app.state::<Uploads>().links.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let logged = crate::paths::local(app)
+        .ok()
+        .and_then(|d| fs::read(d.join("uploads.json")).ok())
+        .and_then(|b| serde_json::from_slice::<Vec<Value>>(&b).ok())
+        .unwrap_or_default();
+    if !may_open(url, &session, &logged) {
+        return Err("That link can't be opened.".into());
+    }
+    tauri_plugin_opener::OpenerExt::opener(app)
+        .open_url(url, None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 fn now_s() -> u64 {
@@ -225,5 +261,29 @@ fn log(app: &AppHandle, entry: Value) {
     let tmp = dir.join("uploads.json.tmp");
     if fs::create_dir_all(&dir).is_ok() && fs::write(&tmp, text).is_ok() {
         let _ = fs::rename(&tmp, &path);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_recorded_web_links_open() {
+        let session = vec!["https://i.example/a.png".to_string()];
+        let logged = vec![json!({ "link": "http://127.0.0.1:1/b.png", "deletion": "https://i.example/del/9" })];
+        assert!(may_open("https://i.example/a.png", &session, &logged));
+        assert!(may_open("http://127.0.0.1:1/b.png", &session, &logged));
+        assert!(may_open("https://i.example/del/9", &session, &logged));
+        assert!(!may_open("https://i.example/other", &session, &logged));
+        assert!(!may_open("https://i.example/a.png?x=1", &session, &logged));
+        assert!(!may_open("", &session, &logged));
+    }
+
+    #[test]
+    fn recorded_non_web_links_still_refused() {
+        let logged = vec![json!({ "link": "file:///C:/Windows/system32/calc.exe", "deletion": "javascript:alert(1)" })];
+        assert!(!may_open("file:///C:/Windows/system32/calc.exe", &[], &logged));
+        assert!(!may_open("javascript:alert(1)", &["javascript:alert(1)".to_string()], &logged));
     }
 }

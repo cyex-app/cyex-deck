@@ -14,7 +14,6 @@ export const UNLISTED: Record<string, string> = {
   'chat.users': 'Notes on usercards.',
   'highlights.mention': 'Moved to Mentions; read once to carry your options over.',
   'commands.vars': 'Set with /set in chat.',
-  'uploader.trustedHosts': 'Hosts you said yes to in the upload question.',
   'player.miniCorner': 'Where you drag the mini player.',
   'general.updates.skip': 'Set with Skip this version on the update badge.',
   'miner.enabled': 'Started and stopped in the miner.',

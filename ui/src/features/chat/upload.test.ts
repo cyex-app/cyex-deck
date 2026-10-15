@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { extOfMime, hostOf, imagePaths } from './upload.ts';
+import { extOfMime, hostOf, imagePaths, uploadLine } from './upload.ts';
 
 test('host of a url', () => {
   assert.equal(hostOf('https://I.Nuuls.com/upload'), 'i.nuuls.com');
@@ -17,4 +17,11 @@ test('extension from a clipboard type', () => {
   assert.equal(extOfMime('image/jpeg'), 'jpg');
   assert.equal(extOfMime('image/png'), 'png');
   assert.equal(extOfMime('image/bmp'), '');
+});
+
+test('our upload line', () => {
+  assert.deepEqual(uploadLine('Uploaded https://x/a.png · delete: https://x/d/1'), { link: 'https://x/a.png', deletion: 'https://x/d/1' });
+  assert.deepEqual(uploadLine('Uploaded https://x/a.png'), { link: 'https://x/a.png', deletion: '' });
+  assert.equal(uploadLine('Uploaded a b'), null);
+  assert.equal(uploadLine('Something else'), null);
 });

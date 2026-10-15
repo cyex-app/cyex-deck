@@ -70,8 +70,8 @@ export function useUploads(hooks: Hooks) {
 
 class Uploads {
   readonly upload = new Upload();
-  /** The first upload to a host waits for a yes. */
-  pending = $state<{ host: string; go: () => void } | null>(null);
+  /** With "Ask before uploading" on, the batch waits for a yes. */
+  pending = $state<{ host: string; count: number; go: () => void } | null>(null);
 
   constructor(private hooks: Hooks) {
     $effect(() => {
@@ -92,7 +92,7 @@ class Uploads {
     const host = hostOf(cfg.url);
     const { login, insert, fail } = this.hooks;
     const go = () => void this.upload.start(login(), items, insert, fail);
-    if (host && !cfg.trustedHosts.includes(host)) this.pending = { host, go };
+    if (cfg.confirm) this.pending = { host, count: items.length, go };
     else go();
   }
 

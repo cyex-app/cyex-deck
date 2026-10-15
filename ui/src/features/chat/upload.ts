@@ -20,3 +20,9 @@ export function imagePaths(paths: string[]): string[] {
 export function extOfMime(type: string): string {
   return { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' }[type.toLowerCase()] ?? '';
 }
+
+/** The links in our own "Uploaded <link> · delete: <link>" system line; null for any other text. */
+export function uploadLine(text: string): { link: string; deletion: string } | null {
+  const m = /^Uploaded (\S+)(?: · delete: (\S+))?$/.exec(text);
+  return m ? { link: m[1], deletion: m[2] ?? '' } : null;
+}

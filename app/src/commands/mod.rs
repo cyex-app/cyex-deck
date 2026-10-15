@@ -46,6 +46,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         update::update_open_notes,
         upload::upload_stage,
         upload::upload_images,
+        upload::upload_open_link,
         whispers::whispers_state,
         whispers::whispers_more,
         whispers::whispers_open,

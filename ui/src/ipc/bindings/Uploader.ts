@@ -18,6 +18,6 @@ headers: string,
  */
 link: string, deletionLink: string, 
 /**
- * Hosts the user said yes to once.
+ * Ask before an image you paste or drop is uploaded (off by default).
  */
-trustedHosts: Array<string>, };
+confirm: boolean, };
