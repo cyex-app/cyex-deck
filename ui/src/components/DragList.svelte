@@ -2,10 +2,10 @@
      panels): the row follows as a label, a line shows where it lands. Presses on a row's
      buttons and fields stay clicks. -->
 <script lang="ts" generics="T">
-  import type { Snippet } from 'svelte';
+  import { tick, type Snippet } from 'svelte';
 
   import { drag, rowDrops } from '../features/tabs/drag.svelte';
-  import { moveKey } from '../lib/order';
+  import { moveKey, nudge } from '../lib/order';
 
   interface Props {
     /** Unique on screen: drops only land in the list they came from. */
@@ -38,15 +38,35 @@
     return mine !== null && t?.kind === 'row' && t.list === key && t.id !== mine ? t : null;
   });
 
+  let said = $state('');
+  let box = $state<HTMLElement>();
+
+  /** Alt+ArrowUp / Alt+ArrowDown on a focused row moves it, like a drag does. */
+  async function nudgeRow(e: KeyboardEvent, item: T) {
+    if (!e.altKey || e.target !== e.currentTarget) return;
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    const row = e.currentTarget as HTMLElement;
+    const moved = nudge(items, id, id(item), e.key === 'ArrowUp' ? -1 : 1);
+    if (!moved) return;
+    onmove(moved.items);
+    said = `Moved to ${moved.place} of ${items.length}`;
+    await tick();
+    if (!row.isConnected) box?.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(id(item))}"]`)?.focus();
+    else row.focus();
+  }
+
   function down(e: PointerEvent, item: T) {
     if ((e.target as Element).closest('button, a, input, select, textarea, [contenteditable]')) return;
     drag.begin(e, { kind: 'row', list: key, id: id(item) }, label(item));
   }
 </script>
 
-<div class="list" role="list">
+<div class="list" role="list" bind:this={box}>
   {#each items as item (id(item))}
     {@const k = id(item)}
+    <!-- A row is a stop for Alt+Up / Alt+Down, the keyboard way to drag it. -->
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
     <div
       class="row"
       class:before={line?.id === k && !line.after}
@@ -55,12 +75,15 @@
       role="listitem"
       data-row-of={key}
       data-row-id={k}
+      tabindex="0"
+      onkeydown={(e) => nudgeRow(e, item)}
       onpointerdown={(e) => down(e, item)}
     >
       {@render row(item)}
     </div>
   {/each}
 </div>
+<span class="said" aria-live="polite">{said}</span>
 
 <style>
   .list {
@@ -70,6 +93,18 @@
   .row {
     border-block: 2px solid transparent;
     cursor: grab;
+  }
+  .row:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    border-radius: var(--radius);
+  }
+  .said {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
   }
   .row.before {
     border-top-color: var(--accent);

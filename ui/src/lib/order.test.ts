@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { moveKey, moveTo } from './order.ts';
+import { moveKey, moveTo, nudge } from './order.ts';
 
 const abcd = ['a', 'b', 'c', 'd'];
 
@@ -30,4 +30,13 @@ test('moves by key', () => {
   assert.equal(moveKey(abcd, key, 'b', 'b', false), null);
   assert.equal(moveKey(abcd, key, 'b', 'a', true), null);
   assert.equal(moveKey(abcd, key, 'x', 'a', false), null);
+});
+
+test('Alt+arrow nudges a row one place and says where it landed', () => {
+  const id = (s: string) => s;
+  assert.deepEqual(nudge(abcd, id, 'b', -1), { items: ['b', 'a', 'c', 'd'], place: 1 });
+  assert.deepEqual(nudge(abcd, id, 'b', 1), { items: ['a', 'c', 'b', 'd'], place: 3 });
+  assert.equal(nudge(abcd, id, 'a', -1), null);
+  assert.equal(nudge(abcd, id, 'd', 1), null);
+  assert.equal(nudge(abcd, id, 'x', 1), null);
 });

@@ -20,3 +20,13 @@ export function moveKey<T>(list: readonly T[], key: (t: T) => string, from: stri
   const out = moveTo(list, i, j, after);
   return out.every((t, n) => t === list[n]) ? null : out;
 }
+
+/** What Alt+ArrowUp / Alt+ArrowDown does to the row keyed `id`: the new list and the row's
+ *  1-based place in it, or `null` at either end (or for a key that's gone). */
+export function nudge<T>(list: readonly T[], key: (t: T) => string, id: string, dir: -1 | 1): { items: T[]; place: number } | null {
+  const i = list.findIndex((t) => key(t) === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= list.length) return null;
+  const items = moveKey(list, key, id, key(list[j]), dir > 0);
+  return items && { items, place: j + 1 };
+}
