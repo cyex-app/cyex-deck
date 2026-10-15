@@ -18,6 +18,9 @@ const APPLY_WAIT: Duration = Duration::from_secs(10);
 /// One custom-command run's view of the 7TV variables. Lives in `AppHost`.
 pub struct VarScope {
     pub account: Option<String>,
+    /// An automation's run (S4): other people's messages start it, so `{combo:…}` puts
+    /// nothing on there and expands to "".
+    automation: bool,
     applied: HashSet<String>,
     /// Lines for the user only, shown after the run.
     pub notes: Vec<String>,
@@ -49,9 +52,10 @@ fn clean(p: &Part) -> bool {
 }
 
 impl VarScope {
-    pub fn new(account: Option<String>) -> Self {
+    pub fn new(account: Option<String>, automation: bool) -> Self {
         Self {
             account,
+            automation,
             applied: HashSet::new(),
             notes: Vec::new(),
         }
@@ -64,12 +68,24 @@ impl VarScope {
         if !has_consent(app, &account) {
             return String::new();
         }
-        if let Var::ComboApply(name) = v {
-            return self.combo(app, rt, &account, name);
+        if let Var::ComboApply(_) = v {
+            return match self.apply_name(v) {
+                Some(name) => self.combo(app, rt, &account, &name),
+                None => String::new(),
+            };
         }
         match rt.block_on(tokio::time::timeout(READ_WAIT, read(app, &account))) {
             Ok(Ok(inv)) => pick(&inv, &combos::list(app, &account), v),
             _ => String::new(),
+        }
+    }
+
+    /// The combo `{combo:<name>}` may put on: the only way to `apply` from a variable.
+    /// None for the read forms, an empty name and inside automations.
+    fn apply_name(&self, v: &Var) -> Option<String> {
+        match v {
+            Var::ComboApply(name) if !self.automation && !name.trim().is_empty() => Some(name.clone()),
+            _ => None,
         }
     }
 
@@ -148,6 +164,17 @@ mod tests {
         for v in [Var::Paint, Var::PaintId, Var::Badge, Var::BadgeId, Var::Combo] {
             assert_eq!(pick(&i, &[], &v), "");
         }
+    }
+
+    #[test]
+    fn automations_never_apply() {
+        let night = Var::ComboApply("Night".into());
+        let auto = VarScope::new(Some("1".into()), true);
+        assert_eq!(auto.apply_name(&night), None);
+        let typed = VarScope::new(Some("1".into()), false);
+        assert_eq!(typed.apply_name(&night).as_deref(), Some("Night"));
+        assert_eq!(typed.apply_name(&Var::ComboApply(" ".into())), None);
+        assert_eq!(typed.apply_name(&Var::Paint), None);
     }
 
     #[test]

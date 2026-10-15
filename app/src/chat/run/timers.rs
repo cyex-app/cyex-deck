@@ -46,6 +46,7 @@ pub fn restore(app: &AppHandle) {
         let place = Place {
             view: None,
             key: (identity, t.channel.clone()),
+            automation: false,
         };
         schedule(app, place, t.id, t.at_ms, t.command, true);
     }

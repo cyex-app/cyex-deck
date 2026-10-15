@@ -65,6 +65,8 @@ fn list(app: &AppHandle) -> Arc<CommandList> {
 pub struct Place {
     pub view: Option<u32>,
     pub key: RoomKey,
+    /// V1051-04 Started by an automation (S4), down to the commands it runs.
+    pub automation: bool,
 }
 
 impl Place {
@@ -152,7 +154,11 @@ pub async fn automation(
     count: u64,
     reply_to: Option<String>,
 ) {
-    let place = Place { view: None, key };
+    let place = Place {
+        view: None,
+        key,
+        automation: true,
+    };
     let mut p = params(app, &place, args);
     let [nick_key, count_key] = AUTOMATION_VALUES;
     p.set(nick_key, nick);
@@ -200,6 +206,7 @@ fn place_of(app: &AppHandle, view: u32) -> Result<Place, String> {
     Ok(Place {
         view: Some(view),
         key,
+        automation: false,
     })
 }
 
@@ -335,7 +342,7 @@ async fn run_body(
         list: list(app),
         channel: place.channel().to_owned(),
         runtime: tokio::runtime::Handle::current(),
-        vars: VarScope::new(place.account().map(str::to_owned)),
+        vars: VarScope::new(place.account().map(str::to_owned), place.automation),
     };
     let (out, notes) = tokio::task::spawn_blocking(move || {
         let out = commands::run(&body, &p, &mut host);

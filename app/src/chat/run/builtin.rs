@@ -100,7 +100,11 @@ pub async fn run(
             let chan = chan.trim_start_matches('#').to_ascii_lowercase();
             let key = super::super::room_for(app, &place.key.0, &chan)
                 .ok_or_else(|| format!("Not in {chan}’s chat."))?;
-            let there = Place { view: None, key };
+            let there = Place {
+                view: None,
+                key,
+                automation: place.automation,
+            };
             line(app, &there, command, None, true, depth + 1).await
         }
         "timer" => super::timers::command(app, place, args).map(|()| None),
