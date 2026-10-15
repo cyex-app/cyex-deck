@@ -4,7 +4,7 @@
 
 mod apply;
 mod combos;
-mod lookup;
+pub mod lookup;
 mod select;
 mod status;
 mod vars;
@@ -23,8 +23,9 @@ use cyex_emotes::seventv::account::{Client, Error};
 use cyex_settings::schema::SevenTvConsent;
 use tauri::{AppHandle, Manager};
 
-pub use apply::{Applied, Want, apply};
-pub use combos::change as change_combos;
+pub use apply::{Applied, Part, Want, apply};
+pub use combos::{change as change_combos, find as find_combo, list as list_combos};
+pub use words::{select_error, why};
 pub use select::{Kind, Picked, SelectError, select};
 pub use vars::VarScope;
 use status::status;
@@ -97,6 +98,11 @@ impl Cosmetics {
         lock(&self.cache).insert(account.to_owned(), (Instant::now(), inv.clone()));
         Ok(Some(inv))
     }
+}
+
+/// V1051-04 The inventory in the cache, if any; never fetches.
+pub fn cached(app: &AppHandle, account: &str) -> Option<Arc<Inventory>> {
+    state(app).cached(account).map(|(_, i)| i)
 }
 
 fn state(app: &AppHandle) -> tauri::State<'_, Cosmetics> {

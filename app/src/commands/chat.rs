@@ -169,3 +169,9 @@ pub async fn user_profile(app: AppHandle, login: Option<String>, id: Option<Stri
         .await
         .map_err(|e| e.to_string())
 }
+
+/// V1051-04 Tab's candidates for an argument of `/combo`, `/paint` and `/badge`.
+#[tauri::command]
+pub async fn chat_command_args(app: AppHandle, view: u32, command: String, sub: Option<String>) -> CmdResult<Vec<String>> {
+    chat::run::complete::args(&app, view, &command, sub.as_deref()).await
+}

@@ -54,7 +54,7 @@ const MOD_COMMANDS: &[&str] = &[
     "unrestrict",
 ];
 
-const HELP: &str = "/me, /echo, /set var, /chain, /foreach, /runin, /timer, /user, /logs, /block, /unblock, /hideuser, /unhideuser, /mutepings, /tl, /translate, /vote, /search, /popout, /color, /cosmetics, /w, /r. Mods: /ban, /timeout, /unban, /warn and Twitch’s other mod commands. Your own commands are in Settings → Commands.";
+const HELP: &str = "/me, /echo, /set var, /chain, /foreach, /runin, /timer, /user, /logs, /block, /unblock, /hideuser, /unhideuser, /mutepings, /tl, /translate, /vote, /search, /popout, /color, /cosmetics, /combo, /paint, /badge, /w, /r. Mods: /ban, /timeout, /unban, /warn and Twitch’s other mod commands. Your own commands are in Settings → Commands.";
 
 pub async fn run(
     app: &AppHandle,
@@ -76,6 +76,8 @@ pub async fn run(
             local(app, &place.key, NoticeKind::Info, HELP);
             done
         }
+        // V1051-04
+        "combo" | "paint" | "badge" => super::cosmetics::run(app, place, name, args).await,
         "set" => set_var(app, args).map(|()| None),
         "chain" => {
             for part in split_chain(args) {
@@ -216,6 +218,8 @@ const OWN: &[&str] = &[
     "me", "echo", "help", "commands", "set", "chain", "foreach", "runin", "timer", "user", "usercard", "logs",
     "block", "unblock", "hideuser", "unhideuser", "mutepings", "tl", "translate", "vote", "search", "popout",
     "color", "cosmetics", "w", "whisper", "r", "nuke",
+    // V1051-04
+    "combo", "paint", "badge",
 ];
 
 /// S5 Names plugins can't register: the app's commands and Twitch's.
@@ -229,7 +233,10 @@ fn is_mod_command(name: &str) -> bool {
 }
 
 /// V1041-01 The app's commands that send or act as the chat's account.
-const SIGNED_IN: &[&str] = &["me", "tl", "vote", "color", "cosmetics", "block", "unblock", "w", "whisper", "r"];
+const SIGNED_IN: &[&str] = &["me", "tl", "vote", "color", "cosmetics", "block", "unblock", "w", "whisper", "r",
+    // V1051-04
+    "combo", "paint", "badge",
+];
 
 /// V1041-01 Who may run a built-in (1.57): Twitch's mod commands as they parse, `/nuke` any
 /// mod, the rest anyone.
@@ -440,6 +447,9 @@ mod tests {
         assert!(has(&lead, &["mod", "unvip"]) && none(&lead, &["raid", "vips", "marker"]));
         let owner = usable(Some(ModRole::Broadcaster), true);
         assert!(has(&owner, &["raid", "unraid", "mods", "vips", "commercial", "marker", "ban"]));
+        // V1051-04 The 7TV commands are offered signed in, never anonymous.
+        assert!(has(&viewer, &["combo", "paint", "badge"]) && none(&anon, &["combo", "paint", "badge"]));
+        assert!(super::super::cosmetics::NAMES.iter().all(|n| OWN.contains(n)));
         // Sorted, once each.
         assert!(owner.windows(2).all(|w| w[0] < w[1]));
     }

@@ -14,7 +14,6 @@ pub fn select_error(e: &SelectError) -> String {
     }
 }
 
-#[allow(dead_code)] // V1051-04 group 4 (chat commands) uses this
 pub fn why(w: &Why) -> &'static str {
     match w {
         Why::NoConsent => "Allow 7TV first: /cosmetics.",

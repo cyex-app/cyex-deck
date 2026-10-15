@@ -29,7 +29,6 @@ fn entries(inv: &Inventory, kind: Kind) -> Vec<(&str, &str, bool)> {
     }
 }
 
-#[allow(dead_code)] // V1051-04 group 4 (chat commands) uses this
 fn fold(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
 }
@@ -44,7 +43,6 @@ pub fn have(inv: &Inventory, kind: Kind, id: &str) -> Have {
 
 /// `/paint` and `/badge`: an id (any case) or a name (case-insensitive, spaces collapsed).
 /// Several with that name: a usable one first.
-#[allow(dead_code)] // V1051-04 group 4 (chat commands) uses this
 pub fn find(inv: &Inventory, kind: Kind, typed: &str) -> Option<ComboItem> {
     let all = entries(inv, kind);
     let typed = typed.trim();
@@ -87,7 +85,6 @@ pub fn current<'a>(combos: &'a [Combo], inv: &Inventory) -> Option<&'a Combo> {
 }
 
 /// Usable names, once each, A-Z: Tab's candidates.
-#[allow(dead_code)] // V1051-04 group 4 (chat commands) uses this
 pub fn names(inv: &Inventory, kind: Kind) -> Vec<String> {
     let mut out: Vec<String> = entries(inv, kind)
         .into_iter()

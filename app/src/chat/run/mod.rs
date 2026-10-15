@@ -3,6 +3,7 @@
 //! Twitch. Menu entries (S1) and automations (S4) run through here too.
 
 mod builtin;
+mod cosmetics;
 pub use builtin::{block_user, reserved};
 pub mod complete;
 mod host;
