@@ -159,6 +159,7 @@
     box-sizing: border-box;
     width: 176px;
     height: 56px;
+    scroll-snap-align: start;
     color: var(--muted);
     font-size: 12px;
     transition:

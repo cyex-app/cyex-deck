@@ -170,9 +170,10 @@
   .card:focus-within .more {
     display: block;
   }
+  /* V1051-04 The mark moves left of the menu button, so its tip can still be hovered. */
   .card:hover .warn,
   .card:focus-within .warn {
-    display: none;
+    right: 30px;
   }
   .more :global(.icon-btn) {
     width: 24px;
