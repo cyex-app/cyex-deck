@@ -29,6 +29,12 @@
       .list()
       .then((l) => (list = l.filter((f) => f.kind !== 'installed' || draws(f.name))))
       .catch(() => {});
+
+  function remove(name: string) {
+    onremove(name);
+    list = list.filter((f) => f.name !== name);
+  }
+
   $effect(() => {
     void load();
   });
@@ -89,11 +95,11 @@
         {#each rows as f, i (f.name)}
           <li role="option" aria-selected={selected(f.name)} class:hot={i === active}>
             <button class="row" class:on={selected(f.name)} onclick={() => pick(f.name)} onmousemove={() => (active = i)}>
-              <span class="label" style:font-family={f.name ? face(f.name) : 'var(--font-ui)'}>{f.name || 'App font'}</span>
+              <span class="face" style:font-family={f.name ? face(f.name) : 'var(--font-ui)'}>{f.name || 'App font'}</span>
               {#if selected(f.name)}<Icon name="check" size={13} />{/if}
             </button>
             {#if f.kind === 'added'}
-              <button class="remove" aria-label="Remove {f.name}" title="Remove" onclick={() => onremove(f.name)}
+              <button class="remove" aria-label="Remove {f.name}" title="Remove" onclick={() => remove(f.name)}
                 ><Icon name="x" size={12} /></button
               >
             {/if}
@@ -171,7 +177,8 @@
   .row:hover {
     background: var(--surface-hover);
   }
-  .label {
+  /* Not `.label`: that global class (tokens.css) is the small capitals of section titles. */
+  .face {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
