@@ -92,7 +92,7 @@ export class ComboStore {
     try {
       const a = await cosmeticsIpc.apply(this.account, w.paint, w.badge, null);
       this.store.sel.adopt({ paint: a.nowPaint, badge: a.nowBadge });
-      this.store.say('Done.');
+      this.store.say('Done.', null, true);
     } catch (e) {
       this.store.sel.adopt(was);
       this.store.say(errorText(asError(e)));
@@ -142,7 +142,7 @@ export class ComboStore {
       this.store.say(`Deleted “${combo.name}”.`, () => void this.change({ type: 'restore', combo, at }).then(
         (back) => {
           if (back.type !== 'deleted') this.focusId = back.combo.id;
-          this.store.say('Done.');
+          this.store.say('Done.', null, true);
         },
         (err) => toast.error(String(err)),
       ));

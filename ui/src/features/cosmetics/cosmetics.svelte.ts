@@ -106,11 +106,11 @@ export class CosmeticsStore {
     return this.note ? this.note.undo !== null : this.sel.undoable !== null;
   });
 
-  /** Says something for a moment; an Undo lasts five seconds. */
-  say(text: string, undo: (() => void) | null = null) {
+  /** Says something; with an Undo, or `fade`, for five seconds (like "Saved"). */
+  say(text: string, undo: (() => void) | null = null, fade = undo !== null) {
     clearTimeout(this.noteTimer);
     this.note = { text, undo };
-    if (undo) this.noteTimer = setTimeout(() => (this.note = null), UNDO_MS);
+    if (fade) this.noteTimer = setTimeout(() => (this.note = null), UNDO_MS);
   }
 
   clearNote() {
