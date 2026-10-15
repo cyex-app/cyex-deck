@@ -18,11 +18,9 @@
     cell: Snippet<[T, { index: number; active: boolean }]>;
     /** Enter, Space, click. */
     onpick: (index: number) => void;
-    /** Moving pictures stand still inside. */
-    still?: boolean;
   }
 
-  let { items, key, label, cellWidth, cellHeight, gap = 6, active = $bindable(), cell, onpick, still = false }: Props<T> = $props();
+  let { items, key, label, cellWidth, cellHeight, gap = 6, active = $bindable(), cell, onpick }: Props<T> = $props();
 
   const uid = $props.id();
   const KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
@@ -90,7 +88,6 @@
 
 <div
   class="grid"
-  class:still
   role="listbox"
   tabindex="0"
   aria-label={label}

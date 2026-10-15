@@ -44,7 +44,6 @@
   cellWidth={kind === 'paint' ? 176 : 72}
   cellHeight={kind === 'paint' ? 48 : 76}
   bind:active
-  still={focus.idle}
   onpick={(i) => {
     const r = items[i];
     onpick(r ? idOf(r) : null, r ? r.usable : true);

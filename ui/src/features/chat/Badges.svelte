@@ -27,6 +27,9 @@
 
   let { badges, channel, userId, look: override }: Props = $props();
 
+  // V1051-03 The preview stands still with the rest of the menu.
+  const still = $derived(focus.still || (override !== undefined && focus.idle));
+
   const on = $derived(settings.v.chat.badges);
   const room = $derived(on.ffz ? rooms.get(channel) : undefined);
   const extra = $derived.by(() => {
@@ -64,7 +67,7 @@
     class="badge"
     class:tile={!!b.color}
     style:background-color={b.color}
-    src={focus.still && b.still ? b.still : badgeSrc(b, density.scale)}
+    src={still && b.still ? b.still : badgeSrc(b, density.scale)}
     alt={b.title}
     data-tip={b.title}
     loading="lazy"

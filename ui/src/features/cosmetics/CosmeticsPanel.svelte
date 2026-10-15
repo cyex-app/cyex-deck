@@ -7,6 +7,7 @@
   import Segmented from '../../components/Segmented.svelte';
   import { systemIpc } from '../../ipc/system';
   import { accounts } from '../../lib/accounts.svelte';
+  import { focus } from '../../lib/focus.svelte';
   import { formatNumber } from '../../lib/format';
   import { ComboStore } from './combos.svelte';
   import ComboStrip from './ComboStrip.svelte';
@@ -77,8 +78,9 @@
   <Button variant="ghost" small onclick={() => combos.cancel()}>Cancel</Button>
 {/snippet}
 
+<!-- Everything inside stands still while the window isn't in front: grid, combos, preview. -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="panel" bind:this={root} {onkeydown}>
+<div class="panel" class:still={focus.idle} bind:this={root} {onkeydown}>
   {#if !who}
     <!-- The account left; nothing to show. -->
   {:else if status === 'noConsent' && view}
