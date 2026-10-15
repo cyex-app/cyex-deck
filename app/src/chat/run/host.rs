@@ -6,11 +6,12 @@ use std::hash::{BuildHasher, Hasher};
 use std::sync::Arc;
 use std::time::Duration;
 
-use cyex_chat::commands::{CommandList, Host, Items};
+use cyex_chat::commands::{CommandList, Host, Items, Var};
 use cyex_settings::Partition;
 use cyex_settings::schema::Commands;
 use tauri::{AppHandle, Manager};
 
+use crate::cosmetics::VarScope;
 use crate::settings::Settings;
 
 /// `$request` gives up after this long.
@@ -23,6 +24,8 @@ pub struct AppHost {
     pub list: Arc<CommandList>,
     pub channel: String,
     pub runtime: tokio::runtime::Handle,
+    /// V1051-04 7TV variables for this run.
+    pub vars: VarScope,
 }
 
 impl Host for AppHost {
@@ -64,6 +67,10 @@ impl Host for AppHost {
             .map_err(|_| "The request took too long.".to_owned())?
             .map_err(|e| e.to_string())
         })
+    }
+
+    fn cosmetic(&mut self, v: &Var) -> String {
+        self.vars.resolve(&self.app, &self.runtime, v)
     }
 
     fn random(&mut self, below: u64) -> u64 {

@@ -34,7 +34,7 @@ pub enum Picked {
     Superseded,
 }
 
-#[derive(Debug, Serialize, TS, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, TS, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "camelCase")]
 #[ts(export)]
 pub enum SelectError {

@@ -20,6 +20,7 @@ use tauri::{AppHandle, Manager};
 use ts_rs::TS;
 
 use super::{Chat, Identity, RoomKey};
+use crate::cosmetics::VarScope;
 use crate::settings::Settings;
 use host::AppHost;
 
@@ -322,10 +323,18 @@ async fn run_body(
         list: list(app),
         channel: place.channel().to_owned(),
         runtime: tokio::runtime::Handle::current(),
+        vars: VarScope::new(place.account().map(str::to_owned)),
     };
-    tokio::task::spawn_blocking(move || commands::run(&body, &p, &mut host))
-        .await
-        .map_err(|e| e.to_string())
+    let (out, notes) = tokio::task::spawn_blocking(move || {
+        let out = commands::run(&body, &p, &mut host);
+        (out, host.vars.notes)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    for n in notes {
+        local(app, &place.key, NoticeKind::Error, &n);
+    }
+    Ok(out)
 }
 
 /// A line only you see, in every view of the room.

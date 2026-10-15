@@ -2,8 +2,13 @@
 //! a few minutes, and picks that need the account's 7TV session. Nothing here calls 7TV
 //! before the account's consent (`NoConsent` is answered from settings alone).
 
+mod apply;
+mod combos;
+mod lookup;
 mod select;
 mod status;
+mod vars;
+mod words;
 #[cfg(test)]
 mod tests;
 
@@ -18,7 +23,10 @@ use cyex_emotes::seventv::account::{Client, Error};
 use cyex_settings::schema::SevenTvConsent;
 use tauri::{AppHandle, Manager};
 
+pub use apply::{Applied, Want, apply};
+pub use combos::change as change_combos;
 pub use select::{Kind, Picked, SelectError, select};
+pub use vars::VarScope;
 use status::status;
 
 use crate::auth::{self, Auth};
@@ -123,13 +131,46 @@ pub fn init(app: &AppHandle) {
     app.manage(Cosmetics::new(api));
 }
 
+/// Why `read` has no inventory.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Why {
+    NoConsent,
+    NoAccount,
+    Down,
+}
+
+/// The one cache-or-fetch path. `None` = no consent (checked first, so 7TV is never called).
+async fn fetch(
+    app: &AppHandle,
+    account: &str,
+    fresh: bool,
+) -> Option<Result<Option<Arc<Inventory>>, Error>> {
+    if !has_consent(app, account) {
+        return None;
+    }
+    Some(state(app).inventory(account, fresh).await)
+}
+
+/// V1051-04 The account's inventory, from the 5-minute cache or 7TV. Never calls 7TV
+/// without consent.
+pub async fn read(app: &AppHandle, account: &str) -> Result<Arc<Inventory>, Why> {
+    match fetch(app, account, false).await {
+        None => Err(Why::NoConsent),
+        Some(Ok(Some(inv))) => Ok(inv),
+        Some(Ok(None)) => Err(Why::NoAccount),
+        Some(Err(e)) => {
+            eprintln!("cosmetics: {account}: {e}");
+            Err(Why::Down)
+        }
+    }
+}
+
 /// What the menu shows. `fresh` skips the cache.
 pub async fn view(app: &AppHandle, account: &str, fresh: bool) -> CosmeticsView {
-    if !has_consent(app, account) {
-        return CosmeticsView::empty(Status::NoConsent);
-    }
     let st = state(app);
-    let inv = st.inventory(account, fresh).await;
+    let Some(inv) = fetch(app, account, fresh).await else {
+        return CosmeticsView::empty(Status::NoConsent);
+    };
     match &inv {
         Ok(found) => {
             let id = found.as_ref().map(|i| i.seventv_id.clone());
