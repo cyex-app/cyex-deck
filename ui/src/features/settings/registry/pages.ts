@@ -10,6 +10,7 @@ export const GROUPS = [
       { id: 'general', label: 'General', icon: 'sliders' },
       { id: 'appearance', label: 'Appearance', icon: 'palette' },
       { id: 'windows', label: 'Windows', icon: 'layout' },
+      { id: 'sound', label: 'Sound', icon: 'volume' },
       { id: 'hotkeys', label: 'Hotkeys', icon: 'keyboard' },
       { id: 'plugins', label: 'Plugins', icon: 'puzzle' },
       { id: 'data', label: 'Backup and sharing', icon: 'archive' },

@@ -146,6 +146,29 @@ export const APP: Entry[] = [
     keywords: ['save layout', 'window positions', 'pop-outs', 'pin', 'workspace'],
   },
 
+  // Sound
+  {
+    id: 'general.sound.separateStreams',
+    page: 'sound',
+    label: 'Streams on their own',
+    description: 'Windows’ volume mixer shows streams as “cyex deck - streams”.',
+    keywords: ['volume mixer', 'mixer', 'entry', 'combine', 'audio', 'windows'],
+  },
+  {
+    id: 'general.sound.streamsDevice',
+    page: 'sound',
+    label: 'Streams play on',
+    description: 'Streams, VODs, clips and stories.',
+    keywords: ['output', 'device', 'speakers', 'headphones', 'audio', 'sink'],
+  },
+  {
+    id: 'general.sound.soundsDevice',
+    page: 'sound',
+    label: 'Other sounds play on',
+    description: 'Mentions, highlights, live alerts and whispers.',
+    keywords: ['output', 'device', 'speakers', 'headphones', 'chime', 'notification sound', 'test sound'],
+  },
+
   // Hotkeys: each one is listed by `hotkeyEntries`.
   {
     id: 'hotkeys.bindings',

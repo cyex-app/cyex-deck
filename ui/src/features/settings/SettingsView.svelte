@@ -29,6 +29,7 @@
   import PlayerSection from './sections/PlayerSection.svelte';
   import PluginsSection from './sections/PluginsSection.svelte';
   import RecordingsSection from './sections/RecordingsSection.svelte';
+  import SoundSection from './sections/SoundSection.svelte';
   import StreamManagerSection from './sections/StreamManagerSection.svelte';
   import StreamerSection from './sections/StreamerSection.svelte';
   import WindowsSection from './sections/WindowsSection.svelte';
@@ -45,6 +46,7 @@
     general: GeneralSection,
     appearance: AppearanceSection,
     windows: WindowsSection,
+    sound: SoundSection,
     hotkeys: HotkeysSection,
     plugins: PluginsSection,
     data: DataSection,
