@@ -33,6 +33,16 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {}
 
 const DEFAULT_WAIT: u64 = 30;
+/// Longer than this is no wait: `x-ratelimit-reset` can be a unix time, not seconds.
+const MAX_WAIT: u64 = 3600;
+
+/// How long to wait, as the user is told.
+fn wait(reset: Option<u64>) -> u64 {
+    match reset {
+        Some(s) if s <= MAX_WAIT => s.max(1),
+        _ => DEFAULT_WAIT,
+    }
+}
 
 /// Turns a status, the reset hint and a body into the GQL `data`, or the matching error.
 pub fn classify(status: u16, reset: Option<u64>, body: &[u8]) -> Result<Value, Error> {
@@ -40,9 +50,7 @@ pub fn classify(status: u16, reset: Option<u64>, body: &[u8]) -> Result<Value, E
         401 => return Err(Error::SignInAgain),
         403 => return Err(Error::NotAllowed),
         429 => {
-            return Err(Error::RateLimited {
-                seconds: reset.unwrap_or(DEFAULT_WAIT),
-            });
+            return Err(Error::RateLimited { seconds: wait(reset) });
         }
         500.. => return Err(Error::Down),
         200..=299 => {}
@@ -57,9 +65,7 @@ pub fn classify(status: u16, reset: Option<u64>, body: &[u8]) -> Result<Value, E
         return Err(match code {
             "LOGIN_REQUIRED" => Error::SignInAgain,
             "LACKING_PRIVILEGES" | "LOAD_ERROR" => Error::NotAllowed,
-            "RATE_LIMIT_EXCEEDED" => Error::RateLimited {
-                seconds: reset.unwrap_or(DEFAULT_WAIT),
-            },
+            "RATE_LIMIT_EXCEEDED" => Error::RateLimited { seconds: wait(reset) },
             _ => Error::Bad,
         });
     }
@@ -72,4 +78,18 @@ pub fn classify(status: u16, reset: Option<u64>, body: &[u8]) -> Result<Value, E
 /// A transport error from the shared client: nothing worth showing beyond "down".
 pub fn transport(_: cyex_twitch::Error) -> Error {
     Error::Down
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_reset_time_is_not_a_wait() {
+        let limited = |reset| classify(429, reset, b"{}");
+        assert_eq!(limited(Some(7)), Err(Error::RateLimited { seconds: 7 }));
+        assert_eq!(limited(Some(0)), Err(Error::RateLimited { seconds: 1 }));
+        assert_eq!(limited(Some(1_760_000_000)), Err(Error::RateLimited { seconds: 30 }));
+        assert_eq!(limited(None), Err(Error::RateLimited { seconds: 30 }));
+    }
 }
