@@ -32,6 +32,7 @@
   import StreamManagerSection from './sections/StreamManagerSection.svelte';
   import StreamerSection from './sections/StreamerSection.svelte';
   import WindowsSection from './sections/WindowsSection.svelte';
+  import UploaderSection from './sections/UploaderSection.svelte';
 
   interface Props {
     /** Open page id. Bindable so other views can jump to a page. */
@@ -56,6 +57,7 @@
     ignores: IgnoresSection,
     filters: FiltersSection,
     commands: CommandsSection,
+    uploads: UploaderSection,
     automations: AutomationsSection,
     recordings: RecordingsSection,
     player: PlayerSection,

@@ -20,6 +20,7 @@ pub mod recent;
 pub mod resolver;
 pub mod spade;
 pub mod translate;
+pub mod uploader;
 pub mod usher;
 pub mod ws;
 

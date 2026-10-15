@@ -82,6 +82,32 @@ impl Http {
     pub async fn post_json<T: DeserializeOwned>(&self, url: &str, body: &serde_json::Value) -> Result<T> {
         json(self.0.post(url).json(body)).await
     }
+
+    /// V105-11 POST a ready body (the image uploader's multipart form) with extra headers.
+    /// Returns the status and up to `max` bytes of the answer. Errors never carry the URL.
+    pub async fn post_body(
+        &self,
+        url: &str,
+        headers: &[(String, String)],
+        content_type: &str,
+        body: Vec<u8>,
+        max: usize,
+    ) -> Result<(u16, Vec<u8>)> {
+        let mut req = self.0.post(url).header("Content-Type", content_type).body(body);
+        for (k, v) in headers {
+            req = req.header(k.as_str(), v.as_str());
+        }
+        let res = req
+            .timeout(Duration::from_secs(120))
+            .send()
+            .await
+            .map_err(|e| Error::Network(e.without_url()))?;
+        let status = res.status().as_u16();
+        let bytes = res.bytes().await.map_err(|e| Error::Network(e.without_url()))?;
+        let mut out = bytes.to_vec();
+        out.truncate(max);
+        Ok((status, out))
+    }
 }
 
 /// Sends the request and decodes a JSON body, or turns an error status into `Error::Api`.

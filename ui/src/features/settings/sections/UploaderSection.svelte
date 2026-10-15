@@ -1,0 +1,110 @@
+<!-- V105-11 Image uploads: where pasted and dropped images in the chat box go (Chatterino's
+     uploader). Stays on this PC; never in exports. -->
+<script lang="ts">
+  import IconButton from '../../../components/IconButton.svelte';
+  import Row from '../../../components/Row.svelte';
+  import Toggle from '../../../components/Toggle.svelte';
+  import type { Uploader } from '../../../ipc/bindings/Uploader';
+  import { settings } from '../../../lib/settings.svelte';
+  import ResetSection from '../ResetSection.svelte';
+
+  const u = $derived(settings.v.uploader);
+  const save = (patch: Partial<Uploader>) => void settings.patch('uploader', patch);
+
+  let show = $state(false);
+</script>
+
+<h2>Image uploads</h2>
+<p class="intro">
+  Images you paste or drop into the chat box are uploaded here. These settings stay on this PC and never go into
+  exports.
+</p>
+
+<Row setting="uploader.enabled" label="Upload pasted images">
+  <Toggle label="Upload pasted images" checked={u.enabled} onchange={(v) => save({ enabled: v })} />
+</Row>
+
+<Row setting="uploader.url" label="Upload URL" stacked>
+  <input
+    class="field"
+    spellcheck="false"
+    autocomplete="off"
+    aria-label="Upload URL"
+    value={u.url}
+    onchange={(e) => save({ url: e.currentTarget.value })}
+  />
+</Row>
+
+<Row setting="uploader.formField" label="Form field" stacked>
+  <input
+    class="field"
+    spellcheck="false"
+    autocomplete="off"
+    aria-label="Form field"
+    placeholder="file"
+    value={u.formField}
+    onchange={(e) => save({ formField: e.currentTarget.value })}
+  />
+</Row>
+
+<Row setting="uploader.headers" label="Headers" stacked>
+  <div class="secret">
+    <input
+      class="field"
+      type={show ? 'text' : 'password'}
+      spellcheck="false"
+      autocomplete="off"
+      aria-label="Headers"
+      placeholder="Authorization: key; X-Other: value"
+      value={u.headers}
+      onchange={(e) => save({ headers: e.currentTarget.value })}
+    />
+    <IconButton icon={show ? 'eyeOff' : 'eye'} label={show ? 'Hide' : 'Show'} onclick={() => (show = !show)} />
+  </div>
+</Row>
+
+<Row
+  setting="uploader.link"
+  label="Image link"
+  hint="Where the link is in the answer, like {'{data.link}'}. Empty: the whole answer."
+  stacked
+>
+  <input
+    class="field"
+    spellcheck="false"
+    autocomplete="off"
+    aria-label="Image link"
+    placeholder={'{url}'}
+    value={u.link}
+    onchange={(e) => save({ link: e.currentTarget.value })}
+  />
+</Row>
+
+<Row setting="uploader.deletionLink" label="Delete link" stacked>
+  <input
+    class="field"
+    spellcheck="false"
+    autocomplete="off"
+    aria-label="Delete link"
+    placeholder={'{delete}'}
+    value={u.deletionLink}
+    onchange={(e) => save({ deletionLink: e.currentTarget.value })}
+  />
+</Row>
+
+<ResetSection partition="uploader" />
+
+<style>
+  .intro {
+    margin: -6px 0 6px;
+    color: var(--dim);
+  }
+  .secret {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .secret .field {
+    flex: 1;
+  }
+</style>

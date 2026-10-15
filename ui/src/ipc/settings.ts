@@ -22,6 +22,7 @@ import type { Player } from './bindings/Player';
 import type { Plugins } from './bindings/Plugins';
 import type { StreamManager } from './bindings/StreamManager';
 import type { Tabs } from './bindings/Tabs';
+import type { Uploader } from './bindings/Uploader';
 import type { Windows } from './bindings/Windows';
 
 /** Every partition with its typed shape. */
@@ -44,6 +45,7 @@ export interface SettingsValues {
   notifications: Notifications;
   windows: Windows;
   plugins: Plugins;
+  uploader: Uploader;
 }
 
 /** JSON merge patch shape: nested objects merge, arrays replace, `null` resets to default. */

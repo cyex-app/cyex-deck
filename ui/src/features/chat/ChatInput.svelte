@@ -1,7 +1,7 @@
 <!-- Message box (1.8, C6, C21): `@`, `:` and `!` suggestions (emotes, emoji E1, bot
      commands C13), Tab completion, the emote menu (1.40), length counter, slow mode and
      timeout countdown, replies. Enter sends; Ctrl+Enter sends and keeps the text for
-     sending again. Up recalls what you sent. -->
+     sending again. Up recalls what you sent. Pasted or dropped images go to your upload host (V105-11). -->
 <script lang="ts">
   import { tick } from 'svelte';
 
@@ -25,6 +25,8 @@
   import type { ChatRoom } from './room.svelte';
   import { Sources } from './sources.svelte';
   import SuggestList from './SuggestList.svelte';
+  import UploadConfirm from './UploadConfirm.svelte';
+  import { useUploads } from './upload.svelte';
   import type { Item } from './suggestions';
   import { pinText } from './pinSend';
   import { plainText } from './text';
@@ -63,6 +65,14 @@
   let cycle: { word: Word; items: string[]; index: number } | null = null;
   /** S5 Plugins are being asked for matches. */
   let asking = false;
+  /** V105-11 Images pasted or dropped, and the first-upload question. */
+  const up = useUploads({
+    login: () => room.login,
+    row: () => row,
+    insert: (link) => void insertAtCaret(link),
+    fail: (m) => (error = m),
+  });
+  const onpaste = up.onpaste;
 
   const canChat = $derived(room.account !== null && accounts.can('sendChat', room.account));
   const chars = $derived([...text].length);
@@ -297,6 +307,7 @@
         oninput={updateSuggest}
         onclick={updateSuggest}
         onfocus={focused}
+        {onpaste}
         onblur={() => (suggest = null)}
         {onkeydown}
       ></textarea>
@@ -312,7 +323,19 @@
       </button>
     {/if}
   </div>
+  {#if up.upload.status}<p class="uploading">{up.upload.status}</p>{/if}
   {#if error}<p class="error">{error}</p>{/if}
+  {#if up.pending}
+    <UploadConfirm
+      host={up.pending.host}
+      onyes={() => {
+        const go = up.pending!.go;
+        up.pending = null;
+        go();
+      }}
+      onno={() => (up.pending = null)}
+    />
+  {/if}
 </div>
 
 <style>
@@ -405,6 +428,11 @@
   }
   .reply-bar button:hover {
     color: var(--text);
+  }
+  .uploading {
+    margin: 6px 2px 0;
+    color: var(--dim);
+    font-size: 0.8rem;
   }
   .error {
     margin: 6px 2px 0;

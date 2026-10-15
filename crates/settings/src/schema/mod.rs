@@ -19,6 +19,7 @@ mod player;
 mod plugins;
 mod streammanager;
 mod tabs;
+mod uploader;
 mod windows;
 
 pub use accounts::{Account, Accounts, TokenMeta, TokenSource};
@@ -52,6 +53,7 @@ pub use tabs::{
     Closed, Column, GroupColor, ImportTab, Resolved, Tab, TabChannel, TabError, TabGroup, TabOp, Tabs, Tile, TileShow, Zone,
     random_id,
 };
+pub use uploader::Uploader;
 pub use windows::{Geometry, Layout, PanelWindow, Windows};
 
 use serde::Serialize;

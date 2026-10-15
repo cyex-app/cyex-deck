@@ -32,6 +32,7 @@ export const GROUPS = [
       { id: 'ignores', label: 'Ignores', icon: 'eyeOff' },
       { id: 'filters', label: 'Filters', icon: 'filter' },
       { id: 'commands', label: 'Commands', icon: 'pencil' },
+      { id: 'uploads', label: 'Image uploads', icon: 'image' },
       { id: 'automations', label: 'Automations', icon: 'zap' },
       { id: 'recordings', label: 'Recordings', icon: 'record' },
     ],

@@ -520,6 +520,50 @@ export const CHAT: Entry[] = [
     keywords: ['trigger', 'auto reply', 'response'],
   },
 
+  // Image uploads (V105-11)
+  {
+    id: 'uploader.enabled',
+    page: 'uploads',
+    label: 'Upload pasted images',
+    description: 'Images you paste or drop into the chat box go to your upload host.',
+    keywords: ['image', 'upload', 'paste', 'imgur', 'nuuls', 'sharex'],
+  },
+  {
+    id: 'uploader.url',
+    page: 'uploads',
+    label: 'Upload URL',
+    description: 'Where images are sent.',
+    keywords: ['image', 'upload', 'paste', 'imgur', 'nuuls', 'sharex'],
+  },
+  {
+    id: 'uploader.formField',
+    page: 'uploads',
+    label: 'Form field',
+    description: 'The name the image goes under.',
+    keywords: ['image', 'upload', 'paste', 'imgur', 'nuuls', 'sharex'],
+  },
+  {
+    id: 'uploader.headers',
+    page: 'uploads',
+    label: 'Headers',
+    description: 'Sent with every upload, like a key.',
+    keywords: ['image', 'upload', 'paste', 'imgur', 'nuuls', 'sharex'],
+  },
+  {
+    id: 'uploader.link',
+    page: 'uploads',
+    label: 'Image link',
+    description: 'Where the link is in the answer.',
+    keywords: ['image', 'upload', 'paste', 'imgur', 'nuuls', 'sharex'],
+  },
+  {
+    id: 'uploader.deletionLink',
+    page: 'uploads',
+    label: 'Delete link',
+    description: 'Where the delete link is in the answer.',
+    keywords: ['image', 'upload', 'paste', 'imgur', 'nuuls', 'sharex'],
+  },
+
   // Recordings
   {
     id: 'recordings:list',

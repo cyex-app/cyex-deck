@@ -30,10 +30,12 @@ pub enum Partition {
     Notifications,
     Windows,
     Plugins,
+    /// V105-11
+    Uploader,
 }
 
 impl Partition {
-    pub const ALL: [Partition; 18] = [
+    pub const ALL: [Partition; 19] = [
         Partition::General,
         Partition::Appearance,
         Partition::Chat,
@@ -52,6 +54,7 @@ impl Partition {
         Partition::Notifications,
         Partition::Windows,
         Partition::Plugins,
+        Partition::Uploader,
     ];
 
     pub fn key(self) -> &'static str {
@@ -74,6 +77,7 @@ impl Partition {
             Partition::Notifications => "notifications",
             Partition::Windows => "windows",
             Partition::Plugins => "plugins",
+            Partition::Uploader => "uploader",
         }
     }
 
@@ -82,10 +86,10 @@ impl Partition {
     }
 
     /// Accounts point at tokens in this machine's credential store, and plugins' settings
-    /// can hold their keys, so both stay out of exports and share codes. Backups still
+    /// can hold their keys, and so can the image uploader's URL and headers (V105-11), so all three stay out of exports and share codes. Backups still
     /// include them.
     pub fn is_portable(self) -> bool {
-        !matches!(self, Partition::Accounts | Partition::Plugins)
+        !matches!(self, Partition::Accounts | Partition::Plugins | Partition::Uploader)
     }
 
     pub fn file_name(self) -> String {
@@ -114,6 +118,7 @@ impl Partition {
             Partition::Notifications => roundtrip::<schema::Notifications>(value),
             Partition::Windows => roundtrip::<schema::Windows>(value),
             Partition::Plugins => roundtrip::<schema::Plugins>(value),
+            Partition::Uploader => roundtrip::<schema::Uploader>(value),
         }
     }
 
@@ -140,6 +145,14 @@ mod tests {
             assert_eq!(serde_json::to_value(p).unwrap(), Value::String(p.key().into()));
         }
         assert_eq!(Partition::from_key("nope"), None);
+    }
+
+    #[test]
+    fn exports_leave_out_keys_and_credentials() {
+        // V105-11 The uploader's URL and headers can hold keys.
+        assert!(!Partition::Uploader.is_portable());
+        assert!(!Partition::Accounts.is_portable());
+        assert!(Partition::Chat.is_portable());
     }
 
     #[test]
