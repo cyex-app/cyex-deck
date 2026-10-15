@@ -2,8 +2,6 @@
 //! instead of as a Twitch notice. Sends go out on the account's writer connection (V105-06).
 //! C21 dodges Twitch's 30 s duplicate check.
 
-use std::sync::atomic::Ordering;
-
 use cyex_chat::PendingSend;
 use cyex_chat::irc::{Window, write};
 use cyex_chat::model::ConnStatus;
@@ -60,8 +58,8 @@ pub fn send_to(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<Stri
     let Some(writer) = session.writer.as_ref() else {
         return Err("Sign in to chat.".into());
     };
-    if !writer.up.load(Ordering::Relaxed) {
-        return Err("Not connected yet.".into());
+    if let Some(why) = writer.block() {
+        return Err(why.into());
     }
     let client = writer.client.clone();
     let limit = if fast { Window::SEND_LIMIT_FAST } else { Window::SEND_LIMIT };

@@ -26,6 +26,9 @@ pub mod typed;
 pub mod usercard;
 pub mod unread;
 pub mod votes;
+mod writer;
+
+use writer::Writer;
 
 pub use send::send_to;
 pub use session::retry_refused;
@@ -92,16 +95,11 @@ struct Session {
     client: Client,
     /// V105-06 Sends for an account go out here, so the reading connection gets our lines back
     /// from Twitch with every tag. `None` for anonymous reading.
-    writer: Option<Writer>,
+    writer: Option<Arc<Writer>>,
     /// Messages sent in the last 30 s (20, or 100 where we're mod or VIP).
     sends: Window,
 }
 
-struct Writer {
-    client: Client,
-    /// Logged in and able to send.
-    up: Arc<AtomicBool>,
-}
 
 /// A view and the filters it shows messages through (F3).
 struct Sink {

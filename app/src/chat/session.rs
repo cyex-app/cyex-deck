@@ -2,8 +2,7 @@
 //! reading, and the tasks that route their lines to rooms.
 
 use std::sync::Arc;
-
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 
 use cyex_chat::build::Me;
 use cyex_chat::irc::{self, Client, Credentials, Event, Line, LinkStatus, Window};
@@ -13,7 +12,8 @@ use tokio::sync::mpsc;
 
 use super::creds::{AccountCreds, AnonCreds, WriterCreds};
 use super::unread::{self, Unread};
-use super::{Chat, Identity, Inner, RoomKey, Session, Writer, account_of, mention, now_ms, queue};
+use super::writer::Writer;
+use super::{Chat, Identity, Inner, RoomKey, Session, account_of, mention, now_ms, queue};
 
 /// The session for `identity`, started if needed.
 pub fn ensure<'a>(app: &AppHandle, inner: &'a mut Inner, identity: &Identity) -> &'a Session {
@@ -34,9 +34,9 @@ pub fn ensure<'a>(app: &AppHandle, inner: &'a mut Inner, identity: &Identity) ->
                 let creds = Arc::new(WriterCreds(AccountCreds::new(app.clone(), id.clone())));
                 let (wclient, wtask) = Client::new(creds, irc::tls(), wtx);
                 tauri::async_runtime::spawn(wtask);
-                let up = Arc::new(AtomicBool::new(false));
-                tauri::async_runtime::spawn(pump_writer(app.clone(), identity.clone(), up.clone(), wrx));
-                Some(Writer { client: wclient, up })
+                let writer = Arc::new(Writer::new(wclient));
+                tauri::async_runtime::spawn(pump_writer(app.clone(), identity.clone(), writer.clone(), wrx));
+                Some(writer)
             }
         };
         Session {
@@ -58,8 +58,13 @@ pub fn retry_refused(app: &AppHandle) {
             .any(|((id, _), e)| id == identity && e.room.status == ConnStatus::AuthFailed);
         if refused {
             session.client.reconnect();
-            if let Some(w) = &session.writer {
+        }
+        // V105-06 The writer can be refused alone, with every chat still joined.
+        if let Some(w) = &session.writer {
+            if refused {
                 w.client.reconnect();
+            } else {
+                w.retry();
             }
         }
     }
@@ -77,10 +82,10 @@ async fn pump(app: AppHandle, identity: Identity, mut rx: mpsc::UnboundedReceive
 
 /// V105-06 The writer's lines (USERSTATE and NOTICE after a send) go to the rooms like the
 /// reader's; its link only decides whether sending is possible.
-async fn pump_writer(app: AppHandle, identity: Identity, up: Arc<AtomicBool>, mut rx: mpsc::UnboundedReceiver<Event>) {
+async fn pump_writer(app: AppHandle, identity: Identity, writer: Arc<Writer>, mut rx: mpsc::UnboundedReceiver<Event>) {
     while let Some(event) = rx.recv().await {
         match event {
-            Event::Status(s) => up.store(s == LinkStatus::Connected, Ordering::Relaxed),
+            Event::Status(s) => writer.set(s),
             Event::Line(raw) => {
                 // An untargeted NOTICE on the writer says nothing about our chats.
                 if !Line::parse(&raw).is_some_and(|l| for_every_room(&l)) {
