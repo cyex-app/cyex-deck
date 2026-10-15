@@ -43,6 +43,9 @@ export const chatIpc = {
     invoke<UiAction | null>('chat_menu', { view, command, context }),
   /** V1041-01 Command names (no `/`) this view can use, for Tab completion. */
   commands: (view: number) => invoke<string[]>('chat_commands', { view }),
+  /** V1051-04 Tab's candidates for an argument of /combo, /paint and /badge. */
+  commandArgs: (view: number, command: string, sub: string | null) =>
+    invoke<string[]>('chat_command_args', { view, command, sub }),
   globalCatalog: () => invoke<GlobalCatalog>('chat_global_catalog'),
   channelCatalog: (login: string) => invoke<ChannelCatalog | null>('chat_channel_catalog', { login }),
   points: (view: number, fresh = true) => invoke<Points | null>('chat_points', { view, fresh }),

@@ -15,6 +15,7 @@
   import { settings } from '../../lib/settings.svelte';
   import { complete, insert, wordAt, type Word } from './completion';
   import { commandAt, commandMatches } from './commandTab';
+  import { argAt, argMatches } from './commandArgs';
   import { chatxIpc } from '../../ipc/chatx';
   import { pluginsIpc } from '../../ipc/plugins';
   import { mods, PIN_LENGTHS } from '../modview/moderation.svelte';
@@ -179,6 +180,9 @@
     const word = wordAt(text, caret);
     const bare = word.text.replace(/^@/, '');
     const command = commandAt(text, word);
+    const arg = argAt(text, caret);
+    // V1051-04 After /combo, /paint and /badge Tab completes the argument, not the word.
+    const target: Word = arg ? { start: arg.start, end: caret, text: text.slice(arg.start, caret) } : word;
     if (asking) return;
     const view = room.view;
     const own = async (): Promise<string[]> => {
@@ -191,6 +195,10 @@
       return complete(bare, [...sources.emotes().map((e) => e.name), ...people], 30, sources.used());
     };
     const all = async () => {
+      if (arg) {
+        const names = view ? await chatIpc.commandArgs(view, arg.command, arg.sub).catch(() => []) : [];
+        return argMatches(arg, names);
+      }
       const fromPlugins =
         plugins.completes && view
           ? await pluginsIpc.complete(view, word.text, text, caret, word.start === 0).catch(() => null)
@@ -203,8 +211,8 @@
     if (text !== before) return;
     const items = [...new Set(found)];
     if (!items.length) return;
-    void put(word, items[0]);
-    cycle = { word: { start: word.start, end: word.start + items[0].length, text: items[0] }, items, index: 0 };
+    void put(target, items[0]);
+    cycle = { word: { start: target.start, end: target.start + items[0].length, text: items[0] }, items, index: 0 };
   }
 
   async function send(keep: boolean) {
