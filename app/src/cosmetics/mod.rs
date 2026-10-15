@@ -23,6 +23,7 @@ use status::status;
 
 use crate::auth::{self, Auth};
 use crate::emotes::presence;
+use crate::windows::seventv::SignIn;
 
 /// How long the parsed inventory is kept after its last use.
 const KEEP: Duration = Duration::from_secs(5 * 60);
@@ -247,4 +248,35 @@ pub fn forget_account(app: &AppHandle, account: &str) {
             }
         });
     }
+}
+
+/// V1051-02 7TV's own sign-in in a small private window. Needs the account's consent. The
+/// session is kept only if its Twitch connection is this account's.
+pub async fn sign_in(app: &AppHandle, account: &str) -> SignIn {
+    if !has_consent(app, account) {
+        return SignIn::Failed;
+    }
+    let api = state(app).api.clone();
+    let token = match crate::windows::seventv::capture(app, account, api.login_url()).await {
+        Ok(t) => t,
+        Err(done) => return done,
+    };
+    let me = match api.me(token.secret()).await {
+        Ok(me) => me,
+        Err(e) => {
+            eprintln!("cosmetics: {account}: sign-in check: {e}");
+            return SignIn::Failed;
+        }
+    };
+    if me.twitch_id.as_deref() != Some(account) {
+        return SignIn::OtherAccount;
+    }
+    if let Err(e) = app.state::<Auth>().seventv.put(account, &token) {
+        eprintln!("cosmetics: {account}: couldn't keep the 7TV session: {e}");
+        return SignIn::Failed;
+    }
+    lock(&state(app).expired).remove(account);
+    presence::remember_seventv(app, account, Some(me.id));
+    auth::notify(app);
+    SignIn::Done
 }

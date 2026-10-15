@@ -213,3 +213,41 @@ mod tests {
         assert!(!any_running(&[]));
     }
 }
+
+/// V1051-02 Runs a script in a window's page and returns its result as JSON text, or `None`.
+/// The result is never logged (it can hold a token).
+#[cfg(windows)]
+pub async fn run_script(window: &tauri::WebviewWindow, script: &'static str) -> Option<String> {
+    use std::sync::Mutex;
+    use webview2_com::ExecuteScriptCompletedHandler;
+    use windows::core::HSTRING;
+
+    let (tx, rx) = tokio::sync::oneshot::channel::<Option<String>>();
+    let tx = Mutex::new(Some(tx));
+    window
+        .with_webview(move |w| {
+            // SAFETY: plain COM calls on the controller Tauri hands us, on the UI thread.
+            let core = unsafe { w.controller().CoreWebView2() };
+            let handler = ExecuteScriptCompletedHandler::create(Box::new(move |res, json| {
+                let tx = tx.lock().unwrap_or_else(|p| p.into_inner()).take();
+                if let Some(tx) = tx {
+                    let _ = tx.send(res.is_ok().then_some(json));
+                }
+                Ok(())
+            }));
+            if let Ok(core) = core {
+                // SAFETY: the script string and handler outlive the call.
+                let _ = unsafe { core.ExecuteScript(&HSTRING::from(script), &handler) };
+            }
+        })
+        .ok()?;
+    tokio::time::timeout(std::time::Duration::from_secs(2), rx)
+        .await
+        .ok()?
+        .ok()?
+}
+
+#[cfg(not(windows))]
+pub async fn run_script(_window: &tauri::WebviewWindow, _script: &'static str) -> Option<String> {
+    None
+}

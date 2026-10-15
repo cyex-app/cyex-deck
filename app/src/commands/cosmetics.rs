@@ -5,6 +5,7 @@ use tauri::AppHandle;
 
 use crate::auth;
 use crate::cosmetics::{self, Kind, Picked, SelectError};
+use crate::windows::seventv::SignIn;
 
 fn known(app: &AppHandle, account: &str) -> Result<(), String> {
     auth::accounts(app)
@@ -45,4 +46,11 @@ pub async fn cosmetics_withdraw(app: AppHandle, account: String) -> Result<(), S
     known(&app, &account)?;
     cosmetics::withdraw(&app, &account).await;
     Ok(())
+}
+
+/// V1051-02 Opens 7TV's sign-in window and waits for the outcome.
+#[tauri::command]
+pub async fn cosmetics_sign_in(app: AppHandle, account: String) -> Result<SignIn, String> {
+    known(&app, &account)?;
+    Ok(cosmetics::sign_in(&app, &account).await)
 }
