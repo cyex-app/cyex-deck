@@ -4,14 +4,16 @@
   interface Props {
     checked: boolean;
     label: string;
+    /** Tooltip, e.g. the long name of a short label. */
+    hint?: string;
     disabled?: boolean;
     onchange: (checked: boolean) => void;
   }
 
-  let { checked, label, disabled = false, onchange }: Props = $props();
+  let { checked, label, hint, disabled = false, onchange }: Props = $props();
 </script>
 
-<label class="check" class:disabled>
+<label class="check" class:disabled title={hint}>
   <input type="checkbox" {checked} {disabled} onchange={(e) => onchange(e.currentTarget.checked)} />
   <span class="box">{#if checked}<Icon name="check" size={12} />{/if}</span>
   {label}
@@ -25,6 +27,7 @@
     display: inline-flex;
     align-items: center;
     gap: 7px;
+    white-space: nowrap;
     cursor: pointer;
   }
   .disabled {

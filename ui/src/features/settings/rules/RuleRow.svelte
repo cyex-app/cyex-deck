@@ -1,5 +1,5 @@
 <!-- One rule in a settings list: its fields side by side, wrapping when narrow. Text
-     saves when the field loses focus. -->
+     saves when the field loses focus. V105-16 One line while it fits. -->
 <script lang="ts" generics="T extends Record<string, unknown>">
   import Checkbox from '../../../components/Checkbox.svelte';
   import IconButton from '../../../components/IconButton.svelte';
@@ -43,7 +43,7 @@
   {#each fields as f (f.key)}
     {@const v = item[f.key]}
     {#if f.kind === 'check'}
-      <Checkbox label={f.label} checked={!!v} onchange={(c) => set(f.key, c)} />
+      <Checkbox label={f.short ?? f.label} hint={f.short ? f.label : undefined} checked={!!v} onchange={(c) => set(f.key, c)} />
     {:else if f.kind === 'color'}
       <span class="color" title={v ? f.label : `${f.label}: default`}>
         <span class="swatch" style:background={v ? String(v).slice(0, 7) : fallback}>
@@ -95,7 +95,7 @@
         class="field"
         class:grow={!f.width}
         aria-label={f.label}
-        title={f.label}
+        title={f.hint ?? f.label}
         placeholder={f.placeholder}
         spellcheck="false"
         style:width={f.width}
@@ -113,7 +113,7 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px 10px;
+    gap: 6px;
     padding: 8px 0;
     border-bottom: 1px solid var(--border);
     font-size: 0.85rem;
@@ -129,8 +129,14 @@
     height: 28px;
     min-width: 0;
   }
+  /* V105-16 Shrinks first, so the checkboxes stay on one line with it; wraps only when even
+     this minimum doesn't fit. */
   .grow {
-    flex: 1 1 160px;
+    flex: 1 1 90px;
+    min-width: 80px;
+  }
+  .rule :global(.check) {
+    gap: 5px;
   }
   .area {
     flex: 1 1 100%;

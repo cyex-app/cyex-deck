@@ -71,7 +71,7 @@ pub struct Rules {
     mentions: MentionSet,
     phrases: Vec<Rule>,
     users: Vec<Rule>,
-    badges: Vec<(String, Option<String>, Alert)>,
+    badges: Vec<(String, compile::BadgeMatch, Alert)>,
     apps: Vec<(Client, Alert)>,
     never: HashSet<String>,
     /// C27 Channels that never ping.
@@ -114,9 +114,9 @@ impl Rules {
                 .badges
                 .iter()
                 .filter(|b| b.enabled && !b.is_blank())
-                .map(|b| match b.badge.split_once('/') {
-                    Some((set, v)) => (set.to_owned(), Some(v.to_owned()), b.alert.clone()),
-                    None => (b.badge.clone(), None, b.alert.clone()),
+                .map(|b| {
+                    let (set, want) = compile::badge(&b.badge);
+                    (set, want, b.alert.clone())
                 })
                 .collect(),
             apps: h
@@ -244,11 +244,11 @@ impl Rules {
             for r in self.users.iter().filter(|r| r.matcher.is_match(&sender.login)) {
                 pick.take(HighlightKind::Rule, &r.alert);
             }
-            for (set, version, a) in &self.badges {
+            for (set, want, a) in &self.badges {
                 if sender
                     .badges
                     .iter()
-                    .any(|b| b.set == *set && version.as_ref().is_none_or(|v| *v == b.version))
+                    .any(|b| b.set == *set && want.matches(&b.version))
                 {
                     pick.take(HighlightKind::Rule, a);
                 }

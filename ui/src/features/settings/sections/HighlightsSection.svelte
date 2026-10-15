@@ -28,8 +28,8 @@
     { key: 'sound', label: 'Sound', kind: 'check' },
     { key: 'soundFile', label: 'Sound file', kind: 'sound' },
     { key: 'flash', label: 'Flash', kind: 'check' },
-    { key: 'show', label: 'Show in Mentions', kind: 'check' },
-    { key: 'route', label: 'Also show in feed', kind: 'text', placeholder: 'Feed', width: '90px' },
+    { key: 'show', label: 'Also show in Mentions', short: 'Mentions', kind: 'check' },
+    { key: 'route', label: 'Also show in feed', kind: 'text', placeholder: 'Feed', width: '56px' },
   ];
   const alert = <T extends Alert>() => ALERT as unknown as Field<T>[];
   const on = <T,>(): Field<T & { enabled: boolean }> => ({ key: 'enabled', label: 'On', kind: 'check' });
@@ -48,20 +48,26 @@
 
   const phraseFields: Field<PhraseRule>[] = [
     on<PhraseRule>(),
-    { key: 'pattern', label: 'Words', kind: 'text', placeholder: 'Words or a regex' },
+    { key: 'pattern', label: 'Words', kind: 'text', placeholder: 'Words or regex' },
     { key: 'regex', label: 'Regex', kind: 'check' },
-    { key: 'caseSensitive', label: 'Aa', kind: 'check' },
+    { key: 'caseSensitive', label: 'Match case', short: 'Aa', kind: 'check' },
     ...alert<PhraseRule>(),
   ];
   const userFields: Field<UserRule>[] = [
     on<UserRule>(),
-    { key: 'login', label: 'Name', kind: 'text', placeholder: 'Login' },
+    { key: 'login', label: 'Name', kind: 'text', placeholder: 'Username' },
     { key: 'regex', label: 'Regex', kind: 'check' },
     ...alert<UserRule>(),
   ];
   const badgeFields: Field<BadgeRule>[] = [
     on<BadgeRule>(),
-    { key: 'badge', label: 'Badge', kind: 'text', placeholder: 'moderator, subscriber/3000…' },
+    {
+      key: 'badge',
+      label: 'Badge',
+      hint: 'A badge name. subscriber1, subscriber2 and subscriber3 match that tier; subscriber matches any tier; subscriber/3012 one exact version.',
+      kind: 'text',
+      placeholder: 'Badge, like subscriber2 or vip',
+    },
     ...alert<BadgeRule>(),
   ];
   const APPS = [

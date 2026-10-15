@@ -120,8 +120,8 @@ impl Default for UserRule {
     }
 }
 
-/// Senders with a Twitch badge: `moderator`, `subscriber`, or one version like
-/// `subscriber/3000`.
+/// Senders with a Twitch badge: `moderator`, `subscriber` (any tier), a tier `subscriber1` to
+/// `subscriber3` (V105-16), or one exact version like `subscriber/3012`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(default, rename_all = "camelCase")]
 #[ts(export)]

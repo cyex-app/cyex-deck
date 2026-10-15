@@ -1,10 +1,9 @@
 <!-- V105-16 Highlights from Chatterino's settings.json: pick the file, see what comes in and
-     what can't, then import. Words, people and badges only; the rest of the file is never read. -->
+     what can't, then import (the result is a toast). Words, people and badges only; the rest of the file is never read. -->
 <script lang="ts">
   import Button from '../../../components/Button.svelte';
   import Dialog from '../../../components/Dialog.svelte';
   import Segmented from '../../../components/Segmented.svelte';
-  import type { HighlightImport } from '../../../ipc/bindings/HighlightImport';
   import type { HighlightPreview } from '../../../ipc/bindings/HighlightPreview';
   import type { Skipped } from '../../../ipc/bindings/Skipped';
   import { settingsIpc } from '../../../ipc/settings';
@@ -18,7 +17,6 @@
   ] as const;
 
   let preview = $state<HighlightPreview | null>(null);
-  let result = $state<HighlightImport | null>(null);
   let busy = $state(false);
   let choice = $state<'mine' | 'theirs'>('mine');
 
@@ -28,9 +26,9 @@
   const headline = $derived.by(() => {
     if (!preview || !fresh) return 'Nothing new to import.';
     const parts = [
-      preview.phrases && `${formatNumber(preview.phrases)} words`,
-      preview.users && `${formatNumber(preview.users)} people`,
-      preview.badges && `${formatNumber(preview.badges)} badges`,
+      preview.phrases && `${formatNumber(preview.phrases)} ${preview.phrases === 1 ? 'word' : 'words'}`,
+      preview.users && `${formatNumber(preview.users)} ${preview.users === 1 ? 'person' : 'people'}`,
+      preview.badges && `${formatNumber(preview.badges)} ${preview.badges === 1 ? 'badge' : 'badges'}`,
     ].filter(Boolean);
     return `${formatNumber(fresh)} new: ${parts.join(', ')}.`;
   });
@@ -41,7 +39,6 @@
       const p = await settingsIpc.highlightsPreview();
       if (!p) return;
       preview = p;
-      result = null;
       choice = 'mine';
     } catch (e) {
       toast.error(String(e));
@@ -53,9 +50,13 @@
   async function run() {
     busy = true;
     try {
-      result = await settingsIpc.highlightsImport(choice === 'mine');
+      const r = await settingsIpc.highlightsImport(choice === 'mine');
+      const n = r.added + r.replaced;
+      const skipped = r.skipped.length ? `, skipped ${formatNumber(r.skipped.length)}` : '';
+      toast.success(n ? `Imported ${formatNumber(n)}${skipped}.` : `Nothing new${skipped}.`);
+      close();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(`Couldn’t import: ${String(e).replace(/^Error:\s*/, '').replace(/\.$/, '')}.`);
       close();
     } finally {
       busy = false;
@@ -64,7 +65,6 @@
 
   function close() {
     preview = null;
-    result = null;
   }
 
   function rows(list: Skipped[]) {
@@ -87,28 +87,17 @@
 
 {#if preview}
   <Dialog title="Import highlights" width={460} onclose={close}>
-    {#if result}
-      <p class="head">Imported {formatNumber(result.added + result.replaced)} highlights.</p>
-      {#if result.kept}<p class="why">{formatNumber(result.kept)} already there, kept yours.</p>{/if}
-      {#if result.replaced}<p class="why">{formatNumber(result.replaced)} already there, replaced with Chatterino’s.</p>{/if}
-      {#if result.skipped.length}{@render skippedList(result.skipped, `${formatNumber(result.skipped.length)} skipped:`)}{/if}
-    {:else}
-      <p class="head">{headline}</p>
-      {#if dupes}
-        <p class="why">{formatNumber(dupes)} already there.</p>
-        <Segmented options={CHOICES} value={choice} label="Duplicates" onchange={(v) => (choice = v)} />
-      {/if}
-      {#if preview.invalid.length}
-        {@render skippedList(preview.invalid, `${formatNumber(preview.invalid.length)} can’t be imported:`)}
-      {/if}
+    <p class="head">{headline}</p>
+    {#if dupes}
+      <p class="why">{formatNumber(dupes)} already there.</p>
+      <Segmented options={CHOICES} value={choice} label="Duplicates" onchange={(v) => (choice = v)} />
+    {/if}
+    {#if preview.invalid.length}
+      {@render skippedList(preview.invalid, `${formatNumber(preview.invalid.length)} can’t be imported:`)}
     {/if}
     {#snippet footer()}
-      {#if result}
-        <Button variant="primary" onclick={close}>Done</Button>
-      {:else}
-        <Button variant="ghost" disabled={busy} onclick={close}>Cancel</Button>
-        <Button variant="primary" disabled={busy || !canImport} onclick={run}>Import</Button>
-      {/if}
+      <Button variant="ghost" disabled={busy} onclick={close}>Cancel</Button>
+      <Button variant="primary" disabled={busy || !canImport} onclick={run}>Import</Button>
     {/snippet}
   </Dialog>
 {/if}

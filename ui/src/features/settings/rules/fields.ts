@@ -4,9 +4,13 @@ export interface Field<T> {
   key: keyof T & string;
   /** Checkbox text, tooltip and accessible name. */
   label: string;
+  /** V105-16 Shorter checkbox text, so a row fits one line; `label` stays the tooltip. */
+  short?: string;
   /** V105-17 A sound file: an upload button, then its name with play and ×. */
   kind: 'text' | 'area' | 'check' | 'color' | 'number' | 'select' | 'list' | 'sound';
   placeholder?: string;
+  /** V105-16 Longer tooltip of a text field, when the label isn't enough. */
+  hint?: string;
   options?: readonly { value: string; label: string }[];
   /** CSS width; text fields grow when unset. */
   width?: string;

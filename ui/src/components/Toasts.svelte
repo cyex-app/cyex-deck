@@ -1,7 +1,7 @@
 <script lang="ts">
   import { toast } from '../lib/toast.svelte';
 
-  const info = $derived(toast.items.filter((t) => t.kind === 'info'));
+  const info = $derived(toast.items.filter((t) => t.kind !== 'error'));
   const errors = $derived(toast.items.filter((t) => t.kind === 'error'));
 </script>
 
@@ -43,6 +43,9 @@
     box-shadow: 0 8px 24px var(--shadow);
     font-size: 0.85rem;
     animation: in 0.2s var(--ease);
+  }
+  .toast.success {
+    border-left-color: var(--green);
   }
   .toast.error {
     border-left-color: var(--red);

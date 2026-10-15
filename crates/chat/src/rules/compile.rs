@@ -178,9 +178,62 @@ pub fn client(app: SentFrom) -> Client {
     }
 }
 
+/// V105-16 What a badge rule asks for: any version, one exact version, or a subscriber tier.
+pub enum BadgeMatch {
+    Any,
+    Exact(String),
+    /// `subscriber1` to `subscriber3`: a subscriber badge version is the months, plus 1000 per tier above the first.
+    Tier(u8),
+}
+
+/// `moderator`, `subscriber/3012`, `subscriber2` -> the badge set and what it asks for.
+pub fn badge(rule: &str) -> (String, BadgeMatch) {
+    let rule = rule.trim();
+    if let Some((set, v)) = rule.split_once('/') {
+        return (set.to_owned(), BadgeMatch::Exact(v.to_owned()));
+    }
+    match rule.strip_prefix("subscriber").map(str::as_bytes) {
+        Some([t @ b'1'..=b'3']) => ("subscriber".to_owned(), BadgeMatch::Tier(t - b'0')),
+        _ => (rule.to_owned(), BadgeMatch::Any),
+    }
+}
+
+impl BadgeMatch {
+    pub fn matches(&self, version: &str) -> bool {
+        match self {
+            Self::Any => true,
+            Self::Exact(v) => v == version,
+            Self::Tier(t) => version
+                .parse::<u32>()
+                .is_ok_and(|n| (n / 1000).clamp(1, 3) == u32::from(*t)),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // V105-16
+    #[test]
+    fn badge_tiers() {
+        let (set, m) = badge("subscriber2");
+        assert_eq!(set, "subscriber");
+        assert!(m.matches("2000") && m.matches("2012") && !m.matches("12") && !m.matches("3012"));
+        let (_, t1) = badge("subscriber1");
+        assert!(t1.matches("0") && t1.matches("12") && t1.matches("1999") && !t1.matches("2000"));
+        let (_, t3) = badge("subscriber3");
+        assert!(t3.matches("3000") && t3.matches("3024") && !t3.matches("2999"));
+        let (set, any) = badge("subscriber");
+        assert!(set == "subscriber" && any.matches("3012") && any.matches("1"));
+        let (set, exact) = badge("subscriber/12");
+        assert!(set == "subscriber" && exact.matches("12") && !exact.matches("2012"));
+        assert!(
+            matches!(badge("subscriber4").1, BadgeMatch::Any),
+            "not a tier name"
+        );
+        assert!(badge("vip").1.matches("1"));
+    }
 
     // V105-16
     #[test]
