@@ -38,6 +38,8 @@ keyring = "4.2"
 url = "2"
 # V105-20 The update's SHA-256 (already in the build through wry).
 sha2 = "0.10"
+# V105-20 Verifies the update's minisign signature (verify-only, no other dependencies).
+minisign-verify = "0.2"
 regex = "1"
 # V104-01 Mentions with lookaround and backreferences (approved 2026/10/12). Plain
 # patterns run on the regex crate underneath, which is already in the build.

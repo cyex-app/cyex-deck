@@ -26,7 +26,8 @@
     "prerelease": false,
     "assets": [
       {"name": "cyex-deck_0.1.5_x64-setup.exe", "browser_download_url": "https://example.test/d/cyex-deck_0.1.5_x64-setup.exe", "size": 7000},
-      {"name": "cyex-deck_0.1.5_x64-setup.exe.sha256", "browser_download_url": "https://example.test/d/cyex-deck_0.1.5_x64-setup.exe.sha256", "size": 90}
+      {"name": "cyex-deck_0.1.5_x64-setup.exe.sha256", "browser_download_url": "https://example.test/d/cyex-deck_0.1.5_x64-setup.exe.sha256", "size": 90},
+      {"name": "cyex-deck_0.1.5_x64-setup.exe.sig", "browser_download_url": "https://example.test/d/cyex-deck_0.1.5_x64-setup.exe.sig", "size": 400}
     ]
   },
   {

@@ -50,6 +50,10 @@ pub async fn run(app: AppHandle, on: Channel<UpdateProgress>) -> Result<(), Stri
     let (Some(installer), Some(sha_url)) = (update.installer, update.sha256_url) else {
         return Err(DOWNLOAD_FAILED.into());
     };
+    // V105-20 No `.sig` in the release: don't even download.
+    let Some(sig_url) = update.sig_url else {
+        return Err(super::sign::MISSING.into());
+    };
     // The name comes from GitHub: a plain file name or nothing.
     if installer.name.contains(['/', '\\', ':']) {
         return Err(DOWNLOAD_FAILED.into());
@@ -91,6 +95,18 @@ pub async fn run(app: AppHandle, on: Channel<UpdateProgress>) -> Result<(), Stri
         .await
         .map_err(|_| NO_MATCH)?;
     verified?;
+    // V105-20 Signed with the author's key, or it doesn't run. The `.sig` is small text.
+    let sig = match http.get_text(&sig_url, &[], 2048).await {
+        Ok(text) => text,
+        Err(_) => {
+            let _ = fs::remove_file(&path);
+            return Err(DOWNLOAD_FAILED.into());
+        }
+    };
+    let sig_path = path.clone();
+    tauri::async_runtime::spawn_blocking(move || super::sign::verify(&sig_path, Some(&sig)))
+        .await
+        .map_err(|_| NO_MATCH)??;
     crate::settings::flush_now(&app);
     let _ = on.send(UpdateProgress::Restarting);
     std::process::Command::new(&path)

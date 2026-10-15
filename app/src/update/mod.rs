@@ -1,6 +1,7 @@
 //! V105-20 Update checks: GitHub's releases at startup and every 12 hours, conditional requests, silent when offline. Sends nothing about the user, only the normal request.
 
 pub mod install;
+pub mod sign;
 
 use std::sync::Mutex;
 use std::sync::atomic::AtomicBool;

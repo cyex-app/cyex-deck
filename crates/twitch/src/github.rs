@@ -56,6 +56,11 @@ pub struct Update {
     #[ts(skip)]
     #[serde(skip)]
     pub sha256_url: Option<String>,
+    /// V105-20 The installer's minisign signature (`<installer>.sig`). Checked when the update
+    /// runs, not for the offer, so an unsigned release says so instead of hiding.
+    #[ts(skip)]
+    #[serde(skip)]
+    pub sig_url: Option<String>,
     /// Both the installer and its hash are there; otherwise only the release page opens.
     pub can_install: bool,
 }
@@ -92,6 +97,10 @@ pub fn pick(
                 .find(|a| a.name == want)
                 .map(|a| a.browser_download_url.clone())
         });
+        let sig_url = installer.as_ref().and_then(|i| {
+            let want = format!("{}.sig", i.name);
+            r.assets.iter().find(|a| a.name == want).map(|a| a.browser_download_url.clone())
+        });
         Update {
             version: v.to_string(),
             prerelease: r.prerelease || !v.pre.is_empty(),
@@ -99,6 +108,7 @@ pub fn pick(
             can_install: installer.is_some() && sha256_url.is_some(),
             installer,
             sha256_url,
+            sig_url,
         }
     }))
 }
@@ -214,6 +224,12 @@ mod tests {
         assert_eq!(u.installer.unwrap().name, "cyex-deck_0.1.6-beta.1_x64-setup.exe");
         assert!(pick_v("0.1.5", false, None).is_none());
         assert_eq!(pick_v("0.1.4", false, None).unwrap().version, "0.1.5");
+        // V105-20 The signature asset is found when it's there, and not required for the offer.
+        assert_eq!(
+            pick_v("0.1.4", false, None).unwrap().sig_url.as_deref(),
+            Some("https://example.test/d/cyex-deck_0.1.5_x64-setup.exe.sig")
+        );
+        assert!(u.sig_url.is_none() && u.can_install);
         assert_eq!(pick_v("0.1.4", true, Some("0.1.6-beta.1")).unwrap().version, "0.1.5");
         assert!(pick_v("0.1.7", true, None).is_none());
     }
