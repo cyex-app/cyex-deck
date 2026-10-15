@@ -47,8 +47,8 @@
   import type { Tab } from '../ipc/bindings/Tab';
   import type { LinkTarget } from '../ipc/bindings/LinkTarget';
   import { accountsIpc } from '../ipc/accounts';
-  import { chatIpc } from '../ipc/chat';
   import { notifyEvents } from '../ipc/notify';
+  import { soundIpc } from '../ipc/sound';
   import { pluginsIpc } from '../ipc/plugins';
   import { tabsIpc } from '../ipc/tabs';
   import { windowsIpc } from '../ipc/windows';
@@ -58,7 +58,7 @@
   import { followFullscreen } from '../lib/layers';
   import { settings } from '../lib/settings.svelte';
   import { streamer } from '../lib/streamer.svelte';
-  import { mentionChime, mentionSound } from '../lib/sound';
+  import { decodeSound } from '../lib/sound';
   import { toast } from '../lib/toast.svelte';
   import { currentWindow } from '../lib/window.svelte';
   import { popOut } from './panels';
@@ -163,8 +163,9 @@
     void miner.start();
   });
 
+  // V1051-01 Rust plays the app's sounds; this window decodes a sound file the first time.
   $effect(() => {
-    const off = chatIpc.onMention((m) => void mentionSound(m.sound));
+    const off = soundIpc.onDecode((d) => void decodeSound(d));
     return () => void off.then((f) => f());
   });
 
@@ -217,8 +218,7 @@
     return () => void off.then((f) => f());
   });
 
-  // 2.2, 1.26 Toasts: a click opens the channel, the conversation or the link; the sound
-  // plays here.
+  // 2.2, 1.26 Toasts: a click opens the channel, the conversation or the link.
   $effect(() => {
     const open = notifyEvents.onOpen((o) => {
       if (o.kind === 'channel') void openLogin(o.login);
@@ -226,10 +226,8 @@
       else if (o.kind === 'room') void popOut(roomRoute(o.login, null), `${o.login} chat`);
       else follow(o.url, (l) => void openLogin(l));
     });
-    const sound = notifyEvents.onSound(() => mentionChime());
     return () => {
       void open.then((f) => f());
-      void sound.then((f) => f());
     };
   });
 

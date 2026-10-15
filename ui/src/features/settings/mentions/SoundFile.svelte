@@ -1,7 +1,7 @@
 <!-- V104-01 / V105-17 A chosen sound file in a mention or highlight row: its name (cut with …), play, and back to the chime. -->
 <script lang="ts">
   import IconButton from '../../../components/IconButton.svelte';
-  import { mentionSound } from '../../../lib/sound';
+  import { soundIpc } from '../../../ipc/sound';
   import { fileName } from './status';
 
   interface Props {
@@ -14,7 +14,7 @@
 
 <span class="file" title={path}>
   <span class="name">{fileName(path)}</span>
-  <IconButton icon="play" label="Play" size={12} onclick={() => void mentionSound(path)} />
+  <IconButton icon="play" label="Play" size={12} onclick={() => void soundIpc.play(path)} />
   <IconButton icon="x" label="Use the chime" size={12} onclick={onclear} />
 </span>
 

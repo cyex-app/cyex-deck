@@ -7,7 +7,6 @@ import type { ChatMessage } from './bindings/ChatMessage';
 import type { ChatOpened } from './bindings/ChatOpened';
 import type { ChatShown } from './bindings/ChatShown';
 import type { GlobalCatalog } from './bindings/GlobalCatalog';
-import type { Mention } from './bindings/Mention';
 import type { ChatIdentity } from './bindings/ChatIdentity';
 import type { EmoteRewardChoices } from './bindings/EmoteRewardChoices';
 import type { Points } from './bindings/Points';
@@ -69,6 +68,4 @@ export const chatIpc = {
   resolveLink: (url: string) => invoke<LinkInfo | null>('chat_resolve_link', { url }),
   profile: (login?: string, id?: string) => invoke<Profile | null>('user_profile', { login, id }),
   openUsercard: (channel: string, login: string) => invoke<void>('window_open_usercard', { channel, login }),
-  /** U6: only the main window gets these. */
-  onMention: (handler: (m: Mention) => void) => listen<Mention>('chat:mention', (e) => handler(e.payload)),
 };

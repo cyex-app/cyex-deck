@@ -48,6 +48,4 @@ export const notifyEvents = {
   /** A toast was clicked. Main window only. */
   onOpen: (cb: (o: NotifyOpen) => void): Promise<UnlistenFn> =>
     listen<NotifyOpen>('notify:open', (e) => cb(e.payload)),
-  /** Play the app's alert sound. Main window only. */
-  onSound: (cb: () => void): Promise<UnlistenFn> => listen('notify:sound', () => cb()),
 };
