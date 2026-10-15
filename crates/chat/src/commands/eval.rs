@@ -7,6 +7,7 @@ use std::sync::Arc;
 use serde_json::Value;
 
 use super::parse::{Func, Id, Item, Items, Src};
+use super::vars::Var;
 use super::{calc, datetime, json, text};
 
 /// What a command can read: its words (`$1`) and named values (`$(chan)`).
@@ -50,6 +51,13 @@ impl Params {
         self.values.get(key).map(String::as_str)
     }
 
+    /// Names set so far, sorted.
+    pub fn keys(&self) -> Vec<&str> {
+        let mut k: Vec<&str> = self.values.keys().map(String::as_str).collect();
+        k.sort_unstable();
+        k
+    }
+
     fn range(&self, from: usize, rest: bool) -> String {
         match self.args.get(from - 1) {
             None => String::new(),
@@ -80,6 +88,10 @@ pub trait Host {
     /// `$input`: asks the user. `None` cancels.
     fn input(&mut self, _message: &str, _initial: &str) -> Option<String> {
         None
+    }
+    /// V1051-04 A 7TV variable. Empty when it can't be read; never fails.
+    fn cosmetic(&mut self, _v: &Var) -> String {
+        String::new()
     }
     /// A number below `below`.
     fn random(&mut self, below: u64) -> u64;
@@ -159,6 +171,7 @@ fn src(s: &Src, p: &Params, h: &mut dyn Host) -> Option<String> {
 fn item(it: &Item, p: &Params, h: &mut dyn Host) -> Option<String> {
     match it {
         Item::Text(t) => Some(t.clone()),
+        Item::Var(v) => Some(h.cosmetic(v)),
         Item::Repl { id: i, args, req: r } => {
             let value = match args {
                 Some(args) => {
@@ -372,6 +385,13 @@ pub(super) mod tests {
         fn request(&mut self, url: &str, _: &[(String, String)]) -> Result<String, String> {
             Ok(format!(" body of {url} "))
         }
+        fn cosmetic(&mut self, v: &Var) -> String {
+            match v {
+                Var::Paint => "P".into(),
+                Var::PaintId => "a|b".into(),
+                _ => String::new(),
+            }
+        }
         fn random(&mut self, below: u64) -> u64 {
             self.next_random % below
         }
@@ -432,6 +452,18 @@ pub(super) mod tests {
             eval(&parse("$(_loop)").unwrap(), &p, &mut h).unwrap(),
             "[[recursion not allowed]]"
         );
+    }
+
+    #[test]
+    fn braces_vars() {
+        assert_eq!(run("{paint}-{badge}", "").unwrap(), "P-");
+        assert_eq!(run("$$1 {badge}", ""), None);
+        assert_eq!(run("x {badge} y", "").unwrap(), "x  y");
+        let mut p = Params::new("");
+        let items = parse("/chain {paint.id}").unwrap();
+        assert_eq!(crate::commands::run(&items, &p, &mut TestHost::default()).unwrap(), "/chain a||b");
+        p.set("k", "v");
+        assert_eq!(p.keys(), ["k"]);
     }
 
     #[test]

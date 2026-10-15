@@ -2,6 +2,7 @@
 //! line as `/name body`, `/name#channel body` (that channel only), `_name body` (a
 //! replacement used as `$(_name)`) or `# comment`. Bodies use `$1`, `$1-`, `$$1`,
 //! `$(chan)` and functions like `$if`, `$replace`, `$json` and `$request`.
+//! V1051-04 `{paint}` and friends (7TV) read the sender's cosmetics.
 
 mod calc;
 pub mod chain;
@@ -11,12 +12,14 @@ mod json;
 pub mod menu;
 mod parse;
 mod text;
+pub mod vars;
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 pub use eval::{Host, Params};
-pub use parse::{Item, Items, ParseError};
+pub use parse::{Item, Items, ParseError, FUNCTIONS};
+pub use vars::Var;
 
 /// Reads one body, e.g. an inline command from a menu entry.
 pub fn parse(body: &str) -> Result<Items, ParseError> {

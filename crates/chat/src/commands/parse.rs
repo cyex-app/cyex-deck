@@ -3,6 +3,8 @@
 
 use std::fmt;
 
+use super::vars::{self, Var};
+
 pub type Items = Vec<Item>;
 
 /// What a replacement refers to.
@@ -21,6 +23,13 @@ pub enum Src {
     Id(Id),
     Items(Items),
 }
+
+/// Every name `special()` accepts after `$`, for the registry check (V1051-04).
+pub const FUNCTIONS: &[&str] = &[
+    "if", "ifeq", "switch", "join", "lower", "upper", "j", "replace", "trim", "rand", "randnum",
+    "datetime", "urlencode", "cs", "fs", "sort", "is", "get", "calc", "round", "input", "request",
+    "json", "quote",
+];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Func {
@@ -47,6 +56,8 @@ pub enum Func {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Item {
     Text(String),
+    /// V1051-04 `{paint}`, `{badge}`, `{combo:name}` and friends.
+    Var(Var),
     /// `$1`, `$(chan)`, `$(_custom,args)`. `req` (`$$`) cancels the command when empty.
     Repl {
         id: Id,
@@ -191,6 +202,17 @@ impl Parser {
                     if let Some(next) = self.peek() {
                         self.pos += 1;
                         text.push(next);
+                    }
+                }
+                '{' => {
+                    if let Some((v, next)) = vars::read(&self.chars, self.pos - 1) {
+                        if !text.is_empty() {
+                            items.push(Item::Text(std::mem::take(&mut text)));
+                        }
+                        items.push(Item::Var(v));
+                        self.pos = next;
+                    } else {
+                        text.push('{');
                     }
                 }
                 c => text.push(c),
@@ -383,7 +405,7 @@ impl Parser {
     }
 
     fn src(&mut self) -> Result<Src> {
-        if self.peek() == Some('$') {
+        if matches!(self.peek(), Some('$' | '{')) {
             Ok(Src::Items(self.param()?))
         } else {
             Ok(Src::Id(self.identifier()?))
@@ -550,6 +572,40 @@ mod tests {
         assert_eq!(default.as_deref(), Some(&[][..]));
         assert_eq!(subs.len(), 2);
         assert!(subs[0].1 && !subs[1].1);
+    }
+
+    #[test]
+    fn braces_vars() {
+        assert_eq!(
+            parse("/echo {paint} x").unwrap(),
+            [Item::Text("/echo ".into()), Item::Var(Var::Paint), Item::Text(" x".into())]
+        );
+        assert_eq!(parse(r"\{paint}").unwrap(), [Item::Text("{paint}".into())]);
+        let items = parse("$if({paint},yes,no)").unwrap();
+        assert!(matches!(&items[0], Item::If { src: Src::Items(s), .. } if s == &[Item::Var(Var::Paint)]));
+        assert_eq!(
+            parse(r#"$request(https://x,k: {"k":1})"#).unwrap(),
+            [Item::Call {
+                f: Func::Request,
+                args: vec![
+                    vec![Item::Text("https://x".into())],
+                    vec![Item::Text(r#"k: {"k":1}"#.into())]
+                ],
+                req: false
+            }]
+        );
+    }
+
+    #[test]
+    fn function_table() {
+        for name in FUNCTIONS {
+            let ok = ["a", "a,a", "a,a,a", "a,a,a,a", "a,b:a,c"]
+                .iter()
+                .any(|args| parse(&format!("${name}({args})")).is_ok());
+            assert!(ok, "{name}");
+        }
+        let e = parse("$nope(1)").unwrap_err();
+        assert!(e.message.contains("Unknown function"));
     }
 
     #[test]
