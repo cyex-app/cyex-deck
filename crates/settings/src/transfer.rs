@@ -110,6 +110,16 @@ mod tests {
     }
 
     #[test]
+    fn combos_travel_in_a_bundle() {
+        // V1051-04
+        assert!(Partition::ALL.contains(&Partition::Combos));
+        let combos = json!({"accounts": {"1": [{"id": "a", "name": "gold", "paint": null, "badge": null}]}});
+        let bundle = Bundle::new(BTreeMap::from([("combos".into(), combos.clone())]), day(9).with_time(Time::MIDNIGHT).assume_utc());
+        let back = Bundle::from_json(&bundle.to_json()).unwrap();
+        assert_eq!(back.partitions["combos"], combos);
+    }
+
+    #[test]
     fn share_code_round_trip_ignores_whitespace() {
         let bundle = sample();
         let code = bundle.to_share_code();

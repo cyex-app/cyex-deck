@@ -32,10 +32,12 @@ pub enum Partition {
     Plugins,
     /// V105-11
     Uploader,
+    /// V1051-04
+    Combos,
 }
 
 impl Partition {
-    pub const ALL: [Partition; 19] = [
+    pub const ALL: [Partition; 20] = [
         Partition::General,
         Partition::Appearance,
         Partition::Chat,
@@ -55,6 +57,7 @@ impl Partition {
         Partition::Windows,
         Partition::Plugins,
         Partition::Uploader,
+        Partition::Combos,
     ];
 
     pub fn key(self) -> &'static str {
@@ -78,6 +81,7 @@ impl Partition {
             Partition::Windows => "windows",
             Partition::Plugins => "plugins",
             Partition::Uploader => "uploader",
+            Partition::Combos => "combos",
         }
     }
 
@@ -119,6 +123,7 @@ impl Partition {
             Partition::Windows => roundtrip::<schema::Windows>(value),
             Partition::Plugins => roundtrip::<schema::Plugins>(value),
             Partition::Uploader => roundtrip::<schema::Uploader>(value),
+            Partition::Combos => roundtrip::<schema::Combos>(value),
         }
     }
 
@@ -153,6 +158,8 @@ mod tests {
         assert!(!Partition::Uploader.is_portable());
         assert!(!Partition::Accounts.is_portable());
         assert!(Partition::Chat.is_portable());
+        // V1051-04 Combos are names and ids only.
+        assert!(Partition::Combos.is_portable());
     }
 
     #[test]

@@ -5,6 +5,7 @@ mod accounts;
 mod appearance;
 mod browse;
 mod chat;
+mod combos;
 mod commands;
 mod emotes;
 mod general;
@@ -31,6 +32,9 @@ pub use browse::{Browse, HomeLayout, LiveSort, OfflineSort};
 pub use chat::{
     BadgeToggles, Chat, DeletedStyle, GifMode, LinkThumbs, ModButtons, NameStyle, Overlay, PaintToggles,
     PauseKey, Timestamps, UnlistedEmotes, UserNote,
+};
+pub use combos::{
+    Combo, ComboDone, ComboError, ComboItem, ComboOp, Combos, MAX_COMBOS, MAX_NAME, NameError, WORDS, clean_name,
 };
 pub use commands::{Access, Automation, Commands, SavedTimer, TriggerMatch};
 pub use emotes::{EmoteKey, EmoteSource, EmoteUse, Emotes};

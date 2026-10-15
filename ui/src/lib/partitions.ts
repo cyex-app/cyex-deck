@@ -21,6 +21,7 @@ export const PARTITION_LABELS: Record<Partition, string> = {
   windows: 'Windows and layouts',
   plugins: 'Plugins',
   uploader: 'Image uploads',
+  combos: '7TV combos',
 };
 
 export const ALL_PARTITIONS = Object.keys(PARTITION_LABELS) as Partition[];

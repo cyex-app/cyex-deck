@@ -1,0 +1,18 @@
+[
+  { "in": "  night   owl ", "out": "night owl" },
+  { "in": "", "err": "empty" },
+  { "in": "   ", "err": "empty" },
+  { "in": "abcdefghijklmnopqrstuvwxyz012345", "out": "abcdefghijklmnopqrstuvwxyz012345" },
+  { "in": "abcdefghijklmnopqrstuvwxyz0123456", "err": "tooLong" },
+  { "in": "éééééééééééééééééééééééééééééééé", "out": "éééééééééééééééééééééééééééééééé" },
+  { "in": "Gold-2_x", "out": "Gold-2_x" },
+  { "in": "日本", "out": "日本" },
+  { "in": "a/b", "err": "chars" },
+  { "in": "a.b", "err": "chars" },
+  { "in": "a\"b", "err": "chars" },
+  { "in": "a\tb", "out": "a b" },
+  { "in": "🙂", "err": "chars" },
+  { "in": "LIST", "err": "word" },
+  { "in": "Rename", "err": "word" },
+  { "in": "list it", "out": "list it" }
+]

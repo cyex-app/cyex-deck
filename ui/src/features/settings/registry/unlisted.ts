@@ -4,6 +4,7 @@
 export const UNLISTED: Record<string, string> = {
   tabs: 'The tabs as you arrange them.',
   browse: 'Home and Discover remember their own sort and favorites.',
+  combos: 'Saved in the 7TV paint and badge menu or with /combo.',
   emotes: 'The emote menu’s favorites and most used.',
   modview: 'The mod view’s own layout and mod actions filter.',
   'windows.main': 'Where the main window was.',

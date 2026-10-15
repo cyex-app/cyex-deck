@@ -5,6 +5,7 @@ import type { Accounts } from './bindings/Accounts';
 import type { Appearance } from './bindings/Appearance';
 import type { Browse } from './bindings/Browse';
 import type { Chat } from './bindings/Chat';
+import type { Combos } from './bindings/Combos';
 import type { Commands } from './bindings/Commands';
 import type { Emotes } from './bindings/Emotes';
 import type { General } from './bindings/General';
@@ -46,6 +47,7 @@ export interface SettingsValues {
   windows: Windows;
   plugins: Plugins;
   uploader: Uploader;
+  combos: Combos;
 }
 
 /** JSON merge patch shape: nested objects merge, arrays replace, `null` resets to default. */
