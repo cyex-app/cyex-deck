@@ -1,0 +1,186 @@
+<!-- V1051-02/03 Pick your 7TV paint and badge. One panel for the view and the in-chat
+     pop-up (`compact`). Nothing talks to 7TV until the account has said yes. -->
+<script lang="ts">
+  import { onDestroy, onMount } from 'svelte';
+
+  import Button from '../../components/Button.svelte';
+  import Segmented from '../../components/Segmented.svelte';
+  import { systemIpc } from '../../ipc/system';
+  import { accounts } from '../../lib/accounts.svelte';
+  import { formatNumber } from '../../lib/format';
+  import { CosmeticsStore } from './cosmetics.svelte';
+  import Consent from './Consent.svelte';
+  import Pane from './Pane.svelte';
+  import Preview from './Preview.svelte';
+  import StateCard from './StateCard.svelte';
+
+  interface Props {
+    account: string;
+    compact: boolean;
+    /** Cancel on the consent, and Escape in the pop-up. */
+    onclose?: () => void;
+  }
+
+  let { account, compact, onclose }: Props = $props();
+
+  // The view remounts the panel per account, so the store never outlives its account.
+  // svelte-ignore state_referenced_locally
+  const store = new CosmeticsStore(account);
+  const who = $derived(accounts.list.find((a) => a.userId === account));
+  const view = $derived(store.view);
+  const status = $derived(store.status);
+  let root = $state<HTMLElement>();
+  let tab = $state<'paints' | 'badges'>('paints');
+
+  onMount(() => void store.load());
+  onDestroy(() => store.destroy());
+
+  // A sign-in or sign-out elsewhere (Settings) changes what the menu may do.
+  $effect(() => {
+    const live = store.liveKey();
+    if (!store.loading && store.key && live !== store.key) void store.load();
+  });
+
+  const items = $derived(view && (status === 'ready' || status === 'signedOut' || status === 'expired'));
+  const ink = (n: number) => formatNumber(n);
+
+  function onkeydown(e: KeyboardEvent) {
+    const typing = e.target instanceof HTMLInputElement;
+    if ((e.key === '/' && !typing) || (e.ctrlKey && e.key.toLowerCase() === 'f')) {
+      e.preventDefault();
+      root?.querySelector<HTMLInputElement>('input[type="search"]')?.focus();
+    } else if (e.ctrlKey && !typing && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      store.sel.undo();
+    } else if (e.key === 'Escape' && compact) {
+      onclose?.();
+    }
+  }
+</script>
+
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="panel" bind:this={root} {onkeydown}>
+  {#if !who}
+    <!-- The account left; nothing to show. -->
+  {:else if status === 'noConsent' && view}
+    <Consent name={who.displayName} inline={!compact} onallow={() => void store.allow()} oncancel={() => onclose?.()} />
+  {:else if status === 'noAccount'}
+    <StateCard kind="noAccount" onretry={() => void store.load(true)} />
+  {:else if status === 'down'}
+    <StateCard kind="down" onretry={() => void store.load(true)} />
+  {:else if items && view}
+    {#if (status === 'signedOut' && store.anyUsable) || status === 'expired' || !view.subscribed}
+      <div class="bar">
+        {#if status === 'signedOut' && store.anyUsable}
+          <span>Sign in to 7TV to change your paint and badge.</span>
+          <Button variant="primary" small onclick={() => void store.signIn()}>Sign in to 7TV</Button>
+        {:else if status === 'expired'}
+          <span>Your 7TV sign-in ran out.</span>
+          <Button variant="primary" small onclick={() => void store.signIn()}>Sign in again</Button>
+        {/if}
+        {#if !view.subscribed}
+          <span class="note">
+            Paints and badges are for 7TV subscribers.{store.anyUsable ? ' Some don’t need it.' : ''}
+            <button class="link" onclick={() => void systemIpc.openLink('https://7tv.app/store')}>7TV store</button>
+          </span>
+        {/if}
+      </div>
+    {/if}
+
+    <Preview {store} who={who} {compact} />
+
+    {#if compact}
+      <Segmented
+        label="Picker"
+        value={tab}
+        options={[
+          { value: 'paints', label: `Paints · ${ink(view.paints.length)}` },
+          { value: 'badges', label: `Badges · ${ink(view.badges.length)}` },
+        ]}
+        onchange={(t) => (tab = t)}
+      />
+    {/if}
+    <div class="picker" class:compact>
+      {#if !compact || tab === 'paints'}
+        <Pane
+          kind="paint"
+          heading={!compact}
+          query={store.paintsQ}
+          onquery={(q) => (store.paintsQ = q)}
+          rows={store.paintsShown}
+          total={view.paints.length}
+          selected={store.shown.paint}
+          name={who.displayName}
+          allUsable={store.allUsable}
+          onpick={(id, usable) => store.pick('paint', id, usable)}
+        />
+      {/if}
+      {#if !compact || tab === 'badges'}
+        <Pane
+          kind="badge"
+          heading={!compact}
+          query={store.badgesQ}
+          onquery={(q) => (store.badgesQ = q)}
+          rows={store.badgesShown}
+          total={view.badges.length}
+          selected={store.shown.badge}
+          name={who.displayName}
+          allUsable={store.allUsable}
+          onpick={(id, usable) => store.pick('badge', id, usable)}
+        />
+      {/if}
+    </div>
+  {/if}
+</div>
+
+<style>
+  .panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: 100%;
+    min-height: 0;
+    container-type: inline-size;
+  }
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+  }
+  .note {
+    color: var(--dim);
+  }
+  .link {
+    padding: 0;
+    background: none;
+    border: 0;
+    color: var(--accent-text);
+    text-decoration: underline;
+  }
+  .picker {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    flex: 1;
+    gap: 16px;
+    min-height: 0;
+  }
+  @container (min-width: 720px) {
+    .picker:not(.compact) {
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    }
+  }
+  @container (max-width: 719px) {
+    .picker:not(.compact) {
+      grid-template-rows: none;
+      grid-auto-rows: minmax(280px, auto);
+      overflow-y: auto;
+    }
+  }
+</style>

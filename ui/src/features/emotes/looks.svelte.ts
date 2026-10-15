@@ -12,7 +12,7 @@ import { emotesIpc } from '../../ipc/emotes';
 
 const BATCH_MS = 60;
 /** Paint ids are 7TV ULIDs; anything else never becomes a class name. */
-const SAFE_ID = /^[0-9A-Za-z]{1,40}$/;
+export const SAFE_ID = /^[0-9A-Za-z]{1,40}$/;
 
 /** V1051-03 Both CSS rules of a paint. `.still` also matches inside any still container. */
 export function paintRules(p: PaintStyle): string {
