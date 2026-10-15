@@ -1,14 +1,15 @@
 <!-- V1041-02 Tabs from a Chatterino layout: pick the file, see what goes in and what stays
-     out, then open them as chat tabs or chat + viewer tabs, joined as the default account. -->
+     out in a dialog, then open them as chat tabs or chat + viewer tabs (the result is a toast),
+     joined as the default account. -->
 <script lang="ts">
   import Button from '../../../components/Button.svelte';
-  import Card from '../../../components/PanelCard.svelte';
+  import Dialog from '../../../components/Dialog.svelte';
   import Segmented from '../../../components/Segmented.svelte';
   import type { ImportReport } from '../../../ipc/bindings/ImportReport';
   import { settingsIpc } from '../../../ipc/settings';
   import { accounts } from '../../../lib/accounts.svelte';
   import { toast } from '../../../lib/toast.svelte';
-  import { counts, leftOut } from './report';
+  import { counts, failedImport, leftOut, tabsText } from './report';
 
   type OpenAs = 'chat' | 'both';
   const OPEN_AS = [
@@ -17,49 +18,42 @@
   ] as const;
 
   let report = $state<ImportReport | null>(null);
-  /** The import ran; `report` says what it did. */
-  let done = $state(false);
   let busy = $state(false);
   let openAs = $state<OpenAs>('chat');
 
   const account = $derived(accounts.current?.displayName || accounts.current?.login);
   const lines = $derived(report ? leftOut(report) : []);
   const ready = $derived(!!report && report.tabs > 0);
-  const asked = $derived(!!report && !done && report.tabs > 0);
 
-  async function attempt(action: () => Promise<void>) {
+  async function pick() {
     busy = true;
     try {
-      await action();
+      const preview = await settingsIpc.chatterinoPreview();
+      if (!preview) return;
+      report = preview;
     } catch (e) {
-      toast.error(String(e));
+      toast.error(failedImport(e));
     } finally {
       busy = false;
     }
   }
 
-  function pick() {
-    return attempt(async () => {
-      const preview = await settingsIpc.chatterinoPreview();
-      if (!preview) return;
-      report = preview;
-      done = false;
-    });
-  }
-
-  function run() {
-    return attempt(async () => {
-      report = await settingsIpc.chatterinoImport(openAs === 'both');
-      done = true;
-    }).finally(() => {
+  async function run() {
+    busy = true;
+    try {
+      const done = await settingsIpc.chatterinoImport(openAs === 'both');
+      toast.success(done.tabs ? `Imported ${tabsText(done.tabs)}.` : 'Nothing new.');
+    } catch (e) {
       // A failed import needs a fresh pick: the lookup is used up.
-      if (!done) report = null;
-    });
+      toast.error(failedImport(e));
+    } finally {
+      busy = false;
+      close();
+    }
   }
 
   function close() {
     report = null;
-    done = false;
   }
 </script>
 
@@ -67,40 +61,28 @@
 <p class="note" data-setting="data:chatterino">
   Your Chatterino tabs, in order and with their names. Pick <code>window-layout.json</code> or one of its backups.
 </p>
+<div class="actions">
+  <Button icon="upload" disabled={busy} onclick={pick}>Pick layout file</Button>
+</div>
+
 {#if report}
-  <div class="card">
-    <Card title={done ? 'Imported' : 'Ready to import'}>
-      <p class="headline">
-        {#if report.tabs}
-          {done ? `Added ${counts(report)}.` : counts(report)}
-        {:else}
-          {done ? 'Nothing was added.' : 'Nothing to import.'}
-        {/if}
-      </p>
-      {#each lines as line (line.label)}
-        <p class="note"><span class="why">{line.label}:</span> {line.text}</p>
-      {/each}
-      {#if asked}
-        <div class="line">
-          <span class="ask">Open them as</span>
-          <Segmented options={OPEN_AS} value={openAs} label="Open them as" onchange={(v) => (openAs = v)} />
-        </div>
-        {#if account}<p class="note">Joined as {account}.</p>{/if}
-        <div class="actions">
-          <Button variant="primary" disabled={busy || !ready} onclick={run}>Import</Button>
-          <Button variant="ghost" disabled={busy} onclick={close}>Cancel</Button>
-        </div>
-      {:else}
-        <div class="actions">
-          <Button onclick={close}>{done ? 'Done' : 'Close'}</Button>
-        </div>
-      {/if}
-    </Card>
-  </div>
-{:else}
-  <div class="actions">
-    <Button icon="upload" disabled={busy} onclick={pick}>Pick layout file</Button>
-  </div>
+  <Dialog title="Import tabs" width={460} onclose={close}>
+    <p class="headline">{report.tabs ? counts(report) : 'Nothing to import.'}</p>
+    {#each lines as line (line.label)}
+      <p class="note"><span class="why">{line.label}:</span> {line.text}</p>
+    {/each}
+    {#if ready}
+      <div class="line">
+        <span class="ask">Open them as</span>
+        <Segmented options={OPEN_AS} value={openAs} label="Open them as" onchange={(v) => (openAs = v)} />
+      </div>
+      {#if account}<p class="note">Joined as {account}.</p>{/if}
+    {/if}
+    {#snippet footer()}
+      <Button variant="ghost" disabled={busy} onclick={close}>Cancel</Button>
+      <Button variant="primary" disabled={busy || !ready} onclick={run}>Import</Button>
+    {/snippet}
+  </Dialog>
 {/if}
 
 <style>
@@ -116,11 +98,6 @@
     font-family: var(--font-mono);
     font-size: 0.78rem;
   }
-  .card {
-    display: flex;
-    max-width: 560px;
-    margin-top: 10px;
-  }
   .headline {
     margin: 0;
     font-weight: 600;
@@ -128,6 +105,12 @@
   .why {
     color: var(--muted);
     font-weight: 600;
+  }
+  .line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
   }
   .ask {
     color: var(--muted);

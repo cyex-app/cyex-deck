@@ -45,3 +45,11 @@ export function leftOut(r: ImportReport): Line[] {
   add('Not found on Twitch', r.unresolved.length, r.unresolved.join(', '));
   return lines;
 }
+
+/** "12 tabs", "1 tab". */
+export const tabsText = (n: number) => plural(n, 'tab');
+
+/** Toast text for an import that failed: "Couldn’t import: <reason>." */
+export function failedImport(e: unknown): string {
+  return `Couldn’t import: ${String(e).replace(/^Error:\s*/, '').replace(/\.$/, '')}.`;
+}

@@ -9,6 +9,7 @@
   import { settingsIpc } from '../../../ipc/settings';
   import { formatNumber } from '../../../lib/format';
   import { toast } from '../../../lib/toast.svelte';
+  import { failedImport } from './report';
 
   const MAX_LINES = 20;
   const CHOICES = [
@@ -56,7 +57,7 @@
       toast.success(n ? `Imported ${formatNumber(n)}${skipped}.` : `Nothing new${skipped}.`);
       close();
     } catch (e) {
-      toast.error(`Couldn’t import: ${String(e).replace(/^Error:\s*/, '').replace(/\.$/, '')}.`);
+      toast.error(failedImport(e));
       close();
     } finally {
       busy = false;

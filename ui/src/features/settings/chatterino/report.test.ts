@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { ImportReport } from '../../../ipc/bindings/ImportReport';
-import { counts, leftOut } from './report.ts';
+import { counts, failedImport, leftOut } from './report.ts';
 
 const empty: ImportReport = {
   tabs: 0,
@@ -36,4 +36,9 @@ test('V1041-02 every reason gets a line, empty ones none', () => {
     { label: 'Not channels (6)', text: 'Mentions ×2, AutoMod, Other ×3' },
     { label: 'Not found on Twitch (2)', text: 'gone_one, gone_two' },
   ]);
+});
+
+test('failedImport trims the error prefix and the full stop', () => {
+  assert.equal(failedImport(new Error('no layout.')), 'Couldn’t import: no layout.');
+  assert.equal(failedImport('file is empty'), 'Couldn’t import: file is empty.');
 });
