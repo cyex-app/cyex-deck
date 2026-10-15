@@ -137,6 +137,7 @@
   }
   .rule :global(.check) {
     gap: 5px;
+    white-space: nowrap;
   }
   .area {
     flex: 1 1 100%;
