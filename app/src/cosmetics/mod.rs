@@ -302,13 +302,7 @@ pub fn forget_account(app: &AppHandle, account: &str) {
     };
     st.clear(account);
     if let Some(t) = token {
-        let api = st.api.clone();
-        let account = account.to_owned();
-        tauri::async_runtime::spawn(async move {
-            if let Err(e) = api.logout(t.secret()).await {
-                eprintln!("cosmetics: {account}: logout: {e}");
-            }
-        });
+        discard(st.api.clone(), t);
     }
 }
 
@@ -327,11 +321,18 @@ pub async fn sign_in(app: &AppHandle, account: &str) -> SignIn {
         Ok(me) => me,
         Err(e) => {
             eprintln!("cosmetics: {account}: sign-in check: {e}");
+            discard(api, token);
             return SignIn::Failed;
         }
     };
     if me.twitch_id.as_deref() != Some(account) {
+        discard(api, token);
         return SignIn::OtherAccount;
+    }
+    // Withdrawn while the window was open: the session isn't kept.
+    if !has_consent(app, account) {
+        discard(api, token);
+        return SignIn::Cancelled;
     }
     if let Err(e) = app.state::<Auth>().seventv.put(account, &token) {
         eprintln!("cosmetics: {account}: couldn't keep the 7TV session: {e}");
@@ -341,4 +342,13 @@ pub async fn sign_in(app: &AppHandle, account: &str) -> SignIn {
     presence::remember_seventv(app, account, Some(me.id));
     auth::notify(app);
     SignIn::Done
+}
+
+/// Ends a session we no longer keep on 7TV's side too, in the background (best effort).
+fn discard(api: Client, token: SevenTvToken) {
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = api.logout(token.secret()).await {
+            eprintln!("cosmetics: 7TV logout: {e}");
+        }
+    });
 }
