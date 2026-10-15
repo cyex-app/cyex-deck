@@ -149,7 +149,7 @@ pub fn open_panel(app: &AppHandle, route: &str, title: &str, size: Option<(f64, 
         .title(title)
         .inner_size(width, height)
         .min_inner_size(MIN_SIZE.0, MIN_SIZE.1)
-        .always_on_top(saved.pinned);
+        .always_on_top(saved.pinned && !super::usercard::is_popup(route));
     let builder = if overlay {
         super::overlay::style(builder)
     } else {
@@ -157,6 +157,9 @@ pub fn open_panel(app: &AppHandle, route: &str, title: &str, size: Option<(f64, 
     };
     let builder = geometry::on_builder(app, builder, saved.geometry.as_ref());
     let window = builder.build().inspect_err(|_| crate::chat::shown::gone(app, &label))?;
+    if super::usercard::is_popup(route) {
+        crate::sys::small_corners(&window);
+    }
     app.state::<PanelRegistry>()
         .lock()
         .insert(label, route.to_owned());

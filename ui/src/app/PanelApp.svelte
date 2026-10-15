@@ -1,12 +1,11 @@
 <!-- A popped-out panel window (1.51): the shared pop-out frame (V104-03) plus the panel for
-     its route. Usercards keep their small title bar; overlays draw their own. -->
+     its route. Pop-ups (usercards, `#channel` chats) get its slim look (V105-18); overlays draw their own. -->
 <script lang="ts">
   import EmptyState from '../components/EmptyState.svelte';
   import MenuHost from '../components/MenuHost.svelte';
   import PopoutFrame from '../components/PopoutFrame.svelte';
   import Toasts from '../components/Toasts.svelte';
   import TooltipHost from '../components/TooltipHost.svelte';
-  import WindowChrome from '../components/WindowChrome.svelte';
   import { playerHotkeys } from '../features/player/players.svelte';
   import TabOverlays from '../features/tabs/TabOverlays.svelte';
   import { useHotkeys } from '../lib/hotkeys.svelte';
@@ -23,10 +22,8 @@
   useHotkeys({ 'window.pin': () => currentWindow.togglePin(), ...playerHotkeys });
 </script>
 
-{#if panel?.compact}
-  <WindowChrome title={titleFor(route)} compact />
-{:else if !panel?.bare}
-  <PopoutFrame title={titleFor(route)} docks={panel?.docks} />
+{#if panel?.frame !== 'none'}
+  <PopoutFrame title={titleFor(route)} docks={panel?.docks} variant={panel?.frame === 'slim' ? 'slim' : 'large'} />
 {/if}
 
 <main>

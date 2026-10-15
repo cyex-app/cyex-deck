@@ -23,25 +23,25 @@ export interface PanelKind {
   title: string;
   width: number;
   height: number;
-  /** A pop-up (usercards), not a pop-out: the small title bar with its own x. */
-  compact?: boolean;
   /** V104-03 Closing docks it back into the main window (3.14, V102-16). */
   docks?: boolean;
-  /** No title bar: the panel draws its own (U7 overlays). */
-  bare?: boolean;
+  /** V105-18 `slim`: a pop-up (usercards, `#channel` chats) with the slim header; must
+   * match `is_popup` in `app/src/windows/usercard.rs`. `none`: the panel draws its own
+   * (U7 overlays). Default: the large pop-out frame (V104-03). */
+  frame?: 'slim' | 'none';
   component: Component<{ popout?: boolean; route: string }>;
 }
 
 export const PANELS: Record<string, PanelKind> = {
   tab: { title: 'Tab', width: 420, height: 680, docks: true, component: TabPanel },
   chat: { title: 'Chat', width: 380, height: 680, docks: true, component: ChatPanel },
-  room: { title: 'Chat', width: 380, height: 640, component: RoomPanel },
-  usercard: { title: 'User', width: 380, height: 560, compact: true, component: UsercardView },
+  room: { title: 'Chat', width: 380, height: 640, frame: 'slim', component: RoomPanel },
+  usercard: { title: 'User', width: 380, height: 560, frame: 'slim', component: UsercardView },
   recording: { title: 'Recording', width: 400, height: 640, component: RecordingView },
   modview: { title: 'Mod view', width: 920, height: 680, docks: true, component: ModViewPanel },
   streammanager: { title: 'Stream manager', width: 1000, height: 760, docks: true, component: StreamManagerView },
   whispers: { title: 'Whispers', width: 720, height: 560, docks: true, component: WhispersView },
-  overlay: { title: 'Overlay', width: 340, height: 420, bare: true, component: OverlayView },
+  overlay: { title: 'Overlay', width: 340, height: 420, frame: 'none', component: OverlayView },
   plugin: { title: 'Plugin console', width: 620, height: 420, component: ConsoleView },
 };
 
@@ -62,7 +62,8 @@ export function titleFor(route: string): string {
   }
   // V102-14 The channel: the name is on the card already.
   if (kind === 'usercard' && a) return `#${a}`;
-  if (kind === 'room' && a) return `${a} chat`;
+  // V105-18 Pop-ups show the channel, like the usercard.
+  if (kind === 'room' && a) return `#${a}`;
   if (kind === 'modview' && a) return `Mod view · ${a}`;
   if (kind === 'whispers' && a) return `Whispers · ${a}`;
   if (kind === 'plugin' && a) return `${plugins.view?.list.find((p) => p.id === a)?.info?.name ?? a} console`;

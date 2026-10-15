@@ -37,6 +37,8 @@ tauri-plugin-global-shortcut.workspace = true
 webview2-com.workspace = true
 windows = { workspace = true, features = [
     "Win32_Foundation",
+    # V105-18 Already built for tao: nothing new comes in.
+    "Win32_Graphics_Dwm",
     "Win32_System_Diagnostics_ToolHelp",
     # V103-14 Already built for tao: nothing new comes in.
     "Win32_UI_Shell",

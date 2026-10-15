@@ -101,8 +101,8 @@ pub fn set_pinned(app: &AppHandle, window: &tauri::Window, pinned: bool) -> Resu
     let patch = if window.label() == MAIN {
         json!({ "mainPinned": pinned })
     } else {
-        // Usercards pin per window; a new one always starts unpinned.
-        let Some(route) = route_of(app, window.label()).filter(|r| !usercard::is_usercard(r)) else {
+        // V105-18 Pop-ups pin per window; a new one always starts unpinned.
+        let Some(route) = route_of(app, window.label()).filter(|r| !usercard::is_popup(r)) else {
             return Ok(());
         };
         json!({ "panels": { usercard::settings_key(&route): { "pinned": pinned } } })
@@ -116,6 +116,13 @@ pub fn is_pinned(app: &AppHandle, label: &str) -> bool {
     let saved: Windows = app.state::<Settings>().read(Partition::Windows);
     if label == MAIN {
         return saved.main_pinned;
+    }
+    // V105-18 A pop-up's pin lives only on its window.
+    if route_of(app, label).is_some_and(|r| usercard::is_popup(&r)) {
+        return app
+            .get_webview_window(label)
+            .and_then(|w| w.is_always_on_top().ok())
+            .unwrap_or(false);
     }
     route_of(app, label)
         .and_then(|route| saved.panels.get(usercard::settings_key(&route)).map(|p| p.pinned))

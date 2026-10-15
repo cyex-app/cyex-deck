@@ -1,5 +1,5 @@
-<!-- Title bar of the main window and usercards (3.9): mark, title or custom content, pin,
-     minimize, maximize (main only), close. Pop-outs have PopoutFrame (V104-03). Empty
+<!-- Title bar of the main window (3.9): mark, title or custom content, pin,
+     minimize, maximize, close. Pop-outs and pop-ups have PopoutFrame (V104-03, V105-18). Empty
      areas drag the window. Grows with content that wraps (the main window's tab rows,
      V101-38); everything else stays on the first row. -->
 <script lang="ts">
@@ -15,11 +15,9 @@
     start?: Snippet;
     /** Content right before the window controls. */
     end?: Snippet;
-    /** Usercards: no minimize. */
-    compact?: boolean;
   }
 
-  let { title = '', start, end, compact = false }: Props = $props();
+  let { title = '', start, end }: Props = $props();
 </script>
 
 <header class="chrome" data-tauri-drag-region>
@@ -41,9 +39,7 @@
       active={currentWindow.pinned}
       onclick={() => currentWindow.togglePin()}
     />
-    {#if !compact}
-      <IconButton chrome icon="minimize" label="Minimize" onclick={currentWindow.minimize} />
-    {/if}
+    <IconButton chrome icon="minimize" label="Minimize" onclick={currentWindow.minimize} />
     {#if currentWindow.isMain}
       <IconButton
         chrome

@@ -2,21 +2,27 @@
      three small icon buttons, left to right: pin (always on top), fullscreen, and close.
      Close docks the view back where it has a place in the main window (3.14, V102-16) and
      just closes where it doesn't (`#channel` chats V102-05, recordings, plugin consoles).
-     No minimize. Esc leaves fullscreen. Empty parts drag the window. Usercards are pop-ups,
-     not pop-outs: they keep WindowChrome with its own small x. -->
+     No minimize. Esc leaves fullscreen. Empty parts drag the window. V105-18 Pop-ups
+     (usercards, `#channel` chats) use the slim variant: the channel, pin and a small round x,
+     no fullscreen; the header drags the window. -->
 <script lang="ts">
   import { currentWindow } from '../lib/window.svelte';
+  import Icon from './Icon.svelte';
   import IconButton from './IconButton.svelte';
+  import { tooltip } from './tooltip.svelte';
 
   interface Props {
     title: string;
     /** Closing puts the view back into the main window. */
     docks?: boolean;
+    /** V105-18 `slim` for pop-ups. */
+    variant?: 'large' | 'slim';
   }
 
-  let { title, docks = false }: Props = $props();
+  let { title, docks = false, variant = 'large' }: Props = $props();
 
   function onkeydown(e: KeyboardEvent) {
+    if (variant === 'slim') return;
     if (e.key !== 'Escape' || e.defaultPrevented || !currentWindow.fullscreen) return;
     // A player's own fullscreen goes first; the browser leaves it on this Esc.
     if (document.fullscreenElement) return;
@@ -27,7 +33,7 @@
 
 <svelte:window {onkeydown} />
 
-<header class="frame" data-tauri-drag-region>
+<header class="frame" class:slim={variant === 'slim'} data-tauri-drag-region>
   <span class="title" data-tauri-drag-region>{title}</span>
   <!-- Also where a dragged tile becomes its own tab (U3). -->
   <div class="fill" data-tauri-drag-region data-drop-bar></div>
@@ -37,17 +43,23 @@
       label={currentWindow.pinned ? 'Pinned on top' : 'Pin on top'}
       hint={currentWindow.pinned ? 'Click to let other windows cover it.' : 'Keeps this window above everything else.'}
       active={currentWindow.pinned}
-      size={13}
+      size={variant === 'slim' ? 12 : 13}
       onclick={() => currentWindow.togglePin()}
     />
-    <IconButton
-      icon={currentWindow.fullscreen ? 'shrink' : 'expand'}
-      label={currentWindow.fullscreen ? 'Leave fullscreen' : 'Fullscreen'}
-      hint={currentWindow.fullscreen ? 'Or press Esc.' : 'Fills the whole screen. Esc leaves.'}
-      size={13}
-      onclick={() => currentWindow.toggleFullscreen()}
-    />
-    {#if docks}
+    {#if variant === 'large'}
+      <IconButton
+        icon={currentWindow.fullscreen ? 'shrink' : 'expand'}
+        label={currentWindow.fullscreen ? 'Leave fullscreen' : 'Fullscreen'}
+        hint={currentWindow.fullscreen ? 'Or press Esc.' : 'Fills the whole screen. Esc leaves.'}
+        size={13}
+        onclick={() => currentWindow.toggleFullscreen()}
+      />
+    {/if}
+    {#if variant === 'slim'}
+      <button class="round-x" aria-label="Close" use:tooltip={{ label: 'Close' }} onclick={currentWindow.close}>
+        <Icon name="x" size={11} />
+      </button>
+    {:else if docks}
       <IconButton
         icon="dockBack"
         label="Dock back"
@@ -98,5 +110,41 @@
   .controls :global(.icon-btn.danger:hover) {
     background: #e81123;
     color: #fff;
+  }
+  .frame.slim {
+    height: 26px;
+    padding-left: 10px;
+    border-bottom: 0;
+  }
+  .slim .controls {
+    gap: 4px;
+    padding-right: 6px;
+  }
+  .slim .controls :global(.icon-btn) {
+    width: 22px;
+    height: 20px;
+  }
+  .slim .controls :global(.icon-btn.active) {
+    background: var(--accent-dim);
+    color: var(--accent-text);
+  }
+  .round-x {
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 50%;
+    color: var(--dim);
+    transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+  }
+  .round-x:hover {
+    background: #e81123;
+    color: #fff;
+  }
+  .round-x:active {
+    transform: scale(0.94);
   }
 </style>

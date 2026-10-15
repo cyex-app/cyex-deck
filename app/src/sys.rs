@@ -81,6 +81,26 @@ pub fn low_memory(window: &tauri::WebviewWindow, low: bool) {
 #[cfg(not(windows))]
 pub fn low_memory(_window: &tauri::WebviewWindow, _low: bool) {}
 
+/// V105-18 Windows 11's small rounded corners (4 px) for pop-ups. Windows 10 ignores it.
+#[cfg(windows)]
+pub fn small_corners(window: &tauri::WebviewWindow) {
+    use windows::Win32::Graphics::Dwm::{DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUNDSMALL, DwmSetWindowAttribute};
+    let Ok(hwnd) = window.hwnd() else { return };
+    let pref = DWMWCP_ROUNDSMALL;
+    // SAFETY: a live window handle and a 4-byte value of the attribute's type.
+    let _ = unsafe {
+        DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_WINDOW_CORNER_PREFERENCE,
+            std::ptr::from_ref(&pref).cast(),
+            std::mem::size_of_val(&pref) as u32,
+        )
+    };
+}
+
+#[cfg(not(windows))]
+pub fn small_corners(_window: &tauri::WebviewWindow) {}
+
 /// V103-14 Fullscreen covers the whole monitor, also from a maximized window. tao keeps a
 /// window maximized in fullscreen and gives a maximized frameless window only the monitor's
 /// work area, so the taskbar's strip stayed empty next to the stream. This answers

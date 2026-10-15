@@ -54,6 +54,13 @@ pub fn is_usercard(route: &str) -> bool {
     route == KIND || route.starts_with("usercard/")
 }
 
+/// V105-18 Pop-ups: usercards and `#channel` chats. Slim frame, small corners, and a
+/// pin that's never remembered: every new one starts unpinned. Must match the `slim`
+/// kinds in `ui/src/app/panels.ts`.
+pub fn is_popup(route: &str) -> bool {
+    is_usercard(route) || route.starts_with("room/")
+}
+
 /// Settings key for a route: all usercards share one entry, and so do the chats opened
 /// from a `#channel` (V102-05), so `windows` doesn't grow with every channel.
 pub fn settings_key(route: &str) -> &str {
@@ -92,6 +99,7 @@ pub fn open(app: &AppHandle, channel: &str, login: &str) -> tauri::Result<()> {
         .skip_taskbar(true)
         .center()
         .build()?;
+    crate::sys::small_corners(&window);
     // Placed in physical pixels while still hidden: the mouse may be on a monitor with
     // another scale than the one the window was created on, and Windows rescales it
     // when it moves there.
@@ -135,7 +143,16 @@ fn beside(at: f64, size: f64, gap: f64, start: f64, len: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::beside;
+    use super::{beside, is_popup};
+
+    #[test]
+    fn popups_are_usercards_and_channel_chats() {
+        assert!(is_popup("usercard/a/b"));
+        assert!(is_popup("room/a"));
+        assert!(!is_popup("chat/x"));
+        assert!(!is_popup("modview/a"));
+        assert!(!is_popup("overlay/x"));
+    }
 
     #[test]
     fn cards_open_beside_the_mouse_and_flip_near_the_edge() {
