@@ -124,6 +124,7 @@
     font-weight: 400;
   }
   .close {
+    position: relative;
     display: grid;
     place-items: center;
     flex: none;
@@ -133,6 +134,11 @@
     background: none;
     border: 0;
     color: var(--dim);
+  }
+  .close::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
   }
   .close:hover {
     color: var(--text);

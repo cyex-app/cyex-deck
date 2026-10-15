@@ -457,12 +457,18 @@
     font: 600 0.82rem var(--font-mono);
   }
   .chip button {
+    position: relative;
     width: 20px;
     height: 20px;
     padding: 0;
     background: none;
     border: 0;
     color: var(--dim);
+  }
+  .chip button::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
   }
   .chip button:hover {
     color: var(--red);

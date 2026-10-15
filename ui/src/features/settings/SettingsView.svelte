@@ -211,6 +211,11 @@
     border-radius: var(--radius);
     color: var(--dim);
   }
+  .clear::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+  }
   .clear:hover {
     background: var(--surface-hover);
     color: var(--text);

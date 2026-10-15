@@ -105,7 +105,7 @@
   }
   .controls :global(.icon-btn) {
     width: 24px;
-    height: 22px;
+    height: 24px;
   }
   .controls :global(.icon-btn.danger:hover) {
     background: #e81123;
@@ -121,14 +121,15 @@
     padding-right: 6px;
   }
   .slim .controls :global(.icon-btn) {
-    width: 22px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
   }
   .slim .controls :global(.icon-btn.active) {
     background: var(--accent-dim);
     color: var(--accent-text);
   }
   .round-x {
+    position: relative;
     display: grid;
     place-items: center;
     width: 18px;
@@ -139,6 +140,12 @@
     border-radius: 50%;
     color: var(--dim);
     transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+  }
+  /* 24 px to hit, 18 px to see. */
+  .round-x::before {
+    content: "";
+    position: absolute;
+    inset: -3px;
   }
   .round-x:hover {
     background: #e81123;

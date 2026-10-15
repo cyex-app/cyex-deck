@@ -38,4 +38,10 @@
     width: 22px;
     height: 22px;
   }
+  /* 24 px to hit, 22 px to see. */
+  .file :global(.icon-btn)::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+  }
 </style>

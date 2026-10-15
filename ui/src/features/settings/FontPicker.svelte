@@ -187,7 +187,7 @@
   .remove {
     position: absolute;
     top: 50%;
-    right: 26px;
+    right: 24px;
     display: grid;
     opacity: 0;
     place-items: center;
@@ -201,6 +201,12 @@
     transform: translateY(-50%);
   }
   /* Hidden until hover, but still focusable by Tab (display: none would skip it). */
+  /* 24 px to hit, 20 px to see. */
+  .remove::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+  }
   li:hover .remove,
   li:focus-within .remove {
     opacity: 1;

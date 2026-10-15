@@ -423,6 +423,7 @@
     text-overflow: ellipsis;
   }
   .reply-bar button {
+    position: relative;
     display: grid;
     place-items: center;
     width: 22px;
@@ -431,6 +432,11 @@
     background: none;
     border: 0;
     color: var(--dim);
+  }
+  .reply-bar button::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
   }
   .reply-bar button:hover {
     color: var(--text);
