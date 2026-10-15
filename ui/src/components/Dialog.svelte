@@ -48,14 +48,15 @@
     inset: 0;
     z-index: var(--z-popover);
     display: grid;
-    place-items: start center;
-    padding-top: 12vh;
+    place-items: center; /* V105-16: centered in the window */
+    padding: 12px;
     background: var(--overlay);
     animation: fade var(--fast) ease-out;
   }
   .dialog {
-    max-width: calc(100vw - 24px);
-    max-height: 80vh;
+    max-width: 100%;
+    max-height: 100%;
+    animation: pop var(--fast) ease-out;
     display: flex;
     flex-direction: column;
     background: var(--elevated);
@@ -86,6 +87,18 @@
   @keyframes fade {
     from {
       opacity: 0;
+    }
+  }
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .backdrop,
+    .dialog {
+      animation: none;
     }
   }
 </style>

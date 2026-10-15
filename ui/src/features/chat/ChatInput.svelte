@@ -369,18 +369,23 @@
   textarea::placeholder {
     color: var(--dim);
   }
+  /* V105-11: the counter is a flex item after the buttons with a fixed width, so the
+     textarea ends before it and text can never run under it. */
   .meta {
-    position: absolute;
-    right: 56px;
-    bottom: 15px;
+    flex: none;
+    width: 8ch;
     display: flex;
-    gap: 8px;
+    flex-direction: column;
+    align-items: flex-end;
+    align-self: flex-end;
+    justify-content: flex-end;
+    min-height: 34px;
+    padding-bottom: 8px;
     pointer-events: none;
-    font: 600 0.72rem var(--font-mono);
+    font: 600 0.68rem/1.2 var(--font-mono);
+    font-variant-numeric: tabular-nums;
     color: var(--dim);
-  }
-  .gifs .meta {
-    right: 96px;
+    white-space: nowrap;
   }
   .meta .wait {
     color: var(--yellow);
