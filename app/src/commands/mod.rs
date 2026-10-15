@@ -21,6 +21,7 @@ mod subs;
 pub mod system;
 mod tabs;
 mod theme;
+mod update;
 mod upload;
 mod usercard;
 mod whispers;
@@ -38,6 +39,11 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         accounts::accounts_set_default,
         accounts::accounts_open_activation,
         accounts::connections_counts,
+        update::update_state,
+        update::update_check,
+        update::update_skip,
+        update::update_install,
+        update::update_open_notes,
         upload::upload_stage,
         upload::upload_images,
         whispers::whispers_state,

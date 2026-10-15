@@ -36,6 +36,8 @@ futures-util = { version = "0.3", default-features = false, features = ["sink", 
 # Windows Credential Manager on Windows (v1 mode only compiles the platform store).
 keyring = "4.2"
 url = "2"
+# V105-20 The update's SHA-256 (already in the build through wry).
+sha2 = "0.10"
 regex = "1"
 # V104-01 Mentions with lookaround and backreferences (approved 2026/10/12). Plain
 # patterns run on the regex crate underneath, which is already in the build.

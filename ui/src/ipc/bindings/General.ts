@@ -2,6 +2,7 @@
 import type { ChatPosition } from "./ChatPosition";
 import type { CustomFont } from "./CustomFont";
 import type { StreamerMode } from "./StreamerMode";
+import type { Updates } from "./Updates";
 
 export type General = { 
 /**
@@ -40,4 +41,8 @@ smoothScroll: boolean,
 /**
  * U4
  */
-streamer: StreamerMode, };
+streamer: StreamerMode, 
+/**
+ * V105-20
+ */
+updates: Updates, };

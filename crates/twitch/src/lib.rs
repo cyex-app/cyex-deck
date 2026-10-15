@@ -8,6 +8,7 @@ pub mod clients;
 pub mod clock;
 pub mod firehose;
 pub mod giphy;
+pub mod github;
 mod error;
 pub mod gql;
 pub mod helix;

@@ -29,6 +29,7 @@ mod tabs;
 mod theme;
 mod toasts;
 mod tray;
+mod update;
 mod upload;
 mod whispers;
 mod windows;
@@ -71,6 +72,7 @@ fn main() {
             streammanager::init(handle);
             whispers::init(handle);
             upload::init(handle);
+            update::init(handle);
             bell::init(handle);
             alerts::init(handle);
             windows::init(handle)?;

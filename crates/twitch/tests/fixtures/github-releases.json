@@ -1,0 +1,48 @@
+[
+  {
+    "tag_name": "v0.2.0",
+    "html_url": "https://github.com/cyex-app/cyex-deck/releases/tag/v0.2.0",
+    "draft": true,
+    "prerelease": false,
+    "assets": [
+      {"name": "cyex-deck_0.2.0_x64-setup.exe", "browser_download_url": "https://example.test/d/cyex-deck_0.2.0_x64-setup.exe", "size": 9000},
+      {"name": "cyex-deck_0.2.0_x64-setup.exe.sha256", "browser_download_url": "https://example.test/d/cyex-deck_0.2.0_x64-setup.exe.sha256", "size": 90}
+    ]
+  },
+  {
+    "tag_name": "v0.1.6-beta.1",
+    "html_url": "https://github.com/cyex-app/cyex-deck/releases/tag/v0.1.6-beta.1",
+    "draft": false,
+    "prerelease": true,
+    "assets": [
+      {"name": "cyex-deck_0.1.6-beta.1_x64-setup.exe", "browser_download_url": "https://example.test/d/cyex-deck_0.1.6-beta.1_x64-setup.exe", "size": 8000},
+      {"name": "cyex-deck_0.1.6-beta.1_x64-setup.exe.sha256", "browser_download_url": "https://example.test/d/cyex-deck_0.1.6-beta.1_x64-setup.exe.sha256", "size": 90}
+    ]
+  },
+  {
+    "tag_name": "v0.1.5",
+    "html_url": "https://github.com/cyex-app/cyex-deck/releases/tag/v0.1.5",
+    "draft": false,
+    "prerelease": false,
+    "assets": [
+      {"name": "cyex-deck_0.1.5_x64-setup.exe", "browser_download_url": "https://example.test/d/cyex-deck_0.1.5_x64-setup.exe", "size": 7000},
+      {"name": "cyex-deck_0.1.5_x64-setup.exe.sha256", "browser_download_url": "https://example.test/d/cyex-deck_0.1.5_x64-setup.exe.sha256", "size": 90}
+    ]
+  },
+  {
+    "tag_name": "v0.1.04",
+    "html_url": "https://github.com/cyex-app/cyex-deck/releases/tag/v0.1.04",
+    "draft": false,
+    "prerelease": true,
+    "assets": [
+      {"name": "cyex-deck_0.1.04_x64-setup.exe", "browser_download_url": "https://example.test/d/cyex-deck_0.1.04_x64-setup.exe", "size": 6000}
+    ]
+  },
+  {
+    "tag_name": "nightly",
+    "html_url": "https://github.com/cyex-app/cyex-deck/releases/tag/nightly",
+    "draft": false,
+    "prerelease": true,
+    "assets": []
+  }
+]

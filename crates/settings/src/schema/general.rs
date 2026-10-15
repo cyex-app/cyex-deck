@@ -26,6 +26,8 @@ pub struct General {
     pub smooth_scroll: bool,
     /// U4
     pub streamer: StreamerMode,
+    /// V105-20
+    pub updates: Updates,
 }
 
 impl Default for General {
@@ -40,6 +42,7 @@ impl Default for General {
             minimize_to_tray: false,
             smooth_scroll: true,
             streamer: StreamerMode::default(),
+            updates: Updates::default(),
         }
     }
 }
@@ -70,6 +73,32 @@ impl Schema for General {
             keep
         });
         apps.truncate(MAX_APPS);
+        self.updates.skip = self.updates.skip.trim().to_owned();
+        if cyex_core::version::parse(&self.updates.skip).is_none() {
+            self.updates.skip.clear();
+        }
+    }
+}
+
+/// V105-20 Update checks against the GitHub releases.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(default, rename_all = "camelCase")]
+#[ts(export)]
+pub struct Updates {
+    /// At startup and every 12 hours.
+    pub check: bool,
+    pub prereleases: bool,
+    /// A version the user skipped; not offered again by the timed check.
+    pub skip: String,
+}
+
+impl Default for Updates {
+    fn default() -> Self {
+        Self {
+            check: true,
+            prereleases: true,
+            skip: String::new(),
+        }
     }
 }
 
@@ -214,6 +243,19 @@ mod tests {
         };
         g.sanitize();
         assert_eq!(g.fonts, vec![font("My Font", "abc123.ttf"), font("Web", "bbb.woff2")]);
+    }
+
+    #[test]
+    fn updates_default_on_and_a_junk_skip_is_cleared() {
+        let u = General::default().updates;
+        assert!(u.check && u.prereleases && u.skip.is_empty());
+        let mut g = General::default();
+        g.updates.skip = " 0.1.6 ".into();
+        g.sanitize();
+        assert_eq!(g.updates.skip, "0.1.6");
+        g.updates.skip = "latest".into();
+        g.sanitize();
+        assert_eq!(g.updates.skip, "");
     }
 
     #[test]

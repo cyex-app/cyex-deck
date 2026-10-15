@@ -36,6 +36,7 @@
   import TabBar from '../features/tabs/TabBar.svelte';
   import TabOverlays from '../features/tabs/TabOverlays.svelte';
   import TabView from '../features/tabs/TabView.svelte';
+  import UpdateBadge from '../features/update/UpdateBadge.svelte';
   import { openTarget, playerHotkeys } from '../features/player/players.svelte';
   import { openChannel } from '../features/browse/open.svelte';
   import { barPlace } from '../features/tabs/barLayout';
@@ -402,6 +403,7 @@
     {/if}
     <ConnectionCounter />
     <AccountMenu onmanage={manageAccounts} onsubs={() => show('subs')} />
+    <UpdateBadge />
     <IconButton icon="settings" label="Settings" hint="Everything you can change (Ctrl+,)." active={fixed === 'settings'} onclick={() => show('settings')} />
   {/snippet}
 </WindowChrome>

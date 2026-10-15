@@ -49,6 +49,27 @@ export const APP: Entry[] = [
     description: 'Minimizing hides cyex deck in the tray instead of the taskbar.',
     keywords: ['taskbar', 'system tray', 'background'],
   },
+  {
+    id: 'general.updates.check',
+    page: 'general',
+    label: 'Check for updates',
+    description: 'At startup and every 12 hours.',
+    keywords: ['update', 'version', 'new version', 'github', 'upgrade'],
+  },
+  {
+    id: 'general.updates.prereleases',
+    page: 'general',
+    label: 'Include pre-releases',
+    description: 'Test builds that come before a release.',
+    keywords: ['update', 'version', 'beta', 'pre-release', 'prerelease', 'test build'],
+  },
+  {
+    id: 'general:checkNow',
+    page: 'general',
+    label: 'Check now',
+    description: 'Look for a new version right away.',
+    keywords: ['update', 'version', 'new version', 'github', 'check'],
+  },
 
   // Appearance
   {

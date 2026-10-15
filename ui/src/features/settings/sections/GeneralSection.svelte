@@ -2,15 +2,18 @@
      fonts, font files the user added and fonts installed on this PC (V101-10, V105-13). -->
 <script lang="ts">
   import Icon from '../../../components/Icon.svelte';
+  import Button from '../../../components/Button.svelte';
   import Row from '../../../components/Row.svelte';
   import Segmented from '../../../components/Segmented.svelte';
   import Stepper from '../../../components/Stepper.svelte';
   import Toggle from '../../../components/Toggle.svelte';
   import type { ChatPosition } from '../../../ipc/bindings/ChatPosition';
   import { fontsIpc } from '../../../ipc/theme';
+  import { updateIpc } from '../../../ipc/update';
   import { formatTime } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
+  import { checkText } from '../../update/updateText';
   import FontPicker from '../FontPicker.svelte';
   import ResetSection from '../ResetSection.svelte';
 
@@ -36,6 +39,22 @@
 
   function removeFont(name: string) {
     fontsIpc.remove(name).catch((e) => toast.error(String(e)));
+  }
+
+  // V105-20 "Check now": the answer sits next to the button.
+  let checking = $state(false);
+  let checked = $state('');
+
+  async function checkNow() {
+    checking = true;
+    checked = '';
+    try {
+      checked = checkText(await updateIpc.check());
+    } catch {
+      checked = checkText({ kind: 'failed' });
+    } finally {
+      checking = false;
+    }
   }
 </script>
 
@@ -99,6 +118,27 @@
   />
 </Row>
 
+<h3 class="label">Updates</h3>
+<Row setting="general.updates.check" label="Check for updates" hint="At startup and every 12 hours.">
+  <Toggle
+    label="Check for updates"
+    checked={g.updates.check}
+    onchange={(v) => settings.patch('general', { updates: { ...g.updates, check: v } })}
+  />
+</Row>
+<Row setting="general.updates.prereleases" label="Include pre-releases" hint="Test builds that come before a release.">
+  <Toggle
+    label="Include pre-releases"
+    checked={g.updates.prereleases}
+    onchange={(v) => settings.patch('general', { updates: { ...g.updates, prereleases: v } })}
+  />
+</Row>
+<Row setting="general:checkNow" label="Check now">
+  {#if checked}<span class="checked">{checked}</span>{/if}
+  <Button small disabled={checking} onclick={() => void checkNow()}>{checking ? 'Checking…' : 'Check now'}</Button>
+</Row>
+<p class="privacy">Checks GitHub for new versions. Sends nothing about you or your accounts.</p>
+
 <ResetSection partition="general" />
 
 <style>
@@ -128,6 +168,15 @@
     border-style: dashed;
     font-family: var(--font-ui);
     font-size: 0.82rem;
+  }
+  .checked {
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .privacy {
+    margin: 8px 0 0;
+    color: var(--dim);
+    font-size: 0.8rem;
   }
   .preview {
     margin: 4px 0 2px;

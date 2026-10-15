@@ -185,6 +185,8 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
 ; 4. Custom page to ask user if he wants to reinstall/uninstall
 ;    only if a previous installation was detected
 Var ReinstallPageCheck
+; V105-20 The version the registry lists, for the page's wording.
+Var InstalledVersion
 Page custom PageReinstall PageLeaveReinstall
 Function PageReinstall
   ; Uninstall previous WiX installation if exists.
@@ -229,32 +231,37 @@ Function PageReinstall
   ${Else}
     ReadRegStr $R0 SHCTX "${UNINSTKEY}" "DisplayVersion"
   ${EndIf}
+  ; V105-20 Keep the old version for the page text.
+  StrCpy $InstalledVersion $R0
   ${IfThen} $R0 == "" ${|} StrCpy $R4 "$(unknown)" ${|}
 
   nsis_tauri_utils::SemverCompare "${VERSION}" $R0
   Pop $R0
   ; Reinstalling the same version
   ${If} $R0 = 0
-    StrCpy $R1 "$(alreadyInstalledLong)"
-    StrCpy $R2 "$(addOrReinstall)"
-    StrCpy $R3 "$(uninstallApp)"
-    !insertmacro MUI_HEADER_TEXT "$(alreadyInstalled)" "$(chooseMaintenanceOption)"
+    ; V105-20 Our wording: repair or uninstall.
+    StrCpy $R1 "cyex deck ${VERSION} is already installed."
+    StrCpy $R2 "Repair (puts the program files back)"
+    StrCpy $R3 "Uninstall"
+    !insertmacro MUI_HEADER_TEXT "Already installed" "Pick what to do."
   ; Upgrading
   ${ElseIf} $R0 = 1
-    StrCpy $R1 "$(olderOrUnknownVersionInstalled)"
-    StrCpy $R2 "$(uninstallBeforeInstalling)"
-    StrCpy $R3 "$(dontUninstall)"
-    !insertmacro MUI_HEADER_TEXT "$(alreadyInstalled)" "$(choowHowToInstall)"
+    ; V105-20 Our wording: upgrade in place (first, selected) or a fresh install.
+    ${If} $InstalledVersion == ""
+      StrCpy $R1 "An older cyex deck is installed."
+    ${Else}
+      StrCpy $R1 "cyex deck $InstalledVersion is installed."
+    ${EndIf}
+    StrCpy $R2 "Upgrade to ${VERSION} (keeps your settings and accounts)"
+    StrCpy $R3 "Fresh install (removes the old version first; your settings stay)"
+    !insertmacro MUI_HEADER_TEXT "Already installed" "Pick how to install ${VERSION}."
   ; Downgrading
   ${ElseIf} $R0 = -1
-    StrCpy $R1 "$(newerVersionInstalled)"
-    StrCpy $R2 "$(uninstallBeforeInstalling)"
-    !if "${ALLOWDOWNGRADES}" == "true"
-      StrCpy $R3 "$(dontUninstall)"
-    !else
-      StrCpy $R3 "$(dontUninstallDowngrade)"
-    !endif
-    !insertmacro MUI_HEADER_TEXT "$(alreadyInstalled)" "$(choowHowToInstall)"
+    ; V105-20 Our wording.
+    StrCpy $R1 "A newer cyex deck ($InstalledVersion) is installed. Going back to ${VERSION} may not read settings the newer one saved."
+    StrCpy $R2 "Uninstall $InstalledVersion first"
+    StrCpy $R3 "Install ${VERSION} over it"
+    !insertmacro MUI_HEADER_TEXT "Newer version installed" "Pick what to do."
   ${Else}
     Abort
   ${EndIf}
@@ -332,10 +339,11 @@ Function PageLeaveReinstall
       Goto reinst_uninstall
     ${EndIf}
   ${ElseIf} $R0 = 1 ; Upgrading
-    ${If} $R1 = 1              ; User chose to uninstall
-      Goto reinst_uninstall
+    ; V105-20 The first choice is the in-place upgrade; the second is a fresh install.
+    ${If} $R1 = 1              ; User chose to upgrade in place
+      Goto reinst_done
     ${Else}
-      Goto reinst_done         ; User chose NOT to uninstall
+      Goto reinst_uninstall    ; User chose the fresh install
     ${EndIf}
   ${ElseIf} $R0 = -1 ; Downgrading
     ${If} $R1 = 1              ; User chose to uninstall
@@ -643,7 +651,8 @@ Section Install
     !insertmacro NSIS_HOOK_PREINSTALL
   !endif
 
-  !insertmacro CheckIfAppIsRunning "$INSTDIR\${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
+  ; V105-20 Ask to close a running cyex deck instead of killing it (hooks.nsh).
+  !insertmacro CyexCloseApp "$INSTDIR\${MAINBINARYNAME}.exe"
 
   ; Copy main executable
   File "${MAINBINARYSRCPATH}"
