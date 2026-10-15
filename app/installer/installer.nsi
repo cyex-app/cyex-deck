@@ -340,7 +340,10 @@ Function PageLeaveReinstall
     ${EndIf}
   ${ElseIf} $R0 = 1 ; Upgrading
     ; V105-20 The first choice is the in-place upgrade; the second is a fresh install.
+    ; Passive installs have no page (and so no checked button): they upgrade in place too,
+    ; as Tauri's template did.
     ${If} $R1 = 1              ; User chose to upgrade in place
+    ${OrIf} $PassiveMode = 1
       Goto reinst_done
     ${Else}
       Goto reinst_uninstall    ; User chose the fresh install
