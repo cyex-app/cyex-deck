@@ -22,7 +22,10 @@ pub struct Paint {
     color: Option<i64>,
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+mod v4;
+pub(crate) use v4::from_v4;
+
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 struct Layer {
     function: Option<String>,
     #[serde(default)]
@@ -38,6 +41,9 @@ struct Layer {
     /// `[w, h]` as 0-1.
     size: Option<Vec<f64>>,
     canvas_repeat: Option<String>,
+    /// V1051-03 v4 lists the still frame's URL; v3 never sets it.
+    #[serde(default)]
+    still_url: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -168,7 +174,10 @@ impl Layer {
         if f == "URL" {
             let url = self.image()?;
             let url = if still {
-                url.replacen("x.webp", "x_static.webp", 1)
+                match self.still_url.as_deref().filter(|u| safe_url(u)) {
+                    Some(s) => s.to_owned(),
+                    None => url.replacen("x.webp", "x_static.webp", 1),
+                }
             } else {
                 url.to_owned()
             };
@@ -236,7 +245,7 @@ fn is_word(s: &str) -> bool {
 }
 
 /// Only 7TV's CDN, and nothing that could close the CSS string.
-fn safe_url(u: &str) -> bool {
+pub(crate) fn safe_url(u: &str) -> bool {
     u.starts_with("https://cdn.7tv.app/") && !u.contains(['"', '\\', '(', ')', ';', '<', '>', '\n'])
 }
 

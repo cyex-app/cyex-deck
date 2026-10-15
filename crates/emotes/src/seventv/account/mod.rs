@@ -2,7 +2,9 @@
 //! user, cosmetic changes and logout. The token only ever goes to the client's own base.
 
 pub mod error;
+pub mod model;
 pub mod query;
+pub mod view;
 #[cfg(test)]
 mod tests;
 
@@ -54,7 +56,7 @@ impl Client {
         format!("{}/login?platform=twitch", self.auth)
     }
 
-    /// The account's public inventory as 7TV answered it (`None`: no 7TV user). Group 2 types it.
+    /// The account's public inventory as 7TV answered it (`None`: no 7TV user). `model::parse_user` types it.
     pub async fn inventory(&self, twitch_id: &str) -> Result<Option<Value>, Error> {
         let vars = json!({ "tw": twitch_id, "product": SUB_PRODUCT });
         let data = self.gql(None, query::INVENTORY, vars).await?;

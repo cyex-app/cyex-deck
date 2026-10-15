@@ -1,0 +1,696 @@
+{
+ "data": {
+  "users": {
+   "userByConnection": {
+    "id": "01JR66HD1W6D9QPTGHFS09BG36",
+    "style": {
+     "activePaintId": "01KC2M1QNZ1Q1E47KPM14VSERH",
+     "activeBadgeId": "01KB4X7XGZWPSJBP7FTFSRGZ90"
+    },
+    "billing": {
+     "subscriptionInfo": {
+      "activePeriod": {
+       "end": "2026-11-15T20:21:04+00:00"
+      },
+      "totalDays": 548
+     }
+    },
+    "inventory": {
+     "paints": [
+      {
+       "accessible": true,
+       "from": {
+        "__typename": "EntitlementNodeSubscriptionBenefit"
+       },
+       "to": {
+        "paint": {
+         "id": "01JQM68WYPTC7PFSE1QZKGWSTX",
+         "name": "Silver Flare",
+         "updatedAt": "2025-03-30T19:54:39.043+00:00",
+         "data": {
+          "layers": [
+           {
+            "id": "01JQM9XP221CE9R9PD6D6HGJD9",
+            "opacity": 1,
+            "ty": {
+             "__typename": "PaintLayerTypeLinearGradient",
+             "angle": 0,
+             "repeating": false,
+             "stops": [
+              {
+               "at": 0,
+               "color": {
+                "hex": "#FFFFFFFF"
+               }
+              },
+              {
+               "at": 0.26,
+               "color": {
+                "hex": "#BDBDBDFF"
+               }
+              },
+              {
+               "at": 0.4,
+               "color": {
+                "hex": "#999999FF"
+               }
+              },
+              {
+               "at": 0.44,
+               "color": {
+                "hex": "#616161FF"
+               }
+              },
+              {
+               "at": 0.5,
+               "color": {
+                "hex": "#FFFFFFFF"
+               }
+              },
+              {
+               "at": 0.65,
+               "color": {
+                "hex": "#FFFFFFFF"
+               }
+              }
+             ]
+            }
+           }
+          ],
+          "shadows": [
+           {
+            "color": {
+             "hex": "#000000FF"
+            },
+            "offsetX": 0,
+            "offsetY": 0,
+            "blur": 1
+           },
+           {
+            "color": {
+             "hex": "#878787FF"
+            },
+            "offsetX": 0,
+            "offsetY": 0,
+            "blur": 4
+           }
+          ]
+         }
+        }
+       }
+      },
+      {
+       "accessible": true,
+       "from": {
+        "__typename": "EntitlementNodeSubscriptionBenefit"
+       },
+       "to": {
+        "paint": {
+         "id": "01JQM5X9N65Z6M8Q3Z6RV8BDT4",
+         "name": "Forest Spring",
+         "updatedAt": "2025-03-30T19:11:54.268+00:00",
+         "data": {
+          "layers": [
+           {
+            "id": "01JQM7FDCV1MAT56RFCVRMZYZF",
+            "opacity": 1,
+            "ty": {
+             "__typename": "PaintLayerTypeRadialGradient",
+             "shape": "CIRCLE",
+             "repeating": false,
+             "stops": [
+              {
+               "at": 0.11,
+               "color": {
+                "hex": "#0AFF69FF"
+               }
+              },
+              {
+               "at": 0.24,
+               "color": {
+                "hex": "#EEFF05FF"
+               }
+              },
+              {
+               "at": 0.37,
+               "color": {
+                "hex": "#89FF0AFF"
+               }
+              },
+              {
+               "at": 0.52,
+               "color": {
+                "hex": "#FFFED4FF"
+               }
+              },
+              {
+               "at": 0.68,
+               "color": {
+                "hex": "#9AE8EDFF"
+               }
+              },
+              {
+               "at": 1,
+               "color": {
+                "hex": "#9AE8EDFF"
+               }
+              }
+             ]
+            }
+           }
+          ],
+          "shadows": [
+           {
+            "color": {
+             "hex": "#A7E6ECFF"
+            },
+            "offsetX": 0,
+            "offsetY": 0,
+            "blur": 0.1
+           }
+          ]
+         }
+        }
+       }
+      },
+      {
+       "accessible": true,
+       "from": {
+        "__typename": "EntitlementNodeSpecialEvent"
+       },
+       "to": {
+        "paint": {
+         "id": "01JK6NVC5W6VS5D0KTJXF6SQRC",
+         "name": "Molten Core",
+         "updatedAt": "2025-02-03T19:52:21.710+00:00",
+         "data": {
+          "layers": [
+           {
+            "id": "01JK6NX4DTTXK1527D5PWZ38X9",
+            "opacity": 1,
+            "ty": {
+             "__typename": "PaintLayerTypeImage",
+             "images": [
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/1x_static.webp",
+               "mime": "image/webp",
+               "scale": 1,
+               "frameCount": 1
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/2x_static.webp",
+               "mime": "image/webp",
+               "scale": 2,
+               "frameCount": 1
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/3x_static.webp",
+               "mime": "image/webp",
+               "scale": 3,
+               "frameCount": 1
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/4x_static.webp",
+               "mime": "image/webp",
+               "scale": 4,
+               "frameCount": 1
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/1x_static.avif",
+               "mime": "image/avif",
+               "scale": 1,
+               "frameCount": 1
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/2x_static.avif",
+               "mime": "image/avif",
+               "scale": 2,
+               "frameCount": 1
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/3x_static.avif",
+               "mime": "image/avif",
+               "scale": 3,
+               "frameCount": 1
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/4x_static.avif",
+               "mime": "image/avif",
+               "scale": 4,
+               "frameCount": 1
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/1x_static.png",
+               "mime": "image/png",
+               "scale": 1,
+               "frameCount": 1
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/2x_static.png",
+               "mime": "image/png",
+               "scale": 2,
+               "frameCount": 1
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/3x_static.png",
+               "mime": "image/png",
+               "scale": 3,
+               "frameCount": 1
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/4x_static.png",
+               "mime": "image/png",
+               "scale": 4,
+               "frameCount": 1
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/1x.webp",
+               "mime": "image/webp",
+               "scale": 1,
+               "frameCount": 248
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/2x.webp",
+               "mime": "image/webp",
+               "scale": 2,
+               "frameCount": 248
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/3x.webp",
+               "mime": "image/webp",
+               "scale": 3,
+               "frameCount": 248
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/4x.webp",
+               "mime": "image/webp",
+               "scale": 4,
+               "frameCount": 248
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/1x.avif",
+               "mime": "image/avif",
+               "scale": 1,
+               "frameCount": 248
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/2x.avif",
+               "mime": "image/avif",
+               "scale": 2,
+               "frameCount": 248
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/3x.avif",
+               "mime": "image/avif",
+               "scale": 3,
+               "frameCount": 248
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/4x.avif",
+               "mime": "image/avif",
+               "scale": 4,
+               "frameCount": 248
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/1x.gif",
+               "mime": "image/gif",
+               "scale": 1,
+               "frameCount": 248
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/2x.gif",
+               "mime": "image/gif",
+               "scale": 2,
+               "frameCount": 248
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/3x.gif",
+               "mime": "image/gif",
+               "scale": 3,
+               "frameCount": 248
+              },
+              {
+               "url": "https://cdn.7tv.app/paint/01JK6NVC5W6VS5D0KTJXF6SQRC/layer/01JK6NX4DTTXK1527D5PWZ38X9/4x.gif",
+               "mime": "image/gif",
+               "scale": 4,
+               "frameCount": 248
+              }
+             ]
+            }
+           }
+          ],
+          "shadows": [
+           {
+            "color": {
+             "hex": "#F09B2CFF"
+            },
+            "offsetX": 0,
+            "offsetY": 0,
+            "blur": 0.1
+           }
+          ]
+         }
+        }
+       }
+      }
+     ],
+     "badges": [
+      {
+       "accessible": true,
+       "from": {
+        "__typename": "EntitlementNodeSpecialEvent"
+       },
+       "to": {
+        "badge": {
+         "id": "01JZX7H1H6QERDGF8QRA2ZAKPW",
+         "name": "Summer Gifter 2025",
+         "description": "Summer Gifter Badge",
+         "images": [
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/1x_static.webp",
+           "mime": "image/webp",
+           "scale": 1,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/2x_static.webp",
+           "mime": "image/webp",
+           "scale": 2,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/3x_static.webp",
+           "mime": "image/webp",
+           "scale": 3,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/4x_static.webp",
+           "mime": "image/webp",
+           "scale": 4,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/1x_static.avif",
+           "mime": "image/avif",
+           "scale": 1,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/2x_static.avif",
+           "mime": "image/avif",
+           "scale": 2,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/3x_static.avif",
+           "mime": "image/avif",
+           "scale": 3,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/4x_static.avif",
+           "mime": "image/avif",
+           "scale": 4,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/1x_static.png",
+           "mime": "image/png",
+           "scale": 1,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/2x_static.png",
+           "mime": "image/png",
+           "scale": 2,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/3x_static.png",
+           "mime": "image/png",
+           "scale": 3,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/4x_static.png",
+           "mime": "image/png",
+           "scale": 4,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/1x.webp",
+           "mime": "image/webp",
+           "scale": 1,
+           "frameCount": 280
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/2x.webp",
+           "mime": "image/webp",
+           "scale": 2,
+           "frameCount": 280
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/3x.webp",
+           "mime": "image/webp",
+           "scale": 3,
+           "frameCount": 280
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/4x.webp",
+           "mime": "image/webp",
+           "scale": 4,
+           "frameCount": 280
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/1x.avif",
+           "mime": "image/avif",
+           "scale": 1,
+           "frameCount": 280
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/2x.avif",
+           "mime": "image/avif",
+           "scale": 2,
+           "frameCount": 280
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/3x.avif",
+           "mime": "image/avif",
+           "scale": 3,
+           "frameCount": 280
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/4x.avif",
+           "mime": "image/avif",
+           "scale": 4,
+           "frameCount": 280
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/1x.gif",
+           "mime": "image/gif",
+           "scale": 1,
+           "frameCount": 280
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/2x.gif",
+           "mime": "image/gif",
+           "scale": 2,
+           "frameCount": 280
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/3x.gif",
+           "mime": "image/gif",
+           "scale": 3,
+           "frameCount": 280
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/4x.gif",
+           "mime": "image/gif",
+           "scale": 4,
+           "frameCount": 280
+          }
+         ]
+        }
+       }
+      },
+      {
+       "accessible": true,
+       "from": {
+        "__typename": "EntitlementNodeSubscriptionBenefit"
+       },
+       "to": {
+        "badge": {
+         "id": "01GAF8RWW8000E8VNG1S1RMTBA",
+         "name": "7TV Subscriber - 1 Month",
+         "description": "7TV Subscriber (1 Month)",
+         "images": [
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF8RWW8000E8VNG1S1RMTBA/1x.webp",
+           "mime": "image/webp",
+           "scale": 1,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF8RWW8000E8VNG1S1RMTBA/2x.webp",
+           "mime": "image/webp",
+           "scale": 2,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF8RWW8000E8VNG1S1RMTBA/3x.webp",
+           "mime": "image/webp",
+           "scale": 3,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF8RWW8000E8VNG1S1RMTBA/4x.webp",
+           "mime": "image/webp",
+           "scale": 4,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF8RWW8000E8VNG1S1RMTBA/1x.avif",
+           "mime": "image/avif",
+           "scale": 1,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF8RWW8000E8VNG1S1RMTBA/2x.avif",
+           "mime": "image/avif",
+           "scale": 2,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF8RWW8000E8VNG1S1RMTBA/3x.avif",
+           "mime": "image/avif",
+           "scale": 3,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF8RWW8000E8VNG1S1RMTBA/4x.avif",
+           "mime": "image/avif",
+           "scale": 4,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF8RWW8000E8VNG1S1RMTBA/1x.png",
+           "mime": "image/png",
+           "scale": 1,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF8RWW8000E8VNG1S1RMTBA/2x.png",
+           "mime": "image/png",
+           "scale": 2,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF8RWW8000E8VNG1S1RMTBA/3x.png",
+           "mime": "image/png",
+           "scale": 3,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF8RWW8000E8VNG1S1RMTBA/4x.png",
+           "mime": "image/png",
+           "scale": 4,
+           "frameCount": 1
+          }
+         ]
+        }
+       }
+      },
+      {
+       "accessible": true,
+       "from": {
+        "__typename": "EntitlementNodeSubscriptionBenefit"
+       },
+       "to": {
+        "badge": {
+         "id": "01GAF95ZTG000E8VNG1S1RMTBB",
+         "name": "7TV Subscriber - 2 Months",
+         "description": "7TV Subscriber (2 Months)",
+         "images": [
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF95ZTG000E8VNG1S1RMTBB/1x.webp",
+           "mime": "image/webp",
+           "scale": 1,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF95ZTG000E8VNG1S1RMTBB/2x.webp",
+           "mime": "image/webp",
+           "scale": 2,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF95ZTG000E8VNG1S1RMTBB/3x.webp",
+           "mime": "image/webp",
+           "scale": 3,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF95ZTG000E8VNG1S1RMTBB/4x.webp",
+           "mime": "image/webp",
+           "scale": 4,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF95ZTG000E8VNG1S1RMTBB/1x.avif",
+           "mime": "image/avif",
+           "scale": 1,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF95ZTG000E8VNG1S1RMTBB/2x.avif",
+           "mime": "image/avif",
+           "scale": 2,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF95ZTG000E8VNG1S1RMTBB/3x.avif",
+           "mime": "image/avif",
+           "scale": 3,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF95ZTG000E8VNG1S1RMTBB/4x.avif",
+           "mime": "image/avif",
+           "scale": 4,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF95ZTG000E8VNG1S1RMTBB/1x.png",
+           "mime": "image/png",
+           "scale": 1,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF95ZTG000E8VNG1S1RMTBB/2x.png",
+           "mime": "image/png",
+           "scale": 2,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF95ZTG000E8VNG1S1RMTBB/3x.png",
+           "mime": "image/png",
+           "scale": 3,
+           "frameCount": 1
+          },
+          {
+           "url": "https://cdn.7tv.app/badge/01GAF95ZTG000E8VNG1S1RMTBB/4x.png",
+           "mime": "image/png",
+           "scale": 4,
+           "frameCount": 1
+          }
+         ]
+        }
+       }
+      }
+     ]
+    }
+   }
+  }
+ }
+}

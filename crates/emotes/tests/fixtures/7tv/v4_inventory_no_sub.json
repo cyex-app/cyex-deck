@@ -1,0 +1,210 @@
+{
+ "data": {
+  "users": {
+   "userByConnection": {
+    "id": "01JR66HD1W6D9QPTGHFS09BG37",
+    "style": {
+     "activePaintId": null,
+     "activeBadgeId": null
+    },
+    "billing": {
+     "subscriptionInfo": {
+      "activePeriod": null,
+      "totalDays": 150
+     }
+    },
+    "inventory": {
+     "paints": [
+      {
+       "accessible": false,
+       "from": {
+        "__typename": "EntitlementNodeSubscriptionBenefit"
+       },
+       "to": {
+        "paint": {
+         "id": "01JQM5X9N65Z6M8Q3Z6RV8BDT4",
+         "name": "One",
+         "updatedAt": "2024-01-01T00:00:00+00:00",
+         "data": {
+          "layers": [
+           {
+            "id": "L01JQM5X9N65Z6M8Q3Z6RV8BDT4",
+            "opacity": 1,
+            "ty": {
+             "__typename": "PaintLayerTypeLinearGradient",
+             "angle": 90,
+             "repeating": false,
+             "stops": [
+              {
+               "at": 0,
+               "color": {
+                "hex": "#FF0000FF"
+               }
+              },
+              {
+               "at": 1,
+               "color": {
+                "hex": "#0000FFFF"
+               }
+              }
+             ]
+            }
+           }
+          ],
+          "shadows": []
+         }
+        }
+       }
+      },
+      {
+       "accessible": false,
+       "from": {
+        "__typename": "EntitlementNodeSubscriptionBenefit"
+       },
+       "to": {
+        "paint": {
+         "id": "01JQM68WYPTC7PFSE1QZKGWSTX",
+         "name": "Two",
+         "updatedAt": "2024-01-01T00:00:00+00:00",
+         "data": {
+          "layers": [
+           {
+            "id": "L01JQM68WYPTC7PFSE1QZKGWSTX",
+            "opacity": 1,
+            "ty": {
+             "__typename": "PaintLayerTypeLinearGradient",
+             "angle": 90,
+             "repeating": false,
+             "stops": [
+              {
+               "at": 0,
+               "color": {
+                "hex": "#FF0000FF"
+               }
+              },
+              {
+               "at": 1,
+               "color": {
+                "hex": "#0000FFFF"
+               }
+              }
+             ]
+            }
+           }
+          ],
+          "shadows": []
+         }
+        }
+       }
+      },
+      {
+       "accessible": false,
+       "from": {
+        "__typename": "EntitlementNodeSubscriptionBenefit"
+       },
+       "to": {
+        "paint": {
+         "id": "01JK6NVC5W6VS5D0KTJXF6SQRC",
+         "name": "Three",
+         "updatedAt": "2024-01-01T00:00:00+00:00",
+         "data": {
+          "layers": [
+           {
+            "id": "L01JK6NVC5W6VS5D0KTJXF6SQRC",
+            "opacity": 1,
+            "ty": {
+             "__typename": "PaintLayerTypeLinearGradient",
+             "angle": 90,
+             "repeating": false,
+             "stops": [
+              {
+               "at": 0,
+               "color": {
+                "hex": "#FF0000FF"
+               }
+              },
+              {
+               "at": 1,
+               "color": {
+                "hex": "#0000FFFF"
+               }
+              }
+             ]
+            }
+           }
+          ],
+          "shadows": []
+         }
+        }
+       }
+      },
+      {
+       "accessible": true,
+       "from": {
+        "__typename": "EntitlementNodeSpecialEvent"
+       },
+       "to": {
+        "paint": {
+         "id": "01JK6NVC5W6VS5D0KTJXF6SQRC",
+         "name": "Three",
+         "updatedAt": "2024-01-01T00:00:00+00:00",
+         "data": {
+          "layers": [
+           {
+            "id": "L01JK6NVC5W6VS5D0KTJXF6SQRC",
+            "opacity": 1,
+            "ty": {
+             "__typename": "PaintLayerTypeLinearGradient",
+             "angle": 90,
+             "repeating": false,
+             "stops": [
+              {
+               "at": 0,
+               "color": {
+                "hex": "#FF0000FF"
+               }
+              },
+              {
+               "at": 1,
+               "color": {
+                "hex": "#0000FFFF"
+               }
+              }
+             ]
+            }
+           }
+          ],
+          "shadows": []
+         }
+        }
+       }
+      }
+     ],
+     "badges": [
+      {
+       "accessible": false,
+       "from": {
+        "__typename": "EntitlementNodeSubscriptionBenefit"
+       },
+       "to": {
+        "badge": {
+         "id": "01JZX7H1H6QERDGF8QRA2ZAKPW",
+         "name": "Old Sub",
+         "description": null,
+         "images": [
+          {
+           "url": "https://cdn.7tv.app/badge/01JZX7H1H6QERDGF8QRA2ZAKPW/1x.webp",
+           "mime": "image/webp",
+           "scale": 1,
+           "frameCount": 1
+          }
+         ]
+        }
+       }
+      }
+     ]
+    }
+   }
+  }
+ }
+}
