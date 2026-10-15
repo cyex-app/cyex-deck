@@ -162,7 +162,11 @@ async fn fetch(
 pub async fn read(app: &AppHandle, account: &str) -> Result<Arc<Inventory>, Why> {
     match fetch(app, account, false).await {
         None => Err(Why::NoConsent),
-        Some(Ok(Some(inv))) => Ok(inv),
+        Some(Ok(Some(inv))) => {
+            // Chat lookups (/paint, {paint}, Tab) let it go like the menu does.
+            release_later(app, account);
+            Ok(inv)
+        }
         Some(Ok(None)) => Err(Why::NoAccount),
         Some(Err(e)) => {
             eprintln!("cosmetics: {account}: {e}");
