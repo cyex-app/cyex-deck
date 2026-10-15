@@ -26,6 +26,9 @@ class LooksStore {
   private queue = new Set<string>();
   private timer: ReturnType<typeof setTimeout> | undefined;
   private paints = new Set<string>();
+  /** V1051-03 Bumped when the preview defines a new paint, so a line already drawn picks it up. */
+  private defined = $state(0);
+  private definedN = 0;
   /** V101-36 Paint names by id, for the tip on a painted name. */
   private paintNames = new Map<string, string>();
   private sheet: HTMLStyleElement | null = null;
@@ -44,6 +47,7 @@ class LooksStore {
 
   /** CSS class for a paint, or `null` if it can't be drawn. */
   paintClass(id: string | null): string | null {
+    void this.defined;
     return id && this.paints.has(id) ? `paint-${id}` : null;
   }
 
@@ -86,7 +90,9 @@ class LooksStore {
 
   /** V1051-03 Definitions without users (the cosmetics preview's paint and badge). */
   define(paints: PaintStyle[], badges: BadgeDef[]) {
-    this.append(this.fresh(paints));
+    const css = this.fresh(paints);
+    this.append(css);
+    if (css) this.defined = ++this.definedN;
     for (const b of badges) this.badges.set(`${b.provider}:${b.id}`, b);
   }
 
