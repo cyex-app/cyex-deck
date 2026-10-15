@@ -17,7 +17,8 @@
   let box = $state<HTMLElement>();
 
   $effect(() => {
-    box?.querySelector<HTMLElement>('input, textarea, select')?.focus();
+    // A dialog without fields still takes focus, so Enter and typing don't reach the chat box behind it.
+    (box?.querySelector<HTMLElement>('input, textarea, select') ?? box)?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
@@ -32,7 +33,7 @@
 <!-- The backdrop only catches outside clicks; Escape is handled above. -->
 <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
 <div class="backdrop" onmousedown={(e) => e.target === e.currentTarget && onclose()}>
-  <div class="dialog" role="dialog" aria-modal="true" aria-label={title} bind:this={box} style:width="{width}px">
+  <div class="dialog" role="dialog" aria-modal="true" aria-label={title} tabindex="-1" bind:this={box} style:width="{width}px">
     <header>
       <h2>{title}</h2>
       <IconButton icon="x" label="Close" size={15} onclick={onclose} />
@@ -48,7 +49,10 @@
     inset: 0;
     z-index: var(--z-popover);
     display: grid;
-    place-items: center; /* V105-16: centered in the window */
+    /* V105-16: centered in the window. Fixed tracks, so max-width/height below hold the
+       dialog inside the window and a tall body scrolls instead of running off it. */
+    grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+    place-items: center;
     padding: 12px;
     background: var(--overlay);
     animation: fade var(--fast) ease-out;
@@ -64,6 +68,13 @@
     border-radius: var(--radius);
     box-shadow: 0 16px 48px var(--shadow);
   }
+  .dialog:focus {
+    outline: none;
+  }
+  header,
+  footer {
+    flex: none;
+  }
   header {
     display: flex;
     align-items: center;
@@ -74,6 +85,7 @@
     margin: 0;
   }
   .body {
+    min-height: 0;
     padding: 8px 16px 14px;
     overflow-y: auto;
   }
