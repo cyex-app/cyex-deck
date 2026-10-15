@@ -207,3 +207,34 @@ fn import_checks_the_result_compiles() {
         Err(r"Uses \X, which isn't supported here.".to_owned())
     );
 }
+
+// V105-16 review: a pattern from someone's settings file never crashes the import.
+#[test]
+fn never_panics_on_odd_input() {
+    const ALPHABET: &[char] = &[
+        '\\', '(', ')', '[', ']', '{', '}', '?', '*', '+', ':', '^', '-', '<', '>', '\'', '&', '#',
+        '|', ',', '=', '!', 'a', '1', '0', '8', 'Q', 'E', 'x', 'g', 'k', 'p', 'P', 'c', 'o', 'N',
+        'h', 'R', 'C', 'F', 'n', 'U', ' ',
+    ];
+    let n = ALPHABET.len();
+    for len in 1..=3u32 {
+        for mut k in 0..n.pow(len) {
+            let mut s = String::new();
+            for _ in 0..len {
+                s.push(ALPHABET[k % n]);
+                k /= n;
+            }
+            let _ = to_rust(&s);
+        }
+    }
+    // Longer ones from a fixed generator, so a failure repeats.
+    let mut seed: u64 = 0x9E37_79B9_7F4A_7C15;
+    for _ in 0..20_000 {
+        let mut s = String::new();
+        for _ in 0..(seed % 12 + 1) {
+            seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+            s.push(ALPHABET[(seed >> 33) as usize % n]);
+        }
+        let _ = to_rust(&s);
+    }
+}
