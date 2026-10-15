@@ -18,6 +18,7 @@ mod notifications;
 mod panels;
 mod player;
 mod plugins;
+mod sound;
 mod streammanager;
 mod tabs;
 mod uploader;
@@ -52,6 +53,7 @@ pub use notifications::Notifications;
 pub use panels::{PanelNode, SplitDir, sanitize as sanitize_panels};
 pub use player::{Corner, Player, Quality};
 pub use plugins::{PluginEntry, Plugins};
+pub use sound::{OutputDevice, Sound};
 pub use streammanager::{ActivityFilters, ModActionFilters, Obs, StreamManager};
 pub use tabs::{
     Closed, Column, GroupColor, ImportTab, Resolved, Tab, TabChannel, TabError, TabGroup, TabOp, Tabs, Tile, TileShow, Zone,

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use super::Schema;
+use super::{Schema, Sound};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(default, rename_all = "camelCase")]
@@ -28,6 +28,8 @@ pub struct General {
     pub streamer: StreamerMode,
     /// V105-20
     pub updates: Updates,
+    /// V1051-01
+    pub sound: Sound,
 }
 
 impl Default for General {
@@ -43,6 +45,7 @@ impl Default for General {
             smooth_scroll: true,
             streamer: StreamerMode::default(),
             updates: Updates::default(),
+            sound: Sound::default(),
         }
     }
 }
@@ -77,6 +80,7 @@ impl Schema for General {
         if cyex_core::version::parse(&self.updates.skip).is_none() {
             self.updates.skip.clear();
         }
+        self.sound.sanitize();
     }
 }
 
