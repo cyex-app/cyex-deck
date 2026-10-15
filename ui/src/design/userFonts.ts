@@ -3,9 +3,6 @@
 
 import type { CustomFont } from '../ipc/bindings/CustomFont';
 
-/** The fonts that come with the app (`design/fonts.css`). */
-export const BUNDLED_FONTS = ['Inter', 'Roboto', 'Open Sans', 'Lato', 'JetBrains Mono'];
-
 export function userFontCss(fonts: CustomFont[]): string {
   return fonts
     .filter((f) => /^[a-z0-9]+\.(ttf|otf|woff2?)$/.test(f.file) && !/["'\;{}<>]/.test(f.name))

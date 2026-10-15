@@ -5,7 +5,7 @@ use cyex_settings::schema::{CustomFont, FONT_TYPES, General};
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
 
-use crate::fonts;
+use crate::fonts::{self, FontChoice};
 use crate::settings::Settings;
 
 type CmdResult<T> = Result<T, String>;
@@ -48,4 +48,12 @@ pub fn fonts_remove(app: AppHandle, settings: State<Settings>, name: String) -> 
     })?;
     fonts::remove_file(&app, &font);
     Ok(())
+}
+
+/// V105-13 The chat font list: bundled, added and installed fonts.
+#[tauri::command]
+pub fn fonts_list(settings: State<Settings>) -> Vec<FontChoice> {
+    let g: General = settings.read(Partition::General);
+    let added: Vec<String> = g.fonts.iter().map(|f| f.name.clone()).collect();
+    fonts::choices(&added, &crate::sys::installed_fonts())
 }

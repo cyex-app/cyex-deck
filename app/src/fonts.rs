@@ -6,24 +6,63 @@ use std::path::{Path, PathBuf};
 
 use cyex_settings::Partition;
 use cyex_settings::schema::{CustomFont, FONT_TYPES, General, font_name};
+use serde::Serialize;
 use tauri::http::{Request, Response, StatusCode, header};
 use tauri::{AppHandle, Manager, UriSchemeContext, Wry};
+use ts_rs::TS;
 
 use crate::settings::Settings;
 
 pub const SCHEME: &str = "cyexfont";
 /// Fonts with every script can be big; more than this is never a chat font.
 const MAX_FONT_BYTES: u64 = 30 * 1024 * 1024;
-/// Names the bundled fonts use (`design/fonts.css`, U13 the app font), so an added file
-/// doesn't hide one.
-const BUNDLED: [&str; 6] = [
-    "IBM Plex Sans",
-    "Inter",
-    "Roboto",
-    "Open Sans",
-    "Lato",
-    "JetBrains Mono",
-];
+/// The app font (U13); "App font" in the list.
+const APP_FONT: &str = "IBM Plex Sans";
+/// V101-10 Chat fonts that come with the app (`ui/src/design/fonts.css`).
+pub const BUNDLED: [&str; 5] = ["Inter", "Roboto", "Open Sans", "Lato", "JetBrains Mono"];
+
+/// V105-13 Where a font in the list comes from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum FontKind {
+    Bundled,
+    Added,
+    Installed,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct FontChoice {
+    pub name: String,
+    pub kind: FontKind,
+}
+
+/// V105-13 Every chat font there is, A-Z, each name once: an added file wins over a
+/// bundled font, a bundled one over an installed one of the same name. The app font is
+/// "App font", not in here.
+pub fn choices(added: &[String], installed: &[String]) -> Vec<FontChoice> {
+    let mut out: Vec<FontChoice> = Vec::new();
+    let mut push = |name: &str, kind: FontKind| {
+        if !out.iter().any(|c| c.name.eq_ignore_ascii_case(name)) {
+            out.push(FontChoice { name: name.to_owned(), kind });
+        }
+    };
+    for n in added {
+        push(n, FontKind::Added);
+    }
+    for n in BUNDLED {
+        push(n, FontKind::Bundled);
+    }
+    for n in installed {
+        if !n.eq_ignore_ascii_case(APP_FONT) {
+            push(n, FontKind::Installed);
+        }
+    }
+    out.sort_by_key(|c| c.name.to_lowercase());
+    out
+}
 
 /// Files no saved font points to any more.
 pub fn init(app: &AppHandle) {
@@ -58,7 +97,9 @@ pub fn add(app: &AppHandle, path: &Path) -> Result<CustomFont, String> {
         .file_stem()
         .map(|s| s.to_string_lossy().to_string())
         .unwrap_or_default();
-    let taken: Vec<&str> = g.fonts.iter().map(|f| f.name.as_str()).chain(BUNDLED).collect();
+    let taken: Vec<&str> = g.fonts.iter().map(|f| f.name.as_str()).chain(BUNDLED)
+        .chain([APP_FONT])
+        .collect();
     let name = unique_name(&family_of(&stem), &taken);
     let dir = fonts_dir(app).ok_or("Couldn't find the app data folder.")?;
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -152,5 +193,33 @@ mod tests {
         assert_eq!(unique_name("Comic", &["Inter"]), "Comic");
         assert_eq!(unique_name("inter", &["Inter"]), "inter 2");
         assert_eq!(unique_name("Inter", &["Inter", "Inter 2"]), "Inter 3");
+    }
+
+    #[test]
+    fn the_list_has_each_font_once_az() {
+        let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+        let list = choices(&s(&["Lato", "My Font"]), &s(&["arial", "Lato", "IBM Plex Sans", "Zed"]));
+        let names: Vec<&str> = list.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(
+            names,
+            ["arial", "Inter", "JetBrains Mono", "Lato", "My Font", "Open Sans", "Roboto", "Zed"]
+        );
+        let kind = |n: &str| list.iter().find(|c| c.name == n).unwrap().kind;
+        assert_eq!(kind("Lato"), FontKind::Added);
+        assert_eq!(kind("arial"), FontKind::Installed);
+        assert_eq!(kind("Inter"), FontKind::Bundled);
+    }
+
+    #[test]
+    fn every_bundled_font_is_in_fonts_css() {
+        const CSS: &str = include_str!("../../ui/src/design/fonts.css");
+        for name in BUNDLED {
+            assert!(CSS.contains(&format!("font-family: '{name}'")), "{name} missing in fonts.css");
+        }
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../ui/src/design/fonts");
+        for part in CSS.split("url('./fonts/").skip(1) {
+            let file = part.split('\'').next().unwrap();
+            assert!(dir.join(file).is_file(), "{file} missing");
+        }
     }
 }
