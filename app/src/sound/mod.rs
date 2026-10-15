@@ -13,6 +13,7 @@ pub use look::Look;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use cyex_settings::Partition;
 use cyex_settings::schema::{General, Highlights, Mentions, OutputDevice, is_sound_file};
@@ -30,6 +31,8 @@ pub const RATE: u32 = 48_000;
 pub const MAX_SECONDS: usize = 30;
 /// Decodes asked for and not answered yet; older ones are forgotten.
 const MAX_PENDING: usize = 8;
+/// A decode the page didn't answer (it wasn't loaded yet, or reloaded) is asked again after this.
+const PENDING_FOR: Duration = Duration::from_secs(10);
 const DECODE_EVENT: &str = "sound:decode";
 const SINK_READY_EVENT: &str = "sound:sink-ready";
 
@@ -44,7 +47,7 @@ pub struct SoundDecode {
 #[derive(Default)]
 struct State {
     cache: Cache,
-    pending: VecDeque<(u32, String)>,
+    pending: VecDeque<(u32, String, Instant)>,
 }
 
 pub struct Sounds {
@@ -110,11 +113,14 @@ pub fn alert(app: &AppHandle, file: Option<&str>) {
         drop(state);
         return play(app, pcm);
     }
-    if state.pending.iter().any(|(_, p)| p == path) {
+    state
+        .pending
+        .retain(|(_, _, asked)| asked.elapsed() < PENDING_FOR);
+    if state.pending.iter().any(|(_, p, _)| p == path) {
         return;
     }
     let id = sounds.next.fetch_add(1, Ordering::Relaxed);
-    state.pending.push_back((id, path.to_owned()));
+    state.pending.push_back((id, path.to_owned(), Instant::now()));
     if state.pending.len() > MAX_PENDING {
         state.pending.pop_front();
     }
@@ -138,9 +144,9 @@ pub fn decoded(app: &AppHandle, id: u32, bytes: &[u8]) -> Result<(), String> {
         let at = state
             .pending
             .iter()
-            .position(|(i, _)| *i == id)
+            .position(|(i, _, _)| *i == id)
             .ok_or("Not a sound the app asked for.")?;
-        state.pending.remove(at).map(|(_, p)| p).unwrap_or_default()
+        state.pending.remove(at).map(|(_, p, _)| p).unwrap_or_default()
     };
     if bytes.is_empty() {
         play(app, sounds.chime());
