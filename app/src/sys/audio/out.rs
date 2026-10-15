@@ -95,8 +95,10 @@ fn run(pcm: &[f32], device: Option<&str>) -> windows::core::Result<()> {
         let size = client.GetBufferSize()? as usize;
         let frames = pcm.len() / 2;
         let mut at = 0;
+        // A device that stops taking samples (but doesn't fail) can't hold the thread forever.
+        let deadline = std::time::Instant::now() + Duration::from_secs(frames as u64 / RATE as u64 + 2);
         client.Start()?;
-        while at < frames {
+        while at < frames && std::time::Instant::now() < deadline {
             let free = size - client.GetCurrentPadding()? as usize;
             let n = free.min(frames - at);
             if n > 0 {
@@ -107,7 +109,7 @@ fn run(pcm: &[f32], device: Option<&str>) -> windows::core::Result<()> {
             }
             std::thread::sleep(Duration::from_millis(10));
         }
-        while client.GetCurrentPadding()? > 0 {
+        while client.GetCurrentPadding()? > 0 && std::time::Instant::now() < deadline {
             std::thread::sleep(Duration::from_millis(10));
         }
         client.Stop()?;
