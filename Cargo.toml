@@ -57,6 +57,8 @@ tauri-winrt-notification = "0.8"
 tauri-plugin-global-shortcut = "2"
 # Windows calls for app/src/sys only (D28): already in the build through tauri and wry.
 windows = "0.62"
+# V1051-01 `#[implement]` (Core Audio callbacks) names this crate; it is windows' own, already built.
+windows-core = "0.62"
 webview2-com = "0.39"
 # Lua 5.4 for plugins (S5; approved in phase 14, D29), built from source with the MSVC tools.
 mlua = { version = "0.12", features = ["lua54", "vendored", "serde"] }

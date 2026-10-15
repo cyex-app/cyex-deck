@@ -17,6 +17,7 @@ mod player;
 mod plugins;
 mod rules;
 mod settings;
+mod sound;
 mod streammanager;
 mod subs;
 pub mod system;
@@ -265,6 +266,9 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         mentions::mentions_global_status,
         mentions::mentions_pick_sound,
         mentions::mentions_sound,
+        sound::sound_devices,
+        sound::sound_play,
+        sound::sound_decoded,
         fonts::fonts_remove,
         modes::streamer_state,
         modes::streamer_toggle,

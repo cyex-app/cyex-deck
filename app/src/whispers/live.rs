@@ -123,7 +123,7 @@ pub(super) fn incoming(app: &AppHandle, thread_id: &str, m: api::Message, to: Op
         return;
     };
     if n.whispers.sound {
-        toasts::sound(app);
+        crate::sound::alert(app, None);
     }
     if n.whispers.flash {
         toasts::flash(app);

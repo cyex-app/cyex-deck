@@ -22,6 +22,7 @@ mod player;
 mod plugins;
 mod profile;
 mod settings;
+mod sound;
 mod streamer;
 mod streammanager;
 mod subs;
@@ -56,6 +57,7 @@ fn main() {
             paths::migrate(handle);
             paths::remove_old_env(handle);
             settings::init(handle)?;
+            sound::init(handle);
             theme::init(handle);
             fonts::init(handle);
             streamer::init(handle);
@@ -78,6 +80,7 @@ fn main() {
             bell::init(handle);
             alerts::init(handle);
             windows::init(handle)?;
+            sound::allow_speakers(handle);
             tray::init(handle)?;
             hotkeys::init(handle);
             Ok(())

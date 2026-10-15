@@ -817,6 +817,7 @@ dependencies = [
  "url",
  "webview2-com",
  "windows",
+ "windows-core",
 ]
 
 [[package]]

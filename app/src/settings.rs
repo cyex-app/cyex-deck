@@ -152,6 +152,7 @@ impl Settings {
         }
         if changed.iter().any(|(p, _)| *p == Partition::General) {
             crate::streamer::on_settings(app);
+            crate::sound::on_settings(app);
         }
         if changed.iter().any(|(p, _)| *p == Partition::Hotkeys) {
             crate::hotkeys::apply(app);

@@ -1,7 +1,34 @@
 //! Windows calls that need `unsafe` (D28): which apps are running, for streamer mode
-//! (U4), and WebView2's low-memory mode for windows nobody sees. The only module in the
-//! app allowed to use `unsafe`; every call is small and checked here.
+//! (U4), WebView2's low-memory mode for windows nobody sees, and the app's audio
+//! (V1051-01, `audio`). The only module in the app allowed to use `unsafe`; every call is
+//! small and checked here.
 #![allow(unsafe_code)]
+
+#[cfg(windows)]
+pub mod audio;
+
+/// V1051-01 Nothing to name or play through outside Windows.
+#[cfg(not(windows))]
+pub mod audio {
+    use cyex_settings::schema::OutputDevice;
+
+    use crate::sound::Look;
+
+    pub struct Watcher;
+
+    impl Watcher {
+        pub fn start(_icon: String, _streams: Look, _sounds: Look) -> Self {
+            Self
+        }
+        pub fn restyle(&self, _streams: Look, _sounds: Look) {}
+    }
+
+    pub fn outputs() -> Vec<OutputDevice> {
+        Vec::new()
+    }
+    pub fn play(_pcm: std::sync::Arc<[f32]>, _device: Option<String>) {}
+    pub fn prime() {}
+}
 
 /// Lowercased exe names of the running processes. Empty if Windows won't say.
 #[cfg(windows)]
@@ -42,6 +69,44 @@ pub fn running_exes() -> Vec<String> {
     Vec::new()
 }
 
+/// V1051-01 `root` and every process started below it (WebView2's).
+#[cfg(windows)]
+pub fn descendants(root: u32) -> std::collections::HashSet<u32> {
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
+    };
+
+    let mut pairs = Vec::new();
+    // SAFETY: a process snapshot read into a local struct and closed here.
+    unsafe {
+        if let Ok(snap) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
+            let mut e = PROCESSENTRY32W { dwSize: size_of::<PROCESSENTRY32W>() as u32, ..Default::default() };
+            if Process32FirstW(snap, &mut e).is_ok() {
+                loop {
+                    pairs.push((e.th32ProcessID, e.th32ParentProcessID));
+                    if Process32NextW(snap, &mut e).is_err() {
+                        break;
+                    }
+                }
+            }
+            let _ = CloseHandle(snap);
+        }
+    }
+    let mut set = std::collections::HashSet::from([root]);
+    loop {
+        let before = set.len();
+        for (pid, parent) in &pairs {
+            if set.contains(parent) {
+                set.insert(*pid);
+            }
+        }
+        if set.len() == before {
+            return set;
+        }
+    }
+}
+
 /// Whether one of `apps` (exe names, any case) is running.
 pub fn any_running(apps: &[String]) -> bool {
     if apps.is_empty() {
@@ -80,6 +145,49 @@ pub fn low_memory(window: &tauri::WebviewWindow, low: bool) {
 
 #[cfg(not(windows))]
 pub fn low_memory(_window: &tauri::WebviewWindow, _low: bool) {}
+
+/// V1051-01 Lets the app's pages send streams to a chosen speaker (`setSinkId`). Chromium
+/// only lists speakers and allows the choice while the page may use the microphone, so
+/// this sets that permission for the app's own origin while a streams device is set and
+/// back to the default otherwise. Nothing asks for the microphone. `done` runs once
+/// WebView2 has it.
+#[cfg(windows)]
+pub fn allow_speaker_choice(window: &tauri::WebviewWindow, allow: bool, done: impl FnOnce() + Send + 'static) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        COREWEBVIEW2_PERMISSION_KIND_MICROPHONE, COREWEBVIEW2_PERMISSION_STATE_ALLOW,
+        COREWEBVIEW2_PERMISSION_STATE_DEFAULT, ICoreWebView2_13, ICoreWebView2Profile4,
+    };
+    use webview2_com::SetPermissionStateCompletedHandler;
+    use windows::core::{HSTRING, Interface};
+
+    let Ok(url) = window.url() else { return };
+    let origin = HSTRING::from(url.origin().ascii_serialization());
+    let state = if allow {
+        COREWEBVIEW2_PERMISSION_STATE_ALLOW
+    } else {
+        COREWEBVIEW2_PERMISSION_STATE_DEFAULT
+    };
+    let _ = window.with_webview(move |w| {
+        let handler = SetPermissionStateCompletedHandler::create(Box::new(move |_| {
+            done();
+            Ok(())
+        }));
+        // SAFETY: plain COM calls on the controller Tauri hands us, on the UI thread.
+        let set = unsafe { w.controller().CoreWebView2() }
+            .and_then(|core| core.cast::<ICoreWebView2_13>())
+            .and_then(|core| unsafe { core.Profile() })
+            .and_then(|profile| profile.cast::<ICoreWebView2Profile4>())
+            .and_then(|profile| unsafe {
+                profile.SetPermissionState(COREWEBVIEW2_PERMISSION_KIND_MICROPHONE, &origin, state, &handler)
+            });
+        if let Err(e) = set {
+            eprintln!("sys: speaker choice: {e}");
+        }
+    });
+}
+
+#[cfg(not(windows))]
+pub fn allow_speaker_choice(_window: &tauri::WebviewWindow, _allow: bool, _done: impl FnOnce() + Send + 'static) {}
 
 /// V105-18 Windows 11's small rounded corners (4 px) for pop-ups. Windows 10 ignores it.
 #[cfg(windows)]
@@ -211,6 +319,11 @@ mod tests {
         assert!(any_running(&[name.to_uppercase()]));
         assert!(!any_running(&["no-such-app-here.exe".into()]));
         assert!(!any_running(&[]));
+    }
+
+    #[test]
+    fn the_tree_has_this_process() {
+        assert!(descendants(std::process::id()).contains(&std::process::id()));
     }
 }
 

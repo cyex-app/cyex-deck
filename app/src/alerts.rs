@@ -128,7 +128,7 @@ fn news<'a>(
 
 fn alert(app: &AppHandle, n: &Notifications, card: ChannelCard) {
     if n.live.sound {
-        toasts::sound(app);
+        crate::sound::alert(app, None);
     }
     if !n.live.toast {
         return;

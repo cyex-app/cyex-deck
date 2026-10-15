@@ -37,15 +37,23 @@ tauri-plugin-global-shortcut.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 webview2-com.workspace = true
+windows-core.workspace = true
 windows = { workspace = true, features = [
     "Win32_Foundation",
     # V105-18 Already built for tao: nothing new comes in.
     "Win32_Graphics_Dwm",
     # V105-13 Already built for tao and wry: nothing new comes in.
     "Win32_Graphics_Gdi",
+    # V1051-01 Audio sessions and playback (Core Audio). No new crate.
+    "Win32_Media_Audio",
+    # V1051-01 COM (already built for tao and wry).
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
     "Win32_System_Diagnostics_ToolHelp",
     # V103-14 Already built for tao: nothing new comes in.
     "Win32_UI_Shell",
+    # V1051-01 Device names (IPropertyStore).
+    "Win32_UI_Shell_PropertiesSystem",
     "Win32_UI_WindowsAndMessaging",
 ] }
 

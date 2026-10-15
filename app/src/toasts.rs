@@ -1,6 +1,6 @@
 //! Windows pop-ups for live alerts (2.2), whispers, Twitch's bell (1.26) and mentions
 //! (V104-01). A click brings the main window up and tells it what to open. Toasts are
-//! silent; the window plays the app's own sound when that's on. Windows only shows local
+//! silent; the app plays its own sound when that's on (V1051-01). Windows only shows local
 //! pictures, so avatars are cached in the local app data folder.
 
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -17,7 +17,6 @@ use crate::windows::{self, MAIN};
 /// Windows needs to show an app's toasts.
 const APP_ID: &str = cyex_core::app::ID;
 const OPEN_EVENT: &str = "notify:open";
-const SOUND_EVENT: &str = "notify:sound";
 const AVATAR_MAX: usize = 512 * 1024;
 
 /// What a click opens in the main window.
@@ -86,14 +85,6 @@ pub fn show(app: &AppHandle, pop: Pop) {
         })
         .await;
     });
-}
-
-/// The main window plays the app's sound, unless streamer mode mutes it (U4).
-pub fn sound(app: &AppHandle) {
-    if crate::streamer::hides(app, |s| s.mute_sounds) {
-        return;
-    }
-    let _ = app.emit_to(MAIN, SOUND_EVENT, ());
 }
 
 /// Flashes the taskbar button while the main window isn't in front.
