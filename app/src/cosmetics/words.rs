@@ -29,6 +29,14 @@ fn lower_first(s: &str) -> String {
         .unwrap_or_default()
 }
 
+/// One part's error inside a longer line: "Nothing changed." would be wrong there.
+fn part_error(e: &SelectError) -> String {
+    match e {
+        SelectError::Down => "couldn’t reach 7TV.".into(),
+        e => lower_first(&select_error(e)),
+    }
+}
+
 fn reason(p: &Part, plural: bool) -> Option<&'static str> {
     match (p, plural) {
         (Part::NotOwned, false) => Some("it’s not yours any more"),
@@ -73,6 +81,8 @@ pub fn applied(name: Option<&str>, paint: &Part, badge: &Part) -> String {
     } else if let [(k, p)] = skips.as_slice() {
         let r = reason(p, false).unwrap_or_default();
         out.push(match name {
+            // The other part failed too: nothing is worn as asked.
+            _ if !fails.is_empty() => format!("The {k} didn’t change: {r}."),
             Some(n) => format!("Wearing “{n}” without its {k}: {r}."),
             None => format!("Done. Not the {k}: {r}."),
         });
@@ -85,7 +95,7 @@ pub fn applied(name: Option<&str>, paint: &Part, badge: &Part) -> String {
     for (k, e) in &fails {
         let other = if *k == "paint" { badge } else { paint };
         let other_name = if *k == "paint" { "badge" } else { "paint" };
-        let err = lower_first(&select_error(e));
+        let err = part_error(e);
         out.push(if *other == Part::Changed {
             format!("{} changed. The {k} didn’t: {err}", capital(other_name))
         } else {
@@ -143,7 +153,11 @@ mod tests {
     fn named_one_failed() {
         assert_eq!(
             applied(Some("N"), &Part::Changed, &fail(SelectError::Down)),
-            "Paint changed. The badge didn’t: couldn’t reach 7TV. Nothing changed."
+            "Paint changed. The badge didn’t: couldn’t reach 7TV."
+        );
+        assert_eq!(
+            applied(Some("N"), &Part::NotOwned, &fail(SelectError::Down)),
+            "The paint didn’t change: it’s not yours any more. The badge didn’t change: couldn’t reach 7TV."
         );
         assert_eq!(
             applied(None, &fail(SelectError::NotAllowed), &Part::Changed),
