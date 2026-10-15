@@ -52,6 +52,8 @@ pub struct Cosmetics {
     gates: Mutex<HashMap<(String, Kind), Gate>>,
     /// Accounts whose 7TV session was rejected: the UI says "Sign in again".
     expired: Mutex<HashSet<String>>,
+    /// Test runs: print how long a parse takes (V1051-03 budget B2).
+    timed: bool,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -66,6 +68,7 @@ impl Cosmetics {
             latest: Mutex::default(),
             gates: Mutex::default(),
             expired: Mutex::default(),
+            timed: false,
         }
     }
 
@@ -94,7 +97,12 @@ impl Cosmetics {
             lock(&self.cache).remove(account);
             return Ok(None);
         };
+        let t = Instant::now();
         let inv = Arc::new(model::parse_user(&raw)?.ok_or(Error::Bad)?);
+        if self.timed {
+            let n = inv.paints.len() + inv.badges.len();
+            eprintln!("cosmetics: parsed {n} in {:.1} ms", t.elapsed().as_secs_f64() * 1000.0);
+        }
         lock(&self.cache).insert(account.to_owned(), (Instant::now(), inv.clone()));
         Ok(Some(inv))
     }
@@ -134,7 +142,10 @@ pub fn init(app: &AppHandle) {
         Some(url) => Client::at(http, &url),
         None => Client::new(http),
     };
-    app.manage(Cosmetics::new(api));
+    app.manage(Cosmetics {
+        timed: test,
+        ..Cosmetics::new(api)
+    });
 }
 
 /// Why `read` has no inventory.
