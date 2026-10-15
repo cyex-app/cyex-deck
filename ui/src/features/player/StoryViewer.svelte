@@ -8,6 +8,7 @@
   import type { Story } from '../../ipc/bindings/Story';
   import { channelIpc } from '../../ipc/player';
   import { formatTime } from '../../lib/format';
+  import { applySink } from './output.svelte';
 
   interface Props {
     channelId: string;
@@ -18,6 +19,12 @@
   }
 
   let { channelId, account, name, avatar, onclose }: Props = $props();
+
+  let storyVideo = $state<HTMLVideoElement>();
+  // V1051-01 Stories play on the streams' device too.
+  $effect(() => {
+    if (storyVideo) applySink(storyVideo);
+  });
 
   /** Pictures show this long. */
   const PICTURE_MS = 6000;
@@ -95,6 +102,7 @@
           <!-- Stories have no captions track; the caption text is shown below. -->
           <!-- svelte-ignore a11y_media_has_caption -->
           <video
+            bind:this={storyVideo}
             src={story.video}
             poster={story.image ?? undefined}
             autoplay

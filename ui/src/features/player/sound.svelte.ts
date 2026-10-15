@@ -1,11 +1,13 @@
 // A player's volume, kept per tile so a muted stream stays muted. Saved once a change
 // settles; `hushed` silences it without saving, e.g. while a clip plays over it (1.20).
+// V1051-01 Every player plays on the streams' device (output.svelte.ts).
 // V105-10 Live and VOD players can go past 100 % with the boost (gain.ts).
 
 import type { Tile } from '../../ipc/bindings/Tile';
 import { tabs } from '../tabs/tabs.svelte';
 import { clampVolume, split } from './boost';
 import { setGain } from './gain';
+import { applySink } from './output.svelte';
 
 export interface Sound {
   readonly volume: number;
@@ -65,6 +67,7 @@ export function useSound(tile: () => Tile | undefined, hushed: () => boolean = (
       const s = split(volume);
       video.volume = s.element;
       video.muted = muted || hushed();
+      applySink(video);
       if (canBoost) setGain(video, s.gain, boost);
     },
   };
