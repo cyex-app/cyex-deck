@@ -14,5 +14,7 @@
   { "in": "🙂", "err": "chars" },
   { "in": "LIST", "err": "word" },
   { "in": "Rename", "err": "word" },
+  { "in": "हिंदी", "out": "हिंदी" },
+  { "in": "a\ufeffb", "err": "chars" },
   { "in": "list it", "out": "list it" }
 ]
