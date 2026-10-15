@@ -7,8 +7,8 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use windows::Win32::Foundation::PROPERTYKEY;
 use windows::Win32::Media::Audio::{
     DEVICE_STATE, DEVICE_STATE_ACTIVE, EDataFlow, ERole, IAudioSessionControl, IAudioSessionControl2,
-    IAudioSessionManager2, IAudioSessionNotification, IAudioSessionNotification_Impl, IMMDeviceEnumerator,
-    IMMNotificationClient, IMMNotificationClient_Impl, eRender,
+    IAudioSessionManager2, IAudioSessionNotification, IAudioSessionNotification_Impl, IMMDevice,
+    IMMDeviceEnumerator, IMMNotificationClient, IMMNotificationClient_Impl, eRender,
 };
 use windows::Win32::System::Com::CLSCTX_ALL;
 use windows::core::{GUID, HSTRING, Interface, PCWSTR, Ref, implement};
@@ -69,6 +69,7 @@ impl IMMNotificationClient_Impl for Devices_Impl {
         Ok(())
     }
     fn OnDeviceRemoved(&self, _id: &PCWSTR) -> windows::core::Result<()> {
+        let _ = self.0.send(Msg::Nudge);
         Ok(())
     }
     fn OnDefaultDeviceChanged(
@@ -100,7 +101,7 @@ fn run(
     let mut watched: Vec<(String, IAudioSessionManager2)> = Vec::new();
     let root = std::process::id();
     loop {
-        watch_new(&en, &created, &mut watched)?;
+        watch(&en, &created, &mut watched);
         let ours = crate::sys::webview_tree(root);
         for (_, manager) in &watched {
             style(manager, root, &ours, icon, &streams, &sounds);
@@ -115,29 +116,59 @@ fn run(
     }
 }
 
-/// Registers for new sessions on every output that's on and not watched yet.
-fn watch_new(
+/// Registers for new sessions on every output that's on and not watched yet, and lets go of
+/// outputs that went away, so one plugged in again is watched afresh. A device that fails
+/// (it can vanish mid-call) is skipped and tried again on the next nudge; the watcher lives on.
+fn watch(
     en: &IMMDeviceEnumerator,
     created: &IAudioSessionNotification,
     watched: &mut Vec<(String, IAudioSessionManager2)>,
-) -> windows::core::Result<()> {
-    // SAFETY: plain Core Audio calls on objects we hold.
-    unsafe {
-        let all = en.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE)?;
-        for i in 0..all.GetCount()? {
-            let dev = all.Item(i)?;
-            let id = take(dev.GetId()?);
-            if watched.iter().any(|(w, _)| *w == id) {
-                continue;
-            }
-            let manager: IAudioSessionManager2 = dev.Activate(CLSCTX_ALL, None)?;
-            // Windows only starts the notifications after one enumeration (documented).
-            let _ = manager.GetSessionEnumerator()?;
-            manager.RegisterSessionNotification(created)?;
-            watched.push((id, manager));
+) {
+    let Ok(active) = active_ids(en) else { return };
+    watched.retain(|(id, manager)| {
+        let keep = active.iter().any(|(a, _)| a == id);
+        if !keep {
+            // SAFETY: unregistering our own callback from a manager we hold, not from inside it.
+            let _ = unsafe { manager.UnregisterSessionNotification(created) };
+        }
+        keep
+    });
+    for (id, dev) in active {
+        if watched.iter().any(|(w, _)| *w == id) {
+            continue;
+        }
+        // SAFETY: plain Core Audio calls on objects we hold.
+        let manager = unsafe {
+            dev.Activate::<IAudioSessionManager2>(CLSCTX_ALL, None)
+                .and_then(|m| {
+                    // Windows only starts the notifications after one enumeration (documented).
+                    m.GetSessionEnumerator()?;
+                    m.RegisterSessionNotification(created)?;
+                    Ok(m)
+                })
+        };
+        match manager {
+            Ok(m) => watched.push((id, m)),
+            Err(e) => eprintln!("audio sessions: {e}"),
         }
     }
-    Ok(())
+}
+
+/// The outputs that are on: Windows' id and the device.
+fn active_ids(en: &IMMDeviceEnumerator) -> windows::core::Result<Vec<(String, IMMDevice)>> {
+    // SAFETY: plain Core Audio reads on objects we hold.
+    unsafe {
+        let all = en.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE)?;
+        let mut out = Vec::new();
+        for i in 0..all.GetCount()? {
+            if let Ok(dev) = all.Item(i)
+                && let Ok(id) = dev.GetId()
+            {
+                out.push((take(id), dev));
+            }
+        }
+        Ok(out)
+    }
 }
 
 /// Gives the app's sessions their look: the app's own (`root`) the sounds' look, the
