@@ -15,8 +15,9 @@ use ts_rs::TS;
 use super::Updater;
 use crate::auth::Auth;
 
+use super::sign::NO_MATCH;
+
 const DOWNLOAD_FAILED: &str = "Download failed. Try again later.";
-const NO_MATCH: &str = "The file didn't match, so it was deleted.";
 const NO_START: &str = "Couldn't start the installer.";
 
 #[derive(Clone, Serialize, TS)]
@@ -52,7 +53,7 @@ pub async fn run(app: AppHandle, on: Channel<UpdateProgress>) -> Result<(), Stri
     };
     // V105-20 No `.sig` in the release: don't even download.
     let Some(sig_url) = update.sig_url else {
-        return Err(super::sign::MISSING.into());
+        return Err(super::sign::NOT_SIGNED.into());
     };
     // The name comes from GitHub: a plain file name or nothing.
     if installer.name.contains(['/', '\\', ':']) {
@@ -91,10 +92,7 @@ pub async fn run(app: AppHandle, on: Channel<UpdateProgress>) -> Result<(), Stri
         }
     };
     let check_path = path.clone();
-    let verified = tauri::async_runtime::spawn_blocking(move || verify(&check_path, &hash))
-        .await
-        .map_err(|_| NO_MATCH)?;
-    verified?;
+    checked(&path, tauri::async_runtime::spawn_blocking(move || verify(&check_path, &hash)).await)?;
     // V105-20 Signed with the author's key, or it doesn't run. The `.sig` is small text.
     let sig = match http.get_text(&sig_url, &[], 2048).await {
         Ok(text) => text,
@@ -103,10 +101,11 @@ pub async fn run(app: AppHandle, on: Channel<UpdateProgress>) -> Result<(), Stri
             return Err(DOWNLOAD_FAILED.into());
         }
     };
-    let sig_path = path.clone();
-    tauri::async_runtime::spawn_blocking(move || super::sign::verify(&sig_path, Some(&sig)))
-        .await
-        .map_err(|_| NO_MATCH)??;
+    let (sig_path, name) = (path.clone(), installer.name.clone());
+    checked(
+        &path,
+        tauri::async_runtime::spawn_blocking(move || super::sign::verify(&sig_path, &name, Some(&sig))).await,
+    )?;
     crate::settings::flush_now(&app);
     let _ = on.send(UpdateProgress::Restarting);
     std::process::Command::new(&path)
@@ -115,6 +114,15 @@ pub async fn run(app: AppHandle, on: Channel<UpdateProgress>) -> Result<(), Stri
         .map_err(|_| NO_START)?;
     app.exit(0);
     Ok(())
+}
+
+/// A check that ran on the blocking pool. If the task itself failed (a panic), the file is
+/// deleted too: nothing unchecked stays on disk.
+fn checked<E>(path: &Path, joined: Result<Result<(), String>, E>) -> Result<(), String> {
+    joined.unwrap_or_else(|_| {
+        let _ = fs::remove_file(path);
+        Err(NO_MATCH.into())
+    })
 }
 
 /// The hash from a `.sha256` file: its first word, lowercase, 64 hex digits.

@@ -1,6 +1,6 @@
 <!-- V105-20 A new version is out: a quiet badge before Settings, and a pop-over with what's
      new, "Download and update", "Later" and "Skip this version". Rust checks GitHub; the file
-     is checked against its SHA-256 before it runs. -->
+     must match its SHA-256 and carry a valid signature before it runs. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import IconButton from '../../components/IconButton.svelte';

@@ -1,19 +1,18 @@
 //! V105-20 Update signatures: the installer must carry a minisign signature made with the
 //! author's key, whose public half is built into the app (`app/update.pub`). A release
-//! without a valid `.sig`, or with one from another key, is deleted and never started.
+//! without a valid `.sig`, or with one from another key or for another file, is deleted and
+//! never started.
 
 use std::fs;
 use std::path::Path;
 
 use minisign_verify::{PublicKey, Signature};
 
-const NO_MATCH: &str = "The file didn't match, so it was deleted.";
-const NOT_SIGNED: &str = "This update isn't signed, so it wasn't installed.";
+pub const NO_MATCH: &str = "The file didn't match, so it was deleted.";
+pub const NOT_SIGNED: &str = "This update isn't signed, so it wasn't installed.";
 
 /// Tauri's signer writes the key as base64 of the whole `.pub` text.
 const KEY: &str = include_str!("../../update.pub");
-
-pub const MISSING: &str = NOT_SIGNED;
 
 /// The built-in key (None only if the file in the repo is broken; a test guards that).
 pub fn embedded_key() -> Option<PublicKey> {
@@ -26,10 +25,11 @@ pub fn key_from(b64: &str) -> Option<PublicKey> {
 }
 
 /// Checks the file against the `.sig` text (base64 of the signature text, as `tauri signer
-/// sign` writes it) with `key`. No `.sig` (None) means unsigned. Anything that fails deletes
-/// the file.
-pub fn verify_with(key: Option<&PublicKey>, path: &Path, sig: Option<&str>) -> Result<(), String> {
-    let result = check(key, path, sig);
+/// sign` writes it) with `key`. The signed trusted comment must name `name` (`file:<name>`),
+/// so an older signed installer can't be passed off as a newer release. No `.sig` (None)
+/// means unsigned. Anything that fails deletes the file.
+pub fn verify_with(key: Option<&PublicKey>, path: &Path, name: &str, sig: Option<&str>) -> Result<(), String> {
+    let result = check(key, path, name, sig);
     if result.is_err() {
         let _ = fs::remove_file(path);
     }
@@ -37,11 +37,11 @@ pub fn verify_with(key: Option<&PublicKey>, path: &Path, sig: Option<&str>) -> R
 }
 
 /// The same with the built-in key.
-pub fn verify(path: &Path, sig: Option<&str>) -> Result<(), String> {
-    verify_with(embedded_key().as_ref(), path, sig)
+pub fn verify(path: &Path, name: &str, sig: Option<&str>) -> Result<(), String> {
+    verify_with(embedded_key().as_ref(), path, name, sig)
 }
 
-fn check(key: Option<&PublicKey>, path: &Path, sig: Option<&str>) -> Result<(), String> {
+fn check(key: Option<&PublicKey>, path: &Path, name: &str, sig: Option<&str>) -> Result<(), String> {
     let sig = sig.ok_or(NOT_SIGNED)?;
     let key = key.ok_or(NO_MATCH)?;
     let text = b64_decode(sig)
@@ -49,7 +49,13 @@ fn check(key: Option<&PublicKey>, path: &Path, sig: Option<&str>) -> Result<(), 
         .ok_or(NO_MATCH)?;
     let sig = Signature::decode(&text).map_err(|_| NO_MATCH)?;
     let bytes = fs::read(path).map_err(|_| NO_MATCH)?;
-    key.verify(&bytes, &sig, false).map_err(|_| NO_MATCH.to_owned())
+    key.verify(&bytes, &sig, false).map_err(|_| NO_MATCH)?;
+    // Checked after `verify`, which covers the trusted comment with the global signature.
+    let file = format!("file:{name}");
+    if !sig.trusted_comment().split('\t').any(|part| part == file) {
+        return Err(NO_MATCH.into());
+    }
+    Ok(())
 }
 
 /// Standard base64 with padding; whitespace is ignored. A few lines, so no crate.
@@ -91,6 +97,8 @@ mod tests {
     const TEST_PUB: &str = include_str!("../../tests/fixtures/sign/test-only.pub");
     const SIG: &str = include_str!("../../tests/fixtures/sign/test-only-payload.bin.sig");
     const PAYLOAD: &[u8] = include_bytes!("../../tests/fixtures/sign/test-only-payload.bin");
+    /// The name the fixture was signed under (in its trusted comment).
+    const NAME: &str = "test-only-payload.bin";
 
     fn file(tag: &str, bytes: &[u8]) -> std::path::PathBuf {
         let p = std::env::temp_dir().join(format!("cyex-sign-test-{tag}-{}.bin", std::process::id()));
@@ -108,7 +116,7 @@ mod tests {
     fn good_signature_passes_and_keeps_the_file() {
         let key = key_from(TEST_PUB).unwrap();
         let p = file("good", PAYLOAD);
-        assert_eq!(verify_with(Some(&key), &p, Some(SIG)), Ok(()));
+        assert_eq!(verify_with(Some(&key), &p, NAME, Some(SIG)), Ok(()));
         assert!(p.exists());
         let _ = fs::remove_file(p);
     }
@@ -119,14 +127,23 @@ mod tests {
         let mut bytes = PAYLOAD.to_vec();
         bytes[0] ^= 1;
         let p = file("flip", &bytes);
-        assert_eq!(verify_with(Some(&key), &p, Some(SIG)), Err(NO_MATCH.to_owned()));
+        assert_eq!(verify_with(Some(&key), &p, NAME, Some(SIG)), Err(NO_MATCH.to_owned()));
         assert!(!p.exists());
     }
 
     #[test]
     fn a_signature_from_another_key_fails_against_the_real_key() {
         let p = file("other", PAYLOAD);
-        assert_eq!(verify(&p, Some(SIG)), Err(NO_MATCH.to_owned()));
+        assert_eq!(verify(&p, NAME, Some(SIG)), Err(NO_MATCH.to_owned()));
+        assert!(!p.exists());
+    }
+
+    #[test]
+    fn a_signature_for_another_file_name_fails() {
+        let key = key_from(TEST_PUB).unwrap();
+        let p = file("name", PAYLOAD);
+        let other = "cyex-deck_0.1.4_x64-setup.exe";
+        assert_eq!(verify_with(Some(&key), &p, other, Some(SIG)), Err(NO_MATCH.to_owned()));
         assert!(!p.exists());
     }
 
@@ -134,7 +151,7 @@ mod tests {
     fn a_missing_sig_is_unsigned() {
         let key = key_from(TEST_PUB).unwrap();
         let p = file("none", PAYLOAD);
-        assert_eq!(verify_with(Some(&key), &p, None), Err(NOT_SIGNED.to_owned()));
+        assert_eq!(verify_with(Some(&key), &p, NAME, None), Err(NOT_SIGNED.to_owned()));
         assert!(!p.exists());
     }
 
@@ -144,7 +161,7 @@ mod tests {
         for junk in ["", "%%%not base64%%%", "bm90IGEgc2lnbmF0dXJl", "<html>404</html>"] {
             let p = file("junk", PAYLOAD);
             assert_eq!(
-                verify_with(Some(&key), &p, Some(junk)),
+                verify_with(Some(&key), &p, NAME, Some(junk)),
                 Err(NO_MATCH.to_owned()),
                 "{junk}"
             );
