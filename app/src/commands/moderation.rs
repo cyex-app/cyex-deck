@@ -24,7 +24,7 @@ pub async fn mod_run(app: AppHandle, account: String, channel: String, name: Str
         moderation::nuke::run(&app, &account, &channel, &args).await?;
         return Ok(None);
     }
-    let parsed = command::parse(&name, &args).ok_or_else(|| format!("/{name} isn't a mod command."))?;
+    let parsed = command::parse(&name, &args).ok_or_else(|| format!("/{name} isn’t a mod command."))?;
     moderation::run::command(&app, &account, &channel, parsed?).await
 }
 

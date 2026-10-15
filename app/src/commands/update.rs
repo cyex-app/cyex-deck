@@ -48,7 +48,7 @@ pub async fn update_install(app: AppHandle, on_event: Channel<UpdateProgress>) -
 pub fn update_open_notes(app: AppHandle) -> CmdResult<()> {
     let update = update::available(&app).ok_or("No update.")?;
     if !is_release_page(&update.notes_url) {
-        return Err("That link can't be opened from here.".into());
+        return Err("That link can’t be opened from here.".into());
     }
     app.opener()
         .open_url(update.notes_url, None::<&str>)

@@ -50,7 +50,7 @@ pub fn to_rust(src: &str) -> Result<String, String> {
 }
 
 fn unsupported(what: &str) -> String {
-    format!("Uses {what}, which isn't supported here.")
+    format!("Uses {what}, which isn’t supported here.")
 }
 
 impl Conv {

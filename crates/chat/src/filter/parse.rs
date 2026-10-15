@@ -96,7 +96,7 @@ fn lex(text: &str) -> Result<Vec<Tok>, String> {
             let mut j = q + 1;
             loop {
                 match chars.get(j) {
-                    None => return Err("A quote isn't closed".into()),
+                    None => return Err("A quote isn’t closed".into()),
                     Some('"') => break,
                     Some('\\') if chars.get(j + 1) == Some(&'"') => {
                         s.push('"');
@@ -295,7 +295,7 @@ pub fn type_of(e: &Expr) -> Result<Type, String> {
         },
         Expr::Bin(op, l, r) => {
             let (a, b) = (type_of(l)?, type_of(r)?);
-            let bad = || format!("Can't use {:?} on {} and {}", op, a.name(), b.name());
+            let bad = || format!("Can’t use {:?} on {} and {}", op, a.name(), b.name());
             match op {
                 Op::Or | Op::And if a == Bool && b == Bool => Bool,
                 Op::Eq | Op::Ne if a == b || (a == Str && b == Int) || (a == Int && b == Str) => Bool,

@@ -5,7 +5,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// Offline, DNS, timeout: worth retrying later.
-    #[error("couldn't reach Twitch")]
+    #[error("couldn’t reach Twitch")]
     Network(#[source] reqwest::Error),
     /// Twitch answered with an error.
     #[error("Twitch said: {message} ({status})")]

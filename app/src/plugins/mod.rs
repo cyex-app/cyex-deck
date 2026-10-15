@@ -279,7 +279,7 @@ fn sync(app: &AppHandle) {
         });
         match &started {
             Ok(_) => logs::push(app, &id, Level::Info, "Started."),
-            Err(e) => logs::push(app, &id, Level::Critical, &format!("Didn't start: {e}")),
+            Err(e) => logs::push(app, &id, Level::Critical, &format!("Didn’t start: {e}")),
         }
         let mut found = state.found.write().unwrap_or_else(|p| p.into_inner());
         if let Some(f) = found.iter_mut().find(|f| f.id == id) {

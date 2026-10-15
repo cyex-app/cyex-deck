@@ -246,7 +246,7 @@ impl Manifest {
             if let Permission::Network { hosts } = p
                 && let Some(bad) = hosts.iter().find(|h| !crate::perm::valid_host_pattern(h))
             {
-                return Err(format!("Can't read the host \"{bad}\"."));
+                return Err(format!("Can’t read the host \"{bad}\"."));
             }
         }
         if self.settings.len() > MAX_FIELDS {

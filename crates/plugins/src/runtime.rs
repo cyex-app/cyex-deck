@@ -399,7 +399,7 @@ fn boot(
     }
     let src = match std::fs::read(cfg.dir.join(ENTRY)) {
         Ok(s) => s,
-        Err(_) => return fail(format!("Can't read {ENTRY}.")),
+        Err(_) => return fail(format!("Can’t read {ENTRY}.")),
     };
     deadline.start(INIT);
     let r = lua

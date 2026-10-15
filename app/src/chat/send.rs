@@ -44,7 +44,7 @@ pub fn send_to(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<Stri
     let entry = inner.rooms.get(&key).ok_or("This chat is closed.")?;
     match entry.room.status {
         ConnStatus::Joined => {}
-        ConnStatus::AuthFailed => return Err("Twitch didn't accept this account. Sign in again in Settings.".into()),
+        ConnStatus::AuthFailed => return Err("Twitch didn’t accept this account. Sign in again in Settings.".into()),
         _ => return Err("Not connected yet.".into()),
     }
     if let Some(until) = entry.room.state.wait_until.filter(|u| *u > now) {

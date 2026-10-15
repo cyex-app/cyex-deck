@@ -116,7 +116,7 @@ async fn tick(app: &AppHandle) -> Duration {
                     app,
                     None,
                     format!(
-                        "Couldn't claim “{}”. Is the game account linked on Twitch?",
+                        "Couldn’t claim “{}”. Is the game account linked on Twitch?",
                         d.name
                     ),
                 ),

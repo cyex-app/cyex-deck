@@ -70,7 +70,7 @@ pub fn chat_record(app: AppHandle, view: u32, on: bool) -> CmdResult<bool> {
         chat::local_line(&app, &key, NoticeKind::Info, "Recording this chat.");
     } else if let Some(meta) = record::stop(&app, &key) {
         let text = format!(
-            "Recording saved: {} messages. It's in Settings → Backup and sharing.",
+            "Recording saved: {} messages. It’s in Settings → Backup and sharing.",
             meta.messages
         );
         chat::local_line(&app, &key, NoticeKind::Info, &text);

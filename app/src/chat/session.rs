@@ -338,7 +338,7 @@ fn fill_gap(app: AppHandle, key: RoomKey, (after, before, limit): (i64, i64, u32
             Ok(lines) => lines,
             Err(e) => {
                 eprintln!("chat: couldn't fill the gap in {}: {e}", key.1);
-                say(&app, &key, "Couldn't load what was missed while disconnected");
+                say(&app, &key, "Couldn’t load what was missed while disconnected");
                 return;
             }
         };

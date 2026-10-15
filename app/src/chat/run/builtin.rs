@@ -54,7 +54,7 @@ const MOD_COMMANDS: &[&str] = &[
     "unrestrict",
 ];
 
-const HELP: &str = "/me, /echo, /set var, /chain, /foreach, /runin, /timer, /user, /logs, /block, /unblock, /hideuser, /unhideuser, /mutepings, /tl, /translate, /vote, /search, /popout, /color, /w, /r. Mods: /ban, /timeout, /unban, /warn and Twitch's other mod commands. Your own commands are in Settings → Commands.";
+const HELP: &str = "/me, /echo, /set var, /chain, /foreach, /runin, /timer, /user, /logs, /block, /unblock, /hideuser, /unhideuser, /mutepings, /tl, /translate, /vote, /search, /popout, /color, /w, /r. Mods: /ban, /timeout, /unban, /warn and Twitch’s other mod commands. Your own commands are in Settings → Commands.";
 
 pub async fn run(
     app: &AppHandle,
@@ -99,7 +99,7 @@ pub async fn run(
                 .ok_or("Usage: /runin channel /command")?;
             let chan = chan.trim_start_matches('#').to_ascii_lowercase();
             let key = super::super::room_for(app, &place.key.0, &chan)
-                .ok_or_else(|| format!("Not in {chan}'s chat."))?;
+                .ok_or_else(|| format!("Not in {chan}’s chat."))?;
             let there = Place { view: None, key };
             line(app, &there, command, None, true, depth + 1).await
         }
@@ -135,7 +135,7 @@ pub async fn run(
         "mutepings" => {
             let muted = toggle_muted(app, place.channel())?;
             let what = if muted {
-                "won't play sounds or flash now."
+                "won’t play sounds or flash now."
             } else {
                 "plays sounds and flashes again."
             };
@@ -248,7 +248,7 @@ pub fn usable(role: Option<ModRole>, signed_in: bool) -> Vec<&'static str> {
 async fn run_mod(app: &AppHandle, place: &Place, name: &str, args: &str) -> Result<Option<UiAction>, String> {
     let account = place.account().ok_or("Sign in with a moderator account to use that.")?.to_owned();
     let Some(parsed) = cyex_moderation::command::parse(name, args) else {
-        return Err(format!("/{name} isn't supported yet."));
+        return Err(format!("/{name} isn’t supported yet."));
     };
     let cmd = parsed?;
     if let Some(line) = crate::moderation::run::command(app, &account, place.channel(), cmd).await? {
@@ -262,7 +262,7 @@ async fn run_mod(app: &AppHandle, place: &Place, name: &str, args: &str) -> Resu
 fn login_arg(args: &str) -> Result<String, String> {
     match args.split_whitespace().next() {
         None => Err("Say who: a name after the command.".into()),
-        Some(word) => cyex_moderation::command::login(word).ok_or_else(|| format!("{word} isn't a Twitch name.")),
+        Some(word) => cyex_moderation::command::login(word).ok_or_else(|| format!("{word} isn’t a Twitch name.")),
     }
 }
 
@@ -331,7 +331,7 @@ pub async fn block_user(app: &AppHandle, account: &str, login: &str, on: bool) -
             gql::blocks::unblock(&http, auth, &target).await
         }
     } else {
-        return Err("This account can't block people. Sign in again in Settings → Accounts.".into());
+        return Err("This account can’t block people. Sign in again in Settings → Accounts.".into());
     };
     result.map_err(|e| e.to_string())?;
     super::super::rules::note_block(app, &account, &target, on);
@@ -379,7 +379,7 @@ async fn translate_one(app: &AppHandle, text: &str, to: &str) -> Result<String, 
     let http = app.state::<crate::auth::Auth>().http.clone();
     let out = cyex_twitch::translate::translate(&http, &[text.to_owned()], to)
         .await
-        .map_err(|_| "Translation isn't working right now.".to_owned())?;
+        .map_err(|_| "Translation isn’t working right now.".to_owned())?;
     out.into_iter()
         .next()
         .map(|t| t.text)

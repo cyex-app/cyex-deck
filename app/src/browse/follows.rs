@@ -158,10 +158,10 @@ fn merge(list: &mut Vec<ChannelCard>, live: Vec<ChannelCard>) {
 
 pub fn error_text(e: cyex_twitch::Error) -> String {
     if e.is_network() {
-        "Couldn't reach Twitch.".into()
+        "Couldn’t reach Twitch.".into()
     } else {
         eprintln!("browse: {e}");
-        "Twitch didn't send the list. Try again in a bit.".into()
+        "Twitch didn’t send the list. Try again in a bit.".into()
     }
 }
 

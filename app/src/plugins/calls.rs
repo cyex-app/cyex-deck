@@ -56,7 +56,7 @@ pub async fn command(p: &Plugin, name: &str, args: &str, channel: &str) -> Resul
     words.extend(args.split_whitespace().map(str::to_owned));
     ask(CALLBACK + BUSY, |r| p.command(name, words, channel, r))
         .await
-        .ok_or_else(|| "The plugin didn't answer.".to_owned())?
+        .ok_or_else(|| "The plugin didn’t answer.".to_owned())?
 }
 
 /// Tab completion from every plugin that offers it.
@@ -79,11 +79,11 @@ pub async fn complete(app: &AppHandle, req: CompletionRequest) -> Completion {
 pub async fn menu(p: &Plugin, index: usize, channel: &str, on: (Option<Line>, Option<NameUser>)) -> Result<(), String> {
     ask(CALLBACK + BUSY, |r| p.menu(index, channel, on, r))
         .await
-        .ok_or_else(|| "The plugin didn't answer.".to_owned())?
+        .ok_or_else(|| "The plugin didn’t answer.".to_owned())?
 }
 
 pub async fn repl(p: &Plugin, code: &str) -> Result<String, String> {
     ask(Duration::from_secs(2) + BUSY, |r| p.repl(code, r))
         .await
-        .ok_or_else(|| "The plugin didn't answer.".to_owned())?
+        .ok_or_else(|| "The plugin didn’t answer.".to_owned())?
 }

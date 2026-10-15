@@ -2,7 +2,7 @@
 
 use super::{Ascii, Conv, Scope, unsupported};
 
-const NOT_CLOSED: &str = "A (?C or (?# isn't closed.";
+const NOT_CLOSED: &str = "A (?C or (?# isn’t closed.";
 
 impl Conv {
     /// Opens a scope that lasts until its `)`.
@@ -68,7 +68,7 @@ impl Conv {
             }
             '&' => {
                 self.i += 1;
-                let name = self.until(')').ok_or("A subroutine call isn't closed.")?;
+                let name = self.until(')').ok_or("A subroutine call isn’t closed.")?;
                 self.out.push_str(&format!(r"\g<{name}>"));
             }
             'R' if self.at(1) == Some(')') => {
@@ -76,7 +76,7 @@ impl Conv {
                 self.out.push_str(r"\g<0>");
             }
             '0'..='9' | '+' | '-' if self.is_call() => {
-                let n = self.until(')').ok_or("A subroutine call isn't closed.")?;
+                let n = self.until(')').ok_or("A subroutine call isn’t closed.")?;
                 self.out.push_str(&format!(r"\g<{n}>"));
             }
             '(' => self.condition()?,
@@ -196,7 +196,7 @@ impl Conv {
             "NOTEMPTY" | "NOTEMPTY_ATSTART" => return Err(unsupported("(*NOTEMPTY)")),
             "MARK" | "" if colon => {
                 self.i += end;
-                self.until(')').ok_or("A verb isn't closed.")?;
+                self.until(')').ok_or("A verb isn’t closed.")?;
             }
             // fancy-regex 0.19.2 refuses every verb but (*FAIL).
             "PRUNE" | "COMMIT" | "ACCEPT" | "SKIP" => return Err(unsupported(&format!("(*{name})"))),

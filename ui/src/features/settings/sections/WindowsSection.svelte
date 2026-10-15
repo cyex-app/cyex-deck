@@ -27,7 +27,7 @@
 </script>
 
 <h2>Windows</h2>
-<p class="intro">A layout remembers where the main window and every pop-out sit, and whether they're pinned.</p>
+<p class="intro">A layout remembers where the main window and every pop-out sit, and whether they’re pinned.</p>
 
 <form class="save" data-setting="windows.layouts" onsubmit={save}>
   <input class="field" placeholder="Layout name" maxlength="40" bind:value={name} />

@@ -235,7 +235,7 @@ fn app_and_twitch_commands_stay_theirs() {
     )
     .err()
     .unwrap();
-    assert!(err.contains("can't be a command"), "{err}");
+    assert!(err.contains("can’t be a command"), "{err}");
 }
 
 #[test]
@@ -695,7 +695,7 @@ fn plugin_lines_follow_the_rules() {
     // Text that isn't a command would send a message.
     let say = text("{ type = 'text', text = 'x', link = { type = 'UserAction', value = 'hi all' } }");
     assert!(repl(&p, &say).unwrap_err().contains("SendMessages"));
-    assert!(repl(&p, &text("{ type = 'timestamp' }")).unwrap_err().contains("isn't in cyex"));
+    assert!(repl(&p, &text("{ type = 'timestamp' }")).unwrap_err().contains("isn’t in cyex"));
     assert!(repl(&p, &text("{ type = 'text', text = 'x', color = 'blue' }")).is_err());
     assert!(repl(&p, &text("{ type = 'text', text = 'x', link = { type = 'Url', value = 'file:///c' } }")).is_err());
     assert!(repl(&p, &format!("ch:add_message({})", text(&format!("{{ type = 'text', text = '{}' }}", "a".repeat(1001))))).is_err());
@@ -840,7 +840,7 @@ fn tabs_need_the_tabs_permission_and_stay_in_a_limit() {
     .unwrap();
     assert_eq!(repl(&p, "cyex.open_channel(' #XQC ')"), Ok(String::new()));
     assert_eq!(repl(&p, "cyex.select_tab('t1')"), Ok(String::new()));
-    assert!(repl(&p, "cyex.open_channel('not a login')").unwrap_err().contains("isn't a Twitch login"));
+    assert!(repl(&p, "cyex.open_channel('not a login')").unwrap_err().contains("isn’t a Twitch login"));
     assert_eq!(*fake.tabs.lock().unwrap(), [("open", "xqc".to_owned()), ("select", "t1".to_owned())]);
     let err = repl(&p, "for i = 1, 20 do cyex.select_tab('t1') end").unwrap_err();
     assert!(err.contains("up to 10 tab switches a minute"), "{err}");

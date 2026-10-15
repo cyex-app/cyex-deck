@@ -39,12 +39,12 @@ pub async fn set(app: &AppHandle, channel_id: &str, account: &str, follow: bool)
 /// V105-07 A sentence that reads after "Couldn't follow: ".
 fn error_text(e: &cyex_twitch::Error) -> String {
     match e.api_message() {
-        None => "Twitch didn't answer.".into(),
+        None => "Twitch didn’t answer.".into(),
         Some(m) if m.contains("integrity") => {
             "Twitch wants a fresh GQL sign-in. Sign in again in Settings → Accounts.".into()
         }
         Some("TOO_MANY_FOLLOWS") => "You follow too many channels.".into(),
-        Some("FORBIDDEN") | Some("FOLLOW_BLOCKED") => "Twitch didn't allow it.".into(),
+        Some("FORBIDDEN") | Some("FOLLOW_BLOCKED") => "Twitch didn’t allow it.".into(),
         Some(code) => format!("Twitch said {code}."),
     }
 }
@@ -66,8 +66,8 @@ mod tests {
             error_text(&api("TOO_MANY_FOLLOWS")),
             "You follow too many channels."
         );
-        assert_eq!(error_text(&api("FOLLOW_BLOCKED")), "Twitch didn't allow it.");
-        assert_eq!(error_text(&api("FORBIDDEN")), "Twitch didn't allow it.");
+        assert_eq!(error_text(&api("FOLLOW_BLOCKED")), "Twitch didn’t allow it.");
+        assert_eq!(error_text(&api("FORBIDDEN")), "Twitch didn’t allow it.");
         assert!(error_text(&api("integrity check failed")).starts_with("Twitch wants a fresh GQL sign-in."));
         assert_eq!(error_text(&api("WHATEVER")), "Twitch said WHATEVER.");
     }
@@ -75,6 +75,6 @@ mod tests {
     #[test]
     fn other_errors_are_no_answer() {
         let decode = cyex_twitch::Error::Decode(serde_json::from_str::<u8>("x").unwrap_err());
-        assert_eq!(error_text(&decode), "Twitch didn't answer.");
+        assert_eq!(error_text(&decode), "Twitch didn’t answer.");
     }
 }

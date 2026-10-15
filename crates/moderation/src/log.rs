@@ -19,9 +19,9 @@ pub fn describe(m: &Moderate, secs: Option<u64>) -> String {
             None => format!("{by} timed out {who}"),
         }),
         "unban" => format!("{by} unbanned {who}."),
-        "untimeout" => format!("{by} lifted {who}'s timeout."),
+        "untimeout" => format!("{by} lifted {who}’s timeout."),
         "delete" => match &m.message_body {
-            Some(b) if !b.is_empty() => format!("{by} deleted {who}'s message: {b}"),
+            Some(b) if !b.is_empty() => format!("{by} deleted {who}’s message: {b}"),
             _ => format!("{by} deleted a message from {who}."),
         },
         "clear" => format!("{by} cleared the chat."),
@@ -48,8 +48,8 @@ pub fn describe(m: &Moderate, secs: Option<u64>) -> String {
         "remove_blocked_term" => format!("{by} unblocked {}.", term()),
         "add_permitted_term" => format!("{by} allowed {}.", term()),
         "remove_permitted_term" => format!("{by} no longer allows {}.", term()),
-        "approve_unban_request" => why(format!("{by} approved {who}'s unban request")),
-        "deny_unban_request" => why(format!("{by} denied {who}'s unban request")),
+        "approve_unban_request" => why(format!("{by} approved {who}’s unban request")),
+        "deny_unban_request" => why(format!("{by} denied {who}’s unban request")),
         "warn" => why(format!("{by} warned {who}")),
         "approved_automod_message" => format!("{by} approved a held message from {who}."),
         "denied_automod_message" => format!("{by} denied a held message from {who}."),
@@ -57,7 +57,7 @@ pub fn describe(m: &Moderate, secs: Option<u64>) -> String {
         other => format!("{by}: {other}."),
     };
     match &m.source_channel {
-        Some(c) if m.action.starts_with("shared_chat_") => format!("In {c}'s chat: {line}"),
+        Some(c) if m.action.starts_with("shared_chat_") => format!("In {c}’s chat: {line}"),
         _ => line,
     }
 }
@@ -103,12 +103,12 @@ mod tests {
         assert_eq!(describe(&s, None), "Kuni turned on slow mode (30s).");
         let mut d = m("delete");
         d.message_body = Some("bad".into());
-        assert_eq!(describe(&d, None), "Kuni deleted X's message: bad");
+        assert_eq!(describe(&d, None), "Kuni deleted X’s message: bad");
         let mut b = m("add_blocked_term");
         b.terms = vec!["foo".into()];
         assert_eq!(describe(&b, None), "Kuni blocked “foo”.");
         let mut sc = m("shared_chat_ban");
         sc.source_channel = Some("other".into());
-        assert_eq!(describe(&sc, None), "In other's chat: Kuni banned X.");
+        assert_eq!(describe(&sc, None), "In other’s chat: Kuni banned X.");
     }
 }

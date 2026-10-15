@@ -26,7 +26,7 @@
 {#if account}
   {#key account}<ModView {login} {account} {onpopout} {onclose} {host} {ongrab} {chatNear} />{/key}
 {:else}
-  <p class="gone">You're not moderating {login} right now. Open its chat with your mod account first.</p>
+  <p class="gone">You’re not moderating {login} right now. Open its chat with your mod account first.</p>
 {/if}
 
 <style>

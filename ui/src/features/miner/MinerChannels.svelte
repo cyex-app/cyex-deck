@@ -52,7 +52,7 @@
 
   async function setFirst(c: TabChannel, on: boolean) {
     const out = await minerIpc.first(strip(c), on);
-    if (out) toast.info(`${out} isn't first anymore.`);
+    if (out) toast.info(`${out} isn’t first anymore.`);
   }
 
   function remove(id: string) {

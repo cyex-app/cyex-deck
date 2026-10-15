@@ -47,7 +47,7 @@ pub async fn info(app: &AppHandle) -> Result<channel::ChannelInfo, String> {
 /// Changes title, category, language or tags, then reads the stats again.
 pub async fn set_info(app: &AppHandle, edit: channel::Edit) -> Result<(), String> {
     if edit.title.as_deref().is_some_and(|t| t.trim().is_empty()) {
-        return Err("The title can't be empty.".into());
+        return Err("The title can’t be empty.".into());
     }
     either(
         app,

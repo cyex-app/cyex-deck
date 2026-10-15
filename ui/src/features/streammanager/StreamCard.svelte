@@ -50,7 +50,7 @@
       </figcaption>
     </figure>
   {:else}
-    <p class="note">The viewer graph fills in while you're live.</p>
+    <p class="note">The viewer graph fills in while you’re live.</p>
   {/if}
 </Card>
 

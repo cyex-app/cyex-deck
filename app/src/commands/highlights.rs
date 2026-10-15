@@ -17,7 +17,7 @@ type CmdResult<T> = Result<T, String>;
 
 /// Settings files are small; a file this big isn't one.
 const MAX_BYTES: u64 = 16 * 1024 * 1024;
-const NOT_SETTINGS: &str = "That file isn't Chatterino's settings.json.";
+const NOT_SETTINGS: &str = "That file isn’t Chatterino’s settings.json.";
 
 /// What the last pick found, until the import or the next pick.
 #[derive(Default)]
@@ -30,12 +30,12 @@ pub fn init(app: &AppHandle) {
 /// Reads only the highlights; the text is dropped before this returns.
 fn read(path: &std::path::Path) -> CmdResult<Found> {
     let size = std::fs::metadata(path)
-        .map_err(|_| "Couldn't open that file.")?
+        .map_err(|_| "Couldn’t open that file.")?
         .len();
     if size > MAX_BYTES {
         return Err(NOT_SETTINGS.into());
     }
-    let bytes = std::fs::read(path).map_err(|_| "Couldn't open that file.")?;
+    let bytes = std::fs::read(path).map_err(|_| "Couldn’t open that file.")?;
     let text = String::from_utf8(bytes).map_err(|_| NOT_SETTINGS)?;
     let found = parse_highlights(&text, cyex_chat::rules::import_regex).map_err(|_| NOT_SETTINGS);
     drop(text);
@@ -152,7 +152,7 @@ mod tests {
             .iter()
             .map(|s| (s.pattern.as_str(), s.reason.as_str()))
             .collect();
-        assert_eq!(reasons[1], (r"\X+", r"Uses \X, which isn't supported here."));
+        assert_eq!(reasons[1], (r"\X+", r"Uses \X, which isn’t supported here."));
         assert_eq!(reasons[0].0, "(abc");
         assert!(parse_highlights("not json", cyex_chat::rules::import_regex).is_err());
     }

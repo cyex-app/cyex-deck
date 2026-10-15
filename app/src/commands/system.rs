@@ -29,7 +29,7 @@ pub fn system_open_link(app: AppHandle, url: String) -> CmdResult<()> {
 /// Opens one of the allowed sites in the browser.
 pub fn open_allowed(app: &AppHandle, url: String) -> CmdResult<()> {
     if !is_allowed(&url) {
-        return Err("That link can't be opened from here.".into());
+        return Err("That link can’t be opened from here.".into());
     }
     app.opener()
         .open_url(url, None::<&str>)
@@ -40,7 +40,7 @@ pub fn open_allowed(app: &AppHandle, url: String) -> CmdResult<()> {
 #[tauri::command]
 pub fn system_open_chat_link(app: AppHandle, url: String) -> CmdResult<()> {
     if !is_web(&url) {
-        return Err("That link can't be opened.".into());
+        return Err("That link can’t be opened.".into());
     }
     app.opener()
         .open_url(url, None::<&str>)

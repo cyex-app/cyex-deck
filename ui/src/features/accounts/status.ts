@@ -13,11 +13,11 @@ export function tokenStatus(t: TokenView): { text: string; tone: Tone } {
     case 'missing':
       return { text: 'Not saved on this PC', tone: 'bad' };
     case 'offline':
-      return { text: "Couldn't reach Twitch, trying again soon", tone: 'warn' };
+      return { text: "Couldn’t reach Twitch, trying again soon", tone: 'warn' };
     case 'checking':
       return { text: 'Checking…', tone: 'muted' };
   }
-  if (t.expiresAt === null) return { text: "Signed in, doesn't expire", tone: 'ok' };
+  if (t.expiresAt === null) return { text: "Signed in, doesn’t expire", tone: 'ok' };
   // Device sign-ins renew on their own, so their expiry isn't worth showing.
   if (t.source === 'device') return { text: 'Signed in', tone: 'ok' };
   const d = new Date(t.expiresAt * 1000);

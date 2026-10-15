@@ -39,7 +39,7 @@ impl Conv {
             'x' => {
                 let hex = if self.peek() == Some('{') {
                     self.i += 1;
-                    self.until('}').ok_or(r"\x{ isn't closed.")?
+                    self.until('}').ok_or(r"\x{ isn’t closed.")?
                 } else {
                     let mut h = String::new();
                     while h.len() < 2 && self.peek().is_some_and(|c| c.is_ascii_hexdigit()) {
@@ -53,7 +53,7 @@ impl Conv {
                 if self.next() != Some('{') {
                     return Err(r"\o needs braces.".to_owned());
                 }
-                let oct = self.until('}').ok_or(r"\o{ isn't closed.")?;
+                let oct = self.until('}').ok_or(r"\o{ isn’t closed.")?;
                 self.code(u32::from_str_radix(&oct, 8))?;
             }
             '0' => {
@@ -79,7 +79,7 @@ impl Conv {
             'k' => {
                 if self.peek() == Some('{') {
                     self.i += 1;
-                    let name = self.until('}').ok_or(r"\k{ isn't closed.")?;
+                    let name = self.until('}').ok_or(r"\k{ isn’t closed.")?;
                     self.out.push_str(&format!(r"\k<{name}>"));
                 } else {
                     self.out.push_str(r"\k");
@@ -96,7 +96,7 @@ impl Conv {
                 self.out.push('\\');
                 self.out.push(e);
             }
-            c if c.is_ascii_alphanumeric() => return Err(format!("\\{c} isn't a PCRE2 escape.")),
+            c if c.is_ascii_alphanumeric() => return Err(format!("\\{c} isn’t a PCRE2 escape.")),
             c => push_literal(&mut self.out, c),
         }
         Ok(())
@@ -167,7 +167,7 @@ impl Conv {
         }
         let mut word = String::new();
         if braced {
-            word = self.until('}').ok_or(r"\g{ isn't closed.")?;
+            word = self.until('}').ok_or(r"\g{ isn’t closed.")?;
         } else {
             if self.peek() == Some('-') {
                 word.extend(self.next());
@@ -202,7 +202,7 @@ impl Conv {
     fn property(&mut self, mut negated: bool, in_class: bool) -> Result<(), String> {
         let name = if self.peek() == Some('{') {
             self.i += 1;
-            self.until('}').ok_or(r"\p{ isn't closed.")?
+            self.until('}').ok_or(r"\p{ isn’t closed.")?
         } else {
             let Some(c) = self.next() else {
                 return Err(r"\p needs a property name.".to_owned());

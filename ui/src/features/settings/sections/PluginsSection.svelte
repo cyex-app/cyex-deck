@@ -38,7 +38,7 @@
 </div>
 
 {#if view && !view.list.length}
-  <EmptyState icon="puzzle" text="No plugins yet. Put a plugin's folder into the plugins folder, then Look again." />
+  <EmptyState icon="puzzle" text="No plugins yet. Put a plugin’s folder into the plugins folder, then Look again." />
 {:else if view}
   {#each view.list as p (p.id)}
     <PluginCard plugin={p} {live} />

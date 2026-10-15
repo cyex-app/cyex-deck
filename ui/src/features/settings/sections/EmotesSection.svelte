@@ -59,7 +59,7 @@
     onchange={(v) => settings.patch('chat', { thirdPartyEmotes: v })}
   />
 </Row>
-<Row setting="chat.unlistedEmotes" label="Unlisted 7TV emotes" hint="Emotes 7TV hasn't approved for public listing.">
+<Row setting="chat.unlistedEmotes" label="Unlisted 7TV emotes" hint="Emotes 7TV hasn’t approved for public listing.">
   <Segmented
     label="Unlisted 7TV emotes"
     options={UNLISTED}
@@ -77,7 +77,7 @@
     onchange={(v) => settings.patch('chat', { animateOnlyFocused: v })}
   />
 </Row>
-<Row setting="chat.emotePriority" label="Which wins" hint="When two have an emote with the same name. The channel's emotes still beat global ones.">
+<Row setting="chat.emotePriority" label="Which wins" hint="When two have an emote with the same name. The channel’s emotes still beat global ones.">
   <ol class="order">
     {#each c.emotePriority as s, i (s)}
       <li>
@@ -130,7 +130,7 @@
 <Row
   setting="chat.sharePresence"
   label="Show my 7TV and BTTV look to others"
-  hint="Tells 7TV and BTTV which channel you're chatting in, so other viewers see your paint, badge and personal emotes."
+  hint="Tells 7TV and BTTV which channel you’re chatting in, so other viewers see your paint, badge and personal emotes."
 >
   <Toggle
     label="Show my 7TV and BTTV look to others"

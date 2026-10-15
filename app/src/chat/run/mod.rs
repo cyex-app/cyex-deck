@@ -304,7 +304,7 @@ fn params(app: &AppHandle, place: &Place, args: &str) -> Params {
 
 /// Fills in a body typed out as text.
 async fn fill(app: &AppHandle, place: &Place, body: &str, p: Params) -> Result<Option<String>, String> {
-    let items = commands::parse(body).map_err(|e| format!("Can't read that command: {e}"))?;
+    let items = commands::parse(body).map_err(|e| format!("Can’t read that command: {e}"))?;
     run_body(app, place, Arc::new(items), p).await
 }
 

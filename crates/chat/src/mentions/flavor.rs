@@ -202,7 +202,7 @@ impl<'a> Scan<'a> {
                     return Ok(());
                 }
             }
-            return Err("A (?# comment isn't closed.".into());
+            return Err("A (?# comment isn’t closed.".into());
         }
         let mut ahead = self.chars.clone();
         let mut flags = String::new();
@@ -218,11 +218,11 @@ impl<'a> Scan<'a> {
             return Ok(());
         };
         if flags.contains('L') {
-            return Err("Locale mode (?L) isn't supported.".into());
+            return Err("Locale mode (?L) isn’t supported.".into());
         }
         if flags.contains('a') {
             self.note =
-                Some(r"ASCII mode (?a) isn't supported: \w, \d and \b also match other letters and digits.");
+                Some(r"ASCII mode (?a) isn’t supported: \w, \d and \b also match other letters and digits.");
         }
         let kept: String = flags.chars().filter(|c| !matches!(c, 'a' | 'u')).collect();
         self.chars = ahead;
@@ -297,11 +297,11 @@ impl<'a> Scan<'a> {
                 self.out.push(e);
             }
             'A' | 'Z' if !self.js && !class => self.out.push_str(if e == 'A' { r"\A" } else { r"\z" }),
-            'N' if !self.js => return Err(r"\N{…} names aren't supported. Use the character itself.".into()),
-            'q' if self.js => return Err(r"\q{…} isn't supported.".into()),
+            'N' if !self.js => return Err(r"\N{…} names aren’t supported. Use the character itself.".into()),
+            'q' if self.js => return Err(r"\q{…} isn’t supported.".into()),
             c if c.is_ascii_alphanumeric() => {
                 let flavor = if self.js { "JavaScript" } else { "Python" };
-                return Err(format!(r"\{c} isn't a {flavor} escape."));
+                return Err(format!(r"\{c} isn’t a {flavor} escape."));
             }
             c => self.literal(c),
         }
@@ -325,7 +325,7 @@ impl<'a> Scan<'a> {
     fn code(&mut self, hex: &str) -> Result<(), String> {
         let n = u32::from_str_radix(hex, 16).map_err(|_| "Not a hex number.".to_owned())?;
         if char::from_u32(n).is_none() {
-            return Err(format!("U+{n:X} isn't a character."));
+            return Err(format!("U+{n:X} isn’t a character."));
         }
         self.out.push_str(&format!(r"\x{{{n:X}}}"));
         Ok(())

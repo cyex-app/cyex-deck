@@ -44,7 +44,7 @@ pub fn player_playing(app: AppHandle, login: String) -> bool {
 pub async fn player_clip(app: AppHandle, slug: String) -> CmdResult<Option<ClipPlayback>> {
     gql::clip(&http(&app), &slug).await.map_err(|e| match e {
         // V102-08
-        cyex_twitch::Error::Refused(_) => "Twitch couldn't make this clip.".into(),
+        cyex_twitch::Error::Refused(_) => "Twitch couldn’t make this clip.".into(),
         e => message(e),
     })
 }
@@ -183,7 +183,7 @@ fn http(app: &AppHandle) -> cyex_twitch::Http {
 
 fn message(e: cyex_twitch::Error) -> String {
     if e.is_network() {
-        "Couldn't reach Twitch.".into()
+        "Couldn’t reach Twitch.".into()
     } else {
         e.to_string()
     }

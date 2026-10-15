@@ -107,7 +107,7 @@ pub async fn send_message(http: &Http, auth: Auth<'_>, broadcaster_id: &str, sen
     match (first.is_sent, first.message_id) {
         (true, Some(id)) if !id.is_empty() => Ok(id),
         _ => Err(Error::Refused(
-            first.drop_reason.map(|d| d.message).unwrap_or_else(|| "Twitch didn't send it.".into()),
+            first.drop_reason.map(|d| d.message).unwrap_or_else(|| "Twitch didn’t send it.".into()),
         )),
     }
 }

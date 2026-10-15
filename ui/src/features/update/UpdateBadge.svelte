@@ -42,7 +42,7 @@
           <b>cyex deck {u.version}</b>
           {#if u.prerelease}<span class="chip">Pre-release</span>{/if}
         </div>
-        <button class="link" onclick={() => update.openNotes()}>What's new</button>
+        <button class="link" onclick={() => update.openNotes()}>What’s new</button>
         {#if update.busy}
           <div class="bar"><div class="fill" style:width="{update.percent ?? 0}%"></div></div>
           <span class="status">{update.progress}</span>

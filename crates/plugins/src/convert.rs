@@ -45,7 +45,7 @@ pub fn change(v: &Value) -> Result<Option<Change>, String> {
         Value::String(s) => {
             let s = s.to_str().map_err(|e| e.to_string())?;
             c.highlight =
-                Some(color(&s).ok_or_else(|| format!("highlight \"{}\" isn't a #rrggbb color", &*s))?);
+                Some(color(&s).ok_or_else(|| format!("highlight \"{}\" isn’t a #rrggbb color", &*s))?);
         }
         _ => return Err("highlight must be true or a color".into()),
     }

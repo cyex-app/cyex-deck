@@ -72,13 +72,13 @@
 
   type Id = 'chat' | 'activity' | 'actions' | 'automod' | 'unban' | 'chatters' | 'mass' | 'stream';
   const INFO: Record<Id, { title: string; hint: string; min: Box; tall: number }> = {
-    stream: { title: 'Stream', hint: "The channel's stream.", min: { w: 240, h: 170 }, tall: 280 },
+    stream: { title: 'Stream', hint: "The channel’s stream.", min: { w: 240, h: 170 }, tall: 280 },
     chat: { title: 'Chat', hint: 'The chat, as you.', min: { w: 240, h: 200 }, tall: 440 },
     activity: { title: 'Activity', hint: 'Follows, unban requests, watched users.', min: { w: 200, h: 110 }, tall: 240 },
     actions: { title: 'Mod actions', hint: 'Bans, timeouts, deletes and more.', min: { w: 240, h: 140 }, tall: 300 },
     automod: { title: 'AutoMod queue', hint: 'Held messages to allow or deny.', min: { w: 200, h: 110 }, tall: 240 },
     unban: { title: 'Unban requests', hint: 'Who asks to be unbanned.', min: { w: 200, h: 110 }, tall: 220 },
-    chatters: { title: 'Viewers', hint: "Who's in the chat.", min: { w: 200, h: 140 }, tall: 280 },
+    chatters: { title: 'Viewers', hint: "Who’s in the chat.", min: { w: 200, h: 140 }, tall: 280 },
     mass: { title: 'Mass actions', hint: 'Ban or time out many at once.', min: { w: 220, h: 140 }, tall: 260 },
   };
   /** Page order; never changes, so the chat and the stream never restart. */

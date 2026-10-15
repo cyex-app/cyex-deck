@@ -50,7 +50,7 @@
 </script>
 
 <h2>Streamer mode</h2>
-<p class="intro">Keeps things off your stream that viewers shouldn't see. {status}</p>
+<p class="intro">Keeps things off your stream that viewers shouldn’t see. {status}</p>
 
 <Row setting="general.streamer.when" label="Turn on" hint="While streaming: when one of the apps below runs.">
   <Segmented label="Turn on" options={WHEN} value={s.when} onchange={(when) => patch({ when })} />

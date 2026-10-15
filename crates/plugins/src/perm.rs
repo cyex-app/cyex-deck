@@ -81,7 +81,7 @@ pub fn valid_host_pattern(p: &str) -> bool {
 /// Whether a plugin with these hosts (empty: any) may fetch `url`. Only http and https,
 /// and never this computer or the local network.
 pub fn check_url(url: &str, hosts: &[String]) -> Result<Url, String> {
-    let u = Url::parse(url).map_err(|_| format!("Can't read the address {url}."))?;
+    let u = Url::parse(url).map_err(|_| format!("Can’t read the address {url}."))?;
     if !matches!(u.scheme(), "http" | "https") {
         return Err("Only http and https addresses work.".into());
     }
@@ -91,25 +91,25 @@ pub fn check_url(url: &str, hosts: &[String]) -> Result<Url, String> {
             return if public(IpAddr::V4(ip)) && hosts.is_empty() {
                 Ok(u)
             } else {
-                Err(format!("{ip} isn't allowed."))
+                Err(format!("{ip} isn’t allowed."))
             };
         }
         Some(Host::Ipv6(ip)) => {
             return if public(IpAddr::V6(ip)) && hosts.is_empty() {
                 Ok(u)
             } else {
-                Err(format!("{ip} isn't allowed."))
+                Err(format!("{ip} isn’t allowed."))
             };
         }
         None => return Err("The address has no host.".into()),
     };
     if name == "localhost" || name.ends_with(".localhost") || !name.contains('.') {
-        return Err(format!("{name} isn't allowed."));
+        return Err(format!("{name} isn’t allowed."));
     }
     if hosts.is_empty() || hosts.iter().any(|p| host_matches(p, &name)) {
         Ok(u)
     } else {
-        Err(format!("{name} isn't in this plugin's list of websites."))
+        Err(format!("{name} isn’t in this plugin’s list of websites."))
     }
 }
 
@@ -122,14 +122,14 @@ fn host_matches(pattern: &str, host: &str) -> bool {
 
 /// S6 A socket address (`ws://` or `wss://`) under the same rules as web addresses.
 pub fn check_ws_url(url: &str, hosts: &[String]) -> Result<Url, String> {
-    let u = Url::parse(url).map_err(|_| format!("Can't read the address {url}."))?;
+    let u = Url::parse(url).map_err(|_| format!("Can’t read the address {url}."))?;
     let web = match u.scheme() {
         "ws" => "http",
         "wss" => "https",
         _ => return Err("Only ws and wss addresses work.".into()),
     };
     let mut probe = u.clone();
-    probe.set_scheme(web).map_err(|()| format!("Can't read the address {url}."))?;
+    probe.set_scheme(web).map_err(|()| format!("Can’t read the address {url}."))?;
     check_url(probe.as_str(), hosts)?;
     Ok(u)
 }
@@ -174,7 +174,7 @@ pub fn data_name(name: &str) -> Result<&str, String> {
     if ok {
         Ok(name)
     } else {
-        Err(format!("\"{name}\" can't be a file name here."))
+        Err(format!("\"{name}\" can’t be a file name here."))
     }
 }
 

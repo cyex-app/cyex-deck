@@ -142,30 +142,30 @@ const ROWS: &[Row] = &[
 ];
 
 const ERRORS: &[(&str, &str)] = &[
-    (r"\X", r"Uses \X, which isn't supported here."),
-    (r"\C", r"Uses \C, which isn't supported here."),
+    (r"\X", r"Uses \X, which isn’t supported here."),
+    (r"\C", r"Uses \C, which isn’t supported here."),
     (
         "(*napla:a)",
-        "Uses a non-atomic lookaround, which isn't supported here.",
+        "Uses a non-atomic lookaround, which isn’t supported here.",
     ),
-    (r"(*sr:\d+)", "Uses a script run, which isn't supported here."),
-    ("(*THEN)", "Uses (*THEN), which isn't supported here."),
-    ("(*SKIP:x)", "Uses (*SKIP:name), which isn't supported here."),
-    ("a(*PRUNE:x)b", "Uses (*PRUNE), which isn't supported here."),
-    ("(*COMMIT)a", "Uses (*COMMIT), which isn't supported here."),
-    ("(*ACCEPT)", "Uses (*ACCEPT), which isn't supported here."),
-    ("(*NOTEMPTY)a", "Uses (*NOTEMPTY), which isn't supported here."),
-    ("(?(R)a)", "Uses a recursion check, which isn't supported here."),
+    (r"(*sr:\d+)", "Uses a script run, which isn’t supported here."),
+    ("(*THEN)", "Uses (*THEN), which isn’t supported here."),
+    ("(*SKIP:x)", "Uses (*SKIP:name), which isn’t supported here."),
+    ("a(*PRUNE:x)b", "Uses (*PRUNE), which isn’t supported here."),
+    ("(*COMMIT)a", "Uses (*COMMIT), which isn’t supported here."),
+    ("(*ACCEPT)", "Uses (*ACCEPT), which isn’t supported here."),
+    ("(*NOTEMPTY)a", "Uses (*NOTEMPTY), which isn’t supported here."),
+    ("(?(R)a)", "Uses a recursion check, which isn’t supported here."),
     (
         "(?(VERSION>=10.4)a)",
-        "Uses a version check, which isn't supported here.",
+        "Uses a version check, which isn’t supported here.",
     ),
-    ("(?J)(?<n>a)", "Uses (?J), which isn't supported here."),
+    ("(?J)(?<n>a)", "Uses (?J), which isn’t supported here."),
     (
         r"(?|(a)|(b))\1",
-        "Uses (?| with numbered groups, which isn't supported here.",
+        "Uses (?| with numbered groups, which isn’t supported here.",
     ),
-    (r"\y", r"\y isn't a PCRE2 escape."),
+    (r"\y", r"\y isn’t a PCRE2 escape."),
     (r"a\", r"Ends with a lone \."),
     (r"(a)\g{-2}", r"\g{-2} points before the first group."),
 ];
@@ -204,7 +204,7 @@ fn import_checks_the_result_compiles() {
     assert!(import_regex("(abc").is_err());
     assert_eq!(
         import_regex(r"\X"),
-        Err(r"Uses \X, which isn't supported here.".to_owned())
+        Err(r"Uses \X, which isn’t supported here.".to_owned())
     );
 }
 

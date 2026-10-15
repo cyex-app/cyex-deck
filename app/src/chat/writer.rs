@@ -41,7 +41,7 @@ impl Writer {
     pub fn block(&self) -> Option<&'static str> {
         match self.link.load(Ordering::Relaxed) {
             UP => None,
-            REFUSED => Some("Can't send right now. Sign in again."),
+            REFUSED => Some("Can’t send right now. Sign in again."),
             _ => Some("Not connected yet."),
         }
     }
@@ -84,7 +84,7 @@ mod tests {
         w.set(LinkStatus::Connecting);
         w.set(LinkStatus::AuthFailed);
         assert!(w.is_refused());
-        assert_eq!(w.block(), Some("Can't send right now. Sign in again."));
+        assert_eq!(w.block(), Some("Can’t send right now. Sign in again."));
     }
 
     #[test]

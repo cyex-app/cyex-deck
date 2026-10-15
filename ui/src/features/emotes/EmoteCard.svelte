@@ -117,7 +117,7 @@
       {#if added}<dt>Added</dt><dd title={info.addedAt ?? undefined}>{added}</dd>{/if}
     </dl>
   {:else if failed}
-    <p class="note">Couldn't load the details.</p>
+    <p class="note">Couldn’t load the details.</p>
   {:else}
     <p class="note">Loading…</p>
   {/if}

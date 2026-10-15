@@ -136,16 +136,16 @@ fn power_up_error(code: &str) -> String {
         "REWARD_COST_MISMATCH" => "The price changed. Try again.".into(),
         "INSUFFICIENT_POINTS" => "Not enough Bits.".into(),
         "REWARD_DISABLED" | "REWARD_FORBIDDEN" => "This power-up is off here.".into(),
-        "REWARD_GLOBAL_COOLDOWN" => "It's on cooldown. Try again soon.".into(),
+        "REWARD_GLOBAL_COOLDOWN" => "It’s on cooldown. Try again soon.".into(),
         "REWARD_MAX_PER_STREAM" | "REWARD_MAX_PER_USER_PER_STREAM" => {
-            "That's the limit for this stream.".into()
+            "That’s the limit for this stream.".into()
         }
-        "INVALID_EMOTE" => "That emote can't be used.".into(),
+        "INVALID_EMOTE" => "That emote can’t be used.".into(),
         "STREAM_NOT_LIVE" => "Only while the stream is live.".into(),
         "SLOW_MODE" | "FOLLOWERS_ONLY" | "FOLLOWERS_ONLY_ZERO" | "SUBS_ONLY" | "EMOTE_ONLY" | "R9K_MODE" => {
-            "The chat's mode doesn't allow it right now.".into()
+            "The chat’s mode doesn’t allow it right now.".into()
         }
-        "USER_TIMED_OUT" | "USER_BANNED" => "You can't chat here right now.".into(),
+        "USER_TIMED_OUT" | "USER_BANNED" => "You can’t chat here right now.".into(),
         "MSG_DUPLICATE" => "Same message as before. Change it a little.".into(),
         other => format!("Twitch said no ({other})."),
     }
@@ -211,7 +211,7 @@ pub async fn gif_info(app: &AppHandle, view: u32) -> Result<GifInfo, String> {
 pub async fn gif_search(app: &AppHandle, view: u32, query: &str, offset: u32) -> Result<Vec<Gif>, String> {
     let c = ctx(app, view)?;
     let a = access(app, &c).await?;
-    let key = a.api_key.as_deref().ok_or("GIFs aren't available here.")?;
+    let key = a.api_key.as_deref().ok_or("GIFs aren’t available here.")?;
     giphy::search(&http(app), key, query, offset, a.rating)
         .await
         .map_err(|e| e.to_string())
@@ -233,12 +233,12 @@ pub async fn gif_send(
         })
         .unwrap_or(false);
     if !giphy {
-        return Err("That isn't a GIPHY GIF.".into());
+        return Err("That isn’t a GIPHY GIF.".into());
     }
     let c = ctx(app, view)?;
     let a = access(app, &c).await?;
     if !a.can_send {
-        return Err(a.reason.unwrap_or("You can't send GIFs here.").into());
+        return Err(a.reason.unwrap_or("You can’t send GIFs here.").into());
     }
     gifs::send_gif(&http(app), c.signed_in()?, &c.channel_id, id, url, search)
         .await

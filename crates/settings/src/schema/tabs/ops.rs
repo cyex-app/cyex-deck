@@ -123,7 +123,7 @@ impl fmt::Display for TabError {
 impl std::error::Error for TabError {}
 
 const GONE_TAB: TabError = TabError("That tab is closed.");
-const GONE_TILE: TabError = TabError("That channel isn't open anymore.");
+const GONE_TILE: TabError = TabError("That channel isn’t open anymore.");
 const GONE_GROUP: TabError = TabError("That group is gone.");
 const NO_TABS: TabError = TabError("Pick at least one tab.");
 const NO_CHANNELS: TabError = TabError("Pick at least one channel.");

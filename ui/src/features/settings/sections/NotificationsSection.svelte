@@ -145,7 +145,7 @@
 {/if}
 
 <h3 class="label">Whispers</h3>
-<Row setting="notifications.whispers.toast" label="Pop-up" hint="While the app isn't in front.">
+<Row setting="notifications.whispers.toast" label="Pop-up" hint="While the app isn’t in front.">
   <Toggle label="Whisper pop-up" checked={n.whispers.toast} onchange={(on) => patch({ whispers: { toast: on } })} />
 </Row>
 <Row setting="notifications.whispers.sound" label="Sound">
@@ -158,7 +158,7 @@
   <Toggle label="Show whispers in chat" checked={n.whispers.inline} onchange={(on) => patch({ whispers: { inline: on } })} />
 </Row>
 
-<h3 class="label">Twitch's bell</h3>
+<h3 class="label">Twitch’s bell</h3>
 <Row setting="notifications.bell.toast" label="Pop-ups" hint="When Twitch marks a notification as a pop-up, show it as a Windows notification too.">
   <Toggle label="Bell pop-ups" checked={n.bell.toast} onchange={(on) => patch({ bell: { toast: on } })} />
 </Row>
@@ -175,7 +175,7 @@
       {#if twitch}
         <b>Alert</b> is this app. <b>On Twitch</b> is what Twitch itself sends {account.displayName} for the channel.
       {:else}
-        Twitch's own choice per channel needs a GQL sign-in. <GateFlag kind="gql" />
+        Twitch’s own choice per channel needs a GQL sign-in. <GateFlag kind="gql" />
       {/if}
     </p>
     {#if channels.length > 8}
@@ -206,14 +206,14 @@
   {#if account && !twitch}
     <!-- V102-20 Greyed out, not hidden. -->
     <h3 class="label" data-setting="notifications:twitch">What Twitch sends</h3>
-    <p class="note gated">Twitch's own settings need a GQL sign-in. <GateFlag kind="gql" /></p>
+    <p class="note gated">Twitch’s own settings need a GQL sign-in. <GateFlag kind="gql" /></p>
   {/if}
 
   {#if twitch && sw.groups.length}
     <h3 class="label" data-setting="notifications:twitch">What Twitch sends</h3>
-    <p class="note">Twitch's own settings for {account.displayName}, saved on Twitch. Open a group to pick single ones.</p>
+    <p class="note">Twitch’s own settings for {account.displayName}, saved on Twitch. Open a group to pick single ones.</p>
     {#if smartOn !== null}
-      <Row label="Smart delivery" hint="Live alerts reach you once: on Twitch while you're there, else by phone or email.">
+      <Row label="Smart delivery" hint="Live alerts reach you once: on Twitch while you’re there, else by phone or email.">
         <Toggle label="Smart delivery" checked={smartOn} onchange={(on) => void setSwitch('LIVE', 'smart', on)} />
       </Row>
     {/if}

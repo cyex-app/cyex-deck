@@ -9,7 +9,7 @@ pub fn gql(e: &Error) -> String {
         Error::Refused(code) => refused(code),
         Error::Api { status: 401, .. } => "Sign in again in Settings → Accounts.".into(),
         e if e.is_schema_error() => "Twitch changed this on their side. It needs an app update.".into(),
-        Error::Network(_) => "Couldn't reach Twitch.".into(),
+        Error::Network(_) => "Couldn’t reach Twitch.".into(),
         _ => "Twitch had a problem. Try again.".into(),
     }
 }
@@ -20,20 +20,20 @@ fn refused(code: &str) -> String {
     }
     let line = match code {
         "FORBIDDEN" | "USER_NOT_AUTHORIZED" | "USER_UNAUTHORIZED" | "AUTH_FAILURE" => {
-            "Twitch didn't allow that."
+            "Twitch didn’t allow that."
         }
         "RATE_LIMITED" | "REQUESTS_THROTTLED" => "Too fast. Try again in a moment.",
         "STATUS_TOO_LONG" => "The title is too long.",
         "STATUS_USES_BANNED_WORDS" | "AUTOMOD_FAILED" => "Twitch blocked some words in that.",
-        "LANGUAGE_NOT_VALID" => "Twitch doesn't know that language.",
+        "LANGUAGE_NOT_VALID" => "Twitch doesn’t know that language.",
         "GAME_NAME_TOO_LONG" => "That category name is too long.",
-        "BROADCASTER_NOT_LIVE" => "Markers only work while you're live.",
+        "BROADCASTER_NOT_LIVE" => "Markers only work while you’re live.",
         "ARCHIVES_DISABLED" => "Turn on past broadcasts to place markers.",
         "MAX_DESCRIPTION_LENGTH_EXCEEDED" => "The marker note is too long.",
         "ALREADY_RAIDING" => "A raid is already counting down.",
-        "CANNOT_RAID_YOURSELF" | "CANT_RAID_YOURSELF" => "You can't raid yourself.",
+        "CANNOT_RAID_YOURSELF" | "CANT_RAID_YOURSELF" => "You can’t raid yourself.",
         "CANNOT_RAID_THIS_CHANNEL" | "TARGET_SETTINGS_DO_NOT_ALLOW" => {
-            "That channel doesn't take raids from you."
+            "That channel doesn’t take raids from you."
         }
         "TOO_MANY_VIEWERS_TO_RAID" => "Too many viewers to raid that channel.",
         "INVALID_CHANNEL" => "No such channel.",
@@ -47,7 +47,7 @@ fn refused(code: &str) -> String {
         "TOO_MANY_OUTCOMES" => "A prediction can have at most ten outcomes.",
         "EVENT_NOT_ACTIVE" | "EVENT_ENDED" => "That prediction already ended.",
         "NO_SUB_PRODUCT" => "Sub-only chat needs Affiliate or Partner.",
-        "SNOOZE_FAILED" => "Couldn't snooze the ad.",
+        "SNOOZE_FAILED" => "Couldn’t snooze the ad.",
         _ => return format!("Twitch turned that down ({code})."),
     };
     line.into()

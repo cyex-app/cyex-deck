@@ -92,10 +92,10 @@ pub async fn one(app: &AppHandle, view: u32, id: &str) -> Result<(), String> {
     let http = app.state::<crate::auth::Auth>().http.clone();
     let out = cyex_twitch::translate::translate(&http, std::slice::from_ref(&text), &to)
         .await
-        .map_err(|_| "Translation isn't working right now.".to_owned())?;
+        .map_err(|_| "Translation isn’t working right now.".to_owned())?;
     let t = out.into_iter().next().ok_or("Nothing came back.")?;
     if same(&t, &text, &to) {
-        return Err("That's already in your language.".into());
+        return Err("That’s already in your language.".into());
     }
     put(app, &key, id, t.text, t.from);
     Ok(())

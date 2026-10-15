@@ -11,12 +11,12 @@ test('success says what happened', () => {
 test('failure gives the reason', () => {
   assert.deepEqual(followToast(true, 'Foo', 'You follow too many channels.'), {
     kind: 'error',
-    text: "Couldn't follow: You follow too many channels.",
+    text: "Couldn’t follow: You follow too many channels.",
   });
-  assert.deepEqual(followToast(false, 'Foo', new Error('x')), { kind: 'error', text: "Couldn't unfollow: x" });
+  assert.deepEqual(followToast(false, 'Foo', new Error('x')), { kind: 'error', text: "Couldn’t unfollow: x" });
 });
 
 test('failure without a reason names the channel', () => {
-  assert.equal(followToast(true, 'Foo', null).text, "Couldn't follow Foo.");
-  assert.equal(followToast(true, 'Foo', '  ').text, "Couldn't follow Foo.");
+  assert.equal(followToast(true, 'Foo', null).text, "Couldn’t follow Foo.");
+  assert.equal(followToast(true, 'Foo', '  ').text, "Couldn’t follow Foo.");
 });

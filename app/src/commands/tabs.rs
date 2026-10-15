@@ -39,7 +39,7 @@ pub async fn tabs_lookup(app: AppHandle, input: String) -> CmdResult<Vec<Channel
     let http = app.state::<Auth>().http.clone();
     gql::lookup(&http, &input).await.map_err(|e| {
         if e.is_network() {
-            "Couldn't reach Twitch.".into()
+            "Couldn’t reach Twitch.".into()
         } else {
             e.to_string()
         }

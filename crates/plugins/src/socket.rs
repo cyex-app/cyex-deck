@@ -87,15 +87,15 @@ pub(crate) async fn run_with(req: SocketRequest, mut out: Receiver<SocketOut>, e
 }
 
 async fn connect(req: &SocketRequest, local: bool) -> Result<Ws, String> {
-    let url = Url::parse(&req.url).map_err(|_| "Can't read the address.".to_owned())?;
+    let url = Url::parse(&req.url).map_err(|_| "Can’t read the address.".to_owned())?;
     let host = url.host_str().ok_or("The address has no host.")?.to_owned();
     let port = url.port_or_known_default().ok_or("The address has no port.")?;
     let addrs: Vec<SocketAddr> = tokio::net::lookup_host((host.as_str(), port))
         .await
-        .map_err(|_| format!("Can't find {host}."))?
+        .map_err(|_| format!("Can’t find {host}."))?
         .collect();
     let addr = pick(&addrs, local).ok_or_else(|| format!("{host} points to a local address."))?;
-    let tcp = TcpStream::connect(addr).await.map_err(|_| "Couldn't connect.".to_owned())?;
+    let tcp = TcpStream::connect(addr).await.map_err(|_| "Couldn’t connect.".to_owned())?;
     let mut request = req.url.as_str().into_client_request().map_err(|e| short(&e))?;
     let headers = request.headers_mut();
     for (k, v) in &req.headers {
@@ -121,7 +121,7 @@ pub(crate) fn pick(addrs: &[SocketAddr], local: bool) -> Option<SocketAddr> {
 
 fn short(e: &Error) -> String {
     match e {
-        Error::Io(_) | Error::Tls(_) => "Couldn't connect.".into(),
+        Error::Io(_) | Error::Tls(_) => "Couldn’t connect.".into(),
         Error::Http(r) => format!("The server said {}.", r.status()),
         Error::Capacity(_) => "A message was over 1 MB.".into(),
         Error::ConnectionClosed | Error::AlreadyClosed => "Closed.".into(),

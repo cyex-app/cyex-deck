@@ -88,7 +88,7 @@ pub fn add(app: &AppHandle, path: &Path) -> Result<CustomFont, String> {
         .map(|e| e.to_string_lossy().to_lowercase())
         .filter(|e| FONT_TYPES.contains(&e.as_str()))
         .ok_or("Pick a TTF, OTF, WOFF or WOFF2 font file.")?;
-    let size = fs::metadata(path).map_err(|_| "Couldn't read that file.")?.len();
+    let size = fs::metadata(path).map_err(|_| "Couldn’t read that file.")?.len();
     if size > MAX_FONT_BYTES {
         return Err("That font file is over 30 MB.".into());
     }
@@ -101,10 +101,10 @@ pub fn add(app: &AppHandle, path: &Path) -> Result<CustomFont, String> {
         .chain([APP_FONT])
         .collect();
     let name = unique_name(&family_of(&stem), &taken);
-    let dir = fonts_dir(app).ok_or("Couldn't find the app data folder.")?;
+    let dir = fonts_dir(app).ok_or("Couldn’t find the app data folder.")?;
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let file = format!("{}.{ext}", cyex_settings::schema::random_id());
-    fs::copy(path, dir.join(&file)).map_err(|_| "Couldn't copy that font.")?;
+    fs::copy(path, dir.join(&file)).map_err(|_| "Couldn’t copy that font.")?;
     Ok(CustomFont { name, file })
 }
 

@@ -110,7 +110,7 @@ pub fn init(app: &AppHandle) -> Result<&'static Dirs, String> {
             webview.display()
         );
         for d in [&dirs.config, &dirs.local, webview] {
-            std::fs::create_dir_all(d).map_err(|e| format!("couldn't make {}: {e}", d.display()))?;
+            std::fs::create_dir_all(d).map_err(|e| format!("couldn’t make {}: {e}", d.display()))?;
         }
     }
     Ok(dirs)

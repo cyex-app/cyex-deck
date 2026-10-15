@@ -215,7 +215,7 @@ pub async fn vote(app: &AppHandle, view: u32, choice: &str, points: Option<u32>)
     let poll_id = state(app, &key.1)
         .and_then(|s| s.poll)
         .map(|p| p.id)
-        .ok_or("There's no poll right now.")?;
+        .ok_or("There’s no poll right now.")?;
     let http = app.state::<crate::auth::Auth>().http.clone();
     let auth = gql::Auth {
         client_id: &client_id,
@@ -248,7 +248,7 @@ pub async fn predict(app: &AppHandle, view: u32, outcome: &str, points: u64) -> 
     let event = s
         .prediction
         .map(|p| p.id)
-        .ok_or("There's no prediction right now.")?;
+        .ok_or("There’s no prediction right now.")?;
     let http = app.state::<crate::auth::Auth>().http.clone();
     let auth = gql::Auth {
         client_id: &client_id,
@@ -284,9 +284,9 @@ fn predict_error(code: &str) -> String {
     match code {
         "EVENT_NOT_ACTIVE" => "Predictions are closed.".into(),
         "NOT_ENOUGH_POINTS" => "Not enough channel points.".into(),
-        "MAX_POINTS_PER_EVENT" => "That's more than this prediction allows.".into(),
+        "MAX_POINTS_PER_EVENT" => "That’s more than this prediction allows.".into(),
         "MULTIPLE_OUTCOMES" => "You already picked the other side.".into(),
-        "REGION_LOCKED" | "CATEGORY_REGION_LOCKED" => "Predictions aren't available where you are.".into(),
+        "REGION_LOCKED" | "CATEGORY_REGION_LOCKED" => "Predictions aren’t available where you are.".into(),
         other => format!("Twitch said no ({other})."),
     }
 }

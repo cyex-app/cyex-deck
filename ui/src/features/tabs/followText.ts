@@ -10,5 +10,5 @@ export function followToast(follow: boolean, name: string, error?: unknown): Fol
   const verb = follow ? 'follow' : 'unfollow';
   if (error === undefined) return { kind: 'info', text: `${follow ? 'Followed' : 'Unfollowed'} ${name}` };
   const reason = typeof error === 'string' ? error.trim() : error instanceof Error ? error.message.trim() : '';
-  return { kind: 'error', text: reason ? `Couldn't ${verb}: ${reason}` : `Couldn't ${verb} ${name}.` };
+  return { kind: 'error', text: reason ? `Couldn’t ${verb}: ${reason}` : `Couldn’t ${verb} ${name}.` };
 }

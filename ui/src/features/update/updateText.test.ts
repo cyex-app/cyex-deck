@@ -12,7 +12,7 @@ test('check results read short', () => {
     }),
     '0.1.6 is out.',
   );
-  assert.equal(checkText({ kind: 'failed' }), "Couldn't check. Try again later.");
+  assert.equal(checkText({ kind: 'failed' }), "Couldn’t check. Try again later.");
 });
 
 test('progress reads short', () => {

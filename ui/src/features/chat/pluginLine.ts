@@ -17,7 +17,7 @@ export function actTip(a: Act): string {
     case 'run':
       return a.text.startsWith('/') ? `Runs ${cut(a.text)}` : `Sends ${cut(a.text)}`;
     case 'user':
-      return `${a.login}'s usercard`;
+      return `${a.login}’s usercard`;
     case 'jump':
       return 'Go to the line';
     case 'copy':

@@ -149,7 +149,7 @@ pub fn read(t: &Table, granted: &Granted) -> Result<NewLine, String> {
                         Some("bold") => Some(PieceStyle::Bold),
                         Some("italic") => Some(PieceStyle::Italic),
                         Some("button") => Some(PieceStyle::Button),
-                        Some(other) => return Err(format!("style \"{other}\" isn't bold, italic or button")),
+                        Some(other) => return Err(format!("style \"{other}\" isn’t bold, italic or button")),
                     },
                     parse: e.get::<Option<bool>>("parse").map_err(|e| e.to_string())?.unwrap_or(false),
                     link: link(&e, granted)?,
@@ -189,7 +189,7 @@ pub fn read(t: &Table, granted: &Granted) -> Result<NewLine, String> {
                     tip,
                 }
             }
-            "timestamp" | "twitch-moderation" | "reply-curve" => return Err(format!("{kind} isn't in cyex")),
+            "timestamp" | "twitch-moderation" | "reply-curve" => return Err(format!("{kind} isn’t in cyex")),
             other => return Err(format!("unknown element type \"{other}\"")),
         };
         pieces.push(piece);
@@ -224,7 +224,7 @@ fn piece_color(e: &Table) -> Result<Option<PieceColor>, String> {
         None | Some("text") => None,
         Some("link") => Some(PieceColor::Link),
         Some("system") => Some(PieceColor::System),
-        Some(c) => Some(PieceColor::Rgb(color(c).ok_or_else(|| format!("color \"{c}\" isn't a #rrggbb color"))?)),
+        Some(c) => Some(PieceColor::Rgb(color(c).ok_or_else(|| format!("color \"{c}\" isn’t a #rrggbb color"))?)),
     })
 }
 
@@ -236,7 +236,7 @@ fn link(e: &Table, granted: &Granted) -> Result<Option<LineLink>, String> {
     let kind: String = l.get("type").map_err(|_| "a link needs a type")?;
     let value: String = l.get("value").map_err(|_| "a link needs a value")?;
     if value.chars().count() > MAX_LINK {
-        return Err(format!("a link's value is over {MAX_LINK} characters"));
+        return Err(format!("a link’s value is over {MAX_LINK} characters"));
     }
     Ok(Some(match kind.as_str() {
         "Url" => {
@@ -257,7 +257,7 @@ fn link(e: &Table, granted: &Granted) -> Result<Option<LineLink>, String> {
         "CopyToClipboard" => LineLink::Copy(value),
         "JumpToMessage" => LineLink::Jump(value),
         "InsertText" => LineLink::Insert(value),
-        "JumpToChannel" => return Err("JumpToChannel isn't in cyex".into()),
+        "JumpToChannel" => return Err("JumpToChannel isn’t in cyex".into()),
         other => return Err(format!("unknown link type \"{other}\"")),
     }))
 }

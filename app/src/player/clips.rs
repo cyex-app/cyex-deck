@@ -78,18 +78,18 @@ fn live_edge(started_at: &str, now: OffsetDateTime) -> Option<f64> {
 fn helix_error(e: Error) -> String {
     let m = e.api_message().unwrap_or_default().to_ascii_lowercase();
     match e.status() {
-        None if e.is_network() => "Couldn't reach Twitch.".into(),
+        None if e.is_network() => "Couldn’t reach Twitch.".into(),
         Some(404) => OFFLINE.into(),
         _ if m.contains("live") || m.contains("offline") => OFFLINE.into(),
         Some(401) => "Sign in again in Settings → Accounts to allow clips.".into(),
-        Some(403) => "This channel doesn't allow clips right now.".into(),
+        Some(403) => "This channel doesn’t allow clips right now.".into(),
         _ => e.to_string(),
     }
 }
 
 fn gql_error(e: Error) -> String {
     match &e {
-        Error::Network(_) => "Couldn't reach Twitch.".into(),
+        Error::Network(_) => "Couldn’t reach Twitch.".into(),
         Error::Refused(code) => refused(code).into(),
         _ => e.to_string(),
     }
@@ -99,12 +99,12 @@ fn gql_error(e: Error) -> String {
 fn refused(code: &str) -> &'static str {
     match code {
         "CHANNEL_NOT_LIVE" => OFFLINE,
-        "CHANNEL_NOT_CLIPPABLE" | "CATEGORY_NOT_CLIPPABLE" => "This channel can't be clipped right now.",
+        "CHANNEL_NOT_CLIPPABLE" | "CATEGORY_NOT_CLIPPABLE" => "This channel can’t be clipped right now.",
         "USER_BANNED" | "USER_TIMED_OUT" | "USER_RESTRICTED" | "CHANNEL_BANNED" => {
-            "You can't clip in this channel right now."
+            "You can’t clip in this channel right now."
         }
         "REQUEST_THROTTLED" => "Too many clips at once. Try again in a moment.",
-        _ => "Twitch didn't make the clip. Try again.",
+        _ => "Twitch didn’t make the clip. Try again.",
     }
 }
 
@@ -124,7 +124,7 @@ mod tests {
     fn twitchs_codes_read_short() {
         assert_eq!(refused("CHANNEL_NOT_LIVE"), OFFLINE);
         assert!(refused("REQUEST_THROTTLED").starts_with("Too many"));
-        assert!(refused("SOMETHING_NEW").starts_with("Twitch didn't"));
+        assert!(refused("SOMETHING_NEW").starts_with("Twitch didn’t"));
         let offline = Error::Api {
             status: 404,
             message: "The broadcaster must be broadcasting live.".into(),

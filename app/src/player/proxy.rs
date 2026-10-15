@@ -20,7 +20,7 @@ pub fn save(url: Option<&str>) -> Result<Option<Http>, String> {
         }
         Some(u) => {
             valid(u)?;
-            let http = Http::with_proxy(u).map_err(|_| "That proxy address doesn't work.".to_owned())?;
+            let http = Http::with_proxy(u).map_err(|_| "That proxy address doesn’t work.".to_owned())?;
             KeyringStore.save(KEY, u)?;
             Ok(Some(http))
         }

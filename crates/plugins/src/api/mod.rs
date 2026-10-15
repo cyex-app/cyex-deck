@@ -102,7 +102,7 @@ fn register_command(lua: &Lua, (name, f): (String, Function)) -> mlua::Result<bo
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'));
     if !ok {
         return Err(mlua::Error::runtime(format!(
-            "\"{name}\" can't be a command: letters, digits, _ and -"
+            "\"{name}\" can’t be a command: letters, digits, _ and -"
         )));
     }
     let key = lua.create_registry_value(f)?;
@@ -175,7 +175,7 @@ fn register_menu_entry(lua: &Lua, (label, f, options): (String, Function, Option
             Some("chat") => MenuPlace::Chat,
             Some("name") => MenuPlace::Name,
             Some(other) => {
-                return Err(mlua::Error::runtime(format!("where \"{other}\" isn't message, chat or name")));
+                return Err(mlua::Error::runtime(format!("where \"{other}\" isn’t message, chat or name")));
             }
         };
         entry.group = o.get::<Option<String>>("group")?.and_then(|g| menu_label(&g));
@@ -260,7 +260,7 @@ fn open_channel(lua: &Lua, login: String) -> mlua::Result<()> {
     let login = login.trim().trim_start_matches('#').to_ascii_lowercase();
     let ok = (1..=25).contains(&login.len()) && login.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
     if !ok {
-        return Err(mlua::Error::runtime(format!("\"{login}\" isn't a Twitch login")));
+        return Err(mlua::Error::runtime(format!("\"{login}\" isn’t a Twitch login")));
     }
     state::with(lua, |s| {
         take_tab(s)?;
@@ -272,7 +272,7 @@ fn open_channel(lua: &Lua, login: String) -> mlua::Result<()> {
 /// S13 Switches to a tab by its id from `get_layout`.
 fn select_tab(lua: &Lua, id: String) -> mlua::Result<()> {
     if id.is_empty() || id.len() > 64 {
-        return Err(mlua::Error::runtime("that isn't a tab id"));
+        return Err(mlua::Error::runtime("that isn’t a tab id"));
     }
     state::with(lua, |s| {
         take_tab(s)?;

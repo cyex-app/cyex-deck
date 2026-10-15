@@ -386,6 +386,6 @@ pub(crate) async fn either<T>(
 pub(crate) fn helix_error(e: cyex_twitch::Error) -> String {
     match &e {
         cyex_twitch::Error::Api { status, message } => crate::moderation::codes::helix(*status, message),
-        _ => "Couldn't reach Twitch.".into(),
+        _ => "Couldn’t reach Twitch.".into(),
     }
 }

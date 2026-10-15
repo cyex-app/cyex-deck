@@ -236,7 +236,7 @@
   {/if}
 </Row>
 
-<Row setting="appearance.tabOnlyLive" label="Only live tabs" hint="Hides tabs whose channels are offline. The one you're on stays.">
+<Row setting="appearance.tabOnlyLive" label="Only live tabs" hint="Hides tabs whose channels are offline. The one you’re on stays.">
   <Toggle
     label="Only live tabs"
     checked={a.tabOnlyLive}

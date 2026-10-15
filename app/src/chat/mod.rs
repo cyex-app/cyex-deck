@@ -241,7 +241,7 @@ pub fn open(
 ) -> Result<ChatOpened, String> {
     let login = login.trim().trim_start_matches('#').to_ascii_lowercase();
     if !valid_login(&login) {
-        return Err("That isn't a Twitch channel name.".into());
+        return Err("That isn’t a Twitch channel name.".into());
     }
     let (identity, me) = identity_for(app, account);
     let filters = filters(app, filter_ids);

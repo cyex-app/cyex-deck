@@ -41,12 +41,12 @@ fn info(lua: &Lua, login: &str) -> mlua::Result<ChannelInfo> {
     state::with(lua, |s| {
         if s.in_line {
             return Err(mlua::Error::runtime(
-                "can't read channel state inside a Message callback",
+                "can’t read channel state inside a Message callback",
             ));
         }
         s.host
             .channel(login)
-            .ok_or_else(|| mlua::Error::runtime(format!("the chat of {login} isn't open")))
+            .ok_or_else(|| mlua::Error::runtime(format!("the chat of {login} isn’t open")))
     })?
 }
 
@@ -175,7 +175,7 @@ impl UserData for ChannelRef {
             let line = state::with(lua, |s| {
                 need_read(s)?;
                 if s.in_line {
-                    return Err(mlua::Error::runtime("can't read chat inside a Message callback"));
+                    return Err(mlua::Error::runtime("can’t read chat inside a Message callback"));
                 }
                 Ok(s.host.find_line(&this.0, &id))
             })??;
@@ -197,7 +197,7 @@ impl UserData for ChannelRef {
             let lines = state::with(lua, |s| {
                 need_read(s)?;
                 if s.in_line {
-                    return Err(mlua::Error::runtime("can't read chat inside a Message callback"));
+                    return Err(mlua::Error::runtime("can’t read chat inside a Message callback"));
                 }
                 Ok(s.host.lines(&this.0, n.unwrap_or(50).min(MAX_SNAPSHOT)))
             })??;
@@ -211,7 +211,7 @@ impl UserData for ChannelRef {
             let line = state::with(lua, |s| {
                 need_read(s)?;
                 if s.in_line {
-                    return Err(mlua::Error::runtime("can't read chat inside a Message callback"));
+                    return Err(mlua::Error::runtime("can’t read chat inside a Message callback"));
                 }
                 Ok(s.host.lines(&this.0, 1).pop())
             })??;

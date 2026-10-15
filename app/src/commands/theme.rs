@@ -57,7 +57,7 @@ pub fn theme_code(settings: State<Settings>, id: String) -> CmdResult<String> {
 /// U8 Adds the theme in a share code and switches to it.
 #[tauri::command]
 pub fn theme_import(app: AppHandle, settings: State<Settings>, code: String) -> CmdResult<String> {
-    let theme = theme_code::from_code(&code).map_err(|_| "That isn't a theme code.".to_owned())?;
+    let theme = theme_code::from_code(&code).map_err(|_| "That isn’t a theme code.".to_owned())?;
     theme_add(app, settings, theme)
 }
 

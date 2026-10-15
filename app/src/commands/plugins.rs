@@ -141,7 +141,7 @@ pub async fn plugins_menu_run(
     index: usize,
     msg_id: Option<String>,
 ) -> CmdResult<()> {
-    let p = plugins::get(&app, &plugin).ok_or("That plugin isn't running.")?;
+    let p = plugins::get(&app, &plugin).ok_or("That plugin isn’t running.")?;
     let (channel, line) = match msg_id.and_then(|id| peek::message(&app, view, &id)) {
         Some((channel, m)) => {
             let line = hook_line(&channel, &m);
@@ -164,7 +164,7 @@ pub async fn plugins_name_run(
     view: Option<u32>,
     msg_id: Option<String>,
 ) -> CmdResult<()> {
-    let p = plugins::get(&app, &plugin).ok_or("That plugin isn't running.")?;
+    let p = plugins::get(&app, &plugin).ok_or("That plugin isn’t running.")?;
     let line = view
         .zip(msg_id)
         .and_then(|(v, id)| peek::message(&app, v, &id))

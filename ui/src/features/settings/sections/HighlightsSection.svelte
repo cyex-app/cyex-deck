@@ -149,7 +149,7 @@
     onchange={(e) => save({ never: splitList(e.currentTarget.value.toLowerCase()) })}
   />
 </Row>
-<Row setting="highlights.muted" label="Silent chats" hint="These chats never play sounds or flash. Also in a chat's menu." stacked>
+<Row setting="highlights.muted" label="Silent chats" hint="These chats never play sounds or flash. Also in a chat’s menu." stacked>
   <input
     class="field"
     placeholder="Channel names"

@@ -41,7 +41,7 @@
 
 <h2>Player</h2>
 
-<Row setting="player.blockAds" label="Block ads" hint="Cuts Twitch's ads out of streams, or plays a clean copy while they run.">
+<Row setting="player.blockAds" label="Block ads" hint="Cuts Twitch’s ads out of streams, or plays a clean copy while they run.">
   <Toggle label="Block ads" checked={p.blockAds} onchange={(v) => settings.patch('player', { blockAds: v })} />
 </Row>
 
@@ -49,7 +49,7 @@
   <Toggle label="Low latency" checked={p.lowLatency} onchange={(v) => settings.patch('player', { lowLatency: v })} />
 </Row>
 
-<Row setting="player.quality" label="Quality" hint="What players start in. Each player's gear menu changes its own.">
+<Row setting="player.quality" label="Quality" hint="What players start in. Each player’s gear menu changes its own.">
   <select
     class="field"
     value={p.quality}

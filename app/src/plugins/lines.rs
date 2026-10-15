@@ -80,7 +80,7 @@ fn apply(app: &AppHandle, q: Queued) {
         }
     };
     if !found {
-        logs::push(app, &q.plugin, Level::Warning, &format!("The chat of {} isn't open, or the line is gone.", q.login));
+        logs::push(app, &q.plugin, Level::Warning, &format!("The chat of {} isn’t open, or the line is gone.", q.login));
     }
 }
 

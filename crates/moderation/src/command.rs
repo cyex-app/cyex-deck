@@ -77,7 +77,7 @@ impl Need {
     /// What a role that falls short is told.
     pub fn refusal(self) -> &'static str {
         match self {
-            Need::Mod => "You're not a moderator here.",
+            Need::Mod => "You’re not a moderator here.",
             Need::Lead => "Only the broadcaster or a lead mod can do that.",
             Need::Broadcaster => "Only the broadcaster can do that.",
         }
@@ -273,7 +273,7 @@ fn read(name: &str, args: &str) -> Result<ModCommand, String> {
             }
         }
         "unpin" => C::Unpin,
-        _ => return Err(format!("/{name} isn't supported.")),
+        _ => return Err(format!("/{name} isn’t supported.")),
     })
 }
 

@@ -10,7 +10,7 @@ import { toast } from '../../lib/toast.svelte';
 
 async function set(c: TabChannel, on: boolean): Promise<void> {
   const out = await minerIpc.first({ id: c.id, login: c.login, name: c.name }, on);
-  if (out) toast.info(`${out} isn't mined first anymore.`);
+  if (out) toast.info(`${out} isn’t mined first anymore.`);
   else if (on) toast.info(`${c.name} is mined first.`);
 }
 

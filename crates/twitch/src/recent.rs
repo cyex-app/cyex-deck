@@ -28,7 +28,7 @@ pub fn unavailable(e: &Error) -> String {
     match e.status() {
         _ if ignored => "Chat history is off for this channel".into(),
         Some(status) if status != 200 => format!("Chat history unavailable (error {status})"),
-        _ if e.is_network() => "Chat history unavailable: couldn't reach the service".into(),
+        _ if e.is_network() => "Chat history unavailable: couldn’t reach the service".into(),
         _ => "Chat history unavailable right now".into(),
     }
 }

@@ -132,7 +132,7 @@ pub fn clear(app: &AppHandle, account: &str, channel_id: Option<&str>) -> Result
         None => dir(app, account).map_or(Ok(()), fs::remove_dir_all),
     };
     match result {
-        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(format!("Couldn't delete the stats: {e}")),
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(format!("Couldn’t delete the stats: {e}")),
         _ => Ok(()),
     }
 }

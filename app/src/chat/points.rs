@@ -140,7 +140,7 @@ pub async fn redeem(
                 let emote = emote.as_deref().ok_or("Pick an emote first.")?;
                 gql::unlock_modified_emote(&http, auth, id, r.cost, emote).await
             }
-            _ => return Err("This reward isn't supported yet.".into()),
+            _ => return Err("This reward isn’t supported yet.".into()),
         }
     } else {
         return Err("That reward is gone.".into());
@@ -168,13 +168,13 @@ fn error_text(code: &str) -> String {
         "STREAM_NOT_LIVE" => "Only while the stream is live.".into(),
         "MAX_PER_STREAM" | "MAX_PER_USER_PER_STREAM" => "Limit reached for this stream.".into(),
         "GLOBAL_COOLDOWN" => "On cooldown.".into(),
-        "USER_BANNED" => "You're banned here.".into(),
-        "USER_TIMED_OUT" => "You're timed out.".into(),
-        "FORBIDDEN" | "REWARD_FORBIDDEN" => "You can't redeem this one.".into(),
+        "USER_BANNED" => "You’re banned here.".into(),
+        "USER_TIMED_OUT" => "You’re timed out.".into(),
+        "FORBIDDEN" | "REWARD_FORBIDDEN" => "You can’t redeem this one.".into(),
         "DUPLICATE_TRANSACTION" | "TRANSACTION_IN_PROGRESS" | "TRANSACTION_ALREADY_COMMITTED" => "Already redeeming.".into(),
         "MSG_DUPLICATE" => "Same as your last message.".into(),
-        "MESSAGE_IS_COMMAND" => "The message can't be a command.".into(),
+        "MESSAGE_IS_COMMAND" => "The message can’t be a command.".into(),
         "EMOTE_ALREADY_ENTITLED" | "NO_EMOTES_AVAILABLE" => "No emotes left to unlock.".into(),
-        other => format!("Didn't work ({other})."),
+        other => format!("Didn’t work ({other})."),
     }
 }

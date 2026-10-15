@@ -105,7 +105,7 @@ fn trim(lua: &Lua) -> mlua::Result<()> {
         };
         if !matches!(opt.as_str(), "collect" | "count" | "step" | "isrunning") {
             return Err(mlua::Error::runtime(format!(
-                "collectgarbage(\"{opt}\") isn't available"
+                "collectgarbage(\"{opt}\") isn’t available"
             )));
         }
         gc.call::<MultiValue>(args)

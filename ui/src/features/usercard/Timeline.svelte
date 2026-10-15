@@ -113,13 +113,13 @@
 <div class="list" bind:this={box} {onscroll}>
   <div bind:this={inner}>
     {#if status === 'optedOut'}<p class="note">They opted out of logs.</p>{/if}
-    {#if fromMod && older.length}<p class="note">From Twitch's mod logs.</p>{/if}
+    {#if fromMod && older.length}<p class="note">From Twitch’s mod logs.</p>{/if}
     {#if status === 'failed'}<p class="note">Couldn’t load logs.</p>{/if}
     {#each sections as s (s.label)}
       <div class="day" class:live={s.live}><span>{s.label}</span></div>
       {#each s.items as m (m.id)}<Line {m} {channel} />{/each}
     {:else}
-      <p class="empty">{status === 'loading' ? 'Loading…' : `${name} hasn't chatted here.`}</p>
+      <p class="empty">{status === 'loading' ? 'Loading…' : `${name} hasn’t chatted here.`}</p>
     {/each}
   </div>
 </div>

@@ -71,7 +71,7 @@ pub async fn window_open_panel(
 pub async fn window_open_usercard(app: AppHandle, channel: String, login: String) -> CmdResult<()> {
     let valid = |s: &str| (1..=25).contains(&s.len()) && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_');
     if !valid(&channel) || !valid(&login) {
-        return Err("That isn't a Twitch name.".into());
+        return Err("That isn’t a Twitch name.".into());
     }
     windows::open_usercard(&app, &channel.to_ascii_lowercase(), &login.to_ascii_lowercase()).map_err(|e| e.to_string())
 }

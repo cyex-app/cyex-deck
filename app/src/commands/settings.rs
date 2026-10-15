@@ -181,7 +181,7 @@ pub fn settings_restore_backup(
     settings: State<Settings>,
     date: String,
 ) -> CmdResult<Vec<Partition>> {
-    let date = Date::parse(&date, UI_DATE).map_err(|_| format!("\"{date}\" isn't a backup date"))?;
+    let date = Date::parse(&date, UI_DATE).map_err(|_| format!("\"{date}\" isn’t a backup date"))?;
     let restored = settings.restore_backup(&app, date)?;
     if restored.contains(&Partition::Accounts) {
         auth::reload(&app);

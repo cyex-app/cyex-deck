@@ -16,12 +16,12 @@ fn call(app: &AppHandle, account: &str) -> Result<GqlCall, String> {
 
 fn failed(e: cyex_twitch::Error) -> String {
     if e.is_network() {
-        return "Couldn't reach Twitch.".into();
+        return "Couldn’t reach Twitch.".into();
     }
     eprintln!("subs: {e}");
     match e.api_message() {
         Some(m) if m.contains("integrity") => "Twitch wants this done on its own page.".into(),
-        _ => "Twitch didn't take that. Try again in a bit.".into(),
+        _ => "Twitch didn’t take that. Try again in a bit.".into(),
     }
 }
 
@@ -58,7 +58,7 @@ pub async fn prime(app: &AppHandle, account: &str, channel_id: &str) -> Result<(
         .await
         .map_err(|e| match e.api_message() {
             Some("NO_CREDIT" | "NO_SUB_CREDIT") => "Your Prime sub is already in use this month.".into(),
-            Some("ALREADY_SUBSCRIBED" | "EXISTING_SUBSCRIPTION") => "You're already subscribed there.".into(),
+            Some("ALREADY_SUBSCRIBED" | "EXISTING_SUBSCRIPTION") => "You’re already subscribed there.".into(),
             _ => failed(e),
         })
 }

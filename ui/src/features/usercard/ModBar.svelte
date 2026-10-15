@@ -115,7 +115,7 @@
         }}
       >
         <!-- svelte-ignore a11y_autofocus -->
-        <input class="field" maxlength="500" placeholder="Why? They'll see this." bind:value={reason} autofocus />
+        <input class="field" maxlength="500" placeholder="Why? They’ll see this." bind:value={reason} autofocus />
         <button class="send" disabled={busy || !reason.trim()}>Warn</button>
       </form>
     {/if}

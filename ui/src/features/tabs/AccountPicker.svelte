@@ -71,7 +71,7 @@
     {/if}
     <Checkbox label="Anonymous" checked={anon} disabled={noAnon} onchange={(v) => (anon = v)} />
   </div>
-  {#if anon}<p class="plain">Reads chat and watches, can't send messages.</p>{/if}
+  {#if anon}<p class="plain">Reads chat and watches, can’t send messages.</p>{/if}
 {/if}
 
 <style>

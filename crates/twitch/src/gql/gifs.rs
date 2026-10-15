@@ -57,7 +57,7 @@ fn decide(d: RawData) -> GifAccess {
         .unwrap_or(0);
     let cfg = d.gif_picker_config.unwrap_or_default();
     let reason = if !channel_has {
-        Some("This channel doesn't allow GIFs.")
+        Some("This channel doesn’t allow GIFs.")
     } else if !(cfg.is_enabled && cfg.is_allowlisted) {
         Some("GIFs are unavailable right now.")
     } else if tier < 2000 {
@@ -166,6 +166,6 @@ mod tests {
         let off = decide(data(
             r#"{"gifPickerConfig":null,"user":{"subscriptionProducts":[{"tier":"2000","hasGifs":false}],"self":null}}"#,
         ));
-        assert_eq!(off.reason, Some("This channel doesn't allow GIFs."));
+        assert_eq!(off.reason, Some("This channel doesn’t allow GIFs."));
     }
 }

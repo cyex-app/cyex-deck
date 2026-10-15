@@ -53,7 +53,7 @@ pub fn open_channel(app: &AppHandle, plugin: &str, login: &str) {
                     },
                     None => {
                         let text =
-                            format!("open_channel: no channel called {login}, or Twitch didn't answer.");
+                            format!("open_channel: no channel called {login}, or Twitch didn’t answer.");
                         return logs::push(&app, &plugin, Level::Warning, &text);
                     }
                 }
@@ -72,7 +72,7 @@ pub fn select_tab(app: &AppHandle, plugin: &str, id: &str) {
             app,
             plugin,
             Level::Warning,
-            &format!("select_tab: there's no tab {id}."),
+            &format!("select_tab: there’s no tab {id}."),
         );
     }
 }

@@ -202,7 +202,7 @@
           {#if query.trim()}
             Nothing matches “{query.trim()}”.
           {:else}
-            <span>You don't follow anyone yet.</span>
+            <span>You don’t follow anyone yet.</span>
             <Button onclick={ondiscover}>Find streams</Button>
           {/if}
         </div>

@@ -361,7 +361,7 @@ pub async fn bot_commands(
     app: &AppHandle,
     login: &str,
 ) -> Result<Vec<cyex_emotes::bttv::api::BotCommand>, String> {
-    let id = channel_id(app, login).ok_or("This chat isn't open.")?;
+    let id = channel_id(app, login).ok_or("This chat isn’t open.")?;
     let state = app.state::<Emotes>();
     if let Some(c) = state.lock().bot_commands.get(&id) {
         return Ok(c.clone());

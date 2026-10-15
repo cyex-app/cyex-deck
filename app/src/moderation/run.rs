@@ -169,7 +169,7 @@ const PIN_SEND_SECS: u32 = 1200;
 /// and pins it by the id it gets back. The line itself comes in over IRC like any other.
 async fn pin_send(app: &AppHandle, actor: &Actor, text: &str, secs: u32) -> Result<(), String> {
     if text.chars().count() > cyex_chat::irc::write::MAX_MESSAGE_CHARS {
-        return Err("That's over 500 characters.".into());
+        return Err("That’s over 500 characters.".into());
     }
     // F20 Helix cuts an unknown command word off and sends the rest.
     let text = &crate::chat::typed::escape(text.to_owned());
@@ -290,7 +290,7 @@ fn refuse(res: cyex_twitch::Result<Option<String>>, who: &str) -> Result<(), Str
 }
 
 fn no_token() -> String {
-    "This account can't moderate. Sign in again in Settings → Accounts.".into()
+    "This account can’t moderate. Sign in again in Settings → Accounts.".into()
 }
 
 fn status(e: &cyex_twitch::Error) -> u16 {

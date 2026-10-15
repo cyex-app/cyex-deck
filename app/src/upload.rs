@@ -109,11 +109,11 @@ fn load(app: &AppHandle, item: &UploadItem) -> Result<Image, String> {
             let p = Path::new(path);
             let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("");
             let mime = mime(ext).ok_or(BAD_TYPE)?;
-            let len = fs::metadata(p).map_err(|_| "Couldn't open that file.")?.len();
+            let len = fs::metadata(p).map_err(|_| "Couldn’t open that file.")?.len();
             if len > MAX_BYTES as u64 {
                 return Err(TOO_BIG.into());
             }
-            let bytes = fs::read(p).map_err(|_| "Couldn't open that file.")?;
+            let bytes = fs::read(p).map_err(|_| "Couldn’t open that file.")?;
             let name = p
                 .file_name()
                 .and_then(|n| n.to_str())
@@ -173,7 +173,7 @@ async fn send_all(
         let (status, answer) = http
             .post_body(&cfg.url, &extra, &content_type, body, 64 * 1024)
             .await
-            .map_err(|_| "Upload failed: can't reach the host.".to_string())?;
+            .map_err(|_| "Upload failed: can’t reach the host.".to_string())?;
         if !(200..300).contains(&status) {
             return Err(format!("Upload failed: {}", error_text(status, &answer)));
         }
@@ -230,7 +230,7 @@ pub fn open_link(app: &AppHandle, url: &str) -> Result<(), String> {
         .and_then(|b| serde_json::from_slice::<Vec<Value>>(&b).ok())
         .unwrap_or_default();
     if !may_open(url, &session, &logged) {
-        return Err("That link can't be opened.".into());
+        return Err("That link can’t be opened.".into());
     }
     tauri_plugin_opener::OpenerExt::opener(app)
         .open_url(url, None::<&str>)

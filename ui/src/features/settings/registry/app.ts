@@ -126,7 +126,7 @@ export const APP: Entry[] = [
     id: 'appearance.tabOnlyLive',
     page: 'appearance',
     label: 'Only live tabs',
-    description: "Hides tabs whose channels are offline. The one you're on stays.",
+    description: "Hides tabs whose channels are offline. The one you’re on stays.",
     keywords: ['hide offline', 'offline tabs', 'live only', 'filter tabs'],
   },
   {

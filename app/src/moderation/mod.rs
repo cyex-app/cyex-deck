@@ -97,7 +97,7 @@ pub fn actor_for(app: &AppHandle, account: &str, login: &str, need: Need) -> Res
     let helix = auth::helix_token(app, account);
     let gql = auth::gql_token(app, account);
     if helix.is_none() && gql.is_none() {
-        return Err("This account can't moderate. Sign in again in Settings → Accounts.".into());
+        return Err("This account can’t moderate. Sign in again in Settings → Accounts.".into());
     }
     Ok(Actor {
         account: account.to_owned(),

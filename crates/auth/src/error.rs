@@ -1,21 +1,21 @@
 /// Sign-in errors, worded for the UI.
 #[derive(Debug, thiserror::Error)]
 pub enum AuthError {
-    #[error("Twitch turned the app's sign-in down. Try again later.")]
+    #[error("Twitch turned the app’s sign-in down. Try again later.")]
     BadClientId,
-    #[error("Couldn't reach Twitch. Check your connection and try again.")]
+    #[error("Couldn’t reach Twitch. Check your connection and try again.")]
     Offline,
-    #[error("That token doesn't work. It may have expired or been revoked.")]
+    #[error("That token doesn’t work. It may have expired or been revoked.")]
     BadToken,
-    #[error("That's an app token. Paste one that belongs to a Twitch account.")]
+    #[error("That’s an app token. Paste one that belongs to a Twitch account.")]
     AppToken,
-    #[error("That doesn't look like a token.")]
+    #[error("That doesn’t look like a token.")]
     NotAToken,
     /// V102-19 A token or code for another account than the one it's added to.
-    #[error("That's {0}, not this account.")]
+    #[error("That’s {0}, not this account.")]
     OtherUser(String),
     /// V102-19 A pasted token made for another app than GQL.
-    #[error("That token isn't a GQL token.")]
+    #[error("That token isn’t a GQL token.")]
     NotGql,
     /// V102-19 A GQL token pasted for an account that isn't here.
     #[error("Sign in with Twitch first.")]
@@ -26,7 +26,7 @@ pub enum AuthError {
     Denied,
     #[error("Cancelled.")]
     Cancelled,
-    #[error("Couldn't save the token: {0}")]
+    #[error("Couldn’t save the token: {0}")]
     Store(String),
     #[error("Twitch said: {0}")]
     Twitch(String),

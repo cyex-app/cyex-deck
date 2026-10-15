@@ -28,10 +28,10 @@ fn call(app: &AppHandle, account: &str) -> Result<GqlCall, String> {
 
 fn failed(e: cyex_twitch::Error) -> String {
     if e.is_network() {
-        "Couldn't reach Twitch.".into()
+        "Couldn’t reach Twitch.".into()
     } else {
         eprintln!("profile: {e}");
-        "Twitch didn't take that. Try again in a bit.".into()
+        "Twitch didn’t take that. Try again in a bit.".into()
     }
 }
 
@@ -59,13 +59,13 @@ pub async fn save(app: &AppHandle, account: &str, display_name: &str, bio: &str)
             Some("DISPLAY_NAME_CHANGE_AGAIN") => {
                 "Twitch lets you change your name once every 60 days.".into()
             }
-            Some("DISPLAY_NAME_NOT_AVAILABLE") => "That name isn't available.".into(),
-            Some("INVALID_CHARS_IN_DISPLAY_NAME") => "That name has characters Twitch doesn't allow.".into(),
+            Some("DISPLAY_NAME_NOT_AVAILABLE") => "That name isn’t available.".into(),
+            Some("INVALID_CHARS_IN_DISPLAY_NAME") => "That name has characters Twitch doesn’t allow.".into(),
             Some("DISPLAY_NAME_TOO_LONG" | "DISPLAY_NAME_TOO_SHORT") => {
                 "That name is the wrong length.".into()
             }
             Some("DESCRIPTION_TOO_LONG") => format!("The bio can be {BIO_MAX} characters at most."),
-            Some("DESCRIPTION_FAILED_MODERATION") => "Twitch didn't accept that bio.".into(),
+            Some("DESCRIPTION_FAILED_MODERATION") => "Twitch didn’t accept that bio.".into(),
             _ => failed(e),
         })?;
     // The account list shows the display name too.

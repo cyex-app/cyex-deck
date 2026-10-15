@@ -49,7 +49,7 @@ pub async fn twitch_page(
     kind: String,
     login: Option<String>,
 ) -> CmdResult<()> {
-    let url = subs::page(&kind, login.as_deref().unwrap_or_default()).ok_or("That page isn't available.")?;
+    let url = subs::page(&kind, login.as_deref().unwrap_or_default()).ok_or("That page isn’t available.")?;
     // V102-20 Payment methods and subs wait for Twitch's own sign-in.
     if crate::auth::helix_token(&app, &account).is_none() {
         return Err("Sign in with Twitch first.".into());

@@ -48,11 +48,11 @@ pub fn notice(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Incoming {
 fn short_notice(msg_id: &str) -> Option<&'static str> {
     Some(match msg_id {
         "msg_duplicate" => "Not sent: same as your last message.",
-        "msg_ratelimit" => "Not sent: you're sending too fast.",
+        "msg_ratelimit" => "Not sent: you’re sending too fast.",
         "msg_emoteonly" => "Not sent: emote-only mode is on.",
         "msg_subsonly" => "Not sent: this chat is subscribers-only.",
-        "msg_r9k" => "Not sent: unique-chat mode is on and that message isn't unique.",
-        "msg_banned" => "You're banned from this chat.",
+        "msg_r9k" => "Not sent: unique-chat mode is on and that message isn’t unique.",
+        "msg_banned" => "You’re banned from this chat.",
         "msg_channel_suspended" => "This channel is suspended.",
         "msg_verified_email" => "Not sent: this chat needs a verified email.",
         "msg_requires_verified_phone_number" => "Not sent: this chat needs a verified phone number.",

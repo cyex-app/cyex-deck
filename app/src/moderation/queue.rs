@@ -30,7 +30,7 @@ pub async fn resolve_automod(app: &AppHandle, account: &str, login: &str, msg_id
     if let Some(g) = actor.gql() {
         return gql::moderation::resolve_automod(&http(app), g, msg_id, allow).await.map_err(err);
     }
-    Err("This account can't moderate AutoMod.".into())
+    Err("This account can’t moderate AutoMod.".into())
 }
 
 /// M2 The pending unban requests for a channel.
@@ -54,7 +54,7 @@ pub async fn unban_requests(app: &AppHandle, account: &str, login: &str) -> Resu
             })
             .collect());
     }
-    Err("This account can't read unban requests.".into())
+    Err("This account can’t read unban requests.".into())
 }
 
 /// M2 Approves or denies a request, with a note the viewer sees.
@@ -66,7 +66,7 @@ pub async fn resolve_unban(app: &AppHandle, account: &str, login: &str, id: &str
     if let Some(h) = actor.helix_scoped(app, "moderator:manage:unban_requests") {
         return hm::resolve_unban(&http(app), h, actor.room(), id, approve, note).await.map_err(err);
     }
-    Err("This account can't resolve unban requests.".into())
+    Err("This account can’t resolve unban requests.".into())
 }
 
 /// M3 A user's mod history and comments (GQL only).
@@ -150,7 +150,7 @@ pub async fn chatters(app: &AppHandle, account: Option<&str>, login: &str) -> Re
     let actor = account.and_then(|a| super::actor(app, a, login).ok());
     let helix = actor.as_ref().and_then(|a| Some((a.helix_scoped(app, "moderator:read:chatters")?, a.room())));
     let Some((h, room)) = helix else {
-        return grouped.map_err(err)?.ok_or_else(|| "This channel doesn't exist or is suspended.".into());
+        return grouped.map_err(err)?.ok_or_else(|| "This channel doesn’t exist or is suspended.".into());
     };
     let (list, count) = cyex_twitch::helix::roles::chatters(&http(app), h, room).await.map_err(err)?;
     let mut c = grouped.ok().flatten().unwrap_or_default();

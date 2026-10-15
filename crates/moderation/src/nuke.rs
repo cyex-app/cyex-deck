@@ -69,7 +69,7 @@ impl Nuke {
                     .case_insensitive(true)
                     .size_limit(1 << 20)
                     .build()
-                    .map_err(|_| "That regex doesn't read.".to_owned())?,
+                    .map_err(|_| "That regex doesn’t read.".to_owned())?,
             )
         } else if phrase.is_empty() {
             return Err("Usage: /nuke phrase [60s] [10m|ban]".into());
@@ -90,7 +90,7 @@ impl Nuke {
                 }
                 durations += 1;
             } else {
-                return Err(format!("Didn't understand “{word}”. Usage: /nuke phrase [60s] [10m|ban]"));
+                return Err(format!("Didn’t understand “{word}”. Usage: /nuke phrase [60s] [10m|ban]"));
             }
         }
         Ok(Self {

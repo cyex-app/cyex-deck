@@ -32,9 +32,9 @@ pub(super) async fn resolve(app: &AppHandle, login: &str) -> Result<api::Person,
     let http = app.state::<auth::Auth>().http.clone();
     let found = gql::lookup(&http, &login).await.map_err(|e| {
         if e.is_network() {
-            "Couldn't reach Twitch.".to_owned()
+            "Couldn’t reach Twitch.".to_owned()
         } else {
-            format!("Couldn't look up {login}.")
+            format!("Couldn’t look up {login}.")
         }
     })?;
     let c = found
@@ -62,7 +62,7 @@ pub async fn send(app: &AppHandle, to: &str, text: &str) -> Result<(), String> {
     let me = current(app)?;
     let other = resolve(app, to).await?;
     if other.id == me.id {
-        return Err("You can't whisper yourself.".into());
+        return Err("You can’t whisper yourself.".into());
     }
     let thread_id = api::thread_id(&me.id, &other.id);
     if me.gql {
@@ -131,10 +131,10 @@ fn refused(e: &cyex_twitch::Error) -> bool {
 
 fn reason(code: &str, network: bool) -> String {
     if network {
-        return "Couldn't reach Twitch.".into();
+        return "Couldn’t reach Twitch.".into();
     }
     match code {
-        "TARGET_RESTRICTED" => "They don't take whispers from you.".into(),
+        "TARGET_RESTRICTED" => "They don’t take whispers from you.".into(),
         "TARGET_BANNED" => "That account is suspended.".into(),
         "BODY_EMPTY" => "Type something first.".into(),
         "WHISPERS_OFF" => "Whispers are turned off on this account.".into(),
@@ -142,14 +142,14 @@ fn reason(code: &str, network: bool) -> String {
         "SENDER_HAS_CONSEQUENCE" => "Twitch has blocked your whispers for now.".into(),
         _ => {
             eprintln!("whispers: send: {code}");
-            "Twitch didn't deliver it.".into()
+            "Twitch didn’t deliver it.".into()
         }
     }
 }
 
 fn helix_reason(e: &cyex_twitch::Error) -> String {
     if e.is_network() {
-        return "Couldn't reach Twitch.".into();
+        return "Couldn’t reach Twitch.".into();
     }
     let msg = e.api_message().unwrap_or_default().to_lowercase();
     match e.status() {
@@ -157,14 +157,14 @@ fn helix_reason(e: &cyex_twitch::Error) -> String {
             "Twitch wants a verified phone number before you can whisper.".into()
         }
         Some(400) | Some(403) if msg.contains("settings prevent") => {
-            "They don't take whispers from you.".into()
+            "They don’t take whispers from you.".into()
         }
         Some(403) => "Twitch has blocked your whispers for now.".into(),
         Some(404) => "No one by that name.".into(),
-        Some(429) => "That's a lot of whispers. Wait a bit, or whisper fewer new people today.".into(),
+        Some(429) => "That’s a lot of whispers. Wait a bit, or whisper fewer new people today.".into(),
         _ => {
             eprintln!("whispers: helix send: {e}");
-            "Twitch didn't deliver it.".into()
+            "Twitch didn’t deliver it.".into()
         }
     }
 }
@@ -177,9 +177,9 @@ mod tests {
     fn codes_read_as_text() {
         assert_eq!(
             reason("TARGET_RESTRICTED", false),
-            "They don't take whispers from you."
+            "They don’t take whispers from you."
         );
-        assert_eq!(reason("TARGET_RESTRICTED", true), "Couldn't reach Twitch.");
-        assert_eq!(reason("SOMETHING_NEW", false), "Twitch didn't deliver it.");
+        assert_eq!(reason("TARGET_RESTRICTED", true), "Couldn’t reach Twitch.");
+        assert_eq!(reason("SOMETHING_NEW", false), "Twitch didn’t deliver it.");
     }
 }

@@ -134,7 +134,7 @@ pub fn parse_timer(args: &str) -> Result<Timer, String> {
     if tail.is_empty() {
         return Err("Usage: /timer 5m <command>".into());
     }
-    start.when = when(head).ok_or_else(|| format!("Can't read the time '{head}'."))?;
+    start.when = when(head).ok_or_else(|| format!("Can’t read the time '{head}'."))?;
     start.command = tail.to_owned();
     Ok(Timer::Start(start))
 }

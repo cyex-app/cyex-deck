@@ -69,7 +69,7 @@
     <IconButton
       icon={skipped ? 'eye' : 'eyeOff'}
       label={skipped ? 'Mine again' : 'Skip'}
-      hint={skipped ? undefined : "Skipped channels aren't mined."}
+      hint={skipped ? undefined : "Skipped channels aren’t mined."}
       size={14}
       onclick={() => onskip(!skipped)}
     />

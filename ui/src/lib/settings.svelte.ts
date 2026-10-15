@@ -20,7 +20,7 @@ class SettingsStore {
     });
     const reset = await settingsIpc.takeLoadReport();
     if (reset.length) {
-      toast.error(`Couldn't read ${reset.join(', ')} settings, so they were reset. The old file is kept next to it.`);
+      toast.error(`Couldn’t read ${reset.join(', ')} settings, so they were reset. The old file is kept next to it.`);
     }
   }
 

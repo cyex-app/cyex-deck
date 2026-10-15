@@ -130,7 +130,7 @@
       <h3 class="label">Badge everywhere</h3>
       {@render picks(false, me.global.selected, me.global.available)}
       {#if me.channel.available.length && me.channelId}
-        <h3 class="label">Badge in {login}'s chat</h3>
+        <h3 class="label">Badge in {login}’s chat</h3>
         {@render picks(true, me.channel.selected, me.channel.available)}
       {/if}
     {:else if me.channelId}

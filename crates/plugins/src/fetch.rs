@@ -92,7 +92,7 @@ fn short(e: &reqwest::Error) -> String {
     if e.is_timeout() {
         "Timed out.".into()
     } else if e.is_connect() {
-        "Couldn't connect.".into()
+        "Couldn’t connect.".into()
     } else {
         e.to_string()
     }

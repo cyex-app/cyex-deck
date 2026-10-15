@@ -136,14 +136,14 @@ pub fn add_wallpaper(app: &AppHandle, path: &Path) -> Result<String, String> {
         .map(|e| e.to_string_lossy().to_lowercase())
         .filter(|e| matches!(e.as_str(), "png" | "jpg" | "jpeg" | "webp" | "gif"))
         .ok_or("Pick a PNG, JPG, WebP or GIF picture.")?;
-    let size = fs::metadata(path).map_err(|_| "Couldn't read that file.")?.len();
+    let size = fs::metadata(path).map_err(|_| "Couldn’t read that file.")?.len();
     if size > MAX_WALLPAPER_BYTES {
         return Err("That picture is over 20 MB. Pick a smaller one.".into());
     }
-    let dir = wallpapers_dir(app).ok_or("Couldn't find the app data folder.")?;
+    let dir = wallpapers_dir(app).ok_or("Couldn’t find the app data folder.")?;
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let name = format!("{}.{ext}", cyex_settings::schema::random_id());
-    fs::copy(path, dir.join(&name)).map_err(|_| "Couldn't copy that picture.")?;
+    fs::copy(path, dir.join(&name)).map_err(|_| "Couldn’t copy that picture.")?;
     Ok(name)
 }
 

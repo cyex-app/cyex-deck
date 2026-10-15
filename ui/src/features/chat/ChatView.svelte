@@ -321,7 +321,7 @@
     <IconButton
       icon="users"
       label="Viewers"
-      hint="Who's in this chat."
+      hint="Who’s in this chat."
       size={15}
       active={viewers}
       onclick={() => (viewers = !viewers)}

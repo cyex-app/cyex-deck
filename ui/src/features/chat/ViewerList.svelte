@@ -109,11 +109,11 @@
   </label>
   <div class="list">
     {#if error}
-      <p class="note">Couldn't load the list: {error}</p>
+      <p class="note">Couldn’t load the list: {error}</p>
     {:else if !data}
       <p class="note">Loading…</p>
     {:else if !listed}
-      <p class="note">Nobody's in chat right now.</p>
+      <p class="note">Nobody’s in chat right now.</p>
     {:else if !groups.length}
       <p class="note">Nobody by that name here.</p>
     {:else}

@@ -256,7 +256,7 @@
 <Row setting="chat.lastReadLine" label="Last-read line" hint="Marks where you were when you switched away.">
   <Toggle label="Last-read line" checked={c.lastReadLine} onchange={(v) => settings.patch('chat', { lastReadLine: v })} />
 </Row>
-<Row setting="chat.delayTenths" label="Hold chat back" hint="Waits this long before showing messages, to match the stream's delay.">
+<Row setting="chat.delayTenths" label="Hold chat back" hint="Waits this long before showing messages, to match the stream’s delay.">
   <select
     class="field"
     value={c.delayTenths}
@@ -294,7 +294,7 @@
 <Row setting="chat.spellCheck" label="Spell check" hint="Underlines typos in the message box. Right-click one for fixes.">
   <Toggle label="Spell check" checked={c.spellCheck} onchange={(v) => settings.patch('chat', { spellCheck: v })} />
 </Row>
-<Row setting="chat.translateTo" label="Translate into" hint="For Translate and /translate. Each chat's menu can translate everything.">
+<Row setting="chat.translateTo" label="Translate into" hint="For Translate and /translate. Each chat’s menu can translate everything.">
   <select
     class="field"
     value={c.translateTo}

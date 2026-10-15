@@ -67,7 +67,7 @@ pub(crate) fn check_header(name: &str, value: &str) -> mlua::Result<()> {
         && !FIXED.contains(&lower.as_str())
         && !lower.starts_with("sec-websocket");
     if !ok_name || value.len() > 2000 || value.contains(['\r', '\n']) {
-        return Err(mlua::Error::runtime(format!("can't set the header {name}")));
+        return Err(mlua::Error::runtime(format!("can’t set the header {name}")));
     }
     Ok(())
 }

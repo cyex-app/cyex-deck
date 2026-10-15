@@ -83,7 +83,7 @@ impl Host for AppHost {
         );
         tauri::async_runtime::spawn(async move {
             let sent = peek::room(&app, &login)
-                .ok_or_else(|| format!("The chat of {login} isn't open."))
+                .ok_or_else(|| format!("The chat of {login} isn’t open."))
                 .and_then(|key| crate::chat::send_to(&app, &key, &text, None));
             if let Err(e) = sent {
                 logs::push(&app, &plugin, Level::Warning, &format!("send_message: {e}"));

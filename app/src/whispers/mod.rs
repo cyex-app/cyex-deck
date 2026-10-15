@@ -440,10 +440,10 @@ impl GqlCall {
 
 fn failed(e: &cyex_twitch::Error) -> String {
     if e.is_network() {
-        "Couldn't reach Twitch.".into()
+        "Couldn’t reach Twitch.".into()
     } else {
         eprintln!("whispers: {e}");
-        "Twitch didn't take that. Try again in a bit.".into()
+        "Twitch didn’t take that. Try again in a bit.".into()
     }
 }
 

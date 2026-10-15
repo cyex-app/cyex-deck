@@ -114,7 +114,7 @@
     />
   </div>
   {#if !live}
-    <p class="note">Ads run only while you're live.</p>
+    <p class="note">Ads run only while you’re live.</p>
   {:else if schedule}
     <dl>
       <div>

@@ -18,7 +18,7 @@ use crate::auth::Auth;
 use super::sign::NO_MATCH;
 
 const DOWNLOAD_FAILED: &str = "Download failed. Try again later.";
-const NO_START: &str = "Couldn't start the installer.";
+const NO_START: &str = "Couldn’t start the installer.";
 
 #[derive(Clone, Serialize, TS)]
 #[serde(tag = "kind", rename_all = "camelCase")]

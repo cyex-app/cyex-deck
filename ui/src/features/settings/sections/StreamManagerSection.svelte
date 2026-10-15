@@ -62,7 +62,7 @@
     <li><code>{name}</code> {what}</li>
   {/each}
 </ul>
-<p class="note">Markers you add in the stream manager are listed in <code>markers.log</code> in the same folder, with the time and how long you'd been live.</p>
+<p class="note">Markers you add in the stream manager are listed in <code>markers.log</code> in the same folder, with the time and how long you’d been live.</p>
 
 <style>
   .folder {

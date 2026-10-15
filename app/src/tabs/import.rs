@@ -17,7 +17,7 @@ use crate::settings::Settings;
 
 /// Layouts are tens of KB; a file this big isn't one.
 const MAX_BYTES: u64 = 8 * 1024 * 1024;
-const NOT_A_LAYOUT: &str = "That file isn't a Chatterino layout.";
+const NOT_A_LAYOUT: &str = "That file isn’t a Chatterino layout.";
 const NEEDS_ACCOUNT: &str = "Looking up the channels needs a Twitch account. Add one in Settings → Accounts.";
 const SIGN_IN_AGAIN: &str =
     "Looking up the channels needs a fresh sign-in. Sign in again in Settings → Accounts.";
@@ -108,12 +108,12 @@ pub fn confirm(app: &AppHandle, player: bool) -> Result<ImportReport, String> {
 
 fn read(path: &Path) -> Result<Layout, String> {
     let size = std::fs::metadata(path)
-        .map_err(|_| "Couldn't open that file.")?
+        .map_err(|_| "Couldn’t open that file.")?
         .len();
     if size > MAX_BYTES {
         return Err(NOT_A_LAYOUT.into());
     }
-    let bytes = std::fs::read(path).map_err(|_| "Couldn't open that file.")?;
+    let bytes = std::fs::read(path).map_err(|_| "Couldn’t open that file.")?;
     let text = String::from_utf8(bytes).map_err(|_| NOT_A_LAYOUT)?;
     chatterino::parse(&text).map_err(|_| NOT_A_LAYOUT.into())
 }
@@ -133,11 +133,11 @@ fn channel(user: helix::User) -> TabChannel {
 
 fn lookup_error(e: cyex_twitch::Error) -> String {
     if e.is_network() {
-        "Couldn't reach Twitch.".into()
+        "Couldn’t reach Twitch.".into()
     } else if e.is_unauthorized() {
         SIGN_IN_AGAIN.into()
     } else {
-        "Twitch didn't answer the lookup. Try again in a moment.".into()
+        "Twitch didn’t answer the lookup. Try again in a moment.".into()
     }
 }
 

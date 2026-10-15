@@ -79,7 +79,7 @@
       {#if l.secs}<span class="len">{formatDuration(l.secs)}</span>{/if}
       {#if l.about}<span class="about">“{l.about}”</span>{/if}
       {#if l.reason}<span class="why">{l.reason}</span>{/if}
-      {#if l.from}<span class="from">in {l.from}'s chat</span>{/if}
+      {#if l.from}<span class="from">in {l.from}’s chat</span>{/if}
     {/snippet}
     {#snippet foot()}
       {#if !gql}

@@ -69,6 +69,6 @@ pub fn mentions_sound(settings: State<Settings>, path: String) -> CmdResult<Resp
     if size > MAX_SOUND {
         return Err("The sound file is over 5 MB.".into());
     }
-    let bytes = std::fs::read(&path).map_err(|_| "The sound file can't be read.".to_owned())?;
+    let bytes = std::fs::read(&path).map_err(|_| "The sound file can’t be read.".to_owned())?;
     Ok(Response::new(bytes))
 }

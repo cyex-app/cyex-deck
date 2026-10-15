@@ -27,7 +27,7 @@ pub async fn open(app: &AppHandle, account: &str, url: &str) -> Result<(), Strin
     let accounts = crate::auth::accounts(app);
     let acc = accounts
         .get(account)
-        .ok_or("That account isn't signed in here.")?;
+        .ok_or("That account isn’t signed in here.")?;
     let name = if acc.display_name.is_empty() {
         acc.login.clone()
     } else {
@@ -41,7 +41,7 @@ pub async fn open(app: &AppHandle, account: &str, url: &str) -> Result<(), Strin
 pub async fn open_activation(app: &AppHandle, account: Option<&str>, url: &str) -> Result<(), String> {
     let url = twitch_url(url)?;
     if !is_activation(&url) {
-        return Err("That isn't Twitch's sign-in page.".into());
+        return Err("That isn’t Twitch’s sign-in page.".into());
     }
     match account.filter(|a| crate::auth::accounts(app).get(a).is_some()) {
         Some(account) => open(app, account, url.as_str()).await,
@@ -105,9 +105,9 @@ fn adopt_dir(from: &Path, to: &Path) -> std::io::Result<()> {
 }
 
 fn twitch_url(url: &str) -> Result<Url, String> {
-    let url: Url = url.parse().map_err(|_| "That isn't a Twitch page.")?;
+    let url: Url = url.parse().map_err(|_| "That isn’t a Twitch page.")?;
     if url.scheme() != "https" || !is_twitch(&url) {
-        return Err("That isn't a Twitch page.".into());
+        return Err("That isn’t a Twitch page.".into());
     }
     Ok(url)
 }
@@ -132,7 +132,7 @@ fn show(app: &AppHandle, profile: &str, title: &str, url: Url) -> Result<(), Str
         return Ok(());
     }
     let look = theme::look(app);
-    let dir = profile_dir(app, profile).ok_or("Couldn't find the app data folder.")?;
+    let dir = profile_dir(app, profile).ok_or("Couldn’t find the app data folder.")?;
     let nav_app = app.clone();
     let pop_app = app.clone();
     WebviewWindowBuilder::new(app, &label, WebviewUrl::External(url))

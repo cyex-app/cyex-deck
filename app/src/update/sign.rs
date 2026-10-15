@@ -8,8 +8,8 @@ use std::path::Path;
 
 use minisign_verify::{PublicKey, Signature};
 
-pub const NO_MATCH: &str = "The file didn't match, so it was deleted.";
-pub const NOT_SIGNED: &str = "This update isn't signed, so it wasn't installed.";
+pub const NO_MATCH: &str = "The file didn’t match, so it was deleted.";
+pub const NOT_SIGNED: &str = "This update isn’t signed, so it wasn’t installed.";
 
 /// Tauri's signer writes the key as base64 of the whole `.pub` text.
 const KEY: &str = include_str!("../../update.pub");

@@ -8,7 +8,7 @@ import { accountName, missingScopesText, needsSignIn, tokenStatus } from './stat
 const token = (over: Partial<TokenView>): TokenView => ({ source: 'device', expiresAt: null, state: 'valid', ...over });
 
 test('token status wording', () => {
-  assert.equal(tokenStatus(token({})).text, "Signed in, doesn't expire");
+  assert.equal(tokenStatus(token({})).text, "Signed in, doesn’t expire");
   assert.equal(tokenStatus(token({ expiresAt: 1_800_000_000 })).text, 'Signed in');
   assert.match(tokenStatus(token({ source: 'pasted', expiresAt: 1_800_000_000 })).text, /^Works until \d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/);
   assert.equal(tokenStatus(token({ state: 'invalid' })).tone, 'bad');

@@ -106,7 +106,7 @@ pub async fn pick_channel_badge(
     if v.pointer("/selectChannelBadge/isSuccessful") == Some(&Value::Bool(false)) {
         return Err(Error::Api {
             status: 200,
-            message: "Twitch didn't take that badge.".into(),
+            message: "Twitch didn’t take that badge.".into(),
         });
     }
     Ok(())

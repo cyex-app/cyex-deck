@@ -26,14 +26,14 @@ fn http(app: &AppHandle) -> cyex_twitch::Http {
 pub async fn sub_status(app: &AppHandle, user: &str, channel: &str) -> Result<SubStatus, String> {
     logs::sub_status(&http(app), user, channel)
         .await
-        .map_err(|_| "Couldn't get the sub status.".into())
+        .map_err(|_| "Couldn’t get the sub status.".into())
 }
 
 /// V102-13 Every Twitch badge they own in this channel. Public, so no sign-in needed.
 pub async fn badges(app: &AppHandle, user: &str, channel: &str) -> Result<Vec<cyex_twitch::gql::BadgeInfo>, String> {
     cyex_twitch::gql::viewer::earned_badges(&http(app), user, channel)
         .await
-        .map_err(|_| "Couldn't load their badges.".into())
+        .map_err(|_| "Couldn’t load their badges.".into())
 }
 
 pub async fn name_history(app: &AppHandle, user_id: &str) -> Result<Vec<NameChange>, String> {
@@ -127,7 +127,7 @@ pub async fn logs(
         .map_err(|e| e.to_string())?;
     let got = logs::user_logs(&http(app), channel, user_id, PAGE, offset, &now)
         .await
-        .map_err(|_| "Couldn't reach the logs.".to_owned())?;
+        .map_err(|_| "Couldn’t reach the logs.".to_owned())?;
     let url = logs::page_url(channel, user);
     let lines = match got {
         Logs::Lines(l) => l,

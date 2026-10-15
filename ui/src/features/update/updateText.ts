@@ -10,7 +10,7 @@ export function checkText(r: CheckResult): string {
     case 'available':
       return `${r.update.version} is out.`;
     case 'failed':
-      return "Couldn't check. Try again later.";
+      return "Couldn’t check. Try again later.";
   }
 }
 
