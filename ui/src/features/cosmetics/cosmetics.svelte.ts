@@ -166,12 +166,15 @@ export class CosmeticsStore {
   }
 
   async allow() {
+    // Loading, so the sign-in change that Allow causes doesn't start a second fetch.
+    this.loading = true;
     try {
       this.apply(await cosmeticsIpc.allow(this.account));
       this.key = this.liveKey();
     } catch {
       this.failed = true;
     }
+    this.loading = false;
   }
 
   async signIn() {
