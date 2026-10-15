@@ -55,6 +55,8 @@ pub struct Sounds {
     next: AtomicU32,
     chime: OnceLock<Arc<[f32]>>,
     watcher: crate::sys::audio::Watcher,
+    /// The speaker choice last given to WebView2, so other General changes leave it be.
+    speakers: Mutex<Option<bool>>,
 }
 
 /// Before anything can ask for a sound (chat, alerts, whispers start later in setup).
@@ -69,6 +71,7 @@ pub fn init(app: &AppHandle) {
         next: AtomicU32::new(1),
         chime: OnceLock::new(),
         watcher: crate::sys::audio::Watcher::start(icon, streams, sounds),
+        speakers: Mutex::default(),
     });
     crate::sys::audio::prime();
 }
@@ -84,14 +87,22 @@ pub fn on_settings(app: &AppHandle) {
 }
 
 /// The streams' speaker choice (Q2): allowed while a streams device is set. Needs the
-/// main window; runs again on every General change.
+/// main window; checked again on every General change, set only when it changes.
 pub fn allow_speakers(app: &AppHandle) {
     let s: General = app.state::<Settings>().read(Partition::General);
+    let allow = s.sound.streams_device.is_some();
     let Some(main) = app.get_webview_window(MAIN) else {
         return;
     };
+    if let Some(sounds) = app.try_state::<Sounds>() {
+        let mut last = sounds.speakers.lock().unwrap_or_else(|p| p.into_inner());
+        if *last == Some(allow) {
+            return;
+        }
+        *last = Some(allow);
+    }
     let handle = app.clone();
-    crate::sys::allow_speaker_choice(&main, s.sound.streams_device.is_some(), move || {
+    crate::sys::allow_speaker_choice(&main, allow, move || {
         let _ = handle.emit(SINK_READY_EVENT, ());
     });
 }
