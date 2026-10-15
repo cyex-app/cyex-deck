@@ -8,7 +8,7 @@ use cyex_emotes::seventv::account::Client;
 use cyex_twitch::Http;
 
 use super::select::{Pick, Picked, SelectError, superseded};
-use super::{Cosmetics, Kind, drop_session};
+use super::{Cosmetics, Kind, drop_session, mock_base};
 
 /// A made-up token (`{"sub":"01X","exp":2000}`).
 const FAKE: &str = "e30.eyJzdWIiOiIwMVgiLCJleHAiOjIwMDB9.c2ln";
@@ -142,4 +142,17 @@ fn removing_an_account_deletes_its_session() {
     assert!(t.get("7").is_none());
     assert!(t.get("8").is_some());
     assert!(drop_session(&t, "7").is_none());
+}
+
+#[test]
+fn the_mock_is_only_ever_this_pc() {
+    assert_eq!(mock_base("http://127.0.0.1:5199").as_deref(), Some("http://127.0.0.1:5199"));
+    assert_eq!(mock_base("http://127.0.0.1:5199/").as_deref(), Some("http://127.0.0.1:5199"));
+    assert_eq!(mock_base("http://127.0.0.1:5199@evil.example"), None);
+    assert_eq!(mock_base("http://127.0.0.1:1:2@evil.example/"), None);
+    assert_eq!(mock_base("http://127.0.0.1.evil.example:5199"), None);
+    assert_eq!(mock_base("https://127.0.0.1:5199"), None);
+    assert_eq!(mock_base("http://127.0.0.1:5199/x"), None);
+    assert_eq!(mock_base("http://localhost:5199"), None);
+    assert_eq!(mock_base("http://127.0.0.1"), None);
 }

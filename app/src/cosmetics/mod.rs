@@ -129,7 +129,8 @@ pub fn init(app: &AppHandle) {
     let test = crate::paths::webview(app).is_some();
     let mock = std::env::var(URL_VAR)
         .ok()
-        .filter(|u| test && u.starts_with("http://127.0.0.1:"));
+        .filter(|_| test)
+        .and_then(|u| mock_base(&u));
     if let Some(url) = &mock
         && let Ok(raw) = std::env::var(TOKEN_VAR)
         && let Some(token) = SevenTvToken::parse(&raw)
@@ -146,6 +147,19 @@ pub fn init(app: &AppHandle) {
         timed: test,
         ..Cosmetics::new(api)
     });
+}
+
+/// `http://127.0.0.1:<port>` and nothing else: no other host, no user part
+/// (`http://127.0.0.1:1@elsewhere` is elsewhere), no path.
+fn mock_base(raw: &str) -> Option<String> {
+    let u = tauri::Url::parse(raw).ok()?;
+    let plain = u.scheme() == "http"
+        && u.host_str() == Some("127.0.0.1")
+        && u.username().is_empty()
+        && u.password().is_none()
+        && matches!(u.path(), "" | "/")
+        && u.query().is_none();
+    plain.then(|| u.port().map(|p| format!("http://127.0.0.1:{p}")))?
 }
 
 /// Why `read` has no inventory.
