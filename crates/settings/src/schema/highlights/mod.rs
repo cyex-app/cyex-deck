@@ -15,7 +15,7 @@ use ts_rs::TS;
 use super::Schema;
 use rules::{MAX_PATTERN_CHARS, MAX_ROUTE_CHARS};
 
-const MAX_RULES: usize = 200;
+pub(crate) const MAX_RULES: usize = 200;
 const MAX_NEVER: usize = 500;
 const MAX_FILTERS: usize = 50;
 const MAX_FILTER_CHARS: usize = 2000;

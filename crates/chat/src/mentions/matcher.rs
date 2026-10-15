@@ -14,9 +14,9 @@ use super::flavor::{self, Translated};
 use crate::lookalike;
 
 /// Steps a regex may take on one message before it counts as no match.
-const BACKTRACK_LIMIT: usize = 100_000;
+pub(crate) const BACKTRACK_LIMIT: usize = 100_000;
 /// Memory one compiled pattern may use.
-const SIZE_LIMIT: usize = 1 << 20;
+pub(crate) const SIZE_LIMIT: usize = 1 << 20;
 
 enum Find {
     /// ASCII words: bytes compared directly, ASCII letters in either case unless
@@ -120,7 +120,7 @@ fn compile(m: &Mention, index: usize) -> Result<(Compiled, Option<&'static str>)
 }
 
 /// fancy-regex's messages start with "Parsing error at position N: ".
-fn short_error(e: &str) -> String {
+pub(crate) fn short_error(e: &str) -> String {
     let e = e.split_once(": ").map_or(e, |(_, rest)| rest);
     let mut s = e.trim().to_owned();
     if let Some(first) = s.get(..1) {

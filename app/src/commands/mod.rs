@@ -6,6 +6,7 @@ mod chat;
 mod chat_extra;
 mod emotes;
 mod fonts;
+pub mod highlights;
 mod mentions;
 mod miner;
 mod moderation;
@@ -204,6 +205,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         player::channel_story_ring,
         player::channel_stories,
         player::channel_stories_seen,
+        highlights::highlights_chatterino_preview,
+        highlights::highlights_chatterino_import,
         settings::settings_all,
         settings::settings_patch,
         settings::settings_prune_blank,

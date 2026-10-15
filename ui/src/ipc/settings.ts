@@ -8,6 +8,8 @@ import type { Chat } from './bindings/Chat';
 import type { Commands } from './bindings/Commands';
 import type { Emotes } from './bindings/Emotes';
 import type { General } from './bindings/General';
+import type { HighlightImport } from './bindings/HighlightImport';
+import type { HighlightPreview } from './bindings/HighlightPreview';
 import type { Highlights } from './bindings/Highlights';
 import type { Hotkeys } from './bindings/Hotkeys';
 import type { ImportReport } from './bindings/ImportReport';
@@ -65,6 +67,10 @@ export const settingsIpc = {
   chatterinoPreview: () => invoke<ImportReport | null>('settings_chatterino_preview'),
   /** V1041-02 Adds the previewed tabs, with the stream too if `player`. */
   chatterinoImport: (player: boolean) => invoke<ImportReport>('settings_chatterino_import', { player }),
+  /** V105-16 Opens a file picker for Chatterino's settings.json; `null` when cancelled. */
+  highlightsPreview: () => invoke<HighlightPreview | null>('highlights_chatterino_preview'),
+  /** V105-16 Adds the picked highlights; duplicates keep yours or take Chatterino's. */
+  highlightsImport: (keepMine: boolean) => invoke<HighlightImport>('highlights_chatterino_import', { keepMine }),
   shareCode: (partitions: Partition[]) => invoke<string>('settings_share_code', { partitions }),
   importCode: (code: string) => invoke<Partition[]>('settings_import_code', { code }),
   backups: () => invoke<string[]>('settings_backups'),

@@ -62,6 +62,7 @@ fn main() {
             plugins::init(handle);
             chat::init(handle);
             tabs::init(handle);
+            commands::highlights::init(handle);
             player::init(handle);
             browse::init(handle);
             miner::init(handle);

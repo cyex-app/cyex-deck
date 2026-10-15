@@ -4,6 +4,7 @@
 //! shares it.
 
 mod compile;
+pub mod pcre;
 
 use std::collections::HashSet;
 
@@ -14,6 +15,16 @@ use crate::mentions::{self, MentionSet};
 use crate::model::{ChatMessage, Client, Flag, Fragment, Highlight, HighlightKind, NoticeKind, plain};
 use crate::similar::{RepeatCheck, SimilarCheck};
 use compile::Rule;
+
+/// V105-16 A Chatterino (PCRE2) highlight pattern in the Rust flavor, ready to store, or
+/// why it can't be imported.
+pub fn import_regex(pattern: &str) -> Result<String, String> {
+    let rust = pcre::to_rust(pattern)?;
+    match compile::highlight_error(&rust) {
+        Some(e) => Err(e),
+        None => Ok(rust),
+    }
+}
 
 /// What happened to a message, for the app: sounds, the taskbar, pop-ups, feed tabs.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

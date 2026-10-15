@@ -316,6 +316,13 @@ export const CHAT: Entry[] = [
     keywords: ['keywords', 'phrases', 'regex', 'sound file', 'mentions tab'],
   },
   {
+    id: 'highlights:import',
+    page: 'highlights',
+    label: 'Import highlights from Chatterino',
+    description: 'Words, people and badges from its settings.json.',
+    keywords: ['chatterino', 'import', 'settings.json'],
+  },
+  {
     id: 'highlights.users',
     page: 'highlights',
     label: 'Highlight people',

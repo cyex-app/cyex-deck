@@ -15,6 +15,7 @@
   import type { UserRule } from '../../../ipc/bindings/UserRule';
   import { settings } from '../../../lib/settings.svelte';
   import { splitList, type Field } from '../rules/fields';
+  import HighlightImport from '../chatterino/HighlightImport.svelte';
   import RuleList from '../rules/RuleList.svelte';
   import RuleRow from '../rules/RuleRow.svelte';
 
@@ -91,7 +92,10 @@
   />
 {/each}
 
-<h3 class="label">Words</h3>
+<div class="list-head" data-setting="highlights:import">
+  <h3 class="label">Words</h3>
+  <HighlightImport />
+</div>
 <RuleList
   setting="highlights.phrases"
   items={h.phrases}
@@ -152,6 +156,16 @@
 </Row>
 
 <style>
+  .list-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0.68rem 0;
+  }
+  .list-head h3 {
+    margin: 0;
+  }
   .field {
     width: 100%;
   }

@@ -16,11 +16,23 @@ pub struct Translated {
 }
 
 /// JavaScript's `\b` and `\B`: only ASCII letters, digits and `_` make words.
-const JS_EDGE: &str = r"(?:(?<![0-9A-Za-z_])(?=[0-9A-Za-z_])|(?<=[0-9A-Za-z_])(?![0-9A-Za-z_]))";
-const JS_NOT_EDGE: &str = r"(?:(?<=[0-9A-Za-z_])(?=[0-9A-Za-z_])|(?<![0-9A-Za-z_])(?![0-9A-Za-z_]))";
+pub(crate) const JS_EDGE: &str = r"(?:(?<![0-9A-Za-z_])(?=[0-9A-Za-z_])|(?<=[0-9A-Za-z_])(?![0-9A-Za-z_]))";
+pub(crate) const JS_NOT_EDGE: &str = r"(?:(?<=[0-9A-Za-z_])(?=[0-9A-Za-z_])|(?<![0-9A-Za-z_])(?![0-9A-Za-z_]))";
 
 /// Characters the engine reads as syntax, so a literal one needs a backslash.
 const META: &str = r"\.+*?()|[]{}^$#&-~";
+
+/// V105-16 One character as a literal: whitespace and controls as `\x{H}`, syntax with a backslash.
+pub(crate) fn push_literal(out: &mut String, c: char) {
+    if c.is_whitespace() || c.is_control() {
+        out.push_str(&format!(r"\x{{{:X}}}", c as u32));
+    } else {
+        if META.contains(c) {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+}
 
 pub fn translate(src: &str, flavor: RegexFlavor) -> Result<Translated, String> {
     match flavor {
@@ -114,14 +126,7 @@ impl<'a> Scan<'a> {
     }
 
     fn literal(&mut self, c: char) {
-        if c.is_whitespace() || c.is_control() {
-            self.out.push_str(&format!(r"\x{{{:X}}}", c as u32));
-        } else {
-            if META.contains(c) {
-                self.out.push('\\');
-            }
-            self.out.push(c);
-        }
+        push_literal(&mut self.out, c);
     }
 
     /// JavaScript's `[]` never matches and `[^]` matches anything; Python reads a `]`
