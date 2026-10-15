@@ -31,6 +31,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { catalogs } from './catalog.svelte';
   import ChatInput from './ChatInput.svelte';
+  import CosmeticsPopup from '../cosmetics/CosmeticsPopup.svelte';
   import EventsButton from './EventsButton.svelte';
   import { runEntry, toItems, userMenus } from './menus.svelte';
   import MessageList from './MessageList.svelte';
@@ -163,8 +164,16 @@
     }),
   });
 
+  // V1051-03 /cosmetics
+  let cosmeticsOpen = $state(false);
+  function closeCosmetics() {
+    cosmeticsOpen = false;
+    input?.focus();
+  }
+
   function onaction(a: UiAction) {
     if (a.type === 'search') search = { query: a.query, all: false };
+    else if (a.type === 'cosmetics') cosmeticsOpen = true;
     else if (a.type === 'popout') {
       if (onpopout) onpopout();
       else toast.info('Only a chat next to a stream pops out.');
@@ -370,6 +379,7 @@
     {#if viewers}
       <div class="viewers"><ViewerList account={room.account} {login} onclose={() => (viewers = false)} /></div>
     {/if}
+    {#if cosmeticsOpen && account}<CosmeticsPopup {account} onclose={closeCosmetics} />{/if}
   </div>
   <ResubBanner {account} {login} />
   <ChatInput bind:this={input} {room} bind:replyTo {onsignin} {onaction} />

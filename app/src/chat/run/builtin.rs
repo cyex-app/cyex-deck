@@ -54,7 +54,7 @@ const MOD_COMMANDS: &[&str] = &[
     "unrestrict",
 ];
 
-const HELP: &str = "/me, /echo, /set var, /chain, /foreach, /runin, /timer, /user, /logs, /block, /unblock, /hideuser, /unhideuser, /mutepings, /tl, /translate, /vote, /search, /popout, /color, /w, /r. Mods: /ban, /timeout, /unban, /warn and Twitch’s other mod commands. Your own commands are in Settings → Commands.";
+const HELP: &str = "/me, /echo, /set var, /chain, /foreach, /runin, /timer, /user, /logs, /block, /unblock, /hideuser, /unhideuser, /mutepings, /tl, /translate, /vote, /search, /popout, /color, /cosmetics, /w, /r. Mods: /ban, /timeout, /unban, /warn and Twitch’s other mod commands. Your own commands are in Settings → Commands.";
 
 pub async fn run(
     app: &AppHandle,
@@ -168,6 +168,14 @@ pub async fn run(
             query: args.to_owned(),
         })),
         "popout" => Ok(Some(UiAction::Popout)),
+        // V1051-03 Needs an account; the pop-up itself is in the window.
+        "cosmetics" => {
+            if place.account().is_none() {
+                local(app, &place.key, NoticeKind::Info, "Sign in to pick a 7TV paint and badge.");
+                return Ok(None);
+            }
+            Ok(Some(UiAction::Cosmetics))
+        }
         "color" => {
             let account = place.account().ok_or("Sign in to set a color.")?;
             super::super::identity::set_color(app, account, args.trim()).await?;
@@ -207,7 +215,7 @@ async fn whisper(app: &AppHandle, place: &Place, to: &str, text: &str) -> Result
 const OWN: &[&str] = &[
     "me", "echo", "help", "commands", "set", "chain", "foreach", "runin", "timer", "user", "usercard", "logs",
     "block", "unblock", "hideuser", "unhideuser", "mutepings", "tl", "translate", "vote", "search", "popout",
-    "color", "w", "whisper", "r", "nuke",
+    "color", "cosmetics", "w", "whisper", "r", "nuke",
 ];
 
 /// S5 Names plugins can't register: the app's commands and Twitch's.
@@ -221,7 +229,7 @@ fn is_mod_command(name: &str) -> bool {
 }
 
 /// V1041-01 The app's commands that send or act as the chat's account.
-const SIGNED_IN: &[&str] = &["me", "tl", "vote", "color", "block", "unblock", "w", "whisper", "r"];
+const SIGNED_IN: &[&str] = &["me", "tl", "vote", "color", "cosmetics", "block", "unblock", "w", "whisper", "r"];
 
 /// V1041-01 Who may run a built-in (1.57): Twitch's mod commands as they parse, `/nuke` any
 /// mod, the rest anyone.
@@ -421,9 +429,9 @@ mod tests {
         // Anonymous: nothing that sends.
         let anon = usable(None, false);
         assert!(has(&anon, &["user", "usercard", "logs", "search", "popout", "help", "echo"]));
-        assert!(none(&anon, &["me", "w", "r", "tl", "color", "block", "vote", "ban", "nuke"]));
+        assert!(none(&anon, &["me", "w", "r", "tl", "color", "cosmetics", "block", "vote", "ban", "nuke"]));
         let viewer = usable(None, true);
-        assert!(has(&viewer, &["me", "w", "whisper", "tl", "color", "user"]));
+        assert!(has(&viewer, &["me", "w", "whisper", "tl", "color", "cosmetics", "user"]));
         assert!(none(&viewer, &["ban", "timeout", "unban", "warn", "nuke", "slow", "mods"]));
         let m = usable(Some(ModRole::Moderator), true);
         assert!(has(&m, &["ban", "timeout", "unban", "untimeout", "warn", "nuke", "so", "pin", "r9kbeta"]));

@@ -240,6 +240,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         settings::settings_take_load_report,
         system::system_open_link,
         system::system_open_chat_link,
+        system::system_clear_picture_cache,
         tabs::tabs_apply,
         tabs::tabs_reopen,
         tabs::tabs_reopenable,

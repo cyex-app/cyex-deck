@@ -4,6 +4,7 @@
   import Row from '../../../components/Row.svelte';
   import ChatterinoImport from '../chatterino/ChatterinoImport.svelte';
   import type { Partition } from '../../../ipc/bindings/Partition';
+  import { systemIpc } from '../../../ipc/system';
   import { settingsIpc } from '../../../ipc/settings';
   import { PARTITION_LABELS, PORTABLE_PARTITIONS, partitionList } from '../../../lib/partitions';
   import { toast } from '../../../lib/toast.svelte';
@@ -65,6 +66,10 @@
     imported(result);
   }
 
+  async function clearCache() {
+    if (await attempt(() => systemIpc.clearPictureCache().then(() => true))) toast.success('Picture cache cleared.');
+  }
+
   async function restore(date: string) {
     const result = await attempt(() => settingsIpc.restoreBackup(date));
     if (result) toast.info(`Restored settings from ${date}.`);
@@ -116,6 +121,14 @@
 {:else}
   <p class="note">No backups yet. The first one is made tomorrow.</p>
 {/each}
+<h3 class="label">Cache</h3>
+<Row
+  label="Picture cache"
+  hint="Emotes, badges and paints you’ve seen, saved on this PC. They load again when needed."
+  setting="data:cache"
+>
+  <Button small onclick={clearCache}>Clear</Button>
+</Row>
 <div class="actions" data-setting="data:folder">
   <Button variant="ghost" small icon="folder" onclick={() => attempt(() => settingsIpc.openFolder())}>Open settings folder</Button>
 </div>

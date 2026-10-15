@@ -251,3 +251,60 @@ pub async fn run_script(window: &tauri::WebviewWindow, script: &'static str) -> 
 pub async fn run_script(_window: &tauri::WebviewWindow, _script: &'static str) -> Option<String> {
     None
 }
+
+/// V1051-03 Empties WebView2's disk cache (emotes, badges, paints). The app's windows share
+/// one profile, so clearing it from any window clears it for all.
+#[cfg(windows)]
+pub async fn clear_picture_cache(window: &tauri::WebviewWindow) -> Result<(), String> {
+    use std::sync::Mutex;
+    use webview2_com::ClearBrowsingDataCompletedHandler;
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        COREWEBVIEW2_BROWSING_DATA_KINDS_DISK_CACHE, ICoreWebView2Profile2, ICoreWebView2_13,
+    };
+    use windows::core::Interface;
+
+    let (tx, rx) = tokio::sync::oneshot::channel::<Result<(), String>>();
+    let tx = Mutex::new(Some(tx));
+    window
+        .with_webview(move |w| {
+            let finish = move |r: Result<(), String>| {
+                if let Some(tx) = tx.lock().unwrap_or_else(|p| p.into_inner()).take() {
+                    let _ = tx.send(r);
+                }
+            };
+            // SAFETY: plain COM calls on the controller Tauri hands us, on the UI thread.
+            let profile = unsafe { w.controller().CoreWebView2() }
+                .and_then(|core| core.cast::<ICoreWebView2_13>())
+                .and_then(|core| unsafe { core.Profile() })
+                .and_then(|p| p.cast::<ICoreWebView2Profile2>());
+            let profile = match profile {
+                Ok(p) => p,
+                Err(_) => return finish(Err("This WebView2 can’t clear its cache.".into())),
+            };
+            let done = std::sync::Arc::new(Mutex::new(Some(finish)));
+            let on_done = done.clone();
+            let handler = ClearBrowsingDataCompletedHandler::create(Box::new(move |res| {
+                if let Some(f) = on_done.lock().unwrap_or_else(|p| p.into_inner()).take() {
+                    f(res.map_err(|e| e.to_string()));
+                }
+                Ok(())
+            }));
+            // SAFETY: the handler outlives the call.
+            let started = unsafe { profile.ClearBrowsingData(COREWEBVIEW2_BROWSING_DATA_KINDS_DISK_CACHE, &handler) };
+            if let Err(e) = started
+                && let Some(f) = done.lock().unwrap_or_else(|p| p.into_inner()).take()
+            {
+                f(Err(e.to_string()));
+            }
+        })
+        .map_err(|e| e.to_string())?;
+    tokio::time::timeout(std::time::Duration::from_secs(15), rx)
+        .await
+        .map_err(|_| "Clearing took too long.".to_string())?
+        .map_err(|_| "Clearing didn’t finish.".to_string())?
+}
+
+#[cfg(not(windows))]
+pub async fn clear_picture_cache(_window: &tauri::WebviewWindow) -> Result<(), String> {
+    Ok(())
+}

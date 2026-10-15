@@ -47,6 +47,16 @@ pub fn system_open_chat_link(app: AppHandle, url: String) -> CmdResult<()> {
         .map_err(|e| e.to_string())
 }
 
+/// V1051-03 Empties the picture cache (emotes, badges, paints).
+#[tauri::command]
+pub async fn system_clear_picture_cache(app: AppHandle) -> CmdResult<()> {
+    use tauri::Manager;
+    let main = app
+        .get_webview_window(crate::windows::MAIN)
+        .ok_or("The main window isn’t open.")?;
+    crate::sys::clear_picture_cache(&main).await
+}
+
 fn is_web(url: &str) -> bool {
     Url::parse(url).is_ok_and(|u| matches!(u.scheme(), "http" | "https") && u.host_str().is_some())
 }

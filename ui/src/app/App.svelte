@@ -25,6 +25,7 @@
   import SettingsView from '../features/settings/SettingsView.svelte';
   import StreamManagerView from '../features/streammanager/StreamManagerView.svelte';
   import SubsView from '../features/subs/SubsView.svelte';
+  import CosmeticsView from '../features/cosmetics/CosmeticsView.svelte';
   import { whispers } from '../features/whispers/whispers.svelte';
   import { isMentionsFeed, MENTIONS_FEED } from '../features/chat/mentionsTab';
   import { mentionsTab } from '../features/chat/mentionsTab.svelte';
@@ -63,7 +64,7 @@
   import { popOut } from './panels';
   import { useRootEffects } from './root.svelte';
 
-  type Fixed = 'home' | 'discover' | 'miner' | 'streamManager' | 'whispers' | 'subs' | 'settings' | 'modview';
+  type Fixed = 'home' | 'discover' | 'miner' | 'streamManager' | 'whispers' | 'subs' | 'cosmetics' | 'settings' | 'modview';
   /** Somewhere the main window can show. */
   type Place = { tab: string } | { view: Fixed };
 
@@ -283,6 +284,13 @@
     tabs.activate(id);
   }
 
+  /** V1051-02 Cancel on the 7TV consent: back to where you were. */
+  function leaveCosmetics() {
+    const back = before && !('view' in before && before.view === 'cosmetics') ? before : { view: 'home' as const };
+    if ('tab' in back && tabs.tab(back.tab) && !tabs.popped.has(back.tab)) open(back.tab);
+    else show('view' in back ? back.view : 'home');
+  }
+
   /** V102-16 Pops a view out of here and goes back to where you were before it; when its
    * window closes the view comes back, if you're still there. */
   async function popOutView(view: Fixed, route: string, title?: string) {
@@ -402,7 +410,7 @@
       </div>
     {/if}
     <ConnectionCounter />
-    <AccountMenu onmanage={manageAccounts} onsubs={() => show('subs')} />
+    <AccountMenu onmanage={manageAccounts} onsubs={() => show('subs')} oncosmetics={() => show('cosmetics')} />
     <UpdateBadge />
     <IconButton icon="settings" label="Settings" hint="Everything you can change (Ctrl+,)." active={fixed === 'settings'} onclick={() => show('settings')} />
   {/snippet}
@@ -446,6 +454,8 @@
       <WhispersView onpopout={popOutWhispers} onsignin={manageAccounts} />
     {:else if fixed === 'subs'}
       <SubsView onchannel={(c) => void openChannel({ show: open, account: () => accounts.current?.userId ?? null }, c)} onsignin={manageAccounts} />
+    {:else if fixed === 'cosmetics'}
+      <CosmeticsView onclose={leaveCosmetics} />
     {:else if fixed === 'settings'}
       <SettingsView bind:section={settingsSection} />
     {:else}

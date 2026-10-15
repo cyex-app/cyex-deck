@@ -201,6 +201,13 @@ export const APP: Entry[] = [
     keywords: ['restore', 'undo', 'yesterday'],
   },
   {
+    id: 'data:cache',
+    page: 'data',
+    label: 'Picture cache',
+    description: 'Emotes, badges and paints you’ve seen, saved on this PC.',
+    keywords: ['cache', 'images', 'emotes', 'clear'],
+  },
+  {
     id: 'data:folder',
     page: 'data',
     label: 'Open settings folder',

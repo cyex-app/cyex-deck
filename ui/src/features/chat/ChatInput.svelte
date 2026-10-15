@@ -124,6 +124,11 @@
       .catch(() => {});
   }
 
+  /** Back to the box, e.g. after a pop-up closes. */
+  export function focus() {
+    box?.focus();
+  }
+
   /** Puts `@login` in the box, from a name's menu. */
   export function mention(login: string) {
     box?.focus();

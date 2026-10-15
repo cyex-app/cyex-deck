@@ -86,6 +86,8 @@ pub enum UiAction {
         query: String,
     },
     Popout,
+    /// V1051-03 Open the 7TV paint and badge pop-up.
+    Cosmetics,
 }
 
 /// S1 Who and what a menu entry was picked on.

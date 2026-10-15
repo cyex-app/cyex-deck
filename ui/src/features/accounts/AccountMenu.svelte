@@ -13,7 +13,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { accountName, accountNeedsAttention } from './status';
 
-  let { onmanage, onsubs }: { onmanage: () => void; onsubs: () => void } = $props();
+  let { onmanage, onsubs, oncosmetics }: { onmanage: () => void; onsubs: () => void; oncosmetics: () => void } = $props();
 
   const current = $derived(accounts.current);
   const attention = $derived(accounts.list.some(accountNeedsAttention));
@@ -41,6 +41,8 @@
       // V102-20 Only with Twitch's own sign-in.
       { label: 'Subscriptions', icon: 'star', lock: walletLock, run: onsubs },
       { label: 'Payment methods', icon: 'card', lock: walletLock, run: wallet },
+      // V1051-02 No lock: the view explains itself.
+      { label: '7TV paint and badge', icon: 'seventv', run: oncosmetics },
       'separator',
       { label: 'Manage accounts', icon: 'user', run: onmanage },
     ];

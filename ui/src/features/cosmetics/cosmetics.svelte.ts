@@ -11,7 +11,6 @@ import { toast } from '../../lib/toast.svelte';
 import { emptyQuery, filterItems, type Query } from './filter';
 import { Selection } from './select';
 import { menuSheet } from './sheet';
-import { signInCall } from './signin';
 
 const toPaint = (item: PaintItem) => ({
   name: item.style.name,
@@ -152,7 +151,7 @@ export class CosmeticsStore {
 
   async signIn() {
     try {
-      const r = await signInCall(this.account);
+      const r = await cosmeticsIpc.signIn(this.account);
       if (r.type === 'done') await this.load();
       else if (r.type === 'cancelled') toast.info('Sign-in cancelled.');
       else if (r.type === 'otherAccount') {

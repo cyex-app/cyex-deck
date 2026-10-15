@@ -43,6 +43,7 @@
     { view: 'miner', label: 'Miner', icon: 'pickaxe', shown: () => true },
     { view: 'streamManager', label: 'Stream manager', icon: 'radio', shown: () => accounts.any('streamManager') },
     { view: 'whispers', label: 'Whispers', icon: 'whisper', shown: () => accounts.can('whispers') },
+    { view: 'cosmetics', label: '7TV paint and badge', icon: 'seventv', shown: () => accounts.list.length > 0 },
     { view: 'settings', label: 'Settings', icon: 'settings', shown: () => true },
   ] as const;
 

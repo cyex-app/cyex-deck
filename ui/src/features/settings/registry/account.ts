@@ -26,6 +26,14 @@ export const ACCOUNT: Entry[] = [
     keywords: ['log in', 'login', 'add account'],
   },
   {
+    id: 'accounts:seventv',
+    page: 'accounts',
+    label: '7TV sign-in',
+    description: 'Whether this account uses 7TV, and its 7TV sign-in.',
+    keywords: ['7tv', 'paint', 'badge', 'cosmetics', 'consent', 'sign out', 'withdraw'],
+    anchor: 'accounts.list',
+  },
+  {
     id: 'accounts:code',
     page: 'accounts',
     label: 'Sign in with a code',

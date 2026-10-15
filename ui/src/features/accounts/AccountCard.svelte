@@ -8,6 +8,7 @@
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import { accountsIpc } from '../../ipc/accounts';
+  import { cosmeticsIpc } from '../../ipc/cosmetics';
   import { formatNumber } from '../../lib/format';
   import { subsIpc } from '../../ipc/subs';
   import type { AccountView } from '../../ipc/bindings/AccountView';
@@ -36,6 +37,7 @@
   );
 
   let armed = $state(false);
+  let withdrawArmed = $state(false);
   let editing = $state(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -60,6 +62,20 @@
     clearTimeout(timer);
     armed = false;
     void attempt(() => accountsIpc.remove(account.userId));
+  }
+
+  // V1051-02 Same two-click confirm as removing the account.
+  function withdraw() {
+    if (!withdrawArmed) {
+      withdrawArmed = true;
+      setTimeout(() => (withdrawArmed = false), 3000);
+      return;
+    }
+    withdrawArmed = false;
+    void attempt(async () => {
+      await cosmeticsIpc.withdraw(account.userId);
+      toast.success(`7TV removed from ${account.displayName}.`);
+    });
   }
 
   /** Twitch's sign-in runs right away; GQL shows its two options first. */
@@ -114,6 +130,20 @@
     </div>
     {#if t.kind === 'gql' && showUnlock}<GqlUnlock {account} onclose={closeUnlock} />{/if}
   {/each}
+
+  <!-- V1051-02 -->
+  <div class="line">
+    <span class="name">7TV</span>
+    <span class="status" class:muted={!account.seventv.consent}>
+      {#if !account.seventv.consent}Not used{:else if account.seventv.signedIn}Signed in until {account.seventv.until}{:else}Not signed in{/if}
+    </span>
+    {#if account.seventv.signedIn}
+      <Button small variant="ghost" onclick={() => attempt(() => cosmeticsIpc.signOut(account.userId))}>Sign out</Button>
+    {/if}
+    {#if account.seventv.consent}
+      <Button small variant="ghost" onclick={withdraw}>{withdrawArmed ? 'Click again to withdraw' : 'Withdraw'}</Button>
+    {/if}
+  </div>
 
   {#if account.helix && !needsSignIn(account.helix) && account.missingScopes.length}
     <p class="warn" use:tooltip={{ label: account.missingScopes.join(', ') }}>
