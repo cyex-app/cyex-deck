@@ -102,7 +102,8 @@ export class Selection {
       this.settle('saved');
     } catch (e) {
       if (mine !== this.seq[kind]) return;
-      this.shown = { ...this.shown, [kind]: this.confirmed[kind] };
+      // A newer pick that still waits keeps its place; it's sent as picked.
+      if (this.timers[kind] === undefined) this.shown = { ...this.shown, [kind]: this.confirmed[kind] };
       const err = (e && typeof e === 'object' && 'type' in e ? e : { type: 'down' }) as SelectError;
       this.status = { error: err };
       this.onstate();

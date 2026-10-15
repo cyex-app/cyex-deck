@@ -148,3 +148,23 @@ test('undo after adopt waits for a save that follows it', async () => {
   await flush();
   assert.deepEqual(s.undoable, { kind: 'paint', id: 'x' });
 });
+
+test('a failure doesn’t undo a newer pick that still waits', async () => {
+  let fail!: (e: SelectError) => void;
+  let calls = 0;
+  const { s, sched, sent } = make((_k, id) => (++calls === 1 ? new Promise((_, rej) => (fail = rej)) : Promise.resolve(done(id))));
+  s.pick('paint', 'a');
+  sched.tick(400);
+  s.pick('paint', 'b');
+  fail({ type: 'notAllowed' });
+  await flush();
+  assert.equal(s.shown.paint, 'b');
+  sched.tick(400);
+  await flush();
+  assert.deepEqual(sent, [
+    ['paint', 'a'],
+    ['paint', 'b'],
+  ]);
+  assert.equal(s.shown.paint, 'b');
+  assert.equal(s.confirmed.paint, 'b');
+});
