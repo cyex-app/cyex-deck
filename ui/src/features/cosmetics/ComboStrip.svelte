@@ -11,6 +11,7 @@
   import { MAX_COMBOS, type ComboStore } from './combos.svelte';
   import ComboName from './ComboName.svelte';
   import type { CosmeticsStore } from './cosmetics.svelte';
+  import { scrollWithin } from '../../lib/scrollWithin';
 
   interface Props {
     combos: ComboStore;
@@ -33,7 +34,7 @@
     activeId = el.dataset.id ?? null;
     void tick().then(() => {
       el.focus();
-      el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: scrollBehavior() });
+      scrollWithin(el, 'nearest', scrollBehavior(), 'x');
     });
   }
 

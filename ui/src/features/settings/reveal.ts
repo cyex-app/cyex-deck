@@ -2,7 +2,7 @@
 // look is in SettingsView (`.found`, `.fading`).
 
 import { scrollBehavior } from '../../lib/motion';
-import { scrollWithin } from './scroll';
+import { scrollWithin } from '../../lib/scrollWithin';
 
 const LIT_MS = 1400;
 const FADE_MS = 700;

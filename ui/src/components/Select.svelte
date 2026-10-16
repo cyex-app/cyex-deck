@@ -8,6 +8,7 @@
   import Icon from './Icon.svelte';
   import { type Choice, matchTyped, moveFor } from './select.ts';
   import { tooltip } from './tooltip.svelte';
+  import { scrollWithin } from '../lib/scrollWithin';
 
   interface Props {
     options: readonly Choice[];
@@ -74,7 +75,9 @@
 
   // Keeps the active choice in view in a long list.
   $effect(() => {
-    if (open) list?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
+    if (!open) return;
+    const row = list?.querySelector<HTMLElement>('[data-active="true"]');
+    if (row) scrollWithin(row, 'nearest');
   });
 
   function onkey(e: KeyboardEvent) {

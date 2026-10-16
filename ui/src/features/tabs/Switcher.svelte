@@ -27,6 +27,7 @@
   import { openAdd } from './dialog.svelte';
   import { label, tabs, tiles } from './tabs.svelte';
   import { errorText } from '../../lib/errors';
+  import { scrollWithin } from '../../lib/scrollWithin';
 
   interface Props {
     onopen: (id: string) => void;
@@ -108,7 +109,8 @@
   // Arrowing past the visible rows keeps the active one in view.
   $effect(() => {
     void index;
-    list?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() });
+    const row = list?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (row) scrollWithin(row, 'nearest', scrollBehavior());
   });
   onMount(() => home.ensure());
 

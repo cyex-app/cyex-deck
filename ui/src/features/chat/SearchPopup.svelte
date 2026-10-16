@@ -13,6 +13,7 @@
   import { lineClick } from './clicks';
   import { findHits, searchTerms } from './searchHits';
   import Line from './Line.svelte';
+  import { scrollWithin } from '../../lib/scrollWithin';
 
   interface Props {
     view: number;
@@ -69,7 +70,8 @@
     const now = hits[cur];
     CSS.highlights.set('search-hit', new Highlight(...hits.filter((r) => r !== now)));
     CSS.highlights.set('search-cur', new Highlight(...(now ? [now] : [])));
-    now?.startContainer.parentElement?.scrollIntoView({ block: 'center' });
+    const hit = now?.startContainer.parentElement;
+    if (hit) scrollWithin(hit, 'center');
     return () => {
       CSS.highlights.delete('search-hit');
       CSS.highlights.delete('search-cur');

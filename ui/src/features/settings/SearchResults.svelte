@@ -1,7 +1,7 @@
 <!-- V103-13 Settings search results: each says where it lives (group › page). Arrow keys
      in the search box move the pick, Enter or a click jumps to the setting. -->
 <script lang="ts">
-  import { scrollWithin } from './scroll';
+  import { scrollWithin } from '../../lib/scrollWithin';
   import { pieces, whereOf, type Hit } from './search';
 
   interface Props {

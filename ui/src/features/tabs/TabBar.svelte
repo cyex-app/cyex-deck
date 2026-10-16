@@ -19,6 +19,7 @@
   import { barMenu, groupMenu, tabMenu } from './menus';
   import TabItem from './TabItem.svelte';
   import { tabs, tiles } from './tabs.svelte';
+  import { scrollWithin } from '../../lib/scrollWithin';
 
   interface Props {
     vertical?: boolean;
@@ -78,7 +79,8 @@
   // Keep the shown tab in view when the bar scrolls.
   $effect(() => {
     if (!current || !bar) return;
-    bar.querySelector(`[data-tab-id="${CSS.escape(current)}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const tab = bar.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(current)}"]`);
+    if (tab) scrollWithin(tab, 'nearest');
   });
 
   // V102-04 The wheel over the bar steps through tabs: down is the next one, up the one

@@ -14,7 +14,7 @@
   import { signInTarget } from '../../../lib/gate';
   import { gate } from '../../../lib/gate.svelte';
   import { scrollBehavior } from '../../../lib/motion';
-  import { scrollWithin } from '../scroll';
+  import { scrollWithin } from '../../../lib/scrollWithin';
 
   let twitchWay = $state<HTMLElement>();
   let codeWay = $state<HTMLElement>();

@@ -7,6 +7,7 @@
   import { settings } from '../../lib/settings.svelte';
   import type { Item } from './suggestions';
   import { emoteImg } from './urls';
+  import { scrollWithin } from '../../lib/scrollWithin';
 
   interface Props {
     items: Item[];
@@ -24,7 +25,8 @@
   // Arrowing past the visible rows keeps the active one in view.
   $effect(() => {
     void index;
-    box?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() });
+    const row = box?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (row) scrollWithin(row, 'nearest', scrollBehavior());
   });
 </script>
 

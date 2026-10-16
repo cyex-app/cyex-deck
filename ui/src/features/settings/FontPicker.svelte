@@ -9,7 +9,7 @@
   import type { FontChoice } from '../../ipc/bindings/FontChoice';
   import { fontsIpc } from '../../ipc/theme';
   import { RANK, rank } from '../chat/completion';
-  import { scrollWithin } from './scroll';
+  import { scrollWithin } from '../../lib/scrollWithin';
   import SearchField from '../../components/SearchField.svelte';
 
   interface Props {

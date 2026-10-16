@@ -46,6 +46,7 @@
   import { whispers } from '../whispers/whispers.svelte';
   import { errorText } from '../../lib/errors';
   import { copy } from '../../lib/clipboard';
+  import { scrollWithin } from '../../lib/scrollWithin';
 
   interface Props {
     room: ChatRoom;
@@ -556,7 +557,7 @@
     stopGlide();
     if (list) stopScroll(list);
     const target = list?.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`);
-    target?.scrollIntoView({ block: 'center' });
+    if (target) scrollWithin(target, 'center');
     // Reduce motion: lit, then off, without the fade.
     target?.animate([{ background: 'var(--accent-wash)' }, { background: 'transparent' }], {
       duration: 1200,
