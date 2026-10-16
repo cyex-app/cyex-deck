@@ -160,9 +160,14 @@ fn registry_file_is_current() {
         std::fs::write(path, &now).expect("write docs/commands/registry.json");
         return;
     }
-    let file = std::fs::read_to_string(path)
-        .unwrap_or_default()
-        .replace("\r\n", "\n");
+    // tools/commands/sections.mjs adds these after the write; `npm run test:ui` checks them.
+    const NODE_KEYS: [&str; 4] = ["changesSince", "settings", "hotkeys", "features"];
+    let mut file: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(path).unwrap_or_default()).unwrap_or_default();
+    if let Some(m) = file.as_object_mut() {
+        m.retain(|k, _| !NODE_KEYS.contains(&k.as_str()));
+    }
+    let now: serde_json::Value = serde_json::from_str(&now).expect("the registry parses");
     assert!(
         file == now,
         "docs/commands/registry.json is stale: run tools/commands/registry.ps1"
