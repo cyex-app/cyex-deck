@@ -120,8 +120,22 @@
   }
 
   function bottom() {
-    if (list) list.scrollTop = list.scrollHeight;
+    if (!list) return;
+    list.scrollTop = list.scrollHeight;
+    atBottom = true;
   }
+
+  // Emotes and badges size themselves as they load; a list pinned to the bottom follows.
+  function grown() {
+    if (atBottom) bottom();
+  }
+
+  $effect(() => {
+    const el = list;
+    if (!el) return;
+    el.addEventListener('load', grown, true);
+    return () => el.removeEventListener('load', grown, true);
+  });
 
   async function onscroll() {
     if (!list) return;
