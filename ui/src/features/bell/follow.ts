@@ -6,12 +6,13 @@ import { systemIpc } from '../../ipc/system';
 import { accounts } from '../../lib/accounts.svelte';
 import { toast } from '../../lib/toast.svelte';
 import { route } from './route';
+import { errorText } from '../../lib/errors';
 
 export function follow(url: string, onchannel: (login: string) => void): void {
   const r = route(url);
   if (r.kind === 'channel') return onchannel(r.login);
   const account = accounts.current?.userId;
-  const fail = (e: unknown) => toast.error(String(e));
+  const fail = (e: unknown) => toast.error(errorText(e));
   if (r.kind === 'twitch' && account) subsIpc.open(account, r.url).catch(fail);
   else systemIpc.openChatLink(r.url).catch(fail);
 }

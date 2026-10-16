@@ -5,6 +5,7 @@
   import type { TwitchProfile } from '../../ipc/bindings/TwitchProfile';
   import { profileIpc } from '../../ipc/notify';
   import { toast } from '../../lib/toast.svelte';
+  import { errorText } from '../../lib/errors';
 
   let { account }: { account: string } = $props();
 
@@ -29,7 +30,7 @@
         name = p.displayName;
         bio = p.bio;
       })
-      .catch((e) => (error = String(e)));
+      .catch((e) => (error = errorText(e)));
   });
 
   async function save() {
@@ -40,7 +41,7 @@
       profile = { ...profile, displayName: name.trim(), bio: bio.trim() };
       toast.info('Saved on Twitch.');
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     } finally {
       saving = false;
     }

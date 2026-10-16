@@ -5,6 +5,7 @@
   import type { PluginField } from '../../ipc/bindings/PluginField';
   import { pluginsIpc } from '../../ipc/plugins';
   import { toast } from '../../lib/toast.svelte';
+  import { errorText } from '../../lib/errors';
 
   interface Props {
     plugin: string;
@@ -15,7 +16,7 @@
   let { plugin, field, value }: Props = $props();
 
   function save(v: unknown) {
-    pluginsIpc.setValue(plugin, field.key, v).catch((e) => toast.error(String(e)));
+    pluginsIpc.setValue(plugin, field.key, v).catch((e) => toast.error(errorText(e)));
   }
 
   function saveText(e: Event & { currentTarget: HTMLInputElement }) {

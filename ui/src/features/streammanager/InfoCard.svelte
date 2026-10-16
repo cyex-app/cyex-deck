@@ -6,6 +6,7 @@
   import { smIpc } from '../../ipc/streammanager';
   import { toast } from '../../lib/toast.svelte';
   import Card from '../../components/PanelCard.svelte';
+  import { errorText } from '../../lib/errors';
 
   const TITLE_MAX = 140;
 
@@ -26,7 +27,7 @@
         game = { id: i.gameId, name: i.gameName };
         loaded = true;
       })
-      .catch((e) => toast.error(String(e)));
+      .catch((e) => toast.error(errorText(e)));
   }
   load();
 
@@ -74,7 +75,7 @@
         saved = { title: t, gameId: game.id, gameName: game.name };
         toast.info('Saved.');
       })
-      .catch((e) => toast.error(String(e)))
+      .catch((e) => toast.error(errorText(e)))
       .finally(() => (saving = false));
   }
 

@@ -15,6 +15,7 @@
   import ChannelPicker from '../tabs/ChannelPicker.svelte';
   import { miner } from './miner.svelte';
   import MinerRow from './MinerRow.svelte';
+  import { errorText } from '../../lib/errors';
 
   const SOURCES: { value: MineSource; label: string }[] = [
     { value: 'list', label: 'Your list' },
@@ -49,7 +50,7 @@
       if (!(await minerIpc.add(c))) toast.info(`${c.name} is on the list already.`);
     } catch (e) {
       // Kept in the box to try again.
-      return toast.error(String(e));
+      return toast.error(errorText(e));
     }
     text = '';
     picked = null;
@@ -60,7 +61,7 @@
       const out = await minerIpc.first(strip(c), on);
       if (out) toast.info(`${out} isn’t first anymore.`);
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 

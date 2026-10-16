@@ -10,6 +10,7 @@ import type { RoleEntry } from '../../ipc/bindings/RoleEntry';
 import { modIpc, type ModRole } from '../../ipc/moderation';
 import { allows } from './roles';
 import { roleItems, type Standing } from './standing';
+import { errorText } from '../../lib/errors';
 
 /** 2.11 The quick timeout lengths from Settings → Chat, shortest first. */
 export function timeouts(): { label: string; secs: number }[] {
@@ -135,5 +136,5 @@ export function messageItems(msgId: string, run: Run): MenuEntry[] {
 
 /** A convenience for components that need the toast-on-error runner. */
 export function runner(send: (line: string) => Promise<unknown>): Run {
-  return (line: string) => void send(line).catch((e) => toast.error(String(e)));
+  return (line: string) => void send(line).catch((e) => toast.error(errorText(e)));
 }

@@ -14,6 +14,7 @@
   import { toast } from '../../lib/toast.svelte';
   import PluginField from './PluginField.svelte';
   import { STATUS, menuSummary, permissionText } from './permissions';
+  import { errorText } from '../../lib/errors';
 
   interface Props {
     plugin: PluginInfo;
@@ -34,11 +35,11 @@
       return;
     }
     asking = false;
-    pluginsIpc.setOn(plugin.id, next).catch((e) => toast.error(String(e)));
+    pluginsIpc.setOn(plugin.id, next).catch((e) => toast.error(errorText(e)));
   }
 
   function reload() {
-    pluginsIpc.reload(plugin.id).catch((e) => toast.error(String(e)));
+    pluginsIpc.reload(plugin.id).catch((e) => toast.error(errorText(e)));
   }
 </script>
 

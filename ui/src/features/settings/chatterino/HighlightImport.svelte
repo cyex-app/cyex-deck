@@ -10,6 +10,7 @@
   import { formatNumber } from '../../../lib/format';
   import { toast } from '../../../lib/toast.svelte';
   import { failedImport } from './report';
+  import { errorText } from '../../../lib/errors';
 
   const MAX_LINES = 20;
   const CHOICES = [
@@ -42,7 +43,7 @@
       preview = p;
       choice = 'mine';
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     } finally {
       busy = false;
     }

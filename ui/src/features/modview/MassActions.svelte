@@ -9,6 +9,7 @@
   import { modIpc } from '../../ipc/moderation';
   import { accounts } from '../../lib/accounts.svelte';
   import { toast } from '../../lib/toast.svelte';
+  import { errorText } from '../../lib/errors';
 
   let { account, login, channelId }: { account: string; login: string; channelId: string | null } = $props();
 
@@ -53,7 +54,7 @@
     modIpc
       .massban(account, login, logins, secs, reason)
       .then((n) => toast.info(`Done: ${n} of ${logins.length}.`))
-      .catch((e) => toast.error(String(e)))
+      .catch((e) => toast.error(errorText(e)))
       .finally(() => (running = false));
   }
 

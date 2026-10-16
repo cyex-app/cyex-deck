@@ -12,6 +12,7 @@
   import { toast } from '../../lib/toast.svelte';
   import Card from '../../components/PanelCard.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
+  import { errorText } from '../../lib/errors';
 
   /** Twitch allows the host plus five guests. */
   const SLOTS = 5;
@@ -33,7 +34,7 @@
     smIpc
       .together()
       .then((s) => (together = s))
-      .catch((e) => toast.error(String(e)));
+      .catch((e) => toast.error(errorText(e)));
   }
   load();
 
@@ -46,7 +47,7 @@
   function autoAdd(on: boolean) {
     if (together) together = { ...together, autoAdd: on };
     smIpc.autoAdd(session?.id ?? null, on).catch((e) => {
-      toast.error(String(e));
+      toast.error(errorText(e));
       load();
     });
   }
@@ -58,7 +59,7 @@
       if (done) toast.info(done);
       load();
     })
-      .catch((e) => toast.error(String(e)))
+      .catch((e) => toast.error(errorText(e)))
       .finally(() => (busy = false));
   }
 

@@ -11,6 +11,7 @@
   import Card from '../../components/PanelCard.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
   import { shares } from './logic';
+  import { errorText } from '../../lib/errors';
 
   const WINDOWS = [30, 60, 120, 300, 600, 1800];
 
@@ -45,7 +46,7 @@
         toast.info('Prediction started.');
         votes.watch(login);
       })
-      .catch((e) => toast.error(String(e)))
+      .catch((e) => toast.error(errorText(e)))
       .finally(() => (busy = false));
   }
 
@@ -58,7 +59,7 @@
         toast.info(done);
         votes.watch(login);
       })
-      .catch((e) => toast.error(String(e)))
+      .catch((e) => toast.error(errorText(e)))
       .finally(() => (busy = false));
   }
 

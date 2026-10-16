@@ -12,6 +12,7 @@
   import Card from '../../components/PanelCard.svelte';
   import { raidCountdown } from './logic';
   import { sm } from './streammanager.svelte';
+  import { errorText } from '../../lib/errors';
 
   const PICKS = 6;
 
@@ -44,7 +45,7 @@
   function act(p: Promise<void>, after: () => void) {
     busy = true;
     p.then(after)
-      .catch((e) => toast.error(String(e)))
+      .catch((e) => toast.error(errorText(e)))
       .finally(() => (busy = false));
   }
 

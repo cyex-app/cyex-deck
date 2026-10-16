@@ -8,6 +8,7 @@
   import { smIpc } from '../../../ipc/streammanager';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
+  import { errorText } from '../../../lib/errors';
 
   const FILES: [string, string][] = [
     ['live.txt', 'live or offline'],
@@ -51,7 +52,7 @@
     }}
   >
     <input class="field" placeholder="C:\Streaming\status" bind:value={typed} onblur={saveFolder} />
-    <Button small onclick={() => void smIpc.obsOpen().catch((e) => toast.error(String(e)))}>Open folder</Button>
+    <Button small onclick={() => void smIpc.obsOpen().catch((e) => toast.error(errorText(e)))}>Open folder</Button>
   </form>
   {#if folder}<p class="path">{folder}</p>{/if}
 </Row>

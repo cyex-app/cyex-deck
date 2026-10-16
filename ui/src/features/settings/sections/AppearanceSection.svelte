@@ -17,6 +17,7 @@
   import { toast } from '../../../lib/toast.svelte';
   import ResetSection from '../ResetSection.svelte';
   import ThemeEditor from '../ThemeEditor.svelte';
+  import { errorText } from '../../../lib/errors';
 
   const DEFAULT_ACCENT = '#145aff';
   const HEX = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
@@ -62,7 +63,7 @@
     try {
       await themeIpc.add(theme);
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 
@@ -96,7 +97,7 @@
       code = '';
       toast.info('Theme added.');
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
   const DENSITIES: { value: TabDensity; label: string }[] = [

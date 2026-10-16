@@ -11,6 +11,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { months, standing, tierLabel } from './labels';
   import ResubShare from './ResubShare.svelte';
+  import { errorText } from '../../lib/errors';
 
   let { account, login, onclose }: { account: string; login: string; onclose: () => void } = $props();
 
@@ -26,12 +27,12 @@
       info = await subsIpc.channel(account, login);
       if (!info) error = 'That channel is gone.';
     } catch (e) {
-      error = String(e);
+      error = errorText(e);
     }
   }
 
   function page(kind: TwitchPage) {
-    subsIpc.page(account, kind, login).catch((e) => toast.error(String(e)));
+    subsIpc.page(account, kind, login).catch((e) => toast.error(errorText(e)));
   }
 
   async function prime() {
@@ -41,7 +42,7 @@
       toast.info(`Subscribed to ${info.channel.name} with Prime.`);
       await load();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 </script>

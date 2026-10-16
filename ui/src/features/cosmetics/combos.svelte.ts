@@ -5,6 +5,7 @@ import type { Combo, ComboItem, SelectError } from '../../ipc/cosmetics';
 import { cosmeticsIpc } from '../../ipc/cosmetics';
 import { settings } from '../../lib/settings.svelte';
 import { toast } from '../../lib/toast.svelte';
+import { errorText as backendError } from '../../lib/errors';
 import { current, problems, type Owned, type Problem } from './combos';
 import { errorText, type CosmeticsStore } from './cosmetics.svelte';
 import type { Pair } from './select';
@@ -112,7 +113,7 @@ export class ComboStore {
       if (r.type === 'saved') this.focusId = r.combo.id;
       return null;
     } catch (e) {
-      return String(e);
+      return backendError(e);
     }
   }
 
@@ -121,7 +122,7 @@ export class ComboStore {
       await this.change({ type: 'rename', id: c.id, name });
       return null;
     } catch (e) {
-      return String(e);
+      return backendError(e);
     }
   }
 
@@ -130,7 +131,7 @@ export class ComboStore {
       const r = await this.change({ type: 'duplicate', id: c.id });
       if (r.type === 'saved' || r.type === 'changed') this.focusId = r.combo.id;
     } catch (e) {
-      toast.error(String(e));
+      toast.error(backendError(e));
     }
   }
 
@@ -144,10 +145,10 @@ export class ComboStore {
           if (back.type !== 'deleted') this.focusId = back.combo.id;
           this.store.say('Done.', null, true);
         },
-        (err) => toast.error(String(err)),
+        (err) => toast.error(backendError(err)),
       ));
     } catch (e) {
-      toast.error(String(e));
+      toast.error(backendError(e));
     }
   }
 
@@ -165,7 +166,7 @@ export class ComboStore {
       await this.change({ type: 'edit', id: c.id, ...this.pair(this.draft) });
       this.cancel();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(backendError(e));
     }
   }
   cancel() {

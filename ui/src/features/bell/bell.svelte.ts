@@ -5,6 +5,7 @@ import type { BellList } from '../../ipc/bindings/BellList';
 import { bellIpc, type BellLive } from '../../ipc/notify';
 import { latest } from '../../lib/latest';
 import { toast } from '../../lib/toast.svelte';
+import { errorText } from '../../lib/errors';
 
 class BellStore {
   available = $state(false);
@@ -56,7 +57,7 @@ class BellStore {
       this.items = more ? [...this.items, ...page.items] : page.items;
       this.cursor = page.cursor;
     } catch (e) {
-      if (live()) toast.error(String(e));
+      if (live()) toast.error(errorText(e));
     } finally {
       if (live()) this.loading = false;
     }

@@ -17,6 +17,7 @@
   import { accounts } from '../../lib/accounts.svelte';
   import { formatDuration } from '../../lib/format';
   import { ACTION_KINDS, moderatorsIn, visibleActions } from './modActions';
+  import { errorText } from '../../lib/errors';
 
   interface Props {
     items: ModLine[];
@@ -48,7 +49,7 @@
     try {
       await modIpc.actionsHistory(account, login, more);
     } catch (e) {
-      failed = String(e);
+      failed = errorText(e);
     } finally {
       loading = false;
     }

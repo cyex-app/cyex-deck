@@ -16,6 +16,7 @@
   import ConfirmButton from '../../components/ConfirmButton.svelte';
   import { adIn, adIntervals, adLengths } from './logic';
   import { sm } from './streammanager.svelte';
+  import { errorText } from '../../lib/errors';
 
   const LENGTHS = [30, 60, 90, 120, 180].map((v) => ({ value: v, label: `${v}s` }));
 
@@ -60,7 +61,7 @@
       };
     }
     smIpc.setAdSettings(edit).catch((e) => {
-      toast.error(String(e));
+      toast.error(errorText(e));
       load();
     });
   }
@@ -84,7 +85,7 @@
         toast.info(`Ad running (${got}s).`);
         load();
       })
-      .catch((e) => toast.error(String(e)))
+      .catch((e) => toast.error(errorText(e)))
       .finally(() => (busy = false));
   }
 
@@ -96,7 +97,7 @@
         toast.info('Next ad pushed back.');
         load();
       })
-      .catch((e) => toast.error(String(e)))
+      .catch((e) => toast.error(errorText(e)))
       .finally(() => (busy = false));
   }
 </script>

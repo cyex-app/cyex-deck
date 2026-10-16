@@ -7,6 +7,7 @@
   import { smIpc } from '../../ipc/streammanager';
   import { toast } from '../../lib/toast.svelte';
   import Card from '../../components/PanelCard.svelte';
+  import { errorText } from '../../lib/errors';
 
   /** Minimum follow age, in minutes. 0 = any follower. */
   const FOLLOW: { value: number; label: string }[] = [
@@ -33,14 +34,14 @@
       if (m.followerModeDuration != null) followFor = m.followerModeDuration;
       if (m.slowModeWaitTime != null) slowFor = m.slowModeWaitTime;
     })
-    .catch((e) => toast.error(String(e)));
+    .catch((e) => toast.error(errorText(e)));
 
   function set(mode: SmMode) {
     busy = true;
     smIpc
       .setMode(mode)
       .then((m) => (modes = m))
-      .catch((e) => toast.error(String(e)))
+      .catch((e) => toast.error(errorText(e)))
       .finally(() => (busy = false));
   }
 

@@ -18,6 +18,7 @@
   import { checkText } from '../../update/updateText';
   import FontPicker from '../FontPicker.svelte';
   import ResetSection from '../ResetSection.svelte';
+  import { errorText } from '../../../lib/errors';
 
   const g = $derived(settings.v.general);
 
@@ -35,12 +36,12 @@
       const font = await fontsIpc.add();
       if (font) toast.info(`Added ${font.name}.`);
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 
   function removeFont(name: string) {
-    fontsIpc.remove(name).catch((e) => toast.error(String(e)));
+    fontsIpc.remove(name).catch((e) => toast.error(errorText(e)));
   }
 
   // V105-20 "Check now": the answer sits next to the button.

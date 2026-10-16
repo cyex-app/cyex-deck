@@ -5,6 +5,7 @@ import { accountsIpc } from '../../ipc/accounts';
 import type { DeviceStart } from '../../ipc/bindings/DeviceStart';
 import type { TokenKind } from '../../ipc/bindings/TokenKind';
 import { toast } from '../../lib/toast.svelte';
+import { errorText } from '../../lib/errors';
 
 class SignInFlow {
   kind = $state<TokenKind | null>(null);
@@ -31,7 +32,7 @@ class SignInFlow {
       toast.info(`Signed in as ${who.displayName}.`);
       this.offer = kind === 'helix' ? who.userId : null;
     } catch (e) {
-      if (run === this.run) toast.error(String(e));
+      if (run === this.run) toast.error(errorText(e));
     } finally {
       if (run === this.run) {
         this.kind = null;

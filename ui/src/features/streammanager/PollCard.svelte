@@ -9,6 +9,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { pollLeft, votes } from '../chat/votes.svelte';
   import Card from '../../components/PanelCard.svelte';
+  import { errorText } from '../../lib/errors';
 
   const DURATIONS = [60, 120, 180, 300, 600, 900];
 
@@ -44,7 +45,7 @@
         toast.info('Poll started.');
         votes.watch(login);
       })
-      .catch((e) => toast.error(String(e)))
+      .catch((e) => toast.error(errorText(e)))
       .finally(() => (busy = false));
   }
 
@@ -54,7 +55,7 @@
     smIpc
       .endPoll(poll.id, archive)
       .then(() => votes.watch(login))
-      .catch((e) => toast.error(String(e)))
+      .catch((e) => toast.error(errorText(e)))
       .finally(() => (busy = false));
   }
 

@@ -7,6 +7,7 @@
   import { subsIpc } from '../../ipc/subs';
   import { toast } from '../../lib/toast.svelte';
   import { months } from './labels';
+  import { errorText } from '../../lib/errors';
 
   interface Props {
     account: string;
@@ -28,7 +29,7 @@
       toast.info('Shared in chat.');
       onshared();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     } finally {
       busy = false;
     }

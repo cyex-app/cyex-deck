@@ -2,6 +2,7 @@
 
 import type { Page } from '../../ipc/bindings/Page';
 import { accounts } from '../../lib/accounts.svelte';
+import { errorText } from '../../lib/errors';
 
 export class Paged<T extends { id: string }> {
   items = $state.raw<T[]>([]);
@@ -42,7 +43,7 @@ export class Paged<T extends { id: string }> {
       this.cursor = page.cursor;
     } catch (e) {
       if (run !== this.run) return;
-      this.error = String(e);
+      this.error = errorText(e);
       this.cursor = null;
     } finally {
       if (run === this.run) this.loading = false;

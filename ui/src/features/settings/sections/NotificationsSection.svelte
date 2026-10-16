@@ -17,6 +17,7 @@
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
   import { CHANNEL_STATES, countOn, group, PLATFORMS, sends, smart, type Category, type Group } from '../notify';
+  import { errorText } from '../../../lib/errors';
 
   const n = $derived(settings.v.notifications);
   const account = $derived(accounts.current);
@@ -60,7 +61,7 @@
         channels = list.map((c) => ({ id: c.id, login: c.login, name: c.name, avatar: c.avatar, state: 'ALWAYS' }));
       }
     } catch (e) {
-      error = String(e);
+      error = errorText(e);
     } finally {
       loading = false;
     }
@@ -84,7 +85,7 @@
       await profileIpc.setChannel(account.userId, c.id, state);
     } catch (e) {
       channels = channels.map((x) => (x.id === c.id ? { ...x, state: before } : x));
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 
@@ -97,7 +98,7 @@
       await profileIpc.setSwitch(account.userId, category, platform, on);
     } catch (e) {
       flip(!on);
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 

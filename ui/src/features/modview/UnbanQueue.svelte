@@ -6,6 +6,7 @@
   import { modIpc } from '../../ipc/moderation';
   import { formatDate } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
+  import { errorText } from '../../lib/errors';
 
   let { account, login }: { account: string; login: string } = $props();
 
@@ -19,7 +20,7 @@
     modIpc
       .unbanRequests(account, login)
       .then((r) => (list = r))
-      .catch((e) => toast.error(String(e)))
+      .catch((e) => toast.error(errorText(e)))
       .finally(() => (loading = false));
   }
   load();
@@ -30,7 +31,7 @@
       await modIpc.resolveUnban(account, login, r.id, approve, note[r.id] ?? '');
       list = list.filter((x) => x.id !== r.id);
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     } finally {
       busy[r.id] = false;
     }

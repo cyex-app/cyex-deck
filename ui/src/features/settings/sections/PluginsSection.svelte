@@ -9,13 +9,14 @@
   import { toast } from '../../../lib/toast.svelte';
   import PluginCard from '../../plugins/PluginCard.svelte';
   import { plugins } from '../../plugins/plugins.svelte';
+  import { errorText } from '../../../lib/errors';
 
   const enabled = $derived(!!settings.v.plugins?.enabled);
   const view = $derived(plugins.view);
   const live = $derived(enabled && !view?.safeMode);
 
   function lookAgain() {
-    pluginsIpc.reload().catch((e) => toast.error(String(e)));
+    pluginsIpc.reload().catch((e) => toast.error(errorText(e)));
   }
 </script>
 

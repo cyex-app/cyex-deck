@@ -15,6 +15,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { ACTIVITY_KINDS, alertAction, visibleActivity } from './logic';
   import { sm } from './streammanager.svelte';
+  import { errorText } from '../../lib/errors';
 
   const filters = $derived(settings.v.streammanager.activity);
   const rows = $derived(visibleActivity(sm.activity, filters).map((a) => ({ ...a, key: a.id })));
@@ -31,7 +32,7 @@
     smIpc
       .alert(r.alert, replay)
       .then(() => toast.info(replay ? 'Alert queued again.' : 'Alert skipped.'))
-      .catch((e) => toast.error(String(e)));
+      .catch((e) => toast.error(errorText(e)));
   }
 </script>
 

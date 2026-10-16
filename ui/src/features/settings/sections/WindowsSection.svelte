@@ -4,6 +4,7 @@
   import { windowsIpc } from '../../../ipc/windows';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
+  import { errorText } from '../../../lib/errors';
 
   const layouts = $derived(settings.v.windows.layouts);
 
@@ -14,7 +15,7 @@
       await action();
       if (done) toast.info(done);
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 

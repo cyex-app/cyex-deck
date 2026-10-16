@@ -13,6 +13,7 @@
   import { themeIpc } from '../../ipc/theme';
   import { toast } from '../../lib/toast.svelte';
   import { COLOR_NAMES, adjustedNote, isLink } from './themes';
+  import { errorText } from '../../lib/errors';
 
   interface Props {
     theme: CustomTheme;
@@ -72,7 +73,7 @@
       const name = await themeIpc.pickWallpaper();
       if (name) setWall({ source: name });
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 
@@ -92,7 +93,7 @@
       await navigator.clipboard.writeText(await themeIpc.code(theme.id));
       toast.info(w.source && !isLink(w.source) ? 'Theme code copied. Your wallpaper file stays on this PC.' : 'Theme code copied.');
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 </script>

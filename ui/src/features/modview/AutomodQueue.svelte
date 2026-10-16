@@ -5,6 +5,7 @@
   import type { HeldItem } from '../../ipc/bindings/HeldItem';
   import { modIpc } from '../../ipc/moderation';
   import { toast } from '../../lib/toast.svelte';
+  import { errorText } from '../../lib/errors';
 
   let { account, login, held }: { account: string; login: string; held: HeldItem[] } = $props();
 
@@ -15,7 +16,7 @@
     try {
       await modIpc.automod(account, login, item.messageId, allow);
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     } finally {
       busy[item.messageId] = false;
     }

@@ -7,6 +7,7 @@
   import { toast } from '../../lib/toast.svelte';
   import Card from '../../components/PanelCard.svelte';
   import { sm } from './streammanager.svelte';
+  import { errorText } from '../../lib/errors';
 
   const MAX = 140;
 
@@ -33,14 +34,14 @@
         toast.info('Marker added.');
         load();
       })
-      .catch((e) => toast.error(String(e)))
+      .catch((e) => toast.error(errorText(e)))
       .finally(() => (busy = false));
   }
 </script>
 
 <Card title="Markers">
   {#snippet tools()}
-    <IconButton icon="folder" label="Open folder" hint="The marker log and OBS files live here." size={14} onclick={() => void smIpc.obsOpen().catch((e) => toast.error(String(e)))} />
+    <IconButton icon="folder" label="Open folder" hint="The marker log and OBS files live here." size={14} onclick={() => void smIpc.obsOpen().catch((e) => toast.error(errorText(e)))} />
   {/snippet}
   <form
     class="line"

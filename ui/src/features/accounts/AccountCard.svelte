@@ -20,6 +20,7 @@
   import ProfileEditor from './ProfileEditor.svelte';
   import { signIn } from './signIn.svelte';
   import { accountName, missingScopesText, needsSignIn, tokenStatus } from './status';
+  import { errorText } from '../../lib/errors';
 
   let { account }: { account: AccountView } = $props();
 
@@ -49,7 +50,7 @@
     try {
       await action();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 

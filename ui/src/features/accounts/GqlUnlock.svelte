@@ -7,6 +7,7 @@
   import type { AccountView } from '../../ipc/bindings/AccountView';
   import { toast } from '../../lib/toast.svelte';
   import { signIn } from './signIn.svelte';
+  import { errorText } from '../../lib/errors';
 
   let { account, onclose }: { account: AccountView; onclose?: () => void } = $props();
 
@@ -22,7 +23,7 @@
       toast.info('GQL tools unlocked.');
       onclose?.();
     } catch (err) {
-      toast.error(String(err));
+      toast.error(errorText(err));
     } finally {
       busy = false;
     }

@@ -9,6 +9,7 @@
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
   import ResetSection from '../ResetSection.svelte';
+  import { errorText } from '../../../lib/errors';
 
   const p = $derived(settings.v.player);
 
@@ -34,7 +35,7 @@
       draft = '';
       toast.info(url ? 'Proxy saved. New streams use it.' : 'Proxy removed.');
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 </script>

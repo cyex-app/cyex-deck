@@ -8,6 +8,7 @@
   import { formatDate, formatDuration, formatNumber, formatTime } from '../../../lib/format';
   import { toast } from '../../../lib/toast.svelte';
   import { popOut } from '../../../app/panels';
+  import { errorText } from '../../../lib/errors';
 
   let list = $state.raw<RecordingMeta[] | null>(null);
   /** Asked once more before deleting. */
@@ -17,7 +18,7 @@
     chatxIpc
       .recordings()
       .then((r) => (list = r))
-      .catch((e) => toast.error(String(e)));
+      .catch((e) => toast.error(errorText(e)));
   }
   load();
 
@@ -26,7 +27,7 @@
     chatxIpc
       .deleteRecording(id)
       .then(load)
-      .catch((e) => toast.error(String(e)));
+      .catch((e) => toast.error(errorText(e)));
   }
 
   const when = (ms: number) => `${formatDate(new Date(ms))} ${formatTime(new Date(ms))}`;

@@ -16,6 +16,7 @@
   import { latest } from '../../lib/latest';
   import { toast } from '../../lib/toast.svelte';
   import { canStop, months, standing, tierLabel } from './labels';
+  import { errorText } from '../../lib/errors';
 
   interface Props {
     onchannel: (c: SubChannel) => void;
@@ -55,14 +56,14 @@
         dataFor = id;
       }
     } catch (e) {
-      if (live()) error = String(e);
+      if (live()) error = errorText(e);
     } finally {
       if (live()) loading = false;
     }
   }
 
   function page(kind: TwitchPage, login: string | null = null) {
-    if (account) subsIpc.page(account, kind, login).catch((e) => toast.error(String(e)));
+    if (account) subsIpc.page(account, kind, login).catch((e) => toast.error(errorText(e)));
   }
 
   async function stop(id: string, name: string) {
@@ -72,7 +73,7 @@
       toast.info(`${name} won’t renew.`);
       await load();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 </script>

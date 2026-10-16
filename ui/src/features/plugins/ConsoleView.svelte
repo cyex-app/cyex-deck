@@ -8,6 +8,7 @@
   import { pluginsIpc } from '../../ipc/plugins';
   import { toast } from '../../lib/toast.svelte';
   import { plugins } from './plugins.svelte';
+  import { errorText } from '../../lib/errors';
 
   let { route }: { route: string; popout?: boolean } = $props();
 
@@ -64,7 +65,7 @@
       const out = await pluginsIpc.repl(id, line);
       if (out) add({ ts: Date.now(), kind: 'out', text: out });
     } catch (e) {
-      add({ ts: Date.now(), kind: 'err', text: String(e) });
+      add({ ts: Date.now(), kind: 'err', text: errorText(e) });
     } finally {
       busy = false;
     }
@@ -87,7 +88,7 @@
   }
 
   function reload() {
-    pluginsIpc.reload(id).catch((e) => toast.error(String(e)));
+    pluginsIpc.reload(id).catch((e) => toast.error(errorText(e)));
   }
 
   const time = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour12: false });

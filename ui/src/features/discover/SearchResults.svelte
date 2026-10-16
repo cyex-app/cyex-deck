@@ -7,6 +7,7 @@
   import type { Nav } from '../browse/open.svelte';
   import CategoryCard from './CategoryCard.svelte';
   import { discover } from './discover.svelte';
+  import { errorText } from '../../lib/errors';
 
   let { text, nav }: { text: string; nav: Nav } = $props();
 
@@ -30,7 +31,7 @@
         cursor = r.channels.cursor;
         categories = r.categories;
       })
-      .catch((e) => alive && (error = String(e)))
+      .catch((e) => alive && (error = errorText(e)))
       .finally(() => alive && (loading = false));
     return () => (alive = false);
   });
@@ -55,7 +56,7 @@
       cursor = page.cursor;
     } catch (e) {
       if (mine !== gen) return;
-      error = String(e);
+      error = errorText(e);
       cursor = null;
     } finally {
       if (mine === gen) loading = false;

@@ -7,6 +7,7 @@
   import { formatDuration } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import { signIn } from './signIn.svelte';
+  import { errorText } from '../../lib/errors';
 
   let now = $state(Date.now());
 
@@ -25,7 +26,7 @@
     try {
       await accountsIpc.openActivation(signIn.forUser, signIn.code.uri);
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 

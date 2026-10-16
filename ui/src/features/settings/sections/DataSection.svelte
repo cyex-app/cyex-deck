@@ -8,6 +8,7 @@
   import { settingsIpc } from '../../../ipc/settings';
   import { PARTITION_LABELS, PORTABLE_PARTITIONS, partitionList } from '../../../lib/partitions';
   import { toast } from '../../../lib/toast.svelte';
+  import { errorText } from '../../../lib/errors';
 
   let picked = $state<Partition[]>(['general', 'appearance', 'chat', 'highlights', 'mentions', 'commands', 'hotkeys']);
   let code = $state('');
@@ -23,7 +24,7 @@
     try {
       backups = await settingsIpc.backups();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 
@@ -35,7 +36,7 @@
     try {
       return await action();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
       return undefined;
     }
   }

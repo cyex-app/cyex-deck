@@ -10,6 +10,7 @@
   import { latest } from '../../lib/latest';
   import { toast } from '../../lib/toast.svelte';
   import { miner } from './miner.svelte';
+  import { errorText } from '../../lib/errors';
 
   const KINDS: Record<StatKind, string> = {
     watch: 'Watching',
@@ -50,7 +51,7 @@
       stats = s;
       shown = pick;
     } catch (e) {
-      if (live()) toast.error(String(e));
+      if (live()) toast.error(errorText(e));
     }
   }
 
@@ -70,7 +71,7 @@
     try {
       await minerIpc.clearStats(channel);
     } catch (e) {
-      return toast.error(String(e));
+      return toast.error(errorText(e));
     }
     channel = null;
     await load();
