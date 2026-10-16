@@ -4,7 +4,6 @@
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
 
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -12,7 +11,10 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager};
 use ts_rs::TS;
 
+use cyex_core::version;
+
 use super::Updater;
+use crate::busy::Busy;
 use crate::auth::Auth;
 
 use super::sign::NO_MATCH;
@@ -33,21 +35,14 @@ pub fn temp_dir() -> PathBuf {
     std::env::temp_dir().join("cyex-deck-update")
 }
 
-struct Busy<'a>(&'a std::sync::atomic::AtomicBool);
-
-impl Drop for Busy<'_> {
-    fn drop(&mut self) {
-        self.0.store(false, Ordering::SeqCst);
-    }
-}
-
 pub async fn run(app: AppHandle, on: Channel<UpdateProgress>) -> Result<(), String> {
     let updater = app.state::<Updater>();
-    if updater.busy.swap(true, Ordering::SeqCst) {
-        return Err("Wait for the download to finish.".into());
-    }
-    let _busy = Busy(&updater.busy);
+    let _busy = Busy::take(&updater.busy).ok_or("Wait for the download to finish.")?;
     let update = super::available(&app).ok_or(DOWNLOAD_FAILED)?;
+    // The installer must be this release's own, and the release newer than the running app.
+    if !update.installer.as_ref().is_some_and(|i| installable(&i.name, &update.version, &version::current())) {
+        return Err(DOWNLOAD_FAILED.into());
+    }
     let (Some(installer), Some(sha_url)) = (update.installer, update.sha256_url) else {
         return Err(DOWNLOAD_FAILED.into());
     };
@@ -116,6 +111,18 @@ pub async fn run(app: AppHandle, on: Channel<UpdateProgress>) -> Result<(), Stri
     Ok(())
 }
 
+/// The release is newer than `current` and `name` is `cyex-deck_<version>_x64-setup.exe` for
+/// exactly that version (an older signed installer on a newer tag is a downgrade).
+fn installable(name: &str, release: &str, current: &version::Version) -> bool {
+    let Some(want) = version::parse(release).filter(|v| v > current) else {
+        return false;
+    };
+    name.strip_prefix("cyex-deck_")
+        .and_then(|n| n.strip_suffix("_x64-setup.exe"))
+        .and_then(version::parse)
+        == Some(want)
+}
+
 /// A check that ran on the blocking pool. If the task itself failed (a panic), the file is
 /// deleted too: nothing unchecked stays on disk.
 fn checked<E>(path: &Path, joined: Result<Result<(), String>, E>) -> Result<(), String> {
@@ -162,6 +169,16 @@ mod tests {
     use super::*;
 
     const ABC: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+
+    #[test]
+    fn only_the_releases_own_newer_installer() {
+        let cur = version::parse("0.1.4").unwrap();
+        assert!(installable("cyex-deck_0.1.5_x64-setup.exe", "0.1.5", &cur));
+        assert!(!installable("cyex-deck_0.1.2_x64-setup.exe", "0.1.5", &cur));
+        assert!(!installable("cyex-deck_0.1.4_x64-setup.exe", "0.1.4", &cur));
+        assert!(!installable("cyex-deck_0.1.3_x64-setup.exe", "0.1.3", &cur));
+        assert!(!installable("other.exe", "0.1.5", &cur));
+    }
 
     #[test]
     fn hash_line() {

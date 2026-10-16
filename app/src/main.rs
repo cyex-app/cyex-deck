@@ -6,6 +6,7 @@ mod alerts;
 mod auth;
 mod bell;
 mod browse;
+mod busy;
 mod chat;
 mod commands;
 mod cosmetics;

@@ -41,9 +41,23 @@ impl Http {
         for (k, v) in headers {
             req = req.header(k.as_str(), v.as_str());
         }
-        let res = req.send().await.map_err(Error::Network)?;
-        let bytes = res.bytes().await.map_err(Error::Network)?;
-        Ok(String::from_utf8_lossy(&bytes[..bytes.len().min(max)]).into_owned())
+        let mut res = req.send().await.map_err(|e| Error::Network(e.without_url()))?;
+        let status = res.status().as_u16();
+        if !(200..300).contains(&status) {
+            return Err(Error::Api {
+                status,
+                message: "request".into(),
+            });
+        }
+        let mut out = Vec::new();
+        while out.len() < max {
+            match res.chunk().await.map_err(|e| Error::Network(e.without_url()))? {
+                Some(chunk) => out.extend_from_slice(&chunk),
+                None => break,
+            }
+        }
+        out.truncate(max);
+        Ok(String::from_utf8_lossy(&out).into_owned())
     }
 
     /// X6 A picture to keep, refused when bigger than `max`.

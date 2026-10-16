@@ -84,7 +84,7 @@ pub fn pick(
         let installer = r
             .assets
             .iter()
-            .find(|a| a.name.starts_with("cyex-deck_") && a.name.ends_with("_x64-setup.exe"))
+            .find(|a| installer_matches(&a.name, &v))
             .map(|a| Download {
                 name: a.name.clone(),
                 url: a.browser_download_url.clone(),
@@ -111,6 +111,15 @@ pub fn pick(
             sig_url,
         }
     }))
+}
+
+/// The installer of release `v` is named exactly `cyex-deck_<v>_x64-setup.exe`: an older signed
+/// installer attached to a newer tag would otherwise pass as an update (a downgrade).
+fn installer_matches(name: &str, v: &Version) -> bool {
+    name.strip_prefix("cyex-deck_")
+        .and_then(|n| n.strip_suffix("_x64-setup.exe"))
+        .and_then(version::parse)
+        .is_some_and(|n| &n == v)
 }
 
 /// What a conditional request came back with.
@@ -242,6 +251,25 @@ mod tests {
     }
 
     #[test]
+    fn the_installer_must_match_the_release_version() {
+        let json = br#"[{"tag_name":"v0.1.9","html_url":"https://x/r","draft":false,"prerelease":false,
+            "assets":[{"name":"cyex-deck_0.1.2_x64-setup.exe","browser_download_url":"https://x/i","size":5},
+                      {"name":"cyex-deck_0.1.2_x64-setup.exe.sha256","browser_download_url":"https://x/h","size":5}]}]"#;
+        let u = pick(json, &v("0.1.3"), false, None).unwrap().unwrap();
+        assert!(u.installer.is_none() && !u.can_install);
+        assert!(installer_matches("cyex-deck_0.1.04_x64-setup.exe", &v("0.1.4")));
+        assert!(!installer_matches("cyex-deck_0.1.5_x64-setup.exe", &v("0.1.4")));
+        assert!(!installer_matches("evil_0.1.4_x64-setup.exe", &v("0.1.4")));
+    }
+
+    #[test]
+    fn an_update_not_newer_is_not_offered() {
+        let json = br#"[{"tag_name":"v0.1.3","draft":false,"prerelease":false,"assets":[]}]"#;
+        assert!(pick(json, &v("0.1.3"), false, None).unwrap().is_none());
+        assert!(pick(json, &v("0.1.4"), false, None).unwrap().is_none());
+    }
+
+    #[test]
     fn a_release_without_a_hash_only_opens_its_page() {
         let json = br#"[{"tag_name":"v0.1.04","html_url":"https://x/r","draft":false,"prerelease":true,
             "assets":[{"name":"cyex-deck_0.1.04_x64-setup.exe","browser_download_url":"https://x/i","size":5}]}]"#;
@@ -318,6 +346,14 @@ mod tests {
         let seen = h.join().unwrap();
         assert!(seen[1].to_ascii_lowercase().contains("if-none-match: \"abc\""));
         assert!(seen[0].to_ascii_lowercase().contains("x-github-api-version: 2022-11-28"));
+    }
+
+    #[tokio::test]
+    async fn text_is_capped_and_errors_are_refused() {
+        let (url, _h) = serve(vec![reply("200 OK", &[b'a'; 5000]), reply("404 Not Found", b"nope")]);
+        let http = Http::new().unwrap();
+        assert_eq!(http.get_text(&url, &[], 100).await.unwrap().len(), 100);
+        assert!(http.get_text(&url, &[], 100).await.is_err());
     }
 
     #[tokio::test]

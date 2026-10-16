@@ -3,7 +3,9 @@
 use std::fs;
 use std::path::Path;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
+
+use crate::busy::Busy;
 use std::time::Duration;
 
 use cyex_settings::Partition;
@@ -71,14 +73,6 @@ pub fn stage(state: &Uploads, bytes: Vec<u8>, ext: &str) -> Result<String, Strin
     Ok(id)
 }
 
-struct Busy<'a>(&'a AtomicBool);
-
-impl Drop for Busy<'_> {
-    fn drop(&mut self) {
-        self.0.store(false, Ordering::SeqCst);
-    }
-}
-
 /// An image ready to send: bytes, the file name to announce, the mime type and where it came from.
 struct Image {
     bytes: Vec<u8>,
@@ -131,13 +125,12 @@ fn load(app: &AppHandle, item: &UploadItem) -> Result<Image, String> {
 
 pub async fn run(app: AppHandle, channel: String, items: Vec<UploadItem>, on: Channel<UploadEvent>) {
     let uploads = app.state::<Uploads>();
-    if uploads.busy.swap(true, Ordering::SeqCst) {
+    let Some(_busy) = Busy::take(&uploads.busy) else {
         let _ = on.send(UploadEvent::Failed {
             message: "Wait for the upload to finish.".into(),
         });
         return;
-    }
-    let _busy = Busy(&uploads.busy);
+    };
     if let Err(message) = send_all(&app, &channel, &items, &on).await {
         let _ = on.send(UploadEvent::Failed { message });
     }
@@ -155,7 +148,7 @@ async fn send_all(
         return Err("Set up the uploader in Settings → Image uploads.".into());
     }
     let http = app.state::<Auth>().http.clone();
-    let extra = headers(&cfg.headers);
+    let extra = headers(&app.state::<Settings>().uploader_headers());
     let field = if cfg.form_field.is_empty() {
         "file"
     } else {
