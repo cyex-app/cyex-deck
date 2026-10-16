@@ -119,6 +119,7 @@
   <div class="colors">
     {#each COLOR_NAMES as [key, label] (key)}
       <div class="color">
+        <div class="line">
         <ColorField
           value={shown(key)}
           {label}
@@ -133,6 +134,7 @@
           tabindex={theme.colors[key] ? 0 : -1}
           onclick={() => resetColor(key)}>×</button
         >
+        </div>
         {#if theme.colors[key] && adjusted.has(key)}
           <span class="kept">{keptNote(key, theme.base)}</span>
         {/if}
@@ -212,19 +214,23 @@
     border-bottom: 1px solid var(--border);
   }
   .color {
+    align-self: start;
+    min-width: 0;
+  }
+  .line {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: 2px 8px;
+    gap: 8px;
     min-width: 0;
   }
   .kept {
-    flex-basis: 100%;
+    display: block;
+    margin-top: 2px;
     color: var(--yellow);
     font-size: 0.76rem;
   }
   .cname {
-    flex: 1;
+    flex: 0 1 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
