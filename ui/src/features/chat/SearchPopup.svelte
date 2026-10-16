@@ -9,6 +9,7 @@
   import { chatxIpc } from '../../ipc/chatx';
   import { layer } from '../../lib/escape';
   import { firstField, focusScope } from '../../lib/focusScope';
+  import { actionFor, comboFromEvent } from '../../lib/hotkeys.svelte';
   import { formatNumber } from '../../lib/format';
   import { lineClick } from './clicks';
   import { findHits, searchTerms } from './searchHits';
@@ -45,7 +46,19 @@
     if (!root) return;
     const off = layer('popover', onclose);
     const release = focusScope(root, { initial: firstField });
+    // Ctrl+F again: the open layer holds the hotkey back, so refocus and select the field.
+    const again = (e: KeyboardEvent) => {
+      const id = actionFor(comboFromEvent(e) ?? '');
+      if (id !== 'chat.search' && id !== 'chat.searchAll') return;
+      const field = root?.querySelector<HTMLInputElement>('input[type="text"], input[type="search"], input:not([type])');
+      if (!field) return;
+      e.preventDefault();
+      field.focus();
+      field.select();
+    };
+    window.addEventListener('keydown', again);
     return () => {
+      window.removeEventListener('keydown', again);
       off();
       release();
     };
