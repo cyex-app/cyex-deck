@@ -3,11 +3,12 @@
      last 30 seconds), with a note that the sign-in lets you pick the start and end. -->
 <script lang="ts">
   import GateFlag from '../../components/GateFlag.svelte';
-  import Icon from '../../components/Icon.svelte';
-  import { tooltip } from '../../components/tooltip.svelte';
+  import IconButton from '../../components/IconButton.svelte';
   import type { ClipPlayback } from '../../ipc/bindings/ClipPlayback';
   import type { Tile } from '../../ipc/bindings/Tile';
   import { systemIpc } from '../../ipc/system';
+  import { layer } from '../../lib/escape';
+  import { focusScope } from '../../lib/focusScope';
   import { formatDate, formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import ClipPlayer from './ClipPlayer.svelte';
@@ -29,17 +30,25 @@
     systemIpc.openLink(url).catch((e) => toast.error(errorText(e)));
   }
 
-  function onkeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape' && !e.defaultPrevented) onclose();
-  }
+  let box = $state<HTMLElement>();
+
+  // The shared layer: Escape closes only the top one (a menu or dialog over the clip goes
+  // first), Tab stays inside, and focus goes back to where it was.
+  $effect(() => {
+    if (!box) return;
+    const release = focusScope(box, { trap: true });
+    const off = layer('dialog', onclose);
+    return () => {
+      off();
+      release();
+    };
+  });
 </script>
 
-<svelte:window {onkeydown} />
-
-<!-- The dimmed area closes the clip, like Escape; the box itself has the buttons. -->
+<!-- The dimmed area closes the clip, like Escape (the layer); the box itself has the buttons. -->
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="overlay" onclick={(e) => e.target === e.currentTarget && onclose()}>
-  <div class="box" role="dialog" aria-label="Clip">
+<div class="overlay" onmousedown={(e) => e.target === e.currentTarget && onclose()}>
+  <div class="box" bind:this={box} role="dialog" aria-modal="true" aria-label="Clip" tabindex="-1">
     <header>
       <div class="text">
         <b>{clip?.clip.title || 'Clip'}</b>
@@ -54,10 +63,8 @@
         <span class="note">Last 30 seconds. Sign in with Twitch to pick the start and end.</span>
         <GateFlag kind="helix" />
       {/if}
-      <button class="icon" aria-label="Open on Twitch" use:tooltip={'Open on Twitch'} onclick={() => open(`https://clips.twitch.tv/${slug}`)}>
-        <Icon name="popout" size={15} />
-      </button>
-      <button class="icon" aria-label="Close" use:tooltip={'Close (Esc)'} onclick={onclose}><Icon name="x" size={16} /></button>
+      <IconButton icon="twitch" label="Open on Twitch" size={15} onclick={() => open(`https://clips.twitch.tv/${slug}`)} />
+      <IconButton icon="x" label="Close" hint="Esc" size={16} onclick={onclose} />
     </header>
     <div class="screen">
       <ClipPlayer {slug} {tile} fresh={made} alone onloaded={(c) => (clip = c)} />
@@ -69,11 +76,14 @@
   .overlay {
     position: absolute;
     inset: 0;
-    z-index: 6;
+    z-index: var(--z-panel);
     display: grid;
     place-items: center;
     padding: 16px;
     background: var(--scrim);
+  }
+  .box:focus {
+    outline: none;
   }
   .box {
     display: flex;
@@ -83,7 +93,7 @@
     background: var(--bg);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow-dialog);
     overflow: hidden;
   }
   /* V101-26 As big as the screen allows, header included. */
@@ -117,20 +127,6 @@
     display: flex;
     aspect-ratio: 16 / 9;
     min-height: 0;
-  }
-  .icon {
-    display: grid;
-    place-items: center;
-    width: 30px;
-    height: 30px;
-    background: none;
-    border: 0;
-    border-radius: var(--radius);
-    color: var(--muted);
-  }
-  .icon:hover {
-    background: var(--surface-hover);
-    color: var(--text);
   }
   .note {
     flex: 0 1 auto;

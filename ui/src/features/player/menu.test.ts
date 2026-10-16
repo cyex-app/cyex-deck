@@ -42,7 +42,7 @@ test('a stream: playback, then links and tools, then twitch.tv', () => {
     'Video stats',
     'Reload player',
     '—',
-    'Open on twitch.tv',
+    'Open on Twitch',
   ]);
   const quality = list[2];
   assert.ok(quality !== 'separator');
@@ -78,14 +78,14 @@ test('a video adds speed and the link at the current time', () => {
     'Video stats',
     'Reload player',
     '—',
-    'Open on twitch.tv',
+    'Open on Twitch',
   ]);
 });
 
 test('a clip keeps it short', () => {
   let opened = '';
   const list = playerMenu({ ...base('clip'), link: 'https://clips.twitch.tv/A', open: (u) => (opened = u) });
-  assert.deepEqual(labels(list), ['Pause', 'Mute', 'Quality', 'Fullscreen', '—', 'Copy clip link', '—', 'Open on twitch.tv']);
+  assert.deepEqual(labels(list), ['Pause', 'Mute', 'Quality', 'Fullscreen', '—', 'Copy clip link', '—', 'Open on Twitch']);
   const last = list.at(-1);
   assert.ok(last && last !== 'separator');
   last.run?.();

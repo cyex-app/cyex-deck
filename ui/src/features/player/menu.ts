@@ -1,5 +1,5 @@
-// V101-17 The right-click menu every player shares, in one order and wording: playback,
-// then links and tools, then twitch.tv. Streams, videos (VODs) and clips leave out what
+// V101-17 The menu every player shares, from the gear and from a right-click: one order and
+// wording. Playback, then links and tools, then Twitch. Streams, videos (VODs) and clips leave out what
 // they can't do.
 
 import type { MenuEntry } from '../../components/menu.svelte';
@@ -50,7 +50,7 @@ export function playerMenu(m: PlayerMenu): MenuEntry[] {
     items.push({
       label: 'Speed',
       icon: 'clock',
-      hint: `${speed.now}×`,
+      hint: speed.now === 1 ? 'Normal' : `${speed.now}×`,
       items: SPEEDS.map((s) => ({ label: s === 1 ? 'Normal' : `${s}×`, checked: s === speed.now, run: () => speed.set(s) })),
     });
   }
@@ -69,6 +69,6 @@ export function playerMenu(m: PlayerMenu): MenuEntry[] {
   if (at) items.push({ label: 'Copy link at current time', icon: 'copy', run: () => m.copy(at) });
   if (m.stats) items.push({ label: 'Video stats', icon: 'activity', checked: m.stats.on, run: m.stats.toggle });
   if (m.reload) items.push({ label: 'Reload player', icon: 'refresh', run: m.reload });
-  items.push('separator', { label: 'Open on twitch.tv', icon: 'popout', run: () => m.open(m.link) });
+  items.push('separator', { label: 'Open on Twitch', icon: 'twitch', run: () => m.open(m.link) });
   return items;
 }

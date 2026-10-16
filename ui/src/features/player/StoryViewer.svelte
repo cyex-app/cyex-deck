@@ -4,9 +4,11 @@
   import { onDestroy } from 'svelte';
 
   import Avatar from '../../components/Avatar.svelte';
-  import Icon from '../../components/Icon.svelte';
+  import IconButton from '../../components/IconButton.svelte';
   import type { Story } from '../../ipc/bindings/Story';
   import { channelIpc } from '../../ipc/player';
+  import { layer } from '../../lib/escape';
+  import { focusScope } from '../../lib/focusScope';
   import { formatTime } from '../../lib/format';
   import { applySink } from './output.svelte';
   import { errorText } from '../../lib/errors';
@@ -73,10 +75,22 @@
     if (index > 0) index -= 1;
   }
 
+  let phone = $state<HTMLElement>();
+
+  // The shared layer: Escape closes only the top one, Tab stays inside, focus goes back.
+  $effect(() => {
+    if (!phone) return;
+    const release = focusScope(phone, { trap: true });
+    const off = layer('dialog', onclose);
+    return () => {
+      off();
+      release();
+    };
+  });
+
   function onkeydown(e: KeyboardEvent) {
     if (e.defaultPrevented) return;
-    if (e.key === 'Escape') onclose();
-    else if (e.key === 'ArrowRight') next();
+    if (e.key === 'ArrowRight') next();
     else if (e.key === 'ArrowLeft') prev();
   }
 </script>
@@ -85,8 +99,8 @@
 
 <!-- The dimmed area closes the stories; arrows and Escape work too. -->
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="overlay" onclick={(e) => e.target === e.currentTarget && onclose()}>
-  <div class="phone" role="dialog" aria-label="Stories">
+<div class="overlay" onmousedown={(e) => e.target === e.currentTarget && onclose()}>
+  <div class="phone" bind:this={phone} role="dialog" aria-modal="true" aria-label="Stories" tabindex="-1">
     {#if stories?.length && story}
       <div class="bars">
         {#each stories as s, i (s.id)}
@@ -98,7 +112,7 @@
         <b>{name}</b>
         <span>{formatTime(new Date(story.createdAt))}</span>
         {#if story.subsOnly}<span class="subs">Subs</span>{/if}
-        <button class="close" aria-label="Close" onclick={onclose}><Icon name="x" size={16} /></button>
+        <div class="close"><IconButton icon="x" label="Close" size={16} onclick={onclose} /></div>
       </div>
       {#key story.id}
         {#if story.video}
@@ -130,7 +144,7 @@
   .overlay {
     position: absolute;
     inset: 0;
-    z-index: 6;
+    z-index: var(--z-panel);
     display: grid;
     place-items: center;
     padding: 12px;
@@ -167,7 +181,7 @@
     flex: 1;
     height: 3px;
     background: var(--on-video-faint);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     overflow: hidden;
   }
   .bar span {
@@ -202,13 +216,16 @@
   }
   .close {
     margin-left: auto;
-    display: grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    background: none;
-    border: 0;
+  }
+  .close :global(.icon-btn) {
     color: var(--on-video);
+  }
+  .close :global(.icon-btn:hover:not(:disabled)) {
+    background: var(--scrim);
+    color: var(--on-video);
+  }
+  .phone:focus {
+    outline: none;
   }
   .caption {
     position: absolute;

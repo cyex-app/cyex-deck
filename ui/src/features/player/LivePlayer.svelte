@@ -21,7 +21,7 @@
   import { Engine } from './engine.svelte';
   import { playerMenu } from './menu';
   import { type Choice, qualityOptions } from './quality';
-  import SettingsMenu from './SettingsMenu.svelte';
+  import GearButton from './GearButton.svelte';
   import Shell from './Shell.svelte';
   import Stats from './Stats.svelte';
   import { useSound } from './sound.svelte';
@@ -321,16 +321,7 @@
             <Icon name="popout" size={16} />
           </button>
         {/if}
-        {#if engine}
-          <SettingsMenu
-            levels={engine.levels}
-            level={engine.level}
-            choice={engine.choice}
-            onchoose={(c) => void engine!.choose(c)}
-            {stats}
-            onstats={(on) => (stats = on)}
-          />
-        {/if}
+        {#if engine}<GearButton {menu} />{/if}
         <button class="ctl" aria-label="Fullscreen" use:tooltip={key('player.fullscreen', 'Fullscreen')} onclick={controls.toggleFullscreen}>
           <Icon name="expand" size={16} />
         </button>
