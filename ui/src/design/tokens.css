@@ -17,7 +17,7 @@
   --muted: #b4b5bb;
   --dim: #91939c;
   --shadow: rgba(0, 0, 0, 0.35);
-  --overlay: rgba(14, 15, 18, 0.6);
+  --overlay: rgba(0, 0, 0, 0.55);
   --row-hover: rgba(255, 255, 255, 0.035);
   --row-alt: rgba(255, 255, 255, 0.015);
   --red: #ff6b6b;
@@ -37,6 +37,7 @@
   /* V1051-03 What a 7TV paint is drawn on in the menu. */
   --paint-back: var(--bg);
   --paint-dim: #91939c;
+  --paint-outline: none;
 }
 
 :root {
@@ -104,7 +105,7 @@
   --muted: #4f515a;
   --dim: #6b6d76;
   --shadow: rgba(20, 22, 30, 0.12);
-  --overlay: rgba(243, 243, 244, 0.7);
+  --overlay: rgba(0, 0, 0, 0.3);
   --row-hover: rgba(20, 22, 30, 0.035);
   --row-alt: rgba(20, 22, 30, 0.015);
   --red: #c1352f;
@@ -117,10 +118,10 @@
   --shadow-pop: 0 8px 24px var(--shadow);
   --shadow-dialog: 0 16px 48px var(--shadow);
   --focus-ring: var(--text);
-  /* Pale paints vanish on white; a soft grey keeps them readable. */
-  --paint-back: #b0b6c0;
-  /* Muted text on that grey (--dim is 2.3:1 there). */
-  --paint-dim: #4f515a;
+  /* The real light background; pale paints get a thin outline instead of a grey box. */
+  --paint-back: var(--bg);
+  --paint-dim: var(--dim);
+  --paint-outline: drop-shadow(0 0 0.6px rgb(0 0 0 / 0.85)) drop-shadow(0 0 1.2px rgb(0 0 0 / 0.35));
 }
 
 *,
