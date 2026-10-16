@@ -6,7 +6,6 @@
 
 pub mod cache;
 pub mod devtools;
-pub mod devtools;
 #[cfg(windows)]
 pub mod audio;
 

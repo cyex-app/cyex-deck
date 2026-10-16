@@ -95,13 +95,6 @@ export const APP: Entry[] = [
     keywords: ['scale', 'size', 'bigger', 'larger', 'magnify', 'dpi'],
   },
   {
-    id: 'appearance.zoom',
-    page: 'appearance',
-    label: 'Zoom',
-    description: 'Makes the whole app bigger. Ctrl and + or - also work.',
-    keywords: ['scale', 'size', 'bigger', 'larger', 'magnify', 'dpi'],
-  },
-  {
     id: 'appearance.tabDensity',
     page: 'appearance',
     label: 'Tab size',
