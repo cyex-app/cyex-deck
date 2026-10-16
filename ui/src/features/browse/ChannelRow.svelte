@@ -17,9 +17,9 @@
   const click = $derived(cardClick(nav, card));
   const stream = $derived(card.stream);
   const last = $derived(since(card.lastLive));
-  // "Live 2 days ago · Just Chatting · title"; the full title rides in the tooltip.
-  const offline = $derived([last ? `Live ${last}` : '', card.lastGame, card.lastTitle].filter(Boolean).join(' · '));
-  const offlineTip = $derived([card.lastLive ? formatDate(new Date(card.lastLive)) : '', card.lastGame, card.lastTitle].filter(Boolean).join(' · '));
+  // "Live 2 days ago Â· Just Chatting Â· title"; the full title rides in the tooltip.
+  const offline = $derived([last ? `Live ${last}` : '', card.lastGame, card.lastTitle].filter(Boolean).join(' Â· '));
+  const offlineTip = $derived([card.lastLive ? formatDate(new Date(card.lastLive)) : '', card.lastGame, card.lastTitle].filter(Boolean).join(' Â· '));
 </script>
 
 <div class="row" class:picked={picked.has(card.id)}>

@@ -58,12 +58,16 @@
     display: flex;
     flex-direction: column;
     max-width: 420px;
-    max-height: calc(100vh - 150px);
+    /* V1 Shrinks with the panel (a flex column), so the copy scrolls and the buttons always show. */
+    min-height: 0;
     margin: clamp(16px, 8vh, 64px) auto 16px;
     padding: 16px;
     background: var(--elevated);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
+  }
+  h2 {
+    flex: none;
   }
   .copy {
     min-height: 0;

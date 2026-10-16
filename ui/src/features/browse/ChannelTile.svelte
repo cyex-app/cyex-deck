@@ -14,7 +14,7 @@
 
   const click = $derived(cardClick(nav, card));
   const last = $derived(since(card.lastLive));
-  const sub = $derived([card.lastGame, card.lastTitle].filter(Boolean).join(' · '));
+  const sub = $derived([card.lastGame, card.lastTitle].filter(Boolean).join(' Â· '));
 </script>
 
 <div class="tile" class:picked={picked.has(card.id)}>

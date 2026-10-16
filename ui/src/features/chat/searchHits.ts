@@ -1,6 +1,6 @@
 // A10 Which words of a search to mark in its results.
 
-/** The plain words in a query: operators (`from:x`, `regex:…`) are left out, quotes join words. */
+/** The plain words in a query: operators (`from:x`, `regex:â€¦`) are left out, quotes join words. */
 export function searchTerms(query: string): string[] {
   const out: string[] = [];
   for (const m of query.matchAll(/"([^"]+)"|(\S+)/g)) {
