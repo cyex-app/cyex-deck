@@ -1,4 +1,4 @@
-// Short notices, one stack at the bottom right. The same text again bumps a count instead of
+// Short notices, one stack at the top centre. The same text again bumps a count instead of
 // stacking; at most 3 show (the oldest goes); a hovered or focused toast waits; errors stay longer. A toast can carry one
 // button (Undo).
 

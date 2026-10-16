@@ -3,7 +3,7 @@
 
 </script>
 
-<!-- One stack, bottom right. The region is polite (status); an error inside it is announced at
+<!-- One stack, top centre under the title bar. The region is polite (status); an error inside it is announced at
      once (alert). The region stays in the page while empty, so screen readers catch what lands
      in it. Hover or focus holds one. -->
 <div class="stack" role="status">
@@ -28,14 +28,17 @@
 <style>
   .stack {
     position: fixed;
-    right: 14px;
-    bottom: 14px;
-    align-items: flex-end;
+    top: calc(var(--chrome-h) + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: max-content;
+    align-items: center;
+    pointer-events: none;
     z-index: var(--z-toast);
     display: flex;
     flex-direction: column;
     gap: 8px;
-    max-width: min(380px, calc(100vw - 28px));
+    max-width: min(420px, calc(100vw - 28px));
   }
   .toast {
     display: flex;
@@ -46,6 +49,7 @@
     border-radius: var(--radius);
     box-shadow: var(--shadow-pop);
     font-size: 0.85rem;
+    pointer-events: auto;
     animation: in var(--base) var(--ease);
   }
   .text {
@@ -87,7 +91,7 @@
   @keyframes in {
     from {
       opacity: 0;
-      transform: translateY(6px);
+      transform: translateY(-8px);
     }
   }
 </style>
