@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { ModButtons } from '../../ipc/bindings/ModButtons';
-import { buttonKey, canAddButton, fullOrder, modButtonsFor, modSlots, toggleButton, type LineMod } from './lineMod.ts';
+import { buttonKey, buttonOn, canAddButton, fullOrder, modButtonsFor, modSlots, toggleButton, type LineMod } from './lineMod.ts';
 
 const buttons: ModButtons = { delete: true, timeouts: [60], warn: false, ban: true, order: ['delete', { timeout: 60 }, 'warn', 'ban'] };
 const mod: LineMod = { me: '1', broadcaster: false, inline: true, slots: modSlots(buttons) };
@@ -96,4 +96,12 @@ test('V105-15 a removed timeout keeps its place and comes back there; a fifth is
   assert.equal(canAddButton(full, { timeout: 60 }), true, 'a timeout that is on can be removed');
   assert.equal(canAddButton(full, 'ban'), true);
   assert.deepEqual(toggleButton(full, { timeout: 900 }), {});
+});
+
+test('a removed timeout is off in the order list', () => {
+  const b = { delete: true, warn: false, ban: true, timeouts: [60], order: [] } as unknown as Parameters<typeof fullOrder>[0];
+  assert.equal(buttonOn(b, { timeout: 60 }), true);
+  assert.equal(buttonOn(b, { timeout: 600 }), false);
+  assert.equal(buttonOn(b, 'warn'), false);
+  assert.equal(buttonOn(b, 'ban'), true);
 });

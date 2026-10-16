@@ -15,7 +15,7 @@
   import { formatDuration, formatNumber, formatTime, parseDuration } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
-  import { buttonKey, canAddButton, fullOrder, toggleButton } from '../../modview/lineMod';
+  import { buttonKey, buttonOn, canAddButton, fullOrder, toggleButton } from '../../modview/lineMod';
   import ResetSection from '../ResetSection.svelte';
   import Select from '../../../components/Select.svelte';
   import { choicesOf } from '../../../components/select.ts';
@@ -130,7 +130,7 @@
     typeof b !== 'string' ? `Time out ${formatDuration(b.timeout)}` : b === 'delete' ? 'Delete' : b === 'warn' ? 'Warn' : 'Ban';
   const modIcon = (b: ModButton): IconName =>
     typeof b !== 'string' ? 'clock' : b === 'delete' ? 'trash' : b === 'warn' ? 'alert' : 'gavel';
-  const modOn = (b: ModButton) => typeof b !== 'string' || mb[b];
+  const modOn = (b: ModButton) => buttonOn(mb, b);
 </script>
 
 <h2>Chat</h2>
@@ -332,12 +332,16 @@
   <button class="pick" aria-pressed={mb.delete} onclick={() => flipMod({ delete: !mb.delete })}>Delete</button>
   {#each modTimes as secs (secs)}
     {@const on = mb.timeouts.includes(secs)}
-    <button class="pick" aria-pressed={on} disabled={!on && mb.timeouts.length >= 4} onclick={() => flipTime(secs)}
-      >{formatDuration(secs)}</button
+    <button class="pick" aria-pressed={on} disabled={!on && mb.timeouts.length >= 4}
+      title={!on && mb.timeouts.length >= 4 ? '4 timeouts max' : undefined}
+      onclick={() => flipTime(secs)}>{formatDuration(secs)}</button
     >
   {/each}
   <button class="pick" aria-pressed={mb.warn} onclick={() => flipMod({ warn: !mb.warn })}>Warn</button>
   <button class="pick" aria-pressed={mb.ban} onclick={() => flipMod({ ban: !mb.ban })}>Ban</button>
+  {#if mb.timeouts.length >= 4 && modTimes.some((t) => !mb.timeouts.includes(t))}
+    <span class="slot-hint" title="Remove a timeout to pick another">4 timeouts max</span>
+  {/if}
 </Row>
 <Row setting="chat.modButtons.order" label="Button order" hint="Drag them into the order they show in chat, or Alt+↑ and Alt+↓." stacked>
   <div class="order">
@@ -351,6 +355,7 @@
           <button
             class="slot-act"
             disabled={!canAddButton(mb, b)}
+            title={canAddButton(mb, b) ? undefined : '4 timeouts max'}
             onclick={() => flipMod(toggleButton(mb, b))}
             aria-label={`${modOn(b) ? 'Remove' : 'Add'} ${modName(b)}`}
             >{modOn(b) ? 'Remove' : 'Add'}</button
@@ -519,7 +524,9 @@
     color: var(--text);
   }
   .pick[aria-pressed='true'] {
-    border-color: var(--accent-border);
+    border-color: var(--border-strong);
+    background: var(--surface-hover);
+    box-shadow: 0 0 0 1px var(--border-strong);
     color: var(--text);
   }
   .pick:disabled {

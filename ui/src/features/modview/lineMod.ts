@@ -50,6 +50,11 @@ export function modSlots(b: ModButtons): ModSlot[] {
   return out;
 }
 
+/** Whether the button is on: a timeout when it is in the picked list, the others by flag. */
+export function buttonOn(b: ModButtons, x: ModButton): boolean {
+  return typeof x === 'string' ? b[x] : b.timeouts.includes(x.timeout);
+}
+
 /** M10 Four timeouts at most. */
 export const MAX_TIMEOUTS = 4;
 
