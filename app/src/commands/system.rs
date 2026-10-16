@@ -57,6 +57,18 @@ pub async fn system_clear_picture_cache(app: AppHandle) -> CmdResult<()> {
     crate::sys::clear_picture_cache(&main).await
 }
 
+/// V1052-02 Bytes the picture cache takes on disk.
+#[tauri::command]
+pub async fn system_picture_cache_size(app: AppHandle) -> u64 {
+    use tauri::Manager;
+    let Some(dir) = crate::paths::webview(&app).or_else(|| app.path().app_local_data_dir().ok()) else {
+        return 0;
+    };
+    tauri::async_runtime::spawn_blocking(move || crate::sys::cache::picture_cache_size(&dir))
+        .await
+        .unwrap_or(0)
+}
+
 fn is_web(url: &str) -> bool {
     Url::parse(url).is_ok_and(|u| matches!(u.scheme(), "http" | "https") && u.host_str().is_some())
 }

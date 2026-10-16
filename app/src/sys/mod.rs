@@ -4,6 +4,7 @@
 //! small and checked here.
 #![allow(unsafe_code)]
 
+pub mod cache;
 #[cfg(windows)]
 pub mod audio;
 
