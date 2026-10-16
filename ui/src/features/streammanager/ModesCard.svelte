@@ -8,6 +8,7 @@
   import { toast } from '../../lib/toast.svelte';
   import Card from '../../components/PanelCard.svelte';
   import { errorText } from '../../lib/errors';
+  import { formatSecs } from '../../lib/format';
   import Select from '../../components/Select.svelte';
   import { choicesOf } from '../../components/select.ts';
   import Loading from '../../components/Loading.svelte';
@@ -15,13 +16,13 @@
   /** Minimum follow age, in minutes. 0 = any follower. */
   const FOLLOW: { value: number; label: string }[] = [
     { value: 0, label: 'Any follower' },
-    { value: 10, label: '10 minutes' },
-    { value: 30, label: '30 minutes' },
-    { value: 60, label: '1 hour' },
-    { value: 1440, label: '1 day' },
-    { value: 10080, label: '1 week' },
-    { value: 43200, label: '1 month' },
-    { value: 129600, label: '3 months' },
+    { value: 10, label: formatSecs(600) },
+    { value: 30, label: formatSecs(1800) },
+    { value: 60, label: formatSecs(3600) },
+    { value: 1440, label: formatSecs(86_400) },
+    { value: 10080, label: formatSecs(604_800) },
+    { value: 43200, label: formatSecs(2_592_000) },
+    { value: 129600, label: formatSecs(7_776_000) },
   ];
   const SLOW = [3, 5, 10, 20, 30, 60, 120];
 

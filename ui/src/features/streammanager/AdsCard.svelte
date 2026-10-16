@@ -141,7 +141,7 @@
     </dl>
     <div class="line">
       <span class="wide-only">
-        <Button small disabled={busy || schedule.snoozeCount === 0 || next == null} onclick={snooze}>Snooze 5 minutes</Button>
+        <Button small disabled={busy || schedule.snoozeCount === 0 || next == null} onclick={snooze}>Snooze 5m</Button>
       </span>
       <span class="narrow-only">
         <IconButton
@@ -150,7 +150,7 @@
           size={14}
           onclick={(e) =>
             openMenuAt(e, [
-              { label: 'Snooze 5 minutes', icon: 'clock', disabled: busy || schedule!.snoozeCount === 0 || next == null, run: snooze },
+              { label: 'Snooze 5m', icon: 'clock', disabled: busy || schedule!.snoozeCount === 0 || next == null, run: snooze },
             ])}
         />
       </span>

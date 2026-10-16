@@ -96,5 +96,12 @@ test('compact durations', () => {
   assert.equal(formatSecs(3600), '1h');
   assert.equal(formatSecs(5400), '90m');
   assert.equal(formatSecs(1.5), '1,5s');
+  assert.equal(formatSecs(86_400), '1d');
+  assert.equal(formatSecs(172_800), '2d');
+  assert.equal(formatSecs(604_800), '1w');
+  assert.equal(formatSecs(1_209_600), '2w');
+  assert.equal(formatSecs(2_592_000), '1mo');
+  assert.equal(formatSecs(7_776_000), '3mo');
+  assert.equal(formatSecs(90_000), '25h');
   assert.equal(formatSecs(0), '0s');
 });

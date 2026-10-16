@@ -3,7 +3,7 @@
 // commands, so Helix or GQL is picked in Rust (D25).
 
 import type { MenuEntry } from '../../components/menu.svelte';
-import { formatDuration } from '../../lib/format';
+import { formatDuration, formatSecs } from '../../lib/format';
 import { settings } from '../../lib/settings.svelte';
 import { toast } from '../../lib/toast.svelte';
 import type { RoleEntry } from '../../ipc/bindings/RoleEntry';
@@ -20,11 +20,11 @@ export function timeouts(): { label: string; secs: number }[] {
 /** V101-34 How long a pin stays: Twitch takes 30 s to 30 min, or until the stream ends. */
 export const PIN_LENGTHS: { label: string; secs: number | null }[] = [
   { label: 'Until the stream ends', secs: null },
-  { label: '30 seconds', secs: 30 },
-  { label: '1 minute', secs: 60 },
-  { label: '5 minutes', secs: 300 },
-  { label: '10 minutes', secs: 600 },
-  { label: '30 minutes', secs: 1800 },
+  { label: formatSecs(30), secs: 30 },
+  { label: formatSecs(60), secs: 60 },
+  { label: formatSecs(300), secs: 300 },
+  { label: formatSecs(600), secs: 600 },
+  { label: formatSecs(1800), secs: 1800 },
 ];
 
 class Mods {
