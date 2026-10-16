@@ -64,6 +64,8 @@ export const settingsIpc = {
   patch: <P extends Partition>(partition: P, patch: DeepPartial<SettingsValues[P]>) =>
     invoke<SettingsValues[P]>('settings_patch', { partition, patch }),
   pruneBlank: () => invoke<Partial<SettingsValues>>('settings_prune_blank'),
+  /** V105-11 The image uploader's headers (kept in the credential store, not in settings). */
+  uploaderHeaders: () => invoke<string>('uploader_headers'),
   reset: <P extends Partition>(partition: P) => invoke<SettingsValues[P]>('settings_reset', { partition }),
   exportFile: (partitions: Partition[]) => invoke<boolean>('settings_export_file', { partitions }),
   importFile: () => invoke<Partition[]>('settings_import_file'),

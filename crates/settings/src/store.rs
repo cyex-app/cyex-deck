@@ -117,6 +117,22 @@ impl Store {
         Ok(())
     }
 
+    /// Rewrites partition `p` in every kept backup through `f` (e.g. to blank a value that has
+    /// since moved to the credential store). Unreadable files are left alone.
+    pub fn scrub_backups(&self, p: Partition, f: impl Fn(&mut Value)) -> Result<()> {
+        for date in backup::list(&self.dir)? {
+            let path = backup::snapshot_dir(&self.dir, date).join(p.file_name());
+            let Ok(text) = std::fs::read_to_string(&path) else { continue };
+            let Ok(mut value) = serde_json::from_str::<Value>(&text) else { continue };
+            let before = value.clone();
+            f(&mut value);
+            if value != before {
+                fsutil::write_atomic(&path, serde_json::to_string_pretty(&value)?.as_bytes())?;
+            }
+        }
+        Ok(())
+    }
+
     /// Partitions that can't leave this machine (accounts) are skipped.
     pub fn export(&self, partitions: &[Partition]) -> Bundle {
         let picked = partitions

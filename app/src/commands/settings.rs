@@ -44,6 +44,13 @@ pub fn settings_patch(
     settings.patch(&app, partition, &patch, true)
 }
 
+/// V105-11 The uploader's headers come from the credential store; writing them goes through
+/// `settings_patch` (`headers`), which keeps them out of the settings files.
+#[tauri::command]
+pub fn uploader_headers(settings: State<Settings>) -> String {
+    settings.uploader_headers()
+}
+
 /// V105-12 The settings page was left: empty rules go. Returns the partitions it looks at.
 #[tauri::command]
 pub fn settings_prune_blank(app: AppHandle, settings: State<Settings>) -> CmdResult<BTreeMap<Partition, Value>> {

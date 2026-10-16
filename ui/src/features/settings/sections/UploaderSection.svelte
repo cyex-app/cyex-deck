@@ -5,6 +5,7 @@
   import Row from '../../../components/Row.svelte';
   import Toggle from '../../../components/Toggle.svelte';
   import type { Uploader } from '../../../ipc/bindings/Uploader';
+  import { settingsIpc } from '../../../ipc/settings';
   import { settings } from '../../../lib/settings.svelte';
   import ResetSection from '../ResetSection.svelte';
 
@@ -12,12 +13,21 @@
   const save = (patch: Partial<Uploader>) => void settings.patch('uploader', patch);
 
   let show = $state(false);
+  // The headers live in the credential store; the settings value is always empty.
+  let headers = $state('');
+  $effect(() => {
+    void settingsIpc.uploaderHeaders().then((h) => (headers = h));
+  });
+  const saveHeaders = (value: string) => {
+    headers = value;
+    save({ headers: value });
+  };
 </script>
 
 <h2>Image uploads</h2>
 <p class="intro">
   Images you paste or drop into the chat box are uploaded here. These settings stay on this PC and never go into
-  exports.
+  exports. Headers are kept in Windows Credential Manager.
 </p>
 
 <Row setting="uploader.enabled" label="Upload images you paste or drop">
@@ -64,8 +74,8 @@
       autocomplete="off"
       aria-label="Headers"
       placeholder="Authorization: key; X-Other: value"
-      value={u.headers}
-      onchange={(e) => save({ headers: e.currentTarget.value })}
+      value={headers}
+      onchange={(e) => saveHeaders(e.currentTarget.value)}
     />
     <IconButton icon={show ? 'eyeOff' : 'eye'} label={show ? 'Hide' : 'Show'} onclick={() => (show = !show)} />
   </div>

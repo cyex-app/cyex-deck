@@ -232,6 +232,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         settings::settings_patch,
         settings::settings_prune_blank,
         settings::settings_reset,
+        settings::uploader_headers,
         settings::settings_export_file,
         settings::settings_import_file,
         settings::settings_chatterino_preview,
