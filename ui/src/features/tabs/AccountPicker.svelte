@@ -1,6 +1,8 @@
 <!-- 1.17 Which account a tab joins on. One account: named. Several: the default, with a
      list of the others. "Anonymous" reads without sending. -->
 <script lang="ts">
+  import { tick } from 'svelte';
+
   import Avatar from '../../components/Avatar.svelte';
   import Checkbox from '../../components/Checkbox.svelte';
   import Icon from '../../components/Icon.svelte';
@@ -19,6 +21,22 @@
   let { account = $bindable(), anon = $bindable(), noAnon = false }: Props = $props();
 
   let open = $state(false);
+  let trigger = $state<HTMLButtonElement>();
+  let wasOpen = false;
+
+  // Escape or a pick closes the list: focus goes back to the button, not the dialog or the page.
+  $effect(() => {
+    if (open) {
+      wasOpen = true;
+      return;
+    }
+    if (!wasOpen) return;
+    wasOpen = false;
+    void tick().then(() => {
+      const at = document.activeElement;
+      if (!at || at === document.body || at.matches('[role="dialog"], [tabindex="-1"]')) trigger?.focus();
+    });
+  });
 
   const list = $derived(accounts.list);
   const chosen = $derived(list.find((a) => a.userId === account) ?? accounts.current);
@@ -45,7 +63,7 @@
       </span>
     {:else if chosen}
       <div class="menu">
-        <button class="trigger" disabled={anon} onclick={() => (open = !open)} aria-haspopup="menu" aria-expanded={open}>
+        <button class="trigger" bind:this={trigger} disabled={anon} onclick={() => (open = !open)} aria-haspopup="menu" aria-expanded={open}>
           <Avatar src={chosen.avatar} name={chosen.displayName} size={18} />
           <span class="name">{chosen.displayName}</span>
           <span class="count" use:tooltip={'Chats open'}>{count(chosen.userId)}</span>
