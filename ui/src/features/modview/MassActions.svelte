@@ -69,7 +69,7 @@
   <div class="opts">
     <label use:tooltip={'0 bans; above 0 times out for that many minutes'}>
       Timeout
-      <NumberField label="Timeout minutes" min={0} max={20160} width="84px" unit="min" value={minutes} onchange={(n) => (minutes = n)} />
+      <NumberField label="Timeout minutes" min={0} max={20160} width="84px" unit="m" value={minutes} onchange={(n) => (minutes = n)} />
     </label>
   </div>
   <input class="reason" placeholder="Reason (optional)" bind:value={reason} />

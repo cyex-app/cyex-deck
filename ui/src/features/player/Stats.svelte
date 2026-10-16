@@ -55,8 +55,8 @@
     <span>Quality</span><b>{s.level}</b>
     <span>Bitrate</span><b>{kbps(s.bitrate)}</b>
     <span>Bandwidth</span><b>{kbps(s.bandwidth)}</b>
-    {#if s.latency !== null}<span>Latency</span><b>{formatDecimal(s.latency)} s</b>{/if}
-    <span>Buffer</span><b>{formatDecimal(s.buffer)} s</b>
+    {#if s.latency !== null}<span>Latency</span><b>{formatDecimal(s.latency)}s</b>{/if}
+    <span>Buffer</span><b>{formatDecimal(s.buffer)}s</b>
     <span>Dropped frames</span><b>{s.dropped}</b>
   </div>
 </div>

@@ -38,7 +38,7 @@ export function errorText(e: SelectError): string {
       return '7TV didn’t allow that one.';
     case 'rateLimited':
       // Like Rust's words.rs: seconds under a minute, else minutes.
-      return `7TV needs a short break. Try again in ${e.seconds < 60 ? `${e.seconds} s` : `${Math.ceil(e.seconds / 60)} min`}.`;
+      return `7TV needs a short break. Try again in ${e.seconds < 60 ? `${e.seconds}s` : `${Math.ceil(e.seconds / 60)}m`}.`;
     case 'down':
       return 'Couldn’t reach 7TV. Nothing changed.';
     case 'noConsent':

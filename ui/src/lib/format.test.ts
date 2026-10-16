@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { ago, formatBytes, formatDate, formatDuration, formatNumber, formatShort, formatTime, parseDuration } from './format.ts';
+import { ago, formatBytes, formatDate, formatDuration, formatNumber, formatSecs, formatShort, formatTime, parseDuration } from './format.ts';
 
 const at = new Date(2026, 9, 9, 14, 3, 7);
 const morning = new Date(2026, 0, 2, 0, 5, 0);
@@ -85,4 +85,16 @@ test('formatBytes uses dots, commas and binary units', () => {
   assert.equal(formatBytes(1.5 * 1024 * 1024), '1,5 MB');
   assert.equal(formatBytes(1300 * 1024 * 1024), '1,3 GB');
   assert.equal(formatBytes(2048 * 1024 * 1024 * 1024), '2 TB');
+});
+
+test('compact durations', () => {
+  assert.equal(formatSecs(30), '30s');
+  assert.equal(formatSecs(60), '60s');
+  assert.equal(formatSecs(180), '180s');
+  assert.equal(formatSecs(300), '5m');
+  assert.equal(formatSecs(600), '10m');
+  assert.equal(formatSecs(3600), '1h');
+  assert.equal(formatSecs(5400), '90m');
+  assert.equal(formatSecs(1.5), '1,5s');
+  assert.equal(formatSecs(0), '0s');
 });

@@ -12,7 +12,7 @@
   import type { SmAdEdit } from '../../ipc/bindings/SmAdEdit';
   import type { SmAdSettings } from '../../ipc/bindings/SmAdSettings';
   import { smIpc } from '../../ipc/streammanager';
-  import { formatDuration } from '../../lib/format';
+  import { formatDuration, formatSecs } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import Card from '../../components/PanelCard.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
@@ -21,7 +21,7 @@
   import { errorText } from '../../lib/errors';
   import Select from '../../components/Select.svelte';
 
-  const LENGTHS = [30, 60, 90, 120, 180].map((v) => ({ value: v, label: `${v}s` }));
+  const LENGTHS = [30, 60, 90, 120, 180].map((v) => ({ value: v, label: formatSecs(v) }));
 
   let length = $state(60);
   let schedule = $state<AdSchedule | null>(null);
@@ -135,8 +135,8 @@
         <dt>Next ad</dt>
         <dd>{next == null ? 'None scheduled' : next === 0 ? 'Now' : `in ${formatDuration(next)}`}</dd>
       </div>
-      {#if schedule.duration}<div><dt>Length</dt><dd>{schedule.duration} s</dd></div>{/if}
-      {#if schedule.prerollFreeTime}<div><dt>Pre-roll free</dt><dd>{formatDuration(schedule.prerollFreeTime)}</dd></div>{/if}
+      {#if schedule.duration}<div><dt>Length</dt><dd>{formatSecs(schedule.duration)}</dd></div>{/if}
+      {#if schedule.prerollFreeTime}<div><dt>Pre-roll free</dt><dd>{formatSecs(schedule.prerollFreeTime)}</dd></div>{/if}
       <div><dt>Snoozes left</dt><dd>{schedule.snoozeCount}</dd></div>
     </dl>
     <div class="line">
@@ -168,14 +168,14 @@
           label="Ad length"
           width="110px"
           value={String(s.duration.value)}
-          options={adLengths(s.duration.min, s.duration.max, s.duration.value).map((v) => ({ value: String(v), label: `${formatDuration(v)} ads` }))}
+          options={adLengths(s.duration.min, s.duration.max, s.duration.value).map((v) => ({ value: String(v), label: `${formatSecs(v)} ads` }))}
           onchange={(v) => save({ duration: Number(v) })}
         />
         <Select
           label="How often"
           width="130px"
           value={String(s.interval.value)}
-          options={adIntervals(s.interval.min, s.interval.max, s.interval.value).map((v) => ({ value: String(v), label: `every ${formatDuration(v)}` }))}
+          options={adIntervals(s.interval.min, s.interval.max, s.interval.value).map((v) => ({ value: String(v), label: `every ${formatSecs(v)}` }))}
           onchange={(v) => save({ interval: Number(v) })}
         />
       </div>
@@ -189,7 +189,7 @@
             value={String(s.reminderSecs)}
             options={REMINDERS.map((m) => m * 60)
               .filter((v) => !s.reminderMax || v <= s.reminderMax)
-              .map((v) => ({ value: String(v), label: `${formatDuration(v)} before` }))}
+              .map((v) => ({ value: String(v), label: `${formatSecs(v)} before` }))}
             onchange={(v) => save({ reminderSecs: Number(v) })}
           />
         {/if}

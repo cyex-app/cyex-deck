@@ -34,7 +34,7 @@
   let stats = $state.raw<Stats | null>(null);
 
   const signed = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${formatNumber(Math.abs(n))}`;
-  const hours = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`);
+  const hours = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`);
 
   const seq = latest();
   /** The channel `stats` belongs to. */

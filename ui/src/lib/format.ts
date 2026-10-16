@@ -106,3 +106,13 @@ export function parseDuration(text: string): number | null {
   }
   return consumed.replace(/\s/g, '') === input.replace(/\s/g, '') && total > 0 ? total : null;
 }
+
+/** Compact length: 30 -> "30s", 90 -> "90s", 300 -> "5m", 3600 -> "1h", 5400 -> "90m". Up to 3 minutes stays in seconds; a decimal second keeps its comma. */
+export function formatSecs(secs: number): string {
+  const n = Math.max(0, secs);
+  if (!Number.isInteger(n)) return `${formatDecimal(n)}s`;
+  if (n <= 180) return `${n}s`;
+  if (n % 3600 === 0) return `${n / 3600}h`;
+  if (n % 60 === 0) return `${n / 60}m`;
+  return formatDuration(n);
+}

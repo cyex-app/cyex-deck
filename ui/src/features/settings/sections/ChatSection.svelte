@@ -26,10 +26,10 @@
   /** U7 Seconds before overlay lines fade. */
   const FADES: { value: number; label: string }[] = [
     { value: 0, label: 'Never' },
-    { value: 15, label: '15 s' },
-    { value: 30, label: '30 s' },
-    { value: 60, label: '1 min' },
-    { value: 300, label: '5 min' },
+    { value: 15, label: '15s' },
+    { value: 30, label: '30s' },
+    { value: 60, label: '60s' },
+    { value: 300, label: '5m' },
   ];
 
   const GIFS: { value: GifMode; label: string }[] = [
@@ -71,12 +71,12 @@
   /** V101-15 Tenths of a second; 0 waits for the mouse to leave. */
   const STILL = [0, 5, 10, 20, 50].map((t) => ({
     value: t,
-    label: t === 0 ? 'Until the mouse leaves' : `${(t / 10).toString().replace('.', ',')} s`,
+    label: t === 0 ? 'Until the mouse leaves' : `${(t / 10).toString().replace('.', ',')}s`,
   }));
   /** C19 FFZ's steps, in tenths of a second. */
   const DELAYS = [0, 3, 12, 50, 100, 150, 200, 300, 600].map((t) => ({
     value: t,
-    label: t === 0 ? 'Off' : `${(t / 10).toString().replace('.', ',')} s`,
+    label: t === 0 ? 'Off' : `${(t / 10).toString().replace('.', ',')}s`,
   }));
   const LANGUAGES = [
     { value: '', label: 'Same as Windows' },

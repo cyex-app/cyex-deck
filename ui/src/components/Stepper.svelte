@@ -15,7 +15,7 @@
 
 <div class="stepper" role="group" aria-label={label}>
   <button aria-label="Less" disabled={value <= min} onclick={() => set(value - 1)}>−</button>
-  <span>{value}{unit ? ` ${unit}` : ''}</span>
+  <span>{value}{unit ? (/^[smh]$/.test(unit) ? unit : ` ${unit}`) : ''}</span>
   <button aria-label="More" disabled={value >= max} onclick={() => set(value + 1)}>+</button>
 </div>
 

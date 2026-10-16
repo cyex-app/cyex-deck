@@ -10,7 +10,7 @@ export function statusText(s: GlobalStatus, hasMentions: boolean): string {
     case 'connected':
       return 'Connected';
     case 'offline':
-      return `Offline. Trying again in ${s.retrySecs} s.`;
+      return `Offline. Trying again in ${s.retrySecs}s.`;
     default:
       return hasMentions ? 'Off' : 'Add a mention to start.';
   }
