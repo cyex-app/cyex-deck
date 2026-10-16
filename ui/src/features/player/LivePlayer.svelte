@@ -25,9 +25,10 @@
   import Shell from './Shell.svelte';
   import Stats from './Stats.svelte';
   import { useSound } from './sound.svelte';
-  import { copyText, openLink, pipFor, playerKeys } from './tools';
+  import { watchPip, copyText, openLink, pipFor, playerKeys } from './tools';
   import Volume from './Volume.svelte';
   import Loading from '../../components/Loading.svelte';
+  import PipNotice from './PipNotice.svelte';
 
   interface Props {
     tile: Tile;
@@ -133,6 +134,10 @@
     tries = 0;
     if (engine) void start(engine, engine.choice, login, account);
   }
+
+  /** The video plays in its own small window (picture in picture). */
+  let pip = $state(false);
+  $effect(() => (video ? watchPip(video, (on) => (pip = on)) : undefined));
 
   const controls = {
     togglePlay: () => video && (video.paused ? void video.play() : video.pause()),
@@ -251,7 +256,11 @@
   {onclickcapture}
 >
   <Shell bind:this={shell} {controls} {menu} pinned={!engine?.playing} onvolume={(s) => sound.step(s)}>
-    <video bind:this={video} playsinline></video>
+    <video
+      bind:this={video}
+      playsinline
+    ></video>
+    {#if pip}<PipNotice name={tile.channel.name} avatar={info?.avatar} />{/if}
     {#if engine?.choice === 'audio'}
       <div class="center">
         <Avatar src={info?.avatar} name={tile.channel.name} size={72} />
@@ -295,7 +304,7 @@
         <button class="ctl" aria-label="Back to the stream" use:tooltip={'Back to the stream'} onclick={onexpand}>
           <Icon name="expand" size={14} />
         </button>
-        <button class="ctl" aria-label="Close" use:tooltip={'Stop'} onclick={onclose}><Icon name="x" size={14} /></button>
+        <button class="ctl" aria-label="Close" use:tooltip={{ label: 'Close', hint: 'Stops the stream.' }} onclick={onclose}><Icon name="x" size={14} /></button>
       </div>
     {/if}
 
@@ -344,12 +353,12 @@
   }
   .mini {
     position: absolute;
-    z-index: 4;
+    z-index: var(--z-panel);
     width: min(320px, 45%);
     aspect-ratio: 16 / 9;
     flex: none;
     border-radius: var(--radius);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow-pop);
     overflow: hidden;
     touch-action: none;
   }
@@ -371,7 +380,7 @@
   }
   .dragging {
     cursor: grabbing;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+    box-shadow: var(--shadow-dialog);
   }
   .dragging :global(.shell) {
     cursor: grabbing;

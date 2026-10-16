@@ -18,6 +18,8 @@
   import { copyText, openLink, playerKeys } from './tools';
   import Volume from './Volume.svelte';
   import { errorText } from '../../lib/errors';
+  import { keyTaken } from '../../lib/escape';
+  import { formatDate } from '../../lib/format';
 
   interface Props {
     slug: string;
@@ -28,9 +30,21 @@
     fresh?: boolean;
     /** V103-14 Over the stream (1.20): fullscreen is the clip alone. */
     alone?: boolean;
+    /** Shows a header with the clip's title and a Close button. */
+    onclose?: () => void;
   }
 
-  let { slug, tile, onloaded, fresh = false, alone = false }: Props = $props();
+  let { slug, tile, onloaded, fresh = false, alone = false, onclose }: Props = $props();
+
+  /** Escape closes it (not in fullscreen, where Escape leaves that first; not while a menu or
+   *  dialog wants it or a text field has the keyboard). */
+  function onkeydown(e: KeyboardEvent) {
+    if (!onclose || e.key !== 'Escape' || keyTaken(e) || document.fullscreenElement) return;
+    if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable]')) return;
+    e.preventDefault();
+    onclose();
+  }
+
 
   let video = $state<HTMLVideoElement>();
   let shell = $state<Shell>();
@@ -175,7 +189,21 @@
   const key = (k: Parameters<typeof bindingOf>[0], label: string) => (bindingOf(k) ? `${label} (${bindingOf(k)})` : label);
 </script>
 
-<Shell bind:this={shell} {controls} {menu} {alone} pinned={!playing} onvolume={(s) => sound.step(s)}>
+<svelte:window {onkeydown} />
+
+{#snippet head()}
+  <div class="title">
+    <b>{clip?.clip.title || 'Clip'}</b>
+    {#if clip}
+      <span>
+        {[clip.clip.clippedBy && `Clipped by ${clip.clip.clippedBy}`, formatDate(new Date(clip.clip.createdAt))].filter(Boolean).join(' · ')}
+      </span>
+    {/if}
+  </div>
+  <button class="ctl" aria-label="Close" use:tooltip={'Close'} onclick={onclose}><Icon name="x" size={16} /></button>
+{/snippet}
+
+<Shell bind:this={shell} {controls} {menu} {alone} pinned={!playing} onvolume={(s) => sound.step(s)} top={onclose ? head : undefined}>
   {#if src}
     <!-- The clip's place in the stream keeps going when the quality changes. Twitch clips
          have no captions. -->
@@ -228,6 +256,22 @@
     padding: 16px;
     color: var(--on-video-dim);
     text-align: center;
+  }
+  .title {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .title b,
+  .title span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .title span {
+    font-size: 0.8rem;
+    opacity: 0.85;
   }
   .rows {
     flex: 1;

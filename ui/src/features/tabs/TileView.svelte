@@ -13,7 +13,6 @@
   import { untrack } from 'svelte';
 
   import { popOut } from '../../app/panels';
-  import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import type { PanelCtl } from '../../components/panel';
   import PanelLayout from '../../components/PanelLayout.svelte';
@@ -419,11 +418,10 @@
 {#snippet beside()}
   <div class="beside">
     {#if side?.kind === 'clip'}
-      {#key side.slug}<ClipPlayer slug={side.slug} {tile} />{/key}
+      {#key side.slug}<ClipPlayer slug={side.slug} {tile} onclose={() => (shared.side = null)} />{/key}
     {:else if side?.kind === 'video'}
-      {#key side.id}<VodPlayer id={side.id} at={side.at} {tile} account={tile.account} {shared} />{/key}
+      {#key side.id}<VodPlayer id={side.id} at={side.at} {tile} account={tile.account} {shared} onclose={() => (shared.side = null)} />{/key}
     {/if}
-    <button class="close-side" aria-label="Close" onclick={() => (shared.side = null)}><Icon name="x" size={16} /></button>
   </div>
 {/snippet}
 
@@ -496,20 +494,6 @@
     display: flex;
     background: #000;
   }
-  .close-side {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    z-index: 5;
-    display: grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    background: rgba(0, 0, 0, 0.6);
-    border: 0;
-    border-radius: var(--radius);
-    color: #fff;
-  }
   .popped {
     position: absolute;
     inset: 0;
@@ -529,6 +513,7 @@
     color: var(--accent-text);
     font-size: 0.75rem;
     font-weight: 600;
+    white-space: nowrap;
   }
   .drop {
     position: absolute;

@@ -24,9 +24,11 @@
   import { useSound } from './sound.svelte';
   import Stats from './Stats.svelte';
   import { clock, linkTime } from './time';
-  import { copyText, openLink, pipFor, playerKeys } from './tools';
+  import { watchPip, copyText, openLink, pipFor, playerKeys } from './tools';
   import Volume from './Volume.svelte';
   import Loading from '../../components/Loading.svelte';
+  import { keyTaken } from '../../lib/escape';
+  import PipNotice from './PipNotice.svelte';
 
   interface Props {
     id: string;
@@ -40,6 +42,16 @@
   }
 
   let { id, at, tile, account, shared, hushed = false, onclose }: Props = $props();
+
+  /** Escape closes it (not in fullscreen, where Escape leaves that first; not while a menu or
+   *  dialog wants it or a text field has the keyboard). */
+  function onkeydown(e: KeyboardEvent) {
+    if (!onclose || e.key !== 'Escape' || keyTaken(e) || document.fullscreenElement) return;
+    if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable]')) return;
+    e.preventDefault();
+    onclose();
+  }
+
 
   let video = $state<HTMLVideoElement>();
   let shell = $state<Shell>();
@@ -153,6 +165,10 @@
     }
   }
 
+  /** The video plays in its own small window (picture in picture). */
+  let pip = $state(false);
+  $effect(() => (video ? watchPip(video, (on) => (pip = on)) : undefined));
+
   const controls = {
     togglePlay: () => video && (video.paused ? void video.play() : video.pause()),
     toggleMute: () => sound.toggleMute(),
@@ -194,8 +210,16 @@
   const key = (k: Parameters<typeof bindingOf>[0], label: string) => (bindingOf(k) ? `${label} (${bindingOf(k)})` : label);
 </script>
 
+<svelte:window {onkeydown} />
+
 <Shell bind:this={shell} {controls} {menu} pinned={!engine?.playing} onvolume={(s) => sound.step(s)}>
-  <video bind:this={video} playsinline {ontimeupdate} ondurationchange={ontimeupdate}></video>
+  <video
+    bind:this={video}
+    playsinline
+    {ontimeupdate}
+    ondurationchange={ontimeupdate}
+  ></video>
+  {#if pip}<PipNotice name={info?.channelName || tile?.channel.name || 'The video'} avatar={null} />{/if}
   {#if failure}
     <div class="center">
       {failure === 'subs'

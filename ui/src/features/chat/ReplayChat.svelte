@@ -8,6 +8,7 @@
   import { stopScroll } from '../../lib/smoothScroll';
   import { catalogs } from './catalog.svelte';
   import Line from './Line.svelte';
+  import Loading from '../../components/Loading.svelte';
 
   interface Props {
     videoId: string;
@@ -36,6 +37,8 @@
   /** Up to where lines are loaded, in seconds. */
   let to = -1;
   let loading = $state(false);
+  /** The first answer is in; before it the list says it's loading, not empty. */
+  let loaded = $state(false);
   let list = $state<HTMLElement>();
   let following = $state(true);
 
@@ -59,6 +62,7 @@
       to = at + 30;
     } finally {
       loading = false;
+      loaded = true;
     }
   }
 
@@ -114,7 +118,7 @@
     {#each shown as i (i.m.id)}
       <Line m={i.m} channel={login} />
     {:else}
-      <p class="empty">{loading ? 'Loading chat…' : 'No chat here yet.'}</p>
+      {#if loading || !loaded}<Loading label="Loading chat…" />{:else}<p class="empty">No chat here yet.</p>{/if}
     {/each}
   </div>
 </section>

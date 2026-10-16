@@ -32,3 +32,15 @@ export function pipFor(video: HTMLVideoElement | undefined): PlayerMenu['pip'] {
     },
   };
 }
+
+/** Tells `set` when the video goes into or out of picture in picture; returns the cleanup. */
+export function watchPip(video: HTMLVideoElement, set: (on: boolean) => void): () => void {
+  const on = () => set(true);
+  const off = () => set(false);
+  video.addEventListener('enterpictureinpicture', on);
+  video.addEventListener('leavepictureinpicture', off);
+  return () => {
+    video.removeEventListener('enterpictureinpicture', on);
+    video.removeEventListener('leavepictureinpicture', off);
+  };
+}
