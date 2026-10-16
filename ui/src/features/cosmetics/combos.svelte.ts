@@ -77,6 +77,7 @@ export class ComboStore {
       const a = await cosmeticsIpc.apply(this.account, c.paint, c.badge, c.name);
       this.store.sel.adopt({ paint: a.nowPaint, badge: a.nowBadge });
       this.store.say(a.line, () => void this.restoreWorn(before));
+      this.store.tagNote(c.id);
     } catch (e) {
       this.store.sel.adopt(before);
       this.store.say(errorText(asError(e)));
@@ -120,6 +121,7 @@ export class ComboStore {
   async rename(c: Combo, name: string): Promise<string | null> {
     try {
       await this.change({ type: 'rename', id: c.id, name });
+      this.store.renamed(c.id, c.name, name);
       return null;
     } catch (e) {
       return backendError(e);

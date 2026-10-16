@@ -76,7 +76,7 @@ export class CosmeticsStore {
   private noted = false;
   private destroyed = false;
   /** V1051-04 The one message under the preview, and the one Undo (a pick, a combo, a delete). */
-  note = $state.raw<{ text: string; undo: (() => void) | null } | null>(null);
+  note = $state.raw<{ text: string; undo: (() => void) | null; combo?: string } | null>(null);
   private noteTimer: ReturnType<typeof setTimeout> | undefined;
   readonly sel: Selection;
 
@@ -122,6 +122,18 @@ export class CosmeticsStore {
     clearTimeout(this.noteTimer);
     this.note = { text, undo };
     if (fade) this.noteTimer = setTimeout(() => (this.note = null), UNDO_MS);
+  }
+
+  /** Keeps a combo's name in the current message up to date after a rename. */
+  renamed(id: string, from: string, to: string) {
+    const n = this.note;
+    if (n?.combo !== id) return;
+    this.note = { ...n, text: n.text.replaceAll(`“${from}”`, `“${to}”`) };
+  }
+
+  /** Tags the current message as being about a combo. */
+  tagNote(id: string) {
+    if (this.note) this.note = { ...this.note, combo: id };
   }
 
   clearNote() {
