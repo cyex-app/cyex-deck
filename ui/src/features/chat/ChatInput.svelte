@@ -374,6 +374,7 @@
   <div class="row" bind:this={row}>
     <RewardsMenu {room} />
     {#if canChat}
+      <div class="field">
       <textarea
         bind:this={box}
         bind:value={text}
@@ -389,8 +390,15 @@
         onblur={() => (suggest = null)}
         {onkeydown}
       ></textarea>
+      {#if waitMs > 0 || chars >= SHOW_COUNT}
+        <div class="meta">
+          {#if waitMs > 0}<span class="wait" data-tip="You can talk again then">{Math.ceil(waitMs / 1000)}s</span>{/if}
+          {#if chars >= SHOW_COUNT}<span class="count" class:over={chars > MAX} class:near={chars > MAX - 50}>{formatNumber(chars)}/{MAX}</span>{/if}
+        </div>
+      {/if}
       {#if gifs}<GifButton {room} />{/if}
       <EmoteButton login={room.login} account={room.account} oninsert={(v) => void insertAtCaret(v)} />
+      </div>
       {#if settings.v.chat.sendButton}
         <IconButton
           icon="send"
@@ -402,12 +410,6 @@
             box?.focus();
           }}
         />
-      {/if}
-      {#if waitMs > 0 || chars >= SHOW_COUNT}
-        <div class="meta">
-          {#if waitMs > 0}<span class="wait" data-tip="You can talk again then">{Math.ceil(waitMs / 1000)}s</span>{/if}
-          {#if chars >= SHOW_COUNT}<span class="count" class:over={chars > MAX} class:near={chars > MAX - 50}>{formatNumber(chars)}/{MAX}</span>{/if}
-        </div>
       {/if}
     {:else}
       <button class="signin" onclick={onsignin}>
@@ -446,24 +448,44 @@
     align-items: flex-end;
     gap: 6px;
   }
-  textarea {
+  /* The same box as the whisper box: emote (and GIF) buttons inside, send outside. */
+  .field {
     flex: 1 1 0;
     min-width: 0;
-    min-height: 34px;
-    max-height: 96px;
-    padding: 7px 10px;
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    padding-right: 2px;
     background: var(--surface);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
+  }
+  .field:focus-within {
+    border-color: var(--accent-border);
+  }
+  .field :global(.smile),
+  .field :global(.gif-btn) {
+    height: 30px;
+    margin-bottom: 1px;
+  }
+  .field :global(.smile) {
+    width: 30px;
+  }
+  textarea {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 32px;
+    max-height: 96px;
+    padding: 6px 10px;
+    background: none;
+    border: 0;
     outline: none;
+    color: var(--text);
     resize: none;
     /* Height follows the text; the width is the row's, not the placeholder's. */
     field-sizing: content;
     overflow-x: hidden;
     font: var(--chat-size) / 1.45 var(--chat-font);
-  }
-  textarea:focus {
-    border-color: var(--accent-border);
   }
   /* One line, cut with …, so a narrow chat doesn't get a two-line empty box. */
   textarea::placeholder {
@@ -472,18 +494,17 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  /* V105-11: the counter is a flex item after the buttons with a fixed width, so the
-     textarea ends before it and text can never run under it. */
+  /* V105-11: the counter is a flex item after the text, so the text ends before it and
+     can never run under it. */
   .meta {
     flex: none;
-    width: 8ch;
     display: flex;
     flex-direction: column;
     align-items: flex-end;
     align-self: flex-end;
     justify-content: flex-end;
-    min-height: 34px;
-    padding-bottom: 8px;
+    min-height: 32px;
+    padding: 0 4px 7px;
     pointer-events: none;
     font: 600 0.68rem/1.2 var(--font-mono);
     font-variant-numeric: tabular-nums;

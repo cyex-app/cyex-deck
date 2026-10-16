@@ -71,7 +71,8 @@
 </script>
 
 {#if error}<div class="error">{error}</div>{/if}
-<div class="input" class:over={chars > MAX}>
+<div class="input">
+  <div class="field" class:over={chars > MAX}>
   <textarea
     bind:this={box}
     bind:value={text}
@@ -81,8 +82,9 @@
     onkeydown={keydown}
     spellcheck="true"
   ></textarea>
-  {#if chars > MAX - 50}<span class="count">{MAX - chars}</span>{/if}
+  {#if chars > MAX - 50}<span class="count" class:over={chars > MAX}>{MAX - chars}</span>{/if}
   <EmoteButton login="" {account} oninsert={insert} />
+  </div>
   {#if settings.v.chat.sendButton}
     <IconButton
       icon="send"
@@ -106,24 +108,39 @@
   .input {
     display: flex;
     align-items: flex-end;
-    gap: 4px;
+    gap: 6px;
     margin: 0 10px 10px;
-    padding: 4px 4px 4px 10px;
+  }
+  /* The same box as the chat input: emote button inside, send outside. */
+  .field {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    padding-right: 2px;
     background: var(--surface);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
   }
-  .input:focus-within {
+  .field:focus-within {
     border-color: var(--accent-border);
   }
-  .over {
+  .field.over,
+  .field.over:focus-within {
     border-color: var(--red);
   }
+  .field :global(.smile) {
+    width: 30px;
+    height: 30px;
+    margin-bottom: 1px;
+  }
   textarea {
-    flex: 1;
-    min-height: 26px;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 32px;
     max-height: 120px;
-    padding: 4px 0;
+    padding: 6px 10px;
     resize: none;
     field-sizing: content;
     background: none;
@@ -133,9 +150,14 @@
     font: var(--chat-size) / 1.45 var(--chat-font);
   }
   .count {
-    align-self: center;
+    flex: none;
+    align-self: flex-end;
+    padding: 0 4px 7px;
     color: var(--dim);
     font-size: 11px;
     font-variant-numeric: tabular-nums;
+  }
+  .count.over {
+    color: var(--red);
   }
 </style>
