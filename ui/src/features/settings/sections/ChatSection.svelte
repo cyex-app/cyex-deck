@@ -15,7 +15,7 @@
   import { formatDuration, formatNumber, formatTime, parseDuration } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
-  import { buttonKey, fullOrder } from '../../modview/lineMod';
+  import { buttonKey, fullOrder, toggleButton } from '../../modview/lineMod';
   import ResetSection from '../ResetSection.svelte';
   import Select from '../../../components/Select.svelte';
   import { choicesOf } from '../../../components/select.ts';
@@ -347,7 +347,9 @@
           <span class="grip"><Icon name="grip" size={14} /></span>
           <Icon name={modIcon(b)} size={14} />
           <span class="slot-name">{modName(b)}</span>
-          {#if !modOn(b)}<span class="slot-note">Off</span>{/if}
+          <button class="slot-act" onclick={() => flipMod(toggleButton(mb, b))} aria-label={`${modOn(b) ? 'Remove' : 'Add'} ${modName(b)}`}
+            >{modOn(b) ? 'Remove' : 'Add'}</button
+          >
         </div>
       {/snippet}
     </DragList>
@@ -429,10 +431,18 @@
   .slot-name {
     flex: 1;
   }
-  .slot-note {
+  .slot-act {
+    padding: 0 6px;
+    background: none;
+    border: 0;
     color: var(--dim);
+    font: inherit;
     font-weight: 400;
     font-size: 0.78rem;
+    cursor: pointer;
+  }
+  .slot-act:hover {
+    color: var(--text);
   }
   h3 {
     margin: 22px 0 2px;

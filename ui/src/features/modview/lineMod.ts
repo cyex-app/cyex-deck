@@ -50,6 +50,16 @@ export function modSlots(b: ModButtons): ModSlot[] {
   return out;
 }
 
+/** V105-15 The settings patch that adds a button the order list shows as off, or removes one
+ *  that is on. No button is locked: warn, delete, ban and every timeout flip alike. */
+export function toggleButton(b: ModButtons, x: ModButton): Partial<ModButtons> {
+  if (typeof x !== 'string') {
+    const on = b.timeouts.includes(x.timeout);
+    return { timeouts: on ? b.timeouts.filter((s) => s !== x.timeout) : [...b.timeouts, x.timeout] };
+  }
+  return { [x]: !b[x] };
+}
+
 interface Who {
   id: string;
   login: string;
