@@ -43,7 +43,7 @@
     }}
   >
     <h2>Use 7TV with {name}?</h2>
-    {@render text()}
+    <div class="copy">{@render text()}</div>
     <div class="row" bind:this={row}>{@render buttons()}</div>
   </section>
 {:else}
@@ -55,22 +55,31 @@
 
 <style>
   .card {
+    display: flex;
+    flex-direction: column;
     max-width: 420px;
-    margin: 48px auto;
+    max-height: calc(100vh - 150px);
+    margin: clamp(16px, 8vh, 64px) auto 16px;
     padding: 16px;
     background: var(--elevated);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
   }
+  .copy {
+    min-height: 0;
+    overflow-y: auto;
+  }
   p {
     margin: 0 0 10px;
     color: var(--muted);
     line-height: 1.5;
+    text-wrap: pretty;
   }
   .row {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
+    flex: none;
     margin-top: 14px;
   }
 </style>

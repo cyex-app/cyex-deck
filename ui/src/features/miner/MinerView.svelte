@@ -8,6 +8,7 @@
   import { type MenuEntry, openMenuAt } from '../../components/menu.svelte';
   import Segmented from '../../components/Segmented.svelte';
   import Toggle from '../../components/Toggle.svelte';
+  import { tooltip } from '../../components/tooltip.svelte';
   import { accounts } from '../../lib/accounts.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { miner } from './miner.svelte';
@@ -37,7 +38,7 @@
   );
   const line = $derived.by(() => {
     const st = miner.status;
-    if (!s.enabled) return 'Off.';
+    if (!s.enabled) return 'Off';
     if (!st) return '';
     if (st.problem) return st.problem;
     const mining = miner.mining;
@@ -45,8 +46,8 @@
     const parts = [];
     if (mining.length) parts.push(`Mining ${mining.join(' and ')}`);
     if (watching.length) parts.push(`watching ${watching.join(' and ')} here`);
-    if (parts.length) return `${parts.join(', ')}.`;
-    return st.channels.some((c) => c.live) ? 'Starting…' : 'Nothing live to mine right now.';
+    if (parts.length) return parts.join(', ');
+    return st.channels.some((c) => c.live) ? 'Starting…' : 'Nothing live to mine';
   });
 
   function pickAccount(e: MouseEvent) {
@@ -72,7 +73,10 @@
     <Segmented label="Page" options={PAGES} value={page} onchange={(p) => (page = p)} />
     <span class="status" class:on={miner.mining.length > 0}>{line}</span>
     <span class="grow"></span>
-    <Toggle label="Mine" checked={s.enabled} onchange={(enabled) => void settings.patch('miner', { enabled })} />
+    <span class="switch" use:tooltip={{ label: 'Mining', hint: 'Watches channels in the background to collect points and drops.' }}>
+      <span class="sw-label">Mining</span>
+      <Toggle label="Mining" checked={s.enabled} onchange={(enabled) => void settings.patch('miner', { enabled })} />
+    </span>
     <IconButton icon="settings" label="Miner settings" hint="Which channels win, raids, bets and drops." onclick={onsettings} />
   </header>
 
@@ -140,6 +144,15 @@
   }
   .status.on {
     color: var(--accent-text);
+  }
+  .switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sw-label {
+    color: var(--muted);
+    font-size: 0.82rem;
   }
   .grow {
     flex: 1;
