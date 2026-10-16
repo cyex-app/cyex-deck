@@ -49,6 +49,11 @@
   });
   /** F17 */
   const hidden = $derived(tabs.hidden(current));
+  /** The one tab Tab reaches: the shown one, else the first. */
+  const stopId = $derived.by(() => {
+    const ids = items.flatMap((i) => (i.kind === 'tab' ? [i.tab.id] : []));
+    return current && ids.includes(current) ? current : (ids[0] ?? null);
+  });
 
   const items = $derived.by(() => {
     const out: Item[] = [];
@@ -168,6 +173,7 @@
         tab={item.tab}
         active={item.tab.id === current}
         selected={selected.has(item.tab.id)}
+        stop={item.tab.id === stopId}
         {vertical}
         groupColor={item.color}
         onselect={(e) => select(item.tab, e)}

@@ -16,6 +16,8 @@
     tab: Tab;
     active: boolean;
     selected: boolean;
+    /** The one tab Tab reaches (roving tabindex): the shown tab, else the first. */
+    stop?: boolean;
     vertical: boolean;
     /** Color of the tab's group, if any. */
     groupColor?: string;
@@ -25,7 +27,7 @@
     onmenu: (e: MouseEvent) => void;
   }
 
-  let { tab, active, selected, vertical, groupColor, onselect, onedit, onclose, onmenu }: Props = $props();
+  let { tab, active, selected, stop = false, vertical, groupColor, onselect, onedit, onclose, onmenu }: Props = $props();
 
   const name = $derived(label(tab));
   const live = $derived(tabs.liveState(tab));
@@ -64,6 +66,24 @@
     return { label: `${label}${playing}`, hint: hint ? `${hint} (${who})` : who };
   });
 
+  /** Arrows move between tabs (Up/Down in a vertical bar), Home and End jump, Space and Enter open. */
+  function onkey(e: KeyboardEvent) {
+    if (e.target !== e.currentTarget || e.ctrlKey || e.altKey || e.metaKey) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onselect(e as unknown as MouseEvent);
+      return;
+    }
+    const prev = vertical ? 'ArrowUp' : 'ArrowLeft';
+    const next = vertical ? 'ArrowDown' : 'ArrowRight';
+    if (![prev, next, 'Home', 'End'].includes(e.key)) return;
+    const all = [...(e.currentTarget as HTMLElement).closest('[data-tab-bar]')!.querySelectorAll<HTMLElement>('[role="tab"]')];
+    const at = all.indexOf(e.currentTarget as HTMLElement);
+    const to = e.key === 'Home' ? 0 : e.key === 'End' ? all.length - 1 : (at + (e.key === next ? 1 : -1) + all.length) % all.length;
+    e.preventDefault();
+    all[to]?.focus();
+  }
+
   function onauxclick(e: MouseEvent) {
     if (e.button === 1) {
       e.preventDefault();
@@ -85,7 +105,7 @@
   data-mark={mark}
   style:--group={groupColor}
   role="tab"
-  tabindex="0"
+  tabindex={stop ? 0 : -1}
   aria-selected={active}
   onclick={onselect}
   ondblclick={onedit}
@@ -95,7 +115,7 @@
     e.preventDefault();
     onmenu(e);
   }}
-  onkeydown={(e) => e.key === 'Enter' && onselect(e as unknown as MouseEvent)}
+  onkeydown={onkey}
   onpointerdown={(e) => drag.begin(e, { kind: 'tab', id: tab.id }, name)}
   use:tooltip={tip}
 >
@@ -239,12 +259,12 @@
     border-radius: 50%;
   }
   .dot.live {
-    background: #ff3b3b;
-    box-shadow: 0 0 6px 1px rgba(255, 59, 59, 0.75);
+    background: var(--live);
+    box-shadow: 0 0 6px 1px color-mix(in srgb, var(--live) 75%, transparent);
   }
   .dot.rerun {
-    background: #f5b83d;
-    box-shadow: 0 0 6px 1px rgba(245, 184, 61, 0.6);
+    background: var(--yellow);
+    box-shadow: 0 0 6px 1px color-mix(in srgb, var(--yellow) 60%, transparent);
   }
   .popped {
     display: flex;

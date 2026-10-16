@@ -4,10 +4,14 @@
   import { onMount } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
+  import SearchField from '../../components/SearchField.svelte';
   import type { IconName } from '../../components/icons';
   import type { Tab } from '../../ipc/bindings/Tab';
   import { tabsIpc } from '../../ipc/tabs';
   import { accounts } from '../../lib/accounts.svelte';
+  import { layer } from '../../lib/escape';
+  import { firstField, focusScope } from '../../lib/focusScope';
+  import { scrollBehavior } from '../../lib/motion';
   import { FLAGS, lockFor } from '../../lib/gate';
   import { gate } from '../../lib/gate.svelte';
   import { toast } from '../../lib/toast.svelte';
@@ -50,12 +54,28 @@
 
   let query = $state('');
   let index = $state(0);
-  let field = $state<HTMLInputElement>();
+  let box = $state<HTMLElement>();
+  let list = $state<HTMLElement>();
 
   /** Followed channels shown at most. */
   const FOLLOWED = 8;
 
-  $effect(() => field?.focus());
+  // The shared dialog layer: one Escape (after clearing the text), Tab stays inside, focus goes back.
+  $effect(() => {
+    if (!box) return;
+    const release = focusScope(box, { trap: true, initial: firstField });
+    const off = layer('dialog', onclose);
+    return () => {
+      off();
+      release();
+    };
+  });
+
+  // Arrowing past the visible rows keeps the active one in view.
+  $effect(() => {
+    void index;
+    list?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() });
+  });
   onMount(() => home.ensure());
 
   const choices = $derived.by((): Choice[] => {
@@ -154,29 +174,18 @@
     } else if (e.key === 'Enter') {
       e.preventDefault();
       run(choices[index]);
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      onclose();
     }
   }
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
 <div class="backdrop" onmousedown={(e) => e.target === e.currentTarget && onclose()}>
-  <div class="switcher" role="dialog" aria-label="Quick switcher">
+  <div class="switcher" bind:this={box} role="dialog" aria-modal="true" aria-label="Quick switcher" tabindex="-1">
     <div class="search">
-      <Icon name="search" size={16} />
-      <input
-        bind:this={field}
-        bind:value={query}
-        placeholder="Go to a tab, or open a channel"
-        spellcheck="false"
-        autocomplete="off"
-        {onkeydown}
-      />
+      <SearchField bind:value={query} placeholder="Go to a tab, or open a channel" label="Go to" autofocus {onkeydown} />
     </div>
     {#if choices.length}
-      <div class="list" role="listbox" aria-label="Results">
+      <div class="list" bind:this={list} role="listbox" aria-label="Results">
         {#each choices as c, i (c.key)}
           <button
             class="choice"
@@ -203,7 +212,7 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    z-index: var(--z-popover);
+    z-index: var(--z-dialog);
     display: grid;
     place-items: start center;
     padding-top: 10vh;
@@ -219,25 +228,13 @@
     background: var(--elevated);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
-    box-shadow: 0 16px 48px var(--shadow);
+    box-shadow: var(--shadow-dialog);
     overflow: hidden;
   }
   .search {
     flex: none;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0 14px;
+    padding: 8px;
     border-bottom: 1px solid var(--border);
-    color: var(--muted);
-  }
-  input {
-    flex: 1;
-    height: 44px;
-    background: none;
-    border: 0;
-    outline: none;
-    font-size: 0.95rem;
   }
   .list {
     flex: 0 1 auto;
@@ -281,11 +278,10 @@
     background: var(--border-strong);
   }
   .dot.live {
-    background: #ff3b3b;
-    box-shadow: 0 0 6px 1px rgba(255, 59, 59, 0.75);
+    background: var(--live);
   }
   .dot.rerun {
-    background: #f5b83d;
+    background: var(--yellow);
   }
   .empty {
     margin: 0;
