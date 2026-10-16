@@ -135,7 +135,7 @@
         <dt>Next ad</dt>
         <dd>{next == null ? 'None scheduled' : next === 0 ? 'Now' : `in ${formatDuration(next)}`}</dd>
       </div>
-      {#if schedule.duration}<div><dt>Length</dt><dd>{schedule.duration}s</dd></div>{/if}
+      {#if schedule.duration}<div><dt>Length</dt><dd>{schedule.duration} s</dd></div>{/if}
       {#if schedule.prerollFreeTime}<div><dt>Pre-roll free</dt><dd>{formatDuration(schedule.prerollFreeTime)}</dd></div>{/if}
       <div><dt>Snoozes left</dt><dd>{schedule.snoozeCount}</dd></div>
     </dl>

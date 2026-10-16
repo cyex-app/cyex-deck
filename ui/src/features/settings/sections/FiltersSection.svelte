@@ -84,7 +84,7 @@
   <Toggle label="Hide them" checked={s.hide} onchange={(v) => sim({ hide: v })} />
 </Row>
 <Row setting="highlights.similar.threshold" label="How alike" hint="Percent. Higher only catches closer copies.">
-  <Stepper label="How alike" value={s.threshold} min={50} max={100} unit="%" onchange={(v) => sim({ threshold: v })} />
+  <NumberField label="How alike" min={50} max={100} width="80px" unit="%" value={s.threshold} onchange={(n) => sim({ threshold: n })} />
 </Row>
 <Row setting="highlights.similar.maxAgeSecs" label="Within" hint="Seconds back to compare with.">
   <NumberField label="Within" min={1} max={600} width="80px" unit="s" value={s.maxAgeSecs} onchange={(n) => sim({ maxAgeSecs: n })} />
