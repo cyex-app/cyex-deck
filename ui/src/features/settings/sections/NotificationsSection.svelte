@@ -9,6 +9,7 @@
   import Icon from '../../../components/Icon.svelte';
   import Row from '../../../components/Row.svelte';
   import Toggle from '../../../components/Toggle.svelte';
+  import NeutralToggle from '../NeutralToggle.svelte';
   import type { TwitchChannelNotify } from '../../../ipc/bindings/TwitchChannelNotify';
   import type { TwitchNotifySwitch } from '../../../ipc/bindings/TwitchNotifySwitch';
   import { homeIpc } from '../../../ipc/browse';
@@ -116,12 +117,17 @@
     if (single(g) && has(only, p) && only.on[p] !== on) void setSwitch(only.id, p, on);
   }
 
-  /** Some switches in a closed group are off where the group itself is on. */
-  const mixed = (g: Group) =>
-    PLATFORMS.some((p) => {
-      const [on, all] = countOn(g, p.id);
-      return sends(sw, g, p.id) && on < all;
-    });
+  /** "11 of 18 on": every switch in the group that Twitch has, across the three places. */
+  function summary(g: Group): string {
+    let on = 0;
+    let all = 0;
+    for (const p of PLATFORMS) {
+      const [o, a] = countOn(g, p.id);
+      on += o;
+      all += a;
+    }
+    return `${on} of ${all} on`;
+  }
 
   function toggleOpen(label: string) {
     opened = opened.includes(label) ? opened.filter((l) => l !== label) : [...opened, label];
@@ -175,7 +181,7 @@
   {#if showChannels}
     <p class="note">
       {#if twitch}
-        <b>Alert</b> is this app. <b>On Twitch</b> is what Twitch itself sends {account.displayName} for the channel.
+        The switch alerts you here. The list is what Twitch sends {account.displayName} for the channel.
       {:else}
         Twitch’s own choice per channel needs a GQL sign-in. <GateFlag kind="gql" />
       {/if}
@@ -192,7 +198,7 @@
           {#if twitch}
             <Select label="On Twitch" width="120px" value={c.state} options={CHANNEL_STATES} onchange={(v) => void setTwitchChannel(c, v)} />
           {/if}
-          <Toggle label="Alert" checked={alerts(c)} disabled={!n.live.enabled} onchange={(on) => setAlert(c, on)} />
+          <span class="tg"><NeutralToggle label="Alert" checked={alerts(c)} disabled={!n.live.enabled} onchange={(on) => setAlert(c, on)} /></span>
         </div>
       {:else}
         {#if !loading && !error}<p class="note">No followed channels.</p>{/if}
@@ -226,7 +232,7 @@
         {#each PLATFORMS as p (p.id)}
           <span class="cell">
             {#if has(all, p.id)}
-              <Toggle label="Everything: {p.label}" checked={!!all.on[p.id]} onchange={(on) => void setSwitch(all.id, p.id, on)} />
+              <NeutralToggle label="Everything: {p.label}" checked={!!all.on[p.id]} onchange={(on) => void setSwitch(all.id, p.id, on)} />
             {/if}
           </span>
         {/each}
@@ -239,13 +245,13 @@
           <button class="group" aria-expanded={open} onclick={() => toggleOpen(g.label)}>
             <Icon name={open ? 'chevronDown' : 'chevronRight'} size={14} />
             <span class="strong">{g.label}</span>
-            {#if !open && mixed(g)}<span class="dim">Some off</span>{/if}
+            {#if !open}<span class="dim">{summary(g)}</span>{/if}
           </button>
         {/if}
         {#each PLATFORMS as p (p.id)}
           <span class="cell">
             {#if groupHas(g, p.id)}
-              <Toggle
+              <NeutralToggle
                 label="{g.label}: {p.label}"
                 checked={isOn(g, p.id)}
                 disabled={sw.all?.on[p.id] === false}
@@ -260,7 +266,7 @@
             {#each PLATFORMS as p (p.id)}
               <span class="cell">
                 {#if has(c, p.id)}
-                  <Toggle
+                  <NeutralToggle
                     label="{c.label}: {p.label}"
                     checked={!!c.on[p.id]}
                     disabled={!sends(sw, g, p.id)}
@@ -305,8 +311,15 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 4px 6px;
+    padding: 4px 0 4px 6px;
     border-radius: var(--radius);
+  }
+  /* The same width and centre as the matrix's last column, so the switches line up. */
+  .tg {
+    display: flex;
+    flex: none;
+    justify-content: center;
+    width: 76px;
   }
   .channel:hover {
     background: var(--row-hover);
