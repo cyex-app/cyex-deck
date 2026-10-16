@@ -18,6 +18,7 @@
   import { pluginsIpc } from '../../ipc/plugins';
   import { systemIpc } from '../../ipc/system';
   import { formatDate } from '../../lib/format';
+  import { reduced } from '../../lib/motion';
   import { EASE_OUT_CUBIC } from '../../lib/scrollMath';
   import { settings } from '../../lib/settings.svelte';
   import { stopScroll } from '../../lib/smoothScroll';
@@ -192,7 +193,7 @@
   function glide(at: Mark, carry = false) {
     const left = carry && slide ? slideEnds - performance.now() : 0;
     stopGlide();
-    if (!lines || !list || !at.el.isConnected) return;
+    if (!lines || !list || !at.el.isConnected || reduced()) return;
     const distance = at.top - at.el.getBoundingClientRect().top;
     if (!(distance >= 1)) return;
     const now = performance.now();
@@ -541,7 +542,11 @@
     if (list) stopScroll(list);
     const target = list?.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`);
     target?.scrollIntoView({ block: 'center' });
-    target?.animate([{ background: 'var(--accent-wash)' }, { background: 'transparent' }], { duration: 1200 });
+    // Reduce motion: lit, then off, without the fade.
+    target?.animate([{ background: 'var(--accent-wash)' }, { background: 'transparent' }], {
+      duration: 1200,
+      easing: reduced() ? 'steps(1, end)' : 'linear',
+    });
   }
 
   /** S7 A plugin's piece was clicked. Links go through the link path instead. */

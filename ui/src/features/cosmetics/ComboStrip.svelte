@@ -6,6 +6,7 @@
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import { formatNumber } from '../../lib/format';
+  import { reduced, scrollBehavior } from '../../lib/motion';
   import ComboCard from './ComboCard.svelte';
   import { MAX_COMBOS, type ComboStore } from './combos.svelte';
   import ComboName from './ComboName.svelte';
@@ -19,7 +20,6 @@
 
   let { combos, store, name }: Props = $props();
 
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let row = $state<HTMLElement>();
   let saveErr = $state<string | null>(null);
   let activeId = $state<string | null>(null);
@@ -33,7 +33,7 @@
     activeId = el.dataset.id ?? null;
     void tick().then(() => {
       el.focus();
-      el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
+      el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: scrollBehavior() });
     });
   }
 
@@ -107,7 +107,7 @@
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div class="list" role="listbox" aria-label="Your combos" tabindex="-1" {onkeydown}>
       {#each list as c (c.id)}
-        <div class="slot" role="none" out:slide={{ axis: 'x', duration: reduce ? 0 : 160 }}>
+        <div class="slot" role="none" out:slide={{ axis: 'x', duration: reduced() ? 0 : 160 }}>
           <ComboCard combo={c} {combos} {store} {name} worn={combos.worn?.id === c.id} active={tabbable === c.id} />
         </div>
       {/each}

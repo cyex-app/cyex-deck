@@ -13,6 +13,7 @@
   import { accounts } from '../../../lib/accounts.svelte';
   import { signInTarget } from '../../../lib/gate';
   import { gate } from '../../../lib/gate.svelte';
+  import { scrollBehavior } from '../../../lib/motion';
 
   let twitchWay = $state<HTMLElement>();
   let codeWay = $state<HTMLElement>();
@@ -31,7 +32,7 @@
     if (target === 'account' && accounts.current) signIn.offer = accounts.current.userId;
     await tick();
     const el = target === 'account' ? cards : target === 'twitch' ? twitchWay : codeWay;
-    el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el?.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
     if (target === 'account') return;
     lit = target;
     setTimeout(() => (lit = null), 1600);

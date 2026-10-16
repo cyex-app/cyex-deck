@@ -1,6 +1,8 @@
 // V103-13 A search result's setting: scrolled to the middle and lit up for a moment. The
 // look is in SettingsView (`.found`, `.fading`).
 
+import { scrollBehavior } from '../../lib/motion';
+
 const LIT_MS = 1400;
 const FADE_MS = 700;
 
@@ -16,7 +18,7 @@ export function reveal(root: HTMLElement, ids: string[]): boolean {
       last.timers.forEach(clearTimeout);
       last.el.classList.remove('found', 'fading');
     }
-    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
     el.classList.add('found');
     const fade = window.setTimeout(() => el.classList.replace('found', 'fading'), LIT_MS);
     const done = window.setTimeout(() => el.classList.remove('fading'), LIT_MS + FADE_MS);
