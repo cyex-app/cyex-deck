@@ -8,6 +8,7 @@
   import EmoteButton from '../chat/EmoteButton.svelte';
   import { errorText } from '../../lib/errors';
   import { settings } from '../../lib/settings.svelte';
+  import { formatNumber } from '../../lib/format';
 
   interface Props {
     to: string;
@@ -18,6 +19,8 @@
   let { to, account, disabled = false }: Props = $props();
 
   const MAX = 500;
+  /** Same as the chat box: the count shows from here. */
+  const SHOW_COUNT = 400;
 
   let box = $state<HTMLTextAreaElement>();
   let text = $state('');
@@ -72,7 +75,7 @@
 
 {#if error}<div class="error">{error}</div>{/if}
 <div class="input">
-  <div class="field" class:over={chars > MAX}>
+  <div class="compose" class:over={chars > MAX}>
   <textarea
     bind:this={box}
     bind:value={text}
@@ -82,7 +85,7 @@
     onkeydown={keydown}
     spellcheck="true"
   ></textarea>
-  {#if chars > MAX - 50}<span class="count" class:over={chars > MAX}>{MAX - chars}</span>{/if}
+  {#if chars >= SHOW_COUNT}<span class="count" class:over={chars > MAX} class:near={chars > MAX - 50}>{formatNumber(chars)}/{MAX}</span>{/if}
   <EmoteButton login="" {account} oninsert={insert} />
   </div>
   {#if settings.v.chat.sendButton}
@@ -112,7 +115,7 @@
     margin: 0 10px 10px;
   }
   /* The same box as the chat input: emote button inside, send outside. */
-  .field {
+  .compose {
     flex: 1 1 0;
     min-width: 0;
     display: flex;
@@ -123,14 +126,18 @@
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
   }
-  .field:focus-within {
+  .compose:focus-within {
     border-color: var(--accent-border);
   }
-  .field.over,
-  .field.over:focus-within {
+  .compose.over,
+  .compose.over:focus-within {
     border-color: var(--red);
   }
-  .field :global(.smile) {
+  /* Centred on a one-line box (34 px), like the emote button inside it. */
+  .input > :global(.icon-btn) {
+    margin-bottom: 2px;
+  }
+  .compose :global(.smile) {
     width: 30px;
     height: 30px;
     margin-bottom: 1px;
@@ -139,7 +146,7 @@
     flex: 1 1 0;
     min-width: 0;
     min-height: 32px;
-    max-height: 120px;
+    max-height: 96px;
     padding: 6px 10px;
     resize: none;
     field-sizing: content;
@@ -153,9 +160,13 @@
     flex: none;
     align-self: flex-end;
     padding: 0 4px 7px;
-    color: var(--dim);
-    font-size: 11px;
+    font: 600 0.68rem/1.2 var(--font-mono);
     font-variant-numeric: tabular-nums;
+    color: var(--dim);
+    white-space: nowrap;
+  }
+  .count.near {
+    color: var(--yellow);
   }
   .count.over {
     color: var(--red);

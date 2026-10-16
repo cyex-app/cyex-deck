@@ -374,7 +374,7 @@
   <div class="row" bind:this={row}>
     <RewardsMenu {room} />
     {#if canChat}
-      <div class="field">
+      <div class="compose">
       <textarea
         bind:this={box}
         bind:value={text}
@@ -449,7 +449,7 @@
     gap: 6px;
   }
   /* The same box as the whisper box: emote (and GIF) buttons inside, send outside. */
-  .field {
+  .compose {
     flex: 1 1 0;
     min-width: 0;
     display: flex;
@@ -460,15 +460,19 @@
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
   }
-  .field:focus-within {
+  .compose:focus-within {
     border-color: var(--accent-border);
   }
-  .field :global(.smile),
-  .field :global(.gif-btn) {
+  /* Centred on a one-line box (34 px), like the emote button inside it. */
+  .row > :global(.icon-btn) {
+    margin-bottom: 2px;
+  }
+  .compose :global(.smile),
+  .compose :global(.gif-btn) {
     height: 30px;
     margin-bottom: 1px;
   }
-  .field :global(.smile) {
+  .compose :global(.smile) {
     width: 30px;
   }
   textarea {
