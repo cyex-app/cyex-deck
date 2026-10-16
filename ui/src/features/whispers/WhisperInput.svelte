@@ -3,10 +3,11 @@
 <script lang="ts">
   import { tick } from 'svelte';
 
-  import Icon from '../../components/Icon.svelte';
+  import IconButton from '../../components/IconButton.svelte';
   import { whispersIpc } from '../../ipc/whispers';
   import EmoteButton from '../chat/EmoteButton.svelte';
   import { errorText } from '../../lib/errors';
+  import { settings } from '../../lib/settings.svelte';
 
   interface Props {
     to: string;
@@ -82,9 +83,18 @@
   ></textarea>
   {#if chars > MAX - 50}<span class="count">{MAX - chars}</span>{/if}
   <EmoteButton login="" {account} oninsert={insert} />
-  <button class="send" aria-label="Send" disabled={disabled || sending || !text.trim() || chars > MAX} onclick={send}>
-    <Icon name="send" size={16} />
-  </button>
+  {#if settings.v.chat.sendButton}
+    <IconButton
+      icon="send"
+      label="Send"
+      hint="Enter"
+      disabled={disabled || sending || !text.trim() || chars > MAX}
+      onclick={() => {
+        void send();
+        box?.focus();
+      }}
+    />
+  {/if}
 </div>
 
 <style>
@@ -127,21 +137,5 @@
     color: var(--dim);
     font-size: 11px;
     font-variant-numeric: tabular-nums;
-  }
-  .send {
-    display: grid;
-    place-items: center;
-    width: 30px;
-    height: 30px;
-    background: none;
-    border: 0;
-    border-radius: var(--radius);
-    color: var(--accent-text);
-  }
-  .send:hover:not(:disabled) {
-    background: var(--surface-hover);
-  }
-  .send:disabled {
-    color: var(--dim);
   }
 </style>

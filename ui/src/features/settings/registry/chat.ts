@@ -170,7 +170,7 @@ export const CHAT: Entry[] = [
     id: 'chat.sendButton',
     page: 'chat',
     label: 'Send button',
-    description: 'A send button in the message box.',
+    description: 'A send button in the chat and whisper boxes.',
     keywords: ['submit', 'enter', 'message box', 'input'],
   },
   {
