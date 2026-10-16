@@ -59,6 +59,7 @@
   {items}
   key={keyOf}
   {label}
+  chosen={(r) => keyOf(r) === (selected ?? NONE_KEY)}
   cellWidth={kind === 'paint' ? 176 : 72}
   cellHeight={kind === 'paint' ? 48 : 76}
   bind:active={() => active, (i) => (moved = keyOf(items[i]))}

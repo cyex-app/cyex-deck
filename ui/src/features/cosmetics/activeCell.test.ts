@@ -20,3 +20,9 @@ test('a moved id that was filtered out falls back to the worn one', () => {
   assert.equal(activeIndex(['__none', 'a'], 'c', 'a'), 1);
   assert.equal(activeIndex(['__none'], 'c', 'a'), 0);
 });
+
+test('the cursor and the worn cell are separate things', () => {
+  // After Undo the cursor can sit on "a" while None is worn.
+  assert.equal(activeIndex(keys, 'a', '__none'), 1);
+  assert.equal(keys[activeIndex(keys, 'a', '__none')] === '__none', false);
+});

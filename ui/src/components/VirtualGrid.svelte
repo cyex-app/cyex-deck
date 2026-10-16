@@ -15,12 +15,14 @@
     gap?: number;
     /** The focused cell. */
     active: number;
+    /** The chosen item (aria-selected). The keyboard cell is `active`, a separate thing. */
+    chosen?: (t: T) => boolean;
     cell: Snippet<[T, { index: number; active: boolean }]>;
     /** Enter, Space, click. */
     onpick: (index: number) => void;
   }
 
-  let { items, key, label, cellWidth, cellHeight, gap = 6, active = $bindable(), cell, onpick }: Props<T> = $props();
+  let { items, key, label, cellWidth, cellHeight, gap = 6, active = $bindable(), chosen, cell, onpick }: Props<T> = $props();
 
   const uid = $props.id();
   const KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
@@ -105,7 +107,7 @@
         class="cell"
         role="option"
         id="{uid}-{index}"
-        aria-selected={index === active}
+        aria-selected={chosen ? chosen(item) : false}
         class:active={index === active}
         style="--x:{p.x}px;--y:{p.y}px;width:{cellWidth}px;height:{cellHeight}px"
         onclick={() => pick(index)}
