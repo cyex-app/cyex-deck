@@ -3,6 +3,7 @@
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import VirtualGrid from '../../components/VirtualGrid.svelte';
+  import { density } from '../../lib/density.svelte';
   import { focus } from '../../lib/focus.svelte';
   import type { BadgeRow, PaintRow } from './cosmetics.svelte';
   import { badgePicture } from './pictures';
@@ -25,7 +26,8 @@
   const NONE = null;
   const items = $derived<(Row | null)[]>([NONE, ...rows]);
   const idOf = (r: Row) => ('style' in r.item ? r.item.style.id : r.item.def.id);
-  const dpr = window.devicePixelRatio || 1;
+  // V105-08 Re-read when the window moves to another screen (density watches it).
+  const dpr = $derived((void density.scale, window.devicePixelRatio || 1));
   let active = $state(0);
 
   function tip(r: Row | null) {
