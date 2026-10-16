@@ -30,16 +30,26 @@ export interface ScopeOptions {
   restore?: boolean;
 }
 
+/** Whether a `tabindex` attribute leaves the element in the Tab order: `-1` (a roving
+ *  tabindex, e.g. the unpicked options of a segmented control) takes it out. */
+export function inTabOrder(tabindex: string | null): boolean {
+  return tabindex !== '-1';
+}
+
 /** What Tab can reach inside `node`, in order, skipping hidden ones. */
 export function tabbables(node: HTMLElement): HTMLElement[] {
-  return [...node.querySelectorAll<HTMLElement>(TABBABLE)].filter((el) => el.getClientRects().length > 0);
+  return [...node.querySelectorAll<HTMLElement>(TABBABLE)].filter((el) => inTabOrder(el.getAttribute('tabindex')) && el.getClientRects().length > 0);
 }
 
 /** A dialog's first focus: a `data-autofocus` element, the first text field, the primary
  *  button, or null. */
 export function firstField(node: HTMLElement): HTMLElement | null {
+  const mark = node.querySelector<HTMLElement>('[data-autofocus]');
+  // A wrapper marks its field: the first live input or button inside takes the focus.
+  const inner = mark?.querySelector<HTMLElement>('input:not(:disabled), button:not(:disabled)');
   return (
-    node.querySelector<HTMLElement>('[data-autofocus]') ??
+    inner ??
+    mark ??
     node.querySelector<HTMLElement>(TEXT_FIELD) ??
     node.querySelector<HTMLElement>('.btn.primary:not(:disabled)')
   );
