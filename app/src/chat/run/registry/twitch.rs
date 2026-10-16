@@ -243,7 +243,8 @@ pub(super) const CMDS: &[Cmd] = &[
     .errs(&[
         "Usage: /warn name reason",
         "A warning needs a reason: /warn name reason",
-    ]),
+    ])
+    .notes("Warn on a chat line opens a small reason box that sends this; Enter sends, Escape cancels. Twitch needs a reason of 1 to 500 characters."),
     tw(
         "shield",
         "/shield",
