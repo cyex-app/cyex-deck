@@ -78,7 +78,7 @@
     const t = byId.get(id);
     return !!t && !t.feed && t.show.player && tabs.live[t.channel.id] !== undefined && !tabs.live[t.channel.id]?.stream;
   };
-  const tree = $derived(gridTree(tab.columns, live ? sizes : slimSizes(tab.columns, sizes, offline), stacked));
+  const tree = $derived(gridTree(tab.columns, live ? sizes : slimSizes(tab.columns, sizes, offline, box.w), stacked));
   const laid = $derived(layOut(tree, box, LINE));
 
   /** Drags a divider between columns, or between tiles in a column. */

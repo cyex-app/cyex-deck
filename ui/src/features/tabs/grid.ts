@@ -49,11 +49,23 @@ export function resized(sizes: GridSizes, line: GridLine, next: number[]): GridS
 /** The weight an offline-only column gets next to live ones, as a share of a default column. */
 export const SLIM = 0.3;
 
+/** The widest a slim card gets, in px: on a wide window it stays a card, not a black column. */
+export const SLIM_MAX_PX = 360;
+
 /** D6 Columns whose tiles are all offline shrink to a slim card, so live channels get the
  * room. Only columns still at their default width (1) shrink: one the user sized stays, and
- * so does everything when no column is live or all of them are offline. */
-export function slimSizes(columns: readonly { size: number; tiles: readonly { id: string }[] }[], sizes: GridSizes, offline: (id: string) => boolean): GridSizes {
+ * so does everything when no column is live or all of them are offline. With the grid's
+ * width (`width`, px) a slim column never gets wider than SLIM_MAX_PX; live ones take the rest. */
+export function slimSizes(columns: readonly { size: number; tiles: readonly { id: string }[] }[], sizes: GridSizes, offline: (id: string) => boolean, width = 0): GridSizes {
   const off = columns.map((c) => c.tiles.length > 0 && c.tiles.every((t) => offline(t.id)));
   if (columns.length < 2 || off.every(Boolean) || !off.some(Boolean)) return sizes;
-  return { rows: sizes.rows, columns: sizes.columns.map((s, i) => (off[i] && Math.abs(s - 1) < 0.001 ? SLIM : s)) };
+  const slim = off.map((o, i) => o && Math.abs(sizes.columns[i] - 1) < 0.001);
+  let weight = SLIM;
+  const n = slim.filter(Boolean).length;
+  const others = sizes.columns.reduce((sum, s, i) => sum + (slim[i] ? 0 : s), 0);
+  // The slim share of the width is w / (others + n w): solve for the cap.
+  if (width > n * SLIM_MAX_PX && (SLIM * width) / (others + n * SLIM) > SLIM_MAX_PX) {
+    weight = (SLIM_MAX_PX * others) / (width - n * SLIM_MAX_PX);
+  }
+  return { rows: sizes.rows, columns: sizes.columns.map((s, i) => (slim[i] ? weight : s)) };
 }

@@ -61,3 +61,17 @@ test('an offline-only column shrinks next to a live one, unless sized by hand', 
   const sized = { columns: [1.4, 0.6], rows: sizes.rows };
   assert.deepEqual(slimSizes(cols, sized, (id) => id === "b"), sized);
 });
+
+test('a slim column stays under its cap on a wide window', async () => {
+  const { slimSizes, SLIM_MAX_PX } = await import('./grid.ts');
+  const cols = [
+    { size: 1, tiles: [{ id: 'a' }] },
+    { size: 1, tiles: [{ id: 'b' }] },
+  ];
+  const sizes = { columns: [1, 1], rows: [[1], [1]] };
+  const out = slimSizes(cols, sizes, (id) => id === 'b', 2560).columns;
+  const share = (out[1] / (out[0] + out[1])) * 2560;
+  assert.ok(Math.abs(share - SLIM_MAX_PX) < 0.5, String(share));
+  // A narrow window keeps the plain weight.
+  assert.deepEqual(slimSizes(cols, sizes, (id) => id === 'b', 1000).columns, [1, 0.3]);
+});
