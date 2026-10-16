@@ -1,6 +1,8 @@
 <!-- General (2.1): chat text, where chat sits, and the app itself. One chat font list: bundled
      fonts, font files the user added and fonts installed on this PC (V101-10, V105-13). -->
 <script lang="ts">
+  import { getVersion } from '@tauri-apps/api/app';
+
   import Icon from '../../../components/Icon.svelte';
   import Button from '../../../components/Button.svelte';
   import Row from '../../../components/Row.svelte';
@@ -44,12 +46,18 @@
   // V105-20 "Check now": the answer sits next to the button.
   let checking = $state(false);
   let checked = $state('');
+  let version = $state('');
+  $effect(() => {
+    void getVersion()
+      .then((v) => (version = v))
+      .catch(() => {});
+  });
 
   async function checkNow() {
     checking = true;
     checked = '';
     try {
-      checked = checkText(await updateIpc.check());
+      checked = checkText(await updateIpc.check(), version);
     } catch {
       checked = checkText({ kind: 'failed' });
     } finally {
@@ -133,7 +141,7 @@
     onchange={(v) => settings.patch('general', { updates: { ...g.updates, prereleases: v } })}
   />
 </Row>
-<Row setting="general:checkNow" label="Check now">
+<Row setting="general:checkNow" label={version ? `Version ${version}` : 'Version'} hint="Look for a newer one right away.">
   {#if checked}<span class="checked">{checked}</span>{/if}
   <Button small disabled={checking} onclick={() => void checkNow()}>{checking ? 'Checking…' : 'Check now'}</Button>
 </Row>

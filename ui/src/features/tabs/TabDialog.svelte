@@ -111,7 +111,7 @@
   }
 </script>
 
-<Dialog title={feed !== null ? 'Add a feed tab' : title} width={440} onclose={closeTabDialog}>
+<Dialog title={feed !== null ? 'Add a feed tab' : title} width={440} top onclose={closeTabDialog}>
   {#if feed !== null}
     <div class="form">
       <section>

@@ -5,6 +5,7 @@ import { checkText, progressText } from './updateText.ts';
 
 test('check results read short', () => {
   assert.equal(checkText({ kind: 'newest' }), 'You have the newest version.');
+  assert.equal(checkText({ kind: 'newest' }, '0.1.5'), 'You have the newest version, 0.1.5.');
   assert.equal(
     checkText({
       kind: 'available',

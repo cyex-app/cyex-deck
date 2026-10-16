@@ -7,12 +7,14 @@
   interface Props {
     title: string;
     width?: number;
+    /** V1051-05 Fixed near the top, so a body that grows doesn't move the title. */
+    top?: boolean;
     onclose: () => void;
     children: Snippet;
     footer?: Snippet;
   }
 
-  let { title, width = 420, onclose, children, footer }: Props = $props();
+  let { title, width = 420, top = false, onclose, children, footer }: Props = $props();
 
   let box = $state<HTMLElement>();
 
@@ -32,7 +34,7 @@
 
 <!-- The backdrop only catches outside clicks; Escape is handled above. -->
 <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
-<div class="backdrop" onmousedown={(e) => e.target === e.currentTarget && onclose()}>
+<div class="backdrop" class:top onmousedown={(e) => e.target === e.currentTarget && onclose()}>
   <div class="dialog" role="dialog" aria-modal="true" aria-label={title} tabindex="-1" bind:this={box} style:width="{width}px">
     <header>
       <h2>{title}</h2>
@@ -56,6 +58,10 @@
     padding: 12px;
     background: var(--overlay);
     animation: fade var(--fast) ease-out;
+  }
+  .backdrop.top {
+    align-items: start;
+    padding-top: min(14vh, 96px);
   }
   .dialog {
     max-width: 100%;

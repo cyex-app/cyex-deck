@@ -66,9 +66,9 @@ export const APP: Entry[] = [
   {
     id: 'general:checkNow',
     page: 'general',
-    label: 'Check now',
+    label: 'Version',
     description: 'Look for a new version right away.',
-    keywords: ['update', 'version', 'new version', 'github', 'check'],
+    keywords: ['update', 'version', 'new version', 'github', 'check', 'check now'],
   },
 
   // Appearance

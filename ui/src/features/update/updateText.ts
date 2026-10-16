@@ -3,10 +3,11 @@
 import type { CheckResult } from '../../ipc/bindings/CheckResult';
 import type { UpdateProgress } from '../../ipc/bindings/UpdateProgress';
 
-export function checkText(r: CheckResult): string {
+/** `current` is the running version, named when it is the newest. */
+export function checkText(r: CheckResult, current?: string): string {
   switch (r.kind) {
     case 'newest':
-      return 'You have the newest version.';
+      return current ? `You have the newest version, ${current}.` : 'You have the newest version.';
     case 'available':
       return `${r.update.version} is out.`;
     case 'failed':
