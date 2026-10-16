@@ -1,5 +1,5 @@
-// What a sign-in asks before it starts: 7TV, subscriptions and wallet (Twitch's two
-// sign-ins), or both. Pure, so it's unit tested.
+// What a sign-in asks before it starts: tickboxes for 7TV and for subscriptions and wallet
+// (Twitch's two sign-ins). Pure, so it's unit tested.
 
 import type { AccountView } from '../../ipc/bindings/AccountView';
 import type { SelectError } from '../../ipc/bindings/SelectError';
@@ -16,11 +16,13 @@ export interface Done {
   twitch: boolean;
 }
 
-export interface Option {
+export interface Item {
+  part: Part;
   label: string;
-  parts: Part[];
-  /** Everything in it is unlocked already. */
+  /** Unlocked already: shown ticked and locked. */
   done: boolean;
+  /** Ticked when the dialog opens. */
+  ticked: boolean;
 }
 
 export type Plan =
@@ -28,25 +30,14 @@ export type Plan =
   | { kind: 'none' }
   /** One thing left: no choice to make. `consent`: 7TV's yes is still needed first. */
   | { kind: 'run'; parts: Part[]; consent: boolean }
-  | { kind: 'ask'; options: Option[] };
+  | { kind: 'ask'; items: Item[] };
 
-const OPTIONS: Record<Entry, { label: string; parts: Part[] }[]> = {
-  seventv: [
-    { label: 'Just 7TV', parts: ['seventv'] },
-    { label: '7TV + subscriptions and wallet', parts: ['seventv', 'twitch'] },
-  ],
-  twitch: [
-    { label: 'Just subscriptions and wallet', parts: ['twitch'] },
-    { label: 'Also 7TV', parts: ['twitch', 'seventv'] },
-  ],
-  settings: [
-    { label: '7TV', parts: ['seventv'] },
-    { label: 'Subscriptions and wallet', parts: ['twitch'] },
-    { label: 'Both', parts: ['twitch', 'seventv'] },
-  ],
+const LABEL: Record<Part, string> = {
+  seventv: '7TV — your paint and badge',
+  twitch: 'Subscriptions and wallet — subs, payment methods, the miner, channel points',
 };
 
-/** The part an entry is about; Settings is about neither. */
+/** The part an entry is about (ticked first); Settings is about neither. */
 const OWN: Record<Entry, Part | null> = { seventv: 'seventv', twitch: 'twitch', settings: null };
 
 export function plan(entry: Entry, done: Done, consent: boolean): Plan {
@@ -56,8 +47,18 @@ export function plan(entry: Entry, done: Done, consent: boolean): Plan {
   if (left.length === 1) return { kind: 'run', parts: left, consent: left[0] === 'seventv' && !consent };
   return {
     kind: 'ask',
-    options: OPTIONS[entry].map((o) => ({ ...o, done: o.parts.every((p) => done[p]) })),
+    items: (['seventv', 'twitch'] as const).map((part) => ({
+      part,
+      label: LABEL[part],
+      done: done[part],
+      ticked: done[part] || part === own,
+    })),
   };
+}
+
+/** The parts ticked and not done yet: what Sign in runs. */
+export function chosen(items: Item[], ticks: Record<Part, boolean>): Part[] {
+  return items.filter((i) => !i.done && ticks[i.part]).map((i) => i.part);
 }
 
 /** Twitch's sign-ins this account still needs for subscriptions and wallet, in order. */

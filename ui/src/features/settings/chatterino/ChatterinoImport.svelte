@@ -3,23 +3,17 @@
      joined as the default account. -->
 <script lang="ts">
   import Button from '../../../components/Button.svelte';
+  import Checkbox from '../../../components/Checkbox.svelte';
   import Dialog from '../../../components/Dialog.svelte';
-  import Segmented from '../../../components/Segmented.svelte';
   import type { ImportReport } from '../../../ipc/bindings/ImportReport';
   import { settingsIpc } from '../../../ipc/settings';
   import { accounts } from '../../../lib/accounts.svelte';
   import { toast } from '../../../lib/toast.svelte';
   import { counts, failedImport, leftOut, tabsText } from './report';
 
-  type OpenAs = 'chat' | 'both';
-  const OPEN_AS = [
-    { value: 'chat', label: 'Chat tabs' },
-    { value: 'both', label: 'Chat + viewer tabs' },
-  ] as const;
-
   let report = $state<ImportReport | null>(null);
   let busy = $state(false);
-  let openAs = $state<OpenAs>('chat');
+  let viewerTabs = $state(false);
 
   const account = $derived(accounts.current?.displayName || accounts.current?.login);
   const lines = $derived(report ? leftOut(report) : []);
@@ -41,7 +35,7 @@
   async function run() {
     busy = true;
     try {
-      const done = await settingsIpc.chatterinoImport(openAs === 'both');
+      const done = await settingsIpc.chatterinoImport(viewerTabs);
       toast.success(done.tabs ? `Imported ${tabsText(done.tabs)}.` : 'Nothing new.');
     } catch (e) {
       // A failed import needs a fresh pick: the lookup is used up.
@@ -73,8 +67,7 @@
     {/each}
     {#if ready}
       <div class="line">
-        <span class="ask">Open them as</span>
-        <Segmented options={OPEN_AS} value={openAs} label="Open them as" onchange={(v) => (openAs = v)} />
+        <Checkbox checked={viewerTabs} label="Also open viewer tabs" onchange={(v) => (viewerTabs = v)} />
       </div>
       {#if account}<p class="note">Joined as {account}.</p>{/if}
     {/if}
@@ -111,10 +104,6 @@
     align-items: center;
     gap: 10px;
     margin-top: 10px;
-  }
-  .ask {
-    color: var(--muted);
-    font-size: 0.82rem;
   }
   .actions {
     display: flex;

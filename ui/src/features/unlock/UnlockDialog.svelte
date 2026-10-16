@@ -1,26 +1,25 @@
-<!-- The choice before a sign-in (7TV, subscriptions and wallet, or both), 7TV's consent when it's
+<!-- The tickboxes before a sign-in (7TV, subscriptions and wallet), 7TV's consent when it's
      part of it, then each sign-in's progress in the same place. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import Dialog from '../../components/Dialog.svelte';
   import Icon from '../../components/Icon.svelte';
-  import Segmented from '../../components/Segmented.svelte';
   import { signIn } from '../accounts/signIn.svelte';
   import ConsentText from '../cosmetics/ConsentText.svelte';
-  import { asksConsent, PART_NAME, type Part } from './choice';
+  import Checkbox from '../../components/Checkbox.svelte';
+  import { asksConsent, chosen, PART_NAME, type Part } from './choice';
   import { unlock, type Step } from './unlock.svelte';
 
   const asked = $derived(unlock.asked);
   const steps = $derived(unlock.steps);
-  const options = $derived(asked?.options?.filter((o) => !o.done) ?? []);
-  let picked = $state(0);
-  const parts = $derived<Part[]>(asked?.options ? (options[picked]?.parts ?? []) : (asked?.parts ?? []));
+  const items = $derived(asked?.items ?? []);
+  let ticks = $state<Record<Part, boolean>>({ seventv: false, twitch: false });
+  const parts = $derived<Part[]>(asked?.items ? chosen(items, ticks) : (asked?.parts ?? []));
   const consent = $derived(!!asked && asksConsent(parts, !asked.consent));
 
-  // A new question starts on its first choice.
+  // A new question starts on what its entry implies.
   $effect(() => {
-    void asked;
-    picked = 0;
+    ticks = { seventv: false, twitch: false, ...Object.fromEntries((asked?.items ?? []).map((i) => [i.part, i.ticked])) };
   });
 
   const WHAT: Record<Part, string> = {
@@ -30,7 +29,7 @@
 
   const title = $derived.by(() => {
     if (!asked) return '';
-    if (!asked.options && consent) return `Use 7TV with ${asked.name}?`;
+    if (!asked.items && consent) return `Use 7TV with ${asked.name}?`;
     if (asked.entry === 'seventv') return 'Sign in to 7TV';
     if (asked.entry === 'twitch') return 'Unlock subscriptions and wallet';
     return `Unlock for ${asked.name}`;
@@ -64,15 +63,25 @@
         {/each}
       </ol>
     {:else}
-      {#if asked.options}
-        <Segmented
-          label="What to unlock"
-          options={options.map((o, i) => ({ value: i, label: o.label }))}
-          value={picked}
-          onchange={(i) => (picked = i)}
-        />
+      {#if asked.items}
+        <div class="ticks" role="group" aria-label="What to unlock">
+          {#each items as it (it.part)}
+            <div class="tick">
+              <span data-autofocus={it === items.find((x) => !x.done) ? '' : undefined}>
+                <Checkbox
+                  checked={ticks[it.part]}
+                  disabled={it.done}
+                  label={it.label}
+                  onchange={(v) => (ticks[it.part] = v)}
+                />
+              </span>
+              {#if it.done}<span class="state">Done</span>{/if}
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <p class="what">{parts.map((p) => WHAT[p]).join(' ')}</p>
       {/if}
-      <p class="what">{parts.map((p) => WHAT[p]).join(' ')}{parts.length > 1 ? ' Twitch first, then 7TV.' : ''}</p>
       {#if consent}<ConsentText name={asked.name} />{/if}
     {/if}
     {#snippet footer()}
@@ -80,13 +89,25 @@
         {#if signIn.kind}<Button variant="ghost" onclick={() => unlock.stop()}>Stop</Button>{/if}
       {:else}
         <Button variant="ghost" onclick={() => unlock.close()}>Cancel</Button>
-        <Button variant="primary" onclick={go}>{consent ? 'Allow and sign in' : 'Sign in'}</Button>
+        <Button variant="primary" disabled={!parts.length} onclick={go}>{consent ? 'Allow and sign in' : 'Sign in'}</Button>
       {/if}
     {/snippet}
   </Dialog>
 {/if}
 
 <style>
+  .ticks {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .tick {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
   .what {
     margin: 10px 0;
     color: var(--muted);

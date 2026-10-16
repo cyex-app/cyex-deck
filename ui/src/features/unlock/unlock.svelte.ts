@@ -6,7 +6,7 @@ import { cosmeticsIpc } from '../../ipc/cosmetics';
 import { accounts } from '../../lib/accounts.svelte';
 import { toast } from '../../lib/toast.svelte';
 import { signIn } from '../accounts/signIn.svelte';
-import { doneOf, leftText, order, plan, sharedProfile, twitchLeft, type Entry, type Option, type Part } from './choice';
+import { doneOf, leftText, order, plan, sharedProfile, twitchLeft, type Entry, type Item, type Part } from './choice';
 
 export type StepState = 'waiting' | 'running' | 'done' | 'failed';
 
@@ -21,8 +21,8 @@ interface Asked {
   entry: Entry;
   account: string;
   name: string;
-  /** `null`: one thing left, so no choice, only the consent. */
-  options: Option[] | null;
+  /** `null`: one thing left, so no tickboxes, only the consent. */
+  items: Item[] | null;
   parts: Part[];
   /** 7TV has no yes from this account yet. */
   consent: boolean;
@@ -59,7 +59,7 @@ class Unlock {
       entry,
       account,
       name: a.displayName,
-      options: p.kind === 'ask' ? p.options : null,
+      items: p.kind === 'ask' ? p.items : null,
       parts: p.kind === 'run' ? p.parts : [],
       consent: !a.seventv.consent,
     };

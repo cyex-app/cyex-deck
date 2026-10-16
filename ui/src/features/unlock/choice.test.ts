@@ -2,26 +2,37 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { AccountView } from '../../ipc/bindings/AccountView';
-import { asksConsent, doneOf, leftText, order, pickNeedsSignIn, plan, sharedProfile, twitchLeft } from './choice.ts';
+import { asksConsent, chosen, doneOf, leftText, order, pickNeedsSignIn, plan, sharedProfile, twitchLeft } from './choice.ts';
 
 const ok = { source: 'device', expiresAt: null, state: 'valid' } as AccountView['helix'];
 const bad = { source: 'device', expiresAt: null, state: 'invalid' } as AccountView['helix'];
 const none = { seventv: false, twitch: false };
 
-const labels = (p: ReturnType<typeof plan>) => (p.kind === 'ask' ? p.options.map((o) => o.label) : p.kind);
+const ticks = (p: ReturnType<typeof plan>) =>
+  p.kind === 'ask' ? p.items.map((i) => `${i.part}:${i.ticked ? 'on' : 'off'}${i.done ? ':done' : ''}`) : p.kind;
 
-test('each entry asks its own two or three', () => {
-  assert.deepEqual(labels(plan('seventv', none, true)), ['Just 7TV', '7TV + subscriptions and wallet']);
-  assert.deepEqual(labels(plan('twitch', none, false)), ['Just subscriptions and wallet', 'Also 7TV']);
-  assert.deepEqual(labels(plan('settings', none, false)), ['7TV', 'Subscriptions and wallet', 'Both']);
+test('each entry pre-ticks what it implies', () => {
+  assert.deepEqual(ticks(plan('seventv', none, true)), ['seventv:on', 'twitch:off']);
+  assert.deepEqual(ticks(plan('twitch', none, false)), ['seventv:off', 'twitch:on']);
+  assert.deepEqual(ticks(plan('settings', none, false)), ['seventv:off', 'twitch:off']);
 });
 
-test('options carry their parts and none is done while both are left', () => {
+test('the two tickboxes are named', () => {
   const p = plan('settings', none, true);
   assert.equal(p.kind, 'ask');
   if (p.kind !== 'ask') return;
-  assert.deepEqual(p.options.map((o) => o.parts), [['seventv'], ['twitch'], ['twitch', 'seventv']]);
-  assert.ok(p.options.every((o) => !o.done));
+  assert.deepEqual(p.items.map((i) => i.part), ['seventv', 'twitch']);
+  assert.match(p.items[0].label, /^7TV — /);
+  assert.match(p.items[1].label, /^Subscriptions and wallet — /);
+});
+
+test('chosen runs only ticked parts that are not done', () => {
+  const p = plan('settings', none, true);
+  if (p.kind !== 'ask') throw new Error('asks');
+  assert.deepEqual(chosen(p.items, { seventv: false, twitch: false }), []);
+  assert.deepEqual(chosen(p.items, { seventv: true, twitch: true }), ['seventv', 'twitch']);
+  const q = { ...p, items: p.items.map((i) => (i.part === 'twitch' ? { ...i, done: true, ticked: true } : i)) };
+  assert.deepEqual(chosen(q.items, { seventv: true, twitch: true }), ['seventv']);
 });
 
 test('one thing left skips the choice', () => {
@@ -65,12 +76,7 @@ test('only a both choice borrows the Twitch profile', () => {
   assert.equal(sharedProfile(['seventv', 'twitch']), true);
   assert.equal(sharedProfile(['seventv']), false);
   assert.equal(sharedProfile(['twitch']), false);
-  // Each entry's both option, as the dialog passes it.
-  for (const e of ['seventv', 'twitch', 'settings'] as const) {
-    const p = plan(e, { seventv: false, twitch: false }, false);
-    if (p.kind !== 'ask') throw new Error('asks');
-    assert.deepEqual(p.options.map((o) => sharedProfile(o.parts)), e === 'settings' ? [false, false, true] : [false, true]);
-  }
+  assert.equal(sharedProfile(['seventv', 'twitch']), true);
 });
 
 test('Twitch runs first', () => {
