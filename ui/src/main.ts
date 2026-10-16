@@ -9,6 +9,7 @@ import { applyCachedTheme } from './design/theme';
 import { tabs } from './features/tabs/tabs.svelte';
 import { chatxIpc } from './ipc/chatx';
 import { accounts } from './lib/accounts.svelte';
+import { installFindBlock } from './lib/findKey';
 import { settings } from './lib/settings.svelte';
 import { currentWindow } from './lib/window.svelte';
 
@@ -17,6 +18,7 @@ const panelRoute = /^#\/panel\/(.+)$/.exec(location.hash)?.[1];
 if (panelRoute?.startsWith('overlay')) document.documentElement.classList.add('overlay');
 
 applyCachedTheme();
+installFindBlock();
 await Promise.all([settings.load(), currentWindow.init(), accounts.load(), tabs.load()]);
 
 const target = document.getElementById('app')!;

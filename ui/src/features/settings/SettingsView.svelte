@@ -39,6 +39,7 @@
   import { tooltip } from '../../components/tooltip.svelte';
   import { keepScroll } from '../../lib/keepScroll';
   import { keyTaken } from '../../lib/escape';
+  import { isFindKey, visibleSearchbox } from '../../lib/findKey';
   import { recording } from '../../lib/hotkeys.svelte';
 
   interface Props {
@@ -95,6 +96,7 @@
   let active = $state(0);
   let content = $state<HTMLElement>();
   let nav = $state<HTMLElement>();
+  let root = $state<HTMLElement>();
   const searching = $derived(query.trim() !== '');
   const hits = $derived(search(docs, query));
 
@@ -128,6 +130,16 @@
     onclose?.();
   }
 
+  /** Ctrl+F: the settings search takes focus, text selected. */
+  function onfind(e: KeyboardEvent) {
+    if (!isFindKey(e) || e.isComposing || keyTaken(e) || recording.active) return;
+    const box = visibleSearchbox(root ?? document);
+    if (!box) return;
+    e.preventDefault();
+    box.focus();
+    box.select();
+  }
+
   function onkey(e: KeyboardEvent) {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
@@ -139,7 +151,7 @@
   }
 </script>
 
-<svelte:window onkeydown={onescape} />
+<svelte:window onkeydown={(e) => (onescape(e), onfind(e))} />
 
 <!-- One box, drawn in the list or, in narrow windows, above the page. -->
 {#snippet searchBox(where: string)}
@@ -148,7 +160,7 @@
   </div>
 {/snippet}
 
-<div class="settings">
+<div class="settings" bind:this={root}>
   <nav bind:this={nav} use:quietScroll>
     {@render searchBox('side')}
     {#each GROUPS as g (g.label)}

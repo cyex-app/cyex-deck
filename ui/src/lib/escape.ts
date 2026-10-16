@@ -9,6 +9,8 @@
 //   const off = layer('dialog', onclose);   // on open
 //   off();                                  // on close (safe to call twice)
 
+import { stoppedByUs } from './findKey.ts';
+
 export type LayerKind = 'dialog' | 'popover' | 'menu' | 'select';
 
 export interface Layer {
@@ -93,5 +95,5 @@ export function layer(kind: LayerKind, close: () => void): () => void {
 
 /** For global key handlers: true when the key belongs to an open layer or was already used. */
 export function keyTaken(e: { defaultPrevented: boolean }): boolean {
-  return e.defaultPrevented || layers.blocking();
+  return (e.defaultPrevented && !stoppedByUs(e)) || layers.blocking();
 }
