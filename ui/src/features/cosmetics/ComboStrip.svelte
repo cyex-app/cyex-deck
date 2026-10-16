@@ -7,7 +7,7 @@
   import { tooltip } from '../../components/tooltip.svelte';
   import { formatNumber } from '../../lib/format';
   import ComboCard from './ComboCard.svelte';
-  import type { ComboStore } from './combos.svelte';
+  import { MAX_COMBOS, type ComboStore } from './combos.svelte';
   import ComboName from './ComboName.svelte';
   import type { CosmeticsStore } from './cosmetics.svelte';
 
@@ -98,7 +98,7 @@
         class="save"
         disabled={combos.full || !!combos.editing}
         onclick={() => (combos.naming = true)}
-        use:tooltip={combos.full ? 'You have 50 combos. Delete one first.' : 'Save what you wear now'}
+        use:tooltip={combos.full ? `You have ${MAX_COMBOS} combos. Delete one first.` : 'Save what you wear now'}
       >
         <Icon name="plus" size={14} />
         <span>Save as combo</span>
@@ -147,6 +147,9 @@
   .slot {
     flex: none;
     display: flex;
+    /* Cards scrolled out of sight stop painting, so their animated paints rest. */
+    content-visibility: auto;
+    contain-intrinsic-size: 176px 56px;
   }
   .save {
     flex: none;

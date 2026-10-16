@@ -5,6 +5,7 @@
   import { openMenuAt } from '../../components/menu.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { Combo } from '../../ipc/cosmetics';
+  import { density } from '../../lib/density.svelte';
   import { focus } from '../../lib/focus.svelte';
   import { pairTitle, problemText } from './combos';
   import type { ComboStore } from './combos.svelte';
@@ -24,7 +25,7 @@
 
   let { combo, combos, store, name, worn, active }: Props = $props();
 
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = $derived(density.dpr());
   const badge = $derived(combo.badge ? store.badgeById.get(combo.badge.id) : undefined);
   const owned = $derived(!!combo.paint && store.paintById.has(combo.paint.id));
   const problem = $derived(problemText(combos.problemsOf(combo)));
@@ -119,7 +120,7 @@
     transform: scale(0.97);
   }
   .card:focus-visible {
-    outline: 2px solid var(--text);
+    outline: 2px solid var(--focus-ring);
     outline-offset: 1px;
   }
   .live {

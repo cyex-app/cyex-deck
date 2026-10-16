@@ -5,6 +5,7 @@
   import VirtualGrid from '../../components/VirtualGrid.svelte';
   import { density } from '../../lib/density.svelte';
   import { focus } from '../../lib/focus.svelte';
+  import { activeIndex } from './activeCell';
   import type { BadgeRow, PaintRow } from './cosmetics.svelte';
   import { badgePicture } from './pictures';
 
@@ -27,8 +28,12 @@
   const items = $derived<(Row | null)[]>([NONE, ...rows]);
   const idOf = (r: Row) => ('style' in r.item ? r.item.style.id : r.item.def.id);
   // V105-08 Re-read when the window moves to another screen (density watches it).
-  const dpr = $derived((void density.scale, window.devicePixelRatio || 1));
-  let active = $state(0);
+  const dpr = $derived(density.dpr());
+  const NONE_KEY = '__none';
+  const keyOf = (r: Row | null) => (r ? idOf(r) : NONE_KEY);
+  // By id, so a filter doesn't move it; it starts on the worn one (V1051-03).
+  let moved = $state<string>();
+  const active = $derived(activeIndex(items.map(keyOf), moved, selected ?? NONE_KEY));
 
   function tip(r: Row | null) {
     if (!r) return { label: 'None' };
@@ -41,11 +46,11 @@
 
 <VirtualGrid
   {items}
-  key={(r) => (r ? idOf(r) : '__none')}
+  key={keyOf}
   {label}
   cellWidth={kind === 'paint' ? 176 : 72}
   cellHeight={kind === 'paint' ? 48 : 76}
-  bind:active
+  bind:active={() => active, (i) => (moved = keyOf(items[i]))}
   onpick={(i) => {
     const r = items[i];
     onpick(r ? idOf(r) : null, r ? r.usable : true);

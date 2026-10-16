@@ -91,7 +91,7 @@
   role="listbox"
   tabindex="0"
   aria-label={label}
-  aria-activedescendant={active >= 0 && active < items.length ? `${uid}-${active}` : undefined}
+  aria-activedescendant={active >= win.first && active <= win.last ? `${uid}-${active}` : undefined}
   bind:this={scroller}
   onscroll={onscroll}
   {onkeydown}
@@ -139,7 +139,7 @@
   }
   /* The ring is the text color: the accent marks the selected cell, not the focused one. */
   .grid:focus-visible .cell.active {
-    outline: 2px solid var(--text);
+    outline: 2px solid var(--focus-ring);
     outline-offset: 1px;
   }
   @media (prefers-reduced-motion: reduce) {
