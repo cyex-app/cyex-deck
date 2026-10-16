@@ -126,6 +126,8 @@
     text-align: center;
   }
   .who {
+    padding-block: 0.25em;
+    margin-block: -0.25em;
     min-width: 0;
     overflow: hidden;
     font-size: 14px;
@@ -152,6 +154,9 @@
     font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
+    /* Room for descenders under the clip. */
+    padding-bottom: 2px;
+    margin-bottom: -2px;
   }
   .nm.two {
     display: -webkit-box;

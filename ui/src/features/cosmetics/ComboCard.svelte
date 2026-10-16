@@ -152,6 +152,8 @@
     filter: var(--paint-outline);
   }
   .who {
+    padding-block: 0.25em;
+    margin-block: -0.25em;
     overflow: hidden;
     font-size: 14px;
     font-weight: 700;
@@ -164,6 +166,9 @@
     font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
+    /* Room for descenders under the clip. */
+    padding-bottom: 2px;
+    margin-bottom: -2px;
   }
   /* Wraps inside the card, two lines at most (like the Save card). */
   .err {

@@ -49,6 +49,8 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    padding-bottom: 2px;
+    margin-bottom: -2px;
   }
   .status :global(button) {
     flex: none;

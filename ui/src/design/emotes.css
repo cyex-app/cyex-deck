@@ -35,6 +35,9 @@
   -webkit-text-fill-color: transparent;
   background-clip: text;
   -webkit-background-clip: text;
+  /* The painted box ends at the line box and would cut g, y, p, j: grow it, and cancel the growth. */
+  padding-block: 0.25em;
+  margin-block: -0.25em;
 }
 
 /* C7 Modifiers (FFZ numbering). */
