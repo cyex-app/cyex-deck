@@ -111,4 +111,10 @@
     flex: 1;
     font-size: 0.85rem;
   }
+  /* Narrow: the name and its switch share the first line, the picker gets the next. */
+  @container (max-width: 320px) {
+    .row > :global(.select) {
+      order: 1;
+    }
+  }
 </style>

@@ -112,6 +112,8 @@
   }
   figcaption {
     display: flex;
+    flex-wrap: wrap;
+    gap: 0 8px;
     justify-content: space-between;
     font-size: 0.72rem;
     color: var(--dim);

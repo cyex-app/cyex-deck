@@ -48,6 +48,10 @@
     display: inline-flex;
     flex-wrap: nowrap;
     max-width: 100%;
+    /* Narrower than its options: scroll sideways rather than clip. */
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
     padding: 2px;
     gap: 2px;
     background: var(--surface);

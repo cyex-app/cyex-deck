@@ -4,6 +4,8 @@
      Twitch's side show at once. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
+  import IconButton from '../../components/IconButton.svelte';
+  import { openMenuAt } from '../../components/menu.svelte';
   import Segmented from '../../components/Segmented.svelte';
   import Toggle from '../../components/Toggle.svelte';
   import type { AdSchedule } from '../../ipc/bindings/AdSchedule';
@@ -128,7 +130,20 @@
       <div><dt>Snoozes left</dt><dd>{schedule.snoozeCount}</dd></div>
     </dl>
     <div class="line">
-      <Button small disabled={busy || schedule.snoozeCount === 0 || next == null} onclick={snooze}>Snooze 5 minutes</Button>
+      <span class="wide-only">
+        <Button small disabled={busy || schedule.snoozeCount === 0 || next == null} onclick={snooze}>Snooze 5 minutes</Button>
+      </span>
+      <span class="narrow-only">
+        <IconButton
+          icon="more"
+          label="More"
+          size={14}
+          onclick={(e) =>
+            openMenuAt(e, [
+              { label: 'Snooze 5 minutes', icon: 'clock', disabled: busy || schedule!.snoozeCount === 0 || next == null, run: snooze },
+            ])}
+        />
+      </span>
     </div>
   {/if}
   {#if adSet}

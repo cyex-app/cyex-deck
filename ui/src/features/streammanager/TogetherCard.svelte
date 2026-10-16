@@ -15,6 +15,7 @@
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
+  import { type MenuEntry, openMenuAt } from '../../components/menu.svelte';
 
   /** Twitch allows the host plus five guests. */
   const SLOTS = 5;
@@ -73,6 +74,10 @@
   }
 </script>
 
+{#snippet more(items: MenuEntry[])}
+  <IconButton icon="more" label="More" size={14} disabled={busy} onclick={(e) => openMenuAt(e, items)} />
+{/snippet}
+
 <Card title="Stream Together">
   {#snippet tools()}
     <IconButton icon="refresh" label="Refresh" size={14} onclick={load} />
@@ -85,7 +90,10 @@
           <Avatar src={r.avatar} name={r.name} size={20} />
           <span class="name" title={r.message || undefined}>{r.name}</span>
           <Button small variant="link" disabled={busy} onclick={() => act(smIpc.joinAnswer(r.userId, true), `${r.name} can join.`)}>Let in</Button>
-          <Button small variant="link" disabled={busy} onclick={() => act(smIpc.joinAnswer(r.userId, false))}>Decline</Button>
+          <span class="wide-only">
+            <Button small variant="link" disabled={busy} onclick={() => act(smIpc.joinAnswer(r.userId, false))}>Decline</Button>
+          </span>
+          <span class="narrow-only">{@render more([{ label: 'Decline', icon: 'x', run: () => act(smIpc.joinAnswer(r.userId, false)) }])}</span>
         </li>
       {/each}
     </ul>
@@ -125,7 +133,10 @@
             {#if i.status === 'READY' && freeSlot}
               <Button small variant="link" disabled={busy} onclick={() => act(smIpc.togetherSlot(session.id, i.userId, freeSlot!, false))}>Put on stream</Button>
             {/if}
-            <Button small variant="link" disabled={busy} onclick={() => act(smIpc.togetherUninvite(session.id, i.userId))}>Cancel</Button>
+            <span class="wide-only">
+              <Button small variant="link" disabled={busy} onclick={() => act(smIpc.togetherUninvite(session.id, i.userId))}>Cancel</Button>
+            </span>
+            <span class="narrow-only">{@render more([{ label: 'Cancel invite', icon: 'x', run: () => act(smIpc.togetherUninvite(session.id, i.userId)) }])}</span>
           </li>
         {/each}
       </ul>
@@ -164,8 +175,9 @@
   }
   li {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 2px 8px;
     font-size: 0.82rem;
     min-height: 24px;
   }
@@ -184,7 +196,7 @@
     background: var(--red);
   }
   .name {
-    flex: 1;
+    flex: 1 1 80px;
     min-width: 0;
     overflow-wrap: anywhere;
   }

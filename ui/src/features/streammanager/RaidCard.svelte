@@ -150,7 +150,11 @@
     background: var(--row-hover);
   }
   .name {
+    min-width: 0;
+    overflow: hidden;
     font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .meta {
     min-width: 0;

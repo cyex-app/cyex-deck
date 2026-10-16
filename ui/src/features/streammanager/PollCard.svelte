@@ -169,6 +169,8 @@
     overflow-wrap: anywhere;
   }
   .n {
+    flex: none;
+    white-space: nowrap;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
   }

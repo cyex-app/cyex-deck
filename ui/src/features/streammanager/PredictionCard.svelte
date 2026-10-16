@@ -14,6 +14,7 @@
   import { errorText } from '../../lib/errors';
   import Select from '../../components/Select.svelte';
   import IconButton from '../../components/IconButton.svelte';
+  import { openMenuAt } from '../../components/menu.svelte';
 
   const WINDOWS = [30, 60, 120, 300, 600, 1800];
 
@@ -104,13 +105,31 @@
         <Button small disabled={busy} onclick={() => end({ kind: 'lock' }, 'Betting closed.')}>Close betting</Button>
       {/if}
       {#if p.status === 'ACTIVE' || p.status === 'LOCKED'}
-        <ConfirmButton
-          label="Refund everyone"
-          confirm="Click again to refund"
-          variant="ghost"
-          disabled={busy}
-          onconfirm={() => end({ kind: 'cancel' }, 'Refunded.')}
-        />
+        <span class="wide-only">
+          <ConfirmButton
+            label="Refund everyone"
+            confirm="Click again to refund"
+            variant="ghost"
+            disabled={busy}
+            onconfirm={() => end({ kind: 'cancel' }, 'Refunded.')}
+          />
+        </span>
+        <span class="narrow-only">
+          <IconButton
+            icon="more"
+            label="More"
+            size={14}
+            disabled={busy}
+            onclick={(e) =>
+              openMenuAt(e, [
+                {
+                  label: 'Refund everyone',
+                  icon: 'x',
+                  items: [{ label: 'Refund all points', icon: 'x', danger: true, run: () => end({ kind: 'cancel' }, 'Refunded.') }],
+                },
+              ])}
+          />
+        </span>
       {/if}
     </div>
   {:else}

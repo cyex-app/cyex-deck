@@ -76,18 +76,45 @@
     gap: 4px;
     min-width: 0;
   }
-  /* A narrow card stacks: rows wrap, fields take the full width, so nothing clips. */
+  /* A narrow card stacks: rows wrap, fields take the full width, so nothing clips.
+     Secondary actions: put the inline button in `.wide-only` and a ⋯ button in
+     `.narrow-only`; the card shows one of them. */
+  .body :global(.wide-only),
+  .body :global(.narrow-only) {
+    display: contents;
+  }
+  .body :global(.narrow-only) {
+    display: none;
+  }
   @container (max-width: 320px) {
     .body :global(.line),
     .body :global(.row),
     .body :global(.top) {
       flex-wrap: wrap;
     }
-    .body :global(input.field),
+    .body :global(input.field:not(.grow)),
     .body :global(.line > .select),
     .body :global(.row > .select) {
       flex: 1 1 100%;
       width: 100% !important;
+    }
+    /* A field beside a button keeps a usable width; the button drops below when it can't. */
+    .body :global(input.field.grow) {
+      flex: 1 1 140px;
+    }
+    .body :global(.btn) {
+      max-width: 100%;
+      height: auto;
+      min-height: 27px;
+      padding-block: 3px;
+      white-space: normal;
+      text-align: center;
+    }
+    .body :global(.wide-only) {
+      display: none;
+    }
+    .body :global(.narrow-only) {
+      display: contents;
     }
   }
   .body {
