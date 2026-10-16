@@ -79,7 +79,7 @@
                 onclick={() => pick(a.userId)}
               >
                 <Avatar src={a.avatar} name={a.displayName} size={20} />
-                <span class="name">{a.displayName}{#if a.isDefault}<span class="def"> default</span>{/if}</span>
+                <span class="name">{a.displayName}{#if a.isDefault}<span class="def">default</span>{/if}</span>
                 {#if count(a.userId)}<span class="count" use:tooltip={'Chats open'}>{count(a.userId)}</span>{/if}
                 {#if a.userId === chosen.userId}<span class="check"><Icon name="check" size={14} /></span>{/if}
               </button>
@@ -149,6 +149,11 @@
   .item:hover {
     background: var(--surface-hover);
   }
+  /* Inside the scrolling list an outer ring is clipped to a stray line. */
+  .item:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+  }
   .name {
     flex: 1;
     min-width: 0;
@@ -156,6 +161,9 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     text-align: left;
+  }
+  .def {
+    margin-left: 6px;
   }
   .def,
   .count {
