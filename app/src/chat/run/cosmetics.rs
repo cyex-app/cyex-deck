@@ -201,6 +201,20 @@ async fn combo(app: &AppHandle, account: &str, cmd: ComboCmd) -> Result<String, 
     })
 }
 
+/// The not-found line: an id reads as "that paint", a name is quoted back.
+fn not_owned(noun: &str, t: &str) -> String {
+    if is_seventv_id(t) {
+        format!("You don’t own that {noun}. Tab shows yours.")
+    } else {
+        format!("You don’t have a {noun} called “{t}”. Tab shows yours.")
+    }
+}
+
+/// A 7TV id is a 26-char ULID (Crockford base32).
+fn is_seventv_id(t: &str) -> bool {
+    t.len() == 26 && t.bytes().all(|b| b.is_ascii_digit() || (b.is_ascii_uppercase() && !matches!(b, b'I' | b'L' | b'O' | b'U')))
+}
+
 async fn pick(app: &AppHandle, account: &str, kind: Kind, pick: Pick) -> Result<String, String> {
     let (noun, cap, none_line) = match kind {
         Kind::Paint => ("paint", "Paint", "No paint now."),
@@ -211,7 +225,7 @@ async fn pick(app: &AppHandle, account: &str, kind: Kind, pick: Pick) -> Result<
         Pick::None => None,
         Pick::Named(t) => Some(
             lookup::find(&inv, kind, &t)
-                .ok_or_else(|| format!("You don’t have a {noun} called “{t}”. Tab shows yours."))?,
+                .ok_or_else(|| not_owned(noun, &t))?,
         ),
     };
     // The other part is set to what's worn, so it stays as it is.
@@ -278,6 +292,13 @@ mod tests {
         assert!(!automation_may("combo", "delete night"));
         assert!(!automation_may("paint", "none"));
         assert!(!automation_may("badge", "Founder"));
+    }
+
+    #[test]
+    fn not_owned_lines() {
+        assert_eq!(not_owned("paint", "Sunset"), "You don’t have a paint called “Sunset”. Tab shows yours.");
+        assert_eq!(not_owned("badge", "01FQB8Z6M8Q3Z6RV8BDT4N2XGA"), "You don’t own that badge. Tab shows yours.");
+        assert_eq!(not_owned("paint", "01fqb8z6m8q3z6rv8bdt4n2xga"), "You don’t have a paint called “01fqb8z6m8q3z6rv8bdt4n2xga”. Tab shows yours.");
     }
 
     #[test]

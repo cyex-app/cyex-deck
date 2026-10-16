@@ -75,6 +75,7 @@ pub(super) const CMDS: &[Cmd] = &[
             "Say which paint, or none: /paint <name>.",
             "A quote isn’t closed.",
             "You don’t have a paint called “{name}”. Tab shows yours.",
+            "You don’t own that paint. Tab shows yours.",
             "That one’s for 7TV subscribers.",
             "7TV says that one isn’t yours.",
         ])
@@ -90,6 +91,7 @@ pub(super) const CMDS: &[Cmd] = &[
             "Say which badge, or none: /badge <name>.",
             "A quote isn’t closed.",
             "You don’t have a badge called “{name}”. Tab shows yours.",
+            "You don’t own that badge. Tab shows yours.",
             "That one’s for 7TV subscribers.",
             "7TV says that one isn’t yours.",
         ])
