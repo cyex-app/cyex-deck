@@ -23,7 +23,7 @@
 
   let {
     value = $bindable(),
-    placeholder = 'Search',
+    placeholder = 'Search…',
     label,
     width = '100%',
     small = false,

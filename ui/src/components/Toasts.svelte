@@ -10,16 +10,19 @@
 {#snippet stack(items: typeof toast.items, side: 'left' | 'right')}
   <div class="stack {side}" role={side === 'left' ? 'alert' : 'status'}>
     {#each items as t (t.id)}
-      <button
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
         class="toast {t.kind}"
-        onclick={() => toast.dismiss(t.id)}
         onmouseenter={() => toast.hold(t.id)}
         onmouseleave={() => toast.release(t.id)}
-        onfocus={() => toast.hold(t.id)}
-        onblur={() => toast.release(t.id)}
+        onfocusin={() => toast.hold(t.id)}
+        onfocusout={() => toast.release(t.id)}
       >
-        {t.text}{#if t.count > 1}<span class="count">×{t.count}</span>{/if}
-      </button>
+        <button class="text" onclick={() => toast.dismiss(t.id)}>
+          {t.text}{#if t.count > 1}<span class="count">×{t.count}</span>{/if}
+        </button>
+        {#if t.action}<button class="act" onclick={() => toast.act(t.id)}>{t.action.label}</button>{/if}
+      </div>
     {/each}
   </div>
 {/snippet}
@@ -45,8 +48,8 @@
     align-items: flex-end;
   }
   .toast {
-    padding: 10px 14px 10px 12px;
-    text-align: left;
+    display: flex;
+    align-items: center;
     background: var(--elevated);
     border: 1px solid var(--border-strong);
     border-left: 3px solid var(--accent);
@@ -54,6 +57,26 @@
     box-shadow: var(--shadow-pop);
     font-size: 0.85rem;
     animation: in var(--base) var(--ease);
+  }
+  .text {
+    flex: 1;
+    padding: 10px 14px 10px 12px;
+    background: none;
+    border: 0;
+    text-align: left;
+  }
+  .act {
+    flex: none;
+    align-self: stretch;
+    padding: 0 14px;
+    background: none;
+    border: 0;
+    border-left: 1px solid var(--border);
+    color: var(--accent-text);
+    font-weight: 600;
+  }
+  .act:hover {
+    background: var(--surface-hover);
   }
   .count {
     margin-left: 8px;

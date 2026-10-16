@@ -3,7 +3,7 @@ import { mock, test } from 'node:test';
 
 // The store is a .svelte.ts module: outside the compiler, $state is the plain value.
 (globalThis as unknown as { $state: <T>(v: T) => T }).$state = (v) => v;
-const { LIFETIME_MS, MAX_VISIBLE, ToastStore } = await import('./toast.svelte.ts');
+const { ACTION_MS, LIFETIME_MS, MAX_VISIBLE, ToastStore } = await import('./toast.svelte.ts');
 
 mock.timers.enable({ apis: ['setTimeout', 'Date'] });
 
@@ -67,5 +67,19 @@ test('dismiss removes it at once', () => {
   const t = new ToastStore();
   t.success('Saved.');
   t.dismiss(t.items[0].id);
+  assert.equal(t.items.length, 0);
+});
+
+test('a toast button runs once and closes the toast; it keeps the toast up longer', () => {
+  const t = new ToastStore();
+  let undone = 0;
+  t.info('Blocked kuni.', { action: { label: 'Undo', run: () => undone++ } });
+  mock.timers.tick(LIFETIME_MS.info);
+  assert.equal(t.items.length, 1);
+  t.act(t.items[0].id);
+  assert.equal(undone, 1);
+  assert.equal(t.items.length, 0);
+  t.info('x', { action: { label: 'Undo', run: () => {} } });
+  mock.timers.tick(ACTION_MS);
   assert.equal(t.items.length, 0);
 });
