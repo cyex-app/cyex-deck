@@ -8,7 +8,7 @@
   import { cardClick, cardMenu } from './cardMenu';
   import { since, uptimeShort } from './lists';
   import { type Nav, picked } from './open.svelte';
-  import { peekAt, unpeek } from './peeking.svelte';
+  import { peekAt, unpeek, unpeekFrom } from './peeking.svelte';
   import QuickOpen from './QuickOpen.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
 
@@ -19,11 +19,13 @@
   const last = $derived(since(card.lastLive));
   // "Live 2 days ago · Just Chatting · title"; the full title rides in the tooltip.
   const offline = $derived([last ? `Live ${last}` : '', card.lastGame, card.lastTitle].filter(Boolean).join(' · '));
+  const ownPeek = (node: HTMLElement) => ({ destroy: () => unpeekFrom(node) });
   const offlineTip = $derived([card.lastLive ? formatDate(new Date(card.lastLive)) : '', card.lastGame, card.lastTitle].filter(Boolean).join(' · '));
 </script>
 
 <div class="row" class:picked={picked.has(card.id)}>
   <button
+    use:ownPeek
     class="main"
     class:live={!!stream}
     onclick={(e) => (unpeek(), click.onclick(e))}
