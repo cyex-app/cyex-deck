@@ -1,51 +1,41 @@
 <script lang="ts">
   import { toast } from '../lib/toast.svelte';
 
-  const info = $derived(toast.items.filter((t) => t.kind !== 'error'));
-  const errors = $derived(toast.items.filter((t) => t.kind === 'error'));
 </script>
 
-<!-- Errors are announced at once (alert), the rest politely (status). The regions stay in the
-     page while empty, so screen readers catch what lands in them. Hover or focus holds one. -->
-{#snippet stack(items: typeof toast.items, side: 'left' | 'right')}
-  <div class="stack {side}" role={side === 'left' ? 'alert' : 'status'}>
-    {#each items as t (t.id)}
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div
-        class="toast {t.kind}"
-        onmouseenter={() => toast.hold(t.id)}
-        onmouseleave={() => toast.release(t.id)}
-        onfocusin={() => toast.hold(t.id)}
-        onfocusout={() => toast.release(t.id)}
-      >
-        <button class="text" onclick={() => toast.dismiss(t.id)}>
-          {t.text}{#if t.count > 1}<span class="count">×{t.count}</span>{/if}
-        </button>
-        {#if t.action}<button class="act" onclick={() => toast.act(t.id)}>{t.action.label}</button>{/if}
-      </div>
-    {/each}
-  </div>
-{/snippet}
-
-{@render stack(errors, 'left')}
-{@render stack(info, 'right')}
+<!-- One stack, bottom right. The region is polite (status); an error inside it is announced at
+     once (alert). The region stays in the page while empty, so screen readers catch what lands
+     in it. Hover or focus holds one. -->
+<div class="stack" role="status">
+  {#each toast.items as t (t.id)}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="toast {t.kind}"
+      role={t.kind === 'error' ? 'alert' : undefined}
+      onmouseenter={() => toast.hold(t.id)}
+      onmouseleave={() => toast.release(t.id)}
+      onfocusin={() => toast.hold(t.id)}
+      onfocusout={() => toast.release(t.id)}
+    >
+      <button class="text" onclick={() => toast.dismiss(t.id)}>
+        {t.text}{#if t.count > 1}<span class="count">×{t.count}</span>{/if}
+      </button>
+      {#if t.action}<button class="act" onclick={() => toast.act(t.id)}>{t.action.label}</button>{/if}
+    </div>
+  {/each}
+</div>
 
 <style>
   .stack {
     position: fixed;
+    right: 14px;
     bottom: 14px;
+    align-items: flex-end;
     z-index: var(--z-toast);
     display: flex;
     flex-direction: column;
     gap: 8px;
     max-width: min(380px, calc(100vw - 28px));
-  }
-  .left {
-    left: 14px;
-  }
-  .right {
-    right: 14px;
-    align-items: flex-end;
   }
   .toast {
     display: flex;

@@ -1,6 +1,5 @@
-// Short notices. Info and success stack bottom right, errors bottom left (same as cyex logs).
-// The same text again bumps a count instead of stacking; each side shows at most 3 (the
-// oldest goes); a hovered or focused toast waits; errors stay longer. A toast can carry one
+// Short notices, one stack at the bottom right. The same text again bumps a count instead of
+// stacking; at most 3 show (the oldest goes); a hovered or focused toast waits; errors stay longer. A toast can carry one
 // button (Undo).
 
 export interface Toast {
@@ -25,10 +24,8 @@ export interface ToastOptions {
 export const LIFETIME_MS = { info: 3500, success: 3500, error: 9000 };
 /** A toast with a button stays at least this long, so there's time to reach it. */
 export const ACTION_MS = 7000;
-/** Per side: errors on one, the rest on the other. */
+/** Shown at once; the oldest goes first. */
 export const MAX_VISIBLE = 3;
-
-const side = (k: Toast['kind']) => (k === 'error' ? 'error' : 'note');
 
 interface Clock {
   timer: ReturnType<typeof setTimeout> | undefined;
@@ -101,8 +98,7 @@ export class ToastStore {
     }
     const id = nextId++;
     let items = [...this.items, { id, kind, text, count: 1, action: opts.action }];
-    const mine = items.filter((t) => side(t.kind) === side(kind));
-    for (const old of mine.slice(0, Math.max(0, mine.length - MAX_VISIBLE))) {
+    for (const old of items.slice(0, Math.max(0, items.length - MAX_VISIBLE))) {
       clearTimeout(this.clocks.get(old.id)?.timer);
       this.clocks.delete(old.id);
       items = items.filter((t) => t !== old);

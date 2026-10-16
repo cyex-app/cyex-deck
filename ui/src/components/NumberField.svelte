@@ -99,6 +99,8 @@
     border: 0;
     /* The box's border shows focus. */
     outline: none;
+    font-family: var(--font-ui);
+    font-weight: 500;
     font-variant-numeric: tabular-nums;
     text-align: right;
   }

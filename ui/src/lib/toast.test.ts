@@ -17,14 +17,12 @@ test('the same text bumps a count instead of stacking', () => {
   assert.equal(t.items[1].count, 1);
 });
 
-test('each side keeps the newest 3', () => {
+test('the stack keeps the newest 3', () => {
   const t = new ToastStore();
   for (let i = 0; i < 5; i++) t.info(`n${i}`);
   t.error('e');
-  const notes = t.items.filter((x) => x.kind !== 'error').map((x) => x.text);
-  assert.deepEqual(notes, ['n2', 'n3', 'n4']);
-  assert.equal(notes.length, MAX_VISIBLE);
-  assert.equal(t.items.filter((x) => x.kind === 'error').length, 1);
+  assert.deepEqual(t.items.map((x) => x.text), ['n3', 'n4', 'e']);
+  assert.equal(t.items.length, MAX_VISIBLE);
 });
 
 test('toasts go after their time; errors stay longer', () => {

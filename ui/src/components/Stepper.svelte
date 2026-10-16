@@ -46,6 +46,7 @@
   span {
     min-width: 44px;
     text-align: center;
-    font: 600 0.85rem var(--font-mono);
+    font: 500 0.85rem var(--font-ui);
+    font-variant-numeric: tabular-nums;
   }
 </style>
