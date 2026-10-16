@@ -21,6 +21,7 @@
   import { signIn } from './signIn.svelte';
   import { accountName, missingScopesText, needsSignIn, tokenStatus } from './status';
   import { errorText } from '../../lib/errors';
+  import ConfirmButton from '../../components/ConfirmButton.svelte';
 
   let { account }: { account: AccountView } = $props();
 
@@ -37,10 +38,7 @@
     (unlocking || signIn.offer === account.userId) && (account.gql === null || needsSignIn(account.gql)),
   );
 
-  let armed = $state(false);
-  let withdrawArmed = $state(false);
   let editing = $state(false);
-  let timer: ReturnType<typeof setTimeout> | undefined;
 
   function tokenOf(kind: TokenKind): TokenView | null {
     return kind === 'helix' ? account.helix : account.gql;
@@ -55,24 +53,11 @@
   }
 
   function removeAccount() {
-    if (!armed) {
-      armed = true;
-      timer = setTimeout(() => (armed = false), 3000);
-      return;
-    }
-    clearTimeout(timer);
-    armed = false;
     void attempt(() => accountsIpc.remove(account.userId));
   }
 
-  // V1051-02 Same two-click confirm as removing the account.
+  // V1051-02 The same two clicks as removing the account.
   function withdraw() {
-    if (!withdrawArmed) {
-      withdrawArmed = true;
-      setTimeout(() => (withdrawArmed = false), 3000);
-      return;
-    }
-    withdrawArmed = false;
     void attempt(async () => {
       await cosmeticsIpc.withdraw(account.userId);
       toast.success(`7TV removed from ${account.displayName}.`);
@@ -143,7 +128,7 @@
       <Button small variant="ghost" onclick={() => attempt(() => cosmeticsIpc.signOut(account.userId))}>Sign out</Button>
     {/if}
     {#if account.seventv.consent}
-      <Button small variant="ghost" onclick={withdraw}>{withdrawArmed ? 'Click again to withdraw' : 'Withdraw'}</Button>
+      <ConfirmButton label="Withdraw" confirm="Click again to withdraw" variant="ghost" onconfirm={withdraw} />
     {/if}
   </div>
 
@@ -186,9 +171,7 @@
     >
       Sign out of Twitch pages
     </Button>
-    <Button small variant={armed ? 'danger' : 'ghost'} icon="trash" onclick={removeAccount}>
-      {armed ? 'Click again to remove' : 'Remove account'}
-    </Button>
+    <ConfirmButton label="Remove account" confirm="Click again to remove" icon="trash" variant="ghost" onconfirm={removeAccount} />
   </footer>
 </section>
 

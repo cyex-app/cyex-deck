@@ -4,6 +4,7 @@
   import type { Field } from './fields';
   import { focusLast } from './focus';
   import RuleRow from './RuleRow.svelte';
+  import { toast } from '../../../lib/toast.svelte';
 
   interface Props {
     items: T[];
@@ -25,6 +26,15 @@
   let { items, fields, make, onchange, addLabel = 'Add', empty, problem, setting, layout, slots }: Props = $props();
 
   let el = $state<HTMLDivElement>();
+
+  /** Deletes at once; Undo puts the rule back where it was. */
+  function remove(i: number) {
+    const gone = items[i];
+    onchange(items.filter((_, j) => j !== i));
+    toast.success('Rule deleted.', {
+      action: { label: 'Undo', run: () => onchange([...items.slice(0, i), gone, ...items.slice(i)]) },
+    });
+  }
 </script>
 
 <div class="list" data-setting={setting} bind:this={el}>
@@ -36,7 +46,7 @@
       {slots}
       problem={problem?.(item)}
       onchange={(next) => onchange(items.map((x, j) => (j === i ? next : x)))}
-      ondelete={() => onchange(items.filter((_, j) => j !== i))}
+      ondelete={() => remove(i)}
     />
   {:else}
     {#if empty}<p class="empty">{empty}</p>{/if}

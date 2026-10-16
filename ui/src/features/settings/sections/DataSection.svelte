@@ -10,6 +10,8 @@
   import { toast } from '../../../lib/toast.svelte';
   import { errorText } from '../../../lib/errors';
   import { copy } from '../../../lib/clipboard';
+  import ConfirmButton from '../../../components/ConfirmButton.svelte';
+  import Checkbox from '../../../components/Checkbox.svelte';
 
   let picked = $state<Partition[]>(['general', 'appearance', 'chat', 'highlights', 'mentions', 'commands', 'hotkeys']);
   let code = $state('');
@@ -81,19 +83,9 @@
 
 <h3 class="label">What to export or share</h3>
 <div class="picks">
-  <label class="pick">
-    <input
-      type="checkbox"
-      checked={allPicked}
-      onchange={() => (picked = allPicked ? [] : [...PORTABLE_PARTITIONS])}
-    />
-    Everything
-  </label>
+  <Checkbox label="Everything" checked={allPicked} onchange={() => (picked = allPicked ? [] : [...PORTABLE_PARTITIONS])} />
   {#each PORTABLE_PARTITIONS as p (p)}
-    <label class="pick">
-      <input type="checkbox" checked={picked.includes(p)} onchange={() => toggle(p)} />
-      {PARTITION_LABELS[p]}
-    </label>
+    <Checkbox label={PARTITION_LABELS[p]} checked={picked.includes(p)} onchange={() => toggle(p)} />
   {/each}
 </div>
 <p class="note">Accounts and sign-ins are never included.</p>
@@ -117,7 +109,7 @@
 <p class="note" data-setting="data:backups">A copy of your settings is kept for each of the last 3 days.</p>
 {#each backups as date (date)}
   <Row label={date}>
-    <Button small onclick={() => restore(date)}>Restore</Button>
+    <ConfirmButton label="Restore" confirm="Click again to restore" onconfirm={() => restore(date)} />
   </Row>
 {:else}
   <p class="note">No backups yet. The first one is made tomorrow.</p>
@@ -145,15 +137,6 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
     gap: 6px 12px;
-  }
-  .pick {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--muted);
-  }
-  .pick input {
-    accent-color: var(--accent);
   }
   .note {
     margin: 10px 0;

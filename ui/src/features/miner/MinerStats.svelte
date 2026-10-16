@@ -1,7 +1,6 @@
 <!-- 1.32 Miner stats: pick a channel (A-Z) or all of them; points this session and in
      total, the balance over time, where the points came from, bets and drops. -->
 <script lang="ts">
-  import Button from '../../components/Button.svelte';
   import type { StatKind } from '../../ipc/bindings/StatKind';
   import type { Stats } from '../../ipc/bindings/Stats';
   import type { StatsChannel } from '../../ipc/bindings/StatsChannel';
@@ -12,6 +11,7 @@
   import { miner } from './miner.svelte';
   import { errorText } from '../../lib/errors';
   import Select from '../../components/Select.svelte';
+  import ConfirmButton from '../../components/ConfirmButton.svelte';
 
   const KINDS: Record<StatKind, string> = {
     watch: 'Watching',
@@ -32,7 +32,6 @@
   let channels = $state.raw<StatsChannel[]>([]);
   let channel = $state<string | null>(null);
   let stats = $state.raw<Stats | null>(null);
-  let confirm = $state(false);
 
   const signed = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${formatNumber(Math.abs(n))}`;
   const hours = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`);
@@ -64,11 +63,6 @@
   });
 
   async function clear() {
-    if (!confirm) {
-      confirm = true;
-      return;
-    }
-    confirm = false;
     try {
       await minerIpc.clearStats(channel);
     } catch (e) {
@@ -109,7 +103,7 @@
     {#if stats?.since}<span class="note">Since {formatDate(new Date(stats.since))}</span>{/if}
     <span class="grow"></span>
     {#if stats?.since}
-      <Button variant="ghost" onclick={() => void clear()}>{confirm ? 'Sure? Delete them' : 'Delete stats'}</Button>
+      <ConfirmButton label="Delete stats" confirm="Click again to delete" variant="ghost" onconfirm={() => void clear()} />
     {/if}
   </div>
 

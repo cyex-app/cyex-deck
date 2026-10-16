@@ -8,6 +8,7 @@
   import { focusLast } from '../rules/focus';
   import MentionRow from './MentionRow.svelte';
   import { newMention } from './status';
+  import { toast } from '../../../lib/toast.svelte';
 
   interface Props {
     items: MentionRule[];
@@ -20,6 +21,15 @@
   let { items, onchange, empty, setting }: Props = $props();
 
   let el = $state<HTMLDivElement>();
+
+  /** Deletes at once; Undo puts the rule back where it was. */
+  function remove(i: number) {
+    const gone = items[i];
+    onchange(items.filter((_, j) => j !== i));
+    toast.success('Rule deleted.', {
+      action: { label: 'Undo', run: () => onchange([...items.slice(0, i), gone, ...items.slice(i)]) },
+    });
+  }
   let checks = $state.raw<MentionCheck[]>([]);
   $effect(() => {
     const list = items;
@@ -38,7 +48,7 @@
       {item}
       check={checks[i]}
       onchange={(next) => onchange(items.map((x, j) => (j === i ? (next as MentionRule) : x)))}
-      ondelete={() => onchange(items.filter((_, j) => j !== i))}
+      ondelete={() => remove(i)}
     />
   {:else}
     <p class="empty">{empty}</p>

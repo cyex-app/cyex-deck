@@ -5,18 +5,37 @@
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
   import { errorText } from '../../../lib/errors';
+  import type { Layout } from '../../../ipc/bindings/Layout';
 
   const layouts = $derived(settings.v.windows.layouts);
 
   let name = $state('');
 
-  async function run(action: () => Promise<void>, done?: string) {
+  async function run(action: () => Promise<void>, done?: string): Promise<boolean> {
     try {
       await action();
       if (done) toast.success(done);
+      return true;
     } catch (e) {
       toast.error(errorText(e));
+      return false;
     }
+  }
+
+  /** Deletes at once; Undo saves the layout back into the list where it was. */
+  function remove(layout: Layout, at: number) {
+    void run(() => windowsIpc.deleteLayout(layout.name)).then((ok) => {
+      if (!ok) return;
+      toast.success(`Deleted "${layout.name}".`, {
+        action: {
+          label: 'Undo',
+          run: () => {
+            const now = settings.v.windows.layouts.filter((l) => l.name !== layout.name);
+            void settings.patch('windows', { layouts: [...now.slice(0, at), layout, ...now.slice(at)] });
+          },
+        },
+      });
+    });
   }
 
   function save(e: SubmitEvent) {
@@ -35,10 +54,10 @@
   <Button type="submit" variant="primary" small icon="plus" disabled={!name.trim()}>Save current</Button>
 </form>
 
-{#each layouts as layout (layout.name)}
+{#each layouts as layout, i (layout.name)}
   <Row label={layout.name} hint={`${Object.keys(layout.panels).length} pop-outs`}>
     <Button small onclick={() => run(() => windowsIpc.applyLayout(layout.name))}>Use</Button>
-    <Button variant="ghost" small icon="trash" onclick={() => run(() => windowsIpc.deleteLayout(layout.name))}>Delete</Button>
+    <Button variant="ghost" small icon="trash" onclick={() => remove(layout, i)}>Delete</Button>
   </Row>
 {:else}
   <p class="empty">No saved layouts yet.</p>

@@ -150,14 +150,14 @@
         {#each does as f (f.key)}{@render cell(f)}{/each}
       </div>
     </div>
-    <span class="del">{#if ondelete}<IconButton icon="trash" label="Remove" size={14} onclick={ondelete} />{/if}</span>
+    <span class="del">{#if ondelete}<IconButton icon="trash" label="Delete" size={14} onclick={ondelete} />{/if}</span>
     {#if problem}<p class="problem">{problem}</p>{:else if note}<p class="note">{note}</p>{/if}
   </div>
 {:else}
   <div class="rule" class:off={item.enabled === false} data-setting={setting}>
     {#if title}<span class="title">{title}</span>{/if}
     {#each shown as f (f.key)}{@render cell(f)}{/each}
-    {#if ondelete}<IconButton icon="trash" label="Remove" size={14} onclick={ondelete} />{/if}
+    {#if ondelete}<IconButton icon="trash" label="Delete" size={14} onclick={ondelete} />{/if}
     {#if problem}<p class="problem">{problem}</p>{:else if note}<p class="note">{note}</p>{/if}
   </div>
 {/if}
