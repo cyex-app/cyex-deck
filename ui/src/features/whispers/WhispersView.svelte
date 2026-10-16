@@ -32,6 +32,11 @@
   let selected = $state<string | null>(route.split('/')[1] || whispers.wanted);
   let query = $state('');
   let archived = $state(false);
+  /** Under this the list and the conversation stack: one at a time, the list first. */
+  const NARROW = 480;
+  let width = $state(0);
+  const narrow = $derived(width > 0 && width < NARROW);
+  let chatOpen = $state(false);
 
   const s = $derived(whispers.state);
   const q = $derived(query.trim().toLowerCase().replace(/^@/, ''));
@@ -54,12 +59,16 @@
 
   // Someone asked for a conversation (a name's menu, a toast, an inline line).
   $effect(() => {
-    if (whispers.asks && whispers.wanted) selected = whispers.wanted;
+    if (whispers.asks && whispers.wanted) {
+      selected = whispers.wanted;
+      chatOpen = true;
+    }
   });
 
   function pick(login: string) {
     selected = login;
     query = '';
+    chatOpen = true;
   }
 
   function more(e: MouseEvent) {
@@ -101,8 +110,8 @@
     {#if onsignin}<Button variant="primary" icon="login" onclick={onsignin}>Sign in</Button>{/if}
   </div>
 {:else}
-  <div class="whispers">
-    <aside>
+  <div class="whispers" class:narrow bind:clientWidth={width}>
+    <aside hidden={narrow && chatOpen}>
       <div class="top">
         <div class="search"><SearchField bind:value={query} label="Search or start a conversation" /></div>
         <IconButton icon="more" label="Options" hint="Mark all read, and who may whisper you." onclick={more} />
@@ -145,7 +154,10 @@
         {/if}
       </div>
     </aside>
-    <section>
+    <section hidden={narrow && !chatOpen}>
+      {#if narrow && selected}
+        <button class="back" onclick={() => (chatOpen = false)}><Icon name="chevronLeft" size={14} /> Conversations</button>
+      {/if}
       {#if selected}
         {#key selected}
           <Conversation login={selected} account={s.account.id} history={s.history} />
@@ -172,6 +184,30 @@
     grid-template-columns: minmax(220px, 300px) 1fr;
     min-height: 0;
     min-width: 0;
+  }
+  .whispers.narrow {
+    grid-template-columns: 1fr;
+  }
+  aside[hidden],
+  section[hidden] {
+    display: none;
+  }
+  .back {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    align-self: flex-start;
+    margin: 6px 8px 0;
+    padding: 4px 6px;
+    background: none;
+    border: 0;
+    border-radius: var(--radius);
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .back:hover {
+    color: var(--text);
+    background: var(--surface-hover);
   }
   aside {
     display: flex;
@@ -296,6 +332,7 @@
   }
   section {
     display: flex;
+    flex-direction: column;
     min-width: 0;
     min-height: 0;
     background: var(--page);
