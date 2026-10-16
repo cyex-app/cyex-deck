@@ -243,23 +243,30 @@
     cycle = { word: { start: target.start, end: target.start + items[0].length, text: items[0] }, items, index: 0 };
   }
 
+  /** A second Enter while one is on its way doesn't send twice. */
+  let sending = false;
+
   async function send(keep: boolean) {
     const value = text.trim();
-    if (!value || !canChat) return;
+    if (!value || !canChat || sending) return;
     // M11 A mod's `/pin <text>`: how long first, then send and pin.
     const pinned = pinText(value);
     if (pinned !== null && room.account && mods.role(room.account, room.login)) return askPin(room.account, value, pinned);
+    sending = true;
     try {
       const action = await chatIpc.send(room.view, value, replyTo?.id);
       error = '';
       if (action) onaction?.(action);
       sent = [value, ...sent.filter((s) => s !== value)].slice(0, HISTORY);
       recall = -1;
-      if (!keep) text = '';
+      // Text typed while it was sending stays.
+      if (!keep && text.trim() === value) text = '';
       replyTo = null;
     } catch (e) {
       error = String(e);
       setTimeout(() => (error = ''), 4000);
+    } finally {
+      sending = false;
     }
   }
 

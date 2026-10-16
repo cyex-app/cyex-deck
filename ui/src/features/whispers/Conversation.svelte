@@ -28,6 +28,9 @@
 
   let { login, account, history }: Props = $props();
 
+  /** Newest lines kept in the list. */
+  const MAX_LINES = 2000;
+
   let conv = $state.raw<WhisperConversation | null>(null);
   let messages = $state.raw<ChatMessage[]>([]);
   let cursor = $state<string | null>(null);
@@ -46,8 +49,14 @@
     untrack(() => void load(l));
   });
 
-  async function load(l: string) {
-    conv = null;
+  /** `fresh` empties the list first; a refresh of the same thread keeps it until the new one lands. */
+  async function load(l: string, fresh = true) {
+    if (fresh) {
+      conv = null;
+      messages = [];
+      cursor = null;
+      older = false;
+    }
     error = '';
     try {
       const c = await whispersIpc.open(l);
@@ -67,12 +76,12 @@
   $effect(() => {
     const line = whispersIpc.onLine((l) => {
       if (!conv || l.threadId !== conv.thread.id || messages.some((m) => m.id === l.message.id)) return;
-      messages = [...messages, l.message];
+      messages = [...messages, l.message].slice(-MAX_LINES);
       if (atBottom) void tick().then(bottom);
       if (document.hasFocus()) read();
     });
     const refresh = whispersIpc.onRefresh((id) => {
-      if (conv?.thread.id === id) void load(login);
+      if (conv?.thread.id === id) void load(login, false);
     });
     return () => {
       void line.then((f) => f());
@@ -117,17 +126,20 @@
     if (list.scrollTop > 60 || !cursor || older || !conv) return;
     older = true;
     const before = list.scrollHeight;
+    const id = conv.thread.id;
     try {
-      const page = await whispersIpc.older(conv.thread.id, cursor);
+      const page = await whispersIpc.older(id, cursor);
+      // Another thread opened meanwhile.
+      if (conv?.thread.id !== id) return;
       const known = new Set(messages.map((m) => m.id));
       messages = [...page.messages.filter((m) => !known.has(m.id)), ...messages];
       cursor = page.cursor;
       await tick();
       list.scrollTop += list.scrollHeight - before;
     } catch (e) {
-      toast.error(String(e));
+      if (conv?.thread.id === id) toast.error(String(e));
     } finally {
-      older = false;
+      if (conv?.thread.id === id) older = false;
     }
   }
 
@@ -218,7 +230,7 @@
   <div class="lines" bind:this={list} {onscroll} onclick={click}>
     {#if older}<p class="note">Loading…</p>{/if}
     {#if error}
-      <p class="note err">{error}</p>
+      <p class="note err">{error} <Button small onclick={() => void load(login)}>Retry</Button></p>
     {:else if !conv}
       <p class="note">Loading…</p>
     {:else if !messages.length}
