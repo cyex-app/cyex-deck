@@ -82,6 +82,10 @@
     text-align: center;
   }
   .hint {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     margin-left: auto;
     color: var(--dim);
     font-size: 0.75rem;

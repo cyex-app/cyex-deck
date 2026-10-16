@@ -15,7 +15,7 @@
   import { settings } from '../../lib/settings.svelte';
   import { complete, insert, wordAt, type Word } from './completion';
   import { formatNumber } from '../../lib/format';
-  import { commandAt, commandMatches } from './commandTab';
+  import { commandAt, commandHint, commandMatches } from './commandTab';
   import { argAt, argMatches } from './commandArgs';
   import { chatxIpc } from '../../ipc/chatx';
   import { pluginsIpc } from '../../ipc/plugins';
@@ -135,7 +135,9 @@
     if (seq !== argSeq) return;
     const found = typed ? commandMatches(typed, names, 12) : names.slice(0, 12).map((n) => `/${n}`);
     // Typed in full already: nothing left to offer.
-    const items = found.filter((v) => v !== word.text).map((v): Item => ({ value: v, label: v }));
+    const items = found
+      .filter((v) => v !== word.text)
+      .map((v): Item => ({ value: v, label: v, hint: commandHint(v.slice(1)) }));
     suggest = items.length ? { word, items, index: 0, arg: true } : null;
   }
 

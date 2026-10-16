@@ -2,6 +2,7 @@
 // it. Ranked with the emote completion's helper (V101-16); which commands a chat can use
 // comes from Rust. No list, no arguments.
 
+import { COMMAND_HINTS } from './commandHints.ts';
 import { complete, type Word } from './completion.ts';
 
 /** The command name typed so far when `word` is the message's first word and starts with
@@ -17,4 +18,10 @@ export function commandMatches(typed: string, names: readonly string[], limit = 
   if (!typed) return [];
   const exact = names.includes(typed) ? [typed] : [];
   return [...exact, ...complete(typed, names, limit - exact.length)].map((n) => `/${n}`);
+}
+
+/** A4 The one-line hint for a command (its first sentence), if the registry has one. */
+export function commandHint(name: string): string | undefined {
+  const s = COMMAND_HINTS[name.toLowerCase()];
+  return s?.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? s;
 }

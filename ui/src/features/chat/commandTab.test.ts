@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { commandAt, commandMatches } from './commandTab.ts';
+import { commandAt, commandHint, commandMatches } from './commandTab.ts';
 import { wordAt } from './completion.ts';
 
 const at = (text: string, caret = text.length) => commandAt(text, wordAt(text, caret));
@@ -43,4 +43,10 @@ test('V1041-01 nothing typed or nothing found: no matches', () => {
   assert.deepEqual(commandMatches('zzz', NAMES), []);
   assert.deepEqual(commandMatches('/ba', NAMES), []);
   assert.deepEqual(commandMatches('ba', []), []);
+});
+
+test('commandHint: first sentence, aliases, unknown', () => {
+  assert.equal(commandHint('set'), 'Saves a value your commands read with $get(var,key).');
+  assert.equal(commandHint('SO'), commandHint('shoutout'));
+  assert.equal(commandHint('nope'), undefined);
 });
