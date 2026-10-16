@@ -19,6 +19,8 @@ pub mod theme_code;
 mod transfer;
 
 #[cfg(test)]
+mod docs;
+#[cfg(test)]
 mod testutil;
 
 pub use backup::BACKUP_DAYS;
