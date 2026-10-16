@@ -236,7 +236,7 @@
   {:else if engine?.waiting}
     <div class="busy"><Loading video size="large" /></div>
   {/if}
-  {#if stats && engine}<Stats read={() => engine!.stats()} onclose={() => (stats = false)} />{/if}
+  {#if stats && engine}<Stats read={() => engine!.stats()} {video} onclose={() => (stats = false)} />{/if}
 
   {#snippet top()}
     <div class="title">

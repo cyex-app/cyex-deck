@@ -297,7 +297,7 @@
     {/if}
     {#if !mini}<Celebration login={tile.channel.login} />{/if}
     {#if stats && engine}
-      <Stats read={() => engine!.stats()} onclose={() => (stats = false)} />
+      <Stats read={() => engine!.stats()} {video} onclose={() => (stats = false)} />
     {/if}
     {#if mini}
       <div class="mini-bar">
