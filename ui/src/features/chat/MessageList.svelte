@@ -36,6 +36,7 @@
   import { lineKind, pluginItems } from '../plugins/pluginMenus';
   import { plugins } from '../plugins/plugins.svelte';
   import { glideMs } from './glide';
+  import { nameMenu } from './nameMenu';
   import Line from './Line.svelte';
   import { runEntry, toItems, userMenus } from './menus.svelte';
   import { roomRoute } from './roomRoute';
@@ -43,7 +44,6 @@
   import { readMarks, type ChatRoom } from './room.svelte';
   import { stripes } from './stripes';
   import { whispers } from '../whispers/whispers.svelte';
-  import { accounts } from '../../lib/accounts.svelte';
   import { errorText } from '../../lib/errors';
   import { copy } from '../../lib/clipboard';
 
@@ -360,11 +360,17 @@
   }
 
   /** Runs a typed command for the menus, e.g. `/hideuser x`. */
-  function command(text: string) {
-    chatIpc
+  function command(text: string): Promise<boolean> {
+    return chatIpc
       .send(room.view, text)
-      .then((a) => a && onaction?.(a))
-      .catch((err) => toast.error(errorText(err)));
+      .then((a) => {
+        if (a) onaction?.(a);
+        return true;
+      })
+      .catch((err) => {
+        toast.error(errorText(err));
+        return false;
+      });
   }
 
   function context(m: ChatMessage | undefined, login: string) {
@@ -391,33 +397,23 @@
     return undefined;
   }
 
-  /** Right-click a name: usercard, mention, search, mod actions, hide or block, your own (S1),
-   * plugins' (S11). Same order as every menu (V101-30): main action, others, go somewhere,
-   * copy, then red last. */
+  /** Right-click a name: the same menu as in the viewer list (nameMenu.ts). */
   function userMenu(e: MouseEvent, login: string, m: ChatMessage | undefined) {
-    const own = userMenus.current.user;
-    const ctx = context(m, login);
-    // 1.57 Mod actions only when this account moderates here, and not on the broadcaster.
-    const role = mods.role(room.account, room.login);
-    const canMod = role && login !== room.login;
-    openMenu(e, [
-      { label: 'Usercard', icon: 'user', run: () => chatIpc.openUsercard(room.login, login).catch(() => {}) },
-      { label: 'Mention', icon: 'reply', run: () => onmention?.(login) },
-      ...(accounts.can('whispers') ? [{ label: 'Whisper', icon: 'whisper' as const, run: () => whispers.show(login) }] : []),
-      { label: 'Their messages', icon: 'search', run: () => onaction?.({ type: 'search', query: `from:${login}` }) },
-      { label: 'Copy name', icon: 'copy', run: () => void copy(login, 'Name') },
-      ...(canMod ? ['separator' as const, ...userItems(role, login, command, warn(login), standingOf(badgesOf(login, m)))] : []),
-      'separator',
-      { label: 'Hide for me', icon: 'eyeOff', note: 'Only for you, not on Twitch', run: () => command(`/hideuser ${login}`) },
-      ...(room.account ? [{ label: 'Block on Twitch', icon: 'ban' as const, danger: true, run: () => command(`/block ${login}`) }] : []),
-      ...(own.length ? ['separator' as const, ...toItems(own, (cmd) => runEntry(room.view, cmd, ctx, onaction))] : []),
-      'separator',
-      ...pluginItems(plugins.menus, 'name', null, (p) =>
-        pluginsIpc
-          .runName(p.plugin, p.index, room.login, login, room.view, m?.id ?? null)
-          .catch((err) => toast.error(errorText(err))),
-      ),
-    ]);
+    openMenu(
+      e,
+      nameMenu({
+        channel: room.login,
+        account: room.account,
+        view: room.view,
+        login,
+        msg: m,
+        standing: standingOf(badgesOf(login, m)),
+        run: command,
+        onaction,
+        onmention,
+        onprefill,
+      }),
+    );
   }
 
   /** Right-click a message: reply, copy, translate (C17), your own entries (S1), plugins' (S5). */

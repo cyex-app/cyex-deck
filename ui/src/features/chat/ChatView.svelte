@@ -315,6 +315,7 @@
         hint="Delete, timeout and ban buttons in front of each message."
         size={15}
         active={modMode}
+        toggle
         onclick={() => mods.setModMode(login, !modMode)}
       />
       {#if onmodview}
@@ -324,6 +325,7 @@
           hint="Mod tools for this chat."
           size={15}
           active={modviewOpen}
+          toggle
           onclick={onmodview}
         />
       {/if}
@@ -334,6 +336,7 @@
       hint="Who’s in this chat."
       size={15}
       active={viewers}
+      toggle
       onclick={() => (viewers = !viewers)}
     />
     {@render actions?.()}
@@ -378,7 +381,15 @@
     />
     <!-- V101-35 Over the messages, so the list keeps its place underneath. -->
     {#if viewers}
-      <div class="viewers"><ViewerList account={room.account} {login} onclose={() => (viewers = false)} /></div>
+      <div class="viewers"><ViewerList
+          account={room.account}
+          {login}
+          view={room.view}
+          onclose={() => (viewers = false)}
+          onmention={(l) => input?.mention(l)}
+          onprefill={(t) => input?.prefill(t)}
+          {onaction}
+        /></div>
     {/if}
     {#if cosmeticsOpen && account}<CosmeticsPopup {account} onclose={closeCosmetics} />{/if}
   </div>

@@ -3,6 +3,7 @@
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import { layer } from '../../lib/escape';
+  import { firstField, focusScope } from '../../lib/focusScope';
   import { floating } from '../../lib/place';
   import EmoteMenu from '../emotes/EmoteMenu.svelte';
 
@@ -16,18 +17,21 @@
 
   let open = $state(false);
   let wrap = $state<HTMLElement>();
+  let pop = $state<HTMLElement>();
 
   $effect(() => {
-    if (!open) return;
+    if (!open || !pop) return;
     // A click in the shared menu (right-click > Add to favorites) stays inside the picker.
     const down = (e: MouseEvent) => {
       const t = e.target as Element;
       if (wrap && !wrap.contains(t) && !t.closest?.('[data-shared-menu]')) open = false;
     };
     const off = layer('popover', () => (open = false));
+    const release = focusScope(pop, { initial: firstField });
     addEventListener('mousedown', down, true);
     return () => {
       off();
+      release();
       removeEventListener('mousedown', down, true);
     };
   });
@@ -38,7 +42,7 @@
     <Icon name="smile" size={17} />
   </button>
   {#if open}
-    <div class="pop" use:floating={{ anchor: wrap, side: 'above', align: 'end', gap: 8 }}>
+    <div class="pop" bind:this={pop} tabindex="-1" use:floating={{ anchor: wrap, side: 'above', align: 'end', gap: 8 }}>
       <EmoteMenu {login} {account} {oninsert} />
     </div>
   {/if}

@@ -1,11 +1,13 @@
 <!-- 1.43 GIFs from GIPHY, for subs at Tier 2 and up where the channel allows them.
      Opens above the message box; empty search shows what's trending. A click sends. -->
 <script lang="ts">
-  import Icon from '../../components/Icon.svelte';
+  import SearchField from '../../components/SearchField.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { Gif } from '../../ipc/bindings/Gif';
   import type { GifInfo } from '../../ipc/bindings/GifInfo';
   import { chatxIpc } from '../../ipc/chatx';
+  import { layer } from '../../lib/escape';
+  import { firstField, focusScope } from '../../lib/focusScope';
   import { floating } from '../../lib/place';
   import { toast } from '../../lib/toast.svelte';
   import type { ChatRoom } from './room.svelte';
@@ -23,19 +25,21 @@
   let busy = $state(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
 
+  let pop = $state<HTMLElement>();
+
+  // Escape clears the search first, then closes; focus returns to the GIF button.
   $effect(() => {
-    if (!open) return;
+    if (!open || !pop) return;
+    const off = layer('popover', () => (open = false));
+    const release = focusScope(pop, { initial: firstField });
     const down = (e: MouseEvent) => {
       if (wrap && !wrap.contains(e.target as Node)) open = false;
     };
-    const key = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') open = false;
-    };
     addEventListener('mousedown', down, true);
-    addEventListener('keydown', key);
     return () => {
+      off();
+      release();
       removeEventListener('mousedown', down, true);
-      removeEventListener('keydown', key);
     };
   });
 
@@ -80,7 +84,7 @@
     busy = true;
     try {
       const r = await chatxIpc.gifSend(room.view, g, query.trim());
-      if (r.error) toast.error(r.waitSecs ? `Wait ${r.waitSecs}s before the next GIF.` : `Twitch said no (${r.error}).`);
+      if (r.error) toast.error(r.waitSecs ? `Wait ${r.waitSecs}s before the next GIF.` : 'Couldn’t send that GIF.');
       else open = false;
     } catch (e) {
       toast.error(errorText(e));
@@ -101,20 +105,16 @@
 <div class="wrap" bind:this={wrap}>
   <button class="gif-btn" class:on={open} aria-label="GIFs" use:tooltip={{ label: 'GIFs', hint: 'Search and send a GIF here.' }} onclick={toggle}>GIF</button>
   {#if open}
-    <div class="pop" use:floating={{ anchor: wrap, side: 'above', align: 'end', gap: 8 }}>
+    <div class="pop" bind:this={pop} role="dialog" aria-label="GIFs" tabindex="-1" use:floating={{ anchor: wrap, side: 'above', align: 'end', gap: 8 }}>
       {#if !info}
         <Loading />
       {:else if !info.canSend}
         <p class="note">{info.reason ?? 'GIFs aren’t available here.'}</p>
       {:else}
-        <div class="bar">
-          <Icon name="search" size={14} />
-          <!-- svelte-ignore a11y_autofocus -->
-          <input class="field" placeholder="Search GIPHY" bind:value={query} {oninput} autofocus spellcheck="false" />
-        </div>
+        <SearchField bind:value={query} placeholder="Search GIPHY" small autofocus {oninput} />
         <div class="grid" {onscroll}>
           {#each gifs as g (g.id)}
-            <button class="gif" disabled={busy} onclick={() => send(g)} title={g.title}>
+            <button class="gif" disabled={busy} onclick={() => send(g)} use:tooltip={g.title}>
               <img src={g.preview} alt={g.title} loading="lazy" style:aspect-ratio="{g.width} / {g.height}" />
             </button>
           {:else}
@@ -158,17 +158,7 @@
     background: var(--elevated);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
-    box-shadow: 0 6px 20px var(--shadow);
-  }
-  .bar {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--dim);
-  }
-  .bar .field {
-    flex: 1;
-    height: 28px;
+    box-shadow: var(--shadow-pop);
   }
   .grid {
     flex: 0 1 auto;

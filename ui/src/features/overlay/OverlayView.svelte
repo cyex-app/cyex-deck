@@ -106,6 +106,7 @@
     <IconButton
       icon="pointer"
       active={clickThrough}
+      toggle
       label={clickThrough ? 'Take clicks back' : 'Let clicks through'}
       hint={clickThrough
         ? 'The overlay takes the mouse again.'

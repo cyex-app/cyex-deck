@@ -4,30 +4,50 @@
      with Unmod or Remove VIP for those who are one (M12), and plugins' entries (S11). Used
      in chat and the mod view. -->
 <script lang="ts">
-  import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
-  import { openMenu, type MenuEntry } from '../../components/menu.svelte';
+  import { openMenu } from '../../components/menu.svelte';
+  import SearchField from '../../components/SearchField.svelte';
+  import type { UiAction } from '../../ipc/bindings/UiAction';
   import type { Chatters } from '../../ipc/bindings/Chatters';
   import { chatIpc } from '../../ipc/chat';
   import { modIpc } from '../../ipc/moderation';
-  import { pluginsIpc } from '../../ipc/plugins';
   import { formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
-  import { mods, userItems } from '../modview/moderation.svelte';
   import type { Standing } from '../modview/standing';
-  import { pluginItems } from '../plugins/pluginMenus';
-  import { plugins } from '../plugins/plugins.svelte';
+  import { layer } from '../../lib/escape';
+  import { firstField, focusScope } from '../../lib/focusScope';
+  import { nameMenu } from './nameMenu';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
-  import { copy } from '../../lib/clipboard';
 
   interface Props {
     account: string | null;
     login: string;
     onclose?: () => void;
+    /** In a chat: the menu can mention, search their messages and prefill a warning. */
+    onmention?: (login: string) => void;
+    onaction?: (a: UiAction) => void;
+    onprefill?: (text: string) => void;
+    /** The chat view, for your own menu entries. */
+    view?: number | null;
   }
 
-  let { account, login, onclose }: Props = $props();
+  let { account, login, onclose, onmention, onaction, onprefill, view = null }: Props = $props();
+
+  let root = $state<HTMLElement>();
+
+  // Over a chat it acts like a popup: Escape closes it (after clearing the search), focus
+  // starts in the search box and goes back to the button that opened it.
+  $effect(() => {
+    if (!onclose || !root) return;
+    const close = onclose;
+    const off = layer('popover', close);
+    const release = focusScope(root, { initial: firstField });
+    return () => {
+      off();
+      release();
+    };
+  });
 
   /** Names drawn per group; a filter finds the rest. */
   const SHOWN = 500;
@@ -71,45 +91,38 @@
   }
 
   /** `/timeout name 600` through the mod path, as the usercard runs it. */
-  function run(line: string) {
-    if (!account) return;
+  function run(line: string): Promise<boolean> {
+    if (!account) return Promise.resolve(false);
     const [cmd, ...args] = line.slice(1).split(' ');
-    modIpc
+    return modIpc
       .run(account, login, cmd, args.join(' '))
-      .then((said) => said && toast.info(said))
-      .catch((e) => toast.error(errorText(e)));
+      .then((said) => {
+        if (said) toast.info(said);
+        return true;
+      })
+      .catch((e) => {
+        toast.error(errorText(e));
+        return false;
+      });
   }
 
-  /** C36 Right-click a name: usercard and copy, plus mod actions where the account moderates,
-   * then plugins' entries (S11). */
+  /** C36 Right-click a name: the chat's name menu (nameMenu.ts). */
   function menu(e: MouseEvent, name: string, is: Standing) {
     e.preventDefault();
-    const role = mods.role(account, login);
-    const items: MenuEntry[] = [
-      { label: 'Usercard', icon: 'user', run: () => open(name) },
-      { label: 'Copy name', icon: 'copy', run: () => void copy(name, 'Name') },
-    ];
-    if (role && name !== login) items.push('separator', ...userItems(role, name, run, () => open(name), is));
-    items.push(
-      'separator',
-      ...pluginItems(plugins.menus, 'name', null, (p) =>
-        pluginsIpc.runName(p.plugin, p.index, login, name, null, null).catch((err) => toast.error(errorText(err))),
-      ),
+    openMenu(
+      e,
+      nameMenu({ channel: login, account, view, login: name, standing: is, run, onaction, onmention, onprefill }),
     );
-    openMenu(e, items);
   }
 </script>
 
-<div class="viewers">
+<div class="viewers" bind:this={root}>
   <div class="bar">
     <span class="count">{data ? `${formatNumber(Number(data.count))} in chat` : 'Viewers'}</span>
     <IconButton icon="refresh" label="Refresh" size={14} disabled={loading} onclick={load} />
-    {#if onclose}<IconButton icon="x" label="Back to chat" size={14} onclick={onclose} />{/if}
+    {#if onclose}<IconButton icon="x" label="Close" size={14} onclick={onclose} />{/if}
   </div>
-  <label class="search">
-    <Icon name="search" size={13} />
-    <input bind:value={query} placeholder="Find someone" spellcheck="false" autocomplete="off" />
-  </label>
+  <div class="find"><SearchField bind:value={query} placeholder="Find someone" small /></div>
   <div class="list">
     {#if error}
       <p class="note">Couldn’t load the list: {error}</p>
@@ -156,29 +169,8 @@
     flex: 1;
     font-weight: 600;
   }
-  .search {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    height: 28px;
+  .find {
     margin: 0 8px 6px;
-    padding: 0 8px;
-    background: var(--surface);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius);
-    color: var(--dim);
-  }
-  .search:focus-within {
-    border-color: var(--accent-border);
-  }
-  .search input {
-    flex: 1;
-    min-width: 0;
-    background: none;
-    border: 0;
-    outline: 0;
-    color: var(--text);
-    font-size: 0.85rem;
   }
   .list {
     flex: 1;

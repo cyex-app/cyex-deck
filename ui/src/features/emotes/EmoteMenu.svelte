@@ -6,6 +6,7 @@
 
   import Icon from '../../components/Icon.svelte';
   import { openMenu } from '../../components/menu.svelte';
+  import SearchField from '../../components/SearchField.svelte';
   import { hideTip, showTip } from '../../components/tooltip.svelte';
   import type { EmoteKey } from '../../ipc/bindings/EmoteKey';
   import type { EmoteMenu } from '../../ipc/bindings/EmoteMenu';
@@ -43,7 +44,6 @@
   const CAP = 240;
   let extra = $state<Record<string, number>>({});
   const cap = (id: string) => CAP + (extra[id] ?? 0);
-  let input = $state<HTMLInputElement>();
 
   const theme = $derived(settings.v.appearance.theme);
   const saved = $derived(settings.v.emotes);
@@ -61,7 +61,6 @@
   const foundEmoji = $derived(emoji && query.trim() ? findEmoji(emoji, query.trim(), 40) : []);
 
   onMount(() => {
-    input?.focus();
     // A tip shown for one of the cells shouldn't outlive the menu.
     return hideTip;
   });
@@ -106,7 +105,7 @@
     const on = favorite.has(k);
     openMenu(e, [
       {
-        label: on ? 'Remove from favorites' : 'Add to favorites',
+        label: on ? 'Unfavorite' : 'Favorite',
         icon: on ? 'starFilled' : 'star',
         run: () =>
           void settings.patch('emotes', {
@@ -171,10 +170,7 @@
 
 <div class="menu" role="dialog" aria-label="Emotes">
   <div class="top">
-    <label class="search">
-      <Icon name="search" size={13} />
-      <input bind:this={input} bind:value={query} placeholder="Find an emote" spellcheck="false" autocomplete="off" />
-    </label>
+    <SearchField bind:value={query} placeholder="Find an emote" small autofocus />
   </div>
   <div class="tabs" role="tablist">
     {#each tabs as t (t)}
@@ -268,33 +264,10 @@
     background: var(--elevated);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
-    box-shadow: 0 8px 24px var(--shadow);
+    box-shadow: var(--shadow-pop);
   }
   .top {
     padding: 8px 8px 6px;
-  }
-  .search {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    height: 28px;
-    padding: 0 8px;
-    background: var(--surface);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius);
-    color: var(--dim);
-  }
-  .search:focus-within {
-    border-color: var(--accent-border);
-  }
-  .search input {
-    flex: 1;
-    min-width: 0;
-    background: none;
-    border: 0;
-    outline: 0;
-    color: var(--text);
-    font-size: 0.85rem;
   }
   .tabs {
     display: flex;

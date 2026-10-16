@@ -2,12 +2,14 @@
      `regex:`, `is:` …), or every open chat at once (C29). Results come from Rust's
      buffers, newest at the bottom. -->
 <script lang="ts">
-  import { onMount } from 'svelte';
-
   import Checkbox from '../../components/Checkbox.svelte';
-  import Icon from '../../components/Icon.svelte';
+  import IconButton from '../../components/IconButton.svelte';
+  import SearchField from '../../components/SearchField.svelte';
   import type { FeedLine } from '../../ipc/bindings/FeedLine';
   import { chatxIpc } from '../../ipc/chatx';
+  import { layer } from '../../lib/escape';
+  import { firstField, focusScope } from '../../lib/focusScope';
+  import { formatNumber } from '../../lib/format';
   import { lineClick } from './clicks';
   import Line from './Line.svelte';
 
@@ -27,13 +29,22 @@
   // svelte-ignore state_referenced_locally
   let everywhere = $state(all);
   let results = $state.raw<FeedLine[]>([]);
-  let input = $state<HTMLInputElement>();
+  let root = $state<HTMLElement>();
   let list = $state<HTMLElement>();
   let timer: ReturnType<typeof setTimeout> | undefined;
   /** Newest hits drawn; a longer list would be a wall of full lines. */
   const MAX_HITS = 300;
 
-  onMount(() => input?.focus());
+  // Escape clears the text first, then closes; focus goes back to where the search was opened from.
+  $effect(() => {
+    if (!root) return;
+    const off = layer('popover', onclose);
+    const release = focusScope(root, { initial: firstField });
+    return () => {
+      off();
+      release();
+    };
+  });
 
   $effect(() => {
     const q = text;
@@ -55,30 +66,15 @@
       clearTimeout(timer);
     };
   });
-
-  function onkeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
-      e.stopPropagation();
-      onclose();
-    }
-  }
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="search" {onkeydown}>
+<div class="search" bind:this={root} role="dialog" aria-label="Search chat" tabindex="-1">
   <div class="bar">
-    <Icon name="search" size={14} />
-    <input
-      bind:this={input}
-      bind:value={text}
-      class="field"
-      placeholder="Search · from:name has:link badge:mod regex:…"
-      spellcheck="false"
-    />
+    <span class="box"><SearchField bind:value={text} placeholder="Search · from:name has:link badge:mod regex:…" label="Search messages" small autofocus /></span>
     <span class="all"><Checkbox label="All chats" checked={everywhere} onchange={(v) => (everywhere = v)} /></span>
-    <button class="x" aria-label="Close" onclick={onclose}><Icon name="x" size={14} /></button>
+    <IconButton icon="x" label="Close" size={14} onclick={onclose} />
   </div>
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="results" bind:this={list} onclick={lineClick}>
     {#each results as r (`${r.channel}/${r.message.id}`)}
       <div data-channel={r.channel}>
@@ -89,14 +85,14 @@
       <p class="muted">{text.trim() ? 'Nothing found.' : `Type to search ${everywhere ? 'every open chat' : channel}.`}</p>
     {/each}
   </div>
-  {#if results.length}<p class="count">{results.length} found</p>{/if}
+  {#if results.length}<p class="count">{formatNumber(results.length)} found</p>{/if}
 </div>
 
 <style>
   .search {
     position: absolute;
     inset: 0;
-    z-index: 5;
+    z-index: var(--z-panel);
     display: flex;
     flex-direction: column;
     background: var(--bg);
@@ -109,28 +105,14 @@
     border-bottom: 1px solid var(--border);
     color: var(--dim);
   }
-  .bar .field {
+  .box {
     flex: 1;
     min-width: 0;
-    height: 28px;
   }
   .all {
     color: var(--muted);
     font-size: 0.78rem;
     white-space: nowrap;
-  }
-  .x {
-    display: grid;
-    place-items: center;
-    width: 26px;
-    height: 26px;
-    padding: 0;
-    background: none;
-    border: 0;
-    color: var(--dim);
-  }
-  .x:hover {
-    color: var(--text);
   }
   .results {
     flex: 1;

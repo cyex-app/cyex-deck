@@ -2,11 +2,14 @@
      window (V101-04). Shows where the emote comes from, who made and added it, what's
      stacked on it, and links to its page. Closes on Escape, a click elsewhere, or scrolling. -->
 <script lang="ts">
-  import Icon from '../../components/Icon.svelte';
+  import Button from '../../components/Button.svelte';
+  import { tooltip } from '../../components/tooltip.svelte';
   import type { EmoteCard } from '../../ipc/bindings/EmoteCard';
   import type { Layer } from '../../ipc/bindings/Layer';
   import { emotesIpc } from '../../ipc/emotes';
   import { systemIpc } from '../../ipc/system';
+  import { layer } from '../../lib/escape';
+  import { focusScope } from '../../lib/focusScope';
   import { formatDate } from '../../lib/format';
   import { floating } from '../../lib/place';
   import { settings } from '../../lib/settings.svelte';
@@ -56,14 +59,15 @@
     const down = (ev: MouseEvent) => {
       if (box && !box.contains(ev.target as Node)) onclose();
     };
-    const key = (ev: KeyboardEvent) => ev.key === 'Escape' && onclose();
+    const off = layer('popover', onclose);
+    const release = box ? focusScope(box) : undefined;
     addEventListener('mousedown', down, true);
-    addEventListener('keydown', key);
     addEventListener('wheel', onclose, { passive: true });
     addEventListener('blur', onclose);
     return () => {
       removeEventListener('mousedown', down, true);
-      removeEventListener('keydown', key);
+      off();
+      release?.();
       removeEventListener('wheel', onclose);
       removeEventListener('blur', onclose);
     };
@@ -95,6 +99,7 @@
   style:width="{WIDTH}px"
   role="dialog"
   aria-label={shown.name}
+  tabindex="-1"
 >
   <div class="head">
     <div class="tile">
@@ -117,7 +122,7 @@
       {#if info.channel}<dt>Channel</dt><dd>{info.channel}</dd>{/if}
       {#if info.owner}<dt>{shown.provider === 'twitch' ? 'Artist' : 'By'}</dt><dd>{info.owner}</dd>{/if}
       {#if info.addedBy}<dt>Added by</dt><dd>{info.addedBy}</dd>{/if}
-      {#if added}<dt>Added</dt><dd title={info.addedAt ?? undefined}>{added}</dd>{/if}
+      {#if added}<dt>Added</dt><dd use:tooltip={info.addedAt ?? ""}>{added}</dd>{/if}
     </dl>
   {:else if failed}
     <p class="note">Couldn’t load the details.</p>
@@ -138,17 +143,17 @@
 
   <div class="foot">
     {#if info?.page}
-      <button class="link" onclick={() => open(info!.page!)}><Icon name="popout" size={13} />Emote page</button>
+      <Button variant="link" small icon="popout" onclick={() => open(info!.page!)}>Emote page</Button>
     {/if}
     <span class="grow"></span>
     {#if info?.unlisted && settings.v.chat.unlistedEmotes !== 'hide'}
       <!-- V102-01 The same switch as the emote's menu. -->
-      <button class="link" onclick={flipUnlisted} data-tip="All unlisted emotes, every chat">
-        <Icon name={unlistedBlurred() ? 'eye' : 'eyeOff'} size={13} />{unlistedBlurred() ? 'Unblur' : 'Blur'}
-      </button>
+      <span use:tooltip={'All unlisted emotes, every chat'}>
+        <Button variant="link" small icon={unlistedBlurred() ? 'eye' : 'eyeOff'} onclick={flipUnlisted}>{unlistedBlurred() ? 'Unblur' : 'Blur'}</Button>
+      </span>
     {/if}
-    <button class="link" onclick={() => void copy(shown.name, 'Emote name')}><Icon name="copy" size={13} />Copy</button>
-    <button class="link" onclick={hide}><Icon name="eyeOff" size={13} />Hide</button>
+    <Button variant="link" small icon="copy" onclick={() => void copy(shown.name, 'Emote name')}>Copy</Button>
+    <Button variant="link" small icon="eyeOff" onclick={hide}>Hide</Button>
   </div>
 </div>
 
@@ -160,8 +165,8 @@
     background: var(--elevated);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
-    box-shadow: 0 8px 24px var(--shadow);
-    animation: in 0.18s ease-out;
+    box-shadow: var(--shadow-pop);
+    animation: in var(--base) ease-out;
     font-size: 0.85rem;
   }
   @keyframes in {
@@ -270,18 +275,5 @@
   }
   .grow {
     flex: 1;
-  }
-  .link {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 0;
-    background: none;
-    border: 0;
-    color: var(--accent-text);
-    font-size: 0.8rem;
-  }
-  .link:hover {
-    text-decoration: underline;
   }
 </style>

@@ -93,6 +93,7 @@
       hint="Only you see them."
       size={14}
       active={editing}
+      toggle
       onclick={() => (editing = !editing)}
     />
     <IconButton
@@ -101,6 +102,7 @@
       hint="In every chat. Color and sound in Settings → Highlights."
       size={14}
       active={bell}
+      toggle
       onclick={flipBell}
     />
     {#if logsUrl}

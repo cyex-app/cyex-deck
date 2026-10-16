@@ -362,6 +362,7 @@
       hint="Mod tools for this channel."
       size={15}
       active={modOpen}
+      toggle
       onclick={toggleMod}
     />
   {/if}
