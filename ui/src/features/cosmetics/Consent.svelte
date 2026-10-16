@@ -12,6 +12,12 @@
   }
 
   let { name, inline, onallow, oncancel }: Props = $props();
+
+  // V1051-02 The inline card takes focus (on Allow) and Escape means Cancel, like the dialog.
+  let row = $state<HTMLElement>();
+  $effect(() => {
+    row?.querySelector<HTMLElement>('button:last-of-type')?.focus();
+  });
 </script>
 
 {#snippet text()}
@@ -26,10 +32,19 @@
 {/snippet}
 
 {#if inline}
-  <section class="card">
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <section
+    class="card"
+    aria-label="Use 7TV with {name}?"
+    onkeydown={(e) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      oncancel();
+    }}
+  >
     <h2>Use 7TV with {name}?</h2>
     {@render text()}
-    <div class="row">{@render buttons()}</div>
+    <div class="row" bind:this={row}>{@render buttons()}</div>
   </section>
 {:else}
   <Dialog title="Use 7TV with {name}?" width={420} onclose={oncancel}>

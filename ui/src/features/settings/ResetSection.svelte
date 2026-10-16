@@ -4,7 +4,7 @@
   import type { Partition } from '../../ipc/bindings/Partition';
   import { settings } from '../../lib/settings.svelte';
 
-  let { partition }: { partition: Partition } = $props();
+  let { partition, onreset }: { partition: Partition; onreset?: () => void } = $props();
 
   let armed = $state(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -17,7 +17,7 @@
     }
     clearTimeout(timer);
     armed = false;
-    void settings.reset(partition);
+    void settings.reset(partition).then(() => onreset?.());
   }
 </script>
 

@@ -15,9 +15,8 @@
   let show = $state(false);
   // The headers live in the credential store; the settings value is always empty.
   let headers = $state('');
-  $effect(() => {
-    void settingsIpc.uploaderHeaders().then((h) => (headers = h));
-  });
+  const loadHeaders = () => void settingsIpc.uploaderHeaders().then((h) => (headers = h));
+  $effect(loadHeaders);
   const saveHeaders = (value: string) => {
     headers = value;
     save({ headers: value });
@@ -110,7 +109,8 @@
   />
 </Row>
 
-<ResetSection partition="uploader" />
+<!-- The reset clears the stored headers too: read them again. -->
+<ResetSection partition="uploader" onreset={loadHeaders} />
 
 <style>
   .intro {

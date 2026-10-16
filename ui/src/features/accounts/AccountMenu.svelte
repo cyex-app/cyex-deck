@@ -13,7 +13,13 @@
   import { toast } from '../../lib/toast.svelte';
   import { accountName, accountNeedsAttention } from './status';
 
-  let { onmanage, onsubs, oncosmetics }: { onmanage: () => void; onsubs: () => void; oncosmetics: () => void } = $props();
+  // V1051-02 `active`: the 7TV view is open, so the button shows where you are.
+  let {
+    onmanage,
+    onsubs,
+    oncosmetics,
+    active = false,
+  }: { onmanage: () => void; onsubs: () => void; oncosmetics: () => void; active?: boolean } = $props();
 
   const current = $derived(accounts.current);
   const attention = $derived(accounts.list.some(accountNeedsAttention));
@@ -53,6 +59,7 @@
 {#if current}
   <button
     class="trigger"
+    class:active
     aria-label="Accounts"
     onclick={show}
     use:tooltip={{ label: current.displayName, hint: 'Switch the default account or manage accounts.' }}
@@ -78,6 +85,9 @@
   }
   .trigger:hover {
     background: var(--surface-hover);
+  }
+  .trigger.active {
+    background: var(--accent-dim);
   }
   .dot {
     position: absolute;

@@ -137,7 +137,8 @@
     <span class="status" class:muted={!account.seventv.consent}>
       {#if !account.seventv.consent}Not used{:else if account.seventv.signedIn}{account.seventv.until ? `Signed in until ${account.seventv.until}` : 'Signed in'}{:else}Not signed in{/if}
     </span>
-    {#if account.seventv.signedIn}
+    <!-- V1051-02 A session only counts with consent; Sign out never shows beside "Not used". -->
+    {#if account.seventv.consent && account.seventv.signedIn}
       <Button small variant="ghost" onclick={() => attempt(() => cosmeticsIpc.signOut(account.userId))}>Sign out</Button>
     {/if}
     {#if account.seventv.consent}
