@@ -12,6 +12,8 @@
   import ConfirmButton from '../../components/ConfirmButton.svelte';
   import { shares } from './logic';
   import { errorText } from '../../lib/errors';
+  import Select from '../../components/Select.svelte';
+  import IconButton from '../../components/IconButton.svelte';
 
   const WINDOWS = [30, 60, 120, 300, 600, 1800];
 
@@ -43,7 +45,7 @@
       .then(() => {
         title = '';
         outcomes = ['', ''];
-        toast.info('Prediction started.');
+        toast.success('Prediction started.');
         votes.watch(login);
       })
       .catch((e) => toast.error(errorText(e)))
@@ -56,7 +58,7 @@
     smIpc
       .endPrediction(p.id, how)
       .then(() => {
-        toast.info(done);
+        toast.success(done);
         votes.watch(login);
       })
       .catch((e) => toast.error(errorText(e)))
@@ -89,7 +91,7 @@
           {#if p.status === 'LOCKED'}
             <ConfirmButton
               label="Winner"
-              confirm={`Pay out ${o.title}?`}
+              confirm="Click again to pay out"
               disabled={busy}
               onconfirm={() => end({ kind: 'resolve', winner: o.id }, `Paid out ${o.title}.`)}
             />
@@ -118,19 +120,23 @@
       <div class="line">
         <input class="field grow" placeholder="Outcome {i + 1}" maxlength="25" bind:value={outcomes[i]} />
         {#if outcomes.length > 2}
-          <button class="x" aria-label="Remove outcome" onclick={() => (outcomes = outcomes.filter((_, j) => j !== i))}>×</button>
+          <IconButton icon="x" label="Remove outcome" size={14} onclick={() => (outcomes = outcomes.filter((_, j) => j !== i))} />
         {/if}
       </div>
     {/each}
     <div class="line">
       {#if outcomes.length < 10}
-        <button class="link" onclick={() => (outcomes = [...outcomes, ''])}>Add an outcome</button>
+        <Button small variant="link" onclick={() => (outcomes = [...outcomes, ''])}>Add an outcome</Button>
       {/if}
       <span class="grow"></span>
-      <label class="note" for="sm-window">Betting open</label>
-      <select id="sm-window" class="field small" bind:value={betWindow}>
-        {#each WINDOWS as w (w)}<option value={w}>{formatDuration(w)}</option>{/each}
-      </select>
+      <span class="note">Betting open</span>
+      <Select
+        label="Betting open"
+        width="110px"
+        value={String(betWindow)}
+        options={WINDOWS.map((w) => ({ value: String(w), label: formatDuration(w) }))}
+        onchange={(v) => (betWindow = Number(v))}
+      />
     </div>
     <div class="line">
       <Button small variant="primary" disabled={!ready || busy} onclick={start}>Start prediction</Button>
@@ -187,27 +193,5 @@
   }
   .grow {
     flex: 1;
-  }
-  .small {
-    height: 26px;
-    padding: 0 6px;
-  }
-  .x,
-  .link {
-    background: none;
-    border: 0;
-    padding: 0 4px;
-    color: var(--muted);
-    cursor: pointer;
-  }
-  .x {
-    font-size: 1rem;
-  }
-  .link {
-    font-size: 0.8rem;
-  }
-  .x:hover,
-  .link:hover {
-    color: var(--text);
   }
 </style>

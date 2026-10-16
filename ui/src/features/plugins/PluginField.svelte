@@ -6,6 +6,7 @@
   import { pluginsIpc } from '../../ipc/plugins';
   import { toast } from '../../lib/toast.svelte';
   import { errorText } from '../../lib/errors';
+  import Select from '../../components/Select.svelte';
 
   interface Props {
     plugin: string;
@@ -52,9 +53,7 @@
       onchange={saveNumber}
     />
   {:else}
-    <select class="field" aria-label={field.label} value={String(value ?? '')} onchange={(e) => save(e.currentTarget.value)}>
-      {#each field.options as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
-    </select>
+    <Select label={field.label} width="200px" value={String(value ?? '')} options={field.options} onchange={save} />
   {/if}
 </Row>
 

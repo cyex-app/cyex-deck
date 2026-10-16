@@ -8,6 +8,8 @@
   import { toast } from '../../lib/toast.svelte';
   import Card from '../../components/PanelCard.svelte';
   import { errorText } from '../../lib/errors';
+  import Select from '../../components/Select.svelte';
+  import { choicesOf } from '../../components/select.ts';
 
   /** Minimum follow age, in minutes. 0 = any follower. */
   const FOLLOW: { value: number; label: string }[] = [
@@ -45,13 +47,13 @@
       .finally(() => (busy = false));
   }
 
-  function followChange(e: Event) {
-    followFor = Number((e.currentTarget as HTMLSelectElement).value);
+  function followChange(v: string) {
+    followFor = Number(v);
     if (modes?.followerMode) set({ kind: 'followers', minutes: followFor });
   }
 
-  function slowChange(e: Event) {
-    slowFor = Number((e.currentTarget as HTMLSelectElement).value);
+  function slowChange(v: string) {
+    slowFor = Number(v);
     if (modes?.slowMode) set({ kind: 'slow', seconds: slowFor });
   }
 </script>
@@ -68,9 +70,7 @@
     </div>
     <div class="row">
       <span>Followers only</span>
-      <select class="field" value={followFor} disabled={busy} onchange={followChange} aria-label="Followed for at least">
-        {#each FOLLOW as f (f.value)}<option value={f.value}>{f.label}</option>{/each}
-      </select>
+      <Select label="Followed for at least" width="140px" value={String(followFor)} disabled={busy} options={choicesOf(FOLLOW)} onchange={followChange} />
       <Toggle
         label="Followers only"
         checked={modes.followerMode}
@@ -80,9 +80,14 @@
     </div>
     <div class="row">
       <span>Slow mode</span>
-      <select class="field" value={slowFor} disabled={busy} onchange={slowChange} aria-label="Seconds between messages">
-        {#each SLOW as s (s)}<option value={s}>{s}s</option>{/each}
-      </select>
+      <Select
+        label="Seconds between messages"
+        width="140px"
+        value={String(slowFor)}
+        disabled={busy}
+        options={SLOW.map((s) => ({ value: String(s), label: `${s}s` }))}
+        onchange={slowChange}
+      />
       <Toggle label="Slow mode" checked={modes.slowMode} disabled={busy} onchange={(on) => set({ kind: 'slow', seconds: on ? slowFor : null })} />
     </div>
     <div class="row">
@@ -104,10 +109,5 @@
   .row span {
     flex: 1;
     font-size: 0.85rem;
-  }
-  select.field {
-    height: 26px;
-    padding: 0 6px;
-    font-size: 0.8rem;
   }
 </style>

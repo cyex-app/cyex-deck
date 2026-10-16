@@ -41,3 +41,8 @@ export function matchTyped(choices: readonly Choice[], typed: string, at: number
   }
   return -1;
 }
+
+/** Choices from a list whose values are numbers (or typed strings): Select's values are strings. */
+export function choicesOf(list: readonly { value: string | number; label: string }[]): Choice[] {
+  return list.map((o) => ({ value: String(o.value), label: o.label }));
+}

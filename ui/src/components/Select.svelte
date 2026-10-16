@@ -16,9 +16,10 @@
     /** Called when the list opens, e.g. to refresh it. */
     onopen?: () => void;
     width?: string;
+    disabled?: boolean;
   }
 
-  let { options, value, label, onchange, onopen, width = '300px' }: Props = $props();
+  let { options, value, label, onchange, onopen, width = '300px', disabled = false }: Props = $props();
 
   const uid = $props.id();
   let open = $state(false);
@@ -33,7 +34,7 @@
   const shown = $derived(options[selected]?.label ?? '');
 
   function show() {
-    if (open || !options.length) return;
+    if (open || disabled || !options.length) return;
     onopen?.();
     active = Math.max(selected, 0);
     open = true;
@@ -116,6 +117,7 @@
     class="field trigger"
     role="combobox"
     aria-label={label}
+    {disabled}
     aria-haspopup="listbox"
     aria-expanded={open}
     aria-controls="{uid}-list"
@@ -165,6 +167,10 @@
     min-height: 30px;
     text-align: left;
     cursor: pointer;
+  }
+  .trigger:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
   .trigger:focus-visible {
     border-color: var(--accent-border);

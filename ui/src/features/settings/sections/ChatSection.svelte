@@ -17,6 +17,8 @@
   import { toast } from '../../../lib/toast.svelte';
   import { buttonKey, fullOrder } from '../../modview/lineMod';
   import ResetSection from '../ResetSection.svelte';
+  import Select from '../../../components/Select.svelte';
+  import { choicesOf } from '../../../components/select.ts';
 
   const c = $derived(settings.v.chat);
   const o = $derived(c.overlay);
@@ -138,23 +140,23 @@
   <Toggle label="Recent history" checked={c.history} onchange={(v) => settings.patch('chat', { history: v })} />
 </Row>
 <Row setting="chat.historyLines" label="History to load" hint="Up to this many. The history service keeps 800 per channel.">
-  <select
-    class="field"
+  <Select
+    label="History to load"
+    width="120px"
     disabled={!c.history}
-    value={c.historyLines}
-    onchange={(e) => settings.patch('chat', { historyLines: Number(e.currentTarget.value) })}
-  >
-    {#each LOADED as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
-  </select>
+    value={String(c.historyLines)}
+    options={choicesOf(LOADED)}
+    onchange={(v) => settings.patch('chat', { historyLines: Number(v) })}
+  />
 </Row>
 <Row setting="chat.scrollback" label="Messages kept" hint="Per chat. Older ones drop off the top; more uses more memory.">
-  <select
-    class="field"
-    value={c.scrollback}
-    onchange={(e) => settings.patch('chat', { scrollback: Number(e.currentTarget.value) })}
-  >
-    {#each KEPT as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
-  </select>
+  <Select
+    label="Messages kept"
+    width="120px"
+    value={String(c.scrollback)}
+    options={choicesOf(KEPT)}
+    onchange={(v) => settings.patch('chat', { scrollback: Number(v) })}
+  />
 </Row>
 
 <h3 class="label">Messages</h3>
@@ -229,14 +231,14 @@
   <Toggle label="Pause on hover" checked={c.pauseOnHover} onchange={(v) => settings.patch('chat', { pauseOnHover: v })} />
 </Row>
 <Row setting="chat.pauseStillTenths" label="Pause lasts" hint="Once the mouse stops moving over chat. Moving it pauses again.">
-  <select
-    class="field"
+  <Select
+    label="Pause lasts"
+    width="140px"
     disabled={!c.pauseOnHover}
-    value={c.pauseStillTenths}
-    onchange={(e) => settings.patch('chat', { pauseStillTenths: Number(e.currentTarget.value) })}
-  >
-    {#each STILL as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
-  </select>
+    value={String(c.pauseStillTenths)}
+    options={choicesOf(STILL)}
+    onchange={(v) => settings.patch('chat', { pauseStillTenths: Number(v) })}
+  />
 </Row>
 <Row setting="chat.pauseKey" label="Pause while holding">
   <Segmented
@@ -257,13 +259,13 @@
   <Toggle label="Last-read line" checked={c.lastReadLine} onchange={(v) => settings.patch('chat', { lastReadLine: v })} />
 </Row>
 <Row setting="chat.delayTenths" label="Hold chat back" hint="Waits this long before showing messages, to match the stream’s delay.">
-  <select
-    class="field"
-    value={c.delayTenths}
-    onchange={(e) => settings.patch('chat', { delayTenths: Number(e.currentTarget.value) })}
-  >
-    {#each DELAYS as d (d.value)}<option value={d.value}>{d.label}</option>{/each}
-  </select>
+  <Select
+    label="Hold chat back"
+    width="140px"
+    value={String(c.delayTenths)}
+    options={choicesOf(DELAYS)}
+    onchange={(v) => settings.patch('chat', { delayTenths: Number(v) })}
+  />
 </Row>
 
 <h3 class="label">Links</h3>
@@ -295,13 +297,13 @@
   <Toggle label="Spell check" checked={c.spellCheck} onchange={(v) => settings.patch('chat', { spellCheck: v })} />
 </Row>
 <Row setting="chat.translateTo" label="Translate into" hint="For Translate and /translate. Each chat’s menu can translate everything.">
-  <select
-    class="field"
+  <Select
+    label="Translate into"
+    width="200px"
     value={c.translateTo}
-    onchange={(e) => settings.patch('chat', { translateTo: e.currentTarget.value })}
-  >
-    {#each LANGUAGES as l (l.value)}<option value={l.value}>{l.label}</option>{/each}
-  </select>
+    options={LANGUAGES}
+    onchange={(v) => settings.patch('chat', { translateTo: v })}
+  />
 </Row>
 
 <h3 class="label">Moderation</h3>

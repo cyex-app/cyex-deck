@@ -10,6 +10,9 @@
   import { pollLeft, votes } from '../chat/votes.svelte';
   import Card from '../../components/PanelCard.svelte';
   import { errorText } from '../../lib/errors';
+  import Select from '../../components/Select.svelte';
+  import IconButton from '../../components/IconButton.svelte';
+  import NumberField from '../../components/NumberField.svelte';
 
   const DURATIONS = [60, 120, 180, 300, 600, 900];
 
@@ -42,7 +45,7 @@
       .then(() => {
         title = '';
         choices = ['', ''];
-        toast.info('Poll started.');
+        toast.success('Poll started.');
         votes.watch(login);
       })
       .catch((e) => toast.error(errorText(e)))
@@ -92,23 +95,27 @@
       <div class="line">
         <input class="field grow" placeholder="Choice {i + 1}" maxlength="25" bind:value={choices[i]} />
         {#if choices.length > 2}
-          <button class="x" aria-label="Remove choice" onclick={() => (choices = choices.filter((_, j) => j !== i))}>×</button>
+          <IconButton icon="x" label="Remove choice" size={14} onclick={() => (choices = choices.filter((_, j) => j !== i))} />
         {/if}
       </div>
     {/each}
     <div class="line">
       {#if choices.length < 5}
-        <button class="link" onclick={() => (choices = [...choices, ''])}>Add a choice</button>
+        <Button small variant="link" onclick={() => (choices = [...choices, ''])}>Add a choice</Button>
       {/if}
       <span class="grow"></span>
-      <select class="field small" bind:value={duration} aria-label="How long">
-        {#each DURATIONS as d (d)}<option value={d}>{formatDuration(d)}</option>{/each}
-      </select>
+      <Select
+        label="How long"
+        width="110px"
+        value={String(duration)}
+        options={DURATIONS.map((d) => ({ value: String(d), label: formatDuration(d) }))}
+        onchange={(v) => (duration = Number(v))}
+      />
     </div>
     <div class="line">
       <Checkbox label="Extra votes for channel points" checked={extra} onchange={(on) => (extra = on)} />
       {#if extra}
-        <input class="field num" type="number" min="1" max="1000000" bind:value={cost} aria-label="Points per vote" />
+        <NumberField label="Points per vote" min={1} max={1000000} width="110px" value={cost} onchange={(n) => (cost = n)} />
       {/if}
     </div>
     <div class="line">
@@ -160,31 +167,5 @@
   }
   .grow {
     flex: 1;
-  }
-  .small {
-    height: 26px;
-    padding: 0 6px;
-  }
-  .num {
-    width: 96px;
-    height: 26px;
-  }
-  .x,
-  .link {
-    background: none;
-    border: 0;
-    padding: 0 4px;
-    color: var(--muted);
-    cursor: pointer;
-  }
-  .x {
-    font-size: 1rem;
-  }
-  .link {
-    font-size: 0.8rem;
-  }
-  .x:hover,
-  .link:hover {
-    color: var(--text);
   }
 </style>

@@ -16,6 +16,7 @@
   import type { MinerRule } from '../../../ipc/bindings/MinerRule';
   import type { Strategy } from '../../../ipc/bindings/Strategy';
   import { settings } from '../../../lib/settings.svelte';
+  import Select from '../../../components/Select.svelte';
 
   const m = $derived(settings.v.miner);
   const b = $derived(m.bets);
@@ -139,9 +140,7 @@
 </Row>
 {#if b.enabled}
   <Row setting="miner.bets.strategy" label="Pick">
-    <select class="field" aria-label="Pick" value={b.strategy} onchange={(e) => bet({ strategy: e.currentTarget.value as Strategy })}>
-      {#each STRATEGIES as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
-    </select>
+    <Select label="Pick" width="260px" value={b.strategy} options={STRATEGIES} onchange={(v) => bet({ strategy: v as Strategy })} />
   </Row>
   {#if b.strategy === 'outcome'}
     <Row setting="miner.bets.outcome" label="Side" hint="1 is the first (blue) side.">
@@ -175,30 +174,26 @@
         value={b.delay}
         onchange={(e) => bet({ delay: num(e, 0, b.delayMode === 'percent' ? 100 : 1800) })}
       />
-      <select class="field" aria-label="When" value={b.delayMode} onchange={(e) => bet({ delayMode: e.currentTarget.value as DelayMode })}>
-        {#each DELAYS as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
-      </select>
+      <Select label="When" width="220px" value={b.delayMode} options={DELAYS} onchange={(v) => bet({ delayMode: v as DelayMode })} />
     </span>
   </Row>
   <Row setting="miner.bets.filter" label="Only if">
     <span class="pair">
-      <select
-        class="field"
-        aria-label="Only if"
+      <Select
+        label="Only if"
+        width="220px"
         value={b.filter.by}
-        onchange={(e) => bet({ filter: { ...b.filter, by: e.currentTarget.value as FilterBy } })}
-      >
-        {#each FILTERS as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
-      </select>
+        options={FILTERS}
+        onchange={(v) => bet({ filter: { ...b.filter, by: v as FilterBy } })}
+      />
       {#if b.filter.by !== 'none'}
-        <select
-          class="field"
-          aria-label="Compared"
+        <Select
+          label="Compared"
+          width="130px"
           value={b.filter.cmp}
-          onchange={(e) => bet({ filter: { ...b.filter, cmp: e.currentTarget.value as FilterCmp } })}
-        >
-          {#each CMPS as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
-        </select>
+          options={CMPS}
+          onchange={(v) => bet({ filter: { ...b.filter, cmp: v as FilterCmp } })}
+        />
         <input
           class="field num"
           type="number"

@@ -14,6 +14,7 @@
   import { soundIpc } from '../../../ipc/sound';
   import { fileName } from '../mentions/status';
   import { splitList, withAlpha, type Field } from './fields';
+  import Select from '../../../components/Select.svelte';
 
   interface Props {
     item: T;
@@ -98,9 +99,9 @@
       onchange={(e) => set(f.key, Math.max(0, Math.round(Number(e.currentTarget.value) || 0)))}
     />
   {:else if f.kind === 'select'}
-    <select class="field" style:width={f.width} aria-label={f.label} value={String(v)} onchange={(e) => set(f.key, e.currentTarget.value)} use:tooltip={tip(f)}>
-      {#each f.options ?? [] as o (o.value)}<option value={o.value}>{o.label}</option>{/each}
-    </select>
+    <span use:tooltip={tip(f)}>
+      <Select label={f.label} width={f.width ?? '150px'} value={String(v)} options={f.options ?? []} onchange={(x) => set(f.key, x)} />
+    </span>
   {:else if f.kind === 'area'}
     <textarea
       class="field area"
@@ -322,13 +323,6 @@
   }
   .split .field {
     height: 26px;
-  }
-  .split select.field {
-    padding-block: 0;
-  }
-  .opts select.field {
-    margin-left: 2px;
-    padding-inline: 6px 2px;
   }
   .split .color {
     margin-right: 2px;

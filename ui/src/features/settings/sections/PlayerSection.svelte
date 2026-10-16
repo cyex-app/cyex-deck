@@ -10,6 +10,7 @@
   import { toast } from '../../../lib/toast.svelte';
   import ResetSection from '../ResetSection.svelte';
   import { errorText } from '../../../lib/errors';
+  import Select from '../../../components/Select.svelte';
 
   const p = $derived(settings.v.player);
 
@@ -51,13 +52,7 @@
 </Row>
 
 <Row setting="player.quality" label="Quality" hint="What players start in. Each player’s gear menu changes its own.">
-  <select
-    class="field"
-    value={p.quality}
-    onchange={(e) => settings.patch('player', { quality: e.currentTarget.value as Quality })}
-  >
-    {#each QUALITIES as q (q.value)}<option value={q.value}>{q.label}</option>{/each}
-  </select>
+  <Select label="Quality" width="160px" value={p.quality} options={QUALITIES} onchange={(v) => settings.patch('player', { quality: v as Quality })} />
 </Row>
 
 <Row

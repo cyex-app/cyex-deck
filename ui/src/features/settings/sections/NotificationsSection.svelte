@@ -18,6 +18,7 @@
   import { toast } from '../../../lib/toast.svelte';
   import { CHANNEL_STATES, countOn, group, PLATFORMS, sends, smart, type Category, type Group } from '../notify';
   import { errorText } from '../../../lib/errors';
+  import Select from '../../../components/Select.svelte';
 
   const n = $derived(settings.v.notifications);
   const account = $derived(accounts.current);
@@ -189,9 +190,7 @@
           <Avatar src={c.avatar} name={c.name} size={24} />
           <span class="name">{c.name}</span>
           {#if twitch}
-            <select class="field" aria-label="On Twitch" value={c.state} onchange={(e) => void setTwitchChannel(c, e.currentTarget.value)}>
-              {#each CHANNEL_STATES as s (s.value)}<option value={s.value}>{s.label}</option>{/each}
-            </select>
+            <Select label="On Twitch" width="120px" value={c.state} options={CHANNEL_STATES} onchange={(v) => void setTwitchChannel(c, v)} />
           {/if}
           <Toggle label="Alert" checked={alerts(c)} disabled={!n.live.enabled} onchange={(on) => setAlert(c, on)} />
         </div>
@@ -318,9 +317,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-  .channel select {
-    width: 120px;
   }
   .fold,
   .group {

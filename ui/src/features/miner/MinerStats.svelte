@@ -11,6 +11,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { miner } from './miner.svelte';
   import { errorText } from '../../lib/errors';
+  import Select from '../../components/Select.svelte';
 
   const KINDS: Record<StatKind, string> = {
     watch: 'Watching',
@@ -98,10 +99,13 @@
 
 <div class="stats">
   <div class="top">
-    <select class="field" aria-label="Channel" bind:value={channel}>
-      <option value={null}>All channels</option>
-      {#each channels as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
-    </select>
+    <Select
+      label="Channel"
+      width="240px"
+      value={channel ?? ''}
+      options={[{ value: '', label: 'All channels' }, ...channels.map((c) => ({ value: c.id, label: c.name }))]}
+      onchange={(v) => (channel = v || null)}
+    />
     {#if stats?.since}<span class="note">Since {formatDate(new Date(stats.since))}</span>{/if}
     <span class="grow"></span>
     {#if stats?.since}
@@ -169,9 +173,6 @@
     display: flex;
     align-items: center;
     gap: 10px;
-  }
-  .top select {
-    width: 240px;
   }
   .grow {
     flex: 1;

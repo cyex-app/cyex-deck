@@ -18,6 +18,7 @@
   import { formatDuration } from '../../lib/format';
   import { ACTION_KINDS, moderatorsIn, visibleActions } from './modActions';
   import { errorText } from '../../lib/errors';
+  import Select from '../../components/Select.svelte';
 
   interface Props {
     items: ModLine[];
@@ -66,10 +67,13 @@
     <FilterChips {chips} onflip={(k) => onflip(k as keyof ModActionFilters)} />
   </div>
   <div class="bar">
-    <select bind:value={moderator} aria-label="Moderator">
-      <option value="">Any mod</option>
-      {#each mods as m (m.login)}<option value={m.login}>{m.name}</option>{/each}
-    </select>
+    <Select
+      label="Moderator"
+      width="40%"
+      value={moderator}
+      options={[{ value: '', label: 'Any mod' }, ...mods.map((m) => ({ value: m.login, label: m.name }))]}
+      onchange={(v) => (moderator = v)}
+    />
     <input placeholder="User" aria-label="User" bind:value={user} />
   </div>
   <FeedList {rows} empty={items.length ? 'Nothing matches the filters.' : 'No mod actions yet.'}>
@@ -110,7 +114,6 @@
   .bar:has(+ .bar) {
     border-bottom: 0;
   }
-  select,
   input {
     min-width: 0;
     padding: 3px 6px;
@@ -119,9 +122,6 @@
     border-radius: var(--radius);
     color: var(--text);
     font-size: 0.78rem;
-  }
-  select {
-    flex: 0 1 40%;
   }
   input {
     flex: 1;

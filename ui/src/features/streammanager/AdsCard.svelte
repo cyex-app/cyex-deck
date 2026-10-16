@@ -17,6 +17,7 @@
   import { adIn, adIntervals, adLengths } from './logic';
   import { sm } from './streammanager.svelte';
   import { errorText } from '../../lib/errors';
+  import Select from '../../components/Select.svelte';
 
   const LENGTHS = [30, 60, 90, 120, 180].map((v) => ({ value: v, label: `${v}s` }));
 
@@ -138,27 +139,34 @@
     </div>
     {#if s.enabled}
       <div class="line">
-        <select class="field" aria-label="Ad length" value={s.duration.value} onchange={(e) => save({ duration: Number(e.currentTarget.value) })}>
-          {#each adLengths(s.duration.min, s.duration.max, s.duration.value) as v (v)}<option value={v}>{formatDuration(v)} ads</option>{/each}
-        </select>
-        <select class="field" aria-label="How often" value={s.interval.value} onchange={(e) => save({ interval: Number(e.currentTarget.value) })}>
-          {#each adIntervals(s.interval.min, s.interval.max, s.interval.value) as v (v)}<option value={v}>every {formatDuration(v)}</option>{/each}
-        </select>
+        <Select
+          label="Ad length"
+          width="110px"
+          value={String(s.duration.value)}
+          options={adLengths(s.duration.min, s.duration.max, s.duration.value).map((v) => ({ value: String(v), label: `${formatDuration(v)} ads` }))}
+          onchange={(v) => save({ duration: Number(v) })}
+        />
+        <Select
+          label="How often"
+          width="130px"
+          value={String(s.interval.value)}
+          options={adIntervals(s.interval.min, s.interval.max, s.interval.value).map((v) => ({ value: String(v), label: `every ${formatDuration(v)}` }))}
+          onchange={(v) => save({ interval: Number(v) })}
+        />
       </div>
       <div class="line">
         <Toggle label="Remind me" checked={s.reminder} onchange={(v) => save({ reminder: v })} />
         <span>Remind me</span>
         {#if s.reminder}
-          <select
-            class="field"
-            aria-label="How long before"
-            value={s.reminderSecs}
-            onchange={(e) => save({ reminderSecs: Number(e.currentTarget.value) })}
-          >
-            {#each REMINDERS.map((m) => m * 60).filter((v) => !s.reminderMax || v <= s.reminderMax) as v (v)}
-              <option value={v}>{formatDuration(v)} before</option>
-            {/each}
-          </select>
+          <Select
+            label="How long before"
+            width="130px"
+            value={String(s.reminderSecs)}
+            options={REMINDERS.map((m) => m * 60)
+              .filter((v) => !s.reminderMax || v <= s.reminderMax)
+              .map((v) => ({ value: String(v), label: `${formatDuration(v)} before` }))}
+            onchange={(v) => save({ reminderSecs: Number(v) })}
+          />
         {/if}
       </div>
     {/if}
