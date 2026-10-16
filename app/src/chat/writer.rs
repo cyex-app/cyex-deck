@@ -33,7 +33,8 @@ impl Writer {
         self.link.store(v, Ordering::Relaxed);
     }
 
-    pub fn is_refused(&self) -> bool {
+    #[cfg(test)]
+    fn is_refused(&self) -> bool {
         self.link.load(Ordering::Relaxed) == REFUSED
     }
 
@@ -46,9 +47,10 @@ impl Writer {
         }
     }
 
-    /// Tries the login again, e.g. after a new sign-in. Only a refused writer needs it.
+    /// Tries the login again, e.g. after a new sign-in. Anything but up: a login still on
+    /// its way with the old token would be refused after the sign-in and stay so.
     pub fn retry(&self) {
-        if self.is_refused() {
+        if self.link.load(Ordering::Relaxed) != UP {
             self.client.reconnect();
         }
     }
