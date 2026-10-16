@@ -125,7 +125,7 @@
 
 <div class="search" bind:this={root} role="dialog" aria-label="Search chat" tabindex="-1">
   <div class="bar">
-    <span class="box"><SearchField bind:value={text} placeholder="Search · from:name has:link badge:mod regex:…" label="Search messages" small autofocus onkeydown={keydown} /></span>
+    <span class="box"><SearchField bind:value={text} placeholder="Search…" label="Search messages" small autofocus onkeydown={keydown} /></span>
     {#if hits.length > 1}
       <IconButton icon="chevronUp" label="Previous match" size={14} onclick={() => jump(-1)} />
       <IconButton icon="chevronDown" label="Next match" size={14} onclick={() => jump(1)} />
