@@ -104,6 +104,7 @@ pub async fn run(
                 view: None,
                 key,
                 automation: place.automation,
+                ui: false,
             };
             line(app, &there, command, None, true, depth + 1).await
         }

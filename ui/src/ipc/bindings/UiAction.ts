@@ -3,4 +3,4 @@
 /**
  * What the window should do after a line ran.
  */
-export type UiAction = { "type": "search", query: string, } | { "type": "popout" } | { "type": "cosmetics" };
+export type UiAction = { "type": "search", query: string, } | { "type": "popout" } | { "type": "cosmetics" } | { "type": "sevenTvSignIn", command: string, again: boolean, };

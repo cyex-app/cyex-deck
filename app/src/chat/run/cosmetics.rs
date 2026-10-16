@@ -7,7 +7,7 @@ use tauri::AppHandle;
 
 use super::{Place, UiAction, local};
 use crate::cosmetics::lookup::{self, Have};
-use crate::cosmetics::{self, Kind, Part, Want, apply, read, select_error, why};
+use crate::cosmetics::{self, Kind, Part, SelectError, Want, apply, read, select_error, why};
 
 /// The arm in `builtin::run` and `OWN` must list these (checked in builtin's tests).
 #[cfg(test)]
@@ -29,6 +29,41 @@ pub(super) enum Pick {
 }
 
 const QUOTE: &str = "A quote isn’t closed.";
+
+/// Why a command stopped: a line to show, or 7TV wants a sign-in first.
+#[derive(Debug, PartialEq, Eq)]
+enum Stop {
+    Line(String),
+    SignIn(SelectError),
+}
+
+impl From<String> for Stop {
+    fn from(s: String) -> Self {
+        Self::Line(s)
+    }
+}
+
+impl Stop {
+    fn of(e: SelectError) -> Self {
+        match e {
+            SelectError::SignedOut | SelectError::SignInAgain => Self::SignIn(e),
+            other => Self::Line(select_error(&other)),
+        }
+    }
+}
+
+/// A stop for sign-in becomes the pop-up in the chat view that ran it, else the usual line
+/// (its `/cosmetics` is the way to sign in).
+fn settle(stop: Stop, ui: bool, command: String) -> Result<Option<UiAction>, String> {
+    match stop {
+        Stop::SignIn(e) if ui => Ok(Some(UiAction::SevenTvSignIn {
+            command,
+            again: e == SelectError::SignInAgain,
+        })),
+        Stop::SignIn(e) => Err(select_error(&e)),
+        Stop::Line(l) => Err(l),
+    }
+}
 
 /// The first word of `s` (leading space skipped), whether it was quoted, and the rest.
 fn word(s: &str) -> Result<Option<(String, bool, &str)>, String> {
@@ -130,14 +165,19 @@ pub(super) async fn run(app: &AppHandle, place: &Place, name: &str, args: &str) 
     if place.automation && !automation_may(name, args) {
         return Err(format!("/{name} doesn’t run in automations."));
     }
-    let line = if name == "combo" {
-        combo(app, account, combo_args(args)?).await?
+    let done = if name == "combo" {
+        combo(app, account, combo_args(args)?).await
     } else {
         let kind = if name == "paint" { Kind::Paint } else { Kind::Badge };
-        pick(app, account, kind, pick_args(args, kind)?).await?
+        pick(app, account, kind, pick_args(args, kind)?).await
     };
-    local(app, &place.key, NoticeKind::Info, &line);
-    Ok(None)
+    match done {
+        Ok(line) => {
+            local(app, &place.key, NoticeKind::Info, &line);
+            Ok(None)
+        }
+        Err(stop) => settle(stop, place.ui && !place.automation, format!("/{name} {}", args.trim())),
+    }
 }
 
 fn find(app: &AppHandle, account: &str, name: &str) -> Result<Combo, String> {
@@ -170,7 +210,7 @@ fn list_line(app: &AppHandle, account: &str) -> String {
     format!("Your combos: {}.", names.join(", "))
 }
 
-async fn combo(app: &AppHandle, account: &str, cmd: ComboCmd) -> Result<String, String> {
+async fn combo(app: &AppHandle, account: &str, cmd: ComboCmd) -> Result<String, Stop> {
     Ok(match cmd {
         ComboCmd::List => list_line(app, account),
         ComboCmd::Save(n) => {
@@ -196,7 +236,7 @@ async fn combo(app: &AppHandle, account: &str, cmd: ComboCmd) -> Result<String, 
         ComboCmd::Apply(n) => {
             let c = find(app, account, &n)?;
             let want = Want { paint: c.paint.clone(), badge: c.badge.clone() };
-            apply(app, account, want, Some(&c.name)).await.map_err(|e| select_error(&e))?.line
+            apply(app, account, want, Some(&c.name)).await.map_err(Stop::of)?.line
         }
     })
 }
@@ -215,7 +255,7 @@ fn is_seventv_id(t: &str) -> bool {
     t.len() == 26 && t.bytes().all(|b| b.is_ascii_digit() || (b.is_ascii_uppercase() && !matches!(b, b'I' | b'L' | b'O' | b'U')))
 }
 
-async fn pick(app: &AppHandle, account: &str, kind: Kind, pick: Pick) -> Result<String, String> {
+async fn pick(app: &AppHandle, account: &str, kind: Kind, pick: Pick) -> Result<String, Stop> {
     let (noun, cap, none_line) = match kind {
         Kind::Paint => ("paint", "Paint", "No paint now."),
         Kind::Badge => ("badge", "Badge", "No badge now."),
@@ -234,11 +274,11 @@ async fn pick(app: &AppHandle, account: &str, kind: Kind, pick: Pick) -> Result<
         Kind::Paint => Want { paint: target.clone(), badge: wb },
         Kind::Badge => Want { paint: wp, badge: target.clone() },
     };
-    let done = apply(app, account, want, None).await.map_err(|e| select_error(&e))?;
+    let done = apply(app, account, want, None).await.map_err(Stop::of)?;
     match if kind == Kind::Paint { done.paint } else { done.badge } {
-        Part::NeedsSub => Err("That one’s for 7TV subscribers.".into()),
-        Part::NotOwned => Err("7TV says that one isn’t yours.".into()),
-        Part::Failed { error } => Err(select_error(&error)),
+        Part::NeedsSub => Err(Stop::Line("That one’s for 7TV subscribers.".into())),
+        Part::NotOwned => Err(Stop::Line("7TV says that one isn’t yours.".into())),
+        Part::Failed { error } => Err(Stop::of(error)),
         // Overtaken: a newer pick took over; the account ends up as that pick says.
         Part::Changed | Part::Same | Part::Overtaken => {
             Ok(target.map_or_else(|| none_line.to_owned(), |t| format!("{cap}: {}.", t.name)))
@@ -283,6 +323,20 @@ mod tests {
         assert_eq!(combo_args("rename a b c"), Err(RENAME.into()));
         assert_eq!(combo_args("\"open"), Err(QUOTE.into()));
         assert_eq!(combo_args(""), Err(USAGE.into()));
+    }
+
+    #[test]
+    fn sign_in_stops_ask_in_the_chat_view_only() {
+        let cmd = || "/paint Sunset".to_owned();
+        let ask = settle(Stop::of(SelectError::SignedOut), true, cmd()).unwrap();
+        assert!(matches!(ask, Some(UiAction::SevenTvSignIn { ref command, again: false }) if command == "/paint Sunset"));
+        let again = settle(Stop::of(SelectError::SignInAgain), true, cmd()).unwrap();
+        assert!(matches!(again, Some(UiAction::SevenTvSignIn { again: true, .. })));
+        // A usercard button, timer or automation: the line, with /cosmetics as the way in.
+        assert_eq!(settle(Stop::of(SelectError::SignedOut), false, cmd()).unwrap_err(), "Sign in to 7TV first: /cosmetics.");
+        // Other errors stay lines, even in the view.
+        assert_eq!(settle(Stop::of(SelectError::NoConsent), true, cmd()).unwrap_err(), "Allow 7TV first: /cosmetics.");
+        assert_eq!(settle(Stop::of(SelectError::Down), true, cmd()).unwrap_err(), "Couldn’t reach 7TV. Nothing changed.");
     }
 
     #[test]

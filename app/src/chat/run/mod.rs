@@ -67,6 +67,9 @@ pub struct Place {
     pub key: RoomKey,
     /// V1051-04 Started by an automation (S4), down to the commands it runs.
     pub automation: bool,
+    /// Typed or picked in this chat view, so its window acts on a `UiAction` (a 7TV sign-in
+    /// pop-up). Not for usercard buttons, timers, `/runin` or automations: they get a line.
+    pub ui: bool,
 }
 
 impl Place {
@@ -94,6 +97,9 @@ pub enum UiAction {
     Popout,
     /// V1051-03 Open the 7TV paint and badge pop-up.
     Cosmetics,
+    /// `/paint`, `/badge` or `/combo` needs 7TV's sign-in: the sign-in pop-up, then `command`
+    /// runs again. `again`: the session ran out.
+    SevenTvSignIn { command: String, again: bool },
 }
 
 /// S1 Who and what a menu entry was picked on.
@@ -117,7 +123,7 @@ pub async fn input(
     text: &str,
     reply_to: Option<String>,
 ) -> Result<Option<UiAction>, String> {
-    let place = place_of(app, view)?;
+    let place = place_of(app, view, true)?;
     line(app, &place, text, reply_to, true, 0).await
 }
 
@@ -128,7 +134,18 @@ pub async fn menu(
     command: &str,
     ctx: MenuContext,
 ) -> Result<Option<UiAction>, String> {
-    let place = place_of(app, view)?;
+    menu_at(app, view, command, ctx, true).await
+}
+
+/// `ui`: the caller is the chat view itself (see `Place::ui`).
+async fn menu_at(
+    app: &AppHandle,
+    view: u32,
+    command: &str,
+    ctx: MenuContext,
+    ui: bool,
+) -> Result<Option<UiAction>, String> {
+    let place = place_of(app, view, ui)?;
     let mut p = params(app, &place, ctx.login.as_deref().unwrap_or(""));
     for (k, v) in MENU_VALUES.into_iter().zip([&ctx.login, &ctx.display, &ctx.user_id, &ctx.msg_id, &ctx.msg]) {
         if let Some(v) = v {
@@ -158,6 +175,7 @@ pub async fn automation(
         view: None,
         key,
         automation: true,
+        ui: false,
     };
     let mut p = params(app, &place, args);
     let [nick_key, count_key] = AUTOMATION_VALUES;
@@ -192,10 +210,10 @@ pub async fn menu_in(
         open.sort_by_key(|(id, signed)| (!signed, *id));
         open.first().map(|(id, _)| *id)
     };
-    menu(app, view.ok_or("Open the chat first.")?, command, ctx).await
+    menu_at(app, view.ok_or("Open the chat first.")?, command, ctx, false).await
 }
 
-fn place_of(app: &AppHandle, view: u32) -> Result<Place, String> {
+fn place_of(app: &AppHandle, view: u32, ui: bool) -> Result<Place, String> {
     let chat = app.state::<Chat>();
     let key = chat
         .lock()
@@ -207,6 +225,7 @@ fn place_of(app: &AppHandle, view: u32) -> Result<Place, String> {
         view: Some(view),
         key,
         automation: false,
+        ui,
     })
 }
 

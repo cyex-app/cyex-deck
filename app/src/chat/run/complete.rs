@@ -7,7 +7,7 @@ use super::{builtin, list, place_of};
 
 /// Command names without `/`, sorted, once each.
 pub fn names(app: &AppHandle, view: u32) -> Result<Vec<String>, String> {
-    let place = place_of(app, view)?;
+    let place = place_of(app, view, false)?;
     let account = place.account();
     let role = account.and_then(|a| crate::chat::roles::role(app, a, place.channel()));
     let mut names: Vec<String> = builtin::usable(role, account.is_some())
@@ -28,7 +28,7 @@ pub async fn args(app: &AppHandle, view: u32, command: &str, sub: Option<&str>) 
 
     use crate::cosmetics::{self, Kind, lookup};
 
-    let place = place_of(app, view)?;
+    let place = place_of(app, view, false)?;
     let Some(account) = place.account() else {
         return Ok(Vec::new());
     };
