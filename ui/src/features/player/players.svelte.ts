@@ -62,10 +62,14 @@ export const playerHotkeys = {
   'player.fullscreen': () => withPlayer((p) => p.toggleFullscreen()),
 };
 
+/** Focused controls that use Space, M or F themselves. */
+const CONTROLS =
+  'button, a, select, [role="slider"], [role="radio"], [role="tab"], [role="option"], [role="listbox"], [role^="menuitem"], [role="checkbox"], [role="switch"]';
+
 function withPlayer(f: (p: PlayerControls) => void): void | false {
   const p = players.active;
   const focus = document.activeElement;
-  if (!p || (focus instanceof HTMLElement && focus.closest('button, a, select, [role="slider"], [role="radio"]'))) {
+  if (!p || (focus instanceof HTMLElement && focus.closest(CONTROLS))) {
     return false;
   }
   f(p);

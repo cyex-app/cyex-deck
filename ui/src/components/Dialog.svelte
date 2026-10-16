@@ -1,7 +1,11 @@
-<!-- Modal dialog over the window. Escape, the x or a click outside closes it. -->
+<!-- Modal dialog over the window. Escape, the x or a click outside closes it. Focus starts on the
+     first field (or `data-autofocus`, or the primary button), Tab stays inside, and focus goes
+     back to what opened it on close. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
+  import { layer } from '../lib/escape';
+  import { firstField, focusScope } from '../lib/focusScope';
   import IconButton from './IconButton.svelte';
 
   interface Props {
@@ -19,16 +23,14 @@
   let box = $state<HTMLElement>();
 
   $effect(() => {
+    if (!box) return;
     // A dialog without fields still takes focus, so Enter and typing don't reach the chat box behind it.
-    (box?.querySelector<HTMLElement>('input, textarea, select') ?? box)?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        onclose();
-      }
+    const release = focusScope(box, { trap: true, initial: firstField });
+    const off = layer('dialog', () => onclose());
+    return () => {
+      off();
+      release();
     };
-    addEventListener('keydown', onKey);
-    return () => removeEventListener('keydown', onKey);
   });
 </script>
 
@@ -49,7 +51,7 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    z-index: var(--z-popover);
+    z-index: var(--z-dialog);
     display: grid;
     /* V105-16: centered in the window. Fixed tracks, so max-width/height below hold the
        dialog inside the window and a tall body scrolls instead of running off it. */
@@ -72,8 +74,9 @@
     background: var(--elevated);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
-    box-shadow: 0 16px 48px var(--shadow);
+    box-shadow: var(--shadow-dialog);
   }
+  /* Only the dialog box itself; what's inside keeps its ring. */
   .dialog:focus {
     outline: none;
   }

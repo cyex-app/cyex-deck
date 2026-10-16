@@ -72,6 +72,7 @@
   }
 
   function onkeydown(e: KeyboardEvent) {
+    if (e.defaultPrevented) return;
     if (e.key === 'Escape') onclose();
     else if (e.key === 'ArrowRight') next();
     else if (e.key === 'ArrowLeft') prev();

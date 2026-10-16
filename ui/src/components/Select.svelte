@@ -1,7 +1,8 @@
 <!-- V1051-01 A dropdown in the app's look, for a short list of choices. A button that opens a
      listbox under it (it flips and stays in the window). Focus stays on the button: arrows,
-     Home/End, typing a name, Enter or Space pick, Escape closes. Same size as `.field`. -->
+     Home/End, typing a name, Enter or Space pick, Escape closes (lib/escape.ts). Same size as `.field`. -->
 <script lang="ts">
+  import { layer } from '../lib/escape';
   import { floating } from '../lib/place';
   import Icon from './Icon.svelte';
   import { type Choice, matchTyped, moveFor } from './select.ts';
@@ -48,6 +49,7 @@
 
   $effect(() => {
     if (!open) return;
+    const off = layer('select', close);
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node;
       if (!list?.contains(t) && !button?.contains(t)) close();
@@ -56,6 +58,7 @@
     addEventListener('mousedown', onDown, true);
     addEventListener('blur', onBlur);
     return () => {
+      off();
       removeEventListener('mousedown', onDown, true);
       removeEventListener('blur', onBlur);
     };
@@ -68,12 +71,6 @@
 
   function onkey(e: KeyboardEvent) {
     if (e.ctrlKey || e.altKey || e.metaKey) return;
-    if (e.key === 'Escape') {
-      if (!open) return;
-      e.preventDefault();
-      e.stopPropagation();
-      return close();
-    }
     if (e.key === 'Tab') return close();
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
@@ -192,7 +189,7 @@
     background: var(--elevated);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
-    box-shadow: 0 8px 24px var(--shadow);
+    box-shadow: var(--shadow-pop);
   }
   .option {
     display: flex;

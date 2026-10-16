@@ -1,6 +1,8 @@
 <!-- Draws the shared menu at the pointer or under its button, kept inside the window
      (V101-04). Arrow keys move through it, Right opens a submenu, Left goes back (V101-30). -->
 <script lang="ts">
+  import { layer } from '../lib/escape';
+  import { focusScope } from '../lib/focusScope';
   import { floating } from '../lib/place';
   import { settings } from '../lib/settings.svelte';
   import Avatar from './Avatar.svelte';
@@ -26,12 +28,12 @@
   // Keys go to the menu while it's open; focus goes back where it was when it closes.
   $effect(() => {
     if (!menu.open || !box) return;
-    const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    box.focus({ preventScroll: true });
+    const release = focusScope(box);
+    // Escape closes the menu only, not what it sits on (e.g. a clip).
+    const off = layer('menu', closeMenu);
     return () => {
-      if (before?.isConnected && (document.activeElement === document.body || document.activeElement === null)) {
-        before.focus({ preventScroll: true });
-      }
+      off();
+      release();
     };
   });
 
@@ -46,15 +48,11 @@
       else if (e.key === 'ArrowLeft' && menu.stack.length > 1) back();
       else if (e.key === 'ArrowRight' && document.activeElement instanceof HTMLElement && document.activeElement.dataset.sub) {
         document.activeElement.click();
-      } else if (e.key === 'Escape') {
-        // Closes the menu only, not what it sits on (e.g. a clip).
-        closeMenu();
       } else return;
       e.preventDefault();
       e.stopPropagation();
     };
     addEventListener('mousedown', onDown, true);
-    // Before anything that also closes on Escape.
     addEventListener('keydown', onKey, true);
     addEventListener('blur', closeMenu);
     addEventListener('resize', closeMenu);
@@ -70,6 +68,7 @@
 {#if menu.open && list}
   <div
     class="menu"
+    data-shared-menu
     role="menu"
     tabindex="-1"
     bind:this={box}
@@ -117,7 +116,7 @@
 <style>
   .menu {
     position: fixed;
-    z-index: var(--z-popover);
+    z-index: var(--z-menu);
     min-width: 200px;
     max-width: 300px;
     max-height: calc(100vh - 12px);
@@ -126,7 +125,7 @@
     background: var(--elevated);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
-    box-shadow: 0 8px 24px var(--shadow);
+    box-shadow: var(--shadow-pop);
   }
   .item {
     display: flex;

@@ -1,6 +1,7 @@
 // Hotkeys (S2). Each action declares its default combo here; settings only store overrides.
 // `global` ones work while another app is in front; Rust registers those (app/src/hotkeys.rs).
 
+import { keyTaken } from './escape';
 import { settings } from './settings.svelte';
 
 export const ACTIONS = {
@@ -92,7 +93,8 @@ function isTyping(target: EventTarget | null): boolean {
 export function useHotkeys(handlers: Partial<Record<ActionId, () => unknown>>): void {
   $effect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (recording.active) return;
+      // An open dialog, menu or select has the keyboard; so does a key something already used.
+      if (recording.active || keyTaken(e)) return;
       const combo = comboFromEvent(e);
       if (!combo) return;
       // Plain keys belong to text fields; only Ctrl/Alt combos fire while typing.

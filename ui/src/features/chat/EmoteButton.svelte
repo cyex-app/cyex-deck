@@ -2,6 +2,7 @@
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
+  import { layer } from '../../lib/escape';
   import { floating } from '../../lib/place';
   import EmoteMenu from '../emotes/EmoteMenu.svelte';
 
@@ -18,17 +19,16 @@
 
   $effect(() => {
     if (!open) return;
+    // A click in the shared menu (right-click > Add to favorites) stays inside the picker.
     const down = (e: MouseEvent) => {
-      if (wrap && !wrap.contains(e.target as Node)) open = false;
+      const t = e.target as Element;
+      if (wrap && !wrap.contains(t) && !t.closest?.('[data-shared-menu]')) open = false;
     };
-    const key = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') open = false;
-    };
+    const off = layer('popover', () => (open = false));
     addEventListener('mousedown', down, true);
-    addEventListener('keydown', key);
     return () => {
+      off();
       removeEventListener('mousedown', down, true);
-      removeEventListener('keydown', key);
     };
   });
 </script>

@@ -2,46 +2,84 @@
      wrapper; clicks outside that wrapper and Escape close it. Flips to the other side and
      stays inside the window when there's no room (V101-04); fixed to the window, so a
      scrolling or clipped panel around it can't cut it off, and shorter when even that
-     isn't enough (V102-03). -->
+     isn't enough (V102-03).
+     Focus moves in on open and back to the trigger on close. `role="menu"` when the content
+     is a list of actions: arrows, Home and End move through its buttons. Otherwise it's a
+     non-modal dialog and Tab moves through it. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
+  import { layer } from '../lib/escape';
+  import { focusScope, tabbables } from '../lib/focusScope';
   import { floating } from '../lib/place';
+  import { moveFor } from './select.ts';
 
   interface Props {
     open: boolean;
     align?: 'start' | 'end';
     side?: 'below' | 'above';
+    role?: 'menu' | 'dialog';
+    /** What screen readers call it, e.g. "Notifications". */
+    label?: string;
     children: Snippet;
   }
 
-  let { open = $bindable(), align = 'end', side = 'below', children }: Props = $props();
+  let { open = $bindable(), align = 'end', side = 'below', role = 'dialog', label, children }: Props = $props();
 
   let box = $state<HTMLElement>();
 
+  const ITEMS = '[role^="menuitem"]:not([aria-disabled="true"]), button:not(:disabled)';
+
+  function items(): HTMLElement[] {
+    return [...(box?.querySelectorAll<HTMLElement>(ITEMS) ?? [])].filter((el) => el.getClientRects().length > 0);
+  }
+
   $effect(() => {
-    if (!open) return;
-    const wrapper = box?.parentElement;
+    if (!open || !box) return;
+    const node = box;
+    const wrapper = node.parentElement;
+    const release = focusScope(node, { initial: () => (role === 'menu' ? items()[0] : tabbables(node)[0]) });
+    const off = layer(role === 'menu' ? 'menu' : 'popover', () => (open = false));
+    // The shared menu, opened from inside, counts as inside.
     const onDown = (e: MouseEvent) => {
-      if (!wrapper?.contains(e.target as Node)) open = false;
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') open = false;
+      const t = e.target as Element;
+      if (!wrapper?.contains(t) && !t.closest?.('[data-shared-menu]')) open = false;
     };
     const onBlur = () => (open = false);
     addEventListener('mousedown', onDown, true);
-    addEventListener('keydown', onKey);
     addEventListener('blur', onBlur);
     return () => {
+      off();
+      release();
       removeEventListener('mousedown', onDown, true);
-      removeEventListener('keydown', onKey);
       removeEventListener('blur', onBlur);
     };
   });
+
+  function onkeydown(e: KeyboardEvent) {
+    if (role !== 'menu' || e.ctrlKey || e.altKey || e.metaKey) return;
+    const list = items();
+    const at = list.indexOf(document.activeElement as HTMLElement);
+    const to = at < 0 && (e.key === 'ArrowDown' || e.key === 'ArrowUp')
+      ? (e.key === 'ArrowDown' ? 0 : list.length - 1)
+      : moveFor(e.key, at, list.length);
+    if (to === null || to < 0) return;
+    e.preventDefault();
+    list[to]?.focus();
+  }
 </script>
 
 {#if open}
-  <div class="popover" bind:this={box} use:floating={{ anchor: box?.parentElement, side, align }} role="menu">
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div
+    class="popover"
+    bind:this={box}
+    use:floating={{ anchor: box?.parentElement, side, align }}
+    {role}
+    aria-label={label}
+    tabindex="-1"
+    {onkeydown}
+  >
     {@render children()}
   </div>
 {/if}
@@ -57,7 +95,10 @@
     background: var(--elevated);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
-    box-shadow: 0 8px 24px var(--shadow);
+    box-shadow: var(--shadow-pop);
+  }
+  .popover:focus {
+    outline: none;
   }
   /* Shorter content scrolls inside instead of the whole box. */
   .popover > :global(*) {
