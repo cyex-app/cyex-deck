@@ -14,6 +14,7 @@
   import ConfirmButton from '../../components/ConfirmButton.svelte';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
+  import { tooltip } from '../../components/tooltip.svelte';
 
   /** Twitch allows the host plus five guests. */
   const SLOTS = 5;
@@ -57,7 +58,7 @@
   function act(p: Promise<void>, done?: string) {
     busy = true;
     p.then(() => {
-      if (done) toast.info(done);
+      if (done) toast.success(done);
       load();
     })
       .catch((e) => toast.error(errorText(e)))
@@ -83,8 +84,8 @@
         <li>
           <Avatar src={r.avatar} name={r.name} size={20} />
           <span class="name" title={r.message || undefined}>{r.name}</span>
-          <button class="link" disabled={busy} onclick={() => act(smIpc.joinAnswer(r.userId, true), `${r.name} can join.`)}>Let in</button>
-          <button class="link" disabled={busy} onclick={() => act(smIpc.joinAnswer(r.userId, false))}>Decline</button>
+          <Button small variant="link" disabled={busy} onclick={() => act(smIpc.joinAnswer(r.userId, true), `${r.name} can join.`)}>Let in</Button>
+          <Button small variant="link" disabled={busy} onclick={() => act(smIpc.joinAnswer(r.userId, false))}>Decline</Button>
         </li>
       {/each}
     </ul>
@@ -105,10 +106,10 @@
       {#each guests as g (g.userId)}
         <li>
           <span class="slot">{g.slotId === '0' ? 'Host' : `Slot ${g.slotId}`}</span>
-          <span class="dot" class:live={g.isLive} title={g.isLive ? 'On stream' : 'Not on stream'}></span>
+          <span class="dot" class:live={g.isLive} use:tooltip={g.isLive ? 'On stream' : 'Not on stream'}></span>
           <span class="name">{g.userName || g.userLogin}</span>
           {#if g.slotId !== '0'}
-            <button class="link" disabled={busy} onclick={() => act(smIpc.togetherSlot(session.id, g.userId, g.slotId, true))}>Take off</button>
+            <Button small variant="link" disabled={busy} onclick={() => act(smIpc.togetherSlot(session.id, g.userId, g.slotId, true))}>Take off</Button>
           {/if}
         </li>
       {/each}
@@ -122,9 +123,9 @@
             <span class="name">{i.name}</span>
             <span class="status">{i.status === 'READY' ? 'Ready' : i.status === 'ACCEPTED' ? 'Joining' : 'Invited'}</span>
             {#if i.status === 'READY' && freeSlot}
-              <button class="link" disabled={busy} onclick={() => act(smIpc.togetherSlot(session.id, i.userId, freeSlot!, false))}>Put on stream</button>
+              <Button small variant="link" disabled={busy} onclick={() => act(smIpc.togetherSlot(session.id, i.userId, freeSlot!, false))}>Put on stream</Button>
             {/if}
-            <button class="link" disabled={busy} onclick={() => act(smIpc.togetherUninvite(session.id, i.userId))}>Cancel</button>
+            <Button small variant="link" disabled={busy} onclick={() => act(smIpc.togetherUninvite(session.id, i.userId))}>Cancel</Button>
           </li>
         {/each}
       </ul>
@@ -193,16 +194,5 @@
   }
   .grow {
     flex: 1;
-  }
-  .link {
-    background: none;
-    border: 0;
-    padding: 0;
-    color: var(--muted);
-    font-size: 0.78rem;
-    cursor: pointer;
-  }
-  .link:hover:not(:disabled) {
-    color: var(--text);
   }
 </style>

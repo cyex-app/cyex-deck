@@ -11,7 +11,7 @@ import { toast } from '../../lib/toast.svelte';
 async function set(c: TabChannel, on: boolean): Promise<void> {
   const out = await minerIpc.first({ id: c.id, login: c.login, name: c.name }, on);
   if (out) toast.info(`${out} isn’t mined first anymore.`);
-  else if (on) toast.info(`${c.name} is mined first.`);
+  else if (on) toast.success(`${c.name} is mined first.`);
 }
 
 /** The menu entry for a tab's channels, or null without an account that can mine. */

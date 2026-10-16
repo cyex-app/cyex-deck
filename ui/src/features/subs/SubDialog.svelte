@@ -40,7 +40,7 @@
     if (!info) return;
     try {
       await subsIpc.prime(account, info.channel.id);
-      toast.info(`Subscribed to ${info.channel.name} with Prime.`);
+      toast.success(`Subscribed to ${info.channel.name} with Prime.`);
       await load();
     } catch (e) {
       toast.error(errorText(e));

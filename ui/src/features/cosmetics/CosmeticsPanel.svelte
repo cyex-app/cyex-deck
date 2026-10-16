@@ -102,7 +102,7 @@
         {#if !view.subscribed}
           <span class="note">
             Paints and badges are for 7TV subscribers.{store.anyUsable ? ' Some don’t need it.' : ''}
-            <button class="link" onclick={() => void systemIpc.openLink('https://7tv.app/store')}>7TV store</button>
+            <Button variant="link" onclick={() => void systemIpc.openLink('https://7tv.app/store')}>7TV store</Button>
           </span>
         {/if}
       </div>
@@ -195,13 +195,6 @@
   }
   .note {
     color: var(--dim);
-  }
-  .link {
-    padding: 0;
-    background: none;
-    border: 0;
-    color: var(--accent-text);
-    text-decoration: underline;
   }
   .picker {
     display: grid;

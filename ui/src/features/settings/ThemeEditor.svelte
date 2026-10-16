@@ -14,6 +14,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { COLOR_NAMES, adjustedNote, isLink } from './themes';
   import { errorText } from '../../lib/errors';
+  import { copy } from '../../lib/clipboard';
 
   interface Props {
     theme: CustomTheme;
@@ -90,8 +91,8 @@
 
   async function copyCode() {
     try {
-      await navigator.clipboard.writeText(await themeIpc.code(theme.id));
-      toast.info(w.source && !isLink(w.source) ? 'Theme code copied. Your wallpaper file stays on this PC.' : 'Theme code copied.');
+      const ok = await copy(await themeIpc.code(theme.id), 'Theme code');
+      if (ok && w.source && !isLink(w.source)) toast.info('Your wallpaper file stays on this PC.');
     } catch (e) {
       toast.error(errorText(e));
     }

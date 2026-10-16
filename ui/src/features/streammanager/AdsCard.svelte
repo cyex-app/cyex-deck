@@ -83,7 +83,7 @@
     smIpc
       .commercial(length)
       .then((got) => {
-        toast.info(`Ad running (${got}s).`);
+        toast.success(`Ad running (${got}s).`);
         load();
       })
       .catch((e) => toast.error(errorText(e)))
@@ -95,7 +95,7 @@
     smIpc
       .snooze()
       .then(() => {
-        toast.info('Next ad pushed back.');
+        toast.success('Next ad pushed back.');
         load();
       })
       .catch((e) => toast.error(errorText(e)))

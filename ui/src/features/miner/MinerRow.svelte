@@ -10,6 +10,7 @@
   import type { MinedChannel } from '../../ipc/bindings/MinedChannel';
   import type { TabChannel } from '../../ipc/bindings/TabChannel';
   import { formatNumber } from '../../lib/format';
+  import { tooltip } from '../../components/tooltip.svelte';
 
   interface Props {
     channel: TabChannel;
@@ -50,10 +51,10 @@
       {#if info?.live && info.game}<span class="game">{info.game}</span>{/if}
     </span>
   </div>
-  {#if info?.streak}<span class="chip" title="A watch streak is still to be had this stream.">Streak</span>{/if}
-  {#if info?.drops}<span class="chip" title="Drops run here.">Drops</span>{/if}
+  {#if info?.streak}<span class="chip" use:tooltip={'A watch streak is still to be had this stream.'}>Streak</span>{/if}
+  {#if info?.drops}<span class="chip" use:tooltip={'Drops run here.'}>Drops</span>{/if}
   {#if info?.balance != null}
-    <span class="balance" title="Channel points"><Icon name="points" size={13} />{formatNumber(info.balance)}</span>
+    <span class="balance" use:tooltip={'Channel points'}><Icon name="points" size={13} />{formatNumber(info.balance)}</span>
   {/if}
   {#if onfirst}
     <IconButton

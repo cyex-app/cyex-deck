@@ -31,7 +31,7 @@
       .marker(text.trim())
       .then(() => {
         text = '';
-        toast.info('Marker added.');
+        toast.success('Marker added.');
         load();
       })
       .catch((e) => toast.error(errorText(e)))

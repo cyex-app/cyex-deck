@@ -12,6 +12,8 @@
   import type { Field } from '../rules/fields';
   import RuleList from '../rules/RuleList.svelte';
   import NumberField from '../../../components/NumberField.svelte';
+  import Button from '../../../components/Button.svelte';
+  import { tooltip } from '../../../components/tooltip.svelte';
 
   const h = $derived(settings.v.highlights);
   const s = $derived(h.similar);
@@ -50,11 +52,11 @@
 
 <p class="intro">
   A chat shows only what passes its filters. Pick them from the chat’s menu. Same language as Chatterino.
-  <button class="link" onclick={toggleNames}>{showNames ? 'Hide' : 'Show'} what you can use</button>
+  <Button small variant="link" onclick={toggleNames}>{showNames ? 'Hide' : 'Show'} what you can use</Button>
 </p>
 {#if showNames}
   <div class="names">
-    {#each names as n (n.name)}<code title={n.kind}>{n.name}</code>{/each}
+    {#each names as n (n.name)}<code use:tooltip={n.kind}>{n.name}</code>{/each}
   </div>
 {/if}
 <RuleList
@@ -95,13 +97,6 @@
     margin: 0 0 8px;
     color: var(--muted);
     font-size: 0.85rem;
-  }
-  .link {
-    padding: 0;
-    background: none;
-    border: 0;
-    color: var(--accent-text);
-    font-weight: 600;
   }
   .names {
     display: flex;

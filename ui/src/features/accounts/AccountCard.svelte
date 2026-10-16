@@ -181,7 +181,7 @@
       onclick={() =>
         attempt(async () => {
           await subsIpc.signOut(account.userId);
-          toast.info('Signed out of Twitch pages in the app.');
+          toast.success('Signed out of Twitch pages in the app.');
         })}
     >
       Sign out of Twitch pages

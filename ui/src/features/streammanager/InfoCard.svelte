@@ -73,7 +73,7 @@
       })
       .then(() => {
         saved = { title: t, gameId: game.id, gameName: game.name };
-        toast.info('Saved.');
+        toast.success('Saved.');
       })
       .catch((e) => toast.error(errorText(e)))
       .finally(() => (saving = false));
@@ -93,7 +93,7 @@
   <div class="line current">
     <span class="game">{game.name || 'None'}</span>
     {#if game.id}
-      <button class="link" onclick={() => (game = { id: '', name: '' })}>Clear</button>
+      <Button small variant="link" onclick={() => (game = { id: '', name: '' })}>Clear</Button>
     {/if}
   </div>
   <input class="field" placeholder="Search categories" bind:value={query} disabled={!loaded} />
@@ -112,7 +112,7 @@
 
   <div class="line">
     <Button small variant="primary" disabled={!changed || saving || !title.trim()} onclick={save}>Save</Button>
-    {#if changed}<button class="link" onclick={load}>Undo</button>{/if}
+    {#if changed}<Button small variant="link" onclick={load}>Undo</Button>{/if}
   </div>
 </Card>
 
@@ -169,16 +169,5 @@
   .hits img {
     border-radius: 2px;
     flex-shrink: 0;
-  }
-  .link {
-    background: none;
-    border: 0;
-    padding: 0;
-    color: var(--muted);
-    font-size: 0.8rem;
-    cursor: pointer;
-  }
-  .link:hover {
-    color: var(--text);
   }
 </style>

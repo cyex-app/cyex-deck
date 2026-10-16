@@ -61,7 +61,7 @@
   function cancel() {
     act(smIpc.unraid(), () => {
       starting = null;
-      toast.info('Raid canceled.');
+      toast.success('Raid canceled.');
     });
   }
 </script>

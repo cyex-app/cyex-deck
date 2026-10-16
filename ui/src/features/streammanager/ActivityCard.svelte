@@ -31,7 +31,7 @@
     if (!r.alert) return;
     smIpc
       .alert(r.alert, replay)
-      .then(() => toast.info(replay ? 'Alert queued again.' : 'Alert skipped.'))
+      .then(() => toast.success(replay ? 'Alert queued again.' : 'Alert skipped.'))
       .catch((e) => toast.error(errorText(e)));
   }
 </script>

@@ -181,7 +181,7 @@
 
   function resetLayout() {
     void settings.patch('streammanager', { layout: null as never, chat: { shown: true }, chatKept: null as never });
-    toast.info('Stream manager layout reset.');
+    toast.success('Stream manager layout reset.');
   }
 
   // V103-15 The mod actions on your channel: the same board as its mod view.
@@ -225,7 +225,7 @@
     {:else if id === 'activity'}<ActivityCard />
     {:else if id === 'actions' && failed}
       <Card title="Mod actions" flush>
-        <p class="bad">Couldn’t load the mod actions. <button class="link" onclick={() => retry++}>Retry</button></p>
+        <p class="bad">Couldn’t load the mod actions. <Button small variant="link" onclick={() => retry++}>Retry</Button></p>
       </Card>
     {:else if id === 'actions'}
       <ModActions items={board.actions} older={board.older} filters={cfg.modActions} onflip={flip} account={m.accountId} login={m.login} />
@@ -267,7 +267,7 @@
       {#if !locked}<span class="hint">Drag panels by their title.</span>{/if}
       <span class="spacer"></span>
       {#if cfg.layout || cfg.chatKept != null}
-        <button class="link" onclick={resetLayout}>Reset layout</button>
+        <Button small variant="link" onclick={resetLayout}>Reset layout</Button>
       {/if}
       <IconButton
         icon="chat"
@@ -275,6 +275,7 @@
         hint="Your chat next to the cards."
         size={15}
         active={chatOn}
+        toggle
         onclick={toggleChat}
       />
       <IconButton
@@ -377,17 +378,6 @@
   }
   .spacer {
     flex: 1;
-  }
-  .link {
-    background: none;
-    border: 0;
-    color: var(--muted);
-    font-size: 0.8rem;
-    white-space: nowrap;
-    cursor: pointer;
-  }
-  .link:hover {
-    color: var(--text);
   }
   .chat {
     flex: 1;

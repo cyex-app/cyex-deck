@@ -13,7 +13,7 @@
   async function run(action: () => Promise<void>, done?: string) {
     try {
       await action();
-      if (done) toast.info(done);
+      if (done) toast.success(done);
     } catch (e) {
       toast.error(errorText(e));
     }

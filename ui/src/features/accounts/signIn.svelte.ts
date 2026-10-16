@@ -29,7 +29,7 @@ class SignInFlow {
         this.code = code;
         this.codeAt = Date.now();
       });
-      toast.info(`Signed in as ${who.displayName}.`);
+      toast.success(`Signed in as ${who.displayName}.`);
       this.offer = kind === 'helix' ? who.userId : null;
     } catch (e) {
       if (run === this.run) toast.error(errorText(e));

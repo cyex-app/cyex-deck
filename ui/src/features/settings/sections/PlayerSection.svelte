@@ -34,7 +34,7 @@
       await playerIpc.setProxy(url);
       proxy = await playerIpc.proxy();
       draft = '';
-      toast.info(url ? 'Proxy saved. New streams use it.' : 'Proxy removed.');
+      toast.success(url ? 'Proxy saved. New streams use it.' : 'Proxy removed.');
     } catch (e) {
       toast.error(errorText(e));
     }

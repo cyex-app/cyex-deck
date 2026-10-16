@@ -71,7 +71,7 @@
     if (!account) return;
     try {
       await subsIpc.stopRenewal(account, id);
-      toast.info(`${name} won’t renew.`);
+      toast.success(`${name} won’t renew.`);
       await load();
     } catch (e) {
       toast.error(errorText(e));

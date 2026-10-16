@@ -35,6 +35,7 @@
   import WindowsSection from './sections/WindowsSection.svelte';
   import UploaderSection from './sections/UploaderSection.svelte';
   import SearchField from '../../components/SearchField.svelte';
+  import { tooltip } from '../../components/tooltip.svelte';
 
   interface Props {
     /** Open page id. Bindable so other views can jump to a page. */
@@ -85,6 +86,7 @@
   let query = $state('');
   let active = $state(0);
   let content = $state<HTMLElement>();
+  let nav = $state<HTMLElement>();
   const searching = $derived(query.trim() !== '');
   const hits = $derived(search(docs, query));
 
@@ -118,12 +120,12 @@
 {/snippet}
 
 <div class="settings">
-  <nav>
+  <nav bind:this={nav}>
     {@render searchBox('side')}
     {#each GROUPS as g (g.label)}
       <div class="group">{g.label}</div>
       {#each g.pages as p (p.id)}
-        <button class:on={!searching && section === p.id} onclick={() => open(p.id)} title={p.label}>
+        <button class:on={!searching && section === p.id} onclick={() => open(p.id)} use:tooltip={{ label: p.label, when: () => (nav?.offsetWidth ?? 999) < 100 }}>
           <Icon name={p.icon} size={15} />
           <span>{p.label}</span>
         </button>

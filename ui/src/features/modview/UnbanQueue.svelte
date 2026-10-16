@@ -39,7 +39,7 @@
 </script>
 
 <div class="bar">
-  <button class="link" onclick={load} disabled={loading}>{loading ? 'Loading…' : 'Refresh'}</button>
+  <Button small variant="link" onclick={load} disabled={loading}>Refresh</Button>
 </div>
 {#if !loading && list.length === 0}
   <p class="empty">No pending requests.</p>
@@ -63,16 +63,6 @@
   .bar {
     padding: 6px 10px;
     border-bottom: 1px solid var(--border);
-  }
-  .link {
-    background: none;
-    border: 0;
-    color: var(--muted);
-    font-size: 0.8rem;
-    cursor: pointer;
-  }
-  .link:hover {
-    color: var(--text);
   }
   ul {
     margin: 0;

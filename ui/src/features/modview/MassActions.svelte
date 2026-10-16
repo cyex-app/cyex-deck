@@ -54,7 +54,7 @@
     running = true;
     modIpc
       .massban(account, login, logins, secs, reason)
-      .then((n) => toast.info(`Done: ${n} of ${logins.length}.`))
+      .then((n) => toast.success(`Done: ${n} of ${logins.length}.`))
       .catch((e) => toast.error(errorText(e)))
       .finally(() => (running = false));
   }

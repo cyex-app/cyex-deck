@@ -9,6 +9,7 @@
   import { PARTITION_LABELS, PORTABLE_PARTITIONS, partitionList } from '../../../lib/partitions';
   import { toast } from '../../../lib/toast.svelte';
   import { errorText } from '../../../lib/errors';
+  import { copy } from '../../../lib/clipboard';
 
   let picked = $state<Partition[]>(['general', 'appearance', 'chat', 'highlights', 'mentions', 'commands', 'hotkeys']);
   let code = $state('');
@@ -42,18 +43,17 @@
   }
 
   async function exportFile() {
-    if (await attempt(() => settingsIpc.exportFile(picked))) toast.info('Settings exported.');
+    if (await attempt(() => settingsIpc.exportFile(picked))) toast.success('Settings exported.');
   }
 
   async function copyCode() {
     const shareCode = await attempt(() => settingsIpc.shareCode(picked));
     if (!shareCode) return;
-    await navigator.clipboard.writeText(shareCode);
-    toast.info('Share code copied.');
+    await copy(shareCode, 'Share code');
   }
 
   function imported(partitions: Partition[] | undefined) {
-    if (partitions?.length) toast.info(`Imported ${partitionList(partitions)}.`);
+    if (partitions?.length) toast.success(`Imported ${partitionList(partitions)}.`);
   }
 
   async function importFile() {
@@ -73,7 +73,7 @@
 
   async function restore(date: string) {
     const result = await attempt(() => settingsIpc.restoreBackup(date));
-    if (result) toast.info(`Restored settings from ${date}.`);
+    if (result) toast.success(`Restored settings from ${date}.`);
   }
 </script>
 

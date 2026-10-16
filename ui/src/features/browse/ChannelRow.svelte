@@ -10,6 +10,7 @@
   import { type Nav, picked } from './open.svelte';
   import { peekAt, unpeek } from './peeking.svelte';
   import QuickOpen from './QuickOpen.svelte';
+  import { tooltip } from '../../components/tooltip.svelte';
 
   let { card, nav }: { card: ChannelCard; nav: Nav } = $props();
 
@@ -40,7 +41,7 @@
       <span class="num">{formatShort(stream.viewers)}</span>
       <span class="num dim">{uptimeShort(stream.startedAt)}</span>
     {:else}
-      <span class="title dim" title={card.lastLive ? formatDate(new Date(card.lastLive)) : undefined}>
+      <span class="title dim" use:tooltip={{ label: card.lastLive ? formatDate(new Date(card.lastLive)) : '', when: () => !!card.lastLive }}>
         {last ? `Live ${last}` : ''}
       </span>
     {/if}

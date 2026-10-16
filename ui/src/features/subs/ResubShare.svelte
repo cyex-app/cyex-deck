@@ -26,7 +26,7 @@
     busy = true;
     try {
       await subsIpc.shareResub(account, login, resub.id, message, streak && resub.streak !== null);
-      toast.info('Shared in chat.');
+      toast.success('Shared in chat.');
       onshared();
     } catch (e) {
       toast.error(errorText(e));

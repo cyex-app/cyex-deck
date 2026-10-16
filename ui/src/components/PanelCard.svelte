@@ -5,7 +5,7 @@
   import type { Snippet } from 'svelte';
 
   import { grabFrom, usePanel } from './panel';
-  import { tooltip } from './tooltip.svelte';
+  import IconButton from './IconButton.svelte';
 
   interface Props {
     title: string;
@@ -27,7 +27,7 @@
     <h3>{title}</h3>
     {#if tools}<div class="tools">{@render tools()}</div>{/if}
     {#if ctl?.close}
-      <button class="x" use:tooltip={'Close'} aria-label="Close {title}" onclick={ctl.close}>×</button>
+      <IconButton icon="x" label="Close {title}" size={14} onclick={ctl.close} />
     {/if}
   </header>
   <div class="body" class:flush>{@render children()}</div>
@@ -72,18 +72,6 @@
     align-items: center;
     gap: 4px;
     min-width: 0;
-  }
-  .x {
-    flex: none;
-    background: none;
-    border: 0;
-    color: var(--muted);
-    font-size: 1rem;
-    line-height: 1;
-    cursor: pointer;
-  }
-  .x:hover {
-    color: var(--text);
   }
   .body {
     flex: 1;

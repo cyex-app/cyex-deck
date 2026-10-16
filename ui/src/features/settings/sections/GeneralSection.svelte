@@ -34,7 +34,7 @@
   async function addFont() {
     try {
       const font = await fontsIpc.add();
-      if (font) toast.info(`Added ${font.name}.`);
+      if (font) toast.success(`Added ${font.name}.`);
     } catch (e) {
       toast.error(errorText(e));
     }

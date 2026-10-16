@@ -9,6 +9,7 @@
   import type { FontChoice } from '../../ipc/bindings/FontChoice';
   import { fontsIpc } from '../../ipc/theme';
   import { RANK, rank } from '../chat/completion';
+  import SearchField from '../../components/SearchField.svelte';
 
   interface Props {
     /** Empty = the app font. */
@@ -24,7 +25,6 @@
   let list = $state<FontChoice[]>([]);
   let active = $state(0);
   let failed = $state(false);
-  let search = $state<HTMLInputElement>();
   let listEl = $state<HTMLUListElement>();
 
   // Installed fonts the webview can't draw by that name would fall back silently (fontProbe).
@@ -50,7 +50,6 @@
     query = '';
     active = 0;
     void load();
-    void tick().then(() => search?.focus());
   });
 
   const missing = $derived(!!value && list.length > 0 && !list.some((f) => f.name.toLowerCase() === value.toLowerCase()));
@@ -96,17 +95,9 @@
     <span class="name" style:font-family={value && !missing ? face(value) : 'var(--font-ui)'}>{value || 'App font'}</span>
     <Icon name="chevronDown" size={13} />
   </button>
-  <Popover bind:open align="start">
+  <Popover bind:open align="start" label="Chat font">
     <div class="panel">
-      <input
-        class="field"
-        placeholder="Search fonts"
-        aria-label="Search fonts"
-        bind:this={search}
-        bind:value={query}
-        oninput={() => (active = 0)}
-        onkeydown={onkey}
-      />
+      <SearchField autofocus placeholder="Search fonts" bind:value={query} oninput={() => (active = 0)} onkeydown={onkey} />
       <ul class="fp-list" role="listbox" bind:this={listEl} aria-label="Chat font">
         {#each rows as f, i (f.name)}
           <li role="option" aria-selected={selected(f.name)} class:hot={i === active}>
@@ -157,9 +148,6 @@
     flex-direction: column;
     gap: 4px;
     min-width: 260px;
-  }
-  .panel .field {
-    height: 30px;
   }
   ul {
     max-height: 320px;

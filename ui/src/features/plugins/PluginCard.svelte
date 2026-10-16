@@ -61,7 +61,7 @@
     <p class="meta muted">
       {[m.authors.join(', '), m.license].filter(Boolean).join(' · ')}
       {#if m.homepage}·
-        <button class="link" onclick={() => void systemIpc.openChatLink(m.homepage!)}>{m.homepage.replace(/^https?:\/\//, '')}</button
+        <Button small variant="link" onclick={() => void systemIpc.openChatLink(m.homepage!)}>{m.homepage.replace(/^https?:\/\//, '')}</Button
         >{/if}
     </p>
   {/if}
@@ -186,17 +186,6 @@
   }
   .meta {
     font-size: 0.78rem;
-  }
-  .link {
-    padding: 0;
-    background: none;
-    border: 0;
-    color: var(--accent-text);
-    font: inherit;
-    cursor: pointer;
-  }
-  .link:hover {
-    text-decoration: underline;
   }
   .error {
     color: var(--red);

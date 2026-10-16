@@ -20,7 +20,7 @@
     try {
       await accountsIpc.addGqlToken(account.userId, token);
       token = '';
-      toast.info('GQL tools unlocked.');
+      toast.success('GQL tools unlocked.');
       onclose?.();
     } catch (err) {
       toast.error(errorText(err));

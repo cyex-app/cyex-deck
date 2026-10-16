@@ -73,7 +73,7 @@ export async function openChannel(nav: Nav, c: Channel, how: OpenHow = {}): Prom
   if (!id) return;
   if (how.background) {
     tabs.activate(null);
-    toast.info(`Opened ${c.name} in a new tab.`);
+    toast.success(`Opened ${c.name} in a new tab.`);
   } else nav.show(id);
 }
 

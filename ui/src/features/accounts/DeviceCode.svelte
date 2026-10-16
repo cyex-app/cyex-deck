@@ -8,6 +8,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { signIn } from './signIn.svelte';
   import { errorText } from '../../lib/errors';
+  import { copy } from '../../lib/clipboard';
 
   let now = $state(Date.now());
 
@@ -30,10 +31,8 @@
     }
   }
 
-  async function copy() {
-    if (!signIn.code) return;
-    await navigator.clipboard.writeText(signIn.code.userCode);
-    toast.info('Code copied.');
+  function copyCode() {
+    if (signIn.code) void copy(signIn.code.userCode, 'Code');
   }
 </script>
 
@@ -43,7 +42,7 @@
     <div class="code">{signIn.code.userCode}</div>
     <div class="actions">
       <Button variant="primary" icon="popout" onclick={open}>Show Twitch</Button>
-      <Button icon="copy" onclick={copy}>Copy code</Button>
+      <Button icon="copy" onclick={copyCode}>Copy code</Button>
       <Button variant="ghost" onclick={() => signIn.cancel()}>Cancel</Button>
     </div>
     <p class="note">

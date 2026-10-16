@@ -17,10 +17,10 @@
 </script>
 
 <div class="wrap">
-  <button class="pick" class:on={picked.length > 0} onclick={() => (open = !open)} aria-expanded={open}>
+  <button class="pick" class:on={picked.length > 0} onclick={() => (open = !open)} aria-haspopup="dialog" aria-expanded={open}>
     <Icon name="globe" size={14} />{languageLabel(picked)}<Icon name="chevronDown" size={13} />
   </button>
-  <Popover bind:open align="end">
+  <Popover bind:open align="end" label="Languages">
     <div class="list">
       <button class="all" disabled={!picked.length} onclick={() => void settings.patch('browse', { languages: [] })}>
         All languages

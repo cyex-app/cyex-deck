@@ -40,7 +40,7 @@
     try {
       await profileIpc.save(account, name.trim(), bio.trim());
       profile = { ...profile, displayName: name.trim(), bio: bio.trim() };
-      toast.info('Saved on Twitch.');
+      toast.success('Saved on Twitch.');
     } catch (e) {
       toast.error(errorText(e));
     } finally {

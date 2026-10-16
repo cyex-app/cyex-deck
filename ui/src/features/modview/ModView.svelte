@@ -18,6 +18,7 @@
   import type { Board0 } from '../../ipc/bindings/Board0';
   import type { ModActionFilters } from '../../ipc/bindings/ModActionFilters';
   import { modIpc } from '../../ipc/moderation';
+  import Button from '../../components/Button.svelte';
   import {
     asPatch,
     type Box,
@@ -207,7 +208,7 @@
 
   function resetLayout() {
     void settings.patch('modview', { order: [], hidden: [], layout: null as never, chatKept: null as never });
-    toast.info('Mod view layout reset.');
+    toast.success('Mod view layout reset.');
   }
 
   function flip(key: keyof ModActionFilters) {
@@ -266,11 +267,11 @@
     {#if !locked}<span class="hint">Drag panels by their title.</span>{/if}
     {#if problem}
       <span class="hint bad">{problem}</span>
-      <button class="link" onclick={() => retry++}>Retry</button>
+      <Button small variant="link" onclick={() => retry++}>Retry</Button>
     {/if}
     <div class="spacer"></div>
     {#if mv.layout || mv.hidden.length || mv.chatKept != null}
-      <button class="link" onclick={resetLayout}>Reset layout</button>
+      <Button small variant="link" onclick={resetLayout}>Reset layout</Button>
     {/if}
     <IconButton
       icon={locked ? 'lock' : 'grid'}
@@ -347,17 +348,6 @@
   }
   .spacer {
     flex: 1;
-  }
-  .link {
-    background: none;
-    border: 0;
-    color: var(--muted);
-    font-size: 0.8rem;
-    white-space: nowrap;
-    cursor: pointer;
-  }
-  .link:hover {
-    color: var(--text);
   }
   .chat {
     flex: 1;

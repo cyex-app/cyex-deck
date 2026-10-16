@@ -8,6 +8,7 @@
   import { since } from './lists';
   import { type Nav, picked } from './open.svelte';
   import QuickOpen from './QuickOpen.svelte';
+  import { tooltip } from '../../components/tooltip.svelte';
 
   let { card, nav }: { card: ChannelCard; nav: Nav } = $props();
 
@@ -25,7 +26,7 @@
   >
     <Avatar src={card.avatar} name={card.name} size={52} />
     <span class="name">{card.name}</span>
-    <span class="last" title={card.lastLive ? formatDate(new Date(card.lastLive)) : undefined}>
+    <span class="last" use:tooltip={{ label: card.lastLive ? formatDate(new Date(card.lastLive)) : '', when: () => !!card.lastLive }}>
       {last ? `Live ${last}` : 'Not live lately'}
     </span>
   </button>

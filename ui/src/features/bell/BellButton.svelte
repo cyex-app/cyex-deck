@@ -52,7 +52,7 @@
       onclick={() => (open = !open)}
     />
     {#if bell.unseen}<span class="count">{bell.unseen > 99 ? '99+' : bell.unseen}</span>{/if}
-    <Popover bind:open>
+    <Popover bind:open label="Notifications">
       <div class="panel">
         <header>
           <Segmented options={LISTS} value={bell.list} label="Which notifications" onchange={(l) => void bell.load(l)} />

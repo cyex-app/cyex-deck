@@ -36,13 +36,13 @@
       active={open}
       onclick={() => (open = !open)}
     />
-    <Popover bind:open>
+    <Popover bind:open label="Update">
       <div class="panel">
         <div class="title">
           <b>cyex deck {u.version}</b>
           {#if u.prerelease}<span class="chip">Pre-release</span>{/if}
         </div>
-        <button class="link" onclick={() => update.openNotes()}>What’s new</button>
+        <span class="notes"><Button small variant="link" onclick={() => update.openNotes()}>What’s new</Button></span>
         {#if update.busy}
           <div class="bar"><div class="fill" style:width="{update.percent ?? 0}%"></div></div>
           <span class="status">{update.progress}</span>
@@ -86,16 +86,8 @@
     color: var(--dim);
     font-size: 0.72rem;
   }
-  .link {
+  .notes {
     align-self: flex-start;
-    padding: 0;
-    background: none;
-    border: 0;
-    color: var(--accent-text);
-    font-size: 0.85rem;
-  }
-  .link:hover {
-    text-decoration: underline;
   }
   .bar {
     height: 4px;

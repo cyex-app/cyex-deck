@@ -95,7 +95,7 @@
     try {
       await themeIpc.import(code);
       code = '';
-      toast.info('Theme added.');
+      toast.success('Theme added.');
     } catch (e) {
       toast.error(errorText(e));
     }
