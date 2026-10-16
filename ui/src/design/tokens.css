@@ -27,6 +27,7 @@
   --cyan: #4fd6ff;
   /* V1051-03 What a 7TV paint is drawn on in the menu. */
   --paint-back: var(--bg);
+  --paint-dim: #91939c;
 }
 
 :root {
@@ -86,6 +87,8 @@
   --cyan: #0b6d8a;
   /* Pale paints vanish on white; a soft grey keeps them readable. */
   --paint-back: #b0b6c0;
+  /* Muted text on that grey (--dim is 2.3:1 there). */
+  --paint-dim: #4f515a;
 }
 
 *,

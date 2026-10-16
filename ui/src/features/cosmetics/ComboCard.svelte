@@ -62,7 +62,7 @@
       {#if badge}
         <img src={badgePicture(badge.images, badge.stills, 18, dpr, focus.idle)} width="18" height="18" alt="" decoding="async" />
       {/if}
-      <span class="who {owned ? `painted paint-${combo.paint?.id}` : ''}">{name}</span>
+      <span class="back"><span class="who {owned ? `painted paint-${combo.paint?.id}` : ''}">{name}</span></span>
     </span>
   {/if}
   {#if renaming}
@@ -132,6 +132,14 @@
   .live img {
     flex: none;
     object-fit: contain;
+  }
+  /* Light: pale paints sit on the same soft grey as in the grid (ItemGrid .back). */
+  .back {
+    display: flex;
+    min-width: 0;
+    padding: 0 6px;
+    background: var(--paint-back);
+    border-radius: var(--radius);
   }
   .who {
     overflow: hidden;

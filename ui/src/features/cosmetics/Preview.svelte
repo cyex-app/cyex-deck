@@ -70,5 +70,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     color: var(--text);
+    /* The time stays readable on the grey. */
+    --dim: var(--paint-dim);
   }
 </style>
