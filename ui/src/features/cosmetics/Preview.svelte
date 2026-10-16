@@ -19,9 +19,17 @@
 
   let { store, who, compact, shown, bar }: Props = $props();
 
-  const current = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
-  const other = current === 'dark' ? 'light' : 'dark';
+  const themeNow = () => (document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
+  let current = $state<'dark' | 'light'>(themeNow());
+  const other = $derived(current === 'dark' ? 'light' : 'dark');
   const boxes = $derived([current, other] as const);
+
+  // A theme change while the menu is open turns the boxes with it.
+  $effect(() => {
+    const mo = new MutationObserver(() => (current = themeNow()));
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => mo.disconnect();
+  });
 
   const paint = $derived(shown.paint ? store.paintById.get(shown.paint) : undefined);
   const badge = $derived(shown.badge ? store.badgeById.get(shown.badge) : undefined);

@@ -1,7 +1,8 @@
 /* Design tokens (3.3, 3.5). Palette shared with cyex logs.
    Accent variables are overwritten at runtime from cyex_core::color (see theme.ts). */
 
-/* V1051-03 .theme-dark / .theme-light: the other theme inside one box (cosmetics preview). */
+/* V1051-03 .theme-dark / .theme-light: the other theme inside one box (cosmetics preview).
+   Only colours live in them; fonts, sizes and the accent are runtime values set on :root. */
 :root,
 .theme-dark {
   color-scheme: dark;
@@ -24,7 +25,9 @@
   --green: #33d68f;
   --twitch: #a970ff;
   --cyan: #4fd6ff;
+}
 
+:root {
   --accent: #145aff;
   --accent-hover: #3773ff;
   --accent-ink: #ffffff;
@@ -53,6 +56,8 @@
   --z-popover: 300;
   --z-tooltip: 390;
   --z-toast: 600;
+  /* Keyboard focus ring on cells and rows (the accent marks the selected one). */
+  --focus-ring: var(--text);
 }
 
 :root[data-theme='light'],
