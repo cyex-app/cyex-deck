@@ -4,9 +4,11 @@
     value: T;
     label: string;
     onchange: (value: T) => void;
+    /** A neutral filled state instead of the accent tint. */
+    neutral?: boolean;
   }
 
-  let { options, value, label, onchange }: Props = $props();
+  let { options, value, label, onchange, neutral = false }: Props = $props();
 
   // Roving tabindex: one tab stop (the picked option); arrows move and pick.
   const current = $derived(Math.max(options.findIndex((o) => o.value === value), 0));
@@ -28,7 +30,7 @@
 </script>
 
 <!-- svelte-ignore a11y_interactive_supports_focus (the radios inside hold the tab stop) -->
-<div class="seg" role="radiogroup" aria-label={label} bind:this={group} {onkeydown}>
+<div class="seg" class:neutral role="radiogroup" aria-label={label} bind:this={group} {onkeydown}>
   {#each options as option, i (option.value)}
     <button
       role="radio"
@@ -78,5 +80,10 @@
   button.on {
     background: var(--accent-dim);
     color: var(--accent-text);
+  }
+  .neutral button.on {
+    box-shadow: 0 0 0 1px var(--border-strong);
+    background: var(--surface-hover);
+    color: var(--text);
   }
 </style>

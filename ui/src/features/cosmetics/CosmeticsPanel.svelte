@@ -115,19 +115,23 @@
       <Preview {store} {who} shown={combos.shown} />
     {/if}
 
-    {#if compact}
-      <Segmented
-        label="Picker"
-        value={tab}
-        options={[
-          { value: 'paints', label: `Paints · ${countLabel(store.paintsShown.length, view.paints.length)}` },
-          { value: 'badges', label: `Badges · ${countLabel(store.badgesShown.length, view.badges.length)}` },
-        ]}
-        onchange={(t) => (tab = t)}
-      />
-    {/if}
-    <!-- Next to the grid you pick from, not up by the preview. -->
-    <Status {store} bar={combos.editing ? editBar : undefined} />
+    <!-- Pop-up: the switch and the status line share one row, so no blank strip and no jump. -->
+    <div class="tabs" class:compact>
+      {#if compact}
+        <Segmented
+          neutral
+          label="Picker"
+          value={tab}
+          options={[
+            { value: 'paints', label: `Paints · ${countLabel(store.paintsShown.length, view.paints.length)}` },
+            { value: 'badges', label: `Badges · ${countLabel(store.badgesShown.length, view.badges.length)}` },
+          ]}
+          onchange={(t) => (tab = t)}
+        />
+      {/if}
+      <!-- Next to the grid you pick from, not up by the preview. -->
+      <Status {store} bar={combos.editing ? editBar : undefined} />
+    </div>
     <div class="picker" class:compact>
       {#if !compact || tab === 'paints'}
         <Pane
@@ -178,10 +182,19 @@
   .picker.compact {
     min-height: 120px;
   }
-  /* The status line keeps its room (no jump), but takes the gaps around it in the pop-up. */
-  .panel.compact > :global(.status) {
-    min-height: 24px;
-    margin: -6px 0;
+  .tabs {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .tabs > :global(.status) {
+    flex: 1;
+    min-width: 0;
+    justify-content: flex-end;
+  }
+  .tabs.compact > :global(.status) {
+    min-height: 0;
   }
   .bar {
     display: flex;
