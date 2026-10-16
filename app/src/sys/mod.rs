@@ -5,6 +5,7 @@
 #![allow(unsafe_code)]
 
 pub mod cache;
+pub mod devtools;
 #[cfg(windows)]
 pub mod audio;
 
@@ -280,47 +281,6 @@ pub fn fill_fullscreen(window: &tauri::WebviewWindow) {
 
 #[cfg(not(windows))]
 pub fn fill_fullscreen(_window: &tauri::WebviewWindow) {}
-
-/// V105-13 Font families installed on this PC (GDI), A-Z, without the vertical `@` ones.
-#[cfg(windows)]
-pub fn installed_fonts() -> Vec<String> {
-    use windows::Win32::Foundation::LPARAM;
-    use windows::Win32::Graphics::Gdi::{
-        DEFAULT_CHARSET, EnumFontFamiliesExW, GetDC, LOGFONTW, ReleaseDC, TEXTMETRICW,
-    };
-
-    unsafe extern "system" fn callback(lf: *const LOGFONTW, _: *const TEXTMETRICW, _: u32, lparam: LPARAM) -> i32 {
-        // SAFETY: GDI passes a live LOGFONTW; `lparam` is the `&mut Vec<String>` given below.
-        let (face, names) = unsafe { (&(*lf).lfFaceName, &mut *(lparam.0 as *mut Vec<String>)) };
-        let len = face.iter().position(|&c| c == 0).unwrap_or(face.len());
-        let name = String::from_utf16_lossy(&face[..len]);
-        if !name.is_empty() && !name.starts_with('@') {
-            names.push(name);
-        }
-        1
-    }
-
-    let mut names: Vec<String> = Vec::new();
-    let query = LOGFONTW {
-        lfCharSet: DEFAULT_CHARSET,
-        ..Default::default()
-    };
-    // SAFETY: a screen DC is released below; `names` outlives the call and the callback
-    // only runs inside it.
-    unsafe {
-        let hdc = GetDC(None);
-        EnumFontFamiliesExW(hdc, &query, Some(callback), LPARAM(&mut names as *mut Vec<String> as isize), 0);
-        ReleaseDC(None, hdc);
-    }
-    names.sort_by_key(|n| n.to_lowercase());
-    names.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
-    names
-}
-
-#[cfg(not(windows))]
-pub fn installed_fonts() -> Vec<String> {
-    Vec::new()
-}
 
 #[cfg(all(test, windows))]
 mod tests {

@@ -7,14 +7,12 @@ use super::{Schema, Sound};
 #[serde(default, rename_all = "camelCase")]
 #[ts(export)]
 pub struct General {
-    /// 2.1 Chat font family. Empty uses the app font.
+    /// 2.1 Chat font family: one of `FONTS`. Empty uses the app font (IBM Plex Sans).
     pub chat_font_family: String,
     /// 2.1 Chat font size in px.
     pub chat_font_size: u8,
     /// V105-03 How many px larger than chat text the pinned message is.
     pub pinned_size_step: u8,
-    /// V101-10 Font files the user added, offered next to the bundled ones.
-    pub fonts: Vec<CustomFont>,
     /// 2.1 Side the chat sits on, next to the player or a clip (1.19).
     pub chat_position: ChatPosition,
     /// 3.6, 2.7 Tooltips that explain the app.
@@ -38,7 +36,6 @@ impl Default for General {
             chat_font_family: String::new(),
             chat_font_size: 13,
             pinned_size_step: 1,
-            fonts: Vec::new(),
             chat_position: ChatPosition::Right,
             tooltips: true,
             minimize_to_tray: false,
@@ -54,16 +51,7 @@ impl Schema for General {
     fn sanitize(&mut self) {
         self.chat_font_size = self.chat_font_size.clamp(9, 32);
         self.pinned_size_step = self.pinned_size_step.min(MAX_PINNED_STEP);
-        self.chat_font_family = self.chat_font_family.trim().chars().take(100).collect();
-        let mut names: Vec<String> = Vec::new();
-        self.fonts.retain_mut(|f| {
-            f.name = font_name(&f.name);
-            let key = f.name.to_lowercase();
-            let keep = !f.name.is_empty() && f.is_file() && !names.contains(&key);
-            names.push(key);
-            keep
-        });
-        self.fonts.truncate(MAX_FONTS);
+        self.chat_font_family = font_or_default(&self.chat_font_family);
         let apps = &mut self.streamer.apps;
         for a in apps.iter_mut() {
             *a = a.trim().chars().take(MAX_APP_CHARS).collect();
@@ -110,45 +98,31 @@ impl Default for Updates {
 const MAX_PINNED_STEP: u8 = 8;
 const MAX_APPS: usize = 30;
 const MAX_APP_CHARS: usize = 80;
-const MAX_FONTS: usize = 20;
-const MAX_FONT_NAME_CHARS: usize = 60;
-const MAX_FONT_FILE_STEM: usize = 32;
 
-/// V101-10 A font file the user added. The file sits in `fonts\` next to the settings.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[serde(default, rename_all = "camelCase")]
-#[ts(export)]
-pub struct CustomFont {
-    /// What the font is called in the list and in CSS.
-    pub name: String,
-    /// `<id>.<ext>` in the fonts folder.
-    pub file: String,
+/// Fonts-fixed (user, 2026/10/16) The only fonts there are, in list order. The first six
+/// come with the app (`ui/src/design/fonts.css`), the last two are always on Windows.
+pub const FONTS: [&str; 8] = [
+    "Inter",
+    "Roboto",
+    "Open Sans",
+    "Lato",
+    "JetBrains Mono",
+    "IBM Plex Sans",
+    "Segoe UI",
+    "Arial",
+];
+
+/// A saved font name as the list spells it. Anything not in the list, including a font
+/// from an older version, is the app font (empty), silently. IBM Plex Sans is the app
+/// font, so it is stored as empty too.
+pub fn font_or_default(name: &str) -> String {
+    FONTS
+        .iter()
+        .find(|f| f.eq_ignore_ascii_case(name.trim()))
+        .filter(|f| **f != "IBM Plex Sans")
+        .map(|f| (*f).to_owned())
+        .unwrap_or_default()
 }
-
-impl CustomFont {
-    /// Only a plain file name the app made: no paths, a known font type.
-    pub fn is_file(&self) -> bool {
-        let Some((stem, ext)) = self.file.rsplit_once('.') else {
-            return false;
-        };
-        !stem.is_empty()
-            && stem.len() <= MAX_FONT_FILE_STEM
-            && stem.chars().all(|c| c.is_ascii_alphanumeric())
-            && FONT_TYPES.contains(&ext)
-    }
-}
-
-/// A font's name as CSS gets it: no quotes, braces or other characters that end a rule.
-pub fn font_name(name: &str) -> String {
-    let kept: String = name
-        .chars()
-        .filter(|c| !c.is_control() && !matches!(c, '"' | '\'' | '\\' | ';' | '{' | '}' | '<' | '>'))
-        .collect();
-    kept.trim().chars().take(MAX_FONT_NAME_CHARS).collect()
-}
-
-/// Font files a page can load.
-pub const FONT_TYPES: [&str; 4] = ["ttf", "otf", "woff", "woff2"];
 
 /// U4 Streamer mode hides what viewers of your stream shouldn't see.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -225,28 +199,40 @@ pub enum ChatPosition {
 mod tests {
     use super::*;
 
-    fn font(name: &str, file: &str) -> CustomFont {
-        CustomFont {
-            name: name.into(),
-            file: file.into(),
-        }
+    #[test]
+    fn a_saved_font_outside_the_list_becomes_the_app_font() {
+        let load = |f: &str| {
+            let mut g: General = serde_json::from_str(&format!(r#"{{"chatFontFamily":"{f}"}}"#)).unwrap();
+            g.sanitize();
+            g.chat_font_family
+        };
+        assert_eq!(load("Lato"), "Lato");
+        assert_eq!(load(" segoe ui "), "Segoe UI");
+        assert_eq!(load("Comic Sans MS"), "");
+        assert_eq!(load("My Font"), "");
+        assert_eq!(load("IBM Plex Sans"), "");
+        assert_eq!(load(""), "");
     }
 
     #[test]
-    fn custom_fonts_keep_plain_files_and_one_of_each_name() {
-        let mut g = General {
-            fonts: vec![
-                font(" My \"Font\" ", "abc123.ttf"),
-                font("my font", "def456.otf"),
-                font("Path", "../evil.ttf"),
-                font("Exe", "abc.exe"),
-                font("", "aaa.woff2"),
-                font("Web", "bbb.woff2"),
-            ],
-            ..General::default()
-        };
+    fn old_settings_with_font_files_still_load() {
+        let json = r#"{"chatFontFamily":"My Font","fonts":[{"name":"My Font","file":"abc123.ttf"}],"chatFontSize":15}"#;
+        let mut g: General = serde_json::from_str(json).unwrap();
         g.sanitize();
-        assert_eq!(g.fonts, vec![font("My Font", "abc123.ttf"), font("Web", "bbb.woff2")]);
+        assert_eq!(g.chat_font_family, "");
+        assert_eq!(g.chat_font_size, 15);
+    }
+
+    #[test]
+    fn every_font_in_the_list_is_bundled_or_on_windows() {
+        const CSS: &str = include_str!("../../../../ui/src/design/fonts.css");
+        const TS: &str = include_str!("../../../../ui/src/design/fonts.ts");
+        for name in FONTS {
+            assert!(TS.contains(&format!("'{name}'")), "{name} missing in fonts.ts");
+            if !matches!(name, "Segoe UI" | "Arial") {
+                assert!(CSS.contains(&format!("font-family: '{name}'")), "{name} missing in fonts.css");
+            }
+        }
     }
 
     #[test]

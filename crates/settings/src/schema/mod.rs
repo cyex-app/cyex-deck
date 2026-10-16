@@ -39,7 +39,7 @@ pub use combos::{
 };
 pub use commands::{Access, Automation, Commands, SavedTimer, TriggerMatch};
 pub use emotes::{EmoteKey, EmoteSource, EmoteUse, Emotes};
-pub use general::{ChatPosition, CustomFont, FONT_TYPES, General, font_name, StreamerMode, StreamerWhen};
+pub use general::{ChatPosition, FONTS, General, font_or_default, StreamerMode, StreamerWhen};
 pub(crate) use highlights::MAX_RULES;
 pub use highlights::{
     Alert, AppRule, BadgeRule, Blocked, BlockedShow, BuiltIn, FilterDef, HiddenUser, Highlights, IgnoreRule, PhraseRule,

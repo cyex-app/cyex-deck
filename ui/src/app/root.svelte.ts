@@ -4,7 +4,6 @@
 // of the browser's (V101-30), smooth scrolling (V103-11) and picture scale (V105-08).
 
 import { applyAppearance } from '../design/theme';
-import { applyUserFonts } from '../design/userFonts';
 import { looks } from '../features/emotes/looks.svelte';
 import { align } from '../features/emotes/phase';
 import { useMediaSession } from '../features/player/media.svelte';
@@ -29,7 +28,6 @@ export function useRootEffects(): void {
     style.setProperty('--pinned-step', `${pinnedSizeStep}px`);
   });
 
-  $effect(() => applyUserFonts(settings.v.general.fonts));
 
   $effect(() => {
     document.documentElement.style.setProperty('--emote-scale', String(settings.v.chat.emoteSize / 100));

@@ -12,7 +12,6 @@ mod commands;
 mod cosmetics;
 mod connections;
 mod emotes;
-mod fonts;
 mod hermes;
 mod hotkeys;
 mod icons;
@@ -50,7 +49,6 @@ fn main() {
         .plugin(hotkeys::plugin())
         .register_asynchronous_uri_scheme_protocol(player::SCHEME, player::handle)
         .register_uri_scheme_protocol(theme::SCHEME, theme::handle)
-        .register_uri_scheme_protocol(fonts::SCHEME, fonts::handle)
         .setup(|app| {
             let handle = app.handle();
             // T01 Which folders this run uses, then V102-02, before anything reads its files.
@@ -60,7 +58,6 @@ fn main() {
             settings::init(handle)?;
             sound::init(handle);
             theme::init(handle);
-            fonts::init(handle);
             streamer::init(handle);
             auth::init(handle)?;
             hermes::init(handle);
