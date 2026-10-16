@@ -13,14 +13,22 @@
 
   let { profile, channel }: { profile: Profile; channel: string } = $props();
 
-  let blocked = $state(false);
+  /** null until the lookup answers; `lookupFailed` hides the button rather than guess. */
+  let blocked = $state<boolean | null>(null);
+  let lookupFailed = $state(false);
   let busy = $state(false);
 
-  // svelte-ignore state_referenced_locally
-  usercardIpc
-    .blocked(profile.id)
-    .then((b) => (blocked = b))
-    .catch(() => {});
+  $effect(() => {
+    const id = profile.id;
+    let stale = false;
+    blocked = null;
+    lookupFailed = false;
+    usercardIpc
+      .blocked(id)
+      .then((b) => !stale && (blocked = b))
+      .catch(() => !stale && (lookupFailed = true));
+    return () => (stale = true);
+  });
 
   $effect(() => userMenus.track());
 
@@ -66,14 +74,16 @@
   >
     {hidden ? 'Show again' : 'Hide'}
   </Button>
-  <Button
-    small
-    variant={blocked ? 'ghost' : 'danger'}
-    disabled={busy}
-    onclick={() => run(`/${blocked ? 'unblock' : 'block'} ${profile.login}`, () => (blocked = !blocked))}
-  >
-    {blocked ? 'Unblock' : 'Block'}
-  </Button>
+  {#if !lookupFailed}
+    <Button
+      small
+      variant={blocked ? 'ghost' : 'danger'}
+      disabled={busy || blocked === null}
+      onclick={() => run(`/${blocked ? 'unblock' : 'block'} ${profile.login}`, () => (blocked = !blocked))}
+    >
+      {blocked ? 'Unblock' : 'Block'}
+    </Button>
+  {/if}
 </div>
 
 <style>

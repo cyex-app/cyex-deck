@@ -26,6 +26,7 @@
     const l = login;
     let alive = true;
     about = null;
+    problem = null;
     channelIpc
       .about(l)
       .then((a) => alive && ((about = a), (problem = a ? null : 'This channel doesn’t exist.')))
@@ -41,7 +42,9 @@
 <div class="page">
   {#if problem}
     <EmptyState icon="alert" text={problem} />
-  {:else if about}
+  {:else if !about}
+    <p class="load">Loading…</p>
+  {:else}
     {#if about.banner}<img class="banner" src={about.banner} alt="" />{/if}
     <div class="head">
       <StoryRing
@@ -112,8 +115,15 @@
   .banner {
     display: block;
     width: 100%;
+    aspect-ratio: 5 / 2;
     max-height: 180px;
     object-fit: cover;
+    background: var(--surface-hover);
+  }
+  .load {
+    padding: 16px;
+    color: var(--dim);
+    font-size: 0.85rem;
   }
   .head {
     display: flex;
@@ -192,7 +202,9 @@
   .panel img {
     display: block;
     max-width: 100%;
+    min-height: 64px;
     margin-bottom: 8px;
+    background: var(--surface-hover);
     border-radius: var(--radius);
   }
   .img-link {

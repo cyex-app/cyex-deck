@@ -45,14 +45,23 @@
   async function add() {
     if (!picked) return;
     const c = strip(picked);
-    if (!(await minerIpc.add(c))) toast.info(`${c.name} is on the list already.`);
+    try {
+      if (!(await minerIpc.add(c))) toast.info(`${c.name} is on the list already.`);
+    } catch (e) {
+      // Kept in the box to try again.
+      return toast.error(String(e));
+    }
     text = '';
     picked = null;
   }
 
   async function setFirst(c: TabChannel, on: boolean) {
-    const out = await minerIpc.first(strip(c), on);
-    if (out) toast.info(`${out} isn’t first anymore.`);
+    try {
+      const out = await minerIpc.first(strip(c), on);
+      if (out) toast.info(`${out} isn’t first anymore.`);
+    } catch (e) {
+      toast.error(String(e));
+    }
   }
 
   function remove(id: string) {

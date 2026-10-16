@@ -18,20 +18,27 @@
   let following = $state<boolean | null>(null);
   let confirming = $state(false);
   let busy = false;
+  /** The lookup failed: the button stays, and a click asks again. */
+  let failed = $state(false);
+  let ask = $state(0);
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   $effect(() => {
+    void ask;
     following = null;
+    failed = false;
+    confirming = false;
     if (!can || !account) return;
     let current = true;
     tabsIpc
       .following(channelId, account)
       .then((v) => current && (following = v))
-      .catch(() => {});
+      .catch(() => current && (failed = true));
     return () => (current = false);
   });
 
   async function click() {
+    if (failed) return void ask++;
     if (following === null || busy || !account) return;
     if (following && !confirming) {
       confirming = true;
@@ -56,15 +63,26 @@
   }
 </script>
 
-{#if can && following !== null}
+{#if can}
+  <!-- Same size while the lookup runs, so the header doesn't shift. -->
   <button
     class="follow"
-    class:on={following}
+    class:on={following === true}
     class:confirming
+    class:wait={following === null}
     aria-label={following ? 'Unfollow' : 'Follow'}
+    aria-disabled={following === null && !failed}
     onclick={click}
     onpointerdown={(e) => e.stopPropagation()}
-    use:tooltip={following ? (confirming ? 'Click again to unfollow' : 'Following') : 'Follow'}
+    use:tooltip={failed
+      ? 'Couldn’t check. Click to retry'
+      : following === null
+        ? 'Checking…'
+        : following
+          ? confirming
+            ? 'Click again to unfollow'
+            : 'Following'
+          : 'Follow'}
   >
     <Icon name="heart" size={15} />
     {#if confirming}<span>Unfollow?</span>{/if}
@@ -99,6 +117,9 @@
   }
   .on :global(svg) {
     fill: currentColor;
+  }
+  .wait {
+    opacity: 0.5;
   }
   .confirming {
     color: var(--red);

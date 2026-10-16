@@ -27,6 +27,8 @@
   let ring = $state<StoryRing | null>(null);
 
   $effect(() => {
+    // Another channel never shows this one's ring.
+    ring = null;
     if (!account) return;
     let alive = true;
     channelIpc
