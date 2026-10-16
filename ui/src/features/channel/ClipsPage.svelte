@@ -48,9 +48,11 @@
   </div>
   {#if problem}
     <EmptyState icon="alert" text={problem} />
-  {:else if clips && !clips.length}
+  {:else if !clips}
+    <p class="load">Loading…</p>
+  {:else if !clips.length}
     <EmptyState icon="clapper" text="No clips in this time." />
-  {:else if clips}
+  {:else}
     <div class="grid">
       {#each clips as c (c.slug)}
         <Card
@@ -83,5 +85,11 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 14px 12px;
+  }
+  .load {
+    margin: 0;
+    padding: 8px 2px;
+    color: var(--dim);
+    font-size: 0.85rem;
   }
 </style>

@@ -5,7 +5,7 @@
      fixed order (by id), like panels since V103-05: moving a tile changes only its box, so
      no stream in the tab restarts. -->
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
 
   import Button from '../../components/Button.svelte';
   import type { Tab } from '../../ipc/bindings/Tab';
@@ -92,17 +92,34 @@
       const at = vertical ? ev.clientX - r.left : ev.clientY - r.top;
       live = resized(base, line, dragSizes(s, d.rect, d.index, at, [MIN_PX + LINE, MIN_PX + LINE]));
     };
-    const up = () => {
+    const stop = () => {
       removeEventListener('pointermove', move);
       removeEventListener('pointerup', up);
+      removeEventListener('pointercancel', up);
+      removeEventListener('blur', up);
       document.body.classList.remove('resizing', 'resizing-v');
+      teardown = null;
+    };
+    // Also ends on a cancelled pointer or a lost window, and when this unmounts.
+    const up = () => {
+      stop();
       if (live) void tabs.apply({ op: 'resize', tab: tab.id, columns: live.columns, rows: live.rows });
+      live = null;
+    };
+    teardown?.();
+    teardown = () => {
+      stop();
       live = null;
     };
     document.body.classList.add(vertical ? 'resizing' : 'resizing-v');
     addEventListener('pointermove', move);
     addEventListener('pointerup', up);
+    addEventListener('pointercancel', up);
+    addEventListener('blur', up);
   }
+
+  let teardown: (() => void) | null = null;
+  onDestroy(() => teardown?.());
 
   const px = (n: number) => `${Math.round(n * 100) / 100}px`;
 </script>

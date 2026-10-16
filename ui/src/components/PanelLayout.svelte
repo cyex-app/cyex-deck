@@ -8,7 +8,7 @@
      only then (`PanelTray`), taking their own room. V103-07 A `hosted` panel
      shows over a place elsewhere in the layout, e.g. its tile's player in the mod view. -->
 <script lang="ts">
-  import { type Snippet, untrack } from 'svelte';
+  import { onDestroy, type Snippet, untrack } from 'svelte';
 
   import { drag, panelDrops } from '../features/tabs/drag.svelte';
   import { layout as panelsState } from '../features/tabs/layout.svelte';
@@ -184,16 +184,33 @@
       const r = el.getBoundingClientRect();
       live = { path: d.path, sizes: dragSizes(s, d.rect, d.index, row ? ev.clientX - r.left : ev.clientY - r.top, mins) };
     };
-    const up = () => {
+    const stop = () => {
       removeEventListener('pointermove', move);
       removeEventListener('pointerup', up);
+      removeEventListener('pointercancel', up);
+      removeEventListener('blur', up);
       document.body.classList.remove('panel-resize-col', 'panel-resize-row');
+      teardown = null;
+    };
+    // Also ends on a cancelled pointer or a lost window, and when this unmounts.
+    const up = () => {
+      stop();
       if (live) onresize?.(live.path, live.sizes);
+      live = null;
+    };
+    teardown?.();
+    teardown = () => {
+      stop();
       live = null;
     };
     addEventListener('pointermove', move);
     addEventListener('pointerup', up);
+    addEventListener('pointercancel', up);
+    addEventListener('blur', up);
   }
+
+  let teardown: (() => void) | null = null;
+  onDestroy(() => teardown?.());
 
   const px = (n: number) => `${Math.round(n * 100) / 100}px`;
 </script>

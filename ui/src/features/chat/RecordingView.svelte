@@ -73,6 +73,8 @@
 
   /** Brings the lines to `to` ms, from the start when going back. */
   async function seek(to: number) {
+    // Scrolled up to read: playback leaves the view alone. A jump back or forward snaps down.
+    const stick = to < at || to - at > 1000 || !list || list.scrollHeight - list.scrollTop - list.clientHeight < 40;
     let out = lines;
     if (to < at) {
       out = [];
@@ -82,7 +84,7 @@
     lines = out.length > KEEP ? out.slice(-KEEP) : out;
     at = to;
     await tick();
-    list?.scrollTo({ top: list.scrollHeight });
+    if (stick) list?.scrollTo({ top: list.scrollHeight });
   }
 
   $effect(() => {

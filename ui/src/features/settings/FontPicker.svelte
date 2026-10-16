@@ -56,7 +56,7 @@
   const missing = $derived(!!value && list.length > 0 && !list.some((f) => f.name.toLowerCase() === value.toLowerCase()));
   const q = $derived(query.trim());
   /** Typed: best match first (V101-16 rank), A-Z within. An empty name is the app font. */
-  const rows = $derived.by(() => {
+  const found = $derived.by(() => {
     const app = { name: '', kind: 'app' as const };
     if (!q) return [app, ...list];
     const hits = list
@@ -65,6 +65,10 @@
       .sort((a, b) => b.r.rank - a.r.rank || b.r.close - a.r.close);
     return rank('App font', q).rank > RANK.none ? [app, ...hits.map((h) => h.f)] : hits.map((h) => h.f);
   });
+
+  /** Every row paints in its own font: the rest waits for a search. */
+  const LIMIT = 150;
+  const rows = $derived(found.slice(0, LIMIT));
 
   const selected = (name: string) => (name === '' ? !value : name.toLowerCase() === value.toLowerCase());
   const face = (name: string) => `"${name}"`;
@@ -118,7 +122,7 @@
           </li>
         {/each}
       </ul>
-      {#if failed}<p class="empty">Couldn’t read the fonts.</p>{:else if !rows.length}<p class="empty">No font by that name.</p>{/if}
+      {#if failed}<p class="empty">Couldn’t read the fonts.</p>{:else if !rows.length}<p class="empty">No font by that name.</p>{:else if found.length > rows.length}<p class="empty">{found.length - rows.length} more. Type to find one.</p>{/if}
     </div>
   </Popover>
 </div>

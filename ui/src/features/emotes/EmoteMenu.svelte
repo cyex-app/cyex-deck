@@ -37,6 +37,10 @@
   let emoji = $state<EmojiGroup[] | null>(null);
   let query = $state('');
   let tab = $state<Tab>(readTab());
+  /** Big sections draw this many cells, then a "Show more" (nothing else is windowed here). */
+  const CAP = 240;
+  let extra = $state<Record<string, number>>({});
+  const cap = (id: string) => CAP + (extra[id] ?? 0);
   let input = $state<HTMLInputElement>();
 
   const theme = $derived(settings.v.appearance.theme);
@@ -123,6 +127,12 @@
     if (from && !from.contains(e.relatedTarget as Node)) hideTip();
   }
 </script>
+
+{#snippet more(id: string, total: number)}
+  {#if total > cap(id)}
+    <button class="more" onclick={() => (extra[id] = (extra[id] ?? 0) + CAP)}>Show more ({total - cap(id)})</button>
+  {/if}
+{/snippet}
 
 {#snippet emote(m: MenuEmote)}
   {@const img = emoteImg(m.provider, m.id, theme, { animated: m.animated, still: focus.still, scale: density.scale })}
@@ -215,8 +225,9 @@
           <section>
             <h4>{g.title}</h4>
             <div class="grid">
-              {#each g.emoji as e (e.char)}{@render emojiCell(e)}{/each}
+              {#each g.emoji.slice(0, cap(g.title)) as e (e.char)}{@render emojiCell(e)}{/each}
             </div>
+            {@render more(g.title, g.emoji.length)}
           </section>
         {/each}
       {:else}
@@ -231,8 +242,9 @@
             {s.title}
           </h4>
           <div class="grid">
-            {#each s.emotes as m (cellKey(m))}{@render emote(m)}{/each}
+            {#each s.emotes.slice(0, cap(s.id)) as m (cellKey(m))}{@render emote(m)}{/each}
           </div>
+          {@render more(s.id, s.emotes.length)}
         </section>
       {/each}
       {#if !menu[tab].length && !(tab === 'twitch' && menu.twitchNote)}
@@ -383,6 +395,17 @@
     background: var(--elevated-2);
     border-radius: 50%;
     color: var(--muted);
+  }
+  .more {
+    margin: 4px 0 0;
+    padding: 4px 8px;
+    background: none;
+    border: 0;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+  .more:hover {
+    color: var(--text);
   }
   .note {
     margin: 16px 4px;

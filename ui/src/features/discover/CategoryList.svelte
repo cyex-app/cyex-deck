@@ -12,6 +12,7 @@
 
   const list = new Paged<Category>((after) => discoverIpc.categories(after));
   let followed = $state.raw<Category[]>([]);
+  let settled = $state(false);
 
   const account = $derived(accounts.list.find((a) => a.isDefault && a.features.includes('follow'))?.userId);
 
@@ -21,11 +22,14 @@
     const id = account;
     let alive = true;
     followed = [];
+    // The grid waits for this, so "Yours" doesn't push it down after it shows.
+    settled = !id;
     if (id) {
       discoverIpc
         .followedCategories(id)
         .then((c) => alive && (followed = c.sort((a, b) => b.viewers - a.viewers)))
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => alive && (settled = true));
     }
     return () => (alive = false);
   });
@@ -40,9 +44,11 @@
   </div>
   <h2>All</h2>
 {/if}
-<div class="grid">
-  {#each list.items as c (c.id)}<CategoryCard category={c} onopen={open} />{/each}
-</div>
+{#if settled}
+  <div class="grid">
+    {#each list.items as c (c.id)}<CategoryCard category={c} onopen={open} />{/each}
+  </div>
+{/if}
 <PagedEnd {list} empty="No categories right now." />
 
 <style>

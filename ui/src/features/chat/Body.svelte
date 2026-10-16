@@ -115,6 +115,10 @@
     display: block;
     max-width: min(320px, 100%);
     max-height: 140px;
+    /* Room for it before it loads. */
+    min-width: 96px;
+    min-height: 72px;
+    background: var(--surface-hover);
     border-radius: 4px;
   }
   .gif-wrap:hover .gif {

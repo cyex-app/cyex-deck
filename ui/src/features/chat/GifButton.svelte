@@ -39,7 +39,9 @@
 
   async function toggle() {
     open = !open;
-    if (!open || info) return;
+    // A "can't send" answer asks again, in case it was a failed call.
+    if (!open || info?.canSend) return;
+    info = null;
     try {
       info = await chatxIpc.gifInfo(room.view);
       if (info.canSend) void load(true);
@@ -48,8 +50,12 @@
     }
   }
 
+  /** A fresh search is out: "Nothing found." waits for its answer. */
+  let searching = $state(false);
+
   async function load(fresh: boolean) {
     const q = query;
+    if (fresh) searching = true;
     try {
       const page = await chatxIpc.gifSearch(room.view, q, fresh ? 0 : gifs.length);
       if (q !== query) return;
@@ -57,6 +63,8 @@
       more = page.length > 0;
     } catch (e) {
       toast.error(String(e));
+    } finally {
+      if (q === query) searching = false;
     }
   }
 
@@ -108,7 +116,7 @@
               <img src={g.preview} alt={g.title} loading="lazy" style:aspect-ratio="{g.width} / {g.height}" />
             </button>
           {:else}
-            <p class="note">Nothing found.</p>
+            <p class="note">{searching ? 'Searching…' : 'Nothing found.'}</p>
           {/each}
         </div>
         <p class="by">Powered by GIPHY</p>

@@ -20,16 +20,24 @@
 
   $effect(() => {
     if (!el) return;
-    const seen = new IntersectionObserver((entries) => {
-      if (!entries.some((e) => e.isIntersecting)) return;
-      seen.disconnect();
-      chatIpc
-        .resolveLink(url)
-        .then((i) => (info = i))
-        .catch(() => {});
-    });
+    // Asked a screen ahead, so the card grows while it is still off screen.
+    const seen = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return;
+        seen.disconnect();
+        chatIpc
+          .resolveLink(url)
+          .then((i) => !gone && (info = i))
+          .catch(() => {});
+      },
+      { rootMargin: '600px 0px' },
+    );
+    let gone = false;
     seen.observe(el);
-    return () => seen.disconnect();
+    return () => {
+      gone = true;
+      seen.disconnect();
+    };
   });
 </script>
 
