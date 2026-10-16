@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
+  import { tooltip } from './tooltip.svelte';
 
   interface Props {
     checked: boolean;
@@ -13,7 +14,7 @@
   let { checked, label, hint, disabled = false, onchange }: Props = $props();
 </script>
 
-<label class="check" class:disabled title={hint}>
+<label class="check" class:disabled use:tooltip={hint ?? ''}>
   <input type="checkbox" {checked} {disabled} onchange={(e) => onchange(e.currentTarget.checked)} />
   <span class="box">{#if checked}<Icon name="check" size={12} />{/if}</span>
   {label}

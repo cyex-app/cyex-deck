@@ -6,6 +6,7 @@
   import { floating } from '../lib/place';
   import Icon from './Icon.svelte';
   import { type Choice, matchTyped, moveFor } from './select.ts';
+  import { tooltip } from './tooltip.svelte';
 
   interface Props {
     options: readonly Choice[];
@@ -24,6 +25,7 @@
   let active = $state(0);
   let button = $state<HTMLButtonElement>();
   let list = $state<HTMLElement>();
+  let text = $state<HTMLElement>();
   let typed = '';
   let typedAt = 0;
 
@@ -115,14 +117,14 @@
     role="combobox"
     aria-label={label}
     aria-haspopup="listbox"
-    title={shown}
     aria-expanded={open}
     aria-controls="{uid}-list"
     aria-activedescendant={open ? `${uid}-${active}` : undefined}
     onclick={() => (open ? close() : show())}
     onkeydown={onkey}
+    use:tooltip={{ label: shown, when: () => !open && !!text && text.scrollWidth > text.clientWidth }}
   >
-    <span class="text">{shown}</span>
+    <span class="text" bind:this={text}>{shown}</span>
     <Icon name="chevronDown" size={14} />
   </button>
   {#if open}
