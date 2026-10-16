@@ -270,7 +270,8 @@
   let sending = false;
 
   async function send(keep: boolean) {
-    const value = text.trim();
+    const raw = text;
+    const value = raw.trim();
     if (!value || !canChat || sending) return;
     // M11 A mod's `/pin <text>`: how long first, then send and pin.
     const pinned = pinText(value);
@@ -282,8 +283,11 @@
       if (action) onaction?.(action);
       sent = [value, ...sent.filter((s) => s !== value)].slice(0, HISTORY);
       recall = -1;
-      // Text typed while it was sending stays.
-      if (!keep && text.trim() === value) text = '';
+      // Text typed while it was sending stays; the part that was sent goes.
+      if (!keep) {
+        if (text.trim() === value) text = '';
+        else if (text.startsWith(raw)) text = text.slice(raw.length).trimStart();
+      }
       replyTo = null;
     } catch (e) {
       error = errorText(e);
@@ -446,8 +450,12 @@
   textarea:focus {
     border-color: var(--accent-border);
   }
+  /* One line, cut with …, so a narrow chat doesn't get a two-line empty box. */
   textarea::placeholder {
     color: var(--dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   /* V105-11: the counter is a flex item after the buttons with a fixed width, so the
      textarea ends before it and text can never run under it. */
