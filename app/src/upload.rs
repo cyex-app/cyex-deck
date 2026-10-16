@@ -27,6 +27,7 @@ const MAX_LOG: usize = 500;
 const MAX_DROPPED: usize = 20;
 const PREVIEW_SIDE: u32 = 96;
 const BAD_TYPE: &str = "Only PNG, JPG, GIF and WebP images.";
+const NOT_DROPPED: &str = "Not a file you dropped.";
 const TOO_BIG: &str = "That image is over 20 MB.";
 
 #[derive(Default)]
@@ -95,13 +96,17 @@ pub fn dropped(state: &Uploads, paths: &[std::path::PathBuf]) {
     kept.drain(..extra);
 }
 
+/// One check for both readers of a path from the page (preview and upload): only a file the
+/// window saw dropped.
+fn known(state: &Uploads, path: &str) -> Result<(), String> {
+    let seen = state.dropped.lock().unwrap_or_else(|e| e.into_inner()).iter().any(|k| k == path);
+    if seen { Ok(()) } else { Err(NOT_DROPPED.into()) }
+}
+
 /// V1051-05 A small PNG of a dropped file, for the upload question. Only a file this window
 /// saw dropped, within the upload size cap.
 pub fn preview(state: &Uploads, path: &str) -> Result<Vec<u8>, String> {
-    let known = state.dropped.lock().unwrap_or_else(|e| e.into_inner()).iter().any(|k| k == path);
-    if !known {
-        return Err("Not a file you dropped.".into());
-    }
+    known(state, path)?;
     let len = fs::metadata(path).map_err(|_| "Couldn’t open that file.")?.len();
     if len > MAX_BYTES as u64 {
         return Err(TOO_BIG.into());
@@ -137,6 +142,7 @@ fn load(app: &AppHandle, item: &UploadItem) -> Result<Image, String> {
             })
         }
         UploadItem::File(path) => {
+            known(&app.state::<Uploads>(), path)?;
             let p = Path::new(path);
             let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("");
             let mime = mime(ext).ok_or(BAD_TYPE)?;
@@ -321,6 +327,16 @@ mod tests {
         assert_eq!(preview(&state, r"C:\Windows\win.ini").unwrap_err(), "Not a file you dropped.");
         // A remembered one is read (here it is not a real image).
         assert_eq!(preview(&state, img.to_str().unwrap()).unwrap_err(), "Couldn’t read that image.");
+    }
+
+    #[test]
+    fn an_upload_only_takes_dropped_files() {
+        let state = Uploads::default();
+        let img = temp("up-seen.png");
+        dropped(&state, std::slice::from_ref(&img));
+        assert!(known(&state, img.to_str().unwrap()).is_ok());
+        assert_eq!(known(&state, r"C:\Users\x\secret.png").unwrap_err(), NOT_DROPPED);
+        assert_eq!(known(&state, "").unwrap_err(), NOT_DROPPED);
     }
 
     #[test]
