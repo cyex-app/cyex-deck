@@ -121,6 +121,22 @@ fn word(action: &str, on: bool) -> (ModGroup, String) {
     (g, w.to_owned())
 }
 
+/// V7 Twitch's "Added as a Moderator" in the live feed's words, which read before the name.
+fn role_words(done: &str) -> Option<&'static str> {
+    let d = done.to_ascii_lowercase();
+    let added = d.starts_with("added");
+    if !added && !d.starts_with("removed") {
+        return None;
+    }
+    if d.contains("moderator") {
+        Some(if added { "modded" } else { "unmodded" })
+    } else if d.contains("vip") {
+        Some(if added { "gave VIP to" } else { "took VIP from" })
+    } else {
+        None
+    }
+}
+
 impl ModLine {
     /// A live action from EventSub or Hermes. `secs` is a timeout's length.
     pub fn live(m: &Moderate, secs: Option<u64>, id: String, ts: i64) -> Self {
@@ -237,7 +253,9 @@ impl ModLine {
                 .collect::<Vec<_>>()
                 .join(" ")
         };
-        let action = if a.target.is_some() || a.title.is_empty() {
+        let action = if let Some(words) = (group == Role && a.target.is_some()).then(|| role_words(&a.done)).flatten() {
+            words.to_owned()
+        } else if a.target.is_some() || a.title.is_empty() {
             lower(&a.done)
         } else if a.done.is_empty() || a.done == "Done" {
             lower(&a.title)
@@ -699,14 +717,17 @@ mod tests {
                 ModLine::past(&modded, 9).group,
                 ModLine::past(&modded, 9).action.as_str()
             ),
-            (ModGroup::Role, "added as a moderator")
+            (ModGroup::Role, "modded")
         );
         let vip = ChannelAction {
+            category: "MODS_AND_VIPS".into(),
             done: "Added as a VIP".into(),
             target: Some(("x".into(), "X".into())),
             ..Default::default()
         };
-        assert_eq!(ModLine::past(&vip, 9).action, "added as a VIP");
+        assert_eq!(ModLine::past(&vip, 9).action, "gave VIP to");
+        let gone = ChannelAction { done: "Removed as a VIP".into(), ..vip.clone() };
+        assert_eq!(ModLine::past(&gone, 9).action, "took VIP from");
     }
 
     #[test]
