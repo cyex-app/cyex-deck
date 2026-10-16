@@ -5,7 +5,8 @@ const BASE = 18;
 
 function pick(list: readonly string[], want: number): string {
   for (let n = want; n <= list.length; n++) if (list[n - 1]) return list[n - 1];
-  for (let n = Math.min(want, list.length) - 1; n >= 1; n--) if (list[n - 1]) return list[n - 1];
+  // Fewer pictures than wanted: the largest one first.
+  for (let n = Math.min(want - 1, list.length); n >= 1; n--) if (list[n - 1]) return list[n - 1];
   return '';
 }
 

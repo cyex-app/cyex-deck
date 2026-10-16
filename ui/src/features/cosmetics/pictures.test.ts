@@ -25,3 +25,9 @@ test('still swaps in at the same scale', () => {
   assert.equal(badgePicture(img, st, 32, 1, false), 'i2');
   assert.equal(badgePicture(img, null, 32, 1, true), 'i2');
 });
+
+test('fewer pictures than wanted: the largest', () => {
+  assert.equal(badgePicture(['i1', 'i2'], null, 32, 3, false), 'i2');
+  assert.equal(badgePicture(['i1'], null, 32, 2, false), 'i1');
+  assert.equal(badgePicture(['i1', '', ''], null, 32, 2, false), 'i1');
+});
