@@ -11,6 +11,7 @@
   import type { WhisperThread } from '../../ipc/bindings/WhisperThread';
   import { whispersIpc } from '../../ipc/whispers';
   import { ago } from '../../lib/format';
+  import { currentWindow } from '../../lib/window.svelte';
   import { toast } from '../../lib/toast.svelte';
   import Conversation from './Conversation.svelte';
   import { whispers } from './whispers.svelte';
@@ -56,6 +57,13 @@
 
   $effect(() => {
     void whispers.start();
+  });
+
+  // A pop-out is titled after the open conversation.
+  $effect(() => {
+    if (!popout) return;
+    const other = selected ? s.threads.find((t) => t.other.login === selected)?.other.name ?? selected : null;
+    void currentWindow.setTitle(other ? `Whispers · ${other}` : 'Whispers');
   });
 
   // Someone asked for a conversation (a name's menu, a toast, an inline line).

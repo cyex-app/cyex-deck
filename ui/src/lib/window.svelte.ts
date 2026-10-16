@@ -13,6 +13,8 @@ class CurrentWindow {
   isMain = $state(false);
   /** V104-03 The whole window fills the screen, asked for by the frame's button. */
   fullscreen = $state(false);
+  /** A title the panel picked itself (whispers: the open conversation), over the route's. */
+  title = $state<string | null>(null);
 
   async init(): Promise<void> {
     const win = getCurrentWindow();
@@ -51,6 +53,16 @@ class CurrentWindow {
   };
 
   toggleFullscreen = () => this.setFullscreen(!this.fullscreen);
+
+  /** Retitles only this window, in the frame and the OS. */
+  setTitle = async (title: string): Promise<void> => {
+    this.title = title;
+    try {
+      await getCurrentWindow().setTitle(title);
+    } catch {
+      // The frame shows it anyway.
+    }
+  };
 }
 
 export const currentWindow = new CurrentWindow();
