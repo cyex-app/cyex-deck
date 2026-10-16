@@ -40,6 +40,10 @@
   :global(.theme-light) .toggle:not(.on) {
     background: var(--dim);
   }
+  /* A ring in the text colour, so the off track shows on any background, custom ones too. */
+  .toggle:not(.on) {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 40%, transparent);
+  }
   .toggle.on {
     background: var(--accent);
   }
