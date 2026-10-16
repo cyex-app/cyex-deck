@@ -186,6 +186,8 @@ mod tests {
                 tags: Vec::new(),
             }),
             last_live: Some("s".into()),
+            last_game: None,
+            last_title: None,
         }
     }
 

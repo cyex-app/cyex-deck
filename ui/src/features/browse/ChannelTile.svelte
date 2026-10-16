@@ -14,6 +14,7 @@
 
   const click = $derived(cardClick(nav, card));
   const last = $derived(since(card.lastLive));
+  const sub = $derived([card.lastGame, card.lastTitle].filter(Boolean).join(' · '));
 </script>
 
 <div class="tile" class:picked={picked.has(card.id)}>
@@ -29,6 +30,7 @@
     <span class="last" use:tooltip={{ label: card.lastLive ? formatDate(new Date(card.lastLive)) : '', when: () => !!card.lastLive }}>
       {last ? `Live ${last}` : 'Not live lately'}
     </span>
+    {#if sub}<span class="sub" use:tooltip={{ label: sub }}>{sub}</span>{/if}
   </button>
   <div class="quick"><QuickOpen channel={card} {nav} flat /></div>
 </div>
@@ -73,6 +75,15 @@
   .last {
     color: var(--dim);
     font-size: 0.75rem;
+  }
+  .sub {
+    max-width: 100%;
+    color: var(--dim);
+    font-size: 0.7rem;
+    opacity: 0.8;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .quick {
     position: absolute;

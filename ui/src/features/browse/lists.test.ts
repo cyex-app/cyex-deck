@@ -15,6 +15,8 @@ function card(login: string, viewers: number | null, startedAt = '2026-10-10T10:
         ? null
         : { title: 't', viewers, startedAt, rerun: false, game: { id: '1', slug: 'chess', name: 'Chess' }, tags: [] },
     lastLive: lastLive ?? (viewers === null ? null : startedAt),
+    lastGame: null,
+    lastTitle: null,
   };
 }
 

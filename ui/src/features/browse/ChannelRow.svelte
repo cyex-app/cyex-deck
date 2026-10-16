@@ -17,6 +17,9 @@
   const click = $derived(cardClick(nav, card));
   const stream = $derived(card.stream);
   const last = $derived(since(card.lastLive));
+  // "Live 2 days ago · Just Chatting · title"; the full title rides in the tooltip.
+  const offline = $derived([last ? `Live ${last}` : '', card.lastGame, card.lastTitle].filter(Boolean).join(' · '));
+  const offlineTip = $derived([card.lastLive ? formatDate(new Date(card.lastLive)) : '', card.lastGame, card.lastTitle].filter(Boolean).join(' · '));
 </script>
 
 <div class="row" class:picked={picked.has(card.id)}>
@@ -41,9 +44,7 @@
       <span class="num">{formatShort(stream.viewers)}</span>
       <span class="num dim">{uptimeShort(stream.startedAt)}</span>
     {:else}
-      <span class="title dim" use:tooltip={{ label: card.lastLive ? formatDate(new Date(card.lastLive)) : '', when: () => !!card.lastLive }}>
-        {last ? `Live ${last}` : ''}
-      </span>
+      <span class="title dim" use:tooltip={{ label: offlineTip, when: () => !!offlineTip }}>{offline}</span>
     {/if}
   </button>
   <div class="quick"><QuickOpen channel={card} {nav} flat /></div>

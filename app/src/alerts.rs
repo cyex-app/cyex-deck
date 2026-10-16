@@ -182,6 +182,8 @@ mod tests {
                 tags: Vec::new(),
             }),
             last_live: None,
+            last_game: None,
+            last_title: None,
         };
         (card, true)
     }

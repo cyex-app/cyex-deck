@@ -13,7 +13,7 @@ const BATCH: usize = 100;
 
 /// Every query that lists channels selects this on `User`.
 pub(crate) const CARD: &str = "fragment Card on User { id login displayName profileImageURL(width: 70) \
-    lastBroadcast { startedAt } stream { type title viewersCount createdAt \
+    lastBroadcast { startedAt title game { displayName } } stream { type title viewersCount createdAt \
     game { id slug displayName } freeformTags { name } } }";
 
 /// Box art at twice its 72×96 spot.
@@ -31,6 +31,10 @@ pub struct ChannelCard {
     pub stream: Option<LiveStream>,
     /// H1 When it last went live (RFC 3339). The current stream when live.
     pub last_live: Option<String>,
+    /// Category of the last broadcast, for offline channels.
+    pub last_game: Option<String>,
+    /// Title of the last broadcast, for offline channels.
+    pub last_title: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
@@ -93,6 +97,14 @@ pub(crate) struct RawCard {
 #[serde(rename_all = "camelCase")]
 struct RawBroadcast {
     started_at: Option<String>,
+    title: Option<String>,
+    game: Option<RawLastGame>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawLastGame {
+    display_name: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -226,13 +238,23 @@ impl From<RawGameRef> for GameRef {
 
 impl From<RawCard> for ChannelCard {
     fn from(u: RawCard) -> Self {
+        let (last_live, last_game, last_title) = match u.last_broadcast {
+            Some(b) => (
+                b.started_at,
+                b.game.and_then(|g| g.display_name).filter(|s| !s.is_empty()),
+                b.title.filter(|s| !s.trim().is_empty()),
+            ),
+            None => (None, None, None),
+        };
         Self {
             id: u.id,
             login: u.login,
             name: u.display_name,
             avatar: u.profile_image_url,
             stream: u.stream.map(|s| s.into_live(None)),
-            last_live: u.last_broadcast.and_then(|b| b.started_at),
+            last_live,
+            last_game,
+            last_title,
         }
     }
 }
@@ -248,6 +270,8 @@ impl RawStreamNode {
             name: b.display_name,
             avatar: b.profile_image_url,
             last_live: Some(stream.started_at.clone()),
+            last_game: None,
+            last_title: None,
             stream: Some(stream),
         })
     }
@@ -303,7 +327,7 @@ mod tests {
     #[test]
     fn a_user_turns_into_a_card() {
         let raw: RawCard = serde_json::from_str(
-            r#"{"id":"1","login":"a","displayName":"A","profileImageURL":"p","lastBroadcast":{"startedAt":"2026-10-01T10:00:00.123456Z"},
+            r#"{"id":"1","login":"a","displayName":"A","profileImageURL":"p","lastBroadcast":{"startedAt":"2026-10-01T10:00:00.123456Z","title":"old one","game":{"displayName":"Just Chatting"}},
               "stream":{"type":"live","title":"hi","viewersCount":5,"createdAt":"2026-10-10T10:00:00Z",
               "game":{"id":"9","slug":"chess","displayName":"Chess"},"freeformTags":[{"name":"Rerun"}]}}"#,
         )
@@ -313,6 +337,34 @@ mod tests {
         assert!(s.rerun);
         assert_eq!((s.viewers, s.game.unwrap().slug.as_str()), (5, "chess"));
         assert_eq!(card.last_live.as_deref(), Some("2026-10-01T10:00:00.123456Z"));
+        assert_eq!(card.last_game.as_deref(), Some("Just Chatting"));
+        assert_eq!(card.last_title.as_deref(), Some("old one"));
+    }
+
+    fn last_of(broadcast: &str) -> ChannelCard {
+        let raw: RawCard = serde_json::from_str(&format!(
+            r#"{{"id":"1","login":"a","displayName":"A","profileImageURL":null,"stream":null{broadcast}}}"#
+        ))
+        .unwrap();
+        ChannelCard::from(raw)
+    }
+
+    #[test]
+    fn the_last_game_and_title_may_be_missing_null_or_there() {
+        let missing = last_of("");
+        assert_eq!((missing.last_live, missing.last_game, missing.last_title), (None, None, None));
+
+        let null = last_of(r#","lastBroadcast":null"#);
+        assert_eq!((null.last_game, null.last_title), (None, None));
+
+        let bare = last_of(r#","lastBroadcast":{"startedAt":"x","title":null,"game":null}"#);
+        assert_eq!((bare.last_live.as_deref(), bare.last_game, bare.last_title), (Some("x"), None, None));
+
+        let empty = last_of(r#","lastBroadcast":{"startedAt":"x","title":" ","game":{"displayName":null}}"#);
+        assert_eq!((empty.last_game, empty.last_title), (None, None));
+
+        let full = last_of(r#","lastBroadcast":{"startedAt":"x","title":"t","game":{"displayName":"Chess"}}"#);
+        assert_eq!((full.last_game.as_deref(), full.last_title.as_deref()), (Some("Chess"), Some("t")));
     }
 
     #[test]

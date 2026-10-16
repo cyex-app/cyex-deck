@@ -8,4 +8,12 @@ export type ChannelCard = { id: string, login: string, name: string, avatar: str
 /**
  * H1 When it last went live (RFC 3339). The current stream when live.
  */
-lastLive: string | null, };
+lastLive: string | null, 
+/**
+ * Category of the last broadcast, for offline channels.
+ */
+lastGame: string | null, 
+/**
+ * Title of the last broadcast, for offline channels.
+ */
+lastTitle: string | null, };
