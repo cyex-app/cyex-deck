@@ -196,12 +196,23 @@ pub async fn select(
             now: auth::unix_now(),
         })
         .await
-        .inspect_err(|e| eprintln!("cosmetics: {account}: {e:?}"))?;
+        .inspect_err(|e| {
+            eprintln!("cosmetics: {account}: {e:?}");
+            // The session was deleted: Settings → Accounts stops saying "Signed in until …".
+            if *e == SelectError::SignInAgain {
+                auth::notify(app);
+            }
+        })?;
     let Picked::Done { id } = &done else {
         return Ok(done);
     };
     st.set_active(account, kind, id.as_deref());
-    if let Ok(Some(inv)) = st.inventory(account, false).await {
+    // The cached copy has the new id; a fresh read could still answer with the old one.
+    let inv = match st.cached(account) {
+        Some((_, inv)) => Some(inv),
+        None => st.inventory(account, false).await.ok().flatten(),
+    };
+    if let Some(inv) = inv {
         emotes::wear(app, account, worn(&inv, kind, id.as_deref()));
     }
     presence::resend(app, account);

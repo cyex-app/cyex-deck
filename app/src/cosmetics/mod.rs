@@ -34,7 +34,7 @@ use crate::auth::{self, Auth};
 use crate::emotes::presence;
 use crate::windows::seventv::SignIn;
 
-/// How long the parsed inventory is kept after its last use.
+/// How long the parsed inventory is kept after it was read from 7TV.
 const KEEP: Duration = Duration::from_secs(5 * 60);
 /// Test runs only: a local 7TV mock (`http://127.0.0.1:<port>`) and a fake session for the default account.
 const URL_VAR: &str = "CYEX_7TV_URL";
@@ -232,7 +232,7 @@ pub async fn view(app: &AppHandle, account: &str, fresh: bool) -> CosmeticsView 
     }
 }
 
-/// Drops the inventory 5 minutes after its last use.
+/// Drops the inventory 5 minutes after it was read (a newer read keeps its own copy).
 fn release_later(app: &AppHandle, account: &str) {
     let Some((at, _)) = state(app).cached(account) else {
         return;
@@ -351,6 +351,7 @@ pub async fn sign_in(app: &AppHandle, account: &str) -> SignIn {
     }
     if let Err(e) = app.state::<Auth>().seventv.put(account, &token) {
         eprintln!("cosmetics: {account}: couldn't keep the 7TV session: {e}");
+        discard(api, token);
         return SignIn::Failed;
     }
     lock(&state(app).expired).remove(account);
