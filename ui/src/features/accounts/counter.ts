@@ -11,6 +11,12 @@ export interface CounterView {
   hint?: string;
 }
 
+const SHOWN = 5;
+/** Up to five channels, then how many more. */
+const listed = (logins: string[]) =>
+  logins.slice(0, SHOWN).map((l) => `#${l}`).join(', ') +
+  (logins.length > SHOWN ? ` and ${formatNumber(logins.length - SHOWN)} more` : '');
+
 /** `current`: the global account's id. `name` gives an account's display name. */
 export function counterView(counts: ConnectionCount[], current: string, name: (id: string) => string): CounterView {
   const own = counts.find((c) => c.userId === current);
@@ -22,7 +28,7 @@ export function counterView(counts: ConnectionCount[], current: string, name: (i
       warn: true,
       label: 'Too many chats joined',
       hint: `${refused
-        .map((c) => `${c.userId === current ? '' : `${name(c.userId)}: `}${c.refused.map((l) => `#${l}`).join(', ')}`)
+        .map((c) => `${c.userId === current ? '' : `${name(c.userId)}: `}${listed(c.refused)}`)
         .join('; ')}: not joined. Close a few chats, then open these again.`,
     };
   }

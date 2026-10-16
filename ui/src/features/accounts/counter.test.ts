@@ -40,3 +40,10 @@ test('refusals on both accounts share one label', () => {
   assert.equal(v.label, 'Too many chats joined');
   assert.equal(v.hint, '#x; Main: #y: not joined. Close a few chats, then open these again.');
 });
+
+test('a long refused list is cut after five channels', () => {
+  const refused = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+  const v = counterView([{ userId: '1', joined: 3, refused }], '1', () => 'x');
+  assert.match(v.hint ?? '', /#a, #b, #c, #d, #e and 2 more: not joined/);
+  assert.doesNotMatch(v.hint ?? '', /#f/);
+});

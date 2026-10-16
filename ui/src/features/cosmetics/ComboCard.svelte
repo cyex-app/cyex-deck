@@ -52,7 +52,7 @@
   aria-selected={worn}
   tabindex={active ? 0 : -1}
   data-id={combo.id}
-  title={pairTitle(combo)}
+  use:tooltip={pairTitle(combo)}
   onclick={() => !renaming && void combos.apply(combo)}
 >
   {#if renaming && err}
