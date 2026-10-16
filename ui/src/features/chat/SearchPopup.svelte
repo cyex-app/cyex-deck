@@ -11,6 +11,7 @@
   import { firstField, focusScope } from '../../lib/focusScope';
   import { formatNumber } from '../../lib/format';
   import { lineClick } from './clicks';
+  import { findHits, searchTerms } from './searchHits';
   import Line from './Line.svelte';
 
   interface Props {
@@ -32,6 +33,9 @@
   let root = $state<HTMLElement>();
   let list = $state<HTMLElement>();
   let timer: ReturnType<typeof setTimeout> | undefined;
+  /** A10 Where the text matched, and which hit Enter is on. */
+  let hits = $state.raw<Range[]>([]);
+  let cur = $state(-1);
   /** Newest hits drawn; a longer list would be a wall of full lines. */
   const MAX_HITS = 300;
 
@@ -45,6 +49,42 @@
       release();
     };
   });
+
+  // A10 Mark the typed words in the lines; the current hit stands out.
+  $effect(() => {
+    const rows = results;
+    const terms = searchTerms(text);
+    if (!list || !rows.length) return void (hits = []);
+    const el = list;
+    // After the lines are drawn.
+    const id = requestAnimationFrame(() => {
+      hits = findHits(el, terms);
+      cur = hits.length - 1;
+    });
+    return () => cancelAnimationFrame(id);
+  });
+
+  $effect(() => {
+    if (!('highlights' in CSS)) return;
+    const now = hits[cur];
+    CSS.highlights.set('search-hit', new Highlight(...hits.filter((r) => r !== now)));
+    CSS.highlights.set('search-cur', new Highlight(...(now ? [now] : [])));
+    now?.startContainer.parentElement?.scrollIntoView({ block: 'center' });
+    return () => {
+      CSS.highlights.delete('search-hit');
+      CSS.highlights.delete('search-cur');
+    };
+  });
+
+  function jump(by: number) {
+    if (hits.length) cur = (cur + by + hits.length) % hits.length;
+  }
+
+  function keydown(e: KeyboardEvent) {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    e.preventDefault();
+    jump(e.shiftKey ? 1 : -1);
+  }
 
   $effect(() => {
     const q = text;
@@ -70,7 +110,11 @@
 
 <div class="search" bind:this={root} role="dialog" aria-label="Search chat" tabindex="-1">
   <div class="bar">
-    <span class="box"><SearchField bind:value={text} placeholder="Search · from:name has:link badge:mod regex:…" label="Search messages" small autofocus /></span>
+    <span class="box"><SearchField bind:value={text} placeholder="Search · from:name has:link badge:mod regex:…" label="Search messages" small autofocus onkeydown={keydown} /></span>
+    {#if hits.length > 1}
+      <IconButton icon="chevronUp" label="Previous match" size={14} onclick={() => jump(-1)} />
+      <IconButton icon="chevronDown" label="Next match" size={14} onclick={() => jump(1)} />
+    {/if}
     <span class="all"><Checkbox label="All chats" checked={everywhere} onchange={(v) => (everywhere = v)} /></span>
     <IconButton icon="x" label="Close" size={14} onclick={onclose} />
   </div>
@@ -129,6 +173,14 @@
     padding: 8px 12px;
     color: var(--dim);
     font-size: 0.85rem;
+  }
+  :global(::highlight(search-hit)) {
+    background: color-mix(in srgb, var(--accent) 28%, transparent);
+    color: inherit;
+  }
+  :global(::highlight(search-cur)) {
+    background: color-mix(in srgb, var(--accent) 55%, transparent);
+    color: inherit;
   }
   .count {
     margin: 0;
