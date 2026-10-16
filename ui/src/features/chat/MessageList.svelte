@@ -38,6 +38,7 @@
   import { glideMs } from './glide';
   import { nameMenu } from './nameMenu';
   import Line from './Line.svelte';
+  import WarnBox from './WarnBox.svelte';
   import { runEntry, toItems, userMenus } from './menus.svelte';
   import { roomRoute } from './roomRoute';
   import { plainText } from './text';
@@ -574,6 +575,16 @@
     else if (a.kind === 'insert') oninsert?.(a.text);
   }
 
+  /** M10 The one open reason box: Warn on a line asks for the reason there. */
+  let warning = $state<{ login: string; anchor: { left: number; top: number; bottom: number } } | null>(null);
+
+  async function sendWarn(text: string) {
+    const who = warning?.login ?? '';
+    const ok = await command(text);
+    if (ok) toast.success(`Warned ${who}.`);
+    return ok;
+  }
+
   /** V101-33 Mod mode's buttons (M10): delete the line, time out, warn or ban its sender. */
   function modClick(el: HTMLElement, action: string) {
     const id = el.closest<HTMLElement>('[data-id]')?.dataset.id;
@@ -582,7 +593,10 @@
     if (!id || !login) return;
     if (action === 'delete') command(`/delete ${id}`);
     else if (action === 'timeout' && secs > 0) command(`/timeout ${login} ${secs}`);
-    else if (action === 'warn') onprefill?.(`/warn ${login} `);
+    else if (action === 'warn') {
+      const r = el.getBoundingClientRect();
+      warning = { login, anchor: { left: r.left, top: r.top, bottom: r.bottom } };
+    }
     else if (action === 'ban') command(`/ban ${login}`);
   }
 
@@ -658,6 +672,9 @@
       {/each}
     </div>
   </div>
+  {#if warning}
+    {#key warning}<WarnBox login={warning.login} anchor={warning.anchor} send={sendWarn} onclose={() => (warning = null)} />{/key}
+  {/if}
   {#if card}
     {#key card}<EmoteCard target={card} login={room.login} onclose={() => (card = null)} />{/key}
   {/if}
