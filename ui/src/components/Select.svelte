@@ -153,7 +153,7 @@
           onclick={() => pick(i)}
         >
           {#if o.picture !== undefined}<span class="pic"><Avatar src={o.picture} name={o.label} size={20} /></span>{/if}
-          <span class="label">{o.label}</span>
+          <span class="choice">{o.label}</span>
         </div>
       {/each}
     </div>
@@ -226,7 +226,8 @@
     gap: 8px;
     overflow-wrap: anywhere;
   }
-  .label {
+  /* Not .label: that global class is the section heading style. */
+  .choice {
     min-width: 0;
   }
   .option.active {
