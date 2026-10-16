@@ -4,6 +4,7 @@
 import { chatIpc } from '../../ipc/chat';
 import { systemIpc } from '../../ipc/system';
 import { toast } from '../../lib/toast.svelte';
+import { errorText } from '../../lib/errors';
 
 export function lineClick(e: MouseEvent): void {
   const el = (e.target as HTMLElement).closest<HTMLElement>('[data-user],[data-link]');
@@ -12,8 +13,8 @@ export function lineClick(e: MouseEvent): void {
   const d = el.dataset;
   if (d.link) {
     e.preventDefault();
-    systemIpc.openChatLink(d.link).catch((err) => toast.error(String(err)));
+    systemIpc.openChatLink(d.link).catch((err) => toast.error(errorText(err)));
   } else if (d.user) {
-    chatIpc.openUsercard(channel, d.user).catch((err) => toast.error(String(err)));
+    chatIpc.openUsercard(channel, d.user).catch((err) => toast.error(errorText(err)));
   }
 }

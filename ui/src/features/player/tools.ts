@@ -5,17 +5,18 @@ import { systemIpc } from '../../ipc/system';
 import { bindingOf } from '../../lib/hotkeys.svelte';
 import { toast } from '../../lib/toast.svelte';
 import type { PlayerMenu } from './menu';
+import { errorText } from '../../lib/errors';
 
 export function playerKeys(): PlayerMenu['keys'] {
   return { play: bindingOf('player.playPause'), mute: bindingOf('player.mute'), fullscreen: bindingOf('player.fullscreen') };
 }
 
 export function copyText(text: string): void {
-  navigator.clipboard.writeText(text).catch((e) => toast.error(String(e)));
+  navigator.clipboard.writeText(text).catch((e) => toast.error(errorText(e)));
 }
 
 export function openLink(url: string): void {
-  systemIpc.openLink(url).catch((e) => toast.error(String(e)));
+  systemIpc.openLink(url).catch((e) => toast.error(errorText(e)));
 }
 
 /** The menu entry, when the player can float in its own small window. */

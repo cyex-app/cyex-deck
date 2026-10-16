@@ -9,6 +9,8 @@
   import { channelIpc } from '../../ipc/player';
   import { formatTime } from '../../lib/format';
   import { applySink } from './output.svelte';
+  import { errorText } from '../../lib/errors';
+  import Loading from '../../components/Loading.svelte';
 
   interface Props {
     channelId: string;
@@ -40,7 +42,7 @@
   channelIpc
     .stories(channelId, account)
     .then((list) => (stories = list))
-    .catch((e) => (problem = String(e)));
+    .catch((e) => (problem = errorText(e)));
 
   const story = $derived(stories?.[index]);
 
@@ -119,7 +121,7 @@
       <button class="half left" aria-label="Back" onclick={prev}></button>
       <button class="half right" aria-label="Next" onclick={next}></button>
     {:else}
-      <p class="empty">{problem ?? (stories ? 'No stories right now.' : 'Loading…')}</p>
+      {#if !problem && !stories}<Loading video />{:else}<p class="empty">{problem ?? 'No stories right now.'}</p>{/if}
     {/if}
   </div>
 </div>

@@ -13,6 +13,8 @@
   import { lineClick } from './clicks';
   import Line from './Line.svelte';
   import { useSaved } from './saved';
+  import { errorText } from '../../lib/errors';
+  import Loading from '../../components/Loading.svelte';
 
   let { route }: { route: string; popout?: boolean } = $props();
 
@@ -45,7 +47,7 @@
       rec = r;
       playing = true;
     })
-    .catch((e) => (error = String(e)));
+    .catch((e) => (error = errorText(e)));
 
   function apply(e: RoomEvent, out: ChatMessage[]): ChatMessage[] {
     const mark = (hit: (m: ChatMessage) => boolean) =>
@@ -113,7 +115,7 @@
   {#if error}
     <p class="note">{error}</p>
   {:else if !rec}
-    <p class="note">Loading…</p>
+    <Loading />
   {:else}
     <header>
       <strong>#{rec.meta.channel}</strong>

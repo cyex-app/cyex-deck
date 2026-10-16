@@ -17,6 +17,8 @@
   import type { Standing } from '../modview/standing';
   import { pluginItems } from '../plugins/pluginMenus';
   import { plugins } from '../plugins/plugins.svelte';
+  import { errorText } from '../../lib/errors';
+  import Loading from '../../components/Loading.svelte';
 
   interface Props {
     account: string | null;
@@ -40,7 +42,7 @@
     chatIpc
       .viewers(account, login)
       .then((c) => (data = c))
-      .catch((e) => (error = String(e)))
+      .catch((e) => (error = errorText(e)))
       .finally(() => (loading = false));
   }
   load();
@@ -64,7 +66,7 @@
   );
 
   function open(name: string) {
-    chatIpc.openUsercard(login, name).catch((e) => toast.error(String(e)));
+    chatIpc.openUsercard(login, name).catch((e) => toast.error(errorText(e)));
   }
 
   /** `/timeout name 600` through the mod path, as the usercard runs it. */
@@ -74,7 +76,7 @@
     modIpc
       .run(account, login, cmd, args.join(' '))
       .then((said) => said && toast.info(said))
-      .catch((e) => toast.error(String(e)));
+      .catch((e) => toast.error(errorText(e)));
   }
 
   /** C36 Right-click a name: usercard and copy, plus mod actions where the account moderates,
@@ -90,7 +92,7 @@
     items.push(
       'separator',
       ...pluginItems(plugins.menus, 'name', null, (p) =>
-        pluginsIpc.runName(p.plugin, p.index, login, name, null, null).catch((err) => toast.error(String(err))),
+        pluginsIpc.runName(p.plugin, p.index, login, name, null, null).catch((err) => toast.error(errorText(err))),
       ),
     );
     openMenu(e, items);
@@ -111,7 +113,7 @@
     {#if error}
       <p class="note">Couldn’t load the list: {error}</p>
     {:else if !data}
-      <p class="note">Loading…</p>
+      <Loading />
     {:else if !listed}
       <p class="note">Nobody’s in chat right now.</p>
     {:else if !groups.length}

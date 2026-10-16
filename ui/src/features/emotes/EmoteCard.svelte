@@ -15,6 +15,8 @@
   import { type CardTarget, PROVIDER_NAMES } from './emotes';
   import { hidden } from './hidden.svelte';
   import { flipUnlisted, unlistedBlurred } from './unlisted';
+  import { errorText } from '../../lib/errors';
+  import Loading from '../../components/Loading.svelte';
 
   interface Props {
     target: CardTarget;
@@ -79,7 +81,7 @@
   }
 
   function open(url: string) {
-    systemIpc.openLink(url).catch((e) => toast.error(String(e)));
+    systemIpc.openLink(url).catch((e) => toast.error(errorText(e)));
   }
 
   const added = $derived(date(info?.addedAt ?? null));
@@ -119,7 +121,7 @@
   {:else if failed}
     <p class="note">Couldn’t load the details.</p>
   {:else}
-    <p class="note">Loading…</p>
+    <Loading />
   {/if}
 
   {#if others.length}

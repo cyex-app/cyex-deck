@@ -5,6 +5,7 @@ import type { WhisperState } from '../../ipc/bindings/WhisperState';
 import { whispersIpc } from '../../ipc/whispers';
 import { currentWindow } from '../../lib/window.svelte';
 import { popOut } from '../../app/panels';
+import { errorText } from '../../lib/errors';
 
 const EMPTY: WhisperState = {
   account: null,
@@ -42,7 +43,7 @@ class WhispersStore {
     } catch (e) {
       // Next call tries again.
       this.started = false;
-      this.failed = String(e);
+      this.failed = errorText(e);
     }
   }
 

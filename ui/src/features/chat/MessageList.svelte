@@ -44,6 +44,7 @@
   import { stripes } from './stripes';
   import { whispers } from '../whispers/whispers.svelte';
   import { accounts } from '../../lib/accounts.svelte';
+  import { errorText } from '../../lib/errors';
 
   interface Props {
     room: ChatRoom;
@@ -362,7 +363,7 @@
     chatIpc
       .send(room.view, text)
       .then((a) => a && onaction?.(a))
-      .catch((err) => toast.error(String(err)));
+      .catch((err) => toast.error(errorText(err)));
   }
 
   function context(m: ChatMessage | undefined, login: string) {
@@ -413,7 +414,7 @@
       ...pluginItems(plugins.menus, 'name', null, (p) =>
         pluginsIpc
           .runName(p.plugin, p.index, room.login, login, room.view, m?.id ?? null)
-          .catch((err) => toast.error(String(err))),
+          .catch((err) => toast.error(errorText(err))),
       ),
     ]);
   }
@@ -434,7 +435,7 @@
             {
               label: m.translation ? 'Translate again' : 'Translate',
               icon: 'languages' as const,
-              run: () => chatxIpc.translate(room.view, m.id).catch((err) => toast.error(String(err))),
+              run: () => chatxIpc.translate(room.view, m.id).catch((err) => toast.error(errorText(err))),
             },
             { label: 'Their messages', icon: 'search' as const, run: () => onaction?.({ type: 'search', query: `from:${login}` }) },
           ]
@@ -453,7 +454,7 @@
       // S5, S9 Entries plugins added, for this kind of line.
       'separator',
       ...pluginItems(plugins.menus, 'message', lineKind(m), (p) =>
-        pluginsIpc.runMenu(room.view, p.plugin, p.index, m.id).catch((err) => toast.error(String(err))),
+        pluginsIpc.runMenu(room.view, p.plugin, p.index, m.id).catch((err) => toast.error(errorText(err))),
       ),
     ]);
   }
@@ -518,16 +519,16 @@
     } else if (d.link) {
       e.preventDefault();
       if (d.target && onlink) return onlink(JSON.parse(d.target) as LinkTarget);
-      systemIpc.openChatLink(d.link).catch((err) => toast.error(String(err)));
+      systemIpc.openChatLink(d.link).catch((err) => toast.error(errorText(err)));
     } else if (d.upload) {
       e.preventDefault();
-      systemIpc.openUpload(d.upload).catch((err) => toast.error(String(err)));
+      systemIpc.openUpload(d.upload).catch((err) => toast.error(errorText(err)));
     } else if (d.channel) {
       // V102-05 As this chat's account, or anonymously like it.
       hideTip();
       void popOut(roomRoute(d.channel, room.account), `${d.channel} chat`);
     } else if (d.user) {
-      chatIpc.openUsercard(room.login, d.user).catch((err) => toast.error(String(err)));
+      chatIpc.openUsercard(room.login, d.user).catch((err) => toast.error(errorText(err)));
     } else if (d.whisper) {
       whispers.show(d.whisper);
     } else if (d.reply) {
@@ -551,7 +552,7 @@
 
   /** S7 A plugin's piece was clicked. Links go through the link path instead. */
   function actClick(a: Act) {
-    if (a.kind === 'user') chatIpc.openUsercard(room.login, a.login).catch((err) => toast.error(String(err)));
+    if (a.kind === 'user') chatIpc.openUsercard(room.login, a.login).catch((err) => toast.error(errorText(err)));
     else if (a.kind === 'run') command(a.text);
     else if (a.kind === 'jump') jump(a.id);
     else if (a.kind === 'copy') void navigator.clipboard.writeText(a.text).then(() => toast.info('Copied.'));

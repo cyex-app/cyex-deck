@@ -22,6 +22,7 @@
   import Offline from './Offline.svelte';
   import StreamHeader from './StreamHeader.svelte';
   import VideosPage from './VideosPage.svelte';
+  import { errorText } from '../../lib/errors';
 
   interface Props {
     tile: Tile;
@@ -73,7 +74,7 @@
       made = true;
       shared.overlay = clip.slug;
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 

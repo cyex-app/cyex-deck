@@ -9,6 +9,8 @@
   import { floating } from '../../lib/place';
   import { toast } from '../../lib/toast.svelte';
   import type { ChatRoom } from './room.svelte';
+  import { errorText } from '../../lib/errors';
+  import Loading from '../../components/Loading.svelte';
 
   let { room }: { room: ChatRoom } = $props();
 
@@ -46,7 +48,7 @@
       info = await chatxIpc.gifInfo(room.view);
       if (info.canSend) void load(true);
     } catch (e) {
-      info = { canSend: false, reason: String(e) };
+      info = { canSend: false, reason: errorText(e) };
     }
   }
 
@@ -62,7 +64,7 @@
       gifs = fresh ? page : [...gifs, ...page];
       more = page.length > 0;
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     } finally {
       if (q === query) searching = false;
     }
@@ -81,7 +83,7 @@
       if (r.error) toast.error(r.waitSecs ? `Wait ${r.waitSecs}s before the next GIF.` : `Twitch said no (${r.error}).`);
       else open = false;
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     } finally {
       busy = false;
     }
@@ -101,7 +103,7 @@
   {#if open}
     <div class="pop" use:floating={{ anchor: wrap, side: 'above', align: 'end', gap: 8 }}>
       {#if !info}
-        <p class="note">Loading…</p>
+        <Loading />
       {:else if !info.canSend}
         <p class="note">{info.reason ?? 'GIFs aren’t available here.'}</p>
       {:else}

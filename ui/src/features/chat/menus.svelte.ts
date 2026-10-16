@@ -10,6 +10,7 @@ import { chatIpc } from '../../ipc/chat';
 import { rulesIpc } from '../../ipc/rules';
 import { settings } from '../../lib/settings.svelte';
 import { toast } from '../../lib/toast.svelte';
+import { errorText } from '../../lib/errors';
 
 const EMPTY: Menus = { user: [], message: [], channel: [], usercard: [] };
 
@@ -36,7 +37,7 @@ export function runEntry(view: number, command: string, ctx: MenuContext, onActi
   chatIpc
     .menu(view, command, ctx)
     .then((a) => a && onAction?.(a))
-    .catch((e) => toast.error(String(e)));
+    .catch((e) => toast.error(errorText(e)));
 }
 
 /** The entries as menu items. */

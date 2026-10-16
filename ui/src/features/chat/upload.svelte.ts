@@ -8,6 +8,7 @@ import type { UploadItem } from '../../ipc/bindings/UploadItem';
 import { settings } from '../../lib/settings.svelte';
 import { uploadIpc } from '../../ipc/upload';
 import { extOfMime, hostOf, imagePaths } from './upload';
+import { errorText } from '../../lib/errors';
 
 /** The image files on the clipboard (image data or copied files). */
 export function imageFiles(e: ClipboardEvent): File[] {
@@ -45,7 +46,7 @@ export class Upload {
     try {
       await uploadIpc.images(channel, items, on);
     } catch (e) {
-      fail(String(e));
+      fail(errorText(e));
       this.status = '';
       this.busy = false;
     }

@@ -17,6 +17,7 @@
   import { clock } from './time';
   import { copyText, openLink, playerKeys } from './tools';
   import Volume from './Volume.svelte';
+  import { errorText } from '../../lib/errors';
 
   interface Props {
     slug: string;
@@ -80,7 +81,7 @@
         problem = 'Getting the clip ready…';
         waitTimer = setTimeout(() => void load(s, tries + 1), 3000);
       } else {
-        problem = String(e);
+        problem = errorText(e);
       }
     }
   }

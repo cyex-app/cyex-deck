@@ -8,6 +8,7 @@ import type { Pinned } from '../../ipc/bindings/Pinned';
 import type { RoomEvent } from '../../ipc/bindings/RoomEvent';
 import type { RoomState } from '../../ipc/bindings/RoomState';
 import { settings } from '../../lib/settings.svelte';
+import { errorText } from '../../lib/errors';
 
 /** V101-02 Lines kept on screen, as set; older ones drop off the top. Rust keeps as many
  * per room, and at least 500 for usercards. */
@@ -72,7 +73,7 @@ export class ChatRoom {
       this.early = null;
       for (const events of early) this.apply(events);
     } catch (e) {
-      this.error = String(e);
+      this.error = errorText(e);
     }
   }
 

@@ -18,6 +18,8 @@
   import EmotePick from './EmotePick.svelte';
   import PowerUps from './PowerUps.svelte';
   import type { ChatRoom } from './room.svelte';
+  import { errorText } from '../../lib/errors';
+  import Loading from '../../components/Loading.svelte';
 
   let { room }: { room: ChatRoom } = $props();
 
@@ -134,7 +136,7 @@
       picked = null;
       void load();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     } finally {
       busy = false;
     }
@@ -201,7 +203,7 @@
           </div>
         </div>
       {:else if !loaded}
-        <p class="note">Loading…</p>
+        <Loading />
       {:else if !choices.length}
         <p class="note">No rewards here.</p>
       {:else}

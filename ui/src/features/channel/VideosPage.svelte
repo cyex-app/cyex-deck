@@ -8,6 +8,8 @@
   import { formatDate, formatShort } from '../../lib/format';
   import { clock } from '../player/time';
   import Card from './Card.svelte';
+  import { errorText } from '../../lib/errors';
+  import Loading from '../../components/Loading.svelte';
 
   let { login, onplay }: { login: string; onplay: (id: string) => void } = $props();
 
@@ -35,7 +37,7 @@
     channelIpc
       .videos(l, k === 'all' ? null : k, s)
       .then((list) => alive && (videos = list))
-      .catch((e) => alive && (problem = String(e)));
+      .catch((e) => alive && (problem = errorText(e)));
     return () => (alive = false);
   });
 </script>
@@ -48,7 +50,7 @@
   {#if problem}
     <EmptyState icon="alert" text={problem} />
   {:else if !videos}
-    <p class="load">Loading…</p>
+    <Loading />
   {:else if !videos.length}
     <EmptyState icon="film" text="No videos here." />
   {:else}
@@ -85,11 +87,5 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 14px 12px;
-  }
-  .load {
-    margin: 0;
-    padding: 8px 2px;
-    color: var(--dim);
-    font-size: 0.85rem;
   }
 </style>

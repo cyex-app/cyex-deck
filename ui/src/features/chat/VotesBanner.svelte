@@ -12,6 +12,7 @@
   import { pollKey, pollLive, predictionKey, predictionLive, shows } from './eventStrip';
   import { eventStrip } from './eventStrip.svelte';
   import { pollLeft, predictionLeft, votes } from './votes.svelte';
+  import { errorText } from '../../lib/errors';
 
   let { channel, view, signedIn }: { channel: string; view: () => number; signedIn: boolean } = $props();
 
@@ -41,7 +42,7 @@
     try {
       await run();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     } finally {
       busy = false;
     }

@@ -10,6 +10,8 @@
   import { toast } from '../../lib/toast.svelte';
   import StoryRing from '../player/StoryRing.svelte';
   import Markdown from './Markdown.svelte';
+  import { errorText } from '../../lib/errors';
+  import Loading from '../../components/Loading.svelte';
 
   interface Props {
     login: string;
@@ -30,12 +32,12 @@
     channelIpc
       .about(l)
       .then((a) => alive && ((about = a), (problem = a ? null : 'This channel doesn’t exist.')))
-      .catch((e) => alive && (problem = String(e)));
+      .catch((e) => alive && (problem = errorText(e)));
     return () => (alive = false);
   });
 
   function open(url: string, twitch = false) {
-    (twitch ? systemIpc.openLink(url) : systemIpc.openChatLink(url)).catch((e) => toast.error(String(e)));
+    (twitch ? systemIpc.openLink(url) : systemIpc.openChatLink(url)).catch((e) => toast.error(errorText(e)));
   }
 </script>
 
@@ -43,7 +45,7 @@
   {#if problem}
     <EmptyState icon="alert" text={problem} />
   {:else if !about}
-    <p class="load">Loading…</p>
+    <Loading />
   {:else}
     {#if about.banner}<img class="banner" src={about.banner} alt="" />{/if}
     <div class="head">
@@ -119,11 +121,6 @@
     max-height: 180px;
     object-fit: cover;
     background: var(--surface-hover);
-  }
-  .load {
-    padding: 16px;
-    color: var(--dim);
-    font-size: 0.85rem;
   }
   .head {
     display: flex;

@@ -23,6 +23,8 @@
   import Header from './Header.svelte';
   import ModBar from './ModBar.svelte';
   import Timeline from './Timeline.svelte';
+  import { errorText } from '../../lib/errors';
+  import Loading from '../../components/Loading.svelte';
 
   let { route }: { route: string; popout?: boolean } = $props();
 
@@ -60,7 +62,7 @@
     try {
       profile = await chatIpc.profile(login);
     } catch (e) {
-      error = String(e);
+      error = errorText(e);
       profile = null;
     }
   }
@@ -120,7 +122,7 @@
 
 <div class="card">
   {#if profile === undefined}
-    <p class="muted">Loading…</p>
+    <Loading />
   {:else if profile === null}
     <p class="muted">{error || `No user called ${login}.`}</p>
   {:else}

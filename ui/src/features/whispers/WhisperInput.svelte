@@ -6,6 +6,7 @@
   import Icon from '../../components/Icon.svelte';
   import { whispersIpc } from '../../ipc/whispers';
   import EmoteButton from '../chat/EmoteButton.svelte';
+  import { errorText } from '../../lib/errors';
 
   interface Props {
     to: string;
@@ -38,7 +39,7 @@
       last = t;
       text = '';
     } catch (e) {
-      error = String(e);
+      error = errorText(e);
     } finally {
       sending = false;
       await tick();

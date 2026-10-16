@@ -24,6 +24,7 @@
   import type { UiAction } from '../../ipc/bindings/UiAction';
   import { chatIpc } from '../../ipc/chat';
   import { chatxIpc } from '../../ipc/chatx';
+  import { errorText } from '../../lib/errors';
   import { formatDuration } from '../../lib/format';
   import { lockFor } from '../../lib/gate';
   import { bindingOf, useHotkeys } from '../../lib/hotkeys.svelte';
@@ -196,7 +197,7 @@
         recording = r;
         toast.info(r ? 'Recording this chat' : 'Recording saved. Find it in Settings → Recordings.');
       })
-      .catch((e) => toast.error(String(e)));
+      .catch((e) => toast.error(errorText(e)));
   }
 
   function more(e: MouseEvent) {
@@ -248,7 +249,7 @@
       // S9 Entries plugins put in a chat's menu.
       'separator',
       ...pluginItems(plugins.menus, 'chat', null, (p) =>
-        pluginsIpc.runMenu(room.view, p.plugin, p.index, null).catch((err) => toast.error(String(err))),
+        pluginsIpc.runMenu(room.view, p.plugin, p.index, null).catch((err) => toast.error(errorText(err))),
       ),
       ...(tileMenu ? ['separator' as const, ...tileMenu()] : []),
     ];
@@ -283,7 +284,7 @@
   }
 
   function openChannelCard() {
-    chatIpc.openUsercard(login, login).catch((e) => toast.error(String(e)));
+    chatIpc.openUsercard(login, login).catch((e) => toast.error(errorText(e)));
   }
 </script>
 
@@ -358,7 +359,7 @@
       <PinnedBanner
         pin={room.pinned}
         channel={login}
-        onunpin={modRole && !room.pinned.paid ? () => void chatIpc.send(room.view, '/unpin').catch((e) => toast.error(String(e))) : undefined}
+        onunpin={modRole && !room.pinned.paid ? () => void chatIpc.send(room.view, '/unpin').catch((e) => toast.error(errorText(e))) : undefined}
       />
     {/if}
     <VotesBanner channel={login} view={() => room.view} signedIn={room.account !== null} />

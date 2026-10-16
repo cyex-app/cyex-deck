@@ -14,6 +14,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { mods, timeouts, treatItems } from '../modview/moderation.svelte';
   import type { Standing } from '../modview/standing';
+  import { errorText } from '../../lib/errors';
 
   interface Props {
     profile: Profile;
@@ -41,7 +42,7 @@
       if (line) toast.info(line);
       onchange();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     } finally {
       busy = false;
     }

@@ -14,6 +14,8 @@
   import { toast } from '../../lib/toast.svelte';
   import Conversation from './Conversation.svelte';
   import { whispers } from './whispers.svelte';
+  import { errorText } from '../../lib/errors';
+  import Loading from '../../components/Loading.svelte';
 
   interface Props {
     popout?: boolean;
@@ -65,7 +67,7 @@
         label: 'Mark all read',
         icon: 'checkCheck',
         disabled: !s.unread,
-        run: () => whispersIpc.readAll().catch((err) => toast.error(String(err))),
+        run: () => whispersIpc.readAll().catch((err) => toast.error(errorText(err))),
       },
       {
         label: 'Block whispers from strangers',
@@ -73,7 +75,7 @@
         note: 'Only people you follow or whispered can whisper you.',
         checked: s.blockStrangers,
         disabled: !s.history,
-        run: () => whispersIpc.blockStrangers(!s.blockStrangers).catch((err) => toast.error(String(err))),
+        run: () => whispersIpc.blockStrangers(!s.blockStrangers).catch((err) => toast.error(errorText(err))),
       },
       ...(!popout && onpopout ? ['separator' as const, { label: 'Pop out', icon: 'popout' as const, run: onpopout }] : []),
     ]);
@@ -136,7 +138,7 @@
             </span>
           </button>
         {:else}
-          {#if !fresh}<p class="empty">{s.loading ? 'Loading…' : q ? 'Nobody by that name.' : 'No whispers yet.'}</p>{/if}
+          {#if !fresh}{#if s.loading}<Loading rows={4} />{:else}<p class="empty">{q ? 'Nobody by that name.' : 'No whispers yet.'}</p>{/if}{/if}
         {/each}
         {#if archivedCount || archived}
           <button class="fold" onclick={() => (archived = !archived)}>

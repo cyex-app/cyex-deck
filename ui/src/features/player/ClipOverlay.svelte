@@ -11,6 +11,7 @@
   import { formatDate, formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import ClipPlayer from './ClipPlayer.svelte';
+  import { errorText } from '../../lib/errors';
 
   interface Props {
     slug: string;
@@ -25,7 +26,7 @@
   let clip = $state<ClipPlayback | null>(null);
 
   function open(url: string) {
-    systemIpc.openLink(url).catch((e) => toast.error(String(e)));
+    systemIpc.openLink(url).catch((e) => toast.error(errorText(e)));
   }
 
   function onkeydown(e: KeyboardEvent) {

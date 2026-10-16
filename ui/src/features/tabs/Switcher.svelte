@@ -15,6 +15,7 @@
   import { home } from '../home/home.svelte';
   import { openAdd } from './dialog.svelte';
   import { label, tabs, tiles } from './tabs.svelte';
+  import { errorText } from '../../lib/errors';
 
   interface Props {
     onopen: (id: string) => void;
@@ -135,7 +136,7 @@
       });
       if (id) onopen(id);
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 

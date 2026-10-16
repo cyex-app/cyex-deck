@@ -18,6 +18,7 @@ import UsercardView from '../features/usercard/UsercardView.svelte';
 import WhispersView from '../features/whispers/WhispersView.svelte';
 import { windowsIpc } from '../ipc/windows';
 import { toast } from '../lib/toast.svelte';
+import { errorText } from '../lib/errors';
 
 export interface PanelKind {
   title: string;
@@ -81,7 +82,7 @@ export async function popOut(route: string, title?: string): Promise<boolean> {
     await windowsIpc.openPanel(route, title ?? panel.title, panel.width, panel.height);
     return true;
   } catch (e) {
-    toast.error(String(e));
+    toast.error(errorText(e));
     return false;
   }
 }

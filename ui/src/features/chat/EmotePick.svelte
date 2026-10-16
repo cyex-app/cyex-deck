@@ -9,6 +9,8 @@
   import { density } from '../../lib/density.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { emoteImg } from './urls';
+  import { errorText } from '../../lib/errors';
+  import Loading from '../../components/Loading.svelte';
 
   interface Props {
     view: number;
@@ -31,7 +33,7 @@
     chatIpc
       .emoteChoices(view)
       .then((c) => (choices = c))
-      .catch((e) => (error = String(e)));
+      .catch((e) => (error = errorText(e)));
   });
 
   function img(id: string) {
@@ -42,7 +44,7 @@
 {#if error}
   <p class="note">{error}</p>
 {:else if !choices}
-  <p class="note">Loading…</p>
+  <Loading />
 {:else if !list.length}
   <p class="note">{kind === 'unlock' ? 'You have every emote this one can unlock.' : 'Nothing left to modify.'}</p>
 {:else if kind === 'modify' && base}

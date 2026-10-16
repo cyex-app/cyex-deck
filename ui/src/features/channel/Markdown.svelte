@@ -5,12 +5,13 @@
   import type { Span } from '../../ipc/bindings/Span';
   import { systemIpc } from '../../ipc/system';
   import { toast } from '../../lib/toast.svelte';
+  import { errorText } from '../../lib/errors';
 
   let { blocks }: { blocks: Block[] } = $props();
 
   function open(e: MouseEvent, url: string) {
     e.preventDefault();
-    systemIpc.openChatLink(url).catch((err) => toast.error(String(err)));
+    systemIpc.openChatLink(url).catch((err) => toast.error(errorText(err)));
   }
 </script>
 

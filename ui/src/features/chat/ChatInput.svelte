@@ -31,6 +31,7 @@
   import type { Item } from './suggestions';
   import { pinText } from './pinSend';
   import { plainText } from './text';
+  import { errorText } from '../../lib/errors';
 
   interface Props {
     room: ChatRoom;
@@ -263,7 +264,7 @@
       if (!keep && text.trim() === value) text = '';
       replyTo = null;
     } catch (e) {
-      error = String(e);
+      error = errorText(e);
       setTimeout(() => (error = ''), 4000);
     } finally {
       sending = false;
@@ -286,7 +287,7 @@
       recall = -1;
       text = '';
     } catch (e) {
-      error = String(e);
+      error = errorText(e);
       setTimeout(() => (error = ''), 4000);
     }
   }

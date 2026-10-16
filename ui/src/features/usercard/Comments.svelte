@@ -5,6 +5,7 @@
   import { modIpc } from '../../ipc/moderation';
   import { formatDate } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
+  import { errorText } from '../../lib/errors';
 
   interface Props {
     comments: ModComment[];
@@ -37,7 +38,7 @@
       text = '';
       onchange();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     } finally {
       busy = false;
     }
@@ -48,7 +49,7 @@
       await modIpc.deleteComment(account, channel, id);
       onchange();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 </script>

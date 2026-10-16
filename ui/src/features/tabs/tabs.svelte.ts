@@ -18,6 +18,7 @@ import { accounts } from '../../lib/accounts.svelte';
 import { settings } from '../../lib/settings.svelte';
 import { toast } from '../../lib/toast.svelte';
 import { hiddenTabs } from './barLayout';
+import { errorText } from '../../lib/errors';
 
 export type LiveState = 'live' | 'rerun' | null;
 export type UnreadState = 'message' | 'mention' | null;
@@ -140,7 +141,7 @@ class TabsStore {
       settings.v.tabs = applied.tabs;
       return applied.made;
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
       return null;
     }
   }
@@ -160,7 +161,7 @@ class TabsStore {
       settings.v.tabs = applied.tabs;
       return applied.made;
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
       return null;
     }
   }
@@ -172,12 +173,12 @@ class TabsStore {
 
   /** 3.14 Closes the tab's own window; it's back in the main window. */
   dock(id: string): void {
-    windowsIpc.closePanel(tabRoute(id)).catch((e) => toast.error(String(e)));
+    windowsIpc.closePanel(tabRoute(id)).catch((e) => toast.error(errorText(e)));
   }
 
   /** 3.14 The chat's window closes; it's back next to the stream. */
   dockChat(tileId: string): void {
-    windowsIpc.closePanel(chatRoute(tileId)).catch((e) => toast.error(String(e)));
+    windowsIpc.closePanel(chatRoute(tileId)).catch((e) => toast.error(errorText(e)));
   }
 
   private setLive(list: ChannelInfo[]): void {

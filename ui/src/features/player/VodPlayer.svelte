@@ -26,6 +26,7 @@
   import { clock, linkTime } from './time';
   import { copyText, openLink, pipFor, playerKeys } from './tools';
   import Volume from './Volume.svelte';
+  import Loading from '../../components/Loading.svelte';
 
   interface Props {
     id: string;
@@ -209,7 +210,7 @@
       {/if}
     </div>
   {:else if engine?.waiting}
-    <div class="spinner" aria-label="Loading"></div>
+    <div class="busy"><Loading video size="large" /></div>
   {/if}
   {#if stats && engine}<Stats read={() => engine!.stats()} onclose={() => (stats = false)} />{/if}
 
@@ -277,23 +278,12 @@
     border-radius: var(--radius);
     color: var(--on-video);
   }
-  .spinner {
+  .busy {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 36px;
-    height: 36px;
-    margin: -18px 0 0 -18px;
-    border: 3px solid var(--on-video-faint);
-    border-top-color: var(--on-video);
-    border-radius: 50%;
-    animation: spin 0.9s linear infinite;
+    inset: 0;
+    display: grid;
+    place-items: center;
     pointer-events: none;
-  }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
   }
   .title {
     flex: 1;

@@ -10,6 +10,8 @@
   import { usable } from '../emotes/menu';
   import { emoteMenu } from '../emotes/menus';
   import type { ChatRoom } from './room.svelte';
+  import { errorText } from '../../lib/errors';
+  import Loading from '../../components/Loading.svelte';
 
   let { room, ondone }: { room: ChatRoom; ondone: () => void } = $props();
 
@@ -42,7 +44,7 @@
   chatxIpc
     .powerUps(room.view)
     .then((u) => (ups = u))
-    .catch((e) => (error = String(e)));
+    .catch((e) => (error = errorText(e)));
   // svelte-ignore state_referenced_locally
   emoteMenu(room.login, room.account)
     .then((m) => {
@@ -90,7 +92,7 @@
       toast.info('Sent');
       ondone();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
       sure = false;
     } finally {
       busy = false;
@@ -108,7 +110,7 @@
 {#if error}
   <p class="note">{error}</p>
 {:else if !ups}
-  <p class="note">Loading…</p>
+  <Loading />
 {:else if picked}
   <div class="confirm">
     <div class="title">{picked.title} · {formatNumber(picked.bits)} Bits</div>

@@ -7,6 +7,7 @@
   import type { ChannelInfo } from '../../ipc/bindings/ChannelInfo';
   import { tabsIpc } from '../../ipc/tabs';
   import { formatNumber } from '../../lib/format';
+  import { errorText } from '../../lib/errors';
 
   interface Props {
     text: string;
@@ -52,7 +53,7 @@
       status = 'done';
     } catch (e) {
       if (asked !== input) return;
-      error = String(e);
+      error = errorText(e);
       status = 'error';
     }
   }

@@ -18,6 +18,8 @@
   import Line from '../chat/Line.svelte';
   import WhisperInput from './WhisperInput.svelte';
   import { whispers } from './whispers.svelte';
+  import { errorText } from '../../lib/errors';
+  import Loading from '../../components/Loading.svelte';
 
   interface Props {
     login: string;
@@ -69,7 +71,7 @@
       read();
       input?.focus();
     } catch (e) {
-      if (l === login) error = String(e);
+      if (l === login) error = errorText(e);
     }
   }
 
@@ -137,7 +139,7 @@
       await tick();
       list.scrollTop += list.scrollHeight - before;
     } catch (e) {
-      if (conv?.thread.id === id) toast.error(String(e));
+      if (conv?.thread.id === id) toast.error(errorText(e));
     } finally {
       if (conv?.thread.id === id) older = false;
     }
@@ -147,7 +149,7 @@
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-link]');
     if (!el?.dataset.link) return;
     e.preventDefault();
-    systemIpc.openChatLink(el.dataset.link).catch((err) => toast.error(String(err)));
+    systemIpc.openChatLink(el.dataset.link).catch((err) => toast.error(errorText(err)));
   }
 
   async function edit(change: WhisperEdit, done?: string) {
@@ -156,7 +158,7 @@
       await whispersIpc.edit(conv.thread.id, change);
       if (done) toast.info(done);
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 
@@ -167,7 +169,7 @@
       await edit({ archived: true });
       toast.info(`Blocked ${thread.other.name}.`);
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 
@@ -228,11 +230,11 @@
   {/if}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="lines" bind:this={list} {onscroll} onclick={click}>
-    {#if older}<p class="note">Loading…</p>{/if}
+    {#if older}<Loading />{/if}
     {#if error}
       <p class="note err">{error} <Button small onclick={() => void load(login)}>Retry</Button></p>
     {:else if !conv}
-      <p class="note">Loading…</p>
+      <Loading />
     {:else if !messages.length}
       <p class="note">
         {history ? 'No whispers yet. Say hi.' : 'Whispers from this session show here. Past ones need a GQL sign-in.'}

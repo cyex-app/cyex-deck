@@ -10,6 +10,8 @@
   import type { ChatIdentity } from '../../ipc/bindings/ChatIdentity';
   import { chatIpc } from '../../ipc/chat';
   import { toast } from '../../lib/toast.svelte';
+  import { errorText } from '../../lib/errors';
+  import Loading from '../../components/Loading.svelte';
 
   interface Props {
     account: string;
@@ -47,7 +49,7 @@
       me = await chatIpc.identity(account, login);
       custom = me.color ?? '#';
     } catch (e) {
-      error = String(e);
+      error = errorText(e);
     }
   }
 
@@ -61,7 +63,7 @@
       toast.info(done);
       await load();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     } finally {
       busy = false;
     }
@@ -100,7 +102,7 @@
   {#if error}
     <p class="note">{error}</p>
   {:else if !me}
-    <p class="note">Loading…</p>
+    <Loading />
   {:else}
     <h3 class="label">Name color</h3>
     <div class="colors">

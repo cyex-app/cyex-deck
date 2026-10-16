@@ -18,6 +18,8 @@
   import { PROVIDER_NAMES, emoteKey, emoteRatio } from './emotes';
   import { PROVIDER_TABS, type ProviderTab, cellKey, pick, search, usable } from './menu';
   import { emoteMenu } from './menus';
+  import { errorText } from '../../lib/errors';
+  import Loading from '../../components/Loading.svelte';
 
   interface Props {
     login: string;
@@ -67,7 +69,7 @@
   onMount(() => {
     emoteMenu(login, account)
       .then((m) => (menu = m))
-      .catch((e) => (error = String(e)));
+      .catch((e) => (error = errorText(e)));
   });
 
   $effect(() => {
@@ -188,7 +190,7 @@
     {#if error}
       <p class="note">{error}</p>
     {:else if !menu}
-      <p class="note">Loading…</p>
+      <Loading />
     {:else if query.trim()}
       {#if found.length || foundEmoji.length}
         <div class="grid">
@@ -231,7 +233,7 @@
           </section>
         {/each}
       {:else}
-        <p class="note">Loading…</p>
+        <Loading />
       {/if}
     {:else}
       {#if tab === 'twitch' && menu.twitchNote}<p class="note">{menu.twitchNote}</p>{/if}

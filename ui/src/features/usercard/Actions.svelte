@@ -10,6 +10,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { userMenus } from '../chat/menus.svelte';
   import { whispers } from '../whispers/whispers.svelte';
+  import { errorText } from '../../lib/errors';
 
   let { profile, channel }: { profile: Profile; channel: string } = $props();
 
@@ -50,7 +51,7 @@
       await usercardIpc.run(channel, command, ctx());
       after?.();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     } finally {
       busy = false;
     }

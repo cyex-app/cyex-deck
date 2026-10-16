@@ -17,6 +17,7 @@
   import Line from '../chat/Line.svelte';
   import { ChatRoom } from '../chat/room.svelte';
   import { tabs, tiles } from '../tabs/tabs.svelte';
+  import { errorText } from '../../lib/errors';
 
   let { route }: { route: string; popout?: boolean } = $props();
 
@@ -87,7 +88,7 @@
       await modesIpc.setClickThrough(on);
       if (on) toast.info('Clicks go through now. Hover the top to take them back.');
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 </script>

@@ -9,6 +9,7 @@
   import { usercardIpc } from '../../ipc/rules';
   import { formatDate } from '../../lib/format';
   import Line from '../chat/Line.svelte';
+  import Loading from '../../components/Loading.svelte';
 
   interface Props {
     channel: string;
@@ -119,7 +120,7 @@
       <div class="day" class:live={s.live}><span>{s.label}</span></div>
       {#each s.items as m (m.id)}<Line {m} {channel} />{/each}
     {:else}
-      <p class="empty">{status === 'loading' ? 'Loading…' : `${name} hasn’t chatted here.`}</p>
+      {#if status === 'loading'}<Loading />{:else}<p class="empty">{name} hasn’t chatted here.</p>{/if}
     {/each}
   </div>
 </div>
