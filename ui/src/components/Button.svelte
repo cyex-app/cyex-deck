@@ -5,7 +5,8 @@
   import type { IconName } from './icons';
 
   interface Props {
-    variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+    /** `link`: accent text inside a sentence or a row, no box ("Show all", "Undo"). */
+    variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'link';
     small?: boolean;
     icon?: IconName;
     disabled?: boolean;
@@ -75,6 +76,23 @@
   }
   .danger:hover:not(:disabled) {
     background: var(--surface-hover);
+  }
+  .link {
+    height: auto;
+    padding: 0;
+    gap: 5px;
+    background: none;
+    color: var(--accent-text);
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+  }
+  .link.small {
+    height: auto;
+    padding: 0;
+  }
+  .link:hover:not(:disabled) {
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
   .btn:disabled {
     opacity: 0.5;
