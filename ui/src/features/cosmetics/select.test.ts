@@ -168,3 +168,35 @@ test('a failure doesn’t undo a newer pick that still waits', async () => {
   assert.equal(s.shown.paint, 'b');
   assert.equal(s.confirmed.paint, 'b');
 });
+
+test('a newer pick failing rolls back to the older one that went through', async () => {
+  // V1051-03 final review: A is on its way when B is picked; A lands, B fails.
+  let n = 0;
+  const err: SelectError = { type: 'down' };
+  const { s, sched } = make(async (_k, id) => {
+    n++;
+    if (n === 1) {
+      await flush();
+      return done(id);
+    }
+    // Rust sends one call per kind at a time, so B's answer comes after A's.
+    await flush();
+    await flush();
+    throw err;
+  });
+  s.pick('paint', 'a');
+  sched.tick(400);
+  s.pick('paint', 'b');
+  sched.tick(400);
+  for (let i = 0; i < 5; i++) await flush();
+  assert.equal(s.confirmed.paint, 'a');
+  assert.equal(s.shown.paint, 'a');
+});
+
+test('a pick another command overtook stops saying Saving', async () => {
+  const { s, sched } = make(async () => ({ type: 'superseded' }) as Picked);
+  s.pick('badge', 'x');
+  sched.tick(400);
+  await flush();
+  assert.equal(s.status, 'idle');
+});

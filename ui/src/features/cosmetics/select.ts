@@ -27,6 +27,8 @@ export class Selection {
   private flying = 0;
   private undoTimer: unknown;
   private seq: Record<Kind, number> = { paint: 0, badge: 0 };
+  /** Bumped by `reset`: an answer from before it says nothing about the account now. */
+  private epoch = 0;
 
   private send: (kind: Kind, id: string | null) => Promise<Picked>;
   private onstate: () => void;
@@ -52,6 +54,7 @@ export class Selection {
       this.timers[k] = undefined;
       this.seq[k]++;
     }
+    this.epoch++;
     this.confirmed = { paint, badge };
     this.shown = { paint, badge };
     this.status = 'idle';
@@ -85,11 +88,18 @@ export class Selection {
     const id = this.shown[kind];
     const mine = ++this.seq[kind];
     const before = this.confirmed[kind];
+    const epoch = this.epoch;
     this.flying++;
     try {
       const r = await this.send(kind, id);
-      if (mine !== this.seq[kind]) return;
-      if (r.type === 'superseded') return;
+      // An overtaken pick that went through is what 7TV wears until the newer one lands,
+      // so a failing newer one rolls back to it.
+      if (mine !== this.seq[kind]) {
+        if (r.type === 'done' && epoch === this.epoch) this.confirmed = { ...this.confirmed, [kind]: id };
+        return;
+      }
+      // Something else (a chat command) took the turn: nothing of ours is on its way.
+      if (r.type === 'superseded') return this.settle('idle');
       this.confirmed = { ...this.confirmed, [kind]: id };
       if (before !== id && this.timers[kind] === undefined) {
         this.undoable = { kind, id: before };
@@ -112,8 +122,8 @@ export class Selection {
     }
   }
 
-  /** `saved` only once nothing else is waiting or on its way. */
-  private settle(s: 'saved') {
+  /** `saved` (or `idle`) only once nothing else is waiting or on its way. */
+  private settle(s: 'saved' | 'idle') {
     const busy = this.timers.paint !== undefined || this.timers.badge !== undefined || this.flying > 1;
     if (!busy) this.status = s;
     this.onstate();
