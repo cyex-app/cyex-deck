@@ -80,7 +80,7 @@ fn main() {
             bell::init(handle);
             alerts::init(handle);
             windows::init(handle)?;
-            sound::allow_speakers(handle);
+            // V1051-01 The streams' speaker choice is set when the main page loads (windows::on_page_load).
             tray::init(handle)?;
             hotkeys::init(handle);
             Ok(())
