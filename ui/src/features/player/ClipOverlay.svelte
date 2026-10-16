@@ -72,7 +72,7 @@
     display: grid;
     place-items: center;
     padding: 16px;
-    background: rgba(0, 0, 0, 0.6);
+    background: var(--scrim);
   }
   .box {
     display: flex;

@@ -108,8 +108,8 @@
     height: 24px;
   }
   .controls :global(.icon-btn.danger:hover) {
-    background: #e81123;
-    color: #fff;
+    background: var(--danger-solid);
+    color: var(--on-solid);
   }
   .frame.slim {
     height: 26px;
@@ -148,8 +148,8 @@
     inset: -3px;
   }
   .round-x:hover {
-    background: #e81123;
-    color: #fff;
+    background: var(--danger-solid);
+    color: var(--on-solid);
   }
   .round-x:active {
     transform: scale(0.94);

@@ -233,8 +233,8 @@
     place-items: center;
     padding: 16px;
     text-align: center;
-    color: #ddd;
-    background: rgba(0, 0, 0, 0.55);
+    color: var(--on-video-dim);
+    background: var(--scrim);
   }
   .spinner {
     position: absolute;
@@ -243,8 +243,8 @@
     width: 36px;
     height: 36px;
     margin: -18px 0 0 -18px;
-    border: 3px solid rgba(255, 255, 255, 0.2);
-    border-top-color: #fff;
+    border: 3px solid var(--on-video-faint);
+    border-top-color: var(--on-video);
     border-radius: 50%;
     animation: spin 0.9s linear infinite;
     pointer-events: none;

@@ -121,7 +121,9 @@
     min-height: 0;
     display: flex;
     background: #000;
-    color: #fff;
+    color: var(--on-video);
+    /* Video stays dark in both themes, so focus rings are white in here. */
+    --focus-ring: var(--on-video);
     overflow: hidden;
     cursor: none;
   }
@@ -147,12 +149,12 @@
   .top {
     top: 0;
     padding: 10px 12px 26px;
-    background: linear-gradient(rgba(0, 0, 0, 0.7), transparent);
+    background: linear-gradient(var(--scrim-strong), transparent);
   }
   .bar {
     bottom: 0;
     padding: 26px 8px 6px;
-    background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+    background: linear-gradient(transparent, var(--scrim-strong));
   }
   .shell:not(.show) .top :global(*),
   .shell:not(.show) .bar :global(*) {
@@ -176,12 +178,12 @@
     background: none;
     border: 0;
     border-radius: var(--radius);
-    color: #fff;
+    color: var(--on-video);
     opacity: 0.9;
   }
   .shell :global(.ctl:hover) {
     opacity: 1;
-    background: rgba(255, 255, 255, 0.12);
+    background: color-mix(in srgb, var(--on-video) 12%, transparent);
   }
   .shell :global(.ctl.on) {
     color: #9cbcff;

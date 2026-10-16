@@ -119,8 +119,8 @@
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: #e91916;
-    box-shadow: 0 0 6px rgba(233, 25, 22, 0.8);
+    background: var(--live);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--live) 80%, transparent);
   }
   .dot.rerun {
     background: var(--yellow);

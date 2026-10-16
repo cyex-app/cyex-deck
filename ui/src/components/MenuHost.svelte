@@ -141,10 +141,13 @@
     color: var(--text);
     text-align: left;
   }
-  .item:hover:not(:disabled),
-  .item:focus-visible {
+  .item:hover:not(:disabled) {
     background: var(--surface-hover);
-    outline: none;
+  }
+  /* Keyboard focus is a ring, so it never reads as the hovered item. */
+  .item:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
   }
   .menu:focus {
     outline: none;

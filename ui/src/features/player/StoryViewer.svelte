@@ -131,7 +131,7 @@
     display: grid;
     place-items: center;
     padding: 12px;
-    background: rgba(0, 0, 0, 0.7);
+    background: var(--scrim-strong);
   }
   .phone {
     position: relative;
@@ -143,7 +143,7 @@
     background: #000;
     border-radius: var(--radius);
     overflow: hidden;
-    color: #fff;
+    color: var(--on-video);
   }
   video,
   img {
@@ -163,14 +163,14 @@
   .bar {
     flex: 1;
     height: 3px;
-    background: rgba(255, 255, 255, 0.3);
+    background: var(--on-video-faint);
     border-radius: 2px;
     overflow: hidden;
   }
   .bar span {
     display: block;
     height: 100%;
-    background: #fff;
+    background: var(--on-video);
   }
   .who {
     position: absolute;
@@ -205,7 +205,7 @@
     height: 28px;
     background: none;
     border: 0;
-    color: #fff;
+    color: var(--on-video);
   }
   .caption {
     position: absolute;
@@ -215,7 +215,7 @@
     z-index: 2;
     margin: 0;
     padding: 30px 14px 16px;
-    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+    background: linear-gradient(transparent, var(--scrim-strong));
     text-align: center;
   }
   .half {
@@ -237,6 +237,6 @@
     margin: auto;
     padding: 20px;
     text-align: center;
-    color: #ccc;
+    color: var(--on-video-dim);
   }
 </style>

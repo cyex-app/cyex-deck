@@ -128,7 +128,7 @@
   .dot {
     width: 7px;
     height: 7px;
-    background: #e91916;
+    background: var(--live);
     border-radius: 50%;
   }
   .game {

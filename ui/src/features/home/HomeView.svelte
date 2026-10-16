@@ -310,7 +310,7 @@
   .dot {
     width: 8px;
     height: 8px;
-    background: #e91916;
+    background: var(--live);
     border-radius: 50%;
   }
   .fold {

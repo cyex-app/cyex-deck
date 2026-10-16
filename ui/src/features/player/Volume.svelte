@@ -66,7 +66,7 @@
     margin: 0;
     opacity: 0;
     appearance: none;
-    background: linear-gradient(to right, #fff var(--fill), rgba(255, 255, 255, 0.3) var(--fill));
+    background: linear-gradient(to right, var(--on-video) var(--fill), var(--on-video-faint) var(--fill));
     border-radius: 2px;
     transition:
       width 0.15s var(--ease),
@@ -83,7 +83,7 @@
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background: #fff;
+    background: var(--on-video);
   }
   .boost {
     position: relative;
@@ -91,7 +91,7 @@
     align-items: center;
     gap: 4px;
     margin-right: 6px;
-    color: rgba(255, 255, 255, 0.85);
+    color: color-mix(in srgb, var(--on-video) 85%, transparent);
     font-size: 0.72rem;
     font-weight: 600;
     cursor: pointer;
@@ -111,21 +111,21 @@
     place-items: center;
     width: 12px;
     height: 12px;
-    border: 1.5px solid rgba(255, 255, 255, 0.8);
+    border: 1.5px solid color-mix(in srgb, var(--on-video) 80%, transparent);
     border-radius: 2px;
     color: #000;
   }
   .boost input:checked + .box {
-    background: #fff;
-    border-color: #fff;
+    background: var(--on-video);
+    border-color: var(--on-video);
   }
   .boost input:focus-visible + .box {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--focus-ring);
     outline-offset: 1px;
   }
   .pct {
     margin-right: 6px;
-    color: #fff;
+    color: var(--on-video);
     font-size: 0.72rem;
     font-variant-numeric: tabular-nums;
   }
@@ -135,7 +135,7 @@
   }
   .volume > input.boosted {
     background:
-      linear-gradient(to right, transparent calc(20% - 1px), rgba(255, 255, 255, 0.7) calc(20% - 1px) calc(20% + 1px), transparent calc(20% + 1px)),
-      linear-gradient(to right, #fff var(--fill), rgba(255, 255, 255, 0.3) var(--fill));
+      linear-gradient(to right, transparent calc(20% - 1px), color-mix(in srgb, var(--on-video) 70%, transparent) calc(20% - 1px) calc(20% + 1px), transparent calc(20% + 1px)),
+      linear-gradient(to right, var(--on-video) var(--fill), var(--on-video-faint) var(--fill));
   }
 </style>

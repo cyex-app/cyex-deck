@@ -53,7 +53,7 @@
     border-color: var(--accent);
   }
   input:focus-visible + .box {
-    outline: 2px solid var(--accent-border);
+    outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
   }
 </style>

@@ -88,7 +88,7 @@
     bottom: -1px;
     width: 9px;
     height: 9px;
-    background: #e91916;
+    background: var(--live);
     border: 2px solid var(--bg);
     border-radius: 50%;
   }

@@ -36,15 +36,15 @@
     grid-template-columns: auto auto;
     gap: 2px 14px;
     padding: 8px 28px 8px 10px;
-    background: rgba(0, 0, 0, 0.72);
+    background: var(--scrim-strong);
     border-radius: var(--radius);
     font-family: var(--font-mono);
     font-size: 0.72rem;
-    color: #ddd;
+    color: var(--on-video-dim);
   }
   b {
     font-weight: 600;
-    color: #fff;
+    color: var(--on-video);
   }
   .close {
     position: absolute;
@@ -53,7 +53,7 @@
     padding: 0 4px;
     background: none;
     border: 0;
-    color: #bbb;
+    color: var(--on-video-dim);
     font-size: 1rem;
   }
 </style>

@@ -110,7 +110,7 @@
     position: relative;
     width: 100%;
     height: 4px;
-    background: rgba(255, 255, 255, 0.25);
+    background: var(--on-video-faint);
     border-radius: 2px;
     transition: height 0.1s;
   }
@@ -124,7 +124,7 @@
     border-radius: 2px;
   }
   .buffered {
-    background: rgba(255, 255, 255, 0.35);
+    background: color-mix(in srgb, var(--on-video) 35%, transparent);
   }
   .played {
     background: var(--accent-hover);
@@ -141,13 +141,13 @@
   }
   .tip span {
     padding: 1px 6px;
-    background: rgba(0, 0, 0, 0.8);
+    background: var(--scrim-strong);
     border-radius: var(--radius);
     font-size: 0.75rem;
     font-variant-numeric: tabular-nums;
   }
   .thumb {
-    border: 1px solid rgba(255, 255, 255, 0.5);
+    border: 1px solid color-mix(in srgb, var(--on-video) 50%, transparent);
     border-radius: var(--radius);
     background-repeat: no-repeat;
   }

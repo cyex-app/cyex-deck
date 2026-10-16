@@ -219,7 +219,7 @@
     display: grid;
     place-items: center;
     padding: 16px;
-    color: #ddd;
+    color: var(--on-video-dim);
     text-align: center;
   }
   .rows {

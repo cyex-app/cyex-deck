@@ -373,8 +373,8 @@
     gap: 10px;
     padding: 16px;
     text-align: center;
-    color: #ddd;
-    background: rgba(0, 0, 0, 0.55);
+    color: var(--on-video-dim);
+    background: var(--scrim);
   }
   .center.held {
     font-size: 0.85rem;
@@ -385,10 +385,10 @@
     align-items: center;
     gap: 6px;
     padding: 6px 12px;
-    background: rgba(255, 255, 255, 0.14);
+    background: color-mix(in srgb, var(--on-video) 14%, transparent);
     border: 0;
     border-radius: var(--radius);
-    color: #fff;
+    color: var(--on-video);
   }
   .spinner {
     position: absolute;
@@ -397,8 +397,8 @@
     width: 36px;
     height: 36px;
     margin: -18px 0 0 -18px;
-    border: 3px solid rgba(255, 255, 255, 0.2);
-    border-top-color: #fff;
+    border: 3px solid var(--on-video-faint);
+    border-top-color: var(--on-video);
     border-radius: 50%;
     animation: spin 0.9s linear infinite;
     pointer-events: none;
@@ -414,7 +414,7 @@
     right: 10px;
     z-index: 3;
     padding: 3px 8px;
-    background: rgba(0, 0, 0, 0.7);
+    background: var(--scrim-strong);
     border-radius: var(--radius);
     font-size: 0.75rem;
     pointer-events: none;
@@ -422,7 +422,7 @@
   .live-badge {
     margin-left: 6px;
     padding: 0 5px;
-    background: #e91916;
+    background: var(--live);
     border-radius: var(--radius);
     font-size: 0.7rem;
     font-weight: 700;
@@ -437,7 +437,7 @@
     z-index: 3;
     display: flex;
     gap: 2px;
-    background: rgba(0, 0, 0, 0.55);
+    background: var(--scrim);
     border-radius: var(--radius);
   }
 </style>

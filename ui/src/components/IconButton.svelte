@@ -105,8 +105,8 @@
     background: none;
   }
   .chrome.danger:hover {
-    background: #e81123;
-    color: #fff;
+    background: var(--danger-solid);
+    color: var(--on-solid);
   }
   .badge {
     position: absolute;

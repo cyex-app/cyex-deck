@@ -67,7 +67,7 @@
   .badge {
     top: 6px;
     left: 6px;
-    background: #e91916;
+    background: var(--live);
     font-weight: 700;
   }
   .views {

@@ -25,6 +25,15 @@
   --green: #33d68f;
   --twitch: #a970ff;
   --cyan: #4fd6ff;
+  /* Solid fills with white text on them: the LIVE badge, a window's close on hover. */
+  --live: #e91916;
+  --danger-solid: #e81123;
+  /* Popups and dialogs lift off the page. */
+  --shadow-pop: 0 8px 24px var(--shadow);
+  --shadow-dialog: 0 16px 48px var(--shadow);
+  /* The one keyboard focus color: the text color, since the accent marks what’s selected
+     and a user’s accent can be too faint to see. */
+  --focus-ring: var(--text);
   /* V1051-03 What a 7TV paint is drawn on in the menu. */
   --paint-back: var(--bg);
   --paint-dim: #91939c;
@@ -46,21 +55,39 @@
   --font-mono: 'IBM Plex Mono', 'Cascadia Mono', Consolas, monospace;
   --chat-font: var(--font-ui);
   --chat-size: 13px;
-  /* V105-03 How much larger the pinned message is; Settings → General. */
+  /* V105-03 How much larger the pinned message is; Settings â General. */
   --pinned-step: 1px;
   /* V101-37 Chat line height, as a multiple of the chat font size: room for a whole
      emote (2.15em at the E3 emote size), so a line with one is as tall as one without. */
   --chat-line: max(1.55, calc(2.15 * var(--emote-scale, 1)));
 
   --radius: 3px;
+  --radius-sm: 2px;
+  --radius-pill: 999px;
   --chrome-h: 38px;
+
+  /* Motion: hovers and small state changes, things that appear, things that travel. */
   --fast: 0.12s;
+  --base: 0.2s;
+  --slow: 0.36s;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Stacking, low to high. Raw 1-9 stay inside a component. */
+  --z-panel: 10;
   --z-popover: 300;
+  --z-dialog: 320;
+  --z-menu: 350;
   --z-tooltip: 390;
   --z-toast: 600;
-  /* Keyboard focus ring on cells and rows (the accent marks the selected one). */
-  --focus-ring: var(--text);
+
+  /* Over video and pictures, which stay dark in both themes. */
+  --on-video: #ffffff;
+  --on-video-dim: #dddddd;
+  --on-video-faint: rgba(255, 255, 255, 0.3);
+  --scrim: rgba(0, 0, 0, 0.55);
+  --scrim-strong: rgba(0, 0, 0, 0.72);
+  /* Text on --live and --danger-solid. */
+  --on-solid: #ffffff;
 }
 
 :root[data-theme='light'],
@@ -85,6 +112,11 @@
   --green: #0f8a55;
   --twitch: #772ce8;
   --cyan: #0b6d8a;
+  --live: #d9120f;
+  --danger-solid: #c42b1c;
+  --shadow-pop: 0 8px 24px var(--shadow);
+  --shadow-dialog: 0 16px 48px var(--shadow);
+  --focus-ring: var(--text);
   /* Pale paints vanish on white; a soft grey keeps them readable. */
   --paint-back: #b0b6c0;
   /* Muted text on that grey (--dim is 2.3:1 there). */
@@ -165,7 +197,7 @@ h2 {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent-border);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
