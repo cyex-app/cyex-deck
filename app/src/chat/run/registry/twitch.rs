@@ -51,7 +51,7 @@ pub(super) const CMDS: &[Cmd] = &[
     tw(
         "unban",
         "/unban name",
-        "Lifts a ban or a timeout.",
+        "Unbans a user, or ends their timeout.",
         "1.49",
         &[ex("/unban someone", "")],
     )
@@ -61,7 +61,7 @@ pub(super) const CMDS: &[Cmd] = &[
     tw(
         "untimeout",
         "/untimeout name",
-        "Lifts a timeout or a ban.",
+        "Ends a timeout early. Twitch treats it like /unban, so it also lifts a ban.",
         "1.49",
         &[ex("/untimeout someone", "")],
     )
@@ -377,7 +377,7 @@ pub(super) const CMDS: &[Cmd] = &[
     )
     .args(&[
         req("message", "text")
-            .note("A message id pins that message; any other text is sent and pinned (M11)."),
+            .note("A message id pins that message; any other text is sent and pinned."),
         opt("time", "duration").note("Only with an id. 30 seconds to 30 minutes."),
     ])
     .errs(&[

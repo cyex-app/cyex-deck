@@ -97,3 +97,32 @@ test('V1051-04 features and changelog read as site text', () => {
     assert.ok(sentences <= 3, `${f.id}: 1 to 3 sentences, has ${sentences}`);
   }
 });
+
+test('V1051-04 features name Settings pages by their labels', () => {
+  const labels = [...new Set((now.settings as { where: string }[]).map((s) => s.where.split(' › ')[1]))];
+  for (const f of features) {
+    for (const m of f.where.matchAll(/Settings → (.*?)(?= and Settings →|,|$)/g)) {
+      const named = m[1].split(' → ')[0];
+      assert.ok(
+        labels.some((l) => named === l || named.startsWith(`${l} and the `)),
+        `${f.id}: "${named}" is not a Settings page label`,
+      );
+    }
+  }
+});
+
+test('V1051-04 user-facing text has no spec codes or straight quotes', () => {
+  const code = /\((?:[A-Z]{1,2}\d+|V\d+-\d+|\d+\.\d+)\)/;
+  const texts: [string, string][] = [
+    ...(now.settings as { id: string; label: string; description: string }[]).flatMap((s): [string, string][] => [
+      [s.id, s.label],
+      [s.id, s.description],
+    ]),
+    ...features.flatMap((f): [string, string][] => [f.title, f.summary, f.where].map((t) => [f.id, t])),
+    ...changelog.flatMap((v) => v.highlights.map((h): [string, string] => [v.version, h.text])),
+  ];
+  for (const [id, text] of texts) {
+    assert.ok(!code.test(text), `${id}: spec code in "${text}"`);
+    assert.ok(!text.includes('"'), `${id}: curly quotes, not " in "${text}"`);
+  }
+});

@@ -112,7 +112,7 @@ pub fn parse_timer(args: &str) -> Result<Timer, String> {
         rest = r.trim_start();
     }
     let (head, tail) = if rest.starts_with('[') {
-        let end = rest.find(']').ok_or("A ']' is missing.")?;
+        let end = rest.find(']').ok_or("A ‘]’ is missing.")?;
         (&rest[..=end], rest[end + 1..].trim_start())
     } else {
         rest.split_once(' ')
@@ -134,7 +134,7 @@ pub fn parse_timer(args: &str) -> Result<Timer, String> {
     if tail.is_empty() {
         return Err("Usage: /timer 5m <command>".into());
     }
-    start.when = when(head).ok_or_else(|| format!("Can’t read the time '{head}'."))?;
+    start.when = when(head).ok_or_else(|| format!("Can’t read the time ‘{head}’."))?;
     start.command = tail.to_owned();
     Ok(Timer::Start(start))
 }

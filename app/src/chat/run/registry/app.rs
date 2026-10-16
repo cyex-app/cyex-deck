@@ -88,10 +88,10 @@ pub(super) const BEFORE: &[Cmd] = &[
     .ex(&[ex("/timer 5m /echo time", "Timer t1 runs in 5m."), ex("/timer list", "No timers running.")])
     .errs(&[
         "Unknown timer option -{c}.",
-        "A ']' is missing.",
+        "A ‘]’ is missing.",
         "Say which timer: /timer stop <id>",
         "Usage: /timer 5m <command>",
-        "Can’t read the time '{head}'.",
+        "Can’t read the time ‘{head}’.",
         "No timer called {id}.",
         "A timer called {id} is running. -o replaces it.",
         "Too many timers running.",
@@ -99,7 +99,7 @@ pub(super) const BEFORE: &[Cmd] = &[
     Cmd::new("user", "/user name", "Opens a user’s card for this channel.", "V102-10")
         .help("/user")
         .alias(&["usercard"])
-        .args(&[req("name", "login").note("@Name, name or name,")])
+        .args(&[req("name", "login").note("Write it as @Name, name or name followed by a comma.")])
         .changes(Window, "Opens the user card window.")
         .ex(&[ex("/user @SomeOne", "(opens someone’s card)")])
         .errs(&[WHO, NOT_A_NAME]),

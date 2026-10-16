@@ -29,11 +29,11 @@ pub(super) struct Function {
 
 pub(super) const COMMAND_LINE: &[&str] = &[
     "/ always starts a command.",
-    "A dot starts one only before a name the app knows (F14); .. never does.",
+    "A dot starts one only before a name the app knows; .. never does.",
     "// fills in variables in what follows, then runs it.",
     "The command name is not case-sensitive.",
     "A line that isn’t a command goes to Twitch, signed in only.",
-    "Text that Twitch would read as a command gets an invisible character in front (F20).",
+    "Text that Twitch would read as a command gets an invisible character in front.",
 ];
 
 pub(super) const PRECEDENCE: &[&str] = &[

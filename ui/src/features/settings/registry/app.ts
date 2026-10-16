@@ -9,7 +9,7 @@ export const APP: Entry[] = [
     id: 'general.chatFontFamily',
     page: 'general',
     label: 'Chat font',
-    description: 'One of eight fonts.',
+    description: 'One of eight fonts. Empty means the app font (IBM Plex Sans).',
     keywords: ['typeface', 'text', 'Inter', 'Roboto', 'Open Sans', 'Lato', 'JetBrains Mono', 'IBM Plex Sans', 'Segoe UI', 'Arial'],
   },
   { id: 'general.chatFontSize', page: 'general', label: 'Chat font size', keywords: ['text size', 'bigger', 'smaller', 'zoom'] },
