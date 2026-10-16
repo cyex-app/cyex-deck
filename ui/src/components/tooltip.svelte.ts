@@ -87,7 +87,7 @@ function hide(): void {
   owner = null;
 }
 
-// A scroll that moves the tip's element hides it, and so does Escape. Added at load, before
+// A scroll that moves the tip's element hides it, a resize always does, and so does Escape. Added at load, before
 // the Escape layer stack (lib/escape.ts) listens, which uses the key up when it closes a layer.
 if (typeof window !== 'undefined') {
   const moved = () => {
@@ -96,6 +96,8 @@ if (typeof window !== 'undefined') {
     if (Math.abs(r.top - tip.anchor.top) > 1 || Math.abs(r.left - tip.anchor.left) > 1) hide();
   };
   addEventListener('scroll', moved, { capture: true, passive: true });
+  // A resize reflows the page under it, so it hides too.
+  addEventListener('resize', hide);
   // Doesn't use the key up: Escape still closes what's under the tip.
   addEventListener('keydown', (e) => e.key === 'Escape' && tip.visible && hide(), true);
 }
