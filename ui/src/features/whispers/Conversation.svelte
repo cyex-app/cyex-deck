@@ -13,6 +13,7 @@
   import type { WhisperEdit } from '../../ipc/bindings/WhisperEdit';
   import { systemIpc } from '../../ipc/system';
   import { whispersIpc } from '../../ipc/whispers';
+  import DateRow from '../../components/DateRow.svelte';
   import { formatDate } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import Line from '../chat/Line.svelte';
@@ -290,7 +291,7 @@
       </p>
     {/if}
     {#each messages as m, i (m.id)}
-      {#if dates.has(i)}<div class="day"><span>{dates.get(i)}</span></div>{/if}
+      {#if dates.has(i)}<DateRow label={dates.get(i) ?? ''} />{/if}
       <Line {m} channel="" inWhispers />
     {/each}
   </div>
@@ -372,23 +373,5 @@
   }
   .err {
     color: var(--red);
-  }
-  .day {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 10px 10px 4px;
-    color: var(--dim);
-    font-size: 10px;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.06em;
-    opacity: 0.8;
-  }
-  .day::before,
-  .day::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--border);
   }
 </style>

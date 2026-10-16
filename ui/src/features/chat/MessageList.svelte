@@ -38,6 +38,7 @@
   import { glideMs } from './glide';
   import { nameMenu } from './nameMenu';
   import Line from './Line.svelte';
+  import DateRow from '../../components/DateRow.svelte';
   import WarnBox from './WarnBox.svelte';
   import { runEntry, toItems, userMenus } from './menus.svelte';
   import { roomRoute } from './roomRoute';
@@ -576,7 +577,7 @@
   }
 
   /** M10 The one open reason box: Warn on a line asks for the reason there. */
-  let warning = $state<{ login: string; anchor: { left: number; top: number; bottom: number } } | null>(null);
+  let warning = $state<{ login: string; anchor: { left: number; top: number; bottom: number; right: number } } | null>(null);
 
   async function sendWarn(text: string) {
     const who = warning?.login ?? '';
@@ -597,7 +598,7 @@
       const r = el.getBoundingClientRect();
       // The button's tip would sit on the box's field.
       hideTip();
-      warning ={ login, anchor: { left: r.left, top: r.top, bottom: r.bottom } };
+      warning = { login, anchor: { left: r.left, top: r.top, bottom: r.bottom, right: r.right } };
     }
     else if (action === 'ban') command(`/ban ${login}`);
   }
@@ -668,7 +669,7 @@
   >
     <div bind:this={lines}>
       {#each shown as m (m.id)}
-        {#if dayStarts.has(m.id)}<p class="day" role="separator">{formatDate(new Date(m.ts))}</p>{/if}
+        {#if dayStarts.has(m.id)}<DateRow label={formatDate(new Date(m.ts))} />{/if}
         <Line {m} channel={room.login} {canReply} stripe={stripe?.get(m.id) ?? false} mod={lineMod} />
         {#if m.id === lastRead && m.id !== shown.at(-1)?.id}<hr class="last-read" />{/if}
       {/each}
@@ -723,20 +724,6 @@
   }
   .sep :global(.line) {
     border-bottom: 1px solid var(--border);
-  }
-  .day {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 4px 10px;
-    color: var(--dim);
-    font: 600 0.72rem var(--font-mono);
-  }
-  .day::before,
-  .day::after {
-    content: '';
-    flex: 1;
-    border-top: 1px solid var(--border);
   }
   .last-read {
     margin: 2px 10px;
