@@ -43,7 +43,7 @@
 
   function count(userId: string): string {
     const c = accounts.connectionsOf(userId);
-    return c ? formatNumber(c.joined) : '';
+    return c?.joined ? formatNumber(c.joined) : '';
   }
 
   function pick(userId: string) {
@@ -66,7 +66,7 @@
         <button class="trigger" bind:this={trigger} disabled={anon} onclick={() => (open = !open)} aria-haspopup="menu" aria-expanded={open}>
           <Avatar src={chosen.avatar} name={chosen.displayName} size={18} />
           <span class="name">{chosen.displayName}</span>
-          <span class="count" use:tooltip={'Chats open'}>{count(chosen.userId)}</span>
+          {#if count(chosen.userId)}<span class="count" use:tooltip={'Chats open'}>{count(chosen.userId)}</span>{/if}
           <Icon name="chevronDown" size={14} />
         </button>
         <Popover bind:open align="start" role="menu" label="Account">
@@ -80,7 +80,7 @@
               >
                 <Avatar src={a.avatar} name={a.displayName} size={20} />
                 <span class="name">{a.displayName}{#if a.isDefault}<span class="def"> default</span>{/if}</span>
-                <span class="count" use:tooltip={'Chats open'}>{count(a.userId)}</span>
+                {#if count(a.userId)}<span class="count" use:tooltip={'Chats open'}>{count(a.userId)}</span>{/if}
                 {#if a.userId === chosen.userId}<span class="check"><Icon name="check" size={14} /></span>{/if}
               </button>
             {/each}
