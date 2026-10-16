@@ -1,25 +1,24 @@
 // Columns of a rule list editor (2.6, F2, F3, S4): which key, and how to edit it.
 
+import type { IconName } from '../../../components/icons';
+
 export interface Field<T> {
   key: keyof T & string;
   /** Checkbox text, tooltip and accessible name. */
   label: string;
-  /** V105-16 Shorter checkbox text, so a row fits one line; `label` stays the tooltip. */
-  short?: string;
-  /** V105-17 A sound file: an upload button, then its name with play and ×. */
+  /** V105-18 A check shown as this icon in a split row; `label` and `hint` are its tooltip. */
+  icon?: IconName;
+  /** V105-17 A sound file: picked with a button, then played or cleared from its menu. */
   kind: 'text' | 'area' | 'check' | 'color' | 'number' | 'select' | 'list' | 'sound';
   placeholder?: string;
-  /** V105-16 Longer tooltip of a text field, when the label isn't enough. */
+  /** V105-16 The tooltip under the label: what the field or option does. */
   hint?: string;
   options?: readonly { value: string; label: string }[];
   /** CSS width; text fields grow when unset. */
   width?: string;
-  /** V105-18 Grid layout: column (1 to 11) and how many it spans. */
-  col?: number;
-  span?: number;
-  /** V105-18 The flexible column: what the rule looks for. */
+  /** V105-18 The flexible field: what the rule looks for. */
   main?: boolean;
-  /** V105-18 Starts the second line when the row doesn't fit on one; this and all after. */
+  /** V105-18 What a match does (color, sound, …): the second group of a split row. */
   alert?: boolean;
   /** Monospace text, e.g. a regex. */
   mono?: boolean;

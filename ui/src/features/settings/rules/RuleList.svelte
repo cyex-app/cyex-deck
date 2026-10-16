@@ -17,10 +17,12 @@
     /** V103-13 Registry id: settings search jumps here. */
     setting?: string;
     /** Row layout, see RuleRow. */
-    layout?: 'flow' | 'grid' | 'stack';
+    layout?: 'flow' | 'split';
+    /** Option icons to make room for, see RuleRow. */
+    slots?: number;
   }
 
-  let { items, fields, make, onchange, addLabel = 'Add', empty, problem, setting, layout }: Props = $props();
+  let { items, fields, make, onchange, addLabel = 'Add', empty, problem, setting, layout, slots }: Props = $props();
 
   let el = $state<HTMLDivElement>();
 </script>
@@ -31,6 +33,7 @@
       {item}
       {fields}
       {layout}
+      {slots}
       problem={problem?.(item)}
       onchange={(next) => onchange(items.map((x, j) => (j === i ? next : x)))}
       ondelete={() => onchange(items.filter((_, j) => j !== i))}
