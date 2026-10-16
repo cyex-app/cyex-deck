@@ -21,8 +21,20 @@
 
   let { pin, channel, onunpin }: Props = $props();
 
-  /** Two lines until clicked. */
+  /** Two lines until clicked; one while the chat is short (A13). */
   let open = $state(false);
+  let el = $state<HTMLElement>();
+  let short = $state(false);
+
+  /** A13 Under this the chat has little room for messages, so the banner takes one line. */
+  const SHORT_PX = 300;
+  $effect(() => {
+    const host = el?.closest<HTMLElement>('.chat') ?? el?.parentElement;
+    if (!host) return;
+    const ro = new ResizeObserver(() => (short = host.clientHeight < SHORT_PX));
+    ro.observe(host);
+    return () => ro.disconnect();
+  });
 
   const key = $derived(pinKey(pin.id));
   const c = $derived(settings.v.chat);
@@ -31,7 +43,7 @@
 </script>
 
 {#if shows(eventStrip.of(channel), key)}
-  <div class="pin" class:paid={pin.paid} class:open>
+  <div class="pin" class:paid={pin.paid} class:open class:short bind:this={el}>
     <Icon name="pin" size={14} />
     <button class="text" onclick={() => (open = !open)} aria-expanded={open}>
       {#if sender && name}
@@ -111,6 +123,10 @@
     -webkit-line-clamp: 2;
     line-clamp: 2;
     overflow: hidden;
+  }
+  .pin.short:not(.open) .text {
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
   }
   .name {
     color: var(--cd);
