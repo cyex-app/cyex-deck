@@ -178,7 +178,7 @@
     font-size: 0.82rem;
   }
   .empty {
-    margin: 6px 8px;
+    margin: 6px 0;
   }
   h2 {
     display: flex;
