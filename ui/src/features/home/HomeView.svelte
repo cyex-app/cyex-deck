@@ -24,6 +24,7 @@
   import { discover } from '../discover/discover.svelte';
   import { home } from './home.svelte';
   import Loading from '../../components/Loading.svelte';
+  import SearchField from '../../components/SearchField.svelte';
 
   interface Props {
     /** Opens a tab. */
@@ -149,10 +150,7 @@
         {#if home.able.length > 1}<Icon name="chevronDown" size={14} />{/if}
       </button>
     {/if}
-    <label class="filter">
-      <Icon name="search" size={14} />
-      <input bind:value={query} placeholder="Find a channel" spellcheck="false" autocomplete="off" />
-    </label>
+    <SearchField small width="min(260px, 40%)" placeholder="Search…" label="Search channels" bind:value={query} />
     <span class="grow"></span>
     <IconButton icon="sliders" label="Sort" hint="Order of live and offline channels." onclick={sortMenu} />
     <IconButton icon="grid" label="Grid" hint="Cards with preview pictures." active={grid} onclick={() => setLayout('grid')} />
@@ -259,30 +257,6 @@
   }
   .account:not(:disabled):hover {
     background: var(--surface-hover);
-  }
-  .filter {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    width: min(260px, 40%);
-    height: 28px;
-    padding: 0 8px;
-    background: var(--surface);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius);
-    color: var(--dim);
-  }
-  .filter input {
-    flex: 1;
-    min-width: 0;
-    background: none;
-    border: 0;
-    outline: 0;
-    color: var(--text);
-    font-size: 0.85rem;
-  }
-  .filter:focus-within {
-    border-color: var(--accent-border);
   }
   .grow {
     flex: 1;

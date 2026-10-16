@@ -23,6 +23,7 @@
   import LanguagePicker from './LanguagePicker.svelte';
   import SearchResults from './SearchResults.svelte';
   import StreamList from './StreamList.svelte';
+  import SearchField from '../../components/SearchField.svelte';
 
   let { onopen }: { onopen: (tabId: string) => void } = $props();
 
@@ -96,23 +97,15 @@
     {#if discover.canGoBack}
       <IconButton icon="chevronLeft" label="Back" onclick={() => discover.back()} />
     {/if}
-    <label class="search">
-      <Icon name="search" size={14} />
-      <input
-        bind:value={typed}
-        oninput={() => search(typed)}
-        onkeydown={(e) => {
-          if (e.key === 'Enter') search(typed, true);
-          if (e.key === 'Escape' && typed) {
-            typed = '';
-            search('', true);
-          }
-        }}
-        placeholder="Search channels and categories"
-        spellcheck="false"
-        autocomplete="off"
-      />
-    </label>
+    <SearchField
+      small
+      width="min(340px, 45%)"
+      placeholder="Search channels and categories"
+      bind:value={typed}
+      oninput={() => search(typed)}
+      onkeydown={(e) => e.key === 'Enter' && search(typed, true)}
+      onclear={() => search('', true)}
+    />
     <Segmented
       label="Show"
       options={TABS}
@@ -190,30 +183,6 @@
     gap: 8px;
     padding: 12px 20px;
     border-bottom: 1px solid var(--border);
-  }
-  .search {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    width: min(340px, 45%);
-    height: 28px;
-    padding: 0 8px;
-    background: var(--surface);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius);
-    color: var(--dim);
-  }
-  .search:focus-within {
-    border-color: var(--accent-border);
-  }
-  .search input {
-    flex: 1;
-    min-width: 0;
-    background: none;
-    border: 0;
-    outline: 0;
-    color: var(--text);
-    font-size: 0.85rem;
   }
   .grow {
     flex: 1;

@@ -12,7 +12,7 @@
 
   onMount(() => {
     // The search box appears once the list loads: until then the pop-up itself holds focus.
-    const search = () => box?.querySelector<HTMLInputElement>('input[type="search"]');
+    const search = () => box?.querySelector<HTMLInputElement>('input[role="searchbox"]');
     const found = search();
     (found ?? box)?.focus();
     const seen = found

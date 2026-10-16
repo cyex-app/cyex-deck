@@ -34,6 +34,7 @@
   import StreamerSection from './sections/StreamerSection.svelte';
   import WindowsSection from './sections/WindowsSection.svelte';
   import UploaderSection from './sections/UploaderSection.svelte';
+  import SearchField from '../../components/SearchField.svelte';
 
   interface Props {
     /** Open page id. Bindable so other views can jump to a page. */
@@ -105,30 +106,14 @@
     } else if (e.key === 'Enter' && hits[active]) {
       e.preventDefault();
       void jump(hits[active]);
-    } else if (e.key === 'Escape' && query) {
-      e.stopPropagation();
-      query = '';
     }
   }
 </script>
 
 <!-- One box, drawn in the list or, in narrow windows, above the page. -->
 {#snippet searchBox(where: string)}
-  <div class="search {where}">
-    <Icon name="search" size={14} />
-    <input
-      class="field"
-      type="search"
-      placeholder="Search settings"
-      aria-label="Search settings"
-      spellcheck="false"
-      bind:value={query}
-      oninput={() => (active = 0)}
-      onkeydown={onkey}
-    />
-    {#if query}
-      <button class="clear" aria-label="Clear search" onclick={(e) => (e.currentTarget.parentElement?.querySelector('input')?.focus(), (query = ''))}><Icon name="x" size={12} /></button>
-    {/if}
+  <div class="box {where}">
+    <SearchField placeholder="Search settings" bind:value={query} oninput={() => (active = 0)} onkeydown={onkey} />
   </div>
 {/snippet}
 
@@ -174,44 +159,15 @@
     overflow-y: auto;
     border-right: 1px solid var(--border);
   }
-  .search {
-    position: relative;
-    display: flex;
-    align-items: center;
+  .box {
     flex: none;
   }
-  .search.side {
+  .box.side {
     margin: 8px 0 2px;
   }
-  .search.top {
+  .box.top {
     display: none;
     margin-bottom: 16px;
-  }
-  .search > :global(svg) {
-    position: absolute;
-    left: 9px;
-    color: var(--dim);
-    pointer-events: none;
-  }
-  .search input {
-    width: 100%;
-    padding: 0 28px 0 29px;
-  }
-  .search input::-webkit-search-cancel-button {
-    display: none;
-  }
-  .clear {
-    position: absolute;
-    right: 4px;
-    display: grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
-    padding: 0;
-    background: none;
-    border: 0;
-    border-radius: var(--radius);
-    color: var(--dim);
   }
   .clear::before {
     content: "";
@@ -288,11 +244,11 @@
       padding-inline: 8px;
     }
     nav button span,
-    .search.side {
+    .box.side {
       display: none;
     }
-    .search.top {
-      display: flex;
+    .box.top {
+      display: block;
     }
     .group {
       height: 1px;
@@ -302,7 +258,7 @@
       background: var(--border);
       color: transparent;
     }
-    .search.side + .group {
+    .box.side + .group {
       display: none;
     }
     .inner {

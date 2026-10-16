@@ -59,7 +59,7 @@
     const typing = e.target instanceof HTMLInputElement;
     if ((e.key === '/' && !typing) || (e.ctrlKey && e.key.toLowerCase() === 'f')) {
       e.preventDefault();
-      root?.querySelector<HTMLInputElement>('input[type="search"]')?.focus();
+      root?.querySelector<HTMLInputElement>('input[role="searchbox"]')?.focus();
     } else if (e.ctrlKey && !typing && e.key.toLowerCase() === 'z') {
       e.preventDefault();
       store.undo();

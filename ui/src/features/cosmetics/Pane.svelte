@@ -2,11 +2,11 @@
 <script lang="ts">
   import EmptyState from '../../components/EmptyState.svelte';
   import FilterChips from '../../components/FilterChips.svelte';
-  import Icon from '../../components/Icon.svelte';
   import Segmented from '../../components/Segmented.svelte';
     import type { BadgeRow, PaintRow } from './cosmetics.svelte';
   import { countLabel, type Chip, type Query } from './filter';
   import ItemGrid from './ItemGrid.svelte';
+  import SearchField from '../../components/SearchField.svelte';
 
   interface Props {
     kind: 'paint' | 'badge';
@@ -46,13 +46,6 @@
 
   // V1051-03 The list can't hold more than the filter lets through.
   const count = $derived(countLabel(rows.length, total));
-
-  function onkey(e: KeyboardEvent) {
-    if (e.key === 'Escape' && query.text) {
-      e.stopPropagation();
-      onquery({ ...query, text: '' });
-    }
-  }
 </script>
 
 <section class="pane">
@@ -60,30 +53,7 @@
   <div class="tools">
     <div class="top">
       <div class="search">
-        <Icon name="search" size={14} />
-        <input
-          class="field"
-          type="search"
-          placeholder="Search {plural}"
-          aria-label="Search {plural}"
-          spellcheck="false"
-          value={query.text}
-          oninput={(e) => onquery({ ...query, text: e.currentTarget.value })}
-          onkeydown={onkey}
-        />
-        {#if query.text}
-          <button
-            class="clear"
-            aria-label="Clear search"
-            onclick={(e) => {
-              // The button goes away with the text: focus stays in the field, not on the page.
-              e.currentTarget.parentElement?.querySelector('input')?.focus();
-              onquery({ ...query, text: '' });
-            }}
-          >
-            <Icon name="x" size={12} />
-          </button>
-        {/if}
+        <SearchField placeholder="Search {plural}" value={query.text} oninput={(text) => onquery({ ...query, text })} />
       </div>
       <Segmented
         label="Sort"
@@ -132,42 +102,9 @@
     gap: 8px;
   }
   .search {
-    position: relative;
     display: flex;
-    align-items: center;
     flex: 1 1 120px;
     min-width: 100px;
-  }
-  .search > :global(svg) {
-    position: absolute;
-    left: 9px;
-    color: var(--dim);
-    pointer-events: none;
-  }
-  .search input {
-    width: 100%;
-    padding: 0 28px 0 29px;
-  }
-  .search input::-webkit-search-cancel-button {
-    display: none;
-  }
-  .clear {
-    position: absolute;
-    right: 1px;
-    display: grid;
-    place-items: center;
-    width: 24px;
-    height: 24px;
-    padding: 0;
-    background: none;
-    border: 0;
-    border-radius: var(--radius);
-    color: var(--dim);
-    cursor: pointer;
-  }
-  .clear:hover {
-    background: var(--surface-hover);
-    color: var(--text);
   }
   .body {
     display: grid;
