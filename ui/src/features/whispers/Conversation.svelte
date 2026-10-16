@@ -336,10 +336,20 @@
     display: flex;
     gap: 6px;
   }
+  /* A thread with few lines sits at the bottom, by the box, like chat. */
   .lines {
     flex: 1;
+    display: flex;
+    flex-direction: column;
     overflow-y: auto;
     padding: 8px 0;
+  }
+  .lines::before {
+    content: '';
+    margin-top: auto;
+  }
+  .lines > :global(*) {
+    flex: none;
   }
   .note {
     margin: 16px;
