@@ -37,13 +37,17 @@
   import SearchField from '../../components/SearchField.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import { keepScroll } from '../../lib/keepScroll';
+  import { keyTaken } from '../../lib/escape';
+  import { recording } from '../../lib/hotkeys.svelte';
 
   interface Props {
     /** Open page id. Bindable so other views can jump to a page. */
     section?: string;
+    /** S9 Leaves Settings for the view before it. Escape calls it once the search is clear. */
+    onclose?: () => void;
   }
 
-  let { section = $bindable('general') }: Props = $props();
+  let { section = $bindable('general'), onclose }: Props = $props();
 
   const VIEWS: Record<PageId, Component> = {
     general: GeneralSection,
@@ -104,6 +108,25 @@
     if (content) reveal(content, hit.entry.anchor ? [hit.entry.id, hit.entry.anchor] : [hit.entry.id]);
   }
 
+  const FIELD = 'input, textarea, select, [contenteditable="true"]';
+
+  /** S9 Escape: the search first, then Settings. A field you're typing in just lets go. */
+  function onescape(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || e.isComposing || keyTaken(e) || recording.active) return;
+    const el = e.target instanceof HTMLElement ? e.target : null;
+    if (query) {
+      e.preventDefault();
+      query = '';
+      return;
+    }
+    if (el?.matches(FIELD) && !el.closest('.box')) {
+      el.blur();
+      return;
+    }
+    e.preventDefault();
+    onclose?.();
+  }
+
   function onkey(e: KeyboardEvent) {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
@@ -114,6 +137,8 @@
     }
   }
 </script>
+
+<svelte:window onkeydown={onescape} />
 
 <!-- One box, drawn in the list or, in narrow windows, above the page. -->
 {#snippet searchBox(where: string)}
@@ -136,10 +161,10 @@
     {/each}
   </nav>
   <div class="content" bind:this={content} use:keepScroll={'settings'}>
-    <div class="inner" class:wide={section === 'highlights' && !searching}>
+    <div class="inner">
       {@render searchBox('top')}
       {#if searching}
-        <SearchResults {hits} {query} {active} onpick={(hit) => void jump(hit)} />
+        <SearchResults {hits} {query} {active} onpick={(hit) => void jump(hit)} onhover={(i) => (active = i)} />
       {:else}
         <Section />
       {/if}
@@ -164,6 +189,16 @@
     overflow-y: auto;
     border-right: 1px solid var(--border);
   }
+  /* S7 The list's scrollbar shows only while the pointer is over it. */
+  nav::-webkit-scrollbar {
+    width: 6px;
+  }
+  nav::-webkit-scrollbar-thumb {
+    background-color: transparent;
+  }
+  nav:hover::-webkit-scrollbar-thumb {
+    background-color: var(--border-strong);
+  }
   .box {
     flex: none;
   }
@@ -173,15 +208,6 @@
   .box.top {
     display: none;
     margin-bottom: 16px;
-  }
-  .clear::before {
-    content: "";
-    position: absolute;
-    inset: -1px;
-  }
-  .clear:hover {
-    background: var(--surface-hover);
-    color: var(--text);
   }
   .group {
     padding: 12px 10px 4px;
@@ -218,13 +244,12 @@
     flex: 1;
     overflow-y: auto;
   }
+  /* S5, S6 One column width on every page, centred in the room beside the list. */
   .inner {
-    max-width: 680px;
+    box-sizing: border-box;
+    max-width: 760px;
+    margin-inline: auto;
     padding: 22px 28px 32px;
-  }
-  /* V105-18 Highlights rows keep one line with their columns lined up. */
-  .inner.wide {
-    max-width: 860px;
   }
   /* V103-13 A setting search jumped to: tinted over its own background, then fades. */
   .content :global(.found),

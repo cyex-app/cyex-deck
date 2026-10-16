@@ -2,6 +2,7 @@
 // look is in SettingsView (`.found`, `.fading`).
 
 import { scrollBehavior } from '../../lib/motion';
+import { scrollWithin } from './scroll';
 
 const LIT_MS = 1400;
 const FADE_MS = 700;
@@ -18,7 +19,7 @@ export function reveal(root: HTMLElement, ids: string[]): boolean {
       last.timers.forEach(clearTimeout);
       last.el.classList.remove('found', 'fading');
     }
-    el.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
+    scrollWithin(el, 'center', scrollBehavior());
     el.classList.add('found');
     const fade = window.setTimeout(() => el.classList.replace('found', 'fading'), LIT_MS);
     const done = window.setTimeout(() => el.classList.remove('fading'), LIT_MS + FADE_MS);

@@ -9,6 +9,7 @@
   import type { FontChoice } from '../../ipc/bindings/FontChoice';
   import { fontsIpc } from '../../ipc/theme';
   import { RANK, rank } from '../chat/completion';
+  import { scrollWithin } from './scroll';
   import SearchField from '../../components/SearchField.svelte';
 
   interface Props {
@@ -81,7 +82,10 @@
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       if (rows.length) active = (active + (e.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length;
-      void tick().then(() => listEl?.querySelector('li.hot')?.scrollIntoView({ block: 'nearest' }));
+      void tick().then(() => {
+        const hot = listEl?.querySelector<HTMLElement>('li.hot');
+        if (hot) scrollWithin(hot, 'nearest');
+      });
     } else if (e.key === 'Enter' && rows[active]) {
       e.preventDefault();
       pick(rows[active].name);

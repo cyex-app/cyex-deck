@@ -35,7 +35,7 @@ export const GROUPS = [
       { id: 'commands', label: 'Commands', icon: 'pencil' },
       { id: 'uploads', label: 'Image uploads', icon: 'image' },
       { id: 'automations', label: 'Automations', icon: 'zap' },
-      { id: 'recordings', label: 'Recordings', icon: 'record' },
+      { id: 'recordings', label: 'Recordings', icon: 'film' },
     ],
   },
   {

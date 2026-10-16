@@ -42,9 +42,11 @@ interface Score {
   rank: number;
   close: number;
   field: number;
+  /** Length of the text that matched: of two equal matches, the shorter is the closer fit. */
+  len: number;
 }
 
-const NONE: Score = { rank: RANK.none, close: 0, field: Infinity };
+const NONE: Score = { rank: RANK.none, close: 0, field: Infinity, len: Infinity };
 
 /** Accents off and spaces folded, like match-sorter. */
 export function fold(text: string): string {
@@ -63,17 +65,21 @@ export function buildIndex(entries: readonly Entry[], pages: readonly Page[]): D
   return docs;
 }
 
-/** The best field for `term`. A phrase of several words counts from "contains" up:
- * letters in order across spaces match too much. */
-function best(doc: Doc, term: string, phrase: boolean): Score {
+/** The best field for `term`. `floor` is the lowest rank that counts: "contains" in the
+ * first pass (S2: whole words and word starts only), letters in order in the fallback pass.
+ * A phrase of several words never goes below "contains": letters across spaces match too much. */
+function best(doc: Doc, term: string, phrase: boolean, floor: number): Score {
   let top = NONE;
   doc.fields.forEach((texts, field) => {
     const { min, max } = FIELDS[field];
     for (const text of texts) {
       const r = rank(text, term);
-      if (r.rank < Math.max(min, phrase ? RANK.contains : RANK.letters)) continue;
+      if (r.rank < Math.max(min, floor, phrase ? RANK.contains : RANK.letters)) continue;
       const capped = Math.min(r.rank, max);
-      if (capped > top.rank || (capped === top.rank && r.close > top.close)) top = { rank: capped, close: r.close, field };
+      const better =
+        capped > top.rank ||
+        (capped === top.rank && (r.close > top.close || (r.close === top.close && text.length < top.len)));
+      if (better) top = { rank: capped, close: r.close, field, len: text.length };
     }
   });
   return top;
@@ -81,18 +87,16 @@ function best(doc: Doc, term: string, phrase: boolean): Score {
 
 const weaker = (a: Score, b: Score) => (b.rank < a.rank || (b.rank === a.rank && b.close < a.close) ? b : a);
 
-/** Entries for `query`, best first. */
-export function search(docs: readonly Doc[], query: string, limit = 60): Hit[] {
-  const q = fold(query);
-  if (!q) return [];
-  const words = [...new Set(q.split(' '))];
+type Found = Score & { doc: Doc; tier: number };
+
+function pass(docs: readonly Doc[], q: string, words: string[], floor: number): Found[] {
   const several = words.length > 1;
-  const hits: (Score & { doc: Doc; tier: number })[] = [];
+  const hits: Found[] = [];
   for (const doc of docs) {
-    let score = best(doc, q, several);
+    let score = best(doc, q, several, floor);
     let tier = 0;
     if (score.rank === RANK.none && several) {
-      const each = words.map((w) => best(doc, w, false));
+      const each = words.map((w) => best(doc, w, false, floor));
       if (each.every((s) => s.rank > RANK.none)) {
         score = each.reduce(weaker);
         tier = 1;
@@ -100,9 +104,61 @@ export function search(docs: readonly Doc[], query: string, limit = 60): Hit[] {
     }
     if (score.rank > RANK.none) hits.push({ ...score, doc, tier });
   }
+  return hits;
+}
+
+/** Entries for `query`, best first. Whole words and word starts first; letters in order
+ * (a typo, "tmstmp") only count when nothing else matches (S2). */
+export function search(docs: readonly Doc[], query: string, limit = 60): Hit[] {
+  const q = fold(query);
+  if (!q) return [];
+  const words = [...new Set(q.split(' '))];
+  let hits = pass(docs, q, words, RANK.contains);
+  if (!hits.length) hits = pass(docs, q, words, RANK.letters);
   hits.sort(
     (a, b) =>
-      a.tier - b.tier || b.rank - a.rank || b.close - a.close || a.field - b.field || a.doc.order - b.doc.order,
+      a.tier - b.tier ||
+      b.rank - a.rank ||
+      b.close - a.close ||
+      a.field - b.field ||
+      a.len - b.len ||
+      a.doc.order - b.doc.order,
   );
   return hits.slice(0, limit).map((h) => ({ entry: h.doc.entry, page: h.doc.page }));
+}
+
+export interface Piece {
+  text: string;
+  hit: boolean;
+}
+
+/** S3 `text` cut into pieces, the parts `query` matched marked: the whole phrase if it is in
+ * there, else each word. Case doesn't matter. */
+export function pieces(text: string, query: string): Piece[] {
+  const low = text.toLowerCase();
+  const q = query.trim().toLowerCase();
+  if (!q) return [{ text, hit: false }];
+  const spans: [number, number][] = [];
+  const find = (needle: string) => {
+    for (let at = low.indexOf(needle); at >= 0; at = low.indexOf(needle, at + needle.length)) spans.push([at, at + needle.length]);
+  };
+  find(q);
+  if (!spans.length) for (const w of new Set(q.split(/\s+/))) find(w);
+  spans.sort((a, b) => a[0] - b[0]);
+  const out: Piece[] = [];
+  let done = 0;
+  for (const [from, to] of spans) {
+    if (to <= done) continue;
+    const start = Math.max(from, done);
+    if (start > done) out.push({ text: text.slice(done, start), hit: false });
+    out.push({ text: text.slice(start, to), hit: true });
+    done = to;
+  }
+  if (done < text.length) out.push({ text: text.slice(done), hit: false });
+  return out.length ? out : [{ text, hit: false }];
+}
+
+/** "Chat › Emotes and badges"; a page named like its group is just "Chat". */
+export function whereOf(page: Page): string {
+  return page.group === page.label ? page.label : `${page.group} › ${page.label}`;
 }

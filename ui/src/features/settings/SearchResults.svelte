@@ -1,7 +1,8 @@
 <!-- V103-13 Settings search results: each says where it lives (group › page). Arrow keys
      in the search box move the pick, Enter or a click jumps to the setting. -->
 <script lang="ts">
-  import type { Hit } from './search';
+  import { scrollWithin } from './scroll';
+  import { pieces, whereOf, type Hit } from './search';
 
   interface Props {
     hits: Hit[];
@@ -9,16 +10,19 @@
     /** The result Enter picks. */
     active: number;
     onpick: (hit: Hit) => void;
+    /** S4 The pointer over a result makes it the picked one. */
+    onhover?: (index: number) => void;
   }
 
-  let { hits, query, active, onpick }: Props = $props();
+  let { hits, query, active, onpick, onhover }: Props = $props();
 
   let list = $state<HTMLElement>();
 
   // Keep the picked one in view while arrowing through a long list.
   $effect(() => {
     void active;
-    list?.querySelector('.on')?.scrollIntoView({ block: 'nearest' });
+    const on = list?.querySelector<HTMLElement>('.on');
+    if (on) scrollWithin(on, 'nearest');
   });
 </script>
 
@@ -26,10 +30,16 @@
   <ul class="hits" bind:this={list} aria-label="Search results">
     {#each hits as hit, i (hit.entry.id)}
       <li>
-        <button class="hit" class:on={i === active} aria-current={i === active} onclick={() => onpick(hit)}>
+        <button
+          class="hit"
+          class:on={i === active}
+          aria-current={i === active}
+          onclick={() => onpick(hit)}
+          onpointermove={() => i !== active && onhover?.(i)}
+        >
           <span class="top">
-            <span class="name">{hit.entry.label}</span>
-            <span class="where">{hit.page.group} › {hit.page.label}</span>
+            <span class="name">{#each pieces(hit.entry.label, query) as p, k (k)}{#if p.hit}<mark>{p.text}</mark>{:else}{p.text}{/if}{/each}</span>
+            <span class="where">{whereOf(hit.page)}</span>
           </span>
           {#if hit.entry.description}<span class="hint">{hit.entry.description}</span>{/if}
         </button>
@@ -61,9 +71,7 @@
     color: var(--text);
     text-align: left;
   }
-  .hit:hover {
-    background: var(--surface-hover);
-  }
+  /* The pointer moves the pick (S4), so only one row is ever lit. */
   .hit.on {
     background: var(--accent-dim);
   }
@@ -76,6 +84,11 @@
   }
   .name {
     font-weight: 600;
+  }
+  mark {
+    padding: 0;
+    background: none;
+    color: var(--accent-text);
   }
   .where {
     margin-left: auto;
