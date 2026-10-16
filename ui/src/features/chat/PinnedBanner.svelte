@@ -21,7 +21,8 @@
 
   let { pin, channel, onunpin }: Props = $props();
 
-  let folded = $state(false);
+  /** Two lines until clicked. */
+  let open = $state(false);
 
   const key = $derived(pinKey(pin.id));
   const c = $derived(settings.v.chat);
@@ -30,9 +31,9 @@
 </script>
 
 {#if shows(eventStrip.of(channel), key)}
-  <div class="pin" class:paid={pin.paid} class:folded>
+  <div class="pin" class:paid={pin.paid} class:open>
     <Icon name="pin" size={14} />
-    <button class="text" onclick={() => (folded = !folded)} aria-expanded={!folded}>
+    <button class="text" onclick={() => (open = !open)} aria-expanded={open}>
       {#if sender && name}
         <span
           class="name"
@@ -40,7 +41,7 @@
         >:
       {/if}
       <Body fragments={pin.message.body} {channel} />
-      {#if pin.by && !folded}<span class="by">Pinned by {pin.by}</span>{/if}
+      {#if pin.by && open}<span class="by">Pinned by {pin.by}</span>{/if}
     </button>
     {#if onunpin}
       <button class="close" aria-label="Unpin" use:tooltip={{ label: 'Unpin', hint: 'Takes it down for everyone.' }} onclick={onunpin}>
@@ -96,7 +97,7 @@
     color: var(--text);
     text-align: left;
     /* V105-03 Tight lines; a line with an emote grows to fit it (below). */
-    font: 600 calc(var(--chat-size) + var(--pinned-step)) / 1.3 var(--chat-font);
+    font: 400 calc(var(--chat-size) + var(--pinned-step)) / 1.3 var(--chat-font);
     overflow-wrap: anywhere;
   }
   .text :global(.emote),
@@ -104,10 +105,12 @@
     margin: 0;
     vertical-align: middle;
   }
-  .folded .text {
-    white-space: nowrap;
+  .pin:not(.open) .text {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
   }
   .name {
     color: var(--cd);

@@ -35,6 +35,9 @@
 
   let { m, channel, canReply = false, inWhispers = false, stripe = false, mod = null, look }: Props = $props();
 
+  /** The hover buttons exist only under the pointer: a long history has none to carry. */
+  let hot = $state(false);
+
   const c = $derived(settings.v.chat);
   const has = (flag: ChatMessage['flags'][number]) => m.flags.includes(flag);
   const sender = $derived(m.sender);
@@ -68,6 +71,8 @@
   );
 </script>
 
+<!-- The pointer only decides whether the hover buttons are drawn. -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="line kind-{notice?.kind ?? 'chat'} {hl.cls}"
   class:stripe
@@ -81,6 +86,8 @@
   class:whisper={!!whisperWith}
   data-id={m.id}
   style="{colorVars};{hl.vars}"
+  onpointerenter={() => (hot = true)}
+  onpointerleave={() => (hot = false)}
 >
   {#if effect}<div class="fx fx-{effect}" aria-hidden="true">
       {#if effect === 'cosmic-abyss'}<video src={COSMIC} autoplay loop muted playsinline></video>{/if}
@@ -170,12 +177,12 @@
     </div>
   {/if}
   {#if firstLink?.t === 'link'}<LinkCard url={firstLink.url} />{/if}
-  {#if canReply && sender && !notice}
+  {#if hot && canReply && sender && !notice}
     <button class="reply" aria-label="Reply" data-reply={m.id} data-tip="Reply">
       <Icon name="reply" size={14} />
     </button>
   {/if}
-  {#if canPin}
+  {#if hot && canPin}
     <button class="reply pin" class:alone={!canReply} aria-label="Pin" data-pin={m.id} data-tip="Pin">
       <Icon name="pin" size={14} />
     </button>
@@ -186,12 +193,18 @@
   .line {
     position: relative;
     padding: 2px 10px;
-    /* V101-37 Same height with or without emotes; --chat-line fits a whole one. */
-    font: var(--chat-size) / var(--chat-line) var(--chat-font);
+    /* Text rows are normal height; a row with an emote grows to fit it (the emote sits on
+       the text's middle, margins off). */
+    font: var(--chat-size) / 1.45 var(--chat-font);
     overflow-wrap: anywhere;
     user-select: text;
     content-visibility: auto;
-    contain-intrinsic-size: auto calc(var(--chat-line) * var(--chat-size) + 4px);
+    contain-intrinsic-size: auto calc(1.45 * var(--chat-size) + 4px);
+  }
+  .line :global(.emote:not(.stack > .emote)),
+  .line :global(.stack) {
+    margin: 0;
+    vertical-align: middle;
   }
   /* V101-01 Alternating lines (2.1): the stripe stays with its line (stripes.ts). */
   .stripe {

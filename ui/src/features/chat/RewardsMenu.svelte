@@ -13,7 +13,7 @@
   import { minerIpc } from '../../ipc/miner';
   import type { Points } from '../../ipc/bindings/Points';
   import { accounts } from '../../lib/accounts.svelte';
-  import { formatNumber, formatShort } from '../../lib/format';
+  import { formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import EmotePick from './EmotePick.svelte';
   import PowerUps from './PowerUps.svelte';
@@ -85,6 +85,9 @@
     return [...auto, ...custom].sort((a, b) => a.cost - b.cost);
   });
 
+  /** Nothing to show: no points here, or none and nothing to redeem. */
+  const away = $derived(!open && loaded && (!points || (points.balance === 0 && !choices.length)));
+
   // V101-13 The channel's own points icon, and the balance with a GQL sign-in, show
   // next to the box once the chat is open, from what joining already loaded.
   $effect(() => {
@@ -143,12 +146,21 @@
   }
 </script>
 
-<div class="points">
-  <button class="trigger" onclick={toggle} use:tooltip={{ label: name, hint: 'Rewards you can redeem here.' }}>
+<div class="points" hidden={away}>
+  <button
+    class="trigger"
+    aria-label={name}
+    aria-haspopup="menu"
+    aria-expanded={open}
+    onclick={toggle}
+    use:tooltip={{
+      label: points?.balance != null ? `${name} · ${formatNumber(points.balance)}` : name,
+      hint: 'Rewards you can redeem here.',
+    }}
+  >
     {#if points?.icon}<img src={points.icon} alt="" />{:else}<Icon name="points" size={16} />{/if}
-    {#if points?.balance != null}<span>{formatShort(points.balance)}</span>{/if}
   </button>
-  <Popover bind:open align="start" side="above">
+  <Popover bind:open align="start" side="above" role="menu" label={name}>
     <div class="menu">
       <header>
         {#if canRedeem}
@@ -235,8 +247,10 @@
     display: flex;
     align-items: center;
     gap: 5px;
+    width: 34px;
     height: 34px;
-    padding: 0 8px;
+    justify-content: center;
+    padding: 0;
     background: none;
     border: 1px solid transparent;
     border-radius: var(--radius);

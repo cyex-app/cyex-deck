@@ -31,6 +31,11 @@
   const giphyPage = (id: string) => `https://giphy.com/gifs/${encodeURIComponent(id)}`;
   /** The smaller webp GIPHY keeps next to the gif. */
   const webp = (url: string) => url.replace(/\/giphy\.gif(\?|$)/, '/giphy.webp$1');
+
+  /** A link's text in pieces that may break after a slash, dot, question mark and so on. */
+  function breakable(text: string): string[] {
+    return text.split(/(?<=[/.?&=#_-])/);
+  }
 </script>
 
 {#each fragments as f, i (i)}
@@ -47,7 +52,8 @@
       href={f.url}
       data-link={f.url}
       data-host={f.host}
-      data-target={f.target ? JSON.stringify(f.target) : undefined}>{f.text}</a
+      data-target={f.target ? JSON.stringify(f.target) : undefined}
+      >{#each breakable(f.text) as part, i (i)}{part}<wbr />{/each}</a
     >
   {:else if f.t === 'cheer'}
     {@const c = catalogs.cheermote(channel, f.prefix)}
@@ -150,7 +156,8 @@
   .link {
     color: var(--accent-text);
     text-decoration: none;
-    word-break: break-all;
+    /* Breaks after / . ? & first (breakable()); anywhere only when a piece is still too long. */
+    overflow-wrap: anywhere;
   }
   .link:hover {
     text-decoration: underline;

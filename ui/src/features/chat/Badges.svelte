@@ -50,7 +50,7 @@
   );
 
   function hint(ref: Ref, b: BadgeInfo): string | undefined {
-    if (ref.set === 'subscriber' || ref.set === 'founder') return ref.info ? `${ref.info} months` : undefined;
+    if (ref.set === 'subscriber' || ref.set === 'founder') return ref.info ? `${ref.info} ${ref.info === '1' ? 'month' : 'months'}` : undefined;
     return ref.info ?? (b.description && b.description !== b.title ? b.description : undefined);
   }
 
@@ -111,6 +111,6 @@
     vertical-align: -3px;
   }
   .tile {
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
   }
 </style>

@@ -14,6 +14,7 @@
   import { accounts } from '../../lib/accounts.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { complete, insert, wordAt, type Word } from './completion';
+  import { formatNumber } from '../../lib/format';
   import { commandAt, commandMatches } from './commandTab';
   import { argAt, argMatches } from './commandArgs';
   import { chatxIpc } from '../../ipc/chatx';
@@ -44,6 +45,8 @@
   let { room, replyTo = $bindable(), onsignin, onaction }: Props = $props();
 
   const MAX = 500;
+  /** The counter shows from here on. */
+  const SHOW_COUNT = 400;
   const HISTORY = 20;
 
   let box = $state<HTMLTextAreaElement>();
@@ -113,8 +116,27 @@
     const arg = argAt(text, caret);
     if (arg) return void suggestArg(arg, caret, seq);
     const word = wordAt(text, caret);
+    const command = commandAt(text, word);
+    if (command !== null) return void suggestCommand(word, command, seq);
     const items = sources.items(word);
     suggest = items.length ? { word, items, index: 0 } : null;
+  }
+
+  /** The commands this chat can run, asked once and kept. */
+  let commandNames: Promise<string[]> | null = null;
+
+  /** A4 The first word after `/`: the commands that match. Enter still sends what's typed; Tab or
+   * a click fills the name in. */
+  async function suggestCommand(word: Word, typed: string, seq: number) {
+    const view = room.view;
+    if (!view) return void (suggest = null);
+    commandNames ??= chatIpc.commands(view).catch(() => []);
+    const names = await commandNames;
+    if (seq !== argSeq) return;
+    const found = typed ? commandMatches(typed, names, 12) : names.slice(0, 12).map((n) => `/${n}`);
+    // Typed in full already: nothing left to offer.
+    const items = found.filter((v) => v !== word.text).map((v): Item => ({ value: v, label: v }));
+    suggest = items.length ? { word, items, index: 0, arg: true } : null;
   }
 
   /** V1051-05 The same list as for emotes, for what `/combo `, `/paint ` and `/badge ` take. */
@@ -362,10 +384,12 @@
       ></textarea>
       {#if gifs}<GifButton {room} />{/if}
       <EmoteButton login={room.login} account={room.account} oninsert={(v) => void insertAtCaret(v)} />
-      <div class="meta">
-        {#if waitMs > 0}<span class="wait" data-tip="You can talk again then">{Math.ceil(waitMs / 1000)}s</span>{/if}
-        {#if chars > 0}<span class="count" class:over={chars > MAX} class:near={chars > MAX - 50}>{chars}/{MAX}</span>{/if}
-      </div>
+      {#if waitMs > 0 || chars >= SHOW_COUNT}
+        <div class="meta">
+          {#if waitMs > 0}<span class="wait" data-tip="You can talk again then">{Math.ceil(waitMs / 1000)}s</span>{/if}
+          {#if chars >= SHOW_COUNT}<span class="count" class:over={chars > MAX} class:near={chars > MAX - 50}>{formatNumber(chars)}/{MAX}</span>{/if}
+        </div>
+      {/if}
     {:else}
       <button class="signin" onclick={onsignin}>
         {room.account ? 'This account can’t chat yet. Check Settings → Accounts.' : 'Sign in to chat'}
@@ -404,7 +428,8 @@
     gap: 6px;
   }
   textarea {
-    flex: 1;
+    flex: 1 1 0;
+    min-width: 0;
     min-height: 34px;
     max-height: 96px;
     padding: 7px 10px;
@@ -413,7 +438,9 @@
     border-radius: var(--radius);
     outline: none;
     resize: none;
+    /* Height follows the text; the width is the row's, not the placeholder's. */
     field-sizing: content;
+    overflow-x: hidden;
     font: var(--chat-size) / 1.45 var(--chat-font);
   }
   textarea:focus {
@@ -499,7 +526,7 @@
     right: 8px;
     bottom: calc(100% + 4px);
     left: 8px;
-    z-index: 2;
+    z-index: var(--z-panel);
     width: fit-content;
     max-width: calc(100% - 16px);
     margin: 0;
@@ -507,7 +534,7 @@
     background: var(--elevated);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
-    box-shadow: 0 4px 12px var(--shadow);
+    box-shadow: var(--shadow-pop);
     font-size: 0.8rem;
     pointer-events: none;
   }
