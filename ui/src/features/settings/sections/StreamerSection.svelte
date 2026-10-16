@@ -125,7 +125,7 @@
   .chip button::before {
     content: '';
     position: absolute;
-    inset: -5px -3px;
+    inset: -5px;
   }
   .field {
     width: 160px;
