@@ -135,7 +135,7 @@
   <div class="line">
     <span class="name">7TV</span>
     <span class="status" class:muted={!account.seventv.consent}>
-      {#if !account.seventv.consent}Not used{:else if account.seventv.signedIn}Signed in until {account.seventv.until}{:else}Not signed in{/if}
+      {#if !account.seventv.consent}Not used{:else if account.seventv.signedIn}{account.seventv.until ? `Signed in until ${account.seventv.until}` : 'Signed in'}{:else}Not signed in{/if}
     </span>
     {#if account.seventv.signedIn}
       <Button small variant="ghost" onclick={() => attempt(() => cosmeticsIpc.signOut(account.userId))}>Sign out</Button>
