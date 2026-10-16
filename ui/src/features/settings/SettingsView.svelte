@@ -146,7 +146,7 @@
     {/each}
   </nav>
   <div class="content" bind:this={content}>
-    <div class="inner">
+    <div class="inner" class:wide={section === 'highlights' && !searching}>
       {@render searchBox('top')}
       {#if searching}
         <SearchResults {hits} {query} {active} onpick={(hit) => void jump(hit)} />
@@ -260,6 +260,10 @@
   .inner {
     max-width: 680px;
     padding: 22px 28px 32px;
+  }
+  /* V105-18 Highlights rows keep one line with their columns lined up. */
+  .inner.wide {
+    max-width: 860px;
   }
   /* V103-13 A setting search jumped to: tinted over its own background, then fades. */
   .content :global(.found),

@@ -24,15 +24,24 @@
 
   type Alert = { color: string; sound: boolean; soundFile: string; flash: boolean; show: boolean; route: string };
   const ALERT: Field<Alert>[] = [
-    { key: 'color', label: 'Color', kind: 'color' },
-    { key: 'sound', label: 'Sound', kind: 'check' },
-    { key: 'soundFile', label: 'Sound file', kind: 'sound' },
-    { key: 'flash', label: 'Flash', kind: 'check' },
-    { key: 'show', label: 'Also show in Mentions', short: 'Mentions', kind: 'check' },
-    { key: 'route', label: 'Also show in feed', kind: 'text', placeholder: 'Feed', width: '56px' },
+    { key: 'color', label: 'Color', kind: 'color', col: 5, alert: true },
+    { key: 'sound', label: 'Sound', kind: 'check', col: 6, alert: true },
+    { key: 'soundFile', label: 'Sound file', kind: 'sound', col: 7, alert: true },
+    { key: 'flash', label: 'Flash', kind: 'check', col: 8, alert: true },
+    { key: 'show', label: 'Also show in Mentions', short: 'Mentions', kind: 'check', col: 9, alert: true },
+    {
+      key: 'route',
+      label: 'Also show in feed',
+      hint: 'Type a feed tab’s name to copy matching messages into it.',
+      kind: 'text',
+      placeholder: 'Feed tab',
+      width: '64px',
+      col: 10,
+      alert: true,
+    },
   ];
   const alert = <T extends Alert>() => ALERT as unknown as Field<T>[];
-  const on = <T,>(): Field<T & { enabled: boolean }> => ({ key: 'enabled', label: 'On', kind: 'check' });
+  const on = <T,>(): Field<T & { enabled: boolean }> => ({ key: 'enabled', label: 'On', kind: 'check', col: 1 });
   const blank = { enabled: true, color: '', sound: false, soundFile: '', flash: false, show: false, route: '' };
 
   /** Colors match the chat's own (Line.svelte). */
@@ -48,15 +57,15 @@
 
   const phraseFields: Field<PhraseRule>[] = [
     on<PhraseRule>(),
-    { key: 'pattern', label: 'Words', kind: 'text', placeholder: 'Words or regex' },
-    { key: 'regex', label: 'Regex', kind: 'check' },
-    { key: 'caseSensitive', label: 'Match case', short: 'Aa', kind: 'check' },
+    { key: 'pattern', label: 'Words', kind: 'text', placeholder: 'Words or regex', col: 2, main: true },
+    { key: 'regex', label: 'Regex', kind: 'check', col: 3 },
+    { key: 'caseSensitive', label: 'Match case', short: 'Aa', kind: 'check', col: 4 },
     ...alert<PhraseRule>(),
   ];
   const userFields: Field<UserRule>[] = [
     on<UserRule>(),
-    { key: 'login', label: 'Name', kind: 'text', placeholder: 'Username' },
-    { key: 'regex', label: 'Regex', kind: 'check' },
+    { key: 'login', label: 'Name', kind: 'text', placeholder: 'Username', col: 2, span: 1, main: true },
+    { key: 'regex', label: 'Regex', kind: 'check', col: 3 },
     ...alert<UserRule>(),
   ];
   const badgeFields: Field<BadgeRule>[] = [
@@ -67,6 +76,9 @@
       hint: 'A badge name. subscriber1, subscriber2 and subscriber3 match that tier; subscriber matches any tier; subscriber/3012 one exact version.',
       kind: 'text',
       placeholder: 'Badge, like subscriber2 or vip',
+      col: 2,
+      span: 3,
+      main: true,
     },
     ...alert<BadgeRule>(),
   ];
@@ -79,12 +91,16 @@
   ] as const;
   const appFields: Field<AppRule>[] = [
     on<AppRule>(),
-    { key: 'app', label: 'Sent from', kind: 'select', options: APPS },
+    { key: 'app', label: 'Sent from', kind: 'select', options: APPS, col: 2, span: 3, main: true },
     ...alert<AppRule>(),
   ];
 </script>
 
-<h2>Highlights</h2>
+<div class="page-head" data-setting="highlights:import">
+  <h2>Highlights</h2>
+  <HighlightImport />
+</div>
+<p class="intro">Feed copies a line into a feed tab. Type the tab’s name.</p>
 
 <h3 class="label">Built in</h3>
 {#each BUILT_IN as b (b.key)}
@@ -93,19 +109,18 @@
     title={b.label}
     item={h[b.key] as BuiltIn}
     fields={builtInFields}
+    layout="grid"
     fallback={b.color}
     onchange={(v) => save({ [b.key]: v } as Partial<Highlights>)}
   />
 {/each}
 
-<div class="list-head" data-setting="highlights:import">
-  <h3 class="label">Words</h3>
-  <HighlightImport />
-</div>
+<h3 class="label">Words</h3>
 <RuleList
   setting="highlights.phrases"
   items={h.phrases}
   fields={phraseFields}
+  layout="grid"
   make={() => ({ ...blank, pattern: '', regex: false, caseSensitive: false })}
   onchange={(phrases) => save({ phrases })}
   empty="Messages with these words light up."
@@ -116,6 +131,7 @@
   setting="highlights.users"
   items={h.users}
   fields={userFields}
+  layout="grid"
   make={() => ({ ...blank, login: '', regex: false })}
   onchange={(users) => save({ users })}
   empty="Everything these people say lights up."
@@ -126,8 +142,10 @@
   setting="highlights.badges"
   items={h.badges}
   fields={badgeFields}
+  layout="grid"
   make={() => ({ ...blank, badge: '' })}
   onchange={(badges) => save({ badges })}
+  empty="Everything people with these badges say lights up."
 />
 
 <h3 class="label">Sent from</h3>
@@ -135,6 +153,7 @@
   setting="highlights.apps"
   items={h.apps}
   fields={appFields}
+  layout="grid"
   make={(): AppRule => ({ ...blank, app: 'mobile' })}
   onchange={(apps) => save({ apps })}
   empty="Messages sent from a phone or an odd client."
@@ -162,15 +181,15 @@
 </Row>
 
 <style>
-  .list-head {
+  .page-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    margin: 0.68rem 0;
   }
-  .list-head h3 {
-    margin: 0;
+  .intro {
+    margin: -6px 0 6px;
+    color: var(--dim);
   }
   .field {
     width: 100%;

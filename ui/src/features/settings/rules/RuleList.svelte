@@ -16,9 +16,11 @@
     problem?: (item: T) => string | null;
     /** V103-13 Registry id: settings search jumps here. */
     setting?: string;
+    /** Row layout, see RuleRow. */
+    layout?: 'flow' | 'grid' | 'stack';
   }
 
-  let { items, fields, make, onchange, addLabel = 'Add', empty, problem, setting }: Props = $props();
+  let { items, fields, make, onchange, addLabel = 'Add', empty, problem, setting, layout }: Props = $props();
 
   let el = $state<HTMLDivElement>();
 </script>
@@ -28,6 +30,7 @@
     <RuleRow
       {item}
       {fields}
+      {layout}
       problem={problem?.(item)}
       onchange={(next) => onchange(items.map((x, j) => (j === i ? next : x)))}
       ondelete={() => onchange(items.filter((_, j) => j !== i))}

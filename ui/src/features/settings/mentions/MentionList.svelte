@@ -49,7 +49,7 @@
       icon="plus"
       onclick={() => {
         onchange([...items, newMention()]);
-        void focusLast(el, '.mention');
+        void focusLast(el, '.rule');
       }}>Add</Button
     >
   </div>

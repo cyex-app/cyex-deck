@@ -14,6 +14,17 @@ export interface Field<T> {
   options?: readonly { value: string; label: string }[];
   /** CSS width; text fields grow when unset. */
   width?: string;
+  /** V105-18 Grid layout: column (1 to 11) and how many it spans. */
+  col?: number;
+  span?: number;
+  /** V105-18 The flexible column: what the rule looks for. */
+  main?: boolean;
+  /** V105-18 Starts the second line when the row doesn't fit on one; this and all after. */
+  alert?: boolean;
+  /** Monospace text, e.g. a regex. */
+  mono?: boolean;
+  /** Only shown while this holds, e.g. the regex flavor. */
+  when?: (item: T) => boolean;
 }
 
 /** `#rrggbbaa` from a picked `#rrggbb`, keeping the alpha it had (or 50%). */
