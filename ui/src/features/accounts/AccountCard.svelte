@@ -19,6 +19,8 @@
   import GqlUnlock from './GqlUnlock.svelte';
   import ProfileEditor from './ProfileEditor.svelte';
   import { signIn } from './signIn.svelte';
+  import { twitchLeft } from '../unlock/choice';
+  import { unlock } from '../unlock/unlock.svelte';
   import { accountName, missingScopesText, needsSignIn, tokenStatus } from './status';
   import { errorText } from '../../lib/errors';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
@@ -64,10 +66,15 @@
     });
   }
 
-  /** Twitch's sign-in runs right away; GQL shows its two options first. */
+  /** First what to unlock (7TV, subscriptions and wallet, or both). Twitch alone: its sign-in
+   * runs right away; GQL alone shows its two options (code or token). */
   function add(kind: TokenKind) {
-    if (kind === 'helix') void signIn.start('helix', account.userId);
-    else unlocking = true;
+    const left = twitchLeft(account);
+    const alone =
+      kind === 'helix' ? () => void signIn.start('helix', account.userId)
+      : left.length === 1 && left[0] === 'gql' ? () => (unlocking = true)
+      : undefined;
+    unlock.ask('settings', account.userId, { twitchAlone: alone });
   }
 
   function closeUnlock() {
@@ -126,6 +133,8 @@
     <!-- V1051-02 A session only counts with consent; Sign out never shows beside "Not used". -->
     {#if account.seventv.consent && account.seventv.signedIn}
       <Button small variant="ghost" onclick={() => attempt(() => cosmeticsIpc.signOut(account.userId))}>Sign out</Button>
+    {:else}
+      <Button small disabled={!!unlock.asked} onclick={() => unlock.ask('settings', account.userId)}>Sign in</Button>
     {/if}
     {#if account.seventv.consent}
       <ConfirmButton label="Withdraw" confirm="Click again to withdraw" variant="ghost" onconfirm={withdraw} />

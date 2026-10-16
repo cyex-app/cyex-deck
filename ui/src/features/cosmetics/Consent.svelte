@@ -3,6 +3,7 @@
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import Dialog from '../../components/Dialog.svelte';
+  import ConsentText from './ConsentText.svelte';
 
   interface Props {
     name: string;
@@ -21,9 +22,7 @@
 </script>
 
 {#snippet text()}
-  <p>cyex deck will sign in to 7TV as {name}, read the paints and badges you own, and change the ones you wear when you pick one.</p>
-  <p>Your 7TV sign-in stays in Windows Credential Manager on this PC. It’s never in exports or backups.</p>
-  <p>You can take this back any time in Settings → Accounts.</p>
+  <ConsentText {name} />
 {/snippet}
 
 {#snippet buttons()}
@@ -72,12 +71,6 @@
   .copy {
     min-height: 0;
     overflow-y: auto;
-  }
-  p {
-    margin: 0 0 10px;
-    color: var(--muted);
-    line-height: 1.5;
-    text-wrap: pretty;
   }
   .row {
     display: flex;

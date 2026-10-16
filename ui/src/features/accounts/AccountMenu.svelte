@@ -13,6 +13,7 @@
   import { lockFor } from '../../lib/gate';
   import { toast } from '../../lib/toast.svelte';
   import { accountName, accountNeedsAttention } from './status';
+  import { unlock } from '../unlock/unlock.svelte';
 
   // V1051-02 `active`: the 7TV view is open, so the button shows where you are.
   let {
@@ -34,6 +35,11 @@
     if (current) subsIpc.page(current.userId, 'wallet').catch((e) => toast.error(errorText(e, 'open the wallet')));
   }
 
+  /** Asks what to unlock: subscriptions and wallet, and maybe 7TV too. */
+  function ask() {
+    if (current) unlock.ask('twitch', current.userId);
+  }
+
   function show(e: MouseEvent) {
     const items: MenuEntry[] = [
       ...accounts.list.map((a) => ({
@@ -46,8 +52,8 @@
       })),
       'separator',
       // V102-20 Only with Twitch's own sign-in.
-      { label: 'Subscriptions', icon: 'star', lock: walletLock, run: onsubs },
-      { label: 'Payment methods', icon: 'card', lock: walletLock, run: wallet },
+      { label: 'Subscriptions', icon: 'star', lock: walletLock, unlock: ask, run: onsubs },
+      { label: 'Payment methods', icon: 'card', lock: walletLock, unlock: ask, run: wallet },
       // V1051-02 No lock: the view explains itself.
       { label: '7TV paint and badge', icon: 'seventv', run: oncosmetics },
       'separator',

@@ -41,7 +41,8 @@ export function pick(item: MenuItem): void {
   if (item.disabled) return;
   if (item.lock) {
     menu.open = false;
-    gate.ask(item.lock);
+    if (item.unlock) item.unlock();
+    else gate.ask(item.lock);
     return;
   }
   if (item.items) {

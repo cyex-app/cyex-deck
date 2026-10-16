@@ -44,6 +44,7 @@
   import { votes } from './votes.svelte';
   import VotesBanner from './VotesBanner.svelte';
   import { accounts } from '../../lib/accounts.svelte';
+  import { unlock } from '../unlock/unlock.svelte';
   import { mods } from '../modview/moderation.svelte';
   import { modviewPlace } from '../modview/where.svelte';
   import { pluginItems } from '../plugins/pluginMenus';
@@ -173,13 +174,25 @@
     input?.focus();
   }
 
-  function onaction(a: UiAction) {
+  function onaction(a: UiAction, retried = false) {
     if (a.type === 'search') search = { query: a.query, all: false };
     else if (a.type === 'cosmetics') cosmeticsOpen = true;
+    else if (a.type === 'sevenTvSignIn') {
+      // /paint, /badge, /combo while signed out of 7TV: the sign-in pop-up, then the command again.
+      if (retried || !account) toast.error('Sign in to 7TV first: /cosmetics.');
+      else unlock.ask('seventv', account, { again: a.again, after: (done) => done.includes('seventv') && retry(a.command) });
+    }
     else if (a.type === 'popout') {
       if (onpopout) onpopout();
       else toast.info('Only a chat next to a stream pops out.');
     }
+  }
+
+  function retry(command: string) {
+    chatIpc
+      .send(room.view, command)
+      .then((r) => r && onaction(r, true))
+      .catch((e) => toast.error(errorText(e)));
   }
 
   const translating = $derived(settings.v.chat.translateChats.includes(login));
@@ -217,6 +230,7 @@
               label: 'Subscribe',
               icon: 'star' as const,
               lock: lockFor(accounts.can('wallet', account), 'helix') ?? lockFor(accounts.can('subs', account), 'gql'),
+              unlock: () => unlock.ask('twitch', account),
               run: () => (subscribing = true),
             },
           ]

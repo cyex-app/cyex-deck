@@ -12,6 +12,8 @@ import { emptyQuery, filterItems, type Query } from './filter';
 import { Selection, UNDO_MS } from './select';
 import { wearingText } from './wearing';
 import { menuSheet } from './sheet';
+import { pickNeedsSignIn } from '../unlock/choice';
+import { unlock } from '../unlock/unlock.svelte';
 
 const toPaint = (item: PaintItem) => ({
   name: item.style.name,
@@ -158,6 +160,8 @@ export class CosmeticsStore {
     this.handled = s;
     // The preview's status line shows the error; no toast on top of it.
     if (s.error.type === 'signInAgain' || s.error.type === 'signedOut' || s.error.type === 'noConsent') void this.load();
+    // 7TV said no session after all: the same pop-up as a pick while signed out.
+    if (pickNeedsSignIn(this.status, true, s.error)) this.askSignIn(s.error.type === 'signInAgain');
   }
 
   liveKey(): string {
@@ -206,18 +210,18 @@ export class CosmeticsStore {
     this.loading = false;
   }
 
-  async signIn() {
-    try {
-      const r = await cosmeticsIpc.signIn(this.account);
-      if (r.type === 'done') await this.load();
-      else if (r.type === 'cancelled') toast.info('Sign-in cancelled.');
-      else if (r.type === 'otherAccount') {
-        const name = accounts.list.find((a) => a.userId === this.account)?.displayName ?? 'this account';
-        toast.error(`That’s a different Twitch account. Sign in as ${name}.`);
-      } else toast.error('Sign-in didn’t finish. Try again.');
-    } catch {
-      toast.error('Sign-in didn’t finish. Try again.');
-    }
+  /** A pick or combo needs 7TV's sign-in first: the sign-in pop-up, then `retry` once signed
+   * in. Cancel changes nothing. */
+  askSignIn(again = this.status === 'expired', retry?: () => void) {
+    unlock.ask('seventv', this.account, {
+      again,
+      after: (done) => {
+        if (!done.includes('seventv') || this.destroyed) return;
+        void this.load().then(() => {
+          if (!this.destroyed && this.status === 'ready') retry?.();
+        });
+      },
+    });
   }
 
   async signOut() {
@@ -234,6 +238,10 @@ export class CosmeticsStore {
     if (!usable) {
       if (!this.noted) toast.info('That one’s for 7TV subscribers.');
       this.noted = true;
+      return;
+    }
+    if (pickNeedsSignIn(this.status, this.status !== 'noConsent')) {
+      this.askSignIn(undefined, () => this.pick(kind, id, true));
       return;
     }
     this.sel.pick(kind, id);

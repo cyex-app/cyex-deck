@@ -10,6 +10,7 @@
   import IconButton from '../components/IconButton.svelte';
   import MenuHost from '../components/MenuHost.svelte';
   import Toasts from '../components/Toasts.svelte';
+  import UnlockDialog from '../features/unlock/UnlockDialog.svelte';
   import TooltipHost from '../components/TooltipHost.svelte';
   import WindowChrome from '../components/WindowChrome.svelte';
   import AccountMenu from '../features/accounts/AccountMenu.svelte';
@@ -479,6 +480,7 @@
 <div class="layers" use:followFullscreen>
   <MenuHost />
   <TooltipHost />
+  <UnlockDialog />
   <Toasts />
 </div>
 

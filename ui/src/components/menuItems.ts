@@ -30,6 +30,8 @@ export interface MenuItem {
   disabled?: boolean;
   /** V102-20 Greyed out with the sign-in flag; picking it goes to that sign-in. */
   lock?: TokenKind | null;
+  /** With `lock`: what picking it does instead of going to Settings, e.g. the sign-in choice. */
+  unlock?: () => void;
   run?: () => void;
   /** Opens a second list in place of this one. */
   items?: MenuEntry[];

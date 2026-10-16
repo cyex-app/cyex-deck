@@ -5,6 +5,7 @@
   import MenuHost from '../components/MenuHost.svelte';
   import PopoutFrame from '../components/PopoutFrame.svelte';
   import Toasts from '../components/Toasts.svelte';
+  import UnlockDialog from '../features/unlock/UnlockDialog.svelte';
   import TooltipHost from '../components/TooltipHost.svelte';
   import { playerHotkeys } from '../features/player/players.svelte';
   import TabOverlays from '../features/tabs/TabOverlays.svelte';
@@ -51,6 +52,7 @@
 <div class="layers" use:followFullscreen>
   <MenuHost />
   <TooltipHost />
+  <UnlockDialog />
   <Toasts />
 </div>
 

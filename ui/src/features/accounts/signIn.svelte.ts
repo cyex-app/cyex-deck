@@ -18,7 +18,8 @@ class SignInFlow {
   offer = $state<string | null>(null);
   private run = 0;
 
-  async start(kind: TokenKind, userId: string | null = null): Promise<void> {
+  /** `true` once signed in. `quiet`: the caller shows how it went (no toasts, no GQL offer). */
+  async start(kind: TokenKind, userId: string | null = null, quiet = false): Promise<boolean> {
     const run = ++this.run;
     this.kind = kind;
     this.forUser = userId;
@@ -29,10 +30,13 @@ class SignInFlow {
         this.code = code;
         this.codeAt = Date.now();
       });
+      if (quiet) return true;
       toast.success(`Signed in as ${who.displayName}.`);
       this.offer = kind === 'helix' ? who.userId : null;
+      return true;
     } catch (e) {
-      if (run === this.run) toast.error(errorText(e));
+      if (run === this.run && !quiet) toast.error(errorText(e));
+      return false;
     } finally {
       if (run === this.run) {
         this.kind = null;

@@ -6,7 +6,6 @@
   import Button from '../../components/Button.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
   import EmptyState from '../../components/EmptyState.svelte';
-  import GateFlag from '../../components/GateFlag.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import type { MySubs } from '../../ipc/bindings/MySubs';
   import type { SubChannel } from '../../ipc/bindings/SubChannel';
@@ -18,6 +17,7 @@
   import { canStop, months, standing, tierLabel } from './labels';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
+  import { unlock } from '../unlock/unlock.svelte';
 
   interface Props {
     onchannel: (c: SubChannel) => void;
@@ -63,6 +63,11 @@
     }
   }
 
+  /** Subscriptions and wallet, and maybe 7TV: asked first. */
+  function ask() {
+    if (account) unlock.ask('twitch', account);
+  }
+
   function page(kind: TwitchPage, login: string | null = null) {
     if (account) subsIpc.page(account, kind, login).catch((e) => toast.error(errorText(e)));
   }
@@ -96,13 +101,15 @@
   {:else if !twitch}
     <div class="none">
       <EmptyState icon="star" text="Subscriptions and payment methods need Sign in with Twitch." />
-      <GateFlag kind="helix" />
+      <Button variant="primary" onclick={ask}>Unlock</Button>
     </div>
   {:else if !can}
     <div class="none">
       <EmptyState icon="star" text="Your subs show here with a GQL sign-in. Twitch’s page works either way." />
-      <GateFlag kind="gql" />
-      <Button onclick={() => page('subscriptions')}>Open Twitch’s page</Button>
+      <div class="ways">
+        <Button variant="primary" onclick={ask}>Unlock</Button>
+        <Button onclick={() => page('subscriptions')}>Open Twitch’s page</Button>
+      </div>
     </div>
   {:else if error}
     <p class="note err">{error}</p>
@@ -200,6 +207,10 @@
   }
   .n {
     color: var(--dim);
+  }
+  .ways {
+    display: flex;
+    gap: 8px;
   }
   .row {
     display: flex;

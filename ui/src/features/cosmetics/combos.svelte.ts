@@ -9,6 +9,7 @@ import { errorText as backendError } from '../../lib/errors';
 import { current, problems, type Owned, type Problem } from './combos';
 import { errorText, type CosmeticsStore } from './cosmetics.svelte';
 import type { Pair } from './select';
+import { pickNeedsSignIn } from '../unlock/choice';
 
 export const MAX_COMBOS = 50;
 const asError = (e: unknown): SelectError => (e && typeof e === 'object' && 'type' in e ? (e as SelectError) : { type: 'down' });
@@ -65,9 +66,8 @@ export class ComboStore {
 
   async apply(c: Combo) {
     if (this.editing) return;
-    const st = this.store.status;
-    if (st === 'signedOut' || st === 'expired') {
-      this.store.say(st === 'expired' ? 'Sign in again to put it on.' : 'Sign in to 7TV to put it on.');
+    if (pickNeedsSignIn(this.store.status, true)) {
+      this.store.askSignIn(undefined, () => void this.apply(c));
       return;
     }
     const before: Pair = { ...this.store.sel.confirmed };
@@ -80,8 +80,10 @@ export class ComboStore {
       this.store.tagNote(c.id);
     } catch (e) {
       this.store.sel.adopt(before);
-      this.store.say(errorText(asError(e)));
-      if (asError(e).type !== 'down') void this.store.load();
+      const err = asError(e);
+      this.store.say(errorText(err));
+      if (err.type !== 'down') void this.store.load();
+      if (pickNeedsSignIn(this.store.status, true, err)) this.store.askSignIn(err.type === 'signInAgain', () => void this.apply(c));
     }
   }
 

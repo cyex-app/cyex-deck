@@ -94,10 +94,10 @@
       <div class="bar">
         {#if status === 'signedOut' && store.anyUsable}
           <span>Sign in to 7TV to change your paint and badge.</span>
-          <Button variant="primary" small onclick={() => void store.signIn()}>Sign in to 7TV</Button>
+          <Button variant="primary" small onclick={() => store.askSignIn(false)}>Sign in to 7TV</Button>
         {:else if status === 'expired'}
           <span>Your 7TV sign-in ran out.</span>
-          <Button variant="primary" small onclick={() => void store.signIn()}>Sign in again</Button>
+          <Button variant="primary" small onclick={() => store.askSignIn(true)}>Sign in again</Button>
         {/if}
         {#if !view.subscribed}
           <span class="note">
