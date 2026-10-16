@@ -4,7 +4,7 @@
 <script lang="ts" generics="T">
   import type { Snippet } from 'svelte';
 
-  import { geometry, range, reveal, step } from '../lib/virtualGrid';
+  import { boxWidth, geometry, range, reveal, step } from '../lib/virtualGrid';
 
   interface Props<T> {
     items: readonly T[];
@@ -27,13 +27,18 @@
   const uid = $props.id();
   const KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
 
+  let host = $state<HTMLDivElement>();
   let scroller = $state<HTMLDivElement>();
+  let hostW = $state(0);
+  let bar = $state(0);
   let scrollTop = $state(0);
   let width = $state(0);
   let viewH = $state(0);
   let frame = 0;
 
   const g = $derived(geometry(width, items.length, cellWidth, cellHeight, gap));
+  // The scroller is exactly the columns wide (plus its bar): the leftover sits outside it.
+  const boxW = $derived(boxWidth(g.columns, cellWidth, gap) + bar);
   const win = $derived(range(g, items.length, scrollTop, viewH));
   const shown = $derived(win.last < win.first ? [] : items.slice(win.first, win.last + 1));
   const at = (index: number) => ({
@@ -43,13 +48,17 @@
 
   $effect(() => {
     const el = scroller;
-    if (!el) return;
+    const h = host;
+    if (!el || !h) return;
     const read = () => {
-      width = el.clientWidth;
+      bar = el.offsetWidth - el.clientWidth;
+      hostW = h.clientWidth;
+      width = Math.max(0, hostW - bar);
       viewH = el.clientHeight;
     };
     read();
     const ro = new ResizeObserver(read);
+    ro.observe(h);
     ro.observe(el);
     return () => {
       ro.disconnect();
@@ -88,8 +97,10 @@
   }
 </script>
 
+<div class="host" bind:this={host}>
 <div
   class="grid"
+  style:width="{boxW}px"
   role="listbox"
   tabindex="0"
   aria-label={label}
@@ -117,9 +128,18 @@
     {/each}
   </div>
 </div>
+</div>
 
 <style>
+  .host {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    contain: size;
+  }
   .grid {
+    height: 100%;
+    max-width: 100%;
     overflow-y: auto;
     contain: strict;
     position: relative;

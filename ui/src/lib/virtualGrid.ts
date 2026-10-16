@@ -73,3 +73,6 @@ export function reveal(index: number, g: Geometry, scrollTop: number, viewH: num
   if (bottom > scrollTop + viewH) return Math.max(0, bottom - viewH);
   return null;
 }
+
+/** The width of a scroller that ends right after the last column (bar not counted). */
+export const boxWidth = (columns: number, cellW: number, gap: number): number => columns * cellW + (columns - 1) * gap;

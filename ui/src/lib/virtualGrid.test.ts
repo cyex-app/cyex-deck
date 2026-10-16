@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { MIN_PAINT_CELL, paintCellWidth } from './paintCell.ts';
-import { geometry, range, reveal, step } from './virtualGrid.ts';
+import { boxWidth, geometry, range, reveal, step } from './virtualGrid.ts';
 
 const g = geometry(1000, 2000, 176, 48, 6);
 
@@ -61,4 +61,14 @@ test('cells keep their size on every width; only the columns change (V1051-03)',
   assert.equal(geometry(1466 - 16, 500, paintCellWidth(0), 48, 6).columns, 8);
   assert.equal(paintCellWidth(0), MIN_PAINT_CELL);
   assert.equal(geometry(478 - 16, 500, 72, 76, 6).columns, 6);
+});
+
+test('cells keep their width; the box fits the columns and the leftover stays outside', () => {
+  for (const w of [300, 700, 1000, 1450]) {
+    const x = geometry(w, 50, 176, 48, 6);
+    const box = boxWidth(x.columns, 176, 6);
+    assert.ok(box <= w || x.columns === 1);
+    assert.ok(w - box < 176 + 6);
+  }
+  assert.equal(boxWidth(5, 176, 6), 904);
 });
