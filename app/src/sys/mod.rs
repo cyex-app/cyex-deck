@@ -387,6 +387,29 @@ pub async fn run_script(_window: &tauri::WebviewWindow, _script: &'static str) -
     None
 }
 
+/// V1051-02 Calls `f` when the page asks to close its window (`window.close()`).
+#[cfg(windows)]
+pub fn on_page_close(window: &tauri::WebviewWindow, f: impl Fn() + Send + 'static) {
+    use webview2_com::WindowCloseRequestedEventHandler;
+
+    let _ = window.with_webview(move |w| {
+        // SAFETY: plain COM calls on the controller Tauri hands us, on the UI thread.
+        let Ok(core) = (unsafe { w.controller().CoreWebView2() }) else {
+            return;
+        };
+        let handler = WindowCloseRequestedEventHandler::create(Box::new(move |_, _| {
+            f();
+            Ok(())
+        }));
+        let mut token = 0i64;
+        // SAFETY: WebView2 keeps the handler alive for as long as the page lives.
+        let _ = unsafe { core.add_WindowCloseRequested(&handler, &mut token) };
+    });
+}
+
+#[cfg(not(windows))]
+pub fn on_page_close(_window: &tauri::WebviewWindow, _f: impl Fn() + Send + 'static) {}
+
 /// V1051-03 Empties WebView2's disk cache (emotes, badges, paints). The app's windows share
 /// one profile, so clearing it from any window clears it for all.
 #[cfg(windows)]

@@ -101,13 +101,8 @@ fn label_of(account: &str) -> String {
 pub async fn capture(app: &AppHandle, account: &str, login_url: String) -> Result<SevenTvToken, SignIn> {
     let label = label_of(account);
     if let Some(w) = app.get_webview_window(&label) {
-        if gone(&w) {
-            // A page that closed itself left an empty window behind.
-            let _ = w.destroy();
-        } else {
-            let _ = w.unminimize();
-            let _ = w.set_focus();
-        }
+        let _ = w.unminimize();
+        let _ = w.set_focus();
         return Err(SignIn::Cancelled);
     }
     let url = Url::parse(&login_url).map_err(|_| SignIn::Failed)?;
@@ -150,6 +145,12 @@ pub async fn capture(app: &AppHandle, account: &str, login_url: String) -> Resul
             eprintln!("seventv: sign-in window: {e}");
             SignIn::Failed
         })?;
+    // A page that calls `window.close()` loses its webview, but the window stays and sends
+    // no `Destroyed`: WebView2's close request says so instead.
+    let closing = tx.clone();
+    crate::sys::on_page_close(&window, move || {
+        let _ = closing.send(Event::Closed);
+    });
     window.on_window_event(move |e| {
         if matches!(e, WindowEvent::Destroyed) {
             let _ = tx.send(Event::Closed);
@@ -160,12 +161,6 @@ pub async fn capture(app: &AppHandle, account: &str, login_url: String) -> Resul
     // `destroy`, not `close`: it frees the label even when the page is already gone.
     let _ = window.destroy();
     result
-}
-
-/// The page called `window.close()`: wry drops the webview but keeps the window, and no
-/// `Destroyed` comes. All that's left to see is that its address can't be read any more.
-fn gone(w: &WebviewWindow) -> bool {
-    w.url().is_err()
 }
 
 /// Waits for 7TV's callback, then looks for the session for up to `POLL_FOR`. Closing the
@@ -187,9 +182,6 @@ async fn wait(
                 }
                 Err(TryRecvError::Empty) => break,
             }
-        }
-        if gone(window) {
-            return Err(SignIn::Cancelled);
         }
         if let Some(until) = until {
             if tokio::time::Instant::now() >= until {
