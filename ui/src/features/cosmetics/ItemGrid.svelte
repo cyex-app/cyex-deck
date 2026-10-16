@@ -20,11 +20,13 @@
     /** The account's display name, drawn in each paint. */
     name: string;
     label: string;
+    /** The grid's width, for the header above it. */
+    box?: number;
     /** `usable` is false for subscriber-only items. */
     onpick: (id: string | null, usable: boolean) => void;
   }
 
-  let { kind, rows, selected, name, label, onpick }: Props = $props();
+  let { kind, rows, selected, name, label, box = $bindable(0), onpick }: Props = $props();
 
   // V1051-03 Wide enough for the name in its paint, once per name and chat font; re-read when
   // a font finishes loading.
@@ -75,6 +77,7 @@
   {items}
   key={keyOf}
   {label}
+  bind:box
   chosen={(r) => keyOf(r) === (selected ?? NONE_KEY)}
   cellWidth={kind === 'paint' ? paintW : 72}
   cellHeight={kind === 'paint' ? 48 : 76}

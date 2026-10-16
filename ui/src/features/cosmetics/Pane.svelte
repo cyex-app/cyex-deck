@@ -47,10 +47,13 @@
   }
 
   // V1051-03 The list can't hold more than the filter lets through.
+  let box = $state(0);
   const count = $derived(countLabel(rows.length, total));
 </script>
 
 <section class="pane">
+  <!-- The header ends where the grid's scrollbar does; the leftover sits outside the block. -->
+  <div class="head" style:--box={box && total && rows.length ? `${box}px` : '100%'}>
   {#if heading}<h3>{kind === 'paint' ? 'Paints' : 'Badges'} · {count}</h3>{/if}
   <div class="tools">
     <div class="top">
@@ -77,13 +80,14 @@
     </div>
     <FilterChips {chips} onflip={flip} />
   </div>
+  </div>
   <div class="body" class:compact>
     {#if !total}
       <EmptyState icon="search" text="No {plural} yet." />
     {:else if !rows.length}
       <EmptyState icon="search" text="Nothing matches." />
     {:else}
-      <ItemGrid {kind} {rows} {selected} {name} label={kind === 'paint' ? 'Paints' : 'Badges'} {onpick} />
+      <ItemGrid {kind} {rows} {selected} {name} label={kind === 'paint' ? 'Paints' : 'Badges'} bind:box {onpick} />
     {/if}
   </div>
 </section>
@@ -95,6 +99,14 @@
     gap: 8px;
     min-width: 0;
     min-height: 0;
+  }
+  .head {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: var(--box);
+    max-width: 100%;
+    min-width: 0;
   }
   h3 {
     margin: 0;

@@ -17,12 +17,14 @@
     active: number;
     /** The chosen item (aria-selected). The keyboard cell is `active`, a separate thing. */
     chosen?: (t: T) => boolean;
+    /** The scroller's width, bar included: a header above can end where the grid does. */
+    box?: number;
     cell: Snippet<[T, { index: number; active: boolean }]>;
     /** Enter, Space, click. */
     onpick: (index: number) => void;
   }
 
-  let { items, key, label, cellWidth, cellHeight, gap = 6, active = $bindable(), chosen, cell, onpick }: Props<T> = $props();
+  let { items, key, label, cellWidth, cellHeight, gap = 6, active = $bindable(), box = $bindable(0), chosen, cell, onpick }: Props<T> = $props();
 
   const uid = $props.id();
   const KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
@@ -39,6 +41,9 @@
   const g = $derived(geometry(width, items.length, cellWidth, cellHeight, gap));
   // The scroller is exactly the columns wide (plus its bar): the leftover sits outside it.
   const boxW = $derived(boxWidth(g.columns, cellWidth, gap) + bar);
+  $effect(() => {
+    box = boxW;
+  });
   const win = $derived(range(g, items.length, scrollTop, viewH));
   const shown = $derived(win.last < win.first ? [] : items.slice(win.first, win.last + 1));
   const at = (index: number) => ({
