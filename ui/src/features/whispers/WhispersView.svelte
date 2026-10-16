@@ -32,11 +32,12 @@
   let selected = $state<string | null>(route.split('/')[1] || whispers.wanted);
   let query = $state('');
   let archived = $state(false);
-  /** Under this the list and the conversation stack: one at a time, the list first. */
+  /** Under this the list and the conversation stack: one at a time, the open one first. */
   const NARROW = 480;
   let width = $state(0);
   const narrow = $derived(width > 0 && width < NARROW);
-  let chatOpen = $state(false);
+  // svelte-ignore state_referenced_locally
+  let chatOpen = $state(selected !== null);
 
   const s = $derived(whispers.state);
   const q = $derived(query.trim().toLowerCase().replace(/^@/, ''));
