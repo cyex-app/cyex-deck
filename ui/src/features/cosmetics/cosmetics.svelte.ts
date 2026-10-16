@@ -65,8 +65,8 @@ export class CosmeticsStore {
   view = $state.raw<CosmeticsView | null>(null);
   loading = $state(true);
   failed = $state(false);
-  paintsQ = $state.raw<Query>(emptyQuery());
-  badgesQ = $state.raw<Query>(emptyQuery());
+  paintsQ = $state.raw<Query>(emptyQuery('paint'));
+  badgesQ = $state.raw<Query>(emptyQuery('badge'));
   /** Bumped whenever the selection changes (it isn't reactive itself). */
   private tick = $state(0);
   /** Which account key the view was loaded for, to spot sign-ins and -outs elsewhere. */

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { countLabel, emptyQuery, filterItems, NEW_DAYS, type Chip, type Query } from './filter.ts';
+import { countLabel, emptyQuery, filterItems, NEW_DAYS, rememberSort, sortLabel, type Chip, type Query } from './filter.ts';
 
 const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 9, 15);
@@ -50,6 +50,30 @@ test('sort and ties', () => {
   const ties = [it('Fox2', { added: 1 }), it('Fox1', { added: 2 })];
   assert.deepEqual(names(filterItems(ties, q({ text: 'fox', sort: 'newest' }), NOW)), ['Fox1', 'Fox2']);
   assert.deepEqual(names(filterItems(ties, q({ text: 'fox', sort: 'az' }), NOW)), ['Fox1', 'Fox2']);
+});
+
+test('both keys, both ways, ties by name', () => {
+  const list = [it('b10', { added: 5 }), it('B2', { added: 5 }), it('a', { added: 1 }), it('c', { added: 9 })];
+  const run = (sort: Query['sort'], reverse: boolean) => names(filterItems(list, q({ sort, reverse }), NOW));
+  assert.deepEqual(run('newest', false), ['c', 'B2', 'b10', 'a']);
+  assert.deepEqual(run('newest', true), ['a', 'B2', 'b10', 'c']);
+  assert.deepEqual(run('az', false), ['a', 'B2', 'b10', 'c']);
+  assert.deepEqual(run('az', true), ['c', 'b10', 'B2', 'a']);
+});
+
+test('sort labels name what you get', () => {
+  assert.equal(sortLabel('newest', false), 'Newest first');
+  assert.equal(sortLabel('newest', true), 'Oldest first');
+  assert.equal(sortLabel('az', false), 'A–Z');
+  assert.equal(sortLabel('az', true), 'Z–A');
+});
+
+test('the sort is remembered per pane', () => {
+  assert.equal(emptyQuery('badge').reverse, false);
+  rememberSort('paint', q({ sort: 'az', reverse: true }));
+  assert.deepEqual([emptyQuery('paint').sort, emptyQuery('paint').reverse], ['az', true]);
+  assert.equal(emptyQuery('badge').sort, 'newest');
+  rememberSort('paint', q());
 });
 
 test('2300 items filter fast', () => {

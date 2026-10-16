@@ -2,9 +2,10 @@
 <script lang="ts">
   import EmptyState from '../../components/EmptyState.svelte';
   import FilterChips from '../../components/FilterChips.svelte';
-  import Segmented from '../../components/Segmented.svelte';
-    import type { BadgeRow, PaintRow } from './cosmetics.svelte';
-  import { countLabel, type Chip, type Query } from './filter';
+  import IconButton from '../../components/IconButton.svelte';
+  import Select from '../../components/Select.svelte';
+  import type { BadgeRow, PaintRow } from './cosmetics.svelte';
+  import { countLabel, rememberSort, sortLabel, type Chip, type Query } from './filter';
   import ItemGrid from './ItemGrid.svelte';
   import SearchField from '../../components/SearchField.svelte';
 
@@ -38,10 +39,15 @@
     CHIPS.filter((c) => c.key !== 'usable' || !allUsable).map((c) => ({ ...c, on: query.chips.has(c.key) })),
   );
 
+  function change(q: Query) {
+    rememberSort(kind, q);
+    onquery(q);
+  }
+
   function flip(key: string) {
     const next = new Set(query.chips);
     if (!next.delete(key as Chip)) next.add(key as Chip);
-    onquery({ ...query, chips: next });
+    change({ ...query, chips: next });
   }
 
   // V1051-03 The list can't hold more than the filter lets through.
@@ -53,16 +59,22 @@
   <div class="tools">
     <div class="top">
       <div class="search">
-        <SearchField placeholder="Search {plural}" value={query.text} oninput={(text) => onquery({ ...query, text })} />
+        <SearchField placeholder="Search {plural}" value={query.text} oninput={(text) => change({ ...query, text })} />
       </div>
-      <Segmented
+      <Select
         label="Sort"
+        width="130px"
         value={query.sort}
         options={[
-          { value: 'newest', label: 'Newest' },
-          { value: 'az', label: 'A–Z' },
+          { value: 'newest', label: sortLabel('newest', query.reverse) },
+          { value: 'az', label: sortLabel('az', query.reverse) },
         ]}
-        onchange={(sort) => onquery({ ...query, sort })}
+        onchange={(sort) => change({ ...query, sort: sort as Query['sort'] })}
+      />
+      <IconButton
+        icon={query.reverse ? 'arrowUp' : 'arrowDown'}
+        label="Reverse order"
+        onclick={() => change({ ...query, reverse: !query.reverse })}
       />
     </div>
     <FilterChips {chips} onflip={flip} />
