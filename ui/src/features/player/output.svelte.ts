@@ -19,9 +19,16 @@ let used = false;
 /** Picks one at a time, so the permission is held by one pick and given back before the next. */
 let queue: Promise<unknown> = Promise.resolve();
 
+/** Runs `job` after the ones before it, so a late pick can't land after a newer one. */
+function serial<T>(job: () => Promise<T>): Promise<T> {
+  const run = queue.then(job);
+  queue = run.catch(() => {});
+  return run;
+}
+
 /** Runs `job` with the microphone permission, which is taken back whatever happens. */
 function permitted<T>(job: () => Promise<T>): Promise<T> {
-  const run = queue.then(async () => {
+  return serial(async () => {
     await soundIpc.permit(true);
     try {
       return await job();
@@ -29,11 +36,13 @@ function permitted<T>(job: () => Promise<T>): Promise<T> {
       await soundIpc.permit(false).catch(() => {});
     }
   });
-  queue = run.catch(() => {});
-  return run;
 }
 
+/** The newest lookup: an older one still listing devices must not overwrite its answer. */
+let lookups = 0;
+
 async function resolve(): Promise<void> {
+  const mine = ++lookups;
   const want = settings.v.general.sound.streamsDevice;
   if (!want) {
     out.id = '';
@@ -41,9 +50,10 @@ async function resolve(): Promise<void> {
   }
   if (!used) return;
   try {
-    out.id = sinkFor(await permitted(() => navigator.mediaDevices.enumerateDevices()), want.name);
+    const id = sinkFor(await permitted(() => navigator.mediaDevices.enumerateDevices()), want.name);
+    if (mine === lookups) out.id = id;
   } catch {
-    out.id = '';
+    if (mine === lookups) out.id = '';
   }
 }
 
@@ -60,9 +70,10 @@ $effect.root(() => {
 
 function setSink(target: Sinkable, id: string): void {
   if (target.sinkId === id) return;
-  // The default needs no permission.
-  const pick = id ? permitted(() => target.setSinkId(id)) : target.setSinkId(id);
-  void pick.catch(() => {});
+  // The default needs no permission, but waits its turn: a device pick still on its way
+  // would land after it. A pick that is no longer the wanted one is dropped.
+  const job = () => (out.id !== id || target.sinkId === id ? Promise.resolve() : target.setSinkId(id));
+  void (id ? permitted(job) : serial(job)).catch(() => {});
 }
 
 /** The first player looks the device up (listing devices starts WebView2's audio process). */
