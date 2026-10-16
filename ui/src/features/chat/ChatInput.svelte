@@ -6,6 +6,7 @@
   import { tick } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
+  import IconButton from '../../components/IconButton.svelte';
   import { openMenuAt } from '../../components/menu.svelte';
   import { chatIpc } from '../../ipc/chat';
   import { modIpc } from '../../ipc/moderation';
@@ -390,6 +391,18 @@
       ></textarea>
       {#if gifs}<GifButton {room} />{/if}
       <EmoteButton login={room.login} account={room.account} oninsert={(v) => void insertAtCaret(v)} />
+      {#if settings.v.chat.sendButton}
+        <IconButton
+          icon="send"
+          label="Send"
+          hint="Enter"
+          disabled={!text.trim()}
+          onclick={() => {
+            void send(false);
+            box?.focus();
+          }}
+        />
+      {/if}
       {#if waitMs > 0 || chars >= SHOW_COUNT}
         <div class="meta">
           {#if waitMs > 0}<span class="wait" data-tip="You can talk again then">{Math.ceil(waitMs / 1000)}s</span>{/if}

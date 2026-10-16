@@ -167,6 +167,13 @@ export const CHAT: Entry[] = [
     keywords: ['gigantified', 'animations', 'power-ups', 'celebrations'],
   },
   {
+    id: 'chat.sendButton',
+    page: 'chat',
+    label: 'Send button',
+    description: 'A send button in the message box.',
+    keywords: ['submit', 'enter', 'message box', 'input'],
+  },
+  {
     id: 'chat.spellCheck',
     page: 'chat',
     label: 'Spell check',

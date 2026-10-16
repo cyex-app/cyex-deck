@@ -293,6 +293,9 @@
 </Row>
 
 <h3 class="label">Writing and reading</h3>
+<Row setting="chat.sendButton" label="Send button" hint="A button in the message box. Enter still sends.">
+  <Toggle label="Send button" checked={c.sendButton} onchange={(v) => settings.patch('chat', { sendButton: v })} />
+</Row>
 <Row setting="chat.spellCheck" label="Spell check" hint="Underlines typos in the message box. Right-click one for fixes.">
   <Toggle label="Spell check" checked={c.spellCheck} onchange={(v) => settings.patch('chat', { spellCheck: v })} />
 </Row>

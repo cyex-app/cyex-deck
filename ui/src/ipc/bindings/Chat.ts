@@ -170,6 +170,10 @@ delayTenths: number,
  */
 spellCheck: boolean, 
 /**
+ * A send button inside the message box. Setting, on.
+ */
+sendButton: boolean, 
+/**
  * 1.42 Message effects and gigantified emotes as Twitch draws them.
  */
 effects: boolean, 

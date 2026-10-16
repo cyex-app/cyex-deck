@@ -111,6 +111,8 @@ pub struct Chat {
     pub delay_tenths: u16,
     /// C18 Spell check in the message box. Setting, off.
     pub spell_check: bool,
+    /// A send button inside the message box. Setting, on.
+    pub send_button: bool,
     /// 1.42 Message effects and gigantified emotes as Twitch draws them.
     pub effects: bool,
     /// C3 Local nicknames and notes, by user id.
@@ -160,6 +162,7 @@ impl Default for Chat {
             mod_buttons: ModButtons::default(),
             delay_tenths: 0,
             spell_check: false,
+            send_button: true,
             effects: true,
             users: BTreeMap::new(),
             overlay: Overlay::default(),
@@ -543,6 +546,15 @@ mod tests {
         c.sanitize();
         assert_eq!(c.mod_buttons.order, [Delete, Timeout(30), Timeout(60), Warn, Ban]);
         assert_eq!(Chat::default().mod_buttons.order, [Delete, Timeout(60), Warn, Ban]);
+    }
+
+    #[test]
+    fn send_button_is_on_by_default_and_when_missing() {
+        assert!(Chat::default().send_button);
+        let c: Chat = serde_json::from_str(r#"{"spellCheck":true}"#).unwrap();
+        assert!(c.send_button);
+        let c: Chat = serde_json::from_str(r#"{"sendButton":false}"#).unwrap();
+        assert!(!c.send_button);
     }
 
     #[test]
