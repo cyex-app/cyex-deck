@@ -5,6 +5,7 @@
 // (`data-native-menu`). Dev builds show the browser's menu with Shift held, for Inspect.
 
 import { type MenuEntry, openMenu } from '../components/menu.svelte';
+import { copy } from './clipboard';
 
 type Field = HTMLInputElement | HTMLTextAreaElement;
 
@@ -35,14 +36,14 @@ function entriesFor(el: Element): MenuEntry[] {
   const out: MenuEntry[] = [];
   const text = getSelection()?.toString() ?? '';
   if (text.trim()) {
-    out.push({ label: 'Copy', icon: 'copy', hint: 'Ctrl+C', run: () => void navigator.clipboard.writeText(text) });
+    out.push({ label: 'Copy', icon: 'copy', hint: 'Ctrl+C', run: () => void copy(text, 'Text') });
   }
   const link = el.closest('a[href]');
   if (link instanceof HTMLAnchorElement && /^https?:/.test(link.href)) {
     out.push(
       'separator',
       { label: 'Open link', icon: 'popout', run: () => follow(link) },
-      { label: 'Copy link', icon: 'link', run: () => void navigator.clipboard.writeText(link.href) },
+      { label: 'Copy link', icon: 'link', run: () => void copy(link.href, 'Link') },
     );
   }
   return out;

@@ -49,7 +49,7 @@
     {#if variant === 'large'}
       <IconButton
         icon={currentWindow.fullscreen ? 'shrink' : 'expand'}
-        label={currentWindow.fullscreen ? 'Leave fullscreen' : 'Fullscreen'}
+        label={currentWindow.fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
         hint={currentWindow.fullscreen ? 'Or press Esc.' : 'Fills the whole screen. Esc leaves.'}
         size={13}
         onclick={() => currentWindow.toggleFullscreen()}

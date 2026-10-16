@@ -1,12 +1,9 @@
 /* Emotes everywhere: size (E3), zero-width stacks and modifiers (C7), unlisted blur (2.4),
    paints (1.37). Modifier transforms add up through variables. */
 
-/* V101-37 An emote fills its line from the top (centered when the line is taller), so it
-   is never cut off and never makes the line taller: the line height (--chat-line) is
-   at least the emote's. */
+/* V101-37 ended: rows with an emote grow to fit it, so no margin math. */
 .emote,
 .stack {
-  margin: calc((var(--chat-line) * 1em - 2.15em * var(--emote-scale, 1)) / 2) 0 0;
   vertical-align: top;
 }
 .emote {

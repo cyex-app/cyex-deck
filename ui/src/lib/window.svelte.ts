@@ -4,6 +4,7 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import { windowsIpc } from '../ipc/windows';
+import { errorText } from './errors';
 import { toast } from './toast.svelte';
 
 class CurrentWindow {
@@ -29,7 +30,7 @@ class CurrentWindow {
     try {
       this.pinned = await windowsIpc.setPinned(!this.pinned);
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   }
 
@@ -45,7 +46,7 @@ class CurrentWindow {
       await getCurrentWindow().setFullscreen(on || Boolean(document.fullscreenElement));
     } catch (e) {
       this.fullscreen = !on;
-      toast.error(String(e));
+      toast.error(errorText(e));
     }
   };
 

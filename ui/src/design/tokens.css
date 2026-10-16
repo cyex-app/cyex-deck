@@ -60,7 +60,6 @@
   --pinned-step: 1px;
   /* V101-37 Chat line height, as a multiple of the chat font size: room for a whole
      emote (2.15em at the E3 emote size), so a line with one is as tall as one without. */
-  --chat-line: max(1.55, calc(2.15 * var(--emote-scale, 1)));
 
   --radius: 3px;
   --radius-sm: 2px;
@@ -134,6 +133,8 @@ html,
 body {
   margin: 0;
   height: 100%;
+  /* The window never slides; scrolling happens inside panes. */
+  overflow: hidden;
 }
 
 body {

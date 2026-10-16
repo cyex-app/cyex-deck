@@ -7,7 +7,7 @@
   import { tooltip } from '../../components/tooltip.svelte';
   import type { Outcome } from '../../ipc/bindings/Outcome';
   import { chatxIpc } from '../../ipc/chatx';
-  import { formatDuration, formatNumber } from '../../lib/format';
+  import { formatDecimal, formatDuration, formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import { pollKey, pollLive, predictionKey, predictionLive, shows } from './eventStrip';
   import { eventStrip } from './eventStrip.svelte';
@@ -165,7 +165,7 @@
           >
             <span class="label">{o.title}</span>
             <span class="num">
-              {pct(o.points, total)}% · {formatNumber(o.points)} · 1:{o.points ? (total / o.points).toFixed(2).replace('.', ',') : '–'}
+              {pct(o.points, total)}% · {formatNumber(o.points)} · 1:{o.points ? formatDecimal(total / o.points, 2) : '–'}
             </span>
             {#if open && signedIn && (!pred.mine || pred.mine.outcome === o.id)}
               <Button small disabled={busy} onclick={() => predict(o)}>Bet</Button>

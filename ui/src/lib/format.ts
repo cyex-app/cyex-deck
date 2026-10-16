@@ -25,6 +25,11 @@ export function formatShort(n: number): string {
   return n < 0 ? `-${text}` : text;
 }
 
+/** 1.5 → "1,5", fixed to `digits` places. The decimal mark is a comma, like formatShort (3.13). */
+export function formatDecimal(n: number, digits = 1): string {
+  return n.toFixed(digits).replace('.', ',');
+}
+
 export function formatDate(d: Date): string {
   return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
 }
