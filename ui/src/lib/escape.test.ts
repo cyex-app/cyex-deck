@@ -98,3 +98,16 @@ test('only dialogs, menus and open selects block shortcuts', () => {
   off();
   assert.equal(s.blocking(), false);
 });
+
+test('a menu alone still lets the quick switcher through, a dialog does not', () => {
+  const s = new LayerStack();
+  assert.equal(s.onlyMenus(), false);
+  s.push({ kind: 'popover', close: () => {} });
+  const offMenu = s.push({ kind: 'menu', close: () => {} });
+  assert.equal(s.onlyMenus(), true);
+  const offDialog = s.push({ kind: 'dialog', close: () => {} });
+  assert.equal(s.onlyMenus(), false);
+  offDialog();
+  offMenu();
+  assert.equal(s.onlyMenus(), false);
+});

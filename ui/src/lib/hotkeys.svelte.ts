@@ -1,7 +1,7 @@
 // Hotkeys (S2). Each action declares its default combo here; settings only store overrides.
 // `global` ones work while another app is in front; Rust registers those (app/src/hotkeys.rs).
 
-import { keyTaken } from './escape';
+import { keyTaken, layers } from './escape';
 import { settings } from './settings.svelte';
 
 export const ACTIONS = {
@@ -94,9 +94,12 @@ export function useHotkeys(handlers: Partial<Record<ActionId, () => unknown>>): 
   $effect(() => {
     const onKey = (e: KeyboardEvent) => {
       // An open dialog, menu or select has the keyboard; so does a key something already used.
-      if (recording.active || keyTaken(e)) return;
+      if (recording.active) return;
       const combo = comboFromEvent(e);
       if (!combo) return;
+      // An open menu doesn't hold back the switcher: it opens and the menu goes (030e896).
+      const switcherOverMenu = actionFor(combo) === 'tabs.switcher' && !e.defaultPrevented && layers.onlyMenus();
+      if (keyTaken(e) && !switcherOverMenu) return;
       // Plain keys belong to text fields; only Ctrl/Alt combos fire while typing.
       if (isTyping(e.target) && !/^(Ctrl|Alt)\+/.test(combo)) return;
       const id = actionFor(combo);

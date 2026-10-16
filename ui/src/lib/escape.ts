@@ -53,6 +53,12 @@ export class LayerStack {
     return this.layers.some((l) => BLOCKING.has(l.kind));
   }
 
+  /** True while the only blocking layers are menus: the quick switcher (Ctrl+K) may still open and close them. */
+  onlyMenus(): boolean {
+    const held = this.layers.filter((l) => BLOCKING.has(l.kind));
+    return held.length > 0 && held.every((l) => l.kind === 'menu');
+  }
+
   /** Closes the topmost layer on Escape. True when it did, and the key is then used up. */
   escape(e: EscapeEvent): boolean {
     if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing) return false;
