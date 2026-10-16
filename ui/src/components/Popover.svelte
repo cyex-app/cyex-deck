@@ -38,7 +38,16 @@
     if (!open || !box) return;
     const node = box;
     const wrapper = node.parentElement;
-    const release = focusScope(node, { initial: () => (role === 'menu' ? items()[0] : tabbables(node)[0]) });
+    // V8 Opened by mouse, a panel takes focus itself (no ring on its first tab); a text field
+    // still gets it, and the keyboard goes to the first stop.
+    const byKey = document.activeElement?.matches(':focus-visible') ?? false;
+    const release = focusScope(node, {
+      initial: () => {
+        if (role === 'menu') return items()[0];
+        const first = tabbables(node)[0];
+        return byKey || first?.matches('input, textarea, select, [role="combobox"]') ? first : node;
+      },
+    });
     const off = layer(role === 'menu' ? 'menu' : 'popover', () => (open = false));
     // The shared menu, opened from inside, counts as inside.
     const onDown = (e: MouseEvent) => {
