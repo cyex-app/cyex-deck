@@ -43,7 +43,7 @@ let lookups = 0;
 
 async function resolve(): Promise<void> {
   const mine = ++lookups;
-  const want = settings.v.general.sound.streamsDevice;
+  const want = settings.v.general?.sound?.streamsDevice;
   if (!want) {
     out.id = '';
     return;
@@ -59,7 +59,7 @@ async function resolve(): Promise<void> {
 
 $effect.root(() => {
   $effect(() => {
-    void settings.v.general.sound.streamsDevice?.name;
+    void settings.v.general?.sound?.streamsDevice?.name;
     void resolve();
   });
   $effect(() => {

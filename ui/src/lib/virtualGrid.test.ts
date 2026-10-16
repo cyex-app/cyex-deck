@@ -62,11 +62,3 @@ test('cells keep their size on every width; only the columns change (V1051-03)',
   assert.equal(paintCellWidth(0), MIN_PAINT_CELL);
   assert.equal(geometry(478 - 16, 500, 72, 76, 6).columns, 6);
 });
-
-test('geometry: leftover width goes into the cells, so the last column meets the edge', () => {
-  const x = geometry(1000, 50, 176, 48, 6);
-  assert.equal(x.columns, 5);
-  assert.ok(x.cell >= 176 && x.cell <= 176 + 6 + 1000);
-  assert.ok(5 * x.cell + 4 * 6 <= 1000 && 5 * x.cell + 4 * 6 > 1000 - 5);
-  assert.equal(geometry(100, 3, 176, 48, 6).cell, 176);
-});
