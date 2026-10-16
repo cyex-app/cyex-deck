@@ -170,9 +170,30 @@ impl Store {
 
     /// Loads every partition saved in that day's snapshot.
     pub fn restore_backup(&mut self, date: Date) -> Result<Vec<Partition>> {
-        let snapshot = backup::snapshot_dir(&self.dir, date);
+        self.restore_from(backup::snapshot_dir(&self.dir, date), backup::date_key(date))
+    }
+
+    /// V1052-03 Saves the current state (secrets left out) before a restore. Returns its name.
+    pub fn snapshot_now(&mut self) -> Result<Option<String>> {
+        self.flush()?;
+        backup::snapshot_now(&self.dir, self.clock.now())
+    }
+
+    /// Names of the "before restore" snapshots, newest first.
+    pub fn snapshots(&self) -> Result<Vec<String>> {
+        backup::list_snapshots(&self.dir)
+    }
+
+    pub fn restore_snapshot(&mut self, name: &str) -> Result<Vec<Partition>> {
+        if !backup::is_snapshot_name(name) {
+            return Err(Error::NoBackup(name.to_owned()));
+        }
+        self.restore_from(backup::named_dir(&self.dir, name), name.to_owned())
+    }
+
+    fn restore_from(&mut self, snapshot: PathBuf, label: String) -> Result<Vec<Partition>> {
         if !snapshot.is_dir() {
-            return Err(Error::NoBackup(backup::date_key(date)));
+            return Err(Error::NoBackup(label));
         }
         let mut restored = BTreeMap::new();
         for p in Partition::ALL {
@@ -394,5 +415,21 @@ mod tests {
         store.restore_backup(day(4)).unwrap();
         assert_eq!(store.read::<General>(Partition::General).chat_font_size, 12);
         assert!(matches!(store.restore_backup(day(1)), Err(Error::NoBackup(_))));
+    }
+
+    #[test]
+    fn snapshot_before_restore_holds_unsaved_changes_and_restores() {
+        let tmp = TempDir::new("store-snapshot");
+        let clock = Arc::new(FakeClock::at(day(1)));
+        let (mut store, _) = open(tmp.path(), &clock);
+        store.patch(Partition::General, &json!({"chatFontSize": 11})).unwrap();
+        let name = store.snapshot_now().unwrap().unwrap();
+        assert_eq!(store.snapshots().unwrap(), vec![name.clone()]);
+        assert!(store.backups().unwrap().iter().all(|d| *d == day(1)), "daily list ignores it");
+
+        store.patch(Partition::General, &json!({"chatFontSize": 20})).unwrap();
+        store.restore_snapshot(&name).unwrap();
+        assert_eq!(store.read::<General>(Partition::General).chat_font_size, 11);
+        assert!(matches!(store.restore_snapshot("../x"), Err(Error::NoBackup(_))));
     }
 }

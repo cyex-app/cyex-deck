@@ -169,6 +169,17 @@ impl Settings {
         Ok(changed)
     }
 
+    /// V1052-03 Saves the current settings on disk before a restore; returns the folder name.
+    pub fn snapshot_now(&self) -> Result<Option<String>, String> {
+        self.lock().snapshot_now().map_err(|e| e.to_string())
+    }
+
+    pub fn restore_snapshot(&self, app: &AppHandle, name: &str) -> Result<Vec<Partition>, String> {
+        let changed = self.lock().restore_snapshot(name).map_err(|e| e.to_string())?;
+        self.broadcast(app, &changed);
+        Ok(changed)
+    }
+
     /// The image uploader's `Name: value; …` headers.
     pub fn uploader_headers(&self) -> String {
         self.secrets.load(UPLOADER_HEADERS).ok().flatten().unwrap_or_default()
