@@ -50,7 +50,7 @@
 </script>
 
 {#if asked}
-  <Dialog {title} width={440} locked={!!steps} onclose={() => unlock.close()} onsubmit={steps ? undefined : go}>
+  <Dialog {title} width={440} top locked={!!steps} onclose={() => unlock.close()} onsubmit={steps ? undefined : go}>
     {#if steps}
       <ol class="steps" aria-live="polite">
         {#each steps as s (s.part)}

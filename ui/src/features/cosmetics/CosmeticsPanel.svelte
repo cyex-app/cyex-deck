@@ -7,6 +7,8 @@
   import Segmented from '../../components/Segmented.svelte';
   import { systemIpc } from '../../ipc/system';
   import { accounts } from '../../lib/accounts.svelte';
+  import { keyTaken } from '../../lib/escape';
+  import { isFindKey, visibleSearchbox } from '../../lib/findKey';
   import { focus } from '../../lib/focus.svelte';
     import { ComboStore } from './combos.svelte';
   import ComboStrip from './ComboStrip.svelte';
@@ -55,6 +57,16 @@
     else store.pick(kind, id, usable);
   }
 
+  /** Ctrl+F in the full view, like Settings: the search takes focus wherever focus is. */
+  function onfind(e: KeyboardEvent) {
+    if (compact || !isFindKey(e) || e.isComposing || keyTaken(e)) return;
+    const box = visibleSearchbox(root ?? document);
+    if (!box) return;
+    e.preventDefault();
+    box.focus();
+    box.select();
+  }
+
   function onkeydown(e: KeyboardEvent) {
     const typing = e.target instanceof HTMLInputElement;
     if ((e.key === '/' && !typing) || (e.ctrlKey && e.key.toLowerCase() === 'f')) {
@@ -71,6 +83,8 @@
     }
   }
 </script>
+
+<svelte:window onkeydown={onfind} />
 
 {#snippet editBar()}
   <span>Editing “{combos.editing?.name}”. Pick a paint and a badge.</span>
