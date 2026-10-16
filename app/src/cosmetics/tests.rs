@@ -7,7 +7,7 @@ use cyex_auth::{SevenTvToken, SevenTvTokens};
 use cyex_emotes::seventv::account::Client;
 use cyex_twitch::Http;
 
-use super::select::{Pick, Picked, SelectError, superseded};
+use super::select::{Pick, forget_if_same, Picked, SelectError, superseded};
 use super::{Cosmetics, Kind, drop_session, mock_base};
 
 /// A made-up token (`{"sub":"01X","exp":2000}`).
@@ -72,6 +72,7 @@ fn pick<'a>(tokens: &'a SevenTvTokens, id: &str, mine: u64) -> Pick<'a> {
         mine,
         user: Some("01X".into()),
         now: 100,
+        consent: &|| true,
     }
 }
 
@@ -117,6 +118,28 @@ async fn a_401_forgets_the_token() {
     assert!(t.get("7").is_none());
     assert!(c.expired.lock().unwrap().contains("7"));
     server.join().unwrap();
+}
+
+#[tokio::test]
+async fn a_withdrawn_consent_sends_nothing() {
+    let c = cosmetics("http://127.0.0.1:9");
+    let t = tokens();
+    let n = c.ticket("7", Kind::Paint);
+    let mut p = pick(&t, "P", n);
+    p.consent = &|| false;
+    assert_eq!(c.send(p).await, Err(SelectError::NoConsent));
+}
+
+#[test]
+fn a_rejected_token_that_was_replaced_stays() {
+    let t = tokens();
+    let old = SevenTvToken::parse(FAKE).unwrap();
+    let fresh = SevenTvToken::parse("e30.eyJzdWIiOiIwMVgiLCJleHAiOjMwMDB9.c2ln").unwrap();
+    t.put("7", &fresh).unwrap();
+    assert!(!forget_if_same(&t, "7", &old));
+    assert!(t.get("7").is_some());
+    assert!(forget_if_same(&t, "7", &fresh));
+    assert!(t.get("7").is_none());
 }
 
 #[tokio::test]

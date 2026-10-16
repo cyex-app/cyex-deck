@@ -51,11 +51,8 @@ enum Event {
 
 /// `host:port` of a local mock (`http://127.0.0.1:<port>`), the only plain-http place allowed.
 fn mock_of(login_url: &str) -> Option<String> {
-    let u = Url::parse(login_url).ok()?;
-    if u.scheme() != "http" || u.host_str() != Some("127.0.0.1") {
-        return None;
-    }
-    Some(format!("127.0.0.1:{}", u.port()?))
+    let origin = crate::cosmetics::loopback_origin(&Url::parse(login_url).ok()?)?;
+    origin.strip_prefix("http://").map(str::to_owned)
 }
 
 fn on_mock(url: &Url, mock: Option<&str>) -> bool {
@@ -73,8 +70,9 @@ fn allowed(url: &Url, mock: Option<&str>) -> bool {
 }
 
 /// 7TV's landing page after Twitch: with a code the session follows; with an error it's over.
-fn callback(url: &Url) -> Option<Callback> {
-    if url.path() != "/login/callback" {
+fn callback(url: &Url, mock: Option<&str>) -> Option<Callback> {
+    let host_ok = (url.scheme() == "https" && url.host_str() == Some("7tv.app")) || on_mock(url, mock);
+    if !host_ok || url.path() != "/login/callback" {
         return None;
     }
     let has = |k: &str| url.query_pairs().any(|(n, _)| n == k);
@@ -109,7 +107,6 @@ pub async fn capture(app: &AppHandle, account: &str, login_url: String) -> Resul
     let mock = mock_of(&login_url);
     let (tx, mut rx) = mpsc::unbounded_channel::<Event>();
     let nav_tx = tx.clone();
-    let nav_app = app.clone();
     let nav_mock = mock.clone();
     let pop_app = app.clone();
     let look = theme::look(app);
@@ -126,10 +123,7 @@ pub async fn capture(app: &AppHandle, account: &str, login_url: String) -> Resul
         .incognito(true)
         .on_navigation(move |u| {
             let ok = allowed(u, nav_mock.as_deref());
-            if !ok && u.scheme() == "https" {
-                let _ = nav_app.opener().open_url(u.as_str(), None::<&str>);
-            }
-            if ok && let Some(c) = callback(u) {
+            if ok && let Some(c) = callback(u, nav_mock.as_deref()) {
                 let _ = nav_tx.send(Event::Callback(c));
             }
             ok
@@ -210,20 +204,26 @@ mod tests {
     #[test]
     fn callback_with_code_or_error() {
         assert_eq!(
-            callback(&u("https://7tv.app/login/callback?platform=twitch&code=x")),
+            callback(&u("https://7tv.app/login/callback?platform=twitch&code=x"), None),
             Some(Callback::Code)
         );
         assert_eq!(
             callback(&u(
                 "https://7tv.app/login/callback?platform=twitch&error=access_denied"
-            )),
+            ), None),
             Some(Callback::Error)
         );
         assert_eq!(
-            callback(&u("https://7tv.app/login/callback?platform=twitch")),
+            callback(&u("https://7tv.app/login/callback?platform=twitch"), None),
             None
         );
-        assert_eq!(callback(&u("https://7tv.app/?code=x")), None);
+        assert_eq!(callback(&u("https://7tv.app/?code=x"), None), None);
+        // Another host with the same path is not 7TV's callback.
+        assert_eq!(callback(&u("https://evil.example/login/callback?code=x"), None), None);
+        assert_eq!(callback(&u("https://id.twitch.tv/login/callback?code=x"), None), None);
+        let mock = Some("127.0.0.1:5199");
+        assert_eq!(callback(&u("http://127.0.0.1:5199/login/callback?code=x"), mock), Some(Callback::Code));
+        assert_eq!(callback(&u("http://127.0.0.1:5200/login/callback?code=x"), mock), None);
     }
 
     #[test]
@@ -250,5 +250,6 @@ mod tests {
         ));
         assert!(!allowed(&u("http://127.0.0.1:5200/"), mock.as_deref()));
         assert_eq!(mock_of("https://api.7tv.app/v4/auth/login"), None);
+        assert_eq!(mock_of("http://127.0.0.1:5199@evil.example/login"), None);
     }
 }

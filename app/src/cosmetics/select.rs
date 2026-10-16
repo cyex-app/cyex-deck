@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 use ts_rs::TS;
 
-use super::{Cosmetics, has_consent, lock, state};
+use super::{Cosmetics, has_consent, lock, release_later, state};
 use crate::auth::{self, Auth};
 use crate::emotes::{self, Worn, presence};
 
@@ -72,6 +72,8 @@ pub(super) struct Pick<'a> {
     pub mine: u64,
     pub user: Option<String>,
     pub now: i64,
+    /// Asked again once it is this pick's turn: the consent may have been withdrawn while it waited.
+    pub consent: &'a (dyn Fn() -> bool + Sync),
 }
 
 impl Cosmetics {
@@ -107,11 +109,15 @@ impl Cosmetics {
             mine,
             user,
             now,
+            consent,
         } = p;
         let gate = self.gate(account, kind);
         let _turn = gate.lock().await;
         if superseded(self.newest(account, kind), mine) {
             return Ok(Picked::Superseded);
+        }
+        if !consent() {
+            return Err(SelectError::NoConsent);
         }
         let Some(token) = tokens.get(account) else {
             return Err(SelectError::SignedOut);
@@ -130,12 +136,13 @@ impl Cosmetics {
         match sent {
             Ok(_) => Ok(Picked::Done { id }),
             Err(Error::SignInAgain) => {
-                // Rejected: the token is dead, so it goes.
-                if let Err(e) = tokens.forget(account) {
-                    eprintln!("cosmetics: {account}: couldn't delete the 7TV session: {e}");
+                // Rejected: that token is dead, so it goes - unless a new sign-in replaced it meanwhile.
+                if forget_if_same(tokens, account, &token) {
+                    self.mark_expired(account);
+                    Err(SelectError::SignInAgain)
+                } else {
+                    Err(SelectError::Down)
                 }
-                self.mark_expired(account);
-                Err(SelectError::SignInAgain)
             }
             Err(e) => Err(from_api(e)),
         }
@@ -155,6 +162,17 @@ impl Cosmetics {
         *slot = id.map(str::to_owned);
         *inv = Arc::new(next);
     }
+}
+
+/// Deletes the account's stored token if it is still `used`. False when it was replaced.
+pub(super) fn forget_if_same(tokens: &SevenTvTokens, account: &str, used: &cyex_auth::SevenTvToken) -> bool {
+    if tokens.get(account).is_none_or(|t| t.secret() != used.secret()) {
+        return false;
+    }
+    if let Err(e) = tokens.forget(account) {
+        eprintln!("cosmetics: {account}: couldn't delete the 7TV session: {e}");
+    }
+    true
 }
 
 /// What the own look shows after the pick.
@@ -194,6 +212,7 @@ pub async fn select(
             mine,
             user,
             now: auth::unix_now(),
+            consent: &|| has_consent(app, account),
         })
         .await
         .inspect_err(|e| {
@@ -210,7 +229,12 @@ pub async fn select(
     // The cached copy has the new id; a fresh read could still answer with the old one.
     let inv = match st.cached(account) {
         Some((_, inv)) => Some(inv),
-        None => st.inventory(account, false).await.ok().flatten(),
+        None => {
+            let fetched = st.inventory(account, false).await.ok().flatten();
+            // A refill is let go like the menu's: it isn't kept for good.
+            release_later(app, account);
+            fetched
+        }
     };
     if let Some(inv) = inv {
         emotes::wear(app, account, worn(&inv, kind, id.as_deref()));

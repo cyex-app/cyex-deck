@@ -151,16 +151,21 @@ pub fn init(app: &AppHandle) {
 }
 
 /// `http://127.0.0.1:<port>` and nothing else: no other host, no user part
-/// (`http://127.0.0.1:1@elsewhere` is elsewhere), no path.
-fn mock_base(raw: &str) -> Option<String> {
-    let u = tauri::Url::parse(raw).ok()?;
+/// (`http://127.0.0.1:1@elsewhere` is elsewhere).
+pub(crate) fn loopback_origin(u: &tauri::Url) -> Option<String> {
     let plain = u.scheme() == "http"
         && u.host_str() == Some("127.0.0.1")
         && u.username().is_empty()
-        && u.password().is_none()
-        && matches!(u.path(), "" | "/")
-        && u.query().is_none();
+        && u.password().is_none();
     plain.then(|| u.port().map(|p| format!("http://127.0.0.1:{p}")))?
+}
+
+/// A bare `http://127.0.0.1:<port>`: no path or query either.
+fn mock_base(raw: &str) -> Option<String> {
+    let u = tauri::Url::parse(raw).ok()?;
+    (matches!(u.path(), "" | "/") && u.query().is_none())
+        .then(|| loopback_origin(&u))
+        .flatten()
 }
 
 /// Why `read` has no inventory.
@@ -233,7 +238,7 @@ pub async fn view(app: &AppHandle, account: &str, fresh: bool) -> CosmeticsView 
 }
 
 /// Drops the inventory 5 minutes after it was read (a newer read keeps its own copy).
-fn release_later(app: &AppHandle, account: &str) {
+pub(super) fn release_later(app: &AppHandle, account: &str) {
     let Some((at, _)) = state(app).cached(account) else {
         return;
     };
