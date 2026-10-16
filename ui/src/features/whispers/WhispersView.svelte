@@ -87,7 +87,12 @@
   const preview = (t: WhisperThread) => (t.lastOwn ? `You: ${t.lastText}` : t.lastText);
 </script>
 
-{#if !s.account}
+{#if !s.account && whispers.failed}
+  <div class="none">
+    <EmptyState icon="whisper" text="Couldn’t load whispers. {whispers.failed}" />
+    <Button variant="primary" onclick={() => void whispers.start()}>Retry</Button>
+  </div>
+{:else if !s.account}
   <div class="none">
     <EmptyState icon="whisper" text="Sign in to whisper. With a GQL sign-in, your past whispers load too." />
     {#if onsignin}<Button variant="primary" icon="login" onclick={onsignin}>Sign in</Button>{/if}

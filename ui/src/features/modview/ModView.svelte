@@ -103,6 +103,9 @@
 
   let channelId = $state<string | null>(null);
   let board = $state<Board0>({ activity: [], actions: [], held: [], suspicious: [], older: false });
+  /** What failed to load, with Retry in the header; `retry` re-runs the loads. */
+  let problem = $state('');
+  let retry = $state(0);
 
   const mv = $derived(settings.v.modview);
   const locked = $derived(mv.locked);
@@ -122,11 +125,19 @@
   // The id comes from an open room. V102-26 From a tab with only the stream, that's this
   // view's chat joining: asked again whenever the roles change until it's known.
   $effect(() => {
+    void retry;
     if (channelId) return;
     void mods.role(account, login);
-    void modIpc.channelId(login).then((id) => {
-      if (id && !channelId) channelId = id;
-    });
+    let gone = false;
+    modIpc
+      .channelId(login)
+      .then((id) => {
+        if (gone) return;
+        problem = '';
+        if (id && !channelId) channelId = id;
+      })
+      .catch(() => !gone && (problem = 'Couldn’t load this channel.'));
+    return () => (gone = true);
   });
 
   // Listening first, then the snapshot, so an update in between (Twitch's history coming
@@ -134,13 +145,21 @@
   $effect(() => {
     const id = channelId;
     if (!id) return;
+    void retry;
     let stop: (() => void) | undefined;
     let gone = false;
-    void modIpc.onBoard(id, (b) => (board = b)).then((u) => {
-      if (gone) return u();
-      stop = u;
-      modIpc.view(id).then((b) => !gone && (board = b)).catch(() => {});
-    });
+    modIpc
+      .onBoard(id, (b) => (board = b))
+      .then((u) => {
+        if (gone) return u();
+        stop = u;
+        return modIpc.view(id).then((b) => {
+          if (gone) return;
+          board = b;
+          problem = '';
+        });
+      })
+      .catch(() => !gone && (problem = 'Couldn’t load the mod activity.'));
     return () => {
       gone = true;
       stop?.();
@@ -245,6 +264,10 @@
   <header onpointerdown={grabFrom(ongrab)} class:grab={!!ongrab}>
     <h2>Mod view · {login}</h2>
     {#if !locked}<span class="hint">Drag panels by their title.</span>{/if}
+    {#if problem}
+      <span class="hint bad">{problem}</span>
+      <button class="link" onclick={() => retry++}>Retry</button>
+    {/if}
     <div class="spacer"></div>
     {#if mv.layout || mv.hidden.length || mv.chatKept != null}
       <button class="link" onclick={resetLayout}>Reset layout</button>
@@ -318,6 +341,9 @@
     font-size: 0.75rem;
     white-space: nowrap;
     text-overflow: ellipsis;
+  }
+  .bad {
+    color: var(--red);
   }
   .spacer {
     flex: 1;

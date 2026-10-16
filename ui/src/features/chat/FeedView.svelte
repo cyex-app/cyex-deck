@@ -48,15 +48,21 @@
     }
   }
 
+  let failed = $state(false);
+
+  function open() {
+    failed = false;
+    chatxIpc
+      .feedOpen(name, (e) => void apply(e))
+      .then((o) => {
+        if (closed) return void chatxIpc.feedClose(o.view);
+        view = o.view;
+        void apply(o.lines.map((line) => ({ type: 'line', line })));
+      })
+      .catch(() => !closed && (failed = true));
+  }
   // svelte-ignore state_referenced_locally
-  chatxIpc
-    .feedOpen(name, (e) => void apply(e))
-    .then((o) => {
-      if (closed) return void chatxIpc.feedClose(o.view);
-      view = o.view;
-      void apply(o.lines.map((line) => ({ type: 'line', line })));
-    })
-    .catch(() => {});
+  open();
 
   onDestroy(() => {
     closed = true;
@@ -93,7 +99,9 @@
       </div>
     {:else}
       <p class="empty">
-        {#if mentions}
+        {#if failed}
+          Couldn’t load this feed. <button class="retry" onclick={open}>Retry</button>
+        {:else if mentions}
           Nothing yet. Mentions with “Show in Mentions” land here.
         {:else}
           Nothing yet. Messages land here when a highlight rule says “Also show in {name}”.
@@ -167,5 +175,12 @@
     padding: 10px 12px;
     color: var(--dim);
     font-size: 0.85rem;
+  }
+  .retry {
+    background: none;
+    border: 0;
+    color: var(--text);
+    text-decoration: underline;
+    cursor: pointer;
   }
 </style>

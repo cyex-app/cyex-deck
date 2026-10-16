@@ -39,8 +39,12 @@
     if (tile) void windowsIpc.setTitle(`${tile.channel.name} overlay`);
   });
 
+  /** Bumped by Retry after the room failed to open. */
+  let retry = $state(0);
+
   $effect(() => {
     if (!key) return;
+    void retry;
     const t = untrack(() => tile)!;
     const r = new ChatRoom(t.channel.login);
     void r.open(t.account, t.filters);
@@ -117,6 +121,9 @@
         <Line {m} channel={tile?.channel.login ?? ''} />
       </div>
     {/each}
+    {#if room?.error}
+      <p class="fail">Couldn’t join the chat. <button onclick={() => retry++}>Retry</button></p>
+    {/if}
   </div>
 </div>
 
@@ -170,6 +177,19 @@
   }
   .row {
     flex: none;
+  }
+  .fail {
+    margin: 0;
+    padding: 6px 10px;
+    color: var(--red);
+    font-size: 0.85rem;
+  }
+  .fail button {
+    background: none;
+    border: 0;
+    color: var(--text);
+    text-decoration: underline;
+    cursor: pointer;
   }
   .row :global(.line:hover) {
     background: none;

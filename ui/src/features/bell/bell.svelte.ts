@@ -3,6 +3,7 @@
 import type { BellItem } from '../../ipc/bindings/BellItem';
 import type { BellList } from '../../ipc/bindings/BellList';
 import { bellIpc, type BellLive } from '../../ipc/notify';
+import { latest } from '../../lib/latest';
 import { toast } from '../../lib/toast.svelte';
 
 class BellStore {
@@ -13,32 +14,51 @@ class BellStore {
   cursor = $state<string | null>(null);
   loading = $state(false);
   private started = false;
+  private tries = 0;
 
   async start(): Promise<void> {
     if (this.started) return;
     this.started = true;
-    await bellIpc.onUnseen((s) => {
+    try {
+      let evented = false;
+      await bellIpc.onUnseen((s) => {
+        evented = true;
+        this.available = s.available;
+        this.unseen = s.unseen;
+      });
+      await bellIpc.onLive((l) => this.apply(l));
+      const s = await bellIpc.state();
+      if (evented) return;
       this.available = s.available;
       this.unseen = s.unseen;
-    });
-    await bellIpc.onLive((l) => this.apply(l));
-    const s = await bellIpc.state();
-    this.available = s.available;
-    this.unseen = s.unseen;
+    } catch {
+      // The bell stays hidden until it starts: try again a few times.
+      this.started = false;
+      if (++this.tries <= 3) setTimeout(() => void this.start(), 5000 * this.tries);
+    }
   }
 
+  private seq = latest();
+
   async load(list: BellList = this.list, more = false): Promise<void> {
-    if (this.loading) return;
+    // More pages wait for the one in flight; a new tab replaces it.
+    if (this.loading && more) return;
+    const live = this.seq.begin();
     this.loading = true;
+    if (list !== this.list) {
+      this.items = [];
+      this.cursor = null;
+    }
     this.list = list;
     try {
       const page = await bellIpc.list(list, more ? this.cursor : null);
+      if (!live()) return;
       this.items = more ? [...this.items, ...page.items] : page.items;
       this.cursor = page.cursor;
     } catch (e) {
-      toast.error(String(e));
+      if (live()) toast.error(String(e));
     } finally {
-      this.loading = false;
+      if (live()) this.loading = false;
     }
   }
 
@@ -50,18 +70,32 @@ class BellStore {
 
   async read(item: BellItem): Promise<void> {
     if (item.read) return;
+    const before = this.items;
     this.items = this.items.map((i) => (i.id === item.id ? { ...i, read: true } : i));
-    bellIpc.read([item.id]).catch(() => {});
+    await bellIpc.read([item.id]).catch(() => this.restore(before, item.id));
+  }
+
+  /** An optimistic change failed: put the old items back, keeping what changed since. */
+  private restore(before: BellItem[], id?: string): void {
+    const old = new Map(before.map((i) => [i.id, i]));
+    this.items = this.items.map((i) => (id === undefined || i.id === id ? (old.get(i.id) ?? i) : i));
+    toast.error('Couldn’t update the bell.');
   }
 
   async readAll(): Promise<void> {
+    const before = this.items;
     this.items = this.items.map((i) => ({ ...i, read: true }));
-    await bellIpc.readAll(this.list).catch((e) => toast.error(String(e)));
+    await bellIpc.readAll(this.list).catch(() => this.restore(before));
   }
 
   async remove(id: string): Promise<void> {
+    const before = this.items;
     this.items = this.items.filter((i) => i.id !== id);
-    await bellIpc.remove(id).catch((e) => toast.error(String(e)));
+    await bellIpc.remove(id).catch(() => {
+      // Back where it was.
+      this.items = before.filter((i) => i.id === id || this.items.some((x) => x.id === i.id));
+      toast.error('Couldn’t remove it.');
+    });
   }
 
   private apply(l: BellLive): void {

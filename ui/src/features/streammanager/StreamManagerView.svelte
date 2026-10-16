@@ -186,17 +186,27 @@
 
   // V103-15 The mod actions on your channel: the same board as its mod view.
   let board = $state<Board0>({ activity: [], actions: [], held: [], suspicious: [], older: false });
+  let failed = $state(false);
+  let retry = $state(0);
   $effect(() => {
     const id = m?.accountId;
     if (!id) return;
+    void retry;
     let stop: (() => void) | undefined;
     let gone = false;
     // Listening first, then the snapshot, so nothing in between is missed.
-    void modIpc.onBoard(id, (b) => (board = b)).then((u) => {
-      if (gone) return u();
-      stop = u;
-      modIpc.view(id).then((b) => !gone && (board = b)).catch(() => {});
-    });
+    modIpc
+      .onBoard(id, (b) => (board = b))
+      .then((u) => {
+        if (gone) return u();
+        stop = u;
+        return modIpc.view(id).then((b) => {
+          if (gone) return;
+          board = b;
+          failed = false;
+        });
+      })
+      .catch(() => !gone && (failed = true));
     return () => {
       gone = true;
       stop?.();
@@ -213,6 +223,10 @@
     {#if id === 'stream'}<StreamCard />
     {:else if id === 'info'}<InfoCard />
     {:else if id === 'activity'}<ActivityCard />
+    {:else if id === 'actions' && failed}
+      <Card title="Mod actions" flush>
+        <p class="bad">Couldn’t load the mod actions. <button class="link" onclick={() => retry++}>Retry</button></p>
+      </Card>
     {:else if id === 'actions'}
       <ModActions items={board.actions} older={board.older} filters={cfg.modActions} onflip={flip} account={m.accountId} login={m.login} />
     {:else if id === 'poll'}<PollCard login={m.login} />
@@ -354,6 +368,12 @@
     font-size: 0.75rem;
     white-space: nowrap;
     text-overflow: ellipsis;
+  }
+  .bad {
+    margin: 0;
+    padding: 10px 12px;
+    color: var(--red);
+    font-size: 0.85rem;
   }
   .spacer {
     flex: 1;

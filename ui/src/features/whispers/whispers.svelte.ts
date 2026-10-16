@@ -22,13 +22,28 @@ class WhispersStore {
   wanted = $state<string | null>(null);
   /** Goes up on every `show`, so the main window switches to the view. */
   asks = $state(0);
+  /** Why the start failed, empty when it didn't. */
+  failed = $state('');
   private started = false;
 
   async start(): Promise<void> {
     if (this.started) return;
     this.started = true;
-    await whispersIpc.onChanged((s) => (this.state = s));
-    this.state = await whispersIpc.state();
+    this.failed = '';
+    try {
+      // An event that lands during the snapshot call is newer than the snapshot.
+      let evented = false;
+      await whispersIpc.onChanged((s) => {
+        evented = true;
+        this.state = s;
+      });
+      const s = await whispersIpc.state();
+      if (!evented) this.state = s;
+    } catch (e) {
+      // Next call tries again.
+      this.started = false;
+      this.failed = String(e);
+    }
   }
 
   /** Opens the whispers view, at `login`'s conversation when given. Pop-outs open their own. */
