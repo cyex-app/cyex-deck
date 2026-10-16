@@ -161,7 +161,15 @@ fn registry_file_is_current() {
         return;
     }
     // tools/commands/sections.mjs adds these after the write; `npm run test:ui` checks them.
-    const NODE_KEYS: [&str; 4] = ["changesSince", "settings", "hotkeys", "features"];
+    const NODE_KEYS: [&str; 7] = [
+        "current",
+        "statusSince",
+        "sections",
+        "features",
+        "changelog",
+        "settings",
+        "hotkeys",
+    ];
     let mut file: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(path).unwrap_or_default()).unwrap_or_default();
     if let Some(m) = file.as_object_mut() {
