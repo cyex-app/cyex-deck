@@ -43,7 +43,9 @@
   .toast {
     display: flex;
     align-items: center;
-    background: var(--elevated);
+    /* Translucent, so the page title under it still reads. */
+    background: color-mix(in srgb, var(--elevated) 78%, transparent);
+    backdrop-filter: blur(14px) saturate(1.2);
     border: 1px solid var(--border-strong);
     border-left: 3px solid var(--accent);
     border-radius: var(--radius);
