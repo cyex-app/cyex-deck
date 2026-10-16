@@ -44,6 +44,8 @@ windows = { workspace = true, features = [
     "Win32_Graphics_Dwm",
     # V105-13 Already built for tao and wry: nothing new comes in.
     "Win32_Graphics_Gdi",
+    # V1051-05 Windows' image codecs for the upload question's thumbnails. No new crate.
+    "Win32_Graphics_Imaging",
     # V1051-01 Audio sessions and playback (Core Audio). No new crate.
     "Win32_Media_Audio",
     # V1051-01 COM (already built for tao and wry).

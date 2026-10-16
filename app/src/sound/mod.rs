@@ -34,7 +34,6 @@ const MAX_PENDING: usize = 8;
 /// A decode the page didn't answer (it wasn't loaded yet, or reloaded) is asked again after this.
 const PENDING_FOR: Duration = Duration::from_secs(10);
 const DECODE_EVENT: &str = "sound:decode";
-const SINK_READY_EVENT: &str = "sound:sink-ready";
 
 /// The main window is asked to decode this file (`sound_decoded` answers with `id`).
 #[derive(Clone, Serialize, TS)]
@@ -55,8 +54,8 @@ pub struct Sounds {
     next: AtomicU32,
     chime: OnceLock<Arc<[f32]>>,
     watcher: crate::sys::audio::Watcher,
-    /// The speaker choice last given to WebView2, so other General changes leave it be.
-    speakers: Mutex<Option<bool>>,
+    /// V1051-01 Pages holding the microphone permission right now (see [`permit`]).
+    permits: Mutex<usize>,
 }
 
 /// Before anything can ask for a sound (chat, alerts, whispers start later in setup).
@@ -71,42 +70,60 @@ pub fn init(app: &AppHandle) {
         next: AtomicU32::new(1),
         chime: OnceLock::new(),
         watcher: crate::sys::audio::Watcher::start(icon, streams, sounds),
-        speakers: Mutex::default(),
+        permits: Mutex::default(),
     });
     crate::sys::audio::prime();
 }
 
-/// General changed: the mixer's look and the streams' speaker permission follow.
+/// General changed: the mixer's look follows.
 pub fn on_settings(app: &AppHandle) {
     let s: General = app.state::<Settings>().read(Partition::General);
     let (streams, sounds) = look::looks(s.sound.separate_streams);
     if let Some(sounds_state) = app.try_state::<Sounds>() {
         sounds_state.watcher.restyle(streams, sounds);
     }
-    allow_speakers(app);
 }
 
-/// The streams' speaker choice (Q2): allowed while a streams device is set. Needs the
-/// main window's page; checked again on every General change and page load, set only
-/// when it changes (remembered once WebView2 took it, so a failed try is retried).
-pub fn allow_speakers(app: &AppHandle) {
-    let s: General = app.state::<Settings>().read(Partition::General);
-    let allow = s.sound.streams_device.is_some();
+/// V1051-01 The page may use the microphone only while it picks a speaker (`setSinkId`
+/// and the device list need it): a page asks with `on` before and `off` right after, and
+/// the permission is back to the default once nobody holds it. Returns when WebView2 has it.
+pub async fn permit(app: &AppHandle, on: bool) -> Result<(), String> {
+    let main = app.get_webview_window(MAIN).ok_or("No window.")?;
+    let sounds = app.try_state::<Sounds>().ok_or("No sound.")?;
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    {
+        let mut held = sounds.permits.lock().unwrap_or_else(|p| p.into_inner());
+        if on {
+            *held += 1;
+        } else {
+            *held = held.saturating_sub(1);
+        }
+        // Only the first holder grants and the last one resets. Issued under the lock, so
+        // WebView2 sees them in order.
+        if (on && *held == 1) || (!on && *held == 0) {
+            crate::sys::allow_speaker_choice(&main, on, move || {
+                let _ = tx.send(());
+            });
+        } else {
+            let _ = tx.send(());
+        }
+    }
+    tokio::time::timeout(Duration::from_secs(3), rx)
+        .await
+        .map_err(|_| "WebView2 didn’t answer.".to_string())?
+        .map_err(|_| "WebView2 refused.".to_string())
+}
+
+/// The main page loaded: nobody holds the permission, and one left on by an older version
+/// (or a page that died mid-pick) is taken back.
+pub fn reset_permit(app: &AppHandle) {
     let Some(main) = app.get_webview_window(MAIN) else {
         return;
     };
-    if let Some(sounds) = app.try_state::<Sounds>()
-        && *sounds.speakers.lock().unwrap_or_else(|p| p.into_inner()) == Some(allow)
-    {
-        return;
+    if let Some(sounds) = app.try_state::<Sounds>() {
+        *sounds.permits.lock().unwrap_or_else(|p| p.into_inner()) = 0;
     }
-    let handle = app.clone();
-    crate::sys::allow_speaker_choice(&main, allow, move || {
-        if let Some(sounds) = handle.try_state::<Sounds>() {
-            *sounds.speakers.lock().unwrap_or_else(|p| p.into_inner()) = Some(allow);
-        }
-        let _ = handle.emit(SINK_READY_EVENT, ());
-    });
+    crate::sys::allow_speaker_choice(&main, false, || {});
 }
 
 /// U6, V104-01 A mention, highlight, live alert or whisper sound: its file, or the chime.
@@ -227,9 +244,18 @@ fn play(app: &AppHandle, pcm: Arc<[f32]>) {
     crate::sys::audio::play(pcm, s.sound.sounds_device.map(|d| d.id));
 }
 
-/// The output devices for Settings → Sound.
-pub fn devices() -> Vec<OutputDevice> {
-    crate::sys::audio::outputs()
+/// The output devices for Settings → Sound, and the name of the one Windows uses by default.
+#[derive(Clone, Default, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SoundDevices {
+    pub devices: Vec<OutputDevice>,
+    pub default_name: String,
+}
+
+pub fn devices() -> SoundDevices {
+    let (devices, default_name) = crate::sys::audio::outputs();
+    SoundDevices { devices, default_name }
 }
 
 /// Whether `path` is a sound file one of your mentions or highlights names. Only those are

@@ -150,6 +150,12 @@ pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
         }
         WindowEvent::Moved(_) | WindowEvent::Resized(_) => geometry::remember(app, window),
         WindowEvent::ThemeChanged(_) => icons::apply(window),
+        // V1051-05 What was dropped, for the upload question's thumbnails.
+        WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) => {
+            if let Some(uploads) = app.try_state::<crate::upload::Uploads>() {
+                crate::upload::dropped(&uploads, paths);
+            }
+        }
         WindowEvent::Focused(focused) if route_of(app, window.label()).is_some_and(|r| usercard::is_usercard(&r)) => {
             usercard::on_focus(window, *focused);
         }
@@ -178,7 +184,7 @@ pub fn on_page_load(webview: &Webview, payload: &PageLoadPayload<'_>) {
             crate::chat::shown::loaded(app, label);
             // V1051-01 The page's origin is known now (at setup it may not be yet).
             if label == MAIN {
-                crate::sound::allow_speakers(app);
+                crate::sound::reset_permit(app);
             }
         }
     }

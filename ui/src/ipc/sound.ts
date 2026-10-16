@@ -3,12 +3,14 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
-import type { OutputDevice } from './bindings/OutputDevice';
+import type { SoundDevices } from './bindings/SoundDevices';
 import type { SoundDecode } from './bindings/SoundDecode';
 
 export const soundIpc = {
-  /** Output devices that are on, with Windows' names. */
-  devices: () => invoke<OutputDevice[]>('sound_devices'),
+  /** Output devices that are on, with Windows' names, and the default one's name. */
+  devices: () => invoke<SoundDevices>('sound_devices'),
+  /** Lets the page use the microphone (`on`) or takes it back; only around picking a speaker. */
+  permit: (on: boolean) => invoke<void>('sound_permit', { on }),
   /** A sound file from your settings, or the chime (null). */
   play: (path: string | null) => invoke<void>('sound_play', { path }),
   /** The answer to `onDecode`: interleaved stereo at 48 kHz, or null when it wouldn't decode. */
@@ -19,6 +21,4 @@ export const soundIpc = {
   /** Rust needs a sound file decoded. Main window only. */
   onDecode: (cb: (d: SoundDecode) => void): Promise<UnlistenFn> =>
     listen<SoundDecode>('sound:decode', (e) => cb(e.payload)),
-  /** The streams' speaker can be picked now (Settings → Sound). Every window. */
-  onSinkReady: (cb: () => void): Promise<UnlistenFn> => listen('sound:sink-ready', () => cb()),
 };

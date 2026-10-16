@@ -1,7 +1,7 @@
 //! V105-11 Image uploads from the chat box.
 
 use tauri::ipc::{Channel, InvokeBody};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 use crate::upload::{self, UploadEvent, UploadItem, Uploads};
 
@@ -19,6 +19,16 @@ pub fn upload_stage(state: State<Uploads>, request: tauri::ipc::Request<'_>) -> 
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
     upload::stage(&state, bytes.clone(), ext)
+}
+
+/// V1051-05 A small PNG of a file dropped on the window, for the upload question. Async: it
+/// reads and decodes a file.
+#[tauri::command]
+pub async fn upload_preview(app: AppHandle, path: String) -> CmdResult<tauri::ipc::Response> {
+    tauri::async_runtime::spawn_blocking(move || upload::preview(&app.state::<Uploads>(), &path))
+        .await
+        .map_err(|e| e.to_string())?
+        .map(tauri::ipc::Response::new)
 }
 
 #[tauri::command]

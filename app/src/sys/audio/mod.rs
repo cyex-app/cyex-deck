@@ -11,7 +11,9 @@ pub use sessions::Watcher;
 
 use cyex_settings::schema::OutputDevice;
 use windows::Win32::Foundation::PROPERTYKEY;
-use windows::Win32::Media::Audio::{DEVICE_STATE_ACTIVE, IMMDeviceEnumerator, MMDeviceEnumerator, eRender};
+use windows::Win32::Media::Audio::{
+    DEVICE_STATE_ACTIVE, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator, eConsole, eRender,
+};
 use windows::Win32::System::Com::{
     CLSCTX_ALL, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, STGM_READ,
 };
@@ -57,19 +59,32 @@ fn take(p: PWSTR) -> String {
     }
 }
 
-/// The output devices that are plugged in and on, with Windows' names.
-pub fn outputs() -> Vec<OutputDevice> {
+/// The output devices that are plugged in and on, with Windows' names, and the name of the
+/// one Windows plays on by default ("" when there is none).
+pub fn outputs() -> (Vec<OutputDevice>, String) {
     // COM on a short thread of our own, not on a command's runtime thread.
     std::thread::spawn(|| {
         let _com = com();
-        list().unwrap_or_default()
+        let en = enumerator().ok();
+        let list = en.as_ref().and_then(|e| list(e).ok()).unwrap_or_default();
+        let default = en.as_ref().and_then(|e| default_name(e).ok()).unwrap_or_default();
+        (list, default)
     })
     .join()
     .unwrap_or_default()
 }
 
-fn list() -> windows::core::Result<Vec<OutputDevice>> {
-    let en = enumerator()?;
+fn name_of(dev: &IMMDevice) -> windows::core::Result<String> {
+    // SAFETY: plain Core Audio read on a live device.
+    Ok(unsafe { dev.OpenPropertyStore(STGM_READ)?.GetValue(&FRIENDLY_NAME)?.to_string() })
+}
+
+fn default_name(en: &IMMDeviceEnumerator) -> windows::core::Result<String> {
+    // SAFETY: plain Core Audio read.
+    name_of(&unsafe { en.GetDefaultAudioEndpoint(eRender, eConsole)? })
+}
+
+fn list(en: &IMMDeviceEnumerator) -> windows::core::Result<Vec<OutputDevice>> {
     // SAFETY: plain Core Audio reads on objects owned by this function.
     unsafe {
         let all = en.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE)?;
@@ -77,11 +92,7 @@ fn list() -> windows::core::Result<Vec<OutputDevice>> {
         for i in 0..all.GetCount()? {
             let dev = all.Item(i)?;
             let id = take(dev.GetId()?);
-            let name = dev
-                .OpenPropertyStore(STGM_READ)?
-                .GetValue(&FRIENDLY_NAME)?
-                .to_string();
-            out.push(OutputDevice { id, name });
+            out.push(OutputDevice { id, name: name_of(&dev)? });
         }
         Ok(out)
     }

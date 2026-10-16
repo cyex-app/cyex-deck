@@ -1,7 +1,8 @@
 // V1051-01 Where streams, VODs, clips and stories play (Settings → Sound). '' follows
-// Windows. Rust lets the page pick while a device is set (sound:sink-ready); the device is
-// found by its Windows name. Devices are only looked up once a player needs them, since
-// listing them starts WebView2's audio process.
+// Windows. Chromium lists speakers and allows the pick only while the page may use the
+// microphone, so Rust grants that around each pick and takes it back right after
+// (`soundIpc.permit`). The device is found by its Windows name. Devices are only looked up
+// once a player needs them, since listing them starts WebView2's audio process.
 
 import { soundIpc } from '../../ipc/sound';
 import { settings } from '../../lib/settings.svelte';
@@ -15,6 +16,22 @@ interface Sinkable {
 const out = $state({ id: '' });
 const contexts = new Set<AudioContext>();
 let used = false;
+/** Picks one at a time, so the permission is held by one pick and given back before the next. */
+let queue: Promise<unknown> = Promise.resolve();
+
+/** Runs `job` with the microphone permission, which is taken back whatever happens. */
+function permitted<T>(job: () => Promise<T>): Promise<T> {
+  const run = queue.then(async () => {
+    await soundIpc.permit(true);
+    try {
+      return await job();
+    } finally {
+      await soundIpc.permit(false).catch(() => {});
+    }
+  });
+  queue = run.catch(() => {});
+  return run;
+}
 
 async function resolve(): Promise<void> {
   const want = settings.v.general.sound.streamsDevice;
@@ -24,7 +41,7 @@ async function resolve(): Promise<void> {
   }
   if (!used) return;
   try {
-    out.id = sinkFor(await navigator.mediaDevices.enumerateDevices(), want.name);
+    out.id = sinkFor(await permitted(() => navigator.mediaDevices.enumerateDevices()), want.name);
   } catch {
     out.id = '';
   }
@@ -40,10 +57,12 @@ $effect.root(() => {
     for (const ctx of contexts) setSink(ctx as unknown as Sinkable, id);
   });
 });
-void soundIpc.onSinkReady(() => void resolve());
 
 function setSink(target: Sinkable, id: string): void {
-  if (target.sinkId !== id) void target.setSinkId(id).catch(() => {});
+  if (target.sinkId === id) return;
+  // The default needs no permission.
+  const pick = id ? permitted(() => target.setSinkId(id)) : target.setSinkId(id);
+  void pick.catch(() => {});
 }
 
 /** The first player looks the device up (listing devices starts WebView2's audio process). */

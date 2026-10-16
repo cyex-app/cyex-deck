@@ -23,6 +23,9 @@ use crate::settings::Settings;
 const MAX_BYTES: usize = 20 * 1024 * 1024;
 const MAX_STAGED: usize = 10;
 const MAX_LOG: usize = 500;
+/// V1051-05 Dropped files remembered for previews, and a preview's longest side.
+const MAX_DROPPED: usize = 20;
+const PREVIEW_SIDE: u32 = 96;
 const BAD_TYPE: &str = "Only PNG, JPG, GIF and WebP images.";
 const TOO_BIG: &str = "That image is over 20 MB.";
 
@@ -30,6 +33,8 @@ const TOO_BIG: &str = "That image is over 20 MB.";
 pub struct Uploads {
     /// Pasted image data waiting for its upload, oldest first (id, bytes, extension).
     staged: Mutex<Vec<(String, Vec<u8>, String)>>,
+    /// V1051-05 Image files dropped on the window, newest last: the only paths a preview may read.
+    dropped: Mutex<Vec<String>>,
     busy: AtomicBool,
     /// Links (and delete links) of this session's uploads: the only ones the chat line may open.
     links: Mutex<Vec<String>>,
@@ -71,6 +76,38 @@ pub fn stage(state: &Uploads, bytes: Vec<u8>, ext: &str) -> Result<String, Strin
         staged.remove(0);
     }
     Ok(id)
+}
+
+/// V1051-05 The window saw these files dropped on it. Only image types are kept, and only
+/// the latest few.
+pub fn dropped(state: &Uploads, paths: &[std::path::PathBuf]) {
+    let mut kept = state.dropped.lock().unwrap_or_else(|e| e.into_inner());
+    for p in paths {
+        let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("");
+        if mime(ext).is_none() {
+            continue;
+        }
+        let Some(text) = p.to_str() else { continue };
+        kept.retain(|k| k != text);
+        kept.push(text.to_owned());
+    }
+    let extra = kept.len().saturating_sub(MAX_DROPPED);
+    kept.drain(..extra);
+}
+
+/// V1051-05 A small PNG of a dropped file, for the upload question. Only a file this window
+/// saw dropped, within the upload size cap.
+pub fn preview(state: &Uploads, path: &str) -> Result<Vec<u8>, String> {
+    let known = state.dropped.lock().unwrap_or_else(|e| e.into_inner()).iter().any(|k| k == path);
+    if !known {
+        return Err("Not a file you dropped.".into());
+    }
+    let len = fs::metadata(path).map_err(|_| "Couldn’t open that file.")?.len();
+    if len > MAX_BYTES as u64 {
+        return Err(TOO_BIG.into());
+    }
+    let bytes = fs::read(path).map_err(|_| "Couldn’t open that file.")?;
+    crate::sys::thumb::thumbnail(bytes, PREVIEW_SIDE).ok_or_else(|| "Couldn’t read that image.".into())
 }
 
 /// An image ready to send: bytes, the file name to announce, the mime type and where it came from.
@@ -260,6 +297,51 @@ fn log(app: &AppHandle, entry: Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn temp(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join("cyex-upload-preview-test");
+        fs::create_dir_all(&dir).unwrap();
+        dir.join(name)
+    }
+
+    #[test]
+    fn a_preview_only_reads_dropped_images() {
+        let state = Uploads::default();
+        let img = temp("seen.png");
+        let other = temp("unseen.png");
+        let text = temp("note.txt");
+        for p in [&img, &other, &text] {
+            fs::write(p, b"x").unwrap();
+        }
+        dropped(&state, &[img.clone(), text.clone()]);
+        // Never dropped: refused before the file is touched.
+        assert_eq!(preview(&state, other.to_str().unwrap()).unwrap_err(), "Not a file you dropped.");
+        // Dropped but not an image type: not remembered.
+        assert_eq!(preview(&state, text.to_str().unwrap()).unwrap_err(), "Not a file you dropped.");
+        assert_eq!(preview(&state, r"C:\Windows\win.ini").unwrap_err(), "Not a file you dropped.");
+        // A remembered one is read (here it is not a real image).
+        assert_eq!(preview(&state, img.to_str().unwrap()).unwrap_err(), "Couldn’t read that image.");
+    }
+
+    #[test]
+    fn a_preview_stops_at_the_size_cap() {
+        let state = Uploads::default();
+        let big = temp("big.png");
+        fs::File::create(&big).unwrap().set_len(MAX_BYTES as u64 + 1).unwrap();
+        dropped(&state, std::slice::from_ref(&big));
+        assert_eq!(preview(&state, big.to_str().unwrap()).unwrap_err(), TOO_BIG);
+        let _ = fs::remove_file(big);
+    }
+
+    #[test]
+    fn only_the_latest_drops_are_kept() {
+        let state = Uploads::default();
+        let all: Vec<_> = (0..MAX_DROPPED + 5).map(|i| std::path::PathBuf::from(format!("a{i}.png"))).collect();
+        dropped(&state, &all);
+        let kept = state.dropped.lock().unwrap();
+        assert_eq!(kept.len(), MAX_DROPPED);
+        assert_eq!(kept[0], "a5.png");
+    }
 
     #[test]
     fn only_recorded_web_links_open() {

@@ -7,6 +7,16 @@
 #[cfg(windows)]
 pub mod audio;
 
+/// V1051-05 A small PNG of an image file (WIC); none outside Windows.
+#[cfg(windows)]
+pub mod thumb;
+#[cfg(not(windows))]
+pub mod thumb {
+    pub fn thumbnail(_bytes: Vec<u8>, _max: u32) -> Option<Vec<u8>> {
+        None
+    }
+}
+
 /// V1051-01 Nothing to name or play through outside Windows.
 #[cfg(not(windows))]
 pub mod audio {
@@ -23,8 +33,8 @@ pub mod audio {
         pub fn restyle(&self, _streams: Look, _sounds: Look) {}
     }
 
-    pub fn outputs() -> Vec<OutputDevice> {
-        Vec::new()
+    pub fn outputs() -> (Vec<OutputDevice>, String) {
+        (Vec::new(), String::new())
     }
     pub fn play(_pcm: std::sync::Arc<[f32]>, _device: Option<String>) {}
     pub fn prime() {}
@@ -147,11 +157,10 @@ pub fn low_memory(window: &tauri::WebviewWindow, low: bool) {
 #[cfg(not(windows))]
 pub fn low_memory(_window: &tauri::WebviewWindow, _low: bool) {}
 
-/// V1051-01 Lets the app's pages send streams to a chosen speaker (`setSinkId`). Chromium
-/// only lists speakers and allows the choice while the page may use the microphone, so
-/// this sets that permission for the app's own origin while a streams device is set and
-/// back to the default otherwise. Nothing asks for the microphone. `done` runs once
-/// WebView2 has it, never on a failure.
+/// V1051-01 Lets the app's pages pick a speaker (`setSinkId`). Chromium only lists speakers
+/// and allows the choice while the page may use the microphone, so `sound::permit` sets that
+/// permission for the app's own origin around each pick, and back to the default after.
+/// Nothing asks for the microphone. `done` runs once WebView2 has it, never on a failure.
 #[cfg(windows)]
 pub fn allow_speaker_choice(window: &tauri::WebviewWindow, allow: bool, done: impl FnOnce() + Send + 'static) {
     use webview2_com::Microsoft::Web::WebView2::Win32::{
