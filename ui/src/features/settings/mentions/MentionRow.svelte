@@ -53,7 +53,7 @@
             main: true,
             mono: !!item.regex,
           },
-          { key: 'wholeWord', label: 'Whole word', kind: 'check' },
+          { key: 'wholeWord', label: 'Whole word', short: 'Word', kind: 'check' },
           { key: 'caseSensitive', label: 'Match case', short: 'Aa', kind: 'check' },
           { key: 'lookalikes', label: 'Look-alikes', kind: 'check' },
           { key: 'regex', label: 'Regex', kind: 'check' },
@@ -71,6 +71,7 @@
 
 <RuleRow
   layout="stack"
+  mainMin="90px"
   {item}
   {fields}
   {title}

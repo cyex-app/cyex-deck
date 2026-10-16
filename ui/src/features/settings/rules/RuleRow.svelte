@@ -25,9 +25,11 @@
     /** `flow` wraps freely. `grid` (V105-18) lines every row's columns up on a wide page and
      *  falls back to `stack`: the match on line one, what it does on line two under it. */
     layout?: 'flow' | 'grid' | 'stack';
+    /** Least width of the match field before it pushes the options onto a new line. */
+    mainMin?: string;
   }
 
-  let { item, fields, title, onchange, ondelete, problem, note, fallback = 'var(--red)', setting, layout = 'flow' }: Props = $props();
+  let { item, fields, title, onchange, ondelete, problem, note, fallback = 'var(--red)', setting, layout = 'flow', mainMin = '160px' }: Props = $props();
 
   const cells = $derived(layout !== 'flow');
   const shown = $derived(fields.filter((f) => !f.when || f.when(item)));
@@ -108,7 +110,7 @@
   {/if}
 {/snippet}
 
-<div class="rule" class:off={item.enabled === false} class:cells class:grid={layout === 'grid'} data-setting={setting}>
+<div class="rule" class:off={item.enabled === false} class:cells class:grid={layout === 'grid'} data-setting={setting} style:--main-min={mainMin}>
   {#if title && !cells}<span class="title">{title}</span>{/if}
   {#each shown as f, i (f.key)}
     {#if cells}
@@ -232,7 +234,7 @@
     min-width: 0;
   }
   .cell.main {
-    flex: 1 1 160px;
+    flex: 1 1 var(--main-min);
   }
   .cell.main > :global(.field) {
     width: 100%;
