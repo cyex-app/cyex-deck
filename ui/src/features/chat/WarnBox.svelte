@@ -1,7 +1,7 @@
 <!-- M10 The reason box a line's Warn button opens: one at a time, Enter sends, Escape or a
      click outside closes, and focus goes back to where it was. -->
 <script lang="ts">
-  import { focusScope } from '../../lib/focusScope';
+  import { firstField, focusScope } from '../../lib/focusScope';
   import { layer } from '../../lib/escape';
   import { MAX_REASON, warnCommand, warnSpot } from './warnBox';
 
@@ -27,7 +27,7 @@
     if (!box) return;
     const r = box.getBoundingClientRect();
     spot = warnSpot(anchor, r, { width: window.innerWidth, height: window.innerHeight });
-    const off = focusScope(box, { trap: true });
+    const off = focusScope(box, { trap: true, initial: firstField });
     const gone = layer('popover', onclose);
     return () => {
       gone();

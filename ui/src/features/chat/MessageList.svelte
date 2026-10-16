@@ -595,7 +595,9 @@
     else if (action === 'timeout' && secs > 0) command(`/timeout ${login} ${secs}`);
     else if (action === 'warn') {
       const r = el.getBoundingClientRect();
-      warning = { login, anchor: { left: r.left, top: r.top, bottom: r.bottom } };
+      // The button's tip would sit on the box's field.
+      hideTip();
+      warning ={ login, anchor: { left: r.left, top: r.top, bottom: r.bottom } };
     }
     else if (action === 'ban') command(`/ban ${login}`);
   }
