@@ -19,7 +19,7 @@
     soundIpc
       .devices()
       .then((d) => {
-        devices = d;
+        devices = [...d].sort((a, b) => a.name.localeCompare(b.name));
         listed = true;
       })
       .catch(() => {
@@ -69,7 +69,11 @@
   label="Streams play on"
   hint="Streams, VODs, clips and stories. Windows forgets its own choice for them when WebView2 updates; this one stays."
 >
-  {@render picker('Streams play on', s.streamsDevice, (d) => patch({ streamsDevice: d }))}
+  <span class="pair">
+    {@render picker('Streams play on', s.streamsDevice, (d) => patch({ streamsDevice: d }))}
+    <!-- Where the test button sits in the next row, so both lists start at the same x. -->
+    <span class="gap" aria-hidden="true"></span>
+  </span>
 </Row>
 
 <Row setting="general.sound.soundsDevice" label="Other sounds play on" hint="Mentions, highlights, live alerts and whispers.">
@@ -82,6 +86,10 @@
 <style>
   .field {
     width: 240px;
+  }
+  .gap {
+    flex: none;
+    width: 30px;
   }
   .pair {
     display: inline-flex;
