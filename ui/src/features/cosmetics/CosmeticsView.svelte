@@ -60,10 +60,10 @@
   .body {
     flex: 1;
     width: 100%;
-    max-width: 1100px;
+    max-width: 1600px;
     min-height: 0;
     margin: 0 auto;
-    padding: 16px 20px;
+    padding: 16px 24px;
     box-sizing: border-box;
   }
 </style>

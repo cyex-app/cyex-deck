@@ -207,7 +207,7 @@
   }
   @container (min-width: 720px) {
     .picker:not(.compact) {
-      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
     }
   }
   @container (max-width: 719px) {
