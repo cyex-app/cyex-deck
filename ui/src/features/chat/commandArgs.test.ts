@@ -35,8 +35,9 @@ test('V1051-04 argMatches ranks like the helper and quotes names with spaces', (
   assert.deepEqual(argMatches(spot({ typed: 'ni' }), ['Night Out']), ['"Night Out"']);
   assert.deepEqual(argMatches(spot({ typed: 'night o', quote: true }), ['Night Out']), ['"Night Out"']);
   assert.deepEqual(argMatches(spot({ typed: 'list' }), ['list', 'lunch']), ['list']);
-  // Empty typed keeps the order Rust sent.
-  assert.deepEqual(argMatches(spot({}), ['Night Out', 'list', 'Beach']), ['"Night Out"', 'list', 'Beach']);
+  // V1051-05 Empty typed: combo names first, then the sub-commands.
+  assert.deepEqual(argMatches(spot({}), ['list', 'save', 'Night Out', 'Beach']), ['"Night Out"', 'Beach', 'list', 'save']);
+  assert.deepEqual(argMatches(spot({ sub: 'delete' }), ['Night Out', 'Beach']), ['"Night Out"', 'Beach']);
 });
 
 test('V1051-04 paint and badge names are never quoted', () => {

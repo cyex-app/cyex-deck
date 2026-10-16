@@ -60,6 +60,8 @@
     word: Word;
     items: Item[];
     index: number;
+    /** V1051-05 A `/combo`, `/paint` or `/badge` argument: Enter sends, Tab or a click fills. */
+    arg?: boolean;
   }
   let suggest = $state<Suggest | null>(null);
   /** Tab cycling through matches for one word. */
@@ -96,10 +98,36 @@
     if (replyTo) void tick().then(() => box?.focus());
   });
 
+  // V1051-05 An emptied box drops the error it had.
+  $effect(() => {
+    if (!text) error = '';
+  });
+
+  /** Newest argument lookup; an older answer is dropped. */
+  let argSeq = 0;
+
   function updateSuggest() {
-    const word = wordAt(text, box?.selectionStart ?? text.length);
+    const caret = box?.selectionStart ?? text.length;
+    const seq = ++argSeq;
+    const arg = argAt(text, caret);
+    if (arg) return void suggestArg(arg, caret, seq);
+    const word = wordAt(text, caret);
     const items = sources.items(word);
     suggest = items.length ? { word, items, index: 0 } : null;
+  }
+
+  /** V1051-05 The same list as for emotes, for what `/combo `, `/paint ` and `/badge ` take. */
+  async function suggestArg(arg: NonNullable<ReturnType<typeof argAt>>, caret: number, seq: number) {
+    const view = room.view;
+    const before = text;
+    const names = view ? await chatIpc.commandArgs(view, arg.command, arg.sub).catch(() => []) : [];
+    if (seq !== argSeq || text !== before) return;
+    const word: Word = { start: arg.start, end: caret, text: text.slice(arg.start, caret) };
+    const items = argMatches(arg, names, 12)
+      // Typed in full already: nothing left to offer.
+      .filter((v) => v !== word.text)
+      .map((v): Item => ({ value: v, label: v.replace(/^["“]|["”]$/g, '') }));
+    suggest = items.length ? { word, items, index: 0, arg: true } : null;
   }
 
   /** 1.40 Puts an emote or emoji at the caret, with spaces around it. */
@@ -265,7 +293,7 @@
         suggest.index = (suggest.index + (e.key === 'ArrowDown' ? 1 : n - 1)) % n;
         return;
       }
-      if (e.key === 'Tab' || (e.key === 'Enter' && !e.ctrlKey)) {
+      if (e.key === 'Tab' || (e.key === 'Enter' && !e.ctrlKey && !suggest.arg)) {
         e.preventDefault();
         accept();
         return;
@@ -336,8 +364,9 @@
       </button>
     {/if}
   </div>
-  {#if up.upload.status}<p class="uploading">{up.upload.status}</p>{/if}
-  {#if error}<p class="error">{error}</p>{/if}
+  <!-- V1051-05 Over the box, so the box never moves. -->
+  {#if up.upload.status}<p class="note uploading" role="status">{up.upload.status}</p>{/if}
+  {#if error}<p class="note error" role="alert">{error}</p>{/if}
   {#if up.pending}
     <UploadConfirm
       host={up.pending.host}
@@ -454,14 +483,27 @@
   .reply-bar button:hover {
     color: var(--text);
   }
-  .uploading {
-    margin: 6px 2px 0;
-    color: var(--dim);
+  .note {
+    position: absolute;
+    right: 8px;
+    bottom: calc(100% + 4px);
+    left: 8px;
+    z-index: 2;
+    width: fit-content;
+    max-width: calc(100% - 16px);
+    margin: 0;
+    padding: 4px 9px;
+    background: var(--elevated);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 12px var(--shadow);
     font-size: 0.8rem;
+    pointer-events: none;
+  }
+  .uploading {
+    color: var(--muted);
   }
   .error {
-    margin: 6px 2px 0;
     color: var(--red);
-    font-size: 0.8rem;
   }
 </style>

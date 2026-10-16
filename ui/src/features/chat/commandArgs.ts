@@ -88,7 +88,12 @@ function quoted(spot: ArgSpot, value: string): string {
 
 /** Ranked values to insert: names with spaces get quotes after /combo. */
 export function argMatches(spot: ArgSpot, candidates: readonly string[], limit = 30): string[] {
-  if (!spot.typed) return candidates.slice(0, limit).map((v) => quoted(spot, v));
+  if (!spot.typed) {
+    // V1051-05 Names first, then `list`, `save`…: `/combo ` offers your combos before the verbs.
+    const names = spot.command === 'combo' && !spot.sub ? candidates.filter((v) => !SUBS.includes(v)) : [...candidates];
+    const subs = candidates.length === names.length ? [] : candidates.filter((v) => SUBS.includes(v));
+    return [...names, ...subs].slice(0, limit).map((v) => quoted(spot, v));
+  }
   // The name typed exactly comes first, so `list` gets its space before Tab moves on.
   const exact = candidates.includes(spot.typed) ? [spot.typed] : [];
   return [...exact, ...complete(spot.typed, candidates, limit - exact.length)].map((v) => quoted(spot, v));
