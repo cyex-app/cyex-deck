@@ -59,6 +59,12 @@ pub async fn whispers_block(app: AppHandle, login: String) -> CmdResult<()> {
     whispers::block(&app, &login).await
 }
 
+/// V1052-01 Undo for a block, no chat needed.
+#[tauri::command]
+pub async fn whispers_unblock(app: AppHandle, login: String) -> CmdResult<()> {
+    whispers::unblock(&app, &login).await
+}
+
 /// The thread a focused view shows (no unread count or alerts for it), or null.
 #[tauri::command]
 pub fn whispers_viewing(app: AppHandle, thread_id: Option<String>) {

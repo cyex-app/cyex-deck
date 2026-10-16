@@ -395,8 +395,23 @@ pub async fn block_strangers(app: &AppHandle, on: bool) -> Result<(), String> {
 
 /// Blocks the other person on Twitch, from the default account.
 pub async fn block(app: &AppHandle, login: &str) -> Result<(), String> {
+    set_blocked(app, login, true).await
+}
+
+/// V1052-01 Takes the block back (Undo), with no chat open.
+pub async fn unblock(app: &AppHandle, login: &str) -> Result<(), String> {
+    set_blocked(app, login, false).await
+}
+
+async fn set_blocked(app: &AppHandle, login: &str, on: bool) -> Result<(), String> {
+    let login = checked_login(login)?;
     let me = current(app)?;
-    crate::chat::run::block_user(app, &me.id, login, true).await
+    crate::chat::run::block_user(app, &me.id, &login, on).await
+}
+
+/// A Twitch name from `name` or `@name`, or why it isn't one.
+fn checked_login(login: &str) -> Result<String, String> {
+    cyex_moderation::command::login(login.trim()).ok_or_else(|| format!("{} isn’t a Twitch name.", login.trim()))
 }
 
 /// The thread a focused view shows, or `None`.
@@ -606,6 +621,15 @@ fn preview(m: &ChatMessage) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn block_targets_are_checked() {
+        assert_eq!(checked_login(" @Some_One "), Ok("some_one".into()));
+        assert!(checked_login("").is_err());
+        assert!(checked_login("two words").is_err());
+        assert!(checked_login("bad/name").is_err());
+        assert!(checked_login(&"a".repeat(26)).is_err());
+    }
 
     #[test]
     fn times_read() {
