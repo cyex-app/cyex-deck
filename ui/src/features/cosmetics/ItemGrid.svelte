@@ -145,9 +145,6 @@
     background: var(--paint-back);
     border-radius: var(--radius);
   }
-  .back :global(.painted) {
-    filter: var(--paint-outline);
-  }
   .nm {
     overflow: hidden;
     color: var(--dim);

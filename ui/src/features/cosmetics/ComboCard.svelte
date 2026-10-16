@@ -148,9 +148,6 @@
     background: var(--paint-back);
     border-radius: var(--radius);
   }
-  .back :global(.painted) {
-    filter: var(--paint-outline);
-  }
   .who {
     padding-block: 0.25em;
     margin-block: -0.25em;

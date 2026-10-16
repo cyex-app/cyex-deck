@@ -37,7 +37,6 @@
   /* V1051-03 What a 7TV paint is drawn on in the menu. */
   --paint-back: var(--bg);
   --paint-dim: #91939c;
-  --paint-outline: none;
 }
 
 :root {
@@ -117,10 +116,9 @@
   --shadow-pop: 0 8px 24px var(--shadow);
   --shadow-dialog: 0 16px 48px var(--shadow);
   --focus-ring: var(--text);
-  /* The real light background; pale paints get a thin outline instead of a grey box. */
+  /* The real light background; paints are drawn as 7TV draws them. */
   --paint-back: var(--bg);
   --paint-dim: var(--dim);
-  --paint-outline: drop-shadow(0 0 0.6px rgb(0 0 0 / 0.85)) drop-shadow(0 0 1.2px rgb(0 0 0 / 0.35));
 }
 
 *,
