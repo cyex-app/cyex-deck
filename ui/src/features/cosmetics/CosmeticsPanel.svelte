@@ -110,7 +110,10 @@
 
     <ComboStrip {combos} {store} name={who.displayName} />
 
-    <Preview {store} {who} shown={combos.shown} />
+    <!-- In the chat pop-up you are already in chat: no preview. -->
+    {#if !compact}
+      <Preview {store} {who} shown={combos.shown} />
+    {/if}
 
     {#if compact}
       <Segmented
