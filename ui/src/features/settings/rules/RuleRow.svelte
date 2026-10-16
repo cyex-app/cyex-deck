@@ -253,6 +253,21 @@
   .cell.del {
     margin-left: auto;
   }
+  /* Two lines: Remove ends the match line, so a narrow page never wraps it onto a third. */
+  .cells .brk,
+  .cells .brk ~ .indent {
+    order: 1;
+  }
+  .cells .brk ~ .cell {
+    order: 2;
+  }
+  .cells .brk ~ .cell.del {
+    order: 0;
+  }
+  .cells .problem,
+  .cells .note {
+    order: 3;
+  }
   .cell :global(.file) {
     max-width: 100%;
   }
@@ -261,7 +276,7 @@
   @container (min-width: 1080px) {
     .grid {
       display: grid;
-      grid-template-columns: 40px minmax(150px, 1fr) 62px 42px 50px 62px 104px 58px 82px 64px 28px;
+      grid-template-columns: 40px minmax(150px, 1fr) 62px 42px 50px 62px 80px 58px 82px 88px 28px;
       gap: 6px;
     }
     .grid .brk,
@@ -270,6 +285,12 @@
     }
     .grid .cell.del {
       margin: 0;
+    }
+    /* One line: DOM order again, or Remove (column 11) pushes the rest onto a new row. */
+    .grid .brk ~ .cell,
+    .grid .problem,
+    .grid .note {
+      order: 0;
     }
     .grid .problem,
     .grid .note {

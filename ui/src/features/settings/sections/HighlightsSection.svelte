@@ -35,7 +35,7 @@
       hint: 'Type a feed tab’s name to copy matching messages into it.',
       kind: 'text',
       placeholder: 'Feed tab',
-      width: '64px',
+      width: '88px',
       col: 10,
       alert: true,
     },
