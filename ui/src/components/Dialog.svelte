@@ -14,19 +14,34 @@
     /** V1051-05 Fixed near the top, so a body that grows doesn't move the title. */
     top?: boolean;
     onclose: () => void;
+    /** Busy: Escape, the × and a click outside don't close it. */
+    locked?: boolean;
+    /** Enter anywhere but a button, link, list or multi-line field does the primary action. */
+    onsubmit?: () => void;
     children: Snippet;
     footer?: Snippet;
   }
 
-  let { title, width = 420, top = false, onclose, children, footer }: Props = $props();
+  let { title, width = 420, top = false, onclose, locked = false, onsubmit, children, footer }: Props = $props();
 
   let box = $state<HTMLElement>();
+
+  function dismiss() {
+    if (!locked) onclose();
+  }
+
+  function enter(e: KeyboardEvent) {
+    if (e.key !== 'Enter' || !onsubmit || e.defaultPrevented || e.isComposing || e.ctrlKey || e.altKey || e.metaKey) return;
+    if ((e.target as HTMLElement).closest('button, a, textarea, select, [role="listbox"], [role="combobox"], [role="spinbutton"], [contenteditable="true"]')) return;
+    e.preventDefault();
+    onsubmit();
+  }
 
   $effect(() => {
     if (!box) return;
     // A dialog without fields still takes focus, so Enter and typing don't reach the chat box behind it.
     const release = focusScope(box, { trap: true, initial: firstField });
-    const off = layer('dialog', () => onclose());
+    const off = layer('dialog', dismiss);
     return () => {
       off();
       release();
@@ -36,11 +51,11 @@
 
 <!-- The backdrop only catches outside clicks; Escape is handled above. -->
 <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
-<div class="backdrop" class:top onmousedown={(e) => e.target === e.currentTarget && onclose()}>
-  <div class="dialog" role="dialog" aria-modal="true" aria-label={title} tabindex="-1" bind:this={box} style:width="{width}px">
+<div class="backdrop" class:top onmousedown={(e) => e.target === e.currentTarget && dismiss()}>
+  <div class="dialog" role="dialog" aria-modal="true" aria-label={title} tabindex="-1" bind:this={box} style:width="{width}px" onkeydown={enter}>
     <header>
       <h2>{title}</h2>
-      <IconButton icon="x" label="Close" size={15} onclick={onclose} />
+      <IconButton icon="x" label="Close" size={15} disabled={locked} onclick={dismiss} />
     </header>
     <div class="body">{@render children()}</div>
     {#if footer}<footer>{@render footer()}</footer>{/if}

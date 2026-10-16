@@ -88,7 +88,7 @@
 <Button small icon="upload" disabled={busy} onclick={pick}>Import from Chatterino</Button>
 
 {#if preview}
-  <Dialog title="Import highlights" width={460} onclose={close}>
+  <Dialog title="Import highlights" width={460} locked={busy} onsubmit={() => canImport && !busy && void run()} onclose={close}>
     <p class="head">{headline}</p>
     {#if dupes}
       <p class="why">{formatNumber(dupes)} already there.</p>

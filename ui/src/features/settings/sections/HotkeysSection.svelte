@@ -77,7 +77,7 @@
       {/if}
     </button>
     <Button variant="ghost" small disabled={combo === ACTIONS[id].default} onclick={() => resetBinding(id)}
-      >{ACTIONS[id].default ? 'Default' : 'Clear'}</Button
+      >{ACTIONS[id].default ? 'Reset' : 'Clear'}</Button
     >
   </Row>
 {/snippet}

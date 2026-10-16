@@ -47,7 +47,7 @@
     <div class="row" bind:this={row}>{@render buttons()}</div>
   </section>
 {:else}
-  <Dialog title="Use 7TV with {name}?" width={420} onclose={oncancel}>
+  <Dialog title="Use 7TV with {name}?" width={420} onsubmit={onallow} onclose={oncancel}>
     {@render text()}
     {#snippet footer()}{@render buttons()}{/snippet}
   </Dialog>

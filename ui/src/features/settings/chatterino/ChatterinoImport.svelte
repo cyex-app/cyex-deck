@@ -66,7 +66,7 @@
 </div>
 
 {#if report}
-  <Dialog title="Import tabs" width={460} onclose={close}>
+  <Dialog title="Import tabs" width={460} locked={busy} onsubmit={() => ready && !busy && void run()} onclose={close}>
     <p class="headline">{report.tabs ? counts(report) : 'Nothing to import.'}</p>
     {#each lines as line (line.label)}
       <p class="note"><span class="why">{line.label}:</span> {line.text}</p>

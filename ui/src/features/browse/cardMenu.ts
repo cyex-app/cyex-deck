@@ -18,8 +18,8 @@ export function cardMenu(nav: Nav, c: Channel): MenuEntry[] {
     ...layouts,
     'separator',
     isFavorite(c.id)
-      ? { label: 'Unstar', icon: 'star', run: () => toggleFavorite(c) }
-      : { label: 'Star', icon: 'star', note: 'Keeps it on top of home', run: () => toggleFavorite(c) },
+      ? { label: 'Unfavorite', icon: 'star', run: () => toggleFavorite(c) }
+      : { label: 'Favorite', icon: 'star', note: 'Keeps it on top of home', run: () => toggleFavorite(c) },
     {
       label: picked.has(c.id) ? 'Unpick' : 'Pick to watch side by side',
       icon: 'columns',

@@ -211,7 +211,7 @@
     {:else if !home.account && !lists.favorites.length}
       <div class="empty">
         <Icon name="star" size={22} />
-        <span>Star channels in Discover to keep them here.</span>
+        <span>Favorite channels in Discover to keep them here.</span>
       </div>
     {/if}
   </div>

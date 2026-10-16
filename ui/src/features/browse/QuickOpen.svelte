@@ -29,9 +29,9 @@
   <button
     class="star"
     class:on={starred}
-    aria-label={starred ? 'Unstar' : 'Star'}
+    aria-label={starred ? 'Unfavorite' : 'Favorite'}
     aria-pressed={starred}
-    use:tooltip={starred ? 'Unstar' : { label: 'Star', hint: 'Keeps it on top of home.' }}
+    use:tooltip={starred ? 'Unfavorite' : { label: 'Favorite', hint: 'Keeps it on top of home.' }}
     onclick={() => toggleFavorite(channel)}
   >
     <Icon name={starred ? 'starFilled' : 'star'} size={15} />

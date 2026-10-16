@@ -124,7 +124,7 @@
 </section>
 
 {#if asking && m}
-  <Dialog title="Turn on {m.name}?" onclose={() => (asking = false)}>
+  <Dialog title="Turn on {m.name}?" onsubmit={() => setOn(true)} onclose={() => (asking = false)}>
     <p>It will be able to:</p>
     <ul class="perms big">
       {#each m.permissions as p, i (i)}
