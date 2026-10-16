@@ -1,5 +1,5 @@
 <!-- Mute button and volume slider. `onchange` runs while dragging; `commit` is true once
-     it's let go, when the tile saves it. V105-10 Live and VOD players get a Boost box: the
+     it's let go, when the tile saves it. V105-10 Live and VOD players get a Boost toggle: the
      slider then runs to 500 %. -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
@@ -11,7 +11,7 @@
     volume: number;
     muted: boolean;
     onchange: (volume: number, muted: boolean, commit: boolean) => void;
-    /** V105-10 Shown when given: the boost checkbox and its state. */
+    /** V105-10 Shown when given: the Boost toggle and its state. */
     boost?: boolean;
     onboost?: (on: boolean) => void;
   }
@@ -46,11 +46,16 @@
     onchange={(e) => onchange(Number(e.currentTarget.value), false, true)}
   />
   {#if onboost}
-    <label class="boost" use:tooltip={{ label: 'Boost', hint: 'Lets the volume go up to 500 %.' }}>
-      <input type="checkbox" checked={boost} onchange={(e) => onboost(e.currentTarget.checked)} />
-      <span class="box">{#if boost}<Icon name="check" size={10} />{/if}</span>
+    <button
+      class="boost"
+      class:on={boost}
+      role="switch"
+      aria-checked={boost}
+      use:tooltip={{ label: 'Boost', hint: 'Lets the volume go up to 500 %.' }}
+      onclick={() => onboost(!boost)}
+    >
       Boost
-    </label>
+    </button>
     {#if boost && !silent}<span class="pct">{Math.round(volume * 100)} %</span>{/if}
   {/if}
 </div>
@@ -86,40 +91,30 @@
     background: var(--on-video);
   }
   .boost {
-    position: relative;
     display: none;
     align-items: center;
-    gap: 4px;
+    height: 20px;
     margin-right: 6px;
+    padding: 0 9px;
+    background: none;
+    border: 1.5px solid color-mix(in srgb, var(--on-video) 60%, transparent);
+    border-radius: var(--radius-pill);
     color: color-mix(in srgb, var(--on-video) 85%, transparent);
     font-size: 0.72rem;
     font-weight: 600;
     cursor: pointer;
   }
-  /* Keyboard: Tab from the slider reaches the box, so it shows while either has focus. */
+  /* Keyboard: Tab from the slider reaches the toggle, so it shows while either has focus. */
   .volume:hover .boost,
   .volume:has(:focus-visible) .boost {
     display: inline-flex;
   }
-  .boost input {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-  }
-  .box {
-    display: grid;
-    place-items: center;
-    width: 12px;
-    height: 12px;
-    border: 1.5px solid color-mix(in srgb, var(--on-video) 80%, transparent);
-    border-radius: var(--radius-sm);
-    color: #000;
-  }
-  .boost input:checked + .box {
+  .boost.on {
     background: var(--on-video);
     border-color: var(--on-video);
+    color: #000;
   }
-  .boost input:focus-visible + .box {
+  .boost:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 1px;
   }
