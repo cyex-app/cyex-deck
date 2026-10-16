@@ -203,9 +203,6 @@
   .who span {
     opacity: 0.8;
   }
-  .who :global(.avatar) {
-    border-radius: 50%;
-  }
   .subs {
     padding: 0 5px;
     background: var(--twitch);

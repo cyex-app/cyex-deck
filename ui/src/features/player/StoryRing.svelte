@@ -61,7 +61,7 @@
     padding: 0;
     background: none;
     border: 0;
-    border-radius: 50%;
+    border-radius: var(--radius);
   }
   .ring {
     box-shadow: inset 0 0 0 2px var(--dim);
@@ -71,6 +71,6 @@
   }
   .ring :global(.avatar),
   .plain :global(.avatar) {
-    border-radius: 50%;
+    border-radius: var(--radius);
   }
 </style>

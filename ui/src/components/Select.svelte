@@ -179,9 +179,6 @@
     display: flex;
     flex: none;
   }
-  .pic :global(.avatar) {
-    border-radius: 50%;
-  }
   .trigger .text {
     flex: 1;
   }

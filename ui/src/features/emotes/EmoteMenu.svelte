@@ -322,7 +322,7 @@
   .avatar {
     width: 16px;
     height: 16px;
-    border-radius: 50%;
+    border-radius: var(--radius);
   }
   .grid {
     display: flex;
