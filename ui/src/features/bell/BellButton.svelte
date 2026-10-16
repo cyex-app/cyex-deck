@@ -13,6 +13,7 @@
   import { ago } from '../../lib/format';
   import { bell } from './bell.svelte';
   import { follow } from './follow';
+  import Loading from '../../components/Loading.svelte';
 
   let { onchannel }: { onchannel: (login: string) => void } = $props();
 
@@ -76,7 +77,7 @@
               <button class="x" aria-label="Remove" onclick={() => void bell.remove(item.id)}><Icon name="x" size={13} /></button>
             </div>
           {:else}
-            <p class="empty">{bell.loading ? 'Loading…' : 'Nothing here.'}</p>
+            {#if bell.loading}<Loading />{:else}<p class="empty">Nothing here.</p>{/if}
           {/each}
           {#if bell.cursor}
             <button class="more" disabled={bell.loading} onclick={() => void bell.load(bell.list, true)}>Show more</button>

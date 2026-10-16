@@ -7,6 +7,7 @@
   import Card from '../../components/PanelCard.svelte';
   import { graph } from './logic';
   import { sm } from './streammanager.svelte';
+  import Loading from '../../components/Loading.svelte';
 
   let now = $state(Date.now());
   $effect(() => {
@@ -27,7 +28,7 @@
     {:else}
       <div class="preview off">
         <Avatar src={m.avatar} name={m.display} size={40} />
-        <span>{s ? 'Offline' : 'Loading…'}</span>
+        {#if s}<span>Offline</span>{:else}<Loading />{/if}
       </div>
     {/if}
   {/if}

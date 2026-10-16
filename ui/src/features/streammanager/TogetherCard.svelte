@@ -13,6 +13,7 @@
   import Card from '../../components/PanelCard.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
   import { errorText } from '../../lib/errors';
+  import Loading from '../../components/Loading.svelte';
 
   /** Twitch allows the host plus five guests. */
   const SLOTS = 5;
@@ -95,7 +96,7 @@
     </div>
   {/if}
   {#if !together}
-    <p class="note">Loading…</p>
+    <Loading />
   {:else if !session}
     <p class="note">Stream with up to five others in one layout. Guests join from their own Twitch.</p>
     <div class="line"><Button small disabled={busy} onclick={() => act(smIpc.togetherStart(), 'Session started.')}>Start a session</Button></div>

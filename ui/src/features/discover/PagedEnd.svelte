@@ -1,6 +1,7 @@
 <!-- Bottom of a paged list: loads more as it comes into view, or says why it can't. -->
 <script lang="ts">
   import { type Paged, nearView } from './paged.svelte';
+  import Loading from '../../components/Loading.svelte';
 
   let { list, empty }: { list: Paged<{ id: string }>; empty: string } = $props();
 </script>
@@ -8,7 +9,7 @@
 {#if list.error}
   <p class="end">{list.error}</p>
 {:else if list.loading}
-  <p class="end">Loading…</p>
+  <Loading minHeight="72px" />
 {:else if !list.items.length}
   <p class="end">{empty}</p>
 {:else if list.cursor && !list.canPage}

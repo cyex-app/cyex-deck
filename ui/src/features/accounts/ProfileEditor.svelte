@@ -6,6 +6,7 @@
   import { profileIpc } from '../../ipc/notify';
   import { toast } from '../../lib/toast.svelte';
   import { errorText } from '../../lib/errors';
+  import Loading from '../../components/Loading.svelte';
 
   let { account }: { account: string } = $props();
 
@@ -52,7 +53,7 @@
   {#if error}
     <p class="err">{error}</p>
   {:else if !profile}
-    <p class="muted">Loading…</p>
+    <Loading />
   {:else}
     <label>
       <span>Display name</span>
@@ -97,9 +98,6 @@
   small.bad,
   .err {
     color: var(--red);
-  }
-  .muted {
-    color: var(--dim);
   }
   .row {
     display: flex;

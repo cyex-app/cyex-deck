@@ -12,6 +12,7 @@
   import { months, standing, tierLabel } from './labels';
   import ResubShare from './ResubShare.svelte';
   import { errorText } from '../../lib/errors';
+  import Loading from '../../components/Loading.svelte';
 
   let { account, login, onclose }: { account: string; login: string; onclose: () => void } = $props();
 
@@ -51,7 +52,7 @@
   {#if error}
     <p class="note err">{error}</p>
   {:else if !info}
-    <p class="note">Loading…</p>
+    <Loading />
   {:else}
     <div class="who">
       <Avatar src={info.channel.avatar} name={info.channel.name} size={36} />

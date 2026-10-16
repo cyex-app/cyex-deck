@@ -10,6 +10,7 @@
   import { errorText } from '../../lib/errors';
   import Select from '../../components/Select.svelte';
   import { choicesOf } from '../../components/select.ts';
+  import Loading from '../../components/Loading.svelte';
 
   /** Minimum follow age, in minutes. 0 = any follower. */
   const FOLLOW: { value: number; label: string }[] = [
@@ -95,7 +96,7 @@
       <Toggle label="Unique messages" checked={modes.uniqueChatMode} disabled={busy} onchange={(on) => set({ kind: 'unique', on })} />
     </div>
   {:else}
-    <p class="note">Loading…</p>
+    <Loading />
   {/if}
 </Card>
 

@@ -9,6 +9,7 @@
   import { toast } from '../../../lib/toast.svelte';
   import { popOut } from '../../../app/panels';
   import { errorText } from '../../../lib/errors';
+  import Loading from '../../../components/Loading.svelte';
 
   let list = $state.raw<RecordingMeta[] | null>(null);
   /** Asked once more before deleting. */
@@ -37,7 +38,7 @@
 <h2 data-setting="recordings:list">Recordings</h2>
 
 {#if list === null}
-  <p class="empty">Loading…</p>
+  <Loading rows={3} />
 {:else}
   {#each list as r (r.id)}
     <Row label="#{r.channel}" hint="{when(r.startedMs)} · {long(r)} · {formatNumber(r.messages)} messages">

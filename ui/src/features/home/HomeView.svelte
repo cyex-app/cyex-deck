@@ -23,6 +23,7 @@
   import StreamCard from '../browse/StreamCard.svelte';
   import { discover } from '../discover/discover.svelte';
   import { home } from './home.svelte';
+  import Loading from '../../components/Loading.svelte';
 
   interface Props {
     /** Opens a tab. */
@@ -208,7 +209,7 @@
         </div>
       {/if}
     {:else if home.account && home.loading}
-      <div class="empty">Loading…</div>
+      <Loading rows={8} />
     {:else if !home.account && !lists.favorites.length}
       <div class="empty">
         <Icon name="star" size={22} />

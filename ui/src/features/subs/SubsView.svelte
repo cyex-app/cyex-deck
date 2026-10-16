@@ -17,6 +17,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { canStop, months, standing, tierLabel } from './labels';
   import { errorText } from '../../lib/errors';
+  import Loading from '../../components/Loading.svelte';
 
   interface Props {
     onchannel: (c: SubChannel) => void;
@@ -106,7 +107,7 @@
   {:else if error}
     <p class="note err">{error}</p>
   {:else if !data}
-    <p class="note">Loading…</p>
+    <Loading />
   {:else}
     <div class="body">
       <h3>Active <span class="n">{data.active.length}</span></h3>
