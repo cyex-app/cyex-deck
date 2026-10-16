@@ -79,7 +79,7 @@
     actions: { title: 'Mod actions', hint: 'Bans, timeouts, deletes and more.', min: { w: 240, h: 140 }, tall: 300 },
     automod: { title: 'AutoMod queue', hint: 'Held messages to allow or deny.', min: { w: 200, h: 110 }, tall: 240 },
     unban: { title: 'Unban requests', hint: 'Who asks to be unbanned.', min: { w: 200, h: 110 }, tall: 220 },
-    chatters: { title: 'Viewers', hint: "Who’s in the chat.", min: { w: 200, h: 140 }, tall: 280 },
+    chatters: { title: 'Viewers', hint: "Who’s in the chat.", min: { w: 200, h: 180 }, tall: 280 },
     mass: { title: 'Mass actions', hint: 'Ban or time out many at once.', min: { w: 220, h: 140 }, tall: 260 },
   };
   /** Page order; never changes, so the chat and the stream never restart. */
@@ -90,7 +90,7 @@
     [
       split('column', [leaf('stream'), leaf('chat')], [0.4, 0.6]),
       split('column', [leaf('activity'), leaf('actions')], [0.45, 0.55]),
-      split('column', [leaf('automod'), leaf('unban'), leaf('chatters'), leaf('mass')], [0.3, 0.2, 0.28, 0.22]),
+      split('column', [leaf('automod'), leaf('unban'), leaf('chatters'), leaf('mass')], [0.24, 0.16, 0.36, 0.24]),
     ],
     [0.34, 0.33, 0.33],
   );
@@ -244,7 +244,7 @@
   {:else if id === 'automod'}
     <Card title="AutoMod queue" flush><AutomodQueue {account} {login} held={board.held} /></Card>
   {:else if id === 'unban'}
-    <Card title="Unban requests" flush><UnbanQueue {account} {login} /></Card>
+    <UnbanQueue {account} {login} />
   {:else if id === 'chatters'}
     <Card title="Viewers" flush><ViewerList {account} {login} /></Card>
   {:else if id === 'mass'}

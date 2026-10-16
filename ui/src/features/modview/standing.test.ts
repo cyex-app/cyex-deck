@@ -16,7 +16,7 @@ test('badges tell mods and VIPs apart (M12)', () => {
 test('name menus offer what can still change (M12)', () => {
   assert.deepEqual(labels(), ['Mod', 'VIP']);
   assert.deepEqual(labels({ mod: false, vip: false }), ['Mod', 'VIP']);
-  assert.deepEqual(labels({ mod: true, vip: false }), ['Unmod']);
+  assert.deepEqual(labels({ mod: true, vip: false }), ['Remove mod']);
   assert.deepEqual(labels({ mod: false, vip: true }), ['Mod', 'Remove VIP']);
   const ran: string[] = [];
   for (const e of roleItems('bob', (l) => ran.push(l), { mod: false, vip: true })) if (typeof e !== 'string') e.run?.();

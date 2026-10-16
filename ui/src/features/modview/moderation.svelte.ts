@@ -92,14 +92,14 @@ type Run = (line: string) => void;
 export function userItems(role: ModRole, login: string, run: Run, warn: () => void, is?: Standing): MenuEntry[] {
   const items: MenuEntry[] = [
     {
-      label: 'Timeout',
+      label: 'Time out',
       icon: 'clock',
       items: timeouts().map((t) => ({ label: t.label, run: () => run(`/timeout ${login} ${t.secs}`) })),
     },
     { label: 'Warn', icon: 'alert', run: warn },
     { label: 'Unban', icon: 'undo', run: () => run(`/unban ${login}`) },
     // V101-30 What can't be undone comes last.
-    { label: 'Ban', icon: 'ban', danger: true, run: () => run(`/ban ${login}`) },
+    { label: 'Ban', icon: 'gavel', danger: true, run: () => run(`/ban ${login}`) },
     'separator',
     ...treatItems(role, login, run, is),
   ];

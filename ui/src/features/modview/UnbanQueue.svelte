@@ -2,6 +2,8 @@
      a note the viewer sees. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
+  import IconButton from '../../components/IconButton.svelte';
+  import Card from '../../components/PanelCard.svelte';
   import type { UnbanRequest } from '../../ipc/bindings/UnbanRequest';
   import { modIpc } from '../../ipc/moderation';
   import { formatDate } from '../../lib/format';
@@ -38,9 +40,10 @@
   }
 </script>
 
-<div class="bar">
-  <Button small variant="link" onclick={load} disabled={loading}>Refresh</Button>
-</div>
+<Card title="Unban requests" flush>
+  {#snippet tools()}
+    <IconButton icon="refresh" label="Refresh" size={14} disabled={loading} onclick={load} />
+  {/snippet}
 {#if !loading && list.length === 0}
   <p class="empty">No pending requests.</p>
 {:else}
@@ -58,12 +61,9 @@
     {/each}
   </ul>
 {/if}
+</Card>
 
 <style>
-  .bar {
-    padding: 6px 10px;
-    border-bottom: 1px solid var(--border);
-  }
   ul {
     margin: 0;
     padding: 6px;
@@ -101,6 +101,7 @@
     gap: 6px;
   }
   .empty {
+    margin: 0;
     padding: 12px;
     color: var(--muted);
     font-size: 0.82rem;

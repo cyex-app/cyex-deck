@@ -1,4 +1,4 @@
-// M12 Whether someone is a mod or VIP here already, so name menus offer Unmod and Remove VIP
+// M12 Whether someone is a mod or VIP here already, so name menus offer Remove mod and Remove VIP
 // instead of Mod and VIP.
 
 import type { MenuEntry } from '../../components/menuItems';
@@ -17,10 +17,10 @@ export function standingOf(badges: readonly { set: string }[] | undefined): Stan
   return { mod: role === 'moderator' || role === 'leadModerator', vip: badges.some((b) => b.set === 'vip') };
 }
 
-/** A mod gets Unmod only (Twitch won't make a mod a VIP), a VIP gets Mod and Remove VIP,
+/** A mod gets Remove mod only (Twitch won't make a mod a VIP), a VIP gets Mod and Remove VIP,
  * anyone else or unknown gets Mod and VIP. */
 export function roleItems(login: string, run: (line: string) => void, is?: Standing): MenuEntry[] {
-  if (is?.mod) return [{ label: 'Unmod', icon: 'shield', run: () => run(`/unmod ${login}`) }];
+  if (is?.mod) return [{ label: 'Remove mod', icon: 'shield', run: () => run(`/unmod ${login}`) }];
   return [
     { label: 'Mod', icon: 'shield', run: () => run(`/mod ${login}`) },
     is?.vip
