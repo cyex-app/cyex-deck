@@ -118,6 +118,7 @@
     role="combobox"
     aria-label={label}
     aria-haspopup="listbox"
+    title={shown}
     aria-expanded={open}
     aria-controls="{uid}-list"
     aria-activedescendant={open ? `${uid}-${active}` : undefined}

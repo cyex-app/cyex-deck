@@ -80,7 +80,7 @@
   {:else}
     <span class="nm">{combo.name}</span>
   {/if}
-  {#if problem}
+  {#if problem && !renaming}
     <span class="warn" use:tooltip={problem}><Icon name="alert" size={12} /></span>
   {/if}
   {#if !renaming}
