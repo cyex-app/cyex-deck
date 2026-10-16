@@ -20,7 +20,7 @@
     try {
       await accountsIpc.addGqlToken(account.userId, token);
       token = '';
-      toast.success('GQL tools unlocked.');
+      toast.success('Extra Twitch features unlocked.');
       onclose?.();
     } catch (err) {
       toast.error(errorText(err));
@@ -32,7 +32,7 @@
 
 <div class="unlock">
   <div class="head">
-    <strong>Unlock the GQL tools</strong>
+    <strong>Unlock extra Twitch features</strong>
     <span>The miner, following, channel points, GIFs and power-ups.</span>
   </div>
   <div class="way">

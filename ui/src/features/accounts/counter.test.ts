@@ -9,14 +9,21 @@ const count = (userId: string, joined: number, refused: string[] = []): Connecti
 
 test('one account shows its open chats', () => {
   const v = counterView([count('a', 12)], 'a', name);
-  assert.deepEqual(v, { text: '12', warn: false, label: 'Joined chats' });
+  assert.deepEqual(v, { text: '12', warn: false, hidden: false, label: 'Joined chats', aria: '12 joined chats', hint: undefined });
 });
 
 test('several accounts: the number is the current one, the label lists all', () => {
   const v = counterView([count('a', 12), count('b', 3)], 'b', name);
   assert.equal(v.text, '3');
-  assert.equal(v.label, 'Joined chats: Bot 12, Main 3');
+  assert.equal(v.label, 'Joined chats');
+  assert.equal(v.hint, 'Bot 12, Main 3');
   assert.equal(v.warn, false);
+});
+
+test('nothing joined yet hides the counter', () => {
+  assert.equal(counterView([], 'a', name).hidden, true);
+  assert.equal(counterView([count('a', 0)], 'a', name).hidden, true);
+  assert.equal(counterView([count('a', 1)], 'a', name).hidden, false);
 });
 
 test('numbers are grouped with dots', () => {

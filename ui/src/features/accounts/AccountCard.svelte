@@ -25,9 +25,9 @@
 
   let { account }: { account: AccountView } = $props();
 
-  const TOKENS: { kind: TokenKind; title: string; none: string }[] = [
+  const TOKENS: { kind: TokenKind; title: string; none: string; tip?: string }[] = [
     { kind: 'helix', title: 'Twitch', none: 'Needed for payment methods, subscriptions and mod tools.' },
-    { kind: 'gql', title: 'GQL tools', none: 'Not added. Needed for the miner, following, channel points, GIFs and power-ups.' },
+    { kind: 'gql', title: 'Extra Twitch features', tip: 'The miner, following, channel points, GIFs, power-ups, votes, raids, badge picking and profile edits.', none: 'Not added. Unlocks the miner, following, channel points, GIFs and power-ups.' },
   ];
 
   const conn = $derived(accounts.connectionsOf(account.userId));
@@ -93,7 +93,7 @@
   {#each TOKENS as t (t.kind)}
     {@const token = tokenOf(t.kind)}
     <div class="line">
-      <span class="name">{t.title}</span>
+      <span class="name" use:tooltip={{ label: t.title, hint: t.tip }}>{t.title}</span>
       {#if token}
         {@const status = tokenStatus(token)}
         <span class="status {status.tone}">{status.text}</span>
@@ -142,7 +142,7 @@
   <div class="line">
     <span class="name">Joined chats</span>
     <span class="status">
-      {formatNumber(conn?.joined ?? 0)}
+      {#if conn?.joined}{formatNumber(conn.joined)}{:else}<span class="muted">None open</span>{/if}
       {#if conn?.refused.length}
         <span class="warn">· Twitch refused {conn.refused.map((l) => `#${l}`).join(', ')}</span>
       {/if}
@@ -166,10 +166,10 @@
       onclick={() =>
         attempt(async () => {
           await subsIpc.signOut(account.userId);
-          toast.success('Signed out of Twitch pages in the app.');
+          toast.success('Signed out of Twitch in the app.');
         })}
     >
-      Sign out of Twitch pages
+      Sign out of Twitch in the app
     </Button>
     <ConfirmButton label="Remove account" confirm="Click again to remove" icon="trash" variant="ghost" onconfirm={removeAccount} />
   </footer>
@@ -218,7 +218,7 @@
   }
   .name {
     flex: none;
-    width: 96px;
+    width: 140px;
     font-weight: 600;
   }
   .status {

@@ -15,13 +15,13 @@
   );
 </script>
 
-{#if accounts.current}
+{#if accounts.current && !v.hidden}
   <!-- V1051-05 Its own icon (the bubble read as Whispers) and a spoken name. -->
   <span
     class="counter"
     class:warn={v.warn}
     role="status"
-    aria-label="{v.label}: {v.text}"
+    aria-label={v.aria}
     use:tooltip={{ label: v.label, hint: v.hint }}
   >
     <Icon name={v.warn ? 'alert' : 'radio'} size={13} />
