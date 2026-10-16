@@ -11,6 +11,7 @@
   import { settings } from '../../../lib/settings.svelte';
   import type { Field } from '../rules/fields';
   import RuleList from '../rules/RuleList.svelte';
+  import NumberField from '../../../components/NumberField.svelte';
 
   const h = $derived(settings.v.highlights);
   const s = $derived(h.similar);
@@ -43,7 +44,6 @@
   }
 
   const id = () => crypto.randomUUID().slice(0, 8);
-  const clamp = (text: string, min: number, max: number) => Math.min(max, Math.max(min, Math.round(Number(text) || min)));
 </script>
 
 <h2>Filters</h2>
@@ -78,15 +78,7 @@
   <Stepper label="How alike" value={s.threshold} min={50} max={100} unit="%" onchange={(v) => sim({ threshold: v })} />
 </Row>
 <Row setting="highlights.similar.maxAgeSecs" label="Within" hint="Seconds back to compare with.">
-  <input
-    class="field num"
-    type="number"
-    aria-label="Within"
-    min="1"
-    max="600"
-    value={s.maxAgeSecs}
-    onchange={(e) => sim({ maxAgeSecs: clamp(e.currentTarget.value, 1, 600) })}
-  />
+  <NumberField label="Within" min={1} max={600} width="80px" unit="s" value={s.maxAgeSecs} onchange={(n) => sim({ maxAgeSecs: n })} />
 </Row>
 <Row setting="highlights.similar.depth" label="Messages back" hint="How many earlier messages to compare with.">
   <Stepper label="Messages back" value={s.depth} min={1} max={5} onchange={(v) => sim({ depth: v })} />
@@ -116,9 +108,6 @@
     flex-wrap: wrap;
     gap: 4px;
     margin-bottom: 10px;
-  }
-  .num {
-    width: 80px;
   }
   code {
     padding: 1px 5px;

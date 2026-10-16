@@ -10,6 +10,7 @@
   import { accounts } from '../../lib/accounts.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { errorText } from '../../lib/errors';
+  import NumberField from '../../components/NumberField.svelte';
 
   let { account, login, channelId }: { account: string; login: string; channelId: string | null } = $props();
 
@@ -68,7 +69,7 @@
   <div class="opts">
     <label use:tooltip={'0 bans; above 0 times out for that many minutes'}>
       Timeout
-      <input type="number" min="0" max="20160" bind:value={minutes} /> min
+      <NumberField label="Timeout minutes" min={0} max={20160} width="84px" unit="min" value={minutes} onchange={(n) => (minutes = n)} />
     </label>
   </div>
   <input class="reason" placeholder="Reason (optional)" bind:value={reason} />
@@ -113,14 +114,6 @@
     gap: 4px;
     font-size: 0.82rem;
     color: var(--muted);
-  }
-  .opts input {
-    width: 64px;
-    padding: 3px 6px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    color: var(--text);
   }
   .go {
     display: flex;

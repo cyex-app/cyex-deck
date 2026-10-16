@@ -15,6 +15,7 @@
   import { fileName } from '../mentions/status';
   import { splitList, withAlpha, type Field } from './fields';
   import Select from '../../../components/Select.svelte';
+  import NumberField from '../../../components/NumberField.svelte';
 
   interface Props {
     item: T;
@@ -89,15 +90,9 @@
       <button class="clear" class:gone={!v} aria-label="Default color" tabindex={v ? 0 : -1} onclick={() => set(f.key, '')}>×</button>
     </span>
   {:else if f.kind === 'number'}
-    <input
-      class="field num"
-      type="number"
-      aria-label={f.label}
-      title={f.label}
-      value={Number(v)}
-      style:width={f.width ?? '72px'}
-      onchange={(e) => set(f.key, Math.max(0, Math.round(Number(e.currentTarget.value) || 0)))}
-    />
+    <span use:tooltip={f.label}>
+      <NumberField label={f.label} min={0} max={1e9} width={f.width ?? '72px'} value={Number(v)} onchange={(n) => set(f.key, n)} />
+    </span>
   {:else if f.kind === 'select'}
     <span use:tooltip={tip(f)}>
       <Select label={f.label} width={f.width ?? '150px'} value={String(v)} options={f.options ?? []} onchange={(x) => set(f.key, x)} />

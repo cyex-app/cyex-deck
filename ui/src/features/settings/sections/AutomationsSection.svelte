@@ -7,6 +7,7 @@
   import { settings } from '../../../lib/settings.svelte';
   import type { Field } from '../rules/fields';
   import RuleList from '../rules/RuleList.svelte';
+  import NumberField from '../../../components/NumberField.svelte';
 
   const c = $derived(settings.v.commands);
 
@@ -72,18 +73,7 @@
   />
 </Row>
 <Row setting="commands.automationLimit" label="At most" hint="Automatic messages per chat in 30 seconds.">
-  <input
-    class="field num"
-    type="number"
-    aria-label="At most"
-    min="1"
-    max="10"
-    value={c.automationLimit}
-    onchange={(e) =>
-      void settings.patch('commands', {
-        automationLimit: Math.min(10, Math.max(1, Math.round(Number(e.currentTarget.value) || 1))),
-      })}
-  />
+  <NumberField label="At most" min={1} max={10} width="80px" value={c.automationLimit} onchange={(n) => void settings.patch('commands', { automationLimit: n })} />
 </Row>
 
 <RuleList
@@ -95,9 +85,3 @@
   addLabel="Add automation"
   empty="When someone says the trigger, the response runs as if you typed it."
 />
-
-<style>
-  .num {
-    width: 80px;
-  }
-</style>

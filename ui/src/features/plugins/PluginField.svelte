@@ -7,6 +7,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { errorText } from '../../lib/errors';
   import Select from '../../components/Select.svelte';
+  import NumberField from '../../components/NumberField.svelte';
 
   interface Props {
     plugin: string;
@@ -24,10 +25,6 @@
     if (e.currentTarget.value !== value) save(e.currentTarget.value);
   }
 
-  function saveNumber(e: Event & { currentTarget: HTMLInputElement }) {
-    const n = Number(e.currentTarget.value);
-    if (Number.isFinite(n) && n !== value) save(n);
-  }
 </script>
 
 <Row label={field.label} hint={field.hint}>
@@ -43,15 +40,7 @@
       onkeydown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
     />
   {:else if field.type === 'number'}
-    <input
-      class="field num"
-      type="number"
-      aria-label={field.label}
-      value={Number(value ?? 0)}
-      min={field.min}
-      max={field.max}
-      onchange={saveNumber}
-    />
+    <NumberField label={field.label} width="100px" value={Number(value ?? 0)} min={field.min ?? -1e9} max={field.max ?? 1e9} onchange={save} />
   {:else}
     <Select label={field.label} width="200px" value={String(value ?? '')} options={field.options} onchange={save} />
   {/if}
@@ -60,8 +49,5 @@
 <style>
   input.field {
     width: 200px;
-  }
-  input.num {
-    width: 100px;
   }
 </style>

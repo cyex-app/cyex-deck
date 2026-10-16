@@ -17,6 +17,7 @@
   import type { Strategy } from '../../../ipc/bindings/Strategy';
   import { settings } from '../../../lib/settings.svelte';
   import Select from '../../../components/Select.svelte';
+  import NumberField from '../../../components/NumberField.svelte';
 
   const m = $derived(settings.v.miner);
   const b = $derived(m.bets);
@@ -82,9 +83,6 @@
     { value: 'atMost', label: 'is at most' },
   ];
 
-  /** A whole number from a field, kept between `lo` and `hi`. */
-  const num = (e: Event, lo: number, hi: number) =>
-    Math.min(hi, Math.max(lo, Math.round(Number((e.currentTarget as HTMLInputElement).value) || lo)));
 </script>
 
 <h2>Miner</h2>
@@ -144,36 +142,29 @@
   </Row>
   {#if b.strategy === 'outcome'}
     <Row setting="miner.bets.outcome" label="Side" hint="1 is the first (blue) side.">
-      <input class="field num" type="number" min="1" max="10" value={b.outcome} onchange={(e) => bet({ outcome: num(e, 1, 10) })} />
+      <NumberField label="Side" min={1} max={10} width="90px" value={b.outcome} onchange={(n) => bet({ outcome: n })} />
     </Row>
   {/if}
   {#if b.strategy === 'smart'}
     <Row setting="miner.bets.gap" label="Close is under" hint="Gap between the two sides’ voters, in percent. Close bets go to the better payout.">
-      <input class="field num" type="number" min="0" max="100" value={b.gap} onchange={(e) => bet({ gap: num(e, 0, 100) })} />
+      <NumberField label="Close is under" min={0} max={100} width="90px" unit="%" value={b.gap} onchange={(n) => bet({ gap: n })} />
     </Row>
   {/if}
   <Row setting="miner.bets.percent" label="Bet" hint="Percent of your balance.">
-    <input class="field num" type="number" min="1" max="100" value={b.percent} onchange={(e) => bet({ percent: num(e, 1, 100) })} />
+    <NumberField label="Bet" min={1} max={100} width="90px" unit="%" value={b.percent} onchange={(n) => bet({ percent: n })} />
   </Row>
   <Row setting="miner.bets.maxPoints" label="At most" hint="Points per bet.">
-    <input class="field num" type="number" min="10" value={b.maxPoints} onchange={(e) => bet({ maxPoints: num(e, 10, 1e9) })} />
+    <NumberField label="At most" min={10} max={1e9} width="110px" value={b.maxPoints} onchange={(n) => bet({ maxPoints: n })} />
   </Row>
   <Row setting="miner.bets.keep" label="Keep" hint="No bets while the balance is at or under this.">
-    <input class="field num" type="number" min="0" value={b.keep} onchange={(e) => bet({ keep: num(e, 0, 1e9) })} />
+    <NumberField label="Keep" min={0} max={1e9} width="110px" value={b.keep} onchange={(n) => bet({ keep: n })} />
   </Row>
   <Row setting="miner.bets.stealth" label="Stay small" hint="Never bet more than the biggest bet on that side.">
     <Toggle label="Stay small" checked={b.stealth} onchange={(stealth) => bet({ stealth })} />
   </Row>
   <Row setting="miner.bets.delay" label="When">
     <span class="pair">
-      <input
-        class="field num"
-        type="number"
-        min="0"
-        max={b.delayMode === 'percent' ? 100 : 1800}
-        value={b.delay}
-        onchange={(e) => bet({ delay: num(e, 0, b.delayMode === 'percent' ? 100 : 1800) })}
-      />
+      <NumberField label="Delay" min={0} max={b.delayMode === 'percent' ? 100 : 1800} width="90px" value={b.delay} onchange={(n) => bet({ delay: n })} />
       <Select label="When" width="220px" value={b.delayMode} options={DELAYS} onchange={(v) => bet({ delayMode: v as DelayMode })} />
     </span>
   </Row>
@@ -194,14 +185,7 @@
           options={CMPS}
           onchange={(v) => bet({ filter: { ...b.filter, cmp: v as FilterCmp } })}
         />
-        <input
-          class="field num"
-          type="number"
-          step="any"
-          aria-label="Value"
-          value={b.filter.value}
-          onchange={(e) => bet({ filter: { ...b.filter, value: Number(e.currentTarget.value) || 0 } })}
-        />
+        <NumberField label="Value" min={-1e9} max={1e9} step={0.01} width="110px" value={b.filter.value} onchange={(n) => bet({ filter: { ...b.filter, value: n } })} />
       {/if}
     </span>
   </Row>
@@ -227,9 +211,6 @@
   }
   .rule.off .hint {
     opacity: 0.7;
-  }
-  .num {
-    width: 90px;
   }
   .pair {
     display: inline-flex;
