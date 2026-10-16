@@ -19,20 +19,22 @@
 </script>
 
 <div class="offline" style:--picture={info?.offlineImage ? `url("${info.offlineImage}")` : null}>
-  <StoryRing
-    channelId={tile.channel.id}
-    account={tile.account}
-    avatar={info?.avatar}
-    name={tile.channel.name}
-    login={tile.channel.login}
-    size={72}
-    onopen={onstories}
-  />
-  <span>{tile.channel.name} is offline</span>
-  <div class="go">
-    <button aria-label="Videos" use:tooltip={'Videos'} onclick={() => onpage({ kind: 'videos' })}><Icon name="film" size={14} /><span class="t">Videos</span></button>
-    <button aria-label="Clips" use:tooltip={'Clips'} onclick={() => onpage({ kind: 'clips' })}><Icon name="clapper" size={14} /><span class="t">Clips</span></button>
-    <button aria-label="About" use:tooltip={'About'} onclick={() => onpage({ kind: 'about' })}><Icon name="info" size={14} /><span class="t">About</span></button>
+  <div class="card">
+    <StoryRing
+      channelId={tile.channel.id}
+      account={tile.account}
+      avatar={info?.avatar}
+      name={tile.channel.name}
+      login={tile.channel.login}
+      size={72}
+      onopen={onstories}
+    />
+    <span>{tile.channel.name} is offline</span>
+    <div class="go">
+      <button aria-label="Videos" use:tooltip={'Videos'} onclick={() => onpage({ kind: 'videos' })}><Icon name="film" size={14} /><span class="t">Videos</span></button>
+      <button aria-label="Clips" use:tooltip={'Clips'} onclick={() => onpage({ kind: 'clips' })}><Icon name="clapper" size={14} /><span class="t">Clips</span></button>
+      <button aria-label="About" use:tooltip={'About'} onclick={() => onpage({ kind: 'about' })}><Icon name="info" size={14} /><span class="t">About</span></button>
+    </div>
   </div>
 </div>
 
@@ -41,10 +43,7 @@
     flex: 1;
     container-type: size;
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
+    overflow: hidden;
     background:
       linear-gradient(var(--scrim-strong), var(--scrim-strong)),
       var(--picture, none) center / cover no-repeat,
@@ -52,18 +51,32 @@
     color: var(--on-video-dim);
     text-align: center;
   }
+  .card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
   /* A slim card (a small tile, or a narrow column): icons only. */
   @container (max-height: 190px) or (max-width: 230px) {
     .t {
       display: none;
     }
-    .offline {
+    .card {
       gap: 6px;
     }
   }
   .go {
     display: flex;
     gap: 6px;
+  }
+  /* Too short for the buttons: the tab header's Videos, Clips and About still are. */
+  @container (max-height: 124px) {
+    .go {
+      display: none;
+    }
   }
   button {
     display: flex;

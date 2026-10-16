@@ -15,6 +15,7 @@
 <script lang="ts">
   import { onDestroy, type Snippet } from 'svelte';
 
+  import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import { openMenu, type MenuEntry } from '../../components/menu.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
@@ -304,8 +305,14 @@
       {#if recording}<span class="mode rec" use:tooltip={'Recording this chat'}>REC</span>{/if}
       {#if filters.length}<span class="mode" use:tooltip={{ label: 'Shown through filters', hint: 'Change them in ⋯ → Filters.' }}>Filtered</span>{/if}
       {#each modes as m (m.label)}
-        <span class="mode" use:tooltip={{ label: m.label, hint: m.hint }}>{m.label}</span>
+        <span class="mode room" use:tooltip={{ label: m.label, hint: m.hint }}>{m.label}</span>
       {/each}
+      <!-- A narrow chat: one short chip, the full list in its tooltip. -->
+      {#if modes.length}
+        <span class="mode compact" use:tooltip={{ label: modes.map((m) => m.label).join(' · '), hint: 'Chat modes' }}>
+          <Icon name="lock" size={11} />{modes.length > 1 ? modes.length : ''}
+        </span>
+      {/if}
     </div>
     {#if modRole}
       <!-- V101-33 Mod mode: delete, timeout and ban in front of each line, per chat. -->
@@ -409,6 +416,7 @@
 
 <style>
   .chat {
+    container: chat / inline-size;
     position: relative;
     flex: 1;
     min-width: 0;
@@ -458,6 +466,19 @@
     font-weight: 600;
     white-space: nowrap;
     flex: none;
+  }
+  .mode.compact {
+    display: none;
+  }
+  @container chat (max-width: 300px) {
+    .mode.room {
+      display: none;
+    }
+    .mode.compact {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
   }
   .mode.rec {
     color: var(--red);
