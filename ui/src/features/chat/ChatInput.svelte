@@ -371,6 +371,8 @@
     <UploadConfirm
       host={up.pending.host}
       count={up.pending.count}
+      pictures={up.pending.pictures}
+      names={up.pending.names}
       onyes={() => {
         const go = up.pending!.go;
         up.pending = null;

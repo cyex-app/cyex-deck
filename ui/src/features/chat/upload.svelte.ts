@@ -69,7 +69,7 @@ export function useUploads(hooks: Hooks) {
 class Uploads {
   readonly upload = new Upload();
   /** With "Ask before uploading" on, the batch waits for a yes. */
-  pending = $state<{ host: string; count: number; go: () => void } | null>(null);
+  pending = $state<{ host: string; count: number; go: () => void; pictures: File[]; names: string[] } | null>(null);
 
   constructor(private hooks: Hooks) {
     $effect(() => {
@@ -85,12 +85,14 @@ class Uploads {
     });
   }
 
-  private begin(items: UploadItem[]) {
+  /** `pictures` are the pasted files, for the question's thumbnails (dropped ones show their names). */
+  private begin(items: UploadItem[], pictures: File[] = []) {
     const cfg = settings.v.uploader;
     const host = hostOf(cfg.url);
     const { login, insert, fail } = this.hooks;
     const go = () => void this.upload.start(login(), items, insert, fail);
-    if (cfg.confirm) this.pending = { host, count: items.length, go };
+    const names = pictures.length ? [] : items.map((i) => i.value.split(/[\/]/).pop() ?? '');
+    if (cfg.confirm) this.pending = { host, count: items.length, go, pictures, names };
     else go();
   }
 
@@ -118,7 +120,7 @@ class Uploads {
     if (this.pending) return this.hooks.fail('Answer the upload question first.');
     try {
       const items = await stageFiles(files);
-      if (items.length) this.begin(items);
+      if (items.length) this.begin(items, files);
     } catch {
       this.hooks.fail('Couldn’t read that image.');
     }
