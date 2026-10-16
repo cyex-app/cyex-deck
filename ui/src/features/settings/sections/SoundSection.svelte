@@ -1,6 +1,7 @@
 <!-- V1051-01 Settings → Sound: the app in Windows' volume mixer, and where streams and the
      other sounds play. Changes apply at once. -->
 <script lang="ts">
+  import Select from '../../../components/Select.svelte';
   import IconButton from '../../../components/IconButton.svelte';
   import Row from '../../../components/Row.svelte';
   import Toggle from '../../../components/Toggle.svelte';
@@ -12,13 +13,15 @@
 
   const s = $derived(settings.v.general.sound);
   let devices = $state<OutputDevice[]>([]);
+  let defaultName = $state('');
   /** Until the first list arrives, a saved device isn't called "not connected". */
   let listed = $state(false);
 
   function refresh() {
     soundIpc
       .devices()
-      .then((d) => {
+      .then(({ devices: d, defaultName: def }) => {
+        defaultName = def;
         devices = [...d].sort((a, b) => a.name.localeCompare(b.name));
         listed = true;
       })
@@ -36,22 +39,25 @@
   function picked(id: string, current: OutputDevice | null): OutputDevice | null {
     return devices.find((d) => d.id === id) ?? (current?.id === id ? current : null);
   }
+  /** "Same as Windows (Speakers)", the plugged-in devices, and the saved one that isn’t. */
+  function choices(current: OutputDevice | null) {
+    const list = [{ value: '', label: defaultName ? `Same as Windows (${defaultName})` : 'Same as Windows' }];
+    for (const d of devices) list.push({ value: d.id, label: d.name });
+    if (current && !devices.some((d) => d.id === current.id)) {
+      list.push({ value: current.id, label: `${current.name}${listed ? ' (not connected)' : ''}` });
+    }
+    return list;
+  }
 </script>
 
 {#snippet picker(label: string, current: OutputDevice | null, onpick: (d: OutputDevice | null) => void)}
-  <select
-    class="field"
-    aria-label={label}
+  <Select
+    {label}
     value={current?.id ?? ''}
-    onfocus={refresh}
-    onchange={(e) => onpick(picked(e.currentTarget.value, current))}
-  >
-    <option value="">Same as Windows</option>
-    {#each devices as d (d.id)}<option value={d.id}>{d.name}</option>{/each}
-    {#if current && !devices.some((d) => d.id === current.id)}
-      <option value={current.id}>{current.name}{listed ? ' (not connected)' : ''}</option>
-    {/if}
-  </select>
+    options={choices(current)}
+    onopen={refresh}
+    onchange={(id) => onpick(picked(id, current))}
+  />
 {/snippet}
 
 <h2>Sound</h2>
@@ -84,9 +90,6 @@
 </Row>
 
 <style>
-  .field {
-    width: 240px;
-  }
   .gap {
     flex: none;
     width: 30px;
