@@ -283,9 +283,9 @@
     tabs.activate(id);
   }
 
-  /** V1051-02 Cancel on the 7TV consent: back to where you were. */
-  function leaveCosmetics() {
-    const back = before && !('view' in before && before.view === 'cosmetics') ? before : { view: 'home' as const };
+  /** V1051-02 Cancel on the 7TV consent, Escape in Settings: back to where you were. */
+  function leaveView(view: Fixed) {
+    const back = before && !('view' in before && before.view === view) ? before : { view: 'home' as const };
     if ('tab' in back && tabs.tab(back.tab) && !tabs.popped.has(back.tab)) open(back.tab);
     else show('view' in back ? back.view : 'home');
   }
@@ -339,7 +339,8 @@
   );
 
   const popOutManager = () => void popOutView('streamManager', 'streammanager');
-  const popOutWhispers = () => void popOutView('whispers', 'whispers');
+  const popOutWhispers = (login: string | null) =>
+    void popOutView('whispers', login ? `whispers/${login}` : 'whispers');
   function popOutModview() {
     const login = modviewPlace.login;
     if (login) void popOutView('modview', modviewRoute(login), `Mod view · ${login}`);
@@ -454,9 +455,9 @@
     {:else if fixed === 'subs'}
       <SubsView onchannel={(c) => void openChannel({ show: open, account: () => accounts.current?.userId ?? null }, c)} onsignin={manageAccounts} />
     {:else if fixed === 'cosmetics'}
-      <CosmeticsView onclose={leaveCosmetics} />
+      <CosmeticsView onclose={() => leaveView('cosmetics')} />
     {:else if fixed === 'settings'}
-      <SettingsView bind:section={settingsSection} />
+      <SettingsView bind:section={settingsSection} onclose={() => leaveView('settings')} />
     {:else}
       <HomeView onopen={open} ondiscover={() => show('discover')} onsignin={manageAccounts} />
     {/if}

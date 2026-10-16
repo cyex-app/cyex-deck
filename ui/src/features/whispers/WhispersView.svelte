@@ -22,7 +22,7 @@
     popout?: boolean;
     /** `whispers` or `whispers/<login>` in a pop-out. */
     route?: string;
-    onpopout?: () => void;
+    onpopout?: (login: string | null) => void;
     onsignin?: () => void;
   }
 
@@ -78,7 +78,7 @@
         disabled: !s.history,
         run: () => whispersIpc.blockStrangers(!s.blockStrangers).catch((err) => toast.error(errorText(err))),
       },
-      ...(!popout && onpopout ? ['separator' as const, { label: 'Pop out', icon: 'popout' as const, run: onpopout }] : []),
+      ...(!popout && onpopout ? ['separator' as const, { label: 'Pop out', icon: 'popout' as const, run: () => onpopout(selected) }] : []),
     ]);
   }
 
