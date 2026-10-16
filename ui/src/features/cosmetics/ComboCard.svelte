@@ -48,6 +48,7 @@
 <div
   class="card"
   class:on={worn}
+  class:naming={renaming}
   role="option"
   aria-selected={worn}
   tabindex={active ? 0 : -1}
@@ -116,6 +117,12 @@
     padding: 5px 7px;
     border: 2px solid var(--accent);
   }
+  .card.naming {
+    padding-block: 3px;
+  }
+  .card.naming.on {
+    padding-block: 2px;
+  }
   .card:active {
     transform: scale(0.97);
   }
@@ -155,12 +162,15 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* Wraps inside the card, two lines at most (like the Save card). */
   .err {
+    flex: none;
+    max-height: 22px;
     overflow: hidden;
     color: var(--red);
-    font-size: 11px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-size: 10.5px;
+    line-height: 11px;
+    overflow-wrap: anywhere;
   }
   .warn {
     position: absolute;
