@@ -27,10 +27,10 @@
 }
 
 /* 1.37 Paints: the class per paint sets the picture; the name's color shows through.
-   The paint's shadows and the overlay's outline (V105-01) are drop-shadows: a text-shadow
-   would cover the picture. */
+   The paint's shadows are drop-shadows: a text-shadow would cover the picture. No outline
+   is added to a paint, not even the overlay's (V105-01). */
 .painted {
-  filter: var(--paint-shadow,) var(--name-outline,);
+  filter: var(--paint-shadow,);
   background-color: currentcolor;
   -webkit-text-fill-color: transparent;
   background-clip: text;

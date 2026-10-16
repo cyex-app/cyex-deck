@@ -208,13 +208,12 @@
       opacity: 0;
     }
   }
-  /* V105-01 A painted name keeps its picture: its outline is a drop-shadow (emotes.css). */
+  /* V105-01 Outline for normal names and text only; a painted name is drawn as 7TV draws it. */
   .outline .list {
     text-shadow:
       0 0 2px #000,
       0 0 2px #000,
       1px 1px 1px #000;
-    --name-outline: drop-shadow(0 0 1px #000) drop-shadow(1px 1px 1px #000);
   }
   .outline .list :global(.painted) {
     text-shadow: none;
