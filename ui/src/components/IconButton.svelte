@@ -10,7 +10,11 @@
     icon: IconName;
     label: string;
     hint?: string;
+    /** Shown pressed or current (accent tint). */
     active?: boolean;
+    /** An on/off button: screen readers hear `active` as pressed. Leave it off for plain
+     *  buttons and for nav buttons that only mark where you are. */
+    toggle?: boolean;
     danger?: boolean;
     disabled?: boolean;
     size?: number;
@@ -28,6 +32,7 @@
     label,
     hint,
     active = false,
+    toggle = false,
     danger = false,
     disabled = false,
     size = 16,
@@ -50,7 +55,7 @@
   class:chrome
   class:locked={!!lock}
   aria-label={label}
-  aria-pressed={active}
+  aria-pressed={toggle ? active : undefined}
   {disabled}
   onclick={click}
   use:tooltip={lock ? { label: `${label} · ${FLAGS[lock].label}`, hint: FLAGS[lock].hint } : { label, hint }}
