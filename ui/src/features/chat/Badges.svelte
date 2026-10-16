@@ -70,6 +70,7 @@
     src={still && b.still ? b.still : badgeSrc(b, density.scale)}
     alt={b.title}
     data-tip={b.title}
+    data-tip-img={b.image4x}
     loading="lazy"
     decoding="async"
   />
@@ -84,13 +85,14 @@
       {@const b = catalogs.badge(channel, ref.set, ref.version)}
       {@const copy = saved(`badge:${ref.set}/${ref.version}`)}
       {#if copy}
-        <img class="badge" src={copy} alt={b?.title ?? ref.set} data-tip={b?.title ?? ref.set} />
+        <img class="badge" src={copy} alt={b?.title ?? ref.set} data-tip={b?.title ?? ref.set} data-tip-img={b?.image4x} />
       {:else if b}
         <img
           class="badge"
           src={badgeSrc(b, density.scale)}
           alt={b.title}
           data-tip={b.title}
+          data-tip-img={b.image4x}
           data-hint={hint(ref, b)}
           loading="lazy"
           decoding="async"
