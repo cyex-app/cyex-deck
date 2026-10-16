@@ -73,4 +73,7 @@
     /* The time stays readable on the grey. */
     --dim: var(--paint-dim);
   }
+  .box :global(.painted) {
+    filter: var(--paint-outline);
+  }
 </style>

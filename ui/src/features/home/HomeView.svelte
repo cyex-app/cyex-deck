@@ -174,7 +174,7 @@
 
     {#if lists.favorites.length}
       <section>
-        <h2><Icon name="starFilled" size={13} />Starred</h2>
+        <h2><Icon name="starFilled" size={13} />Favorites</h2>
         {@render channels(lists.favorites)}
       </section>
     {/if}
@@ -185,6 +185,12 @@
           <h2><span class="dot"></span>Live <span class="count">{lists.live.length}</span></h2>
           {@render channels(lists.live)}
         </section>
+      {/if}
+      {#if !lists.live.length && lists.offline.length && !query.trim()}
+        <div class="quiet">
+          <span>No one you follow is live.</span>
+          <Button small onclick={ondiscover}>Find streams</Button>
+        </div>
       {/if}
       {#if lists.offline.length}
         <section>
@@ -261,6 +267,14 @@
   }
   .grow {
     flex: 1;
+  }
+  .quiet {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 28px 0 8px;
+    color: var(--dim);
   }
   .scroll {
     flex: 1;

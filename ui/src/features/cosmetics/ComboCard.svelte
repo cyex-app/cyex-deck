@@ -148,6 +148,9 @@
     background: var(--paint-back);
     border-radius: var(--radius);
   }
+  .back :global(.painted) {
+    filter: var(--paint-outline);
+  }
   .who {
     overflow: hidden;
     font-size: 14px;

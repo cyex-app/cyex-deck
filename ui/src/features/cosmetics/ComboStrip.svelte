@@ -138,7 +138,6 @@
     padding: 2px;
     overflow-x: auto;
     scroll-snap-type: x proximity;
-    scrollbar-width: thin;
   }
   .list {
     display: flex;
@@ -154,7 +153,9 @@
   }
   .save {
     flex: none;
+    display: flex;
     flex-direction: row;
+    align-items: center;
     justify-content: center;
     gap: 6px;
     background: none;

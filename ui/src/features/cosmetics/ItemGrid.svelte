@@ -40,6 +40,8 @@
     return {
       label: r.animated ? `${r.name} · Animated` : r.name,
       hint: r.usable ? '' : 'For 7TV subscribers',
+      // The name is on the card already; the tip adds only what isn't.
+      when: () => r.animated || !r.usable,
     };
   }
 </script>
@@ -140,6 +142,9 @@
     padding: 0 6px;
     background: var(--paint-back);
     border-radius: var(--radius);
+  }
+  .back :global(.painted) {
+    filter: var(--paint-outline);
   }
   .nm {
     overflow: hidden;
