@@ -115,7 +115,7 @@
         {/if}
         {#if !view.subscribed}
           <span class="note">
-            Paints and badges are for 7TV subscribers.{store.anyUsable ? ' Some don’t need it.' : ''}
+            Paints and badges are for 7TV subscribers.{store.anyUsable ? ' Items you’ve been gifted or won at events work without one.' : ''}
             <Button variant="link" onclick={() => void systemIpc.openLink('https://7tv.app/store')}>7TV store</Button>
           </span>
         {/if}

@@ -70,6 +70,8 @@
       <IconButton
         icon={query.reverse ? 'arrowUp' : 'arrowDown'}
         label="Reverse order"
+        toggle
+        active={query.reverse}
         onclick={() => change({ ...query, reverse: !query.reverse })}
       />
     </div>
