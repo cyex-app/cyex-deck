@@ -100,7 +100,7 @@
       </button>
       <div class="times">
         {#each timeouts() as t (t.secs)}
-          <button disabled={busy} onclick={() => run('timeout', `${profile.login} ${t.secs}`)} use:tooltip={`${t.label} timeout`}
+          <button disabled={busy} onclick={() => run('timeout', `${profile.login} ${t.secs}`)} use:tooltip={`Time out ${t.label}`}
             >{t.label}</button
           >
         {/each}

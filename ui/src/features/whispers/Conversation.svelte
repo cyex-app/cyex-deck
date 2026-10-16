@@ -199,7 +199,7 @@
       }
       items.push('separator');
     }
-    items.push({ label: 'Block on Twitch', icon: 'ban', danger: true, run: () => void block() });
+    items.push({ label: 'Block', icon: 'ban', note: 'Blocks them on Twitch', danger: true, run: () => void block() });
     openMenuAt(e, items);
   }
 

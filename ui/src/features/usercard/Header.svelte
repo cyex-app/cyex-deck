@@ -110,8 +110,8 @@
     {/if}
     {#if !isChannel}
       <IconButton
-        icon="popout"
-        label="Twitch profile"
+        icon="twitch"
+        label="Open on Twitch"
         size={14}
         onclick={() => systemIpc.openLink(`https://www.twitch.tv/${profile.login}`)}
       />

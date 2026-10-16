@@ -16,6 +16,7 @@
   import { whispers } from './whispers.svelte';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
+  import SearchField from '../../components/SearchField.svelte';
 
   interface Props {
     popout?: boolean;
@@ -103,10 +104,7 @@
   <div class="whispers">
     <aside>
       <div class="top">
-        <div class="search">
-          <Icon name="search" size={14} />
-          <input bind:value={query} placeholder="Find or start a conversation" spellcheck="false" />
-        </div>
+        <div class="search"><SearchField bind:value={query} label="Search or start a conversation" /></div>
         <IconButton icon="more" label="Options" hint="Mark all read, and who may whisper you." onclick={more} />
       </div>
       <div class="threads" {onscroll}>
@@ -190,26 +188,7 @@
   }
   .search {
     flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    height: 30px;
-    padding: 0 8px;
-    background: var(--surface);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius);
-    color: var(--dim);
-  }
-  .search:focus-within {
-    border-color: var(--accent-border);
-  }
-  input {
-    flex: 1;
     min-width: 0;
-    background: none;
-    border: 0;
-    outline: none;
-    color: var(--text);
   }
   .threads {
     flex: 1;
