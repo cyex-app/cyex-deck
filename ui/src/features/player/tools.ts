@@ -6,13 +6,14 @@ import { bindingOf } from '../../lib/hotkeys.svelte';
 import { toast } from '../../lib/toast.svelte';
 import type { PlayerMenu } from './menu';
 import { errorText } from '../../lib/errors';
+import { copy } from '../../lib/clipboard';
 
 export function playerKeys(): PlayerMenu['keys'] {
   return { play: bindingOf('player.playPause'), mute: bindingOf('player.mute'), fullscreen: bindingOf('player.fullscreen') };
 }
 
-export function copyText(text: string): void {
-  navigator.clipboard.writeText(text).catch((e) => toast.error(errorText(e)));
+export function copyText(text: string, what = 'Link'): void {
+  void copy(text, what);
 }
 
 export function openLink(url: string): void {

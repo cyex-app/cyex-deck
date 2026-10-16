@@ -19,6 +19,7 @@
   import { plugins } from '../plugins/plugins.svelte';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
+  import { copy } from '../../lib/clipboard';
 
   interface Props {
     account: string | null;
@@ -86,7 +87,7 @@
     const role = mods.role(account, login);
     const items: MenuEntry[] = [
       { label: 'Usercard', icon: 'user', run: () => open(name) },
-      { label: 'Copy name', icon: 'copy', run: () => void navigator.clipboard.writeText(name) },
+      { label: 'Copy name', icon: 'copy', run: () => void copy(name, 'Name') },
     ];
     if (role && name !== login) items.push('separator', ...userItems(role, name, run, () => open(name), is));
     items.push(

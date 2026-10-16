@@ -45,6 +45,7 @@
   import { whispers } from '../whispers/whispers.svelte';
   import { accounts } from '../../lib/accounts.svelte';
   import { errorText } from '../../lib/errors';
+  import { copy } from '../../lib/clipboard';
 
   interface Props {
     room: ChatRoom;
@@ -404,7 +405,7 @@
       { label: 'Mention', icon: 'reply', run: () => onmention?.(login) },
       ...(accounts.can('whispers') ? [{ label: 'Whisper', icon: 'whisper' as const, run: () => whispers.show(login) }] : []),
       { label: 'Their messages', icon: 'search', run: () => onaction?.({ type: 'search', query: `from:${login}` }) },
-      { label: 'Copy name', icon: 'copy', run: () => void navigator.clipboard.writeText(login) },
+      { label: 'Copy name', icon: 'copy', run: () => void copy(login, 'Name') },
       ...(canMod ? ['separator' as const, ...userItems(role, login, command, warn(login), standingOf(badgesOf(login, m)))] : []),
       'separator',
       { label: 'Hide for me', icon: 'eyeOff', note: 'Only for you, not on Twitch', run: () => command(`/hideuser ${login}`) },
@@ -440,7 +441,7 @@
             { label: 'Their messages', icon: 'search' as const, run: () => onaction?.({ type: 'search', query: `from:${login}` }) },
           ]
         : []),
-      { label: 'Copy message', icon: 'copy', run: () => void navigator.clipboard.writeText(plainText(m.body)) },
+      { label: 'Copy message', icon: 'copy', run: () => void copy(plainText(m.body), 'Message') },
       ...(canMod
         ? [
             'separator' as const,
@@ -485,7 +486,7 @@
     hideTip();
     openMenu(e, [
       { label: 'Emote card', icon: 'smile', run: () => (card = t) },
-      { label: 'Copy name', icon: 'copy', run: () => void navigator.clipboard.writeText(emote.name) },
+      { label: 'Copy name', icon: 'copy', run: () => void copy(emote.name, 'Emote name') },
       'separator',
       {
         label: `Hide ${emote.name}`,
@@ -555,7 +556,7 @@
     if (a.kind === 'user') chatIpc.openUsercard(room.login, a.login).catch((err) => toast.error(errorText(err)));
     else if (a.kind === 'run') command(a.text);
     else if (a.kind === 'jump') jump(a.id);
-    else if (a.kind === 'copy') void navigator.clipboard.writeText(a.text).then(() => toast.info('Copied.'));
+    else if (a.kind === 'copy') void copy(a.text, 'Text');
     else if (a.kind === 'insert') oninsert?.(a.text);
   }
 

@@ -17,6 +17,7 @@
   import { flipUnlisted, unlistedBlurred } from './unlisted';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
+  import { copy } from '../../lib/clipboard';
 
   interface Props {
     target: CardTarget;
@@ -146,7 +147,7 @@
         <Icon name={unlistedBlurred() ? 'eye' : 'eyeOff'} size={13} />{unlistedBlurred() ? 'Unblur' : 'Blur'}
       </button>
     {/if}
-    <button class="link" onclick={() => void navigator.clipboard.writeText(shown.name)}><Icon name="copy" size={13} />Copy</button>
+    <button class="link" onclick={() => void copy(shown.name, 'Emote name')}><Icon name="copy" size={13} />Copy</button>
     <button class="link" onclick={hide}><Icon name="eyeOff" size={13} />Hide</button>
   </div>
 </div>

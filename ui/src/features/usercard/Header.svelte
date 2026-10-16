@@ -13,12 +13,12 @@
   import { systemIpc } from '../../ipc/system';
   import { settings } from '../../lib/settings.svelte';
   import { streamer } from '../../lib/streamer.svelte';
-  import { toast } from '../../lib/toast.svelte';
   import EarnedBadges from './EarnedBadges.svelte';
   import { suspendedFlag } from './suspended';
   import { avatars } from '../emotes/avatars.svelte';
   import { looks } from '../emotes/looks.svelte';
   import { toggleWatch, watched } from './watch';
+  import { copy } from '../../lib/clipboard';
 
   interface Props {
     profile: Profile;
@@ -52,9 +52,8 @@
     void settings.patch('highlights', { users: toggleWatch(settings.v.highlights.users, profile.login) });
   }
 
-  async function copyId() {
-    await navigator.clipboard.writeText(profile.id);
-    toast.info('User ID copied.');
+  function copyId() {
+    void copy(profile.id, 'User ID');
   }
 </script>
 
