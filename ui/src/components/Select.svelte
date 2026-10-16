@@ -75,6 +75,7 @@
 
   // Keeps the active choice in view in a long list.
   $effect(() => {
+    void active;
     if (!open) return;
     const row = list?.querySelector<HTMLElement>('[data-active="true"]');
     if (row) scrollWithin(row, 'nearest');
