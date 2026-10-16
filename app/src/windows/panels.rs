@@ -15,7 +15,7 @@ use crate::settings::Settings;
 
 const CHANGED_EVENT: &str = "panels:changed";
 const DEFAULT_SIZE: (f64, f64) = (480.0, 640.0);
-const MIN_SIZE: (f64, f64) = (320.0, 240.0);
+pub(super) const MIN_SIZE: (f64, f64) = (320.0, 240.0);
 
 /// Window label → route, for the panels open right now.
 #[derive(Default)]

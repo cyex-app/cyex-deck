@@ -186,6 +186,9 @@ pub fn on_page_load(webview: &Webview, payload: &PageLoadPayload<'_>) {
         PageLoadEvent::Started => {}
         PageLoadEvent::Finished => {
             crate::chat::shown::loaded(app, label);
+            if let Some(w) = app.get_webview_window(label).filter(|w| zoom::follows(w.label())) {
+                zoom::fit(app, &w);
+            }
             // V1051-01 The page's origin is known now (at setup it may not be yet).
             if label == MAIN {
                 crate::sound::reset_permit(app);
