@@ -51,6 +51,8 @@
 <style>
   .wrap {
     container-type: inline-size;
+    /* Two lines side by side stay readable; wider windows leave the rest empty. */
+    max-width: 900px;
   }
   .boxes {
     display: grid;

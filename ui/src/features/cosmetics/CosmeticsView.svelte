@@ -60,10 +60,11 @@
   .body {
     flex: 1;
     width: 100%;
-    max-width: 1600px;
+    max-width: none;
     min-height: 0;
     margin: 0 auto;
-    padding: 16px 24px;
+    /* About 11% a side (content ~78%), never under 24px. */
+    padding: 16px max(24px, 11%);
     box-sizing: border-box;
   }
 </style>
