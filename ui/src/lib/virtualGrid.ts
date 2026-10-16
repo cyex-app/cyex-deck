@@ -5,11 +5,14 @@ export interface Geometry {
   columns: number;
   rowHeight: number;
   rows: number;
+  /** The cell width: the leftover space is shared out, so the last column meets the edge. */
+  cell: number;
 }
 
 export function geometry(width: number, count: number, cellW: number, cellH: number, gap: number): Geometry {
   const columns = Math.max(1, Math.floor((width + gap) / (cellW + gap)));
-  return { columns, rowHeight: cellH + gap, rows: Math.ceil(count / columns) };
+  const cell = Math.max(cellW, Math.floor((width + gap) / columns) - gap);
+  return { columns, rowHeight: cellH + gap, rows: Math.ceil(count / columns), cell };
 }
 
 /** First and last index (inclusive) to mount, with `overscan` rows above and below. */

@@ -37,7 +37,7 @@
   const win = $derived(range(g, items.length, scrollTop, viewH));
   const shown = $derived(win.last < win.first ? [] : items.slice(win.first, win.last + 1));
   const at = (index: number) => ({
-    x: (index % g.columns) * (cellWidth + gap),
+    x: (index % g.columns) * (g.cell + gap),
     y: Math.floor(index / g.columns) * g.rowHeight,
   });
 
@@ -109,7 +109,7 @@
         id="{uid}-{index}"
         aria-selected={chosen ? chosen(item) : false}
         class:active={index === active}
-        style="--x:{p.x}px;--y:{p.y}px;width:{cellWidth}px;height:{cellHeight}px"
+        style="--x:{p.x}px;--y:{p.y}px;width:{g.cell}px;height:{cellHeight}px"
         onclick={() => pick(index)}
       >
         {@render cell(item, { index, active: index === active })}
