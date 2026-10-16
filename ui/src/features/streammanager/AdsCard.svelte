@@ -106,8 +106,18 @@
 </script>
 
 <Card title="Ads">
+  <!-- G1 All five lengths fit side by side only on a wide card; a narrow one gets a list. -->
   <div class="line">
-    <Segmented label="Ad length" options={LENGTHS} value={length} onchange={(v) => (length = v)} />
+    <span class="wide-only"><Segmented label="Ad length" options={LENGTHS} value={length} onchange={(v) => (length = v)} /></span>
+    <span class="narrow-only">
+      <Select
+        label="Ad length"
+        width="100%"
+        value={String(length)}
+        options={LENGTHS.map((o) => ({ value: String(o.value), label: o.label }))}
+        onchange={(v) => (length = Number(v))}
+      />
+    </span>
   </div>
   <div class="line">
     <ConfirmButton

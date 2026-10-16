@@ -106,6 +106,8 @@
     align-items: center;
     gap: 8px;
     min-height: 30px;
+    /* A short card scrolls; a wrapped row keeps its two lines instead of overlapping. */
+    flex: none;
   }
   .row span {
     flex: 1;

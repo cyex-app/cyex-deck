@@ -137,6 +137,7 @@
   /* A short panel scrolls; its fields and rows keep their height (the poll's question
      field was squashed flat). */
   .body > :global(.field),
+  .body > :global(input.field:not(.grow)),
   .body > :global(.line) {
     flex: none;
   }
