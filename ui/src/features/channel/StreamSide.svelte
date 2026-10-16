@@ -98,7 +98,7 @@
 {#snippet body()}
   <div class="body" data-fullscreen>
     {#if page.kind === 'about'}
-      <AboutPage login={tile.channel.login} {account} onstories={() => (shared.stories = true)} />
+      <AboutPage login={tile.channel.login} {account} live={!!info?.stream} onstories={() => (shared.stories = true)} />
     {:else if page.kind === 'clips'}
       <ClipsPage login={tile.channel.login} onplay={(slug) => go({ kind: 'clip', slug })} />
     {:else if page.kind === 'videos'}

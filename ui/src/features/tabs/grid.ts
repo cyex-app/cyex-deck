@@ -45,3 +45,15 @@ export function resized(sizes: GridSizes, line: GridLine, next: number[]): GridS
   if (line.kind === 'columns') return { columns: mean, rows: sizes.rows.map((r) => [...r]) };
   return { columns: [...sizes.columns], rows: sizes.rows.map((r, i) => (i === line.column ? mean : [...r])) };
 }
+
+/** The weight an offline-only column gets next to live ones, as a share of a default column. */
+export const SLIM = 0.3;
+
+/** D6 Columns whose tiles are all offline shrink to a slim card, so live channels get the
+ * room. Only columns still at their default width (1) shrink: one the user sized stays, and
+ * so does everything when no column is live or all of them are offline. */
+export function slimSizes(columns: readonly { size: number; tiles: readonly { id: string }[] }[], sizes: GridSizes, offline: (id: string) => boolean): GridSizes {
+  const off = columns.map((c) => c.tiles.length > 0 && c.tiles.every((t) => offline(t.id)));
+  if (columns.length < 2 || off.every(Boolean) || !off.some(Boolean)) return sizes;
+  return { rows: sizes.rows, columns: sizes.columns.map((s, i) => (off[i] && Math.abs(s - 1) < 0.001 ? SLIM : s)) };
+}

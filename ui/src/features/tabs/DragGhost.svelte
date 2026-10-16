@@ -17,7 +17,7 @@
     background: var(--elevated-2);
     border: 1px solid var(--accent-border);
     border-radius: var(--radius);
-    box-shadow: 0 6px 18px var(--shadow);
+    box-shadow: var(--shadow-pop);
     font-size: 0.82rem;
     font-weight: 600;
     white-space: nowrap;

@@ -18,9 +18,11 @@
     login: string;
     account: string | null;
     onstories: () => void;
+    /** Streaming right now: the last stream is this one. */
+    live?: boolean;
   }
 
-  let { login, account, onstories }: Props = $props();
+  let { login, account, onstories, live = false }: Props = $props();
 
   let about = $state<About | null>(null);
   let problem = $state<string | null>(null);
@@ -70,7 +72,7 @@
     {#if about.bio}<p class="bio">{about.bio}</p>{/if}
     {#if about.lastStream}
       <p class="last">
-        Last live {formatDate(new Date(about.lastStream.startedAt))}{about.lastStream.title ? `: ${about.lastStream.title}` : ''}
+        {live ? 'Live now' : `Last live ${formatDate(new Date(about.lastStream.startedAt))}`}{about.lastStream.title ? `: ${about.lastStream.title}` : ''}
         {#if about.lastStream.game}<span>({about.lastStream.game})</span>{/if}
       </p>
     {/if}

@@ -111,8 +111,8 @@
     width: 100%;
     height: 4px;
     background: var(--on-video-faint);
-    border-radius: 2px;
-    transition: height 0.1s;
+    border-radius: var(--radius-sm);
+    transition: height var(--fast);
   }
   .seek:hover .rail {
     height: 6px;
@@ -121,7 +121,7 @@
   .played {
     position: absolute;
     inset: 0 auto 0 0;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
   }
   .buffered {
     background: color-mix(in srgb, var(--on-video) 35%, transparent);

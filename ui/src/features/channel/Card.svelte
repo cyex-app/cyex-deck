@@ -50,7 +50,7 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: transform 0.2s var(--ease);
+    transition: transform var(--base) var(--ease);
   }
   .card:hover img {
     transform: scale(1.03);
@@ -58,9 +58,9 @@
   .tag {
     position: absolute;
     padding: 0 5px;
-    background: rgba(0, 0, 0, 0.75);
+    background: var(--scrim-strong);
     border-radius: var(--radius);
-    color: #fff;
+    color: var(--on-video);
     font-size: 0.72rem;
     font-variant-numeric: tabular-nums;
   }

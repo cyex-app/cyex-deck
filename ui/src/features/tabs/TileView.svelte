@@ -517,7 +517,7 @@
   }
   .drop {
     position: absolute;
-    z-index: 5;
+    z-index: var(--z-panel);
     background: var(--accent-wash);
     border: 2px solid var(--accent-border);
     border-radius: var(--radius);

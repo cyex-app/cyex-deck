@@ -13,7 +13,7 @@
   import { type Divider, dragSizes, layout as layOut, nodeAt, type Split } from '../../lib/panels';
   import { tileState } from '../player/players.svelte';
   import { drag } from './drag.svelte';
-  import { gridLine, gridTree, resized } from './grid';
+  import { gridLine, gridTree, resized, slimSizes } from './grid';
   import { dragged, layout } from './layout.svelte';
   import TileView from './TileView.svelte';
   import { tabs, tiles } from './tabs.svelte';
@@ -73,7 +73,12 @@
   /** F13 Every tile by id, in a fixed order that no move changes. */
   const byId = $derived(new Map(tiles(tab).map((t) => [t.id, t])));
   const order = $derived([...byId.keys()].sort());
-  const tree = $derived(gridTree(tab.columns, sizes, stacked));
+  /** D6 Offline channels shrink to a slim card; live ones get the room. */
+  const offline = (id: string) => {
+    const t = byId.get(id);
+    return !!t && !t.feed && t.show.player && tabs.live[t.channel.id] !== undefined && !tabs.live[t.channel.id]?.stream;
+  };
+  const tree = $derived(gridTree(tab.columns, live ? sizes : slimSizes(tab.columns, sizes, offline), stacked));
   const laid = $derived(layOut(tree, box, LINE));
 
   /** Drags a divider between columns, or between tiles in a column. */

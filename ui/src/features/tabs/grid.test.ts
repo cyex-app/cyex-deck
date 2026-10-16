@@ -45,3 +45,19 @@ test('F13 a dragged divider keeps the sizes averaging 1', () => {
   assert.ok(out.columns[0] > 1 && out.columns[1] < 1 && Math.abs(out.columns[2] - 1) < 1e-9);
   assert.deepEqual(out.rows, [[1], [1], [1]]);
 });
+
+test('an offline-only column shrinks next to a live one, unless sized by hand', async () => {
+  const { slimSizes, SLIM } = await import('./grid.ts');
+  const cols = [
+    { size: 1, tiles: [{ id: 'a' }] },
+    { size: 1, tiles: [{ id: 'b' }] },
+  ];
+  const sizes = { columns: [1, 1], rows: [[1], [1]] };
+  assert.deepEqual(slimSizes(cols, sizes, (id) => id === 'b').columns, [1, SLIM]);
+  // Everything offline, or everything live: nothing changes.
+  assert.equal(slimSizes(cols, sizes, () => true), sizes);
+  assert.equal(slimSizes(cols, sizes, () => false), sizes);
+  // A width the user chose stays.
+  const sized = { columns: [1.4, 0.6], rows: sizes.rows };
+  assert.deepEqual(slimSizes(cols, sized, (id) => id === "b"), sized);
+});

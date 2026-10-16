@@ -269,7 +269,7 @@
     flex: none;
     min-width: 17px;
     padding: 0 5px;
-    border-radius: 9px;
+    border-radius: var(--radius-pill);
     background: var(--accent);
     color: var(--accent-ink);
     font-size: 10px;

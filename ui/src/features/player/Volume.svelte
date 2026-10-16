@@ -67,7 +67,7 @@
     opacity: 0;
     appearance: none;
     background: linear-gradient(to right, var(--on-video) var(--fill), var(--on-video-faint) var(--fill));
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     transition:
       width 0.15s var(--ease),
       opacity 0.15s;
@@ -112,7 +112,7 @@
     width: 12px;
     height: 12px;
     border: 1.5px solid color-mix(in srgb, var(--on-video) 80%, transparent);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     color: #000;
   }
   .boost input:checked + .box {

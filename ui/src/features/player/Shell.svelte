@@ -140,7 +140,7 @@
     align-items: center;
     gap: 2px;
     opacity: 0;
-    transition: opacity 0.2s var(--ease);
+    transition: opacity var(--base) var(--ease);
   }
   .show .top,
   .show .bar {

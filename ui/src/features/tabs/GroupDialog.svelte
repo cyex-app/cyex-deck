@@ -29,14 +29,13 @@
   }
 </script>
 
-<Dialog title={existing ? 'Edit group' : 'New group'} width={340} onclose={close}>
+<Dialog title={existing ? 'Rename group' : 'New group'} width={340} onclose={close} onsubmit={save}>
   <div class="form">
     <input
       class="field"
       maxlength="40"
       placeholder="Name (optional)"
       bind:value={name}
-      onkeydown={(e) => e.key === 'Enter' && save()}
     />
     <div class="colors" role="radiogroup" aria-label="Color">
       {#each COLOR_ORDER as c (c)}

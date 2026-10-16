@@ -111,7 +111,7 @@
   }
 </script>
 
-<Dialog title={feed !== null ? 'Add a feed tab' : title} width={440} top onclose={closeTabDialog}>
+<Dialog title={feed !== null ? 'Add a feed tab' : title} width={440} top onclose={closeTabDialog} onsubmit={submit}>
   {#if feed !== null}
     <div class="form">
       <section>
@@ -121,7 +121,6 @@
           maxlength="60"
           placeholder="Mentions"
           bind:value={feed}
-          onkeydown={(e) => e.key === 'Enter' && submit()}
         />
         <p class="note">
           Highlight rules with “Also show in” and this name send their messages here, from every open chat.
@@ -183,7 +182,6 @@
             maxlength="60"
             placeholder={picked?.name ?? 'Channel name'}
             bind:value={alias}
-            onkeydown={(e) => e.key === 'Enter' && submit()}
           />
         </section>
       {/if}
