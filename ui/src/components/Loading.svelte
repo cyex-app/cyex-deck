@@ -8,23 +8,36 @@
     label?: string;
     /** Skeleton rows instead of the spinner. */
     rows?: number;
-    /** Skeleton stream cards in the grid's shape (picture, two lines). */
+    /** Skeleton cards in the real grid's shape. */
     cards?: number;
+    /** 'stream': Home and Discover cards (picture, avatar, three lines). 'media': videos and clips (picture, two lines). */
+    kind?: 'stream' | 'media';
     size?: 'small' | 'large';
     video?: boolean;
     minHeight?: string;
   }
 
-  let { label = '', rows = 0, cards = 0, size = 'small', video = false, minHeight }: Props = $props();
+  let { label = '', rows = 0, cards = 0, kind = 'stream', size = 'small', video = false, minHeight }: Props = $props();
 </script>
 
 {#if cards > 0}
-  <div class="cards" role="status" aria-label={label || 'Loading'} style:min-height={minHeight}>
+  <div class="cards {kind}" role="status" aria-label={label || 'Loading'} style:min-height={minHeight}>
     {#each { length: cards } as _, i (i)}
       <div class="card" aria-hidden="true">
         <span class="blob thumb"></span>
-        <span class="blob line" style:width="{70 - ((i * 13) % 30)}%"></span>
-        <span class="blob line short"></span>
+        {#if kind === 'stream'}
+          <div class="info">
+            <span class="blob av"></span>
+            <div class="text">
+              <span class="ln name"><span class="blob" style:width="{50 - ((i * 7) % 20)}%"></span></span>
+              <span class="ln title"><span class="blob" style:width="{85 - ((i * 13) % 30)}%"></span></span>
+              <span class="ln game"><span class="blob" style:width="35%"></span></span>
+            </div>
+          </div>
+        {:else}
+          <span class="ln title"><span class="blob" style:width="{90 - ((i * 13) % 30)}%"></span></span>
+          <span class="ln sub"><span class="blob" style:width="55%"></span></span>
+        {/if}
       </div>
     {/each}
   </div>
@@ -87,20 +100,72 @@
     overflow: hidden;
     clip-path: inset(50%);
   }
+  /* Same grid, gaps, picture ratio and text rows as StreamCard / channel Card, so nothing
+     jumps when the real cards arrive. */
   .cards {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 16px 12px;
-    padding: 4px 0;
+  }
+  .cards.stream {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px 14px;
+  }
+  .cards.media {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px 12px;
   }
   .card {
     display: flex;
     flex-direction: column;
-    gap: 7px;
+    gap: 8px;
+    min-width: 0;
+  }
+  .media .card {
+    gap: 4px;
   }
   .thumb {
     aspect-ratio: 16 / 9;
     width: 100%;
+    border-radius: var(--radius);
+  }
+  .info {
+    display: flex;
+    gap: 10px;
+    min-width: 0;
+  }
+  .av {
+    flex: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+  }
+  .text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  /* Each row takes the height of the text it stands for. */
+  .ln {
+    display: flex;
+    align-items: center;
+    line-height: 1.35;
+  }
+  .ln .blob {
+    height: 0.7em;
+  }
+  .ln.name,
+  .ln.title {
+    font-size: 0.85rem;
+  }
+  .stream .ln.title {
+    font-size: 0.8rem;
+  }
+  .ln.game {
+    font-size: 0.78rem;
+  }
+  .ln.sub {
+    font-size: 0.75rem;
   }
   .skeleton {
     display: flex;

@@ -50,7 +50,7 @@
   {#if problem}
     <EmptyState icon="alert" text={problem} />
   {:else if !videos}
-    <Loading />
+    <Loading cards={12} kind="media" label="Loading" />
   {:else if !videos.length}
     <EmptyState icon="film" text="No videos here." />
   {:else}

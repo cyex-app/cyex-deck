@@ -51,7 +51,7 @@
   {#if problem}
     <EmptyState icon="alert" text={problem} />
   {:else if !clips}
-    <Loading />
+    <Loading cards={12} kind="media" label="Loading" />
   {:else if !clips.length}
     <EmptyState icon="clapper" text="No clips in this time." />
   {:else}
