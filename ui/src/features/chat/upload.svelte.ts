@@ -104,6 +104,7 @@ class Uploads {
     const paths = imagePaths(p.paths ?? []);
     if (!paths.length) return;
     if (this.upload.busy) return this.hooks.fail('Wait for the upload to finish.');
+    if (this.pending) return this.hooks.fail('Answer the upload question first.');
     this.begin(paths.map((value) => ({ kind: 'file', value })));
   }
 
@@ -113,7 +114,13 @@ class Uploads {
     if (!files.length) return;
     e.preventDefault();
     if (this.upload.busy) return this.hooks.fail('Wait for the upload to finish.');
-    const items = await stageFiles(files);
-    if (items.length) this.begin(items);
+    // A second batch would replace the first one's question and strand its staged files.
+    if (this.pending) return this.hooks.fail('Answer the upload question first.');
+    try {
+      const items = await stageFiles(files);
+      if (items.length) this.begin(items);
+    } catch {
+      this.hooks.fail('Couldn’t read that image.');
+    }
   };
 }
