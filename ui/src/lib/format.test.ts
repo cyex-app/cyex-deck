@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { ago, formatDate, formatDuration, formatNumber, formatShort, formatTime, parseDuration } from './format.ts';
+import { ago, formatBytes, formatDate, formatDuration, formatNumber, formatShort, formatTime, parseDuration } from './format.ts';
 
 const at = new Date(2026, 9, 9, 14, 3, 7);
 const morning = new Date(2026, 0, 2, 0, 5, 0);
@@ -76,4 +76,13 @@ test('ago is short, then a date', () => {
   assert.equal(ago(now - 3 * 3_600_000, now), '3h');
   assert.equal(ago(now - 2 * 86_400_000, now), '2d');
   assert.equal(ago(morning.getTime(), now), '2026/01/02');
+});
+
+test('formatBytes uses dots, commas and binary units', () => {
+  assert.equal(formatBytes(0), '0 B');
+  assert.equal(formatBytes(900), '900 B');
+  assert.equal(formatBytes(38 * 1024 * 1024), '38 MB');
+  assert.equal(formatBytes(1.5 * 1024 * 1024), '1,5 MB');
+  assert.equal(formatBytes(1300 * 1024 * 1024), '1,3 GB');
+  assert.equal(formatBytes(2048 * 1024 * 1024 * 1024), '2 TB');
 });

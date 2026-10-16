@@ -80,6 +80,8 @@ export const settingsIpc = {
   shareCode: (partitions: Partition[]) => invoke<string>('settings_share_code', { partitions }),
   importCode: (code: string) => invoke<Partition[]>('settings_import_code', { code }),
   backups: () => invoke<string[]>('settings_backups'),
+  /** Saves the current settings on disk (no sign-ins); returns the folder name. */
+  snapshotNow: () => invoke<string | null>('settings_snapshot_now'),
   restoreBackup: (date: string) => invoke<Partition[]>('settings_restore_backup', { date }),
   openFolder: () => invoke<void>('settings_open_folder'),
   takeLoadReport: () => invoke<Partition[]>('settings_take_load_report'),

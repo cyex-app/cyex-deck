@@ -10,7 +10,7 @@
   import { toast } from '../../../lib/toast.svelte';
   import { errorText } from '../../../lib/errors';
   import { copy } from '../../../lib/clipboard';
-  import { formatDate } from '../../../lib/format';
+  import { formatBytes, formatDate } from '../../../lib/format';
   import ConfirmButton from '../../../components/ConfirmButton.svelte';
   import Checkbox from '../../../components/Checkbox.svelte';
 
@@ -19,12 +19,19 @@
   /** D4 Why the last pasted code didn't import, right under the field. */
   let codeError = $state('');
   let backups = $state<string[]>([]);
+  /** V1052-02 Bytes the picture cache takes; null until known. */
+  let cacheSize = $state<number | null>(null);
 
   const allPicked = $derived(picked.length === PORTABLE_PARTITIONS.length);
 
   $effect(() => {
     void refreshBackups();
+    void refreshCache();
   });
+
+  async function refreshCache() {
+    cacheSize = await systemIpc.pictureCacheSize().catch(() => null);
+  }
 
   async function refreshBackups() {
     try {
@@ -80,12 +87,16 @@
 
   async function clearCache() {
     if (await attempt(() => systemIpc.clearPictureCache().then(() => true))) toast.success('Picture cache cleared.');
+    await refreshCache();
   }
 
-  /** D1 Restoring first keeps what is there now as a share code; Undo imports it again. */
+  /** D1 Restoring first keeps what is there now as a share code (Undo imports it again) and,
+   *  V1052-03, as a snapshot on disk (no sign-ins). */
   async function restore(date: string) {
     const before = await attempt(() => settingsIpc.shareCode([...PORTABLE_PARTITIONS]));
+    await attempt(() => settingsIpc.snapshotNow());
     const result = await attempt(() => settingsIpc.restoreBackup(date));
+    void refreshBackups();
     if (!result) return;
     toast.success(`Restored settings from ${date}.`, {
       action: before
@@ -94,14 +105,17 @@
     });
   }
 
-  /** D2 "2026/10/16 · Today". */
-  function dayName(date: string): string {
+  /** D2 "2026/10/16 · Today"; V1052-03 snapshots read "Before restore · Today". */
+  function dayName(id: string): string {
+    const snap = /^before-restore-(\d{4})-(\d{2})-(\d{2})-/.exec(id);
+    const date = snap ? `${snap[1]}/${snap[2]}/${snap[3]}` : id;
     const day = (back: number) => {
       const d = new Date();
       d.setDate(d.getDate() - back);
       return formatDate(d);
     };
-    return date === day(0) ? `${date} · Today` : date === day(1) ? `${date} · Yesterday` : date;
+    const when = date === day(0) ? 'Today' : date === day(1) ? 'Yesterday' : date;
+    return snap ? `Before restore · ${when}` : when === date ? date : `${date} · ${when}`;
   }
 </script>
 
@@ -154,7 +168,7 @@
   hint="Emotes, badges and paints you’ve seen, saved on this PC. They load again when needed."
   setting="data:cache"
 >
-  <Button small onclick={clearCache}>Clear</Button>
+  <Button small onclick={clearCache}>{cacheSize ? `Clear (${formatBytes(cacheSize)})` : 'Clear'}</Button>
 </Row>
 <div class="actions" data-setting="data:folder">
   <Button variant="ghost" small icon="folder" onclick={() => attempt(() => settingsIpc.openFolder())}>Open settings folder</Button>

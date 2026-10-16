@@ -30,6 +30,21 @@ export function formatDecimal(n: number, digits = 1): string {
   return n.toFixed(digits).replace('.', ',');
 }
 
+/** 39_845_888 → "38 MB", 1_300_000_000 → "1,2 GB". Binary units, comma decimal, dots for thousands (3.13). */
+export function formatBytes(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = Math.max(0, bytes);
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i++;
+  }
+  if (i === 0) return `${formatNumber(value)} B`;
+  const rounded = value >= 100 ? Math.round(value) : Math.round(value * 10) / 10;
+  const text = Number.isInteger(rounded) ? formatNumber(rounded) : formatDecimal(rounded, 1);
+  return `${text} ${units[i]}`;
+}
+
 export function formatDate(d: Date): string {
   return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
 }
