@@ -28,7 +28,7 @@
 
   const FLAVORS: { value: RegexFlavor; label: string }[] = [
     { value: 'rust', label: 'Rust' },
-    { value: 'javascript', label: 'JavaScript' },
+    { value: 'javascript', label: 'JS' },
     { value: 'python', label: 'Python' },
   ];
 
@@ -62,6 +62,7 @@
             label: 'Regex flavor',
             kind: 'select',
             options: FLAVORS,
+            alert: true,
             when: (i) => !!i.regex,
           },
           ...ALERT,
@@ -72,6 +73,7 @@
 <RuleRow
   layout="stack"
   mainMin="90px"
+  delLow
   {item}
   {fields}
   {title}

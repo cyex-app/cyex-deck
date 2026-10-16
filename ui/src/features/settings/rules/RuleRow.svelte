@@ -27,9 +27,11 @@
     layout?: 'flow' | 'grid' | 'stack';
     /** Least width of the match field before it pushes the options onto a new line. */
     mainMin?: string;
+    /** Remove ends line two (after what it does) instead of line one. */
+    delLow?: boolean;
   }
 
-  let { item, fields, title, onchange, ondelete, problem, note, fallback = 'var(--red)', setting, layout = 'flow', mainMin = '160px' }: Props = $props();
+  let { item, fields, title, onchange, ondelete, problem, note, fallback = 'var(--red)', setting, layout = 'flow', mainMin = '160px', delLow = false }: Props = $props();
 
   const cells = $derived(layout !== 'flow');
   const shown = $derived(fields.filter((f) => !f.when || f.when(item)));
@@ -110,7 +112,7 @@
   {/if}
 {/snippet}
 
-<div class="rule" class:off={item.enabled === false} class:cells class:grid={layout === 'grid'} data-setting={setting} style:--main-min={mainMin}>
+<div class="rule" class:off={item.enabled === false} class:cells class:grid={layout === 'grid'} class:low={delLow} data-setting={setting} style:--main-min={mainMin}>
   {#if title && !cells}<span class="title">{title}</span>{/if}
   {#each shown as f, i (f.key)}
     {#if cells}
@@ -266,12 +268,29 @@
   .cells .brk ~ .cell.del {
     order: 0;
   }
+  .cells.low .brk ~ .cell.del {
+    order: 2;
+  }
   .cells .problem,
   .cells .note {
     order: 3;
   }
   .cell :global(.file) {
     max-width: 100%;
+  }
+
+  /* Narrow page, Remove on line two: tighter, so Regex's flavor still leaves two lines. */
+  @container (max-width: 840px) {
+    .cells.low {
+      column-gap: 4px;
+    }
+    .cells.low .indent {
+      display: none;
+    }
+    .cells.low .k-flavor :global(select) {
+      width: 66px;
+      padding-inline: 6px 2px;
+    }
   }
 
   /* V105-18 Wide page: one line, the same columns in every highlight row. */
