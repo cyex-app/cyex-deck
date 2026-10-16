@@ -27,7 +27,10 @@
   const hasGlobal = $derived(m.globalList.some((x) => x.enabled && x.pattern.trim()));
 </script>
 
-<h2>Mentions</h2>
+<div class="page-head">
+  <h2>Mentions</h2>
+  <Button small icon="list" onclick={() => mentionsTab.open()}>Open the Mentions tab</Button>
+</div>
 
 <h3 class="label">Your name</h3>
 <MentionRow
@@ -44,9 +47,6 @@
   onchange={(list) => save({ list })}
   empty="Words that ping you in any open chat."
 />
-<div class="tab">
-  <Button small icon="list" onclick={() => mentionsTab.open()}>Open the Mentions tab</Button>
-</div>
 
 <h3 class="label">Global mentions</h3>
 <Row setting="mentions.global" label="Global mentions" hint="From logs.cyex.app: every chat it logs. Uses about 0,8 GB an hour while on. Your list stays on this PC.">
@@ -65,8 +65,11 @@
 {/if}
 
 <style>
-  .tab {
-    padding: 4px 0 12px;
+  .page-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
   }
   .status {
     display: flex;

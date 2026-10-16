@@ -199,7 +199,7 @@ export const CHAT: Entry[] = [
     id: 'chat.modButtons.order',
     page: 'chat',
     label: 'Mod mode button order',
-    description: 'Drag them into the order they show in chat.',
+    description: 'Drag them into the order they show in chat, or Alt+↑ and Alt+↓.',
     keywords: ['moderation', 'order', 'arrange', 'reorder', 'timeout'],
   },
   {

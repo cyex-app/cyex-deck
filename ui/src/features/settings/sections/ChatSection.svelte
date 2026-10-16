@@ -334,7 +334,7 @@
   <button class="pick" aria-pressed={mb.warn} onclick={() => flipMod({ warn: !mb.warn })}>Warn</button>
   <button class="pick" aria-pressed={mb.ban} onclick={() => flipMod({ ban: !mb.ban })}>Ban</button>
 </Row>
-<Row setting="chat.modButtons.order" label="Button order" hint="Drag them into the order they show in chat." stacked>
+<Row setting="chat.modButtons.order" label="Button order" hint="Drag them into the order they show in chat, or Alt+↑ and Alt+↓." stacked>
   <div class="order">
     <DragList key="modButtons" items={modOrder} id={buttonKey} label={modName} onmove={(order) => flipMod({ order })}>
       {#snippet row(b)}
