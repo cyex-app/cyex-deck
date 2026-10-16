@@ -20,6 +20,7 @@ export const whispersIpc = {
   edit: (threadId: string, edit: WhisperEdit) => invoke<void>('whispers_edit', { threadId, edit }),
   readAll: () => invoke<void>('whispers_read_all'),
   block: (login: string) => invoke<void>('whispers_block', { login }),
+  unblock: (login: string) => invoke<void>('whispers_unblock', { login }),
   blockStrangers: (on: boolean) => invoke<void>('whispers_block_strangers', { on }),
   /** The thread a focused view shows, so it gets no unread count or alert. */
   viewing: (threadId: string | null) => invoke<void>('whispers_viewing', { threadId }),

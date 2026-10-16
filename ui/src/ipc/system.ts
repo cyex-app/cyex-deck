@@ -8,5 +8,7 @@ export const systemIpc = {
   /** V105-11 Opens a link or delete link from an "Uploaded" line. Only ones we recorded. */
   /** V1051-03 Empties the emote, badge and paint picture cache. */
   clearPictureCache: () => invoke<void>('system_clear_picture_cache'),
+  /** Bytes the picture cache takes on disk. */
+  pictureCacheSize: () => invoke<number>('system_picture_cache_size'),
   openUpload: (url: string) => invoke<void>('upload_open_link', { url }),
 };
