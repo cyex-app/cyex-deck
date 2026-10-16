@@ -182,6 +182,7 @@
     opacity: 0.4;
   }
   .save.naming {
+    display: flex;
     flex-direction: column;
     align-items: stretch;
     justify-content: center;
