@@ -6,7 +6,9 @@
   import Icon from '../../components/Icon.svelte';
   import SearchField from '../../components/SearchField.svelte';
   import type { IconName } from '../../components/icons';
+  import type { ChannelCard } from '../../ipc/bindings/ChannelCard';
   import type { Tab } from '../../ipc/bindings/Tab';
+  import { discoverIpc } from '../../ipc/browse';
   import { tabsIpc } from '../../ipc/tabs';
   import { accounts } from '../../lib/accounts.svelte';
   import { layer } from '../../lib/escape';
@@ -16,7 +18,11 @@
   import { gate } from '../../lib/gate.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { openChannel } from '../browse/open.svelte';
+  import { rank } from '../chat/completion';
   import { home } from '../home/home.svelte';
+  import { mods } from '../modview/moderation.svelte';
+  import { modviewPlace } from '../modview/where.svelte';
+  import { PAGES } from '../settings/registry/pages';
   import { openAdd } from './dialog.svelte';
   import { label, tabs, tiles } from './tabs.svelte';
   import { errorText } from '../../lib/errors';
@@ -24,10 +30,12 @@
   interface Props {
     onopen: (id: string) => void;
     onview: (view: View) => void;
+    /** Opens Settings on a page. */
+    onsettings: (page: string) => void;
     onclose: () => void;
   }
 
-  let { onopen, onview, onclose }: Props = $props();
+  let { onopen, onview, onsettings, onclose }: Props = $props();
 
   interface Choice {
     key: string;
@@ -35,6 +43,8 @@
     hint?: string;
     icon?: IconName;
     live?: 'live' | 'rerun' | null;
+    /** How well it matches what's typed (`rank`). */
+    score?: number;
     run: () => void;
   }
 
@@ -59,6 +69,27 @@
 
   /** Followed channels shown at most. */
   const FOLLOWED = 8;
+  /** Live channels from search shown at most. */
+  const FOUND = 5;
+
+  // Live channels from Twitch's search, after a short pause in typing.
+  let found = $state<ChannelCard[]>([]);
+  $effect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      found = [];
+      return;
+    }
+    const timer = setTimeout(() => {
+      discoverIpc
+        .search(q)
+        .then((r) => {
+          if (q === query.trim()) found = r.channels.items.filter((c) => c.stream);
+        })
+        .catch(() => {});
+    }, 250);
+    return () => clearTimeout(timer);
+  });
 
   // The shared dialog layer: one Escape (after clearing the text), Tab stays inside, focus goes back.
   $effect(() => {
@@ -80,34 +111,62 @@
 
   const choices = $derived.by((): Choice[] => {
     const q = query.trim().toLowerCase();
-    const matches = (s: string) => s.toLowerCase().includes(q);
+    const typed = query.trim();
+    const score = (...names: string[]) => Math.max(...names.map((n) => rank(n, typed).rank));
     const tabChoices = tabs.list
-      .filter((t) => !q || matches(label(t)) || tiles(t).some((x) => matches(x.channel.login)))
       .map((t): Choice => ({
         key: t.id,
         label: label(t),
         hint: hint(t),
         live: tabs.liveState(t),
+        score: q ? score(label(t), ...tiles(t).map((x) => x.channel.login)) : 0,
         run: () => onopen(t.id),
-      }));
+      }))
+      .filter((c) => !q || c.score);
     // Live tabs first, then the bar's order.
     tabChoices.sort((a, b) => Number(!!b.live) - Number(!!a.live));
-    const views = VIEWS.filter((v) => q && matches(v.label) && v.shown()).map((v): Choice => {
+    const views = VIEWS.filter((v) => q && score(v.label) && v.shown()).map((v): Choice => {
       const lock = v.view === 'miner' ? lockFor(accounts.any('miner'), 'gql') : null;
+      const base = { key: v.view, label: v.label, icon: v.icon, score: score(v.label) };
       return lock
-        ? { key: v.view, label: v.label, icon: v.icon, hint: FLAGS[lock].label, run: () => gate.ask(lock) }
-        : { key: v.view, label: v.label, icon: v.icon, run: () => onview(v.view) };
+        ? { ...base, hint: FLAGS[lock].label, run: () => gate.ask(lock) }
+        : { ...base, run: () => onview(v.view) };
     });
+    // Mod view needs a channel: one entry per channel in the tabs that an account moderates.
+    const modviews = q
+      ? [...new Set(tabs.list.flatMap((t) => tiles(t).map((x) => x.channel.login)))]
+          .filter((login) => mods.moderating(login) && score('Mod view', login))
+          .map((login): Choice => ({
+            key: `m${login}`,
+            label: `Mod view · ${login}`,
+            icon: 'shield',
+            score: score('Mod view', login),
+            run: () => modviewPlace.open(login),
+          }))
+      : [];
+    const pages = q
+      ? PAGES.filter((p) => score(p.label)).map(
+          (p): Choice => ({
+            key: `s${p.id}`,
+            label: p.label,
+            hint: 'Settings',
+            icon: p.icon,
+            score: score(p.label),
+            run: () => onsettings(p.id),
+          }),
+        )
+      : [];
     const inTabs = new Set(tabs.list.flatMap((t) => tiles(t).map((x) => x.channel.id)));
     const followed = q
       ? (home.follows ?? [])
-          .filter((c) => !inTabs.has(c.id) && (matches(c.login) || matches(c.name)))
+          .filter((c) => !inTabs.has(c.id) && score(c.login, c.name) > 0)
           .sort((a, b) => (b.stream?.viewers ?? -1) - (a.stream?.viewers ?? -1))
           .slice(0, FOLLOWED)
           .map(
             (c): Choice => ({
               key: `f${c.id}`,
               label: c.name,
+              score: score(c.login, c.name),
               hint: c.stream ? (c.stream.game?.name ?? 'Live') : 'Followed',
               live: c.stream ? (c.stream.rerun ? 'rerun' : 'live') : null,
               icon: c.stream ? undefined : 'heart',
@@ -115,12 +174,31 @@
             }),
           )
       : [];
-    const exact = followed.some((c) => c.label.toLowerCase() === q);
+    const known = new Set([...inTabs, ...(home.follows ?? []).map((c) => c.id)]);
+    const live = q
+      ? found
+          .filter((c) => !known.has(c.id) && score(c.login, c.name))
+          .slice(0, FOUND)
+          .map(
+            (c): Choice => ({
+              key: `l${c.id}`,
+              label: c.name,
+              score: score(c.login, c.name),
+              hint: c.stream?.game?.name ?? 'Live',
+              live: c.stream?.rerun ? 'rerun' : 'live',
+              run: () => void openChannel({ show: onopen, account: () => home.account }, c),
+            }),
+          )
+      : [];
+    const exact = [...followed, ...live].some((c) => c.label.toLowerCase() === q);
     const open: Choice[] =
       q && !exact
         ? [{ key: '+', label: `Open ${query.trim()}`, hint: 'New tab', icon: 'plus', run: () => void openTyped() }]
         : [];
-    return [...tabChoices, ...followed, ...views, ...open];
+    // Best match first; ties keep tabs, then followed, views, settings pages, search.
+    const rest = [...tabChoices, ...followed, ...views, ...modviews, ...pages, ...live];
+    if (q) rest.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    return [...rest, ...open];
   });
 
   $effect(() => {
@@ -182,7 +260,7 @@
 <div class="backdrop" onmousedown={(e) => e.target === e.currentTarget && onclose()}>
   <div class="switcher" bind:this={box} role="dialog" aria-modal="true" aria-label="Quick switcher" tabindex="-1">
     <div class="search">
-      <SearchField bind:value={query} placeholder="Go to a tab, or open a channel" label="Go to" autofocus {onkeydown} />
+      <SearchField bind:value={query} placeholder="Go to a tab, view or channel" label="Go to" autofocus {onkeydown} />
     </div>
     {#if choices.length}
       <div class="list" bind:this={list} role="listbox" aria-label="Results">

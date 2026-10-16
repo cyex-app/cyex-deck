@@ -465,7 +465,14 @@
 </div>
 
 {#if switcher}
-  <Switcher onopen={open} onview={show} onclose={() => (switcher = false)} />
+  <Switcher
+    onopen={open}
+    onview={show}
+    onsettings={(page) => {
+      settingsSection = page;
+      show('settings');
+    }}
+    onclose={() => (switcher = false)} />
 {/if}
 <TabOverlays onopen={open} />
 <!-- V101-26 Kept on screen in fullscreen. -->
