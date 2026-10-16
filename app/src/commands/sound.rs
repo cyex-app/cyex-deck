@@ -27,7 +27,8 @@ pub fn sound_play(app: AppHandle, path: Option<String>) -> CmdResult<()> {
 }
 
 /// The page's decoded sound: raw f32 body, the request's id in `x-id`. Empty: it wouldn't decode.
-#[tauri::command]
+// V1051-01 final review: off the UI thread (up to 11 MB of samples or a 5 MB file).
+#[tauri::command(async)]
 pub fn sound_decoded(app: AppHandle, request: tauri::ipc::Request<'_>) -> CmdResult<()> {
     let id = request
         .headers()

@@ -92,7 +92,7 @@ fn run(
     mut streams: Look,
     mut sounds: Look,
 ) -> windows::core::Result<()> {
-    com();
+    let _com = com();
     let en = enumerator()?;
     let devices: IMMNotificationClient = Devices(tx.clone()).into();
     let created: IAudioSessionNotification = Created(tx).into();

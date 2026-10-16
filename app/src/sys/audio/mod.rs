@@ -13,7 +13,7 @@ use cyex_settings::schema::OutputDevice;
 use windows::Win32::Foundation::PROPERTYKEY;
 use windows::Win32::Media::Audio::{DEVICE_STATE_ACTIVE, IMMDeviceEnumerator, MMDeviceEnumerator, eRender};
 use windows::Win32::System::Com::{
-    CLSCTX_ALL, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoTaskMemFree, STGM_READ,
+    CLSCTX_ALL, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, STGM_READ,
 };
 use windows::core::{GUID, PWSTR};
 
@@ -23,10 +23,23 @@ const FRIENDLY_NAME: PROPERTYKEY = PROPERTYKEY {
     pid: 14,
 };
 
+/// COM joined on this thread (MTA) until dropped. Bind it first in a thread so every COM
+/// object of that thread goes before it.
+struct Com(bool);
+
 /// Joins COM on this thread (MTA). Threads here are our own, so it's never another model.
-fn com() {
+fn com() -> Com {
     // SAFETY: initializing COM for the calling thread.
-    let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+    Com(unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.is_ok())
+}
+
+impl Drop for Com {
+    fn drop(&mut self) {
+        if self.0 {
+            // SAFETY: balances the successful CoInitializeEx above, on the same thread.
+            unsafe { CoUninitialize() };
+        }
+    }
 }
 
 fn enumerator() -> windows::core::Result<IMMDeviceEnumerator> {
@@ -48,7 +61,7 @@ fn take(p: PWSTR) -> String {
 pub fn outputs() -> Vec<OutputDevice> {
     // COM on a short thread of our own, not on a command's runtime thread.
     std::thread::spawn(|| {
-        com();
+        let _com = com();
         list().unwrap_or_default()
     })
     .join()

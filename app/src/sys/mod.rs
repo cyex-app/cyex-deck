@@ -163,7 +163,7 @@ pub fn low_memory(_window: &tauri::WebviewWindow, _low: bool) {}
 /// only lists speakers and allows the choice while the page may use the microphone, so
 /// this sets that permission for the app's own origin while a streams device is set and
 /// back to the default otherwise. Nothing asks for the microphone. `done` runs once
-/// WebView2 has it.
+/// WebView2 has it, never on a failure.
 #[cfg(windows)]
 pub fn allow_speaker_choice(window: &tauri::WebviewWindow, allow: bool, done: impl FnOnce() + Send + 'static) {
     use webview2_com::Microsoft::Web::WebView2::Win32::{
@@ -181,8 +181,12 @@ pub fn allow_speaker_choice(window: &tauri::WebviewWindow, allow: bool, done: im
         COREWEBVIEW2_PERMISSION_STATE_DEFAULT
     };
     let _ = window.with_webview(move |w| {
-        let handler = SetPermissionStateCompletedHandler::create(Box::new(move |_| {
-            done();
+        let handler = SetPermissionStateCompletedHandler::create(Box::new(move |r| {
+            if r.is_ok() {
+                done();
+            } else {
+                eprintln!("sys: speaker choice: {r:?}");
+            }
             Ok(())
         }));
         // SAFETY: plain COM calls on the controller Tauri hands us, on the UI thread.

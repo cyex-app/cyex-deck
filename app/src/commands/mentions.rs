@@ -42,7 +42,8 @@ pub async fn mentions_pick_sound(app: AppHandle) -> CmdResult<Option<String>> {
 }
 
 /// A mention's or highlight's sound file, for the page to decode (V1051-01). Only files your settings name.
-#[tauri::command]
+// V1051-01 final review: off the UI thread (up to 11 MB of samples or a 5 MB file).
+#[tauri::command(async)]
 pub fn mentions_sound(app: AppHandle, path: String) -> CmdResult<Response> {
     if !crate::sound::named(&app, &path) {
         return Err("Not a sound from your settings.".into());

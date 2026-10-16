@@ -87,22 +87,24 @@ pub fn on_settings(app: &AppHandle) {
 }
 
 /// The streams' speaker choice (Q2): allowed while a streams device is set. Needs the
-/// main window; checked again on every General change, set only when it changes.
+/// main window's page; checked again on every General change and page load, set only
+/// when it changes (remembered once WebView2 took it, so a failed try is retried).
 pub fn allow_speakers(app: &AppHandle) {
     let s: General = app.state::<Settings>().read(Partition::General);
     let allow = s.sound.streams_device.is_some();
     let Some(main) = app.get_webview_window(MAIN) else {
         return;
     };
-    if let Some(sounds) = app.try_state::<Sounds>() {
-        let mut last = sounds.speakers.lock().unwrap_or_else(|p| p.into_inner());
-        if *last == Some(allow) {
-            return;
-        }
-        *last = Some(allow);
+    if let Some(sounds) = app.try_state::<Sounds>()
+        && *sounds.speakers.lock().unwrap_or_else(|p| p.into_inner()) == Some(allow)
+    {
+        return;
     }
     let handle = app.clone();
     crate::sys::allow_speaker_choice(&main, allow, move || {
+        if let Some(sounds) = handle.try_state::<Sounds>() {
+            *sounds.speakers.lock().unwrap_or_else(|p| p.into_inner()) = Some(allow);
+        }
         let _ = handle.emit(SINK_READY_EVENT, ());
     });
 }

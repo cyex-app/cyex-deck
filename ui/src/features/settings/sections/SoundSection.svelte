@@ -26,9 +26,9 @@
     void settings.patch('general', { sound: p });
   }
 
-  /** The saved device, or null for "Same as Windows". */
-  function picked(id: string): OutputDevice | null {
-    return devices.find((d) => d.id === id) ?? null;
+  /** The picked device (also the saved one that isn’t plugged in), or null for "Same as Windows". */
+  function picked(id: string, current: OutputDevice | null): OutputDevice | null {
+    return devices.find((d) => d.id === id) ?? (current?.id === id ? current : null);
   }
 </script>
 
@@ -38,7 +38,7 @@
     aria-label={label}
     value={current?.id ?? ''}
     onfocus={refresh}
-    onchange={(e) => onpick(picked(e.currentTarget.value))}
+    onchange={(e) => onpick(picked(e.currentTarget.value, current))}
   >
     <option value="">Same as Windows</option>
     {#each devices as d (d.id)}<option value={d.id}>{d.name}</option>{/each}

@@ -32,6 +32,7 @@ pub fn play(pcm: Arc<[f32]>, device: Option<String>) {
         return;
     }
     let spawned = std::thread::Builder::new().name("sound".into()).spawn(move || {
+        let _com = com();
         if let Err(e) = run(&pcm, device.as_deref()) {
             eprintln!("sound: {e}");
         }
@@ -45,14 +46,15 @@ pub fn play(pcm: Arc<[f32]>, device: Option<String>) {
 /// Opens the session once, so the mixer lists the app before its first sound.
 pub fn prime() {
     let _ = std::thread::Builder::new().name("sound".into()).spawn(|| {
+        let _com = com();
         if let Err(e) = open(None) {
             eprintln!("sound: {e}");
         }
     });
 }
 
+/// Needs COM on the calling thread (`com()`).
 fn open(device: Option<&str>) -> windows::core::Result<IAudioClient> {
-    com();
     let en = enumerator()?;
     // SAFETY: plain Core Audio calls on objects owned by this function.
     unsafe {

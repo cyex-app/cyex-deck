@@ -174,7 +174,13 @@ pub fn on_page_load(webview: &Webview, payload: &PageLoadPayload<'_>) {
     match payload.event() {
         PageLoadEvent::Started if shows_chats() => crate::chat::shown::loading(app, label),
         PageLoadEvent::Started => {}
-        PageLoadEvent::Finished => crate::chat::shown::loaded(app, label),
+        PageLoadEvent::Finished => {
+            crate::chat::shown::loaded(app, label);
+            // V1051-01 The page's origin is known now (at setup it may not be yet).
+            if label == MAIN {
+                crate::sound::allow_speakers(app);
+            }
+        }
     }
 }
 
