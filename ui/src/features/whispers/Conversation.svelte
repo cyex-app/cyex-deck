@@ -210,8 +210,36 @@
     openMenuAt(e, items);
   }
 
-  /** A date line where the day changes. */
-  const dayOf = (ts: number) => formatDate(new Date(ts));
+  /** V5 Days run together: one date row covers messages up to a day apart, over 3 days at most. */
+  const DAY_MS = 86_400_000;
+  const dayNo = (ts: number) => {
+    const d = new Date(ts);
+    return Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / DAY_MS);
+  };
+  /** The row text for the messages that start a group, by index. */
+  const dates = $derived.by(() => {
+    const out = new Map<number, string>();
+    let start = 0;
+    let last = 0;
+    const flush = (end: number) => {
+      const a = new Date(messages[start].ts);
+      const b = new Date(messages[end].ts);
+      const from = formatDate(a);
+      const to = formatDate(b);
+      out.set(start, from === to ? from : `${from} – ${a.getFullYear() === b.getFullYear() ? to.slice(5) : to}`);
+    };
+    messages.forEach((m, i) => {
+      const day = dayNo(m.ts);
+      if (i === 0) start = i;
+      else if (day - dayNo(messages[last].ts) > 1 || day - dayNo(messages[start].ts) > 3) {
+        flush(last);
+        start = i;
+      }
+      last = i;
+    });
+    if (messages.length) flush(last);
+    return out;
+  });
 </script>
 
 <div class="conv">
@@ -248,7 +276,7 @@
       </p>
     {/if}
     {#each messages as m, i (m.id)}
-      {#if i === 0 || dayOf(m.ts) !== dayOf(messages[i - 1].ts)}<div class="day">{dayOf(m.ts)}</div>{/if}
+      {#if dates.has(i)}<div class="day"><span>{dates.get(i)}</span></div>{/if}
       <Line {m} channel="" inWhispers />
     {/each}
   </div>
@@ -322,9 +350,21 @@
     color: var(--red);
   }
   .day {
-    margin: 10px 0 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 10px 4px;
     color: var(--dim);
-    font-size: 11px;
-    text-align: center;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.06em;
+    opacity: 0.8;
+  }
+  .day::before,
+  .day::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
   }
 </style>
