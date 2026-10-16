@@ -69,8 +69,9 @@
     background: var(--surface-hover);
     color: var(--text);
   }
+  /* Shaped like secondary, so it sits in a row of them; only the text is red. */
   .danger {
-    background: none;
+    background: var(--surface);
     border-color: var(--border-strong);
     color: var(--red);
   }

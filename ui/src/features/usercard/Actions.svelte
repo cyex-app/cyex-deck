@@ -84,7 +84,6 @@
   <span use:tooltip={hidden ? 'Shows their messages again.' : 'Only for you, not on Twitch.'}>
     <Button
       small
-      variant="ghost"
       disabled={busy}
       onclick={() => (hidden ? void run(`/unhideuser ${login}`) : void hide())}
     >
@@ -95,7 +94,7 @@
     <span use:tooltip={blocked ? 'Lets them whisper and follow you again.' : 'Blocks them on Twitch.'}>
       <Button
         small
-        variant={blocked ? 'ghost' : 'danger'}
+        variant={blocked ? 'secondary' : 'danger'}
         disabled={busy || blocked === null}
         onclick={() => (blocked ? void run(`/unblock ${login}`, () => (blocked = false)) : void block())}
       >
