@@ -37,8 +37,10 @@ class UpdateStore {
     };
     try {
       await updateIpc.install(on);
-    } catch (e) {
-      this.error = String(e);
+      // Back without restarting: let the button work again.
+      this.busy = false;
+    } catch {
+      this.error = 'Couldn’t update. Try again.';
       this.progress = '';
       this.percent = null;
       this.busy = false;
@@ -48,11 +50,11 @@ class UpdateStore {
   async skip(): Promise<void> {
     const v = this.available?.version;
     if (!v) return;
-    await updateIpc.skip(v).catch((e) => (this.error = String(e)));
+    await updateIpc.skip(v).catch(() => (this.error = 'Couldn’t skip that one.'));
   }
 
   openNotes(): void {
-    updateIpc.openNotes().catch((e) => (this.error = String(e)));
+    updateIpc.openNotes().catch(() => (this.error = 'Couldn’t open the notes.'));
   }
 }
 

@@ -4,9 +4,11 @@
 
   import Icon from '../../components/Icon.svelte';
   import Popover from '../../components/Popover.svelte';
+  import { tooltip } from '../../components/tooltip.svelte';
   import { draws } from '../../design/fontProbe';
   import type { FontChoice } from '../../ipc/bindings/FontChoice';
   import { fontsIpc } from '../../ipc/theme';
+  import { RANK, rank } from '../chat/completion';
 
   interface Props {
     /** Empty = the app font. */
@@ -21,6 +23,7 @@
   let query = $state('');
   let list = $state<FontChoice[]>([]);
   let active = $state(0);
+  let failed = $state(false);
   let search = $state<HTMLInputElement>();
   let listEl = $state<HTMLUListElement>();
 
@@ -28,8 +31,11 @@
   const load = () =>
     fontsIpc
       .list()
-      .then((l) => (list = l.filter((f) => f.kind !== 'installed' || draws(f.name))))
-      .catch(() => {});
+      .then((l) => {
+        failed = false;
+        list = l.filter((f) => f.kind !== 'installed' || draws(f.name));
+      })
+      .catch(() => (failed = true));
 
   function remove(name: string) {
     onremove(name);
@@ -48,12 +54,17 @@
   });
 
   const missing = $derived(!!value && list.length > 0 && !list.some((f) => f.name.toLowerCase() === value.toLowerCase()));
-  const q = $derived(query.trim().toLowerCase());
-  /** An empty name is the app font. */
-  const rows = $derived([
-    ...(!q || 'app font'.includes(q) ? [{ name: '', kind: 'app' as const }] : []),
-    ...list.filter((f) => f.name.toLowerCase().includes(q)),
-  ]);
+  const q = $derived(query.trim());
+  /** Typed: best match first (V101-16 rank), A-Z within. An empty name is the app font. */
+  const rows = $derived.by(() => {
+    const app = { name: '', kind: 'app' as const };
+    if (!q) return [app, ...list];
+    const hits = list
+      .map((f) => ({ f, r: rank(f.name, q) }))
+      .filter((h) => h.r.rank > RANK.none)
+      .sort((a, b) => b.r.rank - a.r.rank || b.r.close - a.r.close);
+    return rank('App font', q).rank > RANK.none ? [app, ...hits.map((h) => h.f)] : hits.map((h) => h.f);
+  });
 
   const selected = (name: string) => (name === '' ? !value : name.toLowerCase() === value.toLowerCase());
   const face = (name: string) => `"${name}"`;
@@ -100,14 +111,14 @@
               {#if selected(f.name)}<Icon name="check" size={13} />{/if}
             </button>
             {#if f.kind === 'added'}
-              <button class="remove" aria-label="Remove {f.name}" title="Remove" onclick={() => remove(f.name)}
+              <button class="remove" aria-label="Remove {f.name}" use:tooltip={'Remove'} onclick={() => remove(f.name)}
                 ><Icon name="x" size={12} /></button
               >
             {/if}
           </li>
         {/each}
       </ul>
-      {#if !rows.length}<p class="empty">No font by that name.</p>{/if}
+      {#if failed}<p class="empty">Couldn’t read the fonts.</p>{:else if !rows.length}<p class="empty">No font by that name.</p>{/if}
     </div>
   </Popover>
 </div>

@@ -8,6 +8,7 @@
   import type { Sound } from '../../../ipc/bindings/Sound';
   import { soundIpc } from '../../../ipc/sound';
   import { settings } from '../../../lib/settings.svelte';
+  import { toast } from '../../../lib/toast.svelte';
 
   const s = $derived(settings.v.general.sound);
   let devices = $state<OutputDevice[]>([]);
@@ -15,10 +16,15 @@
   let listed = $state(false);
 
   function refresh() {
-    void soundIpc.devices().then((d) => {
-      devices = d;
-      listed = true;
-    });
+    soundIpc
+      .devices()
+      .then((d) => {
+        devices = d;
+        listed = true;
+      })
+      .catch(() => {
+        // Keep the last list; the saved device isn't called "not connected" on a guess.
+      });
   }
   refresh();
 
@@ -69,7 +75,7 @@
 <Row setting="general.sound.soundsDevice" label="Other sounds play on" hint="Mentions, highlights, live alerts and whispers.">
   <span class="pair">
     {@render picker('Other sounds play on', s.soundsDevice, (d) => patch({ soundsDevice: d }))}
-    <IconButton icon="play" label="Play a test sound" onclick={() => void soundIpc.play(null)} />
+    <IconButton icon="play" label="Play a test sound" onclick={() => void soundIpc.play(null).catch(() => toast.error('Couldn’t play the sound.'))} />
   </span>
 </Row>
 
