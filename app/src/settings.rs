@@ -229,6 +229,7 @@ impl Settings {
         }
         if changed.iter().any(|(p, _)| *p == Partition::Appearance) {
             crate::theme::on_settings(app);
+            crate::windows::zoom::apply_all(app);
         }
         if changed.iter().any(|(p, _)| *p == Partition::Plugins) {
             crate::plugins::on_settings(app);

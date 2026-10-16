@@ -3,6 +3,7 @@
 
 import { keyTaken, layers } from './escape';
 import { settings } from './settings.svelte';
+import { zoomHotkeys } from './zoom';
 
 export const ACTIONS = {
   'nav.home': { label: 'Go to home', default: 'Ctrl+1' },
@@ -24,6 +25,9 @@ export const ACTIONS = {
   'chat.search': { label: 'Search this chat', default: 'Ctrl+F' },
   'chat.searchAll': { label: 'Search every chat', default: 'Ctrl+Shift+F' },
   'chat.similar': { label: 'Hide or show near-duplicates', default: 'Ctrl+H' },
+  'zoom.in': { label: 'Zoom in', default: 'Ctrl+=' },
+  'zoom.out': { label: 'Zoom out', default: 'Ctrl+-' },
+  'zoom.reset': { label: 'Reset zoom', default: 'Ctrl+0' },
   'global.show': { label: 'Show or hide cyex deck', default: '', global: true },
   'global.streamer': { label: 'Streamer mode on or off', default: '', global: true },
   'global.clickThrough': { label: 'Overlay click-through on or off', default: '', global: true },
@@ -90,7 +94,8 @@ function isTyping(target: EventTarget | null): boolean {
 
 /** Runs the handlers for their bound combos while the calling component is mounted. A
  *  handler that returns `false` leaves the key to the page, e.g. Space on a button. */
-export function useHotkeys(handlers: Partial<Record<ActionId, () => unknown>>): void {
+export function useHotkeys(own: Partial<Record<ActionId, () => unknown>>): void {
+  const handlers = { ...zoomHotkeys, ...own };
   $effect(() => {
     const onKey = (e: KeyboardEvent) => {
       // An open dialog, menu or select has the keyboard; so does a key something already used.

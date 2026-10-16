@@ -14,6 +14,7 @@
   import type { Theme } from '../../../ipc/bindings/Theme';
   import { themeIpc } from '../../../ipc/theme';
   import { settings } from '../../../lib/settings.svelte';
+  import { ZOOMS } from '../../../lib/zoom';
   import { toast } from '../../../lib/toast.svelte';
   import ColorField from '../ColorField.svelte';
   import ResetSection from '../ResetSection.svelte';
@@ -142,6 +143,9 @@
     { value: 'all', label: 'All' },
   ];
 
+  /** Zoom steps; the house style puts a space before the percent sign. */
+  const ZOOM_STEPS = ZOOMS.map((z) => ({ value: z as number, label: `${z} %` }));
+
   const UNREAD: { value: TabUnread; label: string }[] = [
     { value: 'all', label: 'Messages' },
     { value: 'mentions', label: 'Mentions' },
@@ -230,6 +234,15 @@
   <span class="link">Accent text</span>
   <Toggle label="Sample" checked={true} onchange={() => {}} />
 </div>
+
+<Row setting="appearance.zoom" label="Zoom" hint="Pop-outs follow. Overlays keep their own size.">
+  <Segmented
+    label="Zoom"
+    options={ZOOM_STEPS}
+    value={a.zoom}
+    onchange={(v) => settings.patch('appearance', { zoom: v })}
+  />
+</Row>
 
 <h3 class="label">Tabs</h3>
 <Row setting="appearance.tabDensity" label="Tab size" hint="Compact fits more tabs.">

@@ -51,4 +51,8 @@ themes: Array<CustomTheme>,
 /**
  * U8 The custom theme in use; empty for plain dark or light. `theme` follows its base.
  */
-themeId: string, };
+themeId: string, 
+/**
+ * App zoom in percent, one of `ZOOMS`. Overlays keep their own size.
+ */
+zoom: number, };

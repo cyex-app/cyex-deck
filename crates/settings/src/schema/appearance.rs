@@ -34,6 +34,8 @@ pub struct Appearance {
     pub themes: Vec<CustomTheme>,
     /// U8 The custom theme in use; empty for plain dark or light. `theme` follows its base.
     pub theme_id: String,
+    /// App zoom in percent, one of `ZOOMS`. Overlays keep their own size.
+    pub zoom: u16,
 }
 
 impl Default for Appearance {
@@ -50,6 +52,7 @@ impl Default for Appearance {
             tab_unread: TabUnread::All,
             themes: Vec::new(),
             theme_id: String::new(),
+            zoom: DEFAULT_ZOOM,
         }
     }
 }
@@ -58,8 +61,17 @@ impl Default for Appearance {
 pub const TAB_ROWS: std::ops::RangeInclusive<u8> = 1..=10;
 pub const DEFAULT_TAB_ROWS: u8 = 3;
 
+/// App zoom steps, in percent.
+pub const ZOOMS: [u16; 5] = [100, 125, 150, 175, 200];
+pub const DEFAULT_ZOOM: u16 = 100;
+
 impl Schema for Appearance {
     fn sanitize(&mut self) {
+        // The nearest step, so a hand-edited 130 lands on 125 and 999 on 200.
+        self.zoom = ZOOMS
+            .into_iter()
+            .min_by_key(|z| z.abs_diff(self.zoom))
+            .unwrap_or(DEFAULT_ZOOM);
         self.tab_max_rows = self.tab_max_rows.clamp(*TAB_ROWS.start(), *TAB_ROWS.end());
         self.accent = normalize_accent(&self.accent).unwrap_or_else(|| DEFAULT_ACCENT.into());
         let mut seen = Vec::new();
@@ -340,6 +352,18 @@ mod tests {
             theme_id: t.id.clone(),
             themes: vec![t],
             ..Appearance::default()
+        }
+    }
+
+    #[test]
+    fn zoom_defaults_and_snaps_to_a_step() {
+        assert_eq!(Appearance::default().zoom, 100);
+        let old: Appearance = serde_json::from_str(r#"{"tabDensity":"compact"}"#).unwrap();
+        assert_eq!(old.zoom, 100);
+        for (given, want) in [(0, 100), (99, 100), (130, 125), (162, 150), (175, 175), (999, 200)] {
+            let mut a = Appearance { zoom: given, ..Appearance::default() };
+            a.sanitize();
+            assert_eq!(a.zoom, want, "{given}");
         }
     }
 

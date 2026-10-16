@@ -7,6 +7,7 @@ mod panels;
 pub mod seventv;
 pub mod twitch;
 mod usercard;
+pub mod zoom;
 
 pub use layouts::{apply_layout, delete_layout, save_layout};
 pub use panels::{PanelRegistry, close as close_panel, open_panel, route_of, routes as panel_routes};
@@ -61,6 +62,8 @@ pub fn builder<'a>(
         // V101-30 Paste in the app's own right-click menu. Only the app's pages run here;
         // plugins are Lua and Twitch's pages have their own window.
         .enable_clipboard_access()
+        // Zoom only moves in the app's own steps (appearance.zoom), never by Ctrl+wheel.
+        .zoom_hotkeys_enabled(false)
 }
 
 pub fn init(app: &AppHandle) -> tauri::Result<()> {
@@ -176,6 +179,7 @@ pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
 pub fn on_page_load(webview: &Webview, payload: &PageLoadPayload<'_>) {
     let app = webview.app_handle();
     let label = webview.label();
+    zoom::apply(webview);
     let shows_chats = || label == MAIN || route_of(app, label).is_some_and(|r| panels::shows_chats(&r));
     match payload.event() {
         PageLoadEvent::Started if shows_chats() => crate::chat::shown::loading(app, label),
