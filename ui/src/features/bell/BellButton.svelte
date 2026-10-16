@@ -160,7 +160,7 @@
     flex: 1;
     display: flex;
     gap: 10px;
-    padding: 8px 28px 8px 8px;
+    padding: 8px 28px 8px 14px;
     background: none;
     border: 0;
     text-align: left;
@@ -196,11 +196,11 @@
   .unread::before {
     content: '';
     position: absolute;
-    left: 2px;
+    left: 4px;
     top: 50%;
-    width: 4px;
-    height: 4px;
-    margin-top: -2px;
+    width: 6px;
+    height: 6px;
+    margin-top: -3px;
     border-radius: 50%;
     background: var(--accent-text);
   }
