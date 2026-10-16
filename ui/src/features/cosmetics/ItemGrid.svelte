@@ -61,10 +61,10 @@
     <div class="item {kind}" class:on class:lock={r && !r.usable} aria-disabled={r && !r.usable ? 'true' : undefined} use:tooltip={tip(r)}>
       {#if kind === 'paint'}
         {#if r}
-          <span class="painted paint-{idOf(r)} who">{name}</span>
+          <span class="back"><span class="painted paint-{idOf(r)} who">{name}</span></span>
           <span class="nm">{r.name}</span>
         {:else}
-          <span class="who">{name}</span>
+          <span class="back"><span class="who">{name}</span></span>
           <span class="nm">None</span>
         {/if}
       {:else if r && 'def' in r.item}
@@ -124,11 +124,22 @@
     text-align: center;
   }
   .who {
+    min-width: 0;
     overflow: hidden;
     font-size: 14px;
     font-weight: 700;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  /* V1051-03 Light: pale paints sit on a soft grey, not on white. The paint is the name's own
+     background, so the grey goes on a wrapper. */
+  .back {
+    display: flex;
+    align-self: flex-start;
+    max-width: 100%;
+    padding: 0 6px;
+    background: var(--paint-back);
+    border-radius: var(--radius);
   }
   .nm {
     overflow: hidden;

@@ -25,7 +25,8 @@
     gap: 3px;
   }
   .chip {
-    padding: 1px 7px;
+    min-height: 24px;
+    padding: 1px 8px;
     background: none;
     border: 1px solid var(--border);
     border-radius: var(--radius);

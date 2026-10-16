@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { geometry, range, reveal, step } from './virtualGrid.ts';
+import { cellSpan, geometry, range, reveal, step } from './virtualGrid.ts';
 
 const g = geometry(1000, 2000, 176, 48, 6);
 
@@ -44,4 +44,14 @@ test('reveal: null when in view, else the nearest scrollTop', () => {
   assert.equal(reveal(3, g, 0, 270), null);
   assert.equal(reveal(30, g, 0, 270), 7 * 54 - 270 + 0);
   assert.equal(reveal(0, g, 300, 270), 0);
+});
+
+test('cellSpan: cells grow to fill the row (V1051-03)', () => {
+  // 1000 px holds 5 columns of 176 px; they stretch to 193,2 px each.
+  assert.equal(cellSpan(1000, 5, 176, 6), (1000 - 24) / 5);
+  // One column fills the width; before the first measure the cell keeps its size.
+  assert.equal(cellSpan(300, 1, 176, 6), 300);
+  assert.equal(cellSpan(0, 1, 176, 6), 176);
+  // Never narrower than asked, even when the row is too tight.
+  assert.equal(cellSpan(100, 1, 176, 6), 176);
 });

@@ -8,13 +8,14 @@
   import { systemIpc } from '../../ipc/system';
   import { accounts } from '../../lib/accounts.svelte';
   import { focus } from '../../lib/focus.svelte';
-  import { formatNumber } from '../../lib/format';
-  import { ComboStore } from './combos.svelte';
+    import { ComboStore } from './combos.svelte';
   import ComboStrip from './ComboStrip.svelte';
   import { CosmeticsStore } from './cosmetics.svelte';
+  import { countLabel } from './filter';
   import Consent from './Consent.svelte';
   import Pane from './Pane.svelte';
   import Preview from './Preview.svelte';
+  import Status from './Status.svelte';
   import StateCard from './StateCard.svelte';
 
   interface Props {
@@ -47,7 +48,6 @@
   });
 
   const items = $derived(view && (status === 'ready' || status === 'signedOut' || status === 'expired'));
-  const ink = (n: number) => formatNumber(n);
 
   /** A pick goes to 7TV, or into the draft while a combo is edited. */
   function pick(kind: 'paint' | 'badge', id: string | null, usable: boolean) {
@@ -80,7 +80,7 @@
 
 <!-- Everything inside stands still while the window isn't in front: grid, combos, preview. -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="panel" class:still={focus.idle} bind:this={root} {onkeydown}>
+<div class="panel" class:compact class:still={focus.idle} bind:this={root} {onkeydown}>
   {#if !who}
     <!-- The account left; nothing to show. -->
   {:else if status === 'noConsent' && view}
@@ -110,24 +110,27 @@
 
     <ComboStrip {combos} {store} name={who.displayName} />
 
-    <Preview {store} who={who} {compact} shown={combos.shown} bar={combos.editing ? editBar : undefined} />
+    <Preview {store} {who} shown={combos.shown} />
 
     {#if compact}
       <Segmented
         label="Picker"
         value={tab}
         options={[
-          { value: 'paints', label: `Paints · ${ink(view.paints.length)}` },
-          { value: 'badges', label: `Badges · ${ink(view.badges.length)}` },
+          { value: 'paints', label: `Paints · ${countLabel(store.paintsShown.length, view.paints.length)}` },
+          { value: 'badges', label: `Badges · ${countLabel(store.badgesShown.length, view.badges.length)}` },
         ]}
         onchange={(t) => (tab = t)}
       />
     {/if}
+    <!-- Next to the grid you pick from, not up by the preview. -->
+    <Status {store} bar={combos.editing ? editBar : undefined} />
     <div class="picker" class:compact>
       {#if !compact || tab === 'paints'}
         <Pane
           kind="paint"
           heading={!compact}
+          {compact}
           query={store.paintsQ}
           onquery={(q) => (store.paintsQ = q)}
           rows={store.paintsShown}
@@ -142,6 +145,7 @@
         <Pane
           kind="badge"
           heading={!compact}
+          {compact}
           query={store.badgesQ}
           onquery={(q) => (store.badgesQ = q)}
           rows={store.badgesShown}
@@ -164,6 +168,14 @@
     height: 100%;
     min-height: 0;
     container-type: inline-size;
+  }
+  /* The pop-up is small: tighter, and it scrolls as a last resort before the grid gets tiny. */
+  .panel.compact {
+    gap: 8px;
+    overflow-y: auto;
+  }
+  .picker.compact {
+    min-height: 120px;
   }
   .bar {
     display: flex;

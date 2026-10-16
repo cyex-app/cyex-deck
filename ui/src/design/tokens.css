@@ -25,6 +25,8 @@
   --green: #33d68f;
   --twitch: #a970ff;
   --cyan: #4fd6ff;
+  /* V1051-03 What a 7TV paint is drawn on in the menu. */
+  --paint-back: var(--bg);
 }
 
 :root {
@@ -82,6 +84,8 @@
   --green: #0f8a55;
   --twitch: #772ce8;
   --cyan: #0b6d8a;
+  /* Pale paints vanish on white; a soft grey keeps them readable. */
+  --paint-back: #b0b6c0;
 }
 
 *,

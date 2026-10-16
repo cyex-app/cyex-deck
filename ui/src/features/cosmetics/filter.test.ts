@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { emptyQuery, filterItems, NEW_DAYS, type Chip, type Query } from './filter.ts';
+import { countLabel, emptyQuery, filterItems, NEW_DAYS, type Chip, type Query } from './filter.ts';
 
 const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 9, 15);
@@ -57,4 +57,10 @@ test('2300 items filter fast', () => {
   const t = performance.now();
   filterItems(big, q({ text: 'sun' }), NOW);
   assert.ok(performance.now() - t < 100, 'loose guard around 20 ms');
+});
+
+test('countLabel: matches show against the total (V1051-03)', () => {
+  assert.equal(countLabel(2000, 2000), '2.000');
+  assert.equal(countLabel(3, 2000), '3 of 2.000');
+  assert.equal(countLabel(0, 2000), '0 of 2.000');
 });

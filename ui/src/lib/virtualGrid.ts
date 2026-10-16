@@ -12,6 +12,12 @@ export function geometry(width: number, count: number, cellW: number, cellH: num
   return { columns, rowHeight: cellH + gap, rows: Math.ceil(count / columns) };
 }
 
+/** V1051-03 The width each cell grows to so the columns fill the row (never under `cellW`). */
+export function cellSpan(width: number, columns: number, cellW: number, gap: number): number {
+  if (width <= 0) return cellW;
+  return Math.max(cellW, (width - gap * (columns - 1)) / columns);
+}
+
 /** First and last index (inclusive) to mount, with `overscan` rows above and below. */
 export function range(
   g: Geometry,

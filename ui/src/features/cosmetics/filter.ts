@@ -1,5 +1,6 @@
 // V1051-03 Search, chips and sort for the cosmetics menu. Pure.
 
+import { formatNumber } from '../../lib/format.ts';
 import { rank, RANK } from '../chat/completion.ts';
 
 export type Chip = 'animated' | 'static' | 'usable' | 'new';
@@ -40,4 +41,9 @@ export function filterItems<T extends Row>(items: readonly T[], q: Query, now: n
   }
   scored.sort((a, b) => b.rank - a.rank || b.close - a.close || by(a.r, b.r));
   return scored.map((s) => s.r);
+}
+
+/** V1051-03 "3 of 2.000" while a search or chip narrows the list, else just the total. */
+export function countLabel(shown: number, total: number): string {
+  return shown === total ? formatNumber(total) : `${formatNumber(shown)} of ${formatNumber(total)}`;
 }

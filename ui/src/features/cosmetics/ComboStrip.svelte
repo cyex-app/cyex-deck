@@ -112,10 +112,11 @@
         </div>
       {/each}
     </div>
+    <!-- V1051-04 In the strip, so the page doesn't jump when the first combo lands. -->
+    {#if !list.length}
+      <p class="empty">Save what you wear now to put it on again with one click.</p>
+    {/if}
   </div>
-  {#if !list.length}
-    <p class="empty">Save what you wear now to put it on again with one click.</p>
-  {/if}
 </section>
 
 <style>
@@ -185,18 +186,23 @@
     align-items: stretch;
     justify-content: center;
     gap: 2px;
-    padding: 6px 8px;
+    padding: 4px 8px;
     border-style: solid;
   }
+  /* Wraps inside the card, two lines at most. */
   .err {
-    min-height: 13px;
+    min-height: 22px;
+    max-height: 22px;
     overflow: hidden;
     color: var(--red);
-    font-size: 11px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-size: 10.5px;
+    line-height: 11px;
+    overflow-wrap: anywhere;
   }
   .empty {
+    flex: 1 0 140px;
+    align-self: center;
+    max-width: 260px;
     margin: 0;
     color: var(--muted);
     font-size: 0.8rem;
