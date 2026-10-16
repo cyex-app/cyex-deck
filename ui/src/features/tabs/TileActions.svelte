@@ -19,9 +19,11 @@
     popout: boolean;
     /** Show the tile's ⋯ menu here. */
     menu?: boolean;
+    /** In a chat header next to a stream: pops out just the chat (1.58). */
+    onpopchat?: () => void;
   }
 
-  let { tile, tab, tiled, popout, menu = true }: Props = $props();
+  let { tile, tab, tiled, popout, menu = true, onpopchat }: Props = $props();
 </script>
 
 {#if !tile.feed}
@@ -39,5 +41,9 @@
     />
   {/if}
 {:else if !popout}
-  <IconButton icon="popout" label="Pop out" hint="Opens this tab in its own window." size={14} onclick={() => tabs.popOut(tab)} />
+  {#if onpopchat}
+    <IconButton icon="popout" label="Pop out chat" hint="Just the chat, in its own window." size={14} onclick={onpopchat} />
+  {:else}
+    <IconButton icon="popout" label="Pop out tab" hint="Opens this tab in its own window." size={14} onclick={() => tabs.popOut(tab)} />
+  {/if}
 {/if}

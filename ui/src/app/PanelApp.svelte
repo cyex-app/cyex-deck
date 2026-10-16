@@ -8,6 +8,7 @@
   import TooltipHost from '../components/TooltipHost.svelte';
   import { playerHotkeys } from '../features/player/players.svelte';
   import TabOverlays from '../features/tabs/TabOverlays.svelte';
+  import { keyTaken } from '../lib/escape';
   import { useHotkeys } from '../lib/hotkeys.svelte';
   import { followFullscreen } from '../lib/layers';
   import { currentWindow } from '../lib/window.svelte';
@@ -19,8 +20,19 @@
   const panel = $derived(panelFor(route));
 
   useRootEffects();
+
+  /** B3 Pop-ups (usercards, `#channel` chats) close on Escape once nothing else wants it:
+   *  a menu or dialog took it already, and a text field keeps it for itself. */
+  function onkeydown(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || panel?.frame !== 'slim' || keyTaken(e) || e.isComposing) return;
+    if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable]')) return;
+    e.preventDefault();
+    void currentWindow.close();
+  }
   useHotkeys({ 'window.pin': () => currentWindow.togglePin(), ...playerHotkeys });
 </script>
+
+<svelte:window {onkeydown} />
 
 {#if panel?.frame !== 'none'}
   <PopoutFrame title={titleFor(route)} docks={panel?.docks} variant={panel?.frame === 'slim' ? 'slim' : 'large'} />

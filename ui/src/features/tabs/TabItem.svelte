@@ -54,16 +54,17 @@
       const stream = tabs.live[tile.channel.id]?.stream;
       if (stream) {
         const kind = stream.rerun ? 'Rerun' : 'Live';
-        parts.push(`${tile.channel.name}: ${kind}, ${formatNumber(stream.viewers)} watching`);
+        parts.push(`${tile.channel.name} · ${kind} · ${formatNumber(stream.viewers)} watching`);
         hint ||= stream.game ? `${stream.title} · ${stream.game}` : stream.title;
       }
     }
     const first = tiles(tab)[0];
     const account = first?.account ? accounts.list.find((a) => a.userId === first.account) : undefined;
     const who = account ? `as ${account.displayName}` : 'anonymous';
-    const label = parts.length ? parts.join(' · ') : `${name} · offline`;
+    const label = parts.length ? parts.join(' · ') : `${name} · Offline`;
     const playing = heldMuted ? ' · playing muted' : held ? ' · playing' : '';
-    return { label: `${label}${playing}`, hint: hint ? `${hint} (${who})` : who };
+    // No tip while something is dragged: it would sit on the ghost.
+    return { label: `${label}${playing}`, hint: hint ? `${hint} (${who})` : who, when: () => !drag.item };
   });
 
   /** Arrows move between tabs (Up/Down in a vertical bar), Home and End jump, Space and Enter open. */

@@ -4,6 +4,7 @@
 // the mod view or the stream manager, from its place or from the closed-panels corner, and
 // reorder a list's rows (V105-14, V105-15).
 
+import { hideTip } from '../../components/tooltip.svelte';
 import type { Zone } from '../../ipc/bindings/Zone';
 import type { Edge } from '../../lib/panels';
 import { tabs, tiles } from './tabs.svelte';
@@ -67,6 +68,7 @@ class Drag {
         this.item = item;
         this.label = label;
         document.body.classList.add('dragging');
+        hideTip();
       }
       this.x = ev.clientX;
       this.y = ev.clientY;

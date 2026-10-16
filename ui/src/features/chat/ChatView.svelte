@@ -425,7 +425,13 @@
     padding: 0 6px 0 8px;
     border-bottom: 1px solid var(--border);
   }
+  /* The name gives way first (…); the mode chips stay whole as long as they can. */
   .channel {
+    flex: 0 1 auto;
+    min-width: 3ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     padding: 2px 4px;
     background: none;
     border: 0;
@@ -436,9 +442,10 @@
     background: var(--surface-hover);
   }
   .modes {
-    flex: 1;
+    flex: 1 0 auto;
     display: flex;
     gap: 4px;
+    min-width: 0;
     overflow: hidden;
   }
   .mode {
@@ -450,6 +457,7 @@
     font-size: 0.72rem;
     font-weight: 600;
     white-space: nowrap;
+    flex: none;
   }
   .mode.rec {
     color: var(--red);
@@ -473,7 +481,7 @@
   .viewers {
     position: absolute;
     inset: 0;
-    z-index: 2;
+    z-index: var(--z-panel);
     display: flex;
     background: var(--page);
   }

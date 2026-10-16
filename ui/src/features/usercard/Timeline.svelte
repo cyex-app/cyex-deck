@@ -39,16 +39,19 @@
   let atBottom = true;
 
   const liveIds = $derived(new Set(live.map((m) => m.id)));
+  /** The open chat's lines are the newest part; logs fill in only what is older than them
+   *  (the two overlap, and their ids can differ), so the order never goes back in time. */
+  const liveFrom = $derived(live.reduce((min, m) => Math.min(min, m.ts), Infinity));
   const sections = $derived.by(() => {
     const out: { label: string; live: boolean; items: ChatMessage[] }[] = [];
     for (const m of older) {
-      if (liveIds.has(m.id)) continue;
+      if (liveIds.has(m.id) || m.ts >= liveFrom) continue;
       const label = formatDate(new Date(m.ts));
       const last = out.at(-1);
       if (last?.label === label) last.items.push(m);
       else out.push({ label, live: false, items: [m] });
     }
-    if (live.length) out.push({ label: 'Live', live: true, items: live });
+    if (live.length) out.push({ label: 'Live', live: true, items: [...live].sort((a, b) => a.ts - b.ts) });
     return out;
   });
 

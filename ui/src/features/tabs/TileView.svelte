@@ -377,7 +377,7 @@
   {#if shared.vod && !shared.replay}
     <button class="replay-btn" onclick={() => (shared.replay = true)}>Chat replay</button>
   {/if}
-  <TileActions {tile} {tab} {tiled} {popout} menu={false} />
+  <TileActions {tile} {tab} {tiled} {popout} menu={false} onpopchat={tile.show.player && !chatPopped ? popChat : undefined} />
 {/snippet}
 
 {#snippet chat(onheaderdown: ((e: PointerEvent) => void) | undefined)}

@@ -17,7 +17,7 @@
   import { chatxIpc } from '../../ipc/chatx';
   import { pluginsIpc } from '../../ipc/plugins';
   import { systemIpc } from '../../ipc/system';
-  import { formatDate } from '../../lib/format';
+  import { formatDate, formatNumber } from '../../lib/format';
   import { reduced } from '../../lib/motion';
   import { EASE_OUT_CUBIC } from '../../lib/scrollMath';
   import { settings } from '../../lib/settings.svelte';
@@ -124,7 +124,23 @@
   });
   /** Last message when the pause began, to tell if anything arrived since. */
   let pausedAt = $state<string | undefined>();
+  /** Where the list was left, to count what came in since. */
+  let leftAt = $state<string | undefined>();
   const newWhilePaused = $derived(paused && pausedAt !== undefined && room.messages.at(-1)?.id !== pausedAt);
+
+  $effect(() => {
+    if (following) leftAt = undefined;
+    else untrack(() => (leftAt ??= room.messages.at(-1)?.id ?? ''));
+  });
+
+  /** Messages that came in since the list stopped following (pause or scroll up). */
+  const fresh = $derived.by(() => {
+    const id = !following ? leftAt : pausedAt;
+    if (!id) return 0;
+    const ms = room.messages;
+    for (let i = ms.length - 1; i >= 0; i--) if (ms[i].id === id) return ms.length - 1 - i;
+    return ms.length;
+  });
 
   $effect(() => {
     if (!paused) {
@@ -270,11 +286,12 @@
   /** C25 Messages that start a new day, by id. */
   const dayStarts = $derived.by(() => {
     const starts = new Set<string>();
-    let last = -1;
+    const key = (d: Date) => d.getFullYear() * 10_000 + d.getMonth() * 100 + d.getDate();
+    // The first line gets a date too when it isn't from today (history from yesterday).
+    let last = key(new Date());
     for (const m of shown) {
-      const d = new Date(m.ts);
-      const day = d.getFullYear() * 10_000 + d.getMonth() * 100 + d.getDate();
-      if (last !== -1 && day !== last) starts.add(m.id);
+      const day = key(new Date(m.ts));
+      if (day !== last) starts.add(m.id);
       last = day;
     }
     return starts;
@@ -644,9 +661,10 @@
     {#key card}<EmoteCard target={card} login={room.login} onclose={() => (card = null)} />{/key}
   {/if}
   {#if below && (!following || newWhilePaused)}
+    <div class="fade" aria-hidden="true"></div>
     <button class="more" onclick={jumpDown}>
       <Icon name="arrowDown" size={13} />
-      {following ? 'Paused' : 'More messages'}
+      {fresh > 0 ? `${formatNumber(fresh)} new` : following ? 'Paused' : 'More messages'}
     </button>
   {/if}
 </div>
@@ -706,6 +724,16 @@
     border-top: 2px solid var(--red);
     opacity: 0.7;
   }
+  /* A short fade under the pill, so it never sits on top of bare text. */
+  .fade {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 44px;
+    background: linear-gradient(transparent, var(--page));
+    pointer-events: none;
+  }
   .more {
     position: absolute;
     bottom: 8px;
@@ -719,7 +747,7 @@
     background: var(--elevated);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
-    box-shadow: 0 4px 14px var(--shadow);
+    box-shadow: var(--shadow-pop);
     font-size: 0.8rem;
     font-weight: 600;
   }

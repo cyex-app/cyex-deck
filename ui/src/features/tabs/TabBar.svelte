@@ -125,7 +125,10 @@
   function menuFor(tab: Tab, e: MouseEvent) {
     const many = selected.has(tab.id) && selected.size > 1;
     const targets = many ? tabs.list.filter((t) => selected.has(t.id)) : [tab];
-    openMenu(e, tabMenu(tab, targets));
+    // Under the tab, never over it (V102-03); from the keyboard too.
+    const anchor = (e.currentTarget as HTMLElement | null)?.closest?.('[data-tab-id]');
+    if (anchor) openMenu(anchor, tabMenu(tab, targets), 'start');
+    else openMenu(e, tabMenu(tab, targets));
   }
 
   function close(tab: Tab) {

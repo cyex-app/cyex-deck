@@ -34,7 +34,7 @@ export function tabMenu(tab: Tab, targets: Tab[]): MenuEntry[] {
       { label: 'Add a channel here', icon: 'columns', run: () => openAdd(tab.id) },
       popped
         ? { label: 'Bring back', icon: 'undo', run: () => tabs.dock(tab.id) }
-        : { label: 'Pop out', icon: 'popout', run: () => tabs.popOut(tab) },
+        : { label: 'Pop out tab', icon: 'popout', run: () => tabs.popOut(tab) },
     );
     if (tiles(tab).length === 1) entries.push(...showEntries(tiles(tab)[0]));
   }
