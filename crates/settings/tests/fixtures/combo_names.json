@@ -7,6 +7,8 @@
   { "in": "éééééééééééééééééééééééééééééééé", "out": "éééééééééééééééééééééééééééééééé" },
   { "in": "Gold-2_x", "out": "Gold-2_x" },
   { "in": "日本", "out": "日本" },
+  { "in": "night owl’s pick", "out": "night owl’s pick" },
+  { "in": "a'b", "err": "chars" },
   { "in": "a/b", "err": "chars" },
   { "in": "a.b", "err": "chars" },
   { "in": "a\"b", "err": "chars" },

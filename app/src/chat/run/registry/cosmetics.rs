@@ -56,7 +56,7 @@ pub(super) const CMDS: &[Cmd] = &[
         "No combo called “{name}”. /combo list shows yours.",
         "Give it a name.",
         "Names can be up to 32 characters.",
-        "Names can have letters, numbers, spaces, - and _.",
+        "Names can have letters, numbers, spaces, ’, - and _.",
         "“{word}” is part of /combo. Pick another name.",
         "You have a combo called “{name}” already.",
         "You have 50 combos. Delete one first.",

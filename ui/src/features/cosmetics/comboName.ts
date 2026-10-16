@@ -15,7 +15,7 @@ export function cleanName(raw: string): NameResult {
   const name = raw.split(/\p{White_Space}+/u).filter(Boolean).join(' ');
   if (!name) return fail('empty', 'Give it a name.');
   if ([...name].length > MAX_NAME) return fail('tooLong', `Names can be up to ${MAX_NAME} characters.`);
-  if (!/^[\p{Alphabetic}\p{N} _-]+$/u.test(name)) return fail('chars', 'Names can have letters, numbers, spaces, - and _.');
+  if (!/^[\p{Alphabetic}\p{N} _’-]+$/u.test(name)) return fail('chars', 'Names can have letters, numbers, spaces, ’, - and _.');
   if (WORDS.includes(name.replace(/[A-Z]/g, (c) => c.toLowerCase()))) {
     return fail('word', `“${name}” is part of /combo. Pick another name.`);
   }

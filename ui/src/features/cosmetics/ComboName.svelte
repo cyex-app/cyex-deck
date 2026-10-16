@@ -75,7 +75,7 @@
   input {
     box-sizing: border-box;
     width: 100%;
-    height: 24px;
+    height: 22px;
     padding: 0 6px;
     font-size: 12px;
   }

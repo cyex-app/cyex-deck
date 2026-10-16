@@ -58,7 +58,7 @@ impl fmt::Display for NameError {
         match self {
             NameError::Empty => f.write_str("Give it a name."),
             NameError::TooLong => write!(f, "Names can be up to {MAX_NAME} characters."),
-            NameError::Chars => f.write_str("Names can have letters, numbers, spaces, - and _."),
+            NameError::Chars => f.write_str("Names can have letters, numbers, spaces, ’, - and _."),
             NameError::Word(w) => write!(f, "“{w}” is part of /combo. Pick another name."),
         }
     }
@@ -67,7 +67,7 @@ impl fmt::Display for NameError {
 impl std::error::Error for NameError {}
 
 /// Trims, collapses runs of whitespace to one space, then checks: 1-32 chars; only letters,
-/// numbers (Unicode `is_alphanumeric`), spaces, `-` and `_`; not one of `WORDS` (any case).
+/// numbers (Unicode `is_alphanumeric`), spaces, the curly ’, `-` and `_`; not one of `WORDS` (any case).
 pub fn clean_name(raw: &str) -> Result<String, NameError> {
     let name = raw.split_whitespace().collect::<Vec<_>>().join(" ");
     if name.is_empty() {
@@ -78,7 +78,7 @@ pub fn clean_name(raw: &str) -> Result<String, NameError> {
     }
     if !name
         .chars()
-        .all(|c| c.is_alphanumeric() || matches!(c, ' ' | '-' | '_'))
+        .all(|c| c.is_alphanumeric() || matches!(c, ' ' | '-' | '_' | '’'))
     {
         return Err(NameError::Chars);
     }
