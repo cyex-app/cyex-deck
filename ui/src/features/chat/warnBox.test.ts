@@ -22,3 +22,11 @@ test('M10 the box stays in the window', () => {
   assert.equal(warnSpot({ left: 380, top: 50, bottom: 70 }, box, view).left, 196);
   assert.equal(warnSpot({ left: 20, top: 270, bottom: 290 }, box, view).top, 226);
 });
+
+test('V105 the box sits beside the button, centred on it, and flips left at the edge', () => {
+  const view = { width: 400, height: 300 };
+  const box = { width: 200, height: 40 };
+  assert.deepEqual(warnSpot({ left: 20, top: 100, bottom: 120, right: 60 }, box, view), { left: 64, top: 90 });
+  assert.equal(warnSpot({ left: 300, top: 100, bottom: 120, right: 340 }, box, view).left, 96);
+  assert.equal(warnSpot({ left: 20, top: 0, bottom: 20, right: 60 }, box, view).top, 4);
+});

@@ -8,7 +8,7 @@
   interface Props {
     login: string;
     /** The warn button's box on screen. */
-    anchor: { left: number; top: number; bottom: number };
+    anchor: { left: number; top: number; bottom: number; right?: number };
     /** Runs the command; true when it went through. */
     send: (command: string) => Promise<boolean>;
     onclose: () => void;
@@ -60,9 +60,8 @@
   aria-label="Warn {login}"
   onsubmit={go}
 >
-  <input class="field" data-autofocus maxlength={MAX_REASON} placeholder="Reason" aria-label="Reason" bind:value={reason} />
+  <input class="field" data-autofocus maxlength={MAX_REASON} placeholder="Reason, needed to warn" aria-label="Reason" bind:value={reason} />
   <button class="send" disabled={!command || busy}>Warn</button>
-  {#if !command}<span class="hint">A warning needs a reason.</span>{/if}
 </form>
 
 <style>
@@ -98,10 +97,5 @@
   .send:disabled {
     opacity: 0.5;
     cursor: default;
-  }
-  .hint {
-    flex-basis: 100%;
-    color: var(--dim);
-    font-size: 0.78rem;
   }
 </style>
