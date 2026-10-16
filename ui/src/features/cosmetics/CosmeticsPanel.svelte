@@ -177,6 +177,11 @@
   .picker.compact {
     min-height: 120px;
   }
+  /* The status line keeps its room (no jump), but takes the gaps around it in the pop-up. */
+  .panel.compact > :global(.status) {
+    min-height: 24px;
+    margin: -6px 0;
+  }
   .bar {
     display: flex;
     flex-wrap: wrap;

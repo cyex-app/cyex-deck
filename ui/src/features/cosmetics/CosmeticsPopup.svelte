@@ -61,7 +61,8 @@
     z-index: 5;
     display: flex;
     flex-direction: column;
-    width: min(380px, calc(100% - 16px));
+    /* Room for two paint columns and the Save card next to one combo (2 × 176 + gap). */
+    width: min(396px, calc(100% - 16px));
     height: min(520px, calc(100% - 16px));
     background: var(--bg);
     border: 1px solid var(--border);
