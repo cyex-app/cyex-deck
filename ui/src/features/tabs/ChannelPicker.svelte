@@ -1,10 +1,15 @@
-<!-- 1.14 Channel field: a name, user id or twitch.tv link, looked up as you type. -->
+<!-- 1.14 Channel field: a name, user id or twitch.tv link, searched as you type. Suggestions come
+     from Twitch's search plus the exact match for a link or id, live channels first. Nothing is
+     picked until one result is left or you choose; Enter takes the first, arrows move. -->
 <script lang="ts">
   import { untrack } from 'svelte';
 
   import Avatar from '../../components/Avatar.svelte';
   import Icon from '../../components/Icon.svelte';
+  import Loading from '../../components/Loading.svelte';
   import type { ChannelInfo } from '../../ipc/bindings/ChannelInfo';
+  import type { ChannelCard } from '../../ipc/bindings/ChannelCard';
+  import { discoverIpc } from '../../ipc/browse';
   import { tabsIpc } from '../../ipc/tabs';
   import { formatNumber } from '../../lib/format';
   import { errorText } from '../../lib/errors';
@@ -43,12 +48,52 @@
     });
   });
 
+  /** Most suggestions listed. */
+  const MAX = 6;
+
+  function fromCard(c: ChannelCard): ChannelInfo {
+    const s = c.stream;
+    return {
+      id: c.id,
+      login: c.login,
+      name: c.name,
+      avatar: c.avatar,
+      offlineImage: null,
+      stream: s ? { rerun: s.rerun, title: s.title, game: s.game?.name ?? null, viewers: s.viewers, startedAt: s.startedAt } : null,
+    };
+  }
+
+  /** Live first (most viewers), then an exact name, then Twitch's own order. */
+  function rank(list: ChannelInfo[], input: string): ChannelInfo[] {
+    const q = input.toLowerCase();
+    const seen = new Set<string>();
+    const unique = list.filter((c) => !seen.has(c.id) && seen.add(c.id));
+    const weight = (c: ChannelInfo) => (c.stream ? 2 : c.login === q ? 1 : 0);
+    return unique
+      .map((c, i) => ({ c, i }))
+      .sort((a, b) => weight(b.c) - weight(a.c) || (b.c.stream?.viewers ?? 0) - (a.c.stream?.viewers ?? 0) || a.i - b.i)
+      .map((x) => x.c)
+      .slice(0, MAX);
+  }
+
   async function look(input: string) {
     asked = input;
     try {
-      const found = await tabsIpc.lookup(input);
+      let failed: unknown = null;
+      const [exact, search] = await Promise.all([
+        tabsIpc.lookup(input).catch((e) => ((failed = e), [] as ChannelInfo[])),
+        input.length >= 2
+          ? discoverIpc
+              .search(input)
+              .then((r) => r.channels.items.map(fromCard))
+              .catch(() => [] as ChannelInfo[])
+          : Promise.resolve([] as ChannelInfo[]),
+      ]);
       if (asked !== input) return;
+      const found = rank([...exact, ...search], input);
+      if (!found.length && failed) throw failed;
       results = found;
+      // One match left is the one; several wait for a choice.
       picked = found.length === 1 ? found[0] : null;
       status = 'done';
     } catch (e) {
@@ -59,9 +104,15 @@
   }
 
   function onkeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter' && picked) {
+    if (e.key === 'Enter') {
       e.preventDefault();
-      onsubmit();
+      if (picked) onsubmit();
+      else if (results.length) picked = results[0];
+    } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && results.length > 1) {
+      e.preventDefault();
+      const at = results.findIndex((c) => c.id === picked?.id);
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      picked = results[(at + step + results.length) % results.length];
     }
   }
 
@@ -78,13 +129,13 @@
 />
 
 {#if status === 'looking' && !shown.length}
-  <p class="note">Looking…</p>
+  <Loading />
 {:else if status === 'error'}
   <p class="note bad">{error}</p>
 {:else if status === 'done' && !results.length}
   <p class="note bad">No channel by that name or id.</p>
 {:else if shown.length}
-  {#if shown.length > 1}<p class="note">Two channels match. Pick one.</p>{/if}
+  {#if shown.length > 1}<p class="note">Pick one. Live channels come first.</p>{/if}
   <div class="results" role="radiogroup" aria-label="Channel">
     {#each shown as c (c.id)}
       <button
@@ -176,10 +227,10 @@
     height: 7px;
     flex: none;
     border-radius: 50%;
-    background: #ff3b3b;
+    background: var(--live);
   }
   .dot.rerun {
-    background: #f5b83d;
+    background: var(--yellow);
   }
   .check {
     display: flex;

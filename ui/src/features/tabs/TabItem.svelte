@@ -127,6 +127,7 @@
     {#if closeButton}
       <button
         class="x"
+        tabindex="-1"
         aria-label="Close {name}"
         onclick={(e) => {
           e.stopPropagation();

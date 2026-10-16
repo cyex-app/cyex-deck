@@ -7,6 +7,7 @@
   import Popover from '../../components/Popover.svelte';
   import { accounts } from '../../lib/accounts.svelte';
   import { formatNumber } from '../../lib/format';
+  import { tooltip } from '../../components/tooltip.svelte';
 
   interface Props {
     account: string | null;
@@ -44,24 +45,24 @@
       </span>
     {:else if chosen}
       <div class="menu">
-        <button class="trigger" disabled={anon} onclick={() => (open = !open)} aria-haspopup="listbox">
+        <button class="trigger" disabled={anon} onclick={() => (open = !open)} aria-haspopup="menu" aria-expanded={open}>
           <Avatar src={chosen.avatar} name={chosen.displayName} size={18} />
           <span class="name">{chosen.displayName}</span>
-          <span class="count">{count(chosen.userId)}</span>
+          <span class="count" use:tooltip={'Chats open'}>{count(chosen.userId)}</span>
           <Icon name="chevronDown" size={14} />
         </button>
-        <Popover bind:open align="start">
-          <div class="list" role="listbox" aria-label="Account">
+        <Popover bind:open align="start" role="menu" label="Account">
+          <div class="list">
             {#each list as a (a.userId)}
               <button
                 class="item"
-                role="option"
-                aria-selected={a.userId === chosen.userId}
+                role="menuitemradio"
+                aria-checked={a.userId === chosen.userId}
                 onclick={() => pick(a.userId)}
               >
                 <Avatar src={a.avatar} name={a.displayName} size={20} />
                 <span class="name">{a.displayName}{#if a.isDefault}<span class="def"> default</span>{/if}</span>
-                <span class="count">{count(a.userId)}</span>
+                <span class="count" use:tooltip={'Chats open'}>{count(a.userId)}</span>
                 {#if a.userId === chosen.userId}<span class="check"><Icon name="check" size={14} /></span>{/if}
               </button>
             {/each}

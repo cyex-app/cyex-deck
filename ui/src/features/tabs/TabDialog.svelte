@@ -136,7 +136,7 @@
         {#if existing}
           <p class="note">
             Already open in {label(existing)}.
-            <button class="link" onclick={() => goTo(existing.id)}>Go there</button>
+            <Button variant="link" small onclick={() => goTo(existing.id)}>Go there</Button>
           </p>
         {/if}
       </section>
@@ -188,7 +188,7 @@
         </section>
       {/if}
       {#if !editing && !into}
-        <button class="link" onclick={() => (feed = '')}>Make a feed tab instead</button>
+        <Button variant="link" small onclick={() => (feed = '')}>Make a feed tab instead</Button>
       {/if}
     </div>
   {/if}
@@ -223,16 +223,5 @@
     margin: 2px 0 0;
     color: var(--muted);
     font-size: 0.82rem;
-  }
-  .link {
-    align-self: flex-start;
-    padding: 0;
-    background: none;
-    border: 0;
-    color: var(--accent-text);
-    font-weight: 600;
-  }
-  .link:hover {
-    text-decoration: underline;
   }
 </style>
