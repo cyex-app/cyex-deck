@@ -25,6 +25,7 @@
   import { home } from './home.svelte';
   import Loading from '../../components/Loading.svelte';
   import SearchField from '../../components/SearchField.svelte';
+  import { keepScroll } from '../../lib/keepScroll';
 
   interface Props {
     /** Opens a tab. */
@@ -158,7 +159,7 @@
     <IconButton icon="refresh" label="Refresh" hint="Load who you follow again." disabled={home.loading} onclick={() => void home.refresh(true)} />
   </header>
 
-  <div class="scroll">
+  <div class="scroll" use:keepScroll={'home'}>
     {#if !home.account}
       <div class="note">
         <span>Sign in to see the channels you follow.</span>

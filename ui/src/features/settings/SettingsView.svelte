@@ -36,6 +36,7 @@
   import UploaderSection from './sections/UploaderSection.svelte';
   import SearchField from '../../components/SearchField.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
+  import { keepScroll } from '../../lib/keepScroll';
 
   interface Props {
     /** Open page id. Bindable so other views can jump to a page. */
@@ -77,6 +78,8 @@
   $effect(() => {
     if (section !== shown) {
       shown = section;
+      // Another page opens at the top.
+      if (content) content.scrollTop = 0;
       void settings.pruneBlank();
     }
   });
@@ -132,7 +135,7 @@
       {/each}
     {/each}
   </nav>
-  <div class="content" bind:this={content}>
+  <div class="content" bind:this={content} use:keepScroll={'settings'}>
     <div class="inner" class:wide={section === 'highlights' && !searching}>
       {@render searchBox('top')}
       {#if searching}

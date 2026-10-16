@@ -24,6 +24,7 @@
   import SearchResults from './SearchResults.svelte';
   import StreamList from './StreamList.svelte';
   import SearchField from '../../components/SearchField.svelte';
+  import { keepScroll } from '../../lib/keepScroll';
 
   let { onopen }: { onopen: (tabId: string) => void } = $props();
 
@@ -121,7 +122,7 @@
     {/if}
   </header>
 
-  <div class="scroll">
+  <div class="scroll" use:keepScroll={'discover'}>
     {#if lists && discover.tag}
       <div class="chips">
         <button class="chip" aria-label="Show all tags" onclick={() => (discover.tag = null)}>
