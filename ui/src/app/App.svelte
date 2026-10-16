@@ -53,6 +53,7 @@
   import { tabsIpc } from '../ipc/tabs';
   import { windowsIpc } from '../ipc/windows';
   import { accounts } from '../lib/accounts.svelte';
+  import { errorText } from '../lib/errors';
   import { gate } from '../lib/gate.svelte';
   import { useHotkeys } from '../lib/hotkeys.svelte';
   import { followFullscreen } from '../lib/layers';
@@ -312,7 +313,7 @@
       if (!c) return toast.error(`No channel called ${login}.`);
       await openChannel({ show: open, account: () => accounts.current?.userId ?? null }, c);
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e, 'open that channel'));
     }
   }
 

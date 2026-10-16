@@ -9,6 +9,7 @@
   import { accountsIpc } from '../../ipc/accounts';
   import { subsIpc } from '../../ipc/subs';
   import { accounts } from '../../lib/accounts.svelte';
+  import { errorText } from '../../lib/errors';
   import { lockFor } from '../../lib/gate';
   import { toast } from '../../lib/toast.svelte';
   import { accountName, accountNeedsAttention } from './status';
@@ -26,11 +27,11 @@
   const walletLock = $derived(lockFor(!!current && accounts.can('wallet', current.userId), 'helix'));
 
   function pick(userId: string) {
-    accountsIpc.setDefault(userId).catch((e) => toast.error(String(e)));
+    accountsIpc.setDefault(userId).catch((e) => toast.error(errorText(e, 'switch accounts')));
   }
 
   function wallet() {
-    if (current) subsIpc.page(current.userId, 'wallet').catch((e) => toast.error(String(e)));
+    if (current) subsIpc.page(current.userId, 'wallet').catch((e) => toast.error(errorText(e, 'open the wallet')));
   }
 
   function show(e: MouseEvent) {
