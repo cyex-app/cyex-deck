@@ -60,11 +60,11 @@
   .body {
     flex: 1;
     width: 100%;
-    max-width: none;
+    /* 8 paints + 6 badges per row at most (see CosmeticsPanel); wider windows grow the borders. */
+    max-width: 2008px;
     min-height: 0;
     margin: 0 auto;
-    /* About 11% a side (content ~78%), never under 24px. */
-    padding: 16px max(24px, 11%);
+    padding: 16px 24px;
     box-sizing: border-box;
   }
 </style>

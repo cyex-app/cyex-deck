@@ -207,7 +207,9 @@
   }
   @container (min-width: 720px) {
     .picker:not(.compact) {
-      grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+      /* Widths follow the cells: 8 paints (8x176 + 7x6) and 6 badges (6x72 + 5x6), each plus ~16 px
+         for the scrollbar. Narrower windows shrink both in that ratio. */
+      grid-template-columns: minmax(0, 1466fr) minmax(0, 478fr);
     }
   }
   @container (max-width: 719px) {
