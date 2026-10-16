@@ -86,7 +86,10 @@
           decoding="async"
         />
         {@const lines = badgeLines(r.name)}
-        {#if lines}
+        {#if lines && lines[1].length > 10}
+          <!-- Too long for one line under the shared start: the telling part alone, on two. -->
+          <span class="nm two">{lines[1]}</span>
+        {:else if lines}
           <span class="nm lines"><span>{lines[0]}</span><span>{lines[1]}</span></span>
         {:else}
           <span class="nm two">{r.name}</span>
@@ -185,14 +188,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-  /* The telling part may take two lines ("1 Year, / 6 Months"). */
-  .nm.lines span + span {
-    display: -webkit-box;
-    white-space: normal;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
   }
   .none {
     display: grid;
