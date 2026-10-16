@@ -108,7 +108,7 @@
         <VodPlayer id={page.id} at={page.at} {tile} {account} {shared} {hushed} onclose={() => go({ kind: 'videos' })} />
       {/key}
     {:else if page.kind === 'clip'}
-      {#key page.slug}<ClipPlayer slug={page.slug} {tile} />{/key}
+      {#key page.slug}<ClipPlayer slug={page.slug} {tile} onclose={() => go({ kind: 'clips' })} />{/key}
     {/if}
     {#if live && (page.kind === 'stream' || (listing && !miniClosed))}
       <LivePlayer
