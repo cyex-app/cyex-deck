@@ -181,6 +181,13 @@ mod tests {
     }
 
     #[test]
+    fn tag_0_1_05_matches_the_0_1_5_installer() {
+        let cur = version::parse("0.1.4").unwrap();
+        assert!(installable("cyex-deck_0.1.5_x64-setup.exe", "0.1.05", &cur));
+        assert!(!installable("cyex-deck_0.1.4_x64-setup.exe", "0.1.05", &cur));
+    }
+
+    #[test]
     fn hash_line() {
         let line = format!("{}  cyex-deck_0.1.5_x64-setup.exe\n", ABC.to_ascii_uppercase());
         assert_eq!(sha_line(&line).as_deref(), Some(ABC));

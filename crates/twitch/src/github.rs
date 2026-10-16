@@ -270,6 +270,16 @@ mod tests {
     }
 
     #[test]
+    fn tag_0_1_05_takes_the_0_1_5_installer() {
+        let json = br#"[{"tag_name":"v0.1.05","html_url":"https://x/r","draft":false,"prerelease":false,
+            "assets":[{"name":"cyex-deck_0.1.5_x64-setup.exe","browser_download_url":"https://x/i","size":5},
+                      {"name":"cyex-deck_0.1.5_x64-setup.exe.sha256","browser_download_url":"https://x/h","size":5}]}]"#;
+        let u = pick(json, &v("0.1.4"), false, None).unwrap().unwrap();
+        assert_eq!(u.version, "0.1.5");
+        assert!(u.can_install);
+    }
+
+    #[test]
     fn a_release_without_a_hash_only_opens_its_page() {
         let json = br#"[{"tag_name":"v0.1.04","html_url":"https://x/r","draft":false,"prerelease":true,
             "assets":[{"name":"cyex-deck_0.1.04_x64-setup.exe","browser_download_url":"https://x/i","size":5}]}]"#;
