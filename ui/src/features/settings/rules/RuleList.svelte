@@ -1,6 +1,8 @@
 <!-- A settings list of rules: one row each, an Add button, and a remove button per row. -->
 <script lang="ts" generics="T extends Record<string, unknown>">
   import Button from '../../../components/Button.svelte';
+  import EmptyState from '../../../components/EmptyState.svelte';
+  import type { IconName } from '../../../components/icons';
   import type { Field } from './fields';
   import { focusLast } from './focus';
   import RuleRow from './RuleRow.svelte';
@@ -13,7 +15,9 @@
     make: () => T;
     onchange: (items: T[]) => void;
     addLabel?: string;
+    /** P1 Shown while the list is empty. */
     empty?: string;
+    emptyIcon?: IconName;
     problem?: (item: T) => string | null;
     /** V103-13 Registry id: settings search jumps here. */
     setting?: string;
@@ -23,7 +27,7 @@
     slots?: number;
   }
 
-  let { items, fields, make, onchange, addLabel = 'Add', empty, problem, setting, layout, slots }: Props = $props();
+  let { items, fields, make, onchange, addLabel = 'Add', empty, emptyIcon = 'list', problem, setting, layout, slots }: Props = $props();
 
   let el = $state<HTMLDivElement>();
 
@@ -49,7 +53,7 @@
       ondelete={() => remove(i)}
     />
   {:else}
-    {#if empty}<p class="empty">{empty}</p>{/if}
+    {#if empty}<EmptyState icon={emptyIcon} text={empty} />{/if}
   {/each}
   <div class="add">
     <Button
@@ -66,11 +70,6 @@
 <style>
   .list {
     margin-bottom: 8px;
-  }
-  .empty {
-    margin: 6px 0;
-    color: var(--dim);
-    font-size: 0.85rem;
   }
   .add {
     padding-top: 8px;

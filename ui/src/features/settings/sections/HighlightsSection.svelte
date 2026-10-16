@@ -115,6 +115,7 @@
   make={() => ({ ...blank, pattern: '', regex: false, caseSensitive: false })}
   onchange={(phrases) => save({ phrases })}
   empty="Messages with these words light up."
+  emptyIcon="star"
 />
 
 <h3 class="label">People</h3>
@@ -127,6 +128,7 @@
   make={() => ({ ...blank, login: '', regex: false })}
   onchange={(users) => save({ users })}
   empty="Everything these people say lights up."
+  emptyIcon="user"
 />
 
 <h3 class="label">Badges</h3>
@@ -138,6 +140,7 @@
   make={() => ({ ...blank, badge: '' })}
   onchange={(badges) => save({ badges })}
   empty="Everything people with these badges say lights up."
+  emptyIcon="badge"
 />
 
 <h3 class="label">Sent from</h3>
@@ -149,13 +152,14 @@
   make={(): AppRule => ({ ...blank, app: 'mobile' })}
   onchange={(apps) => save({ apps })}
   empty="Messages sent from a phone or an odd client."
+  emptyIcon="smartphone"
 />
 
 <h3 class="label">Quiet</h3>
 <Row setting="highlights.never" label="Never highlight" hint="These names never light up or play sounds, e.g. bots." stacked>
   <input
     class="field"
-    placeholder="nightbot, streamelements"
+    placeholder="e.g. nightbot, streamelements"
     value={h.never.join(', ')}
     onchange={(e) => save({ never: splitList(e.currentTarget.value.toLowerCase()) })}
   />

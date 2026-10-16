@@ -8,6 +8,7 @@
   import { toast } from '../../../lib/toast.svelte';
   import { popOut } from '../../../app/panels';
   import { errorText } from '../../../lib/errors';
+  import EmptyState from '../../../components/EmptyState.svelte';
   import Loading from '../../../components/Loading.svelte';
   import ConfirmButton from '../../../components/ConfirmButton.svelte';
 
@@ -45,7 +46,7 @@
       </div>
     </Row>
   {:else}
-    <p class="empty">None yet. Record a chat from its ⋯ menu. Pictures are saved too, so replays work offline.</p>
+    <EmptyState icon="film" text="None yet. Record a chat from its ⋯ menu. Pictures are saved too, so replays work offline." />
   {/each}
 {/if}
 
@@ -54,10 +55,5 @@
     display: flex;
     align-items: center;
     gap: 6px;
-  }
-  .empty {
-    margin: 6px 0;
-    color: var(--dim);
-    font-size: 0.85rem;
   }
 </style>

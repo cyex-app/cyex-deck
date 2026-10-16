@@ -1,5 +1,6 @@
 <script lang="ts">
   import Button from '../../../components/Button.svelte';
+  import EmptyState from '../../../components/EmptyState.svelte';
   import Row from '../../../components/Row.svelte';
   import { windowsIpc } from '../../../ipc/windows';
   import { settings } from '../../../lib/settings.svelte';
@@ -26,7 +27,7 @@
   function remove(layout: Layout, at: number) {
     void run(() => windowsIpc.deleteLayout(layout.name)).then((ok) => {
       if (!ok) return;
-      toast.success(`Deleted "${layout.name}".`, {
+      toast.success(`Deleted “${layout.name}”.`, {
         action: {
           label: 'Undo',
           run: () => {
@@ -42,7 +43,7 @@
     e.preventDefault();
     const n = name.trim();
     if (!n) return;
-    void run(() => windowsIpc.saveLayout(n), `Saved "${n}".`).then(() => (name = ''));
+    void run(() => windowsIpc.saveLayout(n), `Saved “${n}”.`).then(() => (name = ''));
   }
 </script>
 
@@ -55,22 +56,19 @@
 </form>
 
 {#each layouts as layout, i (layout.name)}
-  <Row label={layout.name} hint={`${Object.keys(layout.panels).length} pop-outs`}>
+  {@const pops = Object.keys(layout.panels).length}
+  <Row label={layout.name} hint={pops ? `Main window and ${pops} pop-out${pops === 1 ? '' : 's'}` : 'Main window only'}>
     <Button small onclick={() => run(() => windowsIpc.applyLayout(layout.name))}>Use</Button>
     <Button variant="ghost" small icon="trash" onclick={() => remove(layout, i)}>Delete</Button>
   </Row>
 {:else}
-  <p class="empty">No saved layouts yet.</p>
+  <EmptyState icon="layout" text="No saved layouts yet." />
 {/each}
 
 <style>
-  .intro,
-  .empty {
+  .intro {
     margin: -6px 0 14px;
     color: var(--dim);
-  }
-  .empty {
-    margin-top: 14px;
   }
   .save {
     display: flex;

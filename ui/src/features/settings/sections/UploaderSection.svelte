@@ -26,7 +26,7 @@
 <h2>Image uploads</h2>
 <p class="intro">
   Images you paste or drop into the chat box are uploaded here. These settings stay on this PC and never go into
-  exports. Headers are kept in Windows Credential Manager.
+  exports. Headers are stored securely on this PC.
 </p>
 
 <Row setting="uploader.enabled" label="Upload images you paste or drop">
@@ -58,7 +58,7 @@
     spellcheck="false"
     autocomplete="off"
     aria-label="Form field"
-    placeholder="file"
+    placeholder="e.g. file"
     value={u.formField}
     onchange={(e) => save({ formField: e.currentTarget.value })}
   />
@@ -72,7 +72,7 @@
       spellcheck="false"
       autocomplete="off"
       aria-label="Headers"
-      placeholder="Authorization: key; X-Other: value"
+      placeholder="e.g. Authorization: key; X-Other: value"
       value={headers}
       onchange={(e) => saveHeaders(e.currentTarget.value)}
     />
@@ -91,7 +91,7 @@
     spellcheck="false"
     autocomplete="off"
     aria-label="Image link"
-    placeholder={'{url}'}
+    placeholder={'e.g. {url}'}
     value={u.link}
     onchange={(e) => save({ link: e.currentTarget.value })}
   />
@@ -103,7 +103,7 @@
     spellcheck="false"
     autocomplete="off"
     aria-label="Delete link"
-    placeholder={'{delete}'}
+    placeholder={'e.g. {delete}'}
     value={u.deletionLink}
     onchange={(e) => save({ deletionLink: e.currentTarget.value })}
   />

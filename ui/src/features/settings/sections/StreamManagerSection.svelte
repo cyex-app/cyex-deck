@@ -51,13 +51,13 @@
       saveFolder();
     }}
   >
-    <input class="field" placeholder="C:\Streaming\status" bind:value={typed} onblur={saveFolder} />
+    <input class="field" placeholder="e.g. C:\Streaming\status" bind:value={typed} onblur={saveFolder} />
     <Button small onclick={() => void smIpc.obsOpen().catch((e) => toast.error(errorText(e)))}>Open folder</Button>
   </form>
   {#if folder}<p class="path">{folder}</p>{/if}
 </Row>
 
-<p class="note">In OBS, add a "Text (GDI+)" source, tick "Read from file" and pick one of these:</p>
+<p class="note">In OBS, add a “Text (GDI+)” source, tick “Read from file” and pick one of these:</p>
 <ul class="files">
   {#each FILES as [name, what] (name)}
     <li><code>{name}</code> {what}</li>

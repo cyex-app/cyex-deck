@@ -2,6 +2,7 @@
      on Twitch, and people hidden only for you (C28). -->
 <script lang="ts">
   import Button from '../../../components/Button.svelte';
+  import EmptyState from '../../../components/EmptyState.svelte';
   import Row from '../../../components/Row.svelte';
   import Segmented from '../../../components/Segmented.svelte';
   import Toggle from '../../../components/Toggle.svelte';
@@ -10,6 +11,7 @@
   import type { IgnoreRule } from '../../../ipc/bindings/IgnoreRule';
   import { settings } from '../../../lib/settings.svelte';
   import type { Field } from '../rules/fields';
+  import { OPT } from '../rules/options';
   import RuleList from '../rules/RuleList.svelte';
 
   const h = $derived(settings.v.highlights);
@@ -17,12 +19,20 @@
 
   const fields: Field<IgnoreRule>[] = [
     { key: 'enabled', label: 'On', kind: 'check' },
-    { key: 'pattern', label: 'Words', kind: 'text', placeholder: 'Words or a regex' },
-    { key: 'regex', label: 'Regex', kind: 'check' },
-    { key: 'caseSensitive', label: 'Aa', kind: 'check' },
-    { key: 'block', label: 'Hide message', kind: 'check' },
-    { key: 'replace', label: 'Swap for', kind: 'text', placeholder: 'Swap for', width: '110px' },
-    { key: 'route', label: 'Still show in feed', kind: 'text', placeholder: 'Feed', width: '90px' },
+    { key: 'pattern', label: 'Words', kind: 'text', placeholder: 'Words or a regex', main: true },
+    { key: 'caseSensitive', kind: 'check', ...OPT.caseSensitive },
+    { key: 'regex', kind: 'check', ...OPT.regex },
+    { key: 'block', kind: 'check', alert: true, ...OPT.block },
+    { key: 'replace', kind: 'text', placeholder: 'Swap for', width: '110px', alert: true, ...OPT.swap },
+    {
+      key: 'route',
+      kind: 'text',
+      placeholder: 'Feed tab',
+      width: '88px',
+      alert: true,
+      label: 'Still show in a feed tab',
+      hint: 'A hidden message still goes into the feed tab with this name.',
+    },
   ];
 
   const SHOW: { value: BlockedShow; label: string }[] = [
@@ -39,6 +49,9 @@
   setting="highlights.ignores"
   items={h.ignores}
   {fields}
+  layout="split"
+  slots={2}
+  emptyIcon="eyeOff"
   make={() => ({
     enabled: true,
     pattern: '',
@@ -77,13 +90,5 @@
     </Button>
   </Row>
 {:else}
-  <p class="empty">Nobody. Hide someone from their name’s menu or with /hideuser.</p>
+  <EmptyState icon="user" text="Nobody. Hide someone from their name’s menu or with /hideuser." />
 {/each}
-
-<style>
-  .empty {
-    margin: 6px 0;
-    color: var(--dim);
-    font-size: 0.85rem;
-  }
-</style>

@@ -22,6 +22,12 @@ export interface Field<T> {
   alert?: boolean;
   /** Monospace text, e.g. a regex. */
   mono?: boolean;
+  /** C3 A number's name, shown beside it (the label stays the tooltip). */
+  caption?: string;
+  /** C3 After a number, e.g. "s". */
+  unit?: string;
+  /** C2 Own line under the row: a long field such as a response or a filter. */
+  wide?: boolean;
   /** Only shown while this holds, e.g. the regex flavor. */
   when?: (item: T) => boolean;
 }

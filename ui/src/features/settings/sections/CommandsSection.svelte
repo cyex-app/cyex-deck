@@ -1,6 +1,7 @@
 <!-- Commands (1.8): your own commands in Chatty's syntax, your menu entries and usercard
      buttons (S1), and timers waiting to run (S3). -->
 <script lang="ts">
+  import EmptyState from '../../../components/EmptyState.svelte';
   import IconButton from '../../../components/IconButton.svelte';
   import Row from '../../../components/Row.svelte';
   import type { CommandLineError } from '../../../ipc/bindings/CommandLineError';
@@ -33,11 +34,17 @@
     return out;
   }
 
-  const MENUS: { key: 'userMenu' | 'messageMenu' | 'channelMenu' | 'usercardButtons'; label: string; hint: string }[] = [
-    { key: 'userMenu', label: 'Name menu', hint: 'Right-click on a name.' },
-    { key: 'messageMenu', label: 'Message menu', hint: 'Right-click on a message.' },
-    { key: 'channelMenu', label: 'Chat menu', hint: 'The ⋯ button in a chat’s header.' },
-    { key: 'usercardButtons', label: 'Usercard buttons', hint: 'Buttons on a usercard.' },
+  /** C5 Each menu has its own example, shown as a placeholder (`e.g.`), never as a value. */
+  const MENUS: {
+    key: 'userMenu' | 'messageMenu' | 'channelMenu' | 'usercardButtons';
+    label: string;
+    hint: string;
+    example: string;
+  }[] = [
+    { key: 'userMenu', label: 'Name menu', hint: 'Right-click on a name.', example: 'e.g. Shoutout=/shoutout $(nick)' },
+    { key: 'messageMenu', label: 'Message menu', hint: 'Right-click on a message.', example: 'e.g. Copy text=/copy $(msg)' },
+    { key: 'channelMenu', label: 'Chat menu', hint: 'The ⋯ button in a chat’s header.', example: 'e.g. Slow mode 10s=/slow 10' },
+    { key: 'usercardButtons', label: 'Usercard buttons', hint: 'Buttons on a usercard.', example: 'e.g. Wave=/me waves at $(nick)' },
   ];
 
   const when = (ms: number) => `${formatDate(new Date(ms))} ${formatTime(new Date(ms))}`;
@@ -55,7 +62,7 @@
     class="field code"
     rows="8"
     spellcheck="false"
-    placeholder={'/hi /me waves at $1\n/so /shoutout $1'}
+    placeholder={'e.g. /hi /me waves at $1\n/so /shoutout $1'}
     value={c.lines.join('\n')}
     onchange={(e) => save({ lines: lines(e.currentTarget.value) })}
   ></textarea>
@@ -73,7 +80,7 @@
       class="field code"
       rows="3"
       spellcheck="false"
-      placeholder={'Shoutout=/shoutout $(nick)\nLogs=/logs $(nick)'}
+      placeholder={m.example}
       value={c[m.key].join('\n')}
       onchange={(e) => save({ [m.key]: lines(e.currentTarget.value) })}
     ></textarea>
@@ -91,7 +98,7 @@
     />
   </Row>
 {:else}
-  <p class="empty">None waiting. /timer -r 10m /me stretch sets one that survives a restart.</p>
+  <EmptyState icon="clock" text="None waiting. /timer -r 10m /me stretch sets one that survives a restart." />
 {/each}
 
 <style>
@@ -120,10 +127,5 @@
     background: var(--surface);
     border-radius: var(--radius);
     font-size: 0.8rem;
-  }
-  .empty {
-    margin: 6px 0;
-    color: var(--dim);
-    font-size: 0.85rem;
   }
 </style>

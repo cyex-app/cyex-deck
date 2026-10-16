@@ -20,8 +20,14 @@
   const sim = (patch: Partial<Similarity>) => void settings.patch('highlights', { similar: patch });
 
   const fields: Field<FilterDef>[] = [
-    { key: 'name', label: 'Name', kind: 'text', placeholder: 'Name', width: '140px' },
-    { key: 'expr', label: 'Filter', kind: 'area', placeholder: 'author.subbed && message.content contains "hi"' },
+    { key: 'name', label: 'Name', kind: 'text', placeholder: 'Name', main: true },
+    {
+      key: 'expr',
+      label: 'Filter',
+      kind: 'area',
+      placeholder: 'e.g. author.subbed && message.content contains "hi"',
+      wide: true,
+    },
   ];
 
   /** Why each filter doesn't read, by text. */
@@ -63,6 +69,7 @@
   setting="highlights.filters"
   items={h.filters}
   {fields}
+  layout="split"
   make={() => ({ id: id(), name: '', expr: '' })}
   onchange={(filters) => void settings.patch('highlights', { filters })}
   problem={(f) => (f.expr.trim() ? (problems[f.expr] ?? null) : null)}

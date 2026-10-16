@@ -26,4 +26,8 @@ export const OPT = {
   show: { label: 'Mentions tab', hint: 'Also copies the message into the Mentions tab.', icon: 'at' },
   notify: { label: 'Pop-up', hint: 'Shows a Windows notification while the app isn’t in front.', icon: 'bell' },
   route: { label: 'Feed tab', hint: 'Copies the message into the feed tab with this name.' },
+  block: { label: 'Hide message', hint: 'Hides the whole message. Off: only the matching words are swapped.', icon: 'eyeOff' },
+  swap: { label: 'Swap for', hint: 'What the matching words turn into. A regex can use \\1.' },
+  reply: { label: 'As a reply', hint: 'Answers as a reply to the message.', icon: 'reply' },
+  liveOnly: { label: 'Only live', hint: 'Only answers while the channel is live.', icon: 'radio' },
 } satisfies Record<string, Option>;

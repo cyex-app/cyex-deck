@@ -251,6 +251,29 @@
     margin-inline: auto;
     padding: 22px 28px 32px;
   }
+  /* C5 An example in an empty field never reads like a saved value. */
+  .content :global(input::placeholder),
+  .content :global(textarea::placeholder) {
+    color: var(--dim);
+    opacity: 0.6;
+  }
+  .inner :global(p) {
+    text-wrap: pretty;
+  }
+  /* P1 One empty-state look in settings: icon and one line, left-aligned. */
+  .inner :global(.empty) {
+    flex: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+    font-size: 0.85rem;
+  }
+  .inner :global(.empty svg) {
+    flex: none;
+    width: 20px;
+    height: 20px;
+  }
   /* V103-13 A setting search jumped to: tinted over its own background, then fades. */
   .content :global(.found),
   .content :global(.fading) {

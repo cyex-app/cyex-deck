@@ -2,6 +2,7 @@
      engine for every flavor), so a broken regex shows why right under it. -->
 <script lang="ts">
   import Button from '../../../components/Button.svelte';
+  import EmptyState from '../../../components/EmptyState.svelte';
   import type { MentionCheck } from '../../../ipc/bindings/MentionCheck';
   import type { MentionRule } from '../../../ipc/bindings/MentionRule';
   import { mentionsIpc } from '../../../ipc/mentions';
@@ -51,7 +52,7 @@
       ondelete={() => remove(i)}
     />
   {:else}
-    <p class="empty">{empty}</p>
+    <EmptyState icon="at" text={empty} />
   {/each}
   <div class="add">
     <Button
@@ -68,11 +69,6 @@
 <style>
   .list {
     margin-bottom: 8px;
-  }
-  .empty {
-    margin: 6px 0;
-    color: var(--dim);
-    font-size: 0.85rem;
   }
   .add {
     padding-top: 8px;

@@ -45,8 +45,9 @@
   const split = $derived(layout === 'split');
   const shown = $derived(fields.filter((f) => !f.when || f.when(item)));
   const on = $derived(split ? shown.find((f) => f.key === 'enabled') : undefined);
-  const looks = $derived(shown.filter((f) => f !== on && !f.alert));
-  const does = $derived(shown.filter((f) => f.alert));
+  const looks = $derived(shown.filter((f) => f !== on && !f.alert && !f.wide));
+  const does = $derived(shown.filter((f) => f.alert && !f.wide));
+  const wide = $derived(shown.filter((f) => f.wide));
 
   function set(key: keyof T, value: unknown) {
     if (item[key] === value) return;
@@ -90,8 +91,9 @@
       <button class="clear" class:gone={!v} aria-label="Default color" tabindex={v ? 0 : -1} onclick={() => set(f.key, '')}>×</button>
     </span>
   {:else if f.kind === 'number'}
-    <span use:tooltip={f.label}>
-      <NumberField label={f.label} min={0} max={1e9} width={f.width ?? '72px'} value={Number(v)} onchange={(n) => set(f.key, n)} />
+    <span class="num" use:tooltip={{ label: f.label, hint: f.hint }}>
+      {#if f.caption}<span class="cap" aria-hidden="true">{f.caption}</span>{/if}
+      <NumberField label={f.label} min={0} max={1e9} unit={f.unit} width={f.width ?? '72px'} value={Number(v)} onchange={(n) => set(f.key, n)} />
     </span>
   {:else if f.kind === 'select'}
     <span use:tooltip={tip(f)}>
@@ -134,7 +136,7 @@
 {/snippet}
 
 {#if split}
-  <div class="rule split" class:off={item.enabled === false} data-setting={setting} style:--main-min={mainMin} style:--slots={slots}>
+  <div class="rule split" class:off={item.enabled === false} class:noon={!on} data-setting={setting} style:--main-min={mainMin} style:--slots={slots}>
     <span class="on">
       {#if on}<Toggle label={title ?? on.label} checked={!!item[on.key]} onchange={(c) => set(on.key, c)} />{/if}
     </span>
@@ -146,9 +148,16 @@
           <span class="opts">{#each looks.filter((f) => !f.main) as f (f.key)}{@render cell(f)}{/each}</span>
         {/if}
       </div>
-      <div class="does">
-        {#each does as f (f.key)}{@render cell(f)}{/each}
-      </div>
+      {#if does.length}
+        <div class="does">
+          {#each does as f (f.key)}{@render cell(f)}{/each}
+        </div>
+      {/if}
+      {#if wide.length}
+        <div class="wide">
+          {#each wide as f (f.key)}{@render cell(f)}{/each}
+        </div>
+      {/if}
     </div>
     <span class="del">{#if ondelete}<IconButton icon="trash" label="Delete" size={14} onclick={ondelete} />{/if}</span>
     {#if problem}<p class="problem">{problem}</p>{:else if note}<p class="note">{note}</p>{/if}
@@ -258,6 +267,16 @@
     grid-template-columns: 36px minmax(0, 1fr) 26px;
     gap: 6px 12px;
   }
+  .split.noon {
+    grid-template-columns: minmax(0, 1fr) 26px;
+  }
+  .split.noon > .on {
+    display: none;
+  }
+  .split.noon .problem,
+  .split.noon .note {
+    grid-column: 1 / -1;
+  }
   .split > .on,
   .split > .del {
     align-self: start;
@@ -309,15 +328,37 @@
     gap: 2px;
   }
   /* Right-aligned, so Regex sits in the same place with or without Match case. */
-  .opts {
+  .main + .opts {
     justify-content: flex-end;
     min-width: calc(var(--slots) * 28px - 2px);
+  }
+  /* C2 Long fields (a response, a filter) get the line under the row. */
+  .wide {
+    flex: 1 1 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  /* C3 A number with its name beside it. */
+  .num {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .cap {
+    color: var(--muted);
+    font-size: 0.8rem;
+    white-space: nowrap;
   }
   .does {
     flex: none;
   }
   .split .field {
     height: 26px;
+  }
+  .split .field.area {
+    height: auto;
   }
   .split .color {
     margin-right: 2px;

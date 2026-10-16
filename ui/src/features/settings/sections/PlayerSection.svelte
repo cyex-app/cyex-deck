@@ -65,7 +65,7 @@
     <span class="current">Using {proxy}</span>
     <Button small variant="ghost" onclick={() => void saveProxy(null)}>Remove</Button>
   {:else}
-    <input class="field wide" type="password" placeholder="http://user:password@host:8080" bind:value={draft} />
+    <input class="field wide" type="password" placeholder="e.g. http://user:password@host:8080" bind:value={draft} />
     <Button small disabled={!draft.trim()} onclick={() => void saveProxy(draft)}>Save</Button>
   {/if}
 </Row>
