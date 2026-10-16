@@ -106,6 +106,10 @@
   $effect(() => {
     if (video) sound.apply(video);
   });
+  $effect(() => {
+    const v = video;
+    return () => v && sound.release(v);
+  });
 
   $effect(() => {
     if (!video) return;

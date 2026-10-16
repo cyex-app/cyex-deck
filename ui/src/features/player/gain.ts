@@ -6,7 +6,7 @@
 import { LIMITER, LIMITER_MAKEUP } from './boost';
 import { routeContext } from './output.svelte';
 
-const gains = new WeakMap<HTMLMediaElement, GainNode>();
+const gains = new WeakMap<HTMLMediaElement, { node: GainNode; chain: AudioNode[] }>();
 /** Time constant of a gain change, in seconds. */
 const GLIDE = 0.02;
 
@@ -23,7 +23,7 @@ function boostContext(): AudioContext {
 
 /** Sets the boost's gain on `video`. Builds the graph only when `build` (the player is boosted). */
 export function setGain(video: HTMLMediaElement, value: number, build: boolean): void {
-  let node = gains.get(video);
+  let node = gains.get(video)?.node;
   // Players never boosted don't get an AudioContext at all.
   if (!node && !build) return;
   const ctx = boostContext();
@@ -38,9 +38,18 @@ export function setGain(video: HTMLMediaElement, value: number, build: boolean):
     limiter.release.value = LIMITER.release;
     const makeup = ctx.createGain();
     makeup.gain.value = LIMITER_MAKEUP;
-    ctx.createMediaElementSource(video).connect(node).connect(limiter).connect(makeup).connect(ctx.destination);
-    gains.set(video, node);
+    const source = ctx.createMediaElementSource(video);
+    source.connect(node).connect(limiter).connect(makeup).connect(ctx.destination);
+    gains.set(video, { node, chain: [source, node, limiter, makeup] });
   }
   if (ctx.state === 'suspended') void ctx.resume();
   node.gain.setTargetAtTime(value, ctx.currentTime, GLIDE);
+}
+
+/** Takes a closed player's boost graph out of the context, so channel switches don't pile them up. */
+export function releaseGain(video: HTMLMediaElement): void {
+  const g = gains.get(video);
+  if (!g) return;
+  gains.delete(video);
+  for (const n of g.chain) n.disconnect();
 }

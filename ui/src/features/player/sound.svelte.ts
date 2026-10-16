@@ -6,7 +6,7 @@
 import type { Tile } from '../../ipc/bindings/Tile';
 import { tabs } from '../tabs/tabs.svelte';
 import { clampVolume, split } from './boost';
-import { setGain } from './gain';
+import { releaseGain, setGain } from './gain';
 import { applySink } from './output.svelte';
 
 export interface Sound {
@@ -21,6 +21,8 @@ export interface Sound {
   toggleMute: () => void;
   /** Puts the current sound on the element. Call in an effect. */
   apply: (video: HTMLMediaElement) => void;
+  /** Drops the video's boost graph when the player goes. */
+  release: (video: HTMLMediaElement) => void;
 }
 
 /** `canBoost`: V105-10 live and VOD players; clips can't (their file plays silent through Web Audio). */
@@ -70,5 +72,7 @@ export function useSound(tile: () => Tile | undefined, hushed: () => boolean = (
       applySink(video);
       if (canBoost) setGain(video, s.gain, boost);
     },
+    /** The player's video is gone: drop its boost graph (V1051-01). */
+    release: (video) => releaseGain(video),
   };
 }

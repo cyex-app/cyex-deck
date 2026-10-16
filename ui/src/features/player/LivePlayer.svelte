@@ -86,6 +86,10 @@
   $effect(() => {
     if (video) sound.apply(video);
   });
+  $effect(() => {
+    const v = video;
+    return () => v && sound.release(v);
+  });
 
   // Network trouble: a fresh session, three times, then a button.
   $effect(() => {
