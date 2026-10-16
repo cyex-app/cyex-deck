@@ -43,7 +43,8 @@
     const byKey = document.activeElement?.matches(':focus-visible') ?? false;
     const release = focusScope(node, {
       initial: () => {
-        if (role === 'menu') return items()[0];
+        // A menu with a checked choice opens on it, so the keyboard starts where you are.
+        if (role === 'menu') return items().find((el) => el.getAttribute('aria-checked') === 'true') ?? items()[0];
         const first = tabbables(node)[0];
         return byKey || first?.matches('input, textarea, select, [role="combobox"]') ? first : node;
       },
