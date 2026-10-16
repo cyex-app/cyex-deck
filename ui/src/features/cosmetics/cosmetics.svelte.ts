@@ -74,6 +74,7 @@ export class CosmeticsStore {
   private sheet: ReturnType<typeof menuSheet> | null = null;
   private handled: unknown = null;
   private noted = false;
+  private destroyed = false;
   /** V1051-04 The one message under the preview, and the one Undo (a pick, a combo, a delete). */
   note = $state.raw<{ text: string; undo: (() => void) | null } | null>(null);
   private noteTimer: ReturnType<typeof setTimeout> | undefined;
@@ -136,7 +137,7 @@ export class CosmeticsStore {
     const s = this.sel.status;
     if (typeof s !== 'object' || s === this.handled) return;
     this.handled = s;
-    toast.error(errorText(s.error));
+    // The preview's status line shows the error; no toast on top of it.
     if (s.error.type === 'signInAgain' || s.error.type === 'signedOut' || s.error.type === 'noConsent') void this.load();
   }
 
@@ -149,8 +150,11 @@ export class CosmeticsStore {
     this.loading = true;
     this.key = this.liveKey();
     try {
-      this.apply(await cosmeticsIpc.view(this.account, fresh));
+      const v = await cosmeticsIpc.view(this.account, fresh);
+      if (this.destroyed) return;
+      this.apply(v);
     } catch {
+      if (this.destroyed) return;
       this.failed = true;
     }
     this.loading = false;
@@ -172,9 +176,12 @@ export class CosmeticsStore {
     // Loading, so the sign-in change that Allow causes doesn't start a second fetch.
     this.loading = true;
     try {
-      this.apply(await cosmeticsIpc.allow(this.account));
+      const v = await cosmeticsIpc.allow(this.account);
+      if (this.destroyed) return;
+      this.apply(v);
       this.key = this.liveKey();
     } catch {
+      if (this.destroyed) return;
       this.failed = true;
     }
     this.loading = false;
@@ -214,6 +221,8 @@ export class CosmeticsStore {
   }
 
   destroy() {
+    // A load that lands after this must not adopt a stylesheet nobody drops.
+    this.destroyed = true;
     clearTimeout(this.noteTimer);
     this.sheet?.drop();
     this.sheet = null;
