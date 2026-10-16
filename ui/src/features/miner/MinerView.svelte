@@ -38,7 +38,7 @@
   );
   const line = $derived.by(() => {
     const st = miner.status;
-    if (!s.enabled) return 'Off';
+    if (!s.enabled) return ''; // the Mining switch already says so
     if (!st) return '';
     if (st.problem) return st.problem;
     const mining = miner.mining;
