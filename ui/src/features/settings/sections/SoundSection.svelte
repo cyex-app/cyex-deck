@@ -39,9 +39,9 @@
   function picked(id: string, current: OutputDevice | null): OutputDevice | null {
     return devices.find((d) => d.id === id) ?? (current?.id === id ? current : null);
   }
-  /** "Same as Windows (Speakers)", the plugged-in devices, and the saved one that isn’t. */
+  /** "Same as Windows · Speakers", the plugged-in devices, and the saved one that isn’t. */
   function choices(current: OutputDevice | null) {
-    const list = [{ value: '', label: defaultName ? `Same as Windows (${defaultName})` : 'Same as Windows' }];
+    const list = [{ value: '', label: defaultName ? `Same as Windows · ${defaultName}` : 'Same as Windows' }];
     for (const d of devices) list.push({ value: d.id, label: d.name });
     if (current && !devices.some((d) => d.id === current.id)) {
       list.push({ value: current.id, label: `${current.name}${listed ? ' (not connected)' : ''}` });
