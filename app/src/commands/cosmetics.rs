@@ -49,11 +49,12 @@ pub async fn cosmetics_withdraw(app: AppHandle, account: String) -> Result<(), S
     Ok(())
 }
 
-/// V1051-02 Opens 7TV's sign-in window and waits for the outcome.
+/// V1051-02 Opens 7TV's sign-in window and waits for the outcome. `shared`: in the account's
+/// Twitch web profile (picked together with Twitch's sign-in), else a private window.
 #[tauri::command]
-pub async fn cosmetics_sign_in(app: AppHandle, account: String) -> Result<SignIn, String> {
+pub async fn cosmetics_sign_in(app: AppHandle, account: String, shared: bool) -> Result<SignIn, String> {
     known(&app, &account)?;
-    Ok(cosmetics::sign_in(&app, &account).await)
+    Ok(cosmetics::sign_in(&app, &account, shared).await)
 }
 
 /// V1051-04 Puts on a pair (a combo, or Undo). Both parts always named; `None` = none.

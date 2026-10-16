@@ -21,8 +21,9 @@ export const cosmeticsIpc = {
   /** Rejects with a `SelectError` object. */
   select: (account: string, kind: Kind, id: string | null) =>
     invoke<Picked>('cosmetics_select', { account, kind, id }),
-  /** V1051-02 7TV's own sign-in window; resolves when it ends. */
-  signIn: (account: string) => invoke<SignIn>('cosmetics_sign_in', { account }),
+  /** V1051-02 7TV's own sign-in window; resolves when it ends. `shared`: in the account's
+   * Twitch web profile, so Twitch is signed in already (picked with subscriptions and wallet). */
+  signIn: (account: string, shared = false) => invoke<SignIn>('cosmetics_sign_in', { account, shared }),
   signOut: (account: string) => invoke<void>('cosmetics_sign_out', { account }),
   /** Signs out and takes the consent back. */
   withdraw: (account: string) => invoke<void>('cosmetics_withdraw', { account }),

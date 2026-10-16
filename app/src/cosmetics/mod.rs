@@ -328,12 +328,12 @@ pub fn forget_account(app: &AppHandle, account: &str) {
 
 /// V1051-02 7TV's own sign-in in a small private window. Needs the account's consent. The
 /// session is kept only if its Twitch connection is this account's.
-pub async fn sign_in(app: &AppHandle, account: &str) -> SignIn {
+pub async fn sign_in(app: &AppHandle, account: &str, shared: bool) -> SignIn {
     if !has_consent(app, account) {
         return SignIn::Failed;
     }
     let api = state(app).api.clone();
-    let token = match crate::windows::seventv::capture(app, account, api.login_url()).await {
+    let token = match crate::windows::seventv::capture(app, account, api.login_url(), shared).await {
         Ok(t) => t,
         Err(done) => return done,
     };

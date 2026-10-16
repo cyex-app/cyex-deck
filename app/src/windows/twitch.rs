@@ -178,7 +178,8 @@ pub fn forget(app: &AppHandle, account: &str) {
     }
 }
 
-fn profile_dir(app: &AppHandle, account: &str) -> Option<PathBuf> {
+/// The account's Twitch web profile folder; 7TV's window borrows it for "both" (V1051-02).
+pub(crate) fn profile_dir(app: &AppHandle, account: &str) -> Option<PathBuf> {
     let safe: String = account.chars().filter(char::is_ascii_alphanumeric).collect();
     (!safe.is_empty()).then(|| {
         crate::paths::local(app).ok().map(|d| d.join("twitch").join(safe))
