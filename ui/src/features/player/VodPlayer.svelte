@@ -12,6 +12,7 @@
   import { playerIpc } from '../../ipc/player';
   import { formatDate } from '../../lib/format';
   import { bindingOf } from '../../lib/hotkeys.svelte';
+  import { latest } from '../../lib/latest';
   import { settings } from '../../lib/settings.svelte';
   import { Engine } from './engine.svelte';
   import { playerMenu } from './menu';
@@ -59,20 +60,31 @@
     if (!video) return;
     const e = new Engine(video, false, false);
     engine = e;
+    info = null;
+    if (session) void playerIpc.close(session.id);
+    session = null;
+    const current = starts.begin();
     void (async () => {
-      const [s, last, meta] = await Promise.all([
-        playerIpc.vod(id, account),
-        at > 0 ? Promise.resolve(at) : playerIpc.position(id).catch(() => null),
-        playerIpc.video(id).catch(() => null),
-      ]);
-      session = s;
-      info = meta;
-      await e.start(s, settings.v.player.quality, last ?? -1);
+      try {
+        const [s, last, meta] = await Promise.all([
+          playerIpc.vod(id, account),
+          at > 0 ? Promise.resolve(at) : playerIpc.position(id).catch(() => null),
+          playerIpc.video(id).catch(() => null),
+        ]);
+        // Another video, or this one closed, while the session was made.
+        if (!current()) return void playerIpc.close(s.id);
+        session = s;
+        info = meta;
+        await e.start(s, settings.v.player.quality, last ?? -1);
+      } catch {
+        if (current()) e.failure = 'media';
+      }
     })();
     const ro = new ResizeObserver(([entry]) => e.fit(entry.contentRect.height * devicePixelRatio));
     ro.observe(video);
     return () => {
       ro.disconnect();
+      starts.cancel();
       e.destroy();
     };
   });
@@ -91,6 +103,7 @@
   });
 
   onDestroy(() => {
+    starts.cancel();
     save();
     if (shared?.vod?.id === id) shared.vod = null;
     if (session) void playerIpc.close(session.id);
@@ -117,14 +130,26 @@
     if (video) video.currentTime = Math.max(0, duration ? Math.min(t, duration) : t);
   }
 
+  const starts = latest();
+
   /** A fresh session, carrying on where it was. */
   async function reload() {
     const e = engine;
     if (!e || !video) return;
     const at = video.currentTime;
+    const current = starts.begin();
     if (session) void playerIpc.close(session.id);
-    session = await playerIpc.vod(id, account);
-    await e.start(session, e.choice, at);
+    session = null;
+    e.failure = null;
+    e.waiting = true;
+    try {
+      const s = await playerIpc.vod(id, account);
+      if (!current() || engine !== e) return void playerIpc.close(s.id);
+      session = s;
+      await e.start(s, e.choice, at);
+    } catch {
+      if (current()) e.failure = 'media';
+    }
   }
 
   const controls = {
@@ -179,6 +204,9 @@
           : failure === 'geo'
             ? 'Not available in your country.'
             : 'The video didn’t load.'}
+      {#if failure !== 'subs' && failure !== 'gone' && failure !== 'geo'}
+        <button class="retry" onclick={() => void reload()}><Icon name="refresh" size={14} />Try again</button>
+      {/if}
     </div>
   {:else if engine?.waiting}
     <div class="spinner" aria-label="Loading"></div>
@@ -229,12 +257,25 @@
   .center {
     position: absolute;
     inset: 0;
-    display: grid;
-    place-items: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     padding: 16px;
     text-align: center;
     color: var(--on-video-dim);
     background: var(--scrim);
+  }
+  .retry {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    padding: 6px 12px;
+    background: color-mix(in srgb, var(--on-video) 14%, transparent);
+    border: 0;
+    border-radius: var(--radius);
+    color: var(--on-video);
   }
   .spinner {
     position: absolute;

@@ -14,6 +14,7 @@
   import type { Tile } from '../../ipc/bindings/Tile';
   import { playerIpc } from '../../ipc/player';
   import { bindingOf } from '../../lib/hotkeys.svelte';
+  import { latest } from '../../lib/latest';
   import { reduced } from '../../lib/motion';
   import { settings } from '../../lib/settings.svelte';
   import Celebration from './Celebration.svelte';
@@ -80,6 +81,8 @@
     ro.observe(video);
     return () => {
       ro.disconnect();
+      // A start still on its way must not attach to this engine, or leave its session open.
+      starts.cancel();
       e.destroy();
     };
   });
@@ -99,16 +102,30 @@
   });
 
   onDestroy(() => {
+    starts.cancel();
     clearTimeout(retry);
     void stopAds.then((f) => f());
     if (session) void playerIpc.close(session.id);
   });
 
+  const starts = latest();
+
+  /** Only the newest start counts; a failure shows as "didn’t load" (and retries, see above). */
   async function start(e: Engine, choice: Choice, channel: string, as: string | null, hold = false) {
+    const current = starts.begin();
     if (session) void playerIpc.close(session.id);
-    session = await playerIpc.live(channel, as);
-    ad = 'none';
-    await e.start(session, choice, -1, hold);
+    session = null;
+    e.failure = null;
+    e.waiting = true;
+    try {
+      const s = await playerIpc.live(channel, as);
+      if (!current()) return void playerIpc.close(s.id);
+      session = s;
+      ad = 'none';
+      await e.start(s, choice, -1, hold);
+    } catch {
+      if (current()) e.failure = 'network';
+    }
   }
 
   function reload() {
