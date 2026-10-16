@@ -28,12 +28,11 @@ export type ModSlot =
   | { key: string; kind: 'timeout'; secs: number; short: boolean };
 
 /** V105-15 The saved order, with anything it lacks added last in the default order (as
- *  Rust does), and timeouts no longer picked left out. */
+ *  Rust does). Timeouts no longer picked stay in their place, shown off. */
 export function fullOrder(b: ModButtons): ModButton[] {
   const defaults: ModButton[] = ['delete', ...b.timeouts.map((timeout) => ({ timeout })), 'warn', 'ban'];
   const out: ModButton[] = [];
   for (const x of [...b.order, ...defaults]) {
-    if (typeof x !== 'string' && !b.timeouts.includes(x.timeout)) continue;
     if (!out.some((y) => buttonKey(y) === buttonKey(x))) out.push(x);
   }
   return out;
@@ -44,17 +43,28 @@ export function modSlots(b: ModButtons): ModSlot[] {
   const short = b.timeouts.length > 1;
   const out: ModSlot[] = [];
   for (const x of fullOrder(b)) {
-    if (typeof x !== 'string') out.push({ key: buttonKey(x), kind: 'timeout', secs: x.timeout, short });
-    else if (b[x]) out.push({ key: x, kind: x });
+    if (typeof x !== 'string') {
+      if (b.timeouts.includes(x.timeout)) out.push({ key: buttonKey(x), kind: 'timeout', secs: x.timeout, short });
+    } else if (b[x]) out.push({ key: x, kind: x });
   }
   return out;
 }
 
+/** M10 Four timeouts at most. */
+export const MAX_TIMEOUTS = 4;
+
+/** V105-15 Whether the order list can add this button: only a timeout can't, with 4 on. */
+export function canAddButton(b: ModButtons, x: ModButton): boolean {
+  return typeof x === 'string' || b.timeouts.includes(x.timeout) || b.timeouts.length < MAX_TIMEOUTS;
+}
+
 /** V105-15 The settings patch that adds a button the order list shows as off, or removes one
- *  that is on. No button is locked: warn, delete, ban and every timeout flip alike. */
+ *  that is on. No button is locked: warn, delete, ban and every timeout flip alike; a fifth
+ *  timeout can't be added. The order is kept, so a button comes back in its place. */
 export function toggleButton(b: ModButtons, x: ModButton): Partial<ModButtons> {
   if (typeof x !== 'string') {
     const on = b.timeouts.includes(x.timeout);
+    if (!on && !canAddButton(b, x)) return {};
     return { timeouts: on ? b.timeouts.filter((s) => s !== x.timeout) : [...b.timeouts, x.timeout] };
   }
   return { [x]: !b[x] };

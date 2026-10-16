@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { ModButtons } from '../../ipc/bindings/ModButtons';
-import { buttonKey, fullOrder, modButtonsFor, modSlots, toggleButton, type LineMod } from './lineMod.ts';
+import { buttonKey, canAddButton, fullOrder, modButtonsFor, modSlots, toggleButton, type LineMod } from './lineMod.ts';
 
 const buttons: ModButtons = { delete: true, timeouts: [60], warn: false, ban: true, order: ['delete', { timeout: 60 }, 'warn', 'ban'] };
 const mod: LineMod = { me: '1', broadcaster: false, inline: true, slots: modSlots(buttons) };
@@ -43,7 +43,7 @@ test('V105-15 buttons follow the order, each timeout on its own', () => {
   assert.ok(t && t.kind === 'timeout' && !t.short);
 });
 
-test('V105-15 a just-picked timeout goes last; an unpicked one goes', () => {
+test('V105-15 a just-picked timeout goes last; an unpicked one keeps its place', () => {
   const b: ModButtons = {
     delete: true,
     timeouts: [60, 300],
@@ -51,7 +51,7 @@ test('V105-15 a just-picked timeout goes last; an unpicked one goes', () => {
     ban: true,
     order: ['ban', { timeout: 60 }, { timeout: 30 }, 'delete', 'warn'],
   };
-  assert.deepEqual(fullOrder(b).map(buttonKey), ['ban', 't60', 'delete', 'warn', 't300']);
+  assert.deepEqual(fullOrder(b).map(buttonKey), ['ban', 't60', 't30', 'delete', 'warn', 't300']);
 });
 
 test('no buttons, no mod mode on lines', () => {
@@ -81,4 +81,19 @@ test('V105-15 warn keeps its place in the order when added and removed', () => {
   assert.deepEqual(modSlots(on).map((s) => s.key), ['warn', 'ban', 'delete']);
   const off = { ...on, ...toggleButton(on, 'warn') };
   assert.deepEqual(fullOrder(off).map(buttonKey), ['warn', 'ban', 'delete']);
+});
+
+test('V105-15 a removed timeout keeps its place and comes back there; a fifth is refused', () => {
+  const b: ModButtons = { delete: true, timeouts: [60, 600], warn: true, ban: true, order: ['delete', { timeout: 60 }, { timeout: 600 }, 'warn', 'ban'] };
+  const off = { ...b, ...toggleButton(b, { timeout: 60 }) };
+  assert.deepEqual(off.timeouts, [600]);
+  assert.deepEqual(fullOrder(off).map(buttonKey), ['delete', 't60', 't600', 'warn', 'ban']);
+  assert.deepEqual(modSlots(off).map((s) => s.key), ['delete', 't600', 'warn', 'ban']);
+  const back = { ...off, ...toggleButton(off, { timeout: 60 }) };
+  assert.deepEqual(modSlots(back).map((s) => s.key), ['delete', 't60', 't600', 'warn', 'ban']);
+  const full: ModButtons = { ...b, timeouts: [5, 30, 60, 600], order: [...b.order, { timeout: 5 }, { timeout: 30 }, { timeout: 900 }] };
+  assert.equal(canAddButton(full, { timeout: 900 }), false);
+  assert.equal(canAddButton(full, { timeout: 60 }), true, 'a timeout that is on can be removed');
+  assert.equal(canAddButton(full, 'ban'), true);
+  assert.deepEqual(toggleButton(full, { timeout: 900 }), {});
 });

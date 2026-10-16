@@ -11,6 +11,8 @@ const MAX_TIMEOUT_SECS: u32 = 1_209_600;
 const MAX_TIMEOUT_PRESETS: usize = 8;
 /// M10 Timeout buttons mod mode can show.
 const MAX_MOD_TIMEOUTS: usize = 4;
+/// V105-15 Entries in the button order, off timeouts included.
+const MAX_MOD_ORDER: usize = 32;
 const MAX_NICKNAME_CHARS: usize = 25;
 const MAX_NOTE_CHARS: usize = 500;
 const MAX_HIDDEN_EMOTES: usize = 500;
@@ -202,16 +204,18 @@ impl Schema for Chat {
         t.sort_unstable();
         t.dedup();
         t.truncate(MAX_MOD_TIMEOUTS);
-        // V105-15 Each button once, timeouts only while picked; the rest last, in the default order.
+        // V105-15 Each button once; unpicked timeouts keep their place (they show as Add rows);
+        // the rest last, in the default order.
         let b = &mut self.mod_buttons;
         let timeouts = b.timeouts.clone();
-        let valid = |x: &ModButton| !matches!(x, ModButton::Timeout(s) if !timeouts.contains(s));
+        let valid = |x: &ModButton| !matches!(x, ModButton::Timeout(s) if !(1..=MAX_TIMEOUT_SECS).contains(s));
         let mut kept: Vec<ModButton> = Vec::new();
         for x in b.order.iter().chain(default_order(&timeouts).iter()) {
             if valid(x) && !kept.contains(x) {
                 kept.push(*x);
             }
         }
+        kept.truncate(MAX_MOD_ORDER);
         b.order = kept;
         self.users.retain(|id, u| {
             u.nickname = u.nickname.trim().chars().take(MAX_NICKNAME_CHARS).collect();
@@ -524,17 +528,20 @@ mod tests {
         c.mod_buttons.timeouts = vec![60, 600];
         c.mod_buttons.order = vec![Ban, Timeout(600), Ban, Timeout(999)];
         c.sanitize();
-        assert_eq!(c.mod_buttons.order, [Ban, Timeout(600), Delete, Timeout(60), Warn]);
+        assert_eq!(c.mod_buttons.order, [Ban, Timeout(600), Timeout(999), Delete, Timeout(60), Warn]);
+        c.mod_buttons.order = vec![Ban, Timeout(0), Timeout(2_000_000)];
+        c.sanitize();
+        assert_eq!(c.mod_buttons.order, [Ban, Delete, Timeout(60), Timeout(600), Warn]);
     }
 
     #[test]
-    fn mod_button_order_drops_unpicked_timeouts() {
+    fn mod_button_order_keeps_unpicked_timeouts() {
         use ModButton::*;
         let mut c = Chat::default();
         c.mod_buttons.timeouts = vec![60];
         c.mod_buttons.order = vec![Timeout(600), Delete, Timeout(60), Warn, Ban];
         c.sanitize();
-        assert_eq!(c.mod_buttons.order, [Delete, Timeout(60), Warn, Ban]);
+        assert_eq!(c.mod_buttons.order, [Timeout(600), Delete, Timeout(60), Warn, Ban]);
     }
 
     #[test]

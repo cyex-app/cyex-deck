@@ -15,7 +15,7 @@
   import { formatDuration, formatNumber, formatTime, parseDuration } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
-  import { buttonKey, fullOrder, toggleButton } from '../../modview/lineMod';
+  import { buttonKey, canAddButton, fullOrder, toggleButton } from '../../modview/lineMod';
   import ResetSection from '../ResetSection.svelte';
   import Select from '../../../components/Select.svelte';
   import { choicesOf } from '../../../components/select.ts';
@@ -347,7 +347,12 @@
           <span class="grip"><Icon name="grip" size={14} /></span>
           <Icon name={modIcon(b)} size={14} />
           <span class="slot-name">{modName(b)}</span>
-          <button class="slot-act" onclick={() => flipMod(toggleButton(mb, b))} aria-label={`${modOn(b) ? 'Remove' : 'Add'} ${modName(b)}`}
+          {#if !modOn(b) && !canAddButton(mb, b)}<span class="slot-hint">4 timeouts max</span>{/if}
+          <button
+            class="slot-act"
+            disabled={!canAddButton(mb, b)}
+            onclick={() => flipMod(toggleButton(mb, b))}
+            aria-label={`${modOn(b) ? 'Remove' : 'Add'} ${modName(b)}`}
             >{modOn(b) ? 'Remove' : 'Add'}</button
           >
         </div>
@@ -441,8 +446,16 @@
     font-size: 0.78rem;
     cursor: pointer;
   }
-  .slot-act:hover {
+  .slot-act:hover:not(:disabled) {
     color: var(--text);
+  }
+  .slot-act:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .slot-hint {
+    color: var(--dim);
+    font-size: 0.74rem;
   }
   h3 {
     margin: 22px 0 2px;
