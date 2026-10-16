@@ -6,6 +6,7 @@
 
   import Icon from '../../components/Icon.svelte';
   import { ACTIONS } from '../../lib/hotkeys.svelte';
+  import { quietScroll } from '../../lib/quietScroll';
   import { settings } from '../../lib/settings.svelte';
   import { ENTRIES, GROUPS, hotkeyEntries, PAGES, type PageId } from './registry/index';
   import { reveal } from './reveal';
@@ -148,7 +149,7 @@
 {/snippet}
 
 <div class="settings">
-  <nav bind:this={nav}>
+  <nav bind:this={nav} use:quietScroll>
     {@render searchBox('side')}
     {#each GROUPS as g (g.label)}
       <div class="group">{g.label}</div>
@@ -189,15 +190,9 @@
     overflow-y: auto;
     border-right: 1px solid var(--border);
   }
-  /* S7 The list's scrollbar shows only while the pointer is over it. */
+  /* S7 The list's scrollbar shows on hover or while scrolling (quietScroll). */
   nav::-webkit-scrollbar {
     width: 6px;
-  }
-  nav::-webkit-scrollbar-thumb {
-    background-color: transparent;
-  }
-  nav:hover::-webkit-scrollbar-thumb {
-    background-color: var(--border-strong);
   }
   .box {
     flex: none;

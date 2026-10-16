@@ -219,6 +219,15 @@ h2 {
   background-color: var(--dim);
 }
 
+/* Quiet lists: the thumb shows on hover or while scrolling (lib/quietScroll). */
+.quiet-scroll::-webkit-scrollbar-thumb {
+  background-color: transparent;
+}
+.quiet-scroll:hover::-webkit-scrollbar-thumb,
+.quiet-scroll.scrolling::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+}
+
 /* Shared form field look. */
 .field {
   height: 30px;

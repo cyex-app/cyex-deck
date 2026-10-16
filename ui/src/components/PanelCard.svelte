@@ -4,6 +4,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
+  import { quietScroll } from '../lib/quietScroll';
   import { grabFrom, usePanel } from './panel';
   import IconButton from './IconButton.svelte';
 
@@ -30,7 +31,7 @@
       <IconButton icon="x" label="Close {title}" size={14} onclick={ctl.close} />
     {/if}
   </header>
-  <div class="body" class:flush>{@render children()}</div>
+  <div class="body" class:flush use:quietScroll>{@render children()}</div>
 </section>
 
 <style>
