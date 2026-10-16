@@ -35,11 +35,13 @@
   let moved = $state<string>();
   const active = $derived(activeIndex(items.map(keyOf), moved, selected ?? NONE_KEY));
 
-  /** "7TV Subscriber - 1 Year, 6 Months" → ["7TV Subscriber", "1 Year, 6 Months"]: in a badge
+  /** "7TV Subscriber - 1 Year, 6 Months" → ["Subscriber", "1 Year, 6 Months"]: in a badge
    *  cell the part that tells badges apart gets its own line instead of being cut off. */
   function badgeLines(name: string): [string, string] | null {
-    const m = /^(.+?)\s+[-–—]\s+(.+)$/.exec(name);
-    return m ? [m[1], m[2]] : null;
+    // "CS2 Event Viewer (10 Hours)" splits the same way, so "10 Hours" isn't the part that's cut.
+    const m = /^(.+?)\s+[-–—]\s+(.+)$/.exec(name) ?? /^(.+?)\s+\((.+)\)$/.exec(name);
+    // Everything here is 7TV's, so "7TV Subscriber" reads "Subscriber" and fits the cell.
+    return m ? [m[1].replace(/^7TV\s+/i, ''), m[2]] : null;
   }
 
   function tip(r: Row | null) {
