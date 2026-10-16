@@ -40,7 +40,7 @@ pub(super) const CMDS: &[Cmd] = &[
     ])
     .changes(SevenTv, "Applying changes the account’s 7TV paint and badge; save, delete and rename change your combos list only.")
     .ex(&[
-        ex("/combo night owl", "Wearing “night owl”."),
+        ex("/combo night owl", "Wearing night owl"),
         ex("/combo save gold set", "Saved “gold set”: Gold and Founder."),
         ex("/combo list", "Your combos: gold set, “night owl”."),
         ex("/combo rename \"night owl\" late", "Renamed “night owl” to “late”."),

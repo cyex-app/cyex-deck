@@ -88,12 +88,12 @@ pub fn applied(name: Option<&str>, paint: &Part, badge: &Part) -> String {
         out.push(match name {
             // The other part failed too: nothing is worn as asked.
             _ if !fails.is_empty() => format!("The {k} didn’t change: {r}."),
-            Some(n) => format!("Wearing “{n}” without its {k}: {r}."),
+            Some(n) => format!("Wearing {n} without its {k}: {r}."),
             None => format!("Done. Not the {k}: {r}."),
         });
     } else if fails.is_empty() {
         out.push(match name {
-            Some(n) => format!("Wearing “{n}”."),
+            Some(n) => format!("Wearing {n}"),
             None => "Done.".into(),
         });
     }
@@ -122,7 +122,7 @@ mod tests {
     fn named_all_good() {
         assert_eq!(
             applied(Some("Night"), &Part::Changed, &Part::Same),
-            "Wearing “Night”."
+            "Wearing Night"
         );
     }
 
@@ -130,11 +130,11 @@ mod tests {
     fn named_one_skipped() {
         assert_eq!(
             applied(Some("Night"), &Part::Changed, &Part::NotOwned),
-            "Wearing “Night” without its badge: it’s not yours any more."
+            "Wearing Night without its badge: it’s not yours any more."
         );
         assert_eq!(
             applied(Some("Night"), &Part::NeedsSub, &Part::Same),
-            "Wearing “Night” without its paint: it’s for 7TV subscribers."
+            "Wearing Night without its paint: it’s for 7TV subscribers."
         );
     }
 
