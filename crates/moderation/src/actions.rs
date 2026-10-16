@@ -128,9 +128,11 @@ fn role_words(done: &str) -> Option<&'static str> {
     if !added && !d.starts_with("removed") {
         return None;
     }
-    if d.contains("moderator") {
+    // Twitch also words it as Added as "Mod", with straight quotes around the role.
+    let word = |w: &str| d.split(|c: char| !c.is_alphanumeric()).any(|x| x == w);
+    if word("moderator") || word("mod") {
         Some(if added { "modded" } else { "unmodded" })
-    } else if d.contains("vip") {
+    } else if word("vip") {
         Some(if added { "gave VIP to" } else { "took VIP from" })
     } else {
         None
@@ -227,7 +229,9 @@ impl ModLine {
     /// A line of Twitch's history, in Twitch's own words. `ts` is its `createdAt`.
     pub fn past(a: &ChannelAction, ts: i64) -> Self {
         use ModGroup::*;
+        let role = a.target.is_some().then(|| role_words(&a.done)).flatten();
         let group = match (a.category.as_str(), a.icon.as_str()) {
+            _ if role.is_some() => Role,
             (_, "TRASH" | "HALT") => Delete,
             ("BANS_AND_UNBANS", _) | (_, "BAN") => Ban,
             ("TIMEOUTS_AND_UNTIMEOUTS", _) | (_, "TIMEOUT") => Timeout,
@@ -253,7 +257,7 @@ impl ModLine {
                 .collect::<Vec<_>>()
                 .join(" ")
         };
-        let action = if let Some(words) = (group == Role && a.target.is_some()).then(|| role_words(&a.done)).flatten() {
+        let action = if let Some(words) = role {
             words.to_owned()
         } else if a.target.is_some() || a.title.is_empty() {
             lower(&a.done)
@@ -728,6 +732,11 @@ mod tests {
         assert_eq!(ModLine::past(&vip, 9).action, "gave VIP to");
         let gone = ChannelAction { done: "Removed as a VIP".into(), ..vip.clone() };
         assert_eq!(ModLine::past(&gone, 9).action, "took VIP from");
+        // The quoted wording reads the same, never as raw text.
+        let quoted = ChannelAction { done: "Added as \"Mod\"".into(), ..vip.clone() };
+        assert_eq!(ModLine::past(&quoted, 9).action, "modded");
+        let unquoted = ChannelAction { done: "Removed as \"Mod\"".into(), ..vip.clone() };
+        assert_eq!(ModLine::past(&unquoted, 9).action, "unmodded");
     }
 
     #[test]
