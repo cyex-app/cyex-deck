@@ -29,3 +29,23 @@ export function adjustedNote(keys: readonly string[]): string {
 export function isLink(source: string): boolean {
   return /^https:\/\/[^\s"'()\\]+$/.test(source) && source.length <= 2048;
 }
+
+/** T2 `#rrggbb` from what was typed (`#abc`, `abc` and `#AABBCC` all work); null when it isn't a color. */
+export function parseHex(text: string): string | null {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(text.trim());
+  if (!m) return null;
+  const h = m[1].toLowerCase();
+  return `#${h.length === 3 ? [...h].map((c) => c + c).join('') : h}`;
+}
+
+/** T1 The palette's own color for `key` when it is a plain hex, else null. */
+export function appliedHex(value: string | undefined): string | null {
+  return value && /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : null;
+}
+
+/** T1 "Kept dark so text stays readable": why a picked color isn't the one painted. */
+export function keptNote(key: string, base: 'dark' | 'light'): string {
+  return ['bg', 'surface', 'elevated', 'border'].includes(key)
+    ? `Kept ${base} so text stays readable`
+    : 'Nudged so it stays readable';
+}

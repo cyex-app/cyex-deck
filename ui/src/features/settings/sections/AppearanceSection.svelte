@@ -1,6 +1,6 @@
 <script lang="ts">
   import Button from '../../../components/Button.svelte';
-  import { openMenu } from '../../../components/menu.svelte';
+  import Icon from '../../../components/Icon.svelte';
   import Row from '../../../components/Row.svelte';
   import Segmented from '../../../components/Segmented.svelte';
   import Stepper from '../../../components/Stepper.svelte';
@@ -15,12 +15,12 @@
   import { themeIpc } from '../../../ipc/theme';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
+  import ColorField from '../ColorField.svelte';
   import ResetSection from '../ResetSection.svelte';
   import ThemeEditor from '../ThemeEditor.svelte';
   import { errorText } from '../../../lib/errors';
 
   const DEFAULT_ACCENT = '#145aff';
-  const HEX = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
 
   const a = $derived(settings.v.appearance);
   /** U8 The custom theme in use, if any. */
@@ -52,10 +52,27 @@
     void settings.patch('appearance', { themes: a.themes.map((t) => (t.id === next.id ? next : t)) });
   }
 
+  /** Deletes at once; Undo puts the theme back where it was, and switches to it again if it was in use. */
   function deleteTheme(id: string) {
+    const at = a.themes.findIndex((t) => t.id === id);
+    const gone = a.themes[at];
+    if (!gone) return;
+    const wasUsed = a.themeId === id;
     void settings.patch('appearance', {
       themes: a.themes.filter((t) => t.id !== id),
-      themeId: a.themeId === id ? '' : a.themeId,
+      themeId: wasUsed ? '' : a.themeId,
+    });
+    toast.success(`Deleted “${gone.name}”.`, {
+      action: {
+        label: 'Undo',
+        run: () => {
+          const now = settings.v.appearance.themes.filter((t) => t.id !== id);
+          void settings.patch('appearance', {
+            themes: [...now.slice(0, at), gone, ...now.slice(at)],
+            ...(wasUsed ? { themeId: id } : {}),
+          });
+        },
+      },
     });
   }
 
@@ -79,15 +96,23 @@
     });
   }
 
-  async function presets(e: MouseEvent) {
-    // Under the button (V101-30); the event's target is gone after the wait.
-    const at = e.currentTarget as HTMLElement;
-    const list = await themeIpc.presets();
-    openMenu(
-      at,
-      list.map((p) => ({ label: p.name, run: () => void add(p) })),
-      'end',
-    );
+  /** T3 The presets, shown as small previews under the button. */
+  let presetList = $state.raw<CustomTheme[]>([]);
+  let showPresets = $state(false);
+  async function togglePresets() {
+    showPresets = !showPresets;
+    if (showPresets && !presetList.length) {
+      try {
+        presetList = await themeIpc.presets();
+      } catch (e) {
+        showPresets = false;
+        toast.error(errorText(e));
+      }
+    }
+  }
+  function usePreset(p: CustomTheme) {
+    showPresets = false;
+    void add(p);
   }
 
   let code = $state('');
@@ -132,15 +157,6 @@
     else void settings.patch('appearance', { accent: v });
   }
 
-  function setAccent(input: HTMLInputElement) {
-    const v = input.value.trim();
-    if (!HEX.test(v)) {
-      toast.error('Use a hex color like #145aff.');
-      input.value = accent;
-      return;
-    }
-    writeAccent(v.startsWith('#') ? v : `#${v}`);
-  }
 </script>
 
 <h2>Appearance</h2>
@@ -167,10 +183,27 @@
     <button class="theme add" onclick={newTheme}><span class="pic">+</span>New</button>
   </div>
   <div class="tools">
-    <Button small variant="ghost" onclick={presets}>Start from a preset</Button>
-    <input class="field code" placeholder="Paste a theme code" aria-label="Theme code" bind:value={code} />
+    <button class="field pick" aria-expanded={showPresets} onclick={() => void togglePresets()}>
+      New from a preset
+      <Icon name={showPresets ? 'chevronUp' : 'chevronDown'} size={14} />
+    </button>
+    <span class="code-label">Theme code</span>
+    <input class="field code" placeholder="Paste a code" aria-label="Theme code" bind:value={code} />
     <Button small disabled={!code.trim()} onclick={importCode}>Add</Button>
   </div>
+  {#if showPresets}
+    <div class="themes presets" role="group" aria-label="Presets">
+      {#each presetList as p (p.name)}
+        {@const pv = preview(p)}
+        <button class="theme" onclick={() => usePreset(p)}>
+          <span class="pic" style:background={pv.bg}
+            ><i style:background={pv.surface}></i><b style:background={pv.text}></b><u style:background={p.accent}></u></span
+          >
+          {p.name}
+        </button>
+      {/each}
+    </div>
+  {/if}
 </Row>
 
 {#if active}
@@ -178,20 +211,21 @@
 {/if}
 
 <Row setting="appearance.accent" label="Accent color" hint={adjusted ? 'Shown a bit lighter or darker here so it stays visible.' : undefined}>
-  <input
-    type="color"
-    class="swatch"
-    aria-label="Pick accent color"
+  <ColorField
     value={accent}
-    oninput={(e) => setAccent(e.currentTarget)}
+    label="Accent color"
+    width="92px"
+    onchange={writeAccent}
+    oninvalid={() => toast.error('Use a hex color like #145aff.')}
   />
-  <input class="field hex" aria-label="Accent hex code" value={accent} onchange={(e) => setAccent(e.currentTarget)} />
   <Button variant="ghost" small disabled={accent === DEFAULT_ACCENT} onclick={() => writeAccent(DEFAULT_ACCENT)}
     >Default</Button
   >
 </Row>
 
-<div class="sample">
+<!-- T4 A picture of the accent, not controls: nothing here takes focus. -->
+<div class="sample" inert>
+  <span class="cap">Preview</span>
   <Button variant="primary" small>Button</Button>
   <span class="link">Accent text</span>
   <Toggle label="Sample" checked={true} onchange={() => {}} />
@@ -330,29 +364,37 @@
     align-items: center;
     gap: 8px;
   }
+  .pick {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: none;
+    height: 28px;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .pick:hover {
+    border-color: var(--dim);
+  }
+  .pick :global(svg) {
+    color: var(--dim);
+  }
+  .code-label {
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
   .code {
-    flex: 1;
-    min-width: 0;
-    font-family: var(--font-mono);
+    flex: 0 1 180px;
+    height: 28px;
   }
-  .swatch {
-    width: 34px;
-    height: 30px;
-    padding: 2px;
-    background: var(--surface);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius);
+  .presets {
+    margin-top: 8px;
   }
-  .swatch::-webkit-color-swatch-wrapper {
-    padding: 0;
-  }
-  .swatch::-webkit-color-swatch {
-    border: 0;
-    border-radius: var(--radius-sm);
-  }
-  .hex {
-    width: 92px;
-    font-family: var(--font-mono);
+  .cap {
+    color: var(--dim);
+    font-size: 0.78rem;
   }
   .sample {
     display: flex;

@@ -2,7 +2,7 @@
      share code. Changes save as you go; Rust nudges colors that would hurt readability. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
-  import ConfirmButton from '../../components/ConfirmButton.svelte';
+  import ColorField from './ColorField.svelte';
   import Row from '../../components/Row.svelte';
   import Segmented from '../../components/Segmented.svelte';
   import type { CustomTheme } from '../../ipc/bindings/CustomTheme';
@@ -12,7 +12,7 @@
   import type { WallpaperFit } from '../../ipc/bindings/WallpaperFit';
   import { themeIpc } from '../../ipc/theme';
   import { toast } from '../../lib/toast.svelte';
-  import { COLOR_NAMES, adjustedNote, isLink } from './themes';
+  import { COLOR_NAMES, adjustedNote, appliedHex, isLink, keptNote } from './themes';
   import { errorText } from '../../lib/errors';
   import { copy } from '../../lib/clipboard';
 
@@ -41,7 +41,10 @@
   ];
 
   const w = $derived(theme.wallpaper);
-  const shown = (key: string) => theme.colors[key] ?? look?.palette?.tokens[key] ?? '#000000';
+  /** T1 The color on screen: Rust's painted one, which may differ from the pick (it keeps
+   * backgrounds on the theme's side and text readable). */
+  const shown = (key: string) => appliedHex(look?.palette?.tokens[key]) ?? theme.colors[key] ?? '#000000';
+  const adjusted = $derived(new Set(look?.palette?.adjusted ?? []));
   const note = $derived(adjustedNote(look?.palette?.adjusted ?? []));
 
   // Dragging a color picker fires many inputs; save at most every 120 ms.
@@ -116,16 +119,22 @@
   <div class="colors">
     {#each COLOR_NAMES as [key, label] (key)}
       <div class="color">
-        <input
-          type="color"
-          class="swatch"
-          aria-label={label}
+        <ColorField
           value={shown(key)}
-          oninput={(e) => setColor(key, e.currentTarget.value)}
+          {label}
+          onchange={(hex) => setColor(key, hex)}
+          oninvalid={() => toast.error('Use a hex color like #145aff.')}
         />
         <span class="cname">{label}</span>
-        {#if theme.colors[key]}
-          <button class="reset" aria-label="Back to the {theme.base} color" onclick={() => resetColor(key)}>×</button>
+        <button
+          class="reset"
+          class:gone={!theme.colors[key]}
+          aria-label="Back to the {theme.base} color"
+          tabindex={theme.colors[key] ? 0 : -1}
+          onclick={() => resetColor(key)}>×</button
+        >
+        {#if theme.colors[key] && adjusted.has(key)}
+          <span class="kept">{keptNote(key, theme.base)}</span>
         {/if}
       </div>
     {/each}
@@ -177,7 +186,7 @@
 
   <div class="actions">
     <Button small icon="copy" onclick={copyCode}>Copy theme code</Button>
-    <ConfirmButton label="Delete theme" confirm="Click again to delete" icon="trash" variant="ghost" onconfirm={ondelete} />
+    <Button small icon="trash" variant="ghost" onclick={ondelete}>Delete theme</Button>
   </div>
 </div>
 
@@ -197,16 +206,22 @@
   }
   .colors {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 8px 14px;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 10px 18px;
     padding: 12px 0;
     border-bottom: 1px solid var(--border);
   }
   .color {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 2px 8px;
     min-width: 0;
+  }
+  .kept {
+    flex-basis: 100%;
+    color: var(--yellow);
+    font-size: 0.76rem;
   }
   .cname {
     flex: 1;
@@ -215,28 +230,24 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .swatch {
-    flex: none;
-    width: 30px;
-    height: 26px;
-    padding: 2px;
-    background: var(--surface);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius);
-  }
-  .swatch::-webkit-color-swatch-wrapper {
-    padding: 0;
-  }
-  .swatch::-webkit-color-swatch {
-    border: 0;
-    border-radius: var(--radius-sm);
-  }
+  /* T5 The reset sits in its own slot after the name, shown on hover or focus. */
   .reset {
-    padding: 0 4px;
+    flex: none;
+    width: 18px;
+    padding: 0;
     background: none;
     border: 0;
     color: var(--dim);
     cursor: pointer;
+    opacity: 0;
+    transition: opacity var(--fast);
+  }
+  .color:hover .reset:not(.gone),
+  .reset:focus-visible {
+    opacity: 1;
+  }
+  .reset.gone {
+    visibility: hidden;
   }
   .reset:hover {
     color: var(--text);
