@@ -119,8 +119,17 @@ fn combo_of(done: ComboDone) -> Combo {
     }
 }
 
+/// Automations (S4) start on other people's messages, so they can only list combos: wearing,
+/// saving, deleting and renaming stay yours (each wear costs a 7TV request), like `{combo:…}`.
+fn automation_may(name: &str, args: &str) -> bool {
+    name == "combo" && matches!(combo_args(args), Ok(ComboCmd::List))
+}
+
 pub(super) async fn run(app: &AppHandle, place: &Place, name: &str, args: &str) -> Result<Option<UiAction>, String> {
     let account = place.account().ok_or_else(|| format!("Sign in to use /{name}."))?;
+    if place.automation && !automation_may(name, args) {
+        return Err(format!("/{name} doesn’t run in automations."));
+    }
     let line = if name == "combo" {
         combo(app, account, combo_args(args)?).await?
     } else {
@@ -260,6 +269,15 @@ mod tests {
         assert_eq!(combo_args("rename a b c"), Err(RENAME.into()));
         assert_eq!(combo_args("\"open"), Err(QUOTE.into()));
         assert_eq!(combo_args(""), Err(USAGE.into()));
+    }
+
+    #[test]
+    fn automations_only_list() {
+        assert!(automation_may("combo", "list"));
+        assert!(!automation_may("combo", "night owl"));
+        assert!(!automation_may("combo", "delete night"));
+        assert!(!automation_may("paint", "none"));
+        assert!(!automation_may("badge", "Founder"));
     }
 
     #[test]

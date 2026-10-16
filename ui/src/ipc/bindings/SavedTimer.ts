@@ -15,4 +15,8 @@ account: string | null,
 /**
  * Unix ms.
  */
-atMs: number, command: string, };
+atMs: number, command: string, 
+/**
+ * V1051-04 Set by an automation (S4): stays one after a restart.
+ */
+automation: boolean, };

@@ -54,6 +54,8 @@ pub enum ComboError {
     Taken(String),
     Full,
     Missing,
+    /// The settings file couldn't be written (the app's side, not the op's).
+    Unsaved,
 }
 
 impl fmt::Display for ComboError {
@@ -63,6 +65,7 @@ impl fmt::Display for ComboError {
             ComboError::Taken(n) => write!(f, "You have a combo called “{n}” already."),
             ComboError::Full => write!(f, "You have {MAX_COMBOS} combos. Delete one first."),
             ComboError::Missing => f.write_str("That combo is gone."),
+            ComboError::Unsaved => f.write_str("Couldn’t save your combos. Try again."),
         }
     }
 }

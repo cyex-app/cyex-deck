@@ -10,8 +10,13 @@ pub fn select_error(e: &SelectError) -> String {
         SelectError::SignInAgain => "Your 7TV sign-in ran out. /cosmetics signs you in again.".into(),
         SelectError::NotAllowed => "7TV didn’t allow that one.".into(),
         SelectError::Down => "Couldn’t reach 7TV. Nothing changed.".into(),
-        SelectError::RateLimited { seconds } => format!("7TV needs a short break. Try again in {seconds} s."),
+        SelectError::RateLimited { seconds } => format!("7TV needs a short break. Try again in {}.", wait(*seconds)),
     }
+}
+
+/// "30 s" under a minute, else whole minutes rounded up ("60 min" at most: 7TV's cap is an hour).
+fn wait(seconds: u64) -> String {
+    if seconds < 60 { format!("{seconds} s") } else { format!("{} min", seconds.div_ceil(60)) }
 }
 
 pub fn why(w: &Why) -> &'static str {
@@ -176,6 +181,14 @@ mod tests {
             applied(None, &Part::Changed, &Part::NotOwned),
             "Done. Not the badge: it’s not yours any more."
         );
+    }
+
+    #[test]
+    fn long_waits_are_minutes() {
+        let limited = |seconds| select_error(&SelectError::RateLimited { seconds });
+        assert_eq!(limited(59), "7TV needs a short break. Try again in 59 s.");
+        assert_eq!(limited(61), "7TV needs a short break. Try again in 2 min.");
+        assert_eq!(limited(3600), "7TV needs a short break. Try again in 60 min.");
     }
 
     #[test]

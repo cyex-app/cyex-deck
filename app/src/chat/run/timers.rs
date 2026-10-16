@@ -46,7 +46,7 @@ pub fn restore(app: &AppHandle) {
         let place = Place {
             view: None,
             key: (identity, t.channel.clone()),
-            automation: false,
+            automation: t.automation,
         };
         schedule(app, place, t.id, t.at_ms, t.command, true);
     }
@@ -211,6 +211,7 @@ fn save(app: &AppHandle) {
             account: t.place.account().map(str::to_owned),
             at_ms: t.at_ms,
             command: t.command.clone(),
+            automation: t.place.automation,
         })
         .collect();
     let _ = app

@@ -71,6 +71,8 @@ pub struct SavedTimer {
     #[ts(type = "number")]
     pub at_ms: i64,
     pub command: String,
+    /// V1051-04 Set by an automation (S4): stays one after a restart.
+    pub automation: bool,
 }
 
 /// S4 How the trigger is matched against a message.

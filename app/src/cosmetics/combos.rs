@@ -31,6 +31,7 @@ pub fn change(app: &AppHandle, account: &str, op: ComboOp) -> Result<ComboDone, 
         });
     if let Err(e) = saved {
         eprintln!("combos: couldn't save: {e}");
+        return Err(ComboError::Unsaved);
     }
     result.unwrap_or(Err(ComboError::Missing))
 }
