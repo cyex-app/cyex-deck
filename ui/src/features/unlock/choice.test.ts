@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { AccountView } from '../../ipc/bindings/AccountView';
-import { doneOf, leftText, order, pickNeedsSignIn, plan, twitchLeft } from './choice.ts';
+import { asksConsent, doneOf, leftText, order, pickNeedsSignIn, plan, sharedProfile, twitchLeft } from './choice.ts';
 
 const ok = { source: 'device', expiresAt: null, state: 'valid' } as AccountView['helix'];
 const bad = { source: 'device', expiresAt: null, state: 'invalid' } as AccountView['helix'];
@@ -51,6 +51,26 @@ test('7TV counts as done only signed in with consent', () => {
   assert.deepEqual(doneOf(a(true, true)), { seventv: true, twitch: true });
   assert.deepEqual(doneOf(a(false, true)), { seventv: false, twitch: true });
   assert.deepEqual(doneOf(a(true, false)), { seventv: false, twitch: true });
+});
+
+test('a both option without consent shows it, and its click gives it', () => {
+  assert.equal(asksConsent(['twitch', 'seventv'], false), true);
+  assert.equal(asksConsent(['seventv'], false), true);
+  assert.equal(asksConsent(['seventv'], true), false);
+  assert.equal(asksConsent(['twitch'], false), false);
+});
+
+test('only a both choice borrows the Twitch profile', () => {
+  assert.equal(sharedProfile(['twitch', 'seventv']), true);
+  assert.equal(sharedProfile(['seventv', 'twitch']), true);
+  assert.equal(sharedProfile(['seventv']), false);
+  assert.equal(sharedProfile(['twitch']), false);
+  // Each entry's both option, as the dialog passes it.
+  for (const e of ['seventv', 'twitch', 'settings'] as const) {
+    const p = plan(e, { seventv: false, twitch: false }, false);
+    if (p.kind !== 'ask') throw new Error('asks');
+    assert.deepEqual(p.options.map((o) => sharedProfile(o.parts)), e === 'settings' ? [false, false, true] : [false, true]);
+  }
 });
 
 test('Twitch runs first', () => {

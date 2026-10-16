@@ -7,7 +7,7 @@
   import Segmented from '../../components/Segmented.svelte';
   import { signIn } from '../accounts/signIn.svelte';
   import ConsentText from '../cosmetics/ConsentText.svelte';
-  import { PART_NAME, type Part } from './choice';
+  import { asksConsent, PART_NAME, type Part } from './choice';
   import { unlock, type Step } from './unlock.svelte';
 
   const asked = $derived(unlock.asked);
@@ -15,7 +15,7 @@
   const options = $derived(asked?.options?.filter((o) => !o.done) ?? []);
   let picked = $state(0);
   const parts = $derived<Part[]>(asked?.options ? (options[picked]?.parts ?? []) : (asked?.parts ?? []));
-  const consent = $derived(!!asked?.consent && parts.includes('seventv'));
+  const consent = $derived(!!asked && asksConsent(parts, !asked.consent));
 
   // A new question starts on its first choice.
   $effect(() => {

@@ -72,7 +72,18 @@ export function doneOf(a: Pick<AccountView, 'helix' | 'gql' | 'seventv'>): Done 
   return { seventv: a.seventv.consent && a.seventv.signedIn, twitch: twitchLeft(a).length === 0 };
 }
 
-/** Steps run Twitch first: its window keeps the login, 7TV's is a private one. */
+/** 7TV's consent shows (and the sign-in click gives it) when 7TV is picked without one. */
+export function asksConsent(parts: Part[], consentGiven: boolean): boolean {
+  return parts.includes('seventv') && !consentGiven;
+}
+
+/** 7TV's window borrows the account's Twitch web profile only when Twitch is picked too, so
+ * one Twitch login covers both. "Just 7TV" stays in a private window. */
+export function sharedProfile(parts: Part[]): boolean {
+  return parts.includes('seventv') && parts.includes('twitch');
+}
+
+/** Steps run Twitch first, so its login is there when 7TV's window opens in the same profile. */
 export function order(parts: Part[]): Part[] {
   return (['twitch', 'seventv'] as const).filter((p) => parts.includes(p));
 }

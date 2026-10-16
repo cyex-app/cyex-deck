@@ -6,7 +6,7 @@ import { cosmeticsIpc } from '../../ipc/cosmetics';
 import { accounts } from '../../lib/accounts.svelte';
 import { toast } from '../../lib/toast.svelte';
 import { signIn } from '../accounts/signIn.svelte';
-import { doneOf, leftText, order, plan, twitchLeft, type Entry, type Option, type Part } from './choice';
+import { doneOf, leftText, order, plan, sharedProfile, twitchLeft, type Entry, type Option, type Part } from './choice';
 
 export type StepState = 'waiting' | 'running' | 'done' | 'failed';
 
@@ -96,7 +96,8 @@ class Unlock {
     const failed: Part[] = [];
     for (const step of this.steps) {
       step.state = 'running';
-      const note = step.part === 'twitch' ? await this.twitch(q.account) : await this.seventv(q.account);
+      const note =
+        step.part === 'twitch' ? await this.twitch(q.account) : await this.seventv(q.account, sharedProfile(parts));
       step.state = note === null ? 'done' : 'failed';
       if (note) step.note = note;
       (note === null ? done : failed).push(step.part);
@@ -120,11 +121,12 @@ class Unlock {
     return null;
   }
 
-  /** The yes (when asked for it in this dialog), then 7TV's own sign-in window. */
-  private async seventv(account: string): Promise<string | null> {
+  /** The yes (the dialog's sign-in click, with the consent shown), then 7TV's own sign-in
+   * window: in the account's Twitch profile when Twitch was picked too. */
+  private async seventv(account: string, shared: boolean): Promise<string | null> {
     try {
       if (this.asked?.consent) await cosmeticsIpc.allow(account);
-      const r = await cosmeticsIpc.signIn(account);
+      const r = await cosmeticsIpc.signIn(account, shared);
       if (r.type === 'done') return null;
       if (r.type === 'otherAccount') return 'That’s a different Twitch account.';
       return '';
