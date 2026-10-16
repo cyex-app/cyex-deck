@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { Combo } from '../../ipc/cosmetics';
-import { current, pairTitle, problems, problemText } from './combos.ts';
+import { current, pairTitle, problems, problemText, withNote } from './combos.ts';
 
 const mk = (id: string, paint: string | null, badge: string | null): Combo => ({
   id,
@@ -31,4 +31,11 @@ test('problems and their text', () => {
 test('pairTitle names a missing part', () => {
   assert.equal(pairTitle(list[1]), 'P p1 + No badge');
   assert.equal(pairTitle(list[3]), 'No paint + No badge');
+});
+
+test('a worn combo whose paint is gone gets the broken note', () => {
+  const p = problems(mk('a', 'p1', null), () => 'notOwned');
+  assert.equal(withNote('Wearing a', p), 'Wearing a. You don’t own P p1 any more.');
+  assert.equal(withNote('Wearing a', []), 'Wearing a');
+  assert.equal(withNote('Wearing a without its paint: gone.', p), 'Wearing a without its paint: gone.');
 });

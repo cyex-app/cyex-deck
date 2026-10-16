@@ -6,7 +6,7 @@ import { cosmeticsIpc } from '../../ipc/cosmetics';
 import { settings } from '../../lib/settings.svelte';
 import { toast } from '../../lib/toast.svelte';
 import { errorText as backendError } from '../../lib/errors';
-import { current, problems, type Owned, type Problem } from './combos';
+import { current, problems, withNote, type Owned, type Problem } from './combos';
 import { errorText, type CosmeticsStore } from './cosmetics.svelte';
 import type { Pair } from './select';
 import { pickNeedsSignIn } from '../unlock/choice';
@@ -76,7 +76,7 @@ export class ComboStore {
     try {
       const a = await cosmeticsIpc.apply(this.account, c.paint, c.badge, c.name);
       this.store.sel.adopt({ paint: a.nowPaint, badge: a.nowBadge });
-      this.store.say(a.line, () => void this.restoreWorn(before));
+      this.store.say(withNote(a.line, this.problemsOf(c)), () => void this.restoreWorn(before));
       this.store.tagNote(c.id);
     } catch (e) {
       this.store.sel.adopt(before);

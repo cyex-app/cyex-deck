@@ -34,3 +34,7 @@ export function problemText(p: readonly Problem[]): string {
 export function pairTitle(c: Combo): string {
   return `${c.paint?.name ?? 'No paint'} + ${c.badge?.name ?? 'No badge'}`;
 }
+
+/** The worn-already case has no note from Rust: add the broken-combo one. */
+export const withNote = (line: string, p: readonly Problem[]): string =>
+  p.length && !line.includes('without') ? `${line.replace(/\.$/, '')}. ${problemText(p)}` : line;
