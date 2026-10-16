@@ -1,7 +1,9 @@
 <!-- V1051-02/03 The fixed view: pick your 7TV paint and badge. -->
 <script lang="ts">
-  import Segmented from '../../components/Segmented.svelte';
+  import Avatar from '../../components/Avatar.svelte';
+  import Select from '../../components/Select.svelte';
   import { accounts } from '../../lib/accounts.svelte';
+  import { accountChoices } from './accountChoices';
   import CosmeticsPanel from './CosmeticsPanel.svelte';
 
   let { onclose }: { onclose?: () => void } = $props();
@@ -10,18 +12,16 @@
   const picked = $derived(
     accounts.list.find((a) => a.userId === chosen)?.userId ?? accounts.current?.userId ?? accounts.list[0]?.userId ?? null,
   );
+  const choices = $derived(accountChoices(accounts.list));
 </script>
 
 <div class="view">
   <header>
     <h1>7TV paint and badge</h1>
     {#if accounts.list.length > 1 && picked}
-      <Segmented
-        label="Account"
-        value={picked}
-        options={accounts.list.map((a) => ({ value: a.userId, label: a.displayName }))}
-        onchange={(id) => (chosen = id)}
-      />
+      <Select label="Account" width="220px" value={picked} options={choices} onchange={(id) => (chosen = id)} />
+    {:else if accounts.list.length === 1}
+      <span class="one"><Avatar src={accounts.list[0].avatar} name={accounts.list[0].displayName} size={20} />{accounts.list[0].displayName}</span>
     {/if}
   </header>
   <div class="body">
@@ -51,6 +51,11 @@
   h1 {
     margin: 0 4px 0 0;
     font-size: 1.05rem;
+  }
+  .one {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
   }
   .body {
     flex: 1;

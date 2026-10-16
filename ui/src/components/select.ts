@@ -3,6 +3,8 @@
 export interface Choice {
   value: string;
   label: string;
+  /** A 20 px round picture beside the label. `null` shows the first letter; leave out for none. */
+  picture?: string | null;
 }
 
 /** The next index for a key, or null when the key isn't ours. */

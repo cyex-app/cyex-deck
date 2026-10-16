@@ -4,6 +4,7 @@
 <script lang="ts">
   import { layer } from '../lib/escape';
   import { floating } from '../lib/place';
+  import Avatar from './Avatar.svelte';
   import Icon from './Icon.svelte';
   import { type Choice, matchTyped, moveFor } from './select.ts';
   import { tooltip } from './tooltip.svelte';
@@ -34,6 +35,7 @@
 
   const selected = $derived(options.findIndex((o) => o.value === value));
   const shown = $derived(options[selected]?.label ?? '');
+  const shownPicture = $derived(options[selected]?.picture);
 
   function show() {
     if (open || disabled || !options.length) return;
@@ -129,6 +131,7 @@
     onkeydown={onkey}
     use:tooltip={{ label: shown, when: () => !open && !!text && text.scrollWidth > text.clientWidth }}
   >
+    {#if shownPicture !== undefined}<span class="pic"><Avatar src={shownPicture} name={shown} size={20} /></span>{/if}
     <span class="text" bind:this={text}>{shown}</span>
     <Icon name="chevronDown" size={14} />
   </button>
@@ -149,7 +152,8 @@
           onmousedown={(e) => e.preventDefault()}
           onclick={() => pick(i)}
         >
-          {o.label}
+          {#if o.picture !== undefined}<span class="pic"><Avatar src={o.picture} name={o.label} size={20} /></span>{/if}
+          <span class="label">{o.label}</span>
         </div>
       {/each}
     </div>
@@ -171,6 +175,16 @@
     text-align: left;
     cursor: pointer;
   }
+  .pic {
+    display: flex;
+    flex: none;
+  }
+  .pic :global(.avatar) {
+    border-radius: 50%;
+  }
+  .trigger .text {
+    flex: 1;
+  }
   .trigger:disabled {
     opacity: 0.5;
     cursor: default;
@@ -186,7 +200,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .trigger :global(svg) {
+  .trigger > :global(svg) {
     flex: none;
     color: var(--dim);
   }
@@ -209,7 +223,11 @@
     border-radius: var(--radius-sm);
     color: var(--text);
     cursor: pointer;
+    gap: 8px;
     overflow-wrap: anywhere;
+  }
+  .label {
+    min-width: 0;
   }
   .option.active {
     background: var(--row-hover);

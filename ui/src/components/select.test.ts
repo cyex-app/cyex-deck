@@ -22,3 +22,11 @@ test('type-ahead finds a prefix and a repeated letter cycles', () => {
   assert.equal(matchTyped(c, 'h', 2), 1);
   assert.equal(matchTyped(c, 'x', 0), -1);
 });
+
+test('type-ahead ignores pictures and still matches the label', () => {
+  const p = [
+    { value: '1', label: 'alice', picture: 'a.png' },
+    { value: '2', label: 'Bob', picture: null },
+  ];
+  assert.equal(matchTyped(p, 'b', 0), 1);
+});
