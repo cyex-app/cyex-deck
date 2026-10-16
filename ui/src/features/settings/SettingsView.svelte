@@ -127,7 +127,7 @@
       onkeydown={onkey}
     />
     {#if query}
-      <button class="clear" aria-label="Clear search" onclick={() => (query = '')}><Icon name="x" size={12} /></button>
+      <button class="clear" aria-label="Clear search" onclick={(e) => (e.currentTarget.parentElement?.querySelector('input')?.focus(), (query = ''))}><Icon name="x" size={12} /></button>
     {/if}
   </div>
 {/snippet}

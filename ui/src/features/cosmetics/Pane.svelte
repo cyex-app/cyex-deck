@@ -72,7 +72,15 @@
           onkeydown={onkey}
         />
         {#if query.text}
-          <button class="clear" aria-label="Clear search" onclick={() => onquery({ ...query, text: '' })}>
+          <button
+            class="clear"
+            aria-label="Clear search"
+            onclick={(e) => {
+              // The button goes away with the text: focus stays in the field, not on the page.
+              e.currentTarget.parentElement?.querySelector('input')?.focus();
+              onquery({ ...query, text: '' });
+            }}
+          >
             <Icon name="x" size={12} />
           </button>
         {/if}
