@@ -137,6 +137,8 @@
     gap: 8px;
     padding: 2px;
     overflow-x: auto;
+    /* Scrolls by wheel and arrow keys; no bar under the cards. */
+    scrollbar-width: none;
     scroll-snap-type: x proximity;
   }
   .list {

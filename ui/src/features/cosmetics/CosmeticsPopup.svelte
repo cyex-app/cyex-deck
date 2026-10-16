@@ -61,8 +61,8 @@
     z-index: var(--z-panel);
     display: flex;
     flex-direction: column;
-    /* Room for two paint columns and the Save card next to one combo (2 × 176 + gap). */
-    width: min(396px, calc(100% - 16px));
+    /* The chat's width, up to three paint columns (3 × 176 + gaps and padding). */
+    width: min(568px, calc(100% - 16px));
     height: min(520px, calc(100% - 16px));
     background: var(--bg);
     border: 1px solid var(--border);

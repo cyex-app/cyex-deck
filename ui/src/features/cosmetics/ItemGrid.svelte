@@ -35,13 +35,20 @@
   let moved = $state<string>();
   const active = $derived(activeIndex(items.map(keyOf), moved, selected ?? NONE_KEY));
 
+  /** "7TV Subscriber - 1 Year, 6 Months" → ["7TV Subscriber", "1 Year, 6 Months"]: in a badge
+   *  cell the part that tells badges apart gets its own line instead of being cut off. */
+  function badgeLines(name: string): [string, string] | null {
+    const m = /^(.+?)\s+[-–—]\s+(.+)$/.exec(name);
+    return m ? [m[1], m[2]] : null;
+  }
+
   function tip(r: Row | null) {
     if (!r) return { label: 'None' };
     return {
       label: r.animated ? `${r.name} · Animated` : r.name,
       hint: r.usable ? '' : 'For 7TV subscribers',
-      // The name is on the card already; the tip adds only what isn't.
-      when: () => r.animated || !r.usable,
+      // The name is on the card already; the tip adds only what isn't, or the whole of a long one.
+      when: () => r.animated || !r.usable || (kind === 'badge' && r.name.length > 12),
     };
   }
 </script>
@@ -78,7 +85,12 @@
           loading="lazy"
           decoding="async"
         />
-        <span class="nm two">{r.name}</span>
+        {@const lines = badgeLines(r.name)}
+        {#if lines}
+          <span class="nm lines"><span>{lines[0]}</span><span>{lines[1]}</span></span>
+        {:else}
+          <span class="nm two">{r.name}</span>
+        {/if}
       {:else}
         <span class="none">–</span>
         <span class="nm two">None</span>
@@ -158,6 +170,25 @@
   .nm.two {
     display: -webkit-box;
     line-height: 1.2;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+  .nm.lines {
+    display: flex;
+    flex-direction: column;
+    max-width: 100%;
+    line-height: 1.2;
+  }
+  .nm.lines span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* The telling part may take two lines ("1 Year, / 6 Months"). */
+  .nm.lines span + span {
+    display: -webkit-box;
     white-space: normal;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
