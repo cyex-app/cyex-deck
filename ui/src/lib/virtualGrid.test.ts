@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { MIN_PAINT_CELL, paintCellWidth } from './paintCell.ts';
 import { geometry, range, reveal, step } from './virtualGrid.ts';
 
 const g = geometry(1000, 2000, 176, 48, 6);
@@ -55,7 +56,9 @@ test('cells keep their size on every width; only the columns change (V1051-03)',
     // The cell is the asked width; leftover space stays at the right edge, under one cell.
     widths.forEach((w, i) => assert.ok(w - (cols[i] * cellW + (cols[i] - 1) * 6) < cellW + 6));
   }
-  // The 2560 layout: panes of 1466 and 478 px less the scrollbar slack.
-  assert.equal(geometry(1466 - 16, 500, 176, 48, 6).columns, 8);
+  // The 2560 layout: panes of 1466 and 478 px less the scrollbar slack. 8 paints use the
+  // default name width (no long name).
+  assert.equal(geometry(1466 - 16, 500, paintCellWidth(0), 48, 6).columns, 8);
+  assert.equal(paintCellWidth(0), MIN_PAINT_CELL);
   assert.equal(geometry(478 - 16, 500, 72, 76, 6).columns, 6);
 });

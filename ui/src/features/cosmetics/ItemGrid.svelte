@@ -5,6 +5,8 @@
   import VirtualGrid from '../../components/VirtualGrid.svelte';
   import { density } from '../../lib/density.svelte';
   import { focus } from '../../lib/focus.svelte';
+  import { MIN_PAINT_CELL, measureName, paintCellWidth } from '../../lib/paintCell';
+  import { settings } from '../../lib/settings.svelte';
   import { activeIndex } from './activeCell';
   import type { BadgeRow, PaintRow } from './cosmetics.svelte';
   import { badgePicture } from './pictures';
@@ -23,6 +25,20 @@
   }
 
   let { kind, rows, selected, name, label, onpick }: Props = $props();
+
+  // V1051-03 Wide enough for the name in its paint, once per name and chat font; re-read when
+  // a font finishes loading.
+  let fontTick = $state(0);
+  $effect(() => {
+    const bump = () => fontTick++;
+    document.fonts.addEventListener('loadingdone', bump);
+    return () => document.fonts.removeEventListener('loadingdone', bump);
+  });
+  const paintW = $derived.by(() => {
+    void fontTick;
+    void settings.v.general.chatFontFamily;
+    return kind === 'paint' ? paintCellWidth(measureName(name)) : MIN_PAINT_CELL;
+  });
 
   const NONE = null;
   const items = $derived<(Row | null)[]>([NONE, ...rows]);
@@ -60,7 +76,7 @@
   key={keyOf}
   {label}
   chosen={(r) => keyOf(r) === (selected ?? NONE_KEY)}
-  cellWidth={kind === 'paint' ? 176 : 72}
+  cellWidth={kind === 'paint' ? paintW : 72}
   cellHeight={kind === 'paint' ? 48 : 76}
   bind:active={() => active, (i) => (moved = keyOf(items[i]))}
   onpick={(i) => {
@@ -148,6 +164,7 @@
     margin-block: -0.25em;
     min-width: 0;
     overflow: hidden;
+    font-family: var(--chat-font);
     font-size: 14px;
     font-weight: 700;
     text-overflow: ellipsis;
