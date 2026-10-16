@@ -22,6 +22,7 @@
   let { combos, store, name }: Props = $props();
 
   let row = $state<HTMLElement>();
+  let saveBtn = $state<HTMLButtonElement>();
   let saveErr = $state<string | null>(null);
   let activeId = $state<string | null>(null);
   const list = $derived(combos.list);
@@ -72,9 +73,10 @@
     row.scrollLeft += e.deltaY;
   }
 
-  function stopNaming() {
+  function stopNaming(key = false) {
     combos.naming = false;
     saveErr = null;
+    if (key) void tick().then(() => saveBtn?.focus());
   }
 </script>
 
@@ -89,13 +91,14 @@
             if (!e) stopNaming();
             return e;
           }}
-          oncancel={stopNaming}
+          oncancel={(k) => stopNaming(k)}
           onerror={(m) => (saveErr = m)}
         />
         <span class="err">{saveErr ?? ''}</span>
       </div>
     {:else}
       <button
+        bind:this={saveBtn}
         class="save"
         disabled={combos.full || !!combos.editing}
         onclick={() => (combos.naming = true)}
@@ -191,17 +194,18 @@
     align-items: stretch;
     justify-content: center;
     gap: 2px;
-    padding: 4px 8px;
+    padding: 3px 8px;
     border-style: solid;
   }
-  /* Wraps inside the card, two lines at most. */
+  /* Two lines fit the longest message (the card is 176 px wide); the height is fixed so
+     the card doesn't jump. */
   .err {
-    min-height: 22px;
-    max-height: 22px;
+    min-height: 24px;
+    max-height: 24px;
     overflow: hidden;
     color: var(--red);
-    font-size: 10.5px;
-    line-height: 11px;
+    font-size: 11px;
+    line-height: 12px;
     overflow-wrap: anywhere;
   }
   .empty {

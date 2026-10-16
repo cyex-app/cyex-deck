@@ -2,13 +2,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
 
-  import { cleanName, MAX_NAME } from './comboName';
+  import { cleanName, shortError } from './comboName';
 
   interface Props {
     value?: string;
     /** Returns Rust’s error text, or null when it saved. */
     onsubmit: (name: string) => Promise<string | null>;
-    oncancel: () => void;
+    /** `key` is true when Esc did it, so focus can go back where the user came from. */
+    oncancel: (key?: boolean) => void;
     /** The message to show for the field: ours while typing, Rust’s after Enter. */
     onerror: (message: string | null) => void;
   }
@@ -38,7 +39,7 @@
     e.stopPropagation();
     if (e.key === 'Escape') {
       e.preventDefault();
-      oncancel();
+      oncancel(true);
     } else if (e.key === 'Enter' && !busy) {
       e.preventDefault();
       touched = true;
@@ -47,7 +48,7 @@
       busy = true;
       const err = await onsubmit(r.name);
       busy = false;
-      if (err) onerror(err);
+      if (err) onerror(shortError(err));
     }
   }
 </script>
@@ -57,7 +58,7 @@
   class="field"
   placeholder="Name"
   aria-label="Combo name"
-  maxlength={MAX_NAME}
+  maxlength={80}
   spellcheck="false"
   autocomplete="off"
   bind:value={text}

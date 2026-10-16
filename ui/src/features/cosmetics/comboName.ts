@@ -11,6 +11,11 @@ export type NameResult =
 
 const fail = (error: 'empty' | 'tooLong' | 'chars' | 'word', message: string): NameResult => ({ ok: false, error, message });
 
+/** Rust's taken-name error quotes the name, which can fill the small card. */
+export function shortError(message: string): string {
+  return /^You have a combo called .* already\.$/su.test(message) ? 'That name’s taken.' : message;
+}
+
 export function cleanName(raw: string): NameResult {
   const name = raw.split(/\p{White_Space}+/u).filter(Boolean).join(' ');
   if (!name) return fail('empty', 'Give it a name.');

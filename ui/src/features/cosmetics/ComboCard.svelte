@@ -1,5 +1,7 @@
 <!-- V1051-04 One combo: its live preview, its name and the worn mark. A click puts it on. -->
 <script lang="ts">
+  import { tick } from 'svelte';
+
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import { openMenuAt } from '../../components/menu.svelte';
@@ -31,6 +33,7 @@
   const problem = $derived(problemText(combos.problemsOf(combo)));
   const renaming = $derived(combos.renaming === combo.id);
   let err = $state<string | null>(null);
+  let el = $state<HTMLElement>();
 
   function menu(e: MouseEvent) {
     e.stopPropagation();
@@ -46,6 +49,7 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
+  bind:this={el}
   class="card"
   class:on={worn}
   class:naming={renaming}
@@ -74,7 +78,11 @@
         if (!e) combos.renaming = null;
         return e;
       }}
-      oncancel={() => ((combos.renaming = null), (err = null))}
+      oncancel={(k) => {
+        combos.renaming = null;
+        err = null;
+        if (k) void tick().then(() => el?.focus());
+      }}
       onerror={(m) => (err = m)}
     />
   {:else}
@@ -170,11 +178,12 @@
   /* Wraps inside the card, two lines at most (like the Save card). */
   .err {
     flex: none;
-    max-height: 22px;
+    min-height: 24px;
+    max-height: 24px;
     overflow: hidden;
     color: var(--red);
-    font-size: 10.5px;
-    line-height: 11px;
+    font-size: 11px;
+    line-height: 12px;
     overflow-wrap: anywhere;
   }
   .warn {
@@ -182,7 +191,7 @@
     top: 5px;
     right: 6px;
     display: flex;
-    color: var(--muted);
+    color: var(--red);
   }
   .more {
     position: absolute;
