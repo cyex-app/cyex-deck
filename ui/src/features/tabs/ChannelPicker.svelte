@@ -93,8 +93,9 @@
       const found = rank([...exact, ...search], input);
       if (!found.length && failed) throw failed;
       results = found;
-      // One match left is the one; several wait for a choice.
-      picked = found.length === 1 ? found[0] : null;
+      // One match left is the one, and so is an exact name (any case); the rest wait for a choice.
+      const q = input.toLowerCase();
+      picked = found.length === 1 ? found[0] : (found.find((c) => c.login === q) ?? null);
       status = 'done';
     } catch (e) {
       if (asked !== input) return;
