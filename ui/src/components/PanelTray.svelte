@@ -1,10 +1,11 @@
 <!-- V103-06 The closed panels, each with its name and what it's for. Only while the layout
-     is unlocked: a strip under the panels, at their bottom right, that takes its own room,
-     so it never covers a chat box, a button, a scrollbar or a panel. One drags back onto a
-     side of any panel; a click puts it back where it sits by default. -->
+     is unlocked: a small chip under the panels, at their bottom right, that takes its own
+     room and opens a menu of them. One drags back onto a side of any panel; a click puts it
+     back where it sits by default. -->
 <script lang="ts">
   import { drag } from '../features/tabs/drag.svelte';
   import type { TrayItem } from './panel';
+  import Popover from './Popover.svelte';
   import { tooltip } from './tooltip.svelte';
 
   interface Props {
@@ -18,12 +19,16 @@
 
   /** A press that turned into a drag isn't a click. */
   let dragged = false;
+  let open = $state(false);
 
   function down(e: PointerEvent, item: TrayItem) {
     dragged = false;
     drag.begin(e, { kind: 'panel', layout, panel: item.id, tray: true }, item.title);
     const watch = () => {
-      if (drag.item) dragged = true;
+      if (drag.item) {
+        dragged = true;
+        open = false;
+      }
     };
     addEventListener('pointermove', watch);
     addEventListener(
@@ -38,64 +43,84 @@
   }
 
   function click(item: TrayItem) {
-    if (!dragged) onrestore(item.id);
+    if (!dragged) {
+      onrestore(item.id);
+      if (items.length <= 1) open = false;
+    }
     dragged = false;
   }
 </script>
 
 <div class="tray">
-  <span class="head">Closed panels</span>
-  <ul>
-    {#each items as item (item.id)}
-      <li>
-        <button
-          class="item"
-          use:tooltip={'Drag it onto a panel, or click to put it back.'}
-          onpointerdown={(e) => down(e, item)}
-          onclick={() => click(item)}
-        >
-          <span class="title">{item.title}</span>
-          <span class="hint">{item.hint}</span>
-        </button>
-      </li>
-    {/each}
-  </ul>
+  <div class="wrap">
+    <button class="chip" aria-haspopup="dialog" aria-expanded={open} onclick={() => (open = !open)}>
+      Closed panels <span class="count">{items.length}</span>
+    </button>
+    <Popover bind:open side="above" label="Closed panels">
+      <ul>
+        {#each items as item (item.id)}
+          <li>
+            <button
+              class="item"
+              use:tooltip={'Drag it onto a panel, or click to put it back.'}
+              onpointerdown={(e) => down(e, item)}
+              onclick={() => click(item)}
+            >
+              <span class="title">{item.title}</span>
+              <span class="hint">{item.hint}</span>
+            </button>
+          </li>
+        {/each}
+      </ul>
+    </Popover>
+  </div>
 </div>
 
 <style>
   .tray {
     flex: none;
     display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    max-height: 132px;
-    padding: 6px 8px;
-    overflow: auto;
-    background: var(--elevated);
-    border-top: 1px solid var(--border);
+    justify-content: flex-end;
+    padding: 4px 8px;
   }
-  .head {
-    flex: none;
-    padding: 6px 0;
+  .wrap {
+    position: relative;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
     color: var(--muted);
     font-size: 0.75rem;
-    font-weight: 700;
+    font-weight: 600;
     white-space: nowrap;
   }
+  .chip:hover,
+  .chip[aria-expanded='true'] {
+    background: var(--surface-hover);
+    border-color: var(--border-strong);
+    color: var(--text);
+  }
+  .count {
+    color: var(--dim);
+  }
   ul {
-    flex: 1;
     display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 6px;
-    min-width: 0;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 100%;
     margin: 0;
     padding: 0;
+    overflow-y: auto;
     list-style: none;
   }
   li {
     min-width: 0;
-    max-width: 220px;
   }
   .item {
     display: flex;
@@ -103,16 +128,15 @@
     gap: 1px;
     width: 100%;
     padding: 4px 8px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+    background: none;
+    border: 0;
+    border-radius: var(--radius-sm);
     color: var(--text);
     text-align: left;
     cursor: grab;
   }
   .item:hover {
     background: var(--surface-hover);
-    border-color: var(--border-strong);
   }
   .title,
   .hint {
