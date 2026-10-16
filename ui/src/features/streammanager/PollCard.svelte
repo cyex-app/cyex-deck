@@ -13,6 +13,7 @@
   import Select from '../../components/Select.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import NumberField from '../../components/NumberField.svelte';
+  import { openMenuAt } from '../../components/menu.svelte';
 
   const DURATIONS = [60, 120, 180, 300, 600, 900];
 
@@ -84,7 +85,13 @@
     <div class="line">
       {#if active}
         <Button small disabled={busy} onclick={() => end(false)}>End now</Button>
-        <Button small variant="ghost" disabled={busy} onclick={() => end(true)}>End and hide</Button>
+        <IconButton
+          icon="more"
+          label="More"
+          size={14}
+          disabled={busy}
+          onclick={(e) => openMenuAt(e, [{ label: 'End and hide', icon: 'x', run: () => end(true) }])}
+        />
       {:else}
         <Button small disabled={busy} onclick={() => end(true)}>Hide and start a new one</Button>
       {/if}

@@ -211,8 +211,8 @@
   }
   @container (max-width: 719px) {
     .picker:not(.compact) {
-      grid-template-rows: none;
-      grid-auto-rows: minmax(280px, auto);
+      /* Only the grids scroll; the page does only when the window is very short. */
+      grid-template-rows: repeat(2, minmax(150px, 1fr));
       overflow-y: auto;
     }
   }

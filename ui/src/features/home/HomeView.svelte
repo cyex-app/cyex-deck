@@ -214,7 +214,7 @@
         </div>
       {/if}
     {:else if home.account && home.loading}
-      <Loading rows={8} />
+      <Loading cards={grid ? 8 : 0} rows={grid ? 0 : 8} />
     {:else if !home.account && !lists.favorites.length}
       <div class="empty">
         <Icon name="star" size={22} />

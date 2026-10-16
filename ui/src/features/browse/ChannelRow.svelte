@@ -76,6 +76,9 @@
     color: var(--text);
     text-align: left;
   }
+  .main:not(.live) {
+    grid-template-columns: 30px max-content 1fr;
+  }
   .main.live {
     grid-template-columns: 30px minmax(90px, 170px) minmax(60px, 160px) 1fr 52px 64px;
   }

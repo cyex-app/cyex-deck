@@ -8,15 +8,27 @@
     label?: string;
     /** Skeleton rows instead of the spinner. */
     rows?: number;
+    /** Skeleton stream cards in the grid's shape (picture, two lines). */
+    cards?: number;
     size?: 'small' | 'large';
     video?: boolean;
     minHeight?: string;
   }
 
-  let { label = '', rows = 0, size = 'small', video = false, minHeight }: Props = $props();
+  let { label = '', rows = 0, cards = 0, size = 'small', video = false, minHeight }: Props = $props();
 </script>
 
-{#if rows > 0}
+{#if cards > 0}
+  <div class="cards" role="status" aria-label={label || 'Loading'} style:min-height={minHeight}>
+    {#each { length: cards } as _, i (i)}
+      <div class="card" aria-hidden="true">
+        <span class="blob thumb"></span>
+        <span class="blob line" style:width="{70 - ((i * 13) % 30)}%"></span>
+        <span class="blob line short"></span>
+      </div>
+    {/each}
+  </div>
+{:else if rows > 0}
   <div class="skeleton" role="status" aria-label={label || 'Loading'} style:min-height={minHeight}>
     {#each { length: rows } as _, i (i)}
       <div class="row" aria-hidden="true">
@@ -74,6 +86,21 @@
     height: 1px;
     overflow: hidden;
     clip-path: inset(50%);
+  }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px 12px;
+    padding: 4px 0;
+  }
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .thumb {
+    aspect-ratio: 16 / 9;
+    width: 100%;
   }
   .skeleton {
     display: flex;

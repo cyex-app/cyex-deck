@@ -36,6 +36,7 @@
 <style>
   .card {
     flex: 1;
+    container-type: inline-size;
     display: flex;
     flex-direction: column;
     min-width: 0;
@@ -74,6 +75,20 @@
     align-items: center;
     gap: 4px;
     min-width: 0;
+  }
+  /* A narrow card stacks: rows wrap, fields take the full width, so nothing clips. */
+  @container (max-width: 320px) {
+    .body :global(.line),
+    .body :global(.row),
+    .body :global(.top) {
+      flex-wrap: wrap;
+    }
+    .body :global(input.field),
+    .body :global(.line > .select),
+    .body :global(.row > .select) {
+      flex: 1 1 100%;
+      width: 100% !important;
+    }
   }
   .body {
     flex: 1;

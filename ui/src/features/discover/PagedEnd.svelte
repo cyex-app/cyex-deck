@@ -9,7 +9,7 @@
 {#if list.error}
   <p class="end">{list.error}</p>
 {:else if list.loading}
-  <Loading minHeight="72px" />
+  <Loading cards={list.items.length ? 0 : 8} minHeight="72px" />
 {:else if !list.items.length}
   <p class="end">{empty}</p>
 {:else if list.cursor && !list.canPage}
