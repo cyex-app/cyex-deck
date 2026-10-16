@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { cellSpan, geometry, range, reveal, step } from './virtualGrid.ts';
+import { geometry, range, reveal, step } from './virtualGrid.ts';
 
 const g = geometry(1000, 2000, 176, 48, 6);
 
@@ -46,12 +46,16 @@ test('reveal: null when in view, else the nearest scrollTop', () => {
   assert.equal(reveal(0, g, 300, 270), 0);
 });
 
-test('cellSpan: cells grow to fill the row (V1051-03)', () => {
-  // 1000 px holds 5 columns of 176 px; they stretch to 193,2 px each.
-  assert.equal(cellSpan(1000, 5, 176, 6), (1000 - 24) / 5);
-  // One column fills the width; before the first measure the cell keeps its size.
-  assert.equal(cellSpan(300, 1, 176, 6), 300);
-  assert.equal(cellSpan(0, 1, 176, 6), 176);
-  // Never narrower than asked, even when the row is too tight.
-  assert.equal(cellSpan(100, 1, 176, 6), 176);
+test('cells keep their size on every width; only the columns change (V1051-03)', () => {
+  // Paint cells (176) and badge cells (72) at 4K/150 % (2560), 1080p (1920) and smaller windows.
+  for (const [cellW, widths] of [[176, [1280, 1920, 2560]], [72, [480, 640, 1000]]] as const) {
+    const cols = widths.map((w) => geometry(w, 500, cellW, 48, 6).columns);
+    assert.ok(cols.every((c, i) => i === 0 || c >= cols[i - 1]));
+    assert.ok(new Set(cols).size > 1);
+    // The cell is the asked width; leftover space stays at the right edge, under one cell.
+    widths.forEach((w, i) => assert.ok(w - (cols[i] * cellW + (cols[i] - 1) * 6) < cellW + 6));
+  }
+  // The 2560 layout: panes of 1466 and 478 px less the scrollbar slack.
+  assert.equal(geometry(1466 - 16, 500, 176, 48, 6).columns, 8);
+  assert.equal(geometry(478 - 16, 500, 72, 76, 6).columns, 6);
 });
