@@ -204,7 +204,7 @@
     align-items: center;
     min-height: 28px;
     padding: 0 8px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     color: var(--text);
     cursor: pointer;
     overflow-wrap: anywhere;

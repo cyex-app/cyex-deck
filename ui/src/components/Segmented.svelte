@@ -34,7 +34,7 @@
     padding: 0 10px;
     background: none;
     border: 0;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     color: var(--muted);
     font-size: 0.8rem;
     font-weight: 600;

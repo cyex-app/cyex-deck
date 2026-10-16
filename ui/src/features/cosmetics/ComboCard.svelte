@@ -108,7 +108,7 @@
     scroll-snap-align: start;
     transition:
       border-color var(--fast),
-      transform 100ms ease-out;
+      transform var(--fast) ease-out;
   }
   .card:hover {
     border-color: var(--border-strong);

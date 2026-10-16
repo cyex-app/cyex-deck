@@ -229,7 +229,7 @@
   }
   .swatch::-webkit-color-swatch {
     border: 0;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
   }
   .reset {
     padding: 0 4px;

@@ -134,7 +134,7 @@
     top: 0;
     transform: translate(var(--x), var(--y));
     cursor: pointer;
-    transition: transform 100ms ease-out;
+    transition: transform var(--fast) ease-out;
   }
   .cell:active {
     transform: translate(var(--x), var(--y)) scale(0.97);

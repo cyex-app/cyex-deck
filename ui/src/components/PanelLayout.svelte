@@ -302,7 +302,7 @@
   }
   /* V103-07 Over the panel that gave it a place; under dividers and pop-ups. */
   .panel.hosted {
-    z-index: 7;
+    z-index: var(--z-panel);
   }
   /* V103-07 Waiting for its slot: kept in the page, out of sight. */
   .panel.away {
@@ -313,7 +313,7 @@
   }
   .divider {
     position: absolute;
-    z-index: 8;
+    z-index: calc(var(--z-panel) + 1);
   }
   .divider.row {
     cursor: col-resize;
@@ -358,7 +358,7 @@
   }
   .landing {
     position: absolute;
-    z-index: 9;
+    z-index: calc(var(--z-panel) + 2);
     background: var(--accent-wash);
     border: 2px solid var(--accent-border);
     border-radius: var(--radius);

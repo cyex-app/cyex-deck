@@ -122,7 +122,7 @@
     padding: 1px 6px;
     background: var(--elevated-2);
     border: 1px solid var(--border-strong);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     font: 600 0.75rem var(--font-mono);
     color: var(--text);
   }

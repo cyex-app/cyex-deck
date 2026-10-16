@@ -310,7 +310,7 @@
     right: 10px;
     top: 14px;
     height: 4px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
   }
   .pic u {
     position: absolute;
@@ -318,7 +318,7 @@
     width: 18px;
     top: 26px;
     height: 6px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
   }
   .add .pic {
     border-style: dashed;
@@ -348,7 +348,7 @@
   }
   .swatch::-webkit-color-swatch {
     border: 0;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
   }
   .hex {
     width: 92px;

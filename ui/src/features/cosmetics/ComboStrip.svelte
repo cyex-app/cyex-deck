@@ -170,7 +170,7 @@
     transition:
       border-color var(--fast),
       color var(--fast),
-      transform 100ms ease-out;
+      transform var(--fast) ease-out;
   }
   .save:hover:not(:disabled) {
     border-color: var(--text);

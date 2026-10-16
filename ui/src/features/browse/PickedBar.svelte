@@ -32,7 +32,7 @@
     position: absolute;
     left: 50%;
     bottom: 16px;
-    z-index: 5;
+    z-index: var(--z-panel);
     transform: translateX(-50%);
     display: flex;
     align-items: center;
@@ -42,7 +42,7 @@
     background: var(--elevated);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
-    box-shadow: 0 8px 24px var(--shadow);
+    box-shadow: var(--shadow-pop);
   }
   .names {
     font-weight: 600;

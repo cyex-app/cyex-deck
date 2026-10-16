@@ -39,7 +39,7 @@
     background: var(--elevated-2);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
-    box-shadow: 0 4px 14px var(--shadow);
+    box-shadow: var(--shadow-pop);
     pointer-events: none;
     animation: in var(--fast) ease-out;
   }

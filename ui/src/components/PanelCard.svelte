@@ -47,7 +47,7 @@
   }
   header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 8px;
     min-height: 34px;
     padding: 4px 6px 4px 10px;
@@ -60,6 +60,8 @@
   h3 {
     flex: 1 0 auto;
     margin: 0;
+    /* One chip row tall, so the title stays on the first row when the tools wrap. */
+    line-height: 26px;
     font-size: 0.8rem;
     font-weight: 700;
     white-space: nowrap;

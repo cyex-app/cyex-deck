@@ -102,9 +102,9 @@
     min-width: 15px;
     height: 15px;
     padding: 0 4px;
-    border-radius: 8px;
+    border-radius: var(--radius-pill);
     background: var(--red);
-    color: #fff;
+    color: var(--on-solid);
     font-size: 10px;
     font-weight: 700;
     line-height: 15px;

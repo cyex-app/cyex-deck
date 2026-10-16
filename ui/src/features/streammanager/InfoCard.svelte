@@ -167,7 +167,7 @@
     background: var(--row-hover);
   }
   .hits img {
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     flex-shrink: 0;
   }
 </style>

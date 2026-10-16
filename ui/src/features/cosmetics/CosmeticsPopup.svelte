@@ -58,7 +58,7 @@
     position: absolute;
     right: 8px;
     bottom: 8px;
-    z-index: 5;
+    z-index: var(--z-panel);
     display: flex;
     flex-direction: column;
     /* Room for two paint columns and the Save card next to one combo (2 × 176 + gap). */
@@ -68,7 +68,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     outline: none;
-    box-shadow: 0 6px 24px rgb(0 0 0 / 0.35);
+    box-shadow: var(--shadow-pop);
   }
   header {
     display: flex;

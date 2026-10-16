@@ -36,7 +36,7 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: transform 0.2s var(--ease);
+    transition: transform var(--base) var(--ease);
   }
   .cat:hover img {
     transform: scale(1.03);

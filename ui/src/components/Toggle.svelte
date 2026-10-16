@@ -30,7 +30,7 @@
     padding: 0;
     background: var(--border-strong);
     border: 0;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     transition: background var(--fast);
   }
   .toggle.on {
@@ -43,8 +43,8 @@
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: #fff;
-    transition: transform 0.15s var(--ease);
+    background: var(--on-solid);
+    transition: transform var(--fast) var(--ease);
   }
   .on .knob {
     transform: translateX(16px);

@@ -222,7 +222,7 @@
     padding: 0 8px 0 10px;
     background: var(--accent-dim);
     border: 1px solid var(--accent-border);
-    border-radius: 12px;
+    border-radius: var(--radius-pill);
     color: var(--text);
     font-size: 0.8rem;
   }

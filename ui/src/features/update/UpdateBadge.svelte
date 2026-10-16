@@ -91,7 +91,7 @@
   }
   .bar {
     height: 4px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: var(--surface);
     overflow: hidden;
   }

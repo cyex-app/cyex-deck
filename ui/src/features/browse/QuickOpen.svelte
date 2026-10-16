@@ -43,7 +43,7 @@
     display: flex;
     gap: 2px;
     padding: 2px;
-    background: rgba(0, 0, 0, 0.72);
+    background: var(--scrim-strong);
     border-radius: var(--radius);
   }
   button {
@@ -54,12 +54,12 @@
     padding: 0;
     background: none;
     border: 0;
-    border-radius: 2px;
-    color: #eee;
+    border-radius: var(--radius-sm);
+    color: var(--on-video-dim);
   }
   button:hover {
     background: rgba(255, 255, 255, 0.16);
-    color: #fff;
+    color: var(--on-video);
   }
   .star.on {
     color: #f5c518;
