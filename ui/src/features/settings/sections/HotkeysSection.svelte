@@ -5,6 +5,7 @@
     ACTION_IDS,
     ACTIONS,
     type ActionId,
+    actionFor,
     bindingOf,
     comboFromEvent,
     isGlobal,
@@ -17,6 +18,8 @@
   import ResetSection from '../ResetSection.svelte';
 
   let editing = $state<ActionId | null>(null);
+  /** H1 The keys just pressed are another action's: pressing them again moves them here. */
+  let clash = $state<{ id: ActionId; combo: string; owner: ActionId } | null>(null);
   /** Global combos another app already holds. */
   let failed = $state<string[]>([]);
 
@@ -30,12 +33,14 @@
   const everywhere = ACTION_IDS.filter(isGlobal);
 
   function start(id: ActionId) {
+    clash = null;
     editing = id;
     recording.active = true;
   }
 
   function stop() {
     editing = null;
+    clash = null;
     recording.active = false;
   }
 
@@ -51,9 +56,23 @@
       toast.error('Hotkeys that work everywhere need Ctrl, Alt or Win.');
       return stop();
     }
+    const owner = combo ? actionFor(combo) : undefined;
+    if (owner && owner !== id && !(clash?.id === id && clash.combo === combo)) {
+      // First press: say who has it. The same keys again take them.
+      clash = { id, combo, owner };
+      return;
+    }
+    const before = bindingOf(id);
     stop();
     const moved = await rebind(id, combo);
-    if (moved) toast.info(`Removed it from "${ACTIONS[moved].label}".`);
+    if (moved) {
+      toast.info(`Moved from “${ACTIONS[moved].label}”.`, {
+        action: {
+          label: 'Undo',
+          run: () => void rebind(moved, combo).then(() => rebind(id, before)),
+        },
+      });
+    }
   }
 
   $effect(() => () => stop());
@@ -66,9 +85,20 @@
 
 {#snippet binding(id: ActionId)}
   {@const combo = bindingOf(id)}
-  <Row setting={`hotkey:${id}`} label={ACTIONS[id].label} hint={combo && isGlobal(id) && failed.includes(combo) ? 'Another app already uses these keys.' : undefined}>
-    <button class="combo" class:listening={editing === id} onclick={() => start(id)}>
-      {#if editing === id}
+  {@const taken = clash?.id === id ? clash : null}
+  <Row
+    setting={`hotkey:${id}`}
+    label={ACTIONS[id].label}
+    hint={taken
+      ? `Used by ${ACTIONS[taken.owner].label}. Press again to move it.`
+      : combo && isGlobal(id) && failed.includes(combo)
+        ? 'Another app already uses these keys.'
+        : undefined}
+  >
+    <button class="combo" class:listening={editing === id} class:clash={!!taken} onclick={() => start(id)}>
+      {#if taken}
+        {#each taken.combo.split('+') as key, i (i)}<kbd>{key}</kbd>{/each}
+      {:else if editing === id}
         Press keys…
       {:else if combo}
         {#each combo.split('+') as key, i (i)}<kbd>{key}</kbd>{/each}
@@ -77,7 +107,7 @@
       {/if}
     </button>
     <Button variant="ghost" small disabled={combo === ACTIONS[id].default} onclick={() => resetBinding(id)}
-      >{ACTIONS[id].default ? 'Reset' : 'Clear'}</Button
+      >Reset</Button
     >
   </Row>
 {/snippet}
@@ -102,8 +132,9 @@
   .combo {
     display: inline-flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 4px;
-    min-width: 140px;
+    width: 200px;
     height: 30px;
     padding: 0 8px;
     background: var(--surface);
@@ -117,6 +148,12 @@
   .combo.listening {
     border-color: var(--accent-border);
     color: var(--accent-text);
+  }
+  .combo.clash {
+    border-color: var(--yellow);
+  }
+  .combo.clash kbd {
+    border-color: var(--yellow);
   }
   kbd {
     padding: 1px 6px;

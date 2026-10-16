@@ -233,7 +233,7 @@
 <Row setting="chat.pauseStillTenths" label="Pause lasts" hint="Once the mouse stops moving over chat. Moving it pauses again.">
   <Select
     label="Pause lasts"
-    width="140px"
+    width="200px"
     disabled={!c.pauseOnHover}
     value={String(c.pauseStillTenths)}
     options={choicesOf(STILL)}

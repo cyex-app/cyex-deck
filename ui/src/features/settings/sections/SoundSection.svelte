@@ -51,13 +51,16 @@
 </script>
 
 {#snippet picker(label: string, current: OutputDevice | null, onpick: (d: OutputDevice | null) => void)}
-  <Select
-    {label}
-    value={current?.id ?? ''}
-    options={choices(current)}
-    onopen={refresh}
-    onchange={(id) => onpick(picked(id, current))}
-  />
+  <span class="sel">
+    <Select
+      {label}
+      width="100%"
+      value={current?.id ?? ''}
+      options={choices(current)}
+      onopen={refresh}
+      onchange={(id) => onpick(picked(id, current))}
+    />
+  </span>
 {/snippet}
 
 <h2>Sound</h2>
@@ -73,7 +76,8 @@
 <Row
   setting="general.sound.streamsDevice"
   label="Streams play on"
-  hint="Streams, VODs, clips and stories. Windows forgets its own choice for them when WebView2 updates; this one stays."
+  hint="Streams, VODs, clips and stories. Pick it here so it sticks after updates."
+  stacked
 >
   <span class="pair">
     {@render picker('Streams play on', s.streamsDevice, (d) => patch({ streamsDevice: d }))}
@@ -82,7 +86,7 @@
   </span>
 </Row>
 
-<Row setting="general.sound.soundsDevice" label="Other sounds play on" hint="Mentions, highlights, live alerts and whispers.">
+<Row setting="general.sound.soundsDevice" label="Other sounds play on" hint="Mentions, highlights, live alerts and whispers." stacked>
   <span class="pair">
     {@render picker('Other sounds play on', s.soundsDevice, (d) => patch({ soundsDevice: d }))}
     <IconButton icon="play" label="Play a test sound" onclick={() => void soundIpc.play(null).catch(() => toast.error('Couldn’t play the sound.'))} />
@@ -94,9 +98,15 @@
     flex: none;
     width: 30px;
   }
+  /* Both lists end at the column's edge, whether or not the test button is there. */
   .pair {
-    display: inline-flex;
+    display: flex;
+    width: 100%;
     gap: 4px;
     align-items: center;
+  }
+  .sel {
+    flex: 1 1 0;
+    min-width: 0;
   }
 </style>

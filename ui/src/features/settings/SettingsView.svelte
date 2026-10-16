@@ -260,6 +260,10 @@
   .inner :global(p) {
     text-wrap: pretty;
   }
+  /* C9 A segmented control stays on one line; the label beside it gives way. */
+  .inner :global(.control .seg) {
+    flex-wrap: nowrap;
+  }
   /* P1 One empty-state look in settings: icon and one line, left-aligned. */
   .inner :global(.empty) {
     flex: none;
