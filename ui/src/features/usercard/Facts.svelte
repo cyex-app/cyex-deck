@@ -9,6 +9,7 @@
   import type { SubStatus } from '../../ipc/bindings/SubStatus';
   import { usercardIpc } from '../../ipc/rules';
   import { formatDate, formatNumber } from '../../lib/format';
+  import { tooltip } from '../../components/tooltip.svelte';
 
   let { profile, channel }: { profile: Profile; channel: string } = $props();
 
@@ -82,7 +83,7 @@
   {#if names.length}
     <li>
       <Icon name="history" size={14} /><span
-        >Was {#each names as n, i (n.login)}{i ? ', ' : ''}<span title="{day(n.firstSeen)} – {day(n.lastSeen)}">{n.login}</span
+        >Was {#each names as n, i (n.login)}{i ? ', ' : ''}<span use:tooltip={`${day(n.firstSeen)} – ${day(n.lastSeen)}`}>{n.login}</span
           >{/each}</span
       >
     </li>

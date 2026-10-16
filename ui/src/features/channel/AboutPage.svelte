@@ -12,6 +12,7 @@
   import Markdown from './Markdown.svelte';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
+  import { tooltip } from '../../components/tooltip.svelte';
 
   interface Props {
     login: string;
@@ -61,7 +62,7 @@
       <div class="who">
         <h2>
           {about.name}
-          {#if about.partner}<span class="partner" title="Partner"><Icon name="check" size={12} /></span>{/if}
+          {#if about.partner}<span class="partner" use:tooltip={'Partner'}><Icon name="check" size={12} /></span>{/if}
         </h2>
         <span>{formatNumber(about.followers)} followers · joined {formatDate(new Date(about.createdAt))}</span>
       </div>

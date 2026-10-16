@@ -1,5 +1,6 @@
 <!-- P3 Video stats over the picture, refreshed every second. -->
 <script lang="ts">
+  import IconButton from '../../components/IconButton.svelte';
   import { formatNumber } from '../../lib/format';
   import type { Stats } from './engine.svelte';
 
@@ -16,44 +17,57 @@
 </script>
 
 <div class="stats" role="status">
-  <button class="close" aria-label="Close" onclick={onclose}>×</button>
-  <span>Resolution</span><b>{s.resolution}</b>
-  <span>Quality</span><b>{s.level}</b>
-  <span>Bitrate</span><b>{kbps(s.bitrate)}</b>
-  <span>Bandwidth</span><b>{kbps(s.bandwidth)}</b>
-  {#if s.latency !== null}<span>Latency</span><b>{s.latency.toFixed(1)} s</b>{/if}
-  <span>Buffer</span><b>{s.buffer.toFixed(1)} s</b>
-  <span>Dropped frames</span><b>{s.dropped}</b>
+  <div class="head">
+    <b>Video stats</b>
+    <IconButton icon="x" label="Close" size={13} onclick={onclose} />
+  </div>
+  <div class="grid">
+    <span>Resolution</span><b>{s.resolution}</b>
+    <span>Quality</span><b>{s.level}</b>
+    <span>Bitrate</span><b>{kbps(s.bitrate)}</b>
+    <span>Bandwidth</span><b>{kbps(s.bandwidth)}</b>
+    {#if s.latency !== null}<span>Latency</span><b>{s.latency.toFixed(1).replace('.', ',')} s</b>{/if}
+    <span>Buffer</span><b>{s.buffer.toFixed(1).replace('.', ',')} s</b>
+    <span>Dropped frames</span><b>{s.dropped}</b>
+  </div>
 </div>
 
 <style>
   .stats {
     position: absolute;
-    top: 10px;
-    left: 10px;
-    z-index: 3;
-    display: grid;
-    grid-template-columns: auto auto;
-    gap: 2px 14px;
-    padding: 8px 28px 8px 10px;
+    top: 12px;
+    left: 12px;
+    z-index: var(--z-panel);
+    padding: 4px 10px 8px;
     background: var(--scrim-strong);
     border-radius: var(--radius);
     font-family: var(--font-mono);
     font-size: 0.72rem;
     color: var(--on-video-dim);
   }
+  .head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .stats :global(.icon-btn) {
+    width: 24px;
+    height: 24px;
+    margin-right: -6px;
+    color: var(--on-video-dim);
+  }
+  .stats :global(.icon-btn:hover:not(:disabled)) {
+    background: var(--scrim);
+    color: var(--on-video);
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 2px 14px;
+  }
   b {
     font-weight: 600;
     color: var(--on-video);
-  }
-  .close {
-    position: absolute;
-    top: 2px;
-    right: 4px;
-    padding: 0 4px;
-    background: none;
-    border: 0;
-    color: var(--on-video-dim);
-    font-size: 1rem;
   }
 </style>

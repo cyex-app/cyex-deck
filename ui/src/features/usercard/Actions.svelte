@@ -11,6 +11,8 @@
   import { userMenus } from '../chat/menus.svelte';
   import { whispers } from '../whispers/whispers.svelte';
   import { errorText } from '../../lib/errors';
+  import { tooltip } from '../../components/tooltip.svelte';
+  import { withUndo } from '../chat/undo';
 
   let { profile, channel }: { profile: Profile; channel: string } = $props();
 
@@ -45,17 +47,29 @@
     msgTime: null,
   });
 
-  async function run(command: string, after?: () => void) {
+  async function run(command: string, after?: () => void): Promise<boolean> {
     busy = true;
     try {
       await usercardIpc.run(channel, command, ctx());
       after?.();
+      return true;
     } catch (e) {
       toast.error(errorText(e));
+      return false;
     } finally {
       busy = false;
     }
   }
+
+  const login = $derived(profile.login);
+  const hide = () =>
+    withUndo(`${login} is hidden.`, () => run(`/hideuser ${login}`), () => run(`/unhideuser ${login}`));
+  const block = () =>
+    withUndo(
+      `${login} is blocked.`,
+      () => run(`/block ${login}`, () => (blocked = true)),
+      () => run(`/unblock ${login}`, () => (blocked = false)),
+    );
 </script>
 
 <div class="actions">
@@ -67,23 +81,27 @@
       <Button small disabled={busy} onclick={() => run(b.command)}>{b.label}</Button>
     {/if}
   {/each}
-  <Button
-    small
-    variant="ghost"
-    disabled={busy}
-    onclick={() => run(`/${hidden ? 'unhideuser' : 'hideuser'} ${profile.login}`)}
-  >
-    {hidden ? 'Show again' : 'Hide'}
-  </Button>
-  {#if !lookupFailed}
+  <span use:tooltip={hidden ? 'Shows their messages again.' : 'Only for you, not on Twitch.'}>
     <Button
       small
-      variant={blocked ? 'ghost' : 'danger'}
-      disabled={busy || blocked === null}
-      onclick={() => run(`/${blocked ? 'unblock' : 'block'} ${profile.login}`, () => (blocked = !blocked))}
+      variant="ghost"
+      disabled={busy}
+      onclick={() => (hidden ? void run(`/unhideuser ${login}`) : void hide())}
     >
-      {blocked ? 'Unblock' : 'Block'}
+      {hidden ? 'Show again' : 'Hide'}
     </Button>
+  </span>
+  {#if !lookupFailed}
+    <span use:tooltip={blocked ? 'Lets them whisper and follow you again.' : 'Blocks them on Twitch.'}>
+      <Button
+        small
+        variant={blocked ? 'ghost' : 'danger'}
+        disabled={busy || blocked === null}
+        onclick={() => (blocked ? void run(`/unblock ${login}`, () => (blocked = false)) : void block())}
+      >
+        {blocked ? 'Unblock' : 'Block'}
+      </Button>
+    </span>
   {/if}
 </div>
 

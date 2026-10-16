@@ -13,6 +13,7 @@
   import { eventStrip } from './eventStrip.svelte';
   import { pollLeft, predictionLeft, votes } from './votes.svelte';
   import { errorText } from '../../lib/errors';
+  import NumberField from '../../components/NumberField.svelte';
 
   let { channel, view, signedIn }: { channel: string; view: () => number; signedIn: boolean } = $props();
 
@@ -164,7 +165,7 @@
           >
             <span class="label">{o.title}</span>
             <span class="num">
-              {pct(o.points, total)}% · {formatNumber(o.points)} · 1:{o.points ? (total / o.points).toFixed(2) : '–'}
+              {pct(o.points, total)}% · {formatNumber(o.points)} · 1:{o.points ? (total / o.points).toFixed(2).replace('.', ',') : '–'}
             </span>
             {#if open && signedIn && (!pred.mine || pred.mine.outcome === o.id)}
               <Button small disabled={busy} onclick={() => predict(o)}>Bet</Button>
@@ -181,11 +182,11 @@
         </p>
       {/if}
       {#if open && signedIn}
-        <label class="foot amount">
+        <div class="foot amount">
           Points
-          <input type="number" min="1" max={v?.balance ?? undefined} bind:value={bet} />
+          <NumberField label="Points to bet" min={1} max={v?.balance ?? 1_000_000_000} width="104px" value={bet} onchange={(n) => (bet = n)} />
           {#if v?.balance !== null && v?.balance !== undefined}<span>of {formatNumber(v.balance)}</span>{/if}
-        </label>
+        </div>
         {#if !v?.accepted}<p class="foot">Betting accepts Twitch’s prediction terms.</p>{/if}
       {/if}
     {/if}
@@ -325,9 +326,5 @@
     display: flex;
     align-items: center;
     gap: 6px;
-  }
-  .amount input {
-    width: 90px;
-    padding: 2px 6px;
   }
 </style>

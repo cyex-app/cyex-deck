@@ -1,6 +1,7 @@
 <!-- C6 The list of suggestions above the message box, as wide as it; below it or shorter
      when there's no room above (V102-03). -->
 <script lang="ts">
+  import { scrollBehavior } from '../../lib/motion';
   import { density } from '../../lib/density.svelte';
   import { floating } from '../../lib/place';
   import { settings } from '../../lib/settings.svelte';
@@ -18,9 +19,16 @@
   let { items, index, onpick, anchor }: Props = $props();
 
   const theme = $derived(settings.v.appearance.theme);
+  let box = $state<HTMLElement>();
+
+  // Arrowing past the visible rows keeps the active one in view.
+  $effect(() => {
+    void index;
+    box?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() });
+  });
 </script>
 
-<div class="suggest" role="listbox" use:floating={{ anchor, side: 'above', gap: 4, matchWidth: true }}>
+<div class="suggest" bind:this={box} role="listbox" use:floating={{ anchor, side: 'above', gap: 4, matchWidth: true }}>
   {#each items as item, i (item.value)}
     <button
       class="item"
@@ -51,7 +59,7 @@
     background: var(--elevated);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
-    box-shadow: 0 8px 24px var(--shadow);
+    box-shadow: var(--shadow-pop);
   }
   .item {
     display: flex;

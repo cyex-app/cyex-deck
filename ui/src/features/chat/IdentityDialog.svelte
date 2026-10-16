@@ -12,6 +12,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
+  import { tooltip } from '../../components/tooltip.svelte';
 
   interface Props {
     account: string;
@@ -88,7 +89,7 @@
         class="badge"
         class:on={same(selected, b)}
         disabled={busy}
-        title={b.title}
+        use:tooltip={b.title}
         aria-label={b.title}
         onclick={() => wear(channel, b)}
       >
@@ -111,7 +112,7 @@
           class="swatch"
           class:on={me.color?.toUpperCase() === hex}
           style:background={hex}
-          title={name}
+          use:tooltip={name}
           aria-label={name}
           disabled={busy}
           onclick={() => color(hex)}

@@ -15,6 +15,7 @@
   import Line from './Line.svelte';
   import { isMentionsFeed, whenText } from './mentionsTab';
   import { roomRoute } from './roomRoute';
+  import { tooltip } from '../../components/tooltip.svelte';
 
   interface Props {
     name: string;
@@ -89,10 +90,10 @@
     {#each lines as l (`${l.channel}/${l.message.id}`)}
       <div data-channel={l.channel}>
         <div class="chan">
-          <button class="room" title="Open this chat" onclick={(e) => (e.stopPropagation(), openRoom(l.channel))}>
+          <button class="room" use:tooltip={'Open this chat'} onclick={(e) => (e.stopPropagation(), openRoom(l.channel))}>
             #{l.channel}
           </button>
-          {#if l.global}<span class="global" title="From logs.cyex.app">global</span>{/if}
+          {#if l.global}<span class="global" use:tooltip={'From logs.cyex.app'}>global</span>{/if}
           <span class="when">{whenText(l.message.ts, stamped)}</span>
         </div>
         <Line m={l.message} channel={l.channel} />

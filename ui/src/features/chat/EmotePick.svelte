@@ -11,6 +11,7 @@
   import { emoteImg } from './urls';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
+  import { tooltip } from '../../components/tooltip.svelte';
 
   interface Props {
     view: number;
@@ -70,7 +71,7 @@
       <button
         class="cell"
         class:on={picked === e.id}
-        title={e.name}
+        use:tooltip={e.name}
         onclick={() => (kind === 'unlock' ? (picked = e.id) : (base = e))}
       >
         <img src={img(e.id).src} alt={e.name} />

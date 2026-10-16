@@ -1,6 +1,8 @@
 <!-- M3 Mod comments on this user, yours and those shared from other channels, with a box
      at the bottom for a new one (V101-05, the 7TV extension's comments tab). -->
 <script lang="ts">
+  import Checkbox from '../../components/Checkbox.svelte';
+  import IconButton from '../../components/IconButton.svelte';
   import type { ModComment } from '../../ipc/bindings/ModComment';
   import { modIpc } from '../../ipc/moderation';
   import { formatDate } from '../../lib/format';
@@ -44,10 +46,21 @@
     }
   }
 
-  async function remove(id: string) {
+  /** Gone at once; Undo writes it again (as a new comment, with today's date). */
+  async function remove(c: ModComment) {
     try {
-      await modIpc.deleteComment(account, channel, id);
+      await modIpc.deleteComment(account, channel, c.id);
       onchange();
+      toast.info('Comment deleted.', {
+        action: {
+          label: 'Undo',
+          run: () =>
+            void modIpc
+              .addComment(account, channel, targetId, c.text, c.shared)
+              .then(onchange)
+              .catch((e) => toast.error(errorText(e))),
+        },
+      });
     } catch (e) {
       toast.error(errorText(e));
     }
@@ -59,7 +72,7 @@
     <div class="comment">
       <div class="meta">
         {c.author} · {c.at ? formatDate(new Date(c.at)) : ''}{c.shared ? ' · shared' : ''}
-        {#if !c.shared}<button class="del" onclick={() => remove(c.id)} aria-label="Delete comment">×</button>{/if}
+        {#if !c.shared}<span class="del"><IconButton icon="trash" label="Delete comment" size={12} onclick={() => remove(c)} /></span>{/if}
       </div>
       <div class="text">{c.text}</div>
     </div>
@@ -75,7 +88,7 @@
   }}
 >
   <input class="field" placeholder="Add a comment" maxlength="500" bind:value={text} disabled={busy} />
-  <label class="share"><input type="checkbox" bind:checked={shareable} /> Share</label>
+  <span class="share"><Checkbox label="Share" checked={shareable} onchange={(v) => (shareable = v)} /></span>
 </form>
 
 <style>
@@ -98,13 +111,10 @@
   }
   .del {
     margin-left: auto;
-    padding: 0 4px;
-    background: none;
-    border: 0;
-    color: var(--dim);
   }
-  .del:hover {
-    color: var(--red);
+  .del :global(.icon-btn) {
+    width: 22px;
+    height: 22px;
   }
   .text {
     overflow-wrap: anywhere;
