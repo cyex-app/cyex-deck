@@ -109,7 +109,7 @@
 
 <h3 class="label">What to export or share</h3>
 <div class="picks">
-  <Checkbox label="Everything" checked={allPicked} onchange={() => (picked = allPicked ? [] : [...PORTABLE_PARTITIONS])} />
+  <Checkbox label="Everything" checked={allPicked} indeterminate={picked.length > 0} onchange={() => (picked = allPicked ? [] : [...PORTABLE_PARTITIONS])} />
   {#each PORTABLE_PARTITIONS as p (p)}
     <Checkbox label={PARTITION_LABELS[p]} checked={picked.includes(p)} onchange={() => toggle(p)} />
   {/each}

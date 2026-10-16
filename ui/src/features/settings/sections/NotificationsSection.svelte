@@ -9,7 +9,6 @@
   import Icon from '../../../components/Icon.svelte';
   import Row from '../../../components/Row.svelte';
   import Toggle from '../../../components/Toggle.svelte';
-  import NeutralToggle from '../NeutralToggle.svelte';
   import type { TwitchChannelNotify } from '../../../ipc/bindings/TwitchChannelNotify';
   import type { TwitchNotifySwitch } from '../../../ipc/bindings/TwitchNotifySwitch';
   import { homeIpc } from '../../../ipc/browse';
@@ -198,7 +197,7 @@
           {#if twitch}
             <Select label="On Twitch" width="120px" value={c.state} options={CHANNEL_STATES} onchange={(v) => void setTwitchChannel(c, v)} />
           {/if}
-          <span class="tg"><NeutralToggle label="Alert" checked={alerts(c)} disabled={!n.live.enabled} onchange={(on) => setAlert(c, on)} /></span>
+          <span class="tg"><Toggle variant="neutral" label="Alert" checked={alerts(c)} disabled={!n.live.enabled} onchange={(on) => setAlert(c, on)} /></span>
         </div>
       {:else}
         {#if !loading && !error}<p class="note">No followed channels.</p>{/if}
@@ -232,7 +231,7 @@
         {#each PLATFORMS as p (p.id)}
           <span class="cell">
             {#if has(all, p.id)}
-              <NeutralToggle label="Everything: {p.label}" checked={!!all.on[p.id]} onchange={(on) => void setSwitch(all.id, p.id, on)} />
+              <Toggle variant="neutral" label="Everything: {p.label}" checked={!!all.on[p.id]} onchange={(on) => void setSwitch(all.id, p.id, on)} />
             {/if}
           </span>
         {/each}
@@ -251,7 +250,7 @@
         {#each PLATFORMS as p (p.id)}
           <span class="cell">
             {#if groupHas(g, p.id)}
-              <NeutralToggle
+              <Toggle variant="neutral"
                 label="{g.label}: {p.label}"
                 checked={isOn(g, p.id)}
                 disabled={sw.all?.on[p.id] === false}
@@ -266,7 +265,7 @@
             {#each PLATFORMS as p (p.id)}
               <span class="cell">
                 {#if has(c, p.id)}
-                  <NeutralToggle
+                  <Toggle variant="neutral"
                     label="{c.label}: {p.label}"
                     checked={!!c.on[p.id]}
                     disabled={!sends(sw, g, p.id)}

@@ -53,7 +53,7 @@
       ondelete={() => remove(i)}
     />
   {:else}
-    {#if empty}<EmptyState icon={emptyIcon} text={empty} />{/if}
+    {#if empty}<EmptyState align="start" icon={emptyIcon} text={empty} />{/if}
   {/each}
   <div class="add">
     <Button

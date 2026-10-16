@@ -260,24 +260,6 @@
   .inner :global(p) {
     text-wrap: pretty;
   }
-  /* C9 A segmented control stays on one line; the label beside it gives way. */
-  .inner :global(.control .seg) {
-    flex-wrap: nowrap;
-  }
-  /* P1 One empty-state look in settings: icon and one line, left-aligned. */
-  .inner :global(.empty) {
-    flex: none;
-    flex-direction: row;
-    justify-content: flex-start;
-    gap: 10px;
-    padding: 10px 0;
-    font-size: 0.85rem;
-  }
-  .inner :global(.empty svg) {
-    flex: none;
-    width: 20px;
-    height: 20px;
-  }
   /* V103-13 A setting search jumped to: tinted over its own background, then fades. */
   .content :global(.found),
   .content :global(.fading) {

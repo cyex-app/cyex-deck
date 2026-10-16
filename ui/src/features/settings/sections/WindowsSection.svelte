@@ -61,7 +61,7 @@
     <Button variant="ghost" small icon="trash" onclick={() => remove(layout, i)}>Delete</Button>
   </Row>
 {:else}
-  <EmptyState icon="layout" text="No saved layouts yet." />
+  <EmptyState align="start" icon="layout" text="No saved layouts yet." />
 {/each}
 
 <style>

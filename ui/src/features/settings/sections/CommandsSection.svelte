@@ -98,7 +98,7 @@
     />
   </Row>
 {:else}
-  <EmptyState icon="clock" text="None waiting. /timer -r 10m /me stretch sets one that survives a restart." />
+  <EmptyState align="start" icon="clock" text="None waiting. /timer -r 10m /me stretch sets one that survives a restart." />
 {/each}
 
 <style>

@@ -8,15 +8,17 @@
     /** Tooltip, e.g. the long name of a short label. */
     hint?: string;
     disabled?: boolean;
+    /** A dash instead of a tick: some, not all, of a group. Shown only while unchecked. */
+    indeterminate?: boolean;
     onchange: (checked: boolean) => void;
   }
 
-  let { checked, label, hint, disabled = false, onchange }: Props = $props();
+  let { checked, label, hint, disabled = false, indeterminate = false, onchange }: Props = $props();
 </script>
 
 <label class="check" class:disabled use:tooltip={hint ?? ''}>
-  <input type="checkbox" {checked} {disabled} onchange={(e) => onchange(e.currentTarget.checked)} />
-  <span class="box">{#if checked}<Icon name="check" size={12} />{/if}</span>
+  <input type="checkbox" {checked} {disabled} indeterminate={indeterminate && !checked} onchange={(e) => onchange(e.currentTarget.checked)} />
+  <span class="box">{#if checked}<Icon name="check" size={12} />{:else if indeterminate}<span class="dash"></span>{/if}</span>
   {label}
 </label>
 
@@ -49,7 +51,14 @@
     background: var(--surface);
     color: var(--accent-ink);
   }
-  input:checked + .box {
+  .dash {
+    width: 8px;
+    height: 2px;
+    border-radius: 1px;
+    background: currentColor;
+  }
+  input:checked + .box,
+  input:indeterminate + .box {
     background: var(--accent);
     border-color: var(--accent);
   }

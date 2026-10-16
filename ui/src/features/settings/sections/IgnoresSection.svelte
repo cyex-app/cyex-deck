@@ -90,5 +90,5 @@
     </Button>
   </Row>
 {:else}
-  <EmptyState icon="user" text="Nobody. Hide someone from their name’s menu or with /hideuser." />
+  <EmptyState align="start" icon="user" text="Nobody. Hide someone from their name’s menu or with /hideuser." />
 {/each}

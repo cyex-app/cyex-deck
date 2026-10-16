@@ -46,7 +46,7 @@
       </div>
     </Row>
   {:else}
-    <EmptyState icon="film" text="None yet. Record a chat from its ⋯ menu. Pictures are saved too, so replays work offline." />
+    <EmptyState align="start" icon="film" text="None yet. Record a chat from its ⋯ menu. Pictures are saved too, so replays work offline." />
   {/each}
 {/if}
 

@@ -3,15 +3,18 @@
     checked: boolean;
     label: string;
     disabled?: boolean;
+    /** `neutral`: "on" is grey, not the accent, for long lists of switches. */
+    variant?: 'accent' | 'neutral';
     onchange: (checked: boolean) => void;
   }
 
-  let { checked, label, disabled = false, onchange }: Props = $props();
+  let { checked, label, disabled = false, variant = 'accent', onchange }: Props = $props();
 </script>
 
 <button
   class="toggle"
   class:on={checked}
+  class:neutral={variant === 'neutral'}
   role="switch"
   aria-checked={checked}
   aria-label={label}
@@ -33,8 +36,15 @@
     border-radius: var(--radius-pill);
     transition: background var(--fast);
   }
+  /* Light mode: the off track must read against white. */
+  :global(.theme-light) .toggle:not(.on) {
+    background: var(--dim);
+  }
   .toggle.on {
     background: var(--accent);
+  }
+  .toggle.neutral.on {
+    background: var(--muted);
   }
   .knob {
     position: absolute;
@@ -49,6 +59,9 @@
   .on .knob {
     transform: translateX(16px);
     background: var(--accent-ink);
+  }
+  .neutral.on .knob {
+    background: var(--bg);
   }
   .toggle:disabled {
     opacity: 0.5;

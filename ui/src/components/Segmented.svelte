@@ -7,21 +7,46 @@
   }
 
   let { options, value, label, onchange }: Props = $props();
+
+  // Roving tabindex: one tab stop (the picked option); arrows move and pick.
+  const current = $derived(Math.max(options.findIndex((o) => o.value === value), 0));
+  let group = $state<HTMLElement>();
+
+  function onkeydown(e: KeyboardEvent) {
+    const n = options.length;
+    const to =
+      e.key === 'ArrowRight' || e.key === 'ArrowDown' ? (current + 1) % n
+      : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? (current - 1 + n) % n
+      : e.key === 'Home' ? 0
+      : e.key === 'End' ? n - 1
+      : -1;
+    if (to < 0 || !n) return;
+    e.preventDefault();
+    onchange(options[to].value);
+    (group?.children[to] as HTMLElement | undefined)?.focus();
+  }
 </script>
 
-<div class="seg" role="radiogroup" aria-label={label}>
-  {#each options as option (option.value)}
-    <button role="radio" aria-checked={value === option.value} class:on={value === option.value} onclick={() => onchange(option.value)}>
+<!-- svelte-ignore a11y_interactive_supports_focus (the radios inside hold the tab stop) -->
+<div class="seg" role="radiogroup" aria-label={label} bind:this={group} {onkeydown}>
+  {#each options as option, i (option.value)}
+    <button
+      role="radio"
+      aria-checked={value === option.value}
+      tabindex={i === current ? 0 : -1}
+      class:on={value === option.value}
+      onclick={() => onchange(option.value)}
+    >
       {option.label}
     </button>
   {/each}
 </div>
 
 <style>
-  /* Wraps in a narrow panel instead of running past its edge (the ad lengths did). */
+  /* C9 Always one line; the label beside it gives way. */
   .seg {
     display: inline-flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     max-width: 100%;
     padding: 2px;
     gap: 2px;

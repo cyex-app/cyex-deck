@@ -27,6 +27,8 @@
   let button = $state<HTMLButtonElement>();
   let list = $state<HTMLElement>();
   let text = $state<HTMLElement>();
+  /** The trigger's width in px when the list opened; `width` may be a percentage. */
+  let triggerW = $state(0);
   let typed = '';
   let typedAt = 0;
 
@@ -37,6 +39,7 @@
     if (open || disabled || !options.length) return;
     onopen?.();
     active = Math.max(selected, 0);
+    triggerW = button?.getBoundingClientRect().width ?? 0;
     open = true;
   }
 
@@ -110,7 +113,7 @@
   }
 </script>
 
-<span class="select" style:width style:--w={width}>
+<span class="select" style:width>
   <button
     bind:this={button}
     type="button"
@@ -130,7 +133,7 @@
     <Icon name="chevronDown" size={14} />
   </button>
   {#if open}
-    <div id="{uid}-list" class="list" role="listbox" aria-label={label} bind:this={list} use:floating={{ anchor: button, side: 'below', align: 'start' }}>
+    <div id="{uid}-list" class="list" role="listbox" aria-label={label} bind:this={list} style:min-width="{triggerW}px" use:floating={{ anchor: button, side: 'below', align: 'start' }}>
       {#each options as o, i (o.value)}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <div
@@ -190,7 +193,6 @@
   .list {
     position: fixed;
     z-index: var(--z-popover);
-    min-width: var(--w);
     max-width: min(480px, calc(100vw - 16px));
     overflow-y: auto;
     padding: 4px;
