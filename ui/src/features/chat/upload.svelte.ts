@@ -69,7 +69,7 @@ export function useUploads(hooks: Hooks) {
 class Uploads {
   readonly upload = new Upload();
   /** With "Ask before uploading" on, the batch waits for a yes. */
-  pending = $state<{ host: string; count: number; go: () => void; pictures: File[]; names: string[] } | null>(null);
+  pending = $state<{ host: string; count: number; go: () => void; pictures: File[]; paths: string[]; names: string[] } | null>(null);
 
   constructor(private hooks: Hooks) {
     $effect(() => {
@@ -85,14 +85,15 @@ class Uploads {
     });
   }
 
-  /** `pictures` are the pasted files, for the question's thumbnails (dropped ones show their names). */
+  /** `pictures` are the pasted files, for the question's thumbnails (dropped ones get a preview from Rust by path). */
   private begin(items: UploadItem[], pictures: File[] = []) {
     const cfg = settings.v.uploader;
     const host = hostOf(cfg.url);
     const { login, insert, fail } = this.hooks;
     const go = () => void this.upload.start(login(), items, insert, fail);
+    const paths = pictures.length ? [] : items.filter((i) => i.kind === 'file').map((i) => i.value);
     const names = pictures.length ? [] : items.map((i) => i.value.split(/[\/]/).pop() ?? '');
-    if (cfg.confirm) this.pending = { host, count: items.length, go, pictures, names };
+    if (cfg.confirm) this.pending = { host, count: items.length, go, pictures, paths, names };
     else go();
   }
 

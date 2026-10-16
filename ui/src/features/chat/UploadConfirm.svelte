@@ -1,21 +1,25 @@
 <!-- V105-11 "Ask before uploading": one question for the whole paste or drop.
-     V1051-05 A thumbnail of each pasted picture (a dropped file shows its name); Return uploads. -->
+     V1051-05 A thumbnail of each picture: pasted ones from the data, dropped ones from a small preview
+     Rust makes (the name stays when it can't); Return uploads. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import Dialog from '../../components/Dialog.svelte';
+  import { uploadIpc } from '../../ipc/upload';
 
   interface Props {
     host: string;
     count: number;
     /** Pasted pictures, for thumbnails. */
     pictures?: File[];
+    /** Paths of dropped files, for previews from Rust. */
+    paths?: string[];
     /** File names of dropped ones. */
     names?: string[];
     onyes: () => void;
     onno: () => void;
   }
 
-  let { host, count, pictures = [], names = [], onyes, onno }: Props = $props();
+  let { host, count, pictures = [], paths = [], names = [], onyes, onno }: Props = $props();
 
   const SHOWN = 4;
   let urls = $state<string[]>([]);
@@ -23,6 +27,31 @@
     const made = pictures.slice(0, SHOWN).map((f) => URL.createObjectURL(f));
     urls = made;
     return () => made.forEach((u) => URL.revokeObjectURL(u));
+  });
+  $effect(() => {
+    if (pictures.length || !paths.length) return;
+    let gone = false;
+    const made: string[] = [];
+    void Promise.all(
+      paths.slice(0, SHOWN).map((p) =>
+        uploadIpc
+          .preview(p)
+          .then((png) => {
+            const u = URL.createObjectURL(new Blob([png], { type: 'image/png' }));
+            made.push(u);
+            return u;
+          })
+          .catch(() => null),
+      ),
+    ).then((all) => {
+      // Any that didn’t decode: the names stay instead of a gap.
+      const ok = all.filter((u): u is string => u !== null);
+      if (!gone && ok.length === all.length) urls = ok;
+    });
+    return () => {
+      gone = true;
+      made.forEach((u) => URL.revokeObjectURL(u));
+    };
   });
 
   // Focus sits on the dialog, so Return is caught here; a focused button keeps its own Return.

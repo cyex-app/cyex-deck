@@ -372,6 +372,7 @@
       host={up.pending.host}
       count={up.pending.count}
       pictures={up.pending.pictures}
+      paths={up.pending.paths}
       names={up.pending.names}
       onyes={() => {
         const go = up.pending!.go;
