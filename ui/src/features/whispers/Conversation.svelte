@@ -16,6 +16,7 @@
   import { formatDate } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import Line from '../chat/Line.svelte';
+  import { withUndo } from '../chat/undo';
   import WhisperInput from './WhisperInput.svelte';
   import { whispers } from './whispers.svelte';
   import { errorText } from '../../lib/errors';
@@ -162,15 +163,21 @@
     }
   }
 
+  /** Blocks on Twitch and archives the thread; Undo (V1052-01) lifts both, with no chat needed. */
   async function block() {
     if (!thread) return;
-    try {
-      await whispersIpc.block(thread.other.login);
-      await edit({ archived: true });
-      toast.info(`Blocked ${thread.other.name}.`);
-    } catch (e) {
-      toast.error(errorText(e));
-    }
+    const { id, other } = thread;
+    await withUndo(
+      `Blocked ${other.name}.`,
+      async () => {
+        await whispersIpc.block(other.login);
+        await whispersIpc.edit(id, { archived: true });
+      },
+      async () => {
+        await whispersIpc.unblock(other.login);
+        await whispersIpc.edit(id, { archived: false });
+      },
+    );
   }
 
   function options(e: MouseEvent) {
