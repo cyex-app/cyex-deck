@@ -142,6 +142,15 @@
   .body > :global(.line) {
     flex: none;
   }
+  /* The start button stays in reach while the choices above scroll. */
+  .body > :global(.foot) {
+    position: sticky;
+    bottom: -10px;
+    margin-bottom: -10px;
+    padding: 6px 0 10px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+  }
   .body :global(.note) {
     margin: 0;
     font-size: 0.78rem;
