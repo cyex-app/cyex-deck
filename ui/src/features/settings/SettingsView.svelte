@@ -243,6 +243,8 @@
   .content {
     flex: 1;
     overflow-y: auto;
+    /* The column stays put when a page is short enough to need no scrollbar. */
+    scrollbar-gutter: stable;
   }
   /* S5, S6 One column width on every page, centred in the room beside the list. */
   .inner {

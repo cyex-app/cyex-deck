@@ -86,7 +86,9 @@
   }
 
   async function clearCache() {
-    if (await attempt(() => systemIpc.clearPictureCache().then(() => true))) toast.success('Picture cache cleared.');
+    const had = cacheSize;
+    if (await attempt(() => systemIpc.clearPictureCache().then(() => true)))
+      toast.success(had ? `Freed ${formatBytes(had)}.` : 'Picture cache cleared.');
     await refreshCache();
   }
 
@@ -107,7 +109,7 @@
 
   /** D2 "2026/10/16 · Today"; V1052-03 snapshots read "Before restore · Today". */
   function dayName(id: string): string {
-    const snap = /^before-restore-(\d{4})-(\d{2})-(\d{2})-/.exec(id);
+    const snap = /^before-restore-(\d{4})-(\d{2})-(\d{2})-(\d{2})?(\d{2})?/.exec(id);
     const date = snap ? `${snap[1]}/${snap[2]}/${snap[3]}` : id;
     const day = (back: number) => {
       const d = new Date();
@@ -115,7 +117,8 @@
       return formatDate(d);
     };
     const when = date === day(0) ? 'Today' : date === day(1) ? 'Yesterday' : date;
-    return snap ? `Before restore · ${when}` : when === date ? date : `${date} · ${when}`;
+    const time = snap?.[4] && snap[5] ? ` · ${snap[4]}:${snap[5]}` : '';
+    return snap ? `Before restore · ${when}${time}` : when === date ? date : `${date} · ${when}`;
   }
 </script>
 
@@ -154,9 +157,11 @@
 <ChatterinoImport />
 
 <h3 class="label">Backups</h3>
-<p class="note" data-setting="data:backups">A copy of your settings is kept for each of the last 3 days.</p>
+<p class="note" data-setting="data:backups">
+  A copy of your settings is kept for each of the last 3 days. Restoring keeps your current settings first, so you can undo it.
+</p>
 {#each backups as date (date)}
-  <Row label={dayName(date)} hint="Your current settings are kept first, so you can undo it.">
+  <Row label={dayName(date)}>
     <ConfirmButton label="Restore" confirm="Click again (current is kept)" onconfirm={() => restore(date)} />
   </Row>
 {:else}
