@@ -23,7 +23,7 @@
 
   const n = $derived(settings.v.notifications);
   const account = $derived(accounts.current);
-  /** Twitch's own settings need a GQL sign-in. */
+  /** Twitch's own settings need the extra Twitch features. */
   const twitch = $derived(!!account && accounts.can('onsiteNotifications', account.userId));
 
   let switches = $state.raw<TwitchNotifySwitch[]>([]);
@@ -183,7 +183,7 @@
       {#if twitch}
         The switch alerts you here. The list is what Twitch sends {account.displayName} for the channel.
       {:else}
-        Twitch’s own choice per channel needs a GQL sign-in. <GateFlag kind="gql" />
+        Twitch’s own choice per channel needs the extra Twitch features. <GateFlag kind="gql" />
       {/if}
     </p>
     {#if channels.length > 8}
@@ -212,7 +212,7 @@
   {#if account && !twitch}
     <!-- V102-20 Greyed out, not hidden. -->
     <h3 class="label" data-setting="notifications:twitch">What Twitch sends</h3>
-    <p class="note gated">Twitch’s own settings need a GQL sign-in. <GateFlag kind="gql" /></p>
+    <p class="note gated">Twitch’s own settings need the extra Twitch features. <GateFlag kind="gql" /></p>
   {/if}
 
   {#if twitch && sw.groups.length}

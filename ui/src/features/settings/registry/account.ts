@@ -37,7 +37,7 @@ export const ACCOUNT: Entry[] = [
     id: 'accounts:code',
     page: 'accounts',
     label: 'Sign in with a code',
-    description: 'Approve a short code on Twitch. Chat and the GQL tools.',
+    description: 'Approve a short code on Twitch. Chat and the extra Twitch features.',
     keywords: ['gql', 'token', 'log in', 'login', 'add account'],
   },
   {

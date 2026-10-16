@@ -96,10 +96,11 @@
   <div class="rule" class:off={!on}>
     <Checkbox label={r.label} checked={on} onchange={(v) => toggleRule(r.value, v)} />
     <span class="hint">{r.hint}</span>
-    {#if on}
+    <!-- P6 The arrows keep their room when a rule is off, so rows don't jump. -->
+    <span class="arrows" class:gone={!on} inert={!on}>
       <IconButton icon="chevronUp" label="Earlier" hint="Rules higher up win." size={14} onclick={() => moveRule(r.value, -1)} />
       <IconButton icon="chevronDown" label="Later" size={14} onclick={() => moveRule(r.value, 1)} />
-    {/if}
+    </span>
   </div>
 {/each}
 
@@ -208,6 +209,13 @@
     flex: 1;
     color: var(--dim);
     font-size: 0.8rem;
+  }
+  .arrows {
+    display: inline-flex;
+    flex: none;
+  }
+  .arrows.gone {
+    visibility: hidden;
   }
   .rule.off .hint {
     opacity: 0.7;

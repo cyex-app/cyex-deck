@@ -7,10 +7,9 @@
   import { toast } from '../../../lib/toast.svelte';
   import { errorText } from '../../../lib/errors';
   import type { Layout } from '../../../ipc/bindings/Layout';
+  import { drafts } from '../drafts.svelte';
 
   const layouts = $derived(settings.v.windows.layouts);
-
-  let name = $state('');
 
   async function run(action: () => Promise<void>, done?: string): Promise<boolean> {
     try {
@@ -41,9 +40,9 @@
 
   function save(e: SubmitEvent) {
     e.preventDefault();
-    const n = name.trim();
+    const n = drafts.layoutName.trim();
     if (!n) return;
-    void run(() => windowsIpc.saveLayout(n), `Saved “${n}”.`).then(() => (name = ''));
+    void run(() => windowsIpc.saveLayout(n), `Saved “${n}”.`).then((ok) => ok && (drafts.layoutName = ''));
   }
 </script>
 
@@ -51,8 +50,8 @@
 <p class="intro">A layout remembers where the main window and every pop-out sit, and whether they’re pinned.</p>
 
 <form class="save" data-setting="windows.layouts" onsubmit={save}>
-  <input class="field" placeholder="Layout name" maxlength="40" bind:value={name} />
-  <Button type="submit" variant="primary" small icon="plus" disabled={!name.trim()}>Save current</Button>
+  <input class="field" placeholder="Layout name" maxlength="40" bind:value={drafts.layoutName} />
+  <Button type="submit" variant="primary" small icon="plus" disabled={!drafts.layoutName.trim()}>Save current</Button>
 </form>
 
 {#each layouts as layout, i (layout.name)}

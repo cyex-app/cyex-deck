@@ -10,11 +10,14 @@
   import { toast } from '../../../lib/toast.svelte';
   import { errorText } from '../../../lib/errors';
   import { copy } from '../../../lib/clipboard';
+  import { formatDate } from '../../../lib/format';
   import ConfirmButton from '../../../components/ConfirmButton.svelte';
   import Checkbox from '../../../components/Checkbox.svelte';
 
   let picked = $state<Partition[]>(['general', 'appearance', 'chat', 'highlights', 'mentions', 'commands', 'hotkeys']);
   let code = $state('');
+  /** D4 Why the last pasted code didn't import, right under the field. */
+  let codeError = $state('');
   let backups = $state<string[]>([]);
 
   const allPicked = $derived(picked.length === PORTABLE_PARTITIONS.length);
@@ -64,18 +67,41 @@
 
   async function importCode(e: SubmitEvent) {
     e.preventDefault();
-    const result = await attempt(() => settingsIpc.importCode(code));
-    if (result) code = '';
-    imported(result);
+    codeError = '';
+    try {
+      const result = await settingsIpc.importCode(code);
+      code = '';
+      imported(result);
+    } catch (err) {
+      codeError = errorText(err);
+      toast.error(codeError);
+    }
   }
 
   async function clearCache() {
     if (await attempt(() => systemIpc.clearPictureCache().then(() => true))) toast.success('Picture cache cleared.');
   }
 
+  /** D1 Restoring first keeps what is there now as a share code; Undo imports it again. */
   async function restore(date: string) {
+    const before = await attempt(() => settingsIpc.shareCode([...PORTABLE_PARTITIONS]));
     const result = await attempt(() => settingsIpc.restoreBackup(date));
-    if (result) toast.success(`Restored settings from ${date}.`);
+    if (!result) return;
+    toast.success(`Restored settings from ${date}.`, {
+      action: before
+        ? { label: 'Undo', run: () => void attempt(() => settingsIpc.importCode(before)).then((p) => p && imported(p)) }
+        : undefined,
+    });
+  }
+
+  /** D2 "2026/10/16 · Today". */
+  function dayName(date: string): string {
+    const day = (back: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() - back);
+      return formatDate(d);
+    };
+    return date === day(0) ? `${date} · Today` : date === day(1) ? `${date} · Yesterday` : date;
   }
 </script>
 
@@ -99,17 +125,25 @@
   <Button icon="upload" onclick={importFile}>Import file</Button>
 </div>
 <form class="code" onsubmit={importCode}>
-  <input class="field" placeholder="Paste a share code" bind:value={code} />
+  <input
+    class="field"
+    placeholder="Paste a share code"
+    aria-label="Share code"
+    aria-invalid={!!codeError}
+    bind:value={code}
+    oninput={() => (codeError = '')}
+  />
   <Button type="submit" disabled={!code.trim()}>Import code</Button>
 </form>
+{#if codeError}<p class="problem" role="alert">{codeError}</p>{/if}
 
 <ChatterinoImport />
 
 <h3 class="label">Backups</h3>
 <p class="note" data-setting="data:backups">A copy of your settings is kept for each of the last 3 days.</p>
 {#each backups as date (date)}
-  <Row label={date}>
-    <ConfirmButton label="Restore" confirm="Click again to restore" onconfirm={() => restore(date)} />
+  <Row label={dayName(date)} hint="Your current settings are kept first, so you can undo it.">
+    <ConfirmButton label="Restore" confirm="Click again (current is kept)" onconfirm={() => restore(date)} />
   </Row>
 {:else}
   <p class="note">No backups yet. The first one is made tomorrow.</p>
@@ -156,5 +190,13 @@
   .code .field {
     flex: 1;
     font-family: var(--font-mono);
+  }
+  .code .field[aria-invalid='true'] {
+    border-color: var(--red);
+  }
+  .problem {
+    margin: 6px 0 0;
+    color: var(--red);
+    font-size: 0.82rem;
   }
 </style>

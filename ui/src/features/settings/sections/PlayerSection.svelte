@@ -65,8 +65,15 @@
     <span class="current">Using {proxy}</span>
     <Button small variant="ghost" onclick={() => void saveProxy(null)}>Remove</Button>
   {:else}
-    <input class="field wide" type="password" placeholder="e.g. http://user:password@host:8080" bind:value={draft} />
-    <Button small disabled={!draft.trim()} onclick={() => void saveProxy(draft)}>Save</Button>
+    <!-- P5 Saves when you leave the field or press Enter, like every other setting. -->
+    <input
+      class="field wide"
+      type="password"
+      aria-label="Ad-block proxy"
+      placeholder="e.g. http://user:password@host:8080"
+      bind:value={draft}
+      onchange={() => draft.trim() && void saveProxy(draft)}
+    />
   {/if}
 </Row>
 
