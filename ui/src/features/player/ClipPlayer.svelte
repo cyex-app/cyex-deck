@@ -53,12 +53,17 @@
 
   // svelte-ignore state_referenced_locally
   void load(slug, 0);
-  onDestroy(() => clearTimeout(waitTimer));
+  let gone = false;
+  onDestroy(() => {
+    gone = true;
+    clearTimeout(waitTimer);
+  });
 
   /** A fresh clip isn't there right away: ask again for half a minute. */
   async function load(s: string, tries: number) {
     try {
       const c = await playerIpc.clip(s);
+      if (gone) return;
       if (c) {
         clip = c;
         onloaded?.(c);
@@ -69,6 +74,7 @@
         problem = 'This clip is gone.';
       }
     } catch (e) {
+      if (gone) return;
       // V102-08 A clip just made can answer oddly until Twitch is done with it.
       if (fresh && tries < 10) {
         problem = 'Getting the clip ready…';

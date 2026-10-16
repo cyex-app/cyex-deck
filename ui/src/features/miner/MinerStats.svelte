@@ -7,6 +7,8 @@
   import type { StatsChannel } from '../../ipc/bindings/StatsChannel';
   import { minerIpc } from '../../ipc/miner';
   import { formatDate, formatNumber } from '../../lib/format';
+  import { latest } from '../../lib/latest';
+  import { toast } from '../../lib/toast.svelte';
   import { miner } from './miner.svelte';
 
   const KINDS: Record<StatKind, string> = {
@@ -33,11 +35,23 @@
   const signed = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${formatNumber(Math.abs(n))}`;
   const hours = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`);
 
+  const seq = latest();
+  /** The channel `stats` belongs to. */
+  let shown: string | null = null;
+
   async function load() {
     const pick = channel;
-    const [list, s] = await Promise.all([minerIpc.statsChannels(), minerIpc.stats(pick)]);
-    channels = list;
-    if (channel === pick) stats = s;
+    const live = seq.begin();
+    if (pick !== shown) stats = null;
+    try {
+      const [list, s] = await Promise.all([minerIpc.statsChannels(), minerIpc.stats(pick)]);
+      if (!live()) return;
+      channels = list;
+      stats = s;
+      shown = pick;
+    } catch (e) {
+      if (live()) toast.error(String(e));
+    }
   }
 
   // Again when the channel changes, and as the log grows.
@@ -53,7 +67,11 @@
       return;
     }
     confirm = false;
-    await minerIpc.clearStats(channel);
+    try {
+      await minerIpc.clearStats(channel);
+    } catch (e) {
+      return toast.error(String(e));
+    }
     channel = null;
     await load();
   }

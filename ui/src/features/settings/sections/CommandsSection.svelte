@@ -13,13 +13,17 @@
   const save = (patch: Partial<Commands>) => void settings.patch('commands', patch);
 
   let errors = $state.raw<CommandLineError[]>([]);
+  /** The check itself failed, so the list above may be out of date. */
+  let failed = $state(false);
 
   $effect(() => {
     const lines = c.lines;
+    let stale = false;
     rulesIpc
       .checkCommands(lines)
-      .then((e) => (errors = e))
-      .catch(() => {});
+      .then((e) => !stale && ((errors = e), (failed = false)))
+      .catch(() => !stale && (failed = true));
+    return () => (stale = true);
   });
 
   /** Textarea text → lines, without trailing blank ones. */
@@ -58,6 +62,7 @@
   {#each errors as e (e.line)}
     <p class="problem">Line {e.line + 1}: {e.message}</p>
   {/each}
+  {#if failed}<p class="problem">Couldn’t check these lines.</p>{/if}
 </Row>
 
 <h3 class="label">Menus</h3>

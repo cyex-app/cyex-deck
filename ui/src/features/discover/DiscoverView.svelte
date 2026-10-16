@@ -1,6 +1,8 @@
 <!-- Discover (1.7): live streams, categories and search. Tags, the remembered language
      filter and your followed categories are H4. -->
 <script lang="ts">
+  import { onDestroy } from 'svelte';
+
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import { openMenuAt } from '../../components/menu.svelte';
@@ -39,6 +41,7 @@
   const place = $derived(discover.place);
   let typed = $state(discover.place.kind === 'search' ? discover.place.text : '');
   let timer: ReturnType<typeof setTimeout> | undefined;
+  onDestroy(() => clearTimeout(timer));
   /** The category on screen, once Twitch says what it is. */
   let info = $state<Category | null>(null);
 

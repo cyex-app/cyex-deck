@@ -37,13 +37,18 @@
       hits = [];
       return;
     }
+    // A late answer can't reopen the list after a pick or a newer query.
+    let stale = false;
     const t = setTimeout(() => {
       smIpc
         .categories(q)
-        .then((h) => (hits = h))
-        .catch(() => (hits = []));
+        .then((h) => !stale && (hits = h))
+        .catch(() => !stale && (hits = []));
     }, 250);
-    return () => clearTimeout(t);
+    return () => {
+      stale = true;
+      clearTimeout(t);
+    };
   });
 
   const changed = $derived(loaded && (title.trim() !== saved.title || game.id !== saved.gameId));

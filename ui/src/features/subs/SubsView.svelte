@@ -13,6 +13,7 @@
   import { subsIpc, type TwitchPage } from '../../ipc/subs';
   import { accounts } from '../../lib/accounts.svelte';
   import { formatDate } from '../../lib/format';
+  import { latest } from '../../lib/latest';
   import { toast } from '../../lib/toast.svelte';
   import { canStop, months, standing, tierLabel } from './labels';
 
@@ -36,16 +37,27 @@
     if (can) void load();
   });
 
+  const seq = latest();
+  let dataFor: string | null = null;
+
   async function load() {
     if (!account) return;
+    const live = seq.begin();
+    const id = account;
+    // Another account's list never shows under this one.
+    if (dataFor !== id) data = null;
     loading = true;
     error = '';
     try {
-      data = await subsIpc.mine(account);
+      const d = await subsIpc.mine(id);
+      if (live()) {
+        data = d;
+        dataFor = id;
+      }
     } catch (e) {
-      error = String(e);
+      if (live()) error = String(e);
     } finally {
-      loading = false;
+      if (live()) loading = false;
     }
   }
 

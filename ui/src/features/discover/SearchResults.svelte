@@ -19,6 +19,7 @@
   $effect(() => {
     const q = text;
     let alive = true;
+    gen++;
     loading = true;
     error = null;
     discoverIpc
@@ -39,19 +40,25 @@
     return [...list.filter((c) => c.stream), ...list.filter((c) => !c.stream)];
   }
 
+  /** Bumped per query: a "more" for an older one is dropped. */
+  let gen = 0;
+
   async function more() {
     if (!cursor || loading) return;
     loading = true;
+    const mine = gen;
     try {
       const page = await discoverIpc.searchMore(text, cursor);
+      if (mine !== gen) return;
       const seen = new Set(channels.map((c) => c.id));
       channels = [...channels, ...page.items.filter((c) => !seen.has(c.id))];
       cursor = page.cursor;
     } catch (e) {
+      if (mine !== gen) return;
       error = String(e);
       cursor = null;
     } finally {
-      loading = false;
+      if (mine === gen) loading = false;
     }
   }
 </script>

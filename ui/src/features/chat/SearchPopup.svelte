@@ -30,6 +30,8 @@
   let input = $state<HTMLInputElement>();
   let list = $state<HTMLElement>();
   let timer: ReturnType<typeof setTimeout> | undefined;
+  /** Newest hits drawn; a longer list would be a wall of full lines. */
+  const MAX_HITS = 300;
 
   onMount(() => input?.focus());
 
@@ -37,16 +39,21 @@
     const q = text;
     const scope = everywhere ? null : view;
     clearTimeout(timer);
+    let stale = false;
     timer = setTimeout(() => {
       chatxIpc
         .search(scope, q)
         .then((r) => {
-          results = r;
+          if (stale) return;
+          results = r.slice(-MAX_HITS);
           requestAnimationFrame(() => list && (list.scrollTop = list.scrollHeight));
         })
-        .catch(() => (results = []));
+        .catch(() => !stale && (results = []));
     }, 150);
-    return () => clearTimeout(timer);
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
   });
 
   function onkeydown(e: KeyboardEvent) {

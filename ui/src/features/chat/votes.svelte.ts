@@ -20,9 +20,14 @@ class Votes {
       this.listening = true;
       void chatxIpc.onVotes((v) => this.byChannel.set(v.channel, { ...v, at: Date.now() }));
     }
+    const asked = Date.now();
     chatxIpc
       .votes(login)
-      .then((v) => v && this.byChannel.set(v.channel, { ...v, at: Date.now() }))
+      .then((v) => {
+        // An event that came in meanwhile is newer than this snapshot.
+        const have = v && this.byChannel.get(v.channel);
+        if (v && !(have && have.at >= asked)) this.byChannel.set(v.channel, { ...v, at: Date.now() });
+      })
       .catch(() => {});
   }
 }

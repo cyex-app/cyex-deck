@@ -4,6 +4,7 @@
 import type { ChannelCard } from '../../ipc/bindings/ChannelCard';
 import { homeIpc } from '../../ipc/browse';
 import { accounts } from '../../lib/accounts.svelte';
+import { latest } from '../../lib/latest';
 import { settings } from '../../lib/settings.svelte';
 
 const POLL_MS = 60_000;
@@ -31,16 +32,23 @@ class HomeStore {
     return def && able.includes(def) ? def : (able[0] ?? null);
   }
 
+  private refreshes = latest();
+  private favSeq = latest();
+
   async refresh(force = false): Promise<void> {
     const account = this.account;
     const ids = settings.v.browse.favorites.map((c) => c.id);
+    // A newer refresh or a favorites reload makes this one's answer stale.
+    const live = this.refreshes.begin();
+    const favLive = this.favSeq.begin();
     this.loading = true;
     const [follows, favorites] = await Promise.allSettled([
       account ? homeIpc.follows(account, force) : Promise.resolve(null),
       homeIpc.channels(ids),
     ]);
+    if (!live()) return;
     this.loading = false;
-    if (favorites.status === 'fulfilled') this.favorites = favorites.value;
+    if (favorites.status === 'fulfilled' && favLive()) this.favorites = favorites.value;
     if (this.account !== account) return;
     if (follows.status === 'fulfilled') {
       this.follows = follows.value;
@@ -67,8 +75,10 @@ class HomeStore {
   /** Favorites changed: fetch just those. */
   async reloadFavorites(): Promise<void> {
     const ids = settings.v.browse.favorites.map((c) => c.id);
+    const live = this.favSeq.begin();
     try {
-      this.favorites = await homeIpc.channels(ids);
+      const f = await homeIpc.channels(ids);
+      if (live()) this.favorites = f;
     } catch {
       // Kept as they were; the next refresh tries again.
     }
