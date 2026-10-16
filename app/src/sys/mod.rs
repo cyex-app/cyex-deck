@@ -30,18 +30,18 @@ pub mod audio {
     pub fn prime() {}
 }
 
-/// Lowercased exe names of the running processes. Empty if Windows won't say.
+/// Every running process as (pid, parent pid, exe name). Empty if Windows won't say.
 #[cfg(windows)]
-pub fn running_exes() -> Vec<String> {
+fn processes() -> Vec<(u32, u32, String)> {
     use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::System::Diagnostics::ToolHelp::{
         CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
     };
 
-    let mut names = Vec::new();
+    let mut procs = Vec::new();
     // SAFETY: a process snapshot takes no pointers; the handle is closed below.
     let Ok(snap) = (unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) }) else {
-        return names;
+        return procs;
     };
     let mut entry = PROCESSENTRY32W {
         dwSize: size_of::<PROCESSENTRY32W>() as u32,
@@ -55,13 +55,20 @@ pub fn running_exes() -> Vec<String> {
             .iter()
             .position(|&c| c == 0)
             .unwrap_or(entry.szExeFile.len());
-        names.push(String::from_utf16_lossy(&entry.szExeFile[..len]).to_lowercase());
+        let exe = String::from_utf16_lossy(&entry.szExeFile[..len]);
+        procs.push((entry.th32ProcessID, entry.th32ParentProcessID, exe));
         // SAFETY: as above.
         more = unsafe { Process32NextW(snap, &mut entry) }.is_ok();
     }
     // SAFETY: `snap` came from CreateToolhelp32Snapshot and is closed once.
     let _ = unsafe { CloseHandle(snap) };
-    names
+    procs
+}
+
+/// Lowercased exe names of the running processes. Empty if Windows won't say.
+#[cfg(windows)]
+pub fn running_exes() -> Vec<String> {
+    processes().into_iter().map(|(_, _, exe)| exe.to_lowercase()).collect()
 }
 
 #[cfg(not(windows))]
@@ -73,29 +80,10 @@ pub fn running_exes() -> Vec<String> {
 /// the app opened a link in also starts as its child, and its sound isn't the app's.
 #[cfg(windows)]
 pub fn webview_tree(root: u32) -> std::collections::HashSet<u32> {
-    use windows::Win32::Foundation::CloseHandle;
-    use windows::Win32::System::Diagnostics::ToolHelp::{
-        CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
-    };
-
-    let mut procs = Vec::new();
-    // SAFETY: a process snapshot read into a local struct and closed here.
-    unsafe {
-        if let Ok(snap) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
-            let mut e = PROCESSENTRY32W { dwSize: size_of::<PROCESSENTRY32W>() as u32, ..Default::default() };
-            if Process32FirstW(snap, &mut e).is_ok() {
-                loop {
-                    let len = e.szExeFile.iter().position(|&c| c == 0).unwrap_or(e.szExeFile.len());
-                    let exe = String::from_utf16_lossy(&e.szExeFile[..len]);
-                    procs.push((e.th32ProcessID, e.th32ParentProcessID, exe.eq_ignore_ascii_case(WEBVIEW_EXE)));
-                    if Process32NextW(snap, &mut e).is_err() {
-                        break;
-                    }
-                }
-            }
-            let _ = CloseHandle(snap);
-        }
-    }
+    let procs: Vec<(u32, u32, bool)> = processes()
+        .into_iter()
+        .map(|(pid, parent, exe)| (pid, parent, exe.eq_ignore_ascii_case(WEBVIEW_EXE)))
+        .collect();
     tree(root, &procs)
 }
 

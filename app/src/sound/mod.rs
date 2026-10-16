@@ -138,7 +138,7 @@ pub fn alert(app: &AppHandle, file: Option<&str>) {
         state.pending.pop_front();
     }
     drop(state);
-    let _ = app.emit_to(
+    let asked = app.emit_to(
         MAIN,
         DECODE_EVENT,
         SoundDecode {
@@ -146,6 +146,33 @@ pub fn alert(app: &AppHandle, file: Option<&str>) {
             path: path.to_owned(),
         },
     );
+    // No page to ask, or none that answers (not loaded yet, reloaded): the chime plays instead
+    // of nothing.
+    if asked.is_err() {
+        if take_pending(&sounds, id) {
+            play(app, sounds.chime());
+        }
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(PENDING_FOR).await;
+        if let Some(sounds) = app.try_state::<Sounds>()
+            && take_pending(&sounds, id)
+        {
+            play(&app, sounds.chime());
+        }
+    });
+}
+
+/// Forgets decode `id` if it is still unanswered. True when it was.
+fn take_pending(sounds: &Sounds, id: u32) -> bool {
+    let mut state = sounds.state.lock().unwrap_or_else(|p| p.into_inner());
+    let Some(at) = state.pending.iter().position(|(i, _, _)| *i == id) else {
+        return false;
+    };
+    state.pending.remove(at);
+    true
 }
 
 /// The page's answer to [`SoundDecode`]: interleaved stereo f32 (little-endian) at

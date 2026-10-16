@@ -11,7 +11,8 @@ type CmdResult<T> = Result<T, String>;
 /// Async, so listing the devices never holds the window's thread.
 #[tauri::command]
 pub async fn sound_devices() -> Vec<OutputDevice> {
-    sound::devices()
+    // The enumeration waits on a COM thread: not on a runtime worker.
+    tauri::async_runtime::spawn_blocking(sound::devices).await.unwrap_or_default()
 }
 
 /// A sound file from your settings, or the chime (no path): the Play and test buttons.
