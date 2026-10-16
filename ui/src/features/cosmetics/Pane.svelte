@@ -17,8 +17,6 @@
     total: number;
     selected: string | null;
     name: string;
-    /** Hide the Usable chip when every item is usable. */
-    allUsable: boolean;
     onpick: (id: string | null, usable: boolean) => void;
     /** Only the heading, when the pane sits under a tab already. */
     heading?: boolean;
@@ -26,17 +24,15 @@
     compact?: boolean;
   }
 
-  let { kind, query, onquery, rows, total, selected, name, allUsable, onpick, heading = true, compact = false }: Props = $props();
+  let { kind, query, onquery, rows, total, selected, name, onpick, heading = true, compact = false }: Props = $props();
 
   const plural = $derived(kind === 'paint' ? 'paints' : 'badges');
   const CHIPS: { key: Chip; label: string }[] = [
     { key: 'animated', label: 'Animated' },
     { key: 'static', label: 'Static' },
-    { key: 'usable', label: 'Usable' },
-    { key: 'new', label: 'New' },
   ];
   const chips = $derived(
-    CHIPS.filter((c) => c.key !== 'usable' || !allUsable).map((c) => ({ ...c, on: query.chips.has(c.key) })),
+    CHIPS.map((c) => ({ ...c, on: query.chips.has(c.key) })),
   );
 
   function change(q: Query) {

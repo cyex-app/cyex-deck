@@ -137,7 +137,6 @@
           total={view.paints.length}
           selected={combos.shown.paint}
           name={who.displayName}
-          allUsable={store.allUsable}
           onpick={(id, usable) => pick('paint', id, usable)}
         />
       {/if}
@@ -152,7 +151,6 @@
           total={view.badges.length}
           selected={combos.shown.badge}
           name={who.displayName}
-          allUsable={store.allUsable}
           onpick={(id, usable) => pick('badge', id, usable)}
         />
       {/if}

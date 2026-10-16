@@ -1,14 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { countLabel, emptyQuery, filterItems, NEW_DAYS, rememberSort, sortLabel, type Chip, type Query } from './filter.ts';
+import { countLabel, emptyQuery, filterItems, rememberSort, sortLabel, type Chip, type Query } from './filter.ts';
 
-const DAY = 86_400_000;
-const NOW = Date.UTC(2026, 9, 15);
-const it = (name: string, o: Partial<{ animated: boolean; usable: boolean; added: number }> = {}) => ({
+const it = (name: string, o: Partial<{ animated: boolean; added: number }> = {}) => ({
   name,
   animated: false,
-  usable: true,
   added: 0,
   ...o,
 });
@@ -21,40 +18,33 @@ const names = (r: { name: string }[]) => r.map((x) => x.name);
 
 const items = [
   it('Alpha', { animated: true, added: 3 }),
-  it('Beta', { usable: false, added: 2 }),
-  it('Gamma', { animated: true, usable: false, added: NOW - DAY }),
+  it('Beta', { added: 2 }),
+  it('Gamma', { animated: true, added: 9 }),
 ];
 
 test('chips', () => {
-  assert.deepEqual(names(filterItems(items, q({ chips: ['animated'] }), NOW)), ['Gamma', 'Alpha']);
-  assert.deepEqual(names(filterItems(items, q({ chips: ['static'] }), NOW)), ['Beta']);
-  assert.equal(filterItems(items, q({ chips: ['animated', 'static'] }), NOW).length, 3);
-  assert.deepEqual(names(filterItems(items, q({ chips: ['usable'] }), NOW)), ['Alpha']);
-  assert.deepEqual(names(filterItems(items, q({ chips: ['animated', 'usable'] }), NOW)), ['Alpha']);
-});
-
-test('new is 30 days', () => {
-  const edge = [it('In', { added: NOW - NEW_DAYS * DAY }), it('Out', { added: NOW - NEW_DAYS * DAY - 1 })];
-  assert.deepEqual(names(filterItems(edge, q({ chips: ['new'] }), NOW)), ['In']);
+  assert.deepEqual(names(filterItems(items, q({ chips: ['animated'] }))), ['Gamma', 'Alpha']);
+  assert.deepEqual(names(filterItems(items, q({ chips: ['static'] }))), ['Beta']);
+  assert.equal(filterItems(items, q({ chips: ['animated', 'static'] })).length, 3);
 });
 
 test('search ranks before sort', () => {
   const list = [it('Comfort', { added: 9 }), it('Forest Spring', { added: 1 }), it('Nope')];
-  assert.deepEqual(names(filterItems(list, q({ text: 'for' }), NOW)), ['Forest Spring', 'Comfort']);
+  assert.deepEqual(names(filterItems(list, q({ text: 'for' }))), ['Forest Spring', 'Comfort']);
 });
 
 test('sort and ties', () => {
   const list = [it('b', { added: 1 }), it('A', { added: 5 }), it('c', { added: 5 })];
-  assert.deepEqual(names(filterItems(list, q({ sort: 'az' }), NOW)), ['A', 'b', 'c']);
-  assert.equal(names(filterItems(list, q({ sort: 'newest' }), NOW))[2], 'b');
+  assert.deepEqual(names(filterItems(list, q({ sort: 'az' }))), ['A', 'b', 'c']);
+  assert.equal(names(filterItems(list, q({ sort: 'newest' })))[2], 'b');
   const ties = [it('Fox2', { added: 1 }), it('Fox1', { added: 2 })];
-  assert.deepEqual(names(filterItems(ties, q({ text: 'fox', sort: 'newest' }), NOW)), ['Fox1', 'Fox2']);
-  assert.deepEqual(names(filterItems(ties, q({ text: 'fox', sort: 'az' }), NOW)), ['Fox1', 'Fox2']);
+  assert.deepEqual(names(filterItems(ties, q({ text: 'fox', sort: 'newest' }))), ['Fox1', 'Fox2']);
+  assert.deepEqual(names(filterItems(ties, q({ text: 'fox', sort: 'az' }))), ['Fox1', 'Fox2']);
 });
 
 test('both keys, both ways, ties by name', () => {
   const list = [it('b10', { added: 5 }), it('B2', { added: 5 }), it('a', { added: 1 }), it('c', { added: 9 })];
-  const run = (sort: Query['sort'], reverse: boolean) => names(filterItems(list, q({ sort, reverse }), NOW));
+  const run = (sort: Query['sort'], reverse: boolean) => names(filterItems(list, q({ sort, reverse })));
   assert.deepEqual(run('newest', false), ['c', 'B2', 'b10', 'a']);
   assert.deepEqual(run('newest', true), ['a', 'B2', 'b10', 'c']);
   assert.deepEqual(run('az', false), ['a', 'B2', 'b10', 'c']);
@@ -79,7 +69,7 @@ test('the sort is remembered per pane', () => {
 test('2300 items filter fast', () => {
   const big = Array.from({ length: 2300 }, (_, i) => it(`Paint ${i} ${i % 7 ? 'sun' : 'moon'}`, { added: i }));
   const t = performance.now();
-  filterItems(big, q({ text: 'sun' }), NOW);
+  filterItems(big, q({ text: 'sun' }));
   assert.ok(performance.now() - t < 100, 'loose guard around 20 ms');
 });
 

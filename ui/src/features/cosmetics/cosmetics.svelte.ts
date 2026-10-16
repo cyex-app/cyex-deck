@@ -71,7 +71,6 @@ export class CosmeticsStore {
   private tick = $state(0);
   /** Which account key the view was loaded for, to spot sign-ins and -outs elsewhere. */
   key = '';
-  private readonly now = Date.now();
   private sheet: ReturnType<typeof menuSheet> | null = null;
   private handled: unknown = null;
   private noted = false;
@@ -92,12 +91,11 @@ export class CosmeticsStore {
   status = $derived(this.failed ? 'down' : (this.view?.status ?? 'ready'));
   paintRows = $derived((this.view?.paints ?? []).map(toPaint));
   badgeRows = $derived((this.view?.badges ?? []).map(toBadge));
-  paintsShown = $derived(filterItems(this.paintRows, this.paintsQ, this.now));
-  badgesShown = $derived(filterItems(this.badgeRows, this.badgesQ, this.now));
+  paintsShown = $derived(filterItems(this.paintRows, this.paintsQ));
+  badgesShown = $derived(filterItems(this.badgeRows, this.badgesQ));
   paintById = $derived(new Map((this.view?.paints ?? []).map((p) => [p.style.id, p])));
   badgeById = $derived(new Map((this.view?.badges ?? []).map((b) => [b.def.id, b])));
   anyUsable = $derived(this.paintRows.some((r) => r.usable) || this.badgeRows.some((r) => r.usable));
-  allUsable = $derived(this.paintRows.every((r) => r.usable) && this.badgeRows.every((r) => r.usable));
   shown = $derived.by(() => {
     void this.tick;
     return this.sel.shown;

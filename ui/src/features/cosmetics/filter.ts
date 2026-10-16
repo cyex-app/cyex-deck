@@ -3,7 +3,7 @@
 import { formatNumber } from '../../lib/format.ts';
 import { rank, RANK } from '../chat/completion.ts';
 
-export type Chip = 'animated' | 'static' | 'usable' | 'new';
+export type Chip = 'animated' | 'static';
 export interface Query {
   text: string;
   chips: ReadonlySet<Chip>;
@@ -11,13 +11,10 @@ export interface Query {
   /** Flips the order: oldest first, or Z–A. */
   reverse: boolean;
 }
-export const NEW_DAYS = 30;
-const DAY = 86_400_000;
 
 interface Row {
   name: string;
   animated: boolean;
-  usable: boolean;
   added: number;
 }
 
@@ -48,18 +45,16 @@ export function sorter<T extends { name: string; added: number }>(sort: Query['s
 export const sortLabel = (sort: Query['sort'], reverse: boolean) =>
   sort === 'az' ? (reverse ? 'Z–A' : 'A–Z') : reverse ? 'Oldest first' : 'Newest first';
 
-function keep(r: Row, chips: ReadonlySet<Chip>, now: number): boolean {
+function keep(r: Row, chips: ReadonlySet<Chip>): boolean {
   // Animated and Static together means both.
   if (chips.has('animated') !== chips.has('static') && r.animated !== chips.has('animated')) return false;
-  if (chips.has('usable') && !r.usable) return false;
-  if (chips.has('new') && r.added < now - NEW_DAYS * DAY) return false;
   return true;
 }
 
-export function filterItems<T extends Row>(items: readonly T[], q: Query, now: number): T[] {
+export function filterItems<T extends Row>(items: readonly T[], q: Query): T[] {
   const text = q.text.trim();
   const by = sorter<T>(q.sort, q.reverse);
-  const rows = items.filter((r) => keep(r, q.chips, now));
+  const rows = items.filter((r) => keep(r, q.chips));
   if (!text) return rows.sort(by);
   const scored: { r: T; rank: number; close: number }[] = [];
   for (const r of rows) {
