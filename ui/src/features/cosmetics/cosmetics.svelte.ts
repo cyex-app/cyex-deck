@@ -10,6 +10,7 @@ import { accounts } from '../../lib/accounts.svelte';
 import { toast } from '../../lib/toast.svelte';
 import { emptyQuery, filterItems, type Query } from './filter';
 import { Selection, UNDO_MS } from './select';
+import { wearingText } from './wearing';
 import { menuSheet } from './sheet';
 
 const toPaint = (item: PaintItem) => ({
@@ -104,6 +105,14 @@ export class CosmeticsStore {
   saveStatus = $derived.by(() => {
     void this.tick;
     return this.sel.status;
+  });
+  /** What the status line says after a pick: the item's name. */
+  wearing = $derived.by(() => {
+    void this.tick;
+    const kind = this.sel.undoable?.kind ?? null;
+    const id = kind ? this.sel.shown[kind] : null;
+    const name = kind && id ? (kind === 'paint' ? this.paintById.get(id)?.style.name : this.badgeById.get(id)?.def.title) : undefined;
+    return wearingText(kind, id, name);
   });
   canUndo = $derived.by(() => {
     void this.tick;

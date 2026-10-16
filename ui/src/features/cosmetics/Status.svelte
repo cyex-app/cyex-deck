@@ -3,6 +3,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
+  import { tooltip } from '../../components/tooltip.svelte';
   import Button from '../../components/Button.svelte';
   import { errorText, type CosmeticsStore } from './cosmetics.svelte';
 
@@ -27,7 +28,7 @@
     <span>Saving…</span>
   {:else if status === 'saved'}
     <!-- A pick, not a combo: say what changed. -->
-    <span>Wearing it</span>
+    <span class="txt" use:tooltip={store.wearing}>{store.wearing}</span>
     {#if store.canUndo}<Button variant="ghost" small onclick={() => store.undo()}>Undo</Button>{/if}
   {:else if typeof status === 'object'}
     <span class="err">{errorText(status.error)}</span>
@@ -42,6 +43,15 @@
     min-height: 28px;
     color: var(--dim);
     font-size: 0.8rem;
+  }
+  .txt {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .status :global(button) {
+    flex: none;
   }
   .err {
     color: var(--red);
