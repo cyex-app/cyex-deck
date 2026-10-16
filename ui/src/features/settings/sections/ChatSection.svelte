@@ -125,7 +125,7 @@
   }
 
   /** V105-15 The order list: every button with its place, as it looks in chat. */
-  const modOrder = $derived(fullOrder(mb));
+  const modOrder = $derived(fullOrder(mb, modTimes));
   const modName = (b: ModButton) =>
     typeof b !== 'string' ? `Time out ${formatDuration(b.timeout)}` : b === 'delete' ? 'Delete' : b === 'warn' ? 'Warn' : 'Ban';
   const modIcon = (b: ModButton): IconName =>

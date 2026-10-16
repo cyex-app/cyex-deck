@@ -105,3 +105,12 @@ test('a removed timeout is off in the order list', () => {
   assert.equal(buttonOn(b, 'warn'), false);
   assert.equal(buttonOn(b, 'ban'), true);
 });
+
+test('V105-15 every preset gets a row in the order list, a fifth one off and not addable', () => {
+  const b: ModButtons = { delete: true, timeouts: [5, 30, 60, 600], warn: true, ban: true, order: [] };
+  const keys = fullOrder(b, [5, 30, 60, 600, 900]).map(buttonKey);
+  assert.deepEqual(keys, ['delete', 't5', 't30', 't60', 't600', 'warn', 'ban', 't900']);
+  assert.equal(canAddButton(b, { timeout: 900 }), false);
+  assert.deepEqual(modSlots(b).map((s) => s.key), ['delete', 't5', 't30', 't60', 't600', 'warn', 'ban']);
+  assert.deepEqual(fullOrder(b).map(buttonKey), keys.filter((k) => k !== 't900'));
+});

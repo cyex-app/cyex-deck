@@ -28,9 +28,12 @@ export type ModSlot =
   | { key: string; kind: 'timeout'; secs: number; short: boolean };
 
 /** V105-15 The saved order, with anything it lacks added last in the default order (as
- *  Rust does). Timeouts no longer picked stay in their place, shown off. */
-export function fullOrder(b: ModButtons): ModButton[] {
+ *  Rust does). Timeouts no longer picked stay in their place, shown off; `presets` are the
+ *  timeouts that can be picked, so each gets a row even when the order never saw it. */
+export function fullOrder(b: ModButtons, presets: readonly number[] = []): ModButton[] {
   const defaults: ModButton[] = ['delete', ...b.timeouts.map((timeout) => ({ timeout })), 'warn', 'ban'];
+  // Presets that aren't picked get a row too (shown off), after everything else.
+  for (const timeout of presets) defaults.push({ timeout });
   const out: ModButton[] = [];
   for (const x of [...b.order, ...defaults]) {
     if (!out.some((y) => buttonKey(y) === buttonKey(x))) out.push(x);
