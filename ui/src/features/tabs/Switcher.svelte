@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
+  import { closeMenu } from '../../components/menu.svelte';
   import SearchField from '../../components/SearchField.svelte';
   import type { IconName } from '../../components/icons';
   import type { ChannelCard } from '../../ipc/bindings/ChannelCard';
@@ -94,6 +95,8 @@
   // The shared dialog layer: one Escape (after clearing the text), Tab stays inside, focus goes back.
   $effect(() => {
     if (!box) return;
+    // Only one thing floats at a time: a menu that was open goes.
+    closeMenu();
     const release = focusScope(box, { trap: true, initial: firstField });
     const off = layer('dialog', onclose);
     return () => {
@@ -136,11 +139,13 @@
     const modviews = q
       ? [...new Set(tabs.list.flatMap((t) => tiles(t).map((x) => x.channel.login)))]
           .filter((login) => mods.moderating(login) && score('Mod view', login))
+          // A step under a tab or channel that matches as well: "mod" finds the Mod view of the
+          // channels you moderate, but a channel called "mod…" still comes first.
           .map((login): Choice => ({
             key: `m${login}`,
             label: `Mod view · ${login}`,
             icon: 'shield',
-            score: score('Mod view', login),
+            score: score('Mod view', login) - 0.5,
             run: () => modviewPlace.open(login),
           }))
       : [];
