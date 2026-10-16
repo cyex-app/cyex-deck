@@ -468,7 +468,7 @@
   .chip button::before {
     content: "";
     position: absolute;
-    inset: -2px;
+    inset: -3px;
   }
   .chip button:hover {
     color: var(--red);

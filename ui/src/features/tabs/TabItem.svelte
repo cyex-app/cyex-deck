@@ -251,6 +251,7 @@
     color: var(--dim);
   }
   .x {
+    position: relative;
     display: grid;
     place-items: center;
     width: 18px;
@@ -265,6 +266,12 @@
   .x:hover {
     background: var(--surface);
     color: var(--text);
+  }
+  /* 24 px to hit, 18 px to see. */
+  .x::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
   }
   /* Drop marks sit just inside the pill, so a row's first tab shows one too. */
   [data-mark='before'] .pill::before,

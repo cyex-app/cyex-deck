@@ -111,6 +111,7 @@
     font: 0.78rem var(--font-mono);
   }
   .chip button {
+    position: relative;
     padding: 0 4px;
     background: none;
     border: 0;
@@ -119,6 +120,12 @@
   }
   .chip button:hover {
     color: var(--text);
+  }
+  /* 24 px to hit: the glyph box is about 15 px. */
+  .chip button::before {
+    content: '';
+    position: absolute;
+    inset: -5px -3px;
   }
   .field {
     width: 160px;
