@@ -53,11 +53,11 @@ pub async fn contribute(app: &AppHandle, account: &str, ctx: &PointsContext) {
             }
             Ok(Some(code)) => {
                 eprintln!("miner: goal in {name} refused: {code}");
-                log::add(app, LogKind::Error, Some(&name), "Couldn’t read the goals.");
+                log::add(app, LogKind::Error, Some(&name), "Couldn’t add to the goal.");
             }
             Err(e) => {
                 eprintln!("miner: goal in {name}: {e}");
-                log::add(app, LogKind::Error, Some(&name), "Couldn’t read the goals.");
+                log::add(app, LogKind::Error, Some(&name), "Couldn’t add to the goal.");
             }
         }
     }

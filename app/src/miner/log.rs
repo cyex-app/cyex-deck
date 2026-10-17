@@ -51,18 +51,29 @@ pub struct Log(Mutex<Ring>);
 struct Ring {
     lines: VecDeque<LogLine>,
     next: u64,
+    /// The last error per channel; the same one again is not logged.
+    last_err: std::collections::HashMap<Option<String>, String>,
 }
 
 impl Ring {
+    fn clear(&mut self) {
+        self.lines.clear();
+        self.last_err.clear();
+    }
+
     fn push(&mut self, t: i64, kind: LogKind, channel: Option<&str>, text: String) -> Option<LogLine> {
-        // The same error again and again (a minute loop) is one line.
-        if kind == LogKind::Error
-            && self
-                .lines
-                .back()
-                .is_some_and(|l| l.kind == kind && l.channel.as_deref() == channel && l.text == text)
-        {
-            return None;
+        // The same error again and again (a minute loop) is one line, per channel.
+        let key = channel.map(str::to_owned);
+        if kind == LogKind::Error {
+            if self.last_err.get(&key) == Some(&text) {
+                return None;
+            }
+            self.last_err.insert(key, text.clone());
+        } else {
+            self.last_err.remove(&key);
+            if channel.is_none() {
+                self.last_err.clear();
+            }
         }
         self.next += 1;
         let line = LogLine {
@@ -96,7 +107,7 @@ pub fn add(app: &AppHandle, kind: LogKind, channel: Option<&str>, text: impl Int
 /// Empties the log in every window.
 pub fn clear(app: &AppHandle) {
     let miner = app.state::<Miner>();
-    miner.log.0.lock().unwrap_or_else(|p| p.into_inner()).lines.clear();
+    miner.log.0.lock().unwrap_or_else(|p| p.into_inner()).clear();
     let _ = app.emit(CLEARED, ());
 }
 
@@ -127,7 +138,7 @@ mod tests {
     fn clear_empties_and_ids_keep_rising() {
         let mut r = Ring::default();
         r.push(1, LogKind::Bet, Some("a"), "x".into());
-        r.lines.clear();
+        r.clear();
         let l = r.push(2, LogKind::Bet, Some("a"), "x".into()).unwrap();
         assert_eq!(l.id, 2);
         assert_eq!(r.lines.len(), 1);
@@ -140,5 +151,13 @@ mod tests {
         assert!(r.push(2, LogKind::Error, Some("a"), "e".into()).is_none());
         assert!(r.push(3, LogKind::Error, Some("b"), "e".into()).is_some());
         assert!(r.push(4, LogKind::Points, Some("b"), "e".into()).is_some());
+    }
+
+    #[test]
+    fn alternating_channel_errors_collapse_per_channel() {
+        let mut r = Ring::default();
+        assert!(r.push(1, LogKind::Error, Some("a"), "e".into()).is_some());
+        assert!(r.push(2, LogKind::Error, Some("b"), "e".into()).is_some());
+        assert!(r.push(3, LogKind::Error, Some("a"), "e".into()).is_none());
     }
 }

@@ -21,7 +21,10 @@ class MinerStore {
     if (this.started) return;
     this.started = true;
     await minerIpc.onStatus((s) => (this.status = s));
-    await minerIpc.onLog((l) => (this.log = [...this.log, l].slice(-LOG_MAX)));
+    await minerIpc.onLog((l) => {
+      if (this.log.length && this.log[this.log.length - 1].id >= l.id) return;
+      this.log = [...this.log, l].slice(-LOG_MAX);
+    });
     await minerIpc.onLogCleared(() => (this.log = []));
     const [status, log] = await Promise.all([minerIpc.status(), minerIpc.log()]);
     this.status = status;
