@@ -2,6 +2,7 @@
      sub status (api.ivr.fi), follow age (only when an account here moderates the channel)
      and earlier names (logs.cyex.app). Each loads on its own. -->
 <script lang="ts">
+  import { uniqueKeys } from '../../lib/keys';
   import Icon from '../../components/Icon.svelte';
   import type { FollowAge } from '../../ipc/bindings/FollowAge';
   import type { NameChange } from '../../ipc/bindings/NameChange';
@@ -16,6 +17,7 @@
   let sub = $state<SubStatus | null | undefined>(undefined);
   let follow = $state<FollowAge | null>(null);
   let names = $state.raw<NameChange[]>([]);
+  const nameKeys = $derived(uniqueKeys(names, (n) => n.login));
 
   // A card shows one user in one channel for its whole life.
   // svelte-ignore state_referenced_locally
@@ -83,7 +85,7 @@
   {#if names.length}
     <li>
       <Icon name="history" size={14} /><span
-        >Was {#each names as n, i (n.login)}{i ? ', ' : ''}<span use:tooltip={`${day(n.firstSeen)} – ${day(n.lastSeen)}`}>{n.login}</span
+        >Was {#each names as n, i (nameKeys[i])}{i ? ', ' : ''}<span use:tooltip={`${day(n.firstSeen)} – ${day(n.lastSeen)}`}>{n.login}</span
           >{/each}</span
       >
     </li>

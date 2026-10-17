@@ -20,6 +20,7 @@
   import { PROVIDER_TABS, type ProviderTab, cellKey, pick, search, usable } from './menu';
   import { emoteMenu } from './menus';
   import { errorText } from '../../lib/errors';
+  import { uniqueKeys } from '../../lib/keys';
   import Loading from '../../components/Loading.svelte';
 
   interface Props {
@@ -59,6 +60,7 @@
   ]);
   const found = $derived(menu && query.trim() ? search(menu, query) : []);
   const foundEmoji = $derived(emoji && query.trim() ? findEmoji(emoji, query.trim(), 40) : []);
+  const foundEmojiKeys = $derived(uniqueKeys(foundEmoji, (e) => e.char));
 
   onMount(() => {
     // A tip shown for one of the cells shouldn't outlive the menu.
@@ -191,7 +193,7 @@
       {#if found.length || foundEmoji.length}
         <div class="grid">
           {#each found as m (cellKey(m))}{@render emote(m)}{/each}
-          {#each foundEmoji as e (e.char)}{@render emojiCell(e)}{/each}
+          {#each foundEmoji as e, i (foundEmojiKeys[i])}{@render emojiCell(e)}{/each}
         </div>
       {:else}
         <p class="note">Nothing called “{query.trim()}”.</p>
@@ -220,10 +222,12 @@
     {:else if tab === 'emoji'}
       {#if emoji}
         {#each emoji as g (g.title)}
+          {@const shown = g.emoji.slice(0, cap(g.title))}
+          {@const keys = uniqueKeys(shown, (e) => e.char)}
           <section>
             <h4>{g.title}</h4>
             <div class="grid">
-              {#each g.emoji.slice(0, cap(g.title)) as e (e.char)}{@render emojiCell(e)}{/each}
+              {#each shown as e, i (keys[i])}{@render emojiCell(e)}{/each}
             </div>
             {@render more(g.title, g.emoji.length)}
           </section>

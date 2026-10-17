@@ -8,6 +8,7 @@
   import { channelIpc } from '../../ipc/player';
   import { formatDate, formatShort } from '../../lib/format';
   import { clock } from '../player/time';
+  import { uniqueKeys } from '../../lib/keys';
   import Card from './Card.svelte';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
@@ -28,6 +29,7 @@
   let period = $state<ClipPeriod>('week');
   let sort = $state<ClipSort>('views');
   let clips = $state<Clip[] | null>(null);
+  const clipKeys = $derived(uniqueKeys(clips ?? [], (c) => c.slug));
   let problem = $state<string | null>(null);
 
   $effect(() => {
@@ -56,7 +58,7 @@
     <EmptyState icon="clapper" text="No clips in this time." />
   {:else}
     <div class="grid">
-      {#each clips as c (c.slug)}
+      {#each clips as c, i (clipKeys[i])}
         <Card
           image={c.thumbnail}
           title={c.title}

@@ -1,17 +1,19 @@
 <!-- 1.56 AutoMod queue: messages held for review, with Allow and Deny. The list is kept
      live from EventSub; resolving drops the row. -->
 <script lang="ts">
+  import { uniqueKeys } from '../../lib/keys';
   import HeldRow from '../feeds/HeldRow.svelte';
   import type { HeldItem } from '../../ipc/bindings/HeldItem';
 
   let { account, login, held }: { account: string; login: string; held: HeldItem[] } = $props();
+  const keys = $derived(uniqueKeys(held, (h) => h.messageId));
 </script>
 
 {#if held.length === 0}
   <p class="empty">Nothing held.</p>
 {:else}
   <ul>
-    {#each held as h (h.messageId)}
+    {#each held as h, i (keys[i])}
       <li><HeldRow {account} {login} item={h} /></li>
     {/each}
   </ul>
