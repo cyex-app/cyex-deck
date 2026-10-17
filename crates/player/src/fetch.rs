@@ -28,6 +28,16 @@ pub trait Fetch: Send + Sync {
     fn text(&self, url: &str, route: Route) -> impl Future<Output = Result<String>> + Send;
     fn bytes(&self, url: &str) -> impl Future<Output = Result<Vec<u8>>> + Send;
     fn has_proxy(&self) -> bool;
+    /// V1061 The mock HLS server, in a test data folder only.
+    fn mock_base(&self) -> Option<&str> {
+        None
+    }
+}
+
+/// V1061 The mock server's master for a live login (`?route=backup` for backups).
+pub fn mock_master(base: &str, login: &str, route: Route) -> String {
+    let q = if matches!(route, Route::Backup(_)) { "?route=backup" } else { "" };
+    format!("{base}/live/{login}/master.m3u8{q}")
 }
 
 /// The account's GQL token and its client ID, read on each use so refreshed tokens count.
@@ -41,6 +51,8 @@ pub struct Twitch {
     /// Sent as `X-Device-Id` when signed out; the same for this install.
     pub device_id: String,
     pub sign_in: Option<SignIn>,
+    /// V1061 `CYEX_HLS_MOCK`, test data folder only.
+    pub mock: Option<String>,
 }
 
 impl Twitch {
@@ -57,6 +69,9 @@ fn retry_signed_out(e: &Error) -> bool {
 
 impl Fetch for Twitch {
     async fn live_master(&self, login: &str, route: Route) -> Result<String> {
+        if let Some(base) = &self.mock {
+            return usher::text(&self.http, &mock_master(base, login, route)).await;
+        }
         let (http, player) = match route {
             Route::Main => (&self.http, crate::backup::MAIN),
             Route::Backup(p) => (&self.http, p),
@@ -83,6 +98,9 @@ impl Fetch for Twitch {
     }
 
     async fn vod_master(&self, id: &str) -> Result<String> {
+        if let Some(base) = &self.mock {
+            return usher::text(&self.http, &format!("{base}/vod/{id}/master.m3u8")).await;
+        }
         if let Some((token, client_id)) = self.signed_in() {
             let auth = Auth {
                 client_id: &client_id,
@@ -116,6 +134,10 @@ impl Fetch for Twitch {
     fn has_proxy(&self) -> bool {
         self.proxy.is_some()
     }
+
+    fn mock_base(&self) -> Option<&str> {
+        self.mock.as_deref()
+    }
 }
 
 #[cfg(test)]
@@ -125,6 +147,16 @@ pub(crate) mod tests {
 
     use super::*;
     use crate::live::gone;
+
+    #[test]
+    fn mock_master_urls() {
+        let b = "http://127.0.0.1:5200";
+        assert_eq!(mock_master(b, "xqc", Route::Main), "http://127.0.0.1:5200/live/xqc/master.m3u8");
+        assert_eq!(
+            mock_master(b, "xqc", Route::Backup(crate::backup::MAIN)),
+            "http://127.0.0.1:5200/live/xqc/master.m3u8?route=backup"
+        );
+    }
 
     /// Scripted network: live masters per route, everything else per URL.
     #[derive(Default)]
