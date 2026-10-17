@@ -69,7 +69,7 @@ function isTyping(target: EventTarget | null): boolean {
 
 /** Runs the handlers for their bound combos while the calling component is mounted. A
  *  handler that returns `false` leaves the key to the page, e.g. Space on a button. */
-export function useHotkeys(own: Partial<Record<ActionId, () => unknown>>): void {
+export function useHotkeys(own: Partial<Record<ActionId, (e: KeyboardEvent) => unknown>>): void {
   const handlers = { ...zoomHotkeys, ...own };
   $effect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -84,7 +84,7 @@ export function useHotkeys(own: Partial<Record<ActionId, () => unknown>>): void 
       if (isTyping(e.target) && !/^(Ctrl|Alt)\+/.test(combo)) return;
       const id = actionFor(combo);
       const run = id && handlers[id];
-      if (run && run() !== false) e.preventDefault();
+      if (run && run(e) !== false) e.preventDefault();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

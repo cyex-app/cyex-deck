@@ -7,6 +7,7 @@
 
   import { type MenuEntry, openMenu } from '../../components/menu.svelte';
   import { type PlayerControls, players, toggleFullscreen } from './players.svelte';
+  import SeekReadout from './SeekReadout.svelte';
   import { hitInside } from './shell';
 
   interface Props {
@@ -28,6 +29,7 @@
   let { controls, pinned = false, onvolume, menu, alone = false, top, bar, children }: Props = $props();
 
   let root = $state<HTMLElement>();
+  let readout = $state<SeekReadout>();
   let active = $state(false);
   let idle: ReturnType<typeof setTimeout> | undefined;
   let click: ReturnType<typeof setTimeout> | undefined;
@@ -40,6 +42,13 @@
     play: () => controls.play?.(),
     pause: () => controls.pause?.(),
     seekBy: controls.seekBy && ((s) => controls.seekBy?.(s)),
+    toLive: controls.toLive && (() => controls.toLive?.()),
+    volumeStep: (d) => {
+      onvolume?.(d);
+      wake();
+    },
+    visible: () => !!root && root.checkVisibility() && !root.closest('.mini'),
+    say: (t) => readout?.show(t),
     media: () => controls.media?.() ?? null,
   };
   const unregister = players.register(self);
@@ -53,6 +62,11 @@
    *  what shows over it stays on screen (V101-26). */
   export function fullscreen() {
     if (root) void toggleFullscreen((!alone && root.closest<HTMLElement>('[data-fullscreen]')) || root);
+  }
+
+  /** V1061-04 A short readout over the picture. */
+  export function say(t: string) {
+    readout?.show(t);
   }
 
   function wake() {
@@ -109,6 +123,7 @@
   {oncontextmenu}
 >
   {@render children()}
+  <SeekReadout bind:this={readout} />
   {#if top}<div class="top">{@render top()}</div>{/if}
   {#if bar}<div class="bar">{@render bar()}</div>{/if}
 </div>
