@@ -5,6 +5,7 @@
   import type { Snippet } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
+  import Popover from '../../components/Popover.svelte';
   import type { IconName } from '../../components/icons';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { ChannelInfo } from '../../ipc/bindings/ChannelInfo';
@@ -13,6 +14,7 @@
   import type { Page } from '../player/players.svelte';
   import StoryRing from '../player/StoryRing.svelte';
   import { uptime } from '../player/time';
+  import ViewerChart from './ViewerChart.svelte';
 
   interface Props {
     tile: Tile;
@@ -37,6 +39,8 @@
   /** A clip or VOD from a list counts as that list. */
   const current = $derived(page.kind === 'vod' ? 'videos' : page.kind === 'clip' ? 'clips' : page.kind);
 
+  /** V106-18 The viewers chart popover. */
+  let chart = $state(false);
   let minute = $state(Date.now());
   $effect(() => {
     const timer = setInterval(() => (minute = Date.now()), 30_000);
@@ -62,7 +66,11 @@
         <span class="dot" class:rerun={stream.rerun}></span>{stream.title || tile.channel.name}
       </span>
       <span class="meta">
-        {[stream.game, `${formatShort(stream.viewers)} watching`, uptime(stream.startedAt, minute)].filter(Boolean).join(' · ')}
+        {#if stream.game}{stream.game} · {/if}<span class="wrap"><button
+            class="watching"
+            aria-expanded={chart}
+            use:tooltip={'Viewers over time'}
+            onclick={() => (chart = !chart)}>{formatShort(stream.viewers)} watching</button><Popover bind:open={chart} align="start" label="Viewers over time"><ViewerChart channelId={tile.channel.id} /></Popover></span>{#if uptime(stream.startedAt, minute)} · {uptime(stream.startedAt, minute)}{/if}
       </span>
     {:else}
       <span class="title">{tile.channel.name}</span>
@@ -113,6 +121,21 @@
   .meta {
     color: var(--dim);
     font-size: 0.72rem;
+  }
+  .wrap {
+    display: inline;
+  }
+  .watching {
+    padding: 0;
+    background: none;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  .watching:hover {
+    color: var(--text);
+    text-decoration: underline;
   }
   .dot {
     flex: none;

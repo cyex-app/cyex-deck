@@ -115,6 +115,7 @@ pub fn notify(app: &AppHandle) {
         crate::streammanager::accounts_changed(app);
     }
     crate::whispers::accounts_changed(app);
+    crate::tabs::live::nudge(app); // V106-17 own channel joins the live check
     crate::bell::accounts_changed(app);
     if app.try_state::<crate::chat::rules::RuleState>().is_some() {
         crate::chat::rules::load_blocked(app.clone());

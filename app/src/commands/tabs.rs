@@ -52,6 +52,12 @@ pub fn tabs_live(app: AppHandle) -> Vec<ChannelInfo> {
     tabs::live(&app)
 }
 
+/// V106-18 Viewer counts of a live tab channel since the app saw it start (memory only).
+#[tauri::command]
+pub fn tabs_viewers(app: AppHandle, channel_id: String) -> Option<tabs::viewers::ViewerHistory> {
+    tabs::viewers::get(&app, &channel_id)
+}
+
 /// V106-25 Mutes or unmutes everything in a tab (not saved). Returns the muted tabs; changes
 /// arrive as `tabs:muted`.
 #[tauri::command]

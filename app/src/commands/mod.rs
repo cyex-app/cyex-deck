@@ -258,6 +258,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         tabs::tabs_unread,
         tabs::tabs_lookup,
         tabs::tabs_live,
+        tabs::tabs_viewers,
         tabs::tabs_mute,
         tabs::tabs_muted,
         tabs::channel_following,

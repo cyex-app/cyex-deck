@@ -410,6 +410,7 @@
         onoverlay={() => void popOut(`overlay/${tile.id}`)}
         onmodview={toggleMod}
         modviewOpen={modOpen}
+        chart={!tile.show.player && tabs.live[tile.channel.id]?.stream ? tile.channel.id : undefined}
       />
     {/key}
   {/if}

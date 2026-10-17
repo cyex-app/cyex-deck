@@ -17,6 +17,8 @@
 
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
+  import Popover from '../../components/Popover.svelte';
+  import ViewerChart from '../channel/ViewerChart.svelte';
   import { openMenu, type MenuEntry } from '../../components/menu.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
@@ -84,6 +86,8 @@
     /** V103-22 The mod view's or the stream manager's own chat: it follows the channel's
      * regular chats and doesn't count as one. */
     follows?: boolean;
+    /** V106-18 Channel id: shows the viewers chart button (live, and no stream header on this tile). */
+    chart?: string;
   }
 
   let {
@@ -103,6 +107,7 @@
     onmodview = () => modviewPlace.open(login),
     modviewOpen = false,
     follows = false,
+    chart,
   }: Props = $props();
 
   // A chat view shows one channel for its whole life; a different one is a new view.
@@ -123,6 +128,7 @@
   let el = $state<HTMLElement>();
   /** V101-35 The viewer list shows instead of the messages. */
   let viewers = $state(false);
+  let chartOpen = $state(false);
   let input = $state<ChatInput>();
   let replyTo = $state<ChatMessage | null>(null);
   let search = $state<{ query: string; all: boolean } | null>(null);
@@ -351,6 +357,19 @@
         />
       {/if}
     {/if}
+    {#if chart}
+      <div class="chartwrap">
+        <IconButton
+          icon="activity"
+          label="Viewers over time"
+          size={15}
+          active={chartOpen}
+          toggle
+          onclick={() => (chartOpen = !chartOpen)}
+        />
+        <Popover bind:open={chartOpen} align="end" label="Viewers over time"><ViewerChart channelId={chart} /></Popover>
+      </div>
+    {/if}
     <IconButton
       icon="users"
       label="Viewers"
@@ -438,6 +457,10 @@
     display: flex;
     flex-direction: column;
     background: var(--page);
+  }
+  .chartwrap {
+    position: relative;
+    display: flex;
   }
   header {
     display: flex;

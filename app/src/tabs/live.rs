@@ -15,6 +15,7 @@ use tokio::sync::Notify;
 
 use crate::auth::Auth;
 use crate::settings::Settings;
+use crate::tabs::viewers;
 
 const POLL: Duration = Duration::from_secs(60);
 const EVENT: &str = "tabs:live";
@@ -29,6 +30,7 @@ struct Live {
 
 pub fn spawn(app: &AppHandle) {
     app.manage(Live::default());
+    app.manage(viewers::Viewers::default());
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let wake = app.state::<Live>().wake.clone();
@@ -42,12 +44,25 @@ pub fn spawn(app: &AppHandle) {
     });
 }
 
+/// V106-17 Every id to look up: the tab channels plus the default account's own channel (same
+/// request, up to 100 ids), and the tab ids alone.
+fn wanted(app: &AppHandle) -> (Vec<String>, HashSet<String>) {
+    let mut all = app.state::<Settings>().read::<Tabs>(Partition::Tabs).channel_ids();
+    let tab_ids: HashSet<String> = all.iter().cloned().collect();
+    if let Some(own) = crate::auth::accounts(app).default_id
+        && !tab_ids.contains(&own)
+    {
+        all.push(own);
+    }
+    (all, tab_ids)
+}
+
 /// Polls now if a tab has a channel the last poll didn't ask about.
 pub fn nudge(app: &AppHandle) {
     let Some(live) = app.try_state::<Live>() else { return };
-    let tabs: Tabs = app.state::<Settings>().read(Partition::Tabs);
+    let (ids, _) = wanted(app);
     let asked = live.asked.lock().unwrap_or_else(|p| p.into_inner());
-    if tabs.channel_ids().iter().any(|id| !asked.contains(id)) {
+    if ids.iter().any(|id| !asked.contains(id)) {
         live.wake.notify_one();
     }
 }
@@ -71,7 +86,7 @@ pub fn is_live(app: &AppHandle, login: &str) -> bool {
 }
 
 async fn poll(app: &AppHandle) {
-    let ids = app.state::<Settings>().read::<Tabs>(Partition::Tabs).channel_ids();
+    let (ids, tab_ids) = wanted(app);
     let live = app.state::<Live>();
     *live.asked.lock().unwrap_or_else(|p| p.into_inner()) = ids.iter().cloned().collect();
     let channels = if ids.is_empty() {
@@ -87,8 +102,19 @@ async fn poll(app: &AppHandle) {
         }
     };
 
+    // V106-18 One point per tab channel per check; offline and left-out channels drop.
+    if let Some(v) = app.try_state::<viewers::Viewers>() {
+        viewers::record(
+            &mut v.0.lock().unwrap_or_else(|p| p.into_inner()),
+            &channels,
+            &tab_ids,
+            crate::auth::unix_now(),
+        );
+    }
+
     let resolved: Vec<Resolved> = channels
         .iter()
+        .filter(|c| tab_ids.contains(&c.id))
         .map(|c| Resolved {
             id: c.id.clone(),
             login: c.login.clone(),
@@ -107,6 +133,7 @@ async fn poll(app: &AppHandle) {
         // S8 Channels whose login or display name changed since the last look.
         let renamed: Vec<(String, String, String)> = channels
             .iter()
+            .filter(|c| tab_ids.contains(&c.id))
             .filter_map(|c| {
                 let old = last.iter().find(|o| o.id == c.id)?;
                 (old.login != c.login || old.name != c.name).then(|| (c.login.clone(), old.login.clone(), c.name.clone()))
@@ -116,6 +143,7 @@ async fn poll(app: &AppHandle) {
         // S12 Channels whose stream started or ended. Nothing on the first look.
         let flips: Vec<LiveChange> = channels
             .iter()
+            .filter(|c| tab_ids.contains(&c.id))
             .filter_map(|c| {
                 let old = last.iter().find(|o| o.id == c.id)?;
                 (old.stream.is_some() != c.stream.is_some()).then(|| LiveChange {

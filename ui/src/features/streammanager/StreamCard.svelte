@@ -5,7 +5,7 @@
   import { formatNumber } from '../../lib/format';
   import { preview, uptimeShort } from '../browse/lists';
   import Card from '../../components/PanelCard.svelte';
-  import { graph } from './logic';
+  import { graph } from '../../lib/sparkline';
   import { sm } from './streammanager.svelte';
   import Loading from '../../components/Loading.svelte';
 

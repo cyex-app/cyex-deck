@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import type { ActivityFilters } from '../../ipc/bindings/ActivityFilters';
 import type { SmActivity } from '../../ipc/bindings/SmActivity';
-import { adIn, adIntervals, adLengths, alertAction, capPush, graph, raidCountdown, shares, visibleActivity } from './logic.ts';
+import { adIn, adIntervals, adLengths, alertAction, capPush, raidCountdown, shares, visibleActivity } from './logic.ts';
 
 const ALL: ActivityFilters = {
   follows: true,
@@ -55,19 +55,6 @@ test('activity is newest first and filtered by kind', () => {
 test('capPush keeps the newest', () => {
   assert.deepEqual(capPush([1, 2, 3], 4, 3), [2, 3, 4]);
   assert.deepEqual(capPush([], 1, 3), [1]);
-});
-
-test('graph scales into the box', () => {
-  assert.equal(graph([[0, 5]], 100, 40).line, '');
-  const g = graph([[0, 10], [50, 20], [100, 30]], 100, 40);
-  assert.deepEqual([g.min, g.max], [10, 30]);
-  const pts = g.line.split(' ').map((p) => p.split(',').map(Number));
-  assert.deepEqual(pts[0], [0, 38]);
-  assert.deepEqual(pts[2], [100, 2]);
-  assert.ok(g.area.startsWith('M0,40 L0,38') && g.area.endsWith('L100,40 Z'));
-  // Flat: the middle.
-  const flat = graph([[0, 7], [10, 7]], 100, 40);
-  assert.equal(flat.line, '0,20 100,20');
 });
 
 test('ad countdown', () => {

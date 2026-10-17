@@ -8,6 +8,7 @@ pub mod follow;
 pub mod import;
 pub mod live;
 pub mod mute;
+pub mod viewers;
 mod rooms;
 
 pub use closed::any as reopenable;
