@@ -20,6 +20,8 @@ import type { VideoSort } from './bindings/VideoSort';
 export const playerIpc = {
   live: (login: string, account: string | null) => invoke<PlayerSession>('player_live', { login, account }),
   vod: (id: string, account: string | null) => invoke<PlayerSession>('player_vod', { id, account }),
+  /** V1061-03 The VOD Twitch lets this account rewind in, or null. */
+  rewind: (login: string, account: string | null) => invoke<string | null>('player_rewind', { login, account }),
   close: (id: string) => invoke<void>('player_close', { id }),
   /** V103-07 Another player plays this channel now, in any window. */
   playing: (login: string) => invoke<boolean>('player_playing', { login }),

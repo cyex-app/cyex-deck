@@ -21,4 +21,12 @@ quality: Quality,
 /**
  * P4, V101-25 Where the small stream sits while the channel's pages show.
  */
-miniCorner: Corner, };
+miniCorner: Corner, 
+/**
+ * V1061-03 Rewind live streams where Twitch allows it ("Live VODs").
+ */
+liveRewind: boolean, 
+/**
+ * V1061-04 How far Left/Right and J/L jump, in seconds: 5, 10, 15 or 30 (Q24 a).
+ */
+seekStep: number, };
