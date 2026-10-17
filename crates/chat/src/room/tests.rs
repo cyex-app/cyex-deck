@@ -390,7 +390,8 @@ fn shared_rooms_are_the_recent_source_rooms() {
     feed(&mut r, &shared("b", "3", 500));
     feed(&mut r, &shared("c", "1", 600));
     feed(&mut r, &shared("d", "3", 700));
-    feed(&mut r, &msg("e", "7"));
+    // Newest line, no source room (the buffer is time-ordered).
+    feed(&mut r, "@id=e;user-id=7;tmi-sent-ts=800 :u7!u@u PRIVMSG #chan :hello e");
     assert_eq!(r.shared_rooms(0), ["3", "2"]);
     assert_eq!(r.shared_rooms(400), ["3"]);
     assert!(r.shared_rooms(800).is_empty());

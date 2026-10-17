@@ -130,7 +130,7 @@
 <Row
   setting="chat.sharePresence"
   label="Send presence to 7TV and BTTV"
-  hint="Others see your 7TV paint, badge and personal emotes. Only the chat you’re in is sent."
+  hint="Others see your 7TV paint, badge and personal emotes. Only the chats you’re in are sent."
 >
   <Toggle
     label="Send presence to 7TV and BTTV"

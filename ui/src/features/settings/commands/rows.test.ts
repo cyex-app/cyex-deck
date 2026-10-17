@@ -59,4 +59,20 @@ test('hiddenBySubmenu follows the submenu switch', () => {
     rows.map((_, i) => hiddenBySubmenu(rows, i)),
     [false, true, true, false, false, false, false],
   );
+  const gap = [{ enabled: false, text: '@More' }, on('# note'), on(''), on('.B=/b'), on('Top=/t'), on('.C=/c')];
+  assert.deepEqual(
+    gap.map((_, i) => hiddenBySubmenu(gap, i)),
+    [false, false, false, true, false, false],
+  );
+});
+
+test('empty name keeps the sends text', () => {
+  const v = commandView(on(''));
+  const r = commandRow({ ...v, sends: 'Hello' });
+  assert.equal(r.text, ' Hello');
+  const back = commandView(r);
+  assert.equal(back.name, '');
+  assert.equal(back.sends, 'Hello');
+  assert.deepEqual(commandRow(back), r);
+  assert.equal(commandRow({ ...v, name: '/a\tb', sends: 'x' }).text, '/ab x');
 });

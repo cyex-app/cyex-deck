@@ -273,7 +273,7 @@ export const CHAT: Entry[] = [
     id: 'chat.sharePresence',
     page: 'emotes',
     label: 'Send presence to 7TV and BTTV',
-    description: 'Others see your 7TV paint, badge and personal emotes. Only the chat you’re in is sent.',
+    description: 'Others see your 7TV paint, badge and personal emotes. Only the chats you’re in are sent.',
     keywords: ['presence', 'personal emotes', 'privacy', '7tv', 'bttv'],
   },
 
@@ -548,7 +548,7 @@ export const CHAT: Entry[] = [
     id: 'uploader.headers',
     page: 'uploads',
     label: 'Headers',
-    description: 'Sent with every upload, like a key. Empty sends none.',
+    description: 'Sent with every upload, like a key. Kept securely on this PC. Empty: none are sent.',
     keywords: ['image', 'upload', 'paste', 'imgur', 'nuuls', 'sharex'],
   },
   {
@@ -562,7 +562,7 @@ export const CHAT: Entry[] = [
     id: 'uploader.deletionLink',
     page: 'uploads',
     label: 'Delete link',
-    description: 'Where the delete link is in the answer. Empty means no delete link.',
+    description: 'Where the delete link is in the answer, like {data.deletion}. Empty: no delete link is kept.',
     keywords: ['image', 'upload', 'paste', 'imgur', 'nuuls', 'sharex'],
   },
 

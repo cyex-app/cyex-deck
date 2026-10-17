@@ -256,9 +256,6 @@ pub fn sm_obs_open_file(app: AppHandle, name: String) -> Result<(), String> {
     use cyex_settings::Partition;
     use cyex_settings::schema::StreamManager;
     use tauri::Manager;
-    if !obs::FILES.iter().any(|(n, _)| *n == name) {
-        return Err("Not one of the status files.".into());
-    }
     let file = obs::table(&app)
         .into_iter()
         .find(|f| f.name == name)

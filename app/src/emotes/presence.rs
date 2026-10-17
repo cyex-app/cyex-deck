@@ -59,6 +59,12 @@ fn due(last: Option<Instant>, every: Duration, now: Instant) -> bool {
 /// `ids`: the chat's channel id first, then the other channels of its shared chat (Sent only).
 fn plan(s: &mut State, account: &str, login: &str, ids: &[String], why: Why, now: Instant) -> Out {
     s.sent.retain(|_, t| now.saturating_duration_since(*t) < RECENT);
+    s.told.retain(|_, t| {
+        [t.bttv, t.seen]
+            .into_iter()
+            .flatten()
+            .any(|at| now.saturating_duration_since(at) < RECENT)
+    });
     let t = s.told.entry((account.to_owned(), login.to_owned())).or_default();
     let mut out = Out {
         seventv: Vec::new(),
