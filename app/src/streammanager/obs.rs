@@ -10,15 +10,57 @@ use std::sync::Mutex;
 use cyex_core::number::grouped;
 use cyex_settings::Partition;
 use cyex_settings::schema::StreamManager;
+use serde::Serialize;
 use tauri::{AppHandle, Manager};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 use time::macros::format_description;
+use ts_rs::TS;
 
 use super::stats::Stats;
 use crate::settings::Settings;
 
 const MARKERS: &str = "markers.log";
+/// V106-16 Every file in the status folder and what it holds, in table order.
+pub const FILES: [(&str, &str); 8] = [
+    ("live.txt", "Live or offline"),
+    ("title.txt", "Your stream title"),
+    ("category.txt", "Your category"),
+    ("viewers.txt", "Viewers right now"),
+    ("uptime.txt", "Time live, like 1:23"),
+    ("followers.txt", "Your follower count"),
+    ("subscribers.txt", "Your subscriber count"),
+    (MARKERS, "Markers you add, with the time and how long you’d been live"),
+];
+
+/// V106-16 One row of the files table in Settings.
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ObsFile {
+    pub name: String,
+    pub what: String,
+    pub path: String,
+    pub exists: bool,
+}
+
+/// V106-16 The files table: each name under the status folder and whether it is there.
+pub fn table(app: &AppHandle) -> Vec<ObsFile> {
+    let dir = folder(app);
+    FILES
+        .iter()
+        .map(|(name, what)| {
+            let path = dir.as_ref().map(|d| d.join(name));
+            ObsFile {
+                name: (*name).into(),
+                what: (*what).into(),
+                path: path.as_ref().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default(),
+                exists: path.is_some_and(|p| p.is_file()),
+            }
+        })
+        .collect()
+}
+
 /// How many marker lines the UI lists.
 const MARKERS_SHOWN: usize = 50;
 
@@ -155,6 +197,14 @@ pub fn markers(app: &AppHandle) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn files_match_the_table() {
+        let names: Vec<&str> = files(&Stats::default(), 0).iter().map(|(n, _)| *n).collect();
+        let table: Vec<&str> = FILES.iter().take(7).map(|(n, _)| *n).collect();
+        assert_eq!(names, table);
+        assert_eq!(FILES[7].0, MARKERS);
+    }
 
     #[test]
     fn uptime_counts_hours_and_minutes() {

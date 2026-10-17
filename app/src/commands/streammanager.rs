@@ -5,6 +5,7 @@
 use cyex_twitch::helix::{ads, channel, modes};
 use serde::Serialize;
 use tauri::AppHandle;
+use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 use ts_rs::TS;
 
@@ -228,4 +229,48 @@ pub fn sm_obs_open(app: AppHandle) -> Result<(), String> {
     app.opener()
         .open_path(dir.to_string_lossy(), None::<&str>)
         .map_err(|e| e.to_string())
+}
+
+/// V106-15 Picks the status folder. Nothing when cancelled.
+#[tauri::command]
+pub async fn sm_obs_pick_folder(app: AppHandle) -> Result<Option<String>, String> {
+    let mut d = app.dialog().file().set_title("Folder for the OBS files");
+    if let Some(dir) = obs::folder(&app).filter(|p| p.is_dir()) {
+        d = d.set_directory(dir);
+    }
+    let Some(picked) = d.blocking_pick_folder() else {
+        return Ok(None);
+    };
+    Ok(Some(picked.into_path().map_err(|e| e.to_string())?.to_string_lossy().into_owned()))
+}
+
+/// V106-16 The status files, for the table in Settings.
+#[tauri::command]
+pub fn sm_obs_files(app: AppHandle) -> Vec<obs::ObsFile> {
+    obs::table(&app)
+}
+
+/// V106-16 Opens one status file. Only the known names.
+#[tauri::command]
+pub fn sm_obs_open_file(app: AppHandle, name: String) -> Result<(), String> {
+    use cyex_settings::Partition;
+    use cyex_settings::schema::StreamManager;
+    use tauri::Manager;
+    if !obs::FILES.iter().any(|(n, _)| *n == name) {
+        return Err("Not one of the status files.".into());
+    }
+    let file = obs::table(&app)
+        .into_iter()
+        .find(|f| f.name == name)
+        .ok_or("Not one of the status files.")?;
+    if !file.exists {
+        let sm: StreamManager = app.state::<crate::settings::Settings>().read(Partition::StreamManager);
+        return Err(if sm.obs.enabled {
+            "Not there yet. It’s written while the stream manager is open."
+        } else {
+            "Not there yet. Turn on Write status files first."
+        }
+        .into());
+    }
+    app.opener().open_path(file.path, None::<&str>).map_err(|e| e.to_string())
 }

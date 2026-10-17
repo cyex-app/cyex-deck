@@ -3,37 +3,53 @@
      same folder. -->
 <script lang="ts">
   import Button from '../../../components/Button.svelte';
+  import IconButton from '../../../components/IconButton.svelte';
   import Row from '../../../components/Row.svelte';
   import Toggle from '../../../components/Toggle.svelte';
+  import type { ObsFile } from '../../../ipc/bindings/ObsFile';
   import { smIpc } from '../../../ipc/streammanager';
+  import { copy } from '../../../lib/clipboard';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
   import { errorText } from '../../../lib/errors';
 
-  const FILES: [string, string][] = [
-    ['live.txt', 'live or offline'],
-    ['title.txt', 'stream title'],
-    ['category.txt', 'category'],
-    ['viewers.txt', 'viewers right now'],
-    ['uptime.txt', 'time live, like 1:23'],
-    ['followers.txt', 'follower count'],
-    ['subscribers.txt', 'subscriber count'],
-  ];
-
   const obs = $derived(settings.v.streammanager.obs);
   let folder = $state<string | null>(null);
-  let typed = $state(settings.v.streammanager.obs.folder);
+  let files = $state.raw<ObsFile[]>([]);
+
+  function reload() {
+    smIpc
+      .obsFiles()
+      .then((f) => (files = f))
+      .catch(() => (files = []));
+  }
 
   $effect(() => {
     void obs.folder;
+    void obs.enabled;
     smIpc
       .obsFolder()
       .then((f) => (folder = f))
       .catch(() => (folder = null));
+    reload();
   });
 
-  function saveFolder() {
-    void settings.patch('streammanager', { obs: { folder: typed.trim() } });
+  // V106-15
+  async function pick() {
+    try {
+      const p = await smIpc.obsPickFolder();
+      if (p) await settings.patch('streammanager', { obs: { folder: p } });
+    } catch (e) {
+      toast.error(errorText(e));
+    }
+  }
+
+  // V106-16
+  function openFile(name: string) {
+    smIpc
+      .obsOpenFile(name)
+      .catch((e) => toast.error(errorText(e)))
+      .finally(reload);
   }
 </script>
 
@@ -43,36 +59,38 @@
 <Row setting="streammanager.obs.enabled" label="Write status files" hint="Updated about every 30 seconds while the stream manager is open.">
   <Toggle label="Write status files" checked={obs.enabled} onchange={(on) => void settings.patch('streammanager', { obs: { enabled: on } })} />
 </Row>
-<Row setting="streammanager.obs.folder" label="Folder" hint="Leave empty for a stream-status folder next to the settings." stacked>
-  <form
-    class="folder"
-    onsubmit={(e) => {
-      e.preventDefault();
-      saveFolder();
-    }}
-  >
-    <input class="field" placeholder="e.g. C:\Streaming\status" bind:value={typed} onblur={saveFolder} />
-    <Button small onclick={() => void smIpc.obsOpen().catch((e) => toast.error(errorText(e)))}>Open folder</Button>
-  </form>
+<Row setting="streammanager.obs.folder" label="Folder" hint="Where the files go. Until you pick one: a stream-status folder next to the settings." stacked>
+  <div class="folder">
+    <Button small icon="folder" onclick={pick}>Select folder</Button>
+    <Button small icon="popout" onclick={() => void smIpc.obsOpen().catch((e) => toast.error(errorText(e)))}>Open folder</Button>
+    {#if obs.folder}<IconButton icon="undo" label="Use default folder" hint="Back to the stream-status folder next to the settings." size={14} onclick={() => void settings.patch('streammanager', { obs: { folder: '' } })} />{/if}
+  </div>
   {#if folder}<p class="path">{folder}</p>{/if}
 </Row>
 
-<p class="note">In OBS, add a “Text (GDI+)” source, tick “Read from file” and pick one of these:</p>
-<ul class="files">
-  {#each FILES as [name, what] (name)}
-    <li><code>{name}</code> {what}</li>
-  {/each}
-</ul>
-<p class="note">Markers you add in the stream manager are listed in <code>markers.log</code> in the same folder, with the time and how long you’d been live.</p>
+<p class="note">In OBS, add a “Text (GDI+)” source, tick “Read from file” and pick one of these files.</p>
+<table class="files" data-setting="streammanager:files">
+  <thead><tr><th>File</th><th>What’s in it</th><th><span class="sr">Actions</span></th></tr></thead>
+  <tbody>
+    {#each files as f (f.name)}
+      <tr>
+        <td><code>{f.name}</code></td>
+        <td>{f.what}{#if !f.exists}<span class="later"> · not written yet</span>{/if}</td>
+        <td class="acts">
+          <IconButton icon="popout" label="Open {f.name}" size={14} onclick={() => openFile(f.name)} />
+          <IconButton icon="copy" label="Copy the path of {f.name}" size={14} onclick={() => void copy(f.path, 'Path')} />
+        </td>
+      </tr>
+    {/each}
+  </tbody>
+</table>
 
 <style>
   .folder {
     display: flex;
+    align-items: center;
     gap: 6px;
-  }
-  .folder .field {
-    flex: 1;
-    min-width: 0;
+    flex-wrap: wrap;
   }
   .path {
     margin: 4px 0 0;
@@ -88,10 +106,43 @@
     color: var(--muted);
   }
   .files {
-    margin: 0;
-    padding-left: 18px;
+    width: 100%;
+    border-collapse: collapse;
     font-size: 0.82rem;
     color: var(--muted);
+  }
+  th {
+    text-align: left;
+    padding: 0 8px 4px 0;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  td {
+    padding: 5px 8px 5px 0;
+    border-top: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  td:first-child {
+    white-space: nowrap;
+  }
+  .acts {
+    width: 1%;
+    white-space: nowrap;
+    text-align: right;
+    padding-right: 0;
+  }
+  .later {
+    color: var(--dim);
+  }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
   }
   code {
     font-family: var(--font-mono);
