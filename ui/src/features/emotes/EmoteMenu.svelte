@@ -18,7 +18,13 @@
   import { emojiGroups, emojiLabel, findEmoji, type Emoji, type EmojiGroup } from './emoji';
   import { PROVIDER_NAMES, emoteKey, emoteRatio } from './emotes';
   import { PROVIDER_TABS, type ProviderTab, cellKey, pick, search, usable } from './menu';
-  import { emoteMenu } from './menus';
+  import { emoteMenu, forgetEmoteMenu } from './menus';
+  import type { AddTarget } from '../../ipc/bindings/AddTarget';
+  import type { HereEdit } from '../../ipc/bindings/HereEdit';
+  import EditBar from './edit/EditBar.svelte';
+  import { editEntries } from './edit/menuItems';
+  import { editOptionsFor } from './edit/options';
+  import { runEdit } from './edit/run';
   import { errorText } from '../../lib/errors';
   import { uniqueKeys } from '../../lib/keys';
   import Loading from '../../components/Loading.svelte';
@@ -67,11 +73,26 @@
     return hideTip;
   });
 
-  onMount(() => {
+  function load() {
     emoteMenu(login, account)
       .then((m) => (menu = m))
       .catch((e) => (error = errorText(e)));
-  });
+  }
+
+  onMount(load);
+
+  /** V106-31/32 The add/rename strip; the emote it is about. */
+  type Editing = {
+    emote: { id: string; name: string };
+    mode: { kind: 'add'; target: AddTarget; ownName: string } | { kind: 'rename'; here: HereEdit };
+  };
+  let editing = $state<Editing | null>(null);
+
+  function edited() {
+    editing = null;
+    forgetEmoteMenu(login);
+    load();
+  }
 
   $effect(() => {
     if ((tab === 'emoji' || query.trim()) && !emoji) void emojiGroups().then((g) => (emoji = g));
@@ -101,11 +122,24 @@
     return PROVIDER_NAMES[t];
   }
 
-  function toggleFavorite(e: MouseEvent, key: EmoteKey) {
+  async function toggleFavorite(e: MouseEvent, key: EmoteKey) {
     e.preventDefault();
+    const at = { clientX: e.clientX, clientY: e.clientY };
+    // V106-31/32 7TV emotes also offer editing.
+    const o = account && key.source === 'seventv' ? await editOptionsFor(account, login, key.id, key.name) : null;
+    const extra = editEntries(o, {
+      add: (t) => (editing = { emote: key, mode: { kind: 'add', target: t, ownName: o?.ownName ?? key.name } }),
+      rename: (h) => (editing = { emote: key, mode: { kind: 'rename', here: h } }),
+      remove: (h) =>
+        void runEdit(account!, login, { type: 'remove', setId: h.setId, emoteId: key.id, alias: h.alias }, h.channel).then(
+          (f) => {
+            if (!f) edited();
+          },
+        ),
+    });
     const k = emoteKey(key.source, key.id);
     const on = favorite.has(k);
-    openMenu(e, [
+    openMenu(at, [
       {
         label: on ? 'Unfavorite' : 'Favorite',
         icon: on ? 'starFilled' : 'star',
@@ -116,6 +150,7 @@
               : [...saved.favorites, key],
           }),
       },
+      ...extra,
     ]);
   }
 
@@ -254,10 +289,14 @@
       {/if}
     {/if}
   </div>
+  {#if editing && account}
+    <EditBar {account} {login} emote={editing.emote} mode={editing.mode} ondone={edited} oncancel={() => (editing = null)} />
+  {/if}
 </div>
 
 <style>
   .menu {
+    position: relative;
     display: flex;
     flex-direction: column;
     width: min(380px, calc(100vw - 24px));
