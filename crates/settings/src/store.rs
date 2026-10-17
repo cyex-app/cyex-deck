@@ -104,6 +104,11 @@ impl Store {
         !self.dirty.is_empty()
     }
 
+    /// Writes `p` at the next flush even if unchanged: a one-time migration in `sanitize` ran on load.
+    pub fn mark_dirty(&mut self, p: Partition) {
+        self.dirty.insert(p);
+    }
+
     /// Writes changed partitions. Takes today's backup first if the day rolled over.
     pub fn flush(&mut self) -> Result<()> {
         if self.dirty.is_empty() {
@@ -243,6 +248,16 @@ mod tests {
         assert!(report.reset.is_empty());
         assert_eq!(store.read::<General>(Partition::General), General::default());
         assert!(!tmp.path().join("general.json").exists());
+    }
+
+    #[test]
+    fn mark_dirty_writes_at_flush() {
+        let tmp = TempDir::new("store-mark-dirty");
+        let clock = Arc::new(FakeClock::at(day(9)));
+        let (mut store, _) = open(tmp.path(), &clock);
+        store.mark_dirty(Partition::Chat);
+        store.flush().unwrap();
+        assert!(tmp.path().join("chat.json").exists());
     }
 
     #[test]
