@@ -8,6 +8,7 @@
   import type { Field } from '../rules/fields';
   import { OPT } from '../rules/options';
   import RuleList from '../rules/RuleList.svelte';
+  import SectionHead from '../SectionHead.svelte';
   import NumberField from '../../../components/NumberField.svelte';
 
   const c = $derived(settings.v.commands);
@@ -91,8 +92,7 @@
   });
 </script>
 
-<h2>Automations</h2>
-<p class="intro">When someone says the trigger, the response runs as if you typed it.</p>
+<SectionHead title="Automations" level={2} docs="automations">When someone says the trigger, the response runs as if you typed it.</SectionHead>
 
 <Row setting="commands.automationsOn" label="Run automations" hint="They answer as your account, so keep them friendly and slow.">
   <Toggle
@@ -115,11 +115,6 @@
   onchange={(automations) => void settings.patch('commands', { automations })}
   addLabel="Add automation"
   empty="No automations yet."
+  deleted="Automation deleted."
+  reorder={{ key: 'commands.automations', label: (a, i) => a.name || a.trigger || `Automation ${i + 1}` }}
 />
-
-<style>
-  .intro {
-    margin: -6px 0 6px;
-    color: var(--dim);
-  }
-</style>
