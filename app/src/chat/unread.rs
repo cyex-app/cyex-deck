@@ -81,12 +81,17 @@ mod tests {
     use cyex_chat::Room;
     use cyex_chat::build::Me;
     use cyex_chat::irc::Line;
+    use cyex_chat::rules::Rules;
     use cyex_chat::tokenize::NoEmotes;
+    use cyex_settings::schema::Highlights;
+    use std::sync::Arc;
 
     use super::*;
 
     fn level_of(raw: &str) -> Unread {
         let mut room = Room::new("chan", Some(Me::new("1", "me", "Me")));
+        // V106-33 Your name lights up through its Highlights row (on by default).
+        room.set_rules(Arc::new(Rules::new(&Highlights::default())));
         level(&room.handle_line(&Line::parse(raw).unwrap(), 0, &NoEmotes))
     }
 

@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use cyex_chat::rules::Rules;
 use cyex_chat::similar::RepeatCheck;
 use cyex_settings::Partition;
-use cyex_settings::schema::{Chat as ChatSettings, Highlights, Mentions};
+use cyex_settings::schema::{Chat as ChatSettings, Highlights};
 use cyex_twitch::{gql, helix};
 use tauri::{AppHandle, Manager};
 
@@ -40,9 +40,8 @@ pub fn current(app: &AppHandle) -> Arc<Rules> {
 pub fn rebuild(app: &AppHandle) {
     let settings = app.state::<Settings>();
     let h: Highlights = settings.read(Partition::Highlights);
-    let m: Mentions = settings.read(Partition::Mentions);
     let c: ChatSettings = settings.read(Partition::Chat);
-    let mut rules = Rules::new(&h, &m);
+    let mut rules = Rules::new(&h);
     rules.repeat = c.repeats.then(|| RepeatCheck {
         threshold: f32::from(c.repeat_similarity) / 100.0,
         min: 2,

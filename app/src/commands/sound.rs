@@ -29,7 +29,7 @@ pub fn sound_play(app: AppHandle, path: Option<String>) -> CmdResult<()> {
     {
         return Err("Not a sound from your settings.".into());
     }
-    sound::alert(&app, path.as_deref());
+    sound::preview(&app, path.as_deref());
     Ok(())
 }
 

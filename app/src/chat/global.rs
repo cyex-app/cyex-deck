@@ -15,7 +15,7 @@ use cyex_chat::mentions::{self, MentionSet};
 use cyex_chat::model::{Flag, Highlight, HighlightKind};
 use cyex_chat::rules::Outcome;
 use cyex_settings::Partition;
-use cyex_settings::schema::Mentions;
+use cyex_settings::schema::Highlights;
 use cyex_twitch::firehose::{self, Status};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -91,9 +91,9 @@ pub fn sync(app: &AppHandle) {
     let Some(global) = app.try_state::<Global>() else {
         return;
     };
-    let m: Mentions = app.state::<Settings>().read(Partition::Mentions);
-    let set = if m.global_active() {
-        MentionSet::new(&m.global_list)
+    let h: Highlights = app.state::<Settings>().read(Partition::Highlights);
+    let set = if h.global_active() {
+        MentionSet::new(&h.global_list)
     } else {
         MentionSet::default()
     };
@@ -200,7 +200,7 @@ impl Reader {
         let mut color: Option<&str> = None;
         self.set.each_match(peek.text, &mut self.scratch, |r| {
             color.get_or_insert(r.alert.color.as_str());
-            out.add_mention(&r.alert);
+            out.add(&r.alert);
         });
         let Some(color) = color.map(str::to_owned) else {
             return;

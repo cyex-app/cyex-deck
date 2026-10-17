@@ -1,8 +1,8 @@
-//! V104-01, V104-02 The Mentions page: pattern checks, the firehose's status, and a
+//! V104-01, V104-02, V106-33 Highlights' word rows: pattern checks, the firehose's status, and a
 //! mention's own sound file.
 
 use cyex_chat::mentions::{self, MentionCheck};
-use cyex_settings::schema::{MentionRule, SOUND_TYPES};
+use cyex_settings::schema::{PhraseRule, SOUND_TYPES};
 use tauri::AppHandle;
 use tauri::ipc::Response;
 use tauri_plugin_dialog::DialogExt;
@@ -14,10 +14,11 @@ type CmdResult<T> = Result<T, String>;
 /// Sound files larger than this aren't played.
 const MAX_SOUND: u64 = 5 * 1024 * 1024;
 
-/// What to show under each pattern: why it doesn't work, or how it works differently.
+/// What to show under each pattern: why it doesn't work, how it works differently, or
+/// which earlier row it repeats (V106-33).
 #[tauri::command]
-pub fn mentions_check(list: Vec<MentionRule>) -> Vec<MentionCheck> {
-    list.iter().map(mentions::check).collect()
+pub fn mentions_check(list: Vec<PhraseRule>) -> Vec<MentionCheck> {
+    mentions::check_all(&list)
 }
 
 #[tauri::command]

@@ -7,7 +7,6 @@ use std::thread;
 use std::time::Duration;
 
 use cyex_auth::secrets::{KeyringStore, MemoryStore, SecretStore};
-use cyex_settings::schema::{Highlights, Mentions};
 use cyex_settings::{Bundle, Partition, Schema, Store, SystemClock};
 use serde::Serialize;
 use serde_json::Value;
@@ -57,15 +56,17 @@ struct Changed<'a> {
 
 pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let dir = crate::paths::config(app)?.join("settings");
-    // V104-01 Mentions got their own file; the first start with it takes your name's
-    // options from Highlights.
-    let first_mentions = !dir.join(Partition::Mentions.file_name()).exists();
     // V106-08 Chat saved before presence was turned on for everyone; sanitize turns it on.
     let presence_was = presence_pending(&dir.join(Partition::Chat.file_name()));
     let (mut store, report) = Store::open(dir, Arc::new(SystemClock))?;
-    if first_mentions {
-        let h: Highlights = store.read(Partition::Highlights);
-        let _ = store.set(Partition::Mentions, serde_json::to_value(Mentions::from_highlights(&h))?);
+    if let Some(r) = &report.merged {
+        eprintln!(
+            "settings: V106-33 mentions merged into highlights ({} from mentions, {} from highlights, {} global, {} look the same, {} over the limit); V106-09 your name plays a sound now",
+            r.from_mentions, r.from_highlights, r.global, r.duplicates, r.cut
+        );
+    }
+    if report.old_mentions_unreadable {
+        eprintln!("settings: mentions.json unreadable, left as is");
     }
     if let Some(was_on) = presence_was {
         store.mark_dirty(Partition::Chat);
@@ -224,11 +225,11 @@ impl Settings {
         }
         if changed
             .iter()
-            .any(|(p, _)| matches!(p, Partition::Chat | Partition::Highlights | Partition::Mentions))
+            .any(|(p, _)| matches!(p, Partition::Chat | Partition::Highlights))
         {
             crate::chat::on_settings(app);
         }
-        if changed.iter().any(|(p, _)| *p == Partition::Mentions) {
+        if changed.iter().any(|(p, _)| *p == Partition::Highlights) {
             crate::chat::global::sync(app);
         }
         if changed.iter().any(|(p, _)| *p == Partition::Miner) {

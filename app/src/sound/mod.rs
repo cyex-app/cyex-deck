@@ -3,6 +3,8 @@
 //! "cyex deck", apart from streams ("cyex deck - streams", WebView2's own process), or with
 //! them as one entry. The page decodes a sound file the first time (Chromium reads every
 //! type in `SOUND_TYPES`; Windows can't read ogg and opus). Settings → Sound.
+//! V106-34 Every app sound goes through [`alert`], which stays quiet while a cyex deck window
+//! is in front unless the user turned that on; Settings' Play and test buttons use [`preview`].
 
 mod cache;
 mod chime;
@@ -16,7 +18,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use cyex_settings::Partition;
-use cyex_settings::schema::{General, Highlights, Mentions, OutputDevice, is_sound_file};
+use cyex_settings::schema::{General, Highlights, OutputDevice, is_sound_file};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use ts_rs::TS;
@@ -127,11 +129,35 @@ pub fn reset_permit(app: &AppHandle) {
 }
 
 /// U6, V104-01 A mention, highlight, live alert or whisper sound: its file, or the chime.
-/// Streamer mode can mute them (U4).
+/// Streamer mode can mute them (U4). V106-34 Quiet while cyex deck is in front, unless the
+/// user said otherwise (any cyex window counts).
 pub fn alert(app: &AppHandle, file: Option<&str>) {
     if crate::streamer::hides(app, |s| s.mute_sounds) {
         return;
     }
+    let s: General = app.state::<Settings>().read(Partition::General);
+    if !may_play(crate::toasts::app_in_front(app), s.sound.play_in_front) {
+        return;
+    }
+    play_file(app, file);
+}
+
+/// Settings' Play and test buttons: always, you clicked them in the app (V106-34).
+/// Streamer mode can still mute them (U4).
+pub fn preview(app: &AppHandle, file: Option<&str>) {
+    if crate::streamer::hides(app, |s| s.mute_sounds) {
+        return;
+    }
+    play_file(app, file);
+}
+
+/// V106-34 An app sound plays unless cyex deck is in front and the user said not then.
+fn may_play(in_front: bool, play_in_front: bool) -> bool {
+    play_in_front || !in_front
+}
+
+/// A sound file, or the chime when there's none.
+fn play_file(app: &AppHandle, file: Option<&str>) {
     let Some(sounds) = app.try_state::<Sounds>() else {
         return;
     };
@@ -258,40 +284,24 @@ pub fn devices() -> SoundDevices {
     SoundDevices { devices, default_name }
 }
 
-/// Whether `path` is a sound file one of your mentions or highlights names. Only those are
-/// read or played.
+/// Whether `path` is a sound file one of your highlights names (V106-33: mentions are
+/// highlights now). Only those are read or played.
 pub fn named(app: &AppHandle, path: &str) -> bool {
-    let settings = app.state::<Settings>();
-    let m: Mentions = settings.read(Partition::Mentions);
-    let h: Highlights = settings.read(Partition::Highlights);
-    let named = std::iter::once(&m.me.alert)
-        .chain(m.list.iter().map(|r| &r.alert))
-        .chain(m.global_list.iter().map(|r| &r.alert))
-        .any(|a| a.sound_file == path)
-        || h.phrases
-            .iter()
-            .map(|r| &r.alert)
-            .chain(h.users.iter().map(|r| &r.alert))
-            .chain(h.badges.iter().map(|r| &r.alert))
-            .chain(h.apps.iter().map(|r| &r.alert))
-            .chain(
-                [
-                    &h.first_message,
-                    &h.redeemed,
-                    &h.subs,
-                    &h.announcements,
-                    &h.watch_streaks,
-                    &h.own,
-                ]
-                .map(|b| &b.alert),
-            )
-            .any(|a| a.sound_file == path);
-    named && is_sound_file(path)
+    let h: Highlights = app.state::<Settings>().read(Partition::Highlights);
+    h.alerts().any(|a| a.sound_file == path) && is_sound_file(path)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sounds_wait_for_the_background_unless_asked() {
+        assert!(may_play(false, false));
+        assert!(!may_play(true, false));
+        assert!(may_play(false, true));
+        assert!(may_play(true, true));
+    }
 
     #[test]
     fn samples_are_whole_stereo_frames() {
