@@ -1,6 +1,8 @@
 // Small helpers for drawing provider emotes: names, hidden ones (E4), modifiers (C7).
 
+import type { AddTarget } from '../../ipc/bindings/AddTarget';
 import type { EmoteSource } from '../../ipc/bindings/EmoteSource';
+import type { HereEdit } from '../../ipc/bindings/HereEdit';
 import type { Layer } from '../../ipc/bindings/Layer';
 import type { Provider } from '../../ipc/bindings/Provider';
 
@@ -59,4 +61,6 @@ export interface CardTarget {
   stack: Layer[];
   /** The emote's box on screen. */
   rect: DOMRect;
+  /** V106-31/32 Opens with this form. */
+  edit?: { kind: 'add'; target: AddTarget } | { kind: 'rename'; here: HereEdit };
 }
