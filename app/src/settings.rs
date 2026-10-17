@@ -1,5 +1,6 @@
 //! Owns the settings store: debounced saves, change events to every window (2.8, 2.9).
 
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
@@ -59,10 +60,19 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     // V104-01 Mentions got their own file; the first start with it takes your name's
     // options from Highlights.
     let first_mentions = !dir.join(Partition::Mentions.file_name()).exists();
+    // V106-08 Chat saved before presence was turned on for everyone; sanitize turns it on.
+    let presence_was = presence_pending(&dir.join(Partition::Chat.file_name()));
     let (mut store, report) = Store::open(dir, Arc::new(SystemClock))?;
     if first_mentions {
         let h: Highlights = store.read(Partition::Highlights);
         let _ = store.set(Partition::Mentions, serde_json::to_value(Mentions::from_highlights(&h))?);
+    }
+    if let Some(was_on) = presence_was {
+        store.mark_dirty(Partition::Chat);
+        eprintln!(
+            "settings: V106-08 presence to 7TV and BTTV turned on once for everyone (it was {})",
+            if was_on { "on" } else { "off" }
+        );
     }
     let secrets: Arc<dyn SecretStore> = if crate::paths::webview(app).is_some() {
         Arc::new(MemoryStore::default())
@@ -84,6 +94,13 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         secrets,
     });
     Ok(())
+}
+
+/// V106-08 `Some(sharePresence)` when the saved chat file predates the one-time switch-on.
+fn presence_pending(file: &Path) -> Option<bool> {
+    let v: Value = serde_json::from_str(&std::fs::read_to_string(file).ok()?).ok()?;
+    (v.get("presenceOnOnce").and_then(Value::as_bool) != Some(true))
+        .then(|| v.get("sharePresence").and_then(Value::as_bool).unwrap_or(true))
 }
 
 pub fn flush_now(app: &AppHandle) {
@@ -306,6 +323,22 @@ mod tests {
         assert!(!store.export(&Partition::ALL).to_json().contains("s3cr3t-key"));
         // A second pass changes nothing; a later flush (and its backup) stays clean.
         assert!(!scrub_uploader(&mut store, &secrets).unwrap());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn presence_pending_reads_old_chat_files() {
+        let dir = std::env::temp_dir().join(format!("cyex-presence-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("chat.json");
+        assert_eq!(presence_pending(&file), None, "no file");
+        std::fs::write(&file, r#"{"sharePresence":false}"#).unwrap();
+        assert_eq!(presence_pending(&file), Some(false));
+        std::fs::write(&file, r#"{"presenceOnOnce":true,"sharePresence":false}"#).unwrap();
+        assert_eq!(presence_pending(&file), None);
+        std::fs::write(&file, "not json").unwrap();
+        assert_eq!(presence_pending(&file), None);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -114,14 +114,19 @@ pub async fn owner_name(http: &Http, emote_id: &str) -> Result<Option<String>> {
     )
 }
 
-/// D21 Tells 7TV that this user is in a channel, so others see their cosmetics.
-pub async fn post_presence(http: &Http, seventv_user: &str, channel_id: &str) -> Result<()> {
-    let body = json!({
-        "kind": 1,
-        "passive": false,
-        "session_id": null,
-        "data": { "platform": "TWITCH", "id": channel_id },
-    });
+/// D21 V106-08 The presence body, as the 7TV extension sends it (`worker.http.ts:236-245`):
+/// `passive` only on joining, never a session id (7TV ignores both, `users.rs:471`).
+pub fn presence_body(channel_id: &str, passive: bool) -> Value {
+    let mut body = json!({ "kind": 1, "data": { "platform": "TWITCH", "id": channel_id } });
+    if passive {
+        body["passive"] = json!(true);
+    }
+    body
+}
+
+/// D21 Tells 7TV that this user is in a channel, so others see their cosmetics. No auth.
+pub async fn post_presence(http: &Http, seventv_user: &str, channel_id: &str, passive: bool) -> Result<()> {
+    let body = presence_body(channel_id, passive);
     let _: Value = http
         .post_json(&format!("{V3}/users/{seventv_user}/presences"), &body)
         .await?;
@@ -356,6 +361,29 @@ impl RawBridgeItem {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn presence_body_is_kind_and_data() {
+        assert_eq!(
+            presence_body("123", false),
+            json!({ "kind": 1, "data": { "platform": "TWITCH", "id": "123" } })
+        );
+    }
+
+    #[test]
+    fn joining_adds_only_passive() {
+        assert_eq!(
+            presence_body("123", true),
+            json!({ "kind": 1, "passive": true, "data": { "platform": "TWITCH", "id": "123" } })
+        );
+    }
+
+    #[test]
+    fn presence_never_has_a_session_id() {
+        for passive in [false, true] {
+            assert!(presence_body("1", passive).get("session_id").is_none());
+        }
+    }
 
     fn fixture<T: serde::de::DeserializeOwned>(name: &str) -> T {
         let path = format!("{}/tests/fixtures/7tv/{name}", env!("CARGO_MANIFEST_DIR"));

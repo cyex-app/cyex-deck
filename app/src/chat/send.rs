@@ -12,6 +12,8 @@ use super::{Chat, Identity, RoomKey, now_ms, typed};
 
 /// Twitch rejects the same text twice within this window.
 const DUPLICATE_MS: i64 = 30_000;
+/// V106-08 O4 A channel whose lines showed up this recently is still in the shared chat.
+const SHARED_SEEN_MS: i64 = 10 * 60 * 1000;
 
 /// Sends in a room, shown or not (timers and automations send to rooms no view shows).
 pub fn send_to(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<String>) -> Result<(), String> {
@@ -84,7 +86,9 @@ pub fn send_to(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<Stri
         at_ms: now,
     });
     if let Identity::Account(account) = &key.0 {
-        crate::emotes::presence::touch(app, account, &key.1);
+        // V106-08 O4 In a shared chat, 7TV hears about every channel of it.
+        let shared = entry.room.shared_rooms(now - SHARED_SEEN_MS);
+        crate::emotes::presence::touch(app, account, &key.1, crate::emotes::presence::Why::Sent, &shared);
     }
     // F20 ".gg" as text, not as Twitch's command.
     let out = if action { out } else { typed::escape(out) };
