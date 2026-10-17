@@ -165,7 +165,7 @@ impl Cosmetics {
 }
 
 /// Deletes the account's stored token if it is still `used`. False when it was replaced.
-pub(super) fn forget_if_same(tokens: &SevenTvTokens, account: &str, used: &cyex_auth::SevenTvToken) -> bool {
+pub(crate) fn forget_if_same(tokens: &SevenTvTokens, account: &str, used: &cyex_auth::SevenTvToken) -> bool {
     if tokens.get(account).is_none_or(|t| t.secret() != used.secret()) {
         return false;
     }

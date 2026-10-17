@@ -64,6 +64,7 @@ fn main() {
             hermes::init(handle);
             emotes::init(handle);
             cosmetics::init(handle);
+            emotes::edit::init(handle);
             plugins::init(handle);
             chat::init(handle);
             tabs::init(handle);

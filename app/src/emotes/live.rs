@@ -124,33 +124,17 @@ fn personal(app: &AppHandle, added: bool, set_id: String, users: Vec<String>) {
 }
 
 fn set_changed(app: &AppHandle, c: SetChange) {
+    super::edit::on_set_changed(app, &c);
+    // C1 Our own edits already printed their line (`apply_local`).
+    let shown = super::edit::unseen(app, &c);
     let state = app.state::<Emotes>();
     let mut notices: Vec<(String, Vec<String>)> = Vec::new();
     {
         let mut inner = state.lock();
-        let logins: Vec<String> = inner
-            .channels
-            .iter()
-            .filter(|(_, ch)| {
-                ch.sets
-                    .iter()
-                    .any(|s| s.provider == Provider::Seventv && s.id == c.set_id)
-            })
-            .map(|(l, _)| l.clone())
-            .collect();
-        for login in &logins {
-            if let Some(ch) = inner.channels.get_mut(login) {
-                for s in ch
-                    .sets
-                    .iter_mut()
-                    .filter(|s| s.provider == Provider::Seventv && s.id == c.set_id)
-                {
-                    *s = Arc::new(apply(s, &c));
-                }
-            }
-            inner.rebuild(login);
-            if let Some(actor) = &c.actor {
-                notices.push((login.clone(), lines(actor, &c)));
+        let logins = apply_to_channels(&mut inner, &c);
+        if let Some(actor) = &c.actor {
+            for login in &logins {
+                notices.push((login.clone(), lines(actor, &shown)));
             }
         }
         if let Some(set) = inner.personal_sets.get(&c.set_id).cloned() {
@@ -177,6 +161,50 @@ fn set_changed(app: &AppHandle, c: SetChange) {
     }
 }
 
+/// The change into every loaded chat whose channel holds the set; their logins.
+fn apply_to_channels(inner: &mut Inner, c: &SetChange) -> Vec<String> {
+    let logins: Vec<String> = inner
+        .channels
+        .iter()
+        .filter(|(_, ch)| {
+            ch.sets
+                .iter()
+                .any(|s| s.provider == Provider::Seventv && s.id == c.set_id)
+        })
+        .map(|(l, _)| l.clone())
+        .collect();
+    for login in &logins {
+        if let Some(ch) = inner.channels.get_mut(login) {
+            for s in ch
+                .sets
+                .iter_mut()
+                .filter(|s| s.provider == Provider::Seventv && s.id == c.set_id)
+            {
+                *s = Arc::new(apply(s, c));
+            }
+        }
+        inner.rebuild(login);
+    }
+    logins
+}
+
+/// V106-31/32 Our own edit, before 7TV's event says so: only chats that loaded the set, no personal
+/// or unclaimed sets. C1 Its C10 line once per chat; `edit::unseen` keeps the event from repeating it.
+pub(crate) fn apply_local(app: &AppHandle, c: &SetChange) {
+    let logins = {
+        let state = app.state::<Emotes>();
+        let mut inner = state.lock();
+        apply_to_channels(&mut inner, c)
+    };
+    if let Some(actor) = &c.actor {
+        for login in logins {
+            for t in lines(actor, c) {
+                crate::chat::system_line(app, &login, &t);
+            }
+        }
+    }
+}
+
 /// Personal sets fill before their entitlement arrives; keep the emotes until then.
 fn unclaimed(inner: &mut Inner, c: SetChange) {
     if c.added.is_empty() {
@@ -195,7 +223,14 @@ fn apply(set: &EmoteSet, c: &SetChange) -> EmoteSet {
     let mut emotes: Vec<Arc<Emote>> = set
         .emotes
         .iter()
-        .filter(|e| !c.removed.iter().any(|(id, _)| *id == e.id))
+        // V105-04 Of two names for one emote, only the named one goes; an id held once goes
+        // whatever its name (7TV's names can lag).
+        .filter(|e| {
+            !c.removed.iter().any(|(id, name)| {
+                *id == e.id
+                    && (*name == e.name || set.emotes.iter().filter(|x| x.id == e.id).count() == 1)
+            })
+        })
         .cloned()
         .collect();
     for (id, _, new) in &c.renamed {
@@ -271,5 +306,29 @@ mod tests {
                 "xQc renamed the 7TV emote b to bee."
             ]
         );
+    }
+
+    #[test]
+    fn remove_takes_one_of_two_names() {
+        let set = EmoteSet::new(
+            "s",
+            Provider::Seventv,
+            Scope::Channel,
+            vec![emote("A", "a1"), emote("A", "a2")],
+        );
+        let c = SetChange {
+            set_id: "s".into(),
+            removed: vec![("A".into(), "a1".into())],
+            ..SetChange::default()
+        };
+        let names: Vec<String> = apply(&set, &c).emotes.iter().map(|e| e.name.clone()).collect();
+        assert_eq!(names, ["a2"]);
+        let one = EmoteSet::new("s", Provider::Seventv, Scope::Channel, vec![emote("A", "a1")]);
+        let c = SetChange {
+            set_id: "s".into(),
+            removed: vec![("A".into(), "other".into())],
+            ..SetChange::default()
+        };
+        assert!(apply(&one, &c).emotes.is_empty());
     }
 }

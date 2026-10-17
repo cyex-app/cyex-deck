@@ -2,7 +2,7 @@
 // I106-3's Rust texts (chat/run/seventv_edit.rs) copy failText; keep the `${channel}` and `${alias}` names.
 
 import type { AddBlocked } from '../../../ipc/bindings/AddBlocked';
-import type { Blocked } from '../../../ipc/bindings/Blocked';
+import type { TargetBlocked as Blocked } from '../../../ipc/bindings/TargetBlocked';
 import type { EditFail } from '../../../ipc/bindings/EditFail';
 import type { EditOp } from '../../../ipc/bindings/EditOp';
 

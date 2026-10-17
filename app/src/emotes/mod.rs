@@ -4,6 +4,7 @@
 //! what through `looks`.
 
 mod card;
+pub mod edit;
 mod live;
 mod load;
 mod looks;

@@ -27,6 +27,7 @@ pub use apply::{Applied, Part, Want, apply};
 pub use combos::{change as change_combos, find as find_combo, list as list_combos};
 pub use words::{select_error, why};
 pub use select::{Kind, Picked, SelectError, select};
+pub(crate) use select::forget_if_same;
 pub use vars::VarScope;
 use status::status;
 
@@ -54,6 +55,8 @@ pub struct Cosmetics {
     expired: Mutex<HashSet<String>>,
     /// Test runs: print how long a parse takes (V1051-03 budget B2).
     timed: bool,
+    /// V106-31/32 The client points at the loopback mock (test runs only).
+    mocked: bool,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -69,6 +72,7 @@ impl Cosmetics {
             gates: Mutex::default(),
             expired: Mutex::default(),
             timed: false,
+            mocked: false,
         }
     }
 
@@ -118,7 +122,22 @@ fn state(app: &AppHandle) -> tauri::State<'_, Cosmetics> {
     app.state::<Cosmetics>()
 }
 
-fn has_consent(app: &AppHandle, account: &str) -> bool {
+/// V106-31/32 The 7TV client (the mock's in test runs that set one).
+pub(crate) fn api(app: &AppHandle) -> Client {
+    state(app).api.clone()
+}
+
+/// V106-31/32 Edits go out only when this is true in a test run.
+pub(crate) fn mocked(app: &AppHandle) -> bool {
+    state(app).mocked
+}
+
+/// The account's 7TV session was rejected: the UI says "Sign in again".
+pub(crate) fn expire(app: &AppHandle, account: &str) {
+    state(app).mark_expired(account)
+}
+
+pub(crate) fn has_consent(app: &AppHandle, account: &str) -> bool {
     auth::accounts(app)
         .get(account)
         .is_some_and(|a| a.seventv.is_some())
@@ -140,12 +159,20 @@ pub fn init(app: &AppHandle) {
         let _ = app.state::<Auth>().seventv.put(&id, &token);
         eprintln!("cosmetics: mock 7TV at {url}");
     }
+    // V106-31/32 Emote reads go to the mock too.
+    if let Some(url) = &mock
+        && std::env::var("CYEX_7TV_SETS").as_deref() == Ok("mock")
+    {
+        cyex_emotes::seventv::api::use_mock(url);
+    }
+    let mocked = mock.is_some();
     let api = match mock {
         Some(url) => Client::at(http, &url),
         None => Client::new(http),
     };
     app.manage(Cosmetics {
         timed: test,
+        mocked,
         ..Cosmetics::new(api)
     });
 }
