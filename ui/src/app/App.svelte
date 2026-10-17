@@ -63,6 +63,7 @@
   import { decodeSound } from '../lib/sound';
   import { toast } from '../lib/toast.svelte';
   import { currentWindow } from '../lib/window.svelte';
+  import DuplicatesDialog from '../features/settings/highlights/DuplicatesDialog.svelte';
   import { popOut } from './panels';
   import { useRootEffects } from './root.svelte';
 
@@ -521,6 +522,7 @@
   <MenuHost />
   <TooltipHost />
   <UnlockDialog />
+  {#if settings.v.highlights?.duplicatesAsked === false}<DuplicatesDialog />{/if}
   <Toasts />
 </div>
 

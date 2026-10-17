@@ -93,6 +93,14 @@
   </span>
 </Row>
 
+<Row
+  setting="general.sound.playInFront"
+  label="Play sounds while cyex deck is in front"
+  hint="Highlights, mentions, whispers and live alerts. Off: they only play while you’re in another app."
+>
+  <Toggle label="Play sounds while cyex deck is in front" checked={s.playInFront} onchange={(v) => patch({ playInFront: v })} />
+</Row>
+
 <style>
   .gap {
     flex: none;

@@ -169,6 +169,13 @@ export const APP: Entry[] = [
     description: 'Mentions, highlights, live alerts and whispers.',
     keywords: ['output', 'device', 'speakers', 'headphones', 'chime', 'notification sound', 'test sound'],
   },
+  {
+    id: 'general.sound.playInFront',
+    page: 'sound',
+    label: 'Play sounds while cyex deck is in front',
+    description: 'Highlights, mentions, whispers and live alerts. Off: only while you’re in another app.',
+    keywords: ['focus', 'focused', 'in front', 'quiet', 'mentions', 'highlights', 'whispers', 'live alerts'],
+  },
 
   // Hotkeys: each one is listed by `hotkeyEntries`.
   {
