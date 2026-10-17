@@ -12,9 +12,14 @@
     /** Asked for on the first hover. */
     onwantpreview?: () => void;
     onseek: (t: number) => void;
+    /** V1061-03 The hover tip's text (default: the clock). */
+    format?: (t: number) => string;
+    /** Neutral: the played part isn't the accent (the live rewind bar). */
+    tone?: 'accent' | 'neutral';
+    valueText?: string;
   }
 
-  let { duration, time, buffered, storyboard, onwantpreview, onseek }: Props = $props();
+  let { duration, time, buffered, storyboard, onwantpreview, onseek, format = clock, tone = 'accent', valueText }: Props = $props();
 
   let track = $state<HTMLElement>();
   let hover = $state<number | null>(null);
@@ -71,6 +76,7 @@
   aria-valuemin={0}
   aria-valuemax={Math.round(duration)}
   aria-valuenow={Math.round(time)}
+  aria-valuetext={valueText}
   onpointermove={onmove}
   onpointerleave={() => !dragging && (hover = null)}
   onpointerdown={ondown}
@@ -78,7 +84,7 @@
 >
   <div class="rail">
     <div class="buffered" style:width={pct(buffered)}></div>
-    <div class="played" style:width={pct(shown)}></div>
+    <div class="played" class:neutral={tone === 'neutral'} style:width={pct(shown)}></div>
   </div>
   {#if hover !== null}
     <div class="tip" style:left={pct(hover)}>
@@ -91,7 +97,7 @@
           style:background-position="-{preview.x}px -{preview.y}px"
         ></div>
       {/if}
-      <span>{clock(hover)}</span>
+      <span>{format(hover)}</span>
     </div>
   {/if}
 </div>
@@ -128,6 +134,9 @@
   }
   .played {
     background: var(--accent-hover);
+  }
+  .played.neutral {
+    background: color-mix(in srgb, var(--on-video) 80%, transparent);
   }
   .tip {
     position: absolute;

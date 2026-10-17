@@ -45,6 +45,7 @@
   import ViewerList from './ViewerList.svelte';
   import { votes } from './votes.svelte';
   import VotesBanner from './VotesBanner.svelte';
+  import LiveChatBar from './LiveChatBar.svelte';
   import { accounts } from '../../lib/accounts.svelte';
   import { unlock } from '../unlock/unlock.svelte';
   import { mods } from '../modview/moderation.svelte';
@@ -406,6 +407,7 @@
       />
     {/if}
     <VotesBanner channel={login} view={() => room.view} signedIn={room.account !== null} />
+    <LiveChatBar channel={login} />
   </div>
   <div class="body">
     <MessageList

@@ -12,8 +12,11 @@
   import ResetSection from '../ResetSection.svelte';
   import { errorText } from '../../../lib/errors';
   import Select from '../../../components/Select.svelte';
+  import { stepChoice } from '../../player/liveKeys';
 
   const p = $derived(settings.v.player);
+
+  const STEPS = [5, 10, 15, 30].map((n) => ({ value: String(n), label: `${n} seconds` }));
 
   const QUALITIES: { value: Quality; label: string }[] = [
     { value: 'auto', label: 'Auto: fits the player' },
@@ -50,6 +53,14 @@
 
 <Row setting="player.lowLatency" label="Low latency" hint="A few seconds behind the stream instead of about ten.">
   <Toggle label="Low latency" checked={p.lowLatency} onchange={(v) => settings.patch('player', { lowLatency: v })} />
+</Row>
+
+<Row setting="player.liveRewind" label="Live VODs" hint="Go back in live streams where Twitch allows it: Turbo, or a sub without ads.">
+  <Toggle label="Live VODs" checked={p.liveRewind} onchange={(v) => settings.patch('player', { liveRewind: v })} />
+</Row>
+
+<Row setting="player.seekStep" label="Skip step" hint="How far Left and Right, or J and L, jump.">
+  <Select label="Skip step" width="160px" value={String(stepChoice(p.seekStep))} options={STEPS} onchange={(v) => settings.patch('player', { seekStep: Number(v) })} />
 </Row>
 
 <Row setting="player.quality" label="Quality" hint="What players start in. Each player’s gear menu changes its own.">

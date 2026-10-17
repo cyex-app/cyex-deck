@@ -14,6 +14,7 @@
   import ClipPlayer from '../player/ClipPlayer.svelte';
   import LivePlayer from '../player/LivePlayer.svelte';
   import { type Page, tileState } from '../player/players.svelte';
+  import { rewound } from '../player/rewound.svelte';
   import StoryViewer from '../player/StoryViewer.svelte';
   import VodPlayer from '../player/VodPlayer.svelte';
   import { tabs } from '../tabs/tabs.svelte';
@@ -39,7 +40,8 @@
 
   const shared = $derived(tileState(tile.id));
   const info = $derived(tabs.live[tile.channel.id]);
-  const live = $derived(Boolean(info?.stream));
+  // V1061-03 Q21 a A player on the rewind VOD plays to its end after the stream ends.
+  const live = $derived(Boolean(info?.stream) || rewound.has(tile.channel.login));
   const page = $derived(shared.page);
   const listing = $derived(page.kind === 'about' || page.kind === 'clips' || page.kind === 'videos');
   /** P4 The small stream was closed by hand. */

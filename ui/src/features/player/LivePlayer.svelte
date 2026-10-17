@@ -19,6 +19,9 @@
   import { settings } from '../../lib/settings.svelte';
   import Celebration from './Celebration.svelte';
   import { Engine } from './engine.svelte';
+  import LiveButton from './LiveButton.svelte';
+  import { DVR_GAP } from './liveEdge';
+  import { behindText } from './liveKeys';
   import { playerMenu } from './menu';
   import { type Choice, qualityOptions } from './quality';
   import GearButton from './GearButton.svelte';
@@ -29,6 +32,8 @@
   import Volume from './Volume.svelte';
   import Loading from '../../components/Loading.svelte';
   import PipNotice from './PipNotice.svelte';
+  import { Rewind } from './rewind.svelte';
+  import SeekBar from './SeekBar.svelte';
 
   interface Props {
     tile: Tile;
@@ -77,6 +82,8 @@
     if (!video) return;
     const e = new Engine(video, true, lowLatency);
     engine = e;
+    // V1061-01 Play after a long pause, or a swept session, opens the stream afresh.
+    e.onreopen = (at) => void start(e, e.choice, login, account, false, at);
     // The setting is where new players start; a change doesn't restart this one.
     void start(e, untrack(() => settings.v.player.quality), login, account, untrack(() => held));
     const ro = new ResizeObserver(([entry]) => e.fit(entry.contentRect.height * devicePixelRatio));
@@ -102,13 +109,47 @@
     };
   });
 
-  // Network trouble: a fresh session, three times, then a button.
+  // Network trouble: a fresh session, three times, then a button. A rewound one tries the same spot.
   $effect(() => {
     if (engine?.failure !== 'network' || tries >= 3) return;
-    retry = setTimeout(() => engine && void start(engine, engine.choice, login, account), 3000 * ++tries);
+    retry = setTimeout(() => engine && void start(engine, engine.choice, login, account, false, engine.dvr ? engine.time : null), 3000 * ++tries);
+  });
+
+  // V1061-03 Twitch's Stream Rewind, where Twitch allows it.
+  const rewind = new Rewind(
+    { engine: () => engine, open: (at) => (engine ? start(engine, engine.choice, login, account, false, at) : Promise.resolve()) },
+    untrack(() => login),
+  );
+  $effect(() => {
+    const o = { account, startedAt: info?.stream?.startedAt ?? null, enabled: settings.v.player.liveRewind };
+    untrack(() => rewind.watch(o));
+  });
+  // Q22 b
+  $effect(() => {
+    const h = hushed;
+    untrack(() => rewind.hush(h));
+  });
+  // Short notes from the engine show as the readout.
+  $effect(() => {
+    const e = engine;
+    const n = e?.note;
+    if (!e || !n) return;
+    untrack(() => shell?.say(n));
+    e.note = null;
+  });
+  // Q14 a The spinner only after 300 ms: a quick swap or start shows none.
+  let slow = $state(false);
+  $effect(() => {
+    if (!engine?.waiting) {
+      slow = false;
+      return;
+    }
+    const t = setTimeout(() => (slow = true), 300);
+    return () => clearTimeout(t);
   });
 
   onDestroy(() => {
+    rewind.destroy();
     starts.cancel();
     clearTimeout(retry);
     void stopAds.then((f) => f());
@@ -117,21 +158,26 @@
 
   const starts = latest();
 
-  /** Only the newest start counts; a failure shows as "didn’t load" (and retries, see above). */
-  async function start(e: Engine, choice: Choice, channel: string, as: string | null, hold = false) {
+  /** Only the newest start counts; a failure shows as "didn’t load" (and retries, see above).
+   *  `at`: the rewind VOD from there (V1061-03), null for live. What plays keeps playing until
+   *  the new session is in (Q14 a). */
+  async function start(e: Engine, choice: Choice, channel: string, as: string | null, hold = false, at: number | null = null) {
     const current = starts.begin();
-    if (session) void playerIpc.close(session.id);
-    session = null;
+    const old = session;
     e.failure = null;
-    e.waiting = true;
+    if (!old) e.waiting = true;
     try {
-      const s = await playerIpc.live(channel, as);
+      const s = at === null ? await playerIpc.live(channel, as) : await playerIpc.vod(rewind.vodId ?? '', as);
       if (!current()) return void playerIpc.close(s.id);
       session = s;
       ad = 'none';
-      await e.start(s, choice, -1, hold);
+      await e.start(s, choice, at ?? -1, hold, at !== null);
+      if (old && old !== s) void playerIpc.close(old.id);
     } catch {
-      if (current()) e.failure = 'network';
+      if (!current()) return;
+      // A swap that failed leaves the old source playing.
+      if (old && session === old && !e.paused) e.note = 'That didn’t load.';
+      else e.failure = 'network';
     }
   }
 
@@ -145,11 +191,15 @@
   $effect(() => (video ? watchPip(video, (on) => (pip = on)) : undefined));
 
   const controls = {
-    togglePlay: () => video && (video.paused ? void video.play() : video.pause()),
+    // V1061-01 Play goes back to live after a pause (the engine decides).
+    togglePlay: () => video && (video.paused ? void engine?.resume() : video.pause()),
     toggleMute: () => sound.toggleMute(),
     // P4 Small, a double-click brings the stream back instead.
     toggleFullscreen: () => (mini ? onexpand?.() : shell?.fullscreen()),
-    play: () => void video?.play(),
+    play: () => void engine?.resume(),
+    // V1061-03 null: no rewind here, the key stays with the page.
+    seekBy: (s: number) => rewind.seekBy(s),
+    toLive: () => void rewind.toLive(),
     pause: () => video?.pause(),
     media: () => ({ title: info?.stream?.title || tile.channel.name, artist: tile.channel.name, artwork: info?.avatar }),
   };
@@ -295,7 +345,7 @@
     {:else if engine?.holding}
       <!-- V103-07 A click anywhere plays it (Shell). -->
       <div class="center held">Playing elsewhere. Click to play here.</div>
-    {:else if engine?.waiting}
+    {:else if engine?.waiting && slow}
       <div class="busy"><Loading video size="large" /></div>
     {/if}
     {#if ad === 'backup' || ad === 'showing'}
@@ -316,34 +366,54 @@
 
     {#snippet bar()}
       {#if !mini}
-        <button class="ctl" aria-label={engine?.playing ? 'Pause' : 'Play'} use:tooltip={key('player.playPause', engine?.playing ? 'Pause' : 'Play')} onclick={controls.togglePlay}>
-          <Icon name={engine?.playing ? 'pause' : 'play'} size={18} />
-        </button>
-        <Volume volume={sound.volume} muted={sound.muted} boost={sound.boost} onchange={sound.set} onboost={sound.setBoost} />
-        <span class="live-badge">LIVE</span>
-        <span class="grow"></span>
-        {#if onclip}
-          <button class="ctl" aria-label="Clip" use:tooltip={{ label: 'Clip', hint: 'Clips the last seconds of the stream.' }} onclick={onclip}>
-            <Icon name="scissors" size={17} />
-          </button>
-        {:else if clipOff}
-          <button class="ctl off" aria-label="Clip" aria-disabled="true" use:tooltip={{ label: 'Clip', hint: clipOff }}>
-            <Icon name="scissors" size={17} />
-          </button>
+        {#if rewind.on}
+          <!-- V1061-03 The whole broadcast; at live the thumb sits at the right end. -->
+          <div class="rows">
+            <SeekBar
+              duration={rewind.uptime}
+              time={rewind.pos}
+              buffered={rewind.inVod ? (engine?.bufferedEnd ?? 0) : rewind.uptime}
+              tone="neutral"
+              format={(t) => (rewind.uptime - t < DVR_GAP ? 'Live' : behindText(rewind.uptime - t))}
+              valueText={rewind.atLive ? 'Live' : `${behindText(rewind.behind ?? 0)} behind live`}
+              onseek={(t) => rewind.seekTo(t)}
+            />
+            <div class="row">{@render row()}</div>
+          </div>
+        {:else}
+          {@render row()}
         {/if}
-        {#if onpopchat}
-          <button class="ctl" aria-label="Pop out chat" use:tooltip={{ label: 'Pop out chat', hint: 'Chat in its own window, the stream here.' }} onclick={onpopchat}>
-            <Icon name="popout" size={16} />
-          </button>
-        {/if}
-        {#if engine}<GearButton {menu} />{/if}
-        <button class="ctl" aria-label="Fullscreen" use:tooltip={key('player.fullscreen', 'Fullscreen')} onclick={controls.toggleFullscreen}>
-          <Icon name="expand" size={16} />
-        </button>
       {/if}
     {/snippet}
   </Shell>
 </div>
+
+{#snippet row()}
+  <button class="ctl" aria-label={engine?.playing ? 'Pause' : 'Play'} use:tooltip={key('player.playPause', engine?.playing ? 'Pause' : 'Play')} onclick={controls.togglePlay}>
+    <Icon name={engine?.playing ? 'pause' : 'play'} size={18} />
+  </button>
+  <Volume volume={sound.volume} muted={sound.muted} boost={sound.boost} onchange={sound.set} onboost={sound.setBoost} />
+  <LiveButton behind={rewind.behind} atLive={rewind.atLive} ad={ad === 'waiting'} ended={rewind.ended} hint={bindingOf('player.live')} onlive={() => void rewind.toLive()} />
+  <span class="grow"></span>
+  {#if onclip}
+    <button class="ctl" aria-label="Clip" use:tooltip={{ label: 'Clip', hint: 'Clips the last seconds of the stream.' }} onclick={onclip}>
+      <Icon name="scissors" size={17} />
+    </button>
+  {:else if clipOff}
+    <button class="ctl off" aria-label="Clip" aria-disabled="true" use:tooltip={{ label: 'Clip', hint: clipOff }}>
+      <Icon name="scissors" size={17} />
+    </button>
+  {/if}
+  {#if onpopchat}
+    <button class="ctl" aria-label="Pop out chat" use:tooltip={{ label: 'Pop out chat', hint: 'Chat in its own window, the stream here.' }} onclick={onpopchat}>
+      <Icon name="popout" size={16} />
+    </button>
+  {/if}
+  {#if engine}<GearButton {menu} />{/if}
+  <button class="ctl" aria-label="Fullscreen" use:tooltip={key('player.fullscreen', 'Fullscreen')} onclick={controls.toggleFullscreen}>
+    <Icon name="expand" size={16} />
+  </button>
+{/snippet}
 
 <style>
   /* V102-08 */
@@ -436,13 +506,16 @@
     font-size: 0.75rem;
     pointer-events: none;
   }
-  .live-badge {
-    margin-left: 6px;
-    padding: 0 5px;
-    background: var(--live);
-    border-radius: var(--radius);
-    font-size: 0.7rem;
-    font-weight: 700;
+  .rows {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0 4px;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
   }
   .grow {
     flex: 1;
