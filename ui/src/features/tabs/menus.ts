@@ -39,6 +39,9 @@ export function tabMenu(tab: Tab, targets: Tab[]): MenuEntry[] {
     );
     if (tiles(tab).length === 1) entries.push(...showEntries(tiles(tab)[0]));
   }
+  if (one && feed && tiles(tab).length === 1) {
+    entries.push({ label: 'Rename', icon: 'pencil', hint: 'Double-click', run: () => openEdit(tab.id, tiles(tab)[0].id) });
+  }
   if (one && tabs.held === tab.id) {
     entries.push({ label: 'Stop playing', icon: 'pause', run: () => (tabs.held = null) });
   }

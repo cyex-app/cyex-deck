@@ -41,6 +41,7 @@
   import StreamSide from '../channel/StreamSide.svelte';
   import ChatView from '../chat/ChatView.svelte';
   import FeedView from '../chat/FeedView.svelte';
+  import KindFeed from '../feeds/KindFeed.svelte';
   import ReplayChat from '../chat/ReplayChat.svelte';
   import ClipPlayer from '../player/ClipPlayer.svelte';
   import { openTarget, tileState } from '../player/players.svelte';
@@ -67,6 +68,7 @@
   let { tile, tab, popout, onsignin, background = false }: Props = $props();
 
   const tiled = $derived(tiles(tab).length > 1);
+  const feedTitle = $derived(tiles(tab).length === 1 && tab.alias ? tab.alias : (tile.feed ?? ''));
   const shared = $derived(tileState(tile.id));
   const chatPopped = $derived(tabs.chats.has(tile.id));
   /** The chat shows here unless the mod view needs its room (V102-26). */
@@ -380,8 +382,10 @@
 {/snippet}
 
 {#snippet chat(onheaderdown: ((e: PointerEvent) => void) | undefined)}
-  {#if tile.feed}
-    <FeedView name={tile.feed} {actions} {onheaderdown} />
+  {#if tile.feed && tile.feedKind !== 'rules'}
+    <KindFeed kind={tile.feedKind} name={feedTitle} {actions} {onheaderdown} />
+  {:else if tile.feed}
+    <FeedView name={tile.feed} title={feedTitle} {actions} {onheaderdown} />
   {:else if replay}
     <ReplayChat
       videoId={replay.id}

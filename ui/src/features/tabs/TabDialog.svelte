@@ -6,13 +6,19 @@
   import Checkbox from '../../components/Checkbox.svelte';
   import Dialog from '../../components/Dialog.svelte';
   import type { ChannelInfo } from '../../ipc/bindings/ChannelInfo';
+  import type { FeedKind } from '../../ipc/bindings/FeedKind';
   import type { TileShow } from '../../ipc/bindings/TileShow';
   import { minerIpc } from '../../ipc/miner';
+  import { errorText } from '../../lib/errors';
+  import { toast } from '../../lib/toast.svelte';
   import { accounts } from '../../lib/accounts.svelte';
   import { settings } from '../../lib/settings.svelte';
+  import Select from '../../components/Select.svelte';
+  import { isMentionsFeed, MENTIONS_FEED } from '../chat/mentionsTab';
   import AccountPicker from './AccountPicker.svelte';
   import ChannelPicker from './ChannelPicker.svelte';
   import { closeTabDialog, type TabDialogMode } from './dialog.svelte';
+  import ShowPicker from './ShowPicker.svelte';
   import { label, tabs, tiles } from './tabs.svelte';
 
   interface Props {
@@ -46,7 +52,23 @@
   let alias = $state(editing ? (tab?.alias ?? '') : '');
   let busy = $state(false);
   /** F4 Making a feed tab instead of a channel tab. */
-  let feed = $state<string | null>(null);
+  let feedMode = $state(false);
+  let feedKind = $state<'mentions' | 'live' | 'automod' | 'whispers' | 'custom'>('mentions');
+  let feedName = $state('');
+  const FEEDS = [
+    { value: 'mentions', label: 'Mentions' },
+    { value: 'live', label: 'Live notifications' },
+    { value: 'automod', label: 'AutoMod' },
+    { value: 'whispers', label: 'Whispers' },
+    { value: 'custom', label: 'Custom feed' },
+  ];
+  const FEED_NOTES: Record<string, string> = {
+    mentions: 'Your mentions and replies, from every open chat.',
+    live: 'Who goes live or offline: your tabs, and the channels you follow while live alerts are on.',
+    automod: 'Held messages from the chats you moderate. Allow or deny them here.',
+    whispers: 'Whispers you get while cyex deck runs.',
+    custom: 'Highlight rules with this name as their custom feed send messages here, from every open chat.',
+  };
   /** 1.34 */
   const canMine = accounts.list.some((a) => a.features.includes('miner'));
   const wasMined = !!tile && settings.v.miner.channels.some((c) => c.id === tile.channel.id);
@@ -59,7 +81,9 @@
     if (mine && anon) anon = false;
   });
 
-  const title = editing ? 'Edit tab' : into ? `Add a channel to ${tab ? label(tab) : 'this tab'}` : 'Add a tab';
+  /** Renaming a feed tab: only its name. */
+  const renamingFeed = !!editing && !!tile?.feed;
+  const title = renamingFeed ? 'Rename feed' : editing ? 'Edit tab' : into ? `Add a channel to ${tab ? label(tab) : 'this tab'}` : 'Add a tab';
   const named = !into;
 
   /** Another tab that already shows this channel. */
@@ -67,10 +91,32 @@
     picked ? tabs.list.find((t) => tiles(t).some((x) => x.channel.id === picked!.id && x.id !== tile?.id)) : undefined,
   );
 
-  const ready = $derived(feed !== null ? !!feed.trim() && !busy : !!picked && (show.player || show.chat) && !busy);
+  /** The tab that already is this feed. */
+  const haveFeed = $derived(
+    feedMode
+      ? tabs.list.find((t) =>
+          tiles(t).some((x) => {
+            if (feedKind === 'mentions') return x.feedKind === 'rules' && isMentionsFeed(x.feed);
+            if (feedKind === 'custom') {
+              return x.feedKind === 'rules' && !!feedName.trim() && x.feed?.trim().toLowerCase() === feedName.trim().toLowerCase();
+            }
+            return !!x.feed && x.feedKind === feedKind;
+          }),
+        )
+      : undefined,
+  );
+
+  const ready = $derived(
+    renamingFeed
+      ? !busy
+      : feedMode
+        ? !haveFeed && !busy && (feedKind !== 'custom' || !!feedName.trim())
+        : !!picked && (show.player || show.chat) && !busy,
+  );
 
   async function submit() {
-    if (feed !== null) return void addFeed(feed);
+    if (renamingFeed && tab) return void renameFeed(tab.id, tab.alias);
+    if (feedMode) return void addFeed();
     if (!ready || !picked) return;
     busy = true;
     const channel = { id: picked.id, login: picked.login, name: picked.name };
@@ -96,13 +142,33 @@
     closeTabDialog();
   }
 
-  async function addFeed(name: string) {
-    if (!name.trim()) return;
+  async function renameFeed(id: string, was: string | null) {
     busy = true;
-    const id = await tabs.apply({ op: 'addFeed', name });
-    busy = false;
-    if (id) onopen(id);
-    closeTabDialog();
+    const name = alias.trim() || null;
+    try {
+      if (name !== was) await tabs.apply({ op: 'rename', tab: id, alias: name });
+      closeTabDialog();
+    } catch (e) {
+      toast.error(errorText(e));
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function addFeed() {
+    if (!ready) return;
+    busy = true;
+    try {
+      const name = feedKind === 'mentions' ? MENTIONS_FEED : feedKind === 'custom' ? feedName.trim() : '';
+      const kind: FeedKind = feedKind === 'mentions' || feedKind === 'custom' ? 'rules' : feedKind;
+      const id = await tabs.apply({ op: 'addFeed', name, kind });
+      if (id) onopen(id);
+      closeTabDialog();
+    } catch (e) {
+      toast.error(errorText(e));
+    } finally {
+      busy = false;
+    }
   }
 
   function goTo(id: string) {
@@ -111,20 +177,28 @@
   }
 </script>
 
-<Dialog title={feed !== null ? 'Add a feed tab' : title} width={440} top onclose={closeTabDialog} onsubmit={submit}>
-  {#if feed !== null}
+<Dialog title={feedMode ? 'Add a feed tab' : title} width={440} top onclose={closeTabDialog} onsubmit={submit}>
+  {#if renamingFeed}
     <div class="form">
       <section>
-        <span class="label">Feed name</span>
-        <input
-          class="field"
-          maxlength="60"
-          placeholder="Mentions"
-          bind:value={feed}
-        />
-        <p class="note">
-          Highlight rules with “Also show in” and this name send their messages here, from every open chat.
-        </p>
+        <span class="label">Tab name</span>
+        <input class="field" maxlength="60" placeholder={tile?.feed ?? ''} bind:value={alias} />
+      </section>
+    </div>
+  {:else if feedMode}
+    <div class="form">
+      <section>
+        <Select label="Feed" width="100%" options={FEEDS} value={feedKind} onchange={(v) => (feedKind = v as typeof feedKind)} />
+        {#if feedKind === 'custom'}
+          <input class="field" maxlength="40" placeholder="Feed name" aria-label="Feed name" bind:value={feedName} />
+        {/if}
+        <p class="note">{FEED_NOTES[feedKind]}</p>
+        {#if haveFeed}
+          <p class="note">
+            You have this feed already.
+            <Button variant="link" small onclick={() => goTo(haveFeed.id)}>Go to it</Button>
+          </p>
+        {/if}
       </section>
     </div>
   {:else}
@@ -142,20 +216,7 @@
 
       <section>
         <span class="label">Show</span>
-        <div class="row">
-          <Checkbox
-            label="Stream"
-            checked={show.player}
-            disabled={show.player && !show.chat}
-            onchange={(v) => (show = { ...show, player: v })}
-          />
-          <Checkbox
-            label="Chat"
-            checked={show.chat}
-            disabled={show.chat && !show.player}
-            onchange={(v) => (show = { ...show, chat: v })}
-          />
-        </div>
+        <ShowPicker bind:show />
       </section>
 
       <section>
@@ -186,7 +247,7 @@
         </section>
       {/if}
       {#if !editing && !into}
-        <Button variant="link" small onclick={() => (feed = '')}>Make a feed tab instead</Button>
+        <Button variant="link" small onclick={() => (feedMode = true)}>Make a feed tab instead</Button>
       {/if}
     </div>
   {/if}
@@ -194,7 +255,7 @@
   {#snippet footer()}
     <Button variant="ghost" onclick={closeTabDialog}>Cancel</Button>
     <Button variant="primary" disabled={!ready} onclick={submit}>
-      {editing ? 'Save' : into ? 'Add channel' : feed !== null ? 'Add feed' : 'Add tab'}
+      {editing ? 'Save' : into ? 'Add channel' : feedMode ? 'Add feed' : 'Add tab'}
     </Button>
   {/snippet}
 </Dialog>
@@ -209,10 +270,6 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-  }
-  .row {
-    display: flex;
-    gap: 18px;
   }
   .field {
     width: 100%;

@@ -1,11 +1,11 @@
-<!-- F4 A feed tab: messages that highlight rules send here ("Also show in"), from every
+<!-- F4 A feed tab: messages that highlight rules send here (“Custom feed”), from every
      joined chat. Read only; names and links open like in a chat. The Mentions tab (V104-01)
      is one too: global mentions (V104-02) are marked, and a channel opens its own small
      chat window (V102-05). -->
 <script lang="ts">
   import { onDestroy, tick, type Snippet } from 'svelte';
 
-  import Icon from '../../components/Icon.svelte';
+  import FeedHeader from '../feeds/FeedHeader.svelte';
   import type { FeedEvent } from '../../ipc/bindings/FeedEvent';
   import type { FeedLine } from '../../ipc/bindings/FeedLine';
   import { popOut } from '../../app/panels';
@@ -19,11 +19,13 @@
 
   interface Props {
     name: string;
+    /** Header text; `name` stays the key Rust routes by. */
+    title?: string;
     actions?: Snippet;
     onheaderdown?: (e: PointerEvent) => void;
   }
 
-  let { name, actions, onheaderdown }: Props = $props();
+  let { name, title, actions, onheaderdown }: Props = $props();
 
   const KEEP = 500;
   let lines = $state.raw<FeedLine[]>([]);
@@ -79,12 +81,13 @@
 </script>
 
 <section class="feed">
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <header onpointerdown={onheaderdown}>
-    <Icon name="list" size={14} />
-    <span class="name">{name}</span>
-    {@render actions?.()}
-  </header>
+  <FeedHeader
+    icon="list"
+    name={title ?? name}
+    hint={title && title !== name ? `Highlight rules send here as “${name}”.` : undefined}
+    {actions}
+    {onheaderdown}
+  />
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="lines" bind:this={list} onclick={lineClick}>
     {#each lines as l (`${l.channel}/${l.message.id}`)}
@@ -103,9 +106,9 @@
         {#if failed}
           Couldn’t load this feed. <button class="retry" onclick={open}>Retry</button>
         {:else if mentions}
-          Nothing yet. Mentions with “Show in Mentions” land here.
+          Nothing yet. Your mentions, and highlights with “Mentions tab” on, land here.
         {:else}
-          Nothing yet. Messages land here when a highlight rule says “Also show in {name}”.
+          Nothing yet. Highlight rules with “{name}” as their custom feed send messages here.
         {/if}
       </p>
     {/each}
@@ -120,20 +123,6 @@
     display: flex;
     flex-direction: column;
     background: var(--page);
-  }
-  header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    height: 36px;
-    padding: 0 6px 0 10px;
-    border-bottom: 1px solid var(--border);
-    color: var(--muted);
-  }
-  .name {
-    flex: 1;
-    color: var(--text);
-    font-weight: 700;
   }
   .lines {
     flex: 1;

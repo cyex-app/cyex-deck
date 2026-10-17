@@ -2,7 +2,7 @@
      replies, V104-01, then the rest), then your own by words, people, badges and app (C26),
      global mentions (V104-02) and what stays quiet (C27).
      Each row can color the line, play a sound or its own file (V105-17), flash the taskbar,
-     go to the Mentions tab, show a pop-up and copy the message into a feed tab (F4).
+     go to the Mentions tab, show a pop-up and copy the message into a custom feed (F4).
      Look-alike letters are per word row; the global switch is on the Ignores page (C32). -->
 <script lang="ts">
   import Button from '../../../components/Button.svelte';
@@ -39,7 +39,7 @@
     { key: 'flash', kind: 'check', alert: true, ...OPT.flash },
     { key: 'show', kind: 'check', alert: true, ...OPT.show },
     { key: 'notify', kind: 'check', alert: true, ...OPT.notify },
-    { key: 'route', kind: 'text', placeholder: 'Feed tab', width: '88px', alert: true, ...OPT.route },
+    { key: 'route', kind: 'text', placeholder: 'Custom feed', width: '88px', alert: true, ...OPT.route },
   ];
   const alert = <T extends Alert>() => ALERT as unknown as Field<T>[];
   const on = <T,>(): Field<T & { enabled: boolean }> => ({ key: 'enabled', label: 'On', kind: 'check' });
@@ -159,7 +159,7 @@
     <HighlightImport />
   </div>
 </div>
-<p class="intro">Make messages stand out, ping you, or copy them to the Mentions tab. Feed copies a line into a feed tab: type its name.</p>
+<p class="intro">Make messages stand out, ping you, or copy them to the Mentions tab. Custom feed copies a message into a feed tab: type its name.</p>
 {#if !inFront}
   <p class="intro more">Sounds only play while you’re in another app. Settings → Sound can change that.</p>
 {/if}

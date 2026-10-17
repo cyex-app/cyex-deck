@@ -2,7 +2,7 @@
 // asks the main window to open.
 
 import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { emitTo, listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 import type { BellItem } from './bindings/BellItem';
 import type { BellList } from './bindings/BellList';
@@ -48,4 +48,6 @@ export const notifyEvents = {
   /** A toast was clicked. Main window only. */
   onOpen: (cb: (o: NotifyOpen) => void): Promise<UnlistenFn> =>
     listen<NotifyOpen>('notify:open', (e) => cb(e.payload)),
+  /** Asks the main window to open something, as a toast click does. */
+  open: (o: NotifyOpen) => emitTo('main', 'notify:open', o),
 };

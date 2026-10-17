@@ -27,11 +27,11 @@
     {
       key: 'route',
       kind: 'text',
-      placeholder: 'Feed tab',
+      placeholder: 'Custom feed',
       width: '88px',
       alert: true,
-      label: 'Still show in a feed tab',
-      hint: 'A hidden message still goes into the feed tab with this name.',
+      label: 'Still show in a custom feed',
+      hint: 'A hidden message still goes into the custom feed with this name.',
     },
   ];
 
