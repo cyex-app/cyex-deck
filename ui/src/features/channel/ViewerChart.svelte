@@ -4,7 +4,7 @@
   import { tabsIpc } from '../../ipc/tabs';
   import type { ViewerHistory } from '../../ipc/bindings/ViewerHistory';
   import { formatNumber, formatTime } from '../../lib/format';
-  import { graph, nearest, place } from '../../lib/sparkline';
+  import { graph, nearest, peakOf, place } from '../../lib/sparkline';
 
   interface Props {
     channelId: string;
@@ -37,6 +37,7 @@
   const series = $derived((history?.points ?? []) as [number, number][]);
   const from = $derived(history ? Date.parse(history.startedAt) / 1000 : undefined);
   const g = $derived(graph(series, W, H, from));
+  const peak = $derived(peakOf(series) ?? history?.peak ?? null);
   const last = $derived(series.length ? series[series.length - 1] : null);
   /** The "before" band's share of the width, when it's wide enough for its label (40 px). */
   const before = $derived(g.x0 > 0 ? g.x0 : 0);
@@ -75,7 +76,7 @@
   {#if history && last}
     <div class="head">
       <span>Now <b>{formatNumber(last[1])}</b></span>
-      <span>Peak <b>{formatNumber(history.peak[1])}</b> at {clock(history.peak[0])}</span>
+      <span>{#if peak}Peak <b>{formatNumber(peak[1])}</b> at {clock(peak[0])}{/if}</span>
     </div>
     <p class="since">{since}</p>
   {/if}

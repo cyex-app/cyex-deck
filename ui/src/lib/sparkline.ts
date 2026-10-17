@@ -14,11 +14,29 @@ export interface Graph {
 
 const round = (n: number) => Math.round(n * 10) / 10;
 
-/** Time to x: `t0` is the left edge, `span` the seconds across `w`. */
+/** Largest share of the width the "before" band takes (V106-18). */
+export const BAND_SHARE = 0.12;
+
+/**
+ * Time to x. Without `from` the samples fill `w`. With `from` before the first sample, a
+ * "before" band takes a fixed small share (at most BAND_SHARE, less for a small gap) and the
+ * samples use the rest, scaled over the watched time only.
+ */
 function axis(series: [number, number][], w: number, from?: number) {
-  const t0 = from ?? series[0][0];
-  const span = Math.max(1, series[series.length - 1][0] - t0);
-  return (t: number) => ((t - t0) / span) * w;
+  const first = series[0][0];
+  const last = series[series.length - 1][0];
+  const gap = from !== undefined ? Math.max(0, first - from) : 0;
+  const total = gap + (last - first);
+  const band = gap > 0 ? Math.min(BAND_SHARE, gap / total) * w : 0;
+  const span = Math.max(1, last - first);
+  return (t: number) => band + ((t - first) / span) * (w - band);
+}
+
+/** The peak sample; the earliest one when several tie. Null when empty. */
+export function peakOf(series: [number, number][]): [number, number] | null {
+  let best: [number, number] | null = null;
+  for (const p of series) if (!best || p[1] > best[1]) best = p;
+  return best;
 }
 
 /**
