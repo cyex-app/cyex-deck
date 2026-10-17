@@ -19,6 +19,13 @@ pub fn streamer_toggle(app: AppHandle) -> StreamerState {
     streamer::state(&app)
 }
 
+/// V106-17 Closes the streamer mode bar.
+#[tauri::command]
+pub fn streamer_bar_close(app: AppHandle) -> StreamerState {
+    streamer::close_bar(&app);
+    streamer::state(&app)
+}
+
 /// Whether the calling overlay lets clicks through.
 #[tauri::command]
 pub fn overlay_click_through(app: AppHandle, window: WebviewWindow) -> bool {

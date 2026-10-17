@@ -28,6 +28,27 @@ struct Inner {
     forced: Option<bool>,
     when: Option<StreamerWhen>,
     active: bool,
+    /// A look has happened since start or the last setting change.
+    looked: bool,
+    bar: Option<StreamerBar>,
+}
+
+/// V106-17 Why the main window shows its bar: a streaming app started while cyex deck ran,
+/// or was already running when it looked first (Q9).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum StreamerBar {
+    Started,
+    Running,
+}
+
+fn bar_after(running: bool, looked: bool) -> Option<StreamerBar> {
+    running.then_some(if looked {
+        StreamerBar::Started
+    } else {
+        StreamerBar::Running
+    })
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
@@ -39,6 +60,8 @@ pub struct StreamerState {
     pub app_running: bool,
     /// Flipped by hand for now.
     pub forced: bool,
+    /// V106-17 The bar to show, until closed or streamer mode goes off.
+    pub bar: Option<StreamerBar>,
 }
 
 fn lock(app: &AppHandle) -> MutexGuard<'_, Inner> {
@@ -72,7 +95,9 @@ pub fn init(app: &AppHandle) {
                     if changed {
                         inner.app_running = running;
                         inner.forced = None;
+                        inner.bar = bar_after(running, inner.looked);
                     }
+                    inner.looked = true;
                     changed
                 };
                 if changed {
@@ -92,6 +117,8 @@ pub fn on_settings(app: &AppHandle) {
         if inner.when != Some(when) {
             inner.when = Some(when);
             inner.forced = None;
+            inner.bar = None;
+            inner.looked = false;
             if when != StreamerWhen::Auto {
                 inner.app_running = false;
             }
@@ -105,6 +132,7 @@ pub fn toggle(app: &AppHandle) {
     {
         let mut inner = lock(app);
         inner.forced = Some(!inner.active);
+        inner.bar = None;
     }
     update(app);
 }
@@ -115,7 +143,14 @@ pub fn state(app: &AppHandle) -> StreamerState {
         active: inner.active,
         app_running: inner.app_running,
         forced: inner.forced.is_some(),
+        bar: inner.bar,
     }
+}
+
+/// V106-17 Close (x), Settings or Turn off on the bar.
+pub fn close_bar(app: &AppHandle) {
+    lock(app).bar = None;
+    update(app);
 }
 
 /// Whether streamer mode is on and hides what `pick` names.
@@ -132,12 +167,29 @@ fn update(app: &AppHandle) {
             StreamerWhen::Auto => inner.app_running,
         };
         inner.active = inner.forced.unwrap_or(auto);
+        if !inner.active {
+            inner.bar = None;
+        }
         StreamerState {
             active: inner.active,
             app_running: inner.app_running,
             forced: inner.forced.is_some(),
+            bar: inner.bar,
         }
     };
     let _ = app.emit(CHANGED_EVENT, state);
     crate::tray::set_streamer(app, state.active);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bar_cases() {
+        assert_eq!(bar_after(false, false), None);
+        assert_eq!(bar_after(false, true), None);
+        assert_eq!(bar_after(true, false), Some(StreamerBar::Running));
+        assert_eq!(bar_after(true, true), Some(StreamerBar::Started));
+    }
 }

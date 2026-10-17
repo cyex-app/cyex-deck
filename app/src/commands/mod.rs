@@ -281,6 +281,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         sound::sound_decoded,
         modes::streamer_state,
         modes::streamer_toggle,
+        modes::streamer_bar_close,
         modes::overlay_click_through,
         modes::overlay_set_click_through,
         modes::hotkeys_failed,

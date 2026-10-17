@@ -12,7 +12,7 @@ type Hides = keyof Pick<
 >;
 
 class Streamer {
-  state = $state<StreamerState>({ active: false, appRunning: false, forced: false });
+  state = $state<StreamerState>({ active: false, appRunning: false, forced: false, bar: null });
 
   get active(): boolean {
     return this.state.active;
