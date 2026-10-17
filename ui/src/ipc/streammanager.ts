@@ -9,6 +9,7 @@ import type { BroadcastInfo } from './bindings/BroadcastInfo';
 import type { CategoryHit } from './bindings/CategoryHit';
 import type { ChannelEdit } from './bindings/ChannelEdit';
 import type { ChatModes } from './bindings/ChatModes';
+import type { ObsFile } from './bindings/ObsFile';
 import type { SmActivity } from './bindings/SmActivity';
 import type { SmAdEdit } from './bindings/SmAdEdit';
 import type { SmAdSettings } from './bindings/SmAdSettings';
@@ -68,6 +69,11 @@ export const smIpc = {
     invoke<void>('sm_together_slot', { session, guest, slot, clear }),
   obsFolder: () => invoke<string | null>('sm_obs_folder'),
   obsOpen: () => invoke<void>('sm_obs_open'),
+  /** V106-15 The picked folder, or null when cancelled. */
+  obsPickFolder: () => invoke<string | null>('sm_obs_pick_folder'),
+  /** V106-16 The status files table. */
+  obsFiles: () => invoke<ObsFile[]>('sm_obs_files'),
+  obsOpenFile: (name: string) => invoke<void>('sm_obs_open_file', { name }),
   onStats: (f: (s: SmStats) => void): Promise<UnlistenFn> => listen<SmStats>('stream:stats', (e) => f(e.payload)),
   onActivity: (f: (a: SmActivity) => void): Promise<UnlistenFn> =>
     listen<SmActivity>('stream:activity', (e) => f(e.payload)),
