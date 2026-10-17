@@ -163,6 +163,7 @@ fn live_flips(before: &HashMap<String, Known>, now: &[(ChannelCard, bool)]) -> V
                 live: true,
                 title: Some(s.title.clone()),
                 game: s.game.as_ref().map(|g| g.name.clone()),
+                started: Some(s.started_at.clone()),
             })
         })
         .collect();
@@ -176,6 +177,7 @@ fn live_flips(before: &HashMap<String, Known>, now: &[(ChannelCard, bool)]) -> V
                 live: false,
                 title: None,
                 game: None,
+                started: None,
             });
         }
     }

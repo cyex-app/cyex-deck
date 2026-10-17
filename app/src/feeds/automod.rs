@@ -9,7 +9,7 @@ use serde::Serialize;
 use tauri::AppHandle;
 use ts_rs::TS;
 
-use super::{FeedEntry, push, remove, update};
+use super::{FeedEntry, remove, update};
 use crate::moderation::view::HeldItem;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
@@ -59,12 +59,7 @@ pub fn held(app: &AppHandle, account: &str, channel_id: &str, channel: &str, ite
         status: HeldStatus::Pending,
         by: None,
     };
-    let fresh = entry.clone();
-    if !update(app, FeedKind::Automod, is(&item.message_id), |e| {
-        *e = FeedEntry::Held(fresh)
-    }) {
-        push(app, FeedKind::Automod, FeedEntry::Held(entry), pending);
-    }
+    super::upsert(app, FeedKind::Automod, FeedEntry::Held(entry), pending);
 }
 
 /// A mod decided, or Twitch let it go. An unknown message: nothing.

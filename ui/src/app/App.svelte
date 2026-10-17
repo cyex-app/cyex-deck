@@ -373,7 +373,7 @@
   }
 
   const ownLive = $derived(!!(accounts.current && tabs.live[accounts.current.userId]?.stream));
-  const streamerDot = $derived(streamer.active && !streamer.bar ? (ownLive ? 'live' : 'on') : 'off');
+  const streamerDot = $derived(streamer.active && !(currentWindow.isMain && streamer.bar) ? (ownLive ? 'live' : 'on') : 'off');
 
   function minerSettings() {
     settingsSection = 'miner';

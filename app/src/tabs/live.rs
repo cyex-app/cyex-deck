@@ -159,6 +159,7 @@ async fn poll(app: &AppHandle) {
                 live: c.stream.is_some(),
                 title: title.clone(),
                 game: game.clone(),
+                started: c.stream.as_ref().map(|s| s.started_at.clone()),
             });
             flips.push(LiveChange { channel: c.login.clone(), name: c.name.clone(), live: c.stream.is_some(), title, game });
         }

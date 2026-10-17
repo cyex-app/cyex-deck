@@ -63,7 +63,7 @@ pub struct FeedsOpened {
 
 type View = Channel<Vec<KindEvent>>;
 
-/// Lock order: `rings`, released, then `views`; never both at once.
+/// Lock order: `open` takes `views` then `rings`; everything else takes one at a time.
 #[derive(Default)]
 struct Store {
     rings: Mutex<HashMap<FeedKind, Ring<FeedEntry>>>,
@@ -115,6 +115,28 @@ pub(crate) fn push(app: &AppHandle, kind: FeedKind, entry: FeedEntry, keep: impl
     send(app, kind, events);
 }
 
+/// Replaces the entry with the same key, or adds it (like `push`), in one ring change.
+pub(crate) fn upsert(app: &AppHandle, kind: FeedKind, entry: FeedEntry, keep: impl Fn(&FeedEntry) -> bool) {
+    let Some((updated, dropped)) = with_ring(app, kind, |r| {
+        if r.update(|e| e.key() == entry.key(), |e| *e = entry.clone()).is_some() {
+            (true, None)
+        } else {
+            (false, r.push(entry.clone(), keep))
+        }
+    }) else {
+        return;
+    };
+    let mut events = vec![if updated {
+        KindEvent::Update { entry }
+    } else {
+        KindEvent::Add { entry }
+    }];
+    events.extend(dropped.map(|d| KindEvent::Remove {
+        key: d.key().to_owned(),
+    }));
+    send(app, kind, events);
+}
+
 /// Changes the first entry `hit` finds. Returns whether one was found.
 pub(crate) fn update(
     app: &AppHandle,
@@ -151,12 +173,11 @@ pub(crate) fn clear(app: &AppHandle, kind: FeedKind) {
 pub fn open(app: &AppHandle, kind: FeedKind, channel: View) -> FeedsOpened {
     let store = app.state::<Store>();
     let view = store.next.fetch_add(1, Ordering::Relaxed) + 1;
+    // Views first, so an entry pushed meanwhile is either in the list or sent to the view.
+    let mut views = store.views.lock().unwrap_or_else(|p| p.into_inner());
     let entries = with_ring(app, kind, |r| r.items()).unwrap_or_default();
-    store
-        .views
-        .lock()
-        .unwrap_or_else(|p| p.into_inner())
-        .push((view, kind, channel));
+    views.push((view, kind, channel));
+    drop(views);
     FeedsOpened { view, entries }
 }
 

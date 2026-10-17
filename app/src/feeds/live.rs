@@ -36,11 +36,13 @@ pub struct Flip {
     pub live: bool,
     pub title: Option<String>,
     pub game: Option<String>,
+    /// The stream's start time; a new one means a restart.
+    pub started: Option<String>,
 }
 
-/// Channel id → live, as last put in the feed.
+/// Channel id → (live, stream start), as last put in the feed.
 #[derive(Default)]
-pub struct Last(pub Mutex<HashMap<String, bool>>);
+pub struct Last(pub Mutex<HashMap<String, (bool, Option<String>)>>);
 
 /// A stream started or ended. Both checks (tabs, follows) may see the same flip; the last state per channel decides.
 pub fn flip(app: &AppHandle, f: Flip) {
@@ -51,6 +53,7 @@ pub fn flip(app: &AppHandle, f: Flip) {
         &mut last.0.lock().unwrap_or_else(|p| p.into_inner()),
         &f.id,
         f.live,
+        f.started.clone(),
     ) {
         return;
     }
@@ -70,8 +73,16 @@ pub fn flip(app: &AppHandle, f: Flip) {
 }
 
 /// True (and stores it) when the state differs from the last one, or none is known.
-fn is_new(last: &mut HashMap<String, bool>, id: &str, live: bool) -> bool {
-    last.insert(id.to_owned(), live) != Some(live)
+/// Two known start times that differ are a restart.
+fn is_new(last: &mut HashMap<String, (bool, Option<String>)>, id: &str, live: bool, started: Option<String>) -> bool {
+    let old = last.get(id).cloned();
+    let kept = started.clone().or_else(|| old.as_ref().and_then(|o| o.1.clone()));
+    let new = match &old {
+        None => true,
+        Some((l, s)) => *l != live || matches!((&started, s), (Some(a), Some(b)) if a != b),
+    };
+    last.insert(id.to_owned(), (live, kept));
+    new
 }
 
 #[cfg(test)]
@@ -82,13 +93,17 @@ mod tests {
     fn one_flip_per_change() {
         let mut last = HashMap::new();
         // The tab check and the follow check both see one stream start.
-        assert!(is_new(&mut last, "1", true));
-        assert!(!is_new(&mut last, "1", true));
+        let s = |t: &str| Some(t.to_owned());
+        assert!(is_new(&mut last, "1", true, s("a")));
+        assert!(!is_new(&mut last, "1", true, s("a")));
+        assert!(!is_new(&mut last, "1", true, None));
+        // A restart: same live state, new start time.
+        assert!(is_new(&mut last, "1", true, s("b")));
         // Live, offline, live again: three.
-        let mut n = 1;
+        let mut n = 0;
         for live in [false, true] {
-            n += usize::from(is_new(&mut last, "1", live));
+            n += usize::from(is_new(&mut last, "1", live, None));
         }
-        assert_eq!(n, 3);
+        assert_eq!(n, 2);
     }
 }
