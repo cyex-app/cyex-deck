@@ -99,7 +99,7 @@
     </div>
   {:else if m.reply}
     <div class="context" data-jump={m.reply.parentId}>
-      <Icon name="reply" size={12} />
+      <Icon name="replied" size={12} />
       <span>Replying to <b>@{m.reply.parentDisplay}</b>: {m.reply.parentBody}</span>
     </div>
   {/if}
@@ -265,6 +265,11 @@
   .context[data-jump]:hover,
   .context[data-whisper]:hover {
     color: var(--muted);
+  }
+  /* V106-29 The reply mark grows with the chat text. */
+  .context[data-jump] > :global(svg) {
+    width: 1.15em;
+    height: 1.15em;
   }
   .whisper {
     border-left: 3px solid var(--cyan);
