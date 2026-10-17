@@ -24,6 +24,7 @@
   import { mods } from '../modview/moderation.svelte';
   import { modviewPlace } from '../modview/where.svelte';
   import { PAGES } from '../settings/registry/pages';
+  import { liveOrExact } from './channelMatch';
   import { openAdd } from './dialog.svelte';
   import { label, tabs, tiles } from './tabs.svelte';
   import { errorText } from '../../lib/errors';
@@ -71,10 +72,10 @@
 
   /** Followed channels shown at most. */
   const FOLLOWED = 8;
-  /** Live channels from search shown at most. */
+  /** Channels from search shown at most. */
   const FOUND = 5;
 
-  // Live channels from Twitch's search, after a short pause in typing.
+  // Live channels from Twitch's search (and the exact name, offline too), after a short pause.
   let found = $state<ChannelCard[]>([]);
   $effect(() => {
     const q = query.trim();
@@ -86,7 +87,7 @@
       discoverIpc
         .search(q)
         .then((r) => {
-          if (q === query.trim()) found = r.channels.items.filter((c) => c.stream);
+          if (q === query.trim()) found = liveOrExact(r.channels.items, q);
         })
         .catch(() => {});
     }, 250);
@@ -191,8 +192,8 @@
               key: `l${c.id}`,
               label: c.name,
               score: score(c.login, c.name),
-              hint: c.stream?.game?.name ?? 'Live',
-              live: c.stream?.rerun ? 'rerun' : 'live',
+              hint: c.stream ? (c.stream.game?.name ?? 'Live') : 'Offline',
+              live: c.stream ? (c.stream.rerun ? 'rerun' : 'live') : null,
               run: () => void openChannel({ show: onopen, account: () => home.account }, c),
             }),
           )

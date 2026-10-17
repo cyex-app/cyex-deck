@@ -43,7 +43,7 @@
   import { openChannel } from '../features/browse/open.svelte';
   import { barPlace, sideBarWidth } from '../features/tabs/barLayout';
   import { stepTab } from '../features/tabs/cycle';
-  import { nextHeld, playingNow } from '../features/tabs/hold';
+  import { heldAfterStart, nextHeld, playingNow } from '../features/tabs/hold';
   import { tabs, tiles } from '../features/tabs/tabs.svelte';
   import type { Tab } from '../ipc/bindings/Tab';
   import type { LinkTarget } from '../ipc/bindings/LinkTarget';
@@ -86,17 +86,32 @@
   /** The tab drawn here now, not in its own window. */
   const shownTab = $derived(tab && !tabs.popped.has(tab.id) ? tab.id : null);
 
-  // V102-15 Which tab plays out of sight, worked out before the old tab leaves the page. A
-  // tab picked while it's in its own window counts too: its live stream plays there.
+  // V102-15 Which tab plays out of sight, worked out before the old tab leaves the page. It
+  // stops once the tab on screen plays a live stream (below), or at once for a tab picked
+  // while it's in its own window and live: its stream plays there.
   let shownBefore: string | null = null;
   $effect.pre(() => {
     const to = current;
     const now = shownTab;
     untrack(() => {
       const held = tabs.held && tabs.tab(tabs.held) && !tabs.popped.has(tabs.held) ? tabs.held : null;
-      tabs.held = nextHeld({ held, from: shownBefore, to, playing, liveViewer });
+      tabs.held = nextHeld({ held, from: shownBefore, to, playing, playsElsewhere });
       shownBefore = now;
     });
+  });
+
+  // V102-15 The tab on screen got its live stream playing: the one kept out of sight stops.
+  // Media events don't bubble, so this listens on the way down.
+  $effect(() => {
+    const started = (e: Event) => {
+      const v = e.target;
+      if (!(v instanceof HTMLVideoElement)) return;
+      const tab = v.closest('[data-tab-view]')?.getAttribute('data-tab-view') ?? null;
+      const live = v.hasAttribute('data-live-stream');
+      tabs.held = heldAfterStart({ held: tabs.held, shown: shownTab, tab, live });
+    };
+    document.addEventListener('playing', started, true);
+    return () => document.removeEventListener('playing', started, true);
   });
 
   // Closed or popped out: nothing left to keep playing here.
@@ -120,10 +135,10 @@
     return playingNow(document.querySelector(`[data-tab-view="${CSS.escape(id)}"]`)?.querySelectorAll('video') ?? []);
   }
 
-  /** The tab shows a stream and that channel is live. */
-  function liveViewer(id: string): boolean {
+  /** The tab is in its own window, shows a stream there and that channel is live. */
+  function playsElsewhere(id: string): boolean {
     const t = tabs.tab(id);
-    return Boolean(t && tiles(t).some((x) => x.show.player && tabs.live[x.channel.id]?.stream));
+    return Boolean(t && tabs.popped.has(id) && tiles(t).some((x) => x.show.player && tabs.live[x.channel.id]?.stream));
   }
   /** 08 The miner works once an account has a GQL sign-in; until then it's greyed out (V102-20). */
   const canMine = $derived(accounts.any('miner'));

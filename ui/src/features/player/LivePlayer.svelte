@@ -264,6 +264,7 @@
     <video
       bind:this={video}
       playsinline
+      data-live-stream
     ></video>
     {#if pip}<PipNotice name={tile.channel.name} avatar={info?.avatar} />{/if}
     {#if engine?.choice === 'audio'}

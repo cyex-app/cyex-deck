@@ -1,6 +1,6 @@
 <!-- 1.14 Channel field: a name, user id or twitch.tv link, searched as you type. Suggestions come
-     from Twitch's search plus the exact match for a link or id, live channels first. Nothing is
-     picked until one result is left or you choose; Enter takes the first, arrows move. -->
+     from Twitch's search plus the exact match (offline too), best match first (`matchChannels`).
+     Nothing is picked until one result is left or you choose; Enter takes the first, arrows move. -->
 <script lang="ts">
   import { untrack } from 'svelte';
 
@@ -13,6 +13,7 @@
   import { tabsIpc } from '../../ipc/tabs';
   import { formatNumber } from '../../lib/format';
   import { errorText } from '../../lib/errors';
+  import { matchChannels } from './channelMatch';
 
   interface Props {
     text: string;
@@ -63,19 +64,6 @@
     };
   }
 
-  /** Live first (most viewers), then an exact name, then Twitch's own order. */
-  function rank(list: ChannelInfo[], input: string): ChannelInfo[] {
-    const q = input.toLowerCase();
-    const seen = new Set<string>();
-    const unique = list.filter((c) => !seen.has(c.id) && seen.add(c.id));
-    const weight = (c: ChannelInfo) => (c.stream ? 2 : c.login === q ? 1 : 0);
-    return unique
-      .map((c, i) => ({ c, i }))
-      .sort((a, b) => weight(b.c) - weight(a.c) || (b.c.stream?.viewers ?? 0) - (a.c.stream?.viewers ?? 0) || a.i - b.i)
-      .map((x) => x.c)
-      .slice(0, MAX);
-  }
-
   async function look(input: string) {
     asked = input;
     try {
@@ -90,7 +78,7 @@
           : Promise.resolve([] as ChannelInfo[]),
       ]);
       if (asked !== input) return;
-      const found = rank([...exact, ...search], input);
+      const found = matchChannels(exact, search, input, MAX);
       if (!found.length && failed) throw failed;
       results = found;
       // One match left is the one, and so is an exact name (any case); the rest wait for a choice.
@@ -136,7 +124,7 @@
 {:else if status === 'done' && !results.length}
   <p class="note bad">No channel by that name or id.</p>
 {:else if shown.length}
-  {#if shown.length > 1}<p class="note">Pick one. Live channels come first.</p>{/if}
+  {#if shown.length > 1}<p class="note">Pick one. Best match first.</p>{/if}
   <div class="results" role="radiogroup" aria-label="Channel">
     {#each shown as c (c.id)}
       <button
