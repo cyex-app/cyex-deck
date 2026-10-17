@@ -48,7 +48,7 @@ pub fn on_hermes(app: &AppHandle, e: &hermes::Event) {
 /// A whisper sent or received. `to` names the other person on our own lines when known.
 pub(super) fn incoming(app: &AppHandle, thread_id: &str, m: api::Message, to: Option<api::Person>) {
     let n: Notifications = app.state::<Settings>().read(Partition::Notifications);
-    let (line, own, alert) = {
+    let (line, own, alert, feed_from) = {
         let mut inner = lock(app);
         let Some(me) = inner.me.clone() else { return };
         if !thread_id.split('_').any(|p| p == me.id) {
@@ -56,6 +56,8 @@ pub(super) fn incoming(app: &AppHandle, thread_id: &str, m: api::Message, to: Op
         }
         let own = m.from.id == me.id;
         let other = if own { to } else { Some(m.from.clone()) };
+        // V106-07 Received whispers also go to the Whispers feed.
+        let feed_from = if own { None } else { other.clone() };
         let known = inner.threads.iter().position(|t| t.view.id == thread_id);
         let other_login = known
             .map(|i| inner.threads[i].view.other.login.clone())
@@ -107,12 +109,15 @@ pub(super) fn incoming(app: &AppHandle, thread_id: &str, m: api::Message, to: Op
         let alert = (!own && !muted)
             .then_some((viewing, target))
             .filter(|(v, _)| !(*v && toasts::app_in_front(app)));
-        (line, own, alert)
+        (line, own, alert, feed_from)
     };
     if own && lock(app).threads.iter().all(|t| t.view.id != thread_id) {
         refresh(app, thread_id.to_owned()); // sent elsewhere to someone we didn't know
     }
     emit_line(app, thread_id, &line);
+    if let Some(p) = &feed_from {
+        crate::feeds::whispers::received(app, thread_id, p, &line);
+    }
     emit_changed(app);
     // U4 Streamer mode keeps whispers off chat and the screen.
     let hidden = crate::streamer::hides(app, |s| s.hide_whispers);

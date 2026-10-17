@@ -363,7 +363,7 @@ fn resizing_needs_the_same_layout() {
 #[test]
 fn feeds_and_filters() {
     let mut t = Tabs::default();
-    apply(&mut t, TabOp::AddFeed { name: " Pings ".into() });
+    apply(&mut t, TabOp::AddFeed { name: " Pings ".into(), kind: None });
     let tile = &t.tabs[0].columns[0].tiles[0];
     assert_eq!((tile.feed.as_deref(), tile.show.player), (Some("Pings"), false));
     assert!(t.channel_ids().is_empty(), "feeds have no channel");
@@ -371,7 +371,37 @@ fn feeds_and_filters() {
     apply(&mut t, TabOp::Filters { tile: id, filters: vec!["f1".into(), "f1".into()] });
     assert_eq!(t.tabs[0].columns[0].tiles[0].filters, ["f1"]);
     let mut fresh = || "x".to_owned();
-    assert!(t.apply(TabOp::AddFeed { name: " ".into() }, &mut fresh).is_err());
+    assert!(t.apply(TabOp::AddFeed { name: " ".into(), kind: None }, &mut fresh).is_err());
+}
+
+#[test]
+fn feed_kinds() {
+    let mut t = Tabs::default();
+    for (kind, label) in [(FeedKind::Live, "Live notifications"), (FeedKind::Automod, "AutoMod"), (FeedKind::Whispers, "Whispers")] {
+        let id = apply(&mut t, TabOp::AddFeed { name: "ignored".into(), kind: Some(kind) }).unwrap();
+        let tile = &t.tab(&id).unwrap().columns[0].tiles[0];
+        assert_eq!((tile.feed.as_deref(), tile.feed_kind), (Some(label), kind));
+    }
+    let mut c = counter();
+    assert!(t.apply(TabOp::AddFeed { name: "x".into(), kind: Some(FeedKind::Live) }, &mut c).is_err(), "one per kind");
+    apply(&mut t, TabOp::AddFeed { name: " Pings ".into(), kind: None });
+    assert!(t.apply(TabOp::AddFeed { name: "pings".into(), kind: Some(FeedKind::Rules) }, &mut c).is_err(), "one per name");
+    assert!(t.apply(TabOp::AddFeed { name: "Other".into(), kind: None }, &mut c).is_ok());
+
+    let tile: Tile = serde_json::from_str(r#"{"id":"a","feed":"Pings"}"#).unwrap();
+    assert_eq!(tile.feed_kind, FeedKind::Rules);
+    let tile: Tile = serde_json::from_str(r#"{"id":"a","feed":"Pings","feedKind":"bogus"}"#).unwrap();
+    assert_eq!(tile.feed_kind, FeedKind::Rules);
+    let tile: Tile = serde_json::from_str(r#"{"id":"a","feed":"Live","feedKind":"live"}"#).unwrap();
+    assert_eq!(tile.feed_kind, FeedKind::Live);
+
+    let mut tile = Tile { feed_kind: FeedKind::Live, ..Tile::default() };
+    super::super::sanitize_tile(&mut tile);
+    assert_eq!(tile.feed.as_deref(), Some("Live notifications"));
+    let mut tile = Tile { feed_kind: FeedKind::Live, channel: channel("a"), ..Tile::default() };
+    tile.channel.id = "1".into();
+    super::super::sanitize_tile(&mut tile);
+    assert_eq!((tile.feed.as_deref(), tile.feed_kind), (None, FeedKind::Rules));
 }
 
 #[test]

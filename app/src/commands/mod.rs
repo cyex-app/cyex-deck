@@ -6,6 +6,7 @@ mod chat;
 mod chat_extra;
 mod cosmetics;
 mod emotes;
+pub mod feeds;
 pub mod highlights;
 mod mentions;
 mod miner;
@@ -118,6 +119,9 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         chat_extra::chat_search,
         chat_extra::feed_open,
         chat_extra::feed_close,
+        feeds::feeds_open,
+        feeds::feeds_close,
+        feeds::feeds_clear,
         chat_extra::chat_translate,
         chat_extra::chat_set_language,
         chat_extra::chat_record,

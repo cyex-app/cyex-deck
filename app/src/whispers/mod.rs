@@ -119,6 +119,8 @@ pub fn accounts_changed(app: &AppHandle) {
         };
         old
     };
+    // V106-07 Q4 The Whispers feed belongs to the old default account.
+    crate::feeds::whispers::clear(app);
     if let Some(old) = old.filter(|o| o.gql) {
         crate::hermes::remove_user(app, &old.id, Kind::Whispers);
     }
@@ -616,6 +618,11 @@ fn emit_refresh(app: &AppHandle, thread_id: &str) {
 /// Plain text of a line, for previews and toasts.
 fn preview(m: &ChatMessage) -> String {
     plain(&m.body)
+}
+
+/// V106-07 The same, for the Whispers feed.
+pub(crate) fn preview_text(m: &ChatMessage) -> String {
+    preview(m)
 }
 
 #[cfg(test)]

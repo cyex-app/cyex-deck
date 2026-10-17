@@ -35,6 +35,7 @@
     muted: elsewhere === true,
     boost: false,
     feed: null,
+    feedKind: 'rules',
     filters: [],
     chatSide: null,
     modviewShare: null,
