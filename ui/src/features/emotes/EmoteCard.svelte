@@ -19,6 +19,7 @@
   import { hidden } from './hidden.svelte';
   import { unlistedPrompt } from './unlisted';
 import UnlistedPrompt from './UnlistedPrompt.svelte';
+  import EditSection from './edit/EditSection.svelte';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
   import { copy } from '../../lib/clipboard';
@@ -27,10 +28,12 @@ import UnlistedPrompt from './UnlistedPrompt.svelte';
     target: CardTarget;
     /** The chat it was clicked in. */
     login: string;
+    /** V106-31/32 The signed-in account that may edit 7TV sets. */
+    account?: string | null;
     onclose: () => void;
   }
 
-  let { target, login, onclose }: Props = $props();
+  let { target, login, account = null, onclose }: Props = $props();
 
   const WIDTH = 300;
 
@@ -44,8 +47,12 @@ import UnlistedPrompt from './UnlistedPrompt.svelte';
   const theme = $derived(settings.v.appearance.theme);
   const others = $derived([target.emote, ...target.stack].filter((l) => l.id !== shown.id));
 
+  let reloads = $state(0);
+  const reload = () => void reloads++;
+
   $effect(() => {
     const e = shown;
+    void reloads;
     info = null;
     failed = false;
     let live = true;
@@ -58,7 +65,8 @@ import UnlistedPrompt from './UnlistedPrompt.svelte';
 
   $effect(() => {
     const down = (ev: MouseEvent) => {
-      if (box && !box.contains(ev.target as Node)) onclose();
+      const t = ev.target as Element;
+      if (box && !box.contains(t) && !t.closest?.('[data-shared-menu]')) onclose();
     };
     const off = layer('popover', onclose);
     const release = box ? focusScope(box) : undefined;
@@ -144,6 +152,10 @@ import UnlistedPrompt from './UnlistedPrompt.svelte';
 
   {#if info && unlistedPrompt(settings.v.chat, info.unlisted)}
     <UnlistedPrompt onchosen={() => box?.focus()} />
+  {/if}
+
+  {#if account && shown.provider === 'seventv'}
+    <EditSection {account} {login} emote={shown} {target} onchange={reload} />
   {/if}
 
   <div class="foot">
