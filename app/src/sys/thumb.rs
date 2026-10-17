@@ -3,9 +3,10 @@
 //! has its codec.
 
 use windows::Win32::Graphics::Imaging::{
-    CLSID_WICImagingFactory, GUID_ContainerFormatPng, GUID_WICPixelFormat32bppBGRA, IWICFormatConverter,
-    IWICImagingFactory, WICBitmapDitherTypeNone, WICBitmapEncoderNoCache, WICBitmapInterpolationModeFant,
-    WICBitmapPaletteTypeCustom, WICDecodeMetadataCacheOnDemand,
+    CLSID_WICImagingFactory, GUID_ContainerFormatPng, GUID_WICPixelFormat32bppBGRA, IWICBitmapFrameDecode,
+    IWICBitmapSource, IWICFormatConverter, IWICImagingFactory, WICBitmapDitherTypeNone,
+    WICBitmapEncoderNoCache, WICBitmapInterpolationModeFant, WICBitmapPaletteTypeCustom,
+    WICDecodeMetadataCacheOnDemand,
 };
 use windows::Win32::System::Com::{
     CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoUninitialize, STATSTG,
@@ -76,12 +77,25 @@ unsafe fn factory() -> windows::core::Result<IWICImagingFactory> {
     unsafe { CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER) }
 }
 
-/// The first frame of `bytes` as 32bppBGRA, with its size; an error for an empty one.
+/// V106-24 The first frame of `bytes` as 32bppBGRA, with its size.
 /// SAFETY (caller): on the factory's COM thread.
 unsafe fn decode_bgra(
     factory: &IWICImagingFactory,
     bytes: &[u8],
 ) -> windows::core::Result<(u32, u32, IWICFormatConverter)> {
+    // SAFETY: see above.
+    unsafe {
+        let (w, h, frame) = decode_frame(factory, bytes)?;
+        Ok((w, h, bgra(factory, &frame)?))
+    }
+}
+
+/// The first frame of `bytes` with its size; an error for an empty one.
+/// SAFETY (caller): on the factory's COM thread.
+unsafe fn decode_frame(
+    factory: &IWICImagingFactory,
+    bytes: &[u8],
+) -> windows::core::Result<(u32, u32, IWICBitmapFrameDecode)> {
     // SAFETY: plain WIC calls on objects this function owns or returns.
     unsafe {
         let input = SHCreateMemStream(Some(bytes)).ok_or_else(windows::core::Error::from_thread)?;
@@ -93,16 +107,28 @@ unsafe fn decode_bgra(
         if w == 0 || h == 0 {
             return Err(windows::core::Error::from_hresult(windows::core::HRESULT(-1)));
         }
+        Ok((w, h, frame))
+    }
+}
+
+/// `source` converted to 32bppBGRA.
+/// SAFETY (caller): on the factory's COM thread.
+unsafe fn bgra(
+    factory: &IWICImagingFactory,
+    source: &IWICBitmapSource,
+) -> windows::core::Result<IWICFormatConverter> {
+    // SAFETY: plain WIC calls on objects this function owns or returns.
+    unsafe {
         let pixels = factory.CreateFormatConverter()?;
         pixels.Initialize(
-            &frame,
+            source,
             &GUID_WICPixelFormat32bppBGRA,
             WICBitmapDitherTypeNone,
             None,
             0.0,
             WICBitmapPaletteTypeCustom,
         )?;
-        Ok((w, h, pixels))
+        Ok(pixels)
     }
 }
 
@@ -111,10 +137,12 @@ fn make(bytes: &[u8], max: u32) -> windows::core::Result<Vec<u8>> {
     // leaves COM because `in_com` runs `make` first.
     unsafe {
         let factory = factory()?;
-        let (w, h, pixels) = decode_bgra(&factory, bytes)?;
+        let (w, h, frame) = decode_frame(&factory, bytes)?;
+        // Scale first, so a big photo is never held as full-size pixels.
         let (tw, th) = fit(w, h, max);
         let scaler = factory.CreateBitmapScaler()?;
-        scaler.Initialize(&pixels, tw, th, WICBitmapInterpolationModeFant)?;
+        scaler.Initialize(&frame, tw, th, WICBitmapInterpolationModeFant)?;
+        let pixels = bgra(&factory, &scaler)?;
         let out = SHCreateMemStream(None).ok_or_else(windows::core::Error::from_thread)?;
         let encoder = factory.CreateEncoder(&GUID_ContainerFormatPng, std::ptr::null())?;
         encoder.Initialize(&out, WICBitmapEncoderNoCache)?;
@@ -125,7 +153,7 @@ fn make(bytes: &[u8], max: u32) -> windows::core::Result<Vec<u8>> {
         target.SetSize(tw, th)?;
         let mut format = GUID_WICPixelFormat32bppBGRA;
         target.SetPixelFormat(&mut format)?;
-        target.WriteSource(&scaler, std::ptr::null())?;
+        target.WriteSource(&pixels, std::ptr::null())?;
         target.Commit()?;
         encoder.Commit()?;
         let mut stat = STATSTG::default();
