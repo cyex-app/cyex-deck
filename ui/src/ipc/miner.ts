@@ -14,6 +14,8 @@ import type { TabChannel } from './bindings/TabChannel';
 export const minerIpc = {
   status: () => invoke<MinerStatus>('miner_status'),
   log: () => invoke<LogLine[]>('miner_log'),
+  /** V106-27 Empties the log in every window. */
+  clearLog: () => invoke<void>('miner_log_clear'),
   statsChannels: () => invoke<StatsChannel[]>('miner_stats_channels'),
   /** One channel's stats, or every channel's with `channel` null. */
   stats: (channel: string | null) => invoke<Stats>('miner_stats', { channel }),
@@ -24,6 +26,7 @@ export const minerIpc = {
   first: (channel: TabChannel, on: boolean) => invoke<string | null>('miner_first', { channel, on }),
   onStatus: (handler: (s: MinerStatus) => void) => listen<MinerStatus>('miner:status', (e) => handler(e.payload)),
   onLog: (handler: (l: LogLine) => void) => listen<LogLine>('miner:log', (e) => handler(e.payload)),
+  onLogCleared: (handler: () => void) => listen('miner:log:cleared', () => handler()),
   /** A points balance changed, for the chat's points button. */
   onBalance: (handler: (b: BalanceUpdate) => void) =>
     listen<BalanceUpdate>('points:balance', (e) => handler(e.payload)),

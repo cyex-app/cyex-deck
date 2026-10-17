@@ -10,6 +10,7 @@ use cyex_miner::stats::{Kind, Record};
 use cyex_twitch::gql::predictions::{self, Prediction};
 use tauri::AppHandle;
 
+use super::log::LogKind;
 use super::{gql_auth, http, lock, log, now_ms};
 
 /// A prediction was created or changed on a watched channel.
@@ -46,7 +47,10 @@ async fn place(app: &AppHandle, account: &str, channel_id: &str, event_id: &str)
     // Read it again: the sides have moved since it opened.
     let state = match predictions::prediction(&http, auth, &login).await {
         Ok(state) => state,
-        Err(e) => return eprintln!("miner: prediction in {login}: {e}"),
+        Err(e) => {
+            eprintln!("miner: prediction in {login}: {e}");
+            return log::add(app, LogKind::Error, Some(&name), "Couldn’t place the bet.");
+        }
     };
     let Some(p) = state
         .prediction
@@ -67,6 +71,7 @@ async fn place(app: &AppHandle, account: &str, channel_id: &str, event_id: &str)
     if !bet::passes(&s.filter, &sides, i) {
         return log::add(
             app,
+            LogKind::Bet,
             Some(&name),
             format!("Skipped the bet on “{}”: the filter said no.", p.title),
         );
@@ -79,7 +84,8 @@ async fn place(app: &AppHandle, account: &str, channel_id: &str, event_id: &str)
     if !state.accepted
         && let Err(e) = predictions::accept_terms(&http, auth).await
     {
-        return eprintln!("miner: prediction terms: {e}");
+        eprintln!("miner: prediction terms: {e}");
+        return log::add(app, LogKind::Error, Some(&name), "Couldn’t place the bet.");
     }
     let outcome = &p.outcomes[i];
     match predictions::predict(&http, auth, &p.id, &outcome.id, amount).await {
@@ -92,11 +98,18 @@ async fn place(app: &AppHandle, account: &str, channel_id: &str, event_id: &str)
             super::stats::record(app, account, channel_id, &rec);
             log::add(
                 app,
+                LogKind::Bet,
                 Some(&name),
                 format!("Bet {} on “{}” in “{}”.", grouped(amount), outcome.title, p.title),
             );
         }
-        Ok(Some(code)) => eprintln!("miner: bet in {login} refused: {code}"),
-        Err(e) => eprintln!("miner: bet in {login}: {e}"),
+        Ok(Some(code)) => {
+            eprintln!("miner: bet in {login} refused: {code}");
+            log::add(app, LogKind::Error, Some(&name), "Couldn’t place the bet.");
+        }
+        Err(e) => {
+            eprintln!("miner: bet in {login}: {e}");
+            log::add(app, LogKind::Error, Some(&name), "Couldn’t place the bet.");
+        }
     }
 }

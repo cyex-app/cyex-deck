@@ -7,6 +7,7 @@ use cyex_miner::stats::{Kind, Record};
 use cyex_twitch::gql::miner::{self as gm, PointsContext};
 use tauri::AppHandle;
 
+use super::log::LogKind;
 use super::{gql_auth, http, log, now_ms};
 
 pub async fn contribute(app: &AppHandle, account: &str, ctx: &PointsContext) {
@@ -45,12 +46,19 @@ pub async fn contribute(app: &AppHandle, account: &str, ctx: &PointsContext) {
                 super::stats::record(app, account, &ctx.channel_id, &rec);
                 log::add(
                     app,
+                    LogKind::Drop,
                     Some(&name),
                     format!("Put {} points toward “{}”.", grouped(amount), g.title),
                 );
             }
-            Ok(Some(code)) => eprintln!("miner: goal in {name} refused: {code}"),
-            Err(e) => eprintln!("miner: goal in {name}: {e}"),
+            Ok(Some(code)) => {
+                eprintln!("miner: goal in {name} refused: {code}");
+                log::add(app, LogKind::Error, Some(&name), "Couldn’t read the goals.");
+            }
+            Err(e) => {
+                eprintln!("miner: goal in {name}: {e}");
+                log::add(app, LogKind::Error, Some(&name), "Couldn’t read the goals.");
+            }
         }
     }
 }

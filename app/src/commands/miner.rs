@@ -23,6 +23,12 @@ pub fn miner_log(app: AppHandle) -> Vec<LogLine> {
     m::log::lines(&app)
 }
 
+/// V106-27 Empties the log in every window.
+#[tauri::command]
+pub fn miner_log_clear(app: AppHandle) {
+    m::log::clear(&app);
+}
+
 /// Whose stats show: the mining account, else the one picked, else the default.
 fn stats_account(app: &AppHandle) -> Option<String> {
     m::status(app)

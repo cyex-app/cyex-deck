@@ -13,6 +13,7 @@ use cyex_twitch::spade;
 use tauri::AppHandle;
 use tokio::time::{Instant, sleep, sleep_until};
 
+use super::log::{self, LogKind};
 use super::{gql_auth, http, lock, now_ms};
 
 const CYCLE: Duration = Duration::from_secs(20);
@@ -56,11 +57,26 @@ pub fn spawn(app: &AppHandle) {
     });
 }
 
+/// Logs why a minute failed: Twitch's brake, else `text`. Returns `slow`.
+fn slow_or(app: &AppHandle, id: &str, slow: bool, text: &str) -> bool {
+    let name = super::claims::label(app, id);
+    let text = if slow { "Twitch asked to slow down." } else { text };
+    log::add(app, LogKind::Error, Some(&name), text);
+    slow
+}
+
+/// Who joined and who left between two rounds of slots.
+pub(super) fn joined_left(old: &[String], new: &[String]) -> (Vec<String>, Vec<String>) {
+    let joined = new.iter().filter(|i| !old.contains(i)).cloned().collect();
+    let left = old.iter().filter(|i| !new.contains(i)).cloned().collect();
+    (joined, left)
+}
+
 /// Picks the slots for this round and follows their Hermes topics.
 fn pick(app: &AppHandle) -> Vec<String> {
     let s = super::settings(app);
     let now = now_ms();
-    let (picked, changed) = {
+    let (picked, changed, old) = {
         let mut st = lock(app);
         let picked = if st.account.is_none() {
             Vec::new()
@@ -84,10 +100,17 @@ fn pick(app: &AppHandle) -> Vec<String> {
             slots::pick(&list, &first, &s.order, free)
         };
         let changed = picked != st.slots;
-        st.slots = picked.clone();
-        (picked, changed)
+        let old = std::mem::replace(&mut st.slots, picked.clone());
+        (picked, changed, old)
     };
     if changed {
+        let (joined, left) = joined_left(&old, &picked);
+        for (ids, text) in [(joined, "Started mining."), (left, "Stopped mining.")] {
+            for id in ids {
+                let name = super::claims::label(app, &id);
+                log::add(app, LogKind::Channel, Some(&name), text);
+            }
+        }
         topics(app);
         super::emit_status(app);
     }
@@ -152,7 +175,7 @@ async fn watch_one(app: &AppHandle, id: &str, spade_url: &str) -> bool {
                 }
                 Err(e) => {
                     eprintln!("miner: no playback token for {login}: {e}");
-                    return e.is_rate_limited();
+                    return slow_or(app, id, e.is_rate_limited(), "Couldn’t reach the stream.");
                 }
             }
         }
@@ -160,7 +183,7 @@ async fn watch_one(app: &AppHandle, id: &str, spade_url: &str) -> bool {
     if let Err(e) = spade::touch(&http, &login, &playback, TV_USER_AGENT).await {
         eprintln!("miner: couldn't reach {login}'s stream: {e}");
         set_token(app, id, None);
-        return e.is_rate_limited();
+        return slow_or(app, id, e.is_rate_limited(), "Couldn’t reach the stream.");
     }
     let minute = spade::Minute {
         channel_id: id,
@@ -176,6 +199,9 @@ async fn watch_one(app: &AppHandle, id: &str, spade_url: &str) -> bool {
         }
         Ok(status) => {
             eprintln!("miner: spade didn't take a minute for {login} ({status})");
+            if status == 429 {
+                slow_or(app, id, true, "");
+            }
             status == 429
         }
         Err(e) => {
@@ -220,5 +246,22 @@ fn credit(app: &AppHandle, account: &str, id: &str) {
             ..Record::new(now, StatKind::Watched, 0)
         };
         super::stats::record(app, account, id, &rec);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::joined_left;
+
+    fn v(a: &[&str]) -> Vec<String> {
+        a.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn joined_and_left_between_rounds() {
+        let (j, l) = joined_left(&v(&["a", "b"]), &v(&["b", "c"]));
+        assert_eq!(j, v(&["c"]));
+        assert_eq!(l, v(&["a"]));
+        assert_eq!(joined_left(&v(&["a"]), &v(&["a"])), (vec![], vec![]));
     }
 }

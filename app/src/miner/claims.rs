@@ -6,6 +6,7 @@ use cyex_settings::schema::Tabs;
 use cyex_twitch::gql::miner::{self as gm, Claimed};
 use tauri::{AppHandle, Manager};
 
+use super::log::LogKind;
 use super::{gql_auth, http, lock, log};
 use crate::settings::Settings;
 
@@ -43,11 +44,17 @@ pub async fn bonus(app: &AppHandle, account: &str, channel_id: &str, claim_id: &
         Ok(Claimed::Balance(_)) => {
             let by = by(app, account);
             if !by.is_empty() {
-                log::add(app, Some(&name), format!("Claimed a bonus chest{by}."));
+                log::add(app, LogKind::Claim, Some(&name), format!("Claimed a bonus chest{by}."));
             }
         }
-        Ok(Claimed::Refused(code)) => eprintln!("miner: chest in {name} refused: {code}"),
-        Err(e) => eprintln!("miner: chest in {name}: {e}"),
+        Ok(Claimed::Refused(code)) => {
+            eprintln!("miner: chest in {name} refused: {code}");
+            log::add(app, LogKind::Error, Some(&name), "Couldn’t claim the chest.");
+        }
+        Err(e) => {
+            eprintln!("miner: chest in {name}: {e}");
+            log::add(app, LogKind::Error, Some(&name), "Couldn’t claim the chest.");
+        }
     }
 }
 
@@ -57,9 +64,15 @@ pub async fn moment(app: &AppHandle, account: &str, channel_id: &str, moment_id:
     };
     let name = label(app, channel_id);
     match gm::claim_moment(&http(app), gql_auth(&token, &client_id), moment_id).await {
-        Ok(None) => log::add(app, Some(&name), "Claimed a moment."),
-        Ok(Some(code)) => eprintln!("miner: moment in {name} refused: {code}"),
-        Err(e) => eprintln!("miner: moment in {name}: {e}"),
+        Ok(None) => log::add(app, LogKind::Claim, Some(&name), "Claimed a moment."),
+        Ok(Some(code)) => {
+            eprintln!("miner: moment in {name} refused: {code}");
+            log::add(app, LogKind::Error, Some(&name), "Couldn’t claim the moment.");
+        }
+        Err(e) => {
+            eprintln!("miner: moment in {name}: {e}");
+            log::add(app, LogKind::Error, Some(&name), "Couldn’t claim the moment.");
+        }
     }
 }
 
@@ -73,7 +86,10 @@ pub async fn raid(app: &AppHandle, account: &str, channel_id: &str, raid_id: &st
     };
     let name = label(app, channel_id);
     match gm::join_raid(&http(app), gql_auth(&token, &client_id), raid_id).await {
-        Ok(()) => log::add(app, Some(&name), format!("Joined the raid to {target}.")),
-        Err(e) => eprintln!("miner: raid from {name}: {e}"),
+        Ok(()) => log::add(app, LogKind::Raid, Some(&name), format!("Joined the raid to {target}.")),
+        Err(e) => {
+            eprintln!("miner: raid from {name}: {e}");
+            log::add(app, LogKind::Error, Some(&name), "Couldn’t join the raid.");
+        }
     }
 }
