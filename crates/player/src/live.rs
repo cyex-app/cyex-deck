@@ -145,7 +145,7 @@ impl<F: Fetch> Live<F> {
     /// V1061 A segment of the mock HLS server (`seg/<variant>/<n>.ts`); no mock, no segment.
     pub async fn mock_segment(&self, path: &str) -> Result<Vec<u8>> {
         let base = self.fetch.mock_base().ok_or_else(|| gone("gone"))?;
-        if path.contains("..") {
+        if !mock_path_ok(path) {
             return Err(gone("gone"));
         }
         self.fetch.bytes(&format!("{base}/seg/{path}")).await
@@ -205,6 +205,16 @@ pub(crate) fn gone(message: &str) -> Error {
     }
 }
 
+/// V1061 `[A-Za-z0-9_-]+(/[A-Za-z0-9_.-]+)*`, no `%`, no `.` or `..` segment.
+fn mock_path_ok(path: &str) -> bool {
+    let mut parts = path.split('/');
+    let first = parts.next().unwrap_or("");
+    let word = |c: char| c.is_ascii_alphanumeric() || c == '_' || c == '-';
+    !first.is_empty()
+        && first.chars().all(word)
+        && parts.all(|p| !p.is_empty() && p != "." && p != ".." && p.chars().all(|c| word(c) || c == '.'))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -252,6 +262,16 @@ mod tests {
         low_latency: true,
         block_ads: true,
     };
+
+    #[test]
+    fn mock_paths_are_plain() {
+        for ok in ["360p30/1.ts", "a", "a/b/c.ts"] {
+            assert!(mock_path_ok(ok), "{ok}");
+        }
+        for bad in ["", "..", "a/..", "../a", "a/%2e%2e/b", "%2e%2e/a", "a/./b", ".a", "a//b", "/a", "a/b/", "a?x", "a\\b", "a/b#c"] {
+            assert!(!mock_path_ok(bad), "{bad}");
+        }
+    }
 
     #[tokio::test]
     async fn mock_segment_needs_a_mock() {

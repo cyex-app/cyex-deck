@@ -39,6 +39,18 @@
     return () => ro.disconnect();
   });
 
+  // V106-19 A kept-mounted tab that shows again (display:none before) opens it again.
+  $effect(() => {
+    if (!el || typeof IntersectionObserver !== 'function') return;
+    let was = false;
+    const io = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !was) open = true;
+      was = entry.isIntersecting;
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  });
+
   const key = $derived(pinKey(pin.id));
   $effect(() => {
     key;

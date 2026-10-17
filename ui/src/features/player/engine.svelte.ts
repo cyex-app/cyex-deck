@@ -70,6 +70,8 @@ export class Engine {
   private pausedPos = 0;
   /** Our own seek or swap pauses the video: that pause isn't the user's. */
   private jumping = false;
+  /** The user paused during our silent jump: it ends paused. */
+  private wantPause = false;
   private ownPauses = 0;
   /** Q16 a Paused 10 min: nothing loads anymore. */
   private stopped = false;
@@ -148,11 +150,17 @@ export class Engine {
 
   /** A deliberate pause, e.g. a clip over the rewound stream (Q22 b). */
   pause(): void {
+    if (this.jumping) this.wantPause = true;
     this.video.pause();
   }
 
   /** V1061-01 Play: a live player decides where it goes on (LivePlayer's play paths). */
   async resume(): Promise<void> {
+    // Played again mid-jump after a pause: the jump plays when it lands.
+    if (this.jumping && this.wantPause) {
+      this.wantPause = false;
+      return;
+    }
     if (!this.live || this.holding || this.pausedAt === 0) {
       void this.video.play().catch(() => {});
       return;
@@ -209,11 +217,16 @@ export class Engine {
     }
     // Q14 a Silent while it loads there: no pop, no repeated seconds.
     this.jumping = true;
+    this.wantPause = false;
     this.quietPause();
     v.currentTime = t;
     await waitFor(v, 'canplay', 4000);
     this.jumping = false;
-    if (play && this.hls === hls) await v.play().catch(() => {});
+    if (this.hls !== hls) return;
+    if (this.wantPause) {
+      this.wantPause = false;
+      this.markPaused();
+    } else if (play) await v.play().catch(() => {});
   }
 
   /** V1061-03 A seek inside the rewind VOD. */
@@ -438,6 +451,11 @@ export class Engine {
     }
     // Played again before the event came: nothing to keep.
     if (!this.video.paused || !this.live || this.jumping || this.holding) return;
+    this.markPaused();
+  }
+
+  /** A pause that is the user's: the playlists keep loading, later nothing. */
+  private markPaused(): void {
     this.pausedAt = performance.now();
     this.pausedPos = this.video.currentTime;
     this.hls?.pauseBuffering();

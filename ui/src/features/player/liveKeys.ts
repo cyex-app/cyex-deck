@@ -5,7 +5,7 @@ import { clock } from './time.ts';
 /** Focused elements that use the arrow keys themselves. Buttons are left out on purpose:
  *  after a click on Play the seek must still work. */
 export const OWN_ARROWS =
-  'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="slider"], [role="listbox"], [role="option"], [role="grid"], [role="gridcell"], [role="menu"], [role="menubar"], [role^="menuitem"], [role="radiogroup"], [role="radio"], [role="tablist"], [role="tab"], [role="tree"], [role="treegrid"], [role="spinbutton"], [role="combobox"], [data-arrows]';
+  'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="slider"], [role="listbox"], [role="option"], [role="grid"], [role="gridcell"], [role="menu"], [role="menubar"], [role^="menuitem"], [role="radiogroup"], [role="radio"], [role="tablist"], [role="tab"], [role="tree"], [role="treegrid"], [role="spinbutton"], [role="combobox"], [role="log"], [data-arrows]';
 
 export function ownsArrows(target: { closest(sel: string): unknown } | null): boolean {
   return !!target?.closest?.(OWN_ARROWS);

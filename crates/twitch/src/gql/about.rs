@@ -170,7 +170,7 @@ struct RawGame {
 #[serde(rename_all = "camelCase")]
 struct RawChannel {
     #[serde(default)]
-    social_medias: Option<Vec<RawSocial>>,
+    social_medias: Option<Vec<Option<RawSocial>>>,
 }
 
 #[derive(Deserialize)]
@@ -233,6 +233,7 @@ impl From<RawUser> for About {
             .collect();
         let mut socials: Vec<Social> = socials
             .into_iter()
+            .flatten()
             .filter_map(|s| {
                 Some(Social {
                     url: web(s.url)?,
@@ -343,6 +344,16 @@ mod tests {
         assert_eq!(a.panels[0].link.as_deref(), Some("https://shop.example"));
         assert_eq!(a.panels[0].body.len(), 1);
         assert_eq!(a.last_stream.unwrap().title, "stream");
+    }
+
+    #[test]
+    fn a_null_social_does_not_fail_the_page() {
+        let d: Data = serde_json::from_str(
+            r#"{"user":{"id":"1","login":"x","channel":{"socialMedias":[null,{"name":"youtube","title":"YouTube","url":"https://youtube.com/x"}]},"panels":[]}}"#,
+        )
+        .unwrap();
+        let a = About::from(d.user.unwrap());
+        assert_eq!(a.socials.len(), 1);
     }
 
     #[test]

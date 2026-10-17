@@ -5,7 +5,7 @@ import { playerIpc } from '../../ipc/player';
 import type { Engine } from './engine.svelte';
 import { COALESCE_MS, DVR_RETRY_MS, DVR_YOUNG, dvrTarget, stepTarget, uptimeAt } from './liveEdge';
 import type { SeekResult } from './liveKeys';
-import { rewound } from './rewound.svelte';
+import { clearRewound, hasOwn, setRewound } from './rewound.svelte';
 
 export interface RewindHost {
   engine(): Engine | undefined;
@@ -150,7 +150,7 @@ export class Rewind {
     clearTimeout(this.flushTimer);
     clearTimeout(this.endTimer);
     this.asks += 1;
-    rewound.delete(this.login);
+    clearRewound(this);
   }
 
   /** No rewind until Twitch says so again. */
@@ -197,10 +197,9 @@ export class Rewind {
     const e = this.host.engine();
     if (this.inVod && !this.done) {
       const behind = Math.round(this.behind ?? 0);
-      const r = rewound.get(this.login);
-      if (r?.behind !== behind || r.ended !== this.ended) rewound.set(this.login, { behind, ended: this.ended });
-    } else if (rewound.has(this.login)) {
-      rewound.delete(this.login);
+      setRewound(this, this.login, { behind, ended: this.ended });
+    } else if (hasOwn(this)) {
+      clearRewound(this);
     }
     // The VOD's edge stalls: nothing more to load there yet, live has it.
     if (this.inVod && e && e.waiting && !e.swapping && !this.ended && this.uptime - e.time < 40) {
@@ -214,7 +213,7 @@ export class Rewind {
     if (this.ended && e?.failure === 'offline' && !this.endTimer && !this.done) {
       this.endTimer = setTimeout(() => {
         this.done = true;
-        rewound.delete(this.login);
+        clearRewound(this);
       }, 5000);
     }
   }
