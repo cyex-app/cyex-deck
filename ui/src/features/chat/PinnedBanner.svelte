@@ -1,6 +1,7 @@
 <!-- 1.9 The channel's pinned message, above the chat. Can be folded to one line, hidden
      into the events button while it's pinned (V103-04) or closed until the pin changes;
-     mods can take it down (V101-34). Its text is semibold and a step larger than chat
+     mods can take it down (V101-34). It always starts open, with who sent and who pinned
+     it; folding is for this pin only (V106-19). A pin that ends shows a timer bar. Its text is semibold and a step larger than chat
      (Settings → General, V105-03), so it reads at a glance. -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
@@ -11,6 +12,7 @@
   import { pinKey, pinLive, shows } from './eventStrip';
   import { eventStrip } from './eventStrip.svelte';
   import { shownName } from './names';
+  import { pinSpan } from './pinTimer';
 
   interface Props {
     pin: Pinned;
@@ -21,8 +23,9 @@
 
   let { pin, channel, onunpin }: Props = $props();
 
-  /** Two lines until clicked; one while the chat is short (A13). */
-  let open = $state(false);
+  /** V106-19 Open on every new pin; clicking folds it to two lines (one while the chat is
+   * short, A13). Never saved. */
+  let open = $state(true);
   let el = $state<HTMLElement>();
   let short = $state(false);
 
@@ -37,6 +40,25 @@
   });
 
   const key = $derived(pinKey(pin.id));
+  $effect(() => {
+    key;
+    open = true;
+  });
+
+  /** V106-19 Twitch's startsAt when it has one, else when this banner first saw the pin. */
+  let seen = { id: '', at: 0 };
+  function seenAt(id: string) {
+    if (seen.id !== id) seen = { id, at: Date.now() };
+    return seen.at;
+  }
+  const calm = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let tick = $state(Date.now());
+  $effect(() => {
+    if (!calm || !pin.endsAt) return;
+    const t = setInterval(() => (tick = Date.now()), 10_000);
+    return () => clearInterval(t);
+  });
+  const span = $derived(pinSpan(pin, seenAt(pin.id), calm ? tick : Date.now()));
   const c = $derived(settings.v.chat);
   const sender = $derived(pin.message.sender);
   const name = $derived(sender ? shownName(sender, c.names, c.users[sender.id]) : null);
@@ -45,16 +67,22 @@
 {#if shows(eventStrip.of(channel), key)}
   <div class="pin" class:paid={pin.paid} class:open class:short bind:this={el}>
     <Icon name="pin" size={14} />
-    <button class="text" onclick={() => (open = !open)} aria-expanded={open}>
-      {#if sender && name}
-        <span
-          class="name"
-          style="--cd:{sender.color.dark};--cl:{sender.color.light}">{name.name}</span
-        >:
+    <div class="main">
+      {#if (sender && name) || pin.by}
+        <div class="head">
+          {#if sender && name}
+            <span
+              class="name"
+              style="--cd:{sender.color.dark};--cl:{sender.color.light}">{name.name}</span
+            >
+          {/if}
+          {#if pin.by}<span class="by">{sender && name ? '· ' : ''}Pinned by {pin.by}</span>{/if}
+        </div>
       {/if}
-      <Body fragments={pin.message.body} {channel} />
-      {#if pin.by && open}<span class="by">Pinned by {pin.by}</span>{/if}
-    </button>
+      <button class="text" onclick={() => (open = !open)} aria-expanded={open}>
+        <Body fragments={pin.message.body} {channel} />
+      </button>
+    </div>
     {#if onunpin}
       <button class="close" aria-label="Unpin" use:tooltip={{ label: 'Unpin', hint: 'Takes it down for everyone.' }} onclick={onunpin}>
         <Icon name="trash" size={13} />
@@ -78,6 +106,16 @@
     >
       <Icon name="x" size={13} />
     </button>
+    {#if span}
+      {#key pin.id}
+        <div
+          class="timer"
+          class:still={calm}
+          style="--from:{span.frac};--dur:{Math.round(span.left)}ms"
+          aria-hidden="true"
+        ></div>
+      {/key}
+    {/if}
   </div>
 {/if}
 
@@ -92,6 +130,41 @@
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
     color: var(--muted);
+    position: relative;
+    overflow: hidden;
+  }
+  .main {
+    flex: 1;
+    min-width: 0;
+  }
+  .head {
+    margin-bottom: 2px;
+    font-size: calc(var(--chat-size) * 0.9);
+    line-height: 1.3;
+  }
+  /* V106-19 Shrinks to the pin's end on the compositor; no per-frame script. */
+  .timer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: var(--accent);
+    opacity: 0.35;
+    transform-origin: left center;
+    transform: scaleX(var(--from));
+    animation: pin-run var(--dur) linear forwards;
+  }
+  .timer.still {
+    animation: none;
+  }
+  @keyframes pin-run {
+    from {
+      transform: scaleX(var(--from));
+    }
+    to {
+      transform: scaleX(0);
+    }
   }
   .pin.paid {
     border-color: var(--twitch);
@@ -101,8 +174,8 @@
     margin-top: 2px;
   }
   .text {
-    flex: 1;
-    min-width: 0;
+    display: block;
+    width: 100%;
     padding: 0;
     background: none;
     border: 0;
@@ -136,10 +209,7 @@
     color: var(--cl);
   }
   .by {
-    display: block;
-    margin-top: 2px;
     color: var(--dim);
-    font-size: 0.8em;
     font-weight: 400;
   }
   .close {

@@ -233,6 +233,7 @@ fn to_pinned(p: PinnedMessage, me: Option<&Me>, colors: &mut cyex_chat::build::C
     Pinned {
         id: p.id,
         by: p.pinned_by,
+        starts_at: p.starts_at,
         ends_at: p.ends_at,
         paid: p.kind == "PAID",
         message: ChatMessage {
