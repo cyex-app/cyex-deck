@@ -123,7 +123,13 @@ pub fn player_set_proxy(app: AppHandle, url: Option<String>) -> CmdResult<()> {
 /// 1.21
 #[tauri::command]
 pub async fn channel_about(app: AppHandle, login: String) -> CmdResult<Option<About>> {
-    gql::about(&http(&app), &login).await.map_err(message)
+    let http = http(&app);
+    let mut about = gql::about(&http, &login).await.map_err(message)?;
+    // V106-24
+    if let Some(a) = about.as_mut() {
+        player::blank::drop_blank(&http, a).await;
+    }
+    Ok(about)
 }
 
 /// 1.21

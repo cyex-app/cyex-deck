@@ -20,6 +20,10 @@ pub mod thumb {
     pub fn thumbnail(_bytes: Vec<u8>, _max: u32) -> Option<Vec<u8>> {
         None
     }
+    /// V106-24 Unknown, so every image shows.
+    pub fn all_clear(files: Vec<Vec<u8>>) -> Vec<Option<bool>> {
+        vec![None; files.len()]
+    }
 }
 
 /// V1051-01 Nothing to name or play through outside Windows.
