@@ -2,6 +2,7 @@
 //! hls.js over `cyexhls://` (`protocol.rs`). Sessions nobody asked about for a while are
 //! dropped, so a closed window can't leave one behind.
 
+pub mod blank;
 pub mod clips;
 mod device;
 pub mod positions;
