@@ -148,6 +148,10 @@ pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
     if let WindowEvent::Resized(_) = event {
         memory_level(app, window);
     }
+    // V106-35 Any cyex window in front stops the taskbar flash (Q7).
+    if let WindowEvent::Focused(true) = event {
+        crate::toasts::focused(app);
+    }
     match event {
         WindowEvent::Resized(_) if window.label() == MAIN && hides_to_tray(app, window) => {
             let _ = window.hide();
