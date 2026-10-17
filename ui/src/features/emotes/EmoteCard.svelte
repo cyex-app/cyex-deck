@@ -17,7 +17,8 @@
   import { emoteLarge } from '../chat/urls';
   import { type CardTarget, PROVIDER_NAMES } from './emotes';
   import { hidden } from './hidden.svelte';
-  import { flipUnlisted, unlistedBlurred } from './unlisted';
+  import { unlistedPrompt } from './unlisted';
+import UnlistedPrompt from './UnlistedPrompt.svelte';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
   import { copy } from '../../lib/clipboard';
@@ -96,7 +97,7 @@
   class="card"
   bind:this={box}
   use:floating={{ anchor: target.rect, side: 'right', gap: 8 }}
-  style:width="{WIDTH}px"
+  style:width="min({WIDTH}px, calc(100vw - 16px))"
   role="dialog"
   aria-label={shown.name}
   tabindex="-1"
@@ -141,17 +142,15 @@
     </div>
   {/if}
 
+  {#if info && unlistedPrompt(settings.v.chat, info.unlisted)}
+    <UnlistedPrompt onchosen={() => box?.focus()} />
+  {/if}
+
   <div class="foot">
     {#if info?.page}
       <Button variant="link" small icon="popout" onclick={() => open(info!.page!)}>Emote page</Button>
     {/if}
     <span class="grow"></span>
-    {#if info?.unlisted && settings.v.chat.unlistedEmotes !== 'hide'}
-      <!-- V102-01 The same switch as the emote's menu. -->
-      <span use:tooltip={'All unlisted emotes, every chat'}>
-        <Button variant="link" small icon={unlistedBlurred() ? 'eye' : 'eyeOff'} onclick={flipUnlisted}>{unlistedBlurred() ? 'Unblur' : 'Blur'}</Button>
-      </span>
-    {/if}
     <Button variant="link" small icon="copy" onclick={() => void copy(shown.name, 'Emote name')}>Copy</Button>
     <Button variant="link" small icon="eyeOff" onclick={hide}>Hide</Button>
   </div>
@@ -268,7 +267,8 @@
   .foot {
     display: flex;
     align-items: center;
-    gap: 10px;
+    flex-wrap: wrap;
+    gap: 6px 10px;
     margin-top: 12px;
     padding-top: 10px;
     border-top: 1px solid var(--border);
