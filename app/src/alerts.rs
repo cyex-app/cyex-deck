@@ -2,6 +2,7 @@
 //! Each alerts when its Twitch bell is on, unless the user picked on or off for it in
 //! Settings → Notifications. With only a Helix sign-in there's no bell to read, so every
 //! followed channel counts. Channels already live when the app starts stay quiet.
+//! V106-25 A channel that is only in muted tabs alerts without its sound.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -127,7 +128,7 @@ fn news<'a>(
 }
 
 fn alert(app: &AppHandle, n: &Notifications, card: ChannelCard) {
-    if n.live.sound {
+    if n.live.sound && !crate::tabs::mute::hushes_id(app, &card.id) {
         crate::sound::alert(app, None);
     }
     if !n.live.toast {

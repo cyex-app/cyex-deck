@@ -48,3 +48,9 @@ export function hiddenTabs(list: readonly Tab[], on: boolean, keep: Iterable<str
   }
   return out;
 }
+
+/** V106-26 Width of a left tab bar: up to the header's divider (`edge`, its right side in
+ * CSS px from the bar's left, 0 = not measured yet), so the two lines meet. Other sides keep the tab size's. */
+export function sideBarWidth(side: TabBarSide, edge: number): number | undefined {
+  return side === 'left' && edge > 0 ? edge - 1 : undefined;
+}

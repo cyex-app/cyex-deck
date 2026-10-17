@@ -1,6 +1,7 @@
 // Right-click menus for tabs, tab groups and the bar itself (1.18, 1.51, U3, U5), with
 // "Mine first" (1.44), hiding a tile's chat or stream (V101-20), moving its panels (V102-23,
-// V103-05), stopping a stream that plays out of sight (V102-15) and "Only live tabs" (F17).
+// V103-05), stopping a stream that plays out of sight (V102-15), muting a tab (V106-25) and
+// "Only live tabs" (F17).
 
 import type { MenuEntry } from '../../components/menu.svelte';
 import type { Tab } from '../../ipc/bindings/Tab';
@@ -40,6 +41,13 @@ export function tabMenu(tab: Tab, targets: Tab[]): MenuEntry[] {
   }
   if (one && tabs.held === tab.id) {
     entries.push({ label: 'Stop playing', icon: 'pause', run: () => (tabs.held = null) });
+  }
+  // V106-25 The only place a whole tab is muted (keyboard: Menu key on a focused tab). A muted
+  // tab can always be unmuted, popped out or with nothing playing.
+  if (one && tabs.muted.has(tab.id)) {
+    entries.push({ label: 'Unmute tab', icon: 'volume', run: () => void tabs.mute(tab.id, false) });
+  } else if (one && tabs.canPlay(tab)) {
+    entries.push({ label: 'Mute tab', icon: 'volumeOff', run: () => void tabs.mute(tab.id, true) });
   }
   const mute = muteEntry(targets);
   if (mute) entries.push(mute);
@@ -128,6 +136,7 @@ function onlyLiveEntry(): MenuEntry {
   return {
     label: 'Only live tabs',
     icon: 'filter',
+    hint: bindingOf('tabs.onlyLive') || undefined,
     checked: on,
     run: () => void settings.patch('appearance', { tabOnlyLive: !on }),
   };

@@ -5,33 +5,8 @@ import { keyTaken, layers } from './escape';
 import { settings } from './settings.svelte';
 import { zoomHotkeys } from './zoom';
 
-export const ACTIONS = {
-  'nav.home': { label: 'Go to home', default: 'Ctrl+1' },
-  'nav.discover': { label: 'Go to discover', default: 'Ctrl+2' },
-  'nav.miner': { label: 'Go to the miner', default: 'Ctrl+3' },
-  'nav.streamManager': { label: 'Go to the stream manager', default: 'Ctrl+4' },
-  'nav.whispers': { label: 'Go to whispers', default: 'Ctrl+5' },
-  'settings.open': { label: 'Open settings', default: 'Ctrl+,' },
-  'window.pin': { label: 'Pin window on top', default: 'Ctrl+Shift+P' },
-  'tabs.switcher': { label: 'Go to a tab or channel', default: 'Ctrl+K' },
-  'tabs.new': { label: 'Add a tab', default: 'Ctrl+T' },
-  'tabs.close': { label: 'Close the tab', default: 'Ctrl+W' },
-  'tabs.reopen': { label: 'Reopen closed tab', default: 'Ctrl+Shift+T' },
-  'tabs.next': { label: 'Next tab', default: 'Ctrl+Tab' },
-  'tabs.prev': { label: 'Previous tab', default: 'Ctrl+Shift+Tab' },
-  'player.playPause': { label: 'Play or pause', default: 'Space' },
-  'player.mute': { label: 'Mute', default: 'M' },
-  'player.fullscreen': { label: 'Fullscreen', default: 'F' },
-  'chat.search': { label: 'Search this chat', default: 'Ctrl+F' },
-  'chat.searchAll': { label: 'Search every chat', default: 'Ctrl+Shift+F' },
-  'chat.similar': { label: 'Hide or show near-duplicates', default: 'Ctrl+H' },
-  'zoom.in': { label: 'Zoom in', default: 'Ctrl+=' },
-  'zoom.out': { label: 'Zoom out', default: 'Ctrl+-' },
-  'zoom.reset': { label: 'Reset zoom', default: 'Ctrl+0' },
-  'global.show': { label: 'Show or hide cyex deck', default: '', global: true },
-  'global.streamer': { label: 'Streamer mode on or off', default: '', global: true },
-  'global.clickThrough': { label: 'Overlay click-through on or off', default: '', global: true },
-} as const satisfies Record<string, { label: string; default: string; global?: boolean }>;
+import { ACTIONS, resolveBinding } from './hotkeyActions';
+export { ACTIONS };
 
 export type ActionId = keyof typeof ACTIONS;
 
@@ -68,7 +43,7 @@ function keyName(e: KeyboardEvent): string {
 
 /** Current combo for an action. Empty string = unbound. */
 export function bindingOf(id: ActionId): string {
-  return settings.v.hotkeys?.bindings?.[id] ?? ACTIONS[id].default;
+  return resolveBinding(id, settings.v.hotkeys?.bindings);
 }
 
 export function actionFor(combo: string): ActionId | undefined {

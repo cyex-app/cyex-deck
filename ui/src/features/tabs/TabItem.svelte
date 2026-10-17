@@ -1,7 +1,9 @@
 <!-- One channel tab (1.10): name or alias (1.22), live dot (1.29), close button (1.25),
-     lit by unread chat (U9). Double click edits (1.18), middle click closes, drag reorders (U5).
+     lit by unread chat (U9), a small sound badge while it plays or is muted (V106-25; muting is in
+     the right-click menu).
+     Double click edits (1.18), middle click closes, drag reorders (U5).
      The tab is the whole cell of its row, up to the window's top edge (V101-19); the pill
-     inside is what shows. A thin divider sits between two plain tabs (V101-11). -->
+     inside is what shows. A thin divider sits between two plain tabs (V101-11); in a side bar it spans the bar (V106-05). -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
@@ -33,9 +35,10 @@
   const live = $derived(tabs.liveState(tab));
   const unread = $derived(tabs.unreadState(tab));
   const popped = $derived(tabs.popped.has(tab.id));
-  /** V102-15 Still playing while something else shows; crossed out when every stream in it is muted. */
+  /** V102-15 Still playing while something else shows. */
   const held = $derived(tabs.held === tab.id);
-  const heldMuted = $derived(held && tiles(tab).filter((t) => t.show.player).every((t) => t.muted));
+  /** V106-25 What the sound badge shows. */
+  const sound = $derived(tabs.sound(tab));
   const closeButton = $derived(settings.v.appearance.tabCloseButton);
 
   /** Drop marker while something is dragged over this tab. */
@@ -62,7 +65,13 @@
     const account = first?.account ? accounts.list.find((a) => a.userId === first.account) : undefined;
     const who = account ? `as ${account.displayName}` : 'anonymous';
     const label = parts.length ? parts.join(' · ') : `${name} · Offline`;
-    const playing = heldMuted ? ' · playing muted' : held ? ' · playing' : '';
+    const playing = tabs.muted.has(tab.id)
+      ? ' · muted'
+      : sound === 'audible'
+        ? ' · playing'
+        : held
+          ? ' · playing muted'
+          : '';
     // No tip while something is dragged: it would sit on the ghost.
     return { label: `${label}${playing}`, hint: hint ? `${hint} (${who})` : who, when: () => !drag.item };
   });
@@ -121,10 +130,14 @@
   use:tooltip={tip}
 >
   <span class="pill">
+    {#if sound !== 'silent'}
+      <span class="snd" class:muted={sound === 'muted'} aria-hidden="true">
+        <Icon name={sound === 'muted' ? 'volumeOff' : 'volume'} size={9} />
+      </span>
+    {/if}
     {#if live}<span class="dot {live}"></span>{/if}
     <span class="name">{name}</span>
     {#if popped}<span class="popped"><Icon name="popout" size={12} /></span>{/if}
-    {#if held}<span class="popped"><Icon name={heldMuted ? 'volumeOff' : 'volume'} size={12} /></span>{/if}
     {#if closeButton}
       <button
         class="x"
@@ -154,6 +167,8 @@
     min-height: calc(var(--tab-h) + 2 * var(--row-g, 0px));
   }
   .tab.vertical {
+    width: 100%;
+    min-width: 0;
     max-width: none;
     min-height: 0;
     height: var(--tab-h);
@@ -174,6 +189,10 @@
   }
   .vertical .pill {
     flex: 1;
+  }
+  /* V106-26 Only the name gives way; dot, speaker, icons and the close button keep their size. */
+  .pill > :not(.name) {
+    flex: none;
   }
   .tab:focus-visible {
     outline: none;
@@ -218,15 +237,20 @@
     background: var(--border-strong);
     pointer-events: none;
   }
-  :global(.vertical) + .vertical::before {
+  /* V106-05 In a side bar: a line across the whole bar, padding included. */
+  :global(.tab.vertical) + .tab.vertical::before {
     top: -1.5px;
-    left: 25%;
-    width: 50%;
+    left: calc(-1 * var(--bar-pad, 6px));
+    right: calc(-1 * var(--bar-pad, 6px));
+    width: auto;
     height: 1px;
     translate: none;
+    background: var(--border);
   }
-  .tab:is(:hover, .active, .selected)::before,
-  :global(.tab:is(:hover, .active, .selected)) + .tab::before {
+  .tab:is(.active, .selected)::before,
+  :global(.tab:is(.active, .selected)) + .tab::before,
+  .tab:not(.vertical):hover::before,
+  :global(.tab:not(.vertical):hover) + .tab::before {
     opacity: 0;
   }
   .grouped .pill::after {
@@ -267,6 +291,47 @@
   .dot.rerun {
     background: var(--yellow);
     box-shadow: 0 0 6px 1px color-mix(in srgb, var(--yellow) 60%, transparent);
+  }
+  /* V106-25 Sound badge: on the leading corner, over the pill, so it never adds width. Info
+     only (muting is in the menu). Solid chip with a hairline so it reads on any pill, light or
+     dark; crossed and brighter while the tab is muted (or held with every player muted, V102-15). */
+  .snd {
+    position: absolute;
+    top: -2px;
+    left: 0;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--elevated);
+    box-shadow: 0 0 0 1px var(--border);
+    color: var(--muted);
+    pointer-events: none;
+    animation: snd-in 160ms var(--ease, ease-out);
+  }
+  /* Thin icon strokes would vanish at 9 px. */
+  .snd :global(svg) {
+    stroke-width: 2.6;
+  }
+  .snd.muted {
+    color: var(--text);
+  }
+  /* Just inside a side bar group's color stripe (left 1px, 2px wide), so it stays whole. */
+  .vertical.grouped .snd {
+    left: 5px;
+  }
+  @keyframes snd-in {
+    from {
+      opacity: 0;
+      scale: 0.6;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .snd {
+      animation: none;
+    }
   }
   .popped {
     display: flex;
@@ -312,20 +377,26 @@
   [data-mark='after'] .pill::before {
     right: 0;
   }
+  /* V106-05 In a side bar the mark is a full-width line in the gap. */
   .vertical[data-mark='before'] .pill::before,
   .vertical[data-mark='after'] .pill::before {
-    left: 3px;
-    right: 3px;
-    width: auto;
+    content: none;
+  }
+  .vertical:is([data-mark='before'], [data-mark='after'])::after {
+    content: '';
+    position: absolute;
+    left: calc(-1 * var(--bar-pad, 6px));
+    right: calc(-1 * var(--bar-pad, 6px));
     height: 2px;
+    border-radius: 1px;
+    background: var(--accent);
+    pointer-events: none;
   }
-  .vertical[data-mark='before'] .pill::before {
-    top: 0;
-    bottom: auto;
+  .vertical[data-mark='before']::after {
+    top: -2px;
   }
-  .vertical[data-mark='after'] .pill::before {
-    top: auto;
-    bottom: 0;
+  .vertical[data-mark='after']::after {
+    bottom: -2px;
   }
   [data-mark='into'] .pill {
     box-shadow: inset 0 0 0 2px var(--accent-border);

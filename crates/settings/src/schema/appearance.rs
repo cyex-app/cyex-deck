@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use super::Schema;
+use super::builtin_themes::{self, builtin_theme, is_builtin_id};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(default, rename_all = "camelCase")]
@@ -36,6 +37,11 @@ pub struct Appearance {
     pub theme_id: String,
     /// App zoom in percent, one of `ZOOMS`. Overlays keep their own size.
     pub zoom: u16,
+    /// V106-02 (Q1) Accent picked for a built-in theme, by its id; missing = the theme's own.
+    pub accents: BTreeMap<String, String>,
+    /// V106-02 Old "New from a preset" copies were moved to the built-ins (once).
+    #[serde(default)]
+    pub presets_moved: bool,
 }
 
 impl Default for Appearance {
@@ -53,6 +59,8 @@ impl Default for Appearance {
             themes: Vec::new(),
             theme_id: String::new(),
             zoom: DEFAULT_ZOOM,
+            accents: BTreeMap::new(),
+            presets_moved: true,
         }
     }
 }
@@ -67,6 +75,10 @@ pub const DEFAULT_ZOOM: u16 = 100;
 
 impl Schema for Appearance {
     fn sanitize(&mut self) {
+        if !self.presets_moved {
+            builtin_themes::move_old_presets(self);
+            self.presets_moved = true;
+        }
         // The nearest step, so a hand-edited 130 lands on 125 and 999 on 200.
         self.zoom = ZOOMS
             .into_iter()
@@ -77,11 +89,20 @@ impl Schema for Appearance {
         let mut seen = Vec::new();
         self.themes.retain_mut(|t| {
             t.sanitize();
+            if is_builtin_id(&t.id) {
+                let new = super::random_id();
+                if self.theme_id == t.id {
+                    self.theme_id = new.clone();
+                }
+                t.id = new;
+            }
             let fresh = !t.id.is_empty() && !seen.contains(&t.id);
             seen.push(t.id.clone());
             fresh
         });
         self.themes.truncate(MAX_THEMES);
+        self.accents
+            .retain(|id, c| is_builtin_id(id) && normalize_accent(c).map(|n| *c = n).is_some());
         match self.active_theme().map(|t| t.base) {
             Some(base) => self.theme = base,
             None => self.theme_id.clear(),
@@ -90,21 +111,39 @@ impl Schema for Appearance {
 }
 
 impl Appearance {
-    /// U8 The custom theme in use, if any.
+    /// U8 The custom or built-in theme in use, if any (custom first).
     pub fn active_theme(&self) -> Option<&CustomTheme> {
         if self.theme_id.is_empty() {
             return None;
         }
-        self.themes.iter().find(|t| t.id == self.theme_id)
+        self.themes
+            .iter()
+            .find(|t| t.id == self.theme_id)
+            .or_else(|| builtin_theme(&self.theme_id))
     }
 
-    /// The accent in use: the custom theme's, else the plain one.
+    /// Adds a custom theme and switches to it; false (nothing changes) when the list is full.
+    pub fn add_theme(&mut self, theme: CustomTheme) -> bool {
+        if self.themes.len() >= MAX_THEMES {
+            return false;
+        }
+        self.theme_id = theme.id.clone();
+        self.themes.push(theme);
+        true
+    }
+
+    /// The accent in use: a built-in's picked one or its own, a custom theme's, else the plain one.
     pub fn active_accent(&self) -> &str {
-        self.active_theme().map_or(&self.accent, |t| &t.accent)
+        match self.active_theme() {
+            Some(t) if is_builtin_id(&t.id) => self.accents.get(&t.id).map_or(&t.accent, |a| a),
+            Some(t) => &t.accent,
+            None => &self.accent,
+        }
     }
 }
 
-const MAX_THEMES: usize = 30;
+/// Most custom themes one can keep.
+pub const MAX_THEMES: usize = 30;
 const MAX_THEME_NAME_CHARS: usize = 40;
 const MAX_ID_CHARS: usize = 32;
 const MAX_URL_CHARS: usize = 2048;
@@ -238,65 +277,6 @@ pub enum WallpaperFit {
     Cover,
     Contain,
     Tile,
-}
-
-/// U8 Ready-made themes to start from.
-pub fn preset_themes() -> Vec<CustomTheme> {
-    let theme = |name: &str, base: Theme, accent: &str, colors: &[(&str, &str)]| CustomTheme {
-        id: String::new(),
-        name: name.into(),
-        base,
-        colors: colors
-            .iter()
-            .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
-            .collect(),
-        accent: accent.into(),
-        wallpaper: Wallpaper::default(),
-    };
-    vec![
-        theme(
-            "Midnight",
-            Theme::Dark,
-            DEFAULT_ACCENT,
-            &[
-                ("bg", "#0e0f13"),
-                ("surface", "#15171c"),
-                ("elevated", "#1c1f26"),
-                ("border", "#23262e"),
-                ("text", "#e6e8ee"),
-                ("muted", "#a9adb8"),
-                ("dim", "#868b97"),
-            ],
-        ),
-        theme(
-            "Forest",
-            Theme::Dark,
-            "#2fb37a",
-            &[
-                ("bg", "#151b18"),
-                ("surface", "#1b231f"),
-                ("elevated", "#222b26"),
-                ("border", "#2a342e"),
-                ("text", "#e3ebe6"),
-                ("muted", "#a8b5ad"),
-                ("dim", "#86948b"),
-            ],
-        ),
-        theme(
-            "Paper",
-            Theme::Light,
-            "#b5541c",
-            &[
-                ("bg", "#f4efe6"),
-                ("surface", "#fbf8f2"),
-                ("elevated", "#fffdf8"),
-                ("border", "#e2dacb"),
-                ("text", "#2a2520"),
-                ("muted", "#5c544b"),
-                ("dim", "#71685d"),
-            ],
-        ),
-    ]
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -440,13 +420,96 @@ mod tests {
         assert!(!w("a.exe").is_file());
     }
 
-    #[test]
-    fn presets_survive_sanitize() {
-        for mut t in preset_themes() {
-            t.id = "x".into();
-            let before = t.clone();
-            t.sanitize();
-            assert_eq!(t, before);
+    /// Untouched Midnight (a1), untouched Paper (b2), Forest with a changed bg (c3).
+    fn old_copies(theme_id: &str, moved: bool) -> Appearance {
+        let [(mut mid, _), (mut forest, _), (mut paper, _)] = builtin_themes::old_presets();
+        mid.id = "a1".into();
+        paper.id = "b2".into();
+        forest.id = "c3".into();
+        forest.colors.insert("bg".into(), "#000000".into());
+        Appearance {
+            themes: vec![mid, paper, forest],
+            theme_id: theme_id.into(),
+            theme: if theme_id == "b2" { Theme::Light } else { Theme::Dark },
+            presets_moved: moved,
+            ..Appearance::default()
         }
+    }
+
+    #[test]
+    fn builtins_pick_by_id() {
+        let mut a: Appearance = serde_json::from_str(r#"{"themeId":"dusk"}"#).unwrap();
+        a.sanitize();
+        assert_eq!(a.theme_id, "dusk");
+        assert_eq!(a.theme, Theme::Dark);
+        assert_eq!(a.active_accent(), "#d4679f");
+    }
+
+    #[test]
+    fn old_preset_copies_move_once() {
+        let old: Appearance = serde_json::from_str(r#"{"themeId":"x"}"#).unwrap();
+        assert!(!old.presets_moved, "a file without the key still gets the move");
+        let load = |theme_id: &str| {
+            let mut a = old_copies(theme_id, false);
+            a.sanitize();
+            a
+        };
+        let a = load("b2");
+        let ids: Vec<&str> = a.themes.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, ["c3"]);
+        assert_eq!(a.theme_id, "");
+        assert_eq!(a.theme, Theme::Dark);
+        assert!(a.presets_moved);
+        assert_eq!(load("a1").theme_id, "midnight");
+    }
+
+    #[test]
+    fn moved_flag_stops_the_move() {
+        let mut a = old_copies("b2", true);
+        a.sanitize();
+        assert_eq!(a.themes.len(), 3);
+        assert_eq!(a.theme_id, "b2");
+    }
+
+    #[test]
+    fn a_custom_theme_cannot_take_a_builtin_id() {
+        let mut a = with_theme(CustomTheme {
+            id: "ocean".into(),
+            name: "Mine".into(),
+            ..CustomTheme::default()
+        });
+        a.sanitize();
+        assert_eq!(a.themes.len(), 1);
+        assert_eq!(a.themes[0].id.len(), 10);
+        assert_eq!(a.theme_id, a.themes[0].id, "the user's theme stays selected");
+        assert_ne!(a.themes[0].id, "ocean");
+        assert_eq!(builtin_theme("ocean").unwrap().name, "Ocean");
+    }
+
+    #[test]
+    fn builtin_accents() {
+        let mut a: Appearance =
+            serde_json::from_str(r##"{"themeId":"dusk","accents":{"dusk":"#ABC","nope":"#ffffff","ember":"blue"}}"##)
+                .unwrap();
+        a.sanitize();
+        assert_eq!(a.accents, BTreeMap::from([("dusk".into(), "#aabbcc".into())]));
+        assert_eq!(a.active_accent(), "#aabbcc");
+    }
+
+    #[test]
+    fn the_theme_list_is_capped() {
+        let mut a = Appearance::default();
+        for i in 0..MAX_THEMES {
+            assert!(a.add_theme(CustomTheme { id: format!("t{i}"), ..CustomTheme::default() }));
+        }
+        let before = a.clone();
+        assert!(!a.add_theme(CustomTheme { id: "extra".into(), ..CustomTheme::default() }));
+        assert_eq!(a, before);
+        assert_eq!(a.theme_id, format!("t{}", MAX_THEMES - 1));
+    }
+
+    #[test]
+    fn new_install_has_nothing_to_move() {
+        assert!(Appearance::default().presets_moved);
     }
 }

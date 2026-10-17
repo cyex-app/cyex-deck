@@ -55,4 +55,12 @@ themeId: string,
 /**
  * App zoom in percent, one of `ZOOMS`. Overlays keep their own size.
  */
-zoom: number, };
+zoom: number, 
+/**
+ * V106-02 (Q1) Accent picked for a built-in theme, by its id; missing = the theme's own.
+ */
+accents: { [key in string]: string }, 
+/**
+ * V106-02 Old "New from a preset" copies were moved to the built-ins (once).
+ */
+presetsMoved: boolean, };

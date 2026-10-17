@@ -9,8 +9,8 @@ export const themeIpc = {
   accentTokens: (accent: string, theme: Theme) => invoke<AccentTokens>('theme_accent_tokens', { accent, theme }),
   /** What the window paints: palette, accent and wallpaper of the theme in use. */
   look: () => invoke<ThemeLook>('theme_look'),
-  /** U8 */
-  presets: () => invoke<CustomTheme[]>('theme_presets'),
+  /** V106-02 Midnight, Forest, Dusk, Ocean, Ember. */
+  builtins: () => invoke<CustomTheme[]>('theme_builtins'),
   /** U8 Adds a theme with a fresh id and switches to it; returns the id. */
   add: (theme: CustomTheme) => invoke<string>('theme_add', { theme }),
   code: (id: string) => invoke<string>('theme_code', { id }),

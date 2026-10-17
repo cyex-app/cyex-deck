@@ -135,6 +135,8 @@
         name={tile.channel.name}
         avatar={info?.avatar}
         onclose={() => (shared.stories = false)}
+        muted={tabs.tileMuted(tile.id)}
+        tileId={tile.id}
       />
     {/if}
   </div>

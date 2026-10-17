@@ -7,6 +7,7 @@ mod closed;
 pub mod follow;
 pub mod import;
 pub mod live;
+pub mod mute;
 mod rooms;
 
 pub use closed::any as reopenable;
@@ -23,6 +24,7 @@ use crate::settings::Settings;
 
 pub fn init(app: &AppHandle) {
     app.manage(closed::ClosedTabs::default());
+    app.manage(mute::Muted::default());
     import::init(app);
     rooms::sync(app);
     live::spawn(app);
@@ -31,6 +33,7 @@ pub fn init(app: &AppHandle) {
 /// The tabs partition changed, from any window, an import or a restored backup.
 pub fn on_changed(app: &AppHandle) {
     rooms::sync(app);
+    mute::prune(app);
     live::nudge(app);
     crate::miner::on_settings(app);
     crate::plugins::events::layout(app);

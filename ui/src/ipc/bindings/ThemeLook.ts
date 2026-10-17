@@ -9,6 +9,6 @@ import type { WallpaperLook } from "./WallpaperLook";
  */
 export type ThemeLook = { theme: Theme, 
 /**
- * Set for custom themes; plain dark and light use `tokens.css` as is.
+ * Set for built-in and custom themes; plain dark and light use `tokens.css` as is.
  */
 palette: Palette | null, accent: AccentTokens, wallpaper: WallpaperLook | null, };

@@ -2,7 +2,7 @@
 
 use cyex_core::color::{AccentTokens, Theme, accent_tokens};
 use cyex_settings::Partition;
-use cyex_settings::schema::{Appearance, CustomTheme, preset_themes};
+use cyex_settings::schema::{Appearance, CustomTheme, MAX_THEMES, builtin_themes};
 use cyex_settings::theme_code;
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
@@ -23,22 +23,25 @@ pub fn theme_look(app: AppHandle) -> ThemeLook {
     theme::look(&app)
 }
 
-/// U8 Themes to start from in the theme editor.
+/// V106-02 Midnight, Forest, Dusk, Ocean, Ember.
 #[tauri::command]
-pub fn theme_presets() -> Vec<CustomTheme> {
-    preset_themes()
+pub fn theme_builtins() -> Vec<CustomTheme> {
+    builtin_themes().to_vec()
 }
 
-/// U8 Adds a theme (a preset, a copy or a new one) with a fresh id and switches to it.
+/// U8 Adds a theme (a copy or a new one) with a fresh id and switches to it.
 #[tauri::command]
 pub fn theme_add(app: AppHandle, settings: State<Settings>, theme: CustomTheme) -> CmdResult<String> {
     let theme = theme::fresh(theme);
     let id = theme.id.clone();
+    let mut full = false;
     settings.update::<Appearance>(&app, Partition::Appearance, |a| {
-        a.themes.push(theme);
-        a.theme_id = id.clone();
-        true
+        full = !a.add_theme(theme);
+        !full
     })?;
+    if full {
+        return Err(format!("You have {MAX_THEMES} themes. Delete one to add another."));
+    }
     Ok(id)
 }
 

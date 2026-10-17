@@ -41,7 +41,7 @@
   import UpdateBadge from '../features/update/UpdateBadge.svelte';
   import { openTarget, playerHotkeys } from '../features/player/players.svelte';
   import { openChannel } from '../features/browse/open.svelte';
-  import { barPlace } from '../features/tabs/barLayout';
+  import { barPlace, sideBarWidth } from '../features/tabs/barLayout';
   import { stepTab } from '../features/tabs/cycle';
   import { nextHeld, playingNow } from '../features/tabs/hold';
   import { tabs, tiles } from '../features/tabs/tabs.svelte';
@@ -143,6 +143,26 @@
     if (!fixed && !tab) fixed = 'home';
   });
 
+  // V106-26 The header divider's right edge, from the side bar's left, so a left tab bar ends
+  // on the same line. Measured again when either changes size or the window does.
+  let menus = $state<HTMLElement>();
+  let sideBar = $state<HTMLElement>();
+  let menusEdge = $state(0);
+  $effect(() => {
+    const el = menus;
+    const bar = sideBar;
+    if (!el || !bar) return;
+    const measure = () => (menusEdge = el.getBoundingClientRect().right - bar.getBoundingClientRect().left);
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    ro.observe(bar);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  });
+
   useRootEffects();
   useHotkeys({
     'nav.home': () => show('home'),
@@ -158,6 +178,11 @@
     'tabs.reopen': () => void tabs.reopen().then((id) => id && open(id)),
     'tabs.next': () => step(1),
     'tabs.prev': () => step(-1),
+    'tabs.onlyLive': () => {
+      const on = !settings.v.appearance.tabOnlyLive;
+      void settings.patch('appearance', { tabOnlyLive: on });
+      toast.info(on ? 'Only live tabs' : 'All tabs');
+    },
     ...playerHotkeys,
   });
 
@@ -350,7 +375,7 @@
 
 <WindowChrome>
   {#snippet start()}
-    <nav class="fixed-tabs">
+    <nav class="fixed-tabs" bind:this={menus}>
       <IconButton
         icon="house"
         label="Home"
@@ -427,8 +452,8 @@
 
 <div class="body {side}">
   {#if side !== 'top'}
-    <div class="side-bar">
-      <TabBar vertical={side !== 'bottom'} {current} onopen={open} />
+    <div class="side-bar" bind:this={sideBar}>
+      <TabBar vertical={side !== 'bottom'} width={sideBarWidth(side, menusEdge)} {current} onopen={open} />
     </div>
   {/if}
   <main>

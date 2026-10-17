@@ -179,7 +179,7 @@ pub fn open_panel(app: &AppHandle, route: &str, title: &str, size: Option<(f64, 
         window.set_position(at)?;
     }
     icons::apply(&window.as_ref().window());
-    crate::sys::fill_fullscreen(&window);
+    crate::sys::frame::attach(&window);
     window.show()?;
     window.set_focus()?;
 

@@ -1,0 +1,167 @@
+<!-- V106-03 The custom themes: one trigger, a menu under it. Picking keeps the menu open; New closes it. -->
+<script lang="ts">
+  import { tick } from 'svelte';
+
+  import Icon from '../../components/Icon.svelte';
+  import Popover from '../../components/Popover.svelte';
+  import type { CustomTheme } from '../../ipc/bindings/CustomTheme';
+  import { PLAIN_PREVIEW } from './themes';
+
+  interface Props {
+    themes: CustomTheme[];
+    /** The theme in use (`appearance.themeId`); may be a built-in or empty. */
+    activeId: string;
+    onpick: (id: string) => void;
+    onnew: () => Promise<void>;
+  }
+
+  let { themes, activeId, onpick, onnew }: Props = $props();
+
+  let open = $state(false);
+
+  const active = $derived(themes.find((t) => t.id === activeId) ?? null);
+  const bg = (t: CustomTheme) => t.colors.bg ?? PLAIN_PREVIEW[t.base].bg;
+
+  /** Set after New; the editor appears once the new theme is the active one. */
+  let pendingFrom: string | null = null;
+  async function create() {
+    open = false;
+    pendingFrom = activeId;
+    await onnew();
+  }
+  $effect(() => {
+    if (pendingFrom === null || !active || active.id === pendingFrom) return;
+    pendingFrom = null;
+    void tick().then(() => document.querySelector('[data-theme-editor]')?.scrollIntoView({ block: 'nearest' }));
+  });
+</script>
+
+<div class="wrap">
+  <button class="field pick" class:on={!!active} aria-label={active ? `Custom themes: ${active.name}` : undefined}
+    aria-haspopup="menu" aria-expanded={open} onclick={() => (open = !open)}>
+    {#if active}
+      <span class="sw small" style:background={bg(active)}><u style:background={active.accent}></u></span>
+    {/if}
+    <span class="name">{active ? active.name : 'Custom themes'}</span>
+    <Icon name={open ? 'chevronUp' : 'chevronDown'} size={14} />
+  </button>
+  <Popover bind:open align="start" role="menu" label="Custom themes">
+    <div class="panel">
+      {#if themes.length}
+        <div class="list">
+          {#each themes as t (t.id)}
+            {@const on = t.id === activeId}
+            <button class="row" class:on role="menuitemradio" aria-checked={on} onclick={() => onpick(t.id)}>
+              <span class="sw" style:background={bg(t)}><u style:background={t.accent}></u></span>
+              <span class="name">{t.name}</span>
+              <span class="tick">{#if on}<Icon name="check" size={14} />{/if}</span>
+            </button>
+          {/each}
+        </div>
+        <div class="sep" role="separator"></div>
+      {/if}
+      <button class="row" role="menuitem" onclick={() => void create()}>
+        <Icon name="plus" size={14} />
+        <span class="name">New</span>
+      </button>
+    </div>
+  </Popover>
+</div>
+
+<style>
+  .wrap {
+    position: relative;
+    flex: none;
+  }
+  .pick {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+    max-width: 220px;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .pick:hover {
+    border-color: var(--dim);
+  }
+  .pick.on {
+    border-color: var(--accent-border);
+  }
+  .pick :global(svg) {
+    flex: none;
+    color: var(--dim);
+  }
+  .panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 220px;
+    max-width: 320px;
+  }
+  .list {
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 30px;
+    padding: 0 10px;
+    background: none;
+    border: 0;
+    border-radius: var(--radius);
+    color: var(--muted);
+    font-size: 0.95rem;
+    text-align: left;
+  }
+  .row.on {
+    color: var(--text);
+  }
+  .row:hover,
+  .row:focus-visible {
+    background: var(--surface-hover);
+  }
+  .name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tick {
+    flex: none;
+    width: 14px;
+    height: 14px;
+  }
+  .tick :global(svg) {
+    color: var(--accent-text);
+  }
+  .sw {
+    position: relative;
+    flex: none;
+    width: 22px;
+    height: 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+  .sw.small {
+    width: 16px;
+    height: 12px;
+  }
+  .sw u {
+    position: absolute;
+    inset: 0 0 0 auto;
+    width: 5px;
+  }
+  .sw.small u {
+    width: 4px;
+  }
+  .sep {
+    height: 1px;
+    margin: 4px 6px;
+    background: var(--border);
+  }
+</style>

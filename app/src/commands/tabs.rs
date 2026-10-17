@@ -52,6 +52,19 @@ pub fn tabs_live(app: AppHandle) -> Vec<ChannelInfo> {
     tabs::live(&app)
 }
 
+/// V106-25 Mutes or unmutes everything in a tab (not saved). Returns the muted tabs; changes
+/// arrive as `tabs:muted`.
+#[tauri::command]
+pub fn tabs_mute(app: AppHandle, tab: String, on: bool) -> Vec<String> {
+    tabs::mute::set(&app, &tab, on)
+}
+
+/// V106-25 Tabs muted from their right-click menu.
+#[tauri::command]
+pub fn tabs_muted(app: AppHandle) -> Vec<String> {
+    tabs::mute::list(&app)
+}
+
 /// 1.11 `None` when it can't be told (no GQL sign-in).
 #[tauri::command]
 pub async fn channel_following(app: AppHandle, channel_id: String, account: String) -> CmdResult<Option<bool>> {

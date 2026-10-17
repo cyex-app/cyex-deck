@@ -13,6 +13,7 @@ export const UNLISTED: Record<string, string> = {
   'chat.translateChats': 'Per chat, from its menu.',
   'chat.modMode': 'Per channel, from the chat.',
   'chat.users': 'Notes on usercards.',
+  'appearance.presetsMoved': 'Set once when old preset copies moved to the built-in themes.',
   'highlights.mention': 'Moved to Mentions; read once to carry your options over.',
   'commands.vars': 'Set with /set in chat.',
   'player.miniCorner': 'Where you drag the mini player.',

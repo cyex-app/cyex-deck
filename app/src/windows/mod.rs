@@ -70,6 +70,7 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
     app.manage(PanelRegistry::default());
     app.manage(overlay::ClickThrough::default());
     app.manage(LowMemory::default());
+    zoom::init(app);
     let saved: Windows = app.state::<Settings>().read(Partition::Windows);
     let main = builder(app, MAIN, WebviewUrl::default())
         .title(cyex_core::app::NAME)
@@ -82,7 +83,7 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
         main.maximize()?;
     }
     icons::apply(&main.as_ref().window());
-    crate::sys::fill_fullscreen(&main);
+    crate::sys::frame::attach(&main);
     main.show()?;
     Ok(())
 }
@@ -187,7 +188,7 @@ pub fn on_page_load(webview: &Webview, payload: &PageLoadPayload<'_>) {
         PageLoadEvent::Finished => {
             crate::chat::shown::loaded(app, label);
             if let Some(w) = app.get_webview_window(label).filter(|w| zoom::follows(w.label())) {
-                zoom::fit(app, &w);
+                zoom::fit(app, &w, zoom::zoom_percent(app));
             }
             // V1051-01 The page's origin is known now (at setup it may not be yet).
             if label == MAIN {

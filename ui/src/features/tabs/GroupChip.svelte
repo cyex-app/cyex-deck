@@ -79,6 +79,7 @@
     align-self: center;
   }
   .chip.vertical {
+    min-width: 0;
     max-width: none;
     margin-top: 4px;
   }
@@ -97,11 +98,14 @@
     background: var(--group);
   }
   .name {
+    flex: 0 1 auto;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .count {
+    flex: none;
     color: var(--muted);
     font-weight: 600;
   }

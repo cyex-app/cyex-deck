@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import type { Tab } from '../../ipc/bindings/Tab';
 import type { Tile } from '../../ipc/bindings/Tile';
-import { ALL_KEEP, barMaxHeight, barPlace, hiddenTabs, NARROW } from './barLayout.ts';
+import { ALL_KEEP, barMaxHeight, barPlace, hiddenTabs, NARROW, sideBarWidth } from './barLayout.ts';
 
 function tile(channel: string, feed: string | null = null): Tile {
   return {
@@ -68,4 +68,12 @@ test('F17 only live tabs', () => {
   assert.deepEqual([...hiddenTabs(list, true, ['offline', 'all-off', 'unchecked', 'half-checked'], live)], []);
   // Before the first live check nothing hides.
   assert.deepEqual([...hiddenTabs(list, true, [], {})], []);
+});
+
+test('a left bar ends on the header divider (V106-26)', () => {
+  assert.equal(sideBarWidth('left', 180), 179);
+  assert.equal(sideBarWidth('left', 0), undefined);
+  assert.equal(sideBarWidth('right', 180), undefined);
+  assert.equal(sideBarWidth('top', 180), undefined);
+  assert.equal(sideBarWidth('bottom', 180), undefined);
 });

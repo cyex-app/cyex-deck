@@ -28,9 +28,11 @@
     /** The tab on screen, `null` while a fixed view (home, settings) shows. */
     current: string | null;
     onopen: (id: string) => void;
+    /** V106-26 Set by the window for a left bar; else the tab size's width. */
+    width?: number;
   }
 
-  let { vertical = false, chrome = false, current, onopen }: Props = $props();
+  let { vertical = false, chrome = false, current, onopen, width }: Props = $props();
 
   type Item = { kind: 'group'; group: TabGroup; count: number } | { kind: 'tab'; tab: Tab; color?: string };
 
@@ -161,7 +163,7 @@
   style:--tab-pad="{size.pad}px"
   style:--tab-font={size.font}
   style:--row-g={vertical ? undefined : '3px'}
-  style:--bar-w="{size.width}px"
+  style:--bar-w="{width ?? size.width}px"
   style:max-height={maxHeight}
   oncontextmenu={onbarmenu}
 >
@@ -226,10 +228,11 @@
     flex-wrap: nowrap;
     align-content: normal;
     gap: 2px;
+    --bar-pad: 6px;
     width: var(--bar-w);
     max-height: none;
     flex: none;
-    padding: 6px;
+    padding: var(--bar-pad);
   }
   .add {
     display: flex;
@@ -263,5 +266,8 @@
   }
   .vertical .offline {
     align-self: flex-start;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 </style>

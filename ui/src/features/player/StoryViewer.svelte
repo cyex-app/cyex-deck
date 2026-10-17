@@ -11,6 +11,7 @@
   import { focusScope } from '../../lib/focusScope';
   import { formatTime } from '../../lib/format';
   import { applySink } from './output.svelte';
+  import { sounding } from '../tabs/sounding.svelte';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
 
@@ -20,14 +21,24 @@
     name: string;
     avatar: string | null | undefined;
     onclose: () => void;
+    /** V106-25 Its tab is muted. */
+    muted?: boolean;
+    /** V106-25 The tile it plays over, for the tab's sound badge. */
+    tileId?: string;
   }
 
-  let { channelId, account, name, avatar, onclose }: Props = $props();
+  let { channelId, account, name, avatar, onclose, muted = false, tileId }: Props = $props();
 
   let storyVideo = $state<HTMLVideoElement>();
   // V1051-01 Stories play on the streams' device too.
   $effect(() => {
     if (storyVideo) applySink(storyVideo);
+  });
+  // V106-25 A playing story shows on its tab's sound badge.
+  $effect(() => {
+    const v = storyVideo;
+    if (!v || !tileId) return;
+    return sounding.watch(tileId, v, () => true);
   });
 
   /** Pictures show this long. */
@@ -121,6 +132,7 @@
           <video
             bind:this={storyVideo}
             src={story.video}
+            {muted}
             poster={story.image ?? undefined}
             autoplay
             playsinline

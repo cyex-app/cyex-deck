@@ -22,6 +22,10 @@ export const tabsIpc = {
   live: () => invoke<ChannelInfo[]>('tabs_live'),
   onLive: (handler: (channels: ChannelInfo[]) => void) =>
     listen<ChannelInfo[]>('tabs:live', (e) => handler(e.payload)),
+  /** V106-25 Mutes or unmutes everything in a tab (not saved). Resolves with the muted tabs. */
+  mute: (tab: string, on: boolean) => invoke<string[]>('tabs_mute', { tab, on }),
+  muted: () => invoke<string[]>('tabs_muted'),
+  onMuted: (h: (ids: string[]) => void) => listen<string[]>('tabs:muted', (e) => h(e.payload)),
   /** 1.11 `null` when it can't be told (no GQL sign-in). */
   following: (channelId: string, account: string) =>
     invoke<boolean | null>('channel_following', { channelId, account }),

@@ -1,7 +1,7 @@
 // Channel tabs (spec 02). Rust owns the list (the `tabs` settings partition) and every
 // edit goes through `apply`. This adds what isn't stored: live status (1.29), which tabs
 // are popped out (1.51, 3.14), unread chats (U9), whether a close can be undone (U10) and
-// which tab plays out of sight (V102-15).
+// which tab plays out of sight (V102-15) and which tabs are muted (V106-25).
 
 import { popOut } from '../../app/panels';
 import type { ChannelInfo } from '../../ipc/bindings/ChannelInfo';
@@ -18,6 +18,8 @@ import { accounts } from '../../lib/accounts.svelte';
 import { settings } from '../../lib/settings.svelte';
 import { toast } from '../../lib/toast.svelte';
 import { hiddenTabs } from './barLayout';
+import { sounding } from './sounding.svelte';
+import { tabSoundMode, type TabSoundMode } from './tabSound';
 import { errorText } from '../../lib/errors';
 
 export type LiveState = 'live' | 'rerun' | null;
@@ -47,6 +49,8 @@ class TabsStore {
   reopenable = $state(false);
   /** V102-15 The tab whose stream keeps playing while another tab or view shows. */
   held = $state<string | null>(null);
+  /** V106-25 Tabs muted from their right-click menu (not saved). */
+  muted = $state.raw<Set<string>>(new Set());
 
   get list(): Tab[] {
     return settings.v.tabs?.tabs ?? [];
@@ -118,20 +122,54 @@ class TabsStore {
   }
 
   async load(): Promise<void> {
-    const [live, panels, unread, reopenable] = await Promise.all([
+    const [live, panels, unread, reopenable, muted] = await Promise.all([
       tabsIpc.live(),
       windowsIpc.panels(),
       tabsIpc.unread(),
       tabsIpc.reopenable(),
+      tabsIpc.muted(),
     ]);
     this.setLive(live);
     this.setPopped(panels);
     this.setUnread(unread, true);
     this.reopenable = reopenable;
+    this.muted = new Set(muted);
     await tabsIpc.onLive((l) => this.setLive(l));
     await windowsIpc.onPanels((p) => this.setPopped(p));
     await tabsIpc.onUnread((u) => this.setUnread(u, false));
     await tabsIpc.onReopenable((r) => (this.reopenable = r));
+    await tabsIpc.onMuted((ids) => (this.muted = new Set(ids)));
+  }
+
+  /** V106-25 Mutes or unmutes everything in a tab. Shown at once, so a quick second action reads
+   * the new state; undone if Rust refuses. */
+  async mute(id: string, on: boolean): Promise<void> {
+    this.muted = withId(this.muted, id, on);
+    try {
+      this.muted = new Set(await tabsIpc.mute(id, on));
+    } catch (e) {
+      this.muted = withId(this.muted, id, !on);
+      toast.error(errorText(e));
+    }
+  }
+
+  /** V106-25 The tab holding the tile is muted. */
+  tileMuted(tileId: string): boolean {
+    const tab = this.tabOf(tileId);
+    return !!tab && this.muted.has(tab.id);
+  }
+
+  /** V106-25 What the tab's sound badge shows. A popped-out tab plays in its own window, so
+   * here it only ever shows muted. A held tab with every player muted shows crossed too (V102-15). */
+  sound(tab: Tab): TabSoundMode {
+    const players = tiles(tab).filter((t) => !t.feed && t.show.player);
+    const heldMuted = this.held === tab.id && players.length > 0 && players.every((t) => t.muted);
+    return tabSoundMode(sounding.wouldPlay(new Set(tiles(tab).map((t) => t.id))), this.muted.has(tab.id), heldMuted);
+  }
+
+  /** V106-25 The tab has a player, so it can be muted. */
+  canPlay(tab: Tab): boolean {
+    return tiles(tab).some((t) => !t.feed && t.show.player);
   }
 
   /** Applies an edit. Resolves with the id of a new tab or group. */
@@ -208,6 +246,14 @@ export const tabs = new TabsStore();
 function roomKey(account: string | null, login: string): string {
   const known = account && accounts.list.some((a) => a.userId === account);
   return `${known ? account : ''}/${login}`;
+}
+
+/** The set with `id` in or out. */
+function withId(set: Set<string>, id: string, on: boolean): Set<string> {
+  const next = new Set(set);
+  if (on) next.add(id);
+  else next.delete(id);
+  return next;
 }
 
 export function tiles(tab: Tab): Tile[] {

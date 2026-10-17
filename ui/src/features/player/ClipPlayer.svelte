@@ -129,7 +129,12 @@
   });
   $effect(() => {
     const v = video;
-    return () => v && sound.release(v);
+    if (!v) return;
+    const stop = sound.track(v);
+    return () => {
+      stop();
+      sound.release(v);
+    };
   });
 
   $effect(() => {

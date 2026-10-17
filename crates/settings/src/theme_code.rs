@@ -41,11 +41,11 @@ pub fn from_code(code: &str) -> Result<CustomTheme> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::preset_themes;
+    use crate::schema::builtin_themes;
 
     #[test]
     fn round_trip() {
-        let mut t = preset_themes().remove(0);
+        let mut t = builtin_themes()[0].clone();
         t.id = "abc".into();
         t.wallpaper.source = "https://example.com/wall.jpg".into();
         let back = from_code(&to_code(&t)).unwrap();
@@ -57,7 +57,7 @@ mod tests {
 
     #[test]
     fn local_wallpapers_stay_home() {
-        let mut t = preset_themes().remove(2);
+        let mut t = builtin_themes()[2].clone();
         t.wallpaper.source = "abc123.png".into();
         let code = to_code(&t);
         assert!(from_code(&code).unwrap().wallpaper.source.is_empty());
@@ -65,7 +65,7 @@ mod tests {
 
     #[test]
     fn spaces_are_ignored_and_junk_refused() {
-        let code = to_code(&preset_themes().remove(1));
+        let code = to_code(&builtin_themes()[1].clone());
         let (a, b) = code.split_at(20);
         assert!(from_code(&format!(" {a}\n{b} ")).is_ok());
         assert!(matches!(from_code("hello"), Err(Error::BadCode)));

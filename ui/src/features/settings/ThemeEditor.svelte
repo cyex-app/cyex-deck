@@ -102,7 +102,7 @@
   }
 </script>
 
-<div class="editor">
+<div class="editor" data-theme-editor>
   <Row label="Name">
     <input
       class="field name"

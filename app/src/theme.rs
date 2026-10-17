@@ -27,7 +27,7 @@ const MAX_WALLPAPER_BYTES: u64 = 20 * 1024 * 1024;
 #[ts(export)]
 pub struct ThemeLook {
     pub theme: Theme,
-    /// Set for custom themes; plain dark and light use `tokens.css` as is.
+    /// Set for built-in and custom themes; plain dark and light use `tokens.css` as is.
     pub palette: Option<Palette>,
     pub accent: AccentTokens,
     pub wallpaper: Option<WallpaperLook>,
@@ -69,7 +69,7 @@ fn look_of(a: &Appearance) -> ThemeLook {
     };
     ThemeLook {
         theme: t.base,
-        accent: palette::accent(&p, t.base, &t.accent),
+        accent: palette::accent(&p, t.base, a.active_accent()),
         palette: Some(p),
         wallpaper: url.map(|url| WallpaperLook {
             url,
@@ -191,7 +191,7 @@ pub fn fresh(mut theme: CustomTheme) -> CustomTheme {
 mod tests {
     use super::*;
     use cyex_settings::Schema;
-    use cyex_settings::schema::preset_themes;
+    use std::collections::BTreeMap;
 
     #[test]
     fn plain_themes_have_no_palette() {
@@ -202,7 +202,12 @@ mod tests {
 
     #[test]
     fn custom_theme_brings_palette_and_wallpaper() {
-        let mut t = fresh(preset_themes().remove(2));
+        let mut t = fresh(CustomTheme {
+            name: "Paper".into(),
+            base: Theme::Light,
+            colors: BTreeMap::from([("bg".into(), "#f4efe6".into())]),
+            ..CustomTheme::default()
+        });
         t.wallpaper.source = "abc.webp".into();
         let mut a = Appearance {
             theme_id: t.id.clone(),
@@ -214,5 +219,14 @@ mod tests {
         assert_eq!(look.theme, Theme::Light);
         assert_eq!(look.palette.unwrap().bg, "#f4efe6");
         assert_eq!(look.wallpaper.unwrap().url, "http://cyexpic.localhost/abc.webp");
+    }
+
+    #[test]
+    fn builtin_brings_its_palette() {
+        let mut a: Appearance = serde_json::from_str(r#"{"themeId":"ember"}"#).unwrap();
+        a.sanitize();
+        let look = look_of(&a);
+        assert_eq!(look.palette.unwrap().bg, "#1a1613");
+        assert!(look.wallpaper.is_none());
     }
 }

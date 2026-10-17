@@ -4,6 +4,7 @@
 mod accounts;
 mod appearance;
 mod browse;
+mod builtin_themes;
 mod chat;
 mod combos;
 mod commands;
@@ -26,9 +27,9 @@ mod windows;
 
 pub use accounts::{Account, Accounts, SevenTvConsent, TokenMeta, TokenSource};
 pub use appearance::{
-    Appearance, CustomTheme, TabBarSide, TabDensity, TabRows, TabUnread, Wallpaper, WallpaperArea, WallpaperFit,
-    preset_themes,
+    Appearance, CustomTheme, MAX_THEMES, TabBarSide, TabDensity, TabRows, TabUnread, Wallpaper, WallpaperArea, WallpaperFit,
 };
+pub use builtin_themes::{builtin_theme, builtin_themes, is_builtin_id};
 pub use browse::{Browse, HomeLayout, LiveSort, OfflineSort};
 pub use chat::{
     BadgeToggles, Chat, DeletedStyle, GifMode, LinkThumbs, ModButtons, NameStyle, Overlay, PaintToggles,
