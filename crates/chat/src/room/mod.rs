@@ -216,6 +216,19 @@ impl Room {
         out
     }
 
+    /// V106-08 The other channels of a shared chat: `source-room-id`s of lines since `since_ms`.
+    pub fn shared_rooms(&self, since_ms: i64) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        for m in self.buffer.iter().rev().filter(|m| m.ts >= since_ms) {
+            if let Some(s) = &m.source
+                && !out.contains(&s.room_id)
+            {
+                out.push(s.room_id.clone());
+            }
+        }
+        out
+    }
+
     /// C9 A sender's emotes arrived: their messages since `since_ms` are read again.
     pub fn retokenize_from(&mut self, user_id: &str, since_ms: i64, emotes: &dyn Emotes) -> Vec<RoomEvent> {
         let mut events = Vec::new();

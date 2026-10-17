@@ -53,9 +53,11 @@ pub struct Chat {
     pub animate_only_focused: bool,
     /// E4 Shown as text everywhere.
     pub hidden_emotes: Vec<EmoteKey>,
-    /// D21 Tell 7TV and BTTV which channel you're in, so others see your paint, badge
-    /// and personal emotes.
+    /// D21 V106-08 Send presence to 7TV and BTTV: which chat you're in, so others see your paint, badge and personal emotes.
     pub share_presence: bool,
+    /// V106-08 Presence was turned on once for everyone.
+    #[serde(default)]
+    pub presence_on_once: bool,
     /// 2.5
     pub gifs: GifMode,
     /// 2.10
@@ -136,6 +138,7 @@ impl Default for Chat {
             animate_only_focused: false,
             hidden_emotes: Vec::new(),
             share_presence: true,
+            presence_on_once: true,
             gifs: GifMode::Show,
             timestamps: Timestamps::default(),
             timeout_presets: vec![60, 600, 3600, 86_400],
@@ -174,6 +177,11 @@ impl Default for Chat {
 
 impl Schema for Chat {
     fn sanitize(&mut self) {
+        // V106-08 On for everyone once, including people who had it off.
+        if !self.presence_on_once {
+            self.share_presence = true;
+            self.presence_on_once = true;
+        }
         let presets = &mut self.timeout_presets;
         presets.retain(|s| (1..=MAX_TIMEOUT_SECS).contains(s));
         presets.sort_unstable();
@@ -571,5 +579,25 @@ mod tests {
             serde_json::from_str(r#"{"modButtons":{"delete":true,"timeouts":[60,600],"warn":false,"ban":true}}"#).unwrap();
         c.sanitize();
         assert_eq!(c.mod_buttons.order, [Delete, Timeout(60), Timeout(600), Warn, Ban]);
+    }
+
+    #[test]
+    fn presence_turns_on_once() {
+        let mut c: Chat = serde_json::from_str(r#"{"sharePresence":false}"#).unwrap();
+        c.sanitize();
+        assert!(c.share_presence && c.presence_on_once);
+        c.share_presence = false;
+        c.sanitize();
+        assert!(!c.share_presence);
+    }
+
+    #[test]
+    fn new_settings_need_no_presence_migration() {
+        assert!(Chat::default().presence_on_once);
+    }
+
+    #[test]
+    fn old_file_without_flag_reads_false() {
+        assert!(!serde_json::from_str::<Chat>("{}").unwrap().presence_on_once);
     }
 }
