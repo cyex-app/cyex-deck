@@ -10,6 +10,10 @@ export type Pinned = { id: string,
  */
 by: string | null, 
 /**
+ * V106-19 RFC 3339, when the pin began; the timer bar counts from it.
+ */
+startsAt: string | null, 
+/**
  * RFC 3339; `None` = until unpinned.
  */
 endsAt: string | null, 
