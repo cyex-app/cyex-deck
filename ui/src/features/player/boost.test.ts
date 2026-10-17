@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { clampVolume, LIMITER, LIMITER_MAKEUP, maxVolume, split } from './boost.ts';
+import { clampVolume, LIMITER, LIMITER_MAKEUP, maxVolume, needsResume, split } from './boost.ts';
 
 test('up to 100 % the element does the work', () => {
   assert.deepEqual(split(0.4), { element: 0.4, gain: 1 });
@@ -22,4 +22,11 @@ test('the boost sets the slider range', () => {
 test('limiter takes its own make-up gain back out', () => {
   assert.ok(Math.abs(20 * Math.log10(LIMITER_MAKEUP) + 1.71) < 0.005);
   assert.deepEqual(LIMITER, { threshold: -3, knee: 0, ratio: 20, attack: 0.003, release: 0.25 });
+});
+
+test('the boost context is resumed unless running or closed', () => {
+  assert.equal(needsResume('suspended'), true);
+  assert.equal(needsResume('interrupted'), true);
+  assert.equal(needsResume('running'), false);
+  assert.equal(needsResume('closed'), false);
 });

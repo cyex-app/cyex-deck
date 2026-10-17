@@ -6,6 +6,7 @@
 
 import { soundIpc } from '../../ipc/sound';
 import { settings } from '../../lib/settings.svelte';
+import { inGraph } from './gain';
 import { sinkFor } from './sink';
 
 interface Sinkable {
@@ -88,6 +89,8 @@ function use(): void {
 /** Sends a player's sound to the streams' device. Call it in an effect: it re-runs on a change. */
 export function applySink(target: HTMLMediaElement): void {
   use();
+  // V1051-01 Boosted ones play through the boost context, which follows the device itself.
+  if (inGraph(target)) return;
   setSink(target as unknown as Sinkable, out.id);
 }
 
