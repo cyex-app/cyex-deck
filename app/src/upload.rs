@@ -180,6 +180,20 @@ pub async fn run(app: AppHandle, channel: String, items: Vec<UploadItem>, on: Ch
     let _ = on.send(UploadEvent::Finished);
 }
 
+/// V106-14 The uploader fields left empty, by their Settings label. Upload URL, Form field
+/// and Image link are required; headers and the delete link may stay empty.
+fn missing(cfg: &Uploader) -> Vec<&'static str> {
+    [
+        ("Upload URL", cfg.url.as_str()),
+        ("Form field", cfg.form_field.as_str()),
+        ("Image link", cfg.link.as_str()),
+    ]
+    .into_iter()
+    .filter(|(_, v)| v.trim().is_empty())
+    .map(|(l, _)| l)
+    .collect()
+}
+
 async fn send_all(
     app: &AppHandle,
     channel: &str,
@@ -187,8 +201,12 @@ async fn send_all(
     on: &Channel<UploadEvent>,
 ) -> Result<(), String> {
     let cfg = app.state::<Settings>().read::<Uploader>(Partition::Uploader);
-    if !cfg.enabled || cfg.url.is_empty() {
-        return Err("Set up the uploader in Settings → Image uploads.".into());
+    if !cfg.enabled {
+        return Err("Turn on image uploads in Settings → Image uploads.".into());
+    }
+    let gone = missing(&cfg);
+    if !gone.is_empty() {
+        return Err(format!("Fill in {} in Settings → Image uploads.", gone.join(", ")));
     }
     let http = app.state::<Auth>().http.clone();
     let extra = headers(&app.state::<Settings>().uploader_headers());
@@ -308,6 +326,24 @@ mod tests {
         let dir = std::env::temp_dir().join("cyex-upload-preview-test");
         fs::create_dir_all(&dir).unwrap();
         dir.join(name)
+    }
+
+    #[test]
+    fn missing_names_the_empty_required_fields() {
+        let full = Uploader {
+            url: "https://h.example/up".into(),
+            form_field: "file".into(),
+            link: "{data.link}".into(),
+            ..Uploader::default()
+        };
+        assert!(missing(&full).is_empty());
+        let no_url = Uploader { url: "  ".into(), ..full.clone() };
+        assert_eq!(missing(&no_url), ["Upload URL"]);
+        let no_field = Uploader { form_field: String::new(), ..full.clone() };
+        assert_eq!(missing(&no_field), ["Form field"]);
+        let no_link = Uploader { link: String::new(), ..full.clone() };
+        assert_eq!(missing(&no_link), ["Image link"]);
+        assert_eq!(missing(&Uploader::default()), ["Upload URL", "Form field", "Image link"]);
     }
 
     #[test]

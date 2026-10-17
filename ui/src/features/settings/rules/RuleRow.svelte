@@ -8,6 +8,7 @@
   import IconButton from '../../../components/IconButton.svelte';
   import IconToggle from '../../../components/IconToggle.svelte';
   import { openMenuAt } from '../../../components/menu.svelte';
+  import Icon from '../../../components/Icon.svelte';
   import Toggle from '../../../components/Toggle.svelte';
   import { tooltip } from '../../../components/tooltip.svelte';
   import { mentionsIpc } from '../../../ipc/mentions';
@@ -38,9 +39,28 @@
     mainMin?: string;
     /** Room for this many option icons, so rows with fewer still line up. */
     slots?: number;
+    /** V106-10 The drag grip's accessible name, e.g. "Move /hi". No grip when unset. */
+    handle?: string;
+    /** V106-10 An empty grip-wide column, so fixed rows line up with rows that have a grip. */
+    gripSlot?: boolean;
   }
 
-  let { item, fields, title, onchange, ondelete, problem, note, fallback = 'var(--red)', setting, layout = 'flow', mainMin = '140px', slots = 0 }: Props = $props();
+  let {
+    item,
+    fields,
+    title,
+    onchange,
+    ondelete,
+    problem,
+    note,
+    fallback = 'var(--red)',
+    setting,
+    layout = 'flow',
+    mainMin = '140px',
+    slots = 0,
+    handle,
+    gripSlot = false,
+  }: Props = $props();
 
   const split = $derived(layout === 'split');
   const shown = $derived(fields.filter((f) => !f.when || f.when(item)));
@@ -48,6 +68,7 @@
   const looks = $derived(shown.filter((f) => f !== on && !f.alert && !f.wide));
   const does = $derived(shown.filter((f) => f.alert && !f.wide));
   const wide = $derived(shown.filter((f) => f.wide));
+  const grab = $derived(!!handle || gripSlot);
 
   function set(key: keyof T, value: unknown) {
     if (item[key] === value) return;
@@ -135,17 +156,37 @@
   {/if}
 {/snippet}
 
+{#snippet grip()}
+  {#if handle}
+    <button type="button" class="grip" data-drag-handle aria-label={handle} use:tooltip={{ label: 'Drag to move', hint: 'Or press Alt+↑ or Alt+↓.' }}
+      ><Icon name="grip" size={14} /></button
+    >
+  {:else if gripSlot}
+    <span class="grip" aria-hidden="true"></span>
+  {/if}
+{/snippet}
+
 {#if split}
-  <div class="rule split" class:off={item.enabled === false} class:noon={!on} data-setting={setting} style:--main-min={mainMin} style:--slots={slots}>
+  <div
+    class="rule split"
+    class:off={item.enabled === false}
+    class:noon={!on}
+    class:grab
+    data-setting={setting}
+    style:--main-min={mainMin}
+    style:--slots={slots}
+  >
+    {@render grip()}
     <span class="on">
       {#if on}<Toggle label={title ?? on.label} checked={!!item[on.key]} onchange={(c) => set(on.key, c)} />{/if}
     </span>
     <div class="body">
       <div class="looks">
         {#if title}<span class="title">{title}</span>{/if}
+        {#each looks.filter((f) => f.lead) as f (f.key)}<span class="lead">{@render cell(f)}</span>{/each}
         {#each looks.filter((f) => f.main) as f (f.key)}<span class="main">{@render cell(f)}</span>{/each}
-        {#if looks.some((f) => !f.main) || slots}
-          <span class="opts">{#each looks.filter((f) => !f.main) as f (f.key)}{@render cell(f)}{/each}</span>
+        {#if looks.some((f) => !f.main && !f.lead) || slots}
+          <span class="opts">{#each looks.filter((f) => !f.main && !f.lead) as f (f.key)}{@render cell(f)}{/each}</span>
         {/if}
       </div>
       {#if does.length}
@@ -164,6 +205,7 @@
   </div>
 {:else}
   <div class="rule" class:off={item.enabled === false} data-setting={setting}>
+    {@render grip()}
     {#if title}<span class="title">{title}</span>{/if}
     {#each shown as f (f.key)}{@render cell(f)}{/each}
     {#if ondelete}<IconButton icon="trash" label="Delete" size={14} onclick={ondelete} />{/if}
@@ -181,7 +223,8 @@
     border-bottom: 1px solid var(--border);
     font-size: 0.85rem;
   }
-  .rule.off > :not(:first-child) {
+  /* Q5 Off rows stay in place, dimmed; the grip and the switch stay bright. */
+  .rule.off > :not(:first-child):not(.grip + *) {
     opacity: 0.6;
   }
   .title {
@@ -283,6 +326,51 @@
     display: flex;
     align-items: center;
     height: 28px;
+  }
+  /* V106-10 Grip | switch | body | Remove. */
+  .split.grab {
+    grid-template-columns: 18px 36px minmax(0, 1fr) 26px;
+  }
+  .split.grab.noon {
+    grid-template-columns: 18px minmax(0, 1fr) 26px;
+  }
+  .split.grab .problem,
+  .split.grab .note {
+    grid-column: 3 / -1;
+  }
+  .split.grab.noon .problem,
+  .split.grab.noon .note {
+    grid-column: 2 / -1;
+  }
+  .grip {
+    width: 18px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--dim);
+    border-radius: var(--radius);
+    align-self: start;
+  }
+  button.grip {
+    cursor: grab;
+  }
+  button.grip:hover {
+    color: var(--text);
+  }
+  button.grip:active {
+    cursor: grabbing;
+  }
+  button.grip:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+  }
+  .lead {
+    flex: none;
+    display: flex;
   }
   .split > .del :global(.icon-btn) {
     width: 26px;

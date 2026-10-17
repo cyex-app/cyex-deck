@@ -3,7 +3,7 @@
 // stays at gain 1. Changes glide, so toggling never clicks.
 // A limiter after the gain keeps loud parts from clipping (LIMITER in boost.ts).
 // V1051-01 Its own AudioContext (the app's chime plays in Rust now), on the streams' device.
-import { LIMITER, LIMITER_MAKEUP } from './boost';
+import { LIMITER, LIMITER_MAKEUP, needsResume } from './boost';
 import { routeContext } from './output.svelte';
 
 const gains = new WeakMap<HTMLMediaElement, { node: GainNode; chain: AudioNode[] }>();
@@ -15,10 +15,37 @@ let boostCtx: AudioContext | undefined;
 /** The window's one boost context, made the first time a player is boosted. */
 function boostContext(): AudioContext {
   if (!boostCtx) {
-    boostCtx = new AudioContext();
-    routeContext(boostCtx);
+    const ctx = (boostCtx = new AudioContext());
+    routeContext(ctx);
+    ctx.addEventListener('statechange', () => keepRunning(ctx));
+    keepRunning(ctx);
   }
   return boostCtx;
+}
+
+/** V1051-01 A suspended context freezes the picture of every video routed through it, so resume
+ * at once, and on the next click or key too (autoplay rules may refuse the first try). */
+function keepRunning(ctx: AudioContext): void {
+  if (!needsResume(ctx.state)) return;
+  void ctx.resume().catch(() => {});
+  if (armed) return;
+  armed = true;
+  const again = () => {
+    window.removeEventListener('pointerdown', again, true);
+    window.removeEventListener('keydown', again, true);
+    armed = false;
+    keepRunning(ctx);
+  };
+  window.addEventListener('pointerdown', again, true);
+  window.addEventListener('keydown', again, true);
+}
+
+/** One pair of click/key listeners at a time, however often the context stalls. */
+let armed = false;
+
+/** Whether `video`'s sound goes through the boost graph (V1051-01: setSinkId on it fails). */
+export function inGraph(video: HTMLMediaElement): boolean {
+  return gains.has(video);
 }
 
 /** Sets the boost's gain on `video`. Builds the graph only when `build` (the player is boosted). */
@@ -41,8 +68,11 @@ export function setGain(video: HTMLMediaElement, value: number, build: boolean):
     const source = ctx.createMediaElementSource(video);
     source.connect(node).connect(limiter).connect(makeup).connect(ctx.destination);
     gains.set(video, { node, chain: [source, node, limiter, makeup] });
+    const wake = () => keepRunning(ctx);
+    video.addEventListener('play', wake);
+    video.addEventListener('playing', wake);
   }
-  if (ctx.state === 'suspended') void ctx.resume();
+  keepRunning(ctx);
   node.gain.setTargetAtTime(value, ctx.currentTime, GLIDE);
 }
 

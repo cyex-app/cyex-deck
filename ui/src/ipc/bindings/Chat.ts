@@ -52,10 +52,13 @@ animateOnlyFocused: boolean,
  */
 hiddenEmotes: Array<EmoteKey>, 
 /**
- * D21 Tell 7TV and BTTV which channel you're in, so others see your paint, badge
- * and personal emotes.
+ * D21 V106-08 Send presence to 7TV and BTTV: which chat you're in, so others see your paint, badge and personal emotes.
  */
 sharePresence: boolean, 
+/**
+ * V106-08 Presence was turned on once for everyone.
+ */
+presenceOnOnce: boolean, 
 /**
  * 2.5
  */

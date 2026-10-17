@@ -9,6 +9,7 @@
   import type { Similarity } from '../../../ipc/bindings/Similarity';
   import { rulesIpc } from '../../../ipc/rules';
   import { settings } from '../../../lib/settings.svelte';
+  import SectionHead from '../SectionHead.svelte';
   import type { Field } from '../rules/fields';
   import RuleList from '../rules/RuleList.svelte';
   import NumberField from '../../../components/NumberField.svelte';
@@ -54,12 +55,10 @@
   const id = () => crypto.randomUUID().slice(0, 8);
 </script>
 
-<h2>Filters</h2>
-
-<p class="intro">
+<SectionHead title="Filters" level={2} docs="filters">
   A chat shows only what passes its filters. Pick them from the chat’s menu. Same language as Chatterino.
   <Button small variant="link" onclick={toggleNames}>{showNames ? 'Hide' : 'Show'} what you can use</Button>
-</p>
+</SectionHead>
 {#if showNames}
   <div class="names">
     {#each names as n (n.name)}<code use:tooltip={n.kind}>{n.name}</code>{/each}
@@ -100,11 +99,6 @@
 </Row>
 
 <style>
-  .intro {
-    margin: 0 0 8px;
-    color: var(--muted);
-    font-size: 0.85rem;
-  }
   .names {
     display: flex;
     flex-wrap: wrap;

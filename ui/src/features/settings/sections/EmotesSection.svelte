@@ -129,11 +129,11 @@
 <h3 class="label">Sharing</h3>
 <Row
   setting="chat.sharePresence"
-  label="Show my 7TV and BTTV look to others"
-  hint="Tells 7TV and BTTV which channel you’re chatting in, so other viewers see your paint, badge and personal emotes."
+  label="Send presence to 7TV and BTTV"
+  hint="Others see your 7TV paint, badge and personal emotes. Only the chat you’re in is sent."
 >
   <Toggle
-    label="Show my 7TV and BTTV look to others"
+    label="Send presence to 7TV and BTTV"
     checked={c.sharePresence}
     onchange={(v) => settings.patch('chat', { sharePresence: v })}
   />

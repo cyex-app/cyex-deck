@@ -48,7 +48,7 @@ pub fn rebuild(app: &AppHandle) {
         return;
     };
     let c: Commands = app.state::<Settings>().read(Partition::Commands);
-    *state.list.lock().unwrap_or_else(|p| p.into_inner()) = Arc::new(CommandList::new(&c.lines));
+    *state.list.lock().unwrap_or_else(|p| p.into_inner()) = Arc::new(CommandList::new(&c.command_lines()));
     state.autos.lock().unwrap_or_else(|p| p.into_inner()).update(&c);
 }
 

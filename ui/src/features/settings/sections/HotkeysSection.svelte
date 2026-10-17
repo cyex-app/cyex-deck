@@ -16,6 +16,7 @@
   import { modesIpc } from '../../../ipc/modes';
   import { toast } from '../../../lib/toast.svelte';
   import ResetSection from '../ResetSection.svelte';
+  import SectionHead from '../SectionHead.svelte';
 
   let editing = $state<ActionId | null>(null);
   /** H1 The keys just pressed are another action's: pressing them again moves them here. */
@@ -80,8 +81,9 @@
 
 <svelte:window onkeydown={onKey} />
 
-<h2>Hotkeys</h2>
-<p class="intro" data-setting="hotkeys.bindings">Click a shortcut, then press the new keys. Esc cancels, Backspace clears it.</p>
+<SectionHead title="Hotkeys" level={2} docs="hotkeys" setting="hotkeys.bindings">
+  Click a shortcut, then press the new keys. Esc cancels, Backspace clears it.
+</SectionHead>
 
 {#snippet binding(id: ActionId)}
   {@const combo = bindingOf(id)}

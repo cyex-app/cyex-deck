@@ -288,7 +288,7 @@ pub fn open(
         catalog::refresh_pin_now(app.clone(), key);
     }
     if let Some(a) = &opened.account {
-        crate::emotes::presence::touch(app, a, &login);
+        crate::emotes::presence::touch(app, a, &login, crate::emotes::presence::Why::Opened, &[]);
     }
     votes::watch(app, &login, opened.account.clone());
     Ok(opened)

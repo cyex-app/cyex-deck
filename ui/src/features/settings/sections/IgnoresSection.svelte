@@ -62,6 +62,7 @@
     route: '',
   })}
   onchange={(ignores) => save({ ignores })}
+  reorder={{ key: 'highlights.ignores', label: (r, i) => r.pattern || `Row ${i + 1}` }}
   empty="Hide messages with these words, or swap the words for something else."
 />
 

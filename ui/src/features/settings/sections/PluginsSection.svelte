@@ -10,6 +10,7 @@
   import PluginCard from '../../plugins/PluginCard.svelte';
   import { plugins } from '../../plugins/plugins.svelte';
   import { errorText } from '../../../lib/errors';
+  import SectionHead from '../SectionHead.svelte';
 
   const enabled = $derived(!!settings.v.plugins?.enabled);
   const view = $derived(plugins.view);
@@ -20,10 +21,9 @@
   }
 </script>
 
-<h2>Plugins</h2>
-<p class="intro">
+<SectionHead title="Plugins" level={2} docs="plugins">
   Lua scripts that add commands, change chat lines and more. Each one only gets the permissions you agree to.
-</p>
+</SectionHead>
 
 {#if view?.safeMode}
   <p class="note">Started with --safe-mode, so no plugin runs.</p>
@@ -47,10 +47,6 @@
 {/if}
 
 <style>
-  .intro {
-    margin: -6px 0 6px;
-    color: var(--dim);
-  }
   .note {
     margin: 0 0 6px;
     color: var(--yellow);

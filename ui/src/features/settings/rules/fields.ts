@@ -18,6 +18,8 @@ export interface Field<T> {
   width?: string;
   /** V105-18 The flexible field: what the rule looks for. */
   main?: boolean;
+  /** V106-10 Split rows: a short field drawn before the main one, e.g. a command's name. */
+  lead?: boolean;
   /** V105-18 What a match does (color, sound, …): the second group of a split row. */
   alert?: boolean;
   /** Monospace text, e.g. a regex. */

@@ -30,3 +30,9 @@ export function nudge<T>(list: readonly T[], key: (t: T) => string, id: string, 
   const items = moveKey(list, key, id, key(list[j]), dir > 0);
   return items && { items, place: j + 1 };
 }
+
+/** V106-10 Which way a key moves a row: Alt+ArrowUp -1, Alt+ArrowDown 1, anything else null. */
+export function nudgeDir(e: { altKey: boolean; key: string }): -1 | 1 | null {
+  if (!e.altKey) return null;
+  return e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : null;
+}

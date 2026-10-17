@@ -379,3 +379,19 @@ fn the_first_pin_read_is_news_even_with_nothing_pinned() {
     assert!(r.snapshot().pin_known);
     assert!(r.set_pinned(None).is_none(), "unchanged");
 }
+
+#[test]
+fn shared_rooms_are_the_recent_source_rooms() {
+    let mut r = room();
+    let shared = |id: &str, src: &str, ts: i64| {
+        format!("@id={id};user-id=7;room-id=1;source-room-id={src};tmi-sent-ts={ts} :u!u@u PRIVMSG #chan :hi")
+    };
+    feed(&mut r, &shared("a", "2", 100));
+    feed(&mut r, &shared("b", "3", 500));
+    feed(&mut r, &shared("c", "1", 600));
+    feed(&mut r, &shared("d", "3", 700));
+    feed(&mut r, &msg("e", "7"));
+    assert_eq!(r.shared_rooms(0), ["3", "2"]);
+    assert_eq!(r.shared_rooms(400), ["3"]);
+    assert!(r.shared_rooms(800).is_empty());
+}

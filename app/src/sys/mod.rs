@@ -1,11 +1,13 @@
 //! Windows calls that need `unsafe` (D28): which apps are running, for streamer mode
 //! (U4), WebView2's low-memory mode for windows nobody sees, and the app's audio
-//! (V1051-01, `audio`), and the window subclass (`frame`, V103-14, V106-01). The only
-//! module in the app allowed to use `unsafe`; every call is small and checked here.
+//! (V1051-01, `audio`), the window subclass (`frame`, V103-14, V106-01) and the taskbar
+//! flash (`flash`, V106-35). The only module in the app allowed to use `unsafe`; every call
+//! is small and checked here.
 #![allow(unsafe_code)]
 
 pub mod cache;
 pub mod devtools;
+pub mod flash;
 pub mod frame;
 #[cfg(windows)]
 pub mod audio;
