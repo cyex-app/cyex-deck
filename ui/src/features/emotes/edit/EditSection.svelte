@@ -33,9 +33,13 @@
   // svelte-ignore state_referenced_locally
   let form = $state<Form | null>(target.edit ?? null);
 
+  // Current alias; follows a rename made in this card.
+  // svelte-ignore state_referenced_locally
+  let name = $state(emote.name);
+
   async function load(): Promise<void> {
     const id = emote.id;
-    const o = await editOptionsFor(account, login, id, emote.name);
+    const o = await editOptionsFor(account, login, id, name);
     if (id !== emote.id) return;
     options = o;
     asked = true;
@@ -43,6 +47,7 @@
 
   $effect(() => {
     void emote.id;
+    name = emote.name;
     asked = false;
     options = null;
     void load();
@@ -87,9 +92,11 @@
     return finish(await runEdit(account, login, { type: 'add', setId: t.setId, emoteId: emote.id, alias: name }, t.channel, quiet(t.channel)), t.channel);
   }
 
-  async function submitRename(h: HereEdit, name: string): Promise<string | null> {
-    const op = { type: 'rename', setId: h.setId, emoteId: emote.id, from: h.alias, to: name } as const;
-    return finish(await runEdit(account, login, op, h.channel, quiet(h.channel)), h.channel);
+  async function submitRename(h: HereEdit, alias: string): Promise<string | null> {
+    const op = { type: 'rename', setId: h.setId, emoteId: emote.id, from: h.alias, to: alias } as const;
+    const fail = await runEdit(account, login, op, h.channel, quiet(h.channel));
+    if (!fail) name = alias;
+    return finish(fail, h.channel);
   }
 
   function quiet(channel: string) {

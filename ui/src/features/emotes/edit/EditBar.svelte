@@ -55,7 +55,7 @@
         ondone();
         return null;
       }
-      return inlineText(fail, channel) ?? 'Didn’t work. Try again.';
+      return inlineText(fail, channel);
     } finally {
       busy = false;
     }
