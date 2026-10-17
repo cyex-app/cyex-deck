@@ -1,0 +1,152 @@
+{
+ "data": {
+  "user": {
+   "id": "22510310",
+   "login": "gamesdonequick",
+   "displayName": "GamesDoneQuick",
+   "description": "Games Done Quick is a series of events (Over $62 Million raised for charity!) and daily broadcasts with the goal of spreading the joy of speedrunning. Between charity events, we are live here daily (except Thurs) from 7pm-1am Eastern, and on weekends starting at 1pm. We hope to see you here!",
+   "createdAt": "2011-05-20T18:19:19.218409Z",
+   "bannerImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/ecc66eb8-4a9b-4503-bf1a-505650a08cc9-profile_banner-480.png",
+   "primaryColorHex": "1F69FF",
+   "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/b3fc1f16-0818-4121-8711-c31b9469bc21-profile_image-150x150.png",
+   "followers": {
+    "totalCount": 2076185
+   },
+   "roles": {
+    "isPartner": true,
+    "isAffiliate": false
+   },
+   "lastBroadcast": {
+    "startedAt": "2026-10-17T11:22:03.284789Z",
+    "title": "[Replay] Hidden Heroes & The Scenic Route - tune in at 1pm Eastern for Fright Fatales!",
+    "game": {
+     "displayName": "Games Done Quick"
+    }
+   },
+   "channel": {
+    "socialMedias": [
+     {
+      "name": "bsky",
+      "title": "Bluesky",
+      "url": "https://bsky.app/profile/gamesdonequick.com"
+     },
+     {
+      "name": "discord",
+      "title": "Official GDQ Discord",
+      "url": "https://discord.gg/gamesdonequick"
+     },
+     {
+      "name": "youtube",
+      "title": "YouTube",
+      "url": "https://youtube.com/gamesdonequick"
+     },
+     {
+      "name": "instagram",
+      "title": "Instagram",
+      "url": "https://instagram.com/gamesdonequick"
+     },
+     {
+      "name": "twitter",
+      "title": "Twitter",
+      "url": "https://twitter.com/GamesDoneQuick"
+     }
+    ],
+    "selfInstalledExtensions": []
+   },
+   "panels": [
+    {
+     "id": "11600229",
+     "type": "DEFAULT",
+     "title": null,
+     "description": "The GDQ HOTFIX is a series spotlighting exciting speedrunning races, tournaments, events and more!\n\nSubs and bits go to Games Done Quick to support Hotfix and event content.",
+     "imageURL": "https://panels.twitch.tv/panel-22510310-image-426d7cce37215ee2-320-320.png",
+     "linkURL": "https://gamesdonequick.com/hotfix"
+    },
+    {
+     "id": "148220458",
+     "type": "DEFAULT",
+     "title": null,
+     "description": "The Yetee creates amazing merch, apparel, and vinyl for video games and pop culture. Check out the newest Yetee drops in the [GDQ Collection!](https://theyetee.com/gdq)",
+     "imageURL": "https://panels.twitch.tv/panel-22510310-image-8045e40c-f74a-450f-abc5-5a20f4297b91",
+     "linkURL": "https://theyetee.com/gdq"
+    },
+    {
+     "id": "140913218",
+     "type": "DEFAULT",
+     "title": null,
+     "description": "Frame Fatales is Games Done Quick's community of women and femmes who share a passion for speedrunning, charity events, and gaming. FF puts on two charity events a year, with Frost Fatales in March and Flame Fatales In August. If you'd like to join Frame Fatales, email us at framefatales@gamesdonequick.com",
+     "imageURL": "https://panels.twitch.tv/panel-22510310-image-e85b4ebc-bacd-4c19-a56f-99c213fc6ab7",
+     "linkURL": "http://gamesdonequick.com/framefatales"
+    },
+    {
+     "id": "144157109",
+     "type": "DEFAULT",
+     "title": null,
+     "description": "Black in a Flash is a community for Black speedrunners of all levels to convene, grow, work together, and uplift each other in their speedrunning journey while raising money for charity! Our community is new and growing, with a shiny new Discord to meet and collaborate on your next speedrun, challenge run, or randomizers. If you’re wanting to learn more, or looking to become a part of the Black in a Flash community, email to blackinaflash@gamesdonequick.com!",
+     "imageURL": "https://panels.twitch.tv/panel-22510310-image-5493eb21-5512-4610-8d5f-a23910d5564e",
+     "linkURL": "https://gamesdonequick.com/site/blackinaflash"
+    },
+    {
+     "id": "358386",
+     "type": "DEFAULT",
+     "title": null,
+     "description": "- Absolutely NO discrimination (including but not limited to racism, sexism, homophobia, transphobia, intentional misgendering, or any type of hate speech) or harassment of other viewers/runners/mods/staff or anyone who appears on stream\n- No disparaging remarks about pronouns\n- Avoid talking about traumatic events or conspiracy theories\n- No political campaigning or proselytism\n- No links or advertisements\n- No custom bots for posting in chat or whispering\n- No excessive ascii or copypasta spam\n- Be respectful\n- Jokes, sarcasm and bad faith questions/arguments are not excuses\n- During Frame Fatales events, emotes featuring Pepe the frog, and variants of such are not permitted in our chat\n- Games Done Quick and its moderators reserve the right to ban users from our chat/channel/event at our own discretion",
+     "imageURL": "https://panels.twitch.tv/panel-22510310-image-a796b41e-748d-49ec-aae7-31f557e9be25",
+     "linkURL": null
+    },
+    {
+     "id": "3734308",
+     "type": "DEFAULT",
+     "title": null,
+     "description": null,
+     "imageURL": "https://panels.twitch.tv/panel-22510310-image-793b2052-74d7-4c6b-9097-3d9ffa6a666f",
+     "linkURL": "https://twitter.com/gamesdonequick"
+    },
+    {
+     "id": "112825810",
+     "type": "DEFAULT",
+     "title": null,
+     "description": "Break music courtesy of: \n\n[GameChops.com](https://gamechops.com/)\n[ocremix.org](https://ocremix.org/)\nIndividual artists and games\n\nUsed with permission. Thank you for your support!",
+     "imageURL": null,
+     "linkURL": null
+    },
+    {
+     "id": "153314244",
+     "type": "DEFAULT",
+     "title": null,
+     "description": null,
+     "imageURL": null,
+     "linkURL": null
+    },
+    {
+     "id": "13576794",
+     "type": "DEFAULT",
+     "title": null,
+     "description": "Support Class is a visual design and development team providing broadcast graphics and production services for live events, esports, and professional livestreams - with or without commercial grade hardware.  \nSupport Class has been a part of the Games Done Quick team since AGDQ2015, and are always looking for their next big challenge. Look them up at supportclass.net!",
+     "imageURL": "https://panels.twitch.tv/panel-22510310-image-b6b6daf9-28db-48f2-96f3-3e63bcf0bcb8",
+     "linkURL": "http://supportclass.net"
+    },
+    {
+     "id": "3735034",
+     "type": "DEFAULT",
+     "title": null,
+     "description": null,
+     "imageURL": "https://panels.twitch.tv/panel-22510310-image-bea1c974-4c5c-4d7e-9e14-085608667a1c",
+     "linkURL": "http://facebook.com/GamesDoneQuick"
+    },
+    {
+     "id": "149084260",
+     "type": "DEFAULT",
+     "title": null,
+     "description": null,
+     "imageURL": null,
+     "linkURL": null
+    }
+   ]
+  }
+ },
+ "extensions": {
+  "durationMilliseconds": 53,
+  "requestID": "01M551A7H2DGMCS0QBQYSW8BGH"
+ }
+}

@@ -2,12 +2,12 @@
 //! play it. Signed out, a list stops at 100: paging needs an integrity token. Checked
 //! 2026/10/09.
 
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use ts_rs::TS;
 use url::Url;
 
-use super::{Auth, query};
+use super::{Auth, nullable, query};
 use crate::{Error, Http, Result};
 
 const FIELDS: &str = "fragment C on Clip { slug title viewCount createdAt durationSeconds \
@@ -248,11 +248,6 @@ struct RawUser {
     login: String,
     #[serde(default, deserialize_with = "nullable")]
     display_name: String,
-}
-
-/// V101-24 `null` reads like a missing field: Twitch sends either.
-fn nullable<'de, D: Deserializer<'de>, T: Default + Deserialize<'de>>(d: D) -> std::result::Result<T, D::Error> {
-    Option::<T>::deserialize(d).map(Option::unwrap_or_default)
 }
 
 #[derive(Deserialize)]

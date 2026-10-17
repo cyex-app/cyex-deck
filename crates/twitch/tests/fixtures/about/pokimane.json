@@ -1,0 +1,131 @@
+{
+ "data": {
+  "user": {
+   "id": "44445592",
+   "login": "pokimane",
+   "displayName": "pokimane",
+   "description": "hi ♡ i stream sometimes 📧 Business inquiries: teampokimane@wmeagency.com",
+   "createdAt": "2013-06-07T14:25:22.266478Z",
+   "bannerImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/cfaf7ac8-56d9-4f3a-b5b0-328e90976ea3-profile_banner-480.jpeg",
+   "primaryColorHex": "E1B5D9",
+   "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/912232e8-9e53-4fb7-aac4-14aed07869ca-profile_image-150x150.png",
+   "followers": {
+    "totalCount": 9441014
+   },
+   "roles": {
+    "isPartner": true,
+    "isAffiliate": false
+   },
+   "lastBroadcast": {
+    "startedAt": "2026-09-28T20:38:29.567135Z",
+    "title": "im sorry",
+    "game": {
+     "displayName": "Just Chatting"
+    }
+   },
+   "channel": {
+    "socialMedias": [
+     {
+      "name": "instagram",
+      "title": "Instagram",
+      "url": "https://www.instagram.com/imane"
+     },
+     {
+      "name": "youtube",
+      "title": "YouTube",
+      "url": "https://www.youtube.com/pokimane"
+     },
+     {
+      "name": "tiktok",
+      "title": "TikTok",
+      "url": "https://www.tiktok.com/@poki"
+     },
+     {
+      "name": "twitter",
+      "title": "Twitter",
+      "url": "https://twitter.com/pokimanelol"
+     },
+     {
+      "name": "facebook",
+      "title": "Facebook",
+      "url": "https://www.facebook.com/pokimane"
+     }
+    ],
+    "selfInstalledExtensions": [
+     {
+      "installation": {
+       "extension": {
+        "name": "Ultimate Closed Captions"
+       },
+       "activationConfig": {
+        "slot": "extension-overlay-1"
+       }
+      }
+     }
+    ]
+   },
+   "panels": [
+    {
+     "id": "153170448",
+     "type": "DEFAULT",
+     "title": null,
+     "description": null,
+     "imageURL": "https://panels.twitch.tv/panel-44445592-image-99065c91-28b6-457f-bd1e-ffd9a7dc044d",
+     "linkURL": "https://streamelements.com/pokimane/tip"
+    },
+    {
+     "id": "153170210",
+     "type": "DEFAULT",
+     "title": null,
+     "description": null,
+     "imageURL": "https://panels.twitch.tv/panel-44445592-image-586354ba-9e12-46e6-a710-270c0486657e",
+     "linkURL": "https://secure.twitch.tv/products/pokimane/ticket"
+    },
+    {
+     "id": "153170519",
+     "type": "DEFAULT",
+     "title": null,
+     "description": null,
+     "imageURL": "https://panels.twitch.tv/panel-44445592-image-37109490-01eb-4599-9f20-400ff130efa8",
+     "linkURL": "https://www.youtube.com/c/pokimane"
+    },
+    {
+     "id": "153170509",
+     "type": "DEFAULT",
+     "title": null,
+     "description": null,
+     "imageURL": "https://panels.twitch.tv/panel-44445592-image-41a399ed-b688-465b-9a5e-7d687cc668d4",
+     "linkURL": "http://www.twitter.com/pokimanelol"
+    },
+    {
+     "id": "153170473",
+     "type": "DEFAULT",
+     "title": null,
+     "description": null,
+     "imageURL": "https://panels.twitch.tv/panel-44445592-image-75180344-b6ec-4e18-82ab-5bf45003f123",
+     "linkURL": "http://www.instagram.com/imane"
+    },
+    {
+     "id": "153170540",
+     "type": "DEFAULT",
+     "title": null,
+     "description": null,
+     "imageURL": "https://panels.twitch.tv/panel-44445592-image-0c30df2e-6b9f-4019-9e33-b3715a91c20f",
+     "linkURL": "https://www.tiktok.com/@poki"
+    },
+    {
+     "id": "153170626",
+     "type": "DEFAULT",
+     "title": null,
+     "description": null,
+     "imageURL": "https://panels.twitch.tv/panel-44445592-image-055f32f7-d67d-40c6-a709-88c65a46a699",
+     "linkURL": "https://www.discord.gg/poki"
+    }
+   ]
+  }
+ },
+ "extensions": {
+  "durationMilliseconds": 93,
+  "requestID": "01M5519Y7BMYFS75JG7H2HEFYM"
+ }
+}

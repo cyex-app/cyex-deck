@@ -1,0 +1,41 @@
+{
+ "data": {
+  "user": {
+   "id": "936264266",
+   "login": "esl_csgo",
+   "displayName": "ESL_CSGO",
+   "description": "ESL_CSGO has moved to ESLCS",
+   "createdAt": "2023-07-24T16:37:43.70502Z",
+   "bannerImageURL": null,
+   "primaryColorHex": null,
+   "profileImageURL": "https://static-cdn.jtvnw.net/user-default-pictures-uv/294c98b5-e34d-42cd-a8f0-140b72fba9b0-profile_image-150x150.png",
+   "followers": {
+    "totalCount": 1558
+   },
+   "roles": {
+    "isPartner": false,
+    "isAffiliate": false
+   },
+   "lastBroadcast": {
+    "startedAt": null,
+    "title": "We have moved! @eslcs",
+    "game": null
+   },
+   "channel": {
+    "socialMedias": [
+     {
+      "name": "twitch",
+      "title": "ESLCS",
+      "url": "https://twitch.tv/eslcs"
+     }
+    ],
+    "selfInstalledExtensions": []
+   },
+   "panels": []
+  }
+ },
+ "extensions": {
+  "durationMilliseconds": 57,
+  "requestID": "01M551AA2HS8M1DEEH945VXWKJ"
+ }
+}

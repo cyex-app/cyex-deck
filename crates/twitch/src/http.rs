@@ -60,6 +60,34 @@ impl Http {
         Ok(String::from_utf8_lossy(&out).into_owned())
     }
 
+    /// V106-24 A small file, or None when it's bigger than `max` (stops reading there).
+    pub async fn get_small(&self, url: &str, max: usize) -> Result<Option<Vec<u8>>> {
+        let mut res = self
+            .0
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| Error::Network(e.without_url()))?;
+        let status = res.status().as_u16();
+        if !(200..300).contains(&status) {
+            return Err(Error::Api {
+                status,
+                message: "request".into(),
+            });
+        }
+        if res.content_length().is_some_and(|n| n > max as u64) {
+            return Ok(None);
+        }
+        let mut out = Vec::new();
+        while let Some(chunk) = res.chunk().await.map_err(|e| Error::Network(e.without_url()))? {
+            out.extend_from_slice(&chunk);
+            if out.len() > max {
+                return Ok(None);
+            }
+        }
+        Ok(Some(out))
+    }
+
     /// X6 A picture to keep, refused when bigger than `max`.
     pub async fn get_bytes(&self, url: &str, max: usize) -> Result<Vec<u8>> {
         let req = self.0.get(url).header("Accept", "image/webp,image/*");
