@@ -103,10 +103,11 @@ export function errorText(e: unknown, action?: string): string {
   return sentence(api ? `Twitch said: ${api[1]}` : raw) || fallback;
 }
 
-/** Capital first letter, curly apostrophes, a full stop. */
+/** Capital first letter, curly apostrophes, a full stop. A line that already ends in one is a
+ *  finished sentence from Rust and keeps its first letter ("mockme has no 7TV emote…"). */
 export function sentence(text: string): string {
   const t = text.trim().replace(/(\w)'(\w)/g, '$1’$2');
   if (!t) return '';
-  const s = t[0].toUpperCase() + t.slice(1);
-  return /[.!?…)]$/.test(s) ? s : `${s}.`;
+  if (/[.!?…)]$/.test(t)) return t;
+  return `${t[0].toUpperCase()}${t.slice(1)}.`;
 }

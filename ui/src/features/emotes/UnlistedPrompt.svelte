@@ -6,7 +6,7 @@
   let { onchosen }: { onchosen: () => void } = $props();
 </script>
 
-<section class="unlisted" aria-label="Unlisted emotes">
+<section class="unlisted-prompt"aria-label="Unlisted emotes">
   <p>Unlisted emotes are blurred in every chat.</p>
   <Button
     variant="primary"
@@ -27,7 +27,7 @@
 </section>
 
 <style>
-  .unlisted {
+  .unlisted-prompt {
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -40,7 +40,7 @@
     color: var(--dim);
     font-size: 0.78rem;
   }
-  .unlisted :global(.btn) {
+  .unlisted-prompt :global(.btn) {
     width: 100%;
     justify-content: center;
   }

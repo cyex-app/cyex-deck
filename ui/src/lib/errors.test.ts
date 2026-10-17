@@ -45,4 +45,7 @@ test('sentence', () => {
   assert.equal(sentence('done'), 'Done.');
   assert.equal(sentence('Done!'), 'Done!');
   assert.equal(sentence('  '), '');
+  // V106-31 A finished line from Rust that starts with a login keeps its case.
+  assert.equal(sentence('mockme has no 7TV emote called nope.'), 'mockme has no 7TV emote called nope.');
+  assert.equal(errorText('xQc already has an emote named peepoSad.'), 'xQc already has an emote named peepoSad.');
 });
