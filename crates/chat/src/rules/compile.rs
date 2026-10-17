@@ -1,14 +1,14 @@
 //! Settings rules to ready matchers. A rule whose regex doesn't compile never matches.
 
-use cyex_settings::schema::{Alert, IgnoreRule, PhraseRule, SentFrom, UserRule};
+use cyex_settings::schema::{Alert, IgnoreRule, SentFrom, UserRule};
 use fancy_regex::RegexBuilder as FancyBuilder;
 use regex::{NoExpand, Regex, RegexBuilder};
 
 use crate::model::Client;
 
-/// V105-16 Highlight patterns (words and people): Rust syntax with lookaround and
-/// backreferences (fancy-regex, like mentions), so converted Chatterino patterns run.
-/// Same limits as mentions. Ignores keep `Matcher`.
+/// V105-16 Highlight patterns for people (and `import_regex`): Rust syntax with lookaround
+/// and backreferences (fancy-regex, like mentions), so converted Chatterino patterns run.
+/// Same limits as mentions. Words are a `MentionSet` (V106-33). Ignores keep `Matcher`.
 pub struct HighlightMatcher(Option<fancy_regex::Regex>);
 
 impl HighlightMatcher {
@@ -27,14 +27,6 @@ impl HighlightMatcher {
     /// A rule whose regex doesn't compile never matches.
     fn or_never(pattern: &str, case_sensitive: bool) -> Self {
         Self::build(pattern, case_sensitive).unwrap_or(Self(None))
-    }
-
-    /// 2.6 Plain highlight phrases match whole words (Chatterino's construction).
-    fn words(pattern: &str, case_sensitive: bool) -> Self {
-        Self::or_never(
-            &format!(r"(?:\b|\s|^){}(?:\b|\s|$)", regex::escape(pattern)),
-            case_sensitive,
-        )
     }
 
     /// Over the backtrack limit counts as no match.
@@ -96,21 +88,6 @@ pub struct Ignore {
 }
 
 /// V105-12 Empty rules (one being filled in) match nothing.
-pub fn phrases(rules: &[PhraseRule]) -> Vec<Rule> {
-    rules
-        .iter()
-        .filter(|r| r.enabled && !r.is_blank())
-        .map(|r| Rule {
-            matcher: if r.regex {
-                HighlightMatcher::or_never(&r.pattern, r.case_sensitive)
-            } else {
-                HighlightMatcher::words(&r.pattern, r.case_sensitive)
-            },
-            alert: r.alert.clone(),
-        })
-        .collect()
-}
-
 pub fn users(rules: &[UserRule]) -> Vec<Rule> {
     rules
         .iter()
@@ -242,8 +219,6 @@ mod tests {
         assert!(look.is_match("hey cyex") && !look.is_match("@cyex"));
         let back = HighlightMatcher::or_never(r"(\w)\1", false);
         assert!(back.is_match("aa") && !back.is_match("ab"));
-        let w = HighlightMatcher::words("cy ex", false);
-        assert!(w.is_match("a cy ex b") && !w.is_match("cyex"));
         let slow = HighlightMatcher::or_never(r"^(a+)+\1b$", false);
         assert!(!slow.is_match(&"a".repeat(30)));
         assert!(highlight_error("(abc").is_some());
@@ -258,8 +233,6 @@ mod tests {
 
     #[test]
     fn matchers() {
-        let w = HighlightMatcher::words("pog", false);
-        assert!(w.is_match("so POG man") && w.is_match("pog") && !w.is_match("pogchamp"));
         assert!(
             !Matcher::build("(", false).is_match("("),
             "bad regex never matches"

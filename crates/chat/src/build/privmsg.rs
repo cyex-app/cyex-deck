@@ -39,6 +39,8 @@ pub fn privmsg(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Option<ChatMessage> {
         .as_ref()
         .zip(me)
         .is_some_and(|(r, m)| r.parent_login.eq_ignore_ascii_case(&m.login));
+    // V106-33 A reply starts with `@you`: that alone is the reply, not your name.
+    let names_me = tokens.mentions_me && (!replies_to_me || names_in(&body, ctx.me_names()));
 
     let mut flags = Vec::new();
     let mut flag = |on: bool, f: Flag| {
@@ -49,6 +51,9 @@ pub fn privmsg(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Option<ChatMessage> {
     flag(action, Flag::Action);
     flag(own, Flag::Own);
     flag(!own && (tokens.mentions_me || replies_to_me), Flag::Mention);
+    // V106-33 Which one, for the Your name and Replies rows (`Rules::highlight` settles `Mention`).
+    flag(!own && names_me, Flag::NamesMe);
+    flag(!own && replies_to_me, Flag::RepliesToMe);
     flag(line.tag_flag("historical"), Flag::History);
     flag(line.tag_flag("rm-deleted"), Flag::Deleted);
     flag(line.tag_flag("first-msg"), Flag::FirstMessage);
@@ -114,6 +119,21 @@ fn reply(line: &Line<'_>) -> Option<Reply> {
 
 /// Twitch prefixes replies with `@parent `. The reply header already says who it's for.
 /// Localized display names aren't mentions to the tokenizer, so those come as text.
+/// V106-33 Your name in the body, the way the tokenizer finds it (`@login` or the word).
+/// Only run on replies to you that named you, so rare.
+fn names_in(body: &[Fragment], names: &[String]) -> bool {
+    let is_me = |w: &str| {
+        !w.is_empty() && names.iter().any(|n| n.eq_ignore_ascii_case(w) || *n == w.to_lowercase())
+    };
+    body.iter().any(|f| match f {
+        Fragment::Mention { login, .. } => is_me(login),
+        Fragment::Text { text } => text
+            .split_whitespace()
+            .any(|w| is_me(w.trim_matches(|c: char| !c.is_alphanumeric() && c != '_'))),
+        _ => false,
+    })
+}
+
 fn strip_reply_mention(body: &mut Vec<Fragment>, login: &str, display: &str) {
     match body.first_mut() {
         Some(Fragment::Mention { login: l, .. }) if l.eq_ignore_ascii_case(login) => {
@@ -176,6 +196,7 @@ mod tests {
         );
         assert_eq!(plain(&m.body), "waves at cyex");
         assert!(m.has(Flag::Action) && m.has(Flag::Mention));
+        assert!(m.has(Flag::NamesMe) && !m.has(Flag::RepliesToMe));
     }
 
     #[test]
@@ -194,6 +215,12 @@ mod tests {
         let r = m.reply.as_ref().unwrap();
         assert_eq!((r.parent_body.as_str(), r.thread_id.as_str()), ("hi all", "t1"));
         assert!(m.has(Flag::Mention), "a reply to me is a mention");
+        assert!(m.has(Flag::RepliesToMe) && !m.has(Flag::NamesMe), "the @ of a reply isn't your name");
+        let named = build(
+            r"@id=m5;user-id=7;reply-parent-msg-id=p1;reply-parent-user-login=cyex;reply-parent-display-name=Cyex;reply-parent-msg-body=hi;reply-thread-parent-msg-id=t1 :foo!foo@foo.tmi.twitch.tv PRIVMSG #bar :@cyex hey cyex!",
+            Some(&me()),
+        );
+        assert!(named.has(Flag::RepliesToMe) && named.has(Flag::NamesMe));
     }
 
     #[test]

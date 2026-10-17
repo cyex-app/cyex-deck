@@ -7,4 +7,8 @@ export type MentionCheck = { error?: string,
 /**
  * Works, but differently than in the flavor picked.
  */
-note?: string, };
+note?: string, 
+/**
+ * V106-33 1-based row of the first row that's the same (`PhraseRule::dup_key`).
+ */
+sameAs?: number, };

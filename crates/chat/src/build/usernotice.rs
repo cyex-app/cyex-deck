@@ -51,7 +51,7 @@ pub fn usernotice(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Option<Incoming> {
         flags.push(Flag::Deleted);
     }
     if tokens.as_ref().is_some_and(|t| t.mentions_me) {
-        flags.push(Flag::Mention);
+        flags.extend([Flag::Mention, Flag::NamesMe]);
     }
     let room = line.raw_tag("room-id");
     let source = line

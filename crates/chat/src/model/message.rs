@@ -99,7 +99,7 @@ pub struct Highlight {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum HighlightKind {
-    /// Your name, or a reply to you.
+    /// Your name, a reply to you, or a rule that goes to the Mentions tab.
     Mention,
     /// A phrase, user, badge or app rule of yours.
     Rule,
@@ -262,8 +262,12 @@ pub struct SharedSource {
 pub enum Flag {
     /// `/me`
     Action,
-    /// Mentions or replies to the signed-in account.
+    /// V106-33 Your name, a reply to you, or a rule with the Mentions tab on (when that row is on, O2).
     Mention,
+    /// V106-33 Your name is in the text.
+    NamesMe,
+    /// V106-33 A reply to your message.
+    RepliesToMe,
     /// Sent by the signed-in account.
     Own,
     /// C1 Loaded from history when joining.

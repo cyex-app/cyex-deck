@@ -72,6 +72,7 @@ pub fn replay(c: &Comment<'_>, ctx: &mut Ctx<'_>) -> ChatMessage {
     };
     if tokens.mentions_me {
         msg.set(Flag::Mention);
+        msg.set(Flag::NamesMe);
     }
     msg
 }

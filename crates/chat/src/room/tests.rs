@@ -181,9 +181,9 @@ fn own_messages_are_echoed_from_userstate() {
 /// V105-06 A room whose rules highlight first messages.
 fn first_room() -> Room {
     use crate::rules::Rules;
-    use cyex_settings::schema::{Highlights, Mentions};
+    use cyex_settings::schema::Highlights;
     let mut r = room();
-    r.set_rules(Arc::new(Rules::new(&Highlights::default(), &Mentions::default())));
+    r.set_rules(Arc::new(Rules::new(&Highlights::default())));
     r
 }
 

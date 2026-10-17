@@ -5,7 +5,7 @@
 //! regex crate's automata), and text is folded for look-alikes only when it has a
 //! non-ASCII character and some mention asks for it.
 
-use cyex_settings::schema::{MentionAlert, MentionRule as Mention};
+use cyex_settings::schema::{Alert, PhraseRule as Mention};
 use fancy_regex::{Regex, RegexBuilder};
 use serde::Serialize;
 use ts_rs::TS;
@@ -34,7 +34,7 @@ pub struct Compiled {
     fold: bool,
     /// Where it is in its settings list.
     pub index: usize,
-    pub alert: MentionAlert,
+    pub alert: Alert,
 }
 
 /// What the editor shows under a pattern.
@@ -49,6 +49,28 @@ pub struct MentionCheck {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub note: Option<String>,
+    /// V106-33 1-based row of the first row that's the same (`PhraseRule::dup_key`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub same_as: Option<u32>,
+}
+
+/// V106-33 [`check`] for every row, with the rows that repeat an earlier one marked.
+pub fn check_all(list: &[Mention]) -> Vec<MentionCheck> {
+    let keys: Vec<_> = list.iter().map(|m| (!m.is_blank()).then(|| m.dup_key())).collect();
+    list.iter()
+        .zip(&keys)
+        .enumerate()
+        .map(|(i, (m, key))| MentionCheck {
+            same_as: key.as_ref().and_then(|k| {
+                keys[..i]
+                    .iter()
+                    .position(|e| e.as_ref() == Some(k))
+                    .and_then(|j| u32::try_from(j + 1).ok())
+            }),
+            ..check(m)
+        })
+        .collect()
 }
 
 /// Whether a mention compiles, and what to tell the user about it.
@@ -58,12 +80,12 @@ pub fn check(m: &Mention) -> MentionCheck {
     }
     match compile(m, 0) {
         Ok((_, note)) => MentionCheck {
-            error: None,
             note: note.map(str::to_owned),
+            ..MentionCheck::default()
         },
         Err(e) => MentionCheck {
             error: Some(e),
-            note: None,
+            ..MentionCheck::default()
         },
     }
 }
@@ -378,6 +400,52 @@ mod tests {
         let c = check(&py);
         assert!(c.error.is_none() && c.note.is_some());
         assert_eq!(check(&m("")), MentionCheck::default());
+    }
+
+    // V106-33 Whole word = no letter, digit or `_` next to it (phrases had `\b|\s`).
+    #[test]
+    fn whole_word_edges() {
+        assert_eq!(hits(&[m("!cmd")], "a!cmd"), [] as [usize; 0]);
+        assert_eq!(hits(&[m("!cmd")], "a !cmd"), [0]);
+        assert_eq!(hits(&[m("cy ex")], "a cy ex b"), [0]);
+        assert_eq!(hits(&[m("pog")], "so POG man"), [0]);
+        assert_eq!(hits(&[m("pog")], "pogchamp"), [] as [usize; 0]);
+    }
+
+    // V106-33
+    #[test]
+    fn check_all_marks_same_as() {
+        let re = Mention {
+            regex: true,
+            ..m("cyex")
+        };
+        let js = Mention {
+            flavor: RegexFlavor::JavaScript,
+            ..re.clone()
+        };
+        let list = [m("Cyex"), m("other"), m(" cyex "), m("CYEX"), re, js, m(""), m("")];
+        let same: Vec<_> = check_all(&list).into_iter().map(|c| c.same_as).collect();
+        assert_eq!(
+            same,
+            [None, None, Some(1), Some(1), None, None, None, None],
+            "regex and flavor count, blanks never do"
+        );
+    }
+
+    // V106-33 Global mentions are the same rows: the first hit brings its alert.
+    #[test]
+    fn global_set_uses_phrase_rules() {
+        let pinged = Mention {
+            alert: Alert {
+                sound: true,
+                sound_file: "C:\\a.wav".into(),
+                ..Alert::default()
+            },
+            ..m("cyex")
+        };
+        let set = MentionSet::new(&[m("nope"), pinged]);
+        let hit = set.first("hey cyex", &mut String::new()).unwrap();
+        assert_eq!((hit.index, hit.alert.sound_file.as_str()), (1, "C:\\a.wav"));
     }
 
     #[test]
