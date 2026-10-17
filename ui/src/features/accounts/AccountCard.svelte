@@ -41,6 +41,8 @@
   );
 
   let editing = $state(false);
+  /** V106-31/32 7TV rejected the session or it ran out. */
+  const ended = $derived(account.seventv.consent && !account.seventv.signedIn && account.seventv.expired);
 
   function tokenOf(kind: TokenKind): TokenView | null {
     return kind === 'helix' ? account.helix : account.gql;
@@ -127,14 +129,17 @@
   <!-- V1051-02 -->
   <div class="line">
     <span class="name">7TV</span>
-    <span class="status" class:muted={!account.seventv.consent}>
-      {#if !account.seventv.consent}Not used{:else if account.seventv.signedIn}{account.seventv.until ? `Signed in until ${account.seventv.until}` : 'Signed in'}{:else}Not signed in{/if}
+    <!-- V106-31/32 A rejected or run-out session reads "Sign-in ran out", not "Not signed in". -->
+    <span class="status" class:muted={!account.seventv.consent} class:bad={ended}>
+      {#if !account.seventv.consent}Not used{:else if account.seventv.signedIn}{account.seventv.until ? `Signed in until ${account.seventv.until}` : 'Signed in'}{:else if ended}Sign-in ran out{:else}Not signed in{/if}
     </span>
     <!-- V1051-02 A session only counts with consent; Sign out never shows beside "Not used". -->
     {#if account.seventv.consent && account.seventv.signedIn}
       <Button small variant="ghost" onclick={() => attempt(() => cosmeticsIpc.signOut(account.userId))}>Sign out</Button>
     {:else}
-      <Button small disabled={!!unlock.asked} onclick={() => unlock.ask('settings', account.userId)}>Sign in</Button>
+      <Button small disabled={!!unlock.asked} onclick={() => unlock.ask('settings', account.userId)}>
+        {ended ? 'Sign in again' : 'Sign in'}
+      </Button>
     {/if}
     {#if account.seventv.consent}
       <ConfirmButton label="Withdraw" confirm="Click again to withdraw" variant="ghost" onconfirm={withdraw} />

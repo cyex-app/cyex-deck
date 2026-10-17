@@ -29,8 +29,11 @@ pub struct AccountView {
 #[ts(export)]
 pub struct SevenTvView {
     pub consent: bool,
+    /// A live session.
     pub signed_in: bool,
-    /// The session's last day, `yyyy/mm/dd`; `None` when signed out.
+    /// V106-31/32 The session ran out or 7TV rejected it: "Sign in again".
+    pub expired: bool,
+    /// The session's last day, `yyyy/mm/dd`; `None` when not signed in.
     pub until: Option<String>,
 }
 
@@ -45,7 +48,8 @@ pub struct TokenView {
     pub state: TokenState,
 }
 
-pub fn views(accounts: &Accounts, vault: &Vault, seventv: &SevenTvTokens) -> Vec<AccountView> {
+/// `now`: unix seconds, for the 7TV session's `exp`.
+pub fn views(accounts: &Accounts, vault: &Vault, seventv: &SevenTvTokens, now: i64) -> Vec<AccountView> {
     accounts
         .list
         .iter()
@@ -65,11 +69,13 @@ pub fn views(accounts: &Accounts, vault: &Vault, seventv: &SevenTvTokens) -> Vec
                 .as_ref()
                 .filter(|_| usable(&helix))
                 .map(|m| m.scopes.as_slice());
-            let token = seventv.get(&a.user_id);
+            let expired = seventv.ended(&a.user_id, now);
+            let token = seventv.get(&a.user_id).filter(|_| !expired);
             AccountView {
                 seventv: SevenTvView {
                     consent: a.seventv.is_some(),
                     signed_in: token.is_some(),
+                    expired,
                     until: token.and_then(|t| t.expires()).map(seventv::date),
                 },
                 user_id: a.user_id.clone(),
@@ -97,6 +103,7 @@ mod tests {
     use cyex_settings::schema::{Account, TokenMeta};
 
     use super::*;
+    use crate::SevenTvToken;
     use crate::secrets::{MemoryStore, Secret};
 
     #[test]
@@ -122,7 +129,7 @@ mod tests {
         };
         vault.put("1", TokenKind::Helix, secret).unwrap();
 
-        let v = &views(&accounts, &vault, &tokens)[0];
+        let v = &views(&accounts, &vault, &tokens, 0)[0];
         assert!(v.is_default && v.missing_scopes.is_empty());
         assert!(v.features.contains(&Feature::SendChat));
         // The GQL token isn't in the credential store, so GQL tools stay hidden.
@@ -130,6 +137,32 @@ mod tests {
         assert!(!v.features.contains(&Feature::Miner));
 
         vault.mark("1", TokenKind::Helix, TokenState::Invalid);
-        assert!(views(&accounts, &vault, &tokens)[0].features.is_empty());
+        assert!(views(&accounts, &vault, &tokens, 0)[0].features.is_empty());
+    }
+
+    /// V106-31/32 A rejected or run-out 7TV session reads "Sign in again", not "Not signed in".
+    #[test]
+    fn an_ended_7tv_session_is_expired() {
+        let accounts = Accounts {
+            list: vec![Account {
+                user_id: "1".into(),
+                ..Default::default()
+            }],
+            default_id: None,
+        };
+        let vault = Vault::new(Arc::new(MemoryStore::default()));
+        let tokens = SevenTvTokens::new(Arc::new(MemoryStore::default()));
+        let v = |now| views(&accounts, &vault, &tokens, now)[0].seventv.clone();
+        assert!(!v(0).signed_in && !v(0).expired);
+        // `{"sub":"01X","exp":2000}`
+        let t = SevenTvToken::parse("e30.eyJzdWIiOiIwMVgiLCJleHAiOjIwMDB9.c2ln").unwrap();
+        tokens.put("1", &t).unwrap();
+        assert!(v(0).signed_in && !v(0).expired && v(0).until.is_some());
+        let late = v(2_000);
+        assert!(!late.signed_in && late.expired && late.until.is_none());
+        tokens.reject("1").unwrap();
+        assert!(!v(0).signed_in && v(0).expired);
+        tokens.put("1", &t).unwrap();
+        assert!(v(0).signed_in && !v(0).expired);
     }
 }

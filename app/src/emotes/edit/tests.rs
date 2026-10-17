@@ -596,3 +596,21 @@ fn a_repeat_edit_gets_its_own_entry() {
     };
     assert_eq!(e.filter(&c, t0 + Duration::from_secs(36)).0.removed.len(), 1);
 }
+
+/// V106-31/32 A session 7TV rejected is gone, yet the gate says "Sign in again", not "signed out".
+#[test]
+fn a_rejected_session_reads_sign_in_again() {
+    use super::standing;
+    use cyex_auth::SevenTvToken;
+    // `{"sub":"01X","exp":2000}`
+    let t = SevenTvToken::parse("e30.eyJzdWIiOiIwMVgiLCJleHAiOjIwMDB9.c2ln").unwrap();
+    assert_eq!(standing(false, Some(&t), false, 0), Some(Reachability::NoConsent));
+    assert_eq!(standing(false, None, true, 0), Some(Reachability::NoConsent));
+    assert_eq!(standing(true, None, false, 0), Some(Reachability::SignedOut));
+    assert_eq!(standing(true, None, true, 0), Some(Reachability::SignInAgain));
+    assert_eq!(
+        standing(true, Some(&t), false, 2_000),
+        Some(Reachability::SignInAgain)
+    );
+    assert_eq!(standing(true, Some(&t), false, 0), None);
+}

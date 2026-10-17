@@ -101,7 +101,7 @@ pub fn update_accounts(app: &AppHandle, f: impl FnOnce(&mut Accounts) -> bool) -
 pub fn snapshot(app: &AppHandle) -> AuthSnapshot {
     let auth = app.state::<Auth>();
     AuthSnapshot {
-        accounts: views(&accounts(app), &auth.vault, &auth.seventv),
+        accounts: views(&accounts(app), &auth.vault, &auth.seventv, unix_now()),
     }
 }
 

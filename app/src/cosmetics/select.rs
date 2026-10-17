@@ -123,7 +123,6 @@ impl Cosmetics {
             return Err(SelectError::SignedOut);
         };
         if token.expired(now) {
-            self.mark_expired(account);
             return Err(SelectError::SignInAgain);
         }
         let Some(user) = user.or_else(|| token.user_id()) else {
@@ -138,7 +137,6 @@ impl Cosmetics {
             Err(Error::SignInAgain) => {
                 // Rejected: that token is dead, so it goes - unless a new sign-in replaced it meanwhile.
                 if forget_if_same(tokens, account, &token) {
-                    self.mark_expired(account);
                     Err(SelectError::SignInAgain)
                 } else {
                     Err(SelectError::Down)
@@ -164,12 +162,13 @@ impl Cosmetics {
     }
 }
 
-/// Deletes the account's stored token if it is still `used`. False when it was replaced.
+/// 7TV rejected `used`: deleted if still stored, and the account says "Sign in again" until the
+/// next sign-in. False when a new sign-in replaced it meanwhile.
 pub(crate) fn forget_if_same(tokens: &SevenTvTokens, account: &str, used: &cyex_auth::SevenTvToken) -> bool {
     if tokens.get(account).is_none_or(|t| t.secret() != used.secret()) {
         return false;
     }
-    if let Err(e) = tokens.forget(account) {
+    if let Err(e) = tokens.reject(account) {
         eprintln!("cosmetics: {account}: couldn't delete the 7TV session: {e}");
     }
     true

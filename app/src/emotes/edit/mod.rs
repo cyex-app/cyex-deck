@@ -71,12 +71,30 @@ fn state(app: &AppHandle) -> &Edits {
 
 /// No 7TV call without consent and a live session.
 fn gate_state(app: &AppHandle, account: &str) -> Option<Reachability> {
-    if !cosmetics::has_consent(app, account) {
+    let tokens = &app.state::<Auth>().seventv;
+    standing(
+        cosmetics::has_consent(app, account),
+        tokens.get(account).as_ref(),
+        tokens.rejected(account),
+        auth::unix_now(),
+    )
+}
+
+/// Why no edit can go out, or the live session. A session 7TV rejected is gone but still
+/// reads "Sign in again" (not "signed out") until the next sign-in.
+fn standing(
+    consent: bool,
+    token: Option<&cyex_auth::SevenTvToken>,
+    rejected: bool,
+    now: i64,
+) -> Option<Reachability> {
+    if !consent {
         return Some(Reachability::NoConsent);
     }
-    match app.state::<Auth>().seventv.get(account) {
+    match token {
+        None if rejected => Some(Reachability::SignInAgain),
         None => Some(Reachability::SignedOut),
-        Some(t) if t.expired(auth::unix_now()) => Some(Reachability::SignInAgain),
+        Some(t) if t.expired(now) => Some(Reachability::SignInAgain),
         Some(_) => None,
     }
 }
@@ -296,7 +314,6 @@ pub async fn run(app: &AppHandle, account: &str, op: EditOp) -> Result<EditDone,
             eprintln!("7tv edit: {account}: {e:?}");
             let tokens = &app.state::<Auth>().seventv;
             if e == EditError::SignInAgain && cosmetics::forget_if_same(tokens, account, &token) {
-                cosmetics::expire(app, account);
                 auth::notify(app);
             }
             return Err(e.into());
@@ -313,19 +330,20 @@ pub async fn run(app: &AppHandle, account: &str, op: EditOp) -> Result<EditDone,
 
 /// Consent and a live session, or why not.
 fn session(app: &AppHandle, account: &str) -> Result<cyex_auth::SevenTvToken, EditFail> {
-    if !cosmetics::has_consent(app, account) {
-        return Err(EditFail::NoConsent);
+    let tokens = &app.state::<Auth>().seventv;
+    let token = tokens.get(account);
+    let why = standing(
+        cosmetics::has_consent(app, account),
+        token.as_ref(),
+        tokens.rejected(account),
+        auth::unix_now(),
+    );
+    match why {
+        None => token.ok_or(EditFail::SignedOut),
+        Some(Reachability::NoConsent) => Err(EditFail::NoConsent),
+        Some(Reachability::SignInAgain) => Err(EditFail::SignInAgain),
+        Some(_) => Err(EditFail::SignedOut),
     }
-    let token = app
-        .state::<Auth>()
-        .seventv
-        .get(account)
-        .ok_or(EditFail::SignedOut)?;
-    if token.expired(auth::unix_now()) {
-        cosmetics::expire(app, account);
-        return Err(EditFail::SignInAgain);
-    }
-    Ok(token)
 }
 
 /// Our edit into every cached target of that set; its channel name.

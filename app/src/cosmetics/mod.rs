@@ -12,7 +12,7 @@ mod words;
 #[cfg(test)]
 mod tests;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
@@ -51,8 +51,6 @@ pub struct Cosmetics {
     latest: Mutex<HashMap<(String, Kind), u64>>,
     /// One call in flight per account and kind.
     gates: Mutex<HashMap<(String, Kind), Gate>>,
-    /// Accounts whose 7TV session was rejected: the UI says "Sign in again".
-    expired: Mutex<HashSet<String>>,
     /// Test runs: print how long a parse takes (V1051-03 budget B2).
     timed: bool,
     /// V106-31/32 The client points at the loopback mock (test runs only).
@@ -70,7 +68,6 @@ impl Cosmetics {
             cache: Mutex::default(),
             latest: Mutex::default(),
             gates: Mutex::default(),
-            expired: Mutex::default(),
             timed: false,
             mocked: false,
         }
@@ -80,12 +77,7 @@ impl Cosmetics {
         lock(&self.cache).get(account).cloned()
     }
 
-    fn mark_expired(&self, account: &str) {
-        lock(&self.expired).insert(account.to_owned());
-    }
-
     fn clear(&self, account: &str) {
-        lock(&self.expired).remove(account);
         lock(&self.cache).remove(account);
     }
 
@@ -130,11 +122,6 @@ pub(crate) fn api(app: &AppHandle) -> Client {
 /// V106-31/32 Edits go out only when this is true in a test run.
 pub(crate) fn mocked(app: &AppHandle) -> bool {
     state(app).mocked
-}
-
-/// The account's 7TV session was rejected: the UI says "Sign in again".
-pub(crate) fn expire(app: &AppHandle, account: &str) {
-    state(app).mark_expired(account)
 }
 
 pub(crate) fn has_consent(app: &AppHandle, account: &str) -> bool {
@@ -235,7 +222,6 @@ pub async fn read(app: &AppHandle, account: &str) -> Result<Arc<Inventory>, Why>
 
 /// What the menu shows. `fresh` skips the cache.
 pub async fn view(app: &AppHandle, account: &str, fresh: bool) -> CosmeticsView {
-    let st = state(app);
     let Some(inv) = fetch(app, account, fresh).await else {
         return CosmeticsView::empty(Status::NoConsent);
     };
@@ -253,7 +239,7 @@ pub async fn view(app: &AppHandle, account: &str, fresh: bool) -> CosmeticsView 
         token.as_ref(),
         auth::unix_now(),
     );
-    if now == Status::SignedOut && lock(&st.expired).contains(account) {
+    if now == Status::SignedOut && app.state::<Auth>().seventv.rejected(account) {
         now = Status::Expired;
     }
     let until = token.as_ref().and_then(SevenTvToken::expires).map(seventv_date);
@@ -386,7 +372,6 @@ pub async fn sign_in(app: &AppHandle, account: &str, shared: bool) -> SignIn {
         discard(api, token);
         return SignIn::Failed;
     }
-    lock(&state(app).expired).remove(account);
     presence::remember_seventv(app, account, Some(me.id));
     auth::notify(app);
     SignIn::Done

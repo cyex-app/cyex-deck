@@ -3,8 +3,16 @@
 /**
  * V1051-02 Where an account stands with 7TV. Never the token.
  */
-export type SevenTvView = { consent: boolean, signedIn: boolean, 
+export type SevenTvView = { consent: boolean, 
 /**
- * The session's last day, `yyyy/mm/dd`; `None` when signed out.
+ * A live session.
+ */
+signedIn: boolean, 
+/**
+ * V106-31/32 The session ran out or 7TV rejected it: "Sign in again".
+ */
+expired: boolean, 
+/**
+ * The session's last day, `yyyy/mm/dd`; `None` when not signed in.
  */
 until: string | null, };

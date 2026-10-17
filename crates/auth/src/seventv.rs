@@ -1,8 +1,9 @@
 //! V1051-02 7TV sessions per Twitch account, kept like account tokens (Credential Manager),
 //! never in settings, exports or backups. Not a `TokenKind`: Twitch never validates these.
 
+use std::collections::HashSet;
 use std::fmt;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -81,11 +82,21 @@ pub fn date(unix: i64) -> String {
 
 pub struct SevenTvTokens {
     store: Arc<dyn SecretStore>,
+    /// Accounts whose session 7TV rejected: "Sign in again" until the next sign-in or sign-out.
+    /// Kept in memory only, like V1051-02 did.
+    rejected: Mutex<HashSet<String>>,
 }
 
 impl SevenTvTokens {
     pub fn new(store: Arc<dyn SecretStore>) -> Self {
-        Self { store }
+        Self {
+            store,
+            rejected: Mutex::default(),
+        }
+    }
+
+    fn marks(&self) -> std::sync::MutexGuard<'_, HashSet<String>> {
+        self.rejected.lock().unwrap_or_else(|p| p.into_inner())
     }
 
     fn key(twitch_id: &str) -> String {
@@ -98,11 +109,31 @@ impl SevenTvTokens {
     }
 
     pub fn put(&self, twitch_id: &str, t: &SevenTvToken) -> Result<(), String> {
-        self.store.save(&Self::key(twitch_id), t.secret())
+        self.store.save(&Self::key(twitch_id), t.secret())?;
+        self.marks().remove(twitch_id);
+        Ok(())
     }
 
+    /// Signed out or withdrawn: no session and no "Sign in again".
     pub fn forget(&self, twitch_id: &str) -> Result<(), String> {
+        self.marks().remove(twitch_id);
         self.store.delete(&Self::key(twitch_id))
+    }
+
+    /// 7TV rejected the session: it goes, and the account says "Sign in again" (marked even if
+    /// the delete fails).
+    pub fn reject(&self, twitch_id: &str) -> Result<(), String> {
+        self.marks().insert(twitch_id.to_owned());
+        self.store.delete(&Self::key(twitch_id))
+    }
+
+    pub fn rejected(&self, twitch_id: &str) -> bool {
+        self.marks().contains(twitch_id)
+    }
+
+    /// The session ran out (rejected, or kept past its `exp`): "Sign in again".
+    pub fn ended(&self, twitch_id: &str, now: i64) -> bool {
+        self.rejected(twitch_id) || self.get(twitch_id).is_some_and(|t| t.expired(now))
     }
 }
 
@@ -165,5 +196,24 @@ mod tests {
         assert_eq!(tokens.get("123").unwrap().secret(), t.secret());
         tokens.forget("123").unwrap();
         assert!(tokens.get("123").is_none());
+    }
+
+    #[test]
+    fn a_rejected_session_says_sign_in_again_until_the_next_sign_in_or_out() {
+        let tokens = SevenTvTokens::new(Arc::new(MemoryStore::default()));
+        let t = SevenTvToken::parse(&fake()).unwrap();
+        tokens.put("1", &t).unwrap();
+        assert!(!tokens.ended("1", 0));
+        tokens.reject("1").unwrap();
+        assert!(tokens.get("1").is_none());
+        assert!(tokens.rejected("1") && tokens.ended("1", 0));
+        tokens.put("1", &t).unwrap();
+        assert!(!tokens.rejected("1"));
+        tokens.reject("1").unwrap();
+        tokens.forget("1").unwrap();
+        assert!(!tokens.ended("1", 0));
+        // Kept past its `exp`: ended, not rejected.
+        tokens.put("1", &t).unwrap();
+        assert!(tokens.ended("1", 2_000_000_000) && !tokens.rejected("1"));
     }
 }

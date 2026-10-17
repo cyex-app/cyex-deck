@@ -116,7 +116,7 @@ async fn a_401_forgets_the_token() {
     let r = c.send(pick(&t, "P1", n)).await;
     assert_eq!(r, Err(SelectError::SignInAgain));
     assert!(t.get("7").is_none());
-    assert!(c.expired.lock().unwrap().contains("7"));
+    assert!(t.rejected("7"));
     server.join().unwrap();
 }
 
