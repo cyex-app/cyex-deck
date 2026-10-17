@@ -11,10 +11,18 @@ use serde_json::{Value, json};
 use crate::model::{Emote, EmoteSet, Scope};
 
 const GQL: &str = "https://api.7tv.app/v4/gql";
+static BASE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+/// V106-31/32 Test runs with `CYEX_7TV_SETS=mock`: emote reads go to the local mock too.
+pub fn use_mock(base: &str) {
+    let _ = BASE.set(format!("{}/v4/gql", base.trim_end_matches('/')));
+}
+fn gql_url() -> &'static str {
+    BASE.get().map_or(GQL, String::as_str)
+}
 const V3: &str = "https://7tv.io/v3";
 
 const ITEM: &str = "items { id alias addedAt addedById flags { zeroWidth } \
-    emote { defaultName aspectRatio flags { animated publicListed approvedPersonal } } }";
+    emote { defaultName aspectRatio ownerId flags { animated publicListed approvedPersonal private } } }";
 
 /// Emote sets past this many aren't asked for in one go (Twitch's limit is 50).
 pub const MAX_BATCH: usize = 50;
@@ -154,7 +162,7 @@ pub struct Avatar {
 }
 
 async fn post<T: serde::de::DeserializeOwned>(http: &Http, query: &str, variables: Value) -> Result<T> {
-    http.post_json(GQL, &json!({ "query": query, "variables": variables }))
+    http.post_json(gql_url(), &json!({ "query": query, "variables": variables }))
         .await
 }
 
@@ -245,6 +253,8 @@ struct RawItemFlags {
 struct RawEmote {
     default_name: String,
     aspect_ratio: Option<f64>,
+    #[serde(default)]
+    owner_id: Option<String>,
     flags: RawEmoteFlags,
 }
 
@@ -257,6 +267,8 @@ struct RawEmoteFlags {
     public_listed: bool,
     #[serde(default = "yes")]
     approved_personal: bool,
+    #[serde(default)]
+    private: bool,
 }
 
 fn yes() -> bool {
@@ -293,6 +305,8 @@ impl RawSet {
                 emote.original = (e.default_name != emote.name).then_some(e.default_name);
                 emote.zero_width = i.flags.zero_width;
                 emote.unlisted = !e.flags.public_listed;
+                emote.private = e.flags.private;
+                emote.owner_id = e.owner_id;
                 emote.animated = e.flags.animated;
                 emote.size = e.aspect_ratio.map(box_1x);
                 emote.added_at = i.added_at;
@@ -410,6 +424,19 @@ mod tests {
             get("notL").added_by.as_deref(),
             Some("01F7MSXWXR0001THV7TZX9W4ZK")
         );
+    }
+
+    #[test]
+    fn private_and_owner_are_read() {
+        let raw: RawSet = serde_json::from_str(
+            r#"{"id":"S","emotes":{"items":[{"id":"E1","alias":"a","flags":{},
+            "emote":{"defaultName":"a","ownerId":"U1","flags":{"private":true}}}]}}"#,
+        )
+        .unwrap();
+        let set = raw.into_set(Scope::Channel);
+        let e = set.get("a").unwrap();
+        assert!(e.private);
+        assert_eq!(e.owner_id.as_deref(), Some("U1"));
     }
 
     #[test]

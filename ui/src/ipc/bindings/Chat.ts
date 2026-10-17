@@ -36,6 +36,11 @@ thirdPartyEmotes: boolean,
  */
 unlistedEmotes: UnlistedEmotes, 
 /**
+ * V106-30 The user picked show or blur for unlisted emotes. Until then the emote card offers
+ * a quick "Show unlisted emotes".
+ */
+unlistedChosen: boolean, 
+/**
  * C11 Which provider wins when several have an emote by the same name.
  */
 emotePriority: Array<EmoteSource>, 

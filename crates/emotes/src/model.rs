@@ -34,6 +34,12 @@ pub struct Emote {
     /// Who added it, 7TV user id (names are looked up when a card opens).
     #[serde(skip)]
     pub added_by: Option<String>,
+    /// I106-3 7TV private flag (only its owner may add it).
+    #[serde(skip)]
+    pub private: bool,
+    /// 7TV user id of who made it.
+    #[serde(skip)]
+    pub owner_id: Option<String>,
 }
 
 impl Emote {
@@ -51,6 +57,8 @@ impl Emote {
             owner: None,
             added_at: None,
             added_by: None,
+            private: false,
+            owner_id: None,
         }
     }
 

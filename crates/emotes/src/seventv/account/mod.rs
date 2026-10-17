@@ -1,16 +1,22 @@
 //! V1051-02 Every 7TV account call lives here: reads of a public inventory, the signed-in
 //! user, cosmetic changes and logout. The token only ever goes to the client's own base.
 
+pub mod edit;
 pub mod error;
 pub mod model;
 pub mod query;
+pub mod set_query;
+pub mod sets;
 pub mod view;
+#[cfg(test)]
+mod edit_tests;
 #[cfg(test)]
 mod tests;
 
 use cyex_twitch::Http;
 use serde_json::{Value, json};
 
+pub use edit::EditError;
 pub use error::Error;
 
 pub const GQL: &str = "https://api.7tv.app/v4/gql";
