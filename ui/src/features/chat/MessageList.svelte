@@ -27,6 +27,10 @@
   import EmoteCard from '../emotes/EmoteCard.svelte';
   import { emojiName } from '../emotes/emoji';
   import type { CardTarget } from '../emotes/emotes';
+  import { editEntries } from '../emotes/edit/menuItems';
+  import { editOptionsFor } from '../emotes/edit/options';
+  import { runEdit } from '../emotes/edit/run';
+  import { emotesIpc } from '../../ipc/emotes';
   import { hidden } from '../emotes/hidden.svelte';
   import { flipUnlisted, unlistedBlurred } from '../emotes/unlisted';
   import { modSlots, type LineMod } from '../modview/lineMod';
@@ -379,6 +383,39 @@
     return { ...d, rect: el.getBoundingClientRect() };
   }
 
+  // V106-31/32 Read the account's 7TV editor rights early, so the first right-click has them.
+  let warmed: string | null = null;
+  $effect(() => {
+    const account = room.account;
+    if (account && account !== warmed) {
+      warmed = account;
+      emotesIpc.editWarm(account).catch(() => {});
+    }
+  });
+
+  /** V106-31/32 The menu never waits longer than this for 7TV; without an answer it opens plain. */
+  const EDIT_WAIT_MS = 500;
+  /** Only the newest right-click opens a menu; a slow emote one is dropped. */
+  let emoteAsk = 0;
+
+  async function emoteEdits(t: CardTarget): Promise<MenuEntry[]> {
+    const { emote } = t;
+    const account = room.account;
+    if (!account || emote.provider !== 'seventv') return [];
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const o = await Promise.race([
+      editOptionsFor(account, room.login, emote.id, emote.name),
+      new Promise<null>((r) => (timer = setTimeout(() => r(null), EDIT_WAIT_MS))),
+    ]);
+    clearTimeout(timer);
+    return editEntries(o, {
+      add: (target) => (card = { ...t, edit: { kind: 'add', target } }),
+      rename: (here) => (card = { ...t, edit: { kind: 'rename', here } }),
+      remove: (h) =>
+        void runEdit(account, room.login, { type: 'remove', setId: h.setId, emoteId: emote.id, alias: h.alias }, h.channel),
+    });
+  }
+
   /** Runs a typed command for the menus, e.g. `/hideuser x`. */
   function command(text: string): Promise<boolean> {
     return chatIpc
@@ -477,7 +514,8 @@
   }
 
   /** E4 Right-click an emote: card, copy, hide. Names and messages get their own menus. */
-  function oncontextmenu(e: MouseEvent) {
+  async function oncontextmenu(e: MouseEvent) {
+    const ask = ++emoteAsk;
     const target = e.target as HTMLElement;
     const el = target.closest<HTMLElement>('[data-emote]');
     if (!el) {
@@ -500,6 +538,9 @@
     const t = emoteAt(el);
     const { emote } = t;
     hideTip();
+    const unlisted = el.dataset.unlisted !== undefined;
+    const edits = await emoteEdits(t);
+    if (ask !== emoteAsk) return;
     openMenu(e, [
       { label: 'Emote card', icon: 'smile', run: () => (card = t) },
       { label: 'Copy name', icon: 'copy', run: () => void copy(emote.name, 'Emote name') },
@@ -509,8 +550,10 @@
         icon: 'eyeOff',
         run: () => hidden.hide({ source: emote.provider, id: emote.id, name: emote.name }),
       },
+      // V106-31/32 Add, rename, remove; none of it without a 7TV sign-in and an editable channel (Q2, Q6).
+      ...edits,
       // V102-01 One switch for every unlisted 7TV emote, in every chat.
-      ...(el.dataset.unlisted !== undefined
+      ...(unlisted
         ? ['separator' as const, { label: 'Blur unlisted emotes', icon: 'eye' as const, checked: unlistedBlurred(), run: flipUnlisted }]
         : []),
     ]);
@@ -680,7 +723,7 @@
     {#key warning}<WarnBox login={warning.login} anchor={warning.anchor} send={sendWarn} onclose={() => (warning = null)} />{/key}
   {/if}
   {#if card}
-    {#key card}<EmoteCard target={card} login={room.login} onclose={() => (card = null)} />{/key}
+    {#key card}<EmoteCard target={card} login={room.login} account={room.account} onclose={() => (card = null)} />{/key}
   {/if}
   {#if below && (!following || newWhilePaused)}
     <div class="fade" aria-hidden="true"></div>
