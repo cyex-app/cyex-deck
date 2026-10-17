@@ -41,6 +41,8 @@ export const ICONS = {
   login: '<path d="m10 17 5-5-5-5"/><path d="M15 12H3"/><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>',
   alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
   reply: '<path d="M20 20v-7a4 4 0 0 0-4-4H4"/><path d="M9 14 4 9l5-5"/>',
+  /** V106-29 A reply's "Replying to" line in chat: ⤵️ mirrored. */
+  replied: '<path d="M20 4h-7a4 4 0 0 0-4 4v12"/><path d="m14 15-5 5-5-5"/>',
   arrowDown: '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
   arrowUp: '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
   points: '<circle cx="12" cy="12" r="9"/><path d="M12 7a5 5 0 0 1 5 5"/>',
