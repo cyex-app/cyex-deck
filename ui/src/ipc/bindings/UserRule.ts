@@ -13,6 +13,10 @@ color: string, sound: boolean, flash: boolean,
  */
 show: boolean, 
 /**
+ * V106-33 A Windows pop-up.
+ */
+notify: boolean, 
+/**
  * V105-17 A sound file played instead of the chime. Empty: the chime.
  */
 soundFile: string, 

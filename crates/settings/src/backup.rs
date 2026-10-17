@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use time::{Date, OffsetDateTime, PrimitiveDateTime};
 use time::macros::format_description;
 
-use crate::Partition;
 use crate::error::Result;
+use crate::{Partition, legacy};
 
 /// How many daily snapshots to keep.
 pub const BACKUP_DAYS: usize = 3;
@@ -35,9 +35,12 @@ pub(crate) fn snapshot_if_due(settings_dir: &Path, today: Date) -> Result<bool> 
     if target.exists() {
         return Ok(false);
     }
+    // V106-33 The old mentions.json too: the merge-day backup must restore without losing it.
     let files: Vec<PathBuf> = Partition::ALL
         .iter()
-        .map(|p| settings_dir.join(p.file_name()))
+        .map(|p| p.file_name())
+        .chain([legacy::mentions::FILE.to_owned()])
+        .map(|name| settings_dir.join(name))
         .filter(|f| f.is_file())
         .collect();
     if files.is_empty() {
@@ -105,7 +108,9 @@ pub(crate) fn snapshot_now(settings_dir: &Path, now: OffsetDateTime) -> Result<O
     let files: Vec<PathBuf> = Partition::ALL
         .iter()
         .filter(|p| p.is_portable())
-        .map(|p| settings_dir.join(p.file_name()))
+        .map(|p| p.file_name())
+        .chain([legacy::mentions::FILE.to_owned()])
+        .map(|name| settings_dir.join(name))
         .filter(|f| f.is_file())
         .collect();
     if files.is_empty() {
@@ -238,6 +243,18 @@ mod tests {
         for name in ["accounts.json", "plugins.json", "uploader.json"] {
             assert!(!dir.join(name).exists(), "{name} stays out");
         }
+    }
+
+    // V106-33
+    #[test]
+    fn old_mentions_file_is_backed_up() {
+        let tmp = TempDir::new("backup-mentions");
+        write_settings(tmp.path(), "{}");
+        fs::write(tmp.path().join("mentions.json"), "{\"list\":[]}").unwrap();
+        snapshot_if_due(tmp.path(), day(1)).unwrap();
+        assert!(snapshot_dir(tmp.path(), day(1)).join("mentions.json").is_file());
+        let name = snapshot_now(tmp.path(), at(2, 10, 0, 0)).unwrap().unwrap();
+        assert!(named_dir(tmp.path(), &name).join("mentions.json").is_file());
     }
 
     #[test]

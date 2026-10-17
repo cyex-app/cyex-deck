@@ -12,7 +12,6 @@ mod emotes;
 mod general;
 mod highlights;
 mod hotkeys;
-mod mentions;
 mod miner;
 mod modview;
 mod notifications;
@@ -41,13 +40,12 @@ pub use combos::{
 pub use commands::{Access, Automation, Commands, SavedTimer, TriggerMatch};
 pub use emotes::{EmoteKey, EmoteSource, EmoteUse, Emotes};
 pub use general::{ChatPosition, FONTS, General, font_or_default, StreamerMode, StreamerWhen};
-pub(crate) use highlights::MAX_RULES;
+pub(crate) use highlights::{MAX_GLOBAL, MAX_RULES, MAX_WORDS};
 pub use highlights::{
     Alert, AppRule, BadgeRule, Blocked, BlockedShow, BuiltIn, FilterDef, HiddenUser, Highlights, IgnoreRule, PhraseRule,
-    SentFrom, Similarity, UserRule,
+    RegexFlavor, SOUND_TYPES, SentFrom, Similarity, UserRule, is_sound_file,
 };
 pub use hotkeys::Hotkeys;
-pub use mentions::{MentionAlert, MentionRule, Mentions, RegexFlavor, SOUND_TYPES, YourName, is_sound_file};
 pub use miner::{BetFilter, Bets, ChatPresence, DelayMode, FilterBy, FilterCmp, MAX_FIRST, MineSource, Miner, Rule, Strategy};
 pub use modview::Modview;
 pub use notifications::Notifications;

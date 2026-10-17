@@ -16,4 +16,8 @@ streamsDevice: OutputDevice | null,
 /**
  * Where mentions, highlights, live alerts and whispers play. None follows Windows.
  */
-soundsDevice: OutputDevice | null, };
+soundsDevice: OutputDevice | null, 
+/**
+ * V106-34 App sounds also play while a cyex deck window is in front.
+ */
+playInFront: boolean, };

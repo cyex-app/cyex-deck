@@ -3,7 +3,9 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::schema::{Alert, BadgeRule, Highlights, MAX_RULES, PhraseRule, UserRule, is_sound_file};
+use crate::schema::{
+    Alert, BadgeRule, Highlights, MAX_RULES, MAX_WORDS, PhraseRule, RegexFlavor, UserRule, is_sound_file,
+};
 
 const FALLBACK_COLOR: &str = "#7f3f497f";
 
@@ -125,6 +127,7 @@ fn alert(alert: bool, sound: bool, show: bool, sound_url: &str, color_text: &str
         sound,
         flash: alert,
         show,
+        notify: false,
         sound_file: sound_file(sound_url),
         route: String::new(),
     }
@@ -144,7 +147,10 @@ pub fn parse(text: &str, regex: impl Fn(&str) -> Result<String, String>) -> Resu
             enabled: true,
             pattern: stored,
             regex: p.regex,
+            flavor: RegexFlavor::Rust,
             case_sensitive: p.case,
+            whole_word: !p.regex,
+            lookalikes: false,
             alert: alert(p.alert, p.sound, p.show_in_mentions, &p.sound_url, &p.color),
         });
     }
@@ -240,12 +246,16 @@ struct Tally {
     duplicates: Vec<String>,
 }
 
+/// Same text ignoring case and surrounding spaces; for phrases also the same regex flag and flavor.
+type Key = (String, bool, Option<RegexFlavor>);
+
 /// Puts `new` into `list`: duplicates (same `key`) are kept or replaced in place, the rest
-/// appended up to the limit.
+/// appended up to `max`.
 fn merge<T>(
     list: &mut Vec<T>,
     new: Vec<T>,
-    key: impl Fn(&T) -> (String, bool),
+    key: impl Fn(&T) -> Key,
+    max: usize,
     keep_mine: bool,
     t: &mut Tally,
 ) {
@@ -259,8 +269,8 @@ fn merge<T>(
                 list[at] = rule;
                 t.replaced += 1;
             }
-        } else if list.len() >= MAX_RULES {
-            t.skipped.push(skipped(&k.0, "Over the 200 limit."));
+        } else if list.len() >= max {
+            t.skipped.push(skipped(&k.0, &format!("Over the {max} limit.")));
         } else {
             list.push(rule);
             t.added += 1;
@@ -268,9 +278,8 @@ fn merge<T>(
     }
 }
 
-/// Same text ignoring case and surrounding spaces; for phrases also the same regex flag.
-fn norm(s: &str, regex: bool) -> (String, bool) {
-    (s.trim().to_lowercase(), regex)
+fn norm(s: &str) -> Key {
+    (s.trim().to_lowercase(), false, None)
 }
 
 fn run(found: Found, current: &mut Highlights, keep_mine: bool) -> (Tally, [u32; 3]) {
@@ -279,21 +288,24 @@ fn run(found: Found, current: &mut Highlights, keep_mine: bool) -> (Tally, [u32;
     merge(
         &mut current.phrases,
         found.phrases,
-        |r| norm(&r.pattern, r.regex),
+        PhraseRule::dup_key,
+        MAX_WORDS,
         keep_mine,
         &mut t,
     );
     merge(
         &mut current.users,
         found.users,
-        |r| norm(&r.login, false),
+        |r| norm(&r.login),
+        MAX_RULES,
         keep_mine,
         &mut t,
     );
     merge(
         &mut current.badges,
         found.badges,
-        |r| norm(&r.badge, false),
+        |r| norm(&r.badge),
+        MAX_RULES,
         keep_mine,
         &mut t,
     );
@@ -365,6 +377,7 @@ mod tests {
         let p = &f.phrases[0];
         assert_eq!(p.pattern, "twitch.tv/");
         assert!(!p.regex && !p.case_sensitive && p.enabled);
+        assert!(p.whole_word && !p.lookalikes && !p.alert.notify, "V106-33");
         assert!(!p.alert.show && !p.alert.flash && !p.alert.sound);
         assert_eq!(p.alert.sound_file, "");
         assert_eq!(p.alert.color, "#0f398cff");
@@ -393,6 +406,7 @@ mod tests {
         );
         assert_eq!(f.phrases.len(), 2);
         assert_eq!(f.phrases[0].pattern, "R:a+");
+        assert!(!f.phrases[0].whole_word, "regexes run as written");
         assert_eq!(f.phrases[1].pattern, "bad");
         assert_eq!(f.users[0].login, "R:^bot");
         assert_eq!(
@@ -456,14 +470,14 @@ mod tests {
 
     #[test]
     fn stops_at_the_limit() {
-        let list: Vec<String> = (0..205).map(|i| format!(r#"{{"pattern": "w{i}"}}"#)).collect();
+        let list: Vec<String> = (0..305).map(|i| format!(r#"{{"pattern": "w{i}"}}"#)).collect();
         let found = parse_ok(&format!(
             r#"{{"highlighting": {{"highlights": [{}]}}}}"#,
             list.join(",")
         ));
         let mut h = Highlights::default();
         let r = apply(found, &mut h, true);
-        assert_eq!((h.phrases.len(), r.added, r.skipped.len()), (200, 200, 5));
-        assert_eq!(r.skipped[0].reason, "Over the 200 limit.");
+        assert_eq!((h.phrases.len(), r.added, r.skipped.len()), (300, 300, 5));
+        assert_eq!(r.skipped[0].reason, "Over the 300 limit.");
     }
 }

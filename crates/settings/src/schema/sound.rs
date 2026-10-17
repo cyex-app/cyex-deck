@@ -12,6 +12,8 @@ pub struct Sound {
     pub streams_device: Option<OutputDevice>,
     /// Where mentions, highlights, live alerts and whispers play. None follows Windows.
     pub sounds_device: Option<OutputDevice>,
+    /// V106-34 App sounds also play while a cyex deck window is in front.
+    pub play_in_front: bool,
 }
 
 impl Default for Sound {
@@ -20,6 +22,7 @@ impl Default for Sound {
             separate_streams: true,
             streams_device: None,
             sounds_device: None,
+            play_in_front: false,
         }
     }
 }
@@ -58,6 +61,13 @@ mod tests {
     fn streams_are_separate_and_follow_windows_by_default() {
         let s: Sound = serde_json::from_str("{}").unwrap();
         assert!(s.separate_streams && s.streams_device.is_none() && s.sounds_device.is_none());
+    }
+
+    // V106-34
+    #[test]
+    fn sounds_stay_quiet_in_front_by_default() {
+        let s: Sound = serde_json::from_str("{}").unwrap();
+        assert!(!s.play_in_front);
     }
 
     #[test]

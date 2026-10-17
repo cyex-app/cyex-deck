@@ -12,9 +12,13 @@ import type { UserRule } from "./UserRule";
 
 export type Highlights = { 
 /**
- * Your name, and replies to you.
+ * V106-33 Your name (was `mention`, then Mentions' `me`). V106-09 sound on.
  */
-mention: BuiltIn, firstMessage: BuiltIn, 
+me: BuiltIn, 
+/**
+ * V106-33 Replies to your messages.
+ */
+replies: BuiltIn, firstMessage: BuiltIn, 
 /**
  * "Highlight my message" with channel points.
  */
@@ -22,7 +26,11 @@ redeemed: BuiltIn, subs: BuiltIn, announcements: BuiltIn, watchStreaks: BuiltIn,
 /**
  * Your own messages. Off by default.
  */
-own: BuiltIn, phrases: Array<PhraseRule>, users: Array<UserRule>, badges: Array<BadgeRule>, 
+own: BuiltIn, 
+/**
+ * V104-01 + 2.6 Words or regexes: old mentions and highlight phrases in one list. Order is precedence.
+ */
+phrases: Array<PhraseRule>, users: Array<UserRule>, badges: Array<BadgeRule>, 
 /**
  * C26
  */
@@ -36,9 +44,13 @@ never: Array<string>,
  */
 muted: Array<string>, 
 /**
- * C32 Look-alike letters count when phrases and ignores match.
+ * C32 Look-alike letters in ignores (V106-33: words have their own).
  */
 lookalikes: boolean, 
+/**
+ * V104-02 Global mentions from logs.cyex.app.
+ */
+global: boolean, globalList: Array<PhraseRule>, 
 /**
  * F2
  */
@@ -54,4 +66,12 @@ filters: Array<FilterDef>,
 /**
  * F6
  */
-similar: Similarity, };
+similar: Similarity, 
+/**
+ * V106-33 Written by v1.06+: an old file (no key) still has to be merged. Always true after sanitize.
+ */
+mentionsMerged: boolean, 
+/**
+ * V106-33 The duplicates dialog was answered. The merge sets false when it found duplicates.
+ */
+duplicatesAsked: boolean, };

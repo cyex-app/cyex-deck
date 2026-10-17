@@ -10,6 +10,8 @@ use time::macros::format_description;
 use crate::error::{Error, Result};
 use crate::merge::merge_patch;
 use crate::transfer::Bundle;
+use crate::legacy::{self, MergeReport, Source, fold, needs_fold};
+use crate::schema::Highlights;
 use crate::{Clock, Partition, Schema, backup, fsutil};
 
 /// What happened while loading, for the UI to report.
@@ -18,6 +20,10 @@ pub struct LoadReport {
     /// Partitions whose file was unreadable. The file was renamed to
     /// `<name>.broken-<stamp>.json` and defaults were used.
     pub reset: Vec<Partition>,
+    /// V106-33 The old mentions were merged into Highlights on this start.
+    pub merged: Option<MergeReport>,
+    /// V106-33 `mentions.json` couldn’t be read: left as is, not merged.
+    pub old_mentions_unreadable: bool,
 }
 
 /// In-memory settings, written back to disk by [`Store::flush`].
@@ -38,12 +44,22 @@ impl Store {
 
         let mut report = LoadReport::default();
         let mut values = BTreeMap::new();
+        let mut raw_highlights = None;
         for p in Partition::ALL {
             let path = dir.join(p.file_name());
-            let value = match read_partition(&path, p) {
+            let read = read_raw(&path).and_then(|raw| {
+                if p == Partition::Highlights {
+                    raw_highlights.clone_from(&raw);
+                }
+                Ok(raw.map(|v| p.normalize(v)).transpose()?)
+            });
+            let value = match read {
                 Ok(Some(v)) => v,
                 Ok(None) => p.default_value(),
                 Err(_) => {
+                    if p == Partition::Highlights {
+                        raw_highlights = None;
+                    }
                     quarantine(&path, &*clock)?;
                     report.reset.push(p);
                     p.default_value()
@@ -51,15 +67,43 @@ impl Store {
             };
             values.insert(p, value);
         }
-        Ok((
-            Self {
-                dir,
-                values,
-                dirty: BTreeSet::new(),
-                clock,
-            },
-            report,
-        ))
+        let mut store = Self {
+            dir,
+            values,
+            dirty: BTreeSet::new(),
+            clock,
+        };
+        store.merge_old_mentions(raw_highlights, &mut report)?;
+        Ok((store, report))
+    }
+
+    /// V106-33 Once: folds `mentions.json` and pre-v1.06 highlights into Highlights. The
+    /// day's backup was taken first; `mentions.json` itself is never touched.
+    fn merge_old_mentions(&mut self, raw_highlights: Option<Value>, report: &mut LoadReport) -> Result<()> {
+        let mentions = read_raw(&self.dir.join(legacy::mentions::FILE)).unwrap_or_else(|_| {
+            report.old_mentions_unreadable = true;
+            None
+        });
+        if !needs_fold(raw_highlights.as_ref(), mentions.is_some()) {
+            return Ok(());
+        }
+        let current = Highlights::default();
+        let folded = match fold(raw_highlights.clone(), mentions, &current, Source::Disk) {
+            Ok(f) => f,
+            Err(_) => {
+                // The old file has the wrong shape: merge as if it weren't there.
+                report.old_mentions_unreadable = true;
+                if raw_highlights.is_none() {
+                    return Ok(());
+                }
+                fold(raw_highlights, None, &current, Source::Disk)?
+            }
+        };
+        let (h, merged) = folded;
+        self.values.insert(Partition::Highlights, serde_json::to_value(h)?);
+        self.mark_dirty(Partition::Highlights);
+        report.merged = Some(merged);
+        Ok(())
     }
 
     pub fn dir(&self) -> &Path {
@@ -154,7 +198,17 @@ impl Store {
         self.apply(bundle, false)
     }
 
-    fn apply(&mut self, bundle: Bundle, local: bool) -> Result<Vec<Partition>> {
+    fn apply(&mut self, mut bundle: Bundle, local: bool) -> Result<Vec<Partition>> {
+        // V106-33 Old exports, share codes and backups: fold their mentions into Highlights.
+        let old = bundle.partitions.remove(legacy::mentions::KEY);
+        let raw = bundle.partitions.get(Partition::Highlights.key()).cloned();
+        if needs_fold(raw.as_ref(), old.is_some()) {
+            let source = if local { Source::Disk } else { Source::Bundle };
+            let (h, _) = fold(raw, old, &self.read(Partition::Highlights), source)?;
+            bundle
+                .partitions
+                .insert(Partition::Highlights.key().to_owned(), serde_json::to_value(h)?);
+        }
         let mut checked = Vec::with_capacity(bundle.partitions.len());
         for (key, value) in bundle.partitions {
             let p = Partition::from_key(&key).ok_or(Error::UnknownPartition(key))?;
@@ -202,21 +256,25 @@ impl Store {
         }
         let mut restored = BTreeMap::new();
         for p in Partition::ALL {
-            if let Some(value) = read_partition(&snapshot.join(p.file_name()), p)? {
+            if let Some(value) = read_raw(&snapshot.join(p.file_name()))? {
                 restored.insert(p.key().to_owned(), value);
             }
+        }
+        // V106-33 A merge-day backup holds the old mentions. Ignored once highlights are merged.
+        if let Ok(Some(old)) = read_raw(&snapshot.join(legacy::mentions::FILE)) {
+            restored.insert(legacy::mentions::KEY.to_owned(), old);
         }
         self.apply(Bundle::new(restored, self.clock.now()), true)
     }
 }
 
-fn read_partition(path: &Path, p: Partition) -> Result<Option<Value>> {
+/// A file as JSON, not normalized. `None` when it doesn't exist.
+fn read_raw(path: &Path) -> Result<Option<Value>> {
     if !path.is_file() {
         return Ok(None);
     }
     let text = fs::read_to_string(path)?;
-    let value: Value = serde_json::from_str(&text)?;
-    Ok(Some(p.normalize(value)?))
+    Ok(Some(serde_json::from_str(&text)?))
 }
 
 fn quarantine(path: &Path, clock: &dyn Clock) -> Result<()> {
@@ -446,5 +504,258 @@ mod tests {
         store.restore_snapshot(&name).unwrap();
         assert_eq!(store.read::<General>(Partition::General).chat_font_size, 11);
         assert!(matches!(store.restore_snapshot("../x"), Err(Error::NoBackup(_))));
+    }
+    // V106-33 The old mentions fold into Highlights.
+    mod merge {
+        use super::*;
+        use crate::schema::Highlights;
+
+        const OLD_HIGHLIGHTS: &str = r##"{"mention": {"enabled": true, "color": "#ff0000ff"}, "lookalikes": true,
+            "phrases": [{"pattern": "hello"}, {"pattern": "a+", "regex": true}], "users": [{"login": "bob"}]}"##;
+        const OLD_MENTIONS: &str = r##"{"me": {"sound": false, "color": "#00ff00"},
+            "list": [{"pattern": "cyex", "flavor": "python", "regex": true}, {"pattern": "hello"}],
+            "global": true, "globalList": [{"pattern": "deck", "soundFile": "C:\\s\\g.wav"}]}"##;
+
+        fn write(dir: &Path, name: &str, text: &str) {
+            fs::write(dir.join(name), text).unwrap();
+        }
+
+        fn highlights(store: &Store) -> Highlights {
+            store.read(Partition::Highlights)
+        }
+
+        fn patterns(list: &[crate::schema::PhraseRule]) -> Vec<&str> {
+            list.iter().map(|p| p.pattern.as_str()).collect()
+        }
+
+        fn bundle(partitions: Value) -> Bundle {
+            Bundle::from_json(
+                &json!({"format": "cyex-settings", "version": 1, "exported": "", "partitions": partitions})
+                    .to_string(),
+            )
+            .unwrap()
+        }
+
+        fn v105(dir: &Path) {
+            write(dir, "highlights.json", OLD_HIGHLIGHTS);
+            write(dir, "mentions.json", OLD_MENTIONS);
+        }
+
+        fn file(dir: &Path, name: &str) -> String {
+            fs::read_to_string(dir.join(name)).unwrap()
+        }
+
+        #[test]
+        fn fresh_user_merges_nothing() {
+            let tmp = TempDir::new("merge-fresh");
+            let clock = Arc::new(FakeClock::at(day(9)));
+            let (mut store, report) = open(tmp.path(), &clock);
+            assert!(report.merged.is_none() && !report.old_mentions_unreadable);
+            let h = highlights(&store);
+            assert!(h.me.alert.sound && !h.replies.alert.sound);
+            assert!(h.me.alert.show && h.replies.alert.show);
+            assert!(h.mentions_merged && h.duplicates_asked);
+            store.flush().unwrap();
+            assert!(!tmp.path().join("highlights.json").exists(), "nothing written");
+        }
+
+        #[test]
+        fn v105_folder_is_merged_once() {
+            let tmp = TempDir::new("merge-v105");
+            v105(tmp.path());
+            let clock = Arc::new(FakeClock::at(day(9)));
+            let (mut store, report) = open(tmp.path(), &clock);
+            let r = report.merged.unwrap();
+            assert_eq!((r.from_mentions, r.from_highlights, r.global, r.duplicates, r.cut), (2, 2, 1, 1, 0));
+            let h = highlights(&store);
+            assert_eq!(patterns(&h.phrases), ["cyex", "hello", "hello", "a+"]);
+            assert_eq!(h.me.alert.color, "#00ff00");
+            assert!(h.me.alert.sound && !h.replies.alert.sound, "V106-09");
+            assert_eq!(h.users[0].login, "bob");
+            assert!(h.global && h.global_list[0].alert.sound_file == "C:\\s\\g.wav");
+            assert!(!h.duplicates_asked);
+            store.flush().unwrap();
+            let saved: Value = serde_json::from_str(&file(tmp.path(), "highlights.json")).unwrap();
+            assert_eq!(saved["mentionsMerged"], true);
+            assert_eq!(file(tmp.path(), "mentions.json"), OLD_MENTIONS, "untouched");
+
+            // Runs once.
+            let (again, report) = open(tmp.path(), &clock);
+            assert!(report.merged.is_none());
+            assert_eq!(highlights(&again), h);
+        }
+
+        #[test]
+        fn mentions_only_file_is_merged() {
+            let tmp = TempDir::new("merge-mentions-only");
+            write(tmp.path(), "mentions.json", OLD_MENTIONS);
+            let clock = Arc::new(FakeClock::at(day(9)));
+            let (mut store, report) = open(tmp.path(), &clock);
+            assert_eq!(report.merged.unwrap().from_mentions, 2);
+            let h = highlights(&store);
+            assert_eq!(patterns(&h.phrases), ["cyex", "hello"]);
+            assert_eq!(h.phrases[0].flavor, crate::schema::RegexFlavor::Python);
+            assert!(h.global && h.me.alert.color == "#00ff00");
+            store.flush().unwrap();
+            let saved: Value = serde_json::from_str(&file(tmp.path(), "highlights.json")).unwrap();
+            assert_eq!(saved["mentionsMerged"], true);
+            assert_eq!(file(tmp.path(), "mentions.json"), OLD_MENTIONS);
+        }
+
+        #[test]
+        fn unreadable_mentions_file_is_left_as_is() {
+            let tmp = TempDir::new("merge-unreadable");
+            write(tmp.path(), "highlights.json", OLD_HIGHLIGHTS);
+            write(tmp.path(), "mentions.json", "{ nope");
+            let clock = Arc::new(FakeClock::at(day(9)));
+            let (_, report) = open(tmp.path(), &clock);
+            assert!(report.old_mentions_unreadable);
+            assert_eq!(report.merged.unwrap().from_highlights, 2);
+            assert_eq!(file(tmp.path(), "mentions.json"), "{ nope");
+        }
+
+        #[test]
+        fn reset_never_merges_again() {
+            let tmp = TempDir::new("merge-reset");
+            v105(tmp.path());
+            let clock = Arc::new(FakeClock::at(day(9)));
+            let (mut store, _) = open(tmp.path(), &clock);
+            store.flush().unwrap();
+            store.reset(Partition::Highlights);
+            store.flush().unwrap();
+            let (store, report) = open(tmp.path(), &clock);
+            assert!(report.merged.is_none());
+            assert_eq!(highlights(&store), Highlights::default());
+        }
+
+        #[test]
+        fn backup_before_merge() {
+            let tmp = TempDir::new("merge-backup");
+            v105(tmp.path());
+            let clock = Arc::new(FakeClock::at(day(9)));
+            let (mut store, _) = open(tmp.path(), &clock);
+            store.flush().unwrap();
+            let snap = backup::snapshot_dir(tmp.path(), day(9));
+            assert_eq!(file(&snap, "highlights.json"), OLD_HIGHLIGHTS);
+            assert_eq!(file(&snap, "mentions.json"), OLD_MENTIONS);
+        }
+
+        #[test]
+        fn name_and_replies_always_in_mentions_tab() {
+            let tmp = TempDir::new("merge-show");
+            write(tmp.path(), "mentions.json", r#"{"me": {"show": false}}"#);
+            let clock = Arc::new(FakeClock::at(day(9)));
+            let (mut store, _) = open(tmp.path(), &clock);
+            assert!(highlights(&store).me.alert.show && highlights(&store).replies.alert.show);
+            store
+                .patch(Partition::Highlights, &json!({"me": {"show": false}, "replies": {"show": false}}))
+                .unwrap();
+            assert!(highlights(&store).me.alert.show && highlights(&store).replies.alert.show);
+        }
+
+        #[test]
+        fn import_v105_bundle() {
+            let tmp = TempDir::new("merge-import-v105");
+            let clock = Arc::new(FakeClock::at(day(9)));
+            let (mut store, _) = open(tmp.path(), &clock);
+            let parsed = |t: &str| serde_json::from_str::<Value>(t).unwrap();
+            let got = store
+                .import(bundle(json!({"highlights": parsed(OLD_HIGHLIGHTS), "mentions": parsed(OLD_MENTIONS)})))
+                .unwrap();
+            assert_eq!(got, vec![Partition::Highlights]);
+            let h = highlights(&store);
+            assert_eq!(patterns(&h.phrases), ["cyex", "hello", "hello", "a+"]);
+            assert!(h.global && h.me.alert.sound && h.me.alert.color == "#00ff00");
+        }
+
+        #[test]
+        fn import_mentions_only_bundle() {
+            let tmp = TempDir::new("merge-import-mentions");
+            v105(tmp.path());
+            let clock = Arc::new(FakeClock::at(day(9)));
+            let (mut store, _) = open(tmp.path(), &clock);
+            let got = store
+                .import(bundle(json!({"mentions": {"me": {"color": "#abcdef"},
+                    "list": [{"pattern": "cyex", "flavor": "python", "regex": true}, {"pattern": "new"}]}})))
+                .unwrap();
+            assert_eq!(got, vec![Partition::Highlights]);
+            let h = highlights(&store);
+            assert_eq!(patterns(&h.phrases), ["new", "cyex", "hello", "hello", "a+"], "exact copies skipped");
+            assert_eq!(h.me.alert.color, "#abcdef");
+            assert!(!h.global && h.global_list.is_empty(), "global replaced");
+            assert_eq!(h.users[0].login, "bob", "the rest kept");
+        }
+
+        #[test]
+        fn import_highlights_only_old_bundle() {
+            let tmp = TempDir::new("merge-import-highlights");
+            v105(tmp.path());
+            let clock = Arc::new(FakeClock::at(day(9)));
+            let (mut store, _) = open(tmp.path(), &clock);
+            store.patch(Partition::Highlights, &json!({"me": {"sound": false}})).unwrap();
+            let before = highlights(&store);
+            store
+                .import(bundle(
+                    json!({"highlights": {"phrases": [{"pattern": "x"}, {"pattern": "y+", "regex": true}]}}),
+                ))
+                .unwrap();
+            let h = highlights(&store);
+            assert_eq!(patterns(&h.phrases), ["x", "y+"]);
+            assert!(h.phrases[0].whole_word && !h.phrases[1].whole_word);
+            assert_eq!((&h.me, &h.replies), (&before.me, &before.replies));
+            assert_eq!((h.global, &h.global_list), (before.global, &before.global_list));
+        }
+
+        #[test]
+        fn share_code_old_bundle() {
+            let tmp = TempDir::new("merge-share");
+            let clock = Arc::new(FakeClock::at(day(9)));
+            let (mut store, _) = open(tmp.path(), &clock);
+            let old = serde_json::from_str::<Value>(OLD_MENTIONS).unwrap();
+            let code = bundle(json!({ "mentions": old })).to_share_code();
+            store.import(Bundle::from_share_code(&code).unwrap()).unwrap();
+            assert_eq!(patterns(&highlights(&store).phrases), ["cyex", "hello"]);
+        }
+
+        #[test]
+        fn restore_v105_daily_backup() {
+            let tmp = TempDir::new("merge-restore-v105");
+            v105(tmp.path());
+            let clock = Arc::new(FakeClock::at(day(9)));
+            let (mut store, _) = open(tmp.path(), &clock);
+            let merged = highlights(&store);
+            store.reset(Partition::Highlights);
+            store.restore_backup(day(9)).unwrap();
+            assert_eq!(highlights(&store), merged);
+        }
+
+        #[test]
+        fn restore_v106_snapshot_ignores_stale_mentions() {
+            let tmp = TempDir::new("merge-restore-v106");
+            v105(tmp.path());
+            let clock = Arc::new(FakeClock::at(day(9)));
+            let (mut store, _) = open(tmp.path(), &clock);
+            store.flush().unwrap();
+            let merged = highlights(&store);
+            let name = store.snapshot_now().unwrap().unwrap();
+            assert!(backup::named_dir(tmp.path(), &name).join("mentions.json").is_file());
+            store.reset(Partition::Highlights);
+            store.restore_snapshot(&name).unwrap();
+            assert_eq!(highlights(&store), merged, "no second merge, no doubled words");
+        }
+
+        #[test]
+        fn export_import_round_trip() {
+            let a_dir = TempDir::new("merge-export-a");
+            let b_dir = TempDir::new("merge-export-b");
+            v105(a_dir.path());
+            let clock = Arc::new(FakeClock::at(day(9)));
+            let (a, _) = open(a_dir.path(), &clock);
+            let out = a.export(&Partition::ALL);
+            assert!(!out.partitions.contains_key("mentions"));
+            let (mut b, _) = open(b_dir.path(), &clock);
+            b.import(Bundle::from_json(&out.to_json()).unwrap()).unwrap();
+            assert_eq!(highlights(&b), highlights(&a));
+        }
     }
 }

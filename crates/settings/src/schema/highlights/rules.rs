@@ -5,6 +5,43 @@ use ts_rs::TS;
 
 pub(super) const MAX_PATTERN_CHARS: usize = 500;
 pub(super) const MAX_ROUTE_CHARS: usize = 40;
+const MAX_PATH_CHARS: usize = 1000;
+/// Sound files the window can play.
+pub const SOUND_TYPES: [&str; 6] = ["mp3", "wav", "ogg", "opus", "flac", "m4a"];
+
+/// `#rrggbb` or `#rrggbbaa`, lowercase; anything else becomes empty (the default color).
+pub(crate) fn clean_color(color: &mut String) {
+    let hex = color.strip_prefix('#').unwrap_or("");
+    if !(matches!(hex.len(), 6 | 8) && hex.bytes().all(|b| b.is_ascii_hexdigit())) {
+        color.clear();
+    }
+    color.make_ascii_lowercase();
+}
+
+/// A playable sound file path, or empty.
+pub(crate) fn clean_sound_file(path: &mut String) {
+    *path = path.trim().to_owned();
+    if !is_sound_file(path) || path.chars().count() > MAX_PATH_CHARS {
+        path.clear();
+    }
+}
+
+/// A file name the sound option takes: one of [`SOUND_TYPES`].
+pub fn is_sound_file(path: &str) -> bool {
+    path.rsplit_once('.')
+        .is_some_and(|(_, ext)| SOUND_TYPES.iter().any(|t| t.eq_ignore_ascii_case(ext)))
+}
+
+/// Which regex syntax a pattern is written in. One engine runs them all (V104-01).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum RegexFlavor {
+    #[default]
+    Rust,
+    JavaScript,
+    Python,
+}
 
 /// What a matching message does (2.6), shared by every rule.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -17,6 +54,8 @@ pub struct Alert {
     pub flash: bool,
     /// V105-17 Also copy the message into the Mentions tab.
     pub show: bool,
+    /// V106-33 A Windows pop-up.
+    pub notify: bool,
     /// V105-17 A sound file played instead of the chime. Empty: the chime.
     pub sound_file: String,
     /// F4 Also copy the message into the feed tab with this name. Empty: nowhere.
@@ -25,8 +64,8 @@ pub struct Alert {
 
 impl Alert {
     pub(super) fn sanitize(&mut self) {
-        crate::schema::mentions::clean_color(&mut self.color);
-        crate::schema::mentions::clean_sound_file(&mut self.sound_file);
+        clean_color(&mut self.color);
+        clean_sound_file(&mut self.sound_file);
         self.route = self.route.trim().chars().take(MAX_ROUTE_CHARS).collect();
     }
 }
@@ -51,6 +90,7 @@ impl BuiltIn {
                 sound: false,
                 flash: false,
                 show: false,
+                notify: false,
                 sound_file: String::new(),
                 route: String::new(),
             },
@@ -62,6 +102,14 @@ impl BuiltIn {
         b.enabled = false;
         b
     }
+
+    /// V106-33 Your name and replies: on, always in the Mentions tab.
+    pub(super) const fn you(sound: bool) -> Self {
+        let mut b = Self::on();
+        b.alert.show = true;
+        b.alert.sound = sound;
+        b
+    }
 }
 
 impl Default for BuiltIn {
@@ -70,15 +118,22 @@ impl Default for BuiltIn {
     }
 }
 
-/// Words or a regex in the message text.
+/// Words or a regex in the message text (V106-33: old mentions, highlight phrases and
+/// global mentions are all this one rule).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(default, rename_all = "camelCase")]
 #[ts(export)]
 pub struct PhraseRule {
     pub enabled: bool,
+    /// Words, or a regex when `regex` is on.
     pub pattern: String,
     pub regex: bool,
+    pub flavor: RegexFlavor,
     pub case_sensitive: bool,
+    /// Not inside a longer word.
+    pub whole_word: bool,
+    /// Look-alike letters count (Cyrillic а for a, 𝐟𝐚𝐧𝐜𝐲 text).
+    pub lookalikes: bool,
     #[serde(flatten)]
     #[ts(flatten)]
     pub alert: Alert,
@@ -86,13 +141,25 @@ pub struct PhraseRule {
 
 impl Default for PhraseRule {
     fn default() -> Self {
+        // `show` stays off: serde fills missing keys from here, and v1.04 phrases have none.
+        // The UI turns it on for a new row (Q12).
         Self {
             enabled: true,
             pattern: String::new(),
             regex: false,
+            flavor: RegexFlavor::Rust,
             case_sensitive: false,
+            whole_word: true,
+            lookalikes: false,
             alert: Alert::default(),
         }
+    }
+}
+
+impl PhraseRule {
+    /// V106-33 What makes two rows "the same" (merge count, duplicate marks, the Chatterino importer).
+    pub fn dup_key(&self) -> (String, bool, Option<RegexFlavor>) {
+        (self.pattern.trim().to_lowercase(), self.regex, self.regex.then_some(self.flavor))
     }
 }
 
