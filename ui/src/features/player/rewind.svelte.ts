@@ -97,6 +97,11 @@ export class Rewind {
     return e?.behind ?? null;
   }
 
+  /** Q21 a Over: Twitch says so, or the player found it offline (the VOD ran out while Twitch may still say live). */
+  get over(): boolean {
+    return this.ended || this.host.engine()?.failure === 'offline';
+  }
+
   get atLive(): boolean {
     return !this.inVod && (this.host.engine()?.atLive ?? true);
   }
@@ -115,7 +120,7 @@ export class Rewind {
     const base = typeof this.pending === 'number' ? this.pending : this.pending === 'live' ? this.uptime : this.pos;
     const { at, edge } = stepTarget(base, s, this.uptime);
     // Live is off after the end: nothing moves.
-    if (at === 'live' && this.ended) return { behind: Math.max(0, this.uptime - base), edge: null };
+    if (at === 'live' && this.over) return { behind: Math.max(0, this.uptime - base), edge: null };
     this.pending = at;
     clearTimeout(this.flushTimer);
     this.flushTimer = setTimeout(() => this.flush(), COALESCE_MS);
@@ -192,15 +197,20 @@ export class Rewind {
     else void this.host.open(at);
   }
 
-  private tick(): void {
-    if (!this.ended && this.startedAt) this.uptime = uptimeAt(this.startedAt, Date.now());
-    const e = this.host.engine();
+  /** The chat bar's entry (Q23); LivePlayer also calls it when the player fails, so the bar goes at once. */
+  mark(): void {
     if (this.inVod && !this.done) {
       const behind = Math.round(this.behind ?? 0);
-      setRewound(this, this.login, { behind, ended: this.ended });
+      setRewound(this, this.login, { behind, ended: this.over });
     } else if (hasOwn(this)) {
       clearRewound(this);
     }
+  }
+
+  private tick(): void {
+    if (!this.ended && this.startedAt) this.uptime = uptimeAt(this.startedAt, Date.now());
+    const e = this.host.engine();
+    this.mark();
     // The VOD's edge stalls: nothing more to load there yet, live has it.
     if (this.inVod && e && e.waiting && !e.swapping && !this.ended && this.uptime - e.time < 40) {
       this.stalls += 1;
@@ -210,7 +220,7 @@ export class Rewind {
       }
     } else this.stalls = 0;
     // Q21 a After the VOD's end the usual offline page, 5 s later.
-    if (this.ended && e?.failure === 'offline' && !this.endTimer && !this.done) {
+    if (this.over && e?.failure === 'offline' && !this.endTimer && !this.done) {
       this.endTimer = setTimeout(() => {
         this.done = true;
         clearRewound(this);

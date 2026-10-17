@@ -72,7 +72,9 @@ export class Engine {
   private jumping = false;
   /** The user paused during our silent jump: it ends paused. */
   private wantPause = false;
-  private ownPauses = 0;
+  /** Our own pause whose event hasn't come yet. A flag, not a count: a swap's source reload
+   *  drops the queued pause event, and a stale count ate the user's next pause (V1061-01). */
+  private quiet = false;
   /** Q16 a Paused 10 min: nothing loads anymore. */
   private stopped = false;
   private stopTimer: ReturnType<typeof setTimeout> | undefined;
@@ -97,7 +99,11 @@ export class Engine {
   ) {
     const on = (name: string, f: () => void) => video.addEventListener(name, f);
     const set = {
-      play: () => this.onPlay(),
+      play: () => {
+        // Any own pause event came first or was dropped.
+        this.quiet = false;
+        this.onPlay();
+      },
       playing: () => {
         this.playing = true;
         this.waiting = false;
@@ -130,6 +136,7 @@ export class Engine {
     }
     this.dvr = dvr;
     this.pausedAt = 0;
+    this.wantPause = false;
     this.stopped = false;
     clearTimeout(this.stopTimer);
     this.checkStart = dvr;
@@ -307,6 +314,14 @@ export class Engine {
       }
       // With autoStartLoad off hls.js skips `startPosition`: a VOD would start at 0 (P5, P7).
       hls.startLoad(this.liveSrc ? -1 : this.startAt);
+      // Paused during the swap: it lands paused (Q14 a).
+      if (this.wantPause) {
+        this.wantPause = false;
+        this.jumping = false;
+        this.swapping = false;
+        this.waiting = false;
+        return this.markPaused();
+      }
       void this.video.play().catch(() => {});
     });
     hls.on(Hls.Events.LEVEL_SWITCHED, (_, d) => (this.level = d.level));
@@ -409,8 +424,9 @@ export class Engine {
       this.note = 'That part isn’t available anymore. Back to live.';
       this.onreopen?.(null);
     } else if (d.type === Hls.ErrorTypes.NETWORK_ERROR) {
-      if (code === 404 && (body.includes('Can not find channel') || !this.live)) this.fail('offline');
-      else if (body.includes('geoblock')) this.fail('geo');
+      // usher's offline 404 says `content_geoblocked_or_offline`: offline. A geo block is `content_geoblocked` alone.
+      if (code === 404 && (body.includes('Can not find channel') || body.includes('_or_offline') || !this.live)) this.fail('offline');
+      else if (/geoblocked(?!_or_offline)/.test(body)) this.fail('geo');
       else if (code === 403 && !this.live) this.fail('subs');
       else this.fail('network');
     } else if (d.type === Hls.ErrorTypes.MEDIA_ERROR && this.recovered < 2) {
@@ -438,19 +454,27 @@ export class Engine {
   /** Pauses for our own reasons: the pause event isn't the user's. */
   private quietPause(): void {
     if (this.video.paused) return;
-    this.ownPauses += 1;
+    this.quiet = true;
     this.video.pause();
   }
 
   /** V1061-01 Q16 a Paused live: only the playlists keep loading, 10 min later nothing. */
   private onPause(): void {
     this.playing = false;
-    if (this.ownPauses > 0) {
-      this.ownPauses -= 1;
+    if (this.quiet) {
+      this.quiet = false;
       return;
     }
     // Played again before the event came: nothing to keep.
-    if (!this.video.paused || !this.live || this.jumping || this.holding) return;
+    if (!this.video.paused || !this.live || this.holding) return;
+    if (this.jumping) {
+      // The user paused between a swap's play and its first frame: the swap ends paused. Left
+      // waiting, `swapping` hid the behind readout and `jumping` blocked the way back to live.
+      this.wantPause = true;
+      this.jumping = false;
+      this.swapping = false;
+      this.waiting = false;
+    }
     this.markPaused();
   }
 
@@ -492,8 +516,8 @@ export class Engine {
   /** V1061-01..03 Where the player is and how far behind live. */
   private tick(): void {
     const v = this.video;
-    // A swap shows the asked-for spot until the new source plays.
-    if (!this.swapping) {
+    // A swap shows the asked-for spot until the new source plays; after a failure the last spot stays.
+    if (!this.swapping && !this.failure) {
       this.time = v.currentTime;
       let end = 0;
       for (let i = 0; i < v.buffered.length; i++) {

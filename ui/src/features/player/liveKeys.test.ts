@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { liveKeyAction, ownsArrows, seekText, stepChoice, Steps, stepText, behindText } from './liveKeys.ts';
+import { liveKeyAction, OWN_ARROWS, ownsArrows, seekText, stepChoice, Steps, stepText, behindText } from './liveKeys.ts';
 
 const fake = (roles: string[]) => ({ closest: (sel: string) => (roles.some((r) => sel.includes(r)) ? {} : null) });
 
@@ -11,6 +11,12 @@ test('which focused elements keep the arrows', () => {
   }
   assert.equal(ownsArrows(fake([])), false);
   assert.equal(ownsArrows(null), false);
+});
+
+test("a clicked seek bar (tabindex -1) doesn't keep the arrows", () => {
+  const parts = OWN_ARROWS.split(", ");
+  assert.ok(parts.includes('[role="slider"]:not([tabindex="-1"])'));
+  assert.ok(!parts.includes('[role="slider"]'));
 });
 
 test('step and behind texts', () => {

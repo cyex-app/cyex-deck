@@ -137,6 +137,12 @@
     const o = { account, startedAt: info?.stream?.startedAt ?? null, enabled: settings.v.player.liveRewind };
     untrack(() => r.watch(o));
   });
+  // Q21 a An offline player drops the chat bar now, not on the next clock tick.
+  $effect(() => {
+    if (engine?.failure !== 'offline') return;
+    const r = rewind;
+    untrack(() => r.mark());
+  });
   // Q22 b
   $effect(() => {
     const r = rewind;
@@ -410,7 +416,7 @@
     <Icon name={engine?.playing ? 'pause' : 'play'} size={18} />
   </button>
   <Volume volume={sound.volume} muted={sound.muted} boost={sound.boost} onchange={sound.set} onboost={sound.setBoost} />
-  <LiveButton behind={rewind.behind} atLive={rewind.atLive} ad={ad === 'waiting'} ended={rewind.ended} hint={bindingOf('player.live')} onlive={() => void rewind.toLive()} />
+  <LiveButton behind={rewind.behind} atLive={rewind.atLive} ad={ad === 'waiting'} ended={rewind.over} hint={bindingOf('player.live')} onlive={() => void rewind.toLive()} />
   <span class="grow"></span>
   {#if onclip}
     <button class="ctl" aria-label="Clip" use:tooltip={{ label: 'Clip', hint: 'Clips the last seconds of the stream.' }} onclick={onclip}>
