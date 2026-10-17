@@ -1,6 +1,7 @@
 <!-- Player settings (1.1, 1.2, P10). The proxy address can hold a password, so it's kept
      in the Windows Credential Manager, never in settings files or exports. -->
 <script lang="ts">
+  import SectionHead from '../SectionHead.svelte';
   import Button from '../../../components/Button.svelte';
   import Row from '../../../components/Row.svelte';
   import Toggle from '../../../components/Toggle.svelte';
@@ -41,7 +42,7 @@
   }
 </script>
 
-<h2>Player</h2>
+<SectionHead title="Player" level={2}>Video playback, ads and quality.</SectionHead>
 
 <Row setting="player.blockAds" label="Block ads" hint="Cuts Twitch’s ads out of streams, or plays a clean copy while they run.">
   <Toggle label="Block ads" checked={p.blockAds} onchange={(v) => settings.patch('player', { blockAds: v })} />

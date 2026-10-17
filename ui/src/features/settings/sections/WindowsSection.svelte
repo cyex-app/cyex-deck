@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SectionHead from '../SectionHead.svelte';
   import Button from '../../../components/Button.svelte';
   import EmptyState from '../../../components/EmptyState.svelte';
   import Row from '../../../components/Row.svelte';
@@ -46,8 +47,7 @@
   }
 </script>
 
-<h2>Windows</h2>
-<p class="intro">A layout remembers where the main window and every pop-out sit, and whether they’re pinned.</p>
+<SectionHead title="Windows" level={2}>A layout remembers where the main window and every pop-out sit, and whether they’re pinned.</SectionHead>
 
 <form class="save" data-setting="windows.layouts" onsubmit={save}>
   <input class="field" placeholder="Layout name" maxlength="40" bind:value={drafts.layoutName} />
@@ -65,10 +65,6 @@
 {/each}
 
 <style>
-  .intro {
-    margin: -6px 0 14px;
-    color: var(--dim);
-  }
   .save {
     display: flex;
     gap: 8px;

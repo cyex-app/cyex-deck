@@ -5,6 +5,7 @@
      go to the Mentions tab, show a pop-up and copy the message into a custom feed (F4).
      Look-alike letters are per word row; the global switch is on the Ignores page (C32). -->
 <script lang="ts">
+  import SectionHead from '../SectionHead.svelte';
   import Button from '../../../components/Button.svelte';
   import Row from '../../../components/Row.svelte';
   import Toggle from '../../../components/Toggle.svelte';
@@ -159,12 +160,12 @@
     <HighlightImport />
   </div>
 </div>
-<p class="intro">Make messages stand out, ping you, or copy them to the Mentions tab. Custom feed copies a message into a feed tab: type its name.</p>
+<p class="intro">Make messages stand out, ping you, or copy them to the Mentions tab or a feed. For a feed, type its name.</p>
 {#if !inFront}
   <p class="intro more">Sounds only play while you’re in another app. Settings → Sound can change that.</p>
 {/if}
 
-<h3 class="label">Built in</h3>
+<SectionHead title="Built in">Ready-made highlights for common events.</SectionHead>
 {#each BUILT_IN as b (b.key)}
   <RuleRow
     setting={`highlights.${b.key}`}
@@ -179,7 +180,7 @@
   />
 {/each}
 
-<h3 class="label">Words</h3>
+<SectionHead title="Words">Highlight messages that contain these.</SectionHead>
 <RuleList
   setting="highlights.phrases"
   items={h.phrases}
@@ -196,7 +197,7 @@
   emptyIcon="star"
 />
 
-<h3 class="label">People</h3>
+<SectionHead title="People">Highlight everything these users write.</SectionHead>
 <RuleList
   setting="highlights.users"
   items={h.users}
@@ -210,7 +211,7 @@
   emptyIcon="user"
 />
 
-<h3 class="label">Badges</h3>
+<SectionHead title="Badges">Highlight messages from people with these badges.</SectionHead>
 <RuleList
   setting="highlights.badges"
   items={h.badges}
@@ -223,7 +224,7 @@
   emptyIcon="badge"
 />
 
-<h3 class="label">Sent from</h3>
+<SectionHead title="Sent from">Highlight messages sent from these apps.</SectionHead>
 <RuleList
   setting="highlights.apps"
   items={h.apps}
@@ -236,7 +237,7 @@
   emptyIcon="smartphone"
 />
 
-<h3 class="label">Global mentions</h3>
+<SectionHead title="Global mentions">Find out when you’re mentioned in chats you aren’t in.</SectionHead>
 <Row setting="highlights.global" label="Global mentions" hint="From logs.cyex.app: every chat it logs. Uses about 0,8 GB an hour while on. Your list stays on this PC.">
   <Toggle label="Global mentions" checked={h.global} onchange={(v) => save({ global: v })} />
 </Row>
@@ -261,7 +262,7 @@
   />
 {/if}
 
-<h3 class="label">Quiet</h3>
+<SectionHead title="Quiet">Names that should never trigger a highlight.</SectionHead>
 <Row setting="highlights.never" label="Never highlight" hint="These names never light up or play sounds, e.g. bots." stacked>
   <input
     class="field"

@@ -2,6 +2,7 @@
      viewers, uptime, followers and subs, and where they go. The marker log lives in the
      same folder. -->
 <script lang="ts">
+  import SectionHead from '../SectionHead.svelte';
   import Button from '../../../components/Button.svelte';
   import IconButton from '../../../components/IconButton.svelte';
   import Row from '../../../components/Row.svelte';
@@ -53,9 +54,9 @@
   }
 </script>
 
-<h2>Stream manager</h2>
+<SectionHead title="Stream manager" level={2}>Tools for when you stream, like OBS files.</SectionHead>
 
-<h3 class="label">Files for OBS</h3>
+<SectionHead title="Files for OBS">Text files OBS can show on your stream.</SectionHead>
 <Row setting="streammanager.obs.enabled" label="Write status files" hint="Updated about every 30 seconds while the stream manager is open.">
   <Toggle label="Write status files" checked={obs.enabled} onchange={(on) => void settings.patch('streammanager', { obs: { enabled: on } })} />
 </Row>

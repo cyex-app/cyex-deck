@@ -123,9 +123,9 @@
   }
 </script>
 
-<SectionHead title="Backup and sharing" level={2} docs="data" />
+<SectionHead title="Backup and sharing" level={2} docs="data">Move your settings to another PC, share them, or go back to an earlier copy.</SectionHead>
 
-<h3 class="label">What to export or share</h3>
+<SectionHead title="What to export or share">Pick the parts to put in the file.</SectionHead>
 <div class="picks">
   <Checkbox label="Everything" checked={allPicked} indeterminate={picked.length > 0} onchange={() => (picked = allPicked ? [] : [...PORTABLE_PARTITIONS])} />
   {#each PORTABLE_PARTITIONS as p (p)}
@@ -138,7 +138,7 @@
   <Button icon="copy" disabled={!picked.length} onclick={copyCode}>Copy share code</Button>
 </div>
 
-<h3 class="label">Import</h3>
+<SectionHead title="Import">Load a file or share code, from someone else or yourself.</SectionHead>
 <div class="actions" data-setting="data:import">
   <Button icon="upload" onclick={importFile}>Import file</Button>
 </div>
@@ -168,7 +168,7 @@
 {:else}
   <p class="note">No backups yet. The first one is made tomorrow.</p>
 {/each}
-<h3 class="label">Cache</h3>
+<SectionHead title="Cache">Saved pictures that load faster next time.</SectionHead>
 <Row
   label="Picture cache"
   hint="Emotes, badges and paints you’ve seen, saved on this PC. They load again when needed."

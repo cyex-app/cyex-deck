@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SectionHead from '../SectionHead.svelte';
   import DragList from '../../../components/DragList.svelte';
   import Icon from '../../../components/Icon.svelte';
   import type { IconName } from '../../../components/icons';
@@ -133,9 +134,9 @@
   const modOn = (b: ModButton) => buttonOn(mb, b);
 </script>
 
-<h2>Chat</h2>
+<SectionHead title="Chat" level={2}>How chat looks, scrolls and behaves.</SectionHead>
 
-<h3 class="label">History</h3>
+<SectionHead title="History">Older messages loaded when you open a chat.</SectionHead>
 <Row setting="chat.history" label="Recent history" hint="Shows the last messages, dimmed, when you open a chat.">
   <Toggle label="Recent history" checked={c.history} onchange={(v) => settings.patch('chat', { history: v })} />
 </Row>
@@ -159,7 +160,7 @@
   />
 </Row>
 
-<h3 class="label">Messages</h3>
+<SectionHead title="Messages">How each line is shown.</SectionHead>
 <Row setting="chat.names" label="Names" hint="Both adds the login when the display name is in another script.">
   <Segmented label="Names" options={NAMES} value={c.names} onchange={(v) => settings.patch('chat', { names: v })} />
 </Row>
@@ -175,7 +176,7 @@
   <Toggle label="Count repeats" checked={c.repeats} onchange={(v) => settings.patch('chat', { repeats: v })} />
 </Row>
 {#if c.repeats}
-  <Row setting="chat.repeatSimilarity" label="Counts as the same">
+  <Row setting="chat.repeatSimilarity" label="Counts as the same" hint="How alike two messages must be.">
     <Segmented
       label="Counts as the same"
       options={SIMILAR}
@@ -201,7 +202,7 @@
   <Toggle label="Lines between messages" checked={c.separators} onchange={(v) => settings.patch('chat', { separators: v })} />
 </Row>
 
-<h3 class="label">Timestamps</h3>
+<SectionHead title="Timestamps">The time in front of each message.</SectionHead>
 <Row setting="chat.timestamps.show" label="Show timestamps" hint={c.timestamps.show ? `Looks like ${formatTime(SAMPLE_TIME, c.timestamps)}` : undefined}>
   <Toggle
     label="Show timestamps"
@@ -226,7 +227,7 @@
   />
 </Row>
 
-<h3 class="label">Scrolling</h3>
+<SectionHead title="Scrolling">When chat moves and when it holds still.</SectionHead>
 <Row setting="chat.pauseOnHover" label="Pause on hover" hint="Chat stops moving while the mouse is over it.">
   <Toggle label="Pause on hover" checked={c.pauseOnHover} onchange={(v) => settings.patch('chat', { pauseOnHover: v })} />
 </Row>
@@ -240,7 +241,7 @@
     onchange={(v) => settings.patch('chat', { pauseStillTenths: Number(v) })}
   />
 </Row>
-<Row setting="chat.pauseKey" label="Pause while holding">
+<Row setting="chat.pauseKey" label="Pause while holding" hint="Hold this key to stop chat for a moment.">
   <Segmented
     label="Pause while holding"
     options={PAUSE_KEYS}
@@ -268,7 +269,7 @@
   />
 </Row>
 
-<h3 class="label">Links</h3>
+<SectionHead title="Links">What links in chat show and do.</SectionHead>
 <Row setting="chat.linkPreviews" label="Previews" hint="Hover a link for its title and picture.">
   <Toggle label="Previews" checked={c.linkPreviews} onchange={(v) => settings.patch('chat', { linkPreviews: v })} />
 </Row>
@@ -284,7 +285,7 @@
   <Toggle label="Cards under messages" checked={c.linkCards} onchange={(v) => settings.patch('chat', { linkCards: v })} />
 </Row>
 
-<h3 class="label">GIFs and effects</h3>
+<SectionHead title="GIFs and effects">Moving emotes and message effects.</SectionHead>
 <Row setting="chat.gifs" label="GIFs">
   <Segmented label="GIFs" options={GIFS} value={c.gifs} onchange={(v) => settings.patch('chat', { gifs: v })} />
 </Row>
@@ -292,7 +293,7 @@
   <Toggle label="Effects" checked={c.effects} onchange={(v) => settings.patch('chat', { effects: v })} />
 </Row>
 
-<h3 class="label">Writing and reading</h3>
+<SectionHead title="Writing and reading">The message box and reading aids.</SectionHead>
 <Row setting="chat.sendButton" label="Send button" hint="A button in the message box. Enter still sends.">
   <Toggle label="Send button" checked={c.sendButton} onchange={(v) => settings.patch('chat', { sendButton: v })} />
 </Row>
@@ -309,7 +310,7 @@
   />
 </Row>
 
-<h3 class="label">Moderation</h3>
+<SectionHead title="Moderation">Shortcuts for channels you moderate.</SectionHead>
 <Row setting="chat.timeoutPresets" label="Timeout buttons" hint="Quick durations in chat and on user cards. Up to 8." stacked>
   {#each c.timeoutPresets as secs (secs)}
     <span class="chip">
@@ -366,8 +367,7 @@
   </div>
 </Row>
 
-<h3 class="label">Overlay</h3>
-<p class="intro">A chat over games: ⋯ on a chat → Overlay. It stays on top and can let clicks through.</p>
+<SectionHead title="Overlay">A chat over games: ⋯ on a chat → Overlay. It stays on top and can let clicks through.</SectionHead>
 <Row setting="chat.overlay.background" label="Background" hint="0 % is fully see-through.">
   <input
     type="range"
@@ -392,7 +392,7 @@
   />
   <span class="num">{o.scale} %</span>
 </Row>
-<Row setting="chat.overlay.fadeAfter" label="Fade lines after">
+<Row setting="chat.overlay.fadeAfter" label="Fade lines after" hint="Old lines fade out so the game stays clear.">
   <Segmented
     label="Fade lines after"
     options={FADES}
@@ -461,13 +461,6 @@
   .slot-hint {
     color: var(--dim);
     font-size: 0.74rem;
-  }
-  h3 {
-    margin: 22px 0 2px;
-  }
-  .intro {
-    margin: 4px 0 2px;
-    color: var(--dim);
   }
   input[type='range'] {
     width: 160px;

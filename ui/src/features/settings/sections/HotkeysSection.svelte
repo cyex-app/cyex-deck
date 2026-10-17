@@ -116,21 +116,12 @@
 
 {#each local as id (id)}{@render binding(id)}{/each}
 
-<h3>Work everywhere</h3>
-<p class="intro">These work even while a game or another app is in front.</p>
+<SectionHead title="Work everywhere">These work even while a game or another app is in front.</SectionHead>
 {#each everywhere as id (id)}{@render binding(id)}{/each}
 
 <ResetSection partition="hotkeys" />
 
 <style>
-  h3 {
-    margin: 22px 0 8px;
-    font-size: 0.92rem;
-  }
-  .intro {
-    margin: -6px 0 6px;
-    color: var(--dim);
-  }
   .combo {
     display: inline-flex;
     align-items: center;

@@ -1,6 +1,7 @@
 <!-- Ignores (F2): words that hide a message or get swapped, people your account blocked
      on Twitch, and people hidden only for you (C28). -->
 <script lang="ts">
+  import SectionHead from '../SectionHead.svelte';
   import Button from '../../../components/Button.svelte';
   import EmptyState from '../../../components/EmptyState.svelte';
   import Row from '../../../components/Row.svelte';
@@ -42,9 +43,9 @@
   ];
 </script>
 
-<h2>Ignores</h2>
+<SectionHead title="Ignores" level={2}>Hide messages and people you don’t want to see.</SectionHead>
 
-<h3 class="label">Words</h3>
+<SectionHead title="Words">Hide messages that contain these.</SectionHead>
 <RuleList
   setting="highlights.ignores"
   items={h.ignores}
@@ -70,7 +71,7 @@
   <Toggle label="Look-alike letters" checked={h.lookalikes} onchange={(v) => save({ lookalikes: v })} />
 </Row>
 
-<h3 class="label">Blocked on Twitch</h3>
+<SectionHead title="Blocked on Twitch">People you blocked on Twitch.</SectionHead>
 <Row setting="highlights.blocked.enabled" label="Hide people you blocked" hint="Read from each signed-in account.">
   <Toggle
     label="Hide people you blocked"
@@ -87,7 +88,7 @@
   />
 </Row>
 
-<h3 class="label" data-setting="highlights.hiddenUsers">Hidden for you</h3>
+<SectionHead title="Hidden for you" setting="highlights.hiddenUsers">People hidden only in cyex, not on Twitch.</SectionHead>
 {#each h.hiddenUsers as u (u.id)}
   <Row label={u.login}>
     <Button small variant="ghost" onclick={() => save({ hiddenUsers: h.hiddenUsers.filter((x) => x.id !== u.id) })}>
