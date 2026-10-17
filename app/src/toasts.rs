@@ -5,9 +5,10 @@
 
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, UserAttentionType};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_winrt_notification::{IconCrop, Toast};
 use ts_rs::TS;
 
@@ -87,12 +88,49 @@ pub fn show(app: &AppHandle, pop: Pop) {
     });
 }
 
-/// Flashes the taskbar button while the main window isn't in front.
+/// V106-35 Whether the main window's taskbar button is flashing.
+static FLASHING: AtomicBool = AtomicBool::new(false);
+
+/// V106-35 (start, now flashing). In front: nothing (Q8). Already flashing: nothing, no restart.
+fn on_request(flashing: bool, in_front: bool) -> (bool, bool) {
+    if in_front || flashing {
+        (false, flashing)
+    } else {
+        (true, true)
+    }
+}
+
+/// (stop, now flashing). Any cyex window counts (Q7).
+fn on_focus(flashing: bool) -> (bool, bool) {
+    (flashing, false)
+}
+
+/// V106-35 Flashes the taskbar button until any cyex window comes to the front.
 pub fn flash(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window(MAIN)
-        && !w.is_focused().unwrap_or(true)
-    {
-        let _ = w.request_user_attention(Some(UserAttentionType::Informational));
+    let in_front = app_in_front(app);
+    let flashing = FLASHING.load(Ordering::SeqCst);
+    let (start, now) = on_request(flashing, in_front);
+    if !start {
+        eprintln!("flash: skip ({})", if in_front { "in front" } else { "already" });
+        return;
+    }
+    let Some(w) = app.get_webview_window(MAIN) else {
+        return;
+    };
+    FLASHING.store(now, Ordering::SeqCst);
+    eprintln!("flash: start");
+    crate::sys::flash::start(&w);
+}
+
+/// V106-35 A cyex window came to the front: stops the flash.
+pub fn focused(app: &AppHandle) {
+    let (stop, _) = on_focus(FLASHING.swap(false, Ordering::SeqCst));
+    if !stop {
+        return;
+    }
+    eprintln!("flash: stop");
+    if let Some(w) = app.get_webview_window(MAIN) {
+        crate::sys::flash::stop(&w);
     }
 }
 
@@ -130,4 +168,27 @@ async fn cached_avatar(app: &AppHandle, url: &str) -> Option<PathBuf> {
     std::fs::create_dir_all(&dir).ok()?;
     std::fs::write(&path, bytes).ok()?;
     Some(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_request_starts_only_from_idle_and_out_of_front() {
+        assert_eq!(on_request(false, true), (false, false), "in front: no flash (Q8)");
+        assert_eq!(on_request(false, false), (true, true));
+        assert_eq!(
+            on_request(true, false),
+            (false, true),
+            "already flashing: no restart"
+        );
+        assert_eq!(on_request(true, true), (false, true));
+    }
+
+    #[test]
+    fn focus_stops_a_flash_once() {
+        assert_eq!(on_focus(true), (true, false));
+        assert_eq!(on_focus(false), (false, false));
+    }
 }
