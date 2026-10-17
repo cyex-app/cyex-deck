@@ -14,6 +14,7 @@ mod parse;
 mod text;
 pub mod vars;
 
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -82,10 +83,21 @@ impl CommandList {
                     continue;
                 }
             };
+            let dup = "A row above has this name, so this one never runs.";
             if let Some(n) = key.0.strip_prefix('/').filter(|n| !n.is_empty()) {
-                list.commands.insert((n.to_owned(), key.1), parsed);
+                match list.commands.entry((n.to_owned(), key.1)) {
+                    Entry::Occupied(_) => list.errors.push(LineError { line: i, message: dup.into() }),
+                    Entry::Vacant(v) => {
+                        v.insert(parsed);
+                    }
+                }
             } else if key.0.len() > 1 && key.0.starts_with('_') {
-                list.replacements.insert(key, parsed);
+                match list.replacements.entry(key) {
+                    Entry::Occupied(_) => list.errors.push(LineError { line: i, message: dup.into() }),
+                    Entry::Vacant(v) => {
+                        v.insert(parsed);
+                    }
+                }
             } else {
                 list.errors.push(LineError {
                     line: i,
@@ -96,7 +108,7 @@ impl CommandList {
         list
     }
 
-    /// `/name` in `channel`: the channel's own version first.
+    /// `/name` in `channel`: the channel's own version first. The top row wins (V106-10).
     pub fn command(&self, name: &str, channel: &str) -> Option<Arc<Items>> {
         Self::find(&self.commands, name, channel)
     }
@@ -154,6 +166,19 @@ mod tests {
         assert_eq!(run(&own, &p, &mut h).unwrap(), "Hello Joshimuz Chat!");
         assert!(list.replacement("_m", "x").is_some());
         assert_eq!(list.names("x"), ["hello"]);
+    }
+
+    #[test]
+    fn top_row_wins() {
+        let lines: Vec<String> = ["/hi a", "/hi b", "/hi#forsen x", "/Hi c"].map(String::from).to_vec();
+        let list = CommandList::new(&lines);
+        let mut h = TestHost::default();
+        let hi = list.command("hi", "").unwrap();
+        assert_eq!(run(&hi, &Params::new(""), &mut h).unwrap(), "a");
+        let own = list.command("hi", "forsen").unwrap();
+        assert_eq!(run(&own, &Params::new(""), &mut h).unwrap(), "x");
+        assert_eq!(list.errors.iter().map(|e| e.line).collect::<Vec<_>>(), [1, 3]);
+        assert_eq!(list.errors[0].message, "A row above has this name, so this one never runs.");
     }
 
     #[test]
