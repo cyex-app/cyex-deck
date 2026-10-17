@@ -4,7 +4,7 @@ use cyex_moderation::command::Need;
 use serde::Serialize;
 
 use super::language::{
-    COMMAND_LINE, CUSTOM_COMMANDS, ESCAPING, FUNCTIONS, Function, PRECEDENCE, VARIABLES, Variable,
+    COMMAND_LINE, ESCAPING, FUNCTIONS, Function, GUIDE, Guide, PRECEDENCE, VARIABLES, Variable,
 };
 use super::{Cmd, all, cosmetics, is_app};
 use crate::chat::run::builtin::{need, reserved, usable};
@@ -45,7 +45,8 @@ struct Doc {
     command_line: &'static [&'static str],
     precedence: &'static [&'static str],
     escaping: &'static [&'static str],
-    custom_commands: &'static [&'static str],
+    custom_commands: Vec<String>,
+    guide: &'static [Guide],
     commands: Vec<Entry>,
     variables: &'static [Variable],
     functions: &'static [Function],
@@ -84,6 +85,20 @@ fn entry(cmd: &'static Cmd, anonymous: &[&str]) -> Entry {
     }
 }
 
+/// V106-13 The old `customCommands` lines (the website reads them), one per guide entry.
+pub(super) fn custom_commands() -> Vec<String> {
+    GUIDE
+        .iter()
+        .map(|g| {
+            [g.intro, g.variables, g.more]
+                .into_iter()
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .collect()
+}
+
 /// Pretty JSON, two spaces, `\n`, a trailing newline; the table’s order.
 pub(super) fn render() -> String {
     let anonymous = usable(None, false);
@@ -93,7 +108,8 @@ pub(super) fn render() -> String {
         command_line: COMMAND_LINE,
         precedence: PRECEDENCE,
         escaping: ESCAPING,
-        custom_commands: CUSTOM_COMMANDS,
+        custom_commands: custom_commands(),
+        guide: GUIDE,
         commands: all().map(|c| entry(c, &anonymous)).collect(),
         variables: VARIABLES,
         functions: FUNCTIONS,
