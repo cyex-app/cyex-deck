@@ -58,6 +58,7 @@ pub fn sync(app: &AppHandle) {
         .filter_map(|(acc, login)| Some((acc, channel_id(app, &login)?, login)))
         .collect();
     pairs.extend(crate::streammanager::own_channel(app));
+    let open: HashSet<(String, String)> = pairs.iter().map(|(a, c, _)| (a.clone(), c.clone())).collect();
     for (acc, cid, login) in pairs {
         if auth::helix_token(app, &acc).is_some() {
             wanted.entry(acc).or_default().insert(cid, login);
@@ -88,6 +89,7 @@ pub fn sync(app: &AppHandle) {
     for cid in released {
         crate::streammanager::follow_released(app, &cid);
     }
+    crate::feeds::automod::keep_only(app, &open);
 }
 
 /// The stream manager let go of `channel.follow` for a channel (D30): a mod feed that has
@@ -163,7 +165,7 @@ fn handle(app: &AppHandle, account: &str, out: Out) {
             let Some(cid) = subs::channel_of(&condition).map(str::to_owned) else { return };
             let login = login_for(app, account, &cid);
             if let Some(ev) = events::parse(&kind, &event) {
-                route(app, &cid, login.as_deref(), ev);
+                route(app, account, &cid, login.as_deref(), ev);
             }
         }
         Out::Revoked { kind, status, condition } => {
@@ -279,8 +281,24 @@ pub fn on_hermes(app: &AppHandle, e: &cyex_twitch::hermes::Event) {
             }
         }
         Kind::AutomodQueue => {
-            if let Some(d) = actions::automod_queue(&e.payload) {
-                view::add_action(app, cid, ModLine::decision(&d, cyex_chat::build::local_id(), now));
+            // V106-07 Q2b Held (pending) messages count too, so GQL-only mods see them.
+            if let Some(p) = actions::automod_pending(&e.payload) {
+                let item = HeldItem {
+                    message_id: p.message_id,
+                    user_id: p.sender.id.clone(),
+                    login: p.sender.login.clone(),
+                    display: display(&p.sender),
+                    text: p.text,
+                    reason: p.reason,
+                    ts: now,
+                };
+                held(app, acc, cid, login.as_deref(), item);
+            } else if let Some(r) = actions::automod_resolved(&e.payload) {
+                if let Some(d) = actions::automod_queue(&e.payload) {
+                    view::add_action(app, cid, ModLine::decision(&d, cyex_chat::build::local_id(), now));
+                }
+                crate::feeds::automod::done(app, &r.message_id, &r.status, r.by.as_deref());
+                view::resolve_held(app, cid, &r.message_id);
             }
         }
         _ => {}
@@ -300,7 +318,24 @@ fn moderate(app: &AppHandle, channel_id: &str, login: Option<&str>, m: &Moderate
     }
 }
 
-fn route(app: &AppHandle, channel_id: &str, login: Option<&str>, ev: Event) {
+/// A held message, from EventSub or Hermes (V103-15): mod view, chat notice and the AutoMod feed (V106-07).
+fn held(app: &AppHandle, account: &str, channel_id: &str, login: Option<&str>, item: HeldItem) {
+    let who = item.display.clone();
+    if let Some(login) = login {
+        crate::feeds::automod::held(app, account, channel_id, login, &item);
+    }
+    view::add_held(app, channel_id, item);
+    if let Some(login) = login {
+        crate::chat::notice_line(
+            app,
+            login,
+            NoticeKind::Moderation,
+            &format!("AutoMod held a message from {who}. Review it in the mod view."),
+        );
+    }
+}
+
+fn route(app: &AppHandle, account: &str, channel_id: &str, login: Option<&str>, ev: Event) {
     let now = crate::chat::now_ms();
     match ev {
         Event::Moderate(m) => {
@@ -308,27 +343,16 @@ fn route(app: &AppHandle, channel_id: &str, login: Option<&str>, ev: Event) {
             moderate(app, channel_id, login, &m, secs, now);
         }
         Event::Held(h) => {
-            view::add_held(
-                app,
-                channel_id,
-                HeldItem {
-                    message_id: h.message_id.clone(),
-                    user_id: h.user.id.clone(),
-                    login: h.user.login.clone(),
-                    display: display(&h.user),
-                    text: h.message.text.clone(),
-                    reason: held_reason(&h),
-                    ts: now,
-                },
-            );
-            if let Some(login) = login {
-                crate::chat::notice_line(
-                    app,
-                    login,
-                    NoticeKind::Moderation,
-                    &format!("AutoMod held a message from {}. Review it in the mod view.", display(&h.user)),
-                );
-            }
+            let item = HeldItem {
+                message_id: h.message_id.clone(),
+                user_id: h.user.id.clone(),
+                login: h.user.login.clone(),
+                display: display(&h.user),
+                text: h.message.text.clone(),
+                reason: held_reason(&h),
+                ts: now,
+            };
+            held(app, account, channel_id, login, item);
         }
         Event::HeldDone { message_id, status, moderator } => {
             // V103-15 The decision goes to the mod actions, with whose message it was.
@@ -338,6 +362,9 @@ fn route(app: &AppHandle, channel_id: &str, login: Option<&str>, ev: Event) {
             if let Some(d) = Decision::from_status(&status, moderator.as_ref(), sender.as_ref().and_then(Decision::sender), text) {
                 view::add_action(app, channel_id, ModLine::decision(&d, cyex_chat::build::local_id(), now));
             }
+            // V106-07
+            let by = moderator.as_ref().map(|m| if m.name.is_empty() { m.login.as_str() } else { m.name.as_str() });
+            crate::feeds::automod::done(app, &message_id, &status, by);
             view::resolve_held(app, channel_id, &message_id)
         }
         // Shared with the stream manager's feed (D30).

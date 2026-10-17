@@ -22,10 +22,19 @@ const EVERY: Duration = Duration::from_secs(60);
 #[derive(Default)]
 struct Seen {
     account: Option<String>,
-    /// Channel id → when its stream started, for every live followed channel.
-    live: HashMap<String, String>,
+    /// Channel id → when its stream started (and who, for the offline line), for every live followed channel.
+    live: HashMap<String, Known>,
     /// Nothing polled yet for this account.
     fresh: bool,
+}
+
+/// V106-07 A live followed channel as last seen.
+#[derive(Clone)]
+struct Known {
+    started: String,
+    login: String,
+    name: String,
+    avatar: Option<String>,
 }
 
 #[derive(Default)]
@@ -62,7 +71,7 @@ async fn poll(app: &AppHandle) {
         return;
     };
 
-    let alerts = {
+    let (alerts, flips) = {
         let mut seen = lock(app);
         if seen.account.as_deref() != Some(account.as_str()) {
             return; // the default account changed while we asked
@@ -73,15 +82,28 @@ async fn poll(app: &AppHandle) {
             .filter(|(card, bell)| n.live.wants(&card.id, *bell))
             .map(|(card, _)| card.clone())
             .collect::<Vec<_>>();
+        // V106-07 Live notifications feed: quiet on the first check (Q5), no bell filter.
+        let flips = if seen.fresh { Vec::new() } else { live_flips(&seen.live, &live) };
         seen.live = live
             .iter()
-            .filter_map(|(c, _)| Some((c.id.clone(), c.stream.as_ref()?.started_at.clone())))
+            .filter_map(|(c, _)| {
+                let known = Known {
+                    started: c.stream.as_ref()?.started_at.clone(),
+                    login: c.login.clone(),
+                    name: c.name.clone(),
+                    avatar: c.avatar.clone(),
+                };
+                Some((c.id.clone(), known))
+            })
             .collect();
         seen.fresh = false;
-        alerts
+        (alerts, flips)
     };
     for card in alerts {
         alert(app, &n, card);
+    }
+    for f in flips {
+        crate::feeds::live::flip(app, f);
     }
 }
 
@@ -112,7 +134,7 @@ async fn live_now(app: &AppHandle, account: &str) -> Option<Vec<(ChannelCard, bo
 /// Channels that went live since the last poll: new ones, and ones whose stream started
 /// again. `quiet` (the first poll after start) lets nothing through.
 fn news<'a>(
-    before: &HashMap<String, String>,
+    before: &HashMap<String, Known>,
     now: &'a [(ChannelCard, bool)],
     quiet: bool,
 ) -> Vec<&'a (ChannelCard, bool)> {
@@ -122,9 +144,42 @@ fn news<'a>(
     now.iter()
         .filter(|(c, _)| {
             let Some(s) = &c.stream else { return false };
-            before.get(&c.id) != Some(&s.started_at)
+            before.get(&c.id).map(|k| &k.started) != Some(&s.started_at)
         })
         .collect()
+}
+
+/// V106-07 Streams that started (new, or started again) or ended since the last check.
+fn live_flips(before: &HashMap<String, Known>, now: &[(ChannelCard, bool)]) -> Vec<crate::feeds::live::Flip> {
+    let mut flips: Vec<crate::feeds::live::Flip> = now
+        .iter()
+        .filter_map(|(c, _)| {
+            let s = c.stream.as_ref()?;
+            (before.get(&c.id).map(|k| &k.started) != Some(&s.started_at)).then(|| crate::feeds::live::Flip {
+                id: c.id.clone(),
+                login: c.login.clone(),
+                name: c.name.clone(),
+                avatar: c.avatar.clone(),
+                live: true,
+                title: Some(s.title.clone()),
+                game: s.game.as_ref().map(|g| g.name.clone()),
+            })
+        })
+        .collect();
+    for (id, k) in before {
+        if !now.iter().any(|(c, _)| &c.id == id && c.stream.is_some()) {
+            flips.push(crate::feeds::live::Flip {
+                id: id.clone(),
+                login: k.login.clone(),
+                name: k.name.clone(),
+                avatar: k.avatar.clone(),
+                live: false,
+                title: None,
+                game: None,
+            });
+        }
+    }
+    flips
 }
 
 fn alert(app: &AppHandle, n: &Notifications, card: ChannelCard) {
@@ -189,9 +244,14 @@ mod tests {
         (card, true)
     }
 
+    fn known(id: &str, started: &str) -> (String, Known) {
+        let k = Known { started: started.into(), login: id.into(), name: id.into(), avatar: None };
+        (id.to_owned(), k)
+    }
+
     #[test]
     fn new_and_restarted_streams_alert() {
-        let before = HashMap::from([("a".to_owned(), "1".to_owned()), ("b".to_owned(), "1".to_owned())]);
+        let before = HashMap::from([known("a", "1"), known("b", "1")]);
         let now = [live("a", "1"), live("b", "2"), live("c", "1")];
         let ids: Vec<&str> = news(&before, &now, false)
             .iter()
@@ -199,5 +259,15 @@ mod tests {
             .collect();
         assert_eq!(ids, ["b", "c"]);
         assert!(news(&before, &now, true).is_empty());
+    }
+
+    #[test]
+    fn feed_flips_on_start_restart_and_end() {
+        let before = HashMap::from([known("a", "1"), known("b", "1"), known("gone", "1")]);
+        let now = [live("a", "1"), live("b", "2"), live("c", "1")];
+        let mut f: Vec<(String, bool)> = live_flips(&before, &now).into_iter().map(|f| (f.id, f.live)).collect();
+        f.sort();
+        assert_eq!(f, [("b".to_owned(), true), ("c".to_owned(), true), ("gone".to_owned(), false)]);
+        assert_eq!(live_flips(&before, &now).iter().find(|f| f.id == "b").and_then(|f| f.title.clone()).as_deref(), Some("t"));
     }
 }

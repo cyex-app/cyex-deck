@@ -17,6 +17,7 @@ function tile(channel: string, feed: string | null = null): Tile {
     muted: false,
     boost: false,
     feed,
+    feedKind: 'rules',
     filters: [],
     chatSide: null,
     modviewShare: null,

@@ -55,7 +55,7 @@ pub use plugins::{PluginEntry, Plugins};
 pub use sound::{OutputDevice, Sound};
 pub use streammanager::{ActivityFilters, ModActionFilters, Obs, StreamManager};
 pub use tabs::{
-    Closed, Column, GroupColor, ImportTab, Resolved, Tab, TabChannel, TabError, TabGroup, TabOp, Tabs, Tile, TileShow, Zone,
+    Closed, Column, FeedKind, GroupColor, ImportTab, Resolved, Tab, TabChannel, TabError, TabGroup, TabOp, Tabs, Tile, TileShow, Zone,
     random_id,
 };
 pub use uploader::Uploader;

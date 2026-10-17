@@ -399,6 +399,69 @@ pub fn automod_queue(p: &Value) -> Option<Decision> {
     )
 }
 
+/// V106-07 Q2b Hermes' `automod-queue`: a message AutoMod is holding (`status` PENDING). Shape
+/// as Chatterino 2.4.6 read it (pubsubmessages/AutoMod.cpp); checked once on a real message.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Pending {
+    pub message_id: String,
+    pub sender: Who,
+    pub text: String,
+    pub reason: String,
+}
+
+pub fn automod_pending(p: &Value) -> Option<Pending> {
+    if p.get("type")?.as_str()? != "automod_caught_message" {
+        return None;
+    }
+    let d = p.get("data")?;
+    let s = |v: &Value, k: &str| v.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
+    if !s(d, "status").eq_ignore_ascii_case("pending") {
+        return None;
+    }
+    let msg = d.get("message")?;
+    let message_id = s(msg, "id");
+    if message_id.is_empty() {
+        return None;
+    }
+    let u = msg.get("sender").unwrap_or(&Value::Null);
+    let sender = Who { id: s(u, "user_id"), login: s(u, "login"), name: s(u, "display_name") };
+    let text = msg.pointer("/content/text").and_then(Value::as_str).unwrap_or_default().to_owned();
+    let reason = d
+        .pointer("/content_classification/category")
+        .and_then(Value::as_str)
+        .filter(|c| !c.is_empty())
+        .unwrap_or("AutoMod")
+        .to_owned();
+    Some(Pending { message_id, sender, text, reason })
+}
+
+/// The same topic once a mod decided or Twitch let it go: which message, the status (lowercase) and who.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Resolved {
+    pub message_id: String,
+    pub status: String,
+    pub by: Option<String>,
+}
+
+pub fn automod_resolved(p: &Value) -> Option<Resolved> {
+    if p.get("type")?.as_str()? != "automod_caught_message" {
+        return None;
+    }
+    let d = p.get("data")?;
+    let s = |v: &Value, k: &str| v.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
+    // A7
+    let status = s(d, "status").to_ascii_lowercase();
+    if !matches!(status.as_str(), "allowed" | "approved" | "denied" | "expired") {
+        return None;
+    }
+    let message_id = d.get("message").map(|m| s(m, "id")).unwrap_or_default();
+    if message_id.is_empty() {
+        return None;
+    }
+    let by = Some(s(d, "resolver_login")).filter(|l| !l.is_empty());
+    Some(Resolved { message_id, status, by })
+}
+
 /// Hermes' `chat_moderator_actions.<user>.<channel>` (PubSub's shapes, from Twitch's own
 /// client) as EventSub's `channel.moderate`, with a timeout's length in seconds. `None` for
 /// what isn't a mod action (a warning read, a note to the person a message was deleted from).
@@ -666,6 +729,29 @@ mod tests {
                 .unwrap()
                 .approved
         );
+    }
+
+    #[test]
+    fn hermes_pending_and_resolved() {
+        let held = |status: &str| {
+            json!({"type": "automod_caught_message", "data": {"status": status, "resolver_login": "kuni",
+                "content_classification": {"category": "aggressive", "level": 2},
+                "message": {"id": "m1", "content": {"text": "hi"}, "sender": {"user_id": "3", "login": "x", "display_name": "X"}}}})
+        };
+        let p = automod_pending(&held("PENDING")).unwrap();
+        assert_eq!((p.message_id.as_str(), p.reason.as_str(), p.text.as_str()), ("m1", "aggressive", "hi"));
+        assert_eq!((p.sender.id.as_str(), p.sender.login.as_str(), p.sender.name.as_str()), ("3", "x", "X"));
+        assert!(automod_pending(&held("pending")).is_some());
+        let bare = json!({"type": "automod_caught_message", "data": {"status": "PENDING", "message": {"id": "m2"}}});
+        assert_eq!(automod_pending(&bare).unwrap().reason, "AutoMod");
+        assert!(automod_pending(&held("DENIED")).is_none());
+        assert!(automod_resolved(&held("PENDING")).is_none());
+        for (status, want) in [("ALLOWED", "allowed"), ("DENIED", "denied"), ("EXPIRED", "expired")] {
+            let r = automod_resolved(&held(status)).unwrap();
+            assert_eq!((r.message_id.as_str(), r.status.as_str(), r.by.as_deref()), ("m1", want, Some("kuni")));
+        }
+        assert!(automod_resolved(&json!({"type": "automod_caught_message", "data": {"status": "DENIED"}})).is_none());
+        assert!(automod_queue(&held("PENDING")).is_none());
     }
 
     #[test]

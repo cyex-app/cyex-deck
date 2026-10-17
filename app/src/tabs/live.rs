@@ -128,7 +128,7 @@ async fn poll(app: &AppHandle) {
         eprintln!("tabs: couldn't save new channel names: {e}");
     }
 
-    let changed = {
+    let (changed, feed_flips) = {
         let mut last = live.channels.lock().unwrap_or_else(|p| p.into_inner());
         // S8 Channels whose login or display name changed since the last look.
         let renamed: Vec<(String, String, String)> = channels
@@ -141,25 +141,35 @@ async fn poll(app: &AppHandle) {
             .collect();
         crate::plugins::events::renamed(app, renamed);
         // S12 Channels whose stream started or ended. Nothing on the first look.
-        let flips: Vec<LiveChange> = channels
-            .iter()
-            .filter(|c| tab_ids.contains(&c.id))
-            .filter_map(|c| {
-                let old = last.iter().find(|o| o.id == c.id)?;
-                (old.stream.is_some() != c.stream.is_some()).then(|| LiveChange {
-                    channel: c.login.clone(),
-                    name: c.name.clone(),
-                    live: c.stream.is_some(),
-                    title: c.stream.as_ref().map(|s| s.title.clone()),
-                    game: c.stream.as_ref().and_then(|s| s.game.clone()),
-                })
-            })
-            .collect();
+        // V106-07 The same flips go to the Live notifications feed.
+        let mut flips: Vec<LiveChange> = Vec::new();
+        let mut feed_flips: Vec<crate::feeds::live::Flip> = Vec::new();
+        for c in channels.iter().filter(|c| tab_ids.contains(&c.id)) {
+            let Some(old) = last.iter().find(|o| o.id == c.id) else { continue };
+            if old.stream.is_some() == c.stream.is_some() {
+                continue;
+            }
+            let title = c.stream.as_ref().map(|s| s.title.clone());
+            let game = c.stream.as_ref().and_then(|s| s.game.clone());
+            feed_flips.push(crate::feeds::live::Flip {
+                id: c.id.clone(),
+                login: c.login.clone(),
+                name: c.name.clone(),
+                avatar: c.avatar.clone(),
+                live: c.stream.is_some(),
+                title: title.clone(),
+                game: game.clone(),
+            });
+            flips.push(LiveChange { channel: c.login.clone(), name: c.name.clone(), live: c.stream.is_some(), title, game });
+        }
         crate::plugins::events::live(app, flips);
         let changed = *last != channels;
         *last = channels.clone();
-        changed
+        (changed, feed_flips)
     };
+    for f in feed_flips {
+        crate::feeds::live::flip(app, f);
+    }
     if changed {
         let _ = app.emit(EVENT, channels);
     }

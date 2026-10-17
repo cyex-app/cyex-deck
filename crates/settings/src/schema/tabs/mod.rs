@@ -128,6 +128,8 @@ pub struct Tile {
     pub boost: bool,
     /// F4 A feed tab's name instead of a channel: shows what rules send there.
     pub feed: Option<String>,
+    /// V106-07 Only for feed tiles.
+    pub feed_kind: FeedKind,
     /// F3 Filter ids the chat shows messages through.
     pub filters: Vec<String>,
     /// V102-23 Where the chat sits next to the stream, dragged with the tab's panels
@@ -155,10 +157,47 @@ impl Default for Tile {
             muted: false,
             boost: false,
             feed: None,
+            feed_kind: FeedKind::Rules,
             filters: Vec::new(),
             chat_side: None,
             modview_share: None,
             layout: None,
+        }
+    }
+}
+
+/// V106-07 What a feed tab shows. `Rules` is F4's named feed (Mentions and Custom feeds).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum FeedKind {
+    #[default]
+    Rules,
+    Live,
+    Automod,
+    Whispers,
+}
+
+/// By hand: an unknown kind loads as `Rules` (serde's `other` must be the last variant).
+impl<'de> Deserialize<'de> for FeedKind {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Ok(match String::deserialize(d)?.as_str() {
+            "live" => Self::Live,
+            "automod" => Self::Automod,
+            "whispers" => Self::Whispers,
+            _ => Self::Rules,
+        })
+    }
+}
+
+impl FeedKind {
+    /// The tab's name when it isn't renamed (Q1c). `None` for `Rules`: the user names it.
+    pub fn label(self) -> Option<&'static str> {
+        match self {
+            Self::Rules => None,
+            Self::Live => Some("Live notifications"),
+            Self::Automod => Some("AutoMod"),
+            Self::Whispers => Some("Whispers"),
         }
     }
 }
@@ -342,6 +381,16 @@ fn sanitize_tile(tile: &mut Tile) {
     }
     tile.account = tile.account.take().filter(|a| !a.is_empty());
     tile.feed = tile.feed.take().map(|f| clip(f.trim(), MAX_FEED_CHARS)).filter(|f| !f.is_empty());
+    // V106-07 A kind without a feed name: a feed tile gets its label back, a channel tile is no feed.
+    if tile.feed.is_none() {
+        if tile.channel.id.is_empty()
+            && let Some(l) = tile.feed_kind.label()
+        {
+            tile.feed = Some(l.to_owned());
+        } else {
+            tile.feed_kind = FeedKind::Rules;
+        }
+    }
     tile.filters.retain(|f| !f.is_empty());
     tile.filters.dedup();
     tile.filters.truncate(MAX_TILE_FILTERS);

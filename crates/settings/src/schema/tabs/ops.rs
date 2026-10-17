@@ -7,7 +7,7 @@ use serde::Deserialize;
 use ts_rs::TS;
 
 use super::order::neighbor;
-use super::{ChatPosition, Column, GroupColor, PanelNode, Schema, Tab, TabChannel, TabGroup, Tabs, Tile, TileShow};
+use super::{ChatPosition, Column, FeedKind, GroupColor, PanelNode, Schema, Tab, TabChannel, TabGroup, Tabs, Tile, TileShow};
 
 #[derive(Clone, Debug, Deserialize, TS)]
 #[serde(tag = "op", rename_all = "camelCase")]
@@ -64,7 +64,13 @@ pub enum TabOp {
         rows: Vec<Vec<f32>>,
     },
     /// F4 A new tab showing a feed. Shows it.
-    AddFeed { name: String },
+    AddFeed {
+        name: String,
+        /// V106-07 `None` is a rules feed (Mentions, Custom feed).
+        #[serde(default)]
+        #[ts(optional)]
+        kind: Option<FeedKind>,
+    },
     /// F3 The filters a tile's chat shows messages through.
     Filters { tile: String, filters: Vec<String> },
     /// 3.11 Chat's share of the tile.
@@ -183,6 +189,7 @@ impl Tabs {
                     muted: false,
                     boost: false,
                     feed: None,
+                    feed_kind: FeedKind::Rules,
                     filters: Vec::new(),
                     chat_side: None,
                     modview_share: None,
@@ -219,6 +226,7 @@ impl Tabs {
                         muted: i > 0,
                         boost: false,
                         feed: None,
+                        feed_kind: FeedKind::Rules,
                         filters: Vec::new(),
                         chat_side: None,
                         modview_share: None,
@@ -345,16 +353,27 @@ impl Tabs {
                 }
                 Ok(None)
             }
-            TabOp::AddFeed { name } => {
-                let name = name.trim().to_owned();
+            TabOp::AddFeed { name, kind } => {
+                let kind = kind.unwrap_or_default();
+                let name = kind.label().map(str::to_owned).unwrap_or_else(|| name.trim().to_owned());
                 if name.is_empty() {
                     return Err(TabError("Give the feed a name."));
+                }
+                let key = name.to_lowercase();
+                // Q1b One tab per kind; Custom feeds one per name (A2).
+                if self.tiles().any(|t| {
+                    t.feed.is_some()
+                        && t.feed_kind == kind
+                        && (kind != FeedKind::Rules || t.feed.as_deref().is_some_and(|f| f.trim().to_lowercase() == key))
+                }) {
+                    return Err(TabError("You have this feed already."));
                 }
                 let id = self.fresh(new_id);
                 let tile = Tile {
                     id: self.fresh(new_id),
                     show: TileShow { player: false, chat: true },
                     feed: Some(name),
+                    feed_kind: kind,
                     ..Tile::default()
                 };
                 self.tabs.push(Tab {

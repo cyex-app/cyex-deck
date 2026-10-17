@@ -12,6 +12,7 @@ mod commands;
 mod cosmetics;
 mod connections;
 mod emotes;
+mod feeds;
 mod hermes;
 mod hotkeys;
 mod icons;
@@ -76,6 +77,7 @@ fn main() {
             upload::init(handle);
             update::init(handle);
             bell::init(handle);
+            feeds::init(handle);
             alerts::init(handle);
             windows::init(handle)?;
             // V1051-01 The streams' speaker choice is set when the main page loads (windows::on_page_load).
