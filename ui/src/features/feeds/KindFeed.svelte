@@ -1,5 +1,6 @@
 <!-- V106-07 A feed tab of its own kind: live notifications, AutoMod or whispers. Rust keeps
-     the list for the session; this shows it and applies the events. -->
+     the list for the session; this shows it and applies the events.
+     Rust sends the list oldest first. -->
 <script lang="ts">
   import { onDestroy, untrack, type Snippet } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
@@ -9,8 +10,11 @@
   import type { IconName } from '../../components/icons';
   import type { FeedEntry } from '../../ipc/bindings/FeedEntry';
   import type { FeedKind } from '../../ipc/bindings/FeedKind';
+  import type { KindEvent } from '../../ipc/bindings/KindEvent';
   import { feedsIpc } from '../../ipc/feeds';
+  import { errorText } from '../../lib/errors';
   import { streamer } from '../../lib/streamer.svelte';
+  import { toast } from '../../lib/toast.svelte';
   import { whispers } from '../whispers/whispers.svelte';
   import { apply, keyOf, tsOf } from './entries';
   import FeedHeader from './FeedHeader.svelte';
@@ -39,6 +43,7 @@
   let failed = $state(false);
   let view = 0;
   let closed = false;
+  let pending: KindEvent[] | null = [];
   const revealed = new SvelteSet<string>();
 
   // A5 A revealed whisper hides again when streamer mode turns on.
@@ -48,12 +53,18 @@
 
   function open() {
     failed = false;
+    pending = [];
+    const cap = CAP[kind] ?? 200;
     feedsIpc
-      .open(kind, (e) => (entries = apply(entries, e, CAP[kind] ?? 200)))
+      .open(kind, (e) => {
+        if (pending) pending.push(...e);
+        else entries = apply(entries, e, cap);
+      })
       .then((o) => {
         if (closed) return void feedsIpc.close(o.view);
         view = o.view;
-        entries = o.entries.slice(0, CAP[kind] ?? 200);
+        entries = apply([...o.entries].reverse().slice(0, cap), pending ?? [], cap);
+        pending = null;
       })
       .catch(() => !closed && (failed = true));
   }
@@ -70,7 +81,7 @@
   <FeedHeader icon={ICON[kind] ?? 'list'} {name} {actions} {onheaderdown}>
     {#snippet extra()}
       {#if entries.length > 0}
-        <Button small variant="ghost" onclick={() => void feedsIpc.clear(kind)}>Clear</Button>
+        <Button small variant="ghost" onclick={() => feedsIpc.clear(kind).catch((e) => toast.error(errorText(e)))}>Clear</Button>
       {/if}
     {/snippet}
   </FeedHeader>
