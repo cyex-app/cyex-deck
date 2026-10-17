@@ -1,10 +1,11 @@
 // V1051-04 Tab after `/combo`, `/paint` and `/badge` completes their argument: combo names and
-// sub-commands, paint and badge names. Ranked with the one helper (`complete`).
+// sub-commands, paint and badge names. I106-3 `/remove` and `/rename` complete the first word only: the
+// channel's 7TV emote names. Ranked with the one helper (`complete`).
 
 import { complete } from './completion.ts';
 
 export interface ArgSpot {
-  command: 'combo' | 'paint' | 'badge';
+  command: 'combo' | 'paint' | 'badge' | 'remove' | 'rename';
   sub: string | null;
   start: number;
   typed: string;
@@ -20,7 +21,7 @@ interface Arg {
 
 /** `/combo` sub-commands. Never quoted. */
 const SUBS = ['list', 'save', 'delete', 'rename'];
-const COMMAND = /^\/(combo|paint|badge) /i;
+const COMMAND = /^\/(combo|paint|badge|remove|rename) /i;
 const OPEN_QUOTE = /["“]/;
 const CLOSE_QUOTE = /["”]/;
 
@@ -62,6 +63,9 @@ export function argAt(text: string, caret: number): ArgSpot | null {
   const command = m[1].toLowerCase() as ArgSpot['command'];
   const from = before.length - head.length + m[0].length;
   const rest = head.slice(m[0].length);
+  // I106-3 Emote names have no spaces: only the first word completes.
+  if (command === 'remove' || command === 'rename')
+    return /\s/.test(rest) ? null : { command, sub: null, start: from, typed: rest, quote: false };
   if (command !== 'combo') return { command, sub: null, start: from, typed: rest, quote: false };
 
   const args = splitArgs(rest);

@@ -4,6 +4,7 @@
 
 mod builtin;
 mod cosmetics;
+mod seventv_edit;
 pub use builtin::{block_user, reserved};
 pub mod complete;
 mod host;
@@ -24,6 +25,7 @@ use ts_rs::TS;
 
 use super::{Chat, Identity, RoomKey};
 use crate::cosmetics::VarScope;
+use crate::emotes::edit::{EditDone, EditOp};
 use crate::settings::Settings;
 use host::AppHost;
 
@@ -100,6 +102,8 @@ pub enum UiAction {
     /// `/paint`, `/badge` or `/combo` needs 7TV's sign-in: the sign-in pop-up, then `command`
     /// runs again. `again`: the session ran out.
     SevenTvSignIn { command: String, again: bool },
+    /// I106-3 /add, /remove or /rename worked: the chat view shows the Undo toast.
+    SevenTvEdited { op: EditOp, done: EditDone },
 }
 
 /// S1 Who and what a menu entry was picked on.

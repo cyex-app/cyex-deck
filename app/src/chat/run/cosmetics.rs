@@ -251,7 +251,7 @@ fn not_owned(noun: &str, t: &str) -> String {
 }
 
 /// A 7TV id is a 26-char ULID (Crockford base32).
-fn is_seventv_id(t: &str) -> bool {
+pub(super) fn is_seventv_id(t: &str) -> bool {
     t.len() == 26 && t.bytes().all(|b| b.is_ascii_digit() || (b.is_ascii_uppercase() && !matches!(b, b'I' | b'L' | b'O' | b'U')))
 }
 

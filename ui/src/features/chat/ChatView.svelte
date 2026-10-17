@@ -33,6 +33,7 @@
   import { bindingOf, useHotkeys } from '../../lib/hotkeys.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
+  import { editDone } from '../emotes/edit/run'; // I106-3
   import { catalogs } from './catalog.svelte';
   import ChatInput from './ChatInput.svelte';
   import CosmeticsPopup from '../cosmetics/CosmeticsPopup.svelte';
@@ -188,6 +189,10 @@
       // /paint, /badge, /combo while signed out of 7TV: the sign-in pop-up, then the command again.
       if (retried || !account) toast.error('Sign in to 7TV first: /cosmetics.');
       else unlock.ask('seventv', account, { again: a.again, after: (done) => done.includes('seventv') && retry(a.command) });
+    }
+    else if (a.type === 'sevenTvEdited') {
+      // I106-3 /add, /remove, /rename: the Undo toast; the chat line came from the edit.
+      if (account) editDone(account, login, a.op, a.done);
     }
     else if (a.type === 'popout') {
       if (onpopout) onpopout();

@@ -76,6 +76,8 @@ pub async fn run(
         }
         // V1051-04
         "combo" | "paint" | "badge" => super::cosmetics::run(app, place, name, args).await,
+        // I106-3
+        "add" | "remove" | "rename" => super::seventv_edit::run(app, place, name, args).await,
         "set" => set_var(app, args).map(|()| None),
         "chain" => {
             for part in split_chain(args) {
@@ -223,6 +225,8 @@ pub(super) const OWN: &[&str] = &[
     "color", "cosmetics", "w", "whisper", "r", "nuke",
     // V1051-04
     "combo", "paint", "badge",
+    // I106-3
+    "add", "remove", "rename",
 ];
 
 /// S5 Names plugins can't register: the app's commands and Twitch's.
@@ -239,6 +243,8 @@ fn is_mod_command(name: &str) -> bool {
 pub(super) const SIGNED_IN: &[&str] = &["me", "tl", "vote", "color", "cosmetics", "block", "unblock", "w", "whisper", "r",
     // V1051-04
     "combo", "paint", "badge",
+    // I106-3
+    "add", "remove", "rename",
 ];
 
 /// V1041-01 Who may run a built-in (1.57): Twitch's mod commands as they parse, `/nuke` any
@@ -453,6 +459,9 @@ mod tests {
         // V1051-04 The 7TV commands are offered signed in, never anonymous.
         assert!(has(&viewer, &["combo", "paint", "badge"]) && none(&anon, &["combo", "paint", "badge"]));
         assert!(super::super::cosmetics::NAMES.iter().all(|n| OWN.contains(n)));
+        // I106-3 Same for the 7TV emote commands.
+        assert!(has(&viewer, &["add", "remove", "rename"]) && none(&anon, &["add", "remove", "rename"]));
+        assert!(super::super::seventv_edit::NAMES.iter().all(|n| OWN.contains(n)));
         // Sorted, once each.
         assert!(owner.windows(2).all(|w| w[0] < w[1]));
     }

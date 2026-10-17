@@ -5,6 +5,7 @@
 
 mod app;
 mod cosmetics;
+mod emotes;
 #[cfg(test)]
 mod functions;
 #[cfg(test)]
@@ -175,6 +176,7 @@ pub(super) fn all() -> impl Iterator<Item = &'static Cmd> {
     app::BEFORE
         .iter()
         .chain(cosmetics::CMDS)
+        .chain(emotes::CMDS)
         .chain(app::AFTER)
         .chain(twitch::CMDS)
 }

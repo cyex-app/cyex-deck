@@ -4,13 +4,16 @@
 //! stored session; a test run refuses edits unless the client points at the loopback mock.
 
 mod echo;
+mod here;
 mod ops;
 mod options;
 mod reach;
 #[cfg(test)]
 mod tests;
 
+pub use here::{emote_facts, here_names, here_target};
 pub use ops::{EditDone, EditFail, EditOp, EditOptions, NameCheck, Reachability};
+pub use reach::Target;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};

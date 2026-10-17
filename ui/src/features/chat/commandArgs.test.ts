@@ -17,6 +17,16 @@ test('V1051-04 /combo, /paint and /badge arguments', () => {
   assert.deepEqual(at('  /badge |'), { command: 'badge', sub: null, start: 9, typed: '', quote: false });
 });
 
+test('I106-3 /remove and /rename complete the first word', () => {
+  assert.deepEqual(at('/remove KE|'), { command: 'remove', sub: null, start: 8, typed: 'KE', quote: false });
+  assert.deepEqual(at('/REMOVE |'), { command: 'remove', sub: null, start: 8, typed: '', quote: false });
+  assert.deepEqual(at('/rename KE|'), { command: 'rename', sub: null, start: 8, typed: 'KE', quote: false });
+  assert.equal(at('/rename KEKW n|'), null);
+  assert.equal(at('/add x|'), null);
+  assert.deepEqual(argMatches({ command: 'remove', sub: null, start: 8, typed: 'ke', quote: false }, ['KEKW', 'Pog', 'my emote']), ['KEKW']);
+  assert.deepEqual(argMatches({ command: 'rename', sub: null, start: 8, typed: '', quote: false }, ['a b']), ['a b']);
+});
+
 test('V1051-04 no argument to complete', () => {
   assert.equal(at('/combo save x|'), null);
   assert.equal(at('/combo rename "a b" c|'), null);

@@ -107,7 +107,7 @@ fn variables_match_the_code() {
 fn help_line_reads_as_before() {
     assert_eq!(
         help_line(),
-        "/me, /echo, /set var, /chain, /foreach, /runin, /timer, /user, /logs, /block, /unblock, /hideuser, /unhideuser, /mutepings, /tl, /translate, /vote, /search, /popout, /color, /cosmetics, /combo, /paint, /badge, /w, /r. Mods: /ban, /timeout, /unban, /warn and Twitch’s other mod commands. Your own commands are in Settings → Commands."
+        "/me, /echo, /set var, /chain, /foreach, /runin, /timer, /user, /logs, /block, /unblock, /hideuser, /unhideuser, /mutepings, /tl, /translate, /vote, /search, /popout, /color, /cosmetics, /combo, /paint, /badge, /add, /remove, /rename, /w, /r. Mods: /ban, /timeout, /unban, /warn and Twitch’s other mod commands. Your own commands are in Settings → Commands."
     );
 }
 

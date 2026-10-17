@@ -22,7 +22,7 @@ pub fn names(app: &AppHandle, view: u32) -> Result<Vec<String>, String> {
 }
 
 /// V1051-04 Tab's candidates for an argument of `/combo`, `/paint` or `/badge` (raw names; the UI
-/// ranks them). `sub` is `/combo`'s sub-command when the caret is past it.
+/// ranks them), and I106-3 `/remove` and `/rename`: this channel's 7TV emote names. `sub` is `/combo`'s sub-command when the caret is past it.
 pub async fn args(app: &AppHandle, view: u32, command: &str, sub: Option<&str>) -> Result<Vec<String>, String> {
     use std::time::Duration;
 
@@ -33,6 +33,7 @@ pub async fn args(app: &AppHandle, view: u32, command: &str, sub: Option<&str>) 
         return Ok(Vec::new());
     };
     let kind = match command {
+        "remove" | "rename" => return Ok(crate::emotes::edit::here_names(app, account, place.channel())),
         "combo" => {
             let sub = sub.map(str::to_ascii_lowercase);
             return Ok(match sub.as_deref() {
