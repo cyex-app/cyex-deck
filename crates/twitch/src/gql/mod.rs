@@ -98,14 +98,14 @@ impl Auth<'static> {
 }
 
 #[derive(Deserialize)]
-struct Response<T> {
+pub(crate) struct Response<T> {
     data: Option<T>,
     #[serde(default)]
     errors: Vec<GqlError>,
 }
 
 #[derive(Deserialize)]
-struct GqlError {
+pub(crate) struct GqlError {
     message: String,
 }
 
@@ -133,6 +133,18 @@ pub(crate) async fn query_with<T: DeserializeOwned>(
     }
     let req = req.json(&json!({ "query": query, "variables": variables }));
     unwrap(send_json(req).await?)
+}
+
+/// V106-21 Runs a raw query whose fields are all optional: see `partial`.
+pub(crate) async fn query_partial<T: DeserializeOwned>(
+    http: &Http,
+    auth: Auth<'_>,
+    query: &str,
+    variables: Value,
+    keep: impl FnOnce(&T) -> bool,
+) -> Result<T> {
+    let req = request(http, auth).json(&json!({ "query": query, "variables": variables }));
+    partial(send_json(req).await?, keep)
 }
 
 /// Runs a persisted query by its hash.
@@ -226,9 +238,48 @@ fn unwrap<T>(res: Response<T>) -> Result<T> {
     }
 }
 
+/// Data wins when there is some: a failing side field (Twitch nulls it and adds an
+/// `errors` entry) must not blank a whole page (V106-21). Only for queries whose fields
+/// are all optional. `keep` says whether the data is worth keeping (e.g. the user itself
+/// came back); if not, the error wins as in `unwrap`.
+pub(crate) fn partial<T>(res: Response<T>, keep: impl FnOnce(&T) -> bool) -> Result<T> {
+    match res.data {
+        Some(data) if res.errors.is_empty() || keep(&data) => Ok(data),
+        data => unwrap(Response { data, errors: res.errors }),
+    }
+}
+
+/// V101-24 `null` reads like a missing field: Twitch sends either.
+pub(crate) fn nullable<'de, D: serde::Deserializer<'de>, T: Default + Deserialize<'de>>(
+    d: D,
+) -> std::result::Result<T, D::Error> {
+    Option::<T>::deserialize(d).map(Option::unwrap_or_default)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn partial_keeps_data_with_errors() {
+        let raw = r#"{"data":{"user":{"id":"1"}},"errors":[{"message":"service timeout"}]}"#;
+        let res: Response<Value> = serde_json::from_str(raw).unwrap();
+        let data = partial(res, |d| !d["user"].is_null()).unwrap();
+        assert_eq!(data["user"]["id"], "1");
+    }
+
+    #[test]
+    fn partial_without_data_is_the_error() {
+        let res: Response<Value> =
+            serde_json::from_str(r#"{"data":null,"errors":[{"message":"service timeout"}]}"#).unwrap();
+        assert_eq!(partial(res, |_| true).unwrap_err().api_message(), Some("service timeout"));
+        // A missing user plus an error is the error, not "no such channel".
+        let res: Response<Value> =
+            serde_json::from_str(r#"{"data":{"user":null},"errors":[{"message":"service timeout"}]}"#).unwrap();
+        assert_eq!(partial(res, |d| !d["user"].is_null()).unwrap_err().api_message(), Some("service timeout"));
+        let res: Response<Value> = serde_json::from_str(r#"{"data":{"user":null}}"#).unwrap();
+        assert!(partial(res, |d| !d["user"].is_null()).is_ok());
+    }
 
     #[test]
     fn errors_win_over_partial_data() {

@@ -5,8 +5,4 @@ export type Panel = { title: string | null, image: string | null,
 /**
  * Where the image leads.
  */
-link: string | null, body: Array<Block>, 
-/**
- * An extension panel: the extension's name, if Twitch says.
- */
-extension: string | null, };
+link: string | null, body: Array<Block>, };

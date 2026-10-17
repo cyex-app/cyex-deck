@@ -1,0 +1,146 @@
+{
+ "data": {
+  "user": {
+   "id": "160538649",
+   "login": "faith",
+   "displayName": "Faith",
+   "description": "you're in the right place 😈💜  !s",
+   "createdAt": "2017-06-17T18:47:17.427446Z",
+   "bannerImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/d71c5d24-b2f1-426b-a25e-9d2cff26c190-profile_banner-480.png",
+   "primaryColorHex": "DE82E5",
+   "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/2294e734-696a-459b-9921-76ef1eb561fe-profile_image-150x150.png",
+   "followers": {
+    "totalCount": 873648
+   },
+   "roles": {
+    "isPartner": true,
+    "isAffiliate": false
+   },
+   "lastBroadcast": {
+    "startedAt": "2026-10-15T22:02:33.323084Z",
+    "title": "THE #1 GODDESS ON TWITCH 💸❤️ | !s !throne !x !clips | IG: FAITHTTV_",
+    "game": {
+     "displayName": "Just Chatting"
+    }
+   },
+   "channel": {
+    "socialMedias": [
+     {
+      "name": "faithttv",
+      "title": "💗 ALL MY SOCIALS 💗",
+      "url": "http://www.faithttv.com/"
+     },
+     {
+      "name": "faithttv",
+      "title": "💗 ALL MY SOCIALS 💗",
+      "url": "http://www.faithttv.com/"
+     }
+    ],
+    "selfInstalledExtensions": [
+     {
+      "installation": {
+       "extension": {
+        "name": "Prime Gaming Benefits Reminder"
+       },
+       "activationConfig": {
+        "slot": "extension-component-1"
+       }
+      }
+     },
+     {
+      "installation": {
+       "extension": {
+        "name": "Timeout With Bits"
+       },
+       "activationConfig": {
+        "slot": "extension-panel-2"
+       }
+      }
+     },
+     {
+      "installation": {
+       "extension": {
+        "name": "Throne Wishlist"
+       },
+       "activationConfig": {
+        "slot": "extension-panel-1"
+       }
+      }
+     }
+    ]
+   },
+   "panels": [
+    {
+     "id": "16163920",
+     "type": "DEFAULT",
+     "title": null,
+     "description": "^^^^TIP ME HERE ^^^^  \n\n$3+ for tts\n\n#Click the photo panel to tip!  \n",
+     "imageURL": "https://panels.twitch.tv/panel-160538649-image-02339e50-9ae6-4770-9278-10efed8453e5",
+     "linkURL": "https://streamlabs.com/faith/tip"
+    },
+    {
+     "id": "137355815",
+     "type": "DEFAULT",
+     "title": "Click my photo 💗",
+     "description": null,
+     "imageURL": "https://panels.twitch.tv/panel-160538649-image-71c6caf1-c934-4b9b-bdb1-6c48a2afbc34",
+     "linkURL": "http://www.faithttv.com/"
+    },
+    {
+     "id": "16085545",
+     "type": "DEFAULT",
+     "title": null,
+     "description": ">**Real Name:** Faith   \n>**Birthday:** November 30!                   \n>**Location:** Canada        \n>**Started Streaming:** June 21st 2018        \n>**Partnered:** October 16th 2018    \n>**Started Going to the Gym:** March 8th 2023              \n>**[Discord](https://discord.gg/faith)**       \n>**[Instagram](https://instagram.com/faithTTV_)**  \n>**[Twitter](https://twitter.com/faithttv)**  \n** **       \n\n\n>**Business Email:**   \nPlease contact @CarterPulse for business inquiries.  \n**  **         \n**  **          \n**  **  \n**  **  \n>**[Emotes done by Soyu!](https://soyukiart.wixsite.com/soyuhan)**     \n**  **   \n**  **    \n\n\n\n",
+     "imageURL": "https://panels.twitch.tv/panel-160538649-image-83e7380c-e785-46b3-8f52-9c76f7d30c1e",
+     "linkURL": null
+    },
+    {
+     "id": "137355996",
+     "type": "DEFAULT",
+     "title": "Click my photo 💗",
+     "description": null,
+     "imageURL": "https://panels.twitch.tv/panel-160538649-image-ace03fe3-ba91-4e0f-9a40-c4ac4a6e9be6",
+     "linkURL": "http://www.faithttv.com/"
+    },
+    {
+     "id": "137356047",
+     "type": "DEFAULT",
+     "title": null,
+     "description": null,
+     "imageURL": "https://panels.twitch.tv/panel-160538649-image-de4a5af5-1b18-4dd3-a014-083448e51f3b",
+     "linkURL": "http://www.faithttv.com/"
+    },
+    {
+     "id": "137357851",
+     "type": "EXTENSION",
+     "slotID": "extension-panel-1"
+    },
+    {
+     "id": "137356176",
+     "type": "DEFAULT",
+     "title": null,
+     "description": null,
+     "imageURL": "https://panels.twitch.tv/panel-160538649-image-c9952c39-09ea-4c6c-be0f-03f7899a04a1",
+     "linkURL": "http://www.faithttv.com/"
+    },
+    {
+     "id": "18866260",
+     "type": "EXTENSION",
+     "slotID": "extension-panel-2"
+    },
+    {
+     "id": "16085720",
+     "type": "DEFAULT",
+     "title": null,
+     "description": "While I am very chill about mostly everything, here are some general rules for the chat:    \n+ Be respectful  \n+ No self promotion  \n+ No spam   \n+ No sexual harassment     \n+ BE NICE  ",
+     "imageURL": "https://panels.twitch.tv/panel-160538649-image-1977a10e-03b0-4e96-a7bb-b0f8b0b5b1ac",
+     "linkURL": "https://www.twitch.tv/subs/faith"
+    }
+   ]
+  }
+ },
+ "extensions": {
+  "durationMilliseconds": 123,
+  "requestID": "01M5519WTG4NC89JNHH7QC6SV6"
+ }
+}
