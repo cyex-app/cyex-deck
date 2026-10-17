@@ -7,7 +7,9 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import type { LinkTarget } from '../../ipc/bindings/LinkTarget';
 import type { TileShow } from '../../ipc/bindings/TileShow';
+import { settings } from '../../lib/settings.svelte';
 import { currentWindow } from '../../lib/window.svelte';
+import { liveKeyAction, ownsArrows, type SeekResult, seekText, stepChoice, Steps } from './liveKeys';
 
 /** V101-29 What Windows' media controls show for a player. */
 export interface MediaInfo {
@@ -23,8 +25,17 @@ export interface PlayerControls {
   /** V101-29 Media keys. */
   play?(): void;
   pause?(): void;
-  /** VODs and clips: seconds ahead, negative to go back. */
-  seekBy?(seconds: number): void;
+  /** Seconds ahead, negative to go back. VODs and clips return nothing; a live stream says
+   *  where it landed, or null when it can't seek (V1061-04). */
+  seekBy?(seconds: number): unknown;
+  /** V1061-02 Live streams: back to the live point, playing. */
+  toLive?(): void;
+  /** Q25 Â±1 = Â±5 %. */
+  volumeStep?(direction: number): void;
+  /** Whether the player is on screen (not hidden, not the corner player). */
+  visible?(): boolean;
+  /** Shows a short readout over the picture. */
+  say?(text: string): void;
   /** Read in an effect: follows the player's state. */
   media?(): MediaInfo | null;
 }
@@ -51,6 +62,13 @@ class Players {
   get active(): PlayerControls | null {
     return this.last ?? this.list[0] ?? null;
   }
+
+  /** Q27 a The player the arrow keys act on: the one used last if it is on screen, else the first that is. */
+  get shown(): PlayerControls | null {
+    const l = this.last;
+    if (l?.visible?.()) return l;
+    return this.list.find((p) => p.visible?.()) ?? null;
+  }
 }
 
 export const players = new Players();
@@ -60,7 +78,50 @@ export const playerHotkeys = {
   'player.playPause': () => withPlayer((p) => p.togglePlay()),
   'player.mute': () => withPlayer((p) => p.toggleMute()),
   'player.fullscreen': () => withPlayer((p) => p.toggleFullscreen()),
+  'player.back': () => keySeek(-1),
+  'player.forward': () => keySeek(1),
+  'player.back2': () => keySeek(-1),
+  'player.forward2': () => keySeek(1),
+  'player.live': (e: KeyboardEvent) => goLive(e),
+  'player.volumeUp': () => keyVolume(1),
+  'player.volumeDown': () => keyVolume(-1),
+  'player.playPause2': () => {
+    const p = players.shown;
+    if (!p) return false;
+    p.togglePlay();
+  },
 };
+
+const steps = new Steps();
+
+/** V1061-04 Left/Right/J/L. Returns false (key stays with the page) when nothing can seek. */
+function keySeek(sign: number): void | false {
+  const p = players.shown;
+  if (!p?.seekBy || ownsArrows(document.activeElement)) return false;
+  const step = stepChoice(settings.v.player.seekStep);
+  const raw = p.seekBy(sign * step);
+  const r = raw === null ? null : raw && typeof raw === 'object' && 'behind' in raw ? (raw as SeekResult) : undefined;
+  const t = seekText(r, steps.add(sign * step, performance.now()));
+  if (t === null) return false;
+  p.say?.(t);
+}
+
+/** Q25 Up/Down: volume Â±5 %. */
+function keyVolume(d: number): void | false {
+  const p = players.shown;
+  if (!p?.volumeStep || ownsArrows(document.activeElement)) return false;
+  p.volumeStep(d);
+}
+
+/** V1061-05 Shift+Right. */
+function goLive(e: KeyboardEvent): void | false {
+  const p = players.shown;
+  const a = liveKeyAction({ repeat: e.repeat, owns: ownsArrows(document.activeElement), hasLive: !!p?.toLive });
+  if (a === 'pass') return false;
+  if (a === 'skip') return;
+  p!.toLive!();
+  p!.say?.('Live');
+}
 
 /** Focused controls that use Space, M or F themselves. */
 const CONTROLS =
