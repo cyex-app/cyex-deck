@@ -219,7 +219,7 @@ impl Room {
     /// V106-08 The other channels of a shared chat: `source-room-id`s of lines since `since_ms`.
     pub fn shared_rooms(&self, since_ms: i64) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
-        for m in self.buffer.iter().rev().filter(|m| m.ts >= since_ms) {
+        for m in self.buffer.iter().rev().take_while(|m| m.ts >= since_ms) {
             if let Some(s) = &m.source
                 && !out.contains(&s.room_id)
             {

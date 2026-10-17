@@ -14,12 +14,11 @@ export interface MenuView extends Record<string, unknown> {
   raw: string;
 }
 
-/** Split at the first space; the rest is kept as is. */
+/** Split at the first ' ' (as Rust does); the rest is kept as is. A leading space means an empty name. */
 function splitSpace(text: string): [string, string] {
-  const t = text.trimStart();
-  const at = t.search(/\s/);
-  if (at < 0) return [t, ''];
-  return [t.slice(0, at), t.slice(at + 1)];
+  const at = text.indexOf(' ');
+  if (at < 0) return [text, ''];
+  return [text.slice(0, at), text.slice(at + 1)];
 }
 
 /** "# note" and the like: a comment row. */
@@ -44,7 +43,7 @@ export function commandRow(v: CommandView): CommandRow {
   const [name, sends] = splitSpace(v.raw);
   if (v.name === name && v.sends === sends) return { enabled: v.enabled, text: v.raw };
   const n = v.name.replace(/\s+/g, '');
-  return { enabled: v.enabled, text: v.sends ? (n ? `${n} ${v.sends}` : v.sends) : n };
+  return { enabled: v.enabled, text: v.sends ? `${n} ${v.sends}` : n };
 }
 
 /** "Shoutout=/shoutout $(nick)" → label + command (split at the first "="). */
@@ -72,6 +71,7 @@ export function hiddenBySubmenu(rows: CommandRow[], i: number): boolean {
   let offSub = false;
   for (let j = 0; j <= i && j < rows.length; j++) {
     const t = rows[j].text.trim();
+    if (t === '' || t.startsWith('#')) continue; // blank and note rows don't end a submenu
     if (t.startsWith('@')) offSub = !rows[j].enabled;
     else if (!t.startsWith('.')) offSub = false;
     else if (j === i) return offSub;

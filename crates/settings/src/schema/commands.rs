@@ -210,7 +210,9 @@ impl Commands {
         rows.iter()
             .map(|r| {
                 let t = r.text.trim();
-                if t.starts_with('@') {
+                // Blank and note rows don't end a submenu.
+                if t.is_empty() || t.starts_with('#') {
+                } else if t.starts_with('@') {
                     off_sub = !r.enabled;
                 } else if !t.starts_with('.') {
                     off_sub = false;
@@ -314,6 +316,8 @@ mod tests {
         assert_eq!(Commands::menu_lines(&rows), ["@Copy", ".A=/a", "", "", "", "Top=/t", ".D=/d"]);
         let rows = [row("@Copy"), off(".A=/a"), row(".B=/b")];
         assert_eq!(Commands::menu_lines(&rows), ["@Copy", "", ".B=/b"]);
+        let rows = [off("@More"), row("# note"), row(""), row(".B=/b"), row("Top=/t"), row(".C=/c")];
+        assert_eq!(Commands::menu_lines(&rows), ["", "# note", "", "", "Top=/t", ".C=/c"]);
     }
 
     #[test]

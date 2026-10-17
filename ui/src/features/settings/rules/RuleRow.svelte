@@ -62,6 +62,7 @@
     gripSlot = false,
   }: Props = $props();
 
+  const uid = $props.id();
   const split = $derived(layout === 'split');
   const shown = $derived(fields.filter((f) => !f.when || f.when(item)));
   const on = $derived(split ? shown.find((f) => f.key === 'enabled') : undefined);
@@ -158,9 +159,17 @@
 
 {#snippet grip()}
   {#if handle}
-    <button type="button" class="grip" data-drag-handle aria-label={handle} use:tooltip={{ label: 'Drag to move', hint: 'Or press Alt+↑ or Alt+↓.' }}
+    <button
+      type="button"
+      class="grip"
+      data-drag-handle
+      aria-label={handle}
+      aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+      aria-describedby="{uid}-grip"
+      use:tooltip={{ label: 'Drag to move', hint: 'Or press Alt+↑ or Alt+↓.' }}
       ><Icon name="grip" size={14} /></button
     >
+    <span class="said" id="{uid}-grip">Press Alt+↑ or Alt+↓ to move.</span>
   {:else if gripSlot}
     <span class="grip" aria-hidden="true"></span>
   {/if}
@@ -357,6 +366,20 @@
   }
   button.grip {
     cursor: grab;
+    position: relative;
+  }
+  /* 24 px hit area; the column stays 18 px. */
+  button.grip::before {
+    content: '';
+    position: absolute;
+    inset: -2px -3px;
+  }
+  .said {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
   }
   button.grip:hover {
     color: var(--text);

@@ -69,6 +69,7 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     }
     if let Some(was_on) = presence_was {
         store.mark_dirty(Partition::Chat);
+        let _ = store.flush();
         eprintln!(
             "settings: V106-08 presence to 7TV and BTTV turned on once for everyone (it was {})",
             if was_on { "on" } else { "off" }

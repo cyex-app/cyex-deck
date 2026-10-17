@@ -92,6 +92,7 @@ pub fn show(app: &AppHandle, pop: Pop) {
 static FLASHING: AtomicBool = AtomicBool::new(false);
 
 /// V106-35 (start, now flashing). In front: nothing (Q8). Already flashing: nothing, no restart.
+#[cfg(test)]
 fn on_request(flashing: bool, in_front: bool) -> (bool, bool) {
     if in_front || flashing {
         (false, flashing)
@@ -107,17 +108,15 @@ fn on_focus(flashing: bool) -> (bool, bool) {
 
 /// V106-35 Flashes the taskbar button until any cyex window comes to the front.
 pub fn flash(app: &AppHandle) {
-    let in_front = app_in_front(app);
-    let flashing = FLASHING.load(Ordering::SeqCst);
-    let (start, now) = on_request(flashing, in_front);
-    if !start {
-        eprintln!("flash: skip ({})", if in_front { "in front" } else { "already" });
+    if app_in_front(app) {
         return;
     }
     let Some(w) = app.get_webview_window(MAIN) else {
         return;
     };
-    FLASHING.store(now, Ordering::SeqCst);
+    if FLASHING.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+        return;
+    }
     eprintln!("flash: start");
     crate::sys::flash::start(&w);
 }
