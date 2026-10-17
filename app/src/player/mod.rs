@@ -126,6 +126,7 @@ fn fetch(app: &AppHandle, account: Option<&str>) -> Twitch {
         proxy: p.proxy.lock().unwrap_or_else(|e| e.into_inner()).clone(),
         device_id: p.device_id.clone(),
         sign_in,
+        mock: mock::base(app),
     }
 }
 

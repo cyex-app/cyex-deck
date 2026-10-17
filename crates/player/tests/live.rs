@@ -24,6 +24,7 @@ async fn live_stream_through_the_filter() {
         device_id: DEVICE.into(),
         proxy: None,
         sign_in: None,
+        mock: None,
     };
     let live = Live::new(fetch, &login, Options { low_latency: true, block_ads: true });
     let master = live.master().await.unwrap();
@@ -50,6 +51,7 @@ async fn vod_through_the_proxy() {
             device_id: DEVICE.into(),
             proxy: None,
             sign_in: None,
+            mock: None,
         },
         id,
     );

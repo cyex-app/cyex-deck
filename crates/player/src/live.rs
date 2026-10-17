@@ -142,6 +142,15 @@ impl<F: Fetch> Live<F> {
         Ok((out.render(), ad))
     }
 
+    /// V1061 A segment of the mock HLS server (`seg/<variant>/<n>.ts`); no mock, no segment.
+    pub async fn mock_segment(&self, path: &str) -> Result<Vec<u8>> {
+        let base = self.fetch.mock_base().ok_or_else(|| gone("gone"))?;
+        if path.contains("..") {
+            return Err(gone("gone"));
+        }
+        self.fetch.bytes(&format!("{base}/seg/{path}")).await
+    }
+
     async fn load(&self, st: &mut State) -> Result<Vec<Variant>> {
         let text = self.fetch.live_master(&self.login, Route::Main).await?;
         let variants: Vec<Variant> = master::parse(&text).into_iter().filter(|v| !v.portrait).collect();
@@ -243,6 +252,13 @@ mod tests {
         low_latency: true,
         block_ads: true,
     };
+
+    #[tokio::test]
+    async fn mock_segment_needs_a_mock() {
+        let s = script();
+        let live = Live::new(&s, "xqc", OPTIONS);
+        assert!(matches!(live.mock_segment("360p30/1.ts").await, Err(Error::Api { status: 404, .. })));
+    }
 
     #[tokio::test]
     async fn master_lists_variants_by_index() {
