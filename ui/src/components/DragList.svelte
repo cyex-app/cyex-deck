@@ -5,7 +5,7 @@
   import { tick, type Snippet } from 'svelte';
 
   import { drag, rowDrops } from '../features/tabs/drag.svelte';
-  import { moveKey, nudge } from '../lib/order';
+  import { moveKey, nudge, nudgeDir } from '../lib/order';
 
   interface Props {
     /** Unique on screen: drops only land in the list they came from. */
@@ -16,9 +16,11 @@
     label: (item: T) => string;
     onmove: (items: T[]) => void;
     row: Snippet<[T]>;
+    /** V106-10 Drag and Alt+↑/↓ only from the row's [data-drag-handle] (rows full of fields). */
+    handle?: boolean;
   }
 
-  let { key, items, id, label, onmove, row }: Props = $props();
+  let { key, items, id, label, onmove, row, handle = false }: Props = $props();
 
   $effect(() => {
     const k = key;
@@ -41,23 +43,29 @@
   let said = $state('');
   let box = $state<HTMLElement>();
 
-  /** Alt+ArrowUp / Alt+ArrowDown on a focused row moves it, like a drag does. */
+  /** Alt+ArrowUp / Alt+ArrowDown on a focused row (or its handle) moves it, like a drag does. */
   async function nudgeRow(e: KeyboardEvent, item: T) {
-    if (!e.altKey || e.target !== e.currentTarget) return;
-    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    const dir = nudgeDir(e);
+    if (dir === null) return;
+    if (handle ? !(e.target as Element).closest('[data-drag-handle]') : e.target !== e.currentTarget) return;
     e.preventDefault();
     const row = e.currentTarget as HTMLElement;
-    const moved = nudge(items, id, id(item), e.key === 'ArrowUp' ? -1 : 1);
+    const moved = nudge(items, id, id(item), dir);
     if (!moved) return;
     onmove(moved.items);
     said = `Moved to ${moved.place} of ${items.length}`;
     await tick();
-    if (!row.isConnected) box?.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(id(item))}"]`)?.focus();
+    if (handle) {
+      // V106-10 By position: ids may be indexes, so an id lookup would find the wrong row.
+      box?.querySelectorAll<HTMLElement>(':scope > .row')[moved.place - 1]?.querySelector<HTMLElement>('[data-drag-handle]')?.focus();
+    } else if (!row.isConnected) box?.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(id(item))}"]`)?.focus();
     else row.focus();
   }
 
   function down(e: PointerEvent, item: T) {
-    if ((e.target as Element).closest('button, a, input, select, textarea, [contenteditable]')) return;
+    if (handle) {
+      if (!(e.target as Element).closest('[data-drag-handle]')) return;
+    } else if ((e.target as Element).closest('button, a, input, select, textarea, [contenteditable]')) return;
     drag.begin(e, { kind: 'row', list: key, id: id(item) }, label(item));
   }
 </script>
@@ -72,10 +80,11 @@
       class:before={line?.id === k && !line.after}
       class:after={line?.id === k && line.after}
       class:lifted={mine === k}
+      class:handled={handle}
       role="listitem"
       data-row-of={key}
       data-row-id={k}
-      tabindex="0"
+      tabindex={handle ? undefined : 0}
       onkeydown={(e) => nudgeRow(e, item)}
       onpointerdown={(e) => down(e, item)}
     >
@@ -93,6 +102,10 @@
   .row {
     border-block: 2px solid transparent;
     cursor: grab;
+  }
+  /* V106-10 Only the handle drags; the rest of the row is fields. */
+  .row.handled {
+    cursor: auto;
   }
   .row:focus-visible {
     outline: 2px solid var(--focus-ring);

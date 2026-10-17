@@ -11,6 +11,7 @@
   import { errorText } from '../../../lib/errors';
   import { copy } from '../../../lib/clipboard';
   import { formatBytes, formatDate } from '../../../lib/format';
+  import SectionHead from '../SectionHead.svelte';
   import ConfirmButton from '../../../components/ConfirmButton.svelte';
   import Checkbox from '../../../components/Checkbox.svelte';
 
@@ -122,7 +123,7 @@
   }
 </script>
 
-<h2>Backup and sharing</h2>
+<SectionHead title="Backup and sharing" level={2} docs="data" />
 
 <h3 class="label">What to export or share</h3>
 <div class="picks">

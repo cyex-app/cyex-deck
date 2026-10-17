@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { moveKey, moveTo, nudge } from './order.ts';
+import { moveKey, moveTo, nudge, nudgeDir } from './order.ts';
 
 const abcd = ['a', 'b', 'c', 'd'];
 
@@ -39,4 +39,12 @@ test('Alt+arrow nudges a row one place and says where it landed', () => {
   assert.equal(nudge(abcd, id, 'a', -1), null);
   assert.equal(nudge(abcd, id, 'd', 1), null);
   assert.equal(nudge(abcd, id, 'x', 1), null);
+});
+
+test('only Alt+Up and Alt+Down move a row (V106-10)', () => {
+  assert.equal(nudgeDir({ altKey: true, key: 'ArrowUp' }), -1);
+  assert.equal(nudgeDir({ altKey: true, key: 'ArrowDown' }), 1);
+  assert.equal(nudgeDir({ altKey: false, key: 'ArrowUp' }), null);
+  assert.equal(nudgeDir({ altKey: true, key: 'ArrowLeft' }), null);
+  assert.equal(nudgeDir({ altKey: true, key: 'Enter' }), null);
 });
