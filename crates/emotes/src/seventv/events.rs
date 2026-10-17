@@ -247,6 +247,8 @@ struct RawEntitlement {
 #[derive(Deserialize)]
 struct RawUser {
     #[serde(default)]
+    id: Option<String>,
+    #[serde(default)]
     display_name: Option<String>,
     #[serde(default)]
     connections: Vec<RawConnection>,
@@ -305,6 +307,8 @@ struct RawEmoteData {
     listed: bool,
     #[serde(default)]
     animated: bool,
+    #[serde(default)]
+    flags: u32,
     owner: Option<RawUser>,
     host: Option<RawHost>,
 }
@@ -322,6 +326,9 @@ impl RawActive {
             e.original = (d.name != e.name).then_some(d.name);
             e.unlisted = !d.listed;
             e.animated = d.animated;
+            // v3 emote flag bit 0 is private.
+            e.private = d.flags & 1 != 0;
+            e.owner_id = d.owner.as_ref().and_then(|o| o.id.clone());
             e.size = d.host.as_ref().and_then(RawHost::size_1x);
             e.owner = d.owner.and_then(|o| o.display_name);
         }
@@ -417,6 +424,19 @@ mod tests {
             panic!()
         };
         assert_eq!(kind, Entitled::EmoteSet);
+    }
+
+    #[test]
+    fn private_bit_and_owner_id() {
+        let raw: RawActive = serde_json::from_str(
+            r#"{"id":"E1","name":"a","flags":0,"data":{"name":"a","flags":1,
+            "owner":{"id":"U1","display_name":"O"}}}"#,
+        )
+        .unwrap();
+        let e = raw.emote();
+        assert!(e.private);
+        assert_eq!(e.owner_id.as_deref(), Some("U1"));
+        assert_eq!(e.owner.as_deref(), Some("O"));
     }
 
     #[test]

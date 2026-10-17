@@ -45,6 +45,9 @@ pub struct Chat {
     pub third_party_emotes: bool,
     /// 2.4
     pub unlisted_emotes: UnlistedEmotes,
+    /// V106-30 The user picked show or blur for unlisted emotes. Until then the emote card offers
+    /// a quick "Show unlisted emotes".
+    pub unlisted_chosen: bool,
     /// C11 Which provider wins when several have an emote by the same name.
     pub emote_priority: Vec<EmoteSource>,
     /// E3 Percent of the normal size.
@@ -133,6 +136,7 @@ impl Default for Chat {
             twitch_emotes: true,
             third_party_emotes: true,
             unlisted_emotes: UnlistedEmotes::Blur,
+            unlisted_chosen: false,
             emote_priority: EmoteSource::THIRD_PARTY.to_vec(),
             emote_size: 100,
             animate_only_focused: false,
@@ -177,6 +181,10 @@ impl Default for Chat {
 
 impl Schema for Chat {
     fn sanitize(&mut self) {
+        // V106-30 Anyone on show or hide already chose. Never sets false.
+        if self.unlisted_emotes != UnlistedEmotes::Blur {
+            self.unlisted_chosen = true;
+        }
         // V106-08 On for everyone once, including people who had it off.
         if !self.presence_on_once {
             self.share_presence = true;
@@ -589,6 +597,20 @@ mod tests {
         c.share_presence = false;
         c.sanitize();
         assert!(!c.share_presence);
+    }
+
+    #[test]
+    fn unlisted_chosen_follows_the_mode() {
+        let read = |j: &str| {
+            let mut c: Chat = serde_json::from_str(j).unwrap();
+            c.sanitize();
+            c.unlisted_chosen
+        };
+        assert!(!read("{}"));
+        assert!(read(r#"{"unlistedEmotes":"show"}"#));
+        assert!(read(r#"{"unlistedEmotes":"hide"}"#));
+        assert!(read(r#"{"unlistedEmotes":"blur","unlistedChosen":true}"#));
+        assert!(!read(r#"{"unlistedEmotes":"blur"}"#));
     }
 
     #[test]

@@ -12,6 +12,7 @@ export const UNLISTED: Record<string, string> = {
   'windows.panels': 'Where each pop-out was.',
   'chat.translateChats': 'Per chat, from its menu.',
   'chat.modMode': 'Per channel, from the chat.',
+  'chat.unlistedChosen': 'Set once you pick show or blur for unlisted emotes.',
   'chat.users': 'Notes on usercards.',
   'appearance.presetsMoved': 'Set once when old preset copies moved to the built-in themes.',
   'highlights.mentionsMerged': 'Set once when Mentions moved into Highlights.',

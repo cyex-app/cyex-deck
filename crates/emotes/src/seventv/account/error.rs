@@ -37,7 +37,7 @@ const DEFAULT_WAIT: u64 = 30;
 const MAX_WAIT: u64 = 3600;
 
 /// How long to wait, as the user is told.
-fn wait(reset: Option<u64>) -> u64 {
+pub(super) fn wait(reset: Option<u64>) -> u64 {
     match reset {
         Some(s) if s <= MAX_WAIT => s.max(1),
         _ => DEFAULT_WAIT,

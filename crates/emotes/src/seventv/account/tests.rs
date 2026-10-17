@@ -6,7 +6,7 @@ use cyex_twitch::Http;
 use super::*;
 
 /// Answers each connection with the next canned reply, returning the request texts.
-fn serve(replies: Vec<Vec<u8>>) -> (String, std::thread::JoinHandle<Vec<String>>) {
+pub(super) fn serve(replies: Vec<Vec<u8>>) -> (String, std::thread::JoinHandle<Vec<String>>) {
     let l = TcpListener::bind("127.0.0.1:0").unwrap();
     let base = format!("http://{}", l.local_addr().unwrap());
     let h = std::thread::spawn(move || {
@@ -41,7 +41,7 @@ fn serve(replies: Vec<Vec<u8>>) -> (String, std::thread::JoinHandle<Vec<String>>
     (base, h)
 }
 
-fn reply(head: &str, body: &str) -> Vec<u8> {
+pub(super) fn reply(head: &str, body: &str) -> Vec<u8> {
     format!(
         "HTTP/1.1 {head}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()
@@ -49,11 +49,11 @@ fn reply(head: &str, body: &str) -> Vec<u8> {
     .into_bytes()
 }
 
-fn client(base: &str) -> Client {
+pub(super) fn client(base: &str) -> Client {
     Client::at(Http::new().unwrap(), base)
 }
 
-const FAKE: &str = "aaa.bbb.ccc";
+pub(super) const FAKE: &str = "aaa.bbb.ccc";
 
 #[tokio::test]
 async fn inventory_sends_no_token() {
