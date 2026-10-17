@@ -24,7 +24,7 @@
 <div class="log">
   <div class="top">
     <FilterChips {chips} onflip={flip} />
-    <Button small variant="ghost" disabled={miner.log.length === 0} onclick={() => void minerIpc.clearLog()}>Clear</Button>
+    <span class="clear"><Button small variant="ghost" disabled={miner.log.length === 0} onclick={() => void minerIpc.clearLog()}>Clear</Button></span>
   </div>
   <FeedList
     {rows}
@@ -51,6 +51,9 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+  }
+  .clear {
+    margin-left: auto;
   }
   .err {
     color: var(--red);
