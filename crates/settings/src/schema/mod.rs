@@ -38,7 +38,7 @@ pub use chat::{
 pub use combos::{
     Combo, ComboDone, ComboError, ComboItem, ComboOp, Combos, MAX_COMBOS, MAX_NAME, NameError, WORDS, clean_name,
 };
-pub use commands::{Access, Automation, Commands, SavedTimer, TriggerMatch};
+pub use commands::{Access, Automation, CommandRow, Commands, SavedTimer, TriggerMatch};
 pub use emotes::{EmoteKey, EmoteSource, EmoteUse, Emotes};
 pub use general::{ChatPosition, FONTS, General, font_or_default, StreamerMode, StreamerWhen};
 pub(crate) use highlights::MAX_RULES;

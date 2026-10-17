@@ -81,9 +81,9 @@ pub struct Menus {
 pub fn chat_menus(app: AppHandle) -> Menus {
     let c: Commands = app.state::<Settings>().read(Partition::Commands);
     Menus {
-        user: parse_menu(&c.user_menu),
-        message: parse_menu(&c.message_menu),
-        channel: parse_menu(&c.channel_menu),
-        usercard: parse_menu(&c.usercard_buttons),
+        user: parse_menu(&Commands::menu_lines(&c.user_menu)),
+        message: parse_menu(&Commands::menu_lines(&c.message_menu)),
+        channel: parse_menu(&Commands::menu_lines(&c.channel_menu)),
+        usercard: parse_menu(&Commands::menu_lines(&c.usercard_buttons)),
     }
 }

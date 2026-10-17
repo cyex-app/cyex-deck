@@ -15,22 +15,55 @@ const MAX_VARS: usize = 500;
 const MAX_TIMERS: usize = 50;
 const MAX_AUTOMATIONS: usize = 100;
 
+/// V106-10 One row of a command or menu list: the line as typed, and whether it is used.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CommandRow {
+    pub enabled: bool,
+    pub text: String,
+}
+
+/// Old files and exports hold plain strings: each one becomes a row that's on.
+impl<'de> Deserialize<'de> for CommandRow {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Raw {
+            Text(String),
+            Row {
+                #[serde(default = "yes")]
+                enabled: bool,
+                #[serde(default)]
+                text: String,
+            },
+        }
+        fn yes() -> bool {
+            true
+        }
+        Ok(match Raw::deserialize(d)? {
+            Raw::Text(text) => Self { enabled: true, text },
+            Raw::Row { enabled, text } => Self { enabled, text },
+        })
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(default, rename_all = "camelCase")]
 #[ts(export)]
 pub struct Commands {
     /// `/name body`, `/name#channel body`, `_name body`, `# comment`.
-    pub lines: Vec<String>,
+    pub lines: Vec<CommandRow>,
     /// `/set var key value`, read with `$get(var,key)`.
     pub vars: BTreeMap<String, String>,
     /// S1 Right-click on a name: `Label=command`, `@Submenu` then `.Label=command`, `-`.
-    pub user_menu: Vec<String>,
+    pub user_menu: Vec<CommandRow>,
     /// S1 Right-click on a message.
-    pub message_menu: Vec<String>,
+    pub message_menu: Vec<CommandRow>,
     /// S1 Right-click on a chat's name in its header.
-    pub channel_menu: Vec<String>,
+    pub channel_menu: Vec<CommandRow>,
     /// S1 Buttons on the usercard: `Label=command`.
-    pub usercard_buttons: Vec<String>,
+    pub usercard_buttons: Vec<CommandRow>,
     /// S3 `/timer -r` timers.
     pub timers: Vec<SavedTimer>,
     /// S4
@@ -148,22 +181,68 @@ impl Default for Automation {
     }
 }
 
-fn clip(lines: &mut Vec<String>) {
-    lines.truncate(MAX_LINES);
-    for l in lines.iter_mut() {
-        if l.chars().count() > MAX_LINE_CHARS {
-            *l = l.chars().take(MAX_LINE_CHARS).collect();
+fn clip(rows: &mut Vec<CommandRow>) {
+    rows.truncate(MAX_LINES);
+    for r in rows.iter_mut() {
+        if r.text.chars().count() > MAX_LINE_CHARS {
+            r.text = r.text.chars().take(MAX_LINE_CHARS).collect();
         }
     }
 }
 
+/// Each row's text when on, else an empty line.
+fn used(rows: &[CommandRow]) -> Vec<String> {
+    rows.iter()
+        .map(|r| if r.enabled { r.text.clone() } else { String::new() })
+        .collect()
+}
+
 impl Commands {
-    /// V105-12 Drops the automations left empty. True when something went.
+    /// V106-10 The command lines the engine reads: an off row is an empty line, so errors
+    /// keep their row numbers.
+    pub fn command_lines(&self) -> Vec<String> {
+        used(&self.lines)
+    }
+
+    /// V106-10 A menu's lines; an off `@Submenu` row also turns off the `.` rows under it.
+    pub fn menu_lines(rows: &[CommandRow]) -> Vec<String> {
+        let mut off_sub = false;
+        rows.iter()
+            .map(|r| {
+                let t = r.text.trim();
+                if t.starts_with('@') {
+                    off_sub = !r.enabled;
+                } else if !t.starts_with('.') {
+                    off_sub = false;
+                }
+                if !r.enabled || (t.starts_with('.') && off_sub) {
+                    String::new()
+                } else {
+                    r.text.clone()
+                }
+            })
+            .collect()
+    }
+
+    /// V105-12 Drops the automations and (V106-10) command rows left empty. True when
+    /// something went.
     pub fn prune_blank(&mut self) -> bool {
         let before = self.automations.len();
         self.automations
             .retain(|a| !(a.name.trim().is_empty() && a.trigger.trim().is_empty() && a.response.trim().is_empty()));
-        before != self.automations.len()
+        let mut gone = before != self.automations.len();
+        for list in [
+            &mut self.lines,
+            &mut self.user_menu,
+            &mut self.message_menu,
+            &mut self.channel_menu,
+            &mut self.usercard_buttons,
+        ] {
+            let n = list.len();
+            list.retain(|r| !r.text.trim().is_empty());
+            gone |= n != list.len();
+        }
+        gone
     }
 }
 
@@ -201,10 +280,61 @@ impl Schema for Commands {
 mod tests {
     use super::*;
 
+    fn row(text: &str) -> CommandRow {
+        CommandRow { enabled: true, text: text.into() }
+    }
+
+    fn off(text: &str) -> CommandRow {
+        CommandRow { enabled: false, text: text.into() }
+    }
+
+    #[test]
+    fn plain_strings_read_as_rows_that_are_on() {
+        let json = r#"{"lines":["/hi a",{"text":"/b x"},{"enabled":false,"text":"/c"}]}"#;
+        let c: Commands = serde_json::from_str(json).unwrap();
+        assert_eq!(c.lines, [row("/hi a"), row("/b x"), off("/c")]);
+    }
+
+    #[test]
+    fn rows_round_trip() {
+        let c = Commands { user_menu: vec![off("A=/a"), row("-")], ..Commands::default() };
+        let back: Commands = serde_json::from_str(&serde_json::to_string(&c).unwrap()).unwrap();
+        assert_eq!(back, c);
+    }
+
+    #[test]
+    fn command_lines_blank_off_rows() {
+        let c = Commands { lines: vec![row("/a x"), off("/b y"), row("/c z")], ..Commands::default() };
+        assert_eq!(c.command_lines(), ["/a x", "", "/c z"]);
+    }
+
+    #[test]
+    fn menu_lines_turn_off_a_submenu() {
+        let rows = [row("@Copy"), row(".A=/a"), off("@More"), row(".B=/b"), row(".C=/c"), row("Top=/t"), row(".D=/d")];
+        assert_eq!(Commands::menu_lines(&rows), ["@Copy", ".A=/a", "", "", "", "Top=/t", ".D=/d"]);
+        let rows = [row("@Copy"), off(".A=/a"), row(".B=/b")];
+        assert_eq!(Commands::menu_lines(&rows), ["@Copy", "", ".B=/b"]);
+    }
+
+    #[test]
+    fn prune_blank_drops_blank_rows() {
+        let mut c = Commands {
+            lines: vec![row("/a"), row("  "), off("")],
+            usercard_buttons: vec![row("")],
+            ..Commands::default()
+        };
+        assert!(c.prune_blank());
+        assert_eq!(c.lines, [row("/a")]);
+        assert!(c.usercard_buttons.is_empty());
+        assert!(!c.prune_blank());
+    }
+
     #[test]
     fn sanitize_limits() {
         let mut c = Commands {
-            lines: vec!["x".repeat(3000)],
+            lines: std::iter::once(row(&"x".repeat(3000)))
+                .chain(std::iter::repeat_with(|| row("y")).take(600))
+                .collect(),
             automation_limit: 50,
             automations: vec![Automation {
                 channels: vec![" #Forsen ".into(), "".into()],
@@ -215,7 +345,8 @@ mod tests {
             ..Commands::default()
         };
         c.sanitize();
-        assert_eq!(c.lines[0].len(), MAX_LINE_CHARS);
+        assert_eq!(c.lines[0].text.len(), MAX_LINE_CHARS);
+        assert_eq!(c.lines.len(), MAX_LINES);
         assert_eq!(c.automation_limit, 10);
         assert_eq!(c.automations[0].channels, ["forsen"]);
         assert_eq!(c.automations[0].cooldown_secs, 86_400);
