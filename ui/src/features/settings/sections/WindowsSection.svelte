@@ -3,6 +3,7 @@
   import Button from '../../../components/Button.svelte';
   import EmptyState from '../../../components/EmptyState.svelte';
   import Row from '../../../components/Row.svelte';
+  import { uniqueKeys } from '../../../lib/keys';
   import { windowsIpc } from '../../../ipc/windows';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
@@ -11,6 +12,7 @@
   import { drafts } from '../drafts.svelte';
 
   const layouts = $derived(settings.v.windows.layouts);
+  const layoutKeys = $derived(uniqueKeys(layouts, (l) => l.name));
 
   async function run(action: () => Promise<void>, done?: string): Promise<boolean> {
     try {
@@ -54,7 +56,7 @@
   <Button type="submit" variant="primary" small icon="plus" disabled={!drafts.layoutName.trim()}>Save current</Button>
 </form>
 
-{#each layouts as layout, i (layout.name)}
+{#each layouts as layout, i (layoutKeys[i])}
   {@const pops = Object.keys(layout.panels).length}
   <Row label={layout.name} hint={pops ? `Main window and ${pops} pop-out${pops === 1 ? '' : 's'}` : 'Main window only'}>
     <Button small onclick={() => run(() => windowsIpc.applyLayout(layout.name))}>Use</Button>

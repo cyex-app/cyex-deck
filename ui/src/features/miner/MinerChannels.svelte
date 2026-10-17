@@ -2,6 +2,7 @@
      (drag to reorder) or your follows (skip the ones you don't want), and drops still
      being earned. -->
 <script lang="ts">
+  import { uniqueKeys } from '../../lib/keys';
   import Button from '../../components/Button.svelte';
   import DragList from '../../components/DragList.svelte';
   import Icon from '../../components/Icon.svelte';
@@ -24,6 +25,7 @@
 
   const s = $derived(settings.v.miner);
   const idle = $derived(!miner.status?.running);
+  const dropKeys = $derived(uniqueKeys(miner.status?.drops ?? [], (d) => d.name + d.game));
   const info = $derived(new Map((miner.status?.channels ?? []).map((c) => [c.id, c])));
   const firstIds = $derived(new Set(s.first.map((c) => c.id)));
   const list = $derived(s.channels.filter((c) => !firstIds.has(c.id)));
@@ -148,7 +150,7 @@
 
   {#if miner.status?.drops.length}
     <h2>Drops in progress</h2>
-    {#each miner.status.drops as d (d.name + d.game)}
+    {#each miner.status.drops as d, i (dropKeys[i])}
       <div class="drop">
         <span class="drop-name">{d.name}{#if d.game}<span class="game"> · {d.game}</span>{/if}</span>
         <span class="bar"><span style:width="{Math.min(100, (d.minutes / Math.max(1, d.required)) * 100)}%"></span></span>

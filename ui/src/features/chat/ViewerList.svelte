@@ -18,6 +18,7 @@
   import { firstField, focusScope } from '../../lib/focusScope';
   import { nameMenu } from './nameMenu';
   import { errorText } from '../../lib/errors';
+  import { uniqueKeys } from '../../lib/keys';
   import Loading from '../../components/Loading.svelte';
 
   interface Props {
@@ -135,7 +136,9 @@
     {:else}
       {#each groups as g (g.label)}
         <div class="group">{g.label} · {formatNumber(g.list.length)}</div>
-        {#each g.list.slice(0, SHOWN) as name (name)}
+        {@const shown = g.list.slice(0, SHOWN)}
+        {@const keys = uniqueKeys(shown, (n) => n)}
+        {#each shown as name, i (keys[i])}
           <button class="name" onclick={() => open(name)} oncontextmenu={(e) => menu(e, name, g.is)}>{name}</button>
         {/each}
         {#if g.list.length > SHOWN}

@@ -2,6 +2,7 @@
      can be canceled until then. D2 The countdown comes live from Twitch, "Raid now" works
      after 10 s, and Twitch's suggestions fill in the name (sign-in with a code). -->
 <script lang="ts">
+  import { uniqueKeys } from '../../lib/keys';
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
   import IconButton from '../../components/IconButton.svelte';
@@ -20,6 +21,7 @@
   /** Started here, until Twitch's first update comes. */
   let starting = $state<string | null>(null);
   let picks = $state<SmRaidPick[]>([]);
+  const pickKeys = $derived(uniqueKeys(picks, (p) => p.login));
   let busy = $state(false);
   let now = $state(Date.now() / 1000);
 
@@ -101,7 +103,7 @@
     {#if picks.length}
       <span class="label">Suggested</span>
       <ul>
-        {#each picks as p (p.login)}
+        {#each picks as p, i (pickKeys[i])}
           <li>
             <button class="pick" onclick={() => (target = p.login)}>
               <Avatar src={p.avatar} name={p.name} size={20} />

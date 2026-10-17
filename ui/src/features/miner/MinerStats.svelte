@@ -8,6 +8,7 @@
   import { formatDate, formatNumber } from '../../lib/format';
   import { latest } from '../../lib/latest';
   import { toast } from '../../lib/toast.svelte';
+  import { uniqueKeys } from '../../lib/keys';
   import { miner } from './miner.svelte';
   import { errorText } from '../../lib/errors';
   import Select from '../../components/Select.svelte';
@@ -73,6 +74,7 @@
   }
 
   /** The balance as an SVG path, 600×120. */
+  const dropKeys = $derived(uniqueKeys(stats?.drops ?? [], ([t, name]) => t + name));
   const chart = $derived.by(() => {
     const pts = stats?.series ?? [];
     if (pts.length < 2) return null;
@@ -152,7 +154,7 @@
 
     {#if stats.drops.length}
       <h2>Drops claimed</h2>
-      {#each stats.drops as [t, name] (t + name)}
+      {#each stats.drops as [t, name], i (dropKeys[i])}
         <p class="drop"><span class="when">{formatDate(new Date(t))}</span>{name}</p>
       {/each}
     {/if}
