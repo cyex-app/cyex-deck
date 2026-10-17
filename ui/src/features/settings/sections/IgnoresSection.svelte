@@ -65,6 +65,10 @@
   reorder={{ key: 'highlights.ignores', label: (r, i) => r.pattern || `Row ${i + 1}` }}
   empty="Hide messages with these words, or swap the words for something else."
 />
+<!-- C32, V106-33 Highlight words have their own look-alikes switch; this one is for ignores. -->
+<Row setting="highlights.lookalikes" label="Look-alike letters" hint="Ignores also match look-alike letters, like Cyrillic а or 𝐟𝐚𝐧𝐜𝐲 text.">
+  <Toggle label="Look-alike letters" checked={h.lookalikes} onchange={(v) => save({ lookalikes: v })} />
+</Row>
 
 <h3 class="label">Blocked on Twitch</h3>
 <Row setting="highlights.blocked.enabled" label="Hide people you blocked" hint="Read from each signed-in account.">

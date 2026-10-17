@@ -29,7 +29,6 @@ export const GROUPS = [
       { id: 'chat', label: 'Chat', icon: 'chat' },
       { id: 'emotes', label: 'Emotes and badges', icon: 'smile' },
       { id: 'highlights', label: 'Highlights', icon: 'star' },
-      { id: 'mentions', label: 'Mentions', icon: 'at' },
       { id: 'ignores', label: 'Ignores', icon: 'eyeOff' },
       { id: 'filters', label: 'Filters', icon: 'filter' },
       { id: 'commands', label: 'Commands', icon: 'pencil' },

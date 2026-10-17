@@ -22,7 +22,7 @@ export const OPT = {
   color: { label: 'Color', hint: 'Tints the message. × goes back to the default.' },
   sound: { label: 'Sound', hint: 'Plays the chime, or your sound file.', icon: 'volume' },
   soundFile: { label: 'Sound file', hint: 'Plays a file of your own instead of the chime.', icon: 'music' },
-  flash: { label: 'Flash', hint: 'Flashes the taskbar button while the app isn’t in front.', icon: 'zap' },
+  flash: { label: 'Flash', hint: 'Flashes the taskbar button until you switch to cyex deck.', icon: 'zap' },
   show: { label: 'Mentions tab', hint: 'Also copies the message into the Mentions tab.', icon: 'at' },
   notify: { label: 'Pop-up', hint: 'Shows a Windows notification while the app isn’t in front.', icon: 'bell' },
   route: { label: 'Feed tab', hint: 'Copies the message into the feed tab with this name.' },

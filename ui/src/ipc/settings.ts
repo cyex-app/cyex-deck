@@ -14,7 +14,6 @@ import type { HighlightPreview } from './bindings/HighlightPreview';
 import type { Highlights } from './bindings/Highlights';
 import type { Hotkeys } from './bindings/Hotkeys';
 import type { ImportReport } from './bindings/ImportReport';
-import type { Mentions } from './bindings/Mentions';
 import type { Miner } from './bindings/Miner';
 import type { Modview } from './bindings/Modview';
 import type { Notifications } from './bindings/Notifications';
@@ -33,7 +32,6 @@ export interface SettingsValues {
   chat: Chat;
   player: Player;
   highlights: Highlights;
-  mentions: Mentions;
   commands: Commands;
   hotkeys: Hotkeys;
   tabs: Tabs;

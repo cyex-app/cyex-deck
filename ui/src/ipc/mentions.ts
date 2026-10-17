@@ -1,14 +1,14 @@
-// V104-01, V104-02 The Mentions page: pattern checks, the firehose's status, sound files.
+// V104-01, V104-02, V106-33 Highlights: pattern checks, the firehose's status, sound files.
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 import type { GlobalStatus } from './bindings/GlobalStatus';
 import type { MentionCheck } from './bindings/MentionCheck';
-import type { MentionRule } from './bindings/MentionRule';
+import type { PhraseRule } from './bindings/PhraseRule';
 
 export const mentionsIpc = {
-  check: (list: MentionRule[]) => invoke<MentionCheck[]>('mentions_check', { list }),
+  check: (list: PhraseRule[]) => invoke<MentionCheck[]>('mentions_check', { list }),
   globalStatus: () => invoke<GlobalStatus>('mentions_global_status'),
   onGlobalStatus: (cb: (s: GlobalStatus) => void): Promise<UnlistenFn> =>
     listen<GlobalStatus>('mentions:global', (e) => cb(e.payload)),

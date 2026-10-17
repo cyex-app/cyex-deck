@@ -15,7 +15,7 @@
   import ConfirmButton from '../../../components/ConfirmButton.svelte';
   import Checkbox from '../../../components/Checkbox.svelte';
 
-  let picked = $state<Partition[]>(['general', 'appearance', 'chat', 'highlights', 'mentions', 'commands', 'hotkeys']);
+  let picked = $state<Partition[]>(['general', 'appearance', 'chat', 'highlights', 'commands', 'hotkeys']);
   let code = $state('');
   /** D4 Why the last pasted code didn't import, right under the field. */
   let codeError = $state('');

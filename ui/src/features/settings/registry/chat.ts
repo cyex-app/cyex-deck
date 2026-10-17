@@ -1,9 +1,9 @@
-// V103-13 Settings in the Chat group: Chat, Emotes and badges, Highlights, Mentions,
-// Ignores, Filters, Commands, Automations, Recordings.
+// V103-13 Settings in the Chat group: Chat, Emotes and badges, Highlights (with mentions,
+// V106-33), Ignores, Filters, Commands, Automations, Recordings.
 
 import type { Entry } from './entry';
 
-/** A built-in highlight's row: one entry for its switch, color, sound, sound file, flash, Mentions tab and feed. */
+/** A built-in highlight's row: one entry for its switch, color, sound, sound file, flash, Mentions tab, pop-up and feed. */
 function builtIn(key: string, label: string, description: string, keywords: string[] = []): Entry {
   const id = `highlights.${key}`;
   return {
@@ -12,7 +12,7 @@ function builtIn(key: string, label: string, description: string, keywords: stri
     label,
     description,
     keywords: ['highlight', 'color', 'sound', 'flash', ...keywords],
-    keys: ['enabled', 'color', 'sound', 'soundFile', 'flash', 'show', 'route'].map((f) => `${id}.${f}`),
+    keys: ['enabled', 'color', 'sound', 'soundFile', 'flash', 'show', 'notify', 'route'].map((f) => `${id}.${f}`),
   };
 }
 
@@ -278,37 +278,9 @@ export const CHAT: Entry[] = [
   },
 
   // Highlights
-  // Mentions (V104-01, V104-02)
-  {
-    id: 'mentions.me.enabled',
-    page: 'mentions',
-    label: 'Your name',
-    description: 'Messages with your name, and replies to you.',
-    keywords: ['mention', 'ping', '@', 'self', 'highlight', 'sound', 'flash', 'pop-up', 'notification'],
-    keys: ['show', 'flash', 'notify', 'sound', 'soundFile', 'color'].map((f) => `mentions.me.${f}`),
-  },
-  {
-    id: 'mentions.list',
-    page: 'mentions',
-    label: 'Your words',
-    description: 'Words that ping you in any open chat, each with its own options.',
-    keywords: ['mention', 'ping', 'keywords', 'regex', 'look-alike', 'cyrillic', 'case', 'whole word', 'sound file', 'pop-up'],
-  },
-  {
-    id: 'mentions.global',
-    page: 'mentions',
-    label: 'Global mentions',
-    description: 'From logs.cyex.app: every chat it logs. Uses about 0,8 GB an hour while on. Your list stays on this PC.',
-    keywords: ['firehose', 'logs', 'everywhere', 'all chats', 'mention'],
-  },
-  {
-    id: 'mentions.globalList',
-    page: 'mentions',
-    label: 'Global mention words',
-    description: 'Words to find in any chat, open or not.',
-    keywords: ['firehose', 'logs.cyex.app', 'keywords', 'regex'],
-    anchor: 'mentions.global',
-  },
+  // V106-33 Your name and replies: always in the Mentions tab while on; off is off everywhere (O2).
+  builtIn('me', 'Your name', 'Messages with your name. While on, always copied to the Mentions tab.', ['mention', 'ping', '@', 'self', 'pop-up', 'notification']),
+  builtIn('replies', 'Replies to you', 'Replies to your messages. While on, always copied to the Mentions tab.', ['mention', 'reply', 'ping']),
   builtIn('firstMessage', 'First messages', 'Someone’s first message in a chat.', ['first time chatter']),
   builtIn('redeemed', 'Highlighted with points', 'Messages highlighted with channel points.', ['channel points', 'redeem']),
   builtIn('subs', 'Subs and gifts', 'Subs, resubs and gifted subs.', ['subscriptions', 'resub', 'gift subs']),
@@ -318,9 +290,9 @@ export const CHAT: Entry[] = [
   {
     id: 'highlights.phrases',
     page: 'highlights',
-    label: 'Highlight words',
-    description: 'Messages with these words light up.',
-    keywords: ['keywords', 'phrases', 'regex', 'sound file', 'mentions tab'],
+    label: 'Words',
+    description: 'Words that light up a message or ping you.',
+    keywords: ['keywords', 'phrases', 'regex', 'sound file', 'mentions tab', 'mentions', 'ping', 'whole word', 'look-alike', 'pop-up'],
   },
   {
     id: 'highlights:import',
@@ -350,6 +322,22 @@ export const CHAT: Entry[] = [
     description: 'Messages sent from a phone or an odd client.',
     keywords: ['sent from', 'mobile', 'phone', 'client'],
   },
+  // V104-02 Global mentions
+  {
+    id: 'highlights.global',
+    page: 'highlights',
+    label: 'Global mentions',
+    description: 'From logs.cyex.app: every chat it logs. Uses about 0,8 GB an hour while on. Your list stays on this PC.',
+    keywords: ['firehose', 'logs', 'everywhere', 'all chats', 'mention'],
+  },
+  {
+    id: 'highlights.globalList',
+    page: 'highlights',
+    label: 'Global mention words',
+    description: 'Words to find in any chat, open or not.',
+    keywords: ['firehose', 'logs.cyex.app', 'keywords', 'regex'],
+    anchor: 'highlights.global',
+  },
   {
     id: 'highlights.never',
     page: 'highlights',
@@ -366,9 +354,9 @@ export const CHAT: Entry[] = [
   },
   {
     id: 'highlights.lookalikes',
-    page: 'highlights',
+    page: 'ignores',
     label: 'Look-alike letters',
-    description: 'Words match even when written with look-alike letters.',
+    description: 'Ignores also match look-alike letters.',
     keywords: ['cyrillic', 'fancy text', 'unicode'],
   },
 

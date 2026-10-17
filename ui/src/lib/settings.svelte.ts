@@ -43,7 +43,7 @@ class SettingsStore {
   /** V105-12 Empty rules go once the page is left. Counts as the newest edit of each part, so
    * an edit still on its way (a field that saved as the page changed) can't bring them back. */
   async pruneBlank(): Promise<void> {
-    const parts = ['highlights', 'mentions', 'commands'] as const;
+    const parts = ['highlights', 'commands'] as const;
     const started = parts.map((p) => [p, this.flight.start(p)] as const);
     let values: Partial<SettingsValues> = {};
     try {

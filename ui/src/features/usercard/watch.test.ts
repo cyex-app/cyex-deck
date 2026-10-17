@@ -12,6 +12,7 @@ const rule = (login: string, extra: Partial<UserRule> = {}): UserRule => ({
   soundFile: '',
   flash: false,
   show: false,
+  notify: false,
   route: '',
   ...extra,
 });
