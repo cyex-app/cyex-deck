@@ -97,19 +97,23 @@ impl Target {
         self.capacity.is_some_and(|c| self.entries.len() as u32 >= c)
     }
 
-    /// Our own edit went through.
+    /// Our own edit went through. A remove is exact: the id's other name stays.
     pub fn apply(&mut self, op: &EditOp) {
         match op {
             EditOp::Add { emote_id, alias, .. } => self.add(emote_id, alias),
-            EditOp::Remove { emote_id, alias, .. } => self.remove(emote_id, alias),
+            EditOp::Remove { emote_id, alias, .. } => self.remove_exact(emote_id, alias),
             EditOp::Rename {
                 emote_id, from, to, ..
             } => self.rename(emote_id, from, to),
         }
     }
 
-    /// 7TV's event. Names can lag behind, so an id held once matches whatever its name.
-    pub fn apply_change(&mut self, c: &SetChange) {
+    /// 7TV's event. Names can lag behind, so an id held once matches whatever its name; `ours`
+    /// (our own removals in it, `Echoes::filter`) only exactly.
+    pub fn apply_change(&mut self, c: &SetChange, ours: &[(String, String)]) {
+        for (id, name) in ours {
+            self.remove_exact(id, name);
+        }
         for (id, name) in &c.removed {
             self.remove(id, name);
         }
@@ -141,6 +145,12 @@ impl Target {
 
     fn remove(&mut self, id: &str, alias: &str) {
         if let Some(n) = self.slot(id, alias) {
+            self.entries.remove(n);
+        }
+    }
+
+    fn remove_exact(&mut self, id: &str, alias: &str) {
+        if let Some(n) = self.entries.iter().position(|(i, a)| i == id && a == alias) {
             self.entries.remove(n);
         }
     }

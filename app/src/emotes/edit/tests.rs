@@ -141,6 +141,44 @@ fn target_checks_and_applies() {
 }
 
 #[test]
+fn our_remove_keeps_the_ids_other_name() {
+    let rm = EditOp::Remove {
+        set_id: "S".into(),
+        emote_id: "A".into(),
+        alias: "a1".into(),
+    };
+    let ev = SetChange {
+        set_id: "S".into(),
+        removed: vec![("A".into(), "a1".into())],
+        ..SetChange::default()
+    };
+    let t0 = Instant::now();
+    // Reply, then 7TV's event.
+    let mut t = target("O", "o", false, "S", &[("A", "a1"), ("A", "a2")]);
+    let mut e = Echoes::default();
+    e.expect(&rm);
+    e.settle(&rm, t0);
+    t.apply(&rm);
+    let (left, ours) = e.filter(&ev, t0);
+    t.apply_change(&left, &ours);
+    assert_eq!(t.entries, [("A".to_string(), "a2".to_string())]);
+    // Event, then reply.
+    let mut t = target("O", "o", false, "S", &[("A", "a1"), ("A", "a2")]);
+    let mut e = Echoes::default();
+    e.expect(&rm);
+    let (left, ours) = e.filter(&ev, t0);
+    t.apply_change(&left, &ours);
+    e.settle(&rm, t0);
+    t.apply(&rm);
+    assert_eq!(t.entries, [("A".to_string(), "a2".to_string())]);
+    // Someone else's: an id held once goes whatever its name.
+    let mut e = Echoes::default();
+    let (left, ours) = e.filter(&ev, t0);
+    t.apply_change(&left, &ours);
+    assert!(t.entries.is_empty());
+}
+
+#[test]
 fn target_follows_7tv_events() {
     let mut t = target("O", "o", false, "S", &[("A", "a"), ("B", "b")]);
     let c = SetChange {
@@ -150,7 +188,7 @@ fn target_follows_7tv_events() {
         removed: vec![("A".into(), "lagging".into())],
         renamed: vec![("B".into(), "b".into(), Emote::new(Provider::Seventv, "B", "bee"))],
     };
-    t.apply_change(&c);
+    t.apply_change(&c, &[]);
     assert_eq!(
         t.entries,
         [
@@ -420,8 +458,8 @@ fn echo_after_settle_is_filtered_once() {
     e.expect(&op);
     e.settle(&op, t0);
     let c = added("S", "E", "x");
-    assert!(e.filter(&c, t0 + Duration::from_secs(10)).added.is_empty());
-    assert_eq!(e.filter(&c, t0 + Duration::from_secs(11)).added.len(), 1);
+    assert!(e.filter(&c, t0 + Duration::from_secs(10)).0.added.is_empty());
+    assert_eq!(e.filter(&c, t0 + Duration::from_secs(11)).0.added.len(), 1);
 }
 
 #[test]
@@ -431,9 +469,9 @@ fn echo_while_pending_then_settle_clears() {
     let op = add("E", "x");
     e.expect(&op);
     let c = added("S", "E", "x");
-    assert!(e.filter(&c, t0).added.is_empty());
+    assert!(e.filter(&c, t0).0.added.is_empty());
     e.settle(&op, t0);
-    assert_eq!(e.filter(&c, t0).added.len(), 1);
+    assert_eq!(e.filter(&c, t0).0.added.len(), 1);
     assert!(!e.forget(&op));
 }
 
@@ -457,7 +495,7 @@ fn echo_too_late_prints() {
     e.expect(&op);
     e.settle(&op, t0);
     let c = added("S", "E", "x");
-    assert_eq!(e.filter(&c, t0 + Duration::from_secs(31)).added.len(), 1);
+    assert_eq!(e.filter(&c, t0 + Duration::from_secs(31)).0.added.len(), 1);
 }
 
 #[test]
@@ -469,14 +507,15 @@ fn echo_filters_only_our_part() {
     e.settle(&op, t0);
     let mut c = added("S", "E", "x");
     c.removed.push(("R".into(), "r".into()));
-    let left = e.filter(&c, t0);
+    let (left, ours) = e.filter(&c, t0);
+    assert!(ours.is_empty());
     assert!(left.added.is_empty());
     assert_eq!(left.removed, [("R".to_string(), "r".to_string())]);
     assert_eq!(left.actor.as_deref(), Some("cyexbot"));
     // Another set: not ours.
     e.expect(&op);
     e.settle(&op, t0);
-    assert_eq!(e.filter(&added("OTHER", "E", "x"), t0).added.len(), 1);
+    assert_eq!(e.filter(&added("OTHER", "E", "x"), t0).0.added.len(), 1);
 }
 
 #[test]
@@ -495,7 +534,10 @@ fn echo_remove_matches_by_id_and_rename_by_new_name() {
         removed: vec![("E".into(), "lagging".into())],
         ..SetChange::default()
     };
-    assert!(e.filter(&c, t0).removed.is_empty());
+    let (left, ours) = e.filter(&c, t0);
+    assert!(left.removed.is_empty());
+    // Ours: the alias we removed, not 7TV's lagging name.
+    assert_eq!(ours, [("E".to_string(), "x".to_string())]);
     let rn = EditOp::Rename {
         set_id: "S".into(),
         emote_id: "E".into(),
@@ -509,13 +551,13 @@ fn echo_remove_matches_by_id_and_rename_by_new_name() {
         renamed: vec![("E".into(), "a".into(), Emote::new(Provider::Seventv, "E", "c"))],
         ..SetChange::default()
     };
-    assert_eq!(e.filter(&wrong, t0).renamed.len(), 1);
+    assert_eq!(e.filter(&wrong, t0).0.renamed.len(), 1);
     let right = SetChange {
         set_id: "S".into(),
         renamed: vec![("E".into(), "a".into(), Emote::new(Provider::Seventv, "E", "b"))],
         ..SetChange::default()
     };
-    assert!(e.filter(&right, t0).renamed.is_empty());
+    assert!(e.filter(&right, t0).0.renamed.is_empty());
 }
 
 #[test]
@@ -527,6 +569,30 @@ fn no_event_means_nothing_to_filter() {
     e.settle(&op, t0);
     // The line came from `apply_local`; the entry simply runs out.
     let other = added("S", "F", "y");
-    assert_eq!(e.filter(&other, t0 + Duration::from_secs(31)).added.len(), 1);
+    assert_eq!(e.filter(&other, t0 + Duration::from_secs(31)).0.added.len(), 1);
     assert!(!e.forget(&op));
+}
+
+#[test]
+fn a_repeat_edit_gets_its_own_entry() {
+    // Remove, Undo, remove again inside 30 s with no event: the second settle finds the new entry.
+    let t0 = Instant::now();
+    let mut e = Echoes::default();
+    let rm = EditOp::Remove {
+        set_id: "S".into(),
+        emote_id: "E".into(),
+        alias: "x".into(),
+    };
+    e.expect(&rm);
+    e.settle(&rm, t0);
+    e.expect(&rm);
+    e.settle(&rm, t0 + Duration::from_secs(5));
+    assert!(e.all_settled());
+    // Both run out.
+    let c = SetChange {
+        set_id: "S".into(),
+        removed: vec![("E".into(), "x".into())],
+        ..SetChange::default()
+    };
+    assert_eq!(e.filter(&c, t0 + Duration::from_secs(36)).0.removed.len(), 1);
 }

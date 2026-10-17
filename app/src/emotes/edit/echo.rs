@@ -44,9 +44,19 @@ pub struct Echoes(Vec<Echo>);
 impl Echoes {
     fn find(&self, op: &EditOp) -> Option<usize> {
         let k = kind(op);
+        // A settled entry of an earlier, equal edit is not this one.
         self.0.iter().position(|e| {
-            e.kind == k && e.set_id == op.set_id() && e.emote_id == op.emote_id() && e.name == op.name()
+            e.until.is_none()
+                && e.kind == k
+                && e.set_id == op.set_id()
+                && e.emote_id == op.emote_id()
+                && e.name == op.name()
         })
+    }
+
+    #[cfg(test)]
+    pub fn all_settled(&self) -> bool {
+        self.0.iter().all(|e| e.until.is_some())
     }
 
     /// The request goes out.
@@ -78,8 +88,9 @@ impl Echoes {
         self.find(op).is_some_and(|n| self.0.remove(n).seen)
     }
 
-    /// Takes the first live entry that matches; pending ones are marked seen, settled ones go.
-    fn take(&mut self, set_id: &str, k: Kind, emote_id: &str, name: Option<&str>) -> bool {
+    /// Takes the first live entry that matches, giving its name; pending ones are marked seen,
+    /// settled ones go.
+    fn take(&mut self, set_id: &str, k: Kind, emote_id: &str, name: Option<&str>) -> Option<String> {
         let hit = self.0.iter().position(|e| {
             !e.seen
                 && e.kind == k
@@ -87,43 +98,46 @@ impl Echoes {
                 && e.emote_id == emote_id
                 && name.is_none_or(|n| e.name == n)
         });
-        let Some(n) = hit else {
-            return false;
-        };
+        let n = hit?;
         if self.0[n].until.is_some() {
-            self.0.remove(n);
+            Some(self.0.remove(n).name)
         } else {
             self.0[n].seen = true;
+            Some(self.0[n].name.clone())
         }
-        true
     }
 
-    /// `c` minus the parts that are our own edits. Remove matches by emote id alone (7TV's
-    /// names can lag).
-    pub fn filter(&mut self, c: &SetChange, now: Instant) -> SetChange {
+    /// `c` minus the parts that are our own edits, and our removals in it as (id, the alias we
+    /// removed): those apply exactly, never "the id held once" (that would take a second name).
+    /// Remove matches by emote id alone (7TV's names can lag).
+    pub fn filter(&mut self, c: &SetChange, now: Instant) -> (SetChange, Vec<(String, String)>) {
         self.0.retain(|e| e.until.is_none_or(|u| now <= u));
         let set = c.set_id.as_str();
-        SetChange {
+        let mut ours = Vec::new();
+        let mut removed = Vec::new();
+        for (id, name) in &c.removed {
+            match self.take(set, Kind::Remove, id, None) {
+                Some(alias) => ours.push((id.clone(), alias)),
+                None => removed.push((id.clone(), name.clone())),
+            }
+        }
+        let shown = SetChange {
             set_id: c.set_id.clone(),
             actor: c.actor.clone(),
             added: c
                 .added
                 .iter()
-                .filter(|e| !self.take(set, Kind::Add, &e.id, Some(&e.name)))
+                .filter(|e| self.take(set, Kind::Add, &e.id, Some(&e.name)).is_none())
                 .cloned()
                 .collect(),
-            removed: c
-                .removed
-                .iter()
-                .filter(|(id, _)| !self.take(set, Kind::Remove, id, None))
-                .cloned()
-                .collect(),
+            removed,
             renamed: c
                 .renamed
                 .iter()
-                .filter(|(id, _, new)| !self.take(set, Kind::Rename, id, Some(&new.name)))
+                .filter(|(id, _, new)| self.take(set, Kind::Rename, id, Some(&new.name)).is_none())
                 .cloned()
                 .collect(),
-        }
+        };
+        (shown, ours)
     }
 }

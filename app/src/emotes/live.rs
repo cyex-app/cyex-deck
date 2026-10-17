@@ -124,14 +124,18 @@ fn personal(app: &AppHandle, added: bool, set_id: String, users: Vec<String>) {
 }
 
 fn set_changed(app: &AppHandle, c: SetChange) {
-    super::edit::on_set_changed(app, &c);
-    // C1 Our own edits already printed their line (`apply_local`).
-    let shown = super::edit::unseen(app, &c);
+    // C1 Our own edits already printed their line (`apply_local`); their removals apply exactly.
+    let (shown, ours) = super::edit::unseen(app, &c);
+    let c = SetChange {
+        removed: shown.removed.clone(),
+        ..c
+    };
+    super::edit::on_set_changed(app, &c, &ours);
     let state = app.state::<Emotes>();
     let mut notices: Vec<(String, Vec<String>)> = Vec::new();
     {
         let mut inner = state.lock();
-        let logins = apply_to_channels(&mut inner, &c);
+        let logins = apply_to_channels(&mut inner, &c, &ours);
         if let Some(actor) = &c.actor {
             for login in &logins {
                 notices.push((login.clone(), lines(actor, &shown)));
@@ -140,7 +144,7 @@ fn set_changed(app: &AppHandle, c: SetChange) {
         if let Some(set) = inner.personal_sets.get(&c.set_id).cloned() {
             inner
                 .personal_sets
-                .insert(c.set_id.clone(), Arc::new(apply(&set, &c)));
+                .insert(c.set_id.clone(), Arc::new(apply(&set, &c, &ours)));
             let owners: Vec<String> = inner
                 .user_sets
                 .iter()
@@ -161,8 +165,9 @@ fn set_changed(app: &AppHandle, c: SetChange) {
     }
 }
 
-/// The change into every loaded chat whose channel holds the set; their logins.
-fn apply_to_channels(inner: &mut Inner, c: &SetChange) -> Vec<String> {
+/// The change into every loaded chat whose channel holds the set; their logins. `ours`: removals
+/// that are our own, exact only.
+fn apply_to_channels(inner: &mut Inner, c: &SetChange, ours: &[(String, String)]) -> Vec<String> {
     let logins: Vec<String> = inner
         .channels
         .iter()
@@ -180,7 +185,7 @@ fn apply_to_channels(inner: &mut Inner, c: &SetChange) -> Vec<String> {
                 .iter_mut()
                 .filter(|s| s.provider == Provider::Seventv && s.id == c.set_id)
             {
-                *s = Arc::new(apply(s, c));
+                *s = Arc::new(apply(s, c, ours));
             }
         }
         inner.rebuild(login);
@@ -194,7 +199,15 @@ pub(crate) fn apply_local(app: &AppHandle, c: &SetChange) {
     let logins = {
         let state = app.state::<Emotes>();
         let mut inner = state.lock();
-        apply_to_channels(&mut inner, c)
+        // V105-04 Our removal takes only the named entry.
+        let rest = SetChange {
+            set_id: c.set_id.clone(),
+            actor: c.actor.clone(),
+            added: c.added.clone(),
+            removed: Vec::new(),
+            renamed: c.renamed.clone(),
+        };
+        apply_to_channels(&mut inner, &rest, &c.removed)
     };
     if let Some(actor) = &c.actor {
         for login in logins {
@@ -219,22 +232,30 @@ fn unclaimed(inner: &mut Inner, c: SetChange) {
     inner.unclaimed.entry(c.set_id).or_default().extend(c.added);
 }
 
-fn apply(set: &EmoteSet, c: &SetChange) -> EmoteSet {
+/// `ours`: our own removals, which take only the named entry.
+fn apply(set: &EmoteSet, c: &SetChange, ours: &[(String, String)]) -> EmoteSet {
+    let held = |id: &str| set.emotes.iter().filter(|x| x.id == id).count();
     let mut emotes: Vec<Arc<Emote>> = set
         .emotes
         .iter()
         // V105-04 Of two names for one emote, only the named one goes; an id held once goes
-        // whatever its name (7TV's names can lag).
+        // whatever its name (7TV's names can lag), unless the removal was ours.
         .filter(|e| {
-            !c.removed.iter().any(|(id, name)| {
-                *id == e.id
-                    && (*name == e.name || set.emotes.iter().filter(|x| x.id == e.id).count() == 1)
-            })
+            !ours.iter().any(|(id, name)| *id == e.id && *name == e.name)
+                && !c
+                    .removed
+                    .iter()
+                    .any(|(id, name)| *id == e.id && (*name == e.name || held(id) == 1))
         })
         .cloned()
         .collect();
-    for (id, _, new) in &c.renamed {
-        if let Some(slot) = emotes.iter_mut().find(|e| e.id == *id) {
+    for (id, old, new) in &c.renamed {
+        // Of two names, the one renamed; an id held once whatever its name.
+        let n = emotes.iter().filter(|e| e.id == *id).count();
+        if let Some(slot) = emotes
+            .iter_mut()
+            .find(|e| e.id == *id && (e.name == *old || n == 1))
+        {
             let mut e = new.clone();
             e.owner = e.owner.or_else(|| slot.owner.clone());
             e.added_at = slot.added_at.clone();
@@ -295,7 +316,7 @@ mod tests {
             removed: vec![("1".into(), "a".into())],
             renamed: vec![("2".into(), "b".into(), emote("2", "bee"))],
         };
-        let next = apply(&set, &c);
+        let next = apply(&set, &c, &[]);
         let names: Vec<&str> = next.emotes.iter().map(|e| e.name.as_str()).collect();
         assert_eq!(names, ["bee", "c"]);
         assert_eq!(
@@ -321,7 +342,11 @@ mod tests {
             removed: vec![("A".into(), "a1".into())],
             ..SetChange::default()
         };
-        let names: Vec<String> = apply(&set, &c).emotes.iter().map(|e| e.name.clone()).collect();
+        let names: Vec<String> = apply(&set, &c, &[])
+            .emotes
+            .iter()
+            .map(|e| e.name.clone())
+            .collect();
         assert_eq!(names, ["a2"]);
         let one = EmoteSet::new("s", Provider::Seventv, Scope::Channel, vec![emote("A", "a1")]);
         let c = SetChange {
@@ -329,6 +354,81 @@ mod tests {
             removed: vec![("A".into(), "other".into())],
             ..SetChange::default()
         };
-        assert!(apply(&one, &c).emotes.is_empty());
+        assert!(apply(&one, &c, &[]).emotes.is_empty());
+    }
+
+    fn names(set: &EmoteSet) -> Vec<String> {
+        set.emotes.iter().map(|e| e.name.clone()).collect()
+    }
+
+    #[test]
+    fn rename_takes_the_named_of_two() {
+        let set = EmoteSet::new(
+            "s",
+            Provider::Seventv,
+            Scope::Channel,
+            vec![emote("A", "a1"), emote("A", "a2")],
+        );
+        let c = SetChange {
+            set_id: "s".into(),
+            renamed: vec![("A".into(), "a2".into(), emote("A", "b"))],
+            ..SetChange::default()
+        };
+        assert_eq!(names(&apply(&set, &c, &[])), ["a1", "b"]);
+        // Held once: whatever its name.
+        let one = EmoteSet::new("s", Provider::Seventv, Scope::Channel, vec![emote("A", "a1")]);
+        let c = SetChange {
+            set_id: "s".into(),
+            renamed: vec![("A".into(), "lagging".into(), emote("A", "b"))],
+            ..SetChange::default()
+        };
+        assert_eq!(names(&apply(&one, &c, &[])), ["b"]);
+    }
+
+    #[test]
+    fn our_remove_keeps_the_second_name_either_order() {
+        use crate::emotes::edit::Echoes;
+        let set = EmoteSet::new(
+            "s",
+            Provider::Seventv,
+            Scope::Channel,
+            vec![emote("A", "a1"), emote("A", "a2")],
+        );
+        let op = crate::emotes::edit::EditOp::Remove {
+            set_id: "s".into(),
+            emote_id: "A".into(),
+            alias: "a1".into(),
+        };
+        let mine = vec![("A".to_string(), "a1".to_string())];
+        let local = |s: &EmoteSet| apply(s, &SetChange::default(), &mine);
+        let event = SetChange {
+            set_id: "s".into(),
+            actor: Some("me".into()),
+            removed: mine.clone(),
+            ..SetChange::default()
+        };
+        // As `set_changed` does: the echo filter's own removals exact, the rest as 7TV says.
+        let from_event = |e: &mut Echoes, s: &EmoteSet| {
+            let (shown, ours) = e.filter(&event, std::time::Instant::now());
+            assert!(shown.removed.is_empty());
+            let c = SetChange {
+                set_id: "s".into(),
+                removed: shown.removed,
+                ..SetChange::default()
+            };
+            apply(s, &c, &ours)
+        };
+        // Reply, then event.
+        let mut e = Echoes::default();
+        e.expect(&op);
+        e.settle(&op, std::time::Instant::now());
+        let after = from_event(&mut e, &local(&set));
+        assert_eq!(names(&after), ["a2"]);
+        // Event, then reply.
+        let mut e = Echoes::default();
+        e.expect(&op);
+        let mid = from_event(&mut e, &set);
+        e.settle(&op, std::time::Instant::now());
+        assert_eq!(names(&local(&mid)), ["a2"]);
     }
 }

@@ -11,6 +11,8 @@ mod reach;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+pub(crate) use echo::Echoes;
 pub use here::{emote_facts, here_names, here_target};
 pub use ops::{EditDone, EditFail, EditOp, EditOptions, NameCheck, Reachability};
 pub use reach::Target;
@@ -374,8 +376,9 @@ fn change_of(app: &AppHandle, account: &str, op: &EditOp) -> SetChange {
     c
 }
 
-/// 7TV's event: every cached target of that set follows it.
-pub fn on_set_changed(app: &AppHandle, c: &SetChange) {
+/// 7TV's event: every cached target of that set follows it. `c.removed` without our own
+/// removals; those are `ours`, exact only (`unseen`).
+pub fn on_set_changed(app: &AppHandle, c: &SetChange, ours: &[(String, String)]) {
     let Some(st) = app.try_state::<Edits>() else {
         return;
     };
@@ -386,12 +389,13 @@ pub fn on_set_changed(app: &AppHandle, c: &SetChange) {
         .flat_map(|r| r.targets.iter_mut())
         .filter(|t| t.set_id == c.set_id)
     {
-        t.apply_change(c);
+        t.apply_change(c, ours);
     }
 }
 
-/// C1 What of 7TV's event still needs a line: `c` minus our own edits.
-pub fn unseen(app: &AppHandle, c: &SetChange) -> SetChange {
+/// C1 What of 7TV's event still needs a line: `c` minus our own edits; and our removals in it,
+/// which apply exactly (V105-04: never the id's other name).
+pub fn unseen(app: &AppHandle, c: &SetChange) -> (SetChange, Vec<(String, String)>) {
     match app.try_state::<Edits>() {
         Some(st) => lock(&st.echoes).filter(c, Instant::now()),
         None => echo::Echoes::default().filter(c, Instant::now()),
