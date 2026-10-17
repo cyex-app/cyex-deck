@@ -24,8 +24,15 @@ export const STREAMING: Entry[] = [
     id: 'streammanager.obs.folder',
     page: 'streammanager',
     label: 'Status files folder',
-    description: 'Leave empty for a stream-status folder next to the settings.',
+    description: 'Pick where the OBS files go, or open the folder.',
     keywords: ['obs'],
+  },
+  {
+    id: 'streammanager:files',
+    page: 'streammanager',
+    label: 'Files for OBS',
+    description: 'Each file, what’s in it, and buttons to open it or copy its path.',
+    keywords: ['obs', 'gdi', 'text source', 'path', 'markers'],
   },
 
   // Streamer mode
