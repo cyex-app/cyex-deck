@@ -32,9 +32,15 @@ pub struct Store {
     values: BTreeMap<Partition, Value>,
     dirty: BTreeSet<Partition>,
     clock: Arc<dyn Clock>,
+    old_mentions_unreadable: bool,
 }
 
 impl Store {
+    /// V106-33 An old `mentions.json` (disk or restored snapshot) had the wrong shape and was skipped.
+    pub fn old_mentions_unreadable(&self) -> bool {
+        self.old_mentions_unreadable
+    }
+
     /// Loads every partition from `dir`, creating it if needed. Takes today's backup
     /// before anything is changed.
     pub fn open(dir: impl Into<PathBuf>, clock: Arc<dyn Clock>) -> Result<(Self, LoadReport)> {
@@ -72,8 +78,15 @@ impl Store {
             values,
             dirty: BTreeSet::new(),
             clock,
+            old_mentions_unreadable: false,
         };
-        store.merge_old_mentions(raw_highlights, &mut report)?;
+        if report.reset.contains(&Partition::Highlights) {
+            // V106-33 Quarantined: the flagged defaults stand, a stale mentions.json isn't folded back in.
+            store.mark_dirty(Partition::Highlights);
+        } else {
+            store.merge_old_mentions(raw_highlights, &mut report)?;
+        }
+        store.old_mentions_unreadable = report.old_mentions_unreadable;
         Ok((store, report))
     }
 
@@ -204,10 +217,24 @@ impl Store {
         let raw = bundle.partitions.get(Partition::Highlights.key()).cloned();
         if needs_fold(raw.as_ref(), old.is_some()) {
             let source = if local { Source::Disk } else { Source::Bundle };
-            let (h, _) = fold(raw, old, &self.read(Partition::Highlights), source)?;
-            bundle
-                .partitions
-                .insert(Partition::Highlights.key().to_owned(), serde_json::to_value(h)?);
+            let current = self.read(Partition::Highlights);
+            let folded = match fold(raw.clone(), old, &current, source) {
+                Ok((h, _)) => Some(h),
+                Err(_) if local => {
+                    // A snapshot's old mentions have the wrong shape: restore as if absent.
+                    self.old_mentions_unreadable = true;
+                    match raw {
+                        Some(_) => Some(fold(raw, None, &current, source)?.0),
+                        None => None,
+                    }
+                }
+                Err(e) => return Err(e.into()),
+            };
+            if let Some(h) = folded {
+                bundle
+                    .partitions
+                    .insert(Partition::Highlights.key().to_owned(), serde_json::to_value(h)?);
+            }
         }
         let mut checked = Vec::with_capacity(bundle.partitions.len());
         for (key, value) in bundle.partitions {
@@ -742,6 +769,43 @@ mod tests {
             store.reset(Partition::Highlights);
             store.restore_snapshot(&name).unwrap();
             assert_eq!(highlights(&store), merged, "no second merge, no doubled words");
+        }
+
+        #[test]
+        fn corrupt_highlights_is_not_refolded() {
+            let tmp = TempDir::new("merge-corrupt-highlights");
+            write(tmp.path(), "highlights.json", "{ nope");
+            write(tmp.path(), "mentions.json", OLD_MENTIONS);
+            let clock = Arc::new(FakeClock::at(day(9)));
+            let (mut store, report) = open(tmp.path(), &clock);
+            assert_eq!(report.reset, vec![Partition::Highlights]);
+            assert!(report.merged.is_none());
+            assert_eq!(highlights(&store), Highlights::default());
+            store.flush().unwrap();
+            let saved: Value = serde_json::from_str(&file(tmp.path(), "highlights.json")).unwrap();
+            assert_eq!(saved["mentionsMerged"], true);
+            let (again, report) = open(tmp.path(), &clock);
+            assert!(report.merged.is_none());
+            assert_eq!(highlights(&again), Highlights::default());
+        }
+
+        #[test]
+        fn restore_with_misshaped_mentions() {
+            let tmp = TempDir::new("merge-restore-bad-mentions");
+            v105(tmp.path());
+            let clock = Arc::new(FakeClock::at(day(9)));
+            let (mut store, _) = open(tmp.path(), &clock);
+            store.flush().unwrap();
+            let merged = highlights(&store);
+            let snap = backup::snapshot_dir(tmp.path(), day(9));
+            write(&snap, "highlights.json", OLD_HIGHLIGHTS);
+            write(&snap, "mentions.json", "[1, 2]");
+            store.reset(Partition::Highlights);
+            assert!(!store.old_mentions_unreadable());
+            store.restore_backup(day(9)).unwrap();
+            assert!(store.old_mentions_unreadable());
+            assert_eq!(patterns(&highlights(&store).phrases), ["hello", "a+"]);
+            assert_ne!(highlights(&store), merged);
         }
 
         #[test]
