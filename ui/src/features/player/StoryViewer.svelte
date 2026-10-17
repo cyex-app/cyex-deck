@@ -14,6 +14,7 @@
   import { sounding } from '../tabs/sounding.svelte';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
+  import { pictureBar, videoBar } from './storyBar';
 
   interface Props {
     channelId: string;
@@ -46,10 +47,10 @@
 
   let stories = $state<Story[] | null>(null);
   let index = $state(0);
-  let progress = $state(0);
   let problem = $state<string | null>(null);
   let seenUpTo = '';
-  let timer: ReturnType<typeof setInterval> | undefined;
+  /** V106-20 The current story's bar fill. */
+  let fill = $state<HTMLElement>();
 
   // svelte-ignore state_referenced_locally
   channelIpc
@@ -59,21 +60,16 @@
 
   const story = $derived(stories?.[index]);
 
+  // V106-20 One compositor animation per story; pictures end it, videos drive it.
   $effect(() => {
-    if (!story) return;
+    if (!story || !fill) return;
     if (story.createdAt > seenUpTo) seenUpTo = story.createdAt;
-    progress = 0;
-    if (story.video) return;
-    const started = Date.now();
-    timer = setInterval(() => {
-      progress = (Date.now() - started) / PICTURE_MS;
-      if (progress >= 1) next();
-    }, 100);
-    return () => clearInterval(timer);
+    if (!story.video) return pictureBar(fill, PICTURE_MS, next);
+    if (!storyVideo) return;
+    return videoBar(fill, storyVideo);
   });
 
   onDestroy(() => {
-    clearInterval(timer);
     if (seenUpTo) void channelIpc.storiesSeen(channelId, account, seenUpTo);
   });
 
@@ -115,7 +111,10 @@
     {#if stories?.length && story}
       <div class="bars">
         {#each stories as s, i (s.id)}
-          <span class="bar"><span style:width="{i < index ? 100 : i === index ? Math.min(progress, 1) * 100 : 0}%"></span></span>
+          <span class="bar">
+            {#if i === index}<span class="fill now" bind:this={fill}></span>
+            {:else}<span class="fill" class:done={i < index}></span>{/if}
+          </span>
         {/each}
       </div>
       <div class="who">
@@ -136,7 +135,6 @@
             poster={story.image ?? undefined}
             autoplay
             playsinline
-            ontimeupdate={(e) => (progress = e.currentTarget.currentTime / (e.currentTarget.duration || 1))}
             onended={next}
           ></video>
         {:else}
@@ -196,10 +194,19 @@
     border-radius: var(--radius-sm);
     overflow: hidden;
   }
-  .bar span {
+  /* V106-20 transform only, so the bar never triggers layout. */
+  .fill {
     display: block;
     height: 100%;
     background: var(--on-video);
+    transform: scaleX(0);
+    transform-origin: left center;
+  }
+  .fill.done {
+    transform: none;
+  }
+  .fill.now {
+    will-change: transform;
   }
   .who {
     position: absolute;
