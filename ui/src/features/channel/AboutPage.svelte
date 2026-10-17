@@ -1,10 +1,13 @@
 <!-- A channel's about page (1.21): bio, followers, last stream, links and panels.
-     Extension panels are web pages Twitch runs; they open on twitch.tv. -->
+     Extension panels can't be drawn here and are left out (V106-23). -->
 <script lang="ts">
+  import { SvelteSet } from 'svelte/reactivity';
+  import Button from '../../components/Button.svelte';
   import EmptyState from '../../components/EmptyState.svelte';
   import Icon from '../../components/Icon.svelte';
   import type { About } from '../../ipc/bindings/About';
   import { channelIpc } from '../../ipc/player';
+  import { linkLabel, linked, shows } from './panels';
   import { systemIpc } from '../../ipc/system';
   import { formatDate, formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
@@ -26,31 +29,50 @@
 
   let about = $state<About | null>(null);
   let problem = $state<string | null>(null);
+  let retry = $state(false);
+  let attempt = $state(0);
+  const broken = new SvelteSet<string>();
+  let bannerBroken = $state(false);
 
   $effect(() => {
     const l = login;
+    void attempt;
     let alive = true;
     about = null;
     problem = null;
+    retry = false;
+    bannerBroken = false;
     channelIpc
       .about(l)
-      .then((a) => alive && ((about = a), (problem = a ? null : 'This channel doesn’t exist.')))
-      .catch((e) => alive && (problem = errorText(e)));
+      .then((a) => alive && ((about = a), (problem = a ? null : 'This channel doesn’t exist.'), (retry = false)))
+      .catch((e) => alive && ((problem = errorText(e, 'load this channel’s about page')), (retry = true)));
     return () => (alive = false);
   });
 
-  function open(url: string, twitch = false) {
-    (twitch ? systemIpc.openLink(url) : systemIpc.openChatLink(url)).catch((e) => toast.error(errorText(e)));
+  function open(url: string) {
+    systemIpc.openChatLink(url).catch((e) => toast.error(errorText(e)));
+  }
+
+  // V106-22 The whole panel is the link; links inside its text open themselves.
+  function panelClick(e: MouseEvent, url: string) {
+    if ((e.target as Element).closest('a')) return;
+    open(url);
+  }
+  function panelKey(e: KeyboardEvent, url: string) {
+    if (e.key === 'Enter' && e.target === e.currentTarget) open(url);
   }
 </script>
 
 <div class="page">
   {#if problem}
-    <EmptyState icon="alert" text={problem} />
+    <EmptyState icon="alert" text={problem}>
+      {#if retry}<Button small onclick={() => attempt++}>Try again</Button>{/if}
+    </EmptyState>
   {:else if !about}
     <Loading />
   {:else}
-    {#if about.banner}<img class="banner" src={about.banner} alt="" />{/if}
+    <svelte:boundary onerror={(e) => console.error('about page', e)}>
+    {#if about.banner && !bannerBroken}<img class="banner" src={about.banner} alt="" onerror={() => (bannerBroken = true)} />{/if}
     <div class="head">
       <StoryRing
         channelId={about.id}
@@ -78,35 +100,48 @@
     {/if}
     {#if about.socials.length}
       <div class="socials">
-        {#each about.socials as s (s.url)}
+        {#each about.socials as s, i (i)}
           <button onclick={() => open(s.url)}><Icon name="link" size={12} />{s.title}</button>
         {/each}
       </div>
     {/if}
     {#if about.panels.length}
       <div class="panels">
-        {#each about.panels as p, i (i)}
-          <section class="panel">
-            {#if p.extension !== null}
-              <p class="ext">
-                Extension{p.extension ? `: ${p.extension}` : ''}.
-                <button class="text-link" onclick={() => open(`https://www.twitch.tv/${about!.login}/about`, true)}>Open on Twitch</button>
-              </p>
-            {:else}
+        {#each about.panels.filter((p) => shows(p, broken)) as p, i (i)}
+          {#if linked(p)}
+            <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role: the whole panel is the link (V106-22) -->
+            <section
+              class="panel linked"
+              role="link"
+              tabindex="0"
+              aria-label={linkLabel(p)}
+              onclick={(e) => panelClick(e, p.link!)}
+              onkeydown={(e) => panelKey(e, p.link!)}
+            >
               {#if p.title}<h3>{p.title}</h3>{/if}
-              {#if p.image}
-                {#if p.link}
-                  <button class="img-link" onclick={() => open(p.link!)}><img src={p.image} alt={p.title ?? ''} loading="lazy" /></button>
-                {:else}
-                  <img src={p.image} alt={p.title ?? ''} loading="lazy" />
-                {/if}
+              {#if p.image && !broken.has(p.image)}
+                <img src={p.image} alt="" loading="lazy" onerror={() => broken.add(p.image!)} />
               {/if}
               {#if p.body.length}<Markdown blocks={p.body} />{/if}
-            {/if}
-          </section>
+            </section>
+          {:else}
+            <section class="panel">
+              {#if p.title}<h3>{p.title}</h3>{/if}
+              {#if p.image && !broken.has(p.image)}
+                <img src={p.image} alt={p.title ?? ''} loading="lazy" onerror={() => broken.add(p.image!)} />
+              {/if}
+              {#if p.body.length}<Markdown blocks={p.body} />{/if}
+            </section>
+          {/if}
         {/each}
       </div>
     {/if}
+    {#snippet failed(_e, reset)}
+      <EmptyState icon="alert" text="Couldn’t show this page.">
+        <Button small onclick={() => { reset(); attempt++; }}>Try again</Button>
+      </EmptyState>
+    {/snippet}
+    </svelte:boundary>
   {/if}
 </div>
 
@@ -202,25 +237,25 @@
   .panel img {
     display: block;
     max-width: 100%;
-    min-height: 64px;
+    height: auto;
     margin-bottom: 8px;
-    background: var(--surface-hover);
     border-radius: var(--radius);
   }
-  .img-link {
-    padding: 0;
-    background: none;
-    border: 0;
+  .panel {
+    border-radius: var(--radius);
   }
-  .ext {
-    margin: 0;
-    color: var(--dim);
-    font-size: 0.85rem;
+  .panel.linked,
+  .panel.linked :global(*) {
+    cursor: pointer;
   }
-  .text-link {
-    padding: 0;
-    background: none;
-    border: 0;
-    color: var(--accent-text);
+  .panel.linked:hover h3 {
+    text-decoration: underline;
+  }
+  .panel.linked:hover img {
+    filter: brightness(1.08);
+  }
+  .panel.linked:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 4px;
   }
 </style>

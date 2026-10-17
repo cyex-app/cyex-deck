@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import Icon from './Icon.svelte';
   import type { IconName } from './icons';
 
@@ -7,14 +8,16 @@
     text: string;
     /** `start`: icon and one line, left-aligned, for inside a page of settings. */
     align?: 'center' | 'start';
+    children?: Snippet;
   }
 
-  let { icon, text, align = 'center' }: Props = $props();
+  let { icon, text, align = 'center', children }: Props = $props();
 </script>
 
 <div class="empty" class:start={align === 'start'}>
   <Icon name={icon} size={align === 'start' ? 20 : 28} />
   <p>{text}</p>
+  {@render children?.()}
 </div>
 
 <style>
