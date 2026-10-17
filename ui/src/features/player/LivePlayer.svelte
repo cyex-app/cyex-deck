@@ -116,18 +116,32 @@
   });
 
   // V1061-03 Twitch's Stream Rewind, where Twitch allows it.
-  const rewind = new Rewind(
-    { engine: () => engine, open: (at) => (engine ? start(engine, engine.choice, login, account, false, at) : Promise.resolve()) },
-    untrack(() => login),
-  );
+  const rewindHost = {
+    engine: () => engine,
+    open: (at: number | null) => (engine ? start(engine, engine.choice, login, account, false, at) : Promise.resolve()),
+  };
+  let rewindLogin = untrack(() => login);
+  let rewind = $state.raw(new Rewind(rewindHost, rewindLogin));
+  // A tab can change channel in place: the rewind follows (its VOD belongs to the old one).
   $effect(() => {
+    const l = login;
+    untrack(() => {
+      if (l === rewindLogin) return;
+      rewindLogin = l;
+      rewind.destroy();
+      rewind = new Rewind(rewindHost, l);
+    });
+  });
+  $effect(() => {
+    const r = rewind;
     const o = { account, startedAt: info?.stream?.startedAt ?? null, enabled: settings.v.player.liveRewind };
-    untrack(() => rewind.watch(o));
+    untrack(() => r.watch(o));
   });
   // Q22 b
   $effect(() => {
+    const r = rewind;
     const h = hushed;
-    untrack(() => rewind.hush(h));
+    untrack(() => r.hush(h));
   });
   // Short notes from the engine show as the readout.
   $effect(() => {
@@ -162,12 +176,15 @@
    *  `at`: the rewind VOD from there (V1061-03), null for live. What plays keeps playing until
    *  the new session is in (Q14 a). */
   async function start(e: Engine, choice: Choice, channel: string, as: string | null, hold = false, at: number | null = null) {
+    // The VOD went away since the seek (or the retry): live instead.
+    const vod = rewind.vodId;
+    if (at !== null && !vod) at = null;
     const current = starts.begin();
     const old = session;
     e.failure = null;
     if (!old) e.waiting = true;
     try {
-      const s = at === null ? await playerIpc.live(channel, as) : await playerIpc.vod(rewind.vodId ?? '', as);
+      const s = at === null ? await playerIpc.live(channel, as) : await playerIpc.vod(vod!, as);
       if (!current()) return void playerIpc.close(s.id);
       session = s;
       ad = 'none';
@@ -200,7 +217,7 @@
     // V1061-03 null: no rewind here, the key stays with the page.
     seekBy: (s: number) => rewind.seekBy(s),
     toLive: () => void rewind.toLive(),
-    pause: () => video?.pause(),
+    pause: () => (engine ? engine.pause() : video?.pause()),
     media: () => ({ title: info?.stream?.title || tile.channel.name, artist: tile.channel.name, artwork: info?.avatar }),
   };
 

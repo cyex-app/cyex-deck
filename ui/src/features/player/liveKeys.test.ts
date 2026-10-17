@@ -6,7 +6,7 @@ import { liveKeyAction, ownsArrows, seekText, stepChoice, Steps, stepText, behin
 const fake = (roles: string[]) => ({ closest: (sel: string) => (roles.some((r) => sel.includes(r)) ? {} : null) });
 
 test('which focused elements keep the arrows', () => {
-  for (const r of ['input', 'textarea', '[role="slider"]', '[role="tab"]', '[role="grid"]', '[data-arrows]']) {
+  for (const r of ['input', 'textarea', '[role="slider"]', '[role="tab"]', '[role="grid"]', '[role="log"]', '[data-arrows]']) {
     assert.equal(ownsArrows(fake([r])), true, r);
   }
   assert.equal(ownsArrows(fake([])), false);

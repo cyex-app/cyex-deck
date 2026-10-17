@@ -665,6 +665,7 @@
     onmouseenter={() => ((hovering = true), onmousemove())}
     {onmouseleave}
     role="log"
+    data-arrows
     aria-live="off"
   >
     <div bind:this={lines}>

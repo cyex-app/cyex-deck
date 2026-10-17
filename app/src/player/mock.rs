@@ -10,8 +10,18 @@ pub fn base(app: &AppHandle) -> Option<String> {
 }
 
 fn allowed(url: &str) -> Option<String> {
-    (url.starts_with("http://127.0.0.1:") || url.starts_with("http://localhost:"))
-        .then(|| url.trim_end_matches('/').to_owned())
+    let u = url::Url::parse(url).ok()?;
+    let host = u.host_str()?;
+    let ok = u.scheme() == "http"
+        && matches!(host, "127.0.0.1" | "localhost")
+        && u.username().is_empty()
+        && u.password().is_none()
+        && u.path() == "/"
+        && u.query().is_none()
+        && u.fragment().is_none();
+    // Only a port that was written (80 parses to none).
+    let port = u.port().filter(|_| ok)?;
+    Some(format!("http://{host}:{port}"))
 }
 
 /// The mock's DVR answer: `GET {base}/dvr/{login}` -> `{"vodID": "..." | null}`.
@@ -40,5 +50,13 @@ mod tests {
         assert_eq!(allowed("https://127.0.0.1:8123"), None);
         assert_eq!(allowed("https://example.com"), None);
         assert_eq!(allowed("http://10.0.0.1:8123"), None);
+        assert_eq!(allowed("http://127.0.0.1:1@evil.example/"), None);
+        assert_eq!(allowed("http://127.0.0.1:1:2@evil.example/"), None);
+        assert_eq!(allowed("http://user@127.0.0.1:8123"), None);
+        assert_eq!(allowed("http://127.0.0.1:8123/x"), None);
+        assert_eq!(allowed("http://127.0.0.1:8123/?a=1"), None);
+        assert_eq!(allowed("http://127.0.0.1:8123/#f"), None);
+        assert_eq!(allowed("http://127.0.0.1"), None);
+        assert_eq!(allowed("http://127.0.0.1.evil.example:8123"), None);
     }
 }
