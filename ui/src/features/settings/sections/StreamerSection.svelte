@@ -1,5 +1,6 @@
 <!-- U4 Streamer mode: when it turns on and what it keeps off your stream. -->
 <script lang="ts">
+  import SectionHead from '../SectionHead.svelte';
   import Row from '../../../components/Row.svelte';
   import Segmented from '../../../components/Segmented.svelte';
   import Toggle from '../../../components/Toggle.svelte';
@@ -49,8 +50,7 @@
   }
 </script>
 
-<h2>Streamer mode</h2>
-<p class="intro">Keeps things off your stream that viewers shouldn’t see. {status}</p>
+<SectionHead title="Streamer mode" level={2}>Keeps things off your stream that viewers shouldn’t see. {status}</SectionHead>
 
 <Row setting="general.streamer.when" label="Turn on" hint="While streaming: when one of the apps below runs.">
   <Segmented label="Turn on" options={WHEN} value={s.when} onchange={(when) => patch({ when })} />
@@ -78,7 +78,7 @@
   </Row>
 {/if}
 
-<h3 class="label">Hide</h3>
+<SectionHead title="Hide">What to keep off your screen while streamer mode is on.</SectionHead>
 {#each HIDES as h (h.key)}
   <Row setting="general.streamer.{h.key}" label={h.label} hint={h.hint}>
     <Toggle label={h.label} checked={s[h.key]} onchange={(v) => patch({ [h.key]: v })} />
@@ -86,13 +86,6 @@
 {/each}
 
 <style>
-  .intro {
-    margin: -6px 0 6px;
-    color: var(--dim);
-  }
-  h3 {
-    margin: 22px 0 2px;
-  }
   .apps {
     display: flex;
     flex-wrap: wrap;

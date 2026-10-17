@@ -3,6 +3,7 @@
      sends, and its email, phone and on-Twitch switches as closed groups under Twitch's own
      group switches (V101-06). -->
 <script lang="ts">
+  import SectionHead from '../SectionHead.svelte';
   import Avatar from '../../../components/Avatar.svelte';
   import Button from '../../../components/Button.svelte';
   import GateFlag from '../../../components/GateFlag.svelte';
@@ -133,9 +134,9 @@
   }
 </script>
 
-<h2>Notifications</h2>
+<SectionHead title="Notifications" level={2}>Sounds and pop-ups for streams going live, whispers and Twitch’s bell.</SectionHead>
 
-<h3 class="label">When channels go live</h3>
+<SectionHead title="When channels go live">Tell me when a followed channel starts.</SectionHead>
 <Row setting="notifications.live.enabled" label="Live alerts" hint="For channels the default account follows. Each one follows its Twitch bell unless you pick below.">
   <Toggle label="Live alerts" checked={n.live.enabled} onchange={(on) => patch({ live: { enabled: on } })} />
 </Row>
@@ -151,21 +152,21 @@
   </Row>
 {/if}
 
-<h3 class="label">Whispers</h3>
+<SectionHead title="Whispers">Private messages sent to you.</SectionHead>
 <Row setting="notifications.whispers.toast" label="Pop-up" hint="While the app isn’t in front.">
   <Toggle label="Whisper pop-up" checked={n.whispers.toast} onchange={(on) => patch({ whispers: { toast: on } })} />
 </Row>
 <Row setting="notifications.whispers.sound" label="Sound">
   <Toggle label="Whisper sound" checked={n.whispers.sound} onchange={(on) => patch({ whispers: { sound: on } })} />
 </Row>
-<Row setting="notifications.whispers.flash" label="Flash the taskbar">
+<Row setting="notifications.whispers.flash" label="Flash the taskbar" hint="Makes the taskbar icon blink.">
   <Toggle label="Flash the taskbar" checked={n.whispers.flash} onchange={(on) => patch({ whispers: { flash: on } })} />
 </Row>
 <Row setting="notifications.whispers.inline" label="Show in chat" hint="Whispers also show as lines in the chats on screen.">
   <Toggle label="Show whispers in chat" checked={n.whispers.inline} onchange={(on) => patch({ whispers: { inline: on } })} />
 </Row>
 
-<h3 class="label">Twitch’s bell</h3>
+<SectionHead title="Twitch’s bell">The notifications from Twitch’s bell icon.</SectionHead>
 <Row setting="notifications.bell.toast" label="Pop-ups" hint="When Twitch marks a notification as a pop-up, show it as a Windows notification too.">
   <Toggle label="Bell pop-ups" checked={n.bell.toast} onchange={(on) => patch({ bell: { toast: on } })} />
 </Row>

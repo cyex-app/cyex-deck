@@ -1,6 +1,7 @@
 <!-- Emotes, badges and paints (2.3, 2.4, C11, E2, E3, E4, D21). Stored in the chat
      partition. -->
 <script lang="ts">
+  import SectionHead from '../SectionHead.svelte';
   import Icon from '../../../components/Icon.svelte';
   import Row from '../../../components/Row.svelte';
   import Segmented from '../../../components/Segmented.svelte';
@@ -46,13 +47,13 @@
   );
 </script>
 
-<h2>Emotes and badges</h2>
+<SectionHead title="Emotes and badges" level={2}>Which emotes and badges show in chat.</SectionHead>
 
-<h3 class="label">Emotes</h3>
+<SectionHead title="Emotes">Where emotes come from and how big they are.</SectionHead>
 <Row setting="chat.twitchEmotes" label="Twitch emotes">
   <Toggle label="Twitch emotes" checked={c.twitchEmotes} onchange={(v) => settings.patch('chat', { twitchEmotes: v })} />
 </Row>
-<Row setting="chat.thirdPartyEmotes" label="7TV, BTTV and FFZ emotes">
+<Row setting="chat.thirdPartyEmotes" label="7TV, BTTV and FFZ emotes" hint="Extra emote sets made by the community.">
   <Toggle
     label="7TV, BTTV and FFZ emotes"
     checked={c.thirdPartyEmotes}
@@ -108,7 +109,7 @@
   {/if}
 </Row>
 
-<h3 class="label">Badges</h3>
+<SectionHead title="Badges">The small icons before a name.</SectionHead>
 {#each BADGES as b (b.key)}
   <Row setting="chat.badges.{b.key}" label="{b.label} badges">
     <Toggle
@@ -118,7 +119,7 @@
     />
   </Row>
 {/each}
-<Row setting="chat.paints.seventv" label="7TV name paints">
+<Row setting="chat.paints.seventv" label="7TV name paints" hint="Colorful names for 7TV users.">
   <Toggle
     label="7TV name paints"
     checked={c.paints.seventv}
@@ -126,7 +127,7 @@
   />
 </Row>
 
-<h3 class="label">Sharing</h3>
+<SectionHead title="Sharing">Let other cyex users see that you’re here.</SectionHead>
 <Row
   setting="chat.sharePresence"
   label="Send presence to 7TV and BTTV"
@@ -140,9 +141,6 @@
 </Row>
 
 <style>
-  h3 {
-    margin: 22px 0 2px;
-  }
   .order {
     display: flex;
     flex-direction: column;

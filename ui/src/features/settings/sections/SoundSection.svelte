@@ -1,6 +1,7 @@
 <!-- V1051-01 Settings → Sound: the app in Windows' volume mixer, and where streams and the
      other sounds play. Changes apply at once. -->
 <script lang="ts">
+  import SectionHead from '../SectionHead.svelte';
   import Select from '../../../components/Select.svelte';
   import IconButton from '../../../components/IconButton.svelte';
   import Row from '../../../components/Row.svelte';
@@ -63,7 +64,7 @@
   </span>
 {/snippet}
 
-<h2>Sound</h2>
+<SectionHead title="Sound" level={2}>Volume, and where each stream’s audio goes.</SectionHead>
 
 <Row
   setting="general.sound.separateStreams"

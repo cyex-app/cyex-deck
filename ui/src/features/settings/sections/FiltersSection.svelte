@@ -75,7 +75,7 @@
   addLabel="Add filter"
 />
 
-<h3 class="label">Near-duplicates</h3>
+<SectionHead title="Near-duplicates">Spot messages that repeat what was just said.</SectionHead>
 <Row setting="highlights.similar.enabled" label="Mark near-duplicates" hint="Messages much like one sent just before. Ctrl+H hides or shows them.">
   <Toggle label="Mark near-duplicates" checked={s.enabled} onchange={(v) => sim({ enabled: v })} />
 </Row>
@@ -91,10 +91,10 @@
 <Row setting="highlights.similar.depth" label="Messages back" hint="How many earlier messages to compare with.">
   <Stepper label="Messages back" value={s.depth} min={1} max={5} onchange={(v) => sim({ depth: v })} />
 </Row>
-<Row setting="highlights.similar.sameUser" label="Only from the same person">
+<Row setting="highlights.similar.sameUser" label="Only from the same person" hint="Ignores matches between different people.">
   <Toggle label="Only from the same person" checked={s.sameUser} onchange={(v) => sim({ sameUser: v })} />
 </Row>
-<Row setting="highlights.similar.own" label="Check your own messages">
+<Row setting="highlights.similar.own" label="Check your own messages" hint="Your messages can be marked too.">
   <Toggle label="Check your own messages" checked={s.own} onchange={(v) => sim({ own: v })} />
 </Row>
 

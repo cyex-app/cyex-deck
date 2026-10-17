@@ -3,6 +3,7 @@
      a code for the GQL tools alone. A flag on a greyed-out tool lands here, on the sign-in
      that unlocks it (V102-20). -->
 <script lang="ts">
+  import SectionHead from '../SectionHead.svelte';
   import { tick } from 'svelte';
 
   import Button from '../../../components/Button.svelte';
@@ -40,7 +41,7 @@
   }
 </script>
 
-<h2>Accounts</h2>
+<SectionHead title="Accounts" level={2}>Who you chat and follow as. Each tab can use its own account.</SectionHead>
 
 {#if signIn.kind}<DeviceCode />{/if}
 

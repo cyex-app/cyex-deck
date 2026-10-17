@@ -2,6 +2,7 @@
      community goals (W2), sitting in chats, and prediction bets (off by default). The
      channels themselves are in the miner. -->
 <script lang="ts">
+  import SectionHead from '../SectionHead.svelte';
   import Checkbox from '../../../components/Checkbox.svelte';
   import IconButton from '../../../components/IconButton.svelte';
   import Row from '../../../components/Row.svelte';
@@ -85,7 +86,7 @@
 
 </script>
 
-<h2>Miner</h2>
+<SectionHead title="Miner" level={2}>Collects channel points while you watch and claims bonus chests.</SectionHead>
 
 <h3 class="label" data-setting="miner.order">What goes first</h3>
 <p class="note">
@@ -104,11 +105,11 @@
   </div>
 {/each}
 
-<h3 class="label">Claims</h3>
+<SectionHead title="Claims">Bonus chests the miner picks up for you.</SectionHead>
 <Row setting="miner.claimInTabs" label="Bonus chests in open tabs" hint="With each tab’s account, not only in mined channels.">
   <Toggle label="Bonus chests in open tabs" checked={m.claimInTabs} onchange={(v) => save({ claimInTabs: v })} />
 </Row>
-<Row setting="miner.claimMoments" label="Moments">
+<Row setting="miner.claimMoments" label="Moments" hint="Picks up the bonus when a Moment shows up.">
   <Toggle label="Moments" checked={m.claimMoments} onchange={(v) => save({ claimMoments: v })} />
 </Row>
 <Row setting="miner.joinRaids" label="Join raids" hint="Goes along with a raid for its points.">
@@ -118,7 +119,7 @@
   <Toggle label="Drops" checked={m.claimDrops} onchange={(v) => save({ claimDrops: v })} />
 </Row>
 
-<h3 class="label">More</h3>
+<SectionHead title="More">Other ways the miner earns.</SectionHead>
 <Row
   setting="miner.watchingEarns"
   label="Watching here earns points"
@@ -133,12 +134,12 @@
   <Segmented label="Sit in their chats" options={PRESENCE} value={m.chat} onchange={(chat) => save({ chat })} />
 </Row>
 
-<h3 class="label">Predictions</h3>
+<SectionHead title="Predictions">Bet your points on Twitch predictions automatically.</SectionHead>
 <Row setting="miner.bets.enabled" label="Bet on predictions" hint="Spends points. The first bet accepts Twitch’s prediction terms.">
   <Toggle label="Bet on predictions" checked={b.enabled} onchange={(enabled) => bet({ enabled })} />
 </Row>
 {#if b.enabled}
-  <Row setting="miner.bets.strategy" label="Pick">
+  <Row setting="miner.bets.strategy" label="Pick" hint="How the miner chooses a side.">
     <Select label="Pick" width="260px" value={b.strategy} options={STRATEGIES} onchange={(v) => bet({ strategy: v as Strategy })} />
   </Row>
   {#if b.strategy === 'outcome'}
@@ -163,13 +164,13 @@
   <Row setting="miner.bets.stealth" label="Stay small" hint="Never bet more than the biggest bet on that side.">
     <Toggle label="Stay small" checked={b.stealth} onchange={(stealth) => bet({ stealth })} />
   </Row>
-  <Row setting="miner.bets.delay" label="When">
+  <Row setting="miner.bets.delay" label="When" hint="How long after a prediction opens to bet.">
     <span class="pair">
       <NumberField label="Delay" min={0} max={b.delayMode === 'percent' ? 100 : 1800} width="90px" value={b.delay} onchange={(n) => bet({ delay: n })} />
       <Select label="When" width="220px" value={b.delayMode} options={DELAYS} onchange={(v) => bet({ delayMode: v as DelayMode })} />
     </span>
   </Row>
-  <Row setting="miner.bets.filter" label="Only if">
+  <Row setting="miner.bets.filter" label="Only if" hint="Skips predictions that don’t fit.">
     <span class="pair">
       <Select
         label="Only if"

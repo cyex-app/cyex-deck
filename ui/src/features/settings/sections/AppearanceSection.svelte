@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SectionHead from '../SectionHead.svelte';
   import Button from '../../../components/Button.svelte';
   import Row from '../../../components/Row.svelte';
   import Segmented from '../../../components/Segmented.svelte';
@@ -108,9 +109,9 @@
   }
 </script>
 
-<h2>Appearance</h2>
+<SectionHead title="Appearance" level={2}>Colors, themes and how tabs look.</SectionHead>
 
-<h3 class="label">Colors</h3>
+<SectionHead title="Colors">The theme and accent color.</SectionHead>
 <Row setting="appearance.theme appearance.themes" label="Theme" hint="Make your own under Custom themes, or paste a code." stacked>
   <ThemePicker {a} {builtins} {choice} />
 </Row>
@@ -149,7 +150,7 @@
   />
 </Row>
 
-<h3 class="label">Tabs</h3>
+<SectionHead title="Tabs">The tab bar at the top or side.</SectionHead>
 <Row setting="appearance.tabDensity" label="Tab size" hint="Compact fits more tabs.">
   <Segmented
     label="Tab size"
@@ -209,9 +210,6 @@
 <ResetSection partition="appearance" />
 
 <style>
-  h3 {
-    margin: 22px 0 2px;
-  }
   .cap {
     color: var(--dim);
     font-size: 0.78rem;

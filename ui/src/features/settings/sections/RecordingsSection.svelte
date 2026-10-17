@@ -1,5 +1,6 @@
 <!-- Chat recordings (X6): start one from a chat's ⋯ menu, play or delete them here. -->
 <script lang="ts">
+  import SectionHead from '../SectionHead.svelte';
   import Button from '../../../components/Button.svelte';
   import Row from '../../../components/Row.svelte';
   import type { RecordingMeta } from '../../../ipc/bindings/RecordingMeta';
@@ -33,7 +34,7 @@
   const long = (r: RecordingMeta) => formatDuration(Math.max(0, Math.floor((r.endedMs - r.startedMs) / 1000)));
 </script>
 
-<h2 data-setting="recordings:list">Recordings</h2>
+<SectionHead title="Recordings" level={2} setting="recordings:list">Streams you saved on this PC.</SectionHead>
 
 {#if list === null}
   <Loading rows={3} />

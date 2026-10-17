@@ -1,6 +1,7 @@
 <!-- General (2.1): chat text, where chat sits, and the app itself. The chat font comes from
      a fixed list of 8 (design/fonts.ts). -->
 <script lang="ts">
+  import SectionHead from '../SectionHead.svelte';
   import { getVersion } from '@tauri-apps/api/app';
 
   import Button from '../../../components/Button.svelte';
@@ -50,9 +51,9 @@
   }
 </script>
 
-<h2>General</h2>
+<SectionHead title="General" level={2}>Everyday app options.</SectionHead>
 
-<h3 class="label">Chat text</h3>
+<SectionHead title="Chat text">The font used in every chat.</SectionHead>
 <Row setting="general.chatFontFamily" label="Font">
   <FontPicker value={g.chatFontFamily} onpick={pick} />
 </Row>
@@ -81,7 +82,7 @@
   <b>seryxx</b>: this is how chat will look
 </div>
 
-<h3 class="label">Layout</h3>
+<SectionHead title="Layout">Where chat and panels sit.</SectionHead>
 <Row setting="general.chatPosition" label="Chat position" hint="Which side of the player or a clip the chat sits on.">
   <Segmented
     label="Chat position"
@@ -91,7 +92,7 @@
   />
 </Row>
 
-<h3 class="label">App</h3>
+<SectionHead title="App">Behavior of the app itself.</SectionHead>
 <Row setting="general.tooltips" label="Tooltips" hint="Short explanations when you hover buttons.">
   <Toggle label="Tooltips" checked={g.tooltips} onchange={(v) => settings.patch('general', { tooltips: v })} />
 </Row>
@@ -107,7 +108,7 @@
   />
 </Row>
 
-<h3 class="label">Updates</h3>
+<SectionHead title="Updates">New versions of cyex deck.</SectionHead>
 <Row setting="general.updates.check" label="Check for updates" hint="At startup and every 12 hours.">
   <Toggle
     label="Check for updates"
@@ -131,9 +132,6 @@
 <ResetSection partition="general" />
 
 <style>
-  h3 {
-    margin: 22px 0 2px;
-  }
   .checked {
     color: var(--muted);
     font-size: 0.85rem;
