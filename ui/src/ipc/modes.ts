@@ -7,6 +7,7 @@ export const modesIpc = {
   /** U4 */
   streamer: () => invoke<StreamerState>('streamer_state'),
   toggleStreamer: () => invoke<StreamerState>('streamer_toggle'),
+  closeStreamerBar: () => invoke<StreamerState>('streamer_bar_close'),
   onStreamer: (cb: (s: StreamerState) => void) => listen<StreamerState>('streamer:changed', (e) => cb(e.payload)),
   /** U7 For the calling overlay window. */
   clickThrough: () => invoke<boolean>('overlay_click_through'),

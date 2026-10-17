@@ -65,6 +65,7 @@
   import { currentWindow } from '../lib/window.svelte';
   import DuplicatesDialog from '../features/settings/highlights/DuplicatesDialog.svelte';
   import { popOut } from './panels';
+  import StreamerBar from './StreamerBar.svelte';
   import { useRootEffects } from './root.svelte';
 
   type Fixed = 'home' | 'discover' | 'miner' | 'streamManager' | 'whispers' | 'subs' | 'cosmetics' | 'settings' | 'modview';
@@ -364,6 +365,16 @@
     show('settings');
   }
 
+  /** V106-17 */
+  function streamerSettings() {
+    settingsSection = 'streamer';
+    show('settings');
+    streamer.closeBar();
+  }
+
+  const ownLive = $derived(!!(accounts.current && tabs.live[accounts.current.userId]?.stream));
+  const streamerDot = $derived(streamer.active && !streamer.bar ? (ownLive ? 'live' : 'on') : 'off');
+
   function minerSettings() {
     settingsSection = 'miner';
     show('settings');
@@ -452,11 +463,12 @@
       </div>
     {/if}
     <ConnectionCounter />
-    <AccountMenu onmanage={manageAccounts} onsubs={() => show('subs')} oncosmetics={() => show('cosmetics')} active={fixed === 'cosmetics'} />
+    <AccountMenu onmanage={manageAccounts} onsubs={() => show('subs')} oncosmetics={() => show('cosmetics')} active={fixed === 'cosmetics'} streamer={streamerDot} />
     <UpdateBadge />
     <IconButton icon="settings" label="Settings" hint="Everything you can change (Ctrl+,)." active={fixed === 'settings'} onclick={() => show('settings')} />
   {/snippet}
 </WindowChrome>
+{#if currentWindow.isMain && streamer.bar}<StreamerBar onsettings={streamerSettings} narrow={width < 420} />{/if}
 
 <svelte:window bind:innerWidth={width} />
 

@@ -21,7 +21,23 @@
     onsubs,
     oncosmetics,
     active = false,
-  }: { onmanage: () => void; onsubs: () => void; oncosmetics: () => void; active?: boolean } = $props();
+    streamer = 'off',
+  }: {
+    onmanage: () => void;
+    onsubs: () => void;
+    oncosmetics: () => void;
+    active?: boolean;
+    /** V106-17 Streamer mode dot: on, or on while your own channel is live. */
+    streamer?: 'off' | 'on' | 'live';
+  } = $props();
+
+  const modeHint = $derived(
+    streamer === 'live'
+      ? 'Streamer mode is on. You’re live.\n'
+      : streamer === 'on'
+        ? 'Streamer mode is on.\n'
+        : '',
+  );
 
   const current = $derived(accounts.current);
   const attention = $derived(accounts.list.some(accountNeedsAttention));
@@ -67,12 +83,13 @@
   <button
     class="trigger"
     class:active
-    aria-label="Accounts"
+    aria-label={streamer === 'off' ? 'Accounts' : 'Accounts, streamer mode on'}
     onclick={show}
-    use:tooltip={{ label: current.displayName, hint: 'Switch the default account or manage accounts.' }}
+    use:tooltip={{ label: current.displayName, hint: modeHint + 'Switch the default account or manage accounts.' }}
   >
     <Avatar src={current.avatar} name={current.displayName} size={22} />
     {#if attention}<span class="dot"></span>{/if}
+    {#if streamer !== 'off'}<span class="mode" class:live={streamer === 'live'}></span>{/if}
   </button>
 {:else}
   <Button small variant="ghost" icon="login" onclick={onmanage}>Sign in</Button>
@@ -105,5 +122,18 @@
     border-radius: 50%;
     background: var(--red);
     box-shadow: 0 0 0 2px var(--bg);
+  }
+  .mode {
+    position: absolute;
+    bottom: 3px;
+    right: 3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 2px var(--bg);
+  }
+  .mode.live {
+    background: var(--red);
   }
 </style>

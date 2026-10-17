@@ -2,6 +2,7 @@
 // app running, a manual flip); the settings say what it hides.
 
 import { modesIpc } from '../ipc/modes';
+import type { StreamerBar } from '../ipc/bindings/StreamerBar';
 import type { StreamerMode } from '../ipc/bindings/StreamerMode';
 import type { StreamerState } from '../ipc/bindings/StreamerState';
 import { settings } from './settings.svelte';
@@ -16,6 +17,20 @@ class Streamer {
 
   get active(): boolean {
     return this.state.active;
+  }
+
+  /** V106-17 The bar to show in the main window, if any. */
+  get bar(): StreamerBar | null {
+    return this.state.active ? this.state.bar : null;
+  }
+
+  closeBar(): void {
+    void modesIpc.closeStreamerBar().then((s) => (this.state = s));
+  }
+
+  /** Off until the streaming app stops (Rust clears the bar on a flip). */
+  turnOff(): void {
+    if (this.active) this.toggle();
   }
 
   /** Whether streamer mode is on and hides this. */
