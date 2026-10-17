@@ -26,6 +26,7 @@ pub mod polls;
 pub mod powerups;
 pub mod predictions;
 pub mod profile;
+pub mod rewind;
 mod search;
 mod stories;
 pub mod subs;

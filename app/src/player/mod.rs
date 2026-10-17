@@ -5,6 +5,7 @@
 pub mod blank;
 pub mod clips;
 mod device;
+pub mod mock;
 pub mod positions;
 mod protocol;
 pub mod proxy;

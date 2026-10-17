@@ -15,6 +15,7 @@ mod modes;
 mod notify;
 mod player;
 mod plugins;
+mod rewind;
 mod rules;
 mod settings;
 mod sound;
@@ -218,6 +219,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         emotes::emotes_avatar,
         player::player_live,
         player::player_vod,
+        rewind::player_rewind,
         player::player_close,
         player::player_playing,
         player::player_clip,

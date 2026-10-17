@@ -16,6 +16,10 @@ pub struct Player {
     pub quality: Quality,
     /// P4, V101-25 Where the small stream sits while the channel's pages show.
     pub mini_corner: Corner,
+    /// V1061-03 Rewind live streams where Twitch allows it ("Live VODs").
+    pub live_rewind: bool,
+    /// V1061-04 How far Left/Right and J/L jump, in seconds: 5, 10, 15 or 30 (Q24 a).
+    pub seek_step: u8,
 }
 
 impl Default for Player {
@@ -25,6 +29,8 @@ impl Default for Player {
             low_latency: true,
             quality: Quality::Auto,
             mini_corner: Corner::BottomRight,
+            live_rewind: true,
+            seek_step: 10,
         }
     }
 }
@@ -76,5 +82,13 @@ mod tests {
         assert_eq!(p.mini_corner, Corner::BottomRight);
         let p: Player = serde_json::from_str(r#"{"miniCorner":"topLeft"}"#).unwrap();
         assert_eq!(p.mini_corner, Corner::TopLeft);
+    }
+
+    #[test]
+    fn live_rewind_defaults() {
+        let p = Player::default();
+        assert_eq!((p.live_rewind, p.seek_step), (true, 10));
+        let p: Player = serde_json::from_str("{}").unwrap();
+        assert_eq!((p.live_rewind, p.seek_step), (true, 10));
     }
 }
