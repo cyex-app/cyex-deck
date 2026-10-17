@@ -240,7 +240,7 @@ pub(super) const VARIABLES: &[Variable] = &[
         "_name",
         "$(_name[,args])",
         ALL,
-        "What the replacement _name expands to, with optional arguments.",
+        "What the row _name in Your commands gives, with words you pass after a comma.",
         "Empty when there’s no such replacement. A replacement can’t call itself.",
         &[ex("_hi Hello $1  then  /echo $(_hi,bob)", "Hello bob")],
         "1.8",

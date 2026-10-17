@@ -8,7 +8,7 @@ use cyex_settings::schema::Account;
 use cyex_twitch::gql::{ChannelInfo, StreamInfo};
 
 use super::language::{self, VARIABLES};
-use super::render::{render, roles};
+use super::render::{custom_commands, render, roles};
 use super::{all, help_line};
 use crate::chat::run::builtin::{MOD_COMMANDS, OWN};
 use crate::chat::run::{AUTOMATION_VALUES, MENU_VALUES, MSG_TIME, values};
@@ -180,4 +180,35 @@ fn registry_file_is_current() {
         file == now,
         "docs/commands/registry.json is stale: run tools/commands/registry.ps1"
     );
+}
+
+/// V106-13 The custom-command text is plain words (Q14); built-in summaries and functions are not checked.
+#[test]
+fn plain_words() {
+    const BANNED: [&str; 12] = [
+        "body",
+        "bodies",
+        "argument",
+        "arguments",
+        "args",
+        "parse",
+        "string",
+        "token",
+        "payload",
+        "syntax",
+        "replacement",
+        "expands",
+    ];
+    let mut texts: Vec<String> = custom_commands();
+    for g in language::GUIDE {
+        texts.extend([g.title, g.intro, g.variables, g.more, g.example.typed, g.example.result].map(String::from));
+        texts.extend(g.example.row.iter().map(|s| s.to_string()));
+    }
+    texts.extend(VARIABLES.iter().filter(|v| v.name == "_name").map(|v| v.value.to_string()));
+    for text in &texts {
+        for word in text.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()) {
+            let w = word.to_lowercase();
+            assert!(!BANNED.contains(&w.as_str()), "\"{word}\" in: {text}");
+        }
+    }
 }
