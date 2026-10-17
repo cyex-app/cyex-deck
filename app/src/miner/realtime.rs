@@ -11,6 +11,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 use ts_rs::TS;
 
+use super::log::LogKind;
 use super::{lock, log, now_ms};
 
 const BALANCE_EVENT: &str = "points:balance";
@@ -114,7 +115,7 @@ fn earned(app: &AppHandle, account: &str, channel_id: &str, balance: u64, gain: 
         _ => return,
     };
     let name = super::claims::label(app, channel_id);
-    log::add(app, Some(&name), format!("+{} {what}.", grouped(gain)));
+    log::add(app, LogKind::Points, Some(&name), format!("+{} {what}.", grouped(gain)));
 }
 
 fn bet_result(app: &AppHandle, account: &str, channel_id: &str, result: &str, won: u64) {
@@ -127,7 +128,7 @@ fn bet_result(app: &AppHandle, account: &str, channel_id: &str, result: &str, wo
     let rec = Record::new(now_ms(), kind, won as i64);
     super::stats::record(app, account, channel_id, &rec);
     let name = super::claims::label(app, channel_id);
-    log::add(app, Some(&name), text);
+    log::add(app, LogKind::Bet, Some(&name), text);
 }
 
 /// A channel topic. Only channels the miner follows count; chat may follow the same.

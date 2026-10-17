@@ -5,7 +5,7 @@ import type { LogLine } from '../../ipc/bindings/LogLine';
 import type { MinerStatus } from '../../ipc/bindings/MinerStatus';
 import { minerIpc } from '../../ipc/miner';
 
-const LOG_MAX = 200;
+const LOG_MAX = 1000;
 
 class MinerStore {
   status = $state.raw<MinerStatus | null>(null);
@@ -22,6 +22,7 @@ class MinerStore {
     this.started = true;
     await minerIpc.onStatus((s) => (this.status = s));
     await minerIpc.onLog((l) => (this.log = [...this.log, l].slice(-LOG_MAX)));
+    await minerIpc.onLogCleared(() => (this.log = []));
     const [status, log] = await Promise.all([minerIpc.status(), minerIpc.log()]);
     this.status = status;
     this.log = log;

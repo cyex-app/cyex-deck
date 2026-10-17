@@ -11,6 +11,7 @@ use cyex_twitch::gql::miner::{self as gm, MinerChannel};
 use cyex_twitch::hermes::Kind;
 use tauri::{AppHandle, Manager};
 
+use super::log::{self, LogKind};
 use super::{Chan, Miner, gql_auth, http, lock, now_ms};
 
 const POLL: Duration = Duration::from_secs(60);
@@ -73,6 +74,7 @@ async fn refresh(app: &AppHandle, follows: &mut Follows) {
         Ok(found) => Some(found),
         Err(e) => {
             eprintln!("miner: live check failed: {e}");
+            log::add(app, LogKind::Error, None, "Couldn’t refresh the channel list.");
             None
         }
     };
@@ -157,7 +159,10 @@ async fn load_follows(app: &AppHandle, account: &str, f: &mut Follows) {
                 list,
             };
         }
-        Err(e) => eprintln!("miner: follows: {e}"),
+        Err(e) => {
+            eprintln!("miner: follows: {e}");
+            log::add(app, LogKind::Error, None, "Couldn’t refresh the channel list.");
+        }
     }
 }
 
@@ -196,12 +201,17 @@ fn wanted(s: &MinerSettings, follows: &[Named]) -> Vec<Named> {
 fn set_channels(app: &AppHandle, wanted: &[Named], found: Option<&[MinerChannel]>) {
     let now = now_ms();
     let mut st = lock(app);
+    let mut events: Vec<(String, &str)> = Vec::new();
     let mut old: Vec<Chan> = std::mem::take(&mut st.channels);
     let mut list = Vec::with_capacity(wanted.len());
     for (id, login, name) in wanted {
+        let mut fresh = false;
         let mut c = match old.iter().position(|c| c.id == *id) {
             Some(i) => old.swap_remove(i),
-            None => Chan::new(id, login, name),
+            None => {
+                fresh = true;
+                Chan::new(id, login, name)
+            }
         };
         let Some(found) = found else {
             if st.account.is_none() {
@@ -218,11 +228,17 @@ fn set_channels(app: &AppHandle, wanted: &[Named], found: Option<&[MinerChannel]
                 c.avatar = f.avatar.clone();
                 match (&c.stream, &f.stream) {
                     (None, Some(s)) => {
+                        if !fresh {
+                            events.push((c.name.clone(), "Went live."));
+                        }
                         c.streak.went_live();
                         c.live_since = live_since(&s.started_at, now);
                         c.context_at = 0;
                     }
-                    (Some(_), None) => went_offline(&mut c, now),
+                    (Some(_), None) => {
+                        events.push((c.name.clone(), "Went offline."));
+                        went_offline(&mut c, now);
+                    }
                     (Some(a), Some(b)) if a.id != b.id => {
                         c.streak.went_live();
                         c.live_since = now;
@@ -233,6 +249,7 @@ fn set_channels(app: &AppHandle, wanted: &[Named], found: Option<&[MinerChannel]
             }
             None => {
                 if c.stream.is_some() {
+                    events.push((c.name.clone(), "Went offline."));
                     went_offline(&mut c, now);
                 }
                 c.stream = None;
@@ -254,6 +271,10 @@ fn set_channels(app: &AppHandle, wanted: &[Named], found: Option<&[MinerChannel]
         .cloned()
         .collect();
     st.slots = slots;
+    drop(st);
+    for (name, text) in events {
+        log::add(app, LogKind::Channel, Some(&name), text);
+    }
 }
 
 pub(super) fn went_offline(c: &mut Chan, now: i64) {

@@ -83,6 +83,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         browse::home_follows,
         miner::miner_status,
         miner::miner_log,
+        miner::miner_log_clear,
         miner::miner_stats_channels,
         miner::miner_stats,
         miner::miner_stats_clear,

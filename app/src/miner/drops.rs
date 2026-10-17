@@ -10,6 +10,7 @@ use serde::Serialize;
 use tauri::AppHandle;
 use ts_rs::TS;
 
+use super::log::LogKind;
 use super::{gql_auth, http, lock, log, now_ms};
 
 const BUSY: Duration = Duration::from_secs(60);
@@ -65,6 +66,7 @@ async fn tick(app: &AppHandle) -> Duration {
         Ok(c) => c,
         Err(e) => {
             eprintln!("miner: drops: {e}");
+            log::add(app, LogKind::Error, None, "Couldn’t read the drops.");
             return IDLE;
         }
     };
@@ -103,7 +105,7 @@ async fn tick(app: &AppHandle) -> Duration {
             match drops::claim(&http, auth, instance).await {
                 Ok(true) => {
                     let game = c.game.as_deref().map(|g| format!(" ({g})")).unwrap_or_default();
-                    log::add(app, None, format!("Claimed the drop “{}”{game}.", d.name));
+                    log::add(app, LogKind::Drop, None, format!("Claimed the drop “{}”{game}.", d.name));
                     if let Some(id) = &credit_to {
                         let rec = Record {
                             n: Some(d.name.clone()),
@@ -114,13 +116,17 @@ async fn tick(app: &AppHandle) -> Duration {
                 }
                 Ok(false) => log::add(
                     app,
+                    LogKind::Drop,
                     None,
                     format!(
                         "Couldn’t claim “{}”. Is the game account linked on Twitch?",
                         d.name
                     ),
                 ),
-                Err(e) => eprintln!("miner: drop claim: {e}"),
+                Err(e) => {
+                    eprintln!("miner: drop claim: {e}");
+                    log::add(app, LogKind::Error, None, "Couldn’t claim the drop.");
+                }
             }
         }
     }
