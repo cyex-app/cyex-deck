@@ -30,6 +30,20 @@ export const WATCHING: Entry[] = [
     keywords: ['delay'],
   },
   {
+    id: 'player.liveRewind',
+    page: 'player',
+    label: 'Live VODs',
+    description: 'Go back in live streams where Twitch allows it.',
+    keywords: ['rewind', 'dvr', 'live vod', 'stream rewind', 'go back'],
+  },
+  {
+    id: 'player.seekStep',
+    page: 'player',
+    label: 'Skip step',
+    description: 'How far Left and Right, or J and L, jump.',
+    keywords: ['arrow', 'seek', 'skip', 'keys', 'j', 'l'],
+  },
+  {
     id: 'player.quality',
     page: 'player',
     label: 'Quality',
