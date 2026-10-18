@@ -42,11 +42,21 @@ mod windows;
 use tauri::RunEvent;
 
 fn main() {
-    let app = tauri::Builder::default()
-        // Must be the first plugin: a second launch focuses the running app instead.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+    let builder = tauri::Builder::default();
+    // Must be the first plugin: a second launch focuses the running app instead.
+    // Mocks builds only: CYEX_MULTI with CYEX_DATA_DIR lets test copies run side by side.
+    #[cfg(feature = "mocks")]
+    let multi = std::env::var_os("CYEX_MULTI").is_some() && std::env::var_os(paths::DATA_DIR_VAR).is_some();
+    #[cfg(not(feature = "mocks"))]
+    let multi = false;
+    let builder = if multi {
+        builder
+    } else {
+        builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             windows::show_main(app);
         }))
+    };
+    let app = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(hotkeys::plugin())
