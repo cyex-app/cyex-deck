@@ -266,7 +266,6 @@
     dropped = false;
     if (!mini || !box || e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
     drag = { x: e.clientX, y: e.clientY, dx: 0, dy: 0, moved: false };
-    box.setPointerCapture(e.pointerId);
   }
 
   function onmove(e: PointerEvent) {
@@ -274,6 +273,9 @@
     let dx = e.clientX - drag.x;
     let dy = e.clientY - drag.y;
     if (!drag.moved && Math.hypot(dx, dy) < 5) return;
+    // Captured only once it's a drag: a capture from the press would take the double-click
+    // that brings the stream back.
+    if (!drag.moved) box.setPointerCapture(e.pointerId);
     // Kept inside the stream side.
     const area = box.parentElement.getBoundingClientRect();
     const r = box.getBoundingClientRect();

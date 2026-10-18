@@ -157,7 +157,7 @@ test('7TV chips: overlaying, private, warnings, rename tip', () => {
     c.filter((x) => x.warn).map((x) => x.text),
     ['Unlisted', 'NSFW'],
   );
-  assert.equal(c[5].tip, 'Aliased in this channel. Originally TriSad');
+  assert.equal(c[5].tip, 'Aliased in this channel');
   // Scope comes first even when the flags list it later.
   assert.deepEqual(
     cardChips(card({ flags: ['animated', 'global'] }), false).map((x) => x.text),

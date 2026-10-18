@@ -175,6 +175,8 @@
   .bar {
     bottom: 0;
     padding: 26px 8px 6px;
+    /* Narrow tiles fold the volume control (Volume.svelte). */
+    container: bar / inline-size;
     background: linear-gradient(transparent, var(--scrim-strong));
   }
   .shell:not(.show) .top :global(*),

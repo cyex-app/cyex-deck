@@ -159,7 +159,6 @@ function flagChip(f: CardFlag, info: EmoteCard): Chip {
     text = `${n} bits`;
     tip = `Unlocked by cheering ${n} bits in the channel`;
   }
-  if (f === 'aliased' && info.original) tip = `Aliased in this channel. Originally ${info.original}`;
   if (WARN.includes(f)) return { text, tip, warn: true, keep: true };
   return KEEP.includes(f) ? { text, tip, keep: true } : { text, tip };
 }

@@ -61,9 +61,11 @@
 </div>
 
 <style>
+  /* Shrinks first in a narrow tile, so the bar's buttons stay inside it. */
   .volume {
     display: flex;
     align-items: center;
+    min-width: 0;
   }
   .volume > input[type='range'] {
     width: 0;
@@ -80,6 +82,7 @@
   .volume:hover > input[type='range'],
   .volume:has(:focus-visible) > input[type='range'] {
     width: 72px;
+    min-width: 36px;
     margin: 0 8px 0 2px;
     opacity: 1;
   }
@@ -120,6 +123,7 @@
   .volume:hover .boost,
   .volume:has(:focus-visible) .boost {
     max-width: 80px;
+    flex-shrink: 0;
     margin-right: 6px;
     padding: 0 9px;
     border-width: 1.5px;
@@ -138,6 +142,7 @@
   }
   .pct {
     margin-right: 6px;
+    white-space: nowrap;
     color: var(--on-video);
     font-size: 0.72rem;
     font-variant-numeric: tabular-nums;
@@ -150,5 +155,15 @@
     background:
       linear-gradient(to right, transparent calc(20% - 1px), color-mix(in srgb, var(--on-video) 70%, transparent) calc(20% - 1px) calc(20% + 1px), transparent calc(20% + 1px)),
       linear-gradient(to right, var(--on-video) var(--fill), var(--on-video-faint) var(--fill));
+  }
+  /* A narrow tile keeps the short slider and drops the %. */
+  @container bar (max-width: 460px) {
+    .pct {
+      display: none;
+    }
+    .volume:hover > input.boosted,
+    .volume:has(:focus-visible) > input.boosted {
+      width: 72px;
+    }
   }
 </style>

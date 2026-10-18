@@ -54,9 +54,10 @@
   .live-btn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
     height: 22px;
-    min-width: 52px;
+    min-width: 60px;
     /* Between play and volume: even room on both sides, so the volume slider opening moves nothing here. */
     margin: 0 4px 0 6px;
     padding: 0 8px;
