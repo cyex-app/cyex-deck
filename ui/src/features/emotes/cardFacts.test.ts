@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { EmoteCard } from '../../ipc/bindings/EmoteCard';
-import { cardChips, cardFacts, foldChips, opensTip } from './cardFacts.ts';
+import { addedDate, cardChips, cardFacts, emotePage, foldChips, opensTip } from './cardFacts.ts';
 
 function card(over: Partial<EmoteCard> = {}): EmoteCard {
   return {
@@ -32,9 +32,15 @@ function card(over: Partial<EmoteCard> = {}): EmoteCard {
 
 test('facts keep their order: channel, artist, added by, date, set', () => {
   const f = cardFacts(
-    card({ channel: 'Foo', channelLogin: 'foo', owner: 'Art', addedBy: 'mod', setUrl: 'https://7tv.app/emote-sets/S' }),
+    card({
+      channel: 'Foo',
+      channelLogin: 'foo',
+      owner: 'Art',
+      addedBy: 'mod',
+      addedAt: '2026-10-18T12:00:00',
+      setUrl: 'https://7tv.app/emote-sets/S',
+    }),
     'twitch',
-    '2026/10/18',
   );
   assert.deepEqual(
     f.map((x) => x.label),
@@ -47,34 +53,49 @@ test('channel shows its avatar; artist opens in the app', () => {
   const f = cardFacts(
     card({ channel: 'Foo', channelLogin: 'foo', channelAvatar: 'https://a/p.png', owner: 'Art', artistLogin: 'art' }),
     'twitch',
-    null,
   );
   assert.deepEqual(f[0], { label: 'Channel', value: 'Foo', link: 'channel', login: 'foo', avatar: 'https://a/p.png' });
   assert.deepEqual(f[1], { label: 'Artist', value: 'Art', link: 'channel', login: 'art' });
 });
 
+test('Twitch globals show no channel, only the artist', () => {
+  const f = cardFacts(
+    card({ flags: ['global'], channel: 'Twitch', channelLogin: 'twitch', owner: 'Art', artistLogin: 'art' }),
+    'twitch',
+  );
+  assert.deepEqual(f, [{ label: 'Artist', value: 'Art', link: 'channel', login: 'art' }]);
+  assert.deepEqual(cardFacts(card({ flags: ['global'], channel: 'Twitch', owner: 'Art' }), 'twitch'), [
+    { label: 'Artist', value: 'Art' },
+  ]);
+  // Sub, follower and bits emotes keep their channel, opened in the app.
+  for (const flag of ['tier1', 'follower', 'bits'] as const) {
+    const [c] = cardFacts(card({ flags: ['channel', flag], channel: 'Foo', channelLogin: 'foo' }), 'twitch');
+    assert.deepEqual(c, { label: 'Channel', value: 'Foo', link: 'channel', login: 'foo' });
+  }
+});
+
 test('channel without a login is plain text', () => {
-  assert.deepEqual(cardFacts(card({ channel: 'Foo' }), 'twitch', null), [{ label: 'Channel', value: 'Foo' }]);
+  assert.deepEqual(cardFacts(card({ channel: 'Foo' }), 'twitch'), [{ label: 'Channel', value: 'Foo' }]);
 });
 
 test('owners link to their page with the host as tip', () => {
-  const [s] = cardFacts(card({ owner: 'ayy', ownerUrl: 'https://7tv.app/users/01X' }), 'seventv', null);
+  const [s] = cardFacts(card({ owner: 'ayy', ownerUrl: 'https://7tv.app/users/01X' }), 'seventv');
   assert.deepEqual(s, { label: 'By', value: 'ayy', link: 'web', url: 'https://7tv.app/users/01X', tip: 'Opens 7tv.app' });
-  const [b] = cardFacts(card({ owner: 'x', ownerUrl: 'https://betterttv.com/users/abc' }), 'bttv', null);
+  const [b] = cardFacts(card({ owner: 'x', ownerUrl: 'https://betterttv.com/users/abc' }), 'bttv');
   assert.equal(b.link === 'web' && b.tip, 'Opens betterttv.com');
-  const [f] = cardFacts(card({ owner: 'x', ownerUrl: 'https://www.frankerfacez.com/emoticons/user/x' }), 'ffz', null);
+  const [f] = cardFacts(card({ owner: 'x', ownerUrl: 'https://www.frankerfacez.com/emoticons/user/x' }), 'ffz');
   assert.equal(f.link === 'web' && f.tip, 'Opens frankerfacez.com');
 });
 
 test('a broken owner url stays plain', () => {
-  const [f] = cardFacts(card({ owner: 'ayy', ownerUrl: 'nope' }), 'seventv', null);
+  const [f] = cardFacts(card({ owner: 'ayy', ownerUrl: 'nope' }), 'seventv');
   assert.equal(f.link, undefined);
   assert.equal(opensTip(null), null);
 });
 
 test('7TV set is named by its scope', () => {
   const set = (flags: EmoteCard['flags']) =>
-    cardFacts(card({ provider: 'seventv', flags, setUrl: 'https://7tv.app/emote-sets/S' }), 'seventv', null)[0];
+    cardFacts(card({ provider: 'seventv', flags, setUrl: 'https://7tv.app/emote-sets/S' }), 'seventv')[0];
   assert.deepEqual(set(['channel']), {
     label: 'Set',
     value: 'Channel set',
@@ -86,12 +107,19 @@ test('7TV set is named by its scope', () => {
   assert.equal(set(['global']).value, 'Global set');
 });
 
-test('FFZ date reads as uploaded, with the full date as tip', () => {
-  const [f] = cardFacts(card({ addedAt: '2020-01-02T00:00:00Z' }), 'ffz', '2020/01/02');
-  assert.deepEqual(f, { label: 'Uploaded', value: '2020/01/02', tip: '2020-01-02T00:00:00Z' });
+test('FFZ date reads as uploaded, with the local date and time as tip (kb-2)', () => {
+  // No zone: read as local time, like the tip shows it.
+  const [f] = cardFacts(card({ addedAt: '2020-01-02T09:05:00' }), 'ffz');
+  assert.deepEqual(f, { label: 'Uploaded', value: '2020/01/02', tip: '2020/01/02 09:05' });
+  const utc = addedDate('2020-01-02T21:30:00Z');
+  const d = new Date('2020-01-02T21:30:00Z');
+  const p = (n: number) => String(n).padStart(2, '0');
+  assert.equal(utc?.tip, `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`);
+  assert.equal(addedDate('nope'), null);
+  assert.equal(addedDate(null), null);
 });
 
-test('chips follow the flags, then gigantified, then the state', () => {
+test('chips: scope, then warnings (the state), then the rest (kb-3)', () => {
   assert.deepEqual(cardChips(null, false), []);
   assert.deepEqual(
     cardChips(null, true).map((c) => c.text),
@@ -100,11 +128,11 @@ test('chips follow the flags, then gigantified, then the state', () => {
   const c = cardChips(card({ flags: ['channel', 'tier2', 'animated'], state: 'Archived' }), true);
   assert.deepEqual(
     c.map((x) => x.text),
-    ['Channel', 'Tier 2', 'Animated', 'Gigantified', 'Archived'],
+    ['Channel', 'Archived', 'Tier 2', 'Animated', 'Gigantified'],
   );
   assert.equal(c[0].tip, 'Belongs to a channel');
-  assert.equal(c[1].tip, 'For subscribers at tier 2 and up');
-  assert.deepEqual(c[4], { text: 'Archived', tip: 'Twitch lists it as archived', warn: true });
+  assert.equal(c[2].tip, 'For subscribers at tier 2 and up');
+  assert.deepEqual(c[1], { text: 'Archived', tip: 'Twitch lists it as archived', warn: true, keep: true });
   assert.ok(c.every((x) => x.tip));
 });
 
@@ -119,15 +147,22 @@ test('7TV chips: overlaying, private, warnings, rename tip', () => {
   );
   assert.deepEqual(
     c.map((x) => x.text),
-    ['Channel', 'Overlaying', 'Private', 'Unlisted', 'Personal denied', 'NSFW', 'Renamed'],
+    ['Channel', 'Private', 'Unlisted', 'NSFW', 'Overlaying', 'Personal denied', 'Renamed'],
   );
   assert.equal(c[0].tip, 'In this channel’s set');
-  assert.match(c[1].tip, /zero-width/);
+  assert.match(c[4].tip, /zero-width/);
+  assert.equal(c[1].keep, true);
+  assert.equal(c[1].warn, undefined);
   assert.deepEqual(
     c.filter((x) => x.warn).map((x) => x.text),
     ['Unlisted', 'NSFW'],
   );
   assert.equal(c[6].tip, 'Renamed in this channel. Its own name is TriSad');
+  // Scope comes first even when the flags list it later.
+  assert.deepEqual(
+    cardChips(card({ flags: ['animated', 'global'] }), false).map((x) => x.text),
+    ['Global', 'Animated'],
+  );
 });
 
 test('bits chip counts when known', () => {
@@ -138,8 +173,8 @@ test('bits chip counts when known', () => {
   assert.equal(cardChips(card({ flags: ['bits'] }), false)[0].text, 'Bits');
 });
 
-test('7TV owner without a name still links its profile (ct-11)', () => {
-  const [f] = cardFacts(card({ ownerUrl: 'https://7tv.app/users/01X' }), 'seventv', null);
+test('7TV and BTTV owners without a name still link their profile (ct-11, ka-1)', () => {
+  const [f] = cardFacts(card({ ownerUrl: 'https://7tv.app/users/01X' }), 'seventv');
   assert.deepEqual(f, {
     label: 'By',
     value: '7TV profile',
@@ -147,7 +182,10 @@ test('7TV owner without a name still links its profile (ct-11)', () => {
     url: 'https://7tv.app/users/01X',
     tip: 'Opens 7tv.app',
   });
-  assert.deepEqual(cardFacts(card({ ownerUrl: 'https://betterttv.com/users/a' }), 'bttv', null), []);
+  assert.deepEqual(cardFacts(card({ ownerUrl: 'https://betterttv.com/users/a' }), 'bttv'), [
+    { label: 'By', value: 'BTTV profile', link: 'web', url: 'https://betterttv.com/users/a', tip: 'Opens betterttv.com' },
+  ]);
+  assert.deepEqual(cardFacts(card({ ownerUrl: 'https://x/u' }), 'ffz'), []);
 });
 
 const chips = (...texts: string[]) => texts.map((text) => ({ text, tip: text }));
@@ -157,13 +195,29 @@ test('chips that fit stay unfolded', () => {
   assert.deepEqual(foldChips(c, '7TV'), { shown: c, rest: [] });
 });
 
-test('the provider chip counts toward the cap (R7)', () => {
-  // 6 chips + the provider's is 7: four stay, "+2" takes the sixth slot.
-  const c = chips('a', 'b', 'c', 'd', 'e', 'f');
-  const f = foldChips(c, '7TV');
-  assert.deepEqual(f.shown, c.slice(0, 4));
-  assert.deepEqual(f.rest, c.slice(4));
-  assert.deepEqual(foldChips(c.slice(0, 5), '7TV'), { shown: c.slice(0, 5), rest: [] });
+test('no fixed cap: everything that fits in two rows shows (kb-3)', () => {
+  const c = chips('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h');
+  assert.deepEqual(foldChips(c, '7TV'), { shown: c, rest: [] });
+});
+
+test('folding goes by the measured width (kb-3)', () => {
+  const c = chips('a', 'b', 'c', 'd', 'e');
+  // Each 100 px wide in a 250 px row: two per line, the provider's included.
+  const f = foldChips(c, '7TV', 250, () => 100);
+  assert.deepEqual(f.shown, c.slice(0, 2));
+  assert.deepEqual(f.rest, c.slice(2));
+});
+
+test('warning chips never fold (kb-3)', () => {
+  const warn = { text: 'NSFW', tip: 'x', warn: true, keep: true };
+  const c = [...chips('Channel'), warn, ...chips('Long chip one', 'Long chip two', 'Long chip three', 'Long chip four')];
+  const f = foldChips(c, '7TV', 200);
+  assert.ok(f.shown.includes(warn));
+  assert.ok(f.rest.length >= 2);
+  assert.ok(f.rest.every((x) => !x.keep));
+  // Even with no room at all, the warnings stay.
+  const tight = foldChips(c, '7TV', 10);
+  assert.deepEqual(tight.shown, [warn]);
 });
 
 test('never folds just one chip', () => {
@@ -180,4 +234,12 @@ test('long chips fold to stay within two lines', () => {
   assert.ok(foldChips(c, '7TV').rest.length >= 2);
   // A wide row takes them all.
   assert.deepEqual(foldChips(c, '7TV', 1000).rest, []);
+});
+
+test('emote pages without the details, as the app builds them (ka-6)', () => {
+  assert.equal(emotePage('seventv', '01E', 'x'), 'https://7tv.app/emotes/01E');
+  assert.equal(emotePage('bttv', 'abc', 'x'), 'https://betterttv.com/emotes/abc');
+  assert.equal(emotePage('twitch', 'emotesv2_ab', 'x'), 'https://chatvau.lt/emote/twitch/emotesv2_ab');
+  assert.equal(emotePage('ffz', '720507', 'monkaHmm'), 'https://www.frankerfacez.com/emoticon/720507-monkaHmm');
+  assert.equal(emotePage('ffz', '1', 'a/b c'), 'https://www.frankerfacez.com/emoticon/1-a%2Fb%20c');
 });

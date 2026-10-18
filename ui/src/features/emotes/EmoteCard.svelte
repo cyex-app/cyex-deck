@@ -2,6 +2,13 @@
      window (V101-04). Where it's from, who made and added it, what's stacked on it, what
      it is, and its links. Closes on Escape, a click or scroll elsewhere or leaving the
      window; a typed name keeps it open (c-2). -->
+<script module lang="ts">
+  /** ka-3 When the last pointer press was: a card it opens starts without a focus frame,
+   *  even after a key (e.g. Esc) made the browser show frames. */
+  let pressed = -Infinity;
+  if (typeof window !== 'undefined') addEventListener('pointerdown', () => (pressed = performance.now()), true);
+</script>
+
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import Icon from '../../components/Icon.svelte';
@@ -14,12 +21,11 @@
   import { systemIpc } from '../../ipc/system';
   import { layer } from '../../lib/escape';
   import { focusScope } from '../../lib/focusScope';
-  import { formatDate } from '../../lib/format';
   import { floating } from '../../lib/place';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { emoteLarge } from '../chat/urls';
-  import { cardChips, cardFacts, foldChips, opensTip } from './cardFacts';
+  import { cardChips, cardFacts, emotePage, foldChips, opensTip } from './cardFacts';
   import { type CardTarget, PROVIDER_NAMES } from './emotes';
   import { hidden } from './hidden.svelte';
   import { unlistedPrompt } from './unlisted';
@@ -27,7 +33,6 @@
   import EditSection from './edit/EditSection.svelte';
   import { stayOpen } from './edit/stay';
   import { errorText } from '../../lib/errors';
-  import Loading from '../../components/Loading.svelte';
   import { copy } from '../../lib/clipboard';
 
   interface Props {
@@ -52,6 +57,10 @@
   let heading = $state<HTMLElement>();
   /** R7 The chips behind "+N", shown in the row. */
   let more = $state(false);
+  /** ka-3 Opened by a pointer: the name shows no frame until a key is pressed. */
+  let quiet = $state(performance.now() - pressed < 1000);
+  let row = $state<HTMLElement>();
+  let rowWidth = $state(0);
 
   const theme = $derived(settings.v.appearance.theme);
   const layers = $derived([target.emote, ...target.stack]);
@@ -112,12 +121,6 @@
     if (x < r.left || x > r.right || y < r.top || y > r.bottom) hideTip();
   });
 
-  function date(iso: string | null): string | null {
-    if (!iso) return null;
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? null : formatDate(d);
-  }
-
   function hide() {
     hidden.hide({ source: shown.provider, id: shown.id, name: shown.name });
     toast.info(`${shown.name} shows as text now. Settings → Emotes brings it back.`);
@@ -147,16 +150,26 @@
     return { duration: 90, css: (t: number) => `opacity: ${t}` };
   }
 
-  const added = $derived(date(info?.addedAt ?? null));
-  const facts = $derived(info ? cardFacts(info, shown.provider, added) : []);
+  /** kb-3 Chip widths in the chips' own font, padding and border included. */
+  const measure = $derived.by(() => {
+    const chip = row?.querySelector('.chip');
+    const ctx = chip ? document.createElement('canvas').getContext('2d') : null;
+    if (!chip || !ctx) return undefined;
+    const cs = getComputedStyle(chip);
+    ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const spacing = parseFloat(cs.letterSpacing) || 0;
+    return (t: string) => Math.ceil(ctx.measureText(t).width + t.length * spacing) + 16;
+  });
+
+  const facts = $derived(info ? cardFacts(info, shown.provider) : []);
   const provider = $derived(PROVIDER_NAMES[shown.provider]);
   // Gigantified is the clicked emote, not one picked from its stack.
   const chips = $derived(
-    foldChips(cardChips(info, !!target.giant && shown.id === target.emote.id), provider),
+    foldChips(cardChips(info, !!target.giant && shown.id === target.emote.id), provider, rowWidth || undefined, measure),
   );
-  const page = $derived(info?.page ?? null);
+  // ka-6 Built here until the details come (or when they don't), so the links never wait.
+  const page = $derived(info?.page ?? emotePage(shown.provider, shown.id, shown.name));
   const pageTip = $derived(opensTip(page));
-  const loading = $derived(!info && !failed);
 </script>
 
 <!-- R2 A browser link's cue: a small arrow out. In-app links have none. -->
@@ -171,111 +184,107 @@
   role="dialog"
   aria-label={shown.name}
   tabindex="-1"
+  onkeydown={() => (quiet = false)}
 >
   <div class="head">
+    <!-- One link to the emote page per card: the footer's. Picture and name are plain. -->
     {#key shown.id}
-      {#if page && pageTip}
-        <button class="tile" use:tooltip={pageTip} aria-label="Emote page" onclick={() => open(page)}>
-          <img
-            use:loaded
-            src={emoteLarge(shown.provider, shown.id, theme, { animated: shown.animated })}
-            alt={shown.name}
-            decoding="async"
-            draggable="false"
-          />
-          <span class="corner">{@render out()}</span>
-        </button>
-      {:else}
-        <div class="tile">
-          <img
-            use:loaded
-            src={emoteLarge(shown.provider, shown.id, theme, { animated: shown.animated })}
-            alt={shown.name}
-            decoding="async"
-            draggable="false"
-          />
-        </div>
-      {/if}
+      <div class="tile">
+        <img
+          use:loaded
+          src={emoteLarge(shown.provider, shown.id, theme, { animated: shown.animated })}
+          alt={shown.name}
+          decoding="async"
+          draggable="false"
+        />
+      </div>
     {/key}
     <div class="title">
-      <h2 class="name" bind:this={heading} tabindex="-1">
-        {#if page && pageTip}
-          <button class="fact" use:tooltip={{ label: pageTip, side: 'above' }} onclick={() => open(page)}>
-            <span class="u">{shown.name}</span>{@render out()}
-          </button>
-        {:else}
-          {shown.name}
-        {/if}
-      </h2>
+      <div class="name-row">
+        <h2 class="name" class:quiet bind:this={heading} tabindex="-1">{shown.name}</h2>
+        <IconButton icon="copy" label="Copy name" size={13} onclick={() => void copy(shown.name, 'Emote name')} />
+      </div>
       {#if info?.original}<span class="sub">Originally {info.original}</span>{/if}
     </div>
   </div>
 
-  <div class="chips">
-    <span class="chip source" use:tooltip={`From ${provider}`}>{provider}</span>
-    {#each chips.shown as c (c.text)}<span class="chip" class:warn={c.warn} use:tooltip={c.tip}>{c.text}</span>{/each}
+  <!-- kb-8 Chip tips open above, off the next row. -->
+  <div class="chips" bind:this={row} bind:clientWidth={rowWidth}>
+    <span class="chip source" use:tooltip={{ label: `From ${provider}`, side: 'above' }}>{provider}</span>
+    {#each chips.shown as c (c.text)}<span class="chip" class:warn={c.warn} use:tooltip={{ label: c.tip, side: 'above' }}
+        >{c.text}</span
+      >{/each}
     {#if chips.rest.length}
       {#if more}
-        {#each chips.rest as c (c.text)}<span class="chip" class:warn={c.warn} use:tooltip={c.tip}>{c.text}</span>{/each}
+        {#each chips.rest as c (c.text)}<span class="chip" class:warn={c.warn} use:tooltip={{ label: c.tip, side: 'above' }}
+            >{c.text}</span
+          >{/each}
       {/if}
       <button
-        class="chip more"
+        class="more"
         aria-expanded={more}
-        use:tooltip={more ? 'Show fewer' : chips.rest.map((c) => c.text).join(', ')}
+        use:tooltip={{ label: more ? 'Show fewer' : chips.rest.map((c) => c.text).join(', '), side: 'above' }}
         onclick={() => (more = !more)}>{more ? 'Less' : `+${chips.rest.length}`}</button
       >
     {/if}
   </div>
 
+  <!-- ka-5, ka-6 One fact's height held while loading or after a failure; no list
+       (and no gap) on a card without facts. -->
   {#if info}
-    <dl>
-      {#each facts as f (f.label)}
-        <dt>{f.label}</dt>
-        {#if f.link === 'channel'}
-          {@const login = f.login}
-          <dd>
-            <button
-              class="fact"
-              class:who={!!f.avatar}
-              use:tooltip={{ label: 'Open channel', side: 'right' }}
-              onclick={() => channel(login)}
-            >
-              {#if f.avatar}
-                <img
-                  class="avatar"
-                  src={f.avatar}
-                  alt=""
-                  onerror={(e) => ((e.currentTarget as HTMLImageElement).hidden = true)}
-                />
-              {/if}<span class="u">{f.value}</span>
-            </button>
-          </dd>
-        {:else if f.link === 'web'}
-          {@const url = f.url}
-          <dd>
-            <button class="fact" use:tooltip={{ label: f.tip, side: 'right' }} onclick={() => open(url)}>
-              <span class="u">{f.value}</span>{@render out()}
-            </button>
-          </dd>
-        {:else if f.tip}
-          <dd use:tooltip={f.tip}>{f.value}</dd>
-        {:else}
-          <dd>{f.value}</dd>
-        {/if}
-      {/each}
-    </dl>
+    {#if facts.length}
+      <dl class="details">
+        {#each facts as f (f.label)}
+          <dt>{f.label}</dt>
+          {#if f.link === 'channel'}
+            {@const login = f.login}
+            <dd>
+              <button
+                class="fact"
+                class:who={!!f.avatar}
+                use:tooltip={{ label: 'Open channel', side: 'right' }}
+                onclick={() => channel(login)}
+              >
+                <!-- ka-8 The picture after the name, so every value starts in one line. -->
+                <span class="u">{f.value}</span>{#if f.avatar}
+                  <img
+                    class="avatar"
+                    src={f.avatar}
+                    alt=""
+                    onerror={(e) => ((e.currentTarget as HTMLImageElement).hidden = true)}
+                  />
+                {/if}
+              </button>
+            </dd>
+          {:else if f.link === 'web'}
+            {@const url = f.url}
+            <dd>
+              <button class="fact" use:tooltip={{ label: f.tip, side: 'right' }} onclick={() => open(url)}>
+                <span class="u">{f.value}</span>{@render out()}
+              </button>
+            </dd>
+          {:else if f.tip}
+            <dd use:tooltip={f.tip}>{f.value}</dd>
+          {:else}
+            <dd>{f.value}</dd>
+          {/if}
+        {/each}
+      </dl>
+    {/if}
   {:else if failed}
-    <div class="pending note" role="status">
+    <div class="details note" role="status">
       Couldn’t load the details.
       <Button variant="link" small onclick={reload}>Try again</Button>
     </div>
   {:else}
-    <div class="pending"><Loading /></div>
+    <div class="details skeleton" role="status" aria-label="Loading">
+      <span class="bar" style:width="44px"></span><span class="bar" style:width="45%"></span>
+    </div>
   {/if}
 
   {#if layers.length > 1}
     <div class="stack">
-      <span class="label">In this stack</span>
+      <span class="stack-label">In this stack</span>
       {#each layers as l (l.id)}
         <button
           class:on={l.id === shown.id}
@@ -303,23 +312,17 @@
     <EditSection {account} {login} emote={shown} {target} onchange={edited} home={() => heading} />
   {/if}
 
-  <!-- R4 One way out first, the copies as a quiet pair, Hide apart. -->
+  <!-- R4 The one way out to the emote page, its link to copy, Hide apart. -->
   <div class="foot">
     {#if page && pageTip}
       <span use:tooltip={pageTip}>
         <Button variant="link" small icon="popout" onclick={() => open(page)}>Emote page</Button>
       </span>
-    {:else if loading}
-      <!-- R11 Holds its place while the details load. -->
-      <span class="reserve" aria-hidden="true"><Icon name="popout" size={14} />Emote page</span>
     {/if}
     <span class="copies">
       {#if page}
         <IconButton icon="link" label="Copy link" size={15} onclick={() => void copy(page, 'Link')} />
-      {:else if loading}
-        <span class="icon-slot"></span>
       {/if}
-      <IconButton icon="copy" label="Copy name" size={15} onclick={() => void copy(shown.name, 'Emote name')} />
     </span>
     <span class="grow"></span>
     <button class="hide" onclick={hide}><Icon name="eyeOff" size={14} />Hide</button>
@@ -402,17 +405,6 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
   }
-  button.tile {
-    cursor: pointer;
-    transition: border-color var(--fast) ease-out;
-  }
-  button.tile:hover {
-    border-color: var(--border-strong);
-  }
-  button.tile:active {
-    transform: scale(0.97);
-    transition: none;
-  }
   .tile img {
     max-width: 100%;
     max-height: 100%;
@@ -422,12 +414,6 @@
   }
   .tile img:global(.ready) {
     opacity: 1;
-  }
-  .corner {
-    position: absolute;
-    top: 3px;
-    right: 3px;
-    display: flex;
   }
   .title {
     display: flex;
@@ -444,15 +430,30 @@
     letter-spacing: -0.01em;
     overflow-wrap: anywhere;
   }
-  .name:focus:not(:focus-visible) {
+  .name:focus:not(:focus-visible),
+  .name.quiet:focus {
     outline: none;
   }
-  .name .fact {
-    color: inherit;
+  /* ka-3 */
+  .name:focus-visible {
+    border-radius: var(--radius-sm);
+  }
+  .name-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  /* Beside the name, no taller than its line. */
+  .name-row :global(.icon-btn) {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    margin-top: -2px;
   }
   .sub {
     color: var(--dim);
     letter-spacing: 0.01em;
+    overflow-wrap: anywhere;
   }
   .chips {
     display: flex;
@@ -481,26 +482,37 @@
     color: var(--yellow);
     border-color: color-mix(in srgb, var(--yellow) 45%, var(--border));
   }
+  /* kb-6 A text button, not another flag. */
   .more {
+    padding: 2px 3px;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--accent-text);
     font: inherit;
     font-size: 0.75rem;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
     cursor: pointer;
-    transition: border-color var(--fast) ease-out;
   }
   .more:hover {
-    border-color: var(--border-strong);
-    color: var(--text);
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
   .more:active {
     opacity: 0.6;
     transition: none;
   }
+  /* ka-6 At least one fact's height in every state. */
+  .details {
+    min-height: 1.4em;
+    margin: 12px 0 0;
+    line-height: 1.4;
+  }
   dl {
     display: grid;
     grid-template-columns: auto 1fr;
     gap: 4px 12px;
-    margin: 12px 0 0;
-    line-height: 1.4;
   }
   dt {
     color: var(--dim);
@@ -545,7 +557,7 @@
   .who {
     display: inline-flex;
     align-items: flex-start;
-    gap: 8px;
+    gap: 6px;
   }
   /* R14 Placeholder until it loads; centered on the first line of a wrapped name. */
   .avatar {
@@ -556,17 +568,21 @@
     background: var(--elevated-2);
     border-radius: 50%;
   }
-  /* R11 Holds about three rows while loading or after a failure. */
-  .pending {
+  .skeleton {
     display: flex;
     align-items: center;
-    justify-content: center;
-    min-height: 64px;
-    margin-top: 12px;
+    gap: 12px;
+  }
+  .bar {
+    height: 0.7em;
+    background: var(--elevated-2);
+    border-radius: var(--radius-sm);
   }
   .note {
-    flex-direction: column;
-    gap: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 6px;
     color: var(--dim);
   }
   .stack {
@@ -576,11 +592,10 @@
     gap: 4px;
     margin-top: 12px;
   }
-  /* R15 Labeled like the facts. */
-  .stack .label {
+  /* R15, kb-1 Labeled like the facts. */
+  .stack-label {
     width: 100%;
     color: var(--dim);
-    font-size: 0.75rem;
   }
   .stack button {
     display: grid;
@@ -615,20 +630,8 @@
     padding-top: 8px;
     border-top: 1px solid var(--border);
   }
-  .reserve {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 0.8rem;
-    font-weight: 500;
-    visibility: hidden;
-  }
   .copies {
     display: flex;
-  }
-  .icon-slot {
-    width: 30px;
-    height: 30px;
   }
   .grow {
     flex: 1;
