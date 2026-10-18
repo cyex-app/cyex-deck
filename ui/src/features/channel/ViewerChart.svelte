@@ -4,7 +4,7 @@
   import { tabsIpc } from '../../ipc/tabs';
   import type { ViewerHistory } from '../../ipc/bindings/ViewerHistory';
   import { formatDuration, formatNumber, formatTime } from '../../lib/format';
-  import { graph, nearest, peakOf, pointAt } from '../../lib/sparkline';
+  import { graph, inBand, nearest, peakOf, pointAt } from '../../lib/sparkline';
 
   interface Props {
     channelId: string;
@@ -39,9 +39,10 @@
   const g = $derived(graph(series, W, H, from));
   const peak = $derived(peakOf(series) ?? history?.peak ?? null);
   const last = $derived(series.length ? series[series.length - 1] : null);
-  /** The "before" band's share of the width, when it's wide enough for its label (40 px). */
+  /** Width of the grey "before" band (time before the app watched), in viewBox units. */
   const before = $derived(g.x0 > 0 ? g.x0 : 0);
-  const marker = $derived(sel === null || !series[sel] ? null : pointAt(series, sel, W, H, from));
+  /** `sel` of -1 is the band: it reads "Not tracked" and has no marker. */
+  const marker = $derived(sel === null || sel < 0 || !series[sel] ? null : pointAt(series, sel, W, H, from));
 
   const clock = (unix: number) => formatTime(new Date(unix * 1000));
   const since = $derived.by(() => {
@@ -53,21 +54,29 @@
   function move(e: PointerEvent) {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     if (!r.width) return;
-    const i = nearest(series, ((e.clientX - r.left) / r.width) * W, W, from);
+    const x = ((e.clientX - r.left) / r.width) * W;
+    if (inBand(x, before)) {
+      sel = -1;
+      return;
+    }
+    const i = nearest(series, x, W, from);
     sel = i < 0 ? null : i;
   }
 
   function key(e: KeyboardEvent) {
     if (!series.length) return;
     const at = sel ?? series.length - 1;
+    const low = before > 0 ? -1 : 0;
     const to =
-      e.key === 'ArrowLeft' ? at - 1 : e.key === 'ArrowRight' ? at + 1 : e.key === 'Home' ? 0 : e.key === 'End' ? series.length - 1 : null;
+      e.key === 'ArrowLeft' ? at - 1 : e.key === 'ArrowRight' ? at + 1 : e.key === 'Home' ? low : e.key === 'End' ? series.length - 1 : null;
     if (to === null) return;
     e.preventDefault();
-    sel = Math.min(series.length - 1, Math.max(0, to));
+    sel = Math.min(series.length - 1, Math.max(low, to));
   }
 
-  const readout = $derived(sel !== null && series[sel] ? `${clock(series[sel][0])} · ${formatNumber(series[sel][1])} viewers` : '');
+  const readout = $derived(
+    sel === -1 && before > 0 ? 'Not tracked' : sel !== null && series[sel] ? `${clock(series[sel][0])} · ${formatNumber(series[sel][1])} viewers` : '',
+  );
   const pct = (n: number, total: number) => (n / total) * 100;
 </script>
 
@@ -96,13 +105,12 @@
         <path class="area" d={g.area} />
         <polyline class="line" points={g.line} />
       </svg>
-      {#if before >= 40}
-        <span class="band" style:width="{pct(before, W)}%">Not tracked</span>
-      {/if}
       {#if marker}
         <span class="hair" style:left="{pct(marker[0], W)}%"></span>
         <span class="dot" style:left="{pct(marker[0], W)}%" style:top="{pct(marker[1], H)}%"></span>
         <span class="tip" style:left="{Math.min(82, Math.max(18, pct(marker[0], W)))}%">{readout}</span>
+      {:else if sel === -1}
+        <span class="tip" style:left="{Math.min(82, Math.max(18, pct(before / 2, W)))}%">{readout}</span>
       {/if}
     </div>
     <span class="sr-only" aria-live="polite">{readout}</span>
@@ -159,21 +167,6 @@
     stroke-width: 1.5;
     vector-effect: non-scaling-stroke;
     stroke-linejoin: round;
-  }
-  .band {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 4px;
-    box-sizing: border-box;
-    color: var(--muted);
-    font-size: 0.72rem;
-    text-align: center;
-    pointer-events: none;
   }
   .hair {
     position: absolute;

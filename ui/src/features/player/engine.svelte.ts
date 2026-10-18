@@ -6,7 +6,9 @@ import type HlsType from 'hls.js';
 import type { ErrorData, HlsConfig } from 'hls.js';
 
 import type { PlayerSession } from '../../ipc/bindings/PlayerSession';
+import { delayVideo } from './avsync';
 import { Away } from './away';
+import { graphDelay } from './gain';
 import { behindLive, dvrConfig, liveConfig, liveState, PAUSE_STOP_MS, rangeEnd } from './liveEdge';
 import {
   askPause,
@@ -303,6 +305,11 @@ export class Engine {
     const hls = new Hls(this.config());
     this.hls = hls;
     this.H = Hls;
+    // K3 A boosted video's picture waits for its Web Audio sound. A new delay refetches what's
+    // ahead (a smooth switch to the level loading), so it lands within a segment.
+    delayVideo(hls, Hls.Events.BUFFER_APPENDING, () => graphDelay(this.video), () => {
+      if (this.hls === hls && hls.loadLevel >= 0) hls.nextLevel = hls.loadLevel;
+    });
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       this.levels = hls.levels
         .map((l, index) => ({ index, name: l.height ? levelName(l) : 'Audio only', height: l.height }))

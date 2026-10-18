@@ -5,6 +5,7 @@
   import Button from '../../../components/Button.svelte';
   import Checkbox from '../../../components/Checkbox.svelte';
   import Dialog from '../../../components/Dialog.svelte';
+  import SectionHead from '../SectionHead.svelte';
   import type { ImportReport } from '../../../ipc/bindings/ImportReport';
   import { settingsIpc } from '../../../ipc/settings';
   import { accounts } from '../../../lib/accounts.svelte';
@@ -51,7 +52,7 @@
   }
 </script>
 
-<h3 class="label">Import from Chatterino</h3>
+<SectionHead title="Import from Chatterino" />
 <p class="note" data-setting="data:chatterino">
   Your Chatterino tabs, in order and with their names. Pick <code>window-layout.json</code> or one of its backups.
 </p>
@@ -79,9 +80,6 @@
 {/if}
 
 <style>
-  h3 {
-    margin: 24px 0 10px;
-  }
   .note {
     margin: 10px 0;
     font-size: 0.82rem;

@@ -36,8 +36,8 @@
 {:else if level === 2}<h2 data-setting={setting}>{title}</h2>{:else}<h3 class="label" data-setting={setting}>{title}</h3>{/if}
 {#if children || docs}
   <p class="sub">
-    {@render children?.()}{#if docs}
-      <a class="docs" href={docsUrl(docs)} onclick={open} use:tooltip={{ label: 'Docs', hint: 'Opens cyex.app in your browser.' }}>Docs</a>{/if}
+    {@render children?.()}{#if docs}{children ? ' ' : ''}<a
+        class="docs" href={docsUrl(docs)} onclick={open} use:tooltip={{ label: 'Docs', hint: 'Opens cyex.app in your browser.' }}>Docs</a>{/if}
   </p>
 {/if}
 

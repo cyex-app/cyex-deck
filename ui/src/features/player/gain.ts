@@ -2,7 +2,9 @@
 // it's boosted. A media element can't leave its audio graph again, so later it just
 // stays at gain 1. Changes glide, so toggling never clicks.
 // A limiter after the gain keeps loud parts from clipping (LIMITER in boost.ts).
+// K3 Its sound then trails the picture; graphDelay gives by how much (avsync.ts).
 // V1051-01 Its own AudioContext (the app's chime plays in Rust now), on the streams' device.
+import { measured } from './avsync';
 import { LIMITER, LIMITER_MAKEUP, needsResume } from './boost';
 import { routeContext } from './output.svelte';
 
@@ -46,6 +48,12 @@ let armed = false;
 /** Whether `video`'s sound goes through the boost graph (V1051-01: setSinkId on it fails). */
 export function inGraph(video: HTMLMediaElement): boolean {
   return gains.has(video);
+}
+
+/** K3 Seconds this video's sound trails its picture: 0 unless it's in the boost graph. */
+export function graphDelay(video: HTMLMediaElement): number {
+  if (!boostCtx || !gains.has(video)) return 0;
+  return measured(boostCtx.baseLatency, boostCtx.outputLatency);
 }
 
 /** Sets the boost's gain on `video`. Builds the graph only when `build` (the player is boosted). */

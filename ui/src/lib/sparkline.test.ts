@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { BAND_SHARE, graph, nearest, peakOf, pointAt } from './sparkline.ts';
+import { BAND_SHARE, graph, inBand, nearest, peakOf, pointAt } from './sparkline.ts';
 
 test('graph scales into the box', () => {
   assert.equal(graph([[0, 5]], 100, 40).line, '');
@@ -76,4 +76,10 @@ test('small gap gets a smaller band, no gap none', () => {
 test('peak tie picks the earliest', () => {
   assert.deepEqual(peakOf([[1, 5], [2, 9], [3, 9], [4, 2]]), [2, 9]);
   assert.equal(peakOf([]), null);
+});
+
+test('band hit test', () => {
+  assert.equal(inBand(10, 34), true);
+  assert.equal(inBand(34, 34), false);
+  assert.equal(inBand(0, 0), false);
 });

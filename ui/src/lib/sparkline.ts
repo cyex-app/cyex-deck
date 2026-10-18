@@ -92,3 +92,8 @@ export function pointAt(series: [number, number][], i: number, w: number, h: num
   const y = max === min ? h / 2 : pad + (1 - (series[i][1] - floor) / (max - floor || 1)) * (h - pad * 2);
   return [round(x(series[i][0])), round(y)];
 }
+
+/** Whether pixel `x` is over the "before" band, `before` wide (0 or less: no band). */
+export function inBand(x: number, before: number): boolean {
+  return before > 0 && x < before;
+}
