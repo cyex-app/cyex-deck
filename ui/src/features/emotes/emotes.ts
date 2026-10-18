@@ -61,6 +61,8 @@ export interface CardTarget {
   stack: Layer[];
   /** The emote's box on screen. */
   rect: DOMRect;
+  /** 1.42 This is the emote that was gigantified in its message. */
+  giant?: boolean;
   /** V106-31/32 Opens with this form. */
   edit?: { kind: 'add'; target: AddTarget } | { kind: 'rename'; here: HereEdit };
 }

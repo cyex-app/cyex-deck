@@ -8,6 +8,7 @@
   import type { EmoteCard } from '../../ipc/bindings/EmoteCard';
   import type { Layer } from '../../ipc/bindings/Layer';
   import { emotesIpc } from '../../ipc/emotes';
+  import { notifyEvents } from '../../ipc/notify';
   import { systemIpc } from '../../ipc/system';
   import { layer } from '../../lib/escape';
   import { focusScope } from '../../lib/focusScope';
@@ -16,6 +17,7 @@
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { emoteLarge } from '../chat/urls';
+  import { cardChips, cardFacts } from './cardFacts';
   import { type CardTarget, PROVIDER_NAMES } from './emotes';
   import { hidden } from './hidden.svelte';
   import { unlistedPrompt } from './unlisted';
@@ -111,7 +113,16 @@
     systemIpc.openLink(url).catch((e) => toast.error(errorText(e)));
   }
 
+  /** 1.41 The channel's own tab, in the main window (never twitch.tv). */
+  function channel(login: string) {
+    notifyEvents.open({ kind: 'channel', login }).catch((e) => toast.error(errorText(e)));
+    onclose();
+  }
+
   const added = $derived(date(info?.addedAt ?? null));
+  const facts = $derived(info ? cardFacts(info, shown.provider, added) : []);
+  // Gigantified is the clicked emote, not one picked from its stack.
+  const chips = $derived(cardChips(info, !!target.giant && shown.id === target.emote.id));
 </script>
 
 <div
@@ -132,19 +143,27 @@
       {#if info?.original}<span class="sub">Originally {info.original}</span>{/if}
       <div class="chips">
         <span class="chip">{PROVIDER_NAMES[shown.provider]}</span>
-        {#if info?.kind}<span class="chip">{info.kind}</span>{/if}
-        {#if info?.zeroWidth}<span class="chip">Zero-width</span>{/if}
-        {#if info?.unlisted}<span class="chip warn">Unlisted</span>{/if}
+        {#each chips as c (c.text)}<span class="chip" class:warn={c.warn}>{c.text}</span>{/each}
       </div>
     </div>
   </div>
 
   {#if info}
     <dl>
-      {#if info.channel}<dt>Channel</dt><dd>{info.channel}</dd>{/if}
-      {#if info.owner}<dt>{shown.provider === 'twitch' ? 'Artist' : 'By'}</dt><dd>{info.owner}</dd>{/if}
-      {#if info.addedBy}<dt>Added by</dt><dd>{info.addedBy}</dd>{/if}
-      {#if added}<dt>Added</dt><dd use:tooltip={info.addedAt ?? ""}>{added}</dd>{/if}
+      {#each facts as f (f.label)}
+        <dt>{f.label}</dt>
+        {#if f.link === 'channel'}
+          {@const login = f.login}
+          <dd><button class="fact" use:tooltip={'Open channel'} onclick={() => channel(login)}>{f.value}</button></dd>
+        {:else if f.link === 'web'}
+          {@const url = f.url}
+          <dd><button class="fact" use:tooltip={f.tip} onclick={() => open(url)}>{f.value}</button></dd>
+        {:else if f.tip}
+          <dd use:tooltip={f.tip}>{f.value}</dd>
+        {:else}
+          <dd>{f.value}</dd>
+        {/if}
+      {/each}
     </dl>
   {:else if failed}
     <p class="note">Couldn’t load the details.</p>
@@ -176,6 +195,10 @@
       <Button variant="link" small icon="popout" onclick={() => open(info!.page!)}>Emote page</Button>
     {/if}
     <span class="grow"></span>
+    {#if info?.page}
+      {@const page = info.page}
+      <Button variant="link" small icon="link" onclick={() => void copy(page, 'Link')}>Copy link</Button>
+    {/if}
     <Button variant="link" small icon="copy" onclick={() => void copy(shown.name, 'Emote name')}>Copy</Button>
     <Button variant="link" small icon="eyeOff" onclick={hide}>Hide</Button>
   </div>
@@ -264,6 +287,27 @@
   dd {
     margin: 0;
     overflow-wrap: anywhere;
+  }
+  /* A fact that goes somewhere: accent text, pressed at once (1.41). */
+  .fact {
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--accent-text);
+    font: inherit;
+    text-align: start;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+    transition: opacity var(--fast) ease-out;
+  }
+  .fact:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .fact:active {
+    opacity: 0.6;
+    transition: none;
   }
   .note {
     margin: 12px 0 0;

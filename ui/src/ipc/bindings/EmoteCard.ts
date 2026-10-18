@@ -21,4 +21,16 @@ owner: string | null, addedBy: string | null,
 /**
  * ISO date.
  */
-addedAt: string | null, zeroWidth: boolean, unlisted: boolean, animated: boolean, page: string | null, };
+addedAt: string | null, zeroWidth: boolean, unlisted: boolean, animated: boolean, page: string | null, 
+/**
+ * Twitch: the owning channel's login, for the in-app link.
+ */
+channelLogin: string | null, 
+/**
+ * 7TV: the owner's page on 7tv.app.
+ */
+ownerUrl: string | null, 
+/**
+ * Twitch: "Inactive", "Archived", "Pending" or "Deleted"; null when active or unknown.
+ */
+state: string | null, };

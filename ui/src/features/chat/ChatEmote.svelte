@@ -16,7 +16,8 @@
 
   type EmoteFragment = Extract<Fragment, { t: 'emote' }>;
 
-  let { f }: { f: EmoteFragment } = $props();
+  /** `giant`: 1.42 the emote this message gigantified, for the card. */
+  let { f, giant = false }: { f: EmoteFragment; giant?: boolean } = $props();
 
   const c = $derived(settings.v.chat);
   const theme = $derived(settings.v.appearance.theme);
@@ -33,6 +34,7 @@
     JSON.stringify({
       emote: { provider: f.provider, id: f.id, name: f.name, animated: f.animated, size: f.size },
       stack: f.stack ?? [],
+      ...(giant && { giant: true }),
     }),
   );
 </script>

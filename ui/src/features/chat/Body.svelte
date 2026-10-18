@@ -19,14 +19,15 @@
 
   const theme = $derived(settings.v.appearance.theme);
   const gifs = $derived(settings.v.chat.gifs);
-  /** 1.42 Only when the message ends in a Twitch emote, like twitch.tv. */
-  const big = $derived.by(() => {
-    if (!giant || !settings.v.chat.effects) return -1;
+  /** 1.42 Only when the message ends in a Twitch emote, like twitch.tv. The card knows it even with effects off. */
+  const gigantified = $derived.by(() => {
+    if (!giant) return -1;
     let last = fragments.length - 1;
     while (last >= 0 && fragments[last].t === 'text' && !(fragments[last] as { text: string }).text.trim()) last--;
     const f = fragments[last];
     return f?.t === 'emote' && f.provider === 'twitch' ? last : -1;
   });
+  const big = $derived(settings.v.chat.effects ? gigantified : -1);
   /** 1.43 GIPHY's page for a GIF. */
   const giphyPage = (id: string) => `https://giphy.com/gifs/${encodeURIComponent(id)}`;
   /** The smaller webp GIPHY keeps next to the gif. */
@@ -41,8 +42,9 @@
 {#each fragments as f, i (i)}
   {#if f.t === 'text'}{#each splitEmoji(f.text) as p, j (j)}{#if p.emoji}<span class="emoji" data-emoji={p.text}
           >{p.text}</span
-        >{:else}{p.text}{/if}{/each}{:else if f.t === 'emote'}{#if i === big}<span class="giant"><ChatEmote {f} /></span>{:else}<ChatEmote
+        >{:else}{p.text}{/if}{/each}{:else if f.t === 'emote'}{#if i === big}<span class="giant"><ChatEmote {f} giant /></span>{:else}<ChatEmote
         {f}
+        giant={i === gigantified}
       />{/if}{:else if f.t === 'mention'}<span class="mention" role="link" tabindex="-1" data-user={f.login}>{f.text}</span
     >{:else if f.t === 'channel'}<span class="channel" role="link" tabindex="-1" data-channel={f.login} data-tip="Open this chat"
       >{f.text}</span
