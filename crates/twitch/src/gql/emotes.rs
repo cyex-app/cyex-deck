@@ -228,12 +228,18 @@ pub(crate) struct RawEmote {
     subscription_tier: Option<String>,
 }
 
-/// `TIER_2` as 2.
+/// `TIER_2` (or a product's `2000`) as 2.
 fn tier_of(t: Option<&str>) -> Option<u8> {
-    t?.strip_prefix("TIER_")?
-        .parse()
-        .ok()
-        .filter(|t| (1..=3).contains(t))
+    let t = t?;
+    match t.strip_prefix("TIER_") {
+        Some(n) => n.parse().ok().filter(|t| (1..=3).contains(t)),
+        None => match t {
+            "1000" => Some(1),
+            "2000" => Some(2),
+            "3000" => Some(3),
+            _ => None,
+        },
+    }
 }
 
 #[derive(Deserialize)]
@@ -493,10 +499,7 @@ impl From<RawCard> for TwitchEmoteInfo {
             raw_type: c.emote.kind.clone(),
             emote: c.emote.into(),
             owner: real_owner(c.owner),
-            tier: c
-                .subscription_tier
-                .as_deref()
-                .and_then(|t| t.strip_prefix("TIER_")?.parse().ok()),
+            tier: tier_of(c.subscription_tier.as_deref()),
             bits: c.bits_badge_tier_summary.map(|t| t.threshold),
             artist_login: c.artist.as_ref().and_then(|a| a.login.clone()),
             artist: c.artist.map(|a| a.display_name),
@@ -550,6 +553,21 @@ mod tests {
         assert_eq!(info.raw_type.as_deref(), Some("SUBSCRIPTIONS"));
         assert_eq!(info.owner.unwrap().login, "xqc");
         assert!(info.emote.animated);
+    }
+
+    #[test]
+    fn card_tier_2_and_plain_forms() {
+        let raw = |t: &str| {
+            format!(
+                r#"{{"id":"1","token":"x","type":"SUBSCRIPTIONS","setID":"9","subscriptionTier":{t},
+                "artist":null,"owner":null,"bitsBadgeTierSummary":null}}"#
+            )
+        };
+        let tier = |t: &str| TwitchEmoteInfo::from(serde_json::from_str::<RawCard>(&raw(t)).unwrap()).tier;
+        assert_eq!(tier("\"TIER_2\""), Some(2));
+        assert_eq!(tier("\"2000\""), Some(2));
+        assert_eq!(tier("null"), None);
+        assert_eq!(tier("\"TIER_9\""), None);
     }
 
     #[test]

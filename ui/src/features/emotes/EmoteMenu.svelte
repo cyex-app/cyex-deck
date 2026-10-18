@@ -252,7 +252,7 @@
       decoding="async"
     />
     {#if mark}<span class="tier">{mark}</span>{/if}
-    {#if m.locked}<span class="lock"><Icon name="lock" size={10} /></span>{/if}
+    {#if m.locked}<span class="lock"><Icon name="lock" size={12} /></span>{/if}
   </button>
 {/snippet}
 
@@ -473,6 +473,16 @@
   .cell:hover {
     background: var(--surface-hover);
   }
+  /* fc-2 Press feedback, instant. */
+  .cell:active {
+    transform: scale(0.97);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cell:active {
+      transform: none;
+      opacity: 0.7;
+    }
+  }
   .cell img {
     height: 28px;
     max-width: 84px;
@@ -490,13 +500,13 @@
     position: absolute;
     top: 1px;
     right: 1px;
-    padding: 0 3px;
+    padding: 1px 4px;
     background: var(--elevated-2);
     border-radius: var(--radius);
     color: var(--muted);
-    font-size: 0.6rem;
+    font-size: 0.68rem;
     font-weight: 700;
-    line-height: 12px;
+    line-height: 1;
     font-variant-numeric: tabular-nums;
     pointer-events: none;
   }
@@ -506,8 +516,8 @@
     bottom: 1px;
     display: grid;
     place-items: center;
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     background: var(--elevated-2);
     border-radius: 50%;
     color: var(--muted);

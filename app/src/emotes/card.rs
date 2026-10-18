@@ -74,7 +74,7 @@ pub async fn card(
         Some(c) => c,
         None => {
             let (c, complete) = if provider == Provider::Twitch {
-                (twitch(&http, id, name).await?, true)
+                (twitch(app, &http, id, name).await?, true)
             } else {
                 third_party(app, &http, login, provider, id, name).await
             };
@@ -195,7 +195,12 @@ fn third_party_card(local: &Emote, scope: Option<Scope>, set_id: Option<&str>, n
     }
 }
 
-async fn twitch(http: &cyex_twitch::Http, id: &str, name: &str) -> Result<EmoteCard, String> {
+async fn twitch(
+    app: &AppHandle,
+    http: &cyex_twitch::Http,
+    id: &str,
+    name: &str,
+) -> Result<EmoteCard, String> {
     let info = gql::emote_info(http, id).await.map_err(|e| e.to_string())?;
     let mut card = EmoteCard {
         provider: Provider::Twitch,
@@ -219,7 +224,14 @@ async fn twitch(http: &cyex_twitch::Http, id: &str, name: &str) -> Result<EmoteC
         artist_login: None,
         set_url: None,
     };
-    let Some(info) = info else { return Ok(card) };
+    let Some(mut info) = info else { return Ok(card) };
+    // fc-1 The card's own answer can lack the tier; the channel's products (cached for the menu) have it.
+    if info.tier.is_none()
+        && let Some(o) = &info.owner
+        && let Some((_, c)) = app.state::<Emotes>().lock().channel_twitch.get(&o.id)
+    {
+        info.tier = tier_in(c, id);
+    }
     card.animated = info.emote.animated;
     card.flags = card_flags::twitch(&info);
     card.bits = info.bits;
@@ -231,6 +243,14 @@ async fn twitch(http: &cyex_twitch::Http, id: &str, name: &str) -> Result<EmoteC
         card.channel_avatar = o.avatar;
     }
     Ok(card)
+}
+
+/// fc-1 The sub tier a channel lists this emote under.
+fn tier_in(c: &gql::ChannelEmotes, id: &str) -> Option<u8> {
+    c.tiers
+        .iter()
+        .find(|t| t.emotes.iter().any(|e| e.id == id))
+        .map(|t| t.tier)
 }
 
 /// What potat or ivr add to a Twitch card.
@@ -445,5 +465,34 @@ mod tests {
         assert!(!local.nsfw && local.original.is_none());
         assert_eq!(local.owner.as_deref(), Some("Maker"));
         assert_eq!(local.owner_id.as_deref(), Some("L"));
+    }
+
+    #[test]
+    fn tier_comes_from_the_channel_products() {
+        let e = |id: &str| gql::TwitchEmote {
+            id: id.into(),
+            name: id.into(),
+            set_id: "9".into(),
+            kind: gql::EmoteKind::Subscription,
+            animated: false,
+            modifiers: Vec::new(),
+        };
+        let c = gql::ChannelEmotes {
+            owner: gql::EmoteOwner {
+                id: "1".into(),
+                login: "a".into(),
+                name: "A".into(),
+                avatar: None,
+            },
+            tiers: vec![
+                gql::SubTier { tier: 1, emotes: vec![e("a")] },
+                gql::SubTier { tier: 2, emotes: vec![e("b")] },
+            ],
+            follower: Vec::new(),
+            bits: Vec::new(),
+        };
+        assert_eq!(tier_in(&c, "b"), Some(2));
+        assert_eq!(tier_in(&c, "a"), Some(1));
+        assert_eq!(tier_in(&c, "z"), None);
     }
 }
