@@ -2,7 +2,7 @@
 // explanation underneath is the "new user" part and follows the tooltips setting (2.7).
 
 import type { LinkText } from '../ipc/bindings/LinkText';
-import type { Rect } from '../lib/place';
+import type { Rect, Side } from '../lib/place';
 import { settings } from '../lib/settings.svelte';
 import { tipAllowed } from './tooltipGate';
 
@@ -13,6 +13,8 @@ export interface TipOptions {
   image?: string;
   /** Shows only when this says so at that moment, e.g. while a label is cut off. */
   when?: () => boolean;
+  /** ct-9 Where it goes when there's room; below by default. */
+  side?: Side;
 }
 
 /** 1.52 A link's preview under the label. */
@@ -30,6 +32,7 @@ export const tip = $state({
   preview: null as LinkPreview | null,
   /** The element it shows for, as it was when the tip opened. */
   anchor: null as Rect | null,
+  side: 'below' as Side,
   visible: false,
 });
 
@@ -79,6 +82,7 @@ function show(node: HTMLElement, opts: TipOptions): void {
     tip.image = opts.image ?? '';
     tip.preview = null;
     tip.anchor = node.getBoundingClientRect();
+    tip.side = opts.side ?? 'below';
     tip.visible = true;
   }, delay);
 }

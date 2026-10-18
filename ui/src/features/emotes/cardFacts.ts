@@ -52,6 +52,9 @@ export function cardFacts(info: EmoteCard, provider: Provider, added: string | n
     out.push(
       provider === 'twitch' ? channel('Artist', info.owner, info.artistLogin) : web('By', info.owner, info.ownerUrl),
     );
+  } else if (provider === 'seventv' && info.ownerUrl) {
+    // ct-11 The owner’s name didn’t come with the emote; the profile still opens.
+    out.push(web('By', '7TV profile', info.ownerUrl));
   }
   if (info.addedBy) out.push({ label: 'Added by', value: info.addedBy });
   if (added) out.push({ label: provider === 'ffz' ? 'Uploaded' : 'Added', value: added, tip: info.addedAt ?? undefined });
@@ -119,12 +122,44 @@ export function cardChips(info: EmoteCard | null, giant: boolean): Chip[] {
   return out;
 }
 
-/** Chips past this many fold into one "+N" chip, so they stay within two lines. */
+/** R7 At most this many chips, the provider’s included. */
 export const MAX_CHIPS = 6;
 
-/** At most `max` chips; the rest fold into a "+N" chip whose tip names them. */
-export function foldChips(chips: Chip[], max = MAX_CHIPS): Chip[] {
-  if (chips.length <= max) return chips;
-  const rest = chips.slice(max - 1);
-  return [...chips.slice(0, max - 1), { text: `+${rest.length}`, tip: rest.map((c) => c.text).join(', ') }];
+/** R7 The chip row’s room: the card’s 300 px less its padding. */
+const ROW = 276;
+const GAP = 4;
+/** A chip’s width at 0.75rem, padding and border included; a little generous. */
+const chipWidth = (text: string) => Math.ceil(text.length * 6.6) + 16;
+
+/** Lines the chips take, packed like the flex row does. */
+function lines(texts: string[], width: number): number {
+  let n = 1;
+  let x = 0;
+  for (const t of texts) {
+    const w = chipWidth(t);
+    if (x > 0 && x + GAP + w > width) {
+      n++;
+      x = w;
+    } else x += (x > 0 ? GAP : 0) + w;
+  }
+  return n;
+}
+
+export interface Folded {
+  shown: Chip[];
+  /** Behind the "+N" button; never just one. */
+  rest: Chip[];
+}
+
+/** R7 The chips that fit in two lines after the provider’s (`lead`); the rest fold into
+ *  "+N", which only appears when it hides two or more. */
+export function foldChips(chips: Chip[], lead: string, width = ROW, max = MAX_CHIPS): Folded {
+  const fits = (texts: string[]) => texts.length <= max && lines(texts, width) <= 2;
+  const texts = chips.map((c) => c.text);
+  if (fits([lead, ...texts])) return { shown: chips, rest: [] };
+  for (let k = chips.length - 2; k > 0; k--) {
+    const plus = `+${chips.length - k}`;
+    if (fits([lead, ...texts.slice(0, k), plus])) return { shown: chips.slice(0, k), rest: chips.slice(k) };
+  }
+  return { shown: [], rest: chips };
 }

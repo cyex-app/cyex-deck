@@ -138,8 +138,46 @@ test('bits chip counts when known', () => {
   assert.equal(cardChips(card({ flags: ['bits'] }), false)[0].text, 'Bits');
 });
 
-test('chips past the cap fold into +N', () => {
-  const chips = ['a', 'b', 'c', 'd'].map((text) => ({ text, tip: text }));
-  assert.equal(foldChips(chips, 4), chips);
-  assert.deepEqual(foldChips(chips, 3), [chips[0], chips[1], { text: '+2', tip: 'c, d' }]);
+test('7TV owner without a name still links its profile (ct-11)', () => {
+  const [f] = cardFacts(card({ ownerUrl: 'https://7tv.app/users/01X' }), 'seventv', null);
+  assert.deepEqual(f, {
+    label: 'By',
+    value: '7TV profile',
+    link: 'web',
+    url: 'https://7tv.app/users/01X',
+    tip: 'Opens 7tv.app',
+  });
+  assert.deepEqual(cardFacts(card({ ownerUrl: 'https://betterttv.com/users/a' }), 'bttv', null), []);
+});
+
+const chips = (...texts: string[]) => texts.map((text) => ({ text, tip: text }));
+
+test('chips that fit stay unfolded', () => {
+  const c = chips('a', 'b', 'c', 'd');
+  assert.deepEqual(foldChips(c, '7TV'), { shown: c, rest: [] });
+});
+
+test('the provider chip counts toward the cap (R7)', () => {
+  // 6 chips + the provider's is 7: four stay, "+2" takes the sixth slot.
+  const c = chips('a', 'b', 'c', 'd', 'e', 'f');
+  const f = foldChips(c, '7TV');
+  assert.deepEqual(f.shown, c.slice(0, 4));
+  assert.deepEqual(f.rest, c.slice(4));
+  assert.deepEqual(foldChips(c.slice(0, 5), '7TV'), { shown: c.slice(0, 5), rest: [] });
+});
+
+test('never folds just one chip', () => {
+  for (let n = 1; n <= 12; n++) {
+    const c = chips(...Array.from({ length: n }, (_, i) => `Chip ${i}`));
+    const f = foldChips(c, 'Twitch');
+    assert.ok(f.rest.length === 0 || f.rest.length >= 2, `n=${n}`);
+    assert.equal(f.shown.length + f.rest.length, n);
+  }
+});
+
+test('long chips fold to stay within two lines', () => {
+  const c = chips('Personal approved', 'Personal denied', 'Overlaying', 'Unlisted', 'Renamed');
+  assert.ok(foldChips(c, '7TV').rest.length >= 2);
+  // A wide row takes them all.
+  assert.deepEqual(foldChips(c, '7TV', 1000).rest, []);
 });
