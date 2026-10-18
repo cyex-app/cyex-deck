@@ -610,4 +610,23 @@ mod tests {
         assert_eq!(sets[1].tier, Some(2));
         assert_eq!(tier_of(Some("TIER_9")), None);
     }
+    /// fa-1 GQL answers `subscriptionTier: null` for animated tier 2 and 3 emotes (cohhHyper); only the
+    /// channel's products place them.
+    #[test]
+    fn animated_tier_3_is_only_in_products() {
+        let card = r#"{"id":"emotesv2_ee","token":"cohhHyper","type":"SUBSCRIPTIONS","setID":"359141473","assetType":"ANIMATED",
+            "subscriptionTier":null,"artist":null,"owner":{"id":"7","login":"cohhcarnage","displayName":"CohhCarnage"},
+            "bitsBadgeTierSummary":null}"#;
+        let info = TwitchEmoteInfo::from(serde_json::from_str::<RawCard>(card).unwrap());
+        assert_eq!(info.tier, None);
+        assert!(info.emote.animated);
+        let user = r#"{"id":"7","login":"cohhcarnage","displayName":"CohhCarnage","subscriptionProducts":[
+            {"tier":"1000","emotes":[{"id":"a","token":"cohhJam","type":"SUBSCRIPTIONS","setID":"1","assetType":"ANIMATED"}]},
+            {"tier":"3000","emotes":[{"id":"emotesv2_ee","token":"cohhHyper","type":"SUBSCRIPTIONS","setID":"359141473","assetType":"ANIMATED"}]}],
+            "cheer":null,"channel":null}"#;
+        let c = ChannelEmotes::from(serde_json::from_str::<RawChannelUser>(user).unwrap());
+        let tier = c.tiers.iter().find(|t| t.emotes.iter().any(|e| e.id == info.emote.id));
+        assert_eq!(tier.map(|t| t.tier), Some(3));
+    }
+
 }

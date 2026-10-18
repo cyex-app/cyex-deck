@@ -225,12 +225,14 @@ async fn twitch(
         set_url: None,
     };
     let Some(mut info) = info else { return Ok(card) };
-    // fc-1 The card's own answer can lack the tier; the channel's products (cached for the menu) have it.
+    // fc-1 / fa-1 The card's own answer lacks the tier for animated tier 2 and 3 emotes (GQL says null);
+    // the channel's products have it. Cached for the menu, fetched when cold.
     if info.tier.is_none()
+        && info.emote.kind == gql::EmoteKind::Subscription
         && let Some(o) = &info.owner
-        && let Some((_, c)) = app.state::<Emotes>().lock().channel_twitch.get(&o.id)
+        && let Some(c) = super::menu::channel_emotes(app, &o.id).await
     {
-        info.tier = tier_in(c, id);
+        info.tier = tier_in(&c, id);
     }
     card.animated = info.emote.animated;
     card.flags = card_flags::twitch(&info);

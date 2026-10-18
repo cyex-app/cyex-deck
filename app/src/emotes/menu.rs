@@ -114,7 +114,7 @@ pub async fn menu(app: &AppHandle, login: &str, account: Option<&str>) -> Result
 }
 
 /// The channel's own emotes, public, cached for a while.
-async fn channel_emotes(app: &AppHandle, channel_id: &str) -> Option<Arc<ChannelEmotes>> {
+pub(super) async fn channel_emotes(app: &AppHandle, channel_id: &str) -> Option<Arc<ChannelEmotes>> {
     let state = app.state::<Emotes>();
     if let Some((at, c)) = state.lock().channel_twitch.get(channel_id)
         && at.elapsed() < CHANNEL_FRESH
