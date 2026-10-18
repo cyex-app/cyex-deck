@@ -416,6 +416,7 @@
       <PinnedBanner
         pin={room.pinned}
         channel={login}
+        account={room.account}
         onunpin={modRole && !room.pinned.paid ? unpin : undefined}
       />
     {/if}

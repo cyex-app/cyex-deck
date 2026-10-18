@@ -12,6 +12,9 @@
   import { reduced } from '../../lib/motion';
   import { toast } from '../../lib/toast.svelte';
   import { settings } from '../../lib/settings.svelte';
+  import EmoteCard from '../emotes/EmoteCard.svelte';
+  import { emojiName } from '../emotes/emoji';
+  import type { CardTarget } from '../emotes/emotes';
   import Body from './Body.svelte';
   import { pinKey, pinLive, shows } from './eventStrip';
   import { eventStrip } from './eventStrip.svelte';
@@ -21,11 +24,13 @@
   interface Props {
     pin: Pinned;
     channel: string;
+    /** V106-31/32 The account reading the chat, for the emote card's 7TV edits. */
+    account?: string | null;
     /** Only for mods (1.57). */
     onunpin?: () => void;
   }
 
-  let { pin, channel, onunpin }: Props = $props();
+  let { pin, channel, account = null, onunpin }: Props = $props();
 
   /** V106-19 Open on every new pin; clicking folds it to two lines (one while the chat is
    * short, A13). Never saved. */
@@ -100,8 +105,20 @@
   }
   $effect(() => () => clearTimeout(armTimer));
 
-  /** c-9 A link in the text opens; the rest of the text folds. */
+  /** 1.41 The emote card opened from the pin, like from a chat line. */
+  let card = $state<CardTarget | null>(null);
+
+  /** c-9 A link in the text opens, an emote opens its card; the rest of the text folds. */
   function textClick(e: MouseEvent) {
+    const emote = (e.target as HTMLElement).closest<HTMLElement>('[data-emote]');
+    if (emote) {
+      e.stopPropagation();
+      hideTip();
+      const d = JSON.parse(emote.dataset.emote!) as Omit<CardTarget, 'rect'>;
+      const sender = pin.message.sender?.id;
+      card = { ...d, ...(sender && { sender }), rect: emote.getBoundingClientRect() };
+      return;
+    }
     const a = (e.target as HTMLElement).closest<HTMLElement>('[data-link]');
     if (a) {
       e.preventDefault();
@@ -119,13 +136,23 @@
     open = !open;
   }
 
+  /** The same tips as chat lines: links, emotes, badges, emoji. */
+  const TIPS = '[data-tip],[data-link],[data-emoji]';
+
   function textOver(e: MouseEvent) {
-    const a = (e.target as HTMLElement).closest<HTMLElement>('[data-link]');
-    if (a?.dataset.host) showTip(a, { label: `Opens ${a.dataset.host}` });
+    const a = (e.target as HTMLElement).closest<HTMLElement>(TIPS);
+    if (!a) return;
+    if (a.dataset.link) {
+      if (a.dataset.host) showTip(a, { label: `Opens ${a.dataset.host}` });
+    } else if (a.dataset.emoji) {
+      emojiName(a.dataset.emoji)
+        .then((name) => name && a.matches(':hover') && showTip(a, { label: name }))
+        .catch(() => {});
+    } else showTip(a, { label: a.dataset.tip ?? '', hint: a.dataset.hint, image: a.dataset.tipImg });
   }
 
   function textOut(e: MouseEvent) {
-    const a = (e.target as HTMLElement).closest('[data-link]');
+    const a = (e.target as HTMLElement).closest(TIPS);
     if (a && !a.contains(e.relatedTarget as Node)) hideTip();
   }
   const c = $derived(settings.v.chat);
@@ -204,6 +231,9 @@
       {/key}
     {/if}
   </div>
+{/if}
+{#if card}
+  {#key card}<EmoteCard target={card} login={channel} {account} onclose={() => (card = null)} />{/key}
 {/if}
 
 <style>

@@ -57,7 +57,7 @@
     {/if}
     {#if variant === 'slim'}
       <button class="round-x" aria-label="Close" use:tooltip={{ label: 'Close' }} onclick={currentWindow.close}>
-        <Icon name="x" size={11} />
+        <Icon name="x" size={10} />
       </button>
     {:else if docks}
       <IconButton
@@ -141,7 +141,8 @@
     color: var(--dim);
     transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
   }
-  /* 24 px to hit, 18 px to see. */
+  /* 24 px to hit, 18 px to see. The 10 px x leaves a whole-pixel 4 px inset at 100 % and 150 %, so it sits
+     dead centre in the ring (an 11 px one was half a pixel up and left). */
   .round-x::before {
     content: "";
     position: absolute;

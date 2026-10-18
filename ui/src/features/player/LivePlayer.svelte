@@ -424,8 +424,8 @@
   <button class="ctl" aria-label={engine?.playing ? 'Pause' : 'Play'} use:tooltip={key('player.playPause', engine?.playing ? 'Pause' : 'Play')} onclick={controls.togglePlay}>
     <Icon name={engine?.playing ? 'pause' : 'play'} size={18} />
   </button>
-  <Volume volume={sound.volume} muted={sound.muted} boost={sound.boost} onchange={sound.set} onboost={sound.setBoost} />
   <LiveButton behind={rewind.behind} atLive={rewind.atLive} stalled={!!engine?.stalled} ad={ad === 'waiting'} ended={rewind.over} hint={bindingOf('player.live')} onlive={() => void rewind.toLive()} />
+  <Volume volume={sound.volume} muted={sound.muted} boost={sound.boost} onchange={sound.set} onboost={sound.setBoost} />
   <span class="grow"></span>
   {#if onclip}
     <button class="ctl" aria-label="Clip" use:tooltip={{ label: 'Clip', hint: 'Clips the last seconds of the stream.' }} onclick={onclip}>

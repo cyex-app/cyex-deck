@@ -57,7 +57,8 @@
     gap: 6px;
     height: 22px;
     min-width: 52px;
-    margin-left: 6px;
+    /* Between play and volume: even room on both sides, so the volume slider opening moves nothing here. */
+    margin: 0 4px 0 6px;
     padding: 0 8px;
     border: 0;
     border-radius: var(--radius);
