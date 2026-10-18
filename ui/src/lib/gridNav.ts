@@ -1,5 +1,5 @@
 // 1.40/1.43 Arrow keys across picker cells by where they sit on screen, so it works for
-// wrapped rows (emotes) and for columns of mixed heights (GIFs) alike.
+// wrapped rows (emotes) and for columns of mixed heights (GIFs) alike. Plus the GIF split.
 
 export type Dir = 'left' | 'right' | 'up' | 'down';
 
@@ -61,6 +61,24 @@ export function moveFocus(cells: HTMLElement[], from: HTMLElement, dir: Dir): bo
     dir,
   );
   if (next < 0) return false;
-  cells[next].focus();
+  // fg-5 Nearest, so the list's scroll-padding keeps the focus ring whole at its edge.
+  cells[next].focus({ preventScroll: true });
+  cells[next].scrollIntoView({ block: 'nearest', inline: 'nearest' });
   return true;
+}
+
+/** 1.43 Splits items over `cols` columns, each to the shortest so far (height by `ratio`,
+ * height over width, plus `gap` in the same units). The split of a list's start never
+ * changes when more items come, so tiles don't jump on the next page. */
+export function columns<T>(items: T[], ratio: (item: T) => number, cols = 2, gap = 0): T[][] {
+  const out: T[][] = Array.from({ length: cols }, () => []);
+  const h = new Array<number>(cols).fill(0);
+  for (const it of items) {
+    let c = 0;
+    for (let i = 1; i < cols; i++) if (h[i] < h[c] - 1e-9) c = i;
+    out[c].push(it);
+    const r = ratio(it);
+    h[c] += (Number.isFinite(r) && r > 0 ? r : 1) + gap;
+  }
+  return out;
 }

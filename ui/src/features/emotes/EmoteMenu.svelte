@@ -9,7 +9,7 @@
   import Icon from '../../components/Icon.svelte';
   import { openMenu } from '../../components/menu.svelte';
   import SearchField from '../../components/SearchField.svelte';
-  import { hideTip, showTip } from '../../components/tooltip.svelte';
+  import { hideTip, showTip, tooltip } from '../../components/tooltip.svelte';
   import type { EmoteKey } from '../../ipc/bindings/EmoteKey';
   import type { EmoteMenu } from '../../ipc/bindings/EmoteMenu';
   import type { MenuEmote } from '../../ipc/bindings/MenuEmote';
@@ -166,6 +166,11 @@
     }
   }
 
+  /** fg-2 A tab that's focused (or picked) is whole in view. */
+  function reveal(e: FocusEvent) {
+    (e.currentTarget as HTMLElement).scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
   function choose(t: Tab) {
     tab = t;
     query = '';
@@ -272,13 +277,24 @@
   <div class="top">
     <SearchField bind:value={query} placeholder={current === 'gifs' ? 'Search GIPHY' : 'Find an emote'} small autofocus />
   </div>
+  <!-- fg-2 Favorites and Emoji as icons, so every tab fits; a narrow window scrolls the row. -->
   <div class="tabs" role="tablist">
     {#each tabs as t (t)}
       {@const on = current === t && (t === 'gifs' || !query)}
-      <button role="tab" aria-selected={on} class:on onclick={() => choose(t)}>
-        {#if t === 'favorites'}<Icon name="star" size={13} />{:else if t === 'emoji'}<Icon name="smile" size={13} />{/if}
-        {label(t)}
-      </button>
+      {#if t === 'favorites' || t === 'emoji'}
+        <button
+          role="tab"
+          class="icon"
+          aria-selected={on}
+          aria-label={label(t)}
+          class:on
+          use:tooltip={label(t)}
+          onclick={() => choose(t)}
+          onfocus={reveal}><Icon name={t === 'favorites' ? 'star' : 'smile'} size={14} /></button
+        >
+      {:else}
+        <button role="tab" aria-selected={on} class:on onclick={() => choose(t)} onfocus={reveal}>{label(t)}</button>
+      {/if}
     {/each}
   </div>
 
@@ -390,12 +406,18 @@
     gap: 2px;
     padding: 0 8px 6px;
     border-bottom: 1px solid var(--border);
-    overflow-x: auto;
+    overflow: auto hidden;
+    scrollbar-width: none;
+    scroll-padding-inline: 8px;
+  }
+  .tabs::-webkit-scrollbar {
+    display: none;
   }
   .tabs button {
     display: flex;
+    flex: none;
     align-items: center;
-    gap: 4px;
+    justify-content: center;
     height: 24px;
     padding: 0 8px;
     background: none;
@@ -405,6 +427,14 @@
     font-size: 0.78rem;
     font-weight: 600;
     white-space: nowrap;
+  }
+  .tabs .icon {
+    width: 28px;
+    padding: 0;
+  }
+  /* Inside the button, so the scrolling row never cuts it. */
+  .tabs button:focus-visible {
+    outline-offset: -2px;
   }
   .tabs button:hover {
     color: var(--text);
@@ -420,6 +450,8 @@
     min-height: 0;
     overflow-y: auto;
     padding: 4px 8px 8px;
+    /* fg-5 Room for a focus ring at the edges. */
+    scroll-padding: 6px 0;
   }
   /* The GIF grid scrolls itself, for its next pages. */
   .body.gifs {

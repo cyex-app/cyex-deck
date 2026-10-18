@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { nearest } from './gridNav.ts';
+import { columns, nearest } from './gridNav.ts';
 
 const box = (x: number, y: number, w = 36, h = 36) => ({ left: x, top: y, right: x + w, bottom: y + h });
 
@@ -30,4 +30,23 @@ test('columns of mixed heights: sideways finds the tile beside it', () => {
 
 test('a missing start is the edge', () => {
   assert.equal(nearest([], 0, 'down'), -1);
+});
+
+test('columns: each to the shortest, left first on a tie', () => {
+  const r = (x: number) => x;
+  // Heights 2, 1, 1, 1: left gets 2, right 1+1, then the tie goes left.
+  assert.deepEqual(columns([2, 1, 1, 1], r), [[2, 1], [1, 1]]);
+  assert.deepEqual(columns([], r), [[], []]);
+});
+
+test('columns: a longer list keeps the split of its start', () => {
+  const items = [1.2, 0.5, 0.8, 1, 0.6, 1.4, 0.7, 0.9, 1.1];
+  const r = (x: number) => x;
+  const a = columns(items.slice(0, 5), r, 2, 0.05);
+  const b = columns(items, r, 2, 0.05);
+  a.forEach((col, i) => assert.deepEqual(b[i].slice(0, col.length), col));
+});
+
+test('columns: a bad ratio counts as square', () => {
+  assert.deepEqual(columns([NaN, 0, 1], (x) => x), [[NaN, 1], [0]]);
 });
