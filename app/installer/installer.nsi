@@ -48,7 +48,8 @@ ${StrLoc}
 !define INSTALLERICON "{{installer_icon}}"
 !define SIDEBARIMAGE "{{sidebar_image}}"
 !define HEADERIMAGE "{{header_image}}"
-!define UNINSTALLERICON "{{uninstaller_icon}}"
+; Tauri has no uninstaller icon setting: the uninstaller shows the app logo too (3.12).
+!define UNINSTALLERICON "{{installer_icon}}"
 !define UNINSTALLERHEADERIMAGE "{{uninstaller_header_image}}"
 !define MAINBINARYNAME "{{main_binary_name}}"
 !define MAINBINARYSRCPATH "{{main_binary_path}}"

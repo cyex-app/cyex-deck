@@ -33,7 +33,8 @@
       },
       "nsis": {
         "template": "installer/installer.nsi",
-        "installerHooks": "installer/hooks.nsh"
+        "installerHooks": "installer/hooks.nsh",
+        "installerIcon": "icons/icon.ico"
       }
     }
   }
