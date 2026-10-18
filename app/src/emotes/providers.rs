@@ -11,7 +11,6 @@ use cyex_twitch::Http;
 use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use super::card::EmoteCard;
 use super::{Emotes, looks};
 
 /// Global sets of both, plus their badges and FFZ's sets for some users.
@@ -220,12 +219,5 @@ fn change_channel(
     };
     for login in logins {
         crate::chat::system_line(app, &login, notice);
-    }
-}
-
-/// Uploaders for BTTV cards; FFZ's come with the set.
-pub async fn card(http: &Http, card: &mut EmoteCard) {
-    if card.provider == Provider::Bttv && card.owner.is_none() {
-        card.owner = bttv::api::uploader(http, &card.id).await.ok().flatten();
     }
 }

@@ -1,13 +1,15 @@
 <!-- 1.40 Emote menu: favorites and most used (C12), Twitch by channel and kind with the
      channel's locked emotes (E5), 7TV, BTTV, FFZ, and emoji (E1). Click puts an emote in
-     the message box; right-click keeps it in favorites. -->
+     the message box; right-click keeps it in favorites. Sub emotes above tier 1 carry a
+     tier mark; a locked one opens its card instead (1.41). GIFs (1.43) get a tab where
+     this account can send them. Arrow keys move between cells. -->
 <script lang="ts">
   import { onMount } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
   import { openMenu } from '../../components/menu.svelte';
   import SearchField from '../../components/SearchField.svelte';
-  import { hideTip, showTip } from '../../components/tooltip.svelte';
+  import { hideTip, showTip, tooltip } from '../../components/tooltip.svelte';
   import type { EmoteKey } from '../../ipc/bindings/EmoteKey';
   import type { EmoteMenu } from '../../ipc/bindings/EmoteMenu';
   import type { MenuEmote } from '../../ipc/bindings/MenuEmote';
@@ -16,8 +18,9 @@
   import { settings } from '../../lib/settings.svelte';
   import { emoteImg, emoteLarge } from '../chat/urls';
   import { emojiGroups, emojiLabel, findEmoji, type Emoji, type EmojiGroup } from './emoji';
-  import { PROVIDER_NAMES, emoteKey, emoteRatio } from './emotes';
-  import { PROVIDER_TABS, type ProviderTab, cellKey, pick, search, usable } from './menu';
+  import { type CardTarget, PROVIDER_NAMES, emoteKey, emoteRatio } from './emotes';
+  import { PROVIDER_TABS, type ProviderTab, cellHint, cellKey, pick, search, tierMark, usable } from './menu';
+  import EmoteCard from './EmoteCard.svelte';
   import { emoteMenu, forgetEmoteMenu } from './menus';
   import EditBar from './edit/EditBar.svelte';
   import { emoteEditMenu } from './edit/menu';
@@ -25,16 +28,25 @@
   import { errorText } from '../../lib/errors';
   import { uniqueKeys } from '../../lib/keys';
   import Loading from '../../components/Loading.svelte';
+  import type { GifInfo } from '../../ipc/bindings/GifInfo';
+  import { chatxIpc } from '../../ipc/chatx';
+  import { ARROWS, moveFocus } from '../../lib/gridNav';
+  import type { ChatRoom } from '../chat/room.svelte';
+  import GifPicker from './GifPicker.svelte';
+  import { showGifTab } from './gifs';
 
   interface Props {
     login: string;
     account: string | null;
     oninsert: (text: string) => void;
+    /** 1.43 The chat this menu sends GIFs to; none in whispers. */
+    room?: ChatRoom;
+    onclose?: () => void;
   }
 
-  let { login, account, oninsert }: Props = $props();
+  let { login, account, oninsert, room, onclose }: Props = $props();
 
-  type Tab = 'favorites' | ProviderTab | 'emoji';
+  type Tab = 'favorites' | ProviderTab | 'emoji' | 'gifs';
   /** V101-12 Twitch the first time, then the tab used last. A new key starts everyone
    * on Twitch once. */
   const TAB_KEY = 'cyex.emoteTab';
@@ -56,17 +68,24 @@
   const favEmoji = $derived(saved.favorites.filter((k) => k.source === 'emoji'));
   const used = $derived(pick(saved.usage.map((u) => u.emote), have).slice(0, 30));
   const favorite = $derived(new Set(saved.favorites.map((k) => emoteKey(k.source, k.id))));
+  /** 1.43 `undefined` while asking. */
+  let gifInfo = $state<GifInfo | null | undefined>(undefined);
+  const gifsOk = $derived(showGifTab(gifInfo, room?.state.emoteOnly ?? false));
   const tabs = $derived<Tab[]>([
     'favorites',
     ...PROVIDER_TABS.filter((t) => t === 'twitch' || (menu?.[t].length ?? 0) > 0),
     'emoji',
+    ...(gifsOk ? (['gifs'] as const) : []),
   ]);
+  /** The last tab, unless it isn't here (GIFs in another channel). GIFs wait for their answer. */
+  const current = $derived<Tab>(tabs.includes(tab) || (tab === 'gifs' && gifInfo === undefined) ? tab : 'twitch');
+  const searchingEmotes = $derived(!!query.trim() && current !== 'gifs');
   const found = $derived(menu && query.trim() ? search(menu, query) : []);
   const foundEmoji = $derived(emoji && query.trim() ? findEmoji(emoji, query.trim(), 40) : []);
   const foundEmojiKeys = $derived(uniqueKeys(foundEmoji, (e) => e.char));
 
   onMount(() => {
-    // A tip shown for one of the cells shouldn't outlive the menu.
+    // A tip current for one of the cells shouldn't outlive the menu.
     return hideTip;
   });
 
@@ -78,12 +97,56 @@
 
   onMount(load);
 
+  onMount(() => {
+    if (!room?.view) return void (gifInfo = null);
+    chatxIpc
+      .gifInfo(room.view)
+      .then((i) => (gifInfo = i))
+      .catch(() => (gifInfo = null));
+  });
+
+  /** Down from the search box into the cells; arrows between them; up from the top row
+   * back to the search box. Cells come from the one section and its neighbours. */
+  function onkeydown(e: KeyboardEvent) {
+    const dir = ARROWS[e.key];
+    if (!dir || e.altKey || e.ctrlKey || e.metaKey) return;
+    const t = e.target as HTMLElement;
+    const root = e.currentTarget as HTMLElement;
+    if (t instanceof HTMLInputElement && t.closest('.top')) {
+      if (dir !== 'down') return;
+      const first = root.querySelector<HTMLElement>('.body .cell, .body .gif');
+      if (!first) return;
+      e.preventDefault();
+      first.focus();
+      return;
+    }
+    const grid = t.closest('.grid');
+    if (!grid || !t.matches('.cell, .gif')) return;
+    e.preventDefault();
+    const near = [grid.closest('section')?.previousElementSibling, grid, grid.closest('section')?.nextElementSibling];
+    const cells = near.flatMap((n) => (n ? [...n.querySelectorAll<HTMLElement>('.cell, .gif')] : []));
+    if (!moveFocus(cells, t, dir) && dir === 'up') root.querySelector<HTMLInputElement>('.top input')?.focus();
+  }
+
   /** V106-31/32 The add/rename strip; the emote it is about. */
   type Editing = {
     emote: { id: string; name: string };
     mode: EditForm;
   };
   let editing = $state<Editing | null>(null);
+
+  /** E5 A locked emote's card: it can't go in the message box. */
+  let card = $state<CardTarget | null>(null);
+
+  function pickCell(m: MenuEmote, el: HTMLElement) {
+    if (!m.locked) return oninsert(m.name);
+    hideTip();
+    card = {
+      emote: { provider: m.provider, id: m.id, name: m.name, animated: m.animated, size: m.size ?? undefined },
+      stack: [],
+      rect: el.getBoundingClientRect(),
+    };
+  }
 
   function edited() {
     editing = null;
@@ -92,7 +155,7 @@
   }
 
   $effect(() => {
-    if ((tab === 'emoji' || query.trim()) && !emoji) void emojiGroups().then((g) => (emoji = g));
+    if ((current === 'emoji' || searchingEmotes) && !emoji) void emojiGroups().then((g) => (emoji = g));
   });
 
   function readTab(): Tab {
@@ -101,6 +164,11 @@
     } catch {
       return 'twitch';
     }
+  }
+
+  /** fg-2 A tab that's focused (or picked) is whole in view. */
+  function reveal(e: FocusEvent) {
+    (e.currentTarget as HTMLElement).scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
   function choose(t: Tab) {
@@ -116,6 +184,7 @@
   function label(t: Tab): string {
     if (t === 'favorites') return 'Favorites';
     if (t === 'emoji') return 'Emoji';
+    if (t === 'gifs') return 'GIFs';
     return PROVIDER_NAMES[t];
   }
 
@@ -169,13 +238,15 @@
 
 {#snippet emote(m: MenuEmote)}
   {@const img = emoteImg(m.provider, m.id, theme, { animated: m.animated, still: focus.still, scale: density.scale })}
+  {@const mark = tierMark(m)}
   <button
     class="cell"
     class:locked={!!m.locked}
+    aria-label={m.locked ? `${m.name}, ${m.locked}` : undefined}
     data-tip={m.name}
-    data-hint={m.locked ?? PROVIDER_NAMES[m.provider]}
+    data-hint={cellHint(m)}
     data-tip-img={emoteLarge(m.provider, m.id, theme, { animated: m.animated })}
-    onclick={() => !m.locked && oninsert(m.name)}
+    onclick={(e) => pickCell(m, e.currentTarget)}
     oncontextmenu={(e) => openEmoteMenu(e, { source: m.provider, id: m.id, name: m.name })}
   >
     <img
@@ -185,7 +256,8 @@
       loading="lazy"
       decoding="async"
     />
-    {#if m.locked}<span class="lock"><Icon name="lock" size={10} /></span>{/if}
+    {#if mark}<span class="tier">{mark}</span>{/if}
+    {#if m.locked}<span class="lock"><Icon name="lock" size={12} /></span>{/if}
   </button>
 {/snippet}
 
@@ -200,26 +272,45 @@
   >
 {/snippet}
 
-<div class="menu" role="dialog" aria-label="Emotes">
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<div class="menu" role="dialog" aria-label="Emotes" tabindex="-1" {onkeydown}>
   <div class="top">
-    <SearchField bind:value={query} placeholder="Find an emote" small autofocus />
+    <SearchField bind:value={query} placeholder={current === 'gifs' ? 'Search GIPHY' : 'Find an emote'} small autofocus />
   </div>
+  <!-- fg-2 Favorites and Emoji as icons, so every tab fits; a narrow window scrolls the row. -->
   <div class="tabs" role="tablist">
     {#each tabs as t (t)}
-      <button role="tab" aria-selected={tab === t && !query} class:on={tab === t && !query} onclick={() => choose(t)}>
-        {#if t === 'favorites'}<Icon name="star" size={13} />{:else if t === 'emoji'}<Icon name="smile" size={13} />{/if}
-        {label(t)}
-      </button>
+      {@const on = current === t && (t === 'gifs' || !query)}
+      {#if t === 'favorites' || t === 'emoji'}
+        <button
+          role="tab"
+          class="icon"
+          aria-selected={on}
+          aria-label={label(t)}
+          class:on
+          use:tooltip={label(t)}
+          onclick={() => choose(t)}
+          onfocus={reveal}><Icon name={t === 'favorites' ? 'star' : 'smile'} size={14} /></button
+        >
+      {:else}
+        <button role="tab" aria-selected={on} class:on onclick={() => choose(t)} onfocus={reveal}>{label(t)}</button>
+      {/if}
     {/each}
   </div>
 
   <!-- svelte-ignore a11y_mouse_events_have_key_events -->
-  <div class="body" {onmouseover} {onmouseout} role="presentation">
-    {#if error}
+  <div class="body" class:gifs={current === 'gifs'} {onmouseover} {onmouseout} role="presentation">
+    {#if current === 'gifs'}
+      {#if gifInfo && room}
+        <GifPicker view={room.view} chat="{account}:{login}" {query} onsent={() => onclose?.()} />
+      {:else}
+        <Loading />
+      {/if}
+    {:else if error}
       <p class="note">{error}</p>
     {:else if !menu}
       <Loading />
-    {:else if query.trim()}
+    {:else if searchingEmotes}
       {#if found.length || foundEmoji.length}
         <div class="grid">
           {#each found as m (cellKey(m))}{@render emote(m)}{/each}
@@ -228,7 +319,7 @@
       {:else}
         <p class="note">Nothing called “{query.trim()}”.</p>
       {/if}
-    {:else if tab === 'favorites'}
+    {:else if current === 'favorites'}
       {#if favEmotes.length || favEmoji.length}
         <section>
           <h4>Favorites</h4>
@@ -249,7 +340,7 @@
       {#if !favEmotes.length && !favEmoji.length && !used.length}
         <p class="note">Right-click an emote to keep it here. The ones you use most show up too.</p>
       {/if}
-    {:else if tab === 'emoji'}
+    {:else if current === 'emoji'}
       {#if emoji}
         {#each emoji as g (g.title)}
           {@const shown = g.emoji.slice(0, cap(g.title))}
@@ -266,8 +357,8 @@
         <Loading />
       {/if}
     {:else}
-      {#if tab === 'twitch' && menu.twitchNote}<p class="note">{menu.twitchNote}</p>{/if}
-      {#each menu[tab] as s (s.id)}
+      {#if current === 'twitch' && menu.twitchNote}<p class="note">{menu.twitchNote}</p>{/if}
+      {#each menu[current] as s (s.id)}
         <section>
           <h4>
             {#if s.avatar}<img class="avatar" src={s.avatar} alt="" />{/if}
@@ -279,13 +370,16 @@
           {@render more(s.id, s.emotes.length)}
         </section>
       {/each}
-      {#if !menu[tab].length && !(tab === 'twitch' && menu.twitchNote)}
-        <p class="note">No {PROVIDER_NAMES[tab]} emotes here.</p>
+      {#if !menu[current].length && !(current === 'twitch' && menu.twitchNote)}
+        <p class="note">No {PROVIDER_NAMES[current]} emotes here.</p>
       {/if}
     {/if}
   </div>
   {#if editing && account}
     <EditBar {account} {login} emote={editing.emote} mode={editing.mode} ondone={edited} oncancel={() => (editing = null)} />
+  {/if}
+  {#if card}
+    {#key card}<EmoteCard target={card} {login} {account} onclose={() => (card = null)} />{/key}
   {/if}
 </div>
 
@@ -312,12 +406,18 @@
     gap: 2px;
     padding: 0 8px 6px;
     border-bottom: 1px solid var(--border);
-    overflow-x: auto;
+    overflow: auto hidden;
+    scrollbar-width: none;
+    scroll-padding-inline: 8px;
+  }
+  .tabs::-webkit-scrollbar {
+    display: none;
   }
   .tabs button {
     display: flex;
+    flex: none;
     align-items: center;
-    gap: 4px;
+    justify-content: center;
     height: 24px;
     padding: 0 8px;
     background: none;
@@ -327,6 +427,14 @@
     font-size: 0.78rem;
     font-weight: 600;
     white-space: nowrap;
+  }
+  .tabs .icon {
+    width: 28px;
+    padding: 0;
+  }
+  /* Inside the button, so the scrolling row never cuts it. */
+  .tabs button:focus-visible {
+    outline-offset: -2px;
   }
   .tabs button:hover {
     color: var(--text);
@@ -339,8 +447,24 @@
   }
   .body {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 4px 8px 8px;
+    /* fg-5 Room for a focus ring at the edges. */
+    scroll-padding: 6px 0;
+  }
+  /* The GIF grid scrolls itself, for its next pages. */
+  .body.gifs {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+  }
+  .menu:focus {
+    outline: none;
+  }
+  .cell:focus-visible {
+    background: var(--surface-hover);
   }
   section {
     content-visibility: auto;
@@ -381,6 +505,16 @@
   .cell:hover {
     background: var(--surface-hover);
   }
+  /* fc-2 Press feedback, instant. */
+  .cell:active {
+    transform: scale(0.97);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cell:active {
+      transform: none;
+      opacity: 0.7;
+    }
+  }
   .cell img {
     height: 28px;
     max-width: 84px;
@@ -394,8 +528,19 @@
     filter: grayscale(1);
     opacity: 0.45;
   }
-  .locked {
-    cursor: default;
+  .tier {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    padding: 1px 4px;
+    background: var(--elevated-2);
+    border-radius: var(--radius);
+    color: var(--muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
   }
   .lock {
     position: absolute;
@@ -403,11 +548,12 @@
     bottom: 1px;
     display: grid;
     place-items: center;
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     background: var(--elevated-2);
     border-radius: 50%;
     color: var(--muted);
+    pointer-events: none;
   }
   .more {
     margin: 4px 0 0;

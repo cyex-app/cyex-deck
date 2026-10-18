@@ -4,7 +4,7 @@ import type { EmoteKey } from '../../ipc/bindings/EmoteKey';
 import type { EmoteMenu } from '../../ipc/bindings/EmoteMenu';
 import type { MenuEmote } from '../../ipc/bindings/MenuEmote';
 import type { MenuSection } from '../../ipc/bindings/MenuSection';
-import { emoteKey } from './emotes.ts';
+import { PROVIDER_NAMES, emoteKey } from './emotes.ts';
 
 export type ProviderTab = 'twitch' | 'seventv' | 'bttv' | 'ffz';
 
@@ -13,6 +13,17 @@ export const PROVIDER_TABS: ProviderTab[] = ['twitch', 'seventv', 'bttv', 'ffz']
 /** V105-04 A cell's key: one emote can sit in a set under two names. */
 export function cellKey(m: MenuEmote): string {
   return `${emoteKey(m.provider, m.id)}:${m.name}`;
+}
+
+/** 1.40 The tier mark on a Twitch sub emote's tile: none for tier 1. */
+export function tierMark(m: MenuEmote): string | null {
+  return m.provider === 'twitch' && m.tier && m.tier > 1 ? `T${m.tier}` : null;
+}
+
+/** The tip's second line: why it's locked (E5), its tier, or where it's from. */
+export function cellHint(m: MenuEmote): string {
+  if (m.locked) return m.locked;
+  return tierMark(m) ? `Tier ${m.tier} emote` : PROVIDER_NAMES[m.provider];
 }
 
 export function sections(menu: EmoteMenu): MenuSection[] {

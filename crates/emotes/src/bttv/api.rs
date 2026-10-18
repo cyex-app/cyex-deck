@@ -48,8 +48,8 @@ pub async fn channel(http: &Http, twitch_id: &str) -> Result<Option<EmoteSet>> {
     let emotes = user
         .channel_emotes
         .into_iter()
-        .chain(user.shared_emotes)
         .map(RawEmote::emote)
+        .chain(user.shared_emotes.into_iter().map(RawEmote::shared))
         .collect();
     Ok(Some(EmoteSet::new(
         format!("bttv-{twitch_id}"),
@@ -93,14 +93,27 @@ pub fn badge(id: &str, title: &str, url: &str) -> BadgeDef {
     }
 }
 
-/// Who uploaded an emote, for its card.
-pub async fn uploader(http: &Http, emote_id: &str) -> Result<Option<String>> {
-    #[derive(Deserialize)]
-    struct Detail {
-        user: Option<RawUploader>,
+/// Who uploaded an emote, for its card: display name and BTTV user id. `None` when BTTV
+/// won't say (ka-1: the lookup answers `unauthorized` without a BTTV sign-in), which is final.
+pub async fn uploader(http: &Http, emote_id: &str) -> Result<Option<(String, String)>> {
+    settled(http.get_json(&format!("{API}/emotes/{emote_id}")).await)
+}
+
+#[derive(Deserialize)]
+struct Detail {
+    user: Option<RawUploader>,
+}
+
+/// ka-1 A closed or missing lookup is an answer (no name), not a failure to retry.
+fn settled(res: Result<Detail>) -> Result<Option<(String, String)>> {
+    match res {
+        Ok(d) => Ok(d.user.map(|u| (u.display_name, u.id))),
+        Err(cyex_twitch::Error::Api {
+            status: 401 | 403 | 404,
+            ..
+        }) => Ok(None),
+        Err(e) => Err(e),
     }
-    let d: Detail = http.get_json(&format!("{API}/emotes/{emote_id}")).await?;
-    Ok(d.user.map(|u| u.display_name))
 }
 
 /// C13 A chat bot's command in this channel.
@@ -159,11 +172,14 @@ struct RawEmote {
     height: Option<u16>,
     code_original: Option<String>,
     user: Option<RawUploader>,
+    /// A channel's own emotes name their uploader by id only.
+    user_id: Option<String>,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawUploader {
+    id: String,
     display_name: String,
 }
 
@@ -174,7 +190,15 @@ impl RawEmote {
         e.animated = self.animated;
         e.size = Some((self.width.unwrap_or(28), self.height.unwrap_or(28)));
         e.original = self.code_original.filter(|o| *o != e.name);
+        e.owner_key = self.user.as_ref().map(|u| u.id.clone()).or(self.user_id);
         e.owner = self.user.map(|u| u.display_name);
+        e
+    }
+
+    /// 1.41 Another channel's emote this one added.
+    fn shared(self) -> Emote {
+        let mut e = self.emote();
+        e.shared = true;
         e
     }
 }
@@ -270,13 +294,42 @@ mod tests {
         let emotes: Vec<Emote> = u
             .channel_emotes
             .into_iter()
-            .chain(u.shared_emotes)
             .map(RawEmote::emote)
+            .chain(u.shared_emotes.into_iter().map(RawEmote::shared))
             .collect();
         assert_eq!(emotes.len(), 4);
         let duur = emotes.iter().find(|e| e.name == "DUUR").unwrap();
         assert_eq!(duur.original.as_deref(), Some("FeelsTastyMan"));
         assert_eq!(duur.owner.as_deref(), Some("TastyMcPanda"));
+        // 1.41 Shared, with the uploader's BTTV id; own emotes by userId.
+        assert!(duur.shared);
+        assert_eq!(duur.owner_key.as_deref(), Some("561c219aef87f8db05aca668"));
+        let own = emotes.iter().find(|e| e.name == "fuBaldi").unwrap();
+        assert!(!own.shared);
+        assert_eq!(own.owner_key.as_deref(), Some("574e63ce66a2002d3bcc6f92"));
+    }
+
+    #[test]
+    fn uploader_lookup_settles() {
+        let named = settled(Ok(fixture("emote_detail.json"))).unwrap();
+        assert_eq!(
+            named,
+            Some(("TastyMcPanda".to_owned(), "561c219aef87f8db05aca668".to_owned()))
+        );
+        // ka-1 What BTTV answers now: no name, and nothing to retry.
+        assert_eq!(settled(Ok(fixture("emote_unauthorized.json"))).unwrap(), None);
+        for status in [401, 403, 404] {
+            let e = cyex_twitch::Error::Api {
+                status,
+                message: "unauthorized".into(),
+            };
+            assert_eq!(settled(Err(e)).unwrap(), None);
+        }
+        let e = cyex_twitch::Error::Api {
+            status: 500,
+            message: "x".into(),
+        };
+        assert!(settled(Err(e)).is_err());
     }
 
     #[test]

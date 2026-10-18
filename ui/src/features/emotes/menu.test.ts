@@ -3,14 +3,21 @@ import { test } from 'node:test';
 
 import type { EmoteMenu } from '../../ipc/bindings/EmoteMenu';
 import type { MenuEmote } from '../../ipc/bindings/MenuEmote';
-import { cellKey, pick, search, usable } from './menu.ts';
+import { cellHint, cellKey, pick, search, tierMark, usable } from './menu.ts';
 
-function e(provider: MenuEmote['provider'], id: string, name: string, locked: string | null = null): MenuEmote {
+function e(
+  provider: MenuEmote['provider'],
+  id: string,
+  name: string,
+  locked: string | null = null,
+  tier: number | null = null,
+): MenuEmote {
   return {
     provider,
     id,
     name,
     locked,
+    tier,
     original: null,
     zeroWidth: false,
     modifier: null,
@@ -80,4 +87,32 @@ test('V105-04 usable keeps one entry per emote id', () => {
   const u = usable(aliased);
   assert.equal(u.size, 1);
   assert.ok(u.has('seventv:A'));
+});
+
+test('1.40 tier marks: T2 and T3 on Twitch sub emotes, none for tier 1', () => {
+  assert.equal(tierMark(e('twitch', '1', 'a', null, 1)), null);
+  assert.equal(tierMark(e('twitch', '2', 'b', null, 2)), 'T2');
+  assert.equal(tierMark(e('twitch', '3', 'c', 'Tier 3 sub', 3)), 'T3');
+  assert.equal(tierMark(e('seventv', '4', 'd', null, 2)), null);
+  assert.equal(tierMark(e('twitch', '5', 'e')), null);
+});
+
+test('E5 hints: locked says why, then the tier, then the provider', () => {
+  assert.equal(cellHint(e('twitch', '3', 'c', 'Tier 3 sub', 3)), 'Tier 3 sub');
+  assert.equal(cellHint(e('twitch', '2', 'b', null, 2)), 'Tier 2 emote');
+  assert.equal(cellHint(e('twitch', '1', 'a', null, 1)), 'Twitch');
+  assert.equal(cellHint(e('bttv', 'x', 'y')), 'BTTV');
+});
+
+test('E5 locked emotes are never usable, so favorites and most used skip them', () => {
+  const m: EmoteMenu = {
+    twitch: [{ id: 't', title: 'Here', avatar: null, emotes: [e('twitch', '9', 'own', null, 2), e('twitch', '8', 'shut', 'Tier 3 sub', 3)] }],
+    twitchNote: null,
+    seventv: [],
+    bttv: [],
+    ffz: [],
+  };
+  const have = usable(m);
+  assert.deepEqual([...have.keys()], ['twitch:9']);
+  assert.deepEqual(pick([{ source: 'twitch', id: '8', name: 'shut' }], have), []);
 });

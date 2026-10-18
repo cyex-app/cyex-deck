@@ -95,6 +95,11 @@
     text-decoration: underline;
     text-underline-offset: 2px;
   }
+  /* R5 Pressed at once. */
+  .link:active:not(:disabled) {
+    opacity: 0.6;
+    transition: none;
+  }
   .btn:disabled {
     opacity: 0.5;
   }

@@ -13,7 +13,7 @@ const MAX_PAGES: usize = 30;
 
 const AVAILABLE: &str = "query($channelID: ID!, $cursor: Cursor) { channel(id: $channelID) { self { \
     availableEmoteSetsPaginated(pageLimit: 350, after: $cursor) { \
-      edges { cursor node { id emotes { id setID token type assetType modifiers { code } } \
+      edges { cursor node { id emotes { id setID token type assetType subscriptionTier modifiers { code } } \
         owner { id login displayName profileImageURL(width: 28) } } } \
       pageInfo { hasNextPage } } } } }";
 
@@ -110,6 +110,8 @@ pub struct EmoteSet {
     /// The channel, or `None` for Twitch's own sets.
     pub owner: Option<EmoteOwner>,
     pub emotes: Vec<TwitchEmote>,
+    /// 1.40 A sub set's tier, 1 to 3, from its emotes' `subscriptionTier`.
+    pub tier: Option<u8>,
 }
 
 /// A channel's own emotes, whether the viewer has them or not (E5).
@@ -154,6 +156,12 @@ pub struct TwitchEmoteInfo {
     pub bits: Option<u32>,
     /// Who drew it, when the channel says.
     pub artist: Option<String>,
+    /// 1.41 The artist's login, for the in-app channel link.
+    #[serde(skip)]
+    pub artist_login: Option<String>,
+    /// GQL's own `type` (`TWO_FACTOR`, `SMILIES`, `ARCHIVE`, `MEGA_COMMERCE`, ...) for card labels.
+    #[serde(skip)]
+    pub raw_type: Option<String>,
 }
 
 /// Every emote set the account can use in a channel, the channel's follower emotes
@@ -215,6 +223,23 @@ pub(crate) struct RawEmote {
     asset_type: Option<String>,
     #[serde(default)]
     modifiers: Option<Vec<RawModifier>>,
+    /// 1.40 `TIER_2`; only asked for in the account's own sets.
+    #[serde(default)]
+    subscription_tier: Option<String>,
+}
+
+/// `TIER_2` (or a product's `2000`) as 2.
+fn tier_of(t: Option<&str>) -> Option<u8> {
+    let t = t?;
+    match t.strip_prefix("TIER_") {
+        Some(n) => n.parse().ok().filter(|t| (1..=3).contains(t)),
+        None => match t {
+            "1000" => Some(1),
+            "2000" => Some(2),
+            "3000" => Some(3),
+            _ => None,
+        },
+    }
 }
 
 #[derive(Deserialize)]
@@ -315,7 +340,13 @@ struct RawSet {
 
 impl From<RawSet> for EmoteSet {
     fn from(s: RawSet) -> Self {
+        let tier = s
+            .emotes
+            .iter()
+            .flatten()
+            .find_map(|e| tier_of(e.subscription_tier.as_deref()));
         Self {
+            tier,
             emotes: s
                 .emotes
                 .into_iter()
@@ -457,19 +488,20 @@ struct RawCard {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawArtist {
+    #[serde(default)]
+    login: Option<String>,
     display_name: String,
 }
 
 impl From<RawCard> for TwitchEmoteInfo {
     fn from(c: RawCard) -> Self {
         Self {
+            raw_type: c.emote.kind.clone(),
             emote: c.emote.into(),
             owner: real_owner(c.owner),
-            tier: c
-                .subscription_tier
-                .as_deref()
-                .and_then(|t| t.strip_prefix("TIER_")?.parse().ok()),
+            tier: tier_of(c.subscription_tier.as_deref()),
             bits: c.bits_badge_tier_summary.map(|t| t.threshold),
+            artist_login: c.artist.as_ref().and_then(|a| a.login.clone()),
             artist: c.artist.map(|a| a.display_name),
         }
     }
@@ -518,8 +550,34 @@ mod tests {
         let info = TwitchEmoteInfo::from(data.emote.unwrap());
         assert_eq!(info.emote.name, "xqcSlam");
         assert_eq!(info.tier, Some(1));
+        assert_eq!(info.raw_type.as_deref(), Some("SUBSCRIPTIONS"));
         assert_eq!(info.owner.unwrap().login, "xqc");
         assert!(info.emote.animated);
+    }
+
+    #[test]
+    fn card_tier_2_and_plain_forms() {
+        let raw = |t: &str| {
+            format!(
+                r#"{{"id":"1","token":"x","type":"SUBSCRIPTIONS","setID":"9","subscriptionTier":{t},
+                "artist":null,"owner":null,"bitsBadgeTierSummary":null}}"#
+            )
+        };
+        let tier = |t: &str| TwitchEmoteInfo::from(serde_json::from_str::<RawCard>(&raw(t)).unwrap()).tier;
+        assert_eq!(tier("\"TIER_2\""), Some(2));
+        assert_eq!(tier("\"2000\""), Some(2));
+        assert_eq!(tier("null"), None);
+        assert_eq!(tier("\"TIER_9\""), None);
+    }
+
+    #[test]
+    fn card_artist_has_login() {
+        let raw = r#"{"id":"1","token":"x","type":"SUBSCRIPTIONS","setID":"9","subscriptionTier":"TIER_3",
+            "artist":{"login":"drawer","displayName":"Drawer"},"owner":null,"bitsBadgeTierSummary":null}"#;
+        let info = TwitchEmoteInfo::from(serde_json::from_str::<RawCard>(raw).unwrap());
+        assert_eq!(info.tier, Some(3));
+        assert_eq!(info.artist.as_deref(), Some("Drawer"));
+        assert_eq!(info.artist_login.as_deref(), Some("drawer"));
     }
 
     #[test]
@@ -527,7 +585,7 @@ mod tests {
         let raw = r#"{"channel":{"self":{"availableEmoteSetsPaginated":{"edges":[
             {"cursor":"c1","node":{"id":"0","owner":null,"emotes":[{"id":"25","setID":"0","token":"Kappa","type":"GLOBALS","assetType":"STATIC","modifiers":null}]}},
             {"cursor":"c2","node":{"id":"19503","owner":{"id":"71092938","login":"xqc","displayName":"xQc","profileImageURL":"a"},
-              "emotes":[{"id":"305535174","setID":"19503","token":"xqcOmega","type":"SUBSCRIPTIONS","assetType":"STATIC","modifiers":[{"code":"BW"}]}]}},
+              "emotes":[{"id":"305535174","setID":"19503","token":"xqcOmega","type":"SUBSCRIPTIONS","assetType":"STATIC","subscriptionTier":"TIER_2","modifiers":[{"code":"BW"}]}]}},
             {"cursor":"c3","node":{"id":"300374282","owner":{"id":"139075904","login":"qa_tw_partner","displayName":"q","profileImageURL":null},"emotes":[]}}
           ],"pageInfo":{"hasNextPage":false}}}}}"#;
         let data: RawAvailable = serde_json::from_str(raw).unwrap();
@@ -548,5 +606,27 @@ mod tests {
         assert_eq!(sets[1].owner.as_ref().unwrap().name, "xQc");
         assert_eq!(sets[1].emotes[0].modifiers, ["BW"]);
         assert!(sets[2].owner.is_none());
+        assert_eq!(sets[0].tier, None);
+        assert_eq!(sets[1].tier, Some(2));
+        assert_eq!(tier_of(Some("TIER_9")), None);
     }
+    /// fa-1 GQL answers `subscriptionTier: null` for animated tier 2 and 3 emotes (cohhHyper); only the
+    /// channel's products place them.
+    #[test]
+    fn animated_tier_3_is_only_in_products() {
+        let card = r#"{"id":"emotesv2_ee","token":"cohhHyper","type":"SUBSCRIPTIONS","setID":"359141473","assetType":"ANIMATED",
+            "subscriptionTier":null,"artist":null,"owner":{"id":"7","login":"cohhcarnage","displayName":"CohhCarnage"},
+            "bitsBadgeTierSummary":null}"#;
+        let info = TwitchEmoteInfo::from(serde_json::from_str::<RawCard>(card).unwrap());
+        assert_eq!(info.tier, None);
+        assert!(info.emote.animated);
+        let user = r#"{"id":"7","login":"cohhcarnage","displayName":"CohhCarnage","subscriptionProducts":[
+            {"tier":"1000","emotes":[{"id":"a","token":"cohhJam","type":"SUBSCRIPTIONS","setID":"1","assetType":"ANIMATED"}]},
+            {"tier":"3000","emotes":[{"id":"emotesv2_ee","token":"cohhHyper","type":"SUBSCRIPTIONS","setID":"359141473","assetType":"ANIMATED"}]}],
+            "cheer":null,"channel":null}"#;
+        let c = ChannelEmotes::from(serde_json::from_str::<RawChannelUser>(user).unwrap());
+        let tier = c.tiers.iter().find(|t| t.emotes.iter().any(|e| e.id == info.emote.id));
+        assert_eq!(tier.map(|t| t.tier), Some(3));
+    }
+
 }
