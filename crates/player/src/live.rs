@@ -117,6 +117,9 @@ impl<F: Fetch> Live<F> {
         };
 
         let in_break = ads::in_break(&main);
+        if !in_break && self.options.block_ads && ads::ahead(&main) {
+            self.warm(&mut st).await;
+        }
         let (source, from, ad) = if !in_break {
             st.backups.end_break();
             (0, main, AdState::None)
@@ -135,8 +138,10 @@ impl<F: Fetch> Live<F> {
         } else {
             out.push(source, from.target_duration, &from.segments);
         }
-        // Segments still being made could turn out to be ads: only when it's all stream.
-        if self.options.low_latency && !ads::marks(&from).contains(&true) {
+        // Segments still being made could turn out to be ads: none while one plays at the
+        // edge or one is announced past it (h4). Older ads in the window don't count, so
+        // the stream picks up at once after a break.
+        if self.options.low_latency && !ads::in_break(&from) && !ads::ahead(&from) {
             out.push_prefetch(source, from.segments.last(), &from.prefetch);
         }
         Ok((out.render(), ad))
@@ -160,6 +165,17 @@ impl<F: Fetch> Live<F> {
         }
         st.variants = Some(variants.clone());
         Ok(variants)
+    }
+
+    /// h4 An ad is announced past the edge: the backup tried first gets its master now, so
+    /// the switch waits on one fetch less.
+    async fn warm(&self, st: &mut State) {
+        let Some(i) = st.backups.order(Instant::now()).first().copied() else { return };
+        if st.backups.masters[i].is_none()
+            && let Ok(text) = self.fetch.live_master(&self.login, st.backups.routes[i]).await
+        {
+            st.backups.masters[i] = Some(master::parse(&text));
+        }
     }
 
     /// A backup's playlist that's all stream at its live edge. Source ids: 1 + backup.
@@ -356,6 +372,62 @@ mod tests {
         assert_eq!(ad, AdState::None);
         assert!(text.contains("https://main/10.ts"));
         assert_eq!(text.matches("#EXT-X-DISCONTINUITY\n").count(), 1);
+    }
+
+    /// `text` with a stitched ad announced from segment `at` on, 30 s.
+    fn announce(text: &str, at: u64) -> String {
+        let secs = at * 2;
+        let range = format!(
+            "#EXT-X-DATERANGE:ID=\"stitched-ad-{at}\",CLASS=\"twitch-stitched-ad\",START-DATE=\"2026-10-09T12:{:02}:{:02}.000Z\",DURATION=30.0\n",
+            secs / 60,
+            secs % 60
+        );
+        text.replacen("#EXT-X-PROGRAM-DATE-TIME", &(range + "#EXT-X-PROGRAM-DATE-TIME"), 1)
+    }
+
+    #[tokio::test]
+    async fn an_announced_ad_lists_no_prefetch_and_warms_a_backup() {
+        // h4 The next segment will be an ad: it isn't listed as stream, and the first
+        // backup's master is fetched now, before the break.
+        let s = script();
+        let live = Live::new(&s, "xqc", OPTIONS);
+        set(&s, "https://popout/1080.m3u8", playlist("main", 0, 4, 0));
+        live.media(0).await.unwrap();
+        s.asked.lock().unwrap().clear();
+        set(&s, "https://popout/1080.m3u8", announce(&playlist("main", 1, 5, 0), 5));
+        let (text, ad) = live.media(0).await.unwrap();
+        assert_eq!(ad, AdState::None);
+        assert!(!text.contains("main/5.ts"), "{text}");
+        assert_eq!(*s.asked.lock().unwrap(), ["https://popout/1080.m3u8", "master:site"]);
+        // Asked once: the master stays for the break.
+        s.asked.lock().unwrap().clear();
+        live.media(0).await.unwrap();
+        assert_eq!(*s.asked.lock().unwrap(), ["https://popout/1080.m3u8"]);
+    }
+
+    #[tokio::test]
+    async fn the_list_grows_on_across_both_switches() {
+        // h4 Each switch: the new source's finished segments were listed already (the old
+        // one's prefetch ran ahead), its own prefetch carries the list on.
+        let s = script();
+        let live = Live::new(&s, "xqc", OPTIONS);
+        set(&s, "https://popout/1080.m3u8", playlist("main", 0, 5, 0));
+        let (text, _) = live.media(0).await.unwrap();
+        assert_eq!(uris(&text).last(), Some(&"https://main/5.ts"));
+        // The ad starts at 5, the backup is at 5 too: 5 was listed, 6 comes from the backup.
+        set(&s, "https://popout/1080.m3u8", playlist("main", 1, 6, 1));
+        set(&s, "https://site/1080.m3u8", playlist("site", 1, 6, 0));
+        let (text, ad) = live.media(0).await.unwrap();
+        assert_eq!(ad, AdState::Backup);
+        assert_eq!(uris(&text).last(), Some(&"https://site/6.ts"));
+        assert!(text.contains("#EXT-X-DISCONTINUITY\n#EXT-X-PROGRAM-DATE-TIME:2026-10-09T12:00:12.000Z\n#EXTINF:2.000,live\nhttps://site/6.ts"), "{text}");
+        // Over, an ad still in the window: the stream's prefetch goes on at once.
+        let over = playlist("main", 2, 7, 0).replace("live\nhttps://main/5.ts", "Amazon|1\nhttps://main/5.ts");
+        set(&s, "https://popout/1080.m3u8", over);
+        let (text, ad) = live.media(0).await.unwrap();
+        assert_eq!(ad, AdState::None);
+        assert_eq!(uris(&text).last(), Some(&"https://main/7.ts"), "{text}");
+        assert_eq!(text.matches("#EXT-X-DISCONTINUITY\n").count(), 2);
     }
 
     #[tokio::test]

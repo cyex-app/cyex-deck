@@ -94,11 +94,19 @@ impl Stitcher {
     /// player's request waits until each is ready. Timed from that and not from the last
     /// one listed here: that's often last poll's prefetch, so each poll would put the
     /// stream 2 s further ahead and break it up at every segment (V103-03).
+    ///
+    /// h4 Also right after a switch, when the new source's finished segments were all
+    /// listed already (the old source's prefetch ran ahead): its prefetch carries on by time
+    /// with the switch marked, so the list keeps growing instead of standing still until the
+    /// new source finishes one more segment.
+    ///
+    /// h4 A segment listed here can't take a discontinuity Twitch puts on it later (a
+    /// restart, a new timeline): hls.js refuses a listed segment whose discontinuity count
+    /// or address changes (`discontinuity sequence mismatch`), so the real one is dropped
+    /// as a repeat. The caller lists no prefetch when one is foreseeable (an ad at or past
+    /// the edge); the rest the player catches when it parses the fragment (ui torn.ts).
     pub fn push_prefetch(&mut self, source: Source, after: Option<&Segment>, uris: &[String]) {
-        let (Some(last), Some(after)) = (&self.last, after) else { return };
-        if last.source != source {
-            return;
-        }
+        let (Some(_), Some(after)) = (&self.last, after) else { return };
         let (mut time, duration, mut seq) = (after.time, after.duration.max(1.0), after.seq);
         let map = after.map.clone();
         let next: Vec<Segment> = uris
