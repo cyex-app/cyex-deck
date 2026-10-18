@@ -3,22 +3,29 @@
 // stays at gain 1. Changes glide, so toggling never clicks.
 // A limiter after the gain keeps loud parts from clipping (LIMITER in boost.ts).
 // K3 Its sound then trails the picture; graphDelay gives by how much (avsync.ts).
-// V1051-01 Its own AudioContext (the app's chime plays in Rust now), on the streams' device.
+// V1051-01 Its own AudioContext (the app's chime plays in Rust now). It plays on the streams'
+// device through an audio player of its own (routeOutput).
 import { measured } from './avsync';
 import { LIMITER, LIMITER_MAKEUP, needsResume } from './boost';
-import { routeContext } from './output.svelte';
+import { routeOutput } from './output.svelte';
 
 const gains = new WeakMap<HTMLMediaElement, { node: GainNode; chain: AudioNode[] }>();
 /** Time constant of a gain change, in seconds. */
 const GLIDE = 0.02;
 
 let boostCtx: AudioContext | undefined;
+/** Plays the boost graphs' sound on the streams' device. */
+let outEl: HTMLAudioElement | undefined;
+let outNode: MediaStreamAudioDestinationNode | undefined;
 
 /** The window's one boost context, made the first time a player is boosted. */
 function boostContext(): AudioContext {
   if (!boostCtx) {
     const ctx = (boostCtx = new AudioContext());
-    routeContext(ctx);
+    outNode = ctx.createMediaStreamDestination();
+    outEl = new Audio();
+    outEl.srcObject = outNode.stream;
+    routeOutput(outEl);
     ctx.addEventListener('statechange', () => keepRunning(ctx));
     keepRunning(ctx);
   }
@@ -28,6 +35,7 @@ function boostContext(): AudioContext {
 /** V1051-01 A suspended context freezes the picture of every video routed through it, so resume
  * at once, and on the next click or key too (autoplay rules may refuse the first try). */
 function keepRunning(ctx: AudioContext): void {
+  if (outEl?.paused) void outEl.play().catch(() => {});
   if (!needsResume(ctx.state)) return;
   void ctx.resume().catch(() => {});
   if (armed) return;
@@ -79,7 +87,7 @@ export function setGain(video: HTMLMediaElement, value: number, build: boolean):
     const makeup = ctx.createGain();
     makeup.gain.value = LIMITER_MAKEUP;
     const source = ctx.createMediaElementSource(video);
-    source.connect(node).connect(limiter).connect(makeup).connect(ctx.destination);
+    source.connect(node).connect(limiter).connect(makeup).connect(outNode!);
     gains.set(video, { node, chain: [source, node, limiter, makeup] });
     const wake = () => keepRunning(ctx);
     video.addEventListener('play', wake);

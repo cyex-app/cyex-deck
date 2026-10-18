@@ -15,7 +15,8 @@ interface Sinkable {
 }
 
 const out = $state({ id: '' });
-const contexts = new Set<AudioContext>();
+/** The boost graphs' outputs (gain.ts): players of their own, not in any graph. */
+const outputs = new Set<HTMLMediaElement>();
 let used = false;
 /** Picks one at a time, so the permission is held by one pick and given back before the next. */
 let queue: Promise<unknown> = Promise.resolve();
@@ -65,7 +66,7 @@ $effect.root(() => {
   });
   $effect(() => {
     const id = out.id;
-    for (const ctx of contexts) setSink(ctx as unknown as Sinkable, id);
+    for (const el of outputs) setSink(el as unknown as Sinkable, id);
   });
 });
 
@@ -94,9 +95,11 @@ export function applySink(target: HTMLMediaElement): void {
   setSink(target as unknown as Sinkable, out.id);
 }
 
-/** The boost's context (V105-10) follows the same device (the effect above on a change). */
-export function routeContext(ctx: AudioContext): void {
-  contexts.add(ctx);
+/** The boost's output player (V105-10) follows the same device (the effect above on a change).
+ *  Its context stays on the default: one moved to a picked device suspends whenever the
+ *  permission is given back, which froze the picture. */
+export function routeOutput(el: HTMLMediaElement): void {
+  outputs.add(el);
   use();
-  setSink(ctx as unknown as Sinkable, out.id);
+  setSink(el as unknown as Sinkable, out.id);
 }
