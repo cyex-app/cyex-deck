@@ -35,6 +35,7 @@ import {
 } from './liveMachine';
 import { type Choice, levelFor, levelName, lowestLevel } from './quality';
 import { stallStart, stallStep } from './stall';
+import { isTorn, tornDue, tornStart } from './torn';
 
 let hlsModule: Promise<typeof HlsType> | null = null;
 
@@ -106,6 +107,11 @@ export class Engine {
   private playCc: number | null = null;
   /** qd-3 The live playlist's newest content (program date time, ms). */
   private edgeDate: number | null = null;
+  /** h3 Live fragments loading: where the playlist puts them (sn → s). */
+  private planned = new Map<number, number>();
+  /** h3 The first fragment hls.js placed off its spot, and that spot; null when none. */
+  private tornSn: number | null = null;
+  private tornAt: number | null = null;
   private session: PlayerSession | null = null;
   /** VODs: where to begin, in seconds. */
   private startAt = -1;
@@ -141,7 +147,10 @@ export class Engine {
         this.st = landed(this.st);
       },
       pause: () => this.onPause(),
-      waiting: () => (this.waiting = true),
+      waiting: () => {
+        this.waiting = true;
+        this.checkTorn();
+      },
       canplay: () => this.onCanplay(),
       timeupdate: () => this.tick(),
       seeked: () => this.tick(),
@@ -353,6 +362,8 @@ export class Engine {
     this.waiting = true;
     this.recovered = 0;
     this.playCc = null;
+    this.planned.clear();
+    this.tornAt = null;
     const Hls = await loadHls();
     // rd-2 A newer load (or start) came meanwhile: it makes the instance, or two would load.
     if (this.session !== session || n !== this.loads) return;
@@ -407,6 +418,28 @@ export class Engine {
       this.tick();
     });
     hls.on(Hls.Events.ERROR, (_, d) => this.onError(Hls, d));
+    // h3 A clock jump hls.js got no discontinuity for (torn.ts).
+    hls.on(Hls.Events.FRAG_LOADING, (_, d) => {
+      if (!this.liveSrc || typeof d.frag.sn !== 'number') return;
+      this.planned.set(d.frag.sn, d.frag.start);
+      if (this.planned.size > 40) this.planned.delete(this.planned.keys().next().value!);
+    });
+    hls.on(Hls.Events.LEVEL_PTS_UPDATED, (_, d) => {
+      const sn = d.frag.sn;
+      if (!this.liveSrc || typeof sn !== 'number' || this.tornAt !== null || !isTorn(this.planned.get(sn), d.start)) return;
+      this.tornSn = sn;
+      this.tornAt = this.planned.get(sn)!;
+      this.checkTorn();
+    });
+    // h3 The instance after a torn fragment starts there, not before: the old timeline would tear again.
+    const tornSn = this.tornSn;
+    if (tornSn !== null) {
+      hls.once(Hls.Events.LEVEL_LOADED, (_, d) => {
+        if (this.tornSn === tornSn) this.tornSn = null;
+        const at = tornStart(d.details.fragments, tornSn, hls.liveSyncPosition);
+        if (at !== null && this.hls === hls) hls.startLoad(at);
+      });
+    }
     hls.loadSource(this.choice === 'audio' ? session.audio : session.url);
     hls.attachMedia(this.video);
   }
@@ -622,9 +655,20 @@ export class Engine {
     if (Math.abs(this.video.currentTime - this.startAt) > 2) this.video.currentTime = this.startAt;
   }
 
+  /** h3 The play head reached a torn fragment: a new instance on this session plays on from
+   *  there, like a fresh open (the old one would freeze, then jump back). */
+  private checkTorn(): void {
+    const v = this.video;
+    if (!this.liveSrc || !this.hls || v.paused || !tornDue(this.tornAt, v.currentTime)) return;
+    this.tornAt = null;
+    this.quietPause();
+    void this.load();
+  }
+
   /** V1061-01..03 Where the player is and how far behind live. */
   private tick(): void {
     const v = this.video;
+    this.checkTorn();
     // A swap shows the asked-for spot until the new source plays; after a failure the last spot stays.
     if (!this.swapping && !this.failure) {
       this.time = v.currentTime;
