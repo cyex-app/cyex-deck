@@ -39,11 +39,14 @@ interface Triggers {
   trigger(event: string, data: unknown): boolean;
 }
 
-/** Holds back `hls`'s picture by `delay()` seconds (0 when the sound isn't in Web Audio).
+/** Holds back `hls`'s picture by `delay()` seconds (0 when the sound isn't in Web Audio,
+ *  null while it can't be read yet: the one in use stays).
  *  Wraps `trigger` for BUFFER_APPENDING (`appending`), which hls.js reads the offset from.
- *  A delay that changes after video was appended calls `refill`, so the frames already
- *  buffered with the old one get replaced soon instead of playing out (VODs hold 30 s). */
-export function delayVideo(hls: Triggers, appending: string, delay: () => number, refill: () => void): void {
+ *  A delay that changes after video was appended calls `resync`: it reloads the buffer at
+ *  the play head, so the frames buffered with the old one go at once (VODs hold 30 s).
+ *  `resync` returns false when it can't (loading stopped): the next append tries again.
+ *  Returns `check`, which reads the delay now (the boost graph changed), false while it's null. */
+export function delayVideo(hls: Triggers, appending: string, delay: () => number | null, resync: () => boolean): () => boolean {
   const trigger = hls.trigger.bind(hls);
   let applied = 0;
   let appended = false;
@@ -51,13 +54,22 @@ export function delayVideo(hls: Triggers, appending: string, delay: () => number
     if (event === appending) {
       const d = data as Appending;
       if (d.type === 'video' && d.frag?.sn !== 'initSegment') {
-        const next = settle(applied, delay());
-        if (next !== applied && appended) setTimeout(refill, 0);
+        const now = delay();
+        const next = now === null ? applied : settle(applied, now);
+        // Outside hls.js's own dispatch: the reload flushes and restarts loading.
+        if (next !== applied && appended) setTimeout(resync, 0);
         applied = next;
         appended = true;
         d.offset = shifted(d.offset, d.type, applied);
       }
     }
     return trigger(event, data);
+  };
+  return () => {
+    const now = delay();
+    if (now === null) return false;
+    const next = settle(applied, now);
+    if (next !== applied && (!appended || resync())) applied = next;
+    return true;
   };
 }

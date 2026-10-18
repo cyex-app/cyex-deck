@@ -165,8 +165,11 @@ impl Cosmetics {
 /// 7TV rejected `used`: deleted if still stored, and the account says "Sign in again" until the
 /// next sign-in. False when a new sign-in replaced it meanwhile.
 pub(crate) fn forget_if_same(tokens: &SevenTvTokens, account: &str, used: &cyex_auth::SevenTvToken) -> bool {
-    if tokens.get(account).is_none_or(|t| t.secret() != used.secret()) {
-        return false;
+    match tokens.get(account) {
+        // A sibling pick in the same burst already rejected it (combos 18): still "Sign in again".
+        None => return tokens.rejected(account),
+        Some(t) if t.secret() != used.secret() => return false,
+        Some(_) => {}
     }
     if let Err(e) = tokens.reject(account) {
         eprintln!("cosmetics: {account}: couldn't delete the 7TV session: {e}");

@@ -8,7 +8,7 @@ import type { ErrorData, HlsConfig } from 'hls.js';
 import type { PlayerSession } from '../../ipc/bindings/PlayerSession';
 import { delayVideo } from './avsync';
 import { Away } from './away';
-import { graphDelay } from './gain';
+import { GRAPH_EVENT, graphDelay } from './gain';
 import { behindLive, dvrConfig, liveConfig, liveState, PAUSE_STOP_MS, rangeEnd } from './liveEdge';
 import {
   askPause,
@@ -102,6 +102,9 @@ export class Engine {
   /** The page hides the player: its tab plays in the background (V102-15). */
   private hidden = false;
   private readonly off: () => void;
+  /** K3 Stops listening for boost graph changes of the current hls. */
+  private unGraph: () => void = () => {};
+  private graphTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     private readonly video: HTMLVideoElement,
@@ -289,6 +292,7 @@ export class Engine {
     clearTimeout(this.stopTimer);
     this.away.stop();
     this.off();
+    this.unGraph();
     this.hls?.destroy();
     this.hls = null;
   }
@@ -305,11 +309,22 @@ export class Engine {
     const hls = new Hls(this.config());
     this.hls = hls;
     this.H = Hls;
-    // K3 A boosted video's picture waits for its Web Audio sound. A new delay refetches what's
-    // ahead (a smooth switch to the level loading), so it lands within a segment.
-    delayVideo(hls, Hls.Events.BUFFER_APPENDING, () => graphDelay(this.video), () => {
-      if (this.hls === hls && hls.loadLevel >= 0) hls.nextLevel = hls.loadLevel;
-    });
+    // K3 A boosted video's picture waits for its Web Audio sound. A new delay reloads the
+    // buffer at the play head, so it's in sync at once. Read again when the graph changes,
+    // until the context has its output latency (a moment after it starts).
+    const check = delayVideo(hls, Hls.Events.BUFFER_APPENDING, () => graphDelay(this.video), () => this.resync(hls));
+    this.unGraph();
+    const onGraph = (tries = 25) => {
+      clearTimeout(this.graphTimer);
+      if (this.hls !== hls || check() || tries <= 0) return;
+      this.graphTimer = setTimeout(() => onGraph(tries - 1), 200);
+    };
+    const graphed = () => onGraph();
+    this.video.addEventListener(GRAPH_EVENT, graphed);
+    this.unGraph = () => {
+      clearTimeout(this.graphTimer);
+      this.video.removeEventListener(GRAPH_EVENT, graphed);
+    };
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       this.levels = hls.levels
         .map((l, index) => ({ index, name: l.height ? levelName(l) : 'Audio only', height: l.height }))
@@ -453,6 +468,27 @@ export class Engine {
   /** The live playlist plays (not the rewind VOD). */
   private get liveSrc(): boolean {
     return this.live && !this.dvr;
+  }
+
+  /** K3 The delay changed with video buffered: everything buffered goes and loading starts
+   *  again at the play head, so nothing plays with the old delay and no hole is left. That's
+   *  hls.js's immediate switch to the level it loads (levels are always set by hand here):
+   *  it aborts the segment loading, flushes both buffers and refetches from the play head;
+   *  the playlists go on. The element isn't paused or seeked (the U11 flags stay), live
+   *  keeps its spot. A paused player loads one segment, then stops buffering again. False
+   *  while loading is off (held, or stopped after a long pause): the next append resyncs. */
+  private resync(hls: HlsType): boolean {
+    const H = this.H;
+    if (this.hls !== hls || !H || !hls.loadingEnabled || hls.loadLevel < 0) return false;
+    const v = this.video;
+    if (!hls.bufferingEnabled) {
+      hls.resumeBuffering();
+      hls.once(H.Events.FRAG_BUFFERED, () => {
+        if (this.hls === hls && v.paused) hls.pauseBuffering();
+      });
+    }
+    hls.currentLevel = hls.loadLevel;
+    return true;
   }
 
   /** Pauses for our own reasons: the pause event isn't the user's. */

@@ -50,11 +50,16 @@ export function inGraph(video: HTMLMediaElement): boolean {
   return gains.has(video);
 }
 
-/** K3 Seconds this video's sound trails its picture: 0 unless it's in the boost graph. */
-export function graphDelay(video: HTMLMediaElement): number {
+/** K3 Seconds this video's sound trails its picture: 0 unless it's in the boost graph. Null
+ *  until the context reads an output latency (0 right after it starts, then the device's). */
+export function graphDelay(video: HTMLMediaElement): number | null {
   if (!boostCtx || !gains.has(video)) return 0;
+  if (!(boostCtx.outputLatency > 0)) return null;
   return measured(boostCtx.baseLatency, boostCtx.outputLatency);
 }
+
+/** K3 Sent on the video at each gain change once it's in the graph: its delay may be new. */
+export const GRAPH_EVENT = 'cyexgraph';
 
 /** Sets the boost's gain on `video`. Builds the graph only when `build` (the player is boosted). */
 export function setGain(video: HTMLMediaElement, value: number, build: boolean): void {
@@ -82,6 +87,7 @@ export function setGain(video: HTMLMediaElement, value: number, build: boolean):
   }
   keepRunning(ctx);
   node.gain.setTargetAtTime(value, ctx.currentTime, GLIDE);
+  video.dispatchEvent(new Event(GRAPH_EVENT));
 }
 
 /** Takes a closed player's boost graph out of the context, so channel switches don't pile them up. */

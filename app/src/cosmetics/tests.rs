@@ -140,6 +140,11 @@ fn a_rejected_token_that_was_replaced_stays() {
     assert!(t.get("7").is_some());
     assert!(forget_if_same(&t, "7", &fresh));
     assert!(t.get("7").is_none());
+    // combos 18: the second pick of the same burst finds it already rejected.
+    assert!(forget_if_same(&t, "7", &fresh));
+    // Signed out (no token, no mark) is not "Sign in again".
+    let empty = SevenTvTokens::new(Arc::new(MemoryStore::default()));
+    assert!(!forget_if_same(&empty, "7", &fresh));
 }
 
 #[tokio::test]
