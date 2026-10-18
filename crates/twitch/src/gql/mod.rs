@@ -167,10 +167,23 @@ pub(crate) async fn persisted<T: DeserializeOwned>(
 /// A persisted operation, sent as raw text when Twitch no longer knows the hash.
 /// `op` is (name, sha256, text).
 pub(crate) async fn persisted_or_raw(http: &Http, auth: Auth<'_>, op: (&str, &str, &str), variables: Value) -> Result<Value> {
-    match persisted::<Value>(http, auth, op.0, op.1, variables.clone()).await {
-        Err(e) if e.api_message().is_some_and(|m| m.contains("PersistedQueryNotFound")) => {
-            query(http, auth, op.2, variables).await
-        }
+    let first = persisted::<Value>(http, auth, op.0, op.1, variables.clone()).await;
+    or_raw(first, || query(http, auth, op.2, variables)).await
+}
+
+/// 1.43 Twitch answers an unknown hash with `PersistedQueryNotFound` (or
+/// `PersistedQueryNotSupported`); only then the raw text is sent.
+fn persisted_missing(e: &Error) -> bool {
+    e.api_message()
+        .is_some_and(|m| m.contains("PersistedQueryNotFound") || m.contains("PersistedQueryNotSupported"))
+}
+
+async fn or_raw<F>(first: Result<Value>, raw: impl FnOnce() -> F) -> Result<Value>
+where
+    F: std::future::Future<Output = Result<Value>>,
+{
+    match first {
+        Err(e) if persisted_missing(&e) => raw().await,
         other => other,
     }
 }
@@ -260,6 +273,28 @@ pub(crate) fn nullable<'de, D: serde::Deserializer<'de>, T: Default + Deserializ
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn unknown_hash_falls_back_to_the_raw_query() {
+        let missing: Response<Value> =
+            serde_json::from_str(include_str!("../../tests/fixtures/gifs/persisted_not_found.json")).unwrap();
+        let raw = || async { Ok(json!({ "sendGifMessage": { "error": null } })) };
+        let v = or_raw(unwrap(missing), raw).await.unwrap();
+        assert!(v["sendGifMessage"]["error"].is_null());
+        // Any other error stands; the raw query isn't sent.
+        let other = Err(Error::Api { status: 200, message: "service timeout".into() });
+        let sent = std::cell::Cell::new(false);
+        let r = or_raw(other, || async {
+            sent.set(true);
+            Ok(Value::Null)
+        })
+        .await;
+        assert_eq!(r.unwrap_err().api_message(), Some("service timeout"));
+        assert!(!sent.get());
+        // A known hash answers as is.
+        let ok = or_raw(Ok(json!(1)), || async { Ok(json!(2)) }).await.unwrap();
+        assert_eq!(ok, json!(1));
+    }
 
     #[test]
     fn partial_keeps_data_with_errors() {

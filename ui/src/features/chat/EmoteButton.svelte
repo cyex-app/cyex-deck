@@ -1,4 +1,5 @@
-<!-- 1.40 The button next to the message box that opens the emote menu above it. -->
+<!-- 1.40 The button next to the message box that opens the emote menu above it (with
+     the GIFs tab, 1.43, when `room` is a chat). -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
@@ -6,14 +7,16 @@
   import { firstField, focusScope } from '../../lib/focusScope';
   import { floating } from '../../lib/place';
   import EmoteMenu from '../emotes/EmoteMenu.svelte';
+  import type { ChatRoom } from './room.svelte';
 
   interface Props {
     login: string;
     account: string | null;
     oninsert: (text: string) => void;
+    room?: ChatRoom;
   }
 
-  let { login, account, oninsert }: Props = $props();
+  let { login, account, oninsert, room }: Props = $props();
 
   let open = $state(false);
   let wrap = $state<HTMLElement>();
@@ -43,7 +46,7 @@
   </button>
   {#if open}
     <div class="pop" bind:this={pop} tabindex="-1" use:floating={{ anchor: wrap, side: 'above', align: 'end', gap: 8 }}>
-      <EmoteMenu {login} {account} {oninsert} />
+      <EmoteMenu {login} {account} {oninsert} {room} onclose={() => (open = false)} />
     </div>
   {/if}
 </div>

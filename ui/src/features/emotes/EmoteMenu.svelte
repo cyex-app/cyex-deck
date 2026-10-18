@@ -1,7 +1,8 @@
 <!-- 1.40 Emote menu: favorites and most used (C12), Twitch by channel and kind with the
      channel's locked emotes (E5), 7TV, BTTV, FFZ, and emoji (E1). Click puts an emote in
      the message box; right-click keeps it in favorites. Sub emotes above tier 1 carry a
-     tier mark; a locked one opens its card instead (1.41). -->
+     tier mark; a locked one opens its card instead (1.41). GIFs (1.43) get a tab where
+     this account can send them. Arrow keys move between cells. -->
 <script lang="ts">
   import { onMount } from 'svelte';
 
@@ -27,16 +28,25 @@
   import { errorText } from '../../lib/errors';
   import { uniqueKeys } from '../../lib/keys';
   import Loading from '../../components/Loading.svelte';
+  import type { GifInfo } from '../../ipc/bindings/GifInfo';
+  import { chatxIpc } from '../../ipc/chatx';
+  import { ARROWS, moveFocus } from '../../lib/gridNav';
+  import type { ChatRoom } from '../chat/room.svelte';
+  import GifPicker from './GifPicker.svelte';
+  import { showGifTab } from './gifs';
 
   interface Props {
     login: string;
     account: string | null;
     oninsert: (text: string) => void;
+    /** 1.43 The chat this menu sends GIFs to; none in whispers. */
+    room?: ChatRoom;
+    onclose?: () => void;
   }
 
-  let { login, account, oninsert }: Props = $props();
+  let { login, account, oninsert, room, onclose }: Props = $props();
 
-  type Tab = 'favorites' | ProviderTab | 'emoji';
+  type Tab = 'favorites' | ProviderTab | 'emoji' | 'gifs';
   /** V101-12 Twitch the first time, then the tab used last. A new key starts everyone
    * on Twitch once. */
   const TAB_KEY = 'cyex.emoteTab';
@@ -58,17 +68,24 @@
   const favEmoji = $derived(saved.favorites.filter((k) => k.source === 'emoji'));
   const used = $derived(pick(saved.usage.map((u) => u.emote), have).slice(0, 30));
   const favorite = $derived(new Set(saved.favorites.map((k) => emoteKey(k.source, k.id))));
+  /** 1.43 `undefined` while asking. */
+  let gifInfo = $state<GifInfo | null | undefined>(undefined);
+  const gifsOk = $derived(showGifTab(gifInfo, room?.state.emoteOnly ?? false));
   const tabs = $derived<Tab[]>([
     'favorites',
     ...PROVIDER_TABS.filter((t) => t === 'twitch' || (menu?.[t].length ?? 0) > 0),
     'emoji',
+    ...(gifsOk ? (['gifs'] as const) : []),
   ]);
+  /** The last tab, unless it isn't here (GIFs in another channel). GIFs wait for their answer. */
+  const current = $derived<Tab>(tabs.includes(tab) || (tab === 'gifs' && gifInfo === undefined) ? tab : 'twitch');
+  const searchingEmotes = $derived(!!query.trim() && current !== 'gifs');
   const found = $derived(menu && query.trim() ? search(menu, query) : []);
   const foundEmoji = $derived(emoji && query.trim() ? findEmoji(emoji, query.trim(), 40) : []);
   const foundEmojiKeys = $derived(uniqueKeys(foundEmoji, (e) => e.char));
 
   onMount(() => {
-    // A tip shown for one of the cells shouldn't outlive the menu.
+    // A tip current for one of the cells shouldn't outlive the menu.
     return hideTip;
   });
 
@@ -79,6 +96,37 @@
   }
 
   onMount(load);
+
+  onMount(() => {
+    if (!room?.view) return void (gifInfo = null);
+    chatxIpc
+      .gifInfo(room.view)
+      .then((i) => (gifInfo = i))
+      .catch(() => (gifInfo = null));
+  });
+
+  /** Down from the search box into the cells; arrows between them; up from the top row
+   * back to the search box. Cells come from the one section and its neighbours. */
+  function onkeydown(e: KeyboardEvent) {
+    const dir = ARROWS[e.key];
+    if (!dir || e.altKey || e.ctrlKey || e.metaKey) return;
+    const t = e.target as HTMLElement;
+    const root = e.currentTarget as HTMLElement;
+    if (t instanceof HTMLInputElement && t.closest('.top')) {
+      if (dir !== 'down') return;
+      const first = root.querySelector<HTMLElement>('.body .cell, .body .gif');
+      if (!first) return;
+      e.preventDefault();
+      first.focus();
+      return;
+    }
+    const grid = t.closest('.grid');
+    if (!grid || !t.matches('.cell, .gif')) return;
+    e.preventDefault();
+    const near = [grid.closest('section')?.previousElementSibling, grid, grid.closest('section')?.nextElementSibling];
+    const cells = near.flatMap((n) => (n ? [...n.querySelectorAll<HTMLElement>('.cell, .gif')] : []));
+    if (!moveFocus(cells, t, dir) && dir === 'up') root.querySelector<HTMLInputElement>('.top input')?.focus();
+  }
 
   /** V106-31/32 The add/rename strip; the emote it is about. */
   type Editing = {
@@ -107,7 +155,7 @@
   }
 
   $effect(() => {
-    if ((tab === 'emoji' || query.trim()) && !emoji) void emojiGroups().then((g) => (emoji = g));
+    if ((current === 'emoji' || searchingEmotes) && !emoji) void emojiGroups().then((g) => (emoji = g));
   });
 
   function readTab(): Tab {
@@ -131,6 +179,7 @@
   function label(t: Tab): string {
     if (t === 'favorites') return 'Favorites';
     if (t === 'emoji') return 'Emoji';
+    if (t === 'gifs') return 'GIFs';
     return PROVIDER_NAMES[t];
   }
 
@@ -218,13 +267,15 @@
   >
 {/snippet}
 
-<div class="menu" role="dialog" aria-label="Emotes">
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<div class="menu" role="dialog" aria-label="Emotes" tabindex="-1" {onkeydown}>
   <div class="top">
-    <SearchField bind:value={query} placeholder="Find an emote" small autofocus />
+    <SearchField bind:value={query} placeholder={current === 'gifs' ? 'Search GIPHY' : 'Find an emote'} small autofocus />
   </div>
   <div class="tabs" role="tablist">
     {#each tabs as t (t)}
-      <button role="tab" aria-selected={tab === t && !query} class:on={tab === t && !query} onclick={() => choose(t)}>
+      {@const on = current === t && (t === 'gifs' || !query)}
+      <button role="tab" aria-selected={on} class:on onclick={() => choose(t)}>
         {#if t === 'favorites'}<Icon name="star" size={13} />{:else if t === 'emoji'}<Icon name="smile" size={13} />{/if}
         {label(t)}
       </button>
@@ -232,12 +283,18 @@
   </div>
 
   <!-- svelte-ignore a11y_mouse_events_have_key_events -->
-  <div class="body" {onmouseover} {onmouseout} role="presentation">
-    {#if error}
+  <div class="body" class:gifs={current === 'gifs'} {onmouseover} {onmouseout} role="presentation">
+    {#if current === 'gifs'}
+      {#if gifInfo && room}
+        <GifPicker view={room.view} chat="{account}:{login}" {query} onsent={() => onclose?.()} />
+      {:else}
+        <Loading />
+      {/if}
+    {:else if error}
       <p class="note">{error}</p>
     {:else if !menu}
       <Loading />
-    {:else if query.trim()}
+    {:else if searchingEmotes}
       {#if found.length || foundEmoji.length}
         <div class="grid">
           {#each found as m (cellKey(m))}{@render emote(m)}{/each}
@@ -246,7 +303,7 @@
       {:else}
         <p class="note">Nothing called “{query.trim()}”.</p>
       {/if}
-    {:else if tab === 'favorites'}
+    {:else if current === 'favorites'}
       {#if favEmotes.length || favEmoji.length}
         <section>
           <h4>Favorites</h4>
@@ -267,7 +324,7 @@
       {#if !favEmotes.length && !favEmoji.length && !used.length}
         <p class="note">Right-click an emote to keep it here. The ones you use most show up too.</p>
       {/if}
-    {:else if tab === 'emoji'}
+    {:else if current === 'emoji'}
       {#if emoji}
         {#each emoji as g (g.title)}
           {@const shown = g.emoji.slice(0, cap(g.title))}
@@ -284,8 +341,8 @@
         <Loading />
       {/if}
     {:else}
-      {#if tab === 'twitch' && menu.twitchNote}<p class="note">{menu.twitchNote}</p>{/if}
-      {#each menu[tab] as s (s.id)}
+      {#if current === 'twitch' && menu.twitchNote}<p class="note">{menu.twitchNote}</p>{/if}
+      {#each menu[current] as s (s.id)}
         <section>
           <h4>
             {#if s.avatar}<img class="avatar" src={s.avatar} alt="" />{/if}
@@ -297,8 +354,8 @@
           {@render more(s.id, s.emotes.length)}
         </section>
       {/each}
-      {#if !menu[tab].length && !(tab === 'twitch' && menu.twitchNote)}
-        <p class="note">No {PROVIDER_NAMES[tab]} emotes here.</p>
+      {#if !menu[current].length && !(current === 'twitch' && menu.twitchNote)}
+        <p class="note">No {PROVIDER_NAMES[current]} emotes here.</p>
       {/if}
     {/if}
   </div>
@@ -360,8 +417,22 @@
   }
   .body {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 4px 8px 8px;
+  }
+  /* The GIF grid scrolls itself, for its next pages. */
+  .body.gifs {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+  }
+  .menu:focus {
+    outline: none;
+  }
+  .cell:focus-visible {
+    background: var(--surface-hover);
   }
   section {
     content-visibility: auto;

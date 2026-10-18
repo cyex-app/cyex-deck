@@ -38,12 +38,39 @@ pub struct GifSent {
     pub wait_secs: Option<u32>,
 }
 
-pub async fn gif_access(http: &Http, auth: Auth<'_>, channel_id: &str) -> Result<GifAccess> {
+/// `account` is the signed-in user's id: the broadcaster can post in their own chat.
+pub async fn gif_access(http: &Http, auth: Auth<'_>, channel_id: &str, account: &str) -> Result<GifAccess> {
     let d: RawData = query(http, auth, ACCESS, json!({ "id": channel_id })).await?;
-    Ok(decide(d))
+    Ok(decide(d, account == channel_id))
 }
 
-fn decide(d: RawData) -> GifAccess {
+/// What the room says right now; not cached with the access.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RoomGate {
+    pub emote_only: bool,
+    /// Shield Mode turns the picker off (`isGifPickerDisabled`).
+    pub shield: bool,
+}
+
+impl GifAccess {
+    /// 1.43 Twitch's picker is off in emote-only mode and in Shield Mode.
+    pub fn in_room(mut self, room: RoomGate) -> Self {
+        let reason = if room.emote_only {
+            Some("No GIFs in emote-only mode.")
+        } else if room.shield {
+            Some("No GIFs while Shield Mode is on.")
+        } else {
+            None
+        };
+        if reason.is_some() {
+            self.can_send = false;
+            self.reason = reason;
+        }
+        self
+    }
+}
+
+fn decide(d: RawData, broadcaster: bool) -> GifAccess {
     let channel_has = d
         .user
         .as_ref()
@@ -60,7 +87,7 @@ fn decide(d: RawData) -> GifAccess {
         Some("This channel doesn’t allow GIFs.")
     } else if !(cfg.is_enabled && cfg.is_allowlisted) {
         Some("GIFs are unavailable right now.")
-    } else if tier < 2000 {
+    } else if tier < 2000 && !broadcaster {
         Some("Subscribe at Tier 2 or 3 to send GIFs here.")
     } else {
         None
@@ -146,26 +173,60 @@ struct RawBenefit {
 mod tests {
     use super::*;
 
-    fn data(json: &str) -> RawData {
-        serde_json::from_str(json).unwrap()
+    fn data(name: &str) -> RawData {
+        let raw = match name {
+            "t2" => include_str!("../../tests/fixtures/gifs/access_t2.json"),
+            "t1" => include_str!("../../tests/fixtures/gifs/access_t1.json"),
+            "owner" => include_str!("../../tests/fixtures/gifs/access_owner.json"),
+            "not_allowlisted" => include_str!("../../tests/fixtures/gifs/access_not_allowlisted.json"),
+            _ => include_str!("../../tests/fixtures/gifs/access_off.json"),
+        };
+        serde_json::from_str(raw).unwrap()
     }
 
     #[test]
     fn who_can_send() {
-        let ok = decide(data(
-            r#"{"gifPickerConfig":{"isEnabled":true,"isAllowlisted":true,"apiKey":"k","contentRating":"G_PG"},
-            "user":{"subscriptionProducts":[{"tier":"1000","hasGifs":false},{"tier":"2000","hasGifs":true}],"self":{"subscriptionBenefit":{"tier":"2000"}}}}"#,
-        ));
+        let ok = decide(data("t2"), false);
         assert!(ok.can_send);
         assert_eq!(ok.rating, "pg");
-        let tier1 = decide(data(
-            r#"{"gifPickerConfig":{"isEnabled":true,"isAllowlisted":true,"apiKey":"k","contentRating":null},
-            "user":{"subscriptionProducts":[{"tier":"2000","hasGifs":true}],"self":{"subscriptionBenefit":{"tier":"1000"}}}}"#,
-        ));
+        let tier1 = decide(data("t1"), false);
+        assert!(!tier1.can_send);
         assert_eq!(tier1.reason, Some("Subscribe at Tier 2 or 3 to send GIFs here."));
-        let off = decide(data(
-            r#"{"gifPickerConfig":null,"user":{"subscriptionProducts":[{"tier":"2000","hasGifs":false}],"self":null}}"#,
-        ));
+        let off = decide(data("off"), false);
         assert_eq!(off.reason, Some("This channel doesn’t allow GIFs."));
+        let listed = decide(data("not_allowlisted"), false);
+        assert!(!listed.can_send);
+        assert_eq!(listed.reason, Some("GIFs are unavailable right now."));
+    }
+
+    #[test]
+    fn the_broadcaster_needs_no_sub() {
+        assert!(!decide(data("owner"), false).can_send);
+        let own = decide(data("owner"), true);
+        assert!(own.can_send);
+        assert_eq!(own.rating, "pg-13");
+        // Still only where the channel has GIFs.
+        assert!(!decide(data("off"), true).can_send);
+    }
+
+    #[test]
+    fn emote_only_and_shield_turn_it_off() {
+        let ok = decide(data("t2"), false);
+        assert!(ok.clone().in_room(RoomGate::default()).can_send);
+        let emote_only = ok.clone().in_room(RoomGate {
+            emote_only: true,
+            shield: false,
+        });
+        assert!(!emote_only.can_send);
+        assert_eq!(emote_only.reason, Some("No GIFs in emote-only mode."));
+        let shield = ok.in_room(RoomGate {
+            emote_only: false,
+            shield: true,
+        });
+        assert!(!shield.can_send);
+        assert_eq!(shield.reason, Some("No GIFs while Shield Mode is on."));
+        // The account's own reason stays when the room is fine.
+        let t1 = decide(data("t1"), false).in_room(RoomGate::default());
+        assert_eq!(t1.reason, Some("Subscribe at Tier 2 or 3 to send GIFs here."));
     }
 }

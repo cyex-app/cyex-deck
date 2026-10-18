@@ -396,6 +396,7 @@ fn route(app: &AppHandle, account: &str, channel_id: &str, login: Option<&str>, 
         }
         Event::Shield { on, moderator } => {
             // V103-15 A mod action now, no longer activity.
+            crate::chat::powerups::shield_changed(app, channel_id, on);
             view::add_action(app, channel_id, ModLine::shield(on, moderator.as_ref(), cyex_chat::build::local_id(), now));
             if let Some(login) = login {
                 crate::chat::notice_line(app, login, NoticeKind::Moderation, &format!("Shield mode {}.", if on { "on" } else { "off" }));
