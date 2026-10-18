@@ -16,6 +16,7 @@ export const TEXT_FIELDS = 'input, textarea, select, [contenteditable]:not([cont
  *  only once the keyboard put focus there (rd-1 focusOrigin.ts): after a click the arrows seek. */
 export const TAB_ACROSS = '[role="tab"]:not([data-vertical])';
 export const TAB_DOWN = '[role="tab"][data-vertical]';
+export const TAB_ANY = '[role="tab"]';
 
 type Focus = { closest(sel: string): unknown } | null;
 
@@ -26,9 +27,13 @@ export function ownsKey(target: Focus, e: { key: string; shiftKey?: boolean }, b
   if (!target?.closest) return false;
   if (target.closest(TEXT_FIELDS)) return true;
   if (!e.key.startsWith('Arrow') || e.shiftKey) return false;
-  if (target.closest(OWN_ARROWS)) return true;
-  const tab = target.closest(e.key === 'ArrowLeft' || e.key === 'ArrowRight' ? TAB_ACROSS : TAB_DOWN);
-  return !!tab && byKey(tab);
+  // qd-1 A tab sits inside the tablist (in OWN_ARROWS): decide on the tab first, or a clicked tab
+  // would always keep the arrows.
+  if (target.closest(TAB_ANY)) {
+    const tab = target.closest(e.key === 'ArrowLeft' || e.key === 'ArrowRight' ? TAB_ACROSS : TAB_DOWN);
+    return !!tab && byKey(tab);
+  }
+  return !!target.closest(OWN_ARROWS);
 }
 
 /** A live seek's result: how far behind it lands ('live' = at live), 'start' when clamped at the stream's start. */

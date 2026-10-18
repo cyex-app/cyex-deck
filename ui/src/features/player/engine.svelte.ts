@@ -102,6 +102,10 @@ export class Engine {
   private stall = stallStart(0);
   private stallTimer: ReturnType<typeof setInterval> | undefined;
   private lastUpdate = 0;
+  /** qd-2 Discontinuity (cc) of the fragment playing, null before one plays. */
+  private playCc: number | null = null;
+  /** qd-3 The live playlist's newest content (program date time, ms). */
+  private edgeDate: number | null = null;
   private session: PlayerSession | null = null;
   /** VODs: where to begin, in seconds. */
   private startAt = -1;
@@ -228,34 +232,54 @@ export class Engine {
       this.onreopen?.(null);
       return;
     }
-    hls.resumeBuffering();
-    if (performance.now() - this.lastUpdate > 3000 && !(await this.levelUpdate(hls, 4000))) {
+    // qd-2 Waiting for hls.js's next reload (up to a target duration, 6 s on Twitch) made Play
+    // slow. Only a playlist that stopped coming is waited for.
+    const age = performance.now() - this.lastUpdate;
+    if (age > STALE_PLAYLIST_MS && !(await this.levelUpdate(hls, 4000))) {
       if (this.hls === hls) this.onreopen?.(null);
       return;
     }
+    // qd-2 A few seconds old, hls.js keeps the sync point inside the old playlist: it lands up to
+    // 5 s short of live and the button reads -0:05 at the next reload. Asked for now, one round trip.
+    if (age > FRESH_PLAYLIST_MS && reloadNow(hls)) await this.levelUpdate(hls, 1000);
     if (this.hls !== hls) return;
     const t = hls.liveSyncPosition;
     if (t === null) return void this.onreopen?.(null);
     const v = this.video;
     if (t - v.currentTime < 1) {
+      hls.resumeBuffering();
       if (play) void v.play().catch(() => {});
       return;
     }
+    // qd-2 Seek first, then buffer: resumed at the old spot, hls.js first fetched the segments
+    // after the paused buffer, and the live ones waited behind them.
     if (rangeEnd(v.buffered, t) !== null) {
       v.currentTime = t;
+      hls.resumeBuffering();
       if (play) void v.play().catch(() => {});
       return;
+    }
+    // qd-2 Live is past a discontinuity the buffer isn't in (an ad switch, a restart): hls.js
+    // didn't place the new part, the seek waited 4 s and more. A new instance on this session
+    // starts there like a fresh open.
+    const at = hls.levels[hls.loadLevel]?.details?.fragments.find((f) => t >= f.start && t < f.start + f.duration);
+    if (play && at && this.playCc !== null && at.cc !== this.playCc) {
+      this.quietPause();
+      return void this.load();
     }
     // Q14 a Silent while it loads there: no pop, no repeated seconds.
     this.st = jumpBegin(this.st);
     this.quietPause();
     v.currentTime = t;
-    await waitFor(v, 'canplay', 4000);
+    hls.resumeBuffering();
+    const landed = await waitFor(v, 'canplay', JUMP_MS);
     this.st = jumpEnd(this.st);
     if (this.hls !== hls) return;
     const p = takePending(this.st);
     this.st = p.s;
     if (p.pending) this.markPaused();
+    // qd-2 Still nothing there: the same, a new instance (the old wait was 4 s, then stuck).
+    else if (!landed && play) void this.load();
     else if (play) await v.play().catch(() => {});
   }
 
@@ -328,6 +352,7 @@ export class Engine {
     this.failure = null;
     this.waiting = true;
     this.recovered = 0;
+    this.playCc = null;
     const Hls = await loadHls();
     // rd-2 A newer load (or start) came meanwhile: it makes the instance, or two would load.
     if (this.session !== session || n !== this.loads) return;
@@ -372,8 +397,13 @@ export class Engine {
       void this.video.play().catch(() => {});
     });
     hls.on(Hls.Events.LEVEL_SWITCHED, (_, d) => (this.level = d.level));
-    hls.on(Hls.Events.LEVEL_UPDATED, () => {
+    // qd-2 The discontinuity the play head is in.
+    hls.on(Hls.Events.FRAG_CHANGED, (_, d) => (this.playCc = d.frag.cc));
+    hls.on(Hls.Events.LEVEL_UPDATED, (_, d) => {
       this.lastUpdate = performance.now();
+      // qd-3 The newest content the playlist has (program date time), for the stall check.
+      const last = d.details.fragments.at(-1);
+      if (this.liveSrc && last?.programDateTime != null) this.edgeDate = last.programDateTime + last.duration * 1000;
       this.tick();
     });
     hls.on(Hls.Events.ERROR, (_, d) => this.onError(Hls, d));
@@ -617,7 +647,8 @@ export class Engine {
     const v = this.video;
     const active = !!this.session && this.liveSrc && !isPaused(this.st) && !this.st.pendingPause && !this.holding && !this.failure && !this.adBreak;
     const ready = !v.paused && !v.seeking && v.readyState >= 3;
-    const r = stallStep(this.stall, { now: performance.now(), pos: v.currentTime, active, ready });
+    const date = this.hls?.playingDate?.getTime() ?? null;
+    const r = stallStep(this.stall, { now: performance.now(), pos: v.currentTime, active, ready, date, edge: this.edgeDate });
     this.stall = r.s;
     if (r.action === 'clear') this.stalled = false;
     if (r.action !== 'retry') return;
@@ -643,15 +674,36 @@ export class Engine {
   }
 }
 
-/** Resolves on `ev` or after `ms`, the listener removed either way. */
-function waitFor(el: EventTarget, ev: string, ms: number): Promise<void> {
+/** qd-2 A live playlist older than this is waited for before going live (Twitch reloads every 2-6 s). */
+const STALE_PLAYLIST_MS = 15_000;
+/** qd-2 Older than this, the sync point falls short of live (sync 8 s − target duration 6 s). */
+const FRESH_PLAYLIST_MS = 1500;
+
+/** qd-2 Reloads the playing quality's live playlist now, not at hls.js's next turn (a paused
+ *  player's comes once a target duration, 6 s on Twitch). hls.js has no public call for it:
+ *  false when its insides changed, then the old playlist does. */
+function reloadNow(hls: HlsType): boolean {
+  const lc = (hls as unknown as { levelController?: { loadPlaylist?: () => void } }).levelController;
+  const details = hls.levels[hls.loadLevel]?.details;
+  if (typeof lc?.loadPlaylist !== 'function' || !details?.live) return false;
+  details.requestScheduled = 0;
+  lc.loadPlaylist();
+  return true;
+}
+
+/** qd-2 How long a jump to live may load before a new instance takes over. */
+const JUMP_MS = 1500;
+
+/** Resolves true on `ev`, false after `ms`, the listener removed either way. */
+function waitFor(el: EventTarget, ev: string, ms: number): Promise<boolean> {
   return new Promise((done) => {
-    const f = () => {
+    const f = (came: boolean) => {
       clearTimeout(t);
-      el.removeEventListener(ev, f);
-      done();
+      el.removeEventListener(ev, on);
+      done(came);
     };
-    const t = setTimeout(f, ms);
-    el.addEventListener(ev, f);
+    const on = () => f(true);
+    const t = setTimeout(() => f(false), ms);
+    el.addEventListener(ev, on);
   });
 }
