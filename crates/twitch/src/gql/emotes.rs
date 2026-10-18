@@ -154,6 +154,9 @@ pub struct TwitchEmoteInfo {
     pub bits: Option<u32>,
     /// Who drew it, when the channel says.
     pub artist: Option<String>,
+    /// GQL's own `type` (`TWO_FACTOR`, `SMILIES`, `ARCHIVE`, `MEGA_COMMERCE`, ...) for card labels.
+    #[serde(skip)]
+    pub raw_type: Option<String>,
 }
 
 /// Every emote set the account can use in a channel, the channel's follower emotes
@@ -463,6 +466,7 @@ struct RawArtist {
 impl From<RawCard> for TwitchEmoteInfo {
     fn from(c: RawCard) -> Self {
         Self {
+            raw_type: c.emote.kind.clone(),
             emote: c.emote.into(),
             owner: real_owner(c.owner),
             tier: c
@@ -518,6 +522,7 @@ mod tests {
         let info = TwitchEmoteInfo::from(data.emote.unwrap());
         assert_eq!(info.emote.name, "xqcSlam");
         assert_eq!(info.tier, Some(1));
+        assert_eq!(info.raw_type.as_deref(), Some("SUBSCRIPTIONS"));
         assert_eq!(info.owner.unwrap().login, "xqc");
         assert!(info.emote.animated);
     }

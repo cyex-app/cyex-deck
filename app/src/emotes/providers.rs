@@ -223,9 +223,13 @@ fn change_channel(
     }
 }
 
-/// Uploaders for BTTV cards; FFZ's come with the set.
-pub async fn card(http: &Http, card: &mut EmoteCard) {
+/// Uploaders for BTTV cards; FFZ's come with the set. `false` when the lookup failed.
+pub async fn card(http: &Http, card: &mut EmoteCard) -> bool {
     if card.provider == Provider::Bttv && card.owner.is_none() {
-        card.owner = bttv::api::uploader(http, &card.id).await.ok().flatten();
+        match bttv::api::uploader(http, &card.id).await {
+            Ok(o) => card.owner = o,
+            Err(_) => return false,
+        }
     }
+    true
 }
