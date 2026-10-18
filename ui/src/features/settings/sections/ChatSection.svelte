@@ -134,7 +134,7 @@
   const modOn = (b: ModButton) => buttonOn(mb, b);
 </script>
 
-<SectionHead title="Chat" level={2}>How chat looks, scrolls and behaves.</SectionHead>
+<SectionHead title="Chat" level={2} />
 
 <SectionHead title="History">Older messages loaded when you open a chat.</SectionHead>
 <Row setting="chat.history" label="Recent history" hint="Shows the last messages, dimmed, when you open a chat.">
@@ -160,7 +160,7 @@
   />
 </Row>
 
-<SectionHead title="Messages">How each line is shown.</SectionHead>
+<SectionHead title="Messages" />
 <Row setting="chat.names" label="Names" hint="Both adds the login when the display name is in another script.">
   <Segmented label="Names" options={NAMES} value={c.names} onchange={(v) => settings.patch('chat', { names: v })} />
 </Row>
@@ -202,7 +202,7 @@
   <Toggle label="Lines between messages" checked={c.separators} onchange={(v) => settings.patch('chat', { separators: v })} />
 </Row>
 
-<SectionHead title="Timestamps">The time in front of each message.</SectionHead>
+<SectionHead title="Timestamps" />
 <Row setting="chat.timestamps.show" label="Show timestamps" hint={c.timestamps.show ? `Looks like ${formatTime(SAMPLE_TIME, c.timestamps)}` : undefined}>
   <Toggle
     label="Show timestamps"
@@ -269,7 +269,7 @@
   />
 </Row>
 
-<SectionHead title="Links">What links in chat show and do.</SectionHead>
+<SectionHead title="Links" />
 <Row setting="chat.linkPreviews" label="Previews" hint="Hover a link for its title and picture.">
   <Toggle label="Previews" checked={c.linkPreviews} onchange={(v) => settings.patch('chat', { linkPreviews: v })} />
 </Row>

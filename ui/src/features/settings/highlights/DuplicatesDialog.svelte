@@ -11,7 +11,7 @@
   import { toast } from '../../../lib/toast.svelte';
   import { groups, removeCopies } from './duplicates';
 
-  type Found = { pattern: string; where: string; rules: string };
+  type Found = { pattern: string; where: string };
 
   let found = $state.raw<Found[] | null>(null);
   let count = 0;
@@ -22,14 +22,8 @@
 
   const save = (patch: Parameters<typeof settings.patch<'highlights'>>[1]) => void settings.patch('highlights', patch);
 
-  /** "rules 2 and 7", "rules 1, 3 and 5". */
-  function rulesText(rows: number[]): string {
-    const n = rows.map((r) => r + 1);
-    return `rules ${n.length > 1 ? `${n.slice(0, -1).join(', ')} and ${n[n.length - 1]}` : n[0]}`;
-  }
-
   function describe(list: PhraseRule[], checks: typeof phraseChecks, where: string): Found[] {
-    return groups(list, checks).map((g) => ({ pattern: list[g.first].pattern, where, rules: rulesText([g.first, ...g.copies]) }));
+    return groups(list, checks).map((g) => ({ pattern: list[g.first].pattern, where: `${where} · ${g.copies.length + 1} copies` }));
   }
 
   $effect(() => {
@@ -71,10 +65,10 @@
   <Dialog title="Some highlights are there twice" width={440} onclose={keepAll} onsubmit={keepAll}>
     <p class="lead">Mentions are part of Highlights now, and these were in both lists. Nothing was removed.</p>
     <ul class="groups">
-      {#each found as f}
+      {#each found as f, i (i)}
         <li>
           <code>{f.pattern || '(empty)'}</code>
-          <span class="where">{f.where} · {f.rules}</span>
+          <span class="where">{f.where}</span>
         </li>
       {/each}
     </ul>
@@ -96,7 +90,7 @@
   }
   .hint {
     margin: 10px 0 0;
-    font-size: 12px;
+    font-size: 0.75rem;
   }
   .groups {
     list-style: none;
@@ -121,6 +115,6 @@
     overflow-wrap: anywhere;
   }
   .where {
-    font-size: 12px;
+    font-size: 0.75rem;
   }
 </style>

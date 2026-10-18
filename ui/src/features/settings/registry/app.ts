@@ -69,7 +69,7 @@ export const APP: Entry[] = [
     id: 'appearance.theme',
     page: 'appearance',
     label: 'Theme',
-    description: 'Dark, light, Midnight, Forest, Dusk, Ocean or Ember.',
+    description: 'Dark, light or a built-in theme.',
     keywords: ['dark mode', 'light mode', 'colors', 'midnight', 'forest', 'dusk', 'ocean', 'ember'],
     keys: ['appearance.themeId'],
   },

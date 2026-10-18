@@ -69,7 +69,7 @@ import UnlistedPrompt from './UnlistedPrompt.svelte';
       if (box && !box.contains(t) && !t.closest?.('[data-shared-menu]')) onclose();
     };
     const off = layer('popover', onclose);
-    const release = box ? focusScope(box) : undefined;
+    const release = box ? focusScope(box, { trap: true }) : undefined;
     addEventListener('mousedown', down, true);
     addEventListener('wheel', onclose, { passive: true });
     addEventListener('blur', onclose);

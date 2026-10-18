@@ -7,6 +7,7 @@
   import Icon from '../../components/Icon.svelte';
   import type { Pinned } from '../../ipc/bindings/Pinned';
   import { tooltip } from '../../components/tooltip.svelte';
+  import { reduced } from '../../lib/motion';
   import { settings } from '../../lib/settings.svelte';
   import Body from './Body.svelte';
   import { pinKey, pinLive, shows } from './eventStrip';
@@ -63,14 +64,13 @@
     if (seen.id !== id) seen = { id, at: Date.now() };
     return seen.at;
   }
-  const calm = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   let tick = $state(Date.now());
   $effect(() => {
-    if (!calm || !pin.endsAt) return;
+    if (!reduced() || !pin.endsAt) return;
     const t = setInterval(() => (tick = Date.now()), 10_000);
     return () => clearInterval(t);
   });
-  const span = $derived(pinSpan(pin, seenAt(pin.id), calm ? tick : Date.now()));
+  const span = $derived(pinSpan(pin, seenAt(pin.id), reduced() ? tick : Date.now()));
   const c = $derived(settings.v.chat);
   const sender = $derived(pin.message.sender);
   const name = $derived(sender ? shownName(sender, c.names, c.users[sender.id]) : null);
@@ -122,7 +122,7 @@
       {#key pin.id}
         <div
           class="timer"
-          class:still={calm}
+          class:still={reduced()}
           style="--from:{span.frac};--dur:{Math.round(span.left)}ms"
           aria-hidden="true"
         ></div>

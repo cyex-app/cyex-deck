@@ -9,7 +9,7 @@ use super::{lock, state};
 /// The cached target whose `owner_id` is `channels[login].seventv_user` (Emotes state), cloned.
 /// No network.
 pub fn here_target(app: &AppHandle, account: &str, login: &str) -> Option<Target> {
-    let (owner, _) = super::viewed(app, login, "", "");
+    let (owner, _) = super::ask::viewed(app, login, "", "");
     let owner = owner?;
     let reach = lock(&state(app).reach);
     reach
@@ -37,7 +37,7 @@ pub fn here_names(app: &AppHandle, account: &str, login: &str) -> Vec<String> {
 /// `Err(())` = 7TV down.
 #[allow(clippy::result_unit_err)]
 pub async fn emote_facts(app: &AppHandle, login: &str, id: &str) -> Result<Option<EmoteBrief>, ()> {
-    if let Some(e) = super::find_emote(app, login, id) {
+    if let Some(e) = super::ask::find_emote(app, login, id) {
         return Ok(Some(EmoteBrief {
             id: e.id.clone(),
             name: e.original.unwrap_or(e.name),

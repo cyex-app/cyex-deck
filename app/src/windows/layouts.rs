@@ -7,7 +7,7 @@ use cyex_settings::schema::{Layout, PanelWindow, Windows};
 use serde_json::json;
 use tauri::{AppHandle, Manager};
 
-use super::{MAIN, geometry, open_panel, panels};
+use super::{MAIN, geometry, open_panel, panels, zoom};
 use crate::settings::Settings;
 
 pub fn save_layout(app: &AppHandle, name: &str) -> Result<(), String> {
@@ -61,6 +61,8 @@ pub fn apply_layout(app: &AppHandle, name: &str) -> Result<(), String> {
 
     if let (Some(g), Some(main)) = (layout.main, app.get_webview_window(MAIN)) {
         geometry::apply(&main.as_ref().window(), &g);
+        // K2 A layout saved at a lower zoom must not undercut the zoom minimum.
+        zoom::fit(app, &main, zoom::zoom_percent(app));
     }
 
     for (route, window) in panels::open_panels(app) {
@@ -86,6 +88,9 @@ pub fn apply_layout(app: &AppHandle, name: &str) -> Result<(), String> {
             let window = open.as_ref().window();
             if let Some(g) = &panel.geometry {
                 geometry::apply(&window, g);
+            }
+            if zoom::follows(open.label()) {
+                zoom::fit(app, &open, zoom::zoom_percent(app));
             }
             let _ = window.set_always_on_top(panel.pinned);
         } else {

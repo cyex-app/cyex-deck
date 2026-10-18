@@ -1,4 +1,6 @@
 <script lang="ts" generics="T extends string | number">
+  import { radioKey } from './select';
+
   interface Props {
     options: readonly { value: T; label: string }[];
     value: T;
@@ -15,14 +17,8 @@
   let group = $state<HTMLElement>();
 
   function onkeydown(e: KeyboardEvent) {
-    const n = options.length;
-    const to =
-      e.key === 'ArrowRight' || e.key === 'ArrowDown' ? (current + 1) % n
-      : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? (current - 1 + n) % n
-      : e.key === 'Home' ? 0
-      : e.key === 'End' ? n - 1
-      : -1;
-    if (to < 0 || !n) return;
+    const to = radioKey(e, current, options.length);
+    if (to === null) return;
     e.preventDefault();
     onchange(options[to].value);
     (group?.children[to] as HTMLElement | undefined)?.focus();

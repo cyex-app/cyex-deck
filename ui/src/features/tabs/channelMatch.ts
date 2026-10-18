@@ -2,7 +2,7 @@
 // emote completion and the settings search use). The exact lookup (name, id or link) always
 // stays in, offline or not. Ties: live first, then the order they came in.
 
-import { rank, RANK } from '../chat/completion.ts';
+import { rankBest, RANK } from '../chat/completion.ts';
 
 /** What a suggestion needs; `ChannelInfo` fits. */
 export interface Candidate {
@@ -27,9 +27,7 @@ export function matchChannels<T extends Candidate>(exact: T[], search: T[], type
       scored.push({ c, score: EXACT, close: 1, i });
       continue;
     }
-    const best = [rank(c.login, input), rank(c.name, input)].reduce((a, b) =>
-      b.rank > a.rank || (b.rank === a.rank && b.close > a.close) ? b : a,
-    );
+    const best = rankBest([c.login, c.name], input);
     scored.push({ c, score: best.rank, close: best.close, i });
   }
   return scored

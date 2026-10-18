@@ -17,6 +17,8 @@ mod hermes;
 mod hotkeys;
 mod icons;
 mod miner;
+#[cfg(feature = "mocks")]
+mod mock_url;
 mod moderation;
 mod paths;
 mod player;

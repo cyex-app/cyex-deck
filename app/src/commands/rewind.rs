@@ -4,6 +4,7 @@ use cyex_twitch::gql;
 use tauri::{AppHandle, Manager};
 
 use crate::auth::{Auth, gql_token};
+#[cfg(feature = "mocks")]
 use crate::player::mock;
 
 /// The broadcast's VOD id when Twitch lets `account` rewind `login`'s stream. `None` for
@@ -11,6 +12,7 @@ use crate::player::mock;
 #[tauri::command]
 pub async fn player_rewind(app: AppHandle, login: String, account: Option<String>) -> Option<String> {
     let http = app.state::<Auth>().http.clone();
+    #[cfg(feature = "mocks")]
     if let Some(base) = mock::base(&app) {
         return mock::dvr(&http, &base, &login).await;
     }

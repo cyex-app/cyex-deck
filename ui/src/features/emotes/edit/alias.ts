@@ -8,6 +8,6 @@ export function checkAlias(text: string): AliasCheck {
   if (text === '') return { ok: false, message: 'Give it a name.' };
   if ([...text].length > 100) return { ok: false, message: '100 characters at most.' };
   if (/\s/.test(text)) return { ok: false, message: 'No spaces.' };
-  if (!ALIAS_RE.test(text)) return { ok: false, message: "Letters, numbers, emoji and _-():!+|.'?><&*$# only." };
+  if (!ALIAS_RE.test(text)) return { ok: false, message: '7TV doesn’t allow a character in this name.' };
   return { ok: true, name: text };
 }

@@ -47,5 +47,8 @@ test('sentence', () => {
   assert.equal(sentence('  '), '');
   // V106-31 A finished line from Rust that starts with a login keeps its case.
   assert.equal(sentence('mockme has no 7TV emote called nope.'), 'mockme has no 7TV emote called nope.');
+  // K10 Library text ending in ")" gets a capital, no full stop.
+  assert.equal(sentence('access is denied. (os error 5)'), 'Access is denied. (os error 5)');
+  assert.equal(sentence('error sending request for url (http://x)'), 'Error sending request for url (http://x)');
   assert.equal(errorText('xQc already has an emote named peepoSad.'), 'xQc already has an emote named peepoSad.');
 });

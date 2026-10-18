@@ -60,7 +60,7 @@
 <Row setting="streammanager.obs.enabled" label="Write status files" hint="Updated about every 30 seconds while the stream manager is open.">
   <Toggle label="Write status files" checked={obs.enabled} onchange={(on) => void settings.patch('streammanager', { obs: { enabled: on } })} />
 </Row>
-<Row setting="streammanager.obs.folder" label="Folder" hint="Where the files go. Until you pick one: a stream-status folder next to the settings." stacked>
+<Row setting="streammanager.obs.folder" label="Folder" hint="Where the files go. Default: a stream-status folder next to your settings." stacked>
   <div class="folder">
     <Button small icon="folder" onclick={pick}>Select folder</Button>
     <Button small icon="popout" onclick={() => void smIpc.obsOpen().catch((e) => toast.error(errorText(e)))}>Open folder</Button>
@@ -71,7 +71,7 @@
 
 <p class="note">In OBS, add a “Text (GDI+)” source, tick “Read from file” and pick one of these files.</p>
 <table class="files" data-setting="streammanager:files">
-  <thead><tr><th>File</th><th>What’s in it</th><th><span class="sr">Actions</span></th></tr></thead>
+  <thead><tr><th>File</th><th>What’s in it</th><th><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>
     {#each files as f (f.name)}
       <tr>
@@ -137,13 +137,6 @@
   }
   .later {
     color: var(--dim);
-  }
-  .sr {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
   }
   code {
     font-family: var(--font-mono);

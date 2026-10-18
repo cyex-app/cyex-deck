@@ -127,15 +127,7 @@
   $effect(() => {
     if (video) sound.apply(video);
   });
-  $effect(() => {
-    const v = video;
-    if (!v) return;
-    const stop = sound.track(v);
-    return () => {
-      stop();
-      sound.release(v);
-    };
-  });
+  $effect(() => video && sound.attach(video));
 
   $effect(() => {
     if (!video) return;

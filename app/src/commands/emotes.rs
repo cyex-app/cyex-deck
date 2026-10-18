@@ -73,17 +73,15 @@ pub fn emotes_edit_options(
     edit::options(&app, &account, &login, &emote_id, &name)
 }
 
-/// V106-31/32 Whether a name is free in a set. `emote_id` is the emote being named.
+/// V106-31/32 Whether a name is free in a set (R16).
 #[tauri::command]
 pub fn emotes_edit_name(
     app: AppHandle,
     account: String,
     set_id: String,
-    emote_id: String,
     alias: String,
     rename_from: Option<String>,
 ) -> NameCheck {
-    let _ = emote_id;
     edit::name_check(&app, &account, &set_id, &alias, rename_from.as_deref())
 }
 

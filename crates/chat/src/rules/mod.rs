@@ -52,16 +52,21 @@ impl Outcome {
         if a.show {
             self.feed();
         }
-        if !a.route.is_empty() && !self.routes.contains(&a.route) {
+        if !a.route.is_empty() && !self.has_route(&a.route) {
             self.routes.push(a.route.clone());
         }
     }
 
     /// The Mentions feed tab, once.
     fn feed(&mut self) {
-        if !self.routes.iter().any(|r| r.eq_ignore_ascii_case(mentions::FEED)) {
+        if !self.has_route(mentions::FEED) {
             self.routes.push(mentions::FEED.to_owned());
         }
+    }
+
+    /// R22 One test for both: "Mentions" and "mentions" are the same tab.
+    fn has_route(&self, r: &str) -> bool {
+        self.routes.iter().any(|x| x.trim().eq_ignore_ascii_case(r.trim()))
     }
 
     pub fn pings(&self) -> bool {
@@ -340,4 +345,18 @@ pub enum Role {
     Viewer,
     Moderator,
     Broadcaster,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn routes_dedup_ignoring_case() {
+        let mut o = Outcome::default();
+        o.add(&Alert { route: "mentions".into(), ..Alert::default() });
+        o.add(&Alert { show: true, ..Alert::default() });
+        o.add(&Alert { route: "MENTIONS".into(), show: true, ..Alert::default() });
+        assert_eq!(o.routes, ["mentions"]);
+    }
 }

@@ -18,7 +18,7 @@
 <label class="ff" data-setting={setting}>
   <span class="top"><span class="name">{label}</span>{#if required}<span class="req">Required</span>{/if}</span>
   {@render children()}
-  {#if problem}<span class="problem">{problem}</span>{:else if hint}<span class="hint">{hint}</span>{/if}
+  {#if problem}<span class="problem" aria-live="polite">{problem}</span>{:else if hint}<span class="hint">{hint}</span>{/if}
 </label>
 
 <style>

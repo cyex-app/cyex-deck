@@ -500,5 +500,10 @@ mod tests {
         assert_eq!(r(" Cyex ", false, RegexFlavor::Rust).dup_key(), r("cyex", false, RegexFlavor::Python).dup_key());
         assert_ne!(r("cyex", false, RegexFlavor::Rust).dup_key(), r("cyex", true, RegexFlavor::Rust).dup_key());
         assert_ne!(r("a+", true, RegexFlavor::Rust).dup_key(), r("a+", true, RegexFlavor::JavaScript).dup_key());
+        // R1
+        assert_ne!(r(r"\d+", true, RegexFlavor::Rust).dup_key(), r(r"\D+", true, RegexFlavor::Rust).dup_key());
+        let cs = |p: &str| PhraseRule { case_sensitive: true, ..r(p, false, RegexFlavor::Rust) };
+        assert_ne!(cs("Cyex").dup_key(), cs("CYEX").dup_key());
+        assert_eq!(r("Cyex", false, RegexFlavor::Rust).dup_key(), r("cyex", false, RegexFlavor::Rust).dup_key());
     }
 }

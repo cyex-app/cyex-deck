@@ -26,10 +26,12 @@ pub fn notify(app: &AppHandle, channel: &str, m: &ChatMessage, outcome: &Outcome
         toasts::flash(app);
     }
     let from = || m.sender.as_ref().map(|s| s.display.clone()).unwrap_or_default();
-    if outcome.sound && !crate::tabs::mute::hushes_login(app, channel) && first_sound(&m.id) {
+    // R9 One message gets one sound and one pop-up; flash dedups through `FLASHING`.
+    let first = first_sound(&m.id);
+    if outcome.sound && !crate::tabs::mute::hushes_login(app, channel) && first {
         crate::sound::alert(app, outcome.sound_file.as_deref());
     }
-    if outcome.notify && !toasts::app_in_front(app) {
+    if outcome.notify && first && !toasts::app_in_front(app) {
         let text: String = plain(&m.body).chars().take(PREVIEW_CHARS).collect();
         let login = channel.to_owned();
         toasts::show(

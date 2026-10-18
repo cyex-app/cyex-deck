@@ -518,8 +518,9 @@ fn echo_filters_only_our_part() {
     assert_eq!(e.filter(&added("OTHER", "E", "x"), t0).0.added.len(), 1);
 }
 
+/// K20 A remove is ours only with our exact alias; a rename by its new name.
 #[test]
-fn echo_remove_matches_by_id_and_rename_by_new_name() {
+fn echo_remove_and_rename_match_exactly() {
     let t0 = Instant::now();
     let mut e = Echoes::default();
     let rm = EditOp::Remove {
@@ -529,14 +530,21 @@ fn echo_remove_matches_by_id_and_rename_by_new_name() {
     };
     e.expect(&rm);
     e.settle(&rm, t0);
-    let c = SetChange {
+    let other = SetChange {
         set_id: "S".into(),
         removed: vec![("E".into(), "lagging".into())],
         ..SetChange::default()
     };
-    let (left, ours) = e.filter(&c, t0);
+    let (left, ours) = e.filter(&other, t0);
+    assert_eq!(left.removed, [("E".to_string(), "lagging".to_string())]);
+    assert!(ours.is_empty());
+    let mine = SetChange {
+        set_id: "S".into(),
+        removed: vec![("E".into(), "x".into())],
+        ..SetChange::default()
+    };
+    let (left, ours) = e.filter(&mine, t0);
     assert!(left.removed.is_empty());
-    // Ours: the alias we removed, not 7TV's lagging name.
     assert_eq!(ours, [("E".to_string(), "x".to_string())]);
     let rn = EditOp::Rename {
         set_id: "S".into(),
@@ -558,6 +566,47 @@ fn echo_remove_matches_by_id_and_rename_by_new_name() {
         ..SetChange::default()
     };
     assert!(e.filter(&right, t0).0.renamed.is_empty());
+}
+
+/// K20 One emote under two names: someone else's remove of the other name stays theirs.
+#[test]
+fn someone_elses_remove_of_the_other_name_is_not_ours() {
+    let t0 = Instant::now();
+    let mut e = Echoes::default();
+    let rm = EditOp::Remove {
+        set_id: "S".into(),
+        emote_id: "E".into(),
+        alias: "a1".into(),
+    };
+    e.expect(&rm);
+    let theirs = SetChange {
+        set_id: "S".into(),
+        removed: vec![("E".into(), "a2".into())],
+        ..SetChange::default()
+    };
+    let (shown, ours) = e.filter(&theirs, t0);
+    assert_eq!(shown.removed, [("E".to_string(), "a2".to_string())]);
+    assert!(ours.is_empty());
+    let mine = SetChange {
+        set_id: "S".into(),
+        removed: vec![("E".into(), "a1".into())],
+        ..SetChange::default()
+    };
+    let (shown, ours) = e.filter(&mine, t0);
+    assert!(shown.removed.is_empty());
+    assert_eq!(ours, [("E".to_string(), "a1".to_string())]);
+    e.settle(&rm, t0);
+    assert!(e.all_settled());
+}
+
+/// K12 After a failed read the menus wait 30 s before reading again.
+#[test]
+fn retry_due_waits_30_s() {
+    use super::warm::retry_due;
+    let t0 = Instant::now();
+    assert!(retry_due(None, t0));
+    assert!(!retry_due(Some(t0), t0 + Duration::from_secs(29)));
+    assert!(retry_due(Some(t0), t0 + Duration::from_secs(30)));
 }
 
 #[test]

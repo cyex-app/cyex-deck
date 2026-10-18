@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { Uploader } from '../../ipc/bindings/Uploader.ts';
-import { uploaderMissing } from './uploader.ts';
+import { uploaderMissingKeys } from './uploader.ts';
 
 const full: Uploader = {
   enabled: false,
@@ -15,19 +15,19 @@ const full: Uploader = {
 };
 
 test('nothing missing when the three required fields are filled (V106-14)', () => {
-  assert.deepEqual(uploaderMissing(full), []);
+  assert.deepEqual(uploaderMissingKeys(full), []);
 });
 
 test('names each empty required field', () => {
-  assert.deepEqual(uploaderMissing({ ...full, url: '' }), ['Upload URL']);
-  assert.deepEqual(uploaderMissing({ ...full, formField: '' }), ['Form field']);
-  assert.deepEqual(uploaderMissing({ ...full, link: '' }), ['Image link']);
+  assert.deepEqual(uploaderMissingKeys({ ...full, url: '' }), ['url']);
+  assert.deepEqual(uploaderMissingKeys({ ...full, formField: '' }), ['formField']);
+  assert.deepEqual(uploaderMissingKeys({ ...full, link: '' }), ['link']);
 });
 
 test('whitespace counts as empty', () => {
-  assert.deepEqual(uploaderMissing({ ...full, url: '   ', link: '\t' }), ['Upload URL', 'Image link']);
+  assert.deepEqual(uploaderMissingKeys({ ...full, url: '   ', link: '\t' }), ['url', 'link']);
 });
 
 test('headers and delete link may stay empty', () => {
-  assert.deepEqual(uploaderMissing({ ...full, headers: '', deletionLink: ' ' }), []);
+  assert.deepEqual(uploaderMissingKeys({ ...full, headers: '', deletionLink: ' ' }), []);
 });

@@ -56,7 +56,7 @@
 {:else}
   <div class="loading {size}" class:video role="status" style:min-height={minHeight}>
     <span class="spinner" aria-hidden="true"></span>
-    {#if label}<span class="label">{label}</span>{:else}<span class="sr">Loading</span>{/if}
+    {#if label}<span class="label">{label}</span>{:else}<span class="sr-only">Loading</span>{/if}
   </div>
 {/if}
 
@@ -92,13 +92,6 @@
   .video .spinner {
     --ring: var(--on-video-faint);
     --head: var(--on-video);
-  }
-  .sr {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
   }
   /* Same grid, gaps, picture ratio and text rows as StreamCard / channel Card, so nothing
      jumps when the real cards arrive. */

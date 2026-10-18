@@ -50,7 +50,7 @@ async fn error_rows_map_to_kinds() {
         ("BAD_REQUEST", 404, "emote not found in set", EditError::NotFound),
         ("LACKING_PRIVILEGES", 403, "no", EditError::NotAllowed),
         ("LOGIN_REQUIRED", 401, "no", EditError::SignInAgain),
-        ("TRANSACTION_ERROR", 500, "x", EditError::Down),
+        ("TRANSACTION_ERROR", 500, "x", EditError::Bad),
         (
             "BAD_REQUEST",
             400,
@@ -115,6 +115,21 @@ async fn http_and_shape_failures() {
     );
     let null = r#"{"data":{"emoteSets":{"emoteSet":{"addEmote":null}}}}"#;
     assert_eq!(add_with(null).await, Err(EditError::Bad));
+}
+
+/// K15 A gateway 5xx didn't reach 7TV; any other 5xx did and failed.
+#[test]
+fn server_errors_split_down_and_bad() {
+    for (status, want) in [
+        (500, EditError::Bad),
+        (501, EditError::Bad),
+        (502, EditError::Down),
+        (503, EditError::Down),
+        (504, EditError::Down),
+        (505, EditError::Bad),
+    ] {
+        assert_eq!(classify_edit(status, None, b"{}"), Err(want), "{status}");
+    }
 }
 
 #[tokio::test]

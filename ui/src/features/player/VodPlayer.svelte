@@ -105,15 +105,7 @@
   $effect(() => {
     if (video) sound.apply(video);
   });
-  $effect(() => {
-    const v = video;
-    if (!v) return;
-    const stop = sound.track(v);
-    return () => {
-      stop();
-      sound.release(v);
-    };
-  });
+  $effect(() => video && sound.attach(video));
 
   $effect(() => {
     // The default too: a reload (quality, audio only, V101-17) would reset it.

@@ -158,8 +158,15 @@ impl Default for PhraseRule {
 
 impl PhraseRule {
     /// V106-33 What makes two rows "the same" (merge count, duplicate marks, the Chatterino importer).
-    pub fn dup_key(&self) -> (String, bool, Option<RegexFlavor>) {
-        (self.pattern.trim().to_lowercase(), self.regex, self.regex.then_some(self.flavor))
+    /// R1 Case folds only for plain words that ignore case: `\d+` and `\D+` stay apart.
+    pub fn dup_key(&self) -> (String, bool, Option<RegexFlavor>, bool) {
+        let pattern = self.pattern.trim();
+        let pattern = if !self.regex && !self.case_sensitive {
+            pattern.to_lowercase()
+        } else {
+            pattern.to_owned()
+        };
+        (pattern, self.regex, self.regex.then_some(self.flavor), self.case_sensitive)
     }
 }
 

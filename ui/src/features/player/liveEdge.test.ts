@@ -9,6 +9,7 @@ import {
   liveConfig,
   liveState,
   PAUSE_STOP_MS,
+  rangeEnd,
   resumePlan,
   stepTarget,
   uptimeAt,
@@ -81,4 +82,15 @@ test('what play does after a pause', () => {
 
 test('chat bar text', () => {
   assert.equal(chatBarText(134), 'Chat is live. The stream is 2:14 behind.');
+});
+
+test('U10 end of the buffered range holding a time', () => {
+  const ranges = (...r: [number, number][]) => ({ length: r.length, start: (i: number) => r[i][0], end: (i: number) => r[i][1] });
+  const r = ranges([0, 10], [20, 30]);
+  assert.equal(rangeEnd(r, 5), 10);
+  assert.equal(rangeEnd(r, 0), 10);
+  assert.equal(rangeEnd(r, 30), 30);
+  assert.equal(rangeEnd(r, 15), null);
+  assert.equal(rangeEnd(r, 31), null);
+  assert.equal(rangeEnd(ranges(), 0), null);
 });

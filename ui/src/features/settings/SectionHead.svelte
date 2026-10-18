@@ -16,9 +16,11 @@
     setting?: string;
     /** The subtitle. */
     children?: Snippet;
+    /** U7 Buttons beside the page heading (level 2 only). */
+    actions?: Snippet;
   }
 
-  let { title, level = 3, docs, setting, children }: Props = $props();
+  let { title, level = 3, docs, setting, children, actions }: Props = $props();
 
   function open(e: MouseEvent) {
     e.preventDefault();
@@ -26,7 +28,12 @@
   }
 </script>
 
-{#if level === 2}<h2 data-setting={setting}>{title}</h2>{:else}<h3 class="label" data-setting={setting}>{title}</h3>{/if}
+{#if level === 2 && actions}
+  <div class="head">
+    <h2 data-setting={setting}>{title}</h2>
+    <div class="acts">{@render actions()}</div>
+  </div>
+{:else if level === 2}<h2 data-setting={setting}>{title}</h2>{:else}<h3 class="label" data-setting={setting}>{title}</h3>{/if}
 {#if children || docs}
   <p class="sub">
     {@render children?.()}{#if docs}
@@ -38,7 +45,19 @@
   h3 {
     margin: 22px 0 2px;
   }
-  h2 + .sub {
+  .head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .acts {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  h2 + .sub,
+  .head + .sub {
     margin: -8px 0 12px;
   }
   .sub {

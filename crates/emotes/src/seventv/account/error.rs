@@ -44,18 +44,29 @@ pub(super) fn wait(reset: Option<u64>) -> u64 {
     }
 }
 
+/// R12 The HTTP status alone: `Ok` for 2xx, else the matching error. Shared by reads and edits.
+pub(crate) fn status_gate(status: u16, reset: Option<u64>) -> Result<(), Error> {
+    match status {
+        401 => Err(Error::SignInAgain),
+        403 => Err(Error::NotAllowed),
+        429 => Err(Error::RateLimited { seconds: wait(reset) }),
+        500.. => Err(Error::Down),
+        200..=299 => Ok(()),
+        _ => Err(Error::Bad),
+    }
+}
+
+/// R12 The GQL `data`, taken out of the answer; missing or null is `Bad`.
+pub(crate) fn take_data(v: &mut Value) -> Result<Value, Error> {
+    match v.get_mut("data") {
+        Some(d) if !d.is_null() => Ok(d.take()),
+        _ => Err(Error::Bad),
+    }
+}
+
 /// Turns a status, the reset hint and a body into the GQL `data`, or the matching error.
 pub fn classify(status: u16, reset: Option<u64>, body: &[u8]) -> Result<Value, Error> {
-    match status {
-        401 => return Err(Error::SignInAgain),
-        403 => return Err(Error::NotAllowed),
-        429 => {
-            return Err(Error::RateLimited { seconds: wait(reset) });
-        }
-        500.. => return Err(Error::Down),
-        200..=299 => {}
-        _ => return Err(Error::Bad),
-    }
+    status_gate(status, reset)?;
     let mut v: Value = serde_json::from_slice(body).map_err(|_| Error::Bad)?;
     if let Some(first) = v.pointer("/errors/0") {
         let code = first
@@ -69,10 +80,7 @@ pub fn classify(status: u16, reset: Option<u64>, body: &[u8]) -> Result<Value, E
             _ => Error::Bad,
         });
     }
-    match v.get_mut("data") {
-        Some(d) if !d.is_null() => Ok(d.take()),
-        _ => Err(Error::Bad),
-    }
+    take_data(&mut v)
 }
 
 /// A transport error from the shared client: nothing worth showing beyond "down".

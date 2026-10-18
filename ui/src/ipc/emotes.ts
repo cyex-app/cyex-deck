@@ -38,8 +38,8 @@ export const emotesIpc = {
   editOptions: (account: string, login: string, emoteId: string, name: string) =>
     invoke<EditOptions>('emotes_edit_options', { account, login, emoteId, name }),
   /** V106-31/32 Whether a name is free in a set. */
-  editName: (account: string, setId: string, emoteId: string, alias: string, renameFrom: string | null = null) =>
-    invoke<NameCheck>('emotes_edit_name', { account, setId, emoteId, alias, renameFrom }),
+  editName: (account: string, setId: string, alias: string, renameFrom: string | null = null) =>
+    invoke<NameCheck>('emotes_edit_name', { account, setId, alias, renameFrom }),
   /** V106-31/32 Rejects with an EditFail. */
   edit: (account: string, op: EditOp) => invoke<EditDone>('emotes_edit', { account, op }),
 };

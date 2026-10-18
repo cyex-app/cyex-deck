@@ -130,7 +130,7 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--accent);
+    background: var(--accent-text);
     box-shadow: 0 0 0 2px var(--bg);
   }
   .mode.live {

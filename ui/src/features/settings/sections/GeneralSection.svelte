@@ -51,7 +51,7 @@
   }
 </script>
 
-<SectionHead title="General" level={2}>Everyday app options.</SectionHead>
+<SectionHead title="General" level={2} />
 
 <SectionHead title="Chat text">The font used in every chat.</SectionHead>
 <Row setting="general.chatFontFamily" label="Font">
@@ -92,7 +92,7 @@
   />
 </Row>
 
-<SectionHead title="App">Behavior of the app itself.</SectionHead>
+<SectionHead title="App" />
 <Row setting="general.tooltips" label="Tooltips" hint="Short explanations when you hover buttons.">
   <Toggle label="Tooltips" checked={g.tooltips} onchange={(v) => settings.patch('general', { tooltips: v })} />
 </Row>
@@ -108,7 +108,7 @@
   />
 </Row>
 
-<SectionHead title="Updates">New versions of cyex deck.</SectionHead>
+<SectionHead title="Updates" />
 <Row setting="general.updates.check" label="Check for updates" hint="At startup and every 12 hours.">
   <Toggle
     label="Check for updates"

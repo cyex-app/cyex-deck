@@ -24,6 +24,7 @@ async fn live_stream_through_the_filter() {
         device_id: DEVICE.into(),
         proxy: None,
         sign_in: None,
+        #[cfg(feature = "mocks")]
         mock: None,
     };
     let live = Live::new(fetch, &login, Options { low_latency: true, block_ads: true });
@@ -51,6 +52,7 @@ async fn vod_through_the_proxy() {
             device_id: DEVICE.into(),
             proxy: None,
             sign_in: None,
+            #[cfg(feature = "mocks")]
             mock: None,
         },
         id,

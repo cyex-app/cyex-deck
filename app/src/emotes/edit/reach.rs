@@ -3,7 +3,7 @@
 use cyex_emotes::seventv::account::sets::{Reachable, SetBrief, SetKind};
 use cyex_emotes::seventv::events::SetChange;
 
-use super::ops::EditOp;
+use super::ops::{Blocked, EditOp};
 
 /// 7TV reads at most this many sets in one go.
 const MAX_SETS: usize = 50;
@@ -82,6 +82,19 @@ pub fn build(me: Reachable, sets: Vec<SetBrief>) -> Reach {
     }
 }
 
+/// R13 The one rule for which entry an event means: exact (id, name), else the only entry with
+/// that id (7TV's names can lag). Used by the edit cache and the chat sets (`live::apply`).
+pub(crate) fn slot_of<T>(items: &[T], id: &str, name: &str, key: impl Fn(&T) -> (&str, &str)) -> Option<usize> {
+    let exact = items.iter().position(|x| key(x) == (id, name));
+    exact.or_else(|| {
+        let mut same = items.iter().enumerate().filter(|(_, x)| key(*x).0 == id);
+        match (same.next(), same.next()) {
+            (Some((n, _)), None) => Some(n),
+            _ => None,
+        }
+    })
+}
+
 impl Target {
     /// By emote id.
     pub fn has(&self, emote: &str) -> bool {
@@ -133,14 +146,20 @@ impl Target {
 
     /// The entry (id, name), or the only entry with that id.
     fn slot(&self, id: &str, name: &str) -> Option<usize> {
-        let exact = self.entries.iter().position(|(i, a)| i == id && a == name);
-        exact.or_else(|| {
-            let mut same = self.entries.iter().enumerate().filter(|(_, (i, _))| i == id);
-            match (same.next(), same.next()) {
-                (Some((n, _)), None) => Some(n),
-                _ => None,
-            }
-        })
+        slot_of(&self.entries, id, name, |(i, a)| (i.as_str(), a.as_str()))
+    }
+
+    /// R14 Why this set can't take the emote, in the menu's order: held, private, full.
+    pub(crate) fn blocked(&self, emote_id: &str, private: bool, owner_id: Option<&str>) -> Option<Blocked> {
+        if self.has(emote_id) {
+            Some(Blocked::Already)
+        } else if private && owner_id != Some(self.owner_id.as_str()) {
+            Some(Blocked::Private)
+        } else if self.full() {
+            Some(Blocked::Full)
+        } else {
+            None
+        }
     }
 
     fn remove(&mut self, id: &str, alias: &str) {

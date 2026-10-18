@@ -6,7 +6,6 @@
   import Checkbox from '../../components/Checkbox.svelte';
   import Dialog from '../../components/Dialog.svelte';
   import type { ChannelInfo } from '../../ipc/bindings/ChannelInfo';
-  import type { FeedKind } from '../../ipc/bindings/FeedKind';
   import type { TileShow } from '../../ipc/bindings/TileShow';
   import { minerIpc } from '../../ipc/miner';
   import { errorText } from '../../lib/errors';
@@ -14,7 +13,7 @@
   import { accounts } from '../../lib/accounts.svelte';
   import { settings } from '../../lib/settings.svelte';
   import Select from '../../components/Select.svelte';
-  import { isMentionsFeed, MENTIONS_FEED } from '../chat/mentionsTab';
+  import { FEED_CHOICES, feedSpec, sameFeed, type FeedChoice } from '../feeds/kinds';
   import AccountPicker from './AccountPicker.svelte';
   import ChannelPicker from './ChannelPicker.svelte';
   import { closeTabDialog, type TabDialogMode } from './dialog.svelte';
@@ -53,22 +52,8 @@
   let busy = $state(false);
   /** F4 Making a feed tab instead of a channel tab. */
   let feedMode = $state(false);
-  let feedKind = $state<'mentions' | 'live' | 'automod' | 'whispers' | 'custom'>('mentions');
+  let feedKind = $state<FeedChoice>('mentions');
   let feedName = $state('');
-  const FEEDS = [
-    { value: 'mentions', label: 'Mentions' },
-    { value: 'live', label: 'Live notifications' },
-    { value: 'automod', label: 'AutoMod' },
-    { value: 'whispers', label: 'Whispers' },
-    { value: 'custom', label: 'Custom feed' },
-  ];
-  const FEED_NOTES: Record<string, string> = {
-    mentions: 'Your mentions and replies, from every open chat.',
-    live: 'Who goes live or offline: your tabs, and the channels you follow while live alerts are on.',
-    automod: 'Held messages from the chats you moderate. Allow or deny them here.',
-    whispers: 'Whispers you get while cyex deck runs.',
-    custom: 'Highlight rules with this name as their custom feed send messages here, from every open chat.',
-  };
   /** 1.34 */
   const canMine = accounts.list.some((a) => a.features.includes('miner'));
   const wasMined = !!tile && settings.v.miner.channels.some((c) => c.id === tile.channel.id);
@@ -93,17 +78,7 @@
 
   /** The tab that already is this feed. */
   const haveFeed = $derived(
-    feedMode
-      ? tabs.list.find((t) =>
-          tiles(t).some((x) => {
-            if (feedKind === 'mentions') return x.feedKind === 'rules' && isMentionsFeed(x.feed);
-            if (feedKind === 'custom') {
-              return x.feedKind === 'rules' && !!feedName.trim() && x.feed?.trim().toLowerCase() === feedName.trim().toLowerCase();
-            }
-            return !!x.feed && x.feedKind === feedKind;
-          }),
-        )
-      : undefined,
+    feedMode ? tabs.list.find((t) => tiles(t).some((x) => sameFeed(x, feedSpec(feedKind, feedName)))) : undefined,
   );
 
   const ready = $derived(
@@ -159,8 +134,7 @@
     if (!ready) return;
     busy = true;
     try {
-      const name = feedKind === 'mentions' ? MENTIONS_FEED : feedKind === 'custom' ? feedName.trim() : '';
-      const kind: FeedKind = feedKind === 'mentions' || feedKind === 'custom' ? 'rules' : feedKind;
+      const { kind, name } = feedSpec(feedKind, feedName);
       const id = await tabs.apply({ op: 'addFeed', name, kind });
       if (id) onopen(id);
       closeTabDialog();
@@ -188,11 +162,11 @@
   {:else if feedMode}
     <div class="form">
       <section>
-        <Select label="Feed" width="100%" options={FEEDS} value={feedKind} onchange={(v) => (feedKind = v as typeof feedKind)} />
+        <Select label="Feed" width="100%" options={FEED_CHOICES} value={feedKind} onchange={(v) => (feedKind = v as FeedChoice)} />
         {#if feedKind === 'custom'}
           <input class="field" maxlength="40" placeholder="Feed name" aria-label="Feed name" bind:value={feedName} />
         {/if}
-        <p class="note">{FEED_NOTES[feedKind]}</p>
+        <p class="note">{FEED_CHOICES.find((c) => c.value === feedKind)?.note}</p>
         {#if haveFeed}
           <p class="note">
             You have this feed already.

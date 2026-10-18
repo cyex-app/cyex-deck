@@ -5,6 +5,7 @@ import type { AddBlocked } from '../../../ipc/bindings/AddBlocked';
 import type { TargetBlocked as Blocked } from '../../../ipc/bindings/TargetBlocked';
 import type { EditFail } from '../../../ipc/bindings/EditFail';
 import type { EditOp } from '../../../ipc/bindings/EditOp';
+import type { NameCheck } from '../../../ipc/bindings/NameCheck';
 
 /** "30 s" under a minute, else whole minutes rounded up (same rule as cosmetics/words.rs). */
 function wait(seconds: number): string {
@@ -24,7 +25,7 @@ export function failText(e: EditFail, channel: string, alias: string): string {
     case 'private':
       return 'That emote is private. Only its owner can add it.';
     case 'notFound':
-      return 'That emote isn’t there any more.';
+      return 'That emote isn’t there anymore.';
     case 'badName':
       return '7TV doesn’t allow that name.';
     case 'rateLimited':
@@ -85,4 +86,11 @@ export function inlineText(e: EditFail, channel: string): string | null {
     default:
       return null;
   }
+}
+
+/** U4 The form's line for a name check: null when free, '' when a rename keeps its name (no
+ *  message, nothing to save), else why not. Pure. */
+export function nameVerdict(r: NameCheck, channel: string, rename: boolean): string | null {
+  if (r === 'taken') return `Taken in ${channel}.`;
+  return r === 'same' && rename ? '' : null;
 }

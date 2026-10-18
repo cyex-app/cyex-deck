@@ -78,6 +78,11 @@ fn base_min(app: &AppHandle, window: &WebviewWindow) -> Option<(f64, f64)> {
     (!popup).then_some(super::panels::MIN_SIZE)
 }
 
+/// K2 The size `size` grows to so both sides reach `min`; `None` when it already fits.
+fn grown(size: (u32, u32), min: (u32, u32)) -> Option<(u32, u32)> {
+    (size.0 < min.0 || size.1 < min.1).then(|| (size.0.max(min.0), size.1.max(min.1)))
+}
+
 /// Sets the window's minimum for `zoom` (percent) and grows the window to it, keeping it
 /// on its monitor.
 pub fn fit(app: &AppHandle, window: &WebviewWindow, zoom: u16) {
@@ -98,10 +103,8 @@ pub fn fit(app: &AppHandle, window: &WebviewWindow, zoom: u16) {
         return;
     }
     let Ok(size) = window.inner_size() else { return };
-    if size.width >= pw && size.height >= ph {
-        return;
-    }
-    let _ = window.set_size(PhysicalSize::new(size.width.max(pw), size.height.max(ph)));
+    let Some((w, h)) = grown((size.width, size.height), (pw, ph)) else { return };
+    let _ = window.set_size(PhysicalSize::new(w, h));
     // Growing from the top left may push the edge off the monitor: move it back in.
     if let (Some(r), Ok(pos), Ok(outer)) = (area, window.outer_position(), window.outer_size()) {
         let end = |o: i32, len: u32, size: u32| o + i32::try_from(len).unwrap_or(0) - i32::try_from(size).unwrap_or(0);
@@ -124,6 +127,13 @@ mod tests {
         assert_eq!(min_size((320.0, 240.0), 150, None), (480.0, 360.0));
         assert_eq!(min_size((720.0, 420.0), 200, Some((1920.0, 1040.0))), (1440.0, 840.0));
         assert_eq!(min_size((720.0, 420.0), 200, Some((1366.0, 728.0))), (1366.0, 728.0));
+    }
+
+    #[test]
+    fn grows_only_the_sides_below_the_minimum() {
+        assert_eq!(grown((720, 420), (1440, 840)), Some((1440, 840)));
+        assert_eq!(grown((1500, 900), (1440, 840)), None);
+        assert_eq!(grown((1500, 400), (1440, 840)), Some((1500, 840)));
     }
 
     #[test]

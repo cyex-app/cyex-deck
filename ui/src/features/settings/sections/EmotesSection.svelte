@@ -47,7 +47,7 @@
   );
 </script>
 
-<SectionHead title="Emotes and badges" level={2}>Which emotes and badges show in chat.</SectionHead>
+<SectionHead title="Emotes and badges" level={2} />
 
 <SectionHead title="Emotes">Where emotes come from and how big they are.</SectionHead>
 <Row setting="chat.twitchEmotes" label="Twitch emotes">

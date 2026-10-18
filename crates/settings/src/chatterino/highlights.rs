@@ -246,8 +246,9 @@ struct Tally {
     duplicates: Vec<String>,
 }
 
-/// Same text ignoring case and surrounding spaces; for phrases also the same regex flag and flavor.
-type Key = (String, bool, Option<RegexFlavor>);
+/// Same text ignoring surrounding spaces; for phrases also the same regex flag, flavor and
+/// case flag (case folds only for plain words that ignore case, R1).
+type Key = (String, bool, Option<RegexFlavor>, bool);
 
 /// Puts `new` into `list`: duplicates (same `key`) are kept or replaced in place, the rest
 /// appended up to `max`.
@@ -279,7 +280,7 @@ fn merge<T>(
 }
 
 fn norm(s: &str) -> Key {
-    (s.trim().to_lowercase(), false, None)
+    (s.trim().to_lowercase(), false, None, false)
 }
 
 fn run(found: Found, current: &mut Highlights, keep_mine: bool) -> (Tally, [u32; 3]) {

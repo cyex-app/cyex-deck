@@ -12,6 +12,7 @@
   import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
   import { drag } from './drag.svelte';
+  import { soundTip } from './tabSound';
   import { label, tabs, tiles } from './tabs.svelte';
 
   interface Props {
@@ -36,7 +37,6 @@
   const unread = $derived(tabs.unreadState(tab));
   const popped = $derived(tabs.popped.has(tab.id));
   /** V102-15 Still playing while something else shows. */
-  const held = $derived(tabs.held === tab.id);
   /** V106-25 What the sound badge shows. */
   const sound = $derived(tabs.sound(tab));
   const closeButton = $derived(settings.v.appearance.tabCloseButton);
@@ -65,13 +65,7 @@
     const account = first?.account ? accounts.list.find((a) => a.userId === first.account) : undefined;
     const who = account ? `as ${account.displayName}` : 'anonymous';
     const label = parts.length ? parts.join(' · ') : `${name} · Offline`;
-    const playing = tabs.muted.has(tab.id)
-      ? ' · muted'
-      : sound === 'audible'
-        ? ' · playing'
-        : held
-          ? ' · playing muted'
-          : '';
+    const playing = soundTip(sound, tabs.muted.has(tab.id));
     // No tip while something is dragged: it would sit on the ghost.
     return { label: `${label}${playing}`, hint: hint ? `${hint} (${who})` : who, when: () => !drag.item };
   });

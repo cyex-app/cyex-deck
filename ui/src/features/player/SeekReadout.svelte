@@ -40,7 +40,7 @@
 </script>
 
 <div class="pill" bind:this={el} aria-hidden="true">{text}</div>
-<span class="said" aria-live="polite">{said}</span>
+<span class="sr-only" aria-live="polite">{said}</span>
 
 <style>
   .pill {
@@ -58,12 +58,5 @@
     font-variant-numeric: tabular-nums;
     pointer-events: none;
     opacity: 0;
-  }
-  .said {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
   }
 </style>

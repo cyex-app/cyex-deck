@@ -11,13 +11,19 @@ use serde_json::{Value, json};
 use crate::model::{Emote, EmoteSet, Scope};
 
 const GQL: &str = "https://api.7tv.app/v4/gql";
+#[cfg(feature = "mocks")]
 static BASE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 /// V106-31/32 Test runs with `CYEX_7TV_SETS=mock`: emote reads go to the local mock too.
+#[cfg(feature = "mocks")]
 pub fn use_mock(base: &str) {
     let _ = BASE.set(format!("{}/v4/gql", base.trim_end_matches('/')));
 }
 fn gql_url() -> &'static str {
-    BASE.get().map_or(GQL, String::as_str)
+    #[cfg(feature = "mocks")]
+    if let Some(b) = BASE.get() {
+        return b;
+    }
+    GQL
 }
 const V3: &str = "https://7tv.io/v3";
 

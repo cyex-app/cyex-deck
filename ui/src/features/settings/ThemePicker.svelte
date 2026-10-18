@@ -10,7 +10,7 @@
   import { toast } from '../../lib/toast.svelte';
   import CustomThemesMenu from './CustomThemesMenu.svelte';
   import { accentOf, newThemeFrom, PLAIN_PREVIEW, type ThemeChoice } from './themes';
-  import { moveFor } from '../../components/select';
+  import { radioKey } from '../../components/select';
 
   let { a, builtins, choice }: { a: Appearance; builtins: readonly CustomTheme[]; choice: ThemeChoice } = $props();
 
@@ -28,8 +28,7 @@
   function keys(e: KeyboardEvent) {
     const tiles = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="radio"]')];
     const at = tiles.indexOf(document.activeElement as HTMLElement);
-    const key = e.key === 'ArrowRight' ? 'ArrowDown' : e.key === 'ArrowLeft' ? 'ArrowUp' : e.key;
-    const next = at < 0 ? null : moveFor(key, at, tiles.length);
+    const next = at < 0 ? null : radioKey(e, at, tiles.length);
     if (next === null) return;
     e.preventDefault();
     tiles[next]?.focus();

@@ -243,16 +243,11 @@ async fn combo(app: &AppHandle, account: &str, cmd: ComboCmd) -> Result<String, 
 
 /// The not-found line: an id reads as "that paint", a name is quoted back.
 fn not_owned(noun: &str, t: &str) -> String {
-    if is_seventv_id(t) {
+    if cyex_emotes::seventv::is_id(t) {
         format!("You don’t own that {noun}. Tab shows yours.")
     } else {
         format!("You don’t have a {noun} called “{t}”. Tab shows yours.")
     }
-}
-
-/// A 7TV id is a 26-char ULID (Crockford base32).
-pub(super) fn is_seventv_id(t: &str) -> bool {
-    t.len() == 26 && t.bytes().all(|b| b.is_ascii_digit() || (b.is_ascii_uppercase() && !matches!(b, b'I' | b'L' | b'O' | b'U')))
 }
 
 async fn pick(app: &AppHandle, account: &str, kind: Kind, pick: Pick) -> Result<String, Stop> {

@@ -55,6 +55,21 @@ impl<T: Clone> Ring<T> {
         self.items.clear();
     }
 
+    /// R18 Oldest first.
+    pub fn iter(&self) -> std::collections::vec_deque::Iter<'_, T> {
+        self.items.iter()
+    }
+
+    #[cfg(test)]
+    pub fn front(&self) -> Option<&T> {
+        self.items.front()
+    }
+
+    #[cfg(test)]
+    pub fn back(&self) -> Option<&T> {
+        self.items.back()
+    }
+
     #[cfg_attr(not(test), allow(dead_code))]
     pub fn len(&self) -> usize {
         self.items.len()

@@ -8,9 +8,9 @@
   import IconButton from '../../../components/IconButton.svelte';
   import IconToggle from '../../../components/IconToggle.svelte';
   import { openMenuAt } from '../../../components/menu.svelte';
-  import Icon from '../../../components/Icon.svelte';
-  import Toggle from '../../../components/Toggle.svelte';
+  import RuleGrip from './RuleGrip.svelte';
   import { tooltip } from '../../../components/tooltip.svelte';
+  import Toggle from '../../../components/Toggle.svelte';
   import { mentionsIpc } from '../../../ipc/mentions';
   import { soundIpc } from '../../../ipc/sound';
   import { fileName } from '../mentions/status';
@@ -62,7 +62,6 @@
     gripSlot = false,
   }: Props = $props();
 
-  const uid = $props.id();
   const split = $derived(layout === 'split');
   const shown = $derived(fields.filter((f) => !f.when || f.when(item)));
   const on = $derived(split ? shown.find((f) => f.key === 'enabled') : undefined);
@@ -157,24 +156,6 @@
   {/if}
 {/snippet}
 
-{#snippet grip()}
-  {#if handle}
-    <button
-      type="button"
-      class="grip"
-      data-drag-handle
-      aria-label={handle}
-      aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-      aria-describedby="{uid}-grip"
-      use:tooltip={{ label: 'Drag to move', hint: 'Or press Alt+↑ or Alt+↓.' }}
-      ><Icon name="grip" size={14} /></button
-    >
-    <span class="said" id="{uid}-grip">Press Alt+↑ or Alt+↓ to move.</span>
-  {:else if gripSlot}
-    <span class="grip" aria-hidden="true"></span>
-  {/if}
-{/snippet}
-
 {#if split}
   <div
     class="rule split"
@@ -185,7 +166,7 @@
     style:--main-min={mainMin}
     style:--slots={slots}
   >
-    {@render grip()}
+    <RuleGrip {handle} slot={gripSlot} />
     <span class="on">
       {#if on}<Toggle label={title ?? on.label} checked={!!item[on.key]} onchange={(c) => set(on.key, c)} />{/if}
     </span>
@@ -214,7 +195,7 @@
   </div>
 {:else}
   <div class="rule" class:off={item.enabled === false} data-setting={setting}>
-    {@render grip()}
+    <RuleGrip {handle} slot={gripSlot} />
     {#if title}<span class="title">{title}</span>{/if}
     {#each shown as f (f.key)}{@render cell(f)}{/each}
     {#if ondelete}<IconButton icon="trash" label="Delete" size={14} onclick={ondelete} />{/if}
@@ -233,7 +214,7 @@
     font-size: 0.85rem;
   }
   /* Q5 Off rows stay in place, dimmed; the grip and the switch stay bright. */
-  .rule.off > :not(:first-child):not(.grip + *) {
+  .rule.off > :not(:first-child):not(:global(.grip) + *) {
     opacity: 0.6;
   }
   .title {
@@ -350,46 +331,6 @@
   .split.grab.noon .problem,
   .split.grab.noon .note {
     grid-column: 2 / -1;
-  }
-  .grip {
-    width: 18px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--dim);
-    border-radius: var(--radius);
-    align-self: start;
-  }
-  button.grip {
-    cursor: grab;
-    position: relative;
-  }
-  /* 24 px hit area; the column stays 18 px. */
-  button.grip::before {
-    content: '';
-    position: absolute;
-    inset: -2px -3px;
-  }
-  .said {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
-  button.grip:hover {
-    color: var(--text);
-  }
-  button.grip:active {
-    cursor: grabbing;
-  }
-  button.grip:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: -2px;
   }
   .lead {
     flex: none;

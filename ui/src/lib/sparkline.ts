@@ -82,7 +82,7 @@ export function nearest(series: [number, number][], x: number, w: number, from?:
 }
 
 /** x and y of one sample in the same box as `graph`, for a marker. */
-export function place(series: [number, number][], i: number, w: number, h: number, from?: number): [number, number] {
+export function pointAt(series: [number, number][], i: number, w: number, h: number, from?: number): [number, number] {
   const x = axis(series, w, from);
   const values = series.map(([, v]) => v);
   const min = Math.min(...values);

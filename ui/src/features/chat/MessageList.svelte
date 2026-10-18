@@ -27,9 +27,8 @@
   import EmoteCard from '../emotes/EmoteCard.svelte';
   import { emojiName } from '../emotes/emoji';
   import type { CardTarget } from '../emotes/emotes';
-  import { editEntries } from '../emotes/edit/menuItems';
-  import { editOptionsFor } from '../emotes/edit/options';
-  import { runEdit } from '../emotes/edit/run';
+  import { cancelEmoteMenu, emoteEditMenu } from '../emotes/edit/menu';
+  import { removeHere } from '../emotes/edit/run';
   import { emotesIpc } from '../../ipc/emotes';
   import { hidden } from '../emotes/hidden.svelte';
   import { flipUnlisted, unlistedBlurred } from '../emotes/unlisted';
@@ -393,26 +392,14 @@
     }
   });
 
-  /** V106-31/32 The menu never waits longer than this for 7TV; without an answer it opens plain. */
-  const EDIT_WAIT_MS = 500;
-  /** Only the newest right-click opens a menu; a slow emote one is dropped. */
-  let emoteAsk = 0;
-
-  async function emoteEdits(t: CardTarget): Promise<MenuEntry[]> {
+  /** K11 V106-31/32 The 7TV entries; null when the user moved on or a newer right-click came in. */
+  function emoteEdits(t: CardTarget): Promise<MenuEntry[] | null> {
     const { emote } = t;
     const account = room.account;
-    if (!account || emote.provider !== 'seventv') return [];
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const o = await Promise.race([
-      editOptionsFor(account, room.login, emote.id, emote.name),
-      new Promise<null>((r) => (timer = setTimeout(() => r(null), EDIT_WAIT_MS))),
-    ]);
-    clearTimeout(timer);
-    return editEntries(o, {
+    return emoteEditMenu(account, room.login, emote, {
       add: (target) => (card = { ...t, edit: { kind: 'add', target } }),
       rename: (here) => (card = { ...t, edit: { kind: 'rename', here } }),
-      remove: (h) =>
-        void runEdit(account, room.login, { type: 'remove', setId: h.setId, emoteId: emote.id, alias: h.alias }, h.channel),
+      remove: (h) => void removeHere(account!, room.login, emote.id, h),
     });
   }
 
@@ -515,10 +502,10 @@
 
   /** E4 Right-click an emote: card, copy, hide. Names and messages get their own menus. */
   async function oncontextmenu(e: MouseEvent) {
-    const ask = ++emoteAsk;
     const target = e.target as HTMLElement;
     const el = target.closest<HTMLElement>('[data-emote]');
     if (!el) {
+      cancelEmoteMenu();
       if (target.closest('a, input, textarea')) return;
       const line = target.closest<HTMLElement>('[data-id]');
       const m = line ? room.find(line.dataset.id!) : undefined;
@@ -540,7 +527,7 @@
     hideTip();
     const unlisted = el.dataset.unlisted !== undefined;
     const edits = await emoteEdits(t);
-    if (ask !== emoteAsk) return;
+    if (!edits) return;
     openMenu(e, [
       { label: 'Emote card', icon: 'smile', run: () => (card = t) },
       { label: 'Copy name', icon: 'copy', run: () => void copy(emote.name, 'Emote name') },

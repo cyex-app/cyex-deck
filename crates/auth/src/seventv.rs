@@ -10,6 +10,9 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
 use crate::secrets::SecretStore;
 
+/// K19 Stored in place of the token: 7TV rejected it. Never parses as a token.
+const REJECTED: &str = "rejected";
+
 /// Windows keeps 1.280 UTF-16 characters per vault value; stay under it.
 const MAX_LEN: usize = 1200;
 
@@ -82,8 +85,7 @@ pub fn date(unix: i64) -> String {
 
 pub struct SevenTvTokens {
     store: Arc<dyn SecretStore>,
-    /// Accounts whose session 7TV rejected: "Sign in again" until the next sign-in or sign-out.
-    /// Kept in memory only, like V1051-02 did.
+    /// Accounts whose session 7TV rejected this run, also when saving the K19 marker failed.
     rejected: Mutex<HashSet<String>>,
 }
 
@@ -120,15 +122,18 @@ impl SevenTvTokens {
         self.store.delete(&Self::key(twitch_id))
     }
 
-    /// 7TV rejected the session: it goes, and the account says "Sign in again" (marked even if
-    /// the delete fails).
+    /// 7TV rejected the session: the token is replaced by the K19 marker, and the account says
+    /// "Sign in again" (marked even if the save fails).
     pub fn reject(&self, twitch_id: &str) -> Result<(), String> {
         self.marks().insert(twitch_id.to_owned());
-        self.store.delete(&Self::key(twitch_id))
+        self.store.save(&Self::key(twitch_id), REJECTED)
     }
 
+    /// "Sign in again" until the next sign-in (`put` overwrites the marker) or sign-out
+    /// (`forget` deletes it). K19: kept across restarts as a marker in Credential Manager.
     pub fn rejected(&self, twitch_id: &str) -> bool {
         self.marks().contains(twitch_id)
+            || self.store.load(&Self::key(twitch_id)).ok().flatten().as_deref() == Some(REJECTED)
     }
 
     /// The session ran out (rejected, or kept past its `exp`): "Sign in again".
@@ -215,5 +220,24 @@ mod tests {
         // Kept past its `exp`: ended, not rejected.
         tokens.put("1", &t).unwrap();
         assert!(tokens.ended("1", 2_000_000_000) && !tokens.rejected("1"));
+    }
+
+    /// K19 The mark lives in the store, so a restart (a new `SevenTvTokens`) keeps it.
+    #[test]
+    fn the_rejected_mark_survives_a_restart() {
+        let store = Arc::new(MemoryStore::default());
+        let t = SevenTvToken::parse(&fake()).unwrap();
+        SevenTvTokens::new(store.clone()).reject("1").unwrap();
+        let tokens = SevenTvTokens::new(store.clone());
+        assert!(tokens.rejected("1"));
+        assert!(tokens.get("1").is_none());
+        assert!(tokens.ended("1", 0));
+        tokens.put("1", &t).unwrap();
+        assert!(!tokens.rejected("1"));
+        tokens.reject("1").unwrap();
+        tokens.forget("1").unwrap();
+        assert!(!tokens.rejected("1"));
+        assert!(store.load("1.7tv").unwrap().is_none());
+        assert!(!SevenTvTokens::new(store).rejected("1"));
     }
 }

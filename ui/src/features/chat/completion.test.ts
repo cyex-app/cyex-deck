@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { complete, insert, rank, RANK, wordAt, wordStarts } from './completion.ts';
+import { complete, insert, rank, rankBest, RANK, wordAt, wordStarts } from './completion.ts';
 
 test('the word before the caret', () => {
   assert.deepEqual(wordAt('hi @fo', 6), { start: 3, end: 6, text: '@fo' });
@@ -55,4 +55,14 @@ test('inserting keeps the rest of the text', () => {
   assert.deepEqual(insert('hey @fo there', w, '@foo'), { text: 'hey @foo there', caret: 9 });
   const end = wordAt('Kap', 3);
   assert.deepEqual(insert('Kap', end, 'Kappa'), { text: 'Kappa ', caret: 6 });
+});
+
+test('U5 rankBest takes the highest rank, then the closest', () => {
+  assert.deepEqual(rankBest(['zzz', 'Cat'], 'cat'), rank('Cat', 'cat'));
+  assert.equal(rankBest(['xyz', 'abc'], 'q').rank, RANK.none);
+  assert.deepEqual(rankBest([], 'q'), { rank: RANK.none, close: 0 });
+  const near = rank('a_b', 'ab');
+  const far = rank('a____b', 'ab');
+  assert.equal(near.rank, far.rank);
+  assert.deepEqual(rankBest(['a____b', 'a_b'], 'ab'), near);
 });

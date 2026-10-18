@@ -99,15 +99,7 @@
   $effect(() => {
     if (video) sound.apply(video);
   });
-  $effect(() => {
-    const v = video;
-    if (!v) return;
-    const stop = sound.track(v);
-    return () => {
-      stop();
-      sound.release(v);
-    };
-  });
+  $effect(() => video && sound.attach(video));
 
   // Network trouble: a fresh session, three times, then a button. A rewound one tries the same spot.
   $effect(() => {

@@ -92,7 +92,7 @@
     </div>
   {/each}
 </div>
-<span class="said" aria-live="polite">{said}</span>
+<span class="sr-only" aria-live="polite">{said}</span>
 
 <style>
   .list {
@@ -111,13 +111,6 @@
     outline: 2px solid var(--focus-ring);
     outline-offset: -2px;
     border-radius: var(--radius);
-  }
-  .said {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
   }
   .row.before {
     border-top-color: var(--accent);

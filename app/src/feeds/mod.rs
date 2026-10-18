@@ -4,7 +4,7 @@
 
 pub mod automod;
 pub mod live;
-mod ring;
+pub(crate) mod ring;
 pub mod whispers;
 
 use std::collections::HashMap;
@@ -63,12 +63,45 @@ pub struct FeedsOpened {
 
 type View = Channel<Vec<KindEvent>>;
 
-/// Lock order: `open` takes `views` then `rings`; everything else takes one at a time.
+/// Lock order: `views` then `rings`, always (R3).
 #[derive(Default)]
 struct Store {
     rings: Mutex<HashMap<FeedKind, Ring<FeedEntry>>>,
     views: Mutex<Vec<(u32, FeedKind, View)>>,
     next: AtomicU32,
+}
+
+impl Store {
+    /// R3 Changes one kind's ring and sends what `events` makes of the result, holding `views`
+    /// the whole time, so a view opening meanwhile never gets an entry its snapshot has.
+    fn change<R>(
+        &self,
+        kind: FeedKind,
+        f: impl FnOnce(&mut Ring<FeedEntry>) -> R,
+        events: impl FnOnce(&R) -> Vec<KindEvent>,
+    ) -> R {
+        let mut views = self.views.lock().unwrap_or_else(|p| p.into_inner());
+        let out = {
+            let mut rings = self.rings.lock().unwrap_or_else(|p| p.into_inner());
+            f(rings.entry(kind).or_insert_with(|| Ring::new(cap(kind))))
+        };
+        let events = events(&out);
+        if !events.is_empty() {
+            views.retain(|v| v.1 != kind || v.2.send(events.clone()).is_ok());
+        }
+        out
+    }
+
+    fn open(&self, kind: FeedKind, channel: View) -> FeedsOpened {
+        let view = self.next.fetch_add(1, Ordering::Relaxed) + 1;
+        let mut views = self.views.lock().unwrap_or_else(|p| p.into_inner());
+        let entries = {
+            let mut rings = self.rings.lock().unwrap_or_else(|p| p.into_inner());
+            rings.entry(kind).or_insert_with(|| Ring::new(cap(kind))).items()
+        };
+        views.push((view, kind, channel));
+        FeedsOpened { view, entries }
+    }
 }
 
 pub fn init(app: &AppHandle) {
@@ -85,56 +118,34 @@ fn cap(kind: FeedKind) -> usize {
     }
 }
 
-/// Changes one kind's ring and returns what `f` gives back; the lock is released after.
-fn with_ring<R>(app: &AppHandle, kind: FeedKind, f: impl FnOnce(&mut Ring<FeedEntry>) -> R) -> Option<R> {
-    let store = app.try_state::<Store>()?;
-    let mut rings = store.rings.lock().unwrap_or_else(|p| p.into_inner());
-    Some(f(rings.entry(kind).or_insert_with(|| Ring::new(cap(kind)))))
+/// `Store::change` on the app's store; `None` before `init`.
+fn change<R>(
+    app: &AppHandle,
+    kind: FeedKind,
+    f: impl FnOnce(&mut Ring<FeedEntry>) -> R,
+    events: impl FnOnce(&R) -> Vec<KindEvent>,
+) -> Option<R> {
+    Some(app.try_state::<Store>()?.change(kind, f, events))
 }
 
-fn send(app: &AppHandle, kind: FeedKind, events: Vec<KindEvent>) {
-    if events.is_empty() {
-        return;
-    }
-    let Some(store) = app.try_state::<Store>() else {
-        return;
-    };
-    let mut views = store.views.lock().unwrap_or_else(|p| p.into_inner());
-    views.retain(|v| v.1 != kind || v.2.send(events.clone()).is_ok());
+fn removed(dropped: Option<&FeedEntry>) -> Option<KindEvent> {
+    dropped.map(|d| KindEvent::Remove {
+        key: d.key().to_owned(),
+    })
 }
 
 /// Adds an entry. Past the cap the oldest one `keep` doesn't protect goes.
 pub(crate) fn push(app: &AppHandle, kind: FeedKind, entry: FeedEntry, keep: impl Fn(&FeedEntry) -> bool) {
-    let Some(dropped) = with_ring(app, kind, |r| r.push(entry.clone(), keep)) else {
-        return;
-    };
-    let mut events = vec![KindEvent::Add { entry }];
-    events.extend(dropped.map(|d| KindEvent::Remove {
-        key: d.key().to_owned(),
-    }));
-    send(app, kind, events);
-}
-
-/// Replaces the entry with the same key, or adds it (like `push`), in one ring change.
-pub(crate) fn upsert(app: &AppHandle, kind: FeedKind, entry: FeedEntry, keep: impl Fn(&FeedEntry) -> bool) {
-    let Some((updated, dropped)) = with_ring(app, kind, |r| {
-        if r.update(|e| e.key() == entry.key(), |e| *e = entry.clone()).is_some() {
-            (true, None)
-        } else {
-            (false, r.push(entry.clone(), keep))
-        }
-    }) else {
-        return;
-    };
-    let mut events = vec![if updated {
-        KindEvent::Update { entry }
-    } else {
-        KindEvent::Add { entry }
-    }];
-    events.extend(dropped.map(|d| KindEvent::Remove {
-        key: d.key().to_owned(),
-    }));
-    send(app, kind, events);
+    change(
+        app,
+        kind,
+        |r| r.push(entry.clone(), keep),
+        |dropped| {
+            let mut events = vec![KindEvent::Add { entry: entry.clone() }];
+            events.extend(removed(dropped.as_ref()));
+            events
+        },
+    );
 }
 
 /// Changes the first entry `hit` finds. Returns whether one was found.
@@ -144,41 +155,38 @@ pub(crate) fn update(
     hit: impl Fn(&FeedEntry) -> bool,
     f: impl FnOnce(&mut FeedEntry),
 ) -> bool {
-    let Some(Some(entry)) = with_ring(app, kind, |r| r.update(hit, f)) else {
-        return false;
-    };
-    send(app, kind, vec![KindEvent::Update { entry }]);
-    true
+    change(
+        app,
+        kind,
+        |r| r.update(hit, f),
+        |changed| {
+            changed
+                .iter()
+                .map(|entry| KindEvent::Update { entry: entry.clone() })
+                .collect()
+        },
+    )
+    .flatten()
+    .is_some()
 }
 
 /// Drops what `gone` names.
 pub(crate) fn remove(app: &AppHandle, kind: FeedKind, gone: impl Fn(&FeedEntry) -> bool) {
-    let dropped = with_ring(app, kind, |r| r.remove(gone)).unwrap_or_default();
-    let events = dropped
-        .into_iter()
-        .map(|d| KindEvent::Remove {
-            key: d.key().to_owned(),
-        })
-        .collect();
-    send(app, kind, events);
+    change(
+        app,
+        kind,
+        |r| r.remove(gone),
+        |dropped| dropped.iter().filter_map(|d| removed(Some(d))).collect(),
+    );
 }
 
 pub(crate) fn clear(app: &AppHandle, kind: FeedKind) {
-    if with_ring(app, kind, Ring::clear).is_some() {
-        send(app, kind, vec![KindEvent::Clear]);
-    }
+    change(app, kind, Ring::clear, |()| vec![KindEvent::Clear]);
 }
 
 /// Starts streaming a kind's changes. Returns the view id and the entries it has.
 pub fn open(app: &AppHandle, kind: FeedKind, channel: View) -> FeedsOpened {
-    let store = app.state::<Store>();
-    let view = store.next.fetch_add(1, Ordering::Relaxed) + 1;
-    // Views first, so an entry pushed meanwhile is either in the list or sent to the view.
-    let mut views = store.views.lock().unwrap_or_else(|p| p.into_inner());
-    let entries = with_ring(app, kind, |r| r.items()).unwrap_or_default();
-    views.push((view, kind, channel));
-    drop(views);
-    FeedsOpened { view, entries }
+    app.state::<Store>().open(kind, channel)
 }
 
 pub fn close(app: &AppHandle, view: u32) {
@@ -190,4 +198,53 @@ pub fn close(app: &AppHandle, view: u32) {
         .lock()
         .unwrap_or_else(|p| p.into_inner())
         .retain(|v| v.0 != view);
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use tauri::ipc::InvokeResponseBody;
+
+    use super::*;
+
+    fn entry(key: &str) -> FeedEntry {
+        FeedEntry::Whisper(whispers::WhisperEntry {
+            key: key.into(),
+            ts: 0,
+            thread_id: String::new(),
+            login: String::new(),
+            name: String::new(),
+            avatar: None,
+            text: String::new(),
+        })
+    }
+
+    fn view(got: &Arc<Mutex<Vec<String>>>) -> View {
+        let got = got.clone();
+        Channel::new(move |body| {
+            if let InvokeResponseBody::Json(s) = body {
+                got.lock().unwrap().push(s);
+            }
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn an_opened_view_gets_no_add_for_its_snapshot() {
+        let store = Store::default();
+        let kind = FeedKind::Whispers;
+        let push = |e: FeedEntry| {
+            store.change(kind, |r| r.push(e.clone(), |_| false), |_| vec![KindEvent::Add { entry: e.clone() }]);
+        };
+        push(entry("a"));
+        let got = Arc::new(Mutex::new(Vec::new()));
+        let opened = store.open(kind, view(&got));
+        assert_eq!(opened.entries.iter().map(FeedEntry::key).collect::<Vec<_>>(), ["a"]);
+        assert!(got.lock().unwrap().is_empty());
+        push(entry("b"));
+        let got = got.lock().unwrap();
+        assert_eq!(got.len(), 1);
+        assert!(got[0].contains("\"b\"") && !got[0].contains("\"a\""));
+    }
 }

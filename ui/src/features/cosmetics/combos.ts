@@ -27,7 +27,7 @@ export function problems(c: Combo, have: (kind: 'paint' | 'badge', id: string) =
 
 export function problemText(p: readonly Problem[]): string {
   return p
-    .map((x) => (x.why === 'notOwned' ? `You don’t own ${x.item} any more.` : `${x.item} is for 7TV subscribers.`))
+    .map((x) => (x.why === 'notOwned' ? `You don’t own ${x.item} anymore.` : `${x.item} is for 7TV subscribers.`))
     .join(' ');
 }
 

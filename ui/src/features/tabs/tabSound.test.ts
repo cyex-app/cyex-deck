@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { tabSoundMode } from './tabSound.ts';
+import { soundTip, tabSoundMode } from './tabSound.ts';
 
 test('V106-25 a muted tab shows muted, playing or not', () => {
   assert.equal(tabSoundMode(true, true), 'muted');
@@ -17,4 +17,11 @@ test('V102-15 a held tab with every player muted shows crossed', () => {
   assert.equal(tabSoundMode(false, false, true), 'muted');
   assert.equal(tabSoundMode(false, false, false), 'silent');
   assert.equal(tabSoundMode(true, false, true), 'audible');
+});
+
+test('U2 the tip follows the badge', () => {
+  assert.equal(soundTip('silent', false), '');
+  assert.equal(soundTip('audible', false), ' · playing');
+  assert.equal(soundTip('muted', false), ' · playing muted');
+  assert.equal(soundTip('audible', true), ' · muted');
 });

@@ -7,7 +7,6 @@
 
   import Button from '../../components/Button.svelte';
   import FeedList from '../../components/FeedList.svelte';
-  import type { IconName } from '../../components/icons';
   import type { FeedEntry } from '../../ipc/bindings/FeedEntry';
   import type { FeedKind } from '../../ipc/bindings/FeedKind';
   import type { KindEvent } from '../../ipc/bindings/KindEvent';
@@ -19,11 +18,12 @@
   import { apply, keyOf, tsOf } from './entries';
   import FeedHeader from './FeedHeader.svelte';
   import HeldRow from './HeldRow.svelte';
+  import { KIND } from './kinds';
   import LiveRow from './LiveRow.svelte';
   import WhisperRow from './WhisperRow.svelte';
 
   interface Props {
-    kind: FeedKind;
+    kind: Exclude<FeedKind, 'rules'>;
     name: string;
     actions?: Snippet;
     onheaderdown?: (e: PointerEvent) => void;
@@ -31,13 +31,7 @@
 
   let { kind, name, actions, onheaderdown }: Props = $props();
 
-  const CAP: Record<string, number> = { live: 300, automod: 200, whispers: 200 };
-  const ICON: Record<string, IconName> = { live: 'radio', automod: 'shield', whispers: 'whisper' };
-  const EMPTY: Record<string, string> = {
-    live: 'Nothing yet. Channels in your tabs, and the ones you follow while live alerts are on, show up here when they go live or offline.',
-    automod: 'Nothing held right now. Held messages from chats you moderate show up here.',
-    whispers: 'No whispers yet this session.',
-  };
+  const info = $derived(KIND[kind]);
 
   let entries = $state.raw<FeedEntry[]>([]);
   let failed = $state(false);
@@ -54,7 +48,7 @@
   function open() {
     failed = false;
     pending = [];
-    const cap = CAP[kind] ?? 200;
+    const cap = info.cap;
     feedsIpc
       .open(kind, (e) => {
         if (pending) pending.push(...e);
@@ -78,7 +72,7 @@
 </script>
 
 <section class="feed">
-  <FeedHeader icon={ICON[kind] ?? 'list'} {name} {actions} {onheaderdown}>
+  <FeedHeader icon={info.icon} {name} {actions} {onheaderdown}>
     {#snippet extra()}
       {#if entries.length > 0}
         <Button small variant="ghost" onclick={() => feedsIpc.clear(kind).catch((e) => toast.error(errorText(e)))}>Clear</Button>
@@ -91,7 +85,7 @@
         {#if failed}
           Couldn’t load this feed. <Button variant="link" small onclick={open}>Retry</Button>
         {:else}
-          {EMPTY[kind] ?? ''}
+          {info.empty}
           {#if kind === 'whispers'}<Button variant="link" small onclick={() => whispers.show()}>Open whispers</Button>{/if}
         {/if}
       </p>

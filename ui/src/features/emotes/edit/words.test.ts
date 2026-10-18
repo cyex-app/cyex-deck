@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { blockedText, doneText, failText, inlineText } from './words.ts';
+import { blockedText, doneText, failText, inlineText, nameVerdict } from './words.ts';
 
 test('every failure has a text', () => {
   const f = (type: string) => failText({ type } as never, 'kuni', 'KEKW');
@@ -40,4 +40,12 @@ test('blocked and inline texts', () => {
   assert.equal(inlineText({ type: 'full' }, 'kuni'), 'kuni is full.');
   assert.equal(inlineText({ type: 'private' }, 'kuni'), 'Private emote.');
   assert.equal(inlineText({ type: 'down' }, 'kuni'), null);
+});
+
+test('name check lines, per kind', () => {
+  assert.equal(nameVerdict('taken', 'kuni', false), 'Taken in kuni.');
+  assert.equal(nameVerdict('taken', 'kuni', true), 'Taken in kuni.');
+  assert.equal(nameVerdict('free', 'kuni', false), null);
+  assert.equal(nameVerdict('same', 'kuni', true), '');
+  assert.equal(nameVerdict('same', 'kuni', false), null);
 });

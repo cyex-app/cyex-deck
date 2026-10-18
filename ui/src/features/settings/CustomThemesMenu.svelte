@@ -5,6 +5,8 @@
   import Icon from '../../components/Icon.svelte';
   import Popover from '../../components/Popover.svelte';
   import type { CustomTheme } from '../../ipc/bindings/CustomTheme';
+  import { scrollBehavior } from '../../lib/motion';
+  import { scrollWithin } from '../../lib/scrollWithin';
   import { PLAIN_PREVIEW } from './themes';
 
   interface Props {
@@ -32,7 +34,10 @@
   $effect(() => {
     if (pendingFrom === null || !active || active.id === pendingFrom) return;
     pendingFrom = null;
-    void tick().then(() => document.querySelector('[data-theme-editor]')?.scrollIntoView({ block: 'nearest' }));
+    void tick().then(() => {
+      const editor = document.querySelector<HTMLElement>('[data-theme-editor]');
+      if (editor) scrollWithin(editor, 'nearest', scrollBehavior());
+    });
   });
 </script>
 

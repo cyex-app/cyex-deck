@@ -142,6 +142,7 @@ impl<F: Fetch> Live<F> {
         Ok((out.render(), ad))
     }
 
+    #[cfg(feature = "mocks")]
     /// V1061 A segment of the mock HLS server (`seg/<variant>/<n>.ts`); no mock, no segment.
     pub async fn mock_segment(&self, path: &str) -> Result<Vec<u8>> {
         let base = self.fetch.mock_base().ok_or_else(|| gone("gone"))?;
@@ -205,6 +206,7 @@ pub(crate) fn gone(message: &str) -> Error {
     }
 }
 
+#[cfg(feature = "mocks")]
 /// V1061 `[A-Za-z0-9_-]+(/[A-Za-z0-9_.-]+)*`, no `%`, no `.` or `..` segment.
 fn mock_path_ok(path: &str) -> bool {
     let mut parts = path.split('/');
@@ -263,6 +265,7 @@ mod tests {
         block_ads: true,
     };
 
+    #[cfg(feature = "mocks")]
     #[test]
     fn mock_paths_are_plain() {
         for ok in ["360p30/1.ts", "a", "a/b/c.ts"] {
@@ -273,6 +276,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "mocks")]
     #[tokio::test]
     async fn mock_segment_needs_a_mock() {
         let s = script();

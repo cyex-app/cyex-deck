@@ -73,8 +73,14 @@ impl Vault {
                 let secret = match self.store.load(&store_key(&account.user_id, kind)) {
                     Ok(Some(json)) => match serde_json::from_str::<Secret>(&json) {
                         Ok(secret) => secret,
+                        // S1 Position only: serde's text can echo a stored value.
                         Err(e) => {
-                            errors.push(e.to_string());
+                            errors.push(format!(
+                                "{}: stored token unreadable (line {} col {})",
+                                store_key(&account.user_id, kind),
+                                e.line(),
+                                e.column()
+                            ));
                             continue;
                         }
                     },
@@ -211,6 +217,17 @@ mod tests {
         vault.put("1", TokenKind::Gql, secret("g")).unwrap();
         assert_eq!(vault.forget("1", TokenKind::Gql).unwrap(), Some(secret("g")));
         assert_eq!(store.load("1.gql").unwrap(), None);
+    }
+
+    /// S1 A corrupt entry is reported by key and position, never by what it holds.
+    #[test]
+    fn unreadable_tokens_do_not_echo_their_value() {
+        let store: Arc<dyn SecretStore> = Arc::new(MemoryStore::default());
+        store.save("1.helix", r#"{"access": 5}"#).unwrap();
+        let errors = Vault::new(store).load(&accounts());
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].starts_with("1.helix: stored token unreadable (line 1 col "));
+        assert!(!errors[0].contains('5'), "{}", errors[0]);
     }
 
     #[test]

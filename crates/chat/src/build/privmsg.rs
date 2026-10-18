@@ -3,7 +3,7 @@
 
 use crate::irc::Line;
 use crate::model::{ChatMessage, Client, Flag, Fragment, Meta, Reply, RewardRef, SharedSource};
-use crate::tokenize::{Input, tokenize};
+use crate::tokenize::{Input, is_me, tokenize};
 
 use super::sender::{badges, sender};
 use super::{Ctx, timestamp};
@@ -122,14 +122,9 @@ fn reply(line: &Line<'_>) -> Option<Reply> {
 /// V106-33 Your name in the body, the way the tokenizer finds it (`@login` or the word).
 /// Only run on replies to you that named you, so rare.
 fn names_in(body: &[Fragment], names: &[String]) -> bool {
-    let is_me = |w: &str| {
-        !w.is_empty() && names.iter().any(|n| n.eq_ignore_ascii_case(w) || *n == w.to_lowercase())
-    };
     body.iter().any(|f| match f {
-        Fragment::Mention { login, .. } => is_me(login),
-        Fragment::Text { text } => text
-            .split_whitespace()
-            .any(|w| is_me(w.trim_matches(|c: char| !c.is_alphanumeric() && c != '_'))),
+        Fragment::Mention { login, .. } => is_me(names, login),
+        Fragment::Text { text } => text.split_whitespace().any(|w| is_me(names, w)),
         _ => false,
     })
 }

@@ -7,7 +7,30 @@ import type { ErrorData, HlsConfig } from 'hls.js';
 
 import type { PlayerSession } from '../../ipc/bindings/PlayerSession';
 import { Away } from './away';
-import { behindLive, dvrConfig, liveConfig, liveState, PAUSE_STOP_MS, resumePlan } from './liveEdge';
+import { behindLive, dvrConfig, liveConfig, liveState, PAUSE_STOP_MS, rangeEnd } from './liveEdge';
+import {
+  askPause,
+  begin,
+  brokeWhilePaused,
+  canplayCheck,
+  failed,
+  initial,
+  isPaused,
+  isSwapping,
+  jumpBegin,
+  jumpEnd,
+  landed,
+  type LiveState,
+  ownPaused,
+  paused,
+  played,
+  playedWhilePaused,
+  resumeStep,
+  takePending,
+  timedOut,
+  toLiveStep,
+  userPause,
+} from './liveMachine';
 import { type Choice, levelFor, levelName, lowestLevel } from './quality';
 
 let hlsModule: Promise<typeof HlsType> | null = null;
@@ -58,29 +81,15 @@ export class Engine {
   bufferedEnd = $state(0);
   /** A short readout for the player, taken and cleared by LivePlayer. */
   note = $state<string | null>(null);
-  /** V1061-03 Q14 a One source swaps for the other: no spinner unless it takes long. */
-  swapping = $state(false);
   /** Live players: reopens the stream, live when `at` is null, else the VOD from there. */
   onreopen: ((at: number | null) => void) | null = null;
 
   private hls: HlsType | null = null;
   private H: typeof HlsType | null = null;
-  /** V1061-01 When a live player was paused (performance.now()), 0 when it isn't. */
-  private pausedAt = 0;
-  private pausedPos = 0;
-  /** Our own seek or swap pauses the video: that pause isn't the user's. */
-  private jumping = false;
-  /** The user paused during our silent jump: it ends paused. */
-  private wantPause = false;
-  /** Our own pause whose event hasn't come yet. A flag, not a count: a swap's source reload
-   *  drops the queued pause event, and a stale count ate the user's next pause (V1061-01). */
-  private quiet = false;
-  /** Q16 a Paused 10 min: nothing loads anymore. */
-  private stopped = false;
+  /** V1061-01 U11 Pause, jump and swap state (liveMachine.ts). */
+  private st = $state.raw<LiveState>(initial());
   private stopTimer: ReturnType<typeof setTimeout> | undefined;
   private lastUpdate = 0;
-  /** A rewind start checks once that it landed where it was asked to. */
-  private checkStart = false;
   private session: PlayerSession | null = null;
   /** VODs: where to begin, in seconds. */
   private startAt = -1;
@@ -101,14 +110,13 @@ export class Engine {
     const set = {
       play: () => {
         // Any own pause event came first or was dropped.
-        this.quiet = false;
+        this.st = played(this.st);
         this.onPlay();
       },
       playing: () => {
         this.playing = true;
         this.waiting = false;
-        this.jumping = false;
-        this.swapping = false;
+        this.st = landed(this.st);
       },
       pause: () => this.onPause(),
       waiting: () => (this.waiting = true),
@@ -128,18 +136,12 @@ export class Engine {
 
   /** `hold`: paused until played (V103-07). `dvr`: the session is the rewind VOD (V1061-03). */
   async start(session: PlayerSession, choice: Choice, startAt = -1, hold = false, dvr = false): Promise<void> {
-    if (this.hls) {
-      // Q14 a A swap: silent, nothing plays meanwhile.
-      this.jumping = true;
-      this.swapping = true;
-      this.quietPause();
-    }
+    // Q14 a A swap: silent, nothing plays meanwhile.
+    const swap = !!this.hls;
+    this.st = begin(this.st, swap, dvr);
+    if (swap) this.quietPause();
     this.dvr = dvr;
-    this.pausedAt = 0;
-    this.wantPause = false;
-    this.stopped = false;
     clearTimeout(this.stopTimer);
-    this.checkStart = dvr;
     if (dvr) this.time = startAt;
     this.behind = null;
     this.sync = null;
@@ -155,28 +157,30 @@ export class Engine {
     return this.video.paused;
   }
 
+  /** V1061-03 Q14 a One source swaps for the other: no spinner unless it takes long. */
+  get swapping(): boolean {
+    return isSwapping(this.st);
+  }
+
   /** A deliberate pause, e.g. a clip over the rewound stream (Q22 b). */
   pause(): void {
-    if (this.jumping) this.wantPause = true;
+    this.st = askPause(this.st);
     this.video.pause();
   }
 
   /** V1061-01 Play: a live player decides where it goes on (LivePlayer's play paths). */
   async resume(): Promise<void> {
+    const r = resumeStep(this.st, { live: this.live, holding: this.holding, dvr: this.dvr, hasHls: !!this.hls, now: performance.now() });
+    this.st = r.s;
     // Played again mid-jump after a pause: the jump plays when it lands.
-    if (this.jumping && this.wantPause) {
-      this.wantPause = false;
-      return;
-    }
-    if (!this.live || this.holding || this.pausedAt === 0) {
+    if (r.step === 'wait') return;
+    if (r.step === 'direct') {
       void this.video.play().catch(() => {});
       return;
     }
     clearTimeout(this.stopTimer);
-    const plan = resumePlan({ pausedMs: performance.now() - this.pausedAt, inVod: this.dvr, stopped: this.stopped || !this.hls });
-    const pos = this.pausedPos;
-    this.pausedAt = 0;
-    this.stopped = false;
+    const plan = r.step;
+    const pos = r.pos;
     if (plan === 'play' || plan === 'stay') {
       this.hls?.resumeBuffering();
       void this.video.play().catch(() => {});
@@ -195,12 +199,12 @@ export class Engine {
   /** V1061-01/02/05 To the live point of this session, playing when asked. The rewind VOD,
    *  a stopped or missing session reopen the live stream instead. */
   async toLive(play = true): Promise<void> {
-    if (this.jumping) return;
+    const r = toLiveStep(this.st);
+    if (!r) return;
     clearTimeout(this.stopTimer);
-    this.pausedAt = 0;
+    this.st = r.s;
     const hls = this.hls;
-    if (this.dvr || !hls || this.stopped) {
-      this.stopped = false;
+    if (this.dvr || !hls || r.stopped) {
       this.onreopen?.(null);
       return;
     }
@@ -217,23 +221,22 @@ export class Engine {
       if (play) void v.play().catch(() => {});
       return;
     }
-    if (inside(v.buffered, t)) {
+    if (rangeEnd(v.buffered, t) !== null) {
       v.currentTime = t;
       if (play) void v.play().catch(() => {});
       return;
     }
     // Q14 a Silent while it loads there: no pop, no repeated seconds.
-    this.jumping = true;
-    this.wantPause = false;
+    this.st = jumpBegin(this.st);
     this.quietPause();
     v.currentTime = t;
     await waitFor(v, 'canplay', 4000);
-    this.jumping = false;
+    this.st = jumpEnd(this.st);
     if (this.hls !== hls) return;
-    if (this.wantPause) {
-      this.wantPause = false;
-      this.markPaused();
-    } else if (play) await v.play().catch(() => {});
+    const p = takePending(this.st);
+    this.st = p.s;
+    if (p.pending) this.markPaused();
+    else if (play) await v.play().catch(() => {});
   }
 
   /** V1061-03 A seek inside the rewind VOD. */
@@ -268,10 +271,7 @@ export class Engine {
     const hls = this.hls;
     const lvl = hls?.levels[hls.currentLevel];
     const q = v.getVideoPlaybackQuality?.();
-    let buffer = 0;
-    for (let i = 0; i < v.buffered.length; i++) {
-      if (v.buffered.start(i) <= v.currentTime && v.currentTime <= v.buffered.end(i)) buffer = v.buffered.end(i) - v.currentTime;
-    }
+    const buffer = (rangeEnd(v.buffered, v.currentTime) ?? v.currentTime) - v.currentTime;
     return {
       resolution: v.videoWidth ? `${v.videoWidth}×${v.videoHeight}` : 'audio',
       level: lvl ? (lvl.height ? levelName(lvl) : 'audio') : '',
@@ -315,10 +315,8 @@ export class Engine {
       // With autoStartLoad off hls.js skips `startPosition`: a VOD would start at 0 (P5, P7).
       hls.startLoad(this.liveSrc ? -1 : this.startAt);
       // Paused during the swap: it lands paused (Q14 a).
-      if (this.wantPause) {
-        this.wantPause = false;
-        this.jumping = false;
-        this.swapping = false;
+      if (this.st.pendingPause) {
+        this.st = takePending(this.st).s;
         this.waiting = false;
         return this.markPaused();
       }
@@ -414,9 +412,9 @@ export class Engine {
     if (!d.fatal) return;
     const code = d.response?.code ?? 0;
     const body = String((d.networkDetails as XMLHttpRequest | undefined)?.responseText ?? '');
-    if (d.type === Hls.ErrorTypes.NETWORK_ERROR && this.live && this.pausedAt) {
+    if (d.type === Hls.ErrorTypes.NETWORK_ERROR && this.live && isPaused(this.st)) {
       // V1061-01 The session went away while paused (Rust sweeps unpolled ones): play reopens quietly.
-      this.stopped = true;
+      this.st = brokeWhilePaused(this.st);
       this.hls?.destroy();
       this.hls = null;
     } else if (d.type === Hls.ErrorTypes.NETWORK_ERROR && this.dvr) {
@@ -440,8 +438,7 @@ export class Engine {
   private fail(f: Failure): void {
     this.failure = this.live || f !== 'offline' ? f : 'gone';
     this.waiting = false;
-    this.jumping = false;
-    this.swapping = false;
+    this.st = failed(this.st);
     this.hls?.destroy();
     this.hls = null;
   }
@@ -454,51 +451,42 @@ export class Engine {
   /** Pauses for our own reasons: the pause event isn't the user's. */
   private quietPause(): void {
     if (this.video.paused) return;
-    this.quiet = true;
+    this.st = ownPaused(this.st);
     this.video.pause();
   }
 
   /** V1061-01 Q16 a Paused live: only the playlists keep loading, 10 min later nothing. */
   private onPause(): void {
     this.playing = false;
-    if (this.quiet) {
-      this.quiet = false;
-      return;
-    }
-    // Played again before the event came: nothing to keep.
-    if (!this.video.paused || !this.live || this.holding) return;
-    if (this.jumping) {
-      // The user paused between a swap's play and its first frame: the swap ends paused. Left
-      // waiting, `swapping` hid the behind readout and `jumping` blocked the way back to live.
-      this.wantPause = true;
-      this.jumping = false;
-      this.swapping = false;
-      this.waiting = false;
-    }
-    this.markPaused();
+    const r = userPause(this.st, { videoPaused: this.video.paused, live: this.live, holding: this.holding });
+    this.st = r.s;
+    // The user paused between a swap's play and its first frame: the swap ends paused. Left
+    // waiting, `swapping` hid the behind readout and the jump blocked the way back to live.
+    if (r.wasJumping) this.waiting = false;
+    if (r.mark) this.markPaused();
   }
 
   /** A pause that is the user's: the playlists keep loading, later nothing. */
   private markPaused(): void {
-    this.pausedAt = performance.now();
-    this.pausedPos = this.video.currentTime;
+    this.st = paused(this.st, performance.now(), this.video.currentTime);
     this.hls?.pauseBuffering();
     clearTimeout(this.stopTimer);
     this.stopTimer = setTimeout(() => {
       this.hls?.stopLoad();
-      this.stopped = true;
+      this.st = timedOut(this.st);
     }, PAUSE_STOP_MS);
   }
 
   /** Plays that skip `resume()` (picture in picture, media session) still go where it decides. */
   private onPlay(): void {
     if (this.holding) return this.release();
-    if (!this.live || this.jumping || !this.pausedAt) return;
-    if (this.hls && !this.stopped && (this.dvr || performance.now() - this.pausedAt < 1000)) {
+    const r = playedWhilePaused(this.st, { live: this.live, hasHls: !!this.hls, dvr: this.dvr, now: performance.now() });
+    if (r.step === 'none') return;
+    if (r.step === 'keep') {
       // 'stay' or 'play': it already plays where it should.
       clearTimeout(this.stopTimer);
-      this.pausedAt = 0;
-      this.hls.resumeBuffering();
+      this.st = r.s;
+      this.hls?.resumeBuffering();
       return;
     }
     this.quietPause();
@@ -507,8 +495,9 @@ export class Engine {
 
   private onCanplay(): void {
     this.waiting = false;
-    if (!this.checkStart) return;
-    this.checkStart = false;
+    const c = canplayCheck(this.st);
+    this.st = c.s;
+    if (!c.check) return;
     // Research s.7 #5: `startPosition` on an EVENT playlist isn't sure to hold.
     if (Math.abs(this.video.currentTime - this.startAt) > 2) this.video.currentTime = this.startAt;
   }
@@ -519,11 +508,7 @@ export class Engine {
     // A swap shows the asked-for spot until the new source plays; after a failure the last spot stays.
     if (!this.swapping && !this.failure) {
       this.time = v.currentTime;
-      let end = 0;
-      for (let i = 0; i < v.buffered.length; i++) {
-        if (v.buffered.start(i) <= v.currentTime && v.currentTime <= v.buffered.end(i)) end = v.buffered.end(i);
-      }
-      this.bufferedEnd = end;
+      this.bufferedEnd = rangeEnd(v.buffered, v.currentTime) ?? 0;
     }
     const h = this.hls;
     if (!this.liveSrc || !h || this.swapping) {
@@ -552,12 +537,6 @@ export class Engine {
       hls.once(H.Events.LEVEL_UPDATED, f);
     });
   }
-}
-
-/** Whether `t` is inside a buffered range. */
-function inside(r: TimeRanges, t: number): boolean {
-  for (let i = 0; i < r.length; i++) if (r.start(i) <= t && t <= r.end(i)) return true;
-  return false;
 }
 
 /** Resolves on `ev` or after `ms`, the listener removed either way. */

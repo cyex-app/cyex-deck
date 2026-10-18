@@ -28,6 +28,24 @@ export function moveFor(key: string, at: number, count: number): number | null {
   }
 }
 
+/**
+ * U20 The index a roving radio group moves to for a key, or null when the key isn't ours.
+ * Left/Right work like Up/Down and wrap around; Home and End jump.
+ */
+export function radioKey(e: Pick<KeyboardEvent, 'key'>, at: number, n: number): number | null {
+  if (!n) return null;
+  switch (e.key) {
+    case 'ArrowRight':
+    case 'ArrowDown':
+      return (at + 1) % n;
+    case 'ArrowLeft':
+    case 'ArrowUp':
+      return (at - 1 + n) % n;
+    default:
+      return moveFor(e.key, at, n);
+  }
+}
+
 /** Type-ahead: the next choice (after `at`, wrapping) whose label starts with `typed`. */
 export function matchTyped(choices: readonly Choice[], typed: string, at: number): number {
   const t = typed.toLowerCase();

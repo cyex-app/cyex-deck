@@ -109,15 +109,16 @@ impl Echoes {
 
     /// `c` minus the parts that are our own edits, and our removals in it as (id, the alias we
     /// removed): those apply exactly, never "the id held once" (that would take a second name).
-    /// Remove matches by emote id alone (7TV's names can lag).
+    /// K20 Every kind matches exactly: our removes always name the alias, and 7TV's event
+    /// carries it.
     pub fn filter(&mut self, c: &SetChange, now: Instant) -> (SetChange, Vec<(String, String)>) {
         self.0.retain(|e| e.until.is_none_or(|u| now <= u));
         let set = c.set_id.as_str();
         let mut ours = Vec::new();
         let mut removed = Vec::new();
         for (id, name) in &c.removed {
-            match self.take(set, Kind::Remove, id, None) {
-                Some(alias) => ours.push((id.clone(), alias)),
+            match self.take(set, Kind::Remove, id, Some(name)) {
+                Some(_) => ours.push((id.clone(), name.clone())),
                 None => removed.push((id.clone(), name.clone())),
             }
         }

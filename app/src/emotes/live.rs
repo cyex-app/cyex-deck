@@ -11,6 +11,7 @@ use cyex_emotes::{Emote, EmoteSet, Scope};
 use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc::UnboundedReceiver;
 
+use super::edit::slot_of;
 use super::{Emotes, Inner, load, looks};
 use crate::auth::Auth;
 
@@ -234,28 +235,26 @@ fn unclaimed(inner: &mut Inner, c: SetChange) {
 
 /// `ours`: our own removals, which take only the named entry.
 fn apply(set: &EmoteSet, c: &SetChange, ours: &[(String, String)]) -> EmoteSet {
-    let held = |id: &str| set.emotes.iter().filter(|x| x.id == id).count();
+    fn key(e: &Arc<Emote>) -> (&str, &str) {
+        (e.id.as_str(), e.name.as_str())
+    }
+    // Ours: only the named entry.
     let mut emotes: Vec<Arc<Emote>> = set
         .emotes
         .iter()
-        // V105-04 Of two names for one emote, only the named one goes; an id held once goes
-        // whatever its name (7TV's names can lag), unless the removal was ours.
-        .filter(|e| {
-            !ours.iter().any(|(id, name)| *id == e.id && *name == e.name)
-                && !c
-                    .removed
-                    .iter()
-                    .any(|(id, name)| *id == e.id && (*name == e.name || held(id) == 1))
-        })
+        .filter(|e| !ours.iter().any(|(id, name)| *id == e.id && *name == e.name))
         .cloned()
         .collect();
+    // V105-04 R13 Of two names for one emote, only the named one goes; an id held once goes
+    // whatever its name (7TV's names can lag). Same rule as the edit cache (`slot_of`).
+    for (id, name) in &c.removed {
+        if let Some(n) = slot_of(&emotes, id, name, key) {
+            emotes.remove(n);
+        }
+    }
     for (id, old, new) in &c.renamed {
-        // Of two names, the one renamed; an id held once whatever its name.
-        let n = emotes.iter().filter(|e| e.id == *id).count();
-        if let Some(slot) = emotes
-            .iter_mut()
-            .find(|e| e.id == *id && (e.name == *old || n == 1))
-        {
+        if let Some(n) = slot_of(&emotes, id, old, key) {
+            let slot = &mut emotes[n];
             let mut e = new.clone();
             e.owner = e.owner.or_else(|| slot.owner.clone());
             e.added_at = slot.added_at.clone();

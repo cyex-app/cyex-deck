@@ -172,7 +172,7 @@
 </Row>
 
 {#if account}
-  <h3 class="label" data-setting="notifications.live.channels">Per channel</h3>
+  <SectionHead title="Per channel" setting="notifications.live.channels" />
   <button class="fold" aria-expanded={showChannels} onclick={() => (showChannels = !showChannels)}>
     <Icon name={showChannels ? 'chevronDown' : 'chevronRight'} size={14} />
     <span>{channels.length ? `${channels.length}${cursor ? '+' : ''} followed channel${channels.length === 1 && !cursor ? '' : 's'}` : 'Followed channels'}</span>
@@ -211,12 +211,12 @@
 
   {#if account && !twitch}
     <!-- V102-20 Greyed out, not hidden. -->
-    <h3 class="label" data-setting="notifications:twitch">What Twitch sends</h3>
+    <SectionHead title="What Twitch sends" setting="notifications:twitch" />
     <p class="note gated">Twitch’s own settings need the extra Twitch features. <GateFlag kind="gql" /></p>
   {/if}
 
   {#if twitch && sw.groups.length}
-    <h3 class="label" data-setting="notifications:twitch">What Twitch sends</h3>
+    <SectionHead title="What Twitch sends" setting="notifications:twitch" />
     <p class="note">Twitch’s own settings for {account.displayName}, saved on Twitch. Open a group to pick single ones.</p>
     {#if smartOn !== null}
       <Row label="Smart delivery" hint="Live alerts reach you once: on Twitch while you’re there, else by phone or email.">

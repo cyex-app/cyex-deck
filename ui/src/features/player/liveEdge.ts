@@ -86,3 +86,10 @@ export function resumePlan(o: { pausedMs: number; inVod: boolean; stopped: boole
 export function chatBarText(behind: number): string {
   return `Chat is live. The stream is ${clock(behind)} behind.`;
 }
+
+/** V1061-01 U10 End of the buffered range that holds `t`, null when none does. */
+export function rangeEnd(r: { length: number; start(i: number): number; end(i: number): number }, t: number): number | null {
+  let end: number | null = null;
+  for (let i = 0; i < r.length; i++) if (r.start(i) <= t && t <= r.end(i)) end = r.end(i);
+  return end;
+}

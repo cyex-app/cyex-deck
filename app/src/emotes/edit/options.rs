@@ -48,15 +48,7 @@ pub fn options(state: Reachability, reach: Option<&Reach>, viewed: &Viewed, f: &
         .targets
         .iter()
         .map(|t| {
-            let blocked = if t.has(f.emote_id) {
-                Some(Blocked::Already)
-            } else if f.private && f.owner_id != Some(t.owner_id.as_str()) {
-                Some(Blocked::Private)
-            } else if t.full() {
-                Some(Blocked::Full)
-            } else {
-                None
-            };
+            let blocked = t.blocked(f.emote_id, f.private, f.owner_id);
             AddTarget {
                 set_id: t.set_id.clone(),
                 channel: t.channel.clone(),

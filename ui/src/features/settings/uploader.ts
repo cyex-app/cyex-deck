@@ -9,16 +9,10 @@ export const UPLOADER_FIELDS = [
   ['deletionLink', 'Delete link', false],
 ] as const;
 
-type Required = 'url' | 'formField' | 'link';
+const REQUIRED = UPLOADER_FIELDS.filter((f) => f[2]).map((f) => f[0]);
+type Required = (typeof REQUIRED)[number];
 
 /** The required fields left empty, in form order. Empty = blank after trim. */
 export function uploaderMissingKeys(u: Uploader): Required[] {
-  const keys: Required[] = ['url', 'formField', 'link'];
-  return keys.filter((k) => u[k].trim() === '');
-}
-
-/** The labels of the required fields left empty. */
-export function uploaderMissing(u: Uploader): string[] {
-  const label = (k: string) => UPLOADER_FIELDS.find(([key]) => key === k)?.[1] ?? k;
-  return uploaderMissingKeys(u).map(label);
+  return REQUIRED.filter((k) => u[k].trim() === '');
 }

@@ -3,8 +3,8 @@
 <script lang="ts">
   import { tabsIpc } from '../../ipc/tabs';
   import type { ViewerHistory } from '../../ipc/bindings/ViewerHistory';
-  import { formatNumber, formatTime } from '../../lib/format';
-  import { graph, nearest, peakOf, place } from '../../lib/sparkline';
+  import { formatDuration, formatNumber, formatTime } from '../../lib/format';
+  import { graph, nearest, peakOf, pointAt } from '../../lib/sparkline';
 
   interface Props {
     channelId: string;
@@ -41,14 +41,13 @@
   const last = $derived(series.length ? series[series.length - 1] : null);
   /** The "before" band's share of the width, when it's wide enough for its label (40 px). */
   const before = $derived(g.x0 > 0 ? g.x0 : 0);
-  const marker = $derived(sel === null || !series[sel] ? null : place(series, sel, W, H, from));
+  const marker = $derived(sel === null || !series[sel] ? null : pointAt(series, sel, W, H, from));
 
   const clock = (unix: number) => formatTime(new Date(unix * 1000));
   const since = $derived.by(() => {
     if (!history) return '';
     const mins = Math.max(0, Math.floor((now - Date.parse(history.startedAt)) / 60_000));
-    const h = Math.floor(mins / 60);
-    return `Live since ${formatTime(new Date(history.startedAt))} · ${h ? `${h} h ` : ''}${mins % 60} min`;
+    return `Live since ${formatTime(new Date(history.startedAt))} · ${formatDuration(Math.max(60, mins * 60))}`;
   });
 
   function move(e: PointerEvent) {
@@ -98,7 +97,7 @@
         <polyline class="line" points={g.line} />
       </svg>
       {#if before >= 40}
-        <span class="band" style:width="{pct(before, W)}%">Before cyex deck was watching</span>
+        <span class="band" style:width="{pct(before, W)}%">Not tracked</span>
       {/if}
       {#if marker}
         <span class="hair" style:left="{pct(marker[0], W)}%"></span>
@@ -106,7 +105,7 @@
         <span class="tip" style:left="{Math.min(82, Math.max(18, pct(marker[0], W)))}%">{readout}</span>
       {/if}
     </div>
-    <span class="sr" aria-live="polite">{readout}</span>
+    <span class="sr-only" aria-live="polite">{readout}</span>
   {:else}
     <p class="empty">The chart fills in once a minute.</p>
   {/if}
@@ -152,11 +151,11 @@
     fill: var(--surface-hover);
   }
   .area {
-    fill: color-mix(in srgb, var(--accent) 12%, transparent);
+    fill: var(--accent-dim);
   }
   .line {
     fill: none;
-    stroke: var(--accent);
+    stroke: var(--accent-text);
     stroke-width: 1.5;
     vector-effect: non-scaling-stroke;
     stroke-linejoin: round;
@@ -190,7 +189,7 @@
     height: 8px;
     margin: -4px 0 0 -4px;
     border-radius: 50%;
-    background: var(--accent);
+    background: var(--accent-text);
     box-shadow: 0 0 0 2px var(--bg);
     pointer-events: none;
   }
@@ -202,12 +201,5 @@
     font-size: 0.75rem;
     white-space: nowrap;
     pointer-events: none;
-  }
-  .sr {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
   }
 </style>

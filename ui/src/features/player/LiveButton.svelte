@@ -31,7 +31,7 @@
 
   const label = $derived(ended ? 'Stream offline' : live ? 'Live' : secs === null ? 'Behind live. Go to live' : `${spoken(secs)} behind. Go to live`);
   const text = $derived(ended ? 'Offline' : live || secs === null ? 'Live' : behindText(secs));
-  const tip = $derived(ended ? '' : live ? { label: 'Live', hint: 'You’re watching live.' } : hint ? `Go to live (${hint})` : 'Go to live');
+  const tip = $derived(ended ? '' : live ? 'Live' : hint ? `Go to live (${hint})` : 'Go to live');
 </script>
 
 <button

@@ -9,7 +9,7 @@ use serde::Serialize;
 use tauri::AppHandle;
 use ts_rs::TS;
 
-use super::{FeedEntry, remove, update};
+use super::{FeedEntry, push, remove, update};
 use crate::moderation::view::HeldItem;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
@@ -47,8 +47,20 @@ fn is(key: &str) -> impl Fn(&FeedEntry) -> bool + '_ {
     move |e| matches!(e, FeedEntry::Held(h) if h.key == key)
 }
 
+/// R6 A late repeat of a held message (EventSub and Hermes, two mod accounts) refreshes the
+/// message only: a decided status and its `by` stay.
+fn refresh(e: &mut FeedEntry, item: &HeldItem) {
+    if let FeedEntry::Held(h) = e {
+        h.item = item.clone();
+        h.ts = item.ts;
+    }
+}
+
 /// A held message. One already in the feed is updated, not added twice.
 pub fn held(app: &AppHandle, account: &str, channel_id: &str, channel: &str, item: &HeldItem) {
+    if update(app, FeedKind::Automod, is(&item.message_id), |e| refresh(e, item)) {
+        return;
+    }
     let entry = HeldEntry {
         key: item.message_id.clone(),
         ts: item.ts,
@@ -59,7 +71,7 @@ pub fn held(app: &AppHandle, account: &str, channel_id: &str, channel: &str, ite
         status: HeldStatus::Pending,
         by: None,
     };
-    super::upsert(app, FeedKind::Automod, FeedEntry::Held(entry), pending);
+    push(app, FeedKind::Automod, FeedEntry::Held(entry), pending);
 }
 
 /// A mod decided, or Twitch let it go. An unknown message: nothing.
@@ -141,6 +153,26 @@ mod tests {
         assert_eq!(items.len(), 1);
         let FeedEntry::Held(h) = &items[0] else { panic!() };
         assert_eq!((h.status, h.by.as_deref()), (HeldStatus::Denied, Some("kuni")));
+    }
+
+    #[test]
+    fn held_done_held_keeps_the_decision() {
+        let mut r = Ring::new(super::super::HELD);
+        r.push(entry("m1"), pending);
+        r.update(is("m1"), |e| {
+            if let FeedEntry::Held(h) = e {
+                h.status = status_of("approved");
+                h.by = Some("kuni".into());
+            }
+        });
+        let FeedEntry::Held(late) = entry("m1") else { panic!() };
+        let mut item = late.item;
+        item.ts = 9;
+        assert!(r.update(is("m1"), |e| refresh(e, &item)).is_some());
+        let items = r.items();
+        assert_eq!(items.len(), 1);
+        let FeedEntry::Held(h) = &items[0] else { panic!() };
+        assert_eq!((h.status, h.by.as_deref(), h.ts), (HeldStatus::Allowed, Some("kuni"), 9));
     }
 
     #[test]

@@ -4,7 +4,7 @@ use std::fmt;
 
 use serde_json::{json, Value};
 
-use super::error::{wait, Error};
+use super::error::{status_gate, take_data, wait, Error};
 use super::set_query::{ADD, REMOVE, RENAME};
 use super::Client;
 
@@ -55,24 +55,20 @@ impl std::error::Error for EditError {}
 
 const RESET: &str = "x-ratelimit-emote_set_change-reset";
 
-/// HTTP first (like `error::classify`), then the first GQL error, else `data`.
+/// HTTP first (`error::status_gate`, shared with reads), then the first GQL error, else `data`.
 pub fn classify_edit(status: u16, reset: Option<u64>, body: &[u8]) -> Result<Value, EditError> {
+    // K15 Only a gateway 5xx means 7TV wasn't reached; any other 5xx is 7TV failing. Reads keep 5xx = Down.
     match status {
-        401 => return Err(EditError::SignInAgain),
-        403 => return Err(EditError::NotAllowed),
-        429 => return Err(EditError::RateLimited { seconds: wait(reset) }),
-        500.. => return Err(EditError::Down),
-        200..=299 => {}
-        _ => return Err(EditError::Bad),
+        502..=504 => return Err(EditError::Down),
+        500.. => return Err(EditError::Bad),
+        _ => {}
     }
+    status_gate(status, reset).map_err(EditError::from)?;
     let mut v: Value = serde_json::from_slice(body).map_err(|_| EditError::Bad)?;
     if let Some(first) = v.pointer("/errors/0") {
         return Err(field_error(first, reset));
     }
-    match v.get_mut("data") {
-        Some(d) if !d.is_null() => Ok(d.take()),
-        _ => Err(EditError::Bad),
-    }
+    Ok(take_data(&mut v)?)
 }
 
 fn field_error(e: &Value, reset: Option<u64>) -> EditError {
@@ -104,7 +100,8 @@ fn field_error(e: &Value, reset: Option<u64>) -> EditError {
         "BAD_REQUEST" if text.contains("private") => EditError::Private,
         "BAD_REQUEST" if text.contains("personal") => EditError::NotAllowed,
         "BAD_REQUEST" if status == 404 => EditError::NotFound,
-        "TRANSACTION_ERROR" | "INTERNAL_SERVER_ERROR" => EditError::Down,
+        // K15 7TV failed, it was reached.
+        "TRANSACTION_ERROR" | "INTERNAL_SERVER_ERROR" => EditError::Bad,
         "" if text.contains("invalid emote alias") => EditError::BadName,
         _ => EditError::Bad,
     }

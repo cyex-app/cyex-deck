@@ -153,19 +153,18 @@
   const hasGlobal = $derived(h.globalList.some((x) => x.enabled && x.pattern.trim()));
 </script>
 
-<div class="page-head" data-setting="highlights:import">
-  <h2>Highlights</h2>
-  <div class="actions">
+<SectionHead title="Highlights" level={2} setting="highlights:import">
+  Make messages stand out, ping you, or copy them to the Mentions tab or a feed. For a feed, type its name.
+  {#snippet actions()}
     <Button small icon="list" onclick={() => mentionsTab.open()}>Open the Mentions tab</Button>
     <HighlightImport />
-  </div>
-</div>
-<p class="intro">Make messages stand out, ping you, or copy them to the Mentions tab or a feed. For a feed, type its name.</p>
+  {/snippet}
+</SectionHead>
 {#if !inFront}
   <p class="intro more">Sounds only play while you’re in another app. Settings → Sound can change that.</p>
 {/if}
 
-<SectionHead title="Built in">Ready-made highlights for common events.</SectionHead>
+<SectionHead title="Built in" />
 {#each BUILT_IN as b (b.key)}
   <RuleRow
     setting={`highlights.${b.key}`}
@@ -238,7 +237,7 @@
 />
 
 <SectionHead title="Global mentions">Find out when you’re mentioned in chats you aren’t in.</SectionHead>
-<Row setting="highlights.global" label="Global mentions" hint="From logs.cyex.app: every chat it logs. Uses about 0,8 GB an hour while on. Your list stays on this PC.">
+<Row setting="highlights.global" label="Global mentions" hint="Searches every chat logs.cyex.app keeps. Uses about 0,8 GB an hour while on. Your list stays on this PC.">
   <Toggle label="Global mentions" checked={h.global} onchange={(v) => save({ global: v })} />
 </Row>
 {#if h.global}
@@ -281,23 +280,9 @@
 </Row>
 
 <style>
-  .page-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .intro {
-    margin: -6px 0 6px;
-    color: var(--dim);
-  }
   .intro.more {
-    margin-top: -2px;
+    margin: -2px 0 6px;
+    color: var(--dim);
     font-size: 0.82rem;
   }
   .field {

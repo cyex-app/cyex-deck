@@ -61,7 +61,13 @@ pub fn record(
             thin(&mut h.points);
         }
     }
-    map.retain(|id, _| tab_ids.contains(id) && channels.iter().any(|c| &c.id == id && c.stream.is_some()));
+    keep(map, tab_ids);
+    map.retain(|id, _| channels.iter().any(|c| &c.id == id && c.stream.is_some()));
+}
+
+/// K5 Drops every channel no longer in a tab.
+pub fn keep(map: &mut HashMap<String, ViewerHistory>, tab_ids: &HashSet<String>) {
+    map.retain(|id, _| tab_ids.contains(id));
 }
 
 fn fresh(started_at: &str, now: i64, viewers: u32) -> ViewerHistory {
@@ -171,6 +177,17 @@ mod tests {
         // Own channel (not a tab) is never kept.
         record(&mut m, &[ch("9", Some(("a", 1)))], &tabs(&["3"]), 280);
         assert!(!m.contains_key("9"));
+    }
+
+    #[test]
+    fn closed_tab_drops_at_once() {
+        let mut m = HashMap::new();
+        let t = tabs(&["1", "2"]);
+        record(&mut m, &[ch("1", Some(("a", 5))), ch("2", Some(("a", 7)))], &t, 100);
+        record(&mut m, &[ch("1", Some(("a", 6))), ch("2", Some(("a", 8)))], &t, 160);
+        keep(&mut m, &tabs(&["1"]));
+        assert!(!m.contains_key("2"));
+        assert_eq!(m["1"].points, vec![(100, 5), (160, 6)]);
     }
 
     #[test]

@@ -72,6 +72,20 @@ pub struct Tokens {
     pub mentions_me: bool,
 }
 
+/// R24 `word` (outer punctuation dropped) is one of your names: ASCII ignoring case,
+/// else lowercased. The tokenizer and `build::privmsg` share it so they agree.
+pub(crate) fn is_me(names: &[String], word: &str) -> bool {
+    let word = word.trim_matches(|c: char| !c.is_alphanumeric() && c != '_');
+    !word.is_empty()
+        && names.iter().any(|m| {
+            if word.is_ascii() {
+                m.eq_ignore_ascii_case(word)
+            } else {
+                *m == word.to_lowercase()
+            }
+        })
+}
+
 /// `me`: the account's login and display name, lowercase. Empty when anonymous.
 pub fn tokenize(input: &Input<'_>, me: &[String], emotes: &dyn Emotes) -> Tokens {
     let text = input.text;
@@ -251,7 +265,7 @@ impl Builder<'_> {
             self.pending.push_str(link.tail);
             return;
         }
-        self.check_me(word.trim_matches(|c: char| !c.is_alphanumeric() && c != '_'));
+        self.check_me(word);
         self.pending.push_str(word);
     }
 
@@ -288,14 +302,8 @@ impl Builder<'_> {
     }
 
     fn check_me(&mut self, name: &str) {
-        if !self.mentions_me && !name.is_empty() {
-            self.mentions_me = self.me.iter().any(|m| {
-                if name.is_ascii() {
-                    m.eq_ignore_ascii_case(name)
-                } else {
-                    *m == name.to_lowercase()
-                }
-            });
+        if !self.mentions_me {
+            self.mentions_me = is_me(self.me, name);
         }
     }
 

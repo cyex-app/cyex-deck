@@ -11,7 +11,7 @@
   import FormField from '../FormField.svelte';
   import ResetSection from '../ResetSection.svelte';
   import SectionHead from '../SectionHead.svelte';
-  import { uploaderMissing, uploaderMissingKeys } from '../uploader';
+  import { uploaderMissingKeys } from '../uploader';
 
   const u = $derived(settings.v.uploader);
   const save = (patch: Partial<Uploader>) => void settings.patch('uploader', patch);
@@ -26,7 +26,6 @@
     save({ headers: value });
   };
 
-  const missing = $derived(uploaderMissing(u));
   const gone = $derived(uploaderMissingKeys(u));
   let tried = $state(false);
   const loud = $derived(u.enabled || tried);
@@ -51,7 +50,7 @@
 <Row
   setting="uploader.enabled"
   label="Upload images you paste or drop"
-  hint={missing.length ? 'Fill in every required field below first.' : undefined}
+  hint={gone.length ? 'Fill in every required field below first.' : undefined}
 >
   <Toggle label="Upload images you paste or drop" checked={u.enabled} onchange={toggle} />
 </Row>

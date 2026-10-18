@@ -60,7 +60,11 @@ fn wanted(app: &AppHandle) -> (Vec<String>, HashSet<String>) {
 /// Polls now if a tab has a channel the last poll didn't ask about.
 pub fn nudge(app: &AppHandle) {
     let Some(live) = app.try_state::<Live>() else { return };
-    let (ids, _) = wanted(app);
+    let (ids, tab_ids) = wanted(app);
+    // K5 A closed tab's viewer history drops at once, not at the next poll.
+    if let Some(v) = app.try_state::<viewers::Viewers>() {
+        viewers::keep(&mut v.0.lock().unwrap_or_else(|p| p.into_inner()), &tab_ids);
+    }
     let asked = live.asked.lock().unwrap_or_else(|p| p.into_inner());
     if ids.iter().any(|id| !asked.contains(id)) {
         live.wake.notify_one();
@@ -83,6 +87,14 @@ pub fn is_live(app: &AppHandle, login: &str) -> bool {
             .iter()
             .any(|c| c.login == login && c.stream.is_some())
     })
+}
+
+/// K4 The stream started or ended, or restarted (both live, new start time).
+fn flipped(old: &ChannelInfo, new: &ChannelInfo) -> bool {
+    match (&old.stream, &new.stream) {
+        (Some(a), Some(b)) => a.started_at != b.started_at,
+        (a, b) => a.is_some() != b.is_some(),
+    }
 }
 
 async fn poll(app: &AppHandle) {
@@ -146,7 +158,9 @@ async fn poll(app: &AppHandle) {
         let mut feed_flips: Vec<crate::feeds::live::Flip> = Vec::new();
         for c in channels.iter().filter(|c| tab_ids.contains(&c.id)) {
             let Some(old) = last.iter().find(|o| o.id == c.id) else { continue };
-            if old.stream.is_some() == c.stream.is_some() {
+            // K4 A restart between two looks (live, then live with a new start) is a flip too:
+            // the feed and plugins both get `live: true` again.
+            if !flipped(old, c) {
                 continue;
             }
             let title = c.stream.as_ref().map(|s| s.title.clone());
@@ -173,5 +187,37 @@ async fn poll(app: &AppHandle) {
     }
     if changed {
         let _ = app.emit(EVENT, channels);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use cyex_twitch::gql::StreamInfo;
+
+    use super::*;
+
+    fn ch(id: &str, live: Option<(&str, u32)>) -> ChannelInfo {
+        ChannelInfo {
+            id: id.into(),
+            login: id.into(),
+            name: id.into(),
+            avatar: None,
+            offline_image: None,
+            stream: live.map(|(s, v)| StreamInfo {
+                rerun: false,
+                title: String::new(),
+                game: None,
+                viewers: v,
+                started_at: s.into(),
+            }),
+        }
+    }
+
+    #[test]
+    fn restart_is_a_flip() {
+        assert!(!flipped(&ch("1", Some(("a", 5))), &ch("1", Some(("a", 9)))));
+        assert!(flipped(&ch("1", Some(("a", 5))), &ch("1", Some(("b", 5)))));
+        assert!(flipped(&ch("1", Some(("a", 5))), &ch("1", None)));
+        assert!(!flipped(&ch("1", None), &ch("1", None)));
     }
 }

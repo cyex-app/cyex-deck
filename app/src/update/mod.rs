@@ -98,8 +98,8 @@ fn now() -> i64 {
 }
 
 fn releases_url() -> String {
-    // V105-20 Tests point the check at a local mock (debug builds only).
-    #[cfg(debug_assertions)]
+    // V105-20 R10 Tests point the check at a local mock (mocks builds only).
+    #[cfg(feature = "mocks")]
     if let Ok(url) = std::env::var("CYEX_UPDATE_URL") {
         return url;
     }

@@ -17,12 +17,12 @@ export { unlistedPrompt } from './prompt';
 
 export function showUnlisted(): void {
   void settings.patch('chat', { unlistedEmotes: 'show', unlistedChosen: true });
-  toast.info('Unlisted emotes show now. Settings → Emotes changes it.', {
+  toast.info('Showing unlisted emotes. Change it in Settings → Emotes.', {
     action: { label: 'Undo', run: () => void settings.patch('chat', { unlistedEmotes: 'blur', unlistedChosen: false }) },
   });
 }
 
 export function keepBlurred(): void {
   void settings.patch('chat', { unlistedChosen: true });
-  toast.info('Unlisted emotes stay blurred. Settings → Emotes changes it.');
+  toast.info('Unlisted emotes stay blurred. Change it in Settings → Emotes.');
 }

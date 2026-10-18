@@ -28,12 +28,14 @@ pub trait Fetch: Send + Sync {
     fn text(&self, url: &str, route: Route) -> impl Future<Output = Result<String>> + Send;
     fn bytes(&self, url: &str) -> impl Future<Output = Result<Vec<u8>>> + Send;
     fn has_proxy(&self) -> bool;
+    #[cfg(feature = "mocks")]
     /// V1061 The mock HLS server, in a test data folder only.
     fn mock_base(&self) -> Option<&str> {
         None
     }
 }
 
+#[cfg(feature = "mocks")]
 /// V1061 The mock server's master for a live login (`?route=backup` for backups).
 pub fn mock_master(base: &str, login: &str, route: Route) -> String {
     let q = if matches!(route, Route::Backup(_)) { "?route=backup" } else { "" };
@@ -51,6 +53,7 @@ pub struct Twitch {
     /// Sent as `X-Device-Id` when signed out; the same for this install.
     pub device_id: String,
     pub sign_in: Option<SignIn>,
+    #[cfg(feature = "mocks")]
     /// V1061 `CYEX_HLS_MOCK`, test data folder only.
     pub mock: Option<String>,
 }
@@ -69,6 +72,7 @@ fn retry_signed_out(e: &Error) -> bool {
 
 impl Fetch for Twitch {
     async fn live_master(&self, login: &str, route: Route) -> Result<String> {
+        #[cfg(feature = "mocks")]
         if let Some(base) = &self.mock {
             return usher::text(&self.http, &mock_master(base, login, route)).await;
         }
@@ -98,6 +102,7 @@ impl Fetch for Twitch {
     }
 
     async fn vod_master(&self, id: &str) -> Result<String> {
+        #[cfg(feature = "mocks")]
         if let Some(base) = &self.mock {
             return usher::text(&self.http, &format!("{base}/vod/{id}/master.m3u8")).await;
         }
@@ -135,6 +140,7 @@ impl Fetch for Twitch {
         self.proxy.is_some()
     }
 
+    #[cfg(feature = "mocks")]
     fn mock_base(&self) -> Option<&str> {
         self.mock.as_deref()
     }
@@ -148,6 +154,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::live::gone;
 
+    #[cfg(feature = "mocks")]
     #[test]
     fn mock_master_urls() {
         let b = "http://127.0.0.1:5200";

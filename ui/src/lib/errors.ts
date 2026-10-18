@@ -104,10 +104,13 @@ export function errorText(e: unknown, action?: string): string {
 }
 
 /** Capital first letter, curly apostrophes, a full stop. A line that already ends in one is a
- *  finished sentence from Rust and keeps its first letter ("mockme has no 7TV emote…"). */
+ *  finished sentence from Rust and keeps its first letter ("mockme has no 7TV emote…"). A line
+ *  ending in ")" is library text ("… (os error 5)"): capital letter, no full stop added. */
 export function sentence(text: string): string {
   const t = text.trim().replace(/(\w)'(\w)/g, '$1’$2');
   if (!t) return '';
-  if (/[.!?…)]$/.test(t)) return t;
-  return `${t[0].toUpperCase()}${t.slice(1)}.`;
+  // K10 A finished line from Rust keeps its first letter: it may start with a login.
+  if (/[.!?…]$/.test(t)) return t;
+  const s = `${t[0].toUpperCase()}${t.slice(1)}`;
+  return s.endsWith(')') ? s : `${s}.`;
 }

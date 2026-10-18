@@ -115,12 +115,13 @@ pub(super) fn incoming(app: &AppHandle, thread_id: &str, m: api::Message, to: Op
         refresh(app, thread_id.to_owned()); // sent elsewhere to someone we didn't know
     }
     emit_line(app, thread_id, &line);
-    if let Some(p) = &feed_from {
+    // U4 Streamer mode keeps whispers off chat and the screen.
+    let hidden = crate::streamer::hides(app, |s| s.hide_whispers);
+    // R8 The whispers feed too.
+    if let Some(p) = feed_from.as_ref().filter(|_| !hidden) {
         crate::feeds::whispers::received(app, thread_id, p, &line);
     }
     emit_changed(app);
-    // U4 Streamer mode keeps whispers off chat and the screen.
-    let hidden = crate::streamer::hides(app, |s| s.hide_whispers);
     if n.whispers.inline && !hidden {
         crate::chat::whisper_line(app, line.clone());
     }

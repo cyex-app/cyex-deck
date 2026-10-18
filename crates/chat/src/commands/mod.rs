@@ -67,6 +67,14 @@ impl CommandList {
             if line.is_empty() || line.starts_with('#') {
                 continue;
             }
+            // K1 A leading space is a row with an empty name (the settings UI's split).
+            if raw.starts_with(char::is_whitespace) {
+                list.errors.push(LineError {
+                    line: i,
+                    message: "Give it a name.".into(),
+                });
+                continue;
+            }
             let (head, body) = line.split_once(' ').unwrap_or((line, ""));
             let (name, channel) = head.split_once('#').unwrap_or((head, ""));
             let key = (
@@ -179,6 +187,16 @@ mod tests {
         assert_eq!(run(&own, &Params::new(""), &mut h).unwrap(), "x");
         assert_eq!(list.errors.iter().map(|e| e.line).collect::<Vec<_>>(), [1, 3]);
         assert_eq!(list.errors[0].message, "A row above has this name, so this one never runs.");
+    }
+
+    #[test]
+    fn leading_space_is_no_name() {
+        let lines: Vec<String> = [" /hi there", "/ok x", " # note"].map(String::from).to_vec();
+        let list = CommandList::new(&lines);
+        assert_eq!(list.errors.iter().map(|e| e.line).collect::<Vec<_>>(), [0]);
+        assert_eq!(list.errors[0].message, "Give it a name.");
+        assert!(list.command("hi", "").is_none());
+        assert!(list.command("ok", "").is_some());
     }
 
     #[test]

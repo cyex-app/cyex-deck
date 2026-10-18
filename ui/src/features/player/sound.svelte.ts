@@ -30,8 +30,9 @@ export interface Sound {
   apply: (video: HTMLMediaElement) => void;
   /** Drops the video's boost graph when the player goes. */
   release: (video: HTMLMediaElement) => void;
-  /** V106-25 Reports the video to its tab's sound badge; returns the stop. */
-  track: (video: HTMLMediaElement) => () => void;
+  /** V106-25 U12 Reports the video to its tab's sound badge; the returned cleanup stops that
+   *  and drops the boost graph. Return it from the player's effect. */
+  attach: (video: HTMLMediaElement) => () => void;
 }
 
 /** `canBoost`: V105-10 live and VOD players; clips can't (their file plays silent through Web Audio). */
@@ -75,6 +76,15 @@ export function useSound(tile: () => Tile | undefined, hushed: () => boolean = (
     }, 400);
   }
 
+  // Untracked: a tile edit (volume, boost) must not rerun the caller's effect, whose cleanup
+  // drops the boost graph (V105-10).
+  function track(video: HTMLMediaElement): () => void {
+    return untrack(() => {
+      const t = tile();
+      return t ? sounding.watch(t.id, video, () => !muted && volume > 0 && !hushed()) : () => {};
+    });
+  }
+
   return {
     get volume() {
       return volume;
@@ -98,12 +108,12 @@ export function useSound(tile: () => Tile | undefined, hushed: () => boolean = (
     },
     /** The player's video is gone: drop its boost graph (V1051-01). */
     release: (video) => releaseGain(video),
-    // Untracked: a tile edit (volume, boost) must not rerun the caller's effect, whose cleanup
-    // drops the boost graph (V105-10).
-    track: (video) =>
-      untrack(() => {
-        const t = tile();
-        return t ? sounding.watch(t.id, video, () => !muted && volume > 0 && !hushed()) : () => {};
-      }),
+    attach: (video) => {
+      const stop = track(video);
+      return () => {
+        stop();
+        releaseGain(video);
+      };
+    },
   };
 }

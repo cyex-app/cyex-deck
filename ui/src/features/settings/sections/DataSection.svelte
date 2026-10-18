@@ -157,7 +157,7 @@
 
 <ChatterinoImport />
 
-<h3 class="label">Backups</h3>
+<SectionHead title="Backups" />
 <p class="note" data-setting="data:backups">
   A copy of your settings is kept for each of the last 3 days. Restoring keeps your current settings first, so you can undo it.
 </p>
@@ -181,12 +181,6 @@
 </div>
 
 <style>
-  h3 {
-    margin: 24px 0 10px;
-  }
-  h3:first-of-type {
-    margin-top: 4px;
-  }
   .picks {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));

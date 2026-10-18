@@ -53,9 +53,16 @@ enum Event {
 }
 
 /// `host:port` of a local mock (`http://127.0.0.1:<port>`), the only plain-http place allowed.
+#[cfg(feature = "mocks")]
 fn mock_of(login_url: &str) -> Option<String> {
-    let origin = crate::cosmetics::loopback_origin(&Url::parse(login_url).ok()?)?;
+    let origin = crate::mock_url::loopback_origin(&Url::parse(login_url).ok()?)?;
     origin.strip_prefix("http://").map(str::to_owned)
+}
+
+/// R10 No mock outside a mocks build.
+#[cfg(not(feature = "mocks"))]
+fn mock_of(_: &str) -> Option<String> {
+    None
 }
 
 fn on_mock(url: &Url, mock: Option<&str>) -> bool {
@@ -334,6 +341,7 @@ mod tests {
         assert_eq!(leftover(mock, None).map(|l| l.len()), Some(0));
     }
 
+    #[cfg(feature = "mocks")]
     #[test]
     fn mock_is_only_its_own_port() {
         let mock = mock_of("http://127.0.0.1:5199/v4/auth/login?platform=twitch");

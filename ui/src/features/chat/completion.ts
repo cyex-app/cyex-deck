@@ -66,6 +66,16 @@ export function rank(name: string, typed: string): { rank: number; close: number
   return { rank: RANK.letters, close: 1 / Math.max(at - first, 1) };
 }
 
+/** The best `rank` of several names for `typed`: the highest rank, then the highest close. */
+export function rankBest(names: readonly string[], typed: string): { rank: number; close: number } {
+  let best = rank('', '');
+  for (const n of names) {
+    const r = rank(n, typed);
+    if (r.rank > best.rank || (r.rank === best.rank && r.close > best.close)) best = r;
+  }
+  return best;
+}
+
 /** Candidates for `prefix`, best match first (`rank`), then the ones used most (`used`:
  * lower is more), then the shortest. What's typed exactly is left out. */
 export function complete(

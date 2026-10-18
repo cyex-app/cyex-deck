@@ -48,6 +48,7 @@ async fn route(app: &AppHandle, path: &str) -> Result<Response<Vec<u8>>, Error> 
         (Kind::Live(live), "live", ["master.m3u8"]) => Ok(playlist(live.master().await?)),
         (Kind::Live(live), "live", ["audio.m3u8"]) => Ok(playlist(live.audio_master().await?)),
         (Kind::Vod(vod), "vod", ["audio.m3u8"]) => Ok(playlist(vod.audio_master().await?)),
+        #[cfg(feature = "mocks")]
         (Kind::Live(live), "live", ["seg", rest @ ..]) => {
             let kind = if rest.last().is_some_and(|f| f.ends_with(".mp4")) { "video/mp4" } else { "video/mp2t" };
             Ok(response(200, kind, live.mock_segment(&rest.join("/")).await?))

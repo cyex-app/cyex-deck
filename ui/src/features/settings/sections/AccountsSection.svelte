@@ -53,7 +53,7 @@
   {/each}
 </div>
 
-<h3 class="label">{accounts.list.length ? 'Add another account' : 'Add an account'}</h3>
+<SectionHead title={accounts.list.length ? 'Add another account' : 'Add an account'} />
 <div class="ways">
   <div class="way" class:lit={lit === 'twitch'} bind:this={twitchWay} data-setting="accounts:twitch">
     <Icon name="login" size={18} />
@@ -79,9 +79,6 @@
   .note {
     margin: 4px 0 14px;
     color: var(--dim);
-  }
-  h3 {
-    margin: 24px 0 8px;
   }
   .ways {
     display: flex;

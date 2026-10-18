@@ -19,7 +19,7 @@
   import { gate } from '../../lib/gate.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { openChannel } from '../browse/open.svelte';
-  import { rank } from '../chat/completion';
+  import { rankBest } from '../chat/completion';
   import { home } from '../home/home.svelte';
   import { mods } from '../modview/moderation.svelte';
   import { modviewPlace } from '../modview/where.svelte';
@@ -118,7 +118,7 @@
   const choices = $derived.by((): Choice[] => {
     const q = query.trim().toLowerCase();
     const typed = query.trim();
-    const score = (...names: string[]) => Math.max(...names.map((n) => rank(n, typed).rank));
+    const score = (...names: string[]) => rankBest(names, typed).rank;
     const tabChoices = tabs.list
       .map((t): Choice => ({
         key: t.id,

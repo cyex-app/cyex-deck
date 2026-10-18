@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { BAND_SHARE, graph, nearest, peakOf, place } from './sparkline.ts';
+import { BAND_SHARE, graph, nearest, peakOf, pointAt } from './sparkline.ts';
 
 test('graph scales into the box', () => {
   assert.equal(graph([[0, 5]], 100, 40).line, '');
@@ -47,10 +47,10 @@ test('nearest picks the closest sample', () => {
   assert.equal(nearest([[50, 1], [100, 2]], 10, 100, 0), 0);
 });
 
-test('place matches the polyline', () => {
+test('pointAt matches the polyline', () => {
   const s: [number, number][] = [[0, 10], [50, 20], [100, 30]];
-  assert.deepEqual(place(s, 2, 100, 40), [100, 2]);
-  assert.deepEqual(place(s, 0, 100, 40), [0, 38]);
+  assert.deepEqual(pointAt(s, 2, 100, 40), [100, 2]);
+  assert.deepEqual(pointAt(s, 0, 100, 40), [0, 38]);
 });
 
 test('before band is a fixed small share, points use the rest', () => {
@@ -62,7 +62,7 @@ test('before band is a fixed small share, points use the rest', () => {
   // Hover across the watched part picks the nearest point, not always the first.
   assert.equal(nearest(s, 20, 100, 0), 0);
   assert.equal(nearest(s, 70, 100, 0), 1);
-  assert.deepEqual(place(s, 1, 100, 40, 0), [100, 2]);
+  assert.deepEqual(pointAt(s, 1, 100, 40, 0), [100, 2]);
 });
 
 test('small gap gets a smaller band, no gap none', () => {

@@ -1,17 +1,15 @@
 <!-- V106-31/32 The card's 7TV edit row: add to a channel, rename or remove in this chat's set. -->
 <script lang="ts">
   import Button from '../../../components/Button.svelte';
-  import { type MenuItem, openMenu } from '../../../components/menu.svelte';
-  import type { AddTarget } from '../../../ipc/bindings/AddTarget';
+  import { openMenu } from '../../../components/menu.svelte';
   import type { EditOptions } from '../../../ipc/bindings/EditOptions';
   import type { HereEdit } from '../../../ipc/bindings/HereEdit';
   import type { Layer } from '../../../ipc/bindings/Layer';
-  import { emotesIpc } from '../../../ipc/emotes';
   import type { CardTarget } from '../emotes';
   import AliasForm from './AliasForm.svelte';
+  import { addNote, targetItems } from './menuItems';
   import { editOptionsFor } from './options';
-  import { runEdit } from './run';
-  import { blockedText, inlineText } from './words';
+  import { type EditForm, checkName, removeHere, submitForm } from './run';
 
   interface Props {
     account: string;
@@ -24,14 +22,12 @@
 
   let { account, login, emote, target, onchange }: Props = $props();
 
-  type Form = { kind: 'add'; target: AddTarget } | { kind: 'rename'; here: HereEdit };
-
   let options = $state<EditOptions | null>(null);
   let asked = $state(false);
   let busy = $state(false);
   // The card opens straight into the form chosen in the right-click menu.
   // svelte-ignore state_referenced_locally
-  let form = $state<Form | null>(target.edit ?? null);
+  let form = $state<EditForm | null>(target.edit ?? null);
 
   // Current alias; follows a rename made in this card.
   // svelte-ignore state_referenced_locally
@@ -56,65 +52,32 @@
   const add = $derived(options?.state === 'ready' ? options.add : null);
   const here = $derived(options?.state === 'ready' ? options.here : null);
   const single = $derived(add && add.targets.length === 1 ? add.targets[0] : null);
-  const note = $derived(
-    add?.blocked
-      ? blockedText(add.blocked)
-      : single?.blocked
-        ? blockedText(single.blocked, single.channel)
-        : null,
-  );
+  const note = $derived(add ? (addNote(add) ?? null) : null);
   const hasAny = $derived(!!(add && add.targets.length > 0) || !!here);
 
   function pickTarget(e: MouseEvent): void {
     if (!add || e.currentTarget === null) return;
-    const items: MenuItem[] = add.targets.map((t) => ({
-      label: t.channel,
-      hint: t.viewed ? 'This chat' : t.own ? 'Yours' : undefined,
-      disabled: !!t.blocked,
-      note: t.blocked ? blockedText(t.blocked, t.channel) : undefined,
-      run: () => (form = { kind: 'add', target: t }),
-    }));
-    openMenu(e.currentTarget as Element, items, 'start');
+    openMenu(e.currentTarget as Element, targetItems(add, (t) => (form = { kind: 'add', target: t })), 'start');
   }
 
-  async function checkAdd(t: AddTarget, name: string): Promise<string | null> {
-    const r = await emotesIpc.editName(account, t.setId, emote.id, name);
-    return r === 'taken' ? `Taken in ${t.channel}.` : null;
-  }
-
-  async function checkRename(h: HereEdit, name: string): Promise<string | null> {
-    const r = await emotesIpc.editName(account, h.setId, emote.id, name, h.alias);
-    if (r === 'same') return '';
-    return r === 'taken' ? `Taken in ${h.channel}.` : null;
-  }
-
-  async function submitAdd(t: AddTarget, name: string): Promise<string | null> {
-    return finish(await runEdit(account, login, { type: 'add', setId: t.setId, emoteId: emote.id, alias: name }, t.channel, quiet(t.channel)), t.channel);
-  }
-
-  async function submitRename(h: HereEdit, alias: string): Promise<string | null> {
-    const op = { type: 'rename', setId: h.setId, emoteId: emote.id, from: h.alias, to: alias } as const;
-    const fail = await runEdit(account, login, op, h.channel, quiet(h.channel));
-    if (!fail) name = alias;
-    return finish(fail, h.channel);
-  }
-
-  function quiet(channel: string) {
-    return { quietFail: (e: Parameters<typeof inlineText>[0]) => inlineText(e, channel) !== null };
-  }
-
-  /** The inline line when the form stays, else close it and refresh. */
-  function finish(fail: Parameters<typeof inlineText>[0] | null, channel: string): string | null {
-    if (fail) return inlineText(fail, channel);
-    form = null;
-    void load();
-    onchange();
-    return null;
+  /** The form's add or rename; on success closes it and refreshes. */
+  async function submit(f: EditForm, alias: string): Promise<string | null> {
+    busy = true;
+    try {
+      return await submitForm(account, login, emote.id, f, alias, () => {
+        if (f.kind === 'rename') name = alias;
+        form = null;
+        void load();
+        onchange();
+      });
+    } finally {
+      busy = false;
+    }
   }
 
   async function remove(h: HereEdit): Promise<void> {
     busy = true;
-    const fail = await runEdit(account, login, { type: 'remove', setId: h.setId, emoteId: emote.id, alias: h.alias }, h.channel);
+    const fail = await removeHere(account, login, emote.id, h);
     busy = false;
     if (!fail) {
       void load();
@@ -134,13 +97,8 @@
         value={options?.ownName ?? emote.name}
         submit={busy ? 'Adding…' : 'Add'}
         {busy}
-        check={(n) => checkAdd(t, n)}
-        onsubmit={async (n) => {
-          busy = true;
-          const r = await submitAdd(t, n);
-          busy = false;
-          return r;
-        }}
+        check={(n) => checkName(account, form!, n)}
+        onsubmit={(n) => submit(form!, n)}
         oncancel={() => (form = null)}
       />
     {:else if form?.kind === 'rename'}
@@ -150,13 +108,8 @@
         value={h.alias}
         submit={busy ? 'Saving…' : 'Save'}
         {busy}
-        check={(n) => checkRename(h, n)}
-        onsubmit={async (n) => {
-          busy = true;
-          const r = await submitRename(h, n);
-          busy = false;
-          return r;
-        }}
+        check={(n) => checkName(account, form!, n)}
+        onsubmit={(n) => submit(form!, n)}
         oncancel={() => (form = null)}
       />
     {:else}

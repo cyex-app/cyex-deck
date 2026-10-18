@@ -6,7 +6,7 @@ use tauri::AppHandle;
 
 use super::{Place, UiAction};
 use crate::cosmetics::{SelectError, Why, select_error, why};
-use crate::emotes::edit::{self, EditFail, EditOp, Reachability, Target};
+use crate::emotes::edit::{self, Blocked, EditFail, EditOp, Reachability, Target};
 
 /// The arm in `builtin::run` and `OWN` must list these (checked in builtin's tests).
 #[cfg(test)]
@@ -62,7 +62,7 @@ fn emote_id(word: &str) -> Option<String> {
         None => word,
     };
     let id = id.to_ascii_uppercase();
-    super::cosmetics::is_seventv_id(&id).then_some(id)
+    cyex_emotes::seventv::is_id(&id).then_some(id)
 }
 
 /// Words are split on white space: emote names have no spaces, so there are no quotes.
@@ -119,7 +119,7 @@ pub(super) fn fail_line(e: &EditFail, channel: &str, alias: &str) -> String {
         EditFail::Full => format!("{channel}’s 7TV emotes are full."),
         EditFail::NameTaken => format!("{channel} already has an emote named {alias}."),
         EditFail::Private => "That emote is private. Only its owner can add it.".into(),
-        EditFail::NotFound => "That emote isn’t there any more.".into(),
+        EditFail::NotFound => "That emote isn’t there anymore.".into(),
         EditFail::BadName => "7TV doesn’t allow that name.".into(),
         EditFail::Down => "Couldn’t reach 7TV. Nothing changed.".into(),
         EditFail::TestRun => "7TV edits only go to the test mock here.".into(),
@@ -168,19 +168,17 @@ pub(super) async fn run(
     let channel = t.channel.as_str();
     let (op, alias) = match cmd {
         Parsed::Add { id, name } => {
-            if t.has(&id) {
-                return Err(ALREADY.replace("{channel}", channel));
-            }
-            if t.full() {
-                return Err(fail_line(&EditFail::Full, channel, ""));
-            }
             let facts = edit::emote_facts(app, login, &id)
                 .await
                 .map_err(down)?
                 .ok_or(NO_EMOTE)?;
             let alias = name.unwrap_or(facts.name);
-            if facts.private && facts.owner_id.as_deref() != Some(&t.owner_id) {
-                return Err(fail_line(&EditFail::Private, channel, &alias));
+            // R14 The menu's checks, in its order.
+            match t.blocked(&id, facts.private, facts.owner_id.as_deref()) {
+                Some(Blocked::Already) => return Err(ALREADY.replace("{channel}", channel)),
+                Some(Blocked::Private) => return Err(fail_line(&EditFail::Private, channel, &alias)),
+                Some(Blocked::Full) => return Err(fail_line(&EditFail::Full, channel, "")),
+                None => {}
             }
             if t.taken(&alias) {
                 return Err(fail_line(&EditFail::NameTaken, channel, &alias));

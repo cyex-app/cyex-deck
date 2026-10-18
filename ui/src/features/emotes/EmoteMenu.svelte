@@ -19,12 +19,9 @@
   import { PROVIDER_NAMES, emoteKey, emoteRatio } from './emotes';
   import { PROVIDER_TABS, type ProviderTab, cellKey, pick, search, usable } from './menu';
   import { emoteMenu, forgetEmoteMenu } from './menus';
-  import type { AddTarget } from '../../ipc/bindings/AddTarget';
-  import type { HereEdit } from '../../ipc/bindings/HereEdit';
   import EditBar from './edit/EditBar.svelte';
-  import { editEntries } from './edit/menuItems';
-  import { editOptionsFor } from './edit/options';
-  import { runEdit } from './edit/run';
+  import { emoteEditMenu } from './edit/menu';
+  import { type EditForm, removeHere } from './edit/run';
   import { errorText } from '../../lib/errors';
   import { uniqueKeys } from '../../lib/keys';
   import Loading from '../../components/Loading.svelte';
@@ -84,7 +81,7 @@
   /** V106-31/32 The add/rename strip; the emote it is about. */
   type Editing = {
     emote: { id: string; name: string };
-    mode: { kind: 'add'; target: AddTarget; ownName: string } | { kind: 'rename'; here: HereEdit };
+    mode: EditForm;
   };
   let editing = $state<Editing | null>(null);
 
@@ -122,21 +119,19 @@
     return PROVIDER_NAMES[t];
   }
 
-  async function toggleFavorite(e: MouseEvent, key: EmoteKey) {
+  /** Right-click: favorite, plus the 7TV edits when there are any (V106-31/32). */
+  async function openEmoteMenu(e: MouseEvent, key: EmoteKey) {
     e.preventDefault();
     const at = { clientX: e.clientX, clientY: e.clientY };
-    // V106-31/32 7TV emotes also offer editing.
-    const o = account && key.source === 'seventv' ? await editOptionsFor(account, login, key.id, key.name) : null;
-    const extra = editEntries(o, {
-      add: (t) => (editing = { emote: key, mode: { kind: 'add', target: t, ownName: o?.ownName ?? key.name } }),
+    const extra = await emoteEditMenu(account, login, { id: key.id, name: key.name, provider: key.source }, {
+      add: (t, ownName) => (editing = { emote: key, mode: { kind: 'add', target: t, ownName } }),
       rename: (h) => (editing = { emote: key, mode: { kind: 'rename', here: h } }),
       remove: (h) =>
-        void runEdit(account!, login, { type: 'remove', setId: h.setId, emoteId: key.id, alias: h.alias }, h.channel).then(
-          (f) => {
-            if (!f) edited();
-          },
-        ),
+        void removeHere(account!, login, key.id, h).then((f) => {
+          if (!f) edited();
+        }),
     });
+    if (!extra) return;
     const k = emoteKey(key.source, key.id);
     const on = favorite.has(k);
     openMenu(at, [
@@ -181,7 +176,7 @@
     data-hint={m.locked ?? PROVIDER_NAMES[m.provider]}
     data-tip-img={emoteLarge(m.provider, m.id, theme, { animated: m.animated })}
     onclick={() => !m.locked && oninsert(m.name)}
-    oncontextmenu={(e) => toggleFavorite(e, { source: m.provider, id: m.id, name: m.name })}
+    oncontextmenu={(e) => openEmoteMenu(e, { source: m.provider, id: m.id, name: m.name })}
   >
     <img
       src={img.src}
@@ -201,7 +196,7 @@
     class="cell emoji"
     data-tip={'char' in e ? emojiLabel(e) : name}
     onclick={() => oninsert(char)}
-    oncontextmenu={(ev) => toggleFavorite(ev, { source: 'emoji', id: char, name })}>{char}</button
+    oncontextmenu={(ev) => openEmoteMenu(ev, { source: 'emoji', id: char, name })}>{char}</button
   >
 {/snippet}
 

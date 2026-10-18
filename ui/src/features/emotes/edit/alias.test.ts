@@ -18,5 +18,5 @@ test('bad names say why', () => {
   assert.equal(msg(' '), 'No spaces.');
   assert.equal(msg('a b'), 'No spaces.');
   assert.equal(msg('a'.repeat(101)), '100 characters at most.');
-  for (const n of ['a/b', 'a@b', 'a,b']) assert.match(msg(n) ?? '', /^Letters, numbers/, n);
+  for (const n of ['a/b', 'a@b', 'a,b']) assert.match(msg(n) ?? '', /^7TV doesn’t allow a character/, n);
 });

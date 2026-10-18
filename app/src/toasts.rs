@@ -91,16 +91,6 @@ pub fn show(app: &AppHandle, pop: Pop) {
 /// V106-35 Whether the main window's taskbar button is flashing.
 static FLASHING: AtomicBool = AtomicBool::new(false);
 
-/// V106-35 (start, now flashing). In front: nothing (Q8). Already flashing: nothing, no restart.
-#[cfg(test)]
-fn on_request(flashing: bool, in_front: bool) -> (bool, bool) {
-    if in_front || flashing {
-        (false, flashing)
-    } else {
-        (true, true)
-    }
-}
-
 /// (stop, now flashing). Any cyex window counts (Q7).
 fn on_focus(flashing: bool) -> (bool, bool) {
     (flashing, false)
@@ -117,7 +107,6 @@ pub fn flash(app: &AppHandle) {
     if FLASHING.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
         return;
     }
-    eprintln!("flash: start");
     crate::sys::flash::start(&w);
 }
 
@@ -127,7 +116,6 @@ pub fn focused(app: &AppHandle) {
     if !stop {
         return;
     }
-    eprintln!("flash: stop");
     if let Some(w) = app.get_webview_window(MAIN) {
         crate::sys::flash::stop(&w);
     }
@@ -172,18 +160,6 @@ async fn cached_avatar(app: &AppHandle, url: &str) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_request_starts_only_from_idle_and_out_of_front() {
-        assert_eq!(on_request(false, true), (false, false), "in front: no flash (Q8)");
-        assert_eq!(on_request(false, false), (true, true));
-        assert_eq!(
-            on_request(true, false),
-            (false, true),
-            "already flashing: no restart"
-        );
-        assert_eq!(on_request(true, true), (false, true));
-    }
 
     #[test]
     fn focus_stops_a_flash_once() {

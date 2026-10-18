@@ -2,7 +2,6 @@
 //! channels joined, left, live or offline, and errors in plain words. The last 1.000
 //! lines, kept in memory while the app runs, never saved.
 
-use std::collections::VecDeque;
 use std::sync::Mutex;
 
 use serde::Serialize;
@@ -10,6 +9,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use ts_rs::TS;
 
 use super::Miner;
+use crate::feeds::ring::Ring as Lines;
 
 const EVENT: &str = "miner:log";
 const CLEARED: &str = "miner:log:cleared";
@@ -47,12 +47,22 @@ pub struct LogLine {
 #[derive(Default)]
 pub struct Log(Mutex<Ring>);
 
-#[derive(Default)]
+/// R18 On the feeds' capped list.
 struct Ring {
-    lines: VecDeque<LogLine>,
+    lines: Lines<LogLine>,
     next: u64,
     /// The last error per channel; the same one again is not logged.
     last_err: std::collections::HashMap<Option<String>, String>,
+}
+
+impl Default for Ring {
+    fn default() -> Self {
+        Self {
+            lines: Lines::new(MAX),
+            next: 0,
+            last_err: std::collections::HashMap::new(),
+        }
+    }
 }
 
 impl Ring {
@@ -83,10 +93,7 @@ impl Ring {
             channel: channel.map(str::to_owned),
             text,
         };
-        self.lines.push_back(line.clone());
-        while self.lines.len() > MAX {
-            self.lines.pop_front();
-        }
+        self.lines.push(line.clone(), |_| false);
         Some(line)
     }
 }

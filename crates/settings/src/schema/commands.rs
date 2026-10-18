@@ -42,7 +42,8 @@ impl<'de> Deserialize<'de> for CommandRow {
             true
         }
         Ok(match Raw::deserialize(d)? {
-            Raw::Text(text) => Self { enabled: true, text },
+            // K1 Old plain lines lose their indent once, so they keep their name.
+            Raw::Text(text) => Self { enabled: true, text: text.trim_start().to_owned() },
             Raw::Row { enabled, text } => Self { enabled, text },
         })
     }
@@ -295,6 +296,13 @@ mod tests {
         let json = r#"{"lines":["/hi a",{"text":"/b x"},{"enabled":false,"text":"/c"}]}"#;
         let c: Commands = serde_json::from_str(json).unwrap();
         assert_eq!(c.lines, [row("/hi a"), row("/b x"), off("/c")]);
+    }
+
+    #[test]
+    fn legacy_lines_lose_their_indent() {
+        let json = r#"{"lines":["  /hi x",{"enabled":true,"text":" /y z"}]}"#;
+        let c: Commands = serde_json::from_str(json).unwrap();
+        assert_eq!(c.lines, [row("/hi x"), row(" /y z")]);
     }
 
     #[test]

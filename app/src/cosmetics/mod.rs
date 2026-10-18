@@ -38,8 +38,13 @@ use crate::windows::seventv::SignIn;
 /// How long the parsed inventory is kept after it was read from 7TV.
 const KEEP: Duration = Duration::from_secs(5 * 60);
 /// Test runs only: a local 7TV mock (`http://127.0.0.1:<port>`) and a fake session for the default account.
+#[cfg(feature = "mocks")]
 const URL_VAR: &str = "CYEX_7TV_URL";
+#[cfg(feature = "mocks")]
 const TOKEN_VAR: &str = "CYEX_7TV_TEST_TOKEN";
+/// V106-31/32 `mock`: emote reads go to the 7TV mock too.
+#[cfg(feature = "mocks")]
+const SETS_VAR: &str = "CYEX_7TV_SETS";
 
 type Gate = Arc<tokio::sync::Mutex<()>>;
 
@@ -134,24 +139,10 @@ pub(crate) fn has_consent(app: &AppHandle, account: &str) -> bool {
 pub fn init(app: &AppHandle) {
     let http = app.state::<Auth>().http.clone();
     let test = crate::paths::webview(app).is_some();
-    let mock = std::env::var(URL_VAR)
-        .ok()
-        .filter(|_| test)
-        .and_then(|u| mock_base(&u));
-    if let Some(url) = &mock
-        && let Ok(raw) = std::env::var(TOKEN_VAR)
-        && let Some(token) = SevenTvToken::parse(&raw)
-        && let Some(id) = auth::accounts(app).default_id
-    {
-        let _ = app.state::<Auth>().seventv.put(&id, &token);
-        eprintln!("cosmetics: mock 7TV at {url}");
-    }
-    // V106-31/32 Emote reads go to the mock too.
-    if let Some(url) = &mock
-        && std::env::var("CYEX_7TV_SETS").as_deref() == Ok("mock")
-    {
-        cyex_emotes::seventv::api::use_mock(url);
-    }
+    #[cfg(feature = "mocks")]
+    let mock = mock_7tv(app, test);
+    #[cfg(not(feature = "mocks"))]
+    let mock: Option<String> = None;
     let mocked = mock.is_some();
     let api = match mock {
         Some(url) => Client::at(http, &url),
@@ -164,22 +155,29 @@ pub fn init(app: &AppHandle) {
     });
 }
 
-/// `http://127.0.0.1:<port>` and nothing else: no other host, no user part
-/// (`http://127.0.0.1:1@elsewhere` is elsewhere).
-pub(crate) fn loopback_origin(u: &tauri::Url) -> Option<String> {
-    let plain = u.scheme() == "http"
-        && u.host_str() == Some("127.0.0.1")
-        && u.username().is_empty()
-        && u.password().is_none();
-    plain.then(|| u.port().map(|p| format!("http://127.0.0.1:{p}")))?
-}
-
-/// A bare `http://127.0.0.1:<port>`: no path or query either.
-fn mock_base(raw: &str) -> Option<String> {
-    let u = tauri::Url::parse(raw).ok()?;
-    (matches!(u.path(), "" | "/") && u.query().is_none())
-        .then(|| loopback_origin(&u))
-        .flatten()
+/// R10 The local 7TV mock of a test run (mocks builds only), with the default account's
+/// fake session and, for `CYEX_7TV_SETS=mock`, emote reads pointed at it too.
+#[cfg(feature = "mocks")]
+fn mock_7tv(app: &AppHandle, test: bool) -> Option<String> {
+    let mock = std::env::var(URL_VAR)
+        .ok()
+        .filter(|_| test)
+        .and_then(|u| crate::mock_url::loopback_base(&u));
+    if let Some(url) = &mock
+        && let Ok(raw) = std::env::var(TOKEN_VAR)
+        && let Some(token) = SevenTvToken::parse(&raw)
+        && let Some(id) = auth::accounts(app).default_id
+    {
+        let _ = app.state::<Auth>().seventv.put(&id, &token);
+        eprintln!("cosmetics: mock 7TV at {url}");
+    }
+    // V106-31/32 Emote reads go to the mock too.
+    if let Some(url) = &mock
+        && std::env::var(SETS_VAR).as_deref() == Ok("mock")
+    {
+        cyex_emotes::seventv::api::use_mock(url);
+    }
+    mock
 }
 
 /// Why `read` has no inventory.

@@ -44,8 +44,8 @@ fn part_error(e: &SelectError) -> String {
 
 fn reason(p: &Part, plural: bool) -> Option<&'static str> {
     match (p, plural) {
-        (Part::NotOwned, false) => Some("it’s not yours any more"),
-        (Part::NotOwned, true) => Some("they’re not yours any more"),
+        (Part::NotOwned, false) => Some("it’s not yours anymore"),
+        (Part::NotOwned, true) => Some("they’re not yours anymore"),
         (Part::NeedsSub, false) => Some("it’s for 7TV subscribers"),
         (Part::NeedsSub, true) => Some("they’re for 7TV subscribers"),
         _ => None,
@@ -130,7 +130,7 @@ mod tests {
     fn named_one_skipped() {
         assert_eq!(
             applied(Some("Night"), &Part::Changed, &Part::NotOwned),
-            "Wearing Night without its badge: it’s not yours any more."
+            "Wearing Night without its badge: it’s not yours anymore."
         );
         assert_eq!(
             applied(Some("Night"), &Part::NeedsSub, &Part::Same),
@@ -142,7 +142,7 @@ mod tests {
     fn named_both_skipped() {
         assert_eq!(
             applied(Some("N"), &Part::NotOwned, &Part::NotOwned),
-            "Nothing changed: they’re not yours any more."
+            "Nothing changed: they’re not yours anymore."
         );
         assert_eq!(
             applied(Some("N"), &Part::NeedsSub, &Part::NeedsSub),
@@ -150,7 +150,7 @@ mod tests {
         );
         assert_eq!(
             applied(Some("N"), &Part::NeedsSub, &Part::NotOwned),
-            "Nothing changed: it’s for 7TV subscribers and it’s not yours any more."
+            "Nothing changed: it’s for 7TV subscribers and it’s not yours anymore."
         );
     }
 
@@ -162,7 +162,7 @@ mod tests {
         );
         assert_eq!(
             applied(Some("N"), &Part::NotOwned, &fail(SelectError::Down)),
-            "The paint didn’t change: it’s not yours any more. The badge didn’t change: couldn’t reach 7TV."
+            "The paint didn’t change: it’s not yours anymore. The badge didn’t change: couldn’t reach 7TV."
         );
         assert_eq!(
             applied(None, &fail(SelectError::NotAllowed), &Part::Changed),
@@ -179,7 +179,7 @@ mod tests {
         assert_eq!(applied(None, &Part::Changed, &Part::Overtaken), "Done.");
         assert_eq!(
             applied(None, &Part::Changed, &Part::NotOwned),
-            "Done. Not the badge: it’s not yours any more."
+            "Done. Not the badge: it’s not yours anymore."
         );
     }
 

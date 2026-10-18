@@ -88,7 +88,7 @@
 
 <SectionHead title="Miner" level={2}>Collects channel points while you watch and claims bonus chests.</SectionHead>
 
-<h3 class="label" data-setting="miner.order">What goes first</h3>
+<SectionHead title="What goes first" setting="miner.order" />
 <p class="note">
   Twitch counts two channels at a time. After the two you star in the miner, these decide which; then the list order.
 </p>
@@ -119,7 +119,7 @@
   <Toggle label="Drops" checked={m.claimDrops} onchange={(v) => save({ claimDrops: v })} />
 </Row>
 
-<SectionHead title="More">Other ways the miner earns.</SectionHead>
+<SectionHead title="More" />
 <Row
   setting="miner.watchingEarns"
   label="Watching here earns points"
