@@ -28,6 +28,8 @@
     background: var(--surface);
     border-radius: var(--radius-sm);
     color: var(--text);
+    /* rb-10 A chip stays whole; the line wraps between chips. */
+    white-space: nowrap;
   }
   .sep {
     color: var(--dim);

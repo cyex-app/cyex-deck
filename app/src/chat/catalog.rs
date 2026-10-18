@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use cyex_chat::build::Me;
 use cyex_chat::model::{ChatMessage, Fragment, Pinned, Provider, Sender};
+use cyex_chat::tokenize::{Input, NoEmotes, tokenize};
 use cyex_twitch::gql::{self, BadgeInfo, ChannelChat, Cheermote, PinFragment, PinnedMessage};
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
@@ -206,6 +207,28 @@ pub(super) async fn refresh_pin(app: &AppHandle, key: &RoomKey, channel_id: &str
     }
 }
 
+/// rc-1 Text pieces go through the chat tokenizer, so links in a pin are links like in chat.
+fn pin_body(fragments: Vec<PinFragment>) -> Vec<Fragment> {
+    let mut body = Vec::new();
+    for f in fragments {
+        match f {
+            PinFragment::Text(text) => {
+                let input = Input {
+                    text: &text,
+                    sender: "",
+                    emotes: "",
+                    gifs: "",
+                    bits: 0,
+                };
+                body.extend(tokenize(&input, &[], &NoEmotes).body);
+            }
+            PinFragment::Emote { id, name } => body.push(Fragment::emote(Provider::Twitch, id, name)),
+            PinFragment::Mention { text, login } => body.push(Fragment::Mention { text, login }),
+        }
+    }
+    body
+}
+
 fn to_pinned(p: PinnedMessage, me: Option<&Me>, colors: &mut cyex_chat::build::Colors) -> Pinned {
     let sender = p.sender.map(|s| {
         let raw = s
@@ -220,15 +243,7 @@ fn to_pinned(p: PinnedMessage, me: Option<&Me>, colors: &mut cyex_chat::build::C
             display: s.display_name,
         }
     });
-    let body = p
-        .fragments
-        .into_iter()
-        .map(|f| match f {
-            PinFragment::Text(text) => Fragment::Text { text },
-            PinFragment::Emote { id, name } => Fragment::emote(Provider::Twitch, id, name),
-            PinFragment::Mention { text, login } => Fragment::Mention { text, login },
-        })
-        .collect();
+    let body = pin_body(p.fragments);
     let own = me.is_some_and(|m| sender.as_ref().is_some_and(|s| s.id == m.user_id));
     Pinned {
         id: p.id,
@@ -248,5 +263,27 @@ fn to_pinned(p: PinnedMessage, me: Option<&Me>, colors: &mut cyex_chat::build::C
             flags: if own { vec![cyex_chat::model::Flag::Own] } else { Vec::new() },
             meta: cyex_chat::model::Meta::default(),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pin_links_are_links() {
+        let body = pin_body(vec![
+            PinFragment::Text("merch at https://example.com/shop, ".into()),
+            PinFragment::Emote {
+                id: "25".into(),
+                name: "Kappa".into(),
+            },
+        ]);
+        assert_eq!(body[0], Fragment::text("merch at "));
+        assert!(
+            matches!(&body[1], Fragment::Link { url, host, .. } if url == "https://example.com/shop" && host == "example.com")
+        );
+        assert_eq!(body[2], Fragment::text(", "));
+        assert!(matches!(&body[3], Fragment::Emote { .. }));
     }
 }

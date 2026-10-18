@@ -107,6 +107,8 @@ export class Engine {
   private startAt = -1;
   private playerPx = 720;
   private recovered = 0;
+  /** rd-2 Counts loads: only the newest makes an hls instance. */
+  private loads = 0;
   /** V103-03 */
   private readonly away = new Away(() => this.drop());
   /** The page hides the player: its tab plays in the background (V102-15). */
@@ -308,6 +310,12 @@ export class Engine {
     this.away.stop();
     this.off();
     this.unGraph();
+    this.loads += 1;
+    this.dropHls();
+  }
+
+  /** rd-2 The old instance goes for good: nothing of it loads on. */
+  private dropHls(): void {
     this.hls?.destroy();
     this.hls = null;
   }
@@ -315,12 +323,15 @@ export class Engine {
   private async load(): Promise<void> {
     const session = this.session;
     if (!session) return;
-    this.hls?.destroy();
+    const n = ++this.loads;
+    this.dropHls();
     this.failure = null;
     this.waiting = true;
     this.recovered = 0;
     const Hls = await loadHls();
-    if (this.session !== session) return;
+    // rd-2 A newer load (or start) came meanwhile: it makes the instance, or two would load.
+    if (this.session !== session || n !== this.loads) return;
+    this.dropHls();
     const hls = new Hls(this.config());
     this.hls = hls;
     this.H = Hls;
@@ -351,11 +362,12 @@ export class Engine {
       }
       // With autoStartLoad off hls.js skips `startPosition`: a VOD would start at 0 (P5, P7).
       hls.startLoad(this.liveSrc ? -1 : this.startAt);
-      // Paused during the swap: it lands paused (Q14 a).
-      if (this.st.pendingPause) {
+      // Paused during the swap, or reopened while paused (rd-2): it lands paused (Q14 a),
+      // this instance's buffering paused too.
+      if (this.st.pendingPause || isPaused(this.st)) {
         this.st = takePending(this.st).s;
         this.waiting = false;
-        return this.markPaused();
+        return this.markPaused(this.liveSrc ? undefined : this.startAt);
       }
       void this.video.play().catch(() => {});
     });
@@ -498,8 +510,10 @@ export class Engine {
     const v = this.video;
     if (!hls.bufferingEnabled) {
       hls.resumeBuffering();
+      // rd-2 Only a pause that is still on: a jump after the play pauses the element too, and
+      // stopping its buffering there left the jump waiting for a canplay that never came.
       hls.once(H.Events.FRAG_BUFFERED, () => {
-        if (this.hls === hls && v.paused) hls.pauseBuffering();
+        if (this.hls === hls && v.paused && isPaused(this.st)) hls.pauseBuffering();
       });
     }
     hls.currentLevel = hls.loadLevel;
@@ -524,9 +538,10 @@ export class Engine {
     if (r.mark) this.markPaused();
   }
 
-  /** A pause that is the user's: the playlists keep loading, later nothing. */
-  private markPaused(): void {
-    this.st = paused(this.st, performance.now(), this.video.currentTime);
+  /** A pause that is the user's: the playlists keep loading, later nothing. `pos`: where it
+   *  stands, when the element isn't there yet (a rewind VOD reopened while paused). */
+  private markPaused(pos = this.video.currentTime): void {
+    this.st = paused(this.st, performance.now(), pos);
     this.hls?.pauseBuffering();
     // d-1 No pull to the edge while paused, and the readout counts up from here.
     this.behindAtPause = this.liveSrc ? this.behind : null;
@@ -600,7 +615,7 @@ export class Engine {
   /** d-4 Once a second while live. */
   private checkStall(): void {
     const v = this.video;
-    const active = !!this.session && this.liveSrc && !isPaused(this.st) && !this.holding && !this.failure && !this.adBreak;
+    const active = !!this.session && this.liveSrc && !isPaused(this.st) && !this.st.pendingPause && !this.holding && !this.failure && !this.adBreak;
     const ready = !v.paused && !v.seeking && v.readyState >= 3;
     const r = stallStep(this.stall, { now: performance.now(), pos: v.currentTime, active, ready });
     this.stall = r.s;

@@ -4,6 +4,7 @@
 import type { LinkText } from '../ipc/bindings/LinkText';
 import type { Rect } from '../lib/place';
 import { settings } from '../lib/settings.svelte';
+import { tipAllowed } from './tooltipGate';
 
 export interface TipOptions {
   label: string;
@@ -66,11 +67,13 @@ function hintFor(opts: TipOptions): string {
 
 function show(node: HTMLElement, opts: TipOptions): void {
   clearTimeout(timer);
-  // Nothing to say, e.g. a menu item without a note.
-  if ((!opts.label && !opts.image) || (opts.when && !opts.when())) return;
+  // Nothing to say (e.g. a menu item without a note), or a drag is on (rb-1).
+  if (!tipAllowed(opts, dragging())) return;
   owner = node;
   const delay = performance.now() - lastHidden < WARM_MS ? 0 : SHOW_DELAY_MS;
   timer = setTimeout(() => {
+    // rb-1 A drag that started during the delay.
+    if (dragging()) return;
     tip.label = opts.label;
     tip.hint = hintFor(opts);
     tip.image = opts.image ?? '';
@@ -79,6 +82,9 @@ function show(node: HTMLElement, opts: TipOptions): void {
     tip.visible = true;
   }, delay);
 }
+
+/** rb-1 The shared drag (features/tabs/drag) marks the body while a drag is on. */
+const dragging = () => typeof document !== 'undefined' && document.body.classList.contains('dragging');
 
 function hide(): void {
   clearTimeout(timer);

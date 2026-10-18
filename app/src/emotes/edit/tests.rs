@@ -7,7 +7,7 @@ use cyex_emotes::seventv::events::SetChange;
 
 use super::echo::Echoes;
 use super::ops::*;
-use super::options::{Facts, Viewed, options};
+use super::options::{Facts, Viewed, options, set_alias};
 use super::reach::{Reach, Target, build, set_ids};
 
 fn grant(id: &str, name: Option<&str>, set: Option<&str>, accepted: bool, manage: bool) -> Grant {
@@ -214,7 +214,6 @@ fn facts<'a>(id: &'a str, private: bool, owner: Option<&'a str>) -> Facts<'a> {
     Facts {
         seventv: true,
         emote_id: id,
-        name: "emo",
         own_name: "emoOwn",
         private,
         owner_id: owner,
@@ -224,7 +223,7 @@ fn facts<'a>(id: &'a str, private: bool, owner: Option<&'a str>) -> Facts<'a> {
 const STRANGER: Viewed = Viewed {
     owner_id: Some("STRANGER"),
     set_id: Some("S_STR"),
-    in_set: true,
+    alias: Some("emo"),
 };
 
 #[test]
@@ -233,7 +232,7 @@ fn options_order_and_here() {
     let v = Viewed {
         owner_id: Some("VW"),
         set_id: Some("S_VW"),
-        in_set: true,
+        alias: Some("emo"),
     };
     let o = options(Reachability::Ready, Some(&r), &v, &facts("E", false, None));
     assert_eq!(o.own_name, "emoOwn");
@@ -252,7 +251,7 @@ fn options_order_and_here() {
         })
     );
     // Not in this chat's set, or a set that isn't the target's: no rename or remove.
-    let v = Viewed { in_set: false, ..v };
+    let v = Viewed { alias: None, ..v };
     assert_eq!(
         options(Reachability::Ready, Some(&r), &v, &facts("E", false, None)).here,
         None
@@ -260,7 +259,7 @@ fn options_order_and_here() {
     let v = Viewed {
         owner_id: Some("VW"),
         set_id: Some("OLD"),
-        in_set: true,
+        alias: Some("emo"),
     };
     assert_eq!(
         options(Reachability::Ready, Some(&r), &v, &facts("E", false, None)).here,
@@ -270,6 +269,28 @@ fn options_order_and_here() {
     let o = options(Reachability::Ready, Some(&r), &STRANGER, &facts("E", false, None));
     assert_eq!(o.here, None);
     assert!(o.add.unwrap().targets.iter().all(|t| !t.viewed));
+}
+
+/// rc-2 A line from before a rename finds the emote by id, under its current name.
+#[test]
+fn set_alias_by_id() {
+    let set = [("E", "AlienDanceQ"), ("F", "AlienDance")];
+    assert_eq!(set_alias(set, "E", "AlienDance"), Some("AlienDanceQ"));
+    assert_eq!(set_alias(set, "E", "AlienDanceQ"), Some("AlienDanceQ"));
+    // The same id twice: the line's name wins.
+    let twice = [("E", "a"), ("E", "b")];
+    assert_eq!(set_alias(twice, "E", "b"), Some("b"));
+    assert_eq!(set_alias(twice, "E", "c"), Some("a"));
+    assert_eq!(set_alias(set, "G", "AlienDance"), None);
+    // The current name goes to the rename and remove.
+    let r = reach();
+    let v = Viewed {
+        owner_id: Some("VW"),
+        set_id: Some("S_VW"),
+        alias: set_alias([("E", "emoQ")], "E", "emo"),
+    };
+    let o = options(Reachability::Ready, Some(&r), &v, &facts("E", false, None));
+    assert_eq!(o.here.map(|h| h.alias), Some("emoQ".into()));
 }
 
 #[test]
@@ -336,7 +357,7 @@ fn options_offer_nothing_when_not_ready_or_not_7tv() {
     let v = Viewed {
         owner_id: Some("VW"),
         set_id: Some("S_VW"),
-        in_set: true,
+        alias: Some("emo"),
     };
     for s in [Reachability::Loading, Reachability::NoConsent, Reachability::Down] {
         let o = options(s, Some(&r), &v, &facts("E", false, None));

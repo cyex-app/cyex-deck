@@ -54,3 +54,13 @@ test('here only and both', () => {
   const both = items(editEntries(opts({ here, add: { blocked: null, targets: [t('kuni')] } }), h));
   assert.equal(both.length, 3);
 });
+
+test('rc-3 already in some channels, the rest full: says it is there', () => {
+  const targets = [t('a', { blocked: 'already' }), t('b', { blocked: 'already' }), t('c', { blocked: 'full' })];
+  const [i] = items(editEntries(opts({ add: { blocked: 'nowhere', targets } }), h));
+  assert.equal(i.disabled, true);
+  assert.equal(i.note, 'Already in your channels');
+  const full = [t('a', { blocked: 'full' }), t('b', { blocked: 'private' })];
+  const [j] = items(editEntries(opts({ add: { blocked: 'nowhere', targets: full } }), h));
+  assert.equal(j.note, 'No room in your channels');
+});

@@ -16,6 +16,7 @@
     format?: (t: number) => string;
     /** Neutral: the played part isn't the accent (the live rewind bar). */
     tone?: 'accent' | 'neutral';
+    /** rd-4 Read out at rest; while dragging it is `format` of the thumb. */
     valueText?: string;
   }
 
@@ -77,7 +78,7 @@
   aria-valuemin={0}
   aria-valuemax={Math.round(duration)}
   aria-valuenow={Math.round(shown)}
-  aria-valuetext={valueText}
+  aria-valuetext={dragging ? format(shown) : valueText}
   onpointermove={onmove}
   onpointerleave={() => !dragging && (hover = null)}
   onpointerdown={ondown}

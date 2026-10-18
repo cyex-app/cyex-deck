@@ -80,9 +80,10 @@
 {/if}
 
 <style>
+  /* rb-9 A note: the hint size. */
   .note {
     margin: 10px 0;
-    font-size: var(--text-sub);
+    font-size: var(--text-hint);
     color: var(--dim);
   }
   code {

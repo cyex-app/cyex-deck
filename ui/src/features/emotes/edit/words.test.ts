@@ -46,6 +46,6 @@ test('name check lines, per kind', () => {
   assert.equal(nameVerdict('taken', 'kuni', false), 'Taken in kuni.');
   assert.equal(nameVerdict('taken', 'kuni', true), 'Taken in kuni.');
   assert.equal(nameVerdict('free', 'kuni', false), null);
-  assert.equal(nameVerdict('same', 'kuni', true), '');
+  assert.equal(nameVerdict('same', 'kuni', true), 'That’s the current name.');
   assert.equal(nameVerdict('same', 'kuni', false), null);
 });

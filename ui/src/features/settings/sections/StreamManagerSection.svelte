@@ -111,9 +111,10 @@
     text-overflow: ellipsis;
     user-select: text;
   }
+  /* rb-9 A note: the hint size. */
   .note {
     margin: 14px 0 6px;
-    font-size: var(--text-sub);
+    font-size: var(--text-hint);
     color: var(--muted);
   }
   .files {

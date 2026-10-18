@@ -131,8 +131,10 @@ export class Rewind {
     if (this.ended) return;
     this.pending = null;
     clearTimeout(this.flushTimer);
-    if (this.inVod) return this.host.open(null);
-    await this.host.engine()?.toLive(true);
+    const e = this.host.engine();
+    // rd-2 The engine reopens live from the rewind VOD, playing even when paused there.
+    if (this.inVod && !e) return this.host.open(null);
+    await e?.toLive(true);
   }
 
   /** Q22 b A clip over the rewound stream pauses it; closing it plays on from there. At

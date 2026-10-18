@@ -4,7 +4,7 @@ use cyex_chat::model::Provider;
 use cyex_emotes::{Emote, Scope};
 use tauri::{AppHandle, Manager};
 
-use super::options::{self as pure, Facts, Viewed};
+use super::options::{self as pure, Facts, Viewed, set_alias};
 use super::warm::reachability;
 use super::{EditOptions, NameCheck, lock, state};
 
@@ -20,7 +20,6 @@ pub fn options(app: &AppHandle, account: &str, login: &str, emote_id: &str, name
             e.provider == Provider::Seventv
         }),
         emote_id,
-        name,
         own_name,
         private: found.as_ref().is_some_and(|e| e.private),
         owner_id: found.as_ref().and_then(|e| e.owner_id.as_deref()),
@@ -29,20 +28,21 @@ pub fn options(app: &AppHandle, account: &str, login: &str, emote_id: &str, name
     let viewed = Viewed {
         owner_id: owner.as_deref(),
         set_id: set.as_ref().map(|(id, _)| id.as_str()),
-        in_set: set.as_ref().is_some_and(|(_, has)| *has),
+        alias: set.as_ref().and_then(|(_, a)| a.as_deref()),
     };
     let reach = lock(&state(app).reach);
     let r = reach.get(account).and_then(|(_, r)| r.as_ref());
     pure::options(now, r, &viewed, &facts)
 }
 
-/// This chat's channel: its 7TV user, and its channel set with whether that holds (id, name).
+/// This chat's channel: its 7TV user, and its channel set with the emote's name there (rc-2:
+/// by id, so a line from before a rename gets the current name).
 pub(super) fn viewed(
     app: &AppHandle,
     login: &str,
     id: &str,
     name: &str,
-) -> (Option<String>, Option<(String, bool)>) {
+) -> (Option<String>, Option<(String, Option<String>)>) {
     let st = app.state::<crate::emotes::Emotes>();
     let inner = st.lock();
     let Some(c) = inner.channels.get(login) else {
@@ -53,10 +53,8 @@ pub(super) fn viewed(
         .iter()
         .find(|s| s.provider == Provider::Seventv && s.scope == Scope::Channel)
         .map(|s| {
-            (
-                s.id.clone(),
-                s.emotes.iter().any(|e| e.id == id && e.name == name),
-            )
+            let entries = s.emotes.iter().map(|e| (e.id.as_str(), e.name.as_str()));
+            (s.id.clone(), set_alias(entries, id, name).map(str::to_owned))
         });
     (c.seventv_user.clone(), set)
 }

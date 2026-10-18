@@ -20,7 +20,7 @@
   <span class="top"><span class="name">{label}</span>{#if required}<span class="req">Required</span>{/if}</span>
   {@render children()}
   {#if hint}<span class="hint">{hint}</span>{/if}
-  <span class="problem" aria-live="polite">{problem ?? ''}</span>
+  <span class="problem" class:reserve={required} aria-live="polite">{problem ?? ''}</span>
 </label>
 
 <style>
@@ -50,8 +50,12 @@
     color: var(--red);
     font-size: var(--text-hint);
   }
-  .problem:empty {
+  /* rb-5 A required field keeps the line, so "Fill this in." moves nothing. */
+  .problem:empty:not(.reserve) {
     display: none;
+  }
+  .problem.reserve {
+    min-height: 1lh;
   }
   .ff :global(.field) {
     width: 100%;

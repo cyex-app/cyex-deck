@@ -23,6 +23,7 @@
   import { DVR_GAP } from './liveEdge';
   import { behindText } from './liveKeys';
   import { playerMenu } from './menu';
+  import { playerFullscreen } from './players.svelte';
   import { type Choice, qualityOptions } from './quality';
   import GearButton from './GearButton.svelte';
   import Shell from './Shell.svelte';
@@ -366,7 +367,8 @@
       <!-- V103-07 A click anywhere plays it (Shell). -->
       <div class="center held">Playing elsewhere. Click to play here.</div>
     {:else if engine?.stalled}
-      <div class="center"><span>{STALL_TEXT}</span></div>
+      <!-- rd-3 On a plate: it reads on bright frames too. -->
+      <div class="center stall"><span class="plate">{STALL_TEXT}</span></div>
     {:else if engine?.waiting && slow}
       <div class="busy"><Loading video size="large" /></div>
     {/if}
@@ -415,7 +417,7 @@
     <Icon name={engine?.playing ? 'pause' : 'play'} size={18} />
   </button>
   <Volume volume={sound.volume} muted={sound.muted} boost={sound.boost} onchange={sound.set} onboost={sound.setBoost} />
-  <LiveButton behind={rewind.behind} atLive={rewind.atLive} ad={ad === 'waiting'} ended={rewind.over} hint={bindingOf('player.live')} onlive={() => void rewind.toLive()} />
+  <LiveButton behind={rewind.behind} atLive={rewind.atLive} stalled={!!engine?.stalled} ad={ad === 'waiting'} ended={rewind.over} hint={bindingOf('player.live')} onlive={() => void rewind.toLive()} />
   <span class="grow"></span>
   {#if onclip}
     <button class="ctl" aria-label="Clip" use:tooltip={{ label: 'Clip', hint: 'Clips the last seconds of the stream.' }} onclick={onclip}>
@@ -432,7 +434,7 @@
     </button>
   {/if}
   {#if engine}<GearButton {menu} />{/if}
-  <button class="ctl" aria-label="Fullscreen" use:tooltip={key('player.fullscreen', 'Fullscreen')} onclick={controls.toggleFullscreen}>
+  <button class="ctl" aria-label={playerFullscreen.on ? 'Exit fullscreen' : 'Fullscreen'} use:tooltip={key('player.fullscreen', playerFullscreen.on ? 'Exit fullscreen' : 'Fullscreen')} onclick={controls.toggleFullscreen}>
     <Icon name="expand" size={16} />
   </button>
 {/snippet}
@@ -499,6 +501,17 @@
   .center.held {
     font-size: 0.85rem;
     pointer-events: none;
+  }
+  /* rd-3 The picture shows through; the text sits on its own plate. */
+  .center.stall {
+    background: none;
+    pointer-events: none;
+  }
+  .plate {
+    padding: 6px 12px;
+    background: var(--scrim-strong);
+    border-radius: var(--radius);
+    color: var(--on-video);
   }
   .retry {
     display: flex;

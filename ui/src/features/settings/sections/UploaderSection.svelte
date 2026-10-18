@@ -48,10 +48,11 @@
   into exports.
 </SectionHead>
 
+<!-- rb-5 Always a hint, so the row keeps its height as fields fill in. -->
 <Row
   setting="uploader.enabled"
   label="Upload images you paste or drop"
-  hint={gone.length ? (u.enabled ? 'Won’t upload until the required fields below are filled in.' : 'Fill in every required field below first.') : undefined}
+  hint={gone.length ? (u.enabled ? 'Won’t upload until the required fields below are filled in.' : 'Fill in every required field below first.') : 'Sends them to the host below.'}
 >
   <Toggle label="Upload images you paste or drop" checked={u.enabled} onchange={toggle} />
 </Row>

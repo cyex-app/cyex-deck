@@ -4,6 +4,7 @@
   import type { Appearance } from '../../ipc/bindings/Appearance';
   import type { CustomTheme } from '../../ipc/bindings/CustomTheme';
   import type { Theme } from '../../ipc/bindings/Theme';
+  import { accentFill } from '../../design/theme';
   import { themeIpc } from '../../ipc/theme';
   import { errorText } from '../../lib/errors';
   import { settings } from '../../lib/settings.svelte';
@@ -20,6 +21,26 @@
     const b = PLAIN_PREVIEW[t.base];
     return { bg: t.colors.bg ?? b.bg, surface: t.colors.surface ?? b.surface, text: t.colors.text ?? b.text };
   };
+
+  /** V106 ra-3 Swatches show the accent as the UI paints it: the live `--accent` for the theme
+   *  in use, else the fill worked out for that theme's base (a raw #101010 vanishes on Dark). */
+  let fills = $state<Record<string, string>>({});
+  const fillKey = (accent: string, base: Theme) => `${base}|${accent}`;
+  function fillOf(accent: string, base: Theme, inUse: boolean): string {
+    return inUse ? 'var(--accent)' : (fills[fillKey(accent, base)] ?? accent);
+  }
+  $effect(() => {
+    const want: [string, Theme][] = [
+      ...BASES.map((b): [string, Theme] => [a.accent, b]),
+      ...builtins.map((t): [string, Theme] => [accentOf(a, { kind: 'builtin', theme: t }), t.base]),
+      ...a.themes.map((t): [string, Theme] => [t.accent, t.base]),
+    ];
+    for (const [accent, base] of want) {
+      const key = fillKey(accent, base);
+      if (key in fills) continue;
+      void accentFill(accent, base).then((f) => (fills[key] = f));
+    }
+  });
 
   /** The one tile in the tab order: the checked one, else Dark (a custom theme is in use). */
   const stop = $derived(!a.themeId ? a.theme : builtins.some((t) => t.id === a.themeId) ? a.themeId : 'dark');
@@ -66,7 +87,7 @@
       tabindex={stop === base ? 0 : -1} onclick={() => pickPlain(base)}>
       <!-- V106 a-8 Dark and Light show your accent too. -->
       <span class="pic" style:background={b.bg}
-        ><i style:background={b.surface}></i><b style:background={b.text}></b><u style:background={a.accent}></u></span
+        ><i style:background={b.surface}></i><b style:background={b.text}></b><u style:background={fillOf(a.accent, base, !a.themeId && a.theme === base)}></u></span
       >
       <span class="label">{b.label}</span>
     </button>
@@ -75,14 +96,15 @@
     {@const p = preview(t)}
     <button class="theme" role="radio" aria-checked={a.themeId === t.id} tabindex={stop === t.id ? 0 : -1} onclick={() => pickId(t.id)}>
       <span class="pic" style:background={p.bg}
-        ><i style:background={p.surface}></i><b style:background={p.text}></b><u style:background={accentOf(a, { kind: 'builtin', theme: t })}></u></span
+        ><i style:background={p.surface}></i><b style:background={p.text}></b><u style:background={fillOf(accentOf(a, { kind: 'builtin', theme: t }), t.base, a.themeId === t.id)}></u></span
       >
       <span class="label">{t.name}</span>
     </button>
   {/each}
 </div>
 <div class="tools">
-  <CustomThemesMenu themes={a.themes} activeId={a.themeId} onpick={pickId} onnew={newTheme} />
+  <CustomThemesMenu themes={a.themes} activeId={a.themeId} onpick={pickId} onnew={newTheme}
+    fill={(t) => fillOf(t.accent, t.base, t.id === a.themeId)} />
   <span class="code-label">Theme code</span>
   <input class="field code" placeholder="Paste a code" aria-label="Theme code" bind:value={code} />
   <Button small disabled={!code.trim()} onclick={importCode}>Add</Button>

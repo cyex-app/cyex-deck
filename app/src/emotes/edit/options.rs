@@ -7,8 +7,6 @@ use super::reach::Reach;
 pub struct Facts<'a> {
     pub seventv: bool,
     pub emote_id: &'a str,
-    /// As this chat has it.
-    pub name: &'a str,
     pub own_name: &'a str,
     pub private: bool,
     /// 7TV user id of who made it.
@@ -19,8 +17,24 @@ pub struct Facts<'a> {
 pub struct Viewed<'a> {
     pub owner_id: Option<&'a str>,
     pub set_id: Option<&'a str>,
-    /// (id, name) is in this chat's channel set.
-    pub in_set: bool,
+    /// rc-2 The emote's name in this chat's channel set (`set_alias`), if it's there.
+    pub alias: Option<&'a str>,
+}
+
+/// rc-2 The emote's name in a set: the line's `name` when (id, name) is there, else the id's
+/// current name (a line from before a rename still finds it).
+pub fn set_alias<'a>(entries: impl IntoIterator<Item = (&'a str, &'a str)>, id: &str, name: &str) -> Option<&'a str> {
+    let mut by_id = None;
+    for (e, alias) in entries {
+        if e != id {
+            continue;
+        }
+        if alias == name {
+            return Some(alias);
+        }
+        by_id.get_or_insert(alias);
+    }
+    by_id
 }
 
 pub fn options(state: Reachability, reach: Option<&Reach>, viewed: &Viewed, f: &Facts) -> EditOptions {
@@ -38,11 +52,12 @@ pub fn options(state: Reachability, reach: Option<&Reach>, viewed: &Viewed, f: &
         .iter()
         .find(|t| viewed.owner_id == Some(t.owner_id.as_str()));
     out.here = here
-        .filter(|t| viewed.in_set && viewed.set_id == Some(t.set_id.as_str()))
-        .map(|t| HereEdit {
+        .filter(|t| viewed.set_id == Some(t.set_id.as_str()))
+        .zip(viewed.alias)
+        .map(|(t, alias)| HereEdit {
             set_id: t.set_id.clone(),
             channel: t.channel.clone(),
-            alias: f.name.to_owned(),
+            alias: alias.to_owned(),
         });
     let mut targets: Vec<AddTarget> = reach
         .targets

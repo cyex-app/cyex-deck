@@ -264,8 +264,10 @@
     color: var(--dim);
     opacity: 0.6;
   }
+  /* rb-3 The style only: the `text-wrap` shorthand also set the wrap mode, which beat a
+     line's own `white-space: nowrap` (the OBS folder path). */
   .inner :global(p) {
-    text-wrap: pretty;
+    text-wrap-style: pretty;
   }
   /* V103-13 A setting search jumped to: tinted over its own background, then fades. */
   .content :global(.found),

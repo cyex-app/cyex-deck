@@ -1,5 +1,6 @@
 // V1061-04/05 Which focused elements keep the keys, what a seek reports, the readout text.
 
+import { keyFocused } from './focusOrigin.ts';
 import { clock } from './time.ts';
 
 /** Focused elements that use the arrow keys themselves. Buttons are left out on purpose:
@@ -12,20 +13,22 @@ export const OWN_ARROWS =
 export const TEXT_FIELDS = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])';
 
 /** d-2 A tab moves focus along its own bar (TabItem: Left/Right, Up/Down when vertical), and
- *  only once the keyboard put focus there: after a click the arrows seek. */
-export const TAB_ACROSS = '[role="tab"]:not([data-vertical]):focus-visible';
-export const TAB_DOWN = '[role="tab"][data-vertical]:focus-visible';
+ *  only once the keyboard put focus there (rd-1 focusOrigin.ts): after a click the arrows seek. */
+export const TAB_ACROSS = '[role="tab"]:not([data-vertical])';
+export const TAB_DOWN = '[role="tab"][data-vertical]';
 
 type Focus = { closest(sel: string): unknown } | null;
 
 /** d-2 Whether the focused element keeps this key. J/L, Shift+arrows and the rest: only text
- *  fields keep them. Plain arrows: also the elements in OWN_ARROWS and a tab on its axis. */
-export function ownsKey(target: Focus, e: { key: string; shiftKey?: boolean }): boolean {
+ *  fields keep them. Plain arrows: also the elements in OWN_ARROWS and a tab on its axis.
+ *  `byKey`: whether the keyboard focused that tab. */
+export function ownsKey(target: Focus, e: { key: string; shiftKey?: boolean }, byKey: (el: unknown) => boolean = keyFocused): boolean {
   if (!target?.closest) return false;
   if (target.closest(TEXT_FIELDS)) return true;
   if (!e.key.startsWith('Arrow') || e.shiftKey) return false;
   if (target.closest(OWN_ARROWS)) return true;
-  return !!target.closest(e.key === 'ArrowLeft' || e.key === 'ArrowRight' ? TAB_ACROSS : TAB_DOWN);
+  const tab = target.closest(e.key === 'ArrowLeft' || e.key === 'ArrowRight' ? TAB_ACROSS : TAB_DOWN);
+  return !!tab && byKey(tab);
 }
 
 /** A live seek's result: how far behind it lands ('live' = at live), 'start' when clamped at the stream's start. */

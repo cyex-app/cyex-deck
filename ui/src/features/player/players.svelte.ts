@@ -7,6 +7,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import type { LinkTarget } from '../../ipc/bindings/LinkTarget';
 import type { TileShow } from '../../ipc/bindings/TileShow';
+import { keyTaken } from '../../lib/escape';
 import { settings } from '../../lib/settings.svelte';
 import { currentWindow } from '../../lib/window.svelte';
 import { liveKeyAction, ownsKey, type SeekResult, seekText, stepChoice, Steps } from './liveKeys';
@@ -187,7 +188,19 @@ export async function toggleFullscreen(el: HTMLElement): Promise<void> {
   else await el.requestFullscreen();
 }
 
+/** rd-5 Whether a player is fullscreen, for the buttons' labels. */
+export const playerFullscreen = $state({ on: false });
+
 document.addEventListener('fullscreenchange', () => {
+  playerFullscreen.on = Boolean(document.fullscreenElement);
   // V104-03 A pop-out the frame made fullscreen stays so when the player leaves its own.
   void getCurrentWindow().setFullscreen(Boolean(document.fullscreenElement) || currentWindow.fullscreen);
+});
+
+// rd-5 Escape leaves a player's fullscreen when WebView2 doesn't. Layers (menus, popovers)
+// take their Escape first in the capture phase and use it up.
+window.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || e.isComposing || !document.fullscreenElement || keyTaken(e)) return;
+  e.preventDefault();
+  void document.exitFullscreen().catch(() => {});
 });

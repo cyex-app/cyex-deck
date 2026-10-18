@@ -194,10 +194,11 @@
 {/if}
 
 <style>
+  /* rb-9 A note: the hint size. */
   .note {
     margin: 0 0 6px;
     color: var(--muted);
-    font-size: var(--text-sub);
+    font-size: var(--text-hint);
   }
   .rule {
     display: flex;

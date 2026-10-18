@@ -54,12 +54,33 @@ test('begin with and without a swap', () => {
   const a = begin(p, true, true);
   assert.equal(a.phase, 'swapping');
   assert.equal(a.checkStart, true);
-  assert.equal(a.pendingPause, false);
   assert.equal(a.pausedAt, 0);
   const b = begin(stopped(), false, false);
   assert.equal(b.phase, 'playing');
   assert.equal(b.checkStart, false);
   assert.equal(b.pausedAt, 0);
+  // A start while playing (or mid-swap, paused by the user) clears what was pending.
+  assert.equal(begin(f({ ...swapping, pendingPause: true }), true, false).pendingPause, false);
+  assert.equal(begin(playing, true, false).pendingPause, false);
+});
+
+test('rd-2 a reopen while paused lands paused, and play then goes to live', () => {
+  for (const p of [pausedAt(), stopped()]) {
+    const a = begin(p, true, false);
+    assert.equal(a.pendingPause, true);
+    assert.equal(isPaused(a), false);
+    // The new source's levels are in: paused again from there (engine's markPaused).
+    const t = takePending(a);
+    assert.equal(t.pending, true);
+    const again = paused(t.s, 50_000, 0);
+    // Play 20 s later: one sync to the live point, no reopen.
+    assert.equal(resumeStep(again, { ...liveRes, now: 70_000 }).step, 'sync');
+    assert.equal(resumeStep(again, { ...liveRes, now: 50_500 }).step, 'play');
+  }
+  // Played during the reopen: it plays when it lands.
+  const w = resumeStep(begin(pausedAt(), true, false), { ...liveRes, now: 9e9 });
+  assert.equal(w.step, 'wait');
+  assert.equal(w.s.pendingPause, false);
 });
 
 test('askPause only marks a jump', () => {

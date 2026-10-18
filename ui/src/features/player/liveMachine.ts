@@ -32,9 +32,10 @@ export function initial(): LiveState {
   return { phase: 'idle', pendingPause: false, ownPause: false, checkStart: false, pausedAt: 0, pausedPos: 0 };
 }
 
-/** A start; `swap` when a source plays already (Q14 a, silent). */
+/** A start; `swap` when a source plays already (Q14 a, silent). rd-2 A reopen while paused
+ *  lands paused: the new source is paused again (and its buffering) once its levels are in. */
 export function begin(s: LiveState, swap: boolean, dvr: boolean): LiveState {
-  return { ...s, phase: swap ? 'swapping' : 'playing', pendingPause: false, checkStart: dvr, pausedAt: 0 };
+  return { ...s, phase: swap ? 'swapping' : 'playing', pendingPause: isPaused(s), checkStart: dvr, pausedAt: 0 };
 }
 
 export const ownPaused = (s: LiveState): LiveState => ({ ...s, ownPause: true });

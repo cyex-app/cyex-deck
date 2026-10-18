@@ -15,9 +15,11 @@
     activeId: string;
     onpick: (id: string) => void;
     onnew: () => Promise<void>;
+    /** V106 ra-3 The accent as the UI paints it for that theme. */
+    fill: (t: CustomTheme) => string;
   }
 
-  let { themes, activeId, onpick, onnew }: Props = $props();
+  let { themes, activeId, onpick, onnew, fill }: Props = $props();
 
   let open = $state(false);
 
@@ -45,7 +47,7 @@
   <button class="field pick" class:on={!!active} aria-label={active ? `Custom themes: ${active.name}` : undefined}
     aria-haspopup="menu" aria-expanded={open} onclick={() => (open = !open)}>
     {#if active}
-      <span class="sw small" style:background={bg(active)}><u style:background={active.accent}></u></span>
+      <span class="sw small" style:background={bg(active)}><u style:background={fill(active)}></u></span>
     {/if}
     <span class="name">{active ? active.name : 'Custom themes'}</span>
     <Icon name={open ? 'chevronUp' : 'chevronDown'} size={14} />
@@ -57,7 +59,7 @@
           {#each themes as t (t.id)}
             {@const on = t.id === activeId}
             <button class="row" class:on role="menuitemradio" aria-checked={on} onclick={() => onpick(t.id)}>
-              <span class="sw" style:background={bg(t)}><u style:background={t.accent}></u></span>
+              <span class="sw" style:background={bg(t)}><u style:background={fill(t)}></u></span>
               <span class="name">{t.name}</span>
               <span class="tick">{#if on}<Icon name="check" size={14} />{/if}</span>
             </button>
@@ -129,6 +131,10 @@
   .row:hover,
   .row:focus-visible {
     background: var(--surface-hover);
+  }
+  /* V106 ra-2 The ring sits inside the row: the scroller is as wide as the rows and clips it. */
+  .row:focus-visible {
+    outline-offset: -2px;
   }
   .name {
     flex: 1;

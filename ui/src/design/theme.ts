@@ -8,6 +8,7 @@ import type { Appearance } from '../ipc/bindings/Appearance';
 import type { ThemeLook } from '../ipc/bindings/ThemeLook';
 import type { Theme } from '../ipc/bindings/Theme';
 import { reduced } from '../lib/motion';
+import { fillCache } from './fillCache';
 
 const CACHE_KEY = 'cyex.look';
 
@@ -48,19 +49,29 @@ export function previewAccent(accent: string, theme: Theme): Promise<AccentToken
   return themeIpc.accentTokens(accent, theme);
 }
 
+/** V106 ra-3 The accent fill the UI would paint for an accent on a base (theme previews). Worked out
+ *  against the base's backgrounds, so a custom theme's own page is only approximated. */
+export const accentFill = fillCache((accent: string, theme: Theme) => previewAccent(accent, theme).then((t) => t.accent));
+
 /** What a theme switch changes (not the accent alone, which is dragged live). */
 const themeKey = (look: ThemeLook) => JSON.stringify([look.theme, look.palette?.tokens ?? null, look.wallpaper]);
 let painted = '';
 
-/** V106 s1-3 A switch to another theme cross-fades for 150 ms; none under Reduce motion. */
+/** V106 s1-3 A switch to another theme cross-fades for 150 ms; none under Reduce motion.
+ *  V106 ra-4 Color transitions are off while it runs, so nothing drifts under the fade. */
 function paint(look: ThemeLook): void {
   const key = themeKey(look);
   const switched = painted !== '' && key !== painted;
   painted = key;
-  const doc = document as Document & { startViewTransition?: (update: () => void) => unknown };
+  const doc = document as Document & {
+    startViewTransition?: (update: () => void) => { finished: Promise<unknown> };
+  };
   if (!switched || reduced() || !doc.startViewTransition) return write(look);
   ensureFadeStyle();
-  doc.startViewTransition(() => write(look));
+  const root = document.documentElement;
+  root.classList.add('theme-fading');
+  const done = () => root.classList.remove('theme-fading');
+  doc.startViewTransition(() => write(look)).finished.then(done, done);
 }
 
 let fadeStyle = false;
@@ -68,7 +79,9 @@ function ensureFadeStyle(): void {
   if (fadeStyle) return;
   fadeStyle = true;
   const style = document.createElement('style');
-  style.textContent = '::view-transition-old(root),::view-transition-new(root){animation-duration:150ms}';
+  style.textContent =
+    '::view-transition-old(root),::view-transition-new(root){animation-duration:150ms}' +
+    '.theme-fading,.theme-fading *,.theme-fading *::before,.theme-fading *::after{transition:none!important}';
   document.head.append(style);
 }
 

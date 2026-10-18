@@ -56,10 +56,13 @@
   .head h2 {
     margin: 0;
   }
+  /* rb-4 No height of its own: the row is the h2's line, so the subtitle sits where it
+     does on pages without buttons. The buttons overflow it evenly. */
   .acts {
     display: flex;
     align-items: center;
     gap: 8px;
+    height: 0;
   }
   h2 + .sub,
   .head + .sub {

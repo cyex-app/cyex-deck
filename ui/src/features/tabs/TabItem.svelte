@@ -11,6 +11,7 @@
   import { accounts } from '../../lib/accounts.svelte';
   import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
+  import { keyFocused } from '../player/focusOrigin';
   import { drag } from './drag.svelte';
   import { soundTip } from './tabSound';
   import { label, tabs, tiles } from './tabs.svelte';
@@ -81,8 +82,8 @@
     const prev = vertical ? 'ArrowUp' : 'ArrowLeft';
     const next = vertical ? 'ArrowDown' : 'ArrowRight';
     if (![prev, next, 'Home', 'End'].includes(e.key)) return;
-    // V1061-04 After a mouse click (no focus ring) and with Shift held, the arrows go to the player.
-    if (e.shiftKey || !(e.currentTarget as HTMLElement).matches(':focus-visible')) return;
+    // V1061-04 rd-1 After a mouse click and with Shift held, the arrows go to the player.
+    if (e.shiftKey || !keyFocused(e.currentTarget)) return;
     const all = [...(e.currentTarget as HTMLElement).closest('[data-tab-bar]')!.querySelectorAll<HTMLElement>('[role="tab"]')];
     const at = all.indexOf(e.currentTarget as HTMLElement);
     const to = e.key === 'Home' ? 0 : e.key === 'End' ? all.length - 1 : (at + (e.key === next ? 1 : -1) + all.length) % all.length;
@@ -125,13 +126,15 @@
   onpointerdown={(e) => drag.begin(e, { kind: 'tab', id: tab.id }, name)}
   use:tooltip={tip}
 >
-  <span class="pill" class:has-snd={sound !== 'silent'}>
+  <span class="pill">
     {#if sound !== 'silent'}
-      <span class="snd" class:muted={sound === 'muted'} aria-hidden="true">
-        <Icon name={sound === 'muted' ? 'volumeOff' : 'volume'} size={9} />
+      <!-- V106-25 The badge takes the live dot's slot (decision 2026/10/18). -->
+      <span class="slot" aria-hidden="true">
+        <span class="snd {live ?? ''}" class:muted={sound === 'muted'}>
+          <Icon name={sound === 'muted' ? 'volumeOff' : 'volume'} size={9} />
+        </span>
       </span>
-    {/if}
-    {#if live}<span class="dot {live}"></span>{/if}
+    {:else if live}<span class="dot {live}"></span>{/if}
     <span class="name">{name}</span>
     <!-- V106 a-5, s3-7 The badge is only a picture; screen readers hear it here. -->
     {#if tabs.muted.has(tab.id)}<span class="sr-only">, muted</span>{/if}
@@ -247,15 +250,18 @@
     pointer-events: none;
   }
   /* V106-05 In a side bar: a line across the whole bar, padding included. V106 a-7 On a whole
-     px (-1px, not -1.5px): a half px landed between device pixels at 150 % and blurred. */
+     px (-1px, not -1.5px): a half px landed between device pixels at 150 %. V106 ra-5 A border,
+     not a 1px fill: the browser snaps border widths to whole device pixels, so at 125/150 % zoom
+     every line is the same 1 device px (a fill came out 2 or 3). */
   :global(.tab.vertical) + .tab.vertical::before {
     top: -1px;
     left: calc(-1 * var(--bar-pad, 6px));
     right: calc(-1 * var(--bar-pad, 6px));
     width: auto;
-    height: 1px;
+    height: 0;
     translate: none;
-    background: var(--border);
+    background: none;
+    border-top: 1px solid var(--border);
   }
   .tab:is(.active, .selected)::before,
   :global(.tab:is(.active, .selected)) + .tab::before,
@@ -302,14 +308,21 @@
     background: var(--yellow);
     box-shadow: 0 0 6px 1px color-mix(in srgb, var(--yellow) 60%, transparent);
   }
-  /* V106-25 Sound badge: on the leading corner, over the pill, so it never adds width. Info
-     only (muting is in the menu). Solid chip with a hairline so it reads on any pill, light or
-     dark; crossed and brighter while the tab is muted (or held with every player muted, V102-15). */
+  /* V106-25 Sound badge (decision 2026/10/18): it replaces the live dot. Its slot is the dot's
+     7 px, so the width never changes; the 12 px chip spills 2.5 px into the padding and the gap,
+     never onto the name or past the pill. Info only (muting is in the menu). Red while live,
+     yellow edge on a rerun, else a neutral chip with a hairline; crossed and brighter while the
+     tab is muted (or held with every player muted, V102-15). */
+  .slot {
+    position: relative;
+    width: 7px;
+    height: 7px;
+  }
   .snd {
     position: absolute;
-    top: -2px;
-    left: 0;
-    z-index: 1;
+    top: 50%;
+    left: 50%;
+    translate: -50% -50%;
     display: grid;
     place-items: center;
     width: 12px;
@@ -321,13 +334,6 @@
     pointer-events: none;
     animation: snd-in 160ms var(--ease, ease-out);
   }
-  /* V106 a-4 Room for the badge (12 px + 1 px gap), so it never covers the name or the dot. */
-  .pill.has-snd {
-    padding-left: max(var(--tab-pad), 13px);
-  }
-  .vertical.grouped .pill.has-snd {
-    padding-left: max(var(--tab-pad), 18px);
-  }
   /* Thin icon strokes would vanish at 9 px. */
   .snd :global(svg) {
     stroke-width: 2.6;
@@ -335,9 +341,14 @@
   .snd.muted {
     color: var(--text);
   }
-  /* Just inside a side bar group's color stripe (left 1px, 2px wide), so it stays whole. */
-  .vertical.grouped .snd {
-    left: 5px;
+  .snd.live {
+    background: var(--live);
+    box-shadow: 0 0 5px color-mix(in srgb, var(--live) 60%, transparent);
+    color: var(--on-solid);
+  }
+  .snd.rerun {
+    box-shadow: 0 0 0 1px var(--yellow);
+    color: var(--yellow);
   }
   @keyframes snd-in {
     from {

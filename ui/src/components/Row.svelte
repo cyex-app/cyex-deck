@@ -47,7 +47,7 @@
     font-weight: 600;
   }
   .hint {
-    font-size: 0.8rem;
+    font-size: var(--text-hint);
     color: var(--dim);
   }
   .control {

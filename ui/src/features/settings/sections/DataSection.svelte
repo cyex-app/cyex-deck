@@ -157,10 +157,10 @@
 
 <ChatterinoImport />
 
-<SectionHead title="Backups" />
-<p class="note" data-setting="data:backups">
+<!-- rb-8 The subtitle, so the gap under the heading matches the other blocks. -->
+<SectionHead title="Backups" setting="data:backups">
   A copy of your settings is kept for each of the last 3 days. Restoring keeps your current settings first, so you can undo it.
-</p>
+</SectionHead>
 {#each backups as date (date)}
   <Row label={dayName(date)}>
     <ConfirmButton label="Restore" confirm="Click again (current is kept)" onconfirm={() => restore(date)} />
@@ -186,9 +186,10 @@
     grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
     gap: 6px 12px;
   }
+  /* rb-9 A note: the hint size. */
   .note {
     margin: 10px 0;
-    font-size: var(--text-sub);
+    font-size: var(--text-hint);
     color: var(--dim);
   }
   .actions {

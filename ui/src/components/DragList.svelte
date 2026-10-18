@@ -17,7 +17,8 @@
     /** The name that follows the pointer. */
     label: (item: T) => string;
     onmove: (items: T[]) => void;
-    row: Snippet<[T]>;
+    /** rb-2 With the row's place, as it is until the list redraws. */
+    row: Snippet<[T, number]>;
     /** V106-10 Drag and Alt+↑/↓ only from the row's [data-drag-handle] (rows full of fields). */
     handle?: boolean;
   }
@@ -77,7 +78,11 @@
     if (!moved) return;
     // b-7 The grip's tip would stay where the row was.
     hideTip();
+    // rb-7 Glides like a drop does.
+    const was = moved.items.map((t) => items.indexOf(t));
+    const before = tops();
     onmove(moved.items);
+    void settle(was, before);
     said = `Moved to ${moved.place} of ${items.length}`;
     await tick();
     if (handle) {
@@ -100,7 +105,7 @@
 </script>
 
 <div class="list" role="list" bind:this={box}>
-  {#each items as item (id(item))}
+  {#each items as item, place (id(item))}
     {@const k = id(item)}
     <!-- A row is a stop for Alt+Up / Alt+Down, the keyboard way to drag it. -->
     <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
@@ -117,7 +122,7 @@
       onkeydown={(e) => nudgeRow(e, item)}
       onpointerdown={(e) => down(e, item)}
     >
-      {@render row(item)}
+      {@render row(item, place)}
     </div>
   {/each}
 </div>

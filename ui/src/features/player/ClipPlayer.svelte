@@ -11,6 +11,7 @@
   import { playerIpc } from '../../ipc/player';
   import { bindingOf } from '../../lib/hotkeys.svelte';
   import { playerMenu } from './menu';
+  import { playerFullscreen } from './players.svelte';
   import SeekBar from './SeekBar.svelte';
   import Shell from './Shell.svelte';
   import { useSound } from './sound.svelte';
@@ -232,7 +233,7 @@
         <Volume volume={sound.volume} muted={sound.muted} onchange={sound.set} />
         <span class="clock">{clock(time)} / {clock(duration)}</span>
         <span class="grow"></span>
-        <button class="ctl" aria-label="Fullscreen" use:tooltip={key('player.fullscreen', 'Fullscreen')} onclick={controls.toggleFullscreen}>
+        <button class="ctl" aria-label={playerFullscreen.on ? 'Exit fullscreen' : 'Fullscreen'} use:tooltip={key('player.fullscreen', playerFullscreen.on ? 'Exit fullscreen' : 'Fullscreen')} onclick={controls.toggleFullscreen}>
           <Icon name="expand" size={16} />
         </button>
       </div>

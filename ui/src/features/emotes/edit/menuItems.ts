@@ -16,6 +16,8 @@ export interface EditHandlers {
 
 /** U4 The greyed-out reason for the "add" entry as a whole (or its only target). */
 export function addNote(add: AddOptions): string | undefined {
+  // rc-3 Nowhere to add it, but some channels have it: it's there, not out of room.
+  if (add.blocked === 'nowhere' && add.targets.some((t) => t.blocked === 'already')) return blockedText('already');
   if (add.blocked) return blockedText(add.blocked);
   const only = add.targets.length === 1 ? add.targets[0] : null;
   return only?.blocked ? blockedText(only.blocked, only.channel) : undefined;

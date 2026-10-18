@@ -1,6 +1,8 @@
 <!-- Commands (1.8): your own commands, menu entries and usercard buttons as rows (V106-10),
      and timers waiting to run (S3). -->
 <script lang="ts">
+  import { tick } from 'svelte';
+
   import EmptyState from '../../../components/EmptyState.svelte';
   import IconButton from '../../../components/IconButton.svelte';
   import Row from '../../../components/Row.svelte';
@@ -68,10 +70,17 @@
     const gone = c.timers[i];
     if (!gone) return;
     save({ timers: c.timers.filter((x) => x.id !== id) });
+    // rb-6 The cursor goes to the timer now in its place, the one above, or the list.
+    void tick().then(() => {
+      const left = timersEl?.querySelectorAll<HTMLElement>('button');
+      (left?.[Math.min(i, left.length - 1)] ?? timersEl)?.focus();
+    });
     // Into the list as it is then: timers that ran meanwhile stay gone.
     const undo = () => save({ timers: [...c.timers.slice(0, i), gone, ...c.timers.slice(i)] });
     toast.success('Timer canceled.', { action: { label: 'Undo', run: undo } });
   }
+
+  let timersEl = $state<HTMLDivElement>();
 
   const when = (ms: number) => `${formatDate(new Date(ms))} ${formatTime(new Date(ms))}`;
 </script>
@@ -123,20 +132,25 @@
 {@render menuList('usercardButtons', 'Add button', 'Button deleted.')}
 
 <SectionHead title={GUIDE.timers.title} setting="commands.timers"><GuideText entry={GUIDE.timers} /></SectionHead>
-{#each c.timers as t (t.id)}
-  <Row label={t.command} hint="{when(t.atMs)} in {t.channel}">
-    <IconButton
-      icon="trash"
-      label="Cancel timer"
-      size={14}
-      onclick={() => cancelTimer(t.id)}
-    />
-  </Row>
-{:else}
-  <EmptyState align="start" icon="clock" text="None waiting. /timer -r 10m /me stretch sets one that survives a restart." />
-{/each}
+<div class="timers" tabindex="-1" bind:this={timersEl}>
+  {#each c.timers as t (t.id)}
+    <Row label={t.command} hint="{when(t.atMs)} in {t.channel}">
+      <IconButton
+        icon="trash"
+        label="Cancel timer"
+        size={14}
+        onclick={() => cancelTimer(t.id)}
+      />
+    </Row>
+  {:else}
+    <EmptyState align="start" icon="clock" text="None waiting. /timer -r 10m /me stretch sets one that survives a restart." />
+  {/each}
+</div>
 
 <style>
+  .timers:focus {
+    outline: none;
+  }
   .problem {
     margin: 0;
     color: var(--red);

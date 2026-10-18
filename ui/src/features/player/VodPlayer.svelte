@@ -16,7 +16,7 @@
   import { settings } from '../../lib/settings.svelte';
   import { Engine } from './engine.svelte';
   import { playerMenu } from './menu';
-  import type { TileState } from './players.svelte';
+  import { playerFullscreen, type TileState } from './players.svelte';
   import { qualityOptions } from './quality';
   import SeekBar from './SeekBar.svelte';
   import GearButton from './GearButton.svelte';
@@ -256,7 +256,7 @@
         <span class="clock">{clock(time)} / {clock(duration)}</span>
         <span class="grow"></span>
         {#if engine}<GearButton {menu} />{/if}
-        <button class="ctl" aria-label="Fullscreen" use:tooltip={key('player.fullscreen', 'Fullscreen')} onclick={controls.toggleFullscreen}>
+        <button class="ctl" aria-label={playerFullscreen.on ? 'Exit fullscreen' : 'Fullscreen'} use:tooltip={key('player.fullscreen', playerFullscreen.on ? 'Exit fullscreen' : 'Fullscreen')} onclick={controls.toggleFullscreen}>
           <Icon name="expand" size={16} />
         </button>
       </div>

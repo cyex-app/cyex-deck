@@ -5,8 +5,8 @@
   import DragList from '../../../components/DragList.svelte';
   import EmptyState from '../../../components/EmptyState.svelte';
   import type { IconName } from '../../../components/icons';
-  import { applyEdit, type Field } from './fields';
-  import { focusLast } from './focus';
+  import { editRow, type Field } from './fields';
+  import { focusAfterDelete, focusLast } from './focus';
   import RuleRow from './RuleRow.svelte';
   import { toast } from '../../../lib/toast.svelte';
 
@@ -70,6 +70,8 @@
   function remove(i: number) {
     const gone = items[i];
     onchange(items.filter((_, j) => j !== i));
+    // rb-6 The cursor goes to the row now in its place, the one above, or Add.
+    void focusAfterDelete(el, '.rule', i, '.add button');
     toast.success(deleted ?? 'Rule deleted.', {
       action: { label: 'Undo', run: () => onchange([...items.slice(0, i), gone, ...items.slice(i)]) },
     });
@@ -87,7 +89,7 @@
     {handle}
     problem={problem?.(item, i)}
     note={note?.(item, i)}
-    onchange={(next) => onchange(items.map((x, j) => (j === i ? applyEdit(x, item, next) : x)))}
+    onchange={(next) => onchange(editRow(items, i, item, next))}
     ondelete={() => remove(i)}
   />
 {/snippet}
@@ -103,8 +105,7 @@
         label={(t) => reorder.label(t, items.indexOf(t))}
         onmove={onchange}
       >
-        {#snippet row(item)}
-          {@const i = items.indexOf(item)}
+        {#snippet row(item, i)}
           {@render one(item, i, grip(reorder.label(item, i)))}
         {/snippet}
       </DragList>

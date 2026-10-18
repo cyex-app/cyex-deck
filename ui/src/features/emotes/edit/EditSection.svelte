@@ -12,7 +12,7 @@
   import { addNote, targetItems } from './menuItems';
   import { editOptionsFor } from './options';
   import { refocus } from './refocus';
-  import { afterEdit } from './renamed';
+  import { afterEdit, currentName } from './renamed';
   import { type EditForm, checkName, removeHere, submitForm } from './run';
 
   interface Props {
@@ -47,6 +47,9 @@
     if (mine !== seq) return;
     options = o;
     asked = true;
+    // rc-2 A line from before a rename: the card follows the emote's current name in the set.
+    const now = currentName(emote, o);
+    if (now !== emote) onchange(now);
   }
 
   // c-1 Asks again when the emote or its name changes (a rename from this card). Only a new

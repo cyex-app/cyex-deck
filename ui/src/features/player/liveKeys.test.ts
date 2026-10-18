@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { FocusOrigin } from './focusOrigin.ts';
 import { liveKeyAction, OWN_ARROWS, ownsKey, TAB_ACROSS, TAB_DOWN, seekText, stepChoice, Steps, stepText, behindText } from './liveKeys.ts';
 
 /** Matches when one of the selector's comma parts is in `parts`. */
@@ -28,17 +29,32 @@ test('d-2 J/L and Shift+Right work anywhere but in a text field', () => {
 
 test('d-2 a tab keeps only the arrows of its own bar, and only with keyboard focus', () => {
   assert.ok(!OWN_ARROWS.split(', ').includes('[role="tab"]'));
-  assert.ok(TAB_ACROSS.endsWith(':focus-visible') && TAB_DOWN.endsWith(':focus-visible'));
-  // A clicked tab isn't :focus-visible: no part matches, the arrows seek.
-  const clicked = fake([]);
-  assert.equal(ownsKey(clicked, key('ArrowLeft')), false);
+  const yes = () => true;
+  // rd-1 A clicked tab: the focus came from the pointer, the arrows seek.
   const across = fake([TAB_ACROSS]);
-  assert.equal(ownsKey(across, key('ArrowLeft')), true);
-  assert.equal(ownsKey(across, key('ArrowRight')), true);
-  assert.equal(ownsKey(across, key('ArrowUp')), false);
+  assert.equal(ownsKey(across, key('ArrowLeft'), () => false), false);
+  assert.equal(ownsKey(across, key('ArrowLeft'), yes), true);
+  assert.equal(ownsKey(across, key('ArrowRight'), yes), true);
+  assert.equal(ownsKey(across, key('ArrowUp'), yes), false);
   const down = fake([TAB_DOWN]);
-  assert.equal(ownsKey(down, key('ArrowDown')), true);
-  assert.equal(ownsKey(down, key('ArrowLeft')), false);
+  assert.equal(ownsKey(down, key('ArrowDown'), yes), true);
+  assert.equal(ownsKey(down, key('ArrowLeft'), yes), false);
+  assert.equal(ownsKey(fake([]), key('ArrowLeft'), yes), false);
+});
+
+test('rd-1 focus origin: a click, then keys, is still a click; Tab or arrows focus by key', () => {
+  const o = new FocusOrigin();
+  const tab = {};
+  o.pointer();
+  o.focus(tab);
+  o.key();
+  assert.equal(o.byKey(tab), false);
+  const next = {};
+  o.focus(next);
+  assert.equal(o.byKey(next), true);
+  assert.equal(o.byKey(tab), false);
+  o.focus(tab);
+  assert.equal(o.byKey(tab), true);
 });
 
 test("a clicked seek bar (tabindex -1) doesn't keep the arrows", () => {

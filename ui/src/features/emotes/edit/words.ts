@@ -88,9 +88,9 @@ export function inlineText(e: EditFail, channel: string): string | null {
   }
 }
 
-/** U4 The form's line for a name check: null when free, '' when a rename keeps its name (no
- *  message, nothing to save), else why not. Pure. */
+/** U4 The form's line for a name check: null when free, else why not. A rename to its own name
+ *  has nothing to save; the line shows once typed or sent (rc-4). Pure. */
 export function nameVerdict(r: NameCheck, channel: string, rename: boolean): string | null {
   if (r === 'taken') return `Taken in ${channel}.`;
-  return r === 'same' && rename ? '' : null;
+  return r === 'same' && rename ? 'That’s the current name.' : null;
 }

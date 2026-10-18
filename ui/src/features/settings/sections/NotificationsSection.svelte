@@ -283,10 +283,11 @@
 {/if}
 
 <style>
+  /* rb-9 A note: the hint size. */
   .note {
     margin: 4px 0 10px;
     color: var(--muted);
-    font-size: var(--text-sub);
+    font-size: var(--text-hint);
   }
   .gated {
     display: flex;

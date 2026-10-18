@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { editRow } from '../rules/fields.ts';
 import { checkLines, commandRow, commandView, hiddenBySubmenu, menuRow, menuView } from './rows.ts';
 
 const on = (text: string) => ({ enabled: true, text });
@@ -75,4 +76,16 @@ test('empty name keeps the sends text', () => {
   assert.equal(back.sends, 'Hello');
   assert.deepEqual(commandRow(back), r);
   assert.equal(commandRow({ ...v, name: '/a\tb', sends: 'x' }).text, '/ab x');
+});
+
+test('name and sends edited in one tick both land (rb-2)', () => {
+  for (const start of ['', '/hi Hello']) {
+    let lines = [{ enabled: true, text: start }];
+    // Both fields saw the row before either edit.
+    const seen = commandView(lines[0]);
+    const views = () => lines.map(commandView);
+    lines = editRow(views(), 0, seen, { ...seen, name: '/yo' }).map(commandRow);
+    lines = editRow(views(), 0, seen, { ...seen, sends: 'Bye' }).map(commandRow);
+    assert.equal(lines[0].text, '/yo Bye');
+  }
 });

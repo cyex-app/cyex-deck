@@ -56,3 +56,10 @@ export function applyEdit<T extends Record<string, unknown>>(now: T, seen: T, ne
   for (const k of Object.keys(next)) if (next[k] !== seen[k]) out[k] = next[k];
   return out as T;
 }
+
+/** rb-2 Row `i`'s edit, made from `seen`, applied to the list as it is now. `i` is the
+ *  row's place when the edit started: a second edit in the same tick, before the list
+ *  redraws, still finds its row (a lookup by the old row object would not). */
+export function editRow<T extends Record<string, unknown>>(items: T[], i: number, seen: T, next: T): T[] {
+  return items.map((x, j) => (j === i ? applyEdit(x, seen, next) : x));
+}
