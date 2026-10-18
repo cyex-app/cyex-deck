@@ -10,6 +10,7 @@
   import { tooltip } from '../../components/tooltip.svelte';
   import type { ChannelInfo } from '../../ipc/bindings/ChannelInfo';
   import type { Tile } from '../../ipc/bindings/Tile';
+  import { nowSecond } from '../../lib/clock.svelte';
   import { formatShort } from '../../lib/format';
   import type { Page } from '../player/players.svelte';
   import StoryRing from '../player/StoryRing.svelte';
@@ -41,11 +42,6 @@
 
   /** V106-18 The viewers chart popover. */
   let chart = $state(false);
-  let minute = $state(Date.now());
-  $effect(() => {
-    const timer = setInterval(() => (minute = Date.now()), 30_000);
-    return () => clearInterval(timer);
-  });
 </script>
 
 <!-- The header drags a tile in a tiled tab (U3); its buttons stay clickable. -->
@@ -62,15 +58,16 @@
   />
   <div class="what">
     {#if stream}
+      {@const up = uptime(stream.startedAt, nowSecond())}
       <span class="title" use:tooltip={{ label: stream.title, hint: stream.game ?? undefined }}>
         <span class="dot" class:rerun={stream.rerun}></span>{stream.title || tile.channel.name}
       </span>
       <span class="meta">
-        {#if stream.game}{stream.game} · {/if}<span class="wrap"><button
+        {#if stream.game}{stream.game}{' · '}{/if}<span class="wrap"><button
             class="watching"
             aria-expanded={chart}
             use:tooltip={'Viewers over time'}
-            onclick={() => (chart = !chart)}>{formatShort(stream.viewers)} watching</button><Popover bind:open={chart} align="start" label="Viewers over time"><ViewerChart channelId={tile.channel.id} /></Popover></span>{#if uptime(stream.startedAt, minute)} · {uptime(stream.startedAt, minute)}{/if}
+            onclick={() => (chart = !chart)}>{formatShort(stream.viewers)} watching</button><Popover bind:open={chart} align="start" label="Viewers over time"><ViewerChart channelId={tile.channel.id} /></Popover></span>{#if up}{' · '}<span class="up">{up}</span>{/if}
       </span>
     {:else}
       <span class="title">{tile.channel.name}</span>
@@ -121,6 +118,9 @@
   .meta {
     color: var(--dim);
     font-size: 0.72rem;
+  }
+  .up {
+    font-variant-numeric: tabular-nums;
   }
   .wrap {
     display: inline;

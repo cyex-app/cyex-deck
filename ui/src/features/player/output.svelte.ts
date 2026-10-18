@@ -78,6 +78,38 @@ function setSink(target: Sinkable, id: string): void {
   void (id ? permitted(job) : serial(job)).catch(() => {});
 }
 
+/** A player's media pipeline asks for its speaker when it starts (a new stream, a reopen, an
+ *  ad switch). Without the permission then, Chromium gives it a null sink for good: it decodes
+ *  and plays nothing, and no later pick brings it back. So the permission is also held while a
+ *  player loads, until it can play. */
+const guarded = new WeakSet<HTMLMediaElement>();
+const loading = new Map<HTMLMediaElement, ReturnType<typeof setTimeout>>();
+/** Longest a load holds the permission. */
+const LOAD_HOLD = 15_000;
+
+function guard(el: HTMLMediaElement): void {
+  if (guarded.has(el)) return;
+  guarded.add(el);
+  el.addEventListener('loadstart', () => hold(el));
+  for (const e of ['canplay', 'playing', 'error', 'abort']) el.addEventListener(e, () => release(el));
+  // Already loading when it got here (a clip's src is in the markup).
+  if (el.networkState === HTMLMediaElement.NETWORK_LOADING && el.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) hold(el);
+}
+
+function hold(el: HTMLMediaElement): void {
+  if (!out.id || loading.has(el)) return;
+  loading.set(el, setTimeout(() => release(el), LOAD_HOLD));
+  void soundIpc.permit(true).catch(() => {});
+}
+
+function release(el: HTMLMediaElement): void {
+  const timer = loading.get(el);
+  if (timer === undefined) return;
+  clearTimeout(timer);
+  loading.delete(el);
+  void soundIpc.permit(false).catch(() => {});
+}
+
 /** The first player looks the device up (listing devices starts WebView2's audio process). */
 function use(): void {
   if (used) return;
@@ -90,6 +122,7 @@ function use(): void {
 /** Sends a player's sound to the streams' device. Call it in an effect: it re-runs on a change. */
 export function applySink(target: HTMLMediaElement): void {
   use();
+  guard(target);
   // V1051-01 Boosted ones play through the boost context, which follows the device itself.
   if (inGraph(target)) return;
   setSink(target as unknown as Sinkable, out.id);
@@ -101,5 +134,6 @@ export function applySink(target: HTMLMediaElement): void {
 export function routeOutput(el: HTMLMediaElement): void {
   outputs.add(el);
   use();
+  guard(el);
   setSink(el as unknown as Sinkable, out.id);
 }
