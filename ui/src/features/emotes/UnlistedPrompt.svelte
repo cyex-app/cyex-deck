@@ -57,6 +57,10 @@
   .keep:hover {
     color: var(--text);
   }
+  /* kb-7 */
+  .keep:active {
+    opacity: 0.6;
+  }
   .keep:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 1px;

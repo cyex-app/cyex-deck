@@ -1,0 +1,7 @@
+{
+  "gifPickerConfig": { "isEnabled": true, "isAllowlisted": true, "apiKey": "test-key", "contentRating": "G_PG" },
+  "user": {
+    "subscriptionProducts": [{ "tier": "1000", "hasGifs": false }, { "tier": "2000", "hasGifs": true }],
+    "self": { "subscriptionBenefit": { "tier": "2000" } }
+  }
+}

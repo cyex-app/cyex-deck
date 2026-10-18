@@ -18,12 +18,10 @@
   import { formatNumber } from '../../lib/format';
   import { commandAt, commandHint, commandMatches } from './commandTab';
   import { argAt, argMatches } from './commandArgs';
-  import { chatxIpc } from '../../ipc/chatx';
   import { pluginsIpc } from '../../ipc/plugins';
   import { mods, PIN_LENGTHS } from '../modview/moderation.svelte';
   import { plugins } from '../plugins/plugins.svelte';
   import EmoteButton from './EmoteButton.svelte';
-  import GifButton from './GifButton.svelte';
   import RewardsMenu from './RewardsMenu.svelte';
   import type { ChatRoom } from './room.svelte';
   import { Sources } from './sources.svelte';
@@ -58,8 +56,6 @@
   let sent: string[] = [];
   let recall = -1;
   let now = $state(Date.now());
-  /** 1.43 Shown once Twitch says this account can send GIFs here; asked on first focus. */
-  let gifs = $state<boolean | null>(null);
 
   interface Suggest {
     word: Word;
@@ -171,12 +167,6 @@
 
   function focused() {
     sources.load();
-    if (gifs !== null || !room.view) return;
-    gifs = false;
-    chatxIpc
-      .gifInfo(room.view)
-      .then((i) => (gifs = i.canSend))
-      .catch(() => {});
   }
 
   /** Back to the box, e.g. after a pop-up closes. */
@@ -396,8 +386,8 @@
           {#if chars >= SHOW_COUNT}<span class="count" class:over={chars > MAX} class:near={chars > MAX - 50}>{formatNumber(chars)}/{MAX}</span>{/if}
         </div>
       {/if}
-      {#if gifs}<GifButton {room} />{/if}
-      <EmoteButton login={room.login} account={room.account} oninsert={(v) => void insertAtCaret(v)} />
+      <!-- 1.43 GIFs are a tab in the emote menu. -->
+      <EmoteButton login={room.login} account={room.account} {room} oninsert={(v) => void insertAtCaret(v)} />
       </div>
       {#if settings.v.chat.sendButton}
         <IconButton
@@ -448,7 +438,7 @@
     align-items: flex-end;
     gap: 6px;
   }
-  /* The same box as the whisper box: emote (and GIF) buttons inside, send outside. */
+  /* The same box as the whisper box: the emote button inside, send outside. */
   .compose {
     flex: 1 1 0;
     min-width: 0;
@@ -467,8 +457,7 @@
   .row > :global(.icon-btn) {
     margin-bottom: 2px;
   }
-  .compose :global(.smile),
-  .compose :global(.gif-btn) {
+  .compose :global(.smile) {
     height: 30px;
     margin-bottom: 1px;
   }

@@ -86,10 +86,16 @@ struct RawEmote {
     modifier_flags: u32,
     owner: Option<RawOwner>,
     animated: Option<serde_json::Value>,
+    /// 1.41 Upload date (ISO), shown as the card's Added date.
+    #[serde(default)]
+    created_at: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct RawOwner {
+    /// Login, in the owner's page link.
+    #[serde(default)]
+    name: Option<String>,
     display_name: String,
 }
 
@@ -99,7 +105,9 @@ impl RawEmote {
         e.modifier = self.modifier.then_some(self.modifier_flags);
         e.animated = self.animated.is_some_and(|a| a.is_object());
         e.size = self.width.zip(self.height);
+        e.owner_key = self.owner.as_ref().and_then(|o| o.name.clone());
         e.owner = self.owner.map(|o| o.display_name);
+        e.added_at = self.created_at;
         e
     }
 }
@@ -267,6 +275,8 @@ mod tests {
         let laugh = set.get("forsenLaughingAtYou").unwrap();
         assert!(laugh.animated);
         assert_eq!(laugh.size, Some((28, 28)));
+        assert_eq!(laugh.owner_key.as_deref(), Some("sadgw"));
+        assert!(laugh.added_at.as_deref().is_some_and(|d| d.starts_with("20")));
         assert_eq!(r.badges.moderator.unwrap().color.as_deref(), Some("#34ae0a"));
         assert!(r.badges.vip.unwrap().image4x.ends_with("/4"));
     }

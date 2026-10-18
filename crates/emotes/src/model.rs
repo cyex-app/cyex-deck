@@ -40,6 +40,18 @@ pub struct Emote {
     /// 7TV user id of who made it.
     #[serde(skip)]
     pub owner_id: Option<String>,
+    /// 1.41 BTTV user id or FFZ login of who made it, for their page.
+    #[serde(skip)]
+    pub owner_key: Option<String>,
+    /// 1.41 Card flags: 7TV NSFW and personal-set rules, BTTV shared.
+    #[serde(skip)]
+    pub nsfw: bool,
+    #[serde(skip)]
+    pub approved_personal: bool,
+    #[serde(skip)]
+    pub denied_personal: bool,
+    #[serde(skip)]
+    pub shared: bool,
 }
 
 impl Emote {
@@ -59,6 +71,11 @@ impl Emote {
             added_by: None,
             private: false,
             owner_id: None,
+            owner_key: None,
+            nsfw: false,
+            approved_personal: false,
+            denied_personal: false,
+            shared: false,
         }
     }
 

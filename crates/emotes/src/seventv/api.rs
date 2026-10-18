@@ -28,7 +28,8 @@ fn gql_url() -> &'static str {
 const V3: &str = "https://7tv.io/v3";
 
 const ITEM: &str = "items { id alias addedAt addedById flags { zeroWidth } \
-    emote { defaultName aspectRatio ownerId flags { animated publicListed approvedPersonal private } } }";
+    emote { defaultName aspectRatio ownerId \
+    flags { animated publicListed approvedPersonal deniedPersonal private nsfw } } }";
 
 /// Emote sets past this many aren't asked for in one go (Twitch's limit is 50).
 pub const MAX_BATCH: usize = 50;
@@ -116,16 +117,27 @@ pub async fn user_names(http: &Http, ids: &[String]) -> Result<HashMap<String, S
         .collect())
 }
 
-/// Who made an emote, for its card.
-pub async fn owner_name(http: &Http, emote_id: &str) -> Result<Option<String>> {
-    let q =
-        "query($id: Id!) { emotes { emote(id: $id) { owner { mainConnection { platformDisplayName } } } } }";
+/// 1.41 An emote by id, for its card: owner name and id, and its own flags (for an
+/// emote no loaded set has). `None` when 7TV doesn't know it.
+pub async fn emote(http: &Http, emote_id: &str) -> Result<Option<Emote>> {
+    let q = "query($id: Id!) { emotes { emote(id: $id) { defaultName ownerId \
+        flags { animated publicListed approvedPersonal deniedPersonal private nsfw } \
+        owner { mainConnection { platformDisplayName } } } } }";
     let v: Value = post::<Value>(http, q, json!({ "id": emote_id })).await?;
-    Ok(
-        v.pointer("/data/emotes/emote/owner/mainConnection/platformDisplayName")
-            .and_then(Value::as_str)
-            .map(str::to_owned),
-    )
+    Ok(card_emote(emote_id, &v))
+}
+
+fn card_emote(id: &str, v: &Value) -> Option<Emote> {
+    let raw = v.pointer("/data/emotes/emote")?;
+    let e: RawEmote = serde_json::from_value(raw.clone()).ok()?;
+    let mut out = Emote::new(Provider::Seventv, id, e.default_name);
+    e.flags.apply(&mut out);
+    out.owner_id = e.owner_id;
+    out.owner = raw
+        .pointer("/owner/mainConnection/platformDisplayName")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    Some(out)
 }
 
 /// D21 V106-08 The presence body, as the 7TV extension sends it (`worker.http.ts:236-245`):
@@ -271,10 +283,26 @@ struct RawEmoteFlags {
     animated: bool,
     #[serde(default = "yes")]
     public_listed: bool,
-    #[serde(default = "yes")]
-    approved_personal: bool,
+    /// `None` (a mock without it) lets personal sets keep the emote.
+    #[serde(default)]
+    approved_personal: Option<bool>,
+    #[serde(default)]
+    denied_personal: bool,
     #[serde(default)]
     private: bool,
+    #[serde(default)]
+    nsfw: bool,
+}
+
+impl RawEmoteFlags {
+    fn apply(&self, e: &mut Emote) {
+        e.unlisted = !self.public_listed;
+        e.private = self.private;
+        e.animated = self.animated;
+        e.nsfw = self.nsfw;
+        e.approved_personal = self.approved_personal == Some(true);
+        e.denied_personal = self.denied_personal;
+    }
 }
 
 fn yes() -> bool {
@@ -304,16 +332,14 @@ impl RawSet {
             .filter_map(|i| {
                 let e = i.emote?;
                 // C9 Personal sets only lend emotes 7TV approved for that.
-                if personal && !e.flags.approved_personal {
+                if personal && e.flags.approved_personal == Some(false) {
                     return None;
                 }
                 let mut emote = Emote::new(Provider::Seventv, i.id, i.alias);
                 emote.original = (e.default_name != emote.name).then_some(e.default_name);
                 emote.zero_width = i.flags.zero_width;
-                emote.unlisted = !e.flags.public_listed;
-                emote.private = e.flags.private;
+                e.flags.apply(&mut emote);
                 emote.owner_id = e.owner_id;
-                emote.animated = e.flags.animated;
                 emote.size = e.aspect_ratio.map(box_1x);
                 emote.added_at = i.added_at;
                 emote.added_by = i.added_by_id;
@@ -443,6 +469,33 @@ mod tests {
         let e = set.get("a").unwrap();
         assert!(e.private);
         assert_eq!(e.owner_id.as_deref(), Some("U1"));
+    }
+
+    #[test]
+    fn card_flags_are_read() {
+        let raw: RawSet = serde_json::from_str(
+            r#"{"id":"S","emotes":{"items":[{"id":"E1","alias":"a","flags":{},
+            "emote":{"defaultName":"a","flags":{"nsfw":true,"deniedPersonal":true,"approvedPersonal":false}}},
+            {"id":"E2","alias":"b","flags":{},"emote":{"defaultName":"b","flags":{}}}]}}"#,
+        )
+        .unwrap();
+        let set = raw.into_set(Scope::Channel);
+        let a = set.get("a").unwrap();
+        assert!(a.nsfw && a.denied_personal && !a.approved_personal);
+        // Without the flag (a mock) it's neither approved nor dropped from personal sets.
+        let b = set.get("b").unwrap();
+        assert!(!b.approved_personal && !b.denied_personal && !b.nsfw);
+    }
+
+    #[test]
+    fn card_emote_by_id() {
+        let v: Value = fixture("v4_emote.json");
+        let e = card_emote("01FG70GMPR00021TQRJX35KWP1", &v).unwrap();
+        assert_eq!(e.name, "notL");
+        assert_eq!(e.owner.as_deref(), Some("bodybuffalo28"));
+        assert_eq!(e.owner_id.as_deref(), Some("01F6MTQK0R0000QWQEJTQA0MJ7"));
+        assert!(e.animated && !e.unlisted && !e.private && !e.nsfw);
+        assert!(card_emote("x", &json!({ "data": { "emotes": { "emote": null } } })).is_none());
     }
 
     #[test]

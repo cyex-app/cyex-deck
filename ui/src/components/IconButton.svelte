@@ -84,6 +84,11 @@
     background: var(--surface-hover);
     color: var(--text);
   }
+  /* ka-4 Press feedback, at once. */
+  .icon-btn:active:not(:disabled) {
+    opacity: 0.6;
+    transition: none;
+  }
   .icon-btn.active {
     color: var(--accent-text);
     background: var(--accent-dim);

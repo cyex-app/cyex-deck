@@ -4,8 +4,8 @@
 </script>
 
 {#if tip.visible}
-  <!-- V101-04 Under its element, or above it when there's no room below. -->
-  <div class="tip" class:pic={!!tip.image} role="tooltip" use:floating={{ anchor: tip.anchor, align: 'center' }}>
+  <!-- V101-04 Under its element, or above it when there's no room below (or a side it asks for, ct-9). -->
+  <div class="tip" class:pic={!!tip.image} role="tooltip" use:floating={{ anchor: tip.anchor, side: tip.side, align: 'center' }}>
     {#if tip.image}<img src={tip.image} alt="" />{/if}
     <span class="name">{tip.label}</span>
     {#if tip.hint}<span class="hint">{tip.hint}</span>{/if}

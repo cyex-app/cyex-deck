@@ -8,8 +8,9 @@ type CmdResult<T> = Result<T, String>;
 
 /// Hosts the UI may open. Everything else is refused, so a bad link in chat or a token
 /// field can't launch arbitrary URLs.
-/// Twitch, the emote providers' pages (1.41 emote cards) the logs site (1.36) and the docs (V106-12).
-const ALLOWED_HOSTS: [&str; 10] = [
+/// Twitch, the emote providers' pages (1.41 emote cards) the logs site (1.36), the docs (V106-12) and Chat Vault
+/// (emote pages for Twitch emotes, 2026/10/18).
+const ALLOWED_HOSTS: [&str; 11] = [
     "twitch.tv",
     "www.twitch.tv",
     "dev.twitch.tv",
@@ -20,6 +21,7 @@ const ALLOWED_HOSTS: [&str; 10] = [
     "frankerfacez.com",
     "logs.cyex.app",
     "cyex.app",
+    "chatvau.lt",
 ];
 
 #[tauri::command]
@@ -99,6 +101,7 @@ mod tests {
         ));
         assert!(is_allowed("https://dev.twitch.tv/console/apps"));
         assert!(is_allowed("https://7tv.app/emotes/01FG70GMPR00021TQRJX35KWP1"));
+        assert!(is_allowed("https://chatvau.lt/emote/twitch/25"));
         assert!(!is_allowed("http://www.twitch.tv/activate"));
         assert!(!is_allowed("https://twitch.tv.evil.example/"));
         assert!(is_allowed("https://cyex.app/deck/docs/#commands"));

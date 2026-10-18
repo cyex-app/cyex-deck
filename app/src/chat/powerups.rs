@@ -1,12 +1,12 @@
 //! 1.42 Power-ups and 1.43 GIFs for a chat's account. Prices are read fresh before the
 //! confirm in the UI; Twitch refuses a price that changed since (`REWARD_COST_MISMATCH`).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use cyex_twitch::giphy::{self, Gif};
-use cyex_twitch::gql::gifs::{GifAccess, GifSent};
+use cyex_twitch::gql::gifs::{GifAccess, GifSent, RoomGate};
 use cyex_twitch::gql::powerups::{self, EFFECTS, PowerUps};
 use cyex_twitch::gql::{self, gifs};
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,9 @@ use tauri::{AppHandle, Manager};
 use ts_rs::TS;
 
 use super::{Chat, Identity};
+
+#[cfg(feature = "mocks")]
+mod gif_mock;
 
 /// GIF access is asked again after this long.
 const ACCESS_TTL: Duration = Duration::from_secs(300);
@@ -24,6 +27,8 @@ struct Ctx {
     login: String,
     account: Option<String>,
     token: Option<(String, String)>,
+    /// 1.43 From ROOMSTATE, read on every call.
+    emote_only: bool,
 }
 
 impl Ctx {
@@ -50,11 +55,11 @@ fn ctx(app: &AppHandle, view: u32) -> Result<Ctx, String> {
         .get(&view)
         .map(|v| v.0.clone())
         .ok_or("This chat is closed.")?;
-    let channel_id = inner
-        .rooms
-        .get(&key)
-        .and_then(|e| e.room.state.channel_id.clone())
+    let state = inner.rooms.get(&key).map(|e| &e.room.state);
+    let channel_id = state
+        .and_then(|s| s.channel_id.clone())
         .ok_or("Not connected yet.")?;
+    let emote_only = state.is_some_and(|s| s.emote_only);
     let account = match &key.0 {
         Identity::Account(a) => Some(a.clone()),
         Identity::Anon => None,
@@ -66,6 +71,7 @@ fn ctx(app: &AppHandle, view: u32) -> Result<Ctx, String> {
         login: key.1,
         account,
         token,
+        emote_only,
     })
 }
 
@@ -155,6 +161,34 @@ fn power_up_error(code: &str) -> String {
 pub struct GifState {
     /// (account, channel id) → access and when it was asked.
     access: Mutex<HashMap<(String, String), (GifAccess, Instant)>>,
+    /// Channel ids in Shield Mode, as far as the mod feeds tell (mods only).
+    shield: Mutex<HashSet<String>>,
+}
+
+/// 1.43 The mod feeds saw Shield Mode go on or off.
+pub fn shield_changed(app: &AppHandle, channel_id: &str, on: bool) {
+    let Some(g) = app.try_state::<GifState>() else {
+        return;
+    };
+    let mut set = g.shield.lock().unwrap_or_else(|p| p.into_inner());
+    if on {
+        set.insert(channel_id.to_owned());
+    } else {
+        set.remove(channel_id);
+    }
+}
+
+fn room_gate(app: &AppHandle, c: &Ctx) -> RoomGate {
+    let shield = app
+        .state::<GifState>()
+        .shield
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .contains(&c.channel_id);
+    RoomGate {
+        emote_only: c.emote_only,
+        shield,
+    }
 }
 
 pub fn init(app: &AppHandle) {
@@ -171,7 +205,7 @@ pub struct GifInfo {
 
 async fn access(app: &AppHandle, c: &Ctx) -> Result<GifAccess, String> {
     let account = c.account.clone().ok_or("Sign in to send GIFs.")?;
-    let k = (account, c.channel_id.clone());
+    let k = (account.clone(), c.channel_id.clone());
     if let Some((a, at)) = app
         .state::<GifState>()
         .access
@@ -182,7 +216,7 @@ async fn access(app: &AppHandle, c: &Ctx) -> Result<GifAccess, String> {
     {
         return Ok(a.clone());
     }
-    let a = gifs::gif_access(&http(app), c.signed_in()?, &c.channel_id)
+    let a = gifs::gif_access(&http(app), c.signed_in()?, &c.channel_id, &account)
         .await
         .map_err(|e| e.to_string())?;
     app.state::<GifState>()
@@ -195,13 +229,25 @@ async fn access(app: &AppHandle, c: &Ctx) -> Result<GifAccess, String> {
 
 pub async fn gif_info(app: &AppHandle, view: u32) -> Result<GifInfo, String> {
     let c = ctx(app, view)?;
+    #[cfg(feature = "mocks")]
+    if gif_mock::on(app) {
+        let a = GifAccess {
+            can_send: true,
+            ..GifAccess::default()
+        }
+        .in_room(room_gate(app, &c));
+        return Ok(GifInfo {
+            can_send: a.can_send,
+            reason: a.reason.map(str::to_owned),
+        });
+    }
     if c.token.is_none() {
         return Ok(GifInfo {
             can_send: false,
             reason: Some("GIFs need the GQL sign-in.".into()),
         });
     }
-    let a = access(app, &c).await?;
+    let a = access(app, &c).await?.in_room(room_gate(app, &c));
     Ok(GifInfo {
         can_send: a.can_send,
         reason: a.reason.map(str::to_owned),
@@ -209,6 +255,10 @@ pub async fn gif_info(app: &AppHandle, view: u32) -> Result<GifInfo, String> {
 }
 
 pub async fn gif_search(app: &AppHandle, view: u32, query: &str, offset: u32) -> Result<Vec<Gif>, String> {
+    #[cfg(feature = "mocks")]
+    if gif_mock::on(app) {
+        return Ok(gif_mock::search(query, offset));
+    }
     let c = ctx(app, view)?;
     let a = access(app, &c).await?;
     let key = a.api_key.as_deref().ok_or("GIFs aren’t available here.")?;
@@ -225,6 +275,10 @@ pub async fn gif_send(
     url: &str,
     search: &str,
 ) -> Result<GifSent, String> {
+    #[cfg(feature = "mocks")]
+    if gif_mock::on(app) {
+        return Ok(gif_mock::send(search));
+    }
     let giphy = url::Url::parse(url)
         .ok()
         .and_then(|u| {
@@ -236,7 +290,7 @@ pub async fn gif_send(
         return Err("That isn’t a GIPHY GIF.".into());
     }
     let c = ctx(app, view)?;
-    let a = access(app, &c).await?;
+    let a = access(app, &c).await?.in_room(room_gate(app, &c));
     if !a.can_send {
         return Err(a.reason.unwrap_or("You can’t send GIFs here.").into());
     }
