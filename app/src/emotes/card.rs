@@ -5,13 +5,14 @@ use std::sync::LazyLock;
 use std::time::Duration;
 
 use cyex_chat::model::Provider;
-use cyex_emotes::{Emote, Scope, seventv};
-use cyex_twitch::gql::{self, EmoteKind};
+use cyex_emotes::{Emote, Scope, bttv, seventv};
+use cyex_twitch::gql;
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 use ts_rs::TS;
 
 use super::Emotes;
+use super::card_flags::{self, CardFlag};
 use super::ttl::Ttl;
 use super::twitch_state;
 use crate::auth::Auth;
@@ -25,8 +26,10 @@ pub struct EmoteCard {
     pub name: String,
     /// The emote's own name, when this channel renamed it (7TV).
     pub original: Option<String>,
-    /// "Channel emote", "Global emote", "Personal emote", "Tier 1", "Follower", "Bits".
-    pub kind: Option<String>,
+    /// What it is, in card order (scope, Twitch type, animated, overlaying, ...).
+    pub flags: Vec<CardFlag>,
+    /// Twitch bits emotes: bits cheered to unlock it, when known.
+    pub bits: Option<u32>,
     /// Twitch: the channel it belongs to.
     pub channel: Option<String>,
     /// Who made it.
@@ -40,10 +43,16 @@ pub struct EmoteCard {
     pub page: Option<String>,
     /// Twitch: the owning channel's login, opened in the app.
     pub channel_login: Option<String>,
-    /// 7TV: the owner's page.
+    /// The owner's page: 7TV, BTTV or FFZ user.
     pub owner_url: Option<String>,
     /// Twitch: "Inactive", "Archived", "Pending", "Deleted"; `None` when active or unknown.
     pub state: Option<String>,
+    /// Twitch: the owning channel's picture.
+    pub channel_avatar: Option<String>,
+    /// Twitch: the artist's login, opened in the app.
+    pub artist_login: Option<String>,
+    /// 7TV: the page of the set it came from, when a loaded set has it.
+    pub set_url: Option<String>,
 }
 
 /// 1.41 Cards that loaded, per provider, emote and chat (Twitch: any chat), for an hour.
@@ -93,44 +102,20 @@ async fn third_party(
     id: &str,
     name: &str,
 ) -> (EmoteCard, bool) {
-    let (local, scope) =
-        find(app, login, provider, id).unwrap_or_else(|| (Emote::new(provider, id, name), None));
-    let mut card = EmoteCard {
-        provider,
-        id: id.to_owned(),
-        name: name.to_owned(),
-        original: local.original.clone(),
-        kind: scope.map(|s| {
-            match s {
-                Scope::Channel => "Channel emote",
-                Scope::Global => "Global emote",
-                Scope::Personal => "Personal emote",
-            }
-            .to_owned()
-        }),
-        channel: None,
-        owner: local.owner.clone(),
-        added_by: None,
-        added_at: local.added_at.clone(),
-        zero_width: local.zero_width,
-        unlisted: local.unlisted,
-        animated: local.animated,
-        page: page(provider, id, local.original.as_deref().unwrap_or(&local.name)),
-        channel_login: None,
-        owner_url: local
-            .owner_id
-            .as_deref()
-            .filter(|_| provider == Provider::Seventv)
-            .map(seventv_user),
-        state: None,
-    };
+    let found = find(app, login, provider, id);
+    let set_id = found.as_ref().map(|f| f.2.clone());
+    let (mut local, scope) = found
+        .map(|(e, s, _)| (e, Some(s)))
+        .unwrap_or_else(|| (Emote::new(provider, id, name), None));
     let complete = match provider {
         Provider::Seventv => {
-            let (owner, names) = tokio::join!(
+            let ask = local.owner.is_none();
+            let (detail, names) = tokio::join!(
                 async {
-                    match &card.owner {
-                        Some(o) => Ok(Some(o.clone())),
-                        None => seventv::api::owner_name(http, id).await,
+                    if ask {
+                        seventv::api::emote(http, id).await
+                    } else {
+                        Ok(None)
                     }
                 },
                 async {
@@ -138,14 +123,76 @@ async fn third_party(
                     seventv::api::user_names(http, &ids).await
                 }
             );
-            let complete = owner.is_ok() && names.is_ok();
-            card.owner = owner.ok().flatten();
-            card.added_by = local.added_by.as_ref().and_then(|a| names.ok()?.get(a).cloned());
+            let complete = detail.is_ok() && names.is_ok();
+            if let Some(d) = detail.ok().flatten() {
+                merge(&mut local, d, scope.is_none());
+            }
+            local.added_by = local.added_by.as_ref().and_then(|a| names.ok()?.get(a).cloned());
             complete
         }
-        _ => super::providers::card(http, &mut card).await,
+        Provider::Bttv if local.owner.is_none() => match bttv::api::uploader(http, id).await {
+            Ok(o) => {
+                if let Some((who, user)) = o {
+                    local.owner = Some(who);
+                    local.owner_key = local.owner_key.take().or(Some(user));
+                }
+                true
+            }
+            Err(_) => false,
+        },
+        _ => true,
     };
-    (card, complete)
+    (third_party_card(&local, scope, set_id.as_deref(), name), complete)
+}
+
+/// 1.41 What 7TV's own lookup adds: the owner always; its flags and name when no
+/// loaded set had the emote.
+fn merge(local: &mut Emote, d: Emote, unknown: bool) {
+    let owner_id = local.owner_id.take().or(d.owner_id.clone());
+    if unknown {
+        let shown = std::mem::take(&mut local.name);
+        *local = Emote {
+            original: (d.name != shown).then(|| d.name.clone()),
+            name: shown,
+            ..d
+        };
+    } else {
+        local.owner = d.owner;
+    }
+    local.owner_id = owner_id;
+}
+
+/// `local.added_by` holds the adder's name by now; `name` is what chat shows.
+fn third_party_card(local: &Emote, scope: Option<Scope>, set_id: Option<&str>, name: &str) -> EmoteCard {
+    let provider = local.provider;
+    EmoteCard {
+        provider,
+        id: local.id.clone(),
+        name: name.to_owned(),
+        original: local.original.clone(),
+        flags: card_flags::third_party(local, scope),
+        bits: None,
+        channel: None,
+        owner: local.owner.clone(),
+        added_by: local.added_by.clone(),
+        added_at: local.added_at.clone(),
+        zero_width: local.zero_width,
+        unlisted: local.unlisted,
+        animated: local.animated,
+        page: page(
+            provider,
+            &local.id,
+            local.original.as_deref().unwrap_or(&local.name),
+        ),
+        channel_login: None,
+        owner_url: owner_url(provider, local),
+        state: None,
+        channel_avatar: None,
+        artist_login: None,
+        set_url: set_id
+            .filter(|_| provider == Provider::Seventv)
+            .map(|s| format!("https://7tv.app/emote-sets/{s}")),
+    }
 }
 
 async fn twitch(http: &cyex_twitch::Http, id: &str, name: &str) -> Result<EmoteCard, String> {
@@ -155,7 +202,8 @@ async fn twitch(http: &cyex_twitch::Http, id: &str, name: &str) -> Result<EmoteC
         id: id.to_owned(),
         name: name.to_owned(),
         original: None,
-        kind: None,
+        flags: Vec::new(),
+        bits: None,
         channel: None,
         owner: None,
         added_by: None,
@@ -167,67 +215,34 @@ async fn twitch(http: &cyex_twitch::Http, id: &str, name: &str) -> Result<EmoteC
         channel_login: None,
         owner_url: None,
         state: None,
+        channel_avatar: None,
+        artist_login: None,
+        set_url: None,
     };
     let Some(info) = info else { return Ok(card) };
     card.animated = info.emote.animated;
-    card.kind = Some(twitch_kind(&info));
+    card.flags = card_flags::twitch(&info);
+    card.bits = info.bits;
     card.owner = info.artist;
+    card.artist_login = info.artist_login;
     if let Some(o) = info.owner {
         card.channel_login = Some(o.login);
         card.channel = Some(o.name);
+        card.channel_avatar = o.avatar;
     }
     Ok(card)
-}
-
-fn twitch_kind(info: &gql::TwitchEmoteInfo) -> String {
-    if let Some(t) = info.tier {
-        return format!("Tier {t}");
-    }
-    if let Some(b) = info.bits {
-        return bits(b);
-    }
-    let by_type = match info.raw_type.as_deref() {
-        Some("TWO_FACTOR") => Some("Two-factor emote"),
-        Some("SMILIES") => Some("Smiley"),
-        Some("ARCHIVE") => Some("Archived set"),
-        Some("MEGA_COMMERCE") => Some("Event emote"),
-        _ => None,
-    };
-    by_type
-        .unwrap_or(match info.emote.kind {
-            EmoteKind::Follower => "Follower",
-            EmoteKind::Global => "Global emote",
-            EmoteKind::Prime => "Prime",
-            EmoteKind::Turbo => "Turbo",
-            EmoteKind::HypeTrain => "Hype train",
-            EmoteKind::Points => "Unlocked with points",
-            EmoteKind::LimitedTime => "Limited time",
-            EmoteKind::TwoFactor => "Two-factor emote",
-            EmoteKind::Bits => BITS,
-            _ => "Twitch emote",
-        })
-        .to_owned()
-}
-
-/// A bits emote whose threshold GQL didn't say.
-const BITS: &str = "Bits";
-
-fn bits(n: u32) -> String {
-    format!("Bits, {} cheered", cyex_core::number::grouped(u64::from(n)))
 }
 
 /// What potat or ivr add to a Twitch card.
 fn apply(card: &mut EmoteCard, f: &twitch_state::Facts) {
     card.state.clone_from(&f.state);
-    if card.kind.as_deref() == Some(BITS)
-        && let Some(n) = f.bit_cost
-    {
-        card.kind = Some(bits(n));
+    if card.flags.contains(&CardFlag::Bits) && card.bits.is_none() {
+        card.bits = f.bit_cost;
     }
 }
 
-/// The emote as this chat knows it, and which kind of set it's in.
-fn find(app: &AppHandle, login: &str, provider: Provider, id: &str) -> Option<(Emote, Option<Scope>)> {
+/// The emote as this chat knows it, the kind of set it's in, and that set's id.
+fn find(app: &AppHandle, login: &str, provider: Provider, id: &str) -> Option<(Emote, Scope, String)> {
     let state = app.state::<Emotes>();
     let inner = state.lock();
     let channel = inner
@@ -244,12 +259,31 @@ fn find(app: &AppHandle, login: &str, provider: Provider, id: &str) -> Option<(E
             s.emotes
                 .iter()
                 .find(|e| e.id == id)
-                .map(|e| ((**e).clone(), Some(s.scope)))
+                .map(|e| ((**e).clone(), s.scope, s.id.clone()))
         })
 }
 
 fn seventv_user(id: &str) -> String {
     format!("https://7tv.app/users/{id}")
+}
+
+/// 1.41 The maker's page: 7TV user, BTTV user, FFZ uploader.
+fn owner_url(provider: Provider, e: &Emote) -> Option<String> {
+    match provider {
+        Provider::Seventv => e.owner_id.as_deref().map(seventv_user),
+        Provider::Bttv => e
+            .owner_key
+            .as_deref()
+            .filter(|k| k.chars().all(|c| c.is_ascii_alphanumeric()))
+            .map(|k| format!("https://betterttv.com/users/{k}")),
+        Provider::Ffz => {
+            let key = e.owner_key.as_deref()?;
+            let mut url = url::Url::parse("https://www.frankerfacez.com/emoticons/user/").ok()?;
+            url.path_segments_mut().ok()?.pop_if_empty().push(key);
+            Some(url.into())
+        }
+        Provider::Twitch => None,
+    }
 }
 
 /// `name` is the emote's own name (FFZ's page has it in the slug).
@@ -271,55 +305,7 @@ fn page(provider: Provider, id: &str, name: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use cyex_twitch::gql::{TwitchEmote, TwitchEmoteInfo};
-
     use super::*;
-
-    fn info(kind: EmoteKind, raw: Option<&str>, tier: Option<u8>, bits: Option<u32>) -> TwitchEmoteInfo {
-        TwitchEmoteInfo {
-            emote: TwitchEmote {
-                id: "1".into(),
-                name: "x".into(),
-                set_id: "9".into(),
-                kind,
-                animated: false,
-                modifiers: Vec::new(),
-            },
-            owner: None,
-            tier,
-            bits,
-            artist: None,
-            raw_type: raw.map(str::to_owned),
-        }
-    }
-
-    #[test]
-    fn twitch_kind_labels() {
-        let k = |kind, raw, tier, b| twitch_kind(&info(kind, raw, tier, b));
-        assert_eq!(
-            k(EmoteKind::Subscription, Some("SUBSCRIPTIONS"), Some(2), None),
-            "Tier 2"
-        );
-        assert_eq!(k(EmoteKind::Bits, None, None, Some(1000)), "Bits, 1.000 cheered");
-        assert_eq!(k(EmoteKind::Bits, Some("BITS_BADGE_TIERS"), None, None), "Bits");
-        assert_eq!(
-            k(EmoteKind::TwoFactor, Some("TWO_FACTOR"), None, None),
-            "Two-factor emote"
-        );
-        assert_eq!(k(EmoteKind::TwoFactor, None, None, None), "Two-factor emote");
-        assert_eq!(k(EmoteKind::Global, Some("SMILIES"), None, None), "Smiley");
-        assert_eq!(k(EmoteKind::Other, Some("ARCHIVE"), None, None), "Archived set");
-        assert_eq!(
-            k(EmoteKind::LimitedTime, Some("MEGA_COMMERCE"), None, None),
-            "Event emote"
-        );
-        assert_eq!(
-            k(EmoteKind::LimitedTime, Some("LIMITED_TIME"), None, None),
-            "Limited time"
-        );
-        assert_eq!(k(EmoteKind::Global, Some("GLOBALS"), None, None), "Global emote");
-        assert_eq!(k(EmoteKind::Other, Some("NEW"), None, None), "Twitch emote");
-    }
 
     fn blank() -> EmoteCard {
         EmoteCard {
@@ -327,7 +313,8 @@ mod tests {
             id: "1".into(),
             name: "x".into(),
             original: None,
-            kind: Some(BITS.into()),
+            flags: vec![CardFlag::Channel, CardFlag::Bits],
+            bits: None,
             channel: None,
             owner: None,
             added_by: None,
@@ -339,6 +326,9 @@ mod tests {
             channel_login: None,
             owner_url: None,
             state: None,
+            channel_avatar: None,
+            artist_login: None,
+            set_url: None,
         }
     }
 
@@ -351,11 +341,16 @@ mod tests {
         };
         apply(&mut c, &f);
         assert_eq!(c.state.as_deref(), Some("Archived"));
-        assert_eq!(c.kind.as_deref(), Some("Bits, 5.000 cheered"));
+        assert_eq!(c.bits, Some(5000));
+        // GQL's threshold wins; a sub emote gets no bits.
         let mut c = blank();
-        c.kind = Some("Tier 1".into());
+        c.bits = Some(100);
         apply(&mut c, &f);
-        assert_eq!(c.kind.as_deref(), Some("Tier 1"));
+        assert_eq!(c.bits, Some(100));
+        let mut c = blank();
+        c.flags = vec![CardFlag::Channel, CardFlag::Tier1];
+        apply(&mut c, &f);
+        assert_eq!(c.bits, None);
     }
 
     #[test]
@@ -373,5 +368,82 @@ mod tests {
             Some("https://www.frankerfacez.com/emoticon/1-a%2Fb%20c")
         );
         assert_eq!(seventv_user("01ABC"), "https://7tv.app/users/01ABC");
+    }
+
+    fn with_key(provider: Provider, key: &str) -> Emote {
+        let mut e = Emote::new(provider, "1", "x");
+        e.owner_key = Some(key.into());
+        e
+    }
+
+    #[test]
+    fn owner_pages() {
+        let mut s = Emote::new(Provider::Seventv, "1", "x");
+        s.owner_id = Some("01U".into());
+        assert_eq!(
+            owner_url(Provider::Seventv, &s).as_deref(),
+            Some("https://7tv.app/users/01U")
+        );
+        assert_eq!(
+            owner_url(
+                Provider::Bttv,
+                &with_key(Provider::Bttv, "561c219aef87f8db05aca668")
+            )
+            .as_deref(),
+            Some("https://betterttv.com/users/561c219aef87f8db05aca668")
+        );
+        assert_eq!(owner_url(Provider::Bttv, &with_key(Provider::Bttv, "../x")), None);
+        assert_eq!(
+            owner_url(Provider::Ffz, &with_key(Provider::Ffz, "sadgw")).as_deref(),
+            Some("https://www.frankerfacez.com/emoticons/user/sadgw")
+        );
+        assert_eq!(
+            owner_url(Provider::Ffz, &Emote::new(Provider::Ffz, "1", "x")),
+            None
+        );
+    }
+
+    #[test]
+    fn third_party_cards() {
+        let mut e = Emote::new(Provider::Seventv, "E", "a");
+        e.original = Some("b".into());
+        e.zero_width = true;
+        e.owner_id = Some("U".into());
+        let c = third_party_card(&e, Some(Scope::Channel), Some("S1"), "a");
+        assert_eq!(
+            c.flags,
+            [CardFlag::Channel, CardFlag::Overlaying, CardFlag::Aliased]
+        );
+        assert_eq!(c.set_url.as_deref(), Some("https://7tv.app/emote-sets/S1"));
+        assert_eq!(c.page.as_deref(), Some("https://7tv.app/emotes/E"));
+        let b = third_party_card(
+            &with_key(Provider::Bttv, "abc"),
+            Some(Scope::Channel),
+            Some("bttv-1"),
+            "x",
+        );
+        assert_eq!(b.set_url, None);
+        assert_eq!(b.owner_url.as_deref(), Some("https://betterttv.com/users/abc"));
+    }
+
+    #[test]
+    fn seventv_lookup_fills_unknown_emotes() {
+        let mut d = Emote::new(Provider::Seventv, "E", "own");
+        d.owner = Some("Maker".into());
+        d.owner_id = Some("U".into());
+        d.nsfw = true;
+        let mut local = Emote::new(Provider::Seventv, "E", "shown");
+        merge(&mut local, d.clone(), true);
+        assert_eq!(local.name, "shown");
+        assert_eq!(local.original.as_deref(), Some("own"));
+        assert!(local.nsfw);
+        assert_eq!(local.owner.as_deref(), Some("Maker"));
+        // A loaded emote keeps its own flags and gets the owner name only.
+        let mut local = Emote::new(Provider::Seventv, "E", "shown");
+        local.owner_id = Some("L".into());
+        merge(&mut local, d, false);
+        assert!(!local.nsfw && local.original.is_none());
+        assert_eq!(local.owner.as_deref(), Some("Maker"));
+        assert_eq!(local.owner_id.as_deref(), Some("L"));
     }
 }

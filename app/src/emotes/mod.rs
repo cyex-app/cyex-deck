@@ -4,6 +4,7 @@
 //! what through `looks`.
 
 mod card;
+mod card_flags;
 pub mod edit;
 mod live;
 mod load;

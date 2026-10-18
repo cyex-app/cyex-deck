@@ -154,6 +154,9 @@ pub struct TwitchEmoteInfo {
     pub bits: Option<u32>,
     /// Who drew it, when the channel says.
     pub artist: Option<String>,
+    /// 1.41 The artist's login, for the in-app channel link.
+    #[serde(skip)]
+    pub artist_login: Option<String>,
     /// GQL's own `type` (`TWO_FACTOR`, `SMILIES`, `ARCHIVE`, `MEGA_COMMERCE`, ...) for card labels.
     #[serde(skip)]
     pub raw_type: Option<String>,
@@ -460,6 +463,8 @@ struct RawCard {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawArtist {
+    #[serde(default)]
+    login: Option<String>,
     display_name: String,
 }
 
@@ -474,6 +479,7 @@ impl From<RawCard> for TwitchEmoteInfo {
                 .as_deref()
                 .and_then(|t| t.strip_prefix("TIER_")?.parse().ok()),
             bits: c.bits_badge_tier_summary.map(|t| t.threshold),
+            artist_login: c.artist.as_ref().and_then(|a| a.login.clone()),
             artist: c.artist.map(|a| a.display_name),
         }
     }
@@ -525,6 +531,16 @@ mod tests {
         assert_eq!(info.raw_type.as_deref(), Some("SUBSCRIPTIONS"));
         assert_eq!(info.owner.unwrap().login, "xqc");
         assert!(info.emote.animated);
+    }
+
+    #[test]
+    fn card_artist_has_login() {
+        let raw = r#"{"id":"1","token":"x","type":"SUBSCRIPTIONS","setID":"9","subscriptionTier":"TIER_3",
+            "artist":{"login":"drawer","displayName":"Drawer"},"owner":null,"bitsBadgeTierSummary":null}"#;
+        let info = TwitchEmoteInfo::from(serde_json::from_str::<RawCard>(raw).unwrap());
+        assert_eq!(info.tier, Some(3));
+        assert_eq!(info.artist.as_deref(), Some("Drawer"));
+        assert_eq!(info.artist_login.as_deref(), Some("drawer"));
     }
 
     #[test]

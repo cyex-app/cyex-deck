@@ -1,6 +1,6 @@
 <!-- 1.41 Emote card: opens beside a clicked emote, never over it, and fully inside the
      window (V101-04). Shows where the emote comes from, who made and added it, what's
-     stacked on it, and links to its page. Closes on Escape, a click elsewhere, scrolling
+     stacked on it, what it is (flags with tips), and links to its page, maker and set. Closes on Escape, a click elsewhere, scrolling
      elsewhere or leaving the window; a typed name keeps it open (c-2). -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
@@ -17,7 +17,7 @@
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { emoteLarge } from '../chat/urls';
-  import { cardChips, cardFacts } from './cardFacts';
+  import { cardChips, cardFacts, foldChips, opensTip } from './cardFacts';
   import { type CardTarget, PROVIDER_NAMES } from './emotes';
   import { hidden } from './hidden.svelte';
   import { unlistedPrompt } from './unlisted';
@@ -122,7 +122,9 @@
   const added = $derived(date(info?.addedAt ?? null));
   const facts = $derived(info ? cardFacts(info, shown.provider, added) : []);
   // Gigantified is the clicked emote, not one picked from its stack.
-  const chips = $derived(cardChips(info, !!target.giant && shown.id === target.emote.id));
+  const chips = $derived(foldChips(cardChips(info, !!target.giant && shown.id === target.emote.id)));
+  const page = $derived(info?.page ?? null);
+  const pageTip = $derived(opensTip(page));
 </script>
 
 <div
@@ -135,17 +137,30 @@
   tabindex="-1"
 >
   <div class="head">
-    <div class="tile">
-      <img src={emoteLarge(shown.provider, shown.id, theme, { animated: shown.animated })} alt={shown.name} />
-    </div>
-    <div class="title">
-      <b bind:this={heading} tabindex="-1">{shown.name}</b>
-      {#if info?.original}<span class="sub">Originally {info.original}</span>{/if}
-      <div class="chips">
-        <span class="chip">{PROVIDER_NAMES[shown.provider]}</span>
-        {#each chips as c (c.text)}<span class="chip" class:warn={c.warn}>{c.text}</span>{/each}
+    {#if page && pageTip}
+      <button class="tile" use:tooltip={pageTip} aria-label="Emote page" onclick={() => open(page)}>
+        <img src={emoteLarge(shown.provider, shown.id, theme, { animated: shown.animated })} alt={shown.name} />
+      </button>
+    {:else}
+      <div class="tile">
+        <img src={emoteLarge(shown.provider, shown.id, theme, { animated: shown.animated })} alt={shown.name} />
       </div>
+    {/if}
+    <div class="title">
+      <b bind:this={heading} tabindex="-1">
+        {#if page && pageTip}
+          <button class="fact" use:tooltip={pageTip} onclick={() => open(page)}>{shown.name}</button>
+        {:else}
+          {shown.name}
+        {/if}
+      </b>
+      {#if info?.original}<span class="sub">Originally {info.original}</span>{/if}
     </div>
+  </div>
+
+  <div class="chips">
+    <span class="chip" use:tooltip={`From ${PROVIDER_NAMES[shown.provider]}`}>{PROVIDER_NAMES[shown.provider]}</span>
+    {#each chips as c (c.text)}<span class="chip" class:warn={c.warn} use:tooltip={c.tip}>{c.text}</span>{/each}
   </div>
 
   {#if info}
@@ -154,7 +169,11 @@
         <dt>{f.label}</dt>
         {#if f.link === 'channel'}
           {@const login = f.login}
-          <dd><button class="fact" use:tooltip={'Open channel'} onclick={() => channel(login)}>{f.value}</button></dd>
+          <dd>
+            <button class="fact" class:who={!!f.avatar} use:tooltip={'Open channel'} onclick={() => channel(login)}>
+              {#if f.avatar}<img class="avatar" src={f.avatar} alt="" />{/if}{f.value}
+            </button>
+          </dd>
         {:else if f.link === 'web'}
           {@const url = f.url}
           <dd><button class="fact" use:tooltip={f.tip} onclick={() => open(url)}>{f.value}</button></dd>
@@ -191,12 +210,11 @@
   {/if}
 
   <div class="foot">
-    {#if info?.page}
-      <Button variant="link" small icon="popout" onclick={() => open(info!.page!)}>Emote page</Button>
+    {#if page}
+      <Button variant="link" small icon="popout" onclick={() => open(page)}>Emote page</Button>
     {/if}
     <span class="grow"></span>
-    {#if info?.page}
-      {@const page = info.page}
+    {#if page}
       <Button variant="link" small icon="link" onclick={() => void copy(page, 'Link')}>Copy link</Button>
     {/if}
     <Button variant="link" small icon="copy" onclick={() => void copy(shown.name, 'Emote name')}>Copy</Button>
@@ -238,6 +256,17 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
   }
+  button.tile {
+    cursor: pointer;
+    transition: border-color var(--fast) ease-out;
+  }
+  button.tile:hover {
+    border-color: var(--border-strong);
+  }
+  button.tile:active {
+    opacity: 0.6;
+    transition: none;
+  }
   .tile img {
     max-width: 136px;
     max-height: 76px;
@@ -263,6 +292,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
+    margin-top: 10px;
   }
   .chip {
     padding: 1px 6px;
@@ -271,6 +301,7 @@
     border-radius: var(--radius);
     color: var(--muted);
     font-size: 0.75rem;
+    white-space: nowrap;
   }
   .warn {
     color: var(--yellow);
@@ -308,6 +339,17 @@
   .fact:active {
     opacity: 0.6;
     transition: none;
+  }
+  .who {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .avatar {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
   }
   .note {
     margin: 12px 0 0;
