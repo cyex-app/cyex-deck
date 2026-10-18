@@ -746,7 +746,7 @@ dependencies = [
 
 [[package]]
 name = "cyex-auth"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "base64 0.23.1",
  "cyex-core",
@@ -762,7 +762,7 @@ dependencies = [
 
 [[package]]
 name = "cyex-chat"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "cyex-core",
  "cyex-settings",
@@ -779,7 +779,7 @@ dependencies = [
 
 [[package]]
 name = "cyex-core"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "serde",
  "ts-rs",
@@ -787,7 +787,7 @@ dependencies = [
 
 [[package]]
 name = "cyex-deck"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "cyex-auth",
  "cyex-chat",
@@ -822,7 +822,7 @@ dependencies = [
 
 [[package]]
 name = "cyex-emotes"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "cyex-chat",
  "cyex-core",
@@ -837,7 +837,7 @@ dependencies = [
 
 [[package]]
 name = "cyex-eventsub"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "futures-util",
  "serde",
@@ -849,7 +849,7 @@ dependencies = [
 
 [[package]]
 name = "cyex-miner"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "cyex-settings",
  "serde",
@@ -859,7 +859,7 @@ dependencies = [
 
 [[package]]
 name = "cyex-moderation"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "cyex-chat",
  "cyex-core",
@@ -873,7 +873,7 @@ dependencies = [
 
 [[package]]
 name = "cyex-player"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "cyex-twitch",
  "serde",
@@ -884,7 +884,7 @@ dependencies = [
 
 [[package]]
 name = "cyex-plugins"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "cyex-core",
  "futures-util",
@@ -900,7 +900,7 @@ dependencies = [
 
 [[package]]
 name = "cyex-settings"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "base64 0.23.1",
  "cyex-core",
@@ -914,7 +914,7 @@ dependencies = [
 
 [[package]]
 name = "cyex-twitch"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "base64 0.23.1",
  "cyex-core",

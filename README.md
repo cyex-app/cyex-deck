@@ -22,7 +22,7 @@
 
 ![Four streams of one event in a grid, with one chat beside them](.github/screenshots/tiles.webp)
 
-> **Test build 0.1.5.** Windows 10 or 11, 64-bit. Not affiliated with Twitch. The app uses Twitch's internal API the way other third-party clients do, so use it at your own risk.
+> **Test build 0.1.06.** Windows 10 or 11, 64-bit. Not affiliated with Twitch. The app uses Twitch's internal API the way other third-party clients do, so use it at your own risk.
 
 ## Why cyex deck
 
@@ -134,7 +134,7 @@ Lua 5.4 plugins add commands, change or hide chat lines, add Tab completions, po
 
 ## Install
 
-1. Download `cyex-deck_0.1.5_x64-setup.exe` from [Releases](https://github.com/cyex-app/cyex-deck/releases).
+1. Download `cyex-deck_0.1.6_x64-setup.exe` from [Releases](https://github.com/cyex-app/cyex-deck/releases).
 2. Run it. The installer isn't signed yet, so Windows SmartScreen may warn about it: click **More info**, then **Run anyway**.
 3. It installs for your Windows user only, without admin rights. If the WebView2 Runtime is missing, the installer downloads it. It's already on Windows 11 and on up-to-date Windows 10.
 
