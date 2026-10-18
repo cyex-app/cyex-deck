@@ -7,16 +7,14 @@
 
   import Icon from '../../components/Icon.svelte';
   import { menu, openMenu as showMenu, type MenuEntry } from '../../components/menu.svelte';
-  import { hideTip, previewTip, retitleTip, showTip } from '../../components/tooltip.svelte';
+  import { hideTip } from '../../components/tooltip.svelte';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import type { Act } from '../../ipc/bindings/Act';
   import type { LinkTarget } from '../../ipc/bindings/LinkTarget';
   import type { UiAction } from '../../ipc/bindings/UiAction';
-  import { popOut } from '../../app/panels';
   import { chatIpc } from '../../ipc/chat';
   import { chatxIpc } from '../../ipc/chatx';
   import { pluginsIpc } from '../../ipc/plugins';
-  import { systemIpc } from '../../ipc/system';
   import { formatDate, formatNumber } from '../../lib/format';
   import { reduced } from '../../lib/motion';
   import { EASE_OUT_CUBIC } from '../../lib/scrollMath';
@@ -25,13 +23,8 @@
   import { streamer } from '../../lib/streamer.svelte';
   import { toast } from '../../lib/toast.svelte';
   import EmoteCard from '../emotes/EmoteCard.svelte';
-  import { emojiName } from '../emotes/emoji';
   import type { CardTarget } from '../emotes/emotes';
-  import { cancelEmoteMenu, emoteEditMenu } from '../emotes/edit/menu';
-  import { removeHere } from '../emotes/edit/run';
   import { emotesIpc } from '../../ipc/emotes';
-  import { hidden } from '../emotes/hidden.svelte';
-  import { flipUnlisted, unlistedBlurred } from '../emotes/unlisted';
   import { modSlots, type LineMod } from '../modview/lineMod';
   import { messageItems, mods, pinItems, userItems } from '../modview/moderation.svelte';
   import { allows } from '../modview/roles';
@@ -44,7 +37,7 @@
   import DateRow from '../../components/DateRow.svelte';
   import WarnBox from './WarnBox.svelte';
   import { runEntry, toItems, userMenus } from './menus.svelte';
-  import { roomRoute } from './roomRoute';
+  import { emoteMenu, enterClicks, lineTips, notEmote, openPart, PARTS, type LineHost } from './lineEvents';
   import { plainText } from './text';
   import { readMarks, type ChatRoom } from './room.svelte';
   import { stripes } from './stripes';
@@ -86,8 +79,6 @@
         }
       : null,
   );
-  /** 1.52 Picture widths, Chatterino's sizes. */
-  const THUMBS = { off: 0, small: 100, medium: 200, large: 300 } as const;
 
   let list = $state<HTMLElement>();
   /** The lines inside `list`; V103-12 slides move this. */
@@ -338,7 +329,7 @@
   // near the bottom.
   function onscroll() {
     if (!list) return;
-    dropTip();
+    tips.drop();
     measure();
     const down = list.scrollTop >= lastTop;
     lastTop = list.scrollTop;
@@ -357,6 +348,7 @@
   }
 
   function onkeydown(e: KeyboardEvent) {
+    enterClicks(e);
     if (['PageUp', 'ArrowUp', 'Home'].includes(e.key) && scrolls()) leave();
   }
 
@@ -378,11 +370,19 @@
   /** 1.41 The emote card on screen. */
   let card = $state<CardTarget | null>(null);
 
-  function emoteAt(el: HTMLElement): CardTarget {
-    const d = JSON.parse(el.dataset.emote!) as Omit<CardTarget, 'rect'>;
-    const line = el.closest<HTMLElement>('[data-id]');
-    const sender = line ? room.find(line.dataset.id!)?.sender?.id : undefined;
-    return { ...d, ...(sender && { sender }), rect: el.getBoundingClientRect() };
+  /** What the lines' emotes, names and links act on (lineEvents.ts). */
+  function host(): LineHost {
+    return {
+      channel: room.login,
+      account: room.account,
+      senderOf: (el) => {
+        const line = el.closest<HTMLElement>('[data-id]');
+        return line ? room.find(line.dataset.id!)?.sender?.id : undefined;
+      },
+      openCard: (t) => (card = t),
+      openMenu,
+      onlink,
+    };
   }
 
   // V106-31/32 Read the account's 7TV editor rights early, so the first right-click has them.
@@ -394,17 +394,6 @@
       emotesIpc.editWarm(account).catch(() => {});
     }
   });
-
-  /** K11 V106-31/32 The 7TV entries; null when the user moved on or a newer right-click came in. */
-  function emoteEdits(t: CardTarget): Promise<MenuEntry[] | null> {
-    const { emote } = t;
-    const account = room.account;
-    return emoteEditMenu(account, room.login, emote, {
-      add: (target) => (card = { ...t, edit: { kind: 'add', target } }),
-      rename: (here) => (card = { ...t, edit: { kind: 'rename', here } }),
-      remove: (h) => void removeHere(account!, room.login, emote.id, h),
-    });
-  }
 
   /** Runs a typed command for the menus, e.g. `/hideuser x`. */
   function command(text: string): Promise<boolean> {
@@ -504,54 +493,29 @@
   }
 
   /** E4 Right-click an emote: card, copy, hide. Names and messages get their own menus. */
-  async function oncontextmenu(e: MouseEvent) {
+  function oncontextmenu(e: MouseEvent) {
     const target = e.target as HTMLElement;
     const el = target.closest<HTMLElement>('[data-emote]');
-    if (!el) {
-      cancelEmoteMenu();
-      if (target.closest('a, input, textarea')) return;
-      const line = target.closest<HTMLElement>('[data-id]');
-      const m = line ? room.find(line.dataset.id!) : undefined;
-      const name = target.closest<HTMLElement>('[data-user]');
-      if (name) {
-        e.preventDefault();
-        hideTip();
-        userMenu(e, name.dataset.user!, m);
-      } else if (m && window.getSelection()?.isCollapsed !== false) {
-        e.preventDefault();
-        hideTip();
-        messageMenu(e, m);
-      }
-      return;
+    if (el) return void emoteMenu(e, el, host());
+    notEmote();
+    if (target.closest('a, input, textarea')) return;
+    const line = target.closest<HTMLElement>('[data-id]');
+    const m = line ? room.find(line.dataset.id!) : undefined;
+    const name = target.closest<HTMLElement>('[data-user]');
+    if (name) {
+      e.preventDefault();
+      hideTip();
+      userMenu(e, name.dataset.user!, m);
+    } else if (m && window.getSelection()?.isCollapsed !== false) {
+      e.preventDefault();
+      hideTip();
+      messageMenu(e, m);
     }
-    e.preventDefault();
-    const t = emoteAt(el);
-    const { emote } = t;
-    hideTip();
-    const unlisted = el.dataset.unlisted !== undefined;
-    const edits = await emoteEdits(t);
-    if (!edits) return;
-    openMenu(e, [
-      { label: 'Emote card', icon: 'smile', run: () => (card = t) },
-      { label: 'Copy name', icon: 'copy', run: () => void copy(emote.name, 'Emote name') },
-      'separator',
-      {
-        label: `Hide ${emote.name}`,
-        icon: 'eyeOff',
-        run: () => hidden.hide({ source: emote.provider, id: emote.id, name: emote.name }),
-      },
-      // V106-31/32 Add, rename, remove; none of it without a 7TV sign-in and an editable channel (Q2, Q6).
-      ...edits,
-      // V102-01 One switch for every unlisted 7TV emote, in every chat.
-      ...(unlisted
-        ? ['separator' as const, { label: 'Blur unlisted emotes', icon: 'eye' as const, checked: unlistedBlurred(), run: flipUnlisted }]
-        : []),
-    ]);
   }
 
   function onclick(e: MouseEvent) {
     const el = (e.target as HTMLElement).closest<HTMLElement>(
-      '[data-user],[data-channel],[data-link],[data-upload],[data-reply],[data-jump],[data-emote],[data-whisper],[data-mod],[data-pin],[data-act]',
+      `${PARTS},[data-reply],[data-jump],[data-whisper],[data-mod],[data-pin],[data-act]`,
     );
     if (!el) return;
     const d = el.dataset;
@@ -563,22 +527,8 @@
       hideTip();
       menuHere = true;
       showMenu(el, pinItems(d.pin, command), 'end');
-    } else if (d.emote) {
-      hideTip();
-      card = emoteAt(el);
-    } else if (d.link) {
-      e.preventDefault();
-      if (d.target && onlink) return onlink(JSON.parse(d.target) as LinkTarget);
-      systemIpc.openChatLink(d.link).catch((err) => toast.error(errorText(err)));
-    } else if (d.upload) {
-      e.preventDefault();
-      systemIpc.openUpload(d.upload).catch((err) => toast.error(errorText(err)));
-    } else if (d.channel) {
-      // V102-05 As this chat's account, or anonymously like it.
-      hideTip();
-      void popOut(roomRoute(d.channel, room.account), `${d.channel} chat`);
-    } else if (d.user) {
-      chatIpc.openUsercard(room.login, d.user).catch((err) => toast.error(errorText(err)));
+    } else if (openPart(e, el, host())) {
+      return;
     } else if (d.whisper) {
       whispers.show(d.whisper);
     } else if (d.reply) {
@@ -636,65 +586,9 @@
     else if (action === 'ban') command(`/ban ${login}`);
   }
 
-  // c-4 The element a tip from this list shows for. A line that drops off, scrolls away or
-  // goes with the tab gives no mouseout, so its tip goes with it here instead.
-  let tipEl: HTMLElement | null = null;
-  const gone = new MutationObserver(() => tipEl && !tipEl.isConnected && dropTip());
-
-  function holdTip(el: HTMLElement) {
-    tipEl = el;
-    if (lines) gone.observe(lines, { childList: true, subtree: true });
-  }
-
-  function dropTip() {
-    if (!tipEl) return;
-    tipEl = null;
-    gone.disconnect();
-    hideTip();
-  }
-  onDestroy(dropTip);
-
-  function onmouseover(e: MouseEvent) {
-    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-tip],[data-link],[data-emoji]');
-    if (!el) return;
-    holdTip(el);
-    if (el.dataset.link) return showLinkTip(el);
-    if (el.dataset.emoji) return showEmojiTip(el);
-    showTip(el, { label: el.dataset.tip ?? '', hint: el.dataset.hint, image: el.dataset.tipImg });
-  }
-
-  function onmouseout(e: MouseEvent) {
-    const from = (e.target as HTMLElement).closest('[data-tip],[data-link],[data-emoji]');
-    if (from && !from.contains(e.relatedTarget as Node)) dropTip();
-  }
-
-  /** V102-07 An emoji's name, once the list has loaded (the first time only). */
-  function showEmojiTip(el: HTMLElement) {
-    emojiName(el.dataset.emoji!)
-      .then((name) => name && el.matches(':hover') && showTip(el, { label: name }))
-      .catch(() => {});
-  }
-
-  /** X2: the real domain right away, the final one once redirects are followed; 1.52 a
-   * preview with it when previews are on. */
-  function showLinkTip(el: HTMLElement) {
-    const url = el.dataset.link!;
-    const host = el.dataset.host!;
-    showTip(el, { label: `Opens ${host}` });
-    chatIpc
-      .resolveLink(url)
-      .then((info) => {
-        if (!info || tipEl !== el) return;
-        if (info.link) {
-          const finalHost = new URL(info.link).hostname.replace(/^www\./, '');
-          if (finalHost !== host) retitleTip(`Opens ${host}, ends up on ${finalHost}`);
-        }
-        if (c.linkPreviews && !streamer.hides('hideLinkPreviews') && (info.lines.length || info.thumbnail)) {
-          previewTip(el, { lines: info.lines, thumbnail: info.thumbnail ?? '', thumbWidth: THUMBS[c.linkThumbnails] });
-        }
-      })
-      .catch(() => {});
-  }
+  // c-4 Tips for badges, links and emoji; one that loses its line goes with it.
+  const tips = lineTips(() => lines);
+  onDestroy(tips.drop);
 </script>
 
 <div class="wrap">
@@ -711,8 +605,8 @@
     {onpointerdown}
     {onclick}
     {oncontextmenu}
-    {onmouseover}
-    {onmouseout}
+    onmouseover={tips.onmouseover}
+    onmouseout={tips.onmouseout}
     {onmousemove}
     onmouseenter={() => ((hovering = true), onmousemove())}
     {onmouseleave}

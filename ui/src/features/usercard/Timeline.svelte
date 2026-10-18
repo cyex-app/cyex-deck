@@ -1,13 +1,18 @@
 <!-- V101-05 The usercard's messages in one scroll window of its own, oldest at the top as in
      chat: logs.cyex.app by day, then what's still loaded in the open chat under "Live"
      (the 7TV extension's way). Scrolling to the top loads older logs. M8 Where
-     logs.cyex.app has none, a mod gets Twitch's own mod logs instead. -->
+     logs.cyex.app has none, a mod gets Twitch's own mod logs instead. Emotes, names, links
+     and badges act as in chat (lineEvents.ts); an emote's card opens over the card. -->
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { onDestroy, tick } from 'svelte';
 
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import { usercardIpc } from '../../ipc/rules';
   import { formatDate } from '../../lib/format';
+  import { openMenu } from '../../components/menu.svelte';
+  import EmoteCard from '../emotes/EmoteCard.svelte';
+  import type { CardTarget } from '../emotes/emotes';
+  import { emoteMenu, enterClicks, lineTips, notEmote, openPart, PARTS, type LineHost } from '../chat/lineEvents';
   import Line from '../chat/Line.svelte';
   import Loading from '../../components/Loading.svelte';
 
@@ -21,9 +26,28 @@
     url?: string;
     /** The account that moderates here, for Twitch's mod logs (M8). */
     modAccount?: string | null;
+    /** The account reading this chat, for 7TV edits from an emote's menu. */
+    account?: string | null;
   }
 
-  let { channel, userId, login, name, live, url = $bindable(''), modAccount = null }: Props = $props();
+  let { channel, userId, login, name, live, url = $bindable(''), modAccount = null, account = null }: Props = $props();
+
+  /** 1.41 The emote card on screen. */
+  let card = $state<CardTarget | null>(null);
+  const host = (): LineHost => ({ channel, account, senderOf: () => userId, openCard: (t) => (card = t), openMenu });
+  const tips = lineTips(() => inner);
+  onDestroy(tips.drop);
+
+  function onclick(e: MouseEvent) {
+    const el = (e.target as HTMLElement).closest<HTMLElement>(PARTS);
+    if (el) openPart(e, el, host());
+  }
+
+  function oncontextmenu(e: MouseEvent) {
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-emote]');
+    if (el) void emoteMenu(e, el, host());
+    else notEmote();
+  }
 
   /** From the logs, oldest first. */
   let older = $state.raw<ChatMessage[]>([]);
@@ -85,6 +109,7 @@
 
   function onscroll() {
     if (!box) return;
+    tips.drop();
     atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
     if (box.scrollTop < 40) void loadOlder();
   }
@@ -114,7 +139,18 @@
   void loadOlder();
 </script>
 
-<div class="list" bind:this={box} {onscroll}>
+<!-- Clicks, keys and hovers are delegated from the lines' emotes, names and links. -->
+<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions, a11y_mouse_events_have_key_events -->
+<div
+  class="list"
+  bind:this={box}
+  {onscroll}
+  {onclick}
+  {oncontextmenu}
+  onkeydown={enterClicks}
+  onmouseover={tips.onmouseover}
+  onmouseout={tips.onmouseout}
+>
   <div bind:this={inner}>
     {#if status === 'optedOut'}<p class="note">They opted out of logs.</p>{/if}
     {#if fromMod && older.length}<p class="note">From Twitch’s mod logs.</p>{/if}
@@ -127,6 +163,9 @@
     {/each}
   </div>
 </div>
+{#if card}
+  {#key card}<EmoteCard target={card} login={channel} {account} onclose={() => (card = null)} />{/key}
+{/if}
 
 <style>
   .list {

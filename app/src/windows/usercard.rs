@@ -42,12 +42,33 @@ pub fn on_focus(window: &tauri::Window, focused: bool) {
     let window = window.clone();
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(BLUR_GRACE).await;
-        let still_away = !window.is_focused().unwrap_or(false);
-        if still_away && !window.is_always_on_top().unwrap_or(false) {
-            focused_once().lock().unwrap_or_else(|p| p.into_inner()).remove(window.label());
-            let _ = window.close();
+        if window.is_focused().unwrap_or(false) {
+            return;
+        }
+        let app = window.app_handle();
+        let cards = cards(app);
+        // A card opened from this one (an @mention in its logs) stacks on it: both stay
+        // while you move between them, and go together once you click elsewhere.
+        if cards.iter().any(|w| w.is_focused().unwrap_or(false)) {
+            return;
+        }
+        for w in cards {
+            let seen = focused_once().lock().unwrap_or_else(|p| p.into_inner()).contains(w.label());
+            if seen && !w.is_always_on_top().unwrap_or(false) {
+                focused_once().lock().unwrap_or_else(|p| p.into_inner()).remove(w.label());
+                let _ = w.close();
+            }
         }
     });
+}
+
+/// The open usercard windows.
+fn cards(app: &AppHandle) -> Vec<tauri::WebviewWindow> {
+    super::panels::open_panels_all(app)
+        .into_iter()
+        .filter(|(route, _)| is_usercard(route))
+        .filter_map(|(_, label)| app.get_webview_window(&label))
+        .collect()
 }
 
 pub fn is_usercard(route: &str) -> bool {

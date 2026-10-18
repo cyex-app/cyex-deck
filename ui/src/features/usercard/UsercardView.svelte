@@ -11,6 +11,7 @@
   import type { Profile } from '../../ipc/bindings/Profile';
   import { chatIpc } from '../../ipc/chat';
   import { modIpc } from '../../ipc/moderation';
+  import { accounts } from '../../lib/accounts.svelte';
   import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
   import { catalogs } from '../chat/catalog.svelte';
@@ -202,6 +203,7 @@
           live={messages}
           bind:url={logsUrl}
           {modAccount}
+          account={modAccount ?? accounts.current?.userId ?? null}
         />
       </div>
     </div>
