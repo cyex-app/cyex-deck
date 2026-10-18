@@ -3,10 +3,24 @@
      it is, and its links. Closes on Escape, a click or scroll elsewhere or leaving the
      window; a typed name keeps it open (c-2). -->
 <script module lang="ts">
-  /** ka-3 When the last pointer press was: a card it opens starts without a focus frame,
-   *  even after a key (e.g. Esc) made the browser show frames. */
+  import type { EmoteCard as Card } from '../../ipc/bindings/EmoteCard';
+
+  /** ka-3, fb-1 The last pointer press and key: a card opened by a press (no key since)
+   *  starts without a focus frame, even after a key (e.g. Esc) made the browser show them. */
   let pressed = -Infinity;
-  if (typeof window !== 'undefined') addEventListener('pointerdown', () => (pressed = performance.now()), true);
+  let keyed = -Infinity;
+  if (typeof window !== 'undefined') {
+    addEventListener('pointerdown', () => (pressed = performance.now()), true);
+    addEventListener('keydown', () => (keyed = performance.now()), true);
+  }
+
+  /** fb-4 Details already shown this session: a card opened again has them at once. */
+  const seen = new Map<string, Card>();
+  function remember(key: string, c: Card): void {
+    seen.delete(key);
+    seen.set(key, c);
+    if (seen.size > 200) seen.delete(seen.keys().next().value!);
+  }
 </script>
 
 <script lang="ts">
@@ -25,7 +39,8 @@
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { emoteLarge } from '../chat/urls';
-  import { cardChips, cardFacts, emotePage, foldChips, opensTip } from './cardFacts';
+  import { cubicOut } from 'svelte/easing';
+  import { cardChips, cardFacts, emotePage, expectedFacts, foldChips, opensTip } from './cardFacts';
   import { type CardTarget, PROVIDER_NAMES } from './emotes';
   import { hidden } from './hidden.svelte';
   import { unlistedPrompt } from './unlisted';
@@ -58,7 +73,7 @@
   /** R7 The chips behind "+N", shown in the row. */
   let more = $state(false);
   /** ka-3 Opened by a pointer: the name shows no frame until a key is pressed. */
-  let quiet = $state(performance.now() - pressed < 1000);
+  let quiet = $state(performance.now() - pressed < 1000 && pressed > keyed);
   let row = $state<HTMLElement>();
   let rowWidth = $state(0);
 
@@ -77,12 +92,16 @@
   $effect(() => {
     const e = shown;
     void reloads;
-    info = null;
+    const key = `${login}/${e.provider}/${e.id}`;
+    info = seen.get(key) ?? null;
     failed = false;
     let live = true;
     emotesIpc
       .card(login, e.provider, e.id, e.name)
-      .then((c) => live && (info = c))
+      .then((c) => {
+        remember(key, c);
+        if (live) info = c;
+      })
       .catch(() => live && (failed = true));
     return () => (live = false);
   });
@@ -99,6 +118,7 @@
     const off = layer('popover', onclose);
     // ct-2 Focus starts on the name, so a mouse open shows no frame.
     const release = box ? focusScope(box, { trap: true, initial: () => heading }) : undefined;
+    const back = returnTo();
     addEventListener('mousedown', down, true);
     addEventListener('wheel', away, { passive: true });
     addEventListener('blur', away);
@@ -106,9 +126,57 @@
       removeEventListener('mousedown', down, true);
       off();
       release?.();
+      // fb-2 Opened from a menu that's gone now: back to the emote (or the chat box).
+      const now = document.activeElement;
+      if ((!now || now === document.body) && back?.isConnected) back.focus({ preventScroll: true });
       removeEventListener('wheel', away);
       removeEventListener('blur', away);
     };
+  });
+
+  /** fb-2 The clicked emote under the card's anchor, else this chat's message box. */
+  function returnTo(): HTMLElement | null {
+    const r = target.rect;
+    const hit = document
+      .elementsFromPoint((r.left + r.right) / 2, (r.top + r.bottom) / 2)
+      .map((el) => el.closest<HTMLElement>('[data-emote]'))
+      .find((el) => !!el);
+    return hit ?? box?.closest('[data-tile-id]')?.querySelector<HTMLElement>('textarea') ?? null;
+  }
+
+  /** fa-4, fa-5 After each placement: the card grows out of the emote, and a move (more
+   *  chips, details near the window's edge) glides instead of jumping. */
+  $effect(() => {
+    const node = box;
+    if (!node) return;
+    let top: number | null = null;
+    const placed = () => {
+      const r = node.getBoundingClientRect();
+      const a = target.rect;
+      const px = (v: number, hi: number) => `${Math.round(Math.max(0, Math.min(v, hi)))}px`;
+      if (node.dataset.side === 'left' || node.dataset.side === 'right')
+        node.style.setProperty('--oy', px((a.top + a.bottom) / 2 - r.top, r.height));
+      else node.style.setProperty('--ox', px((a.left + a.right) / 2 - r.left, r.width));
+      const t = parseFloat(node.style.top);
+      if (!Number.isFinite(t)) return;
+      const d = top === null ? 0 : top - t;
+      // Pushed up by its own growth: the bottom edge stays, the top rises (the new part
+      // shows from below as it glides).
+      const clip = (by: number) => `inset(-24px -24px ${by}px -24px)`;
+      if (Math.abs(d) > 1 && !matchMedia('(prefers-reduced-motion: reduce)').matches)
+        node.animate(
+          [
+            { translate: `0 ${d}px`, clipPath: clip(Math.max(0, d)) },
+            { translate: '0 0', clipPath: clip(0) },
+          ],
+          { duration: 160, easing: 'ease-out' },
+        );
+      top = t;
+    };
+    // Made after the placing one, so it reads where that just put the card.
+    const sized = new ResizeObserver(placed);
+    sized.observe(node);
+    return () => sized.disconnect();
   });
 
   // ct-10 A chat tip (e.g. the clicked emote's) never stays over the card; its own tips do.
@@ -144,10 +212,23 @@
     else img.addEventListener('load', done, { once: true });
   }
 
-  /** R12 A short fade out; no clicks land on it meanwhile. */
+  /** R12, fb-5 Out the way it came: back toward the emote, a little smaller, fading;
+   *  only the fade with reduced motion. No clicks land on it meanwhile. */
   function leave(node: HTMLElement) {
     node.style.pointerEvents = 'none';
-    return { duration: 90, css: (t: number) => `opacity: ${t}` };
+    node.classList.add('leaving');
+    const cs = getComputedStyle(node);
+    const dx = parseFloat(cs.getPropertyValue('--dx')) || 0;
+    const dy = parseFloat(cs.getPropertyValue('--dy')) || 0;
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    return {
+      duration: 90,
+      easing: cubicOut,
+      css: (t: number, u: number) =>
+        still
+          ? `opacity: ${t}`
+          : `opacity: ${t}; transform: translate(${dx * u}px, ${dy * u}px) scale(${0.98 + 0.02 * t})`,
+    };
   }
 
   /** kb-3 Chip widths in the chips' own font, padding and border included. */
@@ -170,6 +251,8 @@
   // ka-6 Built here until the details come (or when they don't), so the links never wait.
   const page = $derived(info?.page ?? emotePage(shown.provider, shown.id, shown.name));
   const pageTip = $derived(opensTip(page));
+  /** fb-4, fa-2 Lines held while loading: as many as this kind of emote usually has. */
+  const expect = $derived(expectedFacts(shown.provider, shown.name));
 </script>
 
 <!-- R2 A browser link's cue: a small arrow out. In-app links have none. -->
@@ -276,10 +359,16 @@
       Couldn’t load the details.
       <Button variant="link" small onclick={reload}>Try again</Button>
     </div>
-  {:else}
+  {:else if expect}
     <div class="details skeleton" role="status" aria-label="Loading">
-      <span class="bar" style:width="44px"></span><span class="bar" style:width="45%"></span>
+      {#each { length: expect }, i (i)}
+        <span class="line"
+          ><span class="bar" style:width="44px"></span><span class="bar" style:width="{[45, 60, 35, 50][i % 4]}%"></span></span
+        >
+      {/each}
     </div>
+  {:else}
+    <span class="sr" role="status">Loading</span>
   {/if}
 
   {#if layers.length > 1}
@@ -316,7 +405,8 @@
   <div class="foot">
     {#if page && pageTip}
       <span use:tooltip={pageTip}>
-        <Button variant="link" small icon="popout" onclick={() => open(page)}>Emote page</Button>
+        <!-- fa-6 The browser cue after the text, like the facts' links. -->
+        <Button variant="link" small onclick={() => open(page)}>Emote page{@render out()}</Button>
       </span>
     {/if}
     <span class="copies">
@@ -387,6 +477,10 @@
       animation-name: fade;
       animation-duration: var(--base) !important;
     }
+    /* fb-5 The way out keeps its fade too. */
+    .card:global(.leaving) {
+      animation-duration: 90ms !important;
+    }
   }
   .head {
     display: flex;
@@ -438,10 +532,14 @@
   .name:focus-visible {
     border-radius: var(--radius-sm);
   }
+  /* fb-3 Room for the copy button's ring off the name. */
   .name-row {
     display: flex;
     align-items: flex-start;
-    gap: 2px;
+    gap: 6px;
+  }
+  .name-row :global(.icon-btn:focus-visible) {
+    outline-offset: 1px;
   }
   /* Beside the name, no taller than its line. */
   .name-row :global(.icon-btn) {
@@ -482,7 +580,7 @@
     color: var(--yellow);
     border-color: color-mix(in srgb, var(--yellow) 45%, var(--border));
   }
-  /* kb-6 A text button, not another flag. */
+  /* kb-6, fb-6 A text button, not another flag; underlined, so it reads with any accent. */
   .more {
     padding: 2px 3px;
     background: none;
@@ -493,11 +591,15 @@
     font-size: 0.75rem;
     letter-spacing: 0.01em;
     white-space: nowrap;
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+    text-underline-offset: 2px;
     cursor: pointer;
+    /* fb-8 */
+    transition: text-decoration-color var(--fast);
   }
   .more:hover {
-    text-decoration: underline;
-    text-underline-offset: 2px;
+    text-decoration-color: currentColor;
   }
   .more:active {
     opacity: 0.6;
@@ -568,10 +670,23 @@
     background: var(--elevated-2);
     border-radius: 50%;
   }
+  /* fb-4 Each line as tall as a fact's, with the list's gap. */
   .skeleton {
+    display: grid;
+    gap: 4px;
+  }
+  .line {
     display: flex;
     align-items: center;
     gap: 12px;
+    height: 1.4em;
+  }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
   }
   .bar {
     height: 0.7em;
@@ -630,8 +745,17 @@
     padding-top: 8px;
     border-top: 1px solid var(--border);
   }
-  .copies {
+  /* fb-7 One height for every footer control, so the labels share a line. */
+  .foot > span {
     display: flex;
+  }
+  .foot :global(.btn.link) {
+    height: 27px;
+    gap: 0;
+  }
+  .copies :global(.icon-btn) {
+    width: 27px;
+    height: 27px;
   }
   .grow {
     flex: 1;

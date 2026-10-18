@@ -93,6 +93,22 @@ export function cardFacts(info: EmoteCard, provider: Provider): Fact[] {
   return out;
 }
 
+/** fb-4, fa-2 The facts a card usually gets, for the lines held while it loads: 7TV by,
+ *  added by, added, set; BTTV by; FFZ by, uploaded; a Twitch channel emote (a lowercase
+ *  prefix, `lirikH`) its channel and artist, a global (`LUL`) none. */
+export function expectedFacts(provider: Provider, name: string): number {
+  switch (provider) {
+    case 'seventv':
+      return 4;
+    case 'bttv':
+      return 1;
+    case 'ffz':
+      return 2;
+    case 'twitch':
+      return /^[a-z][a-z0-9]{2,}[A-Z0-9_]/.test(name) ? 2 : 0;
+  }
+}
+
 /** 7TV's set, named by what it's for. */
 function setName(flags: CardFlag[]): string {
   if (flags.includes('personal')) return 'Personal set';
@@ -132,8 +148,8 @@ const FLAGS: Record<CardFlag, [text: string, tip: string]> = {
 };
 
 const WARN: CardFlag[] = ['unlisted', 'nsfw'];
-/** kb-3 Where it works, first after the provider. */
-const SCOPE: CardFlag[] = ['global', 'channel', 'personal'];
+/** kb-3, fa-3 Where it works (Shared too), first after the provider. */
+const SCOPE: CardFlag[] = ['global', 'channel', 'personal', 'shared'];
 /** kb-3 Shown with the warnings and never folded, but not in yellow. */
 const KEEP: CardFlag[] = ['private'];
 

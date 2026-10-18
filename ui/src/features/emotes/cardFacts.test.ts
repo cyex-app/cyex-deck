@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { EmoteCard } from '../../ipc/bindings/EmoteCard';
-import { addedDate, cardChips, cardFacts, emotePage, foldChips, opensTip } from './cardFacts.ts';
+import { addedDate, cardChips, cardFacts, emotePage, expectedFacts, foldChips, opensTip } from './cardFacts.ts';
 
 function card(over: Partial<EmoteCard> = {}): EmoteCard {
   return {
@@ -163,6 +163,22 @@ test('7TV chips: overlaying, private, warnings, rename tip', () => {
     cardChips(card({ flags: ['animated', 'global'] }), false).map((x) => x.text),
     ['Global', 'Animated'],
   );
+});
+
+test('Shared sits with the scope, before the warnings (fa-3)', () => {
+  assert.deepEqual(
+    cardChips(card({ provider: 'bttv', flags: ['channel', 'nsfw', 'animated', 'shared'] }), false).map((x) => x.text),
+    ['Channel', 'Shared', 'NSFW', 'Animated'],
+  );
+});
+
+test('lines held while loading, by provider and kind (fb-4)', () => {
+  assert.equal(expectedFacts('seventv', 'reckH'), 4);
+  assert.equal(expectedFacts('bttv', 'cvMask'), 1);
+  assert.equal(expectedFacts('ffz', 'Hmm'), 2);
+  // Twitch: a channel prefix means a sub, follower or bits emote; else a global.
+  for (const n of ['lirikSHUCKS', 'sodaPlead', 'lirik10K', 'elis0']) assert.equal(expectedFacts('twitch', n), 2, n);
+  for (const n of ['LUL', 'Kreygasm', 'PogChamp', 'BooHoo', ':)']) assert.equal(expectedFacts('twitch', n), 0, n);
 });
 
 test('bits chip counts when known', () => {
