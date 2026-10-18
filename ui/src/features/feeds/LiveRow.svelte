@@ -1,6 +1,8 @@
 <!-- V106-07 One live or offline notice. Click opens the channel; a channel without a tab
      gets an Add tab button (Stream and/or Chat). -->
 <script lang="ts">
+  import { tick } from 'svelte';
+
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
   import Popover from '../../components/Popover.svelte';
@@ -16,6 +18,7 @@
   let { entry }: { entry: LiveEntry } = $props();
 
   let open = $state(false);
+  let row = $state<HTMLButtonElement>();
   let show = $state<TileShow>({ ...tabs.lastShow });
 
   const hasTab = $derived(tabs.list.some((t) => tiles(t).some((x) => x.channel.id === entry.channelId)));
@@ -32,6 +35,10 @@
         into: null,
       });
       open = false;
+      // s3-10 The Add tab button goes with the new tab: focus lands on the row instead.
+      toast.success('Tab added.');
+      await tick();
+      row?.focus();
     } catch (e) {
       toast.error(errorText(e));
     }
@@ -39,7 +46,7 @@
 </script>
 
 <div class="live">
-  <button class="row" onclick={() => void notifyEvents.open({ kind: 'channel', login: entry.login })}>
+  <button class="row" bind:this={row} onclick={() => void notifyEvents.open({ kind: 'channel', login: entry.login })}>
     <Avatar src={entry.avatar} name={entry.name} size={20} />
     <span class="text">
       <span class="line"><b class:off={!entry.live}>{entry.name}</b> {entry.live ? 'went live' : 'went offline'}</span>
@@ -80,9 +87,12 @@
     text-align: start;
     cursor: pointer;
   }
-  .row:hover,
-  .row:active {
+  .row:hover {
     background: var(--surface-hover);
+  }
+  /* s1-7 Pressed reads apart from hover. */
+  .row:active {
+    background: var(--border);
   }
   .row:focus-visible {
     outline: 2px solid var(--text);
@@ -101,7 +111,7 @@
   }
   .sub {
     color: var(--muted);
-    font-size: 0.76rem;
+    font-size: var(--text-hint);
   }
   .off {
     color: var(--muted);

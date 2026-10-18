@@ -15,9 +15,15 @@
     text = t;
     said = '';
     queueMicrotask(() => (said = t));
+    // d-3 Again mid-fade: from where the fade is, a short ramp up, no pop.
+    const from = fade && el ? Number(getComputedStyle(el).opacity) : 1;
     fade?.cancel();
+    fade = undefined;
     clearTimeout(timer);
-    if (el) el.style.opacity = '1';
+    if (el) {
+      el.style.opacity = '1';
+      if (from < 1 && !reduced()) el.animate([{ opacity: from }, { opacity: 1 }], { duration: 100, easing: 'ease-out' });
+    }
     timer = setTimeout(hide, reduced() ? 900 : 700);
   }
 
@@ -29,6 +35,7 @@
     }
     fade = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 250, easing: 'ease-out' });
     fade.onfinish = () => {
+      fade = undefined;
       if (el) el.style.opacity = '0';
     };
   }

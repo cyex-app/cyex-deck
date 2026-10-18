@@ -1,7 +1,7 @@
 <!-- V106-17 Streamer mode bar: the main window, under the title bar, after a streaming app
      started (or was running at launch). Settings, Turn off, Close. No auto-hide. -->
 <script lang="ts">
-  import { fade, slide } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
 
   import Button from '../components/Button.svelte';
   import Icon from '../components/Icon.svelte';
@@ -17,6 +17,15 @@
       : 'Streamer mode is on. Your streaming app is running.',
   );
 
+  /** s1-4 Fades and drops in on the compositor: the content under it moves once, not every frame. */
+  function drop(_node: Element) {
+    return {
+      duration: reduced() ? 0 : 160,
+      easing: cubicOut,
+      css: (t: number) => `opacity: ${t}; transform: translateY(${(1 - t) * -6}px)`,
+    };
+  }
+
   function key(e: KeyboardEvent) {
     if (e.key === 'Escape') streamer.closeBar();
   }
@@ -28,9 +37,9 @@
   role="status"
   aria-live="polite"
   onkeydown={key}
-  transition:slide={{ duration: reduced() ? 0 : 180 }}
+  transition:drop
 >
-  <div class="inner" transition:fade={{ duration: reduced() ? 0 : 120 }}>
+  <div class="inner">
     <Icon name="eyeOff" size={14} />
     <span class="text">{text}</span>
     {#if narrow}

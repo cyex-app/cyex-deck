@@ -23,3 +23,9 @@ export function removeCopies(list: PhraseRule[], checks: MentionCheck[]): Phrase
   const gone = new Set(groups(list, checks).flatMap((g) => g.copies));
   return list.filter((_, i) => !gone.has(i));
 }
+
+/** b-12 The dialog's first line, by where the copies are. */
+export function leadText(inWords: boolean, inGlobal: boolean): string {
+  const where = inWords && inGlobal ? 'Words and in Global mentions' : inWords ? 'Words' : 'Global mentions';
+  return `Mentions are part of Highlights now, and some rules are in ${where} more than once. Nothing was removed.`;
+}

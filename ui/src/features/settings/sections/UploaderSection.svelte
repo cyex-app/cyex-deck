@@ -31,7 +31,8 @@
   const loud = $derived(u.enabled || tried);
   const problem = (key: 'url' | 'formField' | 'link') => (loud && gone.includes(key) ? 'Fill this in.' : null);
 
-  /** Turning on needs the required fields; turning off always works. */
+  /** Turning on needs the required fields; turning off always works. s3-13 A required field
+   *  cleared while on keeps it on: `loud` marks the field and the switch's hint says why. */
   function toggle(on: boolean) {
     if (on && gone.length) {
       tried = true;
@@ -50,7 +51,7 @@
 <Row
   setting="uploader.enabled"
   label="Upload images you paste or drop"
-  hint={gone.length ? 'Fill in every required field below first.' : undefined}
+  hint={gone.length ? (u.enabled ? 'Won’t upload until the required fields below are filled in.' : 'Fill in every required field below first.') : undefined}
 >
   <Toggle label="Upload images you paste or drop" checked={u.enabled} onchange={toggle} />
 </Row>

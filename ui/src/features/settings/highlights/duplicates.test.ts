@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { PhraseRule } from '../../../ipc/bindings/PhraseRule';
-import { groups, removeCopies } from './duplicates.ts';
+import { groups, leadText, removeCopies } from './duplicates.ts';
 
 const rule = (pattern: string, over: Partial<PhraseRule> = {}): PhraseRule =>
   ({ enabled: true, pattern, regex: false, flavor: 'rust', caseSensitive: false, wholeWord: true, lookalikes: false, color: '', sound: false, flash: false, show: true, ...over }) as PhraseRule;
@@ -36,4 +36,11 @@ test('removeCopies deletes the later copies and keeps the first as it was (O3)',
 
 test('removeCopies with no duplicates returns the same rows', () => {
   assert.deepEqual(removeCopies(list, []), list);
+});
+
+test('leadText names where the copies are (b-12)', () => {
+  assert.match(leadText(true, false), /in Words more than once/);
+  assert.match(leadText(false, true), /in Global mentions more than once/);
+  assert.match(leadText(true, true), /in Words and in Global mentions/);
+  assert.doesNotMatch(leadText(true, false), /both/);
 });

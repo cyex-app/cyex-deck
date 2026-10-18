@@ -338,6 +338,7 @@
   // near the bottom.
   function onscroll() {
     if (!list) return;
+    dropTip();
     measure();
     const down = list.scrollTop >= lastTop;
     lastTop = list.scrollTop;
@@ -633,9 +634,28 @@
     else if (action === 'ban') command(`/ban ${login}`);
   }
 
+  // c-4 The element a tip from this list shows for. A line that drops off, scrolls away or
+  // goes with the tab gives no mouseout, so its tip goes with it here instead.
+  let tipEl: HTMLElement | null = null;
+  const gone = new MutationObserver(() => tipEl && !tipEl.isConnected && dropTip());
+
+  function holdTip(el: HTMLElement) {
+    tipEl = el;
+    if (lines) gone.observe(lines, { childList: true, subtree: true });
+  }
+
+  function dropTip() {
+    if (!tipEl) return;
+    tipEl = null;
+    gone.disconnect();
+    hideTip();
+  }
+  onDestroy(dropTip);
+
   function onmouseover(e: MouseEvent) {
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-tip],[data-link],[data-emoji]');
     if (!el) return;
+    holdTip(el);
     if (el.dataset.link) return showLinkTip(el);
     if (el.dataset.emoji) return showEmojiTip(el);
     showTip(el, { label: el.dataset.tip ?? '', hint: el.dataset.hint, image: el.dataset.tipImg });
@@ -643,7 +663,7 @@
 
   function onmouseout(e: MouseEvent) {
     const from = (e.target as HTMLElement).closest('[data-tip],[data-link],[data-emoji]');
-    if (from && !from.contains(e.relatedTarget as Node)) hideTip();
+    if (from && !from.contains(e.relatedTarget as Node)) dropTip();
   }
 
   /** V102-07 An emoji's name, once the list has loaded (the first time only). */
@@ -662,7 +682,7 @@
     chatIpc
       .resolveLink(url)
       .then((info) => {
-        if (!info) return;
+        if (!info || tipEl !== el) return;
         if (info.link) {
           const finalHost = new URL(info.link).hostname.replace(/^www\./, '');
           if (finalHost !== host) retitleTip(`Opens ${host}, ends up on ${finalHost}`);

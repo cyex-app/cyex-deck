@@ -13,7 +13,7 @@
   import { feedsIpc } from '../../ipc/feeds';
   import { errorText } from '../../lib/errors';
   import { streamer } from '../../lib/streamer.svelte';
-  import { toast } from '../../lib/toast.svelte';
+  import { ACTION_MS, toast } from '../../lib/toast.svelte';
   import { whispers } from '../whispers/whispers.svelte';
   import { apply, keyOf, tsOf } from './entries';
   import FeedHeader from './FeedHeader.svelte';
@@ -65,7 +65,35 @@
   // svelte-ignore state_referenced_locally
   open();
 
+  /** s3-3 Clear hides the rows at once and offers Undo; the feed is cleared for real once
+   * the toast's time is up (or the tab closes). */
+  let hidden = $state.raw<Set<string> | null>(null);
+  let commit: ReturnType<typeof setTimeout> | undefined;
+  const shown = $derived(hidden ? entries.filter((e) => !hidden!.has(keyOf(e))) : entries);
+
+  function clear() {
+    flush();
+    hidden = new Set(entries.map(keyOf));
+    commit = setTimeout(flush, ACTION_MS);
+    toast.info('Feed cleared.', { action: { label: 'Undo', run: undo } });
+  }
+
+  function undo() {
+    clearTimeout(commit);
+    hidden = null;
+  }
+
+  function flush() {
+    clearTimeout(commit);
+    const gone = hidden;
+    if (!gone) return;
+    entries = entries.filter((e) => !gone.has(keyOf(e)));
+    hidden = null;
+    feedsIpc.clear(kind).catch((e) => toast.error(errorText(e)));
+  }
+
   onDestroy(() => {
+    flush();
     closed = true;
     if (view) void feedsIpc.close(view);
   });
@@ -74,13 +102,13 @@
 <section class="feed">
   <FeedHeader icon={info.icon} {name} {actions} {onheaderdown}>
     {#snippet extra()}
-      {#if entries.length > 0}
-        <Button small variant="ghost" onclick={() => feedsIpc.clear(kind).catch((e) => toast.error(errorText(e)))}>Clear</Button>
+      {#if shown.length > 0}
+        <Button small variant="ghost" onclick={clear}>Clear</Button>
       {/if}
     {/snippet}
   </FeedHeader>
   <div class="body">
-    {#if entries.length === 0}
+    {#if shown.length === 0}
       <p class="empty">
         {#if failed}
           Couldn’t load this feed. <Button variant="link" small onclick={open}>Retry</Button>
@@ -90,7 +118,7 @@
         {/if}
       </p>
     {:else}
-      <FeedList rows={entries.map((e) => ({ key: keyOf(e), ts: tsOf(e), kind: e.type, e }))} empty="">
+      <FeedList rows={shown.map((e) => ({ key: keyOf(e), ts: tsOf(e), kind: e.type, e }))} empty="">
         {#snippet row(r)}
           {#if r.e.type === 'live'}
             <LiveRow entry={r.e} />
@@ -134,6 +162,6 @@
     margin: 0;
     padding: 10px 12px;
     color: var(--dim);
-    font-size: 0.85rem;
+    font-size: var(--text-sub);
   }
 </style>

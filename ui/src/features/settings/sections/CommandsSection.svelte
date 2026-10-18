@@ -10,6 +10,7 @@
   import { rulesIpc } from '../../../ipc/rules';
   import { formatDate, formatTime } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
+  import { toast } from '../../../lib/toast.svelte';
   import { GUIDE } from '../commands/guide';
   import GuideText from '../commands/GuideText.svelte';
   import {
@@ -60,6 +61,17 @@
     { key: 'messageMenu', label: 'Message menu', hint: 'Right-click a message.' },
     { key: 'channelMenu', label: 'Chat menu', hint: 'The ⋯ button in a chat’s header.' },
   ];
+
+  /** s3-2 Cancels at once; Undo puts it back where it was. */
+  function cancelTimer(id: (typeof c.timers)[number]['id']) {
+    const i = c.timers.findIndex((x) => x.id === id);
+    const gone = c.timers[i];
+    if (!gone) return;
+    save({ timers: c.timers.filter((x) => x.id !== id) });
+    // Into the list as it is then: timers that ran meanwhile stay gone.
+    const undo = () => save({ timers: [...c.timers.slice(0, i), gone, ...c.timers.slice(i)] });
+    toast.success('Timer canceled.', { action: { label: 'Undo', run: undo } });
+  }
 
   const when = (ms: number) => `${formatDate(new Date(ms))} ${formatTime(new Date(ms))}`;
 </script>
@@ -117,7 +129,7 @@
       icon="trash"
       label="Cancel timer"
       size={14}
-      onclick={() => save({ timers: c.timers.filter((x) => x.id !== t.id) })}
+      onclick={() => cancelTimer(t.id)}
     />
   </Row>
 {:else}
@@ -128,20 +140,20 @@
   .problem {
     margin: 0;
     color: var(--red);
-    font-size: 0.78rem;
+    font-size: var(--text-hint);
   }
   .sub {
     display: flex;
     align-items: baseline;
     gap: 8px;
     margin: 14px 0 0;
-    font-size: 0.85rem;
+    font-size: var(--text-sub);
   }
   .sub-title {
     font-weight: 600;
   }
   .sub-hint {
     color: var(--dim);
-    font-size: 0.8rem;
+    font-size: var(--text-hint);
   }
 </style>

@@ -55,7 +55,10 @@
       const t = e.target as Element;
       if (!wrapper?.contains(t) && !t.closest?.('[data-shared-menu]')) open = false;
     };
-    const onBlur = () => (open = false);
+    // c-2 Leaving the window keeps a typed name (a `data-draft` field, e.g. the picker's rename bar).
+    const onBlur = () => {
+      if (!node.querySelector('[data-draft]')) open = false;
+    };
     addEventListener('mousedown', onDown, true);
     addEventListener('blur', onBlur);
     return () => {

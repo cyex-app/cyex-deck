@@ -48,12 +48,27 @@ export function stepTarget(base: number, s: number, uptime: number): { at: numbe
   return { at: Math.min(max, Math.max(0, t)), edge: t < 0 ? 'start' : null };
 }
 
+/** A max latency hls.js never reaches: it doesn't pull the player to the edge. */
+export const NO_EDGE_PULL = 1e9;
+
+/** d-1 hls.js's max latency. Paused, it never pulls the video to the edge: it seeked the
+ *  paused video forward every 6-8 s, so the button read -0:06, -0:02... instead of counting up. */
+export function maxLatency(lowLatency: boolean, paused: boolean): number {
+  if (paused) return NO_EDGE_PULL;
+  return lowLatency ? 12 : 20;
+}
+
+/** d-1 Paused at live: how far behind, counting up from the pause, one second a second. */
+export function pausedBehind(atPause: number | null, pausedMs: number): number | null {
+  return atPause === null ? null : atPause + Math.max(0, pausedMs) / 1000;
+}
+
 /** The live part of the hls.js config (today's values). */
 export function liveConfig(lowLatency: boolean): Partial<HlsConfig> {
   return {
     // Segments still being made sit at the end: start two from the end.
     liveSyncDuration: lowLatency ? 4 : 8,
-    liveMaxLatencyDuration: lowLatency ? 12 : 20,
+    liveMaxLatencyDuration: maxLatency(lowLatency, false),
     backBufferLength: 10,
     maxBufferLength: 12,
     maxMaxBufferLength: 20,
@@ -69,7 +84,7 @@ export function dvrConfig(startAt: number): Partial<HlsConfig> {
     maxMaxBufferLength: 40,
     startPosition: startAt,
     liveSyncDuration: 4,
-    liveMaxLatencyDuration: 1e9,
+    liveMaxLatencyDuration: NO_EDGE_PULL,
   };
 }
 

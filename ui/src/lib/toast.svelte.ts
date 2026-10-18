@@ -9,6 +9,7 @@ export interface Toast {
   /** How many times it came in; shown from 2 up. */
   count: number;
   action?: ToastAction;
+  key?: string;
 }
 
 /** One button on the toast, e.g. Undo after a one-click delete. Using it closes the toast. */
@@ -19,6 +20,8 @@ export interface ToastAction {
 
 export interface ToastOptions {
   action?: ToastAction;
+  /** V106 a-6 A toast with the same key replaces the old one (a toggle shows only its current state). */
+  key?: string;
 }
 
 export const LIFETIME_MS = { info: 3500, success: 3500, error: 9000 };
@@ -87,6 +90,8 @@ export class ToastStore {
 
   private push(kind: Toast['kind'], text: string, opts: ToastOptions = {}): void {
     const life = opts.action ? Math.max(LIFETIME_MS[kind], ACTION_MS) : LIFETIME_MS[kind];
+    const keyed = opts.key === undefined ? undefined : this.items.find((t) => t.key === opts.key);
+    if (keyed) this.dismiss(keyed.id);
     const same = this.items.find((t) => t.kind === kind && t.text === text);
     if (same) {
       // The newest button wins: Undo undoes the last one.
@@ -97,7 +102,7 @@ export class ToastStore {
       return;
     }
     const id = nextId++;
-    let items = [...this.items, { id, kind, text, count: 1, action: opts.action }];
+    let items = [...this.items, { id, kind, text, count: 1, action: opts.action, key: opts.key }];
     for (const old of items.slice(0, Math.max(0, items.length - MAX_VISIBLE))) {
       clearTimeout(this.clocks.get(old.id)?.timer);
       this.clocks.delete(old.id);

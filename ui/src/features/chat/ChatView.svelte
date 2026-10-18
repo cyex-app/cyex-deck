@@ -256,7 +256,7 @@
         run: () => void settings.patch('chat', { translateChats: toggled(settings.v.chat.translateChats, !translating) }),
       },
       {
-        label: 'Mute sounds',
+        label: 'Mute alerts',
         icon: 'bellOff',
         checked: muted,
         run: () => void settings.patch('highlights', { muted: toggled(settings.v.highlights.muted, !muted) }),
@@ -308,6 +308,14 @@
 
   function reply(id: string) {
     replyTo = room.find(id) ?? null;
+  }
+
+  /** s3-1 The banner asked twice already. */
+  function unpin() {
+    chatIpc
+      .send(room.view, '/unpin')
+      .then(() => toast.success('Unpinned.'))
+      .catch((e) => toast.error(errorText(e)));
   }
 
   function openChannelCard() {
@@ -408,7 +416,7 @@
       <PinnedBanner
         pin={room.pinned}
         channel={login}
-        onunpin={modRole && !room.pinned.paid ? () => void chatIpc.send(room.view, '/unpin').catch((e) => toast.error(errorText(e))) : undefined}
+        onunpin={modRole && !room.pinned.paid ? unpin : undefined}
       />
     {/if}
     <VotesBanner channel={login} view={() => room.view} signedIn={room.account !== null} />

@@ -223,12 +223,12 @@
   .socials button:hover {
     border-color: var(--border-strong);
   }
+  /* c-10 Columns, not rows: a short panel sits under the one above it instead of leaving
+     the row's tallest height blank. Reading and Tab order run down each column. */
   .panels {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 12px;
+    columns: 240px;
+    column-gap: 12px;
     margin: 14px 16px 0;
-    align-items: start;
   }
   .panel h3 {
     margin: 0 0 6px;
@@ -242,6 +242,8 @@
     border-radius: var(--radius);
   }
   .panel {
+    break-inside: avoid;
+    margin-bottom: 12px;
     border-radius: var(--radius);
   }
   .panel.linked,

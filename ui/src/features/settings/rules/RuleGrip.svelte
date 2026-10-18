@@ -57,8 +57,11 @@
   button.grip:hover {
     color: var(--text);
   }
+  /* s1-8 Press feedback. */
   button.grip:active {
     cursor: grabbing;
+    color: var(--text);
+    background: var(--surface-hover);
   }
   button.grip:focus-visible {
     outline: 2px solid var(--focus-ring);

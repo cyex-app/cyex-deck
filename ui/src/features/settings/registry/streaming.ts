@@ -56,5 +56,5 @@ export const STREAMING: Entry[] = [
   hide('hideModActions', 'Hide mod actions', 'Timeouts, bans and deleted messages.'),
   hide('hideWhispers', 'Hide whispers', 'In chat, and their pop-ups and sounds.'),
   hide('noNotifications', 'No Windows notifications', 'Live alerts, whispers and the bell.'),
-  hide('muteSounds', 'Mute sounds', 'Mentions, highlights and whispers.'),
+  hide('muteSounds', 'Mute alerts', 'Mentions, highlights and whispers.'),
 ];

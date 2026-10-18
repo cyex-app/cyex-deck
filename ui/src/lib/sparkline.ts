@@ -32,6 +32,30 @@ function axis(series: [number, number][], w: number, from?: number) {
   return (t: number) => band + ((t - first) / span) * (w - band);
 }
 
+/**
+ * The value range the box shows, [low, high]. Tight by default (min..max; 0 when the low end
+ * is small next to the peak). `padded` (c-6) leaves at least 10 % of the peak above and below
+ * the data, never under 0, so a small change reads small and the lowest stretch keeps a fill.
+ */
+export function domain(values: number[], padded = false): [number, number] {
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const small = min < max * 0.3;
+  if (!padded) return [small ? 0 : min, max];
+  const pad = Math.max((max - min) * 0.15, max * 0.1, 1);
+  return [small ? 0 : Math.max(0, min - pad), max + pad];
+}
+
+const EDGE = 2;
+
+/** Value to y in a box `h` tall. A tight flat line sits in the middle instead of on the floor. */
+function yScale(values: number[], h: number, padded: boolean) {
+  const [lo, hi] = domain(values, padded);
+  const flat = !padded && Math.min(...values) === Math.max(...values);
+  const range = hi - lo || 1;
+  return (v: number) => (flat ? h / 2 : EDGE + (1 - (v - lo) / range) * (h - EDGE * 2));
+}
+
 /** The peak sample; the earliest one when several tie. Null when empty. */
 export function peakOf(series: [number, number][]): [number, number] | null {
   let best: [number, number] | null = null;
@@ -43,22 +67,17 @@ export function peakOf(series: [number, number][]): [number, number] | null {
  * The viewer graph scaled into `w`×`h`, oldest left. `series` is [unix seconds, viewers].
  * `from` (unix seconds) is the axis start, e.g. the stream start (V106-18). A series that is
  * small next to its peak keeps 0 as the floor; a flat big one doesn't hug the bottom.
+ * `padded`: see `domain`.
  */
-export function graph(series: [number, number][], w: number, h: number, from?: number): Graph {
+export function graph(series: [number, number][], w: number, h: number, from?: number, padded = false): Graph {
   if (series.length < 2) return { line: '', area: '', min: 0, max: 0, x0: 0 };
   const x = axis(series, w, from);
   const values = series.map(([, v]) => v);
   const min = Math.min(...values);
   const max = Math.max(...values);
-  const floor = min < max * 0.3 ? 0 : min;
-  // A flat line sits in the middle instead of on the floor.
-  const range = max - floor || 1;
-  const pad = 2;
+  const y = yScale(values, h, padded);
   const xs = series.map(([t]) => x(t));
-  const pts = series.map(([, v], i) => {
-    const y = max === min ? h / 2 : pad + (1 - (v - floor) / range) * (h - pad * 2);
-    return `${round(xs[i])},${round(y)}`;
-  });
+  const pts = series.map(([, v], i) => `${round(xs[i])},${round(y(v))}`);
   const line = pts.join(' ');
   const area = `M${round(xs[0])},${h} L${pts.join(' L')} L${round(xs[xs.length - 1])},${h} Z`;
   return { line, area, min, max, x0: round(xs[0]) };
@@ -82,15 +101,21 @@ export function nearest(series: [number, number][], x: number, w: number, from?:
 }
 
 /** x and y of one sample in the same box as `graph`, for a marker. */
-export function pointAt(series: [number, number][], i: number, w: number, h: number, from?: number): [number, number] {
+export function pointAt(
+  series: [number, number][],
+  i: number,
+  w: number,
+  h: number,
+  from?: number,
+  padded = false,
+): [number, number] {
   const x = axis(series, w, from);
-  const values = series.map(([, v]) => v);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const floor = min < max * 0.3 ? 0 : min;
-  const pad = 2;
-  const y = max === min ? h / 2 : pad + (1 - (series[i][1] - floor) / (max - floor || 1)) * (h - pad * 2);
-  return [round(x(series[i][0])), round(y)];
+  const y = yScale(
+    series.map(([, v]) => v),
+    h,
+    padded,
+  );
+  return [round(x(series[i][0])), round(y(series[i][1]))];
 }
 
 /** Whether pixel `x` is over the "before" band, `before` wide (0 or less: no band). */

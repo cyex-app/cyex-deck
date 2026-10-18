@@ -34,6 +34,7 @@
   import PipNotice from './PipNotice.svelte';
   import { Rewind } from './rewind.svelte';
   import SeekBar from './SeekBar.svelte';
+  import { STALL_TEXT } from './stall';
 
   interface Props {
     tile: Tile;
@@ -148,6 +149,10 @@
     if (!e || !n) return;
     untrack(() => shell?.say(n));
     e.note = null;
+  });
+  // d-4 An ad break waits on purpose: no stall.
+  $effect(() => {
+    if (engine) engine.adBreak = ad === 'waiting';
   });
   // Q14 a The spinner only after 300 ms: a quick swap or start shows none.
   let slow = $state(false);
@@ -360,6 +365,8 @@
     {:else if engine?.holding}
       <!-- V103-07 A click anywhere plays it (Shell). -->
       <div class="center held">Playing elsewhere. Click to play here.</div>
+    {:else if engine?.stalled}
+      <div class="center"><span>{STALL_TEXT}</span></div>
     {:else if engine?.waiting && slow}
       <div class="busy"><Loading video size="large" /></div>
     {/if}

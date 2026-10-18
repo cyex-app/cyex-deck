@@ -11,3 +11,15 @@ export function checkAlias(text: string): AliasCheck {
   if (!ALIAS_RE.test(text)) return { ok: false, message: '7TV doesn’t allow a character in this name.' };
   return { ok: true, name: text };
 }
+
+/** c-12 The whole verdict for `text`, read at call time: an error line, '' for "not ok, say
+ *  nothing" (Rust's check), null when fine. Submit uses it so a key in the same tick as typing
+ *  can't act on the last text's answer. */
+export async function judgeAlias(
+  text: string,
+  check?: (name: string) => Promise<string | null>,
+): Promise<string | null> {
+  const r = checkAlias(text);
+  if (!r.ok) return r.message;
+  return check ? await check(r.name) : null;
+}

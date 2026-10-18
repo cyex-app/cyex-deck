@@ -5,7 +5,7 @@
   import DragList from '../../../components/DragList.svelte';
   import EmptyState from '../../../components/EmptyState.svelte';
   import type { IconName } from '../../../components/icons';
-  import type { Field } from './fields';
+  import { applyEdit, type Field } from './fields';
   import { focusLast } from './focus';
   import RuleRow from './RuleRow.svelte';
   import { toast } from '../../../lib/toast.svelte';
@@ -63,6 +63,9 @@
 
   let el = $state<HTMLDivElement>();
 
+  /** b-16 "Move row 3", not "Move Row 3": a fallback name reads mid-sentence. */
+  const grip = (name: string) => `Move ${/^(Row|Rule|Automation) \d+$/.test(name) ? name[0].toLowerCase() + name.slice(1) : name}`;
+
   /** Deletes at once; Undo puts the rule back where it was. */
   function remove(i: number) {
     const gone = items[i];
@@ -84,7 +87,7 @@
     {handle}
     problem={problem?.(item, i)}
     note={note?.(item, i)}
-    onchange={(next) => onchange(items.map((x, j) => (j === i ? next : x)))}
+    onchange={(next) => onchange(items.map((x, j) => (j === i ? applyEdit(x, item, next) : x)))}
     ondelete={() => remove(i)}
   />
 {/snippet}
@@ -102,7 +105,7 @@
       >
         {#snippet row(item)}
           {@const i = items.indexOf(item)}
-          {@render one(item, i, `Move ${reorder.label(item, i)}`)}
+          {@render one(item, i, grip(reorder.label(item, i)))}
         {/snippet}
       </DragList>
     {:else if empty}

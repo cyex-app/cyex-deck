@@ -1,5 +1,7 @@
 <!-- V106-31/32 The card's 7TV edit row: add to a channel, rename or remove in this chat's set. -->
 <script lang="ts">
+  import { tick, untrack } from 'svelte';
+
   import Button from '../../../components/Button.svelte';
   import { openMenu } from '../../../components/menu.svelte';
   import type { EditOptions } from '../../../ipc/bindings/EditOptions';
@@ -9,18 +11,23 @@
   import AliasForm from './AliasForm.svelte';
   import { addNote, targetItems } from './menuItems';
   import { editOptionsFor } from './options';
+  import { refocus } from './refocus';
+  import { afterEdit } from './renamed';
   import { type EditForm, checkName, removeHere, submitForm } from './run';
 
   interface Props {
     account: string;
     login: string;
+    /** The emote as the card shows it; a rename here comes back through `onchange`. */
     emote: Layer;
     target: CardTarget;
-    /** An edit went through; the card may reload. */
-    onchange: () => void;
+    /** An edit went through: the emote after it (renamed, or the same). */
+    onchange: (emote: Layer) => void;
+    /** c-3 Where focus goes when the form closes and its opener is gone (the card's heading). */
+    home?: () => HTMLElement | undefined;
   }
 
-  let { account, login, emote, target, onchange }: Props = $props();
+  let { account, login, emote, target, onchange, home }: Props = $props();
 
   let options = $state<EditOptions | null>(null);
   let asked = $state(false);
@@ -28,25 +35,31 @@
   // The card opens straight into the form chosen in the right-click menu.
   // svelte-ignore state_referenced_locally
   let form = $state<EditForm | null>(target.edit ?? null);
-
-  // Current alias; follows a rename made in this card.
-  // svelte-ignore state_referenced_locally
-  let name = $state(emote.name);
+  let root = $state<HTMLElement>();
+  /** c-3 The button that opened the form: `add`, `pick` or `rename`. */
+  let opener: string | null = null;
+  let seq = 0;
+  let shownId = '';
 
   async function load(): Promise<void> {
-    const id = emote.id;
-    const o = await editOptionsFor(account, login, id, name);
-    if (id !== emote.id) return;
+    const mine = ++seq;
+    const o = await editOptionsFor(account, login, emote.id, emote.name);
+    if (mine !== seq) return;
     options = o;
     asked = true;
   }
 
+  // c-1 Asks again when the emote or its name changes (a rename from this card). Only a new
+  // emote clears the row; the load itself isn't tracked, so its own state can't re-run this.
   $effect(() => {
-    void emote.id;
-    name = emote.name;
-    asked = false;
-    options = null;
-    void load();
+    const id = emote.id;
+    void emote.name;
+    if (id !== shownId) {
+      shownId = id;
+      asked = false;
+      options = null;
+    }
+    untrack(() => void load());
   });
 
   const add = $derived(options?.state === 'ready' ? options.add : null);
@@ -55,9 +68,21 @@
   const note = $derived(add ? (addNote(add) ?? null) : null);
   const hasAny = $derived(!!(add && add.targets.length > 0) || !!here);
 
+  function openForm(f: EditForm, by: string): void {
+    opener = by;
+    form = f;
+  }
+
+  /** c-3 Closes the form; focus goes back to its opener, else the card's heading. */
+  async function close(): Promise<void> {
+    form = null;
+    await tick();
+    refocus(root, opener, home?.());
+  }
+
   function pickTarget(e: MouseEvent): void {
     if (!add || e.currentTarget === null) return;
-    openMenu(e.currentTarget as Element, targetItems(add, (t) => (form = { kind: 'add', target: t })), 'start');
+    openMenu(e.currentTarget as Element, targetItems(add, (t) => openForm({ kind: 'add', target: t }, 'pick')), 'start');
   }
 
   /** The form's add or rename; on success closes it and refreshes. */
@@ -65,10 +90,11 @@
     busy = true;
     try {
       return await submitForm(account, login, emote.id, f, alias, () => {
-        if (f.kind === 'rename') name = alias;
-        form = null;
-        void load();
-        onchange();
+        const next = afterEdit(emote, f, alias);
+        void close();
+        // A rename re-asks through the effect once the card shows the new name.
+        if (next === emote) void load();
+        onchange(next);
       });
     } finally {
       busy = false;
@@ -81,7 +107,7 @@
     busy = false;
     if (!fail) {
       void load();
-      onchange();
+      onchange(emote);
     }
   }
 </script>
@@ -89,7 +115,7 @@
 {#if asked && options?.state === 'signInAgain'}
   <div class="edit"><p class="note">Sign in to 7TV again to edit emotes.</p></div>
 {:else if asked && hasAny}
-  <div class="edit">
+  <div class="edit" bind:this={root}>
     {#if form?.kind === 'add'}
       {@const t = form.target}
       <AliasForm
@@ -99,7 +125,7 @@
         {busy}
         check={(n) => checkName(account, form!, n)}
         onsubmit={(n) => submit(form!, n)}
-        oncancel={() => (form = null)}
+        oncancel={() => void close()}
       />
     {:else if form?.kind === 'rename'}
       {@const h = form.here}
@@ -110,21 +136,23 @@
         {busy}
         check={(n) => checkName(account, form!, n)}
         onsubmit={(n) => submit(form!, n)}
-        oncancel={() => (form = null)}
+        oncancel={() => void close()}
       />
     {:else}
       <div class="row">
         {#if add && add.targets.length > 0}
           {#if single}
-            <Button small disabled={!!(add.blocked ?? single.blocked)} onclick={() => (form = { kind: 'add', target: single })}>
-              Add to {single.channel}
-            </Button>
+            <span data-opener="add">
+              <Button small disabled={!!(add.blocked ?? single.blocked)} onclick={() => openForm({ kind: 'add', target: single }, 'add')}>
+                Add to {single.channel}
+              </Button>
+            </span>
           {:else}
-            <Button small disabled={!!add.blocked} onclick={pickTarget}>Add to 7TV channel</Button>
+            <span data-opener="pick"><Button small disabled={!!add.blocked} onclick={pickTarget}>Add to 7TV channel</Button></span>
           {/if}
         {/if}
         {#if here}
-          <Button small icon="pencil" onclick={() => (form = { kind: 'rename', here })}>Rename</Button>
+          <span data-opener="rename"><Button small icon="pencil" onclick={() => openForm({ kind: 'rename', here }, 'rename')}>Rename</Button></span>
           <Button small icon="trash" disabled={busy} onclick={() => void remove(here)}>Remove</Button>
         {/if}
       </div>
@@ -144,9 +172,12 @@
     flex-wrap: wrap;
     gap: 6px;
   }
+  [data-opener] {
+    display: contents;
+  }
   .note {
     margin: 6px 0 0;
     color: var(--dim);
-    font-size: 0.75rem;
+    font-size: var(--text-hint);
   }
 </style>

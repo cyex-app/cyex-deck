@@ -83,15 +83,17 @@
     align-items: center;
     gap: 8px;
     height: 28px;
-    max-width: 220px;
+    /* V106 a-3 A fixed width: picking a theme with a longer name doesn't move the row. */
+    width: 180px;
     color: var(--text);
     cursor: pointer;
   }
   .pick:hover {
     border-color: var(--dim);
   }
+  /* V106 s2-1 Text-colored edge, so it shows with any accent. */
   .pick.on {
-    border-color: var(--accent-border);
+    border-color: var(--text);
   }
   .pick :global(svg) {
     flex: none;

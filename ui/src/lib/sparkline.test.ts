@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { BAND_SHARE, graph, inBand, nearest, peakOf, pointAt } from './sparkline.ts';
+import { BAND_SHARE, domain, graph, inBand, nearest, peakOf, pointAt } from './sparkline.ts';
 
 test('graph scales into the box', () => {
   assert.equal(graph([[0, 5]], 100, 40).line, '');
@@ -82,4 +82,28 @@ test('band hit test', () => {
   assert.equal(inBand(10, 34), true);
   assert.equal(inBand(34, 34), false);
   assert.equal(inBand(0, 0), false);
+});
+
+test('padded domain leaves room around the data (c-6)', () => {
+  // Tight stays min..max, 0 under a small low end.
+  assert.deepEqual(domain([1000, 1040]), [1000, 1040]);
+  assert.deepEqual(domain([10, 100]), [0, 100]);
+  // +4 %: at least 10 % of the peak each side, so it doesn't fill the height.
+  const [lo, hi] = domain([1000, 1040], true);
+  assert.equal(lo, 1000 - 104);
+  assert.equal(hi, 1040 + 104);
+  // The pad is the larger of 15 % of the range and 10 % of the peak, at least 1.
+  assert.deepEqual(domain([400, 1000], true), [300, 1100]);
+  assert.deepEqual(domain([5, 6], true), [4, 7]);
+  assert.deepEqual(domain([0, 0], true), [0, 1]);
+  assert.equal(domain([10, 100], true)[0], 0);
+});
+
+test('padded graph keeps the low end off the floor and a flat line in the middle', () => {
+  const g = graph([[0, 1000], [10, 1000], [20, 1040]], 100, 40, undefined, true);
+  const ys = g.line.split(' ').map((p) => Number(p.split(',')[1]));
+  assert.ok(ys[0] < 30 && ys[0] > 20, `low end at ${ys[0]}`);
+  assert.ok(ys[2] > 2, `top at ${ys[2]}`);
+  assert.equal(graph([[0, 7], [10, 7]], 100, 40, undefined, true).line, '0,20 100,20');
+  assert.deepEqual(pointAt([[0, 1000], [20, 1040]], 0, 100, 40, undefined, true), [0, ys[0]]);
 });

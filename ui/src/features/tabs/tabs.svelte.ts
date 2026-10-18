@@ -18,6 +18,7 @@ import { accounts } from '../../lib/accounts.svelte';
 import { settings } from '../../lib/settings.svelte';
 import { toast } from '../../lib/toast.svelte';
 import { hiddenTabs } from './barLayout';
+import { muter } from './muter';
 import { sounding } from './sounding.svelte';
 import { tabSoundMode, type TabSoundMode } from './tabSound';
 import { errorText } from '../../lib/errors';
@@ -142,16 +143,13 @@ class TabsStore {
   }
 
   /** V106-25 Mutes or unmutes everything in a tab. Shown at once, so a quick second action reads
-   * the new state; undone if Rust refuses. */
-  async mute(id: string, on: boolean): Promise<void> {
-    this.muted = withId(this.muted, id, on);
-    try {
-      this.muted = new Set(await tabsIpc.mute(id, on));
-    } catch (e) {
-      this.muted = withId(this.muted, id, !on);
-      toast.error(errorText(e));
-    }
-  }
+   * the new state; undone if Rust refuses (s3-9 unless a newer toggle came after it). */
+  mute = muter({
+    get: () => this.muted,
+    set: (ids) => (this.muted = ids),
+    send: (id, on) => tabsIpc.mute(id, on),
+    fail: (e) => toast.error(errorText(e)),
+  });
 
   /** V106-25 The tab holding the tile is muted. */
   tileMuted(tileId: string): boolean {
@@ -246,14 +244,6 @@ export const tabs = new TabsStore();
 function roomKey(account: string | null, login: string): string {
   const known = account && accounts.list.some((a) => a.userId === account);
   return `${known ? account : ''}/${login}`;
-}
-
-/** The set with `id` in or out. */
-function withId(set: Set<string>, id: string, on: boolean): Set<string> {
-  const next = new Set(set);
-  if (on) next.add(id);
-  else next.delete(id);
-  return next;
 }
 
 export function tiles(tab: Tab): Tile[] {

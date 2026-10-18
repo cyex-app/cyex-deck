@@ -190,7 +190,7 @@
   }
   .src {
     color: var(--dim);
-    font-size: 0.75rem;
+    font-size: var(--text-hint);
   }
   .chip button {
     width: 20px;
@@ -205,6 +205,6 @@
   }
   .none {
     color: var(--dim);
-    font-size: 0.85rem;
+    font-size: var(--text-sub);
   }
 </style>

@@ -37,13 +37,17 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    height: 36px;
+    height: var(--chrome-h);
     padding: 0 6px 0 10px;
     border-bottom: 1px solid var(--border);
     color: var(--muted);
   }
   .name {
     flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
     color: var(--text);
     font-weight: 700;
   }

@@ -14,6 +14,7 @@
 
   const W = 288;
   const H = 96;
+  const uid = $props.id();
 
   let history = $state<ViewerHistory | null>(null);
   let sel = $state<number | null>(null);
@@ -36,13 +37,14 @@
 
   const series = $derived((history?.points ?? []) as [number, number][]);
   const from = $derived(history ? Date.parse(history.startedAt) / 1000 : undefined);
-  const g = $derived(graph(series, W, H, from));
+  // c-6 Padded: +4 % reads as a small rise, not a full-height ramp.
+  const g = $derived(graph(series, W, H, from, true));
   const peak = $derived(peakOf(series) ?? history?.peak ?? null);
   const last = $derived(series.length ? series[series.length - 1] : null);
   /** Width of the grey "before" band (time before the app watched), in viewBox units. */
   const before = $derived(g.x0 > 0 ? g.x0 : 0);
   /** `sel` of -1 is the band: it reads "Not tracked" and has no marker. */
-  const marker = $derived(sel === null || sel < 0 || !series[sel] ? null : pointAt(series, sel, W, H, from));
+  const marker = $derived(sel === null || sel < 0 || !series[sel] ? null : pointAt(series, sel, W, H, from, true));
 
   const clock = (unix: number) => formatTime(new Date(unix * 1000));
   const since = $derived.by(() => {
@@ -78,6 +80,16 @@
     sel === -1 && before > 0 ? 'Not tracked' : sel !== null && series[sel] ? `${clock(series[sel][0])} · ${formatNumber(series[sel][1])} viewers` : '',
   );
   const pct = (n: number, total: number) => (n / total) * 100;
+
+  /** s1-10 The readout follows the pointer and stops at the plot's edges, by its own width. */
+  let plotW = $state(0);
+  let tipW = $state(0);
+  const tipAt = (x: number) => {
+    const at = (x / W) * plotW - tipW / 2;
+    return Math.max(0, Math.min(plotW - tipW, at));
+  };
+  /** c-5 The band's label, upright when the band is wide enough for it, else on its side. */
+  const bandPx = $derived((before / W) * plotW);
 </script>
 
 <div class="chart">
@@ -99,18 +111,32 @@
       onpointerleave={() => (sel = null)}
       onkeydown={key}
       onblur={() => (sel = null)}
+      bind:clientWidth={plotW}
     >
       <svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" aria-hidden="true">
-        {#if before > 0}<rect class="before" x="0" y="0" width={before} height={H} />{/if}
+        {#if before > 0}
+          <!-- c-5 Hatched, so "not tracked" reads as a gap, not as empty data. -->
+          <defs>
+            <pattern id="hatch-{uid}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <line class="hatch" x1="0" y1="0" x2="0" y2="6" />
+            </pattern>
+          </defs>
+          <rect class="before" x="0" y="0" width={before} height={H} />
+          <rect x="0" y="0" width={before} height={H} fill="url(#hatch-{uid})" />
+          <line class="edge" x1={before} y1="0" x2={before} y2={H} />
+        {/if}
         <path class="area" d={g.area} />
         <polyline class="line" points={g.line} />
       </svg>
+      {#if before > 0 && bandPx >= 14}
+        <span class="band-label" class:side={bandPx < 64} style:width="{bandPx}px" aria-hidden="true">Not tracked</span>
+      {/if}
       {#if marker}
         <span class="hair" style:left="{pct(marker[0], W)}%"></span>
         <span class="dot" style:left="{pct(marker[0], W)}%" style:top="{pct(marker[1], H)}%"></span>
-        <span class="tip" style:left="{Math.min(82, Math.max(18, pct(marker[0], W)))}%">{readout}</span>
+        <span class="tip" bind:offsetWidth={tipW} style:left="{tipAt(marker[0])}px">{readout}</span>
       {:else if sel === -1}
-        <span class="tip" style:left="{Math.min(82, Math.max(18, pct(before / 2, W)))}%">{readout}</span>
+        <span class="tip" bind:offsetWidth={tipW} style:left="{tipAt(before / 2)}px">{readout}</span>
       {/if}
     </div>
     <span class="sr-only" aria-live="polite">{readout}</span>
@@ -124,7 +150,7 @@
     width: 312px;
     max-width: 100%;
     padding: 10px 12px 12px;
-    font-size: 0.82rem;
+    font-size: var(--text-sub);
   }
   .head {
     display: flex;
@@ -139,7 +165,7 @@
   .empty {
     margin: 2px 0 8px;
     color: var(--muted);
-    font-size: 0.75rem;
+    font-size: var(--text-hint);
   }
   .plot {
     position: relative;
@@ -157,6 +183,33 @@
   }
   .before {
     fill: var(--surface-hover);
+  }
+  .hatch {
+    stroke: var(--border-strong);
+    stroke-width: 1.5;
+  }
+  .edge {
+    stroke: var(--border-strong);
+    stroke-dasharray: 2 2;
+    vector-effect: non-scaling-stroke;
+  }
+  .band-label {
+    position: absolute;
+    left: 0;
+    bottom: 4px;
+    color: var(--dim);
+    font-size: var(--text-hint);
+    text-align: center;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .band-label.side {
+    top: 0;
+    bottom: 0;
+    display: grid;
+    place-items: center;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
   }
   .area {
     fill: var(--accent-dim);
@@ -189,9 +242,8 @@
   .tip {
     position: absolute;
     top: -20px;
-    transform: translateX(-50%);
     color: var(--text);
-    font-size: 0.75rem;
+    font-size: var(--text-hint);
     white-space: nowrap;
     pointer-events: none;
   }

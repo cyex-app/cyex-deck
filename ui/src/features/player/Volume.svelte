@@ -90,24 +90,42 @@
     border-radius: 50%;
     background: var(--on-video);
   }
+  /* d-9 Fades in with the slider; hidden it takes no room and no focus. */
   .boost {
-    display: none;
+    display: inline-flex;
     align-items: center;
     height: 20px;
-    margin-right: 6px;
-    padding: 0 9px;
+    max-width: 0;
+    margin-right: 0;
+    padding: 0;
+    overflow: hidden;
     background: none;
-    border: 1.5px solid color-mix(in srgb, var(--on-video) 60%, transparent);
-    border-radius: var(--radius-pill);
+    border: 0 solid color-mix(in srgb, var(--on-video) 60%, transparent);
+    border-radius: var(--radius);
     color: color-mix(in srgb, var(--on-video) 85%, transparent);
     font-size: 0.72rem;
     font-weight: 600;
+    white-space: nowrap;
     cursor: pointer;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      max-width 0.15s var(--ease),
+      margin 0.15s var(--ease),
+      padding 0.15s var(--ease),
+      opacity 0.15s,
+      visibility 0s 0.15s;
   }
   /* Keyboard: Tab from the slider reaches the toggle, so it shows while either has focus. */
   .volume:hover .boost,
   .volume:has(:focus-visible) .boost {
-    display: inline-flex;
+    max-width: 80px;
+    margin-right: 6px;
+    padding: 0 9px;
+    border-width: 1.5px;
+    opacity: 1;
+    visibility: visible;
+    transition-delay: 0s;
   }
   .boost.on {
     background: var(--on-video);

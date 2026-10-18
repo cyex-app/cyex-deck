@@ -197,7 +197,7 @@
   .note {
     margin: 0 0 6px;
     color: var(--muted);
-    font-size: 0.85rem;
+    font-size: var(--text-sub);
   }
   .rule {
     display: flex;
@@ -209,7 +209,7 @@
   .rule .hint {
     flex: 1;
     color: var(--dim);
-    font-size: 0.8rem;
+    font-size: var(--text-hint);
   }
   .arrows {
     display: inline-flex;

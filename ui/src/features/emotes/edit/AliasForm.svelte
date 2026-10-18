@@ -4,7 +4,7 @@
 
   import Button from '../../../components/Button.svelte';
   import { layer } from '../../../lib/escape';
-  import { checkAlias } from './alias';
+  import { checkAlias, judgeAlias } from './alias';
 
   interface Props {
     label: string;
@@ -37,18 +37,23 @@
     return off;
   });
 
-  async function validate(): Promise<void> {
+  /** Checks `text`; returns its verdict (see judgeAlias), shown unless a newer check started. */
+  async function validate(): Promise<string | null> {
     const mine = ++seq;
-    const r = checkAlias(text);
+    const t = text;
+    // The own rule answers at once, so the button greys out without a wait.
+    const r = checkAlias(t);
     if (!r.ok) {
       ok = false;
       message = r.message;
-      return;
+      return r.message;
     }
-    const rust = check ? await check(r.name) : null;
-    if (mine !== seq) return;
-    ok = rust === null;
-    message = rust ? rust : null;
+    const v = await judgeAlias(t, check);
+    if (mine === seq) {
+      ok = v === null;
+      message = v ? v : null;
+    }
+    return v;
   }
 
   function oninput(): void {
@@ -56,13 +61,27 @@
     void validate();
   }
 
+  let sending = false;
+
   async function send(): Promise<void> {
-    if (!ok || busy) return;
-    const err = await onsubmit(text);
-    if (err) {
-      ok = false;
-      touched = true;
-      message = err;
+    if (busy || sending) return;
+    sending = true;
+    try {
+      // c-12 Judge the text as it is now: `ok` may still be the last keystroke's answer.
+      const t = text;
+      if ((await validate()) !== null) {
+        // s3-5 A bad name says why, even untouched.
+        touched = true;
+        return;
+      }
+      const err = await onsubmit(t);
+      if (err) {
+        ok = false;
+        touched = true;
+        message = err;
+      }
+    } finally {
+      sending = false;
     }
   }
 
@@ -86,6 +105,7 @@
     bind:value={text}
     {oninput}
     {onkeydown}
+    data-draft={text ? '' : undefined}
   />
   <p class="err" aria-live="polite">{touched ? (message ?? '') : ''}</p>
   <div class="row">
@@ -101,7 +121,7 @@
     gap: 4px;
   }
   label {
-    font-size: 0.78rem;
+    font-size: var(--text-hint);
     color: var(--dim);
   }
   input {

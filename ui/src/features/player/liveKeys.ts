@@ -4,12 +4,28 @@ import { clock } from './time.ts';
 
 /** Focused elements that use the arrow keys themselves. Buttons are left out on purpose:
  *  after a click on Play the seek must still work. A tabindex -1 slider (the SeekBar, focused
- *  only by a click) has no keys of its own, so it never keeps them. */
+ *  only by a click) has no keys of its own, so it never keeps them. Tabs are below (d-2). */
 export const OWN_ARROWS =
-  'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="slider"]:not([tabindex="-1"]), [role="listbox"], [role="option"], [role="grid"], [role="gridcell"], [role="menu"], [role="menubar"], [role^="menuitem"], [role="radiogroup"], [role="radio"], [role="tablist"], [role="tab"], [role="tree"], [role="treegrid"], [role="spinbutton"], [role="combobox"], [role="log"], [data-arrows]';
+  'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="slider"]:not([tabindex="-1"]), [role="listbox"], [role="option"], [role="grid"], [role="gridcell"], [role="menu"], [role="menubar"], [role^="menuitem"], [role="radiogroup"], [role="radio"], [role="tablist"], [role="tree"], [role="treegrid"], [role="spinbutton"], [role="combobox"], [role="log"], [data-arrows]';
 
-export function ownsArrows(target: { closest(sel: string): unknown } | null): boolean {
-  return !!target?.closest?.(OWN_ARROWS);
+/** Text fields keep every key. */
+export const TEXT_FIELDS = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])';
+
+/** d-2 A tab moves focus along its own bar (TabItem: Left/Right, Up/Down when vertical), and
+ *  only once the keyboard put focus there: after a click the arrows seek. */
+export const TAB_ACROSS = '[role="tab"]:not([data-vertical]):focus-visible';
+export const TAB_DOWN = '[role="tab"][data-vertical]:focus-visible';
+
+type Focus = { closest(sel: string): unknown } | null;
+
+/** d-2 Whether the focused element keeps this key. J/L, Shift+arrows and the rest: only text
+ *  fields keep them. Plain arrows: also the elements in OWN_ARROWS and a tab on its axis. */
+export function ownsKey(target: Focus, e: { key: string; shiftKey?: boolean }): boolean {
+  if (!target?.closest) return false;
+  if (target.closest(TEXT_FIELDS)) return true;
+  if (!e.key.startsWith('Arrow') || e.shiftKey) return false;
+  if (target.closest(OWN_ARROWS)) return true;
+  return !!target.closest(e.key === 'ArrowLeft' || e.key === 'ArrowRight' ? TAB_ACROSS : TAB_DOWN);
 }
 
 /** A live seek's result: how far behind it lands ('live' = at live), 'start' when clamped at the stream's start. */

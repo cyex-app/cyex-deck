@@ -60,6 +60,10 @@
   /* V101-37 Chat line height, as a multiple of the chat font size: room for a whole
      emote (2.15em at the E3 emote size), so a line with one is as tall as one without. */
 
+  /* Secondary text sizes: subtitles and second lines, then hints, notes and small meta. */
+  --text-sub: 0.85rem;
+  --text-hint: 0.78rem;
+
   --radius: 3px;
   --radius-sm: 2px;
   --radius-pill: 999px;
@@ -238,8 +242,10 @@ h2 {
   outline: none;
   transition: border-color var(--fast);
 }
-.field:focus {
-  border-color: var(--accent-border);
+/* b-5 The focus color, not the accent: a dark or faint accent made a focused field look idle. */
+.field:focus-visible {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 1px var(--focus-ring);
 }
 .field::placeholder {
   color: var(--dim);

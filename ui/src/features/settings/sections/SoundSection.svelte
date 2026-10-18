@@ -64,7 +64,7 @@
   </span>
 {/snippet}
 
-<SectionHead title="Sound" level={2}>Volume, and where each stream’s audio goes.</SectionHead>
+<SectionHead title="Sound" level={2} />
 
 <Row
   setting="general.sound.separateStreams"

@@ -213,8 +213,9 @@
     border-bottom: 1px solid var(--border);
     font-size: 0.85rem;
   }
-  /* Q5 Off rows stay in place, dimmed; the grip and the switch stay bright. */
-  .rule.off > :not(:first-child):not(:global(.grip) + *) {
+  /* Q5 Off rows stay in place, dimmed; the grip and the switch stay bright. s2-6 So does
+     the note under it, which is already quiet. */
+  .rule.off > :not(:first-child):not(:global(.grip) + *):not(.note) {
     opacity: 0.6;
   }
   .title {
@@ -228,6 +229,8 @@
   .field {
     height: 28px;
     min-width: 0;
+    /* b-9 A long name ends in … while the field isn't focused. */
+    text-overflow: ellipsis;
   }
   /* V105-16 Shrinks first, so the checkboxes stay on one line with it. */
   .grow {
@@ -284,7 +287,7 @@
   .note {
     flex-basis: 100%;
     margin: 0;
-    font-size: 0.78rem;
+    font-size: var(--text-hint);
   }
   .problem {
     color: var(--red);
@@ -368,10 +371,13 @@
     flex: 1 1 auto;
     width: 100%;
   }
-  /* Never cut: what it does moves under it instead. */
+  /* What it does moves under it first; b-9 past that, an ellipsis. */
   .split .title {
     flex: 1 1 auto;
+    min-width: 0;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .opts,
   .does {
@@ -400,7 +406,7 @@
   }
   .cap {
     color: var(--muted);
-    font-size: 0.8rem;
+    font-size: var(--text-hint);
     white-space: nowrap;
   }
   .does {

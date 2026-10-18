@@ -1,6 +1,7 @@
 <!-- 1.41 Emote card: opens beside a clicked emote, never over it, and fully inside the
      window (V101-04). Shows where the emote comes from, who made and added it, what's
-     stacked on it, and links to its page. Closes on Escape, a click elsewhere, or scrolling. -->
+     stacked on it, and links to its page. Closes on Escape, a click elsewhere, scrolling
+     elsewhere or leaving the window; a typed name keeps it open (c-2). -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
@@ -18,8 +19,9 @@
   import { type CardTarget, PROVIDER_NAMES } from './emotes';
   import { hidden } from './hidden.svelte';
   import { unlistedPrompt } from './unlisted';
-import UnlistedPrompt from './UnlistedPrompt.svelte';
+  import UnlistedPrompt from './UnlistedPrompt.svelte';
   import EditSection from './edit/EditSection.svelte';
+  import { stayOpen } from './edit/stay';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
   import { copy } from '../../lib/clipboard';
@@ -43,12 +45,19 @@ import UnlistedPrompt from './UnlistedPrompt.svelte';
   let info = $state<EmoteCard | null>(null);
   let failed = $state(false);
   let box = $state<HTMLElement>();
+  let heading = $state<HTMLElement>();
 
   const theme = $derived(settings.v.appearance.theme);
   const others = $derived([target.emote, ...target.stack].filter((l) => l.id !== shown.id));
 
   let reloads = $state(0);
   const reload = () => void reloads++;
+
+  /** c-1 After an edit from the card: a rename shows (and looks up) the new name. */
+  function edited(e: Layer): void {
+    if (e === shown) reload();
+    else shown = e;
+  }
 
   $effect(() => {
     const e = shown;
@@ -68,17 +77,21 @@ import UnlistedPrompt from './UnlistedPrompt.svelte';
       const t = ev.target as Element;
       if (box && !box.contains(t) && !t.closest?.('[data-shared-menu]')) onclose();
     };
+    // c-2 Scrolling the card itself, or a draft in its name form, keeps it.
+    const away = (ev: Event) => {
+      if (!stayOpen(box, ev)) onclose();
+    };
     const off = layer('popover', onclose);
     const release = box ? focusScope(box, { trap: true }) : undefined;
     addEventListener('mousedown', down, true);
-    addEventListener('wheel', onclose, { passive: true });
-    addEventListener('blur', onclose);
+    addEventListener('wheel', away, { passive: true });
+    addEventListener('blur', away);
     return () => {
       removeEventListener('mousedown', down, true);
       off();
       release?.();
-      removeEventListener('wheel', onclose);
-      removeEventListener('blur', onclose);
+      removeEventListener('wheel', away);
+      removeEventListener('blur', away);
     };
   });
 
@@ -115,7 +128,7 @@ import UnlistedPrompt from './UnlistedPrompt.svelte';
       <img src={emoteLarge(shown.provider, shown.id, theme, { animated: shown.animated })} alt={shown.name} />
     </div>
     <div class="title">
-      <b>{shown.name}</b>
+      <b bind:this={heading} tabindex="-1">{shown.name}</b>
       {#if info?.original}<span class="sub">Originally {info.original}</span>{/if}
       <div class="chips">
         <span class="chip">{PROVIDER_NAMES[shown.provider]}</span>
@@ -155,7 +168,7 @@ import UnlistedPrompt from './UnlistedPrompt.svelte';
   {/if}
 
   {#if account && shown.provider === 'seventv'}
-    <EditSection {account} {login} emote={shown} {target} onchange={reload} />
+    <EditSection {account} {login} emote={shown} {target} onchange={edited} home={() => heading} />
   {/if}
 
   <div class="foot">
@@ -216,6 +229,9 @@ import UnlistedPrompt from './UnlistedPrompt.svelte';
   .title b {
     font-size: 0.92rem;
     overflow-wrap: anywhere;
+  }
+  .title b:focus:not(:focus-visible) {
+    outline: none;
   }
   .sub {
     color: var(--dim);

@@ -81,3 +81,12 @@ test('a toast button runs once and closes the toast; it keeps the toast up longe
   mock.timers.tick(ACTION_MS);
   assert.equal(t.items.length, 0);
 });
+
+test('a keyed toast replaces the old one: a quick toggle shows only its current state', () => {
+  const t = new ToastStore();
+  t.info('Saved.');
+  for (const on of [true, false, true]) t.info(on ? 'Only live tabs' : 'All tabs', { key: 'tabs.onlyLive' });
+  assert.deepEqual(t.items.map((x) => [x.text, x.count]), [['Saved.', 1], ['Only live tabs', 1]]);
+  mock.timers.tick(LIFETIME_MS.info);
+  assert.equal(t.items.length, 0);
+});

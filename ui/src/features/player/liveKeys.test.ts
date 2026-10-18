@@ -1,16 +1,44 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { liveKeyAction, OWN_ARROWS, ownsArrows, seekText, stepChoice, Steps, stepText, behindText } from './liveKeys.ts';
+import { liveKeyAction, OWN_ARROWS, ownsKey, TAB_ACROSS, TAB_DOWN, seekText, stepChoice, Steps, stepText, behindText } from './liveKeys.ts';
 
-const fake = (roles: string[]) => ({ closest: (sel: string) => (roles.some((r) => sel.includes(r)) ? {} : null) });
+/** Matches when one of the selector's comma parts is in `parts`. */
+const fake = (parts: string[]) => ({ closest: (sel: string) => (sel.split(', ').some((p) => parts.includes(p)) ? {} : null) });
+const key = (k: string, shiftKey = false) => ({ key: k, shiftKey });
 
 test('which focused elements keep the arrows', () => {
-  for (const r of ['input', 'textarea', '[role="slider"]', '[role="tab"]', '[role="grid"]', '[role="log"]', '[data-arrows]']) {
-    assert.equal(ownsArrows(fake([r])), true, r);
+  for (const r of ['input', 'textarea', '[role="slider"]:not([tabindex="-1"])', '[role="grid"]', '[role="log"]', '[data-arrows]']) {
+    assert.equal(ownsKey(fake([r]), key('ArrowLeft')), true, r);
   }
-  assert.equal(ownsArrows(fake([])), false);
-  assert.equal(ownsArrows(null), false);
+  assert.equal(ownsKey(fake([]), key('ArrowLeft')), false);
+  assert.equal(ownsKey(null, key('ArrowLeft')), false);
+});
+
+test('d-2 J/L and Shift+Right work anywhere but in a text field', () => {
+  const tab = fake([TAB_ACROSS]);
+  const slider = fake(['[role="slider"]:not([tabindex="-1"])']);
+  for (const k of [key('j'), key('l'), key('ArrowRight', true)]) {
+    assert.equal(ownsKey(tab, k), false);
+    assert.equal(ownsKey(slider, k), false);
+    assert.equal(ownsKey(fake(['input']), k), true);
+    assert.equal(ownsKey(fake(['[contenteditable]:not([contenteditable="false"])']), k), true);
+  }
+});
+
+test('d-2 a tab keeps only the arrows of its own bar, and only with keyboard focus', () => {
+  assert.ok(!OWN_ARROWS.split(', ').includes('[role="tab"]'));
+  assert.ok(TAB_ACROSS.endsWith(':focus-visible') && TAB_DOWN.endsWith(':focus-visible'));
+  // A clicked tab isn't :focus-visible: no part matches, the arrows seek.
+  const clicked = fake([]);
+  assert.equal(ownsKey(clicked, key('ArrowLeft')), false);
+  const across = fake([TAB_ACROSS]);
+  assert.equal(ownsKey(across, key('ArrowLeft')), true);
+  assert.equal(ownsKey(across, key('ArrowRight')), true);
+  assert.equal(ownsKey(across, key('ArrowUp')), false);
+  const down = fake([TAB_DOWN]);
+  assert.equal(ownsKey(down, key('ArrowDown')), true);
+  assert.equal(ownsKey(down, key('ArrowLeft')), false);
 });
 
 test("a clicked seek bar (tabindex -1) doesn't keep the arrows", () => {

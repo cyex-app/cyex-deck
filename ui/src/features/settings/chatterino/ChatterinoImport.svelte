@@ -52,10 +52,10 @@
   }
 </script>
 
-<SectionHead title="Import from Chatterino" />
-<p class="note" data-setting="data:chatterino">
-  Your Chatterino tabs, in order and with their names. Pick <code>window-layout.json</code> or one of its backups.
-</p>
+<!-- b-14 The line is the heading's subtitle, so the gap under it matches the other blocks. -->
+<SectionHead title="Import from Chatterino" setting="data:chatterino"
+  >Your Chatterino tabs, in order and with their names. Pick <code>window-layout.json</code> or one of its backups.</SectionHead
+>
 <div class="actions">
   <Button icon="upload" disabled={busy} onclick={pick}>Pick layout file</Button>
 </div>
@@ -82,12 +82,12 @@
 <style>
   .note {
     margin: 10px 0;
-    font-size: 0.82rem;
+    font-size: var(--text-sub);
     color: var(--dim);
   }
   code {
     font-family: var(--font-mono);
-    font-size: 0.78rem;
+    font-size: var(--text-hint);
   }
   .headline {
     margin: 0;

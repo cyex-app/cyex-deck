@@ -29,7 +29,7 @@
       key: 'route',
       kind: 'text',
       placeholder: 'Custom feed',
-      width: '88px',
+      width: '100px',
       alert: true,
       label: 'Still show in a custom feed',
       hint: 'A hidden message still goes into the custom feed with this name.',

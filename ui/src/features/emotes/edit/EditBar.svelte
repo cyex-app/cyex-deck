@@ -1,4 +1,5 @@
-<!-- V106-31/32 The picker's add/rename strip, pinned to its bottom edge. -->
+<!-- V106-31/32 The picker's add/rename strip, pinned to its bottom edge. The title names the
+     channel; the field label doesn't repeat it (c-8). -->
 <script lang="ts">
   import AliasForm from './AliasForm.svelte';
   import { type EditForm, checkName, formChannel, submitForm } from './run';
@@ -38,7 +39,7 @@
   <p class="title">{title}</p>
   {#if mode.kind === 'add'}
     <AliasForm
-      label="Name in {channel}"
+      label="Name"
       value={mode.ownName ?? emote.name}
       submit={busy ? 'Adding…' : 'Add'}
       {busy}
@@ -48,7 +49,7 @@
     />
   {:else}
     <AliasForm
-      label="New name in {channel}"
+      label="New name"
       value={mode.here.alias}
       submit={busy ? 'Saving…' : 'Save'}
       {busy}

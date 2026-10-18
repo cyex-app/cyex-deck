@@ -81,6 +81,8 @@
     const prev = vertical ? 'ArrowUp' : 'ArrowLeft';
     const next = vertical ? 'ArrowDown' : 'ArrowRight';
     if (![prev, next, 'Home', 'End'].includes(e.key)) return;
+    // V1061-04 After a mouse click (no focus ring) and with Shift held, the arrows go to the player.
+    if (e.shiftKey || !(e.currentTarget as HTMLElement).matches(':focus-visible')) return;
     const all = [...(e.currentTarget as HTMLElement).closest('[data-tab-bar]')!.querySelectorAll<HTMLElement>('[role="tab"]')];
     const at = all.indexOf(e.currentTarget as HTMLElement);
     const to = e.key === 'Home' ? 0 : e.key === 'End' ? all.length - 1 : (at + (e.key === next ? 1 : -1) + all.length) % all.length;
@@ -123,7 +125,7 @@
   onpointerdown={(e) => drag.begin(e, { kind: 'tab', id: tab.id }, name)}
   use:tooltip={tip}
 >
-  <span class="pill">
+  <span class="pill" class:has-snd={sound !== 'silent'}>
     {#if sound !== 'silent'}
       <span class="snd" class:muted={sound === 'muted'} aria-hidden="true">
         <Icon name={sound === 'muted' ? 'volumeOff' : 'volume'} size={9} />
@@ -131,6 +133,8 @@
     {/if}
     {#if live}<span class="dot {live}"></span>{/if}
     <span class="name">{name}</span>
+    <!-- V106 a-5, s3-7 The badge is only a picture; screen readers hear it here. -->
+    {#if tabs.muted.has(tab.id)}<span class="sr-only">, muted</span>{/if}
     {#if popped}<span class="popped"><Icon name="popout" size={12} /></span>{/if}
     {#if closeButton}
       <button
@@ -218,6 +222,17 @@
     background: var(--surface-hover);
     box-shadow: inset 0 0 0 1px var(--border-strong);
   }
+  /* V106 s2-11 Selected keeps its mention edge. */
+  .selected.mention:not(.active) .pill {
+    box-shadow:
+      inset 0 2px var(--accent),
+      inset 0 0 0 1px var(--border-strong);
+  }
+  .selected.vertical.mention:not(.active) .pill {
+    box-shadow:
+      inset -2px 0 var(--accent),
+      inset 0 0 0 1px var(--border-strong);
+  }
   /* V101-11 In the 2px gap before the tab. The bar clips the one at a row's start. The
      tab before is another instance, hence global. */
   :global(.tab) + .tab::before {
@@ -231,9 +246,10 @@
     background: var(--border-strong);
     pointer-events: none;
   }
-  /* V106-05 In a side bar: a line across the whole bar, padding included. */
+  /* V106-05 In a side bar: a line across the whole bar, padding included. V106 a-7 On a whole
+     px (-1px, not -1.5px): a half px landed between device pixels at 150 % and blurred. */
   :global(.tab.vertical) + .tab.vertical::before {
-    top: -1.5px;
+    top: -1px;
     left: calc(-1 * var(--bar-pad, 6px));
     right: calc(-1 * var(--bar-pad, 6px));
     width: auto;
@@ -305,6 +321,13 @@
     pointer-events: none;
     animation: snd-in 160ms var(--ease, ease-out);
   }
+  /* V106 a-4 Room for the badge (12 px + 1 px gap), so it never covers the name or the dot. */
+  .pill.has-snd {
+    padding-left: max(var(--tab-pad), 13px);
+  }
+  .vertical.grouped .pill.has-snd {
+    padding-left: max(var(--tab-pad), 18px);
+  }
   /* Thin icon strokes would vanish at 9 px. */
   .snd :global(svg) {
     stroke-width: 2.6;
@@ -363,7 +386,8 @@
     bottom: 3px;
     width: 2px;
     border-radius: 1px;
-    background: var(--accent);
+    /* V106 s2-3 Accent text is kept readable on the page; the fill can be near the page color. */
+    background: var(--accent-text);
   }
   [data-mark='before'] .pill::before {
     left: 0;
@@ -383,7 +407,7 @@
     right: calc(-1 * var(--bar-pad, 6px));
     height: 2px;
     border-radius: 1px;
-    background: var(--accent);
+    background: var(--accent-text);
     pointer-events: none;
   }
   .vertical[data-mark='before']::after {

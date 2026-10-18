@@ -55,10 +55,14 @@
   const id = () => crypto.randomUUID().slice(0, 8);
 </script>
 
-<SectionHead title="Filters" level={2} docs="filters">
-  A chat shows only what passes its filters. Pick them from the chat’s menu. Same language as Chatterino.
-  <Button small variant="link" onclick={toggleNames}>{showNames ? 'Hide' : 'Show'} what you can use</Button>
-</SectionHead>
+<!-- b-15 One line, so exactly one space sits before the button. -->
+<SectionHead title="Filters" level={2} docs="filters"
+  >A chat shows only what passes its filters. Pick them from the chat’s menu. Same language as Chatterino. <Button
+    small
+    variant="link"
+    onclick={toggleNames}>{showNames ? 'Hide' : 'Show'} what you can use</Button
+  ></SectionHead
+>
 {#if showNames}
   <div class="names">
     {#each names as n (n.name)}<code use:tooltip={n.kind}>{n.name}</code>{/each}

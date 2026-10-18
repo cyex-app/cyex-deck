@@ -27,7 +27,8 @@
   let asked = false;
 
   const shown = $derived(dragging && hover !== null ? hover : time);
-  const pct = (t: number) => `${duration > 0 ? Math.min(100, (t / duration) * 100) : 0}%`;
+  const frac = (t: number) => (duration > 0 ? Math.min(1, Math.max(0, t / duration)) : 0);
+  const pct = (t: number) => `${frac(t) * 100}%`;
 
   /** The storyboard picture for `t`: which sheet, and where on it. */
   const preview = $derived.by(() => {
@@ -75,7 +76,7 @@
   aria-label="Seek"
   aria-valuemin={0}
   aria-valuemax={Math.round(duration)}
-  aria-valuenow={Math.round(time)}
+  aria-valuenow={Math.round(shown)}
   aria-valuetext={valueText}
   onpointermove={onmove}
   onpointerleave={() => !dragging && (hover = null)}
@@ -83,8 +84,13 @@
   onpointerup={onup}
 >
   <div class="rail">
-    <div class="buffered" style:width={pct(buffered)}></div>
-    <div class="played" class:neutral={tone === 'neutral'} style:width={pct(shown)}></div>
+    <!-- s1-13 Scaled, not sized: no layout on every time update. -->
+    <div class="buffered" style:transform="scaleX({frac(buffered)})"></div>
+    <div class="played" class:neutral={tone === 'neutral'} style:transform="scaleX({frac(shown)})"></div>
+  </div>
+  <!-- d-8 The thumb, while hovering or dragging. -->
+  <div class="knob-track" style:transform="translateX({pct(shown)})" aria-hidden="true">
+    <div class="knob" class:on={hover !== null || dragging} class:neutral={tone === 'neutral'}></div>
   </div>
   {#if hover !== null}
     <div class="tip" style:left={pct(hover)}>
@@ -118,16 +124,45 @@
     height: 4px;
     background: var(--on-video-faint);
     border-radius: var(--radius-sm);
-    transition: height var(--fast);
+    transition: transform var(--fast) var(--ease);
   }
   .seek:hover .rail {
-    height: 6px;
+    transform: scaleY(1.5);
   }
   .buffered,
   .played {
     position: absolute;
-    inset: 0 auto 0 0;
+    inset: 0;
     border-radius: var(--radius-sm);
+    transform-origin: left center;
+  }
+  .knob-track {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .knob {
+    position: absolute;
+    top: 50%;
+    left: -6px;
+    width: 12px;
+    height: 12px;
+    margin-top: -6px;
+    border-radius: 50%;
+    background: var(--accent-hover);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--on-video) 45%, transparent);
+    opacity: 0;
+    transform: scale(0.5);
+    transition:
+      opacity var(--fast) var(--ease),
+      transform var(--fast) var(--ease);
+  }
+  .knob.neutral {
+    background: var(--on-video);
+  }
+  .knob.on {
+    opacity: 1;
+    transform: none;
   }
   .buffered {
     background: color-mix(in srgb, var(--on-video) 35%, transparent);

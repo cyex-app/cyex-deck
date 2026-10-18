@@ -33,7 +33,7 @@
   .hint {
     margin: 0 0 10px;
     color: var(--dim);
-    font-size: 0.8rem;
+    font-size: var(--text-hint);
   }
   .fields {
     display: flex;

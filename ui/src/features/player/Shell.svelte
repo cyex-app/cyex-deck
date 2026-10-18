@@ -1,4 +1,4 @@
-<!-- The frame every player shares: controls that show while the mouse moves, click to
+<!-- The frame every player shares: controls that show while the mouse moves, a press to
      play or pause, double-click for fullscreen (1.58, V101-27), scroll for volume (P2),
      right-click for the player's menu (V101-17). The player used or opened last gets the
      hotkeys (S2) and the media keys (V101-29). -->
@@ -32,7 +32,8 @@
   let readout = $state<SeekReadout>();
   let active = $state(false);
   let idle: ReturnType<typeof setTimeout> | undefined;
-  let click: ReturnType<typeof setTimeout> | undefined;
+  /** d-7 The first press of a click toggled play. */
+  let toggled = false;
 
   // svelte-ignore state_referenced_locally
   const self: PlayerControls = {
@@ -55,7 +56,6 @@
   onDestroy(() => {
     unregister();
     clearTimeout(idle);
-    clearTimeout(click);
   });
 
   /** For the player's `toggleFullscreen`. The surface around the player goes along, so
@@ -78,16 +78,20 @@
   /** Whether the event landed on this player's own controls (V101-27). */
   const on = (e: Event, selector: string) => !root || hitInside(e.target as HTMLElement, root, selector);
 
-  /** Clicks on the picture, not on the controls. */
-  function onclick(e: MouseEvent) {
-    if (on(e, '.bar, .top, button, input, a')) return;
-    clearTimeout(click);
-    click = setTimeout(() => controls.togglePlay(), 220);
+  const PICTURE_SKIP = '.bar, .top, button, input, a';
+
+  /** d-7 A press on the picture (not the controls) plays or pauses at once. The second press
+   *  of a double click doesn't: the double click puts the play state back and goes fullscreen. */
+  function onmousedown(e: MouseEvent) {
+    if (e.button !== 0 || e.detail >= 2) return;
+    toggled = !on(e, PICTURE_SKIP);
+    if (toggled) controls.togglePlay();
   }
 
   function ondblclick(e: MouseEvent) {
-    if (on(e, '.bar, .top, button, input, a')) return;
-    clearTimeout(click);
+    if (on(e, PICTURE_SKIP)) return;
+    if (toggled) controls.togglePlay();
+    toggled = false;
     self.toggleFullscreen();
   }
 
@@ -107,7 +111,7 @@
   }
 </script>
 
-<!-- Clicks on the picture mirror the play button and F; the controls are real buttons. -->
+<!-- Presses on the picture mirror the play button and F; the controls are real buttons. -->
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div
   class="shell"
@@ -117,7 +121,7 @@
   onpointerdown={() => players.use(self)}
   onpointerup={(e) => (e.target as HTMLElement).closest<HTMLElement>('.ctl')?.blur()}
   onpointerleave={() => (active = false)}
-  {onclick}
+  {onmousedown}
   {ondblclick}
   {onwheel}
   {oncontextmenu}

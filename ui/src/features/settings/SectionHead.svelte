@@ -50,6 +50,11 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+    /* b-2 The h2's bottom margin sits on the row, so the title centers on the buttons. */
+    margin-bottom: 14px;
+  }
+  .head h2 {
+    margin: 0;
   }
   .acts {
     display: flex;
@@ -64,7 +69,7 @@
     margin: 0 0 8px;
     max-width: 64ch;
     color: var(--muted);
-    font-size: 0.85rem;
+    font-size: var(--text-sub);
     line-height: 1.45;
   }
   .docs {

@@ -13,6 +13,7 @@
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
   import { errorText } from '../../../lib/errors';
+  import { tooltip } from '../../../components/tooltip.svelte';
 
   const obs = $derived(settings.v.streammanager.obs);
   let folder = $state<string | null>(null);
@@ -52,9 +53,13 @@
       .catch((e) => toast.error(errorText(e)))
       .finally(reload);
   }
+
+  let pathEl = $state<HTMLElement>();
+  /** b-3 The full path shows as a tip only while the line cuts it. */
+  const cut = () => !!pathEl && pathEl.scrollWidth > pathEl.clientWidth;
 </script>
 
-<SectionHead title="Stream manager" level={2}>Tools for when you stream, like OBS files.</SectionHead>
+<SectionHead title="Stream manager" level={2} />
 
 <SectionHead title="Files for OBS">Text files OBS can show on your stream.</SectionHead>
 <Row setting="streammanager.obs.enabled" label="Write status files" hint="Updated about every 30 seconds while the stream manager is open.">
@@ -66,20 +71,23 @@
     <Button small icon="popout" onclick={() => void smIpc.obsOpen().catch((e) => toast.error(errorText(e)))}>Open folder</Button>
     {#if obs.folder}<IconButton icon="undo" label="Use default folder" hint="Back to the stream-status folder next to the settings." size={14} onclick={() => void settings.patch('streammanager', { obs: { folder: '' } })} />{/if}
   </div>
-  {#if folder}<p class="path">{folder}</p>{/if}
+  {#if folder}<p class="path" bind:this={pathEl} use:tooltip={{ label: folder, when: cut }}>{folder}</p>{/if}
 </Row>
 
 <p class="note">In OBS, add a “Text (GDI+)” source, tick “Read from file” and pick one of these files.</p>
 <table class="files" data-setting="streammanager:files">
-  <thead><tr><th>File</th><th>What’s in it</th><th><span class="sr-only">Actions</span></th></tr></thead>
+  <thead><tr><th class="label">File</th><th class="label">What’s in it</th><th><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>
     {#each files as f (f.name)}
       <tr>
         <td><code>{f.name}</code></td>
-        <td>{f.what}{#if !f.exists}<span class="later"> · not written yet</span>{/if}</td>
+        <td>{f.what}{#if !f.exists}<span class="later">{' '}· not written yet</span>{/if}</td>
         <td class="acts">
-          <IconButton icon="popout" label="Open {f.name}" size={14} onclick={() => openFile(f.name)} />
-          <IconButton icon="copy" label="Copy the path of {f.name}" size={14} onclick={() => void copy(f.path, 'Path')} />
+          <!-- b-3 One line: the buttons are blocks, so they sit in a row of their own. -->
+          <div class="acts-row">
+            <IconButton icon="popout" label="Open {f.name}" size={14} onclick={() => openFile(f.name)} />
+            <IconButton icon="copy" label="Copy the path of {f.name}" size={14} onclick={() => void copy(f.path, 'Path')} />
+          </div>
         </td>
       </tr>
     {/each}
@@ -95,31 +103,29 @@
   }
   .path {
     margin: 4px 0 0;
-    font-size: 0.76rem;
+    font-size: var(--text-hint);
     color: var(--dim);
     font-family: var(--font-mono);
-    overflow-wrap: anywhere;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     user-select: text;
   }
   .note {
     margin: 14px 0 6px;
-    font-size: 0.82rem;
+    font-size: var(--text-sub);
     color: var(--muted);
   }
   .files {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.82rem;
+    font-size: var(--text-sub);
     color: var(--muted);
   }
+  /* s2-8 The look is the shared .label. */
   th {
     text-align: left;
     padding: 0 8px 4px 0;
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--dim);
   }
   td {
     padding: 5px 8px 5px 0;
@@ -135,12 +141,16 @@
     text-align: right;
     padding-right: 0;
   }
+  .acts-row {
+    display: flex;
+    gap: 2px;
+  }
   .later {
     color: var(--dim);
   }
   code {
     font-family: var(--font-mono);
-    font-size: 0.8rem;
+    font-size: var(--text-hint);
     color: var(--text);
   }
 </style>

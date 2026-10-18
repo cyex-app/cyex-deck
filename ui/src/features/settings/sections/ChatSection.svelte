@@ -448,7 +448,7 @@
     color: var(--dim);
     font: inherit;
     font-weight: 400;
-    font-size: 0.78rem;
+    font-size: var(--text-hint);
     cursor: pointer;
   }
   .slot-act:hover:not(:disabled) {

@@ -134,12 +134,12 @@
 <style>
   .checked {
     color: var(--muted);
-    font-size: 0.85rem;
+    font-size: var(--text-sub);
   }
   .privacy {
     margin: 8px 0 0;
     color: var(--dim);
-    font-size: 0.8rem;
+    font-size: var(--text-hint);
   }
   .preview {
     margin: 4px 0 2px;

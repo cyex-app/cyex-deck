@@ -42,6 +42,9 @@
     compact: { h: 23, pad: 7, font: '0.78rem', width: 148 },
   };
   const size = $derived(DENSITY[settings.v.appearance.tabDensity]);
+  /** V106 a-7 A side bar's rows stack 2px apart: an even height keeps every row (and its divider)
+   * on whole device pixels at 150 %; 23 + 2 put every other one between two. */
+  const rowH = $derived(vertical ? size.h + (size.h % 2) : size.h);
   /** F16 A row is a tab and its gaps above and below (`--row-g`). In the title bar the
    * first row is as tall as the bar anyway. */
   const maxHeight = $derived.by(() => {
@@ -159,7 +162,7 @@
   aria-orientation={vertical ? 'vertical' : 'horizontal'}
   tabindex="-1"
   bind:this={bar}
-  style:--tab-h="{size.h}px"
+  style:--tab-h="{rowH}px"
   style:--tab-pad="{size.pad}px"
   style:--tab-font={size.font}
   style:--row-g={vertical ? undefined : '3px'}

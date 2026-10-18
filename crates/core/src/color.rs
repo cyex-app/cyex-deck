@@ -12,6 +12,11 @@ pub const DEFAULT_ACCENT: &str = "#145aff";
 const FILL_CONTRAST: f64 = 3.0;
 /// Accent-colored text needs 4.5:1 against every surface it sits on (WCAG 1.4.3).
 const TEXT_CONTRAST: f64 = 4.5;
+/// V106 a-1 A gray accent (no hue to tell it apart) reads at about the body text's contrast,
+/// so selected states never look dimmer than unselected text.
+const NEUTRAL_TEXT_CONTRAST: f64 = 11.0;
+/// Chroma (0 to 1) from which an accent counts as fully colored.
+const COLORED_CHROMA: f64 = 0.2;
 
 pub const WHITE: Rgb = Rgb::new(0xff, 0xff, 0xff);
 pub const BLACK: Rgb = Rgb::new(0, 0, 0);
@@ -110,6 +115,13 @@ impl Rgb {
         0.2126 * channel(self.r) + 0.7152 * channel(self.g) + 0.0722 * channel(self.b)
     }
 
+    /// Colorfulness, 0 (gray) to 1: max channel minus min channel.
+    pub fn chroma(self) -> f64 {
+        let max = self.r.max(self.g).max(self.b);
+        let min = self.r.min(self.g).min(self.b);
+        f64::from(max - min) / 255.0
+    }
+
     /// Linear blend toward `other`; `t` = 0 keeps self, 1 gives other.
     pub fn mix(self, other: Rgb, t: f64) -> Rgb {
         let lerp = |a: u8, b: u8| (f64::from(a) + (f64::from(b) - f64::from(a)) * t).round() as u8;
@@ -158,8 +170,10 @@ pub fn accent_tokens_on(input: &str, theme: Theme, [page, surface]: [Rgb; 2]) ->
     let away = theme.away_from_background();
 
     let fill = push_until(base, away, |c| contrast(c, page) >= FILL_CONTRAST);
+    let grayness = 1.0 - (base.chroma() / COLORED_CHROMA).min(1.0);
+    let text_target = TEXT_CONTRAST + (NEUTRAL_TEXT_CONTRAST - TEXT_CONTRAST) * grayness;
     let text = push_until(base, away, |c| {
-        contrast(c, page) >= TEXT_CONTRAST && contrast(c, surface) >= TEXT_CONTRAST
+        contrast(c, page) >= text_target && contrast(c, surface) >= text_target
     });
     let hover = match theme {
         Theme::Dark => fill.mix(WHITE, 0.15),
@@ -292,6 +306,20 @@ mod tests {
         }
         // Already readable: unchanged.
         assert_eq!(readable_name(rgb("#ff69b4"), Theme::Dark), rgb("#ff69b4"));
+    }
+
+    #[test]
+    fn gray_accent_text_is_near_body_text() {
+        // V106 a-1 #101010 on dark gave #939393, dimmer than body text.
+        for (input, theme) in [("#101010", Theme::Dark), ("#f0f0f0", Theme::Light)] {
+            let t = accent_tokens(input, theme);
+            for bg in theme.backgrounds() {
+                let c = contrast(rgb(&t.accent_text), bg);
+                assert!(c >= NEUTRAL_TEXT_CONTRAST, "{input} {theme:?}: text {c:.2}");
+            }
+        }
+        // A colored accent keeps its hue: still pushed only to 4.5:1.
+        assert_eq!(accent_tokens("#ff69b4", Theme::Dark).accent_text, "#ff69b4");
     }
 
     #[test]

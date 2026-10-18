@@ -94,12 +94,12 @@
     margin-left: auto;
     flex: none;
     color: var(--dim);
-    font-size: 0.8rem;
+    font-size: var(--text-hint);
   }
   .hint {
     overflow: hidden;
     color: var(--dim);
-    font-size: 0.8rem;
+    font-size: var(--text-hint);
     text-overflow: ellipsis;
     white-space: nowrap;
   }

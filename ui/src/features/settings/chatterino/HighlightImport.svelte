@@ -111,7 +111,7 @@
   }
   .why {
     margin: 6px 0;
-    font-size: 0.82rem;
+    font-size: var(--text-hint);
     color: var(--dim);
   }
   ul {
@@ -120,7 +120,7 @@
     list-style: none;
     display: grid;
     gap: 4px;
-    font-size: 0.82rem;
+    font-size: var(--text-sub);
   }
   li {
     overflow-wrap: anywhere;

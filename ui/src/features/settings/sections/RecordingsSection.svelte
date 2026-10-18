@@ -34,7 +34,7 @@
   const long = (r: RecordingMeta) => formatDuration(Math.max(0, Math.floor((r.endedMs - r.startedMs) / 1000)));
 </script>
 
-<SectionHead title="Recordings" level={2} setting="recordings:list">Streams you saved on this PC.</SectionHead>
+<SectionHead title="Recordings" level={2} setting="recordings:list" />
 
 {#if list === null}
   <Loading rows={3} />

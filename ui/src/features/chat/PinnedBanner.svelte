@@ -6,8 +6,11 @@
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import type { Pinned } from '../../ipc/bindings/Pinned';
-  import { tooltip } from '../../components/tooltip.svelte';
+  import { hideTip, showTip, tooltip } from '../../components/tooltip.svelte';
+  import { systemIpc } from '../../ipc/system';
+  import { errorText } from '../../lib/errors';
   import { reduced } from '../../lib/motion';
+  import { toast } from '../../lib/toast.svelte';
   import { settings } from '../../lib/settings.svelte';
   import Body from './Body.svelte';
   import { pinKey, pinLive, shows } from './eventStrip';
@@ -64,13 +67,67 @@
     if (seen.id !== id) seen = { id, at: Date.now() };
     return seen.at;
   }
+  // s1-1 Reduce motion can flip while a pin shows: the bar and its tick follow at once.
+  let still = $state(reduced());
+  $effect(() => {
+    if (typeof matchMedia !== 'function') return;
+    const q = matchMedia('(prefers-reduced-motion: reduce)');
+    const flip = () => (still = q.matches);
+    q.addEventListener('change', flip);
+    return () => q.removeEventListener('change', flip);
+  });
   let tick = $state(Date.now());
   $effect(() => {
-    if (!reduced() || !pin.endsAt) return;
+    if (!still || !pin.endsAt) return;
+    tick = Date.now();
     const t = setInterval(() => (tick = Date.now()), 10_000);
     return () => clearInterval(t);
   });
-  const span = $derived(pinSpan(pin, seenAt(pin.id), reduced() ? tick : Date.now()));
+  const span = $derived(pinSpan(pin, seenAt(pin.id), still ? tick : Date.now()));
+
+  /** s3-1 Unpin takes it down for everyone: a second click within 3 s does it. */
+  let armed = $state(false);
+  let armTimer: ReturnType<typeof setTimeout> | undefined;
+  function unpin() {
+    clearTimeout(armTimer);
+    if (!armed) {
+      armed = true;
+      armTimer = setTimeout(() => (armed = false), 3000);
+      return;
+    }
+    armed = false;
+    onunpin?.();
+  }
+  $effect(() => () => clearTimeout(armTimer));
+
+  /** c-9 A link in the text opens; the rest of the text folds. */
+  function textClick(e: MouseEvent) {
+    const a = (e.target as HTMLElement).closest<HTMLElement>('[data-link]');
+    if (a) {
+      e.preventDefault();
+      e.stopPropagation();
+      hideTip();
+      systemIpc.openChatLink(a.dataset.link!).catch((err) => toast.error(errorText(err)));
+      return;
+    }
+    open = !open;
+  }
+
+  function textKey(e: KeyboardEvent) {
+    if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    open = !open;
+  }
+
+  function textOver(e: MouseEvent) {
+    const a = (e.target as HTMLElement).closest<HTMLElement>('[data-link]');
+    if (a?.dataset.host) showTip(a, { label: `Opens ${a.dataset.host}` });
+  }
+
+  function textOut(e: MouseEvent) {
+    const a = (e.target as HTMLElement).closest('[data-link]');
+    if (a && !a.contains(e.relatedTarget as Node)) hideTip();
+  }
   const c = $derived(settings.v.chat);
   const sender = $derived(pin.message.sender);
   const name = $derived(sender ? shownName(sender, c.names, c.users[sender.id]) : null);
@@ -91,13 +148,31 @@
           {#if pin.by}<span class="by">{sender && name ? '· ' : ''}Pinned by {pin.by}</span>{/if}
         </div>
       {/if}
-      <button class="text" onclick={() => (open = !open)} aria-expanded={open}>
+      <!-- c-9 Not a button: its links stay links. The link tips are extra, like in chat. -->
+      <!-- svelte-ignore a11y_mouse_events_have_key_events -->
+      <div
+        class="text"
+        role="button"
+        tabindex="0"
+        aria-expanded={open}
+        onclick={textClick}
+        onkeydown={textKey}
+        onmouseover={textOver}
+        onmouseout={textOut}
+        onblur={hideTip}
+      >
         <Body fragments={pin.message.body} {channel} />
-      </button>
+      </div>
     </div>
     {#if onunpin}
-      <button class="close" aria-label="Unpin" use:tooltip={{ label: 'Unpin', hint: 'Takes it down for everyone.' }} onclick={onunpin}>
-        <Icon name="trash" size={13} />
+      <button
+        class="close"
+        class:armed
+        aria-label={armed ? 'Click again to unpin' : 'Unpin'}
+        use:tooltip={{ label: 'Unpin', hint: 'Takes it down for everyone.' }}
+        onclick={unpin}
+      >
+        {#if armed}Unpin?{:else}<Icon name="trash" size={13} />{/if}
       </button>
     {/if}
     {#if pinLive(pin, Date.now())}
@@ -122,7 +197,7 @@
       {#key pin.id}
         <div
           class="timer"
-          class:still={reduced()}
+          class:still
           style="--from:{span.frac};--dur:{Math.round(span.left)}ms"
           aria-hidden="true"
         ></div>
@@ -161,8 +236,9 @@
     right: 0;
     bottom: 0;
     height: 2px;
-    background: var(--accent);
-    opacity: 0.35;
+    /* s2-5 Readable on either theme, whatever the accent. */
+    background: var(--accent-text);
+    opacity: 0.7;
     transform-origin: left center;
     transform: scaleX(var(--from));
     animation: pin-run var(--dur) linear forwards;
@@ -193,6 +269,7 @@
     border: 0;
     color: var(--text);
     text-align: left;
+    cursor: default;
     /* V105-03 Tight lines; a line with an emote grows to fit it (below). */
     font: 400 calc(var(--chat-size) + var(--pinned-step)) / 1.3 var(--chat-font);
     overflow-wrap: anywhere;
@@ -243,5 +320,24 @@
   }
   .close:hover {
     color: var(--text);
+  }
+  .close.armed {
+    width: auto;
+    padding: 0 6px;
+    border-radius: var(--radius-sm);
+    background: var(--danger-solid);
+    color: var(--on-solid);
+    font-size: var(--text-hint);
+    font-weight: 600;
+  }
+  .close.armed:hover {
+    color: var(--on-solid);
+  }
+  .text:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+  .text :global([data-link]) {
+    cursor: pointer;
   }
 </style>

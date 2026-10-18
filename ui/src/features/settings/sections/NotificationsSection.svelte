@@ -286,7 +286,7 @@
   .note {
     margin: 4px 0 10px;
     color: var(--muted);
-    font-size: 0.82rem;
+    font-size: var(--text-sub);
   }
   .gated {
     display: flex;
@@ -362,7 +362,7 @@
     margin-left: auto;
     overflow: hidden;
     color: var(--dim);
-    font-size: 0.76rem;
+    font-size: var(--text-hint);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -374,7 +374,7 @@
   }
   .head {
     color: var(--dim);
-    font-size: 0.76rem;
+    font-size: var(--text-hint);
     text-align: center;
   }
   .cat {

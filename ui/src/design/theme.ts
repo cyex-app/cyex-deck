@@ -7,6 +7,7 @@ import type { AccentTokens } from '../ipc/bindings/AccentTokens';
 import type { Appearance } from '../ipc/bindings/Appearance';
 import type { ThemeLook } from '../ipc/bindings/ThemeLook';
 import type { Theme } from '../ipc/bindings/Theme';
+import { reduced } from '../lib/motion';
 
 const CACHE_KEY = 'cyex.look';
 
@@ -17,7 +18,11 @@ let customKeys: string[] = [];
 export function applyCachedTheme(): void {
   try {
     const cached = localStorage.getItem(CACHE_KEY);
-    if (cached) write(JSON.parse(cached) as ThemeLook);
+    if (cached) {
+      const look = JSON.parse(cached) as ThemeLook;
+      painted = themeKey(look);
+      write(look);
+    }
   } catch {
     // No cache yet: the dark defaults in tokens.css stay.
   }
@@ -30,7 +35,7 @@ export async function applyAppearance(_appearance: Appearance): Promise<void> {
   const request = ++latest;
   const look = await themeIpc.look();
   if (request !== latest) return; // a newer change arrived while this one was computing
-  write(look);
+  paint(look);
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify(look));
   } catch {
@@ -41,6 +46,30 @@ export async function applyAppearance(_appearance: Appearance): Promise<void> {
 /** Accent tokens for a color the user is still picking, without saving it. */
 export function previewAccent(accent: string, theme: Theme): Promise<AccentTokens> {
   return themeIpc.accentTokens(accent, theme);
+}
+
+/** What a theme switch changes (not the accent alone, which is dragged live). */
+const themeKey = (look: ThemeLook) => JSON.stringify([look.theme, look.palette?.tokens ?? null, look.wallpaper]);
+let painted = '';
+
+/** V106 s1-3 A switch to another theme cross-fades for 150 ms; none under Reduce motion. */
+function paint(look: ThemeLook): void {
+  const key = themeKey(look);
+  const switched = painted !== '' && key !== painted;
+  painted = key;
+  const doc = document as Document & { startViewTransition?: (update: () => void) => unknown };
+  if (!switched || reduced() || !doc.startViewTransition) return write(look);
+  ensureFadeStyle();
+  doc.startViewTransition(() => write(look));
+}
+
+let fadeStyle = false;
+function ensureFadeStyle(): void {
+  if (fadeStyle) return;
+  fadeStyle = true;
+  const style = document.createElement('style');
+  style.textContent = '::view-transition-old(root),::view-transition-new(root){animation-duration:150ms}';
+  document.head.append(style);
 }
 
 const cssName = (key: string) => `--${key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`;

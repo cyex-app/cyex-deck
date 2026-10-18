@@ -89,16 +89,26 @@ export function defaultAccentOf(c: ThemeChoice): string {
   return c.kind === 'builtin' ? c.theme.accent : DEFAULT_ACCENT;
 }
 
+/** V106 a-2 "My theme", then "My theme 2", 3 … : the first name not taken. */
+export function freeThemeName(themes: readonly CustomTheme[]): string {
+  const taken = new Set(themes.map((t) => t.name.trim().toLowerCase()));
+  for (let n = 1; ; n++) {
+    const name = n === 1 ? 'My theme' : `My theme ${n}`;
+    if (!taken.has(name.toLowerCase())) return name;
+  }
+}
+
 /** V106-03 "New": a copy of what shows now (Rust gives it an id and switches to it). */
 export function newThemeFrom(a: Appearance, c: ThemeChoice): CustomTheme {
   const accent = accentOf(a, c);
+  const name = freeThemeName(a.themes);
   if (c.kind === 'plain') {
-    return { id: '', name: 'My theme', base: c.base, colors: {}, accent, wallpaper: blankWallpaper() };
+    return { id: '', name, base: c.base, colors: {}, accent, wallpaper: blankWallpaper() };
   }
   const t = c.theme;
   return {
     id: '',
-    name: `${t.name} copy`,
+    name,
     base: t.base,
     colors: { ...t.colors },
     accent,

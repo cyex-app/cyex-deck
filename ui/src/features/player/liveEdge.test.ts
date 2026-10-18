@@ -8,6 +8,9 @@ import {
   dvrTarget,
   liveConfig,
   liveState,
+  maxLatency,
+  NO_EDGE_PULL,
+  pausedBehind,
   PAUSE_STOP_MS,
   rangeEnd,
   resumePlan,
@@ -93,4 +96,25 @@ test('U10 end of the buffered range holding a time', () => {
   assert.equal(rangeEnd(r, 15), null);
   assert.equal(rangeEnd(r, 31), null);
   assert.equal(rangeEnd(ranges(), 0), null);
+});
+
+test('d-1 paused, hls.js never pulls the video to the edge', () => {
+  assert.equal(maxLatency(false, false), 20);
+  assert.equal(maxLatency(true, false), 12);
+  assert.equal(maxLatency(true, true), NO_EDGE_PULL);
+  assert.equal(maxLatency(false, true), NO_EDGE_PULL);
+  // Hours behind still isn't past it.
+  assert.ok(NO_EDGE_PULL > 10 * 3600);
+  assert.equal(dvrConfig(0).liveMaxLatencyDuration, NO_EDGE_PULL);
+});
+
+test('d-1 paused at live, behind counts up from the pause', () => {
+  assert.equal(pausedBehind(1.5, 0), 1.5);
+  assert.equal(pausedBehind(1.5, 6000), 7.5);
+  assert.equal(pausedBehind(1.5, 8000), 9.5);
+  // Never back: the readout only grows while paused.
+  const seq = [0, 2000, 6000, 8000, 14_000].map((ms) => pausedBehind(2, ms)!);
+  for (let i = 1; i < seq.length; i++) assert.ok(seq[i] > seq[i - 1]);
+  assert.equal(pausedBehind(null, 5000), null);
+  assert.equal(pausedBehind(3, -50), 3);
 });

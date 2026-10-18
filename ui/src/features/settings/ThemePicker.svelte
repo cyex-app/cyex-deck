@@ -64,8 +64,11 @@
     {@const b = PLAIN_PREVIEW[base]}
     <button class="theme" role="radio" aria-checked={!a.themeId && a.theme === base}
       tabindex={stop === base ? 0 : -1} onclick={() => pickPlain(base)}>
-      <span class="pic" style:background={b.bg}><i style:background={b.surface}></i><b style:background={b.text}></b></span>
-      {b.label}
+      <!-- V106 a-8 Dark and Light show your accent too. -->
+      <span class="pic" style:background={b.bg}
+        ><i style:background={b.surface}></i><b style:background={b.text}></b><u style:background={a.accent}></u></span
+      >
+      <span class="label">{b.label}</span>
     </button>
   {/each}
   {#each builtins as t (t.id)}
@@ -74,7 +77,7 @@
       <span class="pic" style:background={p.bg}
         ><i style:background={p.surface}></i><b style:background={p.text}></b><u style:background={accentOf(a, { kind: 'builtin', theme: t })}></u></span
       >
-      {t.name}
+      <span class="label">{t.name}</span>
     </button>
   {/each}
 </div>
@@ -102,8 +105,13 @@
     border: 1px solid transparent;
     border-radius: var(--radius);
     color: var(--muted);
-    font-size: 0.78rem;
+    font-size: var(--text-hint);
     cursor: pointer;
+  }
+  /* V106 s2-9 Ellipsis needs a box that can shrink; the flex column alone can't. */
+  .label {
+    max-width: 100%;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -114,6 +122,11 @@
   .theme[aria-checked='true'] {
     border-color: var(--accent-border);
     color: var(--text);
+  }
+  /* V106 s2-1 A ring in text color: the pick shows whatever the accent is. */
+  .theme[aria-checked='true'] .pic {
+    outline: 2px solid var(--text);
+    outline-offset: 1px;
   }
   .pic {
     position: relative;

@@ -47,19 +47,22 @@
   const adjusted = $derived(new Set(look?.palette?.adjusted ?? []));
   const note = $derived(adjustedNote(look?.palette?.adjusted ?? []));
 
-  // Dragging a color picker fires many inputs; save at most every 120 ms.
+  // V106 s1-2 Dragging a color picker fires many inputs: save at most once a frame, so the
+  // preview keeps up; whatever is still pending goes out when the editor closes.
   let pending: CustomTheme | null = null;
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  let frame = 0;
+  function flush() {
+    cancelAnimationFrame(frame);
+    frame = 0;
+    if (pending) onchange(pending);
+    pending = null;
+  }
   function save(next: CustomTheme, now = false) {
     pending = next;
-    clearTimeout(timer);
-    const flush = () => {
-      if (pending) onchange(pending);
-      pending = null;
-    };
     if (now) flush();
-    else timer = setTimeout(flush, 120);
+    else if (!frame) frame = requestAnimationFrame(flush);
   }
+  $effect(() => flush);
 
   const setColor = (key: string, value: string) => save({ ...theme, colors: { ...theme.colors, [key]: value } });
 

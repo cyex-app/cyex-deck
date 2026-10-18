@@ -48,9 +48,9 @@ export function tabMenu(tab: Tab, targets: Tab[]): MenuEntry[] {
   // V106-25 The only place a whole tab is muted (keyboard: Menu key on a focused tab). A muted
   // tab can always be unmuted, popped out or with nothing playing.
   if (one && tabs.muted.has(tab.id)) {
-    entries.push({ label: 'Unmute tab', icon: 'volume', run: () => void tabs.mute(tab.id, false) });
+    entries.push({ label: 'Unmute stream', icon: 'volume', run: () => void tabs.mute(tab.id, false) });
   } else if (one && tabs.canPlay(tab)) {
-    entries.push({ label: 'Mute tab', icon: 'volumeOff', run: () => void tabs.mute(tab.id, true) });
+    entries.push({ label: 'Mute stream', icon: 'volumeOff', run: () => void tabs.mute(tab.id, true) });
   }
   const mute = muteEntry(targets);
   if (mute) entries.push(mute);
@@ -115,10 +115,10 @@ function muteEntry(targets: Tab[]): MenuEntry | null {
   const muted = settings.v.highlights.muted;
   const all = logins.every((l) => muted.includes(l));
   const next = all ? muted.filter((l) => !logins.includes(l)) : [...new Set([...muted, ...logins])];
+  // V106 a-5 Says what it does next, like Mute stream.
   return {
-    label: 'Mute sounds',
-    icon: 'bellOff',
-    checked: all,
+    label: all ? 'Unmute alerts' : 'Mute alerts',
+    icon: all ? 'bell' : 'bellOff',
     run: () => void settings.patch('highlights', { muted: next }),
   };
 }

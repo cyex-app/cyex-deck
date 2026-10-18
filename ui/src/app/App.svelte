@@ -198,7 +198,7 @@
     'tabs.onlyLive': () => {
       const on = !settings.v.appearance.tabOnlyLive;
       void settings.patch('appearance', { tabOnlyLive: on });
-      toast.info(on ? 'Only live tabs' : 'All tabs');
+      toast.info(on ? 'Only live tabs' : 'All tabs', { key: 'tabs.onlyLive' }); // V106 a-6
     },
     ...playerHotkeys,
   });

@@ -188,7 +188,7 @@
   }
   .note {
     margin: 10px 0;
-    font-size: 0.82rem;
+    font-size: var(--text-sub);
     color: var(--dim);
   }
   .actions {
@@ -211,6 +211,6 @@
   .problem {
     margin: 6px 0 0;
     color: var(--red);
-    font-size: 0.82rem;
+    font-size: var(--text-sub);
   }
 </style>

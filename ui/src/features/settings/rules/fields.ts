@@ -47,3 +47,12 @@ export function splitList(text: string): string[] {
     .map((s) => s.trim())
     .filter(Boolean);
 }
+
+/** b-10 A row's edit applied to the row as it is now. `seen` is the row the edit started
+ *  from; when two fields change in one tick, the second edit still starts from the row
+ *  before the first, so only the keys it changed are taken. */
+export function applyEdit<T extends Record<string, unknown>>(now: T, seen: T, next: T): T {
+  const out: Record<string, unknown> = { ...now };
+  for (const k of Object.keys(next)) if (next[k] !== seen[k]) out[k] = next[k];
+  return out as T;
+}

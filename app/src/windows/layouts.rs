@@ -60,9 +60,13 @@ pub fn apply_layout(app: &AppHandle, name: &str) -> Result<(), String> {
     layout.panels.retain(|route, _| panels::pops_out(route));
 
     if let (Some(g), Some(main)) = (layout.main, app.get_webview_window(MAIN)) {
+        // K2 A layout saved at a lower zoom must not undercut the zoom minimum. The minimum
+        // goes first, so the OS clamps the saved size in one resize instead of two; the second
+        // fit only acts when the layout moved the window to a monitor with another scale.
+        let zoom = zoom::zoom_percent(app);
+        zoom::fit(app, &main, zoom);
         geometry::apply(&main.as_ref().window(), &g);
-        // K2 A layout saved at a lower zoom must not undercut the zoom minimum.
-        zoom::fit(app, &main, zoom::zoom_percent(app));
+        zoom::fit(app, &main, zoom);
     }
 
     for (route, window) in panels::open_panels(app) {

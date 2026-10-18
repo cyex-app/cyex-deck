@@ -16,7 +16,12 @@
 
   let { rows, row, empty, foot }: Props = $props();
 
-  const today = formatDate(new Date());
+  // s2-12 A feed left open past midnight: the day moves on, and so do the labels.
+  let today = $state(formatDate(new Date()));
+  $effect(() => {
+    const t = setInterval(() => (today = formatDate(new Date())), 60_000);
+    return () => clearInterval(t);
+  });
 
   function when(ts: number): string {
     const d = new Date(ts);
@@ -111,7 +116,7 @@
     margin: 0;
     padding: 12px;
     color: var(--muted);
-    font-size: 0.82rem;
+    font-size: var(--text-sub);
   }
   .foot {
     display: flex;
@@ -119,6 +124,6 @@
     gap: 8px;
     padding: 6px 10px 10px;
     color: var(--muted);
-    font-size: 0.78rem;
+    font-size: var(--text-hint);
   }
 </style>

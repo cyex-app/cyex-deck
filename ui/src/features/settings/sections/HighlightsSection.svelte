@@ -40,7 +40,7 @@
     { key: 'flash', kind: 'check', alert: true, ...OPT.flash },
     { key: 'show', kind: 'check', alert: true, ...OPT.show },
     { key: 'notify', kind: 'check', alert: true, ...OPT.notify },
-    { key: 'route', kind: 'text', placeholder: 'Custom feed', width: '88px', alert: true, ...OPT.route },
+    { key: 'route', kind: 'text', placeholder: 'Custom feed', width: '100px', alert: true, ...OPT.route },
   ];
   const alert = <T extends Alert>() => ALERT as unknown as Field<T>[];
   const on = <T,>(): Field<T & { enabled: boolean }> => ({ key: 'enabled', label: 'On', kind: 'check' });
@@ -283,7 +283,7 @@
   .intro.more {
     margin: -2px 0 6px;
     color: var(--dim);
-    font-size: 0.82rem;
+    font-size: var(--text-sub);
   }
   .field {
     width: 100%;
@@ -294,7 +294,7 @@
     gap: 7px;
     margin: 10px 0 2px;
     color: var(--muted);
-    font-size: 0.82rem;
+    font-size: var(--text-sub);
   }
   .dot {
     width: 7px;

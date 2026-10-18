@@ -40,12 +40,28 @@
   :global(.theme-light) .toggle:not(.on) {
     background: var(--dim);
   }
-  /* A ring in the text colour, so the off track shows on any background, custom ones too. */
-  .toggle:not(.on) {
+  /* A ring in the text colour, so the track shows on any background, custom ones and a dark
+     accent too. */
+  .toggle {
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 40%, transparent);
   }
   .toggle.on {
     background: var(--accent);
+  }
+  /* b-6 An "on" mark left of the knob, in the ink drawn on the accent: on reads as on even
+     when the accent is as dark or as grey as the off track. */
+  .toggle.on::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: 9px;
+    width: 2px;
+    height: 8px;
+    border-radius: 1px;
+    background: var(--accent-ink);
+  }
+  .toggle.neutral.on::before {
+    background: var(--bg);
   }
   .toggle.neutral.on {
     background: var(--muted);

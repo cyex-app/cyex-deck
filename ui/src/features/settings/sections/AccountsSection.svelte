@@ -111,6 +111,6 @@
   }
   .text span {
     color: var(--muted);
-    font-size: 0.82rem;
+    font-size: var(--text-sub);
   }
 </style>

@@ -9,7 +9,7 @@ import type { LinkTarget } from '../../ipc/bindings/LinkTarget';
 import type { TileShow } from '../../ipc/bindings/TileShow';
 import { settings } from '../../lib/settings.svelte';
 import { currentWindow } from '../../lib/window.svelte';
-import { liveKeyAction, ownsArrows, type SeekResult, seekText, stepChoice, Steps } from './liveKeys';
+import { liveKeyAction, ownsKey, type SeekResult, seekText, stepChoice, Steps } from './liveKeys';
 
 /** V101-29 What Windows' media controls show for a player. */
 export interface MediaInfo {
@@ -78,13 +78,13 @@ export const playerHotkeys = {
   'player.playPause': () => withPlayer((p) => p.togglePlay()),
   'player.mute': () => withPlayer((p) => p.toggleMute()),
   'player.fullscreen': () => withPlayer((p) => p.toggleFullscreen()),
-  'player.back': () => keySeek(-1),
-  'player.forward': () => keySeek(1),
-  'player.back2': () => keySeek(-1),
-  'player.forward2': () => keySeek(1),
+  'player.back': (e: KeyboardEvent) => keySeek(-1, e),
+  'player.forward': (e: KeyboardEvent) => keySeek(1, e),
+  'player.back2': (e: KeyboardEvent) => keySeek(-1, e),
+  'player.forward2': (e: KeyboardEvent) => keySeek(1, e),
   'player.live': (e: KeyboardEvent) => goLive(e),
-  'player.volumeUp': () => keyVolume(1),
-  'player.volumeDown': () => keyVolume(-1),
+  'player.volumeUp': (e: KeyboardEvent) => keyVolume(1, e),
+  'player.volumeDown': (e: KeyboardEvent) => keyVolume(-1, e),
   'player.playPause2': () => {
     const p = players.shown;
     if (!p) return false;
@@ -95,9 +95,9 @@ export const playerHotkeys = {
 const steps = new Steps();
 
 /** V1061-04 Left/Right/J/L. Returns false (key stays with the page) when nothing can seek. */
-function keySeek(sign: number): void | false {
+function keySeek(sign: number, e: KeyboardEvent): void | false {
   const p = players.shown;
-  if (!p?.seekBy || ownsArrows(document.activeElement)) return false;
+  if (!p?.seekBy || ownsKey(document.activeElement, e)) return false;
   const step = stepChoice(settings.v.player.seekStep);
   const raw = p.seekBy(sign * step);
   const r = raw === null ? null : raw && typeof raw === 'object' && 'behind' in raw ? (raw as SeekResult) : undefined;
@@ -107,16 +107,16 @@ function keySeek(sign: number): void | false {
 }
 
 /** Q25 Up/Down: volume Â±5 %. */
-function keyVolume(d: number): void | false {
+function keyVolume(d: number, e: KeyboardEvent): void | false {
   const p = players.shown;
-  if (!p?.volumeStep || ownsArrows(document.activeElement)) return false;
+  if (!p?.volumeStep || ownsKey(document.activeElement, e)) return false;
   p.volumeStep(d);
 }
 
 /** V1061-05 Shift+Right. */
 function goLive(e: KeyboardEvent): void | false {
   const p = players.shown;
-  const a = liveKeyAction({ repeat: e.repeat, owns: ownsArrows(document.activeElement), hasLive: !!p?.toLive });
+  const a = liveKeyAction({ repeat: e.repeat, owns: ownsKey(document.activeElement, e), hasLive: !!p?.toLive });
   if (a === 'pass') return false;
   if (a === 'skip') return;
   p!.toLive!();

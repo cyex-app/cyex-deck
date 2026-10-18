@@ -20,18 +20,36 @@
 
   let { account, login, item, status = 'pending', by = null, channel }: Props = $props();
 
+  /** s3-11 Stays on until the status event decides the row (it unmounts the buttons), or
+   * a timeout says it didn't go through. */
+  const WAIT_MS = 10_000;
   let busy = $state(false);
+  let wait: ReturnType<typeof setTimeout> | undefined;
 
   async function resolve(allow: boolean) {
+    if (busy) return;
     busy = true;
     try {
       await modIpc.automod(account, login, item.messageId, allow);
+      clearTimeout(wait);
+      wait = setTimeout(() => {
+        if (status !== 'pending') return;
+        busy = false;
+        toast.error('Twitch didn’t confirm that. Try again.');
+      }, WAIT_MS);
     } catch (e) {
-      toast.error(errorText(e));
-    } finally {
       busy = false;
+      toast.error(errorText(e));
     }
   }
+
+  $effect(() => {
+    if (status !== 'pending') {
+      clearTimeout(wait);
+      busy = false;
+    }
+  });
+  $effect(() => () => clearTimeout(wait));
 
   const done = $derived(
     status === 'allowed'
@@ -92,6 +110,6 @@
   }
   .done {
     color: var(--muted);
-    font-size: 0.78rem;
+    font-size: var(--text-hint);
   }
 </style>

@@ -9,7 +9,7 @@ import type { PlayerSession } from '../../ipc/bindings/PlayerSession';
 import { delayVideo } from './avsync';
 import { Away } from './away';
 import { GRAPH_EVENT, graphDelay } from './gain';
-import { behindLive, dvrConfig, liveConfig, liveState, PAUSE_STOP_MS, rangeEnd } from './liveEdge';
+import { behindLive, dvrConfig, liveConfig, liveState, maxLatency, PAUSE_STOP_MS, pausedBehind, rangeEnd } from './liveEdge';
 import {
   askPause,
   begin,
@@ -34,6 +34,7 @@ import {
   userPause,
 } from './liveMachine';
 import { type Choice, levelFor, levelName, lowestLevel } from './quality';
+import { stallStart, stallStep } from './stall';
 
 let hlsModule: Promise<typeof HlsType> | null = null;
 
@@ -83,6 +84,10 @@ export class Engine {
   bufferedEnd = $state(0);
   /** A short readout for the player, taken and cleared by LivePlayer. */
   note = $state<string | null>(null);
+  /** d-4 Playing live, the picture hasn't moved for 10 s: it reopens every 10 s until it does. */
+  stalled = $state(false);
+  /** d-4 Set by LivePlayer: an ad break waits on purpose, that's no stall. */
+  adBreak = false;
   /** Live players: reopens the stream, live when `at` is null, else the VOD from there. */
   onreopen: ((at: number | null) => void) | null = null;
 
@@ -91,6 +96,11 @@ export class Engine {
   /** V1061-01 U11 Pause, jump and swap state (liveMachine.ts). */
   private st = $state.raw<LiveState>(initial());
   private stopTimer: ReturnType<typeof setTimeout> | undefined;
+  /** d-1 Behind live at the user's pause, null when unknown or not live; ticks once a second while paused. */
+  private behindAtPause: number | null = null;
+  private pauseTick: ReturnType<typeof setInterval> | undefined;
+  private stall = stallStart(0);
+  private stallTimer: ReturnType<typeof setInterval> | undefined;
   private lastUpdate = 0;
   private session: PlayerSession | null = null;
   /** VODs: where to begin, in seconds. */
@@ -116,6 +126,7 @@ export class Engine {
       play: () => {
         // Any own pause event came first or was dropped.
         this.st = played(this.st);
+        this.unhold();
         this.onPlay();
       },
       playing: () => {
@@ -134,6 +145,7 @@ export class Engine {
       leavepictureinpicture: () => this.sight(),
     };
     for (const [name, f] of Object.entries(set)) on(name, f);
+    if (live) this.stallTimer = setInterval(() => this.checkStall(), 1000);
     this.off = () => {
       for (const [name, f] of Object.entries(set)) video.removeEventListener(name, f);
     };
@@ -147,6 +159,7 @@ export class Engine {
     if (swap) this.quietPause();
     this.dvr = dvr;
     clearTimeout(this.stopTimer);
+    this.unhold();
     if (dvr) this.time = startAt;
     this.behind = null;
     this.sync = null;
@@ -290,6 +303,8 @@ export class Engine {
 
   destroy(): void {
     clearTimeout(this.stopTimer);
+    clearInterval(this.pauseTick);
+    clearInterval(this.stallTimer);
     this.away.stop();
     this.off();
     this.unGraph();
@@ -513,11 +528,28 @@ export class Engine {
   private markPaused(): void {
     this.st = paused(this.st, performance.now(), this.video.currentTime);
     this.hls?.pauseBuffering();
+    // d-1 No pull to the edge while paused, and the readout counts up from here.
+    this.behindAtPause = this.liveSrc ? this.behind : null;
+    this.edgePull(false);
+    clearInterval(this.pauseTick);
+    if (this.behindAtPause !== null) this.pauseTick = setInterval(() => this.tick(), 1000);
     clearTimeout(this.stopTimer);
     this.stopTimer = setTimeout(() => {
       this.hls?.stopLoad();
       this.st = timedOut(this.st);
     }, PAUSE_STOP_MS);
+  }
+
+  /** d-1 A play (or a new source): hls.js keeps it near the edge again, the readout follows the video. */
+  private unhold(): void {
+    clearInterval(this.pauseTick);
+    this.behindAtPause = null;
+    this.edgePull(true);
+  }
+
+  /** d-1 Whether hls.js may pull a lagging live video to the edge. */
+  private edgePull(on: boolean): void {
+    if (this.hls && this.liveSrc) this.hls.config.liveMaxLatencyDuration = maxLatency(this.lowLatency, !on);
   }
 
   /** Plays that skip `resume()` (picture in picture, media session) still go where it decides. */
@@ -560,8 +592,22 @@ export class Engine {
       return;
     }
     this.sync = h.liveSyncPosition;
-    this.behind = behindLive(this.sync, v.currentTime);
+    const held = this.behindAtPause !== null && v.paused && isPaused(this.st);
+    this.behind = held ? pausedBehind(this.behindAtPause, performance.now() - this.st.pausedAt) : behindLive(this.sync, v.currentTime);
     this.atLive = liveState(this.atLive ? 'live' : 'behind', this.behind) === 'live';
+  }
+
+  /** d-4 Once a second while live. */
+  private checkStall(): void {
+    const v = this.video;
+    const active = !!this.session && this.liveSrc && !isPaused(this.st) && !this.holding && !this.failure && !this.adBreak;
+    const ready = !v.paused && !v.seeking && v.readyState >= 3;
+    const r = stallStep(this.stall, { now: performance.now(), pos: v.currentTime, active, ready });
+    this.stall = r.s;
+    if (r.action === 'clear') this.stalled = false;
+    if (r.action !== 'retry') return;
+    this.stalled = true;
+    this.onreopen?.(null);
   }
 
   /** Resolves true on the next playlist update, false after `ms`. */

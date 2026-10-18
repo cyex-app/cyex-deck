@@ -67,7 +67,8 @@
     cursor: default;
     transition:
       background-color var(--fast) var(--ease),
-      color var(--fast) var(--ease);
+      color var(--fast) var(--ease),
+      transform 100ms var(--ease);
   }
   .dot {
     width: 6px;
@@ -85,6 +86,11 @@
   }
   .behind:hover {
     background: color-mix(in srgb, var(--on-video) 22%, transparent);
+  }
+  /* d-6 Press feedback. */
+  .behind:active {
+    background: color-mix(in srgb, var(--on-video) 30%, transparent);
+    transform: scale(0.97);
   }
   .behind .dot {
     background: transparent;

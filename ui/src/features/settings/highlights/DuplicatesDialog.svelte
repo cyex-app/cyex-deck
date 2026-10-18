@@ -1,5 +1,10 @@
 <!-- V106-33 (Q13) Asked once after the Mentions merge found repeated rules. Nothing is removed unless
      "Remove duplicates" is picked; Enter, Esc, × and a click outside all keep everything. -->
+<script lang="ts" module>
+  /** s3-14 A failed check says so once per run; later visits still try again quietly. */
+  let warned = false;
+</script>
+
 <script lang="ts">
   import { untrack } from 'svelte';
 
@@ -8,12 +13,14 @@
   import type { PhraseRule } from '../../../ipc/bindings/PhraseRule';
   import { mentionsIpc } from '../../../ipc/mentions';
   import { settings } from '../../../lib/settings.svelte';
+  import { errorText } from '../../../lib/errors';
   import { toast } from '../../../lib/toast.svelte';
-  import { groups, removeCopies } from './duplicates';
+  import { groups, leadText, removeCopies } from './duplicates';
 
   type Found = { pattern: string; where: string };
 
   let found = $state.raw<Found[] | null>(null);
+  let lead = $state('');
   let count = 0;
   let phrases: PhraseRule[] = [];
   let globalList: PhraseRule[] = [];
@@ -39,10 +46,15 @@
         const all = [...describe(phrases, p, 'Words'), ...describe(globalList, g, 'Global mentions')];
         count = groups(phrases, p).reduce((n, x) => n + x.copies.length, 0) + groups(globalList, g).reduce((n, x) => n + x.copies.length, 0);
         // Copies already removed by hand: nothing to ask.
-        if (all.length === 0) save({ duplicatesAsked: true });
-        else found = all;
+        if (all.length === 0) return save({ duplicatesAsked: true });
+        lead = leadText(groups(phrases, p).length > 0, groups(globalList, g).length > 0);
+        found = all;
       })
-      .catch(() => {});
+      .catch((e) => {
+        if (!live || warned) return;
+        warned = true;
+        toast.error(`Couldn’t check for duplicate highlights. ${errorText(e)}`);
+      });
     return () => (live = false);
   });
 
@@ -63,7 +75,7 @@
 
 {#if found}
   <Dialog title="Some highlights are there twice" width={440} onclose={keepAll} onsubmit={keepAll}>
-    <p class="lead">Mentions are part of Highlights now, and these were in both lists. Nothing was removed.</p>
+    <p class="lead">{lead}</p>
     <ul class="groups">
       {#each found as f, i (i)}
         <li>
@@ -90,7 +102,7 @@
   }
   .hint {
     margin: 10px 0 0;
-    font-size: 0.75rem;
+    font-size: var(--text-hint);
   }
   .groups {
     list-style: none;
@@ -115,6 +127,6 @@
     overflow-wrap: anywhere;
   }
   .where {
-    font-size: 0.75rem;
+    font-size: var(--text-hint);
   }
 </style>

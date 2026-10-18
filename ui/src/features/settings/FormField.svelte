@@ -1,4 +1,5 @@
-<!-- V106-14 One labelled input in a FieldGroup: name, "Required" tag, hint or problem line. -->
+<!-- V106-14 One labelled input in a FieldGroup: name, "Required" tag, hint, problem line.
+     b-11 The problem goes under the hint, so the hint is there when it's needed. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
@@ -18,7 +19,8 @@
 <label class="ff" data-setting={setting}>
   <span class="top"><span class="name">{label}</span>{#if required}<span class="req">Required</span>{/if}</span>
   {@render children()}
-  {#if problem}<span class="problem" aria-live="polite">{problem}</span>{:else if hint}<span class="hint">{hint}</span>{/if}
+  {#if hint}<span class="hint">{hint}</span>{/if}
+  <span class="problem" aria-live="polite">{problem ?? ''}</span>
 </label>
 
 <style>
@@ -29,7 +31,7 @@
   }
   .name {
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: var(--text-sub);
   }
   .req {
     margin-left: 6px;
@@ -42,11 +44,14 @@
   }
   .hint {
     color: var(--dim);
-    font-size: 0.78rem;
+    font-size: var(--text-hint);
   }
   .problem {
     color: var(--red);
-    font-size: 0.78rem;
+    font-size: var(--text-hint);
+  }
+  .problem:empty {
+    display: none;
   }
   .ff :global(.field) {
     width: 100%;

@@ -109,7 +109,7 @@
   }
 </script>
 
-<SectionHead title="Appearance" level={2}>Colors, themes and how tabs look.</SectionHead>
+<SectionHead title="Appearance" level={2} />
 
 <SectionHead title="Colors">The theme and accent color.</SectionHead>
 <Row setting="appearance.theme appearance.themes" label="Theme" hint="Make your own under Custom themes, or paste a code." stacked>
@@ -212,7 +212,7 @@
 <style>
   .cap {
     color: var(--dim);
-    font-size: 0.78rem;
+    font-size: var(--text-hint);
   }
   .sample {
     display: flex;

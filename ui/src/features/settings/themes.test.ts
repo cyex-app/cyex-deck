@@ -9,6 +9,7 @@ import {
   appliedHex,
   choiceOf,
   defaultAccentOf,
+  freeThemeName,
   isLink,
   keptNote,
   newThemeFrom,
@@ -81,11 +82,19 @@ test('a new theme copies what shows now', () => {
   assert.equal(plain.id, '');
   const a = app({ themeId: 'dusk', accents: { dusk: '#123456' } });
   const fromBuiltin = newThemeFrom(a, choiceOf(a, builtins));
-  assert.equal(fromBuiltin.name, 'Dusk copy');
+  assert.equal(fromBuiltin.name, 'My theme');
   assert.equal(fromBuiltin.accent, '#123456');
   assert.equal(fromBuiltin.wallpaper.source, '');
-  const fromCustom = newThemeFrom(app(), { kind: 'custom', theme: neon });
-  assert.equal(fromCustom.name, 'Neon copy');
+  const fromCustom = newThemeFrom(app({ themes: [neon] }), { kind: 'custom', theme: neon });
+  assert.equal(fromCustom.name, 'My theme');
   assert.equal(fromCustom.wallpaper.source, 'w.png');
   assert.notEqual(fromCustom.colors, neon.colors);
+});
+
+test('new theme names take the first free number, never "copy copy"', () => {
+  const named = (...names: string[]) => names.map((name) => ({ ...neon, name }));
+  assert.equal(freeThemeName([]), 'My theme');
+  assert.equal(freeThemeName(named('My theme')), 'My theme 2');
+  assert.equal(freeThemeName(named('My theme', 'My theme 2', 'my theme 4')), 'My theme 3');
+  assert.equal(freeThemeName(named('My theme 2')), 'My theme');
 });
