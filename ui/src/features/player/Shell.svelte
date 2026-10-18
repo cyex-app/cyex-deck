@@ -21,12 +21,14 @@
     /** V103-14 Fullscreen takes only this player, not the surface around it: a clip over
      *  the stream fills the screen instead of staying in its box. */
     alone?: boolean;
+    /** A press on the picture plays or pauses. Off for the small stream: a press there drags it. */
+    press?: boolean;
     top?: Snippet;
     bar?: Snippet;
     children: Snippet;
   }
 
-  let { controls, pinned = false, onvolume, menu, alone = false, top, bar, children }: Props = $props();
+  let { controls, pinned = false, onvolume, menu, alone = false, press = true, top, bar, children }: Props = $props();
 
   let root = $state<HTMLElement>();
   let readout = $state<SeekReadout>();
@@ -84,7 +86,7 @@
    *  of a double click doesn't: the double click puts the play state back and goes fullscreen. */
   function onmousedown(e: MouseEvent) {
     if (e.button !== 0 || e.detail >= 2) return;
-    toggled = !on(e, PICTURE_SKIP);
+    toggled = press && !on(e, PICTURE_SKIP);
     if (toggled) controls.togglePlay();
   }
 

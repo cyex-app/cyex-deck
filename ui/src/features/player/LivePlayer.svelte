@@ -331,7 +331,7 @@
   onpointercancel={() => (drag = null)}
   {onclickcapture}
 >
-  <Shell bind:this={shell} {controls} {menu} pinned={!engine?.playing} onvolume={(s) => sound.step(s)}>
+  <Shell bind:this={shell} {controls} {menu} press={!mini} pinned={!engine?.playing} onvolume={(s) => sound.step(s)}>
     <video
       bind:this={video}
       playsinline
@@ -380,6 +380,14 @@
       <Stats read={() => engine!.stats()} {video} onclose={() => (stats = false)} />
     {/if}
     {#if mini}
+      <!-- Small, a press drags it; play and pause sit in the middle on hover. -->
+      {#if engine && !failure}
+        <div class="mini-play">
+          <button class="ctl" aria-label={engine.playing ? 'Pause' : 'Play'} onclick={controls.togglePlay}>
+            <Icon name={engine.playing ? 'pause' : 'play'} size={26} />
+          </button>
+        </div>
+      {/if}
       <div class="mini-bar">
         <button class="ctl" aria-label="Back to the stream" use:tooltip={'Back to the stream'} onclick={onexpand}>
           <Icon name="expand" size={14} />
@@ -554,6 +562,29 @@
   }
   .grow {
     flex: 1;
+  }
+  .mini-play {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    background: var(--scrim);
+    opacity: 0;
+    transition: opacity var(--base) var(--ease);
+    pointer-events: none;
+  }
+  .mini:hover:not(.dragging) .mini-play,
+  .mini-play:focus-within {
+    opacity: 1;
+  }
+  .mini:hover:not(.dragging) .mini-play .ctl {
+    pointer-events: auto;
+  }
+  .mini-play .ctl {
+    width: 48px;
+    height: 48px;
+    pointer-events: none;
   }
   .mini-bar {
     position: absolute;
