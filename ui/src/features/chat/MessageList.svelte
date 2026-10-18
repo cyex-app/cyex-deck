@@ -380,7 +380,9 @@
 
   function emoteAt(el: HTMLElement): CardTarget {
     const d = JSON.parse(el.dataset.emote!) as Omit<CardTarget, 'rect'>;
-    return { ...d, rect: el.getBoundingClientRect() };
+    const line = el.closest<HTMLElement>('[data-id]');
+    const sender = line ? room.find(line.dataset.id!)?.sender?.id : undefined;
+    return { ...d, ...(sender && { sender }), rect: el.getBoundingClientRect() };
   }
 
   // V106-31/32 Read the account's 7TV editor rights early, so the first right-click has them.

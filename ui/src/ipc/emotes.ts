@@ -24,8 +24,8 @@ export const emotesIpc = {
   /** 1.40 */
   menu: (login: string, account: string | null) => invoke<EmoteMenu>('emotes_menu', { login, account }),
   /** 1.41 */
-  card: (login: string, provider: Provider, id: string, name: string) =>
-    invoke<EmoteCard>('emotes_card', { login, provider, id, name }),
+  card: (login: string, provider: Provider, id: string, name: string, sender: string | null = null) =>
+    invoke<EmoteCard>('emotes_card', { login, provider, id, name, sender }),
   /** 1.39 FFZ's mod and VIP pictures. */
   roomBadges: (login: string) => invoke<RoomBadges>('emotes_room_badges', { login }),
   /** C13 */

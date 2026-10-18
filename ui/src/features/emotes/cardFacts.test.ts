@@ -141,15 +141,15 @@ test('7TV chips: overlaying, private, warnings, rename tip', () => {
     card({
       provider: 'seventv',
       original: 'TriSad',
-      flags: ['channel', 'overlaying', 'private', 'unlisted', 'personalDenied', 'nsfw', 'aliased'],
+      flags: ['personal', 'overlaying', 'private', 'unlisted', 'nsfw', 'aliased'],
     }),
     false,
   );
   assert.deepEqual(
     c.map((x) => x.text),
-    ['Channel', 'Private', 'Unlisted', 'NSFW', 'Overlaying', 'Personal denied', 'Renamed'],
+    ['Personal', 'Private', 'Unlisted', 'NSFW', 'Overlaying', 'Aliased'],
   );
-  assert.equal(c[0].tip, 'In this channel’s set');
+  assert.match(c[0].tip, /personal set/);
   assert.match(c[4].tip, /zero-width/);
   assert.equal(c[1].keep, true);
   assert.equal(c[1].warn, undefined);
@@ -157,7 +157,7 @@ test('7TV chips: overlaying, private, warnings, rename tip', () => {
     c.filter((x) => x.warn).map((x) => x.text),
     ['Unlisted', 'NSFW'],
   );
-  assert.equal(c[6].tip, 'Renamed in this channel. Its own name is TriSad');
+  assert.equal(c[5].tip, 'Aliased in this channel. Originally TriSad');
   // Scope comes first even when the flags list it later.
   assert.deepEqual(
     cardChips(card({ flags: ['animated', 'global'] }), false).map((x) => x.text),
@@ -246,7 +246,7 @@ test('never folds just one chip', () => {
 });
 
 test('long chips fold to stay within two lines', () => {
-  const c = chips('Personal approved', 'Personal denied', 'Overlaying', 'Unlisted', 'Renamed');
+  const c = chips('Archived set', 'Limited time', 'Overlaying', 'Unlisted', 'Aliased', 'Two-factor');
   assert.ok(foldChips(c, '7TV').rest.length >= 2);
   // A wide row takes them all.
   assert.deepEqual(foldChips(c, '7TV', 1000).rest, []);

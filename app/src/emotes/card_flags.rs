@@ -1,6 +1,7 @@
 //! 1.41 The emote card's flags, in the order the card shows them: scope, Twitch type,
 //! then what the emote is (animated, overlaying, private, ...). The UI words and explains them.
 
+use cyex_chat::model::Provider;
 use cyex_emotes::{Emote, Scope};
 use cyex_twitch::gql::{EmoteKind, TwitchEmoteInfo};
 use serde::Serialize;
@@ -34,8 +35,6 @@ pub enum CardFlag {
     Overlaying,
     Private,
     Unlisted,
-    PersonalApproved,
-    PersonalDenied,
     Nsfw,
     /// Renamed in this channel.
     Aliased,
@@ -88,22 +87,29 @@ fn twitch_type(info: &TwitchEmoteInfo) -> Option<CardFlag> {
 }
 
 /// A 7TV, BTTV or FFZ emote, with the kind of set it's in (`None`: not in a loaded set).
-pub fn third_party(e: &Emote, scope: Option<Scope>) -> Vec<CardFlag> {
+/// 7TV shows only Global, and Personal when `personal`: the clicked message's sender owns it.
+pub fn third_party(e: &Emote, scope: Option<Scope>, personal: bool) -> Vec<CardFlag> {
     let mut out = Vec::new();
-    match scope {
-        _ if e.shared => out.push(CardFlag::Shared),
-        Some(Scope::Global) => out.push(CardFlag::Global),
-        Some(Scope::Channel) => out.push(CardFlag::Channel),
-        Some(Scope::Personal) => out.push(CardFlag::Personal),
-        None => {}
+    if e.provider == Provider::Seventv {
+        match scope {
+            Some(Scope::Global) => out.push(CardFlag::Global),
+            _ if personal => out.push(CardFlag::Personal),
+            _ => {}
+        }
+    } else {
+        match scope {
+            _ if e.shared => out.push(CardFlag::Shared),
+            Some(Scope::Global) => out.push(CardFlag::Global),
+            Some(Scope::Channel) => out.push(CardFlag::Channel),
+            Some(Scope::Personal) => out.push(CardFlag::Personal),
+            None => {}
+        }
     }
     let rest = [
         (e.animated, CardFlag::Animated),
         (e.zero_width, CardFlag::Overlaying),
         (e.private, CardFlag::Private),
         (e.unlisted, CardFlag::Unlisted),
-        (e.approved_personal, CardFlag::PersonalApproved),
-        (e.denied_personal, CardFlag::PersonalDenied),
         (e.nsfw, CardFlag::Nsfw),
         (e.original.is_some(), CardFlag::Aliased),
         (e.modifier.is_some(), CardFlag::Modifier),
@@ -114,7 +120,6 @@ pub fn third_party(e: &Emote, scope: Option<Scope>) -> Vec<CardFlag> {
 
 #[cfg(test)]
 mod tests {
-    use cyex_chat::model::Provider;
     use cyex_twitch::gql::{EmoteOwner, TwitchEmote};
 
     use super::CardFlag::*;
@@ -217,29 +222,18 @@ mod tests {
         e.zero_width = true;
         e.private = true;
         e.unlisted = true;
-        e.denied_personal = true;
         e.nsfw = true;
         e.original = Some("b".into());
         assert_eq!(
-            third_party(&e, Some(Scope::Channel)),
-            [
-                Channel,
-                Animated,
-                Overlaying,
-                Private,
-                Unlisted,
-                PersonalDenied,
-                Nsfw,
-                Aliased
-            ]
+            third_party(&e, Some(Scope::Channel), false),
+            [Animated, Overlaying, Private, Unlisted, Nsfw, Aliased]
         );
-        let mut p = Emote::new(Provider::Seventv, "E", "a");
-        p.approved_personal = true;
-        assert_eq!(
-            third_party(&p, Some(Scope::Personal)),
-            [Personal, PersonalApproved]
-        );
-        assert_eq!(third_party(&p, None), [PersonalApproved]);
+        // Personal only from the sender's own set, never from set membership.
+        let p = Emote::new(Provider::Seventv, "E", "a");
+        assert_eq!(third_party(&p, Some(Scope::Personal), false), []);
+        assert_eq!(third_party(&p, Some(Scope::Channel), true), [Personal]);
+        assert_eq!(third_party(&p, None, true), [Personal]);
+        assert_eq!(third_party(&p, Some(Scope::Global), false), [Global]);
     }
 
     #[test]
@@ -247,15 +241,15 @@ mod tests {
         let mut e = Emote::new(Provider::Bttv, "B", "SoSnowy");
         e.shared = true;
         e.zero_width = true;
-        assert_eq!(third_party(&e, Some(Scope::Channel)), [Shared, Overlaying]);
+        assert_eq!(third_party(&e, Some(Scope::Channel), false), [Shared, Overlaying]);
         let g = Emote::new(Provider::Bttv, "B", "x");
-        assert_eq!(third_party(&g, Some(Scope::Global)), [Global]);
+        assert_eq!(third_party(&g, Some(Scope::Global), false), [Global]);
     }
 
     #[test]
     fn ffz_modifier() {
         let mut e = Emote::new(Provider::Ffz, "1", "ffzHyper");
         e.modifier = Some(2);
-        assert_eq!(third_party(&e, Some(Scope::Global)), [Global, Modifier]);
+        assert_eq!(third_party(&e, Some(Scope::Global), false), [Global, Modifier]);
     }
 }

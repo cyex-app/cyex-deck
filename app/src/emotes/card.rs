@@ -56,27 +56,30 @@ pub struct EmoteCard {
 }
 
 /// 1.41 Cards that loaded, per provider, emote and chat (Twitch: any chat), for an hour.
-static CARDS: LazyLock<Ttl<(Provider, String, String), EmoteCard>> =
+static CARDS: LazyLock<Ttl<(Provider, String, String, bool), EmoteCard>> =
     LazyLock::new(|| Ttl::new(Duration::from_secs(60 * 60)));
 
-/// Facts about an emote. `login` is the chat it was clicked in.
+/// Facts about an emote. `login` is the chat it was clicked in; `sender` the id of the
+/// message's author, whose personal set may be where the emote came from.
 pub async fn card(
     app: &AppHandle,
     login: &str,
     provider: Provider,
     id: &str,
     name: &str,
+    sender: Option<&str>,
 ) -> Result<EmoteCard, String> {
     let http = app.state::<Auth>().http.clone();
     let chat = if provider == Provider::Twitch { "" } else { login };
-    let key = (provider, id.to_owned(), chat.to_owned());
+    let personal = sender.is_some_and(|u| in_personal(app, u, provider, id));
+    let key = (provider, id.to_owned(), chat.to_owned(), personal);
     let mut card = match CARDS.get(&key) {
         Some(c) => c,
         None => {
             let (c, complete) = if provider == Provider::Twitch {
                 (twitch(app, &http, id, name).await?, true)
             } else {
-                third_party(app, &http, login, provider, id, name).await
+                third_party(app, &http, login, provider, id, name, personal).await
             };
             if complete {
                 CARDS.put(key, c.clone());
@@ -101,6 +104,7 @@ async fn third_party(
     provider: Provider,
     id: &str,
     name: &str,
+    personal: bool,
 ) -> (EmoteCard, bool) {
     let found = find(app, login, provider, id);
     let set_id = found.as_ref().map(|f| f.2.clone());
@@ -142,7 +146,7 @@ async fn third_party(
         },
         _ => true,
     };
-    (third_party_card(&local, scope, set_id.as_deref(), name), complete)
+    (third_party_card(&local, scope, personal, set_id.as_deref(), name), complete)
 }
 
 /// 1.41 What 7TV's own lookup adds: the owner always; its flags and name when no
@@ -163,14 +167,20 @@ fn merge(local: &mut Emote, d: Emote, unknown: bool) {
 }
 
 /// `local.added_by` holds the adder's name by now; `name` is what chat shows.
-fn third_party_card(local: &Emote, scope: Option<Scope>, set_id: Option<&str>, name: &str) -> EmoteCard {
+fn third_party_card(
+    local: &Emote,
+    scope: Option<Scope>,
+    personal: bool,
+    set_id: Option<&str>,
+    name: &str,
+) -> EmoteCard {
     let provider = local.provider;
     EmoteCard {
         provider,
         id: local.id.clone(),
         name: name.to_owned(),
         original: local.original.clone(),
-        flags: card_flags::third_party(local, scope),
+        flags: card_flags::third_party(local, scope, personal),
         bits: None,
         channel: None,
         owner: local.owner.clone(),
@@ -261,6 +271,18 @@ fn apply(card: &mut EmoteCard, f: &twitch_state::Facts) {
     if card.flags.contains(&CardFlag::Bits) && card.bits.is_none() {
         card.bits = f.bit_cost;
     }
+}
+
+/// 7TV, BTTV, FFZ: this user's own personal sets have the emote.
+fn in_personal(app: &AppHandle, user: &str, provider: Provider, id: &str) -> bool {
+    let state = app.state::<Emotes>();
+    let inner = state.lock();
+    inner.user_sets.get(user).into_iter().flatten().any(|sid| {
+        inner
+            .personal_sets
+            .get(sid)
+            .is_some_and(|s| s.provider == provider && s.emotes.iter().any(|e| e.id == id))
+    })
 }
 
 /// The emote as this chat knows it, the kind of set it's in, and that set's id.
@@ -431,16 +453,19 @@ mod tests {
         e.original = Some("b".into());
         e.zero_width = true;
         e.owner_id = Some("U".into());
-        let c = third_party_card(&e, Some(Scope::Channel), Some("S1"), "a");
+        let c = third_party_card(&e, Some(Scope::Channel), false, Some("S1"), "a");
         assert_eq!(
             c.flags,
-            [CardFlag::Channel, CardFlag::Overlaying, CardFlag::Aliased]
+            [CardFlag::Overlaying, CardFlag::Aliased]
         );
+        let p = third_party_card(&e, Some(Scope::Channel), true, None, "a");
+        assert_eq!(p.flags[0], CardFlag::Personal);
         assert_eq!(c.set_url.as_deref(), Some("https://7tv.app/emote-sets/S1"));
         assert_eq!(c.page.as_deref(), Some("https://7tv.app/emotes/E"));
         let b = third_party_card(
             &with_key(Provider::Bttv, "abc"),
             Some(Scope::Channel),
+            false,
             Some("bttv-1"),
             "x",
         );

@@ -63,6 +63,8 @@ export interface CardTarget {
   rect: DOMRect;
   /** 1.42 This is the emote that was gigantified in its message. */
   giant?: boolean;
+  /** 1.41 Id of the message's author: their personal set may be where the emote came from. */
+  sender?: string;
   /** V106-31/32 Opens with this form. */
   edit?: { kind: 'add'; target: AddTarget } | { kind: 'rename'; here: HereEdit };
 }

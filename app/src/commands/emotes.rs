@@ -33,8 +33,9 @@ pub async fn emotes_card(
     provider: Provider,
     id: String,
     name: String,
+    sender: Option<String>,
 ) -> Result<EmoteCard, String> {
-    emotes::card(&app, &login, provider, &id, &name).await
+    emotes::card(&app, &login, provider, &id, &name, sender.as_deref()).await
 }
 
 /// 1.39 FFZ's pictures for a channel's mods and VIPs.

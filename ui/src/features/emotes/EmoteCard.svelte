@@ -92,12 +92,12 @@
   $effect(() => {
     const e = shown;
     void reloads;
-    const key = `${login}/${e.provider}/${e.id}`;
+    const key = `${login}/${e.provider}/${e.id}/${target.sender ?? ''}`;
     info = seen.get(key) ?? null;
     failed = false;
     let live = true;
     emotesIpc
-      .card(login, e.provider, e.id, e.name)
+      .card(login, e.provider, e.id, e.name, target.sender ?? null)
       .then((c) => {
         remember(key, c);
         if (live) info = c;

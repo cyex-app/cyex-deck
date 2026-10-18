@@ -140,10 +140,8 @@ const FLAGS: Record<CardFlag, [text: string, tip: string]> = {
   overlaying: ['Overlaying', 'Drawn over the emote before it (zero-width)'],
   private: ['Private', 'Only its owner can add it to a set'],
   unlisted: ['Unlisted', 'Hidden from 7TV’s public list'],
-  personalApproved: ['Personal approved', '7TV allows it in personal sets'],
-  personalDenied: ['Personal denied', '7TV keeps it out of personal sets'],
   nsfw: ['NSFW', 'Marked not safe for work on 7TV'],
-  aliased: ['Renamed', 'Renamed in this channel'],
+  aliased: ['Aliased', 'Aliased in this channel'],
   modifier: ['Modifier', 'Changes the emote before it'],
 };
 
@@ -161,7 +159,7 @@ function flagChip(f: CardFlag, info: EmoteCard): Chip {
     text = `${n} bits`;
     tip = `Unlocked by cheering ${n} bits in the channel`;
   }
-  if (f === 'aliased' && info.original) tip = `Renamed in this channel. Its own name is ${info.original}`;
+  if (f === 'aliased' && info.original) tip = `Aliased in this channel. Originally ${info.original}`;
   if (WARN.includes(f)) return { text, tip, warn: true, keep: true };
   return KEEP.includes(f) ? { text, tip, keep: true } : { text, tip };
 }
