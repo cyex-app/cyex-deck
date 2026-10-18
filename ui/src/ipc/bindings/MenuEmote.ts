@@ -3,9 +3,13 @@ import type { Provider } from "./Provider";
 
 export type MenuEmote = { 
 /**
- * E5 Why you can't use it yet, e.g. "Tier 2".
+ * E5 Why you can't use it yet, e.g. "Tier 2 sub".
  */
-locked: string | null, provider: Provider, 
+locked: string | null, 
+/**
+ * 1.40 Twitch sub emotes: the tier, 1 to 3.
+ */
+tier: number | null, provider: Provider, 
 /**
  * The provider's id, also the picture's.
  */

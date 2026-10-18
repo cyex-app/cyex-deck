@@ -13,7 +13,7 @@ const MAX_PAGES: usize = 30;
 
 const AVAILABLE: &str = "query($channelID: ID!, $cursor: Cursor) { channel(id: $channelID) { self { \
     availableEmoteSetsPaginated(pageLimit: 350, after: $cursor) { \
-      edges { cursor node { id emotes { id setID token type assetType modifiers { code } } \
+      edges { cursor node { id emotes { id setID token type assetType subscriptionTier modifiers { code } } \
         owner { id login displayName profileImageURL(width: 28) } } } \
       pageInfo { hasNextPage } } } } }";
 
@@ -110,6 +110,8 @@ pub struct EmoteSet {
     /// The channel, or `None` for Twitch's own sets.
     pub owner: Option<EmoteOwner>,
     pub emotes: Vec<TwitchEmote>,
+    /// 1.40 A sub set's tier, 1 to 3, from its emotes' `subscriptionTier`.
+    pub tier: Option<u8>,
 }
 
 /// A channel's own emotes, whether the viewer has them or not (E5).
@@ -221,6 +223,17 @@ pub(crate) struct RawEmote {
     asset_type: Option<String>,
     #[serde(default)]
     modifiers: Option<Vec<RawModifier>>,
+    /// 1.40 `TIER_2`; only asked for in the account's own sets.
+    #[serde(default)]
+    subscription_tier: Option<String>,
+}
+
+/// `TIER_2` as 2.
+fn tier_of(t: Option<&str>) -> Option<u8> {
+    t?.strip_prefix("TIER_")?
+        .parse()
+        .ok()
+        .filter(|t| (1..=3).contains(t))
 }
 
 #[derive(Deserialize)]
@@ -321,7 +334,13 @@ struct RawSet {
 
 impl From<RawSet> for EmoteSet {
     fn from(s: RawSet) -> Self {
+        let tier = s
+            .emotes
+            .iter()
+            .flatten()
+            .find_map(|e| tier_of(e.subscription_tier.as_deref()));
         Self {
+            tier,
             emotes: s
                 .emotes
                 .into_iter()
@@ -548,7 +567,7 @@ mod tests {
         let raw = r#"{"channel":{"self":{"availableEmoteSetsPaginated":{"edges":[
             {"cursor":"c1","node":{"id":"0","owner":null,"emotes":[{"id":"25","setID":"0","token":"Kappa","type":"GLOBALS","assetType":"STATIC","modifiers":null}]}},
             {"cursor":"c2","node":{"id":"19503","owner":{"id":"71092938","login":"xqc","displayName":"xQc","profileImageURL":"a"},
-              "emotes":[{"id":"305535174","setID":"19503","token":"xqcOmega","type":"SUBSCRIPTIONS","assetType":"STATIC","modifiers":[{"code":"BW"}]}]}},
+              "emotes":[{"id":"305535174","setID":"19503","token":"xqcOmega","type":"SUBSCRIPTIONS","assetType":"STATIC","subscriptionTier":"TIER_2","modifiers":[{"code":"BW"}]}]}},
             {"cursor":"c3","node":{"id":"300374282","owner":{"id":"139075904","login":"qa_tw_partner","displayName":"q","profileImageURL":null},"emotes":[]}}
           ],"pageInfo":{"hasNextPage":false}}}}}"#;
         let data: RawAvailable = serde_json::from_str(raw).unwrap();
@@ -569,5 +588,8 @@ mod tests {
         assert_eq!(sets[1].owner.as_ref().unwrap().name, "xQc");
         assert_eq!(sets[1].emotes[0].modifiers, ["BW"]);
         assert!(sets[2].owner.is_none());
+        assert_eq!(sets[0].tier, None);
+        assert_eq!(sets[1].tier, Some(2));
+        assert_eq!(tier_of(Some("TIER_9")), None);
     }
 }

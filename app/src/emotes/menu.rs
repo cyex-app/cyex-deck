@@ -2,7 +2,7 @@
 //! locked ones, E5), then 7TV, BTTV and FFZ. Favorites and most used (C12) and emoji
 //! (E1) are put together in the UI.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -16,7 +16,8 @@ use ts_rs::TS;
 use super::{Emotes, load};
 use crate::auth::Auth;
 
-const CHANNEL_FRESH: Duration = Duration::from_secs(600);
+/// E5 A channel's sub products and the rest, kept for the session up to an hour.
+const CHANNEL_FRESH: Duration = Duration::from_secs(3600);
 
 #[derive(Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -46,14 +47,20 @@ pub struct MenuSection {
 pub struct MenuEmote {
     #[serde(flatten)]
     pub emote: Emote,
-    /// E5 Why you can't use it yet, e.g. "Tier 2".
+    /// E5 Why you can't use it yet, e.g. "Tier 2 sub".
     pub locked: Option<String>,
+    /// 1.40 Twitch sub emotes: the tier, 1 to 3.
+    pub tier: Option<u8>,
 }
 
 fn open(emotes: impl IntoIterator<Item = Emote>) -> Vec<MenuEmote> {
     emotes
         .into_iter()
-        .map(|emote| MenuEmote { emote, locked: None })
+        .map(|emote| MenuEmote {
+            emote,
+            locked: None,
+            tier: None,
+        })
         .collect()
 }
 
@@ -164,10 +171,24 @@ fn twitch_sections(
     let mut by_owner: BTreeMap<String, MenuSection> = BTreeMap::new();
     let mut kinds: BTreeMap<u8, MenuSection> = BTreeMap::new();
     let mut here: Option<MenuSection> = None;
+    // 1.40 Sets without a tier (Helix) take it from the channel's products when known.
+    let tier_here: HashMap<&str, u8> = channel
+        .into_iter()
+        .flat_map(|c| &c.tiers)
+        .flat_map(|t| t.emotes.iter().map(move |e| (e.id.as_str(), t.tier)))
+        .collect();
 
     for set in mine {
         for e in &set.emotes {
             let emote = load::twitch_emote(e);
+            let tier = (e.kind == EmoteKind::Subscription)
+                .then(|| set.tier.or_else(|| tier_here.get(e.id.as_str()).copied()))
+                .flatten();
+            let m = MenuEmote {
+                emote,
+                locked: None,
+                tier,
+            };
             let owner = set.owner.as_ref().filter(|_| {
                 matches!(
                     e.kind,
@@ -179,20 +200,20 @@ fn twitch_sections(
                     let s = here.get_or_insert_with(|| {
                         section(format!("twitch-{}", o.id), &o.name, o.avatar.clone())
                     });
-                    push_once(s, MenuEmote { emote, locked: None });
+                    push_once(s, m);
                 }
                 Some(o) if e.kind != EmoteKind::Bits => {
                     let s = by_owner
                         .entry(o.name.to_lowercase())
                         .or_insert_with(|| section(format!("twitch-{}", o.id), &o.name, o.avatar.clone()));
-                    push_once(s, MenuEmote { emote, locked: None });
+                    push_once(s, m);
                 }
                 _ => {
                     let (rank, id, title) = kind_section(e.kind);
                     let s = kinds
                         .entry(rank)
                         .or_insert_with(|| section(id.into(), title, None));
-                    push_once(s, MenuEmote { emote, locked: None });
+                    push_once(s, m);
                 }
             }
         }
@@ -207,20 +228,21 @@ fn twitch_sections(
                 c.owner.avatar.clone(),
             )
         });
-        let mut lock = |e: &gql::TwitchEmote, why: String| {
+        let mut lock = |e: &gql::TwitchEmote, why: String, tier: Option<u8>| {
             if !owned.contains(e.id.as_str()) && !here.emotes.iter().any(|m| m.emote.id == e.id) {
                 here.emotes.push(MenuEmote {
                     emote: load::twitch_emote(e),
                     locked: Some(why),
+                    tier,
                 });
             }
         };
         for e in &c.follower {
-            lock(e, "Follow to use".into());
+            lock(e, "Follow to use".into(), None);
         }
         for t in &c.tiers {
             for e in &t.emotes {
-                lock(e, format!("Tier {}", t.tier));
+                lock(e, format!("Tier {} sub", t.tier), Some(t.tier));
             }
         }
         for b in &c.bits {
@@ -230,6 +252,7 @@ fn twitch_sections(
                     "Cheer {} bits here",
                     cyex_core::number::grouped(u64::from(b.bits))
                 ),
+                None,
             );
         }
         if here.emotes.is_empty() {
@@ -305,16 +328,19 @@ mod tests {
                 id: "0".into(),
                 owner: None,
                 emotes: vec![e("25", EmoteKind::Global)],
+                tier: None,
             },
             TwitchSet {
                 id: "2".into(),
                 owner: owner("9", "Zed"),
                 emotes: vec![e("90", EmoteKind::Subscription)],
+                tier: Some(3),
             },
             TwitchSet {
                 id: "1".into(),
                 owner: owner("7", "Here"),
                 emotes: vec![e("70", EmoteKind::Subscription), e("71", EmoteKind::Bits)],
+                tier: None,
             },
         ];
         let channel = ChannelEmotes {
@@ -329,12 +355,21 @@ mod tests {
         let s = twitch_sections(&mine, Some(&channel), "7");
         let titles: Vec<&str> = s.iter().map(|s| s.title.as_str()).collect();
         assert_eq!(titles, ["Here", "Zed", "Global"]);
-        let here: Vec<(&str, Option<&str>)> = s[0]
+        let here: Vec<(&str, Option<&str>, Option<u8>)> = s[0]
             .emotes
             .iter()
-            .map(|m| (m.emote.id.as_str(), m.locked.as_deref()))
+            .map(|m| (m.emote.id.as_str(), m.locked.as_deref(), m.tier))
             .collect();
-        assert_eq!(here, [("70", None), ("71", None), ("72", Some("Tier 2"))]);
+        // 1.40 "70" has no set tier (Helix): the channel's products give it.
+        assert_eq!(
+            here,
+            [
+                ("70", None, Some(2)),
+                ("71", None, None),
+                ("72", Some("Tier 2 sub"), Some(2))
+            ]
+        );
+        assert_eq!(s[1].emotes[0].tier, Some(3));
     }
 
     #[test]
@@ -366,6 +401,7 @@ mod tests {
             id: id.into(),
             owner: None,
             emotes: vec![e("25", EmoteKind::Global)],
+            tier: None,
         };
         let s = twitch_sections(&[set("0"), set("1")], None, "7");
         let global = s.iter().find(|s| s.id == "twitch-global").unwrap();

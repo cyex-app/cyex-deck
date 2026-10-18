@@ -83,6 +83,7 @@ fn group(raw: Vec<RawEmote>) -> Vec<EmoteSet> {
                     }
                 }),
                 emotes: Vec::new(),
+                tier: None,
             }
         });
         set.emotes.push(TwitchEmote {

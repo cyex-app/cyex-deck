@@ -1,6 +1,7 @@
 <!-- 1.40 Emote menu: favorites and most used (C12), Twitch by channel and kind with the
      channel's locked emotes (E5), 7TV, BTTV, FFZ, and emoji (E1). Click puts an emote in
-     the message box; right-click keeps it in favorites. -->
+     the message box; right-click keeps it in favorites. Sub emotes above tier 1 carry a
+     tier mark; a locked one opens its card instead (1.41). -->
 <script lang="ts">
   import { onMount } from 'svelte';
 
@@ -16,8 +17,9 @@
   import { settings } from '../../lib/settings.svelte';
   import { emoteImg, emoteLarge } from '../chat/urls';
   import { emojiGroups, emojiLabel, findEmoji, type Emoji, type EmojiGroup } from './emoji';
-  import { PROVIDER_NAMES, emoteKey, emoteRatio } from './emotes';
-  import { PROVIDER_TABS, type ProviderTab, cellKey, pick, search, usable } from './menu';
+  import { type CardTarget, PROVIDER_NAMES, emoteKey, emoteRatio } from './emotes';
+  import { PROVIDER_TABS, type ProviderTab, cellHint, cellKey, pick, search, tierMark, usable } from './menu';
+  import EmoteCard from './EmoteCard.svelte';
   import { emoteMenu, forgetEmoteMenu } from './menus';
   import EditBar from './edit/EditBar.svelte';
   import { emoteEditMenu } from './edit/menu';
@@ -84,6 +86,19 @@
     mode: EditForm;
   };
   let editing = $state<Editing | null>(null);
+
+  /** E5 A locked emote's card: it can't go in the message box. */
+  let card = $state<CardTarget | null>(null);
+
+  function pickCell(m: MenuEmote, el: HTMLElement) {
+    if (!m.locked) return oninsert(m.name);
+    hideTip();
+    card = {
+      emote: { provider: m.provider, id: m.id, name: m.name, animated: m.animated, size: m.size ?? undefined },
+      stack: [],
+      rect: el.getBoundingClientRect(),
+    };
+  }
 
   function edited() {
     editing = null;
@@ -169,13 +184,15 @@
 
 {#snippet emote(m: MenuEmote)}
   {@const img = emoteImg(m.provider, m.id, theme, { animated: m.animated, still: focus.still, scale: density.scale })}
+  {@const mark = tierMark(m)}
   <button
     class="cell"
     class:locked={!!m.locked}
+    aria-label={m.locked ? `${m.name}, ${m.locked}` : undefined}
     data-tip={m.name}
-    data-hint={m.locked ?? PROVIDER_NAMES[m.provider]}
+    data-hint={cellHint(m)}
     data-tip-img={emoteLarge(m.provider, m.id, theme, { animated: m.animated })}
-    onclick={() => !m.locked && oninsert(m.name)}
+    onclick={(e) => pickCell(m, e.currentTarget)}
     oncontextmenu={(e) => openEmoteMenu(e, { source: m.provider, id: m.id, name: m.name })}
   >
     <img
@@ -185,6 +202,7 @@
       loading="lazy"
       decoding="async"
     />
+    {#if mark}<span class="tier">{mark}</span>{/if}
     {#if m.locked}<span class="lock"><Icon name="lock" size={10} /></span>{/if}
   </button>
 {/snippet}
@@ -286,6 +304,9 @@
   </div>
   {#if editing && account}
     <EditBar {account} {login} emote={editing.emote} mode={editing.mode} ondone={edited} oncancel={() => (editing = null)} />
+  {/if}
+  {#if card}
+    {#key card}<EmoteCard target={card} {login} {account} onclose={() => (card = null)} />{/key}
   {/if}
 </div>
 
@@ -394,8 +415,19 @@
     filter: grayscale(1);
     opacity: 0.45;
   }
-  .locked {
-    cursor: default;
+  .tier {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    padding: 0 3px;
+    background: var(--elevated-2);
+    border-radius: var(--radius);
+    color: var(--muted);
+    font-size: 0.6rem;
+    font-weight: 700;
+    line-height: 12px;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
   }
   .lock {
     position: absolute;
@@ -408,6 +440,7 @@
     background: var(--elevated-2);
     border-radius: 50%;
     color: var(--muted);
+    pointer-events: none;
   }
   .more {
     margin: 4px 0 0;
