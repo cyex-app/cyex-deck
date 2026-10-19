@@ -131,10 +131,8 @@
     const names = await commandNames;
     if (seq !== argSeq) return;
     const found = typed ? commandMatches(typed, names, 12) : names.slice(0, 12).map((n) => `/${n}`);
-    // Typed in full already: nothing left to offer.
-    const items = found
-      .filter((v) => v !== word.text)
-      .map((v): Item => ({ value: v, label: v, hint: commandHint(v.slice(1)) }));
+    // V107 A command typed in full stays in the list, first, with its hint.
+    const items = found.map((v): Item => ({ value: v, label: v, hint: commandHint(v.slice(1)) }));
     suggest = items.length ? { word, items, index: 0, arg: true } : null;
   }
 
