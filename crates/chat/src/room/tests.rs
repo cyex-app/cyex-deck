@@ -400,6 +400,9 @@ fn a_new_pin_replaces_the_old_one() {
     assert_eq!(r.snapshot().pinned, Some(b), "only the new pin is kept");
     // V107 A delete reads the pin again only when it hit the pinned message.
     assert!(r.pins("b") && !r.pins("a"));
+    // V107-P4 The delete notice names the sender, from chat or the pin.
+    assert_eq!(r.sender_name("a").as_deref(), Some("u7"));
+    assert_eq!(r.sender_name("nope"), None);
     r.set_pinned(None);
     assert!(!r.pins("b"));
 }

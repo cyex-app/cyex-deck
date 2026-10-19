@@ -1,10 +1,12 @@
 <!-- 1.9 The channel's pinned message, above the chat. Can be folded to one line, hidden
      into the events button while it's pinned (V103-04) or closed until the pin changes;
-     mods can take it down (V101-34) or delete the message (V107). It always starts open, with who sent and who pinned
+     mods can take it down (V101-34) or delete the message (V107), from its ⋮ menu (V107-P4). It always starts open, with who sent and who pinned
      it; folding is for this pin only (V106-19). A pin that ends shows a timer bar. Its text is semibold and a step larger than chat
      (Settings → General, V105-03), so it reads at a glance. -->
 <script lang="ts">
+  import ConfirmCallout from '../../components/ConfirmCallout.svelte';
   import Icon from '../../components/Icon.svelte';
+  import { openMenuAt, type MenuEntry } from '../../components/menu.svelte';
   import type { Pinned } from '../../ipc/bindings/Pinned';
   import { hideTip, showTip, tooltip } from '../../components/tooltip.svelte';
   import { systemIpc } from '../../ipc/system';
@@ -100,25 +102,49 @@
     return Number.isNaN(end) ? null : pinLeft(end - nowSecond());
   });
 
-  /** s3-1 Unpin and Delete (V107) act for everyone: a second click within 3 s does it. */
+  /** s3-1 Unpin and Delete (V107) act for everyone: picked from the menu, they ask once
+   * more in a callout under ⋮ that waits 3 s (V107-P4). */
   let armed = $state<'unpin' | 'delete' | null>(null);
-  let armTimer: ReturnType<typeof setTimeout> | undefined;
-  function arm(what: 'unpin' | 'delete', run: (() => void) | undefined) {
-    clearTimeout(armTimer);
-    if (armed !== what) {
-      armed = what;
-      armTimer = setTimeout(() => (armed = null), 3000);
-      return;
-    }
+  let dots = $state<HTMLButtonElement>();
+  const CONFIRM = { unpin: 'Click to unpin', delete: 'Click to delete' } as const;
+  function confirm() {
+    const what = armed;
     armed = null;
-    run?.();
+    (what === 'unpin' ? onunpin : ondelete)?.();
   }
   // A new pin starts unarmed.
   $effect(() => {
     key;
     armed = null;
   });
-  $effect(() => () => clearTimeout(armTimer));
+
+  /** V107-P4 Mods: Unpin, Delete; everyone: Hide for yourself (paid pins have no mod items). */
+  function menuItems(): MenuEntry[] {
+    return [
+      ...(onunpin
+        ? [{ label: 'Unpin', icon: 'pinOff', note: 'Takes it down for everyone.', run: () => (armed = 'unpin') } as const]
+        : []),
+      ...(ondelete
+        ? [
+            {
+              label: 'Delete message',
+              icon: 'trash',
+              danger: true,
+              disabled: !!deleteWhy,
+              note: deleteWhy ?? 'Removes it from chat and unpins it.',
+              run: () => (armed = 'delete'),
+            } as const,
+          ]
+        : []),
+      'separator',
+      {
+        label: 'Hide for yourself',
+        icon: 'eyeOff',
+        note: 'Only for you, until the next pin.',
+        run: () => eventStrip.close(channel, key),
+      },
+    ];
+  }
 
   /** 1.41 The emote card opened from the pin, like from a chat line. */
   let card = $state<CardTarget | null>(null);
@@ -209,31 +235,21 @@
         <Body fragments={pin.message.body} {channel} />
       </div>
     </div>
-    {#if onunpin}
-      <button
-        class="close"
-        class:armed={armed === 'unpin'}
-        aria-label={armed === 'unpin' ? 'Click again to unpin' : 'Unpin'}
-        use:tooltip={{ label: 'Unpin', hint: 'Takes it down for everyone.' }}
-        onclick={() => arm('unpin', onunpin)}
-      >
-        {#if armed === 'unpin'}Unpin?{:else}<Icon name="pinOff" size={13} />{/if}
-      </button>
-    {/if}
-    {#if ondelete}
-      <!-- V107 Greyed out, not hidden, when Twitch won't allow it: the tip says why. -->
-      <button
-        class="close"
-        class:armed={armed === 'delete'}
-        class:off={!!deleteWhy}
-        aria-disabled={deleteWhy ? 'true' : undefined}
-        aria-label={armed === 'delete' ? 'Click again to delete' : 'Delete message'}
-        use:tooltip={{ label: 'Delete message', hint: deleteWhy ?? 'Removes it from chat and unpins it.' }}
-        onclick={() => !deleteWhy && arm('delete', ondelete)}
-      >
-        {#if armed === 'delete'}Delete?{:else}<Icon name="trash" size={13} />{/if}
-      </button>
-    {/if}
+    <!-- V107-P4 Two controls: ⋮ (Unpin, Delete, Hide for yourself), then the chevron. -->
+    <button
+      class="close"
+      bind:this={dots}
+      aria-label="Pinned message options"
+      aria-haspopup="menu"
+      use:tooltip={{ label: 'More' }}
+      onclick={(e) => {
+        armed = null;
+        hideTip();
+        openMenuAt(e, menuItems());
+      }}
+    >
+      <Icon name="moreV" size={13} />
+    </button>
     {#if pinLive(pin, Date.now())}
       <button
         class="close"
@@ -244,14 +260,6 @@
         <Icon name="chevronUp" size={13} />
       </button>
     {/if}
-    <button
-      class="close"
-      aria-label="Close pinned message"
-      use:tooltip={{ label: 'Close', hint: 'Only for you, until the next pin.' }}
-      onclick={() => eventStrip.close(channel, key)}
-    >
-      <Icon name="x" size={13} />
-    </button>
     {#if span}
       {#key pin.id}
         <div
@@ -263,6 +271,9 @@
       {/key}
     {/if}
   </div>
+{/if}
+{#if armed && dots}
+  <ConfirmCallout anchor={dots} label={CONFIRM[armed]} onconfirm={confirm} ondismiss={() => (armed = null)} />
 {/if}
 {#if card}
   {#key card}<EmoteCard target={card} login={channel} {account} onclose={() => (card = null)} />{/key}
@@ -399,25 +410,6 @@
   }
   .close:hover {
     color: var(--text);
-  }
-  .close.off {
-    opacity: 0.4;
-    cursor: default;
-  }
-  .close.off:hover {
-    color: var(--dim);
-  }
-  .close.armed {
-    width: auto;
-    padding: 0 6px;
-    border-radius: var(--radius-sm);
-    background: var(--danger-solid);
-    color: var(--on-solid);
-    font-size: var(--text-hint);
-    font-weight: 600;
-  }
-  .close.armed:hover {
-    color: var(--on-solid);
   }
   .text:focus-visible {
     outline: 2px solid var(--focus-ring);

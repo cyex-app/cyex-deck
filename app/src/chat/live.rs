@@ -72,6 +72,13 @@ pub fn message_gone(app: &AppHandle, channel_id: &str, msg_id: &str) {
     }
 }
 
+/// V107-P4 Who sent message `msg_id`, from any open chat, for the delete notice.
+pub fn sender_name(app: &AppHandle, msg_id: &str) -> Option<String> {
+    let chat = app.state::<super::Chat>();
+    let inner = chat.lock();
+    inner.rooms.values().find_map(|e| e.room.sender_name(msg_id))
+}
+
 /// Reads the channel's pin into every room open on it; the new one replaces the old.
 fn refresh(app: &AppHandle, login: String, channel_id: String) {
     let app = app.clone();

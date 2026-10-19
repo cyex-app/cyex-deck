@@ -320,14 +320,12 @@
       .catch((e) => toast.error(errorText(e)));
   }
 
-  /** V107 Deletes the pinned message from chat; Twitch takes the pin down with it. */
+  /** V107 Deletes the pinned message from chat; Twitch takes the pin down with it. The
+   * chat says who it was (V107-P4), so no toast. */
   function deletePinned() {
     const id = room.pinned?.message.id;
     if (!id) return;
-    chatIpc
-      .send(room.view, `/delete ${id}`)
-      .then(() => toast.success('Deleted.'))
-      .catch((e) => toast.error(errorText(e)));
+    chatIpc.send(room.view, `/delete ${id}`).catch((e) => toast.error(errorText(e)));
   }
 
   /** V107 Why this account can't delete the pinned message, or null. Role and age come

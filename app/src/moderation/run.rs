@@ -21,6 +21,11 @@ async fn user_id(app: &AppHandle, login: &str) -> Result<String, String> {
         .ok_or_else(|| format!("No user called {login}."))
 }
 
+/// V107-P4 The local line after a delete, like "Pinned." and "Unpinned.".
+fn deleted_line(who: Option<&str>) -> String {
+    who.map_or_else(|| "Deleted a message.".into(), |n| format!("Deleted {n}’s message."))
+}
+
 /// Twitch's GQL `expiresIn` form for a timeout: seconds as `"<n>s"`.
 fn expires_in(secs: u32) -> String {
     format!("{secs}s")
@@ -36,10 +41,12 @@ pub async fn command(app: &AppHandle, account: &str, login: &str, cmd: ModComman
         C::Timeout { login: who, secs, reason } => ban(app, &actor, &who, Some(secs), &reason).await.map(|()| None),
         C::Unban { login: who } => unban(app, &actor, &who).await.map(|()| None),
         C::Delete { msg_id } => {
+            let who = crate::chat::live::sender_name(app, &msg_id);
             delete(app, &actor, Some(&msg_id)).await?;
             // V107 Twitch takes a deleted message's pin down with it (seen 2026/10/19).
             crate::chat::live::message_gone(app, &actor.channel_id, &msg_id);
-            Ok(None)
+            // V107-P4 Twitch's CLEARMSG only strikes the line through, so this is the one notice.
+            Ok(Some(deleted_line(who.as_deref())))
         }
         C::Clear => delete(app, &actor, None).await.map(|()| Some("Chat cleared.".into())),
         C::Warn { login: who, reason } => warn(app, &actor, &who, &reason).await.map(|()| None),
@@ -390,6 +397,12 @@ fn mode_name(change: ModeChange) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn v107_p4_the_delete_line_names_the_sender() {
+        assert_eq!(super::deleted_line(Some("cyexbot")), "Deleted cyexbot’s message.");
+        assert_eq!(super::deleted_line(None), "Deleted a message.");
+    }
+
     use super::*;
 
     #[test]

@@ -192,6 +192,13 @@ impl Room {
         })
     }
 
+    /// V107-P4 Who sent message `id` (their display name), from the buffer or the pin.
+    pub fn sender_name(&self, id: &str) -> Option<String> {
+        let pinned = self.pinned.as_ref().map(|p| &p.message).filter(|m| m.id == id);
+        let from = |m: &ChatMessage| m.sender.as_ref().map(|s| s.display.clone());
+        self.buffer.iter().rev().find(|m| m.id == id).and_then(|m| from(m)).or_else(|| pinned.and_then(from))
+    }
+
     /// V107 Whether message `id` is the one pinned here.
     pub fn pins(&self, id: &str) -> bool {
         self.pinned.as_ref().is_some_and(|p| p.message.id == id)
