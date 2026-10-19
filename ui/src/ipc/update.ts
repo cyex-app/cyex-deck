@@ -12,6 +12,8 @@ export const updateIpc = {
   /** "Check now": ignores the skipped version. */
   check: () => invoke<CheckResult>('update_check'),
   skip: (version: string) => invoke<void>('update_skip', { version }),
+  /** "Later": no timed checks until the app starts again. */
+  later: () => invoke<void>('update_later'),
   /** Downloads, checks the file and restarts into the new version. */
   install: (onEvent: Channel<UpdateProgress>) => invoke<void>('update_install', { onEvent }),
   openNotes: () => invoke<void>('update_open_notes'),

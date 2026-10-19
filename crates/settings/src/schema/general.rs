@@ -77,7 +77,7 @@ impl Schema for General {
 #[serde(default, rename_all = "camelCase")]
 #[ts(export)]
 pub struct Updates {
-    /// At startup and every 12 hours.
+    /// At startup and every 8 hours.
     pub check: bool,
     pub prereleases: bool,
     /// A version the user skipped; not offered again by the timed check.

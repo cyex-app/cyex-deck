@@ -38,6 +38,12 @@ pub fn update_skip(app: AppHandle, settings: State<Settings>, version: String) -
     Ok(())
 }
 
+/// "Later": no timed checks until the app starts again.
+#[tauri::command]
+pub fn update_later(app: AppHandle) {
+    update::later(&app);
+}
+
 #[tauri::command]
 pub async fn update_install(app: AppHandle, on_event: Channel<UpdateProgress>) -> CmdResult<()> {
     install::run(app, on_event).await

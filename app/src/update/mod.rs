@@ -1,10 +1,10 @@
-//! V105-20 Update checks: GitHub's releases at startup and every 12 hours, conditional requests, silent when offline. Sends nothing about the user, only the normal request.
+//! V105-20 Update checks: GitHub's releases at startup and every 8 hours (V1061: was 12), conditional requests, silent when offline. Sends nothing about the user, only the normal request.
 
 pub mod install;
 pub mod sign;
 
 use std::sync::Mutex;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use cyex_core::version;
@@ -20,7 +20,7 @@ use crate::settings::Settings;
 
 const AVAILABLE: &str = "update://available";
 const FIRST_CHECK: Duration = Duration::from_secs(10);
-const EVERY: Duration = Duration::from_secs(12 * 60 * 60);
+const EVERY: Duration = Duration::from_secs(8 * 60 * 60);
 const RATE_LIMIT_WAIT: i64 = 60 * 60;
 
 #[derive(Default)]
@@ -39,6 +39,8 @@ pub struct Updater {
     state: Mutex<State>,
     /// An update is downloading.
     busy: AtomicBool,
+    /// "Later": no timed checks until the app starts again.
+    later: AtomicBool,
 }
 
 impl Updater {
@@ -65,12 +67,17 @@ pub fn init(app: &AppHandle) {
         tokio::time::sleep(FIRST_CHECK).await;
         loop {
             let on = app.state::<Settings>().read::<General>(Partition::General).updates.check;
-            if on {
+            if on && !app.state::<Updater>().later.load(Ordering::Relaxed) {
                 check(&app, false).await;
             }
             tokio::time::sleep(EVERY).await;
         }
     });
+}
+
+/// "Later" in the pop-over: the timed checks stop until the next start, which asks again.
+pub fn later(app: &AppHandle) {
+    app.state::<Updater>().later.store(true, Ordering::Relaxed);
 }
 
 pub fn available(app: &AppHandle) -> Option<Update> {

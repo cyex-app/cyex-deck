@@ -46,7 +46,7 @@ export const APP: Entry[] = [
     id: 'general.updates.check',
     page: 'general',
     label: 'Check for updates',
-    description: 'At startup and every 12 hours.',
+    description: 'At startup and every 8 hours.',
     keywords: ['update', 'version', 'new version', 'github', 'upgrade'],
   },
   {

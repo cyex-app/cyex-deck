@@ -5,7 +5,7 @@
  */
 export type Updates = { 
 /**
- * At startup and every 12 hours.
+ * At startup and every 8 hours.
  */
 check: boolean, prereleases: boolean, 
 /**

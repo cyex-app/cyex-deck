@@ -1,5 +1,6 @@
-<!-- V105-20 A new version is out: a quiet badge before Settings, and a pop-over with what's
-     new, "Download and update", "Later" and "Skip this version". Rust checks GitHub; the file
+<!-- V105-20 A new version is out: a badge before Settings, and a pop-over with what's
+     new, "Download and update", "Later" (asks again at the next start) and "Skip this version".
+     V1061 The pop-over opens by itself when a version is found. Rust checks GitHub; the file
      must match its SHA-256 and carry a valid signature before it runs. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
@@ -14,6 +15,20 @@
   });
 
   const u = $derived(update.available);
+
+  // V1061 A version found opens the pop-over by itself, once per version this run; not after "Later".
+  let shown: string | null = null;
+  $effect(() => {
+    const v = u?.version;
+    if (!v || v === shown || update.later) return;
+    shown = v;
+    open = true;
+  });
+
+  function later() {
+    open = false;
+    update.deferLater();
+  }
 
   function main() {
     if (u?.canInstall) void update.install();
@@ -51,7 +66,7 @@
         {#if !update.busy}
           <div class="buttons">
             <Button variant="primary" small onclick={main}>{u.canInstall ? 'Download and update' : 'Open release page'}</Button>
-            <Button variant="ghost" small onclick={() => (open = false)}>Later</Button>
+            <Button variant="ghost" small onclick={later}>Later</Button>
           </div>
           <div class="skip"><Button variant="ghost" small onclick={skip}>Skip this version</Button></div>
         {/if}

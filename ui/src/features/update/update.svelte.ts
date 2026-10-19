@@ -47,6 +47,14 @@ class UpdateStore {
     }
   }
 
+  /** "Later": the badge stays, but no timed checks and no pop-over until the next start. */
+  later = $state(false);
+
+  deferLater(): void {
+    this.later = true;
+    void updateIpc.later().catch(() => {});
+  }
+
   async skip(): Promise<void> {
     const v = this.available?.version;
     if (!v) return;

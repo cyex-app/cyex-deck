@@ -109,7 +109,7 @@
 </Row>
 
 <SectionHead title="Updates" />
-<Row setting="general.updates.check" label="Check for updates" hint="At startup and every 12 hours.">
+<Row setting="general.updates.check" label="Check for updates" hint="At startup and every 8 hours.">
   <Toggle
     label="Check for updates"
     checked={g.updates.check}
