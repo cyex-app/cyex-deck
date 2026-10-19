@@ -35,7 +35,12 @@ pub async fn command(app: &AppHandle, account: &str, login: &str, cmd: ModComman
         C::Ban { login: who, reason } => ban(app, &actor, &who, None, &reason).await.map(|()| None),
         C::Timeout { login: who, secs, reason } => ban(app, &actor, &who, Some(secs), &reason).await.map(|()| None),
         C::Unban { login: who } => unban(app, &actor, &who).await.map(|()| None),
-        C::Delete { msg_id } => delete(app, &actor, Some(&msg_id)).await.map(|()| None),
+        C::Delete { msg_id } => {
+            delete(app, &actor, Some(&msg_id)).await?;
+            // V107 Twitch takes a deleted message's pin down with it (seen 2026/10/19).
+            crate::chat::live::message_gone(app, &actor.channel_id, &msg_id);
+            Ok(None)
+        }
         C::Clear => delete(app, &actor, None).await.map(|()| Some("Chat cleared.".into())),
         C::Warn { login: who, reason } => warn(app, &actor, &who, &reason).await.map(|()| None),
         C::Mode(change) => mode(app, &actor, change).await.map(Some),
@@ -170,9 +175,31 @@ async fn pin_once(app: &AppHandle, actor: &Actor, msg_id: &str, secs: Option<u32
         return helix_pin(&http(app), h, actor, msg_id, secs).await;
     }
     if let Some(g) = actor.gql() {
-        return refuse(gql::moderation::pin(&http(app), g, &actor.channel_id, msg_id, secs).await, "that message");
+        return gql_pin(&http(app), g, actor, msg_id, secs).await;
     }
     Err(no_token())
+}
+
+/// V107 GQL replaces another message's pin, but pinning the message that is pinned already
+/// (a new length, say) fails with "service error" (seen 2026/10/19). Then: take that pin
+/// down and pin again. Any other failure stands, so the old pin is never lost to it.
+async fn gql_pin(http: &cyex_twitch::Http, g: gql::Auth<'_>, actor: &Actor, msg_id: &str, secs: Option<u32>) -> Result<(), String> {
+    let first = gql::moderation::pin(http, g, &actor.channel_id, msg_id, secs).await;
+    if matches!(first, Ok(None)) {
+        return Ok(());
+    }
+    let held = gql::pinned(http, &actor.channel_id).await.ok().flatten();
+    let Some(pin_id) = repin_over(held.as_ref().map(|p| (p.id.as_str(), p.message_id.as_str())), msg_id) else {
+        return refuse(first, "that message");
+    };
+    refuse(gql::moderation::unpin(http, g, pin_id).await, "that pin")?;
+    refuse(gql::moderation::pin(http, g, &actor.channel_id, msg_id, secs).await, "that message")
+}
+
+/// V107 After a failed pin: the pin to take down first, when `held` (pin id, message id)
+/// is the very message being pinned again.
+fn repin_over<'a>(held: Option<(&'a str, &str)>, msg_id: &str) -> Option<&'a str> {
+    held.filter(|(pin, msg)| !pin.is_empty() && *msg == msg_id).map(|(pin, _)| pin)
 }
 
 /// M11 Twitch's web chat pins for 20 minutes.
@@ -217,8 +244,8 @@ async fn unpin(app: &AppHandle, actor: &Actor) -> Result<(), String> {
     res
 }
 
-/// V107 Helix says 409 while another message is pinned (GQL just replaces it): take that
-/// one down, then pin again.
+/// V107 Helix says 409 when the message is pinned already (Twitch's docs, 2026/10/19; a new
+/// length for the same pin, say): take the pin down, then pin again.
 async fn helix_pin(http: &cyex_twitch::Http, h: cyex_twitch::helix::Auth<'_>, actor: &Actor, msg_id: &str, secs: Option<u32>) -> Result<(), String> {
     match hm::pin(http, h, actor.room(), msg_id, secs).await {
         Err(e) if pin_taken(&e) => {
@@ -231,7 +258,7 @@ async fn helix_pin(http: &cyex_twitch::Http, h: cyex_twitch::helix::Auth<'_>, ac
     }
 }
 
-/// V107 Helix's "already pinned": another message holds the channel's one pin.
+/// V107 Helix's "already pinned".
 fn pin_taken(e: &cyex_twitch::Error) -> bool {
     status_code(e) == 409
 }
@@ -372,5 +399,16 @@ mod tests {
         assert!(!pin_taken(&api(400)));
         assert!(!pin_taken(&api(403)));
         assert!(!pin_taken(&cyex_twitch::Error::Refused("CONFLICT".into())));
+    }
+
+    #[test]
+    fn a_failed_pin_of_the_pinned_message_unpins_it_first() {
+        // V107 Same message pinned again (a new length): take its pin down, then pin.
+        assert_eq!(repin_over(Some(("pin-1", "msg-a")), "msg-a"), Some("pin-1"));
+        // Another message pinned: GQL replaces it itself, so a failure is a real one and the
+        // old pin stays up.
+        assert_eq!(repin_over(Some(("pin-1", "msg-b")), "msg-a"), None);
+        assert_eq!(repin_over(None, "msg-a"), None);
+        assert_eq!(repin_over(Some(("", "msg-a")), "msg-a"), None);
     }
 }

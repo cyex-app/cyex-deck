@@ -192,6 +192,11 @@ impl Room {
         })
     }
 
+    /// V107 Whether message `id` is the one pinned here.
+    pub fn pins(&self, id: &str) -> bool {
+        self.pinned.as_ref().is_some_and(|p| p.message.id == id)
+    }
+
     /// The reply header for answering message `id`, if it's still here.
     pub fn reply_to(&self, id: &str) -> Option<Reply> {
         let m = self.buffer.iter().find(|m| m.id == id)?;

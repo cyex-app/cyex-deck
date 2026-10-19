@@ -1,6 +1,6 @@
 <!-- 1.9 The channel's pinned message, above the chat. Can be folded to one line, hidden
      into the events button while it's pinned (V103-04) or closed until the pin changes;
-     mods can take it down (V101-34). It always starts open, with who sent and who pinned
+     mods can take it down (V101-34) or delete the message (V107). It always starts open, with who sent and who pinned
      it; folding is for this pin only (V106-19). A pin that ends shows a timer bar. Its text is semibold and a step larger than chat
      (Settings → General, V105-03), so it reads at a glance. -->
 <script lang="ts">
@@ -29,9 +29,13 @@
     account?: string | null;
     /** Only for mods (1.57). */
     onunpin?: () => void;
+    /** V107 Deletes the pinned message; only for mods. */
+    ondelete?: () => void;
+    /** V107 Why Delete is greyed out (Twitch's rules), or null. */
+    deleteWhy?: string | null;
   }
 
-  let { pin, channel, account = null, onunpin }: Props = $props();
+  let { pin, channel, account = null, onunpin, ondelete, deleteWhy = null }: Props = $props();
 
   /** V106-19 Open on every new pin; clicking folds it to two lines (one while the chat is
    * short, A13). Never saved. */
@@ -96,19 +100,24 @@
     return Number.isNaN(end) ? null : pinLeft(end - nowSecond());
   });
 
-  /** s3-1 Unpin takes it down for everyone: a second click within 3 s does it. */
-  let armed = $state(false);
+  /** s3-1 Unpin and Delete (V107) act for everyone: a second click within 3 s does it. */
+  let armed = $state<'unpin' | 'delete' | null>(null);
   let armTimer: ReturnType<typeof setTimeout> | undefined;
-  function unpin() {
+  function arm(what: 'unpin' | 'delete', run: (() => void) | undefined) {
     clearTimeout(armTimer);
-    if (!armed) {
-      armed = true;
-      armTimer = setTimeout(() => (armed = false), 3000);
+    if (armed !== what) {
+      armed = what;
+      armTimer = setTimeout(() => (armed = null), 3000);
       return;
     }
-    armed = false;
-    onunpin?.();
+    armed = null;
+    run?.();
   }
+  // A new pin starts unarmed.
+  $effect(() => {
+    key;
+    armed = null;
+  });
   $effect(() => () => clearTimeout(armTimer));
 
   /** 1.41 The emote card opened from the pin, like from a chat line. */
@@ -203,12 +212,26 @@
     {#if onunpin}
       <button
         class="close"
-        class:armed
-        aria-label={armed ? 'Click again to unpin' : 'Unpin'}
+        class:armed={armed === 'unpin'}
+        aria-label={armed === 'unpin' ? 'Click again to unpin' : 'Unpin'}
         use:tooltip={{ label: 'Unpin', hint: 'Takes it down for everyone.' }}
-        onclick={unpin}
+        onclick={() => arm('unpin', onunpin)}
       >
-        {#if armed}Unpin?{:else}<Icon name="trash" size={13} />{/if}
+        {#if armed === 'unpin'}Unpin?{:else}<Icon name="pinOff" size={13} />{/if}
+      </button>
+    {/if}
+    {#if ondelete}
+      <!-- V107 Greyed out, not hidden, when Twitch won't allow it: the tip says why. -->
+      <button
+        class="close"
+        class:armed={armed === 'delete'}
+        class:off={!!deleteWhy}
+        aria-disabled={deleteWhy ? 'true' : undefined}
+        aria-label={armed === 'delete' ? 'Click again to delete' : 'Delete message'}
+        use:tooltip={{ label: 'Delete message', hint: deleteWhy ?? 'Removes it from chat and unpins it.' }}
+        onclick={() => !deleteWhy && arm('delete', ondelete)}
+      >
+        {#if armed === 'delete'}Delete?{:else}<Icon name="trash" size={13} />{/if}
       </button>
     {/if}
     {#if pinLive(pin, Date.now())}
@@ -376,6 +399,13 @@
   }
   .close:hover {
     color: var(--text);
+  }
+  .close.off {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .close.off:hover {
+    color: var(--dim);
   }
   .close.armed {
     width: auto;

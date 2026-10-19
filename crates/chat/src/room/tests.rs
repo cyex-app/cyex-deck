@@ -398,6 +398,10 @@ fn a_new_pin_replaces_the_old_one() {
     let ev = r.set_pinned(Some(b.clone())).expect("V107 the second pin is news");
     assert!(matches!(ev, RoomEvent::Pinned { pin: Some(p) } if p.id == "p2" && p.message.id == "b"));
     assert_eq!(r.snapshot().pinned, Some(b), "only the new pin is kept");
+    // V107 A delete reads the pin again only when it hit the pinned message.
+    assert!(r.pins("b") && !r.pins("a"));
+    r.set_pinned(None);
+    assert!(!r.pins("b"));
 }
 
 #[test]

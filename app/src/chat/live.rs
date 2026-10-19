@@ -59,6 +59,19 @@ pub fn pin_changed(app: &AppHandle, channel_id: &str) {
     }
 }
 
+/// V107 A message was deleted: if it's the pinned one, read the pin again, since Twitch
+/// takes it down with the message. Other deletes cost nothing.
+pub fn message_gone(app: &AppHandle, channel_id: &str, msg_id: &str) {
+    let pinned = {
+        let chat = app.state::<super::Chat>();
+        let inner = chat.lock();
+        inner.rooms.values().any(|e| e.room.pins(msg_id))
+    };
+    if pinned {
+        pin_changed(app, channel_id);
+    }
+}
+
 /// Reads the channel's pin into every room open on it; the new one replaces the old.
 fn refresh(app: &AppHandle, login: String, channel_id: String) {
     let app = app.clone();

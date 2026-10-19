@@ -49,7 +49,9 @@
   import LiveChatBar from './LiveChatBar.svelte';
   import { accounts } from '../../lib/accounts.svelte';
   import { unlock } from '../unlock/unlock.svelte';
+  import { cantDelete } from '../modview/deleteRule';
   import { mods } from '../modview/moderation.svelte';
+  import { roleOf } from '../modview/roles';
   import { modviewPlace } from '../modview/where.svelte';
   import { pluginItems } from '../plugins/pluginMenus';
   import { plugins } from '../plugins/plugins.svelte';
@@ -318,6 +320,27 @@
       .catch((e) => toast.error(errorText(e)));
   }
 
+  /** V107 Deletes the pinned message from chat; Twitch takes the pin down with it. */
+  function deletePinned() {
+    const id = room.pinned?.message.id;
+    if (!id) return;
+    chatIpc
+      .send(room.view, `/delete ${id}`)
+      .then(() => toast.success('Deleted.'))
+      .catch((e) => toast.error(errorText(e)));
+  }
+
+  /** V107 Why this account can't delete the pinned message, or null. Role and age come
+   * from the line in chat when it's still here. */
+  const deleteWhy = $derived.by(() => {
+    const p = room.pinned;
+    const s = p?.message.sender;
+    if (!p || !s) return 'Twitch didn’t say who sent it.';
+    const line = room.find(p.message.id);
+    const target = { id: s.id, login: s.login, role: roleOf(line?.sender?.badges), ts: line?.ts ?? null };
+    return cantDelete(modRole, room.account, target, login, Date.now());
+  });
+
   function openChannelCard() {
     chatIpc.openUsercard(login, login).catch((e) => toast.error(errorText(e)));
   }
@@ -418,6 +441,8 @@
         channel={login}
         account={room.account}
         onunpin={modRole && !room.pinned.paid ? unpin : undefined}
+        ondelete={modRole && !room.pinned.paid ? deletePinned : undefined}
+        {deleteWhy}
       />
     {/if}
     <VotesBanner channel={login} view={() => room.view} signedIn={room.account !== null} />
