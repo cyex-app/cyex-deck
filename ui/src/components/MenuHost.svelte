@@ -1,6 +1,8 @@
 <!-- Draws the shared menu at the pointer or under its button, kept inside the window
      (V101-04). Arrow keys move through it, Right opens a submenu, Left goes back (V101-30). -->
 <script lang="ts">
+  import { tick } from 'svelte';
+
   import { layer } from '../lib/escape';
   import { focusScope } from '../lib/focusScope';
   import { floating } from '../lib/place';
@@ -8,7 +10,7 @@
   import Avatar from './Avatar.svelte';
   import GateFlag from './GateFlag.svelte';
   import Icon from './Icon.svelte';
-  import { back, closeMenu, menu, pick } from './menu.svelte';
+  import { back, closeMenu, menu, pick, type MenuItem } from './menu.svelte';
   import { tooltip } from './tooltip.svelte';
 
   let box = $state<HTMLElement>();
@@ -16,11 +18,29 @@
   /** A button's menu sits just under it; one at the pointer starts right there. */
   const gap = $derived(menu.anchor.bottom > menu.anchor.top ? 4 : 0);
 
+  /** V107 What a menu field said no to, shown under it until the list changes. */
+  let fieldError = $state('');
+  $effect(() => {
+    list;
+    fieldError = '';
+  });
+
+  function fieldKey(e: KeyboardEvent, item: MenuItem) {
+    if (e.key !== 'Enter' || !item.field) return;
+    e.preventDefault();
+    const said = item.field.submit((e.currentTarget as HTMLInputElement).value);
+    if (!said) return closeMenu();
+    fieldError = said;
+    // A short window scrolls the menu: keep the message in sight.
+    const row = (e.currentTarget as HTMLElement).parentElement;
+    void tick().then(() => row?.scrollIntoView({ block: 'nearest' }));
+  }
+
   /** Moves the keyboard focus through the items that can be picked. */
   function move(step: number) {
-    const items = [...(box?.querySelectorAll<HTMLButtonElement>('.item:not(:disabled)') ?? [])];
+    const items = [...(box?.querySelectorAll<HTMLElement>('.item:not(:disabled), .field input') ?? [])];
     if (!items.length) return;
-    const at = items.indexOf(document.activeElement as HTMLButtonElement);
+    const at = items.indexOf(document.activeElement as HTMLElement);
     const next = at < 0 ? (step > 0 ? 0 : items.length - 1) : Math.min(Math.max(at + step, 0), items.length - 1);
     items[next].focus();
   }
@@ -43,8 +63,10 @@
       if (!box?.contains(e.target as Node)) closeMenu();
     };
     const onKey = (e: KeyboardEvent) => {
-      const steps: Record<string, number> = { ArrowDown: 1, ArrowUp: -1, Home: -999, End: 999 };
+      const typing = document.activeElement instanceof HTMLInputElement;
+      const steps: Record<string, number> = typing ? { ArrowDown: 1, ArrowUp: -1 } : { ArrowDown: 1, ArrowUp: -1, Home: -999, End: 999 };
       if (e.key in steps) move(steps[e.key]);
+      else if (typing) return;
       else if (e.key === 'ArrowLeft' && menu.stack.length > 1) back();
       else if (e.key === 'ArrowRight' && document.activeElement instanceof HTMLElement && document.activeElement.dataset.sub) {
         document.activeElement.click();
@@ -85,6 +107,21 @@
     {#each list.items as entry, i (i)}
       {#if entry === 'separator'}
         <hr />
+      {:else if entry.field}
+        <div class="field">
+          <input
+            type="text"
+            class:bad={!!fieldError}
+            aria-label={entry.label}
+            aria-invalid={!!fieldError}
+            placeholder={entry.field.placeholder}
+            spellcheck="false"
+            autocomplete="off"
+            oninput={() => (fieldError = '')}
+            onkeydown={(e) => fieldKey(e, entry)}
+          />
+          {#if fieldError}<div class="field-error" role="alert">{fieldError}</div>{/if}
+        </div>
       {:else}
         <button
           class="item"
@@ -193,6 +230,35 @@
   .warn {
     display: flex;
     color: var(--yellow);
+  }
+  /* V107 A typed value, e.g. a custom pin length. */
+  .field {
+    padding: 2px 4px;
+  }
+  .field input {
+    width: 100%;
+    height: 28px;
+    padding: 0 8px;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+  }
+  .field input:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -1px;
+  }
+  .field input.bad,
+  .field input.bad:focus-visible {
+    border-color: var(--red);
+    outline-color: var(--red);
+  }
+  .field-error {
+    padding: 4px 4px 2px;
+    color: var(--red);
+    font-size: 0.76rem;
   }
   hr {
     margin: 4px 0;

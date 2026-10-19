@@ -76,13 +76,17 @@ pub async fn treat(http: &Http, auth: Auth<'_>, room: Room<'_>, user_id: &str, s
     empty(req).await
 }
 
-/// 1.9 Pins a message for `secs` (30 to 1800), or until the stream ends.
+/// 1.9 How long a pin may stay, in seconds, for Helix and GQL alike (V107, tested 2026/10/19:
+/// any whole second inside works, 29 and 1801 are refused). No duration = no end.
+pub const PIN_SECS: (u32, u32) = (30, 1800);
+
+/// 1.9 Pins a message for `secs` (clamped to [`PIN_SECS`]), or until the stream ends.
 pub async fn pin(http: &Http, auth: Auth<'_>, room: Room<'_>, message_id: &str, secs: Option<u32>) -> Result<()> {
     let mut req = request(http, auth, Method::PUT, "/chat/pins")
         .query(&room.query())
         .query(&[("message_id", message_id)]);
     if let Some(s) = secs {
-        req = req.query(&[("duration_seconds", s.clamp(30, 1800))]);
+        req = req.query(&[("duration_seconds", s.clamp(PIN_SECS.0, PIN_SECS.1))]);
     }
     empty(req).await
 }

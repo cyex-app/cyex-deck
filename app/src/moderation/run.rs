@@ -62,7 +62,11 @@ pub async fn command(app: &AppHandle, account: &str, login: &str, cmd: ModComman
             Ok(Some(if on { "Shield mode on.".into() } else { "Shield mode off.".into() }))
         }
         C::Pin { msg_id, secs } => pin(app, &actor, &msg_id, secs).await.map(|()| Some("Pinned.".into())),
-        C::PinSend { text, secs } => pin_send(app, &actor, &text, secs.unwrap_or(PIN_SEND_SECS)).await.map(|()| None),
+        C::PinSend { text, secs } => {
+            pin_send(app, &actor, &text, secs.unwrap_or(PIN_SEND_SECS)).await?;
+            crate::chat::live::pin_changed(app, &actor.channel_id);
+            Ok(None)
+        }
         C::Unpin => unpin(app, &actor).await.map(|()| Some("Unpinned.".into())),
         C::Raid { login: who } => {
             let to = user_id(app, &who).await?;
@@ -152,9 +156,18 @@ async fn warn(app: &AppHandle, actor: &Actor, who: &str, reason: &str) -> Result
 }
 
 /// V101-34 Helix pins when the account has the scope, GQL otherwise (both GA since 2026/05).
+/// V107 A new pin replaces the old one, and every open chat of the channel shows it at once.
 async fn pin(app: &AppHandle, actor: &Actor, msg_id: &str, secs: Option<u32>) -> Result<(), String> {
+    let res = pin_once(app, actor, msg_id, secs).await;
+    if res.is_ok() {
+        crate::chat::live::pin_changed(app, &actor.channel_id);
+    }
+    res
+}
+
+async fn pin_once(app: &AppHandle, actor: &Actor, msg_id: &str, secs: Option<u32>) -> Result<(), String> {
     if let Some(h) = actor.helix_scoped(app, "moderator:manage:chat_messages") {
-        return hm::pin(&http(app), h, actor.room(), msg_id, secs).await.map_err(helix_err);
+        return helix_pin(&http(app), h, actor, msg_id, secs).await;
     }
     if let Some(g) = actor.gql() {
         return refuse(gql::moderation::pin(&http(app), g, &actor.channel_id, msg_id, secs).await, "that message");
@@ -190,13 +203,40 @@ async fn pin_send(app: &AppHandle, actor: &Actor, text: &str, secs: u32) -> Resu
             Err(cyex_twitch::Error::Refused(why)) => return Err(why),
             Err(e) => return Err(helix_err(e)),
         };
-        return hm::pin(&http, h, room, &id, Some(secs)).await.map_err(helix_err);
+        return helix_pin(&http, h, actor, &id, Some(secs)).await;
     }
     Err(no_token())
 }
 
 /// V101-34 Takes down the channel's current pin. Helix wants the message's id, GQL the pin's.
 async fn unpin(app: &AppHandle, actor: &Actor) -> Result<(), String> {
+    let res = unpin_once(app, actor).await;
+    if res.is_ok() {
+        crate::chat::live::pin_changed(app, &actor.channel_id);
+    }
+    res
+}
+
+/// V107 Helix says 409 while another message is pinned (GQL just replaces it): take that
+/// one down, then pin again.
+async fn helix_pin(http: &cyex_twitch::Http, h: cyex_twitch::helix::Auth<'_>, actor: &Actor, msg_id: &str, secs: Option<u32>) -> Result<(), String> {
+    match hm::pin(http, h, actor.room(), msg_id, secs).await {
+        Err(e) if pin_taken(&e) => {
+            if let Some(old) = gql::pinned(http, &actor.channel_id).await.map_err(|e| e.to_string())? {
+                hm::unpin(http, h, actor.room(), &old.message_id).await.map_err(helix_err)?;
+            }
+            hm::pin(http, h, actor.room(), msg_id, secs).await.map_err(helix_err)
+        }
+        res => res.map_err(helix_err),
+    }
+}
+
+/// V107 Helix's "already pinned": another message holds the channel's one pin.
+fn pin_taken(e: &cyex_twitch::Error) -> bool {
+    status_code(e) == 409
+}
+
+async fn unpin_once(app: &AppHandle, actor: &Actor) -> Result<(), String> {
     let http = http(app);
     let pin = gql::pinned(&http, &actor.channel_id)
         .await
@@ -319,4 +359,18 @@ fn mode_name(change: ModeChange) -> String {
         ModeChange::Delay(_) => "Chat delay changed.",
     }
     .to_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_helix_409_means_another_pin_holds_the_spot() {
+        let api = |status| cyex_twitch::Error::Api { status, message: String::new() };
+        assert!(pin_taken(&api(409)));
+        assert!(!pin_taken(&api(400)));
+        assert!(!pin_taken(&api(403)));
+        assert!(!pin_taken(&cyex_twitch::Error::Refused("CONFLICT".into())));
+    }
 }

@@ -46,6 +46,29 @@ pub fn left(app: &AppHandle, login: &str) {
     }
 }
 
+/// V107 We pinned or unpinned in this channel: read its pin now rather than wait for
+/// Hermes, so the banner swaps to the new pin at once (Hermes still covers pins made elsewhere).
+pub fn pin_changed(app: &AppHandle, channel_id: &str) {
+    let login = {
+        let map = joined_map(app);
+        let map = map.0.lock().unwrap_or_else(|p| p.into_inner());
+        map.iter().find(|(_, id)| *id == channel_id).map(|(l, _)| l.clone())
+    };
+    if let Some(login) = login {
+        refresh(app, login, channel_id.to_owned());
+    }
+}
+
+/// Reads the channel's pin into every room open on it; the new one replaces the old.
+fn refresh(app: &AppHandle, login: String, channel_id: String) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        for key in super::rooms_of(&app, &login) {
+            super::catalog::refresh_pin(&app, &key, &channel_id).await;
+        }
+    });
+}
+
 pub fn on_event(app: &AppHandle, e: &Event) {
     let login = {
         let map = joined_map(app);
@@ -56,14 +79,7 @@ pub fn on_event(app: &AppHandle, e: &Event) {
     };
     let Some(login) = login else { return };
     match e.topic.kind {
-        Kind::Pins => {
-            let (app, id) = (app.clone(), e.topic.channel_id.clone());
-            tauri::async_runtime::spawn(async move {
-                for key in super::rooms_of(&app, &login) {
-                    super::catalog::refresh_pin(&app, &key, &id).await;
-                }
-            });
-        }
+        Kind::Pins => refresh(app, login, e.topic.channel_id.clone()),
         Kind::Points => {
             if let Some(text) = redemption_line(&e.payload) {
                 super::notice_line(app, &login, NoticeKind::Redemption, &text);

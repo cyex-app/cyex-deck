@@ -381,6 +381,26 @@ fn the_first_pin_read_is_news_even_with_nothing_pinned() {
 }
 
 #[test]
+fn a_new_pin_replaces_the_old_one() {
+    let mut r = room();
+    feed(&mut r, &msg("a", "7"));
+    feed(&mut r, &msg("b", "8"));
+    let pin = |id: &str, n: usize| Pinned {
+        id: id.into(),
+        by: Some("Mod".into()),
+        starts_at: None,
+        ends_at: Some("2026-10-19T16:30:00Z".into()),
+        paid: false,
+        message: (*r.snapshot().messages[n]).clone(),
+    };
+    let (a, b) = (pin("p1", 0), pin("p2", 1));
+    r.set_pinned(Some(a));
+    let ev = r.set_pinned(Some(b.clone())).expect("V107 the second pin is news");
+    assert!(matches!(ev, RoomEvent::Pinned { pin: Some(p) } if p.id == "p2" && p.message.id == "b"));
+    assert_eq!(r.snapshot().pinned, Some(b), "only the new pin is kept");
+}
+
+#[test]
 fn shared_rooms_are_the_recent_source_rooms() {
     let mut r = room();
     let shared = |id: &str, src: &str, ts: i64| {

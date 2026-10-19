@@ -35,6 +35,15 @@ export interface MenuItem {
   run?: () => void;
   /** Opens a second list in place of this one. */
   items?: MenuEntry[];
+  /** V107 A small text field instead of a button (`label` names it for screen readers). */
+  field?: MenuField;
+}
+
+/** V107 A typed value in a menu, e.g. a custom pin length. */
+export interface MenuField {
+  placeholder: string;
+  /** Enter hands it the text: `null` closes the menu, a message keeps it open and shows it. */
+  submit: (text: string) => string | null;
 }
 
 export type MenuEntry = MenuItem | 'separator';

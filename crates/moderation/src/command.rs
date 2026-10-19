@@ -2,7 +2,7 @@
 //! action. Running them (Helix) is the app's job.
 
 use cyex_twitch::helix::modes::{ANNOUNCE_COLORS, MAX_FOLLOW_MINUTES, ModeChange};
-use cyex_twitch::helix::moderation::MAX_TIMEOUT_SECS;
+use cyex_twitch::helix::moderation::{MAX_TIMEOUT_SECS, PIN_SECS};
 use cyex_twitch::helix::roles::Role;
 
 use cyex_chat::model::ModRole;
@@ -265,7 +265,7 @@ fn read(name: &str, args: &str) -> Result<ModCommand, String> {
             }
             let secs = match rest {
                 "" => None,
-                t => Some(duration::parse(t, 1).ok_or("Usage: /pin message-id [5m]")?.clamp(30, 1800) as u32),
+                t => Some(duration::parse(t, 1).ok_or("Usage: /pin message-id [5m]")?.clamp(u64::from(PIN_SECS.0), u64::from(PIN_SECS.1)) as u32),
             };
             C::Pin {
                 msg_id: first.to_owned(),
@@ -433,6 +433,12 @@ mod tests {
                 secs: Some(300)
             }
         );
+        // V107 Any second Twitch takes, clamped to 30 s..30 min.
+        let secs = |t: &str| match ok(&format!("pin {id} {t}")) {
+            ModCommand::Pin { secs, .. } => secs,
+            _ => None,
+        };
+        assert_eq!((secs("777s"), secs("10s"), secs("2h")), (Some(777), Some(30), Some(1800)));
         // M11 Anything else is a message to send and pin.
         assert_eq!(
             ok("pin Giveaway at 8, type !join"),

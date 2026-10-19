@@ -5,7 +5,7 @@ import { gate } from '../lib/gate.svelte';
 import { type Align, point, type Rect } from '../lib/place';
 import { type MenuEntry, type MenuItem, tidy } from './menuItems';
 
-export type { MenuEntry, MenuItem } from './menuItems';
+export type { MenuEntry, MenuField, MenuItem } from './menuItems';
 
 export const menu = $state({
   open: false,

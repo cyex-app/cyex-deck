@@ -7,6 +7,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use super::{Auth, BATCH_MAX, batch, query};
+use crate::helix::moderation::PIN_SECS;
 use crate::{Error, Http, Result};
 
 /// A ban, or a timeout when `expires_in` is set (`"10m"`, `"1h"`, `"1d"`, up to `"14d"`).
@@ -167,7 +168,7 @@ pub async fn set_role(http: &Http, auth: Auth<'_>, channel_id: &str, login: &str
     Ok(code(&data, field))
 }
 
-/// V101-34 Pins a chat message for `secs` (30 to 1800), or until the stream ends.
+/// V101-34 Pins a chat message for `secs` (clamped to [`PIN_SECS`]), or until the stream ends.
 /// Schema-checked 2026/10/11; the web client and the 7TV extension send `type: MOD`.
 pub async fn pin(http: &Http, auth: Auth<'_>, channel_id: &str, message_id: &str, secs: Option<u32>) -> Result<Option<String>> {
     const Q: &str = "mutation P($input: PinChatMessageInput!) {
@@ -180,7 +181,7 @@ pub async fn pin(http: &Http, auth: Auth<'_>, channel_id: &str, message_id: &str
 fn pin_vars(channel_id: &str, message_id: &str, secs: Option<u32>) -> Value {
     let mut input = json!({ "channelID": channel_id, "messageID": message_id, "type": "MOD" });
     if let Some(s) = secs {
-        input["durationSeconds"] = json!(s.clamp(30, 1800));
+        input["durationSeconds"] = json!(s.clamp(PIN_SECS.0, PIN_SECS.1));
     }
     json!({ "input": input })
 }
@@ -202,12 +203,12 @@ pub async fn send_pinned(http: &Http, auth: Auth<'_>, channel_id: &str, text: &s
         .ok_or_else(|| Error::Refused("NO_PIN".into()))
 }
 
-/// M11 How long a pin stays, 30 to 1800 s. `pin_id` is the pin's own id.
+/// M11 How long a pin stays (clamped to [`PIN_SECS`]). `pin_id` is the pin's own id.
 pub async fn update_pin(http: &Http, auth: Auth<'_>, pin_id: &str, secs: u32) -> Result<Option<String>> {
     const Q: &str = "mutation U($input: UpdatePinnedChatMessageInput!) {
       updatePinnedChatMessage(input: $input) { error { code } }
     }";
-    let vars = json!({ "input": { "id": pin_id, "durationSeconds": secs.clamp(30, 1800) } });
+    let vars = json!({ "input": { "id": pin_id, "durationSeconds": secs.clamp(PIN_SECS.0, PIN_SECS.1) } });
     let data: Value = query(http, auth, Q, vars).await?;
     Ok(code(&data, "updatePinnedChatMessage"))
 }

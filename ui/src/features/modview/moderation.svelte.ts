@@ -8,6 +8,7 @@ import { settings } from '../../lib/settings.svelte';
 import { toast } from '../../lib/toast.svelte';
 import type { RoleEntry } from '../../ipc/bindings/RoleEntry';
 import { modIpc, type ModRole } from '../../ipc/moderation';
+import { pinCustomSecs } from './pinLength';
 import { allows } from './roles';
 import { roleItems, type Standing } from './standing';
 import { errorText } from '../../lib/errors';
@@ -118,12 +119,28 @@ export function treatItems(role: ModRole, login: string, run: Run, is?: Standing
   return items;
 }
 
-/** V101-34 The pin lengths, for the message menu and the pin button. */
+/** V101-34 The pin lengths, for the message menu and the pin button; V107 then any length
+ * Twitch takes, typed. */
 export function pinItems(msgId: string, run: Run): MenuEntry[] {
-  return PIN_LENGTHS.map((p) => ({
-    label: p.label,
-    run: () => run(p.secs === null ? `/pin ${msgId}` : `/pin ${msgId} ${p.secs}s`),
-  }));
+  return [
+    ...PIN_LENGTHS.map((p) => ({
+      label: p.label,
+      run: () => run(p.secs === null ? `/pin ${msgId}` : `/pin ${msgId} ${p.secs}s`),
+    })),
+    'separator',
+    {
+      label: 'Custom length',
+      field: {
+        placeholder: 'Custom, e.g. 12 or 2:30',
+        submit: (text: string) => {
+          const secs = pinCustomSecs(text);
+          if (secs === null) return 'Try minutes, like 12 or 2:30.';
+          run(`/pin ${msgId} ${secs}s`);
+          return null;
+        },
+      },
+    },
+  ];
 }
 
 /** Mod actions on a message: pin, delete (1.49, 1.9). */

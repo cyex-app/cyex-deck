@@ -19,7 +19,8 @@
   import { pinKey, pinLive, shows } from './eventStrip';
   import { eventStrip } from './eventStrip.svelte';
   import { shownName } from './names';
-  import { pinSpan } from './pinTimer';
+  import { nowSecond } from '../../lib/clock.svelte';
+  import { pinLeft, pinSpan } from './pinTimer';
 
   interface Props {
     pin: Pinned;
@@ -89,6 +90,11 @@
     return () => clearInterval(t);
   });
   const span = $derived(pinSpan(pin, seenAt(pin.id), still ? tick : Date.now()));
+  /** V107 The time left, beside who pinned it; ticks on the shared 1 s clock. */
+  const left = $derived.by(() => {
+    const end = pin.endsAt ? Date.parse(pin.endsAt) : NaN;
+    return Number.isNaN(end) ? null : pinLeft(end - nowSecond());
+  });
 
   /** s3-1 Unpin takes it down for everyone: a second click within 3 s does it. */
   let armed = $state(false);
@@ -164,15 +170,18 @@
   <div class="pin" class:paid={pin.paid} class:open class:short bind:this={el}>
     <Icon name="pin" size={14} />
     <div class="main">
-      {#if (sender && name) || pin.by}
+      {#if (sender && name) || pin.by || left}
         <div class="head">
-          {#if sender && name}
-            <span
-              class="name"
-              style="--cd:{sender.color.dark};--cl:{sender.color.light}">{name.name}</span
-            >
-          {/if}
-          {#if pin.by}<span class="by">{sender && name ? '· ' : ''}Pinned by {pin.by}</span>{/if}
+          <span class="who">
+            {#if sender && name}
+              <span
+                class="name"
+                style="--cd:{sender.color.dark};--cl:{sender.color.light}">{name.name}</span
+              >
+            {/if}
+            {#if pin.by}<span class="by">{sender && name ? '· ' : ''}Pinned by {pin.by}</span>{/if}
+          </span>
+          {#if left}<span class="left" aria-label="{left} left">{left}</span>{/if}
         </div>
       {/if}
       <!-- c-9 Not a button: its links stay links. The link tips are extra, like in chat. -->
@@ -258,6 +267,23 @@
     margin-bottom: 2px;
     font-size: calc(var(--chat-size) * 0.9);
     line-height: 1.3;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .who {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* V107 The countdown: small, steady digits, quiet like the rest of the head. */
+  .left {
+    flex: none;
+    color: var(--dim);
+    font-size: var(--text-hint);
+    font-variant-numeric: tabular-nums;
   }
   /* V106-19 Shrinks to the pin's end on the compositor; no per-frame script. */
   .timer {
