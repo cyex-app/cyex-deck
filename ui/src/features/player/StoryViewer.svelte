@@ -14,6 +14,7 @@
   import { sounding } from '../tabs/sounding.svelte';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
+  import { releaseMedia } from '../../lib/releaseMedia';
   import { pictureBar, videoBar } from './storyBar';
 
   interface Props {
@@ -130,6 +131,7 @@
           <!-- svelte-ignore a11y_media_has_caption -->
           <video
             bind:this={storyVideo}
+            use:releaseMedia
             src={story.video}
             {muted}
             poster={story.image ?? undefined}

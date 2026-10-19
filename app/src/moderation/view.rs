@@ -93,6 +93,19 @@ pub fn init(app: &AppHandle) {
     app.manage(Boards::default());
 }
 
+/// R1 Drops the boards of channels with no mod view or feed open any more (`feeds::sync`),
+/// so the map doesn't grow with every channel ever modded.
+pub fn keep_only<'a>(app: &AppHandle, open: impl IntoIterator<Item = &'a str>) {
+    let Some(boards) = app.try_state::<Boards>() else { return };
+    let mut map = boards.0.lock().unwrap_or_else(|p| p.into_inner());
+    retain_open(&mut map, open);
+}
+
+fn retain_open<'a>(map: &mut HashMap<String, Board>, open: impl IntoIterator<Item = &'a str>) {
+    let open: std::collections::HashSet<&str> = open.into_iter().collect();
+    map.retain(|cid, _| open.contains(cid.as_str()));
+}
+
 fn with<R>(app: &AppHandle, channel_id: &str, f: impl FnOnce(&mut Board) -> R) -> Option<R> {
     let boards = app.try_state::<Boards>()?;
     let mut map = boards.0.lock().unwrap_or_else(|p| p.into_inner());
@@ -198,4 +211,22 @@ pub fn resolve_held(app: &AppHandle, channel_id: &str, message_id: &str) {
 pub fn add_suspicious(app: &AppHandle, channel_id: &str, item: SuspiciousItem) {
     with(app, channel_id, |b| push(&mut b.suspicious, item));
     emit(app, channel_id);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn r1_boards_of_closed_channels_are_dropped() {
+        let mut map: HashMap<String, Board> = HashMap::new();
+        for cid in ["1", "2", "3"] {
+            map.entry(cid.to_owned()).or_default().history = History::Done;
+        }
+        retain_open(&mut map, ["2", "9"]);
+        assert_eq!(map.len(), 1);
+        assert_eq!(map["2"].history, History::Done, "an open channel keeps its board");
+        retain_open(&mut map, []);
+        assert!(map.is_empty());
+    }
 }

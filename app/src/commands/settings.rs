@@ -129,6 +129,12 @@ pub async fn settings_import_file(
 /// V1041-02 Picks a Chatterino layout and looks its channels up. `None` = cancelled.
 #[tauri::command]
 pub async fn settings_chatterino_preview(app: AppHandle) -> CmdResult<Option<ImportReport>> {
+    // C1 Test builds: a layout file named in the environment instead of the picker,
+    // looked up without an account.
+    #[cfg(feature = "mocks")]
+    if let Ok(path) = std::env::var("CYEX_CHATTERINO_LAYOUT") {
+        return chatterino::preview_public(&app, std::path::Path::new(&path)).await.map(Some);
+    }
     // Said before the picker opens, not after.
     chatterino::account(&app)?;
     let mut dialog = app

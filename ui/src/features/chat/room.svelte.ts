@@ -8,6 +8,7 @@ import type { Pinned } from '../../ipc/bindings/Pinned';
 import type { RoomEvent } from '../../ipc/bindings/RoomEvent';
 import type { RoomState } from '../../ipc/bindings/RoomState';
 import { settings } from '../../lib/settings.svelte';
+import { CappedMap } from '../../lib/capped';
 import { errorText } from '../../lib/errors';
 import { nextPiece, prepend } from './historyDrip';
 
@@ -17,8 +18,9 @@ import { nextPiece, prepend } from './historyDrip';
  * screen 25 per frame (historyDrip.ts). */
 const maxLines = () => settings.v.chat?.scrollback ?? 1000;
 
-/** C5 Last message seen per tile, for the last-read line after switching tabs. */
-export const readMarks = new Map<string, string>();
+/** C5 Last message seen per tile, for the last-read line after switching tabs. L1 Capped:
+ *  closed tiles never come back. */
+export const readMarks = new CappedMap<string, string>(300);
 
 const EMPTY_STATE: RoomState = {
   channelId: null,
@@ -161,7 +163,19 @@ export class ChatRoom {
 
   /** V107-M1 One piece of queued history per frame, so a refill never draws 100 lines at once. */
   private drip(): void {
-    if (this.frame || this.closed) return;
+    if (this.closed) return;
+    // L2 Frames don't run in a hidden window: the queue would wait there. Nothing is drawn, so all of it goes in at once.
+    if (typeof document !== 'undefined' && document.hidden) {
+      if (this.frame) cancelAnimationFrame(this.frame);
+      this.frame = 0;
+      while (this.later.length && this.messages.length < maxLines()) {
+        const piece = nextPiece(this.later);
+        if (piece.length) this.set(prepend(this.messages, piece));
+      }
+      this.later = [];
+      return;
+    }
+    if (this.frame) return;
     this.frame = requestAnimationFrame(() => {
       this.frame = 0;
       // Full already: older lines would only drop off again.

@@ -17,3 +17,10 @@ export function saved(key: string): string | undefined {
   const file = files[key];
   return file ? base + encodeURIComponent(file) : undefined;
 }
+
+/** L1 The recording closed: its pictures are no longer used here (a later one sets its own). */
+export function dropSaved(recording: string): void {
+  if (base !== `${HOST}${encodeURIComponent(recording)}/`) return;
+  base = '';
+  files = {};
+}

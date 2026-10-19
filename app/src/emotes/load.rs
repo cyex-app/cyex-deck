@@ -5,13 +5,15 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use cyex_chat::model::Provider;
-use cyex_emotes::seventv::{self, socket::Topic as SevenTopic};
+use cyex_emotes::seventv::{self, socket::EventApi, socket::Topic as SevenTopic};
 use cyex_emotes::{Emote, EmoteSet, Lookup, Scope};
 use cyex_twitch::gql::{self, EmoteSet as TwitchSet};
-use cyex_twitch::{Http, helix};
+use cyex_twitch::pace::Service;
+use cyex_twitch::{Http, helix, ws};
 use tauri::{AppHandle, Emitter, Manager};
 
-use super::Emotes;
+use super::providers::Which;
+use super::{Channel, Emotes};
 use crate::auth::{Auth, gql_token, helix_scoped};
 
 /// An account's Twitch emotes are fetched again after this.
@@ -35,9 +37,13 @@ pub(super) fn globals(app: &AppHandle) {
     tauri::async_runtime::spawn(async move {
         let http = http(&app);
         let mut sets = Vec::new();
+        let mut seventv_failed = false;
         match seventv::api::global(&http).await {
             Ok(s) => sets.push(Arc::new(s)),
-            Err(e) => eprintln!("emotes: no 7TV globals: {}", e.describe("7TV")),
+            Err(e) => {
+                seventv_failed = Service::SevenTv.transient(&e);
+                eprintln!("emotes: no 7TV globals: {}", e.describe("7TV"));
+            }
         }
         sets.extend(super::providers::globals(&app, &http).await);
         let state = app.state::<Emotes>();
@@ -53,6 +59,9 @@ pub(super) fn globals(app: &AppHandle) {
         inner.rebuild_all();
         drop(inner);
         let _ = state.globals_ready.send(true);
+        if seventv_failed {
+            super::retry::seventv_globals(app.clone());
+        }
     });
 }
 
@@ -61,40 +70,61 @@ pub fn channel(app: AppHandle, login: String, id: String) {
     tauri::async_runtime::spawn(async move {
         let http = http(&app);
         let lane = crate::chat::shown::lane(&app, &login);
-        let (seven, others) = tokio::join!(
-            seventv::api::channel(&http, &id),
-            super::providers::channel(&http, &id, lane)
-        );
+        let got = super::providers::channel(&http, &id, lane, Which::ALL).await;
+        let failed = got.failed;
         let state = app.state::<Emotes>();
-        let mut topics = Vec::new();
         {
             let mut inner = state.lock();
             let Some(c) = inner.channels.get_mut(&login).filter(|c| c.id == id) else {
                 return;
             };
-            match seven {
-                Ok(Some(ch)) => {
-                    topics.push(SevenTopic::User(ch.user_id.clone()));
-                    c.seventv_user = Some(ch.user_id);
-                    if let Some(set) = ch.set {
-                        topics.push(SevenTopic::Set(set.id.clone()));
-                        c.sets.push(Arc::new(set));
-                    }
-                }
-                Ok(None) => {}
-                Err(e) => eprintln!("emotes: no 7TV emotes for {login}: {}", e.describe("7TV")),
+            if let Some(ch) = got.seventv {
+                put_seventv(&state.seventv, c, ch);
             }
-            c.sets.extend(others.0);
-            c.ffz_badges = others.1;
+            c.sets.extend(got.bttv);
+            c.sets.extend(got.ffz);
+            if let Some(b) = got.badges {
+                c.ffz_badges = b;
+            }
             let _ = c.ready.send(true);
             inner.rebuild(&login);
         }
-        for t in topics {
-            state.seventv.add(t);
-        }
         // Windows refresh what depends on it, e.g. FFZ's mod and VIP pictures.
         let _ = app.emit("emotes:loaded", &login);
+        if failed.any() {
+            super::retry::spawn(app, login, id, failed);
+        }
     });
+}
+
+/// E2 Puts a channel's 7TV account and set in, in place of what it had (a set switch may
+/// have come in first). Call it under the Emotes lock: a leave in between would miss
+/// the topics and leak them (V107-R1).
+pub(super) fn put_seventv(pool: &ws::Pool<EventApi>, c: &mut Channel, ch: seventv::api::Channel) {
+    pool.add(SevenTopic::User(ch.user_id.clone()));
+    if let Some(old) = c.seventv_user.replace(ch.user_id) {
+        pool.remove(&SevenTopic::User(old));
+    }
+    swap_seventv_set(pool, c, ch.set);
+}
+
+/// Swaps the channel's 7TV set and its topic, under the Emotes lock (V107-R1). The new
+/// topic goes on before the old comes off, so the same set stays subscribed.
+fn swap_seventv_set(pool: &ws::Pool<EventApi>, c: &mut Channel, set: Option<EmoteSet>) {
+    if let Some(s) = &set {
+        pool.add(SevenTopic::Set(s.id.clone()));
+    }
+    let old: Vec<String> = c
+        .sets
+        .iter()
+        .filter(|s| s.provider == Provider::Seventv)
+        .map(|s| s.id.clone())
+        .collect();
+    c.sets.retain(|s| s.provider != Provider::Seventv);
+    c.sets.extend(set.map(Arc::new));
+    for id in old {
+        pool.remove(&SevenTopic::Set(id));
+    }
 }
 
 /// Replaces a channel's 7TV set, e.g. after the channel switched sets.
@@ -112,28 +142,12 @@ pub fn seventv_set(app: AppHandle, login: String, set_id: Option<String>) {
             None => None,
         };
         let state = app.state::<Emotes>();
-        let old: Vec<String> = {
-            let mut inner = state.lock();
-            let Some(c) = inner.channels.get_mut(&login) else {
-                return;
-            };
-            let old = c
-                .sets
-                .iter()
-                .filter(|s| s.provider == Provider::Seventv)
-                .map(|s| s.id.clone())
-                .collect();
-            c.sets.retain(|s| s.provider != Provider::Seventv);
-            c.sets.extend(set.map(Arc::new));
-            inner.rebuild(&login);
-            old
+        let mut inner = state.lock();
+        let Some(c) = inner.channels.get_mut(&login) else {
+            return;
         };
-        for id in old {
-            state.seventv.remove(&SevenTopic::Set(id));
-        }
-        if let Some(id) = set_id {
-            state.seventv.add(SevenTopic::Set(id));
-        }
+        swap_seventv_set(&state.seventv, c, set);
+        inner.rebuild(&login);
     });
 }
 

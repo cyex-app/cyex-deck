@@ -125,7 +125,7 @@ pub fn open(app: &AppHandle, channel: &str, login: &str) -> tauri::Result<()> {
     // Placed in physical pixels while still hidden: the mouse may be on a monitor with
     // another scale than the one the window was created on, and Windows rescales it
     // when it moves there.
-    if let Some(p) = near_cursor(app, w, h) {
+    if let Some(p) = near_cursor(app, w, h).or_else(|| super::geometry::center_on_main(app, w, h)) {
         window.set_position(p)?;
     }
     app.state::<PanelRegistry>().insert(&label, &route);
@@ -140,6 +140,10 @@ pub fn open(app: &AppHandle, channel: &str, login: &str) -> tauri::Result<()> {
 /// places the chats opened from a `#channel` (V102-05).
 pub fn near_cursor(app: &AppHandle, w: f64, h: f64) -> Option<PhysicalPosition<i32>> {
     let cursor = app.cursor_position().ok()?;
+    // W1 Opened without the mouse on the app (keyboard, a test driver): not by the mouse.
+    if !super::geometry::over_app(app, cursor.x, cursor.y) {
+        return None;
+    }
     let monitor = app.monitor_from_point(cursor.x, cursor.y).ok().flatten()?;
     let scale = monitor.scale_factor();
     let area = monitor.work_area();

@@ -19,12 +19,12 @@ async fn seventv_sets() {
     let http = Http::new().unwrap();
     let global = seventv::api::global(&http).await.unwrap();
     assert!(global.emotes.iter().any(|e| e.zero_width));
-    let ch = seventv::api::channel(&http, XQC).await.unwrap().unwrap();
+    let ch = seventv::api::channel(&http, XQC, Lane::Front).await.unwrap().unwrap();
     let set = ch.set.unwrap();
     println!("7tv xqc: {} emotes, user {}", set.emotes.len(), ch.user_id);
     assert!(set.emotes.len() > 100);
     assert!(
-        seventv::api::channel(&http, "999999999999")
+        seventv::api::channel(&http, "999999999999", Lane::Front)
             .await
             .unwrap()
             .is_none()

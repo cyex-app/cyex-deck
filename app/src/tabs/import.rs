@@ -27,7 +27,8 @@ const SIGN_IN_AGAIN: &str =
 pub struct Picked(Mutex<Option<Lookup>>);
 
 struct Lookup {
-    account: String,
+    /// `None` joins anonymously (test builds only).
+    account: Option<String>,
     layout: Layout,
     found: HashMap<String, TabChannel>,
 }
@@ -72,35 +73,56 @@ pub async fn preview(app: &AppHandle, path: &Path) -> Result<ImportReport, Strin
     .await
     .map_err(lookup_error)?;
 
-    let lookup = Lookup {
-        account,
-        layout,
-        found,
-    };
-    let tabs: Tabs = app.state::<Settings>().read(Partition::Tabs);
-    let report = chatterino::plan(&lookup.layout, &lookup.found, &tabs).report;
-    *lock(app) = Some(lookup);
-    Ok(report)
+    Ok(keep(app, Some(account), layout, found))
+}
+
+/// C1 Test builds: looks the channels up on Twitch's public GQL instead of Helix, so no
+/// account is needed, and the tabs join anonymously.
+#[cfg(feature = "mocks")]
+pub async fn preview_public(app: &AppHandle, path: &Path) -> Result<ImportReport, String> {
+    let layout = read(path)?;
+    let http = app.state::<Auth>().http.clone();
+    let found = chatterino::resolve(&chatterino::names(&layout), |batch| {
+        let http = &http;
+        async move {
+            let users = cyex_twitch::gql::miner::streams_by_logins(http, &batch).await?;
+            let channels = users.into_iter().map(|u| TabChannel {
+                id: u.id,
+                login: u.login,
+                name: u.name,
+            });
+            Ok::<_, cyex_twitch::Error>(channels.collect())
+        }
+    })
+    .await
+    .map_err(lookup_error)?;
+    Ok(keep(app, None, layout, found))
+}
+
+fn keep(app: &AppHandle, account: Option<String>, layout: Layout, found: HashMap<String, TabChannel>) -> ImportReport {
+    let report = chatterino::plan(&layout, &found).report;
+    *lock(app) = Some(Lookup { account, layout, found });
+    report
 }
 
 /// Adds what the last preview found, chat only or with the stream, joined as the default
-/// account. Checked again against the tabs open now.
+/// account. C1 Channels open in other tabs go in too, sharing their chat room.
 pub fn confirm(app: &AppHandle, player: bool) -> Result<ImportReport, String> {
     let lookup = lock(app).take().ok_or("Pick the layout file again.")?;
     let account = auth::accounts(app).default_account().map(|a| a.user_id.clone());
-    if account.as_deref() != Some(lookup.account.as_str()) {
+    if lookup.account.is_some() && account != lookup.account {
         return Err("The default account changed. Pick the layout file again.".into());
     }
     let show = TileShow { player, chat: true };
     let mut report = ImportReport::default();
     app.state::<Settings>()
         .update::<Tabs>(app, Partition::Tabs, |tabs| {
-            let plan = chatterino::plan(&lookup.layout, &lookup.found, tabs);
+            let plan = chatterino::plan(&lookup.layout, &lookup.found);
             report = plan.report;
             if plan.tabs.is_empty() {
                 return false;
             }
-            tabs.import(plan.tabs, show, Some(lookup.account.clone()), &mut random_id);
+            tabs.import(plan.tabs, show, lookup.account.clone(), &mut random_id);
             true
         })?;
     Ok(report)

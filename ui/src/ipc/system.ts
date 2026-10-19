@@ -10,5 +10,7 @@ export const systemIpc = {
   clearPictureCache: () => invoke<void>('system_clear_picture_cache'),
   /** Bytes the picture cache takes on disk. */
   pictureCacheSize: () => invoke<number>('system_picture_cache_size'),
+  /** L2 One full garbage collection in the page process. At most every 5 min, whoever asks. */
+  trimMemory: () => invoke<void>('system_trim_memory'),
   openUpload: (url: string) => invoke<void>('upload_open_link', { url }),
 };

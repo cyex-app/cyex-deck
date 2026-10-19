@@ -51,13 +51,20 @@ export function openMenuAt(e: { currentTarget: EventTarget | null }, items: Menu
 
 export function closeMenu(): void {
   confirming.cancel();
+  shut();
+}
+
+/** L1 Closed menus keep no items: their run closures hold the chat or player they came from. */
+function shut(): void {
   menu.open = false;
+  menu.stack = [];
+  menu.armed = null;
 }
 
 export function pick(item: MenuItem): void {
   if (item.disabled) return;
   if (item.lock) {
-    menu.open = false;
+    shut();
     if (item.unlock) item.unlock();
     else gate.ask(item.lock);
     return;
@@ -68,7 +75,7 @@ export function pick(item: MenuItem): void {
     return;
   }
   if (!confirming.press(item, item.confirm)) return;
-  menu.open = false;
+  shut();
   item.run?.();
 }
 

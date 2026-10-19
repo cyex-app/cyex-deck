@@ -160,10 +160,24 @@ mod imp {
     pub fn set_min(window: &tauri::WebviewWindow, min: Centi) {
         subclass(window, pack(min));
     }
+
+    /// W1 Minimized and maximized as Windows has them now. tao sets its own maximized flag only
+    /// on WM_SIZE, after the move event of the same change, so a maximize was saved as a
+    /// normal rect the size of the monitor.
+    pub fn state(window: &tauri::Window) -> Option<(bool, bool)> {
+        let hwnd = window.hwnd().ok()?;
+        // SAFETY: only reads the state of a live window.
+        Some(unsafe { (IsIconic(hwnd).as_bool(), IsZoomed(hwnd).as_bool()) })
+    }
 }
 
 #[cfg(windows)]
-pub use imp::{attach, set_min};
+pub use imp::{attach, set_min, state};
+
+#[cfg(not(windows))]
+pub fn state(window: &tauri::Window) -> Option<(bool, bool)> {
+    Some((window.is_minimized().ok()?, window.is_maximized().ok()?))
+}
 
 #[cfg(not(windows))]
 pub fn attach(_window: &tauri::WebviewWindow) {}

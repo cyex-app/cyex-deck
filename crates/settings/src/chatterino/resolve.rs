@@ -76,7 +76,12 @@ pub(crate) mod testing {
 mod tests {
     use super::testing::{channel, now};
     use super::*;
-    use crate::chatterino::LayoutTab;
+    use crate::chatterino::{LayoutColumn, LayoutSplit, LayoutTab};
+
+    fn col(names: &[&str]) -> LayoutColumn {
+        let splits = names.iter().map(|n| LayoutSplit { name: (*n).into(), size: 1.0 }).collect();
+        LayoutColumn { size: 1.0, splits }
+    }
 
     #[test]
     fn logins() {
@@ -103,11 +108,11 @@ mod tests {
             tabs: vec![
                 LayoutTab {
                     title: None,
-                    columns: vec![vec!["b".into(), "a".into()], vec!["bad name".into()]],
+                    columns: vec![col(&["b", "a"]), col(&["bad name"])],
                 },
                 LayoutTab {
                     title: None,
-                    columns: vec![vec!["a".into(), "c".into()]],
+                    columns: vec![col(&["a", "c"])],
                 },
             ],
             ..Layout::default()

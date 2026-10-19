@@ -30,16 +30,20 @@
         open = false;
       }
     };
+    // L1 Also a cancelled pointer or a lost window: the move listener never stays behind.
+    const end = (e: Event) => {
+      removeEventListener('pointermove', watch);
+      removeEventListener('pointerup', end);
+      removeEventListener('pointercancel', end);
+      removeEventListener('blur', end);
+      // The click that may follow is the drag's own; the next press starts fresh.
+      if (e.type === 'pointerup') setTimeout(() => (dragged = false));
+      else dragged = false;
+    };
     addEventListener('pointermove', watch);
-    addEventListener(
-      'pointerup',
-      () => {
-        removeEventListener('pointermove', watch);
-        // The click that may follow is the drag's own; the next press starts fresh.
-        setTimeout(() => (dragged = false));
-      },
-      { once: true },
-    );
+    addEventListener('pointerup', end);
+    addEventListener('pointercancel', end);
+    addEventListener('blur', end);
   }
 
   function click(item: TrayItem) {

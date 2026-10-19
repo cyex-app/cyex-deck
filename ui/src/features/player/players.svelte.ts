@@ -7,6 +7,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import type { LinkTarget } from '../../ipc/bindings/LinkTarget';
 import type { TileShow } from '../../ipc/bindings/TileShow';
+import { CappedMap, useCapped } from '../../lib/capped';
 import { keyTaken } from '../../lib/escape';
 import { settings } from '../../lib/settings.svelte';
 import { currentWindow } from '../../lib/window.svelte';
@@ -160,10 +161,11 @@ export class TileState {
   stories = $state(false);
 }
 
-const states = new Map<string, TileState>();
+/** L1 Capped: closed tiles never come back, and a use keeps a tile among the newest. */
+const states = new CappedMap<string, TileState>(200);
 
 export function tileState(id: string): TileState {
-  let s = states.get(id);
+  let s = useCapped(states, id);
   if (!s) {
     s = new TileState();
     states.set(id, s);

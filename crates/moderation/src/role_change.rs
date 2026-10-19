@@ -97,6 +97,23 @@ pub fn swapped(who: &str, moderator: bool) -> String {
     }
 }
 
+/// V107-M8 Whether a VIP grant failed for want of slots: GQL `MAX_VIPS_REACHED`, Helix 409.
+/// Helix has no slot count to check first, so a swap only learns it from the grant.
+pub fn no_slots(moderator: bool, code: &str, status: u16) -> bool {
+    !moderator && (code.eq_ignore_ascii_case("MAX_VIPS_REACHED") || status == 409)
+}
+
+/// V107-M8 The grant after taking the other role away failed, so the old role is put back
+/// (any reason: nobody should end up with neither). The chat line; `restored`: it is back.
+pub fn grant_failed(who: &str, moderator: bool, why: &str, slots: bool, restored: bool) -> String {
+    if !restored {
+        return half_done(who, moderator, why);
+    }
+    let (new, old) = if moderator { ("a mod", "VIP") } else { ("VIP", "mod") };
+    let why = if slots { "no VIP slots left" } else { why.trim_end_matches('.') };
+    format!("Couldn’t make {who} {new}: {why}. Kept them {old}.")
+}
+
 /// The other role went, the grant didn't.
 pub fn half_done(who: &str, moderator: bool, why: &str) -> String {
     let why = why.trim_end_matches('.');
@@ -139,6 +156,19 @@ mod tests {
         assert_eq!(swapped("bob", true), "Removed bob as VIP and made them a mod.");
         assert_eq!(swapped("bob", false), "Removed bob as mod and made them a VIP.");
         assert_eq!(half_done("bob", true, "No user called bob."), "Removed bob as VIP, but couldn’t make them a mod: No user called bob.");
+    }
+
+    #[test]
+    fn v107_m8_failed_grant_rolls_back() {
+        assert!(no_slots(false, "MAX_VIPS_REACHED", 0));
+        assert!(no_slots(false, "max_vips_reached", 0));
+        assert!(no_slots(false, "", 409));
+        assert!(!no_slots(true, "", 409), "only VIPs have slots");
+        assert!(!no_slots(false, "FORBIDDEN", 403));
+        assert_eq!(grant_failed("bob", false, "No VIP slots left.", true, true), "Couldn’t make bob VIP: no VIP slots left. Kept them mod.");
+        assert_eq!(grant_failed("bob", true, "You can’t do that here.", false, true), "Couldn’t make bob a mod: You can’t do that here. Kept them VIP.");
+        // Putting it back failed too: say what's left.
+        assert_eq!(grant_failed("bob", false, "No VIP slots left.", true, false), "Removed bob as mod, but couldn’t make them a VIP: No VIP slots left.");
     }
 
     #[test]

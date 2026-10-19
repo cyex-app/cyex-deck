@@ -264,6 +264,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         system::system_open_chat_link,
         system::system_clear_picture_cache,
         system::system_picture_cache_size,
+        system::system_trim_memory,
         tabs::tabs_apply,
         tabs::tabs_reopen,
         tabs::tabs_reopenable,

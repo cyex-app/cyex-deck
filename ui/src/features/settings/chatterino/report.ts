@@ -37,7 +37,6 @@ export function leftOut(r: ImportReport): Line[] {
   const add = (label: string, n: number, text: string) => {
     if (n) lines.push({ label: `${label} (${formatNumber(n)})`, text });
   };
-  add('Already open', r.alreadyOpen.length, r.alreadyOpen.join(', '));
   const kinds = new Map<string, number>();
   for (const { kind, count } of r.notChannels) kinds.set(KINDS[kind], (kinds.get(KINDS[kind]) ?? 0) + count);
   const skipped = [...kinds].map(([label, n]) => (n > 1 ? `${label} ×${formatNumber(n)}` : label));

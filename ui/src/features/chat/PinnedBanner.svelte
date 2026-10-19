@@ -187,7 +187,7 @@
   const sender = $derived(pin.message.sender);
   const name = $derived(sender ? shownName(sender, c.names, c.users[sender.id]) : null);
   /** V107-P5 Who pinned it, for their usercard; older reads had only the display name. */
-  const byLogin = $derived(pin.byLogin ?? (pin.by && /^w+$/.test(pin.by) ? pin.by.toLowerCase() : null));
+  const byLogin = $derived(pin.byLogin ?? (pin.by && /^\w+$/.test(pin.by) ? pin.by.toLowerCase() : null));
 
   /** V107-P5 A name opens its usercard, like a name in chat. */
   function usercard(login: string) {

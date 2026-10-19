@@ -24,6 +24,8 @@
   $effect(() => {
     let stop: (() => void) | undefined;
     let gone = false;
+    // L1 Bursts still in the air end with the player.
+    const timers = new Set<ReturnType<typeof setTimeout>>();
     void chatxIpc
       .onCelebration((c) => {
         if (c.channel !== login || !settings.v.chat.effects) return;
@@ -37,12 +39,18 @@
           drift: (Math.random() - 0.5) * 120,
         }));
         pieces = [...pieces, ...burst];
-        setTimeout(() => (pieces = pieces.filter((p) => !burst.includes(p))), LIFE_MS);
+        const t = setTimeout(() => {
+          timers.delete(t);
+          pieces = pieces.filter((p) => !burst.includes(p));
+        }, LIFE_MS);
+        timers.add(t);
       })
       .then((u) => (gone ? u() : (stop = u)));
     return () => {
       gone = true;
       stop?.();
+      for (const t of timers) clearTimeout(t);
+      if (timers.size) pieces = [];
     };
   });
 </script>

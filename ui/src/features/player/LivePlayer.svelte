@@ -106,7 +106,9 @@
   // Network trouble: a fresh session, three times, then a button. A rewound one tries the same spot.
   $effect(() => {
     if (engine?.failure !== 'network' || tries >= 3) return;
-    retry = setTimeout(() => engine && void start(engine, engine.choice, login, account, false, engine.dvr ? engine.time : null), 3000 * ++tries);
+    const t = (retry = setTimeout(() => engine && void start(engine, engine.choice, login, account, false, engine.dvr ? engine.time : null), 3000 * ++tries));
+    // L1 Never a second timer: one left behind could start a stream after this player is gone.
+    return () => clearTimeout(t);
   });
 
   // V1061-03 Twitch's Stream Rewind, where Twitch allows it.

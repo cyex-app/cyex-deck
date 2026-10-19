@@ -12,6 +12,8 @@ use crate::model::{ChatMessage, Flag, ModRole, plain};
 
 const GAP_MS: i64 = 1500;
 const WINDOW_MS: i64 = 30_000;
+/// V107-R1 Per-person cooldowns a chat holds before the run-out ones are swept.
+const MAX_USER_COOLDOWNS: usize = 512;
 
 /// A rule that went off.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -85,11 +87,23 @@ impl Automations {
             return None;
         }
         let sender = m.sender.as_ref()?;
+        // V107-R1 No state for chats no rule is for.
+        if !self.rules.iter().any(|r| r.cfg.enabled && r.cfg.channels.iter().any(|c| c == channel)) {
+            return None;
+        }
         let text = plain(&m.body);
         let text = text.trim();
         let chat = self.chats.entry(channel.to_owned()).or_default();
         while chat.sent.front().is_some_and(|t| now_ms - t > WINDOW_MS) {
             chat.sent.pop_front();
+        }
+        if chat.user_at.len() >= MAX_USER_COOLDOWNS {
+            let rules = &self.rules;
+            chat.user_at.retain(|(i, _), t| {
+                rules
+                    .get(*i)
+                    .is_some_and(|r| now_ms - *t < i64::from(r.cfg.user_cooldown_secs) * 1000)
+            });
         }
         for (i, rule) in self.rules.iter_mut().enumerate() {
             let a = &rule.cfg;
@@ -249,5 +263,35 @@ mod tests {
             a.check("chan", &msg("moderator/1", "hello"), false, 31_000)
                 .is_some()
         );
+    }
+
+    #[test]
+    fn v107_r1_cooldowns_stay_bounded_and_other_chats_keep_nothing() {
+        let mut a = Automations::new(&Commands {
+            automations_on: true,
+            automations: vec![Automation {
+                channels: vec!["chan".into()],
+                trigger: "hi".into(),
+                cooldown_secs: 0,
+                user_cooldown_secs: 60,
+                ..Automation::default()
+            }],
+            automation_limit: 20,
+            ..Commands::default()
+        });
+        let mut fired = 0;
+        for i in 0..5_000i64 {
+            let raw = format!("@id=m{i};user-id={i} :u{i}!u@u PRIVMSG #chan :hi");
+            let mut colors = Default::default();
+            let mut ctx = Ctx::new(None, &mut colors, 0);
+            let Some(Incoming::Message(m)) = build(&Line::parse(&raw).unwrap(), &mut ctx) else {
+                panic!()
+            };
+            fired += usize::from(a.check("chan", &m, false, i * 2_000).is_some());
+            assert!(a.check(&format!("other{i}"), &m, false, i * 2_000).is_none());
+        }
+        assert_eq!(fired, 5_000);
+        assert_eq!(a.chats.len(), 1);
+        assert!(a.chats["chan"].user_at.len() <= MAX_USER_COOLDOWNS);
     }
 }

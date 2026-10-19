@@ -339,6 +339,9 @@ async fn swap_role(app: &AppHandle, actor: &Actor, who: &str, mod_role: bool) ->
         feeds::own_role(app, &actor.channel_id, gone, who, m);
         feeds::own_role(app, &actor.channel_id, got, who, m);
     };
+    // What can be checked before anything goes: a token that may grant. Slots can't be
+    // (Helix has no count), so a refused grant puts the old role back below.
+    can_step(app, actor, mod_role)?;
     mark(true);
     if let Err(r) = role_step(app, actor, who, !mod_role, false).await {
         mark(false);
@@ -346,9 +349,19 @@ async fn swap_role(app: &AppHandle, actor: &Actor, who: &str, mod_role: bool) ->
     }
     standing::changed(app, &actor.channel, who, !mod_role, false);
     if let Err(r) = role_step(app, actor, who, mod_role, true).await {
-        mark(false);
-        // The first step's echo may be gone already: chat says what happened too.
-        let line = rc::half_done(who, mod_role, &r.text);
+        // Nobody should end up with neither: the old role goes back, its echo adds no line.
+        let back = rc::action(!mod_role, true);
+        feeds::own_role(app, &actor.channel_id, back, who, true);
+        let restored = role_step(app, actor, who, !mod_role, true).await.is_ok();
+        feeds::own_role(app, &actor.channel_id, got, who, false);
+        if restored {
+            standing::changed(app, &actor.channel, who, !mod_role, true);
+        } else {
+            feeds::own_role(app, &actor.channel_id, gone, who, false);
+            feeds::own_role(app, &actor.channel_id, back, who, false);
+        }
+        // The echoes may be gone already: chat says what happened too.
+        let line = rc::grant_failed(who, mod_role, &r.text, r.slots, restored);
         crate::chat::notice_line(app, &actor.channel, cyex_chat::model::NoticeKind::Moderation, &line);
         return Err(line);
     }
@@ -361,25 +374,38 @@ async fn swap_role(app: &AppHandle, actor: &Actor, who: &str, mod_role: bool) ->
 struct RoleRefused {
     text: String,
     clash: bool,
+    /// V107-M8 A VIP grant with no slots left.
+    slots: bool,
 }
 
 impl From<&str> for RoleRefused {
     fn from(text: &str) -> Self {
-        RoleRefused { text: text.into(), clash: false }
+        text.to_owned().into()
     }
 }
 
 impl From<String> for RoleRefused {
     fn from(text: String) -> Self {
-        RoleRefused { text, clash: false }
+        RoleRefused { text, clash: false, slots: false }
     }
+}
+
+/// 1.50 Helix takes only the broadcaster's token; lead mods (and mods, Twitch decides) use GQL.
+fn role_helix<'a>(app: &AppHandle, actor: &'a Actor, mod_role: bool) -> Option<cyex_twitch::helix::Auth<'a>> {
+    let scope = if mod_role { "channel:manage:moderators" } else { "channel:manage:vips" };
+    if actor.role == ModRole::Broadcaster { actor.helix_scoped(app, scope) } else { None }
+}
+
+/// V107-M8 Whether this account has a way to change `mod_role` at all, before a swap takes
+/// anything away.
+fn can_step(app: &AppHandle, actor: &Actor, mod_role: bool) -> Result<(), String> {
+    let helix = role_helix(app, actor, mod_role).is_some();
+    cyex_moderation::role_change::path(actor.role, helix, actor.gql().is_some()).map(|_| ()).map_err(Into::into)
 }
 
 async fn role_step(app: &AppHandle, actor: &Actor, who: &str, mod_role: bool, on: bool) -> Result<(), RoleRefused> {
     use cyex_moderation::role_change::{self as rc, Path};
-    // 1.50 Helix takes only the broadcaster's token; lead mods (and mods, Twitch decides) use GQL.
-    let scope = if mod_role { "channel:manage:moderators" } else { "channel:manage:vips" };
-    let helix = if actor.role == ModRole::Broadcaster { actor.helix_scoped(app, scope) } else { None };
+    let helix = role_helix(app, actor, mod_role);
     let gql = actor.gql();
     match rc::path(actor.role, helix.is_some(), gql.is_some())? {
         Path::Helix => {
@@ -390,6 +416,7 @@ async fn role_step(app: &AppHandle, actor: &Actor, who: &str, mod_role: bool, on
                 .map_err(|e| RoleRefused {
                     // V107-M8 422: "the user is a VIP/moderator, you must first remove them".
                     clash: on && status(&e) == 422,
+                    slots: on && rc::no_slots(mod_role, "", status(&e)),
                     text: codes::helix(status(&e), e.api_message().unwrap_or("")),
                 })
         }
@@ -399,6 +426,7 @@ async fn role_step(app: &AppHandle, actor: &Actor, who: &str, mod_role: bool, on
                 Ok(None) => Ok(()),
                 Ok(Some(code)) => Err(RoleRefused {
                     clash: on && rc::clash_code(mod_role, &code),
+                    slots: on && rc::no_slots(mod_role, &code, 0),
                     text: rc::refused(actor.role, &code, codes::gql(&code, who)),
                 }),
                 Err(e) => Err(rc::refused(actor.role, &e.to_string(), e.to_string()).into()),

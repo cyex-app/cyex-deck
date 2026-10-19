@@ -72,6 +72,39 @@ pub async fn system_picture_cache_size(app: AppHandle) -> u64 {
         .unwrap_or(0)
 }
 
+/// L2 Least time between two collections, whichever window asks (they share one page process).
+const TRIM_GAP: std::time::Duration = std::time::Duration::from_secs(5 * 60);
+
+/// L2 One full garbage collection in the app's page process. Chat churns the page's DOM
+/// heap; its freed space only goes back with a full collection, which a busy shown page
+/// rarely gets (soak: +0,5-2 MB/min, all of it given back by one, ~20 ms). The UI asks
+/// every 10 min once the user is idle; hidden windows already give memory back (D28).
+#[tauri::command]
+pub async fn system_trim_memory(app: AppHandle) -> CmdResult<()> {
+    use std::sync::Mutex;
+    use std::time::Instant;
+    use tauri::Manager;
+    static LAST: Mutex<Option<Instant>> = Mutex::new(None);
+    {
+        let mut last = LAST.lock().unwrap_or_else(|p| p.into_inner());
+        let now = Instant::now();
+        if !trim_due(*last, now) {
+            return Ok(());
+        }
+        *last = Some(now);
+    }
+    let main = app
+        .get_webview_window(crate::windows::MAIN)
+        .ok_or("The main window isn’t open.")?;
+    // Best effort: an older WebView2 or a failed call just leaves memory as it is.
+    let _ = crate::sys::devtools::call(&main, "HeapProfiler.collectGarbage", "{}".into()).await;
+    Ok(())
+}
+
+fn trim_due(last: Option<std::time::Instant>, now: std::time::Instant) -> bool {
+    last.is_none_or(|l| now.saturating_duration_since(l) >= TRIM_GAP)
+}
+
 fn is_web(url: &str) -> bool {
     Url::parse(url).is_ok_and(|u| matches!(u.scheme(), "http" | "https") && u.host_str().is_some())
 }
@@ -83,7 +116,16 @@ fn is_allowed(url: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_allowed, is_web};
+    use super::{TRIM_GAP, is_allowed, is_web, trim_due};
+
+    #[test]
+    fn trims_at_most_every_five_minutes() {
+        let t = std::time::Instant::now();
+        assert!(trim_due(None, t));
+        assert!(!trim_due(Some(t), t));
+        assert!(!trim_due(Some(t), t + TRIM_GAP - std::time::Duration::from_secs(1)));
+        assert!(trim_due(Some(t), t + TRIM_GAP));
+    }
 
     #[test]
     fn chat_links_are_web_only() {

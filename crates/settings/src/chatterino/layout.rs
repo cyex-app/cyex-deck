@@ -31,7 +31,7 @@ pub enum SplitKind {
     Other,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Layout {
     /// Tabs with at least one Twitch channel: the windows in order, then their tabs.
     pub tabs: Vec<LayoutTab>,
@@ -39,12 +39,28 @@ pub struct Layout {
     pub skipped: BTreeMap<SplitKind, u32>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct LayoutTab {
     /// The custom title, if the tab has one.
     pub title: Option<String>,
-    /// Channel names, lowercase without `#`: left to right, each column top to bottom.
-    pub columns: Vec<Vec<String>>,
+    /// Left to right, each column top to bottom.
+    pub columns: Vec<LayoutColumn>,
+}
+
+/// C1 Sizes are shares like Chatterino's `flexh` and `flexv`: only their ratio counts.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LayoutColumn {
+    /// Width share within the tab.
+    pub size: f32,
+    pub splits: Vec<LayoutSplit>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct LayoutSplit {
+    /// Lowercase, without `#`.
+    pub name: String,
+    /// Height share within the column.
+    pub size: f32,
 }
 
 /// The file isn't a window layout.
@@ -53,7 +69,7 @@ pub struct NotALayout;
 
 impl LayoutTab {
     pub fn channels(&self) -> impl Iterator<Item = &String> {
-        self.columns.iter().flatten()
+        self.columns.iter().flat_map(|c| c.splits.iter().map(|s| &s.name))
     }
 }
 
@@ -90,42 +106,69 @@ pub fn parse(text: &str) -> Result<Layout, NotALayout> {
 
 impl Layout {
     /// `splits2` is a tree of splits in horizontal and vertical containers since 2.0;
-    /// older files have `splits`, a list of columns. A horizontal root keeps its columns;
-    /// anything else becomes one column, except a lone merged split, which spreads out.
-    fn columns(&mut self, tab: &Value) -> Vec<Vec<String>> {
-        let columns = match tab.get("splits2").filter(|r| r.is_object()) {
+    /// older files have `splits`, a list of columns. A horizontal container's items are
+    /// columns (a horizontal one inside spreads into more columns); anything below a
+    /// column is stacked in order. A lone merged split spreads out. C1 Sizes follow
+    /// `flexh` and `flexv` at every depth.
+    fn columns(&mut self, tab: &Value) -> Vec<LayoutColumn> {
+        let mut columns = Vec::new();
+        match tab.get("splits2").filter(|r| r.is_object()) {
             Some(root) => match kind(root) {
-                "split" => self
-                    .split(root.get("data"))
-                    .into_iter()
-                    .map(|c| vec![c])
-                    .collect(),
-                "horizontal" => root.get("items").map_or_else(Vec::new, |items| {
-                    list(items).map(|item| self.leaves(item)).collect()
-                }),
-                "vertical" => vec![self.leaves(root)],
-                _ => Vec::new(),
+                "split" => {
+                    for name in self.split(root.get("data")) {
+                        columns.push(column(1.0, vec![LayoutSplit { name, size: 1.0 }]));
+                    }
+                }
+                "horizontal" => self.row(root, 1.0, &mut columns),
+                "vertical" => {
+                    let mut splits = Vec::new();
+                    self.stack(root, 1.0, &mut splits);
+                    columns.push(column(1.0, splits));
+                }
+                _ => {}
             },
-            None => tab.get("splits").map_or_else(Vec::new, |cols| {
-                list(cols)
-                    .map(|col| list(col).flat_map(|s| self.split(Some(s))).collect())
-                    .collect()
-            }),
-        };
+            None => {
+                for col in tab.get("splits").map(list).into_iter().flatten() {
+                    let splits = list(col)
+                        .flat_map(|s| self.split(Some(s)))
+                        .map(|name| LayoutSplit { name, size: 1.0 })
+                        .collect();
+                    columns.push(column(1.0, splits));
+                }
+            }
+        }
+        columns.retain(|c| !c.splits.is_empty());
         columns
-            .into_iter()
-            .filter(|c: &Vec<String>| !c.is_empty())
-            .collect()
     }
 
-    /// Every channel under a node, in order. Like Chatterino, an item that isn't a split
-    /// is read as a container.
-    fn leaves(&mut self, node: &Value) -> Vec<String> {
-        if kind(node) == "split" {
-            return self.split(node.get("data"));
+    /// A horizontal container's items as columns, `share` of the tab's width split by
+    /// their `flexh`.
+    fn row(&mut self, node: &Value, share: f32, out: &mut Vec<LayoutColumn>) {
+        for (item, part) in shares(node, "flexh", share) {
+            if kind(item) == "horizontal" {
+                self.row(item, part, out);
+            } else {
+                let mut splits = Vec::new();
+                self.stack(item, 1.0, &mut splits);
+                out.push(column(part, splits));
+            }
         }
-        let items: Vec<&Value> = node.get("items").map(|i| list(i).collect()).unwrap_or_default();
-        items.into_iter().flat_map(|item| self.leaves(item)).collect()
+    }
+
+    /// Every channel under a node, in order, `share` of the column's height each. A
+    /// vertical container splits it by `flexv`; anything else that isn't a split (like
+    /// Chatterino, read as a container) is stacked here, split by `flexh`.
+    fn stack(&mut self, node: &Value, share: f32, out: &mut Vec<LayoutSplit>) {
+        if kind(node) == "split" {
+            let names = self.split(node.get("data"));
+            let each = share / names.len().max(1) as f32;
+            out.extend(names.into_iter().map(|name| LayoutSplit { name, size: each }));
+            return;
+        }
+        let axis = if kind(node) == "vertical" { "flexv" } else { "flexh" };
+        for (item, part) in shares(node, axis, share) {
+            self.stack(item, part, out);
+        }
     }
 
     /// A split's channels: one, or a merged split's Twitch ones (forks). The rest is
@@ -205,6 +248,22 @@ fn kind(v: &Value) -> &str {
     v.get("type").and_then(Value::as_str).unwrap_or("")
 }
 
+fn column(size: f32, splits: Vec<LayoutSplit>) -> LayoutColumn {
+    LayoutColumn { size, splits }
+}
+
+/// A container's items with their part of `share`, by `axis` (`flexh` or `flexv`).
+/// A missing, zero or broken flex counts as 1, like Chatterino before 2.3.
+fn shares<'a>(node: &'a Value, axis: &str, share: f32) -> Vec<(&'a Value, f32)> {
+    let items: Vec<&Value> = node.get("items").map(|i| list(i).collect()).unwrap_or_default();
+    let flex = |v: &Value| {
+        let f = v.get(axis).and_then(Value::as_f64).unwrap_or(1.0) as f32;
+        if f.is_finite() && f > 0.0 { f } else { 1.0 }
+    };
+    let sum: f32 = items.iter().map(|i| flex(i)).sum();
+    items.into_iter().map(|i| (i, share * flex(i) / sum)).collect()
+}
+
 fn list(v: &Value) -> impl Iterator<Item = &Value> {
     v.as_array().into_iter().flatten()
 }
@@ -223,21 +282,35 @@ mod tests {
         std::fs::read_to_string(path).unwrap()
     }
 
-    fn tab(title: Option<&str>, columns: &[&[&str]]) -> LayoutTab {
-        LayoutTab {
-            title: title.map(Into::into),
-            columns: columns
-                .iter()
-                .map(|c| c.iter().map(|s| (*s).to_owned()).collect())
-                .collect(),
-        }
+type Shape = (Option<String>, Vec<Vec<String>>);
+
+    fn tab(title: Option<&str>, columns: &[&[&str]]) -> Shape {
+        let columns = columns
+            .iter()
+            .map(|c| c.iter().map(|s| (*s).to_owned()).collect())
+            .collect();
+        (title.map(Into::into), columns)
+    }
+
+    /// Titles and channel names, sizes left out.
+    fn shape(tabs: &[LayoutTab]) -> Vec<Shape> {
+        tabs.iter()
+            .map(|t| {
+                let columns = t
+                    .columns
+                    .iter()
+                    .map(|c| c.splits.iter().map(|s| s.name.clone()).collect())
+                    .collect();
+                (t.title.clone(), columns)
+            })
+            .collect()
     }
 
     #[test]
     fn current_layout_keeps_windows_tabs_and_splits_in_order() {
         let layout = parse(&fixture("current.json")).unwrap();
         assert_eq!(
-            layout.tabs,
+            shape(&layout.tabs),
             [
                 tab(Some("Morning"), &[&["alpha_one"]]),
                 tab(None, &[&["bravo_two"], &["charlie_three"]]),
@@ -266,7 +339,7 @@ mod tests {
     fn old_layouts_read_their_columns_and_irc() {
         let layout = parse(&fixture("legacy.json")).unwrap();
         assert_eq!(
-            layout.tabs,
+            shape(&layout.tabs),
             [
                 tab(Some("Old"), &[&["hotel_eight", "india_nine"], &["juliet_ten"]]),
                 tab(None, &[&["kilo_eleven"]]),
@@ -288,7 +361,7 @@ mod tests {
     fn fork_layouts_keep_twitch_and_count_the_rest() {
         let layout = parse(&fixture("forks.json")).unwrap();
         assert_eq!(
-            layout.tabs,
+            shape(&layout.tabs),
             [
                 tab(Some("Merged"), &[&["lima_twelve"], &["mike_thirteen"]]),
                 tab(None, &[&["november_14"], &["oscar_15", "papa_16"]]),
@@ -324,5 +397,120 @@ mod tests {
         assert_eq!(parse("\u{feff}{\"windows\":[]}"), Ok(Layout::default()));
         let odd = r#"{"windows":[5,{"tabs":7},{"tabs":[3,{"splits2":[]},{"splits2":{"type":"grid"}}]}]}"#;
         assert_eq!(parse(odd), Ok(Layout::default()));
+    }
+
+    /// Sizes as (column share, [split shares]), rounded to 4 places.
+    fn sizes(t: &LayoutTab) -> Vec<(f32, Vec<f32>)> {
+        let r = |v: f32| (v * 10_000.0).round() / 10_000.0;
+        t.columns
+            .iter()
+            .map(|c| (r(c.size), c.splits.iter().map(|s| r(s.size)).collect()))
+            .collect()
+    }
+
+    #[test]
+    fn c1_comfi_keeps_all_nine_splits_and_their_sizes() {
+        let layout = parse(&fixture("comfi.json")).unwrap();
+        assert_eq!(
+            shape(&layout.tabs),
+            [tab(
+                Some("Comfi"),
+                &[
+                    &["zjbw", "aussieantics"],
+                    &["lilb_lxryer", "cakefire_"],
+                    &["cnfz", "jannik_vdb"],
+                    &["stableronaldo", "rvbies", "potatbotat"],
+                ]
+            )]
+        );
+        assert_eq!(
+            sizes(&layout.tabs[0]),
+            [
+                (0.25, vec![0.5, 0.5]),
+                (0.2518, vec![0.8188, 0.1812]),
+                (0.2491, vec![0.5, 0.5]),
+                (0.2491, vec![0.3333, 0.3333, 0.3333]),
+            ]
+        );
+        assert!(layout.skipped.is_empty());
+    }
+
+    fn split(name: &str, flexh: f32, flexv: f32) -> String {
+        format!(r#"{{"type":"split","flexh":{flexh},"flexv":{flexv},"data":{{"type":"twitch","name":"{name}"}}}}"#)
+    }
+
+    fn container(kind: &str, flexh: f32, flexv: f32, items: &[String]) -> String {
+        format!(
+            r#"{{"type":"{kind}","flexh":{flexh},"flexv":{flexv},"items":[{}]}}"#,
+            items.join(",")
+        )
+    }
+
+    fn one_tab(root: &str) -> LayoutTab {
+        let text = format!(r#"{{"windows":[{{"tabs":[{{"splits2":{root}}}]}}]}}"#);
+        let mut layout = parse(&text).unwrap();
+        assert_eq!(layout.tabs.len(), 1);
+        layout.tabs.remove(0)
+    }
+
+    #[test]
+    fn c1_nested_containers_at_any_depth() {
+        // horizontal > [vertical > [a, horizontal > [b, vertical > [c, d]]], horizontal > [e, f]]
+        let inner = container("vertical", 1.0, 1.0, &[split("c", 1.0, 3.0), split("d", 1.0, 1.0)]);
+        let middle = container("horizontal", 1.0, 3.0, &[split("b", 1.0, 1.0), inner]);
+        let deep = container("vertical", 3.0, 1.0, &[split("a", 1.0, 1.0), middle]);
+        let side = container("horizontal", 1.0, 1.0, &[split("e", 1.0, 1.0), split("f", 3.0, 1.0)]);
+        let t = one_tab(&container("horizontal", 1.0, 1.0, &[deep, side]));
+        assert_eq!(
+            shape(std::slice::from_ref(&t)),
+            [tab(None, &[&["a", "b", "c", "d"], &["e"], &["f"]])]
+        );
+        // a gets a quarter of its column; b and c + d split the rest in half, c + d by 3:1.
+        // The horizontal one beside it spreads into two columns.
+        assert_eq!(
+            sizes(&t),
+            [
+                (0.75, vec![0.25, 0.375, 0.2813, 0.0938]),
+                (0.0625, vec![1.0]),
+                (0.1875, vec![1.0]),
+            ]
+        );
+    }
+
+    #[test]
+    fn c1_single_items_three_items_and_missing_flex() {
+        let single = container("vertical", 1.0, 1.0, &[split("solo", 1.0, 1.0)]);
+        let three = container(
+            "vertical",
+            2.0,
+            1.0,
+            &[split("x", 1.0, 1.0), split("y", 1.0, 2.0), split("z", 1.0, 1.0)],
+        );
+        // 2.1 wrote no flex at all; zero and negative ones count as 1 too.
+        let bare = r#"{"type":"vertical","flexh":0,"items":[{"type":"split","flexv":-2,"data":{"type":"twitch","name":"p"}},{"type":"split","data":{"type":"twitch","name":"q"}}]}"#;
+        let t = one_tab(&container("horizontal", 1.0, 1.0, &[single, three, bare.to_owned()]));
+        assert_eq!(
+            shape(std::slice::from_ref(&t)),
+            [tab(None, &[&["solo"], &["x", "y", "z"], &["p", "q"]])]
+        );
+        assert_eq!(
+            sizes(&t),
+            [(0.25, vec![1.0]), (0.5, vec![0.25, 0.5, 0.25]), (0.25, vec![0.5, 0.5])]
+        );
+        // A vertical root is one column, a lone split too.
+        let v = one_tab(&container("vertical", 1.0, 1.0, &[split("m", 1.0, 1.0), split("n", 1.0, 3.0)]));
+        assert_eq!(sizes(&v), [(1.0, vec![0.25, 0.75])]);
+        assert_eq!(sizes(&one_tab(&split("k", 5.0, 5.0))), [(1.0, vec![1.0])]);
+    }
+
+    #[test]
+    fn c1_the_same_channel_stays_in_every_split_and_tab() {
+        let layout = parse(&fixture("comfi-tabs.json")).unwrap();
+        let shapes = shape(&layout.tabs);
+        assert_eq!(shapes[0], tab(None, &[&["lilb_lxryer"]]));
+        assert_eq!(shapes[1], tab(None, &[&["jannik_vdb"]]));
+        assert_eq!(layout.tabs[2].channels().count(), 9);
+        let twice = one_tab(&container("vertical", 1.0, 1.0, &[split("dup", 1.0, 1.0), split("dup", 1.0, 1.0)]));
+        assert_eq!(twice.channels().collect::<Vec<_>>(), ["dup", "dup"]);
     }
 }

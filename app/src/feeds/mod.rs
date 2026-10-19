@@ -63,20 +63,31 @@ pub struct FeedsOpened {
 
 type View = Channel<Vec<KindEvent>>;
 
+/// A tab streaming one kind, and the window it's in.
+struct Tab {
+    id: u32,
+    kind: FeedKind,
+    window: String,
+    channel: View,
+}
+
 /// Lock order: `views` then `rings`, always (R3).
 #[derive(Default)]
 struct Store {
     rings: Mutex<HashMap<FeedKind, Ring<FeedEntry>>>,
-    views: Mutex<Vec<(u32, FeedKind, View)>>,
+    views: Mutex<Vec<Tab>>,
     next: AtomicU32,
 }
 
 impl Store {
     /// R3 Changes one kind's ring and sends what `events` makes of the result, holding `views`
     /// the whole time, so a view opening meanwhile never gets an entry its snapshot has.
+    /// V107-R1 Views whose window is gone (`alive` says no) leave on the way: a closed
+    /// window's channel still takes sends without an error, so it never left before.
     fn change<R>(
         &self,
         kind: FeedKind,
+        alive: impl Fn(&str) -> bool,
         f: impl FnOnce(&mut Ring<FeedEntry>) -> R,
         events: impl FnOnce(&R) -> Vec<KindEvent>,
     ) -> R {
@@ -86,20 +97,23 @@ impl Store {
             f(rings.entry(kind).or_insert_with(|| Ring::new(cap(kind))))
         };
         let events = events(&out);
-        if !events.is_empty() {
-            views.retain(|v| v.1 != kind || v.2.send(events.clone()).is_ok());
-        }
+        views.retain(|v| alive(&v.window) && (v.kind != kind || events.is_empty() || v.channel.send(events.clone()).is_ok()));
         out
     }
 
-    fn open(&self, kind: FeedKind, channel: View) -> FeedsOpened {
+    fn open(&self, kind: FeedKind, window: &str, channel: View) -> FeedsOpened {
         let view = self.next.fetch_add(1, Ordering::Relaxed) + 1;
         let mut views = self.views.lock().unwrap_or_else(|p| p.into_inner());
         let entries = {
             let mut rings = self.rings.lock().unwrap_or_else(|p| p.into_inner());
             rings.entry(kind).or_insert_with(|| Ring::new(cap(kind))).items()
         };
-        views.push((view, kind, channel));
+        views.push(Tab {
+            id: view,
+            kind,
+            window: window.to_owned(),
+            channel,
+        });
         FeedsOpened { view, entries }
     }
 }
@@ -125,7 +139,8 @@ fn change<R>(
     f: impl FnOnce(&mut Ring<FeedEntry>) -> R,
     events: impl FnOnce(&R) -> Vec<KindEvent>,
 ) -> Option<R> {
-    Some(app.try_state::<Store>()?.change(kind, f, events))
+    let alive = |label: &str| app.get_webview_window(label).is_some();
+    Some(app.try_state::<Store>()?.change(kind, alive, f, events))
 }
 
 fn removed(dropped: Option<&FeedEntry>) -> Option<KindEvent> {
@@ -185,8 +200,8 @@ pub(crate) fn clear(app: &AppHandle, kind: FeedKind) {
 }
 
 /// Starts streaming a kind's changes. Returns the view id and the entries it has.
-pub fn open(app: &AppHandle, kind: FeedKind, channel: View) -> FeedsOpened {
-    app.state::<Store>().open(kind, channel)
+pub fn open(app: &AppHandle, kind: FeedKind, window: &str, channel: View) -> FeedsOpened {
+    app.state::<Store>().open(kind, window, channel)
 }
 
 pub fn close(app: &AppHandle, view: u32) {
@@ -197,7 +212,19 @@ pub fn close(app: &AppHandle, view: u32) {
         .views
         .lock()
         .unwrap_or_else(|p| p.into_inner())
-        .retain(|v| v.0 != view);
+        .retain(|v| v.id != view);
+}
+
+/// V107-R1 Closes every view of a window that closed or reloaded.
+pub fn close_window(app: &AppHandle, window: &str) {
+    let Some(store) = app.try_state::<Store>() else {
+        return;
+    };
+    store
+        .views
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .retain(|v| v.window != window);
 }
 
 #[cfg(test)]
@@ -235,16 +262,31 @@ mod tests {
         let store = Store::default();
         let kind = FeedKind::Whispers;
         let push = |e: FeedEntry| {
-            store.change(kind, |r| r.push(e.clone(), |_| false), |_| vec![KindEvent::Add { entry: e.clone() }]);
+            store.change(kind, |_| true, |r| r.push(e.clone(), |_| false), |_| vec![KindEvent::Add { entry: e.clone() }]);
         };
         push(entry("a"));
         let got = Arc::new(Mutex::new(Vec::new()));
-        let opened = store.open(kind, view(&got));
+        let opened = store.open(kind, "main", view(&got));
         assert_eq!(opened.entries.iter().map(FeedEntry::key).collect::<Vec<_>>(), ["a"]);
         assert!(got.lock().unwrap().is_empty());
         push(entry("b"));
         let got = got.lock().unwrap();
         assert_eq!(got.len(), 1);
         assert!(got[0].contains("\"b\"") && !got[0].contains("\"a\""));
+    }
+
+    #[test]
+    fn v107_r1_views_of_closed_windows_leave() {
+        let store = Store::default();
+        let got = Arc::new(Mutex::new(Vec::new()));
+        for i in 0..1000 {
+            store.open(FeedKind::Live, &format!("pop{i}"), view(&got));
+        }
+        store.open(FeedKind::Whispers, "main", view(&got));
+        // Every pop-out closed; a change of another kind still sweeps them.
+        store.change(FeedKind::Whispers, |w| w == "main", |r| r.push(entry("a"), |_| false), |_| Vec::new());
+        let views = store.views.lock().unwrap();
+        assert_eq!(views.len(), 1);
+        assert_eq!(views[0].window, "main");
     }
 }

@@ -20,6 +20,7 @@
   import Volume from './Volume.svelte';
   import { errorText } from '../../lib/errors';
   import { keyTaken } from '../../lib/escape';
+  import { releaseMedia } from '../../lib/releaseMedia';
   import { formatDate } from '../../lib/format';
 
   interface Props {
@@ -208,6 +209,7 @@
     <!-- svelte-ignore a11y_media_has_caption -->
     <video
       bind:this={video}
+      use:releaseMedia
       {src}
       autoplay
       playsinline

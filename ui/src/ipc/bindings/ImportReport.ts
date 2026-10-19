@@ -10,10 +10,6 @@ export type ImportReport = {
  */
 tabs: number, channels: number, 
 /**
- * Logins that have a tab already, or came up twice.
- */
-alreadyOpen: Array<string>, 
-/**
  * Splits that aren't Twitch channels.
  */
 notChannels: Array<NotChannel>, 

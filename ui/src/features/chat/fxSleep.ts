@@ -1,6 +1,6 @@
 // V107-H1 Channel-point line effects (1.42) rest when nobody can see them: the line
 // scrolled off screen or the window hidden. One observer for all lines. Resting, the
-// effect gets `asleep` (its spin pauses) and its video pauses.
+// effect gets `asleep` (its spin pauses) and its video pauses; a removed line's video is emptied.
 
 import { onShown, pageHidden } from '../../lib/awake';
 
@@ -46,6 +46,13 @@ export function fxSleep(el: HTMLElement): { destroy(): void } {
       unShown();
       seen.delete(el);
       io?.unobserve(el);
+      // L2 A dropped line lets go of its decoder now, not whenever the element is collected.
+      const v = el.querySelector('video');
+      if (v) {
+        v.pause();
+        v.removeAttribute('src');
+        v.load();
+      }
     },
   };
 }

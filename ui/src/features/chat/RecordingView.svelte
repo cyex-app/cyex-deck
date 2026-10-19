@@ -1,7 +1,7 @@
 <!-- X6 Plays a chat recording back in its own window, at its own pace, with the pictures
      saved next to it. Route: `recording/<id>`. -->
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { onDestroy, tick } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
   import Segmented from '../../components/Segmented.svelte';
@@ -12,7 +12,7 @@
   import { formatDate, formatDuration, formatTime } from '../../lib/format';
   import { lineClick } from './clicks';
   import Line from './Line.svelte';
-  import { useSaved } from './saved';
+  import { dropSaved, useSaved } from './saved';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
 
@@ -48,6 +48,7 @@
       playing = true;
     })
     .catch((e) => (error = errorText(e)));
+  onDestroy(() => dropSaved(id));
 
   function apply(e: RoomEvent, out: ChatMessage[]): ChatMessage[] {
     const mark = (hit: (m: ChatMessage) => boolean) =>

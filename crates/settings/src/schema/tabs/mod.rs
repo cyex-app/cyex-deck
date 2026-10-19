@@ -9,7 +9,7 @@ mod order;
 mod resolve;
 
 pub use closed::Closed;
-pub use import::ImportTab;
+pub use import::{ImportColumn, ImportTab};
 pub use ops::{TabError, TabOp, Zone};
 pub use resolve::Resolved;
 

@@ -47,7 +47,8 @@ type Hit = Box<dyn Fn(&ChatMessage) -> bool>;
 #[derive(Default)]
 struct Feed {
     lines: VecDeque<FeedLine>,
-    views: Vec<(u32, View)>,
+    /// View id, its window, its channel.
+    views: Vec<(u32, String, View)>,
 }
 
 #[derive(Default)]
@@ -78,6 +79,7 @@ fn push(app: &AppHandle, channel: &str, message: &Arc<ChatMessage>, routes: &[St
     let Some(feeds) = app.try_state::<Feeds>() else {
         return;
     };
+    let alive = |w: &str| app.get_webview_window(w).is_some();
     let mut map = feeds.feeds.lock().unwrap_or_else(|p| p.into_inner());
     for name in routes {
         let feed = map.entry(key(name)).or_default();
@@ -94,7 +96,7 @@ fn push(app: &AppHandle, channel: &str, message: &Arc<ChatMessage>, routes: &[St
             feed.lines.pop_front();
         }
         feed.lines.push_back(line.clone());
-        send(feed, FeedEvent::Line { line });
+        send(feed, FeedEvent::Line { line }, &alive);
     }
 }
 
@@ -124,6 +126,7 @@ pub fn moderate(app: &AppHandle, channel: &str, events: &[RoomEvent]) {
     let Some(feeds) = app.try_state::<Feeds>() else {
         return;
     };
+    let alive = |w: &str| app.get_webview_window(w).is_some();
     let mut map = feeds.feeds.lock().unwrap_or_else(|p| p.into_inner());
     for feed in map.values_mut() {
         let mut changed = Vec::new();
@@ -136,17 +139,19 @@ pub fn moderate(app: &AppHandle, channel: &str, events: &[RoomEvent]) {
             }
         }
         for line in changed {
-            send(feed, FeedEvent::Update { line });
+            send(feed, FeedEvent::Update { line }, &alive);
         }
     }
 }
 
-fn send(feed: &mut Feed, event: FeedEvent) {
-    feed.views.retain(|(_, v)| v.send(vec![event.clone()]).is_ok());
+/// V107-R1 Views whose window is gone leave: a closed window's channel still takes sends
+/// without an error, so they never left before.
+fn send(feed: &mut Feed, event: FeedEvent, alive: &dyn Fn(&str) -> bool) {
+    feed.views.retain(|(_, w, v)| alive(w) && v.send(vec![event.clone()]).is_ok());
 }
 
 /// Starts streaming a feed. Returns the view id and the lines it has.
-pub fn open(app: &AppHandle, name: &str, view: View) -> (u32, Vec<FeedLine>) {
+pub fn open(app: &AppHandle, name: &str, window: &str, view: View) -> (u32, Vec<FeedLine>) {
     let feeds = app.state::<Feeds>();
     let id = {
         let mut n = feeds.next_view.lock().unwrap_or_else(|p| p.into_inner());
@@ -155,7 +160,7 @@ pub fn open(app: &AppHandle, name: &str, view: View) -> (u32, Vec<FeedLine>) {
     };
     let mut map = feeds.feeds.lock().unwrap_or_else(|p| p.into_inner());
     let feed = map.entry(key(name)).or_default();
-    feed.views.push((id, view));
+    feed.views.push((id, window.to_owned(), view));
     (id, feed.lines.iter().cloned().collect())
 }
 
@@ -163,6 +168,42 @@ pub fn close(app: &AppHandle, view: u32) {
     let feeds = app.state::<Feeds>();
     let mut map = feeds.feeds.lock().unwrap_or_else(|p| p.into_inner());
     for feed in map.values_mut() {
-        feed.views.retain(|(id, _)| *id != view);
+        feed.views.retain(|(id, _, _)| *id != view);
+    }
+}
+
+/// V107-R1 Closes every view of a window that closed or reloaded.
+pub fn close_window(app: &AppHandle, window: &str) {
+    let Some(feeds) = app.try_state::<Feeds>() else { return };
+    let mut map = feeds.feeds.lock().unwrap_or_else(|p| p.into_inner());
+    for feed in map.values_mut() {
+        feed.views.retain(|(_, w, _)| w != window);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use cyex_chat::model::NoticeKind;
+
+    use super::*;
+
+    fn line() -> FeedLine {
+        FeedLine {
+            channel: "c".into(),
+            message: Arc::new(cyex_chat::build::system(NoticeKind::Info, "hi", 0)),
+            global: false,
+        }
+    }
+
+    #[test]
+    fn v107_r1_views_of_closed_windows_leave() {
+        let mut feed = Feed::default();
+        for i in 0..1000 {
+            feed.views.push((i, format!("pop{i}"), Channel::new(|_| Ok(()))));
+        }
+        feed.views.push((1000, "main".into(), Channel::new(|_| Ok(()))));
+        send(&mut feed, FeedEvent::Line { line: line() }, &|w| w == "main");
+        assert_eq!(feed.views.len(), 1);
+        assert_eq!(feed.views[0].1, "main");
     }
 }

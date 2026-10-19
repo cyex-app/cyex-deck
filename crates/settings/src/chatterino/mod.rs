@@ -12,6 +12,6 @@ pub use highlights::{
     Found, HighlightImport, HighlightPreview, NotSettings, Skipped, apply as apply_highlights, parse as parse_highlights,
     plan as plan_highlights,
 };
-pub use layout::{Layout, LayoutTab, NotALayout, SplitKind, parse};
+pub use layout::{Layout, LayoutColumn, LayoutSplit, LayoutTab, NotALayout, SplitKind, parse};
 pub use plan::{ImportReport, NotChannel, Plan, plan};
 pub use resolve::{BATCH, is_login, names, resolve};

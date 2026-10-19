@@ -142,6 +142,7 @@ pub fn sync(app: &AppHandle) {
         crate::streammanager::follow_released(app, &cid);
     }
     crate::feeds::automod::keep_only(app, &open);
+    view::keep_only(app, open.iter().map(|(_, cid)| cid.as_str()));
 }
 
 /// The stream manager let go of `channel.follow` for a channel (D30): a mod feed that has
@@ -287,6 +288,10 @@ fn subscribe(app: &AppHandle, account: &str, session_id: &str, channels: Vec<Str
                     // 409 duplicate is fine; anything else once.
                     if !e.api_message().is_some_and(|m| m.contains("already")) {
                         ok = false;
+                        // Status and Twitch's message only (the error never carries the token).
+                        if first_failure(&cid, kind) {
+                            eprintln!("mod feeds: {cid}: couldn't subscribe {kind}: {e}");
+                        }
                     }
                 }
             }
@@ -298,6 +303,13 @@ fn subscribe(app: &AppHandle, account: &str, session_id: &str, channels: Vec<Str
             }
         }
     });
+}
+
+/// Whether this is the first failed subscribe of `kind` in channel `cid` (logged once each).
+fn first_failure(cid: &str, kind: &str) -> bool {
+    static SEEN: Mutex<Option<HashSet<(String, String)>>> = Mutex::new(None);
+    let mut seen = SEEN.lock().unwrap_or_else(|p| p.into_inner());
+    seen.get_or_insert_with(HashSet::new).insert((cid.to_owned(), kind.to_owned()))
 }
 
 /// V103-15 Starts and stops Hermes mod topics to match `want`.

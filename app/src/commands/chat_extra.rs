@@ -34,8 +34,8 @@ pub struct FeedOpened {
 
 /// F4 Streams a feed tab's lines.
 #[tauri::command]
-pub fn feed_open(app: AppHandle, name: String, on_event: Channel<Vec<FeedEvent>>) -> FeedOpened {
-    let (view, lines) = feeds::open(&app, &name, on_event);
+pub fn feed_open(app: AppHandle, window: tauri::WebviewWindow, name: String, on_event: Channel<Vec<FeedEvent>>) -> FeedOpened {
+    let (view, lines) = feeds::open(&app, &name, window.label(), on_event);
     FeedOpened { view, lines }
 }
 

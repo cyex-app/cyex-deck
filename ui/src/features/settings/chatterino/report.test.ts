@@ -7,7 +7,6 @@ import { counts, failedImport, leftOut } from './report.ts';
 const empty: ImportReport = {
   tabs: 0,
   channels: 0,
-  alreadyOpen: [],
   notChannels: [],
   unresolved: [],
 };
@@ -22,7 +21,6 @@ test('V1041-02 every reason gets a line, empty ones none', () => {
   assert.deepEqual(leftOut(empty), []);
   const lines = leftOut({
     ...empty,
-    alreadyOpen: ['alpha_one'],
     notChannels: [
       { kind: 'mentions', count: 2 },
       { kind: 'automod', count: 1 },
@@ -32,7 +30,6 @@ test('V1041-02 every reason gets a line, empty ones none', () => {
     unresolved: ['gone_one', 'gone_two'],
   });
   assert.deepEqual(lines, [
-    { label: 'Already open (1)', text: 'alpha_one' },
     { label: 'Not channels (6)', text: 'Mentions ×2, AutoMod, Other ×3' },
     { label: 'Not found on Twitch (2)', text: 'gone_one, gone_two' },
   ]);

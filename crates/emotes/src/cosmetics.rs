@@ -85,6 +85,15 @@ struct SevenUser {
 /// V107-M3 7TV users kept at most. Events are push-only (no per-user lookup to refetch from), so a
 /// time sweep would lose looks for good; the least recently touched go past this instead.
 const MAX_SEVENTV_USERS: usize = 20_000;
+/// V107-R1 BTTV badge holders kept at most, trimmed the same way (Pro badges come over the socket,
+/// one per person seen in any joined channel).
+const MAX_BTTV_USERS: usize = 20_000;
+
+struct BttvUser {
+    badge: String,
+    /// Tick of the last set or draw (for trimming).
+    seen: AtomicU64,
+}
 
 #[derive(Default)]
 pub struct Cosmetics {
@@ -95,7 +104,7 @@ pub struct Cosmetics {
     /// FFZ badge ids with their users' Twitch ids, sorted (FFZ's global list is long).
     ffz: Vec<(String, Vec<u64>)>,
     /// BTTV badge by user.
-    bttv: HashMap<String, String>,
+    bttv: HashMap<String, BttvUser>,
 }
 
 /// 7TV paint or badge, given or taken.
@@ -177,7 +186,42 @@ impl Cosmetics {
     }
 
     pub fn set_bttv_badge(&mut self, user: &str, badge: Option<&str>) -> bool {
-        set(&mut self.bttv, user, badge)
+        let Some(badge) = badge else {
+            return self.bttv.remove(user).is_some();
+        };
+        let tick = self.next_tick();
+        if let Some(u) = self.bttv.get_mut(user) {
+            *u.seen.get_mut() = tick;
+            if u.badge == badge {
+                return false;
+            }
+            badge.clone_into(&mut u.badge);
+            return true;
+        }
+        let u = BttvUser {
+            badge: badge.to_owned(),
+            seen: AtomicU64::new(tick),
+        };
+        self.bttv.insert(user.to_owned(), u);
+        if self.bttv.len() > MAX_BTTV_USERS + MAX_BTTV_USERS / 10 {
+            self.trim_bttv(MAX_BTTV_USERS);
+        }
+        true
+    }
+
+    /// V107-R1 Drops the least recently set or drawn BTTV badge holders down to `keep`.
+    fn trim_bttv(&mut self, keep: usize) {
+        if self.bttv.len() <= keep {
+            return;
+        }
+        let mut seen: Vec<u64> = self.bttv.values().map(|u| u.seen.load(Relaxed)).collect();
+        let cut = seen.len() - keep;
+        let (_, &mut oldest_kept, _) = seen.select_nth_unstable(cut);
+        self.bttv.retain(|_, u| u.seen.load(Relaxed) >= oldest_kept);
+    }
+
+    pub fn bttv_users(&self) -> usize {
+        self.bttv.len()
     }
 
     pub fn look(&self, user: &str) -> Option<Look> {
@@ -193,10 +237,11 @@ impl Cosmetics {
                 });
             }
         }
-        if let Some(b) = self.bttv.get(user) {
+        if let Some(u) = self.bttv.get(user) {
+            u.seen.store(self.next_tick(), Relaxed);
             look.badges.push(BadgeRef {
                 provider: Provider::Bttv,
-                id: b.clone(),
+                id: u.badge.clone(),
             });
         }
         if let Ok(id) = user.parse::<u64>() {
@@ -242,17 +287,6 @@ impl Cosmetics {
     }
 }
 
-fn set(map: &mut HashMap<String, String>, user: &str, value: Option<&str>) -> bool {
-    match value {
-        Some(v) if map.get(user).map(String::as_str) != Some(v) => {
-            map.insert(user.to_owned(), v.to_owned());
-            true
-        }
-        None => map.remove(user).is_some(),
-        _ => false,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -287,6 +321,43 @@ mod tests {
         let looks = c.looks(["1", "9"]);
         assert_eq!(looks.badges.len(), 2);
         assert_eq!(looks.users["9"], None);
+    }
+
+    #[test]
+    fn bttv_badges_change_and_go() {
+        let mut c = Cosmetics::default();
+        c.add_badge(badge(Provider::Bttv, "staff"));
+        assert!(c.set_bttv_badge("1", Some("pro")));
+        assert!(!c.set_bttv_badge("1", Some("pro")));
+        assert!(c.set_bttv_badge("1", Some("staff")));
+        assert_eq!(c.look("1").unwrap().badges[0].id, "staff");
+        assert!(c.set_bttv_badge("1", None));
+        assert!(!c.set_bttv_badge("1", None));
+        assert_eq!(c.bttv_users(), 0);
+    }
+
+    #[test]
+    fn bttv_trim_keeps_the_recent() {
+        let mut c = Cosmetics::default();
+        c.add_badge(badge(Provider::Bttv, "pro"));
+        for u in 0..10 {
+            c.set_bttv_badge(&u.to_string(), Some("pro"));
+        }
+        c.look("0");
+        c.trim_bttv(3);
+        assert_eq!(c.bttv_users(), 3);
+        assert!(c.look("0").is_some(), "drawn last, so kept");
+        assert!(c.look("9").is_some() && c.look("8").is_some());
+        assert!(c.look("1").is_none());
+    }
+
+    #[test]
+    fn bttv_holders_are_capped() {
+        let mut c = Cosmetics::default();
+        for u in 0..MAX_BTTV_USERS + MAX_BTTV_USERS / 10 + 1 {
+            c.set_bttv_badge(&u.to_string(), Some("pro"));
+        }
+        assert_eq!(c.bttv_users(), MAX_BTTV_USERS);
     }
 
     #[test]

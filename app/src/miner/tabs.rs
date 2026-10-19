@@ -155,7 +155,10 @@ async fn check_chests(app: &AppHandle) {
     };
     let new: Vec<(String, String)> = {
         let mut checked = state.checked.lock().unwrap_or_else(|p| p.into_inner());
-        let new: Vec<(String, String)> = tab_pairs(app)
+        let pairs = tab_pairs(app);
+        // V107-R1 Closed tabs leave the set (reopened, they're new again).
+        checked.retain(|p| pairs.contains(p));
+        let new: Vec<(String, String)> = pairs
             .into_iter()
             .filter(|p| !checked.contains(p))
             .take(CHECKS)

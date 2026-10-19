@@ -106,6 +106,24 @@ pub fn badge_url(app: &AppHandle, login: &str, set: &str, version: &str) -> Opti
     global.badges.iter().find(hit).map(|b| b.image2x.clone())
 }
 
+impl Catalogs {
+    /// V107-R1 Keeps only the channels `open` still wants, e.g. the chats left open.
+    fn retain(&self, open: impl Fn(&str) -> bool) {
+        self.channels
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .retain(|login, _| open(login));
+    }
+}
+
+/// V107-R1 A channel's last chat closed: drops every channel catalog no open chat has
+/// (also ones a load put in after its chat closed). Asked for again, they're read again.
+pub(super) fn retain(app: &AppHandle, open: impl Fn(&str) -> bool) {
+    if let Some(c) = app.try_state::<Catalogs>() {
+        c.retain(open);
+    }
+}
+
 pub fn cached(app: &AppHandle, login: &str) -> Option<Arc<ChannelChat>> {
     app.state::<Catalogs>()
         .channels
@@ -145,6 +163,9 @@ pub fn load_for_room(app: AppHandle, key: RoomKey, history: Option<u32>) {
         };
         crate::emotes::join(&app, &key.1, &c.channel_id, super::account_of(&key.0));
         super::live::joined(&app, &key.1, &c.channel_id);
+        if !super::still_joined(&app, &key) {
+            return;
+        }
         if let Some(lines) = history {
             crate::emotes::ready(&app, &key.1, std::time::Duration::from_secs(4)).await;
             super::session::load_history(app.clone(), key.clone(), lines);

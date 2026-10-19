@@ -1,6 +1,7 @@
 // Provider badges, 7TV paints and BTTV name effects by user (1.37-1.39). Names ask as
 // they're drawn, in batches; changes arrive from Rust, so a paint that shows up after a
-// message still lands on it. Each paint becomes one CSS class.
+// message still lands on it. Each paint becomes one CSS class, made the first time a
+// name asks for it (L2: pushed looks carry paints of users nobody draws).
 
 import { SvelteMap } from 'svelte/reactivity';
 
@@ -16,9 +17,13 @@ const BATCH_MS = 60;
 export const SAFE_ID = /^[0-9A-Za-z]{1,40}$/;
 
 /** V1051-03 Both CSS rules of a paint. `.still` also matches inside any still container. */
-export function paintRules(p: PaintStyle): string {
+export function paintRuleList(p: PaintStyle): string[] {
   const rule = (sel: string, css: string) => `${sel}{${css.replace(/[{}<]/g, '')}}`;
-  return rule(`.paint-${p.id}`, p.css) + (p.still ? rule(`.still .paint-${p.id}`, p.still) : '') + '\n';
+  return [rule(`.paint-${p.id}`, p.css), ...(p.still ? [rule(`.still .paint-${p.id}`, p.still)] : [])];
+}
+
+export function paintRules(p: PaintStyle): string {
+  return paintRuleList(p).join('') + '\n';
 }
 
 class LooksStore {
@@ -26,7 +31,10 @@ class LooksStore {
   private badges = new SvelteMap<string, BadgeDef>();
   private queue = new Set<string>();
   private timer: ReturnType<typeof setTimeout> | undefined;
+  /** Paints with their rules in the sheet. */
   private paints = new Set<string>();
+  /** L2 Paints known but not drawn yet: their rules go in on first use. */
+  private pending = new Map<string, PaintStyle>();
   /** V1051-03 Bumped when the preview defines a new paint, so a line already drawn picks it up. */
   private defined = $state(0);
   private definedN = 0;
@@ -49,7 +57,13 @@ class LooksStore {
   /** CSS class for a paint, or `null` if it can't be drawn. */
   paintClass(id: string | null): string | null {
     void this.defined;
-    return id && this.paints.has(id) ? `paint-${id}` : null;
+    if (!id) return null;
+    if (!this.paints.has(id)) {
+      const p = this.pending.get(id);
+      if (!p) return null;
+      this.insert([p]);
+    }
+    return `paint-${id}`;
   }
 
   /** V101-36 What 7TV calls a paint. */
@@ -85,7 +99,7 @@ class LooksStore {
 
   /** `pushed`: a change from Rust. Only users already drawn here are kept (V107-M4). */
   private apply(l: Looks, pushed: boolean) {
-    this.append(this.fresh(l.paints));
+    this.note(l.paints);
     for (const b of l.badges) this.badges.set(`${b.provider}:${b.id}`, b);
     if (pushed) applyPushed(this.users, l.users);
     else applyAnswer(this.users, l.users);
@@ -93,28 +107,39 @@ class LooksStore {
 
   /** V1051-03 Definitions without users (the cosmetics preview's paint and badge). */
   define(paints: PaintStyle[], badges: BadgeDef[]) {
-    const css = this.fresh(paints);
-    this.append(css);
-    if (css) this.defined = ++this.definedN;
+    this.note(paints);
+    if (this.insert(paints)) this.defined = ++this.definedN;
     for (const b of badges) this.badges.set(`${b.provider}:${b.id}`, b);
   }
 
-  /** Notes names; returns the rules of paints whose class is new. */
-  private fresh(paints: PaintStyle[]): string {
-    let css = '';
+  /** Notes names and the paints not drawn yet. */
+  private note(paints: PaintStyle[]) {
     for (const p of paints) {
       if (p.name.trim()) this.paintNames.set(p.id, p.name.trim());
-      if (this.paints.has(p.id) || !SAFE_ID.test(p.id)) continue;
-      this.paints.add(p.id);
-      css += paintRules(p);
+      if (!this.paints.has(p.id) && SAFE_ID.test(p.id)) this.pending.set(p.id, p);
     }
-    return css;
   }
 
-  private append(css: string) {
-    if (!css) return;
-    this.sheet ??= document.head.appendChild(document.createElement('style'));
-    this.sheet.append(css);
+  /** Puts the rules of new paints in the sheet; true if any went in. insertRule adds one
+   *  rule without parsing the whole sheet again (L2: appended text re-parsed all of it). */
+  private insert(paints: PaintStyle[]): boolean {
+    let any = false;
+    for (const p of paints) {
+      if (this.paints.has(p.id) || !SAFE_ID.test(p.id)) continue;
+      this.paints.add(p.id);
+      this.pending.delete(p.id);
+      this.sheet ??= document.head.appendChild(document.createElement('style'));
+      const sheet = this.sheet.sheet;
+      for (const r of paintRuleList(p)) {
+        try {
+          sheet?.insertRule(r, sheet.cssRules.length);
+        } catch {
+          // A rule the engine can't read: that name just stays plain.
+        }
+      }
+      any = true;
+    }
+    return any;
   }
 }
 

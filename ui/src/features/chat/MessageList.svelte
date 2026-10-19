@@ -27,8 +27,9 @@
   import { emotesIpc } from '../../ipc/emotes';
   import { modSlots, type LineMod } from '../modview/lineMod';
   import { messageItems, mods, pinItems, userItems } from '../modview/moderation.svelte';
-  import { allows } from '../modview/roles';
+  import { allows, roleOf } from '../modview/roles';
   import { standingOf } from '../modview/standing';
+  import { cantDelete } from '../modview/deleteRule';
   import { standings } from '../modview/standings.svelte';
   import { lineKind, pluginItems } from '../plugins/pluginMenus';
   import { plugins } from '../plugins/plugins.svelte';
@@ -508,6 +509,9 @@
     const canMod = role && m.sender && !m.notice && login !== room.login;
     // V101-34 The broadcaster's messages can be pinned too.
     const canPin = role && m.sender && !m.notice && !canMod;
+    // V107 Their own lines can go too, when Twitch allows it (deleteRule).
+    const mine = m.sender ? { id: m.sender.id, login, role: roleOf(m.sender.badges), ts: m.ts ?? null } : null;
+    const canDelete = canPin && mine && cantDelete(role, room.account, mine, room.login, Date.now()) === null;
     openMenu(e, [
       ...(canReply && m.sender && !m.notice ? [{ label: 'Reply', icon: 'reply' as const, run: () => onreply(m.id) }] : []),
       ...(m.sender && !m.notice
@@ -529,7 +533,11 @@
             ...userItems(role, login, command, warn(login), standings.of(room.login, login, standingOf(m.sender?.badges))),
           ]
         : []),
-      ...(canPin ? ['separator' as const, { label: 'Pin message', icon: 'pin' as const, items: pinItems(m.id, command) }] : []),
+      ...(canDelete
+        ? ['separator' as const, ...messageItems(m.id, command)]
+        : canPin
+          ? ['separator' as const, { label: 'Pin message', icon: 'pin' as const, items: pinItems(m.id, command) }]
+          : []),
       ...(own.length ? ['separator' as const, ...toItems(own, (cmd) => runEntry(room.view, cmd, ctx, onaction))] : []),
       // S5, S9 Entries plugins added, for this kind of line.
       'separator',

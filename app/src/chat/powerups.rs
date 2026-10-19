@@ -219,11 +219,11 @@ async fn access(app: &AppHandle, c: &Ctx) -> Result<GifAccess, String> {
     let a = gifs::gif_access(&http(app), c.signed_in()?, &c.channel_id, &account)
         .await
         .map_err(|e| e.to_string())?;
-    app.state::<GifState>()
-        .access
-        .lock()
-        .unwrap_or_else(|p| p.into_inner())
-        .insert(k, (a.clone(), Instant::now()));
+    let state = app.state::<GifState>();
+    let mut access = state.access.lock().unwrap_or_else(|p| p.into_inner());
+    // V107-R1 Stale answers go on the way (one per chat a GIF was ever looked at, before).
+    access.retain(|_, (_, at)| at.elapsed() < ACCESS_TTL);
+    access.insert(k, (a.clone(), Instant::now()));
     Ok(a)
 }
 

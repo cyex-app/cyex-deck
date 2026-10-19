@@ -37,6 +37,8 @@
         uploadIpc
           .preview(p)
           .then((png) => {
+            // Closed meanwhile: nothing would revoke it later.
+            if (gone) return null;
             const u = URL.createObjectURL(new Blob([png], { type: 'image/png' }));
             made.push(u);
             return u;

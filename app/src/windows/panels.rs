@@ -155,8 +155,9 @@ pub fn open_panel(app: &AppHandle, route: &str, title: &str, size: Option<(f64, 
     } else {
         builder
     };
-    let builder = geometry::on_builder(app, builder, saved.geometry.as_ref());
+    let (builder, placed) = geometry::on_builder(app, builder, saved.geometry.as_ref(), MIN_SIZE, (width, height));
     let window = builder.build().inspect_err(|_| crate::chat::shown::gone(app, &label))?;
+    geometry::settle(&window, placed)?;
     if super::usercard::is_popup(route) {
         crate::sys::small_corners(&window);
     }
@@ -168,9 +169,7 @@ pub fn open_panel(app: &AppHandle, route: &str, title: &str, size: Option<(f64, 
         super::overlay::sync_tray(app);
     }
 
-    if saved.geometry.is_some_and(|g| g.maximized) {
-        window.maximize()?;
-    } else if route.starts_with("room/")
+    if !saved.geometry.is_some_and(|g| g.maximized) && route.starts_with("room/")
         && let (Ok(size), Ok(scale)) = (window.inner_size(), window.scale_factor())
         && let Some(at) = super::usercard::near_cursor(app, f64::from(size.width) / scale, f64::from(size.height) / scale)
     {

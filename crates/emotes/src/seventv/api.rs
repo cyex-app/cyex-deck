@@ -4,6 +4,7 @@
 use std::collections::HashMap;
 
 use cyex_chat::model::Provider;
+use cyex_twitch::pace::{Lane, Service};
 use cyex_twitch::{Http, Result};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -42,13 +43,13 @@ pub struct Channel {
     pub set: Option<EmoteSet>,
 }
 
-/// `None` when the channel has no 7TV account.
-pub async fn channel(http: &Http, twitch_id: &str) -> Result<Option<Channel>> {
+/// `None` when the channel has no 7TV account. E2 Paced: `lane` puts the tab on screen first.
+pub async fn channel(http: &Http, twitch_id: &str, lane: Lane) -> Result<Option<Channel>> {
     let q = format!(
         "query($id: String!) {{ users {{ userByConnection(platform: TWITCH, platformId: $id) {{ id \
          style {{ activeEmoteSet {{ id emotes {{ {ITEM} }} }} }} }} }} }}"
     );
-    let data: Data<RawUsers> = post(http, &q, json!({ "id": twitch_id })).await?;
+    let data: Data<RawUsers> = paced(http, lane, &q, json!({ "id": twitch_id })).await?;
     Ok(data.data.users.user_by_connection.map(|u| Channel {
         user_id: u.id,
         set: u
@@ -60,7 +61,7 @@ pub async fn channel(http: &Http, twitch_id: &str) -> Result<Option<Channel>> {
 
 pub async fn global(http: &Http) -> Result<EmoteSet> {
     let q = format!("query {{ emoteSets {{ global {{ id emotes {{ {ITEM} }} }} }} }}");
-    let data: Data<RawGlobal> = post(http, &q, json!({})).await?;
+    let data: Data<RawGlobal> = paced(http, Lane::Front, &q, json!({})).await?;
     Ok(data.data.emote_sets.global.into_set(Scope::Global))
 }
 
@@ -177,6 +178,12 @@ pub struct Avatar {
     pub url: String,
     /// Still frame for E2; the same URL when it doesn't move.
     pub still: String,
+}
+
+/// E2 Emote sets for many tabs at once: few in flight, retried on 429 and 5xx.
+async fn paced<T: serde::de::DeserializeOwned>(http: &Http, lane: Lane, query: &str, variables: Value) -> Result<T> {
+    let body = json!({ "query": query, "variables": variables });
+    http.post_json_paced(Service::SevenTv, lane, gql_url(), &body).await
 }
 
 async fn post<T: serde::de::DeserializeOwned>(http: &Http, query: &str, variables: Value) -> Result<T> {

@@ -367,10 +367,28 @@ fn leave(app: &AppHandle, inner: &mut Inner, key: &RoomKey) -> bool {
         }
     }
     if !inner.rooms.keys().any(|(_, l)| l == login) {
-        crate::emotes::leave(app, login);
-        live::left(app, login);
+        channel_gone(app, inner, login);
     }
     matches!(identity, Identity::Account(_))
+}
+
+/// V107-R1 The last room of `login` is gone: what was joined for the channel goes too.
+fn channel_gone(app: &AppHandle, inner: &Inner, login: &str) {
+    crate::emotes::leave(app, login);
+    live::left(app, login);
+    catalog::retain(app, |l| inner.rooms.keys().any(|(_, open)| open == l));
+}
+
+/// V107-R1 After a join's loads came back: whether the room is still open. A channel whose
+/// last room closed meanwhile is left again, since the loads joined it after its leave.
+fn still_joined(app: &AppHandle, key: &RoomKey) -> bool {
+    let Some(chat) = app.try_state::<Chat>() else { return false };
+    let inner = chat.lock();
+    if !inner.rooms.keys().any(|(_, l)| *l == key.1) {
+        channel_gone(app, &inner, &key.1);
+        return false;
+    }
+    inner.rooms.contains_key(key)
 }
 
 /// Closes a view. A room no other view shows and no tab holds is left.

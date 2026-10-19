@@ -20,6 +20,8 @@ use super::{RoomKey, now_ms};
 /// Pictures bigger than this are skipped (moltorino's cap).
 const MAX_ASSET: usize = 8 * 1024 * 1024;
 const EVENT: &str = "chat:recording";
+/// V107-R1 How long pictures may still come in after a recording stops.
+const LATE_ASSETS: std::time::Duration = std::time::Duration::from_secs(120);
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(default, rename_all = "camelCase")]
@@ -128,6 +130,16 @@ pub fn stop(app: &AppHandle, key: &RoomKey) -> Option<RecordingMeta> {
     rec.meta.ended_ms = now_ms();
     let _ = write_meta(&rec.dir, &rec.meta);
     let _ = app.emit(EVENT, json!({ "channel": key.1, "recording": false }));
+    // V107-R1 Its asset list goes once the last pictures are in (it stayed for the run).
+    let (app, id) = (app.clone(), rec.meta.id.clone());
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(LATE_ASSETS).await;
+        let recorder = app.state::<Recorder>();
+        let live = recorder.live.lock().unwrap_or_else(|p| p.into_inner());
+        if !live.values().any(|r| r.meta.id == id) {
+            recorder.assets.lock().unwrap_or_else(|p| p.into_inner()).remove(&id);
+        }
+    });
     Some(rec.meta)
 }
 
@@ -247,7 +259,8 @@ async fn save_asset(app: &AppHandle, id: &str, key: &str, dir: &std::path::Path,
     let map = {
         let recorder = app.state::<Recorder>();
         let mut assets = recorder.assets.lock().unwrap_or_else(|p| p.into_inner());
-        let map = assets.entry(id.to_owned()).or_default();
+        // Past `LATE_ASSETS` the list is gone: writing a new one would drop the others.
+        let Some(map) = assets.get_mut(id) else { return };
         map.insert(key.to_owned(), file);
         map.clone()
     };

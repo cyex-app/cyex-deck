@@ -9,9 +9,11 @@ import { applyAppearance } from '../design/theme';
 import { looks } from '../features/emotes/looks.svelte';
 import { align } from '../features/emotes/phase';
 import { useMediaSession } from '../features/player/media.svelte';
+import { systemIpc } from '../ipc/system';
 import { plugins } from '../features/plugins/plugins.svelte';
 import { density } from '../lib/density.svelte';
 import { focus } from '../lib/focus.svelte';
+import { startMemTrim } from '../lib/memTrim';
 import { guardNativeMenu } from '../lib/nativeMenu';
 import { settings } from '../lib/settings.svelte';
 import { startSmoothScroll } from '../lib/smoothScroll';
@@ -55,5 +57,7 @@ export function useRootEffects(): void {
   $effect(() => streamer.start());
   $effect(() => looks.start());
   $effect(() => plugins.start());
+  // L2 A full garbage collection now and then while idle (Rust keeps it to one per 5 min).
+  $effect(() => startMemTrim(systemIpc.trimMemory));
   useMediaSession();
 }

@@ -3,77 +3,168 @@
 //! New windows get their saved geometry through the builder. Calling `set_size` on a
 //! hidden frameless window is off by the hidden caption height on Windows (a restored
 //! window grew 30 px per start), so it's only used on windows that are already open.
+//! W1 Where a window lands is worked out in physical px (`placement`): it always comes back
+//! on a connected monitor, inside its work area.
 
 use cyex_settings::Partition;
 use cyex_settings::schema::{Geometry, Windows};
 use serde_json::json;
-use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewWindowBuilder, Window, Wry};
+use tauri::{
+    AppHandle, LogicalSize, Manager, Monitor, PhysicalPosition, WebviewWindow, WebviewWindowBuilder, Window, Wry,
+};
 
+use super::placement::{self, Placement, Rect, Screen};
 use super::{MAIN, route_of};
 use crate::settings::Settings;
 
-const MIN_SANE: (u32, u32) = (200, 150);
+/// Logical size a maximized window without a good normal rect gets when un-maximized.
+const NORMAL: (f64, f64) = (1280.0, 800.0);
+
+fn screen(m: &Monitor) -> Screen {
+    let rect = |p: PhysicalPosition<i32>, w: u32, h: u32| Rect {
+        x: p.x,
+        y: p.y,
+        w: i32::try_from(w).unwrap_or(i32::MAX),
+        h: i32::try_from(h).unwrap_or(i32::MAX),
+    };
+    let work = m.work_area();
+    let work = rect(work.position, work.size.width, work.size.height);
+    let bounds = rect(*m.position(), m.size().width, m.size().height);
+    // A work area of nothing (seen on some drivers) is the whole monitor.
+    let work = if work.w > 0 && work.h > 0 { work } else { bounds };
+    Screen { bounds, work, scale: m.scale_factor() }
+}
+
+/// Connected monitors and which one is the primary.
+fn screens(app: &AppHandle) -> (Vec<Screen>, usize) {
+    let all: Vec<Screen> = app.available_monitors().unwrap_or_default().iter().map(screen).collect();
+    let primary = app
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .map(|m| screen(&m))
+        .and_then(|p| all.iter().position(|s| s.bounds == p.bounds))
+        .unwrap_or(0);
+    (all, primary)
+}
 
 /// Current geometry. While maximized, the last normal size is kept so un-maximizing
 /// after a restart lands where it was. Fullscreen keeps what it had before (V103-14): a
-/// window closed in fullscreen came back as big as the screen.
+/// window closed in fullscreen came back as big as the screen. W1 Minimized, mid-change or
+/// junk rects are never saved: the last good one stays.
 pub fn capture(window: &Window, previous: Option<Geometry>) -> Option<Geometry> {
-    if window.is_minimized().ok()? {
+    let (minimized, maximized) = crate::sys::frame::state(window)?;
+    if minimized {
         return None;
     }
     if window.is_fullscreen().ok()? {
         return previous;
     }
-    if window.is_maximized().ok()? {
-        return Some(Geometry {
-            maximized: true,
-            ..previous.unwrap_or_default()
-        });
+    if maximized {
+        if let Some(g) = previous.filter(placement::is_valid) {
+            return Some(Geometry { maximized: true, ..g });
+        }
+        let m = window.current_monitor().ok().flatten()?;
+        return Some(placement::centered_on(&screen(&m), NORMAL));
     }
     let scale = window.scale_factor().ok()?;
-    let pos = window.outer_position().ok()?.to_logical::<f64>(scale);
+    // The position at the scale of the monitor it's on now: mid-move, the window's own scale
+    // can still be the old monitor's.
+    let at = window.current_monitor().ok().flatten().map_or(scale, |m| m.scale_factor());
+    let pos = window.outer_position().ok()?.to_logical::<f64>(at);
     let size = window.inner_size().ok()?.to_logical::<f64>(scale);
-    Some(Geometry {
+    let g = Geometry {
         x: pos.x.round() as i32,
         y: pos.y.round() as i32,
         width: size.width.round() as u32,
         height: size.height.round() as u32,
         maximized: false,
-    })
+    };
+    placement::is_valid(&g).then_some(g)
 }
 
 /// Puts a window that's about to be built where it was last time, or centers it when
-/// there's no saved spot or that monitor is gone. Maximizing happens after building.
+/// there's nothing saved (then on the main window's monitor). `min` and `default` are logical. Call `settle` after building.
 pub fn on_builder<'a>(
     app: &AppHandle,
-    mut builder: WebviewWindowBuilder<'a, Wry, AppHandle>,
+    builder: WebviewWindowBuilder<'a, Wry, AppHandle>,
     saved: Option<&Geometry>,
-) -> WebviewWindowBuilder<'a, Wry, AppHandle> {
-    let Some(g) = saved else {
-        return builder.center();
+    min: (f64, f64),
+    default: (f64, f64),
+) -> (WebviewWindowBuilder<'a, Wry, AppHandle>, Option<Placement>) {
+    let (all, primary) = screens(app);
+    // Nothing saved, or junk: centered on the main window's monitor.
+    let home = main_screen(app, &all).unwrap_or(primary);
+    let g = saved.copied().unwrap_or_default();
+    let Some(p) = placement::place(&g, &all, home, min, default) else {
+        return (builder.center(), None);
     };
-    if is_sane(g) {
-        builder = builder.inner_size(f64::from(g.width), f64::from(g.height));
+    let scale = all[p.screen].scale;
+    // tao maps a logical position to the first monitor it fits at that monitor's scale; with
+    // mixed scales that can be the wrong one, so `settle` moves it in physical px.
+    let builder = builder
+        .inner_size(p.width, p.height)
+        .position(f64::from(p.x) / scale, f64::from(p.y) / scale);
+    (builder, Some(p))
+}
+
+/// The monitor the main window is on, as an index into `all`.
+fn main_screen(app: &AppHandle, all: &[Screen]) -> Option<usize> {
+    let m = app.get_webview_window(MAIN)?.current_monitor().ok().flatten()?;
+    let s = screen(&m);
+    all.iter().position(|a| a.bounds == s.bounds)
+}
+
+/// W1 Top-left corner (physical px) that centers a `w` x `h` (logical) window on the main
+/// window's monitor, for pop-ups opened without the mouse on the app (keyboard, scripts).
+pub fn center_on_main(app: &AppHandle, w: f64, h: f64) -> Option<PhysicalPosition<i32>> {
+    let (all, primary) = screens(app);
+    let home = main_screen(app, &all).unwrap_or(primary);
+    let p = placement::place(&Geometry::default(), &all, home, (w, h), (w, h))?;
+    Some(PhysicalPosition::new(p.x, p.y))
+}
+
+/// Whether a point (physical px) is on one of the app's visible windows.
+pub fn over_app(app: &AppHandle, x: f64, y: f64) -> bool {
+    app.webview_windows().values().any(|w| {
+        w.is_visible().unwrap_or(false)
+            && !w.is_minimized().unwrap_or(true)
+            && w.outer_position().ok().zip(w.outer_size().ok()).is_some_and(|(p, s)| {
+                let (l, t) = (f64::from(p.x), f64::from(p.y));
+                x >= l && y >= t && x < l + f64::from(s.width) && y < t + f64::from(s.height)
+            })
+    })
+}
+
+/// Moves a just-built, still hidden window to its spot in physical px and maximizes it there
+/// when it was saved maximized. Windows keeps its logical size when it changes monitors.
+pub fn settle(window: &WebviewWindow, p: Option<Placement>) -> tauri::Result<()> {
+    let Some(p) = p else { return Ok(()) };
+    window.set_position(PhysicalPosition::new(p.x, p.y))?;
+    if p.maximized {
+        window.maximize()?;
     }
-    if is_on_screen(app, g) {
-        builder.position(f64::from(g.x), f64::from(g.y))
-    } else {
-        builder.center()
-    }
+    Ok(())
 }
 
 /// Moves and resizes a window that's already open (layouts).
 pub fn apply(window: &Window, g: &Geometry) {
-    if g.maximized {
-        let _ = window.maximize();
+    let (all, primary) = screens(window.app_handle());
+    let current = window
+        .inner_size()
+        .ok()
+        .zip(window.scale_factor().ok())
+        .map_or(NORMAL, |(s, f)| (f64::from(s.width) / f, f64::from(s.height) / f));
+    let min = (f64::from(placement::MIN_SANE.0), f64::from(placement::MIN_SANE.1));
+    let Some(p) = placement::place(g, &all, primary, min, current) else {
         return;
-    }
+    };
     let _ = window.unmaximize();
-    if is_sane(g) {
-        let _ = window.set_size(LogicalSize::new(g.width, g.height));
-    }
-    if is_on_screen(window.app_handle(), g) {
-        let _ = window.set_position(LogicalPosition::new(g.x, g.y));
+    // Moved first: on a monitor with another scale the logical size then means that scale.
+    let _ = window.set_position(PhysicalPosition::new(p.x, p.y));
+    let _ = window.set_size(LogicalSize::new(p.width, p.height));
+    if p.maximized {
+        let _ = window.maximize();
     }
 }
 
@@ -85,6 +176,9 @@ pub fn remember(app: &AppHandle, window: &Window) {
         let Some(g) = capture(window, saved.main) else {
             return;
         };
+        if saved.main == Some(g) {
+            return;
+        }
         json!({ "main": g })
     } else {
         let Some(route) = route_of(app, window.label()) else {
@@ -95,25 +189,10 @@ pub fn remember(app: &AppHandle, window: &Window) {
         let Some(g) = capture(window, previous) else {
             return;
         };
+        if previous == Some(g) {
+            return;
+        }
         json!({ "panels": { route: { "geometry": g } } })
     };
     let _ = settings.patch(app, Partition::Windows, &patch, false);
-}
-
-fn is_sane(g: &Geometry) -> bool {
-    g.width >= MIN_SANE.0 && g.height >= MIN_SANE.1
-}
-
-/// Skips positions on a monitor that's no longer connected.
-fn is_on_screen(app: &AppHandle, g: &Geometry) -> bool {
-    let Ok(monitors) = app.available_monitors() else {
-        return false;
-    };
-    // A point just inside the title bar must land on some monitor.
-    let (x, y) = (f64::from(g.x) + 40.0, f64::from(g.y) + 10.0);
-    monitors.iter().any(|m| {
-        let pos = m.position().to_logical::<f64>(m.scale_factor());
-        let size = m.size().to_logical::<f64>(m.scale_factor());
-        x >= pos.x && y >= pos.y && x < pos.x + size.width && y < pos.y + size.height
-    })
 }

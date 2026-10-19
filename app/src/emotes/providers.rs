@@ -1,14 +1,16 @@
 //! BTTV and FFZ (1.38, 1.39): global and channel sets, badges, FFZ's per-user sets, and
-//! BTTV's socket (C9 Pro emotes and badges, C10 emotes changing live).
+//! BTTV's socket (C9 Pro emotes and badges, C10 emotes changing live). E2 A channel's
+//! 7TV set is fetched here too, so all three retry alike.
 
 use std::sync::Arc;
 
 use cyex_chat::model::Provider;
 use cyex_emotes::bttv::{self, socket::Event as BttvEvent};
 use cyex_emotes::ffz::{self, api::RoomBadges};
+use cyex_emotes::seventv;
 use cyex_emotes::{EmoteSet, Scope};
 use cyex_twitch::Http;
-use cyex_twitch::pace::Lane;
+use cyex_twitch::pace::{Lane, Service};
 use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc::UnboundedReceiver;
 
@@ -63,25 +65,94 @@ pub async fn globals(app: &AppHandle, http: &Http) -> Vec<Arc<EmoteSet>> {
     sets
 }
 
-/// A channel's BTTV and FFZ sets, and FFZ's mod and VIP pictures for it.
+/// E1 Which of 7TV (E2), BTTV and FFZ: to fetch, or that failed for now (429, 5xx,
+/// offline). "No 7TV or BTTV user" and "no FFZ room" are answers, not failures.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Which {
+    pub seventv: bool,
+    pub bttv: bool,
+    pub ffz: bool,
+}
+
+impl Which {
+    pub const ALL: Which = Which {
+        seventv: true,
+        bttv: true,
+        ffz: true,
+    };
+
+    pub fn any(self) -> bool {
+        self.seventv || self.bttv || self.ffz
+    }
+}
+
+/// What a channel fetch brought.
+#[derive(Default)]
+pub struct Fetched {
+    /// E2 The channel's 7TV account and set; `None` also when it has none.
+    pub seventv: Option<seventv::api::Channel>,
+    pub bttv: Option<Arc<EmoteSet>>,
+    pub ffz: Option<Arc<EmoteSet>>,
+    /// FFZ's mod and VIP pictures, when FFZ answered.
+    pub badges: Option<RoomBadges>,
+    pub failed: Which,
+}
+
+/// A channel's 7TV, BTTV and FFZ sets (those in `want`), and FFZ's mod and VIP pictures.
 /// V107-P2 `lane`: the tab on screen goes ahead of background ones.
-pub async fn channel(http: &Http, id: &str, lane: Lane) -> (Vec<Arc<EmoteSet>>, RoomBadges) {
-    let (b, f) = tokio::join!(bttv::api::channel(http, id, lane), ffz::api::room(http, id, lane));
-    let mut sets = Vec::new();
-    let mut badges = RoomBadges::default();
+pub async fn channel(http: &Http, id: &str, lane: Lane, want: Which) -> Fetched {
+    let b = async {
+        if want.bttv {
+            Some(bttv::api::channel(http, id, lane).await)
+        } else {
+            None
+        }
+    };
+    let f = async {
+        if want.ffz {
+            Some(ffz::api::room(http, id, lane).await)
+        } else {
+            None
+        }
+    };
+    let s = async {
+        if want.seventv {
+            Some(seventv::api::channel(http, id, lane).await)
+        } else {
+            None
+        }
+    };
+    let (s, b, f) = tokio::join!(s, b, f);
+    let mut out = Fetched::default();
+    match s {
+        Some(Ok(ch)) => out.seventv = ch,
+        Some(Err(e)) => {
+            out.failed.seventv = Service::SevenTv.transient(&e);
+            eprintln!("emotes: no 7TV emotes for {id}: {}", e.describe("7TV"));
+        }
+        None => {}
+    }
     match b {
-        Ok(s) => sets.extend(s.map(Arc::new)),
-        Err(e) => eprintln!("emotes: no BTTV emotes for {id}: {}", e.describe("BTTV")),
+        Some(Ok(s)) => out.bttv = s.map(Arc::new),
+        Some(Err(e)) => {
+            out.failed.bttv = Service::Bttv.transient(&e);
+            eprintln!("emotes: no BTTV emotes for {id}: {}", e.describe("BTTV"));
+        }
+        None => {}
     }
     match f {
-        Ok(Some(room)) => {
-            sets.extend(room.set.map(Arc::new));
-            badges = room.badges;
+        Some(Ok(Some(room))) => {
+            out.ffz = room.set.map(Arc::new);
+            out.badges = Some(room.badges);
         }
-        Ok(None) => {}
-        Err(e) => eprintln!("emotes: no FFZ emotes for {id}: {}", e.describe("FFZ")),
+        Some(Ok(None)) => out.badges = Some(RoomBadges::default()),
+        Some(Err(e)) => {
+            out.failed.ffz = Service::Ffz.transient(&e);
+            eprintln!("emotes: no FFZ emotes for {id}: {}", e.describe("FFZ"));
+        }
+        None => {}
     }
-    (sets, badges)
+    out
 }
 
 pub fn spawn_bttv(app: AppHandle, mut rx: UnboundedReceiver<BttvEvent>) {

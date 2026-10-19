@@ -12,6 +12,7 @@ mod looks;
 pub mod menu;
 pub mod presence;
 mod providers;
+mod retry;
 mod ttl;
 mod twitch_state;
 
@@ -38,6 +39,11 @@ use crate::settings::Settings;
 /// The Twitch emote sets an account can use in one channel.
 type TwitchSets = Arc<Vec<cyex_twitch::gql::EmoteSet>>;
 
+/// V107-R1 Users with personal emotes kept at most (as `Cosmetics`' 7TV users).
+const MAX_PERSONAL_USERS: usize = 20_000;
+/// V107-R1 7TV profile pictures kept; past this the cache starts over.
+const MAX_AVATARS: usize = 2_000;
+
 pub struct Emotes {
     inner: Mutex<Inner>,
     /// F18 As many 7TV connections as the chats need.
@@ -54,12 +60,17 @@ struct Inner {
     priority: Vec<Provider>,
     globals: Vec<Arc<EmoteSet>>,
     globals_loading: bool,
+    /// E2 The global 7TV set is being asked for again (once per run).
+    seventv_globals_retry: bool,
     /// By channel login.
     channels: HashMap<String, Channel>,
     /// C9 Personal and special 7TV sets by id, and which users have which.
     personal_sets: HashMap<String, Arc<EmoteSet>>,
     user_sets: HashMap<String, Vec<String>>,
     personal: Arc<HashMap<String, Arc<Lookup>>>,
+    /// V107-R1 Tick of each `user_sets` user's last set change, for the cap.
+    personal_seen: HashMap<String, u64>,
+    personal_tick: u64,
     /// Emotes pushed into sets nobody claimed yet; a personal set fills before its
     /// entitlement arrives.
     unclaimed: HashMap<String, Vec<cyex_emotes::Emote>>,
@@ -170,6 +181,59 @@ impl Inner {
                 Arc::new(Lookup::build(sets.iter().map(Arc::as_ref))),
             );
         }
+        if self.user_sets.contains_key(user) {
+            self.personal_tick += 1;
+            self.personal_seen.insert(user.to_owned(), self.personal_tick);
+            if self.user_sets.len() > MAX_PERSONAL_USERS + MAX_PERSONAL_USERS / 10 {
+                self.trim_personal(MAX_PERSONAL_USERS);
+            }
+        } else {
+            self.personal_seen.remove(user);
+        }
+    }
+
+    /// V107-R1 Drops the users whose sets changed least recently down to `keep`, and the
+    /// sets only they had. Push-only like the cosmetics (V107-M3): a dropped user's emotes
+    /// come back with their next entitlement.
+    fn trim_personal(&mut self, keep: usize) {
+        if self.user_sets.len() <= keep {
+            return;
+        }
+        let tick = |u: &str| self.personal_seen.get(u).copied().unwrap_or(0);
+        let mut ticks: Vec<u64> = self.user_sets.keys().map(|u| tick(u)).collect();
+        let cut = ticks.len() - keep;
+        let (_, &mut oldest_kept, _) = ticks.select_nth_unstable(cut);
+        let gone: Vec<String> = self
+            .user_sets
+            .keys()
+            .filter(|u| tick(u) < oldest_kept)
+            .cloned()
+            .collect();
+        let mut dropped_sets: HashSet<String> = HashSet::new();
+        let map = Arc::make_mut(&mut self.personal);
+        for u in &gone {
+            if let Some(sets) = self.user_sets.remove(u) {
+                dropped_sets.extend(sets);
+            }
+            self.personal_seen.remove(u);
+            map.remove(u);
+        }
+        let held: HashSet<&String> = self.user_sets.values().flatten().collect();
+        dropped_sets.retain(|id| !held.contains(id));
+        for id in dropped_sets {
+            self.personal_sets.remove(&id);
+        }
+    }
+
+    /// V107-R1 A channel's chat left: its entry, and every cache keyed by a channel id no
+    /// open chat has (this one's, and any a load finished into after its chat closed).
+    fn forget_channel(&mut self, login: &str) -> Option<Channel> {
+        let c = self.channels.remove(login)?;
+        let open: HashSet<&str> = self.channels.values().map(|c| c.id.as_str()).collect();
+        self.bot_commands.retain(|id, _| open.contains(id.as_str()));
+        self.channel_twitch.retain(|id, _| open.contains(id.as_str()));
+        self.twitch_sets.retain(|(_, id), _| open.contains(id.as_str()));
+        Some(c)
     }
 
     /// V107-M3 Drops personal sets no user has any more.
@@ -255,7 +319,7 @@ pub fn leave(app: &AppHandle, login: &str) {
     let Some(state) = app.try_state::<Emotes>() else {
         return;
     };
-    let Some(c) = state.lock().channels.remove(login) else {
+    let Some(c) = state.lock().forget_channel(login) else {
         return;
     };
     for t in SevenTopic::channel(&c.id) {
@@ -363,7 +427,11 @@ pub async fn avatar(app: &AppHandle, login: &str) -> Option<cyex_emotes::seventv
         .await
         .ok()?;
     let a = found.get(&login).cloned();
-    state.lock().avatars.insert(login, a.clone());
+    let mut inner = state.lock();
+    if inner.avatars.len() >= MAX_AVATARS {
+        inner.avatars.clear();
+    }
+    inner.avatars.insert(login, a.clone());
     a
 }
 
@@ -386,7 +454,11 @@ pub async fn bot_commands(
     let cmds = cyex_emotes::bttv::api::bot_commands(&http, &id)
         .await
         .map_err(|e| e.to_string())?;
-    state.lock().bot_commands.insert(id, cmds.clone());
+    let mut inner = state.lock();
+    // V107-R1 Kept only while the chat is open; `forget_channel` drops it.
+    if inner.channels.values().any(|c| c.id == id) {
+        inner.bot_commands.insert(id, cmds.clone());
+    }
     Ok(cmds)
 }
 
@@ -417,5 +489,61 @@ mod tests {
         assert!(inner.personal.is_empty() && inner.user_sets.is_empty());
         inner.prune_personal_sets(&["s".to_owned()]);
         assert!(inner.personal_sets.is_empty());
+    }
+
+    fn channel(id: &str) -> Channel {
+        Channel {
+            id: id.into(),
+            sets: Vec::new(),
+            seventv_user: None,
+            ffz_badges: Default::default(),
+            lookup: Arc::new(Lookup::default()),
+            ready: watch::channel(false).0,
+        }
+    }
+
+    #[test]
+    fn v107_r1_a_thousand_joins_and_leaves_leave_nothing_behind() {
+        let mut inner = Inner::default();
+        inner.channels.insert("stay".into(), channel("0"));
+        inner.bot_commands.insert("0".into(), Vec::new());
+        for i in 1..=1000 {
+            let (login, id) = (format!("c{i}"), i.to_string());
+            inner.channels.insert(login.clone(), channel(&id));
+            inner.bot_commands.insert(id.clone(), Vec::new());
+            inner.twitch_sets.insert(("me".into(), id.clone()), (Instant::now(), Arc::default()));
+            // A load that finished after its chat closed.
+            inner.bot_commands.insert(format!("late{i}"), Vec::new());
+            assert!(inner.forget_channel(&login).is_some());
+        }
+        assert_eq!(inner.channels.len(), 1);
+        assert_eq!(inner.bot_commands.len(), 1);
+        assert!(inner.twitch_sets.is_empty());
+        assert!(inner.forget_channel("c1").is_none());
+    }
+
+    #[test]
+    fn v107_r1_personal_users_stop_at_the_cap() {
+        let mut inner = Inner::default();
+        let n = MAX_PERSONAL_USERS + MAX_PERSONAL_USERS / 2;
+        for i in 0..n {
+            let (u, s) = (format!("u{i}"), format!("s{i}"));
+            let set = EmoteSet::new(s.clone(), Provider::Seventv, Scope::Personal, Vec::new());
+            inner.personal_sets.insert(s.clone(), Arc::new(set));
+            inner.user_sets.insert(u.clone(), vec![s, "shared".into()]);
+            inner.rebuild_personal(&u);
+            if i == 0 {
+                let set = EmoteSet::new("shared", Provider::Seventv, Scope::Personal, Vec::new());
+                inner.personal_sets.insert("shared".into(), Arc::new(set));
+            }
+        }
+        let users = inner.user_sets.len();
+        assert!((MAX_PERSONAL_USERS..=MAX_PERSONAL_USERS * 11 / 10).contains(&users));
+        assert_eq!(inner.personal_seen.len(), users);
+        assert!(inner.personal.len() <= users);
+        // Every set left belongs to a user left; the shared one stays.
+        assert_eq!(inner.personal_sets.len(), users + 1);
+        assert!(inner.user_sets.contains_key(&format!("u{}", n - 1)));
+        assert!(!inner.user_sets.contains_key("u0"));
     }
 }

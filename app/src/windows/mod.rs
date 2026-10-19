@@ -2,6 +2,7 @@
 
 mod geometry;
 mod layouts;
+mod placement;
 pub mod overlay;
 mod panels;
 pub mod seventv;
@@ -77,11 +78,9 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
         .inner_size(1280.0, 800.0)
         .min_inner_size(720.0, 420.0)
         .always_on_top(saved.main_pinned);
-    let main = geometry::on_builder(app, main, saved.main.as_ref());
+    let (main, placed) = geometry::on_builder(app, main, saved.main.as_ref(), (720.0, 420.0), (1280.0, 800.0));
     let main = main.build()?;
-    if saved.main.is_some_and(|g| g.maximized) {
-        main.maximize()?;
-    }
+    geometry::settle(&main, placed)?;
     icons::apply(&main.as_ref().window());
     crate::sys::frame::attach(&main);
     main.show()?;
@@ -169,7 +168,7 @@ pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
         }
         WindowEvent::Destroyed if window.label() == MAIN => app.exit(0),
         WindowEvent::Destroyed => {
-            crate::chat::close_window(app, window.label());
+            close_views(app, window.label());
             crate::chat::shown::gone(app, window.label());
             panels::forget(app, window.label());
             overlay::forget(app, window.label());
@@ -187,8 +186,13 @@ pub fn on_page_load(webview: &Webview, payload: &PageLoadPayload<'_>) {
     zoom::apply(webview);
     let shows_chats = || label == MAIN || route_of(app, label).is_some_and(|r| panels::shows_chats(&r));
     match payload.event() {
-        PageLoadEvent::Started if shows_chats() => crate::chat::shown::loading(app, label),
-        PageLoadEvent::Started => {}
+        PageLoadEvent::Started => {
+            // V107-R1 A reload opens its views again; the old ones would stay as dead sinks.
+            close_views(app, label);
+            if shows_chats() {
+                crate::chat::shown::loading(app, label);
+            }
+        }
         PageLoadEvent::Finished => {
             crate::chat::shown::loaded(app, label);
             if let Some(w) = app.get_webview_window(label).filter(|w| zoom::follows(w.label())) {
@@ -200,6 +204,13 @@ pub fn on_page_load(webview: &Webview, payload: &PageLoadPayload<'_>) {
             }
         }
     }
+}
+
+/// V107-R1 The chat and feed views of a window that closed or (re)loads its page.
+fn close_views(app: &AppHandle, label: &str) {
+    crate::chat::close_window(app, label);
+    crate::chat::feeds::close_window(app, label);
+    crate::feeds::close_window(app, label);
 }
 
 /// Windows that WebView2 was asked to keep small (D28).

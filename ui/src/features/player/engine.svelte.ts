@@ -130,6 +130,8 @@ export class Engine {
   /** K3 Stops listening for boost graph changes of the current hls. */
   private unGraph: () => void = () => {};
   private graphTimer: ReturnType<typeof setTimeout> | undefined;
+  /** L1 Destroyed: nothing starts or loads on it again. */
+  private gone = false;
 
   constructor(
     private readonly video: HTMLVideoElement,
@@ -177,6 +179,7 @@ export class Engine {
   /** `hold`: paused until played (V103-07). `dvr`: the session is the rewind VOD (V1061-03). */
   async start(session: PlayerSession, choice: Choice, startAt = -1, hold = false, dvr = false): Promise<void> {
     // Q14 a A swap: silent, nothing plays meanwhile.
+    if (this.gone) return;
     const swap = !!this.hls;
     this.st = begin(this.st, swap, dvr);
     if (swap) this.quietPause();
@@ -344,6 +347,7 @@ export class Engine {
   }
 
   destroy(): void {
+    this.gone = true;
     clearTimeout(this.stopTimer);
     clearInterval(this.pauseTick);
     clearInterval(this.stallTimer);
@@ -362,7 +366,7 @@ export class Engine {
 
   private async load(): Promise<void> {
     const session = this.session;
-    if (!session) return;
+    if (!session || this.gone) return;
     const n = ++this.loads;
     this.dropHls();
     this.failure = null;
@@ -373,7 +377,7 @@ export class Engine {
     this.tornAt = null;
     const Hls = await loadHls();
     // rd-2 A newer load (or start) came meanwhile: it makes the instance, or two would load.
-    if (this.session !== session || n !== this.loads) return;
+    if (this.session !== session || n !== this.loads || this.gone) return;
     this.dropHls();
     const hls = new Hls(this.config());
     this.hls = hls;

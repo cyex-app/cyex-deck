@@ -1,0 +1,148 @@
+{
+  "windows": [
+    {
+      "type": "main",
+      "tabs": [
+        {
+          "highlightsEnabled": true,
+          "selected": true,
+          "splits2": {
+            "flexh": 1,
+            "flexv": 1,
+            "items": [
+              {
+                "flexh": 1.0000037689986432,
+                "flexv": 1,
+                "items": [
+                  {
+                    "data": {
+                      "name": "zjbw",
+                      "type": "twitch"
+                    },
+                    "filters": [],
+                    "flexh": 1,
+                    "flexv": 1,
+                    "moderationMode": false,
+                    "type": "split"
+                  },
+                  {
+                    "data": {
+                      "name": "aussieantics",
+                      "type": "twitch"
+                    },
+                    "filters": [],
+                    "flexh": 1,
+                    "flexv": 1,
+                    "moderationMode": false,
+                    "type": "split"
+                  }
+                ],
+                "type": "vertical"
+              },
+              {
+                "flexh": 1.0073500857827258,
+                "flexv": 1,
+                "items": [
+                  {
+                    "data": {
+                      "name": "lilb_lxryer",
+                      "type": "twitch"
+                    },
+                    "filters": [],
+                    "flexh": 1,
+                    "flexv": 1.637630662020906,
+                    "moderationMode": false,
+                    "type": "split"
+                  },
+                  {
+                    "data": {
+                      "name": "cakefire_",
+                      "type": "twitch"
+                    },
+                    "filters": [],
+                    "flexh": 1,
+                    "flexv": 0.362369337979094,
+                    "moderationMode": false,
+                    "type": "split"
+                  }
+                ],
+                "type": "vertical"
+              },
+              {
+                "flexh": 0.9963230726093155,
+                "flexv": 1,
+                "items": [
+                  {
+                    "data": {
+                      "name": "cnfz",
+                      "type": "twitch"
+                    },
+                    "filters": [],
+                    "flexh": 1,
+                    "flexv": 1,
+                    "moderationMode": false,
+                    "type": "split"
+                  },
+                  {
+                    "data": {
+                      "name": "jannik_vdb",
+                      "type": "twitch"
+                    },
+                    "filters": [],
+                    "flexh": 1,
+                    "flexv": 1,
+                    "moderationMode": false,
+                    "type": "split"
+                  }
+                ],
+                "type": "vertical"
+              },
+              {
+                "flexh": 0.9963230726093155,
+                "flexv": 1,
+                "items": [
+                  {
+                    "data": {
+                      "name": "stableronaldo",
+                      "type": "twitch"
+                    },
+                    "filters": [],
+                    "flexh": 1,
+                    "flexv": 1,
+                    "moderationMode": false,
+                    "type": "split"
+                  },
+                  {
+                    "data": {
+                      "name": "rvbies",
+                      "type": "twitch"
+                    },
+                    "filters": [],
+                    "flexh": 1,
+                    "flexv": 1,
+                    "moderationMode": false,
+                    "type": "split"
+                  },
+                  {
+                    "data": {
+                      "name": "potatbotat",
+                      "type": "twitch"
+                    },
+                    "filters": [],
+                    "flexh": 1,
+                    "flexv": 1,
+                    "moderationMode": false,
+                    "type": "split"
+                  }
+                ],
+                "type": "vertical"
+              }
+            ],
+            "type": "horizontal"
+          },
+          "title": "Comfi"
+        }
+      ]
+    }
+  ]
+}
