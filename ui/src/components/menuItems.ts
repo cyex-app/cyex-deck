@@ -33,6 +33,9 @@ export interface MenuItem {
   /** With `lock`: what picking it does instead of going to Settings, e.g. the sign-in choice. */
   unlock?: () => void;
   run?: () => void;
+  /** V107-P5 Asks once more before `run`: the first pick keeps the menu open and shows this
+   * (e.g. "Click to delete") over the item; a second pick within 3 s runs it. */
+  confirm?: string;
   /** Opens a second list in place of this one. */
   items?: MenuEntry[];
   /** V107 A small text field instead of a button (`label` names it for screen readers). */

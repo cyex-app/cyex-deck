@@ -296,6 +296,16 @@ pub async fn history(http: &Http, auth: Auth<'_>, channel_id: &str, target_id: &
     })
 }
 
+/// V107-M7 The ban or timeout on a user right now, `None` when there is none. Mods only.
+pub async fn ban_status(http: &Http, auth: Auth<'_>, channel_id: &str, target_id: &str) -> Result<Option<BanStatus>> {
+    const Q: &str = "query Ban($channelID: ID!, $targetID: ID!) {
+  ban: chatRoomBanStatus(channelID: $channelID, userID: $targetID) {
+    expiresAt isPermanent reason moderator { login displayName } } }";
+    let vars = json!({ "channelID": channel_id, "targetID": target_id });
+    let data: Value = query(http, auth, Q, vars).await?;
+    Ok(ban_of(&data))
+}
+
 /// M3 Writes a mod comment on a user; `shareable` lets channels that share see it.
 pub async fn add_comment(http: &Http, auth: Auth<'_>, channel_id: &str, target_id: &str, text: &str, shareable: bool) -> Result<()> {
     const Q: &str = "mutation C($input: CreateModeratorCommentInput!) {

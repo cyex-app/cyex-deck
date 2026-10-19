@@ -4,6 +4,7 @@
 import { gate } from '../lib/gate.svelte';
 import { type Align, point, type Rect } from '../lib/place';
 import { type MenuEntry, type MenuItem, tidy } from './menuItems';
+import { confirmer } from './menuConfirm';
 
 export type { MenuEntry, MenuField, MenuItem } from './menuItems';
 
@@ -14,7 +15,21 @@ export const menu = $state({
   align: 'start' as Align,
   /** Lists shown so far; the last one is on screen. */
   stack: [] as { title: string; items: MenuEntry[] }[],
+  /** V107-P5 The `confirm` item waiting for its second pick. */
+  armed: null as MenuItem | null,
 });
+
+const confirming = confirmer<MenuItem>((item) => (menu.armed = item));
+
+/** V107-P5 The pointer or keyboard went to `item`: an armed other item lets go. */
+export function menuMoveTo(item: MenuItem): void {
+  confirming.moveTo(item);
+}
+
+/** V107-P5 Escape: lets go of an armed item first; true when it did. */
+export function menuDisarm(): boolean {
+  return confirming.cancel();
+}
 
 /** At the pointer, or under a button (`align: 'end'` lines it up with the button's right edge). */
 export function openMenu(
@@ -24,6 +39,7 @@ export function openMenu(
 ): void {
   menu.anchor = at instanceof Element ? at.getBoundingClientRect() : point(at.clientX, at.clientY);
   menu.align = align;
+  confirming.cancel();
   menu.stack = [{ title: '', items: tidy(items) }];
   menu.open = true;
 }
@@ -34,6 +50,7 @@ export function openMenuAt(e: { currentTarget: EventTarget | null }, items: Menu
 }
 
 export function closeMenu(): void {
+  confirming.cancel();
   menu.open = false;
 }
 
@@ -46,13 +63,17 @@ export function pick(item: MenuItem): void {
     return;
   }
   if (item.items) {
+    confirming.cancel();
     menu.stack = [...menu.stack, { title: item.label, items: tidy(item.items) }];
     return;
   }
+  if (!confirming.press(item, item.confirm)) return;
   menu.open = false;
   item.run?.();
 }
 
 export function back(): void {
-  if (menu.stack.length > 1) menu.stack = menu.stack.slice(0, -1);
+  if (menu.stack.length < 2) return;
+  confirming.cancel();
+  menu.stack = menu.stack.slice(0, -1);
 }

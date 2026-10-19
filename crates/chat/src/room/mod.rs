@@ -8,6 +8,7 @@ mod hook;
 mod keep;
 mod presence;
 mod role;
+mod stack;
 
 pub use hook::{LineChange, LineHook};
 pub use keep::{BACKGROUND, BACKGROUND_HISTORY};
@@ -97,6 +98,8 @@ pub struct Room {
     lost_at: Option<i64>,
     /// C37, V102-18 The joins and leaves lines still taking names.
     presence: presence::Batches,
+    /// V107-M7 Timeouts in a row, one line per user.
+    timeouts: stack::Stacks,
 }
 
 impl Room {
@@ -122,6 +125,7 @@ impl Room {
             outcomes: Vec::new(),
             lost_at: None,
             presence: presence::Batches::default(),
+            timeouts: stack::Stacks::default(),
         };
         room.state.own = room.initial_own();
         room
@@ -192,11 +196,20 @@ impl Room {
         })
     }
 
+    /// V107-P4 Message `id`, from the buffer or the pin.
+    fn shown(&self, id: &str) -> Option<&ChatMessage> {
+        let pinned = self.pinned.as_ref().map(|p| &p.message).filter(|m| m.id == id);
+        self.buffer.iter().rev().find(|m| m.id == id).map(|m| &**m).or(pinned)
+    }
+
     /// V107-P4 Who sent message `id` (their display name), from the buffer or the pin.
     pub fn sender_name(&self, id: &str) -> Option<String> {
-        let pinned = self.pinned.as_ref().map(|p| &p.message).filter(|m| m.id == id);
-        let from = |m: &ChatMessage| m.sender.as_ref().map(|s| s.display.clone());
-        self.buffer.iter().rev().find(|m| m.id == id).and_then(|m| from(m)).or_else(|| pinned.and_then(from))
+        self.shown(id).and_then(|m| m.sender.as_ref().map(|s| s.display.clone()))
+    }
+
+    /// V107-P7 Message `id`'s plain text (emotes as their names), for the delete notice.
+    pub fn message_text(&self, id: &str) -> Option<String> {
+        self.shown(id).map(|m| plain(&m.body))
     }
 
     /// V107 Whether message `id` is the one pinned here.
@@ -309,6 +322,42 @@ impl Room {
         RoomEvent::Message { message: m }
     }
 
+    /// V107-M7 A mod-action feed's timeout line for `user_id`, stacked with the ones
+    /// before it (`stack`).
+    pub fn timeout_line(&mut self, user_id: &str, text: &str, now_ms: i64) -> RoomEvent {
+        let mut m = build::system(NoticeKind::Moderation, text, now_ms);
+        if let Some(ev) = self.stacked(user_id, stack::Source::Feed, &mut m) {
+            return ev;
+        }
+        let m = Arc::new(m);
+        self.push(m.clone());
+        RoomEvent::Message { message: m }
+    }
+
+    /// V107-M7 Puts timeout line `m` into its stack: the update of the stack's line, or
+    /// `None` to add `m` (its text counted) as a new line.
+    fn stacked(&mut self, user_id: &str, src: stack::Source, m: &mut ChatMessage) -> Option<RoomEvent> {
+        let text = m.notice.as_ref()?.text.clone();
+        let mut hit = self.timeouts.hit(user_id, src, &text, m.ts, &m.id);
+        if hit.update {
+            if let Some(slot) = self.buffer.iter_mut().rev().find(|b| b.id == hit.id) {
+                let mut u = (**slot).clone();
+                if let Some(n) = u.notice.as_mut() {
+                    n.text = hit.text;
+                }
+                *slot = Arc::new(u);
+                return Some(RoomEvent::Update { message: slot.clone() });
+            }
+            // The stack's line is gone: this one starts a new stack.
+            self.timeouts.forget(user_id);
+            hit = self.timeouts.hit(user_id, src, &text, m.ts, &m.id);
+        }
+        if let Some(n) = m.notice.as_mut() {
+            n.text = hit.text;
+        }
+        None
+    }
+
     /// 1.26 A finished line from outside the room, e.g. a whisper shown inline.
     pub fn local(&mut self, m: Arc<ChatMessage>) -> RoomEvent {
         self.push(m.clone());
@@ -364,8 +413,14 @@ impl Room {
             Incoming::ClearUser { user_id, secs, notice } => {
                 self.mark_deleted(|m| m.notice.is_none() && m.sender_id() == Some(user_id.as_str()));
                 let me = self.me.as_ref().is_some_and(|m| m.user_id == user_id);
+                // V107-M7 Timeouts in a row share one line; bans stand alone.
+                let mut notice = notice;
+                let update = secs.and_then(|_| self.stacked(&user_id, stack::Source::Irc, &mut notice));
                 events.push(RoomEvent::ClearUser { user_id });
-                events.extend(self.add(notice, now_ms, emotes));
+                match update {
+                    Some(update) => events.push(update),
+                    None => events.extend(self.add(notice, now_ms, emotes)),
+                }
                 if me && let Some(secs) = secs {
                     events.extend(self.wait(now_ms + secs as i64 * 1000));
                 }

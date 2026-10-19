@@ -8,7 +8,10 @@ pub fn gql(code: &str, who: &str) -> String {
         "TARGET_IS_BROADCASTER" => "That’s the broadcaster.".into(),
         "TARGET_IS_STAFF" | "TARGET_IS_ADMIN" | "TARGET_IS_GLOBAL_MOD" => format!("{who} is Twitch staff."),
         "TARGET_IS_SELF" => "That’s you.".into(),
-        "TARGET_NOT_FOUND" | "TARGET_IS_ANONYMOUS" => format!("No user called {who}."),
+        "TARGET_NOT_FOUND" | "TARGET_IS_ANONYMOUS" | "GRANTEE_NOT_FOUND" | "REVOKEE_NOT_FOUND" => format!("No user called {who}."),
+        // 1.50 Guessed from the codes above; unknown ones still show Twitch's code.
+        "TARGET_BANNED" | "TARGET_IS_BANNED" | "GRANTEE_BANNED" | "GRANTEE_IS_BANNED" => format!("{who} is banned here."),
+        "GRANTEE_IS_MOD" | "GRANTEE_IS_MODERATOR" => format!("{who} is a moderator."),
         "TARGET_ALREADY_BANNED" => format!("{who} is already banned."),
         "TARGET_NOT_BANNED" => format!("{who} isn’t banned."),
         "DURATION_INVALID" => "That timeout length isn’t allowed.".into(),

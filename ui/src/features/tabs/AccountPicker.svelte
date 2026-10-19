@@ -78,10 +78,11 @@
                 aria-checked={a.userId === chosen.userId}
                 onclick={() => pick(a.userId)}
               >
+                <!-- The check sits in its own slot on the left, so the counts line up on the right. -->
+                <span class="check">{#if a.userId === chosen.userId}<Icon name="check" size={14} />{/if}</span>
                 <Avatar src={a.avatar} name={a.displayName} size={20} />
                 <span class="name">{a.displayName}{#if a.isDefault}<span class="def">default</span>{/if}</span>
                 {#if count(a.userId)}<span class="count" use:tooltip={'Chats open'}>{count(a.userId)}</span>{/if}
-                {#if a.userId === chosen.userId}<span class="check"><Icon name="check" size={14} /></span>{/if}
               </button>
             {/each}
           </div>
@@ -170,8 +171,13 @@
     color: var(--dim);
     font-size: 0.78rem;
   }
+  .count {
+    font-variant-numeric: tabular-nums;
+  }
   .check {
     display: flex;
+    flex: none;
+    width: 14px;
     color: var(--accent-text);
   }
 </style>

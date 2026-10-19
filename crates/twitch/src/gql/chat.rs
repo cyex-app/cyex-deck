@@ -21,7 +21,7 @@ const CHANNEL: &str = "query($login: String!) { \
     channel(name: $login) { communityPointsSettings { POINTS } } }";
 
 const PINNED: &str = "query($id: ID!) { channel(id: $id) { pinnedChatMessages(first: 1) { edges { node { \
-    id type startsAt endsAt pinnedBy { displayName } \
+    id type startsAt endsAt pinnedBy { login displayName } \
     pinnedMessage { id sender { id login displayName chatColor } \
       content { text fragments { text content { __typename ... on Emote { emoteID: id token } ... on User { login } } } } } \
     } } } } }";
@@ -83,6 +83,8 @@ pub struct PinnedMessage {
     pub starts_at: Option<String>,
     pub ends_at: Option<String>,
     pub pinned_by: Option<String>,
+    /// V107-P5 For the usercard.
+    pub pinned_by_login: Option<String>,
     pub message_id: String,
     pub sender: Option<PinSender>,
     pub fragments: Vec<PinFragment>,
@@ -154,6 +156,7 @@ pub async fn pinned(http: &Http, channel_id: &str) -> Result<Option<PinnedMessag
             kind: n.kind,
             starts_at: n.starts_at,
             ends_at: n.ends_at,
+            pinned_by_login: n.pinned_by.as_ref().and_then(|p| p.login.clone()),
             pinned_by: n.pinned_by.map(|p| p.display_name),
             message_id: msg.as_ref().map(|m| m.id.clone()).unwrap_or_default(),
             sender: msg.as_ref().and_then(|m| m.sender.as_ref()).map(|s| PinSender {
@@ -344,6 +347,8 @@ struct RawPin {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawPinnedBy {
+    #[serde(default)]
+    login: Option<String>,
     display_name: String,
 }
 
@@ -426,13 +431,14 @@ mod tests {
     fn pinned_parses() {
         let raw: RawPinData = serde_json::from_str(
             r##"{"channel":{"pinnedChatMessages":{"edges":[{"node":{"id":"p1","type":"MOD","startsAt":"2026-10-11T12:00:00Z","endsAt":null,
-              "pinnedBy":{"displayName":"Mod"},"pinnedMessage":{"id":"m1","sender":{"id":"7","login":"foo","displayName":"Foo","chatColor":"#FF0000"},
+              "pinnedBy":{"login":"mod","displayName":"Mod"},"pinnedMessage":{"id":"m1","sender":{"id":"7","login":"foo","displayName":"Foo","chatColor":"#FF0000"},
               "content":{"text":"hi Kappa @bar","fragments":[{"text":"hi ","content":null},{"text":"Kappa","content":{"__typename":"Emote","emoteID":"25","token":"Kappa"}},
               {"text":" ","content":null},{"text":"@bar","content":{"__typename":"User","login":"bar"}}]}}}}]}}}"##,
         )
         .unwrap();
         let node = raw.channel.unwrap().pinned_chat_messages.unwrap().edges.into_iter().next().unwrap().node;
         assert_eq!(node.starts_at.as_deref(), Some("2026-10-11T12:00:00Z"));
+        assert_eq!(node.pinned_by.as_ref().and_then(|p| p.login.as_deref()), Some("mod"), "V107-P5");
         let frags: Vec<PinFragment> = node.pinned_message.unwrap().content.fragments.into_iter().map(PinFragment::from).collect();
         assert!(matches!(&frags[1], PinFragment::Emote { id, .. } if id == "25"));
         assert!(matches!(&frags[3], PinFragment::Mention { login, .. } if login == "bar"));

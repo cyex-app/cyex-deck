@@ -15,6 +15,8 @@ pub struct Pinned {
     pub id: String,
     /// Who pinned it.
     pub by: Option<String>,
+    /// V107-P5 Their login, for the usercard.
+    pub by_login: Option<String>,
     /// V106-19 RFC 3339, when the pin began; the timer bar counts from it.
     pub starts_at: Option<String>,
     /// RFC 3339; `None` = until unpinned.

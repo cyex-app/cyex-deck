@@ -302,7 +302,7 @@
         label: s.followersOnly ? `Followers ${formatDuration(s.followersOnly * 60)}` : 'Followers',
         hint: 'Only followers can chat.',
       });
-    if (s.subsOnly) list.push({ label: 'Subs', hint: 'Only subscribers can chat.' });
+    if (s.subsOnly) list.push({ label: 'Sub', hint: 'Only subscribers can chat.' });
     if (s.emoteOnly) list.push({ label: 'Emotes', hint: 'Emotes only.' });
     if (s.unique) list.push({ label: 'Unique', hint: 'Messages must be unique.' });
     return list;

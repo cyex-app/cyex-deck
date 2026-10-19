@@ -1,6 +1,6 @@
 <!-- Usercard (1.36), laid out like the 7TV extension's (V101-05): who someone is on top, your
      buttons (S1), block and hide, the mod bar where you moderate (1.57), then one scroll
-     window that fills the rest of the fixed-height card: their messages here and in the
+     window that fills the rest of the card: their messages here and in the
      logs, and for mods their timeouts, bans, warnings and mod comments (M3). Your own
      nickname and note for them (C3) open from the pencil. Route: `usercard/<channel>/<login>`. -->
 <script lang="ts">

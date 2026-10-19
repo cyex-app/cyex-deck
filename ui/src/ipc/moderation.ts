@@ -6,6 +6,7 @@ import { listen } from '@tauri-apps/api/event';
 
 import type { Board0 } from './bindings/Board0';
 import type { ModRole } from './bindings/ModRole';
+import type { RoleChange } from './bindings/RoleChange';
 import type { RoleEntry } from './bindings/RoleEntry';
 import type { MassbanProgress } from './bindings/MassbanProgress';
 import type { ModHistory } from './bindings/ModHistory';
@@ -18,6 +19,8 @@ export const modIpc = {
   /** 1.57, V102-21 Every open account's role per channel; `onRoles` brings changes. */
   roles: () => invoke<RoleEntry[]>('mod_roles'),
   onRoles: (handler: (list: RoleEntry[]) => void) => listen<RoleEntry[]>('mod:roles', (e) => handler(e.payload)),
+  /** V107-M8 Someone was modded, unmodded, made a VIP or not, by us or another mod. */
+  onStanding: (handler: (c: RoleChange) => void) => listen<RoleChange>('mod:standing', (e) => handler(e.payload)),
   /** Runs a mod command, e.g. name "ban", args "spammer bots". Returns a line to show. */
   run: (account: string, channel: string, name: string, args: string) =>
     invoke<string | null>('mod_run', { account, channel, name, args }),

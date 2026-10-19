@@ -1,5 +1,6 @@
 <!-- Draws the shared menu at the pointer or under its button, kept inside the window
-     (V101-04). Arrow keys move through it, Right opens a submenu, Left goes back (V101-30). -->
+     (V101-04). Arrow keys move through it, Right opens a submenu, Left goes back (V101-30).
+     V107-P5 An item with `confirm` shows its callout over itself and waits for a second pick. -->
 <script lang="ts">
   import { tick } from 'svelte';
 
@@ -8,15 +9,19 @@
   import { floating } from '../lib/place';
   import { settings } from '../lib/settings.svelte';
   import Avatar from './Avatar.svelte';
+  import ConfirmCallout from './ConfirmCallout.svelte';
   import GateFlag from './GateFlag.svelte';
   import Icon from './Icon.svelte';
-  import { back, closeMenu, menu, pick, type MenuItem } from './menu.svelte';
+  import { back, closeMenu, menu, menuDisarm, menuMoveTo, pick, type MenuItem } from './menu.svelte';
   import { tooltip } from './tooltip.svelte';
 
   let box = $state<HTMLElement>();
   const list = $derived(menu.stack.at(-1));
   /** A button's menu sits just under it; one at the pointer starts right there. */
   const gap = $derived(menu.anchor.bottom > menu.anchor.top ? 4 : 0);
+  /** V107-P5 The items' buttons, for the armed one's callout. */
+  let rows = $state<HTMLElement[]>([]);
+  const armedRow = $derived(menu.armed && list ? rows[list.items.indexOf(menu.armed)] : undefined);
 
   /** V107 What a menu field said no to, shown under it until the list changes. */
   let fieldError = $state('');
@@ -50,7 +55,8 @@
     if (!menu.open || !box) return;
     const release = focusScope(box);
     // Escape closes the menu only, not what it sits on (e.g. a clip).
-    const off = layer('menu', closeMenu);
+    // V107-P5 An armed item lets go first.
+    const off = layer('menu', () => menuDisarm() || closeMenu());
     return () => {
       off();
       release();
@@ -60,7 +66,8 @@
   $effect(() => {
     if (!menu.open) return;
     const onDown = (e: MouseEvent) => {
-      if (!box?.contains(e.target as Node)) closeMenu();
+      const t = e.target as Element;
+      if (!box?.contains(t) && !t.closest?.('[data-menu-confirm]')) closeMenu();
     };
     const onKey = (e: KeyboardEvent) => {
       const typing = document.activeElement instanceof HTMLInputElement;
@@ -127,6 +134,11 @@
           class="item"
           class:danger={entry.danger}
           class:locked={!!entry.lock}
+          class:armed={menu.armed === entry}
+          aria-label={menu.armed === entry ? entry.confirm : undefined}
+          bind:this={rows[i]}
+          onpointerenter={() => menuMoveTo(entry)}
+          onfocus={() => menuMoveTo(entry)}
           role={entry.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
           aria-checked={entry.checked}
           disabled={entry.disabled}
@@ -148,6 +160,10 @@
       {/if}
     {/each}
   </div>
+  {#if menu.armed?.confirm && armedRow}
+    {@const armed = menu.armed}
+    <ConfirmCallout over anchor={armedRow} label={armed.confirm!} onconfirm={() => pick(armed)} ondismiss={menuDisarm} />
+  {/if}
 {/if}
 
 <style>
@@ -198,6 +214,12 @@
     opacity: 0.45;
   }
   .item.danger {
+    color: var(--red);
+  }
+  /* V107-P5 Waiting for the second pick: a red wash under its callout. */
+  .item.armed,
+  .item.armed:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--red) 14%, transparent);
     color: var(--red);
   }
   .head {

@@ -8,7 +8,9 @@ pub mod feeds;
 pub mod massban;
 pub mod nuke;
 pub mod queue;
+pub mod restack;
 pub mod run;
+pub mod standing;
 pub mod view;
 
 use cyex_chat::model::ModRole;
@@ -44,6 +46,8 @@ fn http(app: &AppHandle) -> cyex_twitch::Http {
 /// How an account moderates: its tokens and ids, resolved once per action.
 pub struct Actor {
     pub account: String,
+    /// The channel's login, as the command named it.
+    pub channel: String,
     pub channel_id: String,
     pub role: ModRole,
     helix: Option<(String, String)>,
@@ -101,6 +105,7 @@ pub fn actor_for(app: &AppHandle, account: &str, login: &str, need: Need) -> Res
     }
     Ok(Actor {
         account: account.to_owned(),
+        channel: login.to_ascii_lowercase(),
         channel_id,
         role,
         helix,

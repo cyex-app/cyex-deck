@@ -12,6 +12,7 @@ import { errorText } from '../../lib/errors';
 import { toast } from '../../lib/toast.svelte';
 import { mods, userItems } from '../modview/moderation.svelte';
 import type { Standing } from '../modview/standing';
+import { standings } from '../modview/standings.svelte';
 import { pluginItems } from '../plugins/pluginMenus';
 import { plugins } from '../plugins/plugins.svelte';
 import { whispers } from '../whispers/whispers.svelte';
@@ -60,7 +61,7 @@ export function nameMenu(c: NameMenu): MenuEntry[] {
       ? [{ label: 'Their messages', icon: 'search' as const, run: () => c.onaction!({ type: 'search', query: `from:${login}` }) }]
       : []),
     { label: 'Copy name', icon: 'copy', run: () => void copy(login, 'Name') },
-    ...(canMod ? ['separator' as const, ...userItems(role, login, c.run, warn, c.standing)] : []),
+    ...(canMod ? ['separator' as const, ...userItems(role, login, c.run, warn, standings.of(c.channel, login, c.standing))] : []),
     'separator',
     { label: 'Hide', icon: 'eyeOff', note: 'Only for you, not on Twitch', run: () => void hideUser(c.run, login) },
     ...(c.account

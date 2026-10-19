@@ -1,6 +1,6 @@
 //! Usercard windows (1.36): small pop-ups next to the mouse. Unpinned ones close when
-//! they lose focus; pinned ones stay on top until closed. They share one saved width; the
-//! height is fixed and the messages scroll inside (V101-05).
+//! they lose focus; pinned ones stay on top until closed. They share one saved size (V107:
+//! the height too, fixed until then by V101-05); the messages scroll inside.
 
 use std::collections::HashSet;
 use std::sync::{Mutex, OnceLock};
@@ -17,6 +17,8 @@ use crate::settings::Settings;
 const KIND: &str = "usercard";
 const SIZE: (f64, f64) = (380.0, 560.0);
 const WIDTHS: std::ops::RangeInclusive<f64> = 340.0..=640.0;
+/// V107 Taller shows more of their messages; shorter than this cuts the profile part.
+const HEIGHTS: std::ops::RangeInclusive<f64> = 420.0..=1400.0;
 /// Focus can bounce between the window and its webview; only a lasting loss counts.
 const BLUR_GRACE: Duration = Duration::from_millis(250);
 
@@ -106,17 +108,16 @@ pub fn open(app: &AppHandle, channel: &str, login: &str) -> tauri::Result<()> {
         .read::<Windows>(Partition::Windows)
         .panels
         .remove(KIND)
-        .and_then(|p| p.geometry)
-        .map(|g| f64::from(g.width))
-        .filter(|w| WIDTHS.contains(w));
-    let (w, h) = (saved.unwrap_or(SIZE.0), SIZE.1);
+        .and_then(|p| p.geometry);
+    let w = saved.map(|g| f64::from(g.width)).filter(|w| WIDTHS.contains(w)).unwrap_or(SIZE.0);
+    let h = saved.map(|g| f64::from(g.height)).filter(|h| HEIGHTS.contains(h)).unwrap_or(SIZE.1);
     let url = WebviewUrl::App(format!("index.html#/panel/{route}").into());
     let window = super::builder(app, &label, url)
         // V102-14 The channel: the name is on the card already.
         .title(format!("#{channel}"))
         .inner_size(w, h)
-        .min_inner_size(*WIDTHS.start(), h)
-        .max_inner_size(*WIDTHS.end(), h)
+        .min_inner_size(*WIDTHS.start(), *HEIGHTS.start())
+        .max_inner_size(*WIDTHS.end(), *HEIGHTS.end())
         .skip_taskbar(true)
         .center()
         .build()?;

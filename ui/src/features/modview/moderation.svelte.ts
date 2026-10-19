@@ -107,15 +107,15 @@ export function userItems(role: ModRole, login: string, run: Run, warn: () => vo
   return items;
 }
 
-/** Monitor, restrict, and mod/VIP for the broadcaster and lead mods (1.50): the less used user actions. M12 A
- * mod gets Unmod (Twitch won't make a mod a VIP), a VIP gets Remove VIP; unknown gets both
- * Mod and VIP. */
-export function treatItems(role: ModRole, login: string, run: Run, is?: Standing): MenuEntry[] {
+/** Monitor, restrict, and mod/VIP for the broadcaster and lead mods (1.50): the less used user actions. M12,
+ * V107-M8 Mod or Unmod and VIP or Unvip from what they hold (`roleItems`). `roles: false` where the
+ * role buttons show anyway (the usercard). */
+export function treatItems(role: ModRole, login: string, run: Run, is?: Standing, roles = true): MenuEntry[] {
   const items: MenuEntry[] = [
     { label: 'Monitor', icon: 'eye', run: () => run(`/monitor ${login}`) },
     { label: 'Restrict', icon: 'eyeOff', run: () => run(`/restrict ${login}`) },
   ];
-  if (allows(role, 'lead')) items.push('separator', ...roleItems(login, run, is));
+  if (roles && allows(role, 'lead')) items.push('separator', ...roleItems(login, run, is));
   return items;
 }
 

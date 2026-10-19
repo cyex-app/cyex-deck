@@ -388,6 +388,7 @@ fn a_new_pin_replaces_the_old_one() {
     let pin = |id: &str, n: usize| Pinned {
         id: id.into(),
         by: Some("Mod".into()),
+        by_login: Some("mod".into()),
         starts_at: None,
         ends_at: Some("2026-10-19T16:30:00Z".into()),
         paid: false,
@@ -403,6 +404,9 @@ fn a_new_pin_replaces_the_old_one() {
     // V107-P4 The delete notice names the sender, from chat or the pin.
     assert_eq!(r.sender_name("a").as_deref(), Some("u7"));
     assert_eq!(r.sender_name("nope"), None);
+    // V107-P7 …and quotes its text.
+    assert_eq!(r.message_text("a").as_deref(), Some("hello a"));
+    assert_eq!(r.message_text("nope"), None);
     r.set_pinned(None);
     assert!(!r.pins("b"));
 }

@@ -433,8 +433,32 @@
     opacity: 0.55;
   }
   .del-strike .body {
+    --emote-alpha: 0.5;
     color: var(--dim);
     text-decoration: line-through;
+  }
+  /* V107-P6 Pictures dim like the text (emotes.css keeps appear/leave within it), and
+     the strike crosses each emote on top: the text's line runs behind pictures. */
+  .del-strike .body :global(img) {
+    opacity: var(--emote-alpha);
+  }
+  .del-strike .body :global(.emote-wrap) {
+    display: inline-grid;
+    vertical-align: middle;
+  }
+  .del-strike .body :global(.emote-wrap > img),
+  .del-strike .body :global(.emote-wrap)::after {
+    grid-area: 1 / 1;
+  }
+  /* The text's line sits a little above an emote's middle and is about 0.06em thick. */
+  .del-strike .body :global(.emote-wrap)::after {
+    content: '';
+    align-self: center;
+    z-index: 1;
+    height: 0.06em;
+    translate: 0 -0.14em;
+    background: currentcolor;
+    pointer-events: none;
   }
   .del-faded {
     opacity: 0.4;

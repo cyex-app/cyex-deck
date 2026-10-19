@@ -3,6 +3,7 @@
 mod fragment;
 mod message;
 mod notice;
+mod quote;
 mod role;
 mod room;
 
@@ -12,6 +13,7 @@ pub use message::{
     SharedSource, Translation,
 };
 pub use notice::{Notice, NoticeKind};
+pub use quote::{QUOTE_MAX, quote};
 pub(crate) use role::MOD_SETS;
 pub use role::ModRole;
 pub use room::{ConnStatus, Pinned, RoomEvent, RoomState, SelfState};

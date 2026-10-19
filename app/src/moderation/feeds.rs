@@ -13,6 +13,7 @@ use cyex_eventsub::session::{self, Out, Session};
 use cyex_eventsub::subs;
 use cyex_chat::model::NoticeKind;
 use cyex_moderation::actions::{self, Decision, ModLine};
+use cyex_moderation::own::OwnDeletes;
 use cyex_twitch::hermes::Kind;
 use cyex_twitch::helix;
 use tauri::{AppHandle, Manager};
@@ -42,6 +43,57 @@ pub struct HermesFeeds(Mutex<HashMap<(String, String), String>>);
 pub fn init(app: &AppHandle) {
     app.manage(Feeds::default());
     app.manage(HermesFeeds::default());
+    app.manage(Own::default());
+}
+
+/// V107-P7 Our own deletes, waiting for their echo (`cyex_moderation::own`).
+#[derive(Default)]
+pub struct Own(Mutex<OwnDeletes>);
+
+/// V107-P7 We're deleting `msg_id` (`gone: false` once it failed): its echo adds no line.
+pub fn own_delete(app: &AppHandle, msg_id: &str, gone: bool) {
+    let Some(own) = app.try_state::<Own>() else { return };
+    let mut own = own.0.lock().unwrap_or_else(|p| p.into_inner());
+    if gone {
+        own.mark(msg_id, crate::chat::now_ms());
+    } else {
+        own.forget(msg_id);
+    }
+}
+
+/// V107-M7 The key for our own lift of `login`'s timeout in a channel, in [`Own`].
+fn lift_key(channel_id: &str, login: &str) -> String {
+    format!("lift:{channel_id}:{}", login.to_ascii_lowercase())
+}
+
+/// V107-M7 We lift `login`'s timeout only to put the new one on (`done: false` once that
+/// failed): its echo adds no line, the new timeout's does.
+pub fn own_lift(app: &AppHandle, channel_id: &str, login: &str, done: bool) {
+    own_delete(app, &lift_key(channel_id, login), done);
+}
+
+/// V107-M8 The key for one step of our own mod/VIP swap (`action` as Twitch names it).
+fn role_key(channel_id: &str, action: &str, login: &str) -> String {
+    format!("role:{channel_id}:{action}:{}", login.to_ascii_lowercase())
+}
+
+/// V107-M8 A swap's steps (`mark: false` once it failed): their echoes add no line, the
+/// swap's own line says both.
+pub fn own_role(app: &AppHandle, channel_id: &str, action: &str, login: &str, mark: bool) {
+    own_delete(app, &role_key(channel_id, action, login), mark);
+}
+
+/// V107-P7 Whether this delete echo is one of ours. V107-M7 Or our lift before a new timeout.
+fn ours(app: &AppHandle, channel_id: &str, m: &Moderate, now: i64) -> bool {
+    let key = match m.action.as_str() {
+        "delete" => m.message_id.clone(),
+        "untimeout" | "unban" => m.target.as_ref().map(|t| lift_key(channel_id, &t.login)),
+        "mod" | "unmod" | "vip" | "unvip" => m.target.as_ref().map(|t| role_key(channel_id, &m.action, &t.login)),
+        _ => None,
+    };
+    let Some(key) = key else { return false };
+    let Some(own) = app.try_state::<Own>() else { return false };
+    own.0.lock().unwrap_or_else(|p| p.into_inner()).take(&key, now)
 }
 
 /// Recomputes which (account, channel) pairs need feeds, from the open chat rooms and the
@@ -311,10 +363,30 @@ fn moderate(app: &AppHandle, channel_id: &str, login: Option<&str>, m: &Moderate
     if let Some(t) = m.target.as_ref().filter(|t| !t.id.is_empty() && matches!(m.action.as_str(), "mod" | "unmod")) {
         crate::chat::roles::set_moderator_in(app, &t.id, channel_id, m.action == "mod");
     }
+    // V107-M8 Role buttons follow any mod's change.
+    let role = match m.action.as_str() {
+        "mod" => Some((true, true)),
+        "unmod" => Some((true, false)),
+        "vip" => Some((false, true)),
+        "unvip" => Some((false, false)),
+        _ => None,
+    };
+    if let (Some(t), Some(l), Some((moderator, on))) = (m.target.as_ref(), login, role) {
+        super::standing::changed(app, l, &t.login, moderator, on);
+    }
+    // V107-P7 A delete quotes the text as chat had it, before Twitch's own copy.
+    let shown = m.message_id.as_deref().filter(|_| m.action.ends_with("delete"));
+    let body = shown.and_then(|id| crate::chat::live::deleted_of(app, id).1);
+    let m = &Moderate { message_body: body.or_else(|| m.message_body.clone()), ..m.clone() };
     let text = cyex_moderation::log::describe(m, secs);
     view::add_action(app, channel_id, ModLine::live(m, secs, cyex_chat::build::local_id(), now));
-    if let Some(login) = login {
-        crate::chat::notice_line(app, login, NoticeKind::Moderation, &text);
+    // V107-P7 Our own delete already left its line.
+    let Some(login) = login.filter(|_| !ours(app, channel_id, m, now)) else { return };
+    // V107-M7 Timeouts of one user in a row share a line with IRC's copy.
+    let timed_out = m.target.as_ref().filter(|t| m.action == "timeout" && !t.id.is_empty());
+    match timed_out {
+        Some(t) => crate::chat::timeout_line(app, login, &t.id, &text),
+        None => crate::chat::notice_line(app, login, NoticeKind::Moderation, &text),
     }
 }
 

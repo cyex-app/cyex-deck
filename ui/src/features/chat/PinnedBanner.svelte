@@ -1,13 +1,13 @@
 <!-- 1.9 The channel's pinned message, above the chat. Can be folded to one line, hidden
      into the events button while it's pinned (V103-04) or closed until the pin changes;
      mods can take it down (V101-34) or delete the message (V107), from its ⋮ menu (V107-P4). It always starts open, with who sent and who pinned
-     it; folding is for this pin only (V106-19). A pin that ends shows a timer bar. Its text is semibold and a step larger than chat
+     it, both names open their usercard (V107-P5); folding is for this pin only (V106-19). A pin that ends shows a timer bar. Its text is semibold and a step larger than chat
      (Settings → General, V105-03), so it reads at a glance. -->
 <script lang="ts">
-  import ConfirmCallout from '../../components/ConfirmCallout.svelte';
   import Icon from '../../components/Icon.svelte';
   import { openMenuAt, type MenuEntry } from '../../components/menu.svelte';
   import type { Pinned } from '../../ipc/bindings/Pinned';
+  import { chatIpc } from '../../ipc/chat';
   import { hideTip, showTip, tooltip } from '../../components/tooltip.svelte';
   import { systemIpc } from '../../ipc/system';
   import { errorText } from '../../lib/errors';
@@ -102,27 +102,13 @@
     return Number.isNaN(end) ? null : pinLeft(end - nowSecond());
   });
 
-  /** s3-1 Unpin and Delete (V107) act for everyone: picked from the menu, they ask once
-   * more in a callout under ⋮ that waits 3 s (V107-P4). */
-  let armed = $state<'unpin' | 'delete' | null>(null);
-  let dots = $state<HTMLButtonElement>();
-  const CONFIRM = { unpin: 'Click to unpin', delete: 'Click to delete' } as const;
-  function confirm() {
-    const what = armed;
-    armed = null;
-    (what === 'unpin' ? onunpin : ondelete)?.();
-  }
-  // A new pin starts unarmed.
-  $effect(() => {
-    key;
-    armed = null;
-  });
-
-  /** V107-P4 Mods: Unpin, Delete; everyone: Hide for yourself (paid pins have no mod items). */
+  /** V107-P4 Mods: Unpin, Delete; everyone: Hide for yourself (paid pins have no mod items).
+   * s3-1 Unpin and Delete act for everyone, so they ask once more over their own item, with
+   * the menu still open, for 3 s (V107-P5). */
   function menuItems(): MenuEntry[] {
     return [
       ...(onunpin
-        ? [{ label: 'Unpin', icon: 'pinOff', note: 'Takes it down for everyone.', run: () => (armed = 'unpin') } as const]
+        ? [{ label: 'Unpin', icon: 'pinOff', note: 'Takes it down for everyone.', confirm: 'Click to unpin', run: () => onunpin?.() } as const]
         : []),
       ...(ondelete
         ? [
@@ -132,7 +118,8 @@
               danger: true,
               disabled: !!deleteWhy,
               note: deleteWhy ?? 'Removes it from chat and unpins it.',
-              run: () => (armed = 'delete'),
+              confirm: 'Click to delete',
+              run: () => ondelete?.(),
             } as const,
           ]
         : []),
@@ -199,6 +186,19 @@
   const c = $derived(settings.v.chat);
   const sender = $derived(pin.message.sender);
   const name = $derived(sender ? shownName(sender, c.names, c.users[sender.id]) : null);
+  /** V107-P5 Who pinned it, for their usercard; older reads had only the display name. */
+  const byLogin = $derived(pin.byLogin ?? (pin.by && /^w+$/.test(pin.by) ? pin.by.toLowerCase() : null));
+
+  /** V107-P5 A name opens its usercard, like a name in chat. */
+  function usercard(login: string) {
+    hideTip();
+    chatIpc.openUsercard(channel, login).catch((err) => toast.error(errorText(err)));
+  }
+  function cardKey(e: KeyboardEvent, login: string) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    usercard(login);
+  }
 </script>
 
 {#if shows(eventStrip.of(channel), key)}
@@ -211,10 +211,24 @@
             {#if sender && name}
               <span
                 class="name"
-                style="--cd:{sender.color.dark};--cl:{sender.color.light}">{name.name}</span
+                role="link"
+                tabindex="0"
+                aria-label="{name.name}, open usercard"
+                style="--cd:{sender.color.dark};--cl:{sender.color.light}"
+                onclick={() => usercard(sender.login)}
+                onkeydown={(e) => cardKey(e, sender.login)}>{name.name}</span
               >
             {/if}
-            {#if pin.by}<span class="by">{sender && name ? '· ' : ''}Pinned by {pin.by}</span>{/if}
+            {#if pin.by}<span class="by"
+                >{sender && name ? '· ' : ''}Pinned by {#if byLogin}<span
+                    class="pinner"
+                    role="link"
+                    tabindex="0"
+                    aria-label="{pin.by}, open usercard"
+                    onclick={() => usercard(byLogin)}
+                    onkeydown={(e) => cardKey(e, byLogin)}>{pin.by}</span
+                  >{:else}{pin.by}{/if}</span
+              >{/if}
           </span>
           {#if left}<span class="left" aria-label="{left} left">{left}</span>{/if}
         </div>
@@ -238,12 +252,10 @@
     <!-- V107-P4 Two controls: ⋮ (Unpin, Delete, Hide for yourself), then the chevron. -->
     <button
       class="close"
-      bind:this={dots}
       aria-label="Pinned message options"
       aria-haspopup="menu"
       use:tooltip={{ label: 'More' }}
       onclick={(e) => {
-        armed = null;
         hideTip();
         openMenuAt(e, menuItems());
       }}
@@ -271,9 +283,6 @@
       {/key}
     {/if}
   </div>
-{/if}
-{#if armed && dots}
-  <ConfirmCallout anchor={dots} label={CONFIRM[armed]} onconfirm={confirm} ondismiss={() => (armed = null)} />
 {/if}
 {#if card}
   {#key card}<EmoteCard target={card} login={channel} {account} onclose={() => (card = null)} />{/key}
@@ -390,6 +399,24 @@
   .by {
     color: var(--dim);
     font-weight: 400;
+  }
+  /* V107-P5 Both names open their usercard, like names in chat. */
+  .name,
+  .pinner {
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+  }
+  .name:hover,
+  .pinner:hover {
+    text-decoration: underline;
+  }
+  .pinner:hover {
+    color: var(--muted);
+  }
+  .name:focus-visible,
+  .pinner:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
   }
   .close {
     position: relative;

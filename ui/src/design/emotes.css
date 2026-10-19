@@ -40,7 +40,7 @@
   margin-block: -0.25em;
 }
 
-/* C7 Modifiers (FFZ numbering). */
+/* C7 Modifiers (FFZ numbering). V107-P6 appear and leave stay within a deleted line's dimming (--emote-alpha, Line.svelte). */
 /* V105-08 Every moving modifier's period divides 6 s (phase.ts, MOD_CYCLE_MS). */
 .m-flipX,
 .m-flipY,
@@ -154,12 +154,12 @@
     opacity: 0;
   }
   to {
-    opacity: 1;
+    opacity: var(--emote-alpha, 1);
   }
 }
 @keyframes emote-leave {
   from {
-    opacity: 1;
+    opacity: var(--emote-alpha, 1);
   }
   to {
     opacity: 0;

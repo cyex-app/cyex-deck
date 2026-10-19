@@ -21,14 +21,14 @@ async fn user_id(app: &AppHandle, login: &str) -> Result<String, String> {
         .ok_or_else(|| format!("No user called {login}."))
 }
 
-/// V107-P4 The local line after a delete, like "Pinned." and "Unpinned.".
-fn deleted_line(who: Option<&str>) -> String {
-    who.map_or_else(|| "Deleted a message.".into(), |n| format!("Deleted {n}’s message."))
-}
-
-/// Twitch's GQL `expiresIn` form for a timeout: seconds as `"<n>s"`.
-fn expires_in(secs: u32) -> String {
-    format!("{secs}s")
+/// V107-P4 The local line after a delete, like "Pinned." and "Unpinned.". V107-P7 With the
+/// message's text when it's known: `Deleted message from cyexbot: “hi there”`.
+fn deleted_line(who: Option<&str>, text: Option<&str>) -> String {
+    match (who, text.and_then(cyex_chat::model::quote)) {
+        (Some(n), Some(q)) => format!("Deleted message from {n}: “{q}”"),
+        (Some(n), None) => format!("Deleted a message from {n}."),
+        (None, _) => "Deleted a message.".into(),
+    }
 }
 
 /// Runs a parsed command. `Ok(Some(line))` shows a local confirmation; `Ok(None)` stays
@@ -41,12 +41,17 @@ pub async fn command(app: &AppHandle, account: &str, login: &str, cmd: ModComman
         C::Timeout { login: who, secs, reason } => ban(app, &actor, &who, Some(secs), &reason).await.map(|()| None),
         C::Unban { login: who } => unban(app, &actor, &who).await.map(|()| None),
         C::Delete { msg_id } => {
-            let who = crate::chat::live::sender_name(app, &msg_id);
-            delete(app, &actor, Some(&msg_id)).await?;
+            let (who, text) = crate::chat::live::deleted_of(app, &msg_id);
+            // V107-P7 Marked first: the echo can beat Twitch's answer.
+            super::feeds::own_delete(app, &msg_id, true);
+            if let Err(e) = delete(app, &actor, Some(&msg_id)).await {
+                super::feeds::own_delete(app, &msg_id, false);
+                return Err(e);
+            }
             // V107 Twitch takes a deleted message's pin down with it (seen 2026/10/19).
             crate::chat::live::message_gone(app, &actor.channel_id, &msg_id);
             // V107-P4 Twitch's CLEARMSG only strikes the line through, so this is the one notice.
-            Ok(Some(deleted_line(who.as_deref())))
+            Ok(Some(deleted_line(who.as_deref(), text.as_deref())))
         }
         C::Clear => delete(app, &actor, None).await.map(|()| Some("Chat cleared.".into())),
         C::Warn { login: who, reason } => warn(app, &actor, &who, &reason).await.map(|()| None),
@@ -119,16 +124,9 @@ fn helix_err(e: cyex_twitch::Error) -> String {
     codes::helix(status(&e), e.api_message().unwrap_or(""))
 }
 
+/// V107-M7 The last ban or timeout counts (`restack`).
 async fn ban(app: &AppHandle, actor: &Actor, who: &str, secs: Option<u32>, reason: &str) -> Result<(), String> {
-    if let Some(h) = actor.helix_scoped(app, "moderator:manage:banned_users") {
-        let (res, _) = hm::ban(&http(app), h, actor.room(), &target_id(app, who).await?, secs, reason).await;
-        return res.map_err(|e| codes::helix(status(&e), e.api_message().unwrap_or("")));
-    }
-    if let Some(g) = actor.gql() {
-        let expires = secs.map(expires_in);
-        return refuse(gql::moderation::ban(&http(app), g, &actor.channel_id, who, expires.as_deref(), reason).await, who);
-    }
-    Err(no_token())
+    super::restack::ban(app, actor, who, None, secs, reason).await
 }
 
 async fn unban(app: &AppHandle, actor: &Actor, who: &str) -> Result<(), String> {
@@ -313,21 +311,100 @@ async fn treat(app: &AppHandle, actor: &Actor, who: &str, how: Treatment) -> Res
     Err(no_token())
 }
 
+/// 1.50 One mod or VIP change. V107-M8 Granting one to someone who holds the other takes
+/// that away first (Twitch refuses to stack them) and leaves one chat line for both; a
+/// grant Twitch refuses for that reason (stale badges) swaps too.
 async fn set_role(app: &AppHandle, actor: &Actor, who: &str, mod_role: bool, on: bool) -> Result<(), String> {
-    // Only the broadcaster may change roles over Helix; lead mods go through GQL.
+    use super::standing;
+    let clash = on && standing::holds(app, &actor.channel, who).await.is_some_and(|h| h.clash(mod_role));
+    if !clash {
+        match role_step(app, actor, who, mod_role, on).await {
+            Ok(()) => {
+                standing::changed(app, &actor.channel, who, mod_role, on);
+                return Ok(());
+            }
+            Err(r) if !r.clash => return Err(r.text),
+            Err(_) => {}
+        }
+    }
+    swap_role(app, actor, who, mod_role).await
+}
+
+/// V107-M8 Takes the other role away, then grants `mod_role`.
+async fn swap_role(app: &AppHandle, actor: &Actor, who: &str, mod_role: bool) -> Result<(), String> {
+    use super::{feeds, standing};
+    use cyex_moderation::role_change as rc;
+    let (gone, got) = (rc::action(!mod_role, false), rc::action(mod_role, true));
+    let mark = |m: bool| {
+        feeds::own_role(app, &actor.channel_id, gone, who, m);
+        feeds::own_role(app, &actor.channel_id, got, who, m);
+    };
+    mark(true);
+    if let Err(r) = role_step(app, actor, who, !mod_role, false).await {
+        mark(false);
+        return Err(r.text);
+    }
+    standing::changed(app, &actor.channel, who, !mod_role, false);
+    if let Err(r) = role_step(app, actor, who, mod_role, true).await {
+        mark(false);
+        // The first step's echo may be gone already: chat says what happened too.
+        let line = rc::half_done(who, mod_role, &r.text);
+        crate::chat::notice_line(app, &actor.channel, cyex_chat::model::NoticeKind::Moderation, &line);
+        return Err(line);
+    }
+    standing::changed(app, &actor.channel, who, mod_role, true);
+    crate::chat::notice_line(app, &actor.channel, cyex_chat::model::NoticeKind::Moderation, &rc::swapped(who, mod_role));
+    Ok(())
+}
+
+/// A refused role change: the line to show, and whether Twitch said they hold the other role.
+struct RoleRefused {
+    text: String,
+    clash: bool,
+}
+
+impl From<&str> for RoleRefused {
+    fn from(text: &str) -> Self {
+        RoleRefused { text: text.into(), clash: false }
+    }
+}
+
+impl From<String> for RoleRefused {
+    fn from(text: String) -> Self {
+        RoleRefused { text, clash: false }
+    }
+}
+
+async fn role_step(app: &AppHandle, actor: &Actor, who: &str, mod_role: bool, on: bool) -> Result<(), RoleRefused> {
+    use cyex_moderation::role_change::{self as rc, Path};
+    // 1.50 Helix takes only the broadcaster's token; lead mods (and mods, Twitch decides) use GQL.
     let scope = if mod_role { "channel:manage:moderators" } else { "channel:manage:vips" };
-    if actor.role == ModRole::Broadcaster
-        && let Some(h) = actor.helix_scoped(app, scope)
-    {
-        let hrole = if mod_role { HRole::Mod } else { HRole::Vip };
-        return hr::set_role(&http(app), h, &actor.channel_id, &target_id(app, who).await?, hrole, on)
-            .await
-            .map_err(|e| codes::helix(status(&e), e.api_message().unwrap_or("")));
+    let helix = if actor.role == ModRole::Broadcaster { actor.helix_scoped(app, scope) } else { None };
+    let gql = actor.gql();
+    match rc::path(actor.role, helix.is_some(), gql.is_some())? {
+        Path::Helix => {
+            let hrole = if mod_role { HRole::Mod } else { HRole::Vip };
+            let h = helix.ok_or(rc::NO_TOKEN)?;
+            hr::set_role(&http(app), h, &actor.channel_id, &target_id(app, who).await?, hrole, on)
+                .await
+                .map_err(|e| RoleRefused {
+                    // V107-M8 422: "the user is a VIP/moderator, you must first remove them".
+                    clash: on && status(&e) == 422,
+                    text: codes::helix(status(&e), e.api_message().unwrap_or("")),
+                })
+        }
+        Path::Gql => {
+            let g = gql.ok_or(rc::NO_TOKEN)?;
+            match gql::moderation::set_role(&http(app), g, &actor.channel_id, who, mod_role, on).await {
+                Ok(None) => Ok(()),
+                Ok(Some(code)) => Err(RoleRefused {
+                    clash: on && rc::clash_code(mod_role, &code),
+                    text: rc::refused(actor.role, &code, codes::gql(&code, who)),
+                }),
+                Err(e) => Err(rc::refused(actor.role, &e.to_string(), e.to_string()).into()),
+            }
+        }
     }
-    if let Some(g) = actor.gql() {
-        return refuse(gql::moderation::set_role(&http(app), g, &actor.channel_id, who, mod_role, on).await, who);
-    }
-    Err(no_token())
 }
 
 async fn list_role(app: &AppHandle, actor: &Actor, mods: bool) -> Result<String, String> {
@@ -398,9 +475,17 @@ fn mode_name(change: ModeChange) -> String {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn v107_p4_the_delete_line_names_the_sender() {
-        assert_eq!(super::deleted_line(Some("cyexbot")), "Deleted cyexbot’s message.");
-        assert_eq!(super::deleted_line(None), "Deleted a message.");
+    fn v107_p7_the_delete_line_quotes_the_text() {
+        let line = super::deleted_line;
+        assert_eq!(line(Some("cyexbot"), Some("p7  1")), "Deleted message from cyexbot: “p7 1”");
+        let long = format!("{}b", "a".repeat(50));
+        assert_eq!(line(Some("cyexbot"), Some(&long)), format!("Deleted message from cyexbot: “{}…”", "a".repeat(50)));
+        // Text unknown or empty, then sender unknown.
+        assert_eq!(line(Some("cyexbot"), None), "Deleted a message from cyexbot.");
+        assert_eq!(line(Some("cyexbot"), Some(" 
+ ")), "Deleted a message from cyexbot.");
+        assert_eq!(line(None, Some("hi")), "Deleted a message.");
+        assert_eq!(line(None, None), "Deleted a message.");
     }
 
     use super::*;

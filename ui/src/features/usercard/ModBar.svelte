@@ -1,6 +1,8 @@
 <!-- 1.49 The usercard's mod bar, shown when your account moderates this channel (1.57), in
      the 7TV extension's order (V101-05): ban or unban, warn, your timeout lengths (2.11),
-     and the rest behind ⋯. Says when they're banned or timed out right now. -->
+     and the rest behind ⋯. Says when they're banned or timed out right now. V107-M8 For the
+     broadcaster and lead mods, a Roles pair under it (like technorino's mod/VIP buttons):
+     Mod or Unmod and VIP or Unvip from what they hold now. -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
@@ -9,11 +11,14 @@
   import type { BanStatus } from '../../ipc/bindings/BanStatus';
   import type { Profile } from '../../ipc/bindings/Profile';
   import { modIpc } from '../../ipc/moderation';
+  import { usercardIpc } from '../../ipc/rules';
   import { formatDate, formatTime } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { mods, timeouts, treatItems } from '../modview/moderation.svelte';
-  import type { Standing } from '../modview/standing';
+  import { allows } from '../modview/roles';
+  import { standingOf, type Standing } from '../modview/standing';
+  import { standings } from '../modview/standings.svelte';
   import { errorText } from '../../lib/errors';
 
   interface Props {
@@ -31,6 +36,20 @@
   let { profile, channel, account, ban, onchange, is }: Props = $props();
 
   const role = $derived(mods.role(account, channel));
+  // V107-M8 Mod and VIP changes are the broadcaster's and lead mods' (1.50, `offered`).
+  const lead = $derived(allows(role, 'lead'));
+  /** What Twitch says they hold here (public badges), over their last line's. */
+  let looked = $state<Standing | undefined>();
+  $effect(() => {
+    if (!lead) return;
+    let live = true;
+    usercardIpc
+      .badges(profile.login, channel)
+      .then((list) => live && (looked = standingOf(list)))
+      .catch(() => {});
+    return () => (live = false);
+  });
+  const holds = $derived(standings.of(channel, profile.login, looked ?? is));
   let busy = $state(false);
   let warning = $state(false);
   let reason = $state('');
@@ -64,7 +83,7 @@
     };
     openMenu(
       e.currentTarget as HTMLElement,
-      [...(ban ? [] : [{ label: 'Unban', icon: 'undo' as const, run: () => line(`/unban ${profile.login}`) }]), ...treatItems(role, profile.login, line, is)],
+      [...(ban ? [] : [{ label: 'Unban', icon: 'undo' as const, run: () => line(`/unban ${profile.login}`) }]), ...treatItems(role, profile.login, line, holds, false)],
       'end',
     );
   }
@@ -105,8 +124,31 @@
           >
         {/each}
       </div>
-      <IconButton icon="more" label="More" hint="Unban, monitor, restrict, mod, VIP." size={15} onclick={more} />
+      <IconButton icon="more" label="More" hint="Unban, monitor, restrict." size={15} onclick={more} />
     </div>
+    {#if lead}
+      <div class="roles">
+        <span class="label">Roles</span>
+        <div class="seg" role="group" aria-label="Roles">
+          <button
+            class:held={holds?.mod}
+            disabled={busy}
+            onclick={() => run(holds?.mod ? 'unmod' : 'mod', profile.login)}
+            use:tooltip={holds?.mod ? 'Takes their mod away.' : holds?.vip ? 'Removes their VIP first.' : 'Makes them a mod.'}
+          >
+            <Icon name="shield" size={13} />{holds?.mod ? 'Unmod' : 'Mod'}
+          </button>
+          <button
+            class:held={holds?.vip}
+            disabled={busy}
+            onclick={() => run(holds?.vip ? 'unvip' : 'vip', profile.login)}
+            use:tooltip={holds?.vip ? 'Takes their VIP away.' : holds?.mod ? 'Removes their mod first.' : 'Makes them a VIP.'}
+          >
+            <Icon name="gem" size={13} />{holds?.vip ? 'Unvip' : 'VIP'}
+          </button>
+        </div>
+      </div>
+    {/if}
     {#if warning}
       <form
         class="reason"
@@ -186,6 +228,47 @@
   .times button:hover {
     background: var(--row-hover);
     color: var(--text);
+  }
+  .roles {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 8px 6px 14px;
+  }
+  .label {
+    color: var(--muted);
+    font-size: 0.75rem;
+  }
+  .seg {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .seg button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 24px;
+    padding: 0 10px;
+    background: none;
+    border: 0;
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .seg button + button {
+    border-left: 1px solid var(--border);
+  }
+  .seg button:hover:not(:disabled) {
+    background: var(--row-hover);
+    color: var(--text);
+  }
+  .seg button.held {
+    color: var(--text);
+  }
+  .seg button.held:hover:not(:disabled) {
+    color: var(--red);
   }
   .reason {
     display: flex;

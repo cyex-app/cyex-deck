@@ -124,12 +124,17 @@ async fn gql_path(
         let results = gql::moderation::ban_many(&http(app), g, &actor.channel_id, &names, expires.as_deref(), reason)
             .await
             .map_err(|e| e.to_string())?;
-        for (_, code) in results {
-            if code.is_none() {
-                done.fetch_add(1, Ordering::Relaxed);
-            } else {
-                refused.fetch_add(1, Ordering::Relaxed);
-            }
+        for (login, code) in results {
+            // V107-M7 A timeout over a timeout: the new one replaces it, one by one.
+            let ok = match code.as_deref() {
+                None => true,
+                Some("TARGET_ALREADY_BANNED") if secs.is_some() => {
+                    super::restack::ban(app, actor, &login, None, secs, reason).await.is_ok()
+                }
+                Some(_) => false,
+            };
+            let n = if ok { done } else { refused };
+            n.fetch_add(1, Ordering::Relaxed);
         }
         emit(true);
     }

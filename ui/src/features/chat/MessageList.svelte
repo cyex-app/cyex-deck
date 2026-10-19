@@ -29,6 +29,7 @@
   import { messageItems, mods, pinItems, userItems } from '../modview/moderation.svelte';
   import { allows } from '../modview/roles';
   import { standingOf } from '../modview/standing';
+  import { standings } from '../modview/standings.svelte';
   import { lineKind, pluginItems } from '../plugins/pluginMenus';
   import { plugins } from '../plugins/plugins.svelte';
   import { glideMs } from './glide';
@@ -525,7 +526,7 @@
             'separator' as const,
             ...messageItems(m.id, command),
             'separator' as const,
-            ...userItems(role, login, command, warn(login), standingOf(m.sender?.badges)),
+            ...userItems(role, login, command, warn(login), standings.of(room.login, login, standingOf(m.sender?.badges))),
           ]
         : []),
       ...(canPin ? ['separator' as const, { label: 'Pin message', icon: 'pin' as const, items: pinItems(m.id, command) }] : []),

@@ -17,6 +17,22 @@ export function calloutAt(anchor: Rect, width: number, viewWidth: number, edge =
   return { left: Math.round(left), top: Math.round(anchor.bottom + NOTCH + 1), notch: Math.round(notch) };
 }
 
+/** V107-P5 Over a menu item instead: the box ends 1 px into the item's top edge, so the
+ * pointer can go from the item to the box without crossing the item above, and the notch
+ * points down into the item. Under it when there's no room above. */
+export function calloutAbove(
+  anchor: Rect,
+  width: number,
+  height: number,
+  viewWidth: number,
+  edge = 6,
+): { left: number; top: number; notch: number; below: boolean } {
+  const x = calloutAt(anchor, width, viewWidth, edge);
+  const top = anchor.top + 1 - height;
+  if (top < edge) return { ...x, top: Math.round(anchor.bottom - 1), below: true };
+  return { ...x, top: Math.round(top), below: false };
+}
+
 export interface Timers {
   set: (run: () => void, ms: number) => unknown;
   clear: (id: unknown) => void;

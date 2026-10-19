@@ -20,9 +20,10 @@ pub fn describe(m: &Moderate, secs: Option<u64>) -> String {
         }),
         "unban" => format!("{by} unbanned {who}."),
         "untimeout" => format!("{by} lifted {who}’s timeout."),
-        "delete" => match &m.message_body {
-            Some(b) if !b.is_empty() => format!("{by} deleted {who}’s message: {b}"),
-            _ => format!("{by} deleted a message from {who}."),
+        // V107-P7 The text quoted like our own delete's line, at most 50 characters.
+        "delete" => match m.message_body.as_deref().and_then(cyex_chat::model::quote) {
+            Some(q) => format!("{by} deleted a message from {who}: “{q}”"),
+            None => format!("{by} deleted a message from {who}."),
         },
         "clear" => format!("{by} cleared the chat."),
         "emoteonly" | "emoteonlyoff" => toggled("emote-only mode", action == "emoteonly"),
@@ -103,7 +104,11 @@ mod tests {
         assert_eq!(describe(&s, None), "Kuni turned on slow mode (30s).");
         let mut d = m("delete");
         d.message_body = Some("bad".into());
-        assert_eq!(describe(&d, None), "Kuni deleted X’s message: bad");
+        assert_eq!(describe(&d, None), "Kuni deleted a message from X: “bad”");
+        d.message_body = Some(format!("{}  tail", "a".repeat(49)));
+        assert_eq!(describe(&d, None), format!("Kuni deleted a message from X: “{}…”", "a".repeat(49)));
+        d.message_body = None;
+        assert_eq!(describe(&d, None), "Kuni deleted a message from X.");
         let mut b = m("add_blocked_term");
         b.terms = vec!["foo".into()];
         assert_eq!(describe(&b, None), "Kuni blocked “foo”.");

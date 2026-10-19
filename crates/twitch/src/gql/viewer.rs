@@ -76,6 +76,7 @@ pub async fn earned_badges(http: &Http, user: &str, channel: &str) -> Result<Vec
             v.earned_badges
                 .into_iter()
                 .flatten()
+                .flatten()
                 .map(BadgeInfo::from)
                 .collect()
         })
@@ -91,13 +92,20 @@ struct EarnedData {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawViewer {
+    /// V107-M8 `null` for someone with no badges at all.
     #[serde(default)]
-    earned_badges: Vec<Option<RawBadge>>,
+    earned_badges: Option<Vec<Option<RawBadge>>>,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v107_m8_no_badges_is_null() {
+        let d: EarnedData = serde_json::from_str(r#"{"channelViewer":{"earnedBadges":null}}"#).unwrap();
+        assert!(d.channel_viewer.and_then(|v| v.earned_badges).is_none());
+    }
 
     #[test]
     fn moderates_asks_once_per_channel_and_reads_in_order() {
@@ -126,6 +134,7 @@ mod tests {
             .unwrap()
             .earned_badges
             .into_iter()
+            .flatten()
             .flatten()
             .map(BadgeInfo::from)
             .collect();

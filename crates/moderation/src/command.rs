@@ -85,7 +85,18 @@ impl Need {
 }
 
 impl ModCommand {
+    /// What the app checks before trying. V107 Role changes are open to every mod: a lead
+    /// mod may wear the plain mod badge, so Twitch decides (`role_change`).
     pub fn needs(&self) -> Need {
+        match self {
+            ModCommand::SetRole { .. } => Need::Mod,
+            _ => self.offered(),
+        }
+    }
+
+    /// Who it's offered to (Tab, menus, `/help`): role changes only to lead mods and the
+    /// broadcaster, as Twitch allows.
+    pub fn offered(&self) -> Need {
         match self {
             ModCommand::SetRole { .. } => Need::Lead,
             ModCommand::ListRole(_)
@@ -116,13 +127,13 @@ pub fn parse(name: &str, args: &str) -> Option<Result<ModCommand, String>> {
 }
 
 /// V1041-01 What a command name needs, for Tab completion; `None` when it isn't one of
-/// these. Read from what the name parses to, so [`ModCommand::needs`] stays the one place
+/// these. Read from what the name parses to, so [`ModCommand::offered`] stays the one place
 /// that says it: a name and a word fit every command here, and lengths take nothing.
 pub fn need(name: &str) -> Option<Need> {
     ["x y", ""]
         .into_iter()
         .find_map(|args| parse(name, args)?.ok())
-        .map(|c| c.needs())
+        .map(|c| c.offered())
 }
 
 /// Twitch's message ids: a UUID in lowercase hex.
@@ -382,7 +393,7 @@ mod tests {
                 on: true
             }
         );
-        assert_eq!(ok("unmod x").needs(), Need::Lead);
+        assert_eq!(ok("unmod x").offered(), Need::Lead);
         assert_eq!(ok("mods").needs(), Need::Broadcaster);
         assert_eq!(ok("restrict x").needs(), Need::Mod);
         assert!(parse("me", "hi").is_none());
@@ -409,7 +420,24 @@ mod tests {
         }
     }
 
-    /// V1041-01 Every name has a need, the same one its parsed command has.
+    /// 1.50 Mod and VIP changes show to lead mods and the broadcaster, and any mod may try
+    /// them (a lead mod in the plain mod badge); Twitch decides.
+    #[test]
+    fn role_changes_are_offered_to_lead_mods_and_tried_by_mods() {
+        use ModRole::{Broadcaster, LeadModerator, Moderator};
+        for line in ["mod x", "unmod x", "vip x", "unvip x"] {
+            let c = ok(line);
+            assert_eq!((c.offered(), c.needs()), (Need::Lead, Need::Mod), "{line}");
+            assert!(!c.offered().allows(Some(Moderator)), "{line}");
+            assert!(c.offered().allows(Some(LeadModerator)) && c.offered().allows(Some(Broadcaster)), "{line}");
+            assert!(c.needs().allows(Some(Moderator)) && !c.needs().allows(None), "{line}");
+        }
+        // Listing stays the broadcaster's: Helix only answers their token.
+        assert!(!ok("mods").needs().allows(Some(LeadModerator)));
+        assert!(!ok("vips").offered().allows(Some(LeadModerator)));
+    }
+
+    /// V1041-01 Every name has a need, the same one its parsed command is offered with.
     #[test]
     fn every_name_has_a_need() {
         for name in NAMES {
