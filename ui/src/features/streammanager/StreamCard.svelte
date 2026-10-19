@@ -8,12 +8,11 @@
   import { graph } from '../../lib/sparkline';
   import { sm } from './streammanager.svelte';
   import Loading from '../../components/Loading.svelte';
+  import { everyShown } from '../../lib/awake';
 
   let now = $state(Date.now());
-  $effect(() => {
-    const t = setInterval(() => (now = Date.now()), 15_000);
-    return () => clearInterval(t);
-  });
+  // V107-H1 No new picture while the window is hidden; one when it shows.
+  $effect(() => everyShown(() => (now = Date.now()), 15_000));
 
   const s = $derived(sm.stats);
   const m = $derived(sm.manager);

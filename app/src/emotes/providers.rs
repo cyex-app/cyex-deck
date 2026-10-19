@@ -8,6 +8,7 @@ use cyex_emotes::bttv::{self, socket::Event as BttvEvent};
 use cyex_emotes::ffz::{self, api::RoomBadges};
 use cyex_emotes::{EmoteSet, Scope};
 use cyex_twitch::Http;
+use cyex_twitch::pace::Lane;
 use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc::UnboundedReceiver;
 
@@ -24,7 +25,7 @@ pub async fn globals(app: &AppHandle, http: &Http) -> Vec<Arc<EmoteSet>> {
     let mut sets = Vec::new();
     match b {
         Ok(s) => sets.push(Arc::new(s)),
-        Err(e) => eprintln!("emotes: no BTTV globals: {e}"),
+        Err(e) => eprintln!("emotes: no BTTV globals: {}", e.describe("BTTV")),
     }
     let state = app.state::<Emotes>();
     let mut inner = state.lock();
@@ -43,7 +44,7 @@ pub async fn globals(app: &AppHandle, http: &Http) -> Vec<Arc<EmoteSet>> {
                 }
             }
         }
-        Err(e) => eprintln!("emotes: no FFZ globals: {e}"),
+        Err(e) => eprintln!("emotes: no FFZ globals: {}", e.describe("FFZ")),
     }
     if let Ok((defs, users)) = bb {
         for d in defs {
@@ -63,13 +64,14 @@ pub async fn globals(app: &AppHandle, http: &Http) -> Vec<Arc<EmoteSet>> {
 }
 
 /// A channel's BTTV and FFZ sets, and FFZ's mod and VIP pictures for it.
-pub async fn channel(http: &Http, id: &str) -> (Vec<Arc<EmoteSet>>, RoomBadges) {
-    let (b, f) = tokio::join!(bttv::api::channel(http, id), ffz::api::room(http, id));
+/// V107-P2 `lane`: the tab on screen goes ahead of background ones.
+pub async fn channel(http: &Http, id: &str, lane: Lane) -> (Vec<Arc<EmoteSet>>, RoomBadges) {
+    let (b, f) = tokio::join!(bttv::api::channel(http, id, lane), ffz::api::room(http, id, lane));
     let mut sets = Vec::new();
     let mut badges = RoomBadges::default();
     match b {
         Ok(s) => sets.extend(s.map(Arc::new)),
-        Err(e) => eprintln!("emotes: no BTTV emotes for {id}: {e}"),
+        Err(e) => eprintln!("emotes: no BTTV emotes for {id}: {}", e.describe("BTTV")),
     }
     match f {
         Ok(Some(room)) => {
@@ -77,7 +79,7 @@ pub async fn channel(http: &Http, id: &str) -> (Vec<Arc<EmoteSet>>, RoomBadges) 
             badges = room.badges;
         }
         Ok(None) => {}
-        Err(e) => eprintln!("emotes: no FFZ emotes for {id}: {e}"),
+        Err(e) => eprintln!("emotes: no FFZ emotes for {id}: {}", e.describe("FFZ")),
     }
     (sets, badges)
 }

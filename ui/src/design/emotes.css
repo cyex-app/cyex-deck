@@ -166,14 +166,22 @@
   }
 }
 
-/* E2 Nothing moves while the window isn't focused. */
+/* E2 Nothing moves while the window isn't focused; V107-H1 or while it's hidden. */
 :root.still .m-rainbow,
+:root.asleep .m-rainbow,
 :root.still .m-rotate,
+:root.asleep .m-rotate,
 :root.still .m-shake,
+:root.asleep .m-shake,
 :root.still .m-jam,
+:root.asleep .m-jam,
 :root.still .m-bounce,
+:root.asleep .m-bounce,
 :root.still .m-slide,
+:root.asleep .m-slide,
 :root.still .m-appear,
-:root.still .m-leave {
+:root.asleep .m-appear,
+:root.still .m-leave,
+:root.asleep .m-leave {
   animation-play-state: paused;
 }

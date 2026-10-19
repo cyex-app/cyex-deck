@@ -139,6 +139,10 @@ pub fn any_running(apps: &[String]) -> bool {
 
 /// Asks the window's WebView2 to give memory back while it's hidden or minimized, and to
 /// go back to normal once it's shown. Older WebView2 runtimes without it are left alone.
+/// V107-H1 Also hides the WebView itself: WebView2 doesn't notice a minimized window, so
+/// the page kept `visibilityState` "visible" and drew on. Hidden, it stops drawing, the
+/// page sees `hidden` (players drop their quality after a minute, timers rest) and sound
+/// plays on.
 #[cfg(windows)]
 pub fn low_memory(window: &tauri::WebviewWindow, low: bool) {
     use webview2_com::Microsoft::Web::WebView2::Win32::{
@@ -154,7 +158,12 @@ pub fn low_memory(window: &tauri::WebviewWindow, low: bool) {
     };
     let _ = window.with_webview(move |w| {
         // SAFETY: plain COM calls on the controller Tauri hands us, on the UI thread.
-        let set = unsafe { w.controller().CoreWebView2() }
+        let controller = w.controller();
+        // SAFETY: as above.
+        if let Err(e) = unsafe { controller.SetIsVisible(!low) } {
+            eprintln!("sys: webview visibility: {e}");
+        }
+        let set = unsafe { controller.CoreWebView2() }
             .and_then(|core| core.cast::<ICoreWebView2_19>())
             .and_then(|core| unsafe { core.SetMemoryUsageTargetLevel(level) });
         if let Err(e) = set {

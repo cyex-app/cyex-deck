@@ -37,7 +37,7 @@ pub(super) fn globals(app: &AppHandle) {
         let mut sets = Vec::new();
         match seventv::api::global(&http).await {
             Ok(s) => sets.push(Arc::new(s)),
-            Err(e) => eprintln!("emotes: no 7TV globals: {e}"),
+            Err(e) => eprintln!("emotes: no 7TV globals: {}", e.describe("7TV")),
         }
         sets.extend(super::providers::globals(&app, &http).await);
         let state = app.state::<Emotes>();
@@ -60,9 +60,10 @@ pub fn channel(app: AppHandle, login: String, id: String) {
     globals(&app);
     tauri::async_runtime::spawn(async move {
         let http = http(&app);
+        let lane = crate::chat::shown::lane(&app, &login);
         let (seven, others) = tokio::join!(
             seventv::api::channel(&http, &id),
-            super::providers::channel(&http, &id)
+            super::providers::channel(&http, &id, lane)
         );
         let state = app.state::<Emotes>();
         let mut topics = Vec::new();
@@ -81,7 +82,7 @@ pub fn channel(app: AppHandle, login: String, id: String) {
                     }
                 }
                 Ok(None) => {}
-                Err(e) => eprintln!("emotes: no 7TV emotes for {login}: {e}"),
+                Err(e) => eprintln!("emotes: no 7TV emotes for {login}: {}", e.describe("7TV")),
             }
             c.sets.extend(others.0);
             c.ffz_badges = others.1;

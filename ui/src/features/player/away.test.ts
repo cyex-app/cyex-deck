@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { type TestContext, test } from 'node:test';
 
-import { AWAY_MS, Away } from './away.ts';
+import { AWAY_MS, Away, outOfSight } from './away.ts';
 
 function setup(t: TestContext) {
   t.mock.timers.enable({ apis: ['setTimeout'] });
@@ -53,4 +53,13 @@ test('a closed player never drops', (t) => {
   away.stop();
   t.mock.timers.tick(AWAY_MS * 2);
   assert.equal(drops(), 0);
+});
+
+test('out of sight: 0 px or a hidden page, never in picture in picture (V107-H1)', () => {
+  assert.equal(outOfSight(false, false, false), false, 'on screen');
+  assert.equal(outOfSight(true, false, false), true, 'background tab');
+  assert.equal(outOfSight(false, true, false), true, 'window minimized or covered');
+  assert.equal(outOfSight(true, true, false), true);
+  assert.equal(outOfSight(false, true, true), false, 'picture in picture stays');
+  assert.equal(outOfSight(true, false, true), false);
 });

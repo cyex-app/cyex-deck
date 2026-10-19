@@ -169,7 +169,7 @@ pub fn touch(app: &AppHandle, account: &str, login: &str, why: Why, shared: &[St
         let Some(user) = user else { return };
         for (id, passive) in out.seventv {
             if let Err(e) = seventv::api::post_presence(&http, &user, &id, passive).await {
-                eprintln!("emotes: 7TV presence failed: {e}");
+                eprintln!("emotes: 7TV presence failed: {}", e.describe("7TV"));
             }
         }
     });

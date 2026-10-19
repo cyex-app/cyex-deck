@@ -9,6 +9,7 @@ import type { Look } from '../../ipc/bindings/Look';
 import type { Looks } from '../../ipc/bindings/Looks';
 import type { PaintStyle } from '../../ipc/bindings/PaintStyle';
 import { emotesIpc } from '../../ipc/emotes';
+import { applyAnswer, applyPushed } from './lookMap';
 
 const BATCH_MS = 60;
 /** Paint ids are 7TV ULIDs; anything else never becomes a class name. */
@@ -59,7 +60,7 @@ class LooksStore {
   start(): () => void {
     if (this.started) return () => {};
     this.started = true;
-    const off = emotesIpc.onLooks((l) => this.apply(l));
+    const off = emotesIpc.onLooks((l) => this.apply(l, true));
     return () => void off.then((f) => f());
   }
 
@@ -76,16 +77,18 @@ class LooksStore {
     // Marked as asked right away so nothing asks twice.
     for (const id of ids) if (!this.users.has(id)) this.users.set(id, null);
     try {
-      this.apply(await emotesIpc.looks(ids));
+      this.apply(await emotesIpc.looks(ids), false);
     } catch {
       // Lookups are best effort; names just stay plain.
     }
   }
 
-  private apply(l: Looks) {
+  /** `pushed`: a change from Rust. Only users already drawn here are kept (V107-M4). */
+  private apply(l: Looks, pushed: boolean) {
     this.append(this.fresh(l.paints));
     for (const b of l.badges) this.badges.set(`${b.provider}:${b.id}`, b);
-    for (const [id, look] of Object.entries(l.users)) this.users.set(id, look ?? null);
+    if (pushed) applyPushed(this.users, l.users);
+    else applyAnswer(this.users, l.users);
   }
 
   /** V1051-03 Definitions without users (the cosmetics preview's paint and badge). */

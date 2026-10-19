@@ -4,6 +4,7 @@
 use std::collections::HashMap;
 
 use cyex_chat::model::Provider;
+use cyex_twitch::pace::{Lane, Service};
 use cyex_twitch::{Http, Result};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -21,7 +22,9 @@ pub struct Global {
 }
 
 pub async fn global(http: &Http) -> Result<Global> {
-    let raw: RawGlobal = http.get_json(&format!("{API}/set/global/ids")).await?;
+    let raw: RawGlobal = http
+        .get_json_paced(Service::Ffz, Lane::Front, &format!("{API}/set/global/ids"))
+        .await?;
     Ok(raw.into())
 }
 
@@ -39,10 +42,10 @@ pub struct Room {
     pub badges: RoomBadges,
 }
 
-/// `None` when the channel has no FFZ room.
-pub async fn room(http: &Http, twitch_id: &str) -> Result<Option<Room>> {
+/// `None` when the channel has no FFZ room. Paced (V107-P2).
+pub async fn room(http: &Http, twitch_id: &str, lane: Lane) -> Result<Option<Room>> {
     match http
-        .get_json::<RawRoomData>(&format!("{API}/room/id/{twitch_id}"))
+        .get_json_paced::<RawRoomData>(Service::Ffz, lane, &format!("{API}/room/id/{twitch_id}"))
         .await
     {
         Ok(r) => Ok(Some(r.into())),
@@ -55,7 +58,9 @@ pub async fn room(http: &Http, twitch_id: &str) -> Result<Option<Room>> {
 
 /// FFZ's badges and who has them, as sorted Twitch ids (40.000+ people, kept small).
 pub async fn badges(http: &Http) -> Result<(Vec<BadgeDef>, Vec<(String, Vec<u64>)>)> {
-    let raw: RawBadges = http.get_json(&format!("{API}/badges/ids")).await?;
+    let raw: RawBadges = http
+        .get_json_paced(Service::Ffz, Lane::Front, &format!("{API}/badges/ids"))
+        .await?;
     Ok(raw.into())
 }
 

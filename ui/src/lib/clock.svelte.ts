@@ -2,10 +2,10 @@
 // template reads `nowSecond()`, and stops when the last reader is gone.
 import { createSubscriber } from 'svelte/reactivity';
 
-const subscribe = createSubscriber((update) => {
-  const timer = setInterval(update, 1000);
-  return () => clearInterval(timer);
-});
+import { everyShown } from './awake';
+
+// V107-H1 Not while the window is hidden: once when it shows.
+const subscribe = createSubscriber((update) => everyShown(update, 1000));
 
 /** Date.now(), re-read every second by whatever reactive scope calls it. */
 export function nowSecond(): number {

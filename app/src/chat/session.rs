@@ -337,7 +337,7 @@ fn fill_gap(app: AppHandle, key: RoomKey, (after, before, limit): (i64, i64, u32
         let lines = match cyex_twitch::recent::recent_between(&http, &key.1, after, before, limit).await {
             Ok(lines) => lines,
             Err(e) => {
-                eprintln!("chat: couldn't fill the gap in {}: {e}", key.1);
+                eprintln!("chat: couldn't fill the gap in {}: {}", key.1, e.describe("recent-messages"));
                 say(&app, &key, "Couldn’t load what was missed while disconnected");
                 return;
             }
@@ -361,7 +361,14 @@ const LOGS_HISTORY_SECS: i64 = 24 * 3600;
 pub fn load_history(app: AppHandle, key: RoomKey, limit: u32) {
     tauri::async_runtime::spawn(async move {
         let http = app.state::<crate::auth::Auth>().http.clone();
-        let recent = cyex_twitch::recent::recent_messages(&http, &key.1, limit).await;
+        let lane = super::shown::lane(&app, &key.1);
+        // V107-M1 A chat joined in the background takes a little; shown, it gets the rest.
+        let background = app.state::<Chat>().lock().rooms.get_mut(&key).is_some_and(|e| {
+            e.loaded = true;
+            e.room.background()
+        });
+        let limit = if background { limit.min(cyex_chat::BACKGROUND_HISTORY) } else { limit };
+        let recent = cyex_twitch::recent::recent_messages(&http, &key.1, limit, lane).await;
         let lines = match recent {
             Ok(lines) if !lines.is_empty() => lines,
             other => {
@@ -375,7 +382,7 @@ pub fn load_history(app: AppHandle, key: RoomKey, limit: u32) {
                     }
                     _ => {
                         if let Err(e) = other {
-                            eprintln!("chat: no history for {}: {e}", key.1);
+                            eprintln!("chat: no history for {}: {}", key.1, e.describe("recent-messages"));
                             say(&app, &key, &cyex_twitch::recent::unavailable(&e));
                         }
                         return;

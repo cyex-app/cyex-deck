@@ -76,9 +76,46 @@ impl Error {
         let parsed = serde_json::from_slice::<Body>(body).ok();
         let message = parsed
             .and_then(|b| b.message.filter(|m| !m.is_empty()).or(b.error))
-            .unwrap_or_else(|| String::from_utf8_lossy(body).trim().chars().take(200).collect());
+            .unwrap_or_else(|| plain_body(body));
         Error::Api { status, message }
     }
+
+    /// The same error told as coming from `service` (BTTV, FFZ, 7TV, recent-messages,
+    /// logs.cyex.app), which share this client. Display stays Twitch's own.
+    pub fn describe(&self, service: &str) -> String {
+        match self {
+            Error::Network(_) => format!("couldn’t reach {service}"),
+            Error::Api { status, message } => format!("{service} said: {message} ({status})"),
+            Error::Decode(_) => format!("unexpected answer from {service}"),
+            Error::Refused(code) => format!("{service} said no: {code}"),
+        }
+    }
+}
+
+/// A body that isn't JSON, short: an HTML error page gives its `<title>`, whitespace
+/// collapses, at most 200 chars.
+fn plain_body(body: &[u8]) -> String {
+    let text = String::from_utf8_lossy(body);
+    let lower = text.to_ascii_lowercase();
+    let html = lower.contains("<html") || lower.contains("<!doctype") || lower.contains("<title");
+    let text = if html {
+        let title = lower.find("<title").and_then(|start| {
+            let open = start + lower[start..].find('>')? + 1;
+            let close = open + lower[open..].find("</title")?;
+            Some(&text[open..close])
+        });
+        match title.map(collapse).filter(|t| !t.is_empty()) {
+            Some(t) => t,
+            None => return "HTML error page".into(),
+        }
+    } else {
+        collapse(&text)
+    };
+    text.chars().take(200).collect()
+}
+
+fn collapse(s: &str) -> String {
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 #[cfg(test)]
@@ -116,5 +153,44 @@ mod tests {
             Error::api(500, br#"{"error":"Internal"}"#).api_message(),
             Some("Internal")
         );
+        assert_eq!(
+            Error::api(500, b"line one\n\n   line\ttwo").api_message(),
+            Some("line one line two")
+        );
+    }
+
+    #[test]
+    fn html_pages_shrink_to_their_title() {
+        let page = b"<html>\r\n<head><title>503 Service Temporarily Unavailable</title></head>\r\n<body>\r\n<center><h1>503 Service Temporarily Unavailable</h1></center>\r\n<hr><center>nginx</center>\r\n</body>\r\n</html>\r\n";
+        assert_eq!(
+            Error::api(503, page).api_message(),
+            Some("503 Service Temporarily Unavailable")
+        );
+        let spaced = b"<!DOCTYPE html><HTML><TITLE>\n  Bad \n Gateway </TITLE></HTML>";
+        assert_eq!(Error::api(502, spaced).api_message(), Some("Bad Gateway"));
+        let bare = b"<!doctype html><html><body><h1>Oops</h1></body></html>";
+        assert_eq!(Error::api(500, bare).api_message(), Some("HTML error page"));
+        let empty = b"<html><title>  </title></html>";
+        assert_eq!(Error::api(500, empty).api_message(), Some("HTML error page"));
+    }
+
+    #[test]
+    fn describe_names_the_service() {
+        let limited = Error::Api {
+            status: 429,
+            message: "You have exhausted your available requests.".into(),
+        };
+        assert_eq!(
+            limited.describe("FFZ"),
+            "FFZ said: You have exhausted your available requests. (429)"
+        );
+        assert_eq!(
+            Error::Refused("FORBIDDEN".into()).describe("7TV"),
+            "7TV said no: FORBIDDEN"
+        );
+        let decode = Error::Decode(serde_json::from_str::<u8>("x").unwrap_err());
+        assert_eq!(decode.describe("BTTV"), "unexpected answer from BTTV");
+        // Twitch's own wording is unchanged.
+        assert_eq!(limited.to_string(), "Twitch said: You have exhausted your available requests. (429)");
     }
 }

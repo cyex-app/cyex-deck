@@ -32,6 +32,7 @@
   import { lineKind, pluginItems } from '../plugins/pluginMenus';
   import { plugins } from '../plugins/plugins.svelte';
   import { glideMs } from './glide';
+  import { around, hold, older, SHRINK_MS, startOf, type From } from './lineWindow';
   import { nameMenu } from './nameMenu';
   import Line from './Line.svelte';
   import DateRow from '../../components/DateRow.svelte';
@@ -278,6 +279,50 @@
       : room.messages,
   );
 
+  /** V107-M6 Only the newest lines are drawn (lineWindow.ts); `from` is the first one while
+   * the window is held, `null` for the newest WINDOW. */
+  let from = $state.raw<From>(null);
+  const drawn = $derived.by(() => {
+    const start = startOf(shown, from);
+    return start > 0 ? shown.slice(start) : shown;
+  });
+
+  // Scrolled up or paused: what's drawn stays put. Lines coming in, history put in above
+  // and old lines dropping off don't move it.
+  $effect(() => {
+    if (!following || paused) untrack(() => (from = hold(shown, from)));
+  });
+
+  // Back at the bottom for a moment: only the newest WINDOW stay drawn.
+  $effect(() => {
+    if (!following || paused || !from) return;
+    const t = setTimeout(() => {
+      from = null;
+      void tick().then(() => following && !paused && toBottom());
+    }, SHRINK_MS);
+    return () => clearTimeout(t);
+  });
+
+  /** Set while older lines are being drawn in. */
+  let growing = false;
+
+  /** Near the top: draws older lines above, the view staying on the same lines. */
+  function more() {
+    if (growing || !lines) return;
+    const next = older(shown, from);
+    if (next === undefined) return;
+    const anchor = lines.firstElementChild;
+    const top = anchor?.getBoundingClientRect().top ?? 0;
+    growing = true;
+    from = next;
+    void tick().then(() => {
+      growing = false;
+      // Scroll anchoring usually keeps it already; this covers what it doesn't.
+      const moved = anchor?.isConnected ? anchor.getBoundingClientRect().top - top : 0;
+      if (list && Math.abs(moved) >= 1) list.scrollTop += moved;
+    });
+  }
+
   $effect(() => userMenus.track());
 
   /** C25 Messages that start a new day, by id. */
@@ -336,6 +381,7 @@
     if (!below && (down || !scrolls())) following = true;
     else if (dragging) following = false;
     else if (following && !paused) toBottom();
+    if (!following && list.scrollTop < list.clientHeight) more();
   }
 
   function leave() {
@@ -542,7 +588,17 @@
     stopGlide();
     if (list) stopScroll(list);
     const target = list?.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`);
-    if (target) scrollWithin(target, 'center');
+    if (!target) {
+      // V107-M6 Not drawn yet: draw down from a little above it, then go there.
+      const next = around(shown, from, shown.findIndex((m) => m.id === id));
+      if (next === undefined) return;
+      from = next;
+      void tick().then(() => jump(id));
+      return;
+    }
+    // Following would snap straight back down.
+    following = false;
+    scrollWithin(target, 'center');
     // Reduce motion: lit, then off, without the fade.
     target?.animate([{ background: 'var(--accent-wash)' }, { background: 'transparent' }], {
       duration: 1200,
@@ -615,7 +671,7 @@
     aria-live="off"
   >
     <div bind:this={lines}>
-      {#each shown as m (m.id)}
+      {#each drawn as m (m.id)}
         {#if dayStarts.has(m.id)}<DateRow label={formatDate(new Date(m.ts))} />{/if}
         <Line {m} channel={room.login} {canReply} stripe={stripe?.get(m.id) ?? false} mod={lineMod} />
         {#if m.id === lastRead && m.id !== shown.at(-1)?.id}<hr class="last-read" />{/if}

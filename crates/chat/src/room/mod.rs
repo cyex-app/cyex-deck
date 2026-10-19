@@ -5,10 +5,12 @@
 mod checks;
 mod gap;
 mod hook;
+mod keep;
 mod presence;
 mod role;
 
 pub use hook::{LineChange, LineHook};
+pub use keep::{BACKGROUND, BACKGROUND_HISTORY};
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
@@ -74,6 +76,10 @@ pub struct Room {
     buffer: VecDeque<Arc<ChatMessage>>,
     /// V101-02 Messages kept, at least `BUFFER`.
     keep: usize,
+    /// V107-M1 No view shows the room: it keeps only `keep::BACKGROUND`.
+    background: bool,
+    /// V107-M1 When the first live line came, so refilled lines from then on aren't dimmed.
+    live_from: Option<i64>,
     pending: VecDeque<PendingSend>,
     gifts: Vec<GiftGroup>,
     /// 1.9 Reward titles and costs by id, to name redemptions.
@@ -102,12 +108,14 @@ impl Room {
             me,
             buffer: VecDeque::new(),
             keep: BUFFER,
+            background: false,
+            live_from: None,
             pending: VecDeque::new(),
             gifts: Vec::new(),
             rewards: HashMap::new(),
             pinned: None,
             pin_known: false,
-            colors: Colors::default(),
+            colors: Colors::shared(),
             rules: Arc::default(),
             hook: None,
             repeats: Repeats::default(),
@@ -134,7 +142,7 @@ impl Room {
     }
 
     pub fn snapshot(&self) -> RoomSnapshot {
-        self.snapshot_tail(self.keep)
+        self.snapshot_tail(usize::MAX)
     }
 
     /// V101-02 Messages kept from now on; never fewer than `BUFFER`.
@@ -148,7 +156,7 @@ impl Room {
     }
 
     fn trim(&mut self) {
-        let over = self.buffer.len().saturating_sub(self.keep);
+        let over = self.buffer.len().saturating_sub(self.limit());
         self.buffer.drain(..over);
     }
 
@@ -408,6 +416,11 @@ impl Room {
 
     /// C1 Lines from the history service, added before everything live.
     pub fn history(&mut self, lines: &[String], now_ms: i64, emotes: &dyn Emotes) -> Vec<Arc<ChatMessage>> {
+        self.older(lines, None, now_ms, emotes)
+    }
+
+    /// History lines put in above the buffer. `before`: only lines older than this (V107-M1).
+    fn older(&mut self, lines: &[String], before: Option<i64>, now_ms: i64, emotes: &dyn Emotes) -> Vec<Arc<ChatMessage>> {
         let known: HashSet<String> = self.buffer.iter().map(|m| m.id.clone()).collect();
         let mut old: Vec<ChatMessage> = Vec::new();
         for raw in lines {
@@ -423,7 +436,10 @@ impl Room {
                     | Incoming::Clear { notice: mut m }
                     | Incoming::Gift { message: mut m, .. },
                 ) => {
-                    m.set(Flag::History);
+                    if before.is_some_and(|b| m.ts >= b) {
+                        continue;
+                    }
+                    self.mark_old(&mut m, before.is_some());
                     if !known.contains(&m.id) && self.hooked(&mut m, emotes) && self.screen_old(&mut m) {
                         old.push(m);
                     }
@@ -434,8 +450,10 @@ impl Room {
                             m.set(Flag::Deleted);
                         }
                     }
-                    n.set(Flag::History);
-                    old.push(n);
+                    if before.is_none_or(|b| n.ts < b) {
+                        self.mark_old(&mut n, before.is_some());
+                        old.push(n);
+                    }
                 }
                 Some(Incoming::Delete { id }) => {
                     if let Some(m) = old.iter_mut().find(|m| m.id == id) {
@@ -445,7 +463,7 @@ impl Room {
                 _ => {}
             }
         }
-        let room = self.keep.saturating_sub(self.buffer.len());
+        let room = self.limit().saturating_sub(self.buffer.len());
         let skip = old.len().saturating_sub(room);
         let old: Vec<Arc<ChatMessage>> = old.into_iter().skip(skip).map(Arc::new).collect();
         for m in old.iter().rev() {
@@ -526,6 +544,9 @@ impl Room {
         }
         if let Some(ev) = self.collapse(&m) {
             return Some(ev);
+        }
+        if m.sender.is_some() {
+            self.live_from.get_or_insert(m.ts);
         }
         self.push(m.clone());
         Some(RoomEvent::Message { message: m })

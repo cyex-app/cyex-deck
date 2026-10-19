@@ -1,6 +1,7 @@
 //! BTTV over HTTP (1.38): global and channel emotes, badges, bot commands (C13).
 
 use cyex_chat::model::Provider;
+use cyex_twitch::pace::{Lane, Service};
 use cyex_twitch::{Http, Result};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -23,7 +24,9 @@ const ZERO_WIDTH: &[&str] = &[
 ];
 
 pub async fn global(http: &Http) -> Result<EmoteSet> {
-    let list: Vec<RawEmote> = http.get_json(&format!("{API}/cached/emotes/global")).await?;
+    let list: Vec<RawEmote> = http
+        .get_json_paced(Service::Bttv, Lane::Front, &format!("{API}/cached/emotes/global"))
+        .await?;
     Ok(EmoteSet::new(
         "bttv-global",
         Provider::Bttv,
@@ -35,10 +38,10 @@ pub async fn global(http: &Http) -> Result<EmoteSet> {
     ))
 }
 
-/// The channel's own and shared emotes. `None` without a BTTV account.
-pub async fn channel(http: &Http, twitch_id: &str) -> Result<Option<EmoteSet>> {
+/// The channel's own and shared emotes. `None` without a BTTV account. Paced (V107-P2).
+pub async fn channel(http: &Http, twitch_id: &str, lane: Lane) -> Result<Option<EmoteSet>> {
     let res: Result<RawUser> = http
-        .get_json(&format!("{API}/cached/users/twitch/{twitch_id}"))
+        .get_json_paced(Service::Bttv, lane, &format!("{API}/cached/users/twitch/{twitch_id}"))
         .await;
     let user = match res {
         Ok(u) => u,
@@ -61,7 +64,9 @@ pub async fn channel(http: &Http, twitch_id: &str) -> Result<Option<EmoteSet>> {
 
 /// BTTV's staff and helper badges, and who has which (Twitch user ids).
 pub async fn badges(http: &Http) -> Result<(Vec<BadgeDef>, Vec<(String, String)>)> {
-    let list: Vec<RawBadgeUser> = http.get_json(&format!("{API}/cached/badges/twitch")).await?;
+    let list: Vec<RawBadgeUser> = http
+        .get_json_paced(Service::Bttv, Lane::Front, &format!("{API}/cached/badges/twitch"))
+        .await?;
     Ok(split_badges(list))
 }
 

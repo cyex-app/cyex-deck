@@ -12,6 +12,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
+use cyex_settings::Partition;
+use cyex_settings::schema::Tabs;
+use cyex_twitch::pace::Lane;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use ts_rs::TS;
@@ -211,6 +214,24 @@ pub fn gone(app: &AppHandle, label: &str) {
     let was = shown.lock().loading.remove(label);
     if was {
         send(app);
+    }
+}
+
+/// V107-P2 A chat in a view, or a tile of the main window's tab, goes ahead of background
+/// tabs for its BTTV, FFZ and history requests.
+pub fn lane(app: &AppHandle, login: &str) -> Lane {
+    let viewed = app
+        .try_state::<Chat>()
+        .is_some_and(|c| c.lock().views.values().any(|((_, l), _)| l == login));
+    let active = || {
+        let tabs = app.state::<crate::settings::Settings>().read::<Tabs>(Partition::Tabs);
+        let tab = tabs.active.as_deref().and_then(|a| tabs.tab(a));
+        tab.is_some_and(|t| t.tiles().any(|t| t.channel.login == login))
+    };
+    if viewed || active() {
+        Lane::Front
+    } else {
+        Lane::Back
     }
 }
 

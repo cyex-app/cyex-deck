@@ -3,6 +3,7 @@
 //! arrive after a message still show on it.
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 
 use cyex_chat::model::Provider;
 use serde::Serialize;
@@ -77,13 +78,20 @@ pub struct Looks {
 struct SevenUser {
     paint: Option<String>,
     badge: Option<String>,
+    /// Tick of the last event about this user (for trimming).
+    seen: AtomicU64,
 }
+
+/// V107-M3 7TV users kept at most. Events are push-only (no per-user lookup to refetch from), so a
+/// time sweep would lose looks for good; the least recently touched go past this instead.
+const MAX_SEVENTV_USERS: usize = 20_000;
 
 #[derive(Default)]
 pub struct Cosmetics {
     paints: HashMap<String, PaintStyle>,
     badges: HashMap<BadgeRef, BadgeDef>,
     seventv: HashMap<String, SevenUser>,
+    tick: AtomicU64,
     /// FFZ badge ids with their users' Twitch ids, sorted (FFZ's global list is long).
     ffz: Vec<(String, Vec<u64>)>,
     /// BTTV badge by user.
@@ -107,16 +115,42 @@ impl Cosmetics {
 
     /// Returns true if the user's look changed.
     pub fn set_seventv(&mut self, user: &str, change: SevenChange<'_>) -> bool {
+        let tick = self.next_tick();
         let u = self.seventv.entry(user.to_owned()).or_default();
+        *u.seen.get_mut() = tick;
         let (slot, value) = match change {
             SevenChange::Paint(v) => (&mut u.paint, v),
             SevenChange::Badge(v) => (&mut u.badge, v),
         };
-        if slot.as_deref() == value {
-            return false;
+        let changed = slot.as_deref() != value;
+        if changed {
+            *slot = value.map(str::to_owned);
         }
-        *slot = value.map(str::to_owned);
-        true
+        if u.paint.is_none() && u.badge.is_none() {
+            self.seventv.remove(user);
+        } else if self.seventv.len() > MAX_SEVENTV_USERS + MAX_SEVENTV_USERS / 10 {
+            self.trim_seventv(MAX_SEVENTV_USERS);
+        }
+        changed
+    }
+
+    /// Drops the least recently touched users down to `keep`.
+    fn trim_seventv(&mut self, keep: usize) {
+        if self.seventv.len() <= keep {
+            return;
+        }
+        let mut seen: Vec<u64> = self.seventv.values().map(|u| u.seen.load(Relaxed)).collect();
+        let cut = seen.len() - keep;
+        let (_, &mut oldest_kept, _) = seen.select_nth_unstable(cut);
+        self.seventv.retain(|_, u| u.seen.load(Relaxed) >= oldest_kept);
+    }
+
+    fn next_tick(&self) -> u64 {
+        self.tick.fetch_add(1, Relaxed) + 1
+    }
+
+    pub fn seventv_users(&self) -> usize {
+        self.seventv.len()
     }
 
     /// Takes a 7TV paint or badge off a user, if it's that one.
@@ -128,11 +162,14 @@ impl Cosmetics {
             SevenChange::Paint(v) => (&mut u.paint, v),
             SevenChange::Badge(v) => (&mut u.badge, v),
         };
-        if slot.is_some() && slot.as_deref() == id {
-            *slot = None;
-            return true;
+        if slot.is_none() || slot.as_deref() != id {
+            return false;
         }
-        false
+        *slot = None;
+        if u.paint.is_none() && u.badge.is_none() {
+            self.seventv.remove(user);
+        }
+        true
     }
 
     pub fn set_ffz_users(&mut self, users: Vec<(String, Vec<u64>)>) {
@@ -146,6 +183,8 @@ impl Cosmetics {
     pub fn look(&self, user: &str) -> Option<Look> {
         let mut look = Look::default();
         if let Some(u) = self.seventv.get(user) {
+            // Drawn: counts as recent, so it outlives the trim.
+            u.seen.store(self.next_tick(), Relaxed);
             look.paint = u.paint.clone().filter(|p| self.paints.contains_key(p));
             if let Some(b) = &u.badge {
                 look.badges.push(BadgeRef {
@@ -256,5 +295,44 @@ mod tests {
         c.set_seventv("1", SevenChange::Paint(Some("a")));
         assert!(!c.take_seventv("1", SevenChange::Paint(Some("b"))));
         assert!(c.take_seventv("1", SevenChange::Paint(Some("a"))));
+    }
+
+    #[test]
+    fn emptied_users_leave_the_map() {
+        let mut c = Cosmetics::default();
+        c.set_seventv("1", SevenChange::Paint(Some("a")));
+        c.set_seventv("1", SevenChange::Badge(Some("b")));
+        assert!(c.take_seventv("1", SevenChange::Paint(Some("a"))));
+        assert_eq!(c.seventv_users(), 1);
+        assert!(c.take_seventv("1", SevenChange::Badge(Some("b"))));
+        assert_eq!(c.seventv_users(), 0);
+        c.set_seventv("2", SevenChange::Paint(None));
+        assert_eq!(c.seventv_users(), 0);
+    }
+
+    #[test]
+    fn least_recent_users_go_past_the_cap() {
+        let mut c = Cosmetics::default();
+        for i in 0..30_000 {
+            c.set_seventv(&i.to_string(), SevenChange::Paint(Some("a")));
+        }
+        let n = c.seventv_users();
+        assert!((MAX_SEVENTV_USERS..=MAX_SEVENTV_USERS * 11 / 10).contains(&n));
+        assert!(c.seventv.contains_key("29999"));
+        assert!(!c.seventv.contains_key("0"));
+    }
+
+    #[test]
+    fn a_user_who_is_read_survives_the_trim() {
+        let mut c = Cosmetics::default();
+        c.set_seventv("0", SevenChange::Paint(Some("a")));
+        for i in 1..30_000 {
+            c.set_seventv(&i.to_string(), SevenChange::Paint(Some("a")));
+            if i % 1000 == 0 {
+                c.look("0");
+            }
+        }
+        assert!(c.seventv.contains_key("0"));
+        assert!(!c.seventv.contains_key("1"));
     }
 }

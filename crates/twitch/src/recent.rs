@@ -3,7 +3,7 @@
 
 use serde::Deserialize;
 
-use crate::http::json;
+use crate::pace::{self, Lane, Service};
 use crate::{Error, Http, Result};
 
 const URL: &str = "https://recent-messages.robotty.de/api/v2/recent-messages";
@@ -16,10 +16,10 @@ struct Response {
     error: Option<String>,
 }
 
-/// At most `limit` lines (V101-03); the service keeps up to 800.
-pub async fn recent_messages(http: &Http, login: &str, limit: u32) -> Result<Vec<String>> {
-    let req = http.0.get(format!("{URL}/{login}")).query(&[("limit", limit)]);
-    unwrap(json(req).await?)
+/// At most `limit` lines (V101-03); the service keeps up to 800. Paced and retried (V107-P2).
+pub async fn recent_messages(http: &Http, login: &str, limit: u32, lane: Lane) -> Result<Vec<String>> {
+    let req = || http.0.get(format!("{URL}/{login}")).query(&[("limit", limit)]);
+    unwrap(pace::json(Service::Recent, lane, req).await?)
 }
 
 /// V101-32 Why there's no history, as a line for the chat.
@@ -35,11 +35,12 @@ pub fn unavailable(e: &Error) -> String {
 
 /// C24 Lines sent between two moments (unix ms), at most `limit`.
 pub async fn recent_between(http: &Http, login: &str, after_ms: i64, before_ms: i64, limit: u32) -> Result<Vec<String>> {
-    let req = http
-        .0
-        .get(format!("{URL}/{login}"))
-        .query(&[("limit", i64::from(limit)), ("after", after_ms), ("before", before_ms)]);
-    unwrap(json(req).await?)
+    let req = || {
+        http.0
+            .get(format!("{URL}/{login}"))
+            .query(&[("limit", i64::from(limit)), ("after", after_ms), ("before", before_ms)])
+    };
+    unwrap(pace::json(Service::Recent, Lane::Back, req).await?)
 }
 
 fn unwrap(r: Response) -> Result<Vec<String>> {

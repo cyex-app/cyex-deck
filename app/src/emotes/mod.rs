@@ -157,16 +157,28 @@ impl Inner {
             .flatten()
             .filter_map(|id| self.personal_sets.get(id).cloned())
             .collect();
-        let mut map = (*self.personal).clone();
+        // V107-M3 In place; copies only while a room still holds the old map.
+        let map = Arc::make_mut(&mut self.personal);
         if sets.is_empty() {
             map.remove(user);
+            if self.user_sets.get(user).is_some_and(Vec::is_empty) {
+                self.user_sets.remove(user);
+            }
         } else {
             map.insert(
                 user.to_owned(),
                 Arc::new(Lookup::build(sets.iter().map(Arc::as_ref))),
             );
         }
-        self.personal = Arc::new(map);
+    }
+
+    /// V107-M3 Drops personal sets no user has any more.
+    fn prune_personal_sets(&mut self, ids: &[String]) {
+        for id in ids {
+            if !self.user_sets.values().any(|s| s.contains(id)) {
+                self.personal_sets.remove(id);
+            }
+        }
     }
 }
 
@@ -385,4 +397,25 @@ pub fn channel_id(app: &AppHandle, login: &str) -> Option<String> {
         .channels
         .get(login)
         .map(|c| c.id.clone())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cyex_emotes::Scope;
+
+    #[test]
+    fn personal_state_empties_with_its_last_user() {
+        let mut inner = Inner::default();
+        let set = EmoteSet::new("s", Provider::Seventv, Scope::Personal, Vec::new());
+        inner.personal_sets.insert("s".into(), Arc::new(set));
+        inner.user_sets.insert("u".into(), vec!["s".into()]);
+        inner.rebuild_personal("u");
+        assert!(inner.personal.contains_key("u"));
+        inner.user_sets.get_mut("u").unwrap().clear();
+        inner.rebuild_personal("u");
+        assert!(inner.personal.is_empty() && inner.user_sets.is_empty());
+        inner.prune_personal_sets(&["s".to_owned()]);
+        assert!(inner.personal_sets.is_empty());
+    }
 }

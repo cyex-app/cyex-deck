@@ -16,6 +16,7 @@ pub mod hermes;
 mod http;
 pub mod id;
 pub mod logs;
+pub mod pace;
 pub mod random;
 pub mod recent;
 pub mod resolver;

@@ -7,7 +7,8 @@ import type { ErrorData, HlsConfig } from 'hls.js';
 
 import type { PlayerSession } from '../../ipc/bindings/PlayerSession';
 import { delayVideo } from './avsync';
-import { Away } from './away';
+import { onShown, pageHidden } from '../../lib/awake';
+import { Away, outOfSight } from './away';
 import { GRAPH_EVENT, graphDelay } from './gain';
 import { behindLive, dvrConfig, liveConfig, liveState, maxLatency, PAUSE_STOP_MS, pausedBehind, rangeEnd } from './liveEdge';
 import {
@@ -123,6 +124,8 @@ export class Engine {
   private readonly away = new Away(() => this.drop());
   /** The page hides the player: its tab plays in the background (V102-15). */
   private hidden = false;
+  /** V107-H1 The window is minimized, in the tray or covered. */
+  private pageHidden = pageHidden();
   private readonly off: () => void;
   /** K3 Stops listening for boost graph changes of the current hls. */
   private unGraph: () => void = () => {};
@@ -161,8 +164,13 @@ export class Engine {
     };
     for (const [name, f] of Object.entries(set)) on(name, f);
     if (live) this.stallTimer = setInterval(() => this.checkStall(), 1000);
+    const unShown = onShown((h) => {
+      this.pageHidden = h;
+      this.sight();
+    });
     this.off = () => {
       for (const [name, f] of Object.entries(set)) video.removeEventListener(name, f);
+      unShown();
     };
   }
 
@@ -313,10 +321,9 @@ export class Engine {
    *  sight: the quality stays for a minute, then drops until it shows again (V103-03). */
   fit(px: number): void {
     this.hidden = px <= 0;
-    if (this.hidden) return this.sight();
-    const moved = Math.abs(px - this.playerPx) >= 40;
+    const moved = !this.hidden && Math.abs(px - this.playerPx) >= 40;
     if (moved) this.playerPx = px;
-    if (this.away.show() || (moved && this.choice === 'auto')) this.apply(true);
+    if (!this.sight() && moved && this.choice === 'auto') this.apply(true);
   }
 
   stats(): Stats {
@@ -503,10 +510,15 @@ export class Engine {
     this.hls.startLoad(this.liveSrc ? -1 : this.startAt);
   }
 
-  /** V103-03 Out of sight is hidden on the page and not in picture in picture. */
-  private sight(): void {
-    if (this.hidden && document.pictureInPictureElement !== this.video) this.away.hide();
-    else if (this.away.show()) this.apply(true);
+  /** V103-03 Out of sight is hidden on the page and not in picture in picture; V107-H1
+   *  or the whole page hidden. True when the quality came back. */
+  private sight(): boolean {
+    if (outOfSight(this.hidden, this.pageHidden, document.pictureInPictureElement === this.video)) this.away.hide();
+    else if (this.away.show()) {
+      this.apply(true);
+      return true;
+    }
+    return false;
   }
 
   /** V103-03 A minute out of sight: the lowest quality from the next segment on. What's

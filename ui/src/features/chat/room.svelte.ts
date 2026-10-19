@@ -9,9 +9,12 @@ import type { RoomEvent } from '../../ipc/bindings/RoomEvent';
 import type { RoomState } from '../../ipc/bindings/RoomState';
 import { settings } from '../../lib/settings.svelte';
 import { errorText } from '../../lib/errors';
+import { nextPiece, prepend } from './historyDrip';
 
 /** V101-02 Lines kept on screen, as set; older ones drop off the top. Rust keeps as many
- * per room, and at least 500 for usercards. */
+ * per shown room, at least 500. V107-M1 A room shown again after the background opens with
+ * the 150 it kept; its older lines follow as `history` events of 50, newest first, and go on
+ * screen 25 per frame (historyDrip.ts). */
 const maxLines = () => settings.v.chat?.scrollback ?? 1000;
 
 /** C5 Last message seen per tile, for the last-read line after switching tabs. */
@@ -44,6 +47,9 @@ export class ChatRoom {
   closed = false;
   /** Batches that arrive before the snapshot; applied right after it. */
   private early: RoomEvent[][] | null = [];
+  /** V107-M1 History not on screen yet, drawn a piece per frame. */
+  private later: ChatMessage[][] = [];
+  private frame = 0;
 
   constructor(readonly login: string) {}
 
@@ -79,6 +85,8 @@ export class ChatRoom {
 
   close(): void {
     this.closed = true;
+    if (this.frame) cancelAnimationFrame(this.frame);
+    this.later = [];
     if (this.view) void chatIpc.close(this.view);
   }
 
@@ -91,6 +99,7 @@ export class ChatRoom {
     let changed = false;
     const edit = (fn: (m: ChatMessage) => ChatMessage | null) => {
       list = list.map((m) => fn(m) ?? m);
+      this.later = this.later.map((c) => c.map((m) => fn(m) ?? m));
       changed = true;
     };
     for (const e of events) {
@@ -114,18 +123,18 @@ export class ChatRoom {
         // S14 A plugin took its line back, or emptied the chat on screen.
         case 'remove':
           list = list.filter((m) => m.id !== e.id);
+          this.later = this.later.map((c) => c.filter((m) => m.id !== e.id));
           changed = true;
           break;
         case 'wipe':
           list = [];
+          this.later = [];
           changed = true;
           break;
-        case 'history': {
-          const known = new Set(list.map((m) => m.id));
-          list = [...e.messages.filter((m) => !known.has(m.id)), ...list];
-          changed = true;
+        case 'history':
+          this.later.push(e.messages.slice());
+          this.drip();
           break;
-        }
         case 'gap':
           list = mergeByTime(list, e.messages);
           changed = true;
@@ -142,8 +151,25 @@ export class ChatRoom {
           break;
       }
     }
+    if (changed) this.set(list);
+  }
+
+  private set(list: ChatMessage[]): void {
     const max = maxLines();
-    if (changed) this.messages = list.length > max ? list.slice(-max) : list;
+    this.messages = list.length > max ? list.slice(-max) : list;
+  }
+
+  /** V107-M1 One piece of queued history per frame, so a refill never draws 100 lines at once. */
+  private drip(): void {
+    if (this.frame || this.closed) return;
+    this.frame = requestAnimationFrame(() => {
+      this.frame = 0;
+      // Full already: older lines would only drop off again.
+      if (this.messages.length >= maxLines()) this.later = [];
+      const piece = nextPiece(this.later);
+      if (piece.length) this.set(prepend(this.messages, piece));
+      if (this.later.length) this.drip();
+    });
   }
 }
 

@@ -2,6 +2,7 @@
 // stream's clock, and the moves between the live stream and the broadcast's VOD.
 
 import { playerIpc } from '../../ipc/player';
+import { onShown, pageHidden } from '../../lib/awake';
 import type { Engine } from './engine.svelte';
 import { COALESCE_MS, DVR_RETRY_MS, DVR_YOUNG, dvrTarget, stepTarget, uptimeAt } from './liveEdge';
 import type { SeekResult } from './liveKeys';
@@ -34,12 +35,15 @@ export class Rewind {
   private done = false;
   private hushPaused = false;
   private readonly clock: ReturnType<typeof setInterval>;
+  private readonly unShown: () => void;
 
   constructor(
     private readonly host: RewindHost,
     private readonly login: string,
   ) {
     this.clock = setInterval(() => this.tick(), 1000);
+    // V107-H1 Shown again: the clock and the chat bar catch up at once.
+    this.unShown = onShown((hidden) => hidden || this.tick());
   }
 
   /** From LivePlayer's `$effect`: asks Twitch again when one of these changes. */
@@ -153,6 +157,7 @@ export class Rewind {
 
   destroy(): void {
     clearInterval(this.clock);
+    this.unShown();
     clearTimeout(this.retry);
     clearTimeout(this.flushTimer);
     clearTimeout(this.endTimer);
@@ -210,11 +215,14 @@ export class Rewind {
   }
 
   private tick(): void {
-    if (!this.ended && this.startedAt) this.uptime = uptimeAt(this.startedAt, Date.now());
+    // V107-H1 Hidden: the clock and the chat bar wait, what keeps the sound going still runs.
+    const hidden = pageHidden();
+    const up = !this.ended && this.startedAt ? uptimeAt(this.startedAt, Date.now()) : this.uptime;
+    if (!hidden) this.uptime = up;
     const e = this.host.engine();
-    this.mark();
+    if (!hidden) this.mark();
     // The VOD's edge stalls: nothing more to load there yet, live has it.
-    if (this.inVod && e && e.waiting && !e.swapping && !this.ended && this.uptime - e.time < 40) {
+    if (this.inVod && e && e.waiting && !e.swapping && !this.ended && up - e.time < 40) {
       this.stalls += 1;
       if (this.stalls >= 3) {
         this.stalls = 0;

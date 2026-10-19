@@ -15,6 +15,8 @@
   import Body from './Body.svelte';
   import { CLIENTS, COSMIC, effectOf, highlightStyle } from './highlight';
   import LinkCard from './LinkCard.svelte';
+  import { fxSleep } from './fxSleep';
+  import { isHot } from './hover.svelte';
   import { shownName } from './names';
   import { uploadLine } from './upload';
 
@@ -36,7 +38,7 @@
   let { m, channel, canReply = false, inWhispers = false, stripe = false, mod = null, look }: Props = $props();
 
   /** The hover buttons exist only under the pointer: a long history has none to carry. */
-  let hot = $state(false);
+  const hot = $derived(isHot(m.id));
 
   const c = $derived(settings.v.chat);
   const has = (flag: ChatMessage['flags'][number]) => m.flags.includes(flag);
@@ -71,8 +73,7 @@
   );
 </script>
 
-<!-- The pointer only decides whether the hover buttons are drawn. -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- Hover buttons are drawn for the line under the pointer (hover.svelte.ts). -->
 <div
   class="line kind-{notice?.kind ?? 'chat'} {hl.cls}"
   class:stripe
@@ -86,10 +87,8 @@
   class:whisper={!!whisperWith}
   data-id={m.id}
   style="{colorVars};{hl.vars}"
-  onpointerenter={() => (hot = true)}
-  onpointerleave={() => (hot = false)}
 >
-  {#if effect}<div class="fx fx-{effect}" aria-hidden="true">
+  {#if effect}<div class="fx fx-{effect}" aria-hidden="true" use:fxSleep>
       {#if effect === 'cosmic-abyss'}<video src={COSMIC} autoplay loop muted playsinline></video>{/if}
     </div>{/if}
   {#if whisperWith}
@@ -420,7 +419,9 @@
     height: 100%;
     object-fit: cover;
   }
-  :global(.still) .fx-rainbow-eclipse::before {
+  :global(.still) .fx-rainbow-eclipse::before,
+  :global(.asleep) .fx-rainbow-eclipse::before,
+  .fx-rainbow-eclipse:global(.asleep)::before {
     animation-play-state: paused;
   }
   @keyframes spin {

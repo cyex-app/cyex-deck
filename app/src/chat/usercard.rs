@@ -39,7 +39,7 @@ pub async fn badges(app: &AppHandle, user: &str, channel: &str) -> Result<Vec<cy
 pub async fn name_history(app: &AppHandle, user_id: &str) -> Result<Vec<NameChange>, String> {
     logs::name_history(&http(app), user_id)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.describe("logs.cyex.app"))
 }
 
 /// When they followed, if an account that moderates the channel can ask. `Ok(None)`:

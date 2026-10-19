@@ -16,4 +16,4 @@ pub mod search;
 pub mod similar;
 pub mod tokenize;
 
-pub use room::{BUFFER, LineChange, LineHook, PendingSend, Room, RoomSnapshot};
+pub use room::{BACKGROUND, BACKGROUND_HISTORY, BUFFER, LineChange, LineHook, PendingSend, Room, RoomSnapshot};

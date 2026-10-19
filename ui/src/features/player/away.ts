@@ -2,9 +2,15 @@
 // its quality for a minute and then drops to the lowest. Back within the minute nothing
 // changes, so nothing buffers; back later, it gets its quality again. Out of sight shows
 // up as a 0 px player: the tab's slot is `display: none`. One timer per player.
+// V107-H1 A hidden page counts too: the window minimized, in the tray or covered.
 
 /** How long a player stays out of sight before it drops to the lowest quality. */
 export const AWAY_MS = 60_000;
+
+/** Out of sight: a 0 px player or a hidden page, unless it plays in picture in picture. */
+export function outOfSight(zeroPx: boolean, pageHidden: boolean, pip: boolean): boolean {
+  return (zeroPx || pageHidden) && !pip;
+}
 
 export class Away {
   private timer: ReturnType<typeof setTimeout> | undefined;

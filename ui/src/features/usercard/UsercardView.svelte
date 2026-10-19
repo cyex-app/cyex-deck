@@ -12,6 +12,7 @@
   import { chatIpc } from '../../ipc/chat';
   import { modIpc } from '../../ipc/moderation';
   import { accounts } from '../../lib/accounts.svelte';
+  import { everyShown } from '../../lib/awake';
   import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
   import { catalogs } from '../chat/catalog.svelte';
@@ -78,8 +79,8 @@
         .then((m) => (messages = m))
         .catch(() => {});
     void refresh();
-    const t = setInterval(refresh, REFRESH_MS);
-    return () => clearInterval(t);
+    // V107-H1 Not while the window is hidden: once when it shows.
+    return everyShown(refresh, REFRESH_MS);
   });
 
   // M3 Mod history over GQL; silent where the account can't read it.

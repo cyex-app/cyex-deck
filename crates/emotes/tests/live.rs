@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use cyex_emotes::seventv::socket::{EventApi, Topic};
 use cyex_emotes::{bttv, ffz, seventv};
+use cyex_twitch::pace::Lane;
 use cyex_twitch::ws;
 use cyex_twitch::Http;
 
@@ -41,9 +42,9 @@ async fn bttv_and_ffz() {
     let http = Http::new().unwrap();
     let g = bttv::api::global(&http).await.unwrap();
     assert!(g.emotes.len() > 30);
-    let ch = bttv::api::channel(&http, PAJLADA).await.unwrap().unwrap();
+    let ch = bttv::api::channel(&http, PAJLADA, Lane::Front).await.unwrap().unwrap();
     println!("bttv pajlada: {}", ch.emotes.len());
-    assert!(bttv::api::channel(&http, "999999999999").await.unwrap().is_none());
+    assert!(bttv::api::channel(&http, "999999999999", Lane::Front).await.unwrap().is_none());
     let (defs, users) = bttv::api::badges(&http).await.unwrap();
     assert!(!defs.is_empty() && users.len() > 50);
     let cmds = bttv::api::bot_commands(&http, XQC).await.unwrap();
@@ -55,13 +56,13 @@ async fn bttv_and_ffz() {
             .iter()
             .any(|s| s.emotes.iter().any(|e| e.modifier.is_some()))
     );
-    let room = ffz::api::room(&http, PAJLADA).await.unwrap().unwrap();
+    let room = ffz::api::room(&http, PAJLADA, Lane::Front).await.unwrap().unwrap();
     println!(
         "ffz pajlada: {:?} emotes, mod badge {}",
         room.set.map(|s| s.emotes.len()),
         room.badges.moderator.is_some()
     );
-    assert!(ffz::api::room(&http, "999999999999").await.unwrap().is_none());
+    assert!(ffz::api::room(&http, "999999999999", Lane::Front).await.unwrap().is_none());
     let (defs, users) = ffz::api::badges(&http).await.unwrap();
     println!(
         "ffz badges: {} kinds, {} users",

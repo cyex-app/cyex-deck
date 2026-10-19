@@ -4,6 +4,7 @@
 import type { ChannelCard } from '../../ipc/bindings/ChannelCard';
 import { homeIpc } from '../../ipc/browse';
 import { accounts } from '../../lib/accounts.svelte';
+import { everyShown } from '../../lib/awake';
 import { latest } from '../../lib/latest';
 import { settings } from '../../lib/settings.svelte';
 
@@ -65,11 +66,11 @@ class HomeStore {
     if (!this.loading && this.owner !== this.account) void this.refresh();
   }
 
-  /** Refreshes now and every minute until the returned stop is called. */
+  /** Refreshes now and every minute until the returned stop is called. V107-H1 Not
+   *  while the window is hidden: once when it shows. */
   watch(): () => void {
     void this.refresh();
-    const timer = setInterval(() => void this.refresh(), POLL_MS);
-    return () => clearInterval(timer);
+    return everyShown(() => void this.refresh(), POLL_MS);
   }
 
   /** Favorites changed: fetch just those. */

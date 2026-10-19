@@ -3,6 +3,8 @@
 // pictures while unfocused (E2), streamer mode (U4), who wears what (1.37-1.39), plugins (S5), media keys (V101-29), our own menu in place
 // of the browser's (V101-30), smooth scrolling (V103-11) and picture scale (V105-08).
 
+import { untrack } from 'svelte';
+
 import { applyAppearance } from '../design/theme';
 import { looks } from '../features/emotes/looks.svelte';
 import { align } from '../features/emotes/phase';
@@ -37,6 +39,13 @@ export function useRootEffects(): void {
     document.documentElement.classList.toggle('still', focus.still);
     // V105-08 Modifiers paused while unfocused resume in step.
     if (!focus.still) align(document);
+  });
+
+  // V107-H1 A hidden window: moving modifiers and line effects rest, in step again when it shows.
+  $effect(() => {
+    const asleep = !focus.visible;
+    document.documentElement.classList.toggle('asleep', asleep);
+    if (!asleep && !untrack(() => focus.still)) align(document);
   });
 
   $effect(() => guardNativeMenu());

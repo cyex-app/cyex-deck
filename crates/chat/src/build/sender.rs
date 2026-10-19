@@ -1,6 +1,7 @@
 //! Sender, badges and name colors from IRC tags.
 
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use cyex_core::color::{Rgb, Theme, readable_name};
 
@@ -13,15 +14,24 @@ const DEFAULT_COLORS: [&str; 15] = [
     "#daa520", "#d2691e", "#5f9ea0", "#1e90ff", "#ff69b4", "#8a2be2", "#00ff7f",
 ];
 
-/// C8 Readable variants per raw color. Few distinct colors appear, so this stays small.
-#[derive(Default)]
-pub struct Colors(HashMap<String, NameColor>);
+/// C8 Readable variants per raw color (both themes are stored, so a theme switch needs no
+/// recompute). A cheap handle: `shared()` hands every room the same map (V107-M2), `default()`
+/// makes a private one. Past `MAX` entries the map is cleared (cheap, refills in a blink).
+#[derive(Default, Clone)]
+pub struct Colors(Arc<Mutex<HashMap<String, NameColor>>>);
 
 impl Colors {
-    const MAX: usize = 4096;
+    const MAX: usize = 16_384;
+
+    /// The process-wide cache all chat rooms use.
+    pub fn shared() -> Self {
+        static SHARED: OnceLock<Colors> = OnceLock::new();
+        SHARED.get_or_init(Colors::default).clone()
+    }
 
     pub fn get(&mut self, raw: &str) -> NameColor {
-        if let Some(c) = self.0.get(raw) {
+        let mut map = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(c) = map.get(raw) {
             return c.clone();
         }
         let rgb = Rgb::parse(raw).unwrap_or(Rgb::new(0x80, 0x80, 0x80));
@@ -29,11 +39,16 @@ impl Colors {
             dark: readable_name(rgb, Theme::Dark).to_hex(),
             light: readable_name(rgb, Theme::Light).to_hex(),
         };
-        if self.0.len() >= Self::MAX {
-            self.0.clear();
+        if map.len() >= Self::MAX {
+            map.clear();
         }
-        self.0.insert(raw.to_owned(), color.clone());
+        map.insert(raw.to_owned(), color.clone());
         color
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.0.lock().unwrap().len()
     }
 }
 
@@ -118,5 +133,28 @@ mod tests {
         assert_eq!(default_color("7", "foo"), DEFAULT_COLORS[7]);
         assert!(s.color.dark.starts_with('#'));
         assert!(!s.localized());
+    }
+
+    #[test]
+    fn shared_handles_share_entries_and_private_ones_do_not() {
+        let (mut a, mut b) = (Colors::shared(), Colors::shared());
+        a.get("#123456");
+        assert!(b.0.lock().unwrap().contains_key("#123456"));
+        assert_eq!(a.get("#123456"), b.get("#123456"));
+        let mut own = Colors::default();
+        own.get("#abcdef");
+        assert_eq!(own.len(), 1);
+        assert!(!a.0.lock().unwrap().contains_key("#abcdef"));
+    }
+
+    #[test]
+    fn both_themes_stored_and_cap_clears() {
+        let mut c = Colors::default();
+        let v = c.get("#336699");
+        assert_ne!(v.dark, v.light);
+        for i in 0..=Colors::MAX {
+            c.get(&format!("#{:06x}", i));
+        }
+        assert!(c.len() <= Colors::MAX);
     }
 }

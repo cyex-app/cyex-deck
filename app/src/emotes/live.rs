@@ -80,10 +80,13 @@ fn personal(app: &AppHandle, added: bool, set_id: String, users: Vec<String>) {
     let missing = {
         let mut inner = state.lock();
         for u in &users {
-            let sets = inner.user_sets.entry(u.clone()).or_default();
-            if added && !sets.contains(&set_id) {
-                sets.push(set_id.clone());
-            } else if !added {
+            if added {
+                let sets = inner.user_sets.entry(u.clone()).or_default();
+                if !sets.contains(&set_id) {
+                    sets.push(set_id.clone());
+                }
+            } else if let Some(sets) = inner.user_sets.get_mut(u) {
+                // V107-M3 Emptied lists leave the map (`rebuild_personal`).
                 sets.retain(|s| *s != set_id);
             }
         }
@@ -96,6 +99,9 @@ fn personal(app: &AppHandle, added: bool, set_id: String, users: Vec<String>) {
         }
         for u in &users {
             inner.rebuild_personal(u);
+        }
+        if !added {
+            inner.prune_personal_sets(std::slice::from_ref(&set_id));
         }
         added && !inner.personal_sets.contains_key(&set_id)
     };

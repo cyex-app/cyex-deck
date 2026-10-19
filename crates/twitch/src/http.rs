@@ -144,12 +144,7 @@ impl Http {
         }
         let mut res = req.send().await.map_err(|e| Error::Network(e.without_url()))?;
         let status = res.status().as_u16();
-        let reset = ["retry-after", "x-ratelimit-reset"].iter().find_map(|h| {
-            res.headers()
-                .get(*h)
-                .and_then(|v| v.to_str().ok())
-                .and_then(|v| v.trim().parse::<u64>().ok())
-        });
+        let reset = retry_secs(res.headers());
         let mut out = Vec::new();
         while let Some(chunk) = res.chunk().await.map_err(|e| Error::Network(e.without_url()))? {
             out.extend_from_slice(&chunk);
@@ -194,6 +189,16 @@ impl Http {
         out.truncate(max);
         Ok((status, out))
     }
+}
+
+/// `Retry-After` or `X-RateLimit-Reset` in whole seconds (the latter may be a unix time).
+pub(crate) fn retry_secs(headers: &reqwest::header::HeaderMap) -> Option<u64> {
+    ["retry-after", "x-ratelimit-reset"].iter().find_map(|h| {
+        headers
+            .get(*h)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.trim().parse::<u64>().ok())
+    })
 }
 
 /// Sends the request and decodes a JSON body, or turns an error status into `Error::Api`.

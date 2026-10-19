@@ -19,7 +19,7 @@ async fn chat_catalogs() {
     println!("pinned: {:?}", pin.map(|p| p.kind));
     let p = gql::profile(&http, Some("twitch"), None).await.unwrap().unwrap();
     assert!(p.partner && p.followers.unwrap() > 0);
-    let lines = recent::recent_messages(&http, "twitch", 50).await.unwrap();
+    let lines = recent::recent_messages(&http, "twitch", 50, cyex_twitch::pace::Lane::Front).await.unwrap();
     assert!(lines.iter().all(|l| l.contains("historical=1")));
 }
 

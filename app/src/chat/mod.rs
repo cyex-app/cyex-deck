@@ -15,6 +15,7 @@ pub mod peek;
 pub mod points;
 pub mod powerups;
 pub mod record;
+mod refill;
 pub mod roles;
 pub mod rules;
 pub mod run;
@@ -120,6 +121,12 @@ struct Entry {
     unread: Unread,
     /// V105-05 When our JOIN for this room last went out (ms), to time Twitch's answer.
     join_sent: Option<i64>,
+    /// V107-M1 Views opened on it so far, so a shrink planned at a close knows it's stale.
+    shown: u64,
+    /// V107-M1 Refilled lines not sent to the views yet, oldest first.
+    fill: Vec<String>,
+    /// V107-M1 Its first history was asked for: a refill won't race it (or its emotes).
+    loaded: bool,
 }
 
 #[derive(Serialize, TS)]
@@ -257,6 +264,10 @@ pub fn open(
         inner.follows.insert(id);
     }
     let entry = inner.rooms.get_mut(&key).expect("inserted above");
+    // V107-M1 Shown again after the background: the kept lines now, older ones bit by bit.
+    let refill = !fresh && entry.loaded && entry.room.background();
+    entry.room.set_background(false);
+    entry.shown += 1;
     let lines = chat.scrollback.load(Ordering::Relaxed);
     let mut snapshot = entry.room.snapshot_tail(if filters.is_empty() { lines } else { entry.room.keep() });
     if !filters.is_empty() {
@@ -281,6 +292,9 @@ pub fn open(
     if was_unread {
         unread::emit(app, &key, Unread::Seen);
     }
+    if refill {
+        refill::start(app, key.clone());
+    }
     if fresh {
         after_join(app, key);
     } else {
@@ -302,6 +316,8 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
     let (identity, login) = key;
     let mut room = Room::new(login, me);
     room.set_keep(app.state::<Chat>().scrollback.load(Ordering::Relaxed));
+    // V107-M1 Small until a view opens.
+    room.set_background(true);
     room.set_rules(rules::current(app));
     room.set_hook(crate::plugins::line_hook(app));
     session::ensure(app, inner, identity).client.join(login);
@@ -315,6 +331,9 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
             last_sent: None,
             unread: Unread::Seen,
             join_sent: None,
+            shown: 0,
+            fill: Vec::new(),
+            loaded: false,
         },
     );
     true
@@ -365,7 +384,13 @@ pub fn close(app: &AppHandle, view: u32) {
     votes::unwatch(app, &key.1);
     let Some(entry) = inner.rooms.get_mut(&key) else { return };
     entry.views.retain(|s| s.id != view);
-    if !entry.views.is_empty() || inner.held.contains(&key) {
+    if !entry.views.is_empty() {
+        return;
+    }
+    let shown = entry.shown;
+    if inner.held.contains(&key) {
+        drop(inner);
+        refill::later(app, key, shown);
         return;
     }
     let counted = leave(app, &mut inner, &key);
