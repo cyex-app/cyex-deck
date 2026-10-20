@@ -13,7 +13,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 use ts_rs::TS;
 
-use super::{Emotes, load};
+use super::{Emotes, load, owned};
 use crate::auth::Auth;
 
 /// E5 A channel's sub products and the rest, kept for the session up to an hour.
@@ -79,11 +79,15 @@ pub async fn menu(app: &AppHandle, login: &str, account: Option<&str>) -> Result
         None => (None, Some("Sign in to use your Twitch emotes.".to_owned())),
     };
     let channel = channel_emotes(app, &channel_id).await;
-    let twitch = twitch_sections(
-        mine.as_deref().map_or(&[], Vec::as_slice),
-        channel.as_deref(),
-        &channel_id,
-    );
+    let sets = mine.as_deref().map_or(&[][..], Vec::as_slice);
+    // V107-F10 A follow check only when the lists hold this channel's follower emotes.
+    let follows = match account {
+        Some(a) if owned::has_follower_emotes(sets, &channel_id) => {
+            crate::tabs::follow::following(app, &channel_id, a).await.ok().flatten().unwrap_or(true)
+        }
+        _ => true,
+    };
+    let twitch = twitch_sections(sets, channel.as_deref(), &channel_id, follows);
 
     let state = app.state::<Emotes>();
     let inner = state.lock();
@@ -163,7 +167,9 @@ fn twitch_sections(
     mine: &[TwitchSet],
     channel: Option<&ChannelEmotes>,
     channel_id: &str,
+    follows: bool,
 ) -> Vec<MenuSection> {
+    let subbed = owned::subbed_owners(mine);
     let owned: HashSet<&str> = mine
         .iter()
         .flat_map(|s| s.emotes.iter().map(|e| e.id.as_str()))
@@ -184,9 +190,11 @@ fn twitch_sections(
             let tier = (e.kind == EmoteKind::Subscription)
                 .then(|| set.tier.or_else(|| tier_here.get(e.id.as_str()).copied()))
                 .flatten();
+            // V107-F10 Listed by Twitch but not usable here: shown greyed, never completed.
+            let why = owned::lock_reason(e.kind, set.owner.as_ref().map(|o| o.id.as_str()), channel_id, &subbed, follows);
             let m = MenuEmote {
                 emote,
-                locked: None,
+                locked: why.map(str::to_owned),
                 tier,
             };
             let owner = set.owner.as_ref().filter(|_| {
@@ -352,7 +360,7 @@ mod tests {
             follower: Vec::new(),
             bits: Vec::new(),
         };
-        let s = twitch_sections(&mine, Some(&channel), "7");
+        let s = twitch_sections(&mine, Some(&channel), "7", true);
         let titles: Vec<&str> = s.iter().map(|s| s.title.as_str()).collect();
         assert_eq!(titles, ["Here", "Zed", "Global"]);
         let here: Vec<(&str, Option<&str>, Option<u8>)> = s[0]
@@ -403,7 +411,7 @@ mod tests {
             emotes: vec![e("25", EmoteKind::Global)],
             tier: None,
         };
-        let s = twitch_sections(&[set("0"), set("1")], None, "7");
+        let s = twitch_sections(&[set("0"), set("1")], None, "7", true);
         let global = s.iter().find(|s| s.id == "twitch-global").unwrap();
         assert_eq!(global.emotes.len(), 1);
     }

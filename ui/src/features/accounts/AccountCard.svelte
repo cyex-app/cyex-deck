@@ -18,6 +18,8 @@
   import { toast } from '../../lib/toast.svelte';
   import GqlUnlock from './GqlUnlock.svelte';
   import ProfileEditor from './ProfileEditor.svelte';
+  import ProfileImages from './ProfileImages.svelte';
+  import { profileImagesIpc } from '../../ipc/profileImages';
   import { signIn } from './signIn.svelte';
   import { twitchLeft } from '../unlock/choice';
   import { unlock } from '../unlock/unlock.svelte';
@@ -41,6 +43,10 @@
   );
 
   let editing = $state(false);
+  /** V107-R19 Mocks test runs: the images work without a GQL sign-in. */
+  let imagesMock = $state(false);
+  profileImagesIpc.mocked().then((m) => (imagesMock = m)).catch(() => {});
+  const canEdit = $derived(accounts.can('displayName', account.userId) || imagesMock);
   /** V106-31/32 7TV rejected the session or it ran out. */
   const ended = $derived(account.seventv.consent && !account.seventv.signedIn && account.seventv.expired);
 
@@ -163,10 +169,10 @@
     </span>
   </div>
 
-  {#if editing}<ProfileEditor account={account.userId} />{/if}
+  {#if editing}<ProfileEditor account={account.userId} /><ProfileImages account={account.userId} />{/if}
 
   <footer>
-    {#if accounts.can('displayName', account.userId)}
+    {#if canEdit}
       <Button small variant="ghost" icon="pencil" onclick={() => (editing = !editing)}>
         {editing ? 'Close profile' : 'Twitch profile'}
       </Button>

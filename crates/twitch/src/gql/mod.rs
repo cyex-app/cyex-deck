@@ -26,6 +26,7 @@ pub mod polls;
 pub mod powerups;
 pub mod predictions;
 pub mod profile;
+pub mod profile_images;
 pub mod rewind;
 mod search;
 mod stories;
@@ -215,7 +216,12 @@ pub(crate) async fn batch(
 /// redeem rewards with its tokens send these headers and need no integrity token
 /// (research, phase 3).
 fn request(http: &Http, auth: Auth<'_>) -> RequestBuilder {
-    let mut req = http.0.post(URL).header("Client-Id", auth.client_id);
+    request_at(http, URL, auth)
+}
+
+/// V107-R19 The same request at another GQL address (a local mock in tests).
+pub(crate) fn request_at(http: &Http, url: &str, auth: Auth<'_>) -> RequestBuilder {
+    let mut req = http.0.post(url).header("Client-Id", auth.client_id);
     if let Some(token) = auth.token {
         req = req.header("Authorization", format!("OAuth {token}"));
         if auth.client_id == clients::GQL {

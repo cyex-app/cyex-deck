@@ -2,12 +2,13 @@
 // (1.40) and ones seen in chat, emoji (E1), and chat bot commands (C13). Loaded once the
 // box is focused.
 
+import type { EmoteMenu } from '../../ipc/bindings/EmoteMenu';
 import type { BotCommand } from '../../ipc/bindings/BotCommand';
 import { emotesIpc } from '../../ipc/emotes';
 import { settings } from '../../lib/settings.svelte';
 import { emojiGroups, findEmoji, type EmojiGroup } from '../emotes/emoji';
 import { emoteKey } from '../emotes/emotes';
-import { usable } from '../emotes/menu';
+import { completionEmotes } from '../emotes/owned';
 import { usageRank } from '../emotes/ranking';
 import { emoteMenu } from '../emotes/menus';
 import { complete, type Word } from './completion';
@@ -15,7 +16,7 @@ import type { ChatRoom } from './room.svelte';
 import { commandItems, emoteItems, type EmoteName, type Item, viewerLevel } from './suggestions';
 
 export class Sources {
-  private known: EmoteName[] = [];
+  private menu: EmoteMenu | null = null;
   private emoji: EmojiGroup[] | null = null;
   private commands: BotCommand[] | null = null;
   private loading = false;
@@ -28,7 +29,7 @@ export class Sources {
     const { login, account } = this.room;
     emoteMenu(login, account)
       .then((m) => {
-        this.known = [...usable(m).values()].map((e) => ({ name: e.name, provider: e.provider, id: e.id, animated: e.animated }));
+        this.menu = m;
       })
       .catch(() => (this.loading = false));
     void emojiGroups().then((g) => (this.emoji = g));
@@ -53,15 +54,15 @@ export class Sources {
     return names;
   }
 
-  /** Usable emotes plus ones seen in this chat. */
+  /** Usable emotes plus ones seen in this chat (V107-F10: seen Twitch emotes only when yours). */
   emotes(): EmoteName[] {
-    const out = [...this.known];
+    const seen: EmoteName[] = [];
     for (const m of this.room.messages) {
       for (const f of m.body) {
-        if (f.t === 'emote') out.push({ name: f.name, provider: f.provider, id: f.id, animated: f.animated });
+        if (f.t === 'emote') seen.push({ name: f.name, provider: f.provider, id: f.id, animated: f.animated });
       }
     }
-    return out;
+    return completionEmotes(this.menu, seen);
   }
 
   /** V101-16 Among equal matches, emotes you use most come first: their place in the

@@ -9,6 +9,7 @@ pub mod edit;
 mod live;
 mod load;
 mod looks;
+mod owned;
 pub mod menu;
 pub mod presence;
 mod providers;

@@ -15,6 +15,7 @@ mod modes;
 mod notify;
 mod player;
 mod plugins;
+mod profile_images;
 mod rewind;
 mod rules;
 mod settings;
@@ -72,6 +73,10 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         notify::bell_delete,
         notify::profile_get,
         notify::profile_save,
+        profile_images::profile_images_get,
+        profile_images::profile_images_change,
+        profile_images::profile_images_restore,
+        profile_images::profile_images_mocked,
         notify::twitch_notify_get,
         notify::twitch_notify_switch,
         notify::twitch_notify_channel,

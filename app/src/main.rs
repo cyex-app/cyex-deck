@@ -28,6 +28,7 @@ mod perf_probe;
 mod player;
 mod plugins;
 mod profile;
+mod profile_images;
 mod settings;
 mod sound;
 mod streamer;
@@ -99,6 +100,7 @@ fn main() {
             streammanager::init(handle);
             whispers::init(handle);
             upload::init(handle);
+            profile_images::init(handle);
             update::init(handle);
             bell::init(handle);
             feeds::init(handle);
