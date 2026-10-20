@@ -17,9 +17,6 @@ pub async fn player_rewind(app: AppHandle, login: String, account: Option<String
         return mock::dvr(&http, &base, &login).await;
     }
     let (token, client_id) = gql_token(&app, account.as_deref()?)?;
-    let auth = gql::Auth {
-        client_id: &client_id,
-        token: Some(&token),
-    };
+    let auth = crate::auth::gql_auth(&token, &client_id);
     gql::rewind::dvr_vod(&http, auth, &login).await.ok().flatten()
 }

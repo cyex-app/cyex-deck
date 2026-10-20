@@ -49,10 +49,6 @@ use tauri::RunEvent;
 #[cfg(feature = "mocks")]
 #[global_allocator]
 static HEAP: sys::heap::Counting = sys::heap::Counting;
-/// V107-R13 Release builds: mimalloc.
-#[cfg(all(feature = "mimalloc", not(feature = "mocks")))]
-#[global_allocator]
-static HEAP: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 fn main() {
     let builder = tauri::Builder::default();

@@ -85,10 +85,7 @@ pub async fn send(app: &AppHandle, to: &str, text: &str) -> Result<(), String> {
         return Err("Sending whispers needs a sign-in with whisper access (Settings → Accounts).".into());
     };
     let http = app.state::<auth::Auth>().http.clone();
-    let a = helix::Auth {
-        client_id: &client_id,
-        token: &token,
-    };
+    let a = crate::auth::helix_auth(&token, &client_id);
     helix::whispers::send(&http, a, &me.id, &other.id, text)
         .await
         .map_err(|e| helix_reason(&e))?;

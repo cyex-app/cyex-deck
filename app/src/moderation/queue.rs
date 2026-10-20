@@ -87,10 +87,7 @@ pub async fn channel_history(app: &AppHandle, account: &str, login: &str, older:
         .any(|a| a.user_id == account && a.login.eq_ignore_ascii_case(login));
     let cid = if own { account.to_owned() } else { super::actor(app, account, login)?.channel_id };
     let (token, client_id) = crate::auth::gql_token(app, account).ok_or("Earlier mod actions need a GQL sign-in.")?;
-    let g = gql::Auth {
-        client_id: &client_id,
-        token: Some(&token),
-    };
+    let g = crate::auth::gql_auth(&token, &client_id);
     let Some(after) = super::view::history_next(app, &cid, older) else { return Ok(()) };
     match gql::modlogs::channel_actions(&http(app), g, &cid, after.as_deref()).await {
         Ok(page) => {
@@ -141,7 +138,7 @@ pub async fn delete_comment(app: &AppHandle, account: &str, login: &str, id: &st
 /// 1.48, V101-35 Who's in a chat. Twitch's grouped list over GQL works for anyone; a
 /// moderator with a Helix sign-in gets every viewer instead of Twitch's sample of 100.
 pub async fn chatters(app: &AppHandle, account: Option<&str>, login: &str) -> Result<Chatters, String> {
-    // The grouped read works signed out with the GQL client.
+    // The grouped read works signed out with the GQL client (V107-R18: not PUBLIC, so left literal).
     let auth = gql::Auth {
         client_id: cyex_twitch::clients::GQL,
         token: None,

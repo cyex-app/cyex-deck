@@ -11,10 +11,7 @@ pub async fn following(app: &AppHandle, channel_id: &str, account: &str) -> Resu
         return Ok(None);
     };
     let http = app.state::<Auth>().http.clone();
-    let auth = gql::Auth {
-        client_id: &client_id,
-        token: Some(&token),
-    };
+    let auth = crate::auth::gql_auth(&token, &client_id);
     gql::is_following(&http, auth, channel_id)
         .await
         .map_err(|e| error_text(&e))
@@ -24,10 +21,7 @@ pub async fn set(app: &AppHandle, channel_id: &str, account: &str, follow: bool)
     let (token, client_id) =
         gql_token(app, account).ok_or("It needs a GQL sign-in. Add it in Settings → Accounts.")?;
     let http = app.state::<Auth>().http.clone();
-    let auth = gql::Auth {
-        client_id: &client_id,
-        token: Some(&token),
-    };
+    let auth = crate::auth::gql_auth(&token, &client_id);
     let done = if follow {
         gql::follow(&http, auth, channel_id).await
     } else {

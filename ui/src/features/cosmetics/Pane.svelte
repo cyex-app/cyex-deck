@@ -137,6 +137,6 @@
     min-height: 240px;
   }
   .body.compact {
-    min-height: 120px;
+    min-height: 96px; /* V107-R5b fits a 313 px pop-up without a 2nd scrollbar */
   }
 </style>

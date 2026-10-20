@@ -109,10 +109,7 @@ fn on_channel(app: &AppHandle, e: &super::channels::Event) {
 async fn load(app: &AppHandle, login: &str, account: Option<&str>, subscribe: bool) {
     let http = app.state::<crate::auth::Auth>().http.clone();
     let token = gql_auth(app, account);
-    let auth = token.as_ref().map_or(gql::Auth::PUBLIC, |(t, c)| gql::Auth {
-        client_id: c,
-        token: Some(t),
-    });
+    let auth = crate::auth::gql_auth_or_public(token.as_ref());
     let (id, poll) = match gql::polls::poll(&http, auth, login).await {
         Ok(Some(found)) => found,
         _ => return,
@@ -220,10 +217,7 @@ pub async fn vote(app: &AppHandle, view: u32, choice: &str, points: Option<u32>)
         .map(|p| p.id)
         .ok_or("There’s no poll right now.")?;
     let http = app.state::<crate::auth::Auth>().http.clone();
-    let auth = gql::Auth {
-        client_id: &client_id,
-        token: Some(&token),
-    };
+    let auth = crate::auth::gql_auth(&token, &client_id);
     if let Some(code) = gql::polls::vote(&http, auth, &poll_id, choice, &account, points)
         .await
         .map_err(|e| e.to_string())?
@@ -253,10 +247,7 @@ pub async fn predict(app: &AppHandle, view: u32, outcome: &str, points: u64) -> 
         .map(|p| p.id)
         .ok_or("There’s no prediction right now.")?;
     let http = app.state::<crate::auth::Auth>().http.clone();
-    let auth = gql::Auth {
-        client_id: &client_id,
-        token: Some(&token),
-    };
+    let auth = crate::auth::gql_auth(&token, &client_id);
     if !s.accepted {
         gql::predictions::accept_terms(&http, auth)
             .await

@@ -1,12 +1,9 @@
-//! V107-R2 Test builds only: the active allocator (system, or mimalloc with V107-R13) with
+//! V107-R2 Test builds only: the system allocator with
 //! counters, so a soak can tell live heap from what the process holds (fragmentation,
 //! allocator caches).
 
 use std::alloc::{GlobalAlloc, Layout};
-#[cfg(not(feature = "mimalloc"))]
 use std::alloc::System as Inner;
-#[cfg(feature = "mimalloc")]
-use mimalloc::MiMalloc as Inner;
 use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
 pub struct Counting;

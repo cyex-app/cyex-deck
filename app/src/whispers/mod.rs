@@ -455,10 +455,7 @@ impl GqlCall {
     }
 
     pub fn auth(&self) -> gql::Auth<'_> {
-        gql::Auth {
-            client_id: &self.client_id,
-            token: Some(&self.token),
-        }
+        crate::auth::gql_auth(&self.token, &self.client_id)
     }
 }
 

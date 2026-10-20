@@ -1,9 +1,11 @@
 //! Accounts and sign-in (spec 01) wired to Tauri: shared state, the `accounts:changed`
 //! event, the token keeper. Logic lives in `cyex_auth`.
 
+mod as_account;
 mod keeper;
 mod sign_in;
 
+pub use as_account::{gql_auth, gql_auth_or_public, helix_auth};
 pub use sign_in::{DeviceStart, SignedIn, add_gql_token, remove_account, remove_token, sign_in_device};
 
 use std::sync::{Arc, Mutex, MutexGuard};

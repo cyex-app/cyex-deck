@@ -58,10 +58,7 @@ pub async fn preview(app: &AppHandle, path: &Path) -> Result<ImportReport, Strin
     let (account, (token, client_id)) = account(app)?;
     let layout = read(path)?;
     let http = app.state::<Auth>().http.clone();
-    let helix_auth = helix::Auth {
-        client_id: &client_id,
-        token: &token,
-    };
+    let helix_auth = crate::auth::helix_auth(&token, &client_id);
     let found = chatterino::resolve(&chatterino::names(&layout), |batch| {
         let http = &http;
         async move {

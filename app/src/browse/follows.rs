@@ -69,15 +69,12 @@ impl Source {
                 client_id,
                 user_id,
             } => {
-                let auth = helix::Auth { client_id, token };
+                let auth = crate::auth::helix_auth(token, client_id);
                 let ids = helix::followed_ids(http, auth, user_id).await?;
                 gql::cards(http, &ids).await
             }
             Source::Gql { token, client_id } => {
-                let auth = gql::Auth {
-                    client_id,
-                    token: Some(token),
-                };
+                let auth = crate::auth::gql_auth(token, client_id);
                 let ids = gql::followed_ids(http, auth).await?.unwrap_or_default();
                 gql::cards(http, &ids).await
             }
@@ -91,15 +88,12 @@ impl Source {
                 client_id,
                 user_id,
             } => {
-                let auth = helix::Auth { client_id, token };
+                let auth = crate::auth::helix_auth(token, client_id);
                 let ids = helix::followed_live_ids(http, auth, user_id).await?;
                 gql::cards(http, &ids).await
             }
             Source::Gql { token, client_id } => {
-                let auth = gql::Auth {
-                    client_id,
-                    token: Some(token),
-                };
+                let auth = crate::auth::gql_auth(token, client_id);
                 Ok(gql::followed_live(http, auth).await?.unwrap_or_default())
             }
         }

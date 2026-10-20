@@ -333,18 +333,12 @@ impl Call {
 
     /// The GQL sign-in (token and its client).
     pub fn gql(&self) -> gql::Auth<'_> {
-        match &self.gql {
-            Some((token, client_id)) => gql::Auth {
-                client_id,
-                token: Some(token),
-            },
-            None => gql::Auth::PUBLIC,
-        }
+        crate::auth::gql_auth_or_public(self.gql.as_ref())
     }
 
     pub fn helix(&self) -> helix::Auth<'_> {
         let (token, client_id) = self.helix.as_ref().map_or(("", ""), |(t, c)| (t.as_str(), c.as_str()));
-        helix::Auth { client_id, token }
+        crate::auth::helix_auth(token, client_id)
     }
 
     /// The broadcaster acting as their own moderator.

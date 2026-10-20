@@ -454,7 +454,7 @@ fn run(app: &AppHandle, account: &str, (token, client_id): (String, String), job
     let account = account.to_owned();
     tauri::async_runtime::spawn(async move {
         let http = super::super::http(&app);
-        let auth = helix::Auth { client_id: &client_id, token: &token };
+        let auth = crate::auth::helix_auth(&token, &client_id);
         let Job { session_id, drops, adds } = job;
         let mut left: HashMap<String, usize> = HashMap::new();
         for c in drops.iter().map(|d| &d.0).chain(adds.iter().map(|a| &a.0)) {

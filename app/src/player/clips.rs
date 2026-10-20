@@ -7,7 +7,7 @@
 
 use cyex_twitch::gql::clip_create;
 use cyex_twitch::helix;
-use cyex_twitch::{Error, gql};
+use cyex_twitch::Error;
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 use time::OffsetDateTime;
@@ -32,10 +32,7 @@ pub struct MadeClip {
 pub async fn create(app: &AppHandle, account: &str, channel_id: &str) -> Result<MadeClip, String> {
     let http = app.state::<Auth>().http.clone();
     if let Some((token, client_id)) = auth::helix_scoped(app, account, "clips:edit") {
-        let auth = helix::Auth {
-            client_id: &client_id,
-            token: &token,
-        };
+        let auth = crate::auth::helix_auth(&token, &client_id);
         let made = helix::create_clip(&http, auth, channel_id)
             .await
             .map_err(helix_error)?;
@@ -53,10 +50,7 @@ pub async fn create(app: &AppHandle, account: &str, channel_id: &str) -> Result<
         });
     }
     let (token, client_id) = auth::gql_token(app, account).ok_or("Clips need this tab to be signed in.")?;
-    let auth = gql::Auth {
-        client_id: &client_id,
-        token: Some(&token),
-    };
+    let auth = crate::auth::gql_auth(&token, &client_id);
     let (broadcast, started) = clip_create::live_broadcast(&http, auth, channel_id)
         .await
         .map_err(gql_error)?

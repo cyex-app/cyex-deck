@@ -111,10 +111,7 @@ async fn poll(app: &AppHandle) {
 async fn live_now(app: &AppHandle, account: &str) -> Option<Vec<(ChannelCard, bool)>> {
     if let Some((token, client_id)) = auth::gql_token(app, account) {
         let http = app.state::<auth::Auth>().http.clone();
-        let auth = gql::Auth {
-            client_id: &client_id,
-            token: Some(&token),
-        };
+        let auth = crate::auth::gql_auth(&token, &client_id);
         match gql::followed_live_alerts(&http, auth).await {
             Ok(Some(list)) => return Some(list.into_iter().map(|a| (a.card, a.bell)).collect()),
             Ok(None) => return None,

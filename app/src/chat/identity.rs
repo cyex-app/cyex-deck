@@ -36,10 +36,7 @@ fn http(app: &AppHandle) -> cyex_twitch::Http {
 pub async fn identity(app: &AppHandle, account: &str, login: &str) -> Result<ChatIdentity, String> {
     let http = http(app);
     if let Some((token, client_id)) = gql_token(app, account) {
-        let auth = gql::Auth {
-            client_id: &client_id,
-            token: Some(&token),
-        };
+        let auth = crate::auth::gql_auth(&token, &client_id);
         return gql::chat_identity(&http, auth, login)
             .await
             .map_err(|e| e.to_string());
@@ -66,10 +63,7 @@ pub async fn pick_badge(
 ) -> Result<(), String> {
     let (token, client_id) =
         gql_token(app, account).ok_or("Badges need a GQL sign-in. Add it in Settings → Accounts.")?;
-    let auth = gql::Auth {
-        client_id: &client_id,
-        token: Some(&token),
-    };
+    let auth = crate::auth::gql_auth(&token, &client_id);
     let http = http(app);
     match channel_id {
         Some(id) => gql::pick_channel_badge(&http, auth, id, badge).await,
@@ -87,16 +81,10 @@ pub async fn set_color(app: &AppHandle, account: &str, color: &str) -> Result<()
     let http = http(app);
     let result = if let Some((token, client_id)) = helix_scoped(app, account, COLOR_SCOPE) {
         let named = NAMED.iter().find(|(_, hex)| *hex == color).map(|(name, _)| *name);
-        let auth = helix::Auth {
-            client_id: &client_id,
-            token: &token,
-        };
+        let auth = crate::auth::helix_auth(&token, &client_id);
         helix::set_chat_color(&http, auth, account, named.unwrap_or(&color)).await
     } else if let Some((token, client_id)) = gql_token(app, account) {
-        let auth = gql::Auth {
-            client_id: &client_id,
-            token: Some(&token),
-        };
+        let auth = crate::auth::gql_auth(&token, &client_id);
         gql::set_chat_color(&http, auth, &color).await
     } else {
         return Err("Sign in to change your color.".into());

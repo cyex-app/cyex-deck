@@ -73,16 +73,10 @@ pub fn load_blocked(app: AppHandle) {
             let ids = if let Some((token, client_id)) =
                 crate::auth::helix_scoped(&app, &id, "user:read:blocked_users")
             {
-                let auth = helix::Auth {
-                    client_id: &client_id,
-                    token: &token,
-                };
+                let auth = crate::auth::helix_auth(&token, &client_id);
                 helix::blocks::blocked_ids(&http, auth, &id).await
             } else if let Some((token, client_id)) = crate::auth::gql_token(&app, &id) {
-                let auth = gql::Auth {
-                    client_id: &client_id,
-                    token: Some(&token),
-                };
+                let auth = crate::auth::gql_auth(&token, &client_id);
                 gql::blocks::blocked_ids(&http, auth).await
             } else {
                 continue;

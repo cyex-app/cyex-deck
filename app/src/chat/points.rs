@@ -33,10 +33,7 @@ pub async fn points(app: &AppHandle, view: u32, fresh: bool) -> Result<Option<Po
     let Some(mut p) = c.points.clone() else { return Ok(None) };
     if let Some((token, client_id)) = account.as_deref().and_then(|id| gql_token(app, id)) {
         let http = app.state::<Auth>().http.clone();
-        let auth = gql::Auth {
-            client_id: &client_id,
-            token: Some(&token),
-        };
+        let auth = crate::auth::gql_auth(&token, &client_id);
         p.balance = gql::balance(&http, auth, &login).await.ok().flatten();
     }
     Ok(Some(p))
@@ -111,10 +108,7 @@ pub async fn redeem(
     let c = catalog::channel(app, &login, true).await?.ok_or("Channel not found.")?;
     let points = c.points.as_ref().ok_or("This channel has no channel points.")?;
     let http = app.state::<Auth>().http.clone();
-    let auth = gql::Auth {
-        client_id: &client_id,
-        token: Some(&token),
-    };
+    let auth = crate::auth::gql_auth(&token, &client_id);
     let text = text.map(|t| t.trim().to_owned()).filter(|t| !t.is_empty());
     let id = &c.channel_id;
 

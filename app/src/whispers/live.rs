@@ -222,10 +222,7 @@ async fn subscribe(app: &AppHandle, me_id: &str, session_id: &str) {
         return;
     };
     let http = app.state::<auth::Auth>().http.clone();
-    let a = helix::Auth {
-        client_id: &client_id,
-        token: &token,
-    };
+    let a = crate::auth::helix_auth(&token, &client_id);
     let (kind, version, cond) = subs::whispers(me_id);
     if let Err(e) = helix::eventsub::subscribe(&http, a, session_id, kind, version, &cond).await {
         eprintln!("whispers: couldn't subscribe: {e}");

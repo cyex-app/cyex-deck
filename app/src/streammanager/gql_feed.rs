@@ -8,7 +8,7 @@ use cyex_eventsub::alerts::{Feed, Past, parse_alert, parse_alert_update, parse_p
 use cyex_eventsub::events::Who;
 use cyex_settings::Partition;
 use cyex_settings::schema::StreamManager as Options;
-use cyex_twitch::gql::{self, dashboard as dash};
+use cyex_twitch::gql::dashboard as dash;
 use cyex_twitch::hermes::{Event, Kind};
 use tauri::{AppHandle, Emitter, Manager};
 use time::OffsetDateTime;
@@ -40,10 +40,7 @@ async fn history(app: &AppHandle, account: &str) {
         return;
     };
     let http = app.state::<crate::auth::Auth>().http.clone();
-    let auth = gql::Auth {
-        client_id: &client_id,
-        token: Some(&token),
-    };
+    let auth = crate::auth::gql_auth(&token, &client_id);
     match dash::feed::history(&http, auth, account).await {
         Ok(nodes) => super::merge_activity(app, nodes.iter().filter_map(parse_past).map(past_item).collect()),
         Err(e) => eprintln!("stream manager: no feed history: {e}"),

@@ -194,7 +194,7 @@
     overflow-y: auto;
   }
   .picker.compact {
-    min-height: 120px;
+    min-height: 96px;
   }
   .tabs {
     display: flex;

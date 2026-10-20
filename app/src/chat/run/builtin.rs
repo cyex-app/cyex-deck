@@ -335,20 +335,14 @@ pub async fn block_user(app: &AppHandle, account: &str, login: &str, on: bool) -
     let result = if let Some((token, client_id)) =
         crate::auth::helix_scoped(app, &account, "user:manage:blocked_users")
     {
-        let auth = helix::Auth {
-            client_id: &client_id,
-            token: &token,
-        };
+        let auth = crate::auth::helix_auth(&token, &client_id);
         if on {
             helix::blocks::block(&http, auth, &target).await
         } else {
             helix::blocks::unblock(&http, auth, &target).await
         }
     } else if let Some((token, client_id)) = crate::auth::gql_token(app, &account) {
-        let auth = gql::Auth {
-            client_id: &client_id,
-            token: Some(&token),
-        };
+        let auth = crate::auth::gql_auth(&token, &client_id);
         if on {
             gql::blocks::block(&http, auth, &target).await
         } else {

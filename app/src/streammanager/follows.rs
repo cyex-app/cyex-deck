@@ -74,10 +74,7 @@ pub fn take_over(app: &AppHandle, account: &str, channel_id: &str, session_id: &
     let session_id = session_id.to_owned();
     tauri::async_runtime::spawn(async move {
         let http = app.state::<auth::Auth>().http.clone();
-        let auth = helix::Auth {
-            client_id: &client_id,
-            token: &token,
-        };
+        let auth = crate::auth::helix_auth(&token, &client_id);
         for _ in 0..4 {
             tokio::time::sleep(Duration::from_secs(2)).await;
             match helix::eventsub::subscribe(&http, auth, &session_id, "channel.follow", "2", &cond).await {

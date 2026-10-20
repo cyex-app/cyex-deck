@@ -58,22 +58,19 @@ impl Actor {
     /// The Helix auth, only when the token carries `scope`.
     pub fn helix_scoped<'a>(&'a self, app: &AppHandle, scope: &str) -> Option<helix::Auth<'a>> {
         auth::helix_scoped(app, &self.account, scope)?;
-        self.helix.as_ref().map(|(token, client_id)| helix::Auth { client_id, token })
+        self.helix.as_ref().map(|(token, client_id)| crate::auth::helix_auth(token, client_id))
     }
 
     /// Any usable Helix mod token (our sign-in asks for every mod scope at once, so a
     /// Helix token has them; a pasted one short of a scope gets a 403 from Twitch).
     pub fn helix_any(&self) -> Option<(helix::Auth<'_>, helix::Room<'_>)> {
         self.helix.as_ref().map(|(token, client_id)| {
-            (helix::Auth { client_id, token }, self.room())
+            (crate::auth::helix_auth(token, client_id), self.room())
         })
     }
 
     pub fn gql(&self) -> Option<gql::Auth<'_>> {
-        self.gql.as_ref().map(|(token, client_id)| gql::Auth {
-            client_id,
-            token: Some(token),
-        })
+        self.gql.as_ref().map(|(token, client_id)| crate::auth::gql_auth(token, client_id))
     }
 
     pub fn room(&self) -> helix::Room<'_> {

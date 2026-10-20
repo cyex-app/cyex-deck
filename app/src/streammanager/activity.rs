@@ -110,10 +110,7 @@ fn subscribe(app: &AppHandle, account: String, channel_id: String, session_id: S
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let http = app.state::<auth::Auth>().http.clone();
-        let auth = helix::Auth {
-            client_id: &client_id,
-            token: &token,
-        };
+        let auth = crate::auth::helix_auth(&token, &client_id);
         for (kind, version, cond) in subs::for_broadcaster(&channel_id, &account) {
             if let Err(e) = helix::eventsub::subscribe(&http, auth, &session_id, kind, version, &cond).await
                 && !e.api_message().is_some_and(|m| m.contains("already"))

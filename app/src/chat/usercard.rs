@@ -84,10 +84,7 @@ pub async fn follow_age(app: &AppHandle, channel: &str, user_id: &str) -> Result
         else {
             continue;
         };
-        let auth = helix::Auth {
-            client_id: &client_id,
-            token: &token,
-        };
+        let auth = crate::auth::helix_auth(&token, &client_id);
         if let Ok(since) = helix::followed_at(&http(app), auth, &channel_id, user_id).await {
             return Ok(FollowAge { known: true, since });
         }

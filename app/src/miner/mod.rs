@@ -20,6 +20,7 @@ mod watch;
 pub use realtime::{on_channel_event, on_user_event};
 pub use tabs::chat_rooms;
 
+use crate::auth::gql_auth; // V107-R18: miner submodules reach it via super::
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -27,7 +28,7 @@ use cyex_miner::slots::Streak;
 use cyex_settings::Partition;
 use cyex_settings::schema::Miner as MinerSettings;
 use cyex_twitch::gql::miner::MinerStream;
-use cyex_twitch::gql::{self, AccessToken};
+use cyex_twitch::gql::AccessToken;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::Notify;
@@ -200,13 +201,6 @@ async fn spade_url(app: &AppHandle) -> String {
     let url = cyex_twitch::spade::find_url(&http(app)).await;
     lock(app).spade = Some(url.clone());
     url
-}
-
-fn gql_auth<'a>(token: &'a str, client_id: &'a str) -> gql::Auth<'a> {
-    gql::Auth {
-        client_id,
-        token: Some(token),
-    }
 }
 
 fn http(app: &AppHandle) -> cyex_twitch::Http {

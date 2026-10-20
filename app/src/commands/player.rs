@@ -153,20 +153,14 @@ pub async fn channel_videos(
 #[tauri::command]
 pub async fn channel_story_ring(app: AppHandle, channel_id: String, account: Option<String>) -> Option<StoryRing> {
     let (token, client_id) = gql_token(&app, account.as_deref()?)?;
-    let auth = gql::Auth {
-        client_id: &client_id,
-        token: Some(&token),
-    };
+    let auth = crate::auth::gql_auth(&token, &client_id);
     gql::story_ring(&http(&app), auth, &channel_id).await.ok().flatten()
 }
 
 #[tauri::command]
 pub async fn channel_stories(app: AppHandle, channel_id: String, account: String) -> CmdResult<Vec<Story>> {
     let (token, client_id) = gql_token(&app, &account).ok_or("Stories need a GQL sign-in.")?;
-    let auth = gql::Auth {
-        client_id: &client_id,
-        token: Some(&token),
-    };
+    let auth = crate::auth::gql_auth(&token, &client_id);
     gql::stories(&http(&app), auth, &channel_id).await.map_err(message)
 }
 
@@ -174,10 +168,7 @@ pub async fn channel_stories(app: AppHandle, channel_id: String, account: String
 #[tauri::command]
 pub async fn channel_stories_seen(app: AppHandle, channel_id: String, account: String, created_at: String) {
     let Some((token, client_id)) = gql_token(&app, &account) else { return };
-    let auth = gql::Auth {
-        client_id: &client_id,
-        token: Some(&token),
-    };
+    let auth = crate::auth::gql_auth(&token, &client_id);
     if let Err(e) = gql::mark_seen(&http(&app), auth, &channel_id, &created_at).await {
         eprintln!("player: couldn't mark stories seen: {e}");
     }

@@ -33,10 +33,7 @@ struct Ctx {
 
 impl Ctx {
     fn auth(&self) -> gql::Auth<'_> {
-        self.token.as_ref().map_or(gql::Auth::PUBLIC, |(t, c)| gql::Auth {
-            client_id: c,
-            token: Some(t),
-        })
+        crate::auth::gql_auth_or_public(self.token.as_ref())
     }
 
     fn signed_in(&self) -> Result<gql::Auth<'_>, String> {

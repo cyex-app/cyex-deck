@@ -30,13 +30,7 @@ fn token(app: &AppHandle, paging: bool) -> Result<Token, String> {
 }
 
 fn auth(t: &Token) -> gql::Auth<'_> {
-    match t {
-        Some((token, client_id)) => gql::Auth {
-            client_id,
-            token: Some(token),
-        },
-        None => gql::Auth::PUBLIC,
-    }
+    crate::auth::gql_auth_or_public(t.as_ref())
 }
 
 pub async fn streams(
@@ -92,9 +86,6 @@ pub async fn followed_categories(app: &AppHandle, account: &str) -> Result<Vec<C
         return Ok(Vec::new());
     };
     let http = app.state::<Auth>().http.clone();
-    let auth = gql::Auth {
-        client_id: &client_id,
-        token: Some(&token),
-    };
+    let auth = crate::auth::gql_auth(&token, &client_id);
     gql::followed_categories(&http, auth).await.map_err(error_text)
 }

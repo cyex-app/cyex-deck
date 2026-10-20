@@ -130,16 +130,10 @@ pub async fn twitch_sets(
     }
     let http = http(app);
     let sets = if let Some((token, client_id)) = gql_token(app, account) {
-        let auth = gql::Auth {
-            client_id: &client_id,
-            token: Some(&token),
-        };
+        let auth = crate::auth::gql_auth(&token, &client_id);
         gql::available_emotes(&http, auth, channel_id).await
     } else if let Some((token, client_id)) = helix_scoped(app, account, "user:read:emotes") {
-        let auth = helix::Auth {
-            client_id: &client_id,
-            token: &token,
-        };
+        let auth = crate::auth::helix_auth(&token, &client_id);
         let mut sets = helix::user_emotes(&http, auth, account, channel_id).await;
         if let Ok(sets) = &mut sets {
             name_owners(&http, sets).await;
