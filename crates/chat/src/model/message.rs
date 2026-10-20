@@ -72,6 +72,60 @@ pub struct Meta {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub plugin: Option<PluginTag>,
+    /// V107-R34 How a deleted line went, and which mod did it when a mod feed said.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub gone: Option<Gone>,
+}
+
+/// V107-R34 Why a line is deleted: the note after its text.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Gone {
+    pub how: GoneHow,
+    /// The mod's display name, from the account's mod feeds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub by: Option<String>,
+    /// Timeouts: the length in seconds, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
+    pub secs: Option<u64>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum GoneHow {
+    Deleted,
+    TimedOut,
+    Banned,
+}
+
+impl Gone {
+    pub fn new(how: GoneHow, by: Option<String>) -> Self {
+        Self { how, by, secs: None }
+    }
+
+    pub fn with_secs(self, secs: Option<u64>) -> Self {
+        Self { secs, ..self }
+    }
+
+    /// The newer answer wins; the same action told twice (IRC and a mod feed) keeps what
+    /// either knew: the mod, the length (the feed's, counted from its end time, can be a
+    /// second short). A timeout of another length is a new one.
+    pub fn merged(&self, old: Option<&Gone>) -> Gone {
+        let far = matches!((self.secs, old.and_then(|o| o.secs)), (Some(a), Some(b)) if a.abs_diff(b) > 5);
+        match old {
+            Some(o) if o.how == self.how && !far => Gone {
+                how: self.how,
+                by: self.by.clone().or_else(|| o.by.clone()),
+                secs: self.secs.max(o.secs),
+            },
+            _ => self.clone(),
+        }
+    }
 }
 
 /// S7 Which plugin made a line, for its mark.
@@ -167,6 +221,17 @@ pub struct Translation {
 impl ChatMessage {
     pub fn has(&self, flag: Flag) -> bool {
         self.flags.contains(&flag)
+    }
+
+    /// V107-R34 Marks the line deleted, and why. Whether anything changed.
+    pub fn mark_gone(&mut self, gone: &Gone) -> bool {
+        let next = gone.merged(self.meta.gone.as_ref());
+        if self.has(Flag::Deleted) && self.meta.gone.as_ref() == Some(&next) {
+            return false;
+        }
+        self.set(Flag::Deleted);
+        self.meta.gone = Some(next);
+        true
     }
 
     pub fn set(&mut self, flag: Flag) {
@@ -294,6 +359,21 @@ pub enum Flag {
 #[cfg(test)]
 mod tests {
     use super::Client;
+
+    #[test]
+    fn v107_r34_a_feed_mod_outlives_irc_and_a_ban_replaces_a_timeout() {
+        use super::{Gone, GoneHow::*};
+        let feed = Gone::new(TimedOut, Some("Kuni".into()));
+        let irc = Gone::new(TimedOut, None).with_secs(Some(600));
+        assert_eq!(irc.merged(Some(&feed)), feed.clone().with_secs(Some(600)));
+        assert_eq!(feed.merged(Some(&irc)), feed.clone().with_secs(Some(600)));
+        let feed = feed.with_secs(Some(598));
+        assert_eq!(irc.merged(Some(&feed)), feed.clone().with_secs(Some(600)), "IRC's exact length");
+        let again = Gone::new(TimedOut, None).with_secs(Some(60));
+        assert_eq!(again.merged(Some(&irc.merged(Some(&feed)))), again, "a new length is a new timeout");
+        assert_eq!(Gone::new(Banned, None).merged(Some(&feed)), Gone::new(Banned, None));
+        assert_eq!(Gone::new(Deleted, Some("A".into())).merged(None), Gone::new(Deleted, Some("A".into())));
+    }
 
     #[test]
     fn clients_from_nonces() {

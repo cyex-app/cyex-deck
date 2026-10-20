@@ -67,6 +67,10 @@ pub struct ModActionFilters {
     pub automod: bool,
     /// Unban requests answered, raids and anything else.
     pub other: bool,
+    /// V107-R30 Each line's date, and its time, shown; both on (the user's ask: every line
+    /// alike, not the date only on older ones).
+    pub date: bool,
+    pub time: bool,
 }
 
 impl Default for ModActionFilters {
@@ -80,6 +84,8 @@ impl Default for ModActionFilters {
             roles: true,
             automod: true,
             other: true,
+            date: true,
+            time: true,
         }
     }
 }

@@ -154,10 +154,30 @@ fn deletions_and_timeouts_mark_messages() {
     feed(&mut r, &msg("c", "8"));
     feed(&mut r, "@target-msg-id=c :tmi.twitch.tv CLEARMSG #chan :hello c");
     let ev = feed(&mut r, "@ban-duration=60;target-user-id=7 :tmi.twitch.tv CLEARCHAT #chan :u7");
-    assert!(matches!(&ev[0], RoomEvent::ClearUser { user_id } if user_id == "7"));
+    assert!(matches!(&ev[0], RoomEvent::ClearUser { user_id, gone }
+        if user_id == "7" && gone.how == GoneHow::TimedOut));
     let s = r.snapshot();
     assert!(s.messages[..3].iter().all(|m| m.has(Flag::Deleted)));
     assert_eq!(s.messages[3].notice.as_ref().unwrap().kind, NoticeKind::Moderation);
+    // V107-R34 Why, for the note.
+    let how = |i: usize| s.messages[i].meta.gone.as_ref().map(|g| g.how);
+    assert_eq!((how(0), how(2)), (Some(GoneHow::TimedOut), Some(GoneHow::Deleted)));
+    assert_eq!(s.messages[0].meta.gone.as_ref().and_then(|g| g.secs), Some(60));
+}
+
+#[test]
+fn v107_r34_a_mod_feed_names_the_mod_and_irc_keeps_it() {
+    let mut r = room();
+    feed(&mut r, &msg("a", "7"));
+    feed(&mut r, &msg("c", "8"));
+    let ev = r.gone_user("7", Gone::new(GoneHow::Banned, Some("Kuni".into())));
+    assert!(matches!(&ev[..], [RoomEvent::ClearUser { gone, .. }] if gone.by.as_deref() == Some("Kuni")));
+    feed(&mut r, "@target-user-id=7 :tmi.twitch.tv CLEARCHAT #chan :u7");
+    r.gone_msg("c", Gone::new(GoneHow::Deleted, Some("Mod B".into())));
+    feed(&mut r, "@target-msg-id=c :tmi.twitch.tv CLEARMSG #chan :hello c");
+    let s = r.snapshot();
+    let by = |i: usize| s.messages[i].meta.gone.as_ref().and_then(|g| g.by.clone());
+    assert_eq!((by(0).as_deref(), by(1).as_deref()), (Some("Kuni"), Some("Mod B")));
 }
 
 #[test]

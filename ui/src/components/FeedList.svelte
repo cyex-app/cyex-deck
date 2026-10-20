@@ -12,9 +12,15 @@
     empty: string;
     /** Under the last line, e.g. "Load older". */
     foot?: Snippet;
+    /** V107-R30 Show every line's date, and its time. Unset: the time, with the date when
+     *  it isn't today. */
+    date?: boolean;
+    time?: boolean;
   }
 
-  let { rows, row, empty, foot }: Props = $props();
+  let { rows, row, empty, foot, date, time }: Props = $props();
+  const fixed = $derived(date !== undefined || time !== undefined);
+  const stamped = $derived(!fixed || date || time);
 
   // s2-12 A feed left open past midnight: the day moves on, and so do the labels.
   let today = $state(formatDate(new Date()));
@@ -26,6 +32,7 @@
   function when(ts: number): string {
     const d = new Date(ts);
     const day = formatDate(d);
+    if (fixed) return [date ? day : '', time ? formatTime(d) : ''].filter(Boolean).join(' ');
     return day === today ? formatTime(d) : `${day} ${formatTime(d)}`;
   }
 </script>
@@ -37,8 +44,8 @@
     <ul>
       {#each rows as r (r.key)}
         <li class="kind-{r.kind}">
-          <span class="t">{when(r.ts)}</span>
-          <span class="text">{@render row(r)}</span>
+          {#if stamped}<span class="t">{when(r.ts)}</span>{/if}
+          <span class="text" class:wide={!stamped}>{@render row(r)}</span>
         </li>
       {/each}
     </ul>
@@ -64,6 +71,10 @@
     padding: 4px 10px;
     font-size: 0.82rem;
     border-left: 2px solid transparent;
+  }
+  /* V107-R30 No date or time: the text takes the whole line. */
+  .wide {
+    grid-column: 1 / -1;
   }
   /* v1.07 T4: a narrow panel gives the text the room instead: each line's time as long as it is. */
   .feed {

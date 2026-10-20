@@ -204,6 +204,9 @@ mod tests {
         assert!(!pops_out("settings"));
         assert!(pops_out("streammanager"));
         assert!(pops_out("modview/xqc"));
+        // V107-R29 One mod view panel in its own window.
+        assert!(pops_out("modpanel/xqc/mass"));
+        assert_eq!(label_for("modpanel/xqc/mass"), "panel-modpanel_xqc_mass");
     }
 
     #[test]
@@ -211,5 +214,7 @@ mod tests {
         assert!(shows_chats("tab/a1") && shows_chats("chat/t1") && shows_chats("room/xqc"));
         assert!(!shows_chats("modview/xqc") && !shows_chats("streammanager") && !shows_chats("overlay/t1"));
         assert!(!shows_chats("usercard/xqc/x") && !shows_chats("chats"));
+        // V107-R29 A mod view's own chat, not the channel's regular one (V103-22).
+        assert!(!shows_chats("modpanel/xqc/chat"));
     }
 }

@@ -52,7 +52,7 @@ impl Room {
         *slot = m.clone();
         let mut events = vec![RoomEvent::Update { message: m }];
         if change.hide {
-            events.push(RoomEvent::Delete { id: id.to_owned() });
+            events.push(RoomEvent::Delete { id: id.to_owned(), gone: None });
         }
         events
     }

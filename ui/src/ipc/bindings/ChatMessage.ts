@@ -2,6 +2,7 @@
 import type { Client } from "./Client";
 import type { Flag } from "./Flag";
 import type { Fragment } from "./Fragment";
+import type { Gone } from "./Gone";
 import type { Highlight } from "./Highlight";
 import type { Notice } from "./Notice";
 import type { PluginTag } from "./PluginTag";
@@ -59,4 +60,8 @@ whisperTo?: string,
 /**
  * S7 A line a plugin made.
  */
-plugin?: PluginTag, };
+plugin?: PluginTag, 
+/**
+ * V107-R34 How a deleted line went, and which mod did it when a mod feed said.
+ */
+gone?: Gone, };

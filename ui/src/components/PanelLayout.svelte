@@ -27,6 +27,7 @@
   } from '../lib/panels';
   import type { PanelCtl, TrayItem } from './panel';
   import PanelBox from './PanelBox.svelte';
+  import PanelDock from './PanelDock.svelte';
   import PanelTray from './PanelTray.svelte';
 
   interface Props {
@@ -62,6 +63,11 @@
     ondrop?: (panel: string, target: string | null, edge: Edge) => void;
     onclose?: (panel: string) => void;
     onrestore?: (panel: string) => void;
+    /** V107-R29 Opens a panel in its own window: a header button, and one in its menu. */
+    onpopout?: (panel: string) => void;
+    /** V107-R29 With it, closed panels sit in a dock that always shows (`PanelDock`); a
+     *  panel with an icon opens this in a menu. */
+    quick?: Snippet<[string]>;
   }
 
   let {
@@ -87,6 +93,8 @@
     ondrop,
     onclose,
     onrestore,
+    onpopout,
+    quick,
   }: Props = $props();
 
   let root = $state<HTMLElement>();
@@ -135,6 +143,7 @@
           : undefined,
       // The last panel stays: an empty layout would read as the default one.
       close: unlocked && own && onclose && !lone ? () => onclose(id) : undefined,
+      popout: own && onpopout ? () => onpopout(id) : undefined,
     };
   }
 
@@ -263,8 +272,10 @@
       {/if}
     </div>
   </div>
-  <!-- V103-06 Hidden while locked; under the panels, never over them. -->
-  {#if unlocked && tray?.length && onrestore}
+  <!-- V103-06 Hidden while locked; under the panels, never over them. V107-R29 The dock shows locked too. -->
+  {#if quick && tray?.length && onrestore}
+    <PanelDock layout={key} items={tray} {unlocked} {quick} {onpopout} {onrestore} />
+  {:else if unlocked && tray?.length && onrestore}
     <PanelTray layout={key} items={tray} {onrestore} />
   {/if}
 </div>

@@ -13,9 +13,11 @@
     layout: string;
     items: TrayItem[];
     onrestore: (id: string) => void;
+    /** V107-R29 In the dock's row, which has the padding. */
+    inline?: boolean;
   }
 
-  let { layout, items, onrestore }: Props = $props();
+  let { layout, items, onrestore, inline = false }: Props = $props();
 
   /** A press that turned into a drag isn't a click. */
   let dragged = false;
@@ -55,7 +57,7 @@
   }
 </script>
 
-<div class="tray">
+<div class="tray" class:inline>
   <div class="wrap">
     <button class="chip" aria-haspopup="dialog" aria-expanded={open} onclick={() => (open = !open)}>
       Closed panels <span class="count">{items.length}</span>
@@ -86,6 +88,9 @@
     display: flex;
     justify-content: flex-end;
     padding: 4px 8px;
+  }
+  .tray.inline {
+    padding: 0 0 0 6px;
   }
   .wrap {
     position: relative;

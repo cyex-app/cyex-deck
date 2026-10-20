@@ -5,12 +5,14 @@
 
 pub mod codes;
 pub mod feeds;
+pub mod lead;
 pub mod massban;
 pub mod nuke;
 pub mod queue;
 pub mod restack;
 pub mod run;
 pub mod standing;
+pub mod terms;
 pub mod view;
 
 use cyex_chat::model::ModRole;

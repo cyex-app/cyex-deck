@@ -32,4 +32,9 @@ automod: boolean,
 /**
  * Unban requests answered, raids and anything else.
  */
-other: boolean, };
+other: boolean, 
+/**
+ * V107-R30 Each line's date, and its time, shown; both on (the user's ask: every line
+ * alike, not the date only on older ones).
+ */
+date: boolean, time: boolean, };

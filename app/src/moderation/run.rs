@@ -62,6 +62,7 @@ pub async fn command(app: &AppHandle, account: &str, login: &str, cmd: ModComman
         C::Mode(change) => mode(app, &actor, change).await.map(Some),
         C::Treat { login: who, how } => treat(app, &actor, &who, how).await.map(|()| None),
         C::SetRole { login: who, role: r, on } => set_role(app, &actor, &who, r == HRole::Mod, on).await.map(|()| None),
+        C::SetLead { login: who, on } => super::lead::set(app, &actor, &who, on).await.map(Some),
         C::ListRole(r) => list_role(app, &actor, r == HRole::Mod).await.map(Some),
         C::Announce { color, text } => {
             let (auth, room) = helix_for(&actor, "announce")?;

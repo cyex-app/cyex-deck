@@ -18,14 +18,14 @@ export interface LineMod {
   slots: ModSlot[];
 }
 
-/** V105-15 A stable key for an order entry: `delete`, `warn`, `ban`, `t60`. */
+/** V105-15 A stable key for an order entry: `delete`, `warn`, `ban`, `unban`, `t60`. */
 export function buttonKey(b: ModButton): string {
   return typeof b === 'string' ? b : `t${b.timeout}`;
 }
 
 /** V105-15 One button in front of a line, in the user's order. */
 export type ModSlot =
-  | { key: string; kind: 'delete' | 'warn' | 'ban' }
+  | { key: string; kind: 'delete' | 'warn' | 'ban' | 'unban' }
   /** `short`: several timeouts show their lengths instead of the clock (M10). */
   | { key: string; kind: 'timeout'; secs: number; short: boolean };
 
@@ -33,7 +33,7 @@ export type ModSlot =
  *  Rust does). Timeouts no longer picked stay in their place, shown off; `presets` are the
  *  timeouts that can be picked, so each gets a row even when the order never saw it. */
 export function fullOrder(b: ModButtons, presets: readonly number[] = []): ModButton[] {
-  const defaults: ModButton[] = ['delete', ...b.timeouts.map((timeout) => ({ timeout })), 'warn', 'ban'];
+  const defaults: ModButton[] = ['delete', ...b.timeouts.map((timeout) => ({ timeout })), 'warn', 'ban', 'unban'];
   // Presets that aren't picked get a row too (shown off), after everything else.
   for (const timeout of presets) defaults.push({ timeout });
   const out: ModButton[] = [];
@@ -69,7 +69,7 @@ export function canAddButton(b: ModButtons, x: ModButton): boolean {
 }
 
 /** V105-15 The settings patch that adds a button the order list shows as off, or removes one
- *  that is on. No button is locked: warn, delete, ban and every timeout flip alike; a fifth
+ *  that is on. No button is locked: warn, delete, ban, unban and every timeout flip alike; a fifth
  *  timeout can't be added. The order is kept, so a button comes back in its place. */
 export function toggleButton(b: ModButtons, x: ModButton): Partial<ModButtons> {
   if (typeof x !== 'string') {
@@ -80,6 +80,24 @@ export function toggleButton(b: ModButtons, x: ModButton): Partial<ModButtons> {
   return { [x]: !b[x] };
 }
 
+/** V107-R22 The patch that adds a typed timeout as a button, on and last; or why not. */
+export function addTimeout(b: ModButtons, secs: number): Partial<ModButtons> | string {
+  if (b.timeouts.includes(secs)) return 'Already a button.';
+  if (b.timeouts.length >= MAX_TIMEOUTS) return `${MAX_TIMEOUTS} timeouts max.`;
+  const order = fullOrder(b).filter((x) => buttonKey(x) !== `t${secs}`);
+  return { timeouts: [...b.timeouts, secs], order: [...order, { timeout: secs }] };
+}
+
+/** V107-R22 The patch that gives a timeout button another length, in its place and on or
+ *  off as it was; or why not. */
+export function retimeButton(b: ModButtons, from: number, to: number, presets: readonly number[] = []): Partial<ModButtons> | string {
+  if (from === to) return {};
+  if (b.timeouts.includes(to) || fullOrder(b, presets).some((x) => buttonKey(x) === `t${to}`)) return 'Already a button.';
+  const order = fullOrder(b, presets).map((x) => (typeof x !== 'string' && x.timeout === from ? { timeout: to } : x));
+  const timeouts = b.timeouts.map((s) => (s === from ? to : s));
+  return { timeouts, order };
+}
+
 interface Who {
   id: string;
   login: string;
@@ -87,9 +105,15 @@ interface Who {
 }
 
 /** Mod mode's buttons go on chat lines from people a mod can act on: not the broadcaster,
- * not the account itself, and not other mods unless the account is the broadcaster
- * (V107-R14 Rust's `quick` answer). */
+ * not the account itself, and not other mods unless the account is the broadcaster or a
+ * lead mod (V107-R14 Rust's `quick` answer; V107-R22b lead mods too). */
 export function modButtonsFor(mod: LineMod | null, sender: Who | null | undefined, channel: string): boolean {
   if (!mod?.inline || !sender || !mod.slots.length) return false;
   return may(mod.caps, 'quick', whose(sender, mod.me, channel)).offered;
+}
+
+/** V107-R22b The buttons a line shows: a deleted line (its sender timed out or banned) keeps
+ *  only Unban, so a ban can be lifted from their older lines. */
+export function lineSlots(slots: ModSlot[], deleted: boolean): ModSlot[] {
+  return deleted ? slots.filter((s) => s.kind === 'unban') : slots;
 }

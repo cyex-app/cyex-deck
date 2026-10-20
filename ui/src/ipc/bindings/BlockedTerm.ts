@@ -5,6 +5,10 @@
  */
 export type BlockedTerm = { id: string, text: string, 
 /**
+ * V107-R31 RFC 3339, for sorting newest first.
+ */
+createdAt: string, 
+/**
  * RFC 3339; `None` = for good.
  */
 expiresAt: string | null, };

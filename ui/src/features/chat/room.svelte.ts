@@ -10,6 +10,7 @@ import type { RoomState } from '../../ipc/bindings/RoomState';
 import { settings } from '../../lib/settings.svelte';
 import { CappedMap } from '../../lib/capped';
 import { errorText } from '../../lib/errors';
+import { markGone } from './gone';
 import { nextPiece, prepend } from './historyDrip';
 
 /** V101-02 Lines kept on screen, as set; older ones drop off the top. Rust keeps as many
@@ -122,10 +123,10 @@ export class ChatRoom {
           edit((m) => (m.id === e.message.id ? e.message : null));
           break;
         case 'delete':
-          edit((m) => (m.id === e.id ? deleted(m) : null));
+          edit((m) => (m.id === e.id ? markGone(m, e.gone) : null));
           break;
         case 'clearUser':
-          edit((m) => (!m.notice && m.sender?.id === e.userId ? deleted(m) : null));
+          edit((m) => (!m.notice && m.sender?.id === e.userId ? markGone(m, e.gone) : null));
           break;
         // S14 A plugin took its line back, or emptied the chat on screen.
         case 'remove':
@@ -207,8 +208,4 @@ function mergeByTime(list: ChatMessage[], missed: ChatMessage[]): ChatMessage[] 
     out.splice(at === -1 ? out.length : at, 0, m);
   }
   return out;
-}
-
-function deleted(m: ChatMessage): ChatMessage | null {
-  return m.flags.includes('deleted') ? null : { ...m, flags: [...m.flags, 'deleted'] };
 }

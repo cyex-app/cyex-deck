@@ -558,7 +558,7 @@
     return ok;
   }
 
-  /** V101-33 Mod mode's buttons (M10): delete the line, time out, warn or ban its sender. */
+  /** V101-33 Mod mode's buttons (M10): delete the line, time out, warn, ban or unban its sender. */
   function modClick(el: HTMLElement, action: string) {
     const id = el.closest<HTMLElement>('[data-id]')?.dataset.id;
     const login = el.closest<HTMLElement>('[data-login]')?.dataset.login;
@@ -573,6 +573,8 @@
       warning = { login, anchor: { left: r.left, top: r.top, bottom: r.bottom, right: r.right } };
     }
     else if (action === 'ban') command(`/ban ${login}`);
+    // V107-R22b Twitch says when they aren't banned.
+    else if (action === 'unban') command(`/unban ${login}`);
   }
 
   // c-4 Tips for badges, links and emoji; one that loses its line goes with it.

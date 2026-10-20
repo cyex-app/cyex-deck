@@ -10,6 +10,7 @@ import type { Caps } from '../../ipc/bindings/Caps';
 import type { RoleEntry } from '../../ipc/bindings/RoleEntry';
 import { modIpc, type ModRole } from '../../ipc/moderation';
 import { pinCustomSecs } from './pinLength';
+import { timeoutSecs } from './timeoutLength';
 import { roleItems, type Standing } from './standing';
 import { errorText } from '../../lib/errors';
 
@@ -103,7 +104,7 @@ export function userItems(caps: Caps, login: string, run: Run, warn: () => void,
     {
       label: 'Time out',
       icon: 'clock',
-      items: timeouts().map((t) => ({ label: t.label, run: () => run(`/timeout ${login} ${t.secs}`) })),
+      items: timeoutItems(login, run),
     },
     { label: 'Warn', icon: 'alert', run: warn },
     { label: 'Unban', icon: 'undo', run: () => run(`/unban ${login}`) },
@@ -113,6 +114,26 @@ export function userItems(caps: Caps, login: string, run: Run, warn: () => void,
     ...treatItems(caps, login, run, is),
   ];
   return items;
+}
+
+/** 2.11 The quick lengths, then V107-R22 any length Twitch takes, typed. */
+export function timeoutItems(login: string, run: Run): MenuEntry[] {
+  return [
+    ...timeouts().map((t) => ({ label: t.label, run: () => run(`/timeout ${login} ${t.secs}`) })),
+    'separator',
+    {
+      label: 'Custom length',
+      field: {
+        placeholder: 'Custom, e.g. 7m or 1d',
+        submit: (text: string) => {
+          const t = timeoutSecs(text);
+          if ('error' in t) return t.error;
+          run(`/timeout ${login} ${t.secs}`);
+          return null;
+        },
+      },
+    },
+  ];
 }
 
 /** Monitor, restrict, and mod/VIP for the broadcaster and lead mods (1.50): the less used user actions. M12,

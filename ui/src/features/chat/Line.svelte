@@ -7,7 +7,8 @@
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import type { Look } from '../../ipc/bindings/Look';
   import { formatDuration, formatNumber, formatTime } from '../../lib/format';
-  import { modButtonsFor, type LineMod } from '../modview/lineMod';
+  import { lineSlots, modButtonsFor, type LineMod } from '../modview/lineMod';
+  import { goneNote } from './gone';
   import { settings } from '../../lib/settings.svelte';
   import { streamer } from '../../lib/streamer.svelte';
   import { looks } from '../emotes/looks.svelte';
@@ -47,6 +48,8 @@
   const action = $derived(has('action'));
   const deleted = $derived(has('deleted'));
   const notice = $derived(m.notice);
+  /** V107-R34 "(deleted)", "(timed out by Kuni)": after the text while it stays visible. */
+  const gone = $derived(deleted && c.deleted !== 'hidden' ? goneNote(m.gone) : '');
   /** V105-11 Our own upload line: both links are clickable. */
   const upLine = $derived(notice && !sender && notice.kind === 'info' ? uploadLine(notice.text) : null);
   const time = $derived(c.timestamps.show ? formatTime(new Date(m.ts), c.timestamps) : '');
@@ -64,7 +67,9 @@
   /** V101-34 Any chat message can be pinned, a mod's or the broadcaster's too. */
   const canPin = $derived(!!mod && !!sender && !notice && !deleted && !has('history'));
   /** V101-33 Mod mode's buttons, for people this account can act on. */
-  const modButtons = $derived(!notice && !deleted && modButtonsFor(mod, sender, channel));
+  const modButtons = $derived(!notice && modButtonsFor(mod, sender, channel));
+  /** V107-R22b A deleted line (timed out, banned) keeps only Unban. */
+  const slots = $derived(modButtons && mod ? lineSlots(mod.slots, deleted) : []);
   /** C30 The first link, for a card under the message. */
   const firstLink = $derived(
     c.linkCards && c.linkPreviews && !streamer.hides('hideLinkPreviews')
@@ -129,9 +134,9 @@
   {/if}
   {#if sender && name && (!notice || m.body.length)}
     <div class="msg">
-      {#if modButtons && mod}
+      {#if slots.length}
         <span class="mods" data-login={sender.login}>
-          {#each mod.slots as s (s.key)}
+          {#each slots as s (s.key)}
             {#if s.kind === 'timeout'}
               <button
                 class="mb"
@@ -146,6 +151,8 @@
               <button class="mb" aria-label="Delete" data-mod="delete" data-tip="Delete"><Icon name="trash" size={13} /></button>
             {:else if s.kind === 'warn'}
               <button class="mb" aria-label="Warn" data-mod="warn" data-tip="Warn"><Icon name="alert" size={13} /></button>
+            {:else if s.kind === 'unban'}
+              <button class="mb" aria-label="Unban" data-mod="unban" data-tip="Unban"><Icon name="undo" size={13} /></button>
             {:else}
               <button class="mb ban" aria-label="Ban" data-mod="ban" data-tip="Ban"><Icon name="gavel" size={13} /></button>
             {/if}
@@ -168,7 +175,9 @@
         class="body"
         class:action
         dir="auto"><Body fragments={m.body} {channel} giant={has('gigantified')} /></span
-      >{#if m.repeat}<span class="repeat" data-tip="Said {m.repeat} times in a row">×{m.repeat}</span>{/if}
+      >{#if m.repeat}<span class="repeat" data-tip="Said {m.repeat} times in a row">×{m.repeat}</span>{/if}{#if gone}<span
+          class="gone">{gone}</span
+        >{/if}
     </div>
   {/if}
   {#if m.translation}
@@ -461,8 +470,20 @@
     background: currentcolor;
     pointer-events: none;
   }
-  .del-faded {
+  /* V107-R22b The message fades; its Unban button stays clear. */
+  /* Global: badges are another component's elements. */
+  .del-faded > :global(:not(.msg)),
+  .del-faded .msg > :global(:not(.mods, .gone)) {
     opacity: 0.4;
+  }
+  /* V107-R34 Why it went: small, dim, never struck, no taller row. */
+  .gone {
+    margin-left: 5px;
+    color: var(--dim);
+    font-size: 0.82em;
+    line-height: 1;
+    white-space: nowrap;
+    user-select: none;
   }
   .del-hidden {
     display: none;

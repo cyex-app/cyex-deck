@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
-use cyex_chat::model::{ChatMessage, Flag, RoomEvent};
+use cyex_chat::model::{ChatMessage, Flag, Gone, RoomEvent};
 use tauri::{AppHandle, Manager};
 use tokio::sync::Notify;
 
@@ -104,12 +104,13 @@ fn hold(entry: &mut Entry, batch: Vec<RoomEvent>, now: i64, delay: i64) -> Vec<R
             RoomEvent::Message { message } if delay > 0 && !message.has(Flag::Own) && message.sender.is_some() => {
                 entry.delayed.push_back((now + delay, e));
             }
-            RoomEvent::Delete { id } => {
-                strike(entry, |m| m.id == *id);
+            RoomEvent::Delete { id, gone } => {
+                strike(entry, gone.as_ref(), |m| m.id == *id);
                 out.push(e);
             }
-            RoomEvent::ClearUser { user_id } => {
-                strike(entry, |m| m.notice.is_none() && m.sender_id() == Some(user_id.as_str()));
+            RoomEvent::ClearUser { user_id, gone } => {
+                let user = Some(user_id.as_str());
+                strike(entry, Some(gone), |m| m.notice.is_none() && m.sender_id() == user);
                 out.push(e);
             }
             _ => out.push(e),
@@ -123,16 +124,21 @@ fn hold(entry: &mut Entry, batch: Vec<RoomEvent>, now: i64, delay: i64) -> Vec<R
     out
 }
 
-/// Marks held messages deleted.
-fn strike(entry: &mut Entry, hit: impl Fn(&ChatMessage) -> bool) {
+/// Marks held messages deleted; V107-R34 with why, when Twitch said.
+fn strike(entry: &mut Entry, gone: Option<&Gone>, hit: impl Fn(&ChatMessage) -> bool) {
     for (_, e) in entry.delayed.iter_mut() {
         if let RoomEvent::Message { message } = e
             && hit(message)
-            && !message.has(Flag::Deleted)
         {
             let mut m = (**message).clone();
+            let changed = match gone {
+                Some(g) => m.mark_gone(g),
+                None => !m.has(Flag::Deleted),
+            };
             m.set(Flag::Deleted);
-            *message = Arc::new(m);
+            if changed {
+                *message = Arc::new(m);
+            }
         }
     }
 }

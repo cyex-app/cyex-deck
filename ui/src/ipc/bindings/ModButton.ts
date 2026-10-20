@@ -4,4 +4,4 @@
  * V105-15 One of mod mode's buttons, for the order they show in. Each timeout length has
  * its own place.
  */
-export type ModButton = "delete" | { "timeout": number } | "warn" | "ban";
+export type ModButton = "delete" | { "timeout": number } | "warn" | "ban" | "unban";

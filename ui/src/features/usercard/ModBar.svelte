@@ -15,7 +15,9 @@
   import { formatDate, formatTime } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
+  import { FAIL, QUICK } from './notices';
   import { mods, timeouts, treatItems } from '../modview/moderation.svelte';
+  import { timeLeft } from './countdown';
   import { standingOf, type Standing } from '../modview/standing';
   import { standings } from '../modview/standings.svelte';
   import { errorText } from '../../lib/errors';
@@ -58,10 +60,10 @@
     busy = true;
     try {
       const line = await modIpc.run(account, channel, name, args);
-      if (line) toast.info(line);
+      if (line) toast.info(line, QUICK);
       onchange();
     } catch (e) {
-      toast.error(errorText(e));
+      toast.error(errorText(e), FAIL);
     } finally {
       busy = false;
     }
@@ -87,6 +89,23 @@
       'end',
     );
   }
+
+  // V107-R24 Ticks each second only while a timeout runs; the card being open is this component living.
+  let now = $state(Date.now());
+  const endsAt = $derived(ban?.until ? new Date(ban.until).getTime() : 0);
+  $effect(() => {
+    if (!endsAt || endsAt <= Date.now()) return;
+    now = Date.now();
+    const t = setInterval(() => {
+      now = Date.now();
+      if (now >= endsAt) {
+        clearInterval(t);
+        onchange();
+      }
+    }, 1000);
+    return () => clearInterval(t);
+  });
+  const left = $derived(endsAt ? timeLeft(endsAt, now) : null);
 
   const until = $derived.by(() => {
     if (!ban?.until) return '';
@@ -162,9 +181,9 @@
         <button class="send" disabled={busy || !reason.trim()}>Warn</button>
       </form>
     {/if}
-    {#if ban}
+    {#if ban && (!ban.until || left)}
       <p class="state">
-        {ban.until ? `Timed out until ${until}` : 'Banned'}{ban.by ? ` by ${ban.by}` : ''}{ban.reason ? `: ${ban.reason}` : ''}
+        {ban.until ? `Timed out until ${until} (${left})` : 'Banned'}{ban.by ? ` by ${ban.by}` : ''}{ban.reason ? `: ${ban.reason}` : ''}
       </p>
     {/if}
   </section>

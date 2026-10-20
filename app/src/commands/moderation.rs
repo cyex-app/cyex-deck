@@ -89,12 +89,22 @@ pub fn mod_nuke_preview(app: AppHandle, account: String, channel: String, args: 
     moderation::nuke::preview(&app, &account, &channel, &args)
 }
 
-/// 1.48, 1.55 Mass ban (or timeout when `secs` is set) a list of logins.
+/// 1.48, 1.55 Mass ban (or timeout when `secs` is set) a list of logins; V107-R21 `unban`
+/// lifts them instead.
 #[tauri::command]
-pub async fn mod_massban(app: AppHandle, account: String, channel: String, logins: Vec<String>, secs: Option<u32>, reason: String) -> Result<u32, String> {
+pub async fn mod_massban(
+    app: AppHandle,
+    account: String,
+    channel: String,
+    logins: Vec<String>,
+    secs: Option<u32>,
+    reason: String,
+    unban: Option<bool>,
+) -> Result<u32, String> {
     let actor = moderation::actor(&app, &account, &channel)?;
     let mut pacer = cyex_moderation::pacer::Pacer::default();
-    moderation::massban::run(&app, &actor, &logins, secs, &reason, &mut pacer).await
+    let order = moderation::massban::Order { secs, reason: &reason, unban: unban.unwrap_or(false) };
+    moderation::massban::run(&app, &actor, &logins, order, &mut pacer).await
 }
 
 #[tauri::command]

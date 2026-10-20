@@ -7,7 +7,7 @@ use std::sync::Arc;
 use super::Room;
 use crate::build::{self, Ctx, Incoming};
 use crate::irc::Line;
-use crate::model::{ChatMessage, ConnStatus, Flag};
+use crate::model::{ChatMessage, ConnStatus, Flag, Gone, GoneHow};
 use crate::tokenize::Emotes;
 
 /// The history service keeps no more than this.
@@ -52,15 +52,16 @@ impl Room {
                 }
                 Some(Incoming::Delete { id }) => {
                     if let Some(m) = added.iter_mut().find(|m| m.id == id) {
-                        m.set(Flag::Deleted);
+                        m.mark_gone(&Gone::new(GoneHow::Deleted, None));
                     }
                 }
-                Some(Incoming::ClearUser { user_id, .. }) => {
+                Some(Incoming::ClearUser { user_id, secs, .. }) => {
+                    let gone = Gone::new(super::cleared(secs), None).with_secs(secs);
                     for m in added
                         .iter_mut()
                         .filter(|m| m.notice.is_none() && m.sender_id() == Some(user_id.as_str()))
                     {
-                        m.set(Flag::Deleted);
+                        m.mark_gone(&gone);
                     }
                 }
                 _ => {}

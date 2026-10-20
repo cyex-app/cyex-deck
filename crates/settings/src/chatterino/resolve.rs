@@ -3,7 +3,7 @@
 use std::collections::{HashMap, HashSet};
 
 use super::Layout;
-use crate::schema::TabChannel;
+use crate::schema::{TabChannel, Tabs};
 
 /// Names per lookup: Helix answers up to 100 at once.
 pub const BATCH: usize = 100;
@@ -29,15 +29,39 @@ pub fn names(layout: &Layout) -> Vec<String> {
         .collect()
 }
 
-/// Asks `lookup` about every name, [`BATCH`] at a time, and keys the answers by login.
-/// Names Twitch doesn't know (renamed, banned, deleted) are simply missing.
-pub async fn resolve<F, Fut, E>(names: &[String], mut lookup: F) -> Result<HashMap<String, TabChannel>, E>
+/// V107-R20 The channels the tabs show now, by login. Their ids are known, so an import
+/// takes them as they are instead of asking again: a login lookup can miss a channel
+/// that has a tab (Helix answers by login late after a rename).
+pub fn known(tabs: &Tabs) -> HashMap<String, TabChannel> {
+    tabs.tiles()
+        .filter(|t| t.feed.is_none() && !t.channel.id.is_empty() && is_login(&t.channel.login))
+        .map(|t| (t.channel.login.clone(), t.channel.clone()))
+        .collect()
+}
+
+/// Asks `lookup` about every name not in `known`, [`BATCH`] at a time, and keys the
+/// answers by login. Names Twitch doesn't know (renamed, banned, deleted) are simply
+/// missing.
+pub async fn resolve<F, Fut, E>(
+    names: &[String],
+    known: &HashMap<String, TabChannel>,
+    mut lookup: F,
+) -> Result<HashMap<String, TabChannel>, E>
 where
     F: FnMut(Vec<String>) -> Fut,
     Fut: Future<Output = Result<Vec<TabChannel>, E>>,
 {
     let mut found = HashMap::new();
-    for batch in names.chunks(BATCH) {
+    let mut ask = Vec::new();
+    for name in names {
+        match known.get(name) {
+            Some(channel) => {
+                found.insert(name.clone(), channel.clone());
+            }
+            None => ask.push(name.clone()),
+        }
+    }
+    for batch in ask.chunks(BATCH) {
         for channel in lookup(batch.to_vec()).await? {
             if !channel.id.is_empty() {
                 found.insert(channel.login.to_ascii_lowercase(), channel);
@@ -124,7 +148,7 @@ mod tests {
     fn lookups_go_in_batches_and_skip_unknown_names() {
         let names: Vec<String> = (0..250).map(|i| format!("chan_{i:03}")).collect();
         let mut asked = Vec::new();
-        let found = now(resolve(&names, |batch| {
+        let found = now(resolve(&names, &HashMap::new(), |batch| {
             asked.push(batch.len());
             // A fake Twitch that knows only the even ones, and answers in upper case.
             let known: Vec<TabChannel> = batch
@@ -148,7 +172,7 @@ mod tests {
     fn a_failed_lookup_stops() {
         let names: Vec<String> = (0..150).map(|i| format!("c{i}")).collect();
         let mut calls = 0;
-        let out = now(resolve(&names, |_| {
+        let out = now(resolve(&names, &HashMap::new(), |_| {
             calls += 1;
             async { Err::<Vec<TabChannel>, _>("offline") }
         }));

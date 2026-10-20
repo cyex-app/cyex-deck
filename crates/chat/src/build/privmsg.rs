@@ -2,7 +2,7 @@
 //! app it came from (C26).
 
 use crate::irc::Line;
-use crate::model::{ChatMessage, Client, Flag, Fragment, Meta, Reply, RewardRef, SharedSource};
+use crate::model::{ChatMessage, Client, Flag, Fragment, Gone, GoneHow, Meta, Reply, RewardRef, SharedSource};
 use crate::tokenize::{Input, is_me, tokenize};
 
 use super::sender::{badges, sender};
@@ -95,6 +95,8 @@ pub fn privmsg(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Option<ChatMessage> {
             effect: (line.raw_tag("msg-id") == Some("animated-message"))
                 .then(|| line.tag_nonempty("animation-id").map(str::to_owned))
                 .flatten(),
+            // V107-R34 A history line that was deleted; a CLEARCHAT after it says more.
+            gone: line.tag_flag("rm-deleted").then(|| Gone::new(GoneHow::Deleted, None)),
             ..Meta::default()
         },
     })

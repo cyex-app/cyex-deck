@@ -20,6 +20,7 @@ mod rewind;
 mod rules;
 mod settings;
 mod sound;
+mod terms;
 mod streammanager;
 mod subs;
 pub mod system;
@@ -165,6 +166,9 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         moderation::mod_actions_history,
         moderation::mod_automod,
         moderation::mod_unban_requests,
+        terms::mod_blocked_terms,
+        terms::mod_add_blocked_term,
+        terms::mod_remove_blocked_term,
         moderation::mod_resolve_unban,
         moderation::mod_history,
         moderation::mod_comment_add,

@@ -14,6 +14,8 @@ const all: ModActionFilters = {
   roles: true,
   automod: true,
   other: true,
+  date: true,
+  time: true,
 };
 
 function line(id: string, group: ModLine['group'], mod: string, target: string | null): ModLine {

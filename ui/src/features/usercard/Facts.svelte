@@ -1,6 +1,22 @@
 <!-- 1.36 One row each, icon first (V101-05, the 7TV extension's way): created, followers,
      sub status (api.ivr.fi), follow age (only when an account here moderates the channel)
      and earlier names (logs.cyex.app). Each loads on its own. -->
+<script lang="ts" module>
+  import { chatIpc } from '../../ipc/chat';
+
+  /** V107-R26 One channel profile read per channel and session; a failed read is tried again next card. */
+  const sublessCache = new Map<string, Promise<boolean>>();
+  function subless(room: string): Promise<boolean> {
+    let p = sublessCache.get(room);
+    if (!p) {
+      p = chatIpc.profile(room).then((c) => !!c && !c.affiliate && !c.partner && !c.suspended);
+      p.catch(() => sublessCache.delete(room));
+      sublessCache.set(room, p);
+    }
+    return p.catch(() => false);
+  }
+</script>
+
 <script lang="ts">
   import { uniqueKeys } from '../../lib/keys';
   import Icon from '../../components/Icon.svelte';
@@ -15,6 +31,8 @@
   let { profile, channel }: { profile: Profile; channel: string } = $props();
 
   let sub = $state<SubStatus | null | undefined>(undefined);
+  /** V107-R26 The channel's own profile: a channel that is neither affiliate nor partner has no subs. */
+  let noSubs = $state(false);
   let follow = $state<FollowAge | null>(null);
   let names = $state.raw<NameChange[]>([]);
   const nameKeys = $derived(uniqueKeys(names, (n) => n.login));
@@ -27,6 +45,7 @@
   const own = login === room;
 
   if (!own) {
+    subless(room).then((v) => (noSubs = v));
     usercardIpc
       .subStatus(login, room)
       .then((s) => (sub = s))
@@ -58,6 +77,7 @@
   }
 
   const subText = $derived.by(() => {
+    if (noSubs) return 'Not affiliate';
     if (sub === undefined) return 'Sub: loading…';
     if (sub === null) return 'Sub: unknown';
     if (sub.hidden) return 'Sub status hidden';
@@ -75,7 +95,7 @@
     <li><Icon name="users" size={14} />{formatNumber(profile.followers)} {profile.followers === 1 ? 'follower' : 'followers'}</li>
   {/if}
   {#if !own}
-    <li class:dim={!sub?.active}><Icon name="star" size={14} />{subText}</li>
+    <li class:dim={noSubs || !sub?.active}><Icon name="star" size={14} />{subText}</li>
     {#if follow?.known}
       <li>
         <Icon name="heart" size={14} />{follow.since ? `Following since ${day(follow.since)} · ${age(follow.since)}` : 'Not following'}

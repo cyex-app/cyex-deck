@@ -28,6 +28,7 @@ pub mod predictions;
 pub mod profile;
 pub mod profile_images;
 pub mod rewind;
+pub mod roles;
 mod search;
 mod stories;
 pub mod subs;
@@ -66,7 +67,7 @@ pub use follows::{
 pub use playback::{AccessToken, Player, stream_token, video_token};
 pub use search::{SearchResults, search, search_channels};
 pub use stories::{Story, StoryRing, mark_seen, stories, story_ring};
-pub use users::{GqlUser, Profile, Suspension, profile, user_by_id};
+pub use users::{GqlUser, Profile, Suspension, ids_by_login, profile, user_by_id};
 
 use std::sync::OnceLock;
 

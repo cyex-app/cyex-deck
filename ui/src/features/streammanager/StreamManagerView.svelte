@@ -279,7 +279,7 @@
         onclick={toggleChat}
       />
       <IconButton
-        icon={locked ? 'lock' : 'grid'}
+        icon={locked ? 'lock' : 'lockOpen'}
         label={locked ? 'Unlock layout' : 'Lock layout'}
         hint={locked ? 'Move, resize and close panels.' : 'Stops panels from moving when you drag by accident.'}
         size={15}

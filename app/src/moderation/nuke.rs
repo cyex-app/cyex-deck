@@ -128,7 +128,8 @@ pub async fn run(app: &AppHandle, account: &str, login: &str, args: &str) -> Res
         cyex_chat::model::NoticeKind::Info,
         &format!("Nuke: hitting {} user(s)…", grouped(logins.len() as u64)),
     );
-    let done = massban::run(app, &actor, &logins, secs, "nuke", &mut Pacer::default()).await?;
+    let order = massban::Order { secs, reason: "nuke", unban: false };
+    let done = massban::run(app, &actor, &logins, order, &mut Pacer::default()).await?;
     crate::chat::notice_line(
         app,
         login,

@@ -14,6 +14,10 @@ timeouts: Array<number>,
  */
 warn: boolean, ban: boolean, 
 /**
+ * V107-R22b Off by default; settings from before it load with it off.
+ */
+unban: boolean, 
+/**
  * V105-15 Left to right. Each button once; timeouts only while picked. Settings from
  * before this field start empty, so `sanitize` fills in the default order.
  */

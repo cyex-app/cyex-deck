@@ -6,11 +6,13 @@
   import Icon from '../../components/Icon.svelte';
   import Segmented from '../../components/Segmented.svelte';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
+  import type { Gone } from '../../ipc/bindings/Gone';
   import type { Recording } from '../../ipc/bindings/Recording';
   import type { RoomEvent } from '../../ipc/bindings/RoomEvent';
   import { chatxIpc } from '../../ipc/chatx';
   import { formatDate, formatDuration, formatTime } from '../../lib/format';
   import { lineClick } from './clicks';
+  import { markGone } from './gone';
   import Line from './Line.svelte';
   import { dropSaved, useSaved } from './saved';
   import { errorText } from '../../lib/errors';
@@ -51,8 +53,8 @@
   onDestroy(() => dropSaved(id));
 
   function apply(e: RoomEvent, out: ChatMessage[]): ChatMessage[] {
-    const mark = (hit: (m: ChatMessage) => boolean) =>
-      out.map((m) => (hit(m) && !m.flags.includes('deleted') ? { ...m, flags: [...m.flags, 'deleted' as const] } : m));
+    // V107-R34 With why, for the note.
+    const mark = (hit: (m: ChatMessage) => boolean, gone?: Gone) => out.map((m) => (hit(m) ? (markGone(m, gone) ?? m) : m));
     switch (e.type) {
       case 'message':
         return [...out, e.message];
@@ -62,9 +64,9 @@
       case 'update':
         return out.map((m) => (m.id === e.message.id ? e.message : m));
       case 'delete':
-        return mark((m) => m.id === e.id);
+        return mark((m) => m.id === e.id, e.gone);
       case 'clearUser':
-        return mark((m) => !m.notice && m.sender?.id === e.userId);
+        return mark((m) => !m.notice && m.sender?.id === e.userId, e.gone);
       case 'remove':
         return out.filter((m) => m.id !== e.id);
       case 'wipe':

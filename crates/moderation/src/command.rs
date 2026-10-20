@@ -42,6 +42,8 @@ pub enum ModCommand {
     Treat { login: String, how: Treatment },
     SetRole { login: String, role: Role, on: bool },
     ListRole(Role),
+    /// V107-R28 Gives (`on`) or takes the lead moderator role.
+    SetLead { login: String, on: bool },
     Commercial { secs: u32 },
     Marker { text: String },
     /// 1.9 Pins a message, for `secs` or until the stream ends.
@@ -100,6 +102,7 @@ impl ModCommand {
         match self {
             ModCommand::SetRole { .. } => Need::Lead,
             ModCommand::ListRole(_)
+            | ModCommand::SetLead { .. }
             | ModCommand::Raid { .. }
             | ModCommand::Unraid
             | ModCommand::Commercial { .. }
@@ -115,7 +118,7 @@ pub const NAMES: &[&str] = &[
     "subscribers", "subscribersoff", "emoteonly", "emoteonlyoff", "uniquechat", "uniquechatoff", "r9kbeta",
     "r9kbetaoff", "announce", "announceblue", "announcegreen", "announceorange", "announcepurple", "shoutout", "so",
     "raid", "unraid", "warn", "shield", "shieldoff", "monitor", "unmonitor", "restrict", "unrestrict", "mod", "unmod",
-    "vip", "unvip", "mods", "vips", "commercial", "marker", "pin", "unpin",
+    "vip", "unvip", "mods", "vips", "commercial", "marker", "pin", "unpin", "leadmod", "unleadmod",
 ];
 
 /// `None` when `name` isn't one of these commands; otherwise the action or a usage hint.
@@ -253,6 +256,10 @@ fn read(name: &str, args: &str) -> Result<ModCommand, String> {
             login: login()?,
             role: if name.ends_with("mod") { Role::Mod } else { Role::Vip },
             on: !name.starts_with("un"),
+        },
+        "leadmod" | "unleadmod" => C::SetLead {
+            login: login()?,
+            on: name == "leadmod",
         },
         "mods" => C::ListRole(Role::Mod),
         "vips" => C::ListRole(Role::Vip),
@@ -435,6 +442,13 @@ mod tests {
         // Listing stays the broadcaster's: Helix only answers their token.
         assert!(!ok("mods").needs().allows(Some(LeadModerator)));
         assert!(!ok("vips").offered().allows(Some(LeadModerator)));
+        // V107-R28 Lead mod is the broadcaster's alone.
+        assert_eq!(ok("leadmod @Caressz"), ModCommand::SetLead { login: "caressz".into(), on: true });
+        assert_eq!(ok("unleadmod caressz"), ModCommand::SetLead { login: "caressz".into(), on: false });
+        for line in ["leadmod x", "unleadmod x"] {
+            assert_eq!((ok(line).offered(), ok(line).needs()), (Need::Broadcaster, Need::Broadcaster), "{line}");
+        }
+        assert!(err("leadmod").contains("/leadmod name"));
     }
 
     /// V1041-01 Every name has a need, the same one its parsed command is offered with.

@@ -11,7 +11,7 @@ use std::sync::Mutex;
 use cyex_eventsub::events::{self, Event, Moderate};
 use cyex_eventsub::session::Out;
 use cyex_eventsub::subs;
-use cyex_chat::model::NoticeKind;
+use cyex_chat::model::{Gone, GoneHow, NoticeKind};
 use cyex_moderation::actions::{self, Decision, ModLine};
 use cyex_moderation::own::{Echo, OwnEchoes};
 use cyex_moderation::role_change::RoleAction;
@@ -229,7 +229,7 @@ pub fn on_hermes(app: &AppHandle, e: &cyex_twitch::hermes::Event) {
     match e.topic.kind {
         Kind::ModActions => {
             if let Some((m, secs)) = actions::pubsub(&e.payload) {
-                moderate(app, cid, login.as_deref(), &m, secs, now);
+                moderate(app, acc, cid, login.as_deref(), &m, secs, now);
             }
         }
         Kind::AutomodQueue => {
@@ -258,7 +258,15 @@ pub fn on_hermes(app: &AppHandle, e: &cyex_twitch::hermes::Event) {
 }
 
 /// A mod action from either feed: roles follow, the mod view and the chat get a line.
-fn moderate(app: &AppHandle, channel_id: &str, login: Option<&str>, m: &Moderate, secs: Option<u64>, now: i64) {
+fn moderate(
+    app: &AppHandle,
+    account: &str,
+    channel_id: &str,
+    login: Option<&str>,
+    m: &Moderate,
+    secs: Option<u64>,
+    now: i64,
+) {
     let role = RoleAction::parse(&m.action);
     // V102-21 One of our accounts modded or unmodded here: its controls follow now.
     if let (Some(t), Some(r)) = (m.target.as_ref().filter(|t| !t.id.is_empty()), role.filter(|r| r.moderator())) {
@@ -274,6 +282,10 @@ fn moderate(app: &AppHandle, channel_id: &str, login: Option<&str>, m: &Moderate
     let m = &Moderate { message_body: body.or_else(|| m.message_body.clone()), ..m.clone() };
     let text = cyex_moderation::log::describe(m, secs);
     view::add_action(app, channel_id, ModLine::live(m, secs, cyex_chat::build::local_id(), now));
+    // V107-R34 The deleted lines name the mod.
+    if let Some(l) = login {
+        attribute(app, account, l, m, secs);
+    }
     // V107-P7 Our own delete already left its line.
     let Some(login) = login.filter(|_| !ours(app, channel_id, m, now)) else { return };
     // V107-M7 Timeouts of one user in a row share a line with IRC's copy.
@@ -282,6 +294,27 @@ fn moderate(app: &AppHandle, channel_id: &str, login: Option<&str>, m: &Moderate
         Some(t) => crate::chat::timeout_line(app, login, &t.id, &text),
         None => crate::chat::notice_line(app, login, NoticeKind::Moderation, &text),
     }
+}
+
+/// V107-R34 A delete, timeout or ban in this channel (not a shared chat's other one): the
+/// lines it took say which mod.
+fn attribute(app: &AppHandle, account: &str, login: &str, m: &Moderate, secs: Option<u64>) {
+    use crate::chat::GoneTarget;
+    if m.source_channel.is_some() {
+        return;
+    }
+    let mo = &m.moderator;
+    let by = if mo.name.is_empty() { mo.login.clone() } else { mo.name.clone() };
+    let by = (!by.is_empty()).then_some(by);
+    let user = m.target.as_ref().map(|t| t.id.as_str()).filter(|id| !id.is_empty());
+    let (target, how) = match (m.action.as_str(), m.message_id.as_deref(), user) {
+        ("delete", Some(id), _) => (GoneTarget::Message(id), GoneHow::Deleted),
+        ("timeout", _, Some(u)) => (GoneTarget::User(u), GoneHow::TimedOut),
+        ("ban", _, Some(u)) => (GoneTarget::User(u), GoneHow::Banned),
+        _ => return,
+    };
+    let secs = secs.filter(|_| how == GoneHow::TimedOut);
+    crate::chat::gone_by(app, account, login, target, Gone::new(how, by).with_secs(secs));
 }
 
 /// A held message, from EventSub or Hermes (V103-15): mod view, chat notice and the AutoMod feed (V106-07).
@@ -306,7 +339,7 @@ fn route(app: &AppHandle, account: &str, channel_id: &str, login: Option<&str>, 
     match ev {
         Event::Moderate(m) => {
             let secs = timeout_secs(&m, now);
-            moderate(app, channel_id, login, &m, secs, now);
+            moderate(app, account, channel_id, login, &m, secs, now);
         }
         Event::Held(h) => {
             let item = HeldItem {

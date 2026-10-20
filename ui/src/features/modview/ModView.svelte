@@ -9,15 +9,15 @@
      V103-15 Mod actions have their own panel next to the activity. V103-22 One chat per
      channel: its chat follows the channel's regular chat, out while that shows (in the
      tab or another window), in as a whole column while it doesn't; brought back or closed
-     by hand, it stays so until "Reset layout". -->
+     by hand, it stays so until "Reset layout". V107-R29 Closed panels sit as icons under the
+     layout, each opening a quick menu; any panel pops out into its own window and docks back
+     when that closes. -->
 <script lang="ts">
+  import { untrack } from 'svelte';
+
   import IconButton from '../../components/IconButton.svelte';
   import { grabFrom, type PanelCtl } from '../../components/panel';
-  import Card from '../../components/PanelCard.svelte';
   import PanelLayout from '../../components/PanelLayout.svelte';
-  import type { Board0 } from '../../ipc/bindings/Board0';
-  import type { ModActionFilters } from '../../ipc/bindings/ModActionFilters';
-  import { modIpc } from '../../ipc/moderation';
   import Button from '../../components/Button.svelte';
   import {
     asPatch,
@@ -41,17 +41,12 @@
   } from '../../lib/panels';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
-  import ChatView from '../chat/ChatView.svelte';
   import { chatShown } from '../chat/shown.svelte';
-  import ViewerList from '../chat/ViewerList.svelte';
-  import { layout } from '../tabs/layout.svelte';
-  import ActivityFeed from './ActivityFeed.svelte';
-  import AutomodQueue from './AutomodQueue.svelte';
-  import MassActions from './MassActions.svelte';
-  import ModActions from './ModActions.svelte';
-  import ModStream from './ModStream.svelte';
-  import { mods } from './moderation.svelte';
-  import UnbanQueue from './UnbanQueue.svelte';
+  import { ModBoard } from './board.svelte';
+  import ModPanelBody from './ModPanelBody.svelte';
+  import { INFO, isModPanel, type ModPanelId as Id } from './panelInfo';
+  import { modPopouts } from './popouts.svelte';
+  import { closedOut, dockBack, poppedKey, shownTree } from './popped';
 
   interface Props {
     /** The channel login; `account` mods it. */
@@ -71,42 +66,28 @@
 
   let { login, account, onpopout, onclose, host = null, ongrab, chatNear = false }: Props = $props();
 
-  type Id = 'chat' | 'activity' | 'actions' | 'automod' | 'unban' | 'chatters' | 'mass' | 'stream';
-  const INFO: Record<Id, { title: string; hint: string; min: Box; tall: number }> = {
-    stream: { title: 'Stream', hint: "The channel’s stream.", min: { w: 240, h: 170 }, tall: 280 },
-    chat: { title: 'Chat', hint: 'The chat, as you.', min: { w: 240, h: 200 }, tall: 440 },
-    activity: { title: 'Activity', hint: 'Follows, unban requests, watched users.', min: { w: 200, h: 110 }, tall: 240 },
-    actions: { title: 'Mod actions', hint: 'Bans, timeouts, deletes and more.', min: { w: 240, h: 140 }, tall: 300 },
-    automod: { title: 'AutoMod queue', hint: 'Held messages to allow or deny.', min: { w: 200, h: 110 }, tall: 240 },
-    unban: { title: 'Unban requests', hint: 'Who asks to be unbanned.', min: { w: 200, h: 110 }, tall: 220 },
-    chatters: { title: 'Viewers', hint: "Who’s in the chat.", min: { w: 200, h: 180 }, tall: 280 },
-    mass: { title: 'Mass actions', hint: 'Ban or time out many at once.', min: { w: 220, h: 140 }, tall: 260 },
-  };
   /** Page order; never changes, so the chat and the stream never restart. */
-  const ORDER: Id[] = ['stream', 'chat', 'activity', 'actions', 'automod', 'unban', 'chatters', 'mass'];
+  const ORDER: Id[] = ['stream', 'chat', 'activity', 'actions', 'automod', 'unban', 'chatters', 'mass', 'terms'];
   /** Where every panel sits by default; a closed one comes back here. */
   const FULL: Node = split(
     'row',
     [
       split('column', [leaf('stream'), leaf('chat')], [0.4, 0.6]),
-      split('column', [leaf('activity'), leaf('actions')], [0.45, 0.55]),
+      split('column', [leaf('activity'), leaf('actions'), leaf('terms')], [0.35, 0.4, 0.25]),
       split('column', [leaf('automod'), leaf('unban'), leaf('chatters'), leaf('mass')], [0.24, 0.16, 0.36, 0.24]),
     ],
     [0.34, 0.33, 0.33],
   );
   /** V103-07 Closed until asked for. */
-  const START_CLOSED: string[] = ['stream'];
+  const START_CLOSED: string[] = ['stream', 'terms'];
   /** V103-22 The chat's column in `FULL`, kept when it opens as the only chat. */
   const CHAT_SHARE = 0.34;
   const GAP = 8;
   const PAD = 8;
-  const min = (id: string) => INFO[id as Id]?.min ?? { w: 200, h: 110 };
+  const min = (id: string) => (isModPanel(id) ? INFO[id].min : { w: 200, h: 110 });
 
-  let channelId = $state<string | null>(null);
-  let board = $state<Board0>({ activity: [], actions: [], held: [], suspicious: [], older: false });
-  /** What failed to load, with Retry in the header; `retry` re-runs the loads. */
-  let problem = $state('');
-  let retry = $state(0);
+  // svelte-ignore state_referenced_locally
+  const data = new ModBoard(() => login, () => account);
 
   const mv = $derived(settings.v.modview);
   const locked = $derived(mv.locked);
@@ -121,62 +102,48 @@
   const kept = $derived(mv.chatKept ?? null);
   const regular = $derived(chatNear ? true : chatShown.elsewhere(login));
   const tree = $derived(withChat(stored, 'chat', chatShows(kept, regular), 'left', CHAT_SHARE));
-  const closed = $derived(ORDER.filter((id) => !has(tree, id)).map((id) => ({ id, title: INFO[id].title, hint: INFO[id].hint })));
 
-  // The id comes from an open room. V102-26 From a tab with only the stream, that's this
-  // view's chat joining: asked again whenever the roles change until it's known.
+  // V107-R29 Panels in a window of their own don't show here; closing it puts them back
+  // where they came from: their exact place in the layout (`mv.popped`), else the closed
+  // row. `going`: asked to pop out, its window not heard of yet.
+  $effect(() => modPopouts.start());
+  let going = $state.raw<Set<string>>(new Set());
+  const out = $derived(new Set([...modPopouts.of(login), ...going]));
   $effect(() => {
-    void retry;
-    if (channelId) return;
-    void mods.role(account, login);
-    let gone = false;
-    modIpc
-      .channelId(login)
-      .then((id) => {
-        if (gone) return;
-        problem = '';
-        if (id && !channelId) channelId = id;
-      })
-      .catch(() => !gone && (problem = 'Couldn’t load this channel.'));
-    return () => (gone = true);
+    const now = modPopouts.of(login);
+    if ([...going].some((id) => now.has(id))) going = new Set([...going].filter((id) => !now.has(id)));
   });
-
-  // Listening first, then the snapshot, so an update in between (Twitch's history coming
-  // in, V103-15) isn't missed.
+  const view = $derived(shownTree(tree, out));
   $effect(() => {
-    const id = channelId;
-    if (!id) return;
-    void retry;
-    let stop: (() => void) | undefined;
-    let gone = false;
-    modIpc
-      .onBoard(id, (b) => (board = b))
-      .then((u) => {
-        if (gone) return u();
-        stop = u;
-        return modIpc.view(id).then((b) => {
-          if (gone) return;
-          board = b;
-          problem = '';
-        });
-      })
-      .catch(() => !gone && (problem = 'Couldn’t load the mod activity.'));
-    return () => {
-      gone = true;
-      stop?.();
-    };
+    if (!modPopouts.ready) return;
+    const popped = mv.popped ?? {};
+    const gone = closedOut(popped, modPopouts.routes).filter((k) => !going.has(k.slice(k.indexOf('/') + 1)) || !k.startsWith(`${login}/`));
+    if (!gone.length) return;
+    untrack(() => {
+      const still = new Set(Object.keys(popped).filter((k) => !gone.includes(k)).map((k) => k.slice(k.indexOf('/') + 1)));
+      let t = tree;
+      for (const k of gone) {
+        const id = k.slice(k.indexOf('/') + 1);
+        if (!has(t, id)) t = dockBack(t, id, popped[k], still).tree;
+      }
+      const drop = Object.fromEntries(gone.map((k) => [k, null]));
+      void settings.patch('modview', { layout: asPatch(t) as never, popped: drop as never });
+    });
   });
+  const closed = $derived(
+    ORDER.filter((id) => !has(tree, id) && !out.has(id)).map((id) => ({ id, ...INFO[id] })),
+  );
 
   // Fitted to the room: the panels' least sizes kept; too narrow for the layout, one
   // column that scrolls (as the old grid did), which can't be moved or resized.
   let box = $state<Box>({ w: 0, h: 0 });
   const narrow = $derived(
-    tree !== null && box.w > 0 && minOf(tree, (id) => ({ w: min(id).w + GAP, h: 0 })).w - GAP + 2 * PAD > box.w,
+    view !== null && box.w > 0 && minOf(view, (id) => ({ w: min(id).w + GAP, h: 0 })).w - GAP + 2 * PAD > box.w,
   );
   const fitted = $derived.by(() => {
-    if (!tree || box.w <= 0 || box.h <= 0) return null;
-    if (narrow) return stacked(tree, box.w, (id) => INFO[id as Id]?.tall ?? 240, GAP, PAD);
-    return fitTree(tree, box, { min, gap: GAP, pad: PAD });
+    if (!view || box.w <= 0 || box.h <= 0) return null;
+    if (narrow) return stacked(view, box.w, (id) => (isModPanel(id) ? INFO[id].tall : 240), GAP, PAD);
+    return fitTree(view, box, { min, gap: GAP, pad: PAD });
   });
 
   /** What shows is saved. `chat`: the chat brought back or closed by hand (V103-22). */
@@ -187,77 +154,57 @@
 
   function drop(panel: string, target: string | null, edge: Edge) {
     // From the corner it's brought back by hand.
-    save(move(tree, panel, target, edge), panel === 'chat' && !has(tree, 'chat') ? true : undefined);
+    save(move(view, panel, target, edge), panel === 'chat' && !has(tree, 'chat') ? true : undefined);
   }
 
   /** V103-22 The chat comes back as a whole column, as it opens by itself. */
   function bring(id: string) {
-    if (id === 'chat') save(extend(tree, 'chat', 'left', CHAT_SHARE), true);
-    else save(restore(tree, id, FULL));
+    if (id === 'chat') save(extend(view, 'chat', 'left', CHAT_SHARE), true);
+    else save(restore(view, id, FULL));
+  }
+
+  /** V107-R29 Into its own window. Out of the layout, it leaves it, and the layout as it
+   *  was is kept to put it back exactly; from the closed row it just stays closed. The
+   *  chat stays in the layout, hidden, as it follows its own rule (V103-22). */
+  function popOut(id: string) {
+    if (!isModPanel(id)) return;
+    const from = id !== 'chat' && has(tree, id) ? tree : null;
+    going = new Set([...going, id]);
+    void modPopouts.open(login, id, INFO[id].title).then(async (ok) => {
+      if (ok && from) {
+        // Its window is known first, so no view puts it straight back.
+        await modPopouts.refresh();
+        await settings.patch('modview', {
+          layout: asPatch(remove(from, id)) as never,
+          popped: { [poppedKey(login, id)]: from } as never,
+        });
+      }
+      going = new Set([...going].filter((g) => g !== id));
+    });
   }
 
   function resize(path: number[], sizes: number[]) {
-    if (tree && !narrow) save(setSizes(tree, path, sizes));
+    if (view && !narrow) save(setSizes(view, path, sizes));
   }
 
   function even(path: number[]) {
-    if (!tree || narrow) return;
-    const s = path.reduce<Node | null>((n, i) => (n && 'dir' in n ? n.parts[i] : null), tree);
-    if (s && 'dir' in s) save(setSizes(tree, path, s.parts.map(() => 1)));
+    if (!view || narrow) return;
+    const s = path.reduce<Node | null>((n, i) => (n && 'dir' in n ? n.parts[i] : null), view);
+    if (s && 'dir' in s) save(setSizes(view, path, s.parts.map(() => 1)));
   }
 
   function resetLayout() {
-    void settings.patch('modview', { order: [], hidden: [], layout: null as never, chatKept: null as never });
+    void settings.patch('modview', { order: [], hidden: [], layout: null as never, chatKept: null as never, popped: Object.fromEntries(Object.keys(mv.popped ?? {}).map((k) => [k, null])) as never });
     toast.success('Mod view layout reset.');
-  }
-
-  function flip(key: keyof ModActionFilters) {
-    void settings.patch('modview', { modActions: { [key]: !mv.modActions[key] } });
-  }
-
-  /** V103-07 Offers the tile's player this place while the panel shows. */
-  function slot(node: HTMLElement, tile: string) {
-    let current = tile;
-    layout.offer(current, node);
-    return {
-      update(next: string) {
-        layout.withdraw(current, node);
-        current = next;
-        layout.offer(current, node);
-      },
-      destroy() {
-        layout.withdraw(current, node);
-      },
-    };
   }
 </script>
 
 {#snippet panel(id: string, _ctl: PanelCtl)}
-  {#if id === 'chat'}
-    <Card title="Chat" flush>
-      <div class="chat"><ChatView {login} {account} onmodview={null} follows /></div>
-    </Card>
-  {:else if id === 'activity'}
-    <Card title="Activity" flush><ActivityFeed items={board.activity} suspicious={board.suspicious} /></Card>
-  {:else if id === 'actions'}
-    <ModActions items={board.actions} older={board.older} filters={mv.modActions} onflip={flip} {account} {login} />
-  {:else if id === 'automod'}
-    <Card title="AutoMod queue" flush><AutomodQueue {account} {login} held={board.held} /></Card>
-  {:else if id === 'unban'}
-    <UnbanQueue {account} {login} />
-  {:else if id === 'chatters'}
-    <Card title="Viewers" flush><ViewerList {account} {login} /></Card>
-  {:else if id === 'mass'}
-    <Card title="Mass actions" flush><MassActions {account} {login} {channelId} /></Card>
-  {:else if id === 'stream'}
-    <Card title="Stream" flush>
-      {#if host}
-        <div class="slot" use:slot={host}></div>
-      {:else if channelId}
-        <ModStream {login} {account} {channelId} />
-      {/if}
-    </Card>
-  {/if}
+  <ModPanelBody {id} {login} {account} {data} {host} />
+{/snippet}
+
+{#snippet quick(id: string)}
+  <ModPanelBody {id} {login} {account} {data} />
 {/snippet}
 
 <div class="modview">
@@ -265,16 +212,16 @@
   <header onpointerdown={grabFrom(ongrab)} class:grab={!!ongrab}>
     <h2>Mod view · {login}</h2>
     {#if !locked}<span class="hint">Drag panels by their title.</span>{/if}
-    {#if problem}
-      <span class="hint bad">{problem}</span>
-      <Button small variant="link" onclick={() => retry++}>Retry</Button>
+    {#if data.problem}
+      <span class="hint bad">{data.problem}</span>
+      <Button small variant="link" onclick={() => data.retry++}>Retry</Button>
     {/if}
     <div class="spacer"></div>
     {#if mv.layout || mv.hidden.length || mv.chatKept != null}
       <Button small variant="link" onclick={resetLayout}>Reset layout</Button>
     {/if}
     <IconButton
-      icon={locked ? 'lock' : 'grid'}
+      icon={locked ? 'lock' : 'lockOpen'}
       label={locked ? 'Unlock layout' : 'Lock layout'}
       hint={locked ? 'Move, resize and close panels.' : 'Stops panels from moving when you drag by accident.'}
       size={15}
@@ -300,14 +247,16 @@
     pad={PAD}
     bind:box
     {min}
-    label={(id) => INFO[id as Id]?.title ?? id}
+    label={(id) => (isModPanel(id) ? INFO[id].title : id)}
     tray={closed}
     empty="Every panel is closed."
     onresize={resize}
     onreset={(path) => even(path)}
     ondrop={drop}
-    onclose={(id) => save(remove(tree, id), id === 'chat' ? false : undefined)}
+    onclose={(id) => save(remove(view, id), id === 'chat' ? false : undefined)}
     onrestore={bring}
+    onpopout={popOut}
+    {quick}
   />
 </div>
 
@@ -348,15 +297,5 @@
   }
   .spacer {
     flex: 1;
-  }
-  .chat {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-  }
-  .slot {
-    flex: 1;
-    min-height: 0;
-    background: #000;
   }
 </style>

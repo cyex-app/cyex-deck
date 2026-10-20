@@ -22,7 +22,8 @@ export interface ToastOptions {
   action?: ToastAction;
   /** V106 a-6 A toast with the same key replaces the old one (a toggle shows only its current state). */
   key?: string;
-  /** Longer than usual, for a notice that comes while the app is still starting. */
+  /** How long it stays, instead of the usual: longer for a notice that comes while the app is
+   * still starting, shorter (V107-R25) for a quick answer. A button still keeps it `ACTION_MS`. */
   ms?: number;
 }
 
@@ -91,7 +92,8 @@ export class ToastStore {
   }
 
   private push(kind: Toast['kind'], text: string, opts: ToastOptions = {}): void {
-    const life = Math.max(opts.ms ?? 0, opts.action ? Math.max(LIFETIME_MS[kind], ACTION_MS) : LIFETIME_MS[kind]);
+    const usual = opts.action ? Math.max(LIFETIME_MS[kind], ACTION_MS) : LIFETIME_MS[kind];
+    const life = opts.ms === undefined ? usual : opts.action ? Math.max(opts.ms, ACTION_MS) : opts.ms;
     const keyed = opts.key === undefined ? undefined : this.items.find((t) => t.key === opts.key);
     if (keyed) this.dismiss(keyed.id);
     const same = this.items.find((t) => t.kind === kind && t.text === text);

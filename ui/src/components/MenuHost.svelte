@@ -38,7 +38,15 @@
     fieldError = said;
     // A short window scrolls the menu: keep the message in sight.
     const row = (e.currentTarget as HTMLElement).parentElement;
-    void tick().then(() => row?.scrollIntoView({ block: 'nearest' }));
+    // V107-R22 The message itself: it hangs below the row's box, so the row always looked
+    // in sight. Two frames: the menu's height is capped by a ResizeObserver after the first.
+    const reveal = () => {
+      const said = row?.querySelector('.field-error');
+      if (!said || !box) return;
+      const over = said.getBoundingClientRect().bottom - box.getBoundingClientRect().bottom;
+      if (over > 0) box.scrollTop += over + 6;
+    };
+    void tick().then(() => requestAnimationFrame(() => requestAnimationFrame(reveal)));
   }
 
   /** Moves the keyboard focus through the items that can be picked. */

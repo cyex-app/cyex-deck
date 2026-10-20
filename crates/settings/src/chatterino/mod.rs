@@ -14,4 +14,4 @@ pub use highlights::{
 };
 pub use layout::{Layout, LayoutColumn, LayoutSplit, LayoutTab, NotALayout, SplitKind, parse};
 pub use plan::{ImportReport, NotChannel, Plan, plan};
-pub use resolve::{BATCH, is_login, names, resolve};
+pub use resolve::{BATCH, is_login, known, names, resolve};

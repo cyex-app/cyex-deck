@@ -71,6 +71,8 @@ export const COMMAND_HINTS: Readonly<Record<string, string>> = {
   unmod: 'Removes someone’s moderator role.',
   vip: 'Gives someone VIP.',
   unvip: 'Removes someone’s VIP.',
+  leadmod: 'Makes someone a lead moderator.',
+  unleadmod: 'Removes someone’s lead moderator role.',
   mods: 'Lists the channel’s moderators.',
   vips: 'Lists the channel’s VIPs.',
   commercial: 'Runs an ad break of that many seconds. Default 30.',

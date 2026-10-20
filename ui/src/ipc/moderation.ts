@@ -4,6 +4,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
+import type { BlockedTerm } from './bindings/BlockedTerm';
 import type { Board0 } from './bindings/Board0';
 import type { ModRole } from './bindings/ModRole';
 import type { RoleChange } from './bindings/RoleChange';
@@ -35,6 +36,12 @@ export const modIpc = {
     invoke<void>('mod_actions_history', { account, channel, older }),
   automod: (account: string, channel: string, msgId: string, allow: boolean) =>
     invoke<void>('mod_automod', { account, channel, msgId, allow }),
+  /** V107-R31 The channel's blocked terms (Helix), every page. */
+  blockedTerms: (account: string, channel: string) => invoke<BlockedTerm[]>('mod_blocked_terms', { account, channel }),
+  addBlockedTerm: (account: string, channel: string, text: string) =>
+    invoke<BlockedTerm>('mod_add_blocked_term', { account, channel, text }),
+  removeBlockedTerm: (account: string, channel: string, id: string) =>
+    invoke<void>('mod_remove_blocked_term', { account, channel, id }),
   unbanRequests: (account: string, channel: string) =>
     invoke<UnbanRequest[]>('mod_unban_requests', { account, channel }),
   resolveUnban: (account: string, channel: string, id: string, approve: boolean, note: string) =>
@@ -47,8 +54,8 @@ export const modIpc = {
     invoke<void>('mod_comment_delete', { account, channel, id }),
   nukePreview: (account: string, channel: string, args: string) =>
     invoke<NukePreview>('mod_nuke_preview', { account, channel, args }),
-  massban: (account: string, channel: string, logins: string[], secs: number | null, reason: string) =>
-    invoke<number>('mod_massban', { account, channel, logins, secs, reason }),
+  massban: (account: string, channel: string, logins: string[], secs: number | null, reason: string, unban = false) =>
+    invoke<number>('mod_massban', { account, channel, logins, secs, reason, unban }),
   stopMassban: (channelId: string) => invoke<void>('mod_massban_stop', { channelId }),
   onBoard: (channelId: string, handler: (b: Board0) => void) =>
     listen<Board0>(`mod:view:${channelId}`, (e) => handler(e.payload)),

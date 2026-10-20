@@ -40,6 +40,11 @@
 
   const gql = $derived(account !== null && Boolean(accounts.list.find((a) => a.userId === account)?.gql));
   const chips = $derived(ACTION_KINDS.map((k) => ({ key: k.key, label: k.label, on: filters[k.key] })));
+  // V107-R30 What each line's stamp shows, next to the kinds.
+  const stampChips = $derived([
+    { key: 'date', label: 'Date', on: filters.date },
+    { key: 'time', label: 'Time', on: filters.time },
+  ]);
   const mods = $derived(moderatorsIn(items));
   const rows = $derived(visibleActions(items, { filters, moderator, user }).map((l) => ({ ...l, key: l.id, kind: l.group })));
 
@@ -65,6 +70,8 @@
 <Card title="Mod actions" flush>
   <div class="bar">
     <FilterChips {chips} onflip={(k) => onflip(k as keyof ModActionFilters)} />
+    <span class="sep" aria-hidden="true"></span>
+    <FilterChips chips={stampChips} onflip={(k) => onflip(k as keyof ModActionFilters)} />
   </div>
   <div class="bar">
     <Select
@@ -76,7 +83,7 @@
     />
     <input placeholder="User" aria-label="User" bind:value={user} />
   </div>
-  <FeedList {rows} empty={items.length ? 'Nothing matches the filters.' : 'No mod actions yet.'}>
+  <FeedList {rows} date={filters.date} time={filters.time} empty={items.length ? 'Nothing matches the filters.' : 'No mod actions yet.'}>
     {#snippet row(l)}
       <span class="who">{l.moderator?.name ?? 'A mod'}</span>
       {l.action}
@@ -106,6 +113,17 @@
     gap: 6px;
     padding: 6px 8px;
     border-bottom: 1px solid var(--border);
+  }
+  .bar:first-of-type {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  /* V107-R30 Between the kinds and the stamp chips. */
+  .sep {
+    align-self: stretch;
+    width: 1px;
+    margin: 2px 2px;
+    background: var(--border);
   }
   .bar + .bar {
     padding-top: 0;

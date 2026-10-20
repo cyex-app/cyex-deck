@@ -3,11 +3,19 @@
 
 import { getContext, setContext } from 'svelte';
 
+import type { IconName } from './icons';
+
 export interface PanelCtl {
   /** Unlocked: drags the panel by its title bar. */
   grab?: (e: PointerEvent) => void;
   /** Unlocked: closes it into the closed-panels corner. */
   close?: () => void;
+  /** V107-R29 Opens it in a window of its own. */
+  popout?: () => void;
+  /** V107-R29 In its quick menu: the pop-out button always shows. */
+  quick?: boolean;
+  /** V107-R29 In a window of its own: no title (the window has it), tools only. */
+  bare?: boolean;
   unlocked: boolean;
 }
 
@@ -16,6 +24,8 @@ export interface TrayItem {
   id: string;
   title: string;
   hint: string;
+  /** V107-R29 Its own button in the dock, always shown. */
+  icon?: IconName;
 }
 
 const KEY = Symbol('panel');

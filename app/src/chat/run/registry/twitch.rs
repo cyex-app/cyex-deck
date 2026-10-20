@@ -332,6 +332,24 @@ pub(super) const CMDS: &[Cmd] = &[
     .args(&[NAME])
     .errs(&[USAGE_NAME]),
     tw(
+        "leadmod",
+        "/leadmod name",
+        "Makes someone a lead moderator.",
+        "V107-R28",
+        &[ex("/leadmod friend", "You made friend lead moderator.")],
+    )
+    .args(&[NAME])
+    .errs(&[USAGE_NAME, cyex_moderation::lead_mod::NEEDS_GQL]),
+    tw(
+        "unleadmod",
+        "/unleadmod name",
+        "Removes someone’s lead moderator role.",
+        "V107-R28",
+        &[ex("/unleadmod friend", "friend is no longer lead moderator.")],
+    )
+    .args(&[NAME])
+    .errs(&[USAGE_NAME, cyex_moderation::lead_mod::NEEDS_GQL]),
+    tw(
         "mods",
         "/mods",
         "Lists the channel’s moderators.",

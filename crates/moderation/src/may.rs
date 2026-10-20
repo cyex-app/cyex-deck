@@ -95,11 +95,12 @@ pub fn cell(actor: Option<ModRole>, act: Act, whose: Whose, old: bool) -> Cell {
                 why: rule.err(),
             }
         }
-        // Not the broadcaster's, not your own, other mods' only for the broadcaster.
+        // Not the broadcaster's, not your own, other mods' for the broadcaster and lead mods
+        // (V107-R22, the user's ask; Twitch answers if it refuses one).
         Act::Quick => Cell {
             offered: match whose {
                 Whose::Anyone => true,
-                Whose::Mod => role == ModRole::Broadcaster,
+                Whose::Mod => matches!(role, ModRole::Broadcaster | ModRole::LeadModerator),
                 Whose::Own | Whose::Broadcaster => false,
             },
             why: None,
@@ -229,9 +230,9 @@ mod tests {
             // Deletes, over 6 hours: refused for all; still offered where Twitch decides.
             (M, Delete, Anyone, true, true, Some(OLD)), (M, Delete, Chan, true, false, Some(OLD)),
             (B, Delete, Chan, true, false, Some(OLD)), (B, Delete, Anyone, true, true, Some(OLD)),
-            // Mod mode's buttons: not the channel, not yourself, mods only for the broadcaster.
+            // Mod mode's buttons: not the channel, not yourself, mods for the broadcaster and lead mods.
             (M, Quick, Anyone, false, true, None), (M, Quick, Mod, false, false, None),
-            (L, Quick, Mod, false, false, None), (B, Quick, Mod, false, true, None),
+            (L, Quick, Mod, false, true, None), (B, Quick, Mod, false, true, None),
             (B, Quick, Own, false, false, None), (B, Quick, Chan, false, false, None),
             (M, Quick, Own, true, false, None),
         ];

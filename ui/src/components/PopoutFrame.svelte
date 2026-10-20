@@ -15,11 +15,13 @@
     title: string;
     /** Closing puts the view back into the main window. */
     docks?: boolean;
+    /** V107-R29 Where it docks back to, when that isn't the main window. */
+    dockHint?: string;
     /** V105-18 `slim` for pop-ups. */
     variant?: 'large' | 'slim';
   }
 
-  let { title, docks = false, variant = 'large' }: Props = $props();
+  let { title, docks = false, dockHint = 'Puts it back into the main window.', variant = 'large' }: Props = $props();
 
   function onkeydown(e: KeyboardEvent) {
     if (variant === 'slim') return;
@@ -63,7 +65,7 @@
       <IconButton
         icon="dockBack"
         label="Dock back"
-        hint="Puts it back into the main window."
+        hint={dockHint}
         size={13}
         onclick={currentWindow.close}
       />

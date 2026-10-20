@@ -5,7 +5,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use ts_rs::TS;
 
-use super::{Badge, ChatMessage, ModRole};
+use super::{Badge, ChatMessage, Gone, ModRole};
 
 /// 1.9 A pinned message.
 #[derive(Clone, Debug, PartialEq, Serialize, TS)]
@@ -119,12 +119,19 @@ pub enum RoomEvent {
         #[ts(as = "ChatMessage")]
         message: Arc<ChatMessage>,
     },
-    /// C14 One message deleted.
-    Delete { id: String },
-    /// C14 All of a user's messages (timeout or ban).
+    /// C14 One message deleted. V107-R34 `gone`: why, for its note; none for a plugin's hide.
+    Delete {
+        id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        gone: Option<Gone>,
+    },
+    /// C14 All of a user's messages (timeout or ban). V107-R34 Sent again when a mod feed
+    /// names the mod.
     ClearUser {
         #[serde(rename = "userId")]
         user_id: String,
+        gone: Gone,
     },
     /// S8 A mod cleared the chat; its notice line comes too.
     Cleared,

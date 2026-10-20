@@ -87,9 +87,13 @@
     font-size: 0.82rem;
     color: var(--muted);
   }
+  /* V107-R27 Same text size and side padding as a single-line field, centered in its first line. */
   textarea {
+    height: auto;
+    padding: 4px 10px;
     resize: vertical;
     font: inherit;
+    line-height: 20px;
   }
   small {
     color: var(--dim);

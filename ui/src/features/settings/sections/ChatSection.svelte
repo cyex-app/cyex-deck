@@ -13,10 +13,10 @@
   import type { ModButtons } from '../../../ipc/bindings/ModButtons';
   import type { NameStyle } from '../../../ipc/bindings/NameStyle';
   import type { PauseKey } from '../../../ipc/bindings/PauseKey';
-  import { formatDuration, formatNumber, formatTime, parseDuration } from '../../../lib/format';
+  import { formatDuration, formatNumber, formatTime } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
-  import { toast } from '../../../lib/toast.svelte';
-  import { buttonKey, buttonOn, canAddButton, fullOrder, toggleButton } from '../../modview/lineMod';
+  import { addTimeout, buttonKey, buttonOn, canAddButton, fullOrder, retimeButton, toggleButton } from '../../modview/lineMod';
+  import { timeoutSecs } from '../../modview/timeoutLength';
   import ResetSection from '../ResetSection.svelte';
   import Select from '../../../components/Select.svelte';
   import { choicesOf } from '../../../components/select.ts';
@@ -100,14 +100,16 @@
   ];
 
   let newPreset = $state('');
+  /** V107-R22 What a typed length was refused for, under its field. */
+  let presetError = $state('');
 
   function addPreset() {
-    const secs = parseDuration(newPreset);
-    if (secs === null || secs > 1_209_600) {
-      toast.error('Use a duration like 30s, 10m, 2h or 7d, up to 14 days.');
+    const t = timeoutSecs(newPreset);
+    if ('error' in t) {
+      presetError = t.error;
       return;
     }
-    void settings.patch('chat', { timeoutPresets: [...c.timeoutPresets, secs] });
+    void settings.patch('chat', { timeoutPresets: [...c.timeoutPresets, t.secs] });
     newPreset = '';
   }
 
@@ -128,10 +130,64 @@
   /** V105-15 The order list: every button with its place, as it looks in chat. */
   const modOrder = $derived(fullOrder(mb, modTimes));
   const modName = (b: ModButton) =>
-    typeof b !== 'string' ? `Time out ${formatDuration(b.timeout)}` : b === 'delete' ? 'Delete' : b === 'warn' ? 'Warn' : 'Ban';
+    typeof b !== 'string' ? `Time out ${formatDuration(b.timeout)}` : b === 'delete' ? 'Delete' : b === 'warn' ? 'Warn' : b === 'unban' ? 'Unban' : 'Ban';
   const modIcon = (b: ModButton): IconName =>
-    typeof b !== 'string' ? 'clock' : b === 'delete' ? 'trash' : b === 'warn' ? 'alert' : 'gavel';
+    typeof b !== 'string' ? 'clock' : b === 'delete' ? 'trash' : b === 'warn' ? 'alert' : b === 'unban' ? 'undo' : 'gavel';
   const modOn = (b: ModButton) => buttonOn(mb, b);
+
+  /** V107-R22 A timeout button typed in: any length Twitch takes. */
+  let newButton = $state('');
+  let buttonError = $state('');
+  function addButton() {
+    const t = timeoutSecs(newButton);
+    const patch = 'error' in t ? t.error : addTimeout(mb, t.secs);
+    if (typeof patch === 'string') {
+      buttonError = patch;
+      return;
+    }
+    flipMod(patch);
+    newButton = '';
+  }
+
+  /** V107-R22 The timeout row being given another length, and what was typed. */
+  let editing = $state<number | null>(null);
+  let editText = $state('');
+  let editError = $state('');
+  function startEdit(secs: number) {
+    editing = secs;
+    editText = formatDuration(secs).replace(' ', '');
+    editError = '';
+  }
+  function saveEdit() {
+    if (editing === null) return;
+    const from = editing;
+    const t = timeoutSecs(editText);
+    const patch = 'error' in t ? t.error : retimeButton(mb, from, t.secs, modTimes);
+    if (typeof patch === 'string') {
+      editError = patch;
+      return;
+    }
+    editing = null;
+    if ('error' in t || !patch.order) return; // the same length: nothing to save
+    const to = t.secs;
+    // A preset's own row changes the preset too, or the old length would come back as a row.
+    const timeoutPresets = c.timeoutPresets.map((s) => (s === from ? to : s));
+    void settings.patch('chat', { modButtons: patch, timeoutPresets });
+  }
+  function editKey(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveEdit();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      editing = null;
+    }
+  }
+  const focus = (el: HTMLInputElement) => {
+    el.focus();
+    el.select();
+  };
 </script>
 
 <SectionHead title="Chat" level={2} />
@@ -325,9 +381,18 @@
         addPreset();
       }}
     >
-      <input class="field add" placeholder="Add, e.g. 30m" bind:value={newPreset} />
+      <input
+        class="field add"
+        class:bad={!!presetError}
+        aria-label="Add a timeout length"
+        aria-invalid={!!presetError}
+        placeholder="Add, e.g. 30m"
+        bind:value={newPreset}
+        oninput={() => (presetError = '')}
+      />
     </form>
   {/if}
+  {#if presetError}<span class="field-error" role="alert">{presetError}</span>{/if}
 </Row>
 <Row setting="chat.modButtons" label="Mod mode buttons" hint="In front of lines while mod mode is on. Up to 4 timeouts." stacked>
   <button class="pick" aria-pressed={mb.delete} onclick={() => flipMod({ delete: !mb.delete })}>Delete</button>
@@ -340,9 +405,30 @@
   {/each}
   <button class="pick" aria-pressed={mb.warn} onclick={() => flipMod({ warn: !mb.warn })}>Warn</button>
   <button class="pick" aria-pressed={mb.ban} onclick={() => flipMod({ ban: !mb.ban })}>Ban</button>
+  <!-- V107-R22b Lifts a ban or timeout; off by default. -->
+  <button class="pick" aria-pressed={mb.unban} onclick={() => flipMod({ unban: !mb.unban })}>Unban</button>
   {#if mb.timeouts.length >= 4 && modTimes.some((t) => !mb.timeouts.includes(t))}
     <span class="slot-hint" title="Remove a timeout to pick another">4 timeouts max</span>
+  {:else if mb.timeouts.length < 4}
+    <!-- V107-R22 Any length, straight onto a button. -->
+    <form
+      onsubmit={(e) => {
+        e.preventDefault();
+        addButton();
+      }}
+    >
+      <input
+        class="field add"
+        class:bad={!!buttonError}
+        aria-label="Add a timeout button"
+        aria-invalid={!!buttonError}
+        placeholder="Timeout, e.g. 7m"
+        bind:value={newButton}
+        oninput={() => (buttonError = '')}
+      />
+    </form>
   {/if}
+  {#if buttonError}<span class="field-error" role="alert">{buttonError}</span>{/if}
 </Row>
 <Row setting="chat.modButtons.order" label="Button order" hint="Drag them into the order they show in chat, or Alt+↑ and Alt+↓." stacked>
   <div class="order">
@@ -351,16 +437,43 @@
         <div class="slot" class:off={!modOn(b)}>
           <span class="grip"><Icon name="grip" size={14} /></span>
           <Icon name={modIcon(b)} size={14} />
-          <span class="slot-name">{modName(b)}</span>
+          {#if typeof b !== 'string' && editing === b.timeout}
+            <!-- V107-R22 Another length for this button, typed. -->
+            <span class="slot-name">
+              Time out
+              <input
+                class="field len"
+                class:bad={!!editError}
+                aria-label="Length"
+                aria-invalid={!!editError}
+                bind:value={editText}
+                use:focus
+                oninput={() => (editError = '')}
+                onkeydown={editKey}
+                onblur={() => (editing = null)}
+              />
+              {#if editError}<span class="field-error" role="alert">{editError}</span>{/if}
+            </span>
+          {:else if typeof b !== 'string'}
+            {@const secs = b.timeout}
+            <span class="slot-name">
+              Time out
+              <button class="len-btn" data-tip="Change the length" aria-label="Change the length of {modName(b)}" onclick={() => startEdit(secs)}
+                >{formatDuration(secs)}</button
+              >
+            </span>
+          {:else}
+            <span class="slot-name">{modName(b)}</span>
+          {/if}
           {#if !modOn(b) && !canAddButton(mb, b)}<span class="slot-hint">4 timeouts max</span>{/if}
-          <button
+          {#if typeof b === 'string' || editing !== b.timeout}<button
             class="slot-act"
             disabled={!canAddButton(mb, b)}
             title={canAddButton(mb, b) ? undefined : '4 timeouts max'}
             onclick={() => flipMod(toggleButton(mb, b))}
             aria-label={`${modOn(b) ? 'Remove' : 'Add'} ${modName(b)}`}
             >{modOn(b) ? 'Remove' : 'Add'}</button
-          >
+          >{/if}
         </div>
       {/snippet}
     </DragList>
@@ -502,6 +615,48 @@
   .add {
     width: 130px;
     height: 28px;
+  }
+  /* V107-R22 Typed lengths: a refusal reads in red next to its field. */
+  .field.bad,
+  .field.bad:focus-visible {
+    border-color: var(--red);
+    box-shadow: 0 0 0 1px var(--red);
+  }
+  .field-error {
+    white-space: nowrap;
+    color: var(--red);
+    font-size: 0.76rem;
+    font-weight: 400;
+  }
+  .slot-name {
+    display: flex;
+    white-space: nowrap;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .len-btn {
+    height: 22px;
+    padding: 0 6px;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    color: inherit;
+    font: inherit;
+    text-decoration: underline dotted var(--dim);
+    text-underline-offset: 3px;
+    cursor: text;
+  }
+  .len-btn:hover {
+    background: var(--surface-hover);
+    border-color: var(--border-strong);
+    text-decoration: none;
+  }
+  .len {
+    width: 72px;
+    height: 22px;
+    padding: 0 6px;
+    font: inherit;
   }
   .pick {
     height: 28px;

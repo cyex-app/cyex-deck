@@ -133,7 +133,12 @@ pub async fn settings_chatterino_preview(app: AppHandle) -> CmdResult<Option<Imp
     // looked up without an account.
     #[cfg(feature = "mocks")]
     if let Ok(path) = std::env::var("CYEX_CHATTERINO_LAYOUT") {
-        return chatterino::preview_public(&app, std::path::Path::new(&path)).await.map(Some);
+        let path = std::path::Path::new(&path);
+        // V107-R20 Signed in: the picker's own path (Helix, joined as the default account).
+        if chatterino::account(&app).is_ok() {
+            return chatterino::preview(&app, path).await.map(Some);
+        }
+        return chatterino::preview_public(&app, path).await.map(Some);
     }
     // Said before the picker opens, not after.
     chatterino::account(&app)?;

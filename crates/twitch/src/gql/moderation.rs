@@ -66,16 +66,43 @@ pub async fn ban_many(
     expires_in: Option<&str>,
     reason: &str,
 ) -> Result<Vec<(String, Option<String>)>> {
+    many(http, auth, logins, "banUserFromChatRoom", |l| (BAN, ban_vars(channel_id, l, expires_in, reason))).await
+}
+
+const UNBAN: &str = "mutation Unban($input: UnbanUserFromChatRoomInput!) {
+  unbanUserFromChatRoom(input: $input) { error { code } }
+}";
+
+fn unban_vars(channel_id: &str, login: &str) -> Value {
+    json!({ "input": { "channelID": channel_id, "bannedUserLogin": login } })
+}
+
+/// V107-R21 Unbans, batched like [`ban_many`].
+pub async fn unban_many(
+    http: &Http,
+    auth: Auth<'_>,
+    channel_id: &str,
+    logins: &[String],
+) -> Result<Vec<(String, Option<String>)>> {
+    many(http, auth, logins, "unbanUserFromChatRoom", |l| (UNBAN, unban_vars(channel_id, l))).await
+}
+
+/// One mutation per login, `BATCH_MAX` per request. Each login with its code or the
+/// entry's error message; `None` went through.
+async fn many(
+    http: &Http,
+    auth: Auth<'_>,
+    logins: &[String],
+    field: &str,
+    op: impl Fn(&str) -> (&'static str, Value),
+) -> Result<Vec<(String, Option<String>)>> {
     let mut out = Vec::with_capacity(logins.len());
     for chunk in logins.chunks(BATCH_MAX) {
-        let ops: Vec<(&str, Value)> = chunk
-            .iter()
-            .map(|l| (BAN, ban_vars(channel_id, l, expires_in, reason)))
-            .collect();
+        let ops: Vec<(&str, Value)> = chunk.iter().map(|l| op(l)).collect();
         let results = batch(http, auth, &ops).await?;
         for (login, res) in chunk.iter().zip(results) {
             let code = match res {
-                Ok(data) => code(&data, "banUserFromChatRoom"),
+                Ok(data) => code(&data, field),
                 Err(e) => Some(e.api_message().unwrap_or("error").to_owned()),
             };
             out.push((login.clone(), code));
@@ -85,11 +112,7 @@ pub async fn ban_many(
 }
 
 pub async fn unban(http: &Http, auth: Auth<'_>, channel_id: &str, login: &str) -> Result<Option<String>> {
-    const Q: &str = "mutation Unban($input: UnbanUserFromChatRoomInput!) {
-      unbanUserFromChatRoom(input: $input) { error { code } }
-    }";
-    let vars = json!({ "input": { "channelID": channel_id, "bannedUserLogin": login } });
-    let data: Value = query(http, auth, Q, vars).await?;
+    let data: Value = query(http, auth, UNBAN, unban_vars(channel_id, login)).await?;
     Ok(code(&data, "unbanUserFromChatRoom"))
 }
 

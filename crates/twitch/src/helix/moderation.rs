@@ -181,6 +181,9 @@ pub async fn resolve_unban(
 pub struct BlockedTerm {
     pub id: String,
     pub text: String,
+    /// V107-R31 RFC 3339, for sorting newest first.
+    #[serde(default)]
+    pub created_at: String,
     /// RFC 3339; `None` = for good.
     #[serde(default)]
     pub expires_at: Option<String>,
@@ -241,5 +244,46 @@ mod tests {
         .unwrap();
         assert_eq!(p.data[0].text, "A phrase");
         assert!(p.data[0].expires_at.is_none());
+        assert_eq!(p.data[0].created_at, "2021-09-29T19:45:37Z");
+    }
+
+    /// V107-R31 Every page is read, the cursor passed on as `after`, up to the last.
+    #[tokio::test]
+    async fn blocked_terms_page_through() {
+        use std::io::{Read, Write};
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/moderation/blocked_terms", l.local_addr().unwrap());
+        let bodies = [
+            r#"{"data":[{"id":"1","text":"aa","created_at":"2024-01-02T00:00:00Z"}],"pagination":{"cursor":"c1"}}"#,
+            r#"{"data":[{"id":"2","text":"bb","created_at":"2024-01-01T00:00:00Z"}],"pagination":{}}"#,
+        ];
+        let h = std::thread::spawn(move || {
+            let mut seen = Vec::new();
+            for b in bodies {
+                let (mut s, _) = l.accept().unwrap();
+                let mut got = Vec::new();
+                let mut buf = [0u8; 2048];
+                while !got.ends_with(b"\r\n\r\n") {
+                    let n = s.read(&mut buf).unwrap();
+                    if n == 0 {
+                        break;
+                    }
+                    got.extend_from_slice(&buf[..n]);
+                }
+                seen.push(String::from_utf8_lossy(&got).lines().next().unwrap_or_default().to_owned());
+                let head = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    b.len()
+                );
+                s.write_all(head.as_bytes()).unwrap();
+                s.write_all(b.as_bytes()).unwrap();
+            }
+            seen
+        });
+        let http = Http::new().unwrap();
+        let (list, _) = crate::helix::pages::<BlockedTerm>(5, || http.0.get(&url).query(&[("first", "100")])).await.unwrap();
+        assert_eq!(list.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["1", "2"]);
+        let seen = h.join().unwrap();
+        assert!(!seen[0].contains("after=") && seen[1].contains("after=c1"), "{seen:?}");
     }
 }

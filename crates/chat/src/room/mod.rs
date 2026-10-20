@@ -24,7 +24,8 @@ use crate::irc::Line;
 use crate::rules::{Outcome, Rules};
 use crate::similar::Repeats;
 use crate::model::{
-    ChatMessage, ConnStatus, Flag, Meta, NoticeKind, Pinned, Reply, RoomEvent, RoomState, Sender, plain,
+    ChatMessage, ConnStatus, Flag, Gone, GoneHow, Meta, NoticeKind, Pinned, Reply, RoomEvent, RoomState,
+    Sender, plain,
 };
 use crate::tokenize::{Emotes, Input, tokenize};
 
@@ -413,12 +414,9 @@ impl Room {
                 }
             }
             Incoming::Gift { message, gift } => events.extend(self.gift(message, gift, now_ms, emotes)),
-            Incoming::Delete { id } => {
-                self.mark_deleted(|m| m.id == id);
-                events.push(RoomEvent::Delete { id });
-            }
+            Incoming::Delete { id } => events.extend(self.gone_msg(&id, Gone::new(GoneHow::Deleted, None))),
             Incoming::ClearUser { user_id, secs, notice } => {
-                self.mark_deleted(|m| m.notice.is_none() && m.sender_id() == Some(user_id.as_str()));
+                events.extend(self.gone_user(&user_id, Gone::new(cleared(secs), None).with_secs(secs)));
                 let me = self.me.as_ref().is_some_and(|m| m.user_id == user_id);
                 // V107-M7 Timeouts in a row share one line; bans stand alone.
                 let mut notice = notice;
@@ -426,7 +424,6 @@ impl Room {
                     Some(_) => self.stacked(&user_id, stack::Source::Irc, &mut notice, now_ms),
                     None => Stacked::New,
                 };
-                events.push(RoomEvent::ClearUser { user_id });
                 match stacked {
                     Stacked::Update(update) => events.push(update),
                     Stacked::New => events.extend(self.add(notice, now_ms, emotes)),
@@ -522,10 +519,11 @@ impl Room {
                         old.push(m);
                     }
                 }
-                Some(Incoming::ClearUser { user_id, notice: mut n, .. }) => {
+                Some(Incoming::ClearUser { user_id, secs, notice: mut n }) => {
+                    let gone = Gone::new(cleared(secs), None).with_secs(secs);
                     for m in &mut old {
                         if m.notice.is_none() && m.sender_id() == Some(user_id.as_str()) {
-                            m.set(Flag::Deleted);
+                            m.mark_gone(&gone);
                         }
                     }
                     if before.is_none_or(|b| n.ts < b) {
@@ -535,7 +533,7 @@ impl Room {
                 }
                 Some(Incoming::Delete { id }) => {
                     if let Some(m) = old.iter_mut().find(|m| m.id == id) {
-                        m.set(Flag::Deleted);
+                        m.mark_gone(&Gone::new(GoneHow::Deleted, None));
                     }
                 }
                 _ => {}
@@ -635,14 +633,27 @@ impl Room {
         self.trim();
     }
 
-    fn mark_deleted(&mut self, hit: impl Fn(&ChatMessage) -> bool) {
+    fn mark_deleted(&mut self, gone: &Gone, hit: impl Fn(&ChatMessage) -> bool) {
         for slot in self.buffer.iter_mut() {
-            if hit(slot) && !slot.has(Flag::Deleted) {
+            if hit(slot) {
                 let mut m = (**slot).clone();
-                m.set(Flag::Deleted);
-                *slot = Arc::new(m);
+                if m.mark_gone(gone) {
+                    *slot = Arc::new(m);
+                }
             }
         }
+    }
+
+    /// C14 Message `id` deleted; V107-R34 again with the mod when a mod feed names them.
+    pub fn gone_msg(&mut self, id: &str, gone: Gone) -> Vec<RoomEvent> {
+        self.mark_deleted(&gone, |m| m.id == id);
+        vec![RoomEvent::Delete { id: id.to_owned(), gone: Some(gone) }]
+    }
+
+    /// C14 A user's lines, after a timeout or ban; V107-R34 again with the mod from a mod feed.
+    pub fn gone_user(&mut self, user_id: &str, gone: Gone) -> Vec<RoomEvent> {
+        self.mark_deleted(&gone, |m| m.notice.is_none() && m.sender_id() == Some(user_id));
+        vec![RoomEvent::ClearUser { user_id: user_id.to_owned(), gone }]
     }
 
     /// V105-06 Our line as Twitch relayed it, in place of the echo built from USERSTATE: same
@@ -659,6 +670,7 @@ impl Room {
                 m.set(f);
             }
         }
+        m.meta.gone = old.meta.gone.clone();
         m.meta.repeat = old.meta.repeat;
         m.meta.translation = old.meta.translation.clone();
         m.meta.plugin = old.meta.plugin.clone();
@@ -727,6 +739,15 @@ fn seconds_in(text: &str) -> Option<i64> {
     let words: Vec<&str> = text.split_whitespace().collect();
     let at = words.iter().position(|w| w.starts_with("second"))?;
     words[at.saturating_sub(2)..at].iter().rev().find_map(|w| w.parse().ok())
+}
+
+/// V107-R34 A CLEARCHAT with a length is a timeout, without one a ban.
+fn cleared(secs: Option<u64>) -> GoneHow {
+    if secs.is_some() {
+        GoneHow::TimedOut
+    } else {
+        GoneHow::Banned
+    }
 }
 
 #[cfg(test)]

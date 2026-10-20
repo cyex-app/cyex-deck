@@ -15,6 +15,7 @@
   import { everyShown } from '../../lib/awake';
   import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
+  import { ChatRoom } from '../chat/room.svelte';
   import { catalogs } from '../chat/catalog.svelte';
   import { mods } from '../modview/moderation.svelte';
   import { standingOf } from '../modview/standing';
@@ -25,6 +26,7 @@
   import Header from './Header.svelte';
   import ModBar from './ModBar.svelte';
   import Timeline from './Timeline.svelte';
+  import { changedLines, theirLines } from './liveLines';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
 
@@ -69,18 +71,51 @@
     }
   }
 
-  // Their messages from the open chat, refreshed while the card is open.
+  // Their messages from the open chat. V107-R23 With the room shown somewhere, its line
+  // events bring a new line at once (a follows view, so it isn't counted as a chat);
+  // otherwise it is read every few seconds while the window shows.
+  let room = $state.raw<ChatRoom>();
+  const readMessages = (id: string) =>
+    chatIpc
+      .userMessages(channel, id)
+      .then((m) => (messages = m))
+      .catch(() => {});
   $effect(() => {
     const id = profile?.id;
     if (!id) return;
-    const refresh = () =>
-      chatIpc
-        .userMessages(channel, id)
-        .then((m) => (messages = m))
-        .catch(() => {});
-    void refresh();
-    // V107-H1 Not while the window is hidden: once when it shows.
-    return everyShown(refresh, REFRESH_MS);
+    void readMessages(id);
+    let dead = false;
+    let stop = () => {};
+    const poll = () => {
+      // V107-H1 Not while the window is hidden: once when it shows.
+      if (!dead) stop = everyShown(() => void readMessages(id), REFRESH_MS);
+    };
+    chatIpc
+      .shown()
+      .then((s) => {
+        if (dead || !s.chats[channel]) return poll();
+        const r = new ChatRoom(channel);
+        void r.open(accounts.current?.userId ?? null, [], true);
+        room = r;
+        stop = () => {
+          room = undefined;
+          r.close();
+        };
+      })
+      .catch(poll);
+    return () => {
+      dead = true;
+      stop();
+    };
+  });
+  let seen: ChatMessage[] = [];
+  $effect(() => {
+    const id = profile?.id;
+    const list = room?.messages;
+    if (!id || !list) return;
+    const theirs = theirLines(list, id);
+    if (changedLines(seen, theirs)) void readMessages(id);
+    seen = theirs;
   });
 
   // M3 Mod history over GQL; silent where the account can't read it.

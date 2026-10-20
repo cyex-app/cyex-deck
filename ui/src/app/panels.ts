@@ -6,6 +6,8 @@ import type { Component } from 'svelte';
 
 import RecordingView from '../features/chat/RecordingView.svelte';
 import RoomPanel from '../features/chat/RoomPanel.svelte';
+import ModPanelWindow from '../features/modview/ModPanelWindow.svelte';
+import { INFO, isModPanel } from '../features/modview/panelInfo';
 import ModViewPanel from '../features/modview/ModViewPanel.svelte';
 import OverlayView from '../features/overlay/OverlayView.svelte';
 import ConsoleView from '../features/plugins/ConsoleView.svelte';
@@ -26,6 +28,8 @@ export interface PanelKind {
   height: number;
   /** V104-03 Closing docks it back into the main window (3.14, V102-16). */
   docks?: boolean;
+  /** V107-R29 Where it docks back to, when that isn't the main window. */
+  dockHint?: string;
   /** V105-18 `slim`: a pop-up (usercards, `#channel` chats) with the slim header; must
    * match `is_popup` in `app/src/windows/usercard.rs`. `none`: the panel draws its own
    * (U7 overlays). Default: the large pop-out frame (V104-03). */
@@ -40,6 +44,8 @@ export const PANELS: Record<string, PanelKind> = {
   usercard: { title: 'User', width: 380, height: 560, frame: 'slim', component: UsercardView },
   recording: { title: 'Recording', width: 400, height: 640, component: RecordingView },
   modview: { title: 'Mod view', width: 920, height: 680, docks: true, component: ModViewPanel },
+  // V107-R29 One mod view panel, `modpanel/<login>/<panel>`; closing it docks it back into the mod view.
+  modpanel: { title: 'Mod view', width: 400, height: 560, docks: true, dockHint: 'Puts it back into the mod view.', component: ModPanelWindow },
   streammanager: { title: 'Stream manager', width: 1000, height: 760, docks: true, component: StreamManagerView },
   whispers: { title: 'Whispers', width: 720, height: 560, docks: true, component: WhispersView },
   overlay: { title: 'Overlay', width: 340, height: 420, frame: 'none', component: OverlayView },
@@ -66,6 +72,10 @@ export function titleFor(route: string): string {
   // V105-18 Pop-ups show the channel, like the usercard.
   if (kind === 'room' && a) return `#${a}`;
   if (kind === 'modview' && a) return `Mod view · ${a}`;
+  if (kind === 'modpanel' && a) {
+    const id = route.split('/')[2] ?? '';
+    return `${isModPanel(id) ? INFO[id].title : 'Mod view'} · ${a}`;
+  }
   if (kind === 'whispers' && a) return `Whispers · ${a}`;
   if (kind === 'plugin' && a) return `${plugins.view?.list.find((p) => p.id === a)?.info?.name ?? a} console`;
   if (kind === 'overlay' && a) {

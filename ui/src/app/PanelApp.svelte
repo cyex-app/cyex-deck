@@ -36,7 +36,7 @@
 <svelte:window {onkeydown} />
 
 {#if panel?.frame !== 'none'}
-  <PopoutFrame title={currentWindow.title ?? titleFor(route)} docks={panel?.docks} variant={panel?.frame === 'slim' ? 'slim' : 'large'} />
+  <PopoutFrame title={currentWindow.title ?? titleFor(route)} docks={panel?.docks} dockHint={panel?.dockHint} variant={panel?.frame === 'slim' ? 'slim' : 'large'} />
 {/if}
 
 <main>

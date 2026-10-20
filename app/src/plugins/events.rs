@@ -63,12 +63,16 @@ fn event(login: &str, e: &RoomEvent) -> Option<ChatEvent> {
     Some(match e {
         RoomEvent::Message { message } => ChatEvent::Appended(hook::to_line(login, message)),
         RoomEvent::Update { message } => ChatEvent::Replaced(hook::to_line(login, message)),
-        RoomEvent::Delete { id } => ChatEvent::Deleted {
+        // V107-R34 A mod feed's repeat (naming the mod) isn't a second delete.
+        RoomEvent::Delete { gone: Some(g), .. } | RoomEvent::ClearUser { gone: g, .. } if g.by.is_some() => {
+            return None;
+        }
+        RoomEvent::Delete { id, .. } => ChatEvent::Deleted {
             channel: login.to_owned(),
             id: Some(id.clone()),
             user_id: None,
         },
-        RoomEvent::ClearUser { user_id } => ChatEvent::Deleted {
+        RoomEvent::ClearUser { user_id, .. } => ChatEvent::Deleted {
             channel: login.to_owned(),
             id: None,
             user_id: Some(user_id.clone()),

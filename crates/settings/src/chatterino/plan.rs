@@ -111,7 +111,7 @@ mod tests {
 
     /// Looks the layout up on a fake Twitch that knows every name but `unknown`.
     fn found(layout: &Layout, unknown: &[&str]) -> HashMap<String, TabChannel> {
-        now(resolve(&names(layout), |batch| {
+        now(resolve(&names(layout), &HashMap::new(), |batch| {
             let known = batch
                 .iter()
                 .filter(|n| !unknown.contains(&n.as_str()))
@@ -209,6 +209,64 @@ mod tests {
         assert_eq!(col.tiles[0].0.login, "cakefire_");
         assert_eq!(plan.report.unresolved, ["lilb_lxryer"]);
         assert_eq!(plan.tabs[0].columns.len(), 4);
+    }
+
+    /// V107-R20 The user's app had a lilb_lxryer tab before importing Comfi, and the login
+    /// lookup missed that name. The open tab's channel fills in, so column 2 keeps both
+    /// splits, and the open tab stays as it was.
+    #[test]
+    fn r20_channel_with_its_own_tab_before_import_goes_in() {
+        use crate::chatterino::resolve::known;
+        use crate::schema::{Column, Tab, Tabs, Tile, TileShow};
+
+        let open = TabChannel {
+            id: "676966284".into(),
+            login: "lilb_lxryer".into(),
+            name: "lilb_lxryer".into(),
+        };
+        let mut tabs = Tabs {
+            tabs: vec![Tab {
+                id: "own".into(),
+                columns: vec![Column {
+                    size: 1.0,
+                    tiles: vec![Tile {
+                        id: "own-1".into(),
+                        channel: open.clone(),
+                        account: Some("other".into()),
+                        ..Tile::default()
+                    }],
+                }],
+                ..Tab::default()
+            }],
+            ..Tabs::default()
+        };
+        let before = tabs.tabs[0].clone();
+        let layout = fixture("comfi.json");
+        let mut asked = Vec::new();
+        let found = now(resolve(&names(&layout), &known(&tabs), |batch| {
+            asked.extend(batch.clone());
+            // Twitch's login lookup misses lilb_lxryer.
+            let answer: Vec<TabChannel> = batch.iter().filter(|n| *n != "lilb_lxryer").map(|n| channel(n)).collect();
+            async move { Ok::<_, ()>(answer) }
+        }))
+        .unwrap();
+        assert!(!asked.iter().any(|n| n == "lilb_lxryer"));
+
+        let plan = plan(&layout, &found);
+        assert!(plan.report.unresolved.is_empty(), "{:?}", plan.report.unresolved);
+        assert_eq!(logins(&plan.tabs[0])[1], ["lilb_lxryer", "cakefire_"]);
+        assert_eq!(plan.tabs[0].columns[1].tiles[0].0, open);
+
+        let mut n = 0;
+        tabs.import(plan.tabs, TileShow::default(), Some("me".into()), &mut || {
+            n += 1;
+            format!("n{n}")
+        });
+        assert_eq!(tabs.tabs[0], before);
+        let comfi = &tabs.tabs[1];
+        let col: Vec<&str> = comfi.columns[1].tiles.iter().map(|t| t.channel.login.as_str()).collect();
+        assert_eq!(col, ["lilb_lxryer", "cakefire_"]);
+        assert_eq!(comfi.tiles().count(), 9);
     }
 
     #[test]

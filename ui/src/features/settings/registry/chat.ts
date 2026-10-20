@@ -199,8 +199,8 @@ export const CHAT: Entry[] = [
     page: 'chat',
     label: 'Mod mode buttons',
     description: 'In front of lines while mod mode is on.',
-    keywords: ['moderation', 'delete', 'ban', 'warn', 'timeout'],
-    keys: ['chat.modButtons.delete', 'chat.modButtons.timeouts', 'chat.modButtons.warn', 'chat.modButtons.ban'],
+    keywords: ['moderation', 'delete', 'ban', 'unban', 'warn', 'timeout'],
+    keys: ['chat.modButtons.delete', 'chat.modButtons.timeouts', 'chat.modButtons.warn', 'chat.modButtons.ban', 'chat.modButtons.unban'],
   },
   {
     id: 'chat.modButtons.order',

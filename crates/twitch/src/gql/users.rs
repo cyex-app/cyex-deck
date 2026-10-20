@@ -50,6 +50,30 @@ pub async fn user_by_id(http: &Http, auth: Auth<'_>, id: &str) -> Result<Option<
     Ok(data.user)
 }
 
+#[derive(Deserialize)]
+struct Ids {
+    #[serde(default)]
+    users: Vec<Option<IdLogin>>,
+}
+
+#[derive(Deserialize)]
+struct IdLogin {
+    id: String,
+    login: String,
+}
+
+/// V107-R21 `(login, id)` for each login Twitch knows, 100 per call, public. Suspended and
+/// unknown logins come back `null` and are left out.
+pub async fn ids_by_login(http: &Http, logins: &[String]) -> Result<Vec<(String, String)>> {
+    const Q: &str = "query($logins: [String!]) { users(logins: $logins) { id login } }";
+    let mut out = Vec::with_capacity(logins.len());
+    for chunk in logins.chunks(100) {
+        let data: Ids = query(http, Auth::PUBLIC, Q, json!({ "logins": chunk })).await?;
+        out.extend(data.users.into_iter().flatten().map(|u| (u.login, u.id)));
+    }
+    Ok(out)
+}
+
 /// Public profile for the usercard (1.36).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]

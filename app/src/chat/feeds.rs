@@ -6,7 +6,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 
-use cyex_chat::model::{ChatMessage, Flag, RoomEvent};
+use cyex_chat::model::{ChatMessage, Flag, Gone, RoomEvent};
 use serde::Serialize;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager};
@@ -42,7 +42,7 @@ pub enum FeedEvent {
 
 type View = Channel<Vec<FeedEvent>>;
 /// Which copies a deletion reaches.
-type Hit = Box<dyn Fn(&ChatMessage) -> bool>;
+type Hit = (Option<Gone>, Box<dyn Fn(&ChatMessage) -> bool>);
 
 #[derive(Default)]
 struct Feed {
@@ -106,15 +106,16 @@ pub fn moderate(app: &AppHandle, channel: &str, events: &[RoomEvent]) {
         .iter()
         .filter_map(|e| -> Option<Hit> {
             match e {
-                RoomEvent::Delete { id } => {
+                RoomEvent::Delete { id, gone } => {
                     let id = id.clone();
-                    Some(Box::new(move |m| m.id == id))
+                    Some((gone.clone(), Box::new(move |m| m.id == id)))
                 }
-                RoomEvent::ClearUser { user_id } => {
+                RoomEvent::ClearUser { user_id, gone } => {
                     let user = user_id.clone();
-                    Some(Box::new(move |m| {
-                        m.notice.is_none() && m.sender_id() == Some(user.as_str())
-                    }))
+                    Some((
+                        Some(gone.clone()),
+                        Box::new(move |m| m.notice.is_none() && m.sender_id() == Some(user.as_str())),
+                    ))
                 }
                 _ => None,
             }
@@ -131,8 +132,14 @@ pub fn moderate(app: &AppHandle, channel: &str, events: &[RoomEvent]) {
     for feed in map.values_mut() {
         let mut changed = Vec::new();
         for line in feed.lines.iter_mut().filter(|l| l.channel == channel) {
-            if !line.message.has(Flag::Deleted) && hits.iter().any(|h| h(&line.message)) {
-                let mut m = (*line.message).clone();
+            // V107-R34 Why it went comes along, for the note.
+            let Some((gone, _)) = hits.iter().find(|(_, h)| h(&line.message)) else { continue };
+            let mut m = (*line.message).clone();
+            let fresh = match gone {
+                Some(g) => m.mark_gone(g),
+                None => !m.has(Flag::Deleted),
+            };
+            if fresh {
                 m.set(Flag::Deleted);
                 line.message = Arc::new(m);
                 changed.push(line.clone());

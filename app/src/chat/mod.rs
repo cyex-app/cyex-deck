@@ -45,7 +45,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use cyex_chat::build::Me;
 use cyex_chat::filter::Filter;
 use cyex_chat::irc::{Client, Window};
-use cyex_chat::model::{ChatMessage, ConnStatus, NoticeKind, RoomEvent};
+use cyex_chat::model::{ChatMessage, ConnStatus, Gone, NoticeKind, RoomEvent};
 use cyex_chat::{Room, RoomSnapshot};
 use cyex_settings::Partition;
 use cyex_settings::schema::Chat as ChatSettings;
@@ -637,6 +637,30 @@ pub fn timeout_line(app: &AppHandle, login: &str, user_id: &str, text: &str) {
             queue(entry, ev, &chat.wake);
         }
     }
+}
+
+/// V107-R34 A mod feed named who deleted a line (`msg`) or timed out or banned a user: their
+/// lines in `account`'s rooms of `login` say so. Only the modding account's rooms: viewers
+/// see just "(deleted)".
+pub fn gone_by(app: &AppHandle, account: &str, login: &str, target: GoneTarget<'_>, gone: Gone) {
+    let Some(chat) = app.try_state::<Chat>() else { return };
+    let mut inner = chat.lock();
+    for ((id, l), entry) in inner.rooms.iter_mut() {
+        if l == login && account_of(id) == Some(account) {
+            let ev = match target {
+                GoneTarget::Message(m) => entry.room.gone_msg(m, gone.clone()),
+                GoneTarget::User(u) => entry.room.gone_user(u, gone.clone()),
+            };
+            queue(entry, ev, &chat.wake);
+        }
+    }
+}
+
+/// V107-R34 What a mod action took away.
+#[derive(Clone, Copy)]
+pub enum GoneTarget<'a> {
+    Message(&'a str),
+    User(&'a str),
 }
 
 /// C9 People's personal emotes just arrived: their last few seconds of messages are

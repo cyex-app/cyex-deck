@@ -1,5 +1,6 @@
 <!-- V103-06 One panel's frame in the mod view and the stream manager: a title bar (dragged
-     while the layout is unlocked, with a close button then), optional tools on the right,
+     while the layout is unlocked, with a close button then; V107-R29 a pop-out button on hover
+     where the layout allows it), optional tools on the right,
      then the body, which scrolls. `flush` drops the body's padding, for lists. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
@@ -23,14 +24,19 @@
 </script>
 
 <section class="card">
+  {#if !ctl?.bare || tools}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <header class:grab={!!grab} onpointerdown={grab}>
-    <h3>{title}</h3>
+    {#if ctl?.bare}<span class="room"></span>{:else}<h3>{title}</h3>{/if}
     {#if tools}<div class="tools">{@render tools()}</div>{/if}
+    {#if ctl?.popout}
+      <span class="out" class:shown={ctl.quick}><IconButton icon="popout" label="Pop out {title}" hint="Opens it in its own window." size={13} onclick={ctl.popout} /></span>
+    {/if}
     {#if ctl?.close}
       <IconButton icon="x" label="Close {title}" size={14} onclick={ctl.close} />
     {/if}
   </header>
+  {/if}
   <div class="body" class:flush use:quietScroll>{@render children()}</div>
 </section>
 
@@ -58,6 +64,17 @@
   header.grab {
     cursor: grab;
   }
+  /* V107-R29 Quiet until the header is hovered or reached by keyboard. */
+  .out {
+    display: flex;
+    opacity: 0;
+    transition: opacity var(--fast);
+  }
+  header:hover .out,
+  .out.shown,
+  .out:focus-within {
+    opacity: 1;
+  }
   /* The title keeps its words; tools wrap beside it. */
   h3 {
     flex: 1 0 auto;
@@ -67,6 +84,9 @@
     font-size: 0.8rem;
     font-weight: 700;
     white-space: nowrap;
+  }
+  .room {
+    flex: 1;
   }
   .tools {
     display: flex;

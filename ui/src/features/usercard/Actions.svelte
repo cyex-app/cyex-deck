@@ -8,6 +8,7 @@
   import { accounts } from '../../lib/accounts.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
+  import { FAIL } from './notices';
   import { userMenus } from '../chat/menus.svelte';
   import { whispers } from '../whispers/whispers.svelte';
   import { errorText } from '../../lib/errors';
@@ -54,7 +55,7 @@
       after?.();
       return true;
     } catch (e) {
-      toast.error(errorText(e));
+      toast.error(errorText(e), FAIL);
       return false;
     } finally {
       busy = false;

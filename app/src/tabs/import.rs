@@ -59,12 +59,21 @@ pub async fn preview(app: &AppHandle, path: &Path) -> Result<ImportReport, Strin
     let layout = read(path)?;
     let http = app.state::<Auth>().http.clone();
     let helix_auth = crate::auth::helix_auth(&token, &client_id);
-    let found = chatterino::resolve(&chatterino::names(&layout), |batch| {
+    let found = chatterino::resolve(&chatterino::names(&layout), &known(app), |batch| {
         let http = &http;
         async move {
             let logins: Vec<&str> = batch.iter().map(String::as_str).collect();
             let users = helix::users_by_login(http, helix_auth, &logins).await?;
-            Ok::<_, cyex_twitch::Error>(users.into_iter().map(channel).collect())
+            let mut channels: Vec<TabChannel> = users.into_iter().map(channel).collect();
+            // V107-R20 Helix can miss a login (late after a rename): ask public GQL once more.
+            let missed: Vec<String> = batch
+                .into_iter()
+                .filter(|n| !channels.iter().any(|c| c.login.eq_ignore_ascii_case(n)))
+                .collect();
+            if !missed.is_empty() {
+                channels.extend(by_gql(http, &missed).await?);
+            }
+            Ok::<_, cyex_twitch::Error>(channels)
         }
     })
     .await
@@ -79,21 +88,31 @@ pub async fn preview(app: &AppHandle, path: &Path) -> Result<ImportReport, Strin
 pub async fn preview_public(app: &AppHandle, path: &Path) -> Result<ImportReport, String> {
     let layout = read(path)?;
     let http = app.state::<Auth>().http.clone();
-    let found = chatterino::resolve(&chatterino::names(&layout), |batch| {
+    let found = chatterino::resolve(&chatterino::names(&layout), &known(app), |batch| {
         let http = &http;
-        async move {
-            let users = cyex_twitch::gql::miner::streams_by_logins(http, &batch).await?;
-            let channels = users.into_iter().map(|u| TabChannel {
-                id: u.id,
-                login: u.login,
-                name: u.name,
-            });
-            Ok::<_, cyex_twitch::Error>(channels.collect())
-        }
+        async move { by_gql(http, &batch).await }
     })
     .await
     .map_err(lookup_error)?;
     Ok(keep(app, None, layout, found))
+}
+
+/// V107-R20 Channels the tabs show now: taken as they are, not looked up again.
+fn known(app: &AppHandle) -> HashMap<String, TabChannel> {
+    chatterino::known(&app.state::<Settings>().read::<Tabs>(Partition::Tabs))
+}
+
+/// Logins on Twitch's public GQL, no account needed.
+async fn by_gql(http: &cyex_twitch::Http, logins: &[String]) -> Result<Vec<TabChannel>, cyex_twitch::Error> {
+    let users = cyex_twitch::gql::miner::streams_by_logins(http, logins).await?;
+    Ok(users
+        .into_iter()
+        .map(|u| TabChannel {
+            id: u.id,
+            login: u.login,
+            name: u.name,
+        })
+        .collect())
 }
 
 fn keep(app: &AppHandle, account: Option<String>, layout: Layout, found: HashMap<String, TabChannel>) -> ImportReport {

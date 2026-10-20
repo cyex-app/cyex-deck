@@ -90,3 +90,15 @@ test('a keyed toast replaces the old one: a quick toggle shows only its current 
   mock.timers.tick(LIFETIME_MS.info);
   assert.equal(t.items.length, 0);
 });
+
+test('ms can shorten a toast, and a button still keeps it', () => {
+  const t = new ToastStore();
+  t.info('quick', { ms: 2000 });
+  mock.timers.tick(1999);
+  assert.equal(t.items.length, 1);
+  mock.timers.tick(2);
+  assert.equal(t.items.length, 0);
+  t.info('undo', { ms: 2000, action: { label: 'Undo', run: () => {} } });
+  mock.timers.tick(2500);
+  assert.equal(t.items.length, 1);
+});

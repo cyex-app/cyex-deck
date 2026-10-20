@@ -32,4 +32,10 @@ modActions: ModActionFilters,
  * V103-22 The chat panel brought back (`true`) or closed (`false`) by hand: it stays so
  * until "Reset layout". `None` follows the channel's regular chat.
  */
-chatKept?: boolean | null, };
+chatKept?: boolean | null, 
+/**
+ * V107-R29 Panels popped out of the layout, by `<login>/<panel>`: the layout as it was
+ * then, so closing the window puts the panel back in its exact place. A panel popped out
+ * from the closed-panels row has no entry: it goes back there.
+ */
+popped: { [key in string]: PanelNode }, };

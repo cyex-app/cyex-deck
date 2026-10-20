@@ -67,6 +67,7 @@
   import { popOut } from './panels';
   import StreamerBar from './StreamerBar.svelte';
   import { useRootEffects } from './root.svelte';
+  import { PlaceHistory } from '../lib/placeHistory';
 
   type Fixed = 'home' | 'discover' | 'miner' | 'streamManager' | 'whispers' | 'subs' | 'cosmetics' | 'settings' | 'modview';
   /** Somewhere the main window can show. */
@@ -187,7 +188,7 @@
     'nav.miner': () => (canMine ? show('miner') : gate.ask('gql')),
     'nav.streamManager': () => canManage && show('streamManager'),
     'nav.whispers': () => canWhisper && show('whispers'),
-    'settings.open': () => show('settings'),
+    'settings.open': toggleSettings,
     'window.pin': () => currentWindow.togglePin(),
     'tabs.switcher': () => (switcher = true),
     'tabs.new': () => openAdd(),
@@ -308,10 +309,51 @@
     return 'tab' in p ? !fixed && current === p.tab : fixed === p.view;
   }
 
+  // V107-R33 The mouse's back and forward buttons walk the places shown before.
+  const history = new PlaceHistory<Place>((a, b) => ('tab' in a ? 'tab' in b && a.tab === b.tab : 'view' in b && a.view === b.view));
+  let walking = false;
+
   function moved() {
     const now = here();
-    if (now) before = now;
+    if (!now) return;
+    before = now;
+    if (!walking) history.left(now);
   }
+
+  function reachable(p: Place): boolean {
+    return 'view' in p || (!!tabs.tab(p.tab) && !tabs.popped.has(p.tab));
+  }
+
+  function walk(forward: boolean) {
+    const now = here();
+    const to = forward ? history.goForward(now, reachable) : history.goBack(now, reachable);
+    if (!to) return;
+    walking = true;
+    try {
+      if ('tab' in to) open(to.tab);
+      else show(to.view);
+    } finally {
+      walking = false;
+    }
+  }
+
+  $effect(() => {
+    // Buttons 3 and 4 are the mouse's back and forward; WebView2 would otherwise navigate.
+    const stop = (e: MouseEvent) => {
+      if (e.button === 3 || e.button === 4) e.preventDefault();
+    };
+    const up = (e: MouseEvent) => {
+      if (e.button !== 3 && e.button !== 4) return;
+      e.preventDefault();
+      walk(e.button === 4);
+    };
+    window.addEventListener('mousedown', stop);
+    window.addEventListener('mouseup', up);
+    return () => {
+      window.removeEventListener('mousedown', stop);
+      window.removeEventListener('mouseup', up);
+    };
+  });
 
   function show(view: Fixed) {
     if (fixed !== view) moved();
@@ -331,6 +373,12 @@
     const back = before && !('view' in before && before.view === view) ? before : { view: 'home' as const };
     if ('tab' in back && tabs.tab(back.tab) && !tabs.popped.has(back.tab)) open(back.tab);
     else show('view' in back ? back.view : 'home');
+  }
+
+  /** V107-R32 The cog and Ctrl+, open Settings; again, back to where you were. */
+  function toggleSettings() {
+    if (fixed === 'settings') leaveView('settings');
+    else show('settings');
   }
 
   /** V102-16 Pops a view out of here and goes back to where you were before it; when its
@@ -465,7 +513,7 @@
     <ConnectionCounter />
     <AccountMenu onmanage={manageAccounts} onsubs={() => show('subs')} oncosmetics={() => show('cosmetics')} active={fixed === 'cosmetics'} streamer={streamerDot} />
     <UpdateBadge />
-    <IconButton icon="settings" label="Settings" hint="Everything you can change (Ctrl+,)." active={fixed === 'settings'} onclick={() => show('settings')} />
+    <IconButton icon="settings" label="Settings" hint="Everything you can change (Ctrl+,)." active={fixed === 'settings'} onclick={toggleSettings} />
   {/snippet}
 </WindowChrome>
 {#if currentWindow.isMain && streamer.bar}<StreamerBar onsettings={streamerSettings} narrow={width < 420} />{/if}

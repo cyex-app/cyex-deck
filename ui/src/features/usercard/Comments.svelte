@@ -7,6 +7,7 @@
   import { modIpc } from '../../ipc/moderation';
   import { formatDate } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
+  import { FAIL } from './notices';
   import { errorText } from '../../lib/errors';
 
   interface Props {
@@ -40,7 +41,7 @@
       text = '';
       onchange();
     } catch (e) {
-      toast.error(errorText(e));
+      toast.error(errorText(e), FAIL);
     } finally {
       busy = false;
     }
@@ -58,11 +59,11 @@
             void modIpc
               .addComment(account, channel, targetId, c.text, c.shared)
               .then(onchange)
-              .catch((e) => toast.error(errorText(e))),
+              .catch((e) => toast.error(errorText(e), FAIL)),
         },
       });
     } catch (e) {
-      toast.error(errorText(e));
+      toast.error(errorText(e), FAIL);
     }
   }
 </script>
