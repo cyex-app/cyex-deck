@@ -78,14 +78,60 @@ pub fn clash_code(moderator: bool, code: &str) -> bool {
     !code.contains("ALREADY") && if moderator { code.contains("VIP") } else { code.contains("MOD") }
 }
 
-/// Twitch's action name for a change, as its mod-action feeds say it.
-pub fn action(moderator: bool, on: bool) -> &'static str {
-    match (moderator, on) {
-        (true, true) => "mod",
-        (true, false) => "unmod",
-        (false, true) => "vip",
-        (false, false) => "unvip",
+/// S6 A mod or VIP change, as Twitch's mod-action feeds name it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum RoleAction {
+    Mod,
+    Unmod,
+    Vip,
+    Unvip,
+}
+
+impl RoleAction {
+    /// `moderator` (else VIP) given (`on`) or taken.
+    pub fn of(moderator: bool, on: bool) -> RoleAction {
+        match (moderator, on) {
+            (true, true) => RoleAction::Mod,
+            (true, false) => RoleAction::Unmod,
+            (false, true) => RoleAction::Vip,
+            (false, false) => RoleAction::Unvip,
+        }
     }
+
+    /// From a feed's action name; `None` for any other action.
+    pub fn parse(action: &str) -> Option<RoleAction> {
+        Some(match action {
+            "mod" => RoleAction::Mod,
+            "unmod" => RoleAction::Unmod,
+            "vip" => RoleAction::Vip,
+            "unvip" => RoleAction::Unvip,
+            _ => return None,
+        })
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            RoleAction::Mod => "mod",
+            RoleAction::Unmod => "unmod",
+            RoleAction::Vip => "vip",
+            RoleAction::Unvip => "unvip",
+        }
+    }
+
+    /// Whether it is about the mod role (else VIP).
+    pub fn moderator(self) -> bool {
+        matches!(self, RoleAction::Mod | RoleAction::Unmod)
+    }
+
+    /// Whether the role is given (else taken).
+    pub fn on(self) -> bool {
+        matches!(self, RoleAction::Mod | RoleAction::Vip)
+    }
+}
+
+/// Twitch's action for a change.
+pub fn action(moderator: bool, on: bool) -> RoleAction {
+    RoleAction::of(moderator, on)
 }
 
 /// The one chat line after a swap.
@@ -112,6 +158,17 @@ pub fn grant_failed(who: &str, moderator: bool, why: &str, slots: bool, restored
     let (new, old) = if moderator { ("a mod", "VIP") } else { ("VIP", "mod") };
     let why = if slots { "no VIP slots left" } else { why.trim_end_matches('.') };
     format!("Couldn’t make {who} {new}: {why}. Kept them {old}.")
+}
+
+/// V107-M8 After a swap's grant failed: the own-echo marks to drop, so those echoes get
+/// their line. The grant never happened; the put-back only when it failed. The removal
+/// stays marked: the [`grant_failed`] line says it either way.
+pub fn unmark_after_failed_grant(moderator: bool, restored: bool) -> Vec<RoleAction> {
+    let mut v = vec![RoleAction::of(moderator, true)];
+    if !restored {
+        v.push(RoleAction::of(!moderator, true));
+    }
+    v
 }
 
 /// The other role went, the grant didn't.
@@ -151,11 +208,33 @@ mod tests {
         assert!(!clash_code(false, "GRANTEE_ALREADY_VIP"));
         assert!(!clash_code(false, "MAX_VIPS_REACHED"));
         assert!(!clash_code(true, "FORBIDDEN"));
-        assert_eq!(action(true, false), "unmod");
-        assert_eq!(action(false, true), "vip");
+        assert_eq!(action(true, false), RoleAction::Unmod);
+        assert_eq!(action(false, true).as_str(), "vip");
         assert_eq!(swapped("bob", true), "Removed bob as VIP and made them a mod.");
         assert_eq!(swapped("bob", false), "Removed bob as mod and made them a VIP.");
         assert_eq!(half_done("bob", true, "No user called bob."), "Removed bob as VIP, but couldn’t make them a mod: No user called bob.");
+    }
+
+    #[test]
+    fn v107_m8_failed_grant_keeps_the_removal_quiet() {
+        use RoleAction::*;
+        // VIP → mod, grant refused, VIP back: the grant's mark goes, unvip and vip stay.
+        assert_eq!(unmark_after_failed_grant(true, true), vec![Mod]);
+        // Put-back failed too: its mark goes, the removal's stays (the line says it).
+        assert_eq!(unmark_after_failed_grant(true, false), vec![Mod, Vip]);
+        assert_eq!(unmark_after_failed_grant(false, false), vec![Vip, Mod]);
+        assert!(!unmark_after_failed_grant(false, false).contains(&action(true, false)));
+    }
+
+    #[test]
+    fn s6_role_actions_round_trip() {
+        for (m, on) in [(true, true), (true, false), (false, true), (false, false)] {
+            let a = RoleAction::of(m, on);
+            assert_eq!(RoleAction::parse(a.as_str()), Some(a));
+            assert_eq!((a.moderator(), a.on()), (m, on));
+        }
+        assert_eq!(RoleAction::parse("ban"), None);
+        assert_eq!(RoleAction::parse("MOD"), None, "feeds say it lower case");
     }
 
     #[test]

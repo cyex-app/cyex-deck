@@ -99,7 +99,7 @@
   {:else if m.reply}
     <div class="context" data-jump={m.reply.parentId}>
       <Icon name="replied" size={12} />
-      <span>Replying to <b>@{m.reply.parentDisplay}</b>: {m.reply.parentBody}</span>
+      <span>Replying to <b>@{m.reply.parentDisplay}</b>: <bdi>{m.reply.parentBody}</bdi></span>
     </div>
   {/if}
   <!-- V105-06 A first message can also be a reply: both show. -->
@@ -166,7 +166,8 @@
         data-hint={paintName ? '7TV paint' : null}>{name.name}</span
       >{#if name.extra}<span class="extra">{` (${name.extra})`}</span>{/if}{#if !action}<span class="colon">{': '}</span>{:else}{' '}{/if}<span
         class="body"
-        class:action><Body fragments={m.body} {channel} giant={has('gigantified')} /></span
+        class:action
+        dir="auto"><Body fragments={m.body} {channel} giant={has('gigantified')} /></span
       >{#if m.repeat}<span class="repeat" data-tip="Said {m.repeat} times in a row">×{m.repeat}</span>{/if}
     </div>
   {/if}

@@ -386,15 +386,17 @@ pub fn local(app: &AppHandle, key: &RoomKey, kind: NoticeKind, text: &str) {
 
 /// S4 Checks a live message against the automations.
 pub fn automate(app: &AppHandle, key: &RoomKey, m: &ChatMessage) {
+    // V107-A9 No automations (or anonymous): no live-list scan either.
+    if key.0 == Identity::Anon {
+        return;
+    }
+    let state = app.state::<CommandsState>();
+    if state.autos.lock().unwrap_or_else(|p| p.into_inner()).is_empty() {
+        return;
+    }
+    // Read without the automations lock held, so no new lock order.
     let live = crate::tabs::live::is_live(app, &key.1);
-    let fired = {
-        let state = app.state::<CommandsState>();
-        let mut autos = state.autos.lock().unwrap_or_else(|p| p.into_inner());
-        if autos.is_empty() || key.0 == Identity::Anon {
-            return;
-        }
-        autos.check(&key.1, m, live, super::now_ms())
-    };
+    let fired = state.autos.lock().unwrap_or_else(|p| p.into_inner()).check(&key.1, m, live, super::now_ms());
     let Some(f) = fired else { return };
     let nick = m.sender.as_ref().map(|s| s.login.clone()).unwrap_or_default();
     let (app, key) = (app.clone(), key.clone());

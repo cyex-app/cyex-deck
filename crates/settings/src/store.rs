@@ -66,9 +66,23 @@ impl Store {
                 }
                 Ok(Some(v))
             });
+            // t5 One wrong value (a hand edit, an old build) used to reset the whole file,
+            // nicknames and the presence choice included. Keep every field that still reads.
+            // Highlights stay whole: their old-mentions merge reads the raw file.
+            let salvaged = match &read {
+                Err(_) if p != Partition::Highlights => salvage(p, &path),
+                _ => None,
+            };
             let value = match read {
                 Ok(Some(v)) => v,
                 Ok(None) => p.default_value(),
+                Err(_) if salvaged.is_some() => {
+                    let v = salvaged.expect("checked above");
+                    quarantine(&path, &*clock)?;
+                    report.reset.push(p);
+                    changed.push(p);
+                    v
+                }
                 Err(_) => {
                     if p == Partition::Highlights {
                         raw_highlights = None;
@@ -188,11 +202,27 @@ impl Store {
         if self.dirty.is_empty() {
             return Ok(());
         }
-        backup::snapshot_if_due(&self.dir, self.clock.today())?;
-        for p in std::mem::take(&mut self.dirty) {
-            let json = serde_json::to_string_pretty(&self.values[&p])?;
-            fsutil::write_atomic(&self.dir.join(p.file_name()), json.as_bytes())?;
+        // V107-A3 A missing backup must not stop saving, and one file that can't be written
+        // (held by a scanner, say) must not drop the others: a part leaves `dirty` only once
+        // its file is on disk. The first error is returned.
+        let mut first = backup::snapshot_if_due(&self.dir, self.clock.today()).err();
+        let todo: Vec<Partition> = self.dirty.iter().copied().collect();
+        for p in todo {
+            match self.write(p) {
+                Ok(()) => {
+                    self.dirty.remove(&p);
+                }
+                Err(e) => {
+                    first.get_or_insert(e);
+                }
+            }
         }
+        first.map_or(Ok(()), Err)
+    }
+
+    fn write(&self, p: Partition) -> Result<()> {
+        let json = serde_json::to_string_pretty(&self.values[&p])?;
+        fsutil::write_atomic(&self.dir.join(p.file_name()), json.as_bytes())?;
         Ok(())
     }
 
@@ -324,6 +354,20 @@ fn read_raw(path: &Path) -> Result<Option<Value>> {
     }
     let text = fs::read_to_string(path)?;
     Ok(Some(serde_json::from_str(&text)?))
+}
+
+/// t5 The fields of a JSON object file that the schema still accepts, one top-level key at a
+/// time; the rest fall back to defaults. `None` when the file isn't a JSON object at all.
+fn salvage(p: Partition, path: &Path) -> Option<Value> {
+    let Ok(Some(Value::Object(raw))) = read_raw(path) else { return None };
+    let mut kept = serde_json::Map::new();
+    for (key, value) in raw {
+        kept.insert(key.clone(), value);
+        if p.normalize(Value::Object(kept.clone())).is_err() {
+            kept.remove(&key);
+        }
+    }
+    p.normalize(Value::Object(kept)).ok()
 }
 
 fn quarantine(path: &Path, clock: &dyn Clock) -> Result<()> {

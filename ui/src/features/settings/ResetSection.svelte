@@ -1,13 +1,20 @@
-<!-- Reset one settings partition. Needs a second click to confirm. -->
+<!-- Reset one settings partition. Needs a second click to confirm.
+     t5 With `page`, only what that page shows: its partition also feeds other pages. -->
 <script lang="ts">
   import ConfirmButton from '../../components/ConfirmButton.svelte';
   import type { Partition } from '../../ipc/bindings/Partition';
+  import type { DeepPartial, SettingsValues } from '../../ipc/settings';
   import { settings } from '../../lib/settings.svelte';
+  import { ENTRIES, type PageId } from './registry';
+  import { pageResetPatch } from './resetPatch';
 
-  let { partition, onreset }: { partition: Partition; onreset?: () => void } = $props();
+  let { partition, page, onreset }: { partition: Partition; page?: PageId; onreset?: () => void } = $props();
 
   function reset() {
-    void settings.reset(partition).then(() => onreset?.());
+    const done = page
+      ? settings.patch(partition, pageResetPatch(ENTRIES, partition, page) as DeepPartial<SettingsValues[typeof partition]>)
+      : settings.reset(partition);
+    void done.then(() => onreset?.());
   }
 </script>
 

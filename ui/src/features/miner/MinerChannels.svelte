@@ -84,6 +84,8 @@
   }
 </script>
 
+{#snippet noGrip()}<span class="no-grip"></span>{/snippet}
+
 <div class="channels">
   <div class="top">
     <Segmented
@@ -98,7 +100,16 @@
   {#if s.first.length}
     <h2><Icon name="starFilled" size={13} />First</h2>
     {#each s.first as c (c.id)}
-      <MinerRow channel={c} info={info.get(c.id)} {idle} first onfirst={(on) => void setFirst(c, on)} />
+      <!-- v1.07 T4: first channels can be taken off too, and their star lines up with the list's. -->
+      <MinerRow
+        channel={c}
+        info={info.get(c.id)}
+        {idle}
+        first
+        onfirst={(on) => void setFirst(c, on)}
+        onremove={s.source === 'list' ? () => remove(c.id) : undefined}
+        handle={s.source === 'list' ? noGrip : undefined}
+      />
     {/each}
   {/if}
 
@@ -152,7 +163,7 @@
     <h2>Drops in progress</h2>
     {#each miner.status.drops as d, i (dropKeys[i])}
       <div class="drop">
-        <span class="drop-name">{d.name}{#if d.game}<span class="game"> · {d.game}</span>{/if}</span>
+        <span class="drop-name">{d.name}{#if d.game}<span class="game">{` · ${d.game}`}</span>{/if}</span>
         <span class="bar"><span style:width="{Math.min(100, (d.minutes / Math.max(1, d.required)) * 100)}%"></span></span>
         <span class="mins">{d.minutes} / {d.required}m</span>
       </div>
@@ -205,6 +216,10 @@
     flex: 0 1 380px;
     min-width: 0;
   }
+  .no-grip {
+    flex-shrink: 0;
+    width: 14px;
+  }
   .grip {
     display: inline-flex;
     color: var(--dim);
@@ -237,7 +252,10 @@
     height: 100%;
     background: var(--accent);
   }
+  /* v1.07 T4: a fixed width, so every bar starts in the same place. */
   .mins {
+    min-width: 11ch;
+    text-align: right;
     color: var(--dim);
     font-variant-numeric: tabular-nums;
   }

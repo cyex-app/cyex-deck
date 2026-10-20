@@ -10,7 +10,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, WriteHalf};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, ReadHalf, WriteHalf};
 use tokio::sync::mpsc;
 use tokio::time::{Instant, interval, sleep, timeout};
 
@@ -30,6 +30,8 @@ const MAX_BACKOFF: Duration = Duration::from_secs(60);
 const STABLE: Duration = Duration::from_secs(60);
 /// Keeps JOIN lines well under IRC's 512 bytes.
 const MAX_JOIN_LINE: usize = 400;
+/// V107-A7 A longer incoming line is dropped, so a stuck sender can't grow memory.
+const MAX_LINE: usize = 64 * 1024;
 
 pub trait Stream: AsyncRead + AsyncWrite + Send + Unpin {}
 impl<T: AsyncRead + AsyncWrite + Send + Unpin> Stream for T {}
@@ -158,10 +160,12 @@ async fn run(
 ) {
     let mut channels = BTreeSet::new();
     let mut backoff = Duration::ZERO;
+    // V107-A7 One JOIN window for every session: a quick reconnect doesn't get a fresh 18.
+    let mut joins = Window::joins();
     loop {
         let _ = events.send(Event::Status(LinkStatus::Connecting));
         let started = Instant::now();
-        let delay = match session(creds.as_ref(), &connect, &mut channels, &mut rx, &events).await {
+        let delay = match session(creds.as_ref(), &connect, &mut channels, &mut joins, &mut rx, &events).await {
             End::Stop => return,
             End::AuthFailed => {
                 let _ = events.send(Event::Status(LinkStatus::AuthFailed));
@@ -212,6 +216,7 @@ async fn session(
     creds: &dyn Credentials,
     connect: &Connect,
     channels: &mut BTreeSet<String>,
+    joins: &mut Window,
     rx: &mut mpsc::UnboundedReceiver<Cmd>,
     events: &mpsc::UnboundedSender<Event>,
 ) -> End {
@@ -220,7 +225,7 @@ async fn session(
         return lost;
     };
     let (reader, writer) = tokio::io::split(stream);
-    let mut lines = BufReader::new(reader).lines();
+    let mut lines = Lines::new(reader);
     let mut out = Writer(writer);
 
     let mut hello = vec![write::CAPS.to_owned()];
@@ -265,14 +270,13 @@ async fn session(
     }
     let _ = events.send(Event::Status(LinkStatus::Connected));
 
-    let mut joins = Window::joins();
     let mut queue: VecDeque<String> = channels.iter().cloned().collect();
     let mut last_rx = Instant::now();
     let mut ping_sent: Option<Instant> = None;
     let mut tick = interval(Duration::from_secs(5));
 
     loop {
-        match out.flush_joins(&mut queue, &mut joins).await {
+        match out.flush_joins(&mut queue, joins).await {
             Err(_) => return lost,
             Ok(sent) if !sent.is_empty() => {
                 let _ = events.send(Event::Joining(sent));
@@ -331,6 +335,63 @@ async fn session(
             }
         }
     }
+}
+
+/// V107-A7 Incoming lines, decoded lossily: a line that isn't UTF-8 keeps the link. Cancel
+/// safe (`fill_buf`/`consume`, the partial line lives here), so it can sit in a `select!`.
+struct Lines {
+    inner: BufReader<ReadHalf<BoxStream>>,
+    buf: Vec<u8>,
+    /// Inside a line over `MAX_LINE`; dropped up to its end.
+    skipping: bool,
+}
+
+impl Lines {
+    fn new(reader: ReadHalf<BoxStream>) -> Self {
+        Self {
+            inner: BufReader::new(reader),
+            buf: Vec::new(),
+            skipping: false,
+        }
+    }
+
+    async fn next_line(&mut self) -> io::Result<Option<String>> {
+        loop {
+            let chunk = self.inner.fill_buf().await?;
+            if chunk.is_empty() {
+                if self.buf.is_empty() || self.skipping {
+                    return Ok(None);
+                }
+                return Ok(Some(decode(std::mem::take(&mut self.buf))));
+            }
+            let end = chunk.iter().position(|&b| b == b'\n');
+            let part = &chunk[..end.unwrap_or(chunk.len())];
+            if !self.skipping {
+                if self.buf.len() + part.len() > MAX_LINE {
+                    self.skipping = true;
+                    self.buf = Vec::new();
+                } else {
+                    self.buf.extend_from_slice(part);
+                }
+            }
+            let used = end.map_or(chunk.len(), |i| i + 1);
+            self.inner.consume(used);
+            if end.is_some() {
+                let raw = std::mem::take(&mut self.buf);
+                if std::mem::take(&mut self.skipping) {
+                    continue;
+                }
+                return Ok(Some(decode(raw)));
+            }
+        }
+    }
+}
+
+fn decode(mut raw: Vec<u8>) -> String {
+    if raw.last() == Some(&b'\r') {
+        raw.pop();
+    }
+    String::from_utf8(raw).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
 }
 
 struct Writer(WriteHalf<BoxStream>);
@@ -429,6 +490,10 @@ mod tests {
 
         async fn read(&mut self) -> String {
             self.lines.next_line().await.unwrap().unwrap()
+        }
+
+        async fn say_raw(&mut self, bytes: &[u8]) {
+            self.out.write_all(bytes).await.unwrap();
         }
 
         async fn say(&mut self, line: &str) {
@@ -560,5 +625,75 @@ mod tests {
             }
         }
         let _again = Server::accept(&servers).await;
+    }
+
+    /// V107-A7 A line that isn't UTF-8 shows with U+FFFD and the link stays up.
+    #[tokio::test]
+    async fn a_line_that_is_not_utf8_is_kept_and_the_link_stays() {
+        let (_client, mut events, servers) = start(Arc::new(Anonymous));
+        let mut s = Server::accept(&servers).await;
+        s.read().await;
+        s.read().await;
+        s.say(":tmi.twitch.tv 001 x :hi").await;
+        s.say_raw(b":a!a@a PRIVMSG #foo :hi \xff\r\n").await;
+        s.say(":a!a@a PRIVMSG #foo :next").await;
+        let mut lines = Vec::new();
+        while lines.len() < 2 {
+            match events.recv().await.unwrap() {
+                Event::Line(l) => lines.push(l),
+                Event::Status(st) => assert_ne!(st, LinkStatus::Reconnecting),
+                Event::Joining(_) => {}
+            }
+        }
+        assert_eq!(lines[0], ":a!a@a PRIVMSG #foo :hi \u{fffd}");
+        assert_eq!(lines[1], ":a!a@a PRIVMSG #foo :next");
+    }
+
+    /// V107-A7 An overlong line is dropped whole; the next one still reads.
+    #[tokio::test]
+    async fn an_overlong_line_is_dropped() {
+        let (_client, mut events, servers) = start(Arc::new(Anonymous));
+        let mut s = Server::accept(&servers).await;
+        s.read().await;
+        s.read().await;
+        s.say(":tmi.twitch.tv 001 x :hi").await;
+        let long = format!(":a!a@a PRIVMSG #foo :{}", "x".repeat(MAX_LINE + 10));
+        s.say(&long).await;
+        s.say(":a!a@a PRIVMSG #foo :after").await;
+        assert_eq!(next_line(&mut events).await, ":a!a@a PRIVMSG #foo :after");
+    }
+
+    /// V107-A7 The JOIN window carries over a quick reconnect.
+    #[tokio::test(start_paused = true)]
+    async fn joins_stay_under_the_limit_across_a_quick_reconnect() {
+        let (client, _events, servers) = start(Arc::new(Anonymous));
+        for i in 0..25 {
+            client.join(&format!("c{i:02}"));
+        }
+        let mut s = Server::accept(&servers).await;
+        s.read().await;
+        s.read().await;
+        s.say(":tmi.twitch.tv 001 x :hi").await;
+        let t0 = Instant::now();
+        let mut joined = 0;
+        while joined < Window::JOIN_LIMIT {
+            joined += s.read().await.matches('#').count();
+        }
+        s.say(":tmi.twitch.tv RECONNECT").await;
+        let mut s = Server::accept(&servers).await;
+        s.read().await;
+        s.read().await;
+        s.say(":tmi.twitch.tv 001 x :hi").await;
+        let (mut early, mut total) = (0, 0);
+        while total < Window::JOIN_LIMIT {
+            let n = s.read().await.matches('#').count();
+            if Instant::now() < t0 + Window::JOIN_PERIOD {
+                early += n;
+            }
+            total += n;
+        }
+        assert!(early < Window::JOIN_LIMIT);
+        assert_eq!(early, 0);
+        client.stop();
     }
 }

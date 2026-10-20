@@ -27,7 +27,7 @@ use std::time::{Duration, Instant};
 use cyex_chat::model::Provider;
 use cyex_emotes::index::ordered;
 use cyex_emotes::seventv::socket::{EventApi, Topic as SevenTopic};
-use cyex_emotes::{Cosmetics, EmoteSet, Lookup, RoomEmotes};
+use cyex_emotes::{Capped, Cosmetics, EmoteSet, Lookup, RoomEmotes};
 use cyex_settings::Partition;
 use cyex_settings::schema::{Chat as ChatSettings, EmoteSource};
 use cyex_twitch::ws;
@@ -35,6 +35,7 @@ use tauri::{AppHandle, Manager};
 use tokio::sync::watch;
 
 use crate::settings::Settings;
+use providers::Which;
 
 /// The Twitch emote sets an account can use in one channel.
 type TwitchSets = Arc<Vec<cyex_twitch::gql::EmoteSet>>;
@@ -59,18 +60,20 @@ struct Inner {
     /// C11 Provider order, Twitch first.
     priority: Vec<Provider>,
     globals: Vec<Arc<EmoteSet>>,
+    /// The global sets are being fetched or asked for again (`retry::globals`).
     globals_loading: bool,
-    /// E2 The global 7TV set is being asked for again (once per run).
-    seventv_globals_retry: bool,
+    /// B4 Providers whose global sets (and badges) answered, for good or with none.
+    globals_done: Which,
+    /// B6 Goes up with every join, so a load or retry for an earlier join of the same
+    /// channel finds it gone.
+    next_gen: u64,
     /// By channel login.
     channels: HashMap<String, Channel>,
     /// C9 Personal and special 7TV sets by id, and which users have which.
     personal_sets: HashMap<String, Arc<EmoteSet>>,
-    user_sets: HashMap<String, Vec<String>>,
+    /// V107-R1 S7 Capped: last set change or read first to stay (B9).
+    user_sets: Capped<String, Vec<String>, MAX_PERSONAL_USERS>,
     personal: Arc<HashMap<String, Arc<Lookup>>>,
-    /// V107-R1 Tick of each `user_sets` user's last set change, for the cap.
-    personal_seen: HashMap<String, u64>,
-    personal_tick: u64,
     /// Emotes pushed into sets nobody claimed yet; a personal set fills before its
     /// entitlement arrives.
     unclaimed: HashMap<String, Vec<cyex_emotes::Emote>>,
@@ -90,6 +93,10 @@ struct Inner {
 
 struct Channel {
     id: String,
+    /// B6 Which join this is.
+    generation: u64,
+    /// B6 The retry task for this join, stopped when it leaves.
+    retry: Option<tauri::async_runtime::JoinHandle<()>>,
     sets: Vec<Arc<EmoteSet>>,
     /// The channel's 7TV user and active set, for live updates.
     seventv_user: Option<String>,
@@ -181,42 +188,22 @@ impl Inner {
                 Arc::new(Lookup::build(sets.iter().map(Arc::as_ref))),
             );
         }
-        if self.user_sets.contains_key(user) {
-            self.personal_tick += 1;
-            self.personal_seen.insert(user.to_owned(), self.personal_tick);
-            if self.user_sets.len() > MAX_PERSONAL_USERS + MAX_PERSONAL_USERS / 10 {
-                self.trim_personal(MAX_PERSONAL_USERS);
-            }
-        } else {
-            self.personal_seen.remove(user);
-        }
     }
 
-    /// V107-R1 Drops the users whose sets changed least recently down to `keep`, and the
-    /// sets only they had. Push-only like the cosmetics (V107-M3): a dropped user's emotes
-    /// come back with their next entitlement.
-    fn trim_personal(&mut self, keep: usize) {
-        if self.user_sets.len() <= keep {
+    /// V107-R1 Past the cap, drops the users whose sets changed or were read least
+    /// recently, and the sets only they had. Push-only like the cosmetics (V107-M3): a
+    /// dropped user's emotes come back with their next entitlement. B9 Called once after
+    /// a batch, so the batch's own users (just stamped) are never the ones dropped.
+    fn trim_personal(&mut self) {
+        let gone = self.user_sets.trim();
+        if gone.is_empty() {
             return;
         }
-        let tick = |u: &str| self.personal_seen.get(u).copied().unwrap_or(0);
-        let mut ticks: Vec<u64> = self.user_sets.keys().map(|u| tick(u)).collect();
-        let cut = ticks.len() - keep;
-        let (_, &mut oldest_kept, _) = ticks.select_nth_unstable(cut);
-        let gone: Vec<String> = self
-            .user_sets
-            .keys()
-            .filter(|u| tick(u) < oldest_kept)
-            .cloned()
-            .collect();
         let mut dropped_sets: HashSet<String> = HashSet::new();
         let map = Arc::make_mut(&mut self.personal);
-        for u in &gone {
-            if let Some(sets) = self.user_sets.remove(u) {
-                dropped_sets.extend(sets);
-            }
-            self.personal_seen.remove(u);
-            map.remove(u);
+        for (u, sets) in gone {
+            dropped_sets.extend(sets);
+            map.remove(&u);
         }
         let held: HashSet<&String> = self.user_sets.values().flatten().collect();
         dropped_sets.retain(|id| !held.contains(id));
@@ -229,11 +216,19 @@ impl Inner {
     /// open chat has (this one's, and any a load finished into after its chat closed).
     fn forget_channel(&mut self, login: &str) -> Option<Channel> {
         let c = self.channels.remove(login)?;
+        if let Some(r) = &c.retry {
+            r.abort();
+        }
         let open: HashSet<&str> = self.channels.values().map(|c| c.id.as_str()).collect();
         self.bot_commands.retain(|id, _| open.contains(id.as_str()));
         self.channel_twitch.retain(|id, _| open.contains(id.as_str()));
         self.twitch_sets.retain(|(_, id), _| open.contains(id.as_str()));
         Some(c)
+    }
+
+    /// B6 The channel, if it's still the join `generation`.
+    fn live(&mut self, login: &str, generation: u64) -> Option<&mut Channel> {
+        self.channels.get_mut(login).filter(|c| c.generation == generation)
     }
 
     /// V107-M3 Drops personal sets no user has any more.
@@ -284,13 +279,17 @@ pub fn join(app: &AppHandle, login: &str, channel_id: &str, account: Option<&str
     let fresh = {
         let mut inner = state.lock();
         if inner.channels.contains_key(login) {
-            false
+            None
         } else {
             let (ready, _) = watch::channel(false);
+            inner.next_gen += 1;
+            let generation = inner.next_gen;
             inner.channels.insert(
                 login.to_owned(),
                 Channel {
                     id: channel_id.to_owned(),
+                    generation,
+                    retry: None,
                     sets: Vec::new(),
                     seventv_user: None,
                     ffz_badges: Default::default(),
@@ -299,15 +298,15 @@ pub fn join(app: &AppHandle, login: &str, channel_id: &str, account: Option<&str
                 },
             );
             inner.rebuild(login);
-            true
+            Some(generation)
         }
     };
-    if fresh {
+    if let Some(generation) = fresh {
         for t in SevenTopic::channel(channel_id) {
             state.seventv.add(t);
         }
         state.bttv.add(channel_id.to_owned());
-        load::channel(app.clone(), login.to_owned(), channel_id.to_owned());
+        load::channel(app.clone(), login.to_owned(), channel_id.to_owned(), generation);
     }
     if let Some(a) = account {
         load::mine(app.clone(), a.to_owned(), channel_id.to_owned(), false);
@@ -494,6 +493,8 @@ mod tests {
     fn channel(id: &str) -> Channel {
         Channel {
             id: id.into(),
+            generation: 0,
+            retry: None,
             sets: Vec::new(),
             seventv_user: None,
             ffz_badges: Default::default(),
@@ -532,6 +533,7 @@ mod tests {
             inner.personal_sets.insert(s.clone(), Arc::new(set));
             inner.user_sets.insert(u.clone(), vec![s, "shared".into()]);
             inner.rebuild_personal(&u);
+            inner.trim_personal();
             if i == 0 {
                 let set = EmoteSet::new("shared", Provider::Seventv, Scope::Personal, Vec::new());
                 inner.personal_sets.insert("shared".into(), Arc::new(set));
@@ -539,11 +541,68 @@ mod tests {
         }
         let users = inner.user_sets.len();
         assert!((MAX_PERSONAL_USERS..=MAX_PERSONAL_USERS * 11 / 10).contains(&users));
-        assert_eq!(inner.personal_seen.len(), users);
         assert!(inner.personal.len() <= users);
         // Every set left belongs to a user left; the shared one stays.
         assert_eq!(inner.personal_sets.len(), users + 1);
         assert!(inner.user_sets.contains_key(&format!("u{}", n - 1)));
         assert!(!inner.user_sets.contains_key("u0"));
+    }
+
+    /// B9 A batch past the cap keeps all its own users and their set; older users go.
+    #[test]
+    fn b9_a_batch_past_the_cap_keeps_its_users() {
+        let mut inner = Inner::default();
+        for i in 0..MAX_PERSONAL_USERS {
+            let (u, s) = (format!("old{i}"), format!("s{i}"));
+            let set = EmoteSet::new(s.clone(), Provider::Seventv, Scope::Personal, Vec::new());
+            inner.personal_sets.insert(s.clone(), Arc::new(set));
+            inner.user_sets.insert(u.clone(), vec![s]);
+            inner.rebuild_personal(&u);
+        }
+        // An old user being drawn counts as recent.
+        assert!(inner.user_sets.touch("old0"));
+        let batch: Vec<String> = (0..MAX_PERSONAL_USERS / 5).map(|i| format!("new{i}")).collect();
+        let set = EmoteSet::new("batch", Provider::Seventv, Scope::Personal, Vec::new());
+        inner.personal_sets.insert("batch".into(), Arc::new(set));
+        // As `live::personal`: every user stamped first, rebuilt, then one trim.
+        for u in &batch {
+            inner.user_sets.get_or_default(u.clone()).push("batch".into());
+        }
+        for u in &batch {
+            inner.rebuild_personal(u);
+        }
+        inner.trim_personal();
+        assert_eq!(inner.user_sets.len(), MAX_PERSONAL_USERS);
+        assert!(batch.iter().all(|u| inner.user_sets.contains_key(u) && inner.personal.contains_key(u)));
+        assert!(inner.personal_sets.contains_key("batch"), "the batch's set isn't orphaned");
+        assert!(inner.user_sets.contains_key("old0"), "drawn, so kept");
+        assert!(!inner.user_sets.contains_key("old1"));
+        assert!(!inner.personal_sets.contains_key("s1"), "a dropped user's own set goes too");
+    }
+
+    /// B6 A load or retry for an earlier join of the same channel finds it gone, and
+    /// leaving stops the retry task.
+    #[test]
+    fn b6_leave_and_rejoin_starts_a_new_generation() {
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        rt.block_on(async {
+            let mut inner = Inner::default();
+            let mut first = channel("1");
+            first.generation = 1;
+            let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+            first.retry = Some(tauri::async_runtime::JoinHandle::Tokio(tokio::spawn(async move {
+                let _tx = tx;
+                std::future::pending::<()>().await;
+            })));
+            inner.channels.insert("a".into(), first);
+            assert!(inner.live("a", 1).is_some());
+            inner.forget_channel("a");
+            assert!(rx.await.is_err(), "the retry task was stopped");
+            let mut again = channel("1");
+            again.generation = 2;
+            inner.channels.insert("a".into(), again);
+            assert!(inner.live("a", 1).is_none(), "same id, older join");
+            assert!(inner.live("a", 2).is_some());
+        });
     }
 }

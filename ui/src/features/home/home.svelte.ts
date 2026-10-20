@@ -5,6 +5,7 @@ import type { ChannelCard } from '../../ipc/bindings/ChannelCard';
 import { homeIpc } from '../../ipc/browse';
 import { accounts } from '../../lib/accounts.svelte';
 import { everyShown } from '../../lib/awake';
+import { errorText } from '../../lib/errors';
 import { latest } from '../../lib/latest';
 import { settings } from '../../lib/settings.svelte';
 
@@ -57,7 +58,8 @@ class HomeStore {
       this.error = null;
     } else {
       if (this.owner !== account) this.follows = null;
-      this.error = String(follows.reason);
+      // v1.07 A sentence, not the raw Rust error (or [object Object]).
+      this.error = errorText(follows.reason, 'load who you follow');
     }
   }
 

@@ -89,7 +89,7 @@
   {/if}
 </Row>
 
-<ResetSection partition="player" />
+<ResetSection partition="player" page="player" />
 
 <style>
   .field {

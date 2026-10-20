@@ -12,6 +12,7 @@
   import Select from '../../components/Select.svelte';
   import { choicesOf } from '../../components/select.ts';
   import Loading from '../../components/Loading.svelte';
+  import Button from '../../components/Button.svelte';
 
   /** Minimum follow age, in minutes. 0 = any follower. */
   const FOLLOW: { value: number; label: string }[] = [
@@ -27,18 +28,35 @@
   const SLOW = [3, 5, 10, 20, 30, 60, 120];
 
   let modes = $state<ChatModes | null>(null);
+  let failed = $state(false);
   let busy = $state(false);
   let followFor = $state(10);
   let slowFor = $state(30);
 
-  smIpc
-    .modes()
-    .then((m) => {
-      modes = m;
-      if (m.followerModeDuration != null) followFor = m.followerModeDuration;
-      if (m.slowModeWaitTime != null) slowFor = m.slowModeWaitTime;
-    })
-    .catch((e) => toast.error(errorText(e)));
+  // v1.07 T4: a failed load offers Try again instead of spinning forever.
+  function load() {
+    failed = false;
+    smIpc
+      .modes()
+      .then((m) => {
+        modes = m;
+        if (m.followerModeDuration != null) followFor = m.followerModeDuration;
+        if (m.slowModeWaitTime != null) slowFor = m.slowModeWaitTime;
+      })
+      .catch((e) => {
+        failed = true;
+        toast.error(errorText(e));
+      });
+  }
+  load();
+
+  // v1.07 T4: a length set elsewhere (/slow 45) shows as itself, not as a blank picker.
+  const followOptions = $derived(
+    FOLLOW.some((f) => f.value === followFor)
+      ? FOLLOW
+      : [...FOLLOW, { value: followFor, label: formatSecs(followFor * 60) }].sort((a, b) => a.value - b.value),
+  );
+  const slowOptions = $derived([...new Set([...SLOW, slowFor])].sort((a, b) => a - b));
 
   function set(mode: SmMode) {
     busy = true;
@@ -72,7 +90,7 @@
     </div>
     <div class="row">
       <span>Followers only</span>
-      <Select label="Followed for at least" width="140px" value={String(followFor)} disabled={busy} options={choicesOf(FOLLOW)} onchange={followChange} />
+      <Select label="Followed for at least" width="140px" value={String(followFor)} disabled={busy} options={choicesOf(followOptions)} onchange={followChange} />
       <Toggle
         label="Followers only"
         checked={modes.followerMode}
@@ -87,7 +105,7 @@
         width="140px"
         value={String(slowFor)}
         disabled={busy}
-        options={SLOW.map((s) => ({ value: String(s), label: `${s}s` }))}
+        options={slowOptions.map((s) => ({ value: String(s), label: formatSecs(s) }))}
         onchange={slowChange}
       />
       <Toggle label="Slow mode" checked={modes.slowMode} disabled={busy} onchange={(on) => set({ kind: 'slow', seconds: on ? slowFor : null })} />
@@ -96,6 +114,8 @@
       <span>Unique messages</span>
       <Toggle label="Unique messages" checked={modes.uniqueChatMode} disabled={busy} onchange={(on) => set({ kind: 'unique', on })} />
     </div>
+  {:else if failed}
+    <p class="failed">Couldn’t load the chat settings. <Button small variant="link" onclick={load}>Try again</Button></p>
   {:else}
     <Loading />
   {/if}
@@ -109,6 +129,11 @@
     min-height: 30px;
     /* A short card scrolls; a wrapped row keeps its two lines instead of overlapping. */
     flex: none;
+  }
+  .failed {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.85rem;
   }
   .row span {
     flex: 1;

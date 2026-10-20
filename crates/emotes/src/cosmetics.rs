@@ -3,12 +3,12 @@
 //! arrive after a message still show on it.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 
 use cyex_chat::model::Provider;
 use serde::Serialize;
 use ts_rs::TS;
 
+use crate::capped::Capped;
 use crate::seventv::paint::PaintStyle;
 
 /// A provider badge's pictures.
@@ -78,8 +78,6 @@ pub struct Looks {
 struct SevenUser {
     paint: Option<String>,
     badge: Option<String>,
-    /// Tick of the last event about this user (for trimming).
-    seen: AtomicU64,
 }
 
 /// V107-M3 7TV users kept at most. Events are push-only (no per-user lookup to refetch from), so a
@@ -89,22 +87,16 @@ const MAX_SEVENTV_USERS: usize = 20_000;
 /// one per person seen in any joined channel).
 const MAX_BTTV_USERS: usize = 20_000;
 
-struct BttvUser {
-    badge: String,
-    /// Tick of the last set or draw (for trimming).
-    seen: AtomicU64,
-}
-
 #[derive(Default)]
 pub struct Cosmetics {
     paints: HashMap<String, PaintStyle>,
     badges: HashMap<BadgeRef, BadgeDef>,
-    seventv: HashMap<String, SevenUser>,
-    tick: AtomicU64,
+    /// Last event or draw first to stay (S7).
+    seventv: Capped<String, SevenUser, MAX_SEVENTV_USERS>,
     /// FFZ badge ids with their users' Twitch ids, sorted (FFZ's global list is long).
     ffz: Vec<(String, Vec<u64>)>,
-    /// BTTV badge by user.
-    bttv: HashMap<String, BttvUser>,
+    /// BTTV badge by user; last set or draw first to stay (S7).
+    bttv: Capped<String, String, MAX_BTTV_USERS>,
 }
 
 /// 7TV paint or badge, given or taken.
@@ -124,9 +116,7 @@ impl Cosmetics {
 
     /// Returns true if the user's look changed.
     pub fn set_seventv(&mut self, user: &str, change: SevenChange<'_>) -> bool {
-        let tick = self.next_tick();
-        let u = self.seventv.entry(user.to_owned()).or_default();
-        *u.seen.get_mut() = tick;
+        let u = self.seventv.get_or_default(user.to_owned());
         let (slot, value) = match change {
             SevenChange::Paint(v) => (&mut u.paint, v),
             SevenChange::Badge(v) => (&mut u.badge, v),
@@ -137,25 +127,10 @@ impl Cosmetics {
         }
         if u.paint.is_none() && u.badge.is_none() {
             self.seventv.remove(user);
-        } else if self.seventv.len() > MAX_SEVENTV_USERS + MAX_SEVENTV_USERS / 10 {
-            self.trim_seventv(MAX_SEVENTV_USERS);
+        } else {
+            self.seventv.trim();
         }
         changed
-    }
-
-    /// Drops the least recently touched users down to `keep`.
-    fn trim_seventv(&mut self, keep: usize) {
-        if self.seventv.len() <= keep {
-            return;
-        }
-        let mut seen: Vec<u64> = self.seventv.values().map(|u| u.seen.load(Relaxed)).collect();
-        let cut = seen.len() - keep;
-        let (_, &mut oldest_kept, _) = seen.select_nth_unstable(cut);
-        self.seventv.retain(|_, u| u.seen.load(Relaxed) >= oldest_kept);
-    }
-
-    fn next_tick(&self) -> u64 {
-        self.tick.fetch_add(1, Relaxed) + 1
     }
 
     pub fn seventv_users(&self) -> usize {
@@ -189,35 +164,16 @@ impl Cosmetics {
         let Some(badge) = badge else {
             return self.bttv.remove(user).is_some();
         };
-        let tick = self.next_tick();
         if let Some(u) = self.bttv.get_mut(user) {
-            *u.seen.get_mut() = tick;
-            if u.badge == badge {
+            if u == badge {
                 return false;
             }
-            badge.clone_into(&mut u.badge);
+            badge.clone_into(u);
             return true;
         }
-        let u = BttvUser {
-            badge: badge.to_owned(),
-            seen: AtomicU64::new(tick),
-        };
-        self.bttv.insert(user.to_owned(), u);
-        if self.bttv.len() > MAX_BTTV_USERS + MAX_BTTV_USERS / 10 {
-            self.trim_bttv(MAX_BTTV_USERS);
-        }
+        self.bttv.insert(user.to_owned(), badge.to_owned());
+        self.bttv.trim();
         true
-    }
-
-    /// V107-R1 Drops the least recently set or drawn BTTV badge holders down to `keep`.
-    fn trim_bttv(&mut self, keep: usize) {
-        if self.bttv.len() <= keep {
-            return;
-        }
-        let mut seen: Vec<u64> = self.bttv.values().map(|u| u.seen.load(Relaxed)).collect();
-        let cut = seen.len() - keep;
-        let (_, &mut oldest_kept, _) = seen.select_nth_unstable(cut);
-        self.bttv.retain(|_, u| u.seen.load(Relaxed) >= oldest_kept);
     }
 
     pub fn bttv_users(&self) -> usize {
@@ -226,9 +182,8 @@ impl Cosmetics {
 
     pub fn look(&self, user: &str) -> Option<Look> {
         let mut look = Look::default();
+        // Drawn: counts as recent, so it outlives the trim.
         if let Some(u) = self.seventv.get(user) {
-            // Drawn: counts as recent, so it outlives the trim.
-            u.seen.store(self.next_tick(), Relaxed);
             look.paint = u.paint.clone().filter(|p| self.paints.contains_key(p));
             if let Some(b) = &u.badge {
                 look.badges.push(BadgeRef {
@@ -237,11 +192,10 @@ impl Cosmetics {
                 });
             }
         }
-        if let Some(u) = self.bttv.get(user) {
-            u.seen.store(self.next_tick(), Relaxed);
+        if let Some(badge) = self.bttv.get(user) {
             look.badges.push(BadgeRef {
                 provider: Provider::Bttv,
-                id: u.badge.clone(),
+                id: badge.clone(),
             });
         }
         if let Ok(id) = user.parse::<u64>() {
@@ -344,7 +298,7 @@ mod tests {
             c.set_bttv_badge(&u.to_string(), Some("pro"));
         }
         c.look("0");
-        c.trim_bttv(3);
+        c.bttv.trim_to(3);
         assert_eq!(c.bttv_users(), 3);
         assert!(c.look("0").is_some(), "drawn last, so kept");
         assert!(c.look("9").is_some() && c.look("8").is_some());

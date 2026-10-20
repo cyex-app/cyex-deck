@@ -172,11 +172,14 @@ class TabsStore {
 
   /** Applies an edit. Resolves with the id of a new tab or group. */
   async apply(op: TabOp): Promise<string | null> {
+    // V107-A8 Only the newest tabs edit lands; a newer change seen meanwhile is read again.
+    const n = settings.begin('tabs');
     try {
       const applied = await tabsIpc.apply(op);
-      settings.v.tabs = applied.tabs;
+      await settings.finish('tabs', n, applied.tabs);
       return applied.made;
     } catch (e) {
+      await settings.finish('tabs', n, undefined, false);
       toast.error(errorText(e));
       return null;
     }
@@ -192,11 +195,13 @@ class TabsStore {
 
   /** U10 Resolves with the tab it brought back, if any. */
   async reopen(): Promise<string | null> {
+    const n = settings.begin('tabs');
     try {
       const applied = await tabsIpc.reopen();
-      settings.v.tabs = applied.tabs;
+      await settings.finish('tabs', n, applied.tabs);
       return applied.made;
     } catch (e) {
+      await settings.finish('tabs', n, undefined, false);
       toast.error(errorText(e));
       return null;
     }

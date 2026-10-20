@@ -55,7 +55,7 @@
         {#if clip}
           <span>
             {clip.clip.channelName}{clip.clip.clippedBy ? ` · clipped by ${clip.clip.clippedBy}` : ''} ·
-            {formatNumber(clip.clip.views)} views · {formatDate(new Date(clip.clip.createdAt))}
+            {formatNumber(clip.clip.views)} {clip.clip.views === 1 ? 'view' : 'views'} · {formatDate(new Date(clip.clip.createdAt))}
           </span>
         {/if}
       </div>

@@ -19,6 +19,7 @@ mod refill;
 pub mod roles;
 pub mod rules;
 pub mod run;
+pub mod search;
 mod send;
 mod session;
 pub mod shown;
@@ -123,9 +124,7 @@ struct Entry {
     join_sent: Option<i64>,
     /// V107-M1 Views opened on it so far, so a shrink planned at a close knows it's stale.
     shown: u64,
-    /// V107-M1 Refilled lines not sent to the views yet, oldest first.
-    fill: Vec<String>,
-    /// V107-M1 Its first history was asked for: a refill won't race it (or its emotes).
+    /// V107-M1 Its first history is in (or failed): a refill won't race it.
     loaded: bool,
 }
 
@@ -150,6 +149,7 @@ pub fn init(app: &AppHandle) {
     });
     on_settings(app);
     shown::init(app);
+    search::init(app);
     flush::spawn(app.clone(), wake);
     catalog::init(app);
     live::init(app);
@@ -196,6 +196,7 @@ pub fn on_settings(app: &AppHandle) {
     let Some(chat) = app.try_state::<Chat>() else { return };
     let c = app.state::<Settings>().read::<ChatSettings>(Partition::Chat);
     chat.delay_ms.store(i64::from(c.delay_tenths) * 100, Ordering::Relaxed);
+    translate::on_settings(app, &c.translate_chats);
     // C37 Connections ask for them when they log in. Asked on an open connection, Twitch
     // sent nothing for the chats already joined (V104-04), so open ones log in again.
     if chat.joins.swap(c.joins_leaves, Ordering::Relaxed) != c.joins_leaves && c.joins_leaves {
@@ -265,7 +266,7 @@ pub fn open(
     }
     let entry = inner.rooms.get_mut(&key).expect("inserted above");
     // V107-M1 Shown again after the background: the kept lines now, older ones bit by bit.
-    let refill = !fresh && entry.loaded && entry.room.background();
+    let refill = refill::on_open(fresh, entry.loaded, &entry.room);
     entry.room.set_background(false);
     entry.shown += 1;
     let lines = chat.scrollback.load(Ordering::Relaxed);
@@ -332,7 +333,6 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
             unread: Unread::Seen,
             join_sent: None,
             shown: 0,
-            fill: Vec::new(),
             loaded: false,
         },
     );
@@ -603,42 +603,6 @@ pub fn room_for(app: &AppHandle, identity: &Identity, channel: &str) -> Option<R
     inner.rooms.keys().find(|(_, l)| l == channel).cloned()
 }
 
-/// F1 Messages matching a search, oldest first. `view` searches its own chat; `None`
-/// searches every joined chat (C29).
-pub fn search(app: &AppHandle, view: Option<u32>, query: &str) -> Result<Vec<feeds::FeedLine>, String> {
-    const MAX: usize = 300;
-    let q = cyex_chat::search::Query::parse(query);
-    if q.is_empty() {
-        return Ok(Vec::new());
-    }
-    let chat = app.state::<Chat>();
-    let inner = chat.lock();
-    let only = match view {
-        Some(v) => Some(inner.views.get(&v).map(|v| v.0.clone()).ok_or("This chat is closed.")?),
-        None => None,
-    };
-    let mut out: Vec<feeds::FeedLine> = Vec::new();
-    let mut seen = HashSet::new();
-    for (key, entry) in &inner.rooms {
-        if only.as_ref().is_some_and(|o| o != key) {
-            continue;
-        }
-        for m in entry.room.snapshot().messages {
-            if q.matches(&m, &key.1) && seen.insert(m.id.clone()) {
-                out.push(feeds::FeedLine {
-                    channel: key.1.clone(),
-                    message: m,
-                    global: false,
-                });
-            }
-        }
-    }
-    out.sort_by_key(|l| l.message.ts);
-    let skip = out.len().saturating_sub(MAX);
-    out.drain(..skip);
-    Ok(out)
-}
-
 /// Every joined channel, A-Z.
 pub fn open_channels(app: &AppHandle) -> Vec<String> {
     let chat = app.state::<Chat>();
@@ -673,17 +637,11 @@ pub fn timeout_line(app: &AppHandle, login: &str, user_id: &str, text: &str) {
     let now = now_ms();
     for ((_, l), entry) in inner.rooms.iter_mut() {
         if l == login {
+            // A second delivery (another mod account's feed) brings nothing.
             let ev = entry.room.timeout_line(user_id, text, now);
-            queue(entry, [ev], &chat.wake);
+            queue(entry, ev, &chat.wake);
         }
     }
-}
-
-/// Every room of a channel, by login.
-pub fn rooms_of(app: &AppHandle, login: &str) -> Vec<RoomKey> {
-    let Some(chat) = app.try_state::<Chat>() else { return Vec::new() };
-    let inner = chat.lock();
-    inner.rooms.keys().filter(|(_, l)| l == login).cloned().collect()
 }
 
 /// C9 People's personal emotes just arrived: their last few seconds of messages are

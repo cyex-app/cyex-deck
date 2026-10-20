@@ -137,7 +137,7 @@
 <SectionHead title="Notifications" level={2}>Sounds and pop-ups for streams going live, whispers and Twitch’s bell.</SectionHead>
 
 <SectionHead title="When channels go live">Tell me when a followed channel starts.</SectionHead>
-<Row setting="notifications.live.enabled" label="Live alerts" hint="For channels the default account follows. Each one follows its Twitch bell unless you pick below.">
+<Row setting="notifications.live.enabled" label="Live alerts" hint={account ? 'For channels the default account follows. Each one follows its Twitch bell unless you pick below.' : 'For channels the default account follows. Sign in to get them.'}>
   <Toggle label="Live alerts" checked={n.live.enabled} onchange={(on) => patch({ live: { enabled: on } })} />
 </Row>
 {#if n.live.enabled}

@@ -228,6 +228,36 @@ pub(super) async fn refresh_pin(app: &AppHandle, key: &RoomKey, channel_id: &str
     }
 }
 
+/// V107 The channel's pin, read once, into every room open on it (one per account).
+pub(super) async fn refresh_pins(app: &AppHandle, login: &str, channel_id: &str) {
+    let http = app.state::<Auth>().http.clone();
+    let Ok(mut pin) = gql::pinned(&http, channel_id).await else { return };
+    let chat = app.state::<Chat>();
+    let mut inner = chat.lock();
+    let mut shared: Option<Option<Pinned>> = None;
+    for ((_, l), entry) in inner.rooms.iter_mut() {
+        if l != login {
+            continue;
+        }
+        let base = shared.get_or_insert_with(|| pin.take().map(|p| to_pinned(p, None, entry.room.colors())));
+        let me = entry.room.me().cloned();
+        let mine = base.clone().map(|mut p| {
+            if own_pin(&p, me.as_ref()) {
+                p.message.flags = vec![cyex_chat::model::Flag::Own];
+            }
+            p
+        });
+        if let Some(ev) = entry.room.set_pinned(mine) {
+            queue(entry, [ev], &chat.wake);
+        }
+    }
+}
+
+/// The pinned message is ours.
+fn own_pin(p: &Pinned, me: Option<&Me>) -> bool {
+    me.is_some_and(|m| p.message.sender.as_ref().is_some_and(|s| s.id == m.user_id))
+}
+
 /// rc-1 Text pieces go through the chat tokenizer, so links in a pin are links like in chat.
 fn pin_body(fragments: Vec<PinFragment>) -> Vec<Fragment> {
     let mut body = Vec::new();

@@ -3,7 +3,8 @@
 
 import { settingsIpc, type DeepPartial, type SettingsValues } from '../ipc/settings';
 import type { Partition } from '../ipc/bindings/Partition';
-import { InFlight, mergePatch } from './mergePatch';
+import { InFlight, mergePatch, sameJson, type Settled } from './mergePatch';
+import { partitionList } from './partitions';
 import { toast } from './toast.svelte';
 
 class SettingsStore {
@@ -15,12 +16,17 @@ class SettingsStore {
     this.v = await settingsIpc.all();
     await settingsIpc.onChanged((partition, value) => {
       // Our own edits come back as answers; an echo from the middle would undo a newer one.
-      if (this.flight.busy(partition)) return;
+      // V107-A8 It may also be another window's change, so it's checked once the answer lands.
+      if (this.flight.busy(partition)) {
+        this.flight.miss(partition, value);
+        return;
+      }
       (this.v as Record<Partition, unknown>)[partition] = value;
     });
     const reset = await settingsIpc.takeLoadReport();
     if (reset.length) {
-      toast.error(`Couldn’t read ${reset.join(', ')} settings, so they were reset. The old file is kept next to it.`);
+      // t5 Names as in Backup and sharing; a file can also be only partly reset now.
+      toast.error(`Some settings couldn’t be read and went back to default: ${partitionList(reset)}. The old files are kept in the settings folder.`);
     }
   }
 
@@ -36,8 +42,58 @@ class SettingsStore {
     } catch (e) {
       toast.error(String(e));
     }
-    if (!this.flight.settle(partition, n)) return;
-    this.v[partition] = value ?? (await settingsIpc.all())[partition];
+    await this.finish(partition, n, value);
+  }
+
+  /** V107-A8 An edit sent by other code (tabs): pass the number to `finish`. Change events
+   * for `partition` wait until then. */
+  begin(partition: Partition): number {
+    return this.flight.start(partition);
+  }
+
+  /** V107-A8 Takes the answer to edit `n` if it is the newest one. When a change event was
+   * skipped meanwhile and differs from it (another window, Rust itself), the partition is
+   * read again. `value` undefined: the edit failed; read it again if `readIfFailed`. */
+  async finish<P extends Partition>(
+    partition: P,
+    n: number,
+    value: SettingsValues[P] | undefined,
+    readIfFailed = true,
+  ): Promise<void> {
+    const done = this.flight.settle(partition, n);
+    if (done) await this.land(partition, done, value, readIfFailed);
+  }
+
+  private async land<P extends Partition>(
+    partition: P,
+    done: Settled,
+    value: SettingsValues[P] | undefined,
+    readIfNone: boolean,
+  ): Promise<void> {
+    // Bounded: a window that keeps changing can't keep this one reading.
+    for (let tries = 0; ; tries++) {
+      const stale = done.missed !== undefined && !sameJson(done.missed.value, value);
+      if (value !== undefined && !stale) {
+        this.v[partition] = value;
+        return;
+      }
+      if (value === undefined && !stale && !readIfNone) return;
+      if (tries === 3) {
+        if (value !== undefined) this.v[partition] = value;
+        return;
+      }
+      const n = this.flight.start(partition);
+      value = undefined;
+      try {
+        value = (await settingsIpc.all())[partition];
+      } catch (e) {
+        toast.error(String(e));
+      }
+      const next = this.flight.settle(partition, n);
+      if (!next) return;
+      done = next;
+      readIfNone = false;
+    }
   }
 
   /** V105-12 Empty rules go once the page is left. Counts as the newest edit of each part, so
@@ -52,8 +108,8 @@ class SettingsStore {
       toast.error(String(e));
     }
     for (const [p, n] of started) {
-      const v = values[p];
-      if (this.flight.settle(p, n) && v) (this.v as Record<Partition, unknown>)[p] = v;
+      const done = this.flight.settle(p, n);
+      if (done) await this.land(p, done, values[p], false);
     }
   }
 

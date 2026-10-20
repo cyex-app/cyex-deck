@@ -5,6 +5,7 @@ import { Channel } from '@tauri-apps/api/core';
 import type { Update } from '../../ipc/bindings/Update';
 import type { UpdateProgress } from '../../ipc/bindings/UpdateProgress';
 import { updateIpc } from '../../ipc/update';
+import { startState } from './updateState';
 import { progressText } from './updateText';
 
 class UpdateStore {
@@ -15,14 +16,24 @@ class UpdateStore {
   busy = $state(false);
   private started = false;
 
+  /** "Later": the badge stays, but no timed checks and no pop-over until the next start.
+   *  B4 Rust holds it; this mirrors it, read at start so a reload or another window keeps it. */
+  later = $state(false);
+
   async start(): Promise<void> {
     if (this.started) return;
     this.started = true;
+    let ready = false;
+    let pending: Update | null | undefined;
     await updateIpc.onAvailable((u) => {
-      this.available = u;
       this.error = '';
+      if (ready) this.available = u;
+      else pending = u;
     });
-    this.available = await updateIpc.state().catch(() => null);
+    const s = startState(await updateIpc.state().catch(() => null), pending);
+    this.later = s.later;
+    this.available = s.update;
+    ready = true;
   }
 
   async install(): Promise<void> {
@@ -46,9 +57,6 @@ class UpdateStore {
       this.busy = false;
     }
   }
-
-  /** "Later": the badge stays, but no timed checks and no pop-over until the next start. */
-  later = $state(false);
 
   deferLater(): void {
     this.later = true;

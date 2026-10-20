@@ -16,39 +16,72 @@ use tokio::sync::mpsc::UnboundedReceiver;
 
 use super::{Emotes, looks};
 
-/// Global sets of both, plus their badges and FFZ's sets for some users.
-pub async fn globals(app: &AppHandle, http: &Http) -> Vec<Arc<EmoteSet>> {
-    let (b, f, bb, fb) = tokio::join!(
-        bttv::api::global(http),
-        ffz::api::global(http),
-        bttv::api::badges(http),
-        ffz::api::badges(http)
+/// What a global fetch brought: the sets of the providers that answered.
+pub struct Globals {
+    pub sets: Vec<Arc<EmoteSet>>,
+    /// Asked and answered (also "for good": a final error counts, it isn't asked again).
+    pub answered: Which,
+    /// Failed for now: asked again later (B4).
+    pub failed: Which,
+}
+
+/// B4 Global sets of those in `want` (7TV's, BTTV's and FFZ's), and BTTV's and FFZ's
+/// badges and FFZ's sets for some users with them. A provider counts as failed for now
+/// when its set or its badges did.
+pub async fn globals(app: &AppHandle, http: &Http, want: Which) -> Globals {
+    async fn ask<T>(on: bool, f: impl Future<Output = cyex_twitch::Result<T>>) -> Option<cyex_twitch::Result<T>> {
+        if on { Some(f.await) } else { None }
+    }
+    let (s, b, f, bb, fb) = tokio::join!(
+        ask(want.seventv, seventv::api::global(http)),
+        ask(want.bttv, bttv::api::global(http)),
+        ask(want.ffz, ffz::api::global(http)),
+        ask(want.bttv, bttv::api::badges(http)),
+        ask(want.ffz, ffz::api::badges(http))
     );
     let mut sets = Vec::new();
+    let mut failed = Which::default();
+    match s {
+        Some(Ok(set)) => sets.push(Arc::new(set)),
+        Some(Err(e)) => failed.seventv |= miss(Service::SevenTv, "globals", &e),
+        None => {}
+    }
     match b {
-        Ok(s) => sets.push(Arc::new(s)),
-        Err(e) => eprintln!("emotes: no BTTV globals: {}", e.describe("BTTV")),
+        Some(Ok(set)) => sets.push(Arc::new(set)),
+        Some(Err(e)) => failed.bttv |= miss(Service::Bttv, "globals", &e),
+        None => {}
+    }
+    if let Some(Err(e)) = &bb {
+        failed.bttv |= miss(Service::Bttv, "badges", e);
+    }
+    if let Some(Err(e)) = &fb {
+        failed.ffz |= miss(Service::Ffz, "badges", e);
     }
     let state = app.state::<Emotes>();
     let mut inner = state.lock();
     match f {
-        Ok(g) => {
+        Some(Ok(g)) => {
             sets.extend(g.sets.into_iter().map(Arc::new));
             for (set, users) in g.personal {
                 let id = set.id.clone();
                 inner.personal_sets.insert(id.clone(), Arc::new(set));
-                for u in users {
-                    let list = inner.user_sets.entry(u.clone()).or_default();
+                // B9 The whole batch stamped, then rebuilt, then one trim.
+                for u in &users {
+                    let list = inner.user_sets.get_or_default(u.clone());
                     if !list.contains(&id) {
                         list.push(id.clone());
                     }
-                    inner.rebuild_personal(&u);
+                }
+                for u in &users {
+                    inner.rebuild_personal(u);
                 }
             }
+            inner.trim_personal();
         }
-        Err(e) => eprintln!("emotes: no FFZ globals: {}", e.describe("FFZ")),
+        Some(Err(e)) => failed.ffz |= miss(Service::Ffz, "globals", &e),
+        None => {}
     }
-    if let Ok((defs, users)) = bb {
+    if let Some(Ok((defs, users))) = bb {
         for d in defs {
             inner.cosmetics.add_badge(d);
         }
@@ -56,13 +89,28 @@ pub async fn globals(app: &AppHandle, http: &Http) -> Vec<Arc<EmoteSet>> {
             inner.cosmetics.set_bttv_badge(&user, Some(&badge));
         }
     }
-    if let Ok((defs, users)) = fb {
+    if let Some(Ok((defs, users))) = fb {
         for d in defs {
             inner.cosmetics.add_badge(d);
         }
         inner.cosmetics.set_ffz_users(users);
     }
-    sets
+    Globals {
+        sets,
+        answered: want.minus(failed),
+        failed,
+    }
+}
+
+/// Logs a failed global fetch; true when it's worth asking again.
+fn miss(service: Service, what: &str, e: &cyex_twitch::Error) -> bool {
+    let name = match service {
+        Service::SevenTv => "7TV",
+        Service::Bttv => "BTTV",
+        _ => "FFZ",
+    };
+    eprintln!("emotes: no {name} {what}: {}", e.describe(name));
+    service.transient(e)
 }
 
 /// E1 Which of 7TV (E2), BTTV and FFZ: to fetch, or that failed for now (429, 5xx,
@@ -83,6 +131,23 @@ impl Which {
 
     pub fn any(self) -> bool {
         self.seventv || self.bttv || self.ffz
+    }
+
+    /// These, without those in `other`.
+    pub fn minus(self, other: Which) -> Which {
+        Which {
+            seventv: self.seventv && !other.seventv,
+            bttv: self.bttv && !other.bttv,
+            ffz: self.ffz && !other.ffz,
+        }
+    }
+
+    pub fn or(self, other: Which) -> Which {
+        Which {
+            seventv: self.seventv || other.seventv,
+            bttv: self.bttv || other.bttv,
+            ffz: self.ffz || other.ffz,
+        }
     }
 }
 
@@ -185,11 +250,12 @@ fn bttv_event(app: &AppHandle, e: BttvEvent) {
                     id.clone(),
                     Arc::new(EmoteSet::new(id.clone(), Provider::Bttv, Scope::Personal, emotes)),
                 );
-                let list = inner.user_sets.entry(twitch_id.clone()).or_default();
+                let list = inner.user_sets.get_or_default(twitch_id.clone());
                 if !list.contains(&id) {
                     list.push(id);
                 }
                 inner.rebuild_personal(&twitch_id);
+                inner.trim_personal();
             }
             drop(inner);
             if personal {

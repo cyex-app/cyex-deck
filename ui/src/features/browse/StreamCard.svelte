@@ -39,7 +39,7 @@
   >
     <img src={preview(card.login)} alt="" loading="lazy" decoding="async" />
     {#if stream.rerun}<span class="tag rerun">Rerun</span>{/if}
-    <span class="tag viewers">{formatShort(stream.viewers)} viewers</span>
+    <span class="tag viewers">{formatShort(stream.viewers)} {stream.viewers === 1 ? 'viewer' : 'viewers'}</span>
     {#if started}<span class="tag uptime">{uptimeShort(stream.startedAt)}</span>{/if}
   </button>
   <div class="quick"><QuickOpen channel={card} {nav} /></div>

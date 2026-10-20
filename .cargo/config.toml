@@ -1,3 +1,8 @@
 # ts-rs writes generated TypeScript types here when `cargo test` runs.
 [env]
 TS_RS_EXPORT_DIR = { value = "ui/src/ipc/bindings", relative = true }
+# t5 Lua errors must not unwind through Rust frames on Windows (see the header). cl finds the
+# header through INCLUDE; set only when INCLUDE isn't (a VS developer shell has its own).
+# After a change here, rebuild Lua: `cargo clean -p mlua-sys` (its build doesn't watch these).
+INCLUDE = { value = "crates/plugins/msvc", relative = true }
+CFLAGS_x86_64_pc_windows_msvc = "/FIlua-nounwind.h"

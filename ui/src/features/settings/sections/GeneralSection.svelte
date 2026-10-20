@@ -129,7 +129,7 @@
 </Row>
 <p class="privacy">Checks GitHub for new versions. Sends nothing about you or your accounts.</p>
 
-<ResetSection partition="general" />
+<ResetSection partition="general" page="general" />
 
 <style>
   .checked {

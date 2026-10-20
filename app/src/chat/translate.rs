@@ -24,10 +24,35 @@ pub struct Translator {
     /// The window's language, from the UI (`navigator.language`).
     ui_lang: Mutex<String>,
     waiting: Mutex<Vec<(RoomKey, String, String)>>,
+    /// V107-A9 Chats that translate everything, kept from the settings so a chat line
+    /// doesn't read them (a read parses the whole chat partition under the settings lock).
+    chats: Mutex<Chats>,
+}
+
+/// V107-A9 The chats with "Translate messages" on.
+#[derive(Default)]
+struct Chats(std::collections::HashSet<String>);
+
+impl Chats {
+    fn set(&mut self, logins: &[String]) {
+        self.0 = logins.iter().cloned().collect();
+    }
+
+    fn on(&self, login: &str) -> bool {
+        self.0.contains(login)
+    }
 }
 
 pub fn init(app: &AppHandle) {
     app.manage(Translator::default());
+    on_settings(app, &app.state::<Settings>().read::<ChatSettings>(Partition::Chat).translate_chats);
+}
+
+/// The chat settings changed (`chat::on_settings`).
+pub fn on_settings(app: &AppHandle, translate_chats: &[String]) {
+    if let Some(tr) = app.try_state::<Translator>() {
+        tr.chats.lock().unwrap_or_else(|p| p.into_inner()).set(translate_chats);
+    }
 }
 
 pub fn set_ui_language(app: &AppHandle, lang: &str) {
@@ -121,10 +146,8 @@ fn put(app: &AppHandle, key: &RoomKey, id: &str, text: String, from: String) {
 /// New live messages in a room: queued when that chat translates everything.
 pub fn auto(app: &AppHandle, key: &RoomKey, messages: &[std::sync::Arc<ChatMessage>]) {
     let on = app
-        .state::<Settings>()
-        .read::<ChatSettings>(Partition::Chat)
-        .translate_chats
-        .contains(&key.1);
+        .try_state::<Translator>()
+        .is_some_and(|tr| tr.chats.lock().unwrap_or_else(|p| p.into_inner()).on(&key.1));
     if !on {
         return;
     }
@@ -174,5 +197,19 @@ async fn flush(app: &AppHandle) {
         if !same(&t, &original, &to) {
             put(app, &key, &id, t.text, t.from);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn v107_a9_the_kept_chats_follow_the_settings() {
+        let mut c = Chats::default();
+        c.set(&["a".into()]);
+        assert!(c.on("a") && !c.on("b"));
+        c.set(&["b".into()]);
+        assert!(!c.on("a") && c.on("b"));
     }
 }

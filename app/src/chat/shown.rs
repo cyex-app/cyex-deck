@@ -7,9 +7,9 @@
 //! that can show chats counts as loading from when it's made until `GRACE` after its page
 //! loaded, so nothing decides while a saved layout's windows are still coming up.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use cyex_settings::Partition;
@@ -17,6 +17,7 @@ use cyex_settings::schema::Tabs;
 use cyex_twitch::pace::Lane;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
+use tokio::sync::watch;
 use ts_rs::TS;
 
 use super::Chat;
@@ -40,11 +41,26 @@ pub struct ChatShown {
     pub loading: Vec<String>,
 }
 
-#[derive(Default)]
 pub struct Shown {
     state: Mutex<State>,
     /// Goes up with every view change; a send waits until it stops.
     changes: AtomicU64,
+    /// B5 The active tab's channels, read from the tab settings once per change.
+    active: Mutex<Option<Arc<HashSet<String>>>>,
+    /// B5 Ticks when a view opens or closes or the tabs change, so waiting loads
+    /// ([`lane`] callers) look again instead of polling.
+    wake: watch::Sender<u64>,
+}
+
+impl Default for Shown {
+    fn default() -> Self {
+        Shown {
+            state: Mutex::default(),
+            changes: AtomicU64::new(0),
+            active: Mutex::new(None),
+            wake: watch::channel(0).0,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -167,6 +183,7 @@ pub fn changed(app: &AppHandle) {
         return;
     };
     let mark = shown.changes.fetch_add(1, Ordering::Relaxed) + 1;
+    shown.wake.send_modify(|n| *n += 1);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(QUIET).await;
@@ -223,16 +240,50 @@ pub fn lane(app: &AppHandle, login: &str) -> Lane {
     let viewed = app
         .try_state::<Chat>()
         .is_some_and(|c| c.lock().views.values().any(|((_, l), _)| l == login));
-    let active = || {
-        let tabs = app.state::<crate::settings::Settings>().read::<Tabs>(Partition::Tabs);
-        let tab = tabs.active.as_deref().and_then(|a| tabs.tab(a));
-        tab.is_some_and(|t| t.tiles().any(|t| t.channel.login == login))
-    };
-    if viewed || active() {
+    if viewed || active_logins(app).contains(login) {
         Lane::Front
     } else {
         Lane::Back
     }
+}
+
+/// B5 The active tab's channels, cached until the tabs change.
+fn active_logins(app: &AppHandle) -> Arc<HashSet<String>> {
+    let Some(shown) = app.try_state::<Shown>() else {
+        return Arc::default();
+    };
+    if let Some(a) = shown.active.lock().unwrap_or_else(|p| p.into_inner()).clone() {
+        return a;
+    }
+    // Read outside the lock: settings never wait on it. Kept only if no change came
+    // meanwhile (`tabs_changed` ticks first, then clears).
+    let seen = *shown.wake.borrow();
+    let tabs = app.state::<crate::settings::Settings>().read::<Tabs>(Partition::Tabs);
+    let tab = tabs.active.as_deref().and_then(|a| tabs.tab(a));
+    let logins: HashSet<String> = tab
+        .into_iter()
+        .flat_map(|t| t.tiles())
+        .map(|t| t.channel.login.clone())
+        .collect();
+    let logins = Arc::new(logins);
+    let mut active = shown.active.lock().unwrap_or_else(|p| p.into_inner());
+    if *shown.wake.borrow() == seen {
+        *active = Some(logins.clone());
+    }
+    logins
+}
+
+/// B5 The tab settings changed: the active tab may have.
+pub fn tabs_changed(app: &AppHandle) {
+    if let Some(shown) = app.try_state::<Shown>() {
+        shown.wake.send_modify(|n| *n += 1);
+        *shown.active.lock().unwrap_or_else(|p| p.into_inner()) = None;
+    }
+}
+
+/// B5 Ticks whenever [`lane`]'s answer may have changed.
+pub fn wake(app: &AppHandle) -> Option<watch::Receiver<u64>> {
+    app.try_state::<Shown>().map(|s| s.wake.subscribe())
 }
 
 #[cfg(test)]

@@ -411,7 +411,7 @@
   <Toggle label="Badges" checked={o.badges} onchange={(v) => settings.patch('chat', { overlay: { badges: v } })} />
 </Row>
 
-<ResetSection partition="chat" />
+<ResetSection partition="chat" page="chat" />
 
 <style>
   .order {

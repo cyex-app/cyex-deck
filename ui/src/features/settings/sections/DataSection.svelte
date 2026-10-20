@@ -81,8 +81,8 @@
       code = '';
       imported(result);
     } catch (err) {
+      // t5 Said once, under the field (it has role=alert); a toast too stacked up per try.
       codeError = errorText(err);
-      toast.error(codeError);
     }
   }
 
@@ -101,12 +101,29 @@
     const result = await attempt(() => settingsIpc.restoreBackup(date));
     void refreshBackups();
     if (!result) return;
-    toast.success(`Restored settings from ${date}.`, {
+    toast.success(restoredText(date), {
       action: before
         ? { label: 'Undo', run: () => void attempt(() => settingsIpc.importCode(before)).then((p) => p && imported(p)) }
         : undefined,
     });
   }
+
+  /** t5 A snapshot by its time, not its folder name ("before-restore-2026-10-20-021030"). */
+  function restoredText(id: string): string {
+    const snap = /^before-restore-\d{4}-\d{2}-\d{2}-(\d{2})(\d{2})/.exec(id);
+    if (!snap) return `Restored settings from ${id}.`;
+    const when = dayName(id).split(' · ')[1] ?? '';
+    return `Restored your settings from ${/^\d/.test(when) ? when : when.toLowerCase()}, ${snap[1]}:${snap[2]}.`;
+  }
+
+  /** t5 Two snapshots in the same minute get their seconds, so the rows differ. */
+  const labels = $derived.by(() => {
+    const names = backups.map((id) => dayName(id));
+    return backups.map((id, i) => {
+      const sec = /^before-restore-.*-\d{4}(\d{2})$/.exec(id)?.[1];
+      return sec && names.indexOf(names[i]) !== names.lastIndexOf(names[i]) ? `${names[i]}:${sec}` : names[i];
+    });
+  });
 
   /** D2 "2026/10/16 · Today"; V1052-03 snapshots read "Before restore · Today". */
   function dayName(id: string): string {
@@ -161,12 +178,12 @@
 <SectionHead title="Backups" setting="data:backups">
   A copy of your settings is kept for each of the last 3 days. Restoring keeps your current settings first, so you can undo it.
 </SectionHead>
-{#each backups as date (date)}
-  <Row label={dayName(date)}>
+{#each backups as date, i (date)}
+  <Row label={labels[i]}>
     <ConfirmButton label="Restore" confirm="Click again (current is kept)" onconfirm={() => restore(date)} />
   </Row>
 {:else}
-  <p class="note">No backups yet. The first one is made tomorrow.</p>
+  <p class="note">No backups yet. One is made each day you use cyex deck.</p>
 {/each}
 <SectionHead title="Cache">Saved pictures that load faster next time.</SectionHead>
 <Row

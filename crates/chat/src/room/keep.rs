@@ -2,7 +2,6 @@
 //! shown again it keeps the user's scrollback, and the history service brings back the
 //! older lines it dropped (`backfill`).
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::Room;
@@ -44,11 +43,25 @@ impl Room {
         self.older(lines, before, now_ms, emotes)
     }
 
-    /// The current copies of these lines, oldest first; gone ones are left out. A refill
-    /// sends its lines bit by bit, and meanwhile they may have been deleted or changed.
-    pub fn current(&self, ids: &[String]) -> Vec<Arc<ChatMessage>> {
-        let by_id: HashMap<&str, &Arc<ChatMessage>> = self.buffer.iter().map(|m| (m.id.as_str(), m)).collect();
-        ids.iter().filter_map(|id| by_id.get(id.as_str()).map(|m| Arc::clone(m))).collect()
+    /// Lines in the buffer now.
+    pub fn kept(&self) -> usize {
+        self.buffer.len()
+    }
+
+    /// Lines were dropped since the last refill (`trim`), or the first history was cut
+    /// short: only then is a refill worth asking for.
+    pub fn trimmed(&self) -> bool {
+        self.trimmed
+    }
+
+    pub fn set_trimmed(&mut self, on: bool) {
+        self.trimmed = on;
+    }
+
+    /// How many history lines a refill asks for: the user's history lines above what's
+    /// kept, never more than the buffer takes.
+    pub fn refill_want(&self, history_lines: usize) -> usize {
+        (history_lines + self.kept()).min(self.limit())
     }
 
     /// History, dimmed, unless a refill brings back what was said after the room went live.
@@ -152,11 +165,28 @@ mod tests {
     }
 
     #[test]
-    fn current_copies_follow_changes() {
-        let mut r = room_with(5);
-        r.handle_line(&Line::parse("@target-msg-id=m2 :tmi.twitch.tv CLEARMSG #chan :x").unwrap(), 9, &NoEmotes);
-        let got = r.current(&["m1".into(), "m2".into(), "gone".into()]);
-        assert_eq!(got.len(), 2);
-        assert!(got[1].has(Flag::Deleted));
+    fn only_a_trimmed_room_counts_as_trimmed() {
+        let mut r = room_with(100);
+        r.set_background(true);
+        assert!(!r.trimmed(), "under the background cap: nothing dropped");
+        r.set_background(false);
+        let mut r = room_with(300);
+        r.set_background(true);
+        assert!(r.trimmed());
+        r.set_trimmed(false);
+        feed(&mut r, "x", 9_000);
+        assert!(r.trimmed(), "a live line pushed one out");
+    }
+
+    #[test]
+    fn a_refill_asks_for_the_history_lines_above_what_is_kept() {
+        let mut r = room_with(300);
+        r.set_background(true);
+        r.set_background(false);
+        // 150 kept, 500 history lines: 650, under the 1000 scrollback.
+        assert_eq!(r.refill_want(500), 650);
+        assert_eq!(r.refill_want(50), 200);
+        r.set_keep(500);
+        assert_eq!(r.refill_want(500), 500, "never more than the buffer takes");
     }
 }

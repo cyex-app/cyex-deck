@@ -166,16 +166,21 @@
     untrack(() => (before = c.smoothNewMessages && following && !paused ? mark() : null));
   });
 
+  /** v1.07 t1 The list has been put at the newest line once. A chat that opens under a resting
+   *  mouse (Ctrl+Tab, the switcher) is paused from the start and stayed at its oldest line. */
+  let placed = false;
+
   // Follow new messages unless paused or scrolled up. Also catches up after a pause.
   $effect(() => {
     void room.messages;
-    const follow = following && !paused;
+    const follow = following && (!paused || !placed);
     void tick().then(() => {
       if (!follow) return measure();
       const at = before ?? (c.smoothNewMessages ? mark() : null);
       before = null;
       const top = list?.scrollTop;
       toBottom();
+      if (scrolls()) placed = true;
       // Nothing new on screen (a filtered line): a playing slide goes on.
       if (at && list?.scrollTop !== top) glide(at);
       watchNewest();

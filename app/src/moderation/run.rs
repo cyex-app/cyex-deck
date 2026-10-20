@@ -50,8 +50,11 @@ pub async fn command(app: &AppHandle, account: &str, login: &str, cmd: ModComman
             }
             // V107 Twitch takes a deleted message's pin down with it (seen 2026/10/19).
             crate::chat::live::message_gone(app, &actor.channel_id, &msg_id);
-            // V107-P4 Twitch's CLEARMSG only strikes the line through, so this is the one notice.
-            Ok(Some(deleted_line(who.as_deref(), text.as_deref())))
+            // V107-P4 Twitch's CLEARMSG only strikes the line through, so this is the one
+            // notice, in every chat of the channel (typed or from the mod bar).
+            let line = deleted_line(who.as_deref(), text.as_deref());
+            crate::chat::notice_line(app, &actor.channel, cyex_chat::model::NoticeKind::Moderation, &line);
+            Ok(None)
         }
         C::Clear => delete(app, &actor, None).await.map(|()| Some("Chat cleared.".into())),
         C::Warn { login: who, reason } => warn(app, &actor, &who, &reason).await.map(|()| None),
@@ -250,20 +253,23 @@ async fn unpin(app: &AppHandle, actor: &Actor) -> Result<(), String> {
 }
 
 /// V107 Helix says 409 when the message is pinned already (Twitch's docs, 2026/10/19; a new
-/// length for the same pin, say): take the pin down, then pin again.
+/// length for the same pin, say): take that pin down, then pin again. Only when the pin
+/// held is this very message (`repin_over`), so another message's pin is never lost.
 async fn helix_pin(http: &cyex_twitch::Http, h: cyex_twitch::helix::Auth<'_>, actor: &Actor, msg_id: &str, secs: Option<u32>) -> Result<(), String> {
     match hm::pin(http, h, actor.room(), msg_id, secs).await {
         Err(e) if pin_taken(&e) => {
-            if let Some(old) = gql::pinned(http, &actor.channel_id).await.map_err(|e| e.to_string())? {
-                hm::unpin(http, h, actor.room(), &old.message_id).await.map_err(helix_err)?;
+            let held = gql::pinned(http, &actor.channel_id).await.ok().flatten();
+            if repin_over(held.as_ref().map(|p| (p.id.as_str(), p.message_id.as_str())), msg_id).is_none() {
+                return Err(helix_err(e));
             }
+            hm::unpin(http, h, actor.room(), msg_id).await.map_err(helix_err)?;
             hm::pin(http, h, actor.room(), msg_id, secs).await.map_err(helix_err)
         }
         res => res.map_err(helix_err),
     }
 }
 
-/// V107 Helix's "already pinned".
+/// V107 Helix's "already pinned" (this message, or so Twitch says).
 fn pin_taken(e: &cyex_twitch::Error) -> bool {
     status_code(e) == 409
 }
@@ -353,17 +359,16 @@ async fn swap_role(app: &AppHandle, actor: &Actor, who: &str, mod_role: bool) ->
         let back = rc::action(!mod_role, true);
         feeds::own_role(app, &actor.channel_id, back, who, true);
         let restored = role_step(app, actor, who, !mod_role, true).await.is_ok();
-        feeds::own_role(app, &actor.channel_id, got, who, false);
+        for a in rc::unmark_after_failed_grant(mod_role, restored) {
+            feeds::own_role(app, &actor.channel_id, a, who, false);
+        }
         if restored {
             standing::changed(app, &actor.channel, who, !mod_role, true);
-        } else {
-            feeds::own_role(app, &actor.channel_id, gone, who, false);
-            feeds::own_role(app, &actor.channel_id, back, who, false);
         }
-        // The echoes may be gone already: chat says what happened too.
+        // The one line for it all. Shown here, so the caller shows nothing more.
         let line = rc::grant_failed(who, mod_role, &r.text, r.slots, restored);
         crate::chat::notice_line(app, &actor.channel, cyex_chat::model::NoticeKind::Moderation, &line);
-        return Err(line);
+        return Ok(());
     }
     standing::changed(app, &actor.channel, who, mod_role, true);
     crate::chat::notice_line(app, &actor.channel, cyex_chat::model::NoticeKind::Moderation, &rc::swapped(who, mod_role));
@@ -519,7 +524,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn only_helix_409_means_another_pin_holds_the_spot() {
+    fn only_helix_409_means_already_pinned() {
         let api = |status| cyex_twitch::Error::Api { status, message: String::new() };
         assert!(pin_taken(&api(409)));
         assert!(!pin_taken(&api(400)));
@@ -536,5 +541,14 @@ mod tests {
         assert_eq!(repin_over(Some(("pin-1", "msg-b")), "msg-a"), None);
         assert_eq!(repin_over(None, "msg-a"), None);
         assert_eq!(repin_over(Some(("", "msg-a")), "msg-a"), None);
+    }
+
+    #[test]
+    fn helix_409_over_another_pin_keeps_it() {
+        // Helix asks the same: a 409 while another message is pinned (or the pin can't be
+        // read) shows the 409, nothing gets unpinned.
+        assert_eq!(repin_over(Some(("pin-1", "msg-b")), "msg-a"), None);
+        assert_eq!(repin_over(None, "msg-a"), None);
+        assert!(repin_over(Some(("pin-1", "msg-a")), "msg-a").is_some());
     }
 }

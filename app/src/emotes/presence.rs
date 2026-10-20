@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 use cyex_emotes::{bttv, seventv};
 use cyex_settings::schema::Chat as ChatSettings;
 use cyex_settings::Partition;
+use cyex_twitch::pace::Lane;
 use tauri::{AppHandle, Manager};
 
 use super::Emotes;
@@ -155,8 +156,12 @@ pub fn touch(app: &AppHandle, account: &str, login: &str, why: Why, shared: &[St
         let user = match known {
             Some(u) => u,
             None => {
-                let Ok(u) = seventv::api::user_id(&http, &account).await else {
-                    return;
+                let u = match seventv::api::user_id(&http, &account, Lane::Back).await {
+                    Ok(u) => u,
+                    Err(e) => {
+                        eprintln!("emotes: no 7TV user for {account}: {}", e.describe("7TV"));
+                        return;
+                    }
                 };
                 app.state::<Presence>()
                     .seventv

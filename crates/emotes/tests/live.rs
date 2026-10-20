@@ -29,7 +29,7 @@ async fn seventv_sets() {
             .unwrap()
             .is_none()
     );
-    let names = seventv::api::user_names(&http, std::slice::from_ref(&ch.user_id))
+    let names = seventv::api::user_names(&http, std::slice::from_ref(&ch.user_id), Lane::Front)
         .await
         .unwrap();
     println!("7tv names: {names:?}");

@@ -2,7 +2,7 @@
      player unless one is picked (V101-17). A clip that was just made (P9) may need a few
      seconds before it plays. -->
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
@@ -124,6 +124,24 @@
     return fits.length ? fits[fits.length - 1] : q[0];
   });
   const src = $derived(file?.url);
+  /** v1.07 Where the old file was, and whether it was paused, when another file takes over
+   *  (a resize, the quality menu). The new source resets the time to 0 before it loads, and
+   *  autoplay started a paused clip over from the top. */
+  let carry: { t: number; paused: boolean } | null = null;
+  $effect.pre(() => {
+    void src;
+    const v = untrack(() => video);
+    if (v?.currentSrc) carry = { t: v.currentTime, paused: v.paused };
+  });
+
+  function onloadedmetadata() {
+    const c = carry;
+    carry = null;
+    if (!video || !c) return;
+    video.currentTime = c.t;
+    // Before autoplay kicks in: it stays paused.
+    if (c.paused) video.pause();
+  }
   const name = (q: { height: number; frameRate: number }) => `${q.height}p${q.frameRate > 31 ? Math.round(q.frameRate) : ''}`;
 
   $effect(() => {
@@ -150,10 +168,10 @@
   }
 
   const controls = {
-    togglePlay: () => video && (video.paused ? void video.play() : video.pause()),
+    togglePlay: () => video && (video.paused ? void video.play().catch(() => {}) : video.pause()),
     toggleMute: () => sound.toggleMute(),
     toggleFullscreen: () => shell?.fullscreen(),
-    play: () => void video?.play(),
+    play: () => void video?.play().catch(() => {}),
     pause: () => video?.pause(),
     seekBy: (s: number) => video && (video.currentTime = Math.min(Math.max(0, video.currentTime + s), duration || Infinity)),
     media: () =>
@@ -215,7 +233,7 @@
       playsinline
       onplay={() => (playing = true)}
       onpause={() => (playing = false)}
-      onloadedmetadata={() => video && time && (video.currentTime = time)}
+      {onloadedmetadata}
       oncanplay={() => (retrying = false)}
       {onerror}
       {ontimeupdate}

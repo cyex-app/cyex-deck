@@ -35,6 +35,7 @@
     border-radius: var(--radius);
   }
   .empty {
+    margin: 0;
     padding: 12px;
     color: var(--muted);
     font-size: 0.82rem;

@@ -1,7 +1,7 @@
 //! BTTV over HTTP (1.38): global and channel emotes, badges, bot commands (C13).
 
 use cyex_chat::model::Provider;
-use cyex_twitch::pace::{Lane, Service};
+use cyex_twitch::pace::{Lane, Opts, Service};
 use cyex_twitch::{Http, Result};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -38,10 +38,16 @@ pub async fn global(http: &Http) -> Result<EmoteSet> {
     ))
 }
 
-/// The channel's own and shared emotes. `None` without a BTTV account. Paced (V107-P2).
+/// The channel's own and shared emotes. `None` without a BTTV account. Paced (V107-P2);
+/// S2 in the background it fails fast, the emote retry queue asks again.
 pub async fn channel(http: &Http, twitch_id: &str, lane: Lane) -> Result<Option<EmoteSet>> {
+    let opts = Opts {
+        lane,
+        quick: true,
+        ..Opts::default()
+    };
     let res: Result<RawUser> = http
-        .get_json_paced(Service::Bttv, lane, &format!("{API}/cached/users/twitch/{twitch_id}"))
+        .get_json_paced_with(Service::Bttv, opts, &format!("{API}/cached/users/twitch/{twitch_id}"))
         .await;
     let user = match res {
         Ok(u) => u,

@@ -57,6 +57,10 @@ pub fn changed(app: &AppHandle, users: impl IntoIterator<Item = String>) {
 pub fn looks_for(app: &AppHandle, users: &[String]) -> Looks {
     let state = app.state::<Emotes>();
     let inner = state.lock();
+    // B9 Drawn: their personal emotes count as used too, so they outlive the cap.
+    for u in users.iter().take(500) {
+        inner.user_sets.touch(u.as_str());
+    }
     inner.cosmetics.looks(users.iter().take(500).map(String::as_str))
 }
 

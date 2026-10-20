@@ -85,7 +85,15 @@
 <Card title="Stream info">
   <label class="label" for="sm-title">Title</label>
   <div class="count-wrap">
-    <input id="sm-title" class="field" maxlength={TITLE_MAX} bind:value={title} disabled={!loaded} />
+    <!-- v1.07 T4: Enter saves; in the search Enter takes the first hit and Escape closes it. -->
+    <input
+      id="sm-title"
+      class="field"
+      maxlength={TITLE_MAX}
+      bind:value={title}
+      disabled={!loaded}
+      onkeydown={(e) => e.key === 'Enter' && changed && !saving && title.trim() && save()}
+    />
     <span class="count" class:near={title.length > TITLE_MAX - 15}>{title.length}/{TITLE_MAX}</span>
   </div>
 
@@ -96,7 +104,19 @@
       <Button small variant="link" onclick={() => (game = { id: '', name: '' })}>Clear</Button>
     {/if}
   </div>
-  <input class="field" placeholder="Search categories" bind:value={query} disabled={!loaded} />
+  <input
+    class="field"
+    placeholder="Search categories"
+    bind:value={query}
+    disabled={!loaded}
+    onkeydown={(e) => {
+      if (e.key === 'Enter' && hits.length) pick(hits[0]);
+      else if (e.key === 'Escape' && query) {
+        e.stopPropagation();
+        query = '';
+      }
+    }}
+  />
   {#if hits.length}
     <ul class="hits">
       {#each hits as h (h.id)}

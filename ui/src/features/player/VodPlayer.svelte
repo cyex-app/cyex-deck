@@ -88,7 +88,8 @@
         if (!current()) return void playerIpc.close(s.id);
         session = s;
         info = meta;
-        await e.start(s, settings.v.player.quality, last ?? -1);
+        // v1.07 No saved spot: the start. -1 put a VOD still recording at its live end.
+        await e.start(s, settings.v.player.quality, last ?? 0);
       } catch {
         if (current()) e.failure = 'media';
       }
@@ -167,10 +168,10 @@
   $effect(() => (video ? watchPip(video, (on) => (pip = on)) : undefined));
 
   const controls = {
-    togglePlay: () => video && (video.paused ? void video.play() : video.pause()),
+    togglePlay: () => video && (video.paused ? void video.play().catch(() => {}) : video.pause()),
     toggleMute: () => sound.toggleMute(),
     toggleFullscreen: () => shell?.fullscreen(),
-    play: () => void video?.play(),
+    play: () => void video?.play().catch(() => {}),
     pause: () => video?.pause(),
     seekBy: (s: number) => video && seek(video.currentTime + s),
     media: () => ({ title: info?.title || 'Video', artist: info?.channelName || tile?.channel.name || '', artwork: info?.thumbnail }),

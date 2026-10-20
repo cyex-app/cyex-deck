@@ -99,8 +99,9 @@
     <span class="hint">{r.hint}</span>
     <!-- P6 The arrows keep their room when a rule is off, so rows don't jump. -->
     <span class="arrows" class:gone={!on} inert={!on}>
-      <IconButton icon="chevronUp" label="Earlier" hint="Rules higher up win." size={14} onclick={() => moveRule(r.value, -1)} />
-      <IconButton icon="chevronDown" label="Later" size={14} onclick={() => moveRule(r.value, 1)} />
+      <!-- v1.07 T4: no Earlier on the top rule, no Later on the last one. -->
+      <IconButton icon="chevronUp" label="Earlier" hint="Rules higher up win." size={14} disabled={m.order[0] === r.value} onclick={() => moveRule(r.value, -1)} />
+      <IconButton icon="chevronDown" label="Later" size={14} disabled={m.order[m.order.length - 1] === r.value} onclick={() => moveRule(r.value, 1)} />
     </span>
   </div>
 {/each}
@@ -164,10 +165,10 @@
   <Row setting="miner.bets.stealth" label="Stay small" hint="Never bet more than the biggest bet on that side.">
     <Toggle label="Stay small" checked={b.stealth} onchange={(stealth) => bet({ stealth })} />
   </Row>
-  <Row setting="miner.bets.delay" label="When" hint="How long after a prediction opens to bet.">
+  <Row setting="miner.bets.delay" label="When" hint="When to place the bet.">
     <span class="pair">
-      <NumberField label="Delay" min={0} max={b.delayMode === 'percent' ? 100 : 1800} width="90px" value={b.delay} onchange={(n) => bet({ delay: n })} />
-      <Select label="When" width="220px" value={b.delayMode} options={DELAYS} onchange={(v) => bet({ delayMode: v as DelayMode })} />
+      <NumberField label="Delay" min={0} max={b.delayMode === 'percent' ? 100 : 1800} width="90px" unit={b.delayMode === 'percent' ? '%' : 's'} value={b.delay} onchange={(n) => bet({ delay: n })} />
+      <Select label="When" width="220px" value={b.delayMode} options={DELAYS} onchange={(v) => bet({ delayMode: v as DelayMode, delay: v === 'percent' ? Math.min(b.delay, 100) : b.delay })} />
     </span>
   </Row>
   <Row setting="miner.bets.filter" label="Only if" hint="Skips predictions that don’t fit.">

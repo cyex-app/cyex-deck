@@ -14,6 +14,8 @@ use tauri::{AppHandle, Emitter, Manager};
 use time::Date;
 
 const SAVE_DELAY: Duration = Duration::from_millis(400);
+/// V107-A3 Wait before trying a failed save again (a file held by a scanner, say).
+const RETRY_DELAY: Duration = Duration::from_secs(5);
 const CHANGED_EVENT: &str = "settings:changed";
 
 pub struct Settings {
@@ -223,6 +225,7 @@ impl Settings {
     fn after_change(&self, app: &AppHandle, changed: &[(Partition, &Value)], notify: bool) {
         if changed.iter().any(|(p, _)| *p == Partition::Tabs) {
             crate::tabs::on_changed(app);
+            crate::chat::shown::tabs_changed(app);
         }
         if changed.iter().any(|(p, _)| *p == Partition::Chat) {
             crate::emotes::on_settings(app);
@@ -271,21 +274,34 @@ impl Settings {
     }
 
     fn schedule_save(&self, app: &AppHandle) {
+        self.schedule_save_in(app, SAVE_DELAY);
+    }
+
+    fn schedule_save_in(&self, app: &AppHandle, delay: Duration) {
         if self.save_queued.swap(true, Ordering::AcqRel) {
             return;
         }
         let app = app.clone();
         thread::spawn(move || {
-            thread::sleep(SAVE_DELAY);
+            thread::sleep(delay);
             let settings = app.state::<Settings>();
             settings.save_queued.store(false, Ordering::Release);
-            settings.flush();
+            // V107-A3 Parts that didn't reach disk are tried again, at most every 5 s.
+            if settings.flush() {
+                settings.schedule_save_in(&app, RETRY_DELAY);
+            }
         });
     }
 
-    fn flush(&self) {
-        if let Err(e) = self.lock().flush() {
-            eprintln!("settings: save failed: {e}");
+    /// Writes what changed. True when it failed and something is still unsaved.
+    fn flush(&self) -> bool {
+        let mut store = self.lock();
+        match store.flush() {
+            Ok(()) => false,
+            Err(e) => {
+                eprintln!("settings: save failed: {e}");
+                store.is_dirty()
+            }
         }
     }
 }

@@ -79,6 +79,8 @@ pub struct Room {
     keep: usize,
     /// V107-M1 No view shows the room: it keeps only `keep::BACKGROUND`.
     background: bool,
+    /// V107-M1 Lines were dropped (or history was cut short) since the last refill.
+    trimmed: bool,
     /// V107-M1 When the first live line came, so refilled lines from then on aren't dimmed.
     live_from: Option<i64>,
     pending: VecDeque<PendingSend>,
@@ -112,6 +114,7 @@ impl Room {
             buffer: VecDeque::new(),
             keep: BUFFER,
             background: false,
+            trimmed: false,
             live_from: None,
             pending: VecDeque::new(),
             gifts: Vec::new(),
@@ -161,7 +164,10 @@ impl Room {
 
     fn trim(&mut self) {
         let over = self.buffer.len().saturating_sub(self.limit());
-        self.buffer.drain(..over);
+        if over > 0 {
+            self.buffer.drain(..over);
+            self.trimmed = true;
+        }
     }
 
     /// Like `snapshot`, with only the last `lines` messages.
@@ -202,14 +208,10 @@ impl Room {
         self.buffer.iter().rev().find(|m| m.id == id).map(|m| &**m).or(pinned)
     }
 
-    /// V107-P4 Who sent message `id` (their display name), from the buffer or the pin.
-    pub fn sender_name(&self, id: &str) -> Option<String> {
-        self.shown(id).and_then(|m| m.sender.as_ref().map(|s| s.display.clone()))
-    }
-
-    /// V107-P7 Message `id`'s plain text (emotes as their names), for the delete notice.
-    pub fn message_text(&self, id: &str) -> Option<String> {
-        self.shown(id).map(|m| plain(&m.body))
+    /// V107-P4/P7 Message `id`, from the buffer or the pin: who sent it (their display
+    /// name) and its plain text (emotes as their names), for the delete notice.
+    pub fn sender_and_text(&self, id: &str) -> Option<(Option<String>, String)> {
+        self.shown(id).map(|m| (m.sender.as_ref().map(|s| s.display.clone()), plain(&m.body)))
     }
 
     /// V107 Whether message `id` is the one pinned here.
@@ -323,39 +325,44 @@ impl Room {
     }
 
     /// V107-M7 A mod-action feed's timeout line for `user_id`, stacked with the ones
-    /// before it (`stack`).
-    pub fn timeout_line(&mut self, user_id: &str, text: &str, now_ms: i64) -> RoomEvent {
+    /// before it (`stack`). `None`: a second delivery of the same action (the channel is
+    /// open under two mod accounts), nothing to show.
+    pub fn timeout_line(&mut self, user_id: &str, text: &str, now_ms: i64) -> Option<RoomEvent> {
         let mut m = build::system(NoticeKind::Moderation, text, now_ms);
-        if let Some(ev) = self.stacked(user_id, stack::Source::Feed, &mut m) {
-            return ev;
+        match self.stacked(user_id, stack::Source::Feed, &mut m, now_ms) {
+            Stacked::Update(ev) => Some(ev),
+            Stacked::Dup => None,
+            Stacked::New => {
+                let m = Arc::new(m);
+                self.push(m.clone());
+                Some(RoomEvent::Message { message: m })
+            }
         }
-        let m = Arc::new(m);
-        self.push(m.clone());
-        RoomEvent::Message { message: m }
     }
 
-    /// V107-M7 Puts timeout line `m` into its stack: the update of the stack's line, or
-    /// `None` to add `m` (its text counted) as a new line.
-    fn stacked(&mut self, user_id: &str, src: stack::Source, m: &mut ChatMessage) -> Option<RoomEvent> {
-        let text = m.notice.as_ref()?.text.clone();
-        let mut hit = self.timeouts.hit(user_id, src, &text, m.ts, &m.id);
-        if hit.update {
-            if let Some(slot) = self.buffer.iter_mut().rev().find(|b| b.id == hit.id) {
-                let mut u = (**slot).clone();
-                if let Some(n) = u.notice.as_mut() {
-                    n.text = hit.text;
-                }
-                *slot = Arc::new(u);
-                return Some(RoomEvent::Update { message: slot.clone() });
+    /// V107-M7 Puts timeout line `m`, received at `now_ms` (local time for both sources,
+    /// never IRC's `tmi-sent-ts`), into its stack.
+    fn stacked(&mut self, user_id: &str, src: stack::Source, m: &mut ChatMessage, now_ms: i64) -> Stacked {
+        let Some(text) = m.notice.as_ref().map(|n| n.text.clone()) else { return Stacked::New };
+        let buffer = &self.buffer;
+        let Some(hit) = self.timeouts.hit(user_id, src, &text, now_ms, &m.id, |id| buffer.iter().any(|b| b.id == id))
+        else {
+            return Stacked::Dup;
+        };
+        if hit.update
+            && let Some(slot) = self.buffer.iter_mut().rev().find(|b| b.id == hit.id)
+        {
+            let mut u = (**slot).clone();
+            if let Some(n) = u.notice.as_mut() {
+                n.text = hit.text;
             }
-            // The stack's line is gone: this one starts a new stack.
-            self.timeouts.forget(user_id);
-            hit = self.timeouts.hit(user_id, src, &text, m.ts, &m.id);
+            *slot = Arc::new(u);
+            return Stacked::Update(RoomEvent::Update { message: slot.clone() });
         }
         if let Some(n) = m.notice.as_mut() {
             n.text = hit.text;
         }
-        None
+        Stacked::New
     }
 
     /// 1.26 A finished line from outside the room, e.g. a whisper shown inline.
@@ -415,11 +422,15 @@ impl Room {
                 let me = self.me.as_ref().is_some_and(|m| m.user_id == user_id);
                 // V107-M7 Timeouts in a row share one line; bans stand alone.
                 let mut notice = notice;
-                let update = secs.and_then(|_| self.stacked(&user_id, stack::Source::Irc, &mut notice));
+                let stacked = match secs {
+                    Some(_) => self.stacked(&user_id, stack::Source::Irc, &mut notice, now_ms),
+                    None => Stacked::New,
+                };
                 events.push(RoomEvent::ClearUser { user_id });
-                match update {
-                    Some(update) => events.push(update),
-                    None => events.extend(self.add(notice, now_ms, emotes)),
+                match stacked {
+                    Stacked::Update(update) => events.push(update),
+                    Stacked::New => events.extend(self.add(notice, now_ms, emotes)),
+                    Stacked::Dup => {}
                 }
                 if me && let Some(secs) = secs {
                     events.extend(self.wait(now_ms + secs as i64 * 1000));
@@ -699,6 +710,16 @@ impl Room {
             meta: Meta::default(),
         }
     }
+}
+
+/// V107-M7 Where a timeout line went.
+enum Stacked {
+    /// Its stack's line, updated.
+    Update(RoomEvent),
+    /// A new line: the message, its text counted.
+    New,
+    /// A second feed delivery of one just counted.
+    Dup,
 }
 
 /// "…talk again in 10 seconds." or "…for 600 more seconds." → the number.

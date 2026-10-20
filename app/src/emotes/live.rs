@@ -8,6 +8,7 @@ use cyex_emotes::cosmetics::SevenChange;
 use cyex_emotes::seventv::events::{Entitled, Event, SetChange};
 use cyex_emotes::seventv::{self};
 use cyex_emotes::{Emote, EmoteSet, Scope};
+use cyex_twitch::pace::Lane;
 use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc::UnboundedReceiver;
 
@@ -79,9 +80,11 @@ fn personal(app: &AppHandle, added: bool, set_id: String, users: Vec<String>) {
     let state = app.state::<Emotes>();
     let missing = {
         let mut inner = state.lock();
+        // B9 The whole batch is stamped first, then rebuilt, then trimmed once: none of
+        // its users is the least recent.
         for u in &users {
             if added {
-                let sets = inner.user_sets.entry(u.clone()).or_default();
+                let sets = inner.user_sets.get_or_default(u.clone());
                 if !sets.contains(&set_id) {
                     sets.push(set_id.clone());
                 }
@@ -100,6 +103,7 @@ fn personal(app: &AppHandle, added: bool, set_id: String, users: Vec<String>) {
         for u in &users {
             inner.rebuild_personal(u);
         }
+        inner.trim_personal();
         if !added {
             inner.prune_personal_sets(std::slice::from_ref(&set_id));
         }
@@ -112,12 +116,23 @@ fn personal(app: &AppHandle, added: bool, set_id: String, users: Vec<String>) {
         let app = app.clone();
         tauri::async_runtime::spawn(async move {
             let http = app.state::<Auth>().http.clone();
-            let Ok(sets) = seventv::api::sets(&http, std::slice::from_ref(&set_id)).await else {
-                return;
+            let sets = match seventv::api::sets(&http, std::slice::from_ref(&set_id), Lane::Back).await {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("emotes: no 7TV personal set {set_id}: {}", e.describe("7TV"));
+                    return;
+                }
             };
             let state = app.state::<Emotes>();
             let mut inner = state.lock();
             for mut set in sets {
+                // B9 Only while one of its users is still kept, else it'd be orphaned.
+                let held = users
+                    .iter()
+                    .any(|u| inner.user_sets.get(u.as_str()).is_some_and(|s| s.contains(&set.id)));
+                if !held {
+                    continue;
+                }
                 set.scope = Scope::Personal;
                 inner.personal_sets.insert(set.id.clone(), Arc::new(set));
             }

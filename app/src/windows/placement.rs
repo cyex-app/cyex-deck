@@ -1,8 +1,9 @@
 //! W1 Where a saved window comes back, as pure math over the connected monitors.
 //!
-//! Saved geometry is logical px at the scale of the monitor the window was on, so a point is
-//! mapped back by trying each monitor's own scale. The result is physical px, kept inside one
-//! monitor's work area at a sane size, whatever was saved.
+//! Saved geometry is logical px at the scale it was saved at (`Geometry::scale`), so
+//! `x * scale` is physical px. Saves from before v1.07 have no scale and are mapped back by
+//! trying each monitor's own. The result is physical px, kept inside one monitor's work area
+//! at a sane size, whatever was saved.
 
 use cyex_settings::schema::Geometry;
 
@@ -11,6 +12,8 @@ const FAR: i32 = 30_000;
 /// Smallest and largest logical size worth restoring or saving.
 pub const MIN_SANE: (u32, u32) = (200, 150);
 const MAX_SANE: u32 = 16_384;
+/// Scales a save can claim; anything else is junk and treated as an old save.
+const SCALES: std::ops::RangeInclusive<f64> = 0.5..=8.0;
 
 /// One monitor in physical px.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -29,7 +32,7 @@ pub struct Rect {
 }
 
 impl Rect {
-    fn contains(&self, x: f64, y: f64) -> bool {
+    pub fn contains(&self, x: f64, y: f64) -> bool {
         x >= f64::from(self.x)
             && y >= f64::from(self.y)
             && x < f64::from(self.x) + f64::from(self.w)
@@ -43,16 +46,27 @@ impl Rect {
     }
 }
 
-/// Where and how big a window opens: physical position of its top-left corner, logical
-/// size, on `screens[screen]`.
+/// Where and how big a window opens, in physical px, on `screens[screen]`. `scale` is that
+/// monitor's, for the builder, which takes logical units.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Placement {
     pub screen: usize,
     pub x: i32,
     pub y: i32,
-    pub width: f64,
-    pub height: f64,
+    pub w: i32,
+    pub h: i32,
+    pub scale: f64,
     pub maximized: bool,
+}
+
+impl Placement {
+    pub fn logical_size(&self) -> (f64, f64) {
+        (f64::from(self.w) / self.scale, f64::from(self.h) / self.scale)
+    }
+
+    pub fn logical_position(&self) -> (f64, f64) {
+        (f64::from(self.x) / self.scale, f64::from(self.y) / self.scale)
+    }
 }
 
 /// A rect worth saving or restoring: not a minimized window's, not a few px, not far away.
@@ -64,11 +78,45 @@ fn has_size(g: &Geometry) -> bool {
     (MIN_SANE.0..=MAX_SANE).contains(&g.width) && (MIN_SANE.1..=MAX_SANE).contains(&g.height)
 }
 
-/// The monitor a saved rect belongs to, and the scale that maps its position there: the one
-/// whose own scale puts the rect's center on it, else one another monitor's scale does (a
-/// save racing a move between monitors used the old one), else its top-left corner, else the
-/// one it overlaps most. `None` when it's on none of them.
+/// The monitor a saved rect belongs to, and the scale that maps its position there. `None`
+/// when it's on none of them.
 fn screen_of(g: &Geometry, screens: &[Screen]) -> Option<(usize, f64)> {
+    match g.scale.filter(|k| SCALES.contains(k)) {
+        Some(k) => saved_at(g, k, screens).map(|i| (i, k)),
+        None => guess(g, screens),
+    }
+}
+
+/// With its scale known, the rect is physical px: the monitor its center is on, else the
+/// one it overlaps most. Monitors don't overlap in physical px, so there's one answer.
+fn saved_at(g: &Geometry, k: f64, screens: &[Screen]) -> Option<usize> {
+    let (x, y) = (f64::from(g.x) * k, f64::from(g.y) * k);
+    let (w, h) = (f64::from(g.width) * k, f64::from(g.height) * k);
+    screens
+        .iter()
+        .position(|s| s.bounds.contains(x + w / 2.0, y + h / 2.0))
+        .or_else(|| most(screens, |_| (x, y, w, h)))
+}
+
+/// The monitor with the biggest share of a rect (physical px, per monitor).
+fn most(screens: &[Screen], rect: impl Fn(&Screen) -> (f64, f64, f64, f64)) -> Option<usize> {
+    screens
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            let (x, y, w, h) = rect(s);
+            (i, s.bounds.overlap(x, y, w, h))
+        })
+        .filter(|&(_, a)| a > 0.0)
+        .max_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|(i, _)| i)
+}
+
+/// Saves without a scale: the monitor whose own scale puts the rect's center on it, else one
+/// another monitor's scale does (a save racing a move between monitors used the old one),
+/// else its top-left corner, else the one it overlaps most. Can pick the wrong one where
+/// the logical ranges of monitors with different scales overlap.
+fn guess(g: &Geometry, screens: &[Screen]) -> Option<(usize, f64)> {
     let (x, y) = (f64::from(g.x), f64::from(g.y));
     let (w, h) = (f64::from(g.width), f64::from(g.height));
     let (cx, cy) = (x + w / 2.0, y + h / 2.0);
@@ -87,25 +135,45 @@ fn screen_of(g: &Geometry, screens: &[Screen]) -> Option<(usize, f64)> {
         })
     };
     let most = || {
-        screens
-            .iter()
-            .enumerate()
-            .map(|(i, s)| {
-                (
-                    i,
-                    s.bounds
-                        .overlap(x * s.scale, y * s.scale, w * s.scale, h * s.scale),
-                )
-            })
-            .filter(|&(_, a)| a > 0.0)
-            .max_by(|a, b| a.1.total_cmp(&b.1))
-            .map(|(i, _)| (i, screens[i].scale))
+        most(screens, |s| (x * s.scale, y * s.scale, w * s.scale, h * s.scale)).map(|i| (i, screens[i].scale))
     };
     own(cx, cy).or_else(any).or_else(|| own(x, y)).or_else(most)
 }
 
-/// Places a saved window. A rect on no monitor or with junk values is centered on the
-/// primary monitor at `default` size; the size is kept between `min` and the work area.
+/// Top-left corner (physical px) that centers a `w` x `h` (physical) window in `s`'s work
+/// area; a window bigger than it starts at its top-left.
+pub fn center(s: &Screen, w: f64, h: f64) -> (i32, i32) {
+    let at = |start: i32, room: i32, size: f64| {
+        (f64::from(start) + ((f64::from(room) - size) / 2.0).max(0.0)).round() as i32
+    };
+    (at(s.work.x, s.work.w, w), at(s.work.y, s.work.h, h))
+}
+
+/// Top-left corner (physical px) of a `w` x `h` (physical) window opened beside the point
+/// `(x, y)` on `s`: right of and below it, or left of and above it where that side has no
+/// room, `gap` px away; inside the work area.
+pub fn beside_point(s: &Screen, (x, y): (f64, f64), (w, h): (f64, f64), gap: f64) -> (i32, i32) {
+    let x = beside(x, w, gap, f64::from(s.work.x), f64::from(s.work.w));
+    let y = beside(y, h, gap, f64::from(s.work.y), f64::from(s.work.h));
+    (x.round() as i32, y.round() as i32)
+}
+
+/// Along one axis: after `at` when the window fits there, else before it when it fits
+/// there, else on the roomier side; always inside `start..start + len`.
+fn beside(at: f64, size: f64, gap: f64, start: f64, len: f64) -> f64 {
+    let end = start + len;
+    let (after, before) = (at + gap, at - gap - size);
+    let x = if after + size <= end || (before < start && end - at >= at - start) {
+        after
+    } else {
+        before
+    };
+    x.min(end - size).max(start)
+}
+
+/// Places a saved window. A rect on no monitor or with junk values is centered on
+/// `primary` at `default` size; the size is kept between `min` and the work area. `min`
+/// wins over the work area, as the OS makes it: the position is clamped for that size.
 /// `min` and `default` are logical. `None` when there are no monitors.
 pub fn place(
     g: &Geometry,
@@ -115,9 +183,8 @@ pub fn place(
     default: (f64, f64),
 ) -> Option<Placement> {
     let found = is_valid(g).then(|| screen_of(g, screens)).flatten();
-    let at = found.map_or(1.0, |(_, k)| k);
-    let found = found.map(|(i, _)| i);
     let screen = found
+        .map(|(i, _)| i)
         .or_else(|| (primary < screens.len()).then_some(primary))
         .or_else(|| (!screens.is_empty()).then_some(0))?;
     let s = screens[screen];
@@ -126,10 +193,11 @@ pub fn place(
     } else {
         default
     };
+    // B5 The size the window really gets: never under `min`, even past the work area.
     let fit = |want: f64, min: f64, room: i32| {
         (want * s.scale)
-            .max(min * s.scale)
             .min(f64::from(room))
+            .max(min * s.scale)
             .round()
             .max(1.0)
     };
@@ -139,21 +207,19 @@ pub fn place(
         at.round().min(end).max(f64::from(start)) as i32
     };
     let (x, y) = match found {
-        Some(_) => (
+        Some((_, at)) => (
             clamp(f64::from(g.x) * at, pw, s.work.x, s.work.w),
             clamp(f64::from(g.y) * at, ph, s.work.y, s.work.h),
         ),
-        None => (
-            s.work.x + ((f64::from(s.work.w) - pw) / 2.0).round() as i32,
-            s.work.y + ((f64::from(s.work.h) - ph) / 2.0).round() as i32,
-        ),
+        None => center(&s, pw, ph),
     };
     Some(Placement {
         screen,
         x,
         y,
-        width: pw / s.scale,
-        height: ph / s.scale,
+        w: pw as i32,
+        h: ph as i32,
+        scale: s.scale,
         maximized: g.maximized,
     })
 }
@@ -163,152 +229,26 @@ pub fn place(
 pub fn centered_on(s: &Screen, default: (f64, f64)) -> Geometry {
     let w = (default.0 * s.scale).min(f64::from(s.work.w));
     let h = (default.1 * s.scale).min(f64::from(s.work.h));
-    let x = f64::from(s.work.x) + (f64::from(s.work.w) - w) / 2.0;
-    let y = f64::from(s.work.y) + (f64::from(s.work.h) - h) / 2.0;
+    let (x, y) = center(s, w, h);
     Geometry {
-        x: (x / s.scale).round() as i32,
-        y: (y / s.scale).round() as i32,
+        x: (f64::from(x) / s.scale).round() as i32,
+        y: (f64::from(y) / s.scale).round() as i32,
         width: (w / s.scale).round() as u32,
         height: (h / s.scale).round() as u32,
         maximized: true,
+        scale: Some(s.scale),
     }
+}
+
+/// B2 What a window maximized on `on` saves: the last normal rect while that's on `on`, so
+/// un-maximizing lands where it was; else (moved there maximized, Win+Shift+Arrow) `normal`
+/// centered on `on`, so it doesn't come back on the old monitor.
+pub fn maximized_on(previous: Option<Geometry>, screens: &[Screen], on: &Screen, normal: (f64, f64)) -> Geometry {
+    previous
+        .filter(is_valid)
+        .filter(|g| screen_of(g, screens).is_some_and(|(i, _)| screens[i].bounds == on.bounds))
+        .map_or_else(|| centered_on(on, normal), |g| Geometry { maximized: true, ..g })
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    const fn rect(x: i32, y: i32, w: i32, h: i32) -> Rect {
-        Rect { x, y, w, h }
-    }
-
-    /// The test machine: primary 1080p at 100 %, a 4K at 150 % right of it and one left.
-    fn screens() -> Vec<Screen> {
-        vec![
-            Screen {
-                bounds: rect(0, 0, 1920, 1080),
-                work: rect(0, 0, 1920, 1032),
-                scale: 1.0,
-            },
-            Screen {
-                bounds: rect(1920, -887, 3840, 2160),
-                work: rect(1920, -887, 3840, 2088),
-                scale: 1.5,
-            },
-            Screen {
-                bounds: rect(-3840, -887, 3840, 2160),
-                work: rect(-3840, -887, 3840, 2088),
-                scale: 1.5,
-            },
-        ]
-    }
-
-    fn geo(x: i32, y: i32, width: u32, height: u32, maximized: bool) -> Geometry {
-        Geometry {
-            x,
-            y,
-            width,
-            height,
-            maximized,
-        }
-    }
-
-    const MIN: (f64, f64) = (720.0, 420.0);
-    const DEF: (f64, f64) = (1280.0, 800.0);
-
-    fn place3(g: &Geometry) -> Placement {
-        place(g, &screens(), 0, MIN, DEF).unwrap()
-    }
-
-    #[test]
-    fn the_broken_save_lands_maximized_on_the_right_monitor() {
-        // target/perf-v107/usertest/windows-broken.json: the maximized rect, 11 px outside.
-        let p = place3(&geo(1273, -599, 2560, 1392, true));
-        assert_eq!(p.screen, 1);
-        assert_eq!((p.x, p.y), (1920, -887));
-        assert_eq!((p.width, p.height), (2560.0, 1392.0));
-        assert!(p.maximized);
-    }
-
-    #[test]
-    fn a_normal_rect_stays_where_it_was() {
-        let p = place3(&geo(1400, -400, 1280, 800, false));
-        assert_eq!((p.screen, p.x, p.y), (1, 2100, -600));
-        assert_eq!((p.width, p.height), (1280.0, 800.0));
-        let p = place3(&geo(100, 50, 1280, 800, false));
-        assert_eq!((p.screen, p.x, p.y), (0, 100, 50));
-        let p = place3(&geo(-2000, -300, 1280, 800, false));
-        assert_eq!((p.screen, p.x, p.y), (2, -3000, -450));
-    }
-
-    #[test]
-    fn a_rect_hanging_off_an_edge_is_pulled_in() {
-        // Mostly on the primary, bottom-right corner past it.
-        let p = place3(&geo(1000, 600, 1280, 800, false));
-        assert_eq!(p.screen, 0);
-        assert_eq!((p.x, p.y), (1920 - 1280, 1032 - 800));
-        // Bigger than the primary: shrunk to its work area.
-        let p = place3(&geo(0, 0, 2560, 1392, false));
-        assert_eq!((p.screen, p.x, p.y), (0, 0, 0));
-        assert_eq!((p.width, p.height), (1920.0, 1032.0));
-    }
-
-    #[test]
-    fn a_gone_monitor_or_junk_centers_on_the_primary() {
-        for g in [
-            geo(9000, 9000, 1280, 800, false),   // monitor gone
-            geo(-32000, -32000, 160, 28, false), // minimized
-            geo(-22613, -21629, 107, 19, true),  // the broken window
-            geo(0, 0, 0, 0, true),               // nothing saved but the flag
-        ] {
-            let p = place3(&g);
-            assert_eq!(p.screen, 0, "{g:?}");
-            assert_eq!((p.width, p.height), (1280.0, 800.0), "{g:?}");
-            assert_eq!((p.x, p.y), (320, 116), "{g:?}");
-            assert_eq!(p.maximized, g.maximized);
-        }
-    }
-
-    #[test]
-    fn a_save_with_the_old_scale_finds_its_monitor() {
-        // Saved mid-move from the primary: physical px of the left 4K at scale 1.
-        let p = place3(&geo(-3700, -300, 1280, 800, false));
-        assert_eq!((p.screen, p.x, p.y), (2, -3700, -300));
-        assert_eq!((p.width, p.height), (1280.0, 800.0));
-    }
-
-    #[test]
-    fn tiny_sizes_grow_to_the_minimum() {
-        let p = place3(&geo(100, 100, 300, 200, false));
-        assert_eq!((p.width, p.height), (720.0, 420.0));
-        // At 150 % the minimum is still logical.
-        let p = place3(&geo(1400, -400, 300, 200, false));
-        assert_eq!((p.screen, p.width, p.height), (1, 720.0, 420.0));
-    }
-
-    #[test]
-    fn no_monitors_means_no_placement() {
-        assert_eq!(place(&geo(0, 0, 800, 600, false), &[], 0, MIN, DEF), None);
-        // A primary index past the list falls back to the first monitor.
-        let p = place(&geo(9000, 9000, 800, 600, false), &screens(), 7, MIN, DEF).unwrap();
-        assert_eq!(p.screen, 0);
-    }
-
-    #[test]
-    fn only_real_rects_are_saved() {
-        assert!(is_valid(&geo(1273, -599, 2560, 1392, true)));
-        assert!(!is_valid(&geo(-32000, -32000, 1280, 800, false)));
-        assert!(!is_valid(&geo(100, 100, 107, 19, false)));
-        assert!(!is_valid(&geo(100, 100, 1280, 0, false)));
-        assert!(!is_valid(&geo(100, 100, 100_000, 800, false)));
-    }
-
-    #[test]
-    fn maximized_without_a_normal_rect_keeps_its_monitor() {
-        let g = centered_on(&screens()[1], DEF);
-        assert_eq!(g, geo(1920, -295, 1280, 800, true));
-        let p = place3(&g);
-        assert_eq!((p.screen, p.maximized), (1, true));
-        assert_eq!((p.x, p.y), (1920 + 960, -887 + 444));
-    }
-}
+mod tests;

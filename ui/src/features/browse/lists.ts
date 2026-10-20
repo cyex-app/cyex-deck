@@ -73,7 +73,8 @@ export function since(iso: string | null | undefined, now = Date.now()): string 
   const days = Math.ceil((today - t) / DAY);
   if (days === 1) return 'yesterday';
   if (days < 14) return `${days} days ago`;
-  if (days < 60) return `${Math.floor(days / 7)} weeks ago`;
+  // v1.07 Under 61 days the months read 1 ("1 months ago"): weeks until it's 2 months.
+  if (days < 61) return `${Math.floor(days / 7)} weeks ago`;
   if (days < 730) return `${Math.floor(days / 30.4)} months ago`;
   return `${Math.floor(days / 365)} years ago`;
 }
@@ -82,7 +83,8 @@ export function since(iso: string | null | undefined, now = Date.now()): string 
 export function uptimeShort(startedAt: string, now = Date.now()): string {
   const t = Date.parse(startedAt);
   if (Number.isNaN(t)) return '';
-  return formatDuration(Math.floor(Math.max(0, now - t) / 60_000) * 60);
+  // v1.07 Under a minute reads "1m", like the viewer chart, not "0s" next to the minute-only others.
+  return formatDuration(Math.max(60, Math.floor(Math.max(0, now - t) / 60_000) * 60));
 }
 
 /** Twitch's preview picture. The URL is stable, so a 5-minute bucket fetches a fresh one. */

@@ -14,7 +14,7 @@ import { nextPiece, prepend } from './historyDrip';
 
 /** V101-02 Lines kept on screen, as set; older ones drop off the top. Rust keeps as many
  * per shown room, at least 500. V107-M1 A room shown again after the background opens with
- * the 150 it kept; its older lines follow as `history` events of 50, newest first, and go on
+ * the 150 it kept; its older lines follow in one `history` event and go on
  * screen 25 per frame (historyDrip.ts). */
 const maxLines = () => settings.v.chat?.scrollback ?? 1000;
 
@@ -99,6 +99,9 @@ export class ChatRoom {
   apply(events: RoomEvent[]): void {
     let list = this.messages;
     let changed = false;
+    let history = false;
+    /** Ids on screen, made once a batch has a message: a repeated id anywhere would break the keyed list. */
+    let ids: Set<string> | null = null;
     const edit = (fn: (m: ChatMessage) => ChatMessage | null) => {
       list = list.map((m) => fn(m) ?? m);
       this.later = this.later.map((c) => c.map((m) => fn(m) ?? m));
@@ -107,8 +110,10 @@ export class ChatRoom {
     for (const e of events) {
       switch (e.type) {
         case 'message':
-          // A repeated id would break the keyed list.
-          if (list.slice(-50).some((m) => m.id === e.message.id)) break;
+          // A repeated id would break the keyed list and stop the chat (T3): checked against every line.
+          ids ??= new Set(list.map((m) => m.id));
+          if (ids.has(e.message.id)) break;
+          ids.add(e.message.id);
           list = changed ? list : list.slice();
           list.push(e.message);
           changed = true;
@@ -125,20 +130,23 @@ export class ChatRoom {
         // S14 A plugin took its line back, or emptied the chat on screen.
         case 'remove':
           list = list.filter((m) => m.id !== e.id);
+          ids?.delete(e.id);
           this.later = this.later.map((c) => c.filter((m) => m.id !== e.id));
           changed = true;
           break;
         case 'wipe':
           list = [];
+          ids = null;
           this.later = [];
           changed = true;
           break;
         case 'history':
           this.later.push(e.messages.slice());
-          this.drip();
+          history = true;
           break;
         case 'gap':
           list = mergeByTime(list, e.messages);
+          ids = null;
           changed = true;
           break;
         case 'pinned':
@@ -154,6 +162,8 @@ export class ChatRoom {
       }
     }
     if (changed) this.set(list);
+    // After the set: a hidden window drips at once, and must not be overwritten by `list`.
+    if (history) this.drip();
   }
 
   private set(list: ChatMessage[]): void {

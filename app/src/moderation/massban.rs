@@ -1,12 +1,13 @@
 //! 1.55 Mass banning, by sign-in method. Helix bans one login per request, paced from
 //! the rate-limit headers with 429 backoff (the "slow" tool). GQL batches
 //! `banUserFromChatRoom` 35 at a time (the "fast" tool, improved: a batch beats the
-//! reference's concurrent singles). Both skip logins that were already banned or are mods.
+//! reference's concurrent singles). Both skip mods and logins already banned; one timed out gets the new one (V107-M7).
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use cyex_moderation::pacer::Pacer;
+use cyex_moderation::restack;
 use cyex_twitch::gql;
 use cyex_twitch::helix::moderation as hm;
 use serde::Serialize;
@@ -93,7 +94,7 @@ pub async fn run(app: &AppHandle, actor: &Actor, logins: &[String], secs: Option
 
     // GQL batches, so prefer it whenever the account has a GQL token; else Helix one-by-one.
     let result = if actor.gql().is_some() {
-        gql_path(app, actor, logins, secs, reason, &flag, &done, &refused, &emit).await
+        gql_path(app, actor, logins, secs, reason, pacer, &flag, &done, &refused, &emit).await
     } else {
         helix_path(app, actor, logins, secs, reason, pacer, &flag, &done, &refused, &emit).await
     };
@@ -109,6 +110,7 @@ async fn gql_path(
     logins: &[String],
     secs: Option<u32>,
     reason: &str,
+    pacer: &mut Pacer,
     flag: &Arc<AtomicBool>,
     done: &AtomicUsize,
     refused: &AtomicUsize,
@@ -124,19 +126,27 @@ async fn gql_path(
         let results = gql::moderation::ban_many(&http(app), g, &actor.channel_id, &names, expires.as_deref(), reason)
             .await
             .map_err(|e| e.to_string())?;
+        // V107-M7 One in place (a timeout over a timeout, a ban over a timeout): those go
+        // again one by one, where the last one counts.
+        let mut again = Vec::new();
         for (login, code) in results {
-            // V107-M7 A timeout over a timeout: the new one replaces it, one by one.
-            let ok = match code.as_deref() {
-                None => true,
-                Some("TARGET_ALREADY_BANNED") if secs.is_some() => {
-                    super::restack::ban(app, actor, &login, None, secs, reason).await.is_ok()
+            match code {
+                None => done.fetch_add(1, Ordering::Relaxed),
+                Some(c) if restack::redo(secs.is_some(), &c) => {
+                    again.push(login);
+                    continue;
                 }
-                Some(_) => false,
+                Some(_) => refused.fetch_add(1, Ordering::Relaxed),
             };
-            let n = if ok { done } else { refused };
-            n.fetch_add(1, Ordering::Relaxed);
         }
         emit(true);
+        for login in restack::until(&again, || flag.load(Ordering::Relaxed)) {
+            let ok = super::restack::ban(app, actor, login, None, secs, reason).await.is_ok();
+            let n = if ok { done } else { refused };
+            n.fetch_add(1, Ordering::Relaxed);
+            emit(true);
+            sleep(Duration::from_millis(pacer.after_ok(None, crate::chat::now_ms()).max(1) as u64)).await;
+        }
     }
     Ok(())
 }

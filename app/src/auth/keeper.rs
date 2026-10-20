@@ -23,6 +23,10 @@ pub fn spawn(app: AppHandle) {
 
 async fn check_all(app: &AppHandle) {
     let auth = app.state::<Auth>();
+    // V107-A1 Refreshed tokens the Credential Manager refused earlier.
+    for e in auth.vault.save_pending() {
+        eprintln!("auth: couldn't save a refreshed token: {e}");
+    }
     let mut changed = false;
     for account in accounts(app).list {
         for kind in TokenKind::ALL {
@@ -61,13 +65,13 @@ fn apply(app: &AppHandle, user_id: &str, kind: TokenKind, checked: &Secret, outc
             validation,
         } => {
             let mut changed = match refreshed {
-                Some(fresh) => match auth.vault.put(user_id, kind, fresh) {
-                    Ok(()) => true,
-                    Err(e) => {
+                // V107-A1 Kept in memory even if the save fails; retried next round.
+                Some(fresh) => {
+                    if let Err(e) = auth.vault.keep(user_id, kind, fresh, TokenState::Valid) {
                         eprintln!("auth: couldn't save a refreshed token: {e}");
-                        auth.vault.mark(user_id, kind, TokenState::Valid)
                     }
-                },
+                    true
+                }
                 None => auth.vault.mark(user_id, kind, TokenState::Valid),
             };
             let now = unix_now();
@@ -77,6 +81,14 @@ fn apply(app: &AppHandle, user_id: &str, kind: TokenKind, checked: &Secret, outc
                 updated
             });
             changed
+        }
+        // V107-A1 The old refresh token is spent: keep the new pair and validate it at the
+        // offline retry. `expires_at` is updated once that check succeeds.
+        Outcome::RefreshedUnchecked(fresh) => {
+            if let Err(e) = auth.vault.keep(user_id, kind, fresh, TokenState::Offline) {
+                eprintln!("auth: couldn't save a refreshed token: {e}");
+            }
+            true
         }
         Outcome::Invalid => auth.vault.mark(user_id, kind, TokenState::Invalid),
         Outcome::Offline => auth.vault.mark(user_id, kind, TokenState::Offline),

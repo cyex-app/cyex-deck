@@ -56,6 +56,9 @@
   }
   .text {
     flex: 1;
+    /* t5 A long name with no spaces (a layout, a file) wraps inside the toast. */
+    min-width: 0;
+    overflow-wrap: anywhere;
     padding: 10px 14px 10px 12px;
     background: none;
     border: 0;

@@ -8,6 +8,7 @@ import type { ErrorData, HlsConfig } from 'hls.js';
 import type { PlayerSession } from '../../ipc/bindings/PlayerSession';
 import { delayVideo } from './avsync';
 import { onShown, pageHidden } from '../../lib/awake';
+import { formatNumber } from '../../lib/format';
 import { Away, outOfSight } from './away';
 import { GRAPH_EVENT, graphDelay } from './gain';
 import { behindLive, dvrConfig, liveConfig, liveState, maxLatency, PAUSE_STOP_MS, pausedBehind, rangeEnd } from './liveEdge';
@@ -132,6 +133,8 @@ export class Engine {
   private graphTimer: ReturnType<typeof setTimeout> | undefined;
   /** L1 Destroyed: nothing starts or loads on it again. */
   private gone = false;
+  /** v1.07 A load error since the last loaded segment. */
+  private erred = false;
 
   constructor(
     private readonly video: HTMLVideoElement,
@@ -342,7 +345,7 @@ export class Engine {
       bandwidth: hls?.bandwidthEstimate ?? 0,
       latency: this.liveSrc && hls ? hls.latency : null,
       buffer,
-      dropped: q ? `${q.droppedVideoFrames} / ${q.totalVideoFrames}` : '',
+      dropped: q ? `${formatNumber(q.droppedVideoFrames)} / ${formatNumber(q.totalVideoFrames)}` : '',
     };
   }
 
@@ -372,6 +375,7 @@ export class Engine {
     this.failure = null;
     this.waiting = true;
     this.recovered = 0;
+    this.erred = false;
     this.playCc = null;
     this.planned.clear();
     this.tornAt = null;
@@ -428,7 +432,17 @@ export class Engine {
       if (this.liveSrc && last?.programDateTime != null) this.edgeDate = last.programDateTime + last.duration * 1000;
       this.tick();
     });
-    hls.on(Hls.Events.ERROR, (_, d) => this.onError(Hls, d));
+    hls.on(Hls.Events.ERROR, (_, d) => {
+      if (!d.fatal) this.erred = true;
+      this.onError(Hls, d);
+    });
+    // v1.07 hls.js steps down a quality on a load error and stays there: once a segment
+    // loads again, the picked quality comes back (it stayed at 160p after a blip).
+    hls.on(Hls.Events.FRAG_LOADED, () => {
+      if (!this.erred || this.hls !== hls) return;
+      this.erred = false;
+      this.apply(true);
+    });
     // h3 A clock jump hls.js got no discontinuity for (torn.ts).
     hls.on(Hls.Events.FRAG_LOADING, (_, d) => {
       if (!this.liveSrc || typeof d.frag.sn !== 'number') return;
@@ -566,6 +580,8 @@ export class Engine {
   private fail(f: Failure): void {
     this.failure = this.live || f !== 'offline' ? f : 'gone';
     this.waiting = false;
+    // v1.07 The video lost its source without a pause event: it no longer plays.
+    this.playing = false;
     this.st = failed(this.st);
     this.hls?.destroy();
     this.hls = null;

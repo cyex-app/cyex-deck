@@ -10,10 +10,11 @@ use std::sync::Mutex;
 
 use cyex_eventsub::events::{self, Event, Moderate};
 use cyex_eventsub::session::{self, Out, Session};
-use cyex_eventsub::subs;
+use cyex_eventsub::subs::{self, Answer, ChannelSubs};
 use cyex_chat::model::NoticeKind;
 use cyex_moderation::actions::{self, Decision, ModLine};
-use cyex_moderation::own::OwnDeletes;
+use cyex_moderation::own::{Echo, OwnEchoes};
+use cyex_moderation::role_change::RoleAction;
 use cyex_twitch::hermes::Kind;
 use cyex_twitch::helix;
 use tauri::{AppHandle, Manager};
@@ -27,10 +28,49 @@ use crate::auth;
 struct Account {
     _session: Session,
     session_id: Option<String>,
-    /// Channel ids we've subscribed on the current session.
-    subscribed: HashSet<String>,
+    /// V107-A2 Per channel id, what is made on the current session. Channels stay after
+    /// they close: their subscriptions live until the socket ends.
+    subs: HashMap<String, ChannelSubs>,
+    /// Channels with a subscribe task running, and how many subscriptions those still send.
+    pending: HashSet<String>,
+    in_flight: usize,
     /// Channels this account mods and that are open: channel id → login.
     wanted: HashMap<String, String>,
+    /// V107-A2 When each wanted channel was opened (a counter), and which are shown: over
+    /// the cap, shown ones win, then the first opened.
+    opened: HashMap<String, u64>,
+    next_open: u64,
+    front: HashSet<String>,
+    /// After a 429: no new subscribes before this.
+    full_until_ms: i64,
+    /// The cap was logged (once per account).
+    warned_full: bool,
+    /// A retry of failed subscriptions is scheduled.
+    retry_armed: bool,
+}
+
+impl Account {
+    /// Whether this session holds subscriptions for the channel.
+    fn covers(&self, channel_id: &str) -> bool {
+        self.subs.get(channel_id).is_some_and(|s| s.held() > 0)
+    }
+
+    /// A new session (or none): nothing is made on it yet.
+    fn reset(&mut self, session_id: Option<String>) {
+        self.session_id = session_id;
+        self.subs.clear();
+        self.pending.clear();
+        self.in_flight = 0;
+        self.full_until_ms = 0;
+        self.retry_armed = false;
+    }
+
+    /// Wanted channels in priority order: shown first, then the first opened.
+    fn by_priority(&self) -> Vec<String> {
+        let mut ids: Vec<&String> = self.wanted.keys().collect();
+        ids.sort_by_key(|c| (!self.front.contains(*c), self.opened.get(*c).copied().unwrap_or(u64::MAX), (*c).clone()));
+        ids.into_iter().cloned().collect()
+    }
 }
 
 #[derive(Default)]
@@ -46,54 +86,43 @@ pub fn init(app: &AppHandle) {
     app.manage(Own::default());
 }
 
-/// V107-P7 Our own deletes, waiting for their echo (`cyex_moderation::own`).
+/// V107-P7 Our own mod actions, waiting for their echo (`cyex_moderation::own`).
 #[derive(Default)]
-pub struct Own(Mutex<OwnDeletes>);
+pub struct Own(Mutex<OwnEchoes>);
 
-/// V107-P7 We're deleting `msg_id` (`gone: false` once it failed): its echo adds no line.
-pub fn own_delete(app: &AppHandle, msg_id: &str, gone: bool) {
+/// S1 Marks `e` as ours (`mark: false` once it failed): its echo adds no line.
+pub fn own(app: &AppHandle, e: Echo, mark: bool) {
     let Some(own) = app.try_state::<Own>() else { return };
     let mut own = own.0.lock().unwrap_or_else(|p| p.into_inner());
-    if gone {
-        own.mark(msg_id, crate::chat::now_ms());
+    if mark {
+        own.mark(e, crate::chat::now_ms());
     } else {
-        own.forget(msg_id);
+        own.forget(&e);
     }
 }
 
-/// V107-M7 The key for our own lift of `login`'s timeout in a channel, in [`Own`].
-fn lift_key(channel_id: &str, login: &str) -> String {
-    format!("lift:{channel_id}:{}", login.to_ascii_lowercase())
+/// V107-P7 We're deleting `msg_id` (`gone: false` once it failed).
+pub fn own_delete(app: &AppHandle, msg_id: &str, gone: bool) {
+    own(app, Echo::Delete(msg_id.to_owned()), gone);
 }
 
 /// V107-M7 We lift `login`'s timeout only to put the new one on (`done: false` once that
 /// failed): its echo adds no line, the new timeout's does.
 pub fn own_lift(app: &AppHandle, channel_id: &str, login: &str, done: bool) {
-    own_delete(app, &lift_key(channel_id, login), done);
-}
-
-/// V107-M8 The key for one step of our own mod/VIP swap (`action` as Twitch names it).
-fn role_key(channel_id: &str, action: &str, login: &str) -> String {
-    format!("role:{channel_id}:{action}:{}", login.to_ascii_lowercase())
+    own(app, Echo::lift(channel_id, login), done);
 }
 
 /// V107-M8 A swap's steps (`mark: false` once it failed): their echoes add no line, the
 /// swap's own line says both.
-pub fn own_role(app: &AppHandle, channel_id: &str, action: &str, login: &str, mark: bool) {
-    own_delete(app, &role_key(channel_id, action, login), mark);
+pub fn own_role(app: &AppHandle, channel_id: &str, action: RoleAction, login: &str, mark: bool) {
+    own(app, Echo::role(channel_id, login, action), mark);
 }
 
-/// V107-P7 Whether this delete echo is one of ours. V107-M7 Or our lift before a new timeout.
+/// V107-P7 Whether this echo is one of ours: a delete, our lift before a new timeout, a swap step.
 fn ours(app: &AppHandle, channel_id: &str, m: &Moderate, now: i64) -> bool {
-    let key = match m.action.as_str() {
-        "delete" => m.message_id.clone(),
-        "untimeout" | "unban" => m.target.as_ref().map(|t| lift_key(channel_id, &t.login)),
-        "mod" | "unmod" | "vip" | "unvip" => m.target.as_ref().map(|t| role_key(channel_id, &m.action, &t.login)),
-        _ => None,
-    };
-    let Some(key) = key else { return false };
+    let Some(e) = Echo::of(m, channel_id) else { return false };
     let Some(own) = app.try_state::<Own>() else { return false };
-    own.0.lock().unwrap_or_else(|p| p.into_inner()).take(&key, now)
+    own.0.lock().unwrap_or_else(|p| p.into_inner()).take(&e, now)
 }
 
 /// Recomputes which (account, channel) pairs need feeds, from the open chat rooms and the
@@ -111,6 +140,12 @@ pub fn sync(app: &AppHandle) {
         .collect();
     pairs.extend(crate::streammanager::own_channel(app));
     let open: HashSet<(String, String)> = pairs.iter().map(|(a, c, _)| (a.clone(), c.clone())).collect();
+    // V107-A2 Shown channels win the session’s slots.
+    let front: HashSet<String> = pairs
+        .iter()
+        .filter(|(_, _, login)| crate::chat::shown::lane(app, login) == cyex_twitch::pace::Lane::Front)
+        .map(|(_, cid, _)| cid.clone())
+        .collect();
     for (acc, cid, login) in pairs {
         if auth::helix_token(app, &acc).is_some() {
             wanted.entry(acc).or_default().insert(cid, login);
@@ -125,17 +160,23 @@ pub fn sync(app: &AppHandle) {
     map.retain(|acc, entry| {
         let keep = wanted.contains_key(acc);
         if !keep {
-            released.extend(entry.subscribed.iter().cloned());
+            released.extend(entry.subs.iter().filter(|(_, s)| s.held() > 0).map(|(c, _)| c.clone()));
         }
         keep
     });
     for (acc, channels) in wanted {
         let entry = map.entry(acc.clone()).or_insert_with(|| start(app, &acc));
-        entry.wanted = channels;
-        // If already welcomed, subscribe any new channels right away.
-        if entry.session_id.is_some() {
-            subscribe_new(app, &acc, entry);
+        entry.opened.retain(|c, _| channels.contains_key(c));
+        for c in channels.keys() {
+            if !entry.opened.contains_key(c) {
+                entry.opened.insert(c.clone(), entry.next_open);
+                entry.next_open += 1;
+            }
         }
+        entry.front = channels.keys().filter(|c| front.contains(*c)).cloned().collect();
+        entry.wanted = channels;
+        // If already welcomed, subscribe what is new or due again right away.
+        queue(app, &acc, entry);
     }
     drop(map);
     for cid in released {
@@ -152,7 +193,7 @@ pub fn follow_released(app: &AppHandle, channel_id: &str) {
     let holders: Vec<(String, String)> = {
         let map = feeds.0.lock().unwrap_or_else(|p| p.into_inner());
         map.iter()
-            .filter(|(_, e)| e.wanted.contains_key(channel_id) || e.subscribed.contains(channel_id))
+            .filter(|(_, e)| e.wanted.contains_key(channel_id) || e.covers(channel_id))
             .filter_map(|(acc, e)| Some((acc.clone(), e.session_id.clone()?)))
             .collect()
     };
@@ -167,7 +208,7 @@ pub fn follow_line(app: &AppHandle, channel_id: &str, text: String, login: Strin
     let covered = {
         let map = feeds.0.lock().unwrap_or_else(|p| p.into_inner());
         map.values()
-            .any(|e| e.wanted.contains_key(channel_id) || e.subscribed.contains(channel_id))
+            .any(|e| e.wanted.contains_key(channel_id) || e.covers(channel_id))
     };
     if covered {
         activity(app, channel_id, "follow", text, Some(login), crate::chat::now_ms());
@@ -188,8 +229,16 @@ fn start(app: &AppHandle, account: &str) -> Account {
     Account {
         _session: session,
         session_id: None,
-        subscribed: HashSet::new(),
+        subs: HashMap::new(),
+        pending: HashSet::new(),
+        in_flight: 0,
         wanted: HashMap::new(),
+        opened: HashMap::new(),
+        next_open: 0,
+        front: HashSet::new(),
+        full_until_ms: 0,
+        warned_full: false,
+        retry_armed: false,
     }
 }
 
@@ -199,18 +248,16 @@ fn handle(app: &AppHandle, account: &str, out: Out) {
             if let Some(feeds) = app.try_state::<Feeds>() {
                 let mut map = feeds.0.lock().unwrap_or_else(|p| p.into_inner());
                 if let Some(entry) = map.get_mut(account) {
-                    entry.session_id = Some(id);
-                    entry.subscribed.clear();
+                    entry.reset(Some(id));
+                    queue(app, account, entry);
                 }
             }
-            resubscribe(app, account);
         }
         Out::Lost => {
             if let Some(feeds) = app.try_state::<Feeds>() {
                 let mut map = feeds.0.lock().unwrap_or_else(|p| p.into_inner());
                 if let Some(entry) = map.get_mut(account) {
-                    entry.session_id = None;
-                    entry.subscribed.clear();
+                    entry.reset(None);
                 }
             }
         }
@@ -240,68 +287,117 @@ fn login_for(app: &AppHandle, account: &str, channel_id: &str) -> Option<String>
     map.get(account)?.wanted.get(channel_id).cloned()
 }
 
-fn resubscribe(app: &AppHandle, account: &str) {
-    let Some(feeds) = app.try_state::<Feeds>() else { return };
-    let (session_id, channels) = {
-        let map = feeds.0.lock().unwrap_or_else(|p| p.into_inner());
-        match map.get(account) {
-            Some(e) => match &e.session_id {
-                Some(id) => (id.clone(), e.wanted.keys().cloned().collect::<Vec<_>>()),
-                None => return,
-            },
-            None => return,
-        }
-    };
-    subscribe(app, account, &session_id, channels);
-}
-
-fn subscribe_new(app: &AppHandle, account: &str, entry: &Account) {
+/// V107-A2 Starts subscribing what the session still needs: new channels, and failed types
+/// whose wait is over. Within Twitch's 300 per socket (`subs::next_channels`); one task per
+/// channel at a time. Called with the feeds lock held.
+fn queue(app: &AppHandle, account: &str, entry: &mut Account) {
     let Some(session_id) = entry.session_id.clone() else { return };
-    let fresh: Vec<String> = entry
-        .wanted
-        .keys()
-        .filter(|c| !entry.subscribed.contains(*c))
-        .cloned()
-        .collect();
-    if !fresh.is_empty() {
-        subscribe(app, account, &session_id, fresh);
+    let Some(token) = auth::helix_token(app, account) else { return };
+    let now = crate::chat::now_ms();
+    if now < entry.full_until_ms {
+        return;
     }
+    let order = entry.by_priority();
+    let order: Vec<&str> = order.iter().map(String::as_str).collect();
+    let (next, left_out) = subs::next_channels(&order, &entry.subs, &entry.pending, entry.in_flight, now);
+    if left_out > 0 && !entry.warned_full {
+        entry.warned_full = true;
+        eprintln!("mod feeds: {account}: Twitch's {} per connection reached, {left_out} channels without a feed", subs::MAX_PER_SESSION);
+    }
+    if next.is_empty() {
+        return;
+    }
+    let jobs: Vec<(String, Vec<usize>)> = next.into_iter().map(|(c, t)| (c.to_owned(), t)).collect();
+    for (cid, todo) in &jobs {
+        entry.pending.insert(cid.clone());
+        entry.in_flight += todo.len();
+    }
+    subscribe(app, account, token, session_id, jobs);
 }
 
-/// Subscribes the mod types for each channel on the account's session (Helix).
-fn subscribe(app: &AppHandle, account: &str, session_id: &str, channels: Vec<String>) {
-    let Some((token, client_id)) = auth::helix_token(app, account) else { return };
+/// What a subscribe task does with the account's state, if its session is still the one.
+fn with_entry<R>(app: &AppHandle, account: &str, session_id: &str, f: impl FnOnce(&mut Account) -> R) -> Option<R> {
+    let feeds = app.try_state::<Feeds>()?;
+    let mut map = feeds.0.lock().unwrap_or_else(|p| p.into_inner());
+    map.get_mut(account).filter(|e| e.session_id.as_deref() == Some(session_id)).map(f)
+}
+
+/// Subscribes the given mod types per channel on the account's session (Helix), one answer
+/// at a time into the account's state.
+fn subscribe(app: &AppHandle, account: &str, (token, client_id): (String, String), session_id: String, jobs: Vec<(String, Vec<usize>)>) {
     let app = app.clone();
     let account = account.to_owned();
-    let session_id = session_id.to_owned();
     tauri::async_runtime::spawn(async move {
         let http = http(&app);
         let auth = helix::Auth {
             client_id: &client_id,
             token: &token,
         };
-        for cid in channels {
-            let mut ok = true;
-            for (kind, version) in subs::MOD_TYPES {
+        let mut full = false;
+        for (cid, todo) in &jobs {
+            let mut sent = 0;
+            for &i in todo {
+                if full {
+                    break;
+                }
+                let (kind, version) = subs::MOD_TYPES[i];
                 let cond = serde_json::json!({ "broadcaster_user_id": cid, "moderator_user_id": account });
-                if let Err(e) = helix::eventsub::subscribe(&http, auth, &session_id, kind, version, &cond).await {
-                    // 409 duplicate is fine; anything else once.
-                    if !e.api_message().is_some_and(|m| m.contains("already")) {
-                        ok = false;
+                let answer = match helix::eventsub::subscribe(&http, auth, &session_id, kind, version, &cond).await {
+                    Ok(_) => Answer::Done,
+                    Err(e) => {
+                        let a = subs::classify(e.status(), e.api_message());
                         // Status and Twitch's message only (the error never carries the token).
-                        if first_failure(&cid, kind) {
-                            eprintln!("mod feeds: {cid}: couldn't subscribe {kind}: {e}");
+                        if a != Answer::Done && first_failure(cid, kind) {
+                            eprintln!("mod feeds: {cid}: couldn't subscribe {kind} ({a:?}): {e}");
                         }
+                        a
                     }
+                };
+                full = answer == Answer::Full;
+                let now = crate::chat::now_ms();
+                sent += 1;
+                let live = with_entry(&app, &account, &session_id, |e| {
+                    e.in_flight = e.in_flight.saturating_sub(1);
+                    e.subs.entry(cid.clone()).or_default().answer(i, answer, now);
+                    if full {
+                        e.full_until_ms = now + subs::RETRY_MS;
+                    }
+                });
+                // The socket was replaced: the new session subscribes for itself.
+                if live.is_none() {
+                    return;
                 }
             }
-            if ok && let Some(feeds) = app.try_state::<Feeds>() {
-                let mut map = feeds.0.lock().unwrap_or_else(|p| p.into_inner());
-                if let Some(entry) = map.get_mut(&account) {
-                    entry.subscribed.insert(cid);
-                }
-            }
+            with_entry(&app, &account, &session_id, |e| {
+                e.pending.remove(cid);
+                e.in_flight = e.in_flight.saturating_sub(todo.len() - sent);
+            });
         }
+        retry_later(&app, &account, &session_id);
+    });
+}
+
+/// V107-A2 Failed subscriptions go again once their wait is over, without waiting for a sync.
+fn retry_later(app: &AppHandle, account: &str, session_id: &str) {
+    let Some(at) = with_entry(app, account, session_id, |e| {
+        let at = e.subs.values().filter_map(ChannelSubs::retry_at).min().map(|t| t.max(e.full_until_ms));
+        let at = at.filter(|_| !e.retry_armed)?;
+        e.retry_armed = true;
+        Some(at)
+    })
+    .flatten() else {
+        return;
+    };
+    let (app, account, session_id) = (app.clone(), account.to_owned(), session_id.to_owned());
+    tauri::async_runtime::spawn(async move {
+        let wait = (at - crate::chat::now_ms()).max(1_000) as u64;
+        tokio::time::sleep(std::time::Duration::from_millis(wait)).await;
+        let app2 = app.clone();
+        let acc = account.clone();
+        with_entry(&app, &account, &session_id, move |e| {
+            e.retry_armed = false;
+            queue(&app2, &acc, e);
+        });
     });
 }
 
@@ -371,20 +467,14 @@ pub fn on_hermes(app: &AppHandle, e: &cyex_twitch::hermes::Event) {
 
 /// A mod action from either feed: roles follow, the mod view and the chat get a line.
 fn moderate(app: &AppHandle, channel_id: &str, login: Option<&str>, m: &Moderate, secs: Option<u64>, now: i64) {
+    let role = RoleAction::parse(&m.action);
     // V102-21 One of our accounts modded or unmodded here: its controls follow now.
-    if let Some(t) = m.target.as_ref().filter(|t| !t.id.is_empty() && matches!(m.action.as_str(), "mod" | "unmod")) {
-        crate::chat::roles::set_moderator_in(app, &t.id, channel_id, m.action == "mod");
+    if let (Some(t), Some(r)) = (m.target.as_ref().filter(|t| !t.id.is_empty()), role.filter(|r| r.moderator())) {
+        crate::chat::roles::set_moderator_in(app, &t.id, channel_id, r.on());
     }
     // V107-M8 Role buttons follow any mod's change.
-    let role = match m.action.as_str() {
-        "mod" => Some((true, true)),
-        "unmod" => Some((true, false)),
-        "vip" => Some((false, true)),
-        "unvip" => Some((false, false)),
-        _ => None,
-    };
-    if let (Some(t), Some(l), Some((moderator, on))) = (m.target.as_ref(), login, role) {
-        super::standing::changed(app, l, &t.login, moderator, on);
+    if let (Some(t), Some(l), Some(r)) = (m.target.as_ref(), login, role) {
+        super::standing::changed(app, l, &t.login, r.moderator(), r.on());
     }
     // V107-P7 A delete quotes the text as chat had it, before Twitch's own copy.
     let shown = m.message_id.as_deref().filter(|_| m.action.ends_with("delete"));

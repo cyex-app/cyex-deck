@@ -6,9 +6,11 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { CheckResult } from './bindings/CheckResult';
 import type { Update } from './bindings/Update';
 import type { UpdateProgress } from './bindings/UpdateProgress';
+import type { UpdateState } from './bindings/UpdateState';
 
 export const updateIpc = {
-  state: () => invoke<Update | null>('update_state'),
+  /** B4 The release found and whether "Later" was picked this run. */
+  state: () => invoke<UpdateState>('update_state'),
   /** "Check now": ignores the skipped version. */
   check: () => invoke<CheckResult>('update_check'),
   skip: (version: string) => invoke<void>('update_skip', { version }),

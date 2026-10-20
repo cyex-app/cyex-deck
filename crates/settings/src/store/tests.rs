@@ -27,6 +27,46 @@ fn mark_dirty_writes_at_flush() {
     assert!(tmp.path().join("chat.json").exists());
 }
 
+/// V107-A3 One file that can't be written keeps only itself dirty.
+#[test]
+fn a_failed_write_keeps_that_part_dirty_and_saves_the_rest() {
+    let tmp = TempDir::new("store-flush-partial");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let (mut store, _) = open(tmp.path(), &clock);
+    for p in [Partition::Chat, Partition::General, Partition::Tabs] {
+        store.mark_dirty(p);
+    }
+    let blocked = tmp.path().join(Partition::General.file_name());
+    fs::create_dir(&blocked).unwrap();
+    assert!(store.flush().is_err());
+    assert!(tmp.path().join(Partition::Chat.file_name()).is_file());
+    assert!(tmp.path().join(Partition::Tabs.file_name()).is_file());
+    assert!(store.is_dirty());
+    fs::remove_dir(&blocked).unwrap();
+    store.flush().unwrap();
+    assert!(blocked.is_file());
+    assert!(!store.is_dirty());
+}
+
+/// V107-A3 A backup that can't be taken doesn't stop the save.
+#[test]
+fn a_backup_that_fails_does_not_block_saving() {
+    let tmp = TempDir::new("store-flush-backup");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    // A file on disk, so the day's backup has something to copy.
+    fs::write(tmp.path().join(Partition::General.file_name()), "{}").unwrap();
+    let (mut store, _) = open(tmp.path(), &clock);
+    let backups = tmp.path().join("backups");
+    if backups.is_dir() {
+        fs::remove_dir_all(&backups).unwrap();
+    }
+    fs::write(&backups, "not a folder").unwrap();
+    store.mark_dirty(Partition::Chat);
+    assert!(store.flush().is_err());
+    assert!(tmp.path().join(Partition::Chat.file_name()).is_file());
+    assert!(!store.is_dirty());
+}
+
 #[test]
 fn normalize_changes_are_written_once() {
     // R19 presetsMoved: false runs the move; the result reaches disk at the next flush.
@@ -144,6 +184,30 @@ fn broken_file_is_kept_aside_and_reported() {
     assert_eq!(store.read::<Chat>(Partition::Chat), Chat::default());
     assert!(!tmp.path().join("chat.json").exists());
     assert!(tmp.path().join("chat.broken-20261009-120000.json").exists());
+}
+
+#[test]
+fn one_wrong_value_keeps_the_rest_of_the_file() {
+    // t5 Only the bad fields fall back; the file is still kept aside and reported.
+    let tmp = TempDir::new("store-salvage");
+    fs::write(
+        tmp.path().join("chat.json"),
+        r#"{"timestamps": "yes", "historyLines": -5, "presenceOnOnce": true, "sharePresence": false, "users": {"1": {"nickname": "bob", "note": ""}}}"#,
+    )
+    .unwrap();
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let (mut store, report) = open(tmp.path(), &clock);
+    assert_eq!(report.reset, vec![Partition::Chat]);
+    let chat = store.read::<Chat>(Partition::Chat);
+    assert!(!chat.share_presence);
+    assert_eq!(chat.users["1"].nickname, "bob");
+    assert_eq!(chat.timestamps, Chat::default().timestamps);
+    assert_eq!(chat.history_lines, Chat::default().history_lines);
+    assert!(tmp.path().join("chat.broken-20261009-120000.json").exists());
+    store.flush().unwrap();
+    let (again, report) = open(tmp.path(), &clock);
+    assert!(report.reset.is_empty());
+    assert!(!again.read::<Chat>(Partition::Chat).share_presence);
 }
 
 #[test]

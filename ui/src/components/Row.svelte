@@ -45,6 +45,8 @@
   }
   .title {
     font-weight: 600;
+    /* t5 A long name with no spaces (an imported layout) wraps instead of pushing the buttons off. */
+    overflow-wrap: anywhere;
   }
   .hint {
     font-size: var(--text-hint);

@@ -30,6 +30,11 @@ pub fn next_action(
     if !state.usable() {
         return None;
     }
+    // V107-A1 Offline waits its minute before a refresh too: a refreshed token that couldn't
+    // be checked is kept as Offline, and refreshing it again every tick gains nothing.
+    if state == TokenState::Offline && since_check.is_some_and(|e| e < RETRY_OFFLINE) {
+        return None;
+    }
     if can_refresh && expires_at.is_some_and(|t| t - now <= REFRESH_MARGIN) {
         return Some(Action::Refresh);
     }
@@ -48,6 +53,9 @@ pub enum Outcome {
         refreshed: Option<Secret>,
         validation: id::Validation,
     },
+    /// V107-A1 Refreshed, but the check after it failed for now: keep the new pair (the old
+    /// refresh token is spent) and validate it later.
+    RefreshedUnchecked(Secret),
     Invalid,
     Offline,
 }
@@ -88,12 +96,16 @@ async fn refresh_then_validate(http: &Http, secret: &Secret) -> Outcome {
             refreshed: Some(fresh),
             validation,
         },
-        Err(e) => failed(&e),
+        // V107-A1 Only a fresh token Twitch itself rejects is dropped; any other failure
+        // (network, 5xx, 429, …) keeps the new pair for the next check.
+        Err(e) if e.is_unauthorized() => Outcome::Invalid,
+        Err(_) => Outcome::RefreshedUnchecked(fresh),
     }
 }
 
 fn failed(e: &Error) -> Outcome {
-    if e.is_network() || e.is_server_error() {
+    // V107-A1 A 429 is "try later", not a dead token.
+    if e.is_network() || e.is_server_error() || e.is_rate_limited() {
         Outcome::Offline
     } else {
         Outcome::Invalid
@@ -157,6 +169,34 @@ mod tests {
         );
         assert_eq!(next_action(TokenState::Invalid, later, true, None, NOW), None);
         assert_eq!(next_action(TokenState::Missing, later, true, None, NOW), None);
+    }
+
+    #[test]
+    fn offline_waits_before_refreshing_again() {
+        let soon = Some(NOW + REFRESH_MARGIN - 1);
+        assert_eq!(
+            next_action(TokenState::Offline, soon, true, Some(RETRY_OFFLINE / 2), NOW),
+            None
+        );
+        assert_eq!(
+            next_action(TokenState::Offline, soon, true, Some(RETRY_OFFLINE), NOW),
+            Some(Action::Refresh)
+        );
+    }
+
+    fn api(status: u16) -> Error {
+        Error::Api {
+            status,
+            message: "x".into(),
+        }
+    }
+
+    #[test]
+    fn rate_limits_and_server_errors_are_offline() {
+        assert!(matches!(failed(&api(429)), Outcome::Offline));
+        assert!(matches!(failed(&api(503)), Outcome::Offline));
+        assert!(matches!(failed(&api(400)), Outcome::Invalid));
+        assert!(matches!(failed(&api(401)), Outcome::Invalid));
     }
 
     #[test]

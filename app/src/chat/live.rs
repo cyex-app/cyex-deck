@@ -76,20 +76,17 @@ pub fn message_gone(app: &AppHandle, channel_id: &str, msg_id: &str) {
 pub fn deleted_of(app: &AppHandle, msg_id: &str) -> (Option<String>, Option<String>) {
     let chat = app.state::<super::Chat>();
     let inner = chat.lock();
-    let rooms = || inner.rooms.values();
-    (
-        rooms().find_map(|e| e.room.sender_name(msg_id)),
-        rooms().find_map(|e| e.room.message_text(msg_id)),
-    )
+    match inner.rooms.values().find_map(|e| e.room.sender_and_text(msg_id)) {
+        Some((who, text)) => (who, Some(text)),
+        None => (None, None),
+    }
 }
 
-/// Reads the channel's pin into every room open on it; the new one replaces the old.
+/// Reads the channel's pin once into every room open on it; the new one replaces the old.
 fn refresh(app: &AppHandle, login: String, channel_id: String) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        for key in super::rooms_of(&app, &login) {
-            super::catalog::refresh_pin(&app, &key, &channel_id).await;
-        }
+        super::catalog::refresh_pins(&app, &login, &channel_id).await;
     });
 }
 

@@ -13,7 +13,7 @@
     <img src={preview(peek.card.login, 320, 180)} alt="" />
     <div class="text">
       <span class="title">{stream.title || 'Untitled'}</span>
-      <span class="sub">{[stream.game?.name, `${formatShort(stream.viewers)} viewers`].filter(Boolean).join(' · ')}</span>
+      <span class="sub">{[stream.game?.name, `${formatShort(stream.viewers)} ${stream.viewers === 1 ? 'viewer' : 'viewers'}`].filter(Boolean).join(' · ')}</span>
     </div>
   </div>
 {/if}

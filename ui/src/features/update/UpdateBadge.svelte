@@ -7,6 +7,7 @@
   import IconButton from '../../components/IconButton.svelte';
   import Popover from '../../components/Popover.svelte';
   import { update } from './update.svelte';
+  import { opensItself } from './updateState';
 
   let open = $state(false);
 
@@ -20,7 +21,7 @@
   let shown: string | null = null;
   $effect(() => {
     const v = u?.version;
-    if (!v || v === shown || update.later) return;
+    if (!v || !opensItself(v, shown, update.later)) return;
     shown = v;
     open = true;
   });

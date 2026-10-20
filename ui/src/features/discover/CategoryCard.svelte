@@ -21,7 +21,7 @@
     {#if category.boxArt}<img src={category.boxArt} alt="" loading="lazy" decoding="async" />{:else}<span class="initials" aria-hidden="true">{initials}</span>{/if}
   </div>
   <span class="name" title={category.name}>{category.name}</span>
-  <span class="viewers">{formatShort(category.viewers)} viewers</span>
+  <span class="viewers">{formatShort(category.viewers)} {category.viewers === 1 ? 'viewer' : 'viewers'}</span>
 </button>
 
 <style>

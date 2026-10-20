@@ -65,6 +65,7 @@
   let ad = $state<AdState>('none');
   let stats = $state(false);
   let tries = 0;
+  const OFFLINE_RECHECK_MS = 15_000;
   let retry: ReturnType<typeof setTimeout> | undefined;
 
   // svelte-ignore state_referenced_locally
@@ -108,6 +109,28 @@
     if (engine?.failure !== 'network' || tries >= 3) return;
     const t = (retry = setTimeout(() => engine && void start(engine, engine.choice, login, account, false, engine.dvr ? engine.time : null), 3000 * ++tries));
     // L1 Never a second timer: one left behind could start a stream after this player is gone.
+    return () => clearTimeout(t);
+  });
+  // v1.07 Playing again: the next drop gets its three tries too (three blips in a long
+  // session used to leave only the button).
+  $effect(() => {
+    if (engine?.playing) {
+      tries = 0;
+      checking = false;
+    }
+  });
+
+  // v1.07 Offline while Twitch still lists the stream (a dropped connection, a restart): look
+  // again every 15 s, quietly. It used to stay "went offline" until the tab was reopened.
+  let checking = $state(false);
+  $effect(() => {
+    const e = engine;
+    if (e?.failure && e.failure !== 'offline') checking = false;
+    if (!e || e.failure !== 'offline' || !info?.stream) return;
+    const t = setTimeout(() => {
+      checking = true;
+      void start(e, e.choice, login, account);
+    }, OFFLINE_RECHECK_MS);
     return () => clearTimeout(t);
   });
 
@@ -317,7 +340,8 @@
     e.stopPropagation();
   }
 
-  const failure = $derived(engine?.failure);
+  // v1.07 A quiet recheck keeps the offline text up, no spinner in between.
+  const failure = $derived(engine?.failure ?? (checking ? 'offline' : null));
   const key = (id: Parameters<typeof bindingOf>[0], label: string) =>
     bindingOf(id) ? `${label} (${bindingOf(id)})` : label;
 </script>

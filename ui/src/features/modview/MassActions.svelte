@@ -23,12 +23,15 @@
   // A GQL sign-in batches; Helix-only bans one at a time.
   const hasGql = $derived(accounts.list.find((a) => a.userId === account)?.features.includes('points') ?? false);
 
-  const logins = $derived(
-    text
-      .split(/[\s,]+/)
-      .map((s) => s.trim().replace(/^@/, '').toLowerCase())
-      .filter((s) => /^[a-z0-9_]{1,25}$/.test(s)),
-  );
+  // v1.07 T4: each login once ("bob @Bob" is one person).
+  const logins = $derived([
+    ...new Set(
+      text
+        .split(/[\s,]+/)
+        .map((s) => s.trim().replace(/^@/, '').toLowerCase())
+        .filter((s) => /^[a-z0-9_]{1,25}$/.test(s)),
+    ),
+  ]);
 
   $effect(() => {
     if (!channelId) return;

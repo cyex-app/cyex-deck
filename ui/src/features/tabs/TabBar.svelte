@@ -220,7 +220,11 @@
     min-width: 0;
     overflow-x: hidden;
     overflow-y: auto;
-    scrollbar-width: thin;
+  }
+  /* v1.07 t1 The app's own thin thumb. `scrollbar-width` would switch WebView2 to the native
+     bar with arrow buttons and drop the ::-webkit-scrollbar look. */
+  .bar::-webkit-scrollbar {
+    width: 8px;
   }
   .chrome {
     flex: 0 1 auto;

@@ -4,6 +4,7 @@
   import type { ModAction } from '../../ipc/bindings/ModAction';
   import { formatDate, formatTime } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
+  import { actionText } from './actionText';
 
   let { actions, empty }: { actions: ModAction[]; empty: string } = $props();
 
@@ -25,7 +26,7 @@
   {#each oldest as a (a.id)}
     <div class="row">
       <span class="when">{a.at ? when(a.at) : ''}</span>
-      <span>{a.text}</span>
+      <span>{actionText(a.text)}</span>
     </div>
   {:else}
     <p class="empty">{empty}</p>

@@ -15,6 +15,11 @@ use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
 const MAX_BACKOFF: Duration = Duration::from_secs(120);
+/// V107-A6 A connect (TCP, TLS, upgrade) that takes longer is given up and retried.
+#[cfg(not(test))]
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+#[cfg(test)]
+const CONNECT_TIMEOUT: Duration = Duration::from_millis(300);
 
 pub trait Protocol: Send + 'static {
     type Topic: Clone + Eq + Hash + Send + Sync + 'static;
@@ -114,8 +119,27 @@ async fn run<P: Protocol>(
                 continue;
             }
         }
-        let Ok((ws, _)) = connect_async(p.url()).await else {
-            backoff = next_backoff(backoff);
+        // V107-A6 Time-boxed, and topics keep coming in while it runs.
+        let connect = tokio::time::timeout(CONNECT_TIMEOUT, connect_async(p.url()));
+        tokio::pin!(connect);
+        let attempt = loop {
+            tokio::select! {
+                r = &mut connect => break r.ok().and_then(Result::ok),
+                c = cmds.recv() => match c {
+                    Some(c) => {
+                        apply(&mut topics, c, p.limit());
+                        if topics.is_empty() {
+                            break None;
+                        }
+                    }
+                    None => return,
+                },
+            }
+        };
+        let Some((ws, _)) = attempt else {
+            if !topics.is_empty() {
+                backoff = next_backoff(backoff);
+            }
             continue;
         };
         let (mut sink, mut stream) = ws.split();
@@ -356,5 +380,50 @@ mod tests {
         assert_eq!(t.len(), 2);
         apply(&mut t, Cmd::Remove(1), 2);
         assert!(!t.contains(&1));
+    }
+
+    struct Silent {
+        url: String,
+    }
+
+    impl Protocol for Silent {
+        type Topic = u32;
+        type Event = ();
+        fn url(&self) -> String {
+            self.url.clone()
+        }
+        fn subscribe(&self, _: &u32) -> String {
+            String::new()
+        }
+        fn unsubscribe(&self, _: &u32) -> String {
+            String::new()
+        }
+        fn limit(&self) -> usize {
+            10
+        }
+        fn idle(&self) -> Duration {
+            Duration::from_secs(60)
+        }
+        fn read(&mut self, _: &str, _: &mpsc::UnboundedSender<()>) -> Step {
+            Step::Continue
+        }
+    }
+
+    /// V107-A6 A server that accepts and never answers the upgrade gets a fresh try.
+    #[tokio::test]
+    async fn a_silent_server_is_given_up_and_retried() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("ws://{}/", listener.local_addr().unwrap());
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let (topics, task) = start(Silent { url }, tx);
+        let task = tokio::spawn(task);
+        topics.add(1);
+        let wait = Duration::from_secs(10);
+        let (_first, _) = tokio::time::timeout(wait, listener.accept()).await.unwrap().unwrap();
+        // Held open, never written to. Backoff is 1-5 s, then the second try.
+        let second = tokio::time::timeout(wait, listener.accept()).await;
+        assert!(second.is_ok_and(|r| r.is_ok()));
+        drop(topics);
+        task.abort();
     }
 }

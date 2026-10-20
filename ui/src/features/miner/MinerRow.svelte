@@ -76,6 +76,8 @@
     />
   {/if}
   {#if onremove}<IconButton icon="x" label="Take off the list" size={14} onclick={onremove} />{/if}
+  <!-- v1.07 T4: a first channel in follows mode has no last button; keep its star in line. -->
+  {#if onfirst && !onremove && !onskip}<span class="slot"></span>{/if}
 </div>
 
 <style>
@@ -92,6 +94,10 @@
   }
   .row.mining {
     background: color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+  .slot {
+    flex-shrink: 0;
+    width: 30px;
   }
   .skipped {
     opacity: 0.55;

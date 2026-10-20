@@ -20,8 +20,8 @@ type CmdResult<T> = Result<T, String>;
 
 /// F1 Search one chat, or with no view every joined chat (C29).
 #[tauri::command]
-pub fn chat_search(app: AppHandle, view: Option<u32>, query: String) -> CmdResult<Vec<FeedLine>> {
-    chat::search(&app, view, &query)
+pub async fn chat_search(app: AppHandle, view: Option<u32>, query: String) -> CmdResult<Vec<FeedLine>> {
+    chat::search::search(&app, view, &query).await
 }
 
 #[derive(Serialize, TS)]

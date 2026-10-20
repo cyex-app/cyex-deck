@@ -47,7 +47,7 @@
     {/each}
   </ul>
 {:else}
-  <p class="none">No settings match “{query.trim()}”.</p>
+  <p class="none">No settings match “{query.trim().length > 60 ? `${query.trim().slice(0, 60)}…` : query.trim()}”.</p>
 {/if}
 
 <style>
@@ -106,5 +106,7 @@
   .none {
     margin: 4px 0;
     color: var(--dim);
+    /* t5 A pasted wall of text wraps instead of scrolling the page sideways. */
+    overflow-wrap: anywhere;
   }
 </style>

@@ -55,6 +55,8 @@ test('since reads like a person would say it', () => {
   assert.equal(since(new Date(2026, 8, 20).toISOString(), now), '2 weeks ago');
   assert.equal(since(new Date(2026, 4, 1).toISOString(), now), '5 months ago');
   assert.equal(since(new Date(2023, 9, 1).toISOString(), now), '3 years ago');
+  // 60 days back: never "1 months ago".
+  assert.equal(since(new Date(2026, 7, 11, 12).toISOString(), now), '8 weeks ago');
   assert.equal(since(null, now), '');
 });
 
@@ -74,5 +76,6 @@ test('uptime stops at minutes', () => {
   assert.equal(uptimeShort(start, at(3118)), '51m');
   assert.equal(uptimeShort(start, at(3 * 3600 + 30 * 60 + 59)), '3h 30m');
   assert.equal(uptimeShort(start, at(31 * 3600)), '1d 7h');
+  assert.equal(uptimeShort(start, at(20)), '1m');
   assert.equal(uptimeShort('x'), '');
 });

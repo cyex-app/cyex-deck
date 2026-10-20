@@ -84,6 +84,23 @@ pub fn available(app: &AppHandle) -> Option<Update> {
     app.state::<Updater>().lock().available.clone()
 }
 
+/// What the badge needs after a reload or in another window: the release and "Later" (B4).
+#[derive(Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct UpdateState {
+    pub update: Option<Update>,
+    pub later: bool,
+}
+
+pub fn state(app: &AppHandle) -> UpdateState {
+    let updater = app.state::<Updater>();
+    UpdateState {
+        update: updater.lock().available.clone(),
+        later: updater.later.load(Ordering::Relaxed),
+    }
+}
+
 /// `update://available` goes to the main window, which owns the badge.
 pub fn set_available(app: &AppHandle, update: Option<Update>) {
     {

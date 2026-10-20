@@ -20,7 +20,7 @@ use crate::settings::Settings;
 /// Logical size a maximized window without a good normal rect gets when un-maximized.
 const NORMAL: (f64, f64) = (1280.0, 800.0);
 
-fn screen(m: &Monitor) -> Screen {
+pub(super) fn screen(m: &Monitor) -> Screen {
     let rect = |p: PhysicalPosition<i32>, w: u32, h: u32| Rect {
         x: p.x,
         y: p.y,
@@ -61,11 +61,11 @@ pub fn capture(window: &Window, previous: Option<Geometry>) -> Option<Geometry> 
         return previous;
     }
     if maximized {
-        if let Some(g) = previous.filter(placement::is_valid) {
-            return Some(Geometry { maximized: true, ..g });
-        }
-        let m = window.current_monitor().ok().flatten()?;
-        return Some(placement::centered_on(&screen(&m), NORMAL));
+        // B2 Moved maximized to another monitor: the old monitor's normal rect would bring
+        // it back there.
+        let on = screen(&window.current_monitor().ok().flatten()?);
+        let (all, _) = screens(window.app_handle());
+        return Some(placement::maximized_on(previous, &all, &on, NORMAL));
     }
     let scale = window.scale_factor().ok()?;
     // The position at the scale of the monitor it's on now: mid-move, the window's own scale
@@ -79,6 +79,8 @@ pub fn capture(window: &Window, previous: Option<Geometry>) -> Option<Geometry> 
         width: size.width.round() as u32,
         height: size.height.round() as u32,
         maximized: false,
+        // B1 The scale the position was mapped with, so it maps back to the same px.
+        scale: Some(at),
     };
     placement::is_valid(&g).then_some(g)
 }
@@ -99,13 +101,10 @@ pub fn on_builder<'a>(
     let Some(p) = placement::place(&g, &all, home, min, default) else {
         return (builder.center(), None);
     };
-    let scale = all[p.screen].scale;
     // tao maps a logical position to the first monitor it fits at that monitor's scale; with
     // mixed scales that can be the wrong one, so `settle` moves it in physical px.
-    let builder = builder
-        .inner_size(p.width, p.height)
-        .position(f64::from(p.x) / scale, f64::from(p.y) / scale);
-    (builder, Some(p))
+    let ((w, h), (x, y)) = (p.logical_size(), p.logical_position());
+    (builder.inner_size(w, h).position(x, y), Some(p))
 }
 
 /// The monitor the main window is on, as an index into `all`.
@@ -120,8 +119,9 @@ fn main_screen(app: &AppHandle, all: &[Screen]) -> Option<usize> {
 pub fn center_on_main(app: &AppHandle, w: f64, h: f64) -> Option<PhysicalPosition<i32>> {
     let (all, primary) = screens(app);
     let home = main_screen(app, &all).unwrap_or(primary);
-    let p = placement::place(&Geometry::default(), &all, home, (w, h), (w, h))?;
-    Some(PhysicalPosition::new(p.x, p.y))
+    let s = all.get(home).or_else(|| all.first())?;
+    let (x, y) = placement::center(s, w * s.scale, h * s.scale);
+    Some(PhysicalPosition::new(x, y))
 }
 
 /// Whether a point (physical px) is on one of the app's visible windows.
@@ -130,8 +130,8 @@ pub fn over_app(app: &AppHandle, x: f64, y: f64) -> bool {
         w.is_visible().unwrap_or(false)
             && !w.is_minimized().unwrap_or(true)
             && w.outer_position().ok().zip(w.outer_size().ok()).is_some_and(|(p, s)| {
-                let (l, t) = (f64::from(p.x), f64::from(p.y));
-                x >= l && y >= t && x < l + f64::from(s.width) && y < t + f64::from(s.height)
+                let size = |v: u32| i32::try_from(v).unwrap_or(i32::MAX);
+                Rect { x: p.x, y: p.y, w: size(s.width), h: size(s.height) }.contains(x, y)
             })
     })
 }
@@ -162,7 +162,8 @@ pub fn apply(window: &Window, g: &Geometry) {
     let _ = window.unmaximize();
     // Moved first: on a monitor with another scale the logical size then means that scale.
     let _ = window.set_position(PhysicalPosition::new(p.x, p.y));
-    let _ = window.set_size(LogicalSize::new(p.width, p.height));
+    let (w, h) = p.logical_size();
+    let _ = window.set_size(LogicalSize::new(w, h));
     if p.maximized {
         let _ = window.maximize();
     }

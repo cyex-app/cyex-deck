@@ -40,6 +40,8 @@ struct Slot {
     secret: Secret,
     state: TokenState,
     checked: Option<Instant>,
+    /// V107-A1 In memory only: the Credential Manager write failed. `save_pending` retries.
+    unsaved: bool,
 }
 
 type Key = (String, TokenKind);
@@ -70,6 +72,15 @@ impl Vault {
         for account in &accounts.list {
             for kind in TokenKind::ALL.into_iter().filter(|k| k.meta(account).is_some()) {
                 let key = (account.user_id.clone(), kind);
+                // V107-A1 A refreshed token that couldn't be saved is newer than the stored
+                // one (whose refresh token is spent), or than none at all.
+                if let Some(prev) = old.remove(&key) {
+                    if prev.unsaved {
+                        slots.insert(key, prev);
+                        continue;
+                    }
+                    old.insert(key.clone(), prev);
+                }
                 let secret = match self.store.load(&store_key(&account.user_id, kind)) {
                     Ok(Some(json)) => match serde_json::from_str::<Secret>(&json) {
                         Ok(secret) => secret,
@@ -96,6 +107,7 @@ impl Vault {
                         secret,
                         state: TokenState::Checking,
                         checked: None,
+                        unsaved: false,
                     },
                 };
                 slots.insert(key, slot);
@@ -113,9 +125,57 @@ impl Vault {
             secret,
             state: TokenState::Valid,
             checked: Some(Instant::now()),
+            unsaved: false,
         };
         self.lock().insert((user_id.to_owned(), kind), slot);
         Ok(())
+    }
+
+    /// V107-A1 Keeps a token Twitch just handed out, with `state`. Unlike [`Vault::put`] the
+    /// memory slot always takes it, since the old refresh token is spent; a failed
+    /// Credential Manager write is returned and retried by [`Vault::save_pending`].
+    pub fn keep(&self, user_id: &str, kind: TokenKind, secret: Secret, state: TokenState) -> Result<(), String> {
+        let saved = serde_json::to_string(&secret)
+            .map_err(|e| e.to_string())
+            .and_then(|json| self.store.save(&store_key(user_id, kind), &json));
+        let slot = Slot {
+            secret,
+            state,
+            checked: Some(Instant::now()),
+            unsaved: saved.is_err(),
+        };
+        self.lock().insert((user_id.to_owned(), kind), slot);
+        saved
+    }
+
+    /// V107-A1 Tries again to save tokens that only live in memory. Returns the errors, by
+    /// key (never the token).
+    pub fn save_pending(&self) -> Vec<String> {
+        let pending: Vec<(Key, Secret)> = self
+            .lock()
+            .iter()
+            .filter(|(_, s)| s.unsaved)
+            .map(|(k, s)| (k.clone(), s.secret.clone()))
+            .collect();
+        let mut errors = Vec::new();
+        for ((user_id, kind), secret) in pending {
+            let key = store_key(&user_id, kind);
+            let saved = serde_json::to_string(&secret)
+                .map_err(|e| e.to_string())
+                .and_then(|json| self.store.save(&key, &json));
+            match saved {
+                Ok(()) => {
+                    // Only if the slot still holds what was saved (a sign-in may have replaced it).
+                    if let Some(slot) = self.lock().get_mut(&(user_id, kind))
+                        && slot.secret == secret
+                    {
+                        slot.unsaved = false;
+                    }
+                }
+                Err(e) => errors.push(format!("{key}: {e}")),
+            }
+        }
+        errors
     }
 
     /// Deletes the token. Returns it so the caller can revoke it.
@@ -228,6 +288,75 @@ mod tests {
         assert_eq!(errors.len(), 1);
         assert!(errors[0].starts_with("1.helix: stored token unreadable (line 1 col "));
         assert!(!errors[0].contains('5'), "{}", errors[0]);
+    }
+
+    /// Fails every save until `heal` is set.
+    #[derive(Default)]
+    struct FlakyStore {
+        inner: MemoryStore,
+        healed: std::sync::atomic::AtomicBool,
+    }
+
+    impl FlakyStore {
+        fn heal(&self) {
+            self.healed.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+
+    impl SecretStore for FlakyStore {
+        fn load(&self, key: &str) -> Result<Option<String>, String> {
+            self.inner.load(key)
+        }
+        fn save(&self, key: &str, value: &str) -> Result<(), String> {
+            if self.healed.load(std::sync::atomic::Ordering::SeqCst) {
+                self.inner.save(key, value)
+            } else {
+                Err("store locked".into())
+            }
+        }
+        fn delete(&self, key: &str) -> Result<(), String> {
+            self.inner.delete(key)
+        }
+    }
+
+    /// V107-A1 A refreshed token stays in memory when the Credential Manager write fails.
+    #[test]
+    fn a_kept_token_survives_a_failed_save() {
+        let vault = Vault::new(Arc::new(FlakyStore::default()));
+        assert!(
+            vault
+                .keep("1", TokenKind::Helix, secret("new"), TokenState::Offline)
+                .is_err()
+        );
+        assert_eq!(vault.secret("1", TokenKind::Helix), Some(secret("new")));
+        assert_eq!(vault.state("1", TokenKind::Helix), TokenState::Offline);
+        // A reload from the store (still holding nothing) doesn't bring the old one back.
+        vault.load(&accounts());
+        assert_eq!(vault.secret("1", TokenKind::Helix), Some(secret("new")));
+    }
+
+    #[test]
+    fn a_failed_save_is_retried() {
+        let store = Arc::new(FlakyStore::default());
+        let vault = Vault::new(store.clone());
+        let _ = vault.keep("1", TokenKind::Helix, secret("new"), TokenState::Offline);
+        let errors = vault.save_pending();
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].starts_with("1.helix: "));
+        assert!(!errors[0].contains("new"), "{}", errors[0]);
+        store.heal();
+        assert!(vault.save_pending().is_empty());
+        assert_eq!(store.load("1.helix").unwrap(), Some(serde_json::to_string(&secret("new")).unwrap()));
+        // Saved now: a reload takes the stored copy as unchanged.
+        assert!(vault.save_pending().is_empty());
+    }
+
+    #[test]
+    fn put_keeps_memory_when_the_save_fails() {
+        // Sign-in treats an error as "nothing stored".
+        let vault = Vault::new(Arc::new(FlakyStore::default()));
+        assert!(vault.put("1", TokenKind::Helix, secret("a")).is_err());
+        assert_eq!(vault.secret("1", TokenKind::Helix), None);
     }
 
     #[test]

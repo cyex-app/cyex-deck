@@ -61,7 +61,7 @@
           title={v.title}
           sub={[v.game, formatDate(new Date(v.publishedAt))].filter(Boolean).join(' · ')}
           corner={clock(v.length)}
-          views={`${formatShort(v.views)} views`}
+          views={`${formatShort(v.views)} ${v.views === 1 ? 'view' : 'views'}`}
           badge={v.recording ? 'LIVE' : v.restricted ? 'Subs' : null}
           onclick={() => onplay(v.id)}
         />

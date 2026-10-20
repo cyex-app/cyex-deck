@@ -14,7 +14,8 @@
   const off = new SvelteSet<string>();
 
   const chips = $derived(CHIPS.map((c) => ({ ...c, on: !off.has(c.key) })));
-  const rows = $derived(visible(miner.log, off).map((l) => ({ ...l, key: String(l.id), ts: l.t })));
+  // v1.07 T4: its own kind names, so a raid it joined doesn't get the activity feed's red incoming-raid bar.
+  const rows = $derived(visible(miner.log, off).map((l) => ({ ...l, kind: `miner-${l.kind}`, key: String(l.id), ts: l.t })));
 
   function flip(key: string): void {
     if (!off.delete(key)) off.add(key);
@@ -33,7 +34,7 @@
       : 'Nothing here with these filters.'}
   >
     {#snippet row(l)}
-      <span class:err={l.kind === 'error'}>
+      <span class:err={l.kind === 'miner-error'}>
         {#if l.channel}<b>{l.channel}</b>{/if}
         {l.text}
       </span>

@@ -144,32 +144,14 @@ pub fn near_cursor(app: &AppHandle, w: f64, h: f64) -> Option<PhysicalPosition<i
     if !super::geometry::over_app(app, cursor.x, cursor.y) {
         return None;
     }
-    let monitor = app.monitor_from_point(cursor.x, cursor.y).ok().flatten()?;
-    let scale = monitor.scale_factor();
-    let area = monitor.work_area();
-    let (pos, size) = (area.position, area.size);
-    let gap = 12.0 * scale;
-    let x = beside(cursor.x, w * scale, gap, f64::from(pos.x), f64::from(size.width));
-    let y = beside(cursor.y, h * scale, gap, f64::from(pos.y), f64::from(size.height));
-    Some(PhysicalPosition::new(x as i32, y as i32))
-}
-
-/// Along one axis: after `at` when the window fits there, else before it when it fits
-/// there, else on the roomier side; always inside `start..start + len`.
-fn beside(at: f64, size: f64, gap: f64, start: f64, len: f64) -> f64 {
-    let end = start + len;
-    let (after, before) = (at + gap, at - gap - size);
-    let x = if after + size <= end || (before < start && end - at >= at - start) {
-        after
-    } else {
-        before
-    };
-    x.min(end - size).max(start)
+    let s = super::geometry::screen(&app.monitor_from_point(cursor.x, cursor.y).ok().flatten()?);
+    let (x, y) = super::placement::beside_point(&s, (cursor.x, cursor.y), (w * s.scale, h * s.scale), 12.0 * s.scale);
+    Some(PhysicalPosition::new(x, y))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{beside, is_popup};
+    use super::is_popup;
 
     #[test]
     fn popups_are_usercards_and_channel_chats() {
@@ -178,18 +160,5 @@ mod tests {
         assert!(!is_popup("chat/x"));
         assert!(!is_popup("modview/a"));
         assert!(!is_popup("overlay/x"));
-    }
-
-    #[test]
-    fn cards_open_beside_the_mouse_and_flip_near_the_edge() {
-        // Room on the right: just after the mouse.
-        assert_eq!(beside(100.0, 380.0, 12.0, 0.0, 1920.0), 112.0);
-        // Near the right edge: left of the mouse, not over it.
-        assert_eq!(beside(1800.0, 380.0, 12.0, 0.0, 1920.0), 1408.0);
-        // Second monitor starting at 1920.
-        assert_eq!(beside(1930.0, 380.0, 12.0, 1920.0, 1920.0), 1942.0);
-        // Taller than either side: the roomier side, kept on screen.
-        assert_eq!(beside(500.0, 900.0, 12.0, 0.0, 1040.0), 140.0);
-        assert_eq!(beside(300.0, 900.0, 12.0, 0.0, 1040.0), 140.0);
     }
 }

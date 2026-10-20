@@ -7,6 +7,7 @@ use std::time::Duration;
 use cyex_chat::model::Provider;
 use cyex_emotes::{Emote, Scope, bttv, seventv};
 use cyex_twitch::gql;
+use cyex_twitch::pace::Lane;
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 use ts_rs::TS;
@@ -117,14 +118,14 @@ async fn third_party(
             let (detail, names) = tokio::join!(
                 async {
                     if ask {
-                        seventv::api::emote(http, id).await
+                        seventv::api::emote(http, id, Lane::Front).await
                     } else {
                         Ok(None)
                     }
                 },
                 async {
                     let ids: Vec<String> = local.added_by.iter().cloned().collect();
-                    seventv::api::user_names(http, &ids).await
+                    seventv::api::user_names(http, &ids, Lane::Front).await
                 }
             );
             let complete = detail.is_ok() && names.is_ok();

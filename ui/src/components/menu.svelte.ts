@@ -50,12 +50,12 @@ export function openMenuAt(e: { currentTarget: EventTarget | null }, items: Menu
 }
 
 export function closeMenu(): void {
-  confirming.cancel();
   shut();
 }
 
 /** L1 Closed menus keep no items: their run closures hold the chat or player they came from. */
 function shut(): void {
+  confirming.cancel();
   menu.open = false;
   menu.stack = [];
   menu.armed = null;

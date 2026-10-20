@@ -363,42 +363,59 @@ pub fn load_history(app: AppHandle, key: RoomKey, limit: u32) {
         let http = app.state::<crate::auth::Auth>().http.clone();
         let lane = super::shown::lane(&app, &key.1);
         // V107-M1 A chat joined in the background takes a little; shown, it gets the rest.
-        let background = app.state::<Chat>().lock().rooms.get_mut(&key).is_some_and(|e| {
-            e.loaded = true;
-            e.room.background()
-        });
-        let limit = if background { limit.min(cyex_chat::BACKGROUND_HISTORY) } else { limit };
-        let recent = cyex_twitch::recent::recent_messages(&http, &key.1, limit, lane).await;
-        let lines = match recent {
-            Ok(lines) if !lines.is_empty() => lines,
-            other => {
-                let now = now_ms() / 1000;
-                let from = cyex_twitch::clock::rfc3339(now - LOGS_HISTORY_SECS);
-                let to = cyex_twitch::clock::rfc3339(now);
-                match cyex_twitch::logs::channel_lines(&http, &key.1, limit, &from, &to).await {
-                    Ok(lines) if !lines.is_empty() => {
-                        say(&app, &key, "Chat history from logs.cyex.app");
-                        lines
-                    }
-                    _ => {
-                        if let Err(e) = other {
-                            eprintln!("chat: no history for {}: {}", key.1, e.describe("recent-messages"));
-                            say(&app, &key, &cyex_twitch::recent::unavailable(&e));
-                        }
-                        return;
-                    }
+        let background = app.state::<Chat>().lock().rooms.get(&key).is_some_and(|e| e.room.background());
+        let asked = if background { limit.min(cyex_chat::BACKGROUND_HISTORY) } else { limit };
+        let lines = fetch_history(&app, &http, &key, asked, lane).await;
+        let emotes = crate::emotes::room(&app, account_of(&key.0), &key.1);
+        let refill = {
+            let chat = app.state::<Chat>();
+            let mut inner = chat.lock();
+            let Some(entry) = inner.rooms.get_mut(&key) else { return };
+            if let Some(lines) = lines {
+                let messages = entry.room.history(&lines, now_ms(), &emotes);
+                if !messages.is_empty() {
+                    queue(entry, [RoomEvent::History { messages }], &chat.wake);
                 }
             }
+            // V107-M1 Only now may a refill run: it starts above these lines.
+            entry.loaded = true;
+            super::refill::first_history_in(&mut entry.room, asked < limit, !entry.views.is_empty())
         };
-        let emotes = crate::emotes::room(&app, account_of(&key.0), &key.1);
-        let chat = app.state::<Chat>();
-        let mut inner = chat.lock();
-        let Some(entry) = inner.rooms.get_mut(&key) else { return };
-        let messages = entry.room.history(&lines, now_ms(), &emotes);
-        if !messages.is_empty() {
-            queue(entry, [RoomEvent::History { messages }], &chat.wake);
+        if refill {
+            super::refill::start(&app, key);
         }
     });
+}
+
+/// C1 Up to `limit` history lines; logs.cyex.app stands in where the service has none
+/// (C35). `None`: neither had any, said in chat.
+async fn fetch_history(
+    app: &AppHandle,
+    http: &cyex_twitch::Http,
+    key: &RoomKey,
+    limit: u32,
+    lane: cyex_twitch::pace::Lane,
+) -> Option<Vec<String>> {
+    let other = match cyex_twitch::recent::recent_messages(http, &key.1, limit, lane).await {
+        Ok(lines) if !lines.is_empty() => return Some(lines),
+        other => other,
+    };
+    let now = now_ms() / 1000;
+    let from = cyex_twitch::clock::rfc3339(now - LOGS_HISTORY_SECS);
+    let to = cyex_twitch::clock::rfc3339(now);
+    match cyex_twitch::logs::channel_lines(http, &key.1, limit, &from, &to).await {
+        Ok(lines) if !lines.is_empty() => {
+            say(app, key, "Chat history from logs.cyex.app");
+            Some(lines)
+        }
+        _ => {
+            if let Err(e) = other {
+                eprintln!("chat: no history for {}: {}", key.1, e.describe("recent-messages"));
+                say(app, key, &cyex_twitch::recent::unavailable(&e));
+            }
+            None
+        }
+    }
 }
 
 /// V101-32 A line of ours in a room that's still open.

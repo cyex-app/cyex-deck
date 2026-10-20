@@ -73,7 +73,7 @@
     { key: 'caseSensitive', kind: 'check', ...OPT.caseSensitive },
     { key: 'lookalikes', kind: 'check', ...OPT.lookalikes },
     { key: 'regex', kind: 'check', ...OPT.regex },
-    { key: 'flavor', kind: 'select', options: FLAVORS, width: '64px', when: (x) => x.regex, ...OPT.flavor },
+    { key: 'flavor', kind: 'select', options: FLAVORS, width: '96px', when: (x) => x.regex, ...OPT.flavor },
     ...alert<PhraseRule>(),
   ];
   /** Q12 New word rows go to the Mentions tab: what most people mean by a mention. */
@@ -192,7 +192,7 @@
   note={words.note}
   reorder={{ key: 'highlights.phrases', label: ruleName }}
   onchange={(phrases) => save({ phrases })}
-  empty="Words that light up a message or ping you."
+  empty="No words yet."
   emptyIcon="star"
 />
 
@@ -206,7 +206,7 @@
   make={() => ({ ...blank, login: '', regex: false })}
   reorder={{ key: 'highlights.users', label: (r, i) => r.login || `Rule ${i + 1}` }}
   onchange={(users) => save({ users })}
-  empty="Everything these people say lights up."
+  empty="No people yet."
   emptyIcon="user"
 />
 
@@ -219,7 +219,7 @@
   make={() => ({ ...blank, badge: '' })}
   reorder={{ key: 'highlights.badges', label: (r, i) => r.badge || `Rule ${i + 1}` }}
   onchange={(badges) => save({ badges })}
-  empty="Everything people with these badges say lights up."
+  empty="No badges yet."
   emptyIcon="badge"
 />
 
@@ -232,7 +232,7 @@
   make={(): AppRule => ({ ...blank, app: 'mobile' })}
   reorder={{ key: 'highlights.apps', label: appName }}
   onchange={(apps) => save({ apps })}
-  empty="Messages sent from a phone or an odd client."
+  empty="No apps yet."
   emptyIcon="smartphone"
 />
 

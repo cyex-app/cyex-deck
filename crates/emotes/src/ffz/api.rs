@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use cyex_chat::model::Provider;
-use cyex_twitch::pace::{Lane, Service};
+use cyex_twitch::pace::{Lane, Opts, Service};
 use cyex_twitch::{Http, Result};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -42,10 +42,16 @@ pub struct Room {
     pub badges: RoomBadges,
 }
 
-/// `None` when the channel has no FFZ room. Paced (V107-P2).
+/// `None` when the channel has no FFZ room (404 or 500, B7: not retried). Paced
+/// (V107-P2); S2 in the background it fails fast, the emote retry queue asks again.
 pub async fn room(http: &Http, twitch_id: &str, lane: Lane) -> Result<Option<Room>> {
+    let opts = Opts {
+        lane,
+        quick: true,
+        answers: &[500],
+    };
     match http
-        .get_json_paced::<RawRoomData>(Service::Ffz, lane, &format!("{API}/room/id/{twitch_id}"))
+        .get_json_paced_with::<RawRoomData>(Service::Ffz, opts, &format!("{API}/room/id/{twitch_id}"))
         .await
     {
         Ok(r) => Ok(Some(r.into())),

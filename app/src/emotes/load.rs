@@ -8,9 +8,8 @@ use cyex_chat::model::Provider;
 use cyex_emotes::seventv::{self, socket::EventApi, socket::Topic as SevenTopic};
 use cyex_emotes::{Emote, EmoteSet, Lookup, Scope};
 use cyex_twitch::gql::{self, EmoteSet as TwitchSet};
-use cyex_twitch::pace::Service;
 use cyex_twitch::{Http, helix, ws};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 
 use super::providers::Which;
 use super::{Channel, Emotes};
@@ -23,76 +22,33 @@ fn http(app: &AppHandle) -> Http {
     app.state::<Auth>().http.clone()
 }
 
-/// Global sets, once. Lookups are rebuilt when they arrive.
+/// Global sets: those not in yet, unless a fetch or its retries run (B4: every provider
+/// that failed for now is asked again). Lookups are rebuilt when they arrive.
 pub(super) fn globals(app: &AppHandle) {
-    let state = app.state::<Emotes>();
-    {
+    let want = {
+        let state = app.state::<Emotes>();
         let mut inner = state.lock();
-        if inner.globals_loading {
+        let want = Which::ALL.minus(inner.globals_done);
+        if inner.globals_loading || !want.any() {
             return;
         }
         inner.globals_loading = true;
-    }
-    let app = app.clone();
-    tauri::async_runtime::spawn(async move {
-        let http = http(&app);
-        let mut sets = Vec::new();
-        let mut seventv_failed = false;
-        match seventv::api::global(&http).await {
-            Ok(s) => sets.push(Arc::new(s)),
-            Err(e) => {
-                seventv_failed = Service::SevenTv.transient(&e);
-                eprintln!("emotes: no 7TV globals: {}", e.describe("7TV"));
-            }
-        }
-        sets.extend(super::providers::globals(&app, &http).await);
-        let state = app.state::<Emotes>();
-        let mut inner = state.lock();
-        if sets.is_empty() {
-            // Try again with the next channel; meanwhile nobody waits for them.
-            inner.globals_loading = false;
-            drop(inner);
-            let _ = state.globals_ready.send(true);
-            return;
-        }
-        inner.globals = sets;
-        inner.rebuild_all();
-        drop(inner);
-        let _ = state.globals_ready.send(true);
-        if seventv_failed {
-            super::retry::seventv_globals(app.clone());
-        }
-    });
+        want
+    };
+    super::retry::globals(app.clone(), want);
 }
 
-pub fn channel(app: AppHandle, login: String, id: String) {
+/// A channel's sets for join `generation`. B1 Put in like a retry's (`retry::merge`), in
+/// place of what a socket change or an earlier join put in first.
+pub fn channel(app: AppHandle, login: String, id: String, generation: u64) {
     globals(&app);
     tauri::async_runtime::spawn(async move {
         let http = http(&app);
         let lane = crate::chat::shown::lane(&app, &login);
         let got = super::providers::channel(&http, &id, lane, Which::ALL).await;
         let failed = got.failed;
-        let state = app.state::<Emotes>();
-        {
-            let mut inner = state.lock();
-            let Some(c) = inner.channels.get_mut(&login).filter(|c| c.id == id) else {
-                return;
-            };
-            if let Some(ch) = got.seventv {
-                put_seventv(&state.seventv, c, ch);
-            }
-            c.sets.extend(got.bttv);
-            c.sets.extend(got.ffz);
-            if let Some(b) = got.badges {
-                c.ffz_badges = b;
-            }
-            let _ = c.ready.send(true);
-            inner.rebuild(&login);
-        }
-        // Windows refresh what depends on it, e.g. FFZ's mod and VIP pictures.
-        let _ = app.emit("emotes:loaded", &login);
-        if failed.any() {
-            super::retry::spawn(app, login, id, failed);
+        if super::retry::merge(&app, &login, generation, Which::ALL, got) && failed.any() {
+            super::retry::spawn(app, login, id, generation, failed);
         }
     });
 }
@@ -130,14 +86,19 @@ fn swap_seventv_set(pool: &ws::Pool<EventApi>, c: &mut Channel, set: Option<Emot
 /// Replaces a channel's 7TV set, e.g. after the channel switched sets.
 pub fn seventv_set(app: AppHandle, login: String, set_id: Option<String>) {
     tauri::async_runtime::spawn(async move {
+        let lane = crate::chat::shown::lane(&app, &login);
         let set = match &set_id {
-            Some(id) => match seventv::api::sets(&http(&app), std::slice::from_ref(id)).await {
+            Some(id) => match seventv::api::sets(&http(&app), std::slice::from_ref(id), lane).await {
                 Ok(mut s) if !s.is_empty() => {
                     let mut set = s.remove(0);
                     set.scope = Scope::Channel;
                     Some(set)
                 }
-                _ => return,
+                Ok(_) => return,
+                Err(e) => {
+                    eprintln!("emotes: no 7TV set {id} for {login}: {}", e.describe("7TV"));
+                    return;
+                }
             },
             None => None,
         };

@@ -45,14 +45,20 @@
 {#if foot}<div class="foot">{@render foot()}</div>{/if}
 
 <style>
+  /* v1.07 T4: one time column for every line, so today's short times don't pull
+     their text left of the dated lines'. */
   ul {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
     margin: 0;
     padding: 4px 0;
     list-style: none;
   }
   li {
-    display: flex;
-    gap: 8px;
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    column-gap: 8px;
     padding: 4px 10px;
     font-size: 0.82rem;
     border-left: 2px solid transparent;

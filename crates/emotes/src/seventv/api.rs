@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use cyex_chat::model::Provider;
-use cyex_twitch::pace::{Lane, Service};
+use cyex_twitch::pace::{Lane, Opts, Service};
 use cyex_twitch::{Http, Result};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -44,12 +44,18 @@ pub struct Channel {
 }
 
 /// `None` when the channel has no 7TV account. E2 Paced: `lane` puts the tab on screen first.
+/// S2 In the background it fails fast; the emote retry queue asks again.
 pub async fn channel(http: &Http, twitch_id: &str, lane: Lane) -> Result<Option<Channel>> {
     let q = format!(
         "query($id: String!) {{ users {{ userByConnection(platform: TWITCH, platformId: $id) {{ id \
          style {{ activeEmoteSet {{ id emotes {{ {ITEM} }} }} }} }} }} }}"
     );
-    let data: Data<RawUsers> = paced(http, lane, &q, json!({ "id": twitch_id })).await?;
+    let opts = Opts {
+        lane,
+        quick: true,
+        ..Opts::default()
+    };
+    let data: Data<RawUsers> = paced(http, opts, &q, json!({ "id": twitch_id })).await?;
     Ok(data.data.users.user_by_connection.map(|u| Channel {
         user_id: u.id,
         set: u
@@ -65,13 +71,13 @@ pub async fn global(http: &Http) -> Result<EmoteSet> {
     Ok(data.data.emote_sets.global.into_set(Scope::Global))
 }
 
-/// Sets by id, e.g. personal ones (C9). At most [`MAX_BATCH`].
-pub async fn sets(http: &Http, ids: &[String]) -> Result<Vec<EmoteSet>> {
+/// Sets by id, e.g. personal ones (C9). At most [`MAX_BATCH`]. B8 Paced.
+pub async fn sets(http: &Http, ids: &[String], lane: Lane) -> Result<Vec<EmoteSet>> {
     let q = format!(
         "query($ids: [Id!]!) {{ emoteSets {{ emoteSets(ids: $ids) {{ id kind emotes {{ {ITEM} }} }} }} }}"
     );
     let ids = &ids[..ids.len().min(MAX_BATCH)];
-    let data: Data<RawSets> = post(http, &q, json!({ "ids": ids })).await?;
+    let data: Data<RawSets> = paced(http, lane, &q, json!({ "ids": ids })).await?;
     Ok(data
         .data
         .emote_sets
@@ -88,15 +94,15 @@ pub async fn sets(http: &Http, ids: &[String]) -> Result<Vec<EmoteSet>> {
         .collect())
 }
 
-/// The account's 7TV user id, if it has one (D21: presences go out under it).
-pub async fn user_id(http: &Http, twitch_id: &str) -> Result<Option<String>> {
+/// The account's 7TV user id, if it has one (D21: presences go out under it). B8 Paced.
+pub async fn user_id(http: &Http, twitch_id: &str, lane: Lane) -> Result<Option<String>> {
     let q = "query($id: String!) { users { userByConnection(platform: TWITCH, platformId: $id) { id } } }";
-    let data: Data<RawUsers> = post(http, q, json!({ "id": twitch_id })).await?;
+    let data: Data<RawUsers> = paced(http, lane, q, json!({ "id": twitch_id })).await?;
     Ok(data.data.users.user_by_connection.map(|u| u.id))
 }
 
-/// Display names of 7TV users by id, for "added by" on emote cards.
-pub async fn user_names(http: &Http, ids: &[String]) -> Result<HashMap<String, String>> {
+/// Display names of 7TV users by id, for "added by" on emote cards. B8 Paced.
+pub async fn user_names(http: &Http, ids: &[String], lane: Lane) -> Result<HashMap<String, String>> {
     if ids.is_empty() {
         return Ok(HashMap::new());
     }
@@ -108,7 +114,7 @@ pub async fn user_names(http: &Http, ids: &[String]) -> Result<HashMap<String, S
         .map(|(i, id)| format!("u{i}: user(id: \"{id}\") {{ id mainConnection {{ platformDisplayName }} }} "))
         .collect();
     let q = format!("query {{ users {{ {fields}}} }}");
-    let data: Data<HashMap<String, HashMap<String, Option<RawNamed>>>> = post(http, &q, json!({})).await?;
+    let data: Data<HashMap<String, HashMap<String, Option<RawNamed>>>> = paced(http, lane, &q, json!({})).await?;
     Ok(data
         .data
         .into_values()
@@ -119,12 +125,12 @@ pub async fn user_names(http: &Http, ids: &[String]) -> Result<HashMap<String, S
 }
 
 /// 1.41 An emote by id, for its card: owner name and id, and its own flags (for an
-/// emote no loaded set has). `None` when 7TV doesn't know it.
-pub async fn emote(http: &Http, emote_id: &str) -> Result<Option<Emote>> {
+/// emote no loaded set has). `None` when 7TV doesn't know it. B8 Paced.
+pub async fn emote(http: &Http, emote_id: &str, lane: Lane) -> Result<Option<Emote>> {
     let q = "query($id: Id!) { emotes { emote(id: $id) { defaultName ownerId \
         flags { animated publicListed approvedPersonal deniedPersonal private nsfw } \
         owner { mainConnection { platformDisplayName } } } } }";
-    let v: Value = post::<Value>(http, q, json!({ "id": emote_id })).await?;
+    let v: Value = paced::<Value>(http, lane, q, json!({ "id": emote_id })).await?;
     Ok(card_emote(emote_id, &v))
 }
 
@@ -180,15 +186,16 @@ pub struct Avatar {
     pub still: String,
 }
 
-/// E2 Emote sets for many tabs at once: few in flight, retried on 429 and 5xx.
-async fn paced<T: serde::de::DeserializeOwned>(http: &Http, lane: Lane, query: &str, variables: Value) -> Result<T> {
+/// E2 Emote sets for many tabs at once: few in flight, retried on 429 and 5xx. B8 Every
+/// GQL read goes through here; presences and writes don't.
+async fn paced<T: serde::de::DeserializeOwned>(
+    http: &Http,
+    opts: impl Into<Opts>,
+    query: &str,
+    variables: Value,
+) -> Result<T> {
     let body = json!({ "query": query, "variables": variables });
-    http.post_json_paced(Service::SevenTv, lane, gql_url(), &body).await
-}
-
-async fn post<T: serde::de::DeserializeOwned>(http: &Http, query: &str, variables: Value) -> Result<T> {
-    http.post_json(gql_url(), &json!({ "query": query, "variables": variables }))
-        .await
+    http.post_json_paced(Service::SevenTv, opts, gql_url(), &body).await
 }
 
 #[derive(Deserialize)]

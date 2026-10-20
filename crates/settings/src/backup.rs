@@ -33,6 +33,9 @@ pub(crate) fn snapshot_dir(settings_dir: &Path, date: Date) -> PathBuf {
 pub(crate) fn snapshot_if_due(settings_dir: &Path, today: Date) -> Result<bool> {
     let target = snapshot_dir(settings_dir, today);
     if target.exists() {
+        // t5 Prune anyway: copies left from before (another build, a restore, a clock change)
+        // would otherwise stay listed until tomorrow.
+        prune(&settings_dir.join(BACKUP_DIR), today)?;
         return Ok(false);
     }
     // V106-33 The old mentions.json too: the merge-day backup must restore without losing it.
@@ -61,7 +64,7 @@ pub(crate) fn snapshot_if_due(settings_dir: &Path, today: Date) -> Result<bool> 
         )?;
     }
     fs::rename(&staging, &target)?;
-    prune(&root)?;
+    prune(&root, today)?;
     Ok(true)
 }
 
@@ -153,9 +156,13 @@ pub(crate) fn list_snapshots(settings_dir: &Path) -> Result<Vec<String>> {
     Ok(names)
 }
 
-fn prune(root: &Path) -> Result<()> {
+/// Keeps the newest [`BACKUP_DAYS`] up to `today`. t5 A folder dated after today (the clock was
+/// once ahead) doesn't count: it used to take a slot, so each new day's copy was pruned at once.
+/// It is left alone and counts again once its date comes.
+fn prune(root: &Path, today: Date) -> Result<()> {
     let settings_dir = root.parent().expect("backups live inside the settings folder");
-    for old in list(settings_dir)?.into_iter().skip(BACKUP_DAYS) {
+    let past = list(settings_dir)?.into_iter().filter(|d| *d <= today);
+    for old in past.skip(BACKUP_DAYS) {
         fs::remove_dir_all(snapshot_dir(settings_dir, old))?;
     }
     Ok(())
@@ -203,6 +210,28 @@ mod tests {
 
     fn at(d: u8, h: u8, m: u8, s: u8) -> OffsetDateTime {
         day(d).with_time(time::Time::from_hms(h, m, s).unwrap()).assume_utc()
+    }
+
+    #[test]
+    fn prunes_leftovers_even_when_today_exists() {
+        let tmp = TempDir::new("backup-leftovers");
+        write_settings(tmp.path(), "{}");
+        for d in 1..=5 {
+            fs::create_dir_all(snapshot_dir(tmp.path(), day(d))).unwrap();
+        }
+        assert!(!snapshot_if_due(tmp.path(), day(5)).unwrap());
+        assert_eq!(list(tmp.path()).unwrap(), vec![day(5), day(4), day(3)]);
+    }
+
+    #[test]
+    fn a_future_dated_copy_does_not_take_a_slot() {
+        let tmp = TempDir::new("backup-future");
+        write_settings(tmp.path(), "{}");
+        fs::create_dir_all(snapshot_dir(tmp.path(), day(20))).unwrap();
+        for d in 1..=5 {
+            snapshot_if_due(tmp.path(), day(d)).unwrap();
+        }
+        assert_eq!(list(tmp.path()).unwrap(), vec![day(20), day(5), day(4), day(3)]);
     }
 
     #[test]

@@ -87,7 +87,7 @@
   type Id = 'stream' | 'info' | 'activity' | 'actions' | 'modes' | 'poll' | 'prediction' | 'raid' | 'ads' | 'markers' | 'together' | 'chat';
   const INFO: Record<Id, { title: string; hint: string; min: Box; tall: number }> = {
     stream: { title: 'Stream', hint: 'Preview, viewers, followers, subs.', min: { w: 220, h: 200 }, tall: 320 },
-    info: { title: 'Stream info', hint: 'Title, category, tags.', min: { w: 220, h: 160 }, tall: 280 },
+    info: { title: 'Stream info', hint: 'Title and category.', min: { w: 220, h: 160 }, tall: 280 },
     activity: { title: 'Activity', hint: 'Follows, subs, cheers, raids, rewards.', min: { w: 240, h: 150 }, tall: 320 },
     actions: { title: 'Mod actions', hint: 'Bans, timeouts, deletes and more.', min: { w: 240, h: 150 }, tall: 300 },
     modes: { title: 'Chat settings', hint: 'Slow, followers-only, sub-only, emote-only.', min: { w: 200, h: 110 }, tall: 220 },

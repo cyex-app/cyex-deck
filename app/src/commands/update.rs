@@ -3,7 +3,6 @@
 use cyex_core::version;
 use cyex_settings::Partition;
 use cyex_settings::schema::General;
-use cyex_twitch::github::Update;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, State};
 use tauri_plugin_opener::OpenerExt;
@@ -11,13 +10,13 @@ use url::Url;
 
 use crate::settings::Settings;
 use crate::update::install::{self, UpdateProgress};
-use crate::update::{self, CheckResult};
+use crate::update::{self, CheckResult, UpdateState};
 
 type CmdResult<T> = Result<T, String>;
 
 #[tauri::command]
-pub fn update_state(app: AppHandle) -> Option<Update> {
-    update::available(&app)
+pub fn update_state(app: AppHandle) -> UpdateState {
+    update::state(&app)
 }
 
 /// "Check now": ignores the skipped version.

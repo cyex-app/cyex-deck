@@ -71,9 +71,12 @@
   const title = renamingFeed ? 'Rename feed' : editing ? 'Edit tab' : into ? `Add a channel to ${tab ? label(tab) : 'this tab'}` : 'Add a tab';
   const named = !into;
 
-  /** Another tab that already shows this channel. */
+  /** Another tab that already shows this channel. v1.07 t1 Not while editing a tile that keeps
+   *  its own channel: a split elsewhere with it isn't news then. */
   const existing = $derived(
-    picked ? tabs.list.find((t) => tiles(t).some((x) => x.channel.id === picked!.id && x.id !== tile?.id)) : undefined,
+    picked && picked.id !== tile?.channel.id
+      ? tabs.list.find((t) => tiles(t).some((x) => x.channel.id === picked!.id && x.id !== tile?.id))
+      : undefined,
   );
 
   /** The tab that already is this feed. */

@@ -70,10 +70,11 @@ impl Automations {
         }
     }
 
-    /// New rules; cooldowns and rate limits carry over.
+    /// New rules; cooldowns and rate limits carry over for chats some rule is still for.
     pub fn update(&mut self, c: &Commands) {
-        let chats = std::mem::take(&mut self.chats);
+        let mut chats = std::mem::take(&mut self.chats);
         *self = Self::new(c);
+        chats.retain(|channel, _| self.rules.iter().any(|r| r.cfg.channels.iter().any(|c| c == channel)));
         self.chats = chats;
     }
 
@@ -104,6 +105,13 @@ impl Automations {
                     .get(*i)
                     .is_some_and(|r| now_ms - *t < i64::from(r.cfg.user_cooldown_secs) * 1000)
             });
+        }
+        // Still full of live cooldowns (long ones in a busy chat): the oldest half goes.
+        if chat.user_at.len() >= MAX_USER_COOLDOWNS {
+            let mut by_age: Vec<_> = chat.user_at.drain().collect();
+            by_age.sort_unstable_by_key(|(_, t)| *t);
+            let newest = by_age.split_off(by_age.len() - MAX_USER_COOLDOWNS / 2);
+            chat.user_at = newest.into_iter().collect();
         }
         for (i, rule) in self.rules.iter_mut().enumerate() {
             let a = &rule.cfg;
@@ -293,5 +301,36 @@ mod tests {
         assert_eq!(fired, 5_000);
         assert_eq!(a.chats.len(), 1);
         assert!(a.chats["chan"].user_at.len() <= MAX_USER_COOLDOWNS);
+    }
+
+    fn user_msg(i: i64) -> ChatMessage {
+        let raw = format!("@id=m{i};user-id={i} :u{i}!u@u PRIVMSG #chan :hi");
+        let mut colors = Default::default();
+        let mut ctx = Ctx::new(None, &mut colors, 0);
+        let Some(Incoming::Message(m)) = build(&Line::parse(&raw).unwrap(), &mut ctx) else { panic!() };
+        m
+    }
+
+    #[test]
+    fn v107_long_cooldowns_stay_capped_and_old_chats_go() {
+        let rule = |channel: &str| Automation {
+            channels: vec![channel.into()],
+            trigger: "hi".into(),
+            cooldown_secs: 0,
+            user_cooldown_secs: 86_400,
+            ..Automation::default()
+        };
+        let cmds = |list| Commands { automations_on: true, automations: list, automation_limit: 20, ..Commands::default() };
+        let mut a = Automations::new(&cmds(vec![rule("chan")]));
+        // A day-long per-person cooldown never runs out here: the cap still holds.
+        for i in 0..3_000i64 {
+            a.check("chan", &user_msg(i), false, i * 2_000);
+        }
+        let n = a.chats["chan"].user_at.len();
+        assert!(n <= MAX_USER_COOLDOWNS, "{n}");
+        assert!(a.chats["chan"].user_at.contains_key(&(0, "2999".into())), "the newest stay");
+        // The rule moves to another chat: the old chat's state goes.
+        a.update(&cmds(vec![rule("other")]));
+        assert!(a.chats.is_empty());
     }
 }
