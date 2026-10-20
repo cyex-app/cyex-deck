@@ -21,6 +21,8 @@ mod miner;
 mod mock_url;
 mod moderation;
 mod paths;
+#[cfg(feature = "mocks")]
+mod perf_probe;
 mod player;
 mod plugins;
 mod profile;
@@ -40,6 +42,11 @@ mod whispers;
 mod windows;
 
 use tauri::RunEvent;
+
+/// V107-R2 Test builds count the heap for soak runs (`perf_probe`).
+#[cfg(feature = "mocks")]
+#[global_allocator]
+static HEAP: sys::heap::Counting = sys::heap::Counting;
 
 fn main() {
     let builder = tauri::Builder::default();
@@ -65,7 +72,7 @@ fn main() {
         .setup(|app| {
             let handle = app.handle();
             // T01 Which folders this run uses, then V102-02, before anything reads its files.
-            paths::init(handle)?;
+            paths::init(handle);
             paths::migrate(handle);
             paths::remove_old_env(handle);
             settings::init(handle)?;
@@ -96,6 +103,8 @@ fn main() {
             // V1051-01 The streams' speaker choice is set when the main page loads (windows::on_page_load).
             tray::init(handle)?;
             hotkeys::init(handle);
+            #[cfg(feature = "mocks")]
+            perf_probe::init(handle);
             Ok(())
         })
         .on_window_event(windows::on_window_event)

@@ -60,7 +60,14 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let dir = crate::paths::config(app)?.join("settings");
     // V106-08 Chat saved before presence was turned on for everyone; sanitize turns it on.
     let presence_was = presence_pending(&dir.join(Partition::Chat.file_name()));
-    let (mut store, report) = Store::open(dir, Arc::new(SystemClock))?;
+    // A settings folder it can't open ends the start with a message box, not a bare panic.
+    let (mut store, report) = Store::open(&dir, Arc::new(SystemClock)).unwrap_or_else(|e| {
+        let reason = match &e {
+            cyex_settings::Error::Io(io) => crate::paths::why(&dir, io),
+            e => e.to_string(),
+        };
+        crate::paths::fail(Some(&dir), &reason)
+    });
     if let Some(r) = &report.merged {
         eprintln!(
             "settings: V106-33 mentions merged into highlights ({} from mentions, {} from highlights, {} global, {} look the same, {} over the limit); V106-09 your name plays a sound now",

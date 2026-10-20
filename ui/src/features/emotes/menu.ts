@@ -47,8 +47,10 @@ export function pick(keys: EmoteKey[], have: Map<string, MenuEmote>): MenuEmote[
   return keys.map((k) => have.get(emoteKey(k.source, k.id))).filter((e): e is MenuEmote => !!e);
 }
 
-/** Usable emotes whose name starts with `q`, then ones containing it; locked ones last. */
-export function search(menu: EmoteMenu, q: string, limit = 200): MenuEmote[] {
+/** Usable emotes whose name starts with `q`, then ones containing it; locked ones last.
+ *  Within each group the exact name leads, then emotes you send most (`used`: their place
+ *  in the most-used list, C12), then menu order. */
+export function search(menu: EmoteMenu, q: string, limit = 200, used?: Map<string, number>): MenuEmote[] {
   const p = q.trim().toLowerCase();
   if (!p) return [];
   const seen = new Set<string>();
@@ -62,5 +64,13 @@ export function search(menu: EmoteMenu, q: string, limit = 200): MenuEmote[] {
       buckets[(e.locked ? 2 : 0) + (name.startsWith(p) ? 0 : 1)].push(e);
     }
   }
-  return buckets.flat().slice(0, limit);
+  const score = (e: MenuEmote) =>
+    e.name.toLowerCase() === p ? -1 : (used?.get(emoteKey(e.provider, e.id)) ?? Number.MAX_SAFE_INTEGER);
+  // Array sort is stable, so equal scores keep menu order.
+  return buckets.flatMap((b) => b.sort((a, c) => score(a) - score(c))).slice(0, limit);
+}
+
+/** C12 Each emote's place in the most-used list, by `provider:id`. */
+export function usageRank(usage: readonly { emote: EmoteKey }[]): Map<string, number> {
+  return new Map(usage.map((u, i) => [emoteKey(u.emote.source, u.emote.id), i]));
 }

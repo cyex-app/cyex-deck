@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { MIN_PAINT_CELL, paintCellWidth } from './paintCell.ts';
-import { boxWidth, geometry, range, reveal, step } from './virtualGrid.ts';
+import { boxWidth, fillCell, geometry, range, reveal, step } from './virtualGrid.ts';
 
 const g = geometry(1000, 2000, 176, 48, 6);
 
@@ -71,4 +71,16 @@ test('cells keep their width; the box fits the columns and the leftover stays ou
     assert.ok(w - box < 176 + 6);
   }
   assert.equal(boxWidth(5, 176, 6), 904);
+});
+
+test('fillCell stretches cells to the width, never below their size', () => {
+  // A 313 px chat pane: one paint column of 187 grows to the pane.
+  assert.equal(fillCell(313, geometry(313, 10, 187, 48, 6).columns, 187, 6), 313);
+  // Four 72 px badges in 313: the leftover is shared.
+  const cols = geometry(313, 10, 72, 76, 6).columns;
+  assert.equal(cols, 4);
+  assert.equal(fillCell(313, cols, 72, 6), 73);
+  assert.ok(boxWidth(cols, fillCell(313, cols, 72, 6), 6) <= 313);
+  // Narrower than one cell: the cell keeps its size.
+  assert.equal(fillCell(100, 1, 187, 6), 187);
 });

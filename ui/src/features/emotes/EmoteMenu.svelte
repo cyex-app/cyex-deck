@@ -19,7 +19,7 @@
   import { emoteImg, emoteLarge } from '../chat/urls';
   import { emojiGroups, emojiLabel, findEmoji, type Emoji, type EmojiGroup } from './emoji';
   import { type CardTarget, PROVIDER_NAMES, emoteKey, emoteRatio } from './emotes';
-  import { PROVIDER_TABS, type ProviderTab, cellHint, cellKey, pick, search, tierMark, usable } from './menu';
+  import { PROVIDER_TABS, type ProviderTab, cellHint, cellKey, pick, search, tierMark, usable, usageRank } from './menu';
   import EmoteCard from './EmoteCard.svelte';
   import { emoteMenu, forgetEmoteMenu } from './menus';
   import EditBar from './edit/EditBar.svelte';
@@ -80,7 +80,8 @@
   /** The last tab, unless it isn't here (GIFs in another channel). GIFs wait for their answer. */
   const current = $derived<Tab>(tabs.includes(tab) || (tab === 'gifs' && gifInfo === undefined) ? tab : 'twitch');
   const searchingEmotes = $derived(!!query.trim() && current !== 'gifs');
-  const found = $derived(menu && query.trim() ? search(menu, query) : []);
+  const rank = $derived(usageRank(saved.usage));
+  const found = $derived(menu && query.trim() ? search(menu, query, 200, rank) : []);
   const foundEmoji = $derived(emoji && query.trim() ? findEmoji(emoji, query.trim(), 40) : []);
   const foundEmojiKeys = $derived(uniqueKeys(foundEmoji, (e) => e.char));
 

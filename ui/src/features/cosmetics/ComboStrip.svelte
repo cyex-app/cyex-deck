@@ -209,7 +209,9 @@
     overflow-wrap: anywhere;
   }
   .empty {
-    flex: 1 0 140px;
+    /* Shrinks next to the save card in a narrow chat instead of running off the edge. */
+    flex: 1 1 0;
+    min-width: 96px;
     align-self: center;
     max-width: 260px;
     margin: 0;

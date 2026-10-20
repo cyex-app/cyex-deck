@@ -704,3 +704,20 @@ pub(crate) fn account_rooms(app: &AppHandle) -> HashMap<String, (u32, Vec<String
 pub(crate) fn now_ms() -> i64 {
     (time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64
 }
+
+/// V107-R2 Test builds only: the chat stores' sizes for the memory probe (`perf_probe`).
+#[cfg(feature = "mocks")]
+pub fn probe(app: &AppHandle) -> serde_json::Value {
+    let chat = app.state::<Chat>();
+    let inner = chat.lock();
+    let (mut outbox, mut delayed, mut sinks) = (0, 0, 0);
+    for e in inner.rooms.values() {
+        outbox += e.outbox.capacity();
+        delayed += e.delayed.len();
+        sinks += e.views.len();
+    }
+    serde_json::json!({
+        "rooms": inner.rooms.len(), "sessions": inner.sessions.len(), "views": inner.views.len(),
+        "held": inner.held.len(), "sinks": sinks, "outboxCap": outbox, "delayed": delayed,
+    })
+}

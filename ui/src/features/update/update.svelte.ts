@@ -50,8 +50,9 @@ class UpdateStore {
       await updateIpc.install(on);
       // Back without restarting: let the button work again.
       this.busy = false;
-    } catch {
-      this.error = 'Couldn’t update. Try again.';
+    } catch (e) {
+      // Rust's reasons are written for people (a bad hash or signature won't pass on a retry).
+      this.error = typeof e === 'string' && e ? e : 'Couldn’t update. Try again.';
       this.progress = '';
       this.percent = null;
       this.busy = false;

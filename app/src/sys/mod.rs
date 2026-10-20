@@ -7,8 +7,11 @@
 
 pub mod cache;
 pub mod devtools;
+pub mod fatal;
 pub mod flash;
 pub mod frame;
+#[cfg(feature = "mocks")]
+pub mod heap;
 #[cfg(windows)]
 pub mod audio;
 

@@ -78,6 +78,7 @@
   key={keyOf}
   {label}
   bind:box
+  stretch
   chosen={(r) => keyOf(r) === (selected ?? NONE_KEY)}
   cellWidth={kind === 'paint' ? paintW : 72}
   cellHeight={kind === 'paint' ? 48 : 76}

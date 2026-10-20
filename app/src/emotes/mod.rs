@@ -39,6 +39,8 @@ use providers::Which;
 
 /// The Twitch emote sets an account can use in one channel.
 type TwitchSets = Arc<Vec<cyex_twitch::gql::EmoteSet>>;
+/// V107-R2 A personal lookup with the sets it was built from.
+type SharedLookup = (Vec<Arc<EmoteSet>>, Arc<Lookup>);
 
 /// V107-R1 Users with personal emotes kept at most (as `Cosmetics`' 7TV users).
 const MAX_PERSONAL_USERS: usize = 20_000;
@@ -74,6 +76,12 @@ struct Inner {
     /// V107-R1 S7 Capped: last set change or read first to stay (B9).
     user_sets: Capped<String, Vec<String>, MAX_PERSONAL_USERS>,
     personal: Arc<HashMap<String, Arc<Lookup>>>,
+    /// V107-R2 One lookup per distinct list of personal sets, shared by every user with that
+    /// list (many share event sets), keyed by the sets' addresses. The entry holds the sets,
+    /// so an address can't come back for another set while it's here.
+    personal_lookups: HashMap<Vec<usize>, SharedLookup>,
+    /// V107-R2 Size at which the unused `personal_lookups` go next.
+    lookups_prune_at: usize,
     /// Emotes pushed into sets nobody claimed yet; a personal set fills before its
     /// entitlement arrives.
     unclaimed: HashMap<String, Vec<cyex_emotes::Emote>>,
@@ -175,19 +183,37 @@ impl Inner {
             .flatten()
             .filter_map(|id| self.personal_sets.get(id).cloned())
             .collect();
+        let lookup = (!sets.is_empty()).then(|| self.shared_lookup(sets));
         // V107-M3 In place; copies only while a room still holds the old map.
         let map = Arc::make_mut(&mut self.personal);
-        if sets.is_empty() {
+        if let Some(lookup) = lookup {
+            map.insert(user.to_owned(), lookup);
+        } else {
             map.remove(user);
             if self.user_sets.get(user).is_some_and(Vec::is_empty) {
                 self.user_sets.remove(user);
             }
-        } else {
-            map.insert(
-                user.to_owned(),
-                Arc::new(Lookup::build(sets.iter().map(Arc::as_ref))),
-            );
         }
+    }
+
+    /// V107-R2 The lookup for these sets, built once for every user who has them. Past twice
+    /// the entries in use, the ones no user holds any more go.
+    fn shared_lookup(&mut self, sets: Vec<Arc<EmoteSet>>) -> Arc<Lookup> {
+        let key: Vec<usize> = sets.iter().map(|s| Arc::as_ptr(s) as usize).collect();
+        if let Some((_, l)) = self.personal_lookups.get(&key) {
+            return l.clone();
+        }
+        if self.personal_lookups.len() >= self.lookups_prune_at {
+            self.prune_lookups();
+        }
+        let l = Arc::new(Lookup::build(sets.iter().map(Arc::as_ref)));
+        self.personal_lookups.insert(key, (sets, l.clone()));
+        l
+    }
+
+    fn prune_lookups(&mut self) {
+        self.personal_lookups.retain(|_, (_, l)| Arc::strong_count(l) > 1);
+        self.lookups_prune_at = (self.personal_lookups.len() * 2).max(64);
     }
 
     /// V107-R1 Past the cap, drops the users whose sets changed or were read least
@@ -210,6 +236,7 @@ impl Inner {
         for id in dropped_sets {
             self.personal_sets.remove(&id);
         }
+        self.prune_lookups();
     }
 
     /// V107-R1 A channel's chat left: its entry, and every cache keyed by a channel id no
@@ -470,6 +497,21 @@ pub fn channel_id(app: &AppHandle, login: &str) -> Option<String> {
         .map(|c| c.id.clone())
 }
 
+/// V107-R2 Test builds only: the emote stores' sizes for the memory probe (`perf_probe`).
+#[cfg(feature = "mocks")]
+pub fn probe(app: &AppHandle) -> serde_json::Value {
+    let e = app.state::<Emotes>();
+    let i = e.lock();
+    let set_emotes: usize = i.channels.values().flat_map(|c| c.sets.iter()).map(|s| s.emotes.len()).sum();
+    serde_json::json!({
+        "channels": i.channels.len(), "setEmotes": set_emotes, "globals": i.globals.len(),
+        "personalSets": i.personal_sets.len(), "userSets": i.user_sets.len(), "personal": i.personal.len(),
+        "personalLookups": i.personal_lookups.len(), "unclaimed": i.unclaimed.values().map(Vec::len).sum::<usize>(),
+        "twitchSets": i.twitch_sets.len(), "avatars": i.avatars.len(), "botCommands": i.bot_commands.len(),
+        "channelTwitch": i.channel_twitch.len(), "mine": i.mine.len(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -604,5 +646,50 @@ mod tests {
             assert!(inner.live("a", 1).is_none(), "same id, older join");
             assert!(inner.live("a", 2).is_some());
         });
+    }
+
+    fn personal_set(inner: &mut Inner, id: &str, names: &[&str]) {
+        let emotes = names.iter().map(|n| cyex_emotes::Emote::new(Provider::Seventv, *n, *n)).collect();
+        let set = EmoteSet::new(id, Provider::Seventv, Scope::Personal, emotes);
+        inner.personal_sets.insert(id.into(), Arc::new(set));
+    }
+
+    #[test]
+    fn v107_r2_users_with_the_same_sets_share_one_lookup() {
+        let mut inner = Inner::default();
+        personal_set(&mut inner, "event", &["a", "b"]);
+        personal_set(&mut inner, "own", &["c"]);
+        for i in 0..1000 {
+            let u = format!("u{i}");
+            let sets = if i % 2 == 0 { vec!["event".into()] } else { vec!["event".into(), "own".into()] };
+            inner.user_sets.insert(u.clone(), sets);
+            inner.rebuild_personal(&u);
+        }
+        assert_eq!(inner.personal.len(), 1000);
+        assert_eq!(inner.personal_lookups.len(), 2);
+        assert!(Arc::ptr_eq(&inner.personal["u0"], &inner.personal["u2"]));
+        assert!(inner.personal["u1"].get("c").is_some() && inner.personal["u0"].get("c").is_none());
+        // A changed set gets a fresh lookup; the stale one goes once nobody holds it.
+        personal_set(&mut inner, "event", &["a", "b", "z"]);
+        for i in (0..1000).step_by(2) {
+            inner.rebuild_personal(&format!("u{i}"));
+        }
+        assert!(inner.personal["u0"].get("z").is_some());
+        assert!(inner.personal["u1"].get("z").is_none());
+        inner.prune_lookups();
+        assert_eq!(inner.personal_lookups.len(), 2);
+    }
+
+    #[test]
+    fn v107_r2_lookups_stay_bounded_under_churn() {
+        let mut inner = Inner::default();
+        for i in 0..5000 {
+            let (u, s) = (format!("u{}", i % 50), format!("s{i}"));
+            personal_set(&mut inner, &s, &["x"]);
+            inner.user_sets.insert(u.clone(), vec![s.clone()]);
+            inner.rebuild_personal(&u);
+            inner.personal_sets.remove(&s);
+        }
+        assert!(inner.personal_lookups.len() <= 128, "{}", inner.personal_lookups.len());
     }
 }

@@ -4,7 +4,7 @@
 <script lang="ts" generics="T">
   import type { Snippet } from 'svelte';
 
-  import { boxWidth, geometry, range, reveal, step } from '../lib/virtualGrid';
+  import { boxWidth, fillCell, geometry, range, reveal, step } from '../lib/virtualGrid';
 
   interface Props<T> {
     items: readonly T[];
@@ -17,6 +17,8 @@
     active: number;
     /** The chosen item (aria-selected). The keyboard cell is `active`, a separate thing. */
     chosen?: (t: T) => boolean;
+    /** Cells grow to share the leftover width: `cellWidth` is then the least they get. */
+    stretch?: boolean;
     /** The scroller's width, bar included: a header above can end where the grid does. */
     box?: number;
     cell: Snippet<[T, { index: number; active: boolean }]>;
@@ -24,7 +26,7 @@
     onpick: (index: number) => void;
   }
 
-  let { items, key, label, cellWidth, cellHeight, gap = 6, active = $bindable(), box = $bindable(0), chosen, cell, onpick }: Props<T> = $props();
+  let { items, key, label, cellWidth, cellHeight, gap = 6, stretch = false, active = $bindable(), box = $bindable(0), chosen, cell, onpick }: Props<T> = $props();
 
   const uid = $props.id();
   const KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
@@ -39,15 +41,16 @@
   let frame = 0;
 
   const g = $derived(geometry(width, items.length, cellWidth, cellHeight, gap));
-  // The scroller is exactly the columns wide (plus its bar): the leftover sits outside it.
-  const boxW = $derived(boxWidth(g.columns, cellWidth, gap) + bar);
+  const cw = $derived(stretch ? fillCell(width, g.columns, cellWidth, gap) : cellWidth);
+  // The scroller is exactly the columns wide (plus its bar): any leftover sits outside it.
+  const boxW = $derived(boxWidth(g.columns, cw, gap) + bar);
   $effect(() => {
     box = boxW;
   });
   const win = $derived(range(g, items.length, scrollTop, viewH));
   const shown = $derived(win.last < win.first ? [] : items.slice(win.first, win.last + 1));
   const at = (index: number) => ({
-    x: (index % g.columns) * (cellWidth + gap),
+    x: (index % g.columns) * (cw + gap),
     y: Math.floor(index / g.columns) * g.rowHeight,
   });
 
@@ -125,7 +128,7 @@
         id="{uid}-{index}"
         aria-selected={chosen ? chosen(item) : false}
         class:active={index === active}
-        style="--x:{p.x}px;--y:{p.y}px;width:{cellWidth}px;height:{cellHeight}px"
+        style="--x:{p.x}px;--y:{p.y}px;width:{cw}px;height:{cellHeight}px"
         onclick={() => pick(index)}
       >
         {@render cell(item, { index, active: index === active })}

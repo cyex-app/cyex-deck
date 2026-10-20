@@ -53,6 +53,8 @@
   });
 
   const changed = $derived(loaded && (title.trim() !== saved.title || game.id !== saved.gameId));
+  // v1.07 T4: only a title emptied here blocks saving; a channel without one can still change its category.
+  const canSave = $derived(changed && !saving && (title.trim() !== '' || saved.title === ''));
 
   function pick(h: CategoryHit) {
     game = { id: h.id, name: h.name };
@@ -92,7 +94,7 @@
       maxlength={TITLE_MAX}
       bind:value={title}
       disabled={!loaded}
-      onkeydown={(e) => e.key === 'Enter' && changed && !saving && title.trim() && save()}
+      onkeydown={(e) => e.key === 'Enter' && canSave && save()}
     />
     <span class="count" class:near={title.length > TITLE_MAX - 15}>{title.length}/{TITLE_MAX}</span>
   </div>
@@ -131,7 +133,7 @@
   {/if}
 
   <div class="line">
-    <Button small variant="primary" disabled={!changed || saving || !title.trim()} onclick={save}>Save</Button>
+    <Button small variant="primary" disabled={!canSave} onclick={save}>Save</Button>
     {#if changed}<Button small variant="link" onclick={load}>Undo</Button>{/if}
   </div>
 </Card>

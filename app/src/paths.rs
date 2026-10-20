@@ -94,14 +94,9 @@ fn inside(path: &Path, base: &Path) -> bool {
 }
 
 /// T01 Runs first on start: reads the switch once. An unusable test folder stops the app
-/// rather than falling back to the real folders.
-pub fn init(app: &AppHandle) -> Result<&'static Dirs, String> {
-    let dirs = DIRS.get_or_init(|| {
-        pick(app).unwrap_or_else(|e| {
-            eprintln!("paths: {e}");
-            std::process::exit(2);
-        })
-    });
+/// rather than falling back to the real folders; so does a folder it can't make.
+pub fn init(app: &AppHandle) -> &'static Dirs {
+    let dirs = DIRS.get_or_init(|| pick(app).unwrap_or_else(|e| fail(None, &e)));
     if let Some(webview) = &dirs.webview {
         eprintln!(
             "paths: test data folder: settings {}, local {}, webview {}",
@@ -110,10 +105,56 @@ pub fn init(app: &AppHandle) -> Result<&'static Dirs, String> {
             webview.display()
         );
         for d in [&dirs.config, &dirs.local, webview] {
-            std::fs::create_dir_all(d).map_err(|e| format!("couldn’t make {}: {e}", d.display()))?;
+            if let Err(e) = std::fs::create_dir_all(d) {
+                fail(Some(d), &why(d, &e));
+            }
         }
     }
-    Ok(dirs)
+    dirs
+}
+
+/// The text of the start-up error box.
+pub fn folder_message(path: Option<&Path>, reason: &str) -> String {
+    let mut chars = reason.trim().chars();
+    let reason: String = chars
+        .next()
+        .map(|c| c.to_uppercase().chain(chars).collect())
+        .unwrap_or_default();
+    match path {
+        Some(p) => format!(
+            "cyex deck can't open its settings folder:\n{}\n\n{reason}",
+            p.display()
+        ),
+        None => format!("cyex deck can't open its settings folder.\n\n{reason}"),
+    }
+}
+
+/// Why `path` can't be made or opened, in plain words.
+pub fn why(path: &Path, err: &std::io::Error) -> String {
+    if let Some(file) = path.ancestors().find(|p| p.is_file()) {
+        return format!("A file is in the way: {}", file.display());
+    }
+    match err.kind() {
+        std::io::ErrorKind::PermissionDenied => "No permission to write there.".into(),
+        _ => os_text(&err.to_string()),
+    }
+}
+
+/// The OS text without its ` (os error 3)` tail.
+fn os_text(text: &str) -> String {
+    let text = match text.rfind(" (os error ") {
+        Some(i) if text.ends_with(')') => &text[..i],
+        _ => text,
+    };
+    text.trim().to_string()
+}
+
+/// Shows the start-up error box, then quits with exit code 2.
+pub fn fail(path: Option<&Path>, reason: &str) -> ! {
+    let text = folder_message(path, reason);
+    eprintln!("paths: {}", text.replace('\n', " "));
+    crate::sys::fatal::show("cyex deck", &text);
+    std::process::exit(2);
 }
 
 fn pick(app: &AppHandle) -> Result<Dirs, String> {
@@ -251,5 +292,43 @@ mod tests {
         }
         // A sibling whose name only starts the same is fine.
         assert!(choose(Some(OsStr::new(r"C:\Users\me\AppDataTest")), &r, &l).is_ok());
+    }
+
+    #[test]
+    fn the_error_box_reads_plainly() {
+        let p = Path::new(r"A:\data\roaming");
+        assert_eq!(
+            folder_message(Some(p), r"A file is in the way: A:\data"),
+            "cyex deck can't open its settings folder:\nA:\\data\\roaming\n\nA file is in the way: A:\\data"
+        );
+        assert_eq!(
+            folder_message(None, " settings aren't valid"),
+            "cyex deck can't open its settings folder.\n\nSettings aren't valid"
+        );
+    }
+
+    #[test]
+    fn os_error_numbers_are_dropped() {
+        assert_eq!(
+            os_text("The system cannot find the path specified. (os error 3)"),
+            "The system cannot find the path specified."
+        );
+        assert_eq!(os_text("odd (text)"), "odd (text)");
+    }
+
+    #[test]
+    fn a_file_in_the_way_is_named() {
+        let file = std::env::temp_dir().join(format!("cyex-paths-test-{}", std::process::id()));
+        std::fs::write(&file, b"").unwrap();
+        let dir = file.join("roaming");
+        let err = std::fs::create_dir_all(&dir).unwrap_err();
+        let text = why(&dir, &err);
+        let _ = std::fs::remove_file(&file);
+        assert_eq!(text, format!("A file is in the way: {}", file.display()));
+        let denied = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+        assert_eq!(
+            why(Path::new(r"Q:\nowhere\x"), &denied),
+            "No permission to write there."
+        );
     }
 }

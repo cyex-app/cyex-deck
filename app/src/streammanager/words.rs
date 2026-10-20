@@ -48,6 +48,8 @@ fn refused(code: &str) -> String {
         "EVENT_NOT_ACTIVE" | "EVENT_ENDED" => "That prediction already ended.",
         "NO_SUB_PRODUCT" => "Sub-only chat needs Affiliate or Partner.",
         "SNOOZE_FAILED" => "Couldn’t snooze the ad.",
+        // v1.07 T4 No reason given (e.g. a poll on a channel without Affiliate): no raw code.
+        "UNKNOWN" | "" => "Twitch turned that down.",
         _ => return format!("Twitch turned that down ({code})."),
     };
     line.into()
@@ -63,6 +65,7 @@ mod tests {
         assert_eq!(r("ALREADY_RAIDING"), "A raid is already counting down.");
         assert_eq!(r("RETRY_AFTER 95"), "You can run the next ad in 1:35.");
         assert_eq!(r("SOMETHING_NEW"), "Twitch turned that down (SOMETHING_NEW).");
+        assert_eq!(r("UNKNOWN"), "Twitch turned that down.");
         let stale = Error::Api {
             status: 200,
             message: r#"Cannot query field "startAd" on type "Mutation"."#.into(),

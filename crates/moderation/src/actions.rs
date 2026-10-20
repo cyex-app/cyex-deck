@@ -139,6 +139,15 @@ fn role_words(done: &str) -> Option<&'static str> {
     }
 }
 
+/// Twitch's history nouns ("Message Deleted") read badly before a name; the live feed's verbs instead.
+fn person_words(done: &str) -> Option<&'static str> {
+    match done.trim().to_ascii_lowercase().as_str() {
+        "message deleted" => Some("deleted a message from"),
+        "timeout removed" => Some("lifted the timeout on"),
+        _ => None,
+    }
+}
+
 impl ModLine {
     /// A live action from EventSub or Hermes. `secs` is a timeout's length.
     pub fn live(m: &Moderate, secs: Option<u64>, id: String, ts: i64) -> Self {
@@ -258,6 +267,8 @@ impl ModLine {
                 .join(" ")
         };
         let action = if let Some(words) = role {
+            words.to_owned()
+        } else if let Some(words) = a.target.is_some().then(|| person_words(&a.done)).flatten() {
             words.to_owned()
         } else if a.target.is_some() || a.title.is_empty() {
             lower(&a.done)
@@ -823,6 +834,20 @@ mod tests {
         assert_eq!(ModLine::past(&quoted, 9).action, "modded");
         let unquoted = ChannelAction { done: "Removed as \"Mod\"".into(), ..vip.clone() };
         assert_eq!(ModLine::past(&unquoted, 9).action, "unmodded");
+        // Nouns before a name read as verbs.
+        let deleted = ChannelAction {
+            icon: "TRASH".into(),
+            done: "Message Deleted".into(),
+            target: Some(("x".into(), "X".into())),
+            ..Default::default()
+        };
+        assert_eq!(ModLine::past(&deleted, 9).action, "deleted a message from");
+        let lifted = ChannelAction {
+            category: "TIMEOUTS_AND_UNTIMEOUTS".into(),
+            done: "Timeout Removed".into(),
+            ..deleted.clone()
+        };
+        assert_eq!(ModLine::past(&lifted, 9).action, "lifted the timeout on");
     }
 
     #[test]
