@@ -126,6 +126,14 @@
     onchange={(v) => settings.patch('chat', { paints: { seventv: v } })}
   />
 </Row>
+<Row setting="chat.paints.outlineLight" label="Outline paints in light themes" hint="A thin dark edge, so pale paints stay readable.">
+  <Toggle
+    label="Outline paints in light themes"
+    checked={c.paints.outlineLight}
+    disabled={!c.paints.seventv}
+    onchange={(v) => settings.patch('chat', { paints: { outlineLight: v } })}
+  />
+</Row>
 
 <SectionHead title="Sharing">Let other cyex users see that you’re here.</SectionHead>
 <Row

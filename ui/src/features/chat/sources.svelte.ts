@@ -8,6 +8,7 @@ import { settings } from '../../lib/settings.svelte';
 import { emojiGroups, findEmoji, type EmojiGroup } from '../emotes/emoji';
 import { emoteKey } from '../emotes/emotes';
 import { usable } from '../emotes/menu';
+import { usageRank } from '../emotes/ranking';
 import { emoteMenu } from '../emotes/menus';
 import { complete, type Word } from './completion';
 import type { ChatRoom } from './room.svelte';
@@ -66,7 +67,7 @@ export class Sources {
   /** V101-16 Among equal matches, emotes you use most come first: their place in the
    * most-used list (C12). */
   used(): (name: string) => number {
-    const order = new Map(settings.v.emotes.usage.map((u, i) => [emoteKey(u.emote.source, u.emote.id), i]));
+    const order = usageRank(settings.v.emotes.usage);
     const byName = new Map<string, number>();
     for (const e of this.emotes()) {
       const i = order.get(emoteKey(e.provider, e.id));

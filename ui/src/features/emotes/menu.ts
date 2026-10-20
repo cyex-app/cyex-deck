@@ -4,7 +4,11 @@ import type { EmoteKey } from '../../ipc/bindings/EmoteKey';
 import type { EmoteMenu } from '../../ipc/bindings/EmoteMenu';
 import type { MenuEmote } from '../../ipc/bindings/MenuEmote';
 import type { MenuSection } from '../../ipc/bindings/MenuSection';
+import { RANK } from '../chat/completion.ts';
 import { PROVIDER_NAMES, emoteKey } from './emotes.ts';
+import { type Candidate, rankEmotes } from './ranking.ts';
+
+export { usageRank } from './ranking.ts';
 
 export type ProviderTab = 'twitch' | 'seventv' | 'bttv' | 'ffz';
 
@@ -47,30 +51,19 @@ export function pick(keys: EmoteKey[], have: Map<string, MenuEmote>): MenuEmote[
   return keys.map((k) => have.get(emoteKey(k.source, k.id))).filter((e): e is MenuEmote => !!e);
 }
 
-/** Usable emotes whose name starts with `q`, then ones containing it; locked ones last.
- *  Within each group the exact name leads, then emotes you send most (`used`: their place
- *  in the most-used list, C12), then menu order. */
+/** Emotes whose name contains `q`, locked ones last, in the one emote order (V107-R7
+ *  ranking.ts): exact name, prefix before contains, then emotes you send most (`used`:
+ *  their place in the most-used list, C12), then menu order. */
 export function search(menu: EmoteMenu, q: string, limit = 200, used?: Map<string, number>): MenuEmote[] {
-  const p = q.trim().toLowerCase();
-  if (!p) return [];
   const seen = new Set<string>();
-  const buckets: MenuEmote[][] = [[], [], [], []];
+  const all: Candidate<MenuEmote>[] = [];
   for (const s of sections(menu)) {
     for (const e of s.emotes) {
       const k = cellKey(e);
-      const name = e.name.toLowerCase();
-      if (seen.has(k) || !name.includes(p)) continue;
+      if (seen.has(k)) continue;
       seen.add(k);
-      buckets[(e.locked ? 2 : 0) + (name.startsWith(p) ? 0 : 1)].push(e);
+      all.push({ item: e, name: e.name, used: used?.get(emoteKey(e.provider, e.id)), locked: !!e.locked });
     }
   }
-  const score = (e: MenuEmote) =>
-    e.name.toLowerCase() === p ? -1 : (used?.get(emoteKey(e.provider, e.id)) ?? Number.MAX_SAFE_INTEGER);
-  // Array sort is stable, so equal scores keep menu order.
-  return buckets.flatMap((b) => b.sort((a, c) => score(a) - score(c))).slice(0, limit);
-}
-
-/** C12 Each emote's place in the most-used list, by `provider:id`. */
-export function usageRank(usage: readonly { emote: EmoteKey }[]): Map<string, number> {
-  return new Map(usage.map((u, i) => [emoteKey(u.emote.source, u.emote.id), i]));
+  return rankEmotes(q, all, RANK.contains).slice(0, limit);
 }

@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import type { ModButtons } from '../../ipc/bindings/ModButtons';
 import { buttonKey, buttonOn, canAddButton, fullOrder, modButtonsFor, modSlots, toggleButton, type LineMod } from './lineMod.ts';
 
 const buttons: ModButtons = { delete: true, timeouts: [60], warn: false, ban: true, order: ['delete', { timeout: 60 }, 'warn', 'ban'] };
-const mod: LineMod = { me: '1', broadcaster: false, inline: true, slots: modSlots(buttons) };
+// V107-R14 Rust's answers per role, written by cargo test (crates/moderation/src/may.rs).
+const caps = JSON.parse(readFileSync(new URL('../../ipc/bindings/caps.fixture.json', import.meta.url), 'utf8'));
+const mod: LineMod = { me: '1', caps: caps.moderator, inline: true, slots: modSlots(buttons) };
 const user = (id: string, login: string, ...sets: string[]) => ({ id, login, badges: sets.map((set) => ({ set })) });
 
 test('mod mode puts buttons on viewers only (V101-33)', () => {
@@ -17,7 +20,7 @@ test('mod mode puts buttons on viewers only (V101-33)', () => {
 });
 
 test('the broadcaster gets them on mods too', () => {
-  const owner = { ...mod, broadcaster: true };
+  const owner = { ...mod, caps: caps.broadcaster };
   assert.equal(modButtonsFor(owner, user('4', 'othermod', 'moderator'), 'chan'), true);
 });
 

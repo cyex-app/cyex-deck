@@ -10,6 +10,7 @@ import { accounts } from '../../lib/accounts.svelte';
 import { copy } from '../../lib/clipboard';
 import { errorText } from '../../lib/errors';
 import { toast } from '../../lib/toast.svelte';
+import { may, whose } from '../modview/may';
 import { mods, userItems } from '../modview/moderation.svelte';
 import type { Standing } from '../modview/standing';
 import { standings } from '../modview/standings.svelte';
@@ -49,8 +50,9 @@ export function nameMenu(c: NameMenu): MenuEntry[] {
     msgTime: msg?.ts ?? null,
   };
   const own = userMenus.current.user;
-  const role = mods.role(c.account, channel);
-  const canMod = role && login !== channel;
+  // V107-R14 Rust's answer: everyone but the channel itself.
+  const caps = mods.caps(c.account, channel);
+  const canMod = caps && may(caps, 'user', whose({ id: '', login }, c.account, channel)).offered;
   const open = () => chatIpc.openUsercard(channel, login).catch((e) => toast.error(errorText(e)));
   const warn = c.onprefill ? () => c.onprefill!(`/warn ${login} `) : open;
   return [
@@ -61,7 +63,7 @@ export function nameMenu(c: NameMenu): MenuEntry[] {
       ? [{ label: 'Their messages', icon: 'search' as const, run: () => c.onaction!({ type: 'search', query: `from:${login}` }) }]
       : []),
     { label: 'Copy name', icon: 'copy', run: () => void copy(login, 'Name') },
-    ...(canMod ? ['separator' as const, ...userItems(role, login, c.run, warn, standings.of(c.channel, login, c.standing))] : []),
+    ...(canMod ? ['separator' as const, ...userItems(caps, login, c.run, warn, standings.of(c.channel, login, c.standing))] : []),
     'separator',
     { label: 'Hide', icon: 'eyeOff', note: 'Only for you, not on Twitch', run: () => void hideUser(c.run, login) },
     ...(c.account

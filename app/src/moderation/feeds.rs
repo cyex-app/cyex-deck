@@ -1,6 +1,6 @@
 //! EventSub mod feeds (1.48, 1.56, M6). One websocket session per account that moderates
-//! an open channel; on each session's welcome we subscribe the mod types for those
-//! channels (Helix, cost 0). Events become chat notices and mod-view items. V103-15 A
+//! an open channel (two past ~150 channels, V107-R17 `sockets`); on each session's welcome
+//! we subscribe the mod types for those channels (Helix, cost 0). Events become chat notices and mod-view items. V103-15 A
 //! GQL-only account (EventSub is Helix, D25) follows its mod actions and AutoMod decisions
 //! on Hermes instead, signed in with its GQL token. The stream manager's own channel is
 //! followed while the manager is open, so its "Mod actions" fill without its chat.
@@ -9,69 +9,24 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
 use cyex_eventsub::events::{self, Event, Moderate};
-use cyex_eventsub::session::{self, Out, Session};
-use cyex_eventsub::subs::{self, Answer, ChannelSubs};
+use cyex_eventsub::session::Out;
+use cyex_eventsub::subs;
 use cyex_chat::model::NoticeKind;
 use cyex_moderation::actions::{self, Decision, ModLine};
 use cyex_moderation::own::{Echo, OwnEchoes};
 use cyex_moderation::role_change::RoleAction;
 use cyex_twitch::hermes::Kind;
-use cyex_twitch::helix;
 use tauri::{AppHandle, Manager};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
 use super::view::{self, FeedItem, HeldItem, SuspiciousItem};
-use super::{channel_id, http};
+use super::channel_id;
 use crate::auth;
 
-struct Account {
-    _session: Session,
-    session_id: Option<String>,
-    /// V107-A2 Per channel id, what is made on the current session. Channels stay after
-    /// they close: their subscriptions live until the socket ends.
-    subs: HashMap<String, ChannelSubs>,
-    /// Channels with a subscribe task running, and how many subscriptions those still send.
-    pending: HashSet<String>,
-    in_flight: usize,
-    /// Channels this account mods and that are open: channel id → login.
-    wanted: HashMap<String, String>,
-    /// V107-A2 When each wanted channel was opened (a counter), and which are shown: over
-    /// the cap, shown ones win, then the first opened.
-    opened: HashMap<String, u64>,
-    next_open: u64,
-    front: HashSet<String>,
-    /// After a 429: no new subscribes before this.
-    full_until_ms: i64,
-    /// The cap was logged (once per account).
-    warned_full: bool,
-    /// A retry of failed subscriptions is scheduled.
-    retry_armed: bool,
-}
+mod sockets;
 
-impl Account {
-    /// Whether this session holds subscriptions for the channel.
-    fn covers(&self, channel_id: &str) -> bool {
-        self.subs.get(channel_id).is_some_and(|s| s.held() > 0)
-    }
-
-    /// A new session (or none): nothing is made on it yet.
-    fn reset(&mut self, session_id: Option<String>) {
-        self.session_id = session_id;
-        self.subs.clear();
-        self.pending.clear();
-        self.in_flight = 0;
-        self.full_until_ms = 0;
-        self.retry_armed = false;
-    }
-
-    /// Wanted channels in priority order: shown first, then the first opened.
-    fn by_priority(&self) -> Vec<String> {
-        let mut ids: Vec<&String> = self.wanted.keys().collect();
-        ids.sort_by_key(|c| (!self.front.contains(*c), self.opened.get(*c).copied().unwrap_or(u64::MAX), (*c).clone()));
-        ids.into_iter().cloned().collect()
-    }
-}
+use sockets::Account;
 
 #[derive(Default)]
 pub struct Feeds(Mutex<HashMap<String, Account>>);
@@ -84,6 +39,7 @@ pub fn init(app: &AppHandle) {
     app.manage(Feeds::default());
     app.manage(HermesFeeds::default());
     app.manage(Own::default());
+    sockets::init(app);
 }
 
 /// V107-P7 Our own mod actions, waiting for their echo (`cyex_moderation::own`).
@@ -160,23 +116,15 @@ pub fn sync(app: &AppHandle) {
     map.retain(|acc, entry| {
         let keep = wanted.contains_key(acc);
         if !keep {
-            released.extend(entry.subs.iter().filter(|(_, s)| s.held() > 0).map(|(c, _)| c.clone()));
+            released.extend(entry.held_channels());
         }
         keep
     });
     for (acc, channels) in wanted {
-        let entry = map.entry(acc.clone()).or_insert_with(|| start(app, &acc));
-        entry.opened.retain(|c, _| channels.contains_key(c));
-        for c in channels.keys() {
-            if !entry.opened.contains_key(c) {
-                entry.opened.insert(c.clone(), entry.next_open);
-                entry.next_open += 1;
-            }
-        }
-        entry.front = channels.keys().filter(|c| front.contains(*c)).cloned().collect();
-        entry.wanted = channels;
+        let entry = map.entry(acc.clone()).or_insert_with(|| Account::new(app, &acc));
+        entry.set_wanted(channels, &front);
         // If already welcomed, subscribe what is new or due again right away.
-        queue(app, &acc, entry);
+        released.extend(sockets::queue(app, &acc, entry));
     }
     drop(map);
     for cid in released {
@@ -187,14 +135,14 @@ pub fn sync(app: &AppHandle) {
 }
 
 /// The stream manager let go of `channel.follow` for a channel (D30): a mod feed that has
-/// the channel takes it over.
+/// the channel takes it over, on the channel's socket and counted (V107-R17).
 pub fn follow_released(app: &AppHandle, channel_id: &str) {
     let Some(feeds) = app.try_state::<Feeds>() else { return };
     let holders: Vec<(String, String)> = {
-        let map = feeds.0.lock().unwrap_or_else(|p| p.into_inner());
-        map.iter()
+        let mut map = feeds.0.lock().unwrap_or_else(|p| p.into_inner());
+        map.iter_mut()
             .filter(|(_, e)| e.wanted.contains_key(channel_id) || e.covers(channel_id))
-            .filter_map(|(acc, e)| Some((acc.clone(), e.session_id.clone()?)))
+            .filter_map(|(acc, e)| Some((acc.clone(), e.take_follow(channel_id)?)))
             .collect()
     };
     for (acc, session_id) in holders {
@@ -215,52 +163,10 @@ pub fn follow_line(app: &AppHandle, channel_id: &str, text: String, login: Strin
     }
 }
 
-fn start(app: &AppHandle, account: &str) -> Account {
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-    let (session, task) = session::start(tx);
-    tauri::async_runtime::spawn(task);
-    let app2 = app.clone();
-    let acc = account.to_owned();
-    tauri::async_runtime::spawn(async move {
-        while let Some(out) = rx.recv().await {
-            handle(&app2, &acc, out);
-        }
-    });
-    Account {
-        _session: session,
-        session_id: None,
-        subs: HashMap::new(),
-        pending: HashSet::new(),
-        in_flight: 0,
-        wanted: HashMap::new(),
-        opened: HashMap::new(),
-        next_open: 0,
-        front: HashSet::new(),
-        full_until_ms: 0,
-        warned_full: false,
-        retry_armed: false,
-    }
-}
-
 fn handle(app: &AppHandle, account: &str, out: Out) {
     match out {
-        Out::Welcome(id) => {
-            if let Some(feeds) = app.try_state::<Feeds>() {
-                let mut map = feeds.0.lock().unwrap_or_else(|p| p.into_inner());
-                if let Some(entry) = map.get_mut(account) {
-                    entry.reset(Some(id));
-                    queue(app, account, entry);
-                }
-            }
-        }
-        Out::Lost => {
-            if let Some(feeds) = app.try_state::<Feeds>() {
-                let mut map = feeds.0.lock().unwrap_or_else(|p| p.into_inner());
-                if let Some(entry) = map.get_mut(account) {
-                    entry.reset(None);
-                }
-            }
-        }
+        // V107-R17 Sessions are `sockets`' business.
+        Out::Welcome(_) | Out::Lost => {}
         Out::Notification { kind, condition, event } => {
             let Some(cid) = subs::channel_of(&condition).map(str::to_owned) else { return };
             let login = login_for(app, account, &cid);
@@ -285,120 +191,6 @@ fn login_for(app: &AppHandle, account: &str, channel_id: &str) -> Option<String>
     let feeds = app.try_state::<Feeds>()?;
     let map = feeds.0.lock().unwrap_or_else(|p| p.into_inner());
     map.get(account)?.wanted.get(channel_id).cloned()
-}
-
-/// V107-A2 Starts subscribing what the session still needs: new channels, and failed types
-/// whose wait is over. Within Twitch's 300 per socket (`subs::next_channels`); one task per
-/// channel at a time. Called with the feeds lock held.
-fn queue(app: &AppHandle, account: &str, entry: &mut Account) {
-    let Some(session_id) = entry.session_id.clone() else { return };
-    let Some(token) = auth::helix_token(app, account) else { return };
-    let now = crate::chat::now_ms();
-    if now < entry.full_until_ms {
-        return;
-    }
-    let order = entry.by_priority();
-    let order: Vec<&str> = order.iter().map(String::as_str).collect();
-    let (next, left_out) = subs::next_channels(&order, &entry.subs, &entry.pending, entry.in_flight, now);
-    if left_out > 0 && !entry.warned_full {
-        entry.warned_full = true;
-        eprintln!("mod feeds: {account}: Twitch's {} per connection reached, {left_out} channels without a feed", subs::MAX_PER_SESSION);
-    }
-    if next.is_empty() {
-        return;
-    }
-    let jobs: Vec<(String, Vec<usize>)> = next.into_iter().map(|(c, t)| (c.to_owned(), t)).collect();
-    for (cid, todo) in &jobs {
-        entry.pending.insert(cid.clone());
-        entry.in_flight += todo.len();
-    }
-    subscribe(app, account, token, session_id, jobs);
-}
-
-/// What a subscribe task does with the account's state, if its session is still the one.
-fn with_entry<R>(app: &AppHandle, account: &str, session_id: &str, f: impl FnOnce(&mut Account) -> R) -> Option<R> {
-    let feeds = app.try_state::<Feeds>()?;
-    let mut map = feeds.0.lock().unwrap_or_else(|p| p.into_inner());
-    map.get_mut(account).filter(|e| e.session_id.as_deref() == Some(session_id)).map(f)
-}
-
-/// Subscribes the given mod types per channel on the account's session (Helix), one answer
-/// at a time into the account's state.
-fn subscribe(app: &AppHandle, account: &str, (token, client_id): (String, String), session_id: String, jobs: Vec<(String, Vec<usize>)>) {
-    let app = app.clone();
-    let account = account.to_owned();
-    tauri::async_runtime::spawn(async move {
-        let http = http(&app);
-        let auth = helix::Auth {
-            client_id: &client_id,
-            token: &token,
-        };
-        let mut full = false;
-        for (cid, todo) in &jobs {
-            let mut sent = 0;
-            for &i in todo {
-                if full {
-                    break;
-                }
-                let (kind, version) = subs::MOD_TYPES[i];
-                let cond = serde_json::json!({ "broadcaster_user_id": cid, "moderator_user_id": account });
-                let answer = match helix::eventsub::subscribe(&http, auth, &session_id, kind, version, &cond).await {
-                    Ok(_) => Answer::Done,
-                    Err(e) => {
-                        let a = subs::classify(e.status(), e.api_message());
-                        // Status and Twitch's message only (the error never carries the token).
-                        if a != Answer::Done && first_failure(cid, kind) {
-                            eprintln!("mod feeds: {cid}: couldn't subscribe {kind} ({a:?}): {e}");
-                        }
-                        a
-                    }
-                };
-                full = answer == Answer::Full;
-                let now = crate::chat::now_ms();
-                sent += 1;
-                let live = with_entry(&app, &account, &session_id, |e| {
-                    e.in_flight = e.in_flight.saturating_sub(1);
-                    e.subs.entry(cid.clone()).or_default().answer(i, answer, now);
-                    if full {
-                        e.full_until_ms = now + subs::RETRY_MS;
-                    }
-                });
-                // The socket was replaced: the new session subscribes for itself.
-                if live.is_none() {
-                    return;
-                }
-            }
-            with_entry(&app, &account, &session_id, |e| {
-                e.pending.remove(cid);
-                e.in_flight = e.in_flight.saturating_sub(todo.len() - sent);
-            });
-        }
-        retry_later(&app, &account, &session_id);
-    });
-}
-
-/// V107-A2 Failed subscriptions go again once their wait is over, without waiting for a sync.
-fn retry_later(app: &AppHandle, account: &str, session_id: &str) {
-    let Some(at) = with_entry(app, account, session_id, |e| {
-        let at = e.subs.values().filter_map(ChannelSubs::retry_at).min().map(|t| t.max(e.full_until_ms));
-        let at = at.filter(|_| !e.retry_armed)?;
-        e.retry_armed = true;
-        Some(at)
-    })
-    .flatten() else {
-        return;
-    };
-    let (app, account, session_id) = (app.clone(), account.to_owned(), session_id.to_owned());
-    tauri::async_runtime::spawn(async move {
-        let wait = (at - crate::chat::now_ms()).max(1_000) as u64;
-        tokio::time::sleep(std::time::Duration::from_millis(wait)).await;
-        let app2 = app.clone();
-        let acc = account.clone();
-        with_entry(&app, &account, &session_id, move |e| {
-            e.retry_armed = false;
-            queue(&app2, &acc, e);
-        });
-    });
 }
 
 /// Whether this is the first failed subscribe of `kind` in channel `cid` (logged once each).

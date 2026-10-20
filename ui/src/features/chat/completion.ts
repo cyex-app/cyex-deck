@@ -76,28 +76,26 @@ export function rankBest(names: readonly string[], typed: string): { rank: numbe
   return best;
 }
 
-/** Candidates for `prefix`, best match first (`rank`), then the ones used most (`used`:
- * lower is more), then the shortest. What's typed exactly is left out. */
+/** Candidates for `prefix`, best match first (`rank`), then the shortest. What's typed
+ * exactly is left out. Emotes rank in emotes/ranking.ts instead (V107-R7). */
 export function complete(
   prefix: string,
   candidates: Iterable<string>,
   limit = 8,
-  used: (name: string) => number = () => Infinity,
 ): string[] {
   if (!prefix) return [];
-  const hits: { name: string; rank: number; close: number; used: number }[] = [];
+  const hits: { name: string; rank: number; close: number }[] = [];
   const seen = new Set<string>();
   for (const c of candidates) {
     if (seen.has(c) || c === prefix) continue;
     seen.add(c);
     const r = rank(c, prefix);
-    if (r.rank > RANK.none) hits.push({ name: c, ...r, used: used(c) });
+    if (r.rank > RANK.none) hits.push({ name: c, ...r });
   }
   hits.sort(
     (a, b) =>
       b.rank - a.rank ||
       b.close - a.close ||
-      (a.used === b.used ? 0 : a.used < b.used ? -1 : 1) ||
       a.name.length - b.name.length ||
       a.name.localeCompare(b.name),
   );

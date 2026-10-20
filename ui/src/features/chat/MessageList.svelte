@@ -27,14 +27,12 @@
   import { emotesIpc } from '../../ipc/emotes';
   import { modSlots, type LineMod } from '../modview/lineMod';
   import { messageItems, mods, pinItems, userItems } from '../modview/moderation.svelte';
-  import { allows, roleOf } from '../modview/roles';
+  import { may, whose, type Act as ModAct } from '../modview/may';
   import { standingOf } from '../modview/standing';
-  import { cantDelete } from '../modview/deleteRule';
   import { standings } from '../modview/standings.svelte';
   import { lineKind, pluginItems } from '../plugins/pluginMenus';
   import { plugins } from '../plugins/plugins.svelte';
-  import { glideMs } from './glide';
-  import { around, hold, older, SHRINK_MS, startOf, type From } from './lineWindow';
+  import { ChatScroll } from './chatScroll.svelte';
   import { nameMenu } from './nameMenu';
   import Line from './Line.svelte';
   import DateRow from '../../components/DateRow.svelte';
@@ -71,12 +69,12 @@
 
   const c = $derived(settings.v.chat);
   /** 1.57 Only where this account moderates: the pin button and mod mode (V101-33/34). */
-  const role = $derived(mods.role(room.account, room.login));
+  const caps = $derived(mods.caps(room.account, room.login));
   const lineMod = $derived<LineMod | null>(
-    role
+    caps
       ? {
           me: room.account,
-          broadcaster: allows(role, 'broadcaster'),
+          caps,
           inline: mods.modMode(room.login),
           slots: modSlots(c.modButtons),
         }
@@ -86,33 +84,27 @@
   let list = $state<HTMLElement>();
   /** The lines inside `list`; V103-12 slides move this. */
   let lines = $state<HTMLElement>();
-  /** Stays true while the user wants new messages in view. Scrolling up ends it. */
-  let following = $state(true);
-  /** V101-31 Lines out of view below. Without any there's no "More messages". */
-  let below = $state(false);
-  let hovering = $state(false);
-  let keyHeld = $state(false);
   // svelte-ignore state_referenced_locally
   let lastRead = $state<string | null>((readKey && readMarks.get(readKey)) || null);
   /** A menu opened from this list keeps it still until it closes. */
   let menuHere = $state(false);
-  /** V101-15 The mouse rested over chat for the set time: chat moves on until it moves. */
-  let still = $state(false);
-  let stillTimer: ReturnType<typeof setTimeout> | undefined;
-  const paused = $derived((hovering && c.pauseOnHover && !still) || keyHeld || (menuHere && menu.open));
 
-  function onmousemove() {
-    still = false;
-    clearTimeout(stillTimer);
-    if (c.pauseOnHover && c.pauseStillTenths) stillTimer = setTimeout(() => (still = true), c.pauseStillTenths * 100);
-  }
-
-  function onmouseleave() {
-    hovering = false;
-    still = false;
-    clearTimeout(stillTimer);
-  }
-  onDestroy(() => clearTimeout(stillTimer));
+  /** V107-R15 Following, pauses and the drawn window (chatScroll.svelte.ts); this is its DOM side. */
+  const pauseOpts = () => ({ pauseOnHover: c.pauseOnHover, pauseStillTenths: c.pauseStillTenths });
+  const scroll = new ChatScroll(
+    {
+      lines: () => shown,
+      messages: () => room.messages,
+      onshrink: () => void tick().then(() => following && !paused && toBottom()),
+    },
+    untrack(pauseOpts),
+  );
+  onDestroy(() => scroll.dispose());
+  $effect(() => scroll.configure(pauseOpts()));
+  $effect(() => scroll.menu(menuHere && menu.open));
+  /** Stays true while the user wants new messages in view. Scrolling up ends it. */
+  const following = $derived(scroll.following);
+  const paused = $derived(scroll.paused);
 
   function openMenu(e: MouseEvent, items: MenuEntry[]) {
     menuHere = true;
@@ -122,35 +114,8 @@
   $effect(() => {
     if (!menu.open) menuHere = false;
   });
-  /** Last message when the pause began, to tell if anything arrived since. */
-  let pausedAt = $state<string | undefined>();
-  /** Where the list was left, to count what came in since. */
-  let leftAt = $state<string | undefined>();
-  const newWhilePaused = $derived(paused && pausedAt !== undefined && room.messages.at(-1)?.id !== pausedAt);
-
-  $effect(() => {
-    if (following) leftAt = undefined;
-    else untrack(() => (leftAt ??= room.messages.at(-1)?.id ?? ''));
-  });
-
   /** Messages that came in since the list stopped following (pause or scroll up). */
-  const fresh = $derived.by(() => {
-    const id = !following ? leftAt : pausedAt;
-    if (!id) return 0;
-    const ms = room.messages;
-    for (let i = ms.length - 1; i >= 0; i--) if (ms[i].id === id) return ms.length - 1 - i;
-    return ms.length;
-  });
-
-  $effect(() => {
-    if (!paused) {
-      pausedAt = undefined;
-      return;
-    }
-    untrack(() => {
-      if (pausedAt === undefined) pausedAt = room.messages.at(-1)?.id ?? '';
-    });
-  });
+  const fresh = $derived(scroll.fresh);
 
   /** V103-12 A line and where it showed, to slide the lines in from. */
   type Mark = { el: Element; top: number };
@@ -158,29 +123,29 @@
   let before: Mark | null = null;
   /** The slide playing, when it ends, and when lines last came (all `performance.now()`). */
   let slide: Animation | null = null;
-  let slideEnds = 0;
-  let lastLines = -Infinity;
 
   $effect.pre(() => {
     void room.messages;
     untrack(() => (before = c.smoothNewMessages && following && !paused ? mark() : null));
   });
 
-  /** v1.07 t1 The list has been put at the newest line once. A chat that opens under a resting
-   *  mouse (Ctrl+Tab, the switcher) is paused from the start and stayed at its oldest line. */
-  let placed = false;
+  /** v1.07 t1 Paused only counts once the list was put at the newest line: a chat that opens
+   *  under a resting mouse (Ctrl+Tab, the switcher) would stay at its oldest line. */
+  const sticks = $derived(scroll.sticks);
 
   // Follow new messages unless paused or scrolled up. Also catches up after a pause.
   $effect(() => {
     void room.messages;
-    const follow = following && (!paused || !placed);
+    const follow = sticks;
+    // A pause that ends (or starts) before the first placement runs it again too.
+    void (following && paused);
     void tick().then(() => {
       if (!follow) return measure();
       const at = before ?? (c.smoothNewMessages ? mark() : null);
       before = null;
       const top = list?.scrollTop;
       toBottom();
-      if (scrolls()) placed = true;
+      if (scrolls()) scroll.landed();
       // Nothing new on screen (a filtered line): a playing slide goes on.
       if (at && list?.scrollTop !== top) glide(at);
       watchNewest();
@@ -214,22 +179,16 @@
    * compositor (a transform), so scrolling and stick-to-bottom never wait on it. Fast
    * chats skip or shorten it (glide.ts). `carry` keeps the playing slide's end time. */
   function glide(at: Mark, carry = false) {
-    const left = carry && slide ? slideEnds - performance.now() : 0;
+    const playing = !!slide;
     stopGlide();
     if (!lines || !list || !at.el.isConnected || reduced()) return;
     const distance = at.top - at.el.getBoundingClientRect().top;
-    if (!(distance >= 1)) return;
-    const now = performance.now();
-    const ms = carry
-      ? Math.min(left, glideMs(distance, list.clientHeight, Infinity))
-      : glideMs(distance, list.clientHeight, now - lastLines);
-    if (!carry) lastLines = now;
+    const ms = scroll.glide(distance, list.clientHeight, carry, playing);
     if (ms <= 0) return;
     slide = lines.animate([{ transform: `translateY(${distance}px)` }, { transform: 'none' }], {
       duration: ms,
       easing: EASE_OUT_CUBIC,
     });
-    slideEnds = now + ms;
   }
 
   /** The user scrolls or jumps: the lines go where they really are. */
@@ -243,8 +202,8 @@
     const key = c.pauseKey;
     if (key === 'none') return;
     const prop = ({ ctrl: 'ctrlKey', alt: 'altKey', shift: 'shiftKey' } as const)[key];
-    const sync = (e: KeyboardEvent) => (keyHeld = e[prop]);
-    const release = () => (keyHeld = false);
+    const sync = (e: KeyboardEvent) => scroll.key(e[prop]);
+    const release = () => scroll.key(false);
     addEventListener('keydown', sync);
     addEventListener('keyup', sync);
     addEventListener('blur', release);
@@ -286,44 +245,17 @@
       : room.messages,
   );
 
-  /** V107-M6 Only the newest lines are drawn (lineWindow.ts); `from` is the first one while
-   * the window is held, `null` for the newest WINDOW. */
-  let from = $state.raw<From>(null);
-  const drawn = $derived.by(() => {
-    const start = startOf(shown, from);
-    return start > 0 ? shown.slice(start) : shown;
-  });
+  /** V107-M6 Only the newest lines are drawn; scrolled up or paused, what's drawn stays put
+   * (chatScroll.svelte.ts). */
+  const drawn = $derived(scroll.drawn);
 
-  // Scrolled up or paused: what's drawn stays put. Lines coming in, history put in above
-  // and old lines dropping off don't move it.
-  $effect(() => {
-    if (!following || paused) untrack(() => (from = hold(shown, from)));
-  });
-
-  // Back at the bottom for a moment: only the newest WINDOW stay drawn.
-  $effect(() => {
-    if (!following || paused || !from) return;
-    const t = setTimeout(() => {
-      from = null;
-      void tick().then(() => following && !paused && toBottom());
-    }, SHRINK_MS);
-    return () => clearTimeout(t);
-  });
-
-  /** Set while older lines are being drawn in. */
-  let growing = false;
-
-  /** Near the top: draws older lines above, the view staying on the same lines. */
-  function more() {
-    if (growing || !lines) return;
-    const next = older(shown, from);
-    if (next === undefined) return;
-    const anchor = lines.firstElementChild;
+  /** Near the top, older lines were put in above (chatScroll): the view stays on the same lines.
+   * Measured before the lines are drawn. */
+  function anchorOlder() {
+    const anchor = lines?.firstElementChild;
     const top = anchor?.getBoundingClientRect().top ?? 0;
-    growing = true;
-    from = next;
     void tick().then(() => {
-      growing = false;
+      scroll.grew();
       // Scroll anchoring usually keeps it already; this covers what it doesn't.
       const moved = anchor?.isConnected ? anchor.getBoundingClientRect().top - top : 0;
       if (list && Math.abs(moved) >= 1) list.scrollTop += moved;
@@ -362,37 +294,30 @@
     measure();
   }
 
+  const metrics = (l: HTMLElement) => ({ top: l.scrollTop, height: l.scrollHeight, client: l.clientHeight });
+
   function measure() {
-    if (list) below = list.scrollTop + list.clientHeight < list.scrollHeight - 24;
+    if (list) scroll.measured(metrics(list));
   }
 
   /** V101-31 An empty or short chat has nothing to scroll to. */
   const scrolls = () => !!list && list.scrollHeight > list.clientHeight;
 
-  /** Set while the user drags the scrollbar. */
-  let dragging = false;
-  /** Where the list was at the last scroll event, to tell up from down. */
-  let lastTop = 0;
-
   // Only the user leaves the bottom: wheel, keys or the scrollbar. Lines loading above,
   // images sizing in and old lines dropping off also move the position; while
   // following, those just snap back down. Following starts again on the way down, or
   // when nothing is left to scroll: a smooth scroll up (V103-11) spends its first frames
-  // near the bottom.
+  // near the bottom (chatScroll.svelte.ts).
   function onscroll() {
     if (!list) return;
     tips.drop();
-    measure();
-    const down = list.scrollTop >= lastTop;
-    lastTop = list.scrollTop;
-    if (!below && (down || !scrolls())) following = true;
-    else if (dragging) following = false;
-    else if (following && !paused) toBottom();
-    if (!following && list.scrollTop < list.clientHeight) more();
+    const next = scroll.scrolled(metrics(list));
+    if (next === 'bottom') toBottom();
+    else if (next === 'older') anchorOlder();
   }
 
   function leave() {
-    following = false;
+    scroll.leave();
     stopGlide();
   }
 
@@ -407,15 +332,13 @@
 
   function onpointerdown(e: PointerEvent) {
     if (!list || e.clientX < list.getBoundingClientRect().right - 14) return;
-    dragging = true;
+    scroll.drag(true);
     stopGlide();
-    addEventListener('pointerup', () => (dragging = false), { once: true });
+    addEventListener('pointerup', () => scroll.drag(false), { once: true });
   }
 
   function jumpDown() {
-    following = true;
-    hovering = false;
-    keyHeld = false;
+    scroll.toNewest();
     stopGlide();
     toBottom();
   }
@@ -510,13 +433,13 @@
     const own = userMenus.current.message;
     const login = m.sender?.login ?? '';
     const ctx = context(m, login);
-    const role = mods.role(room.account, room.login);
-    const canMod = role && m.sender && !m.notice && login !== room.login;
-    // V101-34 The broadcaster's messages can be pinned too.
-    const canPin = role && m.sender && !m.notice && !canMod;
-    // V107 Their own lines can go too, when Twitch allows it (deleteRule).
-    const mine = m.sender ? { id: m.sender.id, login, role: roleOf(m.sender.badges), ts: m.ts ?? null } : null;
-    const canDelete = canPin && mine && cantDelete(role, room.account, mine, room.login, Date.now()) === null;
+    // V107-R14 Rust's answer for this line (may.rs): user actions on everyone but the
+    // broadcaster, who can still be pinned (V101-34) and deleted when Twitch allows it.
+    const w = caps && m.sender && !m.notice ? whose(m.sender, room.account, room.login) : null;
+    const at = (act: ModAct) => w !== null && may(caps, act, w, m.ts).offered;
+    const canMod = at('user');
+    const canPin = !canMod && at('pin');
+    const canDelete = canPin && at('delete');
     openMenu(e, [
       ...(canReply && m.sender && !m.notice ? [{ label: 'Reply', icon: 'reply' as const, run: () => onreply(m.id) }] : []),
       ...(m.sender && !m.notice
@@ -530,12 +453,12 @@
           ]
         : []),
       { label: 'Copy message', icon: 'copy', run: () => void copy(plainText(m.body), 'Message') },
-      ...(canMod
+      ...(canMod && caps
         ? [
             'separator' as const,
             ...messageItems(m.id, command),
             'separator' as const,
-            ...userItems(role, login, command, warn(login), standings.of(room.login, login, standingOf(m.sender?.badges))),
+            ...userItems(caps, login, command, warn(login), standings.of(room.login, login, standingOf(m.sender?.badges))),
           ]
         : []),
       ...(canDelete
@@ -604,14 +527,10 @@
     const target = list?.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`);
     if (!target) {
       // V107-M6 Not drawn yet: draw down from a little above it, then go there.
-      const next = around(shown, from, shown.findIndex((m) => m.id === id));
-      if (next === undefined) return;
-      from = next;
-      void tick().then(() => jump(id));
+      if (scroll.drawAround(id)) void tick().then(() => jump(id));
       return;
     }
-    // Following would snap straight back down.
-    following = false;
+    scroll.jumped();
     scrollWithin(target, 'center');
     // Reduce motion: lit, then off, without the fade.
     target?.animate([{ background: 'var(--accent-wash)' }, { background: 'transparent' }], {
@@ -677,9 +596,9 @@
     {oncontextmenu}
     onmouseover={tips.onmouseover}
     onmouseout={tips.onmouseout}
-    {onmousemove}
-    onmouseenter={() => ((hovering = true), onmousemove())}
-    {onmouseleave}
+    onmousemove={() => scroll.move()}
+    onmouseenter={() => scroll.enter()}
+    onmouseleave={() => scroll.exit()}
     role="log"
     data-arrows
     aria-live="off"
@@ -698,7 +617,7 @@
   {#if card}
     {#key card}<EmoteCard target={card} login={room.login} account={room.account} onclose={() => (card = null)} />{/key}
   {/if}
-  {#if below && (!following || newWhilePaused)}
+  {#if scroll.pill}
     <div class="fade" aria-hidden="true"></div>
     <button class="more" onclick={jumpDown}>
       <Icon name="arrowDown" size={13} />

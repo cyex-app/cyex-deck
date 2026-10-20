@@ -2,7 +2,8 @@
      into the events button while it's pinned (V103-04) or closed until the pin changes;
      mods can take it down (V101-34) or delete the message (V107), from its ⋮ menu (V107-P4). It always starts open, with who sent and who pinned
      it, both names open their usercard (V107-P5); folding is for this pin only (V106-19). A pin that ends shows a timer bar. Its text is semibold and a step larger than chat
-     (Settings → General, V105-03), so it reads at a glance. -->
+     (Settings → General, V105-03), so it reads at a glance. In a short chat it folds to one
+     line by itself, so chat lines stay in view (V107-R3). -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import { openMenuAt, type MenuEntry } from '../../components/menu.svelte';
@@ -44,14 +45,36 @@
   let open = $state(true);
   let el = $state<HTMLElement>();
   let short = $state(false);
+  let textEl = $state<HTMLElement>();
+  /** V107-R3 A short chat folds the pin by itself to one line; a click there unfolds it
+   * for now. Room again: back to `open`, and the next squeeze folds it again. */
+  let handOpen = $state(false);
+  const shown = $derived(short ? handOpen : open);
+  function toggle() {
+    if (short) handOpen = !handOpen;
+    else open = !open;
+  }
 
   /** A13 Under this the chat has little room for messages, so the banner takes one line. */
   const SHORT_PX = 300;
+  /** V107-R3b Whatever the chat's size: a banner whose full text would take over 40 % of the
+   * chat's height folds too (a ~130 px column). The estimate is the same folded or not
+   * (full text height + fixed head and padding), so it can't flip back and forth. */
+  const TALL_SHARE = 0.4;
+  const CHROME_PX = 40;
+  function tooTall(host: HTMLElement) {
+    return (textEl?.scrollHeight ?? 0) + CHROME_PX > host.clientHeight * TALL_SHARE;
+  }
   $effect(() => {
     const host = el?.closest<HTMLElement>('.chat') ?? el?.parentElement;
     if (!host) return;
-    const ro = new ResizeObserver(() => (short = host.clientHeight < SHORT_PX));
+    const ro = new ResizeObserver(() => {
+      const next = host.clientHeight < SHORT_PX || tooTall(host);
+      if (next !== short) handOpen = false;
+      short = next;
+    });
     ro.observe(host);
+    ro.observe(el!);
     return () => ro.disconnect();
   });
 
@@ -71,6 +94,7 @@
   $effect(() => {
     key;
     open = true;
+    handOpen = false;
   });
 
   /** V106-19 Twitch's startsAt when it has one, else when this banner first saw the pin. */
@@ -155,13 +179,13 @@
       systemIpc.openChatLink(a.dataset.link!).catch((err) => toast.error(errorText(err)));
       return;
     }
-    open = !open;
+    toggle();
   }
 
   function textKey(e: KeyboardEvent) {
     if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
     e.preventDefault();
-    open = !open;
+    toggle();
   }
 
   /** The same tips as chat lines: links, emotes, badges, emoji. */
@@ -202,10 +226,11 @@
 </script>
 
 {#if shows(eventStrip.of(channel), key)}
-  <div class="pin" class:paid={pin.paid} class:open class:short bind:this={el}>
+  <div class="pin" class:paid={pin.paid} class:open={shown} class:short bind:this={el}>
     <Icon name="pin" size={14} />
     <div class="main">
-      {#if (sender && name) || pin.by || left}
+      <!-- V107-R3 Folded in a short chat: the text's one line only. -->
+      {#if ((sender && name) || pin.by || left) && (shown || !short)}
         <div class="head">
           <span class="who">
             {#if sender && name}
@@ -237,9 +262,10 @@
       <!-- svelte-ignore a11y_mouse_events_have_key_events -->
       <div
         class="text"
+        bind:this={textEl}
         role="button"
         tabindex="0"
-        aria-expanded={open}
+        aria-expanded={shown}
         onclick={textClick}
         onkeydown={textKey}
         onmouseover={textOver}

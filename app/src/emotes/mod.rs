@@ -66,9 +66,6 @@ struct Inner {
     globals_loading: bool,
     /// B4 Providers whose global sets (and badges) answered, for good or with none.
     globals_done: Which,
-    /// B6 Goes up with every join, so a load or retry for an earlier join of the same
-    /// channel finds it gone.
-    next_gen: u64,
     /// By channel login.
     channels: HashMap<String, Channel>,
     /// C9 Personal and special 7TV sets by id, and which users have which.
@@ -101,7 +98,7 @@ struct Inner {
 
 struct Channel {
     id: String,
-    /// B6 Which join this is.
+    /// B6 Which join this is: the channel registry's generation (V107-R16).
     generation: u64,
     /// B6 The retry task for this join, stopped when it leaves.
     retry: Option<tauri::async_runtime::JoinHandle<()>>,
@@ -300,17 +297,29 @@ pub fn global(app: &AppHandle) -> RoomEmotes {
     }
 }
 
-/// A channel's chat joined: loads its emotes unless they're loaded or loading.
-pub fn join(app: &AppHandle, login: &str, channel_id: &str, account: Option<&str>) {
+/// V107-R16 Joins and leaves of channels, from the chat's channel registry.
+pub fn on_channel(app: &AppHandle, e: &crate::chat::channels::Event) {
+    use crate::chat::channels::Event;
+    match e {
+        Event::Known { login, id, generation } => join(app, login, id, *generation),
+        Event::Gone { login, generation, .. } => leave(app, login, *generation),
+        _ => {}
+    }
+}
+
+/// A channel's chat joined (join `generation`): loads its emotes unless they're loaded or loading.
+fn join(app: &AppHandle, login: &str, channel_id: &str, generation: u64) {
     let state = app.state::<Emotes>();
+    let stale = state.lock().channels.get(login).map(|c| c.generation).filter(|g| *g != generation);
+    if let Some(old) = stale {
+        leave(app, login, old);
+    }
     let fresh = {
         let mut inner = state.lock();
         if inner.channels.contains_key(login) {
             None
         } else {
             let (ready, _) = watch::channel(false);
-            inner.next_gen += 1;
-            let generation = inner.next_gen;
             inner.channels.insert(
                 login.to_owned(),
                 Channel {
@@ -335,17 +344,26 @@ pub fn join(app: &AppHandle, login: &str, channel_id: &str, account: Option<&str
         state.bttv.add(channel_id.to_owned());
         load::channel(app.clone(), login.to_owned(), channel_id.to_owned(), generation);
     }
-    if let Some(a) = account {
-        load::mine(app.clone(), a.to_owned(), channel_id.to_owned(), false);
-    }
 }
 
-/// The last room of a channel left.
-pub fn leave(app: &AppHandle, login: &str) {
+/// A room read by `account` joined the channel: the account's own Twitch emotes there.
+pub fn join_account(app: &AppHandle, account: &str, channel_id: &str) {
+    load::mine(app.clone(), account.to_owned(), channel_id.to_owned(), false);
+}
+
+/// The last room of a channel left (join `generation` or older).
+fn leave(app: &AppHandle, login: &str, generation: u64) {
     let Some(state) = app.try_state::<Emotes>() else {
         return;
     };
-    let Some(c) = state.lock().forget_channel(login) else {
+    let c = {
+        let mut inner = state.lock();
+        if inner.channels.get(login).is_none_or(|c| c.generation > generation) {
+            return;
+        }
+        inner.forget_channel(login)
+    };
+    let Some(c) = c else {
         return;
     };
     for t in SevenTopic::channel(&c.id) {
@@ -488,13 +506,9 @@ pub async fn bot_commands(
     Ok(cmds)
 }
 
-/// Channel id of a joined channel.
+/// Channel id of a joined channel (V107-R16 the chat's channel registry keeps it).
 pub fn channel_id(app: &AppHandle, login: &str) -> Option<String> {
-    app.try_state::<Emotes>()?
-        .lock()
-        .channels
-        .get(login)
-        .map(|c| c.id.clone())
+    app.try_state::<crate::chat::Chat>()?.channels.id(login)
 }
 
 /// V107-R2 Test builds only: the emote stores' sizes for the memory probe (`perf_probe`).

@@ -62,13 +62,19 @@
     return m ? [m[1].replace(/^7TV\s+/i, ''), m[2]] : null;
   }
 
+  /** V107-R5 The hovered paint's name is cut off by its ellipsis. */
+  function paintCut(): boolean {
+    const nm = document.querySelector<HTMLElement>('.item.paint:hover .nm');
+    return !!nm && nm.scrollWidth > nm.clientWidth;
+  }
+
   function tip(r: Row | null) {
     if (!r) return { label: 'None' };
     return {
       label: r.animated ? `${r.name} · Animated` : r.name,
       hint: r.usable ? '' : 'For 7TV subscribers',
       // The name is on the card already; the tip adds only what isn't, or the whole of a long one.
-      when: () => r.animated || !r.usable || (kind === 'badge' && r.name.length > 12),
+      when: () => r.animated || !r.usable || (kind === 'badge' && r.name.length > 12) || (kind === 'paint' && paintCut()),
     };
   }
 </script>

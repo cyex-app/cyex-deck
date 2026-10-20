@@ -49,6 +49,7 @@ pub struct ChannelCatalog {
 
 pub fn init(app: &AppHandle) {
     app.manage(Catalogs::default());
+    app.state::<Chat>().channels.hook(on_channel);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         loop {
@@ -75,7 +76,7 @@ pub async fn global(app: &AppHandle) -> Result<Arc<GlobalCatalog>, String> {
         .cloned()
 }
 
-/// Cached per run unless `fresh`. `None` if the channel doesn't exist.
+/// Cached while the channel is joined, unless `fresh`. `None` if the channel doesn't exist.
 pub async fn channel(app: &AppHandle, login: &str, fresh: bool) -> Result<Option<Arc<ChannelChat>>, String> {
     if !fresh && let Some(c) = cached(app, login) {
         return Ok(Some(c));
@@ -86,11 +87,13 @@ pub async fn channel(app: &AppHandle, login: &str, fresh: bool) -> Result<Option
         return Ok(None);
     };
     let c = Arc::new(c);
-    app.state::<Catalogs>()
-        .channels
-        .lock()
-        .unwrap_or_else(|p| p.into_inner())
-        .insert(login.to_owned(), c.clone());
+    let catalogs = app.state::<Catalogs>();
+    let mut map = catalogs.channels.lock().unwrap_or_else(|p| p.into_inner());
+    // V107-R16 Only joined channels are kept; checked under this lock, so a leave's `Gone`
+    // (fired after the registry changed) can't miss an insert.
+    if app.state::<Chat>().channels.joined(login) {
+        map.insert(login.to_owned(), c.clone());
+    }
     Ok(Some(c))
 }
 
@@ -106,21 +109,12 @@ pub fn badge_url(app: &AppHandle, login: &str, set: &str, version: &str) -> Opti
     global.badges.iter().find(hit).map(|b| b.image2x.clone())
 }
 
-impl Catalogs {
-    /// V107-R1 Keeps only the channels `open` still wants, e.g. the chats left open.
-    fn retain(&self, open: impl Fn(&str) -> bool) {
-        self.channels
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .retain(|login, _| open(login));
-    }
-}
-
-/// V107-R1 A channel's last chat closed: drops every channel catalog no open chat has
-/// (also ones a load put in after its chat closed). Asked for again, they're read again.
-pub(super) fn retain(app: &AppHandle, open: impl Fn(&str) -> bool) {
-    if let Some(c) = app.try_state::<Catalogs>() {
-        c.retain(open);
+/// V107-R1/R16 A channel's last chat closed: its catalog goes. Asked for again, it's read again.
+fn on_channel(app: &AppHandle, e: &super::channels::Event) {
+    if let super::channels::Event::Gone { login, .. } = e
+        && let Some(c) = app.try_state::<Catalogs>()
+    {
+        c.channels.lock().unwrap_or_else(|p| p.into_inner()).remove(*login);
     }
 }
 
@@ -143,7 +137,7 @@ pub fn channel_view(c: &ChannelChat) -> ChannelCatalog {
 
 /// After a fresh join: reward names into the room, the channel's emotes, history once
 /// they're in (C1, `history` lines at most), then the current pin.
-pub fn load_for_room(app: AppHandle, key: RoomKey, history: Option<u32>) {
+pub fn load_for_room(app: AppHandle, key: RoomKey, generation: u64, history: Option<u32>) {
     tauri::async_runtime::spawn(async move {
         let c = match channel(&app, &key.1, false).await {
             Ok(Some(c)) => c,
@@ -161,10 +155,14 @@ pub fn load_for_room(app: AppHandle, key: RoomKey, history: Option<u32>) {
                 return;
             }
         };
-        crate::emotes::join(&app, &key.1, &c.channel_id, super::account_of(&key.0));
-        super::live::joined(&app, &key.1, &c.channel_id);
-        if !super::still_joined(&app, &key) {
+        // V107-R16 A join that's over drops its result; the first id fires `Known` (emotes, live).
+        if !app.state::<Chat>().channels.known(&app, &key.1, generation, &c.channel_id)
+            || !super::room_open(&app, &key)
+        {
             return;
+        }
+        if let Some(a) = super::account_of(&key.0) {
+            crate::emotes::join_account(&app, a, &c.channel_id);
         }
         if let Some(lines) = history {
             crate::emotes::ready(&app, &key.1, std::time::Duration::from_secs(4)).await;

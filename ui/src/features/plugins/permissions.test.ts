@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { menuSummary, permissionText } from './permissions.ts';
+import { menuSummary, permissionText, switchOn } from './permissions.ts';
 
 test('names the websites a plugin may reach', () => {
   assert.equal(
@@ -22,4 +22,11 @@ test('menu entries say where they show (S9, S11)', () => {
     'Weather › Forecast (chat), Who is this (names), Translate (lines)',
   );
   assert.equal(permissionText({ type: 'Tabs' }).text, 'Open channels in tabs and switch tabs');
+});
+
+test('a plugin waiting for your OK shows its switch off (V107-R10)', () => {
+  assert.equal(switchOn(true, 'needsOk'), false);
+  assert.equal(switchOn(true, 'running'), true);
+  assert.equal(switchOn(true, 'failed'), true);
+  assert.equal(switchOn(false, 'off'), false);
 });

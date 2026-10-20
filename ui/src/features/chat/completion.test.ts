@@ -44,12 +44,6 @@ test('V101-16 match-sorter order', () => {
   assert.deepEqual(complete('pg', ['pXXXXg', 'pXg']), ['pXg', 'pXXXXg']);
 });
 
-test('V101-16 among equal matches the most used come first', () => {
-  const used = (n: string) => ({ KEKWait: 0, KEKL: 1 })[n] ?? Infinity;
-  assert.deepEqual(complete('kek', ['KEKW', 'KEKL', 'KEKWait'], 8, used), ['KEKWait', 'KEKL', 'KEKW']);
-  assert.deepEqual(complete('kek', ['KEKW', 'KEKL', 'KEKWait']), ['KEKL', 'KEKW', 'KEKWait']);
-});
-
 test('inserting keeps the rest of the text', () => {
   const w = wordAt('hey @fo there', 7);
   assert.deepEqual(insert('hey @fo there', w, '@foo'), { text: 'hey @foo there', caret: 9 });

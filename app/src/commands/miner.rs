@@ -29,6 +29,12 @@ pub fn miner_log_clear(app: AppHandle) {
     m::log::clear(&app);
 }
 
+/// V107-R8 Avatars and who's live while the miner is off, once per view open.
+#[tauri::command]
+pub async fn miner_peek(app: AppHandle) -> Vec<m::MinedChannel> {
+    m::peek::peek(&app).await
+}
+
 /// Whose stats show: the mining account, else the one picked, else the default.
 fn stats_account(app: &AppHandle) -> Option<String> {
     m::status(app)

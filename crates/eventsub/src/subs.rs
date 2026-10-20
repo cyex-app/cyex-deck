@@ -81,9 +81,28 @@ pub struct ChannelSubs {
     made: u16,
     fails: u32,
     next_ms: i64,
+    /// V107-R17 Twitch's id per made type, so it can be deleted again (none after a 409).
+    ids: [Option<String>; MOD_TYPES.len()],
 }
 
 impl ChannelSubs {
+    /// V107-R17 Made with this subscription id.
+    pub fn made_as(&mut self, i: usize, id: String, now_ms: i64) {
+        self.answer(i, Answer::Done, now_ms);
+        self.ids[i] = Some(id);
+    }
+
+    pub fn id(&self, i: usize) -> Option<&str> {
+        self.ids[i].as_deref()
+    }
+
+    /// V107-R17 Deleted again: free on the session and wanted like a new one.
+    pub fn dropped(&mut self, i: usize) {
+        self.settled &= !(1 << i);
+        self.made &= !(1 << i);
+        self.ids[i] = None;
+    }
+
     /// The types (indexes into [`MOD_TYPES`]) to send now; empty while backing off.
     pub fn todo(&self, now_ms: i64) -> Vec<usize> {
         if now_ms < self.next_ms {
@@ -123,36 +142,112 @@ impl ChannelSubs {
     }
 }
 
-/// V107-A2 Which channels to subscribe next, from `wanted` in priority order (the shown tab
-/// first, then the order they were opened), with the types each still needs. Skips ones in
-/// flight, settled or backing off, and leaves out what would pass the session's cap.
-/// `in_flight` counts subscriptions being made right now. Second value: channels left out.
-pub fn next_channels<'a>(
+/// V107-R17 AutoMod's two types: every channel gets these first.
+pub const AUTOMOD: [usize; 2] = [1, 2];
+/// The other types, in the order they fill a channel: `channel.moderate` first, warning
+/// acknowledge last.
+pub const REST: [usize; 9] = [0, 3, 4, 5, 6, 7, 8, 9, 10];
+
+/// V107-R17 What one session does next.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct Plan<'a> {
+    /// Delete these first (channel, index into [`MOD_TYPES`]), to make room for `add`.
+    pub drop: Vec<(&'a str, usize)>,
+    /// Then make these, in this order.
+    pub add: Vec<(&'a str, usize)>,
+    /// Wanted channels whose AutoMod didn't fit.
+    pub without_automod: Vec<&'a str>,
+}
+
+/// V107-R17 Plans one session within `cap`, from `wanted` in priority order (the first
+/// `fronts` are shown, then the order they were opened). AutoMod for every channel comes
+/// first, then the rest of the shown channels, then the rest of the others. AutoMod and the
+/// shown channels' sets may push out what is made but matters less: closed channels' types
+/// first, then the rest of the lowest-priority channels. Never another open channel's AutoMod.
+/// The others only push out closed channels. Channels in `pending` (a task running) are left alone;
+/// `in_flight` subscriptions count as held.
+pub fn plan<'a>(
     wanted: &[&'a str],
-    state: &HashMap<String, ChannelSubs>,
+    fronts: usize,
+    state: &'a HashMap<String, ChannelSubs>,
     pending: &HashSet<String>,
     in_flight: usize,
     now_ms: i64,
-) -> (Vec<(&'a str, Vec<usize>)>, usize) {
-    let mut held: usize = state.values().map(ChannelSubs::held).sum::<usize>() + in_flight;
-    let mut out = Vec::new();
-    let mut left_out = 0;
-    for &cid in wanted {
-        if pending.contains(cid) {
-            continue;
+    cap: usize,
+) -> Plan<'a> {
+    let held: usize = state.values().map(ChannelSubs::held).sum::<usize>() + in_flight;
+    let rank: HashMap<&str, usize> = wanted.iter().enumerate().map(|(r, c)| (*c, r)).collect();
+    // What may go, sorted so the worst is last: (class, rank, position, channel, type).
+    // Class 3 closed, 2 others' rest, 1 shown channels' rest.
+    let mut spare: Vec<(u8, usize, usize, &'a str, usize)> = Vec::new();
+    for (cid, s) in state.iter().filter(|(c, _)| !pending.contains(*c)) {
+        match rank.get(cid.as_str()) {
+            None => spare.extend((0..MOD_TYPES.len()).filter(|&i| s.id(i).is_some()).map(|i| (3, 0, i, cid.as_str(), i))),
+            Some(&r) => {
+                let class = if r < fronts { 1 } else { 2 };
+                let made = REST.iter().enumerate().filter(|(_, i)| s.id(**i).is_some());
+                spare.extend(made.map(|(pos, &i)| (class, r, pos, cid.as_str(), i)));
+            }
         }
-        let todo = state.get(cid).map_or_else(|| (0..MOD_TYPES.len()).collect(), |s| s.todo(now_ms));
-        if todo.is_empty() {
-            continue;
-        }
-        if held + todo.len() > MAX_PER_SESSION {
-            left_out += 1;
-            continue;
-        }
-        held += todo.len();
-        out.push((cid, todo));
     }
-    (out, left_out)
+    spare.sort_unstable();
+    let mut room = Room { free: cap.saturating_sub(held), spare, plan: Plan::default() };
+    let todo: Vec<Option<Vec<usize>>> = wanted
+        .iter()
+        .map(|c| {
+            (!pending.contains(*c)).then(|| state.get(*c).map_or_else(|| (0..MOD_TYPES.len()).collect(), |s| s.todo(now_ms)))
+        })
+        .collect();
+    for (&cid, t) in wanted.iter().zip(&todo) {
+        let Some(t) = t else { continue };
+        let need: Vec<usize> = AUTOMOD.into_iter().filter(|i| t.contains(i)).collect();
+        // Both or neither: one alone is no feed.
+        if room.available(0) < need.len() {
+            room.plan.without_automod.push(cid);
+            continue;
+        }
+        need.into_iter().for_each(|i| _ = room.take(cid, i, 0));
+    }
+    for shown in [true, false] {
+        let class = if shown { 1 } else { 2 };
+        for (_, (&cid, t)) in wanted.iter().zip(&todo).enumerate().filter(|(r, _)| (*r < fronts) == shown) {
+            let Some(t) = t else { continue };
+            for i in REST.into_iter().filter(|i| t.contains(i)) {
+                if !room.take(cid, i, class) {
+                    break;
+                }
+            }
+        }
+    }
+    room.plan
+}
+
+/// [`plan`]'s free room and what may still go.
+struct Room<'a> {
+    free: usize,
+    spare: Vec<(u8, usize, usize, &'a str, usize)>,
+    plan: Plan<'a>,
+}
+
+impl<'a> Room<'a> {
+    /// Slots a need of `class` can get: free room, and made ones of a lower class (higher number).
+    fn available(&self, class: u8) -> usize {
+        let pushable = self.spare.iter().filter(|s| s.0 > class).count();
+        self.free + pushable
+    }
+
+    fn take(&mut self, cid: &'a str, i: usize, class: u8) -> bool {
+        if self.free > 0 {
+            self.free -= 1;
+        } else if self.spare.last().is_some_and(|s| s.0 > class) {
+            let Some((_, _, _, c, j)) = self.spare.pop() else { return false };
+            self.plan.drop.push((c, j));
+        } else {
+            return false;
+        }
+        self.plan.add.push((cid, i));
+        true
+    }
 }
 
 pub fn for_moderator(broadcaster_id: &str, moderator_id: &str) -> Vec<Sub> {
@@ -280,9 +375,9 @@ mod tests {
         let ids: Vec<String> = (0..30).map(|i| format!("c{i}")).collect();
         let wanted: Vec<&str> = ids.iter().map(String::as_str).collect();
         let (none, pending) = (HashMap::new(), HashSet::new());
-        let (next, left) = next_channels(&wanted, &none, &pending, 0, 0);
-        assert_eq!((next.len(), left), (27, 3));
-        assert_eq!((next[0].0, next[26].0), ("c0", "c26"), "priority order kept");
+        let p = plan(&wanted, 0, &none, &pending, 0, 0, MAX_PER_SESSION);
+        assert_eq!((p.add.len(), p.without_automod.len()), (MAX_PER_SESSION, 0));
+        assert_eq!((p.add[0], p.add[60]), (("c0", 1), ("c0", 0)), "AutoMod first, then priority order");
         // Settled, in flight or backing off: skipped; in-flight ones count against the cap.
         let mut state = HashMap::new();
         let mut done = ChannelSubs::default();
@@ -293,12 +388,111 @@ mod tests {
         one_failed.answer(0, Answer::Retry, 0);
         state.insert("c1".to_owned(), one_failed);
         let pending: HashSet<String> = ["c2".to_owned()].into();
-        let (next, left) = next_channels(&wanted, &state, &pending, MOD_TYPES.len(), 10);
-        assert_eq!(next[0].0, "c3");
-        // 300 - 11 (c0) - 10 (c1) - 11 (c2 in flight) = 268: 24 more.
-        assert_eq!((next.len(), left), (24, 3));
+        let p = plan(&wanted, 0, &state, &pending, MOD_TYPES.len(), 10, MAX_PER_SESSION);
+        assert_eq!(p.add[0], ("c3", 1));
+        assert!(p.add.iter().all(|(c, _)| !["c0", "c1", "c2"].contains(c)));
+        // 300 - 11 (c0) - 10 (c1) - 11 (c2 in flight) = 268.
+        assert_eq!(p.add.len(), 268);
         // After the wait the one failed type goes again, alone.
-        let (next, _) = next_channels(&["c1"], &state, &HashSet::new(), 0, RETRY_MS);
-        assert_eq!(next, vec![("c1", vec![0])]);
+        let p = plan(&["c1"], 0, &state, &HashSet::new(), 0, RETRY_MS, MAX_PER_SESSION);
+        assert_eq!(p.add, vec![("c1", 0)]);
+    }
+
+    type Owned = Vec<(String, usize)>;
+
+    /// One plan, then Twitch says yes to all of it. Returns (dropped, added, without AutoMod).
+    fn step(wanted: &[String], fronts: usize, state: &mut HashMap<String, ChannelSubs>) -> (Owned, Owned, Vec<String>) {
+        let w: Vec<&str> = wanted.iter().map(String::as_str).collect();
+        let p = plan(&w, fronts, state, &HashSet::new(), 0, 0, MAX_PER_SESSION);
+        let own = |v: &[(&str, usize)]| v.iter().map(|(c, i)| ((*c).to_owned(), *i)).collect::<Owned>();
+        let (drop, add, without) = (own(&p.drop), own(&p.add), p.without_automod.iter().map(|c| (*c).to_owned()).collect());
+        for (c, i) in &drop {
+            state.get_mut(c).unwrap().dropped(*i);
+        }
+        for (n, (c, i)) in add.iter().enumerate() {
+            state.entry(c.clone()).or_default().made_as(*i, format!("{c}-{i}-{n}"), 0);
+        }
+        assert!(state.values().map(ChannelSubs::held).sum::<usize>() <= MAX_PER_SESSION, "never past the cap");
+        (drop, add, without)
+    }
+
+    fn chans(n: usize) -> Vec<String> {
+        (0..n).map(|i| format!("c{i}")).collect()
+    }
+
+    fn has_automod(s: &ChannelSubs) -> bool {
+        AUTOMOD.iter().all(|&i| s.id(i).is_some())
+    }
+
+    #[test]
+    fn v107_r17_automod_first_table() {
+        // (channels, subscriptions made, channels with all 11, channels without AutoMod)
+        for (n, made, full, without) in [(10, 110, 10, 0), (27, 297, 27, 0), (100, 300, 11, 0), (150, 300, 0, 0), (200, 300, 0, 50)] {
+            let mut state = HashMap::new();
+            let wanted = chans(n);
+            let (drop, add, out) = step(&wanted, 1, &mut state);
+            assert!(drop.is_empty());
+            assert_eq!(add.len(), made, "{n} channels");
+            assert_eq!(state.values().filter(|s| s.held() == MOD_TYPES.len()).count(), full, "{n} channels");
+            assert_eq!(out.len(), without, "{n} channels");
+            assert_eq!(state.values().filter(|s| has_automod(s)).count(), n - without, "{n} channels");
+            if without > 0 {
+                assert_eq!(out[0], format!("c{}", n - without), "the last opened go without");
+            }
+            // Planned again: nothing to do.
+            let (drop, add, _) = step(&wanted, 1, &mut state);
+            assert!(drop.is_empty() && add.is_empty(), "{n} channels stable");
+        }
+        // 100 channels: the rest in order, channel.moderate first.
+        let mut state = HashMap::new();
+        step(&chans(100), 1, &mut state);
+        assert!(state["c11"].has("channel.moderate") && state["c11"].held() == 3);
+        assert_eq!(state["c12"].held(), 2);
+    }
+
+    #[test]
+    fn v107_r17_shown_tab_takes_the_lowest_rest_never_automod() {
+        let mut state = HashMap::new();
+        let mut wanted = chans(100);
+        step(&wanted, 1, &mut state);
+        // c99 is shown now: its 9 come from the lowest-priority holders, warning acknowledge first.
+        let last = wanted.pop().unwrap();
+        wanted.insert(0, last);
+        let (drop, add, _) = step(&wanted, 1, &mut state);
+        let mut want_drop = vec![("c11".to_owned(), 0)];
+        want_drop.extend([10, 9, 8, 7, 6, 5, 4, 3].map(|i| ("c10".to_owned(), i)));
+        assert_eq!(drop, want_drop);
+        assert_eq!(add, REST.map(|i| ("c99".to_owned(), i)).to_vec());
+        assert_eq!(state["c99"].held(), MOD_TYPES.len());
+        assert!(state.values().all(has_automod), "no AutoMod dropped");
+        // Back to c0: c99 keeps its set, nobody is pushed out for a channel not shown.
+        let (drop, add, _) = step(&chans(100), 1, &mut state);
+        assert!(drop.is_empty() && add.is_empty());
+        // A new channel's AutoMod pushes out the lowest-priority rest.
+        let mut more = wanted.clone();
+        more.push("c100".to_owned());
+        let (drop, add, _) = step(&more, 1, &mut state);
+        assert_eq!(drop, vec![("c10".to_owned(), 0), ("c9".to_owned(), 10)]);
+        assert_eq!(add, vec![("c100".to_owned(), 1), ("c100".to_owned(), 2)]);
+    }
+
+    #[test]
+    fn v107_r17_closed_channels_go_first() {
+        let mut state = HashMap::new();
+        step(&chans(27), 1, &mut state);
+        // c0 closed, two new channels: room comes from c0 only.
+        let mut wanted: Vec<String> = chans(29).split_off(1);
+        let (drop, add, _) = step(&wanted, 1, &mut state);
+        assert_eq!(add.iter().filter(|(c, _)| c == "c27" || c == "c28").count(), 14);
+        assert!(drop.iter().all(|(c, _)| c == "c0"), "{drop:?}");
+        // 150 open, all held: one closed channel's AutoMod makes room for one new channel.
+        let mut state = HashMap::new();
+        wanted = chans(151);
+        step(&wanted, 1, &mut state);
+        wanted.remove(5);
+        let (drop, add, out) = step(&wanted, 1, &mut state);
+        assert_eq!(drop.iter().map(|(c, _)| c.as_str()).collect::<Vec<_>>(), ["c5", "c5"]);
+        assert_eq!(add, vec![("c150".to_owned(), 1), ("c150".to_owned(), 2)]);
+        assert!(out.is_empty());
     }
 }

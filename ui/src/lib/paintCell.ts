@@ -1,8 +1,8 @@
-// V1051-03 How wide a paint cell is: 176 px, or wider when the account's name in that paint
+// V1051-03 How wide a paint cell is: 120 px (V107-R5: two columns in a ~313 px chat), or wider when the account's name in that paint
 // (bold 14 px, chat font) needs more. One width per name and font, so every cell is the same
 // size and no screen stretches it.
 
-export const MIN_PAINT_CELL = 176;
+export const MIN_PAINT_CELL = 120;
 
 /** Cell padding around the text: .item 8 + 1 on both sides, .back 6 on both sides, and a few
  *  px so the check mark and rounding never touch the name. */

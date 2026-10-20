@@ -6,6 +6,7 @@ import { listen } from '@tauri-apps/api/event';
 
 import type { BalanceUpdate } from './bindings/BalanceUpdate';
 import type { LogLine } from './bindings/LogLine';
+import type { MinedChannel } from './bindings/MinedChannel';
 import type { MinerStatus } from './bindings/MinerStatus';
 import type { Stats } from './bindings/Stats';
 import type { StatsChannel } from './bindings/StatsChannel';
@@ -14,6 +15,8 @@ import type { TabChannel } from './bindings/TabChannel';
 export const minerIpc = {
   status: () => invoke<MinerStatus>('miner_status'),
   log: () => invoke<LogLine[]>('miner_log'),
+  /** V107-R8 Avatars and who's live while the miner is off; Rust looks up at most once a minute. */
+  peek: () => invoke<MinedChannel[]>('miner_peek'),
   /** V106-27 Empties the log in every window. */
   clearLog: () => invoke<void>('miner_log_clear'),
   statsChannels: () => invoke<StatsChannel[]>('miner_stats_channels'),

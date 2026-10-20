@@ -4,6 +4,7 @@
 
 use cyex_chat::model::ModRole;
 use cyex_moderation::command::{ModCommand, Treatment};
+use cyex_moderation::role_change::Refused as RoleRefused;
 use cyex_twitch::gql;
 use cyex_twitch::helix::modes::ModeChange;
 use cyex_twitch::helix::moderation as hm;
@@ -317,83 +318,44 @@ async fn treat(app: &AppHandle, actor: &Actor, who: &str, how: Treatment) -> Res
     Err(no_token())
 }
 
-/// 1.50 One mod or VIP change. V107-M8 Granting one to someone who holds the other takes
-/// that away first (Twitch refuses to stack them) and leaves one chat line for both; a
-/// grant Twitch refuses for that reason (stale badges) swaps too.
+/// 1.50 One mod or VIP change; V107-M8 swaps and rollback: the sequence is
+/// `cyex_moderation::role_change::set_role` (V107-R14), this is its Helix/GQL adapter.
 async fn set_role(app: &AppHandle, actor: &Actor, who: &str, mod_role: bool, on: bool) -> Result<(), String> {
-    use super::standing;
-    let clash = on && standing::holds(app, &actor.channel, who).await.is_some_and(|h| h.clash(mod_role));
-    if !clash {
-        match role_step(app, actor, who, mod_role, on).await {
-            Ok(()) => {
-                standing::changed(app, &actor.channel, who, mod_role, on);
-                return Ok(());
-            }
-            Err(r) if !r.clash => return Err(r.text),
-            Err(_) => {}
-        }
-    }
-    swap_role(app, actor, who, mod_role).await
+    cyex_moderation::role_change::set_role(&RoleAdapter { app, actor }, who, mod_role, on).await
 }
 
-/// V107-M8 Takes the other role away, then grants `mod_role`.
-async fn swap_role(app: &AppHandle, actor: &Actor, who: &str, mod_role: bool) -> Result<(), String> {
-    use super::{feeds, standing};
-    use cyex_moderation::role_change as rc;
-    let (gone, got) = (rc::action(!mod_role, false), rc::action(mod_role, true));
-    let mark = |m: bool| {
-        feeds::own_role(app, &actor.channel_id, gone, who, m);
-        feeds::own_role(app, &actor.channel_id, got, who, m);
-    };
-    // What can be checked before anything goes: a token that may grant. Slots can't be
-    // (Helix has no count), so a refused grant puts the old role back below.
-    can_step(app, actor, mod_role)?;
-    mark(true);
-    if let Err(r) = role_step(app, actor, who, !mod_role, false).await {
-        mark(false);
-        return Err(r.text);
-    }
-    standing::changed(app, &actor.channel, who, !mod_role, false);
-    if let Err(r) = role_step(app, actor, who, mod_role, true).await {
-        // Nobody should end up with neither: the old role goes back, its echo adds no line.
-        let back = rc::action(!mod_role, true);
-        feeds::own_role(app, &actor.channel_id, back, who, true);
-        let restored = role_step(app, actor, who, !mod_role, true).await.is_ok();
-        for a in rc::unmark_after_failed_grant(mod_role, restored) {
-            feeds::own_role(app, &actor.channel_id, a, who, false);
-        }
-        if restored {
-            standing::changed(app, &actor.channel, who, !mod_role, true);
-        }
-        // The one line for it all. Shown here, so the caller shows nothing more.
-        let line = rc::grant_failed(who, mod_role, &r.text, r.slots, restored);
-        crate::chat::notice_line(app, &actor.channel, cyex_chat::model::NoticeKind::Moderation, &line);
-        return Ok(());
-    }
-    standing::changed(app, &actor.channel, who, mod_role, true);
-    crate::chat::notice_line(app, &actor.channel, cyex_chat::model::NoticeKind::Moderation, &rc::swapped(who, mod_role));
-    Ok(())
+/// V107-R14 Twitch, the own-echo marks, the role buttons and the chat, for one actor.
+struct RoleAdapter<'a> {
+    app: &'a AppHandle,
+    actor: &'a Actor,
 }
 
-/// A refused role change: the line to show, and whether Twitch said they hold the other role.
-struct RoleRefused {
-    text: String,
-    clash: bool,
-    /// V107-M8 A VIP grant with no slots left.
-    slots: bool,
-}
+impl cyex_moderation::role_change::RoleOps for RoleAdapter<'_> {
+    async fn holds(&self, who: &str) -> Option<cyex_moderation::role_change::Holds> {
+        super::standing::holds(self.app, &self.actor.channel, who).await
+    }
 
-impl From<&str> for RoleRefused {
-    fn from(text: &str) -> Self {
-        text.to_owned().into()
+    fn can_step(&self, moderator: bool) -> Result<(), String> {
+        can_step(self.app, self.actor, moderator)
+    }
+
+    async fn step(&self, who: &str, moderator: bool, on: bool) -> Result<(), RoleRefused> {
+        role_step(self.app, self.actor, who, moderator, on).await
+    }
+
+    fn mark(&self, action: cyex_moderation::role_change::RoleAction, who: &str, on: bool) {
+        super::feeds::own_role(self.app, &self.actor.channel_id, action, who, on);
+    }
+
+    fn standing(&self, who: &str, moderator: bool, on: bool) {
+        super::standing::changed(self.app, &self.actor.channel, who, moderator, on);
+    }
+
+    fn notice(&self, line: &str) {
+        crate::chat::notice_line(self.app, &self.actor.channel, cyex_chat::model::NoticeKind::Moderation, line);
     }
 }
 
-impl From<String> for RoleRefused {
-    fn from(text: String) -> Self {
-        RoleRefused { text, clash: false, slots: false }
-    }
-}
 
 /// 1.50 Helix takes only the broadcaster's token; lead mods (and mods, Twitch decides) use GQL.
 fn role_helix<'a>(app: &AppHandle, actor: &'a Actor, mod_role: bool) -> Option<cyex_twitch::helix::Auth<'a>> {

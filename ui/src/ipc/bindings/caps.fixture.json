@@ -1,0 +1,521 @@
+{
+  "broadcaster": {
+    "broadcaster": true,
+    "delete": {
+      "anyone": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": "Twitch only deletes messages from the last 6 hours."
+        }
+      },
+      "broadcaster": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": false,
+          "why": "Twitch only deletes messages from the last 6 hours."
+        }
+      },
+      "mod": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": "Twitch only deletes messages from the last 6 hours."
+        }
+      },
+      "own": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": "Twitch only deletes messages from the last 6 hours."
+        }
+      }
+    },
+    "pin": {
+      "anyone": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      },
+      "broadcaster": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      },
+      "mod": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      },
+      "own": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      }
+    },
+    "quick": {
+      "anyone": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      },
+      "broadcaster": {
+        "fresh": {
+          "offered": false,
+          "why": null
+        },
+        "old": {
+          "offered": false,
+          "why": null
+        }
+      },
+      "mod": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      },
+      "own": {
+        "fresh": {
+          "offered": false,
+          "why": null
+        },
+        "old": {
+          "offered": false,
+          "why": null
+        }
+      }
+    },
+    "roles": true,
+    "user": {
+      "anyone": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      },
+      "broadcaster": {
+        "fresh": {
+          "offered": false,
+          "why": null
+        },
+        "old": {
+          "offered": false,
+          "why": null
+        }
+      },
+      "mod": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      },
+      "own": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      }
+    },
+    "windowSecs": 21600
+  },
+  "leadModerator": {
+    "broadcaster": false,
+    "delete": {
+      "anyone": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": "Twitch only deletes messages from the last 6 hours."
+        }
+      },
+      "broadcaster": {
+        "fresh": {
+          "offered": false,
+          "why": "Mods can’t delete the broadcaster’s messages."
+        },
+        "old": {
+          "offered": false,
+          "why": "Twitch only deletes messages from the last 6 hours."
+        }
+      },
+      "mod": {
+        "fresh": {
+          "offered": true,
+          "why": "Mods can’t delete other mods’ messages."
+        },
+        "old": {
+          "offered": true,
+          "why": "Twitch only deletes messages from the last 6 hours."
+        }
+      },
+      "own": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": "Twitch only deletes messages from the last 6 hours."
+        }
+      }
+    },
+    "pin": {
+      "anyone": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      },
+      "broadcaster": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      },
+      "mod": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      },
+      "own": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      }
+    },
+    "quick": {
+      "anyone": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      },
+      "broadcaster": {
+        "fresh": {
+          "offered": false,
+          "why": null
+        },
+        "old": {
+          "offered": false,
+          "why": null
+        }
+      },
+      "mod": {
+        "fresh": {
+          "offered": false,
+          "why": null
+        },
+        "old": {
+          "offered": false,
+          "why": null
+        }
+      },
+      "own": {
+        "fresh": {
+          "offered": false,
+          "why": null
+        },
+        "old": {
+          "offered": false,
+          "why": null
+        }
+      }
+    },
+    "roles": true,
+    "user": {
+      "anyone": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      },
+      "broadcaster": {
+        "fresh": {
+          "offered": false,
+          "why": null
+        },
+        "old": {
+          "offered": false,
+          "why": null
+        }
+      },
+      "mod": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      },
+      "own": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      }
+    },
+    "windowSecs": 21600
+  },
+  "moderator": {
+    "broadcaster": false,
+    "delete": {
+      "anyone": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": "Twitch only deletes messages from the last 6 hours."
+        }
+      },
+      "broadcaster": {
+        "fresh": {
+          "offered": false,
+          "why": "Mods can’t delete the broadcaster’s messages."
+        },
+        "old": {
+          "offered": false,
+          "why": "Twitch only deletes messages from the last 6 hours."
+        }
+      },
+      "mod": {
+        "fresh": {
+          "offered": true,
+          "why": "Mods can’t delete other mods’ messages."
+        },
+        "old": {
+          "offered": true,
+          "why": "Twitch only deletes messages from the last 6 hours."
+        }
+      },
+      "own": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": "Twitch only deletes messages from the last 6 hours."
+        }
+      }
+    },
+    "pin": {
+      "anyone": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      },
+      "broadcaster": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      },
+      "mod": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      },
+      "own": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      }
+    },
+    "quick": {
+      "anyone": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      },
+      "broadcaster": {
+        "fresh": {
+          "offered": false,
+          "why": null
+        },
+        "old": {
+          "offered": false,
+          "why": null
+        }
+      },
+      "mod": {
+        "fresh": {
+          "offered": false,
+          "why": null
+        },
+        "old": {
+          "offered": false,
+          "why": null
+        }
+      },
+      "own": {
+        "fresh": {
+          "offered": false,
+          "why": null
+        },
+        "old": {
+          "offered": false,
+          "why": null
+        }
+      }
+    },
+    "roles": false,
+    "user": {
+      "anyone": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      },
+      "broadcaster": {
+        "fresh": {
+          "offered": false,
+          "why": null
+        },
+        "old": {
+          "offered": false,
+          "why": null
+        }
+      },
+      "mod": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      },
+      "own": {
+        "fresh": {
+          "offered": true,
+          "why": null
+        },
+        "old": {
+          "offered": true,
+          "why": null
+        }
+      }
+    },
+    "windowSecs": 21600
+  }
+}

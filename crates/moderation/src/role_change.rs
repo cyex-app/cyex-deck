@@ -5,6 +5,8 @@
 //! too and Twitch decides.
 //! V107-M8 Twitch won't stack the two: making a VIP a mod (or a mod a VIP) is refused
 //! (Helix 422 "you must first remove them as a VIP"), so the other role goes first.
+//! V107-R14 The whole sequence ([`set_role`]) runs here against a small port ([`RoleOps`]);
+//! the app is the Helix/GQL adapter.
 
 use cyex_chat::model::ModRole;
 
@@ -181,6 +183,101 @@ pub fn half_done(who: &str, moderator: bool, why: &str) -> String {
     }
 }
 
+
+/// A refused role change: the line to show, and what Twitch said about it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Refused {
+    pub text: String,
+    /// V107-M8 They hold the other role.
+    pub clash: bool,
+    /// V107-M8 A VIP grant with no slots left.
+    pub slots: bool,
+}
+
+impl From<&str> for Refused {
+    fn from(text: &str) -> Self {
+        text.to_owned().into()
+    }
+}
+
+impl From<String> for Refused {
+    fn from(text: String) -> Self {
+        Refused { text, ..Refused::default() }
+    }
+}
+
+/// V107-R14 What the role change sequence needs from the app, for one account in one
+/// channel: Twitch (Helix or GQL), the own-echo marks of the mod feeds, the role buttons and
+/// the chat. The app's adapter is `app/src/moderation/run.rs`.
+pub trait RoleOps: Sync {
+    /// What `who` holds now, from Twitch's badges; `None` when Twitch can't say.
+    fn holds(&self, who: &str) -> impl Future<Output = Option<Holds>> + Send;
+    /// Whether this account has a way to change `moderator` (else VIP) at all.
+    fn can_step(&self, moderator: bool) -> Result<(), String>;
+    /// Gives (`on`) or takes `moderator` (else VIP).
+    fn step(&self, who: &str, moderator: bool, on: bool) -> impl Future<Output = Result<(), Refused>> + Send;
+    /// Marks (or unmarks) the echo of our own change, so it adds no line.
+    fn mark(&self, action: RoleAction, who: &str, on: bool);
+    /// A change went through: the role buttons hear of it.
+    fn standing(&self, who: &str, moderator: bool, on: bool);
+    /// The one chat line.
+    fn notice(&self, line: &str);
+}
+
+/// 1.50 One mod or VIP change. V107-M8 Granting one to someone who holds the other takes
+/// that away first (Twitch refuses to stack them) and leaves one chat line for both; a
+/// grant Twitch refuses for that reason (stale badges) swaps too. `Err` is the line to
+/// show; a swap shows its own line and returns `Ok`.
+pub async fn set_role(ops: &impl RoleOps, who: &str, moderator: bool, on: bool) -> Result<(), String> {
+    let clash = on && ops.holds(who).await.is_some_and(|h| h.clash(moderator));
+    if !clash {
+        match ops.step(who, moderator, on).await {
+            Ok(()) => {
+                ops.standing(who, moderator, on);
+                return Ok(());
+            }
+            Err(r) if !r.clash => return Err(r.text),
+            Err(_) => {}
+        }
+    }
+    swap(ops, who, moderator).await
+}
+
+/// V107-M8 Takes the other role away, then grants `moderator` (else VIP).
+async fn swap(ops: &impl RoleOps, who: &str, moderator: bool) -> Result<(), String> {
+    let (gone, got) = (action(!moderator, false), action(moderator, true));
+    let mark = |m: bool| {
+        ops.mark(gone, who, m);
+        ops.mark(got, who, m);
+    };
+    // What can be checked before anything goes: a token that may grant. Slots can't be
+    // (Helix has no count), so a refused grant puts the old role back below.
+    ops.can_step(moderator)?;
+    mark(true);
+    if let Err(r) = ops.step(who, !moderator, false).await {
+        mark(false);
+        return Err(r.text);
+    }
+    ops.standing(who, !moderator, false);
+    if let Err(r) = ops.step(who, moderator, true).await {
+        // Nobody should end up with neither: the old role goes back, its echo adds no line.
+        ops.mark(action(!moderator, true), who, true);
+        let restored = ops.step(who, !moderator, true).await.is_ok();
+        for a in unmark_after_failed_grant(moderator, restored) {
+            ops.mark(a, who, false);
+        }
+        if restored {
+            ops.standing(who, !moderator, true);
+        }
+        // The one line for it all. Shown here, so the caller shows nothing more.
+        ops.notice(&grant_failed(who, moderator, &r.text, r.slots, restored));
+        return Ok(());
+    }
+    ops.standing(who, moderator, true);
+    ops.notice(&swapped(who, moderator));
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -281,5 +378,166 @@ mod tests {
         assert_eq!(refused(Moderator, "TARGET_ALREADY_MOD", "bob is already a mod.".into()), "bob is already a mod.");
         assert_eq!(refused(LeadModerator, "FORBIDDEN", no()), no());
         assert_eq!(refused(Broadcaster, "MAX_VIPS_REACHED", "No VIP slots left.".into()), "No VIP slots left.");
+    }
+}
+
+/// V107-R14 The role change sequence against a scripted adapter.
+#[cfg(test)]
+mod sequence {
+    use std::collections::VecDeque;
+    use std::sync::Mutex;
+
+    use super::*;
+
+    /// Answers `step` from a script and writes down every call.
+    struct Fake {
+        holds: Option<Holds>,
+        can: Result<(), String>,
+        steps: Mutex<VecDeque<Result<(), Refused>>>,
+        log: Mutex<Vec<String>>,
+    }
+
+    impl Fake {
+        fn new(holds: Option<Holds>, steps: Vec<Result<(), Refused>>) -> Fake {
+            Fake { holds, can: Ok(()), steps: Mutex::new(steps.into()), log: Mutex::default() }
+        }
+
+        fn note(&self, s: String) {
+            self.log.lock().unwrap().push(s);
+        }
+
+        fn log(&self) -> Vec<String> {
+            self.log.lock().unwrap().clone()
+        }
+    }
+
+    fn role(moderator: bool) -> &'static str {
+        if moderator { "mod" } else { "vip" }
+    }
+
+    impl RoleOps for Fake {
+        fn holds(&self, _who: &str) -> impl Future<Output = Option<Holds>> + Send {
+            std::future::ready(self.holds)
+        }
+
+        fn can_step(&self, _moderator: bool) -> Result<(), String> {
+            self.can.clone()
+        }
+
+        fn step(&self, who: &str, moderator: bool, on: bool) -> impl Future<Output = Result<(), Refused>> + Send {
+            self.note(format!("{} {} {who}", if on { "give" } else { "take" }, role(moderator)));
+            let r = self.steps.lock().unwrap().pop_front().expect("a step nobody scripted");
+            std::future::ready(r)
+        }
+
+        fn mark(&self, action: RoleAction, who: &str, on: bool) {
+            self.note(format!("{} {} {who}", if on { "mark" } else { "unmark" }, action.as_str()));
+        }
+
+        fn standing(&self, who: &str, moderator: bool, on: bool) {
+            self.note(format!("standing {who} {} {on}", role(moderator)));
+        }
+
+        fn notice(&self, line: &str) {
+            self.note(format!("notice {line}"));
+        }
+    }
+
+    /// Every future here is ready at once, so one poll runs it to the end.
+    fn run(fake: &Fake, moderator: bool, on: bool) -> Result<(), String> {
+        let mut f = std::pin::pin!(set_role(fake, "bob", moderator, on));
+        match f.as_mut().poll(&mut std::task::Context::from_waker(std::task::Waker::noop())) {
+            std::task::Poll::Ready(r) => r,
+            std::task::Poll::Pending => panic!("the fake never waits"),
+        }
+    }
+
+    const VIP: Option<Holds> = Some(Holds { moderator: false, vip: true });
+    const MOD: Option<Holds> = Some(Holds { moderator: true, vip: false });
+
+    fn no(text: &str) -> Result<(), Refused> {
+        Err(text.into())
+    }
+
+    #[test]
+    fn a_plain_change_is_one_step() {
+        let f = Fake::new(None, vec![Ok(())]);
+        assert_eq!(run(&f, true, true), Ok(()));
+        assert_eq!(f.log(), ["give mod bob", "standing bob mod true"]);
+        let f = Fake::new(MOD, vec![no("You can’t do that here.")]);
+        assert_eq!(run(&f, true, false), Err("You can’t do that here.".into()));
+        assert_eq!(f.log(), ["take mod bob"], "a refusal changes nothing");
+    }
+
+    #[test]
+    fn a_vip_made_a_mod_loses_the_vip_first() {
+        let f = Fake::new(VIP, vec![Ok(()), Ok(())]);
+        assert_eq!(run(&f, true, true), Ok(()));
+        assert_eq!(f.log(), [
+            "mark unvip bob", "mark mod bob",
+            "take vip bob", "standing bob vip false",
+            "give mod bob", "standing bob mod true",
+            "notice Removed bob as VIP and made them a mod.",
+        ]);
+    }
+
+    #[test]
+    fn stale_badges_swap_when_twitch_says_clash() {
+        let clash = Err(Refused { text: "x".into(), clash: true, slots: false });
+        let f = Fake::new(None, vec![clash, Ok(()), Ok(())]);
+        assert_eq!(run(&f, false, true), Ok(()));
+        assert_eq!(f.log()[0], "give vip bob");
+        assert_eq!(f.log().last().unwrap(), "notice Removed bob as mod and made them a VIP.");
+    }
+
+    #[test]
+    fn no_token_takes_nothing_away() {
+        let mut f = Fake::new(VIP, vec![]);
+        f.can = Err(LEAD_NEEDS_GQL.into());
+        assert_eq!(run(&f, true, true), Err(LEAD_NEEDS_GQL.into()));
+        assert!(f.log().is_empty());
+    }
+
+    #[test]
+    fn remove_fails() {
+        let f = Fake::new(VIP, vec![no("Twitch is down.")]);
+        assert_eq!(run(&f, true, true), Err("Twitch is down.".into()));
+        assert_eq!(f.log(), ["mark unvip bob", "mark mod bob", "take vip bob", "unmark unvip bob", "unmark mod bob"]);
+    }
+
+    #[test]
+    fn grant_fails_and_the_restore_succeeds() {
+        let f = Fake::new(VIP, vec![Ok(()), no("You can’t do that here."), Ok(())]);
+        assert_eq!(run(&f, true, true), Ok(()));
+        assert_eq!(f.log(), [
+            "mark unvip bob", "mark mod bob",
+            "take vip bob", "standing bob vip false",
+            "give mod bob", "mark vip bob", "give vip bob", "unmark mod bob",
+            "standing bob vip true",
+            "notice Couldn’t make bob a mod: You can’t do that here. Kept them VIP.",
+        ]);
+    }
+
+    #[test]
+    fn grant_fails_and_the_restore_fails() {
+        let f = Fake::new(VIP, vec![Ok(()), no("You can’t do that here."), no("Twitch is down.")]);
+        assert_eq!(run(&f, true, true), Ok(()));
+        assert_eq!(f.log(), [
+            "mark unvip bob", "mark mod bob",
+            "take vip bob", "standing bob vip false",
+            "give mod bob", "mark vip bob", "give vip bob", "unmark mod bob", "unmark vip bob",
+            "notice Removed bob as VIP, but couldn’t make them a mod: You can’t do that here.",
+        ]);
+    }
+
+    #[test]
+    fn no_vip_slots_keeps_them_mod() {
+        let full = Err(Refused { text: "No VIP slots left.".into(), clash: false, slots: true });
+        let f = Fake::new(MOD, vec![Ok(()), full, Ok(())]);
+        assert_eq!(run(&f, false, true), Ok(()));
+        let log = f.log();
+        assert_eq!(&log[..3], ["mark unmod bob", "mark vip bob", "take mod bob"]);
+        assert_eq!(log.last().unwrap(), "notice Couldn’t make bob VIP: no VIP slots left. Kept them mod.");
+        assert!(log.contains(&"standing bob mod true".to_owned()), "back to mod");
     }
 }

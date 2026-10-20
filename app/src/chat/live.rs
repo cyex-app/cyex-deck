@@ -1,9 +1,6 @@
 //! 1.9 Live pins and redemptions without a message, over Hermes, for every joined room.
 //! Rewards that take a message show up in IRC already, so only the others get a line.
 
-use std::collections::HashMap;
-use std::sync::Mutex;
-
 use cyex_chat::model::NoticeKind;
 use cyex_core::number::grouped;
 use cyex_twitch::hermes::{Event, Kind};
@@ -12,49 +9,38 @@ use tauri::{AppHandle, Manager};
 
 const KINDS: [Kind; 2] = [Kind::Pins, Kind::Points];
 
-/// Joined channels: login → channel id.
-#[derive(Default)]
-struct Joined(Mutex<HashMap<String, String>>);
-
 pub fn init(app: &AppHandle) {
-    app.manage(Joined::default());
+    app.state::<super::Chat>().channels.hook(on_channel);
 }
 
-fn joined_map(app: &AppHandle) -> tauri::State<'_, Joined> {
-    app.state::<Joined>()
-}
-
-/// A room's channel id is known: follow its pins and redemptions.
-pub fn joined(app: &AppHandle, login: &str, channel_id: &str) {
-    let map = joined_map(app);
-    let mut map = map.0.lock().unwrap_or_else(|p| p.into_inner());
-    if map.insert(login.to_owned(), channel_id.to_owned()).is_none() {
-        for kind in KINDS {
-            crate::hermes::add(app, kind, channel_id);
+/// V107-R16 A joined channel's id is known: follow its pins and redemptions, until its last
+/// room is left.
+fn on_channel(app: &AppHandle, e: &super::channels::Event) {
+    use super::channels::Event;
+    match e {
+        Event::Known { id, .. } => {
+            for kind in KINDS {
+                crate::hermes::add(app, kind, id);
+            }
         }
+        Event::Gone { id: Some(id), .. } => {
+            for kind in KINDS {
+                crate::hermes::remove(app, kind, id);
+            }
+        }
+        _ => {}
     }
 }
 
-/// The last room of a channel was left.
-pub fn left(app: &AppHandle, login: &str) {
-    let map = joined_map(app);
-    let mut map = map.0.lock().unwrap_or_else(|p| p.into_inner());
-    if let Some(id) = map.remove(login) {
-        for kind in KINDS {
-            crate::hermes::remove(app, kind, &id);
-        }
-    }
+/// The joined channel with this id.
+fn login_of(app: &AppHandle, channel_id: &str) -> Option<String> {
+    app.state::<super::Chat>().channels.login_of(channel_id)
 }
 
 /// V107 We pinned or unpinned in this channel: read its pin now rather than wait for
 /// Hermes, so the banner swaps to the new pin at once (Hermes still covers pins made elsewhere).
 pub fn pin_changed(app: &AppHandle, channel_id: &str) {
-    let login = {
-        let map = joined_map(app);
-        let map = map.0.lock().unwrap_or_else(|p| p.into_inner());
-        map.iter().find(|(_, id)| *id == channel_id).map(|(l, _)| l.clone())
-    };
-    if let Some(login) = login {
+    if let Some(login) = login_of(app, channel_id) {
         refresh(app, login, channel_id.to_owned());
     }
 }
@@ -91,14 +77,7 @@ fn refresh(app: &AppHandle, login: String, channel_id: String) {
 }
 
 pub fn on_event(app: &AppHandle, e: &Event) {
-    let login = {
-        let map = joined_map(app);
-        let map = map.0.lock().unwrap_or_else(|p| p.into_inner());
-        map.iter()
-            .find(|(_, id)| **id == e.topic.channel_id)
-            .map(|(l, _)| l.clone())
-    };
-    let Some(login) = login else { return };
+    let Some(login) = login_of(app, &e.topic.channel_id) else { return };
     match e.topic.kind {
         Kind::Pins => refresh(app, login, e.topic.channel_id.clone()),
         Kind::Points => {

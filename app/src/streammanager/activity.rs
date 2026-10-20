@@ -45,7 +45,7 @@ pub fn start(app: &AppHandle, account: &str) -> Option<Session> {
         super::gql_feed::start(app, account);
         return None;
     }
-    Some(start_eventsub(app))
+    Some(start_eventsub(app, account))
 }
 
 /// Ends the Hermes feed.
@@ -53,9 +53,9 @@ pub fn stop_gql(app: &AppHandle, account: &str) {
     super::gql_feed::stop(app, account);
 }
 
-fn start_eventsub(app: &AppHandle) -> Session {
+fn start_eventsub(app: &AppHandle, account: &str) -> Session {
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-    let (session, task) = session::start(tx);
+    let (session, task) = session::start(account, tx);
     tauri::async_runtime::spawn(task);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {

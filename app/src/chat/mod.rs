@@ -4,6 +4,7 @@
 //! (1.10). Parsing and room logic live in `cyex_chat`.
 
 pub mod catalog;
+pub mod channels;
 mod creds;
 pub mod feeds;
 mod flush;
@@ -76,6 +77,8 @@ pub struct Chat {
     scrollback: AtomicUsize,
     /// C37 Joins and leaves as lines.
     joins: AtomicBool,
+    /// V107-R16 Joined channels, their ids and generations.
+    pub channels: channels::Registry<AppHandle>,
 }
 
 #[derive(Default)]
@@ -146,7 +149,9 @@ pub fn init(app: &AppHandle) {
         delay_ms: AtomicI64::new(0),
         scrollback: AtomicUsize::new(cyex_chat::BUFFER),
         joins: AtomicBool::new(false),
+        channels: channels::Registry::default(),
     });
+    app.state::<Chat>().channels.hook(crate::emotes::on_channel);
     on_settings(app);
     shown::init(app);
     search::init(app);
@@ -257,7 +262,8 @@ pub fn open(
     let chat = app.state::<Chat>();
     let mut inner = chat.lock();
     let key = (identity.clone(), login.clone());
-    let fresh = ensure_room(app, &mut inner, &key, me);
+    let joined = ensure_room(app, &mut inner, &key, me);
+    let fresh = joined.is_some();
     inner.next_view += 1;
     let id = inner.next_view;
     inner.views.insert(id, (key.clone(), window.to_owned()));
@@ -277,6 +283,8 @@ pub fn open(
         snapshot.messages.drain(..skip);
     }
     entry.views.push(Sink { id, view, filters });
+    // V107-R16 Polls and predictions follow the first view (`votes`).
+    chat.channels.view_opened(app, &login, account_of(&identity));
     let was_unread = std::mem::take(&mut entry.unread) != Unread::Seen;
     let opened = ChatOpened {
         view: id,
@@ -296,8 +304,8 @@ pub fn open(
     if refill {
         refill::start(app, key.clone());
     }
-    if fresh {
-        after_join(app, key);
+    if let Some(generation) = joined {
+        after_join(app, key, generation);
     } else {
         // Pins are only checked for rooms on screen, so this one may be old.
         catalog::refresh_pin_now(app.clone(), key);
@@ -305,14 +313,13 @@ pub fn open(
     if let Some(a) = &opened.account {
         crate::emotes::presence::touch(app, a, &login, crate::emotes::presence::Why::Opened, &[]);
     }
-    votes::watch(app, &login, opened.account.clone());
     Ok(opened)
 }
 
-/// Joins a room unless it's joined already. Returns true if it's new.
-fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>) -> bool {
+/// Joins a room unless it's joined already. A new one gives its channel's join generation.
+fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>) -> Option<u64> {
     if inner.rooms.contains_key(key) {
-        return false;
+        return None;
     }
     let (identity, login) = key;
     let mut room = Room::new(login, me);
@@ -336,17 +343,17 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
             loaded: false,
         },
     );
-    true
+    Some(app.state::<Chat>().channels.room_opened(login))
 }
 
 /// Work for a new room once the lock is released: counter, catalogs, history.
-fn after_join(app: &AppHandle, key: RoomKey) {
+fn after_join(app: &AppHandle, key: RoomKey, generation: u64) {
     crate::connections::notify(app);
     roles::emit(app);
     roles::check_soon(app);
     let c = app.state::<Settings>().read::<ChatSettings>(Partition::Chat);
     let history = c.history.then_some(c.history_lines);
-    catalog::load_for_room(app.clone(), key, history);
+    catalog::load_for_room(app.clone(), key, generation, history);
 }
 
 /// Leaves a room. Returns true if an account's join count changed.
@@ -366,29 +373,14 @@ fn leave(app: &AppHandle, inner: &mut Inner, key: &RoomKey) -> bool {
             w.client.stop();
         }
     }
-    if !inner.rooms.keys().any(|(_, l)| l == login) {
-        channel_gone(app, inner, login);
-    }
+    // V107-R16 The last room of the channel fires `Gone` for every per-channel cache.
+    app.state::<Chat>().channels.room_closed(app, login);
     matches!(identity, Identity::Account(_))
 }
 
-/// V107-R1 The last room of `login` is gone: what was joined for the channel goes too.
-fn channel_gone(app: &AppHandle, inner: &Inner, login: &str) {
-    crate::emotes::leave(app, login);
-    live::left(app, login);
-    catalog::retain(app, |l| inner.rooms.keys().any(|(_, open)| open == l));
-}
-
-/// V107-R1 After a join's loads came back: whether the room is still open. A channel whose
-/// last room closed meanwhile is left again, since the loads joined it after its leave.
-fn still_joined(app: &AppHandle, key: &RoomKey) -> bool {
-    let Some(chat) = app.try_state::<Chat>() else { return false };
-    let inner = chat.lock();
-    if !inner.rooms.keys().any(|(_, l)| *l == key.1) {
-        channel_gone(app, &inner, &key.1);
-        return false;
-    }
-    inner.rooms.contains_key(key)
+/// After a join's loads came back: whether the room is still open.
+fn room_open(app: &AppHandle, key: &RoomKey) -> bool {
+    app.try_state::<Chat>().is_some_and(|chat| chat.lock().rooms.contains_key(key))
 }
 
 /// Closes a view. A room no other view shows and no tab holds is left.
@@ -399,7 +391,7 @@ pub fn close(app: &AppHandle, view: u32) {
     if !inner.follows.remove(&view) {
         shown::changed(app);
     }
-    votes::unwatch(app, &key.1);
+    chat.channels.view_closed(app, &key.1);
     let Some(entry) = inner.rooms.get_mut(&key) else { return };
     entry.views.retain(|s| s.id != view);
     if !entry.views.is_empty() {
@@ -443,16 +435,16 @@ pub fn hold(app: &AppHandle, wanted: &[(Option<String>, String)]) {
     }
     let mut joined = Vec::new();
     for (key, me) in keys {
-        if ensure_room(app, &mut inner, &key, me) {
-            joined.push(key);
+        if let Some(generation) = ensure_room(app, &mut inner, &key, me) {
+            joined.push((key, generation));
         }
     }
     drop(inner);
     if counted && joined.is_empty() {
         crate::connections::notify(app);
     }
-    for key in joined {
-        after_join(app, key);
+    for (key, generation) in joined {
+        after_join(app, key, generation);
     }
     crate::moderation::feeds::sync(app);
     roles::emit(app);
@@ -552,10 +544,13 @@ pub fn whisper_line(app: &AppHandle, m: Arc<ChatMessage>) {
     }
 }
 
-/// The channel id for a login, from whichever open room knows it.
+/// The channel id for a login: the registry's, else whichever open room knows it.
 pub fn channel_id_of(app: &AppHandle, login: &str) -> Option<String> {
     let chat = app.try_state::<Chat>()?;
     let login = login.to_ascii_lowercase();
+    if let Some(id) = chat.channels.id(&login) {
+        return Some(id);
+    }
     let inner = chat.lock();
     inner
         .rooms
@@ -718,6 +713,6 @@ pub fn probe(app: &AppHandle) -> serde_json::Value {
     }
     serde_json::json!({
         "rooms": inner.rooms.len(), "sessions": inner.sessions.len(), "views": inner.views.len(),
-        "held": inner.held.len(), "sinks": sinks, "outboxCap": outbox, "delayed": delayed,
+        "held": inner.held.len(), "channels": chat.channels.count(), "sinks": sinks, "outboxCap": outbox, "delayed": delayed,
     })
 }

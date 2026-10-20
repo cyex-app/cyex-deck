@@ -16,7 +16,6 @@
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { mods, timeouts, treatItems } from '../modview/moderation.svelte';
-  import { allows } from '../modview/roles';
   import { standingOf, type Standing } from '../modview/standing';
   import { standings } from '../modview/standings.svelte';
   import { errorText } from '../../lib/errors';
@@ -36,8 +35,9 @@
   let { profile, channel, account, ban, onchange, is }: Props = $props();
 
   const role = $derived(mods.role(account, channel));
+  const caps = $derived(mods.caps(account, channel));
   // V107-M8 Mod and VIP changes are the broadcaster's and lead mods' (1.50, `offered`).
-  const lead = $derived(allows(role, 'lead'));
+  const lead = $derived(caps?.roles ?? false);
   /** What Twitch says they hold here (public badges), over their last line's. */
   let looked = $state<Standing | undefined>();
   $effect(() => {
@@ -76,14 +76,14 @@
   }
 
   function more(e: MouseEvent) {
-    if (!role) return;
+    if (!caps) return;
     const line = (text: string) => {
       const [name, ...rest] = text.slice(1).split(' ');
       void run(name, rest.join(' '));
     };
     openMenu(
       e.currentTarget as HTMLElement,
-      [...(ban ? [] : [{ label: 'Unban', icon: 'undo' as const, run: () => line(`/unban ${profile.login}`) }]), ...treatItems(role, profile.login, line, holds, false)],
+      [...(ban ? [] : [{ label: 'Unban', icon: 'undo' as const, run: () => line(`/unban ${profile.login}`) }]), ...treatItems(caps, profile.login, line, holds, false)],
       'end',
     );
   }

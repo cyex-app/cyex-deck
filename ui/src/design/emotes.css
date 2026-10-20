@@ -39,6 +39,13 @@
   padding-block: 0.25em;
   margin-block: -0.25em;
 }
+/* V107-R6 Light themes: a thin dark outline under the paint, so pale parts don't vanish on
+   white. The paint's colors stay as 7TV draws them; the outline goes first, so the paint's
+   own shadows aren't outlined. Off with chat.paints.outlineLight (data-paint-outline). */
+:root[data-paint-outline][data-theme='light'] .painted:not(.theme-dark .painted),
+:root[data-paint-outline] .theme-light .painted {
+  filter: drop-shadow(0 0 0.6px rgb(0 0 0 / 0.75)) var(--paint-shadow,);
+}
 
 /* C7 Modifiers (FFZ numbering). V107-P6 appear and leave stay within a deleted line's dimming (--emote-alpha, Line.svelte). */
 /* V105-08 Every moving modifier's period divides 6 s (phase.ts, MOD_CYCLE_MS). */

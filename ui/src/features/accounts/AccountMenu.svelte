@@ -62,6 +62,8 @@
         label: accountName(a),
         avatar: a.avatar ?? '',
         checked: a.isDefault,
+        // V107-R1 Marked like in the Add-tab account picker.
+        ...(a.isDefault && { tag: 'default' }),
         warn: accountNeedsAttention(a),
         note: a.isDefault ? 'Default account' : 'Make this the default account',
         run: () => pick(a.userId),

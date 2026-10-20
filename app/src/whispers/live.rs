@@ -180,7 +180,7 @@ fn refresh(app: &AppHandle, thread_id: String) {
 /// EventSub for an account with only a Helix sign-in: received whispers only.
 pub(super) fn start_eventsub(app: &AppHandle, me_id: &str) {
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-    let (session, task) = session::start(tx);
+    let (session, task) = session::start(me_id, tx);
     tauri::async_runtime::spawn(task);
     lock(app).eventsub = Some(session);
     let (app, me_id) = (app.clone(), me_id.to_owned());

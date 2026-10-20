@@ -150,7 +150,7 @@
           {:else if entry.avatar !== undefined}<Avatar src={entry.avatar} name={entry.label} size={18} />
           {:else if entry.icon}<Icon name={entry.icon} size={14} />
           {:else}<span class="blank"></span>{/if}
-          <span class="text">{entry.label}</span>
+          <span class="text">{entry.label}{#if entry.tag}<span class="tag">{entry.tag}</span>{/if}</span>
           {#if entry.hint}<span class="hint">{entry.hint}</span>{/if}
           {#if entry.lock}<GateFlag kind={entry.lock} still />{/if}
           {#if entry.warn}<span class="warn"><Icon name="alert" size={14} /></span>{/if}
@@ -231,6 +231,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  /* V107-R1 Same look as the Add-tab account picker's "default". */
+  .tag {
+    margin-left: 6px;
+    color: var(--dim);
+    font-size: 0.78rem;
   }
   .hint {
     color: var(--dim);

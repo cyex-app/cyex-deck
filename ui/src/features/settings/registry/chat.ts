@@ -270,6 +270,13 @@ export const CHAT: Entry[] = [
   badge('ffz', 'FFZ'),
   { id: 'chat.paints.seventv', page: 'emotes', label: '7TV name paints', keywords: ['paint', 'name color', 'gradient'] },
   {
+    id: 'chat.paints.outlineLight',
+    page: 'emotes',
+    label: 'Outline paints in light themes',
+    description: 'A thin dark edge, so pale paints stay readable.',
+    keywords: ['paint', 'light mode', 'readable', 'contrast'],
+  },
+  {
     id: 'chat.sharePresence',
     page: 'emotes',
     label: 'Send presence to 7TV and BTTV',

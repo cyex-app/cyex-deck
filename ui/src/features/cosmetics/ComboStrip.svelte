@@ -208,10 +208,13 @@
     line-height: 12px;
     overflow-wrap: anywhere;
   }
+  /* V107-R5b No combos yet and no room beside the save card (a narrow chat): the hint wraps
+     under it instead of being cut off by the row's scroll. */
+  .row:has(.empty) {
+    flex-wrap: wrap;
+  }
   .empty {
-    /* Shrinks next to the save card in a narrow chat instead of running off the edge. */
-    flex: 1 1 0;
-    min-width: 96px;
+    flex: 1 1 160px;
     align-self: center;
     max-width: 260px;
     margin: 0;

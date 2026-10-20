@@ -8,11 +8,14 @@ publish.workspace = true
 [features]
 # V106 phase 6 (R10) Test hooks (mock HLS, mock 7TV, update feed). Test builds only, never in a release.
 mocks = ["cyex-player/mocks", "cyex-emotes/mocks"]
+# V107-R13 mimalloc as the global allocator (static, built into the exe).
+mimalloc = ["dep:mimalloc"]
 
 [build-dependencies]
 tauri-build.workspace = true
 
 [dependencies]
+mimalloc = { version = "=0.1.52", optional = true }
 cyex-core.workspace = true
 cyex-settings.workspace = true
 cyex-twitch.workspace = true
@@ -27,6 +30,7 @@ cyex-plugins.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 time.workspace = true
+regex.workspace = true
 tokio.workspace = true
 url.workspace = true
 sha2.workspace = true

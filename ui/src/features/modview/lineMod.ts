@@ -4,12 +4,14 @@
 
 import type { ModButton } from '../../ipc/bindings/ModButton';
 import type { ModButtons } from '../../ipc/bindings/ModButtons';
-import { roleOf } from './roles.ts';
+import type { Caps } from '../../ipc/bindings/Caps';
+import { may, whose } from './may.ts';
 
 export interface LineMod {
   /** The account's user id: its own lines get no buttons. */
   me: string | null;
-  broadcaster: boolean;
+  /** V107-R14 What this account may do here (Rust's answer). */
+  caps: Caps;
   /** Mod mode is on in this chat. */
   inline: boolean;
   /** M10, V105-15 The buttons mod mode shows, in order. */
@@ -85,9 +87,9 @@ interface Who {
 }
 
 /** Mod mode's buttons go on chat lines from people a mod can act on: not the broadcaster,
- * not the account itself, and not other mods unless the account is the broadcaster. */
+ * not the account itself, and not other mods unless the account is the broadcaster
+ * (V107-R14 Rust's `quick` answer). */
 export function modButtonsFor(mod: LineMod | null, sender: Who | null | undefined, channel: string): boolean {
-  if (!mod?.inline || !sender || sender.id === mod.me || sender.login === channel) return false;
-  if (!mod.slots.length) return false;
-  return mod.broadcaster || roleOf(sender.badges) === null;
+  if (!mod?.inline || !sender || !mod.slots.length) return false;
+  return may(mod.caps, 'quick', whose(sender, mod.me, channel)).offered;
 }

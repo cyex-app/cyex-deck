@@ -12,11 +12,12 @@
     disabled?: boolean;
     variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
     onconfirm: () => void;
+    /** V107-R4 Bind to show a warning while it waits for the second click. */
+    armed?: boolean;
   }
 
-  let { label, confirm, icon, disabled = false, variant = 'secondary', onconfirm }: Props = $props();
+  let { label, confirm, icon, disabled = false, variant = 'secondary', onconfirm, armed = $bindable(false) }: Props = $props();
 
-  let armed = $state(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   function click() {

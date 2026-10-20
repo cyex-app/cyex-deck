@@ -38,10 +38,20 @@ pub struct Session {
     _stop: watch::Sender<()>,
 }
 
-/// The handle and the task to spawn.
-pub fn start(out: mpsc::UnboundedSender<Out>) -> (Session, impl Future<Output = ()> + Send) {
-    let (tx, rx) = watch::channel(());
-    (Session { _stop: tx }, run(rx, out))
+/// The handle and the task to spawn, for `account`'s token. V107-R17 The task first waits
+/// for a slot in [`crate::gate::GATE`] (never a 4th socket per token) and holds it until it ends.
+pub fn start(account: &str, out: mpsc::UnboundedSender<Out>) -> (Session, impl Future<Output = ()> + Send + use<>) {
+    let (tx, mut rx) = watch::channel(());
+    let account = account.to_owned();
+    let task = async move {
+        let slot = tokio::select! {
+            s = crate::gate::GATE.acquire(&account) => s,
+            _ = rx.changed() => return,
+        };
+        run(rx, out).await;
+        drop(slot);
+    };
+    (Session { _stop: tx }, task)
 }
 
 async fn run(mut stop: watch::Receiver<()>, out: mpsc::UnboundedSender<Out>) {

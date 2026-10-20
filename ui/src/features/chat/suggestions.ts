@@ -4,8 +4,7 @@
 import type { BotCommand } from '../../ipc/bindings/BotCommand';
 import type { ModRole } from '../../ipc/bindings/ModRole';
 import type { Provider } from '../../ipc/bindings/Provider';
-import { allows } from '../modview/roles.ts';
-import { complete } from './completion.ts';
+import { rankNames } from '../emotes/ranking.ts';
 
 export interface Item {
   /** What goes in the box. */
@@ -30,7 +29,7 @@ export interface EmojiName {
   name: string;
 }
 
-/** Emotes first, then emoji by short name. `used` as in `complete`. */
+/** Emotes first (V107-R7 the one emote order), then emoji by short name. */
 export function emoteItems(
   prefix: string,
   emotes: EmoteName[],
@@ -39,7 +38,7 @@ export function emoteItems(
   used?: (name: string) => number,
 ): Item[] {
   const byName = new Map(emotes.map((e) => [e.name, e]));
-  const names = complete(prefix, byName.keys(), limit, used);
+  const names = rankNames(prefix, byName.keys(), limit, used);
   const items: Item[] = names.map((n) => {
     const e = byName.get(n)!;
     return { value: n, label: n, emote: { provider: e.provider, id: e.id, animated: e.animated } };
@@ -54,8 +53,8 @@ export function emoteItems(
 /** C13 What a viewer may run: 0 everyone, 1 subs, 3 VIPs, 4 mods, 5 the streamer. */
 export function viewerLevel(own: { role: ModRole | null; vip: boolean; sub: boolean } | null): number {
   if (!own) return 0;
-  if (allows(own.role, 'broadcaster')) return 5;
-  if (allows(own.role, 'mod')) return 4;
+  if (own.role === 'broadcaster') return 5;
+  if (own.role) return 4;
   if (own.vip) return 3;
   return own.sub ? 1 : 0;
 }

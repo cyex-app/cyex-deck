@@ -1,7 +1,12 @@
-//! V107-R2 Test builds only: the system allocator with counters, so a soak can tell live
-//! heap from what the process holds (fragmentation, allocator caches).
+//! V107-R2 Test builds only: the active allocator (system, or mimalloc with V107-R13) with
+//! counters, so a soak can tell live heap from what the process holds (fragmentation,
+//! allocator caches).
 
-use std::alloc::{GlobalAlloc, Layout, System};
+use std::alloc::{GlobalAlloc, Layout};
+#[cfg(not(feature = "mimalloc"))]
+use std::alloc::System as Inner;
+#[cfg(feature = "mimalloc")]
+use mimalloc::MiMalloc as Inner;
 use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
 pub struct Counting;
@@ -16,10 +21,10 @@ fn grew(n: usize) {
     PEAK.fetch_max(now, Relaxed);
 }
 
-// SAFETY: every call goes straight to `System`; the counters are plain atomics.
+// SAFETY: every call goes straight to `Inner`; the counters are plain atomics.
 unsafe impl GlobalAlloc for Counting {
     unsafe fn alloc(&self, l: Layout) -> *mut u8 {
-        let p = unsafe { System.alloc(l) };
+        let p = unsafe { Inner.alloc(l) };
         if !p.is_null() {
             grew(l.size());
             BLOCKS.fetch_add(1, Relaxed);
@@ -28,7 +33,7 @@ unsafe impl GlobalAlloc for Counting {
         p
     }
     unsafe fn alloc_zeroed(&self, l: Layout) -> *mut u8 {
-        let p = unsafe { System.alloc_zeroed(l) };
+        let p = unsafe { Inner.alloc_zeroed(l) };
         if !p.is_null() {
             grew(l.size());
             BLOCKS.fetch_add(1, Relaxed);
@@ -37,12 +42,12 @@ unsafe impl GlobalAlloc for Counting {
         p
     }
     unsafe fn dealloc(&self, p: *mut u8, l: Layout) {
-        unsafe { System.dealloc(p, l) };
+        unsafe { Inner.dealloc(p, l) };
         LIVE.fetch_sub(l.size(), Relaxed);
         BLOCKS.fetch_sub(1, Relaxed);
     }
     unsafe fn realloc(&self, p: *mut u8, l: Layout, new: usize) -> *mut u8 {
-        let q = unsafe { System.realloc(p, l, new) };
+        let q = unsafe { Inner.realloc(p, l, new) };
         if !q.is_null() {
             if new >= l.size() {
                 grew(new - l.size());

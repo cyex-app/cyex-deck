@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import type { EmoteMenu } from '../../ipc/bindings/EmoteMenu';
 import type { MenuEmote } from '../../ipc/bindings/MenuEmote';
-import { cellHint, cellKey, pick, search, tierMark, usable, usageRank } from './menu.ts';
+import { cellHint, cellKey, pick, search, tierMark, usable } from './menu.ts';
 
 function e(
   provider: MenuEmote['provider'],
@@ -115,25 +115,4 @@ test('E5 locked emotes are never usable, so favorites and most used skip them', 
   const have = usable(m);
   assert.deepEqual([...have.keys()], ['twitch:9']);
   assert.deepEqual(pick([{ source: 'twitch', id: '8', name: 'shut' }], have), []);
-});
-
-test('search puts an emote you send most first among prefix matches', () => {
-  const m: EmoteMenu = {
-    twitch: [{ id: 'g', title: 'Global', avatar: null, emotes: [e('twitch', 'u', 'Kappu'), e('twitch', 'k', 'Kappa'), e('twitch', 'p', 'KappaPride')] }],
-    twitchNote: null,
-    seventv: [{ id: 's', title: 'Channel', avatar: null, emotes: [e('seventv', 'x', 'xKappx')] }],
-    bttv: [],
-    ffz: [],
-  };
-  // Unused: menu order.
-  assert.deepEqual(search(m, 'kapp').map((x) => x.name), ['Kappu', 'Kappa', 'KappaPride', 'xKappx']);
-  const used = usageRank([
-    { emote: { source: 'seventv', id: 'x', name: 'xKappx' } },
-    { emote: { source: 'twitch', id: 'k', name: 'Kappa' } },
-  ]);
-  // A used contains-match never jumps the prefix matches.
-  assert.deepEqual(search(m, 'kapp', 200, used).map((x) => x.name), ['Kappa', 'Kappu', 'KappaPride', 'xKappx']);
-  // The exact name leads, even over one used more.
-  const pride = usageRank([{ emote: { source: 'twitch', id: 'p', name: 'KappaPride' } }]);
-  assert.deepEqual(search(m, 'kappa', 200, pride).map((x) => x.name), ['Kappa', 'KappaPride']);
 });

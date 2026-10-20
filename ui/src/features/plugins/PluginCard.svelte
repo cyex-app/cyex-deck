@@ -13,7 +13,7 @@
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import PluginField from './PluginField.svelte';
-  import { STATUS, menuSummary, permissionText } from './permissions';
+  import { STATUS, menuSummary, permissionText, switchOn } from './permissions';
   import { errorText } from '../../lib/errors';
 
   interface Props {
@@ -25,7 +25,10 @@
   let { plugin, live }: Props = $props();
 
   const m = $derived(plugin.info);
-  const on = $derived(!!settings.v.plugins?.list[plugin.id]?.on);
+  const saidOn = $derived(!!settings.v.plugins?.list[plugin.id]?.on);
+  // V107-R10 Waiting for your OK on new permissions: not running, so the switch shows off.
+  const needsOk = $derived(plugin.status === 'needsOk');
+  const on = $derived(switchOn(saidOn, plugin.status));
   const status = $derived(STATUS[plugin.status]);
   let asking = $state(false);
 
@@ -67,10 +70,10 @@
   {/if}
 
   {#if plugin.error}<p class="error">{plugin.error}</p>{/if}
-  {#if plugin.status === 'needsOk'}
-    <p class="warn">
-      An update asks for more than you agreed to.
-      <Button small onclick={() => (asking = true)}>See what</Button>
+  {#if needsOk}
+    <p class="warn" data-needs-ok>
+      An update asks for more. It stays off until you OK it.
+      <Button small onclick={() => (asking = true)}>Review</Button>
     </p>
   {/if}
 
@@ -134,7 +137,11 @@
     </ul>
     <p class="muted small">Only turn on plugins from people you trust.</p>
     {#snippet footer()}
-      <Button variant="ghost" onclick={() => (asking = false)}>Cancel</Button>
+      {#if needsOk}
+        <Button variant="ghost" onclick={() => setOn(false)}>Keep off</Button>
+      {:else}
+        <Button variant="ghost" onclick={() => (asking = false)}>Cancel</Button>
+      {/if}
       <Button variant="primary" onclick={() => setOn(true)}>Turn on</Button>
     {/snippet}
   </Dialog>

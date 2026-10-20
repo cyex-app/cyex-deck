@@ -83,11 +83,13 @@ export function tileEntries(tab: Tab, tile: Tile): MenuEntry[] {
 }
 
 /** V102-23 Unlock the tab's panels to drag them, or put every chat back. V103-05 Wherever
- * a tile has two panels or more (stream, chat, mod view, a clip beside the chat). */
+ * a tile has two panels or more (stream, chat, mod view, a clip beside the chat).
+ * V107-R2 Or the tab has two tiles or more, e.g. chats only, to drag them around. */
 export function layoutEntries(tab: Tab): MenuEntry[] {
   const panels = (t: Tile) =>
     Number(t.show.player || (t.show.chat && tileState(t.id).side !== null)) + Number(t.show.chat) + Number(modviewPlace.isIn(t.id));
-  if (!tiles(tab).some((t) => panels(t) > 1) && !dragged(tab)) return [];
+  const all = tiles(tab);
+  if (all.length < 2 && !all.some((t) => panels(t) > 1) && !dragged(tab)) return [];
   const on = layout.isUnlocked(tab.id);
   return [
     ...(dragged(tab) ? [{ label: 'Reset layout', icon: 'undo' as const, run: () => layout.reset(tab) }] : []),

@@ -31,10 +31,15 @@ export function menuSummary(menu: PluginMenuExport[]): string {
   return menu.map((m) => `${m.group ? `${m.group} › ` : ''}${m.label} (${PLACE[m.place]})`).join(', ');
 }
 
+/** V107-R10 The switch shows what runs: one waiting for your OK on new permissions shows off. */
+export function switchOn(saidOn: boolean, status: PluginStatus): boolean {
+  return saidOn && status !== 'needsOk';
+}
+
 export const STATUS: Record<PluginStatus, { text: string; tone: 'ok' | 'muted' | 'warn' | 'bad' }> = {
   running: { text: 'Running', tone: 'ok' },
   off: { text: 'Off', tone: 'muted' },
   failed: { text: 'Didn’t start', tone: 'bad' },
-  needsOk: { text: 'Asks for more', tone: 'warn' },
+  needsOk: { text: 'Needs your OK', tone: 'warn' },
   invalid: { text: 'Not a plugin', tone: 'bad' },
 };

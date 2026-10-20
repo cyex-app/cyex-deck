@@ -2,6 +2,7 @@
      (drag to reorder) or your follows (skip the ones you don't want), and drops still
      being earned. -->
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { uniqueKeys } from '../../lib/keys';
   import Button from '../../components/Button.svelte';
   import DragList from '../../components/DragList.svelte';
@@ -26,7 +27,16 @@
   const s = $derived(settings.v.miner);
   const idle = $derived(!miner.status?.running);
   const dropKeys = $derived(uniqueKeys(miner.status?.drops ?? [], (d) => d.name + d.game));
-  const info = $derived(new Map((miner.status?.channels ?? []).map((c) => [c.id, c])));
+  // V107-R8 While off, what the view's own lookup found.
+  const info = $derived(
+    idle ? miner.peeked : new Map((miner.status?.channels ?? []).map((c) => [c.id, c])),
+  );
+  // V107-R8b Runs again when a channel is added: Rust looks up just the new ones.
+  const listed = $derived([...s.first, ...s.channels, ...s.skip].map((c) => c.id).join());
+  $effect(() => {
+    void listed;
+    untrack(() => void miner.peek());
+  });
   const firstIds = $derived(new Set(s.first.map((c) => c.id)));
   const list = $derived(s.channels.filter((c) => !firstIds.has(c.id)));
   const skipIds = $derived(new Set(s.skip.map((c) => c.id)));
@@ -104,7 +114,7 @@
       <MinerRow
         channel={c}
         info={info.get(c.id)}
-        {idle}
+        idle={idle && !info.has(c.id)}
         first
         onfirst={(on) => void setFirst(c, on)}
         onremove={s.source === 'list' ? () => remove(c.id) : undefined}
@@ -125,7 +135,7 @@
           <MinerRow
             channel={c}
             info={info.get(c.id)}
-            {idle}
+            idle={idle && !info.has(c.id)}
             first={false}
             onfirst={(on) => void setFirst(c, on)}
             onremove={() => remove(c.id)}
@@ -143,7 +153,7 @@
       <MinerRow
         channel={c}
         info={info.get(c.id)}
-        {idle}
+        idle={idle && !info.has(c.id)}
         first={false}
         onfirst={(on) => void setFirst(c, on)}
         onskip={(on) => skip(c, on)}
@@ -154,7 +164,14 @@
     {#if s.skip.length}
       <h2>Skipped <span class="count">{s.skip.length}</span></h2>
       {#each s.skip as c (c.id)}
-        <MinerRow channel={c} first={false} skipped onskip={(on) => skip(c, on)} />
+        <MinerRow
+          channel={c}
+          info={info.get(c.id)}
+          idle={idle && !info.has(c.id)}
+          first={false}
+          skipped
+          onskip={(on) => skip(c, on)}
+        />
       {/each}
     {/if}
   {/if}

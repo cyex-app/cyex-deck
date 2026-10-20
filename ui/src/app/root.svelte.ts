@@ -37,6 +37,11 @@ export function useRootEffects(): void {
     document.documentElement.style.setProperty('--emote-scale', String(settings.v.chat.emoteSize / 100));
   });
 
+  // V107-R6 The outline under paints in light themes (emotes.css).
+  $effect(() => {
+    document.documentElement.toggleAttribute('data-paint-outline', settings.v.chat.paints.outlineLight);
+  });
+
   $effect(() => {
     document.documentElement.classList.toggle('still', focus.still);
     // V105-08 Modifiers paused while unfocused resume in step.

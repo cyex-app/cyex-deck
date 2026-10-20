@@ -87,6 +87,13 @@ fn lock(app: &AppHandle) -> MutexGuard<'_, Inner> {
         .unwrap_or_else(|p| p.into_inner())
 }
 
+/// V107-R17 The account whose whispers hold an EventSub socket, if any.
+pub(crate) fn eventsub_account(app: &AppHandle) -> Option<String> {
+    let w = app.try_state::<Whispers>()?;
+    let inner = w.0.lock().unwrap_or_else(|p| p.into_inner());
+    inner.eventsub.as_ref().and(inner.me.as_ref()).map(|m| m.id.clone())
+}
+
 /// Accounts changed: follow the default account.
 pub fn accounts_changed(app: &AppHandle) {
     if app.try_state::<Whispers>().is_none() {

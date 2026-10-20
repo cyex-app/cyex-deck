@@ -14,7 +14,8 @@
   import type { UiAction } from '../../ipc/bindings/UiAction';
   import { accounts } from '../../lib/accounts.svelte';
   import { settings } from '../../lib/settings.svelte';
-  import { complete, insert, wordAt, type Word } from './completion';
+  import { rankNames } from '../emotes/ranking';
+  import { insert, wordAt, type Word } from './completion';
   import { formatNumber } from '../../lib/format';
   import { commandAt, commandHint, commandMatches } from './commandTab';
   import { argAt, argMatches } from './commandArgs';
@@ -234,7 +235,8 @@
       }
       if (!bare) return [];
       const people = sources.chatters().map((n) => (word.text.startsWith('@') ? `@${n}` : n));
-      return complete(bare, [...sources.emotes().map((e) => e.name), ...people], 30, sources.used());
+      // V107-R7 The emote menu's order: exact, match, most used, then menu order.
+      return rankNames(bare, [...sources.emotes().map((e) => e.name), ...people], 30, sources.used());
     };
     const all = async () => {
       if (arg) {

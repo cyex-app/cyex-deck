@@ -117,9 +117,10 @@ fn until_due(waited: Duration, wait: Duration, lane: Lane) -> Duration {
     at.saturating_sub(waited)
 }
 
-/// B6 Still the same join, not just the same channel id.
+/// B6 Still the same join, not just the same channel id (V107-R16 the registry's generation).
 fn joined(app: &AppHandle, login: &str, generation: u64) -> bool {
-    app.state::<Emotes>().lock().live(login, generation).is_some()
+    app.try_state::<crate::chat::Chat>()
+        .is_some_and(|c| c.channels.current(login, generation))
 }
 
 /// Puts what came in into join `generation` of the channel and marks its emotes ready;

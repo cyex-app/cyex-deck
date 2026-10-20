@@ -12,6 +12,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use cyex_chat::model::ModRole;
+use cyex_moderation::may::Caps;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::Notify;
@@ -31,6 +32,19 @@ pub struct RoleEntry {
     pub account: String,
     pub channel: String,
     pub role: ModRole,
+    /// V107-R14 What the role may do here, so menus answer without asking.
+    pub may: Caps,
+}
+
+impl RoleEntry {
+    fn new(account: &str, channel: &str, role: ModRole) -> RoleEntry {
+        RoleEntry {
+            account: account.to_owned(),
+            channel: channel.to_owned(),
+            role,
+            may: Caps::of(role),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -105,11 +119,7 @@ pub fn snapshot(app: &AppHandle) -> Vec<RoleEntry> {
                 return None;
             };
             rooms.insert((account.clone(), login.clone()));
-            Some(RoleEntry {
-                account: account.clone(),
-                channel: login.clone(),
-                role: e.room.role()?,
-            })
+            Some(RoleEntry::new(account, login, e.room.role()?))
         })
         .collect();
     if let Some(roles) = app.try_state::<Roles>() {
@@ -127,11 +137,7 @@ fn watched_roles(watched: &Watched, rooms: &HashSet<(String, String)>) -> Vec<Ro
         .iter()
         .filter(|(key, _)| !rooms.contains(*key))
         .filter_map(|((account, login), w)| {
-            Some(RoleEntry {
-                account: account.clone(),
-                channel: login.clone(),
-                role: w.role(account)?,
-            })
+            Some(RoleEntry::new(account, login, w.role(account)?))
         })
         .collect()
 }

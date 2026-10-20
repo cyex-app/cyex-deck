@@ -10,6 +10,7 @@ mod channels;
 mod claims;
 pub mod drops;
 mod goals;
+pub mod peek;
 pub mod log;
 mod realtime;
 pub mod stats;

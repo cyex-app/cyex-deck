@@ -49,9 +49,8 @@
   import LiveChatBar from './LiveChatBar.svelte';
   import { accounts } from '../../lib/accounts.svelte';
   import { unlock } from '../unlock/unlock.svelte';
-  import { cantDelete } from '../modview/deleteRule';
+  import { may, whose } from '../modview/may';
   import { mods } from '../modview/moderation.svelte';
-  import { roleOf } from '../modview/roles';
   import { modviewPlace } from '../modview/where.svelte';
   import { pluginItems } from '../plugins/pluginMenus';
   import { plugins } from '../plugins/plugins.svelte';
@@ -213,6 +212,7 @@
   const muted = $derived(settings.v.highlights.muted.includes(login));
   // 1.46 The shield shows only when this account moderates here.
   const modRole = $derived(mods.role(account, login));
+  const caps = $derived(mods.caps(account, login));
   const modMode = $derived(mods.modMode(login));
 
   /** Adds or removes this chat from a list setting. */
@@ -328,15 +328,15 @@
     chatIpc.send(room.view, `/delete ${id}`).catch((e) => toast.error(errorText(e)));
   }
 
-  /** V107 Why this account can't delete the pinned message, or null. Role and age come
-   * from the line in chat when it's still here. */
+  /** V107 Why this account can't delete the pinned message, or null (V107-R14 Rust's
+   * answer). Role and age come from the line in chat when it's still here. */
   const deleteWhy = $derived.by(() => {
     const p = room.pinned;
     const s = p?.message.sender;
     if (!p || !s) return 'Twitch didn’t say who sent it.';
     const line = room.find(p.message.id);
-    const target = { id: s.id, login: s.login, role: roleOf(line?.sender?.badges), ts: line?.ts ?? null };
-    return cantDelete(modRole, room.account, target, login, Date.now());
+    const w = whose({ id: s.id, login: s.login, badges: line?.sender?.badges }, room.account, login);
+    return may(caps, 'delete', w, line?.ts ?? null).why;
   });
 
   function openChannelCard() {

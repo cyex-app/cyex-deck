@@ -6,10 +6,10 @@ import type { MenuEntry } from '../../components/menu.svelte';
 import { formatDuration, formatSecs } from '../../lib/format';
 import { settings } from '../../lib/settings.svelte';
 import { toast } from '../../lib/toast.svelte';
+import type { Caps } from '../../ipc/bindings/Caps';
 import type { RoleEntry } from '../../ipc/bindings/RoleEntry';
 import { modIpc, type ModRole } from '../../ipc/moderation';
 import { pinCustomSecs } from './pinLength';
-import { allows } from './roles';
 import { roleItems, type Standing } from './standing';
 import { errorText } from '../../lib/errors';
 
@@ -60,6 +60,14 @@ class Mods {
     return this.list.find((e) => e.account === account && e.channel === login)?.role ?? null;
   }
 
+  /** V107-R14 What the account may do here (Rust's answer, with the role), or null. */
+  caps(account: string | null, channel: string): Caps | null {
+    this.start();
+    if (!account) return null;
+    const login = channel.toLowerCase();
+    return this.list.find((e) => e.account === account && e.channel === login)?.may ?? null;
+  }
+
   /** 1.46 An open account that moderates the channel, the highest role first. */
   moderating(channel: string): string | null {
     this.start();
@@ -67,7 +75,7 @@ class Mods {
     let best: RoleEntry | null = null;
     for (const e of this.list) {
       if (e.channel !== login) continue;
-      if (!best || (allows(e.role, 'lead') && !allows(best.role, 'lead')) || allows(e.role, 'broadcaster')) best = e;
+      if (!best || (e.may.roles && !best.may.roles) || e.may.broadcaster) best = e;
     }
     return best?.account ?? null;
   }
@@ -90,7 +98,7 @@ type Run = (line: string) => void;
 
 /** Mod actions on a user, for the name menu (1.49) and the viewer list (C36). `warn` asks
  * for the reason: the chat box in a chat, the usercard elsewhere. */
-export function userItems(role: ModRole, login: string, run: Run, warn: () => void, is?: Standing): MenuEntry[] {
+export function userItems(caps: Caps, login: string, run: Run, warn: () => void, is?: Standing): MenuEntry[] {
   const items: MenuEntry[] = [
     {
       label: 'Time out',
@@ -102,7 +110,7 @@ export function userItems(role: ModRole, login: string, run: Run, warn: () => vo
     // V101-30 What can't be undone comes last.
     { label: 'Ban', icon: 'gavel', danger: true, run: () => run(`/ban ${login}`) },
     'separator',
-    ...treatItems(role, login, run, is),
+    ...treatItems(caps, login, run, is),
   ];
   return items;
 }
@@ -110,12 +118,12 @@ export function userItems(role: ModRole, login: string, run: Run, warn: () => vo
 /** Monitor, restrict, and mod/VIP for the broadcaster and lead mods (1.50): the less used user actions. M12,
  * V107-M8 Mod or Unmod and VIP or Unvip from what they hold (`roleItems`). `roles: false` where the
  * role buttons show anyway (the usercard). */
-export function treatItems(role: ModRole, login: string, run: Run, is?: Standing, roles = true): MenuEntry[] {
+export function treatItems(caps: Caps, login: string, run: Run, is?: Standing, roles = true): MenuEntry[] {
   const items: MenuEntry[] = [
     { label: 'Monitor', icon: 'eye', run: () => run(`/monitor ${login}`) },
     { label: 'Restrict', icon: 'eyeOff', run: () => run(`/restrict ${login}`) },
   ];
-  if (roles && allows(role, 'lead')) items.push('separator', ...roleItems(login, run, is));
+  if (roles && caps.roles) items.push('separator', ...roleItems(login, run, is));
   return items;
 }
 

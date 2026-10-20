@@ -181,9 +181,74 @@ fn broken_file_is_kept_aside_and_reported() {
     let clock = Arc::new(FakeClock::at(day(9)));
     let (store, report) = open(tmp.path(), &clock);
     assert_eq!(report.reset, vec![Partition::Chat]);
-    assert_eq!(store.read::<Chat>(Partition::Chat), Chat::default());
+    let off = Chat { share_presence: false, ..Chat::default() };
+    assert_eq!(store.read::<Chat>(Partition::Chat), off);
     assert!(!tmp.path().join("chat.json").exists());
     assert!(tmp.path().join("chat.broken-20261009-120000.json").exists());
+}
+
+#[test]
+fn broken_chat_file_keeps_presence_off_across_starts() {
+    // V107-R11 Defaults for the rest, presence off, and written so the next start agrees.
+    for text in ["{ not json", "[1, 2]", "\"x\"", ""] {
+        let tmp = TempDir::new("store-broken-presence");
+        fs::write(tmp.path().join("chat.json"), text).unwrap();
+        let clock = Arc::new(FakeClock::at(day(9)));
+        let (mut store, report) = open(tmp.path(), &clock);
+        assert_eq!(report.reset, vec![Partition::Chat], "{text}");
+        let chat = store.read::<Chat>(Partition::Chat);
+        assert!(!chat.share_presence, "{text}");
+        assert_eq!(chat.timestamps, Chat::default().timestamps);
+        store.flush().unwrap();
+        let (again, report) = open(tmp.path(), &clock);
+        assert!(report.reset.is_empty());
+        assert!(!again.read::<Chat>(Partition::Chat).share_presence, "{text}");
+    }
+}
+
+#[test]
+fn unreadable_chat_file_keeps_presence_off() {
+    // V107-R11 Not UTF-8: read fails before JSON parsing.
+    let tmp = TempDir::new("store-unreadable-presence");
+    fs::write(tmp.path().join("chat.json"), [0xff, 0xfe, 0x00, 0x7b]).unwrap();
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let (store, report) = open(tmp.path(), &clock);
+    assert_eq!(report.reset, vec![Partition::Chat]);
+    assert!(!store.read::<Chat>(Partition::Chat).share_presence);
+}
+
+#[test]
+fn salvaged_chat_file_keeps_its_own_presence() {
+    // V107-R11 Only fully broken files are forced off; a readable choice stays.
+    let tmp = TempDir::new("store-salvage-presence-on");
+    fs::write(
+        tmp.path().join("chat.json"),
+        r#"{"timestamps": "yes", "presenceOnOnce": true, "sharePresence": true}"#,
+    )
+    .unwrap();
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let (store, _) = open(tmp.path(), &clock);
+    assert!(store.read::<Chat>(Partition::Chat).share_presence);
+
+    let tmp = TempDir::new("store-salvage-presence-bad");
+    fs::write(
+        tmp.path().join("chat.json"),
+        r#"{"sharePresence": "yes", "users": {"1": {"nickname": "bob", "note": ""}}}"#,
+    )
+    .unwrap();
+    let (store, _) = open(tmp.path(), &clock);
+    let chat = store.read::<Chat>(Partition::Chat);
+    assert!(!chat.share_presence);
+    assert_eq!(chat.users["1"].nickname, "bob");
+}
+
+#[test]
+fn missing_chat_file_still_turns_presence_on() {
+    // V107-R11 A first start is not a broken file.
+    let tmp = TempDir::new("store-fresh-presence");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let (store, _) = open(tmp.path(), &clock);
+    assert!(store.read::<Chat>(Partition::Chat).share_presence);
 }
 
 #[test]

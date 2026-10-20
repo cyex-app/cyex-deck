@@ -405,11 +405,17 @@ impl Default for BadgeToggles {
 #[ts(export)]
 pub struct PaintToggles {
     pub seventv: bool,
+    /// V107-R6 A thin dark outline under painted names in light themes, so pale paints stay
+    /// readable. The paint's own colors stay as 7TV draws them.
+    pub outline_light: bool,
 }
 
 impl Default for PaintToggles {
     fn default() -> Self {
-        Self { seventv: true }
+        Self {
+            seventv: true,
+            outline_light: true,
+        }
     }
 }
 
@@ -468,6 +474,16 @@ impl Default for Timestamps {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn paint_outline_defaults_on_for_old_files() {
+        // V107-R6 A file saved before the outline setting keeps paints and gets the outline.
+        let p: PaintToggles = serde_json::from_str(r#"{"seventv":false}"#).unwrap();
+        assert!(!p.seventv);
+        assert!(p.outline_light);
+        let off: PaintToggles = serde_json::from_str(r#"{"outlineLight":false}"#).unwrap();
+        assert!(off.seventv && !off.outline_light);
+    }
 
     #[test]
     fn sanitize_trims_notes_and_drops_empty_ones() {

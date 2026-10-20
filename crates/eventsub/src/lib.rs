@@ -5,6 +5,7 @@
 
 pub mod alerts;
 pub mod frame;
+pub mod gate;
 pub mod session;
 pub mod subs;
 pub mod events;

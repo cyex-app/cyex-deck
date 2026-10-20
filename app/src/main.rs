@@ -5,12 +5,14 @@
 mod alerts;
 mod auth;
 mod bell;
+mod bell_dates;
 mod browse;
 mod busy;
 mod chat;
 mod commands;
 mod cosmetics;
 mod connections;
+mod crash;
 mod emotes;
 mod feeds;
 mod hermes;
@@ -47,6 +49,10 @@ use tauri::RunEvent;
 #[cfg(feature = "mocks")]
 #[global_allocator]
 static HEAP: sys::heap::Counting = sys::heap::Counting;
+/// V107-R13 Release builds: mimalloc.
+#[cfg(all(feature = "mimalloc", not(feature = "mocks")))]
+#[global_allocator]
+static HEAP: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 fn main() {
     let builder = tauri::Builder::default();
@@ -72,7 +78,9 @@ fn main() {
         .setup(|app| {
             let handle = app.handle();
             // T01 Which folders this run uses, then V102-02, before anything reads its files.
-            paths::init(handle);
+            let dirs = paths::init(handle);
+            // V107-R12 Before anything else can panic.
+            crash::install(&dirs.local);
             paths::migrate(handle);
             paths::remove_old_env(handle);
             settings::init(handle)?;

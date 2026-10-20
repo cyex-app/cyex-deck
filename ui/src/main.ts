@@ -9,6 +9,7 @@ import { applyCachedTheme } from './design/theme';
 import { tabs } from './features/tabs/tabs.svelte';
 import { chatxIpc } from './ipc/chatx';
 import { accounts } from './lib/accounts.svelte';
+import { showCrashNote } from './lib/crashNote';
 import { installFindBlock } from './lib/findKey';
 import { settings } from './lib/settings.svelte';
 import { currentWindow } from './lib/window.svelte';
@@ -25,6 +26,8 @@ const target = document.getElementById('app')!;
 
 // C17 Translations go to the Windows language unless Settings says otherwise.
 if (!panelRoute) chatxIpc.setLanguage(navigator.language).catch(() => {});
+// V107-R12 Once after a crash, in the main window.
+if (!panelRoute && currentWindow.isMain) void showCrashNote();
 
 export default panelRoute
   ? mount(PanelApp, { target, props: { route: decodeURIComponent(panelRoute) } })

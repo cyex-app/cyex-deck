@@ -120,13 +120,15 @@
   }
   .top {
     display: flex;
+    /* V107-R5b A narrow pop-up puts search on its own line, so its label fits. */
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
   }
   .search {
     display: flex;
-    flex: 1 1 120px;
-    min-width: 100px;
+    flex: 1 1 150px;
+    min-width: 150px;
   }
   .body {
     display: grid;

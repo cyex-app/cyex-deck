@@ -21,6 +21,8 @@ export interface MenuItem {
   avatar?: string;
   /** A shortcut, or the value a submenu has now. */
   hint?: string;
+  /** V107-R1 A small dim word right after the label, e.g. "default" on an account. */
+  tag?: string;
   /** A short explanation, shown on hover. */
   note?: string;
   checked?: boolean;

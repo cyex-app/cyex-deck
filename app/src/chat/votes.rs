@@ -42,7 +42,6 @@ pub struct Celebration {
 
 struct Watched {
     id: String,
-    views: usize,
     state: VotesUpdate,
 }
 
@@ -55,50 +54,54 @@ pub fn init(app: &AppHandle) {
     app.manage(Votes {
         channels: Mutex::default(),
     });
+    app.state::<super::Chat>().channels.hook(on_channel);
 }
 
 fn gql_auth(app: &AppHandle, account: Option<&str>) -> Option<(String, String)> {
     account.and_then(|a| crate::auth::gql_token(app, a))
 }
 
-/// A chat view opened.
+/// Something besides a chat view shows the channel's votes (the stream manager). Chat views
+/// count through `chat::open`; both go through the channel registry (V107-R16).
 pub fn watch(app: &AppHandle, login: &str, account: Option<String>) {
-    {
-        let votes = app.state::<Votes>();
-        let mut map = votes.channels.lock().unwrap_or_else(|p| p.into_inner());
-        if let Some(w) = map.get_mut(login) {
-            w.views += 1;
-            return;
-        }
-        map.insert(
-            login.to_owned(),
-            Watched {
-                id: String::new(),
-                views: 1,
-                state: VotesUpdate {
-                    channel: login.to_owned(),
-                    ..VotesUpdate::default()
-                },
-            },
-        );
-    }
-    let (app, login) = (app.clone(), login.to_owned());
-    tauri::async_runtime::spawn(async move { load(&app, &login, account.as_deref(), true).await });
+    app.state::<super::Chat>().channels.view_opened(app, login, account.as_deref());
 }
 
-/// A chat view closed.
+/// Its `watch` is over.
 pub fn unwatch(app: &AppHandle, login: &str) {
+    app.state::<super::Chat>().channels.view_closed(app, login);
+}
+
+/// V107-R16 The first view of a channel reads its votes; the last one stops following them.
+fn on_channel(app: &AppHandle, e: &super::channels::Event) {
+    use super::channels::Event;
     let votes = app.state::<Votes>();
     let mut map = votes.channels.lock().unwrap_or_else(|p| p.into_inner());
-    let Some(w) = map.get_mut(login) else { return };
-    w.views = w.views.saturating_sub(1);
-    if w.views == 0
-        && let Some(w) = map.remove(login)
-        && !w.id.is_empty()
-    {
-        for kind in KINDS {
-            crate::hermes::remove(app, kind, &w.id);
+    match e {
+        Event::Shown { login, account } => {
+            map.insert(
+                (*login).to_owned(),
+                Watched {
+                    id: String::new(),
+                    state: VotesUpdate {
+                        channel: (*login).to_owned(),
+                        ..VotesUpdate::default()
+                    },
+                },
+            );
+            let (app, login, account) = (app.clone(), (*login).to_owned(), account.map(str::to_owned));
+            tauri::async_runtime::spawn(async move { load(&app, &login, account.as_deref(), true).await });
         }
+        Event::Hidden { login } => {
+            if let Some(w) = map.remove(*login)
+                && !w.id.is_empty()
+            {
+                for kind in KINDS {
+                    crate::hermes::remove(app, kind, &w.id);
+                }
+            }
+        }
+        _ => {}
     }
 }
 

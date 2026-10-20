@@ -22,6 +22,8 @@ export interface ToastOptions {
   action?: ToastAction;
   /** V106 a-6 A toast with the same key replaces the old one (a toggle shows only its current state). */
   key?: string;
+  /** Longer than usual, for a notice that comes while the app is still starting. */
+  ms?: number;
 }
 
 export const LIFETIME_MS = { info: 3500, success: 3500, error: 9000 };
@@ -89,7 +91,7 @@ export class ToastStore {
   }
 
   private push(kind: Toast['kind'], text: string, opts: ToastOptions = {}): void {
-    const life = opts.action ? Math.max(LIFETIME_MS[kind], ACTION_MS) : LIFETIME_MS[kind];
+    const life = Math.max(opts.ms ?? 0, opts.action ? Math.max(LIFETIME_MS[kind], ACTION_MS) : LIFETIME_MS[kind]);
     const keyed = opts.key === undefined ? undefined : this.items.find((t) => t.key === opts.key);
     if (keyed) this.dismiss(keyed.id);
     const same = this.items.find((t) => t.kind === kind && t.text === text);

@@ -89,7 +89,13 @@ impl Store {
                     }
                     quarantine(&path, &*clock)?;
                     report.reset.push(p);
-                    p.default_value()
+                    if p == Partition::Chat {
+                        // V107-R11 Written now, or the next start reads no file and turns it on.
+                        changed.push(p);
+                        presence_off(p.default_value())
+                    } else {
+                        p.default_value()
+                    }
                 }
             };
             values.insert(p, value);
@@ -367,7 +373,24 @@ fn salvage(p: Partition, path: &Path) -> Option<Value> {
             kept.remove(&key);
         }
     }
-    p.normalize(Value::Object(kept)).ok()
+    let v = p.normalize(Value::Object(kept.clone())).ok()?;
+    // V107-R11 A salvaged chat file keeps its own presence choice; without one it stays off.
+    if p == Partition::Chat && !kept.contains_key(SHARE_PRESENCE) {
+        return Some(presence_off(v));
+    }
+    Some(v)
+}
+
+const SHARE_PRESENCE: &str = "sharePresence";
+
+/// V107-R11 A broken or unreadable chat file never turns presence on (it shares which channel
+/// you're in). The one-time turn-on counts as done, so it stays off.
+fn presence_off(mut v: Value) -> Value {
+    if let Value::Object(map) = &mut v {
+        map.insert(SHARE_PRESENCE.to_owned(), Value::Bool(false));
+        map.insert("presenceOnOnce".to_owned(), Value::Bool(true));
+    }
+    v
 }
 
 fn quarantine(path: &Path, clock: &dyn Clock) -> Result<()> {

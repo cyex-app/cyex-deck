@@ -144,7 +144,7 @@ pub fn on_event(app: &AppHandle, e: &Event) {
                 toasts::show(
                     app,
                     Pop {
-                        title: unmark(&item.body),
+                        title: crate::bell_dates::local_dates(&unmark(&item.body)),
                         text: String::new(),
                         avatar: item.thumbnail.clone(),
                         open: Open::Link {

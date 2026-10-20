@@ -207,7 +207,8 @@
   />
 </Row>
 
-<ResetSection partition="appearance" />
+<!-- V107-R4 Reset takes the custom themes too: say so when there are some. -->
+<ResetSection partition="appearance" warn={a.themes.length ? 'Your custom themes are deleted too.' : undefined} />
 
 <style>
   .cap {
