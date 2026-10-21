@@ -16,3 +16,4 @@ pub mod own;
 pub mod pacer;
 pub mod restack;
 pub mod role_change;
+pub mod roles_manager;

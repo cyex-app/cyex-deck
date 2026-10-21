@@ -29,6 +29,7 @@ pub mod profile;
 pub mod profile_images;
 pub mod rewind;
 pub mod roles;
+pub mod roles_list;
 mod search;
 mod stories;
 pub mod subs;

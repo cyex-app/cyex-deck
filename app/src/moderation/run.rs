@@ -321,8 +321,11 @@ async fn treat(app: &AppHandle, actor: &Actor, who: &str, how: Treatment) -> Res
 
 /// 1.50 One mod or VIP change; V107-M8 swaps and rollback: the sequence is
 /// `cyex_moderation::role_change::set_role` (V107-R14), this is its Helix/GQL adapter.
-async fn set_role(app: &AppHandle, actor: &Actor, who: &str, mod_role: bool, on: bool) -> Result<(), String> {
-    cyex_moderation::role_change::set_role(&RoleAdapter { app, actor }, who, mod_role, on).await
+pub(super) async fn set_role(app: &AppHandle, actor: &Actor, who: &str, mod_role: bool, on: bool) -> Result<(), String> {
+    let res = cyex_moderation::role_change::set_role(&RoleAdapter { app, actor }, who, mod_role, on).await;
+    // V107-R36 Mod changes can move VIPs too (a swap): the usercard's slot count is read again.
+    super::roles::forget(app, &actor.account);
+    res
 }
 
 /// V107-R14 Twitch, the own-echo marks, the role buttons and the chat, for one actor.

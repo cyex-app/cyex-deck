@@ -3,10 +3,14 @@
 //! Answers reuse the Helix types, so the UI doesn't care which API ran.
 
 pub mod ads;
+pub mod community;
+pub mod content;
 pub mod feed;
 pub mod info;
 pub mod modes;
+pub mod modset;
 pub mod raids;
+pub mod rewards;
 pub mod stats;
 pub mod together;
 pub mod votes;

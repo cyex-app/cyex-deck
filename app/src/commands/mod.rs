@@ -4,6 +4,8 @@ mod accounts;
 mod browse;
 mod chat;
 mod chat_extra;
+mod community;
+mod content;
 mod cosmetics;
 mod emotes;
 pub mod feeds;
@@ -12,11 +14,14 @@ mod mentions;
 mod miner;
 mod moderation;
 mod modes;
+mod modset;
 mod notify;
 mod player;
 mod plugins;
 mod profile_images;
+mod rewards;
 mod rewind;
+mod roles;
 mod rules;
 mod settings;
 mod sound;
@@ -169,6 +174,9 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         terms::mod_blocked_terms,
         terms::mod_add_blocked_term,
         terms::mod_remove_blocked_term,
+        roles::roles_view,
+        roles::roles_set,
+        roles::roles_vip_slots,
         moderation::mod_resolve_unban,
         moderation::mod_history,
         moderation::mod_comment_add,
@@ -176,6 +184,16 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         moderation::mod_nuke_preview,
         moderation::mod_massban,
         moderation::mod_massban_stop,
+        community::cm_followers,
+        community::cm_assigned,
+        community::cm_step_down,
+        content::content_clips,
+        content::content_delete_clips,
+        content::content_videos,
+        content::content_rename_video,
+        content::content_publish_video,
+        content::content_publish_videos,
+        content::content_delete_videos,
         streammanager::sm_manager,
         streammanager::sm_open,
         streammanager::sm_close,
@@ -184,7 +202,19 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         streammanager::sm_categories,
         streammanager::sm_marker,
         streammanager::sm_markers,
+        rewards::sm_rewards,
+        rewards::sm_reward_check,
+        rewards::sm_reward_create,
+        rewards::sm_reward_update,
+        rewards::sm_reward_switch,
+        rewards::sm_reward_delete,
+        rewards::sm_redemptions,
+        rewards::sm_redemptions_set,
         streammanager::sm_modes,
+        modset::modset_read,
+        modset::modset_set,
+        modset::modset_add_term,
+        modset::modset_remove_term,
         streammanager::sm_set_mode,
         streammanager::sm_commercial,
         streammanager::sm_ad_schedule,

@@ -65,6 +65,8 @@
     onrestore?: (panel: string) => void;
     /** V107-R29 Opens a panel in its own window: a header button, and one in its menu. */
     onpopout?: (panel: string) => void;
+    /** V107-R40 Which panels can pop out; all, when left out. */
+    canPopout?: (panel: string) => boolean;
     /** V107-R29 With it, closed panels sit in a dock that always shows (`PanelDock`); a
      *  panel with an icon opens this in a menu. */
     quick?: Snippet<[string]>;
@@ -94,6 +96,7 @@
     onclose,
     onrestore,
     onpopout,
+    canPopout,
     quick,
   }: Props = $props();
 
@@ -143,7 +146,7 @@
           : undefined,
       // The last panel stays: an empty layout would read as the default one.
       close: unlocked && own && onclose && !lone ? () => onclose(id) : undefined,
-      popout: own && onpopout ? () => onpopout(id) : undefined,
+      popout: own && onpopout && (canPopout?.(id) ?? true) ? () => onpopout(id) : undefined,
     };
   }
 

@@ -17,6 +17,7 @@
   import type { PanelCtl } from '../../components/panel';
   import Card from '../../components/PanelCard.svelte';
   import PanelLayout from '../../components/PanelLayout.svelte';
+  import { windowsIpc } from '../../ipc/windows';
   import type { Board0 } from '../../ipc/bindings/Board0';
   import type { ModActionFilters } from '../../ipc/bindings/ModActionFilters';
   import { modIpc } from '../../ipc/moderation';
@@ -41,6 +42,7 @@
     withChat,
   } from '../../lib/panels';
   import { settings } from '../../lib/settings.svelte';
+  import { errorText } from '../../lib/errors';
   import { toast } from '../../lib/toast.svelte';
   import { uptimeShort } from '../browse/lists';
   import ChatView from '../chat/ChatView.svelte';
@@ -48,15 +50,22 @@
   import ModActions from '../modview/ModActions.svelte';
   import ActivityCard from './ActivityCard.svelte';
   import AdsCard from './AdsCard.svelte';
+  import ClipsCard from './ClipsCard.svelte';
+  import FollowersCard from './FollowersCard.svelte';
   import InfoCard from './InfoCard.svelte';
   import MarkersCard from './MarkersCard.svelte';
   import ModesCard from './ModesCard.svelte';
+  import ModSettingsCard from './ModSettingsCard.svelte';
   import PollCard from './PollCard.svelte';
   import PredictionCard from './PredictionCard.svelte';
   import RaidCard from './RaidCard.svelte';
+  import RewardsCard from './RewardsCard.svelte';
+  import RolesCard from './RolesCard.svelte';
+  import RolesManagerCard from './RolesManagerCard.svelte';
   import StreamCard from './StreamCard.svelte';
   import { sm } from './streammanager.svelte';
   import TogetherCard from './TogetherCard.svelte';
+  import VideosCard from './VideosCard.svelte';
 
   interface Props {
     /** Shown in its own window. */
@@ -84,7 +93,7 @@
   const cfg = $derived(settings.v.streammanager);
   const locked = $derived(cfg.locked);
 
-  type Id = 'stream' | 'info' | 'activity' | 'actions' | 'modes' | 'poll' | 'prediction' | 'raid' | 'ads' | 'markers' | 'together' | 'chat';
+  type Id = 'stream' | 'info' | 'activity' | 'actions' | 'modes' | 'poll' | 'prediction' | 'raid' | 'ads' | 'markers' | 'together' | 'followers' | 'roles' | 'rolesmgr' | 'rewards' | 'clips' | 'videos' | 'modset' | 'chat';
   const INFO: Record<Id, { title: string; hint: string; min: Box; tall: number }> = {
     stream: { title: 'Stream', hint: 'Preview, viewers, followers, subs.', min: { w: 220, h: 200 }, tall: 320 },
     info: { title: 'Stream info', hint: 'Title and category.', min: { w: 220, h: 160 }, tall: 280 },
@@ -97,10 +106,18 @@
     ads: { title: 'Ads', hint: 'Run an ad, snooze, schedule.', min: { w: 200, h: 110 }, tall: 260 },
     markers: { title: 'Markers', hint: 'Mark moments for your VOD.', min: { w: 200, h: 110 }, tall: 200 },
     together: { title: 'Stream Together', hint: 'Guests and join requests.', min: { w: 200, h: 110 }, tall: 260 },
+    followers: { title: 'Followers', hint: 'Who follows you, and since when.', min: { w: 220, h: 160 }, tall: 360 },
+    rolesmgr: { title: 'Roles Manager', hint: 'Mods, VIPs, editors and more in your channel.', min: { w: 240, h: 180 }, tall: 380 },
+    roles: { title: 'My assigned roles', hint: 'Channels where you mod, edit or lead mods.', min: { w: 220, h: 160 }, tall: 320 },
+    rewards: { title: 'Rewards', hint: 'Channel points rewards and the redemption queue.', min: { w: 260, h: 180 }, tall: 420 },
+    clips: { title: 'Clips', hint: 'Your channel’s clips and the ones you made.', min: { w: 260, h: 200 }, tall: 440 },
+    videos: { title: 'Videos', hint: 'Past broadcasts, highlights and uploads.', min: { w: 260, h: 180 }, tall: 420 },
+    // V107-R38
+    modset: { title: 'Moderation settings', hint: 'AutoMod, verification, chat rules, terms.', min: { w: 260, h: 180 }, tall: 460 },
     chat: { title: 'Chat', hint: 'Your chat, as you.', min: { w: 240, h: 200 }, tall: 460 },
   };
   /** Page order; never changes. The chat is last, so stacked it's at the bottom. */
-  const ORDER: Id[] = ['stream', 'info', 'modes', 'activity', 'actions', 'poll', 'prediction', 'raid', 'ads', 'markers', 'together', 'chat'];
+  const ORDER: Id[] = ['stream', 'info', 'modes', 'activity', 'actions', 'poll', 'prediction', 'raid', 'ads', 'markers', 'together', 'followers', 'roles', 'rolesmgr', 'rewards', 'clips', 'videos', 'modset', 'chat'];
   /** Where every panel sits by default; a closed one comes back here. */
   const full = (chatShare: number): Node =>
     split(
@@ -111,7 +128,7 @@
           [
             split('column', [leaf('stream'), leaf('info'), leaf('modes')], [0.4, 0.35, 0.25]),
             split('column', [leaf('activity'), leaf('actions')], [0.6, 0.4]),
-            split('column', [leaf('poll'), leaf('prediction'), leaf('raid'), leaf('ads'), leaf('markers'), leaf('together')]),
+            split('column', [leaf('poll'), leaf('prediction'), leaf('raid'), leaf('ads'), leaf('markers'), leaf('together'), leaf('followers'), leaf('roles'), leaf('rolesmgr'), leaf('rewards'), leaf('clips'), leaf('videos'), leaf('modset')]),
           ],
           [0.36, 0.37, 0.27],
         ),
@@ -120,7 +137,7 @@
       [1 - chatShare, chatShare],
     );
   /** Open the rest from the corner (confirmed by the user, DECISIONS.md). */
-  const START_CLOSED: string[] = ['markers', 'together'];
+  const START_CLOSED: string[] = ['markers', 'together', 'followers', 'roles', 'rolesmgr', 'rewards', 'clips', 'videos', 'modset'];
   const GAP = 8;
   const PAD = 8;
   const min = (id: string) => INFO[id as Id]?.min ?? { w: 200, h: 110 };
@@ -172,6 +189,11 @@
   function bring(id: string) {
     if (id === 'chat') save(extend(tree, 'chat', 'right', cfg.chat.share), true);
     else save(restore(tree, id, FULL));
+  }
+
+  /** V107-R40 The community panels open in a window of their own; they stay here too. */
+  function popPanel(id: string) {
+    windowsIpc.openPanel(`smpanel/${id}`, INFO[id as Id].title, 400, 600).catch((e) => toast.error(errorText(e)));
   }
 
   function toggleChat() {
@@ -236,6 +258,13 @@
     {:else if id === 'raid'}<RaidCard />
     {:else if id === 'markers'}<MarkersCard />
     {:else if id === 'together'}<TogetherCard />
+    {:else if id === 'followers'}<FollowersCard />
+    {:else if id === 'roles'}<RolesCard />
+    {:else if id === 'rolesmgr'}<RolesManagerCard />
+    {:else if id === 'rewards'}<RewardsCard />
+    {:else if id === 'clips'}<ClipsCard />
+    {:else if id === 'videos'}<VideosCard />
+    {:else if id === 'modset'}<ModSettingsCard />
     {:else if id === 'chat'}
       <Card title="Chat" flush>
         <div class="chat">
@@ -309,6 +338,8 @@
       ondrop={drop}
       onclose={(id) => save(remove(tree, id), id === 'chat' ? false : undefined)}
       onrestore={bring}
+      onpopout={popPanel}
+      canPopout={(id) => id === 'followers' || id === 'roles' || id === 'rolesmgr' || id === 'rewards' || id === 'clips' || id === 'videos' || id === 'modset'}
     />
   {/if}
 </div>

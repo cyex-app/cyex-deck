@@ -8,10 +8,13 @@
 
 pub mod actions;
 pub mod activity;
+pub mod content;
 pub mod follows;
 mod gql_feed;
 pub mod live;
+pub mod modset;
 pub mod obs;
+pub mod rewards;
 pub mod stats;
 pub mod words;
 

@@ -21,6 +21,9 @@
   import { standingOf, type Standing } from '../modview/standing';
   import { standings } from '../modview/standings.svelte';
   import { errorText } from '../../lib/errors';
+  import type { VipSlots } from '../../ipc/bindings/VipSlots';
+  import { rolesIpc } from '../../ipc/roles';
+  import { blocked, vipCount } from '../streammanager/rolesManager';
 
   interface Props {
     profile: Profile;
@@ -52,6 +55,20 @@
     return () => (live = false);
   });
   const holds = $derived(standings.of(channel, profile.login, looked ?? is));
+  // V107-R36 Your own channel's VIP slots: VIP is off when they're all taken or locked.
+  let slots = $state<VipSlots | null>(null);
+  let slotsAsk = $state(0);
+  $effect(() => {
+    void slotsAsk;
+    if (!lead) return;
+    let live = true;
+    rolesIpc
+      .vipSlots(account, channel)
+      .then((s) => live && (slots = s))
+      .catch(() => {});
+    return () => (live = false);
+  });
+  const vipOff = $derived(holds?.vip ? null : blocked('vip', [], slots));
   let busy = $state(false);
   let warning = $state(false);
   let reason = $state('');
@@ -62,6 +79,7 @@
       const line = await modIpc.run(account, channel, name, args);
       if (line) toast.info(line, QUICK);
       onchange();
+      slotsAsk++;
     } catch (e) {
       toast.error(errorText(e), FAIL);
     } finally {
@@ -159,9 +177,14 @@
           </button>
           <button
             class:held={holds?.vip}
+            class:off={!!vipOff}
             disabled={busy}
-            onclick={() => run(holds?.vip ? 'unvip' : 'vip', profile.login)}
-            use:tooltip={holds?.vip ? 'Takes their VIP away.' : holds?.mod ? 'Removes their mod first.' : 'Makes them a VIP.'}
+            aria-disabled={!!vipOff}
+            onclick={() => !vipOff && run(holds?.vip ? 'unvip' : 'vip', profile.login)}
+            use:tooltip={{
+              label: vipOff ?? (holds?.vip ? 'Takes their VIP away.' : holds?.mod ? 'Removes their mod first.' : 'Makes them a VIP.'),
+              hint: slots ? vipCount(slots) : undefined,
+            }}
           >
             <Icon name="gem" size={13} />{holds?.vip ? 'Unvip' : 'VIP'}
           </button>
@@ -285,6 +308,14 @@
   }
   .seg button.held {
     color: var(--text);
+  }
+  .seg button.off {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .seg button.off:hover {
+    background: none;
+    color: var(--muted);
   }
   .seg button.held:hover:not(:disabled) {
     color: var(--red);
