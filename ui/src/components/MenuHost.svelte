@@ -51,7 +51,7 @@
 
   /** Moves the keyboard focus through the items that can be picked. */
   function move(step: number) {
-    const items = [...(box?.querySelectorAll<HTMLElement>('.item:not(:disabled), .field input') ?? [])];
+    const items = [...(box?.querySelectorAll<HTMLElement>('.item:not(:disabled), .menu-field input') ?? [])];
     if (!items.length) return;
     const at = items.indexOf(document.activeElement as HTMLElement);
     const next = at < 0 ? (step > 0 ? 0 : items.length - 1) : Math.min(Math.max(at + step, 0), items.length - 1);
@@ -123,7 +123,7 @@
       {#if entry === 'separator'}
         <hr />
       {:else if entry.field}
-        <div class="field">
+        <div class="menu-field">
           <input
             type="text"
             class:bad={!!fieldError}
@@ -267,33 +267,31 @@
     display: flex;
     color: var(--yellow);
   }
-  /* V107 A typed value, e.g. a custom pin length. V107-R45 Lines up with the item text:
-     item padding 8 + icon 14 + gap 9 on the left, item padding 8 on the right. */
-  .field {
-    padding: 2px 8px 2px 31px;
-  }
-  .field input {
+  /* V107-R45 A typed value, e.g. a custom pin length. Not `.field`: the global field style drew
+     a second box around the input. The input is one row: the rows' width, height and corners. */
+  .menu-field input {
+    display: block;
     width: 100%;
-    height: 28px;
+    height: 30px;
     padding: 0 8px;
     background: var(--surface);
     border: 1px solid var(--border-strong);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius);
     color: var(--text);
     font: inherit;
     font-variant-numeric: tabular-nums;
   }
-  .field input:focus-visible {
+  .menu-field input:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: -1px;
   }
-  .field input.bad,
-  .field input.bad:focus-visible {
+  .menu-field input.bad,
+  .menu-field input.bad:focus-visible {
     border-color: var(--red);
     outline-color: var(--red);
   }
   .field-error {
-    padding: 4px 0 2px;
+    padding: 4px 9px 2px;
     color: var(--red);
     font-size: 0.76rem;
   }

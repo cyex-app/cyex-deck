@@ -39,6 +39,13 @@
   padding-block: 0.25em;
   margin-block: -0.25em;
 }
+/* V107-R35 Selected, a paint's see-through fill left an empty grey box: the text shows in
+   the theme's text color on the selection instead. */
+.painted::selection,
+.painted *::selection {
+  -webkit-text-fill-color: var(--text);
+  color: var(--text);
+}
 /* V107-R6 Light themes: a thin dark outline under the paint, so pale parts don't vanish on
    white. The paint's colors stay as 7TV draws them; the outline goes first, so the paint's
    own shadows aren't outlined. Off with chat.paints.outlineLight (data-paint-outline). */

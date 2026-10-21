@@ -83,6 +83,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         profile_images::profile_images_change,
         profile_images::profile_images_restore,
         profile_images::profile_images_mocked,
+        profile_images::profile_images_use,
+        profile_images::profile_images_forget,
         notify::twitch_notify_get,
         notify::twitch_notify_switch,
         notify::twitch_notify_channel,

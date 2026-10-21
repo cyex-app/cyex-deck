@@ -106,6 +106,13 @@ fn ours(app: &AppHandle, channel_id: &str, m: &Moderate, now: i64) -> bool {
     own.0.lock().unwrap_or_else(|p| p.into_inner()).take(&e, now)
 }
 
+/// V107-R44 Whether this role echo repeats the change just shown.
+fn repeat(app: &AppHandle, channel_id: &str, m: &Moderate, now: i64) -> bool {
+    let Some(e) = Echo::of(m, channel_id) else { return false };
+    let Some(own) = app.try_state::<Own>() else { return false };
+    own.0.lock().unwrap_or_else(|p| p.into_inner()).repeat(&e, now)
+}
+
 /// Recomputes which (account, channel) pairs need feeds, from the open chat rooms and the
 /// stream manager, and starts or stops sessions and topics to match. Call when rooms,
 /// roles, accounts or the stream manager change.
@@ -300,6 +307,10 @@ fn moderate(
     // V107-M8 Role buttons follow any mod's change.
     if let (Some(t), Some(l), Some(r)) = (m.target.as_ref(), login, role) {
         super::standing::changed(app, l, &t.login, r.moderator(), r.on());
+    }
+    // V107-R44 Twitch can say one role change twice (a mod timed out loses mod): one line.
+    if role.is_some() && repeat(app, channel_id, m, now) {
+        return;
     }
     // V107-P7 A delete quotes the text as chat had it, before Twitch's own copy.
     let shown = m.message_id.as_deref().filter(|_| m.action.ends_with("delete"));

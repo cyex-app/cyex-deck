@@ -1,6 +1,6 @@
 <!-- V107-R19 Profile picture, banner and offline image: preview, Change, and Restore original
      while the app keeps the image its first change replaced. Twitch's internal API; when Twitch refuses,
-     its own settings page opens in the app's Twitch window. -->
+     its own settings page opens in the app's Twitch window. V107-R19c Under each, the last ones changed here. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import Loading from '../../components/Loading.svelte';
@@ -12,6 +12,7 @@
   import { errorText } from '../../lib/errors';
   import { toast } from '../../lib/toast.svelte';
   import AvatarCrop from './AvatarCrop.svelte';
+  import ProfileImageHistory from './ProfileImageHistory.svelte';
 
   let { account }: { account: string } = $props();
 
@@ -73,6 +74,15 @@
     void run('avatar', () => profileImagesIpc.change(account, 'avatar', png));
   }
 
+  async function forget(kind: ProfileImageKind, id: string) {
+    try {
+      await profileImagesIpc.forget(account, kind, id);
+    } catch (e) {
+      toast.error(imageError(e)?.message ?? errorText(e));
+    }
+    profileImagesIpc.get(account).then((v) => (view = v), () => {});
+  }
+
   function onTwitch() {
     subsIpc.open(account, 'https://www.twitch.tv/settings/profile').catch((e) => toast.error(errorText(e)));
   }
@@ -108,6 +118,15 @@
           />
         </div>
       </div>
+      {#if slot.history.length}
+        <ProfileImageHistory
+          kind={slot.kind}
+          items={slot.history}
+          disabled={busy !== null}
+          onuse={(id) => run(slot.kind, () => profileImagesIpc.use(account, slot.kind, id))}
+          onforget={(id) => forget(slot.kind, id)}
+        />
+      {/if}
       {#if failed?.kind === slot.kind}
         <div class="fail">
           <span>{failed.error.message}</span>
@@ -117,7 +136,7 @@
         </div>
       {/if}
     {/each}
-    <small>PNG, JPG or GIF, up to 10 MB. The app keeps your original until you restore it.</small>
+    <small>PNG, JPG or GIF, up to 10 MB. The app keeps your original until you restore it, and your last few changes.</small>
   {/if}
 </div>
 

@@ -2,7 +2,8 @@
 //! no second chat line: ours already says it. Deletes (P7), the lift before a new timeout
 //! (M7) and the steps of a mod/VIP swap (M8). V107-R44 Our deletes' echoes do add the
 //! line (the app shows its own only when no echo comes), and our timeouts' lengths are
-//! kept so the echo says what we sent.
+//! kept so the echo says what we sent. V107-R44 One role change shows once, though
+//! Twitch's feeds can say it twice ([`OwnEchoes::repeat`]).
 
 use std::collections::VecDeque;
 
@@ -14,6 +15,8 @@ use crate::roles::RoleAction;
 const KEEP_MS: i64 = 60_000;
 /// Most own actions remembered at once.
 const CAP: usize = 64;
+/// V107-R44 How long a role change's second copy is still taken for the first.
+const REPEAT_MS: i64 = 10_000;
 
 /// S1 One own action whose echo adds no line. Logins are lower case.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -53,6 +56,8 @@ pub struct OwnEchoes {
     marks: VecDeque<(Echo, i64)>,
     /// V107-R44 Timeouts we sent: (channel id, login, seconds, when).
     lengths: VecDeque<(String, String, u32, i64)>,
+    /// V107-R44 The last role change seen per person: (channel id, login, action, when).
+    roles: VecDeque<(String, String, RoleAction, i64)>,
 }
 
 impl OwnEchoes {
@@ -96,9 +101,32 @@ impl OwnEchoes {
         self.lengths.remove(at).map(|(.., secs, _)| secs)
     }
 
+    /// V107-R44 Whether this role echo repeats the last role change seen for that person in
+    /// that channel, within [`REPEAT_MS`]: Twitch can say one change twice (e.g. a mod timed
+    /// out loses mod). Any other change is noted, so mod, unmod, mod each still show.
+    pub fn repeat(&mut self, e: &Echo, now_ms: i64) -> bool {
+        let Echo::Role { cid, login, action } = e else { return false };
+        self.expire(now_ms);
+        let at = self.roles.iter().position(|(c, l, ..)| c == cid && l == login);
+        if let Some(i) = at
+            && self.roles[i].2 == *action
+        {
+            return true;
+        }
+        if let Some(i) = at {
+            self.roles.remove(i);
+        }
+        if self.roles.len() == CAP {
+            self.roles.pop_front();
+        }
+        self.roles.push_back((cid.clone(), login.clone(), *action, now_ms));
+        false
+    }
+
     fn expire(&mut self, now_ms: i64) {
         self.marks.retain(|(_, at)| now_ms - at < KEEP_MS);
         self.lengths.retain(|(.., at)| now_ms - at < KEEP_MS);
+        self.roles.retain(|(.., at)| now_ms - at < REPEAT_MS);
     }
 }
 
@@ -162,6 +190,22 @@ mod tests {
         assert_eq!(o.sent_secs("9", "y", 2), None, "refused");
         o.timeout("9", "z", Some(5), 0);
         assert_eq!(o.sent_secs("9", "z", KEEP_MS), None, "too late");
+    }
+
+    #[test]
+    fn v107_r44_one_role_change_shows_once() {
+        let mut o = OwnEchoes::default();
+        let unmod = Echo::of(&moderate("unmod", Some("caressz"), None), "9").unwrap();
+        assert!(!o.repeat(&unmod, 0), "first copy shows");
+        assert!(o.repeat(&unmod, 300), "second copy, other feed");
+        assert!(!o.repeat(&Echo::role("8", "caressz", RoleAction::Unmod), 400), "another channel");
+        assert!(!o.repeat(&Echo::role("9", "bob", RoleAction::Unmod), 400), "another person");
+        let modded = Echo::role("9", "caressz", RoleAction::Mod);
+        assert!(!o.repeat(&modded, 500), "modded again");
+        assert!(!o.repeat(&unmod, 600), "and unmodded again: a real change");
+        assert!(!o.repeat(&unmod, 600 + REPEAT_MS), "long after: shows");
+        assert!(!o.repeat(&del("a"), 0), "not a role change");
+        assert!(!o.repeat(&del("a"), 1));
     }
 
     fn moderate(action: &str, target: Option<&str>, msg: Option<&str>) -> Moderate {

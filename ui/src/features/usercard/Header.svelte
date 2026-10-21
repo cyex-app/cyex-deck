@@ -72,7 +72,8 @@
     {/if}
   </div>
   <div class="who">
-    <div class="name" style={colorVars}>
+    <!-- V107-R35 The name is text to select, not a handle for the window. -->
+    <div class="name no-drag" style={colorVars}>
       <strong class={paint ?? ''} class:painted={!!paint} class:colored={!!color}>{note?.nickname || profile.displayName}</strong>
       {#if localized || note?.nickname}<span class="login">{profile.login}</span>{/if}
     </div>
@@ -175,6 +176,8 @@
   }
   .name strong {
     font-weight: 800;
+    user-select: text;
+    cursor: text;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

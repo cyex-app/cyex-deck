@@ -3,9 +3,11 @@
 //! they change. Twitch's internal GQL, live-tested 2026/10/21 (V107-R19b). The image a change replaces is kept
 //! (`backup`) so "Restore previous" can put it back. Mocks builds can point everything at
 //! `tools/mock/profile-images.mjs` (`CYEX_GQL_PROFILE_MOCK`, test data folder only).
+//! V107-R19c Every image put up here also goes in a short local history (`history`) to switch back to.
 
 mod backup;
 mod check;
+mod history;
 
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -25,6 +27,8 @@ use crate::auth;
 const NO_GQL: &str = "This needs a GQL sign-in for the account (Settings → Accounts).";
 const POLL_FOR: Duration = Duration::from_secs(15);
 const POLL_EVERY: Duration = Duration::from_millis(1500);
+/// V107-R19c History thumbs: 2x the 48 px they show at.
+const THUMB_SIDE: u32 = 96;
 #[cfg(feature = "mocks")]
 const MOCK_VAR: &str = "CYEX_GQL_PROFILE_MOCK";
 
@@ -48,6 +52,14 @@ impl ProfileImageKind {
         }
     }
 
+    /// V107-R19c How many changed images the history keeps.
+    fn keep(self) -> usize {
+        match self {
+            Self::Avatar => 5,
+            Self::Banner | Self::Offline => 3,
+        }
+    }
+
     fn file(self) -> &'static str {
         match self {
             Self::Avatar => "avatar",
@@ -66,6 +78,20 @@ pub struct ProfileImageSlot {
     pub url: String,
     /// The image the app first replaced, which "Restore original" puts back.
     pub backup: bool,
+    /// V107-R19c Images changed here before, newest first.
+    pub history: Vec<ProfileImageSaved>,
+}
+
+/// V107-R19c One image from the history.
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ProfileImageSaved {
+    pub id: String,
+    /// A small inline copy.
+    pub thumb: String,
+    /// It's the image Twitch shows now.
+    pub current: bool,
 }
 
 #[derive(Clone, Debug, Serialize, TS)]
@@ -154,9 +180,22 @@ fn view(app: &AppHandle, account: &str, images: &api::Images, waiting: bool) -> 
             kind,
             url: images.get(kind.api()).to_owned(),
             backup: dir.as_deref().and_then(|d| backup::newest(d, kind.file())).is_some(),
+            history: dir.as_deref().map_or_else(Vec::new, |d| saved(d, kind, images.get(kind.api()))),
         })
         .collect();
     ProfileImagesView { slots, waiting }
+}
+
+/// V107-R19c The history of a kind, thumbs inline. Entries whose thumb won't read are left out.
+fn saved(dir: &std::path::Path, kind: ProfileImageKind, now: &str) -> Vec<ProfileImageSaved> {
+    history::list(&history::dir(dir), kind.file())
+        .into_iter()
+        .filter_map(|s| {
+            let bytes = std::fs::read(s.thumb.as_ref().unwrap_or(&s.path)).ok()?;
+            let current = !now.is_empty() && history::url_of(&s).is_some_and(|u| u == now);
+            Some(ProfileImageSaved { id: s.id, thumb: api::data_url(&bytes), current })
+        })
+        .collect()
 }
 
 /// The three images as they are now, public data.
@@ -211,8 +250,52 @@ pub async fn change(app: &AppHandle, account: &str, kind: ProfileImageKind, byte
     if !kept {
         keep_current(app, &t, kind, before.get(kind.api())).await?;
     }
-    upload(app, &t, kind, format, bytes, &before).await
+    let copy = bytes.clone();
+    let (now, waiting) = upload(&t, kind, format, bytes, &before).await?;
+    let url = (!waiting).then(|| now.get(kind.api()).to_owned());
+    remember(app, account, kind, format, copy, url).await;
+    Ok(shown(app, &t, kind, &now, waiting).await)
 }
+
+/// V107-R19c Puts an image from the history up again, as a change: no new crop, the original
+/// backup rules as for any change.
+pub async fn use_saved(app: &AppHandle, account: &str, kind: ProfileImageKind, id: &str) -> Result<ProfileImagesView, ImageError> {
+    let gone = || ImageError::with(ImageErrorKind::Failed, "That image isn’t saved anymore.");
+    let dir = backup_dir(app, account).map(|d| history::dir(&d)).ok_or_else(gone)?;
+    let path = history::find(&dir, kind.file(), id).ok_or_else(gone)?.path;
+    let bytes = std::fs::read(path).map_err(|_| gone())?;
+    change(app, account, kind, bytes).await
+}
+
+/// V107-R19c Drops one image from the history.
+pub fn forget(app: &AppHandle, account: &str, kind: ProfileImageKind, id: &str) -> Result<(), ImageError> {
+    let dir = backup_dir(app, account).map(|d| history::dir(&d));
+    if dir.is_some_and(|d| history::remove(&d, kind.file(), id)) {
+        Ok(())
+    } else {
+        Err(ImageError::with(ImageErrorKind::Failed, "That image isn’t saved anymore."))
+    }
+}
+
+/// V107-R19c Saves what went up, with a small thumb, and the address Twitch gave it.
+/// A failure here never fails the change.
+async fn remember(app: &AppHandle, account: &str, kind: ProfileImageKind, format: api::Format, bytes: Vec<u8>, url: Option<String>) {
+    let Some(dir) = backup_dir(app, account).map(|d| history::dir(&d)) else { return };
+    let saved = tauri::async_runtime::spawn_blocking(move || {
+        let thumb = crate::sys::thumb::thumbnail(bytes.clone(), THUMB_SIDE);
+        let id = history::add(&dir, kind.file(), format.ext(), now_ms(), &bytes, thumb.as_deref(), kind.keep());
+        match (&id, url) {
+            (Ok(id), Some(u)) => history::set_url(&dir, kind.file(), id, &u),
+            (Err(e), _) => eprintln!("profile images: history: {e}"),
+            _ => {}
+        }
+    })
+    .await;
+    if let Err(e) = saved {
+        eprintln!("profile images: history: {e}");
+    }
+}
+
 
 /// Re-uploads the original. Once that worked the backup goes, so the next change saves a fresh one.
 pub async fn restore(app: &AppHandle, account: &str, kind: ProfileImageKind) -> Result<ProfileImagesView, ImageError> {
@@ -226,14 +309,11 @@ pub async fn restore(app: &AppHandle, account: &str, kind: ProfileImageKind) -> 
     let _busy = Busy::take(&state, account)?;
     let t = target(app, account)?;
     let before = api::images(&t.http, t.base(), &t.user_id).await.map_err(|e| check::map(&e))?;
-    let mut v = upload(app, &t, kind, format, bytes, &before).await?;
+    let (now, waiting) = upload(&t, kind, format, bytes, &before).await?;
     if let Some(dir) = backup_dir(app, account) {
         backup::remove(&dir, kind.file());
     }
-    for slot in v.slots.iter_mut().filter(|s| s.kind == kind) {
-        slot.backup = false;
-    }
-    Ok(v)
+    Ok(shown(app, &t, kind, &now, waiting).await)
 }
 
 /// Saves the image about to be replaced. Nothing changes when that fails.
@@ -255,14 +335,14 @@ async fn keep_current(app: &AppHandle, t: &Target, kind: ProfileImageKind, url: 
     Ok(())
 }
 
+/// The images after the upload, and whether Twitch was still showing the old one at the end.
 async fn upload(
-    app: &AppHandle,
     t: &Target,
     kind: ProfileImageKind,
     format: api::Format,
     bytes: Vec<u8>,
     before: &api::Images,
-) -> Result<ProfileImagesView, ImageError> {
+) -> Result<(api::Images, bool), ImageError> {
     let up = api::create(&t.http, t.auth(), t.base(), kind.api(), &t.user_id, format)
         .await
         .map_err(|e| log_map("create", &e))?;
@@ -278,17 +358,23 @@ async fn upload(
             now = fresh;
             let url = now.get(kind.api());
             if !url.is_empty() && url != old {
-                let v = inline(&t.http, t.base(), view(app, &t.user_id, &now, false)).await;
-                if kind == ProfileImageKind::Avatar
-                    && let Some(slot) = v.slots.iter().find(|s| s.kind == kind)
-                {
-                    new_avatar(app, &t.user_id, &slot.url);
-                }
-                return Ok(v);
+                return Ok((now, false));
             }
         }
     }
-    Ok(inline(&t.http, t.base(), view(app, &t.user_id, &now, true)).await)
+    Ok((now, true))
+}
+
+/// The view after an upload; a new avatar shows everywhere in the app.
+async fn shown(app: &AppHandle, t: &Target, kind: ProfileImageKind, now: &api::Images, waiting: bool) -> ProfileImagesView {
+    let v = inline(&t.http, t.base(), view(app, &t.user_id, now, waiting)).await;
+    if !waiting
+        && kind == ProfileImageKind::Avatar
+        && let Some(slot) = v.slots.iter().find(|s| s.kind == kind)
+    {
+        new_avatar(app, &t.user_id, &slot.url);
+    }
+    v
 }
 
 fn log_map(step: &str, e: &cyex_twitch::Error) -> ImageError {

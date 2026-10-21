@@ -34,3 +34,15 @@ pub async fn profile_images_restore(app: AppHandle, account: String, kind: Profi
 pub fn profile_images_mocked(app: AppHandle) -> bool {
     images::mock_base(&app).is_some()
 }
+
+/// V107-R19c Puts an image from the history up again.
+#[tauri::command]
+pub async fn profile_images_use(app: AppHandle, account: String, kind: ProfileImageKind, id: String) -> ImageResult<ProfileImagesView> {
+    images::use_saved(&app, &account, kind, &id).await
+}
+
+/// V107-R19c Drops one image from the history.
+#[tauri::command]
+pub fn profile_images_forget(app: AppHandle, account: String, kind: ProfileImageKind, id: String) -> ImageResult<()> {
+    images::forget(&app, &account, kind, &id)
+}

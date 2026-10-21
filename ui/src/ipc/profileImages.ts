@@ -13,6 +13,12 @@ export const profileImagesIpc = {
   restore: (account: string, kind: ProfileImageKind) =>
     invoke<ProfileImagesView>('profile_images_restore', { account, kind }),
   mocked: () => invoke<boolean>('profile_images_mocked'),
+  /** V107-R19c Puts an image from the history up again. */
+  use: (account: string, kind: ProfileImageKind, id: string) =>
+    invoke<ProfileImagesView>('profile_images_use', { account, kind, id }),
+  /** V107-R19c Drops one image from the history. */
+  forget: (account: string, kind: ProfileImageKind, id: string) =>
+    invoke<void>('profile_images_forget', { account, kind, id }),
 };
 
 /** The `ImageError` a command rejected with, or null for anything else. */
