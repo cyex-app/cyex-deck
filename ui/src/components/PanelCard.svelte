@@ -1,5 +1,5 @@
 <!-- V103-06 One panel's frame in the mod view and the stream manager: a title bar (dragged
-     while the layout is unlocked, with a close button then; V107-R29 a pop-out button on hover
+     while the layout is unlocked, with a close button then; V107-R29 a faint pop-out button, full on hover
      where the layout allows it), optional tools on the right,
      then the body, which scrolls. `flush` drops the body's padding, for lists. -->
 <script lang="ts">
@@ -64,10 +64,11 @@
   header.grab {
     cursor: grab;
   }
-  /* V107-R29 Quiet until the header is hovered or reached by keyboard. */
+  /* V107-R29 Faint until the header is hovered or reached by keyboard (always visible, the
+     user's pick, so it's easy to find and leaves no gap). */
   .out {
     display: flex;
-    opacity: 0;
+    opacity: 0.4;
     transition: opacity var(--fast);
   }
   header:hover .out,
