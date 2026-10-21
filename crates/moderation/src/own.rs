@@ -1,6 +1,8 @@
 //! V107-P7 Mod actions we did ourselves, so their mod-action echo (EventSub/Hermes) adds
 //! no second chat line: ours already says it. Deletes (P7), the lift before a new timeout
-//! (M7) and the steps of a mod/VIP swap (M8).
+//! (M7) and the steps of a mod/VIP swap (M8). V107-R44 Our deletes' echoes do add the
+//! line (the app shows its own only when no echo comes), and our timeouts' lengths are
+//! kept so the echo says what we sent.
 
 use std::collections::VecDeque;
 
@@ -47,32 +49,56 @@ impl Echo {
 }
 
 #[derive(Default)]
-pub struct OwnEchoes(VecDeque<(Echo, i64)>);
+pub struct OwnEchoes {
+    marks: VecDeque<(Echo, i64)>,
+    /// V107-R44 Timeouts we sent: (channel id, login, seconds, when).
+    lengths: VecDeque<(String, String, u32, i64)>,
+}
 
 impl OwnEchoes {
     /// We're doing `e` now.
     pub fn mark(&mut self, e: Echo, now_ms: i64) {
         self.expire(now_ms);
-        if self.0.len() == CAP {
-            self.0.pop_front();
+        if self.marks.len() == CAP {
+            self.marks.pop_front();
         }
-        self.0.push_back((e, now_ms));
+        self.marks.push_back((e, now_ms));
     }
 
     /// `e` failed: another mod's same action gets its line.
     pub fn forget(&mut self, e: &Echo) {
-        self.0.retain(|(i, _)| i != e);
+        self.marks.retain(|(i, _)| i != e);
     }
 
     /// Whether `e` was ours. Each mark answers once.
     pub fn take(&mut self, e: &Echo, now_ms: i64) -> bool {
         self.expire(now_ms);
-        let at = self.0.iter().position(|(i, _)| i == e);
-        at.map(|i| self.0.remove(i)).is_some()
+        let at = self.marks.iter().position(|(i, _)| i == e);
+        at.map(|i| self.marks.remove(i)).is_some()
+    }
+
+    /// V107-R44 We're timing `login` out for `secs` in channel `cid` (`None`: it failed).
+    pub fn timeout(&mut self, cid: &str, login: &str, secs: Option<u32>, now_ms: i64) {
+        self.expire(now_ms);
+        let login = login.to_ascii_lowercase();
+        self.lengths.retain(|(c, l, ..)| !(c == cid && *l == login));
+        let Some(secs) = secs else { return };
+        if self.lengths.len() == CAP {
+            self.lengths.pop_front();
+        }
+        self.lengths.push_back((cid.to_owned(), login, secs, now_ms));
+    }
+
+    /// V107-R44 The length we sent for this timeout echo, once.
+    pub fn sent_secs(&mut self, cid: &str, login: &str, now_ms: i64) -> Option<u32> {
+        self.expire(now_ms);
+        let at = self.lengths.iter().position(|(c, l, ..)| c == cid && l.eq_ignore_ascii_case(login))?;
+        self.lengths.remove(at).map(|(.., secs, _)| secs)
     }
 
     fn expire(&mut self, now_ms: i64) {
-        self.0.retain(|(_, at)| now_ms - at < KEEP_MS);
+        self.marks.retain(|(_, at)| now_ms - at < KEEP_MS);
+        self.lengths.retain(|(.., at)| now_ms - at < KEEP_MS);
     }
 }
 
@@ -107,6 +133,35 @@ mod tests {
         }
         assert!(!o.take(&del("0"), 1), "oldest dropped");
         assert!(o.take(&del(&CAP.to_string()), 1));
+    }
+
+    /// V107-R44 Our delete's echo takes the mark (its line shows); the app's fallback line
+    /// shows only when the mark is still there.
+    #[test]
+    fn v107_r44_delete_echo_or_fallback() {
+        let mut o = OwnEchoes::default();
+        o.mark(del("a"), 0);
+        assert!(o.take(&del("a"), 500), "echo came");
+        assert!(!o.take(&del("a"), 4_000), "no fallback line");
+        o.mark(del("b"), 0);
+        assert!(o.take(&del("b"), 4_000), "no echo: the fallback line shows");
+    }
+
+    #[test]
+    fn v107_r44_own_timeout_lengths() {
+        let mut o = OwnEchoes::default();
+        o.timeout("9", "CaressZ", Some(7), 0);
+        assert_eq!(o.sent_secs("8", "caressz", 10), None, "another channel");
+        assert_eq!(o.sent_secs("9", "caressz", 10), Some(7));
+        assert_eq!(o.sent_secs("9", "caressz", 20), None, "only once");
+        o.timeout("9", "x", Some(5), 0);
+        o.timeout("9", "x", Some(60), 1);
+        assert_eq!(o.sent_secs("9", "X", 2), Some(60), "the last one sent counts");
+        o.timeout("9", "y", Some(5), 0);
+        o.timeout("9", "y", None, 1);
+        assert_eq!(o.sent_secs("9", "y", 2), None, "refused");
+        o.timeout("9", "z", Some(5), 0);
+        assert_eq!(o.sent_secs("9", "z", KEEP_MS), None, "too late");
     }
 
     fn moderate(action: &str, target: Option<&str>, msg: Option<&str>) -> Moderate {

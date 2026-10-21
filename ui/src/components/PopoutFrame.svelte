@@ -1,8 +1,10 @@
 <!-- V104-03 The frame of every pop-out window (1.51): a short title bar, and on the right
-     three small icon buttons, left to right: pin (always on top), fullscreen, and close.
+     three small icon buttons, left to right: pin (always on top), fill the screen, and close.
      Close docks the view back where it has a place in the main window (3.14, V102-16) and
      just closes where it doesn't (`#channel` chats V102-05, recordings, plugin consoles).
-     No minimize. Esc leaves fullscreen. Empty parts drag the window. V105-18 Pop-ups
+     No minimize. V107-R46 Filling the screen is Windows' maximize: the taskbar stays, a
+     double-click on the header toggles it, and dragging the header of a filled window brings
+     it back to its own size under the cursor. Empty parts drag the window. V105-18 Pop-ups
      (usercards, `#channel` chats) use the slim variant: the channel, pin and a small round x,
      no fullscreen; the header drags the window. -->
 <script lang="ts">
@@ -22,18 +24,7 @@
   }
 
   let { title, docks = false, dockHint = 'Puts it back into the main window.', variant = 'large' }: Props = $props();
-
-  function onkeydown(e: KeyboardEvent) {
-    if (variant === 'slim') return;
-    if (e.key !== 'Escape' || e.defaultPrevented || !currentWindow.fullscreen) return;
-    // A player's own fullscreen goes first; the browser leaves it on this Esc.
-    if (document.fullscreenElement) return;
-    e.preventDefault();
-    void currentWindow.setFullscreen(false);
-  }
 </script>
-
-<svelte:window {onkeydown} />
 
 <header class="frame" class:slim={variant === 'slim'} data-tauri-drag-region>
   <span class="title" data-tauri-drag-region>{title}</span>
@@ -50,11 +41,11 @@
     />
     {#if variant === 'large'}
       <IconButton
-        icon={currentWindow.fullscreen ? 'shrink' : 'expand'}
-        label={currentWindow.fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-        hint={currentWindow.fullscreen ? 'Or press Esc.' : 'Fills the whole screen. Esc leaves.'}
+        icon={currentWindow.maximized ? 'restore' : 'maximize'}
+        label={currentWindow.maximized ? 'Restore' : 'Fill the screen'}
+        hint={currentWindow.maximized ? 'Or drag the header.' : 'Or double-click the header.'}
         size={13}
-        onclick={() => currentWindow.toggleFullscreen()}
+        onclick={currentWindow.toggleMaximize}
       />
     {/if}
     {#if variant === 'slim'}

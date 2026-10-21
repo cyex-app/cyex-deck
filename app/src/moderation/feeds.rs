@@ -68,6 +68,30 @@ pub fn own_lift(app: &AppHandle, channel_id: &str, login: &str, done: bool) {
     own(app, Echo::lift(channel_id, login), done);
 }
 
+/// V107-R44 We time `login` out for `secs` (`None` once that failed): the echo's line
+/// says the length we sent.
+pub fn own_timeout(app: &AppHandle, channel_id: &str, login: &str, secs: Option<u32>) {
+    let Some(own) = app.try_state::<Own>() else { return };
+    own.0.lock().unwrap_or_else(|p| p.into_inner()).timeout(channel_id, login, secs, crate::chat::now_ms());
+}
+
+/// V107-R44 Our delete of `msg_id` went through: when no echo has come within
+/// [`DELETE_ECHO_MS`], `line` says it instead (an account without a mod feed here).
+pub fn own_delete_done(app: &AppHandle, channel: &str, msg_id: &str, line: String) {
+    let (app, channel, e) = (app.clone(), channel.to_owned(), Echo::Delete(msg_id.to_owned()));
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(DELETE_ECHO_MS)).await;
+        let Some(own) = app.try_state::<Own>() else { return };
+        let waiting = own.0.lock().unwrap_or_else(|p| p.into_inner()).take(&e, crate::chat::now_ms());
+        if waiting {
+            crate::chat::notice_line(&app, &channel, NoticeKind::Moderation, &line);
+        }
+    });
+}
+
+/// V107-R44 How long our delete waits for its echo before saying it locally.
+const DELETE_ECHO_MS: u64 = 4_000;
+
 /// V107-M8 A swap's steps (`mark: false` once it failed): their echoes add no line, the
 /// swap's own line says both.
 pub fn own_role(app: &AppHandle, channel_id: &str, action: RoleAction, login: &str, mark: bool) {
@@ -75,6 +99,7 @@ pub fn own_role(app: &AppHandle, channel_id: &str, action: RoleAction, login: &s
 }
 
 /// V107-P7 Whether this echo is one of ours: a delete, our lift before a new timeout, a swap step.
+/// V107-R44 A delete's echo answers our mark and still adds its line.
 fn ours(app: &AppHandle, channel_id: &str, m: &Moderate, now: i64) -> bool {
     let Some(e) = Echo::of(m, channel_id) else { return false };
     let Some(own) = app.try_state::<Own>() else { return false };
@@ -280,14 +305,21 @@ fn moderate(
     let shown = m.message_id.as_deref().filter(|_| m.action.ends_with("delete"));
     let body = shown.and_then(|id| crate::chat::live::deleted_of(app, id).1);
     let m = &Moderate { message_body: body.or_else(|| m.message_body.clone()), ..m.clone() };
+    // V107-R44 Our own timeout says the length we sent.
+    let secs = match (m.action.as_str(), m.target.as_ref()) {
+        ("timeout", Some(t)) => sent_secs(app, channel_id, &t.login, now).map(u64::from).or(secs),
+        _ => secs,
+    };
     let text = cyex_moderation::log::describe(m, secs);
     view::add_action(app, channel_id, ModLine::live(m, secs, cyex_chat::build::local_id(), now));
     // V107-R34 The deleted lines name the mod.
     if let Some(l) = login {
         attribute(app, account, l, m, secs);
     }
-    // V107-P7 Our own delete already left its line.
-    let Some(login) = login.filter(|_| !ours(app, channel_id, m, now)) else { return };
+    // V107-P7 Our own lift or swap step already has its line. V107-R44 A delete's echo is the
+    // one line for our delete too: taking the mark stops the local fallback.
+    let mine = ours(app, channel_id, m, now) && m.action != "delete";
+    let Some(login) = login.filter(|_| !mine) else { return };
     // V107-M7 Timeouts of one user in a row share a line with IRC's copy.
     let timed_out = m.target.as_ref().filter(|t| m.action == "timeout" && !t.id.is_empty());
     match timed_out {
@@ -433,10 +465,35 @@ fn held_reason(h: &events::Held) -> String {
     }
 }
 
-/// A timeout's length from `expires_at`, if it's a timeout.
+fn sent_secs(app: &AppHandle, channel_id: &str, login: &str, now: i64) -> Option<u32> {
+    let own = app.try_state::<Own>()?;
+    own.0.lock().unwrap_or_else(|p| p.into_inner()).sent_secs(channel_id, login, now)
+}
+
+/// A timeout's length from `expires_at`, if it's a timeout. V107-R44 To the nearest
+/// second: the event arrives a little after it started, so 7 s must not read 6 s.
 fn timeout_secs(m: &Moderate, now_ms: i64) -> Option<u64> {
     let exp = m.expires_at.as_deref()?;
     let end = OffsetDateTime::parse(exp, &Rfc3339).ok()?;
-    let secs = end.unix_timestamp() - now_ms / 1000;
+    left_secs((end.unix_timestamp_nanos() / 1_000_000) as i64, now_ms)
+}
+
+/// Seconds from `now_ms` to `end_ms`, rounded; none once it's over.
+fn left_secs(end_ms: i64, now_ms: i64) -> Option<u64> {
+    let secs = (end_ms - now_ms + 500).div_euclid(1000);
     (secs > 0).then_some(secs as u64)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn v107_r44_timeout_lengths_round() {
+        assert_eq!(left_secs(7_000, 300), Some(7), "7 s seen 0.3 s late");
+        assert_eq!(left_secs(7_000, 600), Some(6));
+        assert_eq!(left_secs(600_000, 900), Some(599));
+        assert_eq!(left_secs(1_000, 1_000), None);
+        assert_eq!(left_secs(1_000, 5_000), None);
+    }
 }

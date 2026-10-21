@@ -10,7 +10,6 @@ import type { TileShow } from '../../ipc/bindings/TileShow';
 import { CappedMap, useCapped } from '../../lib/capped';
 import { keyTaken } from '../../lib/escape';
 import { settings } from '../../lib/settings.svelte';
-import { currentWindow } from '../../lib/window.svelte';
 import { liveKeyAction, ownsKey, type SeekResult, seekText, stepChoice, Steps } from './liveKeys';
 
 /** V101-29 What Windows' media controls show for a player. */
@@ -195,8 +194,8 @@ export const playerFullscreen = $state({ on: false });
 
 document.addEventListener('fullscreenchange', () => {
   playerFullscreen.on = Boolean(document.fullscreenElement);
-  // V104-03 A pop-out the frame made fullscreen stays so when the player leaves its own.
-  void getCurrentWindow().setFullscreen(Boolean(document.fullscreenElement) || currentWindow.fullscreen);
+  // V107-R46 Pop-outs maximize instead of going fullscreen, so only the player decides here.
+  void getCurrentWindow().setFullscreen(Boolean(document.fullscreenElement));
 });
 
 // rd-5 Escape leaves a player's fullscreen when WebView2 doesn't. Layers (menus, popovers)

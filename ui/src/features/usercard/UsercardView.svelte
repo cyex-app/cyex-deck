@@ -27,6 +27,8 @@
   import ModBar from './ModBar.svelte';
   import Timeline from './Timeline.svelte';
   import { theirIds, touches } from './userWatch';
+  import { LOCAL_MS, shown } from './optimistic';
+  import type { BanStatus } from '../../ipc/bindings/BanStatus';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
 
@@ -130,7 +132,11 @@
     if (!modAccount || !profile) return;
     modIpc
       .history(modAccount, channel, profile.id)
-      .then((h) => (history = h))
+      .then((h) => {
+        history = h;
+        // V107-R45 The log caught up: it speaks again.
+        if (local && !!h.ban === !!local.ban) local = null;
+      })
       .catch(() => {});
   }
   $effect(() => {
@@ -138,11 +144,24 @@
     // Unmodded while the card is open: the mod tabs go.
     else if (!modAccount) history = null;
   });
-  function changed() {
+  // V107-R45 What an action just did shows at once; the logs take a moment, so it holds until
+  // they agree or LOCAL_MS passes.
+  let local = $state<{ ban: BanStatus | null; at: number } | null>(null);
+  let localEnds: ReturnType<typeof setTimeout> | undefined;
+  const ban = $derived(shown(local, history ? history.ban : undefined, Date.now()));
+  function changed(next?: BanStatus | null) {
+    if (next !== undefined) {
+      local = { ban: next, at: Date.now() };
+      clearTimeout(localEnds);
+      localEnds = setTimeout(() => (local = null), LOCAL_MS);
+    }
     clearTimeout(settle);
     settle = setTimeout(readHistory, LOGS_SETTLE_MS);
   }
-  onDestroy(() => clearTimeout(settle));
+  onDestroy(() => {
+    clearTimeout(settle);
+    clearTimeout(localEnds);
+  });
 
   const tabs = $derived<{ key: Tab; label: string; count: string }[]>(
     history
@@ -200,7 +219,7 @@
             {profile}
             {channel}
             account={modAccount}
-            ban={history ? history.ban : undefined}
+            {ban}
             onchange={changed}
             is={standingOf(last?.sender?.badges)}
           />

@@ -106,8 +106,9 @@ fn word(action: &str, on: bool) -> (ModGroup, String) {
         "unvip" => (Role, "took VIP from"),
         "mod" => (Role, "modded"),
         "unmod" => (Role, "unmodded"),
-        "add_blocked_term" => (Automod, "blocked"),
-        "remove_blocked_term" => (Automod, "unblocked"),
+        // V107-R44 As the chat line says it ("… added “x” as a blocked term.").
+        "add_blocked_term" => (Automod, "added the blocked term"),
+        "remove_blocked_term" => (Automod, "removed the blocked term"),
         "add_permitted_term" => (Automod, "allowed"),
         "remove_permitted_term" => (Automod, "stopped allowing"),
         "approved_automod_message" => (Automod, "approved a held message from"),
@@ -162,12 +163,8 @@ impl ModLine {
         };
         let about = match action {
             "delete" => m.message_body.clone().unwrap_or_default(),
-            a if a.ends_with("_term") => m
-                .terms
-                .iter()
-                .map(|t| format!("“{t}”"))
-                .collect::<Vec<_>>()
-                .join(", "),
+            // V107-R44 The mod log quotes it, once.
+            a if a.ends_with("_term") => m.terms.join(", "),
             "raid" => m
                 .amount
                 .map(|n| format!("{} viewers", cyex_core::number::grouped(n)))
@@ -640,6 +637,11 @@ mod tests {
         let mut d = moderate("delete");
         d.message_body = Some("bad".into());
         assert_eq!(ModLine::live(&d, None, "d".into(), 5).about, "bad");
+        let mut t = d.clone();
+        t.action = "add_blocked_term".into();
+        t.terms = vec!["foo".into(), "bar".into()];
+        let l = ModLine::live(&t, None, "t".into(), 5);
+        assert_eq!((l.action.as_str(), l.about.as_str()), ("added the blocked term", "foo, bar"), "V107-R44");
         let mut shared = moderate("shared_chat_ban");
         shared.source_channel = Some("other".into());
         let s = ModLine::live(&shared, None, "e".into(), 5);

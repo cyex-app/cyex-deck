@@ -5,6 +5,7 @@
 
 use std::time::Duration;
 
+use cyex_chat::model::ModRole;
 use cyex_moderation::restack::{self, Failure, Held, How, Refused};
 use cyex_twitch::gql;
 use cyex_twitch::helix::moderation as hm;
@@ -61,6 +62,10 @@ struct Live<'a> {
 impl restack::Twitch for Live<'_> {
     async fn send(&mut self) -> Result<(), Refused> {
         let (app, actor, who) = (self.app, self.actor, self.who);
+        // V107-R44 The echo's line says the length we sent, not what's left on arrival.
+        if let Some(s) = self.secs {
+            feeds::own_timeout(app, &actor.channel_id, who, Some(s));
+        }
         let res = match &self.path {
             Path::Helix(h, id) => hm::ban(&http(app), *h, actor.room(), id, self.secs, self.reason).await.0.map_err(|e| helix_refused(&e)),
             Path::Gql(g) => {
@@ -74,8 +79,13 @@ impl restack::Twitch for Live<'_> {
         };
         if let Err(r) = &res {
             eprintln!("restack: {who} refused ({})", r.text);
+            if self.secs.is_some() {
+                feeds::own_timeout(app, &actor.channel_id, who, None);
+            }
         }
-        res
+        // V107-R44 Only the broadcaster times out or bans mods: say so in plain words.
+        let mod_target = actor.role != ModRole::Broadcaster && !who.eq_ignore_ascii_case(&actor.channel);
+        res.map_err(|r| if mod_target { r.for_mod_target(self.secs.is_some()) } else { r })
     }
 
     async fn held(&mut self) -> Option<Held> {

@@ -267,9 +267,10 @@
     display: flex;
     color: var(--yellow);
   }
-  /* V107 A typed value, e.g. a custom pin length. */
+  /* V107 A typed value, e.g. a custom pin length. V107-R45 Lines up with the item text:
+     item padding 8 + icon 14 + gap 9 on the left, item padding 8 on the right. */
   .field {
-    padding: 2px 4px;
+    padding: 2px 8px 2px 31px;
   }
   .field input {
     width: 100%;
@@ -292,7 +293,7 @@
     outline-color: var(--red);
   }
   .field-error {
-    padding: 4px 4px 2px;
+    padding: 4px 0 2px;
     color: var(--red);
     font-size: 0.76rem;
   }

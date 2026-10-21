@@ -210,8 +210,11 @@
 <div class="modview">
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <header onpointerdown={grabFrom(ongrab)} class:grab={!!ongrab}>
-    <h2>Mod view · {login}</h2>
-    {#if !locked}<span class="hint">Drag panels by their title.</span>{/if}
+    <!-- V107-R46 The hint sits on the title's baseline. -->
+    <div class="name">
+      <h2>Mod view · {login}</h2>
+      {#if !locked}<span class="hint">Drag panels by their title.</span>{/if}
+    </div>
     {#if data.problem}
       <span class="hint bad">{data.problem}</span>
       <Button small variant="link" onclick={() => data.retry++}>Retry</Button>
@@ -279,6 +282,12 @@
   }
   header.grab {
     cursor: grab;
+  }
+  .name {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
   }
   h2 {
     margin: 0;

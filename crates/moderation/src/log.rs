@@ -10,6 +10,7 @@ pub fn describe(m: &Moderate, secs: Option<u64>) -> String {
     let who = m.target.as_ref().map_or("someone", |t| if t.name.is_empty() { &t.login } else { &t.name });
     let why = |s: String| if m.reason.is_empty() { format!("{s}.") } else { format!("{s}: {}", m.reason) };
     let term = || m.terms.iter().map(|t| format!("“{t}”")).collect::<Vec<_>>().join(", ");
+    let blocked = || if m.terms.len() > 1 { "blocked terms" } else { "a blocked term" };
     let toggled = |what: &str, on: bool| format!("{by} turned {what} {}.", if on { "on" } else { "off" });
     let action = m.action.strip_prefix("shared_chat_").unwrap_or(&m.action);
     let line = match action {
@@ -45,8 +46,9 @@ pub fn describe(m: &Moderate, secs: Option<u64>) -> String {
             None => format!("{by} raided {who}."),
         },
         "unraid" => format!("{by} canceled the raid."),
-        "add_blocked_term" => format!("{by} blocked {}.", term()),
-        "remove_blocked_term" => format!("{by} unblocked {}.", term()),
+        // V107-R44 The user's words.
+        "add_blocked_term" => format!("{by} added {} as {}.", term(), blocked()),
+        "remove_blocked_term" => format!("{by} removed {} as {}.", term(), blocked()),
         "add_permitted_term" => format!("{by} allowed {}.", term()),
         "remove_permitted_term" => format!("{by} no longer allows {}.", term()),
         "approve_unban_request" => why(format!("{by} approved {who}’s unban request")),
@@ -111,7 +113,11 @@ mod tests {
         assert_eq!(describe(&d, None), "Kuni deleted a message from X.");
         let mut b = m("add_blocked_term");
         b.terms = vec!["foo".into()];
-        assert_eq!(describe(&b, None), "Kuni blocked “foo”.");
+        assert_eq!(describe(&b, None), "Kuni added “foo” as a blocked term.");
+        b.action = "remove_blocked_term".into();
+        assert_eq!(describe(&b, None), "Kuni removed “foo” as a blocked term.");
+        b.terms.push("bar".into());
+        assert_eq!(describe(&b, None), "Kuni removed “foo”, “bar” as blocked terms.");
         let mut sc = m("shared_chat_ban");
         sc.source_channel = Some("other".into());
         assert_eq!(describe(&sc, None), "In other’s chat: Kuni banned X.");

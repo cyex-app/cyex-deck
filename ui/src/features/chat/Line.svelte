@@ -7,7 +7,7 @@
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import type { Look } from '../../ipc/bindings/Look';
   import { formatDuration, formatNumber, formatTime } from '../../lib/format';
-  import { lineSlots, modButtonsFor, type LineMod } from '../modview/lineMod';
+  import { MOD_ROLE_NOTE, modButtonsFor, takesModRole, type LineMod } from '../modview/lineMod';
   import { goneNote } from './gone';
   import { settings } from '../../lib/settings.svelte';
   import { streamer } from '../../lib/streamer.svelte';
@@ -68,10 +68,10 @@
   const canPin = $derived(!!mod && !!sender && !notice && !deleted && !has('history'));
   /** V101-33 Mod mode's buttons, for people this account can act on. */
   const modButtons = $derived(!notice && modButtonsFor(mod, sender, channel));
-  /** V107-R22b A deleted line (timed out, banned) keeps only Unban. The others keep their
-   *  room, unseen, so its name doesn't jump left and Unban stays in its column. */
+  /** V107-R44 Every line keeps all its buttons, a deleted one's (timed out, banned) too. */
   const slots = $derived(modButtons && mod ? mod.slots : []);
-  const kept = $derived(new Set(lineSlots(slots, deleted).map((s) => s.key)));
+  /** V107-R44 The broadcaster's timeout or ban on a mod takes the mod role: said in the tip. */
+  const roleNote = $derived(slots.length && takesModRole(mod, sender, channel) ? MOD_ROLE_NOTE : undefined);
   /** C30 The first link, for a card under the message. */
   const firstLink = $derived(
     c.linkCards && c.linkPreviews && !streamer.hides('hideLinkPreviews')
@@ -142,22 +142,22 @@
             {#if s.kind === 'timeout'}
               <button
                 class="mb"
-                class:held={!kept.has(s.key)}
                 class:len={s.short}
                 aria-label="Time out {formatDuration(s.secs)}"
                 data-mod="timeout"
                 data-secs={s.secs}
                 data-tip="Time out {formatDuration(s.secs)}"
+                data-hint={roleNote}
                 >{#if s.short}{formatDuration(s.secs).replace(' ', '')}{:else}<Icon name="clock" size={13} />{/if}</button
               >
             {:else if s.kind === 'delete'}
-              <button class="mb" class:held={!kept.has(s.key)} aria-label="Delete" data-mod="delete" data-tip="Delete"><Icon name="trash" size={13} /></button>
+              <button class="mb" aria-label="Delete" data-mod="delete" data-tip="Delete"><Icon name="trash" size={13} /></button>
             {:else if s.kind === 'warn'}
-              <button class="mb" class:held={!kept.has(s.key)} aria-label="Warn" data-mod="warn" data-tip="Warn"><Icon name="alert" size={13} /></button>
+              <button class="mb" aria-label="Warn" data-mod="warn" data-tip="Warn"><Icon name="alert" size={13} /></button>
             {:else if s.kind === 'unban'}
               <button class="mb" aria-label="Unban" data-mod="unban" data-tip="Unban"><Icon name="undo" size={13} /></button>
             {:else}
-              <button class="mb ban" class:held={!kept.has(s.key)} aria-label="Ban" data-mod="ban" data-tip="Ban"><Icon name="gavel" size={13} /></button>
+              <button class="mb ban" aria-label="Ban" data-mod="ban" data-tip="Ban" data-hint={roleNote}><Icon name="gavel" size={13} /></button>
             {/if}
           {/each}
         </span>
@@ -542,10 +542,6 @@
   }
   .mb.ban:hover {
     color: var(--red);
-  }
-  /* V107-R22b Kept for its room on a deleted line. */
-  .mb.held {
-    visibility: hidden;
   }
   /* M10 Several timeouts: their lengths instead of the clock. */
   .mb.len {

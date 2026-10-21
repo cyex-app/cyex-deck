@@ -50,10 +50,11 @@ pub async fn command(app: &AppHandle, account: &str, login: &str, cmd: ModComman
             }
             // V107 Twitch takes a deleted message's pin down with it (seen 2026/10/19).
             crate::chat::live::message_gone(app, &actor.channel_id, &msg_id);
-            // V107-P4 Twitch's CLEARMSG only strikes the line through, so this is the one
-            // notice, in every chat of the channel (typed or from the mod bar).
+            // V107-P4 Twitch's CLEARMSG only strikes the line through, so one notice says it.
+            // V107-R44 The mod feed's echo ("cyexbot deleted a message from …") is that
+            // notice; this line only shows when no echo comes.
             let line = deleted_line(who.as_deref(), text.as_deref());
-            crate::chat::notice_line(app, &actor.channel, cyex_chat::model::NoticeKind::Moderation, &line);
+            super::feeds::own_delete_done(app, &actor.channel, &msg_id, line);
             Ok(None)
         }
         C::Clear => delete(app, &actor, None).await.map(|()| Some("Chat cleared.".into())),

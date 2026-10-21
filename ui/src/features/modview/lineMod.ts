@@ -105,15 +105,24 @@ interface Who {
 }
 
 /** Mod mode's buttons go on chat lines from people a mod can act on: not the broadcaster,
- * not the account itself, and not other mods unless the account is the broadcaster or a
- * lead mod (V107-R14 Rust's `quick` answer; V107-R22b lead mods too). */
+ * not the account itself, and not other mods unless the account is the broadcaster (V107-R14
+ * Rust's `quick` answer; V107-R44 Twitch lets only the broadcaster time out or ban a mod). */
 export function modButtonsFor(mod: LineMod | null, sender: Who | null | undefined, channel: string): boolean {
   if (!mod?.inline || !sender || !mod.slots.length) return false;
   return may(mod.caps, 'quick', whose(sender, mod.me, channel)).offered;
 }
 
-/** V107-R22b The buttons a line shows: a deleted line (its sender timed out or banned) keeps
- *  only Unban, so a ban can be lifted from their older lines. */
-export function lineSlots(slots: ModSlot[], deleted: boolean): ModSlot[] {
-  return deleted ? slots.filter((s) => s.kind === 'unban') : slots;
+/** V107-R44 The broadcaster timing out or banning a mod takes their mod role too. */
+export const MOD_ROLE_NOTE = 'Also removes their mod role.';
+
+/** V107-R44 Time out and Ban in a user's menu: on a mod only for the broadcaster, with the note. */
+export function onModTarget(caps: Caps, isMod: boolean | undefined): { offered: boolean; note?: string } {
+  if (!isMod) return { offered: true };
+  return caps.broadcaster ? { offered: true, note: MOD_ROLE_NOTE } : { offered: false };
+}
+
+/** V107-R44 Whether a timeout or ban on this sender's line takes a mod role: the broadcaster
+ *  acting on a mod (no one else gets those buttons there). */
+export function takesModRole(mod: LineMod | null, sender: Who | null | undefined, channel: string): boolean {
+  return !!mod?.caps.broadcaster && !!sender && whose(sender, mod.me, channel) === 'mod';
 }

@@ -19,6 +19,9 @@
   import { FAIL, QUICK } from './notices';
   import { mods, timeouts, treatItems } from '../modview/moderation.svelte';
   import { timeLeft } from './countdown';
+  import { MOD_ROLE_NOTE } from '../modview/lineMod';
+  import { afterAction } from './optimistic';
+  import { accounts } from '../../lib/accounts.svelte';
   import { standingOf, type Standing } from '../modview/standing';
   import { standings } from '../modview/standings.svelte';
   import { errorText } from '../../lib/errors';
@@ -31,8 +34,9 @@
     account: string;
     /** From the mod logs; `undefined` while unknown (no GQL sign-in). */
     ban: BanStatus | null | undefined;
-    /** After an action, so the card reads the logs again. */
-    onchange: () => void;
+    /** After an action, so the card reads the logs again. V107-R45 `next` is the ban state the
+     *  action leaves (`null` none), shown at once. */
+    onchange: (next?: BanStatus | null) => void;
     /** M12 Mod or VIP, from their last line's badges. */
     is?: Standing;
   }
@@ -41,6 +45,8 @@
 
   const role = $derived(mods.role(account, channel));
   const caps = $derived(mods.caps(account, channel));
+  /** V107-R44 The broadcaster acting on a mod: Twitch also takes the mod role. */
+  const roleNote = $derived(is?.mod && caps?.broadcaster ? `. ${MOD_ROLE_NOTE}` : '');
   // V107-M8 Mod and VIP changes are the broadcaster's and lead mods' (1.50, `offered`).
   const lead = $derived(caps?.roles ?? false);
   /** What Twitch says they hold here (public badges), over their last line's. */
@@ -79,7 +85,7 @@
     try {
       const line = await modIpc.run(account, channel, name, args);
       if (line) toast.info(line, QUICK);
-      onchange();
+      onchange(afterAction(name, args, Date.now(), accounts.list.find((a) => a.userId === account)?.displayName ?? null));
       // Only these change who holds a VIP slot.
       if (['vip', 'unvip', 'mod', 'unmod'].includes(name)) slotsAsk++;
     } catch (e) {
@@ -105,7 +111,7 @@
     };
     openMenu(
       e.currentTarget as HTMLElement,
-      [...(ban ? [] : [{ label: 'Unban', icon: 'undo' as const, run: () => line(`/unban ${profile.login}`) }]), ...treatItems(caps, profile.login, line, holds, false)],
+      treatItems(caps, profile.login, line, holds, false),
       'end',
     );
   }
@@ -121,11 +127,12 @@
       now = Date.now();
       if (now >= endsAt) {
         stop();
-        onchange();
+        onchange(null);
       }
     }, 1000);
     return stop;
   });
+  const banned = $derived(!!ban && (!ban.until || endsAt > now));
   const left = $derived(endsAt ? timeLeft(endsAt, now) : null);
 
   const until = $derived.by(() => {
@@ -139,15 +146,18 @@
 {#if role}
   <section>
     <div class="bar">
-      {#if ban}
-        <button class="act ok" disabled={busy} onclick={() => run('unban', profile.login)} use:tooltip={'Unban'}>
-          <Icon name="undo" size={15} />
-        </button>
-      {:else}
-        <button class="act bad" disabled={busy} onclick={() => run('ban', profile.login)} use:tooltip={'Ban'}>
-          <Icon name="gavel" size={15} />
-        </button>
-      {/if}
+      <!-- V107-R45 Both stay put; Unban only works where there is something to lift. -->
+      <button class="act bad" disabled={busy} onclick={() => run('ban', profile.login)} use:tooltip={`Ban${roleNote}`}>
+        <Icon name="gavel" size={15} />
+      </button>
+      <button
+        class="act ok"
+        disabled={busy || !banned}
+        onclick={() => run('unban', profile.login)}
+        use:tooltip={banned ? 'Unban' : 'Not banned or timed out'}
+      >
+        <Icon name="undo" size={15} />
+      </button>
       <button
         class="act warn"
         class:on={warning}
@@ -159,12 +169,12 @@
       </button>
       <div class="times">
         {#each timeouts() as t (t.secs)}
-          <button disabled={busy} onclick={() => run('timeout', `${profile.login} ${t.secs}`)} use:tooltip={`Time out ${t.label}`}
+          <button disabled={busy} onclick={() => run('timeout', `${profile.login} ${t.secs}`)} use:tooltip={`Time out ${t.label}${roleNote}`}
             >{t.label}</button
           >
         {/each}
       </div>
-      <IconButton icon="more" label="More" hint="Unban, monitor, restrict." size={15} onclick={more} />
+      <IconButton icon="more" label="More" hint="Monitor, restrict." size={15} onclick={more} />
     </div>
     {#if lead}
       <div class="roles">
@@ -209,7 +219,7 @@
     {/if}
     {#if ban && (!ban.until || left)}
       <p class="state">
-        {ban.until ? `Timed out until ${until} (${left})` : 'Banned'}{ban.by ? ` by ${ban.by}` : ''}{ban.reason ? `: ${ban.reason}` : ''}
+        {ban.until ? `Timed out until ${until}` : 'Banned'}{ban.by ? ` by ${ban.by}` : ''}{ban.until ? ` · ${left}` : ''}{ban.reason ? `: ${ban.reason}` : ''}
       </p>
     {/if}
   </section>
@@ -244,8 +254,14 @@
   .bad:hover {
     color: var(--red);
   }
-  .ok:hover {
+  .ok:hover:not(:disabled) {
     color: var(--green);
+  }
+  .act:disabled {
+    opacity: 0.4;
+  }
+  .act:disabled:hover {
+    background: none;
   }
   .warn:hover,
   .warn.on {

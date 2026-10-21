@@ -1,6 +1,6 @@
 //! V107-R19 Changes the account's profile picture, banner and offline image from the app:
 //! ask Twitch for an upload address, PUT the file, then watch the public image URLs until
-//! they change. Twitch's internal GQL, not run live yet. The image a change replaces is kept
+//! they change. Twitch's internal GQL, live-tested 2026/10/21 (V107-R19b). The image a change replaces is kept
 //! (`backup`) so "Restore previous" can put it back. Mocks builds can point everything at
 //! `tools/mock/profile-images.mjs` (`CYEX_GQL_PROFILE_MOCK`, test data folder only).
 
@@ -266,6 +266,8 @@ async fn upload(
     let up = api::create(&t.http, t.auth(), t.base(), kind.api(), &t.user_id, format)
         .await
         .map_err(|e| log_map("create", &e))?;
+    // V107-R19b Host, path and query keys only: never the signature.
+    eprintln!("profile images: put to {}", api::redact(&up.url));
     api::put(&t.http, &up.url, bytes).await.map_err(|e| log_map("put", &e))?;
     let old = before.get(kind.api()).to_owned();
     let start = Instant::now();

@@ -3,9 +3,9 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import type { ModButtons } from '../../ipc/bindings/ModButtons';
-import { addTimeout, buttonKey, buttonOn, canAddButton, fullOrder, lineSlots, modButtonsFor, modSlots, retimeButton, toggleButton, type LineMod } from './lineMod.ts';
+import { addTimeout, buttonKey, buttonOn, canAddButton, fullOrder, modButtonsFor, modSlots, onModTarget, retimeButton, takesModRole, toggleButton, type LineMod } from './lineMod.ts';
 
-const buttons: ModButtons = { delete: true, timeouts: [60], warn: false, ban: true, unban: false, unban: false, order: ['delete', { timeout: 60 }, 'warn', 'ban'] };
+const buttons: ModButtons = { delete: true, timeouts: [60], warn: false, ban: true, unban: false, order: ['delete', { timeout: 60 }, 'warn', 'ban'] };
 // V107-R14 Rust's answers per role, written by cargo test (crates/moderation/src/may.rs).
 const caps = JSON.parse(readFileSync(new URL('../../ipc/bindings/caps.fixture.json', import.meta.url), 'utf8'));
 const mod: LineMod = { me: '1', caps: caps.moderator, inline: true, slots: modSlots(buttons) };
@@ -131,9 +131,10 @@ test('V107-R22 every mod role gets buttons on viewers, from its own channel too'
   const owner = { ...mod, me: '9', caps: caps.broadcaster };
   assert.equal(modButtonsFor(owner, user('9', 'chan', 'broadcaster'), 'chan'), false);
   assert.equal(modButtonsFor(owner, user('2', 'viewer'), 'chan'), true);
-  // V107-R22b Lead mods get them on other mods too; plain mods don't (first test).
-  assert.equal(modButtonsFor({ ...owner, caps: caps.leadModerator }, user('4', 'othermod', 'moderator'), 'chan'), true);
-  assert.equal(modButtonsFor({ ...owner, caps: caps.leadModerator }, user('5', 'lead', 'lead_moderator'), 'chan'), true);
+  // V107-R44 Only the broadcaster gets them on other mods: Twitch refuses lead mods there.
+  assert.equal(modButtonsFor({ ...owner, caps: caps.leadModerator }, user('4', 'othermod', 'moderator'), 'chan'), false);
+  assert.equal(modButtonsFor({ ...owner, caps: caps.leadModerator }, user('5', 'lead', 'lead_moderator'), 'chan'), false);
+  assert.equal(modButtonsFor(owner, user('5', 'lead', 'lead_moderator'), 'chan'), true);
 });
 
 test('V107-R22 a typed timeout goes on as a button, last; a fifth or a twin is refused', () => {
@@ -171,9 +172,18 @@ test('V107-R22b Unban: off by default, after Ban, dragged like the others', () =
   assert.deepEqual(fullOrder(buttons).map(buttonKey), ['delete', 't60', 'warn', 'ban', 'unban'], 'an order from before Unban');
 });
 
-test("V107-R22b a timed-out sender's older lines keep only Unban", () => {
-  const slots = modSlots({ ...buttons, unban: true });
-  assert.deepEqual(lineSlots(slots, true).map((s) => s.key), ['unban']);
-  assert.deepEqual(lineSlots(slots, false), slots);
-  assert.deepEqual(lineSlots(modSlots(buttons), true), [], 'Unban off: nothing on deleted lines');
+test('V107-R44 the broadcaster is told a timeout or ban takes a mod role', () => {
+  const owner = { ...mod, me: '9', caps: caps.broadcaster };
+  assert.equal(takesModRole(owner, user('4', 'othermod', 'moderator'), 'chan'), true);
+  assert.equal(takesModRole(owner, user('5', 'lead', 'lead_moderator'), 'chan'), true);
+  assert.equal(takesModRole(owner, user('2', 'viewer', 'vip'), 'chan'), false);
+  assert.equal(takesModRole(owner, user('9', 'chan', 'broadcaster'), 'chan'), false);
+  assert.equal(takesModRole({ ...owner, caps: caps.leadModerator }, user('4', 'othermod', 'moderator'), 'chan'), false);
+  assert.equal(takesModRole(null, user('4', 'othermod', 'moderator'), 'chan'), false);
+  // The name menu: Time out and Ban on a mod, for the broadcaster only, with the note.
+  assert.deepEqual(onModTarget(caps.broadcaster, true), { offered: true, note: 'Also removes their mod role.' });
+  assert.deepEqual(onModTarget(caps.leadModerator, true), { offered: false });
+  assert.deepEqual(onModTarget(caps.moderator, true), { offered: false });
+  assert.deepEqual(onModTarget(caps.moderator, false), { offered: true });
+  assert.deepEqual(onModTarget(caps.broadcaster, undefined), { offered: true });
 });

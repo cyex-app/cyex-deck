@@ -1,10 +1,22 @@
-<!-- The name that follows the pointer while a tab or tile is dragged. -->
+<!-- The name that follows the pointer while a tab or tile is dragged. V107-R46 Near the
+     window's right or bottom edge it flips to the pointer's other side, so a panel dragged
+     out of the dock's bottom row keeps its whole name. -->
 <script lang="ts">
+  import { ghostAt } from './ghost';
   import { drag } from './drag.svelte';
+
+  let width = $state(0);
+  let height = $state(0);
+  let view = $state({ width: innerWidth, height: innerHeight });
+  const at = $derived(ghostAt({ x: drag.x, y: drag.y }, { width, height }, view));
 </script>
 
+<svelte:window onresize={() => (view = { width: innerWidth, height: innerHeight })} />
+
 {#if drag.item}
-  <div class="ghost" style:left="{drag.x + 12}px" style:top="{drag.y + 10}px">{drag.label}</div>
+  <div class="ghost" style:left="{at.left}px" style:top="{at.top}px" bind:offsetWidth={width} bind:offsetHeight={height}>
+    {drag.label}
+  </div>
 {/if}
 
 <style>

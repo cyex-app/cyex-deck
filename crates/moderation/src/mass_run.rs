@@ -108,11 +108,12 @@ pub async fn batches(
         let mut pending: Vec<String> = chunk.to_vec();
         let mut n = 0;
         while !pending.is_empty() {
-            if io.stopped() {
-                return Ok(again);
-            }
             if !first {
                 io.wait(mass::GQL_GAP_MS).await;
+            }
+            // After the gap too: a Stop pressed while waiting sends nothing more.
+            if io.stopped() {
+                return Ok(again);
             }
             first = false;
             let mut retry = Vec::new();
@@ -200,6 +201,9 @@ mod tests {
         singles: VecDeque<Answer>,
         lookups: VecDeque<Result<Vec<&'static str>, Fault>>,
         stop_after: Option<usize>,
+        /// Stop is pressed during the next wait.
+        stop_in_wait: bool,
+        stopped_now: bool,
         sent: Vec<Vec<String>>,
         waits: Vec<i64>,
     }
@@ -207,9 +211,10 @@ mod tests {
     impl Io for Fake {
         async fn wait(&mut self, ms: i64) {
             self.waits.push(ms);
+            self.stopped_now |= self.stop_in_wait;
         }
         fn stopped(&self) -> bool {
-            self.stop_after.is_some_and(|n| self.sent.len() >= n)
+            self.stopped_now || self.stop_after.is_some_and(|n| self.sent.len() >= n)
         }
         fn progress(&mut self, _: &Tally) {}
     }
@@ -386,5 +391,14 @@ mod tests {
         let mut t = Tally::default();
         let out = block_on(resolve(&mut f, &names(300), true, &mut t)).unwrap();
         assert_eq!((f.sent.len(), out.len()), (1, 100));
+    }
+
+    /// A Stop pressed during the gap between batches sends nothing more (live test 2026/10/21).
+    #[test]
+    fn stop_during_the_gap_sends_no_more_batches() {
+        let mut io = Fake { stop_in_wait: true, ..Fake::default() };
+        let mut tally = Tally::default();
+        block_on(batches(&mut io, &names(60), 30, false, false, &mut tally)).unwrap();
+        assert_eq!(io.sent.len(), 1, "only the batch before the gap went out");
     }
 }

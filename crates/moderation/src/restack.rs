@@ -68,6 +68,21 @@ pub fn plan(timeout: bool, r: Refusal, held: Option<Held>) -> Plan {
     }
 }
 
+/// V107-R44 Only the broadcaster times out or bans mods: Twitch's refusal for a mod target
+/// in plain words, `None` for any other refusal. GQL says `TARGET_IS_MOD`; Helix a 400 that
+/// names a moderator or says the user "may not be" banned or timed out. Callers ask only
+/// for a target that isn't the channel itself and an account that isn't the broadcaster.
+pub fn mod_target_line(r: Refusal, timeout: bool) -> Option<&'static str> {
+    let is_mod = match r {
+        Refusal::Gql(code) => matches!(code, "TARGET_IS_MOD" | "TARGET_IS_MODERATOR"),
+        Refusal::Helix { status, message } => {
+            let m = message.to_ascii_lowercase();
+            matches!(status, 400 | 403) && (m.contains("moderator") || m.contains("may not be"))
+        }
+    };
+    is_mod.then_some(if timeout { "Only the broadcaster can time out mods." } else { "Only the broadcaster can ban mods." })
+}
+
 /// The line for [`Plan::KeepBan`].
 pub fn keep_ban_line(who: &str) -> String {
     format!("{who} is banned. Unban them first to time them out.")
@@ -96,6 +111,14 @@ pub enum How {
 }
 
 impl Refused {
+    /// V107-R44 [`mod_target_line`] in place of the text, where it applies.
+    pub fn for_mod_target(self, timeout: bool) -> Refused {
+        match self.refusal().and_then(|r| mod_target_line(r, timeout)) {
+            Some(line) => Refused { text: line.into(), ..self },
+            None => self,
+        }
+    }
+
     fn refusal(&self) -> Option<Refusal<'_>> {
         self.how.as_ref().map(|h| match h {
             How::Helix { status, message } => Refusal::Helix { status: *status, message },
@@ -221,6 +244,26 @@ mod tests {
         assert_eq!(plan(false, GQL, Some(Held::Ban)), Plan::Fail, "already banned");
         assert_eq!(plan(false, HELIX, None), Plan::Fail);
         assert_eq!(keep_ban_line("caressz"), "caressz is banned. Unban them first to time them out.");
+    }
+
+    #[test]
+    fn v107_r44_mod_targets_in_plain_words() {
+        const T: &str = "Only the broadcaster can time out mods.";
+        const B: &str = "Only the broadcaster can ban mods.";
+        assert_eq!(mod_target_line(Refusal::Gql("TARGET_IS_MOD"), true), Some(T));
+        assert_eq!(mod_target_line(Refusal::Gql("TARGET_IS_MODERATOR"), false), Some(B));
+        let helix = |m| Refusal::Helix { status: 400, message: m };
+        assert_eq!(mod_target_line(helix("The user specified in the user_id field may not be timed out."), true), Some(T));
+        assert_eq!(mod_target_line(helix("Cannot ban a moderator."), false), Some(B));
+        assert_eq!(mod_target_line(GQL, true), None, "already banned is not about mods");
+        assert_eq!(mod_target_line(HELIX, false), None);
+        assert_eq!(mod_target_line(Refusal::Gql("TARGET_IS_VIP"), true), None);
+        assert_eq!(mod_target_line(Refusal::Helix { status: 429, message: "moderator" }, true), None);
+        let r = Refused { how: Some(How::Gql("TARGET_IS_MOD".into())), text: "caressz is a moderator.".into() };
+        assert_eq!(r.clone().for_mod_target(true).text, T);
+        assert_eq!(r.for_mod_target(false).text, B);
+        let net = Refused { how: None, text: "couldn’t reach Twitch".into() };
+        assert_eq!(net.clone().for_mod_target(true), net);
     }
 
     #[test]

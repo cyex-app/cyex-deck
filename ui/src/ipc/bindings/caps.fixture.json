@@ -281,11 +281,11 @@
       },
       "mod": {
         "fresh": {
-          "offered": true,
+          "offered": false,
           "why": null
         },
         "old": {
-          "offered": true,
+          "offered": false,
           "why": null
         }
       },

@@ -1,6 +1,7 @@
 //! V107-R19 Profile picture, banner and offline image uploads. Twitch's internal GQL, taken
-//! from twitch.tv's web JS (no persisted hash, raw text). Not run live yet: the mutation
-//! names, input fields and format strings all live in `OPS` / `Format::gql` below.
+//! from twitch.tv's settings chunk (no persisted hash, raw text; checked 2026/10/21, V107-R19b):
+//! `EditProfile_Create…UploadURL($input: {userID, format: PNG|JPG|GIF})`, then a plain PUT of
+//! the file to `decodeURI(uploadURL)` with no Content-Type (`new Blob([file])`).
 
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -33,8 +34,9 @@ fn op(kind: ImageKind) -> (&'static str, &'static str) {
 /// The mutation text for a kind, as twitch.tv sends it.
 pub fn mutation(kind: ImageKind) -> String {
     let (field, input) = op(kind);
+    let name = input.trim_end_matches("Input");
     format!(
-        "mutation EditProfile_{field}($input: {input}!) {{ {field}(input: $input) {{ uploadID uploadURL error {{ code }} }} }}"
+        "mutation EditProfile_{name}($input: {input}!) {{ {field}(input: $input) {{ uploadID uploadURL error {{ code }} }} }}"
     )
 }
 
@@ -59,7 +61,7 @@ impl Format {
         }
     }
 
-    /// The enum string in the mutation input (not confirmed live).
+    /// The `ImageFormat` enum value Twitch's web client sends.
     pub fn gql(self) -> &'static str {
         match self {
             Self::Png => "PNG",
@@ -103,26 +105,50 @@ fn read_create(kind: ImageKind, data: Value) -> Result<Upload> {
         return Err(Error::Refused(e.code));
     }
     match (out.upload_id, out.upload_url) {
-        (Some(id), Some(url)) if !url.is_empty() => Ok(Upload { id, url: percent_decode(&url) }),
+        (Some(id), Some(url)) if !url.is_empty() => Ok(Upload { id, url: decode_uri(&url) }),
         _ => Err(Error::Refused("NO_UPLOAD_URL".into())),
     }
 }
 
-/// Sends the raw file, no headers (as twitch.tv does).
+/// The PUT as twitch.tv sends it: the raw file, the signed URL untouched, no Content-Type
+/// (the signature may cover headers, so none are added).
+fn put_request(http: &Http, url: &str, bytes: Vec<u8>) -> Result<reqwest::Request> {
+    http.0.put(url).body(bytes).build().map_err(|e| Error::Network(e.without_url()))
+}
+
+/// Sends the raw file. A refusal carries the storage's error `<Code>` (S3 XML), if any.
 pub async fn put(http: &Http, url: &str, bytes: Vec<u8>) -> Result<()> {
-    let res = http
-        .0
-        .put(url)
-        .body(bytes)
-        .send()
-        .await
-        .map_err(|e| Error::Network(e.without_url()))?;
+    let req = put_request(http, url, bytes)?;
+    let res = http.0.execute(req).await.map_err(|e| Error::Network(e.without_url()))?;
     let status = res.status().as_u16();
     if (200..300).contains(&status) {
-        Ok(())
-    } else {
-        Err(Error::Api { status, message: "upload".into() })
+        return Ok(());
     }
+    let body = res.text().await.unwrap_or_default();
+    let message = match xml_code(&body) {
+        Some(code) => format!("upload: {code}"),
+        None => "upload".into(),
+    };
+    Err(Error::Api { status, message })
+}
+
+/// `<Code>X</Code>` from an S3-style error body.
+fn xml_code(body: &str) -> Option<&str> {
+    let start = body.find("<Code>")? + 6;
+    let len = body[start..].find("</Code>")?;
+    let code = body[start..start + len].trim();
+    (!code.is_empty() && code.len() <= 64).then_some(code)
+}
+
+/// The URL without its query values, for logs: the signature and token never get printed.
+pub fn redact(url: &str) -> String {
+    let (base, query) = url.split_once('?').unwrap_or((url, ""));
+    let keys: Vec<&str> = query
+        .split('&')
+        .filter(|p| !p.is_empty())
+        .map(|p| p.split_once('=').map_or(p, |(k, _)| k))
+        .collect();
+    if keys.is_empty() { base.to_owned() } else { format!("{base}?{}", keys.join("&")) }
 }
 
 /// The user's current images, full size. Empty when not set.
@@ -167,8 +193,11 @@ pub fn data_url(bytes: &[u8]) -> String {
     format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes))
 }
 
-/// `decodeURIComponent`: `%XX` to bytes, the rest as is. A broken escape stays literal.
-pub fn percent_decode(s: &str) -> String {
+/// `decodeURI`, as twitch.tv applies to the upload URL: `%XX` to bytes except the reserved
+/// `;/?:@&=+$,#`, which stay escaped (decoding `%2B` or `%2F` inside a signed query breaks the
+/// signature). A broken escape stays literal.
+pub fn decode_uri(s: &str) -> String {
+    const KEEP: &[u8] = b";/?:@&=+$,#";
     let b = s.as_bytes();
     let mut out = Vec::with_capacity(b.len());
     let mut i = 0;
@@ -177,6 +206,7 @@ pub fn percent_decode(s: &str) -> String {
         if b[i] == b'%'
             && i + 2 < b.len()
             && let (Some(h), Some(l)) = (hex(b[i + 1]), hex(b[i + 2]))
+            && !KEEP.contains(&((h * 16 + l) as u8))
         {
             out.push((h * 16 + l) as u8);
             i += 3;
@@ -217,11 +247,36 @@ mod tests {
     }
 
     #[test]
-    fn decodes_like_decode_uri_component() {
-        assert_eq!(percent_decode("https%3A%2F%2Fx.test%2Fa%3Fb%3D1"), "https://x.test/a?b=1");
-        assert_eq!(percent_decode("a%2"), "a%2");
-        assert_eq!(percent_decode("a%zz+b"), "a%zz+b");
-        assert_eq!(percent_decode("plain"), "plain");
+    fn decodes_like_decode_uri() {
+        let signed = "https://s3.test/u/a%20b.png?X-Amz-Credential=AK%2F2026%2Fs3&X-Amz-Security-Token=ab%2Bc%3D%3D&s=1";
+        assert_eq!(
+            decode_uri(signed),
+            "https://s3.test/u/a b.png?X-Amz-Credential=AK%2F2026%2Fs3&X-Amz-Security-Token=ab%2Bc%3D%3D&s=1"
+        );
+        assert_eq!(decode_uri("https%3A%2F%2Fx.test"), "https%3A%2F%2Fx.test");
+        assert_eq!(decode_uri("a%2"), "a%2");
+        assert_eq!(decode_uri("a%zz+b"), "a%zz+b");
+        assert_eq!(decode_uri("plain"), "plain");
+    }
+
+    #[test]
+    fn put_keeps_the_signed_url_and_adds_no_headers() {
+        let http = Http::new().unwrap();
+        let url = "https://uploads.test/p/u1?X-Amz-Credential=AK%2F2026%2Fus-west-2%2Fs3&X-Amz-Security-Token=ab%2Bc%3D%3D&X-Amz-Signature=f00";
+        let req = put_request(&http, url, b"\x89PNG".to_vec()).unwrap();
+        assert_eq!(req.method(), reqwest::Method::PUT);
+        assert_eq!(req.url().as_str(), url);
+        assert!(req.headers().get(reqwest::header::CONTENT_TYPE).is_none());
+        assert_eq!(req.body().and_then(|b| b.as_bytes()), Some(&b"\x89PNG"[..]));
+    }
+
+    #[test]
+    fn reads_the_storage_code_and_redacts() {
+        let xml = "<?xml version=\"1.0\"?><Error><Code>SignatureDoesNotMatch</Code><Message>x</Message></Error>";
+        assert_eq!(xml_code(xml), Some("SignatureDoesNotMatch"));
+        assert_eq!(xml_code("nope"), None);
+        assert_eq!(redact("https://h.test/p?X-Amz-Signature=secret&b=2"), "https://h.test/p?X-Amz-Signature&b");
+        assert_eq!(redact("https://h.test/p"), "https://h.test/p");
     }
 
     #[test]
@@ -229,15 +284,15 @@ mod tests {
         let m = mutation(ImageKind::Banner);
         assert!(m.contains("createProfileBannerImageUploadURL(input: $input)"));
         assert!(m.contains("$input: CreateProfileBannerImageUploadURLInput!"));
-        assert!(mutation(ImageKind::Avatar).starts_with("mutation EditProfile_createProfileImageUploadURL("));
+        assert!(mutation(ImageKind::Avatar).starts_with("mutation EditProfile_CreateProfileImageUploadURL("));
     }
 
     #[test]
     fn reads_the_upload_or_the_code() {
         let ok = json!({ "createProfileImageUploadURL": {
-            "uploadID": "u1", "uploadURL": "http%3A%2F%2F127.0.0.1%3A1%2Fput%2Fu1", "error": null } });
+            "uploadID": "u1", "uploadURL": "http://127.0.0.1:1/put/u1?sig=a%2Bb", "error": null } });
         let up = read_create(ImageKind::Avatar, ok).unwrap();
-        assert_eq!(up, Upload { id: "u1".into(), url: "http://127.0.0.1:1/put/u1".into() });
+        assert_eq!(up, Upload { id: "u1".into(), url: "http://127.0.0.1:1/put/u1?sig=a%2Bb".into() });
         let bad = json!({ "createChannelOfflineImageUploadURL": {
             "uploadID": null, "uploadURL": null, "error": { "code": "FILE_SIZE_VALIDATION_FAILED" } } });
         let e = read_create(ImageKind::Offline, bad).unwrap_err();

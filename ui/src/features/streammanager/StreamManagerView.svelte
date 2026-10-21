@@ -285,14 +285,17 @@
   {:else}
     <header>
       <Avatar src={m.avatar} name={m.display} size={28} />
-      <h2>{m.display}</h2>
-      {#if s?.live}
-        <span class="live">Live</span>
-        <span class="up">{uptimeShort(s.startedAt, now)}</span>
-      {:else if s}
-        <span class="off">Offline</span>
-      {/if}
-      {#if !locked}<span class="hint">Drag panels by their title.</span>{/if}
+      <!-- V107-R46 Name, status and hint share the name's baseline. -->
+      <div class="name">
+        <h2>{m.display}</h2>
+        {#if s?.live}
+          <span class="live">Live</span>
+          <span class="up">{uptimeShort(s.startedAt, now)}</span>
+        {:else if s}
+          <span class="off">Offline</span>
+        {/if}
+        {#if !locked}<span class="hint">Drag panels by their title.</span>{/if}
+      </div>
       <span class="spacer"></span>
       {#if cfg.layout || cfg.chatKept != null}
         <Button small variant="link" onclick={resetLayout}>Reset layout</Button>
@@ -368,13 +371,19 @@
     padding: 8px 12px;
     border-bottom: 1px solid var(--border);
   }
+  .name {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
   h2 {
     margin: 0;
     font-size: 0.95rem;
   }
   .live {
     display: inline-flex;
-    align-items: center;
+    align-items: baseline;
     gap: 5px;
     color: var(--red);
     font-size: 0.75rem;
@@ -382,6 +391,7 @@
   }
   .live::before {
     content: '';
+    align-self: center;
     width: 7px;
     height: 7px;
     border-radius: 50%;

@@ -14,6 +14,18 @@ test('Twitch client errors become sentences', () => {
   assert.equal(errorText('unexpected answer from Twitch'), 'Couldn’t read Twitch’s answer.');
 });
 
+test('V107-R44 only real connection trouble reads as network', () => {
+  assert.equal(errorKind('operation timed out'), 'network');
+  assert.equal(errorKind('The request timed out.'), 'network');
+  assert.equal(errorKind('net::ERR_TIMED_OUT'), 'network');
+  assert.equal(errorKind('NetworkError when attempting to fetch resource.'), 'network');
+  // Twitch's own words about a timeout are a refusal, not the connection.
+  assert.equal(errorText('The user specified in the user_id field may not be timed out.'), 'The user specified in the user_id field may not be timed out.');
+  assert.equal(errorText('Only the broadcaster can time out mods.'), 'Only the broadcaster can time out mods.');
+  assert.equal(errorKind('caressz is timed out already'), 'message');
+  assert.equal(errorKind('the network error page'), 'message');
+});
+
 test('GQL refusals hide the raw code', () => {
   assert.equal(errorText('Twitch said no: NOT_ENOUGH_POINTS'), 'Not enough channel points.');
   assert.equal(errorText('Twitch said no: SOME_GQL_CODE'), 'Twitch said no.');

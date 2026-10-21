@@ -12,6 +12,7 @@ import { modIpc, type ModRole } from '../../ipc/moderation';
 import { pinCustomSecs } from './pinLength';
 import { timeoutSecs } from './timeoutLength';
 import { roleItems, type Standing } from './standing';
+import { onModTarget } from './lineMod';
 import { errorText } from '../../lib/errors';
 
 /** 2.11 The quick timeout lengths from Settings → Chat, shortest first. */
@@ -100,16 +101,16 @@ type Run = (line: string) => void;
 /** Mod actions on a user, for the name menu (1.49) and the viewer list (C36). `warn` asks
  * for the reason: the chat box in a chat, the usercard elsewhere. */
 export function userItems(caps: Caps, login: string, run: Run, warn: () => void, is?: Standing): MenuEntry[] {
+  // V107-R44 Only the broadcaster times out or bans a mod, and that takes the mod role.
+  const onMod = onModTarget(caps, is?.mod);
   const items: MenuEntry[] = [
-    {
-      label: 'Time out',
-      icon: 'clock',
-      items: timeoutItems(login, run),
-    },
+    ...(onMod.offered ? [{ label: 'Time out', icon: 'clock' as const, note: onMod.note, items: timeoutItems(login, run) }] : []),
     { label: 'Warn', icon: 'alert', run: warn },
     { label: 'Unban', icon: 'undo', run: () => run(`/unban ${login}`) },
     // V101-30 What can't be undone comes last.
-    { label: 'Ban', icon: 'gavel', danger: true, run: () => run(`/ban ${login}`) },
+    ...(onMod.offered
+      ? [{ label: 'Ban', icon: 'gavel' as const, danger: true, note: onMod.note, run: () => run(`/ban ${login}`) }]
+      : []),
     'separator',
     ...treatItems(caps, login, run, is),
   ];

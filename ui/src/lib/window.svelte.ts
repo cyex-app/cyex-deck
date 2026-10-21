@@ -1,5 +1,6 @@
-// State of the window this UI runs in: pinned (1.51), maximized, and fullscreen from a
-// pop-out's frame (V104-03).
+// State of the window this UI runs in: pinned (1.51) and maximized. V107-R46 A pop-out's
+// frame maximizes too (it was fullscreen, V104-03): the taskbar stays visible, and Windows
+// itself restores the window under the cursor when its header is dragged.
 
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
@@ -11,8 +12,6 @@ class CurrentWindow {
   pinned = $state(false);
   maximized = $state(false);
   isMain = $state(false);
-  /** V104-03 The whole window fills the screen, asked for by the frame's button. */
-  fullscreen = $state(false);
   /** A title the panel picked itself (whispers: the open conversation), over the route's. */
   title = $state<string | null>(null);
 
@@ -39,20 +38,6 @@ class CurrentWindow {
   minimize = () => getCurrentWindow().minimize();
   toggleMaximize = () => getCurrentWindow().toggleMaximize();
   close = () => getCurrentWindow().close();
-
-  /** V104-03 The window over the whole screen (V103-14 makes it really fill it), or back
-   * to the size and place it had. A player's own fullscreen keeps it while this is on. */
-  setFullscreen = async (on: boolean): Promise<void> => {
-    this.fullscreen = on;
-    try {
-      await getCurrentWindow().setFullscreen(on || Boolean(document.fullscreenElement));
-    } catch (e) {
-      this.fullscreen = !on;
-      toast.error(errorText(e));
-    }
-  };
-
-  toggleFullscreen = () => this.setFullscreen(!this.fullscreen);
 
   /** Retitles only this window, in the frame and the OS. */
   setTitle = async (title: string): Promise<void> => {

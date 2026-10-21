@@ -41,6 +41,16 @@ const KINDS = new Set<ErrorKind>([
   'message',
 ]);
 
+/** V107-R44 Only our own "couldn’t reach Twitch" and the HTTP layer's own words. Twitch's
+ *  answers can say "timed out" too ("… may not be timed out"): those are refusals. */
+const NETWORK = [
+  /^couldn[’']t reach Twitch/i,
+  /^(?:TypeError: )?failed to fetch\b/i,
+  /^NetworkError\b/,
+  /^(?:the )?(?:request|operation|connection) timed out\.?$/i,
+  /\b(?:ETIMEDOUT|ECONNRESET|ECONNREFUSED|ERR_TIMED_OUT|ERR_CONNECTION_\w+|ERR_INTERNET_DISCONNECTED)\b/,
+];
+
 const API = /^Twitch said: ?(.*?) ?\((\d{3})\)$/s;
 const REFUSED = /^Twitch said no(?:: | \()([A-Z0-9_]+)\)?\.?$/;
 
@@ -49,7 +59,7 @@ export function errorKind(e: unknown): ErrorKind {
   if (typeof kind === 'string' && KINDS.has(kind as ErrorKind)) return kind as ErrorKind;
   const raw = rawError(e).trim();
   if (!raw) return 'internal';
-  if (/^couldn[’']t reach Twitch/i.test(raw) || /failed to fetch|network ?error|timed? ?out/i.test(raw)) return 'network';
+  if (NETWORK.some((r) => r.test(raw))) return 'network';
   const api = API.exec(raw);
   if (api) {
     const status = Number(api[2]);
