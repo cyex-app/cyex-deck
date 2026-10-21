@@ -5,6 +5,7 @@
      nickname and note for them (C3) open from the pencil. Route: `usercard/<channel>/<login>`. -->
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
 
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import type { ModHistory } from '../../ipc/bindings/ModHistory';
@@ -149,6 +150,17 @@
       : [],
   );
 
+  /** V107-R35 The card moves its window from anywhere that isn't a control, text the user
+   *  types or the scroll window of messages and actions. */
+  const NO_DRAG = 'button, a, input, textarea, select, label, summary, [role="button"], [role="tab"], [contenteditable], .data > :not(.tabs), .no-drag';
+  function drag(e: MouseEvent) {
+    if (e.button !== 0 || e.detail > 1) return;
+    const t = e.target as Element | null;
+    if (!t || t.closest(NO_DRAG)) return;
+    e.preventDefault();
+    void getCurrentWindow().startDragging();
+  }
+
   function saveNote(field: 'nickname' | 'note', value: string) {
     if (!profile) return;
     const current = note ?? { nickname: '', note: '' };
@@ -157,7 +169,8 @@
   }
 </script>
 
-<div class="card">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="card" onmousedown={drag}>
   {#if profile === undefined}
     <Loading />
   {:else if profile === null}
