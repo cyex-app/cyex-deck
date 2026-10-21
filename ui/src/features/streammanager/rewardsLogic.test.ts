@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { SmReward } from '../../ipc/bindings/SmReward';
-import { blank, facts, sameEdit, toEdit, waiting } from './rewardsLogic.ts';
+import { blank, facts, rewardOptions, sameEdit, toEdit, waiting } from './rewardsLogic.ts';
 
 const R: SmReward = {
   id: 'a',
@@ -49,4 +49,12 @@ test('edits compare field by field', () => {
   assert.ok(!sameEdit(e, { ...e, cost: 1 }));
   assert.equal(blank().cost, 100);
   assert.equal(blank().title, '');
+});
+
+test('V107-R43 the reward filter lists every reward with what waits', () => {
+  const o = rewardOptions([R, { ...R, id: 'b', title: 'Song', waiting: 50, waitingMore: true }, { ...R, id: 'c', title: 'Quiet', waiting: 0 }]);
+  assert.deepEqual(o[0], { value: '', label: 'All rewards' });
+  assert.equal(o[2].label, 'Song (50+)');
+  assert.equal(o[3].label, 'Quiet');
+  assert.equal(o.length, 4);
 });

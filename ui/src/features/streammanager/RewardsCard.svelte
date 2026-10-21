@@ -25,7 +25,7 @@
   import { toast } from '../../lib/toast.svelte';
   import RedemptionQueue from './RedemptionQueue.svelte';
   import RewardForm from './RewardForm.svelte';
-  import { blank, facts, toEdit, waiting } from './rewardsLogic';
+  import { blank, facts, rewardOptions, toEdit, waiting } from './rewardsLogic';
   import { focusBack } from './onEscape';
   import SmBar from './SmBar.svelte';
   import SmProblem from './SmProblem.svelte';
@@ -62,10 +62,7 @@
     { value: 'rewards', label: 'Rewards' },
     { value: 'queue', label: queued ? `Queue ${formatNumber(queued)}` : 'Queue' },
   ]);
-  const options = $derived([
-    { value: '', label: 'All rewards' },
-    ...rewards.map((r) => ({ value: r.id, label: r.waiting ? `${r.title} (${formatNumber(r.waiting)})` : r.title })),
-  ]);
+  const options = $derived(rewardOptions(rewards));
   let queue = $state<RedemptionQueue>();
 
   function refresh() {

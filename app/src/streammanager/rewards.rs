@@ -13,7 +13,7 @@ use tauri::AppHandle;
 use ts_rs::TS;
 
 use super::bulk::{self, Bulk};
-use super::gql_call::gql_call;
+use super::gql_call::{GqlCall, gql_call};
 use super::words;
 
 /// A saved reward, and what didn't go with it (CORR-03).
@@ -27,7 +27,7 @@ pub struct Saved {
 }
 
 /// Twitch's refusal as a short line.
-fn said(e: &cyex_twitch::Error) -> String {
+pub(crate) fn said(e: &cyex_twitch::Error) -> String {
     let line = match e {
         cyex_twitch::Error::Refused(code) => match code.as_str() {
             "DUPLICATE_REWARD" => "A reward with that name exists already.",
@@ -85,8 +85,12 @@ fn checked(e: &RewardEdit) -> Result<(), String> {
 }
 
 pub async fn list(app: &AppHandle) -> Result<Rewards, String> {
-    let c = gql_call(app)?;
-    api::list(&c.channel()).await.map_err(|e| said(&e))
+    list_on(&gql_call(app)?, said).await
+}
+
+/// V107-R43 The rewards of `c`'s channel (the manager's, or one it moderates).
+pub async fn list_on(c: &GqlCall, say: fn(&cyex_twitch::Error) -> String) -> Result<Rewards, String> {
+    api::list(&c.channel()).await.map_err(|e| say(&e))
 }
 
 /// New rewards start on; off is a second call. When that fails the reward is still made:
@@ -126,17 +130,35 @@ pub async fn delete(app: &AppHandle, id: String, waiting: Option<Status>) -> Res
 }
 
 pub async fn queue(app: &AppHandle, reward: Option<String>, cursor: Option<String>) -> Result<Queue, String> {
-    let c = gql_call(app)?;
+    queue_on(&gql_call(app)?, reward, cursor, said).await
+}
+
+pub async fn queue_on(
+    c: &GqlCall,
+    reward: Option<String>,
+    cursor: Option<String>,
+    say: fn(&cyex_twitch::Error) -> String,
+) -> Result<Queue, String> {
     api::queue(&c.channel(), reward.as_deref(), cursor.as_deref())
         .await
-        .map_err(|e| said(&e))
+        .map_err(|e| say(&e))
 }
 
 /// Completes or rejects (refunds) redemptions, 50 a call, paced (`bulk`). `done` lists the
 /// ids that went; a refusal midway stops there and says why (CORR-02).
 pub async fn set_status(app: &AppHandle, ids: Vec<String>, s: Status) -> Result<Bulk, String> {
-    let c = &gql_call(app)?;
-    bulk::run(app, ids, STATUS_MAX, said, |part| async move {
+    set_status_on(app, &gql_call(app)?, ids, s, said).await
+}
+
+/// V107-R43 [`set_status`] on `c`'s channel, through the same gate and pace.
+pub async fn set_status_on(
+    app: &AppHandle,
+    c: &GqlCall,
+    ids: Vec<String>,
+    s: Status,
+    say: fn(&cyex_twitch::Error) -> String,
+) -> Result<Bulk, String> {
+    bulk::run(app, ids, STATUS_MAX, say, |part| async move {
         api::set_status(&c.channel(), &part, s).await.map(|()| part)
     })
     .await

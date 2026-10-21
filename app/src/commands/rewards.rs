@@ -1,5 +1,6 @@
 //! V107-R37 IPC for the stream manager's rewards panel: the manager account's own
-//! channel points rewards and redemption queue.
+//! channel points rewards and redemption queue. V107-R43 The mod view's reward requests
+//! on a channel the account moderates (`mod_*`).
 
 use cyex_twitch::gql::dashboard::rewards::{Queue, Reward, RewardEdit, Rewards, Status, Switch};
 use tauri::AppHandle;
@@ -52,4 +53,32 @@ pub async fn sm_redemptions(
 #[tauri::command]
 pub async fn sm_redemptions_set(app: AppHandle, ids: Vec<String>, status: Status) -> Result<Bulk, String> {
     rewards::set_status(&app, ids, status).await
+}
+
+/// V107-R43 The rewards of a channel `account` moderates.
+#[tauri::command]
+pub async fn mod_rewards(app: AppHandle, account: String, channel: String) -> Result<Rewards, String> {
+    crate::moderation::rewards::list(&app, &account, &channel).await
+}
+
+#[tauri::command]
+pub async fn mod_redemptions(
+    app: AppHandle,
+    account: String,
+    channel: String,
+    reward: Option<String>,
+    cursor: Option<String>,
+) -> Result<Queue, String> {
+    crate::moderation::rewards::queue(&app, &account, &channel, reward, cursor).await
+}
+
+#[tauri::command]
+pub async fn mod_redemptions_set(
+    app: AppHandle,
+    account: String,
+    channel: String,
+    ids: Vec<String>,
+    status: Status,
+) -> Result<Bulk, String> {
+    crate::moderation::rewards::set_status(&app, &account, &channel, ids, status).await
 }

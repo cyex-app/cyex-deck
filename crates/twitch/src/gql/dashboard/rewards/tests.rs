@@ -247,3 +247,38 @@ async fn v107_r41_list_and_queue_ask_for_the_channel() {
     assert_eq!(sent[0]["variables"], json!({ "id": ID }));
     assert_eq!(sent[1]["variables"], json!({ "id": ID, "reward": "a", "cursor": "c1", "count": QUEUE_PAGE }));
 }
+
+#[test]
+fn v107_r43_bits_redemptions_are_left_out() {
+    let node = |id: &str, pricing: Option<&str>| {
+        let mut r = json!({ "id": "a", "title": "Song", "cost": 100 });
+        if let Some(p) = pricing {
+            r["pricingType"] = p.into();
+        }
+        json!({ "cursor": id, "node": { "id": id, "timestamp": "2026-10-21T10:00:00Z", "reward": r, "user": null } })
+    };
+    let data = json!({ "user": { "channel": { "communityPointsRedemptionQueue": {
+        "edges": [node("p", Some("POINTS")), node("b", Some("BITS")), node("old", None)],
+        "pageInfo": { "hasNextPage": true }
+    } } } });
+    let q = read_queue(&data).unwrap();
+    let ids: Vec<&str> = q.items.iter().map(|r| r.id.as_str()).collect();
+    assert_eq!(ids, ["p", "old"], "no pricing type: points, as before");
+    assert_eq!(q.next.as_deref(), Some("old"), "the cursor is the page's, bits ones included");
+}
+
+#[tokio::test]
+async fn v107_r43_a_moderator_works_on_the_channel_it_moderates() {
+    // The account (a mod) isn't the channel: every call names the moderated channel's id.
+    let m = serve([
+        json!({ "data": { "user": { "channel": { "communityPointsRedemptionQueue": { "edges": [], "pageInfo": { "hasNextPage": false } } } } } }).to_string(),
+        data(STATUSES, json!({ "error": null })),
+    ]);
+    let ch = Channel { id: "77", ..m.channel() };
+    assert_eq!(queue(&ch, None, None).await.unwrap(), Queue::default());
+    set_status(&ch, &["x".to_owned()], Status::Canceled).await.unwrap();
+    let sent = m.sent();
+    assert!(query(&sent[0]).contains("pricingType"));
+    assert_eq!(sent[0]["variables"]["id"], "77");
+    assert_eq!(sent[1]["variables"]["input"]["channelID"], "77");
+}

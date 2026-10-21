@@ -59,7 +59,8 @@ pub(crate) const NULL_IS_DONE: &[&str] = &[
     "removeUserFromGuestStarSlot",
 ];
 
-/// A channel's dashboard: `id` is the channel (your own: the dashboard only runs there),
+/// A channel's dashboard: `id` is the channel (your own; V107-R43 or one you moderate, for
+/// the reward queue, which Twitch's mod view runs with a mod's token),
 /// `base` a local mock (`{base}/gql`) or `None` for Twitch.
 #[derive(Clone, Copy)]
 pub struct Channel<'a> {

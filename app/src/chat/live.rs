@@ -5,7 +5,7 @@ use cyex_chat::model::NoticeKind;
 use cyex_core::number::grouped;
 use cyex_twitch::hermes::{Event, Kind};
 use serde_json::Value;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 const KINDS: [Kind; 2] = [Kind::Pins, Kind::Points];
 
@@ -81,12 +81,24 @@ pub fn on_event(app: &AppHandle, e: &Event) {
     match e.topic.kind {
         Kind::Pins => refresh(app, login, e.topic.channel_id.clone()),
         Kind::Points => {
+            // V107-R43 The mod view's reward requests read their queue again.
+            if queue_moved(&e.payload) {
+                let _ = app.emit("mod:redemptions", &login);
+            }
             if let Some(text) = redemption_line(&e.payload) {
                 super::notice_line(app, &login, NoticeKind::Redemption, &text);
             }
         }
         _ => {}
     }
+}
+
+/// V107-R43 A redemption came in or was completed or rejected (here or on Twitch).
+fn queue_moved(payload: &Value) -> bool {
+    matches!(
+        payload.get("type").and_then(Value::as_str),
+        Some("reward-redeemed" | "redemption-status-update")
+    )
 }
 
 /// "Name redeemed Hydrate · 500", for rewards redeemed without a message.
@@ -143,5 +155,13 @@ mod tests {
             redemption_line(&json!({"type":"community-goal-updated","data":{}})),
             None
         );
+    }
+
+    #[test]
+    fn v107_r43_new_and_settled_redemptions_move_the_queue() {
+        assert!(queue_moved(&redeemed(None, false)));
+        assert!(queue_moved(&json!({"type":"redemption-status-update","data":{}})));
+        assert!(!queue_moved(&json!({"type":"community-goal-updated","data":{}})));
+        assert!(!queue_moved(&json!({})));
     }
 }

@@ -14,6 +14,7 @@
   import { ModBoard } from './board.svelte';
   import MassActions from './MassActions.svelte';
   import ModActions from './ModActions.svelte';
+  import ModRewards from './ModRewards.svelte';
   import ModStream from './ModStream.svelte';
   import UnbanQueue from './UnbanQueue.svelte';
 
@@ -71,6 +72,8 @@
   <Card title="Viewers" flush><ViewerList {account} {login} /></Card>
 {:else if id === 'terms'}
   <BlockedTerms {account} {login} actions={board.actions} />
+{:else if id === 'rewards'}
+  <ModRewards {account} {login} />
 {:else if id === 'mass'}
   <Card title="Mass actions" flush><MassActions {account} {login} channelId={data.channelId} /></Card>
 {:else if id === 'stream'}

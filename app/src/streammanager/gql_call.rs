@@ -24,7 +24,7 @@ pub struct GqlCall {
     token: String,
     client_id: String,
     base: Option<String>,
-    /// The manager's own channel (its user id).
+    /// The manager's own channel (its user id), or one it moderates (V107-R43).
     pub channel_id: String,
     pub login: String,
 }
@@ -49,15 +49,22 @@ impl GqlCall {
 pub fn gql_call(app: &AppHandle) -> Result<GqlCall, String> {
     let m = super::manager(app)
         .ok_or("The stream manager needs a Twitch sign-in for your channel (Settings → Accounts).")?;
+    let id = m.account_id.clone();
+    gql_call_as(app, &m.account_id, id, m.login)
+}
+
+/// V107-R43 `account`'s GQL call on another channel (one it moderates): same sign-in and
+/// mock rules. `channel_id`/`login` are that channel's.
+pub fn gql_call_as(app: &AppHandle, account: &str, channel_id: String, login: String) -> Result<GqlCall, String> {
     let base = mock_base(app)?;
-    let (token, client_id) = sign_in(base.as_deref(), || crate::auth::gql_token(app, &m.account_id))?;
+    let (token, client_id) = sign_in(base.as_deref(), || crate::auth::gql_token(app, account))?;
     Ok(GqlCall {
         http: super::http(app),
         token,
         client_id,
         base,
-        channel_id: m.account_id,
-        login: m.login,
+        channel_id,
+        login,
     })
 }
 

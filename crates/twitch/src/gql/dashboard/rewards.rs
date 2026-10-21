@@ -45,7 +45,7 @@ const DELETE: &str = "mutation($input: DeleteCommunityPointsCustomRewardInput!) 
     deleteCommunityPointsCustomReward(input: $input) { error { code } reward { id } } }";
 const QUEUE: &str = "query($id: ID!, $reward: ID, $cursor: Cursor, $count: Int) { user(id: $id) { channel { \
     communityPointsRedemptionQueue(options: { rewardID: $reward, status: UNFULFILLED, order: NEWEST }, \
-    first: $count, after: $cursor) { edges { cursor node { id input timestamp reward { id title cost } \
+    first: $count, after: $cursor) { edges { cursor node { id input timestamp reward { id title cost pricingType } \
     user { id login displayName } } } pageInfo { hasNextPage } } } } }";
 const SET_STATUS: &str = "mutation($input: UpdateCommunityPointsCustomRewardRedemptionStatusesByRedemptionsInput!) { \
     updateCommunityPointsCustomRewardRedemptionStatusesByRedemptions(input: $input) { error { code } } }";
@@ -338,13 +338,16 @@ pub fn read_saved(payload: Value) -> Result<Reward> {
         .ok_or_else(|| Error::Refused("NO_REWARD".into()))
 }
 
-/// The queue answer.
+/// The queue answer. V107-R43 Bits rewards (power-ups) are left out: they can't be refunded.
 pub fn read_queue(data: &Value) -> Result<Queue> {
     let conn = data.pointer("/user/channel/communityPointsRedemptionQueue").unwrap_or(&Value::Null);
     let p = page(conn, |e| {
         let n = e.get("node").filter(|n| !n.is_null())?;
         let s = |v: &Value, k: &str| v.get(k).and_then(Value::as_str).map(str::to_owned);
         let r = &n["reward"];
+        if s(r, "pricingType").is_some_and(|p| p != "POINTS") {
+            return None;
+        }
         let u = &n["user"];
         Some(Redemption {
             id: s(n, "id")?,

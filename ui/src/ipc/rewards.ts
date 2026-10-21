@@ -1,6 +1,7 @@
 // V107-R37 Channel points rewards on your own channel and the redemption queue (GQL).
 
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 
 import type { SmQueue } from './bindings/SmQueue';
 import type { SmRedemptionStatus } from './bindings/SmRedemptionStatus';
@@ -25,4 +26,15 @@ export const rewardsIpc = {
   queue: (reward: string | null, cursor: string | null) => invoke<SmQueue>('sm_redemptions', { reward, cursor }),
   /** Which went through, and why the rest didn't. */
   setStatus: (ids: string[], status: SmRedemptionStatus) => invoke<SmBulk>('sm_redemptions_set', { ids, status }),
+};
+
+/** V107-R43 The same queue on a channel `account` moderates (the mod view's reward requests). */
+export const modRewardsIpc = {
+  list: (account: string, channel: string) => invoke<SmRewards>('mod_rewards', { account, channel }),
+  queue: (account: string, channel: string, reward: string | null, cursor: string | null) =>
+    invoke<SmQueue>('mod_redemptions', { account, channel, reward, cursor }),
+  setStatus: (account: string, channel: string, ids: string[], status: SmRedemptionStatus) =>
+    invoke<SmBulk>('mod_redemptions_set', { account, channel, ids, status }),
+  /** A redemption came in or was settled on a joined channel (its login). */
+  onMoved: (handler: (login: string) => void) => listen<string>('mod:redemptions', (e) => handler(e.payload)),
 };

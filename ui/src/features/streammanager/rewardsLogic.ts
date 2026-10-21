@@ -1,6 +1,9 @@
 // V107-R37 The rewards panel's small rules: a new reward's defaults, the facts a row shows,
 // and the queue's "N waiting" (its selection is lib/paged).
 
+import type { SmBulk } from '../../ipc/bindings/SmBulk';
+import type { SmQueue } from '../../ipc/bindings/SmQueue';
+import type { SmRedemptionStatus } from '../../ipc/bindings/SmRedemptionStatus';
 import type { SmReward } from '../../ipc/bindings/SmReward';
 import type { SmRewardEdit } from '../../ipc/bindings/SmRewardEdit';
 import { formatNumber, formatSecs } from '../../lib/format.ts';
@@ -62,4 +65,20 @@ export function facts(r: SmReward, now = Date.now()): string[] {
 export function waiting(r: SmReward): string | null {
   if (!r.waiting) return null;
   return `${formatNumber(r.waiting)}${r.waitingMore ? '+' : ''} waiting`;
+}
+
+/** V107-R43 Whose queue the redemption list reads and settles. */
+export interface QueueSource {
+  queue: (reward: string | null, cursor: string | null) => Promise<SmQueue>;
+  setStatus: (ids: string[], status: SmRedemptionStatus) => Promise<SmBulk>;
+  /** The channel's login, for usercards; '' for the manager's own. */
+  channel: string;
+}
+
+/** V107-R43 The reward filter: every reward, with what waits on it. */
+export function rewardOptions(rewards: SmReward[]): { value: string; label: string }[] {
+  return [
+    { value: '', label: 'All rewards' },
+    ...rewards.map((r) => ({ value: r.id, label: r.waiting ? `${r.title} (${formatNumber(r.waiting)}${r.waitingMore ? '+' : ''})` : r.title })),
+  ];
 }

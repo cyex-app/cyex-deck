@@ -9,6 +9,7 @@ pub mod massban;
 pub mod nuke;
 pub mod queue;
 pub mod restack;
+pub mod rewards;
 pub mod roles;
 pub mod run;
 pub mod standing;

@@ -11,7 +11,7 @@
      tab or another window), in as a whole column while it doesn't; brought back or closed
      by hand, it stays so until "Reset layout". V107-R29 Closed panels sit as icons under the
      layout, each opening a quick menu; any panel pops out into its own window and docks back
-     when that closes. -->
+     when that closes. V107-R43 Reward requests, closed at first. -->
 <script lang="ts">
   import { untrack } from 'svelte';
 
@@ -67,19 +67,19 @@
   let { login, account, onpopout, onclose, host = null, ongrab, chatNear = false }: Props = $props();
 
   /** Page order; never changes, so the chat and the stream never restart. */
-  const ORDER: Id[] = ['stream', 'chat', 'activity', 'actions', 'automod', 'unban', 'chatters', 'mass', 'terms'];
+  const ORDER: Id[] = ['stream', 'chat', 'activity', 'actions', 'automod', 'unban', 'chatters', 'mass', 'terms', 'rewards'];
   /** Where every panel sits by default; a closed one comes back here. */
   const FULL: Node = split(
     'row',
     [
       split('column', [leaf('stream'), leaf('chat')], [0.4, 0.6]),
       split('column', [leaf('activity'), leaf('actions'), leaf('terms')], [0.35, 0.4, 0.25]),
-      split('column', [leaf('automod'), leaf('unban'), leaf('chatters'), leaf('mass')], [0.24, 0.16, 0.36, 0.24]),
+      split('column', [leaf('automod'), leaf('unban'), leaf('rewards'), leaf('chatters'), leaf('mass')], [0.2, 0.14, 0.2, 0.28, 0.18]),
     ],
     [0.34, 0.33, 0.33],
   );
   /** V103-07 Closed until asked for. */
-  const START_CLOSED: string[] = ['stream', 'terms'];
+  const START_CLOSED: string[] = ['stream', 'terms', 'rewards'];
   /** V103-22 The chat's column in `FULL`, kept when it opens as the only chat. */
   const CHAT_SHARE = 0.34;
   const GAP = 8;

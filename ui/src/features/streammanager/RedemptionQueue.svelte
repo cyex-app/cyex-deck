@@ -1,7 +1,8 @@
 <!-- V107-R37 The redemption queue: what viewers redeemed and wait on, newest first, with
      what they typed. Complete or reject (the points go back) one, the ticked ones, or all
      shown. A new redemption in the activity feed reloads it. The reward filter and Refresh
-     sit in the Rewards panel's toolbar and header. -->
+     sit in the Rewards panel's toolbar and header. V107-R43 The mod view's reward requests
+     use it on a channel the account moderates (`source`), reloaded by `pulse`. -->
 <script lang="ts">
   import { untrack } from 'svelte';
 
@@ -21,6 +22,7 @@
   import { PagedList } from '../../lib/paged.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { bulkLines } from './content';
+  import type { QueueSource } from './rewardsLogic';
   import LoadMore from './LoadMore.svelte';
   import PickBar from './PickBar.svelte';
   import PickBox from './PickBox.svelte';
@@ -33,9 +35,15 @@
     filter: string;
     /** Something was completed or rejected: the waiting counts changed. */
     onchanged: () => void;
+    /** V107-R43 Another channel's queue (one the account moderates); the manager's own if unset. */
+    source?: QueueSource;
+    /** V107-R43 Changes when the queue moved: read it again. Unset: the manager's activity. */
+    pulse?: number;
   }
 
-  let { filter, onchanged }: Props = $props();
+  let { filter, onchanged, source, pulse }: Props = $props();
+  // svelte-ignore state_referenced_locally
+  const from = source ?? { queue: rewardsIpc.queue, setStatus: rewardsIpc.setStatus, channel: '' };
 
   let busy = $state(false);
   let now = $state(Date.now());
@@ -43,7 +51,7 @@
   // V107-H1 Not while hidden; once when it shows.
   $effect(() => everyShown(() => (now = Date.now()), 30_000));
 
-  const list = new PagedList<SmRedemption>({ key: (r) => r.id, fetch: (cursor) => rewardsIpc.queue(filter || null, cursor) });
+  const list = new PagedList<SmRedemption>({ key: (r) => r.id, fetch: (cursor) => from.queue(filter || null, cursor) });
   const items = $derived(list.items);
   const picked = $derived(list.picked);
 
@@ -58,8 +66,12 @@
   });
 
   // A redemption in the feed: read the queue again (quietly, a moment later).
-  const lastRedemption = $derived([...sm.activity].reverse().find((a) => a.kind === 'redemption')?.id ?? null);
-  let seen: string | null | undefined;
+  const lastRedemption = $derived(
+    pulse !== undefined ? pulse : ([...sm.activity].reverse().find((a) => a.kind === 'redemption')?.id ?? null),
+  );
+  /** A reload asked for while a change runs: once it's done. */
+  let later = false;
+  let seen: string | number | null | undefined;
   $effect(() => {
     const id = lastRedemption;
     if (seen === undefined) {
@@ -68,7 +80,7 @@
     }
     if (id === seen) return;
     seen = id;
-    const t = setTimeout(() => void list.reload(), 1500);
+    const t = setTimeout(() => (busy ? (later = true) : void list.reload()), 1500);
     return () => clearTimeout(t);
   });
 
@@ -82,7 +94,7 @@
     busy = true;
     const ids = rows.map((i) => i.id);
     try {
-      const r = await rewardsIpc.setStatus(ids, status);
+      const r = await from.setStatus(ids, status);
       list.remove(r.done);
       const say = bulkLines(r, ids.length, (n) =>
         ids.length < 2 ? '' : status === 'FULFILLED' ? `${formatNumber(n)} completed.` : `${formatNumber(n)} rejected and refunded.`,
@@ -95,6 +107,10 @@
       toast.error(errorText(e));
     } finally {
       busy = false;
+      if (later) {
+        later = false;
+        void list.reload();
+      }
     }
   }
 </script>
@@ -138,7 +154,7 @@
         <div class="main">
           <div class="head">
             {#if r.login}
-              <button class="who" type="button" onclick={() => r.login && void chatIpc.openUsercard(sm.manager?.login ?? r.login, r.login)}>
+              <button class="who" type="button" onclick={() => r.login && void chatIpc.openUsercard(from.channel || sm.manager?.login || r.login, r.login)}>
                 {r.name ?? r.login}
               </button>
             {:else}
