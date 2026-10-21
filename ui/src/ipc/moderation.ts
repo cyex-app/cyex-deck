@@ -56,7 +56,7 @@ export const modIpc = {
     invoke<NukePreview>('mod_nuke_preview', { account, channel, args }),
   massban: (account: string, channel: string, logins: string[], secs: number | null, reason: string, unban = false) =>
     invoke<number>('mod_massban', { account, channel, logins, secs, reason, unban }),
-  stopMassban: (channelId: string) => invoke<void>('mod_massban_stop', { channelId }),
+  stopMassban: (channelId: string, account: string) => invoke<void>('mod_massban_stop', { channelId, account }),
   onBoard: (channelId: string, handler: (b: Board0) => void) =>
     listen<Board0>(`mod:view:${channelId}`, (e) => handler(e.payload)),
   onMassban: (handler: (p: MassbanProgress) => void) =>

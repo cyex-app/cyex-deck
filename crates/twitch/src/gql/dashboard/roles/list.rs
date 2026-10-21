@@ -1,13 +1,16 @@
 //! V107-R36 Who holds which role in the broadcaster's own channel, and how many VIP slots it
 //! has, as the dashboard's Roles Manager reads them (`UserRolesCacheQuery`,
 //! `VIPArtistStatusQuery`; its roles-page chunk, 2026/10/21). Only the broadcaster may ask.
+//! V107-R41 Reads through the dashboard's `Channel`; a list with more pages goes on alone,
+//! paced, until a cursor repeats. V107-R42 Lives under `dashboard::roles` now.
 
 use serde::Serialize;
 use serde_json::{Value, json};
 use ts_rs::TS;
 
-use super::{Auth, query, query_partial};
-use crate::{Http, Result};
+use crate::gql::connection::{GAP, Page, UserRef, page as connection_page, paginate};
+use crate::gql::dashboard::Channel;
+use crate::Result;
 
 /// Someone holding a role.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
@@ -103,27 +106,17 @@ impl Part {
 
 /// One page of one list: who, and the cursor for the next page when there is one.
 fn page(data: &Value, part: Part) -> (Vec<RoleHolder>, Option<String>) {
-    let Some(conn) = data.pointer(part.pointer()) else { return (Vec::new(), None) };
-    let edges = conn.get("edges").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
-    let people = edges.iter().filter_map(holder).collect();
-    let more = conn.pointer("/pageInfo/hasNextPage").and_then(Value::as_bool).unwrap_or(false);
-    let cursor = edges.last().and_then(|e| e.get("cursor")).and_then(Value::as_str).filter(|c| !c.is_empty());
-    (people, if more { cursor.map(str::to_owned) } else { None })
+    let p = connection_page(data.pointer(part.pointer()).unwrap_or(&Value::Null), holder);
+    (p.items, p.next)
 }
 
 fn holder(edge: &Value) -> Option<RoleHolder> {
-    let n = edge.get("node")?;
-    let s = |k: &str| n.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
-    let login = s("login");
-    if login.is_empty() {
-        return None;
-    }
-    let display = Some(s("displayName")).filter(|d| !d.is_empty()).unwrap_or_else(|| login.clone());
+    let UserRef { id, login, display, avatar } = UserRef::from_node(edge.get("node")?)?;
     Some(RoleHolder {
-        id: s("id"),
+        id,
         login,
         display,
-        avatar: s("profileImageURL"),
+        avatar,
         granted_at: edge.get("grantedAt").and_then(Value::as_str).filter(|g| !g.is_empty()).map(str::to_owned),
     })
 }
@@ -141,33 +134,40 @@ fn vars(channel_id: &str, want: &[(Part, Option<String>)]) -> Value {
     v
 }
 
-/// At most this many requests per read (100 per page for mods and VIPs).
+/// At most this many pages per list after the first (100 per page for mods and VIPs).
 const MAX_PAGES: usize = 20;
 
-/// Every role holder of the channel, page by page.
-pub async fn role_lists(http: &Http, auth: Auth<'_>, channel_id: &str) -> Result<RoleLists> {
+/// Every role holder of the channel: one read for every list's first page, then each list
+/// with more on its own. The flag says a list was cut short.
+pub async fn role_lists(ch: &Channel<'_>) -> Result<(RoleLists, bool)> {
     let q = list_query();
+    let keep = |v: &Value| v.get("user").is_some_and(|u| !u.is_null());
+    let all: Vec<(Part, Option<String>)> = PARTS.iter().map(|p| (*p, None)).collect();
+    let data = ch.read_partial(&q, vars(ch.id, &all), keep).await?;
     let mut out = RoleLists::default();
-    let mut want: Vec<(Part, Option<String>)> = PARTS.iter().map(|p| (*p, None)).collect();
-    for _ in 0..MAX_PAGES {
-        if want.is_empty() {
-            break;
+    let mut truncated = false;
+    for p in PARTS {
+        let (people, next) = page(&data, p);
+        p.of(&mut out).extend(people);
+        if next.is_none() {
+            continue;
         }
-        let data: Value = query_partial(http, auth, &q, vars(channel_id, &want), |v: &Value| {
-            v.get("user").is_some_and(|u| !u.is_null())
+        let q = q.as_str();
+        let more = paginate(next, MAX_PAGES, GAP, |cursor| async move {
+            let data = ch.read_partial(q, vars(ch.id, &[(p, cursor)]), keep).await?;
+            let (items, next) = page(&data, p);
+            Ok(Page { items, next })
         })
-        .await?;
-        let mut next = Vec::new();
-        for (p, _) in &want {
-            let (people, cursor) = page(&data, *p);
-            p.of(&mut out).extend(people);
-            if let Some(c) = cursor {
-                next.push((*p, Some(c)));
+        .await;
+        match more {
+            Ok(m) => {
+                p.of(&mut out).extend(m.items);
+                truncated |= m.truncated;
             }
+            Err(_) => truncated = true,
         }
-        want = next;
     }
-    Ok(out)
+    Ok((out, truncated))
 }
 
 /// How many VIPs and artists the channel may have. `None`: Twitch didn't say.
@@ -190,8 +190,8 @@ fn slots_of(data: &Value) -> Slots {
 }
 
 /// The channel's VIP and artist slots.
-pub async fn slots(http: &Http, auth: Auth<'_>, channel_id: &str) -> Result<Slots> {
-    let data: Value = query(http, auth, SLOTS, json!({ "channelID": channel_id, "isArtistAlleyFeatureEnabled": true })).await?;
+pub async fn slots(ch: &Channel<'_>) -> Result<Slots> {
+    let data: Value = ch.read(SLOTS, json!({ "channelID": ch.id, "isArtistAlleyFeatureEnabled": true })).await?;
     Ok(slots_of(&data))
 }
 
@@ -247,5 +247,39 @@ mod tests {
         let d = json!({ "channel": { "numberOfVIPsAllowed": 0 } });
         assert_eq!(slots_of(&d), Slots { vips: Some(0), artists: None });
         assert_eq!(slots_of(&json!({ "channel": { "numberOfVIPsAllowed": null } })), Slots::default());
+    }
+
+    use crate::gql::dashboard::mock::{ID, serve};
+
+    fn part(path: &[&str], logins: &[&str], cursor: &str, more: bool) -> Value {
+        let edges: Vec<Value> = logins.iter().map(|l| json!({ "cursor": cursor, "node": { "id": format!("id-{l}"), "login": l } })).collect();
+        let mut v = json!({ "edges": edges, "pageInfo": { "hasNextPage": more } });
+        for k in path.iter().rev() {
+            v = json!({ *k: v });
+        }
+        v
+    }
+
+    #[tokio::test]
+    async fn v107_r41_a_list_with_more_goes_on_alone_until_a_cursor_repeats() {
+        let mut first = part(&["user", "mods"], &["m1"], "c1", true);
+        first["user"]["vips"] = part(&["x"], &["v1"], "", false)["x"].clone();
+        first["channel"] = json!({ "leadMods": { "edges": [], "pageInfo": { "hasNextPage": false } } });
+        let m = serve([
+            json!({ "data": first }).to_string(),
+            json!({ "data": part(&["user", "mods"], &["m2"], "c2", true) }).to_string(),
+            json!({ "data": part(&["user", "mods"], &["m3"], "c1", true) }).to_string(),
+        ]);
+        let (lists, truncated) = role_lists(&m.channel()).await.unwrap();
+        let mods: Vec<&str> = lists.mods.iter().map(|h| h.login.as_str()).collect();
+        assert_eq!(mods, ["m1", "m2", "m3"]);
+        assert_eq!(lists.vips.len(), 1);
+        assert!(truncated, "c1 came back");
+        let sent = m.sent();
+        assert_eq!(sent[0]["variables"]["channelID"], ID);
+        assert_eq!(sent[0]["variables"]["includeVIPs"], true);
+        assert_eq!(sent[1]["variables"]["includeVIPs"], false);
+        assert_eq!(sent[1]["variables"]["modsCursor"], "c1");
+        assert_eq!(sent[2]["variables"]["modsCursor"], "c2");
     }
 }

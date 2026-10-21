@@ -10,16 +10,9 @@ use serde::Deserialize;
 use tauri::{AppHandle, Manager};
 use ts_rs::TS;
 
+use super::gql_call::gql_call;
 use super::{Call, either, obs, stats, words};
 
-/// For what only Twitch's own sign-in can do.
-const GQL_ONLY: &str = "This needs the sign-in with a code (Settings → Accounts).";
-
-/// The manager's GQL sign-in, or the line to show.
-fn gql_call(app: &AppHandle) -> Result<Call, String> {
-    let c = Call::new(app)?;
-    if c.has_gql() { Ok(c) } else { Err(GQL_ONLY.into()) }
-}
 
 /// Twitch user id for a login, from public GQL.
 async fn user_id(app: &AppHandle, login: &str) -> Result<String, String> {
@@ -181,25 +174,25 @@ pub async fn raid(app: &AppHandle, login: String) -> Result<(), String> {
 /// D2 Sends the raid now instead of waiting out the countdown.
 pub async fn raid_now(app: &AppHandle) -> Result<(), String> {
     let c = gql_call(app)?;
-    dash::raids::go(&c.http, c.gql(), &c.channel_id).await.map_err(|e| words::gql(&e))
+    dash::raids::go(&c.http, c.auth(), &c.channel_id).await.map_err(|e| words::gql(&e))
 }
 
 /// D2 Twitch's raid suggestions; none without a GQL sign-in.
 pub async fn raid_picks(app: &AppHandle) -> Result<Vec<dash::raids::RaidPick>, String> {
     let Ok(c) = gql_call(app) else { return Ok(Vec::new()) };
-    dash::raids::suggestions(&c.http, c.gql(), &c.channel_id).await.map_err(|e| words::gql(&e))
+    dash::raids::suggestions(&c.http, c.auth(), &c.channel_id).await.map_err(|e| words::gql(&e))
 }
 
 /// D4 Plays an alert again, or skips it, in Twitch's alert box.
 pub async fn alert(app: &AppHandle, id: String, replay: bool) -> Result<(), String> {
     let c = gql_call(app)?;
-    dash::feed::set_alert(&c.http, c.gql(), &id, replay).await.map_err(|e| words::gql(&e))
+    dash::feed::set_alert(&c.http, c.auth(), &id, replay).await.map_err(|e| words::gql(&e))
 }
 
 /// D5 The ad schedule's settings; `None` without a GQL sign-in.
 pub async fn ad_settings(app: &AppHandle) -> Result<Option<dash::ads::AdSettings>, String> {
     let Ok(c) = gql_call(app) else { return Ok(None) };
-    dash::ads::settings(&c.http, c.gql(), &c.channel_id)
+    dash::ads::settings(&c.http, c.auth(), &c.channel_id)
         .await
         .map(Some)
         .map_err(|e| words::gql(&e))
@@ -207,7 +200,7 @@ pub async fn ad_settings(app: &AppHandle) -> Result<Option<dash::ads::AdSettings
 
 pub async fn set_ad_settings(app: &AppHandle, edit: dash::ads::AdEdit) -> Result<(), String> {
     let c = gql_call(app)?;
-    dash::ads::set_settings(&c.http, c.gql(), &c.channel_id, &edit)
+    dash::ads::set_settings(&c.http, c.auth(), &c.channel_id, &edit)
         .await
         .map_err(|e| words::gql(&e))
 }
@@ -215,7 +208,7 @@ pub async fn set_ad_settings(app: &AppHandle, edit: dash::ads::AdEdit) -> Result
 /// D6 Lets a creator into the Stream Together, or not.
 pub async fn join_answer(app: &AppHandle, user_id: String, approve: bool) -> Result<(), String> {
     let c = gql_call(app)?;
-    dash::together::answer(&c.http, c.gql(), &user_id, approve)
+    dash::together::answer(&c.http, c.auth(), &user_id, approve)
         .await
         .map_err(|e| words::gql(&e))
 }
@@ -223,7 +216,7 @@ pub async fn join_answer(app: &AppHandle, user_id: String, approve: bool) -> Res
 /// D6 Guests show on stream once they're set up: for the session, or the next one.
 pub async fn auto_add(app: &AppHandle, session: Option<String>, on: bool) -> Result<(), String> {
     let c = gql_call(app)?;
-    dash::together::set_auto_add(&c.http, c.gql(), session.as_deref(), on)
+    dash::together::set_auto_add(&c.http, c.auth(), session.as_deref(), on)
         .await
         .map_err(|e| words::gql(&e))
 }

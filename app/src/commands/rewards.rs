@@ -4,7 +4,8 @@
 use cyex_twitch::gql::dashboard::rewards::{Queue, Reward, RewardEdit, Rewards, Status, Switch};
 use tauri::AppHandle;
 
-use crate::streammanager::rewards;
+use crate::streammanager::bulk::Bulk;
+use crate::streammanager::rewards::{self, Saved};
 
 #[tauri::command]
 pub async fn sm_rewards(app: AppHandle) -> Result<Rewards, String> {
@@ -16,8 +17,9 @@ pub fn sm_reward_check(edit: RewardEdit) -> Vec<String> {
     rewards::check(&edit)
 }
 
+/// The reward, and a warning when it was made but couldn't be turned off.
 #[tauri::command]
-pub async fn sm_reward_create(app: AppHandle, edit: RewardEdit) -> Result<Reward, String> {
+pub async fn sm_reward_create(app: AppHandle, edit: RewardEdit) -> Result<Saved, String> {
     rewards::create(&app, edit).await
 }
 
@@ -46,8 +48,8 @@ pub async fn sm_redemptions(
     rewards::queue(&app, reward, cursor).await
 }
 
-/// How many went through.
+/// Which went through, and why the rest didn't.
 #[tauri::command]
-pub async fn sm_redemptions_set(app: AppHandle, ids: Vec<String>, status: Status) -> Result<usize, String> {
+pub async fn sm_redemptions_set(app: AppHandle, ids: Vec<String>, status: Status) -> Result<Bulk, String> {
     rewards::set_status(&app, ids, status).await
 }

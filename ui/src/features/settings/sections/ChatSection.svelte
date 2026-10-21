@@ -174,6 +174,13 @@
     const timeoutPresets = c.timeoutPresets.map((s) => (s === from ? to : s));
     void settings.patch('chat', { modButtons: patch, timeoutPresets });
   }
+  /** Clicking away keeps a length that works, as Enter does; anything else is dropped. */
+  function blurEdit() {
+    if (editing === null) return;
+    const t = timeoutSecs(editText);
+    if ('error' in t || typeof retimeButton(mb, editing, t.secs, modTimes) === 'string') editing = null;
+    else saveEdit();
+  }
   function editKey(e: KeyboardEvent) {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -450,7 +457,7 @@
                 use:focus
                 oninput={() => (editError = '')}
                 onkeydown={editKey}
-                onblur={() => (editing = null)}
+                onblur={blurEdit}
               />
               {#if editError}<span class="field-error" role="alert">{editError}</span>{/if}
             </span>

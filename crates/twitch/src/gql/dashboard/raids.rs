@@ -6,7 +6,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use ts_rs::TS;
 
-use super::mutate;
+use super::channel::write;
 use crate::gql::{Auth, query};
 use crate::{Http, Result};
 
@@ -21,23 +21,25 @@ const FORCE_SECS: i64 = 90;
 
 pub async fn start(http: &Http, auth: Auth<'_>, channel_id: &str, target_id: &str) -> Result<()> {
     let input = json!({ "sourceID": channel_id, "targetID": target_id });
-    mutate(http, auth, CREATE, "createRaid", input).await
+    write(http, auth, None, CREATE, "createRaid", input).await.map(drop)
 }
 
 pub async fn cancel(http: &Http, auth: Auth<'_>, channel_id: &str) -> Result<()> {
-    mutate(
+    write(
         http,
         auth,
+        None,
         CANCEL,
         "cancelRaid",
         json!({ "sourceID": channel_id }),
     )
     .await
+    .map(drop)
 }
 
 /// D2 Sends the raid now instead of waiting for the countdown.
 pub async fn go(http: &Http, auth: Auth<'_>, channel_id: &str) -> Result<()> {
-    mutate(http, auth, GO, "goRaid", json!({ "sourceID": channel_id })).await
+    write(http, auth, None, GO, "goRaid", json!({ "sourceID": channel_id })).await.map(drop)
 }
 
 /// D2 A live channel Twitch suggests raiding.

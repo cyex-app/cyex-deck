@@ -3,7 +3,7 @@
      a pop-out button in its header. Unlocked, an icon drags onto a side of any panel, as from
      the tray (V103-06); closed panels without an icon wait in the tray's chip then. -->
 <script lang="ts">
-  import type { Snippet } from 'svelte';
+  import { onDestroy, type Snippet } from 'svelte';
 
   import { drag } from '../features/tabs/drag.svelte';
   import { clicked, splitDock, stillOpen } from './dock';
@@ -47,19 +47,29 @@
         open = null;
       }
     };
-    const end = (ev: Event) => {
+    const stop = () => {
       removeEventListener('pointermove', watch);
       removeEventListener('pointerup', end);
       removeEventListener('pointercancel', end);
       removeEventListener('blur', end);
+      teardown = null;
+    };
+    const end = (ev: Event) => {
+      stop();
       if (ev.type === 'pointerup') setTimeout(() => (dragged = false));
       else dragged = false;
     };
+    // BUG-09 Also ends when this unmounts mid-press (as PanelLayout does).
+    teardown?.();
+    teardown = stop;
     addEventListener('pointermove', watch);
     addEventListener('pointerup', end);
     addEventListener('pointercancel', end);
     addEventListener('blur', end);
   }
+
+  let teardown: (() => void) | null = null;
+  onDestroy(() => teardown?.());
 
   function popout(id: string) {
     open = null;
@@ -145,14 +155,19 @@
   .icon.grab {
     cursor: grab;
   }
+  /* As tall as its panel, up to 440 px: a short one (a sign-in note, the mass form) leaves
+     no empty box; a long list scrolls inside. */
   .quick {
     display: flex;
     width: min(360px, calc(100vw - 32px));
-    height: min(440px, calc(100vh - 96px));
-    min-height: 0;
+    max-height: min(440px, calc(100vh - 96px));
+    min-height: min(120px, calc(100vh - 96px));
+    /* The menu is the frame: the card fills it, edge to edge, with no second border. */
+    margin: -4px;
   }
-  /* The menu is the frame. */
   .quick :global(.card) {
     border: 0;
+    border-radius: 0;
+    background: none;
   }
 </style>

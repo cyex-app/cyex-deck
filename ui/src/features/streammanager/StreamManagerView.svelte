@@ -18,6 +18,7 @@
   import Card from '../../components/PanelCard.svelte';
   import PanelLayout from '../../components/PanelLayout.svelte';
   import { windowsIpc } from '../../ipc/windows';
+  import { everyShown } from '../../lib/awake';
   import type { Board0 } from '../../ipc/bindings/Board0';
   import type { ModActionFilters } from '../../ipc/bindings/ModActionFilters';
   import { modIpc } from '../../ipc/moderation';
@@ -83,10 +84,8 @@
   });
 
   let now = $state(Date.now());
-  $effect(() => {
-    const t = setInterval(() => (now = Date.now()), 30_000);
-    return () => clearInterval(t);
-  });
+  // V107-H1 Not while hidden; once when it shows.
+  $effect(() => everyShown(() => (now = Date.now()), 30_000));
 
   const m = $derived(sm.manager);
   const s = $derived(sm.stats);

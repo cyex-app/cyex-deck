@@ -62,16 +62,14 @@ struct IdLogin {
     login: String,
 }
 
-/// V107-R21 `(login, id)` for each login Twitch knows, 100 per call, public. Suspended and
-/// unknown logins come back `null` and are left out.
+/// V107-R21 `(login, id)` for each login Twitch knows, public, one call of at most 100 (the
+/// caller chunks and paces, `mass_run::resolve`). Suspended and unknown logins come back
+/// `null` and are left out.
 pub async fn ids_by_login(http: &Http, logins: &[String]) -> Result<Vec<(String, String)>> {
     const Q: &str = "query($logins: [String!]) { users(logins: $logins) { id login } }";
-    let mut out = Vec::with_capacity(logins.len());
-    for chunk in logins.chunks(100) {
-        let data: Ids = query(http, Auth::PUBLIC, Q, json!({ "logins": chunk })).await?;
-        out.extend(data.users.into_iter().flatten().map(|u| (u.login, u.id)));
-    }
-    Ok(out)
+    debug_assert!(logins.len() <= 100, "one call takes 100");
+    let data: Ids = query(http, Auth::PUBLIC, Q, json!({ "logins": logins })).await?;
+    Ok(data.users.into_iter().flatten().map(|u| (u.login, u.id)).collect())
 }
 
 /// Public profile for the usercard (1.36).

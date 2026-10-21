@@ -6,7 +6,7 @@
 //!
 //! The delete rule is Helix "Delete Chat Messages" (under 6 hours, not the broadcaster's,
 //! not another mod's) plus what GQL did on 2026/10/19 (the broadcaster deleted their own
-//! line). Lead mods change mods and VIPs (1.50, over GQL: `role_change`).
+//! line). Lead mods change mods and VIPs (1.50, over GQL: `roles`).
 
 use cyex_chat::model::ModRole;
 use serde::Serialize;

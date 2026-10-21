@@ -21,18 +21,18 @@
   import type { ModsetVerifyMode } from '../../ipc/bindings/ModsetVerifyMode';
   import { modsetIpc } from '../../ipc/modset';
   import { errorText } from '../../lib/errors';
+  import { latest } from '../../lib/latest';
   import { toast } from '../../lib/toast.svelte';
-  import { termProblem } from '../modview/terms';
+  import { limits } from './limits.svelte';
   import {
     ACCOUNT_AGES,
     CATEGORIES,
     COOLDOWNS,
-    DELAYS,
+    delayChoices,
     EXEMPT,
     FOLLOW_AGES,
     LEVELS,
     levelsFor,
-    MAX_RULE,
     minuteChoices,
     MODES,
     ruleProblem,
@@ -42,31 +42,45 @@
     withPartial,
     withRule,
   } from './modset';
+  import SmProblem from './SmProblem.svelte';
 
   let s = $state<ModsetSettings | null>(null);
-  let failed = $state(false);
+  let failed = $state('');
   let busy = $state(false);
   let showCategories = $state(false);
   let rule = $state('');
   let termList = $state<'blocked' | 'permitted'>('blocked');
   let term = $state('');
 
+  let loading = $state(false);
+  limits.load();
+  const lim = $derived(limits.v);
+  const delays = $derived(delayChoices(lim?.delays ?? (s ? [s.delay] : [])));
+
+  /** BUG-07 Reads and writes share one guard: only the newest answer lands, so a slow read
+   *  can't undo a change. One thing at a time: no read while a change runs. */
+  const guard = latest();
   function load() {
-    failed = false;
+    if (busy) return;
+    const ok = guard.begin();
+    failed = '';
+    loading = true;
     modsetIpc
       .read()
-      .then((r) => (s = r))
-      .catch((e) => {
-        failed = true;
-        toast.error(errorText(e));
-      });
+      .then((r) => ok() && (s = r))
+      .catch((e) => ok() && (failed = errorText(e)))
+      .finally(() => ok() && (loading = false));
   }
   load();
 
   async function run(call: () => Promise<ModsetSettings>): Promise<boolean> {
+    if (busy) return false;
     busy = true;
+    const ok = guard.begin();
+    loading = false;
     try {
-      s = await call();
+      const r = await call();
+      if (ok()) s = r;
       return true;
     } catch (e) {
       toast.error(errorText(e));
@@ -88,10 +102,10 @@
 
   const terms = $derived<BlockedTerm[]>(s ? (termList === 'permitted' ? s.permitted : s.blocked) : []);
 
+  /** Rust checks it against the list shown (`have`), then Twitch. */
   async function addTerm() {
-    const why = termProblem(term, termList === 'blocked' ? terms : []);
-    if (why) return toast.error(why);
-    if (await run(() => modsetIpc.addTerm(termList === 'permitted', term.trim()))) term = '';
+    const have = terms.map((t) => t.text);
+    if (await run(() => modsetIpc.addTerm(termList === 'permitted', term.trim(), have))) term = '';
   }
 </script>
 
@@ -153,13 +167,13 @@
 
 <Card title="Moderation settings">
   {#snippet tools()}
-    {#if s}<IconButton icon="refresh" label="Refresh" size={14} disabled={busy} onclick={load} />{/if}
+    <IconButton icon="refresh" label="Refresh" size={14} disabled={busy || loading} onclick={load} />
   {/snippet}
   {#if s}
     {@const v = s.verification}
     <section>
       <h4 class="label">AutoMod</h4>
-      <Segmented label="AutoMod level" options={LEVELS} value={s.automod.overall ?? -1} onchange={(level) => !busy && void set({ kind: 'autoMod', level })} />
+      <Segmented label="AutoMod level" options={LEVELS} value={s.automod.overall ?? -1} onchange={(level) => void set({ kind: 'autoMod', level })} />
       {#if s.automod.overall == null}<p class="hint">Custom levels.</p>{/if}
       <button class="more" aria-expanded={showCategories} onclick={() => (showCategories = !showCategories)}>
         <Icon name={showCategories ? 'chevronUp' : 'chevronDown'} size={12} />
@@ -184,7 +198,7 @@
 
     <section>
       <h4 class="label">Chat delay</h4>
-      <Segmented label="Chat delay" options={DELAYS} value={s.delay} onchange={(seconds) => !busy && void set({ kind: 'delay', seconds })} />
+      <Segmented label="Chat delay" options={delays} value={s.delay} onchange={(seconds) => void set({ kind: 'delay', seconds })} />
       <p class="hint">Messages show this much later for everyone but mods.</p>
     </section>
 
@@ -223,9 +237,10 @@
           void addRule();
         }}
       >
-        <input class="field grow" placeholder="Add a rule" maxlength={MAX_RULE} bind:value={rule} />
-        <Button small type="submit" disabled={busy || !rule.trim()}>Add</Button>
+        <input class="field grow" placeholder="Add a rule" maxlength={lim?.ruleLen} bind:value={rule} />
+        <Button small type="submit" disabled={busy || !rule.trim() || (!!lim && s.rules.length >= lim.rulesMax)}>Add</Button>
       </form>
+      {#if lim && s.rules.length >= lim.rulesMax}<p class="hint">{lim.rulesMax} rules is the most.</p>{/if}
     </section>
 
     <section>
@@ -268,22 +283,23 @@
           void addTerm();
         }}
       >
-        <input class="field grow" placeholder={termList === 'blocked' ? 'Block a term' : 'Allow a term'} maxlength="500" bind:value={term} />
+        <input class="field grow" placeholder={termList === 'blocked' ? 'Block a term' : 'Allow a term'} maxlength={lim?.termMax} bind:value={term} />
         <Button small type="submit" disabled={busy || !term.trim()}>Add</Button>
       </form>
+      {#if s.truncated}<p class="hint">Twitch has more terms than shown here.</p>{/if}
       {#if terms.length}
         <ul>
           {#each terms as t (t.id)}
             <li>
               <span class="text">{t.text}</span>
-              <ConfirmButton label="Remove" confirm="Sure?" variant="ghost" disabled={busy} onconfirm={() => void run(() => modsetIpc.removeTerm(termList === 'permitted', t.id))} />
+              <ConfirmButton label="Remove" confirm="Remove?" variant="ghost" disabled={busy} onconfirm={() => void run(() => modsetIpc.removeTerm(termList === 'permitted', t.id))} />
             </li>
           {/each}
         </ul>
       {/if}
     </section>
   {:else if failed}
-    <p class="hint">Couldn’t load the moderation settings. <Button small variant="link" onclick={load}>Try again</Button></p>
+    <SmProblem text={failed} onretry={load} />
   {:else}
     <Loading />
   {/if}
@@ -383,7 +399,7 @@
     font-variant-numeric: tabular-nums;
   }
   li:hover {
-    background: var(--surface-hover);
+    background: var(--row-hover);
   }
   .text {
     flex: 1;

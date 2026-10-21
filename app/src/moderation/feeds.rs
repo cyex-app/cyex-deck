@@ -14,7 +14,7 @@ use cyex_eventsub::subs;
 use cyex_chat::model::{Gone, GoneHow, NoticeKind};
 use cyex_moderation::actions::{self, Decision, ModLine};
 use cyex_moderation::own::{Echo, OwnEchoes};
-use cyex_moderation::role_change::RoleAction;
+use cyex_moderation::roles::RoleAction;
 use cyex_twitch::hermes::Kind;
 use tauri::{AppHandle, Manager};
 use time::OffsetDateTime;

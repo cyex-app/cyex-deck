@@ -3,13 +3,13 @@ import { test } from 'node:test';
 
 import type { CmAssigned } from '../../ipc/bindings/CmAssigned';
 import type { CmFollower } from '../../ipc/bindings/CmFollower';
-import { day, merged, relative, roleCounts, roleKey, shownFollowers, shownRoles, stamp } from './community.ts';
+import { day, relative, roleCounts, roleKey, shownFollowers, shownRoles, stamp } from './community.ts';
 
-const f = (id: string, login: string, name = login): CmFollower => ({ id, login, name, avatar: '', followedAt: null });
+const f = (id: string, login: string, name = login): CmFollower => ({ id, login, display: name, avatar: '', followedAt: null });
 const r = (channelId: string, login: string, role: CmAssigned['role'], name = login): CmAssigned => ({
-  channelId,
+  id: channelId,
   login,
-  name,
+  display: name,
   avatar: '',
   role,
   since: null,
@@ -35,11 +35,6 @@ test('V107-R40 relative time reads in words', () => {
   assert.equal(relative(undefined, now), '');
 });
 
-test('V107-R40 a next page adds only new followers', () => {
-  const a = [f('1', 'ann'), f('2', 'bob')];
-  assert.deepEqual(merged(a, [f('2', 'bob'), f('3', 'cy')]).map((x) => x.id), ['1', '2', '3']);
-});
-
 test('V107-R40 search matches name or login, name sort ignores case, dates keep Twitch order', () => {
   const list = [f('1', 'zed', 'Zed'), f('2', 'amy', 'amy'), f('3', 'bob', 'Bob')];
   assert.deepEqual(shownFollowers(list, ' BO ', 'newest').map((x) => x.id), ['3']);
@@ -48,8 +43,8 @@ test('V107-R40 search matches name or login, name sort ignores case, dates keep 
 });
 
 test('V107-R40 roles filter, search and order', () => {
-  const list = [r('2', 'bob', 'editor'), r('1', 'amy', 'leadMod'), r('1', 'amy', 'moderator'), r('3', 'cy', 'moderator')];
-  assert.deepEqual(shownRoles(list, 'all', '').map(roleKey), ['1/moderator', '1/leadMod', '2/editor', '3/moderator']);
-  assert.deepEqual(shownRoles(list, 'moderator', 'c').map(roleKey), ['3/moderator']);
-  assert.deepEqual(roleCounts(list), { all: 4, moderator: 2, leadMod: 1, editor: 1, manager: 0 });
+  const list = [r('2', 'bob', 'editor'), r('1', 'amy', 'leadMod'), r('1', 'amy', 'mod'), r('3', 'cy', 'mod')];
+  assert.deepEqual(shownRoles(list, 'all', '').map(roleKey), ['1/mod', '1/leadMod', '2/editor', '3/mod']);
+  assert.deepEqual(shownRoles(list, 'mod', 'c').map(roleKey), ['3/mod']);
+  assert.deepEqual(roleCounts(list), { all: 4, leadMod: 1, mod: 2, vip: 0, editor: 1, artist: 0, agent: 0 });
 });

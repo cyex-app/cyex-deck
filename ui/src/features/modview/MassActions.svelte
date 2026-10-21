@@ -4,6 +4,7 @@
      followbots and raids. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
+  import ConfirmButton from '../../components/ConfirmButton.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { MassbanProgress } from '../../ipc/bindings/MassbanProgress';
   import { modIpc } from '../../ipc/moderation';
@@ -26,6 +27,8 @@
   const err = $derived(durationError(amount, unit));
   let running = $state(false);
   let progress = $state<MassbanProgress | null>(null);
+  // V107-R21 The run this panel follows: its account's, the newest one.
+  let job: number | null = null;
   // V107-R21 What the running (or last) job was, for the outcome words.
   let kind = $state<'ban' | 'timeout' | 'unban'>('ban');
 
@@ -48,7 +51,8 @@
     let gone = false;
     void modIpc
       .onMassban((p) => {
-        if (p.channelId === channelId) {
+        if (p.channelId === channelId && p.account === account && (job === null || p.job >= job)) {
+          job = p.job;
           progress = p;
           running = p.running;
         }
@@ -60,11 +64,12 @@
     };
   });
 
-  // V107-R21 Unban asks once, right here.
+  // V107-R21 Unban asks once, right here (a second click within 3 s).
   let confirmUnban = $state(false);
 
   function go(unban = false) {
-    if (!logins.length || (!unban && err)) return;
+    if (running || !logins.length || (!unban && err)) return;
+    job = null;
     confirmUnban = false;
     const secs = unban ? null : timeoutSecs(amount, unit);
     kind = unban ? 'unban' : secs ? 'timeout' : 'ban';
@@ -77,7 +82,7 @@
   }
 
   function stop() {
-    if (channelId) void modIpc.stopMassban(channelId);
+    if (channelId) void modIpc.stopMassban(channelId, account);
   }
 </script>
 
@@ -96,15 +101,16 @@
       <Button small variant="danger" onclick={stop}>Stop</Button>
     {:else}
       <Button small disabled={logins.length === 0 || confirmUnban || !!err} onclick={() => go()}>
-        {amount > 0 ? 'Time out' : 'Ban'} {logins.length || ''}
+        {amount > 0 ? 'Time out' : 'Ban'} {logins.length ? formatNumber(logins.length) : ''}
       </Button>
-      {#if confirmUnban}
-        <span class="ask">Unban {formatNumber(logins.length)}?</span>
-        <Button small variant="primary" onclick={() => go(true)}>Unban</Button>
-        <Button small variant="ghost" onclick={() => (confirmUnban = false)}>Cancel</Button>
-      {:else}
-        <Button small variant="ghost" disabled={logins.length === 0} onclick={() => (confirmUnban = true)}>Unban</Button>
-      {/if}
+      <ConfirmButton
+        label="Unban"
+        confirm="Unban {formatNumber(logins.length)}?"
+        variant="ghost"
+        disabled={logins.length === 0}
+        bind:armed={confirmUnban}
+        onconfirm={() => go(true)}
+      />
     {/if}
     {#if progress}
       <span class="prog">{formatNumber(progress.done)}/{formatNumber(progress.total)}</span>
@@ -136,10 +142,23 @@
     font-size: 0.82rem;
     resize: vertical;
   }
+  /* The shared field's focus: the border, not a ring outside the box. */
+  textarea:focus-visible,
+  .reason:focus-visible {
+    outline: none;
+    border-color: var(--focus-ring);
+    box-shadow: 0 0 0 1px var(--focus-ring);
+  }
+  textarea::placeholder,
+  .reason::placeholder {
+    color: var(--dim);
+  }
+  /* A narrow panel wraps the unit and its note under the number. */
   .row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 6px 8px;
     min-height: 28px;
   }
   .lab {
@@ -160,12 +179,9 @@
   }
   .go {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
-  }
-  .ask {
-    font-size: 0.82rem;
-    color: var(--text);
+    gap: 6px 8px;
   }
   .prog {
     font-size: 0.8rem;

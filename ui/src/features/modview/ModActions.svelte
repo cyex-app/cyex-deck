@@ -70,8 +70,7 @@
 <Card title="Mod actions" flush>
   <div class="bar">
     <FilterChips {chips} onflip={(k) => onflip(k as keyof ModActionFilters)} />
-    <span class="sep" aria-hidden="true"></span>
-    <FilterChips chips={stampChips} onflip={(k) => onflip(k as keyof ModActionFilters)} />
+    <span class="stamps"><FilterChips chips={stampChips} onflip={(k) => onflip(k as keyof ModActionFilters)} /></span>
   </div>
   <div class="bar">
     <Select
@@ -118,12 +117,11 @@
     flex-wrap: wrap;
     align-items: center;
   }
-  /* V107-R30 Between the kinds and the stamp chips. */
-  .sep {
-    align-self: stretch;
-    width: 1px;
-    margin: 2px 2px;
-    background: var(--border);
+  /* V107-R30 The stamp chips sit apart at the end, also when they wrap (a divider there
+     was left alone at the start of the next row). */
+  .stamps {
+    display: flex;
+    margin-left: auto;
   }
   .bar + .bar {
     padding-top: 0;
@@ -143,6 +141,14 @@
   }
   input {
     flex: 1;
+  }
+  input:focus-visible {
+    outline: none;
+    border-color: var(--focus-ring);
+    box-shadow: 0 0 0 1px var(--focus-ring);
+  }
+  input::placeholder {
+    color: var(--dim);
   }
   .who {
     font-weight: 600;

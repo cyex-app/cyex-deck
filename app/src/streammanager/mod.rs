@@ -8,9 +8,12 @@
 
 pub mod actions;
 pub mod activity;
+pub mod bulk;
 pub mod content;
 pub mod follows;
+pub mod gql_call;
 mod gql_feed;
+pub mod limits;
 pub mod live;
 pub mod modset;
 pub mod obs;
@@ -37,6 +40,7 @@ const MAX_SERIES: usize = 720;
 pub fn init(app: &AppHandle) {
     app.manage(State::default());
     app.manage(follows::Seen::default());
+    app.manage(bulk::Gate::default());
 }
 
 #[derive(Default)]
@@ -297,7 +301,7 @@ pub fn account_id(app: &AppHandle) -> Result<String, String> {
     })
 }
 
-fn http(app: &AppHandle) -> cyex_twitch::Http {
+pub(crate) fn http(app: &AppHandle) -> cyex_twitch::Http {
     app.state::<Auth>().http.clone()
 }
 

@@ -114,7 +114,7 @@
     margin: 4px auto 0;
     overflow: hidden;
     border-radius: var(--radius);
-    background: var(--surface-2, var(--surface));
+    background: var(--bg);
     cursor: grab;
     touch-action: none;
     user-select: none;
@@ -134,8 +134,8 @@
     position: absolute;
     inset: 0;
     border-radius: 50%;
-    box-shadow: 0 0 0 999px rgb(0 0 0 / 0.55);
-    outline: 1px solid rgb(255 255 255 / 0.5);
+    box-shadow: 0 0 0 999px var(--scrim);
+    outline: 1px solid var(--on-video-faint);
     pointer-events: none;
   }
   .zoom {

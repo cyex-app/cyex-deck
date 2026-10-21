@@ -178,18 +178,7 @@ pub async fn treat_low_trust(http: &Http, auth: Auth<'_>, channel_id: &str, targ
     Ok(())
 }
 
-/// 1.50 Grants or revokes mod or VIP. A lead mod may use these where Helix refuses.
-pub async fn set_role(http: &Http, auth: Auth<'_>, channel_id: &str, login: &str, mod_role: bool, on: bool) -> Result<Option<String>> {
-    let (op, field, grantee) = match (mod_role, on) {
-        (true, true) => ("mutation M($i: ModUserInput!){ modUser(input:$i){ error{code} } }", "modUser", "targetLogin"),
-        (true, false) => ("mutation M($i: UnmodUserInput!){ unmodUser(input:$i){ error{code} } }", "unmodUser", "targetLogin"),
-        (false, true) => ("mutation V($i: GrantVIPInput!){ grantVIP(input:$i){ error{code} } }", "grantVIP", "granteeLogin"),
-        (false, false) => ("mutation V($i: RevokeVIPInput!){ revokeVIP(input:$i){ error{code} } }", "revokeVIP", "revokeeLogin"),
-    };
-    let vars = json!({ "i": { "channelID": channel_id, grantee: login } });
-    let data: Value = query(http, auth, op, vars).await?;
-    Ok(code(&data, field))
-}
+// V107-R42 Mod and VIP over GQL: `dashboard::roles::assign`.
 
 /// V101-34 Pins a chat message for `secs` (clamped to [`PIN_SECS`]), or until the stream ends.
 /// Schema-checked 2026/10/11; the web client and the 7TV extension send `type: MOD`.

@@ -8,6 +8,7 @@ mod channels;
 mod chat;
 pub mod clip_create;
 mod clips;
+pub mod connection;
 mod comments;
 pub mod dashboard;
 mod directory;
@@ -28,8 +29,6 @@ pub mod predictions;
 pub mod profile;
 pub mod profile_images;
 pub mod rewind;
-pub mod roles;
-pub mod roles_list;
 mod search;
 mod stories;
 pub mod subs;
@@ -212,6 +211,30 @@ pub(crate) async fn batch(
     let req = request(http, auth).json(&body);
     let responses: Vec<Response<Value>> = send_json(req).await?;
     Ok(responses.into_iter().map(unwrap).collect())
+}
+
+/// V107-R41 GQL's address: Twitch's, or a local mock's `{base}/gql` (tests, mocks builds).
+pub(crate) fn url_at(base: Option<&str>) -> String {
+    base.map_or_else(|| URL.to_owned(), |b| format!("{b}/gql"))
+}
+
+/// V107-R41 One raw operation at `base`: its `data`, or its first GQL error.
+pub(crate) async fn run_at(http: &Http, auth: Auth<'_>, base: Option<&str>, text: &str, variables: Value) -> Result<Value> {
+    let req = request_at(http, &url_at(base), auth).json(&json!({ "query": text, "variables": variables }));
+    unwrap(send_json::<Response<Value>>(req).await?)
+}
+
+/// V107-R41 The same for a read whose fields are all optional: see `partial`.
+pub(crate) async fn run_partial_at(
+    http: &Http,
+    auth: Auth<'_>,
+    base: Option<&str>,
+    text: &str,
+    variables: Value,
+    keep: impl FnOnce(&Value) -> bool,
+) -> Result<Value> {
+    let req = request_at(http, &url_at(base), auth).json(&json!({ "query": text, "variables": variables }));
+    partial(send_json::<Response<Value>>(req).await?, keep)
 }
 
 /// Signed-in requests look like Twitch's TV app's (`clients::GQL`): the tools that

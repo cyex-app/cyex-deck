@@ -271,3 +271,15 @@ pub fn sm_obs_open_file(app: AppHandle, name: String) -> Result<(), String> {
     }
     app.opener().open_path(file.path, None::<&str>).map_err(|e| e.to_string())
 }
+
+/// V107-R41 Stops the running bulk change (clips, videos, redemptions) after its request.
+#[tauri::command]
+pub fn sm_bulk_stop(app: AppHandle) {
+    streammanager::bulk::stop(&app);
+}
+
+/// V107-R41 The limits the dashboard panels check, from Rust.
+#[tauri::command]
+pub fn sm_limits() -> streammanager::limits::DashboardLimits {
+    streammanager::limits::limits()
+}

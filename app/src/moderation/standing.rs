@@ -2,7 +2,7 @@
 //! badges Twitch says they have there (public, no sign-in), and told to every window as
 //! `mod:standing` when a change goes through, ours or another mod's.
 
-use cyex_moderation::role_change::Holds;
+use cyex_moderation::roles::{Role, holds_of};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 use ts_rs::TS;
@@ -22,9 +22,9 @@ pub struct RoleChange {
 }
 
 /// What `login` holds in `channel` now; `None` when Twitch can't say.
-pub async fn holds(app: &AppHandle, channel: &str, login: &str) -> Option<Holds> {
+pub async fn holds(app: &AppHandle, channel: &str, login: &str) -> Option<Vec<Role>> {
     let badges = cyex_twitch::gql::viewer::earned_badges(&http(app), login, channel).await.ok()?;
-    Some(Holds::of(badges.iter().map(|b| b.set.as_str())))
+    Some(holds_of(badges.iter().map(|b| b.set.as_str())))
 }
 
 pub fn changed(app: &AppHandle, channel: &str, login: &str, moderator: bool, on: bool) {

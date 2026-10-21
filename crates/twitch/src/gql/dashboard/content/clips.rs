@@ -6,9 +6,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use ts_rs::TS;
 
-use super::run;
-use crate::gql::{Auth, Clip, ClipPeriod};
-use crate::{Error, Http, Result};
+use crate::gql::connection::page as connection_page;
+use crate::gql::dashboard::Channel;
+use crate::gql::{Clip, ClipPeriod};
+use crate::{Error, Result};
 
 /// One page; Twitch's manager asks for 20.
 pub const PAGE: u32 = 50;
@@ -94,14 +95,14 @@ pub fn criteria(f: &ClipFilter) -> Value {
 /// One page of `login`'s clips (your own login: the manager works on your account). A
 /// search matches titles (Twitch's `freeText`) and who clipped them (in "Made by me": the
 /// channel), the second through the people Twitch lists for the filter; those come first.
-pub async fn list(http: &Http, auth: Auth<'_>, base: Option<&str>, login: &str, f: &ClipFilter) -> Result<ClipPage> {
+pub async fn list(ch: &Channel<'_>, login: &str, f: &ClipFilter) -> Result<ClipPage> {
     if f.search.trim().is_empty() {
-        return page(http, auth, base, login, criteria(f), f.cursor.as_deref()).await;
+        return page(ch, login, criteria(f), f.cursor.as_deref()).await;
     }
     let at = match f.cursor.as_deref() {
         Some(c) => serde_json::from_str::<Resume>(c).map_err(Error::Decode)?,
         None => {
-            let ids = people(http, auth, base, login, f).await?;
+            let ids = people(ch, login, f).await?;
             Resume { title: Some(String::new()), people: (!ids.is_empty()).then(String::new), ids }
         }
     };
@@ -114,12 +115,12 @@ pub async fn list(http: &Http, auth: Auth<'_>, base: Option<&str>, login: &str, 
             ClipsOf::Channel => "curatorIDs",
             ClipsOf::Mine => "broadcasterIDs",
         }] = json!(at.ids);
-        let p = page(http, auth, base, login, by, Some(c.as_str()).filter(|c| !c.is_empty())).await?;
+        let p = page(ch, login, by, Some(c.as_str()).filter(|c| !c.is_empty())).await?;
         clips.extend(p.clips);
         next.people = p.cursor;
     }
     if let Some(c) = &at.title {
-        let p = page(http, auth, base, login, criteria(f), Some(c.as_str()).filter(|c| !c.is_empty())).await?;
+        let p = page(ch, login, criteria(f), Some(c.as_str()).filter(|c| !c.is_empty())).await?;
         clips.extend(p.clips);
         next.title = p.cursor;
     }
@@ -137,13 +138,13 @@ struct Resume {
     ids: Vec<String>,
 }
 
-async fn page(http: &Http, auth: Auth<'_>, base: Option<&str>, login: &str, criteria: Value, cursor: Option<&str>) -> Result<ClipPage> {
+async fn page(ch: &Channel<'_>, login: &str, criteria: Value, cursor: Option<&str>) -> Result<ClipPage> {
     let vars = json!({ "login": login, "limit": PAGE, "cursor": cursor, "criteria": criteria });
-    read_list(run(http, auth, base, LIST, vars).await?)
+    read_list(ch.read(LIST, vars).await?)
 }
 
 /// Ids of the people (clippers, or channels in "Made by me") whose name has the search in it.
-async fn people(http: &Http, auth: Auth<'_>, base: Option<&str>, login: &str, f: &ClipFilter) -> Result<Vec<String>> {
+async fn people(ch: &Channel<'_>, login: &str, f: &ClipFilter) -> Result<Vec<String>> {
     let term = match f.of {
         ClipsOf::Channel => "CURATOR",
         ClipsOf::Mine => "BROADCASTER",
@@ -151,7 +152,7 @@ async fn people(http: &Http, auth: Auth<'_>, base: Option<&str>, login: &str, f:
     let mut c = criteria(f);
     c["freeText"] = Value::Null;
     let text = PEOPLE.replace("TERM", term);
-    let data = run(http, auth, base, &text, json!({ "login": login, "criteria": c })).await?;
+    let data = ch.read(&text, json!({ "login": login, "criteria": c })).await?;
     Ok(matching(data, &f.search))
 }
 
@@ -176,79 +177,33 @@ pub(crate) fn matching(data: Value, search: &str) -> Vec<String> {
 }
 
 pub(crate) fn read_list(data: Value) -> Result<ClipPage> {
-    let raw: ListData = serde_json::from_value(data).map_err(Error::Decode)?;
-    let Some(conn) = raw.user.and_then(|u| u.clips) else {
-        return Ok(ClipPage { clips: Vec::new(), cursor: None });
-    };
-    let more = conn.page_info.is_some_and(|p| p.has_next_page);
-    let cursor = if more { conn.edges.iter().rev().find_map(|e| e.cursor.clone()) } else { None };
-    let clips = conn.edges.into_iter().filter_map(|e| e.node).map(Clip::from).collect();
-    Ok(ClipPage { clips, cursor })
+    let conn = data.pointer("/user/clips").unwrap_or(&Value::Null);
+    let mut bad = None;
+    let p = connection_page(conn, |e| {
+        let n = e.get("node").filter(|n| !n.is_null())?;
+        serde_json::from_value::<RawClip>(n.clone()).map_err(|e| bad = Some(e)).ok().map(Clip::from)
+    });
+    if let Some(e) = bad {
+        return Err(Error::Decode(e));
+    }
+    Ok(ClipPage { clips: p.items, cursor: p.next })
 }
 
 /// Deletes up to [`DELETE_MAX`] clips. Returns the slugs Twitch says it deleted.
-pub async fn delete(http: &Http, auth: Auth<'_>, base: Option<&str>, slugs: &[String]) -> Result<Vec<String>> {
+pub async fn delete(ch: &Channel<'_>, slugs: &[String]) -> Result<Vec<String>> {
     if slugs.is_empty() {
         return Ok(Vec::new());
     }
     if slugs.len() > DELETE_MAX {
         return Err(Error::Refused("TOO_MANY".into()));
     }
-    let data = run(http, auth, base, DELETE, json!({ "input": { "slugs": slugs } })).await?;
-    read_delete(data)
+    read_delete(ch.write(DELETE, "deleteClips", json!({ "slugs": slugs })).await?)
 }
 
-pub(crate) fn read_delete(data: Value) -> Result<Vec<String>> {
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Data {
-        delete_clips: Option<Payload>,
-    }
-    #[derive(Deserialize)]
-    struct Payload {
-        #[serde(default)]
-        clips: Option<Vec<Option<Slug>>>,
-    }
-    #[derive(Deserialize)]
-    struct Slug {
-        slug: Option<String>,
-    }
-    let d: Data = serde_json::from_value(data).map_err(Error::Decode)?;
-    let Some(p) = d.delete_clips else {
-        return Err(Error::Refused("UNKNOWN".into()));
-    };
-    Ok(p.clips.unwrap_or_default().into_iter().flatten().filter_map(|c| c.slug).collect())
-}
-
-#[derive(Deserialize)]
-struct ListData {
-    user: Option<ListUser>,
-}
-
-#[derive(Deserialize)]
-struct ListUser {
-    clips: Option<Connection>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Connection {
-    page_info: Option<PageInfo>,
-    #[serde(default)]
-    edges: Vec<Edge>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PageInfo {
-    #[serde(default)]
-    has_next_page: bool,
-}
-
-#[derive(Deserialize)]
-struct Edge {
-    cursor: Option<String>,
-    node: Option<RawClip>,
+/// The slugs a `deleteClips` payload lists.
+pub(crate) fn read_delete(payload: Value) -> Result<Vec<String>> {
+    let clips = payload.get("clips").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
+    Ok(clips.iter().filter_map(|c| c.get("slug")?.as_str().map(str::to_owned)).collect())
 }
 
 #[derive(Deserialize)]
@@ -303,7 +258,8 @@ impl From<RawClip> for Clip {
 
 #[cfg(test)]
 mod tests {
-    use super::super::mock::{AUTH, serve};
+    use crate::gql::dashboard::mock::{off, query, serve};
+    use crate::gql::dashboard::NOT_DONE;
     use super::*;
 
     fn filter(of: ClipsOf, order: ClipOrder, search: &str) -> ClipFilter {
@@ -351,12 +307,12 @@ mod tests {
 
     #[tokio::test]
     async fn list_sends_the_filter() {
-        let (base, h) = serve(vec![r#"{"data":{"user":{"clips":{"pageInfo":{"hasNextPage":false},"edges":[]}}}}"#]);
+        let m = serve([r#"{"data":{"user":{"clips":{"pageInfo":{"hasNextPage":false},"edges":[]}}}}"#]);
         let mut f = filter(ClipsOf::Mine, ClipOrder::Newest, "");
         f.cursor = Some("abc".into());
-        let p = list(&Http::new().unwrap(), AUTH, Some(&base), "cyexbot", &f).await.unwrap();
+        let p = list(&m.channel(), "cyexbot", &f).await.unwrap();
         assert!(p.clips.is_empty());
-        let sent = &h.join().unwrap()[0];
+        let sent = &m.sent()[0];
         assert!(sent["query"].as_str().unwrap().contains("clips(first: $limit, after: $cursor, criteria: $criteria)"));
         assert_eq!(sent["variables"]["login"], "cyexbot");
         assert_eq!(sent["variables"]["cursor"], "abc");
@@ -374,17 +330,16 @@ mod tests {
 
     #[tokio::test]
     async fn a_search_finds_titles_and_who_clipped() {
-        let (base, h) = serve(vec![PEOPLE_REPLY, BY_PEOPLE, BY_TITLE, EMPTY]);
-        let http = Http::new().unwrap();
+        let m = serve([PEOPLE_REPLY, BY_PEOPLE, BY_TITLE, EMPTY]);
         let mut f = filter(ClipsOf::Channel, ClipOrder::Views, " Boss ");
-        let p = list(&http, AUTH, Some(&base), "cyexbot", &f).await.unwrap();
+        let p = list(&m.channel(), "cyexbot", &f).await.unwrap();
         let slugs: Vec<&str> = p.clips.iter().map(|c| c.slug.as_str()).collect();
         assert_eq!(slugs, ["A", "B", "C"]);
         // Only the people half has more; the next page asks for that alone.
         f.cursor = p.cursor;
-        let p = list(&http, AUTH, Some(&base), "cyexbot", &f).await.unwrap();
+        let p = list(&m.channel(), "cyexbot", &f).await.unwrap();
         assert!(p.clips.is_empty() && p.cursor.is_none());
-        let sent = h.join().unwrap();
+        let sent = m.sent();
         assert!(sent[0]["query"].as_str().unwrap().contains("terms: [CURATOR]"));
         assert_eq!(sent[0]["variables"]["criteria"]["freeText"], Value::Null);
         assert_eq!(sent[1]["variables"]["criteria"]["curatorIDs"], json!(["11"]));
@@ -396,11 +351,11 @@ mod tests {
 
     #[tokio::test]
     async fn made_by_me_searches_channels() {
-        let (base, h) = serve(vec![r#"{"data":{"user":{"clipsAggregations":[]}}}"#, EMPTY]);
+        let m = serve([r#"{"data":{"user":{"clipsAggregations":[]}}}"#, EMPTY]);
         let f = filter(ClipsOf::Mine, ClipOrder::Newest, "omlet");
-        let p = list(&Http::new().unwrap(), AUTH, Some(&base), "cyexbot", &f).await.unwrap();
+        let p = list(&m.channel(), "cyexbot", &f).await.unwrap();
         assert!(p.clips.is_empty() && p.cursor.is_none());
-        let sent = h.join().unwrap();
+        let sent = m.sent();
         assert!(sent[0]["query"].as_str().unwrap().contains("terms: [BROADCASTER]"));
         // Nobody matched: only the title search ran.
         assert_eq!(sent.len(), 2);
@@ -419,29 +374,32 @@ mod tests {
 
     #[tokio::test]
     async fn delete_sends_slugs_and_reads_what_went() {
-        let (base, h) = serve(vec![r#"{"data":{"deleteClips":{"clips":[{"slug":"A"},null,{"slug":"B"}]}}}"#]);
+        let m = serve([r#"{"data":{"deleteClips":{"clips":[{"slug":"A"},null,{"slug":"B"}]}}}"#]);
         let slugs = vec!["A".to_owned(), "B".to_owned()];
-        let gone = delete(&Http::new().unwrap(), AUTH, Some(&base), &slugs).await.unwrap();
+        let gone = delete(&m.channel(), &slugs).await.unwrap();
         assert_eq!(gone, slugs);
-        let sent = &h.join().unwrap()[0];
+        let sent = &m.sent()[0];
         assert!(sent["query"].as_str().unwrap().starts_with("mutation DeleteClips($input: DeleteClipsInput!)"));
         assert_eq!(sent["variables"], json!({ "input": { "slugs": ["A", "B"] } }));
     }
 
     #[tokio::test]
     async fn delete_errors_come_back() {
-        let (base, h) = serve(vec![r#"{"errors":[{"message":"forbidden"}],"data":{"deleteClips":null}}"#]);
-        let e = delete(&Http::new().unwrap(), AUTH, Some(&base), &["A".into()]).await.unwrap_err();
+        let m = serve([r#"{"errors":[{"message":"forbidden"}],"data":{"deleteClips":null}}"#]);
+        let e = delete(&m.channel(), &["A".into()]).await.unwrap_err();
         assert_eq!(e.api_message(), Some("forbidden"));
-        h.join().unwrap();
+        m.sent();
         // Too many at once never leaves the app; none at all sends nothing.
         let many: Vec<String> = (0..=DELETE_MAX).map(|i| i.to_string()).collect();
-        assert!(matches!(delete(&Http::new().unwrap(), AUTH, Some("http://127.0.0.1:9"), &many).await, Err(Error::Refused(_))));
-        assert!(delete(&Http::new().unwrap(), AUTH, Some("http://127.0.0.1:9"), &[]).await.unwrap().is_empty());
+        assert!(matches!(delete(&off(), &many).await, Err(Error::Refused(_))));
+        assert!(delete(&off(), &[]).await.unwrap().is_empty());
     }
 
-    #[test]
-    fn a_null_payload_is_a_refusal() {
-        assert!(matches!(read_delete(json!({ "deleteClips": null })), Err(Error::Refused(_))));
+    #[tokio::test]
+    async fn v107_r41_a_null_payload_is_not_done() {
+        let m = serve([r#"{"data":{"deleteClips":null}}"#]);
+        let e = delete(&m.channel(), &["A".into()]).await.unwrap_err();
+        assert!(matches!(e, Error::Refused(c) if c == NOT_DONE));
+        assert!(query(&m.sent()[0]).contains("deleteClips(input: $input)"));
     }
 }

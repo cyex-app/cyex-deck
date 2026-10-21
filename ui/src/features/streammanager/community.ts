@@ -3,8 +3,8 @@
 
 import type { CmAssigned } from '../../ipc/bindings/CmAssigned';
 import type { CmFollower } from '../../ipc/bindings/CmFollower';
-import type { CmRole } from '../../ipc/bindings/CmRole';
-import { formatDate, formatTime } from '../../lib/format.ts';
+import type { ChannelRole } from '../../ipc/bindings/ChannelRole';
+import { ago, formatDate, formatTime } from '../../lib/format.ts';
 
 export type FollowSort = 'newest' | 'oldest' | 'name';
 
@@ -32,77 +32,63 @@ export function day(iso: string | null | undefined): string {
   return d ? formatDate(d) : '';
 }
 
-const UNITS: [name: string, secs: number][] = [
-  ['year', 31_536_000],
-  ['month', 2_592_000],
-  ['day', 86_400],
-  ['hour', 3_600],
-  ['minute', 60],
-];
-
-/** "3 days ago", for a hover. */
+/** "3 days ago", for a hover; empty when Twitch gave none (lib/format `ago`). */
 export function relative(iso: string | null | undefined, now = Date.now()): string {
   const d = parsed(iso);
-  if (!d) return '';
-  const s = Math.max(0, Math.floor((now - d.getTime()) / 1000));
-  for (const [name, size] of UNITS) {
-    const n = Math.floor(s / size);
-    if (n >= 1) return `${n} ${name}${n === 1 ? '' : 's'} ago`;
-  }
-  return 'just now';
-}
-
-/** A next page added to what is loaded; one already there is kept once. */
-export function merged(have: CmFollower[], page: CmFollower[]): CmFollower[] {
-  const seen = new Set(have.map((f) => f.id));
-  return [...have, ...page.filter((f) => !seen.has(f.id))];
+  return d ? ago(d.getTime(), now, true) : '';
 }
 
 /** What shows: the search over name and login, then the order. Date orders are Twitch's
  *  own (`newest` and `oldest` come loaded that way); only the name is sorted here. */
 export function shownFollowers(list: CmFollower[], query: string, sort: FollowSort): CmFollower[] {
   const q = query.trim().toLowerCase();
-  const found = q ? list.filter((f) => f.login.includes(q) || f.name.toLowerCase().includes(q)) : list;
-  return sort === 'name' ? [...found].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })) : found;
+  const found = q ? list.filter((f) => f.login.includes(q) || f.display.toLowerCase().includes(q)) : list;
+  return sort === 'name' ? [...found].sort((a, b) => a.display.localeCompare(b.display, undefined, { sensitivity: 'base' })) : found;
 }
 
-export const ROLE_ORDER: CmRole[] = ['moderator', 'leadMod', 'editor', 'manager'];
+/** V107-R42 The roles this list holds (one role type across the app: `ChannelRole`). */
+export const ROLE_ORDER: ChannelRole[] = ['mod', 'leadMod', 'editor', 'agent'];
 
-export const ROLE_LABEL: Record<CmRole, string> = {
-  moderator: 'Moderator',
+export const ROLE_LABEL: Record<ChannelRole, string> = {
+  mod: 'Moderator',
   leadMod: 'Lead mod',
+  vip: 'VIP',
   editor: 'Editor',
-  manager: 'Business manager',
+  artist: 'Artist',
+  agent: 'Business manager',
 };
 
 /** The button, and what it says once armed. */
-export const ROLE_LEAVE: Record<CmRole, { label: string; confirm: string }> = {
-  moderator: { label: 'Unmod', confirm: 'Unmod yourself?' },
-  leadMod: { label: 'Step down', confirm: 'Step down?' },
-  editor: { label: 'Step down', confirm: 'Leave?' },
-  manager: { label: 'Step down', confirm: 'Step down?' },
+const STEP_DOWN = { label: 'Step down', confirm: 'Step down?' };
+export const ROLE_LEAVE: Record<ChannelRole, { label: string; confirm: string }> = {
+  mod: { label: 'Unmod', confirm: 'Unmod yourself?' },
+  leadMod: STEP_DOWN,
+  vip: STEP_DOWN,
+  editor: STEP_DOWN,
+  artist: STEP_DOWN,
+  agent: STEP_DOWN,
 };
 
-export type RoleFilter = CmRole | 'all';
+export type RoleFilter = ChannelRole | 'all';
 
 /** What shows: one role or all, narrowed by search; channels in name order, a channel's
  *  roles in `ROLE_ORDER`. */
 export function shownRoles(list: CmAssigned[], role: RoleFilter, query: string): CmAssigned[] {
   const q = query.trim().toLowerCase();
   return list
-    .filter((r) => (role === 'all' || r.role === role) && (!q || r.login.includes(q) || r.name.toLowerCase().includes(q)))
+    .filter((r) => (role === 'all' || r.role === role) && (!q || r.login.includes(q) || r.display.toLowerCase().includes(q)))
     .sort(
       (a, b) =>
-        a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) || ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role),
+        a.display.localeCompare(b.display, undefined, { sensitivity: 'base' }) || ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role),
     );
 }
 
 /** How many channels hold each role. */
 export function roleCounts(list: CmAssigned[]): Record<RoleFilter, number> {
-  const out: Record<RoleFilter, number> = { all: list.length, moderator: 0, leadMod: 0, editor: 0, manager: 0 };
+  const out: Record<RoleFilter, number> = { all: list.length, leadMod: 0, mod: 0, vip: 0, editor: 0, artist: 0, agent: 0 };
   for (const r of list) out[r.role]++;
   return out;
 }
 
 /** A role row's key. */
-export const roleKey = (r: Pick<CmAssigned, 'channelId' | 'role'>) => `${r.channelId}/${r.role}`;
+export const roleKey = (r: Pick<CmAssigned, 'id' | 'role'>) => `${r.id}/${r.role}`;

@@ -5,8 +5,7 @@
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use super::{Auth, Response, URL, request_at, unwrap};
-use crate::http::json as send_json;
+use super::{Auth, run_at};
 use crate::{Error, Http, Result};
 
 /// Twitch's upload limit for all three.
@@ -85,11 +84,6 @@ pub struct Upload {
     pub url: String,
 }
 
-/// The GQL address: Twitch's, or a local mock's `{base}/gql`.
-fn gql_url(base: Option<&str>) -> String {
-    base.map_or_else(|| URL.to_owned(), |b| format!("{b}/gql"))
-}
-
 /// Asks for an upload address. A payload `error` comes back as `Error::Refused(code)`.
 pub async fn create(
     http: &Http,
@@ -100,10 +94,7 @@ pub async fn create(
     format: Format,
 ) -> Result<Upload> {
     let vars = json!({ "input": { "userID": user_id, "format": format.gql() } });
-    let body = json!({ "query": mutation(kind), "variables": vars });
-    let req = request_at(http, &gql_url(base), auth).json(&body);
-    let res: Response<Value> = send_json(req).await?;
-    read_create(kind, unwrap(res)?)
+    read_create(kind, run_at(http, auth, base, &mutation(kind), vars).await?)
 }
 
 fn read_create(kind: ImageKind, data: Value) -> Result<Upload> {
@@ -155,10 +146,7 @@ impl Images {
 /// Public read, no token.
 pub async fn images(http: &Http, base: Option<&str>, user_id: &str) -> Result<Images> {
     let q = "query($id: ID!) { user(id: $id) { profileImageURL(width: 600) bannerImageURL offlineImageURL } }";
-    let body = json!({ "query": q, "variables": { "id": user_id } });
-    let req = request_at(http, &gql_url(base), Auth::PUBLIC).json(&body);
-    let res: Response<Value> = send_json(req).await?;
-    let user = unwrap(res)?["user"].take();
+    let user = run_at(http, Auth::PUBLIC, base, q, json!({ "id": user_id })).await?["user"].take();
     let s = |k: &str| user[k].as_str().unwrap_or_default().to_owned();
     Ok(Images {
         avatar: s("profileImageURL"),

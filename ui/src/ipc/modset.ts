@@ -9,6 +9,8 @@ import type { ModsetSettings } from './bindings/ModsetSettings';
 export const modsetIpc = {
   read: () => invoke<ModsetSettings>('modset_read'),
   set: (change: ModsetChange) => invoke<ModsetSettings>('modset_set', { change }),
-  addTerm: (permitted: boolean, text: string) => invoke<ModsetSettings>('modset_add_term', { permitted, text }),
+  /** `have`: the terms shown, checked first so no read runs before. */
+  addTerm: (permitted: boolean, text: string, have: string[]) =>
+    invoke<ModsetSettings>('modset_add_term', { permitted, text, have }),
   removeTerm: (permitted: boolean, id: string) => invoke<ModsetSettings>('modset_remove_term', { permitted, id }),
 };

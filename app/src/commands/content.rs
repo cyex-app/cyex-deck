@@ -5,7 +5,8 @@ use cyex_twitch::gql::dashboard::content::clips::{ClipFilter, ClipPage};
 use cyex_twitch::gql::dashboard::content::videos::VideoPage;
 use tauri::AppHandle;
 
-use crate::streammanager::content::{self, Deleted};
+use crate::streammanager::bulk::Bulk;
+use crate::streammanager::content;
 
 #[tauri::command]
 pub async fn content_clips(app: AppHandle, filter: ClipFilter) -> Result<ClipPage, String> {
@@ -13,7 +14,7 @@ pub async fn content_clips(app: AppHandle, filter: ClipFilter) -> Result<ClipPag
 }
 
 #[tauri::command]
-pub async fn content_delete_clips(app: AppHandle, slugs: Vec<String>) -> Result<Deleted, String> {
+pub async fn content_delete_clips(app: AppHandle, slugs: Vec<String>) -> Result<Bulk, String> {
     content::delete_clips(&app, slugs).await
 }
 
@@ -33,11 +34,11 @@ pub async fn content_publish_video(app: AppHandle, id: String, public: bool) -> 
 }
 
 #[tauri::command]
-pub async fn content_publish_videos(app: AppHandle, ids: Vec<String>, public: bool) -> Result<Deleted, String> {
+pub async fn content_publish_videos(app: AppHandle, ids: Vec<String>, public: bool) -> Result<Bulk, String> {
     content::publish_videos(&app, ids, public).await
 }
 
 #[tauri::command]
-pub async fn content_delete_videos(app: AppHandle, ids: Vec<String>) -> Result<Deleted, String> {
+pub async fn content_delete_videos(app: AppHandle, ids: Vec<String>) -> Result<Bulk, String> {
     content::delete_videos(&app, ids).await
 }

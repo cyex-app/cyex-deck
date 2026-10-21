@@ -202,6 +202,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         streammanager::sm_categories,
         streammanager::sm_marker,
         streammanager::sm_markers,
+        streammanager::sm_bulk_stop,
+        streammanager::sm_limits,
         rewards::sm_rewards,
         rewards::sm_reward_check,
         rewards::sm_reward_create,

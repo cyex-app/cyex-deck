@@ -10,9 +10,10 @@ import type { VipSlots } from './bindings/VipSlots';
 export const rolesIpc = {
   /** Everyone with a role in your channel (`login`, the account's own). */
   view: (account: string, login: string) => invoke<RolesView>('roles_view', { account, login }),
-  /** Gives (`on`) or takes a role; `holds` is what their row shows. The lists come back. */
-  set: (account: string, login: string, who: string, role: ChannelRole, on: boolean, holds: ChannelRole[]) =>
-    invoke<RolesView>('roles_set', { account, login, who, role, on, holds }),
+  /** V107-R42 Gives and takes roles for `who` in one change; Rust picks the order and
+   *  says the line (`line`). The lists come back; a rejection is the line. */
+  set: (account: string, login: string, who: string, give: ChannelRole[], take: ChannelRole[]) =>
+    invoke<RolesView>('roles_set', { account, login, who, give, take }),
   /** The VIP slots when `channel` is the account's own; null elsewhere. */
   vipSlots: (account: string, channel: string) => invoke<VipSlots | null>('roles_vip_slots', { account, channel }),
 };

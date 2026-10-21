@@ -8,10 +8,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use ts_rs::TS;
 
-use super::mutate;
-use crate::gql::{Auth, query};
+use super::Channel;
+use crate::gql::connection::{GAP, Page, page, paginate};
 use crate::helix::moderation::BlockedTerm;
-use crate::{Error, Http, Result};
+use crate::{Error, Result};
 
 /// AutoMod's categories, in Twitch's order.
 pub const CATEGORIES: [&str; 10] = [
@@ -48,8 +48,8 @@ const READ: &str = "query($id: ID!) {
       misogynyLevel nameCallingLevel profanityLevel racismLevel sexualHarassmentLevel sexualityLevel
       smartDetectionLevel } }
     unbanRequestsSettings { isEnabled cooldownMinutes }
-    blockedTerms(first: 100) { edges { node { id phrase createdAt expiresAt } } }
-    permittedTerms(first: 100) { edges { node { id phrase createdAt expiresAt } } }
+    blockedTerms(first: 100) { edges { cursor node { id phrase createdAt expiresAt } } pageInfo { hasNextPage } }
+    permittedTerms(first: 100) { edges { cursor node { id phrase createdAt expiresAt } } pageInfo { hasNextPage } }
   }
 }
 fragment partial on ChatPartialVerificationConfig { minimumAccountAgeInMinutes minimumFollowerAgeInMinutes
@@ -126,6 +126,8 @@ pub struct ModSettings {
     pub unban_cooldown_minutes: u32,
     pub blocked: Vec<BlockedTerm>,
     pub permitted: Vec<BlockedTerm>,
+    /// Twitch had more terms than were read.
+    pub truncated: bool,
 }
 
 /// One change from the panel.
@@ -254,7 +256,7 @@ impl Verification {
 #[derive(Deserialize)]
 struct Data {
     user: Option<User>,
-    channel: Option<Channel>,
+    channel: Option<ChannelData>,
 }
 
 #[derive(Deserialize)]
@@ -274,11 +276,13 @@ struct Chat {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct Channel {
+struct ChannelData {
     auto_mod_configuration: Option<RawAutoMod>,
     unban_requests_settings: Option<Unban>,
-    blocked_terms: Option<Terms>,
-    permitted_terms: Option<Terms>,
+    #[serde(default)]
+    blocked_terms: Value,
+    #[serde(default)]
+    permitted_terms: Value,
 }
 
 #[derive(Deserialize)]
@@ -297,39 +301,18 @@ struct Unban {
     cooldown_minutes: u32,
 }
 
-#[derive(Deserialize)]
-struct Terms {
-    #[serde(default)]
-    edges: Vec<Edge>,
-}
-
-#[derive(Deserialize)]
-struct Edge {
-    node: Option<RawTerm>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RawTerm {
-    id: String,
-    phrase: String,
-    #[serde(default)]
-    created_at: Option<String>,
-    expires_at: Option<String>,
-}
-
-fn terms(t: Option<Terms>) -> Vec<BlockedTerm> {
-    t.map(|t| t.edges)
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|e| e.node)
-        .map(|n| BlockedTerm {
-            id: n.id,
-            text: n.phrase,
-            created_at: n.created_at.unwrap_or_default(),
-            expires_at: n.expires_at,
+/// One page of `blockedTerms` / `permittedTerms`.
+fn terms(conn: &Value) -> Page<BlockedTerm> {
+    page(conn, |e| {
+        let n = e.get("node")?;
+        let s = |k: &str| n.get(k).and_then(Value::as_str).map(str::to_owned);
+        Some(BlockedTerm {
+            id: s("id")?,
+            text: s("phrase")?,
+            created_at: s("createdAt").unwrap_or_default(),
+            expires_at: s("expiresAt"),
         })
-        .collect()
+    })
 }
 
 /// The preset these levels are, if any.
@@ -362,7 +345,8 @@ fn automod(a: Option<RawAutoMod>) -> AutoMod {
     AutoMod { overall, levels }
 }
 
-fn settings_from(d: Data) -> ModSettings {
+/// The settings and, per list, the cursor of its next page (blocked, permitted).
+fn settings_from(d: Data) -> (ModSettings, [Option<String>; 2]) {
     let chat = d.user.and_then(|u| u.chat_settings);
     let (delay, rules, verification) = match chat {
         Some(c) => (
@@ -381,27 +365,79 @@ fn settings_from(d: Data) -> ModSettings {
         Some(c) => (
             c.auto_mod_configuration,
             c.unban_requests_settings,
-            c.blocked_terms,
-            c.permitted_terms,
+            terms(&c.blocked_terms),
+            terms(&c.permitted_terms),
         ),
-        None => (None, None, None, None),
+        None => (None, None, Page::default(), Page::default()),
     };
-    ModSettings {
+    let s = ModSettings {
         automod: automod(am),
         delay,
         verification,
         rules,
         unban_requests: unban.as_ref().is_some_and(|u| u.is_enabled),
         unban_cooldown_minutes: unban.map_or(0, |u| u.cooldown_minutes),
-        blocked: terms(blocked),
-        permitted: terms(permitted),
-    }
+        blocked: blocked.items,
+        permitted: permitted.items,
+        truncated: false,
+    };
+    (s, [blocked.next, permitted.next])
 }
 
-/// Everything on the page. Terms: the first 100 of each, as Twitch pages them.
-pub async fn read(http: &Http, auth: Auth<'_>, channel_id: &str) -> Result<ModSettings> {
-    let d: Data = query(http, auth, READ, json!({ "id": channel_id })).await?;
-    Ok(settings_from(d))
+/// More terms, 100 a page.
+const TERMS: &str = "query($id: ID!, $after: Cursor) { channel(id: $id) { \
+    LIST(first: 100, after: $after) { edges { cursor node { id phrase createdAt expiresAt } } pageInfo { hasNextPage } } } }";
+/// Term pages read after the first, per list (100 each).
+const TERM_PAGES: usize = 9;
+
+/// Everything on the page. Terms page past the first 100 (V107-R41), [`TERM_PAGES`] more
+/// at most; a list cut short says `truncated`.
+pub async fn read(ch: &Channel<'_>) -> Result<ModSettings> {
+    let d: Data = ch.read(READ, json!({ "id": ch.id })).await?;
+    let (mut s, next) = settings_from(d);
+    for (list, start) in ["blockedTerms", "permittedTerms"].into_iter().zip(next) {
+        if start.is_none() {
+            continue;
+        }
+        let text = TERMS.replace("LIST", list);
+        let more = paginate(start, TERM_PAGES, GAP, |after| {
+            let text = text.clone();
+            async move {
+                let data: Value = ch.read(&text, json!({ "id": ch.id, "after": after })).await?;
+                Ok(terms(&data["channel"][list]))
+            }
+        })
+        .await;
+        let (items, cut) = match more {
+            Ok(p) => (p.items, p.truncated),
+            Err(_) => (Vec::new(), true),
+        };
+        s.truncated |= cut;
+        if list == "blockedTerms" {
+            s.blocked.extend(items);
+        } else {
+            s.permitted.extend(items);
+        }
+    }
+    Ok(s)
+}
+
+/// AutoMod's levels now, for a one-category change.
+async fn levels(ch: &Channel<'_>) -> Result<Vec<u8>> {
+    #[derive(Deserialize)]
+    struct Read {
+        channel: Option<ChannelAutoMod>,
+    }
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct ChannelAutoMod {
+        auto_mod_configuration: Option<RawAutoMod>,
+    }
+    const LEVELS: &str = "query($id: ID!) { channel(id: $id) { autoModConfiguration { overallLevel detailedLevels { \
+        ableismLevel aggressionLevel homophobiaLevel misogynyLevel nameCallingLevel profanityLevel racismLevel \
+        sexualHarassmentLevel sexualityLevel smartDetectionLevel } } } }";
+    let r: Read = ch.read(LEVELS, json!({ "id": ch.id })).await?;
+    Ok(automod(r.channel.and_then(|c| c.auto_mod_configuration)).levels)
 }
 
 // --- writing ---
@@ -492,18 +528,21 @@ pub fn plan(
     })
 }
 
-/// Applies one change and reads everything back.
-pub async fn set(http: &Http, auth: Auth<'_>, channel_id: &str, change: &Change) -> Result<ModSettings> {
-    let now = read(http, auth, channel_id).await?;
-    let (text, input) = plan(channel_id, change, &now.automod.levels).map_err(Error::Refused)?;
-    match text {
-        AUTOMOD => {
-            let _: Value = query(http, auth, text, json!({ "input": input })).await?;
-        }
-        CHAT => mutate(http, auth, text, "updateChatSettings", input).await?,
-        _ => mutate(http, auth, text, "setUnbanRequestsSettings", input).await?,
-    }
-    read(http, auth, channel_id).await
+/// Applies one change and reads everything back. Only a one-category AutoMod change reads
+/// first (the other levels); the rest is sent as it is (PERF-03).
+pub async fn set(ch: &Channel<'_>, change: &Change) -> Result<ModSettings> {
+    let current = match change {
+        Change::Category { .. } => levels(ch).await?,
+        _ => Vec::new(),
+    };
+    let (text, input) = plan(ch.id, change, &current).map_err(Error::Refused)?;
+    let field = match text {
+        AUTOMOD => "updateAutoModLevels",
+        CHAT => "updateChatSettings",
+        _ => "setUnbanRequestsSettings",
+    };
+    ch.write(text, field, input).await?;
+    read(ch).await
 }
 
 // --- terms ---
@@ -517,54 +556,33 @@ const DEL_PERMITTED: &str = "mutation($input: DeleteChannelPermittedTermByIDInpu
 const DEL_BLOCKED: &str = "mutation($input: DeleteChannelBlockedTermByIDInput!) { \
     deleteChannelBlockedTermByID(input: $input) { error { code } } }";
 
-/// Adds a term for good. Blocked terms stay editable by mods, like Twitch's default.
-pub async fn add_term(
-    http: &Http,
-    auth: Auth<'_>,
-    channel_id: &str,
-    permitted: bool,
-    text: &str,
-) -> Result<()> {
-    #[derive(Deserialize)]
-    struct Payload {
-        /// An enum here, not `{ code }`.
-        error: Option<String>,
-    }
-    let (q, field, input) = if permitted {
-        (
-            ADD_PERMITTED,
-            "addChannelPermittedTerm",
-            json!({ "channelID": channel_id, "phrase": text }),
-        )
-    } else {
-        (
-            ADD_BLOCKED,
-            "addChannelBlockedTerm",
-            json!({ "channelID": channel_id, "phrase": text, "isModEditable": true }),
-        )
-    };
-    let data: Value = query(http, auth, q, json!({ "input": input })).await?;
-    let p: Option<Payload> =
-        serde_json::from_value(data.get(field).cloned().unwrap_or(Value::Null)).map_err(Error::Decode)?;
-    match p.and_then(|p| p.error) {
-        Some(code) => Err(Error::Refused(code)),
-        None => Ok(()),
+/// A term's length as Twitch takes it, in characters.
+pub const TERM_MIN: usize = 2;
+pub const TERM_MAX: usize = 500;
+
+fn term_call(permitted: bool, add: bool) -> (&'static str, &'static str) {
+    match (permitted, add) {
+        (true, true) => (ADD_PERMITTED, "addChannelPermittedTerm"),
+        (false, true) => (ADD_BLOCKED, "addChannelBlockedTerm"),
+        (true, false) => (DEL_PERMITTED, "deleteChannelPermittedTermByID"),
+        (false, false) => (DEL_BLOCKED, "deleteChannelBlockedTermByID"),
     }
 }
 
-pub async fn remove_term(
-    http: &Http,
-    auth: Auth<'_>,
-    channel_id: &str,
-    permitted: bool,
-    id: &str,
-) -> Result<()> {
-    let (q, field) = if permitted {
-        (DEL_PERMITTED, "deleteChannelPermittedTermByID")
-    } else {
-        (DEL_BLOCKED, "deleteChannelBlockedTermByID")
-    };
-    mutate(http, auth, q, field, json!({ "channelID": channel_id, "id": id })).await
+/// Adds a term for good. Blocked terms stay editable by mods, like Twitch's default. One on
+/// the list already comes back as Twitch's own code (no read first, PERF-03).
+pub async fn add_term(ch: &Channel<'_>, permitted: bool, text: &str) -> Result<()> {
+    let (q, field) = term_call(permitted, true);
+    let mut input = json!({ "channelID": ch.id, "phrase": text });
+    if !permitted {
+        input["isModEditable"] = true.into();
+    }
+    ch.write(q, field, input).await.map(drop)
+}
+
+pub async fn remove_term(ch: &Channel<'_>, permitted: bool, id: &str) -> Result<()> {
+    let (q, field) = term_call(permitted, false);
+    ch.write(q, field, json!({ "channelID": ch.id, "id": id })).await.map(drop)
 }
 
 #[cfg(test)]
@@ -587,7 +605,8 @@ mod tests {
 
     #[test]
     fn reads_the_live_shape() {
-        let s = settings_from(serde_json::from_str(LIVE).unwrap());
+        let (s, next) = settings_from(serde_json::from_str(LIVE).unwrap());
+        assert_eq!(next, [None, None]);
         assert_eq!(s.automod.overall, Some(2));
         assert_eq!(s.automod.levels, PRESETS[2].to_vec());
         assert_eq!(s.delay, 4);
@@ -614,7 +633,7 @@ mod tests {
 
     #[test]
     fn empty_reads_as_off() {
-        let s = settings_from(serde_json::from_str(r#"{"user":null,"channel":null}"#).unwrap());
+        let (s, _) = settings_from(serde_json::from_str(r#"{"user":null,"channel":null}"#).unwrap());
         assert_eq!(s.automod.overall, Some(0));
         assert_eq!(s.delay, 0);
         assert_eq!(s.verification.email.mode, VerifyMode::None);
@@ -703,5 +722,112 @@ mod tests {
     fn presets_match_twitchs_table() {
         assert_eq!(preset_of(&PRESETS[4]), Some(4));
         assert_eq!(preset_of(&[1; 10]), None);
+    }
+
+    use crate::gql::dashboard::NOT_DONE;
+    use crate::gql::dashboard::mock::{ID, query, serve};
+
+    /// A read with one blocked term and more after `c1`.
+    fn page_one(more: bool) -> String {
+        json!({ "data": { "user": { "chatSettings": { "chatDelayMs": 0, "rules": [] } }, "channel": {
+            "autoModConfiguration": { "overallLevel": 2, "detailedLevels": { "ableismLevel": 2, "aggressionLevel": 2,
+              "homophobiaLevel": 2, "misogynyLevel": 2, "nameCallingLevel": 1, "profanityLevel": 0, "racismLevel": 2,
+              "sexualHarassmentLevel": 2, "sexualityLevel": 2, "smartDetectionLevel": 2 } },
+            "blockedTerms": { "edges": [{ "cursor": "c1", "node": { "id": "1", "phrase": "a1" } }], "pageInfo": { "hasNextPage": more } },
+            "permittedTerms": { "edges": [], "pageInfo": { "hasNextPage": false } } } } })
+        .to_string()
+    }
+
+    fn terms_page(id: &str, cursor: &str, more: bool) -> String {
+        json!({ "data": { "channel": { "blockedTerms": {
+            "edges": [{ "cursor": cursor, "node": { "id": id, "phrase": id } }], "pageInfo": { "hasNextPage": more } } } } })
+        .to_string()
+    }
+
+    fn refused<T: std::fmt::Debug>(r: Result<T>) -> String {
+        match r {
+            Err(Error::Refused(c)) => c,
+            other => panic!("not a refusal: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn v107_r41_terms_page_past_100_and_stop_on_a_repeated_cursor() {
+        let m = serve([page_one(true), terms_page("2", "c2", true), terms_page("3", "c1", true)]);
+        let s = read(&m.channel()).await.unwrap();
+        let ids: Vec<&str> = s.blocked.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, ["1", "2", "3"]);
+        assert!(s.truncated, "c1 came back: Twitch looped");
+        let sent = m.sent();
+        assert!(query(&sent[1]).contains("blockedTerms(first: 100, after: $after)"));
+        assert_eq!(sent[1]["variables"], json!({ "id": ID, "after": "c1" }));
+        assert_eq!(sent[2]["variables"], json!({ "id": ID, "after": "c2" }));
+    }
+
+    #[tokio::test]
+    async fn v107_r41_a_failing_term_page_keeps_the_first() {
+        let m = serve([page_one(true), r#"{"errors":[{"message":"Unknown argument \"after\""}],"data":null}"#.to_owned()]);
+        let s = read(&m.channel()).await.unwrap();
+        assert_eq!((s.blocked.len(), s.truncated), (1, true));
+        m.sent();
+    }
+
+    #[tokio::test]
+    async fn v107_r41_set_reads_first_only_for_a_category() {
+        let m = serve([
+            json!({ "data": { "updateChatSettings": { "error": null } } }).to_string(),
+            page_one(false),
+            page_one(false),
+            json!({ "data": { "updateAutoModLevels": { "autoModConfiguration": { "overallLevel": -1 } } } }).to_string(),
+            page_one(false),
+            json!({ "data": { "setUnbanRequestsSettings": null } }).to_string(),
+            json!({ "data": { "updateAutoModLevels": { "autoModConfiguration": null } } }).to_string(),
+            page_one(false),
+            json!({ "data": { "updateChatSettings": { "error": { "code": "FORBIDDEN" } } } }).to_string(),
+        ]);
+        let ch = m.channel();
+        assert!(!set(&ch, &Change::Delay { seconds: 2 }).await.unwrap().truncated);
+        set(&ch, &Change::Category { index: 5, level: 3 }).await.unwrap();
+        assert_eq!(refused(set(&ch, &Change::UnbanRequests { on: true, minutes: 15 }).await), NOT_DONE);
+        set(&ch, &Change::AutoMod { level: 4 }).await.unwrap();
+        assert_eq!(refused(set(&ch, &Change::Rules { rules: vec![] }).await), "FORBIDDEN");
+        let sent = m.sent();
+        assert!(query(&sent[0]).contains("updateChatSettings(input: $input)"));
+        assert_eq!(sent[0]["variables"], json!({ "input": { "channelID": ID, "chatDelayInMs": 2000 } }));
+        assert!(query(&sent[2]).contains("autoModConfiguration"), "the one pre-read");
+        assert!(!query(&sent[2]).contains("chatSettings"));
+        let mut l = PRESETS[2];
+        l[5] = 3;
+        assert_eq!(sent[3]["variables"], json!({ "input": plan(ID, &Change::Category { index: 5, level: 3 }, &PRESETS[2]).unwrap().1 }));
+        assert_eq!(sent[3]["variables"]["input"]["detailedLevels"]["profanityLevel"], l[5]);
+        assert!(sent[3]["variables"]["input"].get("overallLevel").is_none());
+        assert!(query(&sent[5]).contains("setUnbanRequestsSettings(input: $input)"));
+        assert_eq!(sent[5]["variables"], json!({ "input": { "channelID": ID, "isEnabled": true, "cooldownMinutes": 15 } }));
+        assert_eq!(sent[6]["variables"]["input"]["overallLevel"], 4);
+        assert_eq!(sent[8]["variables"], json!({ "input": { "channelID": ID, "rules": [""] } }));
+    }
+
+    #[tokio::test]
+    async fn v107_r41_terms_send_their_inputs() {
+        let m = serve([
+            json!({ "data": { "addChannelBlockedTerm": { "term": { "id": "t" }, "error": null } } }).to_string(),
+            json!({ "data": { "addChannelPermittedTerm": { "term": null, "error": "DUPLICATE_TERM" } } }).to_string(),
+            json!({ "data": { "addChannelPermittedTerm": null } }).to_string(),
+            json!({ "data": { "deleteChannelBlockedTermByID": { "error": null } } }).to_string(),
+            json!({ "data": { "deleteChannelPermittedTermByID": { "error": { "code": "NOT_FOUND" } } } }).to_string(),
+        ]);
+        let ch = m.channel();
+        add_term(&ch, false, "gg").await.unwrap();
+        assert_eq!(refused(add_term(&ch, true, "gg").await), "DUPLICATE_TERM");
+        assert_eq!(refused(add_term(&ch, true, "gg").await), NOT_DONE);
+        remove_term(&ch, false, "t").await.unwrap();
+        assert_eq!(refused(remove_term(&ch, true, "t").await), "NOT_FOUND");
+        let sent = m.sent();
+        assert!(query(&sent[0]).contains("addChannelBlockedTerm(input: $input)"));
+        assert_eq!(sent[0]["variables"], json!({ "input": { "channelID": ID, "phrase": "gg", "isModEditable": true } }));
+        assert_eq!(sent[1]["variables"], json!({ "input": { "channelID": ID, "phrase": "gg" } }));
+        assert!(query(&sent[3]).contains("deleteChannelBlockedTermByID(input: $input)"));
+        assert_eq!(sent[3]["variables"], json!({ "input": { "channelID": ID, "id": "t" } }));
+        assert!(query(&sent[4]).contains("deleteChannelPermittedTermByID(input: $input)"));
     }
 }

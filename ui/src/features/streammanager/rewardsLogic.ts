@@ -1,5 +1,5 @@
 // V107-R37 The rewards panel's small rules: a new reward's defaults, the facts a row shows,
-// and the queue's selection.
+// and the queue's "N waiting" (its selection is lib/paged).
 
 import type { SmReward } from '../../ipc/bindings/SmReward';
 import type { SmRewardEdit } from '../../ipc/bindings/SmRewardEdit';
@@ -62,17 +62,4 @@ export function facts(r: SmReward, now = Date.now()): string[] {
 export function waiting(r: SmReward): string | null {
   if (!r.waiting) return null;
   return `${formatNumber(r.waiting)}${r.waitingMore ? '+' : ''} waiting`;
-}
-
-/** Turns one id on or off. */
-export function toggle(sel: ReadonlySet<string>, id: string): Set<string> {
-  const next = new Set(sel);
-  if (!next.delete(id)) next.add(id);
-  return next;
-}
-
-/** Keeps only ids still listed. */
-export function keep(sel: ReadonlySet<string>, ids: readonly string[]): Set<string> {
-  const listed = new Set(ids);
-  return new Set([...sel].filter((id) => listed.has(id)));
 }

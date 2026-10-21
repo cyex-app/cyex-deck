@@ -633,26 +633,35 @@ impl Room {
         self.trim();
     }
 
-    fn mark_deleted(&mut self, gone: &Gone, hit: impl Fn(&ChatMessage) -> bool) {
+    /// Whether any line changed; lines already marked the same way aren't copied.
+    fn mark_deleted(&mut self, gone: &Gone, hit: impl Fn(&ChatMessage) -> bool) -> bool {
+        let mut changed = false;
         for slot in self.buffer.iter_mut() {
-            if hit(slot) {
+            if hit(slot) && slot.would_mark(gone) {
                 let mut m = (**slot).clone();
-                if m.mark_gone(gone) {
-                    *slot = Arc::new(m);
-                }
+                m.mark_gone(gone);
+                *slot = Arc::new(m);
+                changed = true;
             }
         }
+        changed
     }
 
     /// C14 Message `id` deleted; V107-R34 again with the mod when a mod feed names them.
+    /// No event when no line changed (not here, or already marked so).
     pub fn gone_msg(&mut self, id: &str, gone: Gone) -> Vec<RoomEvent> {
-        self.mark_deleted(&gone, |m| m.id == id);
+        if !self.mark_deleted(&gone, |m| m.id == id) {
+            return Vec::new();
+        }
         vec![RoomEvent::Delete { id: id.to_owned(), gone: Some(gone) }]
     }
 
     /// C14 A user's lines, after a timeout or ban; V107-R34 again with the mod from a mod feed.
+    /// No event when no line changed.
     pub fn gone_user(&mut self, user_id: &str, gone: Gone) -> Vec<RoomEvent> {
-        self.mark_deleted(&gone, |m| m.notice.is_none() && m.sender_id() == Some(user_id));
+        if !self.mark_deleted(&gone, |m| m.notice.is_none() && m.sender_id() == Some(user_id)) {
+            return Vec::new();
+        }
         vec![RoomEvent::ClearUser { user_id: user_id.to_owned(), gone }]
     }
 

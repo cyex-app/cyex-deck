@@ -181,6 +181,17 @@ fn v107_r34_a_mod_feed_names_the_mod_and_irc_keeps_it() {
 }
 
 #[test]
+fn v107_r34_gone_without_a_changed_line_sends_nothing() {
+    let mut r = room();
+    feed(&mut r, &msg("a", "7"));
+    assert!(r.gone_user("9", Gone::new(GoneHow::Banned, None)).is_empty(), "no lines");
+    assert!(r.gone_msg("zz", Gone::new(GoneHow::Deleted, None)).is_empty());
+    assert_eq!(r.gone_user("7", Gone::new(GoneHow::Banned, Some("Kuni".into()))).len(), 1);
+    // The same again (IRC after the mod feed): nothing new.
+    assert!(r.gone_user("7", Gone::new(GoneHow::Banned, None)).is_empty());
+}
+
+#[test]
 fn own_messages_are_echoed_from_userstate() {
     let mut r = room();
     feed(&mut r, "@badges=moderator/1;mod=1 :tmi.twitch.tv USERSTATE #chan");

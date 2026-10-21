@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 
 use cyex_eventsub::events::Moderate;
 
-use crate::role_change::RoleAction;
+use crate::roles::RoleAction;
 
 /// How long an own action waits for its echo, in milliseconds.
 const KEEP_MS: i64 = 60_000;

@@ -5,7 +5,7 @@
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
-use super::mutate;
+use super::channel::write;
 use crate::gql::{Auth, query};
 use crate::helix::channel::{Category, ChannelInfo, Edit};
 use crate::{Error, Http, Result};
@@ -124,7 +124,7 @@ pub async fn set_info(http: &Http, auth: Auth<'_>, channel_id: &str, edit: &Edit
     }
     if let Some(tags) = &edit.tags {
         let input = json!({ "contentID": channel_id, "contentType": "CHANNEL", "freeformTagNames": tags });
-        mutate(http, auth, TAGS, "setFreeformTags", input).await?;
+        write(http, auth, None, TAGS, "setFreeformTags", input).await?;
     }
     Ok(())
 }
@@ -174,7 +174,7 @@ pub async fn categories(http: &Http, auth: Auth<'_>, text: &str) -> Result<Vec<C
 pub async fn marker(http: &Http, auth: Auth<'_>, channel_id: &str, description: &str) -> Result<()> {
     let input =
         json!({ "channelID": channel_id, "description": description, "medium": "chat", "platform": "web" });
-    mutate(http, auth, MARKER, "createVideoBookmark", input).await
+    write(http, auth, None, MARKER, "createVideoBookmark", input).await.map(drop)
 }
 
 #[cfg(test)]

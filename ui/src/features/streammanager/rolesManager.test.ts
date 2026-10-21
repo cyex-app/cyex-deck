@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { RoleMember } from '../../ipc/bindings/RoleMember';
-import { addOrder, blocked, cleanLogin, roleCounts, shownMembers, vipCount } from './rolesManager.ts';
+import { cleanLogin, offFor, roleCounts, shownMembers } from './rolesManager.ts';
 
 const m = (login: string, roles: RoleMember['roles'], modified: string | null = null): RoleMember => ({
   id: login,
@@ -26,19 +26,15 @@ test('v107-r36 filter, search and every sort', () => {
   assert.deepEqual(logins(shownMembers(list, 'all', 'CAT', 'name')), ['cat'], 'display name too');
 });
 
-test('v107-r36 counts, slots and the add order', () => {
+test('v107-r42 counts and the VIP slot line from Rust', () => {
   const c = roleCounts(list);
   assert.equal(c.all, 3);
   assert.equal(c.vip, 2);
   assert.equal(c.agent, 0);
-  assert.equal(blocked('vip', [], { used: 0, allowed: 0, state: 'locked' }), 'VIPs unlock through Twitch achievements.');
-  assert.equal(blocked('vip', [], { used: 10, allowed: 10, state: 'full' }), 'Every VIP slot is taken.');
-  assert.equal(blocked('vip', ['vip'], { used: 10, allowed: 10, state: 'full' }), null, 'removing is fine');
-  assert.equal(blocked('mod', [], { used: 10, allowed: 10, state: 'full' }), null);
-  assert.deepEqual(addOrder(['mod', 'leadMod', 'editor'], []), ['leadMod', 'editor']);
-  assert.deepEqual(addOrder(['vip', 'mod'], ['vip']), ['mod']);
-  assert.equal(vipCount({ used: 7, allowed: 10, state: 'open' }), 'VIPs 7/10');
-  assert.equal(vipCount({ used: 7, allowed: null, state: 'unknown' }), 'VIPs 7');
-  assert.equal(vipCount({ used: 0, allowed: 0, state: 'locked' }), 'VIPs locked');
+  const full = { used: 10, allowed: 10, state: 'full' as const, why: 'Every VIP slot is taken. Remove a VIP first.', label: 'VIPs 10/10' };
+  assert.equal(offFor('vip', [], full), full.why);
+  assert.equal(offFor('vip', ['vip'], full), null, 'removing is fine');
+  assert.equal(offFor('mod', [], full), null);
+  assert.equal(offFor('vip', [], null), null, 'not known: Twitch decides');
   assert.equal(cleanLogin(' @Caressz '), 'caressz');
 });

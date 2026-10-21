@@ -4,12 +4,15 @@
      the ones this app made. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
+  import ConfirmChoices from '../../components/ConfirmChoices.svelte';
   import EmptyState from '../../components/EmptyState.svelte';
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
+  import { openMenuAt } from '../../components/menu.svelte';
   import Loading from '../../components/Loading.svelte';
   import Card from '../../components/PanelCard.svelte';
   import Segmented from '../../components/Segmented.svelte';
+  import Select from '../../components/Select.svelte';
   import Toggle from '../../components/Toggle.svelte';
   import type { SmRedemptionStatus } from '../../ipc/bindings/SmRedemptionStatus';
   import type { SmReward } from '../../ipc/bindings/SmReward';
@@ -23,12 +26,11 @@
   import RedemptionQueue from './RedemptionQueue.svelte';
   import RewardForm from './RewardForm.svelte';
   import { blank, facts, toEdit, waiting } from './rewardsLogic';
+  import { focusBack } from './onEscape';
+  import SmBar from './SmBar.svelte';
+  import SmProblem from './SmProblem.svelte';
 
   type View = 'rewards' | 'queue';
-  const VIEWS = [
-    { value: 'rewards', label: 'Rewards' },
-    { value: 'queue', label: 'Queue' },
-  ] as const;
 
   let view = $state<View>('rewards');
   let filter = $state('');
@@ -38,19 +40,54 @@
   /** `new`, a reward id being edited, or null. */
   let editing = $state<string | null>(null);
   let confirming = $state<string | null>(null);
-  let busy = $state<string | null>(null);
+  /** BUG-06 Rows (or `new`) with a write on the way; others stay usable. */
+  let busy = $state<ReadonlySet<string>>(new Set());
+  const isBusy = (id: string) => busy.has(id);
+  /** Runs one row's write, that row held meanwhile. */
+  async function hold(id: string, run: () => Promise<void>) {
+    if (busy.has(id)) return;
+    busy = new Set([...busy, id]);
+    try {
+      await run();
+    } catch (e) {
+      toast.error(errorText(e));
+    } finally {
+      busy = new Set([...busy].filter((x) => x !== id));
+    }
+  }
 
   const rewards = $derived(data?.rewards ?? []);
   const queued = $derived(rewards.reduce((n, r) => n + r.waiting, 0));
+  const views = $derived<{ value: View; label: string }[]>([
+    { value: 'rewards', label: 'Rewards' },
+    { value: 'queue', label: queued ? `Queue ${formatNumber(queued)}` : 'Queue' },
+  ]);
+  const options = $derived([
+    { value: '', label: 'All rewards' },
+    ...rewards.map((r) => ({ value: r.id, label: r.waiting ? `${r.title} (${formatNumber(r.waiting)})` : r.title })),
+  ]);
+  let queue = $state<RedemptionQueue>();
 
+  function refresh() {
+    if (view === 'queue') queue?.reload();
+    void load();
+  }
+
+
+  /** BUG-06 Only the newest read lands. */
+  let seq = 0;
   async function load() {
+    const mine = ++seq;
+    loading = true;
     try {
-      data = await rewardsIpc.list();
+      const r = await rewardsIpc.list();
+      if (mine !== seq) return;
+      data = r;
       failed = '';
     } catch (e) {
-      failed = errorText(e);
+      if (mine === seq) failed = errorText(e);
     } finally {
-      loading = false;
+      if (mine === seq) loading = false;
     }
   }
   void load();
@@ -64,44 +101,55 @@
     data.rewards = i >= 0 ? data.rewards.map((x, j) => (j === i ? next : x)) : [...data.rewards, next];
   }
 
-  async function save(edit: SmRewardEdit) {
-    const id = editing;
-    busy = id ?? 'new';
-    try {
-      put(id && id !== 'new' ? await rewardsIpc.update(id, edit) : await rewardsIpc.create(edit));
-      toast.success(id && id !== 'new' ? 'Reward saved.' : 'Reward created.');
-      editing = null;
-    } catch (e) {
-      toast.error(errorText(e));
-    } finally {
-      busy = null;
-    }
+  function save(edit: SmRewardEdit) {
+    const id = editing ?? 'new';
+    void hold(id, async () => {
+      if (id !== 'new') {
+        put(await rewardsIpc.update(id, edit));
+        toast.success('Reward saved.');
+      } else {
+        const s = await rewardsIpc.create(edit);
+        put(s.reward);
+        if (s.warning) toast.error(s.warning);
+        else toast.success('Reward created.');
+      }
+      if (editing === id) editing = null;
+    });
   }
 
-  async function flip(r: SmReward, change: SmRewardSwitch) {
-    busy = r.id;
-    try {
-      put(await rewardsIpc.switch(r.id, change));
-    } catch (e) {
-      toast.error(errorText(e));
-    } finally {
-      busy = null;
-    }
+  function flip(r: SmReward, change: SmRewardSwitch) {
+    void hold(r.id, async () => put(await rewardsIpc.switch(r.id, change)));
   }
 
-  async function remove(r: SmReward, waitingTo: SmRedemptionStatus | null) {
-    busy = r.id;
-    try {
-      await rewardsIpc.remove(r.id, waitingTo);
-      if (data) data.rewards = data.rewards.filter((x) => x.id !== r.id);
-      if (filter === r.id) filter = '';
-      toast.success('Reward deleted.');
-    } catch (e) {
-      toast.error(errorText(e));
-    } finally {
-      busy = null;
-      confirming = null;
-    }
+  function remove(r: SmReward, waitingTo: SmRedemptionStatus | null) {
+    void hold(r.id, async () => {
+      try {
+        await rewardsIpc.remove(r.id, waitingTo);
+        if (data) data.rewards = data.rewards.filter((x) => x.id !== r.id);
+        if (filter === r.id) filter = '';
+        toast.success('Reward deleted.');
+      } finally {
+        if (confirming === r.id) confirming = null;
+      }
+    });
+  }
+
+  /** Pause, edit and delete sit behind ⋯, as in Clips and Videos; the switch stays out. */
+  function menu(e: MouseEvent, r: SmReward) {
+    openMenuAt(e, [
+      r.paused
+        ? { label: 'Resume', icon: 'play', note: 'Viewers can redeem it again.', run: () => void flip(r, { kind: 'paused', on: false }) }
+        : { label: 'Pause', icon: 'pause', disabled: !r.enabled, note: 'Viewers see it but can’t redeem it.', run: () => void flip(r, { kind: 'paused', on: true }) },
+      { label: 'Edit', icon: 'pencil', run: () => (editing = r.id) },
+      'separator',
+      { label: 'Delete reward', icon: 'trash', danger: true, run: () => (confirming = r.id) },
+    ]);
+  }
+
+  /** Out of the delete confirm, focus back on the row's ⋯. */
+  function back(id: string) {
+    confirming = null;
+    focusBack(id);
   }
 
   function openQueue(id: string) {
@@ -110,36 +158,37 @@
   }
 </script>
 
-<Card title="Rewards">
+<Card title="Rewards" flush>
+  {#snippet tools()}
+    <IconButton icon="refresh" label="Refresh" size={14} disabled={loading} onclick={refresh} />
+    {#if data?.enabled && view === 'rewards'}
+      <IconButton icon="plus" label="New reward" size={14} active={editing === 'new'} toggle onclick={() => (editing = editing === 'new' ? null : 'new')} />
+    {/if}
+  {/snippet}
   {#if data?.enabled}
-    <div class="line">
-      <Segmented options={VIEWS} value={view} label="Rewards or queue" neutral onchange={(v) => (view = v)} />
-      <span class="grow"></span>
-      {#if view === 'rewards'}
-        <Button small icon="plus" disabled={editing === 'new'} onclick={() => (editing = 'new')}>New</Button>
-      {/if}
-    </div>
+    <SmBar>
+      <div class="filters">
+        <Segmented options={views} value={view} label="Rewards or queue" onchange={(v) => (view = v)} />
+        {#if view === 'rewards'}<span class="count">{formatNumber(rewards.length)} {rewards.length === 1 ? 'reward' : 'rewards'}</span>{/if}
+      </div>
+      {#if view === 'queue'}<Select label="Which reward" width="100%" value={filter} {options} onchange={(id) => (filter = id)} />{/if}
+    </SmBar>
   {/if}
-  {#if loading}
-    <Loading rows={3} />
-  {:else if failed}
-    <p class="note bad">{failed} <Button small variant="link" onclick={() => void load()}>Retry</Button></p>
+  {#if loading && !data}
+    <Loading rows={5} label="Loading rewards" />
+  {:else if failed && !data}
+    <SmProblem text={failed} onretry={() => void load()} />
   {:else if !data?.enabled}
     <EmptyState icon="points" text="Channel points are off for your channel. They come with Affiliate." />
   {:else if view === 'queue'}
-    <RedemptionQueue {rewards} {filter} onfilter={(id) => (filter = id)} onchanged={() => void load()} />
+    <RedemptionQueue bind:this={queue} {filter} onchanged={() => void load()} />
   {:else}
-    {#if queued}
-      <p class="note">
-        <Button small variant="link" onclick={() => openQueue('')}>{formatNumber(queued)} waiting in the queue</Button>
-      </p>
-    {/if}
     {#if editing === 'new'}
-      <RewardForm start={blank()} editing={false} busy={busy === 'new'} onsave={save} oncancel={() => (editing = null)} />
+      <div class="new"><RewardForm start={blank()} editing={false} busy={isBusy('new')} onsave={save} oncancel={() => (editing = null)} /></div>
     {/if}
     {#if !rewards.length && editing !== 'new'}
       <EmptyState icon="points" text="No rewards yet.">
-        <Button small onclick={() => (editing = 'new')}>New reward</Button>
+        <Button small icon="plus" onclick={() => (editing = 'new')}>New reward</Button>
       </EmptyState>
     {/if}
     <ul class="list">
@@ -148,7 +197,7 @@
         {@const w = waiting(r)}
         <li class:off={!r.enabled}>
           {#if editing === r.id}
-            <RewardForm start={toEdit(r)} editing busy={busy === r.id} onsave={save} oncancel={() => (editing = null)} />
+            <RewardForm start={toEdit(r)} editing busy={isBusy(r.id)} onsave={save} oncancel={() => (editing = null)} />
           {:else}
             <div class="row">
               <span class="icon" style:background={r.color}>
@@ -168,36 +217,24 @@
               </div>
               {#if confirming !== r.id}
                 <span class="acts">
-                  <Toggle
-                    label="Reward on"
-                    checked={r.enabled}
-                    disabled={busy === r.id}
-                    onchange={(on) => void flip(r, { kind: 'enabled', on })}
-                  />
-                  <span class="quiet" class:shown={r.paused}><IconButton
-                    icon={r.paused ? 'play' : 'pause'}
-                    label={r.paused ? 'Resume' : 'Pause'}
-                    hint={r.paused ? 'Viewers can redeem it again.' : 'Viewers see it but can’t redeem it.'}
-                    size={14}
-                    disabled={busy === r.id || !r.enabled}
-                    onclick={() => void flip(r, { kind: 'paused', on: !r.paused })}
-                  /></span>
-                  <span class="quiet"><IconButton icon="pencil" label="Edit" size={14} disabled={busy === r.id} onclick={() => (editing = r.id)} />
-                  <IconButton icon="trash" label="Delete" size={14} disabled={busy === r.id} onclick={() => (confirming = r.id)} /></span>
+                  <Toggle label="Reward on" checked={r.enabled} disabled={isBusy(r.id)} onchange={(on) => flip(r, { kind: 'enabled', on })} />
+                  <span class="more" data-back={r.id}><IconButton icon="more" label="More for {r.title}" size={14} disabled={isBusy(r.id)} onclick={(e) => menu(e, r)} /></span>
                 </span>
               {/if}
             </div>
             {#if confirming === r.id}
-              <div class="line confirm">
-                {#if r.waiting}
-                  <span class="ask">Delete it? {formatNumber(r.waiting)}{r.waitingMore ? '+' : ''} still waiting.</span>
-                  <Button small variant="danger" disabled={busy === r.id} onclick={() => void remove(r, 'CANCELED')}>Delete and refund</Button>
-                  <Button small disabled={busy === r.id} onclick={() => void remove(r, 'FULFILLED')}>Delete and complete</Button>
-                {:else}
-                  <span class="ask">Delete it?</span>
-                  <Button small variant="danger" disabled={busy === r.id} onclick={() => void remove(r, null)}>Delete</Button>
-                {/if}
-                <Button small variant="ghost" onclick={() => (confirming = null)}>Cancel</Button>
+              <div class="confirm">
+                <ConfirmChoices
+                  ask={r.waiting ? `Delete it? ${formatNumber(r.waiting)}${r.waitingMore ? '+' : ''} still waiting.` : 'Delete it?'}
+                  choices={r.waiting
+                    ? [
+                        { label: 'Delete and refund', variant: 'danger', run: () => remove(r, 'CANCELED') },
+                        { label: 'Delete and complete', run: () => remove(r, 'FULFILLED') },
+                      ]
+                    : [{ label: 'Delete', variant: 'danger', run: () => remove(r, null) }]}
+                  disabled={isBusy(r.id)}
+                  oncancel={() => back(r.id)}
+                />
               </div>
             {/if}
           {/if}
@@ -208,29 +245,25 @@
 </Card>
 
 <style>
-  .grow {
-    flex: 1;
-  }
-  .bad {
-    color: var(--red) !important;
+  .new {
+    padding: 8px;
   }
   .list {
     margin: 0;
-    padding: 0;
+    padding: 4px;
     list-style: none;
     display: flex;
     flex-direction: column;
-    gap: 2px;
   }
   li {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding: 6px 2px;
-    border-bottom: 1px solid var(--border);
+    padding: 6px;
+    border-radius: var(--radius);
   }
-  li:last-child {
-    border-bottom: 0;
+  li:hover {
+    background: var(--row-hover);
   }
   .row {
     display: flex;
@@ -270,7 +303,7 @@
     flex: 1;
     min-width: 0;
     font-weight: 600;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
   .cost {
     flex: none;
@@ -309,21 +342,10 @@
     gap: 2px;
     flex: none;
   }
-  /* Quiet until the row is hovered or reached by keyboard; a paused reward shows Resume. */
-  .quiet {
-    display: flex;
-    opacity: 0;
-    transition: opacity var(--fast);
-  }
-  li:hover .quiet,
-  .quiet:focus-within,
-  .quiet.shown {
-    opacity: 1;
-  }
   .confirm {
     padding-left: 36px;
   }
-  .ask {
-    font-size: 0.8rem;
+  .more {
+    display: flex;
   }
 </style>

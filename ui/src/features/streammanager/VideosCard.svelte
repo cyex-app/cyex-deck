@@ -2,6 +2,8 @@
      too. A video plays in the app's VOD player; its ⋯ renames it (in the row), publishes or
      unpublishes it, copies the link or deletes it (a second click). -->
 <script lang="ts">
+  import { untrack } from 'svelte';
+
   import Button from '../../components/Button.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
   import EmptyState from '../../components/EmptyState.svelte';
@@ -12,70 +14,51 @@
   import Segmented from '../../components/Segmented.svelte';
   import type { ManagedVideo } from '../../ipc/bindings/ManagedVideo';
   import { contentIpc } from '../../ipc/content';
+  import { smIpc } from '../../ipc/streammanager';
   import { copy } from '../../lib/clipboard';
   import { errorText } from '../../lib/errors';
-  import { formatNumber } from '../../lib/format';
+  import { PagedList } from '../../lib/paged.svelte';
   import { toast } from '../../lib/toast.svelte';
   import ContentPlayer from './ContentPlayer.svelte';
-  import { appended, count, kept, type KindPick, kindOf, length, type Playing, VIDEO_KINDS, videoLine, videoLink, videoTag, toggled } from './content';
+  import { limits } from './limits.svelte';
+  import LoadMore from './LoadMore.svelte';
+  import PickBar from './PickBar.svelte';
+  import PickBox from './PickBox.svelte';
+  import SmBar from './SmBar.svelte';
+  import SmProblem from './SmProblem.svelte';
+  import { bulkLines, count, type KindPick, kindOf, length, type Playing, VIDEO_KINDS, videoLine, videoLink, videoTag } from './content';
   import { sm } from './streammanager.svelte';
 
-  /** Twitch's limit for a video title. */
-  const TITLE_MAX = 140;
+  limits.load();
 
   let kind = $state<KindPick>('all');
-  let videos = $state<ManagedVideo[] | null>(null);
-  let cursor = $state<string | null>(null);
-  let total = $state<number | null>(null);
-  let problem = $state<string | null>(null);
-  let more = $state(false);
   let playing = $state<Playing | null>(null);
-  let reload = $state(0);
   /** The row being renamed and its text. */
   let editing = $state<{ id: string; text: string } | null>(null);
   /** Rows with a write on the way. */
   let working = $state<Set<string>>(new Set());
-  /** Ticked rows, for Publish, Unpublish or Delete at once. */
-  let picked = $state<Set<string>>(new Set());
   let bulk = $state(false);
-  const all = $derived(!!videos?.length && picked.size === videos.length);
+
+  // BUG-02 Each page reads the kind as it is; a kind change reloads (and resets the total),
+  // so a page for the old one is dropped.
+  const list = new PagedList<ManagedVideo>({
+    key: (v) => v.id,
+    fetch: (cursor) => contentIpc.videos(kindOf(kind), cursor).then((p) => ({ items: p.videos, next: p.cursor, total: p.total })),
+  });
+  const videos = $derived(list.items);
+  const picked = $derived(list.picked);
+  const total = $derived(list.total);
 
   $effect(() => {
-    const k = kindOf(kind);
-    void reload;
-    let alive = true;
-    videos = null;
-    cursor = null;
-    problem = null;
-    editing = null;
-    contentIpc
-      .videos(k, null)
-      .then((p) => {
-        if (!alive) return;
-        videos = p.videos;
-        cursor = p.cursor;
-        total = p.total;
-        picked = kept(picked, p.videos.map((v) => v.id));
-      })
-      .catch((e) => alive && (problem = errorText(e)));
-    return () => (alive = false);
+    void kind;
+    untrack(() => {
+      editing = null;
+      void list.reload({ clear: true });
+    });
   });
 
-  function loadMore() {
-    if (!cursor || more) return;
-    more = true;
-    contentIpc
-      .videos(kindOf(kind), cursor)
-      .then((p) => {
-        videos = appended(videos ?? [], p.videos, (v) => v.id);
-        cursor = p.cursor;
-      })
-      .catch((e) => toast.error(errorText(e)))
-      .finally(() => (more = false));
-  }
-
   function patch(id: string, change: Partial<ManagedVideo>) {
-    videos = (videos ?? []).map((v) => (v.id === id ? { ...v, ...change } : v));
+    list.patch(id, (v) => ({ ...v, ...change }));
   }
 
   /** Runs one row's write, the row greyed out meanwhile. */
@@ -94,7 +77,7 @@
   function saveTitle() {
     const e = editing;
     if (!e) return;
-    const v = videos?.find((x) => x.id === e.id);
+    const v = videos.find((x) => x.id === e.id);
     if (!v || e.text.trim() === v.title) {
       editing = null;
       return;
@@ -115,6 +98,12 @@
     });
   }
 
+  const DID = {
+    publish: (n: number) => `${count(n, 'video', 'videos')} published.`,
+    unpublish: (n: number) => `${count(n, 'video', 'videos')} unpublished.`,
+    delete: (n: number) => `${count(n, 'video', 'videos')} deleted.`,
+  };
+
   /** Publish, Unpublish or Delete the ticked rows. */
   async function many(what: 'publish' | 'unpublish' | 'delete') {
     const ids = [...picked];
@@ -122,16 +111,12 @@
     bulk = true;
     try {
       const r = what === 'delete' ? await contentIpc.deleteVideos(ids) : await contentIpc.publishVideos(ids, what === 'publish');
-      const done = new Set(r.gone);
-      if (what === 'delete') {
-        videos = (videos ?? []).filter((v) => !done.has(v.id));
-        if (total !== null) total = Math.max(0, total - done.size);
-      } else videos = (videos ?? []).map((v) => (done.has(v.id) ? { ...v, public: what === 'publish' } : v));
-      picked = kept(picked, (videos ?? []).map((v) => v.id).filter((id) => !done.has(id)));
-      const n = count(done.size, 'video', 'videos');
-      if (done.size) toast.success(what === 'delete' ? `${n} deleted.` : what === 'publish' ? `${n} published.` : `${n} unpublished.`);
-      if (r.error) toast.error(r.error);
-      else if (done.size < ids.length) toast.error('Twitch kept some of them. Try again.');
+      if (what === 'delete') list.remove(r.done);
+      else for (const id of r.done) patch(id, { public: what === 'publish' });
+      const say = bulkLines(r, ids.length, DID[what]);
+      if (say.ok) toast.success(say.ok);
+      if (say.info) toast.info(say.info);
+      if (say.bad) toast.error(say.bad);
     } catch (e) {
       toast.error(errorText(e));
     } finally {
@@ -142,9 +127,8 @@
   function remove(v: ManagedVideo) {
     void busy(v.id, async () => {
       const r = await contentIpc.deleteVideos([v.id]);
-      if (r.gone.includes(v.id)) {
-        videos = (videos ?? []).filter((x) => x.id !== v.id);
-        if (total !== null) total = Math.max(0, total - 1);
+      if (r.done.includes(v.id)) {
+        list.remove([v.id]);
         toast.success('Video deleted.');
       } else toast.error(r.error ?? 'Twitch kept it. Try again.');
     });
@@ -178,45 +162,43 @@
 {/snippet}
 
 <Card title="Videos" flush>
-  <div class="bar">
-    <Segmented label="Kind" options={VIDEO_KINDS} value={kind} onchange={(v) => (kind = v)} />
-    <span class="end">
-      {#if total}<span class="total">{formatNumber(total)}</span>{/if}
-      <IconButton icon="refresh" label="Reload" size={14} onclick={() => reload++} />
-    </span>
-  </div>
-  {#if problem}
-    <EmptyState icon="alert" text={problem}><Button small onclick={() => reload++}>Try again</Button></EmptyState>
-  {:else if !videos}
-    <Loading rows={5} label="Loading" />
+  {#snippet tools()}
+    <IconButton icon="refresh" label="Refresh" size={14} disabled={list.loading} onclick={() => void list.reload()} />
+  {/snippet}
+  <SmBar>
+    <div class="filters">
+      <Segmented label="Kind" options={VIDEO_KINDS} value={kind} onchange={(v) => (kind = v)} />
+      {#if total}<span class="count">{count(total, 'video', 'videos')}</span>{/if}
+    </div>
+  </SmBar>
+  {#if list.failed && !videos.length}
+    <SmProblem text={list.failed} onretry={() => void list.reload()} />
+  {:else if list.loading && !videos.length}
+    <Loading rows={5} label="Loading videos" />
   {:else if !videos.length}
     <EmptyState icon="film" text={kind === 'all' ? 'No videos yet.' : 'None of these yet.'} />
   {:else}
-    <div class="head">
-      <label class="pick">
-        <input type="checkbox" checked={all} indeterminate={picked.size > 0 && !all} onchange={() => (picked = all ? new Set() : new Set(videos?.map((v) => v.id)))} />
-        <span class="what">{picked.size ? `${formatNumber(picked.size)} picked` : 'Pick all'}</span>
-      </label>
-      {#if picked.size}
-        <span class="end">
-          <IconButton icon="eye" label="Publish" hint="Anyone can watch them then." size={14} disabled={bulk} onclick={() => void many('publish')} />
-          <IconButton icon="eyeOff" label="Unpublish" hint="Only you can see them then." size={14} disabled={bulk} onclick={() => void many('unpublish')} />
-          <ConfirmButton
-            label="Delete"
-            confirm="Click to delete {count(picked.size, 'video', 'videos')}"
-            icon="trash"
-            disabled={bulk}
-            onconfirm={() => void many('delete')}
-          />
-          <IconButton icon="x" label="Clear selection" size={14} onclick={() => (picked = new Set())} />
-        </span>
+    <PickBar picked={picked.size} total={videos.length} onall={list.pickAll}>
+      {#if bulk && picked.size > 1}
+        <Button small variant="ghost" onclick={() => void smIpc.bulkStop()}>Stop</Button>
+      {:else if picked.size}
+        <IconButton icon="eye" label="Publish" hint="Anyone can watch them then." size={14} disabled={bulk} onclick={() => void many('publish')} />
+        <IconButton icon="eyeOff" label="Unpublish" hint="Only you can see them then." size={14} disabled={bulk} onclick={() => void many('unpublish')} />
+        <ConfirmButton
+          label="Delete"
+          confirm="Click again to delete {count(picked.size, 'video', 'videos')}"
+          icon="trash"
+          disabled={bulk}
+          onconfirm={() => void many('delete')}
+        />
+        <IconButton icon="x" label="Clear selection" size={14} onclick={() => list.pickAll(false)} />
       {/if}
-    </div>
+    </PickBar>
     <ul>
       {#each videos as v (v.id)}
         {@const tag = videoTag(v)}
         <li class:busy={working.has(v.id)} class:on={picked.has(v.id)}>
-          <input type="checkbox" aria-label="Pick {v.title || 'video'}" checked={picked.has(v.id)} onchange={() => (picked = toggled(picked, v.id))} />
+          <PickBox label="Pick {v.title || 'video'}" checked={picked.has(v.id)} onchange={() => list.toggle(v.id)} />
           {#if editing?.id === v.id}
             {@render thumb(v)}
             <form
@@ -229,7 +211,7 @@
               <input
                 class="field"
                 aria-label="Title"
-                maxlength={TITLE_MAX}
+                maxlength={limits.v?.videoTitleMax}
                 bind:value={editing.text}
                 use:focus
                 onkeydown={(e) => {
@@ -247,11 +229,8 @@
             <button class="item" disabled={v.state === 'processing'} onclick={() => (playing = { kind: 'vod', id: v.id })}>
               {@render thumb(v)}
               <span class="text">
-                <span class="title">
-                  <b>{v.title || 'Untitled'}</b>
-                  {#if tag}<span class="tag" class:live={v.state === 'recording'}>{tag}</span>{/if}
-                </span>
-                <span class="line">{videoLine(v)}</span>
+                <b class="title">{v.title || 'Untitled'}</b>
+                <span class="meta">{#if tag}<span class="tag" class:live={v.state === 'recording'}>{tag}</span>{/if}{videoLine(v)}</span>
               </span>
             </button>
             <IconButton icon="more" label="More for {v.title || 'video'}" size={14} onclick={(e) => menu(e, v)} />
@@ -259,47 +238,23 @@
         </li>
       {/each}
     </ul>
-    {#if cursor}
-      <div class="more"><Button small variant="link" disabled={more} onclick={loadMore}>{more ? 'Loading…' : 'Show more'}</Button></div>
-    {/if}
+    {#if list.failed}<p class="bad">{list.failed}</p>{/if}
+    {#if list.next}<LoadMore busy={list.more} onclick={() => void list.loadMore()} />{/if}
   {/if}
 </Card>
 
 {#if playing}<ContentPlayer what={playing} account={sm.manager?.accountId ?? null} onclose={() => (playing = null)} />{/if}
 
 <style>
-  /* A narrow panel scrolls a long picker instead of cutting it off. */
-  .bar :global(.seg) {
-    max-width: 100%;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .bar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--border);
-  }
-  .what {
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .end {
-    flex: none;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-left: auto;
-  }
-  .total {
-    color: var(--dim);
-    font-size: 0.78rem;
-    font-variant-numeric: tabular-nums;
+  .bad {
+    margin: 0;
+    padding: 4px 12px;
+    color: var(--red);
+    font-size: 0.82rem;
   }
   ul {
     margin: 0;
-    padding: 4px 4px 6px;
+    padding: 4px;
     list-style: none;
   }
   li {
@@ -309,32 +264,11 @@
     padding: 4px 6px;
     border-radius: var(--radius);
   }
-  .head {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 34px;
-    padding: 2px 10px;
-  }
-  .pick {
-    min-width: 0;
-    white-space: nowrap;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--dim);
-    font-size: 0.78rem;
-  }
-  input[type='checkbox'] {
-    flex: none;
-    width: 14px;
-    height: 14px;
-    margin: 0;
-    accent-color: var(--accent);
-  }
-  li.on,
   li:hover {
     background: var(--row-hover);
+  }
+  li.on {
+    background: var(--surface-hover);
   }
   li.busy {
     opacity: 0.55;
@@ -359,11 +293,17 @@
   .thumb {
     position: relative;
     flex: none;
-    width: 96px;
+    width: 80px;
     aspect-ratio: 16 / 9;
     overflow: hidden;
     border-radius: var(--radius-sm);
-    background: var(--elevated);
+    background: var(--elevated-2);
+  }
+  /* A narrow panel gives the words the room. */
+  @container (max-width: 320px) {
+    .thumb {
+      width: 56px;
+    }
   }
   .thumb img {
     width: 100%;
@@ -391,28 +331,29 @@
     gap: 2px;
   }
   .title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-  }
-  .title b,
-  .line {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .title b {
+  /* Two lines at most, so a narrow panel keeps the views. */
+  .meta {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+  .title {
     font-size: 0.85rem;
     font-weight: 600;
   }
-  .line {
+  .meta {
     color: var(--dim);
-    font-size: 0.76rem;
+    font-size: 0.75rem;
     font-variant-numeric: tabular-nums;
   }
   .tag {
-    flex: none;
+    margin-right: 6px;
     padding: 0 5px;
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
@@ -429,6 +370,7 @@
   .rename {
     flex: 1;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
     min-width: 0;
@@ -436,10 +378,5 @@
   .rename .field {
     flex: 1;
     min-width: 0;
-  }
-  .more {
-    display: flex;
-    justify-content: center;
-    padding: 4px 0 10px;
   }
 </style>

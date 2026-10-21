@@ -300,7 +300,7 @@ pub(super) const CMDS: &[Cmd] = &[
         "/mod name",
         "Makes someone a moderator.",
         "1.50",
-        &[ex("/mod friend", "")],
+        &[ex("/mod friend", "Made friend a mod.")],
     )
     .args(&[NAME])
     .errs(&[USAGE_NAME]),
@@ -309,7 +309,7 @@ pub(super) const CMDS: &[Cmd] = &[
         "/unmod name",
         "Removes someone’s moderator role.",
         "1.50",
-        &[ex("/unmod friend", "")],
+        &[ex("/unmod friend", "friend is no longer a mod.")],
     )
     .args(&[NAME])
     .errs(&[USAGE_NAME]),
@@ -318,7 +318,7 @@ pub(super) const CMDS: &[Cmd] = &[
         "/vip name",
         "Gives someone VIP.",
         "1.50",
-        &[ex("/vip friend", "")],
+        &[ex("/vip friend", "Made friend a VIP.")],
     )
     .args(&[NAME])
     .errs(&[USAGE_NAME]),
@@ -327,7 +327,7 @@ pub(super) const CMDS: &[Cmd] = &[
         "/unvip name",
         "Removes someone’s VIP.",
         "1.50",
-        &[ex("/unvip friend", "")],
+        &[ex("/unvip friend", "friend is no longer a VIP.")],
     )
     .args(&[NAME])
     .errs(&[USAGE_NAME]),
@@ -336,19 +336,19 @@ pub(super) const CMDS: &[Cmd] = &[
         "/leadmod name",
         "Makes someone a lead moderator.",
         "V107-R28",
-        &[ex("/leadmod friend", "You made friend lead moderator.")],
+        &[ex("/leadmod friend", "Made friend a lead mod.")],
     )
     .args(&[NAME])
-    .errs(&[USAGE_NAME, cyex_moderation::lead_mod::NEEDS_GQL]),
+    .errs(&[USAGE_NAME, cyex_moderation::roles::NEEDS_GQL]),
     tw(
         "unleadmod",
         "/unleadmod name",
         "Removes someone’s lead moderator role.",
         "V107-R28",
-        &[ex("/unleadmod friend", "friend is no longer lead moderator.")],
+        &[ex("/unleadmod friend", "friend is no longer a lead mod.")],
     )
     .args(&[NAME])
-    .errs(&[USAGE_NAME, cyex_moderation::lead_mod::NEEDS_GQL]),
+    .errs(&[USAGE_NAME, cyex_moderation::roles::NEEDS_GQL]),
     tw(
         "mods",
         "/mods",

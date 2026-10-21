@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import type { Clip } from '../../ipc/bindings/Clip';
 import type { ManagedVideo } from '../../ipc/bindings/ManagedVideo';
-import { appended, clipLine, clipLink, count, kept, kindOf, length, toggled, videoLine, videoLink, videoTag } from './content.ts';
+import { bulkLines, clipLine, clipLink, count, kindOf, length, videoLine, videoLink, videoTag } from './content.ts';
 
 const clip: Clip = {
   slug: 'Fast-Clip',
@@ -52,16 +52,17 @@ test('video lines and tags', () => {
   assert.equal(kindOf('highlight'), 'highlight');
 });
 
-test('selection flips, and drops what left the list', () => {
-  const a = toggled(new Set(), 'x');
-  assert.deepEqual([...a], ['x']);
-  assert.deepEqual([...toggled(a, 'x')], []);
-  assert.deepEqual([...kept(new Set(['x', 'y']), ['y', 'z'])], ['y']);
-});
-
-test('more rows append without repeats', () => {
-  const k = (n: { id: string }) => n.id;
-  assert.deepEqual(appended([{ id: 'a' }], [{ id: 'a' }, { id: 'b' }], k), [{ id: 'a' }, { id: 'b' }]);
+test('counts', () => {
   assert.equal(count(1, 'clip', 'clips'), '1 clip');
   assert.equal(count(1000, 'clip', 'clips'), '1.000 clips');
+});
+
+test('V107-R41 bulk results: what went, then stopped or why not', () => {
+  const did = (n: number) => `${n} gone.`;
+  assert.deepEqual(bulkLines({ done: ['a', 'b'], error: null, stopped: false }, 2, did), { ok: '2 gone.', info: null, bad: null });
+  assert.deepEqual(bulkLines({ done: ['a'], error: 'Too fast.', stopped: false }, 3, did), { ok: '1 gone.', info: null, bad: 'Too fast.' });
+  assert.match(bulkLines({ done: [], error: null, stopped: false }, 2, did).bad ?? '', /kept/);
+  const stopped = bulkLines({ done: ['a'], error: null, stopped: true }, 3, did);
+  assert.equal(stopped.bad, null);
+  assert.match(stopped.info ?? '', /Stopped/);
 });

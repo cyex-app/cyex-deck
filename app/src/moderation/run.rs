@@ -2,9 +2,8 @@
 //! scopes, else the raw GQL mutation (D25). Bans, timeouts, deletes and role changes stay
 //! quiet since EventSub and IRC echo them; the rest get a short local confirmation.
 
-use cyex_chat::model::ModRole;
 use cyex_moderation::command::{ModCommand, Treatment};
-use cyex_moderation::role_change::Refused as RoleRefused;
+use cyex_moderation::roles::Role;
 use cyex_twitch::gql;
 use cyex_twitch::helix::modes::ModeChange;
 use cyex_twitch::helix::moderation as hm;
@@ -61,8 +60,12 @@ pub async fn command(app: &AppHandle, account: &str, login: &str, cmd: ModComman
         C::Warn { login: who, reason } => warn(app, &actor, &who, &reason).await.map(|()| None),
         C::Mode(change) => mode(app, &actor, change).await.map(Some),
         C::Treat { login: who, how } => treat(app, &actor, &who, how).await.map(|()| None),
-        C::SetRole { login: who, role: r, on } => set_role(app, &actor, &who, r == HRole::Mod, on).await.map(|()| None),
-        C::SetLead { login: who, on } => super::lead::set(app, &actor, &who, on).await.map(Some),
+        // V107-R42 Every role change: `roles::apply`.
+        C::SetRole { login: who, role: r, on } => {
+            let role = if r == HRole::Mod { Role::Mod } else { Role::Vip };
+            super::roles::command(app, &actor, &who, role, on).await
+        }
+        C::SetLead { login: who, on } => super::roles::command(app, &actor, &who, Role::LeadMod, on).await,
         C::ListRole(r) => list_role(app, &actor, r == HRole::Mod).await.map(Some),
         C::Announce { color, text } => {
             let (auth, room) = helix_for(&actor, "announce")?;
@@ -317,93 +320,6 @@ async fn treat(app: &AppHandle, actor: &Actor, who: &str, how: Treatment) -> Res
             .map_err(|e| e.to_string());
     }
     Err(no_token())
-}
-
-/// 1.50 One mod or VIP change; V107-M8 swaps and rollback: the sequence is
-/// `cyex_moderation::role_change::set_role` (V107-R14), this is its Helix/GQL adapter.
-pub(super) async fn set_role(app: &AppHandle, actor: &Actor, who: &str, mod_role: bool, on: bool) -> Result<(), String> {
-    let res = cyex_moderation::role_change::set_role(&RoleAdapter { app, actor }, who, mod_role, on).await;
-    // V107-R36 Mod changes can move VIPs too (a swap): the usercard's slot count is read again.
-    super::roles::forget(app, &actor.account);
-    res
-}
-
-/// V107-R14 Twitch, the own-echo marks, the role buttons and the chat, for one actor.
-struct RoleAdapter<'a> {
-    app: &'a AppHandle,
-    actor: &'a Actor,
-}
-
-impl cyex_moderation::role_change::RoleOps for RoleAdapter<'_> {
-    async fn holds(&self, who: &str) -> Option<cyex_moderation::role_change::Holds> {
-        super::standing::holds(self.app, &self.actor.channel, who).await
-    }
-
-    fn can_step(&self, moderator: bool) -> Result<(), String> {
-        can_step(self.app, self.actor, moderator)
-    }
-
-    async fn step(&self, who: &str, moderator: bool, on: bool) -> Result<(), RoleRefused> {
-        role_step(self.app, self.actor, who, moderator, on).await
-    }
-
-    fn mark(&self, action: cyex_moderation::role_change::RoleAction, who: &str, on: bool) {
-        super::feeds::own_role(self.app, &self.actor.channel_id, action, who, on);
-    }
-
-    fn standing(&self, who: &str, moderator: bool, on: bool) {
-        super::standing::changed(self.app, &self.actor.channel, who, moderator, on);
-    }
-
-    fn notice(&self, line: &str) {
-        crate::chat::notice_line(self.app, &self.actor.channel, cyex_chat::model::NoticeKind::Moderation, line);
-    }
-}
-
-
-/// 1.50 Helix takes only the broadcaster's token; lead mods (and mods, Twitch decides) use GQL.
-fn role_helix<'a>(app: &AppHandle, actor: &'a Actor, mod_role: bool) -> Option<cyex_twitch::helix::Auth<'a>> {
-    let scope = if mod_role { "channel:manage:moderators" } else { "channel:manage:vips" };
-    if actor.role == ModRole::Broadcaster { actor.helix_scoped(app, scope) } else { None }
-}
-
-/// V107-M8 Whether this account has a way to change `mod_role` at all, before a swap takes
-/// anything away.
-fn can_step(app: &AppHandle, actor: &Actor, mod_role: bool) -> Result<(), String> {
-    let helix = role_helix(app, actor, mod_role).is_some();
-    cyex_moderation::role_change::path(actor.role, helix, actor.gql().is_some()).map(|_| ()).map_err(Into::into)
-}
-
-async fn role_step(app: &AppHandle, actor: &Actor, who: &str, mod_role: bool, on: bool) -> Result<(), RoleRefused> {
-    use cyex_moderation::role_change::{self as rc, Path};
-    let helix = role_helix(app, actor, mod_role);
-    let gql = actor.gql();
-    match rc::path(actor.role, helix.is_some(), gql.is_some())? {
-        Path::Helix => {
-            let hrole = if mod_role { HRole::Mod } else { HRole::Vip };
-            let h = helix.ok_or(rc::NO_TOKEN)?;
-            hr::set_role(&http(app), h, &actor.channel_id, &target_id(app, who).await?, hrole, on)
-                .await
-                .map_err(|e| RoleRefused {
-                    // V107-M8 422: "the user is a VIP/moderator, you must first remove them".
-                    clash: on && status(&e) == 422,
-                    slots: on && rc::no_slots(mod_role, "", status(&e)),
-                    text: codes::helix(status(&e), e.api_message().unwrap_or("")),
-                })
-        }
-        Path::Gql => {
-            let g = gql.ok_or(rc::NO_TOKEN)?;
-            match gql::moderation::set_role(&http(app), g, &actor.channel_id, who, mod_role, on).await {
-                Ok(None) => Ok(()),
-                Ok(Some(code)) => Err(RoleRefused {
-                    clash: on && rc::clash_code(mod_role, &code),
-                    slots: on && rc::no_slots(mod_role, &code, 0),
-                    text: rc::refused(actor.role, &code, codes::gql(&code, who)),
-                }),
-                Err(e) => Err(rc::refused(actor.role, &e.to_string(), e.to_string()).into()),
-            }
-        }
-    }
 }
 
 async fn list_role(app: &AppHandle, actor: &Actor, mods: bool) -> Result<String, String> {

@@ -5,7 +5,6 @@
 
 pub mod codes;
 pub mod feeds;
-pub mod lead;
 pub mod massban;
 pub mod nuke;
 pub mod queue;
@@ -28,7 +27,7 @@ pub fn init(app: &AppHandle) {
     view::init(app);
     feeds::init(app);
     massban::init(app);
-    app.manage(roles::SlotCache::default());
+    app.manage(roles::ViewCache::default());
 }
 
 /// The account's role in a channel (1.57, V102-21): the one source, kept live in

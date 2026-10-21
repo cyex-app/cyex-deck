@@ -1,39 +1,29 @@
 //! V107-R37 Channel points rewards on the manager's own channel: list, create, edit,
 //! pause, turn off, delete, and the redemption queue (complete or reject). GQL only,
-//! like Twitch's dashboard: Helix can only touch rewards its own client made.
+//! like Twitch's dashboard: Helix can only touch rewards its own client made. Calls go
+//! through `gql_call` (V107-R41: the mock never gets the real token), bulk status through
+//! `bulk`.
 
 use cyex_twitch::gql::dashboard::rewards::{
-    self as api, COOLDOWN_MAX, PROMPT_MAX, Queue, Reward, RewardEdit, Rewards, Status, Switch, TITLE_MAX,
+    self as api, COOLDOWN_MAX, COST_MAX, PROMPT_MAX, Queue, Reward, RewardEdit, Rewards, STATUS_MAX, Status, Switch,
+    TITLE_MAX,
 };
-use std::time::Duration;
+use serde::Serialize;
 use tauri::AppHandle;
+use ts_rs::TS;
 
-use super::{Call, words};
+use super::bulk::{self, Bulk};
+use super::gql_call::gql_call;
+use super::words;
 
-const GQL_ONLY: &str = "Rewards need the sign-in with a code (Settings → Accounts).";
-/// Twitch's queue sends at most 50 ids per call.
-const BATCH: usize = 50;
-const PACE: Duration = Duration::from_millis(400);
-/// Twitch's cap on a reward's cost.
-pub const COST_MAX: u64 = 1_000_000_000;
-
-#[cfg(feature = "mocks")]
-const MOCK_VAR: &str = "CYEX_GQL_REWARDS_MOCK";
-
-/// A local GQL mock in mocks builds (`http://127.0.0.1:<port>`), Twitch otherwise.
-#[cfg(feature = "mocks")]
-fn base() -> Option<String> {
-    crate::mock_url::loopback_base(&std::env::var(MOCK_VAR).ok()?)
-}
-
-#[cfg(not(feature = "mocks"))]
-fn base() -> Option<String> {
-    None
-}
-
-fn call(app: &AppHandle) -> Result<Call, String> {
-    let c = Call::new(app)?;
-    if c.has_gql() { Ok(c) } else { Err(GQL_ONLY.into()) }
+/// A saved reward, and what didn't go with it (CORR-03).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename = "SmRewardSaved")]
+pub struct Saved {
+    pub reward: Reward,
+    /// Made, but a second step failed: shown as is.
+    pub warning: Option<String>,
 }
 
 /// Twitch's refusal as a short line.
@@ -95,91 +85,61 @@ fn checked(e: &RewardEdit) -> Result<(), String> {
 }
 
 pub async fn list(app: &AppHandle) -> Result<Rewards, String> {
-    let c = call(app)?;
-    api::list(&c.http, c.gql(), base().as_deref(), &c.channel_id)
-        .await
-        .map_err(|e| said(&e))
+    let c = gql_call(app)?;
+    api::list(&c.channel()).await.map_err(|e| said(&e))
 }
 
-pub async fn create(app: &AppHandle, edit: RewardEdit) -> Result<Reward, String> {
+/// New rewards start on; off is a second call. When that fails the reward is still made:
+/// it comes back with a warning, not as an error (CORR-03).
+pub async fn create(app: &AppHandle, edit: RewardEdit) -> Result<Saved, String> {
     checked(&edit)?;
-    let c = call(app)?;
-    let b = base();
-    let made = api::create(&c.http, c.gql(), b.as_deref(), &c.channel_id, &edit)
-        .await
-        .map_err(|e| said(&e))?;
+    let c = gql_call(app)?;
+    let ch = c.channel();
+    let made = api::create(&ch, &edit).await.map_err(|e| said(&e))?;
     if edit.enabled {
-        return Ok(made);
+        return Ok(Saved { reward: made, warning: None });
     }
-    // New rewards start on; off is a second call.
-    api::switch(
-        &c.http,
-        c.gql(),
-        b.as_deref(),
-        &c.channel_id,
-        &made.id,
-        Switch::Enabled(false),
-    )
-    .await
-    .map_err(|e| said(&e))
+    Ok(match api::switch(&ch, &made.id, Switch::Enabled(false)).await {
+        Ok(reward) => Saved { reward, warning: None },
+        Err(e) => Saved { reward: made, warning: Some(off_failed(&e)) },
+    })
+}
+
+fn off_failed(e: &cyex_twitch::Error) -> String {
+    format!("Made it, but it’s still on. {}", said(e))
 }
 
 pub async fn update(app: &AppHandle, id: String, edit: RewardEdit) -> Result<Reward, String> {
     checked(&edit)?;
-    let c = call(app)?;
-    api::update(&c.http, c.gql(), base().as_deref(), &c.channel_id, &id, &edit)
-        .await
-        .map_err(|e| said(&e))
+    let c = gql_call(app)?;
+    api::update(&c.channel(), &id, &edit).await.map_err(|e| said(&e))
 }
 
 pub async fn switch(app: &AppHandle, id: String, s: Switch) -> Result<Reward, String> {
-    let c = call(app)?;
-    api::switch(&c.http, c.gql(), base().as_deref(), &c.channel_id, &id, s)
-        .await
-        .map_err(|e| said(&e))
+    let c = gql_call(app)?;
+    api::switch(&c.channel(), &id, s).await.map_err(|e| said(&e))
 }
 
 pub async fn delete(app: &AppHandle, id: String, waiting: Option<Status>) -> Result<(), String> {
-    let c = call(app)?;
-    api::delete(&c.http, c.gql(), base().as_deref(), &c.channel_id, &id, waiting)
+    let c = gql_call(app)?;
+    api::delete(&c.channel(), &id, waiting).await.map_err(|e| said(&e))
+}
+
+pub async fn queue(app: &AppHandle, reward: Option<String>, cursor: Option<String>) -> Result<Queue, String> {
+    let c = gql_call(app)?;
+    api::queue(&c.channel(), reward.as_deref(), cursor.as_deref())
         .await
         .map_err(|e| said(&e))
 }
 
-pub async fn queue(app: &AppHandle, reward: Option<String>, cursor: Option<String>) -> Result<Queue, String> {
-    let c = call(app)?;
-    api::queue(
-        &c.http,
-        c.gql(),
-        base().as_deref(),
-        &c.channel_id,
-        reward.as_deref(),
-        cursor.as_deref(),
-    )
+/// Completes or rejects (refunds) redemptions, 50 a call, paced (`bulk`). `done` lists the
+/// ids that went; a refusal midway stops there and says why (CORR-02).
+pub async fn set_status(app: &AppHandle, ids: Vec<String>, s: Status) -> Result<Bulk, String> {
+    let c = &gql_call(app)?;
+    bulk::run(app, ids, STATUS_MAX, said, |part| async move {
+        api::set_status(&c.channel(), &part, s).await.map(|()| part)
+    })
     .await
-    .map_err(|e| said(&e))
-}
-
-/// Completes or rejects (refunds) redemptions, 50 a call, paced. Returns how many went
-/// through; a refusal midway stops there.
-pub async fn set_status(app: &AppHandle, ids: Vec<String>, s: Status) -> Result<usize, String> {
-    let c = call(app)?;
-    let b = base();
-    let mut done = 0;
-    for (i, part) in batches(&ids).enumerate() {
-        if i > 0 {
-            tokio::time::sleep(PACE).await;
-        }
-        if let Err(e) = api::set_status(&c.http, c.gql(), b.as_deref(), &c.channel_id, part, s).await {
-            return if done == 0 { Err(said(&e)) } else { Ok(done) };
-        }
-        done += part.len();
-    }
-    Ok(done)
-}
-
-fn batches(ids: &[String]) -> std::slice::Chunks<'_, String> {
-    ids.chunks(BATCH)
 }
 
 #[cfg(test)]
@@ -231,12 +191,9 @@ mod tests {
     }
 
     #[test]
-    fn statuses_go_fifty_at_a_time() {
-        let ids: Vec<String> = (0..121).map(|i| i.to_string()).collect();
-        assert_eq!(
-            batches(&ids).map(<[String]>::len).collect::<Vec<_>>(),
-            [50, 50, 21]
-        );
+    fn v107_r41_a_failed_off_is_a_warning() {
+        let w = off_failed(&cyex_twitch::Error::Refused("FORBIDDEN".into()));
+        assert_eq!(w, "Made it, but it’s still on. Twitch didn’t allow that.");
     }
 
     #[test]

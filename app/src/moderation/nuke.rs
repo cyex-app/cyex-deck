@@ -114,6 +114,11 @@ pub async fn run(app: &AppHandle, account: &str, login: &str, args: &str) -> Res
         return Ok(());
     }
     let logins: Vec<String> = hits.iter().map(|h| h.login.clone()).collect();
+    // V107-R21 Refused before the "hitting" line: one mass action per account, 5.000 at most.
+    if massban::running(app, account) {
+        return Err(cyex_moderation::mass_jobs::BUSY.into());
+    }
+    cyex_moderation::mass::check_size(logins.len())?;
     let secs = match nuke.punish {
         Punish::Ban => None,
         Punish::Timeout(s) => Some(s),

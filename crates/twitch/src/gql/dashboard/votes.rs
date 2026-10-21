@@ -3,7 +3,7 @@
 
 use serde_json::{Value, json};
 
-use super::mutate;
+use super::channel::write;
 use crate::gql::{Auth, query};
 use crate::{Http, Result};
 
@@ -50,7 +50,7 @@ pub async fn create_poll(
     points_per_vote: Option<u32>,
 ) -> Result<()> {
     let input = poll_input(channel_id, title, choices, secs, points_per_vote);
-    mutate(http, auth, CREATE_POLL, "createPoll", input).await
+    write(http, auth, None, CREATE_POLL, "createPoll", input).await.map(drop)
 }
 
 /// Ends the poll; `archive` also takes it off the channel. Neither payload has an error.
@@ -83,21 +83,21 @@ pub async fn create_prediction(
     window: u32,
 ) -> Result<()> {
     let input = prediction_input(channel_id, title, outcomes, window);
-    mutate(http, auth, CREATE_PREDICTION, "createPredictionEvent", input).await
+    write(http, auth, None, CREATE_PREDICTION, "createPredictionEvent", input).await.map(drop)
 }
 
 pub async fn lock_prediction(http: &Http, auth: Auth<'_>, id: &str) -> Result<()> {
-    mutate(http, auth, LOCK, "lockPredictionEvent", json!({ "id": id })).await
+    write(http, auth, None, LOCK, "lockPredictionEvent", json!({ "id": id })).await.map(drop)
 }
 
 pub async fn resolve_prediction(http: &Http, auth: Auth<'_>, id: &str, winner: &str) -> Result<()> {
     let input = json!({ "eventID": id, "outcomeID": winner });
-    mutate(http, auth, RESOLVE, "resolvePredictionEvent", input).await
+    write(http, auth, None, RESOLVE, "resolvePredictionEvent", input).await.map(drop)
 }
 
 /// Refunds everyone.
 pub async fn cancel_prediction(http: &Http, auth: Auth<'_>, id: &str) -> Result<()> {
-    mutate(http, auth, CANCEL, "cancelPredictionEvent", json!({ "id": id })).await
+    write(http, auth, None, CANCEL, "cancelPredictionEvent", json!({ "id": id })).await.map(drop)
 }
 
 #[cfg(test)]

@@ -7,6 +7,8 @@
   import type { SmRewardEdit } from '../../ipc/bindings/SmRewardEdit';
   import { rewardsIpc } from '../../ipc/rewards';
   import { formatSecs, parseDuration } from '../../lib/format';
+  import { limits } from './limits.svelte';
+  import { focusIn, onEscape } from './onEscape';
   import { COLORS, sameEdit } from './rewardsLogic';
 
   interface Props {
@@ -26,6 +28,15 @@
   // svelte-ignore state_referenced_locally
   let cooldownText = $state(start.cooldown ? formatSecs(start.cooldown) : '5m');
   let problems = $state<string[]>([]);
+  /** BUG-08 Which check's answer `problems` is: only the newest counts, and a save before
+   *  it came checks again first, so a slow answer for older fields can't let a bad edit through. */
+  let asked = 0;
+  let answered = $state(-1);
+  let latest = $state(0);
+  const checked = $derived(answered === latest);
+
+  limits.load();
+  const lim = $derived(limits.v);
 
   const cooldownSecs = $derived(parseDuration(cooldownText));
   const cooldownOk = $derived(e.cooldown === null || cooldownSecs !== null);
@@ -33,14 +44,34 @@
 
   $effect(() => {
     const snapshot = { ...e };
+    const mine = ++asked;
+    latest = mine;
     const t = setTimeout(() => {
       rewardsIpc
         .check(snapshot)
-        .then((p) => (problems = p))
-        .catch(() => {});
+        .then((p) => {
+          if (mine !== asked) return;
+          problems = p;
+          answered = mine;
+        })
+        // Rust saves with the same check, so a failed check only stops waiting.
+        .catch(() => mine === asked && (answered = mine));
     }, 150);
     return () => clearTimeout(t);
   });
+
+  async function submit() {
+    if (!cooldownOk || !changed) return;
+    const edit = { ...e, title: e.title.trim(), prompt: e.prompt.trim() };
+    if (!checked) {
+      const mine = ++asked;
+      const p = await rewardsIpc.check({ ...e }).catch(() => [] as string[]);
+      if (mine !== asked) return;
+      problems = p;
+      answered = latest = mine;
+    }
+    if (!problems.length) onsave(edit);
+  }
 
   function setCooldown(text: string) {
     cooldownText = text;
@@ -55,16 +86,17 @@
 
 <form
   class="form"
+  use:onEscape={oncancel}
   onsubmit={(ev) => {
     ev.preventDefault();
-    if (!problems.length && cooldownOk && changed) onsave({ ...e, title: e.title.trim(), prompt: e.prompt.trim() });
+    void submit();
   }}
 >
   <div class="line">
-    <input class="field grow" placeholder="Name" maxlength="45" bind:value={e.title} aria-label="Name" />
-    <NumberField label="Cost in points" min={1} max={1000000000} width="110px" unit="pts" value={e.cost} onchange={(n) => (e.cost = n)} />
+    <input class="field grow" placeholder="Name" maxlength={lim?.rewardTitleMax} bind:value={e.title} aria-label="Name" use:focusIn />
+    <NumberField label="Cost in points" min={1} max={lim?.rewardCostMax ?? Number.MAX_SAFE_INTEGER} width="110px" unit="pts" value={e.cost} onchange={(n) => (e.cost = n)} />
   </div>
-  <textarea class="field area" placeholder="Description (optional)" maxlength="200" rows="2" bind:value={e.prompt} aria-label="Description"></textarea>
+  <textarea class="field area" placeholder="Description (optional)" maxlength={lim?.rewardPromptMax} rows="2" bind:value={e.prompt} aria-label="Description"></textarea>
   <div class="colors" role="radiogroup" aria-label="Color">
     {#each COLORS as c (c)}
       <button

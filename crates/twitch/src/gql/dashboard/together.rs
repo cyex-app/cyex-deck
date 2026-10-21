@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use ts_rs::TS;
 
-use super::mutate;
+use super::channel::write;
 use crate::gql::{Auth, query};
 use crate::helix::gueststar::{Guest, Session};
 use crate::{Http, Result};
@@ -86,7 +86,7 @@ fn requests_from(data: &Value) -> Vec<JoinRequest> {
 pub async fn answer(http: &Http, auth: Auth<'_>, user_id: &str, approve: bool) -> Result<()> {
     let status = if approve { "APPROVED" } else { "DENIED" };
     let input = json!({ "userID": user_id, "requestStatus": status });
-    mutate(http, auth, ANSWER, "updateGuestStarJoinRequestStatus", input).await
+    write(http, auth, None, ANSWER, "updateGuestStarJoinRequestStatus", input).await.map(drop)
 }
 
 /// D6 Whether guests show on stream once they're set up: the session's setting while one
@@ -110,7 +110,7 @@ pub async fn set_auto_add(http: &Http, auth: Auth<'_>, session_id: Option<&str>,
             query::<Value>(http, auth, AUTO_SESSION, json!({ "input": input })).await?;
             Ok(())
         }
-        None => mutate(http, auth, AUTO_HOST, "setGuestStarUserSettings", json!({ "isAutoPushEnabled": on })).await,
+        None => write(http, auth, None, AUTO_HOST, "setGuestStarUserSettings", json!({ "isAutoPushEnabled": on })).await.map(drop),
     }
 }
 
@@ -218,25 +218,29 @@ pub async fn session(
 }
 
 pub async fn start(http: &Http, auth: Auth<'_>, channel_id: &str) -> Result<()> {
-    mutate(
+    write(
         http,
         auth,
+        None,
         START,
         "startGuestStarSession",
         json!({ "channelID": channel_id }),
     )
     .await
+    .map(drop)
 }
 
 pub async fn end(http: &Http, auth: Auth<'_>, session_id: &str) -> Result<()> {
-    mutate(
+    write(
         http,
         auth,
+        None,
         END,
         "endGuestStarSession",
         json!({ "sessionID": session_id }),
     )
     .await
+    .map(drop)
 }
 
 fn guest_input(session_id: &str, guest_id: &str) -> Value {
@@ -245,12 +249,12 @@ fn guest_input(session_id: &str, guest_id: &str) -> Value {
 
 pub async fn invite(http: &Http, auth: Auth<'_>, session_id: &str, guest_id: &str) -> Result<()> {
     let input = guest_input(session_id, guest_id);
-    mutate(http, auth, INVITE, "inviteUserToGuestStarSession", input).await
+    write(http, auth, None, INVITE, "inviteUserToGuestStarSession", input).await.map(drop)
 }
 
 pub async fn uninvite(http: &Http, auth: Auth<'_>, session_id: &str, guest_id: &str) -> Result<()> {
     let input = guest_input(session_id, guest_id);
-    mutate(http, auth, UNINVITE, "removeGuestStarInvite", input).await
+    write(http, auth, None, UNINVITE, "removeGuestStarInvite", input).await.map(drop)
 }
 
 pub async fn assign(
@@ -262,7 +266,7 @@ pub async fn assign(
 ) -> Result<()> {
     let mut input = guest_input(session_id, guest_id);
     input["slotID"] = slot_id.into();
-    mutate(http, auth, ASSIGN, "assignUserToGuestStarSlot", input).await
+    write(http, auth, None, ASSIGN, "assignUserToGuestStarSlot", input).await.map(drop)
 }
 
 /// Takes a guest out of their slot; they stay invited.
@@ -276,7 +280,7 @@ pub async fn unassign(
     let mut input = guest_input(session_id, guest_id);
     input["slotID"] = slot_id.into();
     input["shouldReInviteGuest"] = true.into();
-    mutate(http, auth, UNASSIGN, "removeUserFromGuestStarSlot", input).await
+    write(http, auth, None, UNASSIGN, "removeUserFromGuestStarSlot", input).await.map(drop)
 }
 
 #[cfg(test)]

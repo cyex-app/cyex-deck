@@ -6,6 +6,10 @@ import type { Tally } from "./Tally";
  */
 export type MassbanProgress = { channelId: string, 
 /**
+ * The acting account and the run's number: a panel follows only its own run.
+ */
+account: string, job: number, 
+/**
  * Logins handled so far, whatever the outcome.
  */
 done: number, total: number, 

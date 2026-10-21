@@ -10,10 +10,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use ts_rs::TS;
 
-use super::Refusal;
-use crate::gql::{Auth, Response, URL, request_at, unwrap};
-use crate::http::json as send_json;
-use crate::{Error, Http, Result};
+use super::Channel;
+use crate::gql::connection::page;
+use crate::{Error, Result};
 
 const FIELDS: &str = "id title prompt cost pricingType backgroundColor isEnabled isPaused isInStock isSubOnly \
     isUserInputRequired shouldRedemptionsSkipRequestQueue cooldownExpiresAt redemptionsRedeemedCurrentStream \
@@ -57,6 +56,10 @@ pub const TITLE_MAX: usize = 45;
 pub const PROMPT_MAX: usize = 200;
 /// Seven days.
 pub const COOLDOWN_MAX: u32 = 604_800;
+/// Twitch's cap on a reward's cost.
+pub const COST_MAX: u64 = 1_000_000_000;
+/// Redemptions per status call, as Twitch's queue sends them.
+pub const STATUS_MAX: usize = 50;
 
 /// One custom reward as its owner sees it. Only Channel Points ones; Bits ones are
 /// power-ups and stay on Twitch.
@@ -323,16 +326,13 @@ pub fn read_rewards(data: &Value) -> Result<Rewards> {
     })
 }
 
-/// A create or update payload: the reward, or the refusal.
-pub fn read_saved(data: &Value, field: &str) -> Result<Reward> {
+/// A create or update payload (its refusal already read): the reward.
+pub fn read_saved(payload: Value) -> Result<Reward> {
     #[derive(Deserialize)]
     struct Payload {
-        error: Option<Refusal>,
         reward: Option<Raw>,
     }
-    let p: Payload =
-        serde_json::from_value(data.get(field).cloned().unwrap_or(Value::Null)).map_err(Error::Decode)?;
-    super::check(p.error)?;
+    let p: Payload = serde_json::from_value(payload).map_err(Error::Decode)?;
     p.reward
         .and_then(|r| reward_from(r, 0, false))
         .ok_or_else(|| Error::Refused("NO_REWARD".into()))
@@ -340,80 +340,24 @@ pub fn read_saved(data: &Value, field: &str) -> Result<Reward> {
 
 /// The queue answer.
 pub fn read_queue(data: &Value) -> Result<Queue> {
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Conn {
-        #[serde(default)]
-        edges: Vec<Edge>,
-        page_info: Option<PageInfo>,
-    }
-    #[derive(Deserialize)]
-    struct Edge {
-        cursor: Option<String>,
-        node: Option<Node>,
-    }
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct PageInfo {
-        #[serde(default)]
-        has_next_page: bool,
-    }
-    #[derive(Deserialize)]
-    struct Node {
-        id: String,
-        input: Option<String>,
-        timestamp: Option<String>,
-        reward: Option<RewardRef>,
-        user: Option<UserRef>,
-    }
-    #[derive(Deserialize)]
-    struct RewardRef {
-        id: String,
-        #[serde(default)]
-        title: String,
-        #[serde(default)]
-        cost: u64,
-    }
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct UserRef {
-        login: Option<String>,
-        display_name: Option<String>,
-    }
-    let v = data
-        .pointer("/user/channel/communityPointsRedemptionQueue")
-        .cloned()
-        .unwrap_or(Value::Null);
-    if v.is_null() {
-        return Ok(Queue::default());
-    }
-    let c: Conn = serde_json::from_value(v).map_err(Error::Decode)?;
-    let more = c.page_info.is_some_and(|p| p.has_next_page);
-    let next = more
-        .then(|| c.edges.last().and_then(|e| e.cursor.clone()))
-        .flatten();
-    let items = c
-        .edges
-        .into_iter()
-        .filter_map(|e| e.node)
-        .map(|n| {
-            let (reward_id, reward, cost) = n
-                .reward
-                .map_or((String::new(), String::new(), 0), |r| (r.id, r.title, r.cost));
-            let (login, name) = n.user.map_or((None, None), |u| (u.login, u.display_name));
-            Redemption {
-                id: n.id,
-                reward_id,
-                reward,
-                cost,
-                login,
-                name,
-                input: n.input.filter(|s| !s.trim().is_empty()),
-                at: n.timestamp.unwrap_or_default(),
-            }
+    let conn = data.pointer("/user/channel/communityPointsRedemptionQueue").unwrap_or(&Value::Null);
+    let p = page(conn, |e| {
+        let n = e.get("node").filter(|n| !n.is_null())?;
+        let s = |v: &Value, k: &str| v.get(k).and_then(Value::as_str).map(str::to_owned);
+        let r = &n["reward"];
+        let u = &n["user"];
+        Some(Redemption {
+            id: s(n, "id")?,
+            reward_id: s(r, "id").unwrap_or_default(),
+            reward: s(r, "title").unwrap_or_default(),
+            cost: r.get("cost").and_then(Value::as_u64).unwrap_or(0),
+            login: s(u, "login"),
+            name: s(u, "displayName"),
+            input: s(n, "input").filter(|i| !i.trim().is_empty()),
+            at: s(n, "timestamp").unwrap_or_default(),
         })
-        .collect();
-    Ok(Queue { items, next })
+    });
+    Ok(Queue { items: p.items, next: p.next })
 }
 
 // ---- inputs ------------------------------------------------------------------------
@@ -478,142 +422,43 @@ pub fn status_input(channel_id: &str, ids: &[String], s: Status) -> Value {
 
 // ---- calls -------------------------------------------------------------------------
 
-/// Twitch's GQL, or a local mock's `{base}/gql` (tests).
-async fn run(http: &Http, auth: Auth<'_>, base: Option<&str>, text: &str, variables: Value) -> Result<Value> {
-    let url = base.map_or_else(|| URL.to_owned(), |b| format!("{b}/gql"));
-    let req = request_at(http, &url, auth).json(&json!({ "query": text, "variables": variables }));
-    let res: Response<Value> = send_json(req).await?;
-    unwrap(res)
+const CREATED: &str = "createCommunityPointsCustomReward";
+const UPDATED: &str = "updateCommunityPointsCustomReward";
+const DELETED: &str = "deleteCommunityPointsCustomReward";
+const STATUSES: &str = "updateCommunityPointsCustomRewardRedemptionStatusesByRedemptions";
+
+pub async fn list(ch: &Channel<'_>) -> Result<Rewards> {
+    read_rewards(&ch.read::<Value>(&list_query(), json!({ "id": ch.id })).await?)
 }
 
-pub async fn list(http: &Http, auth: Auth<'_>, base: Option<&str>, channel_id: &str) -> Result<Rewards> {
-    read_rewards(&run(http, auth, base, &list_query(), json!({ "id": channel_id })).await?)
+pub async fn create(ch: &Channel<'_>, e: &RewardEdit) -> Result<Reward> {
+    read_saved(ch.write(&create_query(), CREATED, edit_input(ch.id, None, e)).await?)
 }
 
-pub async fn create(
-    http: &Http,
-    auth: Auth<'_>,
-    base: Option<&str>,
-    channel_id: &str,
-    e: &RewardEdit,
-) -> Result<Reward> {
-    let d = run(
-        http,
-        auth,
-        base,
-        &create_query(),
-        json!({ "input": edit_input(channel_id, None, e) }),
-    )
-    .await?;
-    read_saved(&d, "createCommunityPointsCustomReward")
+pub async fn update(ch: &Channel<'_>, reward: &str, e: &RewardEdit) -> Result<Reward> {
+    read_saved(ch.write(&update_query(), UPDATED, edit_input(ch.id, Some(reward), e)).await?)
 }
 
-pub async fn update(
-    http: &Http,
-    auth: Auth<'_>,
-    base: Option<&str>,
-    channel_id: &str,
-    reward: &str,
-    e: &RewardEdit,
-) -> Result<Reward> {
-    let d = run(
-        http,
-        auth,
-        base,
-        &update_query(),
-        json!({ "input": edit_input(channel_id, Some(reward), e) }),
-    )
-    .await?;
-    read_saved(&d, "updateCommunityPointsCustomReward")
+pub async fn switch(ch: &Channel<'_>, reward: &str, s: Switch) -> Result<Reward> {
+    read_saved(ch.write(&update_query(), UPDATED, switch_input(ch.id, reward, s)).await?)
 }
 
-pub async fn switch(
-    http: &Http,
-    auth: Auth<'_>,
-    base: Option<&str>,
-    channel_id: &str,
-    reward: &str,
-    s: Switch,
-) -> Result<Reward> {
-    let d = run(
-        http,
-        auth,
-        base,
-        &update_query(),
-        json!({ "input": switch_input(channel_id, reward, s) }),
-    )
-    .await?;
-    read_saved(&d, "updateCommunityPointsCustomReward")
-}
-
-pub async fn delete(
-    http: &Http,
-    auth: Auth<'_>,
-    base: Option<&str>,
-    channel_id: &str,
-    reward: &str,
-    waiting: Option<Status>,
-) -> Result<()> {
-    let d = run(
-        http,
-        auth,
-        base,
-        DELETE,
-        json!({ "input": delete_input(channel_id, reward, waiting) }),
-    )
-    .await?;
-    refusal(&d, "deleteCommunityPointsCustomReward")
+pub async fn delete(ch: &Channel<'_>, reward: &str, waiting: Option<Status>) -> Result<()> {
+    ch.write(DELETE, DELETED, delete_input(ch.id, reward, waiting)).await.map(drop)
 }
 
 /// Newest first; `reward` narrows it to one reward.
-pub async fn queue(
-    http: &Http,
-    auth: Auth<'_>,
-    base: Option<&str>,
-    channel_id: &str,
-    reward: Option<&str>,
-    cursor: Option<&str>,
-) -> Result<Queue> {
-    let vars = json!({ "id": channel_id, "reward": reward, "cursor": cursor, "count": QUEUE_PAGE });
-    read_queue(&run(http, auth, base, QUEUE, vars).await?)
+pub async fn queue(ch: &Channel<'_>, reward: Option<&str>, cursor: Option<&str>) -> Result<Queue> {
+    let vars = json!({ "id": ch.id, "reward": reward, "cursor": cursor, "count": QUEUE_PAGE });
+    read_queue(&ch.read::<Value>(QUEUE, vars).await?)
 }
 
-/// Completes or rejects (refunds) redemptions, at most 50 per call, as Twitch's queue does.
-pub async fn set_status(
-    http: &Http,
-    auth: Auth<'_>,
-    base: Option<&str>,
-    channel_id: &str,
-    ids: &[String],
-    s: Status,
-) -> Result<()> {
-    let d = run(
-        http,
-        auth,
-        base,
-        SET_STATUS,
-        json!({ "input": status_input(channel_id, ids, s) }),
-    )
-    .await?;
-    refusal(
-        &d,
-        "updateCommunityPointsCustomRewardRedemptionStatusesByRedemptions",
-    )
-}
-
-fn refusal(data: &Value, field: &str) -> Result<()> {
-    #[derive(Deserialize)]
-    struct Payload {
-        error: Option<Refusal>,
+/// Completes or rejects (refunds) up to [`STATUS_MAX`] redemptions, as Twitch's queue does.
+pub async fn set_status(ch: &Channel<'_>, ids: &[String], s: Status) -> Result<()> {
+    if ids.len() > STATUS_MAX {
+        return Err(Error::Refused("TOO_MANY".into()));
     }
-    match data.get(field) {
-        None | Some(Value::Null) => Ok(()),
-        Some(p) => super::check(
-            serde_json::from_value::<Payload>(p.clone())
-                .map_err(Error::Decode)?
-                .error,
-        ),
-    }
+    ch.write(SET_STATUS, STATUSES, status_input(ch.id, ids, s)).await.map(drop)
 }
 
 #[cfg(test)]

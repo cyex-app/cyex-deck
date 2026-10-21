@@ -16,7 +16,6 @@
   import { everyShown } from '../../lib/awake';
   import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
-  import { ChatRoom } from '../chat/room.svelte';
   import { catalogs } from '../chat/catalog.svelte';
   import { mods } from '../modview/moderation.svelte';
   import { standingOf } from '../modview/standing';
@@ -27,7 +26,7 @@
   import Header from './Header.svelte';
   import ModBar from './ModBar.svelte';
   import Timeline from './Timeline.svelte';
-  import { changedLines, theirLines } from './liveLines';
+  import { theirIds, touches } from './userWatch';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
 
@@ -74,8 +73,8 @@
 
   // Their messages from the open chat. V107-R23 With the room shown somewhere, its line
   // events bring a new line at once (a follows view, so it isn't counted as a chat);
-  // otherwise it is read every few seconds while the window shows.
-  let room = $state.raw<ChatRoom>();
+  // otherwise it is read every few seconds while the window shows. V107-H1 Only their line
+  // ids are kept from that view, not a copy of the room.
   const readMessages = (id: string) =>
     chatIpc
       .userMessages(channel, id)
@@ -95,28 +94,35 @@
       .shown()
       .then((s) => {
         if (dead || !s.chats[channel]) return poll();
-        const r = new ChatRoom(channel);
-        void r.open(accounts.current?.userId ?? null, [], true);
-        room = r;
+        let ids: string[] | null = null;
+        let view = 0;
         stop = () => {
-          room = undefined;
-          r.close();
+          if (view) void chatIpc.close(view);
         };
+        chatIpc
+          .open(
+            channel,
+            accounts.current?.userId ?? null,
+            [],
+            (events) => {
+              // Before the snapshot: read once it's in.
+              if (ids && touches(events, id, ids)) void readMessages(id);
+            },
+            true,
+          )
+          .then((o) => {
+            if (dead) return void chatIpc.close(o.view);
+            view = o.view;
+            ids = theirIds(o.snapshot.messages, id);
+            void readMessages(id);
+          })
+          .catch(poll);
       })
       .catch(poll);
     return () => {
       dead = true;
       stop();
     };
-  });
-  let seen: ChatMessage[] = [];
-  $effect(() => {
-    const id = profile?.id;
-    const list = room?.messages;
-    if (!id || !list) return;
-    const theirs = theirLines(list, id);
-    if (changedLines(seen, theirs)) void readMessages(id);
-    seen = theirs;
   });
 
   // M3 Mod history over GQL; silent where the account can't read it.

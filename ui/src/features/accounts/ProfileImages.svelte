@@ -144,7 +144,7 @@
     width: 96px;
     height: 40px;
     border-radius: var(--radius);
-    background: var(--surface-2, var(--bg));
+    background: var(--bg);
     border: 1px solid var(--border);
   }
   .preview.avatar {

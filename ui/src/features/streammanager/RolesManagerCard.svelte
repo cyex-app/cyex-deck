@@ -13,6 +13,7 @@
   import { openMenu, type MenuEntry } from '../../components/menu.svelte';
   import Card from '../../components/PanelCard.svelte';
   import SearchField from '../../components/SearchField.svelte';
+  import Select from '../../components/Select.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { ChannelRole } from '../../ipc/bindings/ChannelRole';
   import type { RoleMember } from '../../ipc/bindings/RoleMember';
@@ -20,22 +21,12 @@
   import { rolesIpc } from '../../ipc/roles';
   import { errorText } from '../../lib/errors';
   import { toast } from '../../lib/toast.svelte';
-  import { relative, stamp } from './community';
-  import {
-    addOrder,
-    blocked,
-    cleanLogin,
-    ROLE_HINT,
-    ROLE_NAME,
-    ROLES,
-    roleCounts,
-    type RoleFilter,
-    type RoleSort,
-    shownMembers,
-    SORTS,
-    vipCount,
-  } from './rolesManager';
+  import { cleanLogin, offFor, ROLE_HINT, ROLE_NAME, ROLES, roleCounts, type RoleFilter, type RoleSort, shownMembers, SORTS } from './rolesManager';
+  import { focusBack, focusIn, onEscape } from './onEscape';
+  import SmBar from './SmBar.svelte';
+  import SmProblem from './SmProblem.svelte';
   import { sm } from './streammanager.svelte';
+  import When from './When.svelte';
 
   const m = $derived(sm.manager);
 
@@ -60,7 +51,7 @@
   const counts = $derived(roleCounts(members));
   const shown = $derived(shownMembers(members, filter, query, sort));
   const vips = $derived(view?.vips ?? null);
-  const vipNote = $derived(vips ? blocked('vip', [], vips) : null);
+  const vipNote = $derived(vips?.why ?? null);
 
   async function load() {
     if (!m) return;
@@ -82,13 +73,18 @@
 
   const holdsOf = (login: string) => members.find((x) => x.login === login)?.roles ?? [];
 
-  /** One change; true when it went through. */
-  async function change(login: string, role: ChannelRole, on: boolean): Promise<boolean> {
+  /** V107-R42 One change (Rust picks the order and says the line); true when it all went
+   *  through. */
+  async function change(login: string, give: ChannelRole[], take: ChannelRole[]): Promise<boolean> {
     if (!m) return false;
     busy[login] = true;
     try {
-      view = await rolesIpc.set(m.accountId, m.login, login, role, on, holdsOf(login));
+      const v = await rolesIpc.set(m.accountId, m.login, login, give, take);
+      // Done, but the lists didn't come back: keep these and read again.
+      if (v.note) void load();
+      else view = v;
       now = Date.now();
+      if (v.line) toast.success(v.line);
       return true;
     } catch (e) {
       toast.error(errorText(e));
@@ -102,19 +98,8 @@
 
   async function take(r: RoleMember, role: ChannelRole) {
     disarm();
-    if (await change(r.login, role, false)) toast.success(`${r.display} is no longer ${article(role)}.`);
+    await change(r.login, [], [role]);
   }
-
-  async function give(login: string, roles: ChannelRole[]): Promise<number> {
-    let done = 0;
-    for (const role of addOrder(roles, holdsOf(login))) {
-      if (!(await change(login, role, true))) break;
-      done++;
-    }
-    return done;
-  }
-
-  const article = (r: ChannelRole) => `${/^[AEIOU]/.test(ROLE_NAME[r]) ? 'an' : 'a'} ${ROLE_NAME[r]}`;
 
   function arm(key: string) {
     clearTimeout(armTimer);
@@ -130,33 +115,21 @@
 
   function addMenu(e: MouseEvent, r: RoleMember) {
     const items: MenuEntry[] = ROLES.filter((role) => !r.roles.includes(role)).map((role) => {
-      const why = blocked(role, r.roles, vips);
+      const why = offFor(role, r.roles, vips);
       return {
         label: ROLE_NAME[role],
         note: why ?? ROLE_HINT[role],
         disabled: !!why,
-        run: () => void give(r.login, [role]).then((n) => n && toast.success(`Made ${r.display} ${article(role)}.`)),
+        run: () => void change(r.login, [role], []),
       };
     });
     openMenu(e.currentTarget as HTMLElement, items, 'start');
   }
 
-  function filterMenu(e: MouseEvent) {
-    const items: MenuEntry[] = [
-      { label: 'All roles', hint: String(counts.all), checked: filter === 'all', run: () => (filter = 'all') },
-      'separator',
-      ...ROLES.map((r) => ({ label: ROLE_NAME[r], hint: String(counts[r]), checked: filter === r, run: () => (filter = r) })),
-    ];
-    openMenu(e.currentTarget as HTMLElement, items, 'start');
-  }
-
-  function sortMenu(e: MouseEvent) {
-    openMenu(
-      e.currentTarget as HTMLElement,
-      SORTS.map((s) => ({ label: s.label, checked: sort === s.value, run: () => (sort = s.value) })),
-      'end',
-    );
-  }
+  const filters = $derived([
+    { value: 'all', label: `All roles (${counts.all})` },
+    ...ROLES.map((r) => ({ value: r, label: `${ROLE_NAME[r]} (${counts[r]})` })),
+  ]);
 
   function flip(role: ChannelRole) {
     picked = picked.includes(role) ? picked.filter((r) => r !== role) : [...picked, role];
@@ -165,14 +138,13 @@
   async function submitAdd() {
     const login = cleanLogin(newLogin);
     if (!login || !picked.length) return;
-    const want = addOrder(picked, holdsOf(login));
+    const holds = holdsOf(login);
+    const want = picked.filter((r) => !holds.includes(r));
     if (!want.length) {
       toast.info(`${login} has those roles already.`);
       return;
     }
-    const n = await give(login, want);
-    if (n === want.length) {
-      toast.success(n === 1 ? `Made ${login} ${article(want[0])}.` : `Gave ${login} ${n} roles.`);
+    if (await change(login, want, [])) {
       newLogin = '';
       picked = [];
       adding = false;
@@ -184,14 +156,6 @@
 
 <Card title="Roles Manager" flush>
   {#snippet tools()}
-    {#if vips}
-      <span
-        class="slots"
-        class:warn={!!vipNote}
-        use:tooltip={{ label: vipNote ?? (vips.allowed == null ? 'VIP slots' : `${vips.allowed - vips.used} VIP slots left`), hint: vipNote ? undefined : 'More unlock through Twitch achievements.' }}
-        >{vipCount(vips)}</span
-      >
-    {/if}
     <IconButton icon="refresh" label="Refresh" size={14} disabled={loading} onclick={() => void load()} />
     <IconButton icon="plus" label="Add" hint="Give someone a role." size={14} active={adding} toggle onclick={() => (adding = !adding)} />
   {/snippet}
@@ -203,12 +167,13 @@
         e.preventDefault();
         void submitAdd();
       }}
+      use:onEscape={() => (adding = false)}
     >
-      <input class="field" placeholder="Username" bind:value={newLogin} spellcheck="false" autocomplete="off" />
+      <input class="field" placeholder="Username" aria-label="Username" bind:value={newLogin} spellcheck="false" autocomplete="off" use:focusIn />
       <div class="picks" role="group" aria-label="Roles to give">
         {#each ROLES as r (r)}
           {@const has = newHolds.includes(r)}
-          {@const why = blocked(r, newHolds, vips)}
+          {@const why = offFor(r, newHolds, vips)}
           <button
             type="button"
             class="pick"
@@ -231,21 +196,27 @@
   {#if loading && !view}
     <Loading rows={5} label="Loading roles" />
   {:else if failed && !view}
-    <div class="gap">
-      <p class="bad">{failed}</p>
-      <Button small onclick={() => void load()}>Retry</Button>
-    </div>
+    <SmProblem text={failed} onretry={() => void load()} />
   {:else if !members.length}
     <EmptyState icon="shield" text="Nobody has a role in your channel yet." />
   {:else}
-    <div class="bar">
-      <SearchField small bind:value={query} placeholder="Search names" />
-      <div class="row">
-        <button class="drop" onclick={filterMenu}>{filter === 'all' ? 'All roles' : ROLE_NAME[filter]}<Icon name="chevronDown" size={12} /></button>
-        <span class="spacer"></span>
-        <button class="drop" onclick={sortMenu}>{SORTS.find((s) => s.value === sort)?.label}<Icon name="chevronDown" size={12} /></button>
+    <SmBar>
+      <div class="filters">
+        <span class="grow"><SearchField small bind:value={query} placeholder="Search names" /></span>
+        {#if vips}
+          <span
+            class="slots"
+            class:warn={!!vipNote}
+            use:tooltip={{ label: vipNote ?? (vips.allowed == null ? 'VIP slots' : `${vips.allowed - vips.used} VIP slots left`), hint: vipNote ? undefined : 'More unlock through Twitch achievements.' }}
+            >{vips.label}</span
+          >
+        {/if}
       </div>
-    </div>
+      <div class="filters">
+        <span class="pickone"><Select label="Role" width="100%" value={filter} options={filters} onchange={(v) => (filter = v as RoleFilter)} /></span>
+        <span class="pickone"><Select label="Sort" width="100%" value={sort} options={SORTS} onchange={(v) => (sort = v as RoleSort)} /></span>
+      </div>
+    </SmBar>
     <ul>
       {#each shown as r (r.id || r.login)}
         <li class:busy={busy[r.login]}>
@@ -254,19 +225,24 @@
             <div class="top">
               <span class="name">{r.display}</span>
               {#if r.display.toLowerCase() !== r.login}<span class="login">{r.login}</span>{/if}
-              {#if r.modified}
-                <time class="when" datetime={r.modified} use:tooltip={stamp(r.modified)}>{relative(r.modified, now)}</time>
-              {/if}
+              {#if r.modified}<span class="at"><When at={r.modified} {now} /></span>{/if}
             </div>
             <div class="chips">
               {#each r.roles as role (role)}
                 {@const key = `${r.login}/${role}`}
                 {#if armed === key}
-                  <button class="chip confirm" disabled={busy[r.login]} onclick={() => void take(r, role)} onblur={disarm}>Remove {ROLE_NAME[role]}?</button>
+                  <button
+                    class="chip confirm"
+                    disabled={busy[r.login]}
+                    use:focusIn
+                    use:onEscape={() => (disarm(), focusBack(key))}
+                    onclick={() => void take(r, role)}
+                    onblur={disarm}>Remove {ROLE_NAME[role]}?</button
+                  >
                 {:else}
                   <span class="chip">
                     {ROLE_NAME[role]}
-                    <button class="rm" aria-label="Remove {ROLE_NAME[role]}" disabled={busy[r.login]} onclick={() => arm(key)}>
+                    <button class="rm" data-back={key} aria-label="Remove {ROLE_NAME[role]}" disabled={busy[r.login]} onclick={() => arm(key)}>
                       <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"
                         ><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5" /><path d="M5 8h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg
                       >
@@ -289,8 +265,11 @@
 </Card>
 
 <style>
+  .grow {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
   .slots {
-    align-self: center;
     padding: 1px 6px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -337,41 +316,10 @@
     cursor: default;
     opacity: 0.55;
   }
-  .bar {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 8px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-  }
   .row {
     display: flex;
     align-items: center;
     gap: 6px;
-  }
-  .spacer {
-    flex: 1;
-  }
-  .drop {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 6px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: transparent;
-    color: var(--muted);
-    font-size: 0.75rem;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  .drop:hover {
-    background: var(--surface-hover);
-    color: var(--text);
   }
   ul {
     margin: 0;
@@ -411,7 +359,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-weight: 600;
-    font-size: 0.86rem;
+    font-size: 0.85rem;
   }
   .login {
     min-width: 0;
@@ -421,12 +369,13 @@
     color: var(--dim);
     font-size: 0.75rem;
   }
-  .when {
+  .pickone {
+    flex: 1 1 120px;
+    min-width: 0;
+  }
+  .at {
     margin-left: auto;
     flex-shrink: 0;
-    color: var(--dim);
-    font-size: 0.72rem;
-    white-space: nowrap;
   }
   .chips {
     display: flex;
@@ -478,18 +427,6 @@
   }
   button:disabled {
     cursor: default;
-  }
-  .gap {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 12px;
-  }
-  .bad {
-    margin: 0;
-    color: var(--red);
-    font-size: 0.82rem;
   }
   .pad {
     padding: 4px 12px;

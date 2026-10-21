@@ -123,6 +123,20 @@ pub trait Twitch: Send {
 /// Twitch is busy, lifts a timeout in the way once, and always sends again after that.
 /// A stale "already banned" after our lift waits instead of lifting twice.
 pub async fn run(tw: &mut impl Twitch, who: &str, timeout: bool) -> Result<(), String> {
+    run_full(tw, who, timeout).await.map_err(|f| f.text)
+}
+
+/// A ban that didn’t go through: the line, and whether one is in place and stays (a ban
+/// over a ban, a timeout over a ban). Mass actions count that as "already" by this, not by
+/// the line’s words.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Failure {
+    pub text: String,
+    pub in_place: bool,
+}
+
+/// [`run`], telling an in-place ban apart from a refusal.
+pub async fn run_full(tw: &mut impl Twitch, who: &str, timeout: bool) -> Result<(), Failure> {
     let mut lifted = false;
     let mut sent_after_lift = false;
     let mut sends = 0;
@@ -131,12 +145,17 @@ pub async fn run(tw: &mut impl Twitch, who: &str, timeout: bool) -> Result<(), S
         sends += 1;
         sent_after_lift = lifted;
         let Err(no) = tw.send().await else { return Ok(()) };
-        let Some(r) = no.refusal() else { return fail(tw, who, lifted, no.text) };
+        let Some(r) = no.refusal() else { return fail(tw, who, lifted, no.text, false) };
         let mut plan = plan(timeout, r, None);
+        // A Fail on an "already" answer means a ban stays; unknown when the lookup failed.
+        let mut known = true;
         if plan == Plan::LookUp {
             plan = match tw.held().await {
                 Some(h) => self::plan(timeout, r, Some(h)),
-                None => Plan::Fail,
+                None => {
+                    known = false;
+                    Plan::Fail
+                }
             };
         }
         match plan {
@@ -144,24 +163,28 @@ pub async fn run(tw: &mut impl Twitch, who: &str, timeout: bool) -> Result<(), S
             // Twitch hasn't caught up with our lift yet.
             Plan::Replace if lifted => tw.pause().await,
             Plan::Replace => {
-                tw.lift().await?;
+                tw.lift().await.map_err(|text| Failure { text, in_place: false })?;
                 lifted = true;
                 sent_after_lift = false;
             }
-            Plan::KeepBan => return fail(tw, who, lifted, keep_ban_line(who)),
-            Plan::Fail | Plan::LookUp => return fail(tw, who, lifted, no.text),
+            Plan::KeepBan => return fail(tw, who, lifted, keep_ban_line(who), true),
+            Plan::Fail | Plan::LookUp => {
+                let in_place = known && already(r) && plan == Plan::Fail;
+                return fail(tw, who, lifted, no.text, in_place);
+            }
         }
         last = Some(no.text);
     }
-    fail(tw, who, lifted, last.unwrap_or_else(|| "Twitch refused it.".into()))
+    fail(tw, who, lifted, last.unwrap_or_else(|| "Twitch refused it.".into()), false)
 }
 
-fn fail(tw: &mut impl Twitch, who: &str, lifted: bool, why: String) -> Result<(), String> {
+/// After our lift they are free: never in place then.
+fn fail(tw: &mut impl Twitch, who: &str, lifted: bool, why: String, in_place: bool) -> Result<(), Failure> {
     if !lifted {
-        return Err(why);
+        return Err(Failure { text: why, in_place });
     }
     tw.unmark_lift();
-    Err(lifted_line(who, &why))
+    Err(Failure { text: lifted_line(who, &why), in_place: false })
 }
 
 /// V107-M7 A mass ban's refusal worth one ban on its own: one is in place (the last one
@@ -356,5 +379,27 @@ mod tests {
         }
         assert_eq!(seen, [1, 2]);
         assert_eq!(until(&[1], || true).count(), 0);
+    }
+
+    #[test]
+    fn v107_r21_in_place_is_told_by_the_code_not_the_words() {
+        let full = |sends: Vec<Result<(), Refused>>, held: Vec<Held>, timeout: bool| {
+            let mut s = Script { sends, held, ..Default::default() };
+            block_on(run_full(&mut s, "x", timeout)).unwrap_err()
+        };
+        // A ban over a ban, a timeout over a ban: in place.
+        assert!(full(vec![gql(ALREADY)], vec![Held::Ban], false).in_place);
+        assert!(full(vec![gql(ALREADY)], vec![Held::Ban], true).in_place);
+        let helix = Refused {
+            how: Some(How::Helix { status: 400, message: "The user specified in the user_id field is already banned.".into() }),
+            text: "x".into(),
+        };
+        assert!(full(vec![Err(helix)], vec![], false).in_place);
+        // "isn't banned" and other refusals are not, whatever the line says.
+        let not = Refused { how: Some(How::Gql("TARGET_NOT_BANNED".into())), text: "x isn’t banned.".into() };
+        assert!(!full(vec![Err(not)], vec![], false).in_place);
+        assert!(!full(vec![gql("TARGET_IS_MOD")], vec![], false).in_place);
+        // Lookup failed: unknown, not counted as in place.
+        assert!(!full(vec![gql(ALREADY)], vec![], false).in_place);
     }
 }

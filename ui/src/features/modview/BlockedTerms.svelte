@@ -15,6 +15,7 @@
   import { accounts } from '../../lib/accounts.svelte';
   import { errorText } from '../../lib/errors';
   import { formatDate } from '../../lib/format';
+  import { latest } from '../../lib/latest';
   import { toast } from '../../lib/toast.svelte';
   import { changesTerms, shownTerms, SORTS, termProblem, type TermSort } from './terms';
 
@@ -35,17 +36,33 @@
 
   const rows = $derived(shownTerms(list, query, sort));
 
+  /** BUG-07 Reads and changes share one guard: a read that was on its way when a term was
+   *  added or removed is dropped and read again, so it can't bring the old list back. */
+  const guard = latest();
+  let stale = false;
   function load() {
     if (!can) return;
+    const ok = guard.begin();
     loading = true;
     modIpc
       .blockedTerms(account, login)
       .then((r) => {
+        if (!ok()) return;
         list = r;
         problem = '';
       })
-      .catch((e) => (problem = errorText(e)))
-      .finally(() => (loading = false));
+      .catch((e) => ok() && (problem = errorText(e)))
+      .finally(() => ok() && (loading = false));
+  }
+  /** Before a change lands: drop a read on its way (and redo it after). */
+  function hold() {
+    if (loading) stale = true;
+    guard.cancel();
+    loading = false;
+  }
+  function again() {
+    if (stale) load();
+    stale = false;
   }
 
   $effect(() => {
@@ -65,27 +82,33 @@
   async function add() {
     const why = termProblem(draft, list);
     if (why) return toast.error(why);
+    if (adding) return;
     adding = true;
     try {
       const t = await modIpc.addBlockedTerm(account, login, draft.trim());
+      hold();
       list = [t, ...list.filter((x) => x.id !== t.id)];
       draft = '';
     } catch (e) {
       toast.error(errorText(e));
     } finally {
       adding = false;
+      again();
     }
   }
 
   async function remove(t: BlockedTerm) {
+    if (busy[t.id]) return;
     busy[t.id] = true;
     try {
       await modIpc.removeBlockedTerm(account, login, t.id);
+      hold();
       list = list.filter((x) => x.id !== t.id);
     } catch (e) {
       toast.error(errorText(e));
     } finally {
       busy[t.id] = false;
+      again();
     }
   }
 
@@ -115,8 +138,9 @@
     </div>
     {#if problem}
       <p class="empty">{problem} <Button small variant="link" onclick={load}>Retry</Button></p>
-    {:else if !loading && !list.length}
-      <p class="empty">No blocked terms.</p>
+    {:else if !list.length}
+      <!-- Not "Nothing matches" while the first read runs. -->
+      <p class="empty">{loading ? 'Loading…' : 'No blocked terms.'}</p>
     {:else if !rows.length}
       <p class="empty">Nothing matches.</p>
     {:else}
@@ -125,7 +149,7 @@
           <li>
             <span class="text">{t.text}</span>
             <span class="when">{t.createdAt ? formatDate(new Date(t.createdAt)) : ''} {until(t)}</span>
-            <ConfirmButton label="Remove" confirm="Sure?" variant="ghost" disabled={busy[t.id]} onconfirm={() => void remove(t)} />
+            <ConfirmButton label="Remove" confirm="Remove?" variant="ghost" disabled={busy[t.id]} onconfirm={() => void remove(t)} />
           </li>
         {/each}
       </ul>

@@ -223,12 +223,17 @@ impl ChatMessage {
         self.flags.contains(&flag)
     }
 
+    /// Whether [`Self::mark_gone`] would change anything, without a copy to try it on.
+    pub fn would_mark(&self, gone: &Gone) -> bool {
+        !self.has(Flag::Deleted) || self.meta.gone.as_ref() != Some(&gone.merged(self.meta.gone.as_ref()))
+    }
+
     /// V107-R34 Marks the line deleted, and why. Whether anything changed.
     pub fn mark_gone(&mut self, gone: &Gone) -> bool {
-        let next = gone.merged(self.meta.gone.as_ref());
-        if self.has(Flag::Deleted) && self.meta.gone.as_ref() == Some(&next) {
+        if !self.would_mark(gone) {
             return false;
         }
+        let next = gone.merged(self.meta.gone.as_ref());
         self.set(Flag::Deleted);
         self.meta.gone = Some(next);
         true

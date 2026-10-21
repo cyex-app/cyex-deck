@@ -9,6 +9,7 @@ import type { BroadcastInfo } from './bindings/BroadcastInfo';
 import type { CategoryHit } from './bindings/CategoryHit';
 import type { ChannelEdit } from './bindings/ChannelEdit';
 import type { ChatModes } from './bindings/ChatModes';
+import type { DashboardLimits } from './bindings/DashboardLimits';
 import type { ObsFile } from './bindings/ObsFile';
 import type { SmActivity } from './bindings/SmActivity';
 import type { SmAdEdit } from './bindings/SmAdEdit';
@@ -74,6 +75,10 @@ export const smIpc = {
   /** V106-16 The status files table. */
   obsFiles: () => invoke<ObsFile[]>('sm_obs_files'),
   obsOpenFile: (name: string) => invoke<void>('sm_obs_open_file', { name }),
+  /** V107-R41 Stops the running bulk change after its current request. */
+  bulkStop: () => invoke<void>('sm_bulk_stop'),
+  /** V107-R41 The limits Rust checks; the panels show these. */
+  limits: () => invoke<DashboardLimits>('sm_limits'),
   onStats: (f: (s: SmStats) => void): Promise<UnlistenFn> => listen<SmStats>('stream:stats', (e) => f(e.payload)),
   onActivity: (f: (a: SmActivity) => void): Promise<UnlistenFn> =>
     listen<SmActivity>('stream:activity', (e) => f(e.payload)),

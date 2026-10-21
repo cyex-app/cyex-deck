@@ -3,8 +3,16 @@
 /**
  * One follower of the channel.
  */
-export type CmFollower = { id: string, login: string, name: string, avatar: string, 
+export type CmFollower = { 
 /**
  * RFC 3339, when Twitch says.
  */
-followedAt: string | null, };
+followedAt: string | null, id: string, login: string, 
+/**
+ * The display name, else the login.
+ */
+display: string, 
+/**
+ * Empty when Twitch has none.
+ */
+avatar: string, };

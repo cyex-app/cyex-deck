@@ -4,7 +4,7 @@
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
-use super::mutate;
+use super::channel::write;
 use crate::gql::{Auth, query};
 use crate::helix::modes::{ChatModes, MAX_FOLLOW_MINUTES, ModeChange, SLOW_RANGE};
 use crate::{Error, Http, Result};
@@ -134,7 +134,7 @@ pub async fn set_mode(
     change: ModeChange,
 ) -> Result<ChatModes> {
     match (change, settings_input(channel_id, change)) {
-        (_, Some(input)) => mutate(http, auth, SET, "updateChatSettings", input).await?,
+        (_, Some(input)) => write(http, auth, None, SET, "updateChatSettings", input).await.map(drop)?,
         (ModeChange::Subs(on), None) => {
             let product = tier1_product(http, auth, channel_id).await?;
             let input = json!({ "id": product, "targetUserID": channel_id, "hasSubOnlyChat": on });

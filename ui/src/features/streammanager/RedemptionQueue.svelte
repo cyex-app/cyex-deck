@@ -1,70 +1,60 @@
 <!-- V107-R37 The redemption queue: what viewers redeemed and wait on, newest first, with
      what they typed. Complete or reject (the points go back) one, the ticked ones, or all
-     shown. A new redemption in the activity feed reloads it. -->
+     shown. A new redemption in the activity feed reloads it. The reward filter and Refresh
+     sit in the Rewards panel's toolbar and header. -->
 <script lang="ts">
+  import { untrack } from 'svelte';
+
   import Button from '../../components/Button.svelte';
-  import Checkbox from '../../components/Checkbox.svelte';
+  import ConfirmButton from '../../components/ConfirmButton.svelte';
   import EmptyState from '../../components/EmptyState.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import Loading from '../../components/Loading.svelte';
-  import Select from '../../components/Select.svelte';
-  import { tooltip } from '../../components/tooltip.svelte';
   import type { SmRedemption } from '../../ipc/bindings/SmRedemption';
   import type { SmRedemptionStatus } from '../../ipc/bindings/SmRedemptionStatus';
-  import type { SmReward } from '../../ipc/bindings/SmReward';
   import { chatIpc } from '../../ipc/chat';
   import { rewardsIpc } from '../../ipc/rewards';
+  import { smIpc } from '../../ipc/streammanager';
+  import { everyShown } from '../../lib/awake';
   import { errorText } from '../../lib/errors';
-  import { ago, formatDate, formatNumber, formatTime } from '../../lib/format';
+  import { formatNumber } from '../../lib/format';
+  import { PagedList } from '../../lib/paged.svelte';
   import { toast } from '../../lib/toast.svelte';
-  import { keep, toggle } from './rewardsLogic';
+  import { bulkLines } from './content';
+  import LoadMore from './LoadMore.svelte';
+  import PickBar from './PickBar.svelte';
+  import PickBox from './PickBox.svelte';
+  import SmProblem from './SmProblem.svelte';
   import { sm } from './streammanager.svelte';
+  import When from './When.svelte';
 
   interface Props {
-    rewards: SmReward[];
     /** Reward id to show, or '' for all. */
     filter: string;
-    onfilter: (id: string) => void;
     /** Something was completed or rejected: the waiting counts changed. */
     onchanged: () => void;
   }
 
-  let { rewards, filter, onfilter, onchanged }: Props = $props();
+  let { filter, onchanged }: Props = $props();
 
-  let items = $state<SmRedemption[]>([]);
-  let next = $state<string | null>(null);
-  let loading = $state(true);
-  let failed = $state('');
   let busy = $state(false);
-  let picked = $state<Set<string>>(new Set());
   let now = $state(Date.now());
-  let seq = 0;
 
-  $effect(() => {
-    const t = setInterval(() => (now = Date.now()), 30_000);
-    return () => clearInterval(t);
-  });
+  // V107-H1 Not while hidden; once when it shows.
+  $effect(() => everyShown(() => (now = Date.now()), 30_000));
 
-  async function load(from: string | null) {
-    const mine = ++seq;
-    if (!from) loading = true;
-    try {
-      const q = await rewardsIpc.queue(filter || null, from);
-      if (mine !== seq) return;
-      items = from ? [...items, ...q.items.filter((i) => !items.some((o) => o.id === i.id))] : q.items;
-      next = q.next;
-      picked = keep(picked, items.map((i) => i.id));
-      failed = '';
-    } catch (e) {
-      if (mine === seq) failed = errorText(e);
-    } finally {
-      if (mine === seq) loading = false;
-    }
+  const list = new PagedList<SmRedemption>({ key: (r) => r.id, fetch: (cursor) => rewardsIpc.queue(filter || null, cursor) });
+  const items = $derived(list.items);
+  const picked = $derived(list.picked);
+
+  /** The header's Refresh. */
+  export function reload() {
+    void list.reload();
   }
 
   $effect(() => {
     void filter;
-    void load(null);
+    untrack(() => void list.reload({ clear: true }));
   });
 
   // A redemption in the feed: read the queue again (quietly, a moment later).
@@ -78,29 +68,28 @@
     }
     if (id === seen) return;
     seen = id;
-    const t = setTimeout(() => void load(null), 1500);
+    const t = setTimeout(() => void list.reload(), 1500);
     return () => clearTimeout(t);
   });
 
-  const options = $derived([
-    { value: '', label: 'All rewards' },
-    ...rewards.map((r) => ({ value: r.id, label: r.waiting ? `${r.title} (${formatNumber(r.waiting)})` : r.title })),
-  ]);
-  const all = $derived(items.length > 0 && items.every((i) => picked.has(i.id)));
-  const some = $derived(picked.size > 0 && !all);
-  const targets = $derived(picked.size ? items.filter((i) => picked.has(i.id)) : items);
+  const targets = $derived(picked.size ? list.pickedItems() : items);
+  /** BUG-05 More pages wait: "all" would only be the ones shown. */
+  const all = $derived(list.next ? 'shown' : 'all');
+  const ask = (verb: string) => (list.next ? `${verb} ${formatNumber(items.length)} shown?` : `${verb} all ${formatNumber(items.length)}?`);
 
-  async function settle(list: SmRedemption[], status: SmRedemptionStatus) {
-    if (!list.length) return;
+  async function settle(rows: SmRedemption[], status: SmRedemptionStatus) {
+    if (!rows.length || busy) return;
     busy = true;
-    const ids = list.map((i) => i.id);
+    const ids = rows.map((i) => i.id);
     try {
-      const done = await rewardsIpc.setStatus(ids, status);
-      const gone = new Set(ids.slice(0, done));
-      items = items.filter((i) => !gone.has(i.id));
-      picked = keep(picked, items.map((i) => i.id));
-      if (done < ids.length) toast.error(`Only ${formatNumber(done)} of ${formatNumber(ids.length)} went through.`);
-      else if (ids.length > 1) toast.success(status === 'FULFILLED' ? `${formatNumber(done)} completed.` : `${formatNumber(done)} rejected and refunded.`);
+      const r = await rewardsIpc.setStatus(ids, status);
+      list.remove(r.done);
+      const say = bulkLines(r, ids.length, (n) =>
+        ids.length < 2 ? '' : status === 'FULFILLED' ? `${formatNumber(n)} completed.` : `${formatNumber(n)} rejected and refunded.`,
+      );
+      if (say.ok) toast.success(say.ok);
+      if (say.info) toast.info(say.info);
+      if (say.bad) toast.error(say.bad);
       onchanged();
     } catch (e) {
       toast.error(errorText(e));
@@ -108,50 +97,44 @@
       busy = false;
     }
   }
-
-  function when(at: string): { short: string; full: string } {
-    const ms = Date.parse(at);
-    if (!Number.isFinite(ms)) return { short: '', full: '' };
-    const d = new Date(ms);
-    return { short: ago(ms, now), full: `${formatDate(d)} ${formatTime(d)}` };
-  }
 </script>
 
-<div class="line top">
-  <Select label="Which reward" width="170px" value={filter} {options} onchange={onfilter} />
-  <span class="grow"></span>
-  <IconButton icon="refresh" label="Refresh" size={14} disabled={loading} onclick={() => void load(null)} />
-</div>
 {#if items.length}
-  <div class="line bulk">
-    <Checkbox
-      label={picked.size ? `${formatNumber(picked.size)} picked` : 'Pick all'}
-      checked={all}
-      indeterminate={some}
-      onchange={(on) => (picked = on ? new Set(items.map((i) => i.id)) : new Set())}
-    />
-    <span class="grow"></span>
-    <Button small disabled={busy} onclick={() => void settle(targets, 'FULFILLED')}>
-      {picked.size ? 'Complete' : 'Complete all'}
-    </Button>
-    <Button small variant="ghost" disabled={busy} onclick={() => void settle(targets, 'CANCELED')}>
-      {picked.size ? 'Reject' : 'Reject all'}
-    </Button>
-  </div>
+  <PickBar picked={picked.size} total={items.length} onall={list.pickAll}>
+    {#if busy && targets.length > 1}
+      <Button small variant="ghost" onclick={() => void smIpc.bulkStop()}>Stop</Button>
+    {:else if picked.size || items.length === 1}
+      <Button small disabled={busy} onclick={() => void settle(targets, 'FULFILLED')}>Complete</Button>
+      <Button small variant="ghost" disabled={busy} onclick={() => void settle(targets, 'CANCELED')}>Reject</Button>
+    {:else}
+      <ConfirmButton
+        label="Complete {all}"
+        confirm={ask('Complete')}
+        disabled={busy}
+        onconfirm={() => void settle(targets, 'FULFILLED')}
+      />
+      <ConfirmButton
+        label="Reject {all}"
+        confirm={ask('Reject')}
+        variant="ghost"
+        disabled={busy}
+        onconfirm={() => void settle(targets, 'CANCELED')}
+      />
+    {/if}
+  </PickBar>
 {/if}
 
-{#if loading && !items.length}
-  <Loading rows={3} />
-{:else if failed}
-  <p class="note bad">{failed} <Button small variant="link" onclick={() => void load(null)}>Retry</Button></p>
+{#if list.loading && !items.length}
+  <Loading rows={5} label="Loading the queue" />
+{:else if list.failed && !items.length}
+  <SmProblem text={list.failed} onretry={() => void list.reload()} />
 {:else if !items.length}
   <EmptyState icon="checkCheck" text="Nothing waiting." />
 {:else}
   <ul class="list">
     {#each items as r (r.id)}
-      {@const t = when(r.at)}
       <li class:on={picked.has(r.id)}>
-        <span class="tick"><Checkbox label="Pick {r.name ?? r.login ?? 'this'}" checked={picked.has(r.id)} onchange={() => (picked = toggle(picked, r.id))} /></span>
+        <PickBox label="Pick {r.name ?? r.login ?? 'this'}" checked={picked.has(r.id)} onchange={() => list.toggle(r.id)} />
         <div class="main">
           <div class="head">
             {#if r.login}
@@ -162,7 +145,7 @@
               <span class="who gone">Someone</span>
             {/if}
             <span class="what">{r.reward}</span>
-            <span class="at" use:tooltip={t.full}>{t.short}</span>
+            <When at={r.at} {now} short />
           </div>
           {#if r.input}<p class="input">{r.input}</p>{/if}
         </div>
@@ -173,25 +156,18 @@
       </li>
     {/each}
   </ul>
-  {#if next}
-    <Button small variant="link" onclick={() => void load(next)}>Load more</Button>
-  {/if}
+  {#if list.failed}<p class="note bad">{list.failed}</p>{/if}
+  {#if list.next}<LoadMore busy={list.more} onclick={() => void list.loadMore()} />{/if}
 {/if}
 
 <style>
-  .grow {
-    flex: 1;
-  }
-  .bulk {
-    padding-bottom: 6px;
-    border-bottom: 1px solid var(--border);
-  }
   .bad {
+    padding: 4px 12px;
     color: var(--red) !important;
   }
   .list {
     margin: 0;
-    padding: 0;
+    padding: 4px;
     list-style: none;
     display: flex;
     flex-direction: column;
@@ -199,18 +175,15 @@
   li {
     display: flex;
     align-items: flex-start;
-    gap: 6px;
-    padding: 6px 4px;
-    border-bottom: 1px solid var(--border);
+    gap: 8px;
+    padding: 6px;
     border-radius: var(--radius);
   }
-  li.on {
+  li:hover {
     background: var(--row-hover);
   }
-  /* The box only; the name stays for screen readers. */
-  .tick :global(.check) {
-    gap: 0;
-    font-size: 0;
+  li.on {
+    background: var(--surface-hover);
   }
   .main {
     flex: 1;
@@ -224,7 +197,7 @@
     align-items: baseline;
     gap: 6px;
     min-width: 0;
-    font-size: 0.82rem;
+    font-size: 0.85rem;
   }
   .who {
     flex: none;
@@ -233,7 +206,7 @@
     background: none;
     color: var(--text);
     font: inherit;
-    font-weight: 700;
+    font-weight: 600;
     cursor: pointer;
   }
   .who:hover {
@@ -250,12 +223,6 @@
     color: var(--muted);
     white-space: nowrap;
     text-overflow: ellipsis;
-  }
-  .at {
-    flex: none;
-    color: var(--dim);
-    font-size: 0.75rem;
-    font-variant-numeric: tabular-nums;
   }
   .input {
     margin: 0;

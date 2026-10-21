@@ -4,4 +4,12 @@ import type { VipState } from "./VipState";
 /**
  * The channel's VIP slots.
  */
-export type VipSlots = { used: number, allowed?: number | null, state: VipState, };
+export type VipSlots = { used: number, allowed?: number | null, state: VipState, 
+/**
+ * Why a VIP can't be added now; `None` when one can (or nobody knows yet).
+ */
+why?: string | null, 
+/**
+ * "VIPs 7/10", "VIPs locked", or "VIPs 7" while the limit is unknown.
+ */
+label: string, };

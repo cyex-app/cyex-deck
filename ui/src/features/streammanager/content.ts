@@ -1,6 +1,7 @@
 // V107-R39 What the Clips and Videos panels show, kept out of the components for tests.
 
 import type { Clip } from '../../ipc/bindings/Clip';
+import type { SmBulk } from '../../ipc/bindings/SmBulk';
 import type { ManagedVideo } from '../../ipc/bindings/ManagedVideo';
 import type { VideoKind } from '../../ipc/bindings/VideoKind';
 import { formatDate, formatNumber } from '../../lib/format.ts';
@@ -79,26 +80,15 @@ export function length(secs: number): string {
   return secs > 0 ? clock(secs) : '';
 }
 
-/** Flips one key in a selection. */
-export function toggled(sel: ReadonlySet<string>, key: string): Set<string> {
-  const next = new Set(sel);
-  if (!next.delete(key)) next.add(key);
-  return next;
-}
-
-/** The selection minus what's gone or no longer listed. */
-export function kept(sel: ReadonlySet<string>, listed: readonly string[]): Set<string> {
-  const here = new Set(listed);
-  return new Set([...sel].filter((k) => here.has(k)));
-}
-
-/** One list after "Show more": new rows appended, repeats dropped. */
-export function appended<T>(have: readonly T[], more: readonly T[], key: (t: T) => string): T[] {
-  const seen = new Set(have.map(key));
-  return [...have, ...more.filter((t) => !seen.has(key(t)))];
-}
-
 /** "Delete 3 clips" style counts. */
 export function count(n: number, one: string, many: string): string {
   return `${formatNumber(n)} ${n === 1 ? one : many}`;
+}
+
+/** V107-R41 What a bulk change says: what went (`did`), then why the rest didn't. */
+export function bulkLines(r: SmBulk, asked: number, did: (n: number) => string): { ok: string | null; info: string | null; bad: string | null } {
+  const n = r.done.length;
+  const ok = n ? did(n) : null;
+  if (r.stopped) return { ok, info: n < asked ? 'Stopped. The rest stay as they were.' : null, bad: null };
+  return { ok, info: null, bad: r.error ?? (n < asked ? 'Twitch kept some of them. Try again.' : null) };
 }

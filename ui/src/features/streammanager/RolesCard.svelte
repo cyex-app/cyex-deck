@@ -3,7 +3,6 @@
      "Open" shows the channel's chat; "Step down" asks once more, inline, and leaves the role. -->
 <script lang="ts">
   import Avatar from '../../components/Avatar.svelte';
-  import Button from '../../components/Button.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
   import EmptyState from '../../components/EmptyState.svelte';
   import IconButton from '../../components/IconButton.svelte';
@@ -11,19 +10,24 @@
   import Card from '../../components/PanelCard.svelte';
   import SearchField from '../../components/SearchField.svelte';
   import Segmented from '../../components/Segmented.svelte';
-  import { tooltip } from '../../components/tooltip.svelte';
   import { windowsIpc } from '../../ipc/windows';
   import type { CmAssigned } from '../../ipc/bindings/CmAssigned';
   import { cmIpc } from '../../ipc/community';
   import { errorText } from '../../lib/errors';
+  import { formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import { roomRoute } from '../chat/roomRoute';
-  import { day, relative, ROLE_LABEL, ROLE_LEAVE, ROLE_ORDER, type RoleFilter, roleCounts, roleKey, shownRoles } from './community';
+  import { ROLE_LABEL, ROLE_LEAVE, ROLE_ORDER, type RoleFilter, roleCounts, roleKey, shownRoles } from './community';
+  import SmBar from './SmBar.svelte';
+  import SmProblem from './SmProblem.svelte';
   import { sm } from './streammanager.svelte';
+  import When from './When.svelte';
 
   let list = $state<CmAssigned[]>([]);
   let loading = $state(true);
   let failed = $state('');
+  /** Twitch had more than was read. */
+  let truncated = $state(false);
   let query = $state('');
   let role = $state<RoleFilter>('all');
   /** Rows whose step down is running. */
@@ -47,7 +51,8 @@
     try {
       const r = await cmIpc.assigned();
       if (mine !== seq) return;
-      list = r;
+      list = r.items;
+      truncated = r.truncated;
       failed = '';
     } catch (e) {
       if (mine === seq) failed = errorText(e);
@@ -61,9 +66,9 @@
     const k = roleKey(r);
     busy[k] = true;
     try {
-      await cmIpc.stepDown(r.role, r.channelId);
+      await cmIpc.stepDown(r.role, r.id);
       list = list.filter((x) => roleKey(x) !== k);
-      toast.success(`Stepped down in ${r.name}.`);
+      toast.success(`Stepped down in ${r.display}.`);
     } catch (e) {
       toast.error(errorText(e));
     } finally {
@@ -83,57 +88,47 @@
   {#if loading && !list.length}
     <Loading rows={5} label="Loading roles" />
   {:else if failed && !list.length}
-    <div class="gap">
-      <p class="bad">{failed}</p>
-      <Button small onclick={() => void load()}>Retry</Button>
-    </div>
+    <SmProblem text={failed} onretry={() => void load()} />
   {:else if !list.length}
     <EmptyState icon="shield" text="You don’t hold a role in any channel." />
   {:else}
-    <div class="bar">
+    <SmBar>
       <SearchField small bind:value={query} placeholder="Search channels" />
-      {#if filters.length > 2}<Segmented options={filters} value={role} label="Role" onchange={(v) => (role = v)} />{/if}
-    </div>
+      <div class="filters">
+        {#if filters.length > 2}<Segmented options={filters} value={role} label="Role" onchange={(v) => (role = v)} />{/if}
+        <span class="count">{formatNumber(list.length)} {list.length === 1 ? 'role' : 'roles'}</span>
+      </div>
+    </SmBar>
     <ul>
       {#each shown as r (roleKey(r))}
         <li>
-          <Avatar src={r.avatar} name={r.name} size={28} />
+          <Avatar src={r.avatar} name={r.display} size={28} />
           <span class="who">
-            <span class="name">{r.name}</span>
+            <span class="name">{r.display}</span>
             <span class="meta">
               {ROLE_LABEL[r.role]}
-              {#if r.since}· since <time datetime={r.since} use:tooltip={relative(r.since)}>{day(r.since)}</time>{/if}
+              {#if r.since}· since <When at={r.since} day />{/if}
             </span>
           </span>
-          <IconButton icon="chat" label="Open {r.name}" hint="Opens its chat." size={14} onclick={() => open(r)} />
+          <IconButton icon="chat" label="Open {r.display}" hint="Opens its chat." size={14} onclick={() => open(r)} />
           <span class="act">
-          <ConfirmButton
-            label={ROLE_LEAVE[r.role].label}
-            confirm={ROLE_LEAVE[r.role].confirm}
-            variant="ghost"
-            disabled={busy[roleKey(r)]}
-            onconfirm={() => void leave(r)}
-          />
+            <ConfirmButton
+              label={ROLE_LEAVE[r.role].label}
+              confirm={ROLE_LEAVE[r.role].confirm}
+              variant="ghost"
+              disabled={busy[roleKey(r)]}
+              onconfirm={() => void leave(r)}
+            />
           </span>
         </li>
       {/each}
     </ul>
     {#if !shown.length}<p class="note pad">No channel matches.</p>{/if}
+    {#if truncated}<p class="note pad">Twitch has more than shown here.</p>{/if}
   {/if}
 </Card>
 
 <style>
-  .bar {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 8px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-  }
   ul {
     margin: 0;
     padding: 4px;
@@ -155,8 +150,7 @@
     display: flex;
     flex-direction: column;
   }
-  .name,
-  .meta {
+  .name {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -164,7 +158,7 @@
   }
   .name {
     font-weight: 600;
-    font-size: 0.86rem;
+    font-size: 0.85rem;
   }
   .meta {
     color: var(--dim);
@@ -177,18 +171,6 @@
     display: flex;
     justify-content: flex-end;
     min-width: 84px;
-  }
-  .gap {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 12px;
-  }
-  .bad {
-    margin: 0;
-    color: var(--red);
-    font-size: 0.82rem;
   }
   .pad {
     padding: 4px 12px;

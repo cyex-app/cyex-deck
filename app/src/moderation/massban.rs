@@ -4,13 +4,14 @@
 //! headers. Logins are looked up first, 100 per call, so gone ones cost no ban. Throttled
 //! answers are sent again with backoff; every login ends in one tally bucket. Twitch
 //! removed IRC mod commands in Feb 2023, so IRC can't add capacity.
-//! A login timed out gets the new one (V107-M7).
+//! A login timed out gets the new one (V107-M7). One run per account at a time, up to
+//! 5.000 logins (`mass_jobs`, `mass::check_size`).
 
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use cyex_moderation::mass::{self, Outcome, Tally};
+use cyex_moderation::mass_jobs::{Registry, Ticket};
 use cyex_moderation::mass_run::{self as run, Fault};
 use cyex_moderation::pacer::Pacer;
 use cyex_twitch::helix::moderation as hm;
@@ -28,6 +29,9 @@ use super::{Actor, http};
 #[ts(export)]
 pub struct MassbanProgress {
     pub channel_id: String,
+    /// The acting account and the run's number: a panel follows only its own run.
+    pub account: String,
+    pub job: u32,
     /// Logins handled so far, whatever the outcome.
     pub done: u32,
     pub total: u32,
@@ -38,43 +42,30 @@ pub struct MassbanProgress {
     pub tally: Tally,
 }
 
-/// A running job, so the UI can stop it.
-#[derive(Default)]
-pub struct Jobs {
-    cancel: std::sync::Mutex<Vec<(String, Arc<AtomicBool>)>>,
-}
-
 pub fn init(app: &AppHandle) {
-    app.manage(Jobs::default());
+    app.manage(Registry::default());
 }
 
-/// Marks a channel's job to stop.
-pub fn stop(app: &AppHandle, channel_id: &str) {
-    if let Some(jobs) = app.try_state::<Jobs>() {
-        for (id, flag) in jobs.cancel.lock().unwrap_or_else(|p| p.into_inner()).iter() {
-            if id == channel_id {
-                flag.store(true, Ordering::Relaxed);
-            }
+/// Marks a channel's job to stop: `account`'s, or without one every job there.
+pub fn stop(app: &AppHandle, account: Option<&str>, channel_id: &str) {
+    if let Some(jobs) = app.try_state::<Registry>() {
+        jobs.stop(account, channel_id);
+    }
+}
+
+/// Whether `account` has a mass action running.
+pub fn running(app: &AppHandle, account: &str) -> bool {
+    app.try_state::<Registry>().is_some_and(|j| j.running(account))
+}
+
+/// Ends the job's entry however the run ends.
+struct Release<'a>(Option<&'a Registry>, Arc<AtomicBool>);
+
+impl Drop for Release<'_> {
+    fn drop(&mut self) {
+        if let Some(r) = self.0 {
+            r.unregister(&self.1);
         }
-    }
-}
-
-fn register(app: &AppHandle, channel_id: &str) -> Arc<AtomicBool> {
-    let flag = Arc::new(AtomicBool::new(false));
-    if let Some(jobs) = app.try_state::<Jobs>() {
-        let mut g = jobs.cancel.lock().unwrap_or_else(|p| p.into_inner());
-        g.retain(|(id, f)| id != channel_id || !f.load(Ordering::Relaxed));
-        g.push((channel_id.to_owned(), flag.clone()));
-    }
-    flag
-}
-
-fn unregister(app: &AppHandle, flag: &Arc<AtomicBool>) {
-    if let Some(jobs) = app.try_state::<Jobs>() {
-        jobs.cancel
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .retain(|(_, f)| !Arc::ptr_eq(f, flag));
     }
 }
 
@@ -93,6 +84,7 @@ struct Job<'a> {
     actor: &'a Actor,
     order: Order<'a>,
     flag: Arc<AtomicBool>,
+    id: u32,
     total: u32,
     tally: Tally,
 }
@@ -103,6 +95,8 @@ impl Job<'_> {
             "mod:massban",
             MassbanProgress {
                 channel_id: self.actor.channel_id.clone(),
+                account: self.actor.account.clone(),
+                job: self.id,
                 done: self.tally.handled(),
                 total: self.total,
                 refused: self.tally.refused(),
@@ -119,14 +113,22 @@ impl Job<'_> {
 }
 
 /// Bans (or times out, or unbans) every login. Returns how many went through. Emits
-/// `mod:massban` progress after every request.
+/// `mod:massban` progress after every request. Refused while the account runs one, or over
+/// 5.000 logins.
 pub async fn run(app: &AppHandle, actor: &Actor, logins: &[String], order: Order<'_>, pacer: &mut Pacer) -> Result<u32, String> {
-    let flag = register(app, &actor.channel_id);
+    mass::check_size(logins.len())?;
+    let jobs = app.try_state::<Registry>();
+    let ticket = match jobs.as_deref() {
+        Some(r) => r.try_register(&actor.account, &actor.channel_id)?,
+        None => Ticket { id: 0, flag: Arc::default() },
+    };
+    let _release = Release(jobs.as_deref(), ticket.flag.clone());
     let mut job = Job {
         app,
         actor,
         order,
-        flag: flag.clone(),
+        flag: ticket.flag,
+        id: ticket.id,
         total: logins.len() as u32,
         tally: Tally::default(),
     };
@@ -136,7 +138,6 @@ pub async fn run(app: &AppHandle, actor: &Actor, logins: &[String], order: Order
     } else {
         helix_path(&mut job, logins, pacer).await
     };
-    unregister(app, &flag);
     job.emit(false);
     result.map(|()| job.tally.done)
 }
@@ -148,50 +149,6 @@ fn wait(ms: i64) -> impl Future<Output = ()> {
 /// Whether a whole request failed in a way worth sending again.
 fn transient(e: &cyex_twitch::Error) -> bool {
     e.is_rate_limited() || e.is_server_error() || e.is_network()
-}
-
-/// The logins Twitch knows (gone ones go into the tally), with their ids. A lookup that
-/// keeps failing sends the rest as they are (GQL) or stops (Helix needs ids).
-async fn resolve(job: &mut Job<'_>, logins: &[String], helix_auth: Option<helix::Auth<'_>>) -> Result<Vec<(String, String)>, String> {
-    let mut out = Vec::with_capacity(logins.len());
-    for chunk in logins.chunks(100) {
-        let mut n = 0;
-        let found = loop {
-            let res = match helix_auth {
-                Some(a) => {
-                    let refs: Vec<&str> = chunk.iter().map(String::as_str).collect();
-                    helix::users_by_login(&http(job.app), a, &refs)
-                        .await
-                        .map(|us| us.into_iter().map(|u| (u.login, u.id)).collect::<Vec<_>>())
-                }
-                None => gql::ids_by_login(&http(job.app), chunk).await,
-            };
-            match res {
-                Ok(f) => break Some(f),
-                Err(e) if e.is_unauthorized() => return Err("Lost permission mid-ban.".into()),
-                Err(e) if transient(&e) && n + 1 < mass::TRIES => {
-                    n += 1;
-                    wait(mass::backoff_ms(n, None)).await;
-                }
-                Err(e) if helix_auth.is_some() => return Err(e.to_string()),
-                Err(_) => break None,
-            }
-        };
-        let Some(found) = found else {
-            // GQL bans by login: send them unchecked.
-            out.extend(chunk.iter().map(|l| (l.clone(), String::new())));
-            continue;
-        };
-        let ids: HashMap<String, String> = found.into_iter().map(|(l, i)| (l.to_ascii_lowercase(), i)).collect();
-        for login in chunk {
-            match ids.get(&login.to_ascii_lowercase()) {
-                Some(id) => out.push((login.clone(), id.clone())),
-                None => job.tally.add(Outcome::Gone, None),
-            }
-        }
-    }
-    job.emit(true);
-    Ok(out)
 }
 
 /// The app's side of the loops: real waits, the Stop button, progress to the panel.
@@ -227,6 +184,22 @@ fn fault(e: &cyex_twitch::Error) -> Fault {
         Fault::Busy
     } else {
         Fault::Fatal(e.to_string())
+    }
+}
+
+impl run::Lookups for Live<'_, '_> {
+    async fn lookup(&mut self, logins: &[String]) -> Result<Vec<(String, String)>, Fault> {
+        let http = http(self.job.app);
+        let res = match self.helix {
+            Some((a, _)) => {
+                let refs: Vec<&str> = logins.iter().map(String::as_str).collect();
+                helix::users_by_login(&http, a, &refs)
+                    .await
+                    .map(|us| us.into_iter().map(|u| (u.login, u.id)).collect::<Vec<_>>())
+            }
+            None => gql::ids_by_login(&http, logins).await,
+        };
+        res.map_err(|e| fault(&e))
     }
 }
 
@@ -267,25 +240,31 @@ impl run::Singles for Live<'_, '_> {
 async fn gql_path(job: &mut Job<'_>, logins: &[String]) -> Result<(), String> {
     let actor = job.actor;
     let g = actor.gql().ok_or("No GQL token.")?;
-    let names: Vec<String> = resolve(job, logins, None).await?.into_iter().map(|(l, _)| l).collect();
     let order = job.order;
     let mut tally = std::mem::take(&mut job.tally);
-    let again = {
+    let res = {
         let mut live = Live { job, gql: Some(g), helix: None, expires: order.secs.map(|s| format!("{s}s")), pacer: None };
-        run::batches(&mut live, &names, mass::GQL_BATCH, order.secs.is_some(), order.unban, &mut tally).await?
+        match run::resolve(&mut live, logins, false, &mut tally).await {
+            Ok(found) => {
+                let names: Vec<String> = found.into_iter().map(|(l, _)| l).collect();
+                run::batches(&mut live, &names, mass::GQL_BATCH, order.secs.is_some(), order.unban, &mut tally).await
+            }
+            Err(e) => Err(e),
+        }
     };
     job.tally = tally;
     // V107-M7 One in place (a timeout over a timeout, a ban over a timeout): one by
     // one, where the last one counts.
-    for login in again {
+    for login in res? {
         if job.stopped() {
             break;
         }
         wait(mass::GQL_GAP_MS).await;
-        match super::restack::ban(job.app, actor, &login, None, order.secs, order.reason).await {
+        match super::restack::ban_full(job.app, actor, &login, None, order.secs, order.reason).await {
             Ok(()) => job.tally.add(Outcome::Done, None),
-            Err(t) if t.contains("banned") => job.tally.add(Outcome::Already, None),
-            Err(t) => job.tally.add(Outcome::Other, Some(&t)),
+            // By Twitch's answer, not the line's words ("isn't banned" is no ban).
+            Err(f) if f.in_place => job.tally.add(Outcome::Already, None),
+            Err(f) => job.tally.add(Outcome::Other, Some(&f.text)),
         }
         job.emit(true);
     }
@@ -295,12 +274,17 @@ async fn gql_path(job: &mut Job<'_>, logins: &[String]) -> Result<(), String> {
 async fn helix_path(job: &mut Job<'_>, logins: &[String], pacer: &mut Pacer) -> Result<(), String> {
     let actor = job.actor;
     let (auth, room) = actor.helix_any().ok_or("No Helix token.")?;
-    let ids: Vec<String> = resolve(job, logins, Some(auth)).await?.into_iter().map(|(_, id)| id).collect();
     let unban = job.order.unban;
     let mut tally = std::mem::take(&mut job.tally);
     let res = {
         let mut live = Live { job, gql: None, helix: Some((auth, room)), expires: None, pacer: Some(pacer) };
-        run::singles(&mut live, &ids, unban, &mut tally).await
+        match run::resolve(&mut live, logins, true, &mut tally).await {
+            Ok(found) => {
+                let ids: Vec<String> = found.into_iter().map(|(_, id)| id).collect();
+                run::singles(&mut live, &ids, unban, &mut tally).await
+            }
+            Err(e) => Err(e),
+        }
     };
     job.tally = tally;
     res

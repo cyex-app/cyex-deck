@@ -34,7 +34,8 @@ export function levelsFor(index: number): { value: string; label: string }[] {
   return index === SMART ? all.filter((l) => ['0', '2', '4'].includes(l.value)) : all;
 }
 
-export const DELAYS = [0, 2, 4, 6].map((s) => ({ value: s, label: s ? `${s}s` : 'Off' }));
+/** V107-R41 The delays Rust offers (`sm_limits`), as choices. */
+export const delayChoices = (secs: readonly number[]) => secs.map((s) => ({ value: s, label: s ? `${s}s` : 'Off' }));
 
 export const MODES: { value: ModsetVerifyMode; label: string }[] = [
   { value: 'NONE', label: 'Nobody' },
@@ -71,15 +72,11 @@ export const EXEMPT: { key: Exempt; label: string }[] = [
   { key: 'exemptMods', label: 'Mods' },
 ];
 
-/** Rules as Rust takes them (`clean_rules`): up to 15, each up to 150 characters. */
-export const MAX_RULES = 15;
-export const MAX_RULE = 150;
-
+/** V107-R41 Rust checks how many rules and how long (`clean_rules`); this only stops a
+ *  blank or a repeat, which Rust would take. */
 export function ruleProblem(text: string, rules: string[]): string | null {
   const t = text.trim();
   if (!t) return 'Type a rule.';
-  if ([...t].length > MAX_RULE) return `A rule can have up to ${MAX_RULE} characters.`;
-  if (rules.length >= MAX_RULES) return `Up to ${MAX_RULES} rules.`;
   if (rules.some((r) => r.toLowerCase() === t.toLowerCase())) return 'That rule is there already.';
   return null;
 }

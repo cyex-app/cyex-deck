@@ -49,9 +49,25 @@ export function formatDate(d: Date): string {
   return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
 }
 
-/** How long ago, short: "now", "5m", "3h", "2d", then the date. */
-export function ago(ms: number, now = Date.now()): string {
+const AGO_UNITS: [name: string, secs: number][] = [
+  ['year', 31_536_000],
+  ['month', 2_592_000],
+  ['day', 86_400],
+  ['hour', 3_600],
+  ['minute', 60],
+];
+
+/** How long ago, short: "now", "5m", "3h", "2d", then the date. `words`: "3 days ago",
+ *  "2 months ago", "just now" (V107-R40, hovers and lists). The one relative time. */
+export function ago(ms: number, now = Date.now(), words = false): string {
   const s = Math.max(0, Math.floor((now - ms) / 1000));
+  if (words) {
+    for (const [name, size] of AGO_UNITS) {
+      const n = Math.floor(s / size);
+      if (n >= 1) return `${n} ${name}${n === 1 ? '' : 's'} ago`;
+    }
+    return 'just now';
+  }
   if (s < 60) return 'now';
   if (s < 3600) return `${Math.floor(s / 60)}m`;
   if (s < 86_400) return `${Math.floor(s / 3600)}h`;

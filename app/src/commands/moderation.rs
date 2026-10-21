@@ -107,7 +107,8 @@ pub async fn mod_massban(
     moderation::massban::run(&app, &actor, &logins, order, &mut pacer).await
 }
 
+/// Stops `account`'s mass action in the channel (V107-R21); without one, every one there.
 #[tauri::command]
-pub fn mod_massban_stop(app: AppHandle, channel_id: String) {
-    moderation::massban::stop(&app, &channel_id);
+pub fn mod_massban_stop(app: AppHandle, channel_id: String, account: Option<String>) {
+    moderation::massban::stop(&app, account.as_deref(), &channel_id);
 }

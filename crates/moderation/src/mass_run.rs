@@ -38,10 +38,62 @@ pub trait Singles: Io {
     fn send(&mut self, id: &str) -> impl Future<Output = Answer> + Send;
 }
 
-const LOST: &str = "Lost permission mid-ban.";
+/// One login lookup: `(login, id)` for each login Twitch knows.
+pub trait Lookups: Io {
+    fn lookup(&mut self, logins: &[String]) -> impl Future<Output = Result<Vec<(String, String)>, Fault>> + Send;
+}
 
-/// Bans the logins `batch` at a time, the gap between requests from [`mass::Gap`]. What came back "already banned" and needs the
-/// single-ban path (V107-M7) is returned, in order.
+const LOST: &str = "Lost permission mid-ban.";
+const LOOKUP_BUSY: &str = "Twitch is busy. Try again in a moment.";
+/// Logins per lookup (Twitch's cap for both Helix `/users` and GQL `users`).
+pub const LOOKUP_CHUNK: usize = 100;
+
+/// V107-R21 The logins Twitch knows, with their ids: [`LOOKUP_CHUNK`] a call,
+/// [`mass::GQL_GAP_MS`] between calls, busy answers sent again with backoff. Gone ones go
+/// into the tally. A lookup that keeps failing stops the run when `strict` (Helix needs
+/// ids), else that chunk goes on unchecked with empty ids (GQL bans by login).
+pub async fn resolve(io: &mut impl Lookups, logins: &[String], strict: bool, tally: &mut Tally) -> Result<Vec<(String, String)>, String> {
+    let mut out = Vec::with_capacity(logins.len());
+    for (i, chunk) in logins.chunks(LOOKUP_CHUNK).enumerate() {
+        if io.stopped() {
+            break;
+        }
+        if i > 0 {
+            io.wait(mass::GQL_GAP_MS).await;
+        }
+        let mut n = 0;
+        let found = loop {
+            match io.lookup(chunk).await {
+                Ok(f) => break Some(f),
+                Err(Fault::Unauthorized) => return Err(LOST.into()),
+                Err(Fault::Throttled | Fault::Busy) if n + 1 < mass::TRIES => {
+                    n += 1;
+                    io.wait(mass::backoff_ms(n, None)).await;
+                }
+                Err(Fault::Fatal(t)) if strict => return Err(t),
+                Err(_) if strict => return Err(LOOKUP_BUSY.into()),
+                Err(_) => break None,
+            }
+        };
+        let Some(found) = found else {
+            out.extend(chunk.iter().map(|l| (l.clone(), String::new())));
+            continue;
+        };
+        let ids: std::collections::HashMap<String, String> =
+            found.into_iter().map(|(l, id)| (l.to_ascii_lowercase(), id)).collect();
+        for login in chunk {
+            match ids.get(&login.to_ascii_lowercase()) {
+                Some(id) => out.push((login.clone(), id.clone())),
+                None => tally.add(Outcome::Gone, None),
+            }
+        }
+    }
+    io.progress(tally);
+    Ok(out)
+}
+
+/// Bans the logins `batch` at a time, [`mass::GQL_GAP_MS`] between requests. What came
+/// back "already banned" and needs the single-ban path (V107-M7) is returned, in order.
 pub async fn batches(
     io: &mut impl Batches,
     logins: &[String],
@@ -52,7 +104,6 @@ pub async fn batches(
 ) -> Result<Vec<String>, String> {
     let mut again = Vec::new();
     let mut first = true;
-    let mut gap = mass::Gap::default();
     for chunk in logins.chunks(batch.max(1)) {
         let mut pending: Vec<String> = chunk.to_vec();
         let mut n = 0;
@@ -61,11 +112,10 @@ pub async fn batches(
                 return Ok(again);
             }
             if !first {
-                io.wait(gap.ms()).await;
+                io.wait(mass::GQL_GAP_MS).await;
             }
             first = false;
             let mut retry = Vec::new();
-            let mut pushed = false;
             let last_try = n + 1 >= mass::TRIES;
             match io.send(&pending).await {
                 Ok(results) => {
@@ -73,25 +123,17 @@ pub async fn batches(
                         match mass::gql_step(code.as_deref(), timeout, unban) {
                             Step::End(o, c) => tally.add(o, c.as_deref()),
                             Step::Retry if !last_try => {
-                                pushed = true;
                                 retry.push(login);
                             }
-                            Step::Retry => {
-                                pushed = true;
-                                tally.add(Outcome::Throttled, None);
-                            }
+                            Step::Retry => tally.add(Outcome::Throttled, None),
                             Step::Restack => again.push(login),
                         }
                     }
                 }
                 Err(Fault::Unauthorized) => return Err(LOST.into()),
                 Err(Fault::Fatal(t)) => return Err(t),
-                Err(_) if !last_try => {
-                    pushed = true;
-                    retry = pending.clone();
-                }
+                Err(_) if !last_try => retry = pending.clone(),
                 Err(f) => {
-                    pushed = true;
                     let o = if f == Fault::Throttled { Outcome::Throttled } else { Outcome::Other };
                     for _ in &pending {
                         tally.add(o, Some("network"));
@@ -99,11 +141,6 @@ pub async fn batches(
                 }
             }
             io.progress(tally);
-            if pushed {
-                gap.hit();
-            } else {
-                gap.clean();
-            }
             if !retry.is_empty() {
                 n += 1;
                 tally.retries += retry.len() as u32;
@@ -161,6 +198,8 @@ mod tests {
     struct Fake {
         batches: VecDeque<Result<Vec<Option<&'static str>>, Fault>>,
         singles: VecDeque<Answer>,
+        lookups: VecDeque<Result<Vec<&'static str>, Fault>>,
+        stop_after: Option<usize>,
         sent: Vec<Vec<String>>,
         waits: Vec<i64>,
     }
@@ -170,7 +209,7 @@ mod tests {
             self.waits.push(ms);
         }
         fn stopped(&self) -> bool {
-            false
+            self.stop_after.is_some_and(|n| self.sent.len() >= n)
         }
         fn progress(&mut self, _: &Tally) {}
     }
@@ -180,6 +219,18 @@ mod tests {
             self.sent.push(logins.to_vec());
             let codes = self.batches.pop_front().unwrap_or_else(|| Ok(vec![None; logins.len()]))?;
             Ok(logins.iter().cloned().zip(codes.into_iter().map(|c| c.map(str::to_owned))).collect())
+        }
+    }
+
+    impl Lookups for Fake {
+        async fn lookup(&mut self, logins: &[String]) -> Result<Vec<(String, String)>, Fault> {
+            self.sent.push(logins.to_vec());
+            match self.lookups.pop_front() {
+                // Twitch knows everyone but these, ids as `id-<login>`, case as Twitch has it.
+                Some(Ok(gone)) => Ok(logins.iter().filter(|l| !gone.contains(&l.as_str())).map(|l| (l.to_uppercase(), format!("id-{l}"))).collect()),
+                Some(Err(f)) => Err(f),
+                None => Ok(logins.iter().map(|l| (l.clone(), format!("id-{l}"))).collect()),
+            }
         }
     }
 
@@ -243,7 +294,7 @@ mod tests {
     }
 
     #[test]
-    fn gql_speeds_up_after_three_clean_then_slows_at_a_throttle() {
+    fn gql_keeps_one_request_a_second_clean_or_not() {
         let mut f = Fake::default();
         for _ in 0..4 {
             f.batches.push_back(Ok(vec![None]));
@@ -252,9 +303,8 @@ mod tests {
         let mut t = Tally::default();
         block_on(batches(&mut f, &names(8), 1, false, false, &mut t)).unwrap();
         let g = mass::GQL_GAP_MS;
-        let fast = mass::GQL_FAST_GAP_MS;
-        // 3 clean at 1 s, then 500 ms; the throttle backs off and 1 s stays.
-        assert_eq!(f.waits, vec![g, g, fast, fast, 2_000, g, g, g, g]);
+        // V107-R21 No speed-up after clean answers: 1 s always, the throttle backs off.
+        assert_eq!(f.waits, vec![g, g, g, g, 2_000, g, g, g, g]);
         assert_eq!((t.done, t.retries), (8, 1));
     }
 
@@ -290,5 +340,51 @@ mod tests {
         assert_eq!(t.throttled, 1);
         // Doubling waits when the reset is already past.
         assert_eq!(&f.waits[..4], &[2_000, 4_000, 8_000, 16_000]);
+    }
+
+    #[test]
+    fn v107_r21_lookups_are_paced_and_count_the_gone() {
+        let mut f = Fake::default();
+        f.lookups.push_back(Ok(vec!["u1"]));
+        let mut t = Tally::default();
+        let out = block_on(resolve(&mut f, &names(250), true, &mut t)).unwrap();
+        assert_eq!(f.sent.iter().map(Vec::len).collect::<Vec<_>>(), [100, 100, 50]);
+        // One lookup a second, none before the first.
+        assert_eq!(f.waits, [mass::GQL_GAP_MS; 2]);
+        assert_eq!((out.len(), t.gone), (249, 1));
+        assert_eq!(out[0], ("u0".to_owned(), "id-u0".to_owned()), "matched case-blind");
+    }
+
+    #[test]
+    fn v107_r21_a_failing_lookup_retries_then_stops_or_goes_unchecked() {
+        let busy = || {
+            let mut f = Fake::default();
+            for _ in 0..mass::TRIES {
+                f.lookups.push_back(Err(Fault::Busy));
+            }
+            f
+        };
+        let mut f = busy();
+        let mut t = Tally::default();
+        assert_eq!(block_on(resolve(&mut f, &names(2), true, &mut t)).unwrap_err(), LOOKUP_BUSY);
+        assert_eq!(f.waits, [2_000, 4_000, 8_000, 16_000]);
+        // GQL bans by login: sent unchecked.
+        let mut f = busy();
+        let out = block_on(resolve(&mut f, &names(2), false, &mut t)).unwrap();
+        assert_eq!(out, [("u0".to_owned(), String::new()), ("u1".to_owned(), String::new())]);
+        let mut f = Fake::default();
+        f.lookups.push_back(Err(Fault::Unauthorized));
+        assert_eq!(block_on(resolve(&mut f, &names(2), false, &mut t)).unwrap_err(), LOST);
+        let mut f = Fake::default();
+        f.lookups.push_back(Err(Fault::Fatal("Bad.".into())));
+        assert_eq!(block_on(resolve(&mut f, &names(2), true, &mut t)).unwrap_err(), "Bad.");
+    }
+
+    #[test]
+    fn v107_r21_stop_ends_the_lookups() {
+        let mut f = Fake { stop_after: Some(1), ..Default::default() };
+        let mut t = Tally::default();
+        let out = block_on(resolve(&mut f, &names(300), true, &mut t)).unwrap();
+        assert_eq!((f.sent.len(), out.len()), (1, 100));
     }
 }

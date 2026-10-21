@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { SmReward } from '../../ipc/bindings/SmReward';
-import { blank, facts, keep, sameEdit, toEdit, toggle, waiting } from './rewardsLogic.ts';
+import { blank, facts, sameEdit, toEdit, waiting } from './rewardsLogic.ts';
 
 const R: SmReward = {
   id: 'a',
@@ -49,12 +49,4 @@ test('edits compare field by field', () => {
   assert.ok(!sameEdit(e, { ...e, cost: 1 }));
   assert.equal(blank().cost, 100);
   assert.equal(blank().title, '');
-});
-
-test('the queue selection toggles and drops what is gone', () => {
-  let s = toggle(new Set(), 'x');
-  s = toggle(s, 'y');
-  assert.deepEqual([...s], ['x', 'y']);
-  assert.deepEqual([...toggle(s, 'x')], ['y']);
-  assert.deepEqual([...keep(s, ['y', 'z'])], ['y']);
 });

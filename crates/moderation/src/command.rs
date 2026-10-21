@@ -88,7 +88,7 @@ impl Need {
 
 impl ModCommand {
     /// What the app checks before trying. V107 Role changes are open to every mod: a lead
-    /// mod may wear the plain mod badge, so Twitch decides (`role_change`).
+    /// mod may wear the plain mod badge, so Twitch decides (`roles`).
     pub fn needs(&self) -> Need {
         match self {
             ModCommand::SetRole { .. } => Need::Mod,

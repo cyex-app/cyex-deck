@@ -12,6 +12,7 @@
   import type { Profile } from '../../ipc/bindings/Profile';
   import { modIpc } from '../../ipc/moderation';
   import { usercardIpc } from '../../ipc/rules';
+  import { everyShown } from '../../lib/awake';
   import { formatDate, formatTime } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
@@ -23,7 +24,6 @@
   import { errorText } from '../../lib/errors';
   import type { VipSlots } from '../../ipc/bindings/VipSlots';
   import { rolesIpc } from '../../ipc/roles';
-  import { blocked, vipCount } from '../streammanager/rolesManager';
 
   interface Props {
     profile: Profile;
@@ -56,6 +56,7 @@
   });
   const holds = $derived(standings.of(channel, profile.login, looked ?? is));
   // V107-R36 Your own channel's VIP slots: VIP is off when they're all taken or locked.
+  // V107-R42 Rust says why (`why`) and the count (`label`).
   let slots = $state<VipSlots | null>(null);
   let slotsAsk = $state(0);
   $effect(() => {
@@ -68,7 +69,7 @@
       .catch(() => {});
     return () => (live = false);
   });
-  const vipOff = $derived(holds?.vip ? null : blocked('vip', [], slots));
+  const vipOff = $derived(holds?.vip ? null : (slots?.why ?? null));
   let busy = $state(false);
   let warning = $state(false);
   let reason = $state('');
@@ -79,7 +80,8 @@
       const line = await modIpc.run(account, channel, name, args);
       if (line) toast.info(line, QUICK);
       onchange();
-      slotsAsk++;
+      // Only these change who holds a VIP slot.
+      if (['vip', 'unvip', 'mod', 'unmod'].includes(name)) slotsAsk++;
     } catch (e) {
       toast.error(errorText(e), FAIL);
     } finally {
@@ -114,14 +116,15 @@
   $effect(() => {
     if (!endsAt || endsAt <= Date.now()) return;
     now = Date.now();
-    const t = setInterval(() => {
+    // V107-H1 Not while the card is hidden; once when it shows.
+    const stop = everyShown(() => {
       now = Date.now();
       if (now >= endsAt) {
-        clearInterval(t);
+        stop();
         onchange();
       }
     }, 1000);
-    return () => clearInterval(t);
+    return stop;
   });
   const left = $derived(endsAt ? timeLeft(endsAt, now) : null);
 
@@ -183,7 +186,7 @@
             onclick={() => !vipOff && run(holds?.vip ? 'unvip' : 'vip', profile.login)}
             use:tooltip={{
               label: vipOff ?? (holds?.vip ? 'Takes their VIP away.' : holds?.mod ? 'Removes their mod first.' : 'Makes them a VIP.'),
-              hint: slots ? vipCount(slots) : undefined,
+              hint: slots?.label,
             }}
           >
             <Icon name="gem" size={13} />{holds?.vip ? 'Unvip' : 'VIP'}
@@ -342,5 +345,7 @@
     padding: 0 14px 6px;
     color: var(--red);
     font-size: 0.8rem;
+    /* V107-R24 The countdown ticks without nudging the words after it. */
+    font-variant-numeric: tabular-nums;
   }
 </style>

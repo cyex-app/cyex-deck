@@ -134,12 +134,16 @@ pub fn moderate(app: &AppHandle, channel: &str, events: &[RoomEvent]) {
         for line in feed.lines.iter_mut().filter(|l| l.channel == channel) {
             // V107-R34 Why it went comes along, for the note.
             let Some((gone, _)) = hits.iter().find(|(_, h)| h(&line.message)) else { continue };
-            let mut m = (*line.message).clone();
+            // Only a line that changes is copied.
             let fresh = match gone {
-                Some(g) => m.mark_gone(g),
-                None => !m.has(Flag::Deleted),
+                Some(g) => line.message.would_mark(g),
+                None => !line.message.has(Flag::Deleted),
             };
             if fresh {
+                let mut m = (*line.message).clone();
+                if let Some(g) = gone {
+                    m.mark_gone(g);
+                }
                 m.set(Flag::Deleted);
                 line.message = Arc::new(m);
                 changed.push(line.clone());

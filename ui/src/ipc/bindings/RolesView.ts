@@ -5,4 +5,13 @@ import type { VipSlots } from "./VipSlots";
 /**
  * What the panel shows.
  */
-export type RolesView = { members: Array<RoleMember>, vips: VipSlots, };
+export type RolesView = { members: Array<RoleMember>, vips: VipSlots, 
+/**
+ * The change went through but the lists couldn't be read again: the panel keeps what it
+ * shows and reloads (members and slots are empty then).
+ */
+note?: string | null, 
+/**
+ * V107-R42 After a change: its line.
+ */
+line?: string | null, };

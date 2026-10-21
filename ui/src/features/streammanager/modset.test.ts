@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { ModsetVerification } from '../../ipc/bindings/ModsetVerification';
-import { levelsFor, minuteChoices, ruleProblem, withMode, withoutRule, withPartial, withRule } from './modset.ts';
+import { delayChoices, levelsFor, minuteChoices, ruleProblem, withMode, withoutRule, withPartial, withRule } from './modset.ts';
 
 const off = { mode: 'NONE' as const, partial: { firstTime: false, accountYoungerThan: null, followingLessThan: null } };
 const V: ModsetVerification = { email: off, phone: off, exemptSubs: false, exemptVips: false, exemptMods: false };
@@ -29,10 +29,13 @@ test('verification edits touch one side', () => {
 
 test('rules', () => {
   assert.equal(ruleProblem('  ', []), 'Type a rule.');
-  assert.match(ruleProblem('x'.repeat(151), []) ?? '', /150/);
-  assert.match(ruleProblem('a', Array(15).fill('b')) ?? '', /15/);
+  assert.equal(ruleProblem('x'.repeat(151), []), null);
   assert.match(ruleProblem('Be NICE', ['be nice']) ?? '', /already/);
   assert.equal(ruleProblem('Be nice', []), null);
   assert.deepEqual(withRule(['a'], ' b '), ['a', 'b']);
   assert.deepEqual(withoutRule(['a', 'b', 'c'], 1), ['a', 'c']);
+});
+
+test('V107-R41 delays come from Rust', () => {
+  assert.deepEqual(delayChoices([0, 2]), [{ value: 0, label: 'Off' }, { value: 2, label: '2s' }]);
 });

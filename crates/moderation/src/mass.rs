@@ -110,38 +110,18 @@ pub fn backoff_ms(n: u32, hint_ms: Option<i64>) -> i64 {
 }
 
 /// GQL batches: logins per request and the gap between requests. Spec 1.55: up to 30 in a
-/// request, one request a second.
+/// request, one request a second, always (V107-R21, user 2026/10/21: no speed-up).
 pub const GQL_BATCH: usize = 30;
 pub const GQL_GAP_MS: i64 = 1_000;
-/// The gap once Twitch has answered cleanly a few times in a row.
-pub const GQL_FAST_GAP_MS: i64 = 500;
-/// Clean requests in a row before the gap shrinks.
-const CLEAN_TO_SPEED_UP: u32 = 3;
 
-/// V107-R21 The gap between GQL requests: 1 s, 500 ms after 3 clean answers in a row, and
-/// back to 1 s for the rest of the run at the first throttled or busy answer.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Gap {
-    clean: u32,
-    slowed: bool,
+/// V107-R21 Most logins one run takes (50 lookups and ~3 minutes of GQL bans).
+pub const MAX_LOGINS: usize = 5_000;
+pub const TOO_MANY: &str = "Up to 5.000 names at once.";
+
+/// Refuses a run over [`MAX_LOGINS`].
+pub fn check_size(n: usize) -> Result<(), &'static str> {
+    if n > MAX_LOGINS { Err(TOO_MANY) } else { Ok(()) }
 }
-
-impl Gap {
-    pub fn ms(&self) -> i64 {
-        if !self.slowed && self.clean >= CLEAN_TO_SPEED_UP { GQL_FAST_GAP_MS } else { GQL_GAP_MS }
-    }
-
-    /// A request where nothing was throttled or busy.
-    pub fn clean(&mut self) {
-        self.clean += 1;
-    }
-
-    /// Twitch pushed back: 1 s from now on.
-    pub fn hit(&mut self) {
-        self.slowed = true;
-    }
-}
-
 /// The tally behind the mass-action panel's line.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -250,20 +230,10 @@ mod tests {
     }
 
     #[test]
-    fn gap_speeds_up_after_three_clean_and_slows_for_good() {
-        let mut g = Gap::default();
-        for _ in 0..2 {
-            g.clean();
-            assert_eq!(g.ms(), GQL_GAP_MS);
-        }
-        g.clean();
-        assert_eq!(g.ms(), GQL_FAST_GAP_MS);
-        g.hit();
-        assert_eq!(g.ms(), GQL_GAP_MS);
-        for _ in 0..10 {
-            g.clean();
-        }
-        assert_eq!(g.ms(), GQL_GAP_MS);
+    fn v107_r21_caps_a_run() {
+        assert_eq!(check_size(MAX_LOGINS), Ok(()));
+        assert_eq!(check_size(MAX_LOGINS + 1), Err(TOO_MANY));
+        assert_eq!(TOO_MANY, "Up to 5.000 names at once.");
     }
 
     #[test]

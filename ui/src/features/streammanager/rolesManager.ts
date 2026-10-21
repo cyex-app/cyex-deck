@@ -1,5 +1,5 @@
-// V107-R36 Pure helpers for the Roles Manager panel: names, the filter, the sort, what can
-// still be added. Free of Svelte so they run under the UI tests.
+// V107-R36 Pure helpers for the Roles Manager panel: names, the filter, the sort. Free of
+// Svelte so they run under the UI tests.
 
 import type { ChannelRole } from '../../ipc/bindings/ChannelRole';
 import type { RoleMember } from '../../ipc/bindings/RoleMember';
@@ -30,10 +30,10 @@ export type RoleFilter = ChannelRole | 'all';
 export type RoleSort = 'name' | 'nameDesc' | 'newest' | 'oldest';
 
 export const SORTS: { value: RoleSort; label: string }[] = [
-  { value: 'newest', label: 'Last modified, newest' },
-  { value: 'oldest', label: 'Last modified, oldest' },
-  { value: 'name', label: 'Username, A to Z' },
-  { value: 'nameDesc', label: 'Username, Z to A' },
+  { value: 'newest', label: 'Newest' },
+  { value: 'oldest', label: 'Oldest' },
+  { value: 'name', label: 'A to Z' },
+  { value: 'nameDesc', label: 'Z to A' },
 ];
 
 const byName = (a: RoleMember, b: RoleMember) => a.login.localeCompare(b.login);
@@ -70,26 +70,10 @@ export function roleCounts(list: RoleMember[]): Record<RoleFilter, number> {
   return out;
 }
 
-/** Why a role can't be added to someone holding `holds` now, or null when it can. */
-export function blocked(role: ChannelRole, holds: ChannelRole[], vips: VipSlots | null): string | null {
-  if (role === 'vip' && !holds.includes('vip') && vips) {
-    if (vips.state === 'locked') return 'VIPs unlock through Twitch achievements.';
-    if (vips.state === 'full') return 'Every VIP slot is taken.';
-  }
-  return null;
-}
-
-/** The roles to add, in order. Twitch makes a lead mod a mod, so picking both sends the
- *  lead mod change only. */
-export function addOrder(picked: ChannelRole[], holds: ChannelRole[]): ChannelRole[] {
-  const want = ROLES.filter((r) => picked.includes(r) && !holds.includes(r));
-  return want.includes('leadMod') ? want.filter((r) => r !== 'mod') : want;
-}
-
-/** "VIPs 7/10", "VIPs locked", or "VIPs 7" while the limit is unknown. */
-export function vipCount(v: VipSlots): string {
-  if (v.state === 'locked') return 'VIPs locked';
-  return v.allowed == null ? `VIPs ${v.used}` : `VIPs ${v.used}/${v.allowed}`;
+/** V107-R42 Why giving `role` to someone holding `holds` is off: Rust's VIP slot line
+ *  (`vips.why`), only for a VIP grant. The order, swaps and lines are Rust's too. */
+export function offFor(role: ChannelRole, holds: ChannelRole[], vips: VipSlots | null): string | null {
+  return role === 'vip' && !holds.includes('vip') ? (vips?.why ?? null) : null;
 }
 
 /** A login as typed: no @, no spaces, lower case. */

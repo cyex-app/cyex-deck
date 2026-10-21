@@ -11,4 +11,8 @@ delay: number, verification: ModsetVerification,
 /**
  * Shown to first-time chatters.
  */
-rules: Array<string>, unbanRequests: boolean, unbanCooldownMinutes: number, blocked: Array<BlockedTerm>, permitted: Array<BlockedTerm>, };
+rules: Array<string>, unbanRequests: boolean, unbanCooldownMinutes: number, blocked: Array<BlockedTerm>, permitted: Array<BlockedTerm>, 
+/**
+ * Twitch had more terms than were read.
+ */
+truncated: boolean, };

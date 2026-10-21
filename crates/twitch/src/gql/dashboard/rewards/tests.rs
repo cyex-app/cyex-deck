@@ -45,15 +45,10 @@ fn no_points_settings_is_an_empty_list() {
 }
 
 #[test]
-fn a_saved_reward_or_its_refusal() {
-    let ok = json!({ "createCommunityPointsCustomReward": { "error": null, "reward": raw_reward("n", "POINTS") } });
-    assert_eq!(
-        read_saved(&ok, "createCommunityPointsCustomReward").unwrap().id,
-        "n"
-    );
-    let no = json!({ "createCommunityPointsCustomReward": { "error": { "code": "DUPLICATE_REWARD" }, "reward": null } });
-    let e = read_saved(&no, "createCommunityPointsCustomReward").unwrap_err();
-    assert!(matches!(e, Error::Refused(c) if c == "DUPLICATE_REWARD"));
+fn a_saved_reward() {
+    assert_eq!(read_saved(json!({ "error": null, "reward": raw_reward("n", "POINTS") })).unwrap().id, "n");
+    let e = read_saved(json!({ "error": null, "reward": null })).unwrap_err();
+    assert!(matches!(e, Error::Refused(c) if c == "NO_REWARD"));
 }
 
 #[test]
@@ -144,96 +139,111 @@ fn switches_come_from_the_ui_tagged() {
     assert_eq!(st, Status::Canceled);
 }
 
-/// A local GQL that answers each request with the next body and keeps what it was sent.
-fn mock(bodies: Vec<String>) -> (String, std::thread::JoinHandle<Vec<Value>>) {
-    use std::io::{Read, Write};
-    let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let base = format!("http://{}", l.local_addr().unwrap());
-    let h = std::thread::spawn(move || {
-        let mut seen = Vec::new();
-        for b in bodies {
-            let (mut s, _) = l.accept().unwrap();
-            let mut got = Vec::new();
-            let mut buf = [0u8; 4096];
-            let body = loop {
-                let n = s.read(&mut buf).unwrap();
-                got.extend_from_slice(&buf[..n]);
-                let text = String::from_utf8_lossy(&got).to_string();
-                if let Some(i) = text.find("\r\n\r\n") {
-                    let len = text[..i]
-                        .lines()
-                        .find_map(|l| {
-                            l.to_ascii_lowercase()
-                                .strip_prefix("content-length:")
-                                .map(|v| v.trim().parse::<usize>().unwrap())
-                        })
-                        .unwrap_or(0);
-                    if got.len() >= i + 4 + len {
-                        break got[i + 4..i + 4 + len].to_vec();
-                    }
-                }
-                if n == 0 {
-                    break Vec::new();
-                }
-            };
-            seen.push(serde_json::from_slice(&body).unwrap());
-            let head = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                b.len()
-            );
-            s.write_all(head.as_bytes()).unwrap();
-            s.write_all(b.as_bytes()).unwrap();
-        }
-        seen
-    });
-    (base, h)
+use crate::gql::dashboard::NOT_DONE;
+use crate::gql::dashboard::mock::{ID, off, query, serve};
+
+fn refused<T: std::fmt::Debug>(r: Result<T>) -> String {
+    match r {
+        Err(Error::Refused(c)) => c,
+        other => panic!("not a refusal: {other:?}"),
+    }
+}
+
+fn data(field: &str, payload: Value) -> String {
+    json!({ "data": { field: payload } }).to_string()
 }
 
 #[tokio::test]
-async fn create_pause_and_complete_against_a_mock() {
-    let reward = raw_reward("new", "POINTS");
-    let mut paused = raw_reward("new", "POINTS");
+async fn v107_r41_create_sends_the_input_and_reads_errors() {
+    let m = serve([
+        data(CREATED, json!({ "error": null, "reward": raw_reward("new", "POINTS") })),
+        data(CREATED, json!({ "error": { "code": "DUPLICATE_REWARD" }, "reward": null })),
+        data(CREATED, Value::Null),
+    ]);
+    let ch = m.channel();
+    assert_eq!(create(&ch, &edit()).await.unwrap().id, "new");
+    assert_eq!(refused(create(&ch, &edit()).await), "DUPLICATE_REWARD");
+    assert_eq!(refused(create(&ch, &edit()).await), NOT_DONE);
+    let sent = m.sent();
+    assert!(query(&sent[0]).contains("createCommunityPointsCustomReward(input: $input)"));
+    assert_eq!(sent[0]["variables"], json!({ "input": edit_input(ID, None, &edit()) }));
+}
+
+#[tokio::test]
+async fn v107_r41_update_and_switch_send_their_inputs() {
+    let mut paused = raw_reward("r", "POINTS");
     paused["isPaused"] = true.into();
-    let (base, h) = mock(vec![
-        json!({ "data": { "createCommunityPointsCustomReward": { "error": null, "reward": reward } } }).to_string(),
-        json!({ "data": { "updateCommunityPointsCustomReward": { "error": null, "reward": paused } } }).to_string(),
-        json!({ "data": { "updateCommunityPointsCustomRewardRedemptionStatusesByRedemptions": { "error": { "code": "FORBIDDEN" } } } })
-            .to_string(),
+    let m = serve([
+        data(UPDATED, json!({ "error": null, "reward": raw_reward("r", "POINTS") })),
+        data(UPDATED, json!({ "error": null, "reward": paused })),
+        data(UPDATED, Value::Null),
         json!({ "data": null, "errors": [{ "message": "service error" }] }).to_string(),
     ]);
-    let http = Http::new().unwrap();
-    let auth = Auth {
-        client_id: "c",
-        token: Some("t"),
-    };
-    let b = Some(base.as_str());
-    assert_eq!(create(&http, auth, b, "9", &edit()).await.unwrap().id, "new");
-    assert!(
-        switch(&http, auth, b, "9", "new", Switch::Paused(true))
-            .await
-            .unwrap()
-            .paused
-    );
-    let e = set_status(&http, auth, b, "9", &["r1".into()], Status::Canceled)
-        .await
-        .unwrap_err();
-    assert!(matches!(e, Error::Refused(c) if c == "FORBIDDEN"));
-    assert!(matches!(
-        list(&http, auth, b, "9").await.unwrap_err(),
-        Error::Api { .. }
-    ));
-    let seen = h.join().unwrap();
-    assert!(
-        seen[0]["query"]
-            .as_str()
-            .unwrap()
-            .contains("createCommunityPointsCustomReward")
-    );
-    assert_eq!(seen[0]["variables"]["input"]["cost"], 1);
+    let ch = m.channel();
+    assert_eq!(update(&ch, "r", &edit()).await.unwrap().id, "r");
+    assert!(switch(&ch, "r", Switch::Paused(true)).await.unwrap().paused);
+    assert_eq!(refused(switch(&ch, "r", Switch::Enabled(false)).await), NOT_DONE);
+    assert_eq!(switch(&ch, "r", Switch::Enabled(true)).await.unwrap_err().api_message(), Some("service error"));
+    let sent = m.sent();
+    assert!(query(&sent[0]).contains("updateCommunityPointsCustomReward(input: $input)"));
+    assert_eq!(sent[0]["variables"], json!({ "input": edit_input(ID, Some("r"), &edit()) }));
+    assert_eq!(sent[1]["variables"], json!({ "input": { "channelID": ID, "rewardID": "r", "isPaused": true } }));
+    assert_eq!(sent[2]["variables"], json!({ "input": { "channelID": ID, "rewardID": "r", "isEnabled": false } }));
+}
+
+#[tokio::test]
+async fn v107_r41_delete_sends_what_happens_to_the_waiting() {
+    let m = serve([
+        data(DELETED, json!({ "error": null, "reward": { "id": "r" } })),
+        data(DELETED, Value::Null),
+        data(DELETED, json!({ "error": { "code": "NOT_FOUND" } })),
+    ]);
+    let ch = m.channel();
+    delete(&ch, "r", Some(Status::Fulfilled)).await.unwrap();
+    assert_eq!(refused(delete(&ch, "r", None).await), NOT_DONE);
+    assert_eq!(refused(delete(&ch, "r", None).await), "NOT_FOUND");
+    let sent = m.sent();
+    assert!(query(&sent[0]).contains("deleteCommunityPointsCustomReward(input: $input)"));
     assert_eq!(
-        seen[1]["variables"]["input"],
-        json!({ "channelID": "9", "rewardID": "new", "isPaused": true })
+        sent[0]["variables"],
+        json!({ "input": { "channelID": ID, "rewardID": "r", "unfulfilledRedemptionsNewStatus": "FULFILLED" } })
     );
-    assert_eq!(seen[2]["variables"]["input"]["newStatus"], "CANCELED");
-    assert_eq!(seen[3]["variables"], json!({ "id": "9" }));
+    assert_eq!(sent[1]["variables"], json!({ "input": { "channelID": ID, "rewardID": "r" } }));
+}
+
+#[tokio::test]
+async fn v107_r41_status_sends_ids_and_takes_null_as_done() {
+    let m = serve([
+        data(STATUSES, json!({ "error": null })),
+        data(STATUSES, Value::Null),
+        data(STATUSES, json!({ "error": { "code": "FORBIDDEN" } })),
+    ]);
+    let ch = m.channel();
+    let ids = vec!["a".to_owned(), "b".to_owned()];
+    set_status(&ch, &ids, Status::Canceled).await.unwrap();
+    set_status(&ch, &ids, Status::Fulfilled).await.unwrap();
+    assert_eq!(refused(set_status(&ch, &ids, Status::Canceled).await), "FORBIDDEN");
+    // Over Twitch's 50 never leaves the app.
+    let many: Vec<String> = (0..=STATUS_MAX).map(|i| i.to_string()).collect();
+    assert_eq!(refused(set_status(&off(), &many, Status::Canceled).await), "TOO_MANY");
+    let sent = m.sent();
+    assert!(query(&sent[0]).contains("updateCommunityPointsCustomRewardRedemptionStatusesByRedemptions(input: $input)"));
+    assert_eq!(
+        sent[0]["variables"],
+        json!({ "input": { "channelID": ID, "redemptionIDs": ["a", "b"], "newStatus": "CANCELED", "oldStatus": "UNFULFILLED" } })
+    );
+}
+
+#[tokio::test]
+async fn v107_r41_list_and_queue_ask_for_the_channel() {
+    let m = serve([
+        json!({ "data": { "user": { "channel": { "communityPointsSettings": null } } } }).to_string(),
+        json!({ "data": { "user": null } }).to_string(),
+    ]);
+    let ch = m.channel();
+    assert_eq!(list(&ch).await.unwrap(), Rewards::default());
+    assert_eq!(queue(&ch, Some("a"), Some("c1")).await.unwrap(), Queue::default());
+    let sent = m.sent();
+    assert_eq!(sent[0]["variables"], json!({ "id": ID }));
+    assert_eq!(sent[1]["variables"], json!({ "id": ID, "reward": "a", "cursor": "c1", "count": QUEUE_PAGE }));
 }

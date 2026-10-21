@@ -5,7 +5,7 @@
 
 use std::time::Duration;
 
-use cyex_moderation::restack::{self, Held, How, Refused};
+use cyex_moderation::restack::{self, Failure, Held, How, Refused};
 use cyex_twitch::gql;
 use cyex_twitch::helix::moderation as hm;
 use tauri::AppHandle;
@@ -30,15 +30,21 @@ enum Path<'a> {
 
 /// Bans `who`, or times them out for `secs`. `id` is their user id when known.
 pub async fn ban(app: &AppHandle, actor: &Actor, who: &str, id: Option<&str>, secs: Option<u32>, reason: &str) -> Result<(), String> {
+    ban_full(app, actor, who, id, secs, reason).await.map_err(|f| f.text)
+}
+
+/// [`ban`], telling a ban already in place apart (V107-R21 mass actions count it).
+pub async fn ban_full(app: &AppHandle, actor: &Actor, who: &str, id: Option<&str>, secs: Option<u32>, reason: &str) -> Result<(), Failure> {
+    let failed = |text: String| Failure { text, in_place: false };
     let path = match actor.helix_scoped(app, "moderator:manage:banned_users") {
         Some(h) => Path::Helix(h, match id {
             Some(i) => i.to_owned(),
-            None => user_id(app, who).await?,
+            None => user_id(app, who).await.map_err(failed)?,
         }),
-        None => Path::Gql(actor.gql().ok_or_else(no_token)?),
+        None => Path::Gql(actor.gql().ok_or_else(|| failed(no_token()))?),
     };
     let mut tw = Live { app, actor, path, who, id, secs, reason };
-    restack::run(&mut tw, who, secs.is_some()).await
+    restack::run_full(&mut tw, who, secs.is_some()).await
 }
 
 /// One ban against Twitch, for `restack::run`.

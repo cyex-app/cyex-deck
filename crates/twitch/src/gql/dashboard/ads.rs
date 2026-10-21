@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use ts_rs::TS;
 
-use super::Refusal;
 use crate::gql::{Auth, query};
 use crate::helix::ads::{AdSchedule, Snoozed};
 use crate::random::hex;
@@ -60,7 +59,9 @@ pub async fn start(http: &Http, auth: Auth<'_>, channel_id: &str, secs: u32) -> 
         if let Some(wait) = e.retry_after_seconds.filter(|s| *s > 0) {
             return Err(Error::Refused(format!("{RETRY_AFTER}{wait}")));
         }
-        super::check(Some(Refusal { code: e.code }))?;
+        if let Some(code) = e.code {
+            return Err(Error::Refused(code));
+        }
     }
     Ok(p.ad_session.and_then(|a| a.length_seconds).unwrap_or(secs))
 }

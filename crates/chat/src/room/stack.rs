@@ -261,7 +261,7 @@ mod tests {
     fn v107_m7_room_updates_one_line_in_place() {
         let mut r = super::super::Room::new("chan", None);
         let ev = r.handle_line(&Line::parse(&clear(60, 1_000)).unwrap(), 1_000, &NoEmotes);
-        let RoomEvent::Message { message: first } = &ev[1] else { panic!("{ev:?}") };
+        let RoomEvent::Message { message: first } = ev.last().unwrap() else { panic!("{ev:?}") };
         // The feed's copy of it, then a 30 s one from IRC and the feed.
         assert!(matches!(r.timeout_line("9", "cyexbot timed out caressz for 1m.", 1_200), Some(RoomEvent::Update { .. })));
         r.handle_line(&Line::parse(&clear(30, 3_000)).unwrap(), 3_000, &NoEmotes);
@@ -272,7 +272,7 @@ mod tests {
         assert_eq!(lines, 1);
         // Ten seconds after the first: a new line.
         let ev = r.handle_line(&Line::parse(&clear(600, 11_000)).unwrap(), 11_000, &NoEmotes);
-        assert!(matches!(&ev[1], RoomEvent::Message { message } if message.id != first.id));
+        assert!(matches!(ev.last().unwrap(), RoomEvent::Message { message } if message.id != first.id));
     }
 
     #[test]
@@ -281,14 +281,14 @@ mod tests {
         const SKEW: i64 = 3_600_000;
         let mut r = super::super::Room::new("chan", None);
         let ev = r.handle_line(&Line::parse(&clear(60, 1_000)).unwrap(), 1_000 + SKEW, &NoEmotes);
-        let RoomEvent::Message { message: first } = &ev[1] else { panic!("{ev:?}") };
+        let RoomEvent::Message { message: first } = ev.last().unwrap() else { panic!("{ev:?}") };
         assert_eq!(first.ts, 1_000, "the line keeps Twitch's time");
         let Some(RoomEvent::Update { message }) = r.timeout_line("9", "cyexbot timed out caressz for 1m.", 1_300 + SKEW) else { panic!() };
         assert_eq!(message.id, first.id, "one line, not two");
         // Twelve seconds later by Twitch but two by the PC (it caught up): still one stack
         // per the local clock, which both sources share.
         let ev = r.handle_line(&Line::parse(&clear(60, 13_000)).unwrap(), 3_000 + SKEW, &NoEmotes);
-        assert!(matches!(&ev[1], RoomEvent::Update { message } if message.id == first.id), "{ev:?}");
+        assert!(matches!(ev.last().unwrap(), RoomEvent::Update { message } if message.id == first.id), "{ev:?}");
     }
 
     #[test]

@@ -1,9 +1,8 @@
 <!-- V107-R40 One stream manager panel in a window of its own, route `smpanel/<panel>`.
-     Only who runs the manager is read here, not its feed; the panel stays in the manager's
+     It opens the manager like the main view (ref-counted in Rust); the panel stays in the manager's
      layout too, so closing this window changes nothing there. -->
 <script lang="ts">
   import PanelBox from '../../components/PanelBox.svelte';
-  import { smIpc } from '../../ipc/streammanager';
   import ClipsCard from './ClipsCard.svelte';
   import FollowersCard from './FollowersCard.svelte';
   import ModSettingsCard from './ModSettingsCard.svelte';
@@ -16,14 +15,13 @@
   let { route }: { route: string; popout?: boolean } = $props();
   const id = $derived(route.split('/')[1] ?? '');
 
-  let ready = $state(false);
+  // BUG-04 Opened like the manager view, so the redemption feed, stats and raid reach this
+  // window too (the queue reloads on a redemption); closed with the window.
   $effect(() => {
-    smIpc
-      .manager()
-      .then((m) => (sm.manager = m))
-      .catch(() => {})
-      .finally(() => (ready = true));
+    sm.open().catch(() => {});
+    return () => sm.close();
   });
+  const ready = $derived(sm.ready);
 </script>
 
 {#if ready && sm.manager}
