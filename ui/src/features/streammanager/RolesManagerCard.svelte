@@ -62,6 +62,8 @@
       now = Date.now();
     } catch (e) {
       failed = errorText(e);
+      // V107-N4C The list stays up: say the refresh failed, or it looks like it worked.
+      if (view) toast.error(failed);
     } finally {
       loading = false;
     }
@@ -261,6 +263,7 @@
       {/each}
     </ul>
     {#if !shown.length}<p class="note pad">Nobody matches.</p>{/if}
+    {#if view?.truncated}<p class="note pad">Some may be missing. Refresh to try again.</p>{/if}
   {/if}
 </Card>
 

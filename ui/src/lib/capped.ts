@@ -33,11 +33,6 @@ export function dropStale<K, V>(map: Map<K, V>, stale: (v: V) => boolean): void 
   for (const [k, v] of map) if (stale(v)) map.delete(k);
 }
 
-/** Keeps only the keys `keep` still wants (e.g. tiles that still exist). */
-export function keepOnly<K, V>(map: Map<K, V>, keep: (k: K) => boolean): void {
-  for (const k of [...map.keys()]) if (!keep(k)) map.delete(k);
-}
-
 /** A Map that keeps at most `max` entries; each set makes its key the newest. */
 export class CappedMap<K, V> extends Map<K, V> {
   private readonly max: number;

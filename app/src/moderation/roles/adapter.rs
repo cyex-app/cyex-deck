@@ -78,6 +78,11 @@ impl Twitch for Adapter<'_> {
     }
 
     async fn assign(&self, who: &str, role: Role, on: bool) -> Result<(), Refusal> {
+        // V107-N2f Not on yourself (the broadcaster is refused in `apply`): a swap takes your
+        // own mod role first and then can't give or put back anything (seen live 2026/10/21).
+        if self.user_id(who).await? == self.actor.account {
+            return Err(Refusal::Code("TARGET_IS_SELF".into()));
+        }
         let http = http(self.app);
         match self.path(role).map_err(|l| Refusal::Line(l.into()))? {
             Path::Helix => {
@@ -89,7 +94,8 @@ impl Twitch for Adapter<'_> {
                         cyex_twitch::Error::Api { status, .. } => *status,
                         _ => 0,
                     };
-                    match roles::helix_code(Change::new(role, on), status) {
+                    let said = e.api_message().and_then(cyex_moderation::said::code);
+                    match roles::helix_code(Change::new(role, on), status).or(said) {
                         Some(code) => Refusal::Code(code.into()),
                         None => Refusal::Line(codes::helix(status, e.api_message().unwrap_or(""))),
                     }

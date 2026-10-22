@@ -89,7 +89,7 @@
     if (!gone) return;
     entries = entries.filter((e) => !gone.has(keyOf(e)));
     hidden = null;
-    feedsIpc.clear(kind).catch((e) => toast.error(errorText(e)));
+    feedsIpc.clear(kind, [...gone]).catch((e) => toast.error(errorText(e)));
   }
 
   onDestroy(() => {

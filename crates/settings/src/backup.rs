@@ -44,7 +44,7 @@ pub(crate) fn snapshot_if_due(settings_dir: &Path, today: Date) -> Result<bool> 
         .map(|p| p.file_name())
         .chain([legacy::mentions::FILE.to_owned()])
         .map(|name| settings_dir.join(name))
-        .filter(|f| f.is_file())
+        .filter(|f| reads_as_json(f))
         .collect();
     if files.is_empty() {
         return Ok(false);
@@ -66,6 +66,12 @@ pub(crate) fn snapshot_if_due(settings_dir: &Path, today: Date) -> Result<bool> 
     fs::rename(&staging, &target)?;
     prune(&root, today)?;
     Ok(true)
+}
+
+/// V107-N10a A file the day's backup may take: one that's broken today would push the last
+/// good copy out of the three days kept.
+fn reads_as_json(file: &Path) -> bool {
+    fs::read(file).is_ok_and(|b| serde_json::from_slice::<serde::de::IgnoredAny>(&b).is_ok())
 }
 
 /// Snapshot dates, newest first.

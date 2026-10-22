@@ -34,14 +34,15 @@ interface Parts {
 function render(p: Parts, raw: string): string {
   const y = Number(p.y);
   const d = Number(p.d);
-  if (p.mo < 0 || p.mo > 11 || d < 1 || d > 31) return raw;
+  // V107-N9a Feb 31 isn't a date: leave the text (Date would roll it into March).
+  if (p.mo < 0 || p.mo > 11 || d < 1 || d > new Date(Date.UTC(y, p.mo + 1, 0)).getUTCDate()) return raw;
   if (p.h === undefined) return formatDate(new Date(y, p.mo, d));
   let h = Number(p.h);
   if (p.ap) {
     if (h < 1 || h > 12) return raw;
     h = (h % 12) + (p.ap.toLowerCase() === 'p' ? 12 : 0);
   }
-  if (h > 23 || Number(p.mi) > 59) return raw;
+  if (h > 23 || Number(p.mi) > 59 || Number(p.s ?? 0) > 59) return raw;
   let ms = Date.UTC(y, p.mo, d, h, Number(p.mi), Number(p.s ?? 0));
   const off = p.zone?.match(/^([+-])(\d{2}):?(\d{2})$/);
   if (off) ms -= (off[1] === '-' ? -1 : 1) * (Number(off[2]) * 60 + Number(off[3])) * 60_000;

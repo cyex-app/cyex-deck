@@ -25,6 +25,8 @@ pub struct RolesView {
     /// V107-R42 After a change: its line.
     #[ts(optional = nullable)]
     pub line: Option<String>,
+    /// V107-N4E A list was cut short or a later page failed: some holders may be missing.
+    pub truncated: bool,
 }
 
 const STALE: &str = "The list didn’t refresh.";
@@ -39,6 +41,7 @@ fn after_change(change: Result<String, String>, reread: Result<RolesView, String
             vips: VipSlots::unknown(),
             note: Some(STALE.into()),
             line: Some(line),
+            truncated: false,
         }),
         (Err(e), _) => Err(e),
     }
@@ -78,10 +81,10 @@ pub async fn view(app: &AppHandle, account: &str, login: &str) -> Result<RolesVi
     let http = http(app);
     let ch = dashboard::Channel { http: &http, auth: g, base: None, id: &actor.channel_id };
     let (lists, slots) = tokio::join!(list::role_lists(&ch), list::slots(&ch));
-    // V107-R41 `.1`: a list was cut short (not shown yet).
-    let lists = lists.map_err(|e| e.to_string())?.0;
+    // V107-R41 `.1`: a list was cut short (V107-N4E: the panel says so).
+    let (lists, truncated) = lists.map_err(|e| e.to_string())?;
     let allowed = slots.ok().and_then(|s| s.vips);
-    let v = RolesView { members: merge(&lists), vips: VipSlots::new(lists.vips.len() as u32, allowed), note: None, line: None };
+    let v = RolesView { members: merge(&lists), vips: VipSlots::new(lists.vips.len() as u32, allowed), note: None, line: None, truncated };
     super::remember(app, account, &v);
     Ok(v)
 }
@@ -120,7 +123,7 @@ mod tests {
     use super::*;
 
     fn fresh() -> RolesView {
-        RolesView { members: Vec::new(), vips: VipSlots::new(2, Some(10)), note: None, line: None }
+        RolesView { members: Vec::new(), vips: VipSlots::new(2, Some(10)), note: None, line: None, truncated: false }
     }
 
     #[test]

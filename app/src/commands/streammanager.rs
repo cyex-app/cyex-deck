@@ -225,10 +225,7 @@ pub fn sm_obs_folder(app: AppHandle) -> Option<String> {
 #[tauri::command]
 pub fn sm_obs_open(app: AppHandle) -> Result<(), String> {
     let dir = obs::folder(&app).ok_or("No folder for the status files.")?;
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    app.opener()
-        .open_path(dir.to_string_lossy(), None::<&str>)
-        .map_err(|e| e.to_string())
+    crate::paths::open_folder(&app, &dir)
 }
 
 /// V106-15 Picks the status folder. Nothing when cancelled.

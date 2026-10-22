@@ -3,7 +3,7 @@
 // The tiles stay in one list in a fixed order in the page; moving one only changes its box,
 // so no stream in the tab restarts.
 
-import { type Divider, leaf, type Node, shares, split } from '../../lib/panels.ts';
+import { type Box, clampSizes, type Divider, isSplit, leaf, minOf, type Node, shares, split } from '../../lib/panels.ts';
 
 export interface GridSizes {
   columns: number[];
@@ -26,6 +26,26 @@ export function gridTree(columns: Columns, sizes: GridSizes, stacked: boolean): 
       : split('column', c.tiles.map((t) => leaf(t.id)), shares(sizes.rows[ci] ?? [], c.tiles.length)),
   );
   return cols.length === 1 ? cols[0] : split('row', cols, shares(sizes.columns, cols.length));
+}
+
+/** V107-N6b Shown shares with every column and tile at least `min(id)` px (plus `gap`) where
+ * there's room: a 1:3 split from a Chatterino layout or a smaller window left a chat with its
+ * header and message box and no lines. Too little room for all: each gets its part. Not saved. */
+export function clampGrid(n: Node | null, box: Box, min: (id: string) => Box, gap = 0): Node | null {
+  if (!n || box.w <= 0 || box.h <= 0) return n;
+  // In `layout`'s own box: a gap larger, each panel a gap larger.
+  const least = (id: string) => {
+    const m = min(id);
+    return { w: m.w + gap, h: m.h + gap };
+  };
+  const place = (x: Node, b: Box): Node => {
+    if (!isSplit(x)) return x;
+    const row = x.dir === 'row';
+    const sizes = clampSizes(x.sizes, x.parts.map((p) => (row ? minOf(p, least).w : minOf(p, least).h)), row ? b.w : b.h);
+    const parts = x.parts.map((p, i) => place(p, row ? { w: b.w * sizes[i], h: b.h } : { w: b.w, h: b.h * sizes[i] }));
+    return { dir: x.dir, parts, sizes };
+  };
+  return place(n, { w: box.w + gap, h: box.h + gap });
 }
 
 /** Which of the tab's sizes a divider of `gridTree` changes: the columns', or the tiles'

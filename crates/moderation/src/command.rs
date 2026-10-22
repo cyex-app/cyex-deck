@@ -175,6 +175,11 @@ fn read(name: &str, args: &str) -> Result<ModCommand, String> {
                         reason: reason.to_owned(),
                     }
                 }
+                // V107-N2a A word that starts like a length but doesn't read ("1h3", "10min",
+                // a number too big) is a typo, not the reason: say so, don't time out 10 min.
+                _ if len.starts_with(|c: char| c.is_ascii_digit()) => {
+                    return Err("Try a length like 30s, 10m, 1h or 2d.".into());
+                }
                 _ => C::Timeout {
                     login,
                     secs: DEFAULT_TIMEOUT,
@@ -363,6 +368,10 @@ mod tests {
         assert!(matches!(ok("timeout x 1209600"), ModCommand::Timeout { secs: 1_209_600, .. }));
         assert!(err("timeout x 1209601").contains("2 weeks"));
         assert!(err("timeout x 0").contains("1 second"));
+        // V107-N2a A mistyped length is refused, not sent as 10 minutes with it as reason.
+        for t in ["1h3", "10min", "99999999999999999999", "5x"] {
+            assert!(err(&format!("timeout x {t}")).contains("30s"), "{t}");
+        }
         assert!(err("timeout").starts_with("Usage: /timeout"));
         assert_eq!(ok("unban @SomeOne"), ModCommand::Unban { login: "someone".into() });
         assert!(err("unban").starts_with("Usage"));

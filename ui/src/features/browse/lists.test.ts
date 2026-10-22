@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { ChannelCard } from '../../ipc/bindings/ChannelCard';
-import { appendNew, matches, preview, sections, since, uptimeShort } from './lists.ts';
+import { matches, preview, sections, since, uptimeShort } from './lists.ts';
 
 function card(login: string, viewers: number | null, startedAt = '2026-10-10T10:00:00Z', lastLive: string | null = null): ChannelCard {
   return {
@@ -63,11 +63,6 @@ test('since reads like a person would say it', () => {
 test('previews refresh every five minutes', () => {
   assert.equal(preview('xqc', 440, 248, 600_000), 'https://static-cdn.jtvnw.net/previews-ttv/live_user_xqc-440x248.jpg?t=2');
   assert.equal(preview('xqc', 440, 248, 899_999), preview('xqc', 440, 248, 600_000));
-});
-
-test('later pages skip channels already listed', () => {
-  const list = appendNew([card('a', 1)], [card('a', 1), card('b', 1), card('b', 1)]);
-  assert.deepEqual(list.map((c) => c.id), ['a', 'b']);
 });
 
 test('uptime stops at minutes', () => {

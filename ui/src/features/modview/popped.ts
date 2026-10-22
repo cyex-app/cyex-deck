@@ -3,7 +3,7 @@
 // exact place (the layout as it was then is kept in `modview.popped`); popped out of the
 // closed-panels row, back there.
 
-import { isSplit, type Node, prune, restore } from '../../lib/panels.ts';
+import { isSplit, leaves, type Node, prune, restore } from '../../lib/panels.ts';
 
 export const KIND = 'modpanel';
 
@@ -55,4 +55,18 @@ export function dockBack(tree: Node | null, id: string, was: Node, stillOut: Set
 export function closedOut(popped: Record<string, unknown>, routes: string[]): string[] {
   const open = new Set(routes);
   return Object.keys(popped).filter((k) => !open.has(`${KIND}/${k}`));
+}
+
+/** V107-N3e The layout as it would be with every panel still out back in (`out`: id → its
+ *  layout when it popped out, oldest first). Kept for the next panel that pops out, so a
+ *  later one docks back into the whole layout: two panels out and back, in any order, end
+ *  up exactly where they were (the second one's sizes drifted before). */
+export function withPopped(tree: Node | null, out: [id: string, was: Node][]): Node | null {
+  let t = tree;
+  const left = new Set(out.map(([id]) => id));
+  for (const [id, was] of out) {
+    left.delete(id);
+    if (t && !leaves(t).includes(id)) t = dockBack(t, id, was, left).tree;
+  }
+  return t;
 }

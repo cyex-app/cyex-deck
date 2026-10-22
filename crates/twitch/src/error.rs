@@ -27,11 +27,12 @@ impl Error {
         matches!(self, Error::Api { status: 401, .. })
     }
 
-    /// Twitch had a problem on its side (5xx): worth retrying later.
+    /// Too many requests (429): wait, then try again.
     pub fn is_rate_limited(&self) -> bool {
         matches!(self, Error::Api { status: 429, .. })
     }
 
+    /// Twitch had a problem on its side (5xx): worth retrying later.
     pub fn is_server_error(&self) -> bool {
         matches!(self, Error::Api { status, .. } if *status >= 500)
     }

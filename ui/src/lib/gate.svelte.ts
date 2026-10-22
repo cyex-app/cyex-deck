@@ -3,6 +3,7 @@
 
 import { accountsIpc } from '../ipc/accounts';
 import type { TokenKind } from '../ipc/bindings/TokenKind';
+import { errorText } from './errors';
 import { toast } from './toast.svelte';
 
 class Gate {
@@ -12,7 +13,7 @@ class Gate {
   asks = $state(0);
 
   ask(kind: TokenKind): void {
-    accountsIpc.showSignIn(kind).catch((e) => toast.error(String(e)));
+    accountsIpc.showSignIn(kind).catch((e) => toast.error(errorText(e, 'open the sign-in')));
   }
 
   /** In the main window, when Rust passes an ask on. */

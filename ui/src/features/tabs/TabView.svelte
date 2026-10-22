@@ -13,7 +13,7 @@
   import { type Divider, dragSizes, layout as layOut, nodeAt, type Split } from '../../lib/panels';
   import { tileState } from '../player/players.svelte';
   import { drag } from './drag.svelte';
-  import { gridLine, gridTree, resized, slimSizes } from './grid';
+  import { clampGrid, gridLine, gridTree, resized, slimSizes } from './grid';
   import { dragged, layout } from './layout.svelte';
   import TileView from './TileView.svelte';
   import { tabs, tiles } from './tabs.svelte';
@@ -78,7 +78,14 @@
     const t = byId.get(id);
     return !!t && !t.feed && t.show.player && tabs.live[t.channel.id] !== undefined && !tabs.live[t.channel.id]?.stream;
   };
-  const tree = $derived(gridTree(tab.columns, live ? sizes : slimSizes(tab.columns, sizes, offline, box.w), stacked));
+  /** V107-N6b A tile's least room, as the stacking above counts it. */
+  const need = (id: string): Box => {
+    const t = byId.get(id);
+    return t ? tileNeed(t.show.player || tileState(t.id).side !== null, t.show.chat && !tabs.chats.has(t.id)) : { w: 0, h: 0 };
+  };
+  const tree = $derived(
+    clampGrid(gridTree(tab.columns, live ? sizes : slimSizes(tab.columns, sizes, offline, box.w), stacked), box, need, LINE),
+  );
   const laid = $derived(layOut(tree, box, LINE));
 
   /** Drags a divider between columns, or between tiles in a column. */

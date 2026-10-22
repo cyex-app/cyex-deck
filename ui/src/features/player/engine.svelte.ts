@@ -403,9 +403,13 @@ export class Engine {
       this.video.removeEventListener(GRAPH_EVENT, graphed);
     };
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      this.levels = hls.levels
-        .map((l, index) => ({ index, name: l.height ? levelName(l) : 'Audio only', height: l.height }))
-        .sort((a, b) => b.height - a.height);
+      // V107-N7a The audio master has no video levels: the menu keeps the last ones, so a
+      // quality can be picked straight from audio only (it offered just Auto before).
+      if (this.choice !== 'audio' || !this.levels.some((l) => l.height > 0)) {
+        this.levels = hls.levels
+          .map((l, index) => ({ index, name: l.height ? levelName(l) : 'Audio only', height: l.height }))
+          .sort((a, b) => b.height - a.height);
+      }
       this.apply(false);
       if (this.holding) {
         this.waiting = false;

@@ -91,9 +91,3 @@ export function uptimeShort(startedAt: string, now = Date.now()): string {
 export function preview(login: string, width = 440, height = 248, now = Date.now()): string {
   return `https://static-cdn.jtvnw.net/previews-ttv/live_user_${login}-${width}x${height}.jpg?t=${Math.floor(now / 300_000)}`;
 }
-
-/** Drops cards already listed, e.g. when a live list shifts between pages. */
-export function appendNew(list: ChannelCard[], more: ChannelCard[]): ChannelCard[] {
-  const seen = new Set(list.map((c) => c.id));
-  return [...list, ...more.filter((c) => !seen.has(c.id) && seen.add(c.id))];
-}

@@ -147,6 +147,15 @@ pub fn settle(window: &WebviewWindow, p: Option<Placement>) -> tauri::Result<()>
     Ok(())
 }
 
+/// V107-N12e Saves where the main window really opened when that isn't what was saved (a
+/// junk or clamped rect): the next start and the first un-maximize use the real rect.
+pub fn keep_main(app: &AppHandle, saved: Option<&Geometry>, p: Option<Placement>) {
+    let Some(g) = p.map(|p| p.geometry()) else { return };
+    if saved != Some(&g) {
+        let _ = app.state::<Settings>().patch(app, Partition::Windows, &json!({ "main": g }), false);
+    }
+}
+
 /// Moves and resizes a window that's already open (layouts).
 pub fn apply(window: &Window, g: &Geometry) {
     let (all, primary) = screens(window.app_handle());

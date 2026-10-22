@@ -14,6 +14,17 @@ pub(super) fn a(role: Role) -> String {
     format!("{} {r}", if an { "an" } else { "a" })
 }
 
+/// V107-N12d Whether Twitch refused because it's so already ("already a mod", "isn't a
+/// VIP"): the step's end holds, so the role buttons hear of it (a stale badge offered it).
+pub(super) fn holds_already(code: &str, on: bool) -> bool {
+    let c = code.to_ascii_uppercase();
+    if on {
+        matches!(c.as_str(), "TARGET_ALREADY_MOD" | "GRANTEE_ALREADY_VIP" | "ALREADY_ASSIGNED" | "GRANTEE_ALREADY_HAS_ROLE")
+    } else {
+        matches!(c.as_str(), "TARGET_NOT_MOD" | "REVOKEE_NOT_VIP" | "NOT_ASSIGNED" | "REVOKEE_DOES_NOT_HAVE_ROLE")
+    }
+}
+
 /// A step Twitch refused, in a short line. `by` is who tried. Unknown codes show the code.
 pub fn refused(code: &str, who: &str, c: Change, by: ModRole) -> String {
     let r = c.role;

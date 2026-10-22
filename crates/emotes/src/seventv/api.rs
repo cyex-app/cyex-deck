@@ -113,6 +113,10 @@ pub async fn user_names(http: &Http, ids: &[String], lane: Lane) -> Result<HashM
         .filter(|(_, id)| id.chars().all(|c| c.is_ascii_alphanumeric()))
         .map(|(i, id)| format!("u{i}: user(id: \"{id}\") {{ id mainConnection {{ platformDisplayName }} }} "))
         .collect();
+    // V107-N9d No id left: `users { }` isn't a query, and 7TV would answer an error.
+    if fields.is_empty() {
+        return Ok(HashMap::new());
+    }
     let q = format!("query {{ users {{ {fields}}} }}");
     let data: Data<HashMap<String, HashMap<String, Option<RawNamed>>>> = paced(http, lane, &q, json!({})).await?;
     Ok(data
@@ -421,6 +425,14 @@ impl RawBridgeItem {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// V107-N9d Only ids that can't break the query go out; none left asks nothing.
+    #[tokio::test]
+    async fn names_without_a_usable_id_ask_nothing() {
+        let http = Http::with_proxy("http://127.0.0.1:1").unwrap();
+        let got = user_names(&http, &["a\"b".into(), "x y".into()], Lane::Front).await.unwrap();
+        assert!(got.is_empty());
+    }
 
     #[test]
     fn presence_body_is_kind_and_data() {

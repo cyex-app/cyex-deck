@@ -38,6 +38,9 @@ test('text without dates stays as is', () => {
     'May the best team win, 10 to 3',
     'Score 13:45 in round 2',
     'Nov 99, 2026 is not a day',
+    'Feb 31, 2026 is not a day',
+    'on 2026-13-05',
+    'at 2026-02-30T10:00:00Z',
     '',
   ]) {
     assert.equal(localDates(t), t);

@@ -21,6 +21,10 @@ pub fn send_to(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<Stri
     if text.is_empty() {
         return Ok(());
     }
+    // V107-N1c A bare "/me" isn’t an unknown command; it just has no text.
+    if text.eq_ignore_ascii_case("/me") || text.eq_ignore_ascii_case(".me") {
+        return Err("Write something after /me.".into());
+    }
     let (body, action) = match text.strip_prefix("/me ").or_else(|| text.strip_prefix(".me ")) {
         Some(rest) => (rest.trim(), true),
         // F14 Commands don't go out as text: any "/" one, and a dot before the app's or
@@ -31,9 +35,9 @@ pub fn send_to(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<Stri
         }
         None => (text, false),
     };
-    let chars = text.chars().count();
-    if chars > write::MAX_MESSAGE_CHARS {
-        return Err(format!("Too long: {chars}/{}.", write::MAX_MESSAGE_CHARS));
+    let (chars, max) = (body.chars().count(), max_chars(action));
+    if chars > max {
+        return Err(format!("Too long: {chars}/{max}."));
     }
 
     let chat = app.state::<Chat>();
@@ -104,6 +108,12 @@ pub fn send_to(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<Stri
     Ok(())
 }
 
+/// V107-N1a Twitch counts the ACTION wrapper (9 chars) of a /me line toward the 500; a longer one
+/// is dropped without a word.
+fn max_chars(action: bool) -> usize {
+    write::MAX_MESSAGE_CHARS - if action { 9 } else { 0 }
+}
+
 /// Chatterino's trick: double the first space, or add an invisible character. Runs before
 /// [`typed::escape`], so the first space of ". hi" is text and doubling it works.
 fn dodge_duplicate(text: &str) -> String {
@@ -115,7 +125,13 @@ fn dodge_duplicate(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{dodge_duplicate, typed};
+    use super::{dodge_duplicate, max_chars, typed};
+
+    #[test]
+    fn an_action_leaves_room_for_its_wrapper() {
+        assert_eq!(max_chars(false), 500);
+        assert_eq!(max_chars(true), 491);
+    }
 
     #[test]
     fn duplicates_change_invisibly() {

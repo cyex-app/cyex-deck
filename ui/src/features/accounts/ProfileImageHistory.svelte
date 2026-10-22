@@ -23,6 +23,11 @@
     if (asking && !items.some((i) => i.id === asking)) asking = null;
   });
 
+  // V107-N5b A change or restore under way (from here or from the row) closes the question.
+  $effect(() => {
+    if (disabled) asking = null;
+  });
+
   function use() {
     if (!asking) return;
     const id = asking;

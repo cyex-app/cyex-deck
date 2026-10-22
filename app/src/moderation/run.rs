@@ -141,7 +141,7 @@ async fn ban(app: &AppHandle, actor: &Actor, who: &str, secs: Option<u32>, reaso
 async fn unban(app: &AppHandle, actor: &Actor, who: &str) -> Result<(), String> {
     if let Some(h) = actor.helix_scoped(app, "moderator:manage:banned_users") {
         let (res, _) = hm::unban(&http(app), h, actor.room(), &target_id(app, who).await?).await;
-        return res.map_err(|e| codes::helix(status(&e), e.api_message().unwrap_or("")));
+        return res.map_err(|e| codes::helix_about(status(&e), e.api_message().unwrap_or(""), who));
     }
     if let Some(g) = actor.gql() {
         return refuse(gql::moderation::unban(&http(app), g, &actor.channel_id, who).await, who);

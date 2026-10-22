@@ -149,6 +149,18 @@ fn os_text(text: &str) -> String {
     text.trim().to_string()
 }
 
+/// V107-N9b Opens `dir` in Explorer, making it first. One text for every "Open folder".
+pub fn open_folder(app: &AppHandle, dir: &Path) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    std::fs::create_dir_all(dir).map_err(|e| why(dir, &e))?;
+    app.opener()
+        .open_path(dir.to_string_lossy(), None::<&str>)
+        .map_err(|e| {
+            eprintln!("paths: couldn't open {}: {e}", dir.display());
+            "Couldn't open the folder.".to_owned()
+        })
+}
+
 /// Shows the start-up error box, then quits with exit code 2.
 pub fn fail(path: Option<&Path>, reason: &str) -> ! {
     let text = folder_message(path, reason);

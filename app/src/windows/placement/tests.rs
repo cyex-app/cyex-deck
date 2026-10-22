@@ -100,10 +100,27 @@ fn a_junk_scale_is_an_old_save() {
 #[test]
 fn the_broken_save_lands_maximized_on_the_right_monitor() {
     // target/perf-v107/usertest/windows-broken.json: the maximized rect, 11 px outside.
+    // V107-N12e Its normal rect is the default, centered there, so un-maximizing shrinks it.
     let p = place3(&geo(1273, -599, 2560, 1392, true));
-    assert_eq!((p.screen, p.x, p.y, p.w, p.h), (1, 1920, -887, 3840, 2088));
-    assert_eq!(p.logical_size(), (2560.0, 1392.0));
+    assert_eq!((p.screen, p.x, p.y, p.w, p.h), (1, 2880, -443, 1920, 1200));
+    assert_eq!(p.logical_size(), (1280.0, 800.0));
     assert!(p.maximized);
+    // Saved right away as what it got.
+    assert_eq!(p.geometry(), at(geo(1920, -295, 1280, 800, true), 1.5));
+    assert_eq!(place3(&p.geometry()), p, "and comes back the same");
+}
+
+#[test]
+fn v107_n12e_only_a_maximized_full_rect_is_refit() {
+    // Not maximized: a full-size window stays full size.
+    let p = place3(&geo(0, 0, 1920, 1032, false));
+    assert_eq!((p.x, p.y, p.w, p.h), (0, 0, 1920, 1032));
+    // Maximized over a smaller normal rect: kept.
+    let p = place3(&geo(100, 50, 1280, 800, true));
+    assert_eq!((p.x, p.y, p.w, p.h, p.maximized), (100, 50, 1280, 800, true));
+    // Maximized with one side short of the work area: kept.
+    let p = place3(&geo(0, 0, 1920, 900, true));
+    assert_eq!((p.w, p.h), (1920, 900));
 }
 
 #[test]

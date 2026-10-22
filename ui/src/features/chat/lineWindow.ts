@@ -44,8 +44,3 @@ export function around(list: readonly Item[], from: From, index: number, margin 
   if (index < 0 || index >= startOf(list, from, size)) return undefined;
   return fromAt(list, Math.max(0, index - margin));
 }
-
-/** More is drawn than the newest `size` lines. */
-export function oversized(list: readonly Item[], from: From, size = WINDOW): boolean {
-  return !!from && startOf(list, from, size) < list.length - size;
-}

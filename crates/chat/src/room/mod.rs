@@ -328,9 +328,11 @@ impl Room {
     /// V107-M7 A mod-action feed's timeout line for `user_id`, stacked with the ones
     /// before it (`stack`). `None`: a second delivery of the same action (the channel is
     /// open under two mod accounts), nothing to show.
-    pub fn timeout_line(&mut self, user_id: &str, text: &str, now_ms: i64) -> Option<RoomEvent> {
+    /// V107-N2e `ban`: a ban's line, one with IRC's "x was banned.".
+    pub fn timeout_line(&mut self, user_id: &str, ban: bool, text: &str, now_ms: i64) -> Option<RoomEvent> {
         let mut m = build::system(NoticeKind::Moderation, text, now_ms);
-        match self.stacked(user_id, stack::Source::Feed, &mut m, now_ms) {
+        let key = if ban { stack::ban_key(user_id) } else { user_id.to_owned() };
+        match self.stacked(&key, stack::Source::Feed, &mut m, now_ms) {
             Stacked::Update(ev) => Some(ev),
             Stacked::Dup => None,
             Stacked::New => {
@@ -339,6 +341,11 @@ impl Room {
                 Some(RoomEvent::Message { message: m })
             }
         }
+    }
+
+    /// V107-N2g A mod lifted `user_id`'s timeout or ban: their next timeout gets a new line.
+    pub fn lifted(&mut self, user_id: &str) {
+        self.timeouts.lifted(user_id);
     }
 
     /// V107-M7 Puts timeout line `m`, received at `now_ms` (local time for both sources,
@@ -420,10 +427,12 @@ impl Room {
                 let me = self.me.as_ref().is_some_and(|m| m.user_id == user_id);
                 // V107-M7 Timeouts in a row share one line; bans stand alone.
                 let mut notice = notice;
-                let stacked = match secs {
-                    Some(_) => self.stacked(&user_id, stack::Source::Irc, &mut notice, now_ms),
-                    None => Stacked::New,
+                // V107-N2e A ban shares its line with the feed's copy only.
+                let key = match secs {
+                    Some(_) => user_id.clone(),
+                    None => stack::ban_key(&user_id),
                 };
+                let stacked = self.stacked(&key, stack::Source::Irc, &mut notice, now_ms);
                 match stacked {
                     Stacked::Update(update) => events.push(update),
                     Stacked::New => events.extend(self.add(notice, now_ms, emotes)),

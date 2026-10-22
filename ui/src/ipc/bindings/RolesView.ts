@@ -14,4 +14,8 @@ note?: string | null,
 /**
  * V107-R42 After a change: its line.
  */
-line?: string | null, };
+line?: string | null, 
+/**
+ * V107-N4E A list was cut short or a later page failed: some holders may be missing.
+ */
+truncated: boolean, };

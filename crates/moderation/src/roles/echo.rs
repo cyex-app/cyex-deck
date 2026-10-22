@@ -128,7 +128,13 @@ impl<T: Twitch, C: Chat> Twitch for Echoed<'_, T, C> {
         if let Some(a) = echo.filter(|_| !echoes) {
             self.chat.mark(a, who, false);
         }
-        if res.is_ok() {
+        // V107-N12d "Isn't a mod" says what they hold too.
+        let settled = match &res {
+            Ok(()) => true,
+            Err(Refusal::Code(c)) => super::lines::holds_already(c, on),
+            Err(Refusal::Line(_)) => false,
+        };
+        if settled {
             match role {
                 Role::Mod | Role::Vip => self.chat.standing(who, role == Role::Mod, on),
                 Role::LeadMod if on => self.chat.standing(who, true, true),
@@ -255,9 +261,25 @@ pub(super) mod tests {
         let _ = now(e.assign("bob", Role::LeadMod, false));
         assert_eq!(f.log(), [
             "mark mod bob", "give lead mod", "standing bob mod true",
-            "mark mod bob", "give lead mod",
+            "mark mod bob", "give lead mod", "standing bob mod true",
             "mark mod bob", "give lead mod", "unmark mod bob",
             "take lead mod",
+        ]);
+    }
+
+    /// V107-N12d A stale badge offered Unmod: "isn't a mod" tells the buttons, so the
+    /// next menu offers Mod.
+    #[test]
+    fn v107_n12d_already_so_tells_the_buttons() {
+        let f = Fake::new(vec![code("TARGET_NOT_MOD"), code("GRANTEE_ALREADY_VIP"), code("TARGET_NOT_MOD")]);
+        let e = Echoed { twitch: &f, chat: &f };
+        assert!(now(e.assign("bob", Role::Mod, false)).is_err());
+        assert!(now(e.assign("bob", Role::Vip, true)).is_err());
+        assert!(now(e.assign("bob", Role::Mod, true)).is_err(), "not this code when giving");
+        assert_eq!(f.log(), [
+            "mark unmod bob", "take mod", "unmark unmod bob", "standing bob mod false",
+            "mark vip bob", "give VIP", "unmark vip bob", "standing bob vip true",
+            "mark mod bob", "give mod", "unmark mod bob",
         ]);
     }
 }

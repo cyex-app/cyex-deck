@@ -21,9 +21,36 @@ const CHANGED_EVENT: &str = "settings:changed";
 pub struct Settings {
     store: Mutex<Store>,
     save_queued: AtomicBool,
-    reset_on_load: Mutex<Vec<Partition>>,
+    reset_on_load: Mutex<LoadNotice>,
     /// V105-11 The uploader's headers live here, not in the settings files or their backups.
     secrets: Arc<dyn SecretStore>,
+}
+
+/// What the first window tells about loading: files that went back to default, and (V107-N10a)
+/// files that came back from a daily backup, with that day as `yyyy/mm/dd`. Taken once.
+#[derive(Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoadNotice {
+    reset: Vec<Partition>,
+    restored: Vec<Partition>,
+    restored_from: Option<String>,
+}
+
+impl LoadNotice {
+    fn of(report: &cyex_settings::LoadReport) -> Self {
+        let day = time::macros::format_description!("[year]/[month]/[day]");
+        Self {
+            reset: report.reset.clone(),
+            restored: report.restored.iter().map(|(p, _)| *p).collect(),
+            restored_from: one_day(report.restored.iter().map(|(_, d)| *d)).and_then(|d| d.format(day).ok()),
+        }
+    }
+}
+
+/// The day all of them share, else `None` (the notice then just says "a backup").
+fn one_day(mut days: impl Iterator<Item = Date>) -> Option<Date> {
+    let first = days.next()?;
+    days.all(|d| d == first).then_some(first)
 }
 
 /// Credential Manager key of the image uploader's headers.
@@ -74,6 +101,9 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             r.from_mentions, r.from_highlights, r.global, r.duplicates, r.cut
         );
     }
+    for e in &report.io_errors {
+        eprintln!("settings: V107-N10a {e}");
+    }
     if report.old_mentions_unreadable {
         eprintln!("settings: mentions.json unreadable, left as is");
     }
@@ -104,7 +134,7 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(Settings {
         store: Mutex::new(store),
         save_queued: AtomicBool::new(false),
-        reset_on_load: Mutex::new(report.reset),
+        reset_on_load: Mutex::new(LoadNotice::of(&report)),
         secrets,
     });
     Ok(())
@@ -216,7 +246,7 @@ impl Settings {
         self.secrets.load(UPLOADER_HEADERS).ok().flatten().unwrap_or_default()
     }
 
-    pub fn take_load_report(&self) -> Vec<Partition> {
+    pub fn take_load_report(&self) -> LoadNotice {
         std::mem::take(&mut *self.reset_on_load.lock().unwrap_or_else(|p| p.into_inner()))
     }
 

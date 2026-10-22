@@ -67,7 +67,8 @@
     try {
       const r = await contentIpc.deleteClips(slugs);
       list.remove(r.done);
-      const say = bulkLines(r, slugs.length, (n) => `${count(n, 'clip', 'clips')} deleted.`);
+      // V107-N4B One clip reads like Videos' "Video deleted."
+      const say = bulkLines(r, slugs.length, (n) => (slugs.length === 1 ? 'Clip deleted.' : `${count(n, 'clip', 'clips')} deleted.`));
       if (say.ok) toast.success(say.ok);
       if (say.info) toast.info(say.info);
       if (say.bad) toast.error(say.bad);

@@ -45,8 +45,6 @@
 
   const role = $derived(mods.role(account, channel));
   const caps = $derived(mods.caps(account, channel));
-  /** V107-R44 The broadcaster acting on a mod: Twitch also takes the mod role. */
-  const roleNote = $derived(is?.mod && caps?.broadcaster ? `. ${MOD_ROLE_NOTE}` : '');
   // V107-M8 Mod and VIP changes are the broadcaster's and lead mods' (1.50, `offered`).
   const lead = $derived(caps?.roles ?? false);
   /** What Twitch says they hold here (public badges), over their last line's. */
@@ -61,6 +59,9 @@
     return () => (live = false);
   });
   const holds = $derived(standings.of(channel, profile.login, looked ?? is));
+  /** V107-R44 The broadcaster acting on a mod: Twitch also takes the mod role. */
+  // V107-N5d From what Twitch says now (`holds`), not their last line: a mod removed since still wore the badge there.
+  const roleNote = $derived(holds?.mod && caps?.broadcaster ? `. ${MOD_ROLE_NOTE}` : '');
   // V107-R36 Your own channel's VIP slots: VIP is off when they're all taken or locked.
   // V107-R42 Rust says why (`why`) and the count (`label`).
   let slots = $state<VipSlots | null>(null);

@@ -17,6 +17,12 @@ const DUP_MS: i64 = 400;
 /// Stacks kept per user: the open one and older ones still waiting for late echoes.
 const MAX_STACKS: usize = 4;
 
+/// V107-N2e A ban's stack key: IRC's "x was banned." and the feed's "mod banned x" are one
+/// line, kept apart from that user's timeouts.
+pub fn ban_key(user: &str) -> String {
+    format!("{user}#ban")
+}
+
 /// Where a timeout line came from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Source {
@@ -137,6 +143,12 @@ impl Stacks {
         *s.of(src) = 1;
         u.stacks.push(s);
         Some(Hit { id: new_id.to_owned(), update: false, text: text.to_owned() })
+    }
+
+    /// V107-N2g `user`'s timeout was lifted: the next one starts its own line, below the
+    /// lift's (stacking it onto the line above read as if the lift came last).
+    pub fn lifted(&mut self, user: &str) {
+        self.0.remove(user);
     }
 }
 
@@ -263,9 +275,9 @@ mod tests {
         let ev = r.handle_line(&Line::parse(&clear(60, 1_000)).unwrap(), 1_000, &NoEmotes);
         let RoomEvent::Message { message: first } = ev.last().unwrap() else { panic!("{ev:?}") };
         // The feed's copy of it, then a 30 s one from IRC and the feed.
-        assert!(matches!(r.timeout_line("9", "cyexbot timed out caressz for 1m.", 1_200), Some(RoomEvent::Update { .. })));
+        assert!(matches!(r.timeout_line("9", false, "cyexbot timed out caressz for 1m.", 1_200), Some(RoomEvent::Update { .. })));
         r.handle_line(&Line::parse(&clear(30, 3_000)).unwrap(), 3_000, &NoEmotes);
-        let Some(RoomEvent::Update { message }) = r.timeout_line("9", "cyexbot timed out caressz for 30s.", 3_100) else { panic!() };
+        let Some(RoomEvent::Update { message }) = r.timeout_line("9", false, "cyexbot timed out caressz for 30s.", 3_100) else { panic!() };
         assert_eq!(message.id, first.id);
         assert_eq!(message.notice.as_ref().unwrap().text, "cyexbot timed out caressz for 30s (2 times).");
         let lines = r.snapshot().messages.iter().filter(|m| m.notice.is_some()).count();
@@ -283,7 +295,7 @@ mod tests {
         let ev = r.handle_line(&Line::parse(&clear(60, 1_000)).unwrap(), 1_000 + SKEW, &NoEmotes);
         let RoomEvent::Message { message: first } = ev.last().unwrap() else { panic!("{ev:?}") };
         assert_eq!(first.ts, 1_000, "the line keeps Twitch's time");
-        let Some(RoomEvent::Update { message }) = r.timeout_line("9", "cyexbot timed out caressz for 1m.", 1_300 + SKEW) else { panic!() };
+        let Some(RoomEvent::Update { message }) = r.timeout_line("9", false, "cyexbot timed out caressz for 1m.", 1_300 + SKEW) else { panic!() };
         assert_eq!(message.id, first.id, "one line, not two");
         // Twelve seconds later by Twitch but two by the PC (it caught up): still one stack
         // per the local clock, which both sources share.
@@ -295,9 +307,40 @@ mod tests {
     fn v107_m7_two_mod_accounts_count_a_feed_action_once() {
         let mut r = super::super::Room::new("chan", None);
         let text = "cyexbot timed out caressz for 1m.";
-        assert!(matches!(r.timeout_line("9", text, 1_000), Some(RoomEvent::Message { .. })));
-        assert!(r.timeout_line("9", text, 1_050).is_none(), "the second account's copy");
+        assert!(matches!(r.timeout_line("9", false, text, 1_000), Some(RoomEvent::Message { .. })));
+        assert!(r.timeout_line("9", false, text, 1_050).is_none(), "the second account's copy");
         let lines: Vec<String> = r.snapshot().messages.iter().filter_map(|m| m.notice.as_ref().map(|n| n.text.clone())).collect();
         assert_eq!(lines, [text]);
+    }
+    /// V107-N2e One ban, one line: IRC's "x was banned." and the feed's line merge, either
+    /// order, and stay apart from that user's timeout line.
+    #[test]
+    fn v107_n2e_a_ban_and_its_feed_copy_are_one_line() {
+        let ban = |ts: i64| format!("@target-user-id=9;tmi-sent-ts={ts} :tmi.twitch.tv CLEARCHAT #chan :caressz");
+        let mut r = super::super::Room::new("chan", None);
+        r.handle_line(&Line::parse(&clear(60, 1_000)).unwrap(), 1_000, &NoEmotes);
+        let ev = r.handle_line(&Line::parse(&ban(2_000)).unwrap(), 2_000, &NoEmotes);
+        assert!(matches!(ev.last().unwrap(), RoomEvent::Message { .. }), "not stacked on the timeout");
+        let Some(RoomEvent::Update { message }) = r.timeout_line("9", true, "cyexbot banned caressz: spam", 2_200) else { panic!() };
+        assert_eq!(message.notice.as_ref().unwrap().text, "cyexbot banned caressz: spam");
+        let lines: Vec<String> = r.snapshot().messages.iter().filter_map(|m| m.notice.as_ref().map(|n| n.text.clone())).collect();
+        assert_eq!(lines, ["caressz was timed out for 1m.", "cyexbot banned caressz: spam"]);
+        // The feed first, then IRC: still one line, the feed's words.
+        let mut r = super::super::Room::new("chan", None);
+        assert!(matches!(r.timeout_line("9", true, "cyexbot banned caressz.", 1_000), Some(RoomEvent::Message { .. })));
+        let ev = r.handle_line(&Line::parse(&ban(1_100)).unwrap(), 1_100, &NoEmotes);
+        assert!(matches!(ev.last(), Some(RoomEvent::Update { message }) if message.notice.as_ref().unwrap().text == "cyexbot banned caressz."), "{ev:?}");
+        assert_eq!(r.snapshot().messages.iter().filter(|m| m.notice.is_some()).count(), 1);
+    }
+    /// V107-N2g A timeout after a lift is a new line under the lift's, not "(2 times)" above it.
+    #[test]
+    fn v107_n2g_a_lift_ends_the_stack() {
+        let mut r = super::super::Room::new("chan", None);
+        assert!(matches!(r.timeout_line("9", false, "cyexbot timed out caressz for 45s.", 1_000), Some(RoomEvent::Message { .. })));
+        r.lifted("9");
+        assert!(matches!(r.timeout_line("9", false, "cyexbot timed out caressz for 10m.", 3_000), Some(RoomEvent::Message { .. })));
+        // IRC's copy of the new one joins it.
+        let ev = r.handle_line(&Line::parse(&clear(600, 3_100)).unwrap(), 3_100, &NoEmotes);
+        assert!(matches!(ev.last(), Some(RoomEvent::Update { message }) if message.notice.as_ref().unwrap().text == "cyexbot timed out caressz for 10m."), "{ev:?}");
     }
 }

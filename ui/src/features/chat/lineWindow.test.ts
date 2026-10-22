@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { around, hold, older, oversized, startOf, STEP, WINDOW } from './lineWindow.ts';
+import { around, hold, older, startOf, STEP, WINDOW } from './lineWindow.ts';
 
 const lines = (n: number, first = 0) => Array.from({ length: n }, (_, i) => ({ id: `m${first + i}`, ts: (first + i) * 10 }));
 
@@ -57,12 +57,4 @@ test('a jump to an undrawn line draws it with some above', () => {
   assert.equal(startOf(list, from!), 70);
   assert.equal(startOf(list, around(list, null, 10)!), 0);
   assert.equal(around(list, null, -1), undefined);
-});
-
-test('the window is oversized only past WINDOW lines', () => {
-  const list = lines(1000);
-  assert.equal(oversized(list, null), false);
-  assert.equal(oversized(list, hold(list, null)), false);
-  assert.equal(oversized(list, older(list, hold(list, null))!), true);
-  assert.equal(oversized(lines(100), { id: 'm0', ts: 0 }), false);
 });

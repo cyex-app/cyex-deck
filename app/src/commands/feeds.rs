@@ -17,8 +17,11 @@ pub fn feeds_close(app: AppHandle, view: u32) {
     feeds::close(&app, view);
 }
 
-/// Q4 The feed header's Clear.
+/// Q4 The feed header's Clear. V107-N8a With `keys`: only the rows the tab hid, not what arrived since.
 #[tauri::command]
-pub fn feeds_clear(app: AppHandle, kind: FeedKind) {
-    feeds::clear(&app, kind);
+pub fn feeds_clear(app: AppHandle, kind: FeedKind, keys: Option<Vec<String>>) {
+    match keys {
+        Some(keys) => feeds::remove(&app, kind, |e| keys.iter().any(|k| k == e.key())),
+        None => feeds::clear(&app, kind),
+    }
 }

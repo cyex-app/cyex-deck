@@ -40,7 +40,8 @@ export function kindOf(pick: KindPick): VideoKind | null {
   return pick === 'all' ? null : pick;
 }
 
-const views = (n: number) => `${formatNumber(n)} ${n === 1 ? 'view' : 'views'}`;
+// V107-N4B A no-break space: a wrapped line never leaves "views" on its own.
+const views = (n: number) => `${formatNumber(n)}\u00a0${n === 1 ? 'view' : 'views'}`;
 const day = (iso: string) => {
   const t = Date.parse(iso);
   return Number.isNaN(t) ? '' : formatDate(new Date(t));
@@ -90,5 +91,7 @@ export function bulkLines(r: SmBulk, asked: number, did: (n: number) => string):
   const n = r.done.length;
   const ok = n ? did(n) : null;
   if (r.stopped) return { ok, info: n < asked ? 'Stopped. The rest stay as they were.' : null, bad: null };
-  return { ok, info: null, bad: r.error ?? (n < asked ? 'Twitch kept some of them. Try again.' : null) };
+  // V107-N4B None went: "some" would be wrong.
+  const kept = n ? 'Twitch kept some of them. Try again.' : asked === 1 ? 'Twitch kept it. Try again.' : 'Twitch kept them. Try again.';
+  return { ok, info: null, bad: r.error ?? (n < asked ? kept : null) };
 }

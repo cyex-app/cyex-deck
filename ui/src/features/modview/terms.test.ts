@@ -31,6 +31,7 @@ test('V107-R31 add check: too short, too long, already there', () => {
 
 test('V107-R31 live blocked/unblocked actions refresh the list, history doesn’t', () => {
   const line = (action: string, past = false) => ({ action, past }) as ModLine;
-  assert.ok(changesTerms(line('blocked')) && changesTerms(line('unblocked')));
-  assert.ok(!changesTerms(line('blocked', true)) && !changesTerms(line('banned')));
+  assert.ok(changesTerms(line('added the blocked term')) && changesTerms(line('removed the blocked term')), 'V107-N3a');
+  assert.ok(!changesTerms(line('added the blocked term', true)) && !changesTerms(line('banned')));
+  assert.ok(!changesTerms(line('allowed')), 'permitted terms are another list');
 });

@@ -9,7 +9,6 @@ use cyex_settings::{Bundle, Clock, Partition, SystemClock, suggested_file_name};
 use serde_json::Value;
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
-use tauri_plugin_opener::OpenerExt;
 use time::Date;
 use time::macros::format_description;
 
@@ -221,13 +220,12 @@ pub fn settings_restore_backup(
 #[tauri::command]
 pub fn settings_open_folder(app: AppHandle, settings: State<Settings>) -> CmdResult<()> {
     let dir = settings.with(|s| s.dir().to_path_buf());
-    app.opener()
-        .open_path(dir.to_string_lossy(), None::<&str>)
-        .map_err(|e| e.to_string())
+    crate::paths::open_folder(&app, &dir)
 }
 
-/// Partitions reset at startup because their file was unreadable. Returned once.
+/// Partitions reset at startup because their file was unreadable, and (V107-N10a) those that
+/// came back from a backup. Returned once.
 #[tauri::command]
-pub fn settings_take_load_report(settings: State<Settings>) -> Vec<Partition> {
+pub fn settings_take_load_report(settings: State<Settings>) -> crate::settings::LoadNotice {
     settings.take_load_report()
 }

@@ -336,6 +336,25 @@ fn export_import_round_trip_between_stores() {
     );
 }
 
+/// V107-N5c A share code or file never changes this PC's presence choice.
+#[test]
+fn an_import_keeps_the_presence_choice_of_this_pc() {
+    let tmp = TempDir::new("store-import-presence");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let (mut store, _) = open(tmp.path(), &clock);
+    store.patch(Partition::Chat, &json!({"sharePresence": false, "presenceOnOnce": true})).unwrap();
+    let incoming = Bundle::from_json(
+        &json!({"format": "cyex-settings", "version": 1, "exported": "",
+            "partitions": {"chat": {"sharePresence": true, "presenceOnOnce": false, "fontSize": 17}}})
+        .to_string(),
+    )
+    .unwrap();
+    store.import(incoming).unwrap();
+    let chat = store.get(Partition::Chat);
+    assert_eq!(chat["sharePresence"], false);
+    assert_eq!(chat["presenceOnOnce"], true);
+}
+
 #[test]
 fn backup_rotation_across_days_and_restore() {
     let tmp = TempDir::new("store-rotation");
@@ -373,6 +392,71 @@ fn snapshot_before_restore_holds_unsaved_changes_and_restores() {
     assert_eq!(store.read::<General>(Partition::General).chat_font_size, 11);
     assert!(matches!(store.restore_snapshot("../x"), Err(Error::NoBackup(_))));
 }
+/// V107-N10b A share code can't pick where the OBS status files go, or turn them on.
+#[test]
+fn an_import_keeps_the_obs_files_of_this_pc() {
+    let tmp = TempDir::new("store-import-obs");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let (mut store, _) = open(tmp.path(), &clock);
+    let incoming = Bundle::from_json(
+        &json!({"format": "cyex-settings", "version": 1, "exported": "",
+            "partitions": {"streammanager": {"obs": {"enabled": true, "folder": "C:\\Windows"}, "chat": {"share": 0.5}}}})
+        .to_string(),
+    )
+    .unwrap();
+    store.import(incoming).unwrap();
+    let sm = store.get(Partition::StreamManager);
+    assert_eq!(sm["obs"], json!({"enabled": false, "folder": ""}));
+    assert_eq!(sm["chat"]["share"], 0.5);
+}
+
+/// V107-N10a A file cut short comes back whole from the newest backup that reads; the day's
+/// backup never takes the broken copy.
+#[test]
+fn a_file_cut_short_comes_back_from_the_backup() {
+    let tmp = TempDir::new("store-recover");
+    let clock = Arc::new(FakeClock::at(day(8)));
+    let (mut store, _) = open(tmp.path(), &clock);
+    store.patch(Partition::General, &json!({"chatFontSize": 14})).unwrap();
+    store.flush().unwrap();
+    clock.advance_days(1);
+    drop(open(tmp.path(), &clock)); // day 9's backup holds the good file
+    fs::write(tmp.path().join("general.json"), "{\"chatFontS").unwrap();
+    clock.advance_days(1);
+    let (mut store, report) = open(tmp.path(), &clock);
+    assert_eq!(report.restored, vec![(Partition::General, day(9))]);
+    assert!(report.reset.is_empty() && report.io_errors.is_empty());
+    assert_eq!(store.read::<General>(Partition::General).chat_font_size, 14);
+    assert!(tmp.path().join("general.broken-20261010-120000.json").exists());
+    assert!(!tmp.path().join("backups/2026-10-10/general.json").exists());
+    store.flush().unwrap();
+    let (_, report) = open(tmp.path(), &clock);
+    assert!(report.restored.is_empty() && report.reset.is_empty());
+}
+
+#[test]
+fn no_readable_backup_still_means_defaults() {
+    let tmp = TempDir::new("store-recover-none");
+    fs::write(tmp.path().join("general.json"), "").unwrap();
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let (store, report) = open(tmp.path(), &clock);
+    assert_eq!(report.reset, vec![Partition::General]);
+    assert!(report.restored.is_empty());
+    assert_eq!(store.read::<General>(Partition::General), General::default());
+}
+
+/// V107-N10a A backup that can't be written (here `backups` is a file) doesn't stop the start.
+#[test]
+fn a_failed_backup_at_start_is_reported_not_fatal() {
+    let tmp = TempDir::new("store-backup-blocked");
+    fs::write(tmp.path().join("general.json"), r#"{"chatFontSize": 15}"#).unwrap();
+    fs::write(tmp.path().join("backups"), "not a folder").unwrap();
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let (store, report) = Store::open(tmp.path(), clock).expect("starts anyway");
+    assert_eq!(report.io_errors.len(), 1);
+    assert_eq!(store.read::<General>(Partition::General).chat_font_size, 15);
+}
+
 // V106-33 The old mentions fold into Highlights.
 mod merge {
     use super::*;

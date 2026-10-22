@@ -626,14 +626,26 @@ pub fn notice_line(app: &AppHandle, login: &str, kind: NoticeKind, text: &str) {
 }
 
 /// V107-M7 A mod-action timeout line, stacked with that user's timeouts just before it.
-pub fn timeout_line(app: &AppHandle, login: &str, user_id: &str, text: &str) {
+/// V107-N2g `user_id`'s timeout was lifted in `login`: their next one starts a new line.
+pub fn lifted(app: &AppHandle, login: &str, user_id: &str) {
+    let Some(chat) = app.try_state::<Chat>() else { return };
+    let mut inner = chat.lock();
+    for ((_, l), entry) in inner.rooms.iter_mut() {
+        if l == login {
+            entry.room.lifted(user_id);
+        }
+    }
+}
+
+/// V107-N2e `ban`: a ban's line, one with IRC's.
+pub fn timeout_line(app: &AppHandle, login: &str, user_id: &str, ban: bool, text: &str) {
     let Some(chat) = app.try_state::<Chat>() else { return };
     let mut inner = chat.lock();
     let now = now_ms();
     for ((_, l), entry) in inner.rooms.iter_mut() {
         if l == login {
             // A second delivery (another mod account's feed) brings nothing.
-            let ev = entry.room.timeout_line(user_id, text, now);
+            let ev = entry.room.timeout_line(user_id, ban, text, now);
             queue(entry, ev, &chat.wake);
         }
     }

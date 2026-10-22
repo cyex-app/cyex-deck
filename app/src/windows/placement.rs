@@ -67,6 +67,19 @@ impl Placement {
     pub fn logical_position(&self) -> (f64, f64) {
         (f64::from(self.x) / self.scale, f64::from(self.y) / self.scale)
     }
+
+    /// V107-N12e What this placement saves as, the way `capture` saves a window.
+    pub fn geometry(&self) -> Geometry {
+        let ((w, h), (x, y)) = (self.logical_size(), self.logical_position());
+        Geometry {
+            x: x.round() as i32,
+            y: y.round() as i32,
+            width: w.round() as u32,
+            height: h.round() as u32,
+            maximized: self.maximized,
+            scale: Some(self.scale),
+        }
+    }
 }
 
 /// A rect worth saving or restoring: not a minimized window's, not a few px, not far away.
@@ -188,7 +201,12 @@ pub fn place(
         .or_else(|| (primary < screens.len()).then_some(primary))
         .or_else(|| (!screens.is_empty()).then_some(0))?;
     let s = screens[screen];
-    let (want_w, want_h) = if has_size(g) {
+    // V107-N12e A maximized save whose normal rect fills the work area (a maximized rect
+    // saved as the normal one) gets `default`: un-maximizing it would change nothing.
+    let full = g.maximized
+        && f64::from(g.width) * s.scale >= f64::from(s.work.w)
+        && f64::from(g.height) * s.scale >= f64::from(s.work.h);
+    let (want_w, want_h) = if has_size(g) && !full {
         (f64::from(g.width), f64::from(g.height))
     } else {
         default
@@ -206,7 +224,7 @@ pub fn place(
         let end = f64::from(start) + f64::from(room) - size;
         at.round().min(end).max(f64::from(start)) as i32
     };
-    let (x, y) = match found {
+    let (x, y) = match found.filter(|_| !full) {
         Some((_, at)) => (
             clamp(f64::from(g.x) * at, pw, s.work.x, s.work.w),
             clamp(f64::from(g.y) * at, ph, s.work.y, s.work.h),

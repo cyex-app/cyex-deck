@@ -116,6 +116,10 @@ if (typeof window !== 'undefined') {
  *  keyboard focus; `update` refreshes the visible tip. */
 export function tooltip(node: HTMLElement, initial: TipOptions | string) {
   let opts = typeof initial === 'string' ? { label: initial } : initial;
+  // V107-N5a An icon-only control gets its tip as its name (screen readers, tests).
+  const named = !node.getAttribute('aria-label') && !node.textContent?.trim();
+  const name = () => named && opts.label && node.setAttribute('aria-label', opts.label);
+  name();
   const enter = () => show(node, opts);
   // Keyboard focus only: a click already shows where the pointer is.
   const focus = (e: FocusEvent) => (e.target as Element).matches(':focus-visible') && show(node, opts);
@@ -128,6 +132,7 @@ export function tooltip(node: HTMLElement, initial: TipOptions | string) {
   return {
     update(next: TipOptions | string) {
       opts = typeof next === 'string' ? { label: next } : next;
+      name();
       if (!tip.visible || owner !== node) return;
       if (!opts.label && !opts.image) return hide();
       tip.label = opts.label;

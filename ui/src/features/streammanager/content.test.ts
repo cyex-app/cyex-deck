@@ -32,15 +32,15 @@ const video: ManagedVideo = {
 };
 
 test('clip lines name who clipped it, or the channel for your own clips', () => {
-  assert.match(clipLine(clip, false), /^by Someone · 2026\/10\/\d\d · 1\.200 views$/);
+  assert.match(clipLine(clip, false), /^by Someone · 2026\/10\/\d\d · 1\.200\u00a0views$/);
   assert.match(clipLine(clip, true), /^in cyexbot · /);
-  assert.equal(clipLine({ ...clip, clippedBy: null, createdAt: 'x', views: 1 }, false), '1 view');
+  assert.equal(clipLine({ ...clip, clippedBy: null, createdAt: 'x', views: 1 }, false), '1\u00a0view');
   assert.equal(clipLink(clip), 'https://www.twitch.tv/cyexbot/clip/Fast-Clip');
   assert.equal(clipLink({ ...clip, channelLogin: '' }), 'https://clips.twitch.tv/Fast-Clip');
 });
 
 test('video lines and tags', () => {
-  assert.match(videoLine(video), /^Broadcast · 2026\/10\/\d\d · 1 view$/);
+  assert.match(videoLine(video), /^Broadcast · 2026\/10\/\d\d · 1\u00a0view$/);
   assert.equal(videoTag(video), null);
   assert.equal(videoTag({ ...video, public: false }), 'Unpublished');
   assert.equal(videoTag({ ...video, state: 'recording' }), 'Live');
@@ -61,7 +61,9 @@ test('V107-R41 bulk results: what went, then stopped or why not', () => {
   const did = (n: number) => `${n} gone.`;
   assert.deepEqual(bulkLines({ done: ['a', 'b'], error: null, stopped: false }, 2, did), { ok: '2 gone.', info: null, bad: null });
   assert.deepEqual(bulkLines({ done: ['a'], error: 'Too fast.', stopped: false }, 3, did), { ok: '1 gone.', info: null, bad: 'Too fast.' });
-  assert.match(bulkLines({ done: [], error: null, stopped: false }, 2, did).bad ?? '', /kept/);
+  assert.equal(bulkLines({ done: [], error: null, stopped: false }, 2, did).bad, 'Twitch kept them. Try again.');
+  assert.equal(bulkLines({ done: [], error: null, stopped: false }, 1, did).bad, 'Twitch kept it. Try again.');
+  assert.equal(bulkLines({ done: ['a'], error: null, stopped: false }, 2, did).bad, 'Twitch kept some of them. Try again.');
   const stopped = bulkLines({ done: ['a'], error: null, stopped: true }, 3, did);
   assert.equal(stopped.bad, null);
   assert.match(stopped.info ?? '', /Stopped/);

@@ -15,6 +15,8 @@ use crate::roles::RoleAction;
 const KEEP_MS: i64 = 60_000;
 /// Most own actions remembered at once.
 const CAP: usize = 64;
+/// V107-N12b Timeout lengths kept at once: a mass timeout sends 30 a second.
+const LENGTHS_CAP: usize = 1_024;
 /// V107-R44 How long a role change's second copy is still taken for the first.
 const REPEAT_MS: i64 = 10_000;
 
@@ -88,7 +90,7 @@ impl OwnEchoes {
         let login = login.to_ascii_lowercase();
         self.lengths.retain(|(c, l, ..)| !(c == cid && *l == login));
         let Some(secs) = secs else { return };
-        if self.lengths.len() == CAP {
+        if self.lengths.len() == LENGTHS_CAP {
             self.lengths.pop_front();
         }
         self.lengths.push_back((cid.to_owned(), login, secs, now_ms));
@@ -190,6 +192,16 @@ mod tests {
         assert_eq!(o.sent_secs("9", "y", 2), None, "refused");
         o.timeout("9", "z", Some(5), 0);
         assert_eq!(o.sent_secs("9", "z", KEEP_MS), None, "too late");
+    }
+
+    #[test]
+    fn v107_n12b_a_mass_timeout_keeps_every_length() {
+        let mut o = OwnEchoes::default();
+        for i in 0..200 {
+            o.timeout("9", &format!("u{i}"), Some(60), 0);
+        }
+        assert_eq!(o.sent_secs("9", "u0", 1), Some(60), "the first of a big batch");
+        assert_eq!(o.sent_secs("9", "u199", 1), Some(60));
     }
 
     #[test]

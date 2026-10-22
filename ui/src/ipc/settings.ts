@@ -82,7 +82,9 @@ export const settingsIpc = {
   snapshotNow: () => invoke<string | null>('settings_snapshot_now'),
   restoreBackup: (date: string) => invoke<Partition[]>('settings_restore_backup', { date }),
   openFolder: () => invoke<void>('settings_open_folder'),
-  takeLoadReport: () => invoke<Partition[]>('settings_take_load_report'),
+  /** V107-N10a Files that went back to default, and files that came back from a backup (day yyyy/mm/dd when all share one). */
+  takeLoadReport: () =>
+    invoke<{ reset: Partition[]; restored: Partition[]; restoredFrom: string | null }>('settings_take_load_report'),
   onChanged: (handler: (partition: Partition, value: unknown) => void) =>
     listen<{ partition: Partition; value: unknown }>('settings:changed', (e) =>
       handler(e.payload.partition, e.payload.value),

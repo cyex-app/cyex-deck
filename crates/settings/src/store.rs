@@ -24,6 +24,12 @@ pub struct LoadReport {
     pub merged: Option<MergeReport>,
     /// V106-33 `mentions.json` couldn’t be read: left as is, not merged.
     pub old_mentions_unreadable: bool,
+    /// V107-N10a Partitions whose file was unreadable and came back whole from the newest
+    /// daily backup that still reads (the broken file is kept aside as for `reset`).
+    pub restored: Vec<(Partition, Date)>,
+    /// V107-N10a What couldn't be done on disk (today's backup, setting a broken file aside).
+    /// Logged; the start goes on, like a failed backup at flush (V107-A3).
+    pub io_errors: Vec<String>,
 }
 
 /// In-memory settings, written back to disk by [`Store::flush`].
@@ -46,9 +52,12 @@ impl Store {
     pub fn open(dir: impl Into<PathBuf>, clock: Arc<dyn Clock>) -> Result<(Self, LoadReport)> {
         let dir = dir.into();
         fs::create_dir_all(&dir)?;
-        backup::snapshot_if_due(&dir, clock.today())?;
-
         let mut report = LoadReport::default();
+        // V107-N10a A full disk or a locked backups folder no longer stops the app starting.
+        if let Err(e) = backup::snapshot_if_due(&dir, clock.today()) {
+            report.io_errors.push(format!("today's backup: {e}"));
+        }
+
         let mut values = BTreeMap::new();
         let mut raw_highlights = None;
         // R19 Partitions that normalizing changed (a one-time move, a sanitize fix): written at flush.
@@ -73,13 +82,29 @@ impl Store {
                 Err(_) if p != Partition::Highlights => salvage(p, &path),
                 _ => None,
             };
+            // V107-N10a Nothing in it reads (cut short, empty, not JSON): the newest backup
+            // that still reads, before defaults.
+            let recovered = match (&read, &salvaged) {
+                (Err(_), None) => from_backups(&dir, p),
+                _ => None,
+            };
             let value = match read {
                 Ok(Some(v)) => v,
                 Ok(None) => p.default_value(),
                 Err(_) if salvaged.is_some() => {
                     let v = salvaged.expect("checked above");
-                    quarantine(&path, &*clock)?;
+                    quarantine(&path, &*clock, &mut report);
                     report.reset.push(p);
+                    changed.push(p);
+                    v
+                }
+                Err(_) if recovered.is_some() => {
+                    let (raw, v, date) = recovered.expect("checked above");
+                    if p == Partition::Highlights {
+                        raw_highlights = Some(raw);
+                    }
+                    quarantine(&path, &*clock, &mut report);
+                    report.restored.push((p, date));
                     changed.push(p);
                     v
                 }
@@ -87,7 +112,7 @@ impl Store {
                     if p == Partition::Highlights {
                         raw_highlights = None;
                     }
-                    quarantine(&path, &*clock)?;
+                    quarantine(&path, &*clock, &mut report);
                     report.reset.push(p);
                     if p == Partition::Chat {
                         // V107-R11 Written now, or the next start reads no file and turns it on.
@@ -293,6 +318,9 @@ impl Store {
         for (key, value) in bundle.partitions {
             let p = Partition::from_key(&key).ok_or(Error::UnknownPartition(key))?;
             if local || p.is_portable() {
+                // V107-N5c What someone else exported never turns presence sharing on (or off).
+                // V107-N10b Nor picks the folder the OBS status files are written to.
+                let value = if local { value } else { keep_local(p, value, &self.values[&p]) };
                 checked.push((p, p.normalize(value)?));
             }
         }
@@ -382,6 +410,27 @@ fn salvage(p: Partition, path: &Path) -> Option<Value> {
 }
 
 const SHARE_PRESENCE: &str = "sharePresence";
+const PRESENCE_ON_ONCE: &str = "presenceOnOnce";
+
+/// V107-N5c An imported chat partition keeps this PC's presence choice: it shares which channel
+/// you are in, so a share code or file can't change it. V107-N10b The stream manager keeps its
+/// OBS status files (on/off and folder): a share code could otherwise pick where they're written.
+fn keep_local(p: Partition, mut incoming: Value, current: &Value) -> Value {
+    let keys: &[&str] = match p {
+        Partition::Chat => &[SHARE_PRESENCE, PRESENCE_ON_ONCE],
+        Partition::StreamManager => &["obs"],
+        _ => return incoming,
+    };
+    if let (Value::Object(map), Value::Object(mine)) = (&mut incoming, current) {
+        for &key in keys {
+            match mine.get(key) {
+                Some(v) => map.insert(key.to_owned(), v.clone()),
+                None => map.remove(key),
+            };
+        }
+    }
+    incoming
+}
 
 /// V107-R11 A broken or unreadable chat file never turns presence on (it shares which channel
 /// you're in). The one-time turn-on counts as done, so it stays off.
@@ -393,14 +442,26 @@ fn presence_off(mut v: Value) -> Value {
     v
 }
 
-fn quarantine(path: &Path, clock: &dyn Clock) -> Result<()> {
+/// Sets a broken file aside as `<name>.broken-<stamp>.json`. V107-N10a A rename that fails
+/// (a locked file) is reported, not fatal: the start goes on and the next save replaces it.
+fn quarantine(path: &Path, clock: &dyn Clock, report: &mut LoadReport) {
     let stamp = clock
         .now()
         .format(format_description!("[year][month][day]-[hour][minute][second]"))
         .expect("date formats");
     let stem = path.file_stem().unwrap_or_default().to_string_lossy();
-    fs::rename(path, path.with_file_name(format!("{stem}.broken-{stamp}.json")))?;
-    Ok(())
+    if let Err(e) = fs::rename(path, path.with_file_name(format!("{stem}.broken-{stamp}.json"))) {
+        report.io_errors.push(format!("setting {} aside: {e}", path.display()));
+    }
+}
+
+/// V107-N10a The partition from the newest daily backup that reads cleanly: (raw, normalized, day).
+fn from_backups(dir: &Path, p: Partition) -> Option<(Value, Value, Date)> {
+    backup::list(dir).ok()?.into_iter().find_map(|date| {
+        let raw = read_raw(&backup::snapshot_dir(dir, date).join(p.file_name())).ok()??;
+        let v = p.normalize(raw.clone()).ok()?;
+        Some((raw, v, date))
+    })
 }
 
 #[cfg(test)]

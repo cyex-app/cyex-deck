@@ -67,6 +67,10 @@ fn own(actor: &Actor) -> bool {
 /// line goes to the channel's chats when a mod, VIP or lead mod change went through (their
 /// feed echoes are marked ours).
 pub async fn apply(app: &AppHandle, actor: &Actor, who: &str, holds: Option<Vec<Role>>, slots: Option<VipSlots>, wanted: &Wanted) -> Outcome {
+    if let Some(line) = broadcaster_line(&actor.channel, who, actor.role) {
+        let failed = Role::ALL.into_iter().filter(|r| wanted.give.contains(r) || wanted.take.contains(r)).collect();
+        return Outcome { done: Vec::new(), line: line.into(), slots: slots.unwrap_or_else(VipSlots::unknown), failed };
+    }
     let holds = match holds {
         Some(h) => h,
         // Only a grant can clash.
@@ -94,6 +98,16 @@ pub async fn apply(app: &AppHandle, actor: &Actor, who: &str, holds: Option<Vec<
         crate::chat::notice_line(app, &actor.channel, NoticeKind::Moderation, &out.line);
     }
     out
+}
+
+/// V107-N4A The channel's own broadcaster holds no role: Twitch answers that with a bare
+/// "Internal Server Error", so it's refused before anything is sent.
+fn broadcaster_line(channel: &str, who: &str, by: ModRole) -> Option<&'static str> {
+    let who = who.trim().trim_start_matches('@');
+    if !who.eq_ignore_ascii_case(channel.trim().trim_start_matches('#')) {
+        return None;
+    }
+    Some(if by == ModRole::Broadcaster { "That’s you." } else { "That’s the broadcaster." })
 }
 
 /// A typed or usercard role command. Its line is in chat already (`apply`); `Err` is the
@@ -124,4 +138,16 @@ async fn probe(app: &AppHandle, actor: &Actor, out: Outcome) -> Result<Option<St
     };
     let line = format!("{} [lead mods: {held}]", out.line);
     if out.ok() { Ok(Some(line)) } else { Err(line) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn v107_n4a_no_role_for_the_broadcaster() {
+        assert_eq!(broadcaster_line("cyexbot", "CyexBot", ModRole::Broadcaster), Some("That’s you."));
+        assert_eq!(broadcaster_line("#cyexbot", "@cyexbot", ModRole::LeadModerator), Some("That’s the broadcaster."));
+        assert_eq!(broadcaster_line("cyexbot", "caressz", ModRole::Broadcaster), None);
+    }
 }

@@ -450,10 +450,23 @@ pub async fn delete(ch: &Channel<'_>, reward: &str, waiting: Option<Status>) -> 
     ch.write(DELETE, DELETED, delete_input(ch.id, reward, waiting)).await.map(drop)
 }
 
+/// V107-N4D Pages read past one that held only Bits redemptions (left out), so the queue
+/// doesn't read "Nothing waiting" with more behind it.
+const SKIP_PAGES: usize = 3;
+
 /// Newest first; `reward` narrows it to one reward.
 pub async fn queue(ch: &Channel<'_>, reward: Option<&str>, cursor: Option<&str>) -> Result<Queue> {
-    let vars = json!({ "id": ch.id, "reward": reward, "cursor": cursor, "count": QUEUE_PAGE });
-    read_queue(&ch.read::<Value>(QUEUE, vars).await?)
+    let mut cursor = cursor.map(str::to_owned);
+    let mut q = Queue::default();
+    for _ in 0..SKIP_PAGES {
+        let vars = json!({ "id": ch.id, "reward": reward, "cursor": cursor, "count": QUEUE_PAGE });
+        q = read_queue(&ch.read::<Value>(QUEUE, vars).await?)?;
+        if !q.items.is_empty() || q.next.is_none() || q.next == cursor {
+            break;
+        }
+        cursor.clone_from(&q.next);
+    }
+    Ok(q)
 }
 
 /// Completes or rejects (refunds) up to [`STATUS_MAX`] redemptions, as Twitch's queue does.

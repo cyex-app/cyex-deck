@@ -19,9 +19,9 @@
   let busy = $state(false);
 
   const channel = $derived(formChannel(mode));
-  const title = $derived(
-    mode.kind === 'add' ? `Add ${emote.name} to ${channel}` : `Rename ${emote.name} in ${channel}`,
-  );
+  /** V107-N11b A long emote name shortens; the channel stays whole. */
+  const head = $derived(mode.kind === 'add' ? `Add ${emote.name}` : `Rename ${emote.name}`);
+  const tail = $derived(` ${mode.kind === 'add' ? 'to' : 'in'} ${channel}`);
 
   const check = (name: string) => checkName(account, mode, name);
 
@@ -36,7 +36,7 @@
 </script>
 
 <div class="bar">
-  <p class="title">{title}</p>
+  <p class="title"><span class="head">{head}</span><span class="tail">{tail}</span></p>
   {#if mode.kind === 'add'}
     <AliasForm
       label="Name"
@@ -70,10 +70,20 @@
     border-radius: 0 0 var(--radius) var(--radius);
   }
   .title {
+    display: flex;
     margin: 0 0 6px;
-    overflow: hidden;
     font-size: 0.8rem;
+    white-space: pre;
+  }
+  .head {
+    min-width: 0;
+    overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+  }
+  .tail {
+    flex: none;
+    max-width: 50%;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 </style>

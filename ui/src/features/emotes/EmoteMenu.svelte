@@ -129,6 +129,15 @@
     if (!moveFocus(cells, t, dir) && dir === 'up') root.querySelector<HTMLInputElement>('.top input')?.focus();
   }
 
+  /** V107-N1d Enter in the search box takes the first match, like Tab does in the message box. */
+  function pickFirst(e: KeyboardEvent) {
+    if (e.key !== 'Enter' || e.isComposing || !query || current === 'gifs') return;
+    const first = (e.currentTarget as HTMLElement).closest('.menu')?.querySelector<HTMLElement>('.body .cell:not(.locked)');
+    if (!first) return;
+    e.preventDefault();
+    first.click();
+  }
+
   /** V106-31/32 The add/rename strip; the emote it is about. */
   type Editing = {
     emote: { id: string; name: string };
@@ -256,6 +265,7 @@
       style:aspect-ratio={emoteRatio(m.size)}
       loading="lazy"
       decoding="async"
+      onerror={(e) => ((e.currentTarget as HTMLImageElement).parentElement!.dataset.broken = '')}
     />
     {#if mark}<span class="tier">{mark}</span>{/if}
     {#if m.locked}<span class="lock"><Icon name="lock" size={12} /></span>{/if}
@@ -276,7 +286,7 @@
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div class="menu" role="dialog" aria-label="Emotes" tabindex="-1" {onkeydown}>
   <div class="top">
-    <SearchField bind:value={query} placeholder={current === 'gifs' ? 'Search GIPHY' : 'Find an emote'} small autofocus />
+    <SearchField bind:value={query} placeholder={current === 'gifs' ? 'Search GIPHY' : 'Find an emote'} small autofocus onkeydown={pickFirst} />
   </div>
   <!-- fg-2 Favorites and Emoji as icons, so every tab fits; a narrow window scrolls the row. -->
   <div class="tabs" role="tablist">
@@ -505,6 +515,19 @@
   }
   .cell:hover {
     background: var(--surface-hover);
+  }
+  /* V107-N11b A picture that won't load shows the name, not the browser's broken-image mark. */
+  .cell:global([data-broken]) img {
+    display: none;
+  }
+  .cell:global([data-broken])::after {
+    content: attr(data-tip);
+    max-width: 64px;
+    overflow: hidden;
+    color: var(--dim);
+    font-size: 0.65rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   /* fc-2 Press feedback, instant. */
   .cell:active {

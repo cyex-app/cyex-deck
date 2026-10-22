@@ -24,6 +24,8 @@ export function openLink(url: string): void {
 export function pipFor(video: HTMLVideoElement | undefined): PlayerMenu['pip'] {
   if (!video || !document.pictureInPictureEnabled) return undefined;
   const on = document.pictureInPictureElement === video;
+  // V107-N7b Audio only has no picture to float: no entry instead of an error toast.
+  if (!on && !video.videoWidth) return undefined;
   return {
     on,
     toggle: () => {

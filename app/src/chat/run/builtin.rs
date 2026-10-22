@@ -80,14 +80,16 @@ pub async fn run(
         "add" | "remove" | "rename" => super::seventv_edit::run(app, place, name, args).await,
         "set" => set_var(app, args).map(|()| None),
         "chain" => {
-            for part in split_chain(args) {
+            for (i, part) in capped(split_chain(args))?.into_iter().enumerate() {
+                gap(i).await;
                 line(app, place, &part, None, true, depth + 1).await?;
             }
             done
         }
         "foreach" => {
             let (items, command) = split_foreach(args).ok_or("Usage: /foreach a b c > /command $1")?;
-            for item in items {
+            for (i, item) in capped(items)?.into_iter().enumerate() {
+                gap(i).await;
                 let p = params(app, place, &item);
                 if let Some(filled) = fill(app, place, &command, p).await? {
                     line(app, place, &filled, None, true, depth + 1).await?;
@@ -205,6 +207,25 @@ pub async fn run(
         }
         _ if is_mod_command(name) => run_mod(app, place, name, args).await,
         _ => Err(format!("Unknown command /{name}. /help lists them.")),
+    }
+}
+
+/// V107-N10c Most parts a `/chain` or items a `/foreach` runs. Each can be a ban, a whisper or
+/// a Helix call, so a pasted list of thousands stays well inside Twitch's limits.
+const MAX_STEPS: usize = 50;
+/// V107-N10c Wait between two steps: at most 4 a second, nested loops included (they wait in turn).
+const STEP_GAP: std::time::Duration = std::time::Duration::from_millis(250);
+
+fn capped<T>(steps: Vec<T>) -> Result<Vec<T>, String> {
+    if steps.len() > MAX_STEPS {
+        return Err(format!("That’s {} steps. {MAX_STEPS} at most.", steps.len()));
+    }
+    Ok(steps)
+}
+
+async fn gap(step: usize) {
+    if step > 0 {
+        tokio::time::sleep(STEP_GAP).await;
     }
 }
 
@@ -407,6 +428,13 @@ async fn translate_one(app: &AppHandle, text: &str, to: &str) -> Result<String, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn chain_and_foreach_are_capped() {
+        // V107-N10c
+        assert_eq!(capped(vec![1; MAX_STEPS]).unwrap().len(), MAX_STEPS);
+        assert_eq!(capped(vec![1; MAX_STEPS + 1]).unwrap_err(), "That’s 51 steps. 50 at most.");
+    }
 
     #[test]
     fn user_takes_one_twitch_name() {

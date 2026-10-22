@@ -68,7 +68,12 @@
     modsetIpc
       .read()
       .then((r) => ok() && (s = r))
-      .catch((e) => ok() && (failed = errorText(e)))
+      .catch((e) => {
+        if (!ok()) return;
+        failed = errorText(e);
+        // V107-N4C The settings stay up: say the refresh failed, or it looks like it worked.
+        if (s) toast.error(failed);
+      })
       .finally(() => ok() && (loading = false));
   }
   load();
@@ -124,7 +129,10 @@
   {#if v[key].mode === 'PARTIAL'}
     {@const p = v[key].partial}
     <div class="sub">
-      <Checkbox label="First-time chatters" checked={p.firstTime} disabled={busy} onchange={(on) => void verify(withPartial(v, key, { firstTime: on }))} />
+      <!-- V107-N4F On the same 30 px row as the two below. -->
+      <div class="row">
+        <Checkbox label="First-time chatters" checked={p.firstTime} disabled={busy} onchange={(on) => void verify(withPartial(v, key, { firstTime: on }))} />
+      </div>
       <div class="row">
         <Checkbox
           label="Accounts younger than"

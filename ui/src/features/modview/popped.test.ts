@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { has, leaf, move, remove, split } from '../../lib/panels.ts';
-import { closedOut, dockBack, panelRoute, parseRoute, poppedFor, poppedKey, shownTree } from './popped.ts';
+import { closedOut, dockBack, panelRoute, parseRoute, poppedFor, poppedKey, shownTree, withPopped } from './popped.ts';
 
 const LAYOUT = split(
   'row',
@@ -57,4 +57,27 @@ test('V107-R29 only closed windows dock back; panels from the closed row have no
   const popped = { 'xqc/unban': LAYOUT, 'xqc/mass': LAYOUT };
   assert.deepEqual(closedOut(popped, ['modpanel/xqc/mass']), ['xqc/unban']);
   assert.deepEqual(closedOut({}, []), []);
+});
+
+test('V107-N3e two panels out and back, in either order: the layout as it was', () => {
+  const full = split('row', [leaf('actions'), leaf('rewards'), leaf('mass')], [0.25, 0.25, 0.5]);
+  // `actions` out, then `rewards`: what `rewards` keeps is the whole layout.
+  const afterA = remove(full, 'actions')!;
+  const wasB = withPopped(afterA, [['actions', full]])!;
+  assert.deepEqual(wasB, full);
+  const afterB = remove(afterA, 'rewards')!;
+  // actions back first, then rewards
+  let t = dockBack(afterB, 'actions', full, new Set(['rewards'])).tree;
+  let b = dockBack(t, 'rewards', wasB, new Set());
+  assert.ok(b.exact);
+  assert.deepEqual(b.tree, full);
+  // rewards back first, then actions
+  t = dockBack(afterB, 'rewards', wasB, new Set(['actions'])).tree;
+  b = dockBack(t, 'actions', full, new Set());
+  assert.ok(b.exact);
+  assert.deepEqual(b.tree, full);
+});
+
+test('V107-N3e nothing else out: the layout itself', () => {
+  assert.equal(withPopped(LAYOUT, []), LAYOUT);
 });

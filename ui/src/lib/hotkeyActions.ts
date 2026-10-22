@@ -48,3 +48,11 @@ export function resolveBinding(id: keyof typeof ACTIONS, overrides: Readonly<Rec
   const taken = Object.entries(overrides).some(([other, combo]) => other !== id && combo === fallback);
   return taken ? '' : fallback;
 }
+
+/** V107-N6a The same key on other layouts: Ctrl++ (numpad, German "+") and Ctrl+Shift++
+ * (US "+") count as Ctrl+= when nothing is bound to them, like a browser's zoom in. */
+const ALIASES: Readonly<Record<string, string>> = { 'Ctrl++': 'Ctrl+=', 'Ctrl+Shift++': 'Ctrl+=' };
+
+export function comboAlias(combo: string): string | undefined {
+  return ALIASES[combo];
+}

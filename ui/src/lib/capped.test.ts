@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { CappedMap, dropOldest, dropStale, keepOnly, setCapped, useCapped } from './capped.ts';
+import { CappedMap, dropOldest, dropStale, setCapped, useCapped } from './capped.ts';
 
 test('setCapped keeps the newest and drops the oldest past the cap', () => {
   const m = new Map<string, number>();
@@ -21,7 +21,7 @@ test('useCapped marks a key as used, so it outlives older ones', () => {
   assert.deepEqual([...m.keys()], ['c', 'a', 'd']);
 });
 
-test('dropOldest, dropStale and keepOnly', () => {
+test('dropOldest and dropStale', () => {
   const m = new Map([['a', 1], ['b', 2], ['c', 3]]);
   dropOldest(m, 5);
   assert.equal(m.size, 3);
@@ -30,8 +30,6 @@ test('dropOldest, dropStale and keepOnly', () => {
   const n = new Map([['a', 1], ['b', 20], ['c', 3]]);
   dropStale(n, (v) => v > 10);
   assert.deepEqual([...n.keys()], ['a', 'c']);
-  keepOnly(n, (k) => k === 'c');
-  assert.deepEqual([...n.keys()], ['c']);
 });
 
 test('CappedMap drops the oldest set past its cap', () => {

@@ -98,10 +98,12 @@ fn begin(ids: &[String]) -> Start {
         return Start::New(new);
     }
     let list = c.take().map(|c| c.list).unwrap_or_default();
+    // V107-N9c Marked asked now: a second open while this lookup runs takes the cache
+    // instead of looking every channel up again.
     *c = Some(Cache {
         at: Instant::now(),
         list,
-        asked: HashSet::new(),
+        asked: ids.iter().cloned().collect(),
     });
     Start::All
 }
@@ -181,6 +183,18 @@ mod tests {
         assert_eq!(unasked(&c, &ids), ["2"]);
         let all = vec!["1".to_string()];
         assert!(unasked(&c, &all).is_empty());
+    }
+
+    /// V107-N9c The only test that touches `CACHE`.
+    #[test]
+    fn an_open_during_a_lookup_takes_the_cache() {
+        *CACHE.lock().unwrap() = None;
+        let ids = vec!["1".to_string(), "2".to_string()];
+        assert!(matches!(begin(&ids), Start::All));
+        assert!(matches!(begin(&ids), Start::Cached(_)));
+        let more = vec!["1".to_string(), "3".to_string()];
+        assert!(matches!(begin(&more), Start::New(n) if n == ["3"]));
+        *CACHE.lock().unwrap() = None;
     }
 
     #[test]

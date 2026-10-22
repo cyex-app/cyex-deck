@@ -55,7 +55,10 @@
       truncated = r.truncated;
       failed = '';
     } catch (e) {
-      if (mine === seq) failed = errorText(e);
+      if (mine !== seq) return;
+      failed = errorText(e);
+      // V107-N4C The list stays up: say the refresh failed, or it looks like it worked.
+      if (list.length) toast.error(failed);
     } finally {
       if (mine === seq) loading = false;
     }
@@ -124,7 +127,8 @@
       {/each}
     </ul>
     {#if !shown.length}<p class="note pad">No channel matches.</p>{/if}
-    {#if truncated}<p class="note pad">Twitch has more than shown here.</p>{/if}
+    <!-- V107-N4E `truncated` is also a role list that failed to load, not only "more". -->
+    {#if truncated}<p class="note pad">Some roles may be missing. Refresh to try again.</p>{/if}
   {/if}
 </Card>
 

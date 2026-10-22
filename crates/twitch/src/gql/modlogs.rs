@@ -449,16 +449,6 @@ fn read_chatters(data: &Value) -> Option<Chatters> {
     Some(out)
 }
 
-/// Reads whether this account may see the viewer-card mod logs for a channel.
-pub async fn can_see_mod_logs(http: &Http, auth: Auth<'_>, name: &str) -> Result<bool> {
-    const Q: &str = "query A($name: String!) { channel(name: $name) { moderationSettings { canAccessViewerCardModLogs } } }";
-    let data: Value = query::<Value>(http, auth, Q, json!({ "name": name })).await?;
-    Ok(data
-        .pointer("/channel/moderationSettings/canAccessViewerCardModLogs")
-        .and_then(Value::as_bool)
-        .unwrap_or(false))
-}
-
 /// V103-15 One line of a channel's mod-action history (`moderationActionLogs`), read
 /// signed in with the TV client (checked 2026/10/11 on two channels). Twitch words each
 /// line itself: the title names the target (or says what changed), the content says what

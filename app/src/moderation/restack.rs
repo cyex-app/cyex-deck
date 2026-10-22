@@ -13,11 +13,11 @@ use tauri::AppHandle;
 
 use super::{Actor, codes, feeds, http};
 
-fn helix_refused(e: &cyex_twitch::Error) -> Refused {
+fn helix_refused(e: &cyex_twitch::Error, who: &str) -> Refused {
     match e {
         cyex_twitch::Error::Api { status, message } => Refused {
             how: Some(How::Helix { status: *status, message: message.clone() }),
-            text: codes::helix(*status, message),
+            text: codes::helix_about(*status, message, who),
         },
         other => Refused { how: None, text: other.to_string() },
     }
@@ -67,7 +67,7 @@ impl restack::Twitch for Live<'_> {
             feeds::own_timeout(app, &actor.channel_id, who, Some(s));
         }
         let res = match &self.path {
-            Path::Helix(h, id) => hm::ban(&http(app), *h, actor.room(), id, self.secs, self.reason).await.0.map_err(|e| helix_refused(&e)),
+            Path::Helix(h, id) => hm::ban(&http(app), *h, actor.room(), id, self.secs, self.reason).await.0.map_err(|e| helix_refused(&e, who)),
             Path::Gql(g) => {
                 let expires = self.secs.map(|s| format!("{s}s"));
                 match gql::moderation::ban(&http(app), *g, &actor.channel_id, who, expires.as_deref(), self.reason).await {
@@ -100,7 +100,7 @@ impl restack::Twitch for Live<'_> {
         let (app, actor, who) = (self.app, self.actor, self.who);
         feeds::own_lift(app, &actor.channel_id, who, true);
         let res = match &self.path {
-            Path::Helix(h, id) => hm::unban(&http(app), *h, actor.room(), id).await.0.map_err(|e| helix_refused(&e).text),
+            Path::Helix(h, id) => hm::unban(&http(app), *h, actor.room(), id).await.0.map_err(|e| helix_refused(&e, who).text),
             Path::Gql(g) => match gql::moderation::unban(&http(app), *g, &actor.channel_id, who).await {
                 Ok(None) => Ok(()),
                 Ok(Some(code)) => Err(codes::gql(&code, who)),

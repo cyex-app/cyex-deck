@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { ACTIONS, resolveBinding } from './hotkeyActions.ts';
+import { ACTIONS, comboAlias, resolveBinding } from './hotkeyActions.ts';
 
 test('every default combo is used once', () => {
   const seen = new Set<string>();
@@ -27,4 +27,10 @@ test('an override wins, empty unbinds, a reset goes back to the default', () => 
   assert.equal(resolveBinding('tabs.new', { 'tabs.new': '' }), '');
   assert.equal(resolveBinding('tabs.new', { 'tabs.new': null }), 'Ctrl+T');
   assert.equal(resolveBinding('global.show', {}), '');
+});
+
+test('Ctrl++ from the numpad or a German "+" key zooms in like Ctrl+= (V107-N6a)', () => {
+  assert.equal(comboAlias('Ctrl++'), 'Ctrl+=');
+  assert.equal(comboAlias('Ctrl+Shift++'), 'Ctrl+=');
+  assert.equal(comboAlias('Ctrl+-'), undefined);
 });

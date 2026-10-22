@@ -82,7 +82,10 @@
       data = r;
       failed = '';
     } catch (e) {
-      if (mine === seq) failed = errorText(e);
+      if (mine !== seq) return;
+      failed = errorText(e);
+      // V107-N4C The list stays up: say the refresh failed, or it looks like it worked.
+      if (data) toast.error(failed);
     } finally {
       if (mine === seq) loading = false;
     }

@@ -118,6 +118,13 @@ pub const GQL_GAP_MS: i64 = 1_000;
 pub const MAX_LOGINS: usize = 5_000;
 pub const TOO_MANY: &str = "Up to 5.000 names at once.";
 
+/// V107-N2h Each login once, lowercased and without `@`, in the order given: "Bob @bob" is
+/// one person (it was banned twice). Words that can't be logins are dropped.
+pub fn unique(logins: &[String]) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    logins.iter().filter_map(|l| crate::command::login(l)).filter(|l| seen.insert(l.clone())).collect()
+}
+
 /// Refuses a run over [`MAX_LOGINS`].
 pub fn check_size(n: usize) -> Result<(), &'static str> {
     if n > MAX_LOGINS { Err(TOO_MANY) } else { Ok(()) }
@@ -172,6 +179,12 @@ impl Tally {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn v107_n2h_each_login_once() {
+        let l = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(unique(&l(&["Bob", "@bob", "x", "#X", "not/a/name", "bob,"])), l(&["bob", "x"]));
+    }
+
     use super::*;
 
     #[test]

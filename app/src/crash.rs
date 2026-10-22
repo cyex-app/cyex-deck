@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use tauri::AppHandle;
-use tauri_plugin_opener::OpenerExt;
 use time::{OffsetDateTime, UtcOffset};
 
 const KEEP: usize = 10;
@@ -173,10 +172,7 @@ pub fn crash_take_note() -> bool {
 #[tauri::command]
 pub fn crash_open_folder(app: AppHandle) -> Result<(), String> {
     let dir = DIR.get().ok_or("No logs folder.")?;
-    fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    app.opener()
-        .open_path(dir.to_string_lossy(), None::<&str>)
-        .map_err(|e| e.to_string())
+    crate::paths::open_folder(&app, dir)
 }
 
 /// Mocks builds only: `CYEX_TEST_PANIC=1` panics a few seconds after start, to prove the note

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { dragSizes, layout, type Split } from '../../lib/panels.ts';
-import { gridLine, gridTree, resized } from './grid.ts';
+import { clampGrid, gridLine, gridTree, resized } from './grid.ts';
 
 const col = (...ids: string[]) => ({ tiles: ids.map((id) => ({ id })) });
 
@@ -74,4 +74,23 @@ test('a slim column stays under its cap on a wide window', async () => {
   assert.ok(Math.abs(share - SLIM_MAX_PX) < 0.5, String(share));
   // A narrow window keeps the plain weight.
   assert.deepEqual(slimSizes(cols, sizes, (id) => id === 'b', 1000).columns, [1, 0.3]);
+});
+
+test('V107-N6b a tile at 1:3 in a short column keeps its least height; there is room, so the rest is shared as saved', () => {
+  const tree = gridTree([col('a'), col('b', 'c')], { columns: [1, 1], rows: [[1], [1, 3]] }, false);
+  const min = () => ({ w: 100, h: 200 });
+  const laid = layout(clampGrid(tree, { w: 801, h: 451 }, min, 1), { w: 801, h: 451 }, 1);
+  assert.equal(laid.panels.get('b')!.h, 200);
+  assert.equal(laid.panels.get('c')!.h, 250);
+  assert.equal(laid.panels.get('a')!.w, 400, 'columns wide enough keep their shares');
+});
+
+test('V107-N6b too short for both tiles: each gets its part; one tile or no room changes nothing', () => {
+  const tree = gridTree([col('b', 'c')], { columns: [1], rows: [[1, 3]] }, false);
+  const min = () => ({ w: 100, h: 200 });
+  const laid = layout(clampGrid(tree, { w: 300, h: 301 }, min, 1), { w: 300, h: 301 }, 1);
+  assert.equal(laid.panels.get('b')!.h, laid.panels.get('c')!.h);
+  const one = gridTree([col('a')], { columns: [1], rows: [[1]] }, false);
+  assert.equal(clampGrid(one, { w: 10, h: 10 }, min), one);
+  assert.equal(clampGrid(tree, { w: 0, h: 0 }, min), tree);
 });

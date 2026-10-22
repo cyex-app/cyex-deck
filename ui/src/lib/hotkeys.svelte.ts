@@ -5,7 +5,7 @@ import { keyTaken, layers } from './escape';
 import { settings } from './settings.svelte';
 import { zoomHotkeys } from './zoom';
 
-import { ACTIONS, resolveBinding } from './hotkeyActions';
+import { ACTIONS, comboAlias, resolveBinding } from './hotkeyActions';
 export { ACTIONS };
 
 export type ActionId = keyof typeof ACTIONS;
@@ -50,6 +50,12 @@ export function actionFor(combo: string): ActionId | undefined {
   return ACTION_IDS.find((id) => bindingOf(id) === combo);
 }
 
+/** What a key press runs: its own binding, else the one its V107-N6a alias has. */
+function actionOfPress(combo: string): ActionId | undefined {
+  const alias = comboAlias(combo);
+  return actionFor(combo) ?? (alias ? actionFor(alias) : undefined);
+}
+
 /** Binds `combo` to `id`. Returns the action that lost the combo, if any. */
 export async function rebind(id: ActionId, combo: string): Promise<ActionId | undefined> {
   const previous = combo ? actionFor(combo) : undefined;
@@ -78,11 +84,11 @@ export function useHotkeys(own: Partial<Record<ActionId, (e: KeyboardEvent) => u
       const combo = comboFromEvent(e);
       if (!combo) return;
       // An open menu doesn't hold back the switcher: it opens and the menu goes (030e896).
-      const switcherOverMenu = actionFor(combo) === 'tabs.switcher' && !e.defaultPrevented && layers.onlyMenus();
+      const switcherOverMenu = actionOfPress(combo) === 'tabs.switcher' && !e.defaultPrevented && layers.onlyMenus();
       if (keyTaken(e) && !switcherOverMenu) return;
       // Plain keys belong to text fields; only Ctrl/Alt combos fire while typing.
       if (isTyping(e.target) && !/^(Ctrl|Alt)\+/.test(combo)) return;
-      const id = actionFor(combo);
+      const id = actionOfPress(combo);
       const run = id && handlers[id];
       if (run && run(e) !== false) e.preventDefault();
     };

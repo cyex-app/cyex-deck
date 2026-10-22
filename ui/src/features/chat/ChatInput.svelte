@@ -25,6 +25,7 @@
   import EmoteButton from './EmoteButton.svelte';
   import RewardsMenu from './RewardsMenu.svelte';
   import type { ChatRoom } from './room.svelte';
+  import { MAX_CHARS, sendLength } from './sendLength';
   import { Sources } from './sources.svelte';
   import SuggestList from './SuggestList.svelte';
   import UploadConfirm from './UploadConfirm.svelte';
@@ -44,7 +45,6 @@
 
   let { room, replyTo = $bindable(), onsignin, onaction }: Props = $props();
 
-  const MAX = 500;
   /** The counter shows from here on. */
   const SHOW_COUNT = 400;
   const HISTORY = 20;
@@ -80,7 +80,10 @@
   const onpaste = up.onpaste;
 
   const canChat = $derived(room.account !== null && accounts.can('sendChat', room.account));
-  const chars = $derived([...text].length);
+  // V107-N12a A /me line counts against 491, like the send.
+  const length = $derived(sendLength(text));
+  const chars = $derived(length.chars);
+  const MAX = $derived(length.max);
   const waitMs = $derived(room.state.waitUntil ? room.state.waitUntil - now : 0);
   // The room never changes for one box.
   // svelte-ignore state_referenced_locally
@@ -105,10 +108,20 @@
     if (!text) error = '';
   });
 
+  // V107-N2d An error shows 4 s; a newer one gets its own 4 s (an older timer can't clear it).
+  let errorTimer: ReturnType<typeof setTimeout> | undefined;
+  function flash(m: string) {
+    error = m;
+    clearTimeout(errorTimer);
+    errorTimer = setTimeout(() => (error = ''), 4000);
+  }
+
   /** Newest argument lookup; an older answer is dropped. */
   let argSeq = 0;
 
   function updateSuggest() {
+    // V107-N1b Typing, pasting or a click ends a Tab cycle: its word range is out of date.
+    cycle = null;
     const caret = box?.selectionStart ?? text.length;
     const seq = ++argSeq;
     const arg = argAt(text, caret);
@@ -283,8 +296,7 @@
       }
       replyTo = null;
     } catch (e) {
-      error = errorText(e);
-      setTimeout(() => (error = ''), 4000);
+      flash(errorText(e));
     } finally {
       sending = false;
     }
@@ -306,8 +318,7 @@
       recall = -1;
       text = '';
     } catch (e) {
-      error = errorText(e);
-      setTimeout(() => (error = ''), 4000);
+      flash(errorText(e));
     }
   }
 
@@ -369,7 +380,7 @@
         bind:this={box}
         bind:value={text}
         rows="1"
-        maxlength={MAX * 2}
+        maxlength={MAX_CHARS * 2}
         placeholder={replyTo ? 'Write a reply' : `Message #${room.login}`}
         spellcheck={settings.v.chat.spellCheck}
         data-native-menu={settings.v.chat.spellCheck ? '' : undefined}

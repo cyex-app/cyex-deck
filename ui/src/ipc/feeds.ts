@@ -13,5 +13,5 @@ export const feedsIpc = {
     return invoke<FeedsOpened>('feeds_open', { kind, onEvent: channel });
   },
   close: (view: number) => invoke<void>('feeds_close', { view }),
-  clear: (kind: FeedKind) => invoke<void>('feeds_clear', { kind }),
+  clear: (kind: FeedKind, keys?: string[]) => invoke<void>('feeds_clear', { kind, keys }),
 };

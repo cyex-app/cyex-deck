@@ -331,10 +331,13 @@ fn moderate(
     // one line for our delete too: taking the mark stops the local fallback.
     let mine = ours(app, channel_id, m, now) && m.action != "delete";
     let Some(login) = login.filter(|_| !mine) else { return };
-    // V107-M7 Timeouts of one user in a row share a line with IRC's copy.
-    let timed_out = m.target.as_ref().filter(|t| m.action == "timeout" && !t.id.is_empty());
-    match timed_out {
-        Some(t) => crate::chat::timeout_line(app, login, &t.id, &text),
+    if let Some(t) = m.target.as_ref().filter(|t| matches!(m.action.as_str(), "untimeout" | "unban") && !t.id.is_empty()) {
+        crate::chat::lifted(app, login, &t.id);
+    }
+    // V107-M7 Timeouts of one user in a row share a line with IRC's copy; V107-N2e a ban too.
+    let stacked = m.target.as_ref().filter(|t| matches!(m.action.as_str(), "timeout" | "ban") && !t.id.is_empty());
+    match stacked {
+        Some(t) => crate::chat::timeout_line(app, login, &t.id, m.action == "ban", &text),
         None => crate::chat::notice_line(app, login, NoticeKind::Moderation, &text),
     }
 }

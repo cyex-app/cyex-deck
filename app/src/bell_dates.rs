@@ -49,9 +49,14 @@ fn render(p: &Parts, raw: &str, offset: &dyn Fn(OffsetDateTime) -> UtcOffset) ->
     let (Some(mo), Ok(y), Ok(d)) = (p.mo, p.y.parse::<i32>(), p.d.parse::<u8>()) else {
         return raw.into();
     };
-    if !(1..=31).contains(&d) {
+    // V107-N9a Month 13 or Feb 31 isn't a date, with or without a time: leave the text.
+    let Some(date) = u8::try_from(mo + 1)
+        .ok()
+        .and_then(|m| Month::try_from(m).ok())
+        .and_then(|m| Date::from_calendar_date(y, m, d).ok())
+    else {
         return raw.into();
-    }
+    };
     let Some(h) = p.h else {
         return format!("{y:04}/{:02}/{d:02}", mo + 1);
     };
@@ -66,13 +71,6 @@ fn render(p: &Parts, raw: &str, offset: &dyn Fn(OffsetDateTime) -> UtcOffset) ->
     if h > 23 || mi > 59 || s > 59 {
         return raw.into();
     }
-    let Ok(month) = Month::try_from(mo as u8 + 1) else {
-        return raw.into();
-    };
-    // Day overflow (Feb 31) isn't a date: leave the text.
-    let Ok(date) = Date::from_calendar_date(y, month, d) else {
-        return raw.into();
-    };
     let Ok(t) = Time::from_hms(h as u8, mi as u8, s as u8) else {
         return raw.into();
     };
@@ -104,7 +102,7 @@ fn convert(text: &str, offset: &dyn Fn(OffsetDateTime) -> UtcOffset) -> String {
     if !digits {
         return text.into();
     }
-        let a = MONTH_FIRST.replace_all(text, |c: &Captures| {
+    let a = MONTH_FIRST.replace_all(text, |c: &Captures| {
         let p = Parts { y: g(c, 3).unwrap_or(""), mo: g(c, 1).and_then(month), d: g(c, 2).unwrap_or(""), h: g(c, 4), mi: g(c, 5), s: g(c, 6), ap: g(c, 7), zone: g(c, 8) };
         render(&p, &c[0], offset)
     });
@@ -170,6 +168,9 @@ mod tests {
             "May the best team win, 10 to 3",
             "Score 13:45 in round 2",
             "Nov 99, 2026 is not a day",
+            "Feb 31, 2026 is not a day",
+            "on 2026-13-05",
+            "at 2026-02-30T10:00:00Z",
             "",
         ] {
             assert_eq!(l(t), t);

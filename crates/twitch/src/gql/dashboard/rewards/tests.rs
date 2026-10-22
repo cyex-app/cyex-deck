@@ -282,3 +282,25 @@ async fn v107_r43_a_moderator_works_on_the_channel_it_moderates() {
     assert_eq!(sent[0]["variables"]["id"], "77");
     assert_eq!(sent[1]["variables"]["input"]["channelID"], "77");
 }
+
+#[tokio::test]
+async fn v107_n4d_a_page_of_only_bits_reads_on() {
+    let page = |id: &str, pricing: &str, more: bool| {
+        let r = json!({ "id": "a", "title": "Song", "cost": 100, "pricingType": pricing });
+        let edge = json!({ "cursor": id, "node": { "id": id, "timestamp": "2026-10-21T10:00:00Z", "reward": r, "user": null } });
+        json!({ "data": { "user": { "channel": { "communityPointsRedemptionQueue": {
+            "edges": [edge], "pageInfo": { "hasNextPage": more }
+        } } } } })
+        .to_string()
+    };
+    let m = serve([page("b1", "BITS", true), page("p1", "POINTS", true), page("b2", "BITS", true)]);
+    let ch = m.channel();
+    let q = queue(&ch, None, None).await.unwrap();
+    assert_eq!((q.items[0].id.as_str(), q.next.as_deref()), ("p1", Some("p1")));
+    // A cursor that doesn't move stops at once.
+    let q = queue(&ch, None, Some("b2")).await.unwrap();
+    assert!(q.items.is_empty());
+    let sent = m.sent();
+    assert_eq!(sent[1]["variables"]["cursor"], "b1");
+    assert_eq!(sent.len(), 3);
+}

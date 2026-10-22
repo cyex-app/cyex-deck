@@ -28,6 +28,15 @@ pub fn gql(code: &str, who: &str) -> String {
     }
 }
 
+/// V107-N2c A Helix refusal about `who`: Twitch's words read as GQL's code when known
+/// (the same line on both paths), else [`helix`].
+pub fn helix_about(status: u16, message: &str, who: &str) -> String {
+    match cyex_moderation::said::code(message) {
+        Some(code) => gql(code, who),
+        None => helix(status, message),
+    }
+}
+
 /// A Helix error message (already human from Twitch) trimmed for chat, by status.
 pub fn helix(status: u16, message: &str) -> String {
     match status {

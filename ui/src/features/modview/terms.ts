@@ -30,5 +30,9 @@ export function termProblem(text: string, list: BlockedTerm[]): string | null {
   return null;
 }
 
-/** A live mod action that changed the blocked terms (`channel.moderate`). */
-export const changesTerms = (l: ModLine): boolean => !l.past && (l.action === 'blocked' || l.action === 'unblocked');
+/** Rust's words for a blocked term added or removed (`moderation::actions`, V107-R44). */
+const TERM_WORDS = ['added the blocked term', 'removed the blocked term'];
+
+/** A live mod action that changed the blocked terms (`channel.moderate`). V107-N3a It
+ *  matched the old words ("blocked"), so the list never followed other mods' changes. */
+export const changesTerms = (l: ModLine): boolean => !l.past && TERM_WORDS.includes(l.action);

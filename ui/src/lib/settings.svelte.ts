@@ -5,6 +5,7 @@ import { settingsIpc, type DeepPartial, type SettingsValues } from '../ipc/setti
 import type { Partition } from '../ipc/bindings/Partition';
 import { InFlight, mergePatch, sameJson, type Settled } from './mergePatch';
 import { partitionList } from './partitions';
+import { errorText } from './errors';
 import { toast } from './toast.svelte';
 
 class SettingsStore {
@@ -23,10 +24,14 @@ class SettingsStore {
       }
       (this.v as Record<Partition, unknown>)[partition] = value;
     });
-    const reset = await settingsIpc.takeLoadReport();
+    const { reset, restored, restoredFrom } = await settingsIpc.takeLoadReport();
     if (reset.length) {
       // t5 Names as in Backup and sharing; a file can also be only partly reset now.
       toast.error(`Some settings couldn’t be read and went back to default: ${partitionList(reset)}. The old files are kept in the settings folder.`);
+    }
+    if (restored.length) {
+      // V107-N10a Cut short or empty: the newest backup that still reads.
+      toast.error(`Some settings couldn’t be read and came back from ${restoredFrom ? `the backup of ${restoredFrom}` : 'a backup'}: ${partitionList(restored)}.`);
     }
   }
 
@@ -40,7 +45,7 @@ class SettingsStore {
     try {
       value = await settingsIpc.patch(partition, patch);
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e, 'save the settings'));
     }
     await this.finish(partition, n, value);
   }
@@ -87,7 +92,7 @@ class SettingsStore {
       try {
         value = (await settingsIpc.all())[partition];
       } catch (e) {
-        toast.error(String(e));
+        toast.error(errorText(e, 'read the settings'));
       }
       const next = this.flight.settle(partition, n);
       if (!next) return;
@@ -105,7 +110,7 @@ class SettingsStore {
     try {
       values = await settingsIpc.pruneBlank();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(errorText(e, 'save the settings'));
     }
     for (const [p, n] of started) {
       const done = this.flight.settle(p, n);

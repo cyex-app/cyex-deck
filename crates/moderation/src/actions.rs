@@ -149,6 +149,18 @@ fn person_words(done: &str) -> Option<&'static str> {
     }
 }
 
+/// V107-N3d Twitch's history words for a term ("Added as Blocked Term", the term in the
+/// title) → the live feed's, so both read alike and filter under AutoMod.
+fn term_words(done: &str) -> Option<&'static str> {
+    match done.trim().to_ascii_lowercase().as_str() {
+        "added as blocked term" => Some("added the blocked term"),
+        "removed as blocked term" => Some("removed the blocked term"),
+        "added as permitted term" => Some("allowed"),
+        "removed as permitted term" => Some("stopped allowing"),
+        _ => None,
+    }
+}
+
 impl ModLine {
     /// A live action from EventSub or Hermes. `secs` is a timeout's length.
     pub fn live(m: &Moderate, secs: Option<u64>, id: String, ts: i64) -> Self {
@@ -236,8 +248,12 @@ impl ModLine {
     pub fn past(a: &ChannelAction, ts: i64) -> Self {
         use ModGroup::*;
         let role = a.target.is_some().then(|| role_words(&a.done)).flatten();
+        let term = a.target.is_none().then(|| term_words(&a.done)).flatten();
         let group = match (a.category.as_str(), a.icon.as_str()) {
             _ if role.is_some() => Role,
+            _ if term.is_some() => Automod,
+            // V107-N3g The non-mod chat delay is a chat setting, not a role.
+            _ if a.title.to_ascii_lowercase().contains("chat delay") => Mode,
             (_, "TRASH" | "HALT") => Delete,
             ("BANS_AND_UNBANS", _) | (_, "BAN") => Ban,
             ("TIMEOUTS_AND_UNTIMEOUTS", _) | (_, "TIMEOUT") => Timeout,
@@ -263,7 +279,7 @@ impl ModLine {
                 .collect::<Vec<_>>()
                 .join(" ")
         };
-        let action = if let Some(words) = role {
+        let action = if let Some(words) = role.or(term) {
             words.to_owned()
         } else if let Some(words) = a.target.is_some().then(|| person_words(&a.done)).flatten() {
             words.to_owned()
@@ -272,7 +288,8 @@ impl ModLine {
         } else if a.done.is_empty() || a.done == "Done" {
             lower(&a.title)
         } else {
-            format!("{}: {}", lower(&a.done), a.title)
+            // V107-N3g Twitch ends some with a comma ("Enabled with 2s delay,").
+            format!("{}: {}", lower(a.done.trim_end_matches([',', ' '])), a.title)
         };
         // The body is a reason only for actions on a person; else it's Twitch's note.
         let reason = if !a.reason.is_empty() {
@@ -297,7 +314,7 @@ impl ModLine {
             target: person(&a.target),
             secs: None,
             reason,
-            about: String::new(),
+            about: if term.is_some() { a.title.trim_matches(['"', '“', '”', ' ']).to_owned() } else { String::new() },
             from: None,
             past: true,
         }
@@ -765,6 +782,32 @@ mod tests {
         }
         assert!(automod_resolved(&json!({"type": "automod_caught_message", "data": {"status": "DENIED"}})).is_none());
         assert!(automod_queue(&held("PENDING")).is_none());
+    }
+
+    #[test]
+    fn v107_n3d_history_terms_read_as_live() {
+        let term = |done: &str| ChannelAction {
+            icon: "SHIELD".into(),
+            category: "OTHER".into(),
+            moderator: Some(("kuni".into(), "Kuni".into())),
+            title: "\"bad word\"".into(),
+            done: done.into(),
+            ..Default::default()
+        };
+        let l = ModLine::past(&term("Added as Blocked Term"), 9);
+        assert_eq!((l.group, l.action.as_str(), l.about.as_str()), (ModGroup::Automod, "added the blocked term", "bad word"));
+        let l = ModLine::past(&term("Removed as Permitted Term"), 9);
+        assert_eq!((l.group, l.action.as_str(), l.about.as_str()), (ModGroup::Automod, "stopped allowing", "bad word"));
+        let l = ModLine::past(&term("Something Else"), 9);
+        assert_eq!((l.group, l.about.as_str()), (ModGroup::Other, ""));
+        let delay = ChannelAction {
+            icon: "SWORD".into(),
+            title: "Non-Mod Chat Delay".into(),
+            done: "Enabled with 2s delay,".into(),
+            ..Default::default()
+        };
+        let l = ModLine::past(&delay, 9);
+        assert_eq!((l.group, l.action.as_str()), (ModGroup::Mode, "enabled with 2s delay: Non-Mod Chat Delay"), "V107-N3g");
     }
 
     #[test]

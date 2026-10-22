@@ -1,12 +1,13 @@
 <!-- M2 Unban request queue: pending requests, newest first, each approved or denied with
-     a note the viewer sees. -->
+     a note the viewer sees. V107-N3b A failed read says so in the panel with Retry (it was a
+     toast on every open, also from the dock's menu, and then read as "No pending requests"). -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import Card from '../../components/PanelCard.svelte';
   import type { UnbanRequest } from '../../ipc/bindings/UnbanRequest';
   import { modIpc } from '../../ipc/moderation';
-  import { formatDate } from '../../lib/format';
+  import { formatDate, formatTime } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import { errorText } from '../../lib/errors';
 
@@ -16,18 +17,29 @@
   let loading = $state(true);
   let note = $state<Record<string, string>>({});
   let busy = $state<Record<string, boolean>>({});
+  let problem = $state('');
 
   function load() {
     loading = true;
     modIpc
       .unbanRequests(account, login)
-      .then((r) => (list = r))
-      .catch((e) => toast.error(errorText(e)))
+      .then((r) => {
+        list = r;
+        problem = '';
+      })
+      .catch((e) => (problem = errorText(e)))
       .finally(() => (loading = false));
   }
+
+  /** As the mod actions stamp a line: date and 24 h time. */
+  const when = (iso: string) => {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? '' : `${formatDate(d)} ${formatTime(d)}`;
+  };
   load();
 
   async function resolve(r: UnbanRequest, approve: boolean) {
+    if (busy[r.id]) return;
     busy[r.id] = true;
     try {
       await modIpc.resolveUnban(account, login, r.id, approve, note[r.id] ?? '');
@@ -44,15 +56,17 @@
   {#snippet tools()}
     <IconButton icon="refresh" label="Refresh" size={14} disabled={loading} onclick={load} />
   {/snippet}
-{#if !loading && list.length === 0}
-  <p class="empty">No pending requests.</p>
+{#if problem && !list.length}
+  <p class="empty">{problem} <Button small variant="link" onclick={load}>Retry</Button></p>
+{:else if !list.length}
+  <p class="empty">{loading ? 'Loading…' : 'No pending requests.'}</p>
 {:else}
   <ul>
     {#each list as r (r.id)}
       <li>
-        <div class="who"><b>{r.display}</b> · {formatDate(new Date(r.createdAt))}</div>
+        <div class="who"><b>{r.display}</b> · <span class="t">{when(r.createdAt)}</span></div>
         {#if r.text}<div class="msg">{r.text}</div>{/if}
-        <input placeholder="Note (optional)" bind:value={note[r.id]} />
+        <input placeholder="Note (optional)" aria-label="Note for {r.display}" maxlength="500" bind:value={note[r.id]} />
         <div class="row">
           <Button small disabled={busy[r.id]} onclick={() => resolve(r, true)}>Unban</Button>
           <Button small variant="danger" disabled={busy[r.id]} onclick={() => resolve(r, false)}>Deny</Button>
@@ -80,6 +94,10 @@
   }
   .who {
     font-size: 0.82rem;
+  }
+  .t {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
   }
   .msg {
     margin: 4px 0;

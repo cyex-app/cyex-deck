@@ -46,7 +46,7 @@
   import ModPanelBody from './ModPanelBody.svelte';
   import { INFO, isModPanel, type ModPanelId as Id } from './panelInfo';
   import { modPopouts } from './popouts.svelte';
-  import { closedOut, dockBack, poppedKey, shownTree } from './popped';
+  import { closedOut, dockBack, poppedKey, shownTree, withPopped } from './popped';
 
   interface Props {
     /** The channel login; `account` mods it. */
@@ -176,11 +176,19 @@
         await modPopouts.refresh();
         await settings.patch('modview', {
           layout: asPatch(remove(from, id)) as never,
-          popped: { [poppedKey(login, id)]: from } as never,
+          // V107-N3e With the panels still out in it, so all of them come back exactly.
+          popped: { [poppedKey(login, id)]: withPopped(from, stillOut(id)) } as never,
         });
       }
       going = new Set([...going].filter((g) => g !== id));
     });
+  }
+
+  /** The panels out of the layout in a window now, other than `id`, oldest first. */
+  function stillOut(id: string): [string, Node][] {
+    return Object.entries(mv.popped ?? {})
+      .map(([k, was]) => [k.slice(k.indexOf('/') + 1), was] as [string, Node])
+      .filter(([p, was]) => p !== id && was && !has(tree, p));
   }
 
   function resize(path: number[], sizes: number[]) {
@@ -289,10 +297,22 @@
     gap: 8px;
     min-width: 0;
   }
+  /* V107-N3c A narrow window cuts a long channel name short instead of running it under
+     the buttons. */
   h2 {
+    /* Never squeezed while the hint has room; then as wide as the row. */
+    flex: none;
+    max-width: 100%;
     margin: 0;
+    overflow: hidden;
     font-size: 0.95rem;
     white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  /* The hint gives up its room before the channel's name does. */
+  .name .hint {
+    flex: 0 1 auto;
+    min-width: 0;
   }
   .hint {
     overflow: hidden;

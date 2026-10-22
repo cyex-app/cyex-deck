@@ -67,21 +67,31 @@
   // V107-R21 Unban asks once, right here (a second click within 3 s).
   let confirmUnban = $state(false);
 
+  // V107-N12b Stop was pressed for the running job: its end says so.
+  let stopping = false;
+
   function go(unban = false) {
     if (running || !logins.length || (!unban && err)) return;
     job = null;
+    stopping = false;
     confirmUnban = false;
     const secs = unban ? null : timeoutSecs(amount, unit);
     kind = unban ? 'unban' : secs ? 'timeout' : 'ban';
+    const total = logins.length;
     running = true;
     modIpc
       .massban(account, login, logins, secs, unban ? '' : reason, unban)
-      .then((n) => toast.success(`Done: ${formatNumber(n)} of ${formatNumber(logins.length)}.`))
+      .then((n) => {
+        const of = `${formatNumber(n)} of ${formatNumber(total)}`;
+        if (stopping) toast.info(`Stopped. ${of} done.`);
+        else toast.success(`Done: ${of}.`);
+      })
       .catch((e) => toast.error(errorText(e)))
       .finally(() => (running = false));
   }
 
   function stop() {
+    stopping = true;
     if (channelId) void modIpc.stopMassban(channelId, account);
   }
 </script>

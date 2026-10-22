@@ -116,7 +116,12 @@ impl Job<'_> {
 /// `mod:massban` progress after every request. Refused while the account runs one, or over
 /// 5.000 logins.
 pub async fn run(app: &AppHandle, actor: &Actor, logins: &[String], order: Order<'_>, pacer: &mut Pacer) -> Result<u32, String> {
+    let logins = &mass::unique(logins);
     mass::check_size(logins.len())?;
+    // V107-N2b Twitch takes 1 s to 2 weeks; a wrong length would be refused once per name.
+    if order.secs.is_some_and(|s| s == 0 || s > hm::MAX_TIMEOUT_SECS) {
+        return Err("Timeouts go from 1 second to 2 weeks.".into());
+    }
     let jobs = app.try_state::<Registry>();
     let ticket = match jobs.as_deref() {
         Some(r) => r.try_register(&actor.account, &actor.channel_id)?,
@@ -158,6 +163,17 @@ struct Live<'a, 'b> {
     helix: Option<(helix::Auth<'b>, helix::Room<'b>)>,
     expires: Option<String>,
     pacer: Option<&'b mut Pacer>,
+    /// V107-N12b Helix sends by id; the length we sent is kept by login (id, login).
+    names: std::collections::HashMap<String, String>,
+}
+
+impl Live<'_, '_> {
+    /// V107-N12b The timeout's echo says the length we sent, not the time left.
+    fn note(&self, login: &str, sent: bool) {
+        if let Some(secs) = self.job.order.secs.filter(|_| !self.job.order.unban) {
+            super::feeds::own_timeout(self.job.app, &self.job.actor.channel_id, login, sent.then_some(secs));
+        }
+    }
 }
 
 impl run::Io for Live<'_, '_> {
@@ -207,11 +223,16 @@ impl run::Batches for Live<'_, '_> {
     async fn send(&mut self, logins: &[String]) -> Result<Vec<(String, Option<String>)>, Fault> {
         let (app, cid) = (self.job.app, &self.job.actor.channel_id);
         let g = self.gql.ok_or(Fault::Unauthorized)?;
+        logins.iter().for_each(|l| self.note(l, true));
         let res = if self.job.order.unban {
             gql::moderation::unban_many(&http(app), g, cid, logins).await
         } else {
             gql::moderation::ban_many(&http(app), g, cid, logins, self.expires.as_deref(), self.job.order.reason).await
         };
+        match &res {
+            Ok(rs) => rs.iter().filter(|(_, e)| e.is_some()).for_each(|(l, _)| self.note(l, false)),
+            Err(_) => logins.iter().for_each(|l| self.note(l, false)),
+        }
         res.map_err(|e| fault(&e))
     }
 }
@@ -220,11 +241,18 @@ impl run::Singles for Live<'_, '_> {
     async fn send(&mut self, id: &str) -> run::Answer {
         let app = self.job.app;
         let Some((auth, room)) = self.helix else { return (Err((401, String::new())), 0) };
+        let login = self.names.get(id).cloned();
+        if let Some(l) = &login {
+            self.note(l, true);
+        }
         let (res, limit) = if self.job.order.unban {
             hm::unban(&http(app), auth, room, id).await
         } else {
             hm::ban(&http(app), auth, room, id, self.job.order.secs, self.job.order.reason).await
         };
+        if let (Some(l), Err(_)) = (&login, &res) {
+            self.note(l, false);
+        }
         let now = crate::chat::now_ms();
         let pacer = self.pacer.as_deref_mut().expect("Helix runs with a pacer");
         match res {
@@ -243,7 +271,7 @@ async fn gql_path(job: &mut Job<'_>, logins: &[String]) -> Result<(), String> {
     let order = job.order;
     let mut tally = std::mem::take(&mut job.tally);
     let res = {
-        let mut live = Live { job, gql: Some(g), helix: None, expires: order.secs.map(|s| format!("{s}s")), pacer: None };
+        let mut live = Live { job, gql: Some(g), helix: None, expires: order.secs.map(|s| format!("{s}s")), pacer: None, names: Default::default() };
         match run::resolve(&mut live, logins, false, &mut tally).await {
             Ok(found) => {
                 let names: Vec<String> = found.into_iter().map(|(l, _)| l).collect();
@@ -277,9 +305,10 @@ async fn helix_path(job: &mut Job<'_>, logins: &[String], pacer: &mut Pacer) -> 
     let unban = job.order.unban;
     let mut tally = std::mem::take(&mut job.tally);
     let res = {
-        let mut live = Live { job, gql: None, helix: Some((auth, room)), expires: None, pacer: Some(pacer) };
+        let mut live = Live { job, gql: None, helix: Some((auth, room)), expires: None, pacer: Some(pacer), names: Default::default() };
         match run::resolve(&mut live, logins, true, &mut tally).await {
             Ok(found) => {
+                live.names = found.iter().map(|(l, id)| (id.clone(), l.clone())).collect();
                 let ids: Vec<String> = found.into_iter().map(|(_, id)| id).collect();
                 run::singles(&mut live, &ids, unban, &mut tally).await
             }
