@@ -202,19 +202,23 @@ struct RawSelf {
 }
 
 impl From<RawSelf> for BadgePick {
+    /// V107-Mu The badge worn always shows as worn, even a role or sub one (Twitch lets you
+    /// wear them); it is listed too, so something in the row is lit. Others stay hidden.
     fn from(s: RawSelf) -> Self {
         let pickable = |b: &super::BadgeInfo| !NOT_PICKABLE.contains(&b.set.as_str());
-        Self {
-            selected: s.selected_badge.map(super::BadgeInfo::from).filter(pickable),
-            available: s
-                .available_badges
-                .unwrap_or_default()
-                .into_iter()
-                .flatten()
-                .map(super::BadgeInfo::from)
-                .filter(pickable)
-                .collect(),
+        let selected = s.selected_badge.map(super::BadgeInfo::from);
+        let mut available: Vec<_> = s
+            .available_badges
+            .unwrap_or_default()
+            .into_iter()
+            .flatten()
+            .map(super::BadgeInfo::from)
+            .filter(|b| pickable(b) || selected.as_ref().is_some_and(|w| w.set == b.set && w.version == b.version))
+            .collect();
+        if let Some(w) = selected.as_ref().filter(|w| !available.iter().any(|b| b.set == w.set && b.version == w.version)) {
+            available.insert(0, w.clone());
         }
+        Self { selected, available }
     }
 }
 
@@ -231,6 +235,19 @@ mod tests {
         let pick = BadgePick::from(serde_json::from_str::<RawSelf>(raw).unwrap());
         assert_eq!(pick.available.len(), 1);
         assert_eq!(pick.available[0].set, "glhf-pledge");
+    }
+    #[test]
+    fn worn_sub_badge_shows_as_worn() {
+        let sub = r#"{"setID":"subscriber","version":"12","title":"Subscriber","description":null,"clickURL":null,"image1x":"a","image2x":"b","image4x":"c"}"#;
+        let other = r#"{"setID":"subscriber","version":"0","title":"Subscriber","description":null,"clickURL":null,"image1x":"a","image2x":"b","image4x":"c"}"#;
+        let raw = format!(r#"{{"selectedBadge":{sub},"availableBadges":[{other},{sub}]}}"#);
+        let pick = BadgePick::from(serde_json::from_str::<RawSelf>(&raw).unwrap());
+        assert_eq!(pick.selected.as_ref().map(|b| b.version.as_str()), Some("12"));
+        assert_eq!(pick.available.len(), 1);
+        // Not in the list Twitch sent: still listed, so it can be seen and un-picked.
+        let raw = format!(r#"{{"selectedBadge":{sub},"availableBadges":[]}}"#);
+        let pick = BadgePick::from(serde_json::from_str::<RawSelf>(&raw).unwrap());
+        assert_eq!(pick.available, vec![pick.selected.clone().unwrap()]);
     }
     #[tokio::test]
     async fn color_refusals_and_badge_writes() {

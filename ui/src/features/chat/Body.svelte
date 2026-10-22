@@ -60,10 +60,10 @@
   {:else if f.t === 'cheer'}
     {@const c = catalogs.cheermote(channel, f.prefix)}
     {@const tier = c && cheerTier(c, f.amount)}
-    <span class="cheer" style:color={tier?.color} data-tip="{formatNumber(f.amount)} bits">
+    <span class="cheer pale-edge" style:color={tier?.color} data-tip="{formatNumber(f.amount)} bits">
       {#if c && tier}
         {@const img = cheerImg(c, tier, theme, density.scale)}
-        <img class="emote" src={img.src} alt={f.prefix} loading="lazy" decoding="async" />{f.amount}
+        <img class="emote pale-edge" src={img.src} alt={f.prefix} loading="lazy" decoding="async" />{f.amount}
       {:else}{f.prefix}{f.amount}{/if}
     </span>
   {:else if f.t === 'gif'}

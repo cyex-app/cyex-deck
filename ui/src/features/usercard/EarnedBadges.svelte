@@ -59,7 +59,7 @@
   {#if earned && twitch}
     {#each earned as b (`${b.set}/${b.version}`)}
       <img
-        class="badge"
+        class="badge pale-edge"
         src={badgeSrc(b, density.scale)}
         alt={b.title}
         loading="lazy"

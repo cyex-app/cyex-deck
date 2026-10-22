@@ -64,7 +64,7 @@
 
 {#snippet provider(b: BadgeDef)}
   <img
-    class="badge"
+    class="badge pale-edge"
     class:tile={!!b.color}
     style:background-color={b.color}
     src={still && b.still ? b.still : badgeSrc(b, density.scale)}
@@ -85,10 +85,10 @@
       {@const b = catalogs.badge(channel, ref.set, ref.version)}
       {@const copy = saved(`badge:${ref.set}/${ref.version}`)}
       {#if copy}
-        <img class="badge" src={copy} alt={b?.title ?? ref.set} data-tip={b?.title ?? ref.set} data-tip-img={b?.image4x} />
+        <img class="badge pale-edge" src={copy} alt={b?.title ?? ref.set} data-tip={b?.title ?? ref.set} data-tip-img={b?.image4x} />
       {:else if b}
         <img
-          class="badge"
+          class="badge pale-edge"
           src={badgeSrc(b, density.scale)}
           alt={b.title}
           data-tip={b.title}

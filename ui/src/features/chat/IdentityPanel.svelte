@@ -120,7 +120,7 @@
         aria-label={b.title}
         onclick={() => wear(channel, b)}
       >
-        <img src={b.image2x} alt="" />
+        <img class="pale-edge" src={b.image2x} alt="" />
       </button>
     {/each}
   </div>
@@ -133,7 +133,7 @@
     <Loading />
   {:else}
     <div class="preview" aria-hidden="true">
-      {#if shown}<img src={shown.image2x} alt="" />{/if}
+      {#if shown}<img class="pale-edge" src={shown.image2x} alt="" />{/if}
       <b style:color={me.color ?? 'var(--text)'}>{display}</b>
     </div>
 
@@ -299,13 +299,6 @@
   .badge img {
     width: 24px;
     height: 24px;
-  }
-  /* White badges vanish on the light tiles: a thin dark edge, as the paints get. */
-  :global(:root[data-theme='light']) .badge img,
-  :global(:root[data-theme='light']) .preview img,
-  :global(.theme-light) .badge img,
-  :global(.theme-light) .preview img {
-    filter: drop-shadow(0 0 1px rgb(0 0 0 / 0.7)) drop-shadow(0 0 0.5px rgb(0 0 0 / 0.5));
   }
   .badge.none {
     padding: 0 10px;

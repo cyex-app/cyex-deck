@@ -90,7 +90,7 @@
               {@const tier = cheerTier(c, amount)}
               <div class="cm">
                 <button class="use" disabled={!afford(amount)} onclick={() => pick(c, amount)} title="{c.prefix}{amount}">
-                  {#if tier}<img src={cheerImg(c, tier, theme, density.scale).src} alt="" loading="lazy" />{/if}
+                  {#if tier}<img class="pale-edge" src={cheerImg(c, tier, theme, density.scale).src} alt="" loading="lazy" />{/if}
                   <span class="name">{c.prefix}</span>
                   <span class="n" style:color={tier?.color}>{formatNumber(amount)}</span>
                 </button>
@@ -102,7 +102,7 @@
                       onclick={() => pick(c, t.bits)}
                       aria-label="{c.prefix}{t.bits}"
                     >
-                      <img src={cheerImg(c, t, theme, density.scale).src} alt="" loading="lazy" />
+                      <img class="pale-edge" src={cheerImg(c, t, theme, density.scale).src} alt="" loading="lazy" />
                       <span style:color={t.color}>{formatNumber(t.bits)}</span>
                     </button>
                   {/each}
