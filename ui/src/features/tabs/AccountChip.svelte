@@ -36,7 +36,7 @@
     }));
     items.push('separator', { label: 'Anonymous', icon: 'eyeOff', checked: !account, run: () => set(null) });
     if (account && (accounts.can('badgePicker', account.userId) || accounts.can('chatColor', account.userId))) {
-      items.push('separator', { label: 'Badge and color…', icon: 'badge', run: () => (identity = true) });
+      items.push('separator', { label: 'Chat identity…', icon: 'badge', run: () => (identity = true) });
     }
     openMenu(e.currentTarget as HTMLElement, items);
   }

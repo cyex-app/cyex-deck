@@ -23,6 +23,7 @@
   import { mods, PIN_LENGTHS } from '../modview/moderation.svelte';
   import { plugins } from '../plugins/plugins.svelte';
   import EmoteButton from './EmoteButton.svelte';
+  import IdentityButton from './IdentityButton.svelte';
   import RewardsMenu from './RewardsMenu.svelte';
   import type { ChatRoom } from './room.svelte';
   import { MAX_CHARS, sendLength } from './sendLength';
@@ -398,6 +399,8 @@
         </div>
       {/if}
       <!-- 1.43 GIFs are a tab in the emote menu. -->
+      <!-- V107-Mk Badge, name color and smileys for this channel. -->
+      {#if room.account && (accounts.can('badgePicker', room.account) || accounts.can('chatColor', room.account))}<IdentityButton account={room.account} login={room.login} />{/if}
       <EmoteButton login={room.login} account={room.account} {room} oninsert={(v) => void insertAtCaret(v)} />
       </div>
       {#if settings.v.chat.sendButton}

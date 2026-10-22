@@ -8,6 +8,7 @@ import type { ChatOpened } from './bindings/ChatOpened';
 import type { ChatShown } from './bindings/ChatShown';
 import type { GlobalCatalog } from './bindings/GlobalCatalog';
 import type { ChatIdentity } from './bindings/ChatIdentity';
+import type { Smilies } from './bindings/Smilies';
 import type { EmoteRewardChoices } from './bindings/EmoteRewardChoices';
 import type { Points } from './bindings/Points';
 import type { Profile } from './bindings/Profile';
@@ -62,6 +63,8 @@ export const chatIpc = {
   pickBadge: (account: string, channelId: string | null, set: string | null, version: string | null) =>
     invoke<void>('chat_pick_badge', { account, channelId, set, version }),
   setColor: (account: string, color: string) => invoke<void>('chat_set_color', { account, color }),
+  /** V107-Mk Smiley style by Twitch's set name; answers with the read-back. */
+  setSmilies: (account: string, name: string) => invoke<Smilies>('chat_set_smilies', { account, name }),
   userMessages: (channel: string, userId: string) =>
     invoke<ChatMessage[]>('chat_user_messages', { channel, userId }),
   /** X2 Where a link ends up after redirects, and 1.52 its preview. */

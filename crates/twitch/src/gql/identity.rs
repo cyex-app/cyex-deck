@@ -1,13 +1,13 @@
 //! 1.40 How you show up in chat: the badge you wear (everywhere, or in one channel) and
-//! your name color. Needs the account's GQL token. Mutation shapes checked against
-//! Twitch's schema without running them (2026/10/10).
+//! your name color. Needs the account's GQL token. Badge mutation shapes checked against
+//! Twitch's schema (2026/10/10); the color one is twitch.tv's own `/color` (V107-Mk).
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use ts_rs::TS;
 
 use super::chat::{BADGE_FIELDS, RawBadge};
-use super::{Auth, query};
+use super::{Auth, query, run_at};
 use crate::{Error, Http, Result};
 
 const READ: &str = "query($login: String!) { \
@@ -41,6 +41,8 @@ pub struct ChatIdentity {
     /// Shown in this channel instead of the global pick.
     pub channel: BadgePick,
     pub channel_id: Option<String>,
+    /// V107-Mk Smiley style; no choices when the account has none to pick.
+    pub smilies: super::smilies::Smilies,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, TS)]
@@ -69,11 +71,12 @@ pub async fn chat_identity(http: &Http, auth: Auth<'_>, login: &str) -> Result<C
         }),
         channel,
         channel_id,
+        smilies: super::smilies::Smilies::default(),
     })
 }
 
-/// Wears `badge` (`set`, `version`) everywhere, or nothing with `None`.
-pub async fn pick_global_badge(http: &Http, auth: Auth<'_>, badge: Option<(&str, &str)>) -> Result<()> {
+/// Wears `badge` (`set`, `version`) everywhere, or nothing with `None`. `base`: a mock GQL.
+pub async fn pick_global_badge(http: &Http, auth: Auth<'_>, base: Option<&str>, badge: Option<(&str, &str)>) -> Result<()> {
     let (q, vars) = match badge {
         Some((set, version)) => (
             "mutation($input: SelectGlobalBadgeInput!) { selectGlobalBadge(input: $input) { user { id } } }",
@@ -81,7 +84,7 @@ pub async fn pick_global_badge(http: &Http, auth: Auth<'_>, badge: Option<(&str,
         ),
         None => ("mutation { deselectGlobalBadge { user { id } } }", json!({})),
     };
-    let _: Value = query(http, auth, q, vars).await?;
+    run_at(http, auth, base, q, vars).await?;
     Ok(())
 }
 
@@ -89,6 +92,7 @@ pub async fn pick_global_badge(http: &Http, auth: Auth<'_>, badge: Option<(&str,
 pub async fn pick_channel_badge(
     http: &Http,
     auth: Auth<'_>,
+    base: Option<&str>,
     channel_id: &str,
     badge: Option<(&str, &str)>,
 ) -> Result<()> {
@@ -102,7 +106,7 @@ pub async fn pick_channel_badge(
             json!({ "input": { "channelID": channel_id } }),
         ),
     };
-    let v: Value = query(http, auth, q, vars).await?;
+    let v = run_at(http, auth, base, q, vars).await?;
     if v.pointer("/selectChannelBadge/isSuccessful") == Some(&Value::Bool(false)) {
         return Err(Error::Api {
             status: 200,
@@ -112,16 +116,37 @@ pub async fn pick_channel_badge(
     Ok(())
 }
 
-/// `#RRGGBB`. Twitch refuses colors outside its named ones without Prime or Turbo.
-pub async fn set_chat_color(http: &Http, auth: Auth<'_>, color: &str) -> Result<()> {
-    let _: Value = query(
+/// Why Twitch refused a name color (`updateChatColorV2`'s `error.code`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ColorRefusal {
+    Invalid,
+    /// Prime or Turbo only.
+    TurboOnly,
+    Other(String),
+}
+
+/// V107-Mk `#RRGGBB` through `updateChatColorV2`, as twitch.tv's `/color`: named ones for
+/// everyone, any color with Prime or Turbo. `Ok(Err(_))` is Twitch saying no.
+pub async fn set_chat_color(
+    http: &Http,
+    auth: Auth<'_>,
+    base: Option<&str>,
+    color: &str,
+) -> Result<std::result::Result<(), ColorRefusal>> {
+    let v = run_at(
         http,
         auth,
-        "mutation($input: UpdateChatColorInput!) { updateChatColor(input: $input) { user { id } } }",
+        base,
+        "mutation Chat_UpdateChatColorV2($input: UpdateChatColorV2Input!) { updateChatColorV2(input: $input) { user { id chatColor } error { code } } }",
         json!({ "input": { "color": color } }),
     )
     .await?;
-    Ok(())
+    Ok(match v.pointer("/updateChatColorV2/error/code").and_then(Value::as_str) {
+        None => Ok(()),
+        Some("INVALID_COLOR") => Err(ColorRefusal::Invalid),
+        Some("TURBO_ONLY_COLOR") => Err(ColorRefusal::TurboOnly),
+        Some(code) => Err(ColorRefusal::Other(code.to_owned())),
+    })
 }
 
 /// Anyone's chat color, readable signed out. `None` if they never set one.
@@ -211,5 +236,31 @@ mod tests {
         let pick = BadgePick::from(serde_json::from_str::<RawSelf>(raw).unwrap());
         assert_eq!(pick.available.len(), 1);
         assert_eq!(pick.available[0].set, "glhf-pledge");
+    }
+    #[tokio::test]
+    async fn color_refusals_and_badge_writes() {
+        use crate::gql::dashboard::mock;
+        let m = mock::serve([
+            r##"{"data":{"updateChatColorV2":{"user":{"id":"7","chatColor":"#1E90FF"},"error":null}}}"##,
+            r#"{"data":{"updateChatColorV2":{"user":null,"error":{"code":"TURBO_ONLY_COLOR"}}}}"#,
+            r#"{"data":{"updateChatColorV2":{"user":null,"error":{"code":"INVALID_COLOR"}}}}"#,
+            r#"{"data":{"selectChannelBadge":{"isSuccessful":false,"user":null}}}"#,
+            r#"{"data":{"deselectGlobalBadge":{"user":{"id":"7"}}}}"#,
+        ]);
+        let base = Some(m.base.as_str());
+        let (h, a) = (&m.http, mock::AUTH);
+        assert_eq!(set_chat_color(h, a, base, "#1E90FF").await.unwrap(), Ok(()));
+        assert_eq!(set_chat_color(h, a, base, "#123456").await.unwrap(), Err(ColorRefusal::TurboOnly));
+        assert_eq!(set_chat_color(h, a, base, "#12").await.unwrap(), Err(ColorRefusal::Invalid));
+        assert!(pick_channel_badge(h, a, base, "9", Some(("glhf-pledge", "1"))).await.is_err());
+        pick_global_badge(h, a, base, None).await.unwrap();
+        let sent = m.sent();
+        assert!(mock::query(&sent[0]).contains("updateChatColorV2(input: $input)"));
+        assert_eq!(sent[0]["variables"], json!({ "input": { "color": "#1E90FF" } }));
+        assert_eq!(
+            sent[3]["variables"],
+            json!({ "input": { "badgeSetID": "glhf-pledge", "badgeSetVersion": "1", "channelID": "9" } })
+        );
+        assert!(mock::query(&sent[4]).contains("deselectGlobalBadge"));
     }
 }

@@ -30,6 +30,7 @@ pub mod profile;
 pub mod profile_images;
 pub mod rewind;
 mod search;
+pub mod smilies;
 mod stories;
 pub mod subs;
 mod users;
@@ -48,7 +49,7 @@ pub use emotes::{
     channel_emotes, emote_info,
 };
 pub use identity::{
-    BadgePick, ChatIdentity, chat_color, chat_identity, pick_channel_badge, pick_global_badge, set_chat_color,
+    BadgePick, ChatIdentity, ColorRefusal, chat_color, chat_identity, pick_channel_badge, pick_global_badge, set_chat_color,
 };
 pub use videos::{Storyboard, Video, VideoKind, VideoSort, channel_videos, storyboard, video};
 

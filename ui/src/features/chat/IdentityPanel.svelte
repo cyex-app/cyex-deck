@@ -1,0 +1,313 @@
+<!-- 1.40 V107-Mk Chat identity, as on twitch.tv: the badge you wear (everywhere, or just in
+     this channel), your name color, and with Prime or Turbo any color and a smiley style.
+     Every change is read back from Twitch. Shown in the chat box's popover and the
+     account chip's dialog. -->
+<script lang="ts">
+  import { onMount } from 'svelte';
+
+  import Button from '../../components/Button.svelte';
+  import Loading from '../../components/Loading.svelte';
+  import { tooltip } from '../../components/tooltip.svelte';
+  import type { BadgeInfo } from '../../ipc/bindings/BadgeInfo';
+  import type { ChatIdentity } from '../../ipc/bindings/ChatIdentity';
+  import type { SmileyChoice } from '../../ipc/bindings/SmileyChoice';
+  import { chatIpc } from '../../ipc/chat';
+  import { accounts } from '../../lib/accounts.svelte';
+  import { density } from '../../lib/density.svelte';
+  import { errorText } from '../../lib/errors';
+  import { settings } from '../../lib/settings.svelte';
+  import { toast } from '../../lib/toast.svelte';
+  import { hexColor, NAMED, namedColor, smileyChoices, STYLE_NAME } from './identity';
+  import { emoteImg } from './urls';
+
+  interface Props {
+    account: string;
+    login: string;
+  }
+
+  let { account, login }: Props = $props();
+
+  let me = $state<ChatIdentity | null>(null);
+  let error = $state('');
+  let busy = $state(false);
+  let custom = $state('');
+
+  const theme = $derived(settings.v.appearance.theme);
+  const display = $derived(accounts.list.find((a) => a.userId === account)?.displayName ?? '');
+  const shown = $derived(me?.channel.selected ?? me?.global.selected ?? null);
+  const styles = $derived(smileyChoices(me?.smilies));
+  const typed = $derived(hexColor(custom));
+
+  async function load() {
+    try {
+      me = await chatIpc.identity(account, login);
+      custom = me.color ?? '';
+      error = '';
+    } catch (e) {
+      error = errorText(e);
+    }
+  }
+
+  onMount(() => void load());
+
+  async function run(action: () => Promise<unknown>, done: string) {
+    if (busy) return;
+    busy = true;
+    try {
+      await action();
+      await load();
+      toast.info(done);
+    } catch (e) {
+      toast.error(errorText(e));
+    } finally {
+      busy = false;
+    }
+  }
+
+  const color = (hex: string) => run(() => chatIpc.setColor(account, hex), 'Name color changed.');
+  const wear = (channel: boolean, b: BadgeInfo | null) =>
+    run(
+      () => chatIpc.pickBadge(account, channel ? (me?.channelId ?? null) : null, b?.set ?? null, b?.version ?? null),
+      b ? `Wearing ${b.title}.` : channel ? 'Same badge as everywhere.' : 'Badge off.',
+    );
+  const smile = (c: SmileyChoice) =>
+    run(() => chatIpc.setSmilies(account, c.name), `${STYLE_NAME[c.style]} smileys on.`);
+  const same = (a: BadgeInfo | null, b: BadgeInfo | null) => a?.set === b?.set && a?.version === b?.version;
+  const img = (id: string) => emoteImg('twitch', id, theme, { scale: density.scale }).src;
+</script>
+
+{#snippet picks(channel: boolean, selected: BadgeInfo | null, available: BadgeInfo[])}
+  <div class="badges">
+    <button
+      class="badge none"
+      class:on={!selected}
+      aria-pressed={!selected}
+      disabled={busy}
+      use:tooltip={channel ? 'Wear the same badge as everywhere' : 'No badge'}
+      onclick={() => wear(channel, null)}
+    >
+      {channel ? 'Same' : 'None'}
+    </button>
+    {#each available as b (`${b.set}/${b.version}`)}
+      <button
+        class="badge"
+        class:on={same(selected, b)}
+        aria-pressed={same(selected, b)}
+        disabled={busy}
+        use:tooltip={b.title}
+        aria-label={b.title}
+        onclick={() => wear(channel, b)}
+      >
+        <img src={b.image2x} alt="" />
+      </button>
+    {/each}
+  </div>
+{/snippet}
+
+<div class="panel" aria-busy={busy}>
+  {#if error}
+    <p class="note">{error}</p>
+  {:else if !me}
+    <Loading />
+  {:else}
+    <div class="preview" aria-hidden="true">
+      {#if shown}<img src={shown.image2x} alt="" />{/if}
+      <b style:color={me.color ?? 'var(--text)'}>{display}</b>
+    </div>
+
+    <section>
+      <h3 class="label">Badge</h3>
+      {#if me.global.available.length || me.channel.available.length}
+        <p class="sub">Everywhere</p>
+        {@render picks(false, me.global.selected, me.global.available)}
+        {#if me.channel.available.length && me.channelId}
+          <p class="sub">Only in {login}</p>
+          {@render picks(true, me.channel.selected, me.channel.available)}
+        {/if}
+      {:else if me.channelId}
+        <p class="note">No badges to pick from.</p>
+      {:else}
+        <p class="note">Picking a badge needs a GQL sign-in.</p>
+      {/if}
+    </section>
+
+    <section>
+      <h3 class="label">Name color</h3>
+      <div class="colors">
+        {#each NAMED as [name, hex] (hex)}
+          <button
+            class="swatch"
+            class:on={me.color?.toUpperCase() === hex}
+            aria-pressed={me.color?.toUpperCase() === hex}
+            style:background={hex}
+            use:tooltip={name}
+            aria-label={name}
+            disabled={busy}
+            onclick={() => color(hex)}
+          ></button>
+        {/each}
+      </div>
+      {#if me.anyColor}
+        <div class="custom">
+          <input type="color" value={typed ?? me.color ?? '#145AFF'} oninput={(e) => (custom = e.currentTarget.value)} aria-label="Pick a color" disabled={busy} />
+          <input class="field" bind:value={custom} maxlength="7" spellcheck="false" placeholder="#RRGGBB" aria-label="Any color" disabled={busy} />
+          <Button small disabled={busy || !typed || typed === me.color?.toUpperCase()} onclick={() => typed && color(typed)}>Use</Button>
+        </div>
+      {:else}
+        <p class="note">
+          {namedColor(me.color) ?? (me.color ? 'Your color isn’t one of these.' : '')} Prime or Turbo can pick any color.
+        </p>
+      {/if}
+    </section>
+
+    {#if styles.length}
+      <section>
+        <h3 class="label">Smileys</h3>
+        <div class="styles" role="radiogroup" aria-label="Smiley style">
+          {#each styles as c (c.style)}
+            {@const on = me.smilies.current === c.style}
+            <button class="style" class:on role="radio" aria-checked={on} disabled={busy} onclick={() => !on && smile(c)}>
+              <span class="faces">
+                {#each c.preview as id (id)}<img src={img(id)} alt="" />{/each}
+              </span>
+              {STYLE_NAME[c.style]}
+            </button>
+          {/each}
+        </div>
+      </section>
+    {/if}
+  {/if}
+</div>
+
+<style>
+  .panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 300px;
+    max-width: 100%;
+    padding: 8px;
+    overflow-y: auto;
+  }
+  .preview {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 6px 10px;
+    background: var(--surface-hover);
+    border-radius: var(--radius);
+  }
+  .preview img {
+    width: 18px;
+    height: 18px;
+  }
+  .preview b {
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  h3 {
+    margin: 0;
+  }
+  .sub {
+    margin: 2px 0 0;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+  .colors,
+  .badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .swatch {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 2px solid var(--border-strong);
+    border-radius: 50%;
+  }
+  .swatch.on {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
+  .custom {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .custom .field {
+    width: 96px;
+    font-family: var(--font-mono);
+  }
+  .custom input[type='color'] {
+    width: 30px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    background: none;
+  }
+  .badge {
+    display: grid;
+    place-items: center;
+    min-width: 34px;
+    height: 34px;
+    padding: 3px;
+    background: var(--surface-hover);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+  }
+  .badge img {
+    width: 24px;
+    height: 24px;
+  }
+  .badge.none {
+    padding: 0 10px;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .badge.on,
+  .style.on {
+    border-color: var(--accent-border);
+    background: var(--accent-dim);
+    color: var(--text);
+  }
+  .styles {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .style {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 4px;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+  .faces {
+    display: flex;
+    gap: 2px;
+  }
+  .faces img {
+    width: 20px;
+    height: 20px;
+  }
+  .note {
+    margin: 0;
+    color: var(--dim);
+    font-size: 0.85rem;
+  }
+</style>

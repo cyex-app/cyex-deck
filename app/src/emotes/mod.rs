@@ -94,6 +94,8 @@ struct Inner {
     /// Each account's Twitch emotes by name, for its own lines.
     mine: HashMap<String, Arc<Lookup>>,
     mine_loading: HashSet<String>,
+    /// V107-Mk Each account's smiley style, once read.
+    smilies: HashMap<String, cyex_twitch::gql::smilies::SmileyStyle>,
     cosmetics: Cosmetics,
 }
 
@@ -483,6 +485,11 @@ pub async fn avatar(app: &AppHandle, login: &str) -> Option<cyex_emotes::seventv
 /// The account just got new Twitch emotes.
 pub fn refresh_mine(app: &AppHandle, account: &str, channel_id: &str) {
     load::mine(app.clone(), account.to_owned(), channel_id.to_owned(), true);
+}
+
+/// V107-Mk The account picked another smiley style.
+pub fn set_smiley_style(app: &AppHandle, account: &str, style: cyex_twitch::gql::smilies::SmileyStyle) {
+    load::set_smiley_style(app, account, style);
 }
 
 /// C13 A channel's chat bot commands, cached for the run.

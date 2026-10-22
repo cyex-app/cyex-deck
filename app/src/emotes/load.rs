@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use cyex_chat::model::Provider;
 use cyex_emotes::seventv::{self, socket::EventApi, socket::Topic as SevenTopic};
 use cyex_emotes::{Emote, EmoteSet, Lookup, Scope};
+use cyex_twitch::gql::smilies::{self, SmileyStyle};
 use cyex_twitch::gql::{self, EmoteSet as TwitchSet};
 use cyex_twitch::{Http, helix, ws};
 use tauri::{AppHandle, Manager};
@@ -129,6 +130,7 @@ pub async fn twitch_sets(
         return Ok(sets.clone());
     }
     let http = http(app);
+    let style = smiley_style(app, account).await;
     let sets = if let Some((token, client_id)) = gql_token(app, account) {
         let auth = crate::auth::gql_auth(&token, &client_id);
         gql::available_emotes(&http, auth, channel_id).await
@@ -143,9 +145,17 @@ pub async fn twitch_sets(
         return Err("Sign in to use your Twitch emotes.".into());
     }
     .map_err(|e| e.to_string())?;
+    let mut sets = sets;
+    smilies::apply(&mut sets, style);
     let sets = Arc::new(sets);
     let mut inner = state.lock();
     inner.twitch_sets.insert(key, (Instant::now(), sets.clone()));
+    rebuild_mine(&mut inner, account);
+    Ok(sets)
+}
+
+/// The account's lookup for its own lines, from every channel's sets it has.
+fn rebuild_mine(inner: &mut super::Inner, account: &str) {
     let mine: Vec<EmoteSet> = inner
         .twitch_sets
         .iter()
@@ -159,7 +169,42 @@ pub async fn twitch_sets(
     inner
         .mine
         .insert(account.to_owned(), Arc::new(Lookup::build(mine.iter())));
-    Ok(sets)
+}
+
+/// V107-Mk The account's smiley style: read once a run with the GQL sign-in, Robot without.
+async fn smiley_style(app: &AppHandle, account: &str) -> SmileyStyle {
+    if let Some(s) = app.state::<Emotes>().lock().smilies.get(account) {
+        return *s;
+    }
+    let Some((token, client_id)) = gql_token(app, account) else {
+        return SmileyStyle::Robot;
+    };
+    let auth = crate::auth::gql_auth(&token, &client_id);
+    match smilies::smilies(&http(app), auth, None).await {
+        Ok(s) => {
+            app.state::<Emotes>().lock().smilies.insert(account.to_owned(), s.current);
+            s.current
+        }
+        Err(e) => {
+            eprintln!("emotes: no smiley style for {account}: {e}");
+            SmileyStyle::Robot
+        }
+    }
+}
+
+/// V107-Mk A new smiley style: the menu and own lines switch art at once, no refetch.
+pub fn set_smiley_style(app: &AppHandle, account: &str, style: SmileyStyle) {
+    let state = app.state::<Emotes>();
+    let mut inner = state.lock();
+    inner.smilies.insert(account.to_owned(), style);
+    for ((a, _), (_, sets)) in inner.twitch_sets.iter_mut() {
+        if a == account {
+            let mut fresh = sets.as_ref().clone();
+            smilies::apply(&mut fresh, style);
+            *sets = Arc::new(fresh);
+        }
+    }
+    rebuild_mine(&mut inner, account);
 }
 
 /// Loads the account's Twitch emotes in the background, once per run unless `fresh`.

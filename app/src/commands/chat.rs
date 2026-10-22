@@ -137,6 +137,12 @@ pub async fn chat_set_color(app: AppHandle, account: String, color: String) -> C
     chat::identity::set_color(&app, &account, &color).await
 }
 
+/// V107-Mk Smiley style, by Twitch's set name; answers with what Twitch has now.
+#[tauri::command]
+pub async fn chat_set_smilies(app: AppHandle, account: String, name: String) -> CmdResult<gql::smilies::Smilies> {
+    chat::identity::set_smilies(&app, &account, &name).await
+}
+
 /// The user's last messages in a channel (usercard, 1.36).
 #[tauri::command]
 pub fn chat_user_messages(app: AppHandle, channel: String, user_id: String) -> Vec<Arc<ChatMessage>> {
