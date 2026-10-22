@@ -11,6 +11,9 @@
   import { ENTRIES, GROUPS, hotkeyEntries, PAGES, type PageId } from './registry/index';
   import { reveal } from './reveal';
   import { buildIndex, search, type Hit } from './search';
+  import { settingsPlace } from './place.svelte';
+  import { countSearch, PAUSE_MS, removeRecent } from './recent';
+  import RecentSearches from './RecentSearches.svelte';
   import SearchResults from './SearchResults.svelte';
   import AccountsSection from './sections/AccountsSection.svelte';
   import AppearanceSection from './sections/AppearanceSection.svelte';
@@ -36,7 +39,7 @@
   import UploaderSection from './sections/UploaderSection.svelte';
   import SearchField from '../../components/SearchField.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
-  import { keepScroll } from '../../lib/keepScroll';
+  import { forgetScroll, keepScroll } from '../../lib/keepScroll';
   import { keyTaken } from '../../lib/escape';
   import { isFindKey, visibleSearchbox } from '../../lib/findKey';
   import { recording } from '../../lib/hotkeys.svelte';
@@ -79,9 +82,14 @@
 
   // V105-12 Leaving a page (or Settings) clears the rules left empty; never while you can still type in them.
   let shown = untrack(() => section);
+  // V107-Mo Back on the page you left: search and scroll come back. Sent to another page: its top.
+  if (!settingsPlace.arrive(shown)) forgetScroll('settings');
   $effect(() => {
     if (section !== shown) {
       shown = section;
+      settingsPlace.page = section;
+      // A jump from outside (Ctrl+K, a menu) shows the page, not an old search.
+      query = '';
       // Another page opens at the top.
       if (content) content.scrollTop = 0;
       void settings.pruneBlank();
@@ -90,7 +98,21 @@
   onDestroy(() => void settings.pruneBlank());
 
   const docs = buildIndex([...ENTRIES, ...hotkeyEntries(ACTIONS)], PAGES);
-  let query = $state('');
+  // V107-Mo Coming back to Settings brings the search back (place.svelte.ts).
+  let query = $state(settingsPlace.query);
+  $effect(() => {
+    settingsPlace.query = query;
+  });
+  /** Which box has focus (side or top), for the recent list. */
+  let focused = $state('');
+  const recent = $derived(settings.v.general.recentSearches ?? []);
+  /** The recent search the arrow keys are on; -1 is the box. */
+  let pickRecent = $state(-1);
+  /** Escape put the list away until you type or come back to the box. */
+  let recentAway = $state(false);
+  const recentShown = (where: string) => focused === where && !query && !recentAway && recent.length > 0;
+  /** What this search already added after a pause; typing on replaces it. */
+  let counted = untrack(() => query);
   let active = $state(0);
   let content = $state<HTMLElement>();
   let nav = $state<HTMLElement>();
@@ -98,12 +120,53 @@
   const searching = $derived(query.trim() !== '');
   const hits = $derived(search(docs, query));
 
+  function remember(list: string[] | null) {
+    if (list) void settings.patch('general', { recentSearches: list });
+  }
+
+  /** V107-Mo A search counts once you paused on it with results, or picked one; once each. */
+  function count(q: string) {
+    remember(countSearch(untrack(() => recent), q, counted));
+    counted = q;
+  }
+
+  $effect(() => {
+    const q = query;
+    if (!q.trim()) counted = '';
+    if (!q.trim() || !hits.length) return;
+    const t = setTimeout(() => count(q), PAUSE_MS);
+    return () => clearTimeout(t);
+  });
+
+  function pickFromRecent(q: string) {
+    query = q;
+    active = 0;
+    pickRecent = -1;
+  }
+
+  /** Arrows, Enter and Escape for the recent list, before the box sees them. */
+  function onrecentkey(e: KeyboardEvent, where: string) {
+    if (!recentShown(where) || e.isComposing) return;
+    const n = recent.length;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      pickRecent = e.key === 'ArrowDown' ? Math.min(n - 1, pickRecent + 1) : Math.max(-1, pickRecent - 1);
+    } else if (e.key === 'Enter' && pickRecent >= 0) {
+      pickFromRecent(recent[pickRecent]);
+    } else if (e.key === 'Escape') {
+      recentAway = true;
+      pickRecent = -1;
+    } else return;
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
   function open(id: string) {
     query = '';
     section = id;
   }
 
   async function jump(hit: Hit) {
+    count(query);
     open(hit.entry.page);
     await tick();
     if (content) reveal(content, hit.entry.anchor ? [hit.entry.id, hit.entry.anchor] : [hit.entry.id]);
@@ -153,8 +216,28 @@
 
 <!-- One box, drawn in the list or, in narrow windows, above the page. -->
 {#snippet searchBox(where: string)}
-  <div class="box {where}">
-    <SearchField placeholder="Search settings" bind:value={query} oninput={() => (active = 0)} onkeydown={onkey} />
+  <div
+    class="box {where}"
+    role="presentation"
+    onfocusin={() => ((focused = where), (recentAway = false))}
+    onfocusout={() => focused === where && ((focused = ''), (pickRecent = -1))}
+    onkeydowncapture={(e) => onrecentkey(e, where)}
+  >
+    <SearchField
+      placeholder="Search settings"
+      bind:value={query}
+      oninput={() => ((active = 0), (recentAway = false), (pickRecent = -1))}
+      onkeydown={onkey}
+    />
+    {#if recentShown(where)}
+      <RecentSearches
+        items={recent}
+        active={pickRecent}
+        onpick={pickFromRecent}
+        onremove={(q) => ((pickRecent = -1), remember(removeRecent(recent, q)))}
+        onclear={() => remember([])}
+      />
+    {/if}
   </div>
 {/snippet}
 
@@ -205,6 +288,7 @@
     width: 6px;
   }
   .box {
+    position: relative;
     flex: none;
   }
   .box.side {

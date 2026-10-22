@@ -47,6 +47,13 @@ pub struct ChannelCatalog {
     pub cheermotes: Vec<Cheermote>,
 }
 
+impl Catalogs {
+    /// V107-Bn The global catalog, if it loaded.
+    pub fn global_cached(&self) -> Option<Arc<GlobalCatalog>> {
+        self.global.get().cloned()
+    }
+}
+
 pub fn init(app: &AppHandle) {
     app.manage(Catalogs::default());
     app.state::<Chat>().channels.hook(on_channel);

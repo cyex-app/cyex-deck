@@ -22,11 +22,11 @@ mod gif_mock;
 const ACCESS_TTL: Duration = Duration::from_secs(300);
 
 /// What a chat's account can use, with the GQL token to use it.
-struct Ctx {
+pub(super) struct Ctx {
     channel_id: String,
-    login: String,
-    account: Option<String>,
-    token: Option<(String, String)>,
+    pub(super) login: String,
+    pub(super) account: Option<String>,
+    pub(super) token: Option<(String, String)>,
     /// 1.43 From ROOMSTATE, read on every call.
     emote_only: bool,
 }
@@ -44,7 +44,7 @@ impl Ctx {
     }
 }
 
-fn ctx(app: &AppHandle, view: u32) -> Result<Ctx, String> {
+pub(super) fn ctx(app: &AppHandle, view: u32) -> Result<Ctx, String> {
     let chat = app.state::<Chat>();
     let inner = chat.lock();
     let key = inner
@@ -72,7 +72,7 @@ fn ctx(app: &AppHandle, view: u32) -> Result<Ctx, String> {
     })
 }
 
-fn http(app: &AppHandle) -> cyex_twitch::Http {
+pub(super) fn http(app: &AppHandle) -> cyex_twitch::Http {
     app.state::<crate::auth::Auth>().http.clone()
 }
 

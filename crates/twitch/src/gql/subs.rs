@@ -224,6 +224,8 @@ pub async fn stop_renewal(http: &Http, auth: Auth<'_>, user_id: &str, sub_id: &s
 pub mod pages {
     pub const WALLET: &str = "https://www.twitch.tv/wallet?tab=payment-methods";
     pub const SUBSCRIPTIONS: &str = "https://www.twitch.tv/subscriptions?tab=paid";
+    /// Buy Bits (V107-B); the web client opens this same address.
+    pub const BITS: &str = "https://www.twitch.tv/bits";
 
     /// Subscribe, resub or change tier.
     pub fn subscribe(login: &str) -> String {

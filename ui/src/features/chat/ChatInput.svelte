@@ -22,6 +22,12 @@
   import { pluginsIpc } from '../../ipc/plugins';
   import { mods, PIN_LENGTHS } from '../modview/moderation.svelte';
   import { plugins } from '../plugins/plugins.svelte';
+  import BitsButton from './BitsButton.svelte';
+  import { CheerBox } from './bits.svelte';
+  import { catalogs } from './catalog.svelte';
+  import { cheerTotal, setCheer } from './cheer';
+  import CheerConfirm from './CheerConfirm.svelte';
+  import { chatxIpc } from '../../ipc/chatx';
   import EmoteButton from './EmoteButton.svelte';
   import IdentityButton from './IdentityButton.svelte';
   import RewardsMenu from './RewardsMenu.svelte';
@@ -78,9 +84,31 @@
     insert: (link) => void insertAtCaret(link),
     fail: (m) => (error = m),
   });
-  const onpaste = up.onpaste;
+  /** V107-Bn A pasted cheer word asks first: a copied chat line never spends on Enter. */
+  let pastedCheer = false;
+  const isCheermote = (p: string) => !!catalogs.cheermote(room.login, p);
+  function onpaste(e: ClipboardEvent) {
+    if (cheerTotal(e.clipboardData?.getData('text') ?? '', isCheermote) > 0) pastedCheer = true;
+    void up.onpaste(e);
+  }
+  $effect(() => {
+    if (!text) pastedCheer = false;
+  });
 
   const canChat = $derived(room.account !== null && accounts.can('sendChat', room.account));
+  // V107-B Cheering: same gate as power-ups.
+  const canCheer = $derived(room.account !== null && accounts.can('powerUps', room.account));
+  // svelte-ignore state_referenced_locally
+  const cheers = new CheerBox(() => room.view);
+  /** A cheer waiting for "Spend N Bits?". `again`: the same one just went out. */
+  interface CheerAsk {
+    raw: string;
+    value: string;
+    bits: number;
+    keep: boolean;
+    again: boolean;
+  }
+  let askCheer = $state<CheerAsk | null>(null);
   // V107-N12a A /me line counts against 491, like the send.
   const length = $derived(sendLength(text));
   const chars = $derived(length.chars);
@@ -276,13 +304,26 @@
   /** A second Enter while one is on its way doesn't send twice. */
   let sending = false;
 
-  async function send(keep: boolean) {
+  async function send(keep: boolean, repeat = false) {
     const raw = text;
     const value = raw.trim();
     if (!value || !canChat || sending) return;
     // M11 A mod's `/pin <text>`: how long first, then send and pin.
     const pinned = pinText(value);
     if (pinned !== null && room.account && mods.role(room.account, room.login)) return askPin(room.account, value, pinned);
+    // V107-B Text with a cheer word of this channel goes out as a cheer, never as text.
+    // Rust asks (threshold, the same cheer again, pasted or recalled) or, with Bits off, says
+    // it's plain text. Without the GQL sign-in, Rust's plain send decides.
+    const bits = canCheer ? cheerTotal(value, isCheermote) : 0;
+    if (bits > 0) {
+      // A held Enter never cheers twice.
+      if (repeat || askCheer) return;
+      return cheer({ raw, value, bits, keep, again: false }, false, pastedCheer || recall >= 0);
+    }
+    return plain(raw, value, keep);
+  }
+
+  async function plain(raw: string, value: string, keep: boolean) {
     sending = true;
     try {
       const action = await chatIpc.send(room.view, value, replyTo?.id);
@@ -301,6 +342,43 @@
     } finally {
       sending = false;
     }
+  }
+
+  async function cheer(a: CheerAsk, confirmed: boolean, careful = false) {
+    if (sending) return;
+    sending = true;
+    const { raw, value, keep } = a;
+    /** Bits are off here: it's plain chat. */
+    let asText = false;
+    try {
+      const r = await chatxIpc.cheer(room.view, value, a.bits, confirmed, careful);
+      if (r.kind === 'ask') return void (askCheer = { ...a, again: r.again });
+      asText = r.kind === 'text';
+      if (r.kind === 'done') {
+        cheers.setBalance(r.balance);
+        error = '';
+        sent = [value, ...sent.filter((s) => s !== value)].slice(0, HISTORY);
+        recall = -1;
+        if (!keep) {
+          if (text.trim() === value) text = '';
+          else if (text.startsWith(raw)) text = text.slice(raw.length).trimStart();
+        }
+      }
+    } catch (e) {
+      flash(errorText(e));
+    } finally {
+      sending = false;
+    }
+    if (asText) await plain(raw, value, keep);
+  }
+
+  /** V107-B The picker's cheer word goes into the box; the caret ends after it. */
+  function pickCheer(prefix: string, amount: number) {
+    text = setCheer(text, prefix, amount);
+    void tick().then(() => {
+      box?.focus();
+      box?.setSelectionRange(text.length, text.length);
+    });
   }
 
   /** M11 Escape keeps the text in the box. */
@@ -347,7 +425,7 @@
       void tabComplete(e.shiftKey);
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      void send(e.ctrlKey);
+      void send(e.ctrlKey, e.repeat);
     } else if (e.key === 'Escape' && replyTo) {
       replyTo = null;
     } else if (e.key === 'ArrowUp' && (!text || recall >= 0) && sent.length) {
@@ -375,6 +453,7 @@
   {/if}
   <div class="row" bind:this={row}>
     <RewardsMenu {room} />
+    {#if canChat && canCheer}<BitsButton {room} box={cheers} oninsert={pickCheer} />{/if}
     {#if canChat}
       <div class="compose">
       <textarea
@@ -424,6 +503,20 @@
   <!-- V1051-05 Over the box, so the box never moves. -->
   {#if up.upload.status}<p class="note uploading" role="status">{up.upload.status}</p>{/if}
   {#if error}<p class="note error" role="alert">{error}</p>{/if}
+  {#if askCheer}
+    <CheerConfirm
+      bits={askCheer.bits}
+      text={askCheer.value}
+      again={askCheer.again}
+      onyes={() => {
+        // Read before it's cleared: the block's values go with it.
+        const a = askCheer!;
+        askCheer = null;
+        void cheer(a, true);
+      }}
+      onno={() => (askCheer = null)}
+    />
+  {/if}
   {#if up.pending}
     <UploadConfirm
       host={up.pending.host}

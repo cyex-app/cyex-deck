@@ -153,6 +153,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         chat_extra::chat_predict,
         chat_extra::chat_power_ups,
         chat_extra::chat_power_up,
+        chat_extra::chat_cheer_info,
+        chat_extra::chat_cheer,
         chat_extra::chat_gif_info,
         chat_extra::chat_gif_search,
         chat_extra::chat_gif_send,

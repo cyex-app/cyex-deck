@@ -28,6 +28,8 @@ pub struct General {
     pub updates: Updates,
     /// V1051-01
     pub sound: Sound,
+    /// V107-Mo The last settings searches, newest first. Local only (not in exports).
+    pub recent_searches: Vec<String>,
 }
 
 impl Default for General {
@@ -43,6 +45,7 @@ impl Default for General {
             streamer: StreamerMode::default(),
             updates: Updates::default(),
             sound: Sound::default(),
+            recent_searches: Vec::new(),
         }
     }
 }
@@ -69,6 +72,7 @@ impl Schema for General {
             self.updates.skip.clear();
         }
         self.sound.sanitize();
+        sanitize_recent(&mut self.recent_searches);
     }
 }
 
@@ -96,6 +100,8 @@ impl Default for Updates {
 
 /// V105-03 Most the pinned message can be larger than chat text, in px.
 const MAX_PINNED_STEP: u8 = 8;
+const MAX_RECENT: usize = 5;
+const MAX_RECENT_CHARS: usize = 80;
 const MAX_APPS: usize = 30;
 const MAX_APP_CHARS: usize = 80;
 
@@ -258,5 +264,33 @@ mod tests {
         g.pinned_size_step = 0;
         g.sanitize();
         assert_eq!(g.pinned_size_step, 0);
+    }
+}
+
+/// V107-Mo Trimmed, no empties, no repeats (any case), the newest 5.
+fn sanitize_recent(list: &mut Vec<String>) {
+    let mut seen: Vec<String> = Vec::new();
+    list.retain_mut(|s| {
+        *s = s.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(MAX_RECENT_CHARS).collect();
+        let key = s.to_lowercase();
+        let keep = !s.is_empty() && !seen.contains(&key);
+        seen.push(key);
+        keep
+    });
+    list.truncate(MAX_RECENT);
+}
+
+#[cfg(test)]
+mod recent_tests {
+    use super::*;
+
+    #[test]
+    fn recent_searches_are_clean() {
+        let mut g = General {
+            recent_searches: ["  Font ", "font", "", "a", "b", "c", "d", "e"].map(String::from).to_vec(),
+            ..General::default()
+        };
+        g.sanitize();
+        assert_eq!(g.recent_searches, ["Font", "a", "b", "c", "d"]);
     }
 }

@@ -73,11 +73,12 @@ pub async fn pick_badge(
         gql_token(app, account).ok_or("Badges need a GQL sign-in. Add it in Settings → Accounts.")?;
     let auth = crate::auth::gql_auth(&token, &client_id);
     let http = http(app);
-    match channel_id {
+    let taken = match channel_id {
         Some(id) => gql::pick_channel_badge(&http, auth, None, id, badge).await,
-        None => gql::pick_global_badge(&http, auth, None, badge).await,
+        None => gql::pick_global_badge(&http, auth, None, badge).await.map(|()| true),
     }
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+    taken.then_some(()).ok_or_else(|| "Twitch didn’t take that badge.".into())
 }
 
 /// `#RRGGBB` or a named color (`DodgerBlue`, `dodger_blue`), as `/color` takes it.
@@ -98,7 +99,19 @@ fn refusal_text(r: &ColorRefusal) -> String {
     match r {
         ColorRefusal::TurboOnly => ANY_COLOR.into(),
         ColorRefusal::Invalid => "Twitch didn’t take that color.".into(),
-        ColorRefusal::Other(code) => format!("Twitch didn’t change the color ({code})."),
+        ColorRefusal::Other(code) => {
+            eprintln!("chat color: refused with {code}");
+            "Twitch didn’t change the color.".into()
+        }
+    }
+}
+
+/// V107-Mk What GQL's answer means: `Ok` is final (done, or Twitch said no, which Helix
+/// would only repeat); `Err` is GQL itself failing, so Helix gets a go.
+fn gql_verdict(r: cyex_twitch::Result<Result<(), ColorRefusal>>) -> Result<Result<(), String>, String> {
+    match r {
+        Ok(answer) => Ok(answer.map_err(|r| refusal_text(&r))),
+        Err(e) => Err(e.to_string()),
     }
 }
 
@@ -110,10 +123,9 @@ pub async fn set_color(app: &AppHandle, account: &str, color: &str) -> Result<()
     let mut gql_error = None;
     if let Some((token, client_id)) = gql_token(app, account) {
         let auth = crate::auth::gql_auth(&token, &client_id);
-        match gql::set_chat_color(&http, auth, None, &color).await {
-            Ok(Ok(())) => return Ok(()),
-            Ok(Err(r)) => return Err(refusal_text(&r)),
-            Err(e) => gql_error = Some(e.to_string()),
+        match gql_verdict(gql::set_chat_color(&http, auth, None, &color).await) {
+            Ok(done) => return done,
+            Err(e) => gql_error = Some(e),
         }
     }
     let Some((token, client_id)) = helix_scoped(app, account, COLOR_SCOPE) else {
@@ -136,9 +148,12 @@ pub async fn set_smilies(app: &AppHandle, account: &str, name: &str) -> Result<S
         gql_token(app, account).ok_or("Smiley styles need a GQL sign-in. Add it in Settings → Accounts.")?;
     let auth = crate::auth::gql_auth(&token, &client_id);
     let http = http(app);
-    smilies::set_smilies(&http, auth, None, account, name)
+    if !smilies::set_smilies(&http, auth, None, account, name)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string())?
+    {
+        return Err("Twitch didn’t take that style.".into());
+    }
     let now = smilies::smilies(&http, auth, None).await.map_err(|e| e.to_string())?;
     crate::emotes::set_smiley_style(app, account, now.current);
     Ok(now)
@@ -162,5 +177,28 @@ mod tests {
     fn refusals_read_short() {
         assert_eq!(refusal_text(&ColorRefusal::TurboOnly), ANY_COLOR);
         assert_eq!(refusal_text(&ColorRefusal::Invalid), "Twitch didn’t take that color.");
+        assert_eq!(refusal_text(&ColorRefusal::Other("X_Y".into())), "Twitch didn’t change the color.");
+    }
+
+    /// A Prime/Turbo refusal is final; only GQL failing itself falls back to Helix.
+    #[test]
+    fn helix_only_when_gql_fails() {
+        assert_eq!(gql_verdict(Ok(Ok(()))), Ok(Ok(())));
+        assert_eq!(gql_verdict(Ok(Err(ColorRefusal::TurboOnly))), Ok(Err(ANY_COLOR.to_owned())));
+        assert_eq!(gql_verdict(Ok(Err(ColorRefusal::Invalid))).map(|r| r.is_err()), Ok(true));
+        let down = cyex_twitch::Error::Api { status: 503, message: "down".into() };
+        assert!(gql_verdict(Err(down)).is_err());
+    }
+
+    /// The popover's swatches (`identity.ts`) are Twitch's named colors here, in order.
+    #[test]
+    fn ui_presets_match() {
+        const TS: &str = include_str!("../../../ui/src/features/chat/identity.ts");
+        let hexes: Vec<&str> = TS
+            .match_indices("'#")
+            .filter_map(|(i, _)| TS.get(i + 1..i + 8))
+            .filter(|h| h[1..].chars().all(|c| c.is_ascii_hexdigit()))
+            .collect();
+        assert_eq!(hexes, NAMED.map(|(_, hex)| hex));
     }
 }

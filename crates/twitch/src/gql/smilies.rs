@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use ts_rs::TS;
 
 use super::{Auth, EmoteKind, EmoteSet, TwitchEmote, run_at};
-use crate::{Error, Http, Result};
+use crate::{Http, Result};
 
 const READ: &str = "query SettingsPrimePage_PrimeEmotesSetPicker { currentUser { id primeSettings { id \
     primeEmoticons { currentSetName emoticonSets { id emotes { id text } } } } } }";
@@ -88,17 +88,13 @@ pub async fn smilies(http: &Http, auth: Auth<'_>, base: Option<&str>) -> Result<
     Ok(read(&run_at(http, auth, base, READ, json!({})).await?))
 }
 
-/// Picks the set Twitch calls `name` (a [`SmileyChoice::name`]).
-pub async fn set_smilies(http: &Http, auth: Auth<'_>, base: Option<&str>, user_id: &str, name: &str) -> Result<()> {
+/// Picks the set Twitch calls `name` (a [`SmileyChoice::name`]). `Ok(false)`: Twitch ran
+/// it but kept another set.
+pub async fn set_smilies(http: &Http, auth: Auth<'_>, base: Option<&str>, user_id: &str, name: &str) -> Result<bool> {
     let vars = json!({ "input": { "primeEmoticonsSetName": name, "userID": user_id } });
     let v = run_at(http, auth, base, WRITE, vars).await?;
-    match v.pointer("/updatePrimeSettings/primeSettings/primeEmoticons/currentSetName").and_then(Value::as_str) {
-        Some(now) if now == name => Ok(()),
-        _ => Err(Error::Api {
-            status: 200,
-            message: "Twitch didn’t take that style.".into(),
-        }),
-    }
+    let now = v.pointer("/updatePrimeSettings/primeSettings/primeEmoticons/currentSetName");
+    Ok(now.and_then(Value::as_str) == Some(name))
 }
 
 pub(crate) fn read(data: &Value) -> Smilies {
@@ -131,7 +127,7 @@ pub(crate) fn read(data: &Value) -> Smilies {
 /// Twitch's list doesn't have it. Running it again with another style undoes it.
 pub fn apply(sets: &mut Vec<EmoteSet>, style: SmileyStyle) {
     let others: Vec<SmileyStyle> = SmileyStyle::ALL.into_iter().filter(|s| *s != style).collect();
-    let smiley_sets = ["0", "33", "42"];
+    let smiley_sets = SmileyStyle::ALL.map(SmileyStyle::set_id);
     for set in sets.iter_mut().filter(|s| smiley_sets.contains(&s.id.as_str())) {
         set.emotes.retain(|e| !others.iter().any(|o| o.owns(&e.id)));
     }
@@ -312,8 +308,8 @@ mod tests {
         let base = Some(m.base.as_str());
         let got = smilies(&m.http, mock::AUTH, base).await.unwrap();
         assert_eq!(got.choices.len(), 2);
-        set_smilies(&m.http, mock::AUTH, base, "7", "turbo").await.unwrap();
-        assert!(set_smilies(&m.http, mock::AUTH, base, "7", "monkeys").await.is_err());
+        assert!(set_smilies(&m.http, mock::AUTH, base, "7", "turbo").await.unwrap());
+        assert!(!set_smilies(&m.http, mock::AUTH, base, "7", "monkeys").await.unwrap());
         let sent = m.sent();
         assert!(mock::query(&sent[0]).contains("primeEmoticons { currentSetName emoticonSets"));
         assert!(mock::query(&sent[1]).contains("updatePrimeSettings(input: $input)"));

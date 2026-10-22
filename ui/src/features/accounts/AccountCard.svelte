@@ -25,6 +25,8 @@
   import { unlock } from '../unlock/unlock.svelte';
   import { accountName, missingScopesText, needsSignIn, tokenStatus } from './status';
   import { errorText } from '../../lib/errors';
+  import { untrack } from 'svelte';
+  import { settingsPlace } from '../settings/place.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
 
   let { account }: { account: AccountView } = $props();
@@ -42,7 +44,9 @@
     (unlocking || signIn.offer === account.userId) && (account.gql === null || needsSignIn(account.gql)),
   );
 
-  let editing = $state(false);
+  // V107-Mo The profile editor stays open when you come back to Settings.
+  let editing = $state(untrack(() => settingsPlace.open('accounts', `profile:${account.userId}`)));
+  $effect(() => settingsPlace.setOpen('accounts', `profile:${account.userId}`, editing));
   /** V107-R19 Mocks test runs: the images work without a GQL sign-in. */
   let imagesMock = $state(false);
   profileImagesIpc.mocked().then((m) => (imagesMock = m)).catch(() => {});

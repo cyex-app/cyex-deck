@@ -19,6 +19,7 @@
   import { toast } from '../../../lib/toast.svelte';
   import { CHANNEL_STATES, countOn, group, PLATFORMS, sends, smart, type Category, type Group } from '../notify';
   import { errorText } from '../../../lib/errors';
+  import { settingsPlace } from '../place.svelte';
   import Select from '../../../components/Select.svelte';
 
   const n = $derived(settings.v.notifications);
@@ -32,8 +33,10 @@
   let loading = $state(false);
   let error = $state('');
   let query = $state('');
-  let showChannels = $state(false);
-  let opened = $state<string[]>([]);
+  let showChannels = $state(settingsPlace.open('notifications', 'channels'));
+  /** Groups toggled this visit; the rest come from where you left (place.svelte.ts). */
+  let toggled = $state<Record<string, boolean>>({});
+  const isOpen = (label: string) => toggled[label] ?? settingsPlace.open('notifications', `group:${label}`);
 
   const sw = $derived(group(switches));
   const smartOn = $derived(smart(switches));
@@ -130,7 +133,9 @@
   }
 
   function toggleOpen(label: string) {
-    opened = opened.includes(label) ? opened.filter((l) => l !== label) : [...opened, label];
+    const v = !isOpen(label);
+    toggled[label] = v;
+    settingsPlace.setOpen('notifications', `group:${label}`, v);
   }
 </script>
 
@@ -173,7 +178,10 @@
 
 {#if account}
   <SectionHead title="Per channel" setting="notifications.live.channels" />
-  <button class="fold" aria-expanded={showChannels} onclick={() => (showChannels = !showChannels)}>
+  <button class="fold" aria-expanded={showChannels} onclick={() => {
+    showChannels = !showChannels;
+    settingsPlace.setOpen('notifications', 'channels', showChannels);
+  }}>
     <Icon name={showChannels ? 'chevronDown' : 'chevronRight'} size={14} />
     <span>{channels.length ? `${channels.length}${cursor ? '+' : ''} followed channel${channels.length === 1 && !cursor ? '' : 's'}` : 'Followed channels'}</span>
     <span class="dim">{twitch ? 'Alerts here and what Twitch sends' : 'Alerts here'}</span>
@@ -238,7 +246,7 @@
         {/each}
       {/if}
       {#each sw.groups as g (g.label)}
-        {@const open = opened.includes(g.label)}
+        {@const open = isOpen(g.label)}
         {#if single(g)}
           <span class="cat strong single">{g.label}</span>
         {:else}

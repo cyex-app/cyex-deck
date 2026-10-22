@@ -40,7 +40,7 @@ pub async fn subs_stop_renewal(app: AppHandle, account: String, sub_id: String) 
     subs::stop_renewal(&app, &account, &sub_id).await
 }
 
-/// Opens one of Twitch's pages in the account's Twitch window: `wallet`, `subscriptions`,
+/// Opens one of Twitch's pages in the account's Twitch window: `wallet`, `subscriptions`, `bits`,
 /// `subscribe` or `gift` (these two name a channel).
 #[tauri::command]
 pub async fn twitch_page(

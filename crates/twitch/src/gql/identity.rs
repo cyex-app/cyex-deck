@@ -88,14 +88,15 @@ pub async fn pick_global_badge(http: &Http, auth: Auth<'_>, base: Option<&str>, 
     Ok(())
 }
 
-/// Wears `badge` in one channel, or goes back to the global pick with `None`.
+/// Wears `badge` in one channel, or goes back to the global pick with `None`. `Ok(false)`:
+/// Twitch ran it and said no.
 pub async fn pick_channel_badge(
     http: &Http,
     auth: Auth<'_>,
     base: Option<&str>,
     channel_id: &str,
     badge: Option<(&str, &str)>,
-) -> Result<()> {
+) -> Result<bool> {
     let (q, vars) = match badge {
         Some((set, version)) => (
             "mutation($input: SelectChannelBadgeInput!) { selectChannelBadge(input: $input) { isSuccessful user { id } } }",
@@ -107,13 +108,7 @@ pub async fn pick_channel_badge(
         ),
     };
     let v = run_at(http, auth, base, q, vars).await?;
-    if v.pointer("/selectChannelBadge/isSuccessful") == Some(&Value::Bool(false)) {
-        return Err(Error::Api {
-            status: 200,
-            message: "Twitch didn’t take that badge.".into(),
-        });
-    }
-    Ok(())
+    Ok(v.pointer("/selectChannelBadge/isSuccessful") != Some(&Value::Bool(false)))
 }
 
 /// Why Twitch refused a name color (`updateChatColorV2`'s `error.code`).
@@ -252,7 +247,7 @@ mod tests {
         assert_eq!(set_chat_color(h, a, base, "#1E90FF").await.unwrap(), Ok(()));
         assert_eq!(set_chat_color(h, a, base, "#123456").await.unwrap(), Err(ColorRefusal::TurboOnly));
         assert_eq!(set_chat_color(h, a, base, "#12").await.unwrap(), Err(ColorRefusal::Invalid));
-        assert!(pick_channel_badge(h, a, base, "9", Some(("glhf-pledge", "1"))).await.is_err());
+        assert!(!pick_channel_badge(h, a, base, "9", Some(("glhf-pledge", "1"))).await.unwrap());
         pick_global_badge(h, a, base, None).await.unwrap();
         let sent = m.sent();
         assert!(mock::query(&sent[0]).contains("updateChatColorV2(input: $input)"));

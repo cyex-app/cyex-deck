@@ -15,6 +15,8 @@
   import NumberField from '../../../components/NumberField.svelte';
   import Button from '../../../components/Button.svelte';
   import { tooltip } from '../../../components/tooltip.svelte';
+  import { untrack } from 'svelte';
+  import { settingsPlace } from '../place.svelte';
 
   const h = $derived(settings.v.highlights);
   const s = $derived(h.similar);
@@ -34,7 +36,9 @@
   /** Why each filter doesn't read, by text. */
   let problems = $state<Record<string, string | null>>({});
   let names = $state.raw<FilterName[]>([]);
-  let showNames = $state(false);
+  let showNames = $state(settingsPlace.open('filters', 'names'));
+  $effect(() => settingsPlace.setOpen('filters', 'names', showNames));
+  if (untrack(() => showNames)) rulesIpc.filterNames().then((n) => (names = n)).catch(() => {});
 
   $effect(() => {
     for (const f of h.filters) {

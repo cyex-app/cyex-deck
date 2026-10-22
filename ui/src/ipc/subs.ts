@@ -6,7 +6,7 @@ import type { ChannelSub } from './bindings/ChannelSub';
 import type { MySubs } from './bindings/MySubs';
 
 /** Twitch pages the app opens in its Twitch window. */
-export type TwitchPage = 'wallet' | 'subscriptions' | 'subscribe' | 'gift';
+export type TwitchPage = 'wallet' | 'subscriptions' | 'bits' | 'subscribe' | 'gift';
 
 export const subsIpc = {
   mine: (account: string) => invoke<MySubs>('subs_mine', { account }),

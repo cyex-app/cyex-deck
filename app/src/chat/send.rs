@@ -39,6 +39,8 @@ pub fn send_to(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<Stri
     if chars > max {
         return Err(format!("Too long: {chars}/{max}."));
     }
+    // V107-Bn A cheer word goes out as text only where Bits are off.
+    super::cheer::plain_ok(app, &key.1, text)?;
 
     let chat = app.state::<Chat>();
     let mut inner = chat.lock();

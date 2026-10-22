@@ -81,8 +81,22 @@ pub fn page(kind: &str, login: &str) -> Option<String> {
     Some(match kind {
         "wallet" => pages::WALLET.to_owned(),
         "subscriptions" => pages::SUBSCRIPTIONS.to_owned(),
+        "bits" => pages::BITS.to_owned(),
         "subscribe" => pages::subscribe(login),
         "gift" => pages::gift(login),
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bits_page_needs_no_channel() {
+        assert_eq!(page("bits", "").as_deref(), Some("https://www.twitch.tv/bits"));
+        assert_eq!(page("bits", "x").as_deref(), Some(pages::BITS));
+        assert_eq!(page("nope", ""), None);
+        assert_eq!(page("gift", ""), None);
+    }
 }

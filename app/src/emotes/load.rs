@@ -129,9 +129,25 @@ pub async fn twitch_sets(
     {
         return Ok(sets.clone());
     }
+    let (sets, style) = tokio::join!(fetch_sets(app, account, channel_id), smiley_style(app, account));
+    Ok(store_sets(&mut state.lock(), key, sets?, style))
+}
+
+/// Caches fetched sets in the account's smiley style. A style picked while the fetch ran
+/// wins over `read`, the one read alongside it.
+fn store_sets(inner: &mut super::Inner, key: (String, String), mut sets: Vec<TwitchSet>, read: SmileyStyle) -> super::TwitchSets {
+    smilies::apply(&mut sets, inner.smilies.get(&key.0).copied().unwrap_or(read));
+    let sets = Arc::new(sets);
+    let account = key.0.clone();
+    inner.twitch_sets.insert(key, (Instant::now(), sets.clone()));
+    rebuild_mine(inner, &account);
+    sets
+}
+
+/// The Twitch sets as Twitch lists them, through GQL or Helix.
+async fn fetch_sets(app: &AppHandle, account: &str, channel_id: &str) -> Result<Vec<TwitchSet>, String> {
     let http = http(app);
-    let style = smiley_style(app, account).await;
-    let sets = if let Some((token, client_id)) = gql_token(app, account) {
+    if let Some((token, client_id)) = gql_token(app, account) {
         let auth = crate::auth::gql_auth(&token, &client_id);
         gql::available_emotes(&http, auth, channel_id).await
     } else if let Some((token, client_id)) = helix_scoped(app, account, "user:read:emotes") {
@@ -144,14 +160,7 @@ pub async fn twitch_sets(
     } else {
         return Err("Sign in to use your Twitch emotes.".into());
     }
-    .map_err(|e| e.to_string())?;
-    let mut sets = sets;
-    smilies::apply(&mut sets, style);
-    let sets = Arc::new(sets);
-    let mut inner = state.lock();
-    inner.twitch_sets.insert(key, (Instant::now(), sets.clone()));
-    rebuild_mine(&mut inner, account);
-    Ok(sets)
+    .map_err(|e| e.to_string())
 }
 
 /// The account's lookup for its own lines, from every channel's sets it has.
@@ -172,6 +181,8 @@ fn rebuild_mine(inner: &mut super::Inner, account: &str) {
 }
 
 /// V107-Mk The account's smiley style: read once a run with the GQL sign-in, Robot without.
+/// A failed read also counts as Robot for the run (no retry per channel); opening the chat
+/// identity reads it again.
 async fn smiley_style(app: &AppHandle, account: &str) -> SmileyStyle {
     if let Some(s) = app.state::<Emotes>().lock().smilies.get(account) {
         return *s;
@@ -180,23 +191,26 @@ async fn smiley_style(app: &AppHandle, account: &str) -> SmileyStyle {
         return SmileyStyle::Robot;
     };
     let auth = crate::auth::gql_auth(&token, &client_id);
-    match smilies::smilies(&http(app), auth, None).await {
-        Ok(s) => {
-            app.state::<Emotes>().lock().smilies.insert(account.to_owned(), s.current);
-            s.current
-        }
-        Err(e) => {
+    let style = smilies::smilies(&http(app), auth, None).await.map_or_else(
+        |e| {
             eprintln!("emotes: no smiley style for {account}: {e}");
             SmileyStyle::Robot
-        }
-    }
+        },
+        |s| s.current,
+    );
+    *app.state::<Emotes>().lock().smilies.entry(account.to_owned()).or_insert(style)
 }
 
 /// V107-Mk A new smiley style: the menu and own lines switch art at once, no refetch.
+/// Cached sets always carry the stored style, so the same style again changes nothing.
 pub fn set_smiley_style(app: &AppHandle, account: &str, style: SmileyStyle) {
-    let state = app.state::<Emotes>();
-    let mut inner = state.lock();
-    inner.smilies.insert(account.to_owned(), style);
+    restyle(&mut app.state::<Emotes>().lock(), account, style);
+}
+
+fn restyle(inner: &mut super::Inner, account: &str, style: SmileyStyle) {
+    if inner.smilies.insert(account.to_owned(), style) == Some(style) {
+        return;
+    }
     for ((a, _), (_, sets)) in inner.twitch_sets.iter_mut() {
         if a == account {
             let mut fresh = sets.as_ref().clone();
@@ -204,7 +218,7 @@ pub fn set_smiley_style(app: &AppHandle, account: &str, style: SmileyStyle) {
             *sets = Arc::new(fresh);
         }
     }
-    rebuild_mine(&mut inner, account);
+    rebuild_mine(inner, account);
 }
 
 /// Loads the account's Twitch emotes in the background, once per run unless `fresh`.
@@ -249,5 +263,50 @@ async fn name_owners(http: &Http, sets: &mut [TwitchSet]) {
             o.name.clone_from(&c.name);
             o.avatar.clone_from(&c.avatar);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cyex_twitch::gql::{EmoteKind, TwitchEmote};
+
+    fn sets() -> Vec<TwitchSet> {
+        let emote = |id: &str, name: &str| TwitchEmote {
+            id: id.into(),
+            name: name.into(),
+            set_id: "0".into(),
+            kind: EmoteKind::Global,
+            animated: false,
+            modifiers: Vec::new(),
+        };
+        vec![TwitchSet { id: "0".into(), owner: None, emotes: vec![emote("25", "Kappa"), emote("1", ":)")], tier: None }]
+    }
+
+    fn own(inner: &super::super::Inner, name: &str) -> String {
+        inner.mine["me"].get(name).map(|e| e.id.to_string()).unwrap_or_default()
+    }
+
+    #[test]
+    fn v107_mk_own_smileys_follow_the_style() {
+        let mut inner = super::super::Inner::default();
+        let key = ("me".to_owned(), "9".to_owned());
+        store_sets(&mut inner, key.clone(), sets(), SmileyStyle::Robot);
+        assert_eq!(own(&inner, ":)"), "1");
+
+        restyle(&mut inner, "me", SmileyStyle::Glitch);
+        assert_eq!(own(&inner, ":)"), "440");
+        assert_eq!(own(&inner, "Kappa"), "25");
+        // The same style again leaves the cached sets alone.
+        let before = inner.twitch_sets[&key].1.clone();
+        restyle(&mut inner, "me", SmileyStyle::Glitch);
+        assert!(Arc::ptr_eq(&before, &inner.twitch_sets[&key].1));
+
+        // A fetch that read Robot before the pick still lands in Glitch.
+        store_sets(&mut inner, ("me".into(), "10".into()), sets(), SmileyStyle::Robot);
+        assert!(inner.twitch_sets.values().all(|(_, s)| s.iter().flat_map(|s| &s.emotes).all(|e| e.id != "1")));
+
+        restyle(&mut inner, "me", SmileyStyle::Robot);
+        assert_eq!(own(&inner, ":)"), "1");
     }
 }

@@ -120,6 +120,8 @@ pub struct Chat {
     pub spell_check: bool,
     /// A send button inside the message box. Setting, on.
     pub send_button: bool,
+    /// V107-Bn Cheers from this many Bits up ask first. 1: every cheer asks.
+    pub cheer_confirm_bits: u32,
     /// 1.42 Message effects and gigantified emotes as Twitch draws them.
     pub effects: bool,
     /// C3 Local nicknames and notes, by user id.
@@ -172,6 +174,7 @@ impl Default for Chat {
             delay_tenths: 0,
             spell_check: false,
             send_button: true,
+            cheer_confirm_bits: 1000,
             effects: true,
             users: BTreeMap::new(),
             overlay: Overlay::default(),
@@ -181,6 +184,7 @@ impl Default for Chat {
 
 impl Schema for Chat {
     fn sanitize(&mut self) {
+        self.cheer_confirm_bits = self.cheer_confirm_bits.max(1);
         // V106-30 Anyone on show or hide already chose. Never sets false.
         if self.unlisted_emotes != UnlistedEmotes::Blur {
             self.unlisted_chosen = true;
@@ -591,6 +595,15 @@ mod tests {
         c.sanitize();
         assert_eq!(c.mod_buttons.order, [Delete, Timeout(30), Timeout(60), Warn, Ban, Unban]);
         assert_eq!(Chat::default().mod_buttons.order, [Delete, Timeout(60), Warn, Ban, Unban]);
+    }
+
+    #[test]
+    fn v107_bn_cheer_confirm_defaults_to_1000_and_never_0() {
+        let c: Chat = serde_json::from_str(r#"{"spellCheck":true}"#).unwrap();
+        assert_eq!(c.cheer_confirm_bits, 1000);
+        let mut c: Chat = serde_json::from_str(r#"{"cheerConfirmBits":0}"#).unwrap();
+        c.sanitize();
+        assert_eq!(c.cheer_confirm_bits, 1);
     }
 
     #[test]

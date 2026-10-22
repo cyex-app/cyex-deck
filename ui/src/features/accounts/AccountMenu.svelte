@@ -51,6 +51,10 @@
     if (current) subsIpc.page(current.userId, 'wallet').catch((e) => toast.error(errorText(e, 'open the wallet')));
   }
 
+  function bits() {
+    if (current) subsIpc.page(current.userId, 'bits').catch((e) => toast.error(errorText(e, 'open Bits')));
+  }
+
   /** Asks what to unlock: subscriptions and wallet, and maybe 7TV too. */
   function ask() {
     if (current) unlock.ask('twitch', current.userId);
@@ -71,6 +75,7 @@
       'separator',
       // V102-20 Only with Twitch's own sign-in.
       { label: 'Subscriptions', icon: 'star', lock: walletLock, unlock: ask, run: onsubs },
+      { label: 'Get Bits', icon: 'gem', lock: walletLock, unlock: ask, run: bits },
       { label: 'Payment methods', icon: 'card', lock: walletLock, unlock: ask, run: wallet },
       // V1051-02 No lock: the view explains itself.
       { label: '7TV paint and badge', icon: 'seventv', run: oncosmetics },

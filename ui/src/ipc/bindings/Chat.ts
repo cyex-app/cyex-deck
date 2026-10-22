@@ -182,6 +182,10 @@ spellCheck: boolean,
  */
 sendButton: boolean, 
 /**
+ * V107-Bn Cheers from this many Bits up ask first. 1: every cheer asks.
+ */
+cheerConfirmBits: number, 
+/**
  * 1.42 Message effects and gigantified emotes as Twitch draws them.
  */
 effects: boolean, 

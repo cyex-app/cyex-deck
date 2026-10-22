@@ -45,4 +45,8 @@ updates: Updates,
 /**
  * V1051-01
  */
-sound: Sound, };
+sound: Sound, 
+/**
+ * V107-Mo The last settings searches, newest first. Local only (not in exports).
+ */
+recentSearches: Array<string>, };

@@ -68,6 +68,8 @@
   ];
   /** V101-02, V101-03 Chatterino goes up to 8.000 kept and 2.000 loaded. */
   const KEPT = [100, 200, 500, 1000, 2000, 4000, 8000].map((n) => ({ value: n, label: formatNumber(n) }));
+  // V107-B "Every cheer" is 1.
+  const CHEER_ASK = [1, 100, 500, 1000, 5000, 10000].map((n) => ({ value: n, label: n === 1 ? 'Every cheer' : `${formatNumber(n)} Bits` }));
   const LOADED = [50, 100, 200, 500, 800, 1000, 2000].map((n) => ({ value: n, label: formatNumber(n) }));
   /** V101-15 Tenths of a second; 0 waits for the mouse to leave. */
   const STILL = [0, 5, 10, 20, 50].map((t) => ({
@@ -354,6 +356,15 @@
 </Row>
 <Row setting="chat.effects" label="Effects" hint="Animated messages, giant emotes and celebrations, as Twitch shows them.">
   <Toggle label="Effects" checked={c.effects} onchange={(v) => settings.patch('chat', { effects: v })} />
+</Row>
+<Row setting="chat.cheerConfirmBits" label="Ask before cheering" hint="Cheers from this much up ask first. Smaller ones go out on Enter.">
+  <Select
+    label="Ask before cheering"
+    width="140px"
+    value={String(c.cheerConfirmBits)}
+    options={choicesOf(CHEER_ASK)}
+    onchange={(v) => settings.patch('chat', { cheerConfirmBits: Number(v) })}
+  />
 </Row>
 
 <SectionHead title="Writing and reading">The message box and reading aids.</SectionHead>

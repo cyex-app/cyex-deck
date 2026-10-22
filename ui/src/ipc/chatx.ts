@@ -5,6 +5,8 @@ import { Channel, invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
 import type { Celebration } from './bindings/Celebration';
+import type { CheerInfo } from './bindings/CheerInfo';
+import type { CheerSent } from './bindings/CheerSent';
 import type { FeedEvent } from './bindings/FeedEvent';
 import type { FeedLine } from './bindings/FeedLine';
 import type { FeedOpened } from './bindings/FeedOpened';
@@ -43,6 +45,11 @@ export const chatxIpc = {
   predict: (view: number, outcome: string, points: number) => invoke<void>('chat_predict', { view, outcome, points }),
   powerUps: (view: number) => invoke<PowerUps>('chat_power_ups', { view }),
   buyPowerUp: (view: number, what: PowerUpBuy, bits: number) => invoke<void>('chat_power_up', { view, what, bits }),
+  // V107-Bn Cheering. `bits` is what the box showed; Rust checks it again and may ask first.
+  cheerInfo: (view: number) => invoke<CheerInfo>('chat_cheer_info', { view }),
+  // `careful`: ask even below the threshold (pasted or recalled).
+  cheer: (view: number, text: string, bits: number, confirmed: boolean, careful: boolean) =>
+    invoke<CheerSent>('chat_cheer', { view, text, bits, confirmed, careful }),
   onCelebration: (cb: (c: Celebration) => void) => listen<Celebration>('player:celebration', (e) => cb(e.payload)),
   gifInfo: (view: number) => invoke<GifInfo>('chat_gif_info', { view }),
   gifSearch: (view: number, query: string, offset: number) => invoke<Gif[]>('chat_gif_search', { view, query, offset }),

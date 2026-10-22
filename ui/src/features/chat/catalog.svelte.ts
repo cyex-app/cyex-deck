@@ -55,6 +55,13 @@ class Catalogs {
     const key = prefix.toLowerCase();
     return this.channels[channel]?.cheermotes.get(key) ?? this.global.cheermotes.get(key);
   }
+
+  /** V107-B The channel's cheermotes first, then global ones; each prefix once. */
+  cheermotes(channel: string): Cheermote[] {
+    const own = [...(this.channels[channel]?.cheermotes.values() ?? [])];
+    const seen = new Set(own.map((c) => c.prefix.toLowerCase()));
+    return [...own, ...[...this.global.cheermotes.values()].filter((c) => !seen.has(c.prefix.toLowerCase()))];
+  }
 }
 
 export const catalogs = new Catalogs();

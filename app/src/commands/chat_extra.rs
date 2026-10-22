@@ -10,6 +10,7 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager};
 use ts_rs::TS;
 
+use crate::chat::cheer::{CheerInfo, CheerSent};
 use crate::chat::feeds::{self, FeedEvent, FeedLine};
 use crate::chat::powerups::{self, GifInfo, PowerUpBuy};
 use crate::chat::record::{self, Recording, RecordingMeta};
@@ -130,6 +131,25 @@ pub async fn chat_power_ups(app: AppHandle, view: u32) -> CmdResult<PowerUps> {
 #[tauri::command]
 pub async fn chat_power_up(app: AppHandle, view: u32, what: PowerUpBuy, bits: u32) -> CmdResult<()> {
     powerups::buy(&app, view, what, bits).await
+}
+
+/// V107-Bn The Bits picker: rules, balance, usable cheermotes.
+#[tauri::command]
+pub async fn chat_cheer_info(app: AppHandle, view: u32) -> CmdResult<CheerInfo> {
+    chat::cheer::info(&app, view).await
+}
+
+/// V107-Bn Sends a cheer of `bits` (what the box showed), or asks first. Spends Bits.
+#[tauri::command]
+pub async fn chat_cheer(
+    app: AppHandle,
+    view: u32,
+    text: String,
+    bits: u32,
+    confirmed: bool,
+    careful: bool,
+) -> CmdResult<CheerSent> {
+    chat::cheer::send(&app, view, &text, bits, confirmed, careful).await
 }
 
 #[tauri::command]

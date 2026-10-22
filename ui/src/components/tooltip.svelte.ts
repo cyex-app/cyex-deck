@@ -1,6 +1,8 @@
 // Tooltips (3.6). One shared tip for the whole window. The label always shows; the
 // explanation underneath is the "new user" part and follows the tooltips setting (2.7).
 
+import { untrack } from 'svelte';
+
 import type { LinkText } from '../ipc/bindings/LinkText';
 import type { Rect, Side } from '../lib/place';
 import { settings } from '../lib/settings.svelte';
@@ -92,7 +94,9 @@ const dragging = () => typeof document !== 'undefined' && document.body.classLis
 
 function hide(): void {
   clearTimeout(timer);
-  if (tip.visible) lastHidden = performance.now();
+  // Untracked: a layer that moves focus in its effect blurs a tipped trigger, and must not
+  // re-run (and steal focus back) each time a tip shows inside it.
+  if (untrack(() => tip.visible)) lastHidden = performance.now();
   tip.visible = false;
   owner = null;
 }

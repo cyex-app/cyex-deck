@@ -355,6 +355,24 @@ fn an_import_keeps_the_presence_choice_of_this_pc() {
     assert_eq!(chat["presenceOnOnce"], true);
 }
 
+/// V107-Mo Recent settings searches never leave this PC, and an import keeps them.
+#[test]
+fn recent_searches_stay_on_this_pc() {
+    let tmp = TempDir::new("store-recent-searches");
+    let (mut store, _) = open(tmp.path(), &Arc::new(FakeClock::at(day(9))));
+    store.patch(Partition::General, &json!({"recentSearches": ["font"]})).unwrap();
+    let bundle = store.export(&[Partition::General]);
+    assert!(bundle.partitions["general"].get("recentSearches").is_none());
+    let incoming = Bundle::from_json(
+        &json!({"format": "cyex-settings", "version": 1, "exported": "",
+            "partitions": {"general": {"recentSearches": ["other"]}}})
+        .to_string(),
+    )
+    .unwrap();
+    store.import(incoming).unwrap();
+    assert_eq!(store.get(Partition::General)["recentSearches"], json!(["font"]));
+}
+
 #[test]
 fn backup_rotation_across_days_and_restore() {
     let tmp = TempDir::new("store-rotation");

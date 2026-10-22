@@ -3,6 +3,7 @@
 
 mod about;
 pub mod blocks;
+pub mod cheer;
 mod cards;
 mod channels;
 mod chat;

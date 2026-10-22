@@ -1,8 +1,7 @@
-// V107-Mk What the chat identity popover offers: Twitch's named colors, a free color with
-// Prime or Turbo, and the smiley styles Twitch lists for the account.
+// V107-Mk What the chat identity popover offers: Twitch's named colors (the same list as
+// `NAMED` in app/src/chat/identity.rs, checked there) and a free color with Prime or Turbo.
+// Smiley styles come from Rust, already empty when there's nothing to pick.
 
-import type { SmileyChoice } from '../../ipc/bindings/SmileyChoice';
-import type { Smilies } from '../../ipc/bindings/Smilies';
 import type { SmileyStyle } from '../../ipc/bindings/SmileyStyle';
 
 export const NAMED: readonly [string, string][] = [
@@ -35,9 +34,4 @@ export function hexColor(input: string): string | null {
 export function namedColor(hex: string | null): string | null {
   const h = hex?.toUpperCase();
   return NAMED.find(([, v]) => v === h)?.[0] ?? null;
-}
-
-/** Styles to pick from: only what Twitch offered, and only when there's a choice. */
-export function smileyChoices(s: Smilies | null | undefined): SmileyChoice[] {
-  return s && s.choices.length > 1 ? s.choices : [];
 }

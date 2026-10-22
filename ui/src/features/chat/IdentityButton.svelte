@@ -31,6 +31,14 @@
   .wrap {
     position: relative;
     display: flex;
+    /* Centred in the box like the emote button next to it. */
+    margin-bottom: 1px;
+  }
+  /* A narrow chat keeps its room for typing; the account chip still opens this. */
+  @container chat (max-width: 260px) {
+    .wrap {
+      display: none;
+    }
   }
   .trigger {
     display: grid;

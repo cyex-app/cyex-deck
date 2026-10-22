@@ -5,6 +5,7 @@
 
 pub mod catalog;
 pub mod channels;
+pub mod cheer;
 mod creds;
 pub mod feeds;
 mod flush;

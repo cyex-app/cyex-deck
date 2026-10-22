@@ -385,14 +385,17 @@ fn channel(word: &str) -> Option<(&str, &str)> {
     ok.then(|| rest.split_at(end))
 }
 
-/// `cheer100` → (`cheer`, 100), only while the message's bits aren't used up.
+/// `cheer100` → (`cheer`, 100), only while the message's bits aren't used up. V107-Bn
+/// Twitch's rule: `^([A-Za-z0-9]+[A-Za-z])(\d+)$` (`4Head100` too).
 fn cheer(word: &str, bits_left: u32) -> Option<(&str, u32)> {
     if bits_left == 0 {
         return None;
     }
-    let split = word.find(|c: char| c.is_ascii_digit())?;
-    let (prefix, digits) = word.split_at(split);
-    if prefix.is_empty() || !prefix.chars().all(|c| c.is_ascii_alphabetic()) || digits.len() > 7 {
+    let (prefix, digits) = word.split_at(word.trim_end_matches(|c: char| c.is_ascii_digit()).len());
+    let prefix_ok = prefix.len() >= 2
+        && prefix.chars().all(|c| c.is_ascii_alphanumeric())
+        && prefix.ends_with(|c: char| c.is_ascii_alphabetic());
+    if !prefix_ok || digits.is_empty() || digits.len() > 7 {
         return None;
     }
     let amount: u32 = digits.parse().ok()?;
@@ -540,6 +543,15 @@ mod tests {
                 Fragment::text(" Cheer50 abc123"),
             ]
         );
+    }
+
+    #[test]
+    fn v107_bn_cheer_prefixes_may_hold_digits() {
+        assert_eq!(cheer("4Head100", 500), Some(("4Head", 100)));
+        assert_eq!(cheer("uni4corn5", 500), Some(("uni4corn", 5)));
+        assert_eq!(cheer("a100", 500), None);
+        assert_eq!(cheer("Cheer100x", 500), None);
+        assert_eq!(cheer("gg2ez", 500), None);
     }
 
     #[test]

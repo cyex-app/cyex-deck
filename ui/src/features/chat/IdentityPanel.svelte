@@ -3,7 +3,7 @@
      Every change is read back from Twitch. Shown in the chat box's popover and the
      account chip's dialog. -->
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { untrack } from 'svelte';
 
   import Button from '../../components/Button.svelte';
   import Loading from '../../components/Loading.svelte';
@@ -17,7 +17,7 @@
   import { errorText } from '../../lib/errors';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
-  import { hexColor, NAMED, namedColor, smileyChoices, STYLE_NAME } from './identity';
+  import { hexColor, NAMED, namedColor, STYLE_NAME } from './identity';
   import { emoteImg } from './urls';
 
   interface Props {
@@ -35,27 +35,40 @@
   const theme = $derived(settings.v.appearance.theme);
   const display = $derived(accounts.list.find((a) => a.userId === account)?.displayName ?? '');
   const shown = $derived(me?.channel.selected ?? me?.global.selected ?? null);
-  const styles = $derived(smileyChoices(me?.smilies));
+  const styles = $derived(me?.smilies.choices ?? []);
   const typed = $derived(hexColor(custom));
 
+  // Only the newest read lands: switching account or channel mid-read drops the old one.
+  let reads = 0;
   async function load() {
+    const n = ++reads;
     try {
-      me = await chatIpc.identity(account, login);
-      custom = me.color ?? '';
+      const got = await chatIpc.identity(account, login);
+      if (n !== reads) return;
+      me = got;
+      custom = got.color ?? '';
       error = '';
     } catch (e) {
-      error = errorText(e);
+      if (n === reads) error = errorText(e);
     }
   }
 
-  onMount(() => void load());
+  // Read again for another account or channel, so picks never go to the wrong one.
+  $effect(() => {
+    void account;
+    void login;
+    me = null;
+    error = '';
+    void untrack(load);
+  });
 
-  async function run(action: () => Promise<unknown>, done: string) {
+  /** `reload` false: the action already answered with what Twitch has now. */
+  async function run(action: () => Promise<unknown>, done: string, reload = true) {
     if (busy) return;
     busy = true;
     try {
       await action();
-      await load();
+      if (reload) await load();
       toast.info(done);
     } catch (e) {
       toast.error(errorText(e));
@@ -70,8 +83,17 @@
       () => chatIpc.pickBadge(account, channel ? (me?.channelId ?? null) : null, b?.set ?? null, b?.version ?? null),
       b ? `Wearing ${b.title}.` : channel ? 'Same badge as everywhere.' : 'Badge off.',
     );
-  const smile = (c: SmileyChoice) =>
-    run(() => chatIpc.setSmilies(account, c.name), `${STYLE_NAME[c.style]} smileys on.`);
+  const smile = (c: SmileyChoice) => {
+    const [who, at] = [account, login];
+    return run(
+      async () => {
+        const now = await chatIpc.setSmilies(who, c.name);
+        if (me && who === account && at === login) me.smilies = now;
+      },
+      `${STYLE_NAME[c.style]} smileys on.`,
+      false,
+    );
+  };
   const same = (a: BadgeInfo | null, b: BadgeInfo | null) => a?.set === b?.set && a?.version === b?.version;
   const img = (id: string) => emoteImg('twitch', id, theme, { scale: density.scale }).src;
 </script>
@@ -183,7 +205,7 @@
   .panel {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
     width: 300px;
     max-width: 100%;
     padding: 8px;
@@ -221,21 +243,30 @@
     color: var(--muted);
     font-size: 0.8rem;
   }
-  .colors,
   .badges {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
   }
+  /* 15 colors: two even rows of 8 and 7. */
+  .colors {
+    display: grid;
+    grid-template-columns: repeat(8, 28px);
+    gap: 8px;
+  }
   .swatch {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     padding: 0;
     border: 2px solid var(--border-strong);
     border-radius: 50%;
   }
+  /* Picked: a ring inside the swatch, so it never looks like the focus ring around it. */
   .swatch.on {
-    outline: 2px solid var(--text);
+    border-color: var(--text);
+    box-shadow: inset 0 0 0 2px var(--elevated);
+  }
+  .swatch:focus-visible {
     outline-offset: 2px;
   }
   .custom {
@@ -268,6 +299,13 @@
   .badge img {
     width: 24px;
     height: 24px;
+  }
+  /* White badges vanish on the light tiles: a thin dark edge, as the paints get. */
+  :global(:root[data-theme='light']) .badge img,
+  :global(:root[data-theme='light']) .preview img,
+  :global(.theme-light) .badge img,
+  :global(.theme-light) .preview img {
+    filter: drop-shadow(0 0 1px rgb(0 0 0 / 0.7)) drop-shadow(0 0 0.5px rgb(0 0 0 / 0.5));
   }
   .badge.none {
     padding: 0 10px;

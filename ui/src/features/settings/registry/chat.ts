@@ -167,6 +167,13 @@ export const CHAT: Entry[] = [
     keywords: ['gigantified', 'animations', 'power-ups', 'celebrations'],
   },
   {
+    id: 'chat.cheerConfirmBits',
+    page: 'chat',
+    label: 'Ask before cheering',
+    description: 'Cheers from this much up ask first. Smaller ones go out on Enter.',
+    keywords: ['bits', 'cheer', 'confirm', 'spend'],
+  },
+  {
     id: 'chat.sendButton',
     page: 'chat',
     label: 'Send button',

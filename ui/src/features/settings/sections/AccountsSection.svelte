@@ -16,6 +16,10 @@
   import { gate } from '../../../lib/gate.svelte';
   import { scrollBehavior } from '../../../lib/motion';
   import { scrollWithin } from '../../../lib/scrollWithin';
+  import { settingsPlace } from '../place.svelte';
+
+  // V107-Mo A removed account's open profile editor isn't remembered.
+  $effect(() => settingsPlace.prune('accounts', 'profile:', accounts.list.map((a) => a.userId)));
 
   let twitchWay = $state<HTMLElement>();
   let codeWay = $state<HTMLElement>();

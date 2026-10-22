@@ -278,7 +278,7 @@ impl Store {
         let picked = partitions
             .iter()
             .filter(|p| p.is_portable())
-            .map(|p| (p.key().to_owned(), self.values[p].clone()))
+            .map(|p| (p.key().to_owned(), without_private(*p, self.values[p].clone())))
             .collect();
         Bundle::new(picked, self.clock.now())
     }
@@ -420,6 +420,7 @@ fn keep_local(p: Partition, mut incoming: Value, current: &Value) -> Value {
     let keys: &[&str] = match p {
         Partition::Chat => &[SHARE_PRESENCE, PRESENCE_ON_ONCE],
         Partition::StreamManager => &["obs"],
+        Partition::General => &["recentSearches"],
         _ => return incoming,
     };
     if let (Value::Object(map), Value::Object(mine)) = (&mut incoming, current) {
@@ -431,6 +432,14 @@ fn keep_local(p: Partition, mut incoming: Value, current: &Value) -> Value {
         }
     }
     incoming
+}
+
+/// V107-Mo Kept on this PC only: never in exports or share codes (backups still have them).
+fn without_private(p: Partition, mut v: Value) -> Value {
+    if let (Partition::General, Value::Object(map)) = (p, &mut v) {
+        map.remove("recentSearches");
+    }
+    v
 }
 
 /// V107-R11 A broken or unreadable chat file never turns presence on (it shares which channel
