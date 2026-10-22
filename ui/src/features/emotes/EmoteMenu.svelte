@@ -58,6 +58,8 @@
   let tab = $state<Tab>(readTab());
   /** Big sections draw this many cells, then a "Show more" (nothing else is windowed here). */
   const CAP = 240;
+  /** V107-MI Search shows this many emotes at most. */
+  const FOUND_CAP = 200;
   let extra = $state<Record<string, number>>({});
   const cap = (id: string) => CAP + (extra[id] ?? 0);
 
@@ -81,7 +83,7 @@
   const current = $derived<Tab>(tabs.includes(tab) || (tab === 'gifs' && gifInfo === undefined) ? tab : 'twitch');
   const searchingEmotes = $derived(!!query.trim() && current !== 'gifs');
   const rank = $derived(usageRank(saved.usage));
-  const found = $derived(menu && query.trim() ? search(menu, query, 200, rank) : []);
+  const found = $derived(menu && query.trim() ? search(menu, query, FOUND_CAP, rank) : []);
   const foundEmoji = $derived(emoji && query.trim() ? findEmoji(emoji, query.trim(), 40) : []);
   const foundEmojiKeys = $derived(uniqueKeys(foundEmoji, (e) => e.char));
 
@@ -327,6 +329,7 @@
           {#each found as m (cellKey(m))}{@render emote(m)}{/each}
           {#each foundEmoji as e, i (foundEmojiKeys[i])}{@render emojiCell(e)}{/each}
         </div>
+        {#if found.length >= FOUND_CAP}<p class="capped">Showing {FOUND_CAP}. Type more to narrow it.</p>{/if}
       {:else}
         <p class="note">Nothing called “{query.trim()}”.</p>
       {/if}
@@ -589,6 +592,11 @@
   }
   .more:hover {
     color: var(--text);
+  }
+  .capped {
+    margin: 8px 4px 0;
+    color: var(--dim);
+    font-size: 0.75rem;
   }
   .note {
     margin: 16px 4px;

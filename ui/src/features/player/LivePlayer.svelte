@@ -36,6 +36,8 @@
   import { Rewind } from './rewind.svelte';
   import SeekBar from './SeekBar.svelte';
   import { STALL_TEXT } from './stall';
+  import { recheckDelay } from './recheck';
+  import { onShown, pageHidden } from '../../lib/awake';
 
   interface Props {
     tile: Tile;
@@ -117,12 +119,28 @@
     if (engine?.playing) {
       tries = 0;
       checking = false;
+      quiet = false;
     }
   });
 
   // v1.07 Offline while Twitch still lists the stream (a dropped connection, a restart): look
   // again every 15 s, quietly. It used to stay "went offline" until the tab was reopened.
   let checking = $state(false);
+  // V107-Md The same after the quick network retries: Twitch lists the stream, so look again every 15 s.
+  let quiet = $state(false);
+  let hiddenNow = $state(pageHidden());
+  $effect(() => onShown((h) => (hiddenNow = h)));
+  $effect(() => {
+    const e = engine;
+    if (e?.failure && e.failure !== 'network') quiet = false;
+    const wait = recheckDelay({ failure: e?.failure ?? null, tries, listed: !!info?.stream, hidden: hiddenNow });
+    if (!e || wait === null) return;
+    const t = setTimeout(() => {
+      quiet = true;
+      void start(e, e.choice, login, account);
+    }, wait);
+    return () => clearTimeout(t);
+  });
   $effect(() => {
     const e = engine;
     if (e?.failure && e.failure !== 'offline') checking = false;
@@ -341,7 +359,7 @@
   }
 
   // v1.07 A quiet recheck keeps the offline text up, no spinner in between.
-  const failure = $derived(engine?.failure ?? (checking ? 'offline' : null));
+  const failure = $derived(engine?.failure ?? (checking ? 'offline' : quiet ? 'network' : null));
   const key = (id: Parameters<typeof bindingOf>[0], label: string) =>
     bindingOf(id) ? `${label} (${bindingOf(id)})` : label;
 </script>

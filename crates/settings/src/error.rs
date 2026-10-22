@@ -17,6 +17,8 @@ pub enum Error {
     UnknownPartition(String),
     #[error("that share code is broken or incomplete")]
     BadCode,
+    #[error("that file is too big for cyex settings")]
+    TooBig,
     #[error("there’s no backup from {0}")]
     NoBackup(String),
 }

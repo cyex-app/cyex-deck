@@ -210,6 +210,7 @@ pub struct Config {
 pub struct Plugin {
     pub id: String,
     pub granted: Granted,
+    sends: state::Sends,
     tx: Sender<Msg>,
     exports: Arc<Mutex<Exports>>,
     queued_lines: Arc<AtomicUsize>,
@@ -227,9 +228,11 @@ impl Plugin {
         let queued_lines = Arc::new(AtomicUsize::new(0));
         let queued_events = Arc::new(AtomicUsize::new(0));
         let skipped = Arc::new(AtomicUsize::new(0));
+        let sends = state::Sends::default();
         let plugin = Plugin {
             id: cfg.id.clone(),
             granted: cfg.granted.clone(),
+            sends: sends.clone(),
             tx: tx.clone(),
             exports: exports.clone(),
             queued_lines: queued_lines.clone(),
@@ -240,7 +243,7 @@ impl Plugin {
         std::thread::Builder::new()
             .name(name)
             .spawn(move || {
-                let Some((lua, deadline)) = boot(cfg, tx, exports, &ready_tx) else {
+                let Some((lua, deadline)) = boot(cfg, tx, (exports, sends), &ready_tx) else {
                     return;
                 };
                 serve(&lua, &deadline, &rx, &queued_lines, (&queued_events, &skipped));
@@ -251,6 +254,11 @@ impl Plugin {
             Ok(Err(e)) => Err(e),
             Err(_) => Err("Took too long to start.".into()),
         }
+    }
+
+    /// V107-Mb Room for one more message in its send limit (`send_message` shares it).
+    pub fn take_send(&self) -> bool {
+        state::take_send(&self.sends)
     }
 
     pub fn exports(&self) -> Exports {
@@ -356,7 +364,7 @@ impl Drop for Plugin {
 fn boot(
     cfg: Config,
     tx: Sender<Msg>,
-    exports: Arc<Mutex<Exports>>,
+    (exports, sends): (Arc<Mutex<Exports>>, state::Sends),
     ready: &mpsc::SyncSender<Result<(), String>>,
 ) -> Option<(Lua, Deadline)> {
     let fail = |e: String| {
@@ -384,7 +392,7 @@ fn boot(
         requests: HashMap::new(),
         settings: cfg.settings,
         next_id: 0,
-        sends: VecDeque::new(),
+        sends,
         sockets: std::collections::HashSet::new(),
         connects: VecDeque::new(),
         line_ops: VecDeque::new(),

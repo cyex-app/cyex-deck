@@ -392,6 +392,37 @@ fn snapshot_before_restore_holds_unsaved_changes_and_restores() {
     assert_eq!(store.read::<General>(Partition::General).chat_font_size, 11);
     assert!(matches!(store.restore_snapshot("../x"), Err(Error::NoBackup(_))));
 }
+/// V107-Mc A restore (daily or snapshot) leaves accounts, plugins and the uploader as they are,
+/// and Undo of it brings the rest back.
+#[test]
+fn restore_keeps_accounts_plugins_and_uploader_and_undo_works() {
+    let tmp = TempDir::new("store-restore-local");
+    let clock = Arc::new(FakeClock::at(day(4)));
+    let (mut store, _) = open(tmp.path(), &clock);
+    store.patch(Partition::General, &json!({"chatFontSize": 12})).unwrap();
+    store.patch(Partition::Accounts, &json!({"list": [{"userId": "1", "login": "old"}]})).unwrap();
+    store.flush().unwrap();
+    clock.advance_days(1);
+    drop(open(tmp.path(), &clock)); // day 5's backup holds "old"
+    let (mut store, _) = open(tmp.path(), &clock);
+    store.patch(Partition::General, &json!({"chatFontSize": 20})).unwrap();
+    store.patch(Partition::Accounts, &json!({"list": [{"userId": "2", "login": "now"}]})).unwrap();
+    let before = store.get(Partition::Plugins).clone();
+    let uploader = store.get(Partition::Uploader).clone();
+    let name = store.snapshot_now().unwrap().unwrap();
+
+    let changed = store.restore_backup(day(5)).unwrap();
+    assert!(changed.iter().all(|p| p.is_portable()));
+    assert_eq!(store.read::<General>(Partition::General).chat_font_size, 12);
+    assert_eq!(store.get(Partition::Accounts)["list"][0]["login"], "now");
+    assert_eq!(store.get(Partition::Plugins), &before);
+    assert_eq!(store.get(Partition::Uploader), &uploader);
+
+    store.restore_snapshot(&name).unwrap();
+    assert_eq!(store.read::<General>(Partition::General).chat_font_size, 20);
+    assert_eq!(store.get(Partition::Accounts)["list"][0]["login"], "now");
+}
+
 /// V107-N10b A share code can't pick where the OBS status files go, or turn them on.
 #[test]
 fn an_import_keeps_the_obs_files_of_this_pc() {

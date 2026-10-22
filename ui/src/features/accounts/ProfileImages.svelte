@@ -1,6 +1,8 @@
 <!-- V107-R19 Profile picture, banner and offline image: preview, Change, and Restore original
      while the app keeps the image its first change replaced. Twitch's internal API; when Twitch refuses,
-     its own settings page opens in the app's Twitch window. V107-R19c Under each, the last ones changed here. -->
+     its own settings page opens in the app's Twitch window. V107-R19c Under each, the last ones changed here.
+     V107-Mh Remove (asks first) puts Twitch's default back; the removed image stays in Recent. No banner Remove:
+     Twitch has no way for that. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import Loading from '../../components/Loading.svelte';
@@ -28,10 +30,22 @@
     banner: 'Banner changed.',
     offline: 'Offline image changed.',
   };
+  const REMOVED: Record<ProfileImageKind, string> = {
+    avatar: 'Profile picture removed.',
+    banner: 'Banner removed.',
+    offline: 'Offline image removed.',
+  };
+  const ASK: Record<ProfileImageKind, string> = {
+    avatar: 'Remove your profile picture? It stays in Recent.',
+    banner: 'Remove the banner? It stays in Recent.',
+    offline: 'Remove the offline image? It stays in Recent.',
+  };
 
   let view = $state.raw<ProfileImagesView | null>(null);
   let loadError = $state('');
   let busy = $state<ProfileImageKind | null>(null);
+  let removing = $state(false);
+  let asking = $state<ProfileImageKind | null>(null);
   let failed = $state<{ kind: ProfileImageKind; error: ImageError } | null>(null);
   let cropping = $state.raw<File | null>(null);
   const inputs: Partial<Record<ProfileImageKind, HTMLInputElement>> = {};
@@ -43,12 +57,15 @@
       .catch((e) => (loadError = imageError(e)?.message ?? errorText(e)));
   });
 
-  async function run(kind: ProfileImageKind, call: () => Promise<ProfileImagesView>) {
+  async function run(kind: ProfileImageKind, call: () => Promise<ProfileImagesView>, remove = false) {
     busy = kind;
+    removing = remove;
+    asking = null;
     failed = null;
     try {
       view = await call();
-      toast.success(view.waiting ? 'Uploaded. Twitch may take a minute to show it.' : DONE[kind]);
+      const waiting = remove ? 'Removed. Twitch may take a minute to show it.' : 'Uploaded. Twitch may take a minute to show it.';
+      toast.success(view.waiting ? waiting : (remove ? REMOVED : DONE)[kind]);
     } catch (e) {
       const error = imageError(e) ?? { kind: 'failed', message: errorText(e) };
       failed = { kind, error };
@@ -56,7 +73,12 @@
       profileImagesIpc.get(account).then((v) => (view = v), () => {});
     } finally {
       busy = null;
+      removing = false;
     }
+  }
+
+  function remove(kind: ProfileImageKind) {
+    void run(kind, () => profileImagesIpc.remove(account, kind), true);
   }
 
   function picked(kind: ProfileImageKind, input: HTMLInputElement) {
@@ -106,8 +128,13 @@
               Restore original
             </Button>
           {/if}
+          {#if slot.removable}
+            <Button small variant="ghost" disabled={busy !== null} onclick={() => (asking = asking === slot.kind ? null : slot.kind)}>
+              {busy === slot.kind && removing ? 'Removing…' : 'Remove'}
+            </Button>
+          {/if}
           <Button small disabled={busy !== null} onclick={() => inputs[slot.kind]?.click()}>
-            {busy === slot.kind ? 'Uploading…' : 'Change'}
+            {busy === slot.kind && !removing ? 'Uploading…' : 'Change'}
           </Button>
           <input
             bind:this={inputs[slot.kind]}
@@ -118,6 +145,13 @@
           />
         </div>
       </div>
+      {#if asking === slot.kind && slot.removable}
+        <div class="ask">
+          <span>{ASK[slot.kind]}</span>
+          <Button small variant="danger" disabled={busy !== null} onclick={() => remove(slot.kind)}>Remove</Button>
+          <Button small variant="ghost" onclick={() => (asking = null)}>Cancel</Button>
+        </div>
+      {/if}
       {#if slot.history.length}
         <ProfileImageHistory
           kind={slot.kind}
@@ -188,6 +222,14 @@
   .actions {
     display: flex;
     gap: 6px;
+  }
+  .ask {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 0 10px 108px;
+    font-size: 0.82rem;
   }
   .fail {
     display: flex;

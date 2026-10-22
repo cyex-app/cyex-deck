@@ -176,7 +176,7 @@
 
 <!-- rb-8 The subtitle, so the gap under the heading matches the other blocks. -->
 <SectionHead title="Backups" setting="data:backups">
-  A copy of your settings is kept for each of the last 3 days. Restoring keeps your current settings first, so you can undo it.
+  A copy of your settings is kept for each of the last 3 days. Restoring keeps your current settings first, so you can undo it. Accounts, plugins and uploader stay as they are.
 </SectionHead>
 {#each backups as date, i (date)}
   <Row label={labels[i]}>

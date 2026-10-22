@@ -15,6 +15,8 @@ use crate::error::{Error, Result};
 const FORMAT: &str = "cyex-settings";
 const VERSION: u32 = 1;
 const CODE_PREFIX: &str = "cyex1.";
+/// V107-M0 Far above any real export; stops a huge file or pasted code from filling memory.
+pub const MAX_IMPORT_BYTES: usize = 16 * 1024 * 1024;
 
 /// Exported settings. A single-partition export is a bundle with one entry, so one
 /// importer handles both.
@@ -45,6 +47,9 @@ impl Bundle {
     }
 
     pub fn from_json(text: &str) -> Result<Self> {
+        if text.len() > MAX_IMPORT_BYTES {
+            return Err(Error::TooBig);
+        }
         let bundle: Bundle = serde_json::from_str(text).map_err(|_| Error::NotSettings)?;
         if bundle.format != FORMAT {
             return Err(Error::NotSettings);
@@ -61,12 +66,17 @@ impl Bundle {
     }
 
     pub fn from_share_code(code: &str) -> Result<Self> {
+        // Base64 is 4/3 the size of what it carries.
+        if code.len() > MAX_IMPORT_BYTES / 3 * 4 + 64 {
+            return Err(Error::TooBig);
+        }
         let body: String = code.split_whitespace().collect();
         let body = body.strip_prefix(CODE_PREFIX).ok_or(Error::BadCode)?;
         let bytes = URL_SAFE_NO_PAD.decode(body).map_err(|_| Error::BadCode)?;
         let text = String::from_utf8(bytes).map_err(|_| Error::BadCode)?;
         Self::from_json(&text).map_err(|e| match e {
             Error::TooNew => Error::TooNew,
+            Error::TooBig => Error::TooBig,
             _ => Error::BadCode,
         })
     }
@@ -145,6 +155,14 @@ mod tests {
             Bundle::from_share_code(&code[..code.len() - 6]),
             Err(Error::BadCode)
         ));
+    }
+
+    #[test]
+    fn rejects_oversized_imports() {
+        let big = " ".repeat(MAX_IMPORT_BYTES + 1);
+        assert!(matches!(Bundle::from_json(&big), Err(Error::TooBig)));
+        let code = format!("{CODE_PREFIX}{}", "A".repeat(MAX_IMPORT_BYTES / 3 * 4 + 64));
+        assert!(matches!(Bundle::from_share_code(&code), Err(Error::TooBig)));
     }
 
     #[test]

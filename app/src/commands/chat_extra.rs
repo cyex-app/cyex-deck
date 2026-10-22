@@ -39,6 +39,12 @@ pub fn feed_open(app: AppHandle, window: tauri::WebviewWindow, name: String, on_
     FeedOpened { view, lines }
 }
 
+/// V107-MF A rules feed's Clear: only the lines the tab hid.
+#[tauri::command]
+pub fn feed_clear(app: AppHandle, name: String, keys: Vec<String>) {
+    feeds::remove(&app, &name, &keys);
+}
+
 #[tauri::command]
 pub fn feed_close(app: AppHandle, view: u32) {
     feeds::close(&app, view);

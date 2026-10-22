@@ -80,6 +80,8 @@ pub struct ProfileImageSlot {
     pub backup: bool,
     /// V107-R19c Images changed here before, newest first.
     pub history: Vec<ProfileImageSaved>,
+    /// V107-Mh Twitch has a way to remove it and there's one to remove.
+    pub removable: bool,
 }
 
 /// V107-R19c One image from the history.
@@ -181,6 +183,7 @@ fn view(app: &AppHandle, account: &str, images: &api::Images, waiting: bool) -> 
             url: images.get(kind.api()).to_owned(),
             backup: dir.as_deref().and_then(|d| backup::newest(d, kind.file())).is_some(),
             history: dir.as_deref().map_or_else(Vec::new, |d| saved(d, kind, images.get(kind.api()))),
+            removable: can_remove(kind, images.get(kind.api())),
         })
         .collect();
     ProfileImagesView { slots, waiting }
@@ -316,23 +319,68 @@ pub async fn restore(app: &AppHandle, account: &str, kind: ProfileImageKind) -> 
     Ok(shown(app, &t, kind, &now, waiting).await)
 }
 
+/// V107-Mh Twitch has a way to remove this kind, and `url` isn't already its default.
+fn can_remove(kind: ProfileImageKind, url: &str) -> bool {
+    api::removable(kind.api()) && !url.is_empty() && !(kind == ProfileImageKind::Avatar && api::is_default_avatar(url))
+}
+
+/// V107-Mh Back to Twitch's default (avatar, offline image). The image removed is kept first,
+/// as for a change: the original backup when none is kept yet, and Recent, so it can come back.
+pub async fn remove(app: &AppHandle, account: &str, kind: ProfileImageKind) -> Result<ProfileImagesView, ImageError> {
+    if !api::removable(kind.api()) {
+        return Err(ImageError::with(ImageErrorKind::Failed, "Twitch has no way to remove this one."));
+    }
+    let state = app.state::<State>();
+    let _busy = Busy::take(&state, account)?;
+    let t = target(app, account)?;
+    let before = api::images(&t.http, t.base(), &t.user_id).await.map_err(|e| check::map(&e))?;
+    let old = before.get(kind.api()).to_owned();
+    if !can_remove(kind, &old) {
+        return Ok(shown(app, &t, kind, &before, false).await);
+    }
+    let bytes = fetch_current(&t, &old).await?;
+    if backup_dir(app, account).and_then(|d| backup::newest(&d, kind.file())).is_none() {
+        save_backup(app, &t, kind, &bytes)?;
+    }
+    let in_recent = backup_dir(app, account)
+        .is_some_and(|d| history::list(&history::dir(&d), kind.file()).iter().any(|s| history::url_of(s).is_some_and(|u| u == old)));
+    if !in_recent && let Some(format) = api::Format::sniff(&bytes) {
+        remember(app, account, kind, format, bytes, Some(old.clone())).await;
+    }
+    api::remove(&t.http, t.auth(), t.base(), kind.api(), &t.user_id)
+        .await
+        .map_err(|e| log_map("remove", &e))?;
+    let (now, waiting) = wait(&t, kind, &before, |url| url != old).await;
+    Ok(shown(app, &t, kind, &now, waiting).await)
+}
+
+/// The image Twitch shows now. Nothing changes when that fails.
+async fn fetch_current(t: &Target, url: &str) -> Result<Vec<u8>, ImageError> {
+    t.http
+        .get_small(url, api::MAX_BYTES)
+        .await
+        .ok()
+        .flatten()
+        .ok_or_else(save_failed)
+}
+
+fn save_failed() -> ImageError {
+    ImageError::with(ImageErrorKind::Failed, "Couldn’t save the current image, so nothing changed.")
+}
+
+fn save_backup(app: &AppHandle, t: &Target, kind: ProfileImageKind, bytes: &[u8]) -> Result<(), ImageError> {
+    let ext = api::Format::sniff(bytes).map_or("img", api::Format::ext);
+    let dir = backup_dir(app, &t.user_id).ok_or_else(save_failed)?;
+    backup::save(&dir, kind.file(), ext, now_ms(), bytes).map(|_| ()).map_err(|_| save_failed())
+}
+
 /// Saves the image about to be replaced. Nothing changes when that fails.
 async fn keep_current(app: &AppHandle, t: &Target, kind: ProfileImageKind, url: &str) -> Result<(), ImageError> {
     if url.is_empty() {
         return Ok(());
     }
-    let failed = || ImageError::with(ImageErrorKind::Failed, "Couldn’t save the current image, so nothing changed.");
-    let bytes = t
-        .http
-        .get_small(url, api::MAX_BYTES)
-        .await
-        .ok()
-        .flatten()
-        .ok_or_else(failed)?;
-    let ext = api::Format::sniff(&bytes).map_or("img", api::Format::ext);
-    let dir = backup_dir(app, &t.user_id).ok_or_else(failed)?;
-    backup::save(&dir, kind.file(), ext, now_ms(), &bytes).map_err(|_| failed())?;
-    Ok(())
+    let bytes = fetch_current(t, url).await?;
+    save_backup(app, t, kind, &bytes)
 }
 
 /// The images after the upload, and whether Twitch was still showing the old one at the end.
@@ -350,19 +398,23 @@ async fn upload(
     eprintln!("profile images: put to {}", api::redact(&up.url));
     api::put(&t.http, &up.url, bytes).await.map_err(|e| log_map("put", &e))?;
     let old = before.get(kind.api()).to_owned();
+    Ok(wait(t, kind, before, |url| !url.is_empty() && url != old).await)
+}
+
+/// Polls the public images until `done` takes the kind's URL; `true` when it never did.
+async fn wait(t: &Target, kind: ProfileImageKind, before: &api::Images, done: impl Fn(&str) -> bool) -> (api::Images, bool) {
     let start = Instant::now();
     let mut now = before.clone();
     while start.elapsed() < POLL_FOR {
         tokio::time::sleep(POLL_EVERY).await;
         if let Ok(fresh) = api::images(&t.http, t.base(), &t.user_id).await {
             now = fresh;
-            let url = now.get(kind.api());
-            if !url.is_empty() && url != old {
-                return Ok((now, false));
+            if done(now.get(kind.api())) {
+                return (now, false);
             }
         }
     }
-    Ok((now, true))
+    (now, true)
 }
 
 /// The view after an upload; a new avatar shows everywhere in the app.
@@ -393,5 +445,21 @@ fn new_avatar(app: &AppHandle, account: &str, url: &str) {
     });
     if changed.is_ok() {
         auth::notify(app);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn remove_shows_only_where_twitch_has_a_way() {
+        let own = "https://static-cdn.jtvnw.net/jtv_user_pictures/x-profile_image-600x600.png";
+        assert!(can_remove(ProfileImageKind::Avatar, own));
+        assert!(!can_remove(ProfileImageKind::Avatar, "https://static-cdn.jtvnw.net/user-default-pictures/y-profile_image-300x300.jpg"));
+        assert!(!can_remove(ProfileImageKind::Avatar, ""));
+        assert!(can_remove(ProfileImageKind::Offline, "https://static-cdn.jtvnw.net/jtv_user_pictures/x-channel_offline_image.png"));
+        assert!(!can_remove(ProfileImageKind::Offline, ""));
+        assert!(!can_remove(ProfileImageKind::Banner, "https://static-cdn.jtvnw.net/jtv_user_pictures/x-profile_banner.png"));
     }
 }

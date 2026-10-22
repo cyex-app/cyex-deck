@@ -396,6 +396,22 @@ fn sending_messages_needs_permission_and_is_capped() {
     );
     assert!(out.unwrap_err().contains("up to 10 messages"));
     assert_eq!(fake.sent.lock().unwrap().len(), 10);
+    // V107-Mb What its commands return shares the window.
+    assert!(!p.take_send());
+    let (p, _, _) = start(
+        "",
+        Granted {
+            send: true,
+            ..Granted::default()
+        },
+    )
+    .unwrap();
+    assert!((0..10).all(|_| p.take_send()));
+    assert!(
+        repl(&p, "cyex.Channel.by_name('open'):send_message('hi')")
+            .unwrap_err()
+            .contains("up to 10 messages")
+    );
 }
 
 #[test]

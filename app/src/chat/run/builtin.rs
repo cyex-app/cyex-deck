@@ -109,6 +109,7 @@ pub async fn run(
                 key,
                 automation: place.automation,
                 ui: false,
+                plugins: place.plugins.clone(),
             };
             line(app, &there, command, None, true, depth + 1).await
         }
@@ -249,6 +250,20 @@ pub(super) const OWN: &[&str] = &[
     // I106-3
     "add", "remove", "rename",
 ];
+
+/// V107-Mb The app’s commands that never write to Twitch or 7TV: they show, open or change
+/// something here. `/chain`, `/foreach` and `/runin` check each line they run instead.
+/// `/timer` is not here: its line runs later, outside this check.
+const LOCAL: &[&str] = &[
+    "echo", "help", "commands", "set", "chain", "foreach", "runin", "user", "usercard", "logs", "hideuser",
+    "unhideuser", "mutepings", "translate", "search", "popout", "cosmetics",
+];
+
+/// V107-Mb A built-in that writes to Twitch (or 7TV) as the account: anything not [`LOCAL`],
+/// Twitch's mod commands and unknown names included.
+pub(super) fn writes(name: &str) -> bool {
+    !LOCAL.contains(&name)
+}
 
 /// S5 Names plugins can't register: the app's commands and Twitch's.
 pub fn reserved(name: &str) -> bool {
@@ -445,6 +460,18 @@ mod tests {
         // Nothing that would break the card's window route.
         assert!(login_arg("a/b").is_err());
         assert!(login_arg("ünïcode").is_err());
+    }
+
+    #[test]
+    fn plugin_output_writes_only_through_the_gate() {
+        // V107-Mb Local ones run for any plugin; whatever reaches Twitch or 7TV needs SendMessages.
+        for name in ["echo", "help", "user", "search", "popout", "chain", "foreach", "runin", "hideuser"] {
+            assert!(!writes(name), "{name}");
+        }
+        for name in ["me", "ban", "timeout", "unban", "w", "whisper", "r", "timer", "nuke", "tl", "vote", "color", "block", "add", "paint", "raid", "nosuch"] {
+            assert!(writes(name), "{name}");
+        }
+        assert!(LOCAL.iter().all(|n| OWN.contains(n)));
     }
 
     #[test]

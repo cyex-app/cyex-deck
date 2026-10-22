@@ -5,7 +5,9 @@
 <script lang="ts">
   import { onDestroy, tick, type Snippet } from 'svelte';
 
+  import { ClearUndo } from '../feeds/clearUndo.svelte';
   import FeedHeader from '../feeds/FeedHeader.svelte';
+  import Button from '../../components/Button.svelte';
   import type { FeedEvent } from '../../ipc/bindings/FeedEvent';
   import type { FeedLine } from '../../ipc/bindings/FeedLine';
   import { popOut } from '../../app/panels';
@@ -37,11 +39,22 @@
     return !list || list.scrollHeight - list.scrollTop - list.clientHeight < 40;
   }
 
+  const lineKey = (l: FeedLine) => `${l.channel}/${l.message.id}`;
+
+  /** V107-MF Clear with Undo, as in the kind feeds. */
+  const undo = new ClearUndo(
+    () => lines.map(lineKey),
+    (keys) => chatxIpc.feedClear(name, keys),
+    (gone) => (lines = lines.filter((l) => !gone.has(lineKey(l)))),
+  );
+  const shown = $derived(undo.hidden ? lines.filter((l) => undo.shows(lineKey(l))) : lines);
+
   async function apply(events: FeedEvent[]) {
     const follow = atBottom();
     let next = lines;
     for (const e of events) {
       if (e.type === 'line') next = [...next, e.line].slice(-KEEP);
+      else if (e.type === 'remove') next = next.filter((l) => !e.keys.includes(lineKey(l)));
       else next = next.map((l) => (l.message.id === e.line.message.id ? e.line : l));
     }
     lines = next;
@@ -68,6 +81,7 @@
   open();
 
   onDestroy(() => {
+    undo.flush();
     closed = true;
     if (view) void chatxIpc.feedClose(view);
   });
@@ -87,10 +101,16 @@
     hint={title && title !== name ? `Highlight rules send here as “${name}”.` : undefined}
     {actions}
     {onheaderdown}
-  />
+  >
+    {#snippet extra()}
+      {#if shown.length > 0}
+        <Button small variant="ghost" onclick={undo.clear}>Clear</Button>
+      {/if}
+    {/snippet}
+  </FeedHeader>
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="lines" bind:this={list} onclick={lineClick}>
-    {#each lines as l (`${l.channel}/${l.message.id}`)}
+    {#each shown as l (`${l.channel}/${l.message.id}`)}
       <div data-channel={l.channel}>
         <div class="chan">
           <button class="room" use:tooltip={'Open this chat'} onclick={(e) => (e.stopPropagation(), openRoom(l.channel))}>

@@ -46,3 +46,9 @@ pub async fn profile_images_use(app: AppHandle, account: String, kind: ProfileIm
 pub fn profile_images_forget(app: AppHandle, account: String, kind: ProfileImageKind, id: String) -> ImageResult<()> {
     images::forget(&app, &account, kind, &id)
 }
+
+/// V107-Mh Back to Twitch's default (avatar, offline image).
+#[tauri::command]
+pub async fn profile_images_remove(app: AppHandle, account: String, kind: ProfileImageKind) -> ImageResult<ProfileImagesView> {
+    images::remove(&app, &account, kind).await
+}

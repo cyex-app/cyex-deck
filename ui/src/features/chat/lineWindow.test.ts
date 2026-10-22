@@ -58,3 +58,13 @@ test('a jump to an undrawn line draws it with some above', () => {
   assert.equal(startOf(list, around(list, null, 10)!), 0);
   assert.equal(around(list, null, -1), undefined);
 });
+
+test('V107-MI history put in above a held window moves nothing drawn', () => {
+  const live = Array.from({ length: 5 }, (_, i) => ({ id: `l${i}`, ts: 100 + i }));
+  const from = hold(live, null);
+  const hist = Array.from({ length: 40 }, (_, i) => ({ id: `h${i}`, ts: i }));
+  const merged = [...hist, ...live];
+  assert.equal(merged[startOf(merged, from)].id, 'l0');
+  // Scrolling up then draws the history, a step at a time.
+  assert.equal(merged[startOf(merged, older(merged, from)!)].id, 'h0');
+});

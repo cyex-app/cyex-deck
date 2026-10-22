@@ -363,7 +363,8 @@ impl Store {
             return Err(Error::NoBackup(label));
         }
         let mut restored = BTreeMap::new();
-        for p in Partition::ALL {
+        // V107-M(c) Accounts, plugins and the uploader belong to this PC: a restore leaves them be.
+        for p in Partition::ALL.into_iter().filter(|p| p.is_portable()) {
             if let Some(value) = read_raw(&snapshot.join(p.file_name()))? {
                 restored.insert(p.key().to_owned(), value);
             }

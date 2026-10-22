@@ -46,7 +46,7 @@
   import ModPanelBody from './ModPanelBody.svelte';
   import { INFO, isModPanel, type ModPanelId as Id } from './panelInfo';
   import { modPopouts } from './popouts.svelte';
-  import { closedOut, dockBack, poppedKey, shownTree, withPopped } from './popped';
+  import { entriesOf, keepOut, mineOut, poppedKey, settle, shownTree } from './popped';
 
   interface Props {
     /** The channel login; `account` mods it. */
@@ -105,7 +105,8 @@
 
   // V107-R29 Panels in a window of their own don't show here; closing it puts them back
   // where they came from: their exact place in the layout (`mv.popped`), else the closed
-  // row. `going`: asked to pop out, its window not heard of yet.
+  // row. `going`: asked to pop out, its window not heard of yet. V107-Mg Per channel: the
+  // shared layout keeps them, so other channels' views still show them.
   $effect(() => modPopouts.start());
   let going = $state.raw<Set<string>>(new Set());
   const out = $derived(new Set([...modPopouts.of(login), ...going]));
@@ -114,20 +115,19 @@
     if ([...going].some((id) => now.has(id))) going = new Set([...going].filter((id) => !now.has(id)));
   });
   const view = $derived(shownTree(tree, out));
+  const sent = new Set<string>();
   $effect(() => {
     if (!modPopouts.ready) return;
     const popped = mv.popped ?? {};
-    const gone = closedOut(popped, modPopouts.routes).filter((k) => !going.has(k.slice(k.indexOf('/') + 1)) || !k.startsWith(`${login}/`));
-    if (!gone.length) return;
-    untrack(() => {
-      const still = new Set(Object.keys(popped).filter((k) => !gone.includes(k)).map((k) => k.slice(k.indexOf('/') + 1)));
-      let t = tree;
-      for (const k of gone) {
-        const id = k.slice(k.indexOf('/') + 1);
-        if (!has(t, id)) t = dockBack(t, id, popped[k], still).tree;
-      }
-      const drop = Object.fromEntries(gone.map((k) => [k, null]));
-      void settings.patch('modview', { layout: asPatch(t) as never, popped: drop as never });
+    // Sent already: kept in the local copy until Rust answers (`forget`).
+    for (const k of sent) if (!(k in popped)) sent.delete(k);
+    const wait = new Set([...going].map((id) => poppedKey(login, id)).concat([...sent]));
+    const { tree: t, drop } = settle(untrack(() => tree), popped, modPopouts.routes, wait);
+    for (const k of drop) sent.add(k);
+    if (!t && !drop.length) return;
+    void settings.patch('modview', {
+      ...(t ? { layout: asPatch(t) as never } : {}),
+      ...(drop.length ? { popped: Object.fromEntries(drop.map((k) => [k, null])) as never } : {}),
     });
   });
   const closed = $derived(
@@ -148,8 +148,22 @@
 
   /** What shows is saved. `chat`: the chat brought back or closed by hand (V103-22). */
   function save(next: Node | null, chat?: boolean) {
-    if (!next) return;
-    void settings.patch('modview', { layout: asPatch(next) as never, ...(chat === undefined ? {} : { chatKept: chat }) });
+    // V107-Mg With this channel's pop-outs back in: the layout is every channel's.
+    const full = keepOut(next, mineOut(tree, out), tree);
+    if (!full) return;
+    void settings.patch('modview', { layout: asPatch(full) as never, ...(chat === undefined ? {} : { chatKept: chat }) });
+  }
+
+  /** Drops `keys` from `mv.popped`, answered first: a dropped key stays in the local copy
+   *  until Rust answers, and with the panel gone from the layout it would be put back. */
+  const forget = (keys: string[]) =>
+    keys.length ? settings.patch('modview', { popped: Object.fromEntries(keys.map((k) => [k, null])) as never }) : Promise.resolve();
+
+  /** V107-Mg Closed here is closed for every channel: its pop-outs elsewhere go to the
+   *  closed row when their windows close. */
+  function close(id: string) {
+    const next = remove(view, id);
+    void forget(entriesOf(mv.popped ?? {}, id)).then(() => save(next, id === 'chat' ? false : undefined));
   }
 
   function drop(panel: string, target: string | null, edge: Edge) {
@@ -163,32 +177,22 @@
     else save(restore(view, id, FULL));
   }
 
-  /** V107-R29 Into its own window. Out of the layout, it leaves it, and the layout as it
-   *  was is kept to put it back exactly; from the closed row it just stays closed. The
-   *  chat stays in the layout, hidden, as it follows its own rule (V103-22). */
+  /** V107-R29 Into its own window. Out of the layout, the layout as it was is kept to put
+   *  it back exactly; from the closed row it just stays closed. The chat stays in the
+   *  layout, hidden, as it follows its own rule (V103-22). V107-Mg Only this channel's view
+   *  leaves it out; the shared layout keeps it. */
   function popOut(id: string) {
     if (!isModPanel(id)) return;
     const from = id !== 'chat' && has(tree, id) ? tree : null;
     going = new Set([...going, id]);
     void modPopouts.open(login, id, INFO[id].title).then(async (ok) => {
       if (ok && from) {
-        // Its window is known first, so no view puts it straight back.
+        // Its window is known first, so the entry isn't dropped as closed.
         await modPopouts.refresh();
-        await settings.patch('modview', {
-          layout: asPatch(remove(from, id)) as never,
-          // V107-N3e With the panels still out in it, so all of them come back exactly.
-          popped: { [poppedKey(login, id)]: withPopped(from, stillOut(id)) } as never,
-        });
+        await settings.patch('modview', { popped: { [poppedKey(login, id)]: from } as never });
       }
       going = new Set([...going].filter((g) => g !== id));
     });
-  }
-
-  /** The panels out of the layout in a window now, other than `id`, oldest first. */
-  function stillOut(id: string): [string, Node][] {
-    return Object.entries(mv.popped ?? {})
-      .map(([k, was]) => [k.slice(k.indexOf('/') + 1), was] as [string, Node])
-      .filter(([p, was]) => p !== id && was && !has(tree, p));
   }
 
   function resize(path: number[], sizes: number[]) {
@@ -202,7 +206,9 @@
   }
 
   function resetLayout() {
-    void settings.patch('modview', { order: [], hidden: [], layout: null as never, chatKept: null as never, popped: Object.fromEntries(Object.keys(mv.popped ?? {}).map((k) => [k, null])) as never });
+    void forget(Object.keys(mv.popped ?? {})).then(() =>
+      settings.patch('modview', { order: [], hidden: [], layout: null as never, chatKept: null as never }),
+    );
     toast.success('Mod view layout reset.');
   }
 </script>
@@ -264,7 +270,7 @@
     onresize={resize}
     onreset={(path) => even(path)}
     ondrop={drop}
-    onclose={(id) => save(remove(view, id), id === 'chat' ? false : undefined)}
+    onclose={close}
     onrestore={bring}
     onpopout={popOut}
     {quick}

@@ -37,5 +37,7 @@ chatKept?: boolean | null,
  * V107-R29 Panels popped out of the layout, by `<login>/<panel>`: the layout as it was
  * then, so closing the window puts the panel back in its exact place. A panel popped out
  * from the closed-panels row has no entry: it goes back there.
+ * V107-Mg Per channel: the layout stays shared and keeps the panel, so other channels'
+ * views still show it.
  */
 popped: { [key in string]: PanelNode }, };

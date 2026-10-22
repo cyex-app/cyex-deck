@@ -120,6 +120,11 @@ pub async fn settings_import_file(
         return Ok(Vec::new());
     };
     let path = source.into_path().map_err(|e| e.to_string())?;
+    // V107-M0 Check the size before reading it all in.
+    let size = fs::metadata(&path).map_err(|e| e.to_string())?.len();
+    if size > cyex_settings::MAX_IMPORT_BYTES as u64 {
+        return Err(cyex_settings::Error::TooBig.to_string());
+    }
     let text = fs::read_to_string(path).map_err(|e| e.to_string())?;
     let bundle = Bundle::from_json(&text).map_err(|e| e.to_string())?;
     settings.import(&app, bundle)

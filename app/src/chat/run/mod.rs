@@ -72,6 +72,9 @@ pub struct Place {
     /// Typed or picked in this chat view, so its window acts on a `UiAction` (a 7TV sign-in
     /// pop-up). Not for usercard buttons, timers, `/runin` or automations: they get a line.
     pub ui: bool,
+    /// V107-Mb Plugins whose command returned this line, outermost first: it writes to
+    /// Twitch only if each holds SendMessages (`plugins::gate`).
+    pub plugins: Vec<String>,
 }
 
 impl Place {
@@ -180,6 +183,7 @@ pub async fn automation(
         key,
         automation: true,
         ui: false,
+        plugins: Vec::new(),
     };
     let mut p = params(app, &place, args);
     let [nick_key, count_key] = AUTOMATION_VALUES;
@@ -230,6 +234,7 @@ fn place_of(app: &AppHandle, view: u32, ui: bool) -> Result<Place, String> {
         key,
         automation: false,
         ui,
+        plugins: Vec::new(),
     })
 }
 
@@ -259,7 +264,10 @@ fn line<'a>(
         }
         // F14 A dot starts a command only when the app knows it; ".gg" goes out as typed.
         let Some((name, args)) = super::typed::command(text, |n| known(app, place, n, custom)) else {
-            return send(app, place, text, reply_to).await.map(|()| None);
+            return match gate(app, place, None)? {
+                true => send(app, place, text, reply_to).await.map(|()| None),
+                false => Ok(None),
+            };
         };
         let name = name.to_ascii_lowercase();
         if custom && let Some(body) = list(app).command(&name, place.channel()) {
@@ -274,13 +282,27 @@ fn line<'a>(
             let out = crate::plugins::calls::command(&p, &name, args, place.channel())
                 .await
                 .map_err(|e| format!("/{name}: {e}"))?;
+            let mut by = place.clone();
+            by.plugins.push(p.id.clone());
             return match out {
-                Some(next) => line(app, place, &next, reply_to, false, depth + 1).await,
+                Some(next) => line(app, &by, &next, reply_to, false, depth + 1).await,
                 None => Ok(None),
             };
         }
+        if !gate(app, place, Some(&name))? {
+            return Ok(None);
+        }
         builtin::run(app, place, &name, args, text, reply_to, depth).await
     })
+}
+
+/// V107-Mb A line a plugin’s command returned may write to Twitch (`name`: a built-in;
+/// `None`: plain text) only as `plugins::gate` allows. `Ok(false)`: skip it quietly.
+fn gate(app: &AppHandle, place: &Place, name: Option<&str>) -> Result<bool, String> {
+    if place.plugins.is_empty() || name.is_some_and(|n| !builtin::writes(n)) {
+        return Ok(true);
+    }
+    crate::plugins::gate::check(app, &place.plugins)
 }
 
 /// F14 A command by that (lower-case) name exists here: the app's or Twitch's, a plugin's

@@ -13,7 +13,6 @@
   import { ago } from '../../lib/format';
   import { bell } from './bell.svelte';
   import { follow } from './follow';
-  import { localDates } from './dates';
   import Loading from '../../components/Loading.svelte';
 
   let { onchannel }: { onchannel: (login: string) => void } = $props();
@@ -39,8 +38,8 @@
     follow(item.url, onchannel);
   }
 
-  /** Twitch's markdown is just `**bold**`; its dates in ours (V107-R9). */
-  const parts = (md: string) => localDates(md).split('**').map((text, i) => ({ text, bold: i % 2 === 1 }));
+  /** Twitch's markdown is just `**bold**`; its dates in ours (V107-R9, rewritten in Rust). */
+  const parts = (md: string) => md.split('**').map((text, i) => ({ text, bold: i % 2 === 1 }));
 </script>
 
 {#if bell.available}

@@ -11,6 +11,9 @@ use super::{Change, Outcome, Refusal, Role, Twitch, VipSlots, Wanted};
 struct Unit {
     first: Option<Change>,
     main: Change,
+    /// V107-Ma Not asked for: lead mod taken because mod is (Twitch keeps a lead mod
+    /// otherwise).
+    implied: bool,
 }
 
 /// V107-M8 The role Twitch won't stack with `give`: a VIP can't be a mod or lead mod.
@@ -40,20 +43,32 @@ fn clashed(c: Change, r: &Refusal) -> bool {
 
 /// The units in the order they run: takes first (they free slots and clear clashes), then
 /// grants in Twitch's role order. Twitch makes a lead mod a mod (seen live 2026/10/21), so
-/// giving both sends lead mod only. A role in both lists is given.
+/// giving both sends lead mod only. A role in both lists is given. V107-Ma Taking mod from
+/// a lead mod takes lead mod first: `unmodUser` leaves a lead mod one (seen live 2026/10/21).
 fn plan(who: &str, holds: &[Role], w: &Wanted) -> Result<Vec<Unit>, String> {
     let mut give: Vec<Role> = Role::ALL.into_iter().filter(|r| w.give.contains(r)).collect();
-    let take: Vec<Role> = Role::ALL.into_iter().filter(|r| w.take.contains(r) && !give.contains(r)).collect();
+    let lead_too = w.take.contains(&Role::Mod)
+        && !w.take.contains(&Role::LeadMod)
+        && !give.contains(&Role::Mod)
+        && !give.contains(&Role::LeadMod)
+        && holds.contains(&Role::LeadMod);
+    let take: Vec<Role> = Role::ALL
+        .into_iter()
+        .filter(|r| (w.take.contains(r) || (lead_too && *r == Role::LeadMod)) && !give.contains(r))
+        .collect();
     if give.contains(&Role::LeadMod) {
         give.retain(|r| *r != Role::Mod);
     }
     if give.contains(&Role::Vip) && give.iter().any(|r| other(*r) == Some(Role::Vip)) {
         return Err(format!("{who} can’t be a VIP and a mod."));
     }
-    let mut out: Vec<Unit> = take.iter().map(|r| Unit { first: None, main: Change::new(*r, false) }).collect();
+    let mut out: Vec<Unit> = take
+        .iter()
+        .map(|r| Unit { first: None, main: Change::new(*r, false), implied: lead_too && *r == Role::LeadMod })
+        .collect();
     for r in give {
         let first = other(r).filter(|o| holds.contains(o) && !take.contains(o)).map(|o| Change::new(o, false));
-        out.push(Unit { first, main: Change::new(r, true) });
+        out.push(Unit { first, main: Change::new(r, true), implied: false });
     }
     Ok(out)
 }
@@ -158,6 +173,22 @@ pub async fn change(t: &impl Twitch, who: &str, holds: &[Role], slots: VipSlots,
     let mut said: Vec<String> = Vec::new();
     let mut went: Vec<Change> = Vec::new();
     for (i, u) in units.iter().enumerate() {
+        if u.implied {
+            match run.step(u.main).await {
+                Ok(()) => {
+                    said.push(lines::done(who, u.main));
+                    went.push(u.main);
+                }
+                // Stale holds: not a lead mod after all, so on to mod.
+                Err(Refusal::Code(c)) if lines::holds_already(&c, false) => {}
+                Err(r) => {
+                    let why = lines::clause(&r, who, u.main, run.by);
+                    let failed = units[i..].iter().filter(|u| !u.implied).map(|u| u.main.role).collect();
+                    return Outcome { done: run.done, line: lines::lead_stays(who, &why), slots: run.slots, failed };
+                }
+            }
+            continue;
+        }
         match run.unit(*u).await {
             Ok(line) => {
                 said.push(line);
@@ -346,6 +377,52 @@ mod tests {
         assert_eq!(o.line, "Changed bob’s roles.");
         let f = Fake::new(vec![Ok(()), Ok(())]);
         assert_eq!(run(&f, &[], unknown(), give(&[Editor, Artist])).line, "Made bob an editor and an artist.");
+    }
+
+    #[test]
+    fn v107_ma_unmod_on_a_lead_mod_takes_lead_mod_first() {
+        let unmod = || Wanted::one(Mod, false);
+        let f = Fake::new(vec![Ok(()), Ok(())]);
+        let o = now(change(&Echoed { twitch: &f, chat: &f }, "bob", &[LeadMod, Mod], unknown(), &unmod()));
+        assert_eq!(o.line, "Removed bob’s mod and lead mod roles.");
+        assert_eq!(o.done, [Change::new(LeadMod, false), Change::new(Mod, false)]);
+        assert_eq!(f.log(), ["take lead mod", "mark unmod bob", "take mod", "standing bob mod false"], "one echo, ours");
+        // A plain mod: one step, as before.
+        let f = Fake::new(vec![Ok(())]);
+        assert_eq!(run(&f, &[Mod], unknown(), unmod()).line, "bob is no longer a mod.");
+        assert_eq!(f.log(), [step(Mod, false)]);
+        // Asked for both: the same order and line.
+        let f = Fake::new(vec![Ok(()), Ok(())]);
+        let both = Wanted { give: vec![], take: vec![Mod, LeadMod] };
+        assert_eq!(run(&f, &[LeadMod, Mod], unknown(), both).line, "Removed bob’s mod and lead mod roles.");
+        assert_eq!(f.log(), [step(LeadMod, false), step(Mod, false)]);
+        // /unleadmod alone leaves mod.
+        let f = Fake::new(vec![Ok(())]);
+        run(&f, &[LeadMod, Mod], unknown(), Wanted::one(LeadMod, false));
+        assert_eq!(f.log(), [step(LeadMod, false)]);
+    }
+
+    #[test]
+    fn v107_ma_a_failed_lead_mod_removal_stops_there() {
+        let f = Fake::new(vec![code("PERMISSION_DENIED")]);
+        let o = run(&f, &[LeadMod, Mod], unknown(), Wanted::one(Mod, false));
+        assert_eq!(o.line, "Couldn’t remove bob’s lead mod role: You can’t do that here. They’re still a mod.");
+        assert_eq!((o.done.as_slice(), o.failed.as_slice()), (&[][..], &[Mod][..]));
+        assert_eq!(f.log(), [step(LeadMod, false)], "mod never sent");
+        // Stale: not a lead mod after all, so mod goes as usual.
+        let f = Fake::new(vec![code("NOT_ASSIGNED"), Ok(())]);
+        let o = run(&f, &[LeadMod, Mod], unknown(), Wanted::one(Mod, false));
+        assert_eq!((o.line.as_str(), o.ok()), ("bob is no longer a mod.", true));
+        // Lead mod went, mod didn't.
+        let f = Fake::new(vec![Ok(()), line("Twitch is down.")]);
+        let o = run(&f, &[LeadMod, Mod], unknown(), Wanted::one(Mod, false));
+        assert_eq!(o.line, "bob is no longer a lead mod. Twitch is down.");
+        assert_eq!((o.done.as_slice(), o.failed.as_slice()), (&[Change::new(LeadMod, false)][..], &[Mod][..]));
+        // No way to send lead mod: nothing at all.
+        let mut f = Fake::new(vec![]);
+        f.path = Err(super::super::NEEDS_GQL);
+        assert_eq!(run(&f, &[LeadMod, Mod], unknown(), Wanted::one(Mod, false)).line, super::super::NEEDS_GQL);
+        assert!(f.log().is_empty());
     }
 
     #[test]

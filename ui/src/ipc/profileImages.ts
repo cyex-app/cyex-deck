@@ -19,6 +19,9 @@ export const profileImagesIpc = {
   /** V107-R19c Drops one image from the history. */
   forget: (account: string, kind: ProfileImageKind, id: string) =>
     invoke<void>('profile_images_forget', { account, kind, id }),
+  /** V107-Mh Back to Twitch's default (avatar, offline image). */
+  remove: (account: string, kind: ProfileImageKind) =>
+    invoke<ProfileImagesView>('profile_images_remove', { account, kind }),
 };
 
 /** The `ImageError` a command rejected with, or null for anything else. */

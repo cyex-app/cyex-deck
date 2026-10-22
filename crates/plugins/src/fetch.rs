@@ -19,12 +19,15 @@ const MAX_REDIRECTS: usize = 5;
 /// Biggest answer a plugin gets.
 pub const MAX_RESPONSE: usize = 5 << 20;
 
-/// One client for every plugin: no redirects of its own, no cookies.
+/// One client for every plugin: no redirects of its own, no cookies, no proxy.
 pub fn client() -> Client {
     Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .user_agent(format!("{} (plugin)", cyex_core::app::user_agent()))
         .dns_resolver(Arc::new(PublicOnly))
+        // V107-Mb A system proxy (HTTPS_PROXY and the like) would look the name up itself,
+        // past the public-address check.
+        .no_proxy()
         .build()
         .unwrap_or_default()
 }

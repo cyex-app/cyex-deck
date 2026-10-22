@@ -25,6 +25,8 @@ export const chatxIpc = {
     channel.onmessage = onEvents;
     return invoke<FeedOpened>('feed_open', { name, onEvent: channel });
   },
+  /** V107-MF Clear: only the lines the tab hid (`channel/id` keys). */
+  feedClear: (name: string, keys: string[]) => invoke<void>('feed_clear', { name, keys }),
   feedClose: (view: number) => invoke<void>('feed_close', { view }),
   translate: (view: number, id: string) => invoke<void>('chat_translate', { view, id }),
   setLanguage: (lang: string) => invoke<void>('chat_set_language', { lang }),

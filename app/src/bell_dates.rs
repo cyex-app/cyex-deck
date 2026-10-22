@@ -1,6 +1,6 @@
 //! V107-R9b Twitch writes dates into bell texts its own way ("November 10, 2026 7:59:00 am
-//! UTC"). Toasts show them as `yyyy/mm/dd hh:mm` in local time (3.1, 3.2); same rules as
-//! `ui/src/features/bell/dates.ts`. A time without a zone is UTC. A date alone stays that day.
+//! UTC"). Toasts show them as `yyyy/mm/dd hh:mm` in local time (3.1, 3.2); the only copy
+//! (V107-Me): `bell.rs` rewrites item bodies before the UI sees them. A time without a zone is UTC. A date alone stays that day.
 
 use std::sync::LazyLock;
 

@@ -60,3 +60,14 @@ test('U5 rankBest takes the highest rank, then the closest', () => {
   assert.equal(near.rank, far.rank);
   assert.deepEqual(rankBest(['a____b', 'a_b'], 'ab'), near);
 });
+
+test('V107-MI accents fold: cafe finds café, exact accents rank first', () => {
+  assert.equal(rank('café', 'cafe').rank, RANK.equal);
+  assert.equal(rank('Café', 'cafe').rank, RANK.equal);
+  assert.equal(rank('café', 'CAF').rank, RANK.starts);
+  assert.equal(rank('café', 'café').rank, RANK.caseEqual);
+  assert.equal(rank('cafe', 'café').rank, RANK.equal);
+  assert.equal(rank('lecafé', 'cafe').rank, RANK.contains);
+  assert.deepEqual(complete('cafe', ['café', 'cafeteria', 'cafe']), ['café', 'cafeteria']);
+  assert.deepEqual(complete('café', ['cafe', 'café2', 'café']), ['cafe', 'café2']);
+});

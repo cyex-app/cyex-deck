@@ -103,6 +103,12 @@ pub(super) fn half_done(who: &str, old: Role, new: Role, why: &str) -> String {
     format!("Removed {who} as {}, but couldn’t make them {}: {why}.", old.name(), a(new))
 }
 
+/// V107-Ma Taking a lead mod's lead mod role (before their mod role) failed: nothing else
+/// was sent.
+pub(super) fn lead_stays(who: &str, why: &str) -> String {
+    format!("Couldn’t remove {who}’s lead mod role: {why}. They’re still a mod.")
+}
+
 fn list(roles: &[Role], last: &str) -> String {
     let names: Vec<String> = roles.iter().map(|r| a(*r)).collect();
     match names.split_last() {
@@ -118,6 +124,8 @@ pub(super) fn summary(who: &str, changes: &[Change]) -> String {
     let taken: Vec<Role> = changes.iter().filter(|c| !c.on).map(|c| c.role).collect();
     match (given.is_empty(), taken.is_empty()) {
         (false, true) => format!("Made {who} {}.", list(&given, "and")),
+        // V107-Ma Unmod on a lead mod.
+        (true, false) if taken == [Role::LeadMod, Role::Mod] => format!("Removed {who}’s mod and lead mod roles."),
         (true, false) => format!("{who} is no longer {}.", list(&taken, "or")),
         _ => format!("Changed {who}’s roles."),
     }

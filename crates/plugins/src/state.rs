@@ -18,6 +18,8 @@ use crate::sandbox::Deadline;
 /// Messages a plugin may send in [`SEND_WINDOW`].
 pub const SEND_LIMIT: usize = 10;
 pub const SEND_WINDOW: Duration = Duration::from_secs(30);
+/// V107-Mb A plugin’s sends lately, one window for everything it sends.
+pub type Sends = Arc<Mutex<VecDeque<Instant>>>;
 pub const MAX_TIMERS: usize = 100;
 pub const MAX_REQUESTS: usize = 10;
 /// S7 Lines a plugin may add, replace or change in [`LINE_WINDOW`].
@@ -44,7 +46,8 @@ pub struct State {
     pub requests: HashMap<u64, Requested>,
     pub settings: Map<String, Value>,
     pub next_id: u64,
-    pub sends: VecDeque<Instant>,
+    /// V107-Mb Shared with [`crate::Plugin`], so what its commands return counts too.
+    pub sends: Sends,
     /// S6 Sockets not closed yet, by id.
     pub sockets: HashSet<u64>,
     pub connects: VecDeque<Instant>,
@@ -103,7 +106,7 @@ impl State {
 
     /// Room for one more message in the plugin's send limit.
     pub fn take_send(&mut self) -> bool {
-        take(&mut self.sends, SEND_LIMIT, SEND_WINDOW)
+        take_send(&self.sends)
     }
 
     /// S7 Room for one more line added, replaced or changed.
@@ -120,6 +123,11 @@ impl State {
     pub fn take_connect(&mut self) -> bool {
         take(&mut self.connects, CONNECT_LIMIT, CONNECT_WINDOW)
     }
+}
+
+/// V107-Mb Room for one more message in a send window.
+pub fn take_send(sends: &Sends) -> bool {
+    take(&mut sends.lock().unwrap_or_else(|p| p.into_inner()), SEND_LIMIT, SEND_WINDOW)
 }
 
 /// A rate window: `limit` times in `span`, the oldest falling out.

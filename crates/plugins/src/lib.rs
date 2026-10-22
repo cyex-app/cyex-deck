@@ -24,4 +24,5 @@ pub use host::{
 };
 pub use manifest::{Field, FieldKind, Manifest, Permission};
 pub use perm::{Granted, check_url};
+pub use state::{SEND_LIMIT, SEND_WINDOW};
 pub use runtime::{CALLBACK, Config, Event, Exports, LINE, MenuExport, MenuPlace, Plugin, QUICK, Reply};

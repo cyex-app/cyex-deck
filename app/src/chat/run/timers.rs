@@ -48,6 +48,7 @@ pub fn restore(app: &AppHandle) {
             key: (identity, t.channel.clone()),
             automation: t.automation,
             ui: false,
+            plugins: Vec::new(),
         };
         schedule(app, place, t.id, t.at_ms, t.command, true);
     }

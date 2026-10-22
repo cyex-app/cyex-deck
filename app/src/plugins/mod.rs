@@ -5,6 +5,7 @@
 
 pub mod calls;
 pub mod events;
+pub mod gate;
 mod hook;
 mod host;
 mod lines;

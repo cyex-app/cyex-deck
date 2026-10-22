@@ -38,6 +38,10 @@ pub enum FeedEvent {
     Update {
         line: FeedLine,
     },
+    /// V107-MF Cleared in a tab: these `channel/id` keys are gone.
+    Remove {
+        keys: Vec<String>,
+    },
 }
 
 type View = Channel<Vec<FeedEvent>>;
@@ -155,6 +159,37 @@ pub fn moderate(app: &AppHandle, channel: &str, events: &[RoomEvent]) {
     }
 }
 
+/// The key a tab knows a line by.
+fn line_key(l: &FeedLine) -> String {
+    format!("{}/{}", l.channel, l.message.id)
+}
+
+/// V107-MF A tab's Clear: drops exactly the lines it hid, so lines that arrived since stay.
+pub fn remove(app: &AppHandle, name: &str, keys: &[String]) {
+    let Some(feeds) = app.try_state::<Feeds>() else { return };
+    let alive = |w: &str| app.get_webview_window(w).is_some();
+    let mut map = feeds.feeds.lock().unwrap_or_else(|p| p.into_inner());
+    let Some(feed) = map.get_mut(&key(name)) else { return };
+    let gone = drop_keys(&mut feed.lines, keys);
+    if !gone.is_empty() {
+        send(feed, FeedEvent::Remove { keys: gone }, &alive);
+    }
+}
+
+/// Removes the lines with these keys; returns the keys that were there.
+fn drop_keys(lines: &mut VecDeque<FeedLine>, keys: &[String]) -> Vec<String> {
+    let mut gone = Vec::new();
+    lines.retain(|l| {
+        let k = line_key(l);
+        let hit = keys.contains(&k);
+        if hit {
+            gone.push(k);
+        }
+        !hit
+    });
+    gone
+}
+
 /// V107-R1 Views whose window is gone leave: a closed window's channel still takes sends
 /// without an error, so they never left before.
 fn send(feed: &mut Feed, event: FeedEvent, alive: &dyn Fn(&str) -> bool) {
@@ -204,6 +239,18 @@ mod tests {
             message: Arc::new(cyex_chat::build::system(NoticeKind::Info, "hi", 0)),
             global: false,
         }
+    }
+
+    #[test]
+    fn v107_mf_clear_drops_only_the_hidden_lines() {
+        let mut lines: VecDeque<FeedLine> = VecDeque::new();
+        for _ in 0..3 {
+            lines.push_back(line());
+        }
+        let first = line_key(&lines[0]);
+        let gone = drop_keys(&mut lines, &[first.clone(), "x/none".into()]);
+        assert_eq!(gone, vec![first]);
+        assert_eq!(lines.len(), 2);
     }
 
     #[test]

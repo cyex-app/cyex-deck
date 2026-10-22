@@ -134,17 +134,18 @@ pub fn on_event(app: &AppHandle, e: &Event) {
             emit_unseen(app);
         }
         Live::Created {
-            item,
+            mut item,
             toast,
             list,
             creator,
         } => {
+            dated(&mut item);
             let n: Notifications = app.state::<Settings>().read(Partition::Notifications);
             if toast && n.bell.toast && !toasts::app_in_front(app) {
                 toasts::show(
                     app,
                     Pop {
-                        title: crate::bell_dates::local_dates(&unmark(&item.body)),
+                        title: unmark(&item.body),
                         text: String::new(),
                         avatar: item.thumbnail.clone(),
                         open: Open::Link {
@@ -161,7 +162,8 @@ pub fn on_event(app: &AppHandle, e: &Event) {
                 let _ = app.emit(LIVE, json!({ "kind": "created", "list": which, "item": item }));
             }
         }
-        Live::Updated(item) => {
+        Live::Updated(mut item) => {
+            dated(&mut item);
             let _ = app.emit(LIVE, json!({ "kind": "updated", "item": item }));
         }
         Live::Deleted(id) => {
@@ -205,8 +207,10 @@ pub async fn list(app: &AppHandle, which: List, cursor: Option<String>) -> Resul
     let page = api::list(&c.http, c.auth(), which, cursor.as_deref())
         .await
         .map_err(failed)?;
+    let mut items = page.items;
+    items.iter_mut().for_each(dated);
     Ok(BellPage {
-        items: page.items,
+        items,
         cursor: page.cursor,
     })
 }
@@ -236,6 +240,11 @@ pub async fn delete(app: &AppHandle, id: String) -> Result<(), String> {
     api::delete(&c.http, c.auth(), &id).await.map_err(failed)
 }
 
+/// V107-M-e Dates in the body are rewritten here once, for the list and the toasts (3.1, 3.2).
+fn dated(item: &mut Item) {
+    item.body = crate::bell_dates::local_dates(&item.body);
+}
+
 /// Twitch's markdown without the marks: `**xqc** went live` → `xqc went live`.
 pub fn unmark(md: &str) -> String {
     md.replace("**", "").replace("__", "").replace('\\', "")
@@ -244,6 +253,21 @@ pub fn unmark(md: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn item_bodies_get_app_dates() {
+        let mut item = Item {
+            id: "1".into(),
+            kind: "sub".into(),
+            body: "**xqc** renews on November 10, 2026.".into(),
+            created_at: String::new(),
+            read: false,
+            thumbnail: None,
+            url: None,
+        };
+        dated(&mut item);
+        assert_eq!(item.body, "**xqc** renews on 2026/11/10.");
+    }
 
     #[test]
     fn marks_go() {

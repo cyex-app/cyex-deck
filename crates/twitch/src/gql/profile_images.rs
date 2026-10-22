@@ -181,6 +181,59 @@ pub async fn images(http: &Http, base: Option<&str>, user_id: &str) -> Result<Im
     })
 }
 
+/// V107-Mh Back to Twitch's default, where twitch.tv has a way (static read, 2026/10/22):
+/// the avatar's Delete in settings › profile and the dashboard's offline image ✕. Twitch's web
+/// has no way to remove a banner, so none here.
+pub fn removable(kind: ImageKind) -> bool {
+    kind != ImageKind::Banner
+}
+
+/// One of Twitch's 7 default pictures (`profile_image_001`..`007`): the one twitch.tv shows
+/// for an account without a picture, `id % 7`. twitch.tv's Delete picks one at random.
+pub fn default_avatar(user_id: &str) -> String {
+    let n = user_id.parse::<u64>().map_or(0, |n| n % 7);
+    format!("profile_image_{:03}", n + 1)
+}
+
+/// Twitch's default pictures live under `user-default-pictures`.
+pub fn is_default_avatar(url: &str) -> bool {
+    url.contains("/user-default-pictures")
+}
+
+/// The payload field, the mutation text and its variables, as twitch.tv sends them.
+fn remove_op(kind: ImageKind, user_id: &str) -> Option<(&'static str, &'static str, Value)> {
+    match kind {
+        ImageKind::Avatar => Some((
+            "setUserDefaultProfileImage",
+            "mutation EditProfile_SetUserDefaultProfileImage($input: SetUserDefaultProfileImageInput!) { setUserDefaultProfileImage(input: $input) { user { id } } }",
+            json!({ "input": { "userID": user_id, "newDefaultProfileImage": default_avatar(user_id) } }),
+        )),
+        ImageKind::Offline => Some((
+            "setUserDefaultChannelOfflineImage",
+            "mutation DeleteUserChannelOfflineImage($input: SetUserDefaultChannelOfflineImageInput!) { setUserDefaultChannelOfflineImage(input: $input) { error { code } } }",
+            json!({ "input": { "userID": user_id, "newDefaultChannelOfflineImage": "empty_channel_offline_image" } }),
+        )),
+        ImageKind::Banner => None,
+    }
+}
+
+/// Removes the image. A payload `error` (or none at all) comes back as `Error::Refused`.
+pub async fn remove(http: &Http, auth: Auth<'_>, base: Option<&str>, kind: ImageKind, user_id: &str) -> Result<()> {
+    let (field, text, vars) = remove_op(kind, user_id).ok_or_else(|| Error::Refused("NOT_REMOVABLE".into()))?;
+    read_remove(field, &run_at(http, auth, base, text, vars).await?)
+}
+
+fn read_remove(field: &str, data: &Value) -> Result<()> {
+    let out = &data[field];
+    if out.is_null() {
+        return Err(Error::Refused("NO_PAYLOAD".into()));
+    }
+    match out["error"]["code"].as_str() {
+        Some(code) => Err(Error::Refused(code.to_owned())),
+        None => Ok(()),
+    }
+}
+
 /// An image as a `data:` URL (test runs: the window may not load images from this PC).
 pub fn data_url(bytes: &[u8]) -> String {
     use base64::Engine;
@@ -285,6 +338,39 @@ mod tests {
         assert!(m.contains("createProfileBannerImageUploadURL(input: $input)"));
         assert!(m.contains("$input: CreateProfileBannerImageUploadURLInput!"));
         assert!(mutation(ImageKind::Avatar).starts_with("mutation EditProfile_CreateProfileImageUploadURL("));
+    }
+
+    #[test]
+    fn remove_ops_match_twitch() {
+        assert!(removable(ImageKind::Avatar) && removable(ImageKind::Offline) && !removable(ImageKind::Banner));
+        assert!(remove_op(ImageKind::Banner, "1").is_none());
+        let (field, text, vars) = remove_op(ImageKind::Avatar, "141981764").unwrap();
+        assert_eq!(field, "setUserDefaultProfileImage");
+        assert!(text.contains("setUserDefaultProfileImage(input: $input) { user { id } }"));
+        assert_eq!(vars, json!({ "input": { "userID": "141981764", "newDefaultProfileImage": "profile_image_002" } }));
+        let (field, text, vars) = remove_op(ImageKind::Offline, "9").unwrap();
+        assert_eq!(field, "setUserDefaultChannelOfflineImage");
+        assert!(text.starts_with("mutation DeleteUserChannelOfflineImage($input: SetUserDefaultChannelOfflineImageInput!)"));
+        assert_eq!(vars["input"]["newDefaultChannelOfflineImage"], "empty_channel_offline_image");
+    }
+
+    #[test]
+    fn default_avatar_is_id_mod_7() {
+        assert_eq!(default_avatar("7"), "profile_image_001");
+        assert_eq!(default_avatar("13"), "profile_image_007");
+        assert_eq!(default_avatar("x"), "profile_image_001");
+        assert!(is_default_avatar("https://static-cdn.jtvnw.net/user-default-pictures/ab-profile_image-300x300.jpg"));
+        assert!(!is_default_avatar("https://static-cdn.jtvnw.net/jtv_user_pictures/ab-profile_image-600x600.png"));
+    }
+
+    #[test]
+    fn reads_the_remove_answer() {
+        let f = "setUserDefaultChannelOfflineImage";
+        assert!(read_remove(f, &json!({ "setUserDefaultChannelOfflineImage": { "error": null } })).is_ok());
+        assert!(read_remove("setUserDefaultProfileImage", &json!({ "setUserDefaultProfileImage": { "user": { "id": "1" } } })).is_ok());
+        let e = read_remove(f, &json!({ "setUserDefaultChannelOfflineImage": { "error": { "code": "UNAUTHORIZED" } } })).unwrap_err();
+        assert!(matches!(e, Error::Refused(c) if c == "UNAUTHORIZED"));
+        assert!(matches!(read_remove(f, &json!({ "setUserDefaultChannelOfflineImage": null })), Err(Error::Refused(_))));
     }
 
     #[test]

@@ -71,10 +71,17 @@ pub async fn apply(app: &AppHandle, actor: &Actor, who: &str, holds: Option<Vec<
         let failed = Role::ALL.into_iter().filter(|r| wanted.give.contains(r) || wanted.take.contains(r)).collect();
         return Outcome { done: Vec::new(), line: line.into(), slots: slots.unwrap_or_else(VipSlots::unknown), failed };
     }
+    let unmod = wanted.take.contains(&Role::Mod) && !wanted.take.contains(&Role::LeadMod);
     let holds = match holds {
         Some(h) => h,
-        // Only a grant can clash.
-        None if !wanted.give.is_empty() => super::standing::holds(app, &actor.channel, who).await.unwrap_or_default(),
+        // Only a grant can clash; V107-Ma an unmod needs to know about lead mod.
+        None if !wanted.give.is_empty() || unmod => {
+            let mut h = super::standing::holds(app, &actor.channel, who).await.unwrap_or_default();
+            if unmod && !h.contains(&Role::LeadMod) && lead_mod(app, actor, who).await {
+                h.push(Role::LeadMod);
+            }
+            h
+        }
         None => Vec::new(),
     };
     let gives_vip = wanted.give.contains(&Role::Vip);
@@ -98,6 +105,26 @@ pub async fn apply(app: &AppHandle, actor: &Actor, who: &str, holds: Option<Vec<
         crate::chat::notice_line(app, &actor.channel, NoticeKind::Moderation, &out.line);
     }
     out
+}
+
+/// V107-Ma Whether `who` is a lead mod when their badges don't say (a lead mod may wear the
+/// plain badge, or none): the Roles Manager's fresh read, else Twitch's list, read once.
+/// Only the broadcaster can read or change it; elsewhere, `false`.
+async fn lead_mod(app: &AppHandle, actor: &Actor, who: &str) -> bool {
+    if actor.role != ModRole::Broadcaster {
+        return false;
+    }
+    if own(actor)
+        && let Some(v) = cached(app, &actor.account)
+    {
+        return v.members.iter().any(|m| m.login.eq_ignore_ascii_case(who) && m.roles.contains(&Role::LeadMod));
+    }
+    let Some(g) = actor.gql() else { return false };
+    let http = super::http(app);
+    let ch = cyex_twitch::gql::dashboard::Channel { http: &http, auth: g, base: None, id: &actor.channel_id };
+    cyex_twitch::gql::dashboard::roles::holders(&ch, Role::LeadMod)
+        .await
+        .is_ok_and(|l| l.iter().any(|l| l.eq_ignore_ascii_case(who)))
 }
 
 /// V107-N4A The channel's own broadcaster holds no role: Twitch answers that with a bare

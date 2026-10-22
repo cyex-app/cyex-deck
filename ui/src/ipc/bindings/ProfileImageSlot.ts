@@ -14,4 +14,8 @@ backup: boolean,
 /**
  * V107-R19c Images changed here before, newest first.
  */
-history: Array<ProfileImageSaved>, };
+history: Array<ProfileImageSaved>, 
+/**
+ * V107-Mh Twitch has a way to remove it and there's one to remove.
+ */
+removable: boolean, };

@@ -11,10 +11,9 @@
   import type { FeedKind } from '../../ipc/bindings/FeedKind';
   import type { KindEvent } from '../../ipc/bindings/KindEvent';
   import { feedsIpc } from '../../ipc/feeds';
-  import { errorText } from '../../lib/errors';
   import { streamer } from '../../lib/streamer.svelte';
-  import { ACTION_MS, toast } from '../../lib/toast.svelte';
   import { whispers } from '../whispers/whispers.svelte';
+  import { ClearUndo } from './clearUndo.svelte';
   import { apply, keyOf, tsOf } from './entries';
   import FeedHeader from './FeedHeader.svelte';
   import HeldRow from './HeldRow.svelte';
@@ -65,35 +64,16 @@
   // svelte-ignore state_referenced_locally
   open();
 
-  /** s3-3 Clear hides the rows at once and offers Undo; the feed is cleared for real once
-   * the toast's time is up (or the tab closes). */
-  let hidden = $state.raw<Set<string> | null>(null);
-  let commit: ReturnType<typeof setTimeout> | undefined;
-  const shown = $derived(hidden ? entries.filter((e) => !hidden!.has(keyOf(e))) : entries);
-
-  function clear() {
-    flush();
-    hidden = new Set(entries.map(keyOf));
-    commit = setTimeout(flush, ACTION_MS);
-    toast.info('Feed cleared.', { action: { label: 'Undo', run: undo } });
-  }
-
-  function undo() {
-    clearTimeout(commit);
-    hidden = null;
-  }
-
-  function flush() {
-    clearTimeout(commit);
-    const gone = hidden;
-    if (!gone) return;
-    entries = entries.filter((e) => !gone.has(keyOf(e)));
-    hidden = null;
-    feedsIpc.clear(kind, [...gone]).catch((e) => toast.error(errorText(e)));
-  }
+  /** s3-3 Clear hides the rows at once and offers Undo (V107-MF, shared with the rules feeds). */
+  const undo = new ClearUndo(
+    () => entries.map(keyOf),
+    (keys) => feedsIpc.clear(kind, keys),
+    (gone) => (entries = entries.filter((e) => !gone.has(keyOf(e)))),
+  );
+  const shown = $derived(undo.hidden ? entries.filter((e) => undo.shows(keyOf(e))) : entries);
 
   onDestroy(() => {
-    flush();
+    undo.flush();
     closed = true;
     if (view) void feedsIpc.close(view);
   });
@@ -103,7 +83,7 @@
   <FeedHeader icon={info.icon} {name} {actions} {onheaderdown}>
     {#snippet extra()}
       {#if shown.length > 0}
-        <Button small variant="ghost" onclick={clear}>Clear</Button>
+        <Button small variant="ghost" onclick={undo.clear}>Clear</Button>
       {/if}
     {/snippet}
   </FeedHeader>
