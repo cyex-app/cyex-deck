@@ -285,6 +285,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         player::player_comments,
         player::player_position,
         player::player_save_position,
+        player::player_progress,
         player::player_create_clip,
         player::player_proxy,
         player::player_set_proxy,

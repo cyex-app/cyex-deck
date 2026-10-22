@@ -1,5 +1,6 @@
 <!-- A VOD (1.1). Resumes where it was left (P5), previews along the timeline (P6), and
-     tells its tile where it is so the chat can replay (P8). -->
+     tells its tile where it is so the chat can replay (P8). V107-Mv Small in a corner while
+     the channel's About or Clips shows, paused while a clip plays. -->
 <script lang="ts">
   import { onDestroy } from 'svelte';
 
@@ -39,14 +40,20 @@
     shared?: TileState;
     hushed?: boolean;
     onclose?: () => void;
+    /** V107-Mv Small in a corner, over another page. */
+    mini?: boolean;
+    /** V107-Mv Paused for a clip in front. */
+    held?: boolean;
+    /** V107-Mv Back to full size. */
+    onexpand?: () => void;
   }
 
-  let { id, at, tile, account, shared, hushed = false, onclose }: Props = $props();
+  let { id, at, tile, account, shared, hushed = false, onclose, mini = false, held = false, onexpand }: Props = $props();
 
   /** Escape closes it (not in fullscreen, where Escape leaves that first; not while a menu or
    *  dialog wants it or a text field has the keyboard). */
   function onkeydown(e: KeyboardEvent) {
-    if (!onclose || e.key !== 'Escape' || keyTaken(e) || document.fullscreenElement) return;
+    if (!onclose || mini || e.key !== 'Escape' || keyTaken(e) || document.fullscreenElement) return;
     if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable]')) return;
     e.preventDefault();
     onclose();
@@ -65,12 +72,15 @@
   let speed = $state(1);
   let stats = $state(false);
   let saved = 0;
+  /** V107-Mv The engine is going: its reset to 0 must not overwrite the saved spot. */
+  let gone = false;
 
   // svelte-ignore state_referenced_locally
   const sound = useSound(() => tile, () => hushed, true);
 
   $effect(() => {
     if (!video) return;
+    gone = false;
     const e = new Engine(video, false, false);
     engine = e;
     info = null;
@@ -99,12 +109,18 @@
     return () => {
       ro.disconnect();
       starts.cancel();
+      save();
+      gone = true;
       e.destroy();
     };
   });
 
   $effect(() => {
     if (video) sound.apply(video);
+  });
+
+  $effect(() => {
+    if (held) video?.pause();
   });
   $effect(() => video && sound.attach(video));
 
@@ -121,7 +137,7 @@
   });
 
   function ontimeupdate() {
-    if (!video) return;
+    if (!video || gone) return;
     time = video.currentTime;
     duration = Number.isFinite(video.duration) ? video.duration : info?.length ?? 0;
     const b = video.buffered;
@@ -132,7 +148,7 @@
 
   /** P5 */
   function save() {
-    if (!video || !duration) return;
+    if (!video || !duration || gone) return;
     saved = video.currentTime;
     void playerIpc.savePosition(id, saved, duration);
   }
@@ -170,7 +186,8 @@
   const controls = {
     togglePlay: () => video && (video.paused ? void video.play().catch(() => {}) : video.pause()),
     toggleMute: () => sound.toggleMute(),
-    toggleFullscreen: () => shell?.fullscreen(),
+    // Small, a double-click brings it back instead.
+    toggleFullscreen: () => (mini ? onexpand?.() : shell?.fullscreen()),
     play: () => void video?.play().catch(() => {}),
     pause: () => video?.pause(),
     seekBy: (s: number) => video && seek(video.currentTime + s),
@@ -192,7 +209,10 @@
         : [],
       togglePlay: controls.togglePlay,
       toggleMute: controls.toggleMute,
-      toggleFullscreen: controls.toggleFullscreen,
+      toggleFullscreen: () => {
+        if (mini) onexpand?.();
+        shell?.fullscreen();
+      },
       speed: { now: speed, set: (s) => (speed = s) },
       pip: pipFor(video),
       stats: { on: stats, toggle: () => (stats = !stats) },
@@ -205,67 +225,165 @@
   }
 
   const failure = $derived(engine?.failure);
+  const corner = $derived(settings.v.player.miniCorner ?? 'bottomRight');
   const key = (k: Parameters<typeof bindingOf>[0], label: string) => (bindingOf(k) ? `${label} (${bindingOf(k)})` : label);
 </script>
 
 <svelte:window {onkeydown} />
 
-<Shell bind:this={shell} {controls} {menu} pinned={!engine?.playing} onvolume={(s) => sound.step(s)}>
-  <video
-    bind:this={video}
-    playsinline
-    {ontimeupdate}
-    ondurationchange={ontimeupdate}
-  ></video>
-  {#if pip}<PipNotice name={info?.channelName || tile?.channel.name || 'The video'} avatar={null} />{/if}
-  {#if failure}
-    <div class="center">
-      {failure === 'subs'
-        ? 'This video is for subscribers only.'
-        : failure === 'gone'
-          ? 'This video is gone.'
-          : failure === 'geo'
-            ? 'Not available in your country.'
-            : 'The video didn’t load.'}
-      {#if failure !== 'subs' && failure !== 'gone' && failure !== 'geo'}
-        <button class="retry" onclick={() => void reload()}><Icon name="refresh" size={14} />Try again</button>
-      {/if}
-    </div>
-  {:else if engine?.waiting}
-    <div class="busy"><Loading video size="large" /></div>
-  {/if}
-  {#if stats && engine}<Stats read={() => engine!.stats()} {video} onclose={() => (stats = false)} />{/if}
-
-  {#snippet top()}
-    <div class="title">
-      <b>{info?.title || 'Video'}</b>
-      {#if info}<span>{[info.game, formatDate(new Date(info.publishedAt))].filter(Boolean).join(' · ')}</span>{/if}
-    </div>
-    {#if onclose}
-      <button class="ctl" aria-label="Close" use:tooltip={'Close the video'} onclick={onclose}><Icon name="x" size={16} /></button>
-    {/if}
-  {/snippet}
-
-  {#snippet bar()}
-    <div class="rows">
-      <SeekBar {duration} {time} {buffered} storyboard={board} onwantpreview={() => void playerIpc.storyboard(id).then((b) => (board = b)).catch(() => {})} onseek={seek} />
-      <div class="row">
-        <button class="ctl" aria-label={engine?.playing ? 'Pause' : 'Play'} use:tooltip={key('player.playPause', engine?.playing ? 'Pause' : 'Play')} onclick={controls.togglePlay}>
-          <Icon name={engine?.playing ? 'pause' : 'play'} size={18} />
-        </button>
-        <Volume volume={sound.volume} muted={sound.muted} boost={sound.boost} onchange={sound.set} onboost={sound.setBoost} />
-        <span class="clock">{clock(time)} / {clock(duration)}</span>
-        <span class="grow"></span>
-        {#if engine}<GearButton {menu} />{/if}
-        <button class="ctl" aria-label={playerFullscreen.on ? 'Exit fullscreen' : 'Fullscreen'} use:tooltip={key('player.fullscreen', playerFullscreen.on ? 'Exit fullscreen' : 'Fullscreen')} onclick={controls.toggleFullscreen}>
-          <Icon name="expand" size={16} />
-        </button>
+<div class="vod {mini ? corner : ''}" class:mini class:held>
+  <Shell bind:this={shell} {controls} {menu} pinned={!engine?.playing && !mini} onvolume={(s) => sound.step(s)}>
+    <video
+      bind:this={video}
+      playsinline
+      {ontimeupdate}
+      ondurationchange={ontimeupdate}
+    ></video>
+    {#if pip}<PipNotice name={info?.channelName || tile?.channel.name || 'The video'} avatar={null} />{/if}
+    {#if failure}
+      <div class="center">
+        {failure === 'subs'
+          ? 'This video is for subscribers only.'
+          : failure === 'gone'
+            ? 'This video is gone.'
+            : failure === 'geo'
+              ? 'Not available in your country.'
+              : 'The video didn’t load.'}
+        {#if failure !== 'subs' && failure !== 'gone' && failure !== 'geo'}
+          <button class="retry" onclick={() => void reload()}><Icon name="refresh" size={14} />Try again</button>
+        {/if}
       </div>
-    </div>
-  {/snippet}
-</Shell>
+    {:else if engine?.waiting}
+      <div class="busy"><Loading video size="large" /></div>
+    {/if}
+    {#if stats && engine}<Stats read={() => engine!.stats()} {video} onclose={() => (stats = false)} />{/if}
+    {#if mini}
+      {#if engine && !failure}
+        <div class="mini-play">
+          <button class="ctl" aria-label={engine.playing ? 'Pause' : 'Play'} onclick={controls.togglePlay}>
+            <Icon name={engine.playing ? 'pause' : 'play'} size={26} />
+          </button>
+        </div>
+      {/if}
+      <div class="mini-bar">
+        <button class="ctl" aria-label="Back to the video" use:tooltip={'Back to the video'} onclick={onexpand}><Icon name="expand" size={14} /></button>
+        <button class="ctl" aria-label="Close" use:tooltip={'Close the video'} onclick={onclose}><Icon name="x" size={14} /></button>
+      </div>
+    {/if}
+
+    {#snippet top()}
+      {#if !mini}
+        <div class="title">
+          <b>{info?.title || 'Video'}</b>
+          {#if info}<span>{[info.game, formatDate(new Date(info.publishedAt))].filter(Boolean).join(' · ')}</span>{/if}
+        </div>
+        {#if onclose}
+          <button class="ctl" aria-label="Close" use:tooltip={'Close the video'} onclick={onclose}><Icon name="x" size={16} /></button>
+        {/if}
+      {/if}
+    {/snippet}
+
+    {#snippet bar()}
+      {#if !mini}
+        <div class="rows">
+          <SeekBar {duration} {time} {buffered} storyboard={board} onwantpreview={() => void playerIpc.storyboard(id).then((b) => (board = b)).catch(() => {})} onseek={seek} />
+          <div class="row">
+            <button class="ctl" aria-label={engine?.playing ? 'Pause' : 'Play'} use:tooltip={key('player.playPause', engine?.playing ? 'Pause' : 'Play')} onclick={controls.togglePlay}>
+              <Icon name={engine?.playing ? 'pause' : 'play'} size={18} />
+            </button>
+            <Volume volume={sound.volume} muted={sound.muted} boost={sound.boost} onchange={sound.set} onboost={sound.setBoost} />
+            <span class="clock">{clock(time)} / {clock(duration)}</span>
+            <span class="grow"></span>
+            {#if engine}<GearButton {menu} />{/if}
+            <button class="ctl" aria-label={playerFullscreen.on ? 'Exit fullscreen' : 'Fullscreen'} use:tooltip={key('player.fullscreen', playerFullscreen.on ? 'Exit fullscreen' : 'Fullscreen')} onclick={controls.toggleFullscreen}>
+              <Icon name="expand" size={16} />
+            </button>
+          </div>
+        </div>
+      {/if}
+    {/snippet}
+  </Shell>
+</div>
 
 <style>
+  .vod {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+  }
+  /* V107-Mv Like the small stream (P4), in the same corner. */
+  .mini {
+    position: absolute;
+    z-index: var(--z-panel);
+    width: min(320px, 45%);
+    aspect-ratio: 16 / 9;
+    flex: none;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-pop);
+    overflow: hidden;
+  }
+  .topLeft {
+    top: 12px;
+    left: 12px;
+  }
+  .topRight {
+    top: 12px;
+    right: 12px;
+  }
+  .bottomLeft {
+    bottom: 12px;
+    left: 12px;
+  }
+  .bottomRight {
+    bottom: 12px;
+    right: 12px;
+  }
+  /* Over a clip: smaller, clear of its title and controls. */
+  .held {
+    width: min(220px, 35%);
+  }
+  .held.topLeft,
+  .held.topRight {
+    top: 52px;
+  }
+  .held.bottomLeft,
+  .held.bottomRight {
+    bottom: 64px;
+  }
+  .mini-play {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    background: var(--scrim);
+    opacity: 0;
+    transition: opacity var(--base) var(--ease);
+    pointer-events: none;
+  }
+  .mini:hover .mini-play,
+  .mini-play:focus-within {
+    opacity: 1;
+  }
+  .mini:hover .mini-play .ctl {
+    pointer-events: auto;
+  }
+  .mini-play .ctl {
+    width: 48px;
+    height: 48px;
+    pointer-events: none;
+  }
+  .mini-bar {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    z-index: 3;
+    display: flex;
+    gap: 2px;
+    background: var(--scrim);
+    border-radius: var(--radius);
+  }
   .center {
     position: absolute;
     inset: 0;

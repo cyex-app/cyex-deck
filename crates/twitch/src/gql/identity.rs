@@ -12,9 +12,9 @@ use crate::{Error, Http, Result};
 
 const READ: &str = "query($login: String!) { \
     currentUser { id chatColor hasPrime hasTurbo selectedBadge { BADGE } availableBadges { BADGE } } \
-    user(login: $login) { id self { selectedBadge { BADGE } availableBadges { BADGE } } } }";
+    user(login: $login) { id broadcastBadges { setID } self { selectedBadge { BADGE } availableBadges { BADGE } } } }";
 
-/// Badges nobody picks: roles and subs show on their own.
+/// Badges nobody picks everywhere: roles and subs show on their own.
 const NOT_PICKABLE: &[&str] = &[
     "broadcaster",
     "moderator",
@@ -26,6 +26,31 @@ const NOT_PICKABLE: &[&str] = &[
     "admin",
     "global_mod",
     "predictions",
+];
+
+/// V107-Mx Roles show on their own in a channel too; its sub, founder, Bits and event badges
+/// (`mafiathon-3-badge`, `speed-does-america`) are what a channel badge is for.
+const ROLES: &[&str] = &[
+    "broadcaster",
+    "moderator",
+    "lead_moderator",
+    "vip",
+    "staff",
+    "admin",
+    "global_mod",
+    "predictions",
+];
+
+/// V107-Mx Sets worn per channel though Twitch lists them as global ones.
+const CHANNEL_KIND: &[&str] = &[
+    "subscriber",
+    "founder",
+    "bits",
+    "bits-leader",
+    "sub-gifter",
+    "sub-gift-leader",
+    "hype-train",
+    "moments",
 ];
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
@@ -53,22 +78,27 @@ pub struct BadgePick {
     pub available: Vec<super::BadgeInfo>,
 }
 
-/// The account's color and badge picks, globally and in `login`'s channel.
-pub async fn chat_identity(http: &Http, auth: Auth<'_>, login: &str) -> Result<ChatIdentity> {
+/// The account's color and badge picks, globally and in `login`'s channel. `base`: a mock GQL.
+pub async fn chat_identity(http: &Http, auth: Auth<'_>, base: Option<&str>, login: &str) -> Result<ChatIdentity> {
     let q = READ.replace("BADGE", BADGE_FIELDS);
-    let data: RawRead = query(http, auth, &q, json!({ "login": login })).await?;
+    let data = run_at(http, auth, base, &q, json!({ "login": login })).await?;
+    let data: RawRead = serde_json::from_value(data).map_err(Error::Decode)?;
     let me = data.current_user.ok_or_else(signed_out)?;
+    let global = RawSelf {
+        selected_badge: me.selected_badge,
+        available_badges: me.available_badges,
+    };
     let (channel_id, channel) = match data.user {
-        Some(u) => (Some(u.id), u.self_.map(BadgePick::from).unwrap_or_default()),
+        Some(u) => {
+            let sets: Vec<String> = u.broadcast_badges.unwrap_or_default().into_iter().flatten().map(|b| b.set_id).collect();
+            (Some(u.id), u.self_.map(|s| channel_pick(s, &global, &sets)).unwrap_or_default())
+        }
         None => (None, BadgePick::default()),
     };
     Ok(ChatIdentity {
         color: me.chat_color.filter(|c| !c.is_empty()),
         any_color: me.has_prime || me.has_turbo,
-        global: BadgePick::from(RawSelf {
-            selected_badge: me.selected_badge,
-            available_badges: me.available_badges,
-        }),
+        global: BadgePick::from(global),
         channel,
         channel_id,
         smilies: super::smilies::Smilies::default(),
@@ -187,10 +217,20 @@ struct RawMe {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RawUser {
     id: String,
+    /// The channel's own badge sets (subs, Bits, events).
+    #[serde(default)]
+    broadcast_badges: Option<Vec<Option<RawSet>>>,
     #[serde(rename = "self")]
     self_: Option<RawSelf>,
+}
+
+#[derive(Deserialize)]
+struct RawSet {
+    #[serde(rename = "setID")]
+    set_id: String,
 }
 
 #[derive(Deserialize)]
@@ -202,24 +242,49 @@ struct RawSelf {
 }
 
 impl From<RawSelf> for BadgePick {
-    /// V107-Mu The badge worn always shows as worn, even a role or sub one (Twitch lets you
-    /// wear them); it is listed too, so something in the row is lit. Others stay hidden.
     fn from(s: RawSelf) -> Self {
-        let pickable = |b: &super::BadgeInfo| !NOT_PICKABLE.contains(&b.set.as_str());
-        let selected = s.selected_badge.map(super::BadgeInfo::from);
-        let mut available: Vec<_> = s
-            .available_badges
-            .unwrap_or_default()
-            .into_iter()
-            .flatten()
-            .map(super::BadgeInfo::from)
-            .filter(|b| pickable(b) || selected.as_ref().is_some_and(|w| w.set == b.set && w.version == b.version))
-            .collect();
-        if let Some(w) = selected.as_ref().filter(|w| !available.iter().any(|b| b.set == w.set && b.version == w.version)) {
-            available.insert(0, w.clone());
-        }
-        Self { selected, available }
+        pick(s, |b| !NOT_PICKABLE.contains(&b.set.as_str()))
     }
+}
+
+fn same(a: &super::BadgeInfo, b: &super::BadgeInfo) -> bool {
+    a.set == b.set && a.version == b.version
+}
+
+/// V107-Mu The badge worn always shows as worn, even a role or sub one (Twitch lets you wear
+/// them); it is listed too, so something in the row is lit. Others pass `keep` or stay hidden.
+fn pick(s: RawSelf, keep: impl Fn(&super::BadgeInfo) -> bool) -> BadgePick {
+    let selected = s.selected_badge.map(super::BadgeInfo::from);
+    let mut available: Vec<_> = s
+        .available_badges
+        .unwrap_or_default()
+        .into_iter()
+        .flatten()
+        .map(super::BadgeInfo::from)
+        .filter(|b| keep(b) || selected.as_ref().is_some_and(|w| same(w, b)))
+        .collect();
+    if let Some(w) = selected.as_ref().filter(|w| !available.iter().any(|b| same(w, b))) {
+        available.insert(0, w.clone());
+    }
+    BadgePick { selected, available }
+}
+
+/// V107-Mx What can be worn only in this channel: everything Twitch offers there but roles,
+/// subs and founder included. A global badge Twitch repeats here is left to "Everywhere",
+/// unless the set is the channel's own (`sets`, its `broadcastBadges`) or a per-channel kind.
+fn channel_pick(s: RawSelf, global: &RawSelf, sets: &[String]) -> BadgePick {
+    let everywhere: Vec<(&str, &str)> = global
+        .available_badges
+        .iter()
+        .flatten()
+        .flatten()
+        .map(|b| (b.set_id.as_str(), b.version.as_str()))
+        .collect();
+    pick(s, |b| {
+        let set = b.set.as_str();
+        let own = CHANNEL_KIND.contains(&set) || sets.iter().any(|s| s == set);
+        !ROLES.contains(&set) && (own || !everywhere.contains(&(set, b.version.as_str())))
+    })
 }
 
 #[cfg(test)]
@@ -249,6 +314,74 @@ mod tests {
         let pick = BadgePick::from(serde_json::from_str::<RawSelf>(&raw).unwrap());
         assert_eq!(pick.available, vec![pick.selected.clone().unwrap()]);
     }
+    fn badge(set: &str, version: &str, title: &str) -> String {
+        format!(
+            r#"{{"setID":"{set}","version":"{version}","title":"{title}","description":null,"clickURL":null,"image1x":"a","image2x":"b","image4x":"c"}}"#
+        )
+    }
+
+    fn sets(p: &BadgePick) -> Vec<&str> {
+        p.available.iter().map(|b| b.set.as_str()).collect()
+    }
+
+    /// V107-Mx Subs, founder, Bits and the channel's event badges are offered; roles and
+    /// global badges Twitch repeats here are not, unless the set is the channel's own.
+    #[test]
+    fn channel_list_keeps_event_badges() {
+        let event = badge("mafiathon-3-badge", "1", "Mafiathon 3 Badge");
+        let pledge = badge("glhf-pledge", "1", "GLHF Pledge");
+        let global: RawSelf =
+            serde_json::from_str(&format!(r#"{{"selectedBadge":null,"availableBadges":[{pledge},{event}]}}"#)).unwrap();
+        let here = [
+            badge("moderator", "1", "Moderator"),
+            badge("subscriber", "3012", "Subscriber"),
+            badge("founder", "0", "Founder"),
+            badge("bits", "1000", "cheer 1000"),
+            event.clone(),
+            badge("speed-does-america", "1", "Speed Does America Badge"),
+            pledge,
+        ]
+        .join(",");
+        let s: RawSelf = serde_json::from_str(&format!(r#"{{"selectedBadge":null,"availableBadges":[{here},null]}}"#)).unwrap();
+        let own = ["subscriber".to_owned(), "mafiathon-3-badge".to_owned(), "speed-does-america".to_owned()];
+        let pick = channel_pick(s, &global, &own);
+        assert_eq!(
+            sets(&pick),
+            ["subscriber", "founder", "bits", "mafiathon-3-badge", "speed-does-america"]
+        );
+        // The global list is unchanged: subs and roles stay out of it.
+        assert_eq!(sets(&BadgePick::from(global)), ["glhf-pledge", "mafiathon-3-badge"]);
+    }
+
+    /// V107-Mx A worn global badge in a channel still shows as worn there.
+    #[test]
+    fn worn_repeat_still_listed() {
+        let pledge = badge("glhf-pledge", "1", "GLHF Pledge");
+        let global: RawSelf = serde_json::from_str(&format!(r#"{{"selectedBadge":null,"availableBadges":[{pledge}]}}"#)).unwrap();
+        let s: RawSelf =
+            serde_json::from_str(&format!(r#"{{"selectedBadge":{pledge},"availableBadges":[{pledge}]}}"#)).unwrap();
+        let pick = channel_pick(s, &global, &[]);
+        assert_eq!(sets(&pick), ["glhf-pledge"]);
+        assert!(pick.selected.is_some());
+    }
+
+    #[tokio::test]
+    async fn read_asks_for_channel_sets() {
+        use crate::gql::dashboard::mock;
+        let event = badge("speed-does-america", "1", "Speed Does America Badge");
+        let answer = format!(
+            r#"{{"data":{{"currentUser":{{"id":"7","chatColor":"","hasPrime":false,"hasTurbo":true,"selectedBadge":null,"availableBadges":[]}},
+            "user":{{"id":"9","broadcastBadges":[{{"setID":"subscriber"}},{{"setID":"speed-does-america"}}],
+            "self":{{"selectedBadge":{event},"availableBadges":[{event}]}}}}}}}}"#
+        );
+        let m = mock::serve([answer]);
+        let me = chat_identity(&m.http, mock::AUTH, Some(m.base.as_str()), "ishowspeed").await.unwrap();
+        assert!(mock::query(&m.sent()[0]).contains("broadcastBadges { setID }"));
+        assert_eq!((me.color, me.any_color, me.channel_id.as_deref()), (None, true, Some("9")));
+        assert_eq!(sets(&me.channel), ["speed-does-america"]);
+        assert_eq!(me.channel.selected.map(|b| b.title), Some("Speed Does America Badge".into()));
+    }
+
     #[tokio::test]
     async fn color_refusals_and_badge_writes() {
         use crate::gql::dashboard::mock;

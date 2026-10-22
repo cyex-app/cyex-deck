@@ -19,7 +19,7 @@
   import { emoteImg, emoteLarge } from '../chat/urls';
   import { emojiGroups, emojiLabel, findEmoji, type Emoji, type EmojiGroup } from './emoji';
   import { type CardTarget, PROVIDER_NAMES, emoteKey, emoteRatio } from './emotes';
-  import { PROVIDER_TABS, type ProviderTab, cellHint, cellKey, pick, search, tierMark, usable, usageRank } from './menu';
+  import { PROVIDER_TABS, type ProviderTab, cellHint, cellKey, pick, searchGroups, tierMark, usable, usageRank } from './menu';
   import EmoteCard from './EmoteCard.svelte';
   import { emoteMenu, forgetEmoteMenu } from './menus';
   import EditBar from './edit/EditBar.svelte';
@@ -83,7 +83,8 @@
   const current = $derived<Tab>(tabs.includes(tab) || (tab === 'gifs' && gifInfo === undefined) ? tab : 'twitch');
   const searchingEmotes = $derived(!!query.trim() && current !== 'gifs');
   const rank = $derived(usageRank(saved.usage));
-  const found = $derived(menu && query.trim() ? search(menu, query, FOUND_CAP, rank) : []);
+  const groups = $derived(menu && query.trim() ? searchGroups(menu, query, FOUND_CAP, rank) : []);
+  const foundCount = $derived(groups.reduce((n, g) => n + g.emotes.length, 0));
   const foundEmoji = $derived(emoji && query.trim() ? findEmoji(emoji, query.trim(), 40) : []);
   const foundEmojiKeys = $derived(uniqueKeys(foundEmoji, (e) => e.char));
 
@@ -324,12 +325,24 @@
     {:else if !menu}
       <Loading />
     {:else if searchingEmotes}
-      {#if found.length || foundEmoji.length}
-        <div class="grid">
-          {#each found as m (cellKey(m))}{@render emote(m)}{/each}
-          {#each foundEmoji as e, i (foundEmojiKeys[i])}{@render emojiCell(e)}{/each}
-        </div>
-        {#if found.length >= FOUND_CAP}<p class="capped">Showing {FOUND_CAP}. Type more to narrow it.</p>{/if}
+      {#if foundCount || foundEmoji.length}
+        {#each groups as g (g.tab)}
+          <section>
+            <h4>{PROVIDER_NAMES[g.tab]}</h4>
+            <div class="grid">
+              {#each g.emotes as m (cellKey(m))}{@render emote(m)}{/each}
+            </div>
+          </section>
+        {/each}
+        {#if foundEmoji.length}
+          <section>
+            <h4>Emoji</h4>
+            <div class="grid">
+              {#each foundEmoji as e, i (foundEmojiKeys[i])}{@render emojiCell(e)}{/each}
+            </div>
+          </section>
+        {/if}
+        {#if foundCount >= FOUND_CAP}<p class="capped">Showing {FOUND_CAP}. Type more to narrow it.</p>{/if}
       {:else}
         <p class="note">Nothing called “{query.trim()}”.</p>
       {/if}

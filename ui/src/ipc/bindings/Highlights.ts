@@ -36,11 +36,11 @@ phrases: Array<PhraseRule>, users: Array<UserRule>, badges: Array<BadgeRule>,
  */
 apps: Array<AppRule>, 
 /**
- * Logins that never highlight or play sounds, e.g. bots.
+ * Logins that never highlight or play sounds, e.g. bots. V107-Mq One per row.
  */
 never: Array<string>, 
 /**
- * C27 Channel logins whose chats never play sounds or flash.
+ * C27 Channel logins whose chats never play sounds or flash. V107-Mq One per row.
  */
 muted: Array<string>, 
 /**

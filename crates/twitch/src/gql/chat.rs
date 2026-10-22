@@ -256,8 +256,8 @@ struct RawTier {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RawBadge {
     #[serde(rename = "setID")]
-    set_id: String,
-    version: String,
+    pub(crate) set_id: String,
+    pub(crate) version: String,
     title: String,
     description: Option<String>,
     #[serde(rename = "clickURL")]

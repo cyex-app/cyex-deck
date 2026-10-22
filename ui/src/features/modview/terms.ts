@@ -3,21 +3,18 @@
 
 import type { BlockedTerm } from '../../ipc/bindings/BlockedTerm';
 import type { ModLine } from '../../ipc/bindings/ModLine';
+import { byText, NAME, sortRows, TIME, type Sort } from '../../lib/sort.ts';
 
-export type TermSort = 'new' | 'old' | 'az';
-
-export const SORTS: { value: TermSort; label: string }[] = [
-  { value: 'new', label: 'Newest' },
-  { value: 'old', label: 'Oldest' },
-  { value: 'az', label: 'A–Z' },
-];
+/** V107-Mr Time or A–Z, either way round; newest first to start. */
+export const TERM_SORTS = [TIME, NAME];
+export type TermSort = Sort<'time' | 'name'>;
+export const TERM_SORT: TermSort = { key: 'time', desc: true };
 
 export function shownTerms(list: BlockedTerm[], query: string, sort: TermSort): BlockedTerm[] {
   const q = query.trim().toLowerCase();
-  const hit = q ? list.filter((t) => t.text.toLowerCase().includes(q)) : [...list];
-  if (sort === 'az') return hit.sort((a, b) => a.text.localeCompare(b.text, undefined, { sensitivity: 'base' }));
-  const dir = sort === 'new' ? -1 : 1;
-  return hit.sort((a, b) => dir * a.createdAt.localeCompare(b.createdAt) || a.text.localeCompare(b.text));
+  const hit = q ? list.filter((t) => t.text.toLowerCase().includes(q)) : list;
+  const name = (a: BlockedTerm, b: BlockedTerm) => byText(a.text, b.text);
+  return sortRows(hit, sort, { time: (a, b) => a.createdAt.localeCompare(b.createdAt), name }, name);
 }
 
 /** Why `text` can't be added, or `null`. */

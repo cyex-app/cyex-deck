@@ -1,4 +1,4 @@
-<!-- 1.48, V107-R31 The channel's blocked terms: search, sort (newest, oldest, A–Z), add one,
+<!-- 1.48, V107-R31 The channel's blocked terms: search, sort (Time or A–Z, either way: V107-Mr), add one,
      remove one with a second click. Refreshes by itself when a mod blocks or unblocks a
      term (the mod feed's live actions), and by hand. Needs Sign in with Twitch (Helix). -->
 <script lang="ts">
@@ -8,7 +8,7 @@
   import IconButton from '../../components/IconButton.svelte';
   import Card from '../../components/PanelCard.svelte';
   import SearchField from '../../components/SearchField.svelte';
-  import Select from '../../components/Select.svelte';
+  import SortControl from '../../components/SortControl.svelte';
   import type { BlockedTerm } from '../../ipc/bindings/BlockedTerm';
   import type { ModLine } from '../../ipc/bindings/ModLine';
   import { modIpc } from '../../ipc/moderation';
@@ -17,7 +17,7 @@
   import { formatDate } from '../../lib/format';
   import { latest } from '../../lib/latest';
   import { toast } from '../../lib/toast.svelte';
-  import { changesTerms, shownTerms, SORTS, termProblem, type TermSort } from './terms';
+  import { changesTerms, shownTerms, TERM_SORT, TERM_SORTS, termProblem } from './terms';
 
   let { account, login, actions }: { account: string; login: string; actions: ModLine[] } = $props();
 
@@ -28,7 +28,7 @@
   let list = $state<BlockedTerm[]>([]);
   let loading = $state(false);
   let query = $state('');
-  let sort = $state<TermSort>('new');
+  let sort = $state.raw(TERM_SORT);
   let draft = $state('');
   let adding = $state(false);
   let busy = $state<Record<string, boolean>>({});
@@ -134,7 +134,7 @@
     </form>
     <div class="find">
       <SearchField bind:value={query} placeholder="Search" small />
-      <Select options={SORTS} value={sort} label="Sort" width="96px" onchange={(v) => (sort = v as TermSort)} />
+      <SortControl keys={TERM_SORTS} {sort} label="Sort terms" onchange={(s) => (sort = s)} />
     </div>
     {#if problem}
       <p class="empty">{problem} <Button small variant="link" onclick={load}>Retry</Button></p>

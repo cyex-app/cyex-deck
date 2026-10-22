@@ -11,7 +11,7 @@ use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc;
 
 use super::creds::{AccountCreds, AnonCreds, WriterCreds};
-use super::unread::{self, Unread};
+use super::unread::{self, News};
 use super::writer::Writer;
 use super::{Chat, Identity, Inner, RoomKey, Session, account_of, mention, now_ms, queue};
 
@@ -263,11 +263,13 @@ fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_
     let refused = entry.room.status == ConnStatus::Refused;
     let role = entry.room.role();
     // U9 Only rooms no view shows collect news.
-    let news = if entry.views.is_empty() { unread::level(&events) } else { Unread::Seen };
-    let lit = news > entry.unread;
+    let news = if entry.views.is_empty() { unread::news(&events) } else { News::default() };
+    // V107-Mr Each new mention also counts, so the tab's number follows.
+    let lit = news.level > entry.unread.level || news.mentions > 0;
     if lit {
-        entry.unread = news;
+        entry.unread = entry.unread.add(news);
     }
+    let news = entry.unread;
     let own: Vec<_> = events
         .iter()
         .filter_map(|e| match e {

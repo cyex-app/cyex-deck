@@ -17,13 +17,13 @@ const list = [m('bob', ['mod'], '2024-01-01T00:00:00Z'), m('ann', ['vip'], '2025
 const logins = (l: RoleMember[]) => l.map((x) => x.login);
 
 test('v107-r36 filter, search and every sort', () => {
-  assert.deepEqual(logins(shownMembers(list, 'all', '', 'name')), ['ann', 'bob', 'cat']);
-  assert.deepEqual(logins(shownMembers(list, 'all', '', 'nameDesc')), ['cat', 'bob', 'ann']);
-  assert.deepEqual(logins(shownMembers(list, 'all', '', 'newest')), ['ann', 'bob', 'cat']);
-  assert.deepEqual(logins(shownMembers(list, 'all', '', 'oldest')), ['bob', 'ann', 'cat'], 'no date last');
-  assert.deepEqual(logins(shownMembers(list, 'vip', '', 'name')), ['ann', 'cat']);
-  assert.deepEqual(logins(shownMembers(list, 'all', '@BO', 'name')), ['bob']);
-  assert.deepEqual(logins(shownMembers(list, 'all', 'CAT', 'name')), ['cat'], 'display name too');
+  assert.deepEqual(logins(shownMembers(list, 'all', '', { key: 'name', desc: false })), ['ann', 'bob', 'cat']);
+  assert.deepEqual(logins(shownMembers(list, 'all', '', { key: 'name', desc: true })), ['cat', 'bob', 'ann']);
+  assert.deepEqual(logins(shownMembers(list, 'all', '', { key: 'time', desc: true })), ['ann', 'bob', 'cat']);
+  assert.deepEqual(logins(shownMembers(list, 'all', '', { key: 'time', desc: false })), ['bob', 'ann', 'cat'], 'no date last');
+  assert.deepEqual(logins(shownMembers(list, 'vip', '', { key: 'name', desc: false })), ['ann', 'cat']);
+  assert.deepEqual(logins(shownMembers(list, 'all', '@BO', { key: 'name', desc: false })), ['bob']);
+  assert.deepEqual(logins(shownMembers(list, 'all', 'CAT', { key: 'name', desc: false })), ['cat'], 'display name too');
 });
 
 test('v107-r42 counts and the VIP slot line from Rust', () => {

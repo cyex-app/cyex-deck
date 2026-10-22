@@ -16,6 +16,7 @@
   import { formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import EmotePick from './EmotePick.svelte';
+  import { btnMemo, remember } from './btnCache';
   import PowerUps from './PowerUps.svelte';
   import type { ChatRoom } from './room.svelte';
   import { errorText } from '../../lib/errors';
@@ -48,6 +49,9 @@
   let open = $state(false);
   let points = $state<Points | null>(null);
   let loaded = $state(false);
+  // V107-My Last look at this channel: the button keeps its spot (or stays gone) while it loads.
+  // svelte-ignore state_referenced_locally
+  const seen = btnMemo(room.login);
   let picked = $state<Choice | null>(null);
   let text = $state('');
   let emote = $state<string | null>(null);
@@ -55,7 +59,8 @@
   let page = $state<'points' | 'bits'>('points');
 
   const canRedeem = $derived(room.account !== null && accounts.can('points', room.account));
-  const name = $derived(points?.name ?? 'Channel points');
+  const name = $derived(points?.name ?? seen.pointsName ?? 'Channel points');
+  const icon = $derived(points ? points.icon : (seen.pointsIcon ?? null));
 
   const choices = $derived.by((): Choice[] => {
     if (!points) return [];
@@ -86,7 +91,14 @@
   });
 
   /** Nothing to show: no points here, or none and nothing to redeem. */
-  const away = $derived(!open && loaded && (!points || (points.balance === 0 && !choices.length)));
+  const away = $derived(
+    !open && (loaded && !points ? true : points ? points.balance === 0 && !choices.length : seen.pointsAway === true),
+  );
+  $effect(() => {
+    if (loaded && !open) {
+      remember(room.login, { pointsAway: away, pointsIcon: points?.icon ?? null, pointsName: points?.name ?? undefined });
+    }
+  });
 
   // V101-13 The channel's own points icon, and the balance with a GQL sign-in, show
   // next to the box once the chat is open, from what joining already loaded.
@@ -158,7 +170,7 @@
       hint: 'Rewards you can redeem here.',
     }}
   >
-    {#if points?.icon}<img src={points.icon} alt="" />{:else}<Icon name="points" size={16} />{/if}
+    {#if icon}<img src={icon} alt="" />{:else}<Icon name="points" size={16} />{/if}
   </button>
   <Popover bind:open align="start" side="above" role="menu" label={name}>
     <div class="menu">
@@ -247,7 +259,7 @@
     display: flex;
     align-items: center;
     gap: 5px;
-    width: 34px;
+    width: 30px;
     height: 34px;
     justify-content: center;
     padding: 0;
@@ -257,6 +269,11 @@
     color: var(--muted);
     font-size: 0.8rem;
     font-weight: 700;
+  }
+  @container chat (max-width: 260px) {
+    .trigger {
+      width: 28px;
+    }
   }
   .trigger:hover {
     background: var(--surface-hover);

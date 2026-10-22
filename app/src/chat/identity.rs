@@ -34,12 +34,44 @@ fn http(app: &AppHandle) -> cyex_twitch::Http {
     app.state::<Auth>().http.clone()
 }
 
+/// The GQL sign-in, or a stand-in token for the mock (the real one never goes there).
+fn gql(app: &AppHandle, account: &str, base: Option<&str>) -> Option<(String, String)> {
+    match base {
+        Some(_) => Some(("mock-token".to_owned(), cyex_twitch::clients::WEB.to_owned())),
+        None => gql_token(app, account),
+    }
+}
+
+/// V107-Mx Test builds: badge reads and picks go to `tools/mock/identity.mjs`
+/// (`CYEX_GQL_IDENTITY_MOCK=http://127.0.0.1:<port>`, test data folder only).
+#[cfg(feature = "mocks")]
+fn mock_base(app: &AppHandle) -> Result<Option<String>, String> {
+    let Some(raw) = std::env::var("CYEX_GQL_IDENTITY_MOCK").ok().filter(|r| !r.trim().is_empty()) else {
+        return Ok(None);
+    };
+    // Set but unusable: nothing is sent at all, never Twitch instead.
+    if crate::paths::webview(app).is_none() {
+        return Err("The identity mock runs only on a test data folder.".into());
+    }
+    crate::mock_url::loopback_base(&raw)
+        .map(Some)
+        .ok_or_else(|| "The identity mock must be http://127.0.0.1:<port>.".into())
+}
+
+#[cfg(not(feature = "mocks"))]
+fn mock_base(_: &AppHandle) -> Result<Option<String>, String> {
+    Ok(None)
+}
+
 /// The account's picks in `login`'s channel. Without a GQL sign-in only the color shows.
 pub async fn identity(app: &AppHandle, account: &str, login: &str) -> Result<ChatIdentity, String> {
     let http = http(app);
-    if let Some((token, client_id)) = gql_token(app, account) {
+    let base = mock_base(app)?;
+    if let Some((token, client_id)) = gql(app, account, base.as_deref()) {
         let auth = crate::auth::gql_auth(&token, &client_id);
-        let (me, smilies) = tokio::join!(gql::chat_identity(&http, auth, login), smilies::smilies(&http, auth, None));
+        let base = base.as_deref();
+        let (me, smilies) =
+            tokio::join!(gql::chat_identity(&http, auth, base, login), smilies::smilies(&http, auth, base));
         let mut me = me.map_err(|e| e.to_string())?;
         // A failed smiley read only hides that part.
         if let Ok(s) = smilies {
@@ -69,13 +101,15 @@ pub async fn pick_badge(
     channel_id: Option<&str>,
     badge: Option<(&str, &str)>,
 ) -> Result<(), String> {
+    let base = mock_base(app)?;
     let (token, client_id) =
-        gql_token(app, account).ok_or("Badges need a GQL sign-in. Add it in Settings → Accounts.")?;
+        gql(app, account, base.as_deref()).ok_or("Badges need a GQL sign-in. Add it in Settings → Accounts.")?;
     let auth = crate::auth::gql_auth(&token, &client_id);
     let http = http(app);
+    let base = base.as_deref();
     let taken = match channel_id {
-        Some(id) => gql::pick_channel_badge(&http, auth, None, id, badge).await,
-        None => gql::pick_global_badge(&http, auth, None, badge).await.map(|()| true),
+        Some(id) => gql::pick_channel_badge(&http, auth, base, id, badge).await,
+        None => gql::pick_global_badge(&http, auth, base, badge).await.map(|()| true),
     }
     .map_err(|e| e.to_string())?;
     taken.then_some(()).ok_or_else(|| "Twitch didn’t take that badge.".into())
@@ -120,11 +154,14 @@ fn gql_verdict(r: cyex_twitch::Result<Result<(), ColorRefusal>>) -> Result<Resul
 pub async fn set_color(app: &AppHandle, account: &str, color: &str) -> Result<(), String> {
     let color = parse_color(color).ok_or("Use a color like #1E90FF or a name like DodgerBlue.")?;
     let http = http(app);
+    let base = mock_base(app)?;
     let mut gql_error = None;
-    if let Some((token, client_id)) = gql_token(app, account) {
+    if let Some((token, client_id)) = gql(app, account, base.as_deref()) {
         let auth = crate::auth::gql_auth(&token, &client_id);
-        match gql_verdict(gql::set_chat_color(&http, auth, None, &color).await) {
+        match gql_verdict(gql::set_chat_color(&http, auth, base.as_deref(), &color).await) {
             Ok(done) => return done,
+            // The mock never falls back to Twitch.
+            Err(e) if base.is_some() => return Err(e),
             Err(e) => gql_error = Some(e),
         }
     }
@@ -144,17 +181,19 @@ pub async fn set_color(app: &AppHandle, account: &str, color: &str) -> Result<()
 /// V107-Mk Picks the smiley set Twitch calls `name`, then reads it back; chat and the emote
 /// menu switch to its art.
 pub async fn set_smilies(app: &AppHandle, account: &str, name: &str) -> Result<Smilies, String> {
-    let (token, client_id) =
-        gql_token(app, account).ok_or("Smiley styles need a GQL sign-in. Add it in Settings → Accounts.")?;
+    let base = mock_base(app)?;
+    let (token, client_id) = gql(app, account, base.as_deref())
+        .ok_or("Smiley styles need a GQL sign-in. Add it in Settings → Accounts.")?;
     let auth = crate::auth::gql_auth(&token, &client_id);
     let http = http(app);
-    if !smilies::set_smilies(&http, auth, None, account, name)
+    let base = base.as_deref();
+    if !smilies::set_smilies(&http, auth, base, account, name)
         .await
         .map_err(|e| e.to_string())?
     {
         return Err("Twitch didn’t take that style.".into());
     }
-    let now = smilies::smilies(&http, auth, None).await.map_err(|e| e.to_string())?;
+    let now = smilies::smilies(&http, auth, base).await.map_err(|e| e.to_string())?;
     crate::emotes::set_smiley_style(app, account, now.current);
     Ok(now)
 }

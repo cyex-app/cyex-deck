@@ -37,7 +37,7 @@ use writer::Writer;
 pub use send::send_to;
 pub use session::retry_refused;
 
-use unread::Unread;
+use unread::{News, Unread};
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering};
@@ -123,7 +123,7 @@ struct Entry {
     /// C21 Last text we sent here, to dodge Twitch's duplicate check.
     last_sent: Option<(String, i64)>,
     /// U9 News since a view last showed it.
-    unread: Unread,
+    unread: News,
     /// V105-05 When our JOIN for this room last went out (ms), to time Twitch's answer.
     join_sent: Option<i64>,
     /// V107-M1 Views opened on it so far, so a shrink planned at a close knows it's stale.
@@ -286,7 +286,7 @@ pub fn open(
     entry.views.push(Sink { id, view, filters });
     // V107-R16 Polls and predictions follow the first view (`votes`).
     chat.channels.view_opened(app, &login, account_of(&identity));
-    let was_unread = std::mem::take(&mut entry.unread) != Unread::Seen;
+    let was_unread = std::mem::take(&mut entry.unread).level != Unread::Seen;
     let opened = ChatOpened {
         view: id,
         account: match &identity {
@@ -300,7 +300,7 @@ pub fn open(
         shown::changed(app);
     }
     if was_unread {
-        unread::emit(app, &key, Unread::Seen);
+        unread::emit(app, &key, News::default());
     }
     if refill {
         refill::start(app, key.clone());
@@ -338,7 +338,7 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
             outbox: Vec::new(),
             delayed: VecDeque::new(),
             last_sent: None,
-            unread: Unread::Seen,
+            unread: News::default(),
             join_sent: None,
             shown: 0,
             loaded: false,
@@ -360,8 +360,8 @@ fn after_join(app: &AppHandle, key: RoomKey, generation: u64) {
 /// Leaves a room. Returns true if an account's join count changed.
 fn leave(app: &AppHandle, inner: &mut Inner, key: &RoomKey) -> bool {
     let Some(entry) = inner.rooms.remove(key) else { return false };
-    if entry.unread != Unread::Seen {
-        unread::emit(app, key, Unread::Seen);
+    if entry.unread.level != Unread::Seen {
+        unread::emit(app, key, News::default());
     }
     let (identity, login) = key;
     if let Some(s) = inner.sessions.get(identity) {

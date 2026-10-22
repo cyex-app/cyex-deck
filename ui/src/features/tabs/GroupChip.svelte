@@ -5,6 +5,7 @@
   import type { TabGroup } from '../../ipc/bindings/TabGroup';
   import { drag } from './drag.svelte';
   import { GROUP_COLORS } from './groupColors';
+  import MentionCount from './MentionCount.svelte';
   import { tabs } from './tabs.svelte';
 
   interface Props {
@@ -27,6 +28,11 @@
     }
     return state;
   });
+
+  /** V107-Mr Its folded tabs' unseen mentions. */
+  const mentions = $derived(
+    unread === 'mention' ? tabs.list.reduce((n, t) => n + (t.group === group.id ? tabs.mentionCount(t) : 0), 0) : 0,
+  );
 
   const over = $derived(drag.item?.kind === 'tab' && drag.target?.kind === 'group' && drag.target.id === group.id);
 
@@ -57,6 +63,7 @@
   <span class="dot"></span>
   {#if group.name}<span class="name">{group.name}</span>{/if}
   {#if group.collapsed}<span class="count">{count}</span>{/if}
+  {#if unread === 'mention'}<MentionCount count={mentions} />{/if}
 </button>
 
 <style>
@@ -113,7 +120,10 @@
   .mention .count {
     color: var(--text);
   }
-  .mention {
-    box-shadow: inset 0 2px var(--accent);
+  /* V107-Mr Like a tab: the label underlined in accent text, the count after it. */
+  .mention .name {
+    text-decoration: underline 2px var(--accent-text);
+    text-decoration-skip-ink: none;
+    text-underline-offset: 4px;
   }
 </style>

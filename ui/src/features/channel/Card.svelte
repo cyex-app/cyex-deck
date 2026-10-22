@@ -1,4 +1,5 @@
-<!-- A clip or video in a channel's lists (1.21): picture with its length and views on it. -->
+<!-- A clip or video in a channel's lists (1.21): picture with its length and views on it, and
+     how far a VOD was watched (V107-Mv). -->
 <script lang="ts">
   interface Props {
     image: string | null;
@@ -10,10 +11,14 @@
     views: string;
     /** Top left, e.g. LIVE or Subs. */
     badge?: string | null;
+    /** V107-Mv 0 to 1, a thin bar along the bottom. */
+    progress?: number | null;
+    /** V107-Mv Seen to 90 % or more. */
+    watched?: boolean;
     onclick: () => void;
   }
 
-  let { image, title, sub, corner, views, badge = null, onclick }: Props = $props();
+  let { image, title, sub, corner, views, badge = null, progress = null, watched = false, onclick }: Props = $props();
 </script>
 
 <button class="card" {onclick}>
@@ -22,6 +27,8 @@
     {#if badge}<span class="tag badge">{badge}</span>{/if}
     <span class="tag views">{views}</span>
     <span class="tag corner">{corner}</span>
+    {#if watched}<span class="tag seen">Watched</span>{/if}
+    {#if progress}<span class="bar" style:--part={Math.min(1, progress)}></span>{/if}
   </div>
   <span class="title" title={title}>{title || 'Untitled'}</span>
   <span class="sub">{sub}</span>
@@ -77,6 +84,26 @@
   .corner {
     bottom: 6px;
     right: 6px;
+  }
+  .seen {
+    top: 6px;
+    right: 6px;
+  }
+  .bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: color-mix(in srgb, var(--on-video) 30%, transparent);
+  }
+  .bar::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: scaleX(var(--part));
+    transform-origin: left;
+    background: var(--accent);
   }
   .title {
     font-weight: 600;

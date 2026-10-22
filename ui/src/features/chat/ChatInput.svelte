@@ -24,6 +24,7 @@
   import { plugins } from '../plugins/plugins.svelte';
   import BitsButton from './BitsButton.svelte';
   import { CheerBox } from './bits.svelte';
+  import { btnMemo, remember } from './btnCache';
   import { catalogs } from './catalog.svelte';
   import { cheerTotal, setCheer } from './cheer';
   import CheerConfirm from './CheerConfirm.svelte';
@@ -100,6 +101,16 @@
   const canCheer = $derived(room.account !== null && accounts.can('powerUps', room.account));
   // svelte-ignore state_referenced_locally
   const cheers = new CheerBox(() => room.view);
+  // V107-My The Bits button is drawn from what this channel last showed: a spot while the
+  // room opens, gone only once Twitch says cheering is off.
+  const bitsOff = $derived(cheers.info ? !cheers.info.enabled : btnMemo(room.login).bits === false);
+  const bitsHold = $derived(room.account === null && btnMemo(room.login).bits === true);
+  $effect(() => {
+    if (!(room.view && canChat && canCheer)) return;
+    void cheers.load().then(() => {
+      if (cheers.info) remember(room.login, { bits: cheers.info.enabled });
+    });
+  });
   /** A cheer waiting for "Spend N Bits?". `again`: the same one just went out. */
   interface CheerAsk {
     raw: string;
@@ -453,7 +464,7 @@
   {/if}
   <div class="row" bind:this={row}>
     <RewardsMenu {room} />
-    {#if canChat && canCheer}<BitsButton {room} box={cheers} oninsert={pickCheer} />{/if}
+    {#if canChat && canCheer && !bitsOff}<BitsButton {room} box={cheers} oninsert={pickCheer} />{:else if bitsHold}<span class="hold" aria-hidden="true"></span>{/if}
     {#if canChat}
       <div class="compose">
       <textarea
@@ -543,7 +554,24 @@
   .row {
     display: flex;
     align-items: flex-end;
-    gap: 6px;
+    gap: 2px;
+  }
+  /* V107-My Side buttons sit close; the box and Send keep a little air. */
+  .row > :global(.icon-btn) {
+    margin-left: 4px;
+  }
+  .row > .hold {
+    flex: none;
+    width: 30px;
+    height: 34px;
+  }
+  .compose {
+    margin-left: 4px;
+  }
+  @container chat (max-width: 260px) {
+    .row > .hold {
+      width: 28px;
+    }
   }
   /* The same box as the whisper box: the emote button inside, send outside. */
   .compose {

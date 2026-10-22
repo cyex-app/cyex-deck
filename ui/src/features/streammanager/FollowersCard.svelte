@@ -10,7 +10,7 @@
   import Loading from '../../components/Loading.svelte';
   import Card from '../../components/PanelCard.svelte';
   import SearchField from '../../components/SearchField.svelte';
-  import Segmented from '../../components/Segmented.svelte';
+  import SortControl from '../../components/SortControl.svelte';
   import type { CmFollower } from '../../ipc/bindings/CmFollower';
   import { chatIpc } from '../../ipc/chat';
   import { cmIpc } from '../../ipc/community';
@@ -18,7 +18,7 @@
   import { formatNumber } from '../../lib/format';
   import { PagedList } from '../../lib/paged.svelte';
   import { toast } from '../../lib/toast.svelte';
-  import { FOLLOW_SORTS, type FollowSort, shownFollowers } from './community';
+  import { FOLLOW_SORT, FOLLOW_SORTS, followsNewest, shownFollowers } from './community';
   import LoadMore from './LoadMore.svelte';
   import SmBar from './SmBar.svelte';
   import SmProblem from './SmProblem.svelte';
@@ -27,9 +27,9 @@
 
   const login = $derived(sm.manager?.login ?? '');
 
-  let sort = $state<FollowSort>('newest');
+  let sort = $state.raw(FOLLOW_SORT);
   let query = $state('');
-  const newest = $derived(sort !== 'oldest');
+  const newest = $derived(followsNewest(sort));
   /** Only the newest request counts, so a slow old one can't overwrite a newer list. */
   const paged = new PagedList<CmFollower>({ key: (f) => f.id, fetch: (cursor) => cmIpc.followers(cursor, newest) });
   const list = $derived(paged.items);
@@ -56,7 +56,7 @@
   <SmBar>
     <SearchField small bind:value={query} placeholder="Search followers" />
     <div class="filters">
-      <Segmented options={FOLLOW_SORTS} value={sort} label="Sort followers" onchange={(v) => (sort = v)} />
+      <SortControl keys={FOLLOW_SORTS} {sort} label="Sort followers" onchange={(s) => (sort = s)} />
       {#if !failed && !loading}<span class="count">{formatNumber(total)} {total === 1 ? 'follower' : 'followers'}</span>{/if}
     </div>
   </SmBar>

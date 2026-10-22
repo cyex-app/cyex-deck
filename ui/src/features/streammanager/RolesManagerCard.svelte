@@ -14,6 +14,7 @@
   import Card from '../../components/PanelCard.svelte';
   import SearchField from '../../components/SearchField.svelte';
   import Select from '../../components/Select.svelte';
+  import SortControl from '../../components/SortControl.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { ChannelRole } from '../../ipc/bindings/ChannelRole';
   import type { RoleMember } from '../../ipc/bindings/RoleMember';
@@ -21,7 +22,7 @@
   import { rolesIpc } from '../../ipc/roles';
   import { errorText } from '../../lib/errors';
   import { toast } from '../../lib/toast.svelte';
-  import { cleanLogin, offFor, ROLE_HINT, ROLE_NAME, ROLES, roleCounts, type RoleFilter, type RoleSort, shownMembers, SORTS } from './rolesManager';
+  import { cleanLogin, offFor, ROLE_HINT, ROLE_NAME, ROLES, roleCounts, type RoleFilter, ROLE_SORT, shownMembers, SORTS } from './rolesManager';
   import { focusBack, focusIn, onEscape } from './onEscape';
   import SmBar from './SmBar.svelte';
   import SmProblem from './SmProblem.svelte';
@@ -35,7 +36,7 @@
   let failed = $state('');
   let query = $state('');
   let filter = $state<RoleFilter>('all');
-  let sort = $state<RoleSort>('newest');
+  let sort = $state.raw(ROLE_SORT);
   /** Rows with a change running, by login. */
   let busy = $state<Record<string, boolean>>({});
   /** The chip waiting for its second click: `login/role`. */
@@ -216,7 +217,7 @@
       </div>
       <div class="filters">
         <span class="pickone"><Select label="Role" width="100%" value={filter} options={filters} onchange={(v) => (filter = v as RoleFilter)} /></span>
-        <span class="pickone"><Select label="Sort" width="100%" value={sort} options={SORTS} onchange={(v) => (sort = v as RoleSort)} /></span>
+        <SortControl keys={SORTS} {sort} label="Sort people" width="100%" onchange={(s) => (sort = s)} />
       </div>
     </SmBar>
     <ul>

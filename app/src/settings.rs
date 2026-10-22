@@ -273,7 +273,11 @@ impl Settings {
         {
             crate::chat::on_settings(app);
         }
-        if changed.iter().any(|(p, _)| *p == Partition::Highlights) {
+        // V107-Mq Accounts too: global mentions look for your names.
+        if changed
+            .iter()
+            .any(|(p, _)| matches!(p, Partition::Highlights | Partition::Accounts))
+        {
             crate::chat::global::sync(app);
         }
         if changed.iter().any(|(p, _)| *p == Partition::Miner) {

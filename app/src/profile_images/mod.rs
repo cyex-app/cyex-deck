@@ -180,10 +180,10 @@ fn view(app: &AppHandle, account: &str, images: &api::Images, waiting: bool) -> 
         .iter()
         .map(|&kind| ProfileImageSlot {
             kind,
-            url: images.get(kind.api()).to_owned(),
+            url: images.shown(kind.api()).to_owned(),
             backup: dir.as_deref().and_then(|d| backup::newest(d, kind.file())).is_some(),
-            history: dir.as_deref().map_or_else(Vec::new, |d| saved(d, kind, images.get(kind.api()))),
-            removable: can_remove(kind, images.get(kind.api())),
+            history: dir.as_deref().map_or_else(Vec::new, |d| saved(d, kind, images.shown(kind.api()))),
+            removable: can_remove(kind, images.shown(kind.api())),
         })
         .collect();
     ProfileImagesView { slots, waiting }

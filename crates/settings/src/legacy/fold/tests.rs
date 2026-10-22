@@ -166,6 +166,8 @@ fn highlights_only_bundle_keeps_current_name_and_global() {
     };
     current.me.alert.sound = false;
     current.me.alert.color = "#123456".into();
+    // V107-Mq Stored global rows always have it on.
+    current.global_list[0].alert.show = true;
     let (h, r) = fold(
         Some(json!({"mention": {"enabled": false}, "phrases": [{"pattern": "hi"}]})),
         None,

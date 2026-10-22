@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import type { EmoteMenu } from '../../ipc/bindings/EmoteMenu';
 import type { MenuEmote } from '../../ipc/bindings/MenuEmote';
-import { cellHint, cellKey, pick, search, tierMark, usable } from './menu.ts';
+import { cellHint, cellKey, pick, search, searchGroups, tierMark, usable } from './menu.ts';
 
 function e(
   provider: MenuEmote['provider'],
@@ -115,4 +115,11 @@ test('E5 locked emotes are never usable, so favorites and most used skip them', 
   const have = usable(m);
   assert.deepEqual([...have.keys()], ['twitch:9']);
   assert.deepEqual(pick([{ source: 'twitch', id: '8', name: 'shut' }], have), []);
+});
+
+test('V107-My search groups by platform, ranked inside each, empty ones dropped', () => {
+  const g = searchGroups(menu, 'l');
+  assert.deepEqual(g.map((x) => x.tab), ['twitch', 'seventv']);
+  assert.deepEqual(g[1].emotes.map((m) => m.name), ['LUL', 'xLULx']);
+  assert.equal(searchGroups(menu, 'l', 2).reduce((n, x) => n + x.emotes.length, 0), 2);
 });

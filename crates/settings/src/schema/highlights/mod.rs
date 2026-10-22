@@ -2,6 +2,7 @@
 //! Rust when a message arrives; invalid regexes are kept, so the editor can show them,
 //! and simply never match.
 
+mod logins;
 mod rules;
 
 pub use rules::{
@@ -48,9 +49,11 @@ pub struct Highlights {
     pub badges: Vec<BadgeRule>,
     /// C26
     pub apps: Vec<AppRule>,
-    /// Logins that never highlight or play sounds, e.g. bots.
+    /// Logins that never highlight or play sounds, e.g. bots. V107-Mq One per row.
+    #[serde(deserialize_with = "logins::de_logins")]
     pub never: Vec<String>,
-    /// C27 Channel logins whose chats never play sounds or flash.
+    /// C27 Channel logins whose chats never play sounds or flash. V107-Mq One per row.
+    #[serde(deserialize_with = "logins::de_logins")]
     pub muted: Vec<String>,
     /// C32 Look-alike letters in ignores (V106-33: words have their own).
     pub lookalikes: bool,
@@ -124,6 +127,10 @@ impl Schema for Highlights {
             clip(&mut r.pattern, MAX_PATTERN_CHARS);
             r.alert.sanitize();
         }
+        // V107-Mq Global mentions always land in the Mentions tab (V104-02).
+        for r in &mut self.global_list {
+            r.alert.show = true;
+        }
         self.mentions_merged = true;
         for r in &mut self.users {
             r.login = r.login.trim().trim_start_matches('@').to_owned();
@@ -145,13 +152,7 @@ impl Schema for Highlights {
         }
         self.apps.truncate(MAX_RULES);
         for list in [&mut self.never, &mut self.muted] {
-            for login in list.iter_mut() {
-                *login = login.trim().trim_start_matches(['@', '#']).to_ascii_lowercase();
-            }
-            list.retain(|l| !l.is_empty());
-            list.sort_unstable();
-            list.dedup();
-            list.truncate(MAX_NEVER);
+            logins::clean(list, MAX_NEVER);
         }
         self.hidden_users.retain(|u| !u.id.is_empty());
         self.hidden_users.dedup_by(|a, b| a.id == b.id);
@@ -180,7 +181,8 @@ impl Highlights {
     /// V105-12 Drops the rules left empty. True when something went.
     pub fn prune_blank(&mut self) -> bool {
         let count = |h: &Self| {
-            (h.phrases.len(), h.global_list.len(), h.users.len(), h.badges.len(), h.ignores.len(), h.filters.len())
+            let rows = (h.phrases.len(), h.global_list.len(), h.users.len(), h.badges.len(), h.ignores.len());
+            (rows, h.filters.len(), h.never.len(), h.muted.len())
         };
         let before = count(self);
         self.phrases.retain(|r| !r.is_blank());
@@ -189,6 +191,8 @@ impl Highlights {
         self.badges.retain(|r| !r.is_blank());
         self.ignores.retain(|r| !r.is_blank());
         self.filters.retain(|f| !f.is_blank());
+        self.never.retain(|l| !l.is_empty());
+        self.muted.retain(|l| !l.is_empty());
         before != count(self)
     }
 
@@ -240,13 +244,31 @@ impl Highlights {
         names
     }
 
-    /// V104-02 Global mentions to look for: on, with something to find.
-    pub fn global_active(&self) -> bool {
-        self.global
-            && self
-                .global_list
+    /// V104-02 What the firehose looks for while the switch is on: V107-Mq your names (each
+    /// signed-in account's login, whole word) with the Your name row's alerts while that row
+    /// is on, then the global list. Empty: nothing to find, so no connection.
+    pub fn global_rules(&self, names: &[&str]) -> Vec<PhraseRule> {
+        if !self.global {
+            return Vec::new();
+        }
+        let mine = names.iter().filter(|_| self.me.enabled).map(|n| n.trim()).filter(|n| !n.is_empty());
+        let mut out: Vec<PhraseRule> = Vec::new();
+        for n in mine {
+            if !out.iter().any(|r| r.pattern.eq_ignore_ascii_case(n)) {
+                out.push(PhraseRule {
+                    pattern: n.to_owned(),
+                    alert: self.me.alert.clone(),
+                    ..PhraseRule::default()
+                });
+            }
+        }
+        out.extend(
+            self.global_list
                 .iter()
-                .any(|m| m.enabled && !m.pattern.trim().is_empty())
+                .filter(|m| m.enabled && !m.pattern.trim().is_empty())
+                .cloned(),
+        );
+        out
     }
 }
 
@@ -291,7 +313,7 @@ mod tests {
         assert_eq!(h.phrases[1].alert.color, "#ff0000");
         assert_eq!(h.me.alert.color, "");
         assert_eq!(h.users[0].login, "bob");
-        assert_eq!(h.never, ["nightbot"]);
+        assert_eq!(h.never, ["nightbot", ""]);
         assert_eq!(h.similar.threshold, 50);
         assert_eq!(h.routes(), ["Pings", "spam"]);
     }
@@ -452,25 +474,52 @@ mod tests {
     }
 
     #[test]
-    fn global_needs_a_pattern() {
+    fn global_needs_a_pattern_or_your_name() {
         let mut h = Highlights {
             global: true,
             ..Highlights::default()
         };
-        assert!(!h.global_active());
+        assert!(h.global_rules(&[]).is_empty());
         h.global_list.push(PhraseRule {
             pattern: "  ".into(),
             ..PhraseRule::default()
         });
-        assert!(!h.global_active());
+        assert!(h.global_rules(&[]).is_empty());
         assert!(h.prune_blank(), "blank global rows go too");
         h.global_list.push(PhraseRule {
             pattern: "cyex".into(),
             ..PhraseRule::default()
         });
-        assert!(h.global_active());
+        assert_eq!(h.global_rules(&[]).len(), 1);
         h.global = false;
-        assert!(!h.global_active());
+        assert!(h.global_rules(&["seryxx"]).is_empty());
+    }
+
+    // V107-Mq
+    #[test]
+    fn global_looks_for_your_names_first_with_your_name_alerts() {
+        let mut h = Highlights {
+            global: true,
+            ..Highlights::default()
+        };
+        h.me.alert.color = "#ff0000".into();
+        let r = h.global_rules(&["seryxx", "", "SERYXX", "cyexbot"]);
+        let names: Vec<&str> = r.iter().map(|x| x.pattern.as_str()).collect();
+        assert_eq!(names, ["seryxx", "cyexbot"]);
+        assert!(r.iter().all(|x| x.enabled && x.whole_word && !x.regex && x.alert.show && x.alert.sound));
+        assert_eq!(r[0].alert.color, "#ff0000");
+        h.me.enabled = false;
+        assert!(h.global_rules(&["seryxx"]).is_empty(), "Your name off: not looked for");
+    }
+
+    // V107-Mq Unticked rows from before still land in the Mentions tab.
+    #[test]
+    fn global_rows_always_go_to_the_mentions_tab() {
+        let mut h: Highlights =
+            serde_json::from_value(serde_json::json!({"global": true, "globalList": [{"pattern": "a", "show": false}]}))
+                .unwrap();
+        h.sanitize();
+        assert!(h.global_list[0].alert.show);
     }
 
     #[test]

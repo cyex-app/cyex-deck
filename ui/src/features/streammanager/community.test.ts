@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import type { CmAssigned } from '../../ipc/bindings/CmAssigned';
 import type { CmFollower } from '../../ipc/bindings/CmFollower';
-import { day, leadToo, relative, roleCounts, roleKey, shownFollowers, shownRoles, stamp, withoutRoles } from './community.ts';
+import { day, FOLLOW_SORT, followsNewest, leadToo, relative, roleCounts, roleKey, shownFollowers, shownRoles, stamp, withoutRoles } from './community.ts';
 
 const f = (id: string, login: string, name = login): CmFollower => ({ id, login, display: name, avatar: '', followedAt: null });
 const r = (channelId: string, login: string, role: CmAssigned['role'], name = login): CmAssigned => ({
@@ -37,9 +37,14 @@ test('V107-R40 relative time reads in words', () => {
 
 test('V107-R40 search matches name or login, name sort ignores case, dates keep Twitch order', () => {
   const list = [f('1', 'zed', 'Zed'), f('2', 'amy', 'amy'), f('3', 'bob', 'Bob')];
-  assert.deepEqual(shownFollowers(list, ' BO ', 'newest').map((x) => x.id), ['3']);
-  assert.deepEqual(shownFollowers(list, '', 'name').map((x) => x.id), ['2', '3', '1']);
-  assert.deepEqual(shownFollowers(list, '', 'oldest').map((x) => x.id), ['1', '2', '3']);
+  assert.deepEqual(shownFollowers(list, ' BO ', FOLLOW_SORT).map((x) => x.id), ['3']);
+  assert.deepEqual(shownFollowers(list, '', { key: 'name', desc: false }).map((x) => x.id), ['2', '3', '1']);
+  assert.deepEqual(shownFollowers(list, '', { key: 'name', desc: true }).map((x) => x.id), ['1', '3', '2']);
+  assert.deepEqual(shownFollowers(list, '', { key: 'time', desc: false }).map((x) => x.id), ['1', '2', '3']);
+  // V107-Mr Twitch loads newest first except for the date sort turned up.
+  assert.equal(followsNewest(FOLLOW_SORT), true);
+  assert.equal(followsNewest({ key: 'time', desc: false }), false);
+  assert.equal(followsNewest({ key: 'name', desc: false }), true);
 });
 
 test('V107-R40 roles filter, search and order', () => {

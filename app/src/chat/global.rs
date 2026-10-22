@@ -92,11 +92,10 @@ pub fn sync(app: &AppHandle) {
         return;
     };
     let h: Highlights = app.state::<Settings>().read(Partition::Highlights);
-    let set = if h.global_active() {
-        MentionSet::new(&h.global_list)
-    } else {
-        MentionSet::default()
-    };
+    // V107-Mq Your names too, from every signed-in account.
+    let accounts = crate::auth::accounts(app);
+    let names: Vec<&str> = accounts.list.iter().map(|a| a.login.as_str()).collect();
+    let set = MentionSet::new(&h.global_rules(&names));
     // Patterns that don't compile find nothing, so they don't keep it connected either.
     let active = !set.is_empty();
     *global.shared.set.lock().unwrap_or_else(|p| p.into_inner()) = Arc::new(set);
@@ -231,17 +230,22 @@ impl Reader {
         if m.sender_id().is_some_and(|id| accounts.get(id).is_some()) {
             return;
         }
+        // V107-Mq Never highlight holds here too.
+        let rules = super::rules::current(&self.app);
+        if m.sender.as_ref().is_some_and(|s| rules.never(&s.login)) {
+            return;
+        }
         m.set(Flag::Mention);
         m.meta.highlight = Some(Highlight {
             kind: HighlightKind::Mention,
             color: (!color.is_empty()).then_some(color),
         });
         let m = Arc::new(m);
-        if !out.routes.is_empty() {
-            super::feeds::route_global(&self.app, channel, &m, &out.routes);
-        }
+        // V104-02 Always the Mentions tab (sanitize locks `show` on), plus any feed of its own.
+        out.feed();
+        super::feeds::route_global(&self.app, channel, &m, &out.routes);
         // C27 Silent chats stay silent here too; pings come at most every few seconds.
-        let quiet = super::rules::current(&self.app).muted(channel);
+        let quiet = rules.muted(channel);
         let soon = self.last_alert.is_some_and(|t| t.elapsed() < ALERT_GAP);
         if out.pings() && !quiet && !soon {
             self.last_alert = Some(Instant::now());

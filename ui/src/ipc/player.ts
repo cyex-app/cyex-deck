@@ -16,6 +16,7 @@ import type { StoryRing } from './bindings/StoryRing';
 import type { Video } from './bindings/Video';
 import type { VideoKind } from './bindings/VideoKind';
 import type { VideoSort } from './bindings/VideoSort';
+import type { VodProgress } from './bindings/VodProgress';
 
 export const playerIpc = {
   live: (login: string, account: string | null) => invoke<PlayerSession>('player_live', { login, account }),
@@ -31,6 +32,8 @@ export const playerIpc = {
   comments: (videoId: string, offset: number) => invoke<ChatMessage[]>('player_comments', { videoId, offset }),
   position: (id: string) => invoke<number | null>('player_position', { id }),
   savePosition: (id: string, at: number, length: number) => invoke<void>('player_save_position', { id, at, length }),
+  /** V107-Mv How far each VOD was watched; unstarted ones are left out. */
+  progress: (ids: string[]) => invoke<VodProgress[]>('player_progress', { ids }),
   /** V103-09 With Sign in with Twitch, Twitch's editor opens in the account's Twitch window. */
   createClip: (account: string, channelId: string) => invoke<MadeClip>('player_create_clip', { account, channelId }),
   proxy: () => invoke<string | null>('player_proxy'),

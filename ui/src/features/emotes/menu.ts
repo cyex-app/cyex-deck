@@ -67,3 +67,15 @@ export function search(menu: EmoteMenu, q: string, limit = 200, used?: Map<strin
   }
   return rankEmotes(q, all, RANK.contains).slice(0, limit);
 }
+
+/** V107-My Search results kept by platform (Twitch, 7TV, BTTV, FFZ), each in the ranked order
+ *  of `search`. The cap is on the total; empty platforms are left out. */
+export function searchGroups(
+  menu: EmoteMenu,
+  q: string,
+  limit = 200,
+  used?: Map<string, number>,
+): { tab: ProviderTab; emotes: MenuEmote[] }[] {
+  const found = search(menu, q, limit, used);
+  return PROVIDER_TABS.map((tab) => ({ tab, emotes: found.filter((m) => m.provider === tab) })).filter((g) => g.emotes.length);
+}

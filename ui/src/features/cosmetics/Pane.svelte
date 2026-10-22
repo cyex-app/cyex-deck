@@ -2,10 +2,9 @@
 <script lang="ts">
   import EmptyState from '../../components/EmptyState.svelte';
   import FilterChips from '../../components/FilterChips.svelte';
-  import IconButton from '../../components/IconButton.svelte';
-  import Select from '../../components/Select.svelte';
+  import SortControl from '../../components/SortControl.svelte';
   import type { BadgeRow, PaintRow } from './cosmetics.svelte';
-  import { countLabel, rememberSort, sortLabel, type Chip, type Query } from './filter';
+  import { COSMETIC_SORTS, countLabel, rememberSort, type Chip, type Query } from './filter';
   import ItemGrid from './ItemGrid.svelte';
   import SearchField from '../../components/SearchField.svelte';
 
@@ -60,23 +59,7 @@
       <div class="search">
         <SearchField placeholder="Search {plural}" value={query.text} oninput={(text) => change({ ...query, text })} />
       </div>
-      <Select
-        label="Sort"
-        width="130px"
-        value={query.sort}
-        options={[
-          { value: 'newest', label: sortLabel('newest', query.reverse) },
-          { value: 'az', label: sortLabel('az', query.reverse) },
-        ]}
-        onchange={(sort) => change({ ...query, sort: sort as Query['sort'] })}
-      />
-      <IconButton
-        icon={query.reverse ? 'arrowUp' : 'arrowDown'}
-        label="Reverse order"
-        toggle
-        active={query.reverse}
-        onclick={() => change({ ...query, reverse: !query.reverse })}
-      />
+      <SortControl keys={COSMETIC_SORTS} sort={query.sort} label="Sort {plural}" onchange={(sort) => change({ ...query, sort })} />
     </div>
     <FilterChips {chips} onflip={flip} />
   </div>

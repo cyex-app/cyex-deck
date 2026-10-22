@@ -2,7 +2,8 @@
      clips over the stream (1.20) and stories. While a page shows, the stream keeps
      playing small in a corner (P4); a VOD or clip from a list stops it. Fullscreen takes
      the whole body, so a clip opened over the stream shows there too (V101-26). V103-05 The
-     channel's mod view (V102-26) is a panel of its own next to this one. -->
+     channel's mod view (V102-26) is a panel of its own next to this one. V107-Mv A VOD keeps
+     playing small over About and Clips, paused while a clip plays; Videos brings it back. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
@@ -44,6 +45,15 @@
   const live = $derived(Boolean(info?.stream) || rewound.has(tile.channel.login));
   const page = $derived(shared.page);
   const listing = $derived(page.kind === 'about' || page.kind === 'clips' || page.kind === 'videos');
+  /** V107-Mv The VOD that stays open, small, while About or Clips shows. */
+  let kept = $state<{ id: string; at: number } | null>(null);
+  $effect(() => {
+    if (page.kind === 'vod') kept = { id: page.id, at: page.at };
+    else if (page.kind === 'stream') kept = null;
+  });
+  // Plain values: a new object on every page change would restart the player.
+  const vodId = $derived(page.kind === 'vod' ? page.id : page.kind === 'stream' || page.kind === 'videos' ? null : (kept?.id ?? null));
+  const vodAt = $derived(page.kind === 'vod' ? page.at : (kept?.at ?? 0));
   /** P4 The small stream was closed by hand. */
   let miniClosed = $state(false);
   /** V103-09 The overlay shows a clip just made without Twitch's editor. */
@@ -58,8 +68,19 @@
   const hushed = $derived(shared.overlay !== null || shared.stories);
 
   function go(p: Page) {
+    // V107-Mv Videos while the VOD plays small: the VOD, where it is.
+    // Videos again while it plays big: the list, the VOD closed.
+    if (p.kind === 'videos' && kept) {
+      if (page.kind === 'vod') kept = null;
+      else p = { kind: 'vod', id: kept.id, at: kept.at };
+    }
     shared.page = p;
     if (p.kind === 'stream') miniClosed = false;
+  }
+
+  function closeVod() {
+    kept = null;
+    if (page.kind === 'vod') shared.page = { kind: 'videos' };
   }
 
   /** P9 */
@@ -105,14 +126,26 @@
       <ClipsPage login={tile.channel.login} onplay={(slug) => go({ kind: 'clip', slug })} />
     {:else if page.kind === 'videos'}
       <VideosPage login={tile.channel.login} onplay={(id) => go({ kind: 'vod', id, at: 0 })} />
-    {:else if page.kind === 'vod'}
-      {#key page.id}
-        <VodPlayer id={page.id} at={page.at} {tile} {account} {shared} {hushed} onclose={() => go({ kind: 'videos' })} />
-      {/key}
     {:else if page.kind === 'clip'}
       {#key page.slug}<ClipPlayer slug={page.slug} {tile} onclose={() => go({ kind: 'clips' })} />{/key}
     {/if}
-    {#if live && (page.kind === 'stream' || (listing && !miniClosed))}
+    {#if vodId}
+      {#key vodId}
+        <VodPlayer
+          id={vodId}
+          at={vodAt}
+          {tile}
+          {account}
+          {shared}
+          {hushed}
+          mini={page.kind !== 'vod'}
+          held={page.kind === 'clip'}
+          onexpand={() => go({ kind: 'videos' })}
+          onclose={closeVod}
+        />
+      {/key}
+    {/if}
+    {#if live && (page.kind === 'stream' || (listing && !miniClosed && !vodId))}
       <LivePlayer
         {tile}
         {info}

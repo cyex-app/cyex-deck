@@ -1,15 +1,18 @@
 // V1051-03 Search, chips and sort for the cosmetics menu. Pure.
 
 import { formatNumber } from '../../lib/format.ts';
+import { NAME, type Sort, TIME } from '../../lib/sort.ts';
 import { rank, RANK } from '../chat/completion.ts';
+
+/** V107-Mr Time or A–Z, either way round (the shared SortControl); newest first to start. */
+export const COSMETIC_SORTS = [TIME, NAME];
+export type CosmeticSort = Sort<'time' | 'name'>;
 
 export type Chip = 'animated' | 'static';
 export interface Query {
   text: string;
   chips: ReadonlySet<Chip>;
-  sort: 'newest' | 'az';
-  /** Flips the order: oldest first, or Z–A. */
-  reverse: boolean;
+  sort: CosmeticSort;
 }
 
 interface Row {
@@ -20,30 +23,25 @@ interface Row {
 
 type Kind = 'paint' | 'badge';
 /** The sort chosen per pane, kept for the session (the menu and the pop-up share it). */
-const remembered: Partial<Record<Kind, Pick<Query, 'sort' | 'reverse'>>> = {};
-export const rememberSort = (kind: Kind, q: Query) => void (remembered[kind] = { sort: q.sort, reverse: q.reverse });
+const remembered: Partial<Record<Kind, Pick<Query, 'sort'>>> = {};
+export const rememberSort = (kind: Kind, q: Query) => void (remembered[kind] = { sort: q.sort });
 
 export const emptyQuery = (kind?: Kind): Query => ({
   text: '',
   chips: new Set(),
-  sort: 'newest',
-  reverse: false,
+  sort: { key: 'time', desc: true },
   ...(kind && remembered[kind]),
 });
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
-/** Newest or name, either way round; ties go by name, A to Z. */
-export function sorter<T extends { name: string; added: number }>(sort: Query['sort'], reverse: boolean) {
-  const dir = reverse ? -1 : 1;
-  return sort === 'az'
+/** Time or name, either way round; ties go by name, A to Z. */
+export function sorter<T extends { name: string; added: number }>(sort: CosmeticSort) {
+  const dir = sort.desc ? -1 : 1;
+  return sort.key === 'name'
     ? (a: T, b: T) => dir * collator.compare(a.name, b.name)
-    : (a: T, b: T) => dir * (b.added - a.added) || collator.compare(a.name, b.name);
+    : (a: T, b: T) => dir * (a.added - b.added) || collator.compare(a.name, b.name);
 }
-
-/** V1051-03 What the sort control says: it names what you get. */
-export const sortLabel = (sort: Query['sort'], reverse: boolean) =>
-  sort === 'az' ? (reverse ? 'Z–A' : 'A–Z') : reverse ? 'Oldest first' : 'Newest first';
 
 function keep(r: Row, chips: ReadonlySet<Chip>): boolean {
   // Animated and Static together means both.
@@ -53,7 +51,7 @@ function keep(r: Row, chips: ReadonlySet<Chip>): boolean {
 
 export function filterItems<T extends Row>(items: readonly T[], q: Query): T[] {
   const text = q.text.trim();
-  const by = sorter<T>(q.sort, q.reverse);
+  const by = sorter<T>(q.sort);
   const rows = items.filter((r) => keep(r, q.chips));
   if (!text) return rows.sort(by);
   const scored: { r: T; rank: number; close: number }[] = [];

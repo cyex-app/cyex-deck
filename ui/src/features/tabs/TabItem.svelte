@@ -13,6 +13,7 @@
   import { settings } from '../../lib/settings.svelte';
   import { keyFocused } from '../player/focusOrigin';
   import { drag } from './drag.svelte';
+  import MentionCount from './MentionCount.svelte';
   import { soundTip } from './tabSound';
   import { label, tabs, tiles } from './tabs.svelte';
 
@@ -36,6 +37,7 @@
   const name = $derived(label(tab));
   const live = $derived(tabs.liveState(tab));
   const unread = $derived(tabs.unreadState(tab));
+  const mentions = $derived(unread === 'mention' ? tabs.mentionCount(tab) : 0);
   const popped = $derived(tabs.popped.has(tab.id));
   /** V102-15 Still playing while something else shows. */
   /** V106-25 What the sound badge shows. */
@@ -136,6 +138,7 @@
       </span>
     {:else if live}<span class="dot {live}"></span>{/if}
     <span class="name">{name}</span>
+    {#if unread === 'mention'}<MentionCount count={mentions} />{/if}
     <!-- V106 a-5, s3-7 The badge is only a picture; screen readers hear it here. -->
     {#if tabs.muted.has(tab.id)}<span class="sr-only">, muted</span>{/if}
     {#if popped}<span class="popped"><Icon name="popout" size={12} /></span>{/if}
@@ -210,31 +213,20 @@
     background: var(--accent-dim);
     color: var(--accent-text);
   }
-  /* U9 New messages brighten the name; mentions also get an accent edge. */
+  /* U9 New messages brighten the name. V107-Mr A mention also underlines it (2 px, accent
+     text so it reads on both themes) and puts the count after it. */
   .message .pill,
   .mention .pill {
     color: var(--text);
   }
-  .mention .pill {
-    box-shadow: inset 0 2px var(--accent);
-  }
-  .vertical.mention .pill {
-    box-shadow: inset -2px 0 var(--accent);
+  .mention .name {
+    text-decoration: underline 2px var(--accent-text);
+    text-decoration-skip-ink: none;
+    text-underline-offset: 4px;
   }
   .selected:not(.active) .pill {
     background: var(--surface-hover);
     box-shadow: inset 0 0 0 1px var(--border-strong);
-  }
-  /* V106 s2-11 Selected keeps its mention edge. */
-  .selected.mention:not(.active) .pill {
-    box-shadow:
-      inset 0 2px var(--accent),
-      inset 0 0 0 1px var(--border-strong);
-  }
-  .selected.vertical.mention:not(.active) .pill {
-    box-shadow:
-      inset -2px 0 var(--accent),
-      inset 0 0 0 1px var(--border-strong);
   }
   /* V101-11 In the 2px gap before the tab. The bar clips the one at a row's start. The
      tab before is another instance, hence global. */

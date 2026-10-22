@@ -19,11 +19,12 @@
   import type { RegexFlavor } from '../../../ipc/bindings/RegexFlavor';
   import type { UserRule } from '../../../ipc/bindings/UserRule';
   import { mentionsIpc } from '../../../ipc/mentions';
+  import { accounts } from '../../../lib/accounts.svelte';
   import { settings } from '../../../lib/settings.svelte';
   import { mentionsTab } from '../../chat/mentionsTab.svelte';
   import HighlightImport from '../chatterino/HighlightImport.svelte';
   import { statusText } from '../mentions/status';
-  import { splitList, type Field } from '../rules/fields';
+  import type { Field } from '../rules/fields';
   import { OPT } from '../rules/options';
   import RuleList from '../rules/RuleList.svelte';
   import RuleRow from '../rules/RuleRow.svelte';
@@ -150,7 +151,15 @@
     const off = mentionsIpc.onGlobalStatus((s) => (status = s));
     return () => void off.then((f) => f());
   });
-  const hasGlobal = $derived(h.globalList.some((x) => x.enabled && x.pattern.trim()));
+  /** V107-Mq One login per row; Rust lowercases, splits "a, b" and drops repeats. */
+  type Login = { login: string };
+  const rows = (l: string[]): Login[] => l.map((login) => ({ login }));
+  const logins = (r: Login[]) => r.map((x) => x.login);
+  const neverFields: Field<Login>[] = [{ key: 'login', label: 'Name', kind: 'text', placeholder: 'Username, like nightbot', main: true }];
+  const mutedFields: Field<Login>[] = [{ key: 'login', label: 'Channel', kind: 'text', placeholder: 'Channel name', main: true }];
+  /** V107-Mq Global matches always go to the Mentions tab, and your names are looked for too. */
+  const globalFields = (r: PhraseRule) => wordFields(r).filter((f) => f.key !== 'show');
+  const hasGlobal = $derived(h.globalList.some((x) => x.enabled && x.pattern.trim()) || (h.me.enabled && accounts.list.length > 0));
 </script>
 
 <SectionHead title="Highlights" level={2} setting="highlights:import">
@@ -236,7 +245,7 @@
   emptyIcon="smartphone"
 />
 
-<SectionHead title="Global mentions">Find out when you’re mentioned in chats you aren’t in.</SectionHead>
+<SectionHead title="Global mentions">Find out when you’re mentioned in chats you aren’t in. Your names count while Your name is on, and matches go to the Mentions tab.</SectionHead>
 <Row setting="highlights.global" label="Global mentions" hint="Searches every chat logs.cyex.app keeps. Uses about 0,8 GB an hour while on. Your list stays on this PC.">
   <Toggle label="Global mentions" checked={h.global} onchange={(v) => save({ global: v })} />
 </Row>
@@ -247,7 +256,7 @@
   <RuleList
     setting="highlights.globalList"
     items={h.globalList}
-    fields={wordFields}
+    fields={globalFields}
     layout="split"
     mainMin="110px"
     fallback="var(--accent)"
@@ -256,37 +265,39 @@
     note={globals.note}
     reorder={{ key: 'highlights.globalList', label: ruleName }}
     onchange={(globalList) => save({ globalList })}
-    empty="Words to find in any chat, open or not."
+    empty="More words to find in any chat, open or not."
     emptyIcon="at"
   />
 {/if}
 
-<SectionHead title="Quiet">Names that should never trigger a highlight.</SectionHead>
-<Row setting="highlights.never" label="Never highlight" hint="These names never light up or play sounds, e.g. bots." stacked>
-  <input
-    class="field"
-    placeholder="e.g. nightbot, streamelements"
-    value={h.never.join(', ')}
-    onchange={(e) => save({ never: splitList(e.currentTarget.value.toLowerCase()) })}
-  />
-</Row>
-<Row setting="highlights.muted" label="Silent chats" hint="These chats never play sounds or flash. Also in a chat’s menu." stacked>
-  <input
-    class="field"
-    placeholder="Channel names"
-    value={h.muted.join(', ')}
-    onchange={(e) => save({ muted: splitList(e.currentTarget.value.toLowerCase()) })}
-  />
-</Row>
+<SectionHead title="Never highlight" setting="highlights.never">These names never light up or play sounds, e.g. bots.</SectionHead>
+<RuleList
+  items={rows(h.never)}
+  fields={neverFields}
+  layout="split"
+  make={() => ({ login: '' })}
+  deleted="Name removed."
+  onchange={(r) => save({ never: logins(r) })}
+  empty="No names yet."
+  emptyIcon="user"
+/>
+<SectionHead title="Silent chats" setting="highlights.muted">These chats never play sounds or flash. Also in a chat’s menu.</SectionHead>
+<RuleList
+  items={rows(h.muted)}
+  fields={mutedFields}
+  layout="split"
+  make={() => ({ login: '' })}
+  deleted="Chat removed."
+  onchange={(r) => save({ muted: logins(r) })}
+  empty="No chats yet."
+  emptyIcon="volumeOff"
+/>
 
 <style>
   .intro.more {
     margin: -2px 0 6px;
     color: var(--dim);
     font-size: var(--text-sub);
-  }
-  .field {
-    width: 100%;
   }
   .status {
     display: flex;

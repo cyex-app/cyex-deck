@@ -26,6 +26,7 @@
   import { PAGES } from '../settings/registry/pages';
   import { liveOrExact } from './channelMatch';
   import { openAdd } from './dialog.svelte';
+  import MentionCount from './MentionCount.svelte';
   import { label, tabs, tiles } from './tabs.svelte';
   import { errorText } from '../../lib/errors';
   import { scrollWithin } from '../../lib/scrollWithin';
@@ -46,6 +47,8 @@
     hint?: string;
     icon?: IconName;
     live?: 'live' | 'rerun' | null;
+    /** V107-Mr Unseen mentions, for a tab. */
+    mentions?: number;
     /** How well it matches what's typed (`rank`). */
     score?: number;
     run: () => void;
@@ -125,6 +128,7 @@
         label: label(t),
         hint: hint(t),
         live: tabs.liveState(t),
+        mentions: tabs.unreadState(t) === 'mention' ? tabs.mentionCount(t) : undefined,
         score: q ? score(label(t), ...tiles(t).map((x) => x.channel.login)) : 0,
         run: () => onopen(t.id),
       }))
@@ -284,6 +288,7 @@
             {#if c.icon}<Icon name={c.icon} size={15} />
             {:else}<span class="dot {c.live ?? ''}"></span>{/if}
             <span class="text">{c.label}</span>
+            {#if c.mentions !== undefined}<MentionCount count={c.mentions} />{/if}
             {#if c.hint}<span class="hint">{c.hint}</span>{/if}
           </button>
         {/each}

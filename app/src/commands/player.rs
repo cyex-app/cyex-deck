@@ -103,6 +103,12 @@ pub fn player_save_position(app: AppHandle, id: String, at: f64, length: f64) {
     app.state::<Players>().positions.save(&id, at, length, unix_now());
 }
 
+/// V107-Mv How far each of these VODs was watched; unstarted ones are left out.
+#[tauri::command]
+pub fn player_progress(app: AppHandle, ids: Vec<String>) -> Vec<player::positions::VodProgress> {
+    app.state::<Players>().positions.progress(&ids)
+}
+
 /// P9, V102-08 Clips the last seconds of the stream as `account`.
 #[tauri::command]
 pub async fn player_create_clip(app: AppHandle, account: String, channel_id: String) -> CmdResult<player::clips::MadeClip> {

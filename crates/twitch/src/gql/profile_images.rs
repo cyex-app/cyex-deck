@@ -157,9 +157,27 @@ pub struct Images {
     pub avatar: String,
     pub banner: String,
     pub offline: String,
+    /// The channel page's banner choice (`PRESET_1` the profile accent colour, `PRESET_2` the
+    /// custom image). `None` when Twitch didn't say.
+    pub hero: Option<String>,
+}
+
+/// V107-Mz Twitch keeps an uploaded banner (`bannerImageURL`) after the channel switches to
+/// the accent colour; the channel page then shows none. Only `PRESET_1` hides it.
+pub fn banner_shown(hero: Option<&str>) -> bool {
+    hero != Some("PRESET_1")
 }
 
 impl Images {
+    /// What the channel page shows now: like `get`, but no banner while the page uses the
+    /// accent colour. `get` stays the raw address, which upload checks compare.
+    pub fn shown(&self, kind: ImageKind) -> &str {
+        if kind == ImageKind::Banner && !banner_shown(self.hero.as_deref()) {
+            return "";
+        }
+        self.get(kind)
+    }
+
     pub fn get(&self, kind: ImageKind) -> &str {
         match kind {
             ImageKind::Avatar => &self.avatar,
@@ -171,13 +189,14 @@ impl Images {
 
 /// Public read, no token.
 pub async fn images(http: &Http, base: Option<&str>, user_id: &str) -> Result<Images> {
-    let q = "query($id: ID!) { user(id: $id) { profileImageURL(width: 600) bannerImageURL offlineImageURL } }";
+    let q = "query($id: ID!) { user(id: $id) { profileImageURL(width: 600) bannerImageURL offlineImageURL channel { home { preferences { heroPreset } } } } }";
     let user = run_at(http, Auth::PUBLIC, base, q, json!({ "id": user_id })).await?["user"].take();
     let s = |k: &str| user[k].as_str().unwrap_or_default().to_owned();
     Ok(Images {
         avatar: s("profileImageURL"),
         banner: s("bannerImageURL"),
         offline: s("offlineImageURL"),
+        hero: user["channel"]["home"]["preferences"]["heroPreset"].as_str().map(str::to_owned),
     })
 }
 
@@ -352,6 +371,19 @@ mod tests {
         assert_eq!(field, "setUserDefaultChannelOfflineImage");
         assert!(text.starts_with("mutation DeleteUserChannelOfflineImage($input: SetUserDefaultChannelOfflineImageInput!)"));
         assert_eq!(vars["input"]["newDefaultChannelOfflineImage"], "empty_channel_offline_image");
+    }
+
+    #[test]
+    fn banner_shows_unless_the_page_uses_the_accent_colour() {
+        assert!(banner_shown(Some("PRESET_2")) && banner_shown(None));
+        assert!(!banner_shown(Some("PRESET_1")));
+        let mut i = Images { banner: "https://x/b.png".into(), ..Images::default() };
+        assert_eq!(i.shown(ImageKind::Banner), "https://x/b.png");
+        i.hero = Some("PRESET_1".into());
+        assert_eq!(i.shown(ImageKind::Banner), "");
+        assert_eq!(i.get(ImageKind::Banner), "https://x/b.png");
+        i.avatar = "a".into();
+        assert_eq!(i.shown(ImageKind::Avatar), "a");
     }
 
     #[test]

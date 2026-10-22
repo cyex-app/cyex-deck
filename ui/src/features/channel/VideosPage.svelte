@@ -1,10 +1,12 @@
-<!-- A channel's videos (1.21): past streams, highlights, uploads. At most 100 signed out. -->
+<!-- A channel's videos (1.21): past streams, highlights, uploads. At most 100 signed out.
+     V107-Mv Each shows how far it was watched. -->
 <script lang="ts">
   import EmptyState from '../../components/EmptyState.svelte';
   import Segmented from '../../components/Segmented.svelte';
   import type { Video } from '../../ipc/bindings/Video';
   import type { VideoSort } from '../../ipc/bindings/VideoSort';
-  import { channelIpc } from '../../ipc/player';
+  import type { VodProgress } from '../../ipc/bindings/VodProgress';
+  import { channelIpc, playerIpc } from '../../ipc/player';
   import { formatDate, formatShort } from '../../lib/format';
   import { clock } from '../player/time';
   import Card from './Card.svelte';
@@ -28,6 +30,7 @@
   let sort = $state<VideoSort>('newest');
   let videos = $state<Video[] | null>(null);
   let problem = $state<string | null>(null);
+  let seen = $state.raw<Record<string, VodProgress>>({});
 
   $effect(() => {
     const [l, k, s] = [login, kind, sort];
@@ -36,7 +39,14 @@
     problem = null;
     channelIpc
       .videos(l, k === 'all' ? null : k, s)
-      .then((list) => alive && (videos = list))
+      .then((list) => {
+        if (!alive) return;
+        videos = list;
+        void playerIpc
+          .progress(list.map((v) => v.id))
+          .then((ps) => alive && (seen = Object.fromEntries(ps.map((x) => [x.id, x]))))
+          .catch(() => {});
+      })
       .catch((e) => alive && (problem = errorText(e)));
     return () => (alive = false);
   });
@@ -63,6 +73,8 @@
           corner={clock(v.length)}
           views={`${formatShort(v.views)} ${v.views === 1 ? 'view' : 'views'}`}
           badge={v.recording ? 'LIVE' : v.restricted ? 'Subs' : null}
+          progress={seen[v.id]?.part}
+          watched={seen[v.id]?.watched}
           onclick={() => onplay(v.id)}
         />
       {/each}

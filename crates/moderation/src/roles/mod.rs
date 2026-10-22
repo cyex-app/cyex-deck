@@ -13,6 +13,7 @@ mod change;
 mod echo;
 mod lines;
 mod members;
+mod own;
 mod slots;
 
 use cyex_chat::model::ModRole;
@@ -22,6 +23,7 @@ pub use cyex_twitch::gql::dashboard::roles::Role;
 pub use echo::{Chat, Echoed, RoleAction, holds_of};
 pub use lines::refused;
 pub use members::{Member, merge};
+pub use own::{Leave, SELF, own_step, step_down};
 pub use slots::{FULL, LOCKED, VipSlots, VipState};
 
 use crate::command::Need;

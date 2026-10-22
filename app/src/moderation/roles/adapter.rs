@@ -34,6 +34,11 @@ impl<'a> Adapter<'a> {
         if self.actor.role == ModRole::Broadcaster { self.actor.helix_scoped(self.app, scope) } else { None }
     }
 
+    /// V107-Mw Whether `who` is the acting account (a failed lookup: no).
+    pub async fn is_me(&self, who: &str) -> bool {
+        self.user_id(who).await.is_ok_and(|id| id == self.actor.account)
+    }
+
     /// `who`'s user id; `Code(TARGET_NOT_FOUND)` when nobody has the login.
     async fn user_id(&self, who: &str) -> Result<String, Refusal> {
         if let Some((l, id)) = self.id.lock().unwrap_or_else(|p| p.into_inner()).as_ref()
@@ -53,7 +58,7 @@ impl<'a> Adapter<'a> {
 
 /// A GQL failure: Twitch's code when it gave one; GQL's own "forbidden" reads as that code,
 /// so a plain mod hears who may (`roles::refused`).
-fn gql_refusal(e: cyex_twitch::Error) -> Refusal {
+pub(super) fn gql_refusal(e: cyex_twitch::Error) -> Refusal {
     match e {
         cyex_twitch::Error::Refused(code) => Refusal::Code(code),
         e => {

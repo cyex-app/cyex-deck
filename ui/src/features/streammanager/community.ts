@@ -5,14 +5,15 @@ import type { CmAssigned } from '../../ipc/bindings/CmAssigned';
 import type { CmFollower } from '../../ipc/bindings/CmFollower';
 import type { ChannelRole } from '../../ipc/bindings/ChannelRole';
 import { ago, formatDate, formatTime } from '../../lib/format.ts';
+import { byText, NAME, type Sort, sortRows, TIME } from '../../lib/sort.ts';
 
-export type FollowSort = 'newest' | 'oldest' | 'name';
+/** V107-Mr Follow date or A–Z, either way round; newest first to start. */
+export const FOLLOW_SORTS = [TIME, NAME];
+export type FollowSort = Sort<'time' | 'name'>;
+export const FOLLOW_SORT: FollowSort = { key: 'time', desc: true };
 
-export const FOLLOW_SORTS: { value: FollowSort; label: string }[] = [
-  { value: 'newest', label: 'Newest' },
-  { value: 'oldest', label: 'Oldest' },
-  { value: 'name', label: 'Name' },
-];
+/** Twitch orders by date: newest first unless the date sort is turned up. */
+export const followsNewest = (s: FollowSort) => s.key !== 'time' || s.desc;
 
 function parsed(iso: string | null | undefined): Date | null {
   if (!iso) return null;
@@ -39,11 +40,11 @@ export function relative(iso: string | null | undefined, now = Date.now()): stri
 }
 
 /** What shows: the search over name and login, then the order. Date orders are Twitch's
- *  own (`newest` and `oldest` come loaded that way); only the name is sorted here. */
+ *  own (`followsNewest` loads them that way); only the name is sorted here. */
 export function shownFollowers(list: CmFollower[], query: string, sort: FollowSort): CmFollower[] {
   const q = query.trim().toLowerCase();
   const found = q ? list.filter((f) => f.login.includes(q) || f.display.toLowerCase().includes(q)) : list;
-  return sort === 'name' ? [...found].sort((a, b) => a.display.localeCompare(b.display, undefined, { sensitivity: 'base' })) : found;
+  return sort.key === 'name' ? sortRows(found, sort, { name: (a, b) => byText(a.display, b.display), time: () => 0 }) : found;
 }
 
 /** V107-R42 The roles this list holds (one role type across the app: `ChannelRole`). */

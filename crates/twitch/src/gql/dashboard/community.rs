@@ -140,6 +140,13 @@ pub async fn assigned(ch: &Channel<'_>) -> Result<AssignedList> {
     }
 }
 
+/// V107-Mw Whether you (`ch`) are a lead mod in `channel_id`, from Twitch's own list.
+pub async fn lead_mod_in(ch: &Channel<'_>, channel_id: &str) -> Result<bool> {
+    let vars = json!({ "role": Role::LeadMod.channel_role_id() });
+    let (list, _) = all(ch, WITH_ROLE, vars, "/currentUser/channelsWithRole", Role::LeadMod).await?;
+    Ok(list.iter().any(|a| a.channel.id == channel_id))
+}
+
 /// The mutation, its field and input for leaving `role` in `channel_id`: Twitch's own page
 /// sends `targetID` for a mod and `targetUserID` for the rest. `None`: a role this list
 /// never shows (VIP, artist).

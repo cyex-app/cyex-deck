@@ -5,4 +5,8 @@ export type RoomUnread = {
 /**
  * `None` when read anonymously.
  */
-account: string | null, login: string, level: Unread, };
+account: string | null, login: string, level: Unread, 
+/**
+ * V107-Mr Unseen mentions, for the count on the tab.
+ */
+mentions: number, };

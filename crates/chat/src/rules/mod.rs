@@ -58,7 +58,7 @@ impl Outcome {
     }
 
     /// The Mentions feed tab, once.
-    fn feed(&mut self) {
+    pub fn feed(&mut self) {
         if !self.has_route(mentions::FEED) {
             self.routes.push(mentions::FEED.to_owned());
         }
@@ -162,6 +162,11 @@ impl Rules {
     /// C27 This chat never plays sounds or flashes.
     pub fn muted(&self, channel: &str) -> bool {
         self.muted.contains(channel)
+    }
+
+    /// V107-Mq This login never highlights (global mentions check it too).
+    pub fn never(&self, login: &str) -> bool {
+        self.never.contains(login)
     }
 
     /// The text ignores match against: C32 folds look-alike letters.

@@ -11,7 +11,6 @@ import type { TabGroup } from '../../ipc/bindings/TabGroup';
 import type { TabOp } from '../../ipc/bindings/TabOp';
 import type { Tile } from '../../ipc/bindings/Tile';
 import type { TileShow } from '../../ipc/bindings/TileShow';
-import type { Unread } from '../../ipc/bindings/Unread';
 import { tabsIpc } from '../../ipc/tabs';
 import { windowsIpc } from '../../ipc/windows';
 import { accounts } from '../../lib/accounts.svelte';
@@ -45,7 +44,7 @@ class TabsStore {
   /** 1.58 Tiles whose chat is in its own window. */
   chats = $state.raw<Set<string>>(new Set());
   /** U9 Chats with news, by `account/login`. */
-  unread = $state.raw<Record<string, Unread>>({});
+  unread = $state.raw<Record<string, Pick<RoomUnread, 'level' | 'mentions'>>>({});
   /** U10 Something closed can come back. */
   reopenable = $state(false);
   /** V102-15 The tab whose stream keeps playing while another tab or view shows. */
@@ -115,11 +114,19 @@ class TabsStore {
     let state: UnreadState = null;
     for (const tile of tiles(tab)) {
       if (!tile.show.chat) continue;
-      const level = this.unread[roomKey(tile.account, tile.channel.login)];
+      const level = this.unread[roomKey(tile.account, tile.channel.login)]?.level;
       if (level === 'mention') return 'mention';
       if (level === 'message' && mode === 'all') state = 'message';
     }
     return state;
+  }
+
+  /** V107-Mr Unseen mentions across the tab's shown chats; 0 when tabs don't light up. */
+  mentionCount(tab: Tab): number {
+    if (settings.v.appearance.tabUnread === 'off') return 0;
+    let n = 0;
+    for (const tile of tiles(tab)) if (tile.show.chat) n += this.unread[roomKey(tile.account, tile.channel.login)]?.mentions ?? 0;
+    return n;
   }
 
   async load(): Promise<void> {
@@ -231,7 +238,7 @@ class TabsStore {
     for (const r of rooms) {
       const key = `${r.account ?? ''}/${r.login}`;
       if (r.level === 'seen') delete next[key];
-      else next[key] = r.level;
+      else next[key] = { level: r.level, mentions: r.mentions };
     }
     this.unread = next;
   }

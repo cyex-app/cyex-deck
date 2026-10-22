@@ -1,12 +1,13 @@
-<!-- 1.40 V107-Mk Chat identity, as on twitch.tv: the badge you wear (everywhere, or just in
-     this channel), your name color, and with Prime or Turbo any color and a smiley style.
-     Every change is read back from Twitch. Shown in the chat box's popover and the
-     account chip's dialog. -->
+<!-- 1.40 V107-Mk Chat identity, as on twitch.tv: the badge you wear (everywhere, or with
+     V107-Mx's switch one just for this channel: subs, Bits, events), your name color, and
+     with Prime or Turbo any color and a smiley style. Every change is read back from Twitch.
+     Shown in the chat box's popover and the account chip's dialog. -->
 <script lang="ts">
   import { untrack } from 'svelte';
 
   import Button from '../../components/Button.svelte';
   import Loading from '../../components/Loading.svelte';
+  import Toggle from '../../components/Toggle.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { BadgeInfo } from '../../ipc/bindings/BadgeInfo';
   import type { ChatIdentity } from '../../ipc/bindings/ChatIdentity';
@@ -31,12 +32,18 @@
   let error = $state('');
   let busy = $state(false);
   let custom = $state('');
+  /** V107-Mx Switched on, nothing worn here yet: the list shows, Twitch is told on a pick. */
+  let ownWanted = $state(false);
 
   const theme = $derived(settings.v.appearance.theme);
   const display = $derived(accounts.list.find((a) => a.userId === account)?.displayName ?? '');
   const shown = $derived(me?.channel.selected ?? me?.global.selected ?? null);
   const styles = $derived(me?.smilies.choices ?? []);
   const typed = $derived(hexColor(custom));
+  const same = (a: BadgeInfo | null, b: BadgeInfo | null) => a?.set === b?.set && a?.version === b?.version;
+  // A channel pick equal to the global one counts as none: the read may repeat the global badge.
+  const ownPick = $derived(me?.channel.selected && !same(me.channel.selected, me.global.selected) ? me.channel.selected : null);
+  const own = $derived(!!ownPick || ownWanted);
 
   // Only the newest read lands: switching account or channel mid-read drops the old one.
   let reads = 0;
@@ -59,6 +66,7 @@
     void login;
     me = null;
     error = '';
+    ownWanted = false;
     void untrack(load);
   });
 
@@ -83,6 +91,11 @@
       () => chatIpc.pickBadge(account, channel ? (me?.channelId ?? null) : null, b?.set ?? null, b?.version ?? null),
       b ? `Wearing ${b.title}.` : channel ? 'Same badge as everywhere.' : 'Badge off.',
     );
+  /** Off takes the channel badge off, back to the one worn everywhere. */
+  const switchOwn = (on: boolean) => {
+    ownWanted = on;
+    if (!on && ownPick) void wear(true, null);
+  };
   const smile = (c: SmileyChoice) => {
     const [who, at] = [account, login];
     return run(
@@ -94,22 +107,16 @@
       false,
     );
   };
-  const same = (a: BadgeInfo | null, b: BadgeInfo | null) => a?.set === b?.set && a?.version === b?.version;
   const img = (id: string) => emoteImg('twitch', id, theme, { scale: density.scale }).src;
 </script>
 
 {#snippet picks(channel: boolean, selected: BadgeInfo | null, available: BadgeInfo[])}
   <div class="badges">
-    <button
-      class="badge none"
-      class:on={!selected}
-      aria-pressed={!selected}
-      disabled={busy}
-      use:tooltip={channel ? 'Wear the same badge as everywhere' : 'No badge'}
-      onclick={() => wear(channel, null)}
-    >
-      {channel ? 'Same' : 'None'}
-    </button>
+    {#if !channel}
+      <button class="badge none" class:on={!selected} aria-pressed={!selected} disabled={busy} use:tooltip={'No badge'} onclick={() => wear(false, null)}>
+        None
+      </button>
+    {/if}
     {#each available as b (`${b.set}/${b.version}`)}
       <button
         class="badge"
@@ -143,8 +150,14 @@
         <p class="sub">Everywhere</p>
         {@render picks(false, me.global.selected, me.global.available)}
         {#if me.channel.available.length && me.channelId}
-          <p class="sub">Only in {login}</p>
-          {@render picks(true, me.channel.selected, me.channel.available)}
+          <div class="own">
+            <span>Channel-specific badge</span>
+            <Toggle checked={own} label="Channel-specific badge in {login}" disabled={busy} onchange={switchOwn} />
+          </div>
+          {#if own}
+            <p class="sub">Only in {login}</p>
+            {@render picks(true, ownPick, me.channel.available)}
+          {/if}
         {/if}
       {:else if me.channelId}
         <p class="note">No badges to pick from.</p>
@@ -242,6 +255,16 @@
     margin: 2px 0 0;
     color: var(--muted);
     font-size: 0.8rem;
+  }
+  .own {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .own span {
+    font-size: 0.85rem;
   }
   .badges {
     display: flex;

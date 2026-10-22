@@ -124,7 +124,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
+    width: 30px;
     height: 34px;
     padding: 0;
     background: none;
@@ -136,6 +136,11 @@
   .trigger[aria-expanded='true'] {
     background: var(--surface-hover);
     color: var(--text);
+  }
+  @container chat (max-width: 260px) {
+    .trigger {
+      width: 28px;
+    }
   }
   .menu {
     width: 340px;

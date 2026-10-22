@@ -5,6 +5,7 @@
 //! shows its one line.
 
 mod adapter;
+mod mine;
 pub mod manager;
 
 use std::collections::HashMap;
@@ -71,6 +72,11 @@ pub async fn apply(app: &AppHandle, actor: &Actor, who: &str, holds: Option<Vec<
         let failed = Role::ALL.into_iter().filter(|r| wanted.give.contains(r) || wanted.take.contains(r)).collect();
         return Outcome { done: Vec::new(), line: line.into(), slots: slots.unwrap_or_else(VipSlots::unknown), failed };
     }
+    let a = Adapter::new(app, actor);
+    // V107-Mw Yourself (the broadcaster is caught above): a step down, or refused.
+    if actor.role != ModRole::Broadcaster && a.is_me(who).await {
+        return mine::apply(app, actor, who, wanted).await;
+    }
     let unmod = wanted.take.contains(&Role::Mod) && !wanted.take.contains(&Role::LeadMod);
     let holds = match holds {
         Some(h) => h,
@@ -94,7 +100,6 @@ pub async fn apply(app: &AppHandle, actor: &Actor, who: &str, holds: Option<Vec<
         },
         None => VipSlots::unknown(),
     };
-    let a = Adapter::new(app, actor);
     let out = roles::change(&Echoed { twitch: &a, chat: &a }, who, &holds, slots, wanted).await;
     let vip_moved = out.done.iter().any(|c| c.role == Role::Vip) || wanted.give.contains(&Role::Vip);
     if own(actor) && vip_moved {

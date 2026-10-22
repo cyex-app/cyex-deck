@@ -4,6 +4,7 @@
 import type { ChannelRole } from '../../ipc/bindings/ChannelRole';
 import type { RoleMember } from '../../ipc/bindings/RoleMember';
 import type { VipSlots } from '../../ipc/bindings/VipSlots';
+import { byNumber, NAME, type Sort, sortRows, TIME } from '../../lib/sort.ts';
 
 /** Twitch's order. */
 export const ROLES: ChannelRole[] = ['leadMod', 'mod', 'vip', 'editor', 'artist', 'agent'];
@@ -27,25 +28,14 @@ export const ROLE_HINT: Record<ChannelRole, string> = {
 };
 
 export type RoleFilter = ChannelRole | 'all';
-export type RoleSort = 'name' | 'nameDesc' | 'newest' | 'oldest';
-
-export const SORTS: { value: RoleSort; label: string }[] = [
-  { value: 'newest', label: 'Newest' },
-  { value: 'oldest', label: 'Oldest' },
-  { value: 'name', label: 'A to Z' },
-  { value: 'nameDesc', label: 'Z to A' },
-];
+/** V107-Mr Last change or A–Z, either way round; newest first to start. */
+export const SORTS = [TIME, NAME];
+export type RoleSort = Sort<'time' | 'name'>;
+export const ROLE_SORT: RoleSort = { key: 'time', desc: true };
 
 const byName = (a: RoleMember, b: RoleMember) => a.login.localeCompare(b.login);
-const time = (m: RoleMember) => (m.modified ? Date.parse(m.modified) || 0 : 0);
-
-/** Newest (`dir` -1) or oldest (`dir` 1) first; rows with no date go last either way. */
-function byTime(a: RoleMember, b: RoleMember, dir: 1 | -1): number {
-  const ta = time(a);
-  const tb = time(b);
-  if (!ta || !tb) return (ta ? -1 : 0) + (tb ? 1 : 0) || byName(a, b);
-  return (ta - tb) * dir || byName(a, b);
-}
+/** Rows with no date go last either way. */
+const byTime = byNumber((m: RoleMember) => (m.modified ? Date.parse(m.modified) || 0 : 0));
 
 /** What shows: one role or all, the search over name and login, then the order. */
 export function shownMembers(list: RoleMember[], role: RoleFilter, query: string, sort: RoleSort): RoleMember[] {
@@ -53,13 +43,7 @@ export function shownMembers(list: RoleMember[], role: RoleFilter, query: string
   const found = list.filter(
     (m) => (role === 'all' || m.roles.includes(role)) && (!q || m.login.includes(q) || m.display.toLowerCase().includes(q)),
   );
-  const cmp: Record<RoleSort, (a: RoleMember, b: RoleMember) => number> = {
-    name: byName,
-    nameDesc: (a, b) => byName(b, a),
-    newest: (a, b) => byTime(a, b, -1),
-    oldest: (a, b) => byTime(a, b, 1),
-  };
-  return [...found].sort(cmp[sort]);
+  return sortRows(found, sort, { time: byTime, name: byName }, byName);
 }
 
 /** How many hold each role. */

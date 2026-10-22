@@ -246,6 +246,11 @@ fn is_payment(url: &Url) -> bool {
     .any(|d| host_is(url, d))
 }
 
+/// V107-Mz: the Bits page (`/bits`) shows only the packages: the info text, FAQ, banner and
+/// promo callouts go. Twitch's own stable `bits-landing-page*` class names, no hashed ones;
+/// they only exist on that page, so no path check is needed.
+const BITS_ONLY: &str = ".bits-landing-page__content--left-pane, .bits-landing-page__gems-banner,      .bits-landing-page-faq, .bits-landing-page-cheermote-description, [class*=\"subtember-callout\"]      { display: none !important; }      .bits-landing-page__content, .bits-landing-page__content--right-pane, .bits-landing-page-right-pane      { width: 100% !important; max-width: 720px !important; margin-left: auto !important; margin-right: auto !important; }";
+
 /// The skin: Twitch's theme variables set to the app's tokens (`ui/src/design/tokens.css`),
 /// the accent in place of Twitch purple, small corners, the app font, no side or top nav.
 /// Runs in every frame, so it checks it's Twitch's top page before touching anything.
@@ -389,6 +394,7 @@ pub fn skin(look: &ThemeLook) -> String {
     let css = format!(
         "html:root, html body, html body .tw-root--theme-dark, html body .tw-root--theme-light,          [class*=\"ScTokenOverrideCSSVars\"], [class*=\"ScAccentRegionCssVars\"],          [class*=\"ScCoreButton\"] {{ {vars} }}          html body {{ background: {bg} !important; }}          .top-nav, [data-a-target=\"top-nav-container\"], #side-nav, [data-test-selector=\"side-nav\"],          .side-nav, #twilight-sticky-footer-root, .persistent-player {{ display: none !important; }}"
     );
+    let css = format!("{css} {BITS_ONLY}");
     let css = serde_json::to_string(&css).unwrap_or_default();
     // Runs before the page has a root element: waits for one, and puts the style back if
     // the page drops it.
@@ -460,5 +466,7 @@ mod tests {
         assert!(js.contains("--color-background-body: #1e1f23"));
         assert!(js.starts_with("(() => {") && js.contains("window.top !== window"));
         assert!(js.contains("--color-twitch-purple-9: #") && js.contains("twilight.theme', '1'"));
+        // V107-Mz: the Bits page keeps the packages only; the script stays valid JSON-in-JS.
+        assert!(js.contains("bits-landing-page__content--left-pane") && js.contains("bits-landing-page-faq"));
     }
 }
