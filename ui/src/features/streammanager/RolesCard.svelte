@@ -17,7 +17,7 @@
   import { formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import { roomRoute } from '../chat/roomRoute';
-  import { ROLE_LABEL, ROLE_LEAVE, ROLE_ORDER, type RoleFilter, roleCounts, roleKey, shownRoles } from './community';
+  import { leadToo, ROLE_LABEL, ROLE_LEAVE, ROLE_ORDER, type RoleFilter, roleCounts, roleKey, shownRoles, withoutRoles } from './community';
   import SmBar from './SmBar.svelte';
   import SmProblem from './SmProblem.svelte';
   import { sm } from './streammanager.svelte';
@@ -69,9 +69,12 @@
     const k = roleKey(r);
     busy[k] = true;
     try {
-      await cmIpc.stepDown(r.role, r.id);
-      list = list.filter((x) => roleKey(x) !== k);
-      toast.success(`Stepped down in ${r.display}.`);
+      // V107-Mj Unmod also drops lead mod when you hold it here, lead mod first.
+      const lead = leadToo(list, r);
+      const left = await cmIpc.stepDown(r.role, r.id, lead);
+      list = withoutRoles(list, r.id, left.gone);
+      if (left.error) toast.error(left.error);
+      else toast.success(lead ? `Left mod and lead mod in ${r.display}.` : `Stepped down in ${r.display}.`);
     } catch (e) {
       toast.error(errorText(e));
     } finally {
@@ -117,7 +120,7 @@
           <span class="act">
             <ConfirmButton
               label={ROLE_LEAVE[r.role].label}
-              confirm={ROLE_LEAVE[r.role].confirm}
+              confirm={leadToo(list, r) ? 'Unmod, lead mod too?' : ROLE_LEAVE[r.role].confirm}
               variant="ghost"
               disabled={busy[roleKey(r)]}
               onconfirm={() => void leave(r)}

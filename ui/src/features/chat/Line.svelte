@@ -19,6 +19,7 @@
   import { fxSleep } from './fxSleep';
   import { isHot } from './hover.svelte';
   import { shownName } from './names';
+  import { lineStacks } from './stacked';
   import { uploadLine } from './upload';
 
   interface Props {
@@ -60,6 +61,8 @@
   const paintName = $derived(paint ? looks.paintName(paintId) : null);
   const recipients = $derived(notice?.recipients ?? []);
   const hl = $derived(highlightStyle(m));
+  /** V107-Mj Zalgo stays inside its line. */
+  const stacked = $derived(lineStacks(m.body, notice?.text));
   const client = $derived(c.showClient && m.client ? CLIENTS[m.client] : null);
   const effect = $derived(c.effects ? effectOf(m) : null);
   /** 1.26 A whisper shown in a chat: who it's with, for the label and a click. */
@@ -92,6 +95,7 @@
   class:del-hidden={deleted && c.deleted === 'hidden'}
   class:system={notice && !sender}
   class:whisper={!!whisperWith}
+  class:stacked
   data-id={m.id}
   style="{colorVars};{hl.vars}"
 >
@@ -217,6 +221,12 @@
   .line :global(.stack) {
     margin: 0;
     vertical-align: middle;
+  }
+  /* V107-Mj Zalgo (a long run of combining marks) is cut at the line's edge, top and
+     bottom only. Just these lines: a bouncing or turned emote may leave its line. */
+  .stacked {
+    overflow-x: visible;
+    overflow-y: clip;
   }
   /* V101-01 Alternating lines (2.1): the stripe stays with its line (stripes.ts). */
   .stripe {

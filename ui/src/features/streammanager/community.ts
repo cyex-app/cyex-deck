@@ -92,3 +92,9 @@ export function roleCounts(list: CmAssigned[]): Record<RoleFilter, number> {
 
 /** A role row's key. */
 export const roleKey = (r: Pick<CmAssigned, 'id' | 'role'>) => `${r.id}/${r.role}`;
+
+/** V107-Mj Leaving mod here also drops lead mod: you hold both in that channel. */
+export const leadToo = (list: CmAssigned[], r: CmAssigned) => r.role === 'mod' && list.some((x) => x.id === r.id && x.role === 'leadMod');
+
+/** V107-Mj The list once `gone` roles left channel `id`. */
+export const withoutRoles = (list: CmAssigned[], id: string, gone: ChannelRole[]) => list.filter((x) => x.id !== id || !gone.includes(x.role));

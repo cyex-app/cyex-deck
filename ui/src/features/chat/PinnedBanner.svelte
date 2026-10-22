@@ -24,6 +24,7 @@
   import { shownName } from './names';
   import { nowSecond } from '../../lib/clock.svelte';
   import { pinLeft, pinSpan } from './pinTimer';
+  import { lineStacks } from './stacked';
 
   interface Props {
     pin: Pinned;
@@ -262,6 +263,7 @@
       <!-- svelte-ignore a11y_mouse_events_have_key_events -->
       <div
         class="text"
+        class:stacked={lineStacks(pin.message.body)}
         bind:this={textEl}
         role="button"
         tabindex="0"
@@ -398,6 +400,10 @@
     /* V105-03 Tight lines; a line with an emote grows to fit it (below). */
     font: 400 calc(var(--chat-size) + var(--pinned-step)) / 1.3 var(--chat-font);
     overflow-wrap: anywhere;
+  }
+  /* V107-Mj Zalgo stays inside the banner (Line.svelte). */
+  .text.stacked {
+    overflow-y: clip;
   }
   .text :global(.emote),
   .text :global(.stack) {

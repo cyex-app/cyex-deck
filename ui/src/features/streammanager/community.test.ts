@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import type { CmAssigned } from '../../ipc/bindings/CmAssigned';
 import type { CmFollower } from '../../ipc/bindings/CmFollower';
-import { day, relative, roleCounts, roleKey, shownFollowers, shownRoles, stamp } from './community.ts';
+import { day, leadToo, relative, roleCounts, roleKey, shownFollowers, shownRoles, stamp, withoutRoles } from './community.ts';
 
 const f = (id: string, login: string, name = login): CmFollower => ({ id, login, display: name, avatar: '', followedAt: null });
 const r = (channelId: string, login: string, role: CmAssigned['role'], name = login): CmAssigned => ({
@@ -47,4 +47,13 @@ test('V107-R40 roles filter, search and order', () => {
   assert.deepEqual(shownRoles(list, 'all', '').map(roleKey), ['1/mod', '1/leadMod', '2/editor', '3/mod']);
   assert.deepEqual(shownRoles(list, 'mod', 'c').map(roleKey), ['3/mod']);
   assert.deepEqual(roleCounts(list), { all: 4, leadMod: 1, mod: 2, vip: 0, editor: 1, artist: 0, agent: 0 });
+});
+
+test('V107-Mj unmod drops lead mod only where you hold it', () => {
+  const list = [r('1', 'ann', 'mod'), r('1', 'ann', 'leadMod'), r('1', 'ann', 'editor'), r('2', 'bob', 'mod')];
+  assert.equal(leadToo(list, list[0]), true);
+  assert.equal(leadToo(list, list[3]), false);
+  assert.equal(leadToo(list, list[1]), false, 'only from the mod row');
+  assert.deepEqual(withoutRoles(list, '1', ['leadMod', 'mod']).map(roleKey), ['1/editor', '2/mod']);
+  assert.equal(withoutRoles(list, '1', []).length, 4);
 });
