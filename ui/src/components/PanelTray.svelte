@@ -6,7 +6,6 @@
   import { drag } from '../features/tabs/drag.svelte';
   import type { TrayItem } from './panel';
   import Popover from './Popover.svelte';
-  import { tooltip } from './tooltip.svelte';
 
   interface Props {
     /** The layout's key. */
@@ -63,12 +62,12 @@
       Closed panels <span class="count">{items.length}</span>
     </button>
     <Popover bind:open side="above" label="Closed panels">
+      <p class="tip">Drag one onto a panel, or click to put it back.</p>
       <ul>
         {#each items as item (item.id)}
           <li>
             <button
               class="item"
-              use:tooltip={'Drag it onto a panel, or click to put it back.'}
               onpointerdown={(e) => down(e, item)}
               onclick={() => click(item)}
             >
@@ -122,6 +121,12 @@
   }
   .count {
     color: var(--dim);
+  }
+  .tip {
+    margin: 0 0 4px;
+    padding: 2px 8px;
+    color: var(--dim);
+    font-size: 0.72rem;
   }
   ul {
     display: flex;
