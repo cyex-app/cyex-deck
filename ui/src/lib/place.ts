@@ -148,18 +148,39 @@ export function floating(node: HTMLElement, opts: FloatOptions) {
     node.style.overflow = p.maxWidth === undefined && p.maxHeight === undefined ? '' : 'auto';
     node.dataset.side = p.side;
   };
+  // U3-1 The window's layout settles after its resize event, so the anchor has moved by the
+  // next frame: run again then, and when the anchor or the page resizes later.
+  let frame = 0;
+  const later = () => {
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(run);
+  };
+  const onResize = () => {
+    run();
+    later();
+  };
   const sized = new ResizeObserver(run);
+  const moved = new ResizeObserver(later);
+  const watch = () => {
+    moved.disconnect();
+    moved.observe(document.documentElement);
+    if (o.anchor instanceof Element) moved.observe(o.anchor);
+  };
   sized.observe(node);
-  addEventListener('resize', run);
+  addEventListener('resize', onResize);
+  watch();
   run();
   return {
     update(next: FloatOptions) {
       o = next;
+      watch();
       run();
     },
     destroy() {
+      cancelAnimationFrame(frame);
       sized.disconnect();
-      removeEventListener('resize', run);
+      moved.disconnect();
+      removeEventListener('resize', onResize);
     },
   };
 }
