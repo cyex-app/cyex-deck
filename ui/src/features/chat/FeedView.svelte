@@ -59,8 +59,10 @@
     let next = lines;
     for (const e of events) {
       if (e.type === 'line') next = [...next, e.line].slice(-KEEP);
-      else if (e.type === 'remove') next = next.filter((l) => !e.keys.includes(lineKey(l)));
-      else next = next.map((l) => (l.message.id === e.line.message.id ? e.line : l));
+      else if (e.type === 'remove') {
+        const gone = new Set(e.keys);
+        next = next.filter((l) => !gone.has(lineKey(l)));
+      } else next = next.map((l) => (l.message.id === e.line.message.id ? e.line : l));
     }
     lines = next;
     if (follow) {
