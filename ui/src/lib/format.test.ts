@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { ago, formatBytes, formatDate, formatDuration, formatNumber, formatSecs, formatShort, formatTime, parseDuration } from './format.ts';
+import { ago, formatBytes, formatDate, formatDuration, formatFactor, formatNumber, formatSecs, formatShort, formatTime, parseDuration } from './format.ts';
 
 const at = new Date(2026, 9, 9, 14, 3, 7);
 const morning = new Date(2026, 0, 2, 0, 5, 0);
@@ -67,6 +67,12 @@ test('short numbers round down with a comma decimal', () => {
   assert.equal(formatShort(999_999), '999,9K');
   assert.equal(formatShort(2_900_000), '2,9M');
   assert.equal(formatShort(3_000_000_000), '3B');
+});
+
+test('factors keep their decimals with a comma', () => {
+  assert.equal(formatFactor(0.75), '0,75×');
+  assert.equal(formatFactor(1.5), '1,5×');
+  assert.equal(formatFactor(2), '2×');
 });
 
 test('ago is short, then a date', () => {

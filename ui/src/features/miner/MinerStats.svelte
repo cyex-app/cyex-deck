@@ -145,7 +145,7 @@
         {#each stats.kinds as k (k.kind)}
           <tr>
             <td>{KINDS[k.kind]}</td>
-            <td class="num">{k.count}×</td>
+            <td class="num">×{formatNumber(k.count)}</td>
             <td class="num">{signed(k.points)}</td>
           </tr>
         {/each}

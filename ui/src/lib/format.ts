@@ -30,6 +30,11 @@ export function formatDecimal(n: number, digits = 1): string {
   return n.toFixed(digits).replace('.', ',');
 }
 
+/** A speed or factor: 0.75 → "0,75×", 2 → "2×". As many decimals as it has, comma decimal (3.13). */
+export function formatFactor(n: number): string {
+  return `${String(n).replace('.', ',')}×`;
+}
+
 /** 39_845_888 → "38 MB", 1_300_000_000 → "1,2 GB". Binary units, comma decimal, dots for thousands (3.13). */
 export function formatBytes(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];

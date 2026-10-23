@@ -12,6 +12,7 @@
   import type { MineSource } from '../../ipc/bindings/MineSource';
   import type { TabChannel } from '../../ipc/bindings/TabChannel';
   import { minerIpc } from '../../ipc/miner';
+  import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import ChannelPicker from '../tabs/ChannelPicker.svelte';
@@ -182,7 +183,7 @@
       <div class="drop">
         <span class="drop-name">{d.name}{#if d.game}<span class="game">{` · ${d.game}`}</span>{/if}</span>
         <span class="bar"><span style:width="{Math.min(100, (d.minutes / Math.max(1, d.required)) * 100)}%"></span></span>
-        <span class="mins">{d.minutes} / {d.required}m</span>
+        <span class="mins">{formatNumber(d.minutes)} / {formatNumber(d.required)}m</span>
       </div>
     {/each}
   {/if}

@@ -80,6 +80,10 @@ test('a video adds speed and the link at the current time', () => {
     '—',
     'Open on Twitch',
   ]);
+  const speed = playerMenu(m)[3];
+  assert.ok(speed !== 'separator');
+  assert.equal(speed.hint, '1,5×');
+  assert.deepEqual(speed.items?.map((e) => e !== 'separator' && e.label), ['0,5×', '0,75×', 'Normal', '1,25×', '1,5×', '2×']);
 });
 
 test('a clip keeps it short', () => {

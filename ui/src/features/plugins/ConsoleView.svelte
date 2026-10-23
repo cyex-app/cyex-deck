@@ -6,6 +6,7 @@
   import IconButton from '../../components/IconButton.svelte';
   import type { PluginLogLevel } from '../../ipc/bindings/PluginLogLevel';
   import { pluginsIpc } from '../../ipc/plugins';
+  import { formatTime } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import { plugins } from './plugins.svelte';
   import { errorText } from '../../lib/errors';
@@ -91,7 +92,7 @@
     pluginsIpc.reload(id).catch((e) => toast.error(errorText(e)));
   }
 
-  const time = (ts: number) => new Date(ts).toLocaleTimeString('en-GB', { hour12: false });
+  const time = (ts: number) => formatTime(new Date(ts), { seconds: true });
 </script>
 
 <div class="console">

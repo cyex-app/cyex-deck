@@ -3,6 +3,7 @@
 // they can't do.
 
 import type { MenuEntry } from '../../components/menu.svelte';
+import { formatFactor } from '../../lib/format.ts';
 
 export const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -50,8 +51,8 @@ export function playerMenu(m: PlayerMenu): MenuEntry[] {
     items.push({
       label: 'Speed',
       icon: 'clock',
-      hint: speed.now === 1 ? 'Normal' : `${speed.now}×`,
-      items: SPEEDS.map((s) => ({ label: s === 1 ? 'Normal' : `${s}×`, checked: s === speed.now, run: () => speed.set(s) })),
+      hint: speed.now === 1 ? 'Normal' : formatFactor(speed.now),
+      items: SPEEDS.map((s) => ({ label: s === 1 ? 'Normal' : formatFactor(s), checked: s === speed.now, run: () => speed.set(s) })),
     });
   }
   if (m.pip) items.push({ label: 'Picture in picture', icon: 'layers', checked: m.pip.on, run: m.pip.toggle });

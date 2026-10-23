@@ -84,7 +84,7 @@
         <li class:blue={i === 0} class:pink={i === 1 && p.outcomes.length === 2}>
           <div class="top">
             <span class="name">{o.title}</span>
-            <span class="pct">{pcts[i]}%</span>
+            <span class="pct">{pcts[i]} %</span>
           </div>
           <div class="sub">
             {formatNumber(o.points)} points · {formatNumber(o.users)} people

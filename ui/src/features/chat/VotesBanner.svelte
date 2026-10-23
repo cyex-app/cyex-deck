@@ -122,7 +122,7 @@
           >
             <span class="n">{i + 1}</span>
             <span class="label">{c.title}</span>
-            <span class="num">{pct(c.votes, total)}% · {formatNumber(c.votes)}</span>
+            <span class="num">{pct(c.votes, total)} % · {formatNumber(c.votes)}</span>
           </button>
         {/each}
       </div>
@@ -165,7 +165,7 @@
           >
             <span class="label">{o.title}</span>
             <span class="num">
-              {pct(o.points, total)}% · {formatNumber(o.points)} · 1:{o.points ? formatDecimal(total / o.points, 2) : '–'}
+              {pct(o.points, total)} % · {formatNumber(o.points)} · 1:{o.points ? formatDecimal(total / o.points, 2) : '–'}
             </span>
             {#if open && signedIn && (!pred.mine || pred.mine.outcome === o.id)}
               <Button small disabled={busy} onclick={() => predict(o)}>Bet</Button>

@@ -78,7 +78,7 @@
         <li>
           <div class="bar" style:width="{p}%"></div>
           <span class="name">{c.title}</span>
-          <span class="n">{p}% · {formatNumber(c.votes)}</span>
+          <span class="n">{p} % · {formatNumber(c.votes)}</span>
         </li>
       {/each}
     </ul>
