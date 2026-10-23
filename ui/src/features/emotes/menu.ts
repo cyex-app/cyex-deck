@@ -69,17 +69,8 @@ export function search(menu: EmoteMenu, q: string, limit = 200, used?: Map<strin
 }
 
 /** V107-My Search results kept by platform (Twitch, 7TV, BTTV, FFZ), each in the ranked order
- *  of `search`. The cap is on the total; empty platforms are left out. */
-export function searchGroups(
-  menu: EmoteMenu,
-  q: string,
-  limit = 200,
-  used?: Map<string, number>,
-): { tab: ProviderTab; emotes: MenuEmote[] }[] {
-  return searchCapped(menu, q, limit, used).groups;
-}
-
-/** `searchGroups` plus whether more than `limit` emotes matched (the hint shows only then). */
+ *  of `search`, capped in total, empty platforms left out; `cut` is whether more than `limit`
+ *  matched (the hint shows only then). */
 export function searchCapped(menu: EmoteMenu, q: string, limit = 200, used?: Map<string, number>) {
   const all = search(menu, q, limit + 1, used);
   const found = all.slice(0, limit);

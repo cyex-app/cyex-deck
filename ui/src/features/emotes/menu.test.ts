@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import type { EmoteMenu } from '../../ipc/bindings/EmoteMenu';
 import type { MenuEmote } from '../../ipc/bindings/MenuEmote';
-import { cellHint, cellKey, pick, search, searchCapped, searchGroups, tierMark, usable } from './menu.ts';
+import { cellHint, cellKey, pick, search, searchCapped, tierMark, usable } from './menu.ts';
 
 function e(
   provider: MenuEmote['provider'],
@@ -118,14 +118,14 @@ test('E5 locked emotes are never usable, so favorites and most used skip them', 
 });
 
 test('V107-My search groups by platform, ranked inside each, empty ones dropped', () => {
-  const g = searchGroups(menu, 'l');
+  const g = searchCapped(menu, 'l').groups;
   assert.deepEqual(g.map((x) => x.tab), ['twitch', 'seventv']);
   assert.deepEqual(g[1].emotes.map((m) => m.name), ['LUL', 'xLULx']);
-  assert.equal(searchGroups(menu, 'l', 2).reduce((n, x) => n + x.emotes.length, 0), 2);
+  assert.equal(searchCapped(menu, 'l', 2).groups.reduce((n, x) => n + x.emotes.length, 0), 2);
 });
 
 test('V107-H7 the "Showing 200" hint only when matches were cut', () => {
-  const total = searchGroups(menu, 'l', 100).reduce((n, x) => n + x.emotes.length, 0);
+  const total = searchCapped(menu, 'l', 100).groups.reduce((n, x) => n + x.emotes.length, 0);
   assert.ok(total >= 3);
   assert.equal(searchCapped(menu, 'l', total).cut, false);
   assert.equal(searchCapped(menu, 'l', total + 5).cut, false);
