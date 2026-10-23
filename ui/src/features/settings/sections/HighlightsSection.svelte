@@ -61,7 +61,8 @@
     { key: 'own', label: 'Your own messages', color: 'var(--accent-hover)' },
   ];
   const builtInFields: Field<BuiltIn>[] = [on<BuiltIn>(), ...alert<BuiltIn>()];
-  const mentionFields = builtInFields.filter((f) => f.key !== 'show');
+  // No "show" option here, but its slot stays so the swatch lines up with the other rows.
+  const mentionFields = builtInFields.map((f) => (f.key === 'show' ? { ...f, spacer: true } : f));
 
   const FLAVORS: { value: RegexFlavor; label: string }[] = [
     { value: 'rust', label: 'Rust' },

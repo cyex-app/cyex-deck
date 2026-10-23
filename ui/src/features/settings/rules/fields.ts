@@ -30,6 +30,8 @@ export interface Field<T> {
   unit?: string;
   /** C2 Own line under the row: a long field such as a response or a filter. */
   wide?: boolean;
+  /** An empty cell the width of an icon toggle, so rows without this option line up with rows that have it. */
+  spacer?: boolean;
   /** Only shown while this holds, e.g. the regex flavor. */
   when?: (item: T) => boolean;
 }

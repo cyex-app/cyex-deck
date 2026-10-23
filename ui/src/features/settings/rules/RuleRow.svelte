@@ -95,7 +95,9 @@
 
 {#snippet cell(f: Field<T>)}
   {@const v = item[f.key]}
-  {#if f.kind === 'check' && f.icon}
+  {#if f.spacer}
+    <span class="spacer" aria-hidden="true"></span>
+  {:else if f.kind === 'check' && f.icon}
     <IconToggle icon={f.icon} label={f.label} hint={f.hint} pressed={!!v} onchange={(c) => set(f.key, c)} />
   {:else if f.kind === 'check'}
     <Checkbox label={f.label} checked={!!v} onchange={(c) => set(f.key, c)} />
@@ -334,6 +336,11 @@
   .split.grab.noon .problem,
   .split.grab.noon .note {
     grid-column: 2 / -1;
+  }
+  /* One icon toggle (26px) and its gap. */
+  .spacer {
+    flex: none;
+    width: 26px;
   }
   .lead {
     flex: none;

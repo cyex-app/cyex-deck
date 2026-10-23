@@ -49,7 +49,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: 8px 16px;
     /* b-2 The h2's bottom margin sits on the row, so the title centers on the buttons. */
     margin-bottom: 14px;
   }
