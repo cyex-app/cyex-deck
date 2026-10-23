@@ -223,6 +223,9 @@
     text-decoration: underline 2px var(--accent-text);
     text-decoration-skip-ink: none;
     text-underline-offset: 4px;
+    /* The box clips at the padding edge: room for the underline, layout unchanged. */
+    padding-bottom: 3px;
+    margin-bottom: -3px;
   }
   .selected:not(.active) .pill {
     background: var(--surface-hover);
