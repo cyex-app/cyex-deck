@@ -54,7 +54,7 @@
 
 <div class="page">
   <div class="filters">
-    <Segmented label="Kind" options={KINDS} value={kind} onchange={(v) => (kind = v)} />
+    <Segmented wrap label="Kind" options={KINDS} value={kind} onchange={(v) => (kind = v)} />
     <Segmented label="Order" options={SORTS} value={sort} onchange={(v) => (sort = v)} />
   </div>
   {#if problem}

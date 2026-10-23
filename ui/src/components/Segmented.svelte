@@ -8,9 +8,11 @@
     onchange: (value: T) => void;
     /** A neutral filled state instead of the accent tint. */
     neutral?: boolean;
+    /** Wrap onto a second line instead of scrolling sideways. */
+    wrap?: boolean;
   }
 
-  let { options, value, label, onchange, neutral = false }: Props = $props();
+  let { options, value, label, onchange, neutral = false, wrap = false }: Props = $props();
 
   // Roving tabindex: one tab stop (the picked option); arrows move and pick.
   const current = $derived(Math.max(options.findIndex((o) => o.value === value), 0));
@@ -26,7 +28,7 @@
 </script>
 
 <!-- svelte-ignore a11y_interactive_supports_focus (the radios inside hold the tab stop) -->
-<div class="seg" class:neutral role="radiogroup" aria-label={label} bind:this={group} {onkeydown}>
+<div class="seg" class:neutral class:wrap role="radiogroup" aria-label={label} bind:this={group} {onkeydown}>
   {#each options as option, i (option.value)}
     <button
       role="radio"
@@ -55,6 +57,10 @@
     background: var(--surface);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
+  }
+  .seg.wrap {
+    flex-wrap: wrap;
+    overflow: visible;
   }
   button {
     height: 24px;
