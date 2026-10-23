@@ -75,7 +75,7 @@
   <div class="bar">
     <Select
       label="Moderator"
-      width="40%"
+      width="max(40%, 150px)"
       value={moderator}
       options={[{ value: '', label: 'Any mod' }, ...mods.map((m) => ({ value: m.login, label: m.name }))]}
       onchange={(v) => (moderator = v)}
