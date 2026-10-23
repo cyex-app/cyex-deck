@@ -122,6 +122,7 @@ impl Schema for Highlights {
         for b in self.built_ins_mut() {
             b.alert.sanitize();
         }
+        self.drop_theme_defaults();
         // V106-33 Q4 Your name and replies always go to the Mentions tab.
         self.me.alert.show = true;
         self.replies.alert.show = true;
@@ -202,6 +203,35 @@ impl Highlights {
         self.never.retain(|l| !l.is_empty());
         self.muted.retain(|l| !l.is_empty());
         before != count(self)
+    }
+
+    /// V107-H18 A built-in color is a pick or "default" (empty), which follows the theme.
+    /// A color equal to what a theme painted by default (an older version could save the
+    /// resolved one) counts as default, so changing the theme never leaves it behind.
+    fn drop_theme_defaults(&mut self) {
+        // [dark, light] of tokens.css: --accent-line, --green, --twitch, --cyan, --accent-hover.
+        const LINE: [&str; 3] = ["#145aff", "#046a82", "#14e6ff"];
+        const GREEN: [&str; 2] = ["#33d68f", "#0f8a55"];
+        const TWITCH: [&str; 2] = ["#a970ff", "#772ce8"];
+        const CYAN: [&str; 2] = ["#4fd6ff", "#0b6d8a"];
+        const HOVER: [&str; 2] = ["#2a6aff", "#10c9e6"];
+        let rows: [(&mut BuiltIn, &[&str]); 8] = [
+            (&mut self.me, &LINE),
+            (&mut self.replies, &LINE),
+            (&mut self.first_message, &GREEN),
+            (&mut self.redeemed, &TWITCH),
+            (&mut self.subs, &TWITCH),
+            (&mut self.announcements, &TWITCH),
+            (&mut self.watch_streaks, &CYAN),
+            (&mut self.own, &HOVER),
+        ];
+        for (b, defaults) in rows {
+            let c = &mut b.alert.color;
+            // Opaque only: a color with its own alpha was picked by hand.
+            if c.len() == 7 && defaults.contains(&c.as_str()) {
+                c.clear();
+            }
+        }
     }
 
     fn built_ins_mut(&mut self) -> [&mut BuiltIn; 8] {
@@ -324,6 +354,26 @@ mod tests {
         assert_eq!(h.never, ["nightbot", ""]);
         assert_eq!(h.similar.threshold, 50);
         assert_eq!(h.routes(), ["Pings", "spam"]);
+    }
+
+    #[test]
+    fn theme_default_colors_become_default_but_picks_stay() {
+        let mut h = Highlights::default();
+        h.first_message.alert.color = "#0F8A55".into(); // light green, old resolved default
+        h.me.alert.color = "#145aff".into();
+        h.watch_streaks.alert.color = "#4fd6ff".into();
+        h.subs.alert.color = "#ff00ff".into(); // a pick
+        h.own.alert.color = "#2a6aff80".into(); // has alpha: a pick
+        h.redeemed.alert.color = "#33d68f".into(); // green is not redeemed's default
+        h.sanitize();
+        assert_eq!(h.first_message.alert.color, "");
+        assert_eq!(h.me.alert.color, "");
+        assert_eq!(h.watch_streaks.alert.color, "");
+        assert_eq!(h.subs.alert.color, "#ff00ff");
+        assert_eq!(h.own.alert.color, "#2a6aff80");
+        assert_eq!(h.redeemed.alert.color, "#33d68f");
+        h.sanitize();
+        assert_eq!(h.subs.alert.color, "#ff00ff");
     }
 
     #[test]

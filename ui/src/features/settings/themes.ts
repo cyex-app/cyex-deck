@@ -77,16 +77,40 @@ export function choiceOf(a: Appearance, builtins: readonly CustomTheme[]): Theme
   return { kind: 'plain', base: a.theme };
 }
 
-/** The accent in use. */
-export function accentOf(a: Appearance, c: ThemeChoice): string {
+/** The brand accent on a light base (`cyex_core::color` paints it for `DEFAULT_ACCENT`). */
+export const LIGHT_DEFAULT_ACCENT = '#14e6ff';
+
+/** V107-H18 `#145aff` stored on a plain or custom theme means "the theme's default", so the
+ * field shows the base's own default and follows theme changes; any other hex is a pick. */
+function baseDefault(base: Theme): string {
+  return base === 'light' ? LIGHT_DEFAULT_ACCENT : DEFAULT_ACCENT;
+}
+
+/** The accent as stored, before the sentinel is resolved. */
+export function storedAccentOf(a: Appearance, c: ThemeChoice): string {
   if (c.kind === 'custom') return c.theme.accent;
   if (c.kind === 'builtin') return a.accents[c.theme.id] ?? c.theme.accent;
   return a.accent;
 }
 
+/** The accent in use. */
+export function accentOf(a: Appearance, c: ThemeChoice): string {
+  const stored = storedAccentOf(a, c);
+  if (c.kind === 'builtin' || stored.toLowerCase() !== DEFAULT_ACCENT) return stored;
+  return defaultAccentOf(c);
+}
+
 /** The accent "Default" goes back to. */
 export function defaultAccentOf(c: ThemeChoice): string {
-  return c.kind === 'builtin' ? c.theme.accent : DEFAULT_ACCENT;
+  if (c.kind === 'builtin') return c.theme.accent;
+  return baseDefault(c.kind === 'custom' ? c.theme.base : c.base);
+}
+
+/** What to store for a picked accent (`null` = Default): the theme's default is kept as the
+ * sentinel, never as a resolved hex. Built-ins use `null` (their `accents` entry is removed). */
+export function accentToStore(c: ThemeChoice, picked: string | null): string | null {
+  if (picked === null || picked.toLowerCase() === defaultAccentOf(c)) return c.kind === 'builtin' ? null : DEFAULT_ACCENT;
+  return picked;
 }
 
 /** V106 a-2 "My theme", then "My theme 2", 3 … : the first name not taken. */
@@ -100,7 +124,7 @@ export function freeThemeName(themes: readonly CustomTheme[]): string {
 
 /** V106-03 "New": a copy of what shows now (Rust gives it an id and switches to it). */
 export function newThemeFrom(a: Appearance, c: ThemeChoice): CustomTheme {
-  const accent = accentOf(a, c);
+  const accent = storedAccentOf(a, c);
   const name = freeThemeName(a.themes);
   if (c.kind === 'plain') {
     return { id: '', name, base: c.base, colors: {}, accent, wallpaper: blankWallpaper() };

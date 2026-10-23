@@ -82,4 +82,21 @@
     background: var(--surface-hover);
     color: var(--text);
   }
+  /* V107-H18 The pale wash vanishes on light: a grey track, a solid raised pick with a ring (3:1). */
+  :global(:root[data-theme='light']) .seg {
+    background: var(--neutral-chip);
+  }
+  :global(:root[data-theme='light']) button.on {
+    background: var(--elevated);
+    box-shadow:
+      0 0 0 1px var(--accent-text),
+      0 1px 2px var(--shadow);
+    color: var(--accent-text);
+  }
+  :global(:root[data-theme='light']) .neutral button.on {
+    box-shadow:
+      0 0 0 1px var(--muted),
+      0 1px 2px var(--shadow);
+    color: var(--text);
+  }
 </style>

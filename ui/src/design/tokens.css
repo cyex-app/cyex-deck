@@ -152,8 +152,8 @@
   --accent-hover: #10c9e6;
   --accent-ink: #00232b;
   --accent-text: #046a82;
-  --accent-dim: rgba(4, 106, 130, 0.08);
-  --accent-wash: rgba(4, 106, 130, 0.16);
+  --accent-dim: rgba(4, 106, 130, 0.14);
+  --accent-wash: rgba(4, 106, 130, 0.24);
   --accent-border: rgba(4, 106, 130, 0.4);
   --accent-line: #046a82;
 }

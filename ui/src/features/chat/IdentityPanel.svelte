@@ -147,16 +147,13 @@
     <section>
       <h3 class="label">Badge</h3>
       {#if me.channelId}
-        {#if me.global.available.length}
-          <p class="sub">Everywhere</p>
-          {@render picks(false, me.global.selected, me.global.available)}
-        {/if}
         <!-- V107-H11a Always there with a GQL sign-in, as on twitch.tv; the grid lists every
-             badge you can wear here, the global ones too. -->
+             badge you can wear here, the global ones too. V107-H17b Above the global list: the
+             popover opens upward, so the grid grows up and nothing below it moves. -->
         <div class="own">
           <span>
             Custom badge for this channel
-            <small>A different badge, only in {login}’s chat.</small>
+            <small>A different badge, only in <b title={login}>{login}</b>’s chat.</small>
           </span>
           <Toggle checked={own} label="Custom badge for {login}" disabled={busy} onchange={switchOwn} />
         </div>
@@ -166,6 +163,10 @@
           {:else}
             <p class="note">No badges to wear here.</p>
           {/if}
+        {/if}
+        {#if me.global.available.length}
+          <p class="sub">Everywhere</p>
+          {@render picks(false, me.global.selected, me.global.available)}
         {/if}
       {:else}
         <p class="note">Picking a badge needs a GQL sign-in.</p>
@@ -225,7 +226,7 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
-    width: 300px;
+    width: 340px;
     max-width: 100%;
     padding: 8px;
     overflow-y: auto;
@@ -275,9 +276,27 @@
     gap: 2px;
     font-size: 0.85rem;
   }
+  .own span {
+    min-width: 0;
+  }
   .own small {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
     color: var(--muted);
     font-size: 0.8rem;
+  }
+  /* A very long channel name is cut, not wrapped. */
+  .own small b {
+    display: inline-block;
+    max-width: 16ch;
+    overflow: hidden;
+    font-weight: 400;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
   }
   .badges {
     display: flex;

@@ -30,7 +30,7 @@
   function open(e: MouseEvent) {
     const items: MenuEntry[] = accounts.list.map((a) => ({
       label: a.displayName,
-      icon: 'user',
+      avatar: a.avatar ?? '',
       checked: a.userId === tile.account,
       run: () => set(a.userId),
     }));

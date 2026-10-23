@@ -5,6 +5,7 @@ import type { Appearance } from '../../ipc/bindings/Appearance';
 import type { CustomTheme } from '../../ipc/bindings/CustomTheme';
 import {
   accentOf,
+  accentToStore,
   adjustedNote,
   appliedHex,
   choiceOf,
@@ -71,8 +72,31 @@ test('accent in use and the one Default returns to', () => {
   assert.equal(accentOf(app(), { kind: 'custom', theme: neon }), '#00ff00');
   assert.equal(accentOf(app({ accent: '#abcdef' }), { kind: 'plain', base: 'dark' }), '#abcdef');
   assert.equal(defaultAccentOf(b), '#d4679f');
-  assert.equal(defaultAccentOf({ kind: 'custom', theme: neon }), '#145aff');
-  assert.equal(defaultAccentOf({ kind: 'plain', base: 'light' }), '#145aff');
+  assert.equal(defaultAccentOf({ kind: 'custom', theme: neon }), '#14e6ff');
+  assert.equal(defaultAccentOf({ kind: 'plain', base: 'dark' }), '#145aff');
+});
+
+test('default accent follows the theme, a picked one stays (V107-H18)', () => {
+  const dark = { kind: 'plain', base: 'dark' } as const;
+  const light = { kind: 'plain', base: 'light' } as const;
+  assert.equal(accentOf(app(), dark), '#145aff');
+  assert.equal(accentOf(app({ theme: 'light' }), light), '#14e6ff');
+  assert.equal(defaultAccentOf(light), '#14e6ff');
+  // a picked accent is the same in both
+  assert.equal(accentOf(app({ accent: '#abcdef' }), light), '#abcdef');
+  assert.equal(accentOf(app({ accent: '#abcdef' }), dark), '#abcdef');
+  // old rows: stored #145AFF counts as default; built-in themes keep their own
+  assert.equal(accentOf(app({ accent: '#145AFF' }), light), '#14e6ff');
+  assert.equal(accentOf(app({ themeId: 'dusk' }), { kind: 'builtin', theme: dusk }), '#d4679f');
+  // storing: the theme default is the sentinel, not a resolved hex
+  assert.equal(accentToStore(light, '#14e6ff'), '#145aff');
+  assert.equal(accentToStore(light, null), '#145aff');
+  assert.equal(accentToStore(dark, '#145aff'), '#145aff');
+  assert.equal(accentToStore(dark, '#14E6FF'), '#14E6FF');
+  assert.equal(accentToStore({ kind: 'builtin', theme: dusk }, '#d4679f'), null);
+  assert.equal(accentToStore({ kind: 'builtin', theme: dusk }, '#111111'), '#111111');
+  // a new theme copies the stored value, so the sentinel survives
+  assert.equal(newThemeFrom(app({ theme: 'light' }), light).accent, '#145aff');
 });
 
 test('a new theme copies what shows now', () => {

@@ -20,7 +20,7 @@
   import { errorText } from '../../../lib/errors';
   import ThemeEditor from '../ThemeEditor.svelte';
   import ThemePicker from '../ThemePicker.svelte';
-  import { accentOf, choiceOf, DEFAULT_ACCENT, defaultAccentOf } from '../themes';
+  import { accentOf, accentToStore, choiceOf, DEFAULT_ACCENT, defaultAccentOf } from '../themes';
 
   const a = $derived(settings.v.appearance);
   /** V106-02 The built-in themes, for the accent row (shared with ThemePicker). */
@@ -100,14 +100,16 @@
 
   // 3.3: tell the user when their color was nudged to stay visible.
   // V107-H13a The default accent on plain Dark and Light is the brand set (cyan in light), not a nudge.
-  const brand = $derived(choice.kind === 'plain' && accent.toLowerCase() === DEFAULT_ACCENT);
+  const brand = $derived(choice.kind !== 'builtin' && accent === defaultAccent);
   const adjusted = $derived(!!look && !brand && look.accent.accent !== accent);
 
-  /** Sets the accent of the theme in use. Default (`null`) gives a built-in its own back. */
+  /** Sets the accent of the theme in use. Default (`null`) gives a built-in its own back;
+   * the theme's own default is stored as a sentinel so it follows theme changes (V107-H18). */
   function writeAccent(v: string | null) {
-    if (choice.kind === 'custom') saveTheme({ ...choice.theme, accent: v ?? defaultAccent });
-    else if (choice.kind === 'builtin') void settings.patch('appearance', { accents: { [choice.theme.id]: v === defaultAccent ? null : v } });
-    else void settings.patch('appearance', { accent: v ?? defaultAccent });
+    const s = accentToStore(choice, v);
+    if (choice.kind === 'custom') saveTheme({ ...choice.theme, accent: s ?? defaultAccent });
+    else if (choice.kind === 'builtin') void settings.patch('appearance', { accents: { [choice.theme.id]: s } });
+    else void settings.patch('appearance', { accent: s ?? DEFAULT_ACCENT });
   }
 </script>
 
@@ -122,7 +124,7 @@
   <ThemeEditor theme={active} {look} onchange={saveTheme} ondelete={() => deleteTheme(active.id)} />
 {/if}
 
-<Row setting="appearance.accent" label="Accent color" hint={adjusted ? 'Shown a bit lighter or darker here so it stays visible.' : brand && choice.kind === 'plain' && choice.base === 'light' ? 'Light mode uses the cyan version.' : undefined}>
+<Row setting="appearance.accent" label="Accent color" hint={adjusted ? 'Shown a bit lighter or darker here so it stays visible.' : undefined}>
   <ColorField
     value={accent}
     label="Accent color"
