@@ -192,7 +192,7 @@
   }
   .chip {
     min-width: 44px;
-    height: 26px;
+    height: 32px;
     padding: 0 8px;
     background: var(--surface);
     border: 1px solid var(--border);
@@ -214,6 +214,7 @@
     align-items: center;
     gap: 8px;
     margin-bottom: 8px;
+    flex-wrap: wrap;
     font-size: 0.78rem;
   }
   .min {
@@ -243,7 +244,11 @@
     width: 28px;
     height: 28px;
   }
-  button:disabled {
+  /* Dim with colour, not opacity: the text stays readable. */
+  .chip:disabled {
+    color: var(--dim);
+  }
+  .style:disabled img {
     opacity: 0.4;
   }
 </style>
