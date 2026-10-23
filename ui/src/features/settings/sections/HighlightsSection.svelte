@@ -23,6 +23,7 @@
   import { settings } from '../../../lib/settings.svelte';
   import { mentionsTab } from '../../chat/mentionsTab.svelte';
   import HighlightImport from '../chatterino/HighlightImport.svelte';
+  import { loginProblem } from '../mentions/login';
   import { goesNowhere, statusText } from '../mentions/status';
   import type { Field } from '../rules/fields';
   import { OPT } from '../rules/options';
@@ -277,6 +278,7 @@
   fields={neverFields}
   layout="split"
   make={() => ({ login: '' })}
+  problem={(r) => loginProblem(r.login)}
   deleted="Name removed."
   onchange={(r) => save({ never: logins(r) })}
   empty="No names yet."
@@ -288,6 +290,7 @@
   fields={mutedFields}
   layout="split"
   make={() => ({ login: '' })}
+  problem={(r) => loginProblem(r.login)}
   deleted="Chat removed."
   onchange={(r) => save({ muted: logins(r) })}
   empty="No chats yet."
