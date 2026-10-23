@@ -19,6 +19,7 @@
   import { errorText } from '../../lib/errors';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
+  import { DEFAULT_ACCENT } from '../settings/themes';
   import { hexColor, NAMED, namedColor, STYLE_NAME } from './identity';
   import { emoteImg } from './urls';
 
@@ -204,7 +205,7 @@
       </div>
       {#if me.anyColor}
         <div class="custom">
-          <input type="color" value={typed ?? me.color ?? '#145AFF'} oninput={(e) => (custom = e.currentTarget.value)} aria-label="Pick a color" disabled={busy} />
+          <input type="color" value={typed ?? me.color ?? DEFAULT_ACCENT} oninput={(e) => (custom = e.currentTarget.value)} aria-label="Pick a color" disabled={busy} />
           <input class="field" bind:value={custom} maxlength="7" spellcheck="false" placeholder="#RRGGBB" aria-label="Any color" disabled={busy} />
           <Button small disabled={busy || !typed || typed === me.color?.toUpperCase()} onclick={() => typed && color(typed)}>Use</Button>
         </div>
