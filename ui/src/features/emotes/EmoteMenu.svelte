@@ -113,6 +113,17 @@
   /** Down from the search box into the cells; arrows between them; up from the top row
    * back to the search box. Cells come from the one section and its neighbours. */
   function onkeydown(e: KeyboardEvent) {
+    if ((e.key === 'Home' || e.key === 'End') && !e.altKey && !e.metaKey && !e.shiftKey) {
+      const target = e.target as HTMLElement;
+      if (target.matches('.cell, .gif') && target.closest('.grid')) {
+        e.preventDefault();
+        // U4-6 Home/End: the row's first/last cell; with Ctrl, the list's.
+        const all = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('.body .cell, .body .gif')];
+        const row = e.ctrlKey ? all : all.filter((c) => c.offsetTop === target.offsetTop && c.offsetParent === target.offsetParent);
+        (e.key === 'Home' ? row[0] : row[row.length - 1])?.focus();
+      }
+      return;
+    }
     const dir = ARROWS[e.key];
     if (!dir || e.altKey || e.ctrlKey || e.metaKey) return;
     const t = e.target as HTMLElement;
