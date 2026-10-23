@@ -107,8 +107,9 @@
   const bitsHold = $derived(room.account === null && btnMemo(room.login).bits === true);
   $effect(() => {
     if (!(room.view && canChat && canCheer)) return;
-    void cheers.load().then(() => {
-      if (cheers.info) remember(room.login, { bits: cheers.info.enabled });
+    const login = room.login;
+    void cheers.load().then((fresh) => {
+      if (fresh && cheers.info) remember(login, { bits: cheers.info.enabled });
     });
   });
   /** A cheer waiting for "Spend N Bits?". `again`: the same one just went out. */
@@ -377,7 +378,10 @@
       }
       asText = r.kind === 'text';
       // V107-H1c Bits went off here: the gem goes too.
-      if (asText) void cheers.load().then(() => cheers.info && remember(room.login, { bits: cheers.info.enabled }));
+      if (asText) {
+        const login = room.login;
+        void cheers.load().then((fresh) => fresh && cheers.info && remember(login, { bits: cheers.info.enabled }));
+      }
       if (r.kind === 'done') {
         cheers.setBalance(r.balance);
         error = '';

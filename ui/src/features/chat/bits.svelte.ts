@@ -14,13 +14,19 @@ export class CheerBox {
     this.view = view;
   }
 
-  async load(): Promise<void> {
+  /** False when the room changed while the reply was in flight (it is dropped). */
+  async load(): Promise<boolean> {
+    const view = this.view();
     try {
-      this.info = await chatxIpc.cheerInfo(this.view());
+      const info = await chatxIpc.cheerInfo(view);
+      if (view !== this.view()) return false;
+      this.info = info;
       this.error = '';
     } catch (e) {
+      if (view !== this.view()) return false;
       this.error = errorText(e);
     }
+    return true;
   }
 
   /** After a send: what Twitch said is left. */
