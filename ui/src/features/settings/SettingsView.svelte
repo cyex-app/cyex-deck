@@ -144,17 +144,52 @@
     pickRecent = -1;
   }
 
-  /** Arrows, Enter and Escape for the recent list, before the box sees them. */
+  /** The box in a `.box`, back in focus (Clear or Escape from the list's own button). */
+  const boxInput = (el: Element | null) => el?.closest('.box')?.querySelector<HTMLInputElement>('input');
+
+  function removeFromRecent(q: string) {
+    const left = removeRecent(recent, q);
+    pickRecent = Math.min(pickRecent, left.length - 1);
+    remember(left);
+  }
+
+  /** The box as a combobox over the recent list: screen readers hear the arrow pick. */
+  function combo(box: HTMLElement, p: { id: string; open: boolean; active: number }) {
+    const input = box.querySelector('input');
+    const apply = (c: typeof p) => {
+      if (!input) return;
+      input.setAttribute('role', 'combobox');
+      input.setAttribute('aria-autocomplete', 'list');
+      input.setAttribute('aria-expanded', String(c.open));
+      if (c.open) {
+        input.setAttribute('aria-controls', c.id);
+        if (c.active >= 0) input.setAttribute('aria-activedescendant', `${c.id}-${c.active}`);
+        else input.removeAttribute('aria-activedescendant');
+      } else {
+        input.removeAttribute('aria-controls');
+        input.removeAttribute('aria-activedescendant');
+      }
+    };
+    apply(p);
+    return { update: apply };
+  }
+
+  /** Arrows, Enter, Delete and Escape for the recent list, before the box sees them. */
   function onrecentkey(e: KeyboardEvent, where: string) {
     if (!recentShown(where) || e.isComposing) return;
     const n = recent.length;
+    const inBox = e.target instanceof HTMLInputElement;
+    if (!inBox && e.key !== 'Escape') return;
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       pickRecent = e.key === 'ArrowDown' ? Math.min(n - 1, pickRecent + 1) : Math.max(-1, pickRecent - 1);
     } else if (e.key === 'Enter' && pickRecent >= 0) {
       pickFromRecent(recent[pickRecent]);
+    } else if (e.key === 'Delete' && pickRecent >= 0) {
+      removeFromRecent(recent[pickRecent]);
     } else if (e.key === 'Escape') {
       recentAway = true;
       pickRecent = -1;
+      if (!inBox) boxInput(e.target as Element)?.focus();
     } else return;
     e.preventDefault();
     e.stopPropagation();
@@ -220,7 +255,12 @@
     class="box {where}"
     role="presentation"
     onfocusin={() => ((focused = where), (recentAway = false))}
-    onfocusout={() => focused === where && ((focused = ''), (pickRecent = -1))}
+    onfocusout={(e) => {
+      // Tab from the box into the list (Clear) stays inside.
+      if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return;
+      if (focused === where) (focused = ''), (pickRecent = -1);
+    }}
+    use:combo={{ id: `recent-${where}`, open: recentShown(where), active: pickRecent }}
     onkeydowncapture={(e) => onrecentkey(e, where)}
   >
     <SearchField
@@ -231,11 +271,12 @@
     />
     {#if recentShown(where)}
       <RecentSearches
+        id="recent-{where}"
         items={recent}
         active={pickRecent}
         onpick={pickFromRecent}
         onremove={(q) => ((pickRecent = -1), remember(removeRecent(recent, q)))}
-        onclear={() => remember([])}
+        onclear={() => (remember([]), boxInput(document.activeElement)?.focus())}
       />
     {/if}
   </div>
