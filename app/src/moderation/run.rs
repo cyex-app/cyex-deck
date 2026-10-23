@@ -225,6 +225,8 @@ async fn pin_send(app: &AppHandle, actor: &Actor, text: &str, secs: u32) -> Resu
     if text.chars().count() > cyex_chat::irc::write::MAX_MESSAGE_CHARS {
         return Err("That’s over 500 characters.".into());
     }
+    // V107-H1a A pinned line is plain text too: no cheer word where Bits are on.
+    crate::chat::cheer::plain_ok(app, &actor.channel, text)?;
     // F20 Helix cuts an unknown command word off and sends the rest.
     let text = &crate::chat::typed::escape(text.to_owned());
     let http = http(app);

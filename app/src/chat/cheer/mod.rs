@@ -90,16 +90,8 @@ fn target(app: &AppHandle, c: &Ctx) -> Result<Target, String> {
 
 #[cfg(feature = "mocks")]
 fn mock_base(app: &AppHandle) -> Result<Option<String>, String> {
-    let Some(raw) = std::env::var(MOCK_VAR).ok().filter(|r| !r.trim().is_empty()) else {
-        return Ok(None);
-    };
     // Set but unusable: nothing is sent at all, never Twitch instead.
-    if crate::paths::webview(app).is_none() {
-        return Err("The cheer mock runs only on a test data folder.".into());
-    }
-    crate::mock_url::loopback_base(&raw)
-        .map(Some)
-        .ok_or_else(|| "The cheer mock must be http://127.0.0.1:<port>.".into())
+    crate::mock_url::gated(app, &[MOCK_VAR], "cheer")
 }
 
 #[cfg(not(feature = "mocks"))]
@@ -116,7 +108,7 @@ async fn rules(app: &AppHandle, login: &str, auth: Auth<'_>, base: Option<&str>)
         Err(_) => b.failed(login),
     }
     drop(b);
-    read.map_err(|e| e.to_string())
+    read.map_err(|e| crate::streammanager::words::gql(&e))
 }
 
 /// Reads whether `login` takes cheers, signed out (or from the mock).

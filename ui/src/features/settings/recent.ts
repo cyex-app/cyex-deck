@@ -6,7 +6,8 @@ export const MAX_RECENT = 5;
 export const PAUSE_MS = 1000;
 const MAX_CHARS = 80;
 
-const clean = (q: string) => q.split(/\s+/).filter(Boolean).join(' ').slice(0, MAX_CHARS);
+// By code point: cutting an emoji in half would leave a lone surrogate the settings file refuses.
+const clean = (q: string) => Array.from(q.split(/\s+/).filter(Boolean).join(' ')).slice(0, MAX_CHARS).join('');
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 /** `list` with `query` in front: trimmed, no repeat in any case, at most 5. Empty adds nothing. */

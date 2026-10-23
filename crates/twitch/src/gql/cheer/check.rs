@@ -189,6 +189,16 @@ mod tests {
     }
 
     #[test]
+    fn v107_h1_cheer_lookalikes_are_not_cheers() {
+        let known = |p: &str| p == "cheer";
+        for t in ["cheers100", "Cheer100Kappa", "Cheer１００", "Chéer100", "Cheer100!", "Cheer\u{200b}100", "xCheer100"] {
+            assert!(words(t, known).is_empty(), "{t}");
+        }
+        assert_eq!(words("gg\u{a0}Cheer5", known).len(), 1, "a no-break space splits like the box");
+        assert_eq!(check("Cheer0100", &rules(500)).unwrap().bits, 100);
+    }
+
+    #[test]
     fn v107_bn_commands_are_never_cheers() {
         assert!(is_command("/ban x Cheer100"));
         assert!(is_command(".color red"));

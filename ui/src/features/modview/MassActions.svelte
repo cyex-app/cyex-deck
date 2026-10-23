@@ -15,7 +15,7 @@
   import Select from '../../components/Select.svelte';
   import { formatNumber } from '../../lib/format.ts';
   import { DURATION_UNITS, type DurationUnit, durationError, timeoutSecs } from './massDuration.ts';
-  import { tallyDetail, tallyParts } from './massTally.ts';
+  import { massEnd, tallyDetail, tallyParts } from './massTally.ts';
 
   let { account, login, channelId }: { account: string; login: string; channelId: string | null } = $props();
 
@@ -82,9 +82,10 @@
     modIpc
       .massban(account, login, logins, secs, unban ? '' : reason, unban)
       .then((n) => {
-        const of = `${formatNumber(n)} of ${formatNumber(total)}`;
-        if (stopping) toast.info(`Stopped. ${of} done.`);
-        else toast.success(`Done: ${of}.`);
+        // The last progress has how many were tried (`n` is how many went through).
+        const end = massEnd(n, progress?.job === job ? progress.done : n, total, stopping);
+        if (end.stopped) toast.info(end.line);
+        else toast.success(end.line);
       })
       .catch((e) => toast.error(errorText(e)))
       .finally(() => (running = false));

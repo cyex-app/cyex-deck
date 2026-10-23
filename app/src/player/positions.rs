@@ -51,6 +51,13 @@ pub struct VodProgress {
     pub watched: bool,
 }
 
+/// Written beside, then moved over: a crash mid-write can't cut the file short and lose all 500.
+fn write_whole(file: &std::path::Path, json: &str) -> std::io::Result<()> {
+    let tmp = file.with_extension("json.tmp");
+    fs::write(&tmp, json)?;
+    fs::rename(&tmp, file)
+}
+
 impl Positions {
     pub fn load(file: Option<PathBuf>) -> Self {
         let map = file
@@ -108,7 +115,7 @@ impl Positions {
         }
         if let Some(f) = &self.file
             && let Ok(json) = serde_json::to_string(&*map)
-            && let Err(e) = fs::write(f, json)
+            && let Err(e) = write_whole(f, &json)
         {
             eprintln!("player: couldn't save VOD positions: {e}");
         }
@@ -206,9 +213,30 @@ mod tests {
         let p = Positions::load(Some(file.clone()));
         assert_eq!(p.get("old"), Some(120.0), "pre-v1.07 entry");
         p.save("1", 3300.0, 3600.0, 2);
+        assert!(!file.with_extension("json.tmp").exists(), "no temp file left");
         let again = Positions::load(Some(file));
         assert!(one(&again, "1").unwrap().watched);
         assert_eq!(again.get("1"), Some(3300.0));
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn a_file_over_the_cap_trims_on_the_next_save() {
+        let dir = std::env::temp_dir().join(format!("cyex-positions-cap-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("vod-positions.json");
+        let many: HashMap<String, Saved> = (0..650)
+            .map(|i| (i.to_string(), Saved { at: 100.0, length: 3600.0, watched: false, when: i }))
+            .collect();
+        fs::write(&file, serde_json::to_string(&many).unwrap()).unwrap();
+        let p = Positions::load(Some(file.clone()));
+        assert_eq!(p.progress(&["0".into(), "649".into()]).len(), 2, "all read at load");
+        p.save("new", 100.0, 3600.0, 1000);
+        let again = Positions::load(Some(file));
+        assert_eq!(again.lock().len(), KEEP);
+        assert_eq!(again.get("new"), Some(100.0));
+        assert_eq!(again.get("0"), None, "the oldest went");
+        assert_eq!(again.get("649"), Some(100.0));
         fs::remove_dir_all(dir).ok();
     }
 

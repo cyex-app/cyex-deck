@@ -169,10 +169,15 @@ pub fn banner_shown(hero: Option<&str>) -> bool {
 }
 
 impl Images {
+    /// The channel page shows the accent colour instead of the banner image.
+    pub fn banner_is_accent(&self) -> bool {
+        !banner_shown(self.hero.as_deref())
+    }
+
     /// What the channel page shows now: like `get`, but no banner while the page uses the
     /// accent colour. `get` stays the raw address, which upload checks compare.
     pub fn shown(&self, kind: ImageKind) -> &str {
-        if kind == ImageKind::Banner && !banner_shown(self.hero.as_deref()) {
+        if kind == ImageKind::Banner && self.banner_is_accent() {
             return "";
         }
         self.get(kind)
@@ -377,6 +382,10 @@ mod tests {
     fn banner_shows_unless_the_page_uses_the_accent_colour() {
         assert!(banner_shown(Some("PRESET_2")) && banner_shown(None));
         assert!(!banner_shown(Some("PRESET_1")));
+        let mut a = Images { banner: "b".into(), ..Images::default() };
+        assert!(!a.banner_is_accent());
+        a.hero = Some("PRESET_1".into());
+        assert!(a.banner_is_accent());
         let mut i = Images { banner: "https://x/b.png".into(), ..Images::default() };
         assert_eq!(i.shown(ImageKind::Banner), "https://x/b.png");
         i.hero = Some("PRESET_1".into());

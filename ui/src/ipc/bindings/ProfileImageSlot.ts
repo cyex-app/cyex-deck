@@ -18,4 +18,8 @@ history: Array<ProfileImageSaved>,
 /**
  * V107-Mh Twitch has a way to remove it and there's one to remove.
  */
-removable: boolean, };
+removable: boolean, 
+/**
+ * V107-Mz The channel page shows the accent colour, so "Default", not "None".
+ */
+accent: boolean, };

@@ -626,6 +626,20 @@ pub fn notice_line(app: &AppHandle, login: &str, kind: NoticeKind, text: &str) {
     }
 }
 
+/// V107-H3g [`notice_line`] in `account`'s own rooms, `others` in the other accounts' rooms
+/// of that channel ("You …" read as theirs there).
+pub fn notice_line_by(app: &AppHandle, account: &str, login: &str, kind: NoticeKind, text: &str, others: &str) {
+    let Some(chat) = app.try_state::<Chat>() else { return };
+    let mut inner = chat.lock();
+    let now = now_ms();
+    for ((id, l), entry) in inner.rooms.iter_mut() {
+        if l == login {
+            let ev = entry.room.system(kind, if account_of(id) == Some(account) { text } else { others }, now);
+            queue(entry, [ev], &chat.wake);
+        }
+    }
+}
+
 /// V107-M7 A mod-action timeout line, stacked with that user's timeouts just before it.
 /// V107-N2g `user_id`'s timeout was lifted in `login`: their next one starts a new line.
 pub fn lifted(app: &AppHandle, login: &str, user_id: &str) {

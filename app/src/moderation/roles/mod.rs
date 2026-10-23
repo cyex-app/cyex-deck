@@ -8,6 +8,8 @@ mod adapter;
 mod mine;
 pub mod manager;
 
+pub use mine::Leaving;
+
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -101,15 +103,37 @@ pub async fn apply(app: &AppHandle, actor: &Actor, who: &str, holds: Option<Vec<
         None => VipSlots::unknown(),
     };
     let out = roles::change(&Echoed { twitch: &a, chat: &a }, who, &holds, slots, wanted).await;
-    let vip_moved = out.done.iter().any(|c| c.role == Role::Vip) || wanted.give.contains(&Role::Vip);
-    if own(actor) && vip_moved {
-        if read { learned(app, &actor.account, &out.slots) } else { forget(app, &actor.account) }
+    if own(actor) {
+        match keep(&out, read, wanted.give.contains(&Role::Vip)) {
+            Keep::Rows => {}
+            Keep::Slots => learned(app, &actor.account, &out.slots),
+            Keep::Nothing => forget(app, &actor.account),
+        }
     }
     let chat_role = out.done.iter().any(|c| matches!(c.role, Role::Mod | Role::Vip | Role::LeadMod));
     if out.ok() && chat_role {
         crate::chat::notice_line(app, &actor.channel, NoticeKind::Moderation, &out.line);
     }
     out
+}
+
+/// What of the cached read survives a change.
+#[derive(Debug, PartialEq, Eq)]
+enum Keep {
+    Rows,
+    /// Nothing moved, but a VIP grant taught the slots (read before it).
+    Slots,
+    Nothing,
+}
+
+/// V107-H3a Any role that moved makes the rows stale: a later unmod read "not a lead mod"
+/// from them and left the lead mod role (`lead_mod`).
+fn keep(out: &Outcome, slots_read: bool, gave_vip: bool) -> Keep {
+    match (out.done.is_empty(), gave_vip, slots_read) {
+        (false, ..) | (true, true, false) => Keep::Nothing,
+        (true, true, true) => Keep::Slots,
+        (true, false, _) => Keep::Rows,
+    }
 }
 
 /// V107-Ma Whether `who` is a lead mod when their badges don't say (a lead mod may wear the
@@ -181,5 +205,17 @@ mod tests {
         assert_eq!(broadcaster_line("cyexbot", "CyexBot", ModRole::Broadcaster), Some("That’s you."));
         assert_eq!(broadcaster_line("#cyexbot", "@cyexbot", ModRole::LeadModerator), Some("That’s the broadcaster."));
         assert_eq!(broadcaster_line("cyexbot", "caressz", ModRole::Broadcaster), None);
+    }
+
+    #[test]
+    fn v107_h3a_a_moved_role_drops_the_cached_rows() {
+        use cyex_moderation::roles::Change;
+        let out = |done: Vec<Change>| Outcome { done, line: String::new(), slots: VipSlots::unknown(), failed: Vec::new() };
+        let lead = out(vec![Change::new(Role::LeadMod, true)]);
+        assert_eq!(keep(&lead, false, false), Keep::Nothing, "a /leadmod from chat");
+        assert_eq!(keep(&out(vec![Change::new(Role::Vip, true)]), true, true), Keep::Nothing);
+        assert_eq!(keep(&out(vec![]), true, true), Keep::Slots, "a refused VIP grant taught the slots");
+        assert_eq!(keep(&out(vec![]), false, true), Keep::Nothing);
+        assert_eq!(keep(&out(vec![]), false, false), Keep::Rows);
     }
 }

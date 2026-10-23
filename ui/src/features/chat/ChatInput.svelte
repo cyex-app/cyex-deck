@@ -329,9 +329,23 @@
     if (bits > 0) {
       // A held Enter never cheers twice.
       if (repeat || askCheer) return;
-      return cheer({ raw, value, bits, keep, again: false }, false, pastedCheer || recall >= 0);
+      // V107-H1c Recalled means the Up line as it was, not a box that once held one.
+      const recalled = recall >= 0 && sent[recall]?.trim() === value;
+      return cheer({ raw, value, bits, keep, again: false }, false, pastedCheer || recalled);
     }
     return plain(raw, value, keep);
+  }
+
+  /** A line (or cheer) went out: into the Up history; unless `keep`, the part that was sent
+   *  leaves the box and text typed while it was sending stays. The reply is done either way
+   *  (V107-H1e: a cheer kept it, so the next line went out as a reply). */
+  function wentOut(raw: string, value: string, keep: boolean) {
+    sent = [value, ...sent.filter((s) => s !== value)].slice(0, HISTORY);
+    recall = -1;
+    replyTo = null;
+    if (keep) return;
+    if (text.trim() === value) text = '';
+    else if (text.startsWith(raw)) text = text.slice(raw.length).trimStart();
   }
 
   async function plain(raw: string, value: string, keep: boolean) {
@@ -340,14 +354,7 @@
       const action = await chatIpc.send(room.view, value, replyTo?.id);
       error = '';
       if (action) onaction?.(action);
-      sent = [value, ...sent.filter((s) => s !== value)].slice(0, HISTORY);
-      recall = -1;
-      // Text typed while it was sending stays; the part that was sent goes.
-      if (!keep) {
-        if (text.trim() === value) text = '';
-        else if (text.startsWith(raw)) text = text.slice(raw.length).trimStart();
-      }
-      replyTo = null;
+      wentOut(raw, value, keep);
     } catch (e) {
       flash(errorText(e));
     } finally {
@@ -363,17 +370,17 @@
     let asText = false;
     try {
       const r = await chatxIpc.cheer(room.view, value, a.bits, confirmed, careful);
-      if (r.kind === 'ask') return void (askCheer = { ...a, again: r.again });
+      if (r.kind === 'ask') {
+        error = '';
+        return void (askCheer = { ...a, again: r.again });
+      }
       asText = r.kind === 'text';
+      // V107-H1c Bits went off here: the gem goes too.
+      if (asText) void cheers.load().then(() => cheers.info && remember(room.login, { bits: cheers.info.enabled }));
       if (r.kind === 'done') {
         cheers.setBalance(r.balance);
         error = '';
-        sent = [value, ...sent.filter((s) => s !== value)].slice(0, HISTORY);
-        recall = -1;
-        if (!keep) {
-          if (text.trim() === value) text = '';
-          else if (text.startsWith(raw)) text = text.slice(raw.length).trimStart();
-        }
+        wentOut(raw, value, keep);
       }
     } catch (e) {
       flash(errorText(e));

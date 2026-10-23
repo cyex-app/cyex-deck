@@ -373,6 +373,23 @@ fn recent_searches_stay_on_this_pc() {
     assert_eq!(store.get(Partition::General)["recentSearches"], json!(["font"]));
 }
 
+/// V107-H4b Restoring a backup (before the searches existed, or older) keeps this PC's recent searches.
+#[test]
+fn restore_keeps_recent_searches() {
+    let tmp = TempDir::new("store-restore-recent");
+    let clock = Arc::new(FakeClock::at(day(4)));
+    let (mut store, _) = open(tmp.path(), &clock);
+    store.patch(Partition::General, &json!({"chatFontSize": 12})).unwrap();
+    store.flush().unwrap();
+    clock.advance_days(1);
+    drop(open(tmp.path(), &clock)); // day 5's backup: font size 12, no searches
+    let (mut store, _) = open(tmp.path(), &clock);
+    store.patch(Partition::General, &json!({"chatFontSize": 20, "recentSearches": ["font"]})).unwrap();
+    store.restore_backup(day(5)).unwrap();
+    assert_eq!(store.read::<General>(Partition::General).chat_font_size, 12);
+    assert_eq!(store.get(Partition::General)["recentSearches"], json!(["font"]));
+}
+
 #[test]
 fn backup_rotation_across_days_and_restore() {
     let tmp = TempDir::new("store-rotation");

@@ -76,6 +76,13 @@ export function searchGroups(
   limit = 200,
   used?: Map<string, number>,
 ): { tab: ProviderTab; emotes: MenuEmote[] }[] {
-  const found = search(menu, q, limit, used);
-  return PROVIDER_TABS.map((tab) => ({ tab, emotes: found.filter((m) => m.provider === tab) })).filter((g) => g.emotes.length);
+  return searchCapped(menu, q, limit, used).groups;
+}
+
+/** `searchGroups` plus whether more than `limit` emotes matched (the hint shows only then). */
+export function searchCapped(menu: EmoteMenu, q: string, limit = 200, used?: Map<string, number>) {
+  const all = search(menu, q, limit + 1, used);
+  const found = all.slice(0, limit);
+  const groups = PROVIDER_TABS.map((tab) => ({ tab, emotes: found.filter((m) => m.provider === tab) })).filter((g) => g.emotes.length);
+  return { groups, cut: all.length > limit };
 }

@@ -119,7 +119,7 @@
     {#each view.slots as slot (slot.kind)}
       <div class="row" data-kind={slot.kind}>
         <div class="preview {slot.kind}">
-          {#if slot.url}<img src={slot.url} alt="" />{:else}<span>None</span>{/if}
+          {#if slot.url}<img src={slot.url} alt="" />{:else}<span>{slot.accent ? 'Default' : 'None'}</span>{/if}
         </div>
         <span class="name">{LABEL[slot.kind]}</span>
         <div class="actions">

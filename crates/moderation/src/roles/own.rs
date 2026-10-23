@@ -43,6 +43,15 @@ fn why(r: &Refusal, role: Role, by: ModRole) -> String {
     w.trim_end_matches('.').to_owned()
 }
 
+/// V107-H3g A step down's line as the channel's other accounts see it: "caressz stepped
+/// down as mod." where yours says "You stepped down as mod.".
+pub fn as_seen_by_others(line: &str, login: &str) -> String {
+    match line.strip_prefix("You ") {
+        Some(rest) => format!("{login} {rest}"),
+        None => line.to_owned(),
+    }
+}
+
 fn outcome(done: Vec<Change>, line: String, failed: Vec<Role>) -> Outcome {
     Outcome { done, line, slots: VipSlots::unknown(), failed }
 }
@@ -157,6 +166,12 @@ mod tests {
         assert_eq!(o.done, [Change::new(LeadMod, false)]);
         let f = Fake::new(vec![code("TARGET_NOT_MOD")]);
         assert_eq!(run(&f, Mod, false).line, "You aren’t a mod here.");
+    }
+
+    #[test]
+    fn v107_h3g_others_read_your_step_down_by_name() {
+        assert_eq!(as_seen_by_others("You stepped down as mod and lead mod.", "caressz"), "caressz stepped down as mod and lead mod.");
+        assert_eq!(as_seen_by_others("Odd.", "caressz"), "Odd.");
     }
 
     #[test]

@@ -32,7 +32,7 @@ pub async fn profile_images_restore(app: AppHandle, account: String, kind: Profi
 /// Whether this run talks to the local mock (mocks builds on test data only).
 #[tauri::command]
 pub fn profile_images_mocked(app: AppHandle) -> bool {
-    images::mock_base(&app).is_some()
+    images::mock_base(&app).is_ok_and(|b| b.is_some())
 }
 
 /// V107-R19c Puts an image from the history up again.

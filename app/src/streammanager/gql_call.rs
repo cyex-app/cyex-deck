@@ -81,8 +81,7 @@ fn sign_in(
 
 #[cfg(feature = "mocks")]
 fn mock_base(app: &AppHandle) -> Result<Option<String>, String> {
-    let raw = MOCK_VARS.iter().find_map(|v| std::env::var(v).ok());
-    pick(raw.as_deref(), crate::paths::webview(app).is_some())
+    crate::mock_url::gated(app, &MOCK_VARS, "GQL")
 }
 
 #[cfg(not(feature = "mocks"))]
@@ -90,41 +89,9 @@ fn mock_base(_: &AppHandle) -> Result<Option<String>, String> {
     Ok(None)
 }
 
-/// The mock to use: none when unset; set, it needs a test data folder and a loopback
-/// address, or nothing is sent at all (never Twitch with a real token instead).
-#[cfg(feature = "mocks")]
-fn pick(raw: Option<&str>, test_data: bool) -> Result<Option<String>, String> {
-    let Some(raw) = raw.filter(|r| !r.trim().is_empty()) else {
-        return Ok(None);
-    };
-    if !test_data {
-        return Err("The GQL mock runs only on a test data folder.".into());
-    }
-    crate::mock_url::loopback_base(raw)
-        .map(Some)
-        .ok_or_else(|| "The GQL mock must be http://127.0.0.1:<port>.".into())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[cfg(feature = "mocks")]
-    #[test]
-    fn v107_r41_a_mock_needs_test_data_and_loopback() {
-        assert_eq!(pick(None, false), Ok(None));
-        assert_eq!(pick(Some(" "), true), Ok(None));
-        assert_eq!(
-            pick(Some("http://127.0.0.1:5231"), true),
-            Ok(Some("http://127.0.0.1:5231".into()))
-        );
-        assert!(
-            pick(Some("http://127.0.0.1:5231"), false).is_err(),
-            "real data: refused, not sent to Twitch"
-        );
-        assert!(pick(Some("http://evil.example:5231"), true).is_err());
-        assert!(pick(Some("http://127.0.0.1:1@evil.example"), true).is_err());
-    }
 
     #[test]
     fn v107_r41_the_mock_gets_a_fake_token() {

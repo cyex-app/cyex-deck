@@ -1,11 +1,14 @@
 //! V107-R40 IPC for the stream manager's Community panels: your followers, and the roles
 //! you hold in other channels. GQL only, the way Twitch's dashboard reads them.
 
-use cyex_twitch::gql::dashboard::community::{self, AssignedList, Followers, ModLeft, Role};
+use cyex_chat::model::ModRole;
+use cyex_moderation::roles::{Outcome, step_down};
+use cyex_twitch::gql::dashboard::community::{self, AssignedList, Followers, Role};
 use serde::Serialize;
 use tauri::AppHandle;
 use ts_rs::TS;
 
+use crate::moderation::roles::Leaving;
 use crate::streammanager::gql_call::gql_call;
 use crate::streammanager::words;
 
@@ -34,54 +37,53 @@ pub struct Left {
     pub error: Option<String>,
 }
 
-/// V107-Mj Lines for stepping down as mod, in V107-Ma's wording.
-fn mod_left(m: ModLeft) -> Left {
-    let roles = |lead: bool| if lead { vec![Role::LeadMod, Role::Mod] } else { vec![Role::Mod] };
-    match m {
-        ModLeft::Done { lead } => Left { gone: roles(lead), error: None },
-        ModLeft::LeadKept(e) => {
-            let why = words::gql(&e);
-            let why = why.trim_end_matches('.');
-            Left { gone: vec![], error: Some(format!("Couldn’t remove your lead mod role: {why}. You’re still a mod.")) }
-        }
-        ModLeft::ModKept { lead: true, err } => {
-            Left { gone: vec![Role::LeadMod], error: Some(format!("You’re no longer a lead mod. {}", words::gql(&err))) }
-        }
-        ModLeft::ModKept { lead: false, err } => Left { gone: vec![], error: Some(words::gql(&err)) },
+/// V107-Mj A step down's rows. `lead`: the lead mod row went with mod, or Twitch said it
+/// wasn't held (a stale row goes too).
+fn left(out: &Outcome, lead: bool) -> Left {
+    let mut gone: Vec<Role> = out.done.iter().map(|c| c.role).collect();
+    if lead && gone.contains(&Role::Mod) && !gone.contains(&Role::LeadMod) {
+        gone.insert(0, Role::LeadMod);
     }
+    Left { gone, error: (!out.ok()).then(|| out.line.clone()) }
 }
 
 /// Leaves your own role in a channel. V107-Mj `lead`: you hold lead mod there too, so
-/// stepping down as mod drops it first.
+/// stepping down as mod drops it first. V107-H3d Mod and lead mod: the policy `/unmod` and
+/// `/unleadmod` on yourself use (`roles::own`), so both read the same.
 #[tauri::command]
 pub async fn cm_step_down(app: AppHandle, role: Role, channel_id: String, lead: bool) -> Result<Left, String> {
     let c = gql_call(&app)?;
-    let ch = c.channel();
-    if role == Role::Mod {
-        return Ok(mod_left(community::step_down_mod(&ch, &channel_id, lead).await));
+    if !matches!(role, Role::Mod | Role::LeadMod) {
+        community::step_down(&c.channel(), role, &channel_id).await.map_err(|e| words::gql(&e))?;
+        return Ok(Left { gone: vec![role], error: None });
     }
-    community::step_down(&ch, role, &channel_id).await.map_err(|e| words::gql(&e))?;
-    Ok(Left { gone: vec![role], error: None })
+    let me = Leaving { ch: c.channel(), channel_id: &channel_id };
+    let lead = lead && role == Role::Mod;
+    Ok(left(&step_down(&me, role, lead, ModRole::Moderator).await, lead))
 }
 
 #[cfg(test)]
 mod tests {
-    use cyex_twitch::Error;
+    use cyex_moderation::roles::{Change, VipSlots};
 
     use super::*;
 
+    fn out(done: &[Role], line: &str, failed: &[Role]) -> Outcome {
+        let done = done.iter().map(|r| Change::new(*r, false)).collect();
+        Outcome { done, line: line.into(), slots: VipSlots::unknown(), failed: failed.to_vec() }
+    }
+
     #[test]
-    fn v107_mj_mod_step_down_lines() {
-        let no = || Error::Refused("FORBIDDEN".into());
-        assert_eq!(mod_left(ModLeft::Done { lead: true }), Left { gone: vec![Role::LeadMod, Role::Mod], error: None });
-        assert_eq!(mod_left(ModLeft::Done { lead: false }).gone, [Role::Mod]);
-        let l = mod_left(ModLeft::LeadKept(no()));
+    fn v107_mj_mod_step_down_rows() {
+        let l = left(&out(&[Role::LeadMod, Role::Mod], "You stepped down as mod and lead mod.", &[]), true);
+        assert_eq!(l, Left { gone: vec![Role::LeadMod, Role::Mod], error: None });
+        assert_eq!(left(&out(&[Role::Mod], "x", &[]), false).gone, [Role::Mod]);
+        // NOT_ASSIGNED: the stale lead mod row goes with mod.
+        assert_eq!(left(&out(&[Role::Mod], "You stepped down as mod.", &[]), true).gone, [Role::LeadMod, Role::Mod]);
+        let l = left(&out(&[], "Couldn’t remove your lead mod role: Twitch didn’t allow that. You’re still a mod.", &[Role::Mod]), true);
         assert!(l.gone.is_empty());
         assert_eq!(l.error.as_deref(), Some("Couldn’t remove your lead mod role: Twitch didn’t allow that. You’re still a mod."));
-        let l = mod_left(ModLeft::ModKept { lead: true, err: no() });
-        assert_eq!(l.gone, [Role::LeadMod]);
-        assert_eq!(l.error.as_deref(), Some("You’re no longer a lead mod. Twitch didn’t allow that."));
-        let l = mod_left(ModLeft::ModKept { lead: false, err: no() });
-        assert_eq!((l.gone.is_empty(), l.error.as_deref()), (true, Some("Twitch didn’t allow that.")));
+        let l = left(&out(&[Role::LeadMod], "You’re no longer a lead mod. Twitch didn’t allow that.", &[Role::Mod]), true);
+        assert_eq!((l.gone.as_slice(), l.error.is_some()), (&[Role::LeadMod][..], true));
     }
 }

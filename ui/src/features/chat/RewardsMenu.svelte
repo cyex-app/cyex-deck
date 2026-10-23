@@ -49,6 +49,8 @@
   let open = $state(false);
   let points = $state<Points | null>(null);
   let loaded = $state(false);
+  /** V107-H1d The first read answered (or failed): only then is "no points" known. */
+  let settled = $state(false);
   // V107-My Last look at this channel: the button keeps its spot (or stays gone) while it loads.
   // svelte-ignore state_referenced_locally
   const seen = btnMemo(room.login);
@@ -92,10 +94,10 @@
 
   /** Nothing to show: no points here, or none and nothing to redeem. */
   const away = $derived(
-    !open && (loaded && !points ? true : points ? points.balance === 0 && !choices.length : seen.pointsAway === true),
+    !open && (settled && !points ? true : points ? points.balance === 0 && !choices.length : seen.pointsAway === true),
   );
   $effect(() => {
-    if (loaded && !open) {
+    if (settled && !open) {
       remember(room.login, { pointsAway: away, pointsIcon: points?.icon ?? null, pointsName: points?.name ?? undefined });
     }
   });
@@ -122,6 +124,8 @@
       points = await chatIpc.points(room.view, fresh);
     } catch {
       if (fresh) points = null;
+    } finally {
+      settled = true;
     }
   }
 

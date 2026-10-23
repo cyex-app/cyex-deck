@@ -19,7 +19,7 @@
   import { emoteImg, emoteLarge } from '../chat/urls';
   import { emojiGroups, emojiLabel, findEmoji, type Emoji, type EmojiGroup } from './emoji';
   import { type CardTarget, PROVIDER_NAMES, emoteKey, emoteRatio } from './emotes';
-  import { PROVIDER_TABS, type ProviderTab, cellHint, cellKey, pick, searchGroups, tierMark, usable, usageRank } from './menu';
+  import { PROVIDER_TABS, type ProviderTab, cellHint, cellKey, pick, searchCapped, tierMark, usable, usageRank } from './menu';
   import EmoteCard from './EmoteCard.svelte';
   import { emoteMenu, forgetEmoteMenu } from './menus';
   import EditBar from './edit/EditBar.svelte';
@@ -83,7 +83,8 @@
   const current = $derived<Tab>(tabs.includes(tab) || (tab === 'gifs' && gifInfo === undefined) ? tab : 'twitch');
   const searchingEmotes = $derived(!!query.trim() && current !== 'gifs');
   const rank = $derived(usageRank(saved.usage));
-  const groups = $derived(menu && query.trim() ? searchGroups(menu, query, FOUND_CAP, rank) : []);
+  const found = $derived(menu && query.trim() ? searchCapped(menu, query, FOUND_CAP, rank) : { groups: [], cut: false });
+  const groups = $derived(found.groups);
   const foundCount = $derived(groups.reduce((n, g) => n + g.emotes.length, 0));
   const foundEmoji = $derived(emoji && query.trim() ? findEmoji(emoji, query.trim(), 40) : []);
   const foundEmojiKeys = $derived(uniqueKeys(foundEmoji, (e) => e.char));
@@ -342,7 +343,7 @@
             </div>
           </section>
         {/if}
-        {#if foundCount >= FOUND_CAP}<p class="capped">Showing {FOUND_CAP}. Type more to narrow it.</p>{/if}
+        {#if found.cut}<p class="capped">Showing {FOUND_CAP}. Type more to narrow it.</p>{/if}
       {:else}
         <p class="note">Nothing called “{query.trim()}”.</p>
       {/if}

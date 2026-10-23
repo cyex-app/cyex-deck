@@ -24,6 +24,10 @@ pub(super) fn de_logins<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<String>, 
 pub(super) fn clean(list: &mut Vec<String>, max: usize) {
     let mut out: Vec<String> = Vec::with_capacity(list.len());
     for row in list.drain(..) {
+        // V107-H6c Past `max` the rest would be cut anyway: a huge hand-edited list stays quick.
+        if out.len() >= max {
+            break;
+        }
         let mut parts = row
             .split(|c: char| c == ',' || c.is_whitespace())
             .map(|p| p.trim_start_matches(['@', '#']).to_ascii_lowercase())
@@ -60,6 +64,27 @@ mod tests {
         assert_eq!(h.muted, ["caressz", "rvbdev", "seryxx_test", ""], "blank row kept while editing");
         assert!(h.prune_blank());
         assert_eq!(h.muted, ["caressz", "rvbdev", "seryxx_test"]);
+    }
+
+    #[test]
+    fn v107_h6c_a_huge_list_stops_at_the_cap() {
+        let mut l: Vec<String> = (0..200_000).map(|i| format!("u{i}, u{i}")).collect();
+        super::clean(&mut l, 3);
+        assert_eq!(l, ["u0", "u1", "u2"]);
+        let mut l: Vec<String> = ["a b c d"].map(String::from).to_vec();
+        super::clean(&mut l, 2);
+        assert_eq!(l, ["a", "b"], "a row past the cap is cut too");
+    }
+
+    #[test]
+    fn empty_and_separator_only_text_leaves_no_login() {
+        // V107-H4a An old file with "" or " , ," must not keep a name that matches nobody.
+        for old in ["", "  ", " , ,, ", "@", "# @"] {
+            let mut h: Highlights = serde_json::from_value(serde_json::json!({ "never": old })).unwrap();
+            h.sanitize();
+            h.prune_blank();
+            assert!(h.never.is_empty(), "{old:?} -> {:?}", h.never);
+        }
     }
 
     #[test]

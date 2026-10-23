@@ -320,7 +320,8 @@ impl Store {
             if local || p.is_portable() {
                 // V107-N5c What someone else exported never turns presence sharing on (or off).
                 // V107-N10b Nor picks the folder the OBS status files are written to.
-                let value = if local { value } else { keep_local(p, value, &self.values[&p]) };
+                // V107-H4b A restore keeps this PC's recent searches too (an old backup has none).
+                                let value = if local && p != Partition::General { value } else { keep_local(p, value, &self.values[&p]) };
                 checked.push((p, p.normalize(value)?));
             }
         }

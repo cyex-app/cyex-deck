@@ -23,7 +23,7 @@ pub use cyex_twitch::gql::dashboard::roles::Role;
 pub use echo::{Chat, Echoed, RoleAction, holds_of};
 pub use lines::refused;
 pub use members::{Member, merge};
-pub use own::{Leave, SELF, own_step, step_down};
+pub use own::{Leave, SELF, as_seen_by_others, own_step, step_down};
 pub use slots::{FULL, LOCKED, VipSlots, VipState};
 
 use crate::command::Need;

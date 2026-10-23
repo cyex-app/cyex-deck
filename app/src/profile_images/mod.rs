@@ -82,6 +82,8 @@ pub struct ProfileImageSlot {
     pub history: Vec<ProfileImageSaved>,
     /// V107-Mh Twitch has a way to remove it and there's one to remove.
     pub removable: bool,
+    /// V107-Mz The channel page shows the accent colour, so "Default", not "None".
+    pub accent: bool,
 }
 
 /// V107-R19c One image from the history.
@@ -115,16 +117,16 @@ pub fn init(app: &AppHandle) {
     app.manage(State::default());
 }
 
-/// The mock's address in a mocks build on a test data folder. Release builds: never.
+/// The mock's address in a mocks build on a test data folder. Release builds: never. Set but
+/// unusable: an error, nothing is sent at all (never Twitch with a real token instead).
 #[cfg(feature = "mocks")]
-pub fn mock_base(app: &AppHandle) -> Option<String> {
-    crate::paths::webview(app)?;
-    crate::mock_url::loopback_base(&std::env::var(MOCK_VAR).ok()?)
+pub fn mock_base(app: &AppHandle) -> Result<Option<String>, String> {
+    crate::mock_url::gated(app, &[MOCK_VAR], "profile image")
 }
 
 #[cfg(not(feature = "mocks"))]
-pub fn mock_base(_: &AppHandle) -> Option<String> {
-    None
+pub fn mock_base(_: &AppHandle) -> Result<Option<String>, String> {
+    Ok(None)
 }
 
 struct Target {
@@ -150,7 +152,7 @@ fn target(app: &AppHandle, account: &str) -> Result<Target, ImageError> {
     if auth::accounts(app).get(account).is_none() {
         return Err(ImageError::with(ImageErrorKind::Failed, "That account isn’t here anymore."));
     }
-    let base = mock_base(app);
+    let base = mock_base(app).map_err(|e| ImageError::with(ImageErrorKind::Failed, &e))?;
     let (token, client_id) = match &base {
         Some(_) => ("mock-token".to_owned(), cyex_twitch::clients::WEB.to_owned()),
         None => auth::gql_token(app, account).ok_or_else(|| ImageError::with(ImageErrorKind::Failed, NO_GQL))?,
@@ -184,6 +186,7 @@ fn view(app: &AppHandle, account: &str, images: &api::Images, waiting: bool) -> 
             backup: dir.as_deref().and_then(|d| backup::newest(d, kind.file())).is_some(),
             history: dir.as_deref().map_or_else(Vec::new, |d| saved(d, kind, images.shown(kind.api()))),
             removable: can_remove(kind, images.shown(kind.api())),
+            accent: kind == ProfileImageKind::Banner && images.banner_is_accent(),
         })
         .collect();
     ProfileImagesView { slots, waiting }
@@ -203,7 +206,7 @@ fn saved(dir: &std::path::Path, kind: ProfileImageKind, now: &str) -> Vec<Profil
 
 /// The three images as they are now, public data.
 pub async fn get(app: &AppHandle, account: &str) -> Result<ProfileImagesView, ImageError> {
-    let base = mock_base(app);
+    let base = mock_base(app).map_err(|e| ImageError::with(ImageErrorKind::Failed, &e))?;
     let http = app.state::<auth::Auth>().http.clone();
     let images = api::images(&http, base.as_deref(), account).await.map_err(|e| check::map(&e))?;
     Ok(inline(&http, base.as_deref(), view(app, account, &images, false)).await)
@@ -451,6 +454,15 @@ fn new_avatar(app: &AppHandle, account: &str, url: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "mocks")]
+    #[test]
+    fn v107_h2_a_bad_mock_address_sends_nothing() {
+        let pick = |raw| crate::mock_url::pick(Some(raw), true, "profile image");
+        assert!(pick("http://127.0.0.1:5230").is_ok_and(|b| b.is_some()));
+        assert!(pick("https://api.twitch.tv").is_err(), "never falls back to real Twitch");
+        assert!(pick("http://127.0.0.1:5230/x").is_err());
+    }
 
     #[test]
     fn remove_shows_only_where_twitch_has_a_way() {

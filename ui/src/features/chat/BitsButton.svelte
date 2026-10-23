@@ -34,7 +34,17 @@
     const usable = new Set(info?.prefixes ?? []);
     return catalogs.cheermotes(room.login).filter((c) => usable.has(c.prefix.toLowerCase()));
   });
-  const afford = (bits: number) => balance === null || bits <= balance;
+  /** V107-H1b A tier under the channel's per-emote minimum can never go out. */
+  const emoteMin = $derived(Math.max(1, info?.emoteMin ?? 1));
+  const canPick = (bits: number) => bits >= emoteMin && (balance === null || bits <= balance);
+  // V107-H1b The amount starts at the channel's minimum when that's higher.
+  let lifted = '';
+  $effect(() => {
+    if (!info || lifted === room.login) return;
+    lifted = room.login;
+    const floor = Math.max(info.cheerMin, emoteMin);
+    if (amount < floor) amount = Math.min(floor, MAX);
+  });
 
   function toggle() {
     open = !open;
@@ -79,7 +89,7 @@
       {:else}
         <div class="amount">
           <span>Amount</span>
-          <NumberField label="Amount" value={amount} min={1} max={MAX} width="96px" onchange={(v) => (amount = v)} />
+          <NumberField label="Amount" value={amount} min={emoteMin} max={MAX} width="96px" onchange={(v) => (amount = v)} />
           {#if info.cheerMin > 1}<span class="min">Minimum {formatNumber(info.cheerMin)}</span>{/if}
         </div>
         {#if !list.length}
@@ -89,7 +99,7 @@
             {#each list as c (c.prefix)}
               {@const tier = cheerTier(c, amount)}
               <div class="cm">
-                <button class="use" disabled={!afford(amount)} onclick={() => pick(c, amount)} title="{c.prefix}{amount}">
+                <button class="use" disabled={!canPick(amount)} onclick={() => pick(c, amount)} title="{c.prefix}{amount}">
                   {#if tier}<img class="pale-edge" src={cheerImg(c, tier, theme, density.scale).src} alt="" loading="lazy" />{/if}
                   <span class="name">{c.prefix}</span>
                   <span class="n" style:color={tier?.color}>{formatNumber(amount)}</span>
@@ -98,7 +108,7 @@
                   {#each c.tiers as t (t.bits)}
                     <button
                       class="tier"
-                      disabled={!afford(t.bits)}
+                      disabled={!canPick(t.bits)}
                       onclick={() => pick(c, t.bits)}
                       aria-label="{c.prefix}{t.bits}"
                     >

@@ -124,8 +124,11 @@ class TabsStore {
   /** V107-Mr Unseen mentions across the tab's shown chats; 0 when tabs don't light up. */
   mentionCount(tab: Tab): number {
     if (settings.v.appearance.tabUnread === 'off') return 0;
+    // A room shown twice counts once.
+    const rooms = new Set<string>();
+    for (const tile of tiles(tab)) if (tile.show.chat) rooms.add(roomKey(tile.account, tile.channel.login));
     let n = 0;
-    for (const tile of tiles(tab)) if (tile.show.chat) n += this.unread[roomKey(tile.account, tile.channel.login)]?.mentions ?? 0;
+    for (const r of rooms) n += this.unread[r]?.mentions ?? 0;
     return n;
   }
 

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import type { EmoteMenu } from '../../ipc/bindings/EmoteMenu';
 import type { MenuEmote } from '../../ipc/bindings/MenuEmote';
-import { cellHint, cellKey, pick, search, searchGroups, tierMark, usable } from './menu.ts';
+import { cellHint, cellKey, pick, search, searchCapped, searchGroups, tierMark, usable } from './menu.ts';
 
 function e(
   provider: MenuEmote['provider'],
@@ -122,4 +122,14 @@ test('V107-My search groups by platform, ranked inside each, empty ones dropped'
   assert.deepEqual(g.map((x) => x.tab), ['twitch', 'seventv']);
   assert.deepEqual(g[1].emotes.map((m) => m.name), ['LUL', 'xLULx']);
   assert.equal(searchGroups(menu, 'l', 2).reduce((n, x) => n + x.emotes.length, 0), 2);
+});
+
+test('V107-H7 the "Showing 200" hint only when matches were cut', () => {
+  const total = searchGroups(menu, 'l', 100).reduce((n, x) => n + x.emotes.length, 0);
+  assert.ok(total >= 3);
+  assert.equal(searchCapped(menu, 'l', total).cut, false);
+  assert.equal(searchCapped(menu, 'l', total + 5).cut, false);
+  const c = searchCapped(menu, 'l', total - 1);
+  assert.equal(c.cut, true);
+  assert.equal(c.groups.reduce((n, x) => n + x.emotes.length, 0), total - 1);
 });

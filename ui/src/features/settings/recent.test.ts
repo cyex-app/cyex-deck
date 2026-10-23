@@ -36,3 +36,11 @@ test('V107-Mo empty adds nothing; spaces fold; remove ignores case', () => {
   assert.deepEqual(addRecent([], 'dark   mode'), ['dark mode']);
   assert.deepEqual(removeRecent(['Font', 'x'], 'font'), ['x']);
 });
+
+test('V107-Mo a long search is cut by characters, never inside an emoji', () => {
+  const l = addRecent([], '😀'.repeat(100));
+  assert.equal(l[0], '😀'.repeat(80));
+  const odd = addRecent([], 'a' + '😀'.repeat(90))[0];
+  assert.equal(Array.from(odd).length, 80);
+  assert.equal(odd, odd.toWellFormed());
+});

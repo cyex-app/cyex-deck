@@ -148,7 +148,8 @@
 
   /** P5 */
   function save() {
-    if (!video || !duration || gone) return;
+    // readyState 0: the element was just reset (a reload, a quality change); its 0 s isn't a spot.
+    if (!video || !duration || gone || video.readyState === 0) return;
     saved = video.currentTime;
     void playerIpc.savePosition(id, saved, duration);
   }
@@ -238,6 +239,8 @@
       playsinline
       {ontimeupdate}
       ondurationchange={ontimeupdate}
+      onpause={save}
+      onended={save}
     ></video>
     {#if pip}<PipNotice name={info?.channelName || tile?.channel.name || 'The video'} avatar={null} />{/if}
     {#if failure}

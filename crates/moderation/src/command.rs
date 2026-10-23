@@ -92,6 +92,9 @@ impl ModCommand {
     pub fn needs(&self) -> Need {
         match self {
             ModCommand::SetRole { .. } => Need::Mod,
+            // V107-H3e `/unleadmod <you>` steps down (V107-Mw), and a lead mod may wear the
+            // plain badge; on anyone else Twitch refuses a mod.
+            ModCommand::SetLead { on: false, .. } => Need::Mod,
             _ => self.offered(),
         }
     }
@@ -411,6 +414,9 @@ mod tests {
         );
         assert_eq!(ok("unmod x").offered(), Need::Lead);
         assert_eq!(ok("mods").needs(), Need::Broadcaster);
+        let unlead = ModCommand::SetLead { login: "me".into(), on: false };
+        assert_eq!((unlead.needs(), unlead.offered()), (Need::Mod, Need::Broadcaster), "V107-H3e");
+        assert_eq!(ModCommand::SetLead { login: "bob".into(), on: true }.needs(), Need::Broadcaster);
         assert_eq!(ok("restrict x").needs(), Need::Mod);
         assert!(parse("me", "hi").is_none());
     }
@@ -454,9 +460,9 @@ mod tests {
         // V107-R28 Lead mod is the broadcaster's alone.
         assert_eq!(ok("leadmod @Caressz"), ModCommand::SetLead { login: "caressz".into(), on: true });
         assert_eq!(ok("unleadmod caressz"), ModCommand::SetLead { login: "caressz".into(), on: false });
-        for line in ["leadmod x", "unleadmod x"] {
-            assert_eq!((ok(line).offered(), ok(line).needs()), (Need::Broadcaster, Need::Broadcaster), "{line}");
-        }
+        assert_eq!((ok("leadmod x").offered(), ok("leadmod x").needs()), (Need::Broadcaster, Need::Broadcaster));
+        // V107-H3e Stepping down yourself: any mod may try (Twitch refuses them on others).
+        assert_eq!((ok("unleadmod x").offered(), ok("unleadmod x").needs()), (Need::Broadcaster, Need::Mod));
         assert!(err("leadmod").contains("/leadmod name"));
     }
 

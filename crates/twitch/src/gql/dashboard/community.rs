@@ -174,34 +174,6 @@ pub async fn step_down(ch: &Channel<'_>, role: Role, channel_id: &str) -> Result
     Ok(())
 }
 
-/// V107-Mj What stepping down as mod did, with lead mod first.
-#[derive(Debug)]
-pub enum ModLeft {
-    /// Mod gone; `lead`: lead mod gone too (or Twitch said it wasn't held).
-    Done { lead: bool },
-    /// Lead mod refused: mod was never sent.
-    LeadKept(Error),
-    /// Mod refused; `lead` as in `Done`.
-    ModKept { lead: bool, err: Error },
-}
-
-/// V107-Mj Steps down as mod in `channel_id`. With `lead` (you hold lead mod there) lead
-/// mod goes first, since `unmodUser` leaves a lead mod one; if that fails nothing else is
-/// sent. NOT_ASSIGNED (a stale list) goes on to mod.
-pub async fn step_down_mod(ch: &Channel<'_>, channel_id: &str, lead: bool) -> ModLeft {
-    if lead {
-        match step_down(ch, Role::LeadMod, channel_id).await {
-            Ok(()) => {}
-            Err(Error::Refused(c)) if c == "NOT_ASSIGNED" => {}
-            Err(e) => return ModLeft::LeadKept(e),
-        }
-    }
-    match step_down(ch, Role::Mod, channel_id).await {
-        Ok(()) => ModLeft::Done { lead },
-        Err(err) => ModLeft::ModKept { lead, err },
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -291,36 +263,6 @@ mod tests {
         assert_eq!(sent[1]["variables"], json!({ "input": { "channelID": "5", "targetUserID": ID } }));
         assert!(query(&sent[2]).contains("unassignChannelRole(input:$input)"));
         assert_eq!(sent[4]["variables"], json!({ "input": { "channelID": "5", "targetUserID": ID, "roleID": "pre_agent" } }));
-    }
-
-    #[tokio::test]
-    async fn v107_mj_step_down_mod_takes_lead_mod_first() {
-        let lead_ok = json!({ "data": { "unassignChannelRole": { "isUnassigned": true, "error": null } } }).to_string();
-        let unmod_ok = json!({ "data": { "unmodUser": { "error": null } } }).to_string();
-        let m = serve([lead_ok.clone(), unmod_ok.clone()]);
-        assert!(matches!(step_down_mod(&m.channel(), "5", true).await, ModLeft::Done { lead: true }));
-        let sent = m.sent();
-        assert_eq!(sent[0]["variables"]["input"]["roleID"], "lead_mod");
-        assert!(query(&sent[1]).contains("unmodUser"));
-
-        // Lead mod refused: unmod never sent (the mock would hang on a second request).
-        let m = serve([json!({ "data": { "unassignChannelRole": { "isUnassigned": false, "error": { "code": "FORBIDDEN" } } } }).to_string()]);
-        assert!(matches!(step_down_mod(&m.channel(), "5", true).await, ModLeft::LeadKept(Error::Refused(c)) if c == "FORBIDDEN"));
-        assert_eq!(m.sent().len(), 1);
-
-        // Stale: not a lead mod after all, so on to mod.
-        let stale = json!({ "data": { "unassignChannelRole": { "isUnassigned": false, "error": { "code": "NOT_ASSIGNED" } } } }).to_string();
-        let m = serve([stale, unmod_ok.clone()]);
-        assert!(matches!(step_down_mod(&m.channel(), "5", true).await, ModLeft::Done { lead: true }));
-
-        // Lead mod gone, mod refused.
-        let m = serve([lead_ok, json!({ "data": { "unmodUser": { "error": { "code": "FORBIDDEN" } } } }).to_string()]);
-        assert!(matches!(step_down_mod(&m.channel(), "5", true).await, ModLeft::ModKept { lead: true, .. }));
-
-        // No lead mod held: mod only.
-        let m = serve([unmod_ok]);
-        assert!(matches!(step_down_mod(&m.channel(), "5", false).await, ModLeft::Done { lead: false }));
-        assert!(query(&m.sent()[0]).contains("unmodUser"));
     }
 
     fn conn(field: &str, ids: &[&str], cursor: &str, more: bool) -> String {

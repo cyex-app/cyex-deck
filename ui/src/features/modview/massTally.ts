@@ -25,3 +25,10 @@ export function tallyDetail(t: Tally): string {
   if (t.retries) out.push(`${formatNumber(t.retries)} sent again after Twitch slowed down`);
   return out.join('. ');
 }
+
+/** V107-N12b The end toast: `done` went through, `handled` were tried. V107-H3b Stop pressed
+ *  after the last login was tried reads as done. */
+export function massEnd(done: number, handled: number, total: number, stopping: boolean): { line: string; stopped: boolean } {
+  const of = `${formatNumber(done)} of ${formatNumber(total)}`;
+  return stopping && handled < total ? { line: `Stopped. ${of} done.`, stopped: true } : { line: `Done: ${of}.`, stopped: false };
+}

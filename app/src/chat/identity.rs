@@ -7,6 +7,8 @@ use cyex_twitch::helix;
 use tauri::{AppHandle, Manager};
 
 use crate::auth::{Auth, gql_token, helix_scoped};
+// V107-H6b GQL failures in the stream manager's short words, not the raw error.
+use crate::streammanager::words;
 
 /// Twitch's named colors, the ones anyone may pick.
 pub const NAMED: [(&str, &str); 15] = [
@@ -46,16 +48,8 @@ fn gql(app: &AppHandle, account: &str, base: Option<&str>) -> Option<(String, St
 /// (`CYEX_GQL_IDENTITY_MOCK=http://127.0.0.1:<port>`, test data folder only).
 #[cfg(feature = "mocks")]
 fn mock_base(app: &AppHandle) -> Result<Option<String>, String> {
-    let Some(raw) = std::env::var("CYEX_GQL_IDENTITY_MOCK").ok().filter(|r| !r.trim().is_empty()) else {
-        return Ok(None);
-    };
     // Set but unusable: nothing is sent at all, never Twitch instead.
-    if crate::paths::webview(app).is_none() {
-        return Err("The identity mock runs only on a test data folder.".into());
-    }
-    crate::mock_url::loopback_base(&raw)
-        .map(Some)
-        .ok_or_else(|| "The identity mock must be http://127.0.0.1:<port>.".into())
+    crate::mock_url::gated(app, &["CYEX_GQL_IDENTITY_MOCK"], "identity")
 }
 
 #[cfg(not(feature = "mocks"))]
@@ -72,7 +66,7 @@ pub async fn identity(app: &AppHandle, account: &str, login: &str) -> Result<Cha
         let base = base.as_deref();
         let (me, smilies) =
             tokio::join!(gql::chat_identity(&http, auth, base, login), smilies::smilies(&http, auth, base));
-        let mut me = me.map_err(|e| e.to_string())?;
+        let mut me = me.map_err(|e| words::gql(&e))?;
         // A failed smiley read only hides that part.
         if let Ok(s) = smilies {
             crate::emotes::set_smiley_style(app, account, s.current);
@@ -83,7 +77,7 @@ pub async fn identity(app: &AppHandle, account: &str, login: &str) -> Result<Cha
     if helix_scoped(app, account, COLOR_SCOPE).is_none() {
         return Err("Sign in to change how you show up in chat.".into());
     }
-    let color = gql::chat_color(&http, account).await.map_err(|e| e.to_string())?;
+    let color = gql::chat_color(&http, account).await.map_err(|e| words::gql(&e))?;
     Ok(ChatIdentity {
         color,
         any_color: false,
@@ -111,7 +105,7 @@ pub async fn pick_badge(
         Some(id) => gql::pick_channel_badge(&http, auth, base, id, badge).await,
         None => gql::pick_global_badge(&http, auth, base, badge).await.map(|()| true),
     }
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| words::gql(&e))?;
     taken.then_some(()).ok_or_else(|| "Twitch didn’t take that badge.".into())
 }
 
@@ -145,7 +139,7 @@ fn refusal_text(r: &ColorRefusal) -> String {
 fn gql_verdict(r: cyex_twitch::Result<Result<(), ColorRefusal>>) -> Result<Result<(), String>, String> {
     match r {
         Ok(answer) => Ok(answer.map_err(|r| refusal_text(&r))),
-        Err(e) => Err(e.to_string()),
+        Err(e) => Err(words::gql(&e)),
     }
 }
 
@@ -189,11 +183,11 @@ pub async fn set_smilies(app: &AppHandle, account: &str, name: &str) -> Result<S
     let base = base.as_deref();
     if !smilies::set_smilies(&http, auth, base, account, name)
         .await
-        .map_err(|e| e.to_string())?
+        .map_err(|e| words::gql(&e))?
     {
         return Err("Twitch didn’t take that style.".into());
     }
-    let now = smilies::smilies(&http, auth, base).await.map_err(|e| e.to_string())?;
+    let now = smilies::smilies(&http, auth, base).await.map_err(|e| words::gql(&e))?;
     crate::emotes::set_smiley_style(app, account, now.current);
     Ok(now)
 }

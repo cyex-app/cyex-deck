@@ -29,3 +29,12 @@ test('the picker sets or adds the cheer word (V107-Bn)', () => {
   assert.equal(setCheer('gg cheer5 wp', 'Cheer', 500), 'gg Cheer500 wp');
   assert.equal(setCheer('ShowLove10 gg', 'Cheer', 1), 'ShowLove10 gg Cheer1 ');
 });
+
+test('cheer lookalikes are plain words, like Rust (V107-H1)', () => {
+  const cheer = (p: string) => p === 'cheer';
+  for (const t of ['cheers100', 'Cheer100Kappa', 'Cheer１００', 'Chéer100', 'Cheer100!', 'Cheer​100', 'xCheer100']) {
+    assert.equal(cheerTotal(t, cheer), 0, t);
+  }
+  assert.equal(cheerTotal('gg Cheer5', cheer), 5);
+  assert.equal(cheerTotal('Cheer0100', cheer), 100);
+});
