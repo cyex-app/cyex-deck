@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { commandAt, commandHint, commandMatches } from './commandTab.ts';
+import { commandAt, commandHint, commandMatches, tabTakes } from './commandTab.ts';
 import { wordAt } from './completion.ts';
 
 const at = (text: string, caret = text.length) => commandAt(text, wordAt(text, caret));
@@ -49,4 +49,11 @@ test('commandHint: first sentence, aliases, unknown', () => {
   assert.equal(commandHint('set'), 'Saves a value your commands read with $get(var,key).');
   assert.equal(commandHint('SO'), commandHint('shoutout'));
   assert.equal(commandHint('nope'), undefined);
+});
+
+test('Tab is only taken when there is something to complete', () => {
+  assert.equal(tabTakes('', 0), false);
+  assert.equal(tabTakes('hi ', 3), false);
+  assert.equal(tabTakes('hi @fo', 6), true);
+  assert.equal(tabTakes('/', 1), true);
 });

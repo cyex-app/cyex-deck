@@ -17,7 +17,7 @@
   import { rankNames } from '../emotes/ranking';
   import { insert, wordAt, type Word } from './completion';
   import { formatNumber } from '../../lib/format';
-  import { commandAt, commandHint, commandMatches } from './commandTab';
+  import { commandAt, commandHint, commandMatches, tabTakes } from './commandTab';
   import { argAt, argMatches } from './commandArgs';
   import { pluginsIpc } from '../../ipc/plugins';
   import { mods, PIN_LENGTHS } from '../modview/moderation.svelte';
@@ -444,6 +444,8 @@
       }
     }
     if (e.key === 'Tab') {
+      // Nothing to complete (empty box, space before the caret): focus moves on.
+      if (!cycle && !tabTakes(text, box?.selectionStart ?? text.length)) return;
       e.preventDefault();
       void tabComplete(e.shiftKey);
     } else if (e.key === 'Enter') {
@@ -451,6 +453,8 @@
       void send(e.ctrlKey, e.repeat);
     } else if (e.key === 'Escape' && replyTo) {
       replyTo = null;
+    } else if (e.key === 'Escape' && !askCheer) {
+      box?.blur();
     } else if (e.key === 'ArrowUp' && (!text || recall >= 0) && sent.length) {
       e.preventDefault();
       recall = Math.min(recall + 1, sent.length - 1);

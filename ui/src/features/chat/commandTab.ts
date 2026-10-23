@@ -3,7 +3,8 @@
 // comes from Rust. No list, no arguments.
 
 import { COMMAND_HINTS } from './commandHints.ts';
-import { complete, type Word } from './completion.ts';
+import { argAt } from './commandArgs.ts';
+import { complete, wordAt, type Word } from './completion.ts';
 
 /** The command name typed so far when `word` is the message's first word and starts with
  * `/`, else null. Spaces in front don't count; the line runs as a command with them too. */
@@ -24,4 +25,10 @@ export function commandMatches(typed: string, names: readonly string[], limit = 
 export function commandHint(name: string): string | undefined {
   const s = COMMAND_HINTS[name.toLowerCase()];
   return s?.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? s;
+}
+
+/** Whether Tab has anything to complete at the caret: a word under it or a command argument.
+ * Otherwise Tab is left alone and moves focus on. */
+export function tabTakes(text: string, caret: number): boolean {
+  return wordAt(text, caret).text !== '' || argAt(text, caret) !== null;
 }
