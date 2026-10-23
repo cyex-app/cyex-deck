@@ -84,7 +84,7 @@
     overflow: hidden;
   }
   .picked .pic {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--accent-line);
     outline-offset: 2px;
   }
   img {

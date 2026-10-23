@@ -20,6 +20,8 @@ export const tabsIpc = {
   unread: () => invoke<RoomUnread[]>('tabs_unread'),
   onUnread: (handler: (rooms: RoomUnread[]) => void) =>
     listen<RoomUnread[]>('chat:unread', (e) => handler(e.payload)),
+  /** V107-H15 A line landed in a feed (its lower-case name). */
+  onFeedNews: (handler: (feed: string) => void) => listen<string>('feed:news', (e) => handler(e.payload)),
   live: () => invoke<ChannelInfo[]>('tabs_live'),
   onLive: (handler: (channels: ChannelInfo[]) => void) =>
     listen<ChannelInfo[]>('tabs:live', (e) => handler(e.payload)),

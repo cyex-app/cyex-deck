@@ -214,7 +214,7 @@
   }
   .chart path {
     fill: none;
-    stroke: var(--accent);
+    stroke: var(--accent-line);
     stroke-width: 2;
     vector-effect: non-scaling-stroke;
   }

@@ -595,7 +595,7 @@
   }
   input[type='range'] {
     width: 160px;
-    accent-color: var(--accent);
+    accent-color: var(--accent-line);
   }
   .num {
     min-width: 44px;

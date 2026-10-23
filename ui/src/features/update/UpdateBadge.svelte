@@ -113,7 +113,7 @@
   }
   .fill {
     height: 100%;
-    background: var(--accent);
+    background: var(--accent-line);
   }
   .status {
     color: var(--muted);

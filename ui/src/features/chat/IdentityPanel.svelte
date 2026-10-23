@@ -1,5 +1,5 @@
 <!-- 1.40 V107-Mk Chat identity, as on twitch.tv: the badge you wear (everywhere, or with
-     V107-Mx's switch one just for this channel: subs, Bits, events), your name color, and
+     V107-Mx's switch one just for this channel: any badge you have, V107-H11a), your name color, and
      with Prime or Turbo any color and a smiley style. Every change is read back from Twitch.
      Shown in the chat box's popover and the account chip's dialog. -->
 <script lang="ts">
@@ -146,21 +146,27 @@
 
     <section>
       <h3 class="label">Badge</h3>
-      {#if me.global.available.length || me.channel.available.length}
-        <p class="sub">Everywhere</p>
-        {@render picks(false, me.global.selected, me.global.available)}
-        {#if me.channel.available.length && me.channelId}
-          <div class="own">
-            <span>Channel-specific badge</span>
-            <Toggle checked={own} label="Channel-specific badge in {login}" disabled={busy} onchange={switchOwn} />
-          </div>
-          {#if own}
-            <p class="sub">Only in {login}</p>
+      {#if me.channelId}
+        {#if me.global.available.length}
+          <p class="sub">Everywhere</p>
+          {@render picks(false, me.global.selected, me.global.available)}
+        {/if}
+        <!-- V107-H11a Always there with a GQL sign-in, as on twitch.tv; the grid lists every
+             badge you can wear here, the global ones too. -->
+        <div class="own">
+          <span>
+            Custom badge for this channel
+            <small>A different badge, only in {login}’s chat.</small>
+          </span>
+          <Toggle checked={own} label="Custom badge for {login}" disabled={busy} onchange={switchOwn} />
+        </div>
+        {#if own}
+          {#if me.channel.available.length}
             {@render picks(true, ownPick, me.channel.available)}
+          {:else}
+            <p class="note">No badges to wear here.</p>
           {/if}
         {/if}
-      {:else if me.channelId}
-        <p class="note">No badges to pick from.</p>
       {:else}
         <p class="note">Picking a badge needs a GQL sign-in.</p>
       {/if}
@@ -264,7 +270,14 @@
     margin-top: 4px;
   }
   .own span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
     font-size: 0.85rem;
+  }
+  .own small {
+    color: var(--muted);
+    font-size: 0.8rem;
   }
   .badges {
     display: flex;

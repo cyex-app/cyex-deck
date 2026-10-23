@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use cyex_chat::model::{ChatMessage, Flag, Gone, RoomEvent};
 use serde::Serialize;
 use tauri::ipc::Channel;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use ts_rs::TS;
 
 /// Lines a feed keeps.
@@ -101,6 +101,8 @@ fn push(app: &AppHandle, channel: &str, message: &Arc<ChatMessage>, routes: &[St
         }
         feed.lines.push_back(line.clone());
         send(feed, FeedEvent::Line { line }, &alive);
+        // V107-H15 The tab bar lights a feed tab nobody is looking at.
+        let _ = app.emit_to("main", "feed:news", key(name));
     }
 }
 

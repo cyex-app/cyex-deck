@@ -47,7 +47,7 @@
     background: color-mix(in srgb, var(--elevated) 78%, transparent);
     backdrop-filter: blur(14px) saturate(1.2);
     border: 1px solid var(--border-strong);
-    border-left: 3px solid var(--accent);
+    border-left: 3px solid var(--accent-line);
     border-radius: var(--radius);
     box-shadow: var(--shadow-pop);
     font-size: 0.85rem;
@@ -97,6 +97,13 @@
     from {
       opacity: 0;
       transform: translateY(-8px);
+    }
+  }
+  /* V107-H13a Less transparency asked for: the one glass surface turns solid. */
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    .toast {
+      background: var(--elevated);
+      backdrop-filter: none;
     }
   }
 </style>

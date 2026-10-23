@@ -267,7 +267,7 @@
   .bar span {
     display: block;
     height: 100%;
-    background: var(--accent);
+    background: var(--accent-line);
   }
   /* v1.07 T4: a fixed width, so every bar starts in the same place. */
   .mins {

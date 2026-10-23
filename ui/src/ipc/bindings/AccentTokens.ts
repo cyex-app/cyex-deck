@@ -23,4 +23,9 @@ accentDim: string, accentWash: string,
 /**
  * Focus rings and outlined states.
  */
-accentBorder: string, };
+accentBorder: string, 
+/**
+ * V107-H13a Accent marks that stand alone (rails, outlines, underlines, dots, progress):
+ * the fill where it reads at 3:1, else the accent text colour (cyan on white would vanish).
+ */
+accentLine: string, };

@@ -19,3 +19,9 @@ export function statusText(s: GlobalStatus, hasMentions: boolean): string {
 export function fileName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
 }
+
+/** V107-H16 A global row with the Mentions tab off and no feed: say so instead of
+ * quietly dropping its matches. */
+export function goesNowhere(r: { enabled: boolean; pattern: string; show: boolean; route: string }): string | null {
+  return r.enabled && r.pattern.trim() && !r.show && !r.route.trim() ? 'Goes nowhere: pick a feed or keep Mentions on.' : null;
+}

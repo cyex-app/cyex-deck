@@ -20,7 +20,7 @@
   import { errorText } from '../../../lib/errors';
   import ThemeEditor from '../ThemeEditor.svelte';
   import ThemePicker from '../ThemePicker.svelte';
-  import { accentOf, choiceOf, defaultAccentOf } from '../themes';
+  import { accentOf, choiceOf, DEFAULT_ACCENT, defaultAccentOf } from '../themes';
 
   const a = $derived(settings.v.appearance);
   /** V106-02 The built-in themes, for the accent row (shared with ThemePicker). */
@@ -99,7 +99,9 @@
   ];
 
   // 3.3: tell the user when their color was nudged to stay visible.
-  const adjusted = $derived(!!look && look.accent.accent !== accent);
+  // V107-H13a The default accent on plain Dark and Light is the brand set (cyan in light), not a nudge.
+  const brand = $derived(choice.kind === 'plain' && accent.toLowerCase() === DEFAULT_ACCENT);
+  const adjusted = $derived(!!look && !brand && look.accent.accent !== accent);
 
   /** Sets the accent of the theme in use. Default (`null`) gives a built-in its own back. */
   function writeAccent(v: string | null) {
@@ -120,7 +122,7 @@
   <ThemeEditor theme={active} {look} onchange={saveTheme} ondelete={() => deleteTheme(active.id)} />
 {/if}
 
-<Row setting="appearance.accent" label="Accent color" hint={adjusted ? 'Shown a bit lighter or darker here so it stays visible.' : undefined}>
+<Row setting="appearance.accent" label="Accent color" hint={adjusted ? 'Shown a bit lighter or darker here so it stays visible.' : brand && choice.kind === 'plain' && choice.base === 'light' ? 'Light mode uses the cyan version.' : undefined}>
   <ColorField
     value={accent}
     label="Accent color"

@@ -136,7 +136,7 @@
   .item.asking .thumb {
     box-shadow:
       0 0 0 1px var(--surface),
-      0 0 0 3px var(--accent);
+      0 0 0 3px var(--accent-line);
   }
   .drop {
     position: absolute;

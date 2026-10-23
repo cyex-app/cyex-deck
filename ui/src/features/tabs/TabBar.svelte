@@ -89,7 +89,7 @@
   });
 
   // V102-04 The wheel over the bar steps through tabs: down is the next one, up the one
-  // before, stopping at the ends. It doesn't scroll the bar; the shown tab stays in view.
+  // before, wrapping around at the ends (V107-H15). It doesn't scroll the bar; the shown tab stays in view.
   const wheel = new WheelSteps();
   $effect(() => {
     const el = bar;
@@ -99,7 +99,7 @@
       e.preventDefault();
       const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
       const by = wheel.step(delta, e.deltaMode !== WheelEvent.DOM_DELTA_PIXEL, e.timeStamp);
-      const next = stepTab(tabs.shownIds(current), current, by, false);
+      const next = stepTab(tabs.shownIds(current), current, by, true);
       if (next) onopen(next);
     };
     el.addEventListener('wheel', onwheel, { passive: false });

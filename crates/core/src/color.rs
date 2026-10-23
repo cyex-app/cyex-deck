@@ -157,6 +157,37 @@ pub struct AccentTokens {
     pub accent_wash: String,
     /// Focus rings and outlined states.
     pub accent_border: String,
+    /// V107-H13a Accent marks that stand alone (rails, outlines, underlines, dots, progress):
+    /// the fill where it reads at 3:1, else the accent text colour (cyan on white would vanish).
+    pub accent_line: String,
+}
+
+/// V107-H13a The cyex brand accent set (cyex-design color.md), used as is for the default
+/// accent on the built-in Dark and Light themes. Light is cyan, never used for text.
+fn brand_tokens(theme: Theme) -> AccentTokens {
+    let s = |v: &str| v.to_owned();
+    match theme {
+        Theme::Dark => AccentTokens {
+            accent: s(DEFAULT_ACCENT),
+            accent_hover: s("#3f86ff"),
+            accent_ink: s("#ffffff"),
+            accent_text: s("#7ea4ff"),
+            accent_dim: s("rgba(20, 90, 255, 0.14)"),
+            accent_wash: s("rgba(20, 90, 255, 0.22)"),
+            accent_border: s("rgba(20, 90, 255, 0.55)"),
+            accent_line: s(DEFAULT_ACCENT),
+        },
+        Theme::Light => AccentTokens {
+            accent: s("#14e6ff"),
+            accent_hover: s("#10c9e6"),
+            accent_ink: s("#00232b"),
+            accent_text: s("#046a82"),
+            accent_dim: s("rgba(4, 106, 130, 0.08)"),
+            accent_wash: s("rgba(4, 106, 130, 0.16)"),
+            accent_border: s("rgba(4, 106, 130, 0.4)"),
+            accent_line: s("#046a82"),
+        },
+    }
 }
 
 /// Derives all accent tokens from the user's color. Invalid input falls back to the default.
@@ -166,7 +197,11 @@ pub fn accent_tokens(input: &str, theme: Theme) -> AccentTokens {
 
 /// Accent tokens readable on the given page and surface (a custom theme's, U8).
 pub fn accent_tokens_on(input: &str, theme: Theme, [page, surface]: [Rgb; 2]) -> AccentTokens {
-    let base = Rgb::parse(input).unwrap_or(Rgb::new(0x14, 0x5a, 0xff));
+    let default = Rgb::new(0x14, 0x5a, 0xff);
+    let base = Rgb::parse(input).unwrap_or(default);
+    if base == default && [page, surface] == theme.builtin_backgrounds() {
+        return brand_tokens(theme);
+    }
     let away = theme.away_from_background();
 
     let fill = push_until(base, away, |c| contrast(c, page) >= FILL_CONTRAST);
@@ -197,6 +232,7 @@ pub fn accent_tokens_on(input: &str, theme: Theme, [page, surface]: [Rgb; 2]) ->
         accent_dim: tint.rgba(0.14),
         accent_wash: tint.rgba(0.22),
         accent_border: tint.rgba(0.55),
+        accent_line: fill.to_hex(), // already 3:1 on the page
     }
 }
 
@@ -246,12 +282,37 @@ mod tests {
     }
 
     #[test]
-    fn default_accent_is_kept_as_fill_in_both_themes() {
+    fn default_accent_is_the_brand_set_on_builtin_themes() {
+        let dark = accent_tokens(DEFAULT_ACCENT, Theme::Dark);
+        assert_eq!(
+            (dark.accent.as_str(), dark.accent_hover.as_str(), dark.accent_text.as_str()),
+            (DEFAULT_ACCENT, "#3f86ff", "#7ea4ff")
+        );
+        let light = accent_tokens(DEFAULT_ACCENT, Theme::Light);
+        assert_eq!(
+            (light.accent.as_str(), light.accent_text.as_str(), light.accent_ink.as_str()),
+            ("#14e6ff", "#046a82", "#00232b")
+        );
+        // Marks and text stay readable, ink reads on the cyan fill.
         for theme in [Theme::Dark, Theme::Light] {
             let t = accent_tokens(DEFAULT_ACCENT, theme);
-            assert_eq!(t.accent, DEFAULT_ACCENT, "{theme:?}");
-            assert_eq!(t.accent_ink, "#ffffff");
+            let [page, _] = theme.builtin_backgrounds();
+            assert!(contrast(rgb(&t.accent_line), page) >= FILL_CONTRAST, "{theme:?}");
+            for bg in theme.builtin_backgrounds() {
+                assert!(contrast(rgb(&t.accent_text), bg) >= TEXT_CONTRAST, "{theme:?}");
+            }
+            assert!(contrast(rgb(&t.accent_ink), rgb(&t.accent)) >= TEXT_CONTRAST);
         }
+    }
+
+    #[test]
+    fn default_accent_on_other_backgrounds_is_derived() {
+        let page = [Rgb::new(0x0b, 0x16, 0x20), Rgb::new(0x10, 0x20, 0x2a)];
+        let t = accent_tokens_on(DEFAULT_ACCENT, Theme::Dark, page);
+        assert_eq!(t.accent, DEFAULT_ACCENT);
+        assert_eq!(t.accent_line, t.accent);
+        let custom = accent_tokens("#ff69b4", Theme::Light);
+        assert_eq!(custom.accent_line, custom.accent);
     }
 
     #[test]

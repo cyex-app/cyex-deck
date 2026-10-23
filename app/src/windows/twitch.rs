@@ -249,7 +249,71 @@ fn is_payment(url: &Url) -> bool {
 /// V107-Mz: the Bits page (`/bits`) shows only the packages: the info text, FAQ, banner and
 /// promo callouts go. Twitch's own stable `bits-landing-page*` class names, no hashed ones;
 /// they only exist on that page, so no path check is needed.
-const BITS_ONLY: &str = ".bits-landing-page__content--left-pane, .bits-landing-page__gems-banner,      .bits-landing-page-faq, .bits-landing-page-cheermote-description, [class*=\"subtember-callout\"]      { display: none !important; }      .bits-landing-page__content, .bits-landing-page__content--right-pane, .bits-landing-page-right-pane      { width: 100% !important; max-width: 720px !important; margin-left: auto !important; margin-right: auto !important; }";
+const BITS_ONLY: &str = concat!(
+    // Promo column (power-ups image, text, list, links), banner, FAQ, callouts: gone, whatever
+    // the wrapper is called, by class, by the `how-to-cheer` anchor and by the banner image.
+    ".bits-landing-page__content--left-pane, .bits-landing-page__gems-banner, .bits-landing-page-faq, ",
+    ".bits-landing-page-cheermote-description, .bits-landing-page-text-section, ",
+    "[class*=\"subtember-callout\"], #how-to-cheer, div:has(> #how-to-cheer), ",
+    "img[src*=\"power-ups-animated-banner\"], .bits-landing-page :is(figure, picture):has(img[src*=\"power-ups\"]) ",
+    "{ display: none !important; } ",
+    // What stays: one centred column, normal flow (no inline-block or float next to the promo).
+    ".bits-landing-page__content, .bits-landing-page__content > div, .bits-landing-page__content--right-pane, ",
+    ".bits-landing-page-right-pane { display: block !important; float: none !important; position: static !important; ",
+    "width: 100% !important; max-width: 720px !important; margin-left: auto !important; margin-right: auto !important; ",
+    "padding-left: 0 !important; padding-right: 0 !important; box-sizing: border-box !important; } ",
+    ".bits-landing-page-right-pane__buy-bits-title-container { display: flex !important; align-items: center !important; ",
+    "justify-content: space-between !important; text-align: left !important; }"
+);
+
+/// V107-H12: fallback when Twitch's class names differ (hashed): on `/bits` only, finds the
+/// package price buttons, the "Buy Bits" heading and the balance by their text, hides every
+/// sibling subtree (up to 6 levels above their common container) that holds none of them,
+/// and lays the kept column out at 720 px centred. Reads and styles only; never clicks.
+const BITS_FALLBACK_JS: &str = r#"
+const bitsOnly = () => {
+  if (!location.pathname.startsWith('/bits') || !document.body) return;
+  const price = /(^|\s)(US\$|\$|€|£)\s?\d|\d\s?(€|£|USD|EUR)(\s|$)/;
+  const keep = [];
+  for (const b of document.body.querySelectorAll('button, a')) {
+    const t = (b.textContent || '').trim();
+    if (t.length < 24 && price.test(t)) keep.push(b);
+  }
+  if (!keep.length) return;
+  for (const h of document.body.querySelectorAll('h1, h2, h3, p, span, div')) {
+    if (h.children.length) continue;
+    const t = (h.textContent || '').trim();
+    if (/^Buy Bits$/i.test(t) || /^You have\b.*\bBits?\b/i.test(t)) keep.push(h);
+  }
+  let box = keep[0];
+  while (box && !keep.every((k) => box.contains(k))) box = box.parentElement;
+  if (!box) return;
+  const chain = [];
+  let up = box;
+  for (let i = 0; i < 6 && up && up !== document.body; i++) { chain.push(up); up = up.parentElement; }
+  const inChain = new Set(chain);
+  for (const el of chain) {
+    el.style.setProperty('width', '100%', 'important');
+    el.style.setProperty('float', 'none', 'important');
+    el.style.setProperty('position', 'static', 'important');
+    el.style.setProperty('box-sizing', 'border-box', 'important');
+    const par = el.parentElement;
+    if (!par || par === document.body) continue;
+    if (el !== box) { el.style.setProperty('max-width', '100%', 'important'); }
+    for (const sib of par.children) {
+      if (inChain.has(sib) || /^(SCRIPT|STYLE|LINK|META)$/.test(sib.tagName)) continue;
+      if (keep.some((k) => sib.contains(k))) continue;
+      sib.style.setProperty('display', 'none', 'important');
+    }
+  }
+  box.style.setProperty('max-width', '720px', 'important');
+  box.style.setProperty('margin', '0 auto', 'important');
+  box.style.setProperty('display', 'block', 'important');
+};
+let bitsTimer = 0;
+new MutationObserver(() => { clearTimeout(bitsTimer); bitsTimer = setTimeout(bitsOnly, 200); })
+  .observe(document, { childList: true, subtree: true });
+"#;
 
 /// The skin: Twitch's theme variables set to the app's tokens (`ui/src/design/tokens.css`),
 /// the accent in place of Twitch purple, small corners, the app font, no side or top nav.
@@ -406,7 +470,8 @@ pub fn skin(look: &ThemeLook) -> String {
          const s = document.createElement('style'); s.id = 'cyex-skin'; s.textContent = {css}; \
          root.appendChild(s); }}; \
          new MutationObserver(add).observe(document, {{ childList: true, subtree: true }}); \
-         add(); }})();"
+         add(); {bits} }})();",
+        bits = BITS_FALLBACK_JS
     )
 }
 
@@ -468,5 +533,8 @@ mod tests {
         assert!(js.contains("--color-twitch-purple-9: #") && js.contains("twilight.theme', '1'"));
         // V107-Mz: the Bits page keeps the packages only; the script stays valid JSON-in-JS.
         assert!(js.contains("bits-landing-page__content--left-pane") && js.contains("bits-landing-page-faq"));
+        assert!(js.contains("#how-to-cheer") && js.contains("power-ups-animated-banner"));
+        assert!(js.contains("startsWith('/bits')") && js.contains("Buy Bits") && !js.contains("click("));
+        assert!(BITS_ONLY.matches('{').count() == BITS_ONLY.matches('}').count());
     }
 }

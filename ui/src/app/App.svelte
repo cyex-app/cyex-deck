@@ -64,6 +64,7 @@
   import { toast } from '../lib/toast.svelte';
   import { currentWindow } from '../lib/window.svelte';
   import DuplicatesDialog from '../features/settings/highlights/DuplicatesDialog.svelte';
+  import { focusTabChat, inOtherField } from '../features/tabs/focusChat';
   import { popOut } from './panels';
   import StreamerBar from './StreamerBar.svelte';
   import { useRootEffects } from './root.svelte';
@@ -332,9 +333,12 @@
 
   function open(id: string) {
     if (fixed || current !== id) moved();
+    // V107-H15 Taken before the old tab leaves the page.
+    const typing = inOtherField(document.activeElement);
     picked = id;
     fixed = null;
     tabs.activate(id);
+    focusTabChat(id, typing);
   }
 
   /** V1051-02 Cancel on the 7TV consent, Escape in Settings: back to where you were. */

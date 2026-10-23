@@ -23,7 +23,7 @@
   import { settings } from '../../../lib/settings.svelte';
   import { mentionsTab } from '../../chat/mentionsTab.svelte';
   import HighlightImport from '../chatterino/HighlightImport.svelte';
-  import { statusText } from '../mentions/status';
+  import { goesNowhere, statusText } from '../mentions/status';
   import type { Field } from '../rules/fields';
   import { OPT } from '../rules/options';
   import RuleList from '../rules/RuleList.svelte';
@@ -50,8 +50,8 @@
   /** Q2 Fixed rows. Your name and replies always go to the Mentions tab (Q4, O1), so no
    * option for it; off turns them off everywhere (O2). Colors match the chat's (Line.svelte). */
   const BUILT_IN: { key: keyof Highlights; label: string; color: string; mention?: true }[] = [
-    { key: 'me', label: 'Your name', color: 'var(--accent)', mention: true },
-    { key: 'replies', label: 'Replies to you', color: 'var(--accent)', mention: true },
+    { key: 'me', label: 'Your name', color: 'var(--accent-line)', mention: true },
+    { key: 'replies', label: 'Replies to you', color: 'var(--accent-line)', mention: true },
     { key: 'firstMessage', label: 'First messages', color: 'var(--green)' },
     { key: 'redeemed', label: 'Highlighted with points', color: 'var(--twitch)' },
     { key: 'subs', label: 'Subs and gifts', color: 'var(--twitch)' },
@@ -157,8 +157,9 @@
   const logins = (r: Login[]) => r.map((x) => x.login);
   const neverFields: Field<Login>[] = [{ key: 'login', label: 'Name', kind: 'text', placeholder: 'Username, like nightbot', main: true }];
   const mutedFields: Field<Login>[] = [{ key: 'login', label: 'Channel', kind: 'text', placeholder: 'Channel name', main: true }];
-  /** V107-Mq Global matches always go to the Mentions tab, and your names are looked for too. */
-  const globalFields = (r: PhraseRule) => wordFields(r).filter((f) => f.key !== 'show');
+  /** V107-H16 Global rows pick the Mentions tab and/or a feed, like word rows; a row
+   * with neither says so. Your names are looked for too (V107-Mq). */
+  const globalProblem = (r: PhraseRule, i: number) => globals.problem(r, i) ?? goesNowhere(r);
   const hasGlobal = $derived(h.globalList.some((x) => x.enabled && x.pattern.trim()) || (h.me.enabled && accounts.list.length > 0));
 </script>
 
@@ -245,7 +246,7 @@
   emptyIcon="smartphone"
 />
 
-<SectionHead title="Global mentions">Find out when you’re mentioned in chats you aren’t in. Your names count while Your name is on, and matches go to the Mentions tab.</SectionHead>
+<SectionHead title="Global mentions">Find out when you’re mentioned in chats you aren’t in. Your names count while Your name is on. Each row goes to the Mentions tab, a feed, or both.</SectionHead>
 <Row setting="highlights.global" label="Global mentions" hint="Searches every chat logs.cyex.app keeps. Uses about 0,8 GB an hour while on. Your list stays on this PC.">
   <Toggle label="Global mentions" checked={h.global} onchange={(v) => save({ global: v })} />
 </Row>
@@ -256,12 +257,12 @@
   <RuleList
     setting="highlights.globalList"
     items={h.globalList}
-    fields={globalFields}
+    fields={wordFields}
     layout="split"
     mainMin="110px"
     fallback="var(--accent)"
     make={newWord}
-    problem={globals.problem}
+    problem={globalProblem}
     note={globals.note}
     reorder={{ key: 'highlights.globalList', label: ruleName }}
     onchange={(globalList) => save({ globalList })}

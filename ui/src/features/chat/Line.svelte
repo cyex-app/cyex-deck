@@ -343,7 +343,7 @@
     box-shadow: inset 3px 0 var(--hl);
   }
   .hl-mention {
-    --hl: var(--accent);
+    --hl: var(--accent-line);
   }
   .hl-rule {
     --hl: var(--red);

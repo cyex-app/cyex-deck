@@ -17,7 +17,8 @@
   --muted: #b4b5bb;
   --dim: #91939c;
   --shadow: rgba(0, 0, 0, 0.35);
-  --overlay: rgba(0, 0, 0, 0.55);
+  --overlay: rgba(14, 15, 18, 0.6);
+  --neutral-chip: #34353c;
   --row-hover: rgba(255, 255, 255, 0.035);
   --row-alt: rgba(255, 255, 255, 0.015);
   --red: #ff6b6b;
@@ -25,6 +26,9 @@
   --green: #33d68f;
   --twitch: #a970ff;
   --cyan: #4fd6ff;
+  --pink: #ff7bd5;
+  --purple: #b083ff;
+  --gold: #ffd45e;
   /* Solid fills with white text on them: the LIVE badge, a window's close on hover. */
   --live: #e91916;
   --danger-solid: #e81123;
@@ -41,12 +45,15 @@
 
 :root {
   --accent: #145aff;
-  --accent-hover: #3773ff;
+  --accent-hover: #2a6aff;
+  /* V107-H13a cyex-design name for the hover fill. */
+  --accent-2: var(--accent-hover);
   --accent-ink: #ffffff;
   --accent-text: #7ea4ff;
   --accent-dim: rgba(20, 90, 255, 0.14);
   --accent-wash: rgba(20, 90, 255, 0.22);
   --accent-border: rgba(20, 90, 255, 0.55);
+  --accent-line: #145aff;
 
   /* Behind whole views (chat, title bar, side bar). A wallpaper (U8) makes it see-through. */
   --page: var(--bg);
@@ -61,8 +68,10 @@
      emote (2.15em at the E3 emote size), so a line with one is as tall as one without. */
 
   /* Secondary text sizes: subtitles and second lines, then hints, notes and small meta. */
+  --text-base: 13px;
   --text-sub: 0.85rem;
   --text-hint: 0.78rem;
+  --text-label: 0.68rem;
 
   --radius: 3px;
   --radius-sm: 2px;
@@ -91,6 +100,9 @@
   --scrim-strong: rgba(0, 0, 0, 0.72);
   /* Text on --live and --danger-solid. */
   --on-solid: #ffffff;
+  /* Platform logos, the same in both themes. */
+  --kick: #53fc18;
+  --twitch-logo: #9146ff;
   /* V107-Mu Thin dark edge for pale pictures (badges, cheermotes); none in dark. */
   --edge-pale: none;
 }
@@ -113,7 +125,8 @@
   --muted: #4f515a;
   --dim: #6b6d76;
   --shadow: rgba(20, 22, 30, 0.12);
-  --overlay: rgba(0, 0, 0, 0.3);
+  --overlay: rgba(243, 243, 244, 0.7);
+  --neutral-chip: #e6e7ea;
   --row-hover: rgba(20, 22, 30, 0.035);
   --row-alt: rgba(20, 22, 30, 0.015);
   --red: #c1352f;
@@ -121,6 +134,9 @@
   --green: #0f8a55;
   --twitch: #772ce8;
   --cyan: #0b6d8a;
+  --pink: #a82277;
+  --purple: #6b34c9;
+  --gold: #7d5a00;
   --live: #d9120f;
   --danger-solid: #c42b1c;
   --shadow-pop: 0 8px 24px var(--shadow);
@@ -129,6 +145,17 @@
   /* The real light background; paints are drawn as 7TV draws them. */
   --paint-back: var(--bg);
   --paint-dim: var(--dim);
+}
+/* V107-H13a Default light accent before the runtime set lands (cyex-design colour). */
+:root[data-theme='light'] {
+  --accent: #14e6ff;
+  --accent-hover: #10c9e6;
+  --accent-ink: #00232b;
+  --accent-text: #046a82;
+  --accent-dim: rgba(4, 106, 130, 0.08);
+  --accent-wash: rgba(4, 106, 130, 0.16);
+  --accent-border: rgba(4, 106, 130, 0.4);
+  --accent-line: #046a82;
 }
 
 *,
@@ -148,7 +175,7 @@ body {
 body {
   background: var(--bg);
   color: var(--text);
-  font: 13px/1.45 var(--font-ui);
+  font: var(--text-base)/1.45 var(--font-ui);
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
   user-select: none;
@@ -258,7 +285,7 @@ h2 {
 }
 
 .label {
-  font-size: 0.68rem;
+  font-size: var(--text-label);
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -280,5 +307,24 @@ h2 {
   *::after {
     transition-duration: 0s !important;
     animation-duration: 0s !important;
+    /* V107-H13a Loops stop at rest instead of freezing mid-turn; no smooth scroll. */
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* V107-H13a More contrast asked for: stronger borders and hint text. */
+@media (prefers-contrast: more) {
+  :root,
+  .theme-dark {
+    --border: #43454d;
+    --border-strong: #60626c;
+    --dim: #a5a7af;
+  }
+  :root[data-theme='light'],
+  .theme-light {
+    --border: #c4c6cc;
+    --border-strong: #8d8f98;
+    --dim: #575963;
   }
 }

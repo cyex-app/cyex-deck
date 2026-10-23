@@ -110,6 +110,10 @@ pub fn fold(
         h.replies = h.me.clone();
         h.global = m.global;
         h.global_list = m.global_list.iter().map(word).collect();
+        // V107-H16 Old global mentions always landed in the Mentions tab.
+        for r in &mut h.global_list {
+            r.alert.show = true;
+        }
         report.global = h.global_list.len();
     }
     // V106-09 Q9 Your name plays a sound, for every user, once.

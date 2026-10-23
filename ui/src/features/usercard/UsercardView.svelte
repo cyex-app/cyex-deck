@@ -330,7 +330,7 @@
     color: var(--text);
   }
   .tabs .on {
-    border-bottom-color: var(--accent);
+    border-bottom-color: var(--accent-line);
     color: var(--text);
   }
   .count {

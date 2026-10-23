@@ -123,6 +123,7 @@ fn custom_sounds() {
     assert_eq!(h.phrases[1].alert.sound_file, "", "not a sound file");
     assert!(h.global);
     assert_eq!(h.global_list[0].alert.sound_file, "C:\\s\\g.ogg");
+    assert!(h.global_list[0].alert.show, "V107-H16 old global rows keep the Mentions tab");
 }
 
 #[test]

@@ -124,7 +124,7 @@
     right: 5px;
     width: 6px;
     height: 6px;
-    background: var(--accent);
+    background: var(--accent-line);
     border-radius: 50%;
   }
 </style>

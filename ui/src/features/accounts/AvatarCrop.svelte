@@ -142,7 +142,7 @@
     display: block;
     width: 240px;
     margin: 14px auto 2px;
-    accent-color: var(--accent);
+    accent-color: var(--accent-line);
   }
   .err {
     color: var(--red);

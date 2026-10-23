@@ -149,7 +149,7 @@
     border-color: var(--border-strong);
   }
   .item.on {
-    border: 2px solid var(--accent);
+    border: 2px solid var(--accent-line);
     padding: 5px 7px;
   }
   .item.lock {

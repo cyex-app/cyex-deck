@@ -60,7 +60,7 @@
   input:checked + .box,
   input:indeterminate + .box {
     background: var(--accent);
-    border-color: var(--accent);
+    border-color: var(--accent-line);
   }
   input:focus-visible + .box {
     outline: 2px solid var(--focus-ring);

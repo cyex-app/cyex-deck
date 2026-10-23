@@ -5,7 +5,7 @@ import { stepTab, WheelSteps } from './cycle.ts';
 
 const ids = ['a', 'b', 'c'];
 
-test('the wheel stops at the ends, Ctrl+Tab wraps (V102-04)', () => {
+test('without wrap the ends stop; the wheel and Ctrl+Tab both wrap (V102-04, V107-H15)', () => {
   assert.equal(stepTab(ids, 'a', 1, false), 'b');
   assert.equal(stepTab(ids, 'b', -1, false), 'a');
   assert.equal(stepTab(ids, 'c', 1, false), null, 'no wrap past the last');

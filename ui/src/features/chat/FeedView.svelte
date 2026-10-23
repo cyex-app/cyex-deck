@@ -13,7 +13,12 @@
   import { popOut } from '../../app/panels';
   import { chatxIpc } from '../../ipc/chatx';
   import { settings } from '../../lib/settings.svelte';
-  import { lineClick } from './clicks';
+  import { openMenu } from '../../components/menu.svelte';
+  import { accounts } from '../../lib/accounts.svelte';
+  import EmoteCard from '../emotes/EmoteCard.svelte';
+  import type { CardTarget } from '../emotes/emotes';
+  import { FEED_CHAN, feedEvents } from './feedLines';
+  import { lineTips } from './lineEvents';
   import Line from './Line.svelte';
   import { isMentionsFeed, whenText } from './mentionsTab';
   import { roomRoute } from './roomRoute';
@@ -92,6 +97,20 @@
   function openRoom(channel: string) {
     void popOut(roomRoute(channel, null), `${channel} chat`);
   }
+
+  /** The emote card on screen, with the channel of the line it came from. */
+  let card = $state<{ target: CardTarget; channel: string } | null>(null);
+  const events = feedEvents({
+    find: (channel, id) => lines.find((l) => l.channel === channel && l.message.id === id)?.message,
+    openCard: (target) => (card = { target, channel: lastChannel }),
+    openMenu,
+    openRoom,
+  });
+  let lastChannel = '';
+  const chanOf = (e: Event) =>
+    (e.target as HTMLElement).closest(`[${FEED_CHAN}]`)?.getAttribute(FEED_CHAN) ?? '';
+  const tips = lineTips(() => list);
+  onDestroy(tips.drop);
 </script>
 
 <section class="feed">
@@ -108,10 +127,17 @@
       {/if}
     {/snippet}
   </FeedHeader>
-  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="lines" bind:this={list} onclick={lineClick}>
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions, a11y_mouse_events_have_key_events -->
+  <div
+    class="lines"
+    bind:this={list}
+    onclick={(e) => ((lastChannel = chanOf(e)), events.onclick(e))}
+    oncontextmenu={(e) => ((lastChannel = chanOf(e)), events.oncontextmenu(e))}
+    onmouseover={tips.onmouseover}
+    onmouseout={tips.onmouseout}
+  >
     {#each shown as l (`${l.channel}/${l.message.id}`)}
-      <div data-channel={l.channel}>
+      <div {...{ [FEED_CHAN]: l.channel }}>
         <div class="chan">
           <button class="room" use:tooltip={'Open this chat'} onclick={(e) => (e.stopPropagation(), openRoom(l.channel))}>
             #{l.channel}
@@ -134,6 +160,9 @@
     {/each}
   </div>
 </section>
+{#if card}
+  {#key card}<EmoteCard target={card.target} login={card.channel} account={accounts.current?.userId ?? null} onclose={() => (card = null)} />{/key}
+{/if}
 
 <style>
   .feed {

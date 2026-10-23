@@ -18,6 +18,7 @@
   import EmotePick from './EmotePick.svelte';
   import { btnMemo, remember } from './btnCache';
   import PowerUps from './PowerUps.svelte';
+  import { blocked, NOT_ENOUGH, short } from './rewards';
   import type { ChatRoom } from './room.svelte';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
@@ -63,6 +64,7 @@
   const canRedeem = $derived(room.account !== null && accounts.can('points', room.account));
   const name = $derived(points?.name ?? seen.pointsName ?? 'Channel points');
   const icon = $derived(points ? points.icon : (seen.pointsIcon ?? null));
+  const balance = $derived(points?.balance ?? null);
 
   const choices = $derived.by((): Choice[] => {
     if (!points) return [];
@@ -146,6 +148,9 @@
 
   async function redeem() {
     if (!picked || busy) return;
+    // V107-H11b Known to fail: say so here, Twitch isn't asked.
+    const no = blocked(picked.cost, balance);
+    if (no) return void toast.error(no);
     busy = true;
     try {
       toast.info(
@@ -204,6 +209,9 @@
         <div class="confirm">
           <div class="title">{picked.title} · {formatNumber(picked.cost)}</div>
           {#if picked.prompt}<p class="note">{picked.prompt}</p>{/if}
+          {#if short(picked.cost, balance)}
+            <p class="note lack">{NOT_ENOUGH}. You have {formatNumber(balance ?? 0)}.</p>
+          {/if}
           {#if picked.emote}
             <EmotePick view={room.view} kind={picked.emote} bind:picked={emote} />
           {/if}
@@ -237,16 +245,21 @@
       {:else}
         <div class="grid">
           {#each choices as c (c.id)}
+            <!-- Paused or on cooldown is already greyed: one reason at a time. -->
+            {@const lack = c.available && short(c.cost, balance)}
             <button
               class="reward"
+              class:lack
               disabled={!canRedeem || !c.available}
               style:--rc={c.color}
               onclick={() => pick(c)}
-              use:tooltip={{ label: c.title, hint: c.prompt ?? undefined }}
+              use:tooltip={{ label: c.title, hint: lack ? NOT_ENOUGH : (c.prompt ?? undefined) }}
             >
               <span class="tile">{#if c.image}<img src={c.image} alt="" />{/if}</span>
               <span class="rt">{c.title}</span>
               <span class="cost">{formatNumber(c.cost)}</span>
+              <!-- V107-H11b Still clickable: the confirm says it again. -->
+              {#if lack}<span class="short">{NOT_ENOUGH}</span>{/if}
             </button>
           {/each}
         </div>
@@ -359,6 +372,18 @@
   .cost {
     color: var(--dim);
     font-weight: 700;
+  }
+  .reward.lack .cost {
+    opacity: 0.5;
+  }
+  .short {
+    color: var(--muted);
+    font-size: 0.7rem;
+    line-height: 1.2;
+    text-align: center;
+  }
+  .note.lack {
+    color: var(--muted);
   }
   .confirm .title {
     font-weight: 700;

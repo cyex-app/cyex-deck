@@ -49,7 +49,7 @@
     background: var(--surface-hover);
   }
   .picked {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--accent-line);
     outline-offset: 1px;
   }
   .body {

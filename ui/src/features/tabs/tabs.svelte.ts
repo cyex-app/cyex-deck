@@ -17,6 +17,7 @@ import { accounts } from '../../lib/accounts.svelte';
 import { settings } from '../../lib/settings.svelte';
 import { toast } from '../../lib/toast.svelte';
 import { hiddenTabs } from './barLayout';
+import { bumped, cleared, mentionNews, type FeedCounts } from './feedNews';
 import { muter } from './muter';
 import { sounding } from './sounding.svelte';
 import { tabSoundMode, type TabSoundMode } from './tabSound';
@@ -51,6 +52,8 @@ class TabsStore {
   held = $state<string | null>(null);
   /** V106-25 Tabs muted from their right-click menu (not saved). */
   muted = $state.raw<Set<string>>(new Set());
+  /** V107-H15 Lines in feeds (the Mentions tab) since their tab was last shown. */
+  feedNews = $state.raw<FeedCounts>({});
 
   get list(): Tab[] {
     return settings.v.tabs?.tabs ?? [];
@@ -112,6 +115,7 @@ class TabsStore {
     const mode = settings.v.appearance.tabUnread;
     if (mode === 'off') return null;
     let state: UnreadState = null;
+    if (mentionNews(this.feedNews, tab)) return 'mention';
     for (const tile of tiles(tab)) {
       if (!tile.show.chat) continue;
       const level = this.unread[roomKey(tile.account, tile.channel.login)]?.level;
@@ -127,7 +131,7 @@ class TabsStore {
     // A room shown twice counts once.
     const rooms = new Set<string>();
     for (const tile of tiles(tab)) if (tile.show.chat) rooms.add(roomKey(tile.account, tile.channel.login));
-    let n = 0;
+    let n = mentionNews(this.feedNews, tab);
     for (const r of rooms) n += this.unread[r]?.mentions ?? 0;
     return n;
   }
@@ -148,6 +152,7 @@ class TabsStore {
     await tabsIpc.onLive((l) => this.setLive(l));
     await windowsIpc.onPanels((p) => this.setPopped(p));
     await tabsIpc.onUnread((u) => this.setUnread(u, false));
+    await tabsIpc.onFeedNews((f) => this.feedLine(f));
     await tabsIpc.onReopenable((r) => (this.reopenable = r));
     await tabsIpc.onMuted((ids) => (this.muted = new Set(ids)));
   }
@@ -196,7 +201,15 @@ class TabsStore {
   }
 
   activate(id: string | null): void {
+    const tab = this.tab(id);
+    if (tab) this.feedNews = cleared(this.feedNews, tab);
     if (id !== this.active) void this.apply({ op: 'activate', tab: id });
+  }
+
+  /** V107-H15 A line landed in a feed; counted unless its tab is on screen or in a window. */
+  private feedLine(feed: string): void {
+    const shown = [this.tab(this.active), ...[...this.popped].map((id) => this.tab(id))].filter((t) => !!t);
+    this.feedNews = bumped(this.feedNews, feed, shown);
   }
 
   close(ids: string[]): void {

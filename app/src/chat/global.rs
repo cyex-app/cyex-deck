@@ -2,8 +2,8 @@
 //! switch is on and a global mention has something to find. Every line is matched here
 //! (`cyex_chat::mentions`); the list never leaves the app. Lines are peeked at without
 //! parsing, the compiled list is swapped in without locking per line, and only a match
-//! is parsed in full. Matches go to the Mentions tab marked global, with the same alerts
-//! as a chat's own mentions.
+//! is parsed in full. Matches go to the Mentions tab and/or a custom feed (V107-H16, per
+//! row) marked global, with the same alerts as a chat's own mentions.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -159,6 +159,20 @@ fn start(app: AppHandle, shared: Arc<Shared>, stop: watch::Receiver<bool>, run: 
     });
 }
 
+/// V107-H16 What a line's matches ask for: the first match's color, every match's alerts
+/// and tabs (`show` the Mentions tab, `route` a custom feed). None: no match, or one that
+/// goes nowhere and pings nothing, so the line isn't parsed.
+fn outcome(set: &MentionSet, text: &str, scratch: &mut String) -> Option<(String, Outcome)> {
+    let mut out = Outcome::default();
+    let mut color: Option<&str> = None;
+    set.each_match(text, scratch, |r| {
+        color.get_or_insert(r.alert.color.as_str());
+        out.add(&r.alert);
+    });
+    let color = color?.to_owned();
+    (!out.routes.is_empty() || out.pings()).then_some((color, out))
+}
+
 /// What the reader keeps between lines.
 struct Reader {
     app: AppHandle,
@@ -195,13 +209,7 @@ impl Reader {
             self.generation = generation;
         }
         let Some(peek) = mentions::peek(raw) else { return };
-        let mut out = Outcome::default();
-        let mut color: Option<&str> = None;
-        self.set.each_match(peek.text, &mut self.scratch, |r| {
-            color.get_or_insert(r.alert.color.as_str());
-            out.add(&r.alert);
-        });
-        let Some(color) = color.map(str::to_owned) else {
+        let Some((color, out)) = outcome(&self.set, peek.text, &mut self.scratch) else {
             return;
         };
         if !self.room_for_one_more() {
@@ -241,8 +249,7 @@ impl Reader {
             color: (!color.is_empty()).then_some(color),
         });
         let m = Arc::new(m);
-        // V104-02 Always the Mentions tab (sanitize locks `show` on), plus any feed of its own.
-        out.feed();
+        // V107-H16 The Mentions tab when the row asks for it, plus any feed of its own.
         super::feeds::route_global(&self.app, channel, &m, &out.routes);
         // C27 Silent chats stay silent here too; pings come at most every few seconds.
         let quiet = rules.muted(channel);
@@ -252,5 +259,57 @@ impl Reader {
             out.routes.clear();
             super::mention::notify(&self.app, channel, &m, &out, true);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use cyex_settings::schema::{Alert, PhraseRule};
+
+    use super::*;
+
+    fn row(pattern: &str, show: bool, route: &str) -> PhraseRule {
+        PhraseRule {
+            pattern: pattern.into(),
+            alert: Alert {
+                show,
+                route: route.into(),
+                ..Alert::default()
+            },
+            ..PhraseRule::default()
+        }
+    }
+
+    fn routes(rows: &[PhraseRule], text: &str) -> Option<Vec<String>> {
+        let h = Highlights {
+            global: true,
+            global_list: rows.to_vec(),
+            ..Highlights::default()
+        };
+        let set = MentionSet::new(&h.global_rules(&[]));
+        outcome(&set, text, &mut String::new()).map(|(_, o)| o.routes)
+    }
+
+    // V107-H16 Mentions on, off, a custom feed, a feed plus a copy in Mentions.
+    #[test]
+    fn global_rows_route_where_they_ask() {
+        assert_eq!(routes(&[row("deck", true, "")], "cyex deck").unwrap(), ["Mentions"]);
+        assert_eq!(routes(&[row("deck", false, "Deck")], "cyex deck").unwrap(), ["Deck"]);
+        assert_eq!(routes(&[row("deck", true, "Deck")], "cyex deck").unwrap(), ["Mentions", "Deck"]);
+        assert_eq!(routes(&[row("deck", true, "")], "nothing here"), None);
+    }
+
+    #[test]
+    fn a_row_going_nowhere_is_dropped_unless_it_pings() {
+        assert_eq!(routes(&[row("deck", false, "")], "cyex deck"), None);
+        let mut sound = row("deck", false, "");
+        sound.alert.sound = true;
+        assert_eq!(routes(&[sound], "cyex deck").unwrap(), Vec::<String>::new());
+    }
+
+    #[test]
+    fn two_rows_on_one_line_add_up_once() {
+        let rows = [row("cyex", true, "Deck"), row("deck", true, "deck")];
+        assert_eq!(routes(&rows, "cyex deck").unwrap(), ["Mentions", "Deck"]);
     }
 }

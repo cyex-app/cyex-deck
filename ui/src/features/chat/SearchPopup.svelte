@@ -190,11 +190,11 @@
     font-size: 0.85rem;
   }
   :global(::highlight(search-hit)) {
-    background: color-mix(in srgb, var(--accent) 28%, transparent);
+    background: color-mix(in srgb, var(--accent-line) 28%, transparent);
     color: inherit;
   }
   :global(::highlight(search-cur)) {
-    background: color-mix(in srgb, var(--accent) 55%, transparent);
+    background: color-mix(in srgb, var(--accent-line) 55%, transparent);
     color: inherit;
   }
   .count {

@@ -73,6 +73,10 @@ pub struct Highlights {
     pub mentions_merged: bool,
     /// V106-33 The duplicates dialog was answered. The merge sets false when it found duplicates.
     pub duplicates_asked: bool,
+    /// V107-H16 Written once global rows may leave the Mentions tab. An older file (no key)
+    /// has its global rows put back on the Mentions tab once, as V107-Mq showed them.
+    #[serde(default)]
+    pub global_routes: bool,
 }
 
 impl Default for Highlights {
@@ -102,6 +106,7 @@ impl Default for Highlights {
             similar: Similarity::default(),
             mentions_merged: true,
             duplicates_asked: true,
+            global_routes: true,
         }
     }
 }
@@ -127,9 +132,12 @@ impl Schema for Highlights {
             clip(&mut r.pattern, MAX_PATTERN_CHARS);
             r.alert.sanitize();
         }
-        // V107-Mq Global mentions always land in the Mentions tab (V104-02).
-        for r in &mut self.global_list {
-            r.alert.show = true;
+        // V107-H16 Rows from before keep the Mentions tab; after that it's the row's choice.
+        if !self.global_routes {
+            for r in &mut self.global_list {
+                r.alert.show = true;
+            }
+            self.global_routes = true;
         }
         self.mentions_merged = true;
         for r in &mut self.users {
@@ -512,14 +520,20 @@ mod tests {
         assert!(h.global_rules(&["seryxx"]).is_empty(), "Your name off: not looked for");
     }
 
-    // V107-Mq Unticked rows from before still land in the Mentions tab.
+    // V107-H16 Old rows get the Mentions tab back once; then turning it off sticks.
     #[test]
-    fn global_rows_always_go_to_the_mentions_tab() {
+    fn old_global_rows_keep_the_mentions_tab_once() {
         let mut h: Highlights =
             serde_json::from_value(serde_json::json!({"global": true, "globalList": [{"pattern": "a", "show": false}]}))
                 .unwrap();
+        assert!(!h.global_routes, "no key: an old file");
         h.sanitize();
-        assert!(h.global_list[0].alert.show);
+        assert!(h.global_list[0].alert.show && h.global_routes);
+        h.global_list[0].alert.show = false;
+        let mut back: Highlights = serde_json::from_value(serde_json::to_value(&h).unwrap()).unwrap();
+        back.sanitize();
+        assert!(!back.global_list[0].alert.show, "off stays off");
+        assert!(Highlights::default().global_routes, "a new file needs no migration");
     }
 
     #[test]

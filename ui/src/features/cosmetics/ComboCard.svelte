@@ -123,7 +123,7 @@
   }
   .card.on {
     padding: 5px 7px;
-    border: 2px solid var(--accent);
+    border: 2px solid var(--accent-line);
   }
   .card.naming {
     padding-block: 3px;

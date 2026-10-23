@@ -74,4 +74,9 @@ mentionsMerged: boolean,
 /**
  * V106-33 The duplicates dialog was answered. The merge sets false when it found duplicates.
  */
-duplicatesAsked: boolean, };
+duplicatesAsked: boolean, 
+/**
+ * V107-H16 Written once global rows may leave the Mentions tab. An older file (no key)
+ * has its global rows put back on the Mentions tab once, as V107-Mq showed them.
+ */
+globalRoutes: boolean, };

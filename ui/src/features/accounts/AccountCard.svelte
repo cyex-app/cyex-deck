@@ -26,6 +26,9 @@
   import { accountName, missingScopesText, needsSignIn, tokenStatus } from './status';
   import { errorText } from '../../lib/errors';
   import { untrack } from 'svelte';
+  import { cubicOut } from 'svelte/easing';
+  import { slide } from 'svelte/transition';
+  import { reduced } from '../../lib/motion';
   import { settingsPlace } from '../settings/place.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
 
@@ -173,7 +176,12 @@
     </span>
   </div>
 
-  {#if editing}<ProfileEditor account={account.userId} /><ProfileImages account={account.userId} />{/if}
+  <!-- V107-H15 Opens and closes by height and opacity; reversing mid-way picks up where it is. -->
+  {#if editing}
+    <div class="editors" transition:slide={{ duration: reduced() ? 0 : 200, easing: cubicOut }}>
+      <ProfileEditor account={account.userId} /><ProfileImages account={account.userId} />
+    </div>
+  {/if}
 
   <footer>
     {#if canEdit}
