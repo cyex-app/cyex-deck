@@ -82,7 +82,8 @@ pub enum When {
     On { days: i64, day_secs: u32 },
 }
 
-/// `/timer [-rso] [:id] <5m|17:30|[2026-10-11 17:30]|list|stop id> <command>`.
+/// `/timer [-rso] [:id] <5m|17:30|[2026/10/11 17:30]|list|stop id> <command>`. The date takes
+/// `/` (3.1) or Chatty's `-`.
 pub fn parse_timer(args: &str) -> Result<Timer, String> {
     let mut rest = args.trim();
     let mut start = TimerStart {
@@ -144,7 +145,7 @@ fn when(text: &str) -> Option<When> {
         let inner = inner.trim();
         return match inner.split_once(' ') {
             Some((date, time)) => {
-                let mut d = date.split('-').map(|p| p.parse::<i64>().ok());
+                let mut d = date.split(['/', '-']).map(|p| p.parse::<i64>().ok());
                 let (y, m, dd) = (d.next()??, d.next()??, d.next()??);
                 Some(When::On {
                     days: days_from_civil(y, m, dd)?,
@@ -273,6 +274,10 @@ mod tests {
                 day_secs: 19_800
             }
         );
+        let Timer::Start(t) = parse_timer("[2022/01/10 5:30] /echo x").unwrap() else {
+            panic!()
+        };
+        assert_eq!(t.when, When::On { days: 19_002, day_secs: 19_800 });
         let Timer::Start(t) = parse_timer("500ms x").unwrap() else {
             panic!()
         };

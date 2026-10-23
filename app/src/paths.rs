@@ -122,10 +122,10 @@ pub fn folder_message(path: Option<&Path>, reason: &str) -> String {
         .unwrap_or_default();
     match path {
         Some(p) => format!(
-            "cyex deck can't open its settings folder:\n{}\n\n{reason}",
+            "cyex deck can’t open its settings folder:\n{}\n\n{reason}",
             p.display()
         ),
-        None => format!("cyex deck can't open its settings folder.\n\n{reason}"),
+        None => format!("cyex deck can’t open its settings folder.\n\n{reason}"),
     }
 }
 
@@ -157,7 +157,7 @@ pub fn open_folder(app: &AppHandle, dir: &Path) -> Result<(), String> {
         .open_path(dir.to_string_lossy(), None::<&str>)
         .map_err(|e| {
             eprintln!("paths: couldn't open {}: {e}", dir.display());
-            "Couldn't open the folder.".to_owned()
+            "Couldn’t open the folder.".to_owned()
         })
 }
 
@@ -311,11 +311,11 @@ mod tests {
         let p = Path::new(r"A:\data\roaming");
         assert_eq!(
             folder_message(Some(p), r"A file is in the way: A:\data"),
-            "cyex deck can't open its settings folder:\nA:\\data\\roaming\n\nA file is in the way: A:\\data"
+            "cyex deck can’t open its settings folder:\nA:\\data\\roaming\n\nA file is in the way: A:\\data"
         );
         assert_eq!(
             folder_message(None, " settings aren't valid"),
-            "cyex deck can't open its settings folder.\n\nSettings aren't valid"
+            "cyex deck can’t open its settings folder.\n\nSettings aren't valid"
         );
     }
 

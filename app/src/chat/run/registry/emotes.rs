@@ -3,7 +3,7 @@
 use super::Changes::SevenTv;
 use super::{Cmd, ex, opt, req};
 
-const NOTES: &str = "For channels you own or edit on 7TV. Each change shows a line in that channel's chat, like 7TV's own; in the chat you typed it in, Undo shows for a few seconds too. Not in automations. Signed out of 7TV, the chat asks you to sign in, then runs it again. Nothing goes to the channel. Your own command with the same name runs instead.";
+const NOTES: &str = "For channels you own or edit on 7TV. Each change shows a line in that channel’s chat, like 7TV’s own; in the chat you typed it in, Undo shows for a few seconds too. Not in automations. Signed out of 7TV, the chat asks you to sign in, then runs it again. Nothing goes to the channel. Your own command with the same name runs instead.";
 
 pub(super) const CMDS: &[Cmd] = &[
     Cmd::new(

@@ -31,7 +31,7 @@ pub(crate) fn said(e: &cyex_twitch::Error) -> String {
     let line = match e {
         cyex_twitch::Error::Refused(code) => match code.as_str() {
             "DUPLICATE_REWARD" => "A reward with that name exists already.",
-            "TOO_MANY_REWARDS" => "That's as many rewards as Twitch allows.",
+            "TOO_MANY_REWARDS" => "That’s as many rewards as Twitch allows.",
             "NOT_FOUND" | "REWARD_NOT_FOUND" => "That reward is gone. Refresh the list.",
             "CHANNEL_POINTS_NOT_ENABLED" | "CHANNEL_POINTS_NOT_AVAILABLE" => {
                 "Channel points are off for your channel."

@@ -71,7 +71,7 @@ pub(super) const BEFORE: &[Cmd] = &[
         .errs(&["Usage: /runin channel /command", "Not in {channel}’s chat."]),
     Cmd::new(
         "timer",
-        "/timer [-rso] [:id] 5m|17:30|[2026-10-11 17:30] /cmd",
+        "/timer [-rso] [:id] 5m|17:30|[2026/10/11 17:30] /cmd",
         "Runs a command later in this chat. Also /timer list and /timer stop id.",
         "S3",
     )
@@ -81,7 +81,7 @@ pub(super) const BEFORE: &[Cmd] = &[
             .values(&["-r", "-s", "-o"])
             .note("-r keeps it through a restart, -s skips the “started” line, -o replaces a timer with the same id."),
         opt("id", "word").note(":id. An id ending in * gets a number."),
-        req("when", "duration").note("5m, 17:30, or [yyyy-mm-dd hh:mm]; list; stop."),
+        req("when", "duration").note("5m, 17:30, or [yyyy/mm/dd hh:mm]; list; stop."),
         req("command", "command"),
     ])
     .changes(Local, "Runs the command when the time comes; -r saves the timer in the commands settings.")

@@ -64,7 +64,7 @@ pub fn command(app: &AppHandle, place: &Place, args: &str) -> Result<(), String>
                 .lock()
                 .unwrap_or_else(|p| p.into_inner())
                 .iter()
-                .map(|t| format!("{} in {}s: {}", t.id, (t.at_ms - now).max(0) / 1000, t.command))
+                .map(|t| format!("{} in {}: {}", t.id, short((t.at_ms - now).max(0) / 1000), t.command))
                 .collect();
             let text = if lines.is_empty() {
                 "No timers running.".to_owned()
@@ -83,7 +83,7 @@ pub fn command(app: &AppHandle, place: &Place, args: &str) -> Result<(), String>
                 app,
                 &place.key,
                 NoticeKind::Info,
-                &format!("Stopped {stopped} timer(s)."),
+                &if stopped == 1 { "Stopped 1 timer.".to_owned() } else { format!("Stopped {stopped} timers.") },
             );
             Ok(())
         }
@@ -247,10 +247,30 @@ fn at_ms(when: When) -> i64 {
     }
 }
 
+/// `45s`, `5m`, `1m 30s`, `2h 5m`: the two biggest parts that aren't zero, like the UI's durations.
 fn short(secs: i64) -> String {
-    match secs {
-        s if s < 60 => format!("{s}s"),
-        s if s < 3600 => format!("{}m {}s", s / 60, s % 60),
-        s => format!("{}h {}m", s / 3600, s % 3600 / 60),
+    let s = secs.max(0);
+    let parts: Vec<String> = [(s / 3600, 'h'), (s % 3600 / 60, 'm'), (s % 60, 's')]
+        .into_iter()
+        .skip_while(|(n, _)| *n == 0)
+        .take(2)
+        .filter(|(n, _)| *n > 0)
+        .map(|(n, u)| format!("{n}{u}"))
+        .collect();
+    if parts.is_empty() { "0s".to_owned() } else { parts.join(" ") }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::short;
+
+    #[test]
+    fn short_drops_zero_parts() {
+        assert_eq!(short(0), "0s");
+        assert_eq!(short(45), "45s");
+        assert_eq!(short(300), "5m");
+        assert_eq!(short(90), "1m 30s");
+        assert_eq!(short(3600), "1h");
+        assert_eq!(short(7505), "2h 5m");
     }
 }
