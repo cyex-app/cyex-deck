@@ -47,17 +47,17 @@ export class ToastStore {
   items = $state<Toast[]>([]);
   private clocks = new Map<number, Clock>();
 
-  info(text: string, opts?: ToastOptions): void {
-    this.push('info', text, opts);
+  info(text: string, opts?: ToastOptions): number {
+    return this.push('info', text, opts);
   }
 
   /** V105-16 Green edge: something you asked for worked. */
-  success(text: string, opts?: ToastOptions): void {
-    this.push('success', text, opts);
+  success(text: string, opts?: ToastOptions): number {
+    return this.push('success', text, opts);
   }
 
-  error(text: string, opts?: ToastOptions): void {
-    this.push('error', text, opts);
+  error(text: string, opts?: ToastOptions): number {
+    return this.push('error', text, opts);
   }
 
   dismiss(id: number): void {
@@ -91,7 +91,7 @@ export class ToastStore {
     t?.action?.run();
   }
 
-  private push(kind: Toast['kind'], text: string, opts: ToastOptions = {}): void {
+  private push(kind: Toast['kind'], text: string, opts: ToastOptions = {}): number {
     const usual = opts.action ? Math.max(LIFETIME_MS[kind], ACTION_MS) : LIFETIME_MS[kind];
     const life = opts.ms === undefined ? usual : opts.action ? Math.max(opts.ms, ACTION_MS) : opts.ms;
     const keyed = opts.key === undefined ? undefined : this.items.find((t) => t.key === opts.key);
@@ -103,7 +103,7 @@ export class ToastStore {
       const c = this.clocks.get(same.id);
       if (c && !c.held) this.run(same.id, life);
       else if (c) c.left = life;
-      return;
+      return same.id;
     }
     const id = nextId++;
     let items = [...this.items, { id, kind, text, count: 1, action: opts.action, key: opts.key }];
@@ -114,6 +114,7 @@ export class ToastStore {
     }
     this.items = items;
     this.run(id, life);
+    return id;
   }
 
   private run(id: number, ms: number): void {

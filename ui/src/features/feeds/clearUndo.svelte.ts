@@ -8,6 +8,7 @@ import { ACTION_MS, toast } from '../../lib/toast.svelte.ts';
 export class ClearUndo {
   hidden = $state.raw<Set<string> | null>(null);
   #timer: ReturnType<typeof setTimeout> | undefined;
+  #toast: number | undefined;
   #keys: () => string[];
   #commit: (keys: string[]) => Promise<void>;
   #done: (gone: Set<string>) => void;
@@ -28,16 +29,19 @@ export class ClearUndo {
     if (keys.length === 0) return;
     this.hidden = new Set(keys);
     this.#timer = setTimeout(this.flush, ACTION_MS);
-    toast.info('Feed cleared.', { action: { label: 'Undo', run: this.undo } });
+    this.#toast = toast.info('Feed cleared.', { action: { label: 'Undo', run: this.undo } });
   };
 
   undo = () => {
     clearTimeout(this.#timer);
+    this.#toast = undefined;
     this.hidden = null;
   };
 
   flush = () => {
     clearTimeout(this.#timer);
+    if (this.#toast !== undefined) toast.dismiss(this.#toast);
+    this.#toast = undefined;
     const gone = this.hidden;
     if (!gone) return;
     this.hidden = null;

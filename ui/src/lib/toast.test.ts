@@ -102,3 +102,14 @@ test('ms can shorten a toast, and a button still keeps it', () => {
   mock.timers.tick(2500);
   assert.equal(t.items.length, 1);
 });
+
+test('info, success and error return the toast id; a repeat returns the same one', () => {
+  const t = new ToastStore();
+  const a = t.info('a');
+  assert.equal(t.items[0].id, a);
+  assert.equal(t.info('a'), a);
+  assert.notEqual(t.error('a'), a);
+  t.dismiss(a);
+  t.dismiss(a);
+  assert.equal(t.items.length, 1);
+});
