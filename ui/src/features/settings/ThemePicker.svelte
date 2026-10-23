@@ -196,4 +196,17 @@
     flex: 0 1 180px;
     height: 28px;
   }
+  /* Forced colours: the preview keeps its own colours; the pick gets a Highlight frame. */
+  @media (forced-colors: active) {
+    .pic,
+    .pic * {
+      forced-color-adjust: none;
+    }
+    .theme[aria-checked='true'] {
+      border-color: Highlight;
+    }
+    .theme[aria-checked='true'] .pic {
+      outline-color: Highlight;
+    }
+  }
 </style>

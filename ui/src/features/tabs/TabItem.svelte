@@ -425,4 +425,15 @@
   [data-mark='into'] .pill {
     box-shadow: inset 0 0 0 2px var(--accent-border);
   }
+  /* Forced colours: the open tab is a Highlight block; a picked one gets a ring. */
+  @media (forced-colors: active) {
+    .active .pill {
+      background: Highlight;
+      color: HighlightText;
+    }
+    .selected:not(.active) .pill {
+      box-shadow: none;
+      outline: 1px solid ButtonText;
+    }
+  }
 </style>

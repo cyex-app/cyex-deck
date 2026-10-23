@@ -328,3 +328,22 @@ h2 {
     --dim: #575963;
   }
 }
+
+/* Forced colours (Windows contrast themes): the browser swaps every colour for the system
+   palette. Tokens map to it so borders and focus stay; picks use Highlight; a swatch that has
+   to show its own colour opts out (forced-color-adjust: none). */
+@media (forced-colors: active) {
+  :root,
+  .theme-dark,
+  :root[data-theme='light'],
+  .theme-light {
+    --border: CanvasText;
+    --border-strong: CanvasText;
+    --focus-ring: Highlight;
+    --accent-line: Highlight;
+  }
+  input[type='color'],
+  input[type='color']::-webkit-color-swatch {
+    forced-color-adjust: none;
+  }
+}

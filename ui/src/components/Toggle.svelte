@@ -86,4 +86,33 @@
   .toggle:disabled {
     opacity: 0.5;
   }
+  /* Forced colours: a ring replaces the shadow; on = Highlight track with HighlightText knob. */
+  @media (forced-colors: active) {
+    .toggle {
+      background: Canvas;
+      box-shadow: none;
+      outline: 1px solid ButtonText;
+      outline-offset: -1px;
+    }
+    .toggle.on,
+    .toggle.neutral.on {
+      background: Highlight;
+      outline-color: Highlight;
+    }
+    .knob {
+      background: ButtonText;
+    }
+    .on .knob,
+    .neutral.on .knob {
+      background: HighlightText;
+    }
+    .toggle.on::before,
+    .toggle.neutral.on::before {
+      background: HighlightText;
+    }
+    .toggle:disabled {
+      opacity: 1;
+      outline-color: GrayText;
+    }
+  }
 </style>

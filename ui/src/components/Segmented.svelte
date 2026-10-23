@@ -100,4 +100,19 @@
       0 1px 2px var(--shadow);
     color: var(--text);
   }
+  /* Forced colours: the pick is a Highlight block with HighlightText. */
+  @media (forced-colors: active) {
+    .seg {
+      background: Canvas;
+      border-color: ButtonText;
+    }
+    button.on,
+    .neutral button.on,
+    :global(:root[data-theme='light']) button.on,
+    :global(:root[data-theme='light']) .neutral button.on {
+      background: Highlight;
+      box-shadow: none;
+      color: HighlightText;
+    }
+  }
 </style>
