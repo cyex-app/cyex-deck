@@ -1,11 +1,12 @@
-<!-- V107-B Bits picker next to the rewards: the channel's cheermotes and their tiers, an
-     amount and your balance. A pick puts "PrefixN" in the box; Enter sends it through the
-     cheer path. Tiers you can't afford are greyed. -->
+<!-- V107-B Bits picker next to the rewards. V107-H10a Amount first (presets or any number),
+     then the style: one icon per cheermote at the tier the amount reaches. A pick puts
+     "PrefixN" in the box; Enter sends it through the cheer path. -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import Loading from '../../components/Loading.svelte';
   import NumberField from '../../components/NumberField.svelte';
   import Popover from '../../components/Popover.svelte';
+  import { moveFor } from '../../components/select.ts';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { Cheermote } from '../../ipc/bindings/Cheermote';
   import { density } from '../../lib/density.svelte';
@@ -13,6 +14,7 @@
   import { settings } from '../../lib/settings.svelte';
   import type { CheerBox } from './bits.svelte';
   import { catalogs } from './catalog.svelte';
+  import { CHEER_MAX, canAfford, cheerPresets, startAmount, wordMin, type CheerRules } from './cheer';
   import type { ChatRoom } from './room.svelte';
   import { cheerImg, cheerTier } from './urls';
 
@@ -24,26 +26,24 @@
 
   let { room, box, oninsert }: Props = $props();
 
-  const MAX = 100_000;
   let open = $state(false);
   let amount = $state(100);
   const theme = $derived(settings.v.appearance.theme);
   const info = $derived(box.info);
   const balance = $derived(info?.balance ?? null);
+  const rules = $derived<CheerRules>({ cheerMin: info?.cheerMin ?? 1, emoteMin: info?.emoteMin ?? 1, balance });
+  const presets = $derived(cheerPresets(rules));
+  const ok = $derived(canAfford(amount, rules));
   const list = $derived.by((): Cheermote[] => {
     const usable = new Set(info?.prefixes ?? []);
     return catalogs.cheermotes(room.login).filter((c) => usable.has(c.prefix.toLowerCase()));
   });
-  /** V107-H1b A tier under the channel's per-emote minimum can never go out. */
-  const emoteMin = $derived(Math.max(1, info?.emoteMin ?? 1));
-  const canPick = (bits: number) => bits >= emoteMin && (balance === null || bits <= balance);
   // V107-H1b The amount starts at the channel's minimum when that's higher.
   let lifted = '';
   $effect(() => {
     if (!info || lifted === room.login) return;
     lifted = room.login;
-    const floor = Math.max(info.cheerMin, emoteMin);
-    if (amount < floor) amount = Math.min(floor, MAX);
+    amount = startAmount(amount, rules);
   });
 
   function toggle() {
@@ -54,9 +54,21 @@
     void box.load();
   }
 
-  function pick(c: Cheermote, bits: number) {
-    oninsert(c.prefix, bits);
+  function pick(c: Cheermote) {
+    if (!canAfford(amount, rules)) return;
+    oninsert(c.prefix, amount);
     open = false;
+  }
+
+  /** Arrows move inside a row of choices; Tab leaves it. */
+  function rove(e: KeyboardEvent) {
+    const key = e.key === 'ArrowLeft' ? 'ArrowUp' : e.key === 'ArrowRight' ? 'ArrowDown' : e.key;
+    if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(key)) return;
+    const row = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+    const to = moveFor(key, row.indexOf(document.activeElement as HTMLButtonElement), row.length);
+    if (to === null || to < 0) return;
+    e.preventDefault();
+    row[to].focus();
   }
 </script>
 
@@ -69,7 +81,7 @@
     onclick={toggle}
     use:tooltip={{
       label: balance != null ? `Cheer · ${formatNumber(balance)} Bits` : 'Cheer',
-      hint: 'Pick a cheer, then send it with Enter.',
+      hint: 'Pick an amount and a cheer, then send it with Enter.',
     }}
   >
     <Icon name="gem" size={16} />
@@ -87,37 +99,36 @@
       {:else if !info.enabled}
         <p class="note">Cheering is off in this channel.</p>
       {:else}
+        <div class="row" role="toolbar" tabindex="-1" aria-label="Amount" onkeydown={rove}>
+          {#each presets as p (p.bits)}
+            <button class="chip" aria-pressed={amount === p.bits} disabled={!p.ok} onclick={() => (amount = p.bits)}>
+              {formatNumber(p.bits)}
+            </button>
+          {/each}
+        </div>
         <div class="amount">
-          <span>Amount</span>
-          <NumberField label="Amount" value={amount} min={emoteMin} max={MAX} width="96px" onchange={(v) => (amount = v)} />
-          {#if info.cheerMin > 1}<span class="min">Minimum {formatNumber(info.cheerMin)}</span>{/if}
+          <NumberField label="Amount" value={amount} min={wordMin(rules)} max={CHEER_MAX} width="96px" unit="Bits" onchange={(v) => (amount = v)} />
+          {#if balance != null && amount > balance}
+            <span class="warn">More than you have</span>
+          {:else if info.cheerMin > 1}
+            <span class="min">Minimum {formatNumber(info.cheerMin)}</span>
+          {/if}
         </div>
         {#if !list.length}
           <p class="note">No cheers here yet.</p>
         {:else}
-          <div class="list">
+          <div class="styles" role="toolbar" tabindex="-1" aria-label="Style" onkeydown={rove}>
             {#each list as c (c.prefix)}
               {@const tier = cheerTier(c, amount)}
-              <div class="cm">
-                <button class="use" disabled={!canPick(amount)} onclick={() => pick(c, amount)} title="{c.prefix}{amount}">
-                  {#if tier}<img class="pale-edge" src={cheerImg(c, tier, theme, density.scale).src} alt="" loading="lazy" />{/if}
-                  <span class="name">{c.prefix}</span>
-                  <span class="n" style:color={tier?.color}>{formatNumber(amount)}</span>
-                </button>
-                <div class="tiers">
-                  {#each c.tiers as t (t.bits)}
-                    <button
-                      class="tier"
-                      disabled={!canPick(t.bits)}
-                      onclick={() => pick(c, t.bits)}
-                      aria-label="{c.prefix}{t.bits}"
-                    >
-                      <img class="pale-edge" src={cheerImg(c, t, theme, density.scale).src} alt="" loading="lazy" />
-                      <span style:color={t.color}>{formatNumber(t.bits)}</span>
-                    </button>
-                  {/each}
-                </div>
-              </div>
+              <button
+                class="style"
+                disabled={!ok}
+                aria-label="{c.prefix}{amount}"
+                onclick={() => pick(c)}
+                use:tooltip={{ label: `${c.prefix}${formatNumber(amount)}` }}
+              >
+                {#if tier}<img class="pale-edge" src={cheerImg(c, tier, theme, density.scale).src} alt="" loading="lazy" />{/if}
+              </button>
             {/each}
           </div>
         {/if}
@@ -153,7 +164,7 @@
     }
   }
   .menu {
-    width: 340px;
+    width: 300px;
     max-width: calc(100vw - 24px);
     padding: 6px;
   }
@@ -173,91 +184,64 @@
     color: var(--dim);
     font-size: 0.8rem;
   }
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+  .chip {
+    min-width: 44px;
+    height: 26px;
+    padding: 0 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .chip:hover:not(:disabled),
+  .style:hover:not(:disabled) {
+    background: var(--surface-hover);
+  }
+  .chip[aria-pressed='true'] {
+    background: var(--accent-wash);
+    border-color: var(--accent-border);
+  }
   .amount {
     display: flex;
     align-items: center;
     gap: 8px;
     margin-bottom: 8px;
-    font-size: 0.8rem;
-    color: var(--muted);
+    font-size: 0.78rem;
   }
   .min {
     color: var(--dim);
   }
-  .list {
-    display: flex;
-    flex-direction: column;
+  .warn {
+    color: var(--red);
+  }
+  .styles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
     gap: 4px;
-    max-height: 300px;
+    max-height: 200px;
     overflow-y: auto;
   }
-  .cm {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    padding: 4px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-  }
-  .use {
+  .style {
     display: flex;
     align-items: center;
-    gap: 6px;
-    min-height: 28px;
-    padding: 2px 4px;
+    justify-content: center;
+    height: 40px;
+    padding: 0;
     background: none;
-    border: 0;
+    border: 1px solid transparent;
     border-radius: var(--radius);
-    font-size: 0.8rem;
-    text-align: left;
-  }
-  .use:hover:not(:disabled),
-  .tier:hover:not(:disabled) {
-    background: var(--surface-hover);
-  }
-  .name {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-weight: 600;
-  }
-  .n,
-  .tier span {
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-  }
-  /* Twitch's tier colors are made for dark: the yellow and light blue fade on white. */
-  :global(:root[data-theme='light']) .n,
-  :global(:root[data-theme='light']) .tier span {
-    filter: brightness(0.75);
-  }
-  .tiers {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 2px;
-  }
-  .tier {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    min-height: 24px;
-    padding: 2px 6px;
-    background: none;
-    border: 0;
-    border-radius: var(--radius);
-    font-size: 0.72rem;
   }
   img {
-    width: 20px;
-    height: 20px;
-    flex: none;
-  }
-  .tier img {
-    width: 16px;
-    height: 16px;
+    width: 28px;
+    height: 28px;
   }
   button:disabled {
     opacity: 0.4;
