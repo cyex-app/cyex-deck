@@ -99,7 +99,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 24px;
+    height: 28px;
     padding: 0 10px;
     background: var(--surface);
     border: 1px solid var(--border);
@@ -111,7 +111,6 @@
   }
   /* V107-My In the dock row it is as tall as the icons beside it. */
   .inline .chip {
-    height: 28px;
     padding: 0 12px;
     font-size: 0.78rem;
   }
