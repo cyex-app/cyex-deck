@@ -56,9 +56,11 @@
     clipOff?: string | null;
     /** V103-07 Another player plays this stream: this one starts paused (and its tile muted). */
     held?: boolean;
+    /** Over a listing page: a top corner sits below its filter bar. */
+    listing?: boolean;
   }
 
-  let { tile, info, hushed = false, mini = false, onexpand, onclose, onpopchat, onclip, clipOff = null, held = false }: Props = $props();
+  let { tile, info, hushed = false, mini = false, onexpand, onclose, onpopchat, onclip, clipOff = null, held = false, listing = false }: Props = $props();
 
   let video = $state<HTMLVideoElement>();
   let shell = $state<Shell>();
@@ -368,6 +370,7 @@
 <div
   class="live {mini ? corner : ''}"
   class:mini
+  class:listing
   class:dragging={drag?.moved}
   bind:this={box}
   style:translate={drag?.moved ? `${drag.dx}px ${drag.dy}px` : null}
@@ -531,6 +534,10 @@
   .bottomRight {
     bottom: 12px;
     right: 12px;
+  }
+  .listing.topLeft,
+  .listing.topRight {
+    top: 68px;
   }
   .dragging {
     cursor: grabbing;

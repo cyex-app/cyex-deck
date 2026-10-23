@@ -140,6 +140,7 @@
           {hushed}
           mini={page.kind !== 'vod'}
           held={page.kind === 'clip'}
+          {listing}
           onexpand={() => go({ kind: 'videos' })}
           onclose={closeVod}
         />
@@ -151,6 +152,7 @@
         {info}
         {hushed}
         mini={page.kind !== 'stream'}
+        {listing}
         onexpand={() => go({ kind: 'stream' })}
         onclose={() => (miniClosed = true)}
         {onpopchat}

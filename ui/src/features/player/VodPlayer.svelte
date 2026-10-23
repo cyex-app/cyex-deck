@@ -44,11 +44,13 @@
     mini?: boolean;
     /** V107-Mv Paused for a clip in front. */
     held?: boolean;
+    /** Over a listing page: a top corner sits below its filter bar. */
+    listing?: boolean;
     /** V107-Mv Back to full size. */
     onexpand?: () => void;
   }
 
-  let { id, at, tile, account, shared, hushed = false, onclose, mini = false, held = false, onexpand }: Props = $props();
+  let { id, at, tile, account, shared, hushed = false, onclose, mini = false, held = false, listing = false, onexpand }: Props = $props();
 
   /** Escape closes it (not in fullscreen, where Escape leaves that first; not while a menu or
    *  dialog wants it or a text field has the keyboard). */
@@ -232,7 +234,7 @@
 
 <svelte:window {onkeydown} />
 
-<div class="vod {mini ? corner : ''}" class:mini class:held>
+<div class="vod {mini ? corner : ''}" class:mini class:held class:listing>
   <Shell bind:this={shell} {controls} {menu} pinned={!engine?.playing && !mini} onvolume={(s) => sound.step(s)}>
     <video
       bind:this={video}
@@ -345,6 +347,10 @@
   /* Over a clip: smaller, clear of its title and controls. */
   .held {
     width: min(220px, 35%);
+  }
+  .listing.topLeft,
+  .listing.topRight {
+    top: 68px;
   }
   .held.topLeft,
   .held.topRight {
