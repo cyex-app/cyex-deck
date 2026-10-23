@@ -71,6 +71,13 @@
     font-size: 0.72rem;
     font-variant-numeric: tabular-nums;
   }
+  .badge,
+  .seen {
+    max-width: calc(50% - 9px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .badge {
     top: 6px;
     left: 6px;
