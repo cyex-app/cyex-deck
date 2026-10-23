@@ -100,6 +100,18 @@
       0 1px 2px var(--shadow);
     color: var(--text);
   }
+  /* F9 More contrast asked for: the track and the pick get solid borders. */
+  @media (prefers-contrast: more) {
+    .seg {
+      border-color: var(--text);
+    }
+    button.on,
+    .neutral button.on,
+    :global(:root[data-theme='light']) button.on,
+    :global(:root[data-theme='light']) .neutral button.on {
+      box-shadow: 0 0 0 1px var(--text);
+    }
+  }
   /* Forced colours: the pick is a Highlight block with HighlightText. */
   @media (forced-colors: active) {
     .seg {

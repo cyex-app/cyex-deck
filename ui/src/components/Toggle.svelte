@@ -86,6 +86,12 @@
   .toggle:disabled {
     opacity: 0.5;
   }
+  /* F9 More contrast asked for: a solid ring in the text colour. */
+  @media (prefers-contrast: more) {
+    .toggle {
+      box-shadow: inset 0 0 0 2px var(--text);
+    }
+  }
   /* Forced colours: a ring replaces the shadow; on = Highlight track with HighlightText knob. */
   @media (forced-colors: active) {
     .toggle {
