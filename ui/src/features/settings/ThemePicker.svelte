@@ -183,6 +183,7 @@
   }
   .tools {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
   }
@@ -194,6 +195,7 @@
   }
   .code {
     flex: 0 1 180px;
+    min-width: 0;
     height: 28px;
   }
   /* Forced colours: the preview keeps its own colours; the pick gets a Highlight frame. */
