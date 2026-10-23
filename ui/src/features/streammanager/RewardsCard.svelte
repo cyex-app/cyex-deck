@@ -179,7 +179,7 @@
   {:else if failed && !data}
     <SmProblem text={failed} onretry={() => void load()} />
   {:else if !data?.enabled}
-    <EmptyState icon="points" text="Channel points are off for your channel. They come with Affiliate." />
+    <EmptyState icon="gift" text="Channel points are off for your channel. They come with Affiliate." />
   {:else if view === 'queue'}
     <RedemptionQueue bind:this={queue} {filter} onchanged={() => void load()} />
   {:else}

@@ -99,7 +99,7 @@
   {:else if failed && !data}
     <SmProblem text={failed} onretry={() => void load()} />
   {:else if !data?.enabled}
-    <EmptyState icon="points" text="Channel points are off on this channel." />
+    <EmptyState icon="gift" text="Channel points are off on this channel." />
   {:else}
     <SmBar>
       <div class="filters">
