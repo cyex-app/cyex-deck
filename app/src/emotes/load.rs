@@ -15,6 +15,7 @@ use tauri::{AppHandle, Manager};
 use super::providers::Which;
 use super::{Channel, Emotes};
 use crate::auth::{Auth, gql_token, helix_scoped};
+use crate::chat::identity;
 
 /// An account's Twitch emotes are fetched again after this.
 const MINE_FRESH: Duration = Duration::from_secs(300);
@@ -181,24 +182,27 @@ fn rebuild_mine(inner: &mut super::Inner, account: &str) {
 }
 
 /// V107-Mk The account's smiley style: read once a run with the GQL sign-in, Robot without.
-/// A failed read also counts as Robot for the run (no retry per channel); opening the chat
-/// identity reads it again.
+/// A failed read answers Robot this time but is not kept, so the next fetch reads again;
+/// opening the chat identity reads it too. Test builds with the identity mock set read it
+/// there (or nothing, when it is unusable), never from Twitch.
 async fn smiley_style(app: &AppHandle, account: &str) -> SmileyStyle {
     if let Some(s) = app.state::<Emotes>().lock().smilies.get(account) {
         return *s;
     }
-    let Some((token, client_id)) = gql_token(app, account) else {
+    let Ok(base) = identity::mock_base(app) else {
+        return SmileyStyle::Robot;
+    };
+    let Some((token, client_id)) = identity::gql(app, account, base.as_deref()) else {
         return SmileyStyle::Robot;
     };
     let auth = crate::auth::gql_auth(&token, &client_id);
-    let style = smilies::smilies(&http(app), auth, None).await.map_or_else(
-        |e| {
+    match smilies::smilies(&http(app), auth, base.as_deref()).await {
+        Ok(s) => *app.state::<Emotes>().lock().smilies.entry(account.to_owned()).or_insert(s.current),
+        Err(e) => {
             eprintln!("emotes: no smiley style for {account}: {e}");
             SmileyStyle::Robot
-        },
-        |s| s.current,
-    );
-    *app.state::<Emotes>().lock().smilies.entry(account.to_owned()).or_insert(style)
+        }
+    }
 }
 
 /// V107-Mk A new smiley style: the menu and own lines switch art at once, no refetch.

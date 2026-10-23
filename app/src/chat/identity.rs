@@ -37,7 +37,7 @@ fn http(app: &AppHandle) -> cyex_twitch::Http {
 }
 
 /// The GQL sign-in, or a stand-in token for the mock (the real one never goes there).
-fn gql(app: &AppHandle, account: &str, base: Option<&str>) -> Option<(String, String)> {
+pub(crate) fn gql(app: &AppHandle, account: &str, base: Option<&str>) -> Option<(String, String)> {
     match base {
         Some(_) => Some(("mock-token".to_owned(), cyex_twitch::clients::WEB.to_owned())),
         None => gql_token(app, account),
@@ -47,13 +47,13 @@ fn gql(app: &AppHandle, account: &str, base: Option<&str>) -> Option<(String, St
 /// V107-Mx Test builds: badge reads and picks go to `tools/mock/identity.mjs`
 /// (`CYEX_GQL_IDENTITY_MOCK=http://127.0.0.1:<port>`, test data folder only).
 #[cfg(feature = "mocks")]
-fn mock_base(app: &AppHandle) -> Result<Option<String>, String> {
+pub(crate) fn mock_base(app: &AppHandle) -> Result<Option<String>, String> {
     // Set but unusable: nothing is sent at all, never Twitch instead.
     crate::mock_url::gated(app, &["CYEX_GQL_IDENTITY_MOCK"], "identity")
 }
 
 #[cfg(not(feature = "mocks"))]
-fn mock_base(_: &AppHandle) -> Result<Option<String>, String> {
+pub(crate) fn mock_base(_: &AppHandle) -> Result<Option<String>, String> {
     Ok(None)
 }
 
