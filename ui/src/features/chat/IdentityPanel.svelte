@@ -8,6 +8,7 @@
   import Button from '../../components/Button.svelte';
   import Loading from '../../components/Loading.svelte';
   import Toggle from '../../components/Toggle.svelte';
+  import { radioKey } from '../../components/select';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { BadgeInfo } from '../../ipc/bindings/BadgeInfo';
   import type { ChatIdentity } from '../../ipc/bindings/ChatIdentity';
@@ -107,13 +108,23 @@
       false,
     );
   };
+  /** One tab stop for the swatches (the worn color, else the first); arrows move, Enter picks. */
+  const swatchStop = $derived(Math.max(0, NAMED.findIndex(([, hex]) => hex === me?.color?.toUpperCase())));
+  function rove(e: KeyboardEvent) {
+    const row = e.currentTarget as HTMLElement;
+    const at = [...row.children].indexOf(e.target as Element);
+    const to = at < 0 ? null : radioKey(e, at, NAMED.length);
+    if (to === null) return;
+    e.preventDefault();
+    (row.children[to] as HTMLElement).focus();
+  }
   const img = (id: string) => emoteImg('twitch', id, theme, { scale: density.scale }).src;
 </script>
 
 {#snippet picks(channel: boolean, selected: BadgeInfo | null, available: BadgeInfo[])}
   <div class="badges">
     {#if !channel}
-      <button class="badge none" class:on={!selected} aria-pressed={!selected} disabled={busy} use:tooltip={'No badge'} onclick={() => wear(false, null)}>
+      <button class="badge none" class:on={!selected} aria-pressed={!selected} aria-disabled={busy} use:tooltip={'No badge'} onclick={() => wear(false, null)}>
         None
       </button>
     {/if}
@@ -122,7 +133,7 @@
         class="badge"
         class:on={same(selected, b)}
         aria-pressed={same(selected, b)}
-        disabled={busy}
+        aria-disabled={busy}
         use:tooltip={b.title}
         aria-label={b.title}
         onclick={() => wear(channel, b)}
@@ -175,8 +186,9 @@
 
     <section>
       <h3 class="label">Name color</h3>
-      <div class="colors">
-        {#each NAMED as [name, hex] (hex)}
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+      <div class="colors" role="group" aria-label="Name color" tabindex="-1" onkeydown={rove}>
+        {#each NAMED as [name, hex], i (hex)}
           <button
             class="swatch"
             class:on={me.color?.toUpperCase() === hex}
@@ -184,7 +196,8 @@
             style:background={hex}
             use:tooltip={name}
             aria-label={name}
-            disabled={busy}
+            aria-disabled={busy}
+            tabindex={i === swatchStop ? 0 : -1}
             onclick={() => color(hex)}
           ></button>
         {/each}
@@ -208,7 +221,7 @@
         <div class="styles" role="radiogroup" aria-label="Smiley style">
           {#each styles as c (c.style)}
             {@const on = me.smilies.current === c.style}
-            <button class="style" class:on role="radio" aria-checked={on} disabled={busy} onclick={() => !on && smile(c)}>
+            <button class="style" class:on role="radio" aria-checked={on} aria-disabled={busy} onclick={() => !on && smile(c)}>
               <span class="faces">
                 {#each c.preview as id (id)}<img src={img(id)} alt="" />{/each}
               </span>
@@ -310,6 +323,7 @@
     gap: 8px;
   }
   .swatch {
+    position: relative;
     width: 28px;
     height: 28px;
     padding: 0;
@@ -320,6 +334,12 @@
   .swatch.on {
     border-color: var(--text);
     box-shadow: inset 0 0 0 2px var(--elevated);
+  }
+  /* 28 px to look at, 32 px to hit. */
+  .swatch::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
   }
   .swatch:focus-visible {
     outline-offset: 2px;
@@ -359,6 +379,11 @@
     padding: 0 10px;
     font-size: 0.8rem;
     color: var(--muted);
+  }
+  .badge[aria-disabled='true'],
+  .swatch[aria-disabled='true'],
+  .style[aria-disabled='true'] {
+    opacity: 0.4;
   }
   .badge.on,
   .style.on {
