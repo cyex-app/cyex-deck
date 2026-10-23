@@ -235,4 +235,35 @@ mod tests {
         assert_eq!(parse_reply(&no).refused.as_deref(), Some("INSUFFICIENT_BALANCE"));
         assert_eq!(parse_reply(&json!({ "sendCheer": null })).refused.as_deref(), Some("UNKNOWN"));
     }
+
+    #[tokio::test]
+    async fn v107_bn_send_wire_and_failures() {
+        use crate::gql::dashboard::mock;
+        let m = mock::serve([
+            r#"{"data":{"sendCheer":{"id":"x","currentUser":{"id":"9","bitsBalance":900},"validationError":null}}}"#,
+            r#"{"data":{"sendCheer":null}}"#,
+            r#"{"errors":[{"message":"service error"}],"data":null}"#,
+            r#"{"data":{"currentUser":null,"channel":{"id":"1","cheer":{"isBitsEnabled":false}}}}"#,
+        ]);
+        let base = Some(m.base.as_str());
+        let (h, a) = (&m.http, mock::AUTH);
+        let c = SendCheer { id: "abc", channel_id: "71", bits: 100, content: "Cheer100 gg" };
+        let ok = send(h, a, base, &c).await.unwrap();
+        assert_eq!(ok, CheerReply { balance: Some(900), refused: None });
+        let none = send(h, a, base, &c).await.unwrap();
+        assert_eq!(none.refused.as_deref(), Some("UNKNOWN"), "no payload: not a success");
+        assert!(send(h, a, base, &c).await.is_err(), "a GQL error is an unknown outcome");
+        assert!(rules(h, a, base, "someone").await.unwrap().is_some());
+        let sent = m.sent();
+        assert!(mock::query(&sent[0]).contains("sendCheer(input: $input)"));
+        assert_eq!(
+            sent[0]["variables"],
+            json!({ "input": { "id": "abc", "targetID": "71", "bits": 100, "content": "Cheer100 gg",
+                "isAutoModEnabled": true, "shouldCheerAnyway": false } })
+        );
+        assert_eq!(sent[3]["variables"], json!({ "login": "someone" }));
+        // Nothing listening: the outcome is unknown, never a refusal.
+        let off = mock::off();
+        assert!(send(off.http, off.auth, off.base, &c).await.is_err());
+    }
 }
