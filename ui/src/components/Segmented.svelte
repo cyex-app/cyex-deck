@@ -131,6 +131,12 @@
       background: Highlight;
       box-shadow: none;
       color: HighlightText;
+      /* Our own system colours, so no black text backplate covers the label. */
+      forced-color-adjust: none;
+    }
+    button.on :global(*) {
+      color: inherit;
+      forced-color-adjust: none;
     }
   }
 </style>
