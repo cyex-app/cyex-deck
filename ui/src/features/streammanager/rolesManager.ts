@@ -4,7 +4,7 @@
 import type { ChannelRole } from '../../ipc/bindings/ChannelRole';
 import type { RoleMember } from '../../ipc/bindings/RoleMember';
 import type { VipSlots } from '../../ipc/bindings/VipSlots';
-import { byNumber, NAME, type Sort, sortRows, TIME } from '../../lib/sort.ts';
+import { byNumber, byText, NAME, type Sort, sortRows, TIME } from '../../lib/sort.ts';
 
 /** Twitch's order. */
 export const ROLES: ChannelRole[] = ['leadMod', 'mod', 'vip', 'editor', 'artist', 'agent'];
@@ -33,7 +33,7 @@ export const SORTS = [TIME, NAME];
 export type RoleSort = Sort<'time' | 'name'>;
 export const ROLE_SORT: RoleSort = { key: 'time', desc: true };
 
-const byName = (a: RoleMember, b: RoleMember) => a.login.localeCompare(b.login);
+const byName = (a: RoleMember, b: RoleMember) => byText(a.login, b.login);
 /** Rows with no date go last either way. */
 const byTime = byNumber((m: RoleMember) => (m.modified ? Date.parse(m.modified) || 0 : 0));
 

@@ -38,3 +38,8 @@ test('v107-r42 counts and the VIP slot line from Rust', () => {
   assert.equal(offFor('vip', [], null), null, 'not known: Twitch decides');
   assert.equal(cleanLogin(' @Caressz '), 'caressz');
 });
+
+test('names sort with numbers by value', () => {
+  const l = [m('a10', ['mod']), m('a2', ['mod'])];
+  assert.deepEqual(logins(shownMembers(l, 'all', '', { key: 'name', desc: false })), ['a2', 'a10']);
+});

@@ -74,3 +74,10 @@ test('countLabel: matches show against the total (V1051-03)', () => {
   assert.equal(countLabel(3, 2000), '3 of 2.000');
   assert.equal(countLabel(0, 2000), '0 of 2.000');
 });
+
+test('rows with no date go last both ways', () => {
+  const list = [it('none'), it('old', { added: 1 }), it('new', { added: 9 })];
+  const run = (desc: boolean) => names(filterItems(list, q({ sort: { key: 'time', desc } })));
+  assert.deepEqual(run(true), ['new', 'old', 'none']);
+  assert.deepEqual(run(false), ['old', 'new', 'none']);
+});

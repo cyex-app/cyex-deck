@@ -1,7 +1,7 @@
 // V1051-03 Search, chips and sort for the cosmetics menu. Pure.
 
 import { formatNumber } from '../../lib/format.ts';
-import { byText, NAME, type Sort, TIME } from '../../lib/sort.ts';
+import { byNumber, byText, NAME, type Sort, TIME } from '../../lib/sort.ts';
 import { rank, RANK } from '../chat/completion.ts';
 
 /** V107-Mr Time or A–Z, either way round (the shared SortControl); newest first to start. */
@@ -36,9 +36,11 @@ export const emptyQuery = (kind?: Kind): Query => ({
 /** Time or name, either way round; ties go by name, A to Z (lib/sort's collator). */
 export function sorter<T extends { name: string; added: number }>(sort: CosmeticSort) {
   const dir = sort.desc ? -1 : 1;
+  // Rows with no date (`added` 0) go last either way.
+  const byAdded = byNumber((t: T) => t.added);
   return sort.key === 'name'
     ? (a: T, b: T) => dir * byText(a.name, b.name)
-    : (a: T, b: T) => dir * (a.added - b.added) || byText(a.name, b.name);
+    : (a: T, b: T) => dir * byAdded(a, b, sort.desc) || byText(a.name, b.name);
 }
 
 function keep(r: Row, chips: ReadonlySet<Chip>): boolean {
