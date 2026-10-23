@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { flip } from 'svelte/animate';
+  import { fly } from 'svelte/transition';
+  import { reduced } from '../lib/motion';
   import { toast } from '../lib/toast.svelte';
 
 </script>
@@ -11,6 +14,8 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="toast {t.kind}"
+      animate:flip={{ duration: reduced() ? 0 : 160 }}
+      out:fly={{ y: -4, duration: reduced() ? 0 : 120 }}
       role={t.kind === 'error' ? 'alert' : undefined}
       onmouseenter={() => toast.hold(t.id)}
       onmouseleave={() => toast.release(t.id)}
