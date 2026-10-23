@@ -180,10 +180,11 @@ pub fn remove(app: &AppHandle, name: &str, keys: &[String]) {
 
 /// Removes the lines with these keys; returns the keys that were there.
 fn drop_keys(lines: &mut VecDeque<FeedLine>, keys: &[String]) -> Vec<String> {
+    let wanted: std::collections::HashSet<&str> = keys.iter().map(String::as_str).collect();
     let mut gone = Vec::new();
     lines.retain(|l| {
         let k = line_key(l);
-        let hit = keys.contains(&k);
+        let hit = wanted.contains(k.as_str());
         if hit {
             gone.push(k);
         }
