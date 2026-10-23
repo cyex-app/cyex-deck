@@ -10,6 +10,8 @@ use std::time::{Duration, Instant};
 const KEEP: Duration = Duration::from_secs(600);
 /// The same cheer again within this asks first.
 const AGAIN: Duration = Duration::from_secs(30);
+/// A try that never ended (a path that skipped `end`) turns unsure after this.
+const STUCK: Duration = Duration::from_secs(60);
 
 /// (account, channel id, bits, text).
 pub type Key = (String, String, u32, String);
@@ -43,6 +45,12 @@ pub struct Attempts {
 
 impl Attempts {
     fn prune(&mut self, now: Instant) {
+        for o in self.open.values_mut() {
+            // Keep the id: it may have reached Twitch, so a retry must reuse it.
+            if matches!(o.state, State::Busy) && now.duration_since(o.at) >= STUCK {
+                o.state = State::Unsure;
+            }
+        }
         self.open.retain(|_, o| match o.state {
             State::Busy => true,
             State::Unsure => now.duration_since(o.at) < KEEP,
@@ -156,5 +164,16 @@ mod tests {
         a.end(&k, late + Duration::from_secs(5), Ended::Unsure);
         let gone = late + Duration::from_secs(5) + KEEP + Duration::from_secs(1);
         assert_eq!(a.begin(k, gone, || "c".into()).as_deref(), Some("c"));
+    }
+
+    #[test]
+    fn v107_bn_a_try_that_never_ended_turns_unsure() {
+        let mut a = Attempts::default();
+        let t = Instant::now();
+        let k = key("Cheer1");
+        let first = a.begin(k.clone(), t, || "a".into()).unwrap();
+        assert_eq!(a.begin(k.clone(), t + Duration::from_secs(59), || "b".into()), None);
+        let later = t + STUCK;
+        assert_eq!(a.begin(k, later, || "c".into()), Some(first), "same id, no double spend");
     }
 }
