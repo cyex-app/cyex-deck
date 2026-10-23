@@ -197,7 +197,7 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    font-size: 0.78rem;
+    font-size: var(--text-hint);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
   }
@@ -215,7 +215,7 @@
     gap: 8px;
     margin-bottom: 8px;
     flex-wrap: wrap;
-    font-size: 0.78rem;
+    font-size: var(--text-hint);
   }
   .min {
     color: var(--dim);

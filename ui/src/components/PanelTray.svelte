@@ -111,7 +111,7 @@
   /* V107-My In the dock row it is as tall as the icons beside it. */
   .inline .chip {
     padding: 0 12px;
-    font-size: 0.78rem;
+    font-size: var(--text-hint);
   }
   .chip:hover,
   .chip[aria-expanded='true'] {

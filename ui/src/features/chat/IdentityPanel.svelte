@@ -288,7 +288,7 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    font-size: 0.85rem;
+    font-size: var(--text-sub);
   }
   .own span {
     min-width: 0;
@@ -420,6 +420,6 @@
   .note {
     margin: 0;
     color: var(--dim);
-    font-size: 0.85rem;
+    font-size: var(--text-sub);
   }
 </style>

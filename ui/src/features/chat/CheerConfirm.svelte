@@ -47,6 +47,6 @@
   }
   .hint {
     color: var(--muted);
-    font-size: 0.85rem;
+    font-size: var(--text-sub);
   }
 </style>
