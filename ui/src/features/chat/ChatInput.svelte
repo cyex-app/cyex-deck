@@ -121,7 +121,8 @@
   }
   let askCheer = $state<CheerAsk | null>(null);
   // V107-N12a A /me line counts against 491, like the send.
-  const length = $derived(sendLength(text));
+  // V107-H9b A /me line that goes out as a cheer counts against 500, not 491.
+  const length = $derived(sendLength(text, canCheer && !bitsOff && cheerTotal(text.trim(), isCheermote) > 0));
   const chars = $derived(length.chars);
   const MAX = $derived(length.max);
   const waitMs = $derived(room.state.waitUntil ? room.state.waitUntil - now : 0);

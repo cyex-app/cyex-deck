@@ -131,6 +131,11 @@ export function floating(node: HTMLElement, opts: FloatOptions) {
     // The size it wants: measured without the limits set last time.
     node.style.maxWidth = '';
     node.style.maxHeight = '';
+    // V107-H9a Wider than the window: measured at the width it will get, since a box that wraps
+    // narrower is taller (it sat 5 px low, over its anchor).
+    const fit = Math.max(0, innerWidth - 2 * (o.edge ?? 8));
+    const limited = node.offsetWidth > fit;
+    if (limited) node.style.maxWidth = `${fit}px`;
     const size = { width: node.offsetWidth, height: node.offsetHeight };
     const p = place(anchor, size, { width: innerWidth, height: innerHeight }, o);
     const at = origin(node);
@@ -138,7 +143,7 @@ export function floating(node: HTMLElement, opts: FloatOptions) {
     node.style.bottom = 'auto';
     node.style.left = `${p.left - at.x}px`;
     node.style.top = `${p.top - at.y}px`;
-    node.style.maxWidth = p.maxWidth === undefined ? '' : `${p.maxWidth}px`;
+    node.style.maxWidth = p.maxWidth === undefined ? (limited ? `${fit}px` : '') : `${p.maxWidth}px`;
     node.style.maxHeight = p.maxHeight === undefined ? '' : `${p.maxHeight}px`;
     node.style.overflow = p.maxWidth === undefined && p.maxHeight === undefined ? '' : 'auto';
     node.dataset.side = p.side;
