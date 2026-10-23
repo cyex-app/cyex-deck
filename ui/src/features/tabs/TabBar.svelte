@@ -159,6 +159,7 @@
   data-tab-bar
   data-tauri-drag-region={chrome ? '' : undefined}
   role="tablist"
+  aria-label="Tabs"
   aria-orientation={vertical ? 'vertical' : 'horizontal'}
   tabindex="-1"
   bind:this={bar}

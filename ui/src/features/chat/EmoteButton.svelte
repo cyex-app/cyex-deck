@@ -41,7 +41,7 @@
 </script>
 
 <div class="wrap" bind:this={wrap}>
-  <button class="smile" class:on={open} aria-label="Emotes" use:tooltip={{ label: 'Emotes', hint: 'Twitch, 7TV, BTTV, FFZ and emoji. Right-click one to keep it in Favorites.' }} onclick={() => (open = !open)}>
+  <button class="smile" class:on={open} aria-label="Emotes" aria-haspopup="dialog" aria-expanded={open} use:tooltip={{ label: 'Emotes', hint: 'Twitch, 7TV, BTTV, FFZ and emoji. Right-click one to keep it in Favorites.' }} onclick={() => (open = !open)}>
     <Icon name="smile" size={17} />
   </button>
   {#if open}

@@ -153,7 +153,7 @@
     {/if}
     <SearchField small width="min(260px, 40%)" placeholder="Search…" label="Search channels" bind:value={query} />
     <span class="grow"></span>
-    <IconButton icon="sliders" label="Sort" hint="Order of live and offline channels." onclick={sortMenu} />
+    <IconButton icon="sliders" label="Sort" haspopup="menu" hint="Order of live and offline channels." onclick={sortMenu} />
     <IconButton icon="grid" label="Grid" hint="Cards with preview pictures." active={grid} toggle onclick={() => setLayout('grid')} />
     <IconButton icon="list" label="List" hint="One row per channel." active={!grid} toggle onclick={() => setLayout('list')} />
     <IconButton icon="refresh" label="Refresh" hint="Load who you follow again." disabled={home.loading} onclick={() => void home.refresh(true)} />

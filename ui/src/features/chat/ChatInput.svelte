@@ -487,6 +487,7 @@
         bind:this={box}
         bind:value={text}
         rows="1"
+        aria-label={replyTo ? 'Reply' : `Message #${room.login}`}
         maxlength={MAX_CHARS * 2}
         placeholder={replyTo ? 'Write a reply' : `Message #${room.login}`}
         spellcheck={settings.v.chat.spellCheck}

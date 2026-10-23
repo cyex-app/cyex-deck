@@ -16,6 +16,7 @@
     class="trigger"
     class:on={open}
     aria-label="Chat identity"
+    aria-haspopup="dialog"
     aria-expanded={open}
     use:tooltip={{ label: 'Chat identity', hint: 'Badge, name color and smileys.' }}
     onclick={() => (open = !open)}

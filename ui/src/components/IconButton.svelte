@@ -24,6 +24,8 @@
     badge?: boolean;
     /** V102-20 Greyed out with a lock: a click goes to the sign-in that unlocks it. */
     lock?: TokenKind | null;
+    /** The button opens a menu or popup. */
+    haspopup?: 'menu' | 'dialog';
     onclick?: (e: MouseEvent) => void;
   }
 
@@ -39,6 +41,7 @@
     chrome = false,
     badge = false,
     lock = null,
+    haspopup,
     onclick,
   }: Props = $props();
 
@@ -56,6 +59,7 @@
   class:locked={!!lock}
   aria-label={label}
   aria-pressed={toggle ? active : undefined}
+  aria-haspopup={haspopup}
   {disabled}
   onclick={click}
   use:tooltip={lock ? { label: `${label} · ${FLAGS[lock].label}`, hint: FLAGS[lock].hint } : { label, hint }}

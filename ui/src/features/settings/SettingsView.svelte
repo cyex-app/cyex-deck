@@ -288,7 +288,7 @@
     {#each GROUPS as g (g.label)}
       <div class="group">{g.label}</div>
       {#each g.pages as p (p.id)}
-        <button class:on={!searching && section === p.id} onclick={() => open(p.id)} use:tooltip={{ label: p.label, when: () => (nav?.offsetWidth ?? 999) < 100 }}>
+        <button class:on={!searching && section === p.id} aria-current={!searching && section === p.id ? 'page' : undefined} onclick={() => open(p.id)} use:tooltip={{ label: p.label, when: () => (nav?.offsetWidth ?? 999) < 100 }}>
           <Icon name={p.icon} size={15} />
           <span>{p.label}</span>
         </button>
