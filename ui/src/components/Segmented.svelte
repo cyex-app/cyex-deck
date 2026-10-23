@@ -68,6 +68,7 @@
     white-space: nowrap;
     transition:
       background var(--fast),
+      box-shadow var(--fast),
       color var(--fast);
   }
   button:hover {
