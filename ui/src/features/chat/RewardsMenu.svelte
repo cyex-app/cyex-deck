@@ -52,6 +52,8 @@
   let loaded = $state(false);
   /** V107-H1d The first read answered (or failed): only then is "no points" known. */
   let settled = $state(false);
+  /** The first read failed: "no points" is not known, so the button stays and nothing is remembered. */
+  let failed = $state(false);
   // V107-My Last look at this channel: the button keeps its spot (or stays gone) while it loads.
   // svelte-ignore state_referenced_locally
   const seen = btnMemo(room.login);
@@ -96,10 +98,10 @@
 
   /** Nothing to show: no points here, or none and nothing to redeem. */
   const away = $derived(
-    !open && (settled && !points ? true : points ? points.balance === 0 && !choices.length : seen.pointsAway === true),
+    !open && (settled && !points ? !failed : points ? points.balance === 0 && !choices.length : seen.pointsAway === true),
   );
   $effect(() => {
-    if (settled && !open) {
+    if (settled && !failed && !open) {
       remember(room.login, { pointsAway: away, pointsIcon: points?.icon ?? null, pointsName: points?.name ?? undefined });
     }
   });
@@ -124,8 +126,10 @@
     loaded = true;
     try {
       points = await chatIpc.points(room.view, fresh);
+      failed = false;
     } catch {
       if (fresh) points = null;
+      failed = true;
     } finally {
       settled = true;
     }
@@ -183,7 +187,9 @@
   </button>
   <Popover bind:open align="start" side="above" role="menu" label={name}>
     <div class="menu">
-      <header>
+      <!-- A key the segment handled stays there: the menu would move focus a second time. -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <header onkeydown={(e) => e.defaultPrevented && e.stopPropagation()}>
         {#if canRedeem}
           <Segmented
             label="Pay with"
@@ -250,6 +256,7 @@
             <button
               class="reward"
               class:lack
+              aria-disabled={lack ? 'true' : undefined}
               disabled={!canRedeem || !c.available}
               style:--rc={c.color}
               onclick={() => pick(c)}
