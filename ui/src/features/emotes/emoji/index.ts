@@ -74,15 +74,20 @@ export async function emojiName(char: string): Promise<string | null> {
 export function findEmoji(all: EmojiGroup[], q: string, limit = 60): Emoji[] {
   const p = q.toLowerCase();
   if (!p) return [];
+  // U4-5 Typing the emoji itself finds it (U+FE0F ignored).
+  const bare = (s: string) => s.replaceAll('️', '');
+  const typed = bare(q.trim());
+  const exact: Emoji[] = [];
   const starts: Emoji[] = [];
   const contains: Emoji[] = [];
   const tagged: Emoji[] = [];
   for (const g of all) {
     for (const e of g.emoji) {
-      if (e.names.some((n) => n.startsWith(p))) starts.push(e);
+      if (typed && bare(e.char) === typed) exact.push(e);
+      else if (e.names.some((n) => n.startsWith(p))) starts.push(e);
       else if (e.names.some((n) => n.includes(p))) contains.push(e);
       else if (e.words.includes(p)) tagged.push(e);
     }
   }
-  return [...starts, ...contains, ...tagged].slice(0, limit);
+  return [...exact, ...starts,...contains, ...tagged].slice(0, limit);
 }

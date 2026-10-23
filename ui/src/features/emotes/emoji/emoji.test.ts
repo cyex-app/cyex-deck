@@ -25,6 +25,13 @@ test('names first, then search words', () => {
   );
 });
 
+test('the emoji itself finds it, with or without FE0F (U4-5)', () => {
+  assert.deepEqual(findEmoji(groups, '😀').map((e) => e.char), ['😀']);
+  const hearts = parseGroups([['Smileys & Emotion', '❤️ heart|love']]);
+  assert.deepEqual(findEmoji(hearts, '❤').map((e) => e.char), ['❤️']);
+  assert.deepEqual(findEmoji(hearts, '❤️').map((e) => e.char), ['❤️']);
+});
+
 test('hover names have no colons and keep underscores (V102-07)', () => {
   const list = parseGroups([
     ['People & Body', '👍 +1 thumbsup|approve ok\n👀 eyes|look see watch'],
