@@ -14,6 +14,8 @@ pub enum ImageErrorKind {
     Rejected,
     /// Integrity or authorization: the UI offers Twitch's own settings page.
     Refused,
+    /// The login ran out (HTTP 401): sign in again.
+    SignIn,
     Network,
     Failed,
 }
@@ -33,6 +35,7 @@ impl ImageError {
             ImageErrorKind::TooBig => "That file is over 10 MB.",
             ImageErrorKind::Rejected => "Twitch didn’t take that image.",
             ImageErrorKind::Refused => "Twitch didn’t allow this from the app.",
+            ImageErrorKind::SignIn => "Sign in to Twitch again.",
             ImageErrorKind::Network => "Couldn’t reach Twitch.",
             ImageErrorKind::Failed => "That didn’t work. Try again in a bit.",
         };
@@ -58,7 +61,8 @@ pub fn map(e: &Error) -> ImageError {
     let kind = match e {
         Error::Network(_) => K::Network,
         Error::Refused(code) => code_kind(code),
-        Error::Api { status: 401 | 403, .. } => K::Refused,
+        Error::Api { status: 401, .. } => K::SignIn,
+        Error::Api { status: 403, .. } => K::Refused,
         Error::Api { message, .. } if refused_text(message) => K::Refused,
         Error::Api { status: 413, .. } => K::TooBig,
         Error::Api { status: 400..=499, .. } => K::Rejected,
@@ -113,7 +117,8 @@ mod tests {
         let api = |status, m: &str| Error::Api { status, message: m.into() };
         let k = |e: Error| map(&e).kind;
         assert_eq!(k(api(200, "failed integrity check")), K::Refused);
-        assert_eq!(k(api(401, "x")), K::Refused);
+        assert_eq!(k(api(401, "x")), K::SignIn);
+        assert_eq!(map(&api(401, "x")).message, "Sign in to Twitch again.");
         assert_eq!(k(api(403, "upload")), K::Refused);
         assert_eq!(k(api(200, "Unauthorized")), K::Refused);
         assert_eq!(k(Error::Refused("UNAUTHORIZED".into())), K::Refused);

@@ -49,6 +49,19 @@
   let failed = $state<{ kind: ProfileImageKind; error: ImageError } | null>(null);
   let cropping = $state.raw<File | null>(null);
   const inputs: Partial<Record<ProfileImageKind, HTMLInputElement>> = {};
+  let askEl = $state<HTMLElement>();
+
+  $effect(() => {
+    if (asking && askEl) askEl.querySelector<HTMLButtonElement>('button:last-of-type')?.focus();
+  });
+
+  function cancelAsk(kind: ProfileImageKind) {
+    asking = null;
+    queueMicrotask(() => {
+      const btns = document.querySelectorAll<HTMLButtonElement>(`.row[data-kind="${kind}"] .actions button`);
+      [...btns].find((b) => b.textContent?.trim().startsWith('Remove') && !b.textContent.includes('original'))?.focus();
+    });
+  }
 
   $effect(() => {
     profileImagesIpc
@@ -146,10 +159,10 @@
         </div>
       </div>
       {#if asking === slot.kind && slot.removable}
-        <div class="ask">
+        <div class="ask" bind:this={askEl}>
           <span>{ASK[slot.kind]}</span>
           <Button small variant="danger" disabled={busy !== null} onclick={() => remove(slot.kind)}>Remove</Button>
-          <Button small variant="ghost" onclick={() => (asking = null)}>Cancel</Button>
+          <Button small variant="ghost" onclick={() => cancelAsk(slot.kind)}>Cancel</Button>
         </div>
       {/if}
       {#if slot.history.length}
