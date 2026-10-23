@@ -186,6 +186,15 @@ impl Schema for Highlights {
     }
 }
 
+/// V107-H18 What each theme paints by default: a hand copy of `ui/src/design/tokens.css`
+/// (a test ties them). [dark, light] of --accent-line (then the light --accent), --green,
+/// --twitch, --cyan, --accent-hover.
+const LINE: [&str; 3] = ["#145aff", "#046a82", "#14e6ff"];
+const GREEN: [&str; 2] = ["#33d68f", "#0f8a55"];
+const TWITCH: [&str; 2] = ["#a970ff", "#772ce8"];
+const CYAN: [&str; 2] = ["#4fd6ff", "#0b6d8a"];
+const HOVER: [&str; 2] = ["#2a6aff", "#10c9e6"];
+
 impl Highlights {
     /// V105-12 Drops the rules left empty. True when something went.
     pub fn prune_blank(&mut self) -> bool {
@@ -209,12 +218,6 @@ impl Highlights {
     /// A color equal to what a theme painted by default (an older version could save the
     /// resolved one) counts as default, so changing the theme never leaves it behind.
     fn drop_theme_defaults(&mut self) {
-        // [dark, light] of tokens.css: --accent-line, --green, --twitch, --cyan, --accent-hover.
-        const LINE: [&str; 3] = ["#145aff", "#046a82", "#14e6ff"];
-        const GREEN: [&str; 2] = ["#33d68f", "#0f8a55"];
-        const TWITCH: [&str; 2] = ["#a970ff", "#772ce8"];
-        const CYAN: [&str; 2] = ["#4fd6ff", "#0b6d8a"];
-        const HOVER: [&str; 2] = ["#2a6aff", "#10c9e6"];
         let rows: [(&mut BuiltIn, &[&str]); 8] = [
             (&mut self.me, &LINE),
             (&mut self.replies, &LINE),
@@ -313,6 +316,19 @@ impl Highlights {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// V107-H18 The hand copy of the theme defaults still matches the tokens.
+    #[test]
+    fn theme_default_colors_match_tokens_css() {
+        let css = include_str!("../../../../../ui/src/design/tokens.css").to_ascii_lowercase();
+        let has = |token: &str, hex: &str| css.contains(&format!("--{token}: {hex};"));
+        assert!(has("accent-line", LINE[0]) && has("accent-line", LINE[1]), "accent-line");
+        assert!(has("accent", LINE[2]), "light accent");
+        for (token, list) in [("green", GREEN), ("twitch", TWITCH), ("cyan", CYAN), ("accent-hover", HOVER)] {
+            assert!(has(token, list[0]) && has(token, list[1]), "{token}");
+        }
+        assert_eq!(LINE[0], cyex_core::color::DEFAULT_ACCENT);
+    }
 
     #[test]
     fn sanitize_cleans_rules() {
