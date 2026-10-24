@@ -41,6 +41,7 @@ pub const JS: &str = r#"
 const authOnly = () => {
   const root = document.documentElement;
   if (!root || !document.body) return;
+  fillCode();
   const field = document.querySelector('input[type="password"], input[autocomplete="username"], input[name="username"], input[id^="login-username"], input[autocomplete="one-time-code"], input[name="code"], input[data-a-target*="verification"]');
   if (!field) {
     if (location.pathname.startsWith('/activate')) return activateOnly(root);
@@ -90,6 +91,23 @@ const authOnly = () => {
       if (p && p !== card && p.children.length <= 3 && !p.querySelector('input, button, a')) p.classList.add('cyex-auth-hide');
     }
   }
+};
+// V108-7U+ The activate page's code field gets the device code from the URL (`device-code`).
+// Typed in through the native value setter plus input/change events so React keeps it; each
+// new field (a re-render, the step after logging in) is filled once and then left alone.
+// Never submits.
+const filled = new WeakSet();
+const fillCode = () => {
+  if (!location.pathname.startsWith('/activate')) return;
+  const code = (new URLSearchParams(location.search).get('device-code') || '').trim();
+  if (!/^[A-Za-z0-9]{4,16}$/.test(code)) return;
+  const input = document.querySelector('main form input:not([type="password"]):not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([autocomplete="username"]):not([autocomplete="current-password"]):not([name="username"]):not([id^="login-username"])');
+  if (!input || filled.has(input) || input.value) return;
+  filled.add(input);
+  const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+  set.call(input, code);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.dispatchEvent(new Event('change', { bubbles: true }));
 };
 // V108-7U The code's activate page: the code field, Activate and Log in stay; the banner with
 // "Return To Twitch", the home link and the legal footer go. The window fits the form.
@@ -248,5 +266,9 @@ mod tests {
         // V108-7U Cookie notices are hidden, not answered; the activate page keeps its form.
         assert!(CSS.contains("consent-banner") && JS.contains("activateOnly") && MEASURE.contains("cyexFit"));
         assert!(!JS.contains("form.classList") && JS.contains("return to twitch"));
+        // V108-7U+ The device code is typed into the activate page's field, never submitted.
+        assert!(JS.contains("get('device-code')") && JS.contains("main form input:not("));
+        assert!(JS.contains("HTMLInputElement.prototype, 'value').set") && JS.contains("new Event('input', { bubbles: true })"));
+        assert!(JS.contains("new Event('change'") && JS.contains("filled.has(input)"));
     }
 }
