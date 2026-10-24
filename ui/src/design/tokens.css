@@ -15,7 +15,7 @@
   --border-strong: #43454d;
   --text: #e8e8ea;
   --muted: #b4b5bb;
-  --dim: #91939c;
+  --dim: #9fa1a9;
   --shadow: rgba(0, 0, 0, 0.35);
   --overlay: rgba(14, 15, 18, 0.6);
   --neutral-chip: #34353c;
@@ -40,7 +40,7 @@
   --focus-ring: var(--text);
   /* V1051-03 What a 7TV paint is drawn on in the menu. */
   --paint-back: var(--bg);
-  --paint-dim: #91939c;
+  --paint-dim: #9fa1a9;
 }
 
 :root {

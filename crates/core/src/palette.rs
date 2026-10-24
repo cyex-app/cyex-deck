@@ -40,7 +40,7 @@ pub fn builtin(theme: Theme, key: &str) -> Option<Rgb> {
         (Theme::Dark, "border") => "#34353c",
         (Theme::Dark, "text") => "#e8e8ea",
         (Theme::Dark, "muted") => "#b4b5bb",
-        (Theme::Dark, "dim") => "#91939c",
+        (Theme::Dark, "dim") => "#9fa1a9",
         (Theme::Dark, "red") => "#ff6b6b",
         (Theme::Dark, "yellow") => "#ffb545",
         (Theme::Dark, "green") => "#33d68f",
