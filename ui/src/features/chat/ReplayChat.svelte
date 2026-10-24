@@ -141,14 +141,24 @@
     border-bottom: 1px solid var(--border);
   }
   .title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-weight: 700;
   }
   .tag {
     flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     color: var(--dim);
     font-size: 0.75rem;
   }
   .switch {
+    flex: none;
+    white-space: nowrap;
     padding: 2px 8px;
     background: var(--surface);
     border: 1px solid var(--border);
