@@ -185,7 +185,7 @@ fn find(app: &AppHandle, account: &str, name: &str) -> Result<Combo, String> {
         .ok_or_else(|| format!("No combo called “{name}”. /combo list shows yours."))
 }
 
-/// Names in list order; a ⚠ after one whose part isn't usable, judged only from a cached inventory.
+/// Names in list order; " (not usable)" after one whose part isn't usable, judged only from a cached inventory.
 fn list_line(app: &AppHandle, account: &str) -> String {
     let combos = cosmetics::list_combos(app, account);
     if combos.is_empty() {
@@ -204,7 +204,7 @@ fn list_line(app: &AppHandle, account: &str) -> String {
         .iter()
         .map(|c| {
             let n = quoted_if_spaced(&c.name);
-            if missing(c) { format!("{n} ⚠") } else { n }
+            if missing(c) { format!("{n} (not usable)") } else { n }
         })
         .collect();
     format!("Your combos: {}.", names.join(", "))
