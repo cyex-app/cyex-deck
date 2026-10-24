@@ -60,7 +60,7 @@
     {#if stream}
       {@const up = uptime(stream.startedAt, nowSecond())}
       <span class="title" use:tooltip={{ label: stream.title, hint: stream.game ?? undefined }}>
-        <span class="dot" class:rerun={stream.rerun}></span>{stream.title || tile.channel.name}
+        <span class="dot" class:rerun={stream.rerun}></span><span class="text">{stream.title || tile.channel.name}</span>
       </span>
       <span class="meta">
         {#if stream.game}{stream.game}{' · '}{/if}<span class="wrap"><button
@@ -114,6 +114,12 @@
     gap: 6px;
     font-weight: 700;
     font-size: 0.85rem;
+  }
+  .text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .meta {
     color: var(--dim);
