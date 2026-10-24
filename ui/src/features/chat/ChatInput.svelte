@@ -27,6 +27,7 @@
   import { btnMemo, remember } from './btnCache';
   import { catalogs } from './catalog.svelte';
   import { cheerTotal, setCheer } from './cheer';
+  import { ChatSend, leftOver, type CheerAsk } from './cheerSend';
   import CheerConfirm from './CheerConfirm.svelte';
   import { chatxIpc } from '../../ipc/chatx';
   import EmoteButton from './EmoteButton.svelte';
@@ -112,14 +113,6 @@
       if (fresh && cheers.info) remember(login, { bits: cheers.info.enabled });
     });
   });
-  /** A cheer waiting for "Spend N Bits?". `again`: the same one just went out. */
-  interface CheerAsk {
-    raw: string;
-    value: string;
-    bits: number;
-    keep: boolean;
-    again: boolean;
-  }
   let askCheer = $state<CheerAsk | null>(null);
   // V107-N12a A /me line counts against 491, like the send.
   // V107-H9b A /me line that goes out as a cheer counts against 500, not 491.
@@ -314,28 +307,38 @@
     cycle = { word: { start: target.start, end: target.start + items[0].length, text: items[0] }, items, index: 0 };
   }
 
-  /** A second Enter while one is on its way doesn't send twice. */
-  let sending = false;
+  // P-01 The send path (plain, cheer, ask, Bits off) lives in cheerSend.ts.
+  const chat = new ChatSend({
+    cheer: (value, bits, confirmed, careful) => chatxIpc.cheer(room.view, value, bits, confirmed, careful),
+    send: async (value) => {
+      const action = await chatIpc.send(room.view, value, replyTo?.id);
+      if (action) onaction?.(action);
+    },
+    ask: (a) => (askCheer = a),
+    asking: () => askCheer !== null,
+    wentOut,
+    balance: (b) => cheers.setBalance(b),
+    // V107-H1c Bits went off here: the gem goes too.
+    bitsOff: () => {
+      const login = room.login;
+      void cheers.load().then((fresh) => fresh && cheers.info && remember(login, { bits: cheers.info.enabled }));
+    },
+    ok: () => (error = ''),
+    fail: (e) => flash(errorText(e)),
+  });
 
   async function send(keep: boolean, repeat = false) {
     const raw = text;
     const value = raw.trim();
-    if (!value || !canChat || sending) return;
+    if (!value || !canChat || chat.busy) return;
     // M11 A mod's `/pin <text>`: how long first, then send and pin.
     const pinned = pinText(value);
     if (pinned !== null && room.account && mods.role(room.account, room.login)) return askPin(room.account, value, pinned);
-    // V107-B Text with a cheer word of this channel goes out as a cheer, never as text.
-    // Rust asks (threshold, the same cheer again, pasted or recalled) or, with Bits off, says
-    // it's plain text. Without the GQL sign-in, Rust's plain send decides.
+    // V107-B Without the GQL sign-in, Rust's plain send decides.
     const bits = canCheer ? cheerTotal(value, isCheermote) : 0;
-    if (bits > 0) {
-      // A held Enter never cheers twice.
-      if (repeat || askCheer) return;
-      // V107-H1c Recalled means the Up line as it was, not a box that once held one.
-      const recalled = recall >= 0 && sent[recall]?.trim() === value;
-      return cheer({ raw, value, bits, keep, again: false }, false, pastedCheer || recalled);
-    }
-    return plain(raw, value, keep);
+    // V107-H1c Recalled means the Up line as it was, not a box that once held one.
+    const recalled = recall >= 0 && sent[recall]?.trim() === value;
+    return chat.submit({ raw, value, bits, keep }, repeat, pastedCheer || recalled);
   }
 
   /** A line (or cheer) went out: into the Up history; unless `keep`, the part that was sent
@@ -345,54 +348,7 @@
     sent = [value, ...sent.filter((s) => s !== value)].slice(0, HISTORY);
     recall = -1;
     replyTo = null;
-    if (keep) return;
-    if (text.trim() === value) text = '';
-    else if (text.startsWith(raw)) text = text.slice(raw.length).trimStart();
-  }
-
-  async function plain(raw: string, value: string, keep: boolean) {
-    sending = true;
-    try {
-      const action = await chatIpc.send(room.view, value, replyTo?.id);
-      error = '';
-      if (action) onaction?.(action);
-      wentOut(raw, value, keep);
-    } catch (e) {
-      flash(errorText(e));
-    } finally {
-      sending = false;
-    }
-  }
-
-  async function cheer(a: CheerAsk, confirmed: boolean, careful = false) {
-    if (sending) return;
-    sending = true;
-    const { raw, value, keep } = a;
-    /** Bits are off here: it's plain chat. */
-    let asText = false;
-    try {
-      const r = await chatxIpc.cheer(room.view, value, a.bits, confirmed, careful);
-      if (r.kind === 'ask') {
-        error = '';
-        return void (askCheer = { ...a, again: r.again });
-      }
-      asText = r.kind === 'text';
-      // V107-H1c Bits went off here: the gem goes too.
-      if (asText) {
-        const login = room.login;
-        void cheers.load().then((fresh) => fresh && cheers.info && remember(login, { bits: cheers.info.enabled }));
-      }
-      if (r.kind === 'done') {
-        cheers.setBalance(r.balance);
-        error = '';
-        wentOut(raw, value, keep);
-      }
-    } catch (e) {
-      flash(errorText(e));
-    } finally {
-      sending = false;
-    }
-    if (asText) await plain(raw, value, keep);
+    if (!keep) text = leftOver(text, raw, value);
   }
 
   /** V107-B The picker's cheer word goes into the box; the caret ends after it. */
@@ -540,7 +496,7 @@
         // Read before it's cleared: the block's values go with it.
         const a = askCheer!;
         askCheer = null;
-        void cheer(a, true);
+        void chat.confirm(a);
       }}
       onno={() => (askCheer = null)}
     />
