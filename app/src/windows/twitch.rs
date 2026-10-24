@@ -159,6 +159,88 @@ fn marker(app: &AppHandle, account: &str) -> Option<PathBuf> {
     profile_dir(app, account).map(|d| d.with_extension("connected"))
 }
 
+/// V108-K1 A sign-in in the app's window (`windows::sign_in`) leaves its Twitch login with
+/// the account: twitch.tv's cookies from that window (`all_cookies`, `Network.getAllCookies`)
+/// go into the account's profile, so its Twitch pages and 7TV's sign-in find Twitch signed in.
+/// `true` once the profile holds the session (it then counts as connected).
+pub async fn adopt(app: &AppHandle, account: &str, all_cookies: &str) -> bool {
+    let Some(params) = twitch_cookies(all_cookies) else {
+        return false;
+    };
+    let Some(dir) = profile_dir(app, account) else {
+        return false;
+    };
+    // The account's own window, or a hidden one in its profile for the moment.
+    let (window, temp) = match app.get_webview_window(&format!("{PREFIX}{account}")) {
+        Some(w) => (w, false),
+        None => {
+            let safe: String = account.chars().filter(char::is_ascii_alphanumeric).collect();
+            let built = WebviewWindowBuilder::new(
+                app,
+                format!("{PREFIX}keep-{safe}"),
+                WebviewUrl::External("about:blank".parse().expect("valid")),
+            )
+            .data_directory(dir)
+            .visible(false)
+            .build();
+            match built {
+                Ok(w) => (w, true),
+                Err(e) => {
+                    eprintln!("twitch window: keeping the login: {e}");
+                    return false;
+                }
+            }
+        }
+    };
+    let set = crate::sys::devtools::call(&window, "Network.setCookies", params).await.is_some();
+    let params = r#"{"urls":["https://www.twitch.tv/"]}"#.to_owned();
+    let kept = set
+        && crate::sys::devtools::call(&window, "Network.getCookies", params)
+            .await
+            .and_then(|j| has_session(&j))
+            == Some(true);
+    if temp {
+        let _ = window.destroy();
+    }
+    if kept {
+        set_connected(app, account, true);
+    }
+    kept
+}
+
+/// `Network.setCookies`' params with the twitch.tv cookies of `Network.getAllCookies`'
+/// answer, or `None` without Twitch's login among them. Session cookies stay session ones.
+fn twitch_cookies(json: &str) -> Option<String> {
+    if has_session(json) != Some(true) {
+        return None;
+    }
+    let v: serde_json::Value = serde_json::from_str(json).ok()?;
+    let cookies: Vec<serde_json::Value> = v
+        .get("cookies")?
+        .as_array()?
+        .iter()
+        .filter(|c| {
+            let domain = c.get("domain").and_then(|x| x.as_str()).unwrap_or_default().trim_start_matches('.');
+            domain == "twitch.tv" || domain.ends_with(".twitch.tv")
+        })
+        .map(|c| {
+            let mut out = serde_json::Map::new();
+            for key in ["name", "value", "domain", "path", "secure", "httpOnly", "sameSite"] {
+                if let Some(x) = c.get(key) {
+                    out.insert(key.to_owned(), x.clone());
+                }
+            }
+            if c.get("session").and_then(serde_json::Value::as_bool) != Some(true)
+                && let Some(x) = c.get("expires")
+            {
+                out.insert("expires".to_owned(), x.clone());
+            }
+            serde_json::Value::Object(out)
+        })
+        .collect();
+    Some(serde_json::json!({ "cookies": cookies }).to_string())
+}
+
 /// Whether `Network.getCookies`' answer holds twitch.tv's login (`auth-token`).
 fn has_session(json: &str) -> Option<bool> {
     let v: serde_json::Value = serde_json::from_str(json).ok()?;
@@ -478,6 +560,22 @@ mod tests {
         assert_eq!(has_session(r#"{"cookies":[{"name":"auth-token","domain":".twitch.tv","value":""}]}"#), Some(false));
         assert_eq!(has_session(r#"{"cookies":[{"name":"auth-token","domain":"evil.example","value":"a"}]}"#), Some(false));
         assert_eq!(has_session("nope"), None);
+    }
+
+    #[test]
+    fn only_twitch_cookies_are_kept_and_only_with_the_login() {
+        let all = r#"{"cookies":[
+            {"name":"auth-token","value":"a","domain":".twitch.tv","path":"/","expires":2e9,"size":11,"httpOnly":false,"secure":true,"session":false,"sameSite":"None"},
+            {"name":"sid","value":"s","domain":"id.twitch.tv","path":"/","expires":-1,"httpOnly":true,"secure":true,"session":true},
+            {"name":"x","value":"y","domain":".evil.example","path":"/","expires":-1,"session":true}
+        ]}"#;
+        let v: serde_json::Value = serde_json::from_str(&twitch_cookies(all).expect("kept")).expect("json");
+        let c = v["cookies"].as_array().expect("list");
+        assert_eq!(c.len(), 2);
+        assert_eq!(c[0]["expires"], 2e9);
+        assert!(c[0].get("size").is_none() && c[0].get("session").is_none());
+        assert!(c[1].get("expires").is_none() && c[1]["httpOnly"] == true);
+        assert_eq!(twitch_cookies(r#"{"cookies":[{"name":"sid","value":"s","domain":"id.twitch.tv"}]}"#), None);
     }
 
     #[test]

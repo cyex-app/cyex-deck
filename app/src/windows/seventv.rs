@@ -205,10 +205,11 @@ fn leftover(json: &str, mock: Option<&str>) -> Option<Vec<(String, String, Strin
     )
 }
 
-/// V108-7T 7TV's window uses the account's Twitch pages profile only when asked ("Open in:
-/// Browser") and that profile is signed in; else it's private and signed out.
-pub fn borrows_pages(asked: bool, pages_connected: bool) -> bool {
-    asked && pages_connected
+/// V108-7T 7TV's window uses the account's Twitch pages profile when that profile is signed
+/// in (V108-K1: also after a sign-in in the app's window, whatever "Open in" says); else it's
+/// private and signed out.
+pub fn borrows_pages(pages_connected: bool) -> bool {
+    pages_connected
 }
 
 fn label_of(account: &str) -> String {
@@ -469,10 +470,8 @@ mod tests {
 
     #[test]
     fn pages_only_when_asked_and_connected() {
-        assert!(borrows_pages(true, true));
-        assert!(!borrows_pages(true, false));
-        assert!(!borrows_pages(false, true));
-        assert!(!borrows_pages(false, false));
+        assert!(borrows_pages(true));
+        assert!(!borrows_pages(false));
     }
 
     #[test]

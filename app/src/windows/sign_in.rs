@@ -75,6 +75,22 @@ pub fn open(app: &AppHandle, url: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// V108-K1 The sign-in here went through for `account`: its Twitch login goes to the
+/// account's Twitch pages profile (`twitch::adopt`) before the window closes, so 7TV's
+/// sign-in and the Twitch pages don't ask again.
+pub async fn keep_login(app: &AppHandle, account: &str) {
+    let Some(w) = current().clone().and_then(|l| app.get_webview_window(&l)) else {
+        return;
+    };
+    let Some(all) = crate::sys::devtools::call(&w, "Network.getAllCookies", "{}".to_owned()).await else {
+        eprintln!("sign-in: couldn't read the window's Twitch login");
+        return;
+    };
+    if !super::twitch::adopt(app, account, &all).await {
+        eprintln!("sign-in: Twitch pages: login not kept");
+    }
+}
+
 /// The sign-in ended: the window goes (without cancelling anything).
 pub fn close(app: &AppHandle) {
     let Some(label) = current().take() else { return };

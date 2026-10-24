@@ -62,6 +62,11 @@ pub async fn sign_in_device(
         finish(app, kind, user_id, secret, TokenSource::Device).await
     }
     .await;
+    if place == Place::App
+        && let Ok(s) = &result
+    {
+        crate::windows::sign_in::keep_login(app, &s.user_id).await;
+    }
     ended(app, &mine);
     result
 }
@@ -99,6 +104,11 @@ pub async fn sign_in_browser(
         finish(app, TokenKind::Helix, user_id, secret, TokenSource::Browser).await
     }
     .await;
+    if place == Place::App
+        && let Ok(s) = &result
+    {
+        crate::windows::sign_in::keep_login(app, &s.user_id).await;
+    }
     ended(app, &mine);
     result
 }
