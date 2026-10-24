@@ -165,7 +165,7 @@ pub struct Images {
 /// V107-Mz Twitch keeps an uploaded banner (`bannerImageURL`) after the channel switches to
 /// the accent colour; the channel page then shows none. Only `PRESET_1` hides it.
 pub fn banner_shown(hero: Option<&str>) -> bool {
-    hero != Some("PRESET_1")
+    hero != Some(GENERATED_BANNER)
 }
 
 impl Images {
@@ -206,10 +206,11 @@ pub async fn images(http: &Http, base: Option<&str>, user_id: &str) -> Result<Im
 }
 
 /// V107-Mh Back to Twitch's default, where twitch.tv has a way (static read, 2026/10/22):
-/// the avatar's Delete in settings › profile and the dashboard's offline image ✕. Twitch's web
-/// has no way to remove a banner, so none here.
-pub fn removable(kind: ImageKind) -> bool {
-    kind != ImageKind::Banner
+/// the avatar's Delete in settings › profile and the dashboard's offline image ✕. V107-Mz5 The
+/// banner has no delete; its "remove" is the brand page's Generated Background (`set_hero`),
+/// which keeps the uploaded image.
+pub fn removable(_kind: ImageKind) -> bool {
+    true
 }
 
 /// One of Twitch's 7 default pictures (`profile_image_001`..`007`): the one twitch.tv shows
@@ -243,6 +244,9 @@ fn remove_op(kind: ImageKind, user_id: &str) -> Option<(&'static str, &'static s
 
 /// Removes the image. A payload `error` (or none at all) comes back as `Error::Refused`.
 pub async fn remove(http: &Http, auth: Auth<'_>, base: Option<&str>, kind: ImageKind, user_id: &str) -> Result<()> {
+    if kind == ImageKind::Banner {
+        return set_hero(http, auth, base, user_id, GENERATED_BANNER).await;
+    }
     let (field, text, vars) = remove_op(kind, user_id).ok_or_else(|| Error::Refused("NOT_REMOVABLE".into()))?;
     read_remove(field, &run_at(http, auth, base, text, vars).await?)
 }
@@ -260,6 +264,8 @@ fn read_remove(field: &str, data: &Value) -> Result<()> {
 
 /// V107-Mz3 The channel page's banner choice for "Custom Image" (`heroPreset`).
 pub const CUSTOM_BANNER: &str = "PRESET_2";
+/// V107-Mz5 … and for "Generated Background" (the profile accent colour).
+pub const GENERATED_BANNER: &str = "PRESET_1";
 
 /// V107-Mz3 Sets the channel page's banner choice, as the Save under twitch.tv's settings ›
 /// channel › brand › Profile Banner does (`UpdateHeroPreset`, chunk
@@ -396,7 +402,7 @@ mod tests {
 
     #[test]
     fn remove_ops_match_twitch() {
-        assert!(removable(ImageKind::Avatar) && removable(ImageKind::Offline) && !removable(ImageKind::Banner));
+        assert!(removable(ImageKind::Avatar) && removable(ImageKind::Offline) && removable(ImageKind::Banner));
         assert!(remove_op(ImageKind::Banner, "1").is_none());
         let (field, text, vars) = remove_op(ImageKind::Avatar, "141981764").unwrap();
         assert_eq!(field, "setUserDefaultProfileImage");

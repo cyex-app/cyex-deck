@@ -339,7 +339,8 @@ pub async fn remove(app: &AppHandle, account: &str, kind: ProfileImageKind) -> R
     let _busy = Busy::take(&state, account)?;
     let t = target(app, account)?;
     let before = api::images(&t.http, t.base(), &t.user_id).await.map_err(|e| check::map(&e))?;
-    let old = before.get(kind.api()).to_owned();
+    // V107-Mz5 A banner counts only while the channel page shows it.
+    let old = before.shown(kind.api()).to_owned();
     if !can_remove(kind, &old) {
         return Ok(shown(app, &t, kind, &before, false).await);
     }
@@ -355,6 +356,12 @@ pub async fn remove(app: &AppHandle, account: &str, kind: ProfileImageKind) -> R
     api::remove(&t.http, t.auth(), t.base(), kind.api(), &t.user_id)
         .await
         .map_err(|e| log_map("remove", &e))?;
+    if kind == ProfileImageKind::Banner {
+        // Twitch keeps the image; only the choice changed, and that is known.
+        let mut now = before.clone();
+        now.hero = Some(api::GENERATED_BANNER.to_owned());
+        return Ok(shown(app, &t, kind, &now, false).await);
+    }
     let (now, waiting) = wait(&t, kind, &before, |url| url != old).await;
     Ok(shown(app, &t, kind, &now, waiting).await)
 }
@@ -488,6 +495,7 @@ mod tests {
         assert!(!can_remove(ProfileImageKind::Avatar, ""));
         assert!(can_remove(ProfileImageKind::Offline, "https://static-cdn.jtvnw.net/jtv_user_pictures/x-channel_offline_image.png"));
         assert!(!can_remove(ProfileImageKind::Offline, ""));
-        assert!(!can_remove(ProfileImageKind::Banner, "https://static-cdn.jtvnw.net/jtv_user_pictures/x-profile_banner.png"));
+        assert!(can_remove(ProfileImageKind::Banner, "https://static-cdn.jtvnw.net/jtv_user_pictures/x-profile_banner.png"));
+        assert!(!can_remove(ProfileImageKind::Banner, ""));
     }
 }

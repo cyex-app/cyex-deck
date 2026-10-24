@@ -1,8 +1,8 @@
 <!-- V107-R19 Profile picture, banner and offline image: preview, Change, and Restore original
      while the app keeps the image its first change replaced. Twitch's internal API; when Twitch refuses,
      its own settings page opens in the app's Twitch window. V107-R19c Under each, the last ones changed here.
-     V107-Mh Remove (asks first) puts Twitch's default back; the removed image stays in Recent. No banner Remove:
-     Twitch has no way for that. -->
+     V107-Mh Remove (asks first) puts Twitch's default back; the removed image stays in Recent. V107-Mz5 The
+     banner's Remove switches the channel to Twitch's generated background. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import Loading from '../../components/Loading.svelte';
@@ -37,7 +37,7 @@
   };
   const ASK: Record<ProfileImageKind, string> = {
     avatar: 'Remove your profile picture? It stays in Recent.',
-    banner: 'Remove the banner? It stays in Recent.',
+    banner: 'Use Twitch’s generated background instead? The banner stays in Recent.',
     offline: 'Remove the offline image? It stays in Recent.',
   };
 
