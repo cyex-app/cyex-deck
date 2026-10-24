@@ -2,6 +2,8 @@
      then the style: one icon per cheermote at the tier the amount reaches. A pick puts
      "PrefixN" in the box; Enter sends it through the cheer path. -->
 <script lang="ts">
+  import { tick } from 'svelte';
+
   import Icon from '../../components/Icon.svelte';
   import Loading from '../../components/Loading.svelte';
   import NumberField from '../../components/NumberField.svelte';
@@ -14,7 +16,7 @@
   import { settings } from '../../lib/settings.svelte';
   import type { CheerBox } from './bits.svelte';
   import { catalogs } from './catalog.svelte';
-  import { CHEER_MAX, canAfford, cheerPresets, startAmount, wordMin, type CheerRules } from './cheer';
+  import { CHEER_MAX, canAfford, cheerFloor, cheerPresets, startAmount, wordMin, type CheerRules } from './cheer';
   import type { ChatRoom } from './room.svelte';
   import { cheerImg, cheerTier } from './urls';
 
@@ -33,7 +35,8 @@
   const balance = $derived(info?.balance ?? null);
   const rules = $derived<CheerRules>({ cheerMin: info?.cheerMin ?? 1, emoteMin: info?.emoteMin ?? 1, balance });
   const presets = $derived(cheerPresets(rules));
-  const ok = $derived(canAfford(amount, rules));
+  // Under the channel's minimum a style can't go out, same as an amount over the balance.
+  const ok = $derived(canAfford(amount, rules) && amount >= cheerFloor(rules));
   const list = $derived.by((): Cheermote[] => {
     const usable = new Set(info?.prefixes ?? []);
     return catalogs.cheermotes(room.login).filter((c) => usable.has(c.prefix.toLowerCase()));
@@ -44,6 +47,41 @@
     if (!info || lifted === room.login) return;
     lifted = room.login;
     amount = startAmount(amount, rules);
+  });
+
+  let trigger = $state<HTMLButtonElement>();
+  let wasOpen = false;
+  let focused = false;
+  // Roving tab stops: the last chip / style that had focus (null: the default one).
+  let chipAt = $state<number | null>(null);
+  let styleAt = $state<string | null>(null);
+  const chipStop = $derived.by(() => {
+    const at = presets.find((p) => p.ok && p.bits === chipAt) ?? presets.find((p) => p.ok && p.bits === amount) ?? presets.find((p) => p.ok);
+    return at?.bits ?? null;
+  });
+  const styleStop = $derived(ok ? (list.find((c) => c.prefix === styleAt) ?? list[0])?.prefix : undefined);
+
+  // Opened: focus lands on the first chip once the rules are in. Closed: back on the gem,
+  // or on the "…" button when the gem sits folded away.
+  $effect(() => {
+    if (open) {
+      wasOpen = true;
+      if (info?.enabled && !focused) {
+        focused = true;
+        void tick().then(() => document.querySelector<HTMLElement>('.bits-menu .chip:not(:disabled)[tabindex="0"]')?.focus());
+      }
+      return;
+    }
+    focused = false;
+    if (!wasOpen) return;
+    wasOpen = false;
+    void tick().then(() => {
+      const at = document.activeElement;
+      if (at && at !== document.body && !at.matches('[role="dialog"], [tabindex="-1"]')) return;
+      const t = trigger;
+      if (t?.getClientRects().length) t.focus();
+      else t?.closest<HTMLElement>('.row')?.querySelector<HTMLElement>('button.more')?.focus();
+    });
   });
 
   function toggle() {
@@ -70,11 +108,18 @@
     e.preventDefault();
     row[to].focus();
   }
+
+  function track(e: FocusEvent) {
+    const t = e.target as HTMLElement;
+    if (t.dataset.bits) chipAt = Number(t.dataset.bits);
+    else if (t.dataset.prefix) styleAt = t.dataset.prefix;
+  }
 </script>
 
 <div class="bits">
   <button
     class="trigger"
+    bind:this={trigger}
     aria-label="Cheer"
     aria-haspopup="dialog"
     aria-expanded={open}
@@ -87,7 +132,7 @@
     <Icon name="gem" size={16} />
   </button>
   <Popover bind:open align="start" side="above" label="Cheer">
-    <div class="menu">
+    <div class="menu bits-menu">
       <header>
         <strong>Cheer</strong>
         {#if balance != null}<span class="balance">{formatNumber(balance)} Bits</span>{/if}
@@ -96,12 +141,11 @@
         <p class="note">{box.error}</p>
       {:else if !info}
         <Loading />
-      {:else if !info.enabled}
-        <p class="note">Cheering is off in this channel.</p>
       {:else}
-        <div class="row" role="toolbar" tabindex="-1" aria-label="Amount" onkeydown={rove}>
+        {#if box.error}<p class="note">Balance may be out of date.</p>{/if}
+        <div class="row" role="toolbar" tabindex="-1" aria-label="Amount" onkeydown={rove} onfocusin={track}>
           {#each presets as p (p.bits)}
-            <button class="chip" aria-pressed={amount === p.bits} disabled={!p.ok} onclick={() => (amount = p.bits)}>
+            <button class="chip" data-bits={p.bits} tabindex={p.bits === chipStop ? 0 : -1} aria-pressed={amount === p.bits} disabled={!p.ok} onclick={() => (amount = p.bits)}>
               {formatNumber(p.bits)}
             </button>
           {/each}
@@ -117,11 +161,13 @@
         {#if !list.length}
           <p class="note">No cheers here yet.</p>
         {:else}
-          <div class="styles" role="toolbar" tabindex="-1" aria-label="Style" onkeydown={rove}>
+          <div class="styles" role="toolbar" tabindex="-1" aria-label="Style" onkeydown={rove} onfocusin={track}>
             {#each list as c (c.prefix)}
               {@const tier = cheerTier(c, amount)}
               <button
                 class="style"
+                data-prefix={c.prefix}
+                tabindex={c.prefix === styleStop ? 0 : -1}
                 disabled={!ok}
                 aria-label="{c.prefix}{amount}"
                 onclick={() => pick(c)}
