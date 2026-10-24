@@ -427,6 +427,12 @@
   }
   /* Forced colours: the open tab is a Highlight block; a picked one gets a ring. */
   @media (forced-colors: active) {
+    .dot.live,
+    .dot.rerun,
+    .snd.live,
+    .snd.rerun {
+      forced-color-adjust: none;
+    }
     .active .pill {
       background: Highlight;
       color: HighlightText;
