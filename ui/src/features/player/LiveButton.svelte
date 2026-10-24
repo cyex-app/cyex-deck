@@ -81,7 +81,7 @@
     flex: none;
     box-sizing: border-box;
     border-radius: 50%;
-    background: var(--accent);
+    background: var(--live);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--on-video) 45%, transparent);
   }
   .behind {
