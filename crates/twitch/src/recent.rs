@@ -33,14 +33,27 @@ pub fn unavailable(e: &Error) -> String {
     }
 }
 
-/// C24 Lines sent between two moments (unix ms), at most `limit`.
-pub async fn recent_between(http: &Http, login: &str, after_ms: i64, before_ms: i64, limit: u32) -> Result<Vec<String>> {
+/// C24 Lines sent between two moments (unix ms), at most `limit`, and whether the service
+/// was still catching up on the channel (then it may lack some of them).
+pub async fn recent_between(
+    http: &Http,
+    login: &str,
+    after_ms: i64,
+    before_ms: i64,
+    limit: u32,
+) -> Result<(Vec<String>, bool)> {
     let req = || {
         http.0
             .get(format!("{URL}/{login}"))
             .query(&[("limit", i64::from(limit)), ("after", after_ms), ("before", before_ms)])
     };
-    unwrap(pace::json(Service::Recent, Lane::Back, req).await?)
+    let r: Response = pace::json(Service::Recent, Lane::Back, req).await?;
+    let recovering = recovering(&r);
+    Ok((unwrap(r)?, recovering))
+}
+
+fn recovering(r: &Response) -> bool {
+    r.error_code.as_deref() == Some("channel_not_joined")
 }
 
 fn unwrap(r: Response) -> Result<Vec<String>> {
@@ -64,6 +77,7 @@ mod tests {
         assert_eq!(unwrap(ok).unwrap(), ["a"]);
         let gap: Response =
             serde_json::from_str(r#"{"messages":["b"],"error":"recovering","error_code":"channel_not_joined"}"#).unwrap();
+        assert!(recovering(&gap));
         assert_eq!(unwrap(gap).unwrap(), ["b"]);
         let bad: Response =
             serde_json::from_str(r#"{"messages":[],"error":"ignored","error_code":"channel_ignored"}"#).unwrap();

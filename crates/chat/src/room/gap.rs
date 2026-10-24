@@ -13,6 +13,16 @@ use crate::tokenize::Emotes;
 /// The history service keeps no more than this.
 const MAX_LINES: i64 = 800;
 
+/// C24 Said after "Reconnected" when the fill can't be whole.
+pub const GAP_NOTE: &str = "Some messages from this gap may be missing.";
+
+/// C24 Whether a gap fill may have left lines out: history is off (nothing is fetched),
+/// the service was still catching up on the channel, or it sent all that was asked
+/// (10 a second, at most 800), so there may be more. A quiet gap fully filled says nothing.
+pub fn gap_may_miss(history: bool, asked: u32, got: usize, recovering: bool) -> bool {
+    !history || recovering || got >= asked as usize
+}
+
 impl Room {
     /// The link dropped. Only the first drop counts until we're back.
     pub fn lost(&mut self, now_ms: i64) {
@@ -122,5 +132,13 @@ mod tests {
             .map(|m| m.notice.as_ref().filter(|_| m.sender.is_none()).map_or(m.id.clone(), |n| n.text.clone()))
             .collect();
         assert_eq!(ids, ["Joined chat", "a", "Disconnected", "b", "c", "Reconnected", "d"]);
+    }
+
+    #[test]
+    fn gap_note_only_when_lines_may_be_missing() {
+        assert!(!gap_may_miss(true, 70, 12, false));
+        assert!(gap_may_miss(false, 70, 0, false));
+        assert!(gap_may_miss(true, 70, 3, true));
+        assert!(gap_may_miss(true, 800, 800, false));
     }
 }

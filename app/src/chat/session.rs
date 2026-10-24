@@ -332,12 +332,13 @@ fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_
 fn fill_gap(app: AppHandle, key: RoomKey, (after, before, limit): (i64, i64, u32)) {
     let history = app.state::<crate::settings::Settings>().read::<cyex_settings::schema::Chat>(cyex_settings::Partition::Chat).history;
     if !history {
+        say(&app, &key, cyex_chat::GAP_NOTE);
         return;
     }
     tauri::async_runtime::spawn(async move {
         let http = app.state::<crate::auth::Auth>().http.clone();
-        let lines = match cyex_twitch::recent::recent_between(&http, &key.1, after, before, limit).await {
-            Ok(lines) => lines,
+        let (lines, recovering) = match cyex_twitch::recent::recent_between(&http, &key.1, after, before, limit).await {
+            Ok(got) => got,
             Err(e) => {
                 eprintln!("chat: couldn't fill the gap in {}: {}", key.1, e.describe("recent-messages"));
                 say(&app, &key, "Couldn’t load what was missed while disconnected");
@@ -351,6 +352,10 @@ fn fill_gap(app: AppHandle, key: RoomKey, (after, before, limit): (i64, i64, u32
         let messages = entry.room.fill_gap(&lines, now_ms(), &emotes);
         if !messages.is_empty() {
             queue(entry, [RoomEvent::Gap { messages }], &chat.wake);
+        }
+        drop(inner);
+        if cyex_chat::gap_may_miss(true, limit, lines.len(), recovering) {
+            say(&app, &key, cyex_chat::GAP_NOTE);
         }
     });
 }

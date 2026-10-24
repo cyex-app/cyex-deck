@@ -4,6 +4,7 @@
 
 mod checks;
 mod gap;
+pub use gap::{GAP_NOTE, gap_may_miss};
 mod hook;
 mod keep;
 mod presence;
