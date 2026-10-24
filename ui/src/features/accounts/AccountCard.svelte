@@ -16,6 +16,7 @@
   import type { TokenView } from '../../ipc/bindings/TokenView';
   import { accounts } from '../../lib/accounts.svelte';
   import { toast } from '../../lib/toast.svelte';
+  import { alsoSevenTv } from './alsoSevenTv.svelte';
   import GqlUnlock from './GqlUnlock.svelte';
   import ProfileEditor from './ProfileEditor.svelte';
   import ProfileImages from './ProfileImages.svelte';
@@ -94,6 +95,12 @@
     unlock.ask('settings', account.userId, { twitchAlone: alone });
   }
 
+  /** V108-7P The prompt's Connect: the same 7TV sign-in (and consent) as the 7TV line. */
+  function connectSevenTv() {
+    const id = alsoSevenTv.take();
+    if (id) unlock.ask('seventv', id);
+  }
+
   function closeUnlock() {
     unlocking = false;
     if (signIn.offer === account.userId) signIn.offer = null;
@@ -160,6 +167,15 @@
       <ConfirmButton label="Withdraw" confirm="Click again to withdraw" variant="ghost" onconfirm={withdraw} />
     {/if}
   </div>
+
+  <!-- V108-7P -->
+  {#if alsoSevenTv.asking === account.userId}
+    <div class="also" role="group" aria-label="Also connect 7TV?" transition:slide={{ duration: reduced() ? 0 : BASE, easing: cubicOut }}>
+      <span><strong>Also connect 7TV?</strong> Your paint and badge in chat.</span>
+      <Button small variant="primary" disabled={!!unlock.asked} onclick={connectSevenTv}>Connect</Button>
+      <Button small variant="ghost" onclick={() => alsoSevenTv.later()}>Not now</Button>
+    </div>
+  {/if}
 
   {#if account.helix && !needsSignIn(account.helix) && account.missingScopes.length}
     <p class="warn" use:tooltip={{ label: account.missingScopes.join(', ') }}>
@@ -255,6 +271,27 @@
     color: var(--accent-text);
     font-size: 0.72rem;
     font-weight: 700;
+  }
+  .also {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 2px 0 8px;
+    padding: 8px 12px;
+    background: var(--bg);
+    border: 1px solid var(--accent-border);
+    border-radius: var(--radius);
+  }
+  .also span {
+    flex: 1;
+    min-width: 0;
+    color: var(--muted);
+    font-size: 0.82rem;
+  }
+  .also strong {
+    color: var(--text);
+    font-size: 0.875rem;
+    margin-right: 4px;
   }
   .line {
     display: flex;

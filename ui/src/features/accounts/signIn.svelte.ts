@@ -9,7 +9,9 @@ import type { Place } from '../../ipc/bindings/Place';
 import type { TokenKind } from '../../ipc/bindings/TokenKind';
 import { toast } from '../../lib/toast.svelte';
 import { errorText } from '../../lib/errors';
+import { alsoSevenTv } from './alsoSevenTv.svelte';
 import { placeFor, readPlace, savePlace } from './place';
+import { twitchPages } from './twitchPages.svelte';
 
 class SignInFlow {
   kind = $state<TokenKind | null>(null);
@@ -47,6 +49,7 @@ class SignInFlow {
     this.code = null;
     this.opened = false;
     this.at = place;
+    const before = alsoSevenTv.snapshot(twitchPages.connected);
     try {
       const who =
         kind === 'helix'
@@ -61,6 +64,7 @@ class SignInFlow {
       if (quiet) return true;
       toast.success(`Signed in as ${who.displayName}.`);
       this.offer = kind === 'helix' ? who.userId : null;
+      alsoSevenTv.added(kind, who.userId, before);
       return true;
     } catch (e) {
       if (run === this.run && !quiet) toast.error(errorText(e));

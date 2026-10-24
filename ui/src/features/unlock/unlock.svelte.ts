@@ -5,8 +5,9 @@
 import { cosmeticsIpc } from '../../ipc/cosmetics';
 import { accounts } from '../../lib/accounts.svelte';
 import { toast } from '../../lib/toast.svelte';
+import { alsoSevenTv } from '../accounts/alsoSevenTv.svelte';
 import { signIn } from '../accounts/signIn.svelte';
-import { doneOf, leftText, order, plan, sharedProfile, twitchLeft, type Entry, type Item, type Part } from './choice';
+import { doneOf, leftText, order, plan, sevenTvShared, twitchLeft, type Entry, type Item, type Part } from './choice';
 
 export type StepState = 'waiting' | 'running' | 'done' | 'failed';
 
@@ -55,6 +56,8 @@ class Unlock {
       return;
     }
     this.hooks = hooks;
+    // V108-7P 7TV offered here: the card won't ask "Also connect 7TV?" after.
+    if ((p.kind === 'ask' && p.items.some((i) => i.part === 'seventv' && !i.done)) || (p.kind === 'run' && p.parts.includes('seventv'))) alsoSevenTv.seen(account);
     this.asked = {
       entry,
       account,
@@ -97,7 +100,7 @@ class Unlock {
     for (const step of this.steps) {
       step.state = 'running';
       const note =
-        step.part === 'twitch' ? await this.twitch(q.account) : await this.seventv(q.account, sharedProfile(parts));
+        step.part === 'twitch' ? await this.twitch(q.account) : await this.seventv(q.account, sevenTvShared(signIn.place));
       step.state = note === null ? 'done' : 'failed';
       if (note) step.note = note;
       (note === null ? done : failed).push(step.part);
@@ -122,7 +125,7 @@ class Unlock {
   }
 
   /** The yes (the dialog's sign-in click, with the consent shown), then 7TV's own sign-in
-   * window: in the account's Twitch profile when Twitch was picked too. */
+   * window: V108-7T in the account's Twitch pages profile when "Open in" is Browser. */
   private async seventv(account: string, shared: boolean): Promise<string | null> {
     try {
       if (this.asked?.consent) await cosmeticsIpc.allow(account);

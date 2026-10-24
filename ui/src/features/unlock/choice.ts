@@ -2,6 +2,7 @@
 // (Twitch's two sign-ins). Pure, so it's unit tested.
 
 import type { AccountView } from '../../ipc/bindings/AccountView';
+import type { Place } from '../../ipc/bindings/Place';
 import type { SelectError } from '../../ipc/bindings/SelectError';
 import type { TokenKind } from '../../ipc/bindings/TokenKind';
 import { needsSignIn } from '../accounts/status.ts';
@@ -78,10 +79,12 @@ export function asksConsent(parts: Part[], consentGiven: boolean): boolean {
   return parts.includes('seventv') && !consentGiven;
 }
 
-/** 7TV's window borrows the account's Twitch web profile only when Twitch is picked too, so
- * one Twitch login covers both. "Just 7TV" stays in a private window. */
-export function sharedProfile(parts: Part[]): boolean {
-  return parts.includes('seventv') && parts.includes('twitch');
+/** V108-7T 7TV's window follows "Open in". 7TV hands its session only to its own page, never
+ * back from a real browser, so "Browser" asks for the account's connected Twitch pages
+ * profile instead (Twitch signed in already; the app checks it's connected). "App window" is
+ * a private, signed-out window. */
+export function sevenTvShared(place: Place): boolean {
+  return place === 'browser';
 }
 
 /** Steps run Twitch first, so its login is there when 7TV's window opens in the same profile. */

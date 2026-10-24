@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { AccountView } from '../../ipc/bindings/AccountView';
-import { asksConsent, chosen, doneOf, leftText, order, pickNeedsSignIn, plan, sharedProfile, twitchLeft } from './choice.ts';
+import { asksConsent, chosen, doneOf, leftText, order, pickNeedsSignIn, plan, sevenTvShared, twitchLeft } from './choice.ts';
 
 const ok = { source: 'device', expiresAt: null, state: 'valid' } as AccountView['helix'];
 const bad = { source: 'device', expiresAt: null, state: 'invalid' } as AccountView['helix'];
@@ -71,12 +71,9 @@ test('a both option without consent shows it, and its click gives it', () => {
   assert.equal(asksConsent(['twitch'], false), false);
 });
 
-test('only a both choice borrows the Twitch profile', () => {
-  assert.equal(sharedProfile(['twitch', 'seventv']), true);
-  assert.equal(sharedProfile(['seventv', 'twitch']), true);
-  assert.equal(sharedProfile(['seventv']), false);
-  assert.equal(sharedProfile(['twitch']), false);
-  assert.equal(sharedProfile(['seventv', 'twitch']), true);
+test('7TV follows Open in', () => {
+  assert.equal(sevenTvShared('browser'), true);
+  assert.equal(sevenTvShared('app'), false);
 });
 
 test('Twitch runs first', () => {

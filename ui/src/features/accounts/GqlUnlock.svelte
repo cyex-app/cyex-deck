@@ -6,7 +6,9 @@
   import { accountsIpc } from '../../ipc/accounts';
   import type { AccountView } from '../../ipc/bindings/AccountView';
   import { toast } from '../../lib/toast.svelte';
+  import { alsoSevenTv } from './alsoSevenTv.svelte';
   import { signIn } from './signIn.svelte';
+  import { twitchPages } from './twitchPages.svelte';
   import { errorText } from '../../lib/errors';
 
   let { account, onclose }: { account: AccountView; onclose?: () => void } = $props();
@@ -17,8 +19,10 @@
   async function submit(e: SubmitEvent) {
     e.preventDefault();
     busy = true;
+    const before = alsoSevenTv.snapshot(twitchPages.connected);
     try {
       await accountsIpc.addGqlToken(account.userId, token);
+      alsoSevenTv.added('gql', account.userId, before);
       token = '';
       toast.success('Extra Twitch features unlocked.');
       onclose?.();

@@ -1,8 +1,10 @@
 //! V1051-02 7TV's own Twitch sign-in in a small private window. The app types nothing: the user
 //! signs in on Twitch's page; when 7TV's page has its session we copy it out and close.
 //! The window shares the app's WebView2 environment but is InPrivate and has no app IPC.
-//! For "both" (Twitch and 7TV in one go) it borrows the account's Twitch web profile instead,
-//! so Twitch is signed in already, and every 7TV trace is cleared from it before it closes.
+//! V108-7T With "Open in: Browser" and the account's Twitch pages connected it borrows that
+//! profile instead, so Twitch is signed in already, and every 7TV trace is cleared from it
+//! before it closes. 7TV can't hand its session back from a real browser (its callbacks only
+//! go to 7tv.app), so this is the closest to "your browser".
 
 use std::time::Duration;
 
@@ -129,6 +131,12 @@ fn leftover(json: &str, mock: Option<&str>) -> Option<Vec<(String, String, Strin
     )
 }
 
+/// V108-7T 7TV's window uses the account's Twitch pages profile only when asked ("Open in:
+/// Browser") and that profile is signed in; else it's private and signed out.
+pub fn borrows_pages(asked: bool, pages_connected: bool) -> bool {
+    asked && pages_connected
+}
+
 fn label_of(account: &str) -> String {
     let safe: String = account.chars().filter(char::is_ascii_alphanumeric).collect();
     format!("{PREFIX}{safe}")
@@ -151,6 +159,7 @@ pub async fn capture(app: &AppHandle, account: &str, login_url: String, shared: 
     let pop_app = app.clone();
     let look = theme::look(app);
     let profile = if shared { twitch::profile_dir(app, account) } else { None };
+    eprintln!("seventv: sign-in window: {}", if profile.is_some() { "Twitch pages profile" } else { "private" });
     let builder = match &profile {
         // Same flags as the Twitch window (none), so both can share its folder at once.
         Some(dir) => tauri::WebviewWindowBuilder::new(app, &label, WebviewUrl::External(url)).data_directory(dir.clone()),
@@ -304,6 +313,14 @@ mod tests {
         let mock = Some("127.0.0.1:5199");
         assert_eq!(callback(&u("http://127.0.0.1:5199/login/callback?code=x"), mock), Some(Callback::Code));
         assert_eq!(callback(&u("http://127.0.0.1:5200/login/callback?code=x"), mock), None);
+    }
+
+    #[test]
+    fn pages_only_when_asked_and_connected() {
+        assert!(borrows_pages(true, true));
+        assert!(!borrows_pages(true, false));
+        assert!(!borrows_pages(false, true));
+        assert!(!borrows_pages(false, false));
     }
 
     #[test]

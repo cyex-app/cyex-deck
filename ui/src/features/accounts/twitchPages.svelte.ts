@@ -4,6 +4,7 @@
 import { subsIpc } from '../../ipc/subs';
 import { errorText } from '../../lib/errors';
 import { toast } from '../../lib/toast.svelte';
+import { alsoSevenTv } from './alsoSevenTv.svelte';
 
 class TwitchPages {
   connected = $state<string[]>([]);
@@ -25,8 +26,12 @@ class TwitchPages {
 
   async connect(userId: string): Promise<void> {
     this.connecting = userId;
+    const before = alsoSevenTv.snapshot(this.connected);
     try {
-      if (await subsIpc.connect(userId)) toast.success('Twitch pages connected.');
+      if (await subsIpc.connect(userId)) {
+        toast.success('Twitch pages connected.');
+        alsoSevenTv.added('pages', userId, before);
+      }
     } catch (e) {
       toast.error(errorText(e));
     } finally {

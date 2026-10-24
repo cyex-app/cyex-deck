@@ -50,7 +50,7 @@ pub async fn cosmetics_withdraw(app: AppHandle, account: String) -> Result<(), S
 }
 
 /// V1051-02 Opens 7TV's sign-in window and waits for the outcome. `shared`: in the account's
-/// Twitch web profile (picked together with Twitch's sign-in), else a private window.
+/// Twitch pages profile ("Open in: Browser", V108-7T) when it's connected, else a private window.
 #[tauri::command]
 pub async fn cosmetics_sign_in(app: AppHandle, account: String, shared: bool) -> Result<SignIn, String> {
     known(&app, &account)?;
