@@ -84,7 +84,9 @@
     return t ? tileNeed(t.show.player || tileState(t.id).side !== null, t.show.chat && !tabs.chats.has(t.id)) : { w: 0, h: 0 };
   };
   const tree = $derived(
-    clampGrid(gridTree(tab.columns, live ? sizes : slimSizes(tab.columns, sizes, offline, box.w), stacked), box, need, LINE),
+    // V107-Z2 Slim columns stay slim while a divider is dragged: they widened on press and
+    // narrowed again on release.
+    clampGrid(gridTree(tab.columns, slimSizes(tab.columns, sizes, offline, box.w), stacked), box, need, LINE),
   );
   const laid = $derived(layOut(tree, box, LINE));
 
@@ -113,10 +115,15 @@
       teardown = null;
     };
     // Also ends on a cancelled pointer or a lost window, and when this unmounts.
+    // V107-Z2 The dragged sizes stay shown until the save is back: dropped at once, the tiles
+    // jumped to the old sizes for a frame or two, then to the new.
     const up = () => {
       stop();
-      if (live) void tabs.apply({ op: 'resize', tab: tab.id, columns: live.columns, rows: live.rows });
-      live = null;
+      const sent = live;
+      if (!sent) return;
+      void tabs.apply({ op: 'resize', tab: tab.id, columns: sent.columns, rows: sent.rows }).finally(() => {
+        if (live === sent) live = null;
+      });
     };
     teardown?.();
     teardown = () => {
