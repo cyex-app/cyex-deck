@@ -5,6 +5,10 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[features]
+# P4 #16 Test hooks: `Http::mocked` sends Helix and GQL to a local mock. Test builds only, never in a release.
+mocks = []
+
 [dependencies]
 cyex-core.workspace = true
 reqwest.workspace = true

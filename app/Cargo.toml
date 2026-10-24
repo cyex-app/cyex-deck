@@ -7,7 +7,7 @@ publish.workspace = true
 
 [features]
 # V106 phase 6 (R10) Test hooks (mock HLS, mock 7TV, update feed). Test builds only, never in a release.
-mocks = ["cyex-player/mocks", "cyex-emotes/mocks"]
+mocks = ["cyex-player/mocks", "cyex-emotes/mocks", "cyex-twitch/mocks"]
 
 [build-dependencies]
 tauri-build.workspace = true

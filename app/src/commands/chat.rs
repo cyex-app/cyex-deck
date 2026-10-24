@@ -170,7 +170,8 @@ pub async fn chat_resolve_link(app: AppHandle, url: String) -> CmdResult<Option<
 /// Public profile for the usercard (1.36), by login or id.
 #[tauri::command]
 pub async fn user_profile(app: AppHandle, login: Option<String>, id: Option<String>) -> CmdResult<Option<Profile>> {
-    let http = app.state::<Auth>().http.clone();
+    // P4 #16 The usercard's client: a user-lookup mock in test builds.
+    let http = chat::usercard::http(&app);
     gql::profile(&http, login.as_deref(), id.as_deref())
         .await
         .map_err(|e| e.to_string())

@@ -59,10 +59,12 @@ struct Pagination {
 }
 
 fn request(http: &Http, auth: Auth<'_>, method: Method, path: &str) -> RequestBuilder {
-    http.0
-        .request(method, format!("{BASE}{path}"))
-        .header("Client-Id", auth.client_id)
-        .bearer_auth(auth.token)
+    // P4 #16 A mocked client: the mock's `/helix`, and never the real sign-in.
+    let (url, client_id, token) = match http.mock_base() {
+        Some(b) => (format!("{b}/helix{path}"), crate::http::MOCK_CLIENT, crate::http::MOCK_TOKEN),
+        None => (format!("{BASE}{path}"), auth.client_id, auth.token),
+    };
+    http.0.request(method, url).header("Client-Id", client_id).bearer_auth(token)
 }
 
 fn get(http: &Http, auth: Auth<'_>, path: &str) -> RequestBuilder {
@@ -109,5 +111,42 @@ pub struct Room<'a> {
 impl Room<'_> {
     fn query(&self) -> [(&'static str, &str); 2] {
         [("broadcaster_id", self.broadcaster_id), ("moderator_id", self.moderator_id)]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const REAL: Auth<'static> = Auth { client_id: "real-client", token: "real-token" };
+
+    /// Every header and the URL of a built request, as one string.
+    fn seen(req: RequestBuilder) -> String {
+        let r = req.build().unwrap();
+        let headers: Vec<String> = r.headers().iter().map(|(k, v)| format!("{k}={}", v.to_str().unwrap())).collect();
+        format!("{} {}", r.url(), headers.join(" "))
+    }
+
+    #[test]
+    fn p4_16_a_mocked_client_sends_nothing_real() {
+        let http = Http::new().unwrap().mocked("http://127.0.0.1:5240/");
+        let h = seen(get(&http, REAL, "/moderation/blocked_terms"));
+        assert!(h.starts_with("http://127.0.0.1:5240/helix/moderation/blocked_terms "), "{h}");
+        assert!(h.contains("authorization=Bearer mock-token") && h.contains("client-id=mock-client"), "{h}");
+        let gql = crate::gql::Auth { client_id: crate::clients::GQL, token: Some("real-token") };
+        let g = seen(crate::gql::request_at(&http, "https://gql.twitch.tv/gql", gql));
+        assert!(g.starts_with("http://127.0.0.1:5240/gql "), "{g}");
+        assert!(g.contains("authorization=OAuth mock-token"), "{g}");
+        for s in [&h, &g] {
+            assert!(!s.contains("real-") && !s.contains("twitch.tv"), "{s}");
+        }
+    }
+
+    #[test]
+    fn p4_16_a_plain_client_goes_to_twitch() {
+        let http = Http::new().unwrap();
+        assert_eq!(http.mock_base(), None);
+        let h = seen(get(&http, REAL, "/users"));
+        assert!(h.starts_with("https://api.twitch.tv/helix/users ") && h.contains("Bearer real-token"), "{h}");
     }
 }

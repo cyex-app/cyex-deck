@@ -2,8 +2,10 @@
 //! GQL token. The two rewards that pick an emote list what's left to pick (phase 7).
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
-use cyex_twitch::gql::{self, EmoteChoice, EmoteModifier, Points, Redeemed};
+use cyex_twitch::Http;
+use cyex_twitch::gql::{self, ChannelChat, EmoteChoice, EmoteModifier, Points, Redeemed};
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 use ts_rs::TS;
@@ -23,16 +25,51 @@ fn view_key(app: &AppHandle, view: u32) -> Result<(String, Option<String>), Stri
     Ok((login, account))
 }
 
+/// P4 #16 Test builds: the points menu (rewards, balance, redeeming, emote picks) talks to
+/// `tools/mock/panels.mjs` with `CYEX_GQL_POINTS_MOCK=http://127.0.0.1:<port>` (test data
+/// folder only). `None`: Twitch.
+#[cfg(feature = "mocks")]
+fn mock(app: &AppHandle) -> Result<Option<Http>, String> {
+    let base = crate::mock_url::gated(app, &["CYEX_GQL_POINTS_MOCK"], "points")?;
+    Ok(base.map(|b| app.state::<Auth>().http.mocked(&b)))
+}
+
+#[cfg(not(feature = "mocks"))]
+fn mock(_: &AppHandle) -> Result<Option<Http>, String> {
+    Ok(None)
+}
+
+/// The channel's catalog: the mock's (never kept) when there is one, else the shared one.
+async fn channel(app: &AppHandle, mock: Option<&Http>, login: &str, fresh: bool) -> Result<Option<Arc<ChannelChat>>, String> {
+    match mock {
+        Some(h) => gql::channel_chat(h, login, &[]).await.map(|c| c.map(Arc::new)).map_err(|e| e.to_string()),
+        None => catalog::channel(app, login, fresh).await,
+    }
+}
+
+/// The account's GQL sign-in; a mock gets a stand-in and the real one isn't read.
+fn token(app: &AppHandle, mock: Option<&Http>, account: &str) -> Option<(String, String)> {
+    match mock {
+        Some(_) => Some(("mock-token".to_owned(), cyex_twitch::clients::WEB.to_owned())),
+        None => gql_token(app, account),
+    }
+}
+
+fn http(app: &AppHandle, mock: Option<&Http>) -> Http {
+    mock.cloned().unwrap_or_else(|| app.state::<Auth>().http.clone())
+}
+
 /// Rewards, plus the balance when the account has a GQL token. `fresh` reads them as
 /// they are now; otherwise as joining loaded them (V101-13: the icon on open).
 pub async fn points(app: &AppHandle, view: u32, fresh: bool) -> Result<Option<Points>, String> {
     let (login, account) = view_key(app, view)?;
-    let Some(c) = catalog::channel(app, &login, fresh).await? else {
+    let mock = mock(app)?;
+    let Some(c) = channel(app, mock.as_ref(), &login, fresh).await? else {
         return Ok(None);
     };
     let Some(mut p) = c.points.clone() else { return Ok(None) };
-    if let Some((token, client_id)) = account.as_deref().and_then(|id| gql_token(app, id)) {
-        let http = app.state::<Auth>().http.clone();
+    if let Some((token, client_id)) = account.as_deref().and_then(|id| token(app, mock.as_ref(), id)) {
+        let http = http(app, mock.as_ref());
         let auth = crate::auth::gql_auth(&token, &client_id);
         p.balance = gql::balance(&http, auth, &login).await.ok().flatten();
     }
@@ -54,12 +91,16 @@ pub struct EmoteRewardChoices {
 pub async fn emote_choices(app: &AppHandle, view: u32) -> Result<EmoteRewardChoices, String> {
     let (login, account) = view_key(app, view)?;
     let account = account.ok_or("Sign in to use channel points.")?;
-    let c = catalog::channel(app, &login, false).await?.ok_or("Channel not found.")?;
-    let http = app.state::<Auth>().http.clone();
-    let (choices, sets) = tokio::join!(
-        gql::emote_choices(&http, &login),
-        crate::emotes::twitch_sets(app, &account, &c.channel_id, true)
-    );
+    let mock = mock(app)?;
+    let c = channel(app, mock.as_ref(), &login, false).await?.ok_or("Channel not found.")?;
+    let http = http(app, mock.as_ref());
+    let (choices, sets) = tokio::join!(gql::emote_choices(&http, &login), async {
+        // A mock's channel isn't real: no emotes of yours to read for it.
+        match mock {
+            Some(_) => Ok(Arc::default()),
+            None => crate::emotes::twitch_sets(app, &account, &c.channel_id, true).await,
+        }
+    });
     let choices = choices.map_err(|e| e.to_string())?;
     let sets = sets?;
     let owned: HashMap<&str, &[String]> = sets
@@ -103,11 +144,12 @@ pub async fn redeem(
 ) -> Result<String, String> {
     let (login, account) = view_key(app, view)?;
     let account = account.ok_or("Sign in to use channel points.")?;
+    let mock = mock(app)?;
     let (token, client_id) =
-        gql_token(app, &account).ok_or("Channel points need a GQL sign-in. Add it in Settings → Accounts.")?;
-    let c = catalog::channel(app, &login, true).await?.ok_or("Channel not found.")?;
+        token(app, mock.as_ref(), &account).ok_or("Channel points need a GQL sign-in. Add it in Settings → Accounts.")?;
+    let c = channel(app, mock.as_ref(), &login, true).await?.ok_or("Channel not found.")?;
     let points = c.points.as_ref().ok_or("This channel has no channel points.")?;
-    let http = app.state::<Auth>().http.clone();
+    let http = http(app, mock.as_ref());
     let auth = crate::auth::gql_auth(&token, &client_id);
     let text = text.map(|t| t.trim().to_owned()).filter(|t| !t.is_empty());
     let id = &c.channel_id;
@@ -141,7 +183,7 @@ pub async fn redeem(
     }
     .map_err(|e| e.to_string())?;
 
-    if result.error.is_none() && points.automatic.iter().any(|r| r.id == reward_id) {
+    if result.error.is_none() && mock.is_none() && points.automatic.iter().any(|r| r.id == reward_id) {
         // A new emote: the menu and our own lines should know it.
         crate::emotes::refresh_mine(app, &account, id);
     }

@@ -39,9 +39,79 @@ pub(crate) fn pick(raw: Option<&str>, test_data: bool, what: &str) -> Result<Opt
         .ok_or_else(|| format!("The {what} mock must be http://127.0.0.1:<port>."))
 }
 
+/// P4 #16 Where a mock that is set but refused sends: nothing listens on port 0, so every
+/// call fails at once. Never Twitch instead.
+#[cfg(feature = "mocks")]
+const NOWHERE: &str = "http://127.0.0.1:0";
+
+/// P4 #16 `http` for one area: every Helix and GQL call of it to the mock named by the
+/// first of `vars` that is set, with a fake sign-in (`gated`'s rules). Unset: `http` as is.
+/// Mocks builds only.
+#[cfg(feature = "mocks")]
+pub fn http_via(app: &tauri::AppHandle, http: cyex_twitch::Http, vars: &[&str], what: &str) -> cyex_twitch::Http {
+    via(http, gated(app, vars, what))
+}
+
+#[cfg(feature = "mocks")]
+fn via(http: cyex_twitch::Http, pick: Result<Option<String>, String>) -> cyex_twitch::Http {
+    match pick {
+        Ok(None) => http,
+        Ok(Some(base)) => http.mocked(&base),
+        Err(_) => http.mocked(NOWHERE),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every `"CYEX_…_MOCK"` named in Rust source under `dir`.
+    fn mock_vars(dir: &std::path::Path, out: &mut std::collections::BTreeSet<String>) {
+        for e in std::fs::read_dir(dir).unwrap().flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                mock_vars(&p, out);
+            } else if p.extension().is_some_and(|x| x == "rs") {
+                let text = std::fs::read_to_string(&p).unwrap();
+                for part in text.split('"').skip(1).step_by(2) {
+                    let plain = part.bytes().all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_');
+                    if plain && part.starts_with("CYEX_") && part.ends_with("_MOCK") {
+                        out.insert(part.to_owned());
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn p4_16_release_refuses_every_mock_var() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let mut vars = std::collections::BTreeSet::new();
+        mock_vars(&root.join("app/src"), &mut vars);
+        mock_vars(&root.join("crates"), &mut vars);
+        let release = std::fs::read_to_string(root.join("tools/release.ps1")).unwrap();
+        assert!(vars.contains("CYEX_MODVIEW_MOCK"), "{vars:?}");
+        for v in &vars {
+            assert!(release.contains(&format!("'{v}'")), "{v} missing from tools/release.ps1's refused list");
+        }
+    }
+
+    #[cfg(feature = "mocks")]
+    #[test]
+    fn p4_16_an_area_goes_to_its_mock_or_nowhere() {
+        let http = || cyex_twitch::Http::new().unwrap();
+        assert_eq!(via(http(), Ok(None)).mock_base(), None, "unset: Twitch");
+        let to = via(http(), pick(Some("http://127.0.0.1:5240/"), true, "mod view"));
+        assert_eq!(to.mock_base(), Some("http://127.0.0.1:5240"));
+        for refused in [
+            pick(Some("http://127.0.0.1:5240"), false, "mod view"),
+            pick(Some("https://api.twitch.tv"), true, "mod view"),
+            pick(Some("http://127.0.0.1:1@evil.example"), true, "mod view"),
+        ] {
+            assert!(refused.is_err());
+            assert_eq!(via(http(), refused).mock_base(), Some(NOWHERE), "refused: nowhere, never Twitch");
+        }
+    }
 
     #[cfg(feature = "mocks")]
     #[test]

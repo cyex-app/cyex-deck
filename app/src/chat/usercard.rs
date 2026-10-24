@@ -19,8 +19,14 @@ use super::{Chat, Identity};
 
 const PAGE: u32 = 50;
 
-fn http(app: &AppHandle) -> cyex_twitch::Http {
-    app.state::<crate::auth::Auth>().http.clone()
+/// P4 #16 Test builds: the usercard's Twitch reads (the profile too, `user_profile`) go to
+/// `tools/mock/panels.mjs` with `CYEX_USERS_MOCK=http://127.0.0.1:<port>` (test data only),
+/// for long and right-to-left names. logs.cyex.app and IVR stay as they are.
+pub(crate) fn http(app: &AppHandle) -> cyex_twitch::Http {
+    let http = app.state::<crate::auth::Auth>().http.clone();
+    #[cfg(feature = "mocks")]
+    let http = crate::mock_url::http_via(app, http, &["CYEX_USERS_MOCK"], "user lookup");
+    http
 }
 
 pub async fn sub_status(app: &AppHandle, user: &str, channel: &str) -> Result<SubStatus, String> {

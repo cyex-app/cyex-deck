@@ -5,9 +5,14 @@ use serde::de::DeserializeOwned;
 
 use crate::{Error, Result};
 
-/// Shared HTTP client. Cheap to clone; keep one per app.
+/// Shared HTTP client. Cheap to clone; keep one per app. The second field is a local mock
+/// that gets every Helix and GQL call instead of Twitch (P4 #16, mocks builds only).
 #[derive(Clone)]
-pub struct Http(pub(crate) reqwest::Client);
+pub struct Http(pub(crate) reqwest::Client, pub(crate) Option<std::sync::Arc<str>>);
+
+/// P4 #16 What a mock gets instead of the account's sign-in (SEC-01: never the real one).
+pub(crate) const MOCK_TOKEN: &str = "mock-token";
+pub(crate) const MOCK_CLIENT: &str = "mock-client";
 
 impl Http {
     pub fn new() -> Result<Self> {
@@ -27,7 +32,19 @@ impl Http {
         if let Some(url) = proxy {
             builder = builder.proxy(reqwest::Proxy::all(url).map_err(Error::Network)?);
         }
-        builder.build().map(Self).map_err(Error::Network)
+        builder.build().map(|c| Self(c, None)).map_err(Error::Network)
+    }
+
+    /// P4 #16 This client with every Helix and GQL call sent to `base`
+    /// (`http://127.0.0.1:<port>`, checked by the caller) with a fake sign-in.
+    #[cfg(any(test, feature = "mocks"))]
+    pub fn mocked(&self, base: &str) -> Self {
+        Self(self.0.clone(), Some(base.trim_end_matches('/').into()))
+    }
+
+    /// P4 #16 The mock this client talks to, if any.
+    pub fn mock_base(&self) -> Option<&str> {
+        self.1.as_deref()
     }
 
     /// GET JSON from another service (emote providers).

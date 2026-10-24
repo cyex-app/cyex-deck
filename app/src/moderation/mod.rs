@@ -43,9 +43,17 @@ pub fn channel_id(app: &AppHandle, login: &str) -> Option<String> {
         .or_else(|| crate::chat::catalog::cached(app, &login.to_ascii_lowercase()).map(|c| c.channel_id.clone()))
 }
 
+/// P4 #16 Test builds: every mod view call (blocked terms, unban requests, actions) goes to
+/// `tools/mock/panels.mjs` with `CYEX_MODVIEW_MOCK=http://127.0.0.1:<port>` (test data only).
 fn http(app: &AppHandle) -> cyex_twitch::Http {
-    app.state::<Auth>().http.clone()
+    let http = app.state::<Auth>().http.clone();
+    #[cfg(feature = "mocks")]
+    let http = crate::mock_url::http_via(app, http, &[MODVIEW_MOCK], "mod view");
+    http
 }
+
+#[cfg(feature = "mocks")]
+const MODVIEW_MOCK: &str = "CYEX_MODVIEW_MOCK";
 
 /// How an account moderates: its tokens and ids, resolved once per action.
 pub struct Actor {
@@ -93,6 +101,9 @@ pub fn actor(app: &AppHandle, account: &str, login: &str) -> Result<Actor, Strin
 /// Like `actor`, for an action that needs more than a mod (1.50, raids, ads). Every
 /// mod-only action passes `Need::allows` here (V102-21).
 pub fn actor_for(app: &AppHandle, account: &str, login: &str, need: Need) -> Result<Actor, String> {
+    // P4 #16 A mock that is set but refused says why, before anything is tried.
+    #[cfg(feature = "mocks")]
+    crate::mock_url::gated(app, &[MODVIEW_MOCK], "mod view")?;
     let role = role(app, account, login);
     if !need.allows(role) {
         return Err(need.refusal().into());

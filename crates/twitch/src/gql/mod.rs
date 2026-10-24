@@ -248,6 +248,14 @@ fn request(http: &Http, auth: Auth<'_>) -> RequestBuilder {
 
 /// V107-R19 The same request at another GQL address (a local mock in tests).
 pub(crate) fn request_at(http: &Http, url: &str, auth: Auth<'_>) -> RequestBuilder {
+    // P4 #16 A mocked client: the mock's `/gql`, and never the real sign-in.
+    if let Some(b) = http.mock_base() {
+        return http
+            .0
+            .post(format!("{b}/gql"))
+            .header("Client-Id", crate::http::MOCK_CLIENT)
+            .header("Authorization", format!("OAuth {}", crate::http::MOCK_TOKEN));
+    }
     let mut req = http.0.post(url).header("Client-Id", auth.client_id);
     if let Some(token) = auth.token {
         req = req.header("Authorization", format!("OAuth {token}"));
