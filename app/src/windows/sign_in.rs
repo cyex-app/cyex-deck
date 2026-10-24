@@ -1,6 +1,10 @@
 //! V108-02 A sign-in in the app: a private, signed-out window (nothing kept after it closes),
 //! so another account can sign in than the one the browser knows. Twitch's pages and the
 //! sign-in's own redirect (127.0.0.1 only) load here; other links go to the browser.
+//! V108-CX It runs in its own browser process and closes blank-first (`private`).
+
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{Mutex, MutexGuard};
 
 use cyex_core::color::Theme;
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WindowEvent};
@@ -8,22 +12,32 @@ use tauri_plugin_opener::OpenerExt;
 
 use crate::theme;
 
-const LABEL: &str = "signin-twitch";
+const PREFIX: &str = "signin-twitch";
+
+/// V108-CX Each window gets a new label: one that is still closing (`private::close`) never
+/// holds up, or gets reused by, the next sign-in.
+static SEQ: AtomicU32 = AtomicU32::new(0);
+static CURRENT: Mutex<Option<String>> = Mutex::new(None);
+
+fn current() -> MutexGuard<'static, Option<String>> {
+    CURRENT.lock().unwrap_or_else(|p| p.into_inner())
+}
 
 /// Shows `url` in the sign-in window, opening it when it isn't. Closing it cancels the sign-in.
 pub fn open(app: &AppHandle, url: &str) -> Result<(), String> {
     let url: Url = url.parse().map_err(|_| "That isn’t Twitch’s sign-in page.")?;
-    if let Some(w) = app.get_webview_window(LABEL) {
+    let open_one = current().clone().and_then(|l| app.get_webview_window(&l));
+    if let Some(w) = open_one {
         w.navigate(url).map_err(|e| e.to_string())?;
         let _ = w.unminimize();
         let _ = w.set_focus();
         return Ok(());
     }
+    let label = format!("{PREFIX}-{}", SEQ.fetch_add(1, Ordering::Relaxed));
     let look = theme::look(app);
     let nav_app = app.clone();
     let pop_app = app.clone();
-    let window = super::environment(app, LABEL, WebviewUrl::External(url))
-        .incognito(true)
+    let window = super::private::builder(app, &label, WebviewUrl::External(url))
         .title("Sign in to Twitch")
         .inner_size(520.0, 760.0)
         .min_inner_size(360.0, 300.0)
@@ -44,11 +58,18 @@ pub fn open(app: &AppHandle, url: &str) -> Result<(), String> {
         .on_new_window(move |u, features| super::twitch::popup(&pop_app, u, features))
         .build()
         .map_err(|e| e.to_string())?;
-    super::login::follow(app, LABEL.into(), (520.0, 760.0), std::time::Duration::from_secs(3600));
+    *current() = Some(label.clone());
+    super::login::follow(app, label.clone(), (520.0, 760.0), std::time::Duration::from_secs(3600));
     let app = app.clone();
     window.on_window_event(move |e| {
-        if matches!(e, WindowEvent::CloseRequested { .. }) {
+        if let WindowEvent::CloseRequested { api, .. } = e {
+            // The window goes our way (blank page first), not WebView2's.
+            api.prevent_close();
             app.state::<crate::auth::Auth>().cancel_sign_in();
+            forget(&label);
+            if let Some(w) = app.get_webview_window(&label) {
+                tauri::async_runtime::spawn(super::private::close(w));
+            }
         }
     });
     Ok(())
@@ -56,8 +77,16 @@ pub fn open(app: &AppHandle, url: &str) -> Result<(), String> {
 
 /// The sign-in ended: the window goes (without cancelling anything).
 pub fn close(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window(LABEL) {
-        let _ = w.destroy();
+    let Some(label) = current().take() else { return };
+    if let Some(w) = app.get_webview_window(&label) {
+        tauri::async_runtime::spawn(super::private::close(w));
+    }
+}
+
+fn forget(label: &str) {
+    let mut c = current();
+    if c.as_deref() == Some(label) {
+        *c = None;
     }
 }
 

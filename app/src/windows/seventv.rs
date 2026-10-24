@@ -1,6 +1,6 @@
 //! V1051-02 7TV's own Twitch sign-in in a small private window. The app types nothing: the user
 //! signs in on Twitch's page; when 7TV's page has its session we copy it out and close.
-//! The window shares the app's WebView2 environment but is InPrivate and has no app IPC.
+//! The window is InPrivate in its own browser process (V108-CX `private`) and has no app IPC.
 //! V108-7T With "Open in: Browser" and the account's Twitch pages connected it borrows that
 //! profile instead, so Twitch is signed in already, and every 7TV trace is cleared from it
 //! before it closes. 7TV can't hand its session back from a real browser (its callbacks only
@@ -152,6 +152,9 @@ fn label_of(account: &str) -> String {
 /// `shared`: in the account's Twitch web profile (one Twitch login for both), else private.
 pub async fn capture(app: &AppHandle, account: &str, login_url: String, shared: bool) -> Result<SevenTvToken, SignIn> {
     let label = label_of(account);
+    if super::private::is_closing(&label) {
+        super::private::wait_gone(app, &label).await;
+    }
     if let Some(w) = app.get_webview_window(&label) {
         let _ = w.show();
         let _ = w.unminimize();
@@ -171,7 +174,8 @@ pub async fn capture(app: &AppHandle, account: &str, login_url: String, shared: 
     let builder = match &profile {
         // Same flags as the Twitch window (none), so both can share its folder at once.
         Some(dir) => tauri::WebviewWindowBuilder::new(app, &label, WebviewUrl::External(url)).data_directory(dir.clone()),
-        None => super::environment(app, &label, WebviewUrl::External(url)).incognito(true),
+        // V108-CX Its own browser process: see `private`.
+        None => super::private::builder(app, &label, WebviewUrl::External(url)),
     };
     let window = builder
         .title("Sign in to 7TV")
@@ -216,21 +220,28 @@ pub async fn capture(app: &AppHandle, account: &str, login_url: String, shared: 
     crate::sys::on_page_close(&window, move || {
         let _ = closing.send(Event::Closed);
     });
-    window.on_window_event(move |e| {
-        if matches!(e, WindowEvent::Destroyed) {
+    window.on_window_event(move |e| match e {
+        // V108-CX Closing is a cancel; the window goes below, blank page first.
+        WindowEvent::CloseRequested { api, .. } => {
+            api.prevent_close();
             let _ = tx.send(Event::Closed);
         }
+        WindowEvent::Destroyed => {
+            let _ = tx.send(Event::Closed);
+        }
+        _ => {}
     });
 
     let hidden = profile.is_some().then(silent::Silent::default);
     let result = wait(&window, &mut rx, mock.as_deref(), hidden).await;
+    let _ = window.hide();
     if profile.is_some() && !clean(&window, mock.as_deref()).await {
         // Not sure 7TV is gone: the whole profile goes, Twitch's login with it.
         eprintln!("seventv: couldn't clear 7TV from the Twitch profile; clearing all of it");
         let _ = window.clear_all_browsing_data();
     }
-    // `destroy`, not `close`: it frees the label even when the page is already gone.
-    let _ = window.destroy();
+    // V108-CX Blank page first, then destroyed (frees the label even when the page is gone).
+    super::private::close(window).await;
     result
 }
 

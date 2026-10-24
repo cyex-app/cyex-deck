@@ -4,6 +4,7 @@ mod geometry;
 mod layouts;
 mod login;
 mod placement;
+mod private;
 pub mod overlay;
 mod panels;
 pub mod seventv;
