@@ -35,6 +35,8 @@
   import RewardsMenu from './RewardsMenu.svelte';
   import type { ChatRoom } from './room.svelte';
   import { MAX_CHARS, sendLength } from './sendLength';
+  import { SideFold } from './sideFold.svelte';
+  import { tooltip } from '../../components/tooltip.svelte';
   import { Sources } from './sources.svelte';
   import SuggestList from './SuggestList.svelte';
   import UploadConfirm from './UploadConfirm.svelte';
@@ -61,6 +63,12 @@
   let box = $state<HTMLTextAreaElement>();
   /** The message box with its buttons: suggestions line up with it (V102-03). */
   let row = $state<HTMLElement>();
+  /** Narrow chat: the side buttons fold into one "…" menu. */
+  const side = new SideFold(
+    () => row,
+    () => settings.v.chat.sendButton,
+  );
+  $effect(() => (canChat ? side.watch() : undefined));
   let text = $state('');
   let error = $state('');
   let sent: string[] = [];
@@ -435,8 +443,31 @@
     <SuggestList items={suggest.items} index={suggest.index} onpick={accept} anchor={row} />
   {/if}
   <div class="row" bind:this={row}>
-    <RewardsMenu {room} />
-    {#if canChat && canCheer && !bitsOff}<BitsButton {room} box={cheers} oninsert={pickCheer} />{:else if bitsHold}<span class="hold" aria-hidden="true"></span>{/if}
+    {#snippet pointsBtn()}<span class="slot" data-out data-side="points"><RewardsMenu {room} /></span>{/snippet}
+    {#snippet bitsBtn()}{#if canChat && canCheer && !bitsOff}<span class="slot" data-out data-side="bits"><BitsButton {room} box={cheers} oninsert={pickCheer} /></span>{/if}{/snippet}
+    {#snippet identityBtn()}<!-- V107-Mk Badge, name color and smileys for this channel. -->
+      {#if room.account && (accounts.can('badgePicker', room.account) || accounts.can('chatColor', room.account))}<span class="slot" data-side="identity"><IdentityButton account={room.account} login={room.login} /></span>{/if}{/snippet}
+    {#snippet emoteBtn()}<span class="slot" data-side="emotes"><EmoteButton login={room.login} account={room.account} {room} oninsert={(v) => void insertAtCaret(v)} /></span>{/snippet}
+    {#if side.folded && canChat}
+      <!-- Narrow chat: the buttons wait under "…", which lists them. -->
+      <div class="fold">
+        <div class="stash" bind:this={side.stash}>{@render pointsBtn()}{@render bitsBtn()}{@render identityBtn()}{@render emoteBtn()}</div>
+        <button
+          class="more"
+          aria-label="More"
+          aria-haspopup="menu"
+          aria-expanded={side.expanded}
+          use:tooltip={{ label: 'More', hint: 'Points, Bits, identity and emotes.' }}
+          onclick={side.open}
+        >
+          <Icon name="more" size={16} />
+        </button>
+      </div>
+    {:else}
+      {@render pointsBtn()}
+      {@render bitsBtn()}
+      {#if bitsHold && !(canChat && canCheer && !bitsOff)}<span class="hold" data-out aria-hidden="true"></span>{/if}
+    {/if}
     {#if canChat}
       <div class="compose">
       <textarea
@@ -462,9 +493,7 @@
         </div>
       {/if}
       <!-- 1.43 GIFs are a tab in the emote menu. -->
-      <!-- V107-Mk Badge, name color and smileys for this channel. -->
-      {#if room.account && (accounts.can('badgePicker', room.account) || accounts.can('chatColor', room.account))}<IdentityButton account={room.account} login={room.login} />{/if}
-      <EmoteButton login={room.login} account={room.account} {room} oninsert={(v) => void insertAtCaret(v)} />
+      {#if !side.folded}{@render identityBtn()}{@render emoteBtn()}{/if}
       </div>
       {#if settings.v.chat.sendButton}
         <IconButton
@@ -540,6 +569,46 @@
   }
   .compose {
     margin-left: 4px;
+  }
+  /* The slots don't take part in the layout. */
+  .slot {
+    display: contents;
+  }
+  /* Narrow chat: one "…" button; the real buttons sit hidden in the same spot, so their
+     pop-ups open from it. */
+  .fold {
+    position: relative;
+    flex: none;
+    width: 30px;
+    height: 34px;
+    margin-left: 4px;
+    margin-bottom: 0;
+  }
+  .stash > .slot {
+    position: absolute;
+    inset: 0;
+    display: block;
+  }
+  .stash > .slot > :global(*) > :global(button) {
+    visibility: hidden;
+  }
+  .more {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    color: var(--muted);
+  }
+  .more:hover,
+  .more[aria-expanded='true'] {
+    background: var(--surface-hover);
+    color: var(--text);
   }
   @container chat (max-width: 260px) {
     .row > .hold {
