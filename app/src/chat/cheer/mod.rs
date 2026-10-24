@@ -192,11 +192,7 @@ pub async fn send(
         },
     )
     .await;
-    // No answer at all: maybe spent, so it reads like `UNKNOWN`.
-    let reply = sent.unwrap_or(CheerReply {
-        balance: None,
-        refused: Some(codes::UNKNOWN.into()),
-    });
+    let reply = reply_of(sent);
     lock().end(&key, Instant::now(), ended(&reply));
     match reply.refused {
         None => Ok(CheerSent::Done {
@@ -205,6 +201,15 @@ pub async fn send(
         }),
         Some(code) => Err(codes::text(&code).into()),
     }
+}
+
+/// P-02 No answer: `NOT_SENT` when Twitch certainly never ran it (the id goes), else maybe
+/// spent, so it reads like `UNKNOWN` and the id stays for a retry.
+fn reply_of(sent: cyex_twitch::Result<CheerReply>) -> CheerReply {
+    sent.unwrap_or_else(|e| CheerReply {
+        balance: None,
+        refused: Some(if e.never_reached() { codes::NOT_SENT } else { codes::UNKNOWN }.into()),
+    })
 }
 
 fn ended(reply: &CheerReply) -> Ended {
@@ -274,6 +279,21 @@ mod tests {
         assert_eq!(ended(&reply(Some("INSUFFICIENT_BALANCE"))), Ended::Refused);
         assert_eq!(ended(&reply(Some(codes::UNKNOWN))), Ended::Unsure);
         assert_eq!(ended(&reply(Some("REQUEST_THROTTLED"))), Ended::Unsure);
+    }
+
+    #[test]
+    fn p02_never_reached_frees_the_id_anything_else_keeps_it() {
+        let api = |status| cyex_twitch::Error::Api { status, message: String::new() };
+        let not_sent = reply_of(Err(api(401)));
+        assert_eq!(ended(&not_sent), Ended::Refused);
+        assert_eq!(codes::text(not_sent.refused.as_deref().unwrap()), "Couldn’t reach Twitch.");
+        for e in [api(500), api(200), cyex_twitch::Error::Refused("x".into())] {
+            let r = reply_of(Err(e));
+            assert_eq!(r.refused.as_deref(), Some(codes::UNKNOWN));
+            assert_eq!(ended(&r), Ended::Unsure);
+        }
+        let ok = reply(None);
+        assert_eq!(reply_of(Ok(ok.clone())), ok);
     }
 
     #[test]

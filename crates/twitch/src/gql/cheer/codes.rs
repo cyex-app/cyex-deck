@@ -2,11 +2,14 @@
 
 /// Twitch's own "it didn't say": no answer, or a thrown error (research "Cheering").
 pub const UNKNOWN: &str = "UNKNOWN";
+/// P-02 Ours, not Twitch's: the request never ran (`Error::never_reached`), so the id is free.
+pub const NOT_SENT: &str = "NOT_SENT";
 
 /// What to show for a refusal code.
 pub fn text(code: &str) -> &'static str {
     match code {
         UNKNOWN => "Not sure it went out. Sending it again won’t pay twice.",
+        NOT_SENT => "Couldn’t reach Twitch.",
         "AMOUNT_BELOW_MIN_BITS" => "That’s below this channel’s minimum cheer.",
         "EMOTE_AMOUNT_BELOW_MIN_BITS" => "A cheer emote is below this channel’s minimum.",
         "AMOUNT_BELOW_MIN_BITS_TO_PIN" | "PINNED_CHEERS_DISABLED" => "Pinned cheers aren’t available here.",
@@ -38,7 +41,7 @@ pub fn unsure(code: &str) -> bool {
 mod tests {
     use super::*;
 
-    const ALL: [&str; 24] = [
+    const ALL: [&str; 25] = [
         "AMOUNT_BELOW_MIN_BITS",
         "AMOUNT_BELOW_MIN_BITS_TO_PIN",
         "ANONYMOUS_CHEERMOTE_NOT_ALLOWED",
@@ -53,6 +56,7 @@ mod tests {
         "INVALID_BITS_MESSAGE",
         "INVALID_EVENT_ID",
         "MESSAGE_LENGTH_EXCEEDED",
+        "NOT_SENT",
         "PINNED_CHEERS_DISABLED",
         "REQUEST_THROTTLED",
         "TOO_LARGE_BITS_EMOTE",
@@ -75,5 +79,6 @@ mod tests {
         }
         assert_eq!(text("INSUFFICIENT_BALANCE"), "Not enough Bits.");
         assert!(unsure("UNKNOWN") && !unsure("INSUFFICIENT_BALANCE"));
+        assert!(!unsure(NOT_SENT));
     }
 }

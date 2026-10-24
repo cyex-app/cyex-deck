@@ -266,4 +266,56 @@ mod tests {
         let off = mock::off();
         assert!(send(off.http, off.auth, off.base, &c).await.is_err());
     }
+
+    /// One connection: reads the whole request, then answers `status` and `body` (None: hangs up).
+    fn once(reply: Option<(&'static str, &'static str)>) -> String {
+        use std::io::{Read, Write};
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://{}", l.local_addr().unwrap());
+        std::thread::spawn(move || {
+            let (mut s, _) = l.accept().unwrap();
+            let mut got = Vec::new();
+            let mut buf = [0u8; 4096];
+            while let Ok(n @ 1..) = s.read(&mut buf) {
+                got.extend_from_slice(&buf[..n]);
+                let Some(end) = got.windows(4).position(|w| w == b"\r\n\r\n") else { continue };
+                let head = String::from_utf8_lossy(&got[..end]).to_lowercase();
+                let len = head
+                    .lines()
+                    .find_map(|l| l.strip_prefix("content-length:"))
+                    .and_then(|v| v.trim().parse::<usize>().ok())
+                    .unwrap_or(0);
+                if got.len() >= end + 4 + len {
+                    break;
+                }
+            }
+            if let Some((status, body)) = reply {
+                let r = format!("HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+                let _ = s.write_all(r.as_bytes());
+            }
+        });
+        base
+    }
+
+    #[tokio::test]
+    async fn p02_only_a_request_that_never_ran_counts_as_not_sent() {
+        let http = Http::new().unwrap();
+        let a = crate::gql::dashboard::mock::AUTH;
+        let c = SendCheer { id: "abc", channel_id: "71", bits: 1, content: "Cheer1" };
+        let (http, c) = (&http, &c);
+        let err = |base: String| async move { send(http, a, Some(&base), c).await.unwrap_err() };
+        // Nothing listening: the connection never came up.
+        let closed = {
+            let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            format!("http://{}", l.local_addr().unwrap())
+        };
+        assert!(err(closed).await.never_reached(), "refused");
+        let unauthorized = Some(("401 Unauthorized", r#"{"error":"Unauthorized","status":401}"#));
+        assert!(err(once(unauthorized)).await.never_reached(), "401");
+        // The request went out: Twitch may have run it.
+        assert!(!err(once(None)).await.never_reached(), "hung up after the body");
+        assert!(!err(once(Some(("500 Internal Server Error", "{}")))).await.never_reached(), "500");
+        let gql = Some(("200 OK", r#"{"errors":[{"message":"x"}],"data":null}"#));
+        assert!(!err(once(gql)).await.never_reached(), "GQL error");
+    }
 }

@@ -27,6 +27,16 @@ impl Error {
         matches!(self, Error::Api { status: 401, .. })
     }
 
+    /// P-02 Twitch certainly didn't run it: no connection came up (refused, DNS, TLS), or
+    /// the token was turned away (401). Anything after the request went out may have run.
+    pub fn never_reached(&self) -> bool {
+        match self {
+            Error::Network(e) => e.is_connect(),
+            Error::Api { status, .. } => *status == 401,
+            _ => false,
+        }
+    }
+
     /// Too many requests (429): wait, then try again.
     pub fn is_rate_limited(&self) -> bool {
         matches!(self, Error::Api { status: 429, .. })
