@@ -2,6 +2,7 @@
 
 mod geometry;
 mod layouts;
+mod login;
 mod placement;
 pub mod overlay;
 mod panels;

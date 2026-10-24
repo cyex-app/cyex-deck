@@ -109,6 +109,7 @@ pub const PAGES_CHANGED: &str = "twitch-pages:changed";
 pub async fn connect(app: &AppHandle, account: &str) -> Result<bool, String> {
     open(app, account, "https://www.twitch.tv/login").await?;
     let label = format!("{PREFIX}{account}");
+    super::login::follow(app, label.clone(), (1100.0, 820.0), CONNECT_FOR);
     let until = std::time::Instant::now() + CONNECT_FOR;
     while std::time::Instant::now() < until {
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
@@ -448,7 +449,7 @@ pub fn skin(look: &ThemeLook) -> String {
     let css = format!(
         "html:root, html body, html body .tw-root--theme-dark, html body .tw-root--theme-light,          [class*=\"ScTokenOverrideCSSVars\"], [class*=\"ScAccentRegionCssVars\"],          [class*=\"ScCoreButton\"] {{ {vars} }}          html body {{ background: {bg} !important; }}          .top-nav, [data-a-target=\"top-nav-container\"], #side-nav, [data-test-selector=\"side-nav\"],          .side-nav, #twilight-sticky-footer-root, .persistent-player {{ display: none !important; }}"
     );
-    let css = format!("{css} {BITS_ONLY}");
+    let css = format!("{css} {BITS_ONLY} {}", super::login::CSS);
     let css = serde_json::to_string(&css).unwrap_or_default();
     // Runs before the page has a root element: waits for one, and puts the style back if
     // the page drops it.
@@ -460,8 +461,9 @@ pub fn skin(look: &ThemeLook) -> String {
          const s = document.createElement('style'); s.id = 'cyex-skin'; s.textContent = {css}; \
          root.appendChild(s); }}; \
          new MutationObserver(add).observe(document, {{ childList: true, subtree: true }}); \
-         add(); {bits} }})();",
-        bits = BITS_FALLBACK_JS
+         add(); {bits} {auth} }})();",
+        bits = BITS_FALLBACK_JS,
+        auth = super::login::JS
     )
 }
 
@@ -503,5 +505,8 @@ mod tests {
         assert!(js.contains("#how-to-cheer") && js.contains("power-ups-animated-banner"));
         assert!(js.contains("startsWith('/bits')") && js.contains("Buy Bits") && !js.contains("click("));
         assert!(BITS_ONLY.matches('{').count() == BITS_ONLY.matches('}').count());
+        // V108-05: login pages hide the third-party and other-device options; sign-up stays.
+        assert!(js.contains("html[data-cyex-auth]"));
+        assert!(js.contains("aria-label*=") && js.contains("authOnly") && js.contains("sign ?up|create"));
     }
 }

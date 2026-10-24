@@ -26,7 +26,8 @@ pub fn open(app: &AppHandle, url: &str) -> Result<(), String> {
         .incognito(true)
         .title("Sign in to Twitch")
         .inner_size(520.0, 760.0)
-        .min_inner_size(420.0, 560.0)
+        .min_inner_size(360.0, 300.0)
+        .initialization_script(super::twitch::skin(&look))
         .center()
         .theme(Some(match look.theme {
             Theme::Dark => tauri::Theme::Dark,
@@ -43,6 +44,7 @@ pub fn open(app: &AppHandle, url: &str) -> Result<(), String> {
         .on_new_window(move |u, features| super::twitch::popup(&pop_app, u, features))
         .build()
         .map_err(|e| e.to_string())?;
+    super::login::follow(app, LABEL.into(), (520.0, 760.0), std::time::Duration::from_secs(3600));
     let app = app.clone();
     window.on_window_event(move |e| {
         if matches!(e, WindowEvent::CloseRequested { .. }) {
