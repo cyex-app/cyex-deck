@@ -7,7 +7,6 @@ import { accountsIpc } from '../../ipc/accounts';
 import type { DeviceStart } from '../../ipc/bindings/DeviceStart';
 import type { Place } from '../../ipc/bindings/Place';
 import type { TokenKind } from '../../ipc/bindings/TokenKind';
-import { accounts } from '../../lib/accounts.svelte';
 import { toast } from '../../lib/toast.svelte';
 import { errorText } from '../../lib/errors';
 import { placeFor, readPlace, savePlace } from './place';
@@ -29,9 +28,9 @@ class SignInFlow {
   picked = $state<Place | null>(readPlace());
   private run = 0;
 
-  /** Where a sign-in for `userId` opens. */
-  placeFor(userId: string | null): Place {
-    return placeFor(this.picked, userId, accounts.list.length);
+  /** Where sign-ins open. */
+  get place(): Place {
+    return placeFor(this.picked);
   }
 
   pick(place: Place): void {
@@ -42,7 +41,7 @@ class SignInFlow {
   /** `true` once signed in. `quiet`: the caller shows how it went (no toasts, no GQL offer). */
   async start(kind: TokenKind, userId: string | null = null, quiet = false): Promise<boolean> {
     const run = ++this.run;
-    const place = this.placeFor(userId);
+    const place = this.place;
     this.kind = kind;
     this.forUser = userId;
     this.code = null;

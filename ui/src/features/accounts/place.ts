@@ -21,9 +21,7 @@ export function savePlace(place: Place): void {
   }
 }
 
-/** The user's pick; else the browser, except for adding another account: the browser
- * would just sign in the account it already knows, so a fresh app window. */
-export function placeFor(picked: Place | null, userId: string | null, accountCount: number): Place {
-  if (picked) return picked;
-  return userId === null && accountCount > 0 ? 'app' : 'browser';
+/** The user's pick; else the browser, for every sign-in (adding another account too). */
+export function placeFor(picked: Place | null): Place {
+  return picked ?? 'browser';
 }

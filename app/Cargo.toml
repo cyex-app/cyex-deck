@@ -44,6 +44,9 @@ tauri-plugin-global-shortcut.workspace = true
 webview2-com.workspace = true
 windows-core.workspace = true
 windows = { workspace = true, features = [
+    # V108-03 Browser pick: a process's exe and command line, the installed browsers. Features of
+    # the windows crate already in the build; no new crate.
+    "Wdk_System_Threading",
     "Win32_Foundation",
     # V105-18 Already built for tao: nothing new comes in.
     "Win32_Graphics_Dwm",
@@ -55,6 +58,8 @@ windows = { workspace = true, features = [
     "Win32_System_Com",
     "Win32_System_Com_StructuredStorage",
     "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Registry",
+    "Win32_System_Threading",
     # V103-14 Already built for tao: nothing new comes in.
     "Win32_UI_Shell",
     # V1051-01 Device names (IPropertyStore).

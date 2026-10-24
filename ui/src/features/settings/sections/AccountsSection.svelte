@@ -87,8 +87,8 @@
   <!-- V108-02 -->
   <div class="place">
     <span>Open in</span>
-    <Segmented label="Where sign-ins open" options={PLACES} value={signIn.placeFor(null)} onchange={(p) => signIn.pick(p)} />
-    <span class="hint">{signIn.placeFor(null) === 'app' ? 'Starts signed out, so you can pick any account.' : 'Uses the account your browser is signed in to.'}</span>
+    <Segmented label="Where sign-ins open" options={PLACES} value={signIn.place} onchange={(p) => signIn.pick(p)} />
+    <span class="hint">{signIn.place === 'app' ? 'Starts signed out, so you can pick any account.' : 'Uses the account your browser is signed in to.'}</span>
   </div>
 </div>
 
