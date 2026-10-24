@@ -105,9 +105,11 @@
 <div class="tools">
   <CustomThemesMenu themes={a.themes} activeId={a.themeId} onpick={pickId} onnew={newTheme}
     fill={(t) => fillOf(t.accent, t.base, t.id === a.themeId)} />
-  <span class="code-label">Theme code</span>
-  <input class="field code" placeholder="Paste a code" aria-label="Theme code" bind:value={code} />
-  <Button small disabled={!code.trim()} onclick={importCode}>Add</Button>
+  <span class="import">
+    <span class="code-label">Theme code</span>
+    <input class="field code" placeholder="Paste a code" aria-label="Theme code" bind:value={code} />
+    <Button small disabled={!code.trim()} onclick={importCode}>Add</Button>
+  </span>
 </div>
 
 <style>
@@ -187,8 +189,14 @@
     align-items: center;
     gap: 8px;
   }
-  .code-label {
+  .import {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     margin-left: auto;
+    min-width: 0;
+  }
+  .code-label {
     color: var(--muted);
     font-size: 0.8rem;
     white-space: nowrap;
