@@ -14,3 +14,12 @@ export function reduced(): boolean {
 export function scrollBehavior(): ScrollBehavior {
   return reduced() ? 'auto' : 'smooth';
 }
+
+// P4 #9 The motion scale of tokens.css (--fast, --base, --slow) in ms, for script motion
+// (element.animate, Svelte transitions). motion.test.ts keeps them equal to the CSS.
+/** Hovers, small state changes, quick exits. */
+export const FAST = 120;
+/** Things that appear, and short moves. */
+export const BASE = 200;
+/** Things that travel far: drawer height, panel moves. */
+export const SLOW = 360;

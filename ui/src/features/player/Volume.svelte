@@ -76,8 +76,8 @@
     background: linear-gradient(to right, var(--on-video) var(--fill), var(--on-video-faint) var(--fill));
     border-radius: var(--radius-sm);
     transition:
-      width 0.15s var(--ease),
-      opacity 0.15s;
+      width var(--fast) var(--ease),
+      opacity var(--fast);
   }
   .volume:hover > input[type='range'],
   .volume:has(:focus-visible) > input[type='range'] {
@@ -113,11 +113,11 @@
     opacity: 0;
     visibility: hidden;
     transition:
-      max-width 0.15s var(--ease),
-      margin 0.15s var(--ease),
-      padding 0.15s var(--ease),
-      opacity 0.15s,
-      visibility 0s 0.15s;
+      max-width var(--fast) var(--ease),
+      margin var(--fast) var(--ease),
+      padding var(--fast) var(--ease),
+      opacity var(--fast),
+      visibility 0s var(--fast);
   }
   /* Keyboard: Tab from the slider reaches the toggle, so it shows while either has focus. */
   .volume:hover .boost,

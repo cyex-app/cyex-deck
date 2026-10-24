@@ -15,7 +15,7 @@
   import { playerIpc } from '../../ipc/player';
   import { bindingOf } from '../../lib/hotkeys.svelte';
   import { latest } from '../../lib/latest';
-  import { reduced } from '../../lib/motion';
+  import { BASE, reduced } from '../../lib/motion';
   import { settings } from '../../lib/settings.svelte';
   import Celebration from './Celebration.svelte';
   import { Engine } from './engine.svelte';
@@ -346,7 +346,7 @@
     // Reduce motion: it just lands in the corner.
     if (!reduced()) {
       box.animate([{ translate: `${before.left - after.left}px ${before.top - after.top}px` }, { translate: '0 0' }], {
-        duration: 180,
+        duration: BASE,
         easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
       });
     }

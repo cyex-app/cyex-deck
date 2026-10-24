@@ -28,7 +28,7 @@
   import { untrack } from 'svelte';
   import { cubicOut } from 'svelte/easing';
   import { slide } from 'svelte/transition';
-  import { reduced } from '../../lib/motion';
+  import { BASE, reduced } from '../../lib/motion';
   import { settingsPlace } from '../settings/place.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
 
@@ -178,7 +178,7 @@
 
   <!-- V107-H15 Opens and closes by height and opacity; reversing mid-way picks up where it is. -->
   {#if editing}
-    <div class="editors" transition:slide={{ duration: reduced() ? 0 : 200, easing: cubicOut }}>
+    <div class="editors" transition:slide={{ duration: reduced() ? 0 : BASE, easing: cubicOut }}>
       <ProfileEditor account={account.userId} /><ProfileImages account={account.userId} />
     </div>
   {/if}

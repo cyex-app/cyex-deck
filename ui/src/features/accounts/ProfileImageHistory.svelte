@@ -103,7 +103,7 @@
     background: var(--bg);
     cursor: pointer;
     transition:
-      transform 100ms ease-out,
+      transform var(--fast) ease-out,
       box-shadow var(--fast);
   }
   .thumb.avatar {

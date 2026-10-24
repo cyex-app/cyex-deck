@@ -184,12 +184,12 @@
     display: flex;
     gap: 6px;
     align-items: flex-start;
-    transition: opacity 150ms ease-out;
+    transition: opacity var(--fast) ease-out;
   }
   /* A quick answer never flickers. */
   .dim .cols {
     opacity: 0.6;
-    transition-delay: 120ms;
+    transition-delay: var(--fast);
   }
   .col {
     display: flex;
@@ -206,7 +206,7 @@
     border: 1px solid transparent;
     border-radius: var(--radius);
     overflow: hidden;
-    transition: transform 100ms ease-out;
+    transition: transform var(--fast) ease-out;
   }
   .gif:hover:not([aria-disabled='true']),
   .gif:focus-visible {
@@ -233,7 +233,7 @@
     overflow: hidden;
     pointer-events: none;
     opacity: 0;
-    animation: appear 1ms 120ms forwards;
+    animation: appear 1ms var(--fast) forwards;
   }
   @keyframes appear {
     to {

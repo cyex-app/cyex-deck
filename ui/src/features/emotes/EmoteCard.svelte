@@ -35,6 +35,7 @@
   import { systemIpc } from '../../ipc/system';
   import { layer } from '../../lib/escape';
   import { focusScope } from '../../lib/focusScope';
+  import { BASE, FAST } from '../../lib/motion';
   import { floating } from '../../lib/place';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
@@ -169,7 +170,7 @@
             { translate: `0 ${d}px`, clipPath: clip(Math.max(0, d)) },
             { translate: '0 0', clipPath: clip(0) },
           ],
-          { duration: 160, easing: 'ease-out' },
+          { duration: BASE, easing: 'ease-out' },
         );
       top = t;
     };
@@ -222,7 +223,7 @@
     const dy = parseFloat(cs.getPropertyValue('--dy')) || 0;
     const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
     return {
-      duration: 90,
+      duration: FAST,
       easing: cubicOut,
       css: (t: number, u: number) =>
         still
@@ -479,7 +480,7 @@
     }
     /* fb-5 The way out keeps its fade too. */
     .card:global(.leaving) {
-      animation-duration: 90ms !important;
+      animation-duration: var(--fast) !important;
     }
   }
   .head {

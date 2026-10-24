@@ -3,7 +3,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
 
-  import { reduced } from '../../lib/motion';
+  import { BASE, FAST, reduced } from '../../lib/motion';
 
   let text = $state('');
   let said = $state('');
@@ -22,7 +22,7 @@
     clearTimeout(timer);
     if (el) {
       el.style.opacity = '1';
-      if (from < 1 && !reduced()) el.animate([{ opacity: from }, { opacity: 1 }], { duration: 100, easing: 'ease-out' });
+      if (from < 1 && !reduced()) el.animate([{ opacity: from }, { opacity: 1 }], { duration: FAST, easing: 'ease-out' });
     }
     timer = setTimeout(hide, reduced() ? 900 : 700);
   }
@@ -33,7 +33,7 @@
       el.style.opacity = '0';
       return;
     }
-    fade = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 250, easing: 'ease-out' });
+    fade = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: BASE, easing: 'ease-out' });
     fade.onfinish = () => {
       fade = undefined;
       if (el) el.style.opacity = '0';

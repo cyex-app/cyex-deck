@@ -5,7 +5,7 @@
   import { tick, type Snippet } from 'svelte';
 
   import { drag, rowDrops } from '../features/tabs/drag.svelte';
-  import { reduced } from '../lib/motion';
+  import { BASE, reduced } from '../lib/motion';
   import { moveKey, nudge, nudgeDir } from '../lib/order';
   import { hideTip } from './tooltip.svelte';
 
@@ -63,7 +63,7 @@
     rows().forEach((el, j) => {
       const old = before[was[j]];
       const dy = old === undefined ? 0 : old - el.getBoundingClientRect().top;
-      if (Math.abs(dy) >= 1) el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 180, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+      if (Math.abs(dy) >= 1) el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: BASE, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
     });
   }
 
