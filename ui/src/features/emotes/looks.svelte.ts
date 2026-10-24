@@ -11,8 +11,10 @@ import type { Looks } from '../../ipc/bindings/Looks';
 import type { PaintStyle } from '../../ipc/bindings/PaintStyle';
 import { emotesIpc } from '../../ipc/emotes';
 import { applyAnswer, applyPushed } from './lookMap';
+import { loadAll, loadPicture, paintUrls } from './paintPics';
 
 const BATCH_MS = 60;
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 /** Paint ids are 7TV ULIDs; anything else never becomes a class name. */
 export const SAFE_ID = /^[0-9A-Za-z]{1,40}$/;
 
@@ -120,7 +122,7 @@ class LooksStore {
     }
   }
 
-  /** Puts the rules of new paints in the sheet; true if any went in. insertRule adds one
+  /** Puts the rules of new paints in the sheet; true if any were new. insertRule adds one
    *  rule without parsing the whole sheet again (L2: appended text re-parsed all of it). */
   private insert(paints: PaintStyle[]): boolean {
     let any = false;
@@ -128,18 +130,25 @@ class LooksStore {
       if (this.paints.has(p.id) || !SAFE_ID.test(p.id)) continue;
       this.paints.add(p.id);
       this.pending.delete(p.id);
-      this.sheet ??= document.head.appendChild(document.createElement('style'));
-      const sheet = this.sheet.sheet;
-      for (const r of paintRuleList(p)) {
-        try {
-          sheet?.insertRule(r, sheet.cssRules.length);
-        } catch {
-          // A rule the engine can't read: that name just stays plain.
-        }
-      }
+      // 1.37 Picture paints wait for their pictures (paintPics.ts); a failed CSS picture never recovers.
+      const urls = paintUrls(p);
+      if (urls.length) void loadAll(urls, loadPicture, sleep).then(() => this.addRules(p));
+      else this.addRules(p);
       any = true;
     }
     return any;
+  }
+
+  private addRules(p: PaintStyle) {
+    this.sheet ??= document.head.appendChild(document.createElement('style'));
+    const sheet = this.sheet.sheet;
+    for (const r of paintRuleList(p)) {
+      try {
+        sheet?.insertRule(r, sheet.cssRules.length);
+      } catch {
+        // A rule the engine can't read: that name just stays plain.
+      }
+    }
   }
 }
 
