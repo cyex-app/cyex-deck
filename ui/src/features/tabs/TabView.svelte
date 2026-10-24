@@ -99,14 +99,25 @@
     const vertical = d.dir === 'row';
     const line = gridLine(d, tab.columns.length);
     const base: Sizes = { columns: [...sizes.columns], rows: sizes.rows.map((r) => [...r]) };
-    const el = root;
-
-    const move = (ev: PointerEvent) => {
-      const r = el.getBoundingClientRect();
-      const at = vertical ? ev.clientX - r.left : ev.clientY - r.top;
+    // V107-Z4 The grid's rect is read once and sizes change at most once a frame: each move
+    // re-wrapped every chat in the tab, and a fast drag queued hundreds of layouts.
+    const r = root.getBoundingClientRect();
+    let at = 0;
+    let frame = 0;
+    const apply = () => {
+      frame = 0;
       live = resized(base, line, dragGrid(s, d, at, MIN_PX + LINE, need, LINE));
     };
+    const move = (ev: PointerEvent) => {
+      at = vertical ? ev.clientX - r.left : ev.clientY - r.top;
+      if (!frame) frame = requestAnimationFrame(apply);
+    };
     const stop = () => {
+      // The last move counts.
+      if (frame) {
+        cancelAnimationFrame(frame);
+        apply();
+      }
       removeEventListener('pointermove', move);
       removeEventListener('pointerup', up);
       removeEventListener('pointercancel', up);
