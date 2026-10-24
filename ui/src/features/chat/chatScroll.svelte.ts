@@ -128,9 +128,15 @@ export class ChatScroll<T extends Item = Item> {
     return start > 0 ? shown.slice(start) : shown;
   }
 
-  configure(opts: ScrollOpts): void {
+  /** New settings; false (nothing written) when they're the same. MessageList calls this from
+   *  an $effect, and `paused` reads #opts while the mouse is over the list: a fresh object on
+   *  every run reran it until Svelte gave up (effect_update_depth_exceeded on each press). */
+  configure(opts: ScrollOpts): boolean {
+    const was = this.#opts;
+    if (was.pauseOnHover === opts.pauseOnHover && was.pauseStillTenths === opts.pauseStillTenths) return false;
     this.#opts = opts;
     this.#settle();
+    return true;
   }
 
   /** The mouse came over the list. */

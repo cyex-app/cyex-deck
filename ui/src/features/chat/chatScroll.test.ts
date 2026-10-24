@@ -219,7 +219,16 @@ test('hover does not pause when the setting is off', () => {
   const { s } = setup(400, { pauseOnHover: false, pauseStillTenths: 0 });
   s.enter();
   assert.equal(s.paused, false);
-  s.configure({ pauseOnHover: true, pauseStillTenths: 0 });
+  assert.equal(s.configure({ pauseOnHover: true, pauseStillTenths: 0 }), true);
+  assert.equal(s.paused, true);
+});
+
+test('configure with the same settings writes nothing (an $effect reruns it, V107-LH)', () => {
+  const { s } = setup(400, { pauseOnHover: true, pauseStillTenths: 5 });
+  s.enter();
+  assert.equal(s.configure({ pauseOnHover: true, pauseStillTenths: 5 }), false);
+  assert.equal(s.configure({ pauseOnHover: true, pauseStillTenths: 6 }), true);
+  assert.equal(s.configure({ pauseOnHover: true, pauseStillTenths: 6 }), false);
   assert.equal(s.paused, true);
 });
 

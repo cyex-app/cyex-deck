@@ -100,8 +100,15 @@
     untrack(pauseOpts),
   );
   onDestroy(() => scroll.dispose());
-  $effect(() => scroll.configure(pauseOpts()));
-  $effect(() => scroll.menu(menuHere && menu.open));
+  // Only the inputs are tracked: what the calls read inside ChatScroll stays out (V107-LH).
+  $effect(() => {
+    const opts = pauseOpts();
+    untrack(() => scroll.configure(opts));
+  });
+  $effect(() => {
+    const open = menuHere && menu.open;
+    untrack(() => scroll.menu(open));
+  });
   /** Stays true while the user wants new messages in view. Scrolling up ends it. */
   const following = $derived(scroll.following);
   const paused = $derived(scroll.paused);
