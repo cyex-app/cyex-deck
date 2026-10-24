@@ -439,6 +439,7 @@
         onheaderdown={grabOf(ctl)}
         onpopchat={tile.show.chat && !chatPopped && !popout ? popChat : undefined}
         onbringchat={chatPopped ? () => tabs.dockChat(tile.id) : undefined}
+        bare={slot !== null}
       />
     {:else}
       {@render beside()}

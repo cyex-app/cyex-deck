@@ -3,7 +3,9 @@
      playing small in a corner (P4); a VOD or clip from a list stops it. Fullscreen takes
      the whole body, so a clip opened over the stream shows there too (V101-26). V103-05 The
      channel's mod view (V102-26) is a panel of its own next to this one. V107-Mv A VOD keeps
-     playing small over About and Clips, paused while a clip plays; Videos brings it back. -->
+     playing small over About and Clips, paused while a clip plays; Videos brings it back.
+     P4 #18 Over a mod view's Stream panel (`bare`) it is the player only: no header, and
+     About, Clips and Videos show the stream instead. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
@@ -26,6 +28,8 @@
   import VideosPage from './VideosPage.svelte';
   import { errorText } from '../../lib/errors';
 
+  const STREAM: Page = { kind: 'stream' };
+
   interface Props {
     tile: Tile;
     /** Header buttons, when the chat isn't there to carry them. */
@@ -35,21 +39,25 @@
     onpopchat?: () => void;
     /** 3.14 The chat is in its own window: this brings it back. */
     onbringchat?: () => void;
+    /** P4 #18 Shown in a mod view's Stream panel: the player, nothing around it. */
+    bare?: boolean;
   }
 
-  let { tile, actions, onheaderdown, onpopchat, onbringchat }: Props = $props();
+  let { tile, actions, onheaderdown, onpopchat, onbringchat, bare = false }: Props = $props();
 
   const shared = $derived(tileState(tile.id));
   const info = $derived(tabs.live[tile.channel.id]);
   // V1061-03 Q21 a A player on the rewind VOD plays to its end after the stream ends.
   const live = $derived(Boolean(info?.stream) || rewound.has(tile.channel.login));
-  const page = $derived(shared.page);
+  /** The page the tile is on; the body shows `page`, which is the stream for a listing when bare. */
+  const chosen = $derived(shared.page);
+  const page = $derived(bare && (chosen.kind === 'about' || chosen.kind === 'clips' || chosen.kind === 'videos') ? STREAM : chosen);
   const listing = $derived(page.kind === 'about' || page.kind === 'clips' || page.kind === 'videos');
   /** V107-Mv The VOD that stays open, small, while About or Clips shows. */
   let kept = $state<{ id: string; at: number } | null>(null);
   $effect(() => {
-    if (page.kind === 'vod') kept = { id: page.id, at: page.at };
-    else if (page.kind === 'stream') kept = null;
+    if (chosen.kind === 'vod') kept = { id: chosen.id, at: chosen.at };
+    else if (chosen.kind === 'stream') kept = null;
   });
   // Plain values: a new object on every page change would restart the player.
   const vodId = $derived(page.kind === 'vod' ? page.id : page.kind === 'stream' || page.kind === 'videos' ? null : (kept?.id ?? null));
@@ -108,8 +116,10 @@
 </script>
 
 <section class="side">
-  <StreamHeader {tile} {info} {page} onpage={go} onstories={() => (shared.stories = true)} {actions} {onheaderdown} />
-  {#if onbringchat}
+  {#if !bare}
+    <StreamHeader {tile} {info} {page} onpage={go} onstories={() => (shared.stories = true)} {actions} {onheaderdown} />
+  {/if}
+  {#if onbringchat && !bare}
     <div class="popped">
       Chat is in its own window.
       <button onclick={onbringchat}>Bring it back</button>
