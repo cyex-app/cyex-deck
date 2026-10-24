@@ -3,7 +3,7 @@
 // The tiles stay in one list in a fixed order in the page; moving one only changes its box,
 // so no stream in the tab restarts.
 
-import { type Box, clampSizes, type Divider, isSplit, leaf, minOf, type Node, shares, split } from '../../lib/panels.ts';
+import { type Box, clampSizes, type Divider, dragSizes, isSplit, leaf, minOf, type Node, shares, split, type Split } from '../../lib/panels.ts';
 
 export interface GridSizes {
   columns: number[];
@@ -56,6 +56,13 @@ export function gridLine(d: Divider, columns: number): GridLine {
   if (d.dir === 'row') return { kind: 'columns' };
   // One column: its split is the whole tree.
   return { kind: 'rows', column: columns > 1 ? (d.path[0] ?? 0) : 0 };
+}
+
+/** V107-Z1 The split's new shares with divider `d` at `at` px, every part at least `min` px.
+ * `dragSizes` takes one least size per part: a pair left a third column or row with none,
+ * so its shares came out NaN and Rust refused the save ("Something went wrong"). */
+export function dragGrid(s: Split, d: Divider, at: number, min: number): number[] {
+  return dragSizes(s, d.rect, d.index, at, s.parts.map(() => min));
 }
 
 /** New sizes after a divider was dragged: the split's new shares, kept averaging 1 as Rust

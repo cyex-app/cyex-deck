@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { dragSizes, layout, type Split } from '../../lib/panels.ts';
-import { clampGrid, gridLine, gridTree, resized } from './grid.ts';
+import { clampGrid, dragGrid, gridLine, gridTree, resized } from './grid.ts';
 
 const col = (...ids: string[]) => ({ tiles: ids.map((id) => ({ id })) });
 
@@ -44,6 +44,20 @@ test('F13 a dragged divider keeps the sizes averaging 1', () => {
   assert.equal(Math.round(out.columns.reduce((a, b) => a + b, 0) * 1000) / 1000, 3);
   assert.ok(out.columns[0] > 1 && out.columns[1] < 1 && Math.abs(out.columns[2] - 1) < 1e-9);
   assert.deepEqual(out.rows, [[1], [1], [1]]);
+});
+
+test('V107-Z1 the last divider of 3+ columns or rows drags to finite shares', () => {
+  const tree = gridTree([col('a', 'b', 'c', 'd'), col('e'), col('f', 'g', 'h')], { columns: [1, 1, 1], rows: [[1, 1, 1, 1], [1], [1, 1, 1]] }, false) as Split;
+  const laid = layout(tree, { w: 900, h: 1200 }, 1);
+  assert.equal(laid.dividers.length, 2 + 3 + 2);
+  for (const d of laid.dividers) {
+    const s = (d.path.length ? tree.parts[d.path[0]] : tree) as Split;
+    for (const at of [-500, 0, 150, 450, 5000]) {
+      const next = dragGrid(s, d, at, 141);
+      assert.ok(next.every(Number.isFinite), `divider ${d.path}:${d.index} at ${at}: ${next}`);
+      assert.ok(Math.abs(next.reduce((a, b) => a + b, 0) - 1) < 1e-9);
+    }
+  }
 });
 
 test('an offline-only column shrinks next to a live one, unless sized by hand', async () => {

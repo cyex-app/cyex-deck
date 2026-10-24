@@ -10,10 +10,10 @@
   import Button from '../../components/Button.svelte';
   import type { Tab } from '../../ipc/bindings/Tab';
   import { type Box, stackColumns, tileNeed } from '../../lib/fit';
-  import { type Divider, dragSizes, layout as layOut, nodeAt, type Split } from '../../lib/panels';
+  import { type Divider, layout as layOut, nodeAt, type Split } from '../../lib/panels';
   import { tileState } from '../player/players.svelte';
   import { drag } from './drag.svelte';
-  import { clampGrid, gridLine, gridTree, resized, slimSizes } from './grid';
+  import { clampGrid, dragGrid, gridLine, gridTree, resized, slimSizes } from './grid';
   import { dragged, layout } from './layout.svelte';
   import TileView from './TileView.svelte';
   import { tabs, tiles } from './tabs.svelte';
@@ -102,7 +102,7 @@
     const move = (ev: PointerEvent) => {
       const r = el.getBoundingClientRect();
       const at = vertical ? ev.clientX - r.left : ev.clientY - r.top;
-      live = resized(base, line, dragSizes(s, d.rect, d.index, at, [MIN_PX + LINE, MIN_PX + LINE]));
+      live = resized(base, line, dragGrid(s, d, at, MIN_PX + LINE));
     };
     const stop = () => {
       removeEventListener('pointermove', move);
