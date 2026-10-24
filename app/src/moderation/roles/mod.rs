@@ -71,8 +71,7 @@ fn own(actor: &Actor) -> bool {
 /// feed echoes are marked ours).
 pub async fn apply(app: &AppHandle, actor: &Actor, who: &str, holds: Option<Vec<Role>>, slots: Option<VipSlots>, wanted: &Wanted) -> Outcome {
     if let Some(line) = broadcaster_line(&actor.channel, who, actor.role) {
-        let failed = Role::ALL.into_iter().filter(|r| wanted.give.contains(r) || wanted.take.contains(r)).collect();
-        return Outcome { done: Vec::new(), line: line.into(), slots: slots.unwrap_or_else(VipSlots::unknown), failed };
+        return refused(line, slots, wanted);
     }
     let a = Adapter::new(app, actor);
     // V107-Mw Yourself (the broadcaster is caught above): a step down, or refused.
@@ -85,8 +84,13 @@ pub async fn apply(app: &AppHandle, actor: &Actor, who: &str, holds: Option<Vec<
         // Only a grant can clash; V107-Ma an unmod needs to know about lead mod.
         None if !wanted.give.is_empty() || unmod => {
             let mut h = super::standing::holds(app, &actor.channel, who).await.unwrap_or_default();
-            if unmod && !h.contains(&Role::LeadMod) && lead_mod(app, actor, who).await {
-                h.push(Role::LeadMod);
+            if unmod && !h.contains(&Role::LeadMod) {
+                // P-03 Unknown: an unmod alone could leave them lead mod, so nothing is sent.
+                match lead_mod(app, actor, who).await {
+                    Ok(true) => h.push(Role::LeadMod),
+                    Ok(false) => {}
+                    Err(line) => return refused(line, slots, wanted),
+                }
             }
             h
         }
@@ -138,22 +142,34 @@ fn keep(out: &Outcome, slots_read: bool, gave_vip: bool) -> Keep {
 
 /// V107-Ma Whether `who` is a lead mod when their badges don't say (a lead mod may wear the
 /// plain badge, or none): the Roles Manager's fresh read, else Twitch's list, read once.
-/// Only the broadcaster can read or change it; elsewhere, `false`.
-async fn lead_mod(app: &AppHandle, actor: &Actor, who: &str) -> bool {
+/// Only the broadcaster can read or change it; elsewhere, and without the GQL sign-in (which
+/// a lead mod change needs anyway), `false`. `Err`: the line when Twitch's list didn't load.
+async fn lead_mod(app: &AppHandle, actor: &Actor, who: &str) -> Result<bool, &'static str> {
     if actor.role != ModRole::Broadcaster {
-        return false;
+        return Ok(false);
     }
     if own(actor)
         && let Some(v) = cached(app, &actor.account)
     {
-        return v.members.iter().any(|m| m.login.eq_ignore_ascii_case(who) && m.roles.contains(&Role::LeadMod));
+        return Ok(v.members.iter().any(|m| m.login.eq_ignore_ascii_case(who) && m.roles.contains(&Role::LeadMod)));
     }
-    let Some(g) = actor.gql() else { return false };
+    let Some(g) = actor.gql() else { return Ok(false) };
     let http = super::http(app);
     let ch = cyex_twitch::gql::dashboard::Channel { http: &http, auth: g, base: None, id: &actor.channel_id };
-    cyex_twitch::gql::dashboard::roles::holders(&ch, Role::LeadMod)
-        .await
-        .is_ok_and(|l| l.iter().any(|l| l.eq_ignore_ascii_case(who)))
+    in_list(cyex_twitch::gql::dashboard::roles::holders(&ch, Role::LeadMod).await, who)
+}
+
+const LEAD_UNREAD: &str = "Couldn’t check lead mod. Try again.";
+
+/// P-03 `who` in Twitch's lead mod list; a failed read is not "no".
+fn in_list(list: cyex_twitch::Result<Vec<String>>, who: &str) -> Result<bool, &'static str> {
+    list.map(|l| l.iter().any(|l| l.eq_ignore_ascii_case(who))).map_err(|_| LEAD_UNREAD)
+}
+
+/// Nothing sent: every role asked for failed with `line`.
+fn refused(line: &str, slots: Option<VipSlots>, wanted: &Wanted) -> Outcome {
+    let failed = Role::ALL.into_iter().filter(|r| wanted.give.contains(r) || wanted.take.contains(r)).collect();
+    Outcome { done: Vec::new(), line: line.into(), slots: slots.unwrap_or_else(VipSlots::unknown), failed }
 }
 
 /// V107-N4A The channel's own broadcaster holds no role: Twitch answers that with a bare
@@ -205,6 +221,18 @@ mod tests {
         assert_eq!(broadcaster_line("cyexbot", "CyexBot", ModRole::Broadcaster), Some("That’s you."));
         assert_eq!(broadcaster_line("#cyexbot", "@cyexbot", ModRole::LeadModerator), Some("That’s the broadcaster."));
         assert_eq!(broadcaster_line("cyexbot", "caressz", ModRole::Broadcaster), None);
+    }
+
+    #[test]
+    fn p03_a_failed_lead_mod_read_stops_the_unmod() {
+        assert_eq!(in_list(Ok(vec!["Caressz".into()]), "caressz"), Ok(true));
+        assert_eq!(in_list(Ok(vec![]), "caressz"), Ok(false));
+        let failed = in_list(Err(cyex_twitch::Error::Api { status: 500, message: String::new() }), "caressz");
+        assert_eq!(failed, Err(LEAD_UNREAD));
+        let out = refused(LEAD_UNREAD, None, &Wanted::one(Role::Mod, false));
+        assert!(!out.ok() && out.done.is_empty(), "nothing was sent");
+        assert_eq!(out.failed, vec![Role::Mod]);
+        assert_eq!(out.line, "Couldn’t check lead mod. Try again.");
     }
 
     #[test]
