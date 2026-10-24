@@ -104,7 +104,7 @@
     const move = (ev: PointerEvent) => {
       const r = el.getBoundingClientRect();
       const at = vertical ? ev.clientX - r.left : ev.clientY - r.top;
-      live = resized(base, line, dragGrid(s, d, at, MIN_PX + LINE));
+      live = resized(base, line, dragGrid(s, d, at, MIN_PX + LINE, need, LINE));
     };
     const stop = () => {
       removeEventListener('pointermove', move);

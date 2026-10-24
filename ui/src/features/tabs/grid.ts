@@ -60,9 +60,21 @@ export function gridLine(d: Divider, columns: number): GridLine {
 
 /** V107-Z1 The split's new shares with divider `d` at `at` px, every part at least `min` px.
  * `dragSizes` takes one least size per part: a pair left a third column or row with none,
- * so its shares came out NaN and Rust refused the save ("Something went wrong"). */
-export function dragGrid(s: Split, d: Divider, at: number, min: number): number[] {
-  return dragSizes(s, d.rect, d.index, at, s.parts.map(() => min));
+ * so its shares came out NaN and Rust refused the save ("Something went wrong").
+ * With `need` (and `gap`, as `clampGrid` takes them) a part also stops at the room
+ * `clampGrid` keeps for it: dragged below that, the clamp took the rest from every other
+ * part, so a column past the dragged pair moved too. */
+export function dragGrid(s: Split, d: Divider, at: number, min: number, need?: (id: string) => Box, gap = 0): number[] {
+  const least = (id: string) => {
+    const m = need?.(id) ?? { w: 0, h: 0 };
+    return { w: m.w + gap, h: m.h + gap };
+  };
+  const row = s.dir === 'row';
+  const mins = s.parts.map((p) => {
+    const m = minOf(p, least);
+    return Math.max(min, row ? m.w : m.h);
+  });
+  return dragSizes(s, d.rect, d.index, at, mins);
 }
 
 /** New sizes after a divider was dragged: the split's new shares, kept averaging 1 as Rust

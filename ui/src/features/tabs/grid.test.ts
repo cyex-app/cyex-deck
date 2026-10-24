@@ -60,6 +60,17 @@ test('V107-Z1 the last divider of 3+ columns or rows drags to finite shares', ()
   }
 });
 
+test('V107-Z3 a column dragged to its least room leaves the columns past the pair alone', () => {
+  const sizes = { columns: [1, 1, 1], rows: [[1], [1], [1]] };
+  const box = { w: 900, h: 300 };
+  const need = (id: string) => ({ w: id === 'a' ? 250 : 0, h: 0 });
+  const tree = clampGrid(gridTree([col('a'), col('b'), col('c')], sizes, false), box, need, 1) as Split;
+  const d = layout(tree, box, 1).dividers[0];
+  const next = resized(sizes, gridLine(d, 3), dragGrid(tree, d, 0, 141, need, 1));
+  const shown = clampGrid(gridTree([col('a'), col('b'), col('c')], next, false), box, need, 1) as Split;
+  assert.ok(Math.abs(shown.sizes[2] - tree.sizes[2]) < 1e-9, `${tree.sizes} -> ${shown.sizes}`);
+});
+
 test('an offline-only column shrinks next to a live one, unless sized by hand', async () => {
   const { slimSizes, SLIM } = await import('./grid.ts');
   const cols = [
