@@ -171,3 +171,82 @@ fn removing_an_account_deletes_its_session() {
     assert!(t.get("8").is_some());
     assert!(drop_session(&t, "7").is_none());
 }
+
+// V108-7K "Paste a 7TV token".
+mod paste {
+    use super::*;
+    use crate::cosmetics::paste::{Refused, check, read};
+
+    fn me(twitch: &str) -> Vec<u8> {
+        let body = format!(r#"{{"data":{{"users":{{"me":{{"id":"01X","connections":[{{"platform":"TWITCH","platformId":"{twitch}"}}]}}}}}}}}"#);
+        reply("200 OK", &body)
+    }
+
+    fn empty() -> SevenTvTokens {
+        SevenTvTokens::new(Arc::new(MemoryStore::default()))
+    }
+
+    #[test]
+    fn format_check() {
+        assert!(read(FAKE).is_some());
+        assert!(read(&format!("  {FAKE}\r\n")).is_some());
+        // The console shows the string in quotes.
+        assert!(read(&format!("\"{FAKE}\"")).is_some());
+        assert!(read(&format!("'{FAKE}'")).is_some());
+        assert!(read("").is_none());
+        assert!(read("null").is_none());
+        assert!(read("not a token").is_none());
+        assert!(read("a.b").is_none());
+        assert!(read("a.b.c.d").is_none());
+        assert!(read("a..c").is_none());
+        assert!(read("a.b=.c").is_none());
+        assert!(read(&format!("\"{FAKE}")).is_none());
+        let long = format!("{}.{}.c", "a".repeat(600), "b".repeat(600));
+        assert!(read(&long).is_none());
+    }
+
+    #[tokio::test]
+    async fn bad_or_old_tokens_never_reach_7tv() {
+        // No server: a request would come back as `Down`.
+        let api = Client::at(Http::new().unwrap(), "http://127.0.0.1:9");
+        let t = empty();
+        assert_eq!(check(&api, &t, "7", "nope", 100).await, Err(Refused::Format));
+        assert_eq!(check(&api, &t, "7", FAKE, 5_000).await, Err(Refused::RanOut));
+        assert!(t.get("7").is_none());
+    }
+
+    #[tokio::test]
+    async fn another_twitch_account_is_refused() {
+        let (base, h) = serve(vec![me("8"), reply("200 OK", r#"{"data":{"users":{"me":{"id":"01X","connections":[]}}}}"#)]);
+        let api = Client::at(Http::new().unwrap(), &base);
+        let t = empty();
+        assert_eq!(check(&api, &t, "7", FAKE, 100).await, Err(Refused::OtherAccount));
+        // No Twitch connection at all: the same.
+        assert_eq!(check(&api, &t, "7", FAKE, 100).await, Err(Refused::OtherAccount));
+        assert!(t.get("7").is_none());
+        // Refused, but not logged out on 7TV: it's the browser's own session.
+        let seen = h.join().unwrap();
+        assert!(seen.iter().all(|r| r.contains("/v4/gql")));
+    }
+
+    #[tokio::test]
+    async fn rejected_by_7tv() {
+        let (base, h) = serve(vec![reply("401 Unauthorized", "{}")]);
+        let api = Client::at(Http::new().unwrap(), &base);
+        let t = empty();
+        assert_eq!(check(&api, &t, "7", FAKE, 100).await, Err(Refused::Rejected));
+        assert!(t.get("7").is_none());
+        h.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn this_accounts_token_is_kept() {
+        let (base, h) = serve(vec![me("7")]);
+        let api = Client::at(Http::new().unwrap(), &base);
+        let t = empty();
+        assert_eq!(check(&api, &t, "7", &format!(" {FAKE}\n"), 100).await, Ok("01X".into()));
+        assert_eq!(t.get("7").map(|k| k.secret().to_owned()).as_deref(), Some(FAKE));
+        let seen = h.join().unwrap();
+        assert!(seen[0].to_lowercase().contains(&format!("authorization: bearer {}", FAKE.to_lowercase())));
+    }
+}

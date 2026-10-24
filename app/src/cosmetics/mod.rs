@@ -5,6 +5,7 @@
 mod apply;
 mod combos;
 pub mod lookup;
+mod paste;
 mod select;
 mod status;
 mod vars;
@@ -24,6 +25,7 @@ use cyex_settings::schema::SevenTvConsent;
 use tauri::{AppHandle, Manager};
 
 pub use apply::{Applied, Part, Want, apply};
+pub use paste::paste;
 pub use combos::{change as change_combos, find as find_combo, list as list_combos};
 pub use words::{select_error, why};
 pub use select::{Kind, Picked, SelectError, select};

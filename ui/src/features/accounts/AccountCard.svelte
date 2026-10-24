@@ -18,6 +18,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { alsoSevenTv } from './alsoSevenTv.svelte';
   import GqlUnlock from './GqlUnlock.svelte';
+  import SevenTvPaste from './SevenTvPaste.svelte';
   import ProfileEditor from './ProfileEditor.svelte';
   import ProfileImages from './ProfileImages.svelte';
   import { profileImagesIpc } from '../../ipc/profileImages';
@@ -46,6 +47,8 @@
   const bothTokens = $derived(account.helix !== null && account.gql !== null);
   /** V102-19 The GQL options: asked for, or offered right after Sign in with Twitch. */
   let unlocking = $state(false);
+  /** V108-7K The "Paste a 7TV token" steps. */
+  let pasting = $state(false);
   const showUnlock = $derived(
     (unlocking || signIn.offer === account.userId) && (account.gql === null || needsSignIn(account.gql)),
   );
@@ -162,11 +165,14 @@
       <Button small disabled={!!unlock.asked} onclick={() => unlock.ask('settings', account.userId)}>
         {ended ? 'Sign in again' : 'Sign in'}
       </Button>
+      <Button small variant="ghost" disabled={pasting} onclick={() => (pasting = true)}>Paste a token</Button>
     {/if}
     {#if account.seventv.consent}
       <ConfirmButton label="Withdraw" confirm="Click again to withdraw" variant="ghost" onconfirm={withdraw} />
     {/if}
   </div>
+
+  {#if pasting && !(account.seventv.consent && account.seventv.signedIn)}<SevenTvPaste {account} onclose={() => (pasting = false)} />{/if}
 
   <!-- V108-7P -->
   {#if alsoSevenTv.asking === account.userId}

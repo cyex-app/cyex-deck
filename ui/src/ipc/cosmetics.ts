@@ -24,6 +24,10 @@ export const cosmeticsIpc = {
   /** V1051-02 7TV's own sign-in window; resolves when it ends. `shared`: in the account's
    * Twitch web profile, so Twitch is signed in already (picked with subscriptions and wallet). */
   signIn: (account: string, shared = false) => invoke<SignIn>('cosmetics_sign_in', { account, shared }),
+  /** V108-7K Keeps a 7TV token pasted from the browser. Rejects with the message to show. */
+  paste: (account: string, token: string) => invoke<void>('cosmetics_paste', { account, token }),
+  /** V108-7K 7tv.app in the browser (and profile) used last. */
+  open7tv: () => invoke<void>('cosmetics_open_7tv'),
   signOut: (account: string) => invoke<void>('cosmetics_sign_out', { account }),
   /** Signs out and takes the consent back. */
   withdraw: (account: string) => invoke<void>('cosmetics_withdraw', { account }),

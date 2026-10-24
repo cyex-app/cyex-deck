@@ -3,6 +3,7 @@
 use cyex_emotes::seventv::account::view::CosmeticsView;
 use cyex_settings::schema::{ComboDone, ComboItem, ComboOp};
 use tauri::AppHandle;
+use tauri_plugin_opener::OpenerExt;
 
 use crate::auth;
 use crate::cosmetics::{self, Applied, Kind, Picked, SelectError, Want};
@@ -55,6 +56,24 @@ pub async fn cosmetics_withdraw(app: AppHandle, account: String) -> Result<(), S
 pub async fn cosmetics_sign_in(app: AppHandle, account: String, shared: bool) -> Result<SignIn, String> {
     known(&app, &account)?;
     Ok(cosmetics::sign_in(&app, &account, shared).await)
+}
+
+/// V108-7K Keeps a 7TV token pasted from the user's browser, once 7TV says it's this
+/// account's. Rejects with the message to show.
+#[tauri::command]
+pub async fn cosmetics_paste(app: AppHandle, account: String, token: String) -> Result<(), String> {
+    known(&app, &account)?;
+    cosmetics::paste(&app, &account, &token).await.map_err(|r| r.text().to_owned())
+}
+
+/// V108-7K Opens 7tv.app in the browser (and profile) used last, else the default one.
+#[tauri::command]
+pub fn cosmetics_open_7tv(app: AppHandle) -> Result<(), String> {
+    const URL: &str = "https://7tv.app/";
+    if crate::sys::browsers::open_in_last_browser(URL) {
+        return Ok(());
+    }
+    app.opener().open_url(URL, None::<&str>).map_err(|e| e.to_string())
 }
 
 /// V1051-04 Puts on a pair (a combo, or Undo). Both parts always named; `None` = none.
