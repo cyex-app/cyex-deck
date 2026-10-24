@@ -38,6 +38,11 @@ pub fn next_action(
     if can_refresh && expires_at.is_some_and(|t| t - now <= REFRESH_MARGIN) {
         return Some(Action::Refresh);
     }
+    // V108-01 A token that can't be refreshed (browser sign-in) is checked once it's run out,
+    // so it reads "sign in again" within a minute instead of at the next hourly check.
+    if !can_refresh && expires_at.is_some_and(|t| t <= now) && since_check.is_none_or(|e| e >= RETRY_OFFLINE) {
+        return Some(Action::Validate);
+    }
     let due = match since_check {
         None => true,
         Some(elapsed) if state == TokenState::Offline => elapsed >= RETRY_OFFLINE,
@@ -158,6 +163,14 @@ mod tests {
             next_action(TokenState::Valid, None, true, Some(HOUR / 2), NOW),
             None
         );
+    }
+
+    #[test]
+    fn run_out_tokens_without_refresh_are_checked_soon() {
+        let gone = Some(NOW - 1);
+        assert_eq!(next_action(TokenState::Valid, gone, false, Some(RETRY_OFFLINE), NOW), Some(Action::Validate));
+        assert_eq!(next_action(TokenState::Valid, gone, false, Some(RETRY_OFFLINE / 2), NOW), None);
+        assert_eq!(next_action(TokenState::Valid, Some(NOW + 60), false, Some(RETRY_OFFLINE), NOW), None);
     }
 
     #[test]

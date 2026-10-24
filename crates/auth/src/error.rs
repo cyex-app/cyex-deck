@@ -24,6 +24,16 @@ pub enum AuthError {
     Expired,
     #[error("Sign-in was declined on Twitch.")]
     Denied,
+    /// V108-01 The browser sign-in's fixed port is taken.
+    #[error("Port {0} is in use by another app, so the sign-in can't finish. Close that app and try again.")]
+    PortBusy(u16),
+    #[error("Couldn’t start the sign-in: {0}")]
+    Listener(String),
+    #[error("The sign-in took too long. Start again.")]
+    TimedOut,
+    /// V108-01 The token came from another app than this one.
+    #[error("That sign-in is for another app. Start again.")]
+    WrongClient,
     #[error("Cancelled.")]
     Cancelled,
     #[error("Couldn’t save the token: {0}")]

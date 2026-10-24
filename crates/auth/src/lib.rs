@@ -2,6 +2,7 @@
 //! the Windows Credential Manager, validation and refresh, capability gating (1.54).
 //! No Tauri here; `app/src/auth` wires it up.
 
+pub mod browser;
 pub mod caps;
 mod chat;
 pub mod device;

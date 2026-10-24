@@ -59,6 +59,8 @@ pub enum TokenSource {
     Device,
     /// Pasted by hand (1.4).
     Pasted,
+    /// V108-01 Signed in on Twitch's sign-in page (browser or sign-in window). No refresh token.
+    Browser,
 }
 
 impl Accounts {
