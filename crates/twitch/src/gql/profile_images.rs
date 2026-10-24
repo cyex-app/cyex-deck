@@ -258,6 +258,29 @@ fn read_remove(field: &str, data: &Value) -> Result<()> {
     }
 }
 
+/// V107-Mz3 The channel page's banner choice for "Custom Image" (`heroPreset`).
+pub const CUSTOM_BANNER: &str = "PRESET_2";
+
+/// V107-Mz3 Sets the channel page's banner choice, as the Save under twitch.tv's settings ›
+/// channel › brand › Profile Banner does (`UpdateHeroPreset`, chunk
+/// `settings-channel-page.components.brand`). A payload `error` comes back as `Error::Refused`.
+pub async fn set_hero(http: &Http, auth: Auth<'_>, base: Option<&str>, user_id: &str, preset: &str) -> Result<()> {
+    let text = "mutation UpdateHeroPreset($input: UpdateChannelHomePreferencesInput!) { updateChannelHomePreferences(input: $input) { channel { id home { preferences { heroPreset } } } error } }";
+    let vars = json!({ "input": { "channelID": user_id, "heroPreset": preset } });
+    read_hero(&run_at(http, auth, base, text, vars).await?)
+}
+
+fn read_hero(data: &Value) -> Result<()> {
+    let out = &data["updateChannelHomePreferences"];
+    if out.is_null() {
+        return Err(Error::Refused("NO_PAYLOAD".into()));
+    }
+    match &out["error"] {
+        Value::Null => Ok(()),
+        e => Err(Error::Refused(e.as_str().map_or_else(|| e.to_string(), str::to_owned))),
+    }
+}
+
 /// An image as a `data:` URL (test runs: the window may not load images from this PC).
 pub fn data_url(bytes: &[u8]) -> String {
     use base64::Engine;
@@ -354,6 +377,13 @@ mod tests {
         assert_eq!(xml_code("nope"), None);
         assert_eq!(redact("https://h.test/p?X-Amz-Signature=secret&b=2"), "https://h.test/p?X-Amz-Signature&b");
         assert_eq!(redact("https://h.test/p"), "https://h.test/p");
+    }
+
+    #[test]
+    fn hero_payload_reads_error_or_ok() {
+        assert!(read_hero(&json!({ "updateChannelHomePreferences": { "channel": { "id": "1" }, "error": null } })).is_ok());
+        assert!(matches!(read_hero(&json!({ "updateChannelHomePreferences": { "error": "FORBIDDEN" } })), Err(Error::Refused(c)) if c == "FORBIDDEN"));
+        assert!(matches!(read_hero(&json!({ "updateChannelHomePreferences": null })), Err(Error::Refused(_))));
     }
 
     #[test]

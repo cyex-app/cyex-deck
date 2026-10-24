@@ -70,7 +70,53 @@
       .catch((e) => (loadError = imageError(e)?.message ?? errorText(e)));
   });
 
+  /** V107-Mz4 Twitch can take minutes to show a new offline image: the editor showed the one
+   * before, and the next upload brought it out. After an upload Twitch isn't showing yet, the
+   * editor checks again until it does (or gives up after a few minutes). */
+  const FOLLOW_EVERY = 5000;
+  const FOLLOW_FOR = 180_000;
+  let pending = $state<ProfileImageKind | null>(null);
+  let follow = 0;
+  let followTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function stopFollow() {
+    follow++;
+    clearTimeout(followTimer);
+    pending = null;
+  }
+
+  function followUp(kind: ProfileImageKind, stale: string, remove: boolean) {
+    stopFollow();
+    const mine = follow;
+    const until = Date.now() + FOLLOW_FOR;
+    pending = kind;
+    const tick = async () => {
+      if (mine !== follow) return;
+      if (Date.now() > until) {
+        pending = null;
+        return;
+      }
+      try {
+        const v = await profileImagesIpc.get(account);
+        if (mine !== follow) return;
+        if ((v.slots.find((sl) => sl.kind === kind)?.url ?? '') !== stale) {
+          view = v;
+          pending = null;
+          toast.success((remove ? REMOVED : DONE)[kind]);
+          return;
+        }
+      } catch {
+        // Try again on the next tick.
+      }
+      followTimer = setTimeout(tick, FOLLOW_EVERY);
+    };
+    followTimer = setTimeout(tick, FOLLOW_EVERY);
+  }
+
+  $effect(() => () => stopFollow());
+
   async function run(kind: ProfileImageKind, call: () => Promise<ProfileImagesView>, remove = false) {
+    stopFollow();
     busy = kind;
     removing = remove;
     asking = null;
@@ -79,6 +125,7 @@
       view = await call();
       const waiting = remove ? 'Removed. Twitch may take a minute to show it.' : 'Uploaded. Twitch may take a minute to show it.';
       toast.success(view.waiting ? waiting : (remove ? REMOVED : DONE)[kind]);
+      if (view.waiting) followUp(kind, view.slots.find((sl) => sl.kind === kind)?.url ?? '', remove);
     } catch (e) {
       const error = imageError(e) ?? { kind: 'failed', message: errorText(e) };
       failed = { kind, error };
@@ -134,7 +181,10 @@
         <div class="preview {slot.kind}">
           {#if slot.url}<img src={slot.url} alt="" />{:else}<span>{slot.accent ? 'Default' : 'None'}</span>{/if}
         </div>
-        <span class="name">{LABEL[slot.kind]}</span>
+        <span class="name">
+          {LABEL[slot.kind]}
+          {#if pending === slot.kind}<span class="pending">Waiting for Twitch…</span>{/if}
+        </span>
         <div class="actions">
           {#if slot.backup}
             <Button small variant="ghost" disabled={busy !== null} onclick={() => run(slot.kind, () => profileImagesIpc.restore(account, slot.kind))}>
@@ -231,6 +281,12 @@
     flex: 1;
     min-width: 0;
     font-weight: 600;
+  }
+  .pending {
+    display: block;
+    font-weight: 400;
+    font-size: var(--text-sm, 12px);
+    color: var(--dim);
   }
   .actions {
     display: flex;

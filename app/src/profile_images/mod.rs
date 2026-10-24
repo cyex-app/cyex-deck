@@ -258,6 +258,7 @@ pub async fn change(app: &AppHandle, account: &str, kind: ProfileImageKind, byte
     }
     let copy = bytes.clone();
     let (now, waiting) = upload(&t, kind, format, bytes, &before).await?;
+    let now = use_custom_banner(&t, kind, now).await;
     let url = (!waiting).then(|| now.get(kind.api()).to_owned());
     remember(app, account, kind, format, copy, url).await;
     Ok(shown(app, &t, kind, &now, waiting).await)
@@ -316,6 +317,7 @@ pub async fn restore(app: &AppHandle, account: &str, kind: ProfileImageKind) -> 
     let t = target(app, account)?;
     let before = api::images(&t.http, t.base(), &t.user_id).await.map_err(|e| check::map(&e))?;
     let (now, waiting) = upload(&t, kind, format, bytes, &before).await?;
+    let now = use_custom_banner(&t, kind, now).await;
     if let Some(dir) = backup_dir(app, account) {
         backup::remove(&dir, kind.file());
     }
@@ -418,6 +420,20 @@ async fn wait(t: &Target, kind: ProfileImageKind, before: &api::Images, done: im
         }
     }
     (now, true)
+}
+
+/// V107-Mz3 A banner that went up is also what the channel page shows: Twitch keeps its
+/// "Generated Background" choice otherwise, and the new banner stays hidden. A refusal only
+/// leaves the choice as it was.
+async fn use_custom_banner(t: &Target, kind: ProfileImageKind, mut now: api::Images) -> api::Images {
+    if kind != ProfileImageKind::Banner || !now.banner_is_accent() {
+        return now;
+    }
+    match api::set_hero(&t.http, t.auth(), t.base(), &t.user_id, api::CUSTOM_BANNER).await {
+        Ok(()) => now.hero = Some(api::CUSTOM_BANNER.to_owned()),
+        Err(e) => eprintln!("profile images: banner choice: {e}"),
+    }
+    now
 }
 
 /// The view after an upload; a new avatar shows everywhere in the app.
