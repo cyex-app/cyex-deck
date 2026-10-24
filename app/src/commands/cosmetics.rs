@@ -58,6 +58,12 @@ pub async fn cosmetics_sign_in(app: AppHandle, account: String, shared: bool) ->
     Ok(cosmetics::sign_in(&app, &account, shared).await)
 }
 
+/// V108-7U Cancel in the sign-in dialog: closes 7TV's sign-in window for the account.
+#[tauri::command]
+pub fn cosmetics_sign_in_cancel(app: AppHandle, account: String) {
+    crate::windows::seventv::cancel(&app, &account);
+}
+
 /// V108-7K Keeps a 7TV token pasted from the user's browser, once 7TV says it's this
 /// account's. Rejects with the message to show.
 #[tauri::command]

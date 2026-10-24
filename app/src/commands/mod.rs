@@ -264,6 +264,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         cosmetics::cosmetics_select,
         cosmetics::cosmetics_sign_out,
         cosmetics::cosmetics_sign_in,
+        cosmetics::cosmetics_sign_in_cancel,
         cosmetics::cosmetics_paste,
         cosmetics::cosmetics_open_7tv,
         cosmetics::cosmetics_bookmarklet,

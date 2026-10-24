@@ -2,6 +2,8 @@
 //! window, "Connect Twitch pages", the code's activate page): only name + password + 2FA stay.
 //! The Google / Apple / Amazon / Facebook buttons, the phone and "other device" options and
 //! their dividers are hidden; "Sign up" stays. The window is sized to the login card.
+//! V108-7U The same in 7TV's sign-in window. The activate page keeps its code field, Activate
+//! and Log in; its banner, home link and footer go, and the window fits the form.
 //! Styles and reads only; nothing here clicks.
 
 use serde_json::Value;
@@ -19,7 +21,10 @@ pub const CSS: &str = concat!(
     "[aria-label*=\"Google\"], [aria-label*=\"Apple\"], [aria-label*=\"Amazon\"], [aria-label*=\"Facebook\"], ",
     "[aria-label*=\"another device\" i], [aria-label*=\"QR\"], ",
     "a[href*=\"google.com\"], a[href*=\"apple.com\"], a[href*=\"amazon.com\"], a[href*=\"facebook.com\"], ",
-    "a[href*=\"/oauth2/\"][href*=\"provider\"], .cyex-auth-hide) { display: none !important; } ",
+    "a[href*=\"/oauth2/\"][href*=\"provider\"], ",
+    // Cookie notices: hidden, never answered.
+    "[data-a-target*=\"consent-banner\" i], [class*=\"consent-banner\" i], [class*=\"ConsentBanner\"], ",
+    ".cyex-auth-hide) { display: none !important; } ",
     // Twitch's login buttons carry no id: the `screen` attribute plus the provider's logo image.
     "html[data-cyex-auth] :is(div, li):has(> :is(button, a)[screen] img:is([src*=\"google\"], [src*=\"apple\"], ",
     "[src*=\"amazon\"], [src*=\"facebook\"])), ",
@@ -37,8 +42,14 @@ const authOnly = () => {
   const root = document.documentElement;
   if (!root || !document.body) return;
   const field = document.querySelector('input[type="password"], input[autocomplete="username"], input[name="username"], input[id^="login-username"], input[autocomplete="one-time-code"], input[name="code"], input[data-a-target*="verification"]');
-  if (!field) { root.removeAttribute('data-cyex-auth'); return; }
+  if (!field) {
+    if (location.pathname.startsWith('/activate')) return activateOnly(root);
+    root.removeAttribute('data-cyex-auth');
+    delete root.dataset.cyexFit;
+    return;
+  }
   root.setAttribute('data-cyex-auth', '');
+  delete root.dataset.cyexFit;
   // The card: the first box round the field with a background of its own.
   for (let c = field.parentElement, i = 0; c && c !== document.body && i < 20; c = c.parentElement, i++) {
     const bg = getComputedStyle(c).backgroundColor.match(/[\d.]+/g) || [];
@@ -80,13 +91,26 @@ const authOnly = () => {
     }
   }
 };
+// V108-7U The code's activate page: the code field, Activate and Log in stay; the banner with
+// "Return To Twitch", the home link and the legal footer go. The window fits the form.
+const activateOnly = (root) => {
+  root.setAttribute('data-cyex-auth', '');
+  const row = (el) => (el.closest('[class*="ScGrid"]') || el).classList.add('cyex-auth-hide');
+  for (const a of document.querySelectorAll('main a[href="/"], main a[href="https://www.twitch.tv/"]')) if (/return to twitch/i.test(a.textContent || '')) row(a);
+  for (const a of document.querySelectorAll('main a[href*="/legal/"]')) row(a);
+  for (const a of document.querySelectorAll('a[aria-label="Twitch Home"]')) a.classList.add('cyex-auth-hide');
+  const form = document.querySelector('main form');
+  if (!form || !form.offsetWidth) { delete root.dataset.cyexFit; return; }
+  root.dataset.cyexFit = JSON.stringify({ w: 440, h: Math.ceil(form.getBoundingClientRect().bottom + scrollY) });
+};
 let authTimer = 0;
 new MutationObserver(() => { clearTimeout(authTimer); authTimer = setTimeout(authOnly, 40); })
   .observe(document, { childList: true, subtree: true });
 "#;
 
 /// The card only: "" while the page has no login card.
-const MEASURE: &str = r#"(() => { const c = document.querySelector('.cyex-auth-card'); return c && c.offsetWidth > 0 ? JSON.stringify({ w: c.offsetWidth, h: c.offsetHeight }) : ''; })()"#;
+/// V108-7U Else the activate page's form (`data-cyex-fit`, from the top of the page).
+const MEASURE: &str = r#"(() => { const c = document.querySelector('.cyex-auth-card'); return c && c.offsetWidth > 0 ? JSON.stringify({ w: c.offsetWidth, h: c.offsetHeight }) : (document.documentElement.dataset.cyexFit || ''); })()"#;
 
 /// Room around the card, CSS px per side.
 const MARGIN: f64 = 24.0;
@@ -221,5 +245,8 @@ mod tests {
         assert!(CSS.matches('{').count() == CSS.matches('}').count());
         assert!(!CSS.to_lowercase().contains("sign up") && !CSS.to_lowercase().contains("create"));
         assert!(JS.contains("sign ?up|create") && !JS.contains(".click(") && !MEASURE.contains("click"));
+        // V108-7U Cookie notices are hidden, not answered; the activate page keeps its form.
+        assert!(CSS.contains("consent-banner") && JS.contains("activateOnly") && MEASURE.contains("cyexFit"));
+        assert!(!JS.contains("form.classList") && JS.contains("return to twitch"));
     }
 }

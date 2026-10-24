@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 
 import type { Applied } from './bindings/Applied';
 import type { Combo } from './bindings/Combo';
@@ -9,9 +10,10 @@ import type { CosmeticsView } from './bindings/CosmeticsView';
 import type { Kind } from './bindings/Kind';
 import type { Picked } from './bindings/Picked';
 import type { SelectError } from './bindings/SelectError';
+import type { SevenTvStage } from './bindings/SevenTvStage';
 import type { SignIn } from './bindings/SignIn';
 
-export type { Applied, Combo, ComboDone, ComboItem, ComboOp, CosmeticsView, Kind, Picked, SelectError, SignIn };
+export type { Applied, Combo, ComboDone, ComboItem, ComboOp, CosmeticsView, Kind, Picked, SelectError, SevenTvStage, SignIn };
 
 export const cosmeticsIpc = {
   /** V1051-02 The account's paints and badges. `fresh` skips Rust's 5 minute copy. */
@@ -24,6 +26,11 @@ export const cosmeticsIpc = {
   /** V1051-02 7TV's own sign-in window; resolves when it ends. `shared`: in the account's
    * Twitch web profile, so Twitch is signed in already (picked with subscriptions and wallet). */
   signIn: (account: string, shared = false) => invoke<SignIn>('cosmetics_sign_in', { account, shared }),
+  /** V108-7U Closes 7TV's sign-in window: `signIn` then resolves as cancelled. */
+  signInCancel: (account: string) => invoke<void>('cosmetics_sign_in_cancel', { account }),
+  /** V108-7U Where 7TV's sign-in window is. */
+  onSignInStage: (handler: (account: string, stage: SevenTvStage) => void) =>
+    listen<{ account: string; stage: SevenTvStage }>('seventv:sign-in', (e) => handler(e.payload.account, e.payload.stage)),
   /** V108-7K Keeps a 7TV token pasted from the browser. Rejects with the message to show. */
   paste: (account: string, token: string) => invoke<void>('cosmetics_paste', { account, token }),
   /** V108-7L The "Send to cyex deck" bookmark's address. */

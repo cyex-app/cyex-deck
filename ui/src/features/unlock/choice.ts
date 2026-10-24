@@ -94,13 +94,6 @@ export function order(parts: Part[]): Part[] {
 
 export const PART_NAME: Record<Part, string> = { seventv: '7TV', twitch: 'Subscriptions and wallet' };
 
-/** "7TV is set. Subscriptions and wallet didn’t finish." for a run that stopped half way. */
-export function leftText(done: Part[], failed: Part[]): string {
-  const did = done.map((p) => PART_NAME[p]);
-  const not = failed.map((p) => PART_NAME[p]).join(' and ');
-  const lead = did.length ? `${did.join(' and ')} ${did.length > 1 ? 'are' : 'is'} set. ` : '';
-  return `${lead}${not} didn’t finish. Try again any time.`;
-}
 
 /** A paint, badge or combo pick that needs a 7TV sign-in first: the pop-up asks for it.
  * Only with consent (without it, the menu shows the consent itself). */

@@ -12,7 +12,16 @@
   import ConsentText from '../cosmetics/ConsentText.svelte';
   import { CONSOLE_LINE, looksLikeToken } from './sevenTvPaste';
 
-  let { account, onclose }: { account: AccountView; onclose: () => void } = $props();
+  interface Props {
+    account: AccountView;
+    onclose: () => void;
+    /** V108-7U Inside the sign-in dialog: no frame, heading or Not now (the dialog has them). */
+    bare?: boolean;
+    /** Connected; the dialog says so itself. */
+    onconnected?: () => void;
+  }
+
+  let { account, onclose, bare = false, onconnected }: Props = $props();
 
   let token = $state('');
   let busy = $state(false);
@@ -40,6 +49,7 @@
 
   function connected() {
     token = '';
+    if (onconnected) return onconnected();
     toast.success('7TV connected.');
     onclose();
   }
@@ -81,11 +91,13 @@
   }
 </script>
 
-<div class="paste" role="group" aria-label="Connect 7TV from your browser">
-  <div class="head">
-    <strong>Connect 7TV from your browser</strong>
-    <span>For when the 7TV window won’t sign you in.</span>
-  </div>
+<div class="paste" class:bare role="group" aria-label="Connect 7TV from your browser">
+  {#if !bare}
+    <div class="head">
+      <strong>Connect 7TV from your browser</strong>
+      <span>For when the 7TV window won’t sign you in.</span>
+    </div>
+  {/if}
   <ol>
     <li>
       <span class="n" aria-hidden="true">1</span>
@@ -141,7 +153,7 @@
   </details>
   <p class="safe">Only paste this into cyex deck. Anyone with it can change your 7TV emotes.</p>
   {#if consent}<div class="consent"><ConsentText name={account.displayName} /></div>{/if}
-  <div class="end"><Button small variant="ghost" onclick={onclose}>Not now</Button></div>
+  {#if !bare}<div class="end"><Button small variant="ghost" onclick={onclose}>Not now</Button></div>{/if}
 </div>
 
 <style>
@@ -154,6 +166,12 @@
     background: var(--bg);
     border: 1px solid var(--accent-border);
     border-radius: var(--radius);
+  }
+  .paste.bare {
+    margin: 0;
+    padding: 0;
+    background: none;
+    border: 0;
   }
   .head {
     display: flex;

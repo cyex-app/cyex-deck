@@ -6,6 +6,9 @@
 //! before it closes. 7TV can't hand its session back from a real browser (its callbacks only
 //! go to 7tv.app), so this is the closest to "your browser".
 //! V108-7S In that profile it runs hidden first (see `silent`).
+//! V108-7U The dialog in the app follows it (`STAGE_EVENT`) and can close it (`cancel`). Twitch's
+//! pages in it get the login skin (only what signing in needs) and the window fits the login
+//! card; 7TV's own landing page shows a plain "Connecting" line instead of its site.
 
 mod silent;
 
@@ -15,13 +18,13 @@ use cyex_auth::SevenTvToken;
 use cyex_core::color::Theme;
 use serde::Serialize;
 use tauri::webview::{NewWindowResponse, PageLoadEvent, WebviewWindow};
-use tauri::{AppHandle, Manager, Url, WebviewUrl, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WindowEvent};
 use tauri_plugin_opener::OpenerExt;
 use tokio::sync::mpsc::{self, error::TryRecvError};
 use ts_rs::TS;
 
 use super::twitch;
-use crate::theme;
+use crate::theme::{self, ThemeLook};
 
 const PREFIX: &str = "seventv-";
 const HOSTS: [&str; 6] = [
@@ -45,6 +48,45 @@ pub enum SignIn {
     OtherAccount,
     Failed,
 }
+
+/// V108-7U Where 7TV's sign-in window is, for the dialog in the app.
+#[derive(Debug, Clone, Copy, Serialize, TS, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum SevenTvStage {
+    /// V108-7S Trying hidden in the Twitch pages profile.
+    Hidden,
+    /// Shown, waiting for the user.
+    Window,
+    /// Past Twitch: reading and checking 7TV's session.
+    Connecting,
+}
+
+/// V108-7U `{ account, stage }` while a sign-in window is open.
+pub const STAGE_EVENT: &str = "seventv:sign-in";
+
+#[derive(Serialize, Clone)]
+struct StageNote<'a> {
+    account: &'a str,
+    stage: SevenTvStage,
+}
+
+fn tell(app: &AppHandle, account: &str, stage: SevenTvStage) {
+    let _ = app.emit(STAGE_EVENT, StageNote { account, stage });
+}
+
+/// V108-7U Cancel in the dialog: the window closes as if its X was clicked (`capture` then
+/// ends with `Cancelled`). Nothing when no window is open for the account.
+pub fn cancel(app: &AppHandle, account: &str) {
+    if let Some(w) = app.get_webview_window(&label_of(account)) {
+        let _ = w.close();
+    }
+}
+
+/// The usual size of the window; a login card makes it smaller (`login::follow`).
+const SIZE: (f64, f64) = (480.0, 720.0);
+/// How long the window may follow its card.
+const FIT_FOR: Duration = Duration::from_secs(30 * 60);
 
 #[derive(Debug, PartialEq, Eq)]
 enum Callback {
@@ -101,6 +143,32 @@ fn callback(url: &Url, mock: Option<&str>) -> Option<Callback> {
     } else {
         None
     }
+}
+
+/// V108-7U 7TV's landing page after Twitch (`/login/callback`, where its session is read): one
+/// plain line in the app's colors instead of 7TV's site, which would only flash by.
+fn landing(look: &ThemeLook) -> String {
+    let p = look
+        .palette
+        .clone()
+        .unwrap_or_else(|| cyex_core::palette::palette(look.theme, &Default::default()));
+    let token = |k: &str| p.tokens.get(k).cloned().unwrap_or_default();
+    let css = format!(
+        "body {{ visibility: hidden !important; }} html::after {{ content: 'Connecting to 7TV\u{2026}'; \
+         position: fixed; inset: 0; z-index: 2147483647; display: grid; place-items: center; visibility: visible; \
+         background: {bg}; color: {muted}; font: 400 13px/1.45 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; }}",
+        bg = token("bg"),
+        muted = token("muted"),
+    );
+    let css = serde_json::to_string(&css).unwrap_or_default();
+    format!(
+        "(() => {{ if (window.top !== window || !/^(7tv\\.app|127\\.0\\.0\\.1)$/.test(location.hostname) \
+         || !location.pathname.startsWith('/login/callback')) return; \
+         const add = () => {{ if (document.getElementById('cyex-landing')) return; \
+         const root = document.head || document.documentElement; if (!root) return; \
+         const s = document.createElement('style'); s.id = 'cyex-landing'; s.textContent = {css}; root.appendChild(s); }}; \
+         new MutationObserver(add).observe(document, {{ childList: true, subtree: true }}); add(); }})();"
+    )
 }
 
 fn on_7tv(w: &WebviewWindow, mock: Option<&str>) -> bool {
@@ -179,8 +247,11 @@ pub async fn capture(app: &AppHandle, account: &str, login_url: String, shared: 
     };
     let window = builder
         .title("Sign in to 7TV")
-        .inner_size(480.0, 720.0)
-        .min_inner_size(420.0, 560.0)
+        .inner_size(SIZE.0, SIZE.1)
+        .min_inner_size(360.0, 300.0)
+        // V108-7U Twitch's skin (guarded to twitch.tv) and 7TV's landing line.
+        .initialization_script(super::twitch::skin(&look))
+        .initialization_script(landing(&look))
         .center()
         .theme(Some(match look.theme {
             Theme::Dark => tauri::Theme::Dark,
@@ -233,7 +304,13 @@ pub async fn capture(app: &AppHandle, account: &str, login_url: String, shared: 
     });
 
     let hidden = profile.is_some().then(silent::Silent::default);
-    let result = wait(&window, &mut rx, mock.as_deref(), hidden).await;
+    tell(app, account, if hidden.is_some() { SevenTvStage::Hidden } else { SevenTvStage::Window });
+    super::login::follow(app, label.clone(), SIZE, FIT_FOR);
+    let stage = |s: SevenTvStage| tell(app, account, s);
+    let result = wait(&window, &mut rx, mock.as_deref(), hidden, &stage).await;
+    if result.is_ok() {
+        tell(app, account, SevenTvStage::Connecting);
+    }
     let _ = window.hide();
     if profile.is_some() && !clean(&window, mock.as_deref()).await {
         // Not sure 7TV is gone: the whole profile goes, Twitch's login with it.
@@ -252,6 +329,7 @@ async fn wait(
     rx: &mut mpsc::UnboundedReceiver<Event>,
     mock: Option<&str>,
     mut hidden: Option<silent::Silent>,
+    stage: &(dyn Fn(SevenTvStage) + Sync),
 ) -> Result<SevenTvToken, SignIn> {
     let mut until: Option<tokio::time::Instant> = None;
     let start = Instant::now();
@@ -265,6 +343,7 @@ async fn wait(
             eprintln!("seventv: the hidden sign-in needs the user; showing it");
             let _ = window.show();
             let _ = window.set_focus();
+            stage(SevenTvStage::Window);
         }
     };
     loop {
@@ -280,6 +359,9 @@ async fn wait(
             }
             match got {
                 Ok(Event::Callback(Callback::Code)) => {
+                    if until.is_none() {
+                        stage(SevenTvStage::Connecting);
+                    }
                     until.get_or_insert_with(|| tokio::time::Instant::now() + POLL_FOR);
                 }
                 Ok(Event::Callback(Callback::Error) | Event::Closed) | Err(TryRecvError::Disconnected) => {
@@ -369,6 +451,20 @@ mod tests {
         let mock = Some("127.0.0.1:5199");
         assert_eq!(callback(&u("http://127.0.0.1:5199/login/callback?code=x"), mock), Some(Callback::Code));
         assert_eq!(callback(&u("http://127.0.0.1:5200/login/callback?code=x"), mock), None);
+    }
+
+    #[test]
+    fn the_landing_line_is_one_guarded_script() {
+        let look = ThemeLook {
+            theme: Theme::Dark,
+            palette: None,
+            accent: cyex_core::color::accent_tokens("#145aff", Theme::Dark),
+            wallpaper: None,
+        };
+        let js = landing(&look);
+        assert!(js.contains("/login/callback") && js.contains("Connecting to 7TV"));
+        assert!(js.contains(r"7tv\.app") && !js.contains(".click("));
+        assert!(serde_json::to_string(&SevenTvStage::Connecting).unwrap() == "\"connecting\"");
     }
 
     #[test]

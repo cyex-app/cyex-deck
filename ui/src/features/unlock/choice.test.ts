@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { AccountView } from '../../ipc/bindings/AccountView';
-import { asksConsent, chosen, doneOf, leftText, order, pickNeedsSignIn, plan, sevenTvShared, twitchLeft } from './choice.ts';
+import { asksConsent, chosen, doneOf, order, pickNeedsSignIn, plan, sevenTvShared, twitchLeft } from './choice.ts';
 
 const ok = { source: 'device', expiresAt: null, state: 'valid' } as AccountView['helix'];
 const bad = { source: 'device', expiresAt: null, state: 'invalid' } as AccountView['helix'];
@@ -79,11 +79,6 @@ test('7TV follows Open in', () => {
 test('Twitch runs first', () => {
   assert.deepEqual(order(['seventv', 'twitch']), ['twitch', 'seventv']);
   assert.deepEqual(order(['seventv']), ['seventv']);
-});
-
-test('a half-done run says what’s left', () => {
-  assert.equal(leftText(['twitch'], ['seventv']), 'Subscriptions and wallet is set. 7TV didn’t finish. Try again any time.');
-  assert.equal(leftText([], ['twitch']), 'Subscriptions and wallet didn’t finish. Try again any time.');
 });
 
 test('a pick asks for sign-in only when allowed and signed out or expired', () => {
