@@ -10,16 +10,18 @@
     small?: boolean;
     icon?: IconName;
     disabled?: boolean;
+    /** A taller invisible hit area (28 px) for a small link; the look and layout stay. */
+    hit?: boolean;
     type?: 'button' | 'submit';
     onclick?: (e: MouseEvent) => void;
     children: Snippet;
   }
 
-  let { variant = 'secondary', small = false, icon, disabled = false, type = 'button', onclick, children }: Props =
+  let { variant = 'secondary', small = false, icon, disabled = false, hit = false, type = 'button', onclick, children }: Props =
     $props();
 </script>
 
-<button class="btn {variant}" class:small {type} {disabled} {onclick}>
+<button class="btn {variant}" class:small class:hit {type} {disabled} {onclick}>
   {#if icon}<Icon name={icon} size={small ? 14 : 15} />{/if}
   {@render children()}
 </button>
@@ -86,6 +88,14 @@
     color: var(--accent-text);
     font-weight: 500;
     border-radius: var(--radius-sm);
+  }
+  .hit {
+    position: relative;
+  }
+  .hit::before {
+    content: '';
+    position: absolute;
+    inset: -4px 0;
   }
   .link.small {
     height: auto;

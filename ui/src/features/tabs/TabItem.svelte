@@ -377,11 +377,11 @@
     background: var(--surface);
     color: var(--text);
   }
-  /* 24 px to hit, 18 px to see. */
+  /* 28 px to hit, 18 px to see. */
   .x::after {
     content: '';
     position: absolute;
-    inset: -3px;
+    inset: -5px;
   }
   /* Drop marks sit just inside the pill, so a row's first tab shows one too. */
   [data-mark='before'] .pill::before,

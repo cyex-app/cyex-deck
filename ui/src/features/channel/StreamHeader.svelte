@@ -124,6 +124,9 @@
   .meta {
     color: var(--dim);
     font-size: 0.72rem;
+    /* Room for the hit area below, which the ellipsis clip would cut. Layout unchanged. */
+    padding-block: 5px;
+    margin-block: -5px;
   }
   .up {
     font-variant-numeric: tabular-nums;
@@ -138,6 +141,13 @@
     color: inherit;
     font: inherit;
     cursor: pointer;
+    position: relative;
+  }
+  /* 24 px to hit, 14 px to see. */
+  .watching::before {
+    content: '';
+    position: absolute;
+    inset: -5px -4px;
   }
   .watching:hover {
     color: var(--text);

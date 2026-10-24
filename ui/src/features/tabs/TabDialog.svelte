@@ -224,7 +224,7 @@
         </section>
       {/if}
       {#if !editing && !into}
-        <Button variant="link" small onclick={() => (feedMode = true)}>Make a feed tab instead</Button>
+        <Button hit variant="link" small onclick={() => (feedMode = true)}>Make a feed tab instead</Button>
       {/if}
     </div>
   {/if}

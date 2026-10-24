@@ -235,7 +235,7 @@
     {/if}
     <div class="spacer"></div>
     {#if mv.layout || mv.hidden.length || mv.chatKept != null}
-      <Button small variant="link" onclick={resetLayout}>Reset layout</Button>
+      <Button hit small variant="link" onclick={resetLayout}>Reset layout</Button>
     {/if}
     <IconButton
       icon={locked ? 'lock' : 'lockOpen'}

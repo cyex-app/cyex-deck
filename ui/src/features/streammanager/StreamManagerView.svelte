@@ -298,7 +298,7 @@
       </div>
       <span class="spacer"></span>
       {#if cfg.layout || cfg.chatKept != null}
-        <Button small variant="link" onclick={resetLayout}>Reset layout</Button>
+        <Button hit small variant="link" onclick={resetLayout}>Reset layout</Button>
       {/if}
       <IconButton
         icon="chat"

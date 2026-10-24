@@ -70,10 +70,17 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     cursor: default;
+    position: relative;
     transition:
       background-color var(--fast) var(--ease),
       color var(--fast) var(--ease),
       transform 100ms var(--ease);
+  }
+  /* 32 px to hit, 22 px to see. */
+  .live-btn::before {
+    content: '';
+    position: absolute;
+    inset: -5px 0;
   }
   .dot {
     width: 6px;
