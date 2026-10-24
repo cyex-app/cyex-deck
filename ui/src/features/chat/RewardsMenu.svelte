@@ -249,6 +249,7 @@
       {:else if !choices.length}
         <p class="note">No rewards here.</p>
       {:else}
+        <span id="lack-{room.login}" class="sr">{NOT_ENOUGH}</span>
         <div class="grid">
           {#each choices as c (c.id)}
             <!-- Paused or on cooldown is already greyed: one reason at a time. -->
@@ -257,6 +258,7 @@
               class="reward"
               class:lack
               aria-disabled={lack ? 'true' : undefined}
+              aria-describedby={lack ? `lack-${room.login}` : undefined}
               disabled={!canRedeem || !c.available}
               style:--rc={c.color}
               onclick={() => pick(c)}
@@ -264,9 +266,8 @@
             >
               <span class="tile">{#if c.image}<img src={c.image} alt="" />{/if}</span>
               <span class="rt">{c.title}</span>
-              <span class="cost">{formatNumber(c.cost)}</span>
               <!-- V107-H11b Still clickable: the confirm says it again. -->
-              {#if lack}<span class="short">{NOT_ENOUGH}</span>{/if}
+              <span class="cost">{#if lack}<Icon name="lock" size={10} />{/if}{formatNumber(c.cost)}</span>
             </button>
           {/each}
         </div>
@@ -332,6 +333,14 @@
     align-items: center;
     gap: 6px;
   }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
   .grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -377,17 +386,29 @@
     text-align: center;
   }
   .cost {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    max-width: 100%;
+    line-height: 14px;
     color: var(--dim);
     font-weight: 700;
+    font-variant-numeric: tabular-nums;
   }
+  /* Short on points: same tile, cost struck and muted, icon and title dimmed by colour. */
   .reward.lack .cost {
-    opacity: 0.5;
-  }
-  .short {
     color: var(--muted);
-    font-size: 0.7rem;
-    line-height: 1.2;
-    text-align: center;
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+  }
+  .reward.lack .rt {
+    color: var(--muted);
+  }
+  .reward.lack .tile {
+    background: color-mix(in srgb, var(--rc) 45%, var(--surface));
+  }
+  .reward.lack .tile img {
+    filter: saturate(0.6);
   }
   .note.lack {
     color: var(--muted);
