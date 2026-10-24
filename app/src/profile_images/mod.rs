@@ -82,8 +82,7 @@ pub struct ProfileImageSlot {
     pub history: Vec<ProfileImageSaved>,
     /// V107-Mh Twitch has a way to remove it and there's one to remove.
     pub removable: bool,
-    /// V107-Mz The channel page shows the accent colour instead of the banner. V107-Mz2 The
-    /// banner itself still shows, as in Twitch's settings (user, 2026/10/24); none uploaded: "Default".
+    /// V107-Mz The channel page shows the accent colour, so "Default", not "None".
     pub accent: bool,
 }
 
@@ -183,10 +182,10 @@ fn view(app: &AppHandle, account: &str, images: &api::Images, waiting: bool) -> 
         .iter()
         .map(|&kind| ProfileImageSlot {
             kind,
-            url: images.get(kind.api()).to_owned(),
+            url: images.shown(kind.api()).to_owned(),
             backup: dir.as_deref().and_then(|d| backup::newest(d, kind.file())).is_some(),
-            history: dir.as_deref().map_or_else(Vec::new, |d| saved(d, kind, images.get(kind.api()))),
-            removable: can_remove(kind, images.get(kind.api())),
+            history: dir.as_deref().map_or_else(Vec::new, |d| saved(d, kind, images.shown(kind.api()))),
+            removable: can_remove(kind, images.shown(kind.api())),
             accent: kind == ProfileImageKind::Banner && images.banner_is_accent(),
         })
         .collect();
