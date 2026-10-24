@@ -476,7 +476,7 @@
         rows="1"
         aria-label={replyTo ? 'Reply' : `Message #${room.login}`}
         maxlength={MAX_CHARS * 2}
-        placeholder={replyTo ? 'Write a reply' : `Message #${room.login}`}
+        placeholder={replyTo ? (side.folded ? 'Reply' : 'Write a reply') : side.folded ? 'Message' : `Message #${room.login}`}
         spellcheck={settings.v.chat.spellCheck}
         data-native-menu={settings.v.chat.spellCheck ? '' : undefined}
         oninput={updateSuggest}
@@ -509,7 +509,7 @@
       {/if}
     {:else}
       <button class="signin" onclick={onsignin}>
-        {room.account ? 'This account can’t chat yet. Check Settings → Accounts.' : 'Sign in to chat'}
+        {room.account ? 'This account can’t chat yet. Check Settings → Accounts.' : accounts.list.length ? 'Pick an account to chat' : 'Sign in to chat'}
       </button>
     {/if}
   </div>
