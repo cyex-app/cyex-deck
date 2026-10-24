@@ -12,6 +12,6 @@
   let { account, login, onclose }: Props = $props();
 </script>
 
-<Dialog title="Chat identity" width={340} {onclose}>
+<Dialog title="Chat identity" width={400} {onclose}>
   <IdentityPanel {account} {login} />
 </Dialog>

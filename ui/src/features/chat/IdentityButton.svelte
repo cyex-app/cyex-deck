@@ -23,7 +23,7 @@
   >
     <Icon name="badge" size={16} />
   </button>
-  <Popover bind:open align="end" side="above" label="Chat identity">
+  <Popover bind:open align="end" side="above" flush label="Chat identity">
     <IdentityPanel {account} {login} />
   </Popover>
 </div>

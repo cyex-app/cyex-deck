@@ -19,12 +19,14 @@
     align?: 'start' | 'end';
     side?: 'below' | 'above';
     role?: 'menu' | 'dialog';
+    /** No padding: the content brings its own edges (a pinned header, a scroll area). */
+    flush?: boolean;
     /** What screen readers call it, e.g. "Notifications". */
     label?: string;
     children: Snippet;
   }
 
-  let { open = $bindable(), align = 'end', side = 'below', role = 'dialog', label, children }: Props = $props();
+  let { open = $bindable(), align = 'end', side = 'below', role = 'dialog', flush = false, label, children }: Props = $props();
 
   let box = $state<HTMLElement>();
 
@@ -86,6 +88,7 @@
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
     class="popover"
+    class:flush
     bind:this={box}
     use:floating={{ anchor: box?.parentElement, side, align }}
     {role}
@@ -109,6 +112,9 @@
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
     box-shadow: var(--shadow-pop);
+  }
+  .flush {
+    padding: 0;
   }
   .popover:focus {
     outline: none;
