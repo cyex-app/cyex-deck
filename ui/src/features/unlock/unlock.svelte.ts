@@ -36,6 +36,8 @@ interface Hooks {
   twitchAlone?: () => void;
   /** 7TV's session ran out: it counts as not done, though it's still stored. */
   again?: boolean;
+  /** V108-7S 7TV in the account's Twitch pages profile (hidden first) whatever "Open in" says. */
+  shared?: boolean;
 }
 
 class Unlock {
@@ -100,7 +102,7 @@ class Unlock {
     for (const step of this.steps) {
       step.state = 'running';
       const note =
-        step.part === 'twitch' ? await this.twitch(q.account) : await this.seventv(q.account, sevenTvShared(signIn.place));
+        step.part === 'twitch' ? await this.twitch(q.account) : await this.seventv(q.account, hooks.shared ?? sevenTvShared(signIn.place));
       step.state = note === null ? 'done' : 'failed';
       if (note) step.note = note;
       (note === null ? done : failed).push(step.part);

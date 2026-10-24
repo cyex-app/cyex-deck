@@ -56,7 +56,17 @@ pub(super) async fn check(
     raw: &str,
     now: i64,
 ) -> Result<String, Refused> {
-    let token = read(raw).ok_or(Refused::Format)?;
+    check_token(api, tokens, account, read(raw).ok_or(Refused::Format)?, now).await
+}
+
+/// `check` for a token already in shape (V108-7L the bookmark sends one).
+pub(super) async fn check_token(
+    api: &Client,
+    tokens: &SevenTvTokens,
+    account: &str,
+    token: SevenTvToken,
+    now: i64,
+) -> Result<String, Refused> {
     if token.expired(now) {
         return Err(Refused::RanOut);
     }
@@ -82,9 +92,14 @@ pub async fn paste(app: &AppHandle, account: &str, raw: &str) -> Result<(), Refu
     if !super::has_consent(app, account) {
         return Err(Refused::NoConsent);
     }
-    let api = super::api(app);
+    let id = check(&super::api(app), &app.state::<Auth>().seventv, account, raw, auth::unix_now()).await?;
+    kept(app, account, id)
+}
+
+/// After a check passed: consent again (withdrawn while 7TV was asked: not kept), then the
+/// same follow-up as the sign-in window.
+pub(super) fn kept(app: &AppHandle, account: &str, id: String) -> Result<(), Refused> {
     let tokens = &app.state::<Auth>().seventv;
-    let id = check(&api, tokens, account, raw, auth::unix_now()).await?;
     // Withdrawn while 7TV was asked: the session isn't kept.
     if !super::has_consent(app, account) {
         let _ = tokens.forget(account);

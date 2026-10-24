@@ -26,6 +26,11 @@ export const cosmeticsIpc = {
   signIn: (account: string, shared = false) => invoke<SignIn>('cosmetics_sign_in', { account, shared }),
   /** V108-7K Keeps a 7TV token pasted from the browser. Rejects with the message to show. */
   paste: (account: string, token: string) => invoke<void>('cosmetics_paste', { account, token }),
+  /** V108-7L The "Send to cyex deck" bookmark's address. */
+  bookmarklet: () => invoke<string>('cosmetics_bookmarklet'),
+  /** V108-7L Waits for the bookmark clicked on 7tv.app. Rejects with the message to show ('' when stopped). */
+  linkWait: (account: string) => invoke<void>('cosmetics_link_wait', { account }),
+  linkStop: () => invoke<void>('cosmetics_link_stop'),
   /** V108-7K 7tv.app in the browser (and profile) used last. */
   open7tv: () => invoke<void>('cosmetics_open_7tv'),
   signOut: (account: string) => invoke<void>('cosmetics_sign_out', { account }),

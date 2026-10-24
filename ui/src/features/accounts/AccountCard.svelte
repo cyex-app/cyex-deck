@@ -101,7 +101,7 @@
   /** V108-7P The prompt's Connect: the same 7TV sign-in (and consent) as the 7TV line. */
   function connectSevenTv() {
     const id = alsoSevenTv.take();
-    if (id) unlock.ask('seventv', id);
+    if (id) unlock.ask('seventv', id, { shared: true });
   }
 
   function closeUnlock() {
@@ -165,7 +165,7 @@
       <Button small disabled={!!unlock.asked} onclick={() => unlock.ask('settings', account.userId)}>
         {ended ? 'Sign in again' : 'Sign in'}
       </Button>
-      <Button small variant="ghost" disabled={pasting} onclick={() => (pasting = true)}>Paste a token</Button>
+      <Button small variant="ghost" disabled={pasting} onclick={() => (pasting = true)}>Use your browser</Button>
     {/if}
     {#if account.seventv.consent}
       <ConfirmButton label="Withdraw" confirm="Click again to withdraw" variant="ghost" onconfirm={withdraw} />

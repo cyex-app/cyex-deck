@@ -66,6 +66,25 @@ pub async fn cosmetics_paste(app: AppHandle, account: String, token: String) -> 
     cosmetics::paste(&app, &account, &token).await.map_err(|r| r.text().to_owned())
 }
 
+/// V108-7L The "Send to cyex deck" bookmark's address (this install's nonce in it).
+#[tauri::command]
+pub fn cosmetics_bookmarklet(app: AppHandle) -> Result<String, String> {
+    cosmetics::link::bookmarklet(&app)
+}
+
+/// V108-7L Waits for the bookmark clicked on 7tv.app. Rejects with the message to show
+/// ("" when stopped).
+#[tauri::command]
+pub async fn cosmetics_link_wait(app: AppHandle, account: String) -> Result<(), String> {
+    known(&app, &account)?;
+    cosmetics::link::wait(&app, &account).await
+}
+
+#[tauri::command]
+pub fn cosmetics_link_stop(app: AppHandle) {
+    cosmetics::link::stop(&app);
+}
+
 /// V108-7K Opens 7tv.app in the browser (and profile) used last, else the default one.
 #[tauri::command]
 pub fn cosmetics_open_7tv(app: AppHandle) -> Result<(), String> {

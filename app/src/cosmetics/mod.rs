@@ -4,6 +4,7 @@
 
 mod apply;
 mod combos;
+pub mod link;
 pub mod lookup;
 mod paste;
 mod select;

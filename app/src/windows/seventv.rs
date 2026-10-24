@@ -5,13 +5,16 @@
 //! profile instead, so Twitch is signed in already, and every 7TV trace is cleared from it
 //! before it closes. 7TV can't hand its session back from a real browser (its callbacks only
 //! go to 7tv.app), so this is the closest to "your browser".
+//! V108-7S In that profile it runs hidden first (see `silent`).
 
-use std::time::Duration;
+mod silent;
+
+use std::time::{Duration, Instant};
 
 use cyex_auth::SevenTvToken;
 use cyex_core::color::Theme;
 use serde::Serialize;
-use tauri::webview::{NewWindowResponse, WebviewWindow};
+use tauri::webview::{NewWindowResponse, PageLoadEvent, WebviewWindow};
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WindowEvent};
 use tauri_plugin_opener::OpenerExt;
 use tokio::sync::mpsc::{self, error::TryRecvError};
@@ -52,6 +55,9 @@ enum Callback {
 enum Event {
     Callback(Callback),
     Closed,
+    /// V108-7S Where the window went, and pages that finished loading.
+    Went(Url),
+    Loaded(Url),
 }
 
 /// `host:port` of a local mock (`http://127.0.0.1:<port>`), the only plain-http place allowed.
@@ -147,6 +153,7 @@ fn label_of(account: &str) -> String {
 pub async fn capture(app: &AppHandle, account: &str, login_url: String, shared: bool) -> Result<SevenTvToken, SignIn> {
     let label = label_of(account);
     if let Some(w) = app.get_webview_window(&label) {
+        let _ = w.show();
         let _ = w.unminimize();
         let _ = w.set_focus();
         return Err(SignIn::Cancelled);
@@ -155,6 +162,7 @@ pub async fn capture(app: &AppHandle, account: &str, login_url: String, shared: 
     let mock = mock_of(&login_url);
     let (tx, mut rx) = mpsc::unbounded_channel::<Event>();
     let nav_tx = tx.clone();
+    let load_tx = tx.clone();
     let nav_mock = mock.clone();
     let pop_app = app.clone();
     let look = theme::look(app);
@@ -175,12 +183,21 @@ pub async fn capture(app: &AppHandle, account: &str, login_url: String, shared: 
             Theme::Light => tauri::Theme::Light,
         }))
         .background_color(theme::background(app))
+        .visible(profile.is_none())
         .on_navigation(move |u| {
             let ok = allowed(u, nav_mock.as_deref());
+            if ok {
+                let _ = nav_tx.send(Event::Went(u.clone()));
+            }
             if ok && let Some(c) = callback(u, nav_mock.as_deref()) {
                 let _ = nav_tx.send(Event::Callback(c));
             }
             ok
+        })
+        .on_page_load(move |_, p| {
+            if p.event() == PageLoadEvent::Finished {
+                let _ = load_tx.send(Event::Loaded(p.url().clone()));
+            }
         })
         .on_new_window(move |u, _| {
             if u.scheme() == "https" {
@@ -205,7 +222,8 @@ pub async fn capture(app: &AppHandle, account: &str, login_url: String, shared: 
         }
     });
 
-    let result = wait(&window, &mut rx, mock.as_deref()).await;
+    let hidden = profile.is_some().then(silent::Silent::default);
+    let result = wait(&window, &mut rx, mock.as_deref(), hidden).await;
     if profile.is_some() && !clean(&window, mock.as_deref()).await {
         // Not sure 7TV is gone: the whole profile goes, Twitch's login with it.
         eprintln!("seventv: couldn't clear 7TV from the Twitch profile; clearing all of it");
@@ -217,24 +235,51 @@ pub async fn capture(app: &AppHandle, account: &str, login_url: String, shared: 
 }
 
 /// Waits for 7TV's callback, then looks for the session for up to `POLL_FOR`. Closing the
-/// window, or the page closing itself, is a cancel.
+/// window, or the page closing itself, is a cancel. `hidden`: V108-7S shown when it must be.
 async fn wait(
     window: &WebviewWindow,
     rx: &mut mpsc::UnboundedReceiver<Event>,
     mock: Option<&str>,
+    mut hidden: Option<silent::Silent>,
 ) -> Result<SevenTvToken, SignIn> {
     let mut until: Option<tokio::time::Instant> = None;
+    let start = Instant::now();
+    let show = |s: &mut silent::Silent, seen: Option<silent::Seen<'_>>| {
+        let t = start.elapsed();
+        let now = match seen {
+            Some(e) => s.seen(e, t),
+            None => s.tick(t),
+        };
+        if now {
+            eprintln!("seventv: the hidden sign-in needs the user; showing it");
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    };
     loop {
         loop {
-            match rx.try_recv() {
+            let got = rx.try_recv();
+            if let (Some(s), Ok(e)) = (hidden.as_mut(), &got) {
+                match e {
+                    Event::Went(u) => show(s, Some(silent::Seen::Went(u))),
+                    Event::Loaded(u) => show(s, Some(silent::Seen::Loaded(u))),
+                    Event::Callback(Callback::Code) => show(s, Some(silent::Seen::CalledBack)),
+                    _ => {}
+                }
+            }
+            match got {
                 Ok(Event::Callback(Callback::Code)) => {
                     until.get_or_insert_with(|| tokio::time::Instant::now() + POLL_FOR);
                 }
                 Ok(Event::Callback(Callback::Error) | Event::Closed) | Err(TryRecvError::Disconnected) => {
                     return Err(SignIn::Cancelled);
                 }
+                Ok(Event::Went(_) | Event::Loaded(_)) => {}
                 Err(TryRecvError::Empty) => break,
             }
+        }
+        if let Some(s) = hidden.as_mut() {
+            show(s, None);
         }
         if let Some(until) = until {
             if tokio::time::Instant::now() >= until {

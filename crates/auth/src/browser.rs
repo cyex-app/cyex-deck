@@ -9,6 +9,8 @@ use std::time::{Duration, Instant};
 
 use crate::{AuthError, scopes};
 
+pub mod link;
+
 /// Fixed: the redirect URL has to be registered for the client in Twitch's console.
 pub const PORT: u16 = 17563;
 pub const REDIRECT: &str = "http://localhost:17563/auth";
