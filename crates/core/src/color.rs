@@ -169,7 +169,7 @@ fn brand_tokens(theme: Theme) -> AccentTokens {
     match theme {
         Theme::Dark => AccentTokens {
             accent: s(DEFAULT_ACCENT),
-            accent_hover: s("#3f86ff"),
+            accent_hover: s("#2a6aff"),
             accent_ink: s("#ffffff"),
             accent_text: s("#7ea4ff"),
             accent_dim: s("rgba(20, 90, 255, 0.14)"),
@@ -286,7 +286,7 @@ mod tests {
         let dark = accent_tokens(DEFAULT_ACCENT, Theme::Dark);
         assert_eq!(
             (dark.accent.as_str(), dark.accent_hover.as_str(), dark.accent_text.as_str()),
-            (DEFAULT_ACCENT, "#3f86ff", "#7ea4ff")
+            (DEFAULT_ACCENT, "#2a6aff", "#7ea4ff")
         );
         let light = accent_tokens(DEFAULT_ACCENT, Theme::Light);
         assert_eq!(
