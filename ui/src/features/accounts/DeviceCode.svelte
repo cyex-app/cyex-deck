@@ -1,5 +1,6 @@
-<!-- Code to approve on twitch.tv/activate while a Device Code sign-in runs (1.5). V103-01
-     Twitch's page opens in the app's Twitch window with the code filled in, not the browser. -->
+<!-- The running sign-in (1.5). V108-01 Sign in with Twitch: waits for Twitch's sign-in page.
+     Sign in with a code: the code to approve on twitch.tv/activate, which opens with it filled
+     in. V108-02 Either opens in the browser or a fresh app window, as picked. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import { accountsIpc } from '../../ipc/accounts';
@@ -17,15 +18,15 @@
     return () => clearInterval(timer);
   });
 
-  /** V102-19 Adding to an account: the code has to be approved as that account. */
+  /** V102-19 Adding to an account: the sign-in has to be that account. */
   const as = $derived(signIn.forUser ? accounts.list.find((a) => a.userId === signIn.forUser)?.displayName : undefined);
+  const where = $derived(signIn.at === 'app' ? 'the sign-in window' : 'your browser');
 
   const left = $derived(signIn.code ? signIn.code.expiresIn - (now - signIn.codeAt) / 1000 : 0);
 
-  async function open() {
-    if (!signIn.code) return;
+  async function reopen() {
     try {
-      await accountsIpc.openActivation(signIn.forUser, signIn.code.uri);
+      await accountsIpc.reopenSignIn();
     } catch (e) {
       toast.error(errorText(e));
     }
@@ -37,11 +38,25 @@
 </script>
 
 <div class="device">
-  {#if signIn.code}
-    <p class="lead">Approve this code in the Twitch window{as ? `, as ${as}` : ''}</p>
+  {#if signIn.kind === 'helix'}
+    {#if signIn.opened}
+      <p class="lead">Finish signing in in {where}{as ? `, as ${as}` : ''}</p>
+      <div class="actions">
+        <Button variant="primary" icon="popout" onclick={reopen}>Open again</Button>
+        <Button variant="ghost" onclick={() => signIn.cancel()}>Cancel</Button>
+      </div>
+      <p class="note">Log in there if Twitch asks, then come back here.</p>
+    {:else}
+      <p class="lead">Opening Twitch…</p>
+      <div class="actions">
+        <Button variant="ghost" onclick={() => signIn.cancel()}>Cancel</Button>
+      </div>
+    {/if}
+  {:else if signIn.code}
+    <p class="lead">Approve this code in {where}{as ? `, as ${as}` : ''}</p>
     <div class="code">{signIn.code.userCode}</div>
     <div class="actions">
-      <Button variant="primary" icon="popout" onclick={open}>Show Twitch</Button>
+      <Button variant="primary" icon="popout" onclick={reopen}>Open again</Button>
       <Button icon="copy" onclick={copyCode}>Copy code</Button>
       <Button variant="ghost" onclick={() => signIn.cancel()}>Cancel</Button>
     </div>

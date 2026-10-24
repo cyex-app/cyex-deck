@@ -6,6 +6,7 @@ mod placement;
 pub mod overlay;
 mod panels;
 pub mod seventv;
+pub mod sign_in;
 pub mod twitch;
 mod usercard;
 pub mod zoom;

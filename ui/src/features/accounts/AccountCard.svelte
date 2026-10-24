@@ -21,6 +21,7 @@
   import ProfileImages from './ProfileImages.svelte';
   import { profileImagesIpc } from '../../ipc/profileImages';
   import { signIn } from './signIn.svelte';
+  import { twitchPages } from './twitchPages.svelte';
   import { twitchLeft } from '../unlock/choice';
   import { unlock } from '../unlock/unlock.svelte';
   import { accountName, missingScopesText, needsSignIn, tokenStatus } from './status';
@@ -33,6 +34,7 @@
   import ConfirmButton from '../../components/ConfirmButton.svelte';
 
   let { account }: { account: AccountView } = $props();
+  twitchPages.watch();
 
   const TOKENS: { kind: TokenKind; title: string; none: string; tip?: string }[] = [
     { kind: 'helix', title: 'Twitch', none: 'Needed for payment methods, subscriptions and mod tools.' },
@@ -166,6 +168,30 @@
     </p>
   {/if}
 
+  <!-- V108-04 Twitch's own pages in the app keep their own login. -->
+  <div class="line">
+    <span class="name">Twitch pages</span>
+    {#if twitchPages.has(account.userId)}
+      <span class="status ok">Connected</span>
+      <Button
+        small
+        variant="ghost"
+        onclick={() =>
+          attempt(async () => {
+            await subsIpc.signOut(account.userId);
+            toast.success('Twitch pages signed out.');
+          })}
+      >
+        Sign out
+      </Button>
+    {:else}
+      <span class="status muted">Not connected. Wallet, subscriptions, Bits and the clip editor ask you to log in.</span>
+      <Button small disabled={twitchPages.connecting !== null} onclick={() => twitchPages.connect(account.userId)}>
+        {twitchPages.connecting === account.userId ? 'Waiting for login…' : 'Connect'}
+      </Button>
+    {/if}
+  </div>
+
   <div class="line">
     <span class="name">Joined chats</span>
     <span class="status">
@@ -192,17 +218,6 @@
       <!-- V102-20 -->
       <span class="locked"><Button small variant="ghost" icon="pencil" disabled>Twitch profile</Button><GateFlag kind="gql" /></span>
     {/if}
-    <Button
-      small
-      variant="ghost"
-      onclick={() =>
-        attempt(async () => {
-          await subsIpc.signOut(account.userId);
-          toast.success('Signed out of Twitch in the app.');
-        })}
-    >
-      Sign out of Twitch in the app
-    </Button>
     <ConfirmButton label="Remove account" confirm="Click again to remove" icon="trash" variant="ghost" onconfirm={removeAccount} />
   </footer>
 </section>

@@ -4,21 +4,29 @@ import { listen } from '@tauri-apps/api/event';
 import type { AuthSnapshot } from './bindings/AuthSnapshot';
 import type { ConnectionCount } from './bindings/ConnectionCount';
 import type { DeviceStart } from './bindings/DeviceStart';
+import type { Place } from './bindings/Place';
 import type { SignedIn } from './bindings/SignedIn';
 import type { TokenKind } from './bindings/TokenKind';
 
 export const accountsIpc = {
   snapshot: () => invoke<AuthSnapshot>('accounts_snapshot'),
-  /** Device Code sign-in. `onCode` gets the code to show; resolves with the account. With
-   * `userId`, the sign-in is added to that account and must be the same user (V102-19). */
-  signIn: (kind: TokenKind, userId: string | null, onCode: (code: DeviceStart) => void) => {
+  /** Device Code sign-in ("Sign in with a code"). `onCode` gets the code to show; resolves
+   * with the account. With `userId`, the sign-in is added to that account and must be the
+   * same user (V102-19). `place`: where Twitch's code page opens (V108-02). */
+  signIn: (kind: TokenKind, userId: string | null, place: Place, onCode: (code: DeviceStart) => void) => {
     const channel = new Channel<DeviceStart>();
     channel.onmessage = onCode;
-    return invoke<SignedIn>('accounts_sign_in', { kind, userId, onCode: channel });
+    return invoke<SignedIn>('accounts_sign_in', { kind, userId, place, onCode: channel });
+  },
+  /** V108-01 "Sign in with Twitch" on Twitch's sign-in page. `onStart`: the page is open. */
+  signInBrowser: (userId: string | null, place: Place, onStart: () => void) => {
+    const channel = new Channel<null>();
+    channel.onmessage = onStart;
+    return invoke<SignedIn>('accounts_sign_in_browser', { userId, place, onStart: channel });
   },
   cancelSignIn: () => invoke<void>('accounts_cancel_sign_in'),
-  /** V103-01 Twitch's page for the running sign-in's code, in the app's Twitch window. */
-  openActivation: (userId: string | null, uri: string) => invoke<void>('accounts_open_activation', { userId, uri }),
+  /** V108-02 The running sign-in's page again, where it opened. */
+  reopenSignIn: () => invoke<void>('accounts_reopen_sign_in'),
   /** V102-19 A GQL token for an account signed in with Twitch. */
   addGqlToken: (userId: string, token: string) => invoke<SignedIn>('accounts_add_gql_token', { userId, token }),
   /** V102-20 Brings the main window up on the sign-in that unlocks a greyed-out tool. */

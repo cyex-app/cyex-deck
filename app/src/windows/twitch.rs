@@ -3,9 +3,10 @@
 //! WebView2 profile folder, so its Twitch sign-in stays separate and is remembered. The
 //! page gets no app IPC (remote origin, no capability lists it). Links that leave Twitch
 //! open in the browser; payment pop-ups (PayPal, card checks) open as small windows.
-//! V103-01 Sign-in codes are approved here too, never in the browser.
+//! V108-02 Sign-ins no longer run here (`windows::sign_in`, the browser); "Connect Twitch
+//! pages" signs the account in to twitch.tv here instead.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use cyex_core::color::Theme;
@@ -17,10 +18,6 @@ use tauri_plugin_opener::OpenerExt;
 use crate::theme::{self, ThemeLook};
 
 const PREFIX: &str = "twitch-";
-/// V103-01 The profile a sign-in for a new account is approved in. The account takes it
-/// over once it's added, so its Twitch login is kept for payment methods and the like.
-const NEW: &str = "new";
-
 /// Opens `url` (a twitch.tv page) in the account's Twitch window, reusing it when open.
 pub async fn open(app: &AppHandle, account: &str, url: &str) -> Result<(), String> {
     let url = twitch_url(url)?;
@@ -36,90 +33,12 @@ pub async fn open(app: &AppHandle, account: &str, url: &str) -> Result<(), Strin
     show(app, account, &format!("Twitch · {name}"), url)
 }
 
-/// V103-01 Twitch's page for approving a sign-in code: the account's Twitch window when
-/// the sign-in is added to an account that's here, else the new-sign-in window.
-pub async fn open_activation(app: &AppHandle, account: Option<&str>, url: &str) -> Result<(), String> {
-    let url = twitch_url(url)?;
-    if !is_activation(&url) {
-        return Err("That isn’t Twitch’s sign-in page.".into());
-    }
-    match account.filter(|a| crate::auth::accounts(app).get(a).is_some()) {
-        Some(account) => open(app, account, url.as_str()).await,
-        None => show(app, NEW, "Twitch", url),
-    }
-}
-
-/// V103-01 A sign-in ended. Its window closes if it still shows the approval (Twitch moves
-/// it to its connections page once approved). A new account (`signed_in`) takes over the
-/// new-sign-in window's profile and its Twitch login, unless it has a profile already.
-/// Without one, the new-sign-in profile is cleared so no login is left behind.
-pub fn sign_in_done(app: &AppHandle, account: Option<&str>, signed_in: Option<&str>) {
-    let existing = account.filter(|a| crate::auth::accounts(app).get(a).is_some());
-    if let Some(account) = existing {
-        if let Some(w) = app.get_webview_window(&format!("{PREFIX}{account}"))
-            && w.url().is_ok_and(|u| closes_after_sign_in(&u))
-        {
-            let _ = w.close();
-        }
-        return;
-    }
-    if let Some(w) = app.get_webview_window(&format!("{PREFIX}{NEW}")) {
-        let _ = w.close();
-    }
-    let Some(from) = profile_dir(app, NEW) else {
-        return;
-    };
-    match signed_in.and_then(|id| profile_dir(app, id)) {
-        // WebView2 lets go of the folder a moment after its window closed.
-        Some(to) => std::thread::spawn(move || retry(|| adopt_dir(&from, &to))),
-        None => std::thread::spawn(move || retry(|| remove_dir(&from))),
-    };
-}
-
-/// Tries `f` for up to 10 s while the folder is still in use.
-fn retry(f: impl Fn() -> std::io::Result<()>) {
-    for _ in 0..40 {
-        if f().is_ok() {
-            return;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(250));
-    }
-}
-
-fn remove_dir(dir: &Path) -> std::io::Result<()> {
-    match std::fs::remove_dir_all(dir) {
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        other => other,
-    }
-}
-
-/// Moves the new-sign-in profile to the account's, or drops it when the account has one.
-fn adopt_dir(from: &Path, to: &Path) -> std::io::Result<()> {
-    if !from.exists() {
-        return Ok(());
-    }
-    if to.exists() {
-        return remove_dir(from);
-    }
-    std::fs::rename(from, to)
-}
-
 fn twitch_url(url: &str) -> Result<Url, String> {
     let url: Url = url.parse().map_err(|_| "That isn’t a Twitch page.")?;
     if url.scheme() != "https" || !is_twitch(&url) {
         return Err("That isn’t a Twitch page.".into());
     }
     Ok(url)
-}
-
-/// `twitch.tv/activate`, where sign-in codes are approved.
-fn is_activation(url: &Url) -> bool {
-    is_twitch(url) && url.path().trim_end_matches('/') == "/activate"
-}
-
-/// Still on the approval, or on the page Twitch shows after it.
-fn closes_after_sign_in(url: &Url) -> bool {
-    is_activation(url) || (is_twitch(url) && url.path().starts_with("/settings/connections"))
 }
 
 /// Shows `url` in the Twitch window for `profile`, reusing it when open.
@@ -161,6 +80,7 @@ fn show(app: &AppHandle, profile: &str, title: &str, url: Url) -> Result<(), Str
 
 /// Signs the account out of Twitch's pages: clears its profile.
 pub fn sign_out(app: &AppHandle, account: &str) -> Result<(), String> {
+    set_connected(app, account, false);
     if let Some(w) = app.get_webview_window(&format!("{PREFIX}{account}")) {
         return w.clear_all_browsing_data().map_err(|e| e.to_string());
     }
@@ -176,6 +96,76 @@ pub fn forget(app: &AppHandle, account: &str) {
     if let Some(dir) = profile_dir(app, account) {
         let _ = std::fs::remove_dir_all(dir);
     }
+    set_connected(app, account, false);
+}
+
+/// V108-04 How long "Connect Twitch pages" waits for the login.
+const CONNECT_FOR: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+pub const PAGES_CHANGED: &str = "twitch-pages:changed";
+
+/// V108-04 "Connect Twitch pages": twitch.tv's login in the account's window. `true` once
+/// twitch.tv's session cookie is there (the window then closes); `false` when the window
+/// was closed first or it took too long.
+pub async fn connect(app: &AppHandle, account: &str) -> Result<bool, String> {
+    open(app, account, "https://www.twitch.tv/login").await?;
+    let label = format!("{PREFIX}{account}");
+    let until = std::time::Instant::now() + CONNECT_FOR;
+    while std::time::Instant::now() < until {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        let Some(w) = app.get_webview_window(&label) else {
+            return Ok(false);
+        };
+        let params = r#"{"urls":["https://www.twitch.tv/"]}"#.to_owned();
+        let found = crate::sys::devtools::call(&w, "Network.getCookies", params)
+            .await
+            .and_then(|j| has_session(&j));
+        if found == Some(true) {
+            set_connected(app, account, true);
+            let _ = w.close();
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// V108-04 The accounts whose Twitch pages are signed in (as last seen by `connect`).
+pub fn connected(app: &AppHandle) -> Vec<String> {
+    crate::auth::accounts(app)
+        .list
+        .into_iter()
+        .filter(|a| marker(app, &a.user_id).is_some_and(|m| m.exists()))
+        .map(|a| a.user_id)
+        .collect()
+}
+
+fn set_connected(app: &AppHandle, account: &str, on: bool) {
+    let Some(m) = marker(app, account) else {
+        return;
+    };
+    let changed = if on {
+        !m.exists() && m.parent().is_some_and(|d| std::fs::create_dir_all(d).is_ok()) && std::fs::write(&m, b"").is_ok()
+    } else {
+        std::fs::remove_file(&m).is_ok()
+    };
+    if changed {
+        use tauri::Emitter;
+        let _ = app.emit(PAGES_CHANGED, connected(app));
+    }
+}
+
+/// Next to the profile folder, not in it: WebView2 owns that one.
+fn marker(app: &AppHandle, account: &str) -> Option<PathBuf> {
+    profile_dir(app, account).map(|d| d.with_extension("connected"))
+}
+
+/// Whether `Network.getCookies`' answer holds twitch.tv's login (`auth-token`).
+fn has_session(json: &str) -> Option<bool> {
+    let v: serde_json::Value = serde_json::from_str(json).ok()?;
+    Some(v.get("cookies")?.as_array()?.iter().any(|c| {
+        let s = |k: &str| c.get(k).and_then(|x| x.as_str()).unwrap_or_default();
+        let domain = s("domain").trim_start_matches('.');
+        s("name") == "auth-token" && !s("value").is_empty() && (domain == "twitch.tv" || domain.ends_with(".twitch.tv"))
+    }))
 }
 
 /// The account's Twitch web profile folder; 7TV's window borrows it for "both" (V1051-02).
@@ -188,7 +178,7 @@ pub(crate) fn profile_dir(app: &AppHandle, account: &str) -> Option<PathBuf> {
 
 /// Payment and sign-in pop-ups: a small window sharing the page's profile, so the
 /// opener keeps talking to it. Anything else opens in the browser.
-fn popup(app: &AppHandle, url: Url, features: NewWindowFeatures) -> NewWindowResponse<tauri::Wry> {
+pub(crate) fn popup(app: &AppHandle, url: Url, features: NewWindowFeatures) -> NewWindowResponse<tauri::Wry> {
     if !(is_twitch(&url) || is_payment(&url) || url.scheme() == "about") {
         if url.scheme() == "https" {
             let _ = app.opener().open_url(url.as_str(), None::<&str>);
@@ -480,43 +470,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn session_cookie_is_found() {
+        let yes = r#"{"cookies":[{"name":"unique_id","domain":".twitch.tv","value":"x"},{"name":"auth-token","domain":".twitch.tv","value":"abc"}]}"#;
+        assert_eq!(has_session(yes), Some(true));
+        assert_eq!(has_session(r#"{"cookies":[{"name":"auth-token","domain":".twitch.tv","value":""}]}"#), Some(false));
+        assert_eq!(has_session(r#"{"cookies":[{"name":"auth-token","domain":"evil.example","value":"a"}]}"#), Some(false));
+        assert_eq!(has_session("nope"), None);
+    }
+
+    #[test]
     fn hosts() {
         let u = |s: &str| s.parse::<Url>().unwrap();
         assert!(is_twitch(&u("https://www.twitch.tv/wallet")) && is_twitch(&u("https://twitch.tv/")));
         assert!(!is_twitch(&u("https://twitch.tv.evil.com/")) && !is_twitch(&u("https://nottwitch.tv/")));
         assert!(is_payment(&u("https://www.paypal.com/checkoutnow")));
-    }
-
-    #[test]
-    fn sign_in_pages() {
-        let u = |s: &str| s.parse::<Url>().unwrap();
-        assert!(is_activation(&u(
-            "https://www.twitch.tv/activate?device-code=ABCDEFGH"
-        )));
-        assert!(!is_activation(&u("https://www.twitch.tv/activated")));
-        assert!(!is_activation(&u("https://evil.example/activate")));
-        assert!(closes_after_sign_in(&u(
-            "https://www.twitch.tv/settings/connections"
-        )));
-        assert!(!closes_after_sign_in(&u("https://www.twitch.tv/wallet")));
-    }
-
-    #[test]
-    fn a_new_account_takes_over_the_sign_in_profile() {
-        let base = std::env::temp_dir().join(format!("cyex-adopt-{}", std::process::id()));
-        let (new, mine, theirs) = (base.join("new"), base.join("1"), base.join("2"));
-        std::fs::create_dir_all(&new).unwrap();
-        std::fs::write(new.join("login"), "a").unwrap();
-        adopt_dir(&new, &mine).unwrap();
-        assert!(!new.exists() && mine.join("login").exists());
-        // An account with a profile of its own keeps it; the new one goes.
-        std::fs::create_dir_all(&new).unwrap();
-        std::fs::create_dir_all(&theirs).unwrap();
-        adopt_dir(&new, &theirs).unwrap();
-        assert!(!new.exists() && theirs.exists());
-        // Nothing to move: fine.
-        adopt_dir(&new, &mine).unwrap();
-        std::fs::remove_dir_all(&base).unwrap();
     }
 
     #[test]

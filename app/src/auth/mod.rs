@@ -3,10 +3,13 @@
 
 mod as_account;
 mod keeper;
+pub mod open;
 mod sign_in;
 
 pub use as_account::{gql_auth, gql_auth_or_public, helix_auth};
-pub use sign_in::{DeviceStart, SignedIn, add_gql_token, remove_account, remove_token, sign_in_device};
+pub use sign_in::{
+    DeviceStart, SignedIn, add_gql_token, remove_account, remove_token, reopen, sign_in_browser, sign_in_device,
+};
 
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -32,6 +35,8 @@ pub struct Auth {
     pub seventv: SevenTvTokens,
     /// Cancels the Device Code sign-in that's running, if any.
     sign_in: Mutex<Option<watch::Sender<bool>>>,
+    /// V108-02 Where the running sign-in's page opened, for "Open again".
+    page: Mutex<Option<(open::Place, String)>>,
 }
 
 #[derive(Clone, Serialize, TS)]
@@ -58,6 +63,7 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         vault,
         seventv: SevenTvTokens::new(store),
         sign_in: Mutex::default(),
+        page: Mutex::default(),
     });
     keeper::spawn(app.clone());
     Ok(())
@@ -77,6 +83,18 @@ impl Auth {
         if let Some(tx) = lock(&self.sign_in).take() {
             let _ = tx.send(true);
         }
+    }
+
+    fn set_page(&self, place: open::Place, url: &str) {
+        *lock(&self.page) = Some((place, url.to_owned()));
+    }
+
+    fn page(&self) -> Option<(open::Place, String)> {
+        lock(&self.page).clone()
+    }
+
+    fn clear_page(&self) {
+        lock(&self.page).take();
     }
 
     /// Whether another sign-in started after the one `mine` belongs to.

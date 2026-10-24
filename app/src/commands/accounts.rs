@@ -1,10 +1,11 @@
-//! Account commands (1.3, 1.5, 1.13, 1.23, V102-19).
+//! Account commands (1.3, 1.5, 1.13, 1.23, V102-19, V108-01).
 
 use cyex_auth::TokenKind;
 use crate::connections::ConnectionCount;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, State};
 
+use crate::auth::open::Place;
 use crate::auth::{self, Auth, AuthSnapshot, DeviceStart, SignedIn};
 use crate::connections;
 
@@ -15,21 +16,44 @@ pub fn accounts_snapshot(app: AppHandle) -> AuthSnapshot {
     auth::snapshot(&app)
 }
 
-/// Device Code sign-in. Sends the code over `on_code`, then resolves with the account
-/// once the user approves on Twitch. With `user_id`, it's added to that account and has
-/// to be the same user (V102-19).
+/// Device Code sign-in ("Sign in with a code"). Sends the code over `on_code`, then
+/// resolves with the account once the user approves on Twitch. With `user_id`, it's added
+/// to that account and has to be the same user (V102-19). `place`: V108-02.
 #[tauri::command]
 pub async fn accounts_sign_in(
     app: AppHandle,
     kind: TokenKind,
     user_id: Option<String>,
+    place: Option<Place>,
     on_code: Channel<DeviceStart>,
 ) -> CmdResult<SignedIn> {
-    auth::sign_in_device(&app, kind, user_id.as_deref(), |code| {
+    auth::sign_in_device(&app, kind, user_id.as_deref(), place.unwrap_or_default(), |code| {
         let _ = on_code.send(code);
     })
     .await
     .map_err(|e| e.to_string())
+}
+
+/// V108-01 "Sign in with Twitch" on Twitch's sign-in page, in the browser or a sign-in
+/// window. `on_start` fires once the page is open.
+#[tauri::command]
+pub async fn accounts_sign_in_browser(
+    app: AppHandle,
+    user_id: Option<String>,
+    place: Option<Place>,
+    on_start: Channel<()>,
+) -> CmdResult<SignedIn> {
+    auth::sign_in_browser(&app, user_id.as_deref(), place.unwrap_or_default(), || {
+        let _ = on_start.send(());
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// V108-02 The running sign-in's page again, where it opened.
+#[tauri::command]
+pub fn accounts_reopen_sign_in(app: AppHandle) -> CmdResult<()> {
+    auth::reopen(&app)
 }
 
 #[tauri::command]
@@ -66,13 +90,6 @@ pub fn accounts_set_default(app: AppHandle, user_id: String) -> CmdResult<()> {
     auth::update_accounts(&app, |a| cyex_auth::roster::set_default(a, &user_id))?;
     auth::notify(&app);
     Ok(())
-}
-
-/// V103-01 Twitch's page for the running sign-in's code, in the app's Twitch window again
-/// (the sign-in opens it once by itself).
-#[tauri::command]
-pub async fn accounts_open_activation(app: AppHandle, user_id: Option<String>, uri: String) -> CmdResult<()> {
-    crate::windows::twitch::open_activation(&app, user_id.as_deref(), &uri).await
 }
 
 #[tauri::command]

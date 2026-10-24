@@ -1,6 +1,7 @@
 // Subscriptions (1.28) and Twitch's own pages in the app (3.8, 1.27).
 
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 
 import type { ChannelSub } from './bindings/ChannelSub';
 import type { MySubs } from './bindings/MySubs';
@@ -22,4 +23,10 @@ export const subsIpc = {
   open: (account: string, url: string) => invoke<void>('twitch_open', { account, url }),
   /** Clears the account's sign-in on Twitch's pages. */
   signOut: (account: string) => invoke<void>('twitch_sign_out', { account }),
+  /** V108-04 Twitch's login in the account's Twitch window; `true` once signed in there. */
+  connect: (account: string) => invoke<boolean>('twitch_connect', { account }),
+  /** V108-04 The accounts whose Twitch pages are signed in. */
+  connected: () => invoke<string[]>('twitch_connected'),
+  onConnected: (handler: (accounts: string[]) => void) =>
+    listen<string[]>('twitch-pages:changed', (e) => handler(e.payload)),
 };

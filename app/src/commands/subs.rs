@@ -68,3 +68,19 @@ pub async fn twitch_open(app: AppHandle, account: String, url: String) -> CmdRes
 pub fn twitch_sign_out(app: AppHandle, account: String) -> CmdResult<()> {
     twitch::sign_out(&app, &account)
 }
+
+/// V108-04 "Connect Twitch pages": twitch.tv's login in the account's window; `true` once
+/// signed in there.
+#[tauri::command]
+pub async fn twitch_connect(app: AppHandle, account: String) -> CmdResult<bool> {
+    if crate::auth::accounts(&app).get(&account).is_none() {
+        return Err("That account isn’t signed in here.".into());
+    }
+    twitch::connect(&app, &account).await
+}
+
+/// V108-04 The accounts whose Twitch pages are signed in.
+#[tauri::command]
+pub fn twitch_connected(app: AppHandle) -> Vec<String> {
+    twitch::connected(&app)
+}

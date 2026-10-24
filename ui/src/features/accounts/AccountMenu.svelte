@@ -14,6 +14,9 @@
   import { toast } from '../../lib/toast.svelte';
   import { accountName, accountNeedsAttention } from './status';
   import { unlock } from '../unlock/unlock.svelte';
+  import { twitchPages } from './twitchPages.svelte';
+
+  twitchPages.watch();
 
   // V1051-02 `active`: the 7TV view is open, so the button shows where you are.
   let {
@@ -60,6 +63,10 @@
     if (current) unlock.ask('twitch', current.userId);
   }
 
+  function connectItem(userId: string): MenuEntry {
+    return { label: 'Connect Twitch pages', icon: 'login', note: 'Log in once for the wallet, subscriptions and Bits', run: () => void twitchPages.connect(userId) };
+  }
+
   function show(e: MouseEvent) {
     const items: MenuEntry[] = [
       ...accounts.list.map((a) => ({
@@ -77,6 +84,10 @@
       { label: 'Subscriptions', icon: 'star', lock: walletLock, unlock: ask, run: onsubs },
       { label: 'Get Bits', icon: 'gem', lock: walletLock, unlock: ask, run: bits },
       { label: 'Payment methods', icon: 'card', lock: walletLock, unlock: ask, run: wallet },
+      // V108-04 These pages keep their own Twitch login.
+      ...(current && !walletLock && !twitchPages.has(current.userId)
+        ? [connectItem(current.userId)]
+        : []),
       // V1051-02 No lock: the view explains itself.
       { label: '7TV paint and badge', icon: 'seventv', run: oncosmetics },
       'separator',

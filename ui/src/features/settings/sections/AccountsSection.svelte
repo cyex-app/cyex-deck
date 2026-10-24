@@ -8,6 +8,8 @@
 
   import Button from '../../../components/Button.svelte';
   import Icon from '../../../components/Icon.svelte';
+  import Segmented from '../../../components/Segmented.svelte';
+  import type { Place } from '../../../ipc/bindings/Place';
   import AccountCard from '../../accounts/AccountCard.svelte';
   import DeviceCode from '../../accounts/DeviceCode.svelte';
   import { signIn } from '../../accounts/signIn.svelte';
@@ -20,6 +22,11 @@
 
   // V107-Mo A removed account's open profile editor isn't remembered.
   $effect(() => settingsPlace.prune('accounts', 'profile:', accounts.list.map((a) => a.userId)));
+
+  const PLACES: { value: Place; label: string }[] = [
+    { value: 'browser', label: 'Browser' },
+    { value: 'app', label: 'App window' },
+  ];
 
   let twitchWay = $state<HTMLElement>();
   let codeWay = $state<HTMLElement>();
@@ -77,6 +84,12 @@
     </div>
     <Button small disabled={signIn.kind !== null} onclick={() => signIn.start('gql')}>Get a code</Button>
   </div>
+  <!-- V108-02 -->
+  <div class="place">
+    <span>Open in</span>
+    <Segmented label="Where sign-ins open" options={PLACES} value={signIn.placeFor(null)} onchange={(p) => signIn.pick(p)} />
+    <span class="hint">{signIn.placeFor(null) === 'app' ? 'Starts signed out, so you can pick any account.' : 'Uses the account your browser is signed in to.'}</span>
+  </div>
 </div>
 
 <style>
@@ -98,6 +111,17 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     transition: border-color var(--fast);
+  }
+  .place {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    padding: 2px 2px 0;
+    font-size: var(--text-sub);
+  }
+  .place .hint {
+    color: var(--muted);
   }
   .way.lit {
     border-color: var(--accent-border);

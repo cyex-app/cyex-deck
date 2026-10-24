@@ -5,6 +5,7 @@
 //! is small and checked here.
 #![allow(unsafe_code)]
 
+pub mod browsers;
 pub mod cache;
 pub mod devtools;
 pub mod fatal;
