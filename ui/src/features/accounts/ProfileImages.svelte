@@ -37,7 +37,7 @@
   };
   const ASK: Record<ProfileImageKind, string> = {
     avatar: 'Remove your profile picture? It stays in Recent.',
-    banner: 'Use Twitch’s generated background instead? The banner stays in Recent.',
+    banner: 'Switch to Twitch’s generated background? It stays in Recent.',
     offline: 'Remove the offline image? It stays in Recent.',
   };
 
@@ -292,13 +292,21 @@
     display: flex;
     gap: 6px;
   }
+  /* The question and both buttons stay on one line; a long question wraps in its own space. */
   .ask {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
     gap: 6px;
     padding: 0 0 10px 108px;
     font-size: 0.82rem;
+  }
+  .ask > span {
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-right: 6px;
+  }
+  .ask > :global(button) {
+    flex: none;
   }
   .fail {
     display: flex;
