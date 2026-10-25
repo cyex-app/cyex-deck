@@ -21,9 +21,9 @@ test('cheers use the highest tier they reach', () => {
   assert.equal(cheerImg(cheer, cheerTier(cheer, 150)!, 'dark', 1).src, 'https://x/actions/cheer/dark/animated/100/1.gif');
 });
 
-test('twitch emotes follow the theme', () => {
+test('twitch emotes look the same in every theme (the dark variant)', () => {
   const img = emoteImg('twitch', '25', 'light', { scale: 1 });
-  assert.equal(img.src, 'https://static-cdn.jtvnw.net/emoticons/v2/25/default/light/1.0');
+  assert.equal(img.src, 'https://static-cdn.jtvnw.net/emoticons/v2/25/default/dark/1.0');
   assert.ok(emoteImg('twitch', '25', 'light', { scale: 4 }).src.endsWith('/3.0'));
 });
 
