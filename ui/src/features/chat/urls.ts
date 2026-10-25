@@ -32,14 +32,12 @@ export function badgeSrc(b: { image1x: string; image2x: string; image4x: string 
 }
 
 /** Picture URL at a scale: 1, 2 or 4 (3 for providers that stop there). */
-function emoteUrl(provider: Provider, id: string, _theme: Theme, scale: Scale, f: Motion): string {
+function emoteUrl(provider: Provider, id: string, theme: Theme, scale: Scale, f: Motion): string {
   const e = encodeURIComponent(id);
   switch (provider) {
     case 'twitch':
-      // Twitch emotes come in dark and light variants; the dark one is the emote as people know
-      // it (light swaps some, like <3, for a different drawing), so every theme uses it (user).
-      // `static` is the still frame.
-      return `https://static-cdn.jtvnw.net/emoticons/v2/${e}/${f.still ? 'static' : 'default'}/dark/${scale === 4 ? 3 : scale}.0`;
+      // Twitch emotes come in dark and light variants; `static` is the still frame.
+      return `https://static-cdn.jtvnw.net/emoticons/v2/${e}/${f.still ? 'static' : 'default'}/${theme}/${scale === 4 ? 3 : scale}.0`;
     case 'seventv':
       return `https://cdn.7tv.app/emote/${e}/${scale}x${f.animated && f.still ? '_static' : ''}.webp`;
     case 'bttv':
