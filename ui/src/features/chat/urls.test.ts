@@ -27,6 +27,12 @@ test('twitch emotes follow the theme', () => {
   assert.ok(emoteImg('twitch', '25', 'light', { scale: 4 }).src.endsWith('/3.0'));
 });
 
+test('the <3 hearts stop at 2.0, where their drawing still matches', () => {
+  assert.ok(emoteImg('twitch', '9', 'dark', { scale: 4 }).src.endsWith('/9/default/dark/2.0'));
+  assert.ok(emoteImg('twitch', '555555584', 'light', { scale: 2 }).src.endsWith('/2.0'));
+  assert.ok(emoteImg('twitch', '555555584', 'dark', { scale: 1 }).src.endsWith('/1.0'));
+});
+
 test('one url per picture, from the screen density (V105-08)', () => {
   assert.ok(emoteImg('bttv', 'b', 'dark', { scale: 4 }).src.endsWith('/3x.webp'));
   assert.equal(emoteImg('seventv', 'a', 'dark', { scale: 2 }).src, 'https://cdn.7tv.app/emote/a/2x.webp');

@@ -31,13 +31,19 @@ export function badgeSrc(b: { image1x: string; image2x: string; image4x: string 
   return scale === 1 ? b.image1x : scale === 2 ? b.image2x : b.image4x;
 }
 
+/** Twitch's two `<3` hearts: their 3.0 picture is another drawing (an outlined heart, not the
+ *  pixel heart of 1.0 and 2.0), so they stop at 2.0 and look the same on every screen (user). */
+const TWITCH_STOP_AT_2 = new Set(['9', '555555584']);
+
 /** Picture URL at a scale: 1, 2 or 4 (3 for providers that stop there). */
 function emoteUrl(provider: Provider, id: string, theme: Theme, scale: Scale, f: Motion): string {
   const e = encodeURIComponent(id);
   switch (provider) {
-    case 'twitch':
+    case 'twitch': {
       // Twitch emotes come in dark and light variants; `static` is the still frame.
-      return `https://static-cdn.jtvnw.net/emoticons/v2/${e}/${f.still ? 'static' : 'default'}/${theme}/${scale === 4 ? 3 : scale}.0`;
+      const s = TWITCH_STOP_AT_2.has(id) ? Math.min(scale, 2) : scale === 4 ? 3 : scale;
+      return `https://static-cdn.jtvnw.net/emoticons/v2/${e}/${f.still ? 'static' : 'default'}/${theme}/${s}.0`;
+    }
     case 'seventv':
       return `https://cdn.7tv.app/emote/${e}/${scale}x${f.animated && f.still ? '_static' : ''}.webp`;
     case 'bttv':
