@@ -1,0 +1,7 @@
+[
+  { "type": "Borgir Connoisseur", "url": "https://api.dank.chat/badges/borgir.gif", "users": ["97120011"] },
+  { "type": "DuckerZ", "url": "https://api.dank.chat/badges/ente.gif", "users": ["147950640", "62882992"] },
+  { "type": "DankChat Top Supporter", "url": "https://api.dank.chat/badges/top.png", "users": ["7"] },
+  { "type": "DankChat Supporter", "url": "https://api.dank.chat/badges/supporter.png", "users": ["62882992", "", "x"] },
+  { "type": "No picture", "url": "", "users": ["8"] }
+]

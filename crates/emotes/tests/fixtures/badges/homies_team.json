@@ -1,0 +1,26 @@
+{
+   "badges":[
+      {
+         "id": "1",
+         "tooltip":"Homies Developer",
+         "image1":"https://itzalex.github.io/badgesusers/dev/badge.png",
+         "users":[ "59842770", "536387934" ],
+         "image2":"https://itzalex.github.io/badgesusers/dev/badge2x.png",
+         "image3":"https://itzalex.github.io/badgesusers/dev/badge3x.png"
+      },
+      {
+         "id": "2",
+         "tooltip":"Homies Supporter (Founder)",
+         "image1":"https://itzalex.github.io/badgesusers/supporter_founder2/badge.png",
+         "users":[ "92888412" ],
+         "image2":"https://itzalex.github.io/badgesusers/supporter_founder2/badge2x.png",
+         "image3":"https://itzalex.github.io/badgesusers/supporter_founder2/badge3x.png"
+      },
+      {
+         "id": "3",
+         "tooltip":"Placeholder",
+         "image1":"https://itzalex.github.io/badgesusers/none/badge.png",
+         "users":[ "" ]
+      }
+   ]
+}

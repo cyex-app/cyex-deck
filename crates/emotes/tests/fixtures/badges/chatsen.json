@@ -1,0 +1,17 @@
+{
+  "badges": [
+    { "name": "developer", "title": "Chatsen Developer", "description": "That one code guy or something", "image": "https://raw.githubusercontent.com/chatsen/resources/master/assets/nagato.gif", "color": "777777" },
+    { "name": "early_bird", "title": "Chatsen Early Bird", "description": "", "image": "https://raw.githubusercontent.com/chatsen/resources/master/assets/early_bird.png", "color": "777777" },
+    { "name": "patreon_tier1", "title": "", "image": "https://raw.githubusercontent.com/chatsen/resources/master/assets/patreon_tier1.png" },
+    { "name": "custombadge1", "title": "No picture", "image": "" }
+  ],
+  "users": [
+    { "id": "693065895", "name": "chatsen", "badges": [
+      { "badgeName": "early_bird", "acquiredAt": "1970-01-01T01:00:00.000", "updatedAt": "1970-01-01T01:00:00.000", "expiresAt": "1970-01-01T01:00:00.000" },
+      { "badgeName": "developer", "acquiredAt": "1970-01-01T01:00:00.000", "updatedAt": "1970-01-01T01:00:00.000", "expiresAt": "1970-01-01T01:00:00.000" }
+    ] },
+    { "id": "57459239", "name": "snowstormcs", "badges": [ { "badgeName": "early_bird" } ] },
+    { "id": "1", "name": "x", "badges": [ { "badgeName": "patreon_tier2" }, { "badgeName": "patreon_tier1" } ] },
+    { "id": "2", "name": "y", "badges": [ { "badgeName": "custombadge1" }, { "badgeName": "patreon_tier2" } ] }
+  ]
+}

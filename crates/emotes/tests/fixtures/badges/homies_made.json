@@ -1,0 +1,9 @@
+{
+  "badges": [
+    { "badgeFileType": "image/webp", "badgeId": "68d98dd23d60203ffbfdce6a", "image1": "https://cdn.chatterinohomies.com/badges/90b5d49e/18.webp", "image2": "https://cdn.chatterinohomies.com/badges/90b5d49e/36.webp", "image3": "https://cdn.chatterinohomies.com/badges/90b5d49e/72.webp", "tooltip": "usVesper Badge", "userId": "95700563", "username": "usVesper" },
+    { "badgeFileType": "image/webp", "badgeId": "1", "image1": "https://cdn.chatterinohomies.com/badges/aa/18.webp", "image2": "https://cdn.chatterinohomies.com/badges/aa/36.webp", "image3": "https://cdn.chatterinohomies.com/badges/aa/72.webp", "tooltip": "Dev's own", "userId": "59842770", "username": "dev" },
+    { "image1": "https://cdn.chatterinohomies.com/badges/bb/18.webp", "tooltip": "Nobody", "userId": "" },
+    { "image1": "https://cdn.chatterinohomies.com/badges/cc/18.webp", "tooltip": "Placeholder", "userId": "not-a-number" },
+    { "image1": "http://cdn.chatterinohomies.com/badges/dd/18.webp", "tooltip": "Not https", "userId": "0" }
+  ]
+}

@@ -133,9 +133,16 @@ pub async fn run(
         }
         "hideuser" | "unhideuser" => {
             let login = login_arg(args)?;
-            hide(app, &login, name == "hideuser").await?;
+            // V108-N07 `/hideuser name here` hides them in this chat only.
+            let here = args.split_whitespace().nth(1).is_some_and(|w| w.eq_ignore_ascii_case("here"));
+            let scope = here.then(|| place.channel().to_owned());
+            hide(app, &login, scope.as_deref(), name == "hideuser", place.channel()).await?;
             let what = if name == "hideuser" {
-                "is hidden now. /unhideuser brings them back."
+                if here {
+                    "is hidden in this chat now. /unhideuser brings them back."
+                } else {
+                    "is hidden now. /unhideuser brings them back."
+                }
             } else {
                 "shows again."
             };
@@ -392,23 +399,28 @@ pub async fn block_user(app: &AppHandle, account: &str, login: &str, on: bool) -
     Ok(())
 }
 
-/// C28 Hidden only here, not on Twitch.
-async fn hide(app: &AppHandle, login: &str, on: bool) -> Result<(), String> {
+/// C28 Hidden only in this app, not on Twitch. V108-N07 `scope` is the one chat they're
+/// hidden in; `None` hides them everywhere. Showing them again clears everywhere and the
+/// entry of `channel` (the chat the command ran in), other chats' entries stay.
+async fn hide(app: &AppHandle, login: &str, scope: Option<&str>, on: bool, channel: &str) -> Result<(), String> {
     let id = user_id(app, login).await?;
     app.state::<Settings>()
         .update::<Highlights>(app, Partition::Highlights, |h| {
-            let had = h.hidden_users.iter().any(|u| u.id == id);
-            if on && !had {
+            if on {
+                let scope = scope.unwrap_or_default();
+                if h.hidden_users.iter().any(|u| u.id == id && (u.channel.is_empty() || u.channel == scope)) {
+                    return false;
+                }
                 h.hidden_users.push(HiddenUser {
                     id,
                     login: login.to_owned(),
+                    channel: scope.to_owned(),
                 });
                 true
-            } else if !on && had {
-                h.hidden_users.retain(|u| u.id != id);
-                true
             } else {
-                false
+                let before = h.hidden_users.len();
+                h.hidden_users.retain(|u| u.id != id || !(u.channel.is_empty() || u.channel == channel));
+                h.hidden_users.len() != before
             }
         })
 }

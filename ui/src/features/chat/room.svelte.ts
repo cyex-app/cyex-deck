@@ -2,6 +2,7 @@
 // Rust through batched events (1.8). Rust does the parsing; this only applies results.
 
 import { chatIpc } from '../../ipc/chat';
+import { sourceOnly } from '../../ipc/sourceOnly';
 import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
 import type { ConnStatus } from '../../ipc/bindings/ConnStatus';
 import type { Pinned } from '../../ipc/bindings/Pinned';
@@ -47,6 +48,8 @@ export class ChatRoom {
   /** The account reading this chat, `null` when anonymous. */
   account = $state<string | null>(null);
   error = $state('');
+  /** V108-N12 Shared Chat: draw only this channel's lines. View state; the lines stay here. */
+  onlyHere = $state(false);
   /** Set once Rust opened the view; effects can wait on it (V101-13). */
   view = $state(0);
   closed = false;
@@ -90,6 +93,7 @@ export class ChatRoom {
 
   close(): void {
     this.closed = true;
+    sourceOnly.set(this.view, false);
     if (this.frame) cancelAnimationFrame(this.frame);
     this.later = [];
     if (this.view) void chatIpc.close(this.view);

@@ -9,6 +9,7 @@
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { FAIL } from './notices';
+  import { openMenu } from '../../components/menu.svelte';
   import { userMenus } from '../chat/menus.svelte';
   import { whispers } from '../whispers/whispers.svelte';
   import { errorText } from '../../lib/errors';
@@ -36,7 +37,10 @@
 
   $effect(() => userMenus.track());
 
-  const hidden = $derived(settings.v.highlights.hiddenUsers.some((u) => u.id === profile.id));
+  // V108-N07 Hidden everywhere (no channel) or in this chat.
+  const hidden = $derived(
+    settings.v.highlights.hiddenUsers.some((u) => u.id === profile.id && (!u.channel || u.channel === channel)),
+  );
   const buttons = $derived(userMenus.current.usercard);
 
   const ctx = (): MenuContext => ({
@@ -63,8 +67,23 @@
   }
 
   const login = $derived(profile.login);
-  const hide = () =>
-    withUndo(`${login} is hidden.`, () => run(`/hideuser ${login}`), () => run(`/unhideuser ${login}`));
+  const hide = (here: boolean) =>
+    withUndo(
+      here ? `${login} is hidden in this chat.` : `${login} is hidden.`,
+      () => run(here ? `/hideuser ${login} here` : `/hideuser ${login}`),
+      () => run(`/unhideuser ${login}`),
+    );
+  /** V108-N07 Hide asks where: this chat or every chat. */
+  function hideMenu(e: MouseEvent) {
+    openMenu(
+      e.currentTarget as HTMLElement,
+      [
+        { label: 'Hide in this chat', run: () => void hide(true) },
+        { label: 'Hide everywhere', run: () => void hide(false) },
+      ],
+      'start',
+    );
+  }
   const block = () =>
     withUndo(
       `${login} is blocked.`,
@@ -86,7 +105,7 @@
     <Button
       small
       disabled={busy}
-      onclick={() => (hidden ? void run(`/unhideuser ${login}`) : void hide())}
+      onclick={(e) => (hidden ? void run(`/unhideuser ${login}`) : hideMenu(e))}
     >
       {hidden ? 'Show again' : 'Hide'}
     </Button>

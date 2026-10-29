@@ -121,11 +121,14 @@ pub(super) const BEFORE: &[Cmd] = &[
         .changes(Twitch, "Unblocks the user for the chat’s account.")
         .ex(&[ex("/unblock someone", "You unblocked someone.")])
         .errs(BLOCKS),
-    Cmd::new("hideuser", "/hideuser name", "Hides a user’s messages in every chat, only in this app.", "C28")
+    Cmd::new("hideuser", "/hideuser name [here]", "Hides a user’s messages in every chat, or with \"here\" in this chat only. Only in this app.", "C28")
         .help("/hideuser")
-        .args(&[req("name", "login")])
+        .args(&[req("name", "login"), opt("scope", "word").values(&["here"]).note("Leave out for every chat.")])
         .changes(Settings, "Highlights settings. Nothing happens on Twitch.")
-        .ex(&[ex("/hideuser someone", "someone is hidden now. /unhideuser brings them back.")])
+        .ex(&[
+            ex("/hideuser someone", "someone is hidden now. /unhideuser brings them back."),
+            ex("/hideuser someone here", "someone is hidden in this chat now. /unhideuser brings them back."),
+        ])
         .errs(&[WHO, NOT_A_NAME, "No user called {login}."]),
     Cmd::new("unhideuser", "/unhideuser name", "Shows a hidden user again.", "C28")
         .help("/unhideuser")

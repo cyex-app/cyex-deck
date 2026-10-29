@@ -1,5 +1,5 @@
 <!-- Emotes, badges and paints (2.3, 2.4, C11, E2, E3, E4, D21). Stored in the chat
-     partition. -->
+     partition, except the extra badge sets (V108-N06), which are in emotes. -->
 <script lang="ts">
   import SectionHead from '../SectionHead.svelte';
   import Icon from '../../../components/Icon.svelte';
@@ -9,10 +9,12 @@
   import type { EmoteSource } from '../../../ipc/bindings/EmoteSource';
   import type { UnlistedEmotes } from '../../../ipc/bindings/UnlistedEmotes';
   import { settings } from '../../../lib/settings.svelte';
+  import { BADGE_SETS } from '../../emotes/badgeSets';
   import { PROVIDER_NAMES } from '../../emotes/emotes';
   import { hidden } from '../../emotes/hidden.svelte';
 
   const c = $derived(settings.v.chat);
+  const sets = $derived(settings.v.emotes.badgeSets);
 
   const BADGES = [
     { key: 'twitch', label: 'Twitch' },
@@ -116,6 +118,16 @@
       label="{b.label} badges"
       checked={c.badges[b.key]}
       onchange={(v) => settings.patch('chat', { badges: { [b.key]: v } })}
+    />
+  </Row>
+{/each}
+<!-- V108-N06 Off until picked: turning one on loads that service’s list. -->
+{#each BADGE_SETS as b (b.key)}
+  <Row setting="emotes.badgeSets.{b.key}" label="{b.label} badges" hint={b.hint}>
+    <Toggle
+      label="{b.label} badges"
+      checked={sets[b.key]}
+      onchange={(v) => settings.patch('emotes', { badgeSets: { [b.key]: v } })}
     />
   </Row>
 {/each}

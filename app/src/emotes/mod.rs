@@ -6,6 +6,7 @@
 mod card;
 mod card_flags;
 pub mod edit;
+mod extra;
 mod live;
 mod load;
 mod looks;
@@ -134,6 +135,7 @@ pub fn init(app: &AppHandle) {
     live::spawn(app.clone(), rx);
     providers::spawn_bttv(app.clone(), bttv_rx);
     looks::spawn(app.clone());
+    extra::init(app);
 }
 
 fn spawn(task: std::pin::Pin<Box<dyn Future<Output = ()> + Send>>) {
@@ -403,6 +405,7 @@ pub async fn ready(app: &AppHandle, login: &str, limit: Duration) {
 
 /// Chat settings changed: the provider order may have too (C11).
 pub fn on_settings(app: &AppHandle) {
+    extra::sync(app);
     let Some(state) = app.try_state::<Emotes>() else {
         return;
     };

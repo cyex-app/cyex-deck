@@ -1,6 +1,6 @@
 <!-- Badges (1.37-1.40, 2.3): Twitch's, with FFZ's room pictures for mods and VIPs and
-     FFZ's bot badge in place of the mod one; then 7TV, BTTV and FFZ badges. Each provider
-     has its toggle. Unknown Twitch badges are skipped until their catalog loads. -->
+     FFZ's bot badge in place of the mod one; then 7TV, BTTV, FFZ and the extra sets (V108-N06). Each
+     provider and set has its toggle. Unknown Twitch badges are skipped until their catalog loads. -->
 <script lang="ts">
   import type { BadgeDef } from '../../ipc/bindings/BadgeDef';
   import type { BadgeInfo } from '../../ipc/bindings/BadgeInfo';
@@ -8,6 +8,7 @@
   import { density } from '../../lib/density.svelte';
   import { focus } from '../../lib/focus.svelte';
   import { settings } from '../../lib/settings.svelte';
+  import { badgeOn } from '../emotes/badgeSets';
   import { looks } from '../emotes/looks.svelte';
   import { rooms } from '../emotes/rooms.svelte';
   import { catalogs } from './catalog.svelte';
@@ -31,13 +32,15 @@
   const still = $derived(focus.still || (override !== undefined && focus.idle));
 
   const on = $derived(settings.v.chat.badges);
+  /** V108-N06 FFZ:AP, BadgeHQ, Chatsen, DankChat and Homies, each its own switch. */
+  const sets = $derived(settings.v.emotes.badgeSets);
   const room = $derived(on.ffz ? rooms.get(channel) : undefined);
   const extra = $derived.by(() => {
     if (!userId && override === undefined) return [];
     const look = override !== undefined ? override : looks.look(userId!);
     if (!look) return [];
     return look.badges
-      .filter((b) => on[b.provider])
+      .filter((b) => badgeOn(b, on, sets))
       .map((b) => looks.badge(b.provider, b.id))
       .filter((b): b is BadgeDef => !!b);
   });

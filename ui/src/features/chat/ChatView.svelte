@@ -28,7 +28,7 @@
   import { chatIpc } from '../../ipc/chat';
   import { chatxIpc } from '../../ipc/chatx';
   import { errorText } from '../../lib/errors';
-  import { formatDuration } from '../../lib/format';
+  import { formatDuration, formatNumber } from '../../lib/format';
   import { lockFor } from '../../lib/gate';
   import { bindingOf, useHotkeys } from '../../lib/hotkeys.svelte';
   import { settings } from '../../lib/settings.svelte';
@@ -42,6 +42,8 @@
   import MessageList from './MessageList.svelte';
   import PinnedBanner from './PinnedBanner.svelte';
   import RateMeter from './RateMeter.svelte';
+  import { hiddenCount, inSharedSession } from './sharedChat';
+  import { sourceOnly } from '../../ipc/sourceOnly';
   import { ChatRoom } from './room.svelte';
   import SearchPopup from './SearchPopup.svelte';
   import ViewerList from './ViewerList.svelte';
@@ -340,6 +342,37 @@
     return may(caps, 'delete', w, line?.ts ?? null).why;
   });
 
+  // V108-N12 Shared Chat: the header offers "only this channel" and "send to this channel only"
+  // while lines from other channels keep coming in. Checked every 30 s, so it lets go when the
+  // session ends.
+  let clock = $state(Date.now());
+  $effect(() => {
+    const t = setInterval(() => (clock = Date.now()), 30_000);
+    return () => clearInterval(t);
+  });
+  const shared = $derived(inSharedSession(room.messages, clock));
+  const hiddenHere = $derived(room.onlyHere ? hiddenCount(room.messages) : 0);
+  let ownOnly = $state(false);
+  let ownOk = $state(false);
+  $effect(() => {
+    const view = room.view;
+    if (!view || !room.account) {
+      ownOk = false;
+      return;
+    }
+    let dead = false;
+    chatIpc
+      .sourceOnlyOk(view)
+      .then((ok) => !dead && (ownOk = ok))
+      .catch(() => !dead && (ownOk = false));
+    return () => (dead = true);
+  });
+  // Only while it applies: a session that ended sends normally again.
+  $effect(() => {
+    const view = room.view;
+    sourceOnly.set(view, ownOnly && ownOk && shared);
+  });
+
   function openChannelCard() {
     chatIpc.openUsercard(login, login).catch((e) => toast.error(errorText(e)));
   }
@@ -371,6 +404,31 @@
       {/if}
     </div>
     {#if settings.v.chat.rateMeter}<RateMeter {login} />{/if}
+    {#if shared || room.onlyHere}
+      <!-- V108-N12 Shared Chat. -->
+      <IconButton
+        icon="layers"
+        label={room.onlyHere ? 'Showing only this channel' : 'Only this channel'}
+        hint={room.onlyHere
+          ? `${hiddenHere ? `${formatNumber(hiddenHere)} hidden. ` : ''}Click to show every channel again.`
+          : 'Hide lines from the other channels in this shared chat.'}
+        size={15}
+        active={room.onlyHere}
+        toggle
+        onclick={() => (room.onlyHere = !room.onlyHere)}
+      />
+    {/if}
+    {#if shared && ownOk}
+      <IconButton
+        icon="send"
+        label={ownOnly ? 'Sending to this channel only' : 'Send to this channel only'}
+        hint={ownOnly ? 'Your messages stay here. Click to send to every channel again.' : 'Keep your messages out of the other channels.'}
+        size={15}
+        active={ownOnly}
+        toggle
+        onclick={() => (ownOnly = !ownOnly)}
+      />
+    {/if}
     {#if modRole}
       <!-- V101-33 Mod mode: delete, timeout and ban in front of each line, per chat. -->
       <IconButton

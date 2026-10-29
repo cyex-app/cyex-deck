@@ -37,6 +37,8 @@
   const name = $derived(label(tab));
   const live = $derived(tabs.liveState(tab));
   const unread = $derived(tabs.unreadState(tab));
+  /** V108-N11 */
+  const ruleColor = $derived(unread ? tabs.markColor(tab) : null);
   const mentions = $derived(unread === 'mention' ? tabs.mentionCount(tab) : 0);
   const popped = $derived(tabs.popped.has(tab.id));
   /** V102-15 Still playing while something else shows. */
@@ -109,10 +111,12 @@
   class:grouped={!!groupColor}
   class:message={unread === 'message'}
   class:mention={unread === 'mention'}
+  class:ruled={!!ruleColor}
   data-tab-id={tab.id}
   data-vertical={vertical ? '1' : undefined}
   data-mark={mark}
   style:--group={groupColor}
+  style:--rule={ruleColor}
   role="tab"
   tabindex={stop ? 0 : -1}
   aria-selected={active}
@@ -231,6 +235,10 @@
   }
   .mention .name {
     text-decoration-color: var(--accent-text);
+  }
+  /* V108-N11 The latest highlight rule's colour marks the tab (the bar, or the mention underline). */
+  .ruled .name {
+    text-decoration-color: var(--rule);
   }
   .selected:not(.active) .pill {
     background: var(--surface-hover);

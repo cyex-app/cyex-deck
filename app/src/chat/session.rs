@@ -265,7 +265,8 @@ fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_
     // U9 Only rooms no view shows collect news.
     let news = if entry.views.is_empty() { unread::news(&events) } else { News::default() };
     // V107-Mr Each new mention also counts, so the tab's number follows.
-    let lit = news.level > entry.unread.level || news.mentions > 0;
+    // V108-N11 A newer rule colour repaints a mark that is already lit.
+    let lit = news.level > entry.unread.level || news.mentions > 0 || news.color.is_some();
     if lit {
         entry.unread = entry.unread.add(news);
     }

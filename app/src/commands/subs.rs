@@ -30,6 +30,29 @@ pub async fn subs_share_resub(
     subs::share_resub(&app, &account, &login, &token_id, &message, streak).await
 }
 
+/// V108-N23 The watch streak the account can share in a channel, if any.
+#[tauri::command]
+pub async fn subs_streak(app: AppHandle, account: String, login: String) -> CmdResult<subs::Streak> {
+    subs::streak(&app, &account, &login).await
+}
+
+/// V108-N23 Shares the streak in chat. Only the Share button calls this.
+#[tauri::command]
+pub async fn subs_share_streak(
+    app: AppHandle,
+    account: String,
+    channel_id: String,
+    milestone_id: String,
+) -> CmdResult<()> {
+    subs::share_streak(&app, &account, &channel_id, &milestone_id).await
+}
+
+/// V108-N23 Follows the milestones topic while a chat shows the streak prompt.
+#[tauri::command]
+pub fn subs_watch_streak(app: AppHandle, account: String, on: bool) {
+    subs::watch_streak(&app, &account, on);
+}
+
 #[tauri::command]
 pub async fn subs_prime(app: AppHandle, account: String, channel_id: String) -> CmdResult<()> {
     subs::prime(&app, &account, &channel_id).await

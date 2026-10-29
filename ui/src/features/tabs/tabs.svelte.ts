@@ -19,6 +19,7 @@ import { toast } from '../../lib/toast.svelte';
 import { audioFocus } from './audioFocus.svelte';
 import { hiddenTabs } from './barLayout';
 import { bumped, cleared, mentionNews, type FeedCounts } from './feedNews';
+import { markColor } from './markColor';
 import { muter } from './muter';
 import { sounding } from './sounding.svelte';
 import { tabSoundMode, type TabSoundMode } from './tabSound';
@@ -46,7 +47,7 @@ class TabsStore {
   /** 1.58 Tiles whose chat is in its own window. */
   chats = $state.raw<Set<string>>(new Set());
   /** U9 Chats with news, by `account/login`. */
-  unread = $state.raw<Record<string, Pick<RoomUnread, 'level' | 'mentions'>>>({});
+  unread = $state.raw<Record<string, Pick<RoomUnread, 'level' | 'mentions' | 'color'>>>({});
   /** U10 Something closed can come back. */
   reopenable = $state(false);
   /** V102-15 The tab whose stream keeps playing while another tab or view shows. */
@@ -124,6 +125,12 @@ class TabsStore {
       if (level === 'message' && mode === 'all') state = 'message';
     }
     return state;
+  }
+
+  /** V108-N11 The latest highlight rule's colour among the tab's unseen chats, if any. */
+  markColor(tab: Tab): string | null {
+    if (settings.v.appearance.tabUnread === 'off') return null;
+    return markColor(tiles(tab).map((tile) => (tile.show.chat ? this.unread[roomKey(tile.account, tile.channel.login)]?.color : null)));
   }
 
   /** V107-Mr Unseen mentions across the tab's shown chats; 0 when tabs don't light up. */
@@ -268,7 +275,7 @@ class TabsStore {
     for (const r of rooms) {
       const key = `${r.account ?? ''}/${r.login}`;
       if (r.level === 'seen') delete next[key];
-      else next[key] = { level: r.level, mentions: r.mentions };
+      else next[key] = { level: r.level, mentions: r.mentions, color: r.color };
     }
     this.unread = next;
   }

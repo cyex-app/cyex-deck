@@ -3,4 +3,8 @@
 /**
  * C3
  */
-export type UserNote = { nickname: string, note: string, };
+export type UserNote = { nickname: string, note: string, 
+/**
+ * V108-N08 Own name colour for this person (`#rrggbb`), empty for theirs.
+ */
+color: string, };

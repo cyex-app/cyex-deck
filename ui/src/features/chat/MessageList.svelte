@@ -272,9 +272,11 @@
   const hideMod = $derived(streamer.hides('hideModActions'));
   const hideWhispers = $derived(streamer.hides('hideWhispers'));
   const shown = $derived(
-    hideSimilar || hideMod || hideWhispers
+    hideSimilar || hideMod || hideWhispers || room.onlyHere
       ? room.messages.filter(
           (m) =>
+            // V108-N12 Shared Chat: "only this channel" hides other channels' lines.
+            !(room.onlyHere && m.source) &&
             !(hideSimilar && m.flags.includes('similar')) &&
             !(hideMod && (m.notice?.kind === 'moderation' || m.flags.includes('deleted'))) &&
             !(hideWhispers && m.flags.includes('whisper')),

@@ -1,10 +1,11 @@
 <!-- C6 The list of suggestions above the message box, as wide as it; below it or shorter
-     when there's no room above (V102-03). -->
+     when there's no room above (V102-03). V108-N09 As a row: one line of chips, as wide as the box. -->
 <script lang="ts">
   import { scrollBehavior } from '../../lib/motion';
   import { density } from '../../lib/density.svelte';
   import { floating } from '../../lib/place';
   import { settings } from '../../lib/settings.svelte';
+  import type { SuggestStyle } from './suggestKeys';
   import type { Item } from './suggestions';
   import { emoteImg } from './urls';
   import { scrollWithin } from '../../lib/scrollWithin';
@@ -15,9 +16,12 @@
     onpick: (i: number) => void;
     /** The message box's row. */
     anchor: HTMLElement | undefined;
+    /** V108-N09 */
+    style?: SuggestStyle;
   }
 
-  let { items, index, onpick, anchor }: Props = $props();
+  let { items, index, onpick, anchor, style = 'list' }: Props = $props();
+  const row = $derived(style === 'row');
 
   const theme = $derived(settings.v.appearance.theme);
   let box = $state<HTMLElement>();
@@ -25,12 +29,12 @@
   // Arrowing past the visible rows keeps the active one in view.
   $effect(() => {
     void index;
-    const row = box?.querySelector<HTMLElement>('[aria-selected="true"]');
-    if (row) scrollWithin(row, 'nearest', scrollBehavior());
+    const on = box?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (on) scrollWithin(on, 'nearest', scrollBehavior(), row ? 'x' : 'y');
   });
 </script>
 
-<div class="suggest" bind:this={box} role="listbox" use:floating={{ anchor, side: 'above', gap: 4, matchWidth: true }}>
+<div class="suggest" class:row bind:this={box} role="listbox" aria-orientation={row ? 'horizontal' : 'vertical'} use:floating={{ anchor, side: 'above', gap: 4, matchWidth: true }}>
   {#each items as item, i (item.value)}
     <button
       class="item"
@@ -62,6 +66,22 @@
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
     box-shadow: var(--shadow-pop);
+  }
+  /* V108-N09 One line, newest match first; scrolls sideways when it is longer than the box. */
+  .suggest.row {
+    display: flex;
+    gap: 2px;
+    max-height: none;
+    overflow: auto hidden;
+    scrollbar-width: none;
+  }
+  .row .item {
+    flex: none;
+    width: auto;
+    white-space: nowrap;
+  }
+  .row .hint {
+    display: none;
   }
   .item {
     display: flex;

@@ -10,6 +10,7 @@ import type { NameStyle } from "./NameStyle";
 import type { Overlay } from "./Overlay";
 import type { PaintToggles } from "./PaintToggles";
 import type { PauseKey } from "./PauseKey";
+import type { SuggestStyle } from "./SuggestStyle";
 import type { Timestamps } from "./Timestamps";
 import type { UnlistedEmotes } from "./UnlistedEmotes";
 import type { UserNote } from "./UserNote";
@@ -189,6 +190,14 @@ spellCheck: boolean,
  * A send button inside the message box. Setting, on.
  */
 sendButton: boolean, 
+/**
+ * V108-N09 `:` suggestions as a list above the box, or as a row.
+ */
+suggestStyle: SuggestStyle, 
+/**
+ * V108-N20 Phrases one click from the message box; a click puts one in the box.
+ */
+quickReplies: Array<string>, 
 /**
  * V107-Bn Cheers from this many Bits up ask first. 1: every cheer asks.
  */

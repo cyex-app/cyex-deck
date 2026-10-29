@@ -77,7 +77,17 @@ class LooksStore {
     if (this.started) return () => {};
     this.started = true;
     const off = emotesIpc.onLooks((l) => this.apply(l, true));
-    return () => void off.then((f) => f());
+    const sets = emotesIpc.onBadgeSets(() => this.refresh());
+    return () => {
+      void off.then((f) => f());
+      void sets.then((f) => f());
+    };
+  }
+
+  /** V108-N06 A badge set came in or went out: everyone drawn asks again. */
+  private refresh() {
+    for (const id of this.users.keys()) this.queue.add(id);
+    if (this.queue.size) this.timer ??= setTimeout(() => this.flush(), BATCH_MS);
   }
 
   private request(id: string) {
@@ -92,10 +102,13 @@ class LooksStore {
     this.queue.clear();
     // Marked as asked right away so nothing asks twice.
     for (const id of ids) if (!this.users.has(id)) this.users.set(id, null);
-    try {
-      this.apply(await emotesIpc.looks(ids), false);
-    } catch {
-      // Lookups are best effort; names just stay plain.
+    // V108-N06 Rust answers for 500 at a time.
+    for (let i = 0; i < ids.length; i += 500) {
+      try {
+        this.apply(await emotesIpc.looks(ids.slice(i, i + 500)), false);
+      } catch {
+        // Lookups are best effort; names just stay plain.
+      }
     }
   }
 

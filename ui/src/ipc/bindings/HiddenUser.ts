@@ -3,4 +3,8 @@
 /**
  * C28 Someone hidden only for you.
  */
-export type HiddenUser = { id: string, login: string, };
+export type HiddenUser = { id: string, login: string, 
+/**
+ * V108-N07 The chat (login) they're hidden in; empty = every chat (older entries).
+ */
+channel: string, };

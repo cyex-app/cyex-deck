@@ -5,6 +5,8 @@ import { listen } from '@tauri-apps/api/event';
 
 import type { ChannelSub } from './bindings/ChannelSub';
 import type { MySubs } from './bindings/MySubs';
+import type { Streak } from './bindings/Streak';
+import type { StreakChanged } from './bindings/StreakChanged';
 
 /** Twitch pages the app opens in its Twitch window. */
 export type TwitchPage = 'wallet' | 'subscriptions' | 'bits' | 'subscribe' | 'gift';
@@ -14,6 +16,14 @@ export const subsIpc = {
   channel: (account: string, login: string) => invoke<ChannelSub | null>('subs_channel', { account, login }),
   shareResub: (account: string, login: string, tokenId: string, message: string, streak: boolean) =>
     invoke<void>('subs_share_resub', { account, login, tokenId, message, streak }),
+  /** V108-N23 The watch streak the account can share in a channel, if any. */
+  streak: (account: string, login: string) => invoke<Streak>('subs_streak', { account, login }),
+  /** V108-N23 Posts it to chat as Twitch's own notice. Only from a click. */
+  shareStreak: (account: string, channelId: string, milestoneId: string) =>
+    invoke<void>('subs_share_streak', { account, channelId, milestoneId }),
+  /** V108-N23 Follows the milestones topic while a prompt could show. */
+  watchStreak: (account: string, on: boolean) => invoke<void>('subs_watch_streak', { account, on }),
+  onStreak: (handler: (e: StreakChanged) => void) => listen<StreakChanged>('subs:streak', (e) => handler(e.payload)),
   prime: (account: string, channelId: string) => invoke<void>('subs_prime', { account, channelId }),
   stopRenewal: (account: string, subId: string) => invoke<void>('subs_stop_renewal', { account, subId }),
   /** Opens a Twitch page in the account's Twitch window. */

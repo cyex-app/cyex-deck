@@ -31,14 +31,14 @@ pub use appearance::{
 pub use builtin_themes::{builtin_theme, builtin_themes, is_builtin_id};
 pub use browse::{Browse, HomeLayout, LiveSort, OfflineSort};
 pub use chat::{
-    BadgeToggles, Chat, DeletedStyle, GifMode, LinkThumbs, ModButtons, NameStyle, Overlay, PaintToggles,
+    BadgeToggles, Chat, DeletedStyle, GifMode, LinkThumbs, ModButtons, NameStyle, Overlay, PaintToggles, SuggestStyle,
     PauseKey, Timestamps, UnlistedEmotes, UserNote,
 };
 pub use combos::{
     Combo, ComboDone, ComboError, ComboItem, ComboOp, Combos, MAX_COMBOS, MAX_NAME, NameError, WORDS, clean_name,
 };
 pub use commands::{Access, Automation, CommandRow, Commands, SavedTimer, TriggerMatch};
-pub use emotes::{EmoteKey, EmoteSource, EmoteUse, Emotes};
+pub use emotes::{BadgeSets, EmoteKey, EmoteSource, EmoteUse, Emotes};
 pub use general::{ChatPosition, FONTS, General, font_or_default, StreamerMode, StreamerWhen};
 pub(crate) use highlights::{MAX_GLOBAL, MAX_RULES, MAX_WORDS};
 pub use highlights::{

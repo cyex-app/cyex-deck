@@ -5,6 +5,7 @@ use ts_rs::TS;
 
 use super::Schema;
 use super::emotes::{EmoteKey, EmoteSource, dedupe};
+use super::highlights::clean_color;
 
 /// Twitch's longest timeout: 14 days.
 const MAX_TIMEOUT_SECS: u32 = 1_209_600;
@@ -16,6 +17,9 @@ const MAX_MOD_ORDER: usize = 32;
 const MAX_NICKNAME_CHARS: usize = 25;
 const MAX_NOTE_CHARS: usize = 500;
 const MAX_HIDDEN_EMOTES: usize = 500;
+/// V108-N20 Saved phrases and the longest one (Twitch's limit).
+const MAX_QUICK_REPLIES: usize = 20;
+const MAX_QUICK_REPLY_CHARS: usize = 500;
 /// E3 Percent of the normal size.
 const EMOTE_SIZES: std::ops::RangeInclusive<u16> = 50..=300;
 /// C2 Percent alike that counts as a repeat.
@@ -129,6 +133,10 @@ pub struct Chat {
     pub spell_check: bool,
     /// A send button inside the message box. Setting, on.
     pub send_button: bool,
+    /// V108-N09 `:` suggestions as a list above the box, or as a row.
+    pub suggest_style: SuggestStyle,
+    /// V108-N20 Phrases one click from the message box; a click puts one in the box.
+    pub quick_replies: Vec<String>,
     /// V107-Bn Cheers from this many Bits up ask first. 1: every cheer asks.
     pub cheer_confirm_bits: u32,
     /// 1.42 Message effects and gigantified emotes as Twitch draws them.
@@ -186,6 +194,8 @@ impl Default for Chat {
             delay_tenths: 0,
             spell_check: false,
             send_button: true,
+            suggest_style: SuggestStyle::List,
+            quick_replies: Vec::new(),
             cheer_confirm_bits: 1000,
             effects: true,
             users: BTreeMap::new(),
@@ -257,8 +267,17 @@ impl Schema for Chat {
         self.users.retain(|id, u| {
             u.nickname = u.nickname.trim().chars().take(MAX_NICKNAME_CHARS).collect();
             u.note = u.note.trim().chars().take(MAX_NOTE_CHARS).collect();
-            !id.is_empty() && !(u.nickname.is_empty() && u.note.is_empty())
+            clean_color(&mut u.color);
+            !id.is_empty() && !(u.nickname.is_empty() && u.note.is_empty() && u.color.is_empty())
         });
+        // V108-N20 Trimmed, no empty or repeated phrase, at most 20.
+        let mut seen = std::collections::HashSet::new();
+        self.quick_replies = std::mem::take(&mut self.quick_replies)
+            .into_iter()
+            .map(|r| r.trim().chars().take(MAX_QUICK_REPLY_CHARS).collect::<String>())
+            .filter(|r| !r.is_empty() && seen.insert(r.clone()))
+            .take(MAX_QUICK_REPLIES)
+            .collect();
         let o = &mut self.overlay;
         o.background = o.background.min(100);
         o.scale = o.scale.clamp(*OVERLAY_SCALES.start(), *OVERLAY_SCALES.end());
@@ -404,6 +423,8 @@ impl Default for ModButtons {
 pub struct UserNote {
     pub nickname: String,
     pub note: String,
+    /// V108-N08 Own name colour for this person (`#rrggbb`), empty for theirs.
+    pub color: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -468,6 +489,16 @@ pub enum LinkThumbs {
     Large,
 }
 
+/// V108-N09 How `:` suggestions are laid out.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum SuggestStyle {
+    #[default]
+    List,
+    Row,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -513,6 +544,20 @@ mod tests {
     }
 
     #[test]
+    fn quick_replies_are_trimmed_unique_and_capped() {
+        let mut c = Chat {
+            quick_replies: vec!["  gg  ".into(), "".into(), "gg".into(), "x".repeat(600)],
+            ..Default::default()
+        };
+        c.quick_replies.extend((0..30).map(|i| format!("r{i}")));
+        c.sanitize();
+        assert_eq!(c.quick_replies.len(), MAX_QUICK_REPLIES);
+        assert_eq!(c.quick_replies[0], "gg");
+        assert_eq!(c.quick_replies[1].chars().count(), MAX_QUICK_REPLY_CHARS);
+        assert_eq!(c.suggest_style, SuggestStyle::List);
+    }
+
+    #[test]
     fn sanitize_trims_notes_and_drops_empty_ones() {
         let mut c = Chat::default();
         c.users.insert(
@@ -520,6 +565,7 @@ mod tests {
             UserNote {
                 nickname: format!("  {}  ", "n".repeat(40)),
                 note: " hi ".into(),
+                ..Default::default()
             },
         );
         c.users.insert("2".into(), UserNote::default());

@@ -19,6 +19,7 @@
   import { fxSleep } from './fxSleep';
   import { isHot } from './hover.svelte';
   import { shownName } from './names';
+  import { ownNameColor } from './ownColor';
   import { lineStacks } from './stacked';
   import { uploadLine } from './upload';
 
@@ -54,7 +55,9 @@
   /** V105-11 Our own upload line: both links are clickable. */
   const upLine = $derived(notice && !sender && notice.kind === 'info' ? uploadLine(notice.text) : null);
   const time = $derived(c.timestamps.show ? formatTime(new Date(m.ts), c.timestamps) : '');
-  const colorVars = $derived(sender ? `--cd:${sender.color.dark};--cl:${sender.color.light}` : '');
+  // V108-N08 Your own colour for them wins over theirs.
+  const nameColor = $derived(sender ? (ownNameColor(c.users[sender.id]?.color) ?? sender.color) : null);
+  const colorVars = $derived(nameColor ? `--cd:${nameColor.dark};--cl:${nameColor.light}` : '');
   /** 1.37 The sender's 7TV paint, as a class, and its name for a tip (V101-36). */
   const paintId = $derived(sender && c.paints.seventv ? (look !== undefined ? (look?.paint ?? null) : (looks.look(sender.id)?.paint ?? null)) : null);
   const paint = $derived(looks.paintClass(paintId));

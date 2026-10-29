@@ -20,6 +20,21 @@ pub struct Emotes {
     pub favorites: Vec<EmoteKey>,
     /// Most used first.
     pub usage: Vec<EmoteUse>,
+    /// V108-N06 Extra badge sets from community services. Each is its own switch, off until picked:
+    /// turning one on fetches that service’s list.
+    pub badge_sets: BadgeSets,
+}
+
+/// V108-N06 FFZ:AP, BadgeHQ, Chatsen, DankChat and Homies badges.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(default, rename_all = "camelCase")]
+#[ts(export)]
+pub struct BadgeSets {
+    pub ffzap: bool,
+    pub badgehq: bool,
+    pub chatsen: bool,
+    pub dankchat: bool,
+    pub homies: bool,
 }
 
 /// Where an emote comes from. Emoji (E1) use the emoji itself as id.
@@ -155,6 +170,14 @@ mod tests {
     }
 
     #[test]
+    fn badge_sets_start_off_and_read_alone() {
+        let e: Emotes = serde_json::from_str(r#"{"badgeSets":{"homies":true}}"#).unwrap();
+        assert!(e.badge_sets.homies && !e.badge_sets.ffzap && !e.badge_sets.badgehq);
+        assert_eq!(Emotes::default().badge_sets, BadgeSets::default());
+        assert!(!BadgeSets::default().chatsen && !BadgeSets::default().dankchat);
+    }
+
+    #[test]
     fn sanitize_drops_repeats_and_empty_ids() {
         let mut e = Emotes {
             favorites: vec![key("a"), key("a"), key("")],
@@ -163,6 +186,7 @@ mod tests {
                 count: 0,
                 last: 0,
             }],
+            ..Emotes::default()
         };
         e.sanitize();
         assert_eq!(e.favorites, [key("a")]);

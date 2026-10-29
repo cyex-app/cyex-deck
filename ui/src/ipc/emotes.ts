@@ -19,6 +19,8 @@ export const emotesIpc = {
   looks: (users: string[]) => invoke<Looks>('emotes_looks', { users }),
   /** Looks that changed, a quarter second after. */
   onLooks: (cb: (looks: Looks) => void) => listen<Looks>('emotes:looks', (e) => cb(e.payload)),
+  /** V108-N06 An extra badge set came in or went out: ask for the looks again. */
+  onBadgeSets: (cb: () => void) => listen<null>('emotes:badge-sets', () => cb()),
   /** A channel's emotes finished loading. */
   onLoaded: (cb: (login: string) => void) => listen<string>('emotes:loaded', (e) => cb(e.payload)),
   /** 1.40 */

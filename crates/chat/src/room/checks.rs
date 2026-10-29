@@ -57,7 +57,7 @@ impl Room {
     pub(super) fn screen(&mut self, m: &mut ChatMessage, now_ms: i64) -> (bool, Outcome) {
         let rules = self.rules.clone();
         let mut routes = Vec::new();
-        if m.sender.is_some() && rules.hidden(m, self.rules_role(), &mut routes) {
+        if m.sender.is_some() && rules.hidden(m, &self.login, self.rules_role(), &mut routes) {
             return (
                 false,
                 Outcome {
@@ -96,7 +96,7 @@ impl Room {
     /// History: hidden ones are left out, the rest highlighted, without sounds.
     pub(super) fn screen_old(&mut self, m: &mut ChatMessage) -> bool {
         let rules = self.rules.clone();
-        if m.sender.is_some() && rules.hidden(m, self.rules_role(), &mut Vec::new()) {
+        if m.sender.is_some() && rules.hidden(m, &self.login, self.rules_role(), &mut Vec::new()) {
             return false;
         }
         rules.replace(m);

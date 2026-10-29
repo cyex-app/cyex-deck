@@ -363,6 +363,8 @@ impl Default for Similarity {
 pub struct HiddenUser {
     pub id: String,
     pub login: String,
+    /// V108-N07 The chat (login) they're hidden in; empty = every chat (older entries).
+    pub channel: String,
 }
 
 // V105-12 An empty rule (one just added, being filled in) matches nothing, and goes once

@@ -3,8 +3,13 @@
 //! Buying, gifting, changing tier and payment methods open Twitch's own pages in the
 //! app's Twitch window (`windows::twitch`, 3.8).
 
+use cyex_miner::events::{self as miner_events, Event as MinerEvent};
+use cyex_twitch::gql::milestones::{self, Milestone};
 use cyex_twitch::gql::subs::{self as api, ChannelSub, Subs, pages};
-use tauri::AppHandle;
+use cyex_twitch::hermes::{Event, Kind};
+use serde::Serialize;
+use tauri::{AppHandle, Emitter};
+use ts_rs::TS;
 
 use crate::whispers::GqlCall;
 
@@ -68,6 +73,75 @@ pub async fn stop_renewal(app: &AppHandle, account: &str, sub_id: &str) -> Resul
     api::stop_renewal(&c.http, c.auth(), account, sub_id)
         .await
         .map_err(failed)
+}
+
+/// V108-N23 Tells open chats to read the watch streak again.
+const STREAK_EVENT: &str = "subs:streak";
+
+/// V108-N23 What the account can share in a channel now, and whether the channel is live (the
+/// chat then re-reads every minute as a fallback to the PubSub topic).
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Streak {
+    pub milestone: Option<Milestone>,
+    pub live: bool,
+}
+
+/// V108-N23 A milestone or streak changed in this channel.
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct StreakChanged {
+    pub account: String,
+    pub channel_id: String,
+}
+
+pub async fn streak(app: &AppHandle, account: &str, login: &str) -> Result<Streak, String> {
+    let c = call(app, account)?;
+    let milestone = milestones::shareable_streak(&c.http, c.auth(), login).await.map_err(failed)?;
+    Ok(Streak { milestone, live: crate::tabs::live::is_live(app, login) })
+}
+
+/// V108-N23 Only from the user's click on Share.
+pub async fn share_streak(app: &AppHandle, account: &str, channel_id: &str, milestone_id: &str) -> Result<(), String> {
+    let c = call(app, account)?;
+    milestones::share(&c.http, c.auth(), channel_id, milestone_id)
+        .await
+        .map_err(|e| match e {
+            cyex_twitch::Error::Refused(code) => milestones::explain(&code).to_owned(),
+            e => failed(e),
+        })
+}
+
+/// V108-N23 Follows (or stops following) the account's milestones topic while a chat shows
+/// the prompt. The topic is counted, so several chats can share it.
+pub fn watch_streak(app: &AppHandle, account: &str, on: bool) {
+    if on {
+        crate::hermes::add_user(app, account, Kind::ViewerMilestones);
+    } else {
+        crate::hermes::remove_user(app, account, Kind::ViewerMilestones);
+    }
+}
+
+/// V108-N23 A `viewer-milestones` message: the chat of that channel reads again.
+pub fn on_milestones(app: &AppHandle, e: &Event) {
+    if let Some((channel_id, _)) = milestones::update_of(&e.payload) {
+        changed(app, &e.topic.channel_id, channel_id);
+    }
+}
+
+/// V108-N23 A `WATCH_STREAK` points gain on the account's points topic: the streak moved.
+pub fn on_points(app: &AppHandle, e: &Event) {
+    if let Some(MinerEvent::Earned { channel_id, reason, .. }) = miner_events::parse(&e.payload)
+        && reason == milestones::WATCH_STREAK
+    {
+        changed(app, &e.topic.channel_id, channel_id);
+    }
+}
+
+fn changed(app: &AppHandle, account: &str, channel_id: String) {
+    let _ = app.emit(STREAK_EVENT, StreakChanged { account: account.to_owned(), channel_id });
 }
 
 /// Which Twitch page a sub action opens in the app's Twitch window.

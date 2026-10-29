@@ -99,7 +99,12 @@ async fn pump(app: AppHandle, mut rx: mpsc::UnboundedReceiver<Event>) {
                 crate::streammanager::on_hermes(&app, &e);
             }
             Kind::Moments => crate::miner::on_channel_event(&app, &e),
-            Kind::UserPoints | Kind::UserPredictions => crate::miner::on_user_event(&app, &e),
+            Kind::UserPoints => {
+                crate::miner::on_user_event(&app, &e);
+                // V108-N23 A WATCH_STREAK gain: the streak prompt reads again.
+                crate::subs::on_points(&app, &e);
+            }
+            Kind::UserPredictions => crate::miner::on_user_event(&app, &e),
             Kind::Whispers => crate::whispers::on_hermes(&app, &e),
             Kind::Onsite => crate::bell::on_event(&app, &e),
             Kind::ActivityAlerts
@@ -108,8 +113,10 @@ async fn pump(app: AppHandle, mut rx: mpsc::UnboundedReceiver<Event>) {
             | Kind::AdsManager
             | Kind::GuestStarUser => crate::streammanager::on_hermes(&app, &e),
             Kind::ModActions | Kind::AutomodQueue => crate::moderation::feeds::on_hermes(&app, &e),
-            // V108-N04, V108-N23 Topics exist in the twitch crate; the handlers come with their UI phases.
-            Kind::HypeTrain | Kind::ViewerMilestones => {}
+            // V108-N23 The streak prompt reads again.
+            Kind::ViewerMilestones => crate::subs::on_milestones(&app, &e),
+            // V108-N04 The handler comes with its UI phase.
+            Kind::HypeTrain => {}
         }
     }
 }

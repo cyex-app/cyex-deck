@@ -9,4 +9,8 @@ account: string | null, login: string, level: Unread,
 /**
  * V107-Mr Unseen mentions, for the count on the tab.
  */
-mentions: number, };
+mentions: number, 
+/**
+ * V108-N11 `#rrggbb` of the latest highlight rule that matched, for the tab's mark.
+ */
+color: string | null, };

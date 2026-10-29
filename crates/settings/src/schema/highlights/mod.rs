@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use super::Schema;
+pub(crate) use rules::clean_color;
 use rules::{MAX_PATTERN_CHARS, MAX_ROUTE_CHARS};
 
 pub(crate) const MAX_RULES: usize = 200;
@@ -163,8 +164,20 @@ impl Schema for Highlights {
         for list in [&mut self.never, &mut self.muted] {
             logins::clean(list, MAX_NEVER);
         }
+        // V108-N07 One entry per person and chat; "everywhere" swallows the chat-only ones.
         self.hidden_users.retain(|u| !u.id.is_empty());
-        self.hidden_users.dedup_by(|a, b| a.id == b.id);
+        for u in &mut self.hidden_users {
+            u.channel = u.channel.trim().trim_start_matches('#').to_ascii_lowercase();
+        }
+        let everywhere: std::collections::HashSet<String> = self
+            .hidden_users
+            .iter()
+            .filter(|u| u.channel.is_empty())
+            .map(|u| u.id.clone())
+            .collect();
+        let mut seen = std::collections::HashSet::new();
+        self.hidden_users
+            .retain(|u| (u.channel.is_empty() || !everywhere.contains(&u.id)) && seen.insert((u.id.clone(), u.channel.clone())));
         self.hidden_users.truncate(MAX_NEVER);
         self.ignores.truncate(MAX_RULES);
         for r in &mut self.ignores {
@@ -328,6 +341,21 @@ mod tests {
             assert!(has(token, list[0]) && has(token, list[1]), "{token}");
         }
         assert_eq!(LINE[0], cyex_core::color::DEFAULT_ACCENT);
+    }
+
+    /// V108-N07 Old entries (no channel) load as "everywhere"; one entry per person and chat.
+    #[test]
+    fn hidden_users_scope() {
+        let old: HiddenUser = serde_json::from_str(r#"{"id":"1","login":"a"}"#).unwrap();
+        assert_eq!(old.channel, "");
+        let at = |id: &str, channel: &str| HiddenUser { id: id.into(), login: id.into(), channel: channel.into() };
+        let mut h = Highlights {
+            hidden_users: vec![at("1", "#Chan"), at("1", "chan"), at("2", "a"), at("2", ""), at("3", "b"), at("3", "c")],
+            ..Highlights::default()
+        };
+        h.sanitize();
+        let got: Vec<(&str, &str)> = h.hidden_users.iter().map(|u| (u.id.as_str(), u.channel.as_str())).collect();
+        assert_eq!(got, [("1", "chan"), ("2", ""), ("3", "b"), ("3", "c")]);
     }
 
     #[test]

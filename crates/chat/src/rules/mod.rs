@@ -90,6 +90,8 @@ pub struct Rules {
     muted: HashSet<String>,
     /// C28
     hidden_users: HashSet<String>,
+    /// V108-N07 Hidden in one chat only: (user id, channel login).
+    hidden_here: HashSet<(String, String)>,
     /// C32 Ignores only (V106-33: words have their own).
     lookalikes: bool,
     ignores: Vec<compile::Ignore>,
@@ -139,7 +141,13 @@ impl Rules {
                 .collect(),
             never: h.never.iter().cloned().collect(),
             muted: h.muted.iter().cloned().collect(),
-            hidden_users: h.hidden_users.iter().map(|u| u.id.clone()).collect(),
+            hidden_users: h.hidden_users.iter().filter(|u| u.channel.is_empty()).map(|u| u.id.clone()).collect(),
+            hidden_here: h
+                .hidden_users
+                .iter()
+                .filter(|u| !u.channel.is_empty())
+                .map(|u| (u.id.clone(), u.channel.clone()))
+                .collect(),
             lookalikes: h.lookalikes,
             ignores: compile::ignores(&h.ignores),
             blocked: h.blocked.enabled.then_some(h.blocked.show),
@@ -179,12 +187,14 @@ impl Rules {
         }
     }
 
-    /// F2 Hidden from this room, given our role in it. Copies still go to `routes`.
-    pub fn hidden(&self, m: &ChatMessage, role: Role, routes: &mut Vec<String>) -> bool {
-        if m.sender
-            .as_ref()
-            .is_some_and(|s| self.hidden_users.contains(&s.id))
-        {
+    /// V108-N07 `id` is hidden for you in `channel` (everywhere, or just there).
+    pub fn hides_user(&self, id: &str, channel: &str) -> bool {
+        self.hidden_users.contains(id) || self.hidden_here.contains(&(id.to_owned(), channel.to_owned()))
+    }
+
+    /// F2 Hidden from `channel`'s room, given our role in it. Copies still go to `routes`.
+    pub fn hidden(&self, m: &ChatMessage, channel: &str, role: Role, routes: &mut Vec<String>) -> bool {
+        if m.sender.as_ref().is_some_and(|s| self.hides_user(&s.id, channel)) {
             return true;
         }
         if let (Some(show), Some(s)) = (self.blocked, &m.sender)
@@ -355,6 +365,18 @@ pub enum Role {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// V108-N07 Everywhere hides in every chat; a chat-only entry hides in that chat alone.
+    #[test]
+    fn hidden_user_scope() {
+        use cyex_settings::schema::HiddenUser;
+        let at = |id: &str, channel: &str| HiddenUser { id: id.into(), login: id.into(), channel: channel.into() };
+        let h = Highlights { hidden_users: vec![at("1", ""), at("2", "chan")], ..Highlights::default() };
+        let rules = Rules::new(&h);
+        assert!(rules.hides_user("1", "chan") && rules.hides_user("1", "other"));
+        assert!(rules.hides_user("2", "chan") && !rules.hides_user("2", "other"));
+        assert!(!rules.hides_user("3", "chan"));
+    }
 
     #[test]
     fn routes_dedup_ignoring_case() {

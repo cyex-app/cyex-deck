@@ -31,6 +31,8 @@
   import type { BanStatus } from '../../ipc/bindings/BanStatus';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
+  import Button from '../../components/Button.svelte';
+  import { ownNameColor } from '../chat/ownColor';
 
   let { route }: { route: string; popout?: boolean } = $props();
 
@@ -186,9 +188,9 @@
     void getCurrentWindow().startDragging();
   }
 
-  function saveNote(field: 'nickname' | 'note', value: string) {
+  function saveNote(field: 'nickname' | 'note' | 'color', value: string) {
     if (!profile) return;
-    const current = note ?? { nickname: '', note: '' };
+    const current = note ?? { nickname: '', note: '', color: '' };
     if (current[field] === value.trim()) return;
     void settings.patch('chat', { users: { [profile.id]: { ...current, [field]: value.trim() } } });
   }
@@ -206,7 +208,7 @@
         {profile}
         {channel}
         badges={last?.sender?.badges ?? []}
-        color={last?.sender?.color ?? null}
+        color={ownNameColor(note?.color) ?? last?.sender?.color ?? null}
         {isChannel}
         {logsUrl}
         bind:editing
@@ -239,6 +241,18 @@
             value={note?.nickname ?? ''}
             onchange={(e) => saveNote('nickname', e.currentTarget.value)}
           />
+          <!-- V108-N08 Their name in your colour (made readable like Twitch's). -->
+          <label class="label" for="own-color">Name color</label>
+          <div class="swatch-row">
+            <input
+              id="own-color"
+              type="color"
+              class="swatch"
+              value={note?.color || last?.sender?.color.dark || '#808080'}
+              onchange={(e) => saveNote('color', e.currentTarget.value)}
+            />
+            <Button small variant="ghost" disabled={!note?.color} onclick={() => saveNote('color', '')}>Use theirs</Button>
+          </div>
           <label class="label" for="note">Note</label>
           <textarea
             id="note"
@@ -359,6 +373,20 @@
   }
   .field {
     width: 100%;
+  }
+  .swatch-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .swatch {
+    width: 40px;
+    height: 26px;
+    padding: 2px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    background: var(--surface);
+    cursor: pointer;
   }
   textarea.field {
     height: auto;

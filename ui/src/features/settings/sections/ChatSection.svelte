@@ -13,6 +13,7 @@
   import type { ModButtons } from '../../../ipc/bindings/ModButtons';
   import type { NameStyle } from '../../../ipc/bindings/NameStyle';
   import type { PauseKey } from '../../../ipc/bindings/PauseKey';
+  import type { SuggestStyle } from '../../../ipc/bindings/SuggestStyle';
   import { formatDuration, formatNumber, formatTime } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
   import { addTimeout, buttonKey, buttonOn, canAddButton, fullOrder, retimeButton, toggleButton } from '../../modview/lineMod';
@@ -53,6 +54,10 @@
     { value: 'ctrl', label: 'Ctrl' },
     { value: 'alt', label: 'Alt' },
     { value: 'shift', label: 'Shift' },
+  ];
+  const SUGGEST: { value: SuggestStyle; label: string }[] = [
+    { value: 'list', label: 'List' },
+    { value: 'row', label: 'Row' },
   ];
   const SAMPLE_TIME = new Date(2026, 0, 1, 14, 3, 27);
   const SIMILAR: { value: number; label: string }[] = [
@@ -117,6 +122,21 @@
 
   function removePreset(secs: number) {
     void settings.patch('chat', { timeoutPresets: c.timeoutPresets.filter((s) => s !== secs) });
+  }
+
+  /** V108-N20 Saved phrases: the box adds, a field edits (emptied removes), × removes. */
+  const MAX_REPLIES = 20;
+  let newReply = $state('');
+  const setReplies = (list: string[]) => void settings.patch('chat', { quickReplies: list });
+  function addReply() {
+    const t = newReply.trim();
+    if (!t || c.quickReplies.includes(t)) return void (newReply = '');
+    setReplies([...c.quickReplies, t]);
+    newReply = '';
+  }
+  function editReply(i: number, text: string) {
+    const t = text.trim();
+    setReplies(t ? c.quickReplies.map((r, j) => (j === i ? t : r)) : c.quickReplies.filter((_, j) => j !== i));
   }
 
   /** M10 Mod mode's buttons: your timeout lengths plus any already picked. */
@@ -378,6 +398,35 @@
 <Row setting="chat.sendButton" label="Send button" hint="A button in the message box. Enter still sends.">
   <Toggle label="Send button" checked={c.sendButton} onchange={(v) => settings.patch('chat', { sendButton: v })} />
 </Row>
+<Row setting="chat.suggestStyle" label="Suggestions" hint="Emote suggestions after a colon. A row sits above the box; Tab and the arrow keys move, Enter picks.">
+  <Segmented label="Suggestions" options={SUGGEST} value={c.suggestStyle} onchange={(v) => settings.patch('chat', { suggestStyle: v })} />
+</Row>
+<Row setting="chat.quickReplies" label="Quick replies" hint="Up to 20 phrases, in a menu next to the message box. A click puts one in the box; it never sends." stacked>
+  <div class="replies">
+    {#each c.quickReplies as reply, i (i)}
+      <div class="reply">
+        <input
+          class="field"
+          maxlength="500"
+          aria-label="Quick reply {i + 1}"
+          value={reply}
+          onchange={(e) => editReply(i, e.currentTarget.value)}
+        />
+        <button aria-label="Remove quick reply {i + 1}" onclick={() => editReply(i, '')}>×</button>
+      </div>
+    {/each}
+    {#if c.quickReplies.length < MAX_REPLIES}
+      <form
+        onsubmit={(e) => {
+          e.preventDefault();
+          addReply();
+        }}
+      >
+        <input class="field" maxlength="500" aria-label="Add a quick reply" placeholder="Add a phrase" bind:value={newReply} />
+      </form>
+    {/if}
+  </div>
+</Row>
 <Row setting="chat.spellCheck" label="Spell check" hint="Underlines typos in the message box. Right-click one for fixes.">
   <Toggle label="Spell check" checked={c.spellCheck} onchange={(v) => settings.patch('chat', { spellCheck: v })} />
 </Row>
@@ -635,6 +684,43 @@
     inset: -3px;
   }
   .chip button:hover {
+    color: var(--red);
+  }
+  .replies {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    max-width: 420px;
+  }
+  .reply {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .reply .field,
+  .replies form .field {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+    height: 28px;
+  }
+  .reply button {
+    position: relative;
+    flex: none;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    background: none;
+    border: 0;
+    color: var(--dim);
+  }
+  .reply button::before {
+    content: "";
+    position: absolute;
+    inset: -4px;
+  }
+  .reply button:hover {
     color: var(--red);
   }
   .add {

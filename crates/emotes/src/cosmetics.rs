@@ -8,6 +8,7 @@ use cyex_chat::model::Provider;
 use serde::Serialize;
 use ts_rs::TS;
 
+use crate::badges::{BadgeSet, Loaded};
 use crate::capped::Capped;
 use crate::seventv::paint::PaintStyle;
 
@@ -97,6 +98,8 @@ pub struct Cosmetics {
     ffz: Vec<(String, Vec<u64>)>,
     /// BTTV badge by user; last set or draw first to stay (S7).
     bttv: Capped<String, String, MAX_BTTV_USERS>,
+    /// V108-N06 Extra badge sets: user id → badge ids, one map per loaded set.
+    extra: HashMap<BadgeSet, HashMap<String, Vec<String>>>,
 }
 
 /// 7TV paint or badge, given or taken.
@@ -180,6 +183,25 @@ impl Cosmetics {
         self.bttv.len()
     }
 
+    /// V108-N06 Puts a set in, in place of its older list.
+    pub fn set_extra(&mut self, set: BadgeSet, loaded: Loaded) {
+        self.clear_extra(set);
+        for d in loaded.defs {
+            self.add_badge(d);
+        }
+        self.extra.insert(set, loaded.users);
+    }
+
+    /// V108-N06 Takes a set out (its switch went off) and frees its list.
+    pub fn clear_extra(&mut self, set: BadgeSet) {
+        self.extra.remove(&set);
+        self.badges.retain(|k, _| BadgeSet::of_id(&k.id) != Some(set));
+    }
+
+    pub fn extra_loaded(&self, set: BadgeSet) -> bool {
+        self.extra.contains_key(&set)
+    }
+
     pub fn look(&self, user: &str) -> Option<Look> {
         let mut look = Look::default();
         // Drawn: counts as recent, so it outlives the trim.
@@ -206,6 +228,15 @@ impl Cosmetics {
                         id: b.clone(),
                     });
                 }
+            }
+        }
+        // V108-N06 Their badges carry no emote provider: Twitch stands for "none".
+        for set in BadgeSet::ALL {
+            for id in self.extra.get(&set).and_then(|u| u.get(user)).into_iter().flatten() {
+                look.badges.push(BadgeRef {
+                    provider: Provider::Twitch,
+                    id: id.clone(),
+                });
             }
         }
         look.badges.retain(|b| self.badges.contains_key(b));
@@ -275,6 +306,33 @@ mod tests {
         let looks = c.looks(["1", "9"]);
         assert_eq!(looks.badges.len(), 2);
         assert_eq!(looks.users["9"], None);
+    }
+
+    #[test]
+    fn extra_sets_come_and_go_whole() {
+        use crate::badges::{BadgeSet, Loaded};
+        let mut c = Cosmetics::default();
+        let def = |id: &str| BadgeDef { id: id.into(), ..badge(Provider::Twitch, id) };
+        let mut loaded = Loaded::default();
+        loaded.defs.push(def("ffzap:1"));
+        loaded.users.insert("1".into(), vec!["ffzap:1".into(), "ffzap:gone".into()]);
+        c.set_extra(BadgeSet::FfzAp, loaded);
+        assert!(c.extra_loaded(BadgeSet::FfzAp));
+        let look = c.look("1").unwrap();
+        assert_eq!(look.badges.len(), 1, "a badge without a picture is not worn");
+        assert_eq!(look.badges[0].id, "ffzap:1");
+        // A new list replaces the old one.
+        let mut next = Loaded::default();
+        next.defs.push(def("ffzap:2"));
+        next.users.insert("2".into(), vec!["ffzap:2".into()]);
+        c.set_extra(BadgeSet::FfzAp, next);
+        assert!(c.look("1").is_none() && c.look("2").is_some());
+        // Other sets and providers stay.
+        c.add_badge(badge(Provider::Bttv, "pro"));
+        c.clear_extra(BadgeSet::FfzAp);
+        assert!(!c.extra_loaded(BadgeSet::FfzAp) && c.look("2").is_none());
+        assert!(c.badges.contains_key(&BadgeRef { provider: Provider::Bttv, id: "pro".into() }));
+        assert!(c.badges.len() == 1);
     }
 
     #[test]

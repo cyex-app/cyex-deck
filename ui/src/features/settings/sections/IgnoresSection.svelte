@@ -89,9 +89,9 @@
 </Row>
 
 <SectionHead title="Hidden for you" setting="highlights.hiddenUsers">People hidden only in cyex, not on Twitch.</SectionHead>
-{#each h.hiddenUsers as u (u.id)}
-  <Row label={u.login}>
-    <Button small variant="ghost" onclick={() => save({ hiddenUsers: h.hiddenUsers.filter((x) => x.id !== u.id) })}>
+{#each h.hiddenUsers as u (`${u.id}/${u.channel}`)}
+  <Row label={u.login} hint={u.channel ? `Only in ${u.channel}’s chat` : 'In every chat'}>
+    <Button small variant="ghost" onclick={() => save({ hiddenUsers: h.hiddenUsers.filter((x) => x !== u) })}>
       Show again
     </Button>
   </Row>

@@ -195,6 +195,20 @@ export const CHAT: Entry[] = [
     keywords: ['submit', 'enter', 'message box', 'input'],
   },
   {
+    id: 'chat.suggestStyle',
+    page: 'chat',
+    label: 'Suggestions',
+    description: 'Emote suggestions as a list above the box, or as one row. In a row, Tab and the arrow keys move.',
+    keywords: ['autocomplete', 'emote', 'colon', 'row', 'list', 'completion'],
+  },
+  {
+    id: 'chat.quickReplies',
+    page: 'chat',
+    label: 'Quick replies',
+    description: 'Saved phrases next to the message box. A click puts one in the box; it never sends.',
+    keywords: ['canned', 'phrases', 'saved messages', 'macros', 'snippets'],
+  },
+  {
     id: 'chat.spellCheck',
     page: 'chat',
     label: 'Spell check',

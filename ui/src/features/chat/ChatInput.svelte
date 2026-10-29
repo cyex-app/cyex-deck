@@ -1,7 +1,8 @@
 <!-- Message box (1.8, C6, C21): `@`, `:` and `!` suggestions (emotes, emoji E1, bot
      commands C13), Tab completion, the emote menu (1.40), length counter, slow mode and
      timeout countdown, replies. Enter sends; Ctrl+Enter sends and keeps the text for
-     sending again. Up recalls what you sent. Pasted or dropped images go to your upload host (V105-11). -->
+     sending again. Up recalls what you sent. Pasted or dropped images go to your upload host (V105-11).
+     V108-N09 Suggestions as a row, V108-N20 quick replies, V108-N23 the watch streak prompt. -->
 <script lang="ts">
   import { tick } from 'svelte';
 
@@ -32,12 +33,15 @@
   import { chatxIpc } from '../../ipc/chatx';
   import EmoteButton from './EmoteButton.svelte';
   import IdentityButton from './IdentityButton.svelte';
+  import QuickReplies from './QuickReplies.svelte';
   import RewardsMenu from './RewardsMenu.svelte';
   import type { ChatRoom } from './room.svelte';
   import { MAX_CHARS, sendLength } from './sendLength';
+  import StreakShare from './StreakShare.svelte';
   import { SideFold } from './sideFold.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import { Sources } from './sources.svelte';
+  import { suggestKey } from './suggestKeys';
   import SuggestList from './SuggestList.svelte';
   import UploadConfirm from './UploadConfirm.svelte';
   import { useUploads } from './upload.svelte';
@@ -83,6 +87,10 @@
     arg?: boolean;
   }
   let suggest = $state<Suggest | null>(null);
+  /** V108-N09 */
+  const suggestStyle = $derived(settings.v.chat.suggestStyle);
+  /** Commands and their arguments stay a list: Tab fills them and Enter sends. */
+  const styleNow = $derived(suggest?.arg ? 'list' : suggestStyle);
   /** Tab cycling through matches for one word. */
   let cycle: { word: Word; items: string[]; index: number } | null = null;
   /** S5 Plugins are being asked for matches. */
@@ -391,18 +399,19 @@
   function onkeydown(e: KeyboardEvent) {
     if (e.key !== 'Tab' && e.key !== 'Shift') cycle = null;
     if (suggest) {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      // V108-N09 One rule set for the list and the row (suggestKeys.ts).
+      const k = suggestKey(styleNow, e, suggest.index, suggest.items.length, suggest.arg);
+      if (k?.do === 'move') {
         e.preventDefault();
-        const n = suggest.items.length;
-        suggest.index = (suggest.index + (e.key === 'ArrowDown' ? 1 : n - 1)) % n;
+        suggest.index = k.index;
         return;
       }
-      if (e.key === 'Tab' || (e.key === 'Enter' && !e.ctrlKey && !suggest.arg)) {
+      if (k?.do === 'pick') {
         e.preventDefault();
         accept();
         return;
       }
-      if (e.key === 'Escape') {
+      if (k?.do === 'close') {
         suggest = null;
         return;
       }
@@ -439,8 +448,10 @@
       <button aria-label="Cancel reply" onclick={() => (replyTo = null)}><Icon name="x" size={13} /></button>
     </div>
   {/if}
+  <!-- V108-N23 -->
+  {#if canChat}<StreakShare account={room.account} login={room.login} channelId={room.state.channelId} />{/if}
   {#if suggest}
-    <SuggestList items={suggest.items} index={suggest.index} onpick={accept} anchor={row} />
+    <SuggestList items={suggest.items} index={suggest.index} onpick={accept} anchor={row} style={styleNow} />
   {/if}
   <div class="row" bind:this={row}>
     {#snippet pointsBtn()}<span class="slot" data-out data-side="points"><RewardsMenu {room} /></span>{/snippet}
@@ -492,6 +503,8 @@
           {#if chars >= SHOW_COUNT}<span class="count" class:over={chars > MAX} class:near={chars > MAX - 50}>{formatNumber(chars)}/{MAX}</span>{/if}
         </div>
       {/if}
+      <!-- V108-N20 -->
+      <QuickReplies oninsert={insertText} />
       <!-- 1.43 GIFs are a tab in the emote menu. -->
       {#if !side.folded}{@render identityBtn()}{@render emoteBtn()}{/if}
       </div>

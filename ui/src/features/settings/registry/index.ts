@@ -5,6 +5,7 @@
 
 import { ACCOUNT } from './account.ts';
 import { APP } from './app.ts';
+import { BADGES } from './badges.ts';
 import { CHAT } from './chat.ts';
 import type { Entry } from './entry';
 import { STREAMING } from './streaming.ts';
@@ -13,7 +14,7 @@ import { WATCHING } from './watching.ts';
 export type { Entry } from './entry';
 export { GROUPS, PAGES, pageOf, type Page, type PageId } from './pages.ts';
 
-export const ENTRIES: readonly Entry[] = [...APP, ...ACCOUNT, ...CHAT, ...WATCHING, ...STREAMING];
+export const ENTRIES: readonly Entry[] = [...APP, ...ACCOUNT, ...CHAT, ...BADGES, ...WATCHING, ...STREAMING];
 
 /** S2 Each hotkey is a result of its own, read from the hotkey list so new ones show up
  * without an entry. Rows on the Hotkeys page carry `hotkey:<action>`. */

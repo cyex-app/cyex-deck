@@ -22,6 +22,7 @@
   import { pinKey, pinLive, shows } from './eventStrip';
   import { eventStrip } from './eventStrip.svelte';
   import { shownName } from './names';
+  import { ownNameColor } from './ownColor';
   import { nowSecond } from '../../lib/clock.svelte';
   import { pinLeft, pinSpan } from './pinTimer';
   import { lineStacks } from './stacked';
@@ -211,6 +212,8 @@
   const c = $derived(settings.v.chat);
   const sender = $derived(pin.message.sender);
   const name = $derived(sender ? shownName(sender, c.names, c.users[sender.id]) : null);
+  // V108-N08
+  const nameColor = $derived(sender ? (ownNameColor(c.users[sender.id]?.color) ?? sender.color) : null);
   /** V107-P5 Who pinned it, for their usercard; older reads had only the display name. */
   const byLogin = $derived(pin.byLogin ?? (pin.by && /^\w+$/.test(pin.by) ? pin.by.toLowerCase() : null));
 
@@ -240,7 +243,7 @@
                 role="link"
                 tabindex="0"
                 aria-label="{name.name}, open usercard"
-                style="--cd:{sender.color.dark};--cl:{sender.color.light}"
+                style="--cd:{nameColor?.dark};--cl:{nameColor?.light}"
                 onclick={() => usercard(sender.login)}
                 onkeydown={(e) => cardKey(e, sender.login)}>{name.name}</span
               >

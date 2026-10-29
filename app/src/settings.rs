@@ -264,7 +264,10 @@ impl Settings {
             crate::tabs::on_changed(app);
             crate::chat::shown::tabs_changed(app);
         }
-        if changed.iter().any(|(p, _)| *p == Partition::Chat) {
+        if changed
+            .iter()
+            .any(|(p, _)| matches!(p, Partition::Chat | Partition::Emotes))
+        {
             crate::emotes::on_settings(app);
         }
         if changed

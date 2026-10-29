@@ -1,0 +1,16 @@
+{
+   "badges":[
+      {
+         "tooltip":"Homies Mod",
+         "image1":"https://itzalex.github.io/badgesusers/mod/badge.png",
+         "users":[ "7" ],
+         "image2":"https://itzalex.github.io/badgesusers/mod/badge2x.png",
+         "image3":"https://itzalex.github.io/badgesusers/mod/badge3x.png"
+      },
+      {
+         "tooltip":"Bot",
+         "image1":"https://itzalex.github.io/badgesusers/bot/badge.png",
+         "users":[ "" ]
+      }
+   ]
+}
