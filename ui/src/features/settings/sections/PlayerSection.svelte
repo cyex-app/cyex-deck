@@ -14,12 +14,22 @@
   import Select from '../../../components/Select.svelte';
   import { stepChoice } from '../../player/liveKeys';
   import { REPLAY_MINUTES, replayChoice } from '../../player/liveEdge';
+  import { AWAY_SECS, awayChoice } from '../../player/away';
+  import type { AwayMode } from '../../../ipc/bindings/AwayMode';
 
   const p = $derived(settings.v.player);
 
   const STEPS = [5, 10, 15, 30].map((n) => ({ value: String(n), label: `${n} seconds` }));
   // V108-N24
   const REPLAYS = REPLAY_MINUTES.map((n) => ({ value: String(n), label: n ? `${n} minutes` : 'Off' }));
+
+  // V108-N22
+  const AWAY_MODES: { value: AwayMode; label: string }[] = [
+    { value: 'lowest', label: 'Lowest quality' },
+    { value: 'audio', label: 'Audio only' },
+    { value: 'off', label: 'Keep playing as is' },
+  ];
+  const AWAYS = AWAY_SECS.map((n) => ({ value: String(n), label: n < 60 ? `${n} seconds` : n === 60 ? '1 minute' : `${n / 60} minutes` }));
 
   const QUALITIES: { value: Quality; label: string }[] = [
     { value: 'auto', label: 'Auto: fits the player' },
@@ -62,7 +72,7 @@
   <Toggle label="Live VODs" checked={p.liveRewind} onchange={(v) => settings.patch('player', { liveRewind: v })} />
 </Row>
 
-<Row setting="player.replayMinutes" label="Replay" hint="Go back in what played here, where Twitch has no rewind. Only what this player already loaded.">
+<Row setting="player.replayMinutes" label="Replay" hint="Go back in what played here, where Twitch has no rewind. It replays what you watched, so time spent on lowest quality or audio only is in it. Dropped after a pause of over 10 minutes.">
   <Select label="Replay" width="160px" value={String(replayChoice(p.replayMinutes))} options={REPLAYS} onchange={(v) => settings.patch('player', { replayMinutes: Number(v) })} />
 </Row>
 
@@ -72,6 +82,22 @@
 
 <Row setting="player.quality" label="Quality" hint="What players start in. Each player’s gear menu changes its own.">
   <Select label="Quality" width="160px" value={p.quality} options={QUALITIES} onchange={(v) => settings.patch('player', { quality: v as Quality })} />
+</Row>
+
+<SectionHead title="Save resources" level={3} />
+
+<Row setting="player.awayMode" label="Tabs out of sight" hint="A stream in a background tab or a minimized window. Picture in picture counts as in sight.">
+  <Select label="Tabs out of sight" width="160px" value={p.awayMode} options={AWAY_MODES} onchange={(v) => settings.patch('player', { awayMode: v as AwayMode })} />
+</Row>
+
+{#if p.awayMode !== 'off'}
+  <Row setting="player.awaySecs" label="After" hint="Back before that, nothing changes. Back later, the picture returns within a few seconds.">
+    <Select label="After" width="160px" value={String(awayChoice(p.awaySecs))} options={AWAYS} onchange={(v) => settings.patch('player', { awaySecs: Number(v) })} />
+  </Row>
+{/if}
+
+<Row setting="player.pauseHidden" label="Pause animations when hidden" hint="Animated emotes and chat effects rest while the window is hidden or minimized.">
+  <Toggle label="Pause animations when hidden" checked={p.pauseHidden} onchange={(v) => settings.patch('player', { pauseHidden: v })} />
 </Row>
 
 <Row

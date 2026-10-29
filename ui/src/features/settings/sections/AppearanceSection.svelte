@@ -202,6 +202,14 @@
   />
 </Row>
 
+<Row setting="appearance.audioFocus" label="One stream with sound" hint="With several streams in a tab, only one is heard. Click a stream to move the sound.">
+  <Toggle
+    label="One stream with sound"
+    checked={a.audioFocus}
+    onchange={(v) => settings.patch('appearance', { audioFocus: v })}
+  />
+</Row>
+
 <Row setting="appearance.tabUnread" label="Light up tabs" hint="Background tabs light up on new chat, brighter for mentions.">
   <Segmented
     label="Light up tabs"

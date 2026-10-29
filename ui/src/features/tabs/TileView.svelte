@@ -49,6 +49,8 @@
   import { mods } from '../modview/moderation.svelte';
   import ModViewPanel from '../modview/ModViewPanel.svelte';
   import { modviewPlace, modviewRoute } from '../modview/where.svelte';
+  import { audioFocus } from './audioFocus.svelte';
+  import { claimsOnClick } from './audioFocus';
   import { drag } from './drag.svelte';
   import { chatSide, layout } from './layout.svelte';
   import { layoutEntries, tileEntries } from './menus';
@@ -351,6 +353,13 @@
     void popOut(chatRoute(tile.id), `${tile.channel.name} chat`);
   }
 
+  /** V108-N13 A click on a stream tile moves the sound to it. After the tile's own buttons ran,
+   * so its volume button still reads the state it was clicked in. Not from a text box. */
+  function pick(e: MouseEvent) {
+    if (!tiled || !tile.show.player || tile.feed || !claimsOnClick(e.target as Element | null)) return;
+    audioFocus.claim(tab.id, tile.id);
+  }
+
   const names: Record<string, string> = { stream: 'stream', chat: 'chat', modview: 'mod view' };
 </script>
 
@@ -458,7 +467,8 @@
   {/if}
 {/snippet}
 
-<div class="tile" data-tile-id={tile.id}>
+<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+<div class="tile" data-tile-id={tile.id} onclick={pick}>
   <PanelLayout
     key="tile-{tile.id}"
     {shown}

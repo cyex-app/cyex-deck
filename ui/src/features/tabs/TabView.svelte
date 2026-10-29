@@ -13,6 +13,8 @@
   import { type Divider, layout as layOut, nodeAt, type Split } from '../../lib/panels';
   import { tileState } from '../player/players.svelte';
   import { drag } from './drag.svelte';
+  import { theatre } from './theatre.svelte';
+  import { fullBox } from './theatre';
   import { clampGrid, dragGrid, gridLine, gridTree, resized, slimSizes } from './grid';
   import { dragged, layout } from './layout.svelte';
   import TileView from './TileView.svelte';
@@ -88,7 +90,13 @@
     // narrowed again on release.
     clampGrid(gridTree(tab.columns, slimSizes(tab.columns, sizes, offline, box.w), stacked), box, need, LINE),
   );
-  const laid = $derived(layOut(tree, box, LINE));
+  /** V108-N14 In theatre one tile has the whole tab; the others keep playing, hushed, at no size. */
+  const inTheatre = $derived(theatre.tile !== null && byId.has(theatre.tile) && !background);
+  const laid = $derived.by(() => {
+    const l = layOut(tree, box, LINE);
+    if (!inTheatre || !theatre.tile) return l;
+    return { ...l, panels: new Map([[theatre.tile, fullBox(box.w, box.h)]]), dividers: [] };
+  });
 
   /** Drags a divider between columns, or between tiles in a column. */
   function resize(e: PointerEvent, d: Divider) {
@@ -167,8 +175,16 @@
       {@const r = laid.panels.get(id)}
       {@const tile = byId.get(id)}
       {#if tile}
-        <div class="cell" style:left={px(r?.x ?? 0)} style:top={px(r?.y ?? 0)} style:width={px(r?.w ?? 0)} style:height={px(r?.h ?? 0)}>
-          <TileView {tile} {tab} {popout} {onsignin} {background} />
+        {@const aside = inTheatre && id !== theatre.tile}
+        <div
+          class="cell"
+          class:aside
+          style:left={px(r?.x ?? 0)}
+          style:top={px(r?.y ?? 0)}
+          style:width={px(r?.w ?? 0)}
+          style:height={px(r?.h ?? 0)}
+        >
+          <TileView {tile} {tab} {popout} {onsignin} background={background || aside} />
         </div>
       {/if}
     {/each}
@@ -221,6 +237,11 @@
   .cell {
     position: absolute;
     display: flex;
+  }
+  /* V108-N14 Out of sight while another tile is in theatre; still playing, hushed. */
+  .aside {
+    visibility: hidden;
+    pointer-events: none;
   }
   .divider {
     position: absolute;

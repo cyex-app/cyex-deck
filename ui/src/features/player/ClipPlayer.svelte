@@ -10,6 +10,8 @@
   import type { Tile } from '../../ipc/bindings/Tile';
   import { playerIpc } from '../../ipc/player';
   import { bindingOf } from '../../lib/hotkeys.svelte';
+  import { clipSaves } from './clipSave.svelte';
+  import { isFresh } from './freshClips';
   import { playerMenu } from './menu';
   import { playerFullscreen } from './players.svelte';
   import SeekBar from './SeekBar.svelte';
@@ -93,7 +95,7 @@
     } catch (e) {
       if (gone) return;
       // V102-08 A clip just made can answer oddly until Twitch is done with it.
-      if (fresh && tries < 10) {
+      if ((fresh || isFresh(s)) && tries < 10) {
         problem = 'Getting the clip ready…';
         waitTimer = setTimeout(() => void load(s, tries + 1), 3000);
       } else {
@@ -124,6 +126,13 @@
     return fits.length ? fits[fits.length - 1] : q[0];
   });
   const src = $derived(file?.url);
+
+  /** V108-N02 Saves the file the player plays; a portrait cut saves the best landscape one. */
+  function saveClip() {
+    const landscape = clip?.qualities.find((q) => q === file);
+    void clipSaves.save(slug, landscape?.height ?? null);
+  }
+  const saving = $derived(clipSaves.has(slug));
   /** v1.07 Where the old file was, and whether it was paused, when another file takes over
    *  (a resize, the quality menu). The new source resets the time to 0 before it loads, and
    *  autoplay started a paused clip over from the top. */
@@ -198,6 +207,7 @@
       togglePlay: controls.togglePlay,
       toggleMute: controls.toggleMute,
       toggleFullscreen: controls.toggleFullscreen,
+      save: clip ? { saving: saving ? clipSaves.text(slug) : null, start: saveClip, stop: () => clipSaves.cancel(slug) } : undefined,
       link: `https://clips.twitch.tv/${slug}`,
       copy: copyText,
       open: openLink,
@@ -253,6 +263,16 @@
         <Volume volume={sound.volume} muted={sound.muted} onchange={sound.set} />
         <span class="clock">{clock(time)} / {clock(duration)}</span>
         <span class="grow"></span>
+        {#if clip}
+          {#if saving}
+            <span class="clock">{clipSaves.text(slug)}</span>
+            <button class="ctl" aria-label="Stop saving" use:tooltip={'Stop saving'} onclick={() => clipSaves.cancel(slug)}><Icon name="x" size={16} /></button>
+          {:else}
+            <button class="ctl" aria-label="Save as MP4" use:tooltip={{ label: 'Save as MP4', hint: 'Saves this clip as a video file.' }} onclick={saveClip}>
+              <Icon name="download" size={16} />
+            </button>
+          {/if}
+        {/if}
         <button class="ctl" aria-label={playerFullscreen.on ? 'Exit fullscreen' : 'Fullscreen'} use:tooltip={key('player.fullscreen', playerFullscreen.on ? 'Exit fullscreen' : 'Fullscreen')} onclick={controls.toggleFullscreen}>
           <Icon name="expand" size={16} />
         </button>

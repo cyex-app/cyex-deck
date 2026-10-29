@@ -30,6 +30,20 @@ export interface PlayerMenu {
   linkAt?: string;
   copy: (text: string) => void;
   open: (url: string) => void;
+  /** V108-N01 VODs: clips the video at the current time; left out where it can't. */
+  clipHere?: { run: () => void; busy?: boolean };
+  /** V108-N02 Clips: saves the file as MP4; `text` while one saves (then picking stops it). */
+  save?: { saving: string | null; start: () => void; stop: () => void };
+  /** V108-N25 Streams: the moments found in chat, newest first. Left out without chat. */
+  moments?: MomentRow[];
+}
+
+/** V108-N25 One moment in the list: when and what; each action only where it can be done. */
+export interface MomentRow {
+  time: string;
+  text: string;
+  goThere?: () => void;
+  clip?: () => void;
 }
 
 const NOUN = { live: 'stream', vod: 'video', clip: 'clip' } as const;
@@ -64,12 +78,42 @@ export function playerMenu(m: PlayerMenu): MenuEntry[] {
       run: m.toggleFullscreen,
     },
     'separator',
-    { label: `Copy ${NOUN[m.kind]} link`, icon: 'link', run: () => m.copy(m.link) },
   );
+  const clipHere = m.clipHere;
+  if (clipHere) items.push({ label: 'Clip at current time', icon: 'scissors', disabled: clipHere.busy, run: clipHere.run });
+  const save = m.save;
+  if (save) {
+    items.push(
+      save.saving === null
+        ? { label: 'Save as MP4', icon: 'download', run: save.start }
+        : { label: 'Stop saving', icon: 'x', hint: save.saving, run: save.stop },
+    );
+  }
+  if (m.moments) items.push(momentsEntry(m.moments));
+  if (clipHere || save || m.moments) items.push('separator');
+  items.push({ label: `Copy ${NOUN[m.kind]} link`, icon: 'link', run: () => m.copy(m.link) });
   const at = m.linkAt;
   if (at) items.push({ label: 'Copy link at current time', icon: 'copy', run: () => m.copy(at) });
   if (m.stats) items.push({ label: 'Video stats', icon: 'activity', checked: m.stats.on, run: m.stats.toggle });
   if (m.reload) items.push({ label: 'Reload player', icon: 'refresh', run: m.reload });
   items.push('separator', { label: 'Open on Twitch', icon: 'twitch', run: () => m.open(m.link) });
   return items;
+}
+
+/** The Moments list: one submenu per moment with what can be done there. */
+function momentsEntry(rows: MomentRow[]): MenuEntry {
+  if (!rows.length) return { label: 'Moments', icon: 'zap', hint: 'None yet', disabled: true };
+  return {
+    label: 'Moments',
+    icon: 'zap',
+    hint: String(rows.length),
+    items: rows.map((r): MenuEntry => {
+      const acts: MenuEntry[] = [];
+      if (r.goThere) acts.push({ label: 'Go there', icon: 'history', run: r.goThere });
+      if (r.clip) acts.push({ label: 'Clip', icon: 'scissors', note: 'Clips the seconds around it.', run: r.clip });
+      return acts.length
+        ? { label: r.text, hint: r.time, items: acts }
+        : { label: r.text, hint: r.time, disabled: true, note: 'Too far back to go there.' };
+    }),
+  };
 }

@@ -7,6 +7,7 @@ import type { ChatMessage } from './bindings/ChatMessage';
 import type { Clip } from './bindings/Clip';
 import type { ClipPeriod } from './bindings/ClipPeriod';
 import type { ClipPlayback } from './bindings/ClipPlayback';
+import type { ClipSaveProgress } from './bindings/ClipSaveProgress';
 import type { ClipSort } from './bindings/ClipSort';
 import type { MadeClip } from './bindings/MadeClip';
 import type { PlayerSession } from './bindings/PlayerSession';
@@ -44,6 +45,17 @@ export const playerIpc = {
   progress: (ids: string[]) => invoke<VodProgress[]>('player_progress', { ids }),
   /** V103-09 With Sign in with Twitch, Twitch's editor opens in the account's Twitch window. */
   createClip: (account: string, channelId: string) => invoke<MadeClip>('player_create_clip', { account, channelId }),
+  /** V108-N25 Clips the live broadcast up to `offsetSecs` into it (GQL sign-in). */
+  createClipAt: (account: string, channelId: string, offsetSecs: number) =>
+    invoke<MadeClip>('player_create_clip_at', { account, channelId, offsetSecs }),
+  /** V108-N01 Clips a VOD of the channel up to `offsetSecs` into it. */
+  createClipFromVideo: (account: string, channelId: string, videoId: string, offsetSecs: number) =>
+    invoke<MadeClip>('player_create_clip_from_video', { account, channelId, videoId, offsetSecs }),
+  /** V108-N02 Saves a clip as MP4 through a save dialog: the path, null when cancelled. */
+  saveClip: (slug: string, height: number | null) => invoke<string | null>('player_clip_save', { slug, height }),
+  cancelClipSave: (slug: string) => invoke<boolean>('player_clip_save_cancel', { slug }),
+  onClipSave: (handler: (p: ClipSaveProgress) => void) =>
+    listen<ClipSaveProgress>('player:clip-save', (e) => handler(e.payload)),
   proxy: () => invoke<string | null>('player_proxy'),
   setProxy: (url: string | null) => invoke<void>('player_set_proxy', { url }),
   onAds: (handler: (id: string, state: AdState) => void) =>

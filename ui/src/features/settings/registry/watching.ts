@@ -40,7 +40,7 @@ export const WATCHING: Entry[] = [
     id: 'player.replayMinutes',
     page: 'player',
     label: 'Replay',
-    description: 'Go back in what played here, where Twitch has no rewind.',
+    description: 'Go back in what played here, where Twitch has no rewind. Dropped after a pause of over 10 minutes.',
     keywords: ['rewind', 'go back', 'replay', 'dvr', 'buffer', 'timeshift'],
   },
   {
@@ -56,6 +56,28 @@ export const WATCHING: Entry[] = [
     label: 'Quality',
     description: 'What players start in.',
     keywords: ['resolution', 'source', '1080p', '720p'],
+  },
+  {
+    id: 'player.awayMode',
+    page: 'player',
+    label: 'Tabs out of sight',
+    description: 'A stream in a background tab or minimized window drops to lowest quality or audio only.',
+    keywords: ['save resources', 'background', 'minimized', 'audio only', 'lowest', 'battery', 'ram', 'cpu'],
+  },
+  {
+    id: 'player.awaySecs',
+    page: 'player',
+    label: 'After',
+    description: 'How long a tab is out of sight before it drops.',
+    keywords: ['save resources', 'delay', 'background', 'minute'],
+    anchor: 'player.awayMode',
+  },
+  {
+    id: 'player.pauseHidden',
+    page: 'player',
+    label: 'Pause animations when hidden',
+    description: 'Animated emotes and chat effects rest while the window is hidden or minimized.',
+    keywords: ['save resources', 'emotes', 'animated', 'minimized', 'gif'],
   },
   {
     id: 'player:proxy',

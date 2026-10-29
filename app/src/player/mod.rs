@@ -3,6 +3,7 @@
 //! dropped, so a closed window can't leave one behind.
 
 pub mod blank;
+pub mod clip_save;
 pub mod clips;
 mod device;
 #[cfg(feature = "mocks")]

@@ -1,17 +1,22 @@
 <!-- A channel's top clips (1.21). Signed out, Twitch lists at most 100 per filter. -->
 <script lang="ts">
   import EmptyState from '../../components/EmptyState.svelte';
+  import Icon from '../../components/Icon.svelte';
+  import { openMenu } from '../../components/menu.svelte';
+  import { tooltip } from '../../components/tooltip.svelte';
   import Segmented from '../../components/Segmented.svelte';
   import type { Clip } from '../../ipc/bindings/Clip';
   import type { ClipPeriod } from '../../ipc/bindings/ClipPeriod';
   import type { ClipSort } from '../../ipc/bindings/ClipSort';
   import { channelIpc } from '../../ipc/player';
   import { formatDate, formatShort } from '../../lib/format';
+  import { clipSaves } from '../player/clipSave.svelte';
   import { clock } from '../player/time';
   import { uniqueKeys } from '../../lib/keys';
   import Card from './Card.svelte';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
+  import { copy } from '../../lib/clipboard';
 
   let { login, onplay }: { login: string; onplay: (slug: string) => void } = $props();
 
@@ -43,6 +48,22 @@
       .catch((e) => alive && (problem = errorText(e)));
     return () => (alive = false);
   });
+
+  /** V108-N02 Save the clip as MP4 (the best file), or stop that. */
+  const toggleSave = (slug: string) => (clipSaves.has(slug) ? clipSaves.cancel(slug) : void clipSaves.save(slug));
+
+  function menu(e: MouseEvent, c: Clip) {
+    e.preventDefault();
+    const saving = clipSaves.has(c.slug);
+    openMenu(e, [
+      { label: 'Play', icon: 'play', run: () => onplay(c.slug) },
+      saving
+        ? { label: 'Stop saving', icon: 'x', hint: clipSaves.text(c.slug), run: () => clipSaves.cancel(c.slug) }
+        : { label: 'Save as MP4', icon: 'download', run: () => void clipSaves.save(c.slug) },
+      'separator',
+      { label: 'Copy clip link', icon: 'link', run: () => void copy(`https://clips.twitch.tv/${c.slug}`, 'Link') },
+    ]);
+  }
 </script>
 
 <div class="page">
@@ -59,14 +80,26 @@
   {:else}
     <div class="grid">
       {#each clips as c, i (clipKeys[i])}
-        <Card
-          image={c.thumbnail}
-          title={c.title}
-          sub={[c.clippedBy && `by ${c.clippedBy}`, formatDate(new Date(c.createdAt))].filter(Boolean).join(' · ')}
-          corner={clock(c.duration)}
-          views={`${formatShort(c.views)} ${c.views === 1 ? 'view' : 'views'}`}
-          onclick={() => onplay(c.slug)}
-        />
+        <!-- The right-click menu is the same as the button's; the card itself stays one button. -->
+        <div class="cell" role="presentation" oncontextmenu={(e) => menu(e, c)}>
+          <Card
+            image={c.thumbnail}
+            title={c.title}
+            sub={[c.clippedBy && `by ${c.clippedBy}`, formatDate(new Date(c.createdAt))].filter(Boolean).join(' · ')}
+            corner={clock(c.duration)}
+            views={`${formatShort(c.views)} ${c.views === 1 ? 'view' : 'views'}`}
+            onclick={() => onplay(c.slug)}
+          />
+          <button
+            class="save"
+            class:busy={clipSaves.has(c.slug)}
+            aria-label={clipSaves.has(c.slug) ? 'Stop saving' : 'Save as MP4'}
+            use:tooltip={clipSaves.has(c.slug) ? { label: 'Stop saving', hint: clipSaves.text(c.slug) } : { label: 'Save as MP4' }}
+            onclick={() => toggleSave(c.slug)}
+          >
+            <Icon name={clipSaves.has(c.slug) ? 'x' : 'download'} size={14} />
+          </button>
+        </div>
       {/each}
     </div>
   {/if}
@@ -84,6 +117,36 @@
     flex-wrap: wrap;
     gap: 8px;
     margin-bottom: 12px;
+  }
+  .cell {
+    position: relative;
+    min-width: 0;
+  }
+  /* V108-N02 Top right of the picture; shown on hover and focus, and while it saves. */
+  .save {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    background: var(--scrim-strong);
+    border: 0;
+    border-radius: var(--radius);
+    color: var(--on-video);
+    opacity: 0;
+    transition: opacity var(--fast) var(--ease);
+  }
+  .cell:hover .save,
+  .cell:focus-within .save,
+  .save.busy {
+    opacity: 1;
+  }
+  .save:active {
+    opacity: 0.6;
+    transition: none;
   }
   .grid {
     display: grid;

@@ -95,3 +95,56 @@ test('a clip keeps it short', () => {
   last.run?.();
   assert.equal(opened, 'https://clips.twitch.tv/A');
 });
+
+test('a video clips at the current time, before the links', () => {
+  let ran = 0;
+  const list = playerMenu({ ...base('vod'), linkAt: 'https://www.twitch.tv/videos/1?t=5s', clipHere: { run: () => ran++ } });
+  assert.deepEqual(labels(list), [
+    'Pause', 'Mute', 'Quality', 'Fullscreen', '—', 'Clip at current time', '—', 'Copy video link', 'Copy link at current time', '—', 'Open on Twitch',
+  ]);
+  const clip = list[5];
+  assert.ok(clip !== 'separator');
+  clip.run?.();
+  assert.equal(ran, 1);
+  const busy = playerMenu({ ...base('vod'), clipHere: { run: noop, busy: true } })[5];
+  assert.ok(busy !== 'separator' && busy.disabled);
+});
+
+test('a clip saves as MP4 and a running save can be stopped', () => {
+  const idle = playerMenu({ ...base('clip'), save: { saving: null, start: noop, stop: noop } });
+  assert.deepEqual(labels(idle), ['Pause', 'Mute', 'Quality', 'Fullscreen', '—', 'Save as MP4', '—', 'Copy clip link', '—', 'Open on Twitch']);
+  const busy = playerMenu({ ...base('clip'), save: { saving: 'Saving 42 %', start: noop, stop: noop } })[5];
+  assert.ok(busy !== 'separator');
+  assert.equal(busy.label, 'Stop saving');
+  assert.equal(busy.hint, 'Saving 42 %');
+});
+
+test('moments: Go there and Clip only where they can be done', () => {
+  const calls: string[] = [];
+  const rows = [
+    { time: '1:02:03', text: 'Chat spike · KEKW', goThere: () => calls.push('go'), clip: () => calls.push('clip') },
+    { time: '0:10', text: 'Raid', clip: () => calls.push('clip2') },
+    { time: '0:05', text: 'Hype train' },
+  ];
+  const list = playerMenu({ ...base('live'), moments: rows });
+  const entry = list.find((e) => e !== 'separator' && e.label === 'Moments');
+  assert.ok(entry && entry !== 'separator');
+  assert.equal(entry.hint, '3');
+  const [first, second, third] = entry.items ?? [];
+  assert.ok(first && first !== 'separator' && second && second !== 'separator' && third && third !== 'separator');
+  assert.deepEqual(first.items?.map((e) => e !== 'separator' && e.label), ['Go there', 'Clip']);
+  assert.deepEqual(second.items?.map((e) => e !== 'separator' && e.label), ['Clip']);
+  assert.equal(third.disabled, true);
+  assert.equal(third.items, undefined);
+  const go = first.items?.[0];
+  assert.ok(go && go !== 'separator');
+  go.run?.();
+  assert.deepEqual(calls, ['go']);
+});
+
+test('no moments yet shows a quiet entry', () => {
+  const entry = playerMenu({ ...base('live'), moments: [] }).find((e) => e !== 'separator' && e.label === 'Moments');
+  assert.ok(entry && entry !== 'separator');
+  assert.equal(entry.disabled, true);
+  assert.equal(entry.hint, 'None yet');
+});

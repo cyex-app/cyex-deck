@@ -2,6 +2,7 @@
      that moment from Twitch's storyboard (P6). Drag or click to seek. -->
 <script lang="ts">
   import type { Storyboard } from '../../ipc/bindings/Storyboard';
+  import { type BarMark, markAt } from './seekMarks';
   import { clock } from './time';
 
   interface Props {
@@ -22,9 +23,11 @@
     min?: number;
     /** V108-N24 The hover tip over the dimmed part. */
     minText?: string;
+    /** V108-N25 Moments: small ticks on the rail; a click on one seeks to it, a hover names it. */
+    marks?: BarMark[];
   }
 
-  let { duration, time, buffered, storyboard, onwantpreview, onseek, format = clock, tone = 'accent', valueText, min = 0, minText }: Props = $props();
+  let { duration, time, buffered, storyboard, onwantpreview, onseek, format = clock, tone = 'accent', valueText, min = 0, minText, marks = [] }: Props = $props();
 
   let track = $state<HTMLElement>();
   let hover = $state<number | null>(null);
@@ -66,12 +69,17 @@
     hover = at(e);
   }
 
+  /** V108-N25 The tick under the pointer, if any. */
+  const near = (t: number) => markAt(marks, t, duration, track?.getBoundingClientRect().width ?? 0);
+
   function onup(e: PointerEvent) {
     if (!dragging) return;
     dragging = false;
-    onseek(Math.max(min, at(e)));
+    const t = at(e);
+    onseek(Math.max(min, near(t)?.t ?? t));
   }
 
+  const hit = $derived(hover === null || dragging ? null : near(hover));
   const tip = (t: number) => (t < min && minText ? minText : format(Math.max(min, t)));
 </script>
 
@@ -95,6 +103,9 @@
     <div class="buffered" style:transform="scaleX({frac(buffered)})"></div>
     <div class="played" class:neutral={tone === 'neutral'} style:transform="scaleX({frac(shown)})"></div>
     {#if min > 0}<div class="gone" style:transform="scaleX({frac(min)})"></div>{/if}
+    {#each marks as m (m.id)}
+      <i class="mark" class:event={m.kind !== 'spike'} class:on={hit?.id === m.id} style:left={pct(m.t)} aria-hidden="true"></i>
+    {/each}
   </div>
   <!-- d-8 The thumb, while hovering or dragging. -->
   <div class="knob-track" style:transform="translateX({pct(shown)})" aria-hidden="true">
@@ -111,7 +122,8 @@
           style:background-position="-{preview.x}px -{preview.y}px"
         ></div>
       {/if}
-      <span>{tip(hover)}</span>
+      {#if hit}<span class="mark-text">{hit.text}</span>{/if}
+      <span>{tip(hit?.t ?? hover)}</span>
     </div>
   {/if}
 </div>
@@ -184,6 +196,27 @@
     z-index: 1;
     background: var(--scrim-strong);
   }
+  /* V108-N25 A moment: a thin tick over the rail, taller for events than for chat spikes. */
+  .mark {
+    position: absolute;
+    z-index: 2;
+    top: -2px;
+    bottom: -2px;
+    width: 2px;
+    margin-left: -1px;
+    border-radius: 1px;
+    background: var(--on-video);
+    box-shadow: 0 0 0 1px var(--scrim-strong);
+    pointer-events: none;
+  }
+  .mark.event {
+    top: -4px;
+    bottom: -4px;
+  }
+  .mark.on {
+    width: 4px;
+    margin-left: -2px;
+  }
   .played.neutral {
     background: color-mix(in srgb, var(--on-video) 80%, transparent);
   }
@@ -203,6 +236,12 @@
     border-radius: var(--radius);
     font-size: 0.75rem;
     font-variant-numeric: tabular-nums;
+  }
+  .tip .mark-text {
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .thumb {
     border: 1px solid color-mix(in srgb, var(--on-video) 50%, transparent);

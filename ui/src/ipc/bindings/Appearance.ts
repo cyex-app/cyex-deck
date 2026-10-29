@@ -41,6 +41,10 @@ tabMaxRows: number,
  */
 tabOnlyLive: boolean, 
 /**
+ * V108-N13 In a tab with several streams only one has sound; a click on a tile moves it.
+ */
+audioFocus: boolean, 
+/**
  * U9 What lights up a tab in the background.
  */
 tabUnread: TabUnread, 

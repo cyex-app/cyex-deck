@@ -29,6 +29,8 @@ pub struct Appearance {
     pub tab_max_rows: u8,
     /// F17 Hide tabs whose channels are all offline (the one on screen stays).
     pub tab_only_live: bool,
+    /// V108-N13 In a tab with several streams only one has sound; a click on a tile moves it.
+    pub audio_focus: bool,
     /// U9 What lights up a tab in the background.
     pub tab_unread: TabUnread,
     /// U8 Themes made in the theme editor.
@@ -55,6 +57,7 @@ impl Default for Appearance {
             tab_rows: TabRows::Limit,
             tab_max_rows: DEFAULT_TAB_ROWS,
             tab_only_live: false,
+            audio_focus: true,
             tab_unread: TabUnread::All,
             themes: Vec::new(),
             theme_id: String::new(),

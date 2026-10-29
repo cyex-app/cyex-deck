@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { type TestContext, test } from 'node:test';
 
-import { AWAY_MS, Away, outOfSight } from './away.ts';
+import { AWAY_MS, Away, awayChoice, awayMs, outOfSight } from './away.ts';
 
 function setup(t: TestContext) {
   t.mock.timers.enable({ apis: ['setTimeout'] });
@@ -62,4 +62,34 @@ test('out of sight: 0 px or a hidden page, never in picture in picture (V107-H1)
   assert.equal(outOfSight(true, true, false), true);
   assert.equal(outOfSight(false, true, true), false, 'picture in picture stays');
   assert.equal(outOfSight(true, false, true), false);
+});
+
+test('N22 delay: stored seconds become a timer, odd values read as a minute', () => {
+  assert.equal(awayMs(30), 30_000);
+  assert.equal(awayMs(60), AWAY_MS);
+  assert.equal(awayMs(0), AWAY_MS);
+  assert.equal(awayMs(99999), AWAY_MS);
+  assert.equal(awayMs(Number.NaN), AWAY_MS);
+  assert.equal(awayChoice(61), 60);
+  assert.equal(awayChoice(200), 120);
+  assert.equal(awayChoice(5000), 600);
+});
+
+test('N22 the delay can follow the setting between hides', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let secs = 30;
+  let drops = 0;
+  const away = new Away(() => drops++, () => awayMs(secs));
+  away.hide();
+  t.mock.timers.tick(29_999);
+  assert.equal(drops, 0);
+  t.mock.timers.tick(1);
+  assert.equal(drops, 1);
+  away.show();
+  secs = 120;
+  away.hide();
+  t.mock.timers.tick(119_999);
+  assert.equal(drops, 1);
+  t.mock.timers.tick(1);
+  assert.equal(drops, 2);
 });

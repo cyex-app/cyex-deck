@@ -6,6 +6,7 @@
 pub mod channel_input;
 pub mod clients;
 pub mod clock;
+mod download;
 pub mod firehose;
 pub mod giphy;
 pub mod github;
@@ -26,5 +27,6 @@ pub mod uploader;
 pub mod usher;
 pub mod ws;
 
+pub use download::DownloadError;
 pub use error::{Error, Result};
 pub use http::{Http, RateLimit};

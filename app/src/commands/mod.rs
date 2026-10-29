@@ -388,5 +388,9 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         player::player_replay,
         player::player_replay_range,
         player::player_replay_gone,
+        player::player_create_clip_at,
+        player::player_create_clip_from_video,
+        player::player_clip_save,
+        player::player_clip_save_cancel,
     ]
 }

@@ -62,6 +62,52 @@ pub async fn create(app: &AppHandle, account: &str, channel_id: &str) -> Result<
     Ok(MadeClip { slug, editing: false })
 }
 
+/// V108-N25 Clips the live broadcast up to `offset_secs` into it (a moment's place plus the
+/// lead), never past what is on air now. GQL sign-in only: Helix can't take an offset.
+pub async fn create_at(
+    app: &AppHandle,
+    account: &str,
+    channel_id: &str,
+    offset_secs: f64,
+) -> Result<MadeClip, String> {
+    let http = app.state::<Auth>().http.clone();
+    let (token, client_id) = auth::gql_token(app, account).ok_or("Clips need this tab to be signed in.")?;
+    let auth = crate::auth::gql_auth(&token, &client_id);
+    let (broadcast, started) = clip_create::live_broadcast(&http, auth, channel_id)
+        .await
+        .map_err(gql_error)?
+        .ok_or(OFFLINE)?;
+    let edge = live_edge(&started, OffsetDateTime::now_utc()).ok_or(OFFLINE)?;
+    let offset = up_to(offset_secs, edge);
+    let slug = clip_create::create_clip(&http, auth, channel_id, &broadcast, offset)
+        .await
+        .map_err(gql_error)?;
+    Ok(MadeClip { slug, editing: false })
+}
+
+/// V108-N01 Clips an archive VOD of the channel up to `offset_secs` into it. The clip covers
+/// the seconds before. GQL sign-in only, like Twitch's own player.
+pub async fn create_from_video(
+    app: &AppHandle,
+    account: &str,
+    channel_id: &str,
+    video_id: &str,
+    offset_secs: f64,
+) -> Result<MadeClip, String> {
+    let http = app.state::<Auth>().http.clone();
+    let (token, client_id) = auth::gql_token(app, account).ok_or("Clips need this tab to be signed in.")?;
+    let auth = crate::auth::gql_auth(&token, &client_id);
+    let slug = clip_create::create_clip_from_video(&http, auth, channel_id, video_id, up_to(offset_secs, f64::MAX))
+        .await
+        .map_err(gql_error)?;
+    Ok(MadeClip { slug, editing: false })
+}
+
+/// `offset` kept between the start and `edge`; a bad number is the start.
+fn up_to(offset: f64, edge: f64) -> f64 {
+    if offset.is_finite() { offset.clamp(0.0, edge.max(0.0)) } else { 0.0 }
+}
+
 /// Seconds into the broadcast right now: the clip ends there.
 fn live_edge(started_at: &str, now: OffsetDateTime) -> Option<f64> {
     let started = OffsetDateTime::parse(started_at, &Rfc3339).ok()?;
@@ -112,6 +158,14 @@ mod tests {
         assert_eq!(live_edge("2026-10-11T10:00:00Z", now), Some(30.0));
         assert_eq!(live_edge("2026-10-11T11:00:00Z", now), None);
         assert_eq!(live_edge("not a date", now), None);
+    }
+
+    #[test]
+    fn a_clip_point_stays_inside_the_broadcast() {
+        assert_eq!(up_to(95.0, 90.0), 90.0);
+        assert_eq!(up_to(-5.0, 90.0), 0.0);
+        assert_eq!(up_to(f64::NAN, 90.0), 0.0);
+        assert_eq!(up_to(4000.0, f64::MAX), 4000.0);
     }
 
     #[test]

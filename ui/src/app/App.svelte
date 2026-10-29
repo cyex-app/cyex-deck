@@ -44,7 +44,11 @@
   import { barPlace, sideBarWidth } from '../features/tabs/barLayout';
   import { stepTab } from '../features/tabs/cycle';
   import { heldAfterStart, nextHeld, playingNow } from '../features/tabs/hold';
-  import { tabs, tiles } from '../features/tabs/tabs.svelte';
+  import { audioFocus } from '../features/tabs/audioFocus.svelte';
+  import { heardTile } from '../features/tabs/audioFocus';
+  import { streamIds, tabs, tiles } from '../features/tabs/tabs.svelte';
+  import { theatre } from '../features/tabs/theatre.svelte';
+  import { stillHere, theatreTarget, toggled } from '../features/tabs/theatre';
   import type { Tab } from '../ipc/bindings/Tab';
   import type { LinkTarget } from '../ipc/bindings/LinkTarget';
   import { accountsIpc } from '../ipc/accounts';
@@ -89,6 +93,11 @@
   const tab = $derived(tabs.tab(current));
   /** The tab drawn here now, not in its own window. */
   const shownTab = $derived(tab && !tabs.popped.has(tab.id) ? tab.id : null);
+  /** V108-N14 A stream of the tab on screen fills the window: no tab bars, no side chrome. */
+  const theatreOn = $derived(!!tab && stillHere(theatre.tile, tiles(tab).map((t) => t.id)) !== null);
+  $effect(() => {
+    if (theatre.tile && !theatreOn) untrack(() => theatre.leave());
+  });
 
   // V102-15 Which tab plays out of sight, worked out before the old tab leaves the page. It
   // stops once the tab on screen plays a live stream (below), or at once for a tab picked
@@ -201,6 +210,10 @@
       const on = !settings.v.appearance.tabOnlyLive;
       void settings.patch('appearance', { tabOnlyLive: on });
       toast.info(on ? 'Only live tabs' : 'All tabs', { key: 'tabs.onlyLive' }); // V106 a-6
+    },
+    'view.theatre': () => {
+      const target = theatre.tile ? null : tab ? theatreTarget(tiles(tab).map((t) => ({ id: t.id, player: !t.feed && t.show.player })), heardTile(audioFocus.input(tab.id, streamIds(tab)))) : null;
+      theatre.tile = toggled(theatre.tile, target);
     },
     ...playerHotkeys,
   });
@@ -426,6 +439,7 @@
 
 <WindowChrome>
   {#snippet start()}
+    {#if !theatreOn}
     <nav class="fixed-tabs" bind:this={menus}>
       <IconButton
         icon="house"
@@ -461,8 +475,10 @@
       {/if}
     </nav>
     {#if place === 'chrome'}<TabBar chrome {current} onopen={open} />{/if}
+    {/if}
   {/snippet}
   {#snippet end()}
+    {#if !theatreOn}
     {#if streamer.active || streamer.state.forced}
       <IconButton
         icon="eyeOff"
@@ -490,20 +506,21 @@
     <AccountMenu onmanage={manageAccounts} onsubs={() => show('subs')} oncosmetics={() => show('cosmetics')} active={fixed === 'cosmetics'} streamer={streamerDot} />
     <UpdateBadge />
     <IconButton icon="settings" label="Settings" hint="Everything you can change (Ctrl+,)." active={fixed === 'settings'} onclick={toggleSettings} />
+    {/if}
   {/snippet}
 </WindowChrome>
 {#if currentWindow.isMain && streamer.bar}<StreamerBar onsettings={streamerSettings} narrow={width < 420} />{/if}
 
 <svelte:window bind:innerWidth={width} />
 
-{#if place === 'row'}
+{#if place === 'row' && !theatreOn}
   <div class="tab-row">
     <TabBar {current} onopen={open} />
   </div>
 {/if}
 
 <div class="body {side}">
-  {#if side !== 'top'}
+  {#if side !== 'top' && !theatreOn}
     <div class="side-bar" bind:this={sideBar}>
       <TabBar vertical={side !== 'bottom'} width={sideBarWidth(side, menusEdge)} {current} onopen={open} />
     </div>

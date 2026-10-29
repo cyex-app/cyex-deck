@@ -16,6 +16,7 @@ import { windowsIpc } from '../../ipc/windows';
 import { accounts } from '../../lib/accounts.svelte';
 import { settings } from '../../lib/settings.svelte';
 import { toast } from '../../lib/toast.svelte';
+import { audioFocus } from './audioFocus.svelte';
 import { hiddenTabs } from './barLayout';
 import { bumped, cleared, mentionNews, type FeedCounts } from './feedNews';
 import { muter } from './muter';
@@ -166,10 +167,15 @@ class TabsStore {
     fail: (e) => toast.error(errorText(e)),
   });
 
-  /** V106-25 The tab holding the tile is muted. */
+  /** V106-25 The tab holding the tile is muted. V108-N13 Or another stream in the tab has the sound. */
   tileMuted(tileId: string): boolean {
     const tab = this.tabOf(tileId);
-    return !!tab && this.muted.has(tab.id);
+    return !!tab && (this.muted.has(tab.id) || this.focusHushed(tab, tileId));
+  }
+
+  /** V108-N13 Another stream in the tab has the sound (a tile's own mute and volume stay as set). */
+  focusHushed(tab: Tab, tileId: string): boolean {
+    return audioFocus.hushed(tab.id, tileId, streamIds(tab));
   }
 
   /** V106-25 What the tab's sound badge shows. A popped-out tab plays in its own window, so
@@ -177,7 +183,8 @@ class TabsStore {
   sound(tab: Tab): TabSoundMode {
     const players = tiles(tab).filter((t) => !t.feed && t.show.player);
     const heldMuted = this.held === tab.id && players.length > 0 && players.every((t) => t.muted);
-    return tabSoundMode(sounding.wouldPlay(new Set(tiles(tab).map((t) => t.id))), this.muted.has(tab.id), heldMuted);
+    const heard = tiles(tab).filter((t) => !this.focusHushed(tab, t.id));
+    return tabSoundMode(sounding.wouldPlay(new Set(heard.map((t) => t.id))), this.muted.has(tab.id), heldMuted);
   }
 
   /** V106-25 The tab has a player, so it can be muted. */
@@ -272,6 +279,13 @@ export const tabs = new TabsStore();
 function roomKey(account: string | null, login: string): string {
   const known = account && accounts.list.some((a) => a.userId === account);
   return `${known ? account : ''}/${login}`;
+}
+
+/** V108-N13 The tab's tiles that play a stream, in tab order. */
+export function streamIds(tab: Tab): string[] {
+  return tiles(tab)
+    .filter((t) => !t.feed && t.show.player)
+    .map((t) => t.id);
 }
 
 export function tiles(tab: Tab): Tile[] {

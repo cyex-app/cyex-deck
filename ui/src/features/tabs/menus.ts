@@ -14,8 +14,10 @@ import { modviewPlace } from '../modview/where.svelte';
 import { tileState } from '../player/players.svelte';
 import { openAdd, openEdit, openGroupDialog } from './dialog.svelte';
 import { COLOR_ORDER, GROUP_COLORS } from './groupColors';
+import { audioFocus } from './audioFocus.svelte';
 import { dragged, layout } from './layout.svelte';
-import { tabs, tiles } from './tabs.svelte';
+import { tabs, streamIds, tiles } from './tabs.svelte';
+import { theatre } from './theatre.svelte';
 
 /** Menu for `tab`. `targets` are the selected tabs it acts on (`tab` included). */
 export function tabMenu(tab: Tab, targets: Tab[]): MenuEntry[] {
@@ -73,7 +75,21 @@ export function tabMenu(tab: Tab, targets: Tab[]): MenuEntry[] {
 /** A tile's own entries in a tiled tab (U3): edit, hide (V101-20), split off or close. In a
  * chat they follow the chat's entries in one menu (V101-21). */
 export function tileEntries(tab: Tab, tile: Tile): MenuEntry[] {
+  const streams = streamIds(tab);
   return [
+    ...(tile.show.player && !tile.feed
+      ? [{ label: 'Theatre', icon: 'expand' as const, hint: bindingOf('view.theatre'), run: () => theatre.enter(tile.id) }]
+      : []),
+    ...(tile.show.player && !tile.feed && streams.length > 1 && settings.v.appearance.audioFocus
+      ? [
+          {
+            label: 'Sound here',
+            icon: 'volume' as const,
+            checked: !tabs.focusHushed(tab, tile.id),
+            run: () => audioFocus.claim(tab.id, tile.id),
+          },
+        ]
+      : []),
     ...(tile.feed ? [] : [{ label: 'Edit', icon: 'pencil' as const, run: () => openEdit(tab.id, tile.id) }, ...showEntries(tile)]),
     { label: 'Move to its own tab', icon: 'popout', run: () => void tabs.apply({ op: 'detach', tile: tile.id, before: null }) },
     ...layoutEntries(tab),

@@ -23,6 +23,13 @@ pub struct Player {
     /// V108-N24 Replay what played here, in minutes (0 off, at most 30), where Twitch's own
     /// rewind isn't there.
     pub replay_minutes: u8,
+    /// V108-N22 (V103-03, P16) What a player out of sight does: nothing, the lowest video
+    /// quality (the old behaviour), or audio only.
+    pub away_mode: AwayMode,
+    /// V108-N22 Seconds out of sight before that (5 to 3600).
+    pub away_secs: u16,
+    /// V108-N22 Animated emotes and line effects rest while the app is hidden or minimized.
+    pub pause_hidden: bool,
 }
 
 impl Default for Player {
@@ -35,6 +42,9 @@ impl Default for Player {
             live_rewind: true,
             seek_step: 10,
             replay_minutes: 5,
+            away_mode: AwayMode::Lowest,
+            away_secs: 60,
+            pause_hidden: true,
         }
     }
 }
@@ -42,7 +52,19 @@ impl Default for Player {
 impl Schema for Player {
     fn sanitize(&mut self) {
         self.replay_minutes = self.replay_minutes.min(30);
+        self.away_secs = self.away_secs.clamp(5, 3600);
     }
+}
+
+/// V108-N22 What a tab out of sight does.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum AwayMode {
+    Off,
+    #[default]
+    Lowest,
+    Audio,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -109,5 +131,17 @@ mod tests {
         let mut p: Player = serde_json::from_str(r#"{"replayMinutes":0}"#).unwrap();
         p.sanitize();
         assert_eq!(p.replay_minutes, 0);
+    }
+
+    #[test]
+    fn save_resources_keeps_old_behaviour_for_old_files() {
+        // A file from before V108-N22 has none of the fields: lowest after a minute, emotes rest.
+        let mut p: Player = serde_json::from_str(r#"{"quality":"720"}"#).unwrap();
+        p.sanitize();
+        assert_eq!((p.away_mode, p.away_secs, p.pause_hidden), (AwayMode::Lowest, 60, true));
+        let mut p: Player = serde_json::from_str(r#"{"awayMode":"audio","awaySecs":2}"#).unwrap();
+        p.sanitize();
+        assert_eq!((p.away_mode, p.away_secs), (AwayMode::Audio, 5));
+        assert_eq!(serde_json::to_value(AwayMode::Off).unwrap(), "off");
     }
 }

@@ -11,6 +11,8 @@
   import FollowButton from './FollowButton.svelte';
   import { tileEntries } from './menus';
   import { tabs } from './tabs.svelte';
+  import { theatre } from './theatre.svelte';
+  import { bindingOf } from '../../lib/hotkeys.svelte';
 
   interface Props {
     tile: Tile;
@@ -29,6 +31,18 @@
 {#if !tile.feed}
   <AccountChip {tile} />
   {#if tile.channel.id !== tile.account}<FollowButton channelId={tile.channel.id} name={tile.channel.name} account={tile.account} />{/if}
+{/if}
+{#if !tile.feed && tile.show.player}
+  <!-- V108-N14 -->
+  <IconButton
+    icon="expand"
+    label={theatre.tile === tile.id ? 'Leave theatre' : 'Theatre'}
+    hint={theatre.tile === tile.id ? 'Back to the tab (Esc).' : `The stream fills the window${bindingOf('view.theatre') ? ` (${bindingOf('view.theatre')})` : ''}.`}
+    size={14}
+    active={theatre.tile === tile.id}
+    toggle
+    onclick={() => (theatre.tile === tile.id ? theatre.leave() : theatre.enter(tile.id))}
+  />
 {/if}
 {#if tiled}
   {#if menu}

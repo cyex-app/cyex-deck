@@ -131,6 +131,13 @@ export const APP: Entry[] = [
     keywords: ['hide offline', 'offline tabs', 'live only', 'filter tabs'],
   },
   {
+    id: 'appearance.audioFocus',
+    page: 'appearance',
+    label: 'One stream with sound',
+    description: 'With several streams in a tab, only one is heard. Click a stream to move the sound.',
+    keywords: ['multi view', 'multiview', 'tiles', 'mute others', 'audio focus', 'sound'],
+  },
+  {
     id: 'appearance.tabUnread',
     page: 'appearance',
     label: 'Light up tabs',

@@ -50,7 +50,8 @@ export function useRootEffects(): void {
 
   // V107-H1 A hidden window: moving modifiers and line effects rest, in step again when it shows.
   $effect(() => {
-    const asleep = !focus.visible;
+    // V108-N22 "Pause animations when hidden" can keep them moving.
+    const asleep = !focus.visible && settings.v.player.pauseHidden;
     document.documentElement.classList.toggle('asleep', asleep);
     if (!asleep && !untrack(() => focus.still)) align(document);
   });

@@ -11,10 +11,12 @@
   import type { Tile } from '../../ipc/bindings/Tile';
   import type { Video } from '../../ipc/bindings/Video';
   import { playerIpc } from '../../ipc/player';
+  import { accounts } from '../../lib/accounts.svelte';
   import { formatDate } from '../../lib/format';
   import { bindingOf } from '../../lib/hotkeys.svelte';
   import { latest } from '../../lib/latest';
   import { settings } from '../../lib/settings.svelte';
+  import { clipMaking, clipVideoAt } from './clipMake.svelte';
   import { Engine } from './engine.svelte';
   import { playerMenu } from './menu';
   import { playerFullscreen, type TileState } from './players.svelte';
@@ -25,6 +27,7 @@
   import { useSound } from './sound.svelte';
   import Stats from './Stats.svelte';
   import { clock, linkTime } from './time';
+  import { ownVideo, vodClipOffset } from './vodClip';
   import { watchPip, copyText, openLink, pipFor, playerKeys } from './tools';
   import Volume from './Volume.svelte';
   import Loading from '../../components/Loading.svelte';
@@ -162,6 +165,18 @@
 
   const starts = latest();
 
+  /** V108-N01 The account that may clip this video: the tab's own channel's video, with an
+   *  account that can clip. Elsewhere (the stream manager, another channel's video) no clip. */
+  const clipper = $derived(
+    account && tile && ownVideo(info?.channelLogin, tile.channel.login) && accounts.can('clips', account) ? account : null,
+  );
+
+  /** V108-N01 A click: the video up to the play head, as the clip button does for the stream. */
+  function clipHere() {
+    if (!clipper || !tile) return;
+    void clipVideoAt(tile, clipper, tile.channel.id, id, vodClipOffset(video?.currentTime ?? 0, duration));
+  }
+
   /** A fresh session, carrying on where it was. */
   async function reload() {
     const e = engine;
@@ -220,6 +235,7 @@
       pip: pipFor(video),
       stats: { on: stats, toggle: () => (stats = !stats) },
       reload: () => void reload(),
+      clipHere: clipper ? { run: clipHere, busy: clipMaking.busy } : undefined,
       link,
       linkAt: `${link}?t=${linkTime(video?.currentTime ?? 0)}`,
       copy: copyText,
@@ -299,6 +315,11 @@
             <Volume volume={sound.volume} muted={sound.muted} boost={sound.boost} onchange={sound.set} onboost={sound.setBoost} />
             <span class="clock">{clock(time)} / {clock(duration)}</span>
             <span class="grow"></span>
+            {#if clipper}
+              <button class="ctl" aria-label="Clip" use:tooltip={{ label: 'Clip', hint: 'Clips the seconds before this point.' }} disabled={clipMaking.busy} onclick={clipHere}>
+                <Icon name="scissors" size={17} />
+              </button>
+            {/if}
             {#if engine}<GearButton {menu} />{/if}
             <button class="ctl" aria-label={playerFullscreen.on ? 'Exit fullscreen' : 'Fullscreen'} use:tooltip={key('player.fullscreen', playerFullscreen.on ? 'Exit fullscreen' : 'Fullscreen')} onclick={controls.toggleFullscreen}>
               <Icon name="expand" size={16} />

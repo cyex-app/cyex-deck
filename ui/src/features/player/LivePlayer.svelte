@@ -13,6 +13,7 @@
   import type { PlayerSession } from '../../ipc/bindings/PlayerSession';
   import type { Tile } from '../../ipc/bindings/Tile';
   import { playerIpc } from '../../ipc/player';
+  import { accounts } from '../../lib/accounts.svelte';
   import { bindingOf } from '../../lib/hotkeys.svelte';
   import { latest } from '../../lib/latest';
   import { BASE, reduced } from '../../lib/motion';
@@ -22,7 +23,11 @@
   import LiveButton from './LiveButton.svelte';
   import { DVR_GAP } from './liveEdge';
   import { behindText } from './liveKeys';
-  import { playerMenu } from './menu';
+  import { clipLiveAt } from './clipMake.svelte';
+  import { type MomentRow, playerMenu } from './menu';
+  import { canGoThere, clipOffset, marks as momentMarks, momentText, newest, secsOf } from './moments';
+  import { MomentsFeed } from './momentsFeed.svelte';
+  import { clock } from './time';
   import { playerFullscreen } from './players.svelte';
   import { type Choice, qualityOptions } from './quality';
   import GearButton from './GearButton.svelte';
@@ -226,8 +231,33 @@
     return () => clearTimeout(t);
   });
 
+  // V108-N25 Moments the chat found: ticks on the bar and a list in the menu.
+  const momentFeed = new MomentsFeed();
+  $effect(() => momentFeed.follow(login));
+  const startedMs = $derived(info?.stream?.startedAt ? Date.parse(info.stream.startedAt) : null);
+  const goSource = $derived({ on: rewind.on, min: rewind.min, uptime: rewind.uptime });
+  const barMarks = $derived(momentMarks(momentFeed.list, startedMs, goSource, rewind.start));
+  /** The tab's account when it may clip (a moment's clip is a click, as the clip button). */
+  const clipper = $derived(tile.account && accounts.can('clips', tile.account) ? tile.account : null);
+
+  function momentRows(): MomentRow[] {
+    return newest(momentFeed.list).map((m) => {
+      const secs = secsOf(m, startedMs);
+      return {
+        time: secs === null ? '' : clock(secs),
+        text: momentText(m),
+        goThere: secs !== null && canGoThere(secs, goSource) ? () => rewind.seekTo(secs) : undefined,
+        clip:
+          secs !== null && clipper && info?.stream
+            ? () => void clipLiveAt(tile, clipper, tile.channel.id, clipOffset(secs, rewind.uptime))
+            : undefined,
+      };
+    });
+  }
+
   onDestroy(() => {
     rewind.destroy();
+    momentFeed.destroy();
     starts.cancel();
     clearTimeout(retry);
     void stopAds.then((f) => f());
@@ -322,6 +352,7 @@
       pip: pipFor(video),
       stats: { on: stats, toggle: () => (stats = !stats) },
       reload,
+      moments: mini ? undefined : momentRows(),
       link: `https://www.twitch.tv/${login}`,
       copy: copyText,
       open: openLink,
@@ -490,6 +521,7 @@
               min={rewind.min - b}
               minText={rewind.mode === 'replay' ? `Replay covers the last ${rewind.replayMinutes} min` : undefined}
               tone="neutral"
+              marks={barMarks}
               format={(t) => (rewind.uptime - b - t < DVR_GAP ? 'Live' : behindText(rewind.uptime - b - t))}
               valueText={rewind.atLive ? 'Live' : `${behindText(rewind.behind ?? 0)} behind live`}
               onseek={(t) => rewind.seekTo(t + b)}

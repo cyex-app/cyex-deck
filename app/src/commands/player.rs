@@ -140,6 +140,41 @@ pub async fn player_create_clip(app: AppHandle, account: String, channel_id: Str
     player::clips::create(&app, &account, &channel_id).await
 }
 
+/// V108-N25 Clips the live stream up to `offset_secs` into the broadcast, as `account`.
+#[tauri::command]
+pub async fn player_create_clip_at(
+    app: AppHandle,
+    account: String,
+    channel_id: String,
+    offset_secs: f64,
+) -> CmdResult<player::clips::MadeClip> {
+    player::clips::create_at(&app, &account, &channel_id, offset_secs).await
+}
+
+/// V108-N01 Clips a VOD of the channel `offset_secs` into it, as `account`.
+#[tauri::command]
+pub async fn player_create_clip_from_video(
+    app: AppHandle,
+    account: String,
+    channel_id: String,
+    video_id: String,
+    offset_secs: f64,
+) -> CmdResult<player::clips::MadeClip> {
+    player::clips::create_from_video(&app, &account, &channel_id, &video_id, offset_secs).await
+}
+
+/// V108-N02 Saves a clip as an MP4 through a save dialog. `None`: cancelled; else the path.
+#[tauri::command]
+pub async fn player_clip_save(app: AppHandle, slug: String, height: Option<u32>) -> CmdResult<Option<String>> {
+    player::clip_save::save(&app, &slug, height).await
+}
+
+/// V108-N02 Stops a clip save that runs.
+#[tauri::command]
+pub fn player_clip_save_cancel(slug: String) -> bool {
+    player::clip_save::cancel(&slug)
+}
+
 /// P10 The proxy as settings show it: `host:port`.
 #[tauri::command]
 pub fn player_proxy() -> Option<String> {

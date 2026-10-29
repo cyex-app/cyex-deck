@@ -6,10 +6,12 @@ import type HlsType from 'hls.js';
 import type { ErrorData, HlsConfig } from 'hls.js';
 
 import type { PlayerSession } from '../../ipc/bindings/PlayerSession';
+import type { Quality } from '../../ipc/bindings/Quality';
 import { delayVideo } from './avsync';
 import { onShown, pageHidden } from '../../lib/awake';
 import { formatNumber } from '../../lib/format';
-import { Away, outOfSight } from './away';
+import { settings } from '../../lib/settings.svelte';
+import { Away, awayMs, outOfSight } from './away';
 import { GRAPH_EVENT, graphDelay } from './gain';
 import { behindLive, dvrConfig, liveConfig, liveState, maxLatency, PAUSE_STOP_MS, pausedBehind, rangeEnd } from './liveEdge';
 import {
@@ -140,7 +142,12 @@ export class Engine {
   /** rd-2 Counts loads: only the newest makes an hls instance. */
   private loads = 0;
   /** V103-03 */
-  private readonly away = new Away(() => this.drop());
+  private readonly away = new Away(
+    () => this.drop(),
+    () => awayMs(settings.v.player.awaySecs),
+  );
+  /** V108-N22 Out of sight in "audio only" mode: the audio track plays until it shows again. */
+  private audioAway = false;
   /** The page hides the player: its tab plays in the background (V102-15). */
   private hidden = false;
   /** V107-H1 The window is minimized, in the tray or covered. */
@@ -454,7 +461,7 @@ export class Engine {
       // V107-N7a The audio master has no video levels: the menu keeps the last ones, so a
       // quality can be picked straight from audio only (it offered just Auto before).
       // V108-N24 The replay is one playlist: the menu keeps the stream's levels too.
-      if (!this.replay && (this.choice !== 'audio' || !this.levels.some((l) => l.height > 0))) {
+      if (!this.replay && (!this.audioNow || !this.levels.some((l) => l.height > 0))) {
         this.levels = hls.levels
           .map((l, index) => ({ index, name: l.height ? levelName(l) : 'Audio only', height: l.height }))
           .sort((a, b) => b.height - a.height);
@@ -531,7 +538,7 @@ export class Engine {
         if (!this.holding) hls.startLoad(pos);
       });
     }
-    hls.loadSource(this.choice === 'audio' ? session.audio : session.url);
+    hls.loadSource(this.audioNow ? session.audio : session.url);
     hls.attachMedia(this.video);
   }
 
@@ -561,8 +568,8 @@ export class Engine {
 
   private apply(smooth: boolean): void {
     const hls = this.hls;
-    if (!hls || this.choice === 'audio' || this.replay) return;
-    const i = levelFor(hls.levels, this.choice, this.playerPx, this.away.low);
+    if (!hls || this.audioNow || this.replay) return;
+    const i = levelFor(hls.levels, this.choice as Quality, this.playerPx, this.away.low && settings.v.player.awayMode === 'lowest');
     if (i < 0) return;
     if (!smooth) {
       // A manual level keeps hls.js's own switching off.
@@ -601,17 +608,35 @@ export class Engine {
   private sight(): boolean {
     if (outOfSight(this.hidden, this.pageHidden, document.pictureInPictureElement === this.video)) this.away.hide();
     else if (this.away.show()) {
-      this.apply(true);
+      if (this.audioAway) {
+        // Back from audio only: the video track again, from the same spot.
+        this.audioAway = false;
+        if (!this.liveSrc) this.startAt = this.video.currentTime;
+        void this.load();
+      } else this.apply(true);
       return true;
     }
     return false;
+  }
+
+  /** Audio only: chosen, or by "Save resources" while out of sight. */
+  private get audioNow(): boolean {
+    return this.choice === 'audio' || this.audioAway;
   }
 
   /** V103-03 A minute out of sight: the lowest quality from the next segment on. What's
    *  loaded already plays out, nobody sees it. Audio only stays as it is. */
   private drop(): void {
     const hls = this.hls;
-    if (!hls || this.choice === 'audio') return;
+    const mode = settings.v.player.awayMode;
+    if (!hls || this.audioNow || mode === 'off') return;
+    // V108-N22 Audio only reloads with the audio track; the replay keeps what it has.
+    if (mode === 'audio' && !this.replay) {
+      this.audioAway = true;
+      if (!this.liveSrc) this.startAt = this.video.currentTime;
+      void this.load();
+      return;
+    }
     const i = lowestLevel(hls.levels);
     if (i < 0 || i === hls.loadLevel) return;
     this.fresh(i);

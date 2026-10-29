@@ -8,6 +8,7 @@
 import { untrack } from 'svelte';
 
 import type { Tile } from '../../ipc/bindings/Tile';
+import { audioFocus } from '../tabs/audioFocus.svelte';
 import { sounding } from '../tabs/sounding.svelte';
 import { tabs } from '../tabs/tabs.svelte';
 import { clampVolume, split } from './boost';
@@ -52,6 +53,8 @@ export function useSound(tile: () => Tile | undefined, hushed: () => boolean = (
     const t = tile();
     const tab = t && tabs.tabOf(t.id);
     if (tab && tabs.muted.has(tab.id)) void tabs.mute(tab.id, false);
+    // V108-N13 Unmuting a tile (M, the volume control) gives it the tab's sound.
+    if (t && tab) audioFocus.claim(tab.id, t.id);
   }
   /** What the user hears from the volume control: the player's own sound, or the tab's mute. */
   function change(v: number, m: boolean, commit: boolean) {

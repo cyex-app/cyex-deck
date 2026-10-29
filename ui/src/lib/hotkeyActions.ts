@@ -26,6 +26,7 @@ export const ACTIONS = {
   'player.back2': { label: 'Go back, second key', default: 'J' },
   'player.playPause2': { label: 'Play or pause, second key', default: 'K' },
   'player.forward2': { label: 'Go forward, second key', default: 'L' },
+  'view.theatre': { label: 'Theatre mode', default: 'Alt+T' },
   'chat.search': { label: 'Search this chat', default: 'Ctrl+F' },
   'chat.searchAll': { label: 'Search every chat', default: 'Ctrl+Shift+F' },
   'chat.similar': { label: 'Hide or show near-duplicates', default: 'Ctrl+H' },
