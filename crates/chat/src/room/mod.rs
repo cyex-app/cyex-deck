@@ -2,6 +2,7 @@
 //! deletions, history (C1), the user's rules (`checks`). Pure state: the app feeds it
 //! lines and streams the events.
 
+pub mod budget;
 mod checks;
 mod gap;
 pub use gap::{GAP_NOTE, gap_may_miss};
@@ -12,7 +13,7 @@ mod role;
 mod stack;
 
 pub use hook::{LineChange, LineHook};
-pub use keep::{BACKGROUND, BACKGROUND_HISTORY};
+pub use keep::BACKGROUND;
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
@@ -79,7 +80,7 @@ pub struct Room {
     buffer: VecDeque<Arc<ChatMessage>>,
     /// V101-02 Messages kept, at least `BUFFER`.
     keep: usize,
-    /// V107-M1 No view shows the room: it keeps only `keep::BACKGROUND`.
+    /// V107-M1, V108-C01 The line budget shrank the hidden room: it keeps only `keep::BACKGROUND`.
     background: bool,
     /// V107-M1 Lines were dropped (or history was cut short) since the last refill.
     trimmed: bool,
@@ -551,6 +552,10 @@ impl Room {
         }
         let room = self.limit().saturating_sub(self.buffer.len());
         let skip = old.len().saturating_sub(room);
+        // V108-C01 Cut short by the line budget: shown, it refills.
+        if skip > 0 && self.background {
+            self.trimmed = true;
+        }
         let old: Vec<Arc<ChatMessage>> = old.into_iter().skip(skip).map(Arc::new).collect();
         for m in old.iter().rev() {
             self.buffer.push_front(m.clone());

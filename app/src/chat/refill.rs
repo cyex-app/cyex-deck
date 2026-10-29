@@ -1,8 +1,9 @@
-//! V107-M1 Rooms no view shows keep a small buffer (`cyex_chat::BACKGROUND`). Shown again,
-//! a room shows what it kept at once, then gets its older lines back from the history
-//! service in one `History` event; the view draws them a piece per frame (historyDrip.ts).
-//! Only rooms that actually dropped lines refill, and only up to the user's history lines
-//! above what they kept. Hidden again, a room shrinks after `SHRINK_AFTER`.
+//! V107-M1, V108-C01 Hidden rooms keep their scrollback until the line budget (`park`)
+//! shrinks the ones shown longest ago to `cyex_chat::BACKGROUND`. Shown again, such a room
+//! shows what it kept at once, then gets its older lines back from the history service in
+//! one `History` event; the view draws them a piece per frame (historyDrip.ts). Only rooms
+//! that actually dropped lines refill, and only up to the user's history lines above what
+//! they kept.
 
 use std::time::Duration;
 
@@ -14,12 +15,10 @@ use tauri::{AppHandle, Manager};
 
 use super::{Chat, RoomKey, account_of, now_ms, queue};
 
-/// A chat hidden this long drops to the small buffer: coming back sooner costs nothing.
-const SHRINK_AFTER: Duration = Duration::from_secs(45);
 /// The history service keeps no more.
 const SERVICE_MAX: usize = 800;
 
-/// The chat is shown again after it was in the background.
+/// The chat is shown again after the line budget shrank it.
 pub fn start(app: &AppHandle, key: RoomKey) {
     let c = app.state::<crate::settings::Settings>().read::<ChatSettings>(Partition::Chat);
     if !c.history {
@@ -71,35 +70,15 @@ pub fn on_open(fresh: bool, loaded: bool, room: &cyex_chat::Room) -> bool {
     !fresh && loaded && room.trimmed()
 }
 
-/// The first history is in. Cut short for the background (`cut`), it counts as trimmed;
-/// shown meanwhile, the open skipped the refill, so it's due now.
-pub fn first_history_in(room: &mut cyex_chat::Room, cut: bool, shown: bool) -> bool {
-    if cut {
-        room.set_trimmed(true);
-    }
+/// The first history is in. Cut short in a shrunk room (`Room::trimmed`) and shown
+/// meanwhile, the open skipped the refill, so it's due now.
+pub fn first_history_in(room: &cyex_chat::Room, shown: bool) -> bool {
     shown && room.trimmed()
 }
 
 /// Whether a room is worth a refill: shown, lines dropped, room for more.
 fn wanted(hidden: bool, room: &cyex_chat::Room) -> bool {
     !hidden && room.trimmed() && room.missing() > 0
-}
-
-/// The last view closed but a tab still holds the room: shrink it unless it's shown again
-/// before `SHRINK_AFTER`. `shown`: the room's open count when its last view closed.
-pub fn later(app: &AppHandle, key: RoomKey, shown: u64) {
-    let app = app.clone();
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(SHRINK_AFTER).await;
-        let chat = app.state::<Chat>();
-        let mut inner = chat.lock();
-        if let Some(entry) = inner.rooms.get_mut(&key)
-            && entry.views.is_empty()
-            && entry.shown == shown
-        {
-            entry.room.set_background(true);
-        }
-    });
 }
 
 #[cfg(test)]
@@ -135,21 +114,22 @@ mod tests {
 
     #[test]
     fn v107_m1_a_refill_waits_for_the_first_history() {
-        // Joined in the background; a view opens while the 100-line history is out.
+        // Shrunk by the line budget; a view opens while the first history is out.
         let mut r = room(0);
         r.set_background(true);
         assert!(!on_open(false, false, &r), "loading: no refill yet");
+        // The history lands cut short in the shrunk room, then it's shown: refill now.
+        let lines: Vec<String> =
+            (0..400).map(|i| format!("@id=h{i};tmi-sent-ts={i};user-id=7 :a!a@a PRIVMSG #chan :hi")).collect();
+        r.history(&lines, 9_000, &NoEmotes);
         r.set_background(false);
-        // The history lands, cut short for the background: the refill starts now.
-        assert!(first_history_in(&mut r, true, true));
+        assert!(first_history_in(&r, true));
         // Still hidden when it landed: the next open refills.
-        let mut r = room(0);
-        r.set_background(true);
-        assert!(!first_history_in(&mut r, true, false));
+        assert!(!first_history_in(&r, false));
         assert!(on_open(false, true, &r));
-        // Shown with its full history and never trimmed: nothing to fetch.
-        let mut r = room(0);
-        assert!(!first_history_in(&mut r, false, true));
+        // V108-C01 Hidden at full size, full history, never trimmed: nothing to fetch.
+        let r = room(0);
+        assert!(!first_history_in(&r, true));
         assert!(!on_open(false, true, &r));
         assert!(!on_open(true, true, &r), "a fresh room loads its history itself");
     }

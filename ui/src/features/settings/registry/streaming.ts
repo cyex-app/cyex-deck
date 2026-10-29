@@ -52,7 +52,7 @@ export const STREAMING: Entry[] = [
     anchor: 'general.streamer.when',
   },
   hide('hideLinkPreviews', 'Hide link previews', 'Pictures and cards for links in chat.'),
-  hide('hideAvatars', 'Hide profile pictures', 'On usercards.'),
+  hide('hideAvatars', 'Hide profile pictures', 'Blurred on usercards until you click them.'),
   hide('hideModActions', 'Hide mod actions', 'Timeouts, bans and deleted messages.'),
   hide('hideWhispers', 'Hide whispers', 'In chat, and their pop-ups and sounds.'),
   hide('noNotifications', 'No Windows notifications', 'Live alerts, whispers and the bell.'),

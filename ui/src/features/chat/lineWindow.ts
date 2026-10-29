@@ -4,6 +4,9 @@
 // (`from`), so new lines below and history put in above never move what's drawn.
 
 export const WINDOW = 250;
+/** V108-C01 A chat that opens (a tab switch) draws only its newest FIRST lines, the rest of the
+ *  window a frame later: one emote-spam window of 250 lines (about 1.200 images) took 52-77 ms. */
+export const FIRST = 100;
 export const STEP = 150;
 /** Lines drawn above the one a jump goes to, so it doesn't sit at the very top. */
 export const JUMP_MARGIN = 50;

@@ -4,8 +4,9 @@ import { test } from 'node:test';
 // A .svelte.ts module: outside the compiler, $state is the plain value.
 const g = globalThis as unknown as { $state: { <T>(v?: T): T | undefined; raw: <T>(v: T) => T } };
 g.$state = Object.assign(<T>(v?: T) => v, { raw: <T>(v: T) => v });
-const { ChatScroll } = await import('./chatScroll.svelte.ts');
-const { SHRINK_MS, STEP, WINDOW } = await import('./lineWindow.ts');
+const mod = await import('./chatScroll.svelte.ts');
+const { ChatScroll } = mod;
+const { FIRST, SHRINK_MS, STEP, WINDOW } = await import('./lineWindow.ts');
 
 /** Timers that run only when told. */
 class FakeClock {
@@ -35,11 +36,13 @@ class FakeClock {
 type Msg = { id: string; ts: number };
 const make = (from: number, n: number): Msg[] => Array.from({ length: n }, (_, i) => ({ id: `m${from + i}`, ts: (from + i) * 10 }));
 
-function setup(n = 400, opts = { pauseOnHover: true, pauseStillTenths: 0 }) {
+function setup(n = 400, opts = { pauseOnHover: true, pauseStillTenths: 0 }, wide = true) {
   const msgs = make(0, n);
   const clock = new FakeClock();
   let shrinks = 0;
   const s = new ChatScroll({ lines: () => msgs, messages: () => msgs, onshrink: () => shrinks++ }, opts, clock);
+  // Most tests start after the first frame (V108-C01): the whole window is drawn.
+  if (wide) s.widen();
   const add = (k: number) => msgs.push(...make(msgs.length, k));
   return { s, msgs, clock, add, shrinks: () => shrinks };
 }
@@ -266,4 +269,86 @@ test('a slide never outlasts the gap since the last lines, and carries its end',
   assert.equal(s.glide(10, 600, true, true), 60);
   assert.equal(s.glide(10, 600, true, false), 0);
   assert.equal(s.glide(0.5, 600, false, false), 0);
+});
+
+test('typing lets a hover pause go until the mouse really moves (V108-C04)', () => {
+  const { s } = setup(400, { pauseOnHover: true, pauseStillTenths: 0 });
+  s.landed();
+  s.enter(100, 200);
+  assert.equal(s.paused, true);
+  s.typed();
+  assert.equal(s.paused, false);
+  // Lines moving under a resting mouse: the same point isn't a move.
+  s.move(100, 200);
+  assert.equal(s.paused, false);
+  s.move(101, 200);
+  assert.equal(s.paused, true);
+  s.exit();
+  s.typed();
+  assert.equal(s.paused, false);
+});
+
+test('the list keeps its bottom when its height changes (V108-C05)', () => {
+  const { s } = setup();
+  // At the bottom: stays there as the box grows (600 -> 560) and shrinks back.
+  s.measured(bottom());
+  assert.equal(s.resized(at(7400, 8000, 560), 600), 7440);
+  s.measured(at(7440, 8000, 560));
+  assert.equal(s.resized(at(7400, 8000, 600), 560), 7400);
+  // Paused at the bottom: still the bottom.
+  s.landed();
+  s.enter();
+  assert.equal(s.paused, true);
+  s.measured(bottom());
+  assert.equal(s.resized(at(7400, 8000, 520), 600), 7480);
+  s.exit();
+  // Scrolled up: same distance from the bottom, so the lines over the box stay over it.
+  s.leave();
+  s.measured(at(3000));
+  assert.equal(s.resized(at(3000, 8000, 520), 600), 3080);
+  s.measured(at(3080, 8000, 520));
+  assert.equal(s.resized(at(3080, 8000, 600), 520), 3000);
+  // Near the top it can't go above 0.
+  s.measured(at(20));
+  assert.equal(s.resized(at(20, 8000, 680), 600), 0);
+});
+
+test('keepBottom uses the top from before the change', () => {
+  const { keepBottom } = mod;
+  // 30 px from the bottom, the list grows 50: the browser pulled top to 7350 already.
+  assert.equal(keepBottom({ top: 7370, client: 600 }, at(7350, 8000, 650), false), 7320);
+  assert.equal(keepBottom({ top: 7370, client: 600 }, at(7350, 8000, 650), true), 7350);
+  assert.equal(keepBottom({ top: 0, client: 600 }, at(0, 300, 600), false), 0);
+});
+
+test('V108-C01 a chat that opens draws FIRST lines, then the whole window once widened', () => {
+  const { s, add } = setup(400, undefined, false);
+  assert.equal(s.narrow, true);
+  assert.equal(s.drawn.length, FIRST);
+  assert.equal(s.drawn.at(-1)!.id, 'm399');
+  add(5);
+  assert.equal(s.drawn.length, FIRST);
+  assert.equal(s.drawn.at(-1)!.id, 'm404');
+  assert.equal(s.widen(), true);
+  assert.equal(s.narrow, false);
+  assert.equal(s.drawn.length, WINDOW);
+  assert.equal(s.drawn.at(-1)!.id, 'm404');
+  assert.equal(s.widen(), false);
+});
+
+test('V108-C01 a short chat draws all of it either way', () => {
+  const { s } = setup(60, undefined, false);
+  assert.equal(s.drawn.length, 60);
+  s.widen();
+  assert.equal(s.drawn.length, 60);
+});
+
+test('V108-C01 scrolled up before the widen: the held window starts at the FIRST lines', () => {
+  const { s } = setup(400, undefined, false);
+  s.leave();
+  assert.equal(s.drawn.length, FIRST);
+  assert.equal(s.drawn[0].id, 'm300');
+  // Widening keeps what's drawn: the window holds its first line.
+  s.widen();
+  assert.equal(s.drawn[0].id, 'm300');
 });

@@ -1,5 +1,5 @@
-//! F1 Chat search: one chat, or every joined chat (C29). Background rooms keep only
-//! `cyex_chat::BACKGROUND` lines (V107-M1), so for ones that dropped lines the search also
+//! F1 Chat search: one chat, or every joined chat (C29). Rooms the line budget shrank keep
+//! only `cyex_chat::BACKGROUND` lines (V108-C01), so for ones that dropped lines the search also
 //! reads the history service, best effort, up to the scrollback. Those lines come back as
 //! history, like any other loaded from the service. Fetched lines are kept briefly, so
 //! typing a query doesn't fetch again on every key.

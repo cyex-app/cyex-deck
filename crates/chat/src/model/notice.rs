@@ -16,6 +16,22 @@ pub struct Notice {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub color: Option<String>,
+    /// C37 V108-C03 A joins or leaves line's names, each opening its usercard.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub presence: Option<Presence>,
+}
+
+/// C37 V108-C03 Who joined or left, as the line shows them.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Presence {
+    pub joined: bool,
+    /// Logins written out, in order of arrival.
+    pub names: Vec<String>,
+    /// Names past those, only counted.
+    pub more: u32,
 }
 
 impl Notice {
@@ -25,6 +41,7 @@ impl Notice {
             text: text.into(),
             recipients: Vec::new(),
             color: None,
+            presence: None,
         }
     }
 }

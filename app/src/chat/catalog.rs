@@ -143,21 +143,22 @@ pub fn channel_view(c: &ChannelChat) -> ChannelCatalog {
 }
 
 /// After a fresh join: reward names into the room, the channel's emotes, history once
-/// they're in (C1, `history` lines at most), then the current pin.
-pub fn load_for_room(app: AppHandle, key: RoomKey, generation: u64, history: Option<u32>) {
+/// they're in (C1, `history` lines at most), then the current pin. `epoch`: the room's
+/// join, so history for one that was closed meanwhile is dropped (V108-C01).
+pub fn load_for_room(app: AppHandle, key: RoomKey, generation: u64, history: Option<u32>, epoch: u64) {
     tauri::async_runtime::spawn(async move {
         let c = match channel(&app, &key.1, false).await {
             Ok(Some(c)) => c,
             Ok(None) => {
                 if let Some(lines) = history {
-                    super::session::load_history(app.clone(), key, lines);
+                    super::session::load_history(app.clone(), key, lines, epoch);
                 }
                 return;
             }
             Err(e) => {
                 eprintln!("chat: no catalog for {}: {e}", key.1);
                 if let Some(lines) = history {
-                    super::session::load_history(app.clone(), key, lines);
+                    super::session::load_history(app.clone(), key, lines, epoch);
                 }
                 return;
             }
@@ -173,7 +174,7 @@ pub fn load_for_room(app: AppHandle, key: RoomKey, generation: u64, history: Opt
         }
         if let Some(lines) = history {
             crate::emotes::ready(&app, &key.1, std::time::Duration::from_secs(4)).await;
-            super::session::load_history(app.clone(), key.clone(), lines);
+            super::session::load_history(app.clone(), key.clone(), lines, epoch);
         }
         let rewards: HashMap<String, (String, u32)> = c
             .points

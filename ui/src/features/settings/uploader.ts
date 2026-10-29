@@ -12,6 +12,24 @@ export const UPLOADER_FIELDS = [
 const REQUIRED = UPLOADER_FIELDS.filter((f) => f[2]).map((f) => f[0]);
 type Required = (typeof REQUIRED)[number];
 
+/** V108-C07 A real web address: parses, http(s), a host, no spaces. */
+export function validUploadUrl(s: string): boolean {
+  const t = s.trim();
+  if (!t || /\s/.test(t)) return false;
+  try {
+    const u = new URL(t);
+    return (u.protocol === 'http:' || u.protocol === 'https:') && u.hostname !== '';
+  } catch {
+    return false;
+  }
+}
+
+/** V108-C07 Typing the first valid address switches uploading on, once. A later turn-off sticks:
+ *  only empty/invalid → valid while off counts. */
+export function turnsOnWithUrl(prev: string, next: string, enabled: boolean): boolean {
+  return !enabled && validUploadUrl(next) && !validUploadUrl(prev);
+}
+
 /** The required fields left empty, in form order. Empty = blank after trim. */
 export function uploaderMissingKeys(u: Uploader): Required[] {
   return REQUIRED.filter((k) => u[k].trim() === '');

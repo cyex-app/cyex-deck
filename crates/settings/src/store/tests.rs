@@ -844,3 +844,27 @@ mod merge {
         assert_eq!(highlights(&b), highlights(&a));
     }
 }
+
+/// V108-C02 An old file with the one joins-and-leaves toggle on loads with both new ones on,
+/// is rewritten without the old field, and today's backup keeps the file as it was.
+#[test]
+fn v108_02_old_joins_leaves_is_rewritten_once() {
+    let tmp = TempDir::new("store-joins-parts");
+    let old = r#"{"joinsLeaves":true,"presenceOnOnce":true,"sharePresence":false}"#;
+    fs::write(tmp.path().join("chat.json"), old).unwrap();
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let (mut store, _) = open(tmp.path(), &clock);
+    let chat = store.read::<Chat>(Partition::Chat);
+    assert!(chat.joins && chat.parts && !chat.share_presence);
+    store.flush().unwrap();
+    let saved: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(tmp.path().join("chat.json")).unwrap()).unwrap();
+    assert!(saved.get("joinsLeaves").is_none());
+    assert_eq!(saved["joins"], json!(true));
+    assert_eq!(saved["parts"], json!(true));
+    store.patch(Partition::Chat, &json!({"parts": false})).unwrap();
+    store.flush().unwrap();
+    let (again, _) = open(tmp.path(), &clock);
+    let chat = again.read::<Chat>(Partition::Chat);
+    assert!(chat.joins && !chat.parts);
+}

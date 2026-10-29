@@ -188,7 +188,7 @@
     'nav.discover': () => show('discover'),
     'nav.miner': () => (canMine ? show('miner') : gate.ask('gql')),
     'nav.streamManager': () => canManage && show('streamManager'),
-    'nav.whispers': () => canWhisper && show('whispers'),
+    'nav.whispers': () => canWhisper && toggleView('whispers'),
     'settings.open': toggleSettings,
     'window.pin': () => currentWindow.togglePin(),
     'tabs.switcher': () => (switcher = true),
@@ -348,10 +348,13 @@
     else show('view' in back ? back.view : 'home');
   }
 
-  /** V107-R32 The cog and Ctrl+, open Settings; again, back to where you were. */
+  /** V107-R32, V108-C06 The cog, the whisper button and their hotkeys open the view; again, back to where you were. */
+  function toggleView(view: Fixed) {
+    if (fixed === view) leaveView(view);
+    else show(view);
+  }
   function toggleSettings() {
-    if (fixed === 'settings') leaveView('settings');
-    else show('settings');
+    toggleView('settings');
   }
 
   /** V102-16 Pops a view out of here and goes back to where you were before it; when its
@@ -478,7 +481,7 @@
           label="Whispers"
           hint={whispers.state.unread ? `${whispers.state.unread} unread` : 'Your whispers (Ctrl+5).'}
           active={fixed === 'whispers'}
-          onclick={() => show('whispers')}
+          onclick={() => toggleView('whispers')}
         />
         {#if whispers.state.unread}<span class="count">{whispers.state.unread > 99 ? '99+' : whispers.state.unread}</span>{/if}
       </div>

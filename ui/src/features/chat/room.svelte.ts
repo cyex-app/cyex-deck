@@ -14,9 +14,11 @@ import { markGone } from './gone';
 import { nextPiece, prepend } from './historyDrip';
 
 /** V101-02 Lines kept on screen, as set; older ones drop off the top. Rust keeps as many
- * per shown room, at least 500. V107-M1 A room shown again after the background opens with
- * the 150 it kept; its older lines follow in one `history` event and go on
- * screen 25 per frame (historyDrip.ts). */
+ * per room, at least 500. V108-C01 Hidden rooms keep their whole scrollback too, under one
+ * global budget (150.000 lines over hidden and parked rooms); a closed tab's room is parked
+ * and comes back with its lines when reopened, the missed span filled in by a `gap` event.
+ * Only a room the budget shrank opens short; its older lines follow in a `history` event
+ * and go on screen 25 per frame (historyDrip.ts). */
 const maxLines = () => settings.v.chat?.scrollback ?? 1000;
 
 /** C5 Last message seen per tile, for the last-read line after switching tabs. L1 Capped:

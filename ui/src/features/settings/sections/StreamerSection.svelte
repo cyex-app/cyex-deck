@@ -20,7 +20,7 @@
   type Hide = 'hideLinkPreviews' | 'hideAvatars' | 'hideModActions' | 'hideWhispers' | 'noNotifications' | 'muteSounds';
   const HIDES: { key: Hide; label: string; hint: string }[] = [
     { key: 'hideLinkPreviews', label: 'Link previews', hint: 'Pictures and cards for links in chat.' },
-    { key: 'hideAvatars', label: 'Profile pictures', hint: 'On usercards.' },
+    { key: 'hideAvatars', label: 'Profile pictures', hint: 'Blurred on usercards until you click them.' },
     { key: 'hideModActions', label: 'Mod actions', hint: 'Timeouts, bans and deleted messages.' },
     { key: 'hideWhispers', label: 'Whispers', hint: 'In chat, and their pop-ups and sounds.' },
     { key: 'noNotifications', label: 'Windows notifications', hint: 'Live alerts, whispers and the bell.' },

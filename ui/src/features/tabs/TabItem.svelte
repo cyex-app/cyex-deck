@@ -219,13 +219,18 @@
   .mention .pill {
     color: var(--text);
   }
+  /* V108-C08 Unread chat without a mention gets the same bar in plain text color. */
+  .message .name,
   .mention .name {
-    text-decoration: underline 2px var(--accent-text);
+    text-decoration: underline 2px var(--text);
     text-decoration-skip-ink: none;
     text-underline-offset: 4px;
     /* The box clips at the padding edge: room for the underline, layout unchanged. */
     padding-bottom: 3px;
     margin-bottom: -3px;
+  }
+  .mention .name {
+    text-decoration-color: var(--accent-text);
   }
   .selected:not(.active) .pill {
     background: var(--surface-hover);

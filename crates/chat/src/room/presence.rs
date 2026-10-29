@@ -1,13 +1,14 @@
 //! C37, V102-18 Joins and leaves as chat lines, batched: everyone who joined within 10 s
 //! of the first goes on one "joined: a, b, c" line, leaves on one "parted: …" line, each
 //! updated in place wherever it is in the chat. Past 10 names the line ends in "+N more".
+//! V108-C03 The names also go out on their own (`Notice::presence`), so each opens its usercard.
 
 use std::collections::HashSet;
 use std::sync::Arc;
 
 use super::Room;
 use crate::build;
-use crate::model::{NoticeKind, RoomEvent};
+use crate::model::{Notice, NoticeKind, Presence, RoomEvent};
 
 /// How long a line keeps taking names, from its first.
 const WINDOW_MS: i64 = 10_000;
@@ -40,6 +41,21 @@ fn text(joined: bool, names: &[String]) -> String {
     line
 }
 
+/// V108-C03 The names as the line shows them, plus the count past them.
+fn names(joined: bool, names: &[String]) -> Presence {
+    let shown = names.len().min(SHOWN);
+    Presence {
+        joined,
+        names: names[..shown].to_vec(),
+        more: u32::try_from(names.len() - shown).unwrap_or(u32::MAX),
+    }
+}
+
+fn fill(notice: &mut Notice, joined: bool, list: &[String]) {
+    notice.text = text(joined, list);
+    notice.presence = Some(names(joined, list));
+}
+
 impl Room {
     pub(super) fn presence(&mut self, login: String, joined: bool, now_ms: i64) -> Option<RoomEvent> {
         let slot = if joined { &mut self.presence.joined } else { &mut self.presence.parted };
@@ -51,12 +67,17 @@ impl Room {
             }
             open.names.push(login);
             let mut m = (**line).clone();
-            m.notice.as_mut()?.text = text(joined, &open.names);
+            fill(m.notice.as_mut()?, joined, &open.names);
             let m = Arc::new(m);
             *line = m.clone();
             return Some(RoomEvent::Update { message: m });
         }
-        let m = Arc::new(build::system(NoticeKind::Info, text(joined, std::slice::from_ref(&login)), now_ms));
+        let first = std::slice::from_ref(&login);
+        let mut m = build::system(NoticeKind::Info, String::new(), now_ms);
+        if let Some(n) = m.notice.as_mut() {
+            fill(n, joined, first);
+        }
+        let m = Arc::new(m);
         *slot = Some(Open {
             id: m.id.clone(),
             since_ms: now_ms,
@@ -133,6 +154,27 @@ mod tests {
             text(&last[0]),
             "joined: user0, user1, user2, user3, user4, user5, user6, user7, user8, user9 +4 more"
         );
+    }
+
+    #[test]
+    fn v108_03_names_go_out_on_their_own() {
+        let presence = |e: &RoomEvent| match e {
+            RoomEvent::Message { message } | RoomEvent::Update { message } => {
+                message.notice.as_ref().unwrap().presence.clone().unwrap()
+            }
+            other => panic!("{other:?}"),
+        };
+        let mut r = room();
+        let p = presence(&part(&mut r, "ana", 0)[0]);
+        assert!(!p.joined);
+        assert_eq!((p.names, p.more), (vec!["ana".to_owned()], 0));
+        let mut last = Vec::new();
+        for i in 0..12 {
+            last = join(&mut r, &format!("user{i}"), i);
+        }
+        let p = presence(&last[0]);
+        assert!(p.joined);
+        assert_eq!((p.names.len(), p.names[9].as_str(), p.more), (10, "user9", 2));
     }
 
     #[test]

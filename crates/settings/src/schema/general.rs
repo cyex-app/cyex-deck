@@ -140,7 +140,7 @@ pub struct StreamerMode {
     pub apps: Vec<String>,
     /// Link previews, thumbnails and cards.
     pub hide_link_previews: bool,
-    /// Profile pictures on usercards.
+    /// Profile pictures on usercards, blurred until clicked (V108-C09).
     pub hide_avatars: bool,
     /// Timeouts, bans and deleted-message lines.
     pub hide_mod_actions: bool,

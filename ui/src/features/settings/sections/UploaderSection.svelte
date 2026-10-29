@@ -11,7 +11,7 @@
   import FormField from '../FormField.svelte';
   import ResetSection from '../ResetSection.svelte';
   import SectionHead from '../SectionHead.svelte';
-  import { uploaderMissingKeys } from '../uploader';
+  import { turnsOnWithUrl, uploaderMissingKeys, validUploadUrl } from '../uploader';
 
   const u = $derived(settings.v.uploader);
   const save = (patch: Partial<Uploader>) => void settings.patch('uploader', patch);
@@ -29,16 +29,33 @@
   const gone = $derived(uploaderMissingKeys(u));
   let tried = $state(false);
   const loud = $derived(u.enabled || tried);
-  const problem = (key: 'url' | 'formField' | 'link') => (loud && gone.includes(key) ? 'Fill this in.' : null);
+  // V108-C07 Set while the typed address isn't a web address.
+  let badUrl = $state(false);
+  const problem = (key: 'url' | 'formField' | 'link') => {
+    if (key === 'url' && (badUrl || (u.url.trim() !== '' && !validUploadUrl(u.url)))) return 'That isn’t a web address.';
+    return loud && gone.includes(key) ? 'Fill this in.' : null;
+  };
+
+  // V108-C07 Set once the user turns uploading off here; a new address then leaves it off.
+  let turnedOff = false;
+
+  /** V108-C07 The first valid address also turns uploading on; "Ask before uploading" stays as is. */
+  function saveUrl(e: Event & { currentTarget: HTMLInputElement }) {
+    const url = e.currentTarget.value.trim();
+    badUrl = url !== '' && !validUploadUrl(url);
+    save(!turnedOff && turnsOnWithUrl(u.url, url, u.enabled) ? { url, enabled: true } : { url });
+  }
 
   /** Turning on needs the required fields; turning off always works. s3-13 A required field
    *  cleared while on keeps it on: `loud` marks the field and the switch's hint says why. */
   function toggle(on: boolean) {
-    if (on && gone.length) {
+    const first = gone[0] ?? (validUploadUrl(u.url) ? null : 'url');
+    if (on && first) {
       tried = true;
-      document.querySelector<HTMLElement>(`[data-setting="uploader.${gone[0]}"] input`)?.focus();
+      document.querySelector<HTMLElement>(`[data-setting="uploader.${first}"] input`)?.focus();
       return;
     }
+    if (!on) turnedOff = true;
     save({ enabled: on });
   }
 </script>
@@ -72,7 +89,8 @@
       spellcheck="false"
       autocomplete="off"
       value={u.url}
-      onchange={(e) => save({ url: e.currentTarget.value })}
+      oninput={(e) => (badUrl = e.currentTarget.value.trim() !== '' && !validUploadUrl(e.currentTarget.value))}
+      onchange={saveUrl}
     />
   </FormField>
 

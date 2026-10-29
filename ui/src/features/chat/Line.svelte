@@ -60,6 +60,8 @@
   const paint = $derived(looks.paintClass(paintId));
   const paintName = $derived(paint ? looks.paintName(paintId) : null);
   const recipients = $derived(notice?.recipients ?? []);
+  // C37 V108-C03 Joins and leaves: each name opens its usercard; the count stays text.
+  const presence = $derived(notice?.presence);
   const hl = $derived(highlightStyle(m));
   /** V107-Mj Zalgo stays inside its line. */
   const stacked = $derived(lineStacks(m.body, notice?.text));
@@ -126,7 +128,12 @@
   {#if notice}
     <div class="notice-text">
       {#if !sender && time}<span class="ts">{time}</span>{/if}{#if upLine}Uploaded <a class="up" href={upLine.link} data-upload={upLine.link}>{upLine.link}</a>{#if upLine.deletion}
-        · delete: <a class="up" href={upLine.deletion} data-upload={upLine.deletion}>{upLine.deletion}</a>{/if}{:else}{notice.text}{/if}
+        · delete: <a class="up" href={upLine.deletion} data-upload={upLine.deletion}>{upLine.deletion}</a>{/if}{:else if presence}{presence.joined ? 'joined: ' : 'parted: '}{#each presence.names as login, i (login)}{i ? ', ' : ''}<span
+            class="who"
+            role="link"
+            tabindex="-1"
+            data-user={login}>{login}</span
+          >{/each}{presence.more ? ` +${formatNumber(presence.more)} more` : ''}{:else}{notice.text}{/if}
       {#if recipients.length}<span class="recipients"> To {recipients.join(', ')}.</span>{/if}
     </div>
   {/if}
@@ -313,6 +320,12 @@
   }
   .recipients {
     color: var(--dim);
+  }
+  .who {
+    cursor: pointer;
+  }
+  .who:hover {
+    text-decoration: underline;
   }
   .system .notice-text {
     color: var(--dim);

@@ -1,17 +1,17 @@
-//! V107-M1 How much a room keeps. A room no view shows keeps `BACKGROUND` lines; once
-//! shown again it keeps the user's scrollback, and the history service brings back the
-//! older lines it dropped (`backfill`).
+//! V107-M1, V108-C01 How much a room keeps. Shown or hidden, a room keeps the user's
+//! scrollback; only the line budget (`budget`) shrinks a hidden one to `BACKGROUND`.
+//! Shown again, it keeps the scrollback, and the history service brings back the older
+//! lines it dropped (`backfill`).
 
 use std::sync::Arc;
 
 use super::Room;
-use crate::model::{ChatMessage, Flag};
+use crate::build::Me;
+use crate::model::{ChatMessage, ConnStatus, Flag};
 use crate::tokenize::Emotes;
 
-/// Lines a room keeps while no view shows it.
+/// Lines a hidden room keeps once the line budget shrank it.
 pub const BACKGROUND: usize = 150;
-/// History lines a room loads when it's joined in the background.
-pub const BACKGROUND_HISTORY: u32 = 100;
 
 impl Room {
     /// Most lines kept right now.
@@ -19,15 +19,39 @@ impl Room {
         if self.background { BACKGROUND.min(self.keep) } else { self.keep }
     }
 
+    /// Shrunk to `BACKGROUND` by the line budget.
     pub fn background(&self) -> bool {
         self.background
     }
 
-    /// No view shows the room (`true`): it drops to `BACKGROUND` lines. Shown again, it
-    /// may grow back to the scrollback.
+    /// `true`: the line budget drops the room to `BACKGROUND` lines. Shown again
+    /// (`false`), it may grow back to the scrollback.
     pub fn set_background(&mut self, on: bool) {
         self.background = on;
         self.trim();
+    }
+
+    /// V108-C01 A parked room comes back: it joins anew, and what was said since it was
+    /// parked (`parked_at`) is a gap to fill once the JOIN is in (`take_gap`).
+    /// A room that held live lines fills the gap too when it wasn't joined when parked
+    /// (its sign-in failed, say).
+    pub fn resume(&mut self, parked_at: i64, now_ms: i64) {
+        self.lost(parked_at);
+        if self.lost_at.is_none() && self.live_from.is_some() {
+            self.lost_at = Some(parked_at);
+        }
+        self.set_status(ConnStatus::Connecting, now_ms);
+    }
+
+    /// V108-C01 A gap fill that never landed (the room was parked meanwhile): the next
+    /// fill starts from its start, or from an earlier point if one is already open.
+    pub fn unfilled(&mut self, after: i64) {
+        self.lost_at = Some(self.lost_at.map_or(after, |t| t.min(after)));
+    }
+
+    /// V108-C01 The account reading it, again: a restored room reads with today's names.
+    pub fn set_me(&mut self, me: Option<Me>) {
+        self.me = me;
     }
 
     /// Lines the buffer could still take.
@@ -35,8 +59,8 @@ impl Room {
         self.limit().saturating_sub(self.buffer.len())
     }
 
-    /// History lines older than everything here, to fill the buffer up again after it was
-    /// shown in the background. Lines that were seen live keep their normal look.
+    /// History lines older than everything here, to fill the buffer up again after the
+    /// line budget shrank it. Lines that were seen live keep their normal look.
     pub fn backfill(&mut self, lines: &[String], now_ms: i64, emotes: &dyn Emotes) -> Vec<Arc<ChatMessage>> {
         let first = self.buffer.iter().find(|m| m.sender.is_some()).or(self.buffer.front());
         let before = first.map(|m| m.ts);
@@ -48,8 +72,8 @@ impl Room {
         self.buffer.len()
     }
 
-    /// Lines were dropped since the last refill (`trim`), or the first history was cut
-    /// short: only then is a refill worth asking for.
+    /// Lines were dropped since the last refill (`trim`), or the first history came into a
+    /// shrunk room and was cut short: only then is a refill worth asking for.
     pub fn trimmed(&self) -> bool {
         self.trimmed
     }
@@ -176,6 +200,68 @@ mod tests {
         r.set_trimmed(false);
         feed(&mut r, "x", 9_000);
         assert!(r.trimmed(), "a live line pushed one out");
+    }
+
+    #[test]
+    fn v108_01_history_into_a_shrunk_room_counts_as_trimmed() {
+        let mut r = room_with(0);
+        r.set_background(true);
+        let lines: Vec<String> = (0..400).map(|i| line(&format!("h{i}"), 1_000 + i)).collect();
+        assert_eq!(r.history(&lines, 9_000, &NoEmotes).len(), BACKGROUND);
+        assert!(r.trimmed(), "shown, it refills");
+        let mut r = room_with(0);
+        assert_eq!(r.history(&lines, 9_000, &NoEmotes).len(), 400);
+        assert!(!r.trimmed(), "full size: nothing left out");
+    }
+
+    #[test]
+    fn v108_01_a_resumed_room_fills_from_when_it_was_parked() {
+        let mut r = room_with(0);
+        r.set_status(ConnStatus::Joined, 500);
+        feed(&mut r, "a", 1_000);
+        r.resume(2_000, 60_000);
+        assert_eq!(r.status, ConnStatus::Connecting);
+        r.set_status(ConnStatus::Joined, 61_000);
+        assert_eq!(r.take_gap(61_000), Some((2_000, 61_000, 600)));
+        // Never joined: nothing to fill.
+        let mut r = room_with(0);
+        r.resume(2_000, 60_000);
+        assert_eq!(r.take_gap(61_000), None);
+    }
+
+    #[test]
+    fn v108_01_a_room_parked_while_not_joined_still_fills_if_it_had_live_lines() {
+        let mut r = room_with(0);
+        r.set_status(ConnStatus::Joined, 500);
+        feed(&mut r, "a", 1_000);
+        r.set_status(ConnStatus::AuthFailed, 1_500);
+        r.resume(2_000, 60_000);
+        r.set_status(ConnStatus::Joined, 61_000);
+        assert_eq!(r.take_gap(61_000).map(|g| g.0), Some(2_000));
+    }
+
+    #[test]
+    fn v108_01_an_unfilled_gap_keeps_its_earliest_start() {
+        let mut r = room_with(0);
+        r.set_status(ConnStatus::Joined, 500);
+        feed(&mut r, "a", 1_000);
+        r.lost(2_000);
+        let (after, ..) = r.take_gap(3_000).unwrap();
+        // Parked while the fill was out: it comes back, later than the gap began.
+        r.unfilled(after);
+        r.resume(9_000, 60_000);
+        r.set_status(ConnStatus::Joined, 61_000);
+        assert_eq!(r.take_gap(61_000).map(|g| g.0), Some(2_000));
+        r.unfilled(5_000);
+        r.unfilled(4_000);
+        assert_eq!(r.take_gap(61_000).map(|g| g.0), Some(4_000), "the earlier one wins");
+    }
+
+    #[test]
+    fn v108_01_set_me_replaces_the_reader() {
+        let mut r = Room::new("chan", Some(Me::new("1", "old", "Old")));
+        r.set_me(Some(Me::new("1", "new", "New")));
+        assert_eq!(r.me().map(|m| m.login.as_str()), Some("new"));
     }
 
     #[test]

@@ -14,7 +14,7 @@ apps: Array<string>,
  */
 hideLinkPreviews: boolean, 
 /**
- * Profile pictures on usercards.
+ * Profile pictures on usercards, blurred until clicked (V108-C09).
  */
 hideAvatars: boolean, 
 /**

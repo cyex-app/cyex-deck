@@ -71,11 +71,18 @@ export const CHAT: Entry[] = [
     anchor: 'chat.repeats',
   },
   {
-    id: 'chat.joinsLeaves',
+    id: 'chat.joins',
     page: 'chat',
-    label: 'Joins and leaves',
-    description: 'Who opens or leaves the chat, a line every 10 seconds.',
-    keywords: ['join', 'part', 'viewers'],
+    label: 'Show joins',
+    description: 'Who opens the chat, a line every 10 seconds. Only in chats under 1.000 viewers.',
+    keywords: ['join', 'joins and leaves', 'viewers', 'presence'],
+  },
+  {
+    id: 'chat.parts',
+    page: 'chat',
+    label: 'Show leaves',
+    description: 'Who leaves the chat, a line every 10 seconds. Only in chats under 1.000 viewers.',
+    keywords: ['part', 'parts', 'joins and leaves', 'viewers', 'presence'],
   },
   {
     id: 'chat.showClient',

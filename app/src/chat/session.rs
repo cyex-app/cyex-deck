@@ -2,7 +2,6 @@
 //! reading, and the tasks that route their lines to rooms.
 
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 
 use cyex_chat::build::Me;
 use cyex_chat::irc::{self, Client, Credentials, Event, Line, LinkStatus, Window};
@@ -254,8 +253,9 @@ fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_
         }
         return;
     }
-    // C37 Lines asked for before the setting went off, until the next connect.
-    if matches!(line.command, "JOIN" | "PART") && !chat.joins.load(Ordering::Relaxed) {
+    // C37 Lines asked for before the setting went off, until the next connect. V108-C02 Each
+    // kind has its own setting, and crowded chats show neither.
+    if !super::presence_shown(app, &chat, line.command, channel) {
         return;
     }
     let role_before = entry.room.role();
@@ -329,6 +329,7 @@ fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_
 }
 
 /// C24 Fetches what was said while the connection was gone and puts it in by time.
+/// V108-C01 Also what was said while the room was parked.
 fn fill_gap(app: AppHandle, key: RoomKey, (after, before, limit): (i64, i64, u32)) {
     let history = app.state::<crate::settings::Settings>().read::<cyex_settings::schema::Chat>(cyex_settings::Partition::Chat).history;
     if !history {
@@ -337,18 +338,32 @@ fn fill_gap(app: AppHandle, key: RoomKey, (after, before, limit): (i64, i64, u32
     }
     tauri::async_runtime::spawn(async move {
         let http = app.state::<crate::auth::Auth>().http.clone();
-        let (lines, recovering) = match cyex_twitch::recent::recent_between(&http, &key.1, after, before, limit).await {
+        // V108-C01 A chat on screen (a tab just reopened) doesn't wait behind hidden ones.
+        let lane = super::shown::lane(&app, &key.1);
+        // A parked room that came back gets its emotes again meanwhile; the fetch doesn't
+        // wait for them (V108-C01).
+        let fetch = cyex_twitch::recent::recent_between(&http, &key.1, after, before, limit, lane);
+        let ready = crate::emotes::ready(&app, &key.1, std::time::Duration::from_secs(4));
+        let (got, ()) = tokio::join!(fetch, ready);
+        let (lines, recovering) = match got {
             Ok(got) => got,
             Err(e) => {
                 eprintln!("chat: couldn't fill the gap in {}: {}", key.1, e.describe("recent-messages"));
                 say(&app, &key, "Couldn’t load what was missed while disconnected");
+                unfilled(&app, &key, after);
                 return;
             }
         };
         let emotes = crate::emotes::room(&app, account_of(&key.0), &key.1);
         let chat = app.state::<Chat>();
         let mut inner = chat.lock();
-        let Some(entry) = inner.rooms.get_mut(&key) else { return };
+        let Some(entry) = inner.rooms.get_mut(&key) else {
+            // V108-C01 Closed meanwhile: the parked room takes the lines.
+            if let Some(room) = inner.parked.get_mut(&key) {
+                room.fill_gap(&lines, now_ms(), &emotes);
+            }
+            return;
+        };
         let messages = entry.room.fill_gap(&lines, now_ms(), &emotes);
         if !messages.is_empty() {
             queue(entry, [RoomEvent::Gap { messages }], &chat.wake);
@@ -360,25 +375,33 @@ fn fill_gap(app: AppHandle, key: RoomKey, (after, before, limit): (i64, i64, u32
     });
 }
 
+/// V108-C01 A failed fill of a room closed meanwhile: restored, it asks for the span again.
+fn unfilled(app: &AppHandle, key: &RoomKey, after: i64) {
+    if let Some(room) = app.state::<Chat>().lock().parked.get_mut(key) {
+        room.unfilled(after);
+    }
+}
+
 /// C35 How far back history from logs.cyex.app may go.
 const LOGS_HISTORY_SECS: i64 = 24 * 3600;
 
 /// C1 Fetches up to `limit` recent messages in the background and adds them above the
 /// live ones. C35 Where the history service has none, logs.cyex.app stands in.
-pub fn load_history(app: AppHandle, key: RoomKey, limit: u32) {
+/// V108-C01 Dropped if the room was closed and opened again meanwhile (`epoch`).
+pub fn load_history(app: AppHandle, key: RoomKey, limit: u32, epoch: u64) {
     tauri::async_runtime::spawn(async move {
         let http = app.state::<crate::auth::Auth>().http.clone();
+        // V108-C01 Hidden or shown, a chat loads all its history lines (Chatterino's way);
+        // hidden ones wait in the slower lane.
         let lane = super::shown::lane(&app, &key.1);
-        // V107-M1 A chat joined in the background takes a little; shown, it gets the rest.
-        let background = app.state::<Chat>().lock().rooms.get(&key).is_some_and(|e| e.room.background());
-        let asked = if background { limit.min(cyex_chat::BACKGROUND_HISTORY) } else { limit };
-        let lines = fetch_history(&app, &http, &key, asked, lane).await;
+        let lines = fetch_history(&app, &http, &key, limit, lane).await;
         let emotes = crate::emotes::room(&app, account_of(&key.0), &key.1);
         let refill = {
             let chat = app.state::<Chat>();
             let mut inner = chat.lock();
-            let Some(entry) = inner.rooms.get_mut(&key) else { return };
+            let Some(entry) = inner.rooms.get_mut(&key).filter(|e| e.epoch == epoch) else { return };
             if let Some(lines) = lines {
+                entry.history = true;
                 let messages = entry.room.history(&lines, now_ms(), &emotes);
                 if !messages.is_empty() {
                     queue(entry, [RoomEvent::History { messages }], &chat.wake);
@@ -386,7 +409,7 @@ pub fn load_history(app: AppHandle, key: RoomKey, limit: u32) {
             }
             // V107-M1 Only now may a refill run: it starts above these lines.
             entry.loaded = true;
-            super::refill::first_history_in(&mut entry.room, asked < limit, !entry.views.is_empty())
+            super::refill::first_history_in(&entry.room, !entry.views.is_empty())
         };
         if refill {
             super::refill::start(&app, key);

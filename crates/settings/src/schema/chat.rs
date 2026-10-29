@@ -69,8 +69,15 @@ pub struct Chat {
     pub timeout_presets: Vec<u32>,
     /// C1 Load recent messages when joining.
     pub history: bool,
-    /// C37 Who joins and leaves, as lines. Twitch only tells in chats under 1.000 people.
-    pub joins_leaves: bool,
+    /// C37 V108-C02 Who joins the chat, as lines. Only in chats under 1.000 viewers.
+    pub joins: bool,
+    /// C37 V108-C02 Who leaves the chat, as lines. Only in chats under 1.000 viewers.
+    pub parts: bool,
+    /// V108-C02 The one joins-and-leaves toggle from before: read once, then `joins` and
+    /// `parts` take over. Never written back.
+    #[serde(rename = "joinsLeaves", skip_serializing)]
+    #[ts(skip)]
+    pub old_joins_leaves: bool,
     /// V101-03 How many, at most.
     pub history_lines: u32,
     /// V101-02 Messages each chat keeps; older ones drop off the top.
@@ -149,7 +156,9 @@ impl Default for Chat {
             timestamps: Timestamps::default(),
             timeout_presets: vec![60, 600, 3600, 86_400],
             history: true,
-            joins_leaves: false,
+            joins: false,
+            parts: false,
+            old_joins_leaves: false,
             history_lines: 500,
             scrollback: 1000,
             deleted: DeletedStyle::Strike,
@@ -193,6 +202,11 @@ impl Schema for Chat {
         if !self.presence_on_once {
             self.share_presence = true;
             self.presence_on_once = true;
+        }
+        // V108-C02 The old toggle on turns both new ones on, once.
+        if std::mem::take(&mut self.old_joins_leaves) {
+            self.joins = true;
+            self.parts = true;
         }
         let presets = &mut self.timeout_presets;
         presets.retain(|s| (1..=MAX_TIMEOUT_SECS).contains(s));
@@ -660,6 +674,31 @@ mod tests {
         assert!(read(r#"{"unlistedEmotes":"hide"}"#));
         assert!(read(r#"{"unlistedEmotes":"blur","unlistedChosen":true}"#));
         assert!(!read(r#"{"unlistedEmotes":"blur"}"#));
+    }
+
+    #[test]
+    fn v108_02_old_joins_leaves_turns_both_on() {
+        let read = |j: &str| {
+            let mut c: Chat = serde_json::from_str(j).unwrap();
+            c.sanitize();
+            c
+        };
+        let c = read(r#"{"joinsLeaves":true}"#);
+        assert!(c.joins && c.parts);
+        // Written back without the old field, so turning one off sticks.
+        let saved = serde_json::to_value(&c).unwrap();
+        assert!(saved.get("joinsLeaves").is_none());
+        assert_eq!((saved["joins"].as_bool(), saved["parts"].as_bool()), (Some(true), Some(true)));
+        let mut again: Chat = serde_json::from_value(saved).unwrap();
+        again.parts = false;
+        again.sanitize();
+        assert!(again.joins && !again.parts);
+        let off = read(r#"{"joinsLeaves":false}"#);
+        assert!(!off.joins && !off.parts);
+        let d = Chat::default();
+        assert!(!d.joins && !d.parts && !d.old_joins_leaves);
+        let new = read(r#"{"joins":true}"#);
+        assert!(new.joins && !new.parts);
     }
 
     #[test]

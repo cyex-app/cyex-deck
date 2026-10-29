@@ -1,7 +1,8 @@
 //! Chat (1.8, 1.9) wired to Tauri. One IRC session per identity (an account or
 //! anonymous), one room per channel and identity, and views that stream a room's events
 //! to a window in 50 ms batches. Tabs keep their rooms joined while no view shows them
-//! (1.10). Parsing and room logic live in `cyex_chat`.
+//! (1.10); closed rooms stay parked (V108-C01, `park`). Parsing and room logic live in
+//! `cyex_chat`.
 
 pub mod catalog;
 pub mod channels;
@@ -13,6 +14,7 @@ pub mod global;
 pub mod identity;
 pub mod live;
 mod mention;
+mod park;
 pub mod peek;
 pub mod points;
 pub mod powerups;
@@ -76,8 +78,10 @@ pub struct Chat {
     delay_ms: AtomicI64,
     /// V101-02 Messages each chat keeps; a view gets as many when it opens.
     scrollback: AtomicUsize,
-    /// C37 Joins and leaves as lines.
+    /// C37 V108-C02 Joins as lines.
     joins: AtomicBool,
+    /// C37 V108-C02 Leaves as lines.
+    parts: AtomicBool,
     /// V107-R16 Joined channels, their ids and generations.
     pub channels: channels::Registry<AppHandle>,
 }
@@ -94,6 +98,10 @@ struct Inner {
     next_view: u32,
     /// Rooms the tabs keep joined even when no view shows them.
     held: HashSet<RoomKey>,
+    /// V108-C01 Rooms left while the app runs, kept to show again.
+    parked: park::Lot,
+    /// V108-C01 Counts every join of a room, so a load from an earlier one is dropped.
+    next_epoch: u64,
 }
 
 struct Session {
@@ -126,10 +134,14 @@ struct Entry {
     unread: News,
     /// V105-05 When our JOIN for this room last went out (ms), to time Twitch's answer.
     join_sent: Option<i64>,
-    /// V107-M1 Views opened on it so far, so a shrink planned at a close knows it's stale.
-    shown: u64,
+    /// V108-C01 When a view last showed it (ms): the line budget shrinks the oldest first.
+    last_shown: i64,
     /// V107-M1 Its first history is in (or failed): a refill won't race it.
     loaded: bool,
+    /// V108-C01 Its first history came in, kept when it's parked.
+    history: bool,
+    /// V108-C01 Which join this is (`Inner::next_epoch`).
+    epoch: u64,
 }
 
 #[derive(Serialize, TS)]
@@ -150,11 +162,13 @@ pub fn init(app: &AppHandle) {
         delay_ms: AtomicI64::new(0),
         scrollback: AtomicUsize::new(cyex_chat::BUFFER),
         joins: AtomicBool::new(false),
+        parts: AtomicBool::new(false),
         channels: channels::Registry::default(),
     });
     app.state::<Chat>().channels.hook(crate::emotes::on_channel);
     on_settings(app);
     shown::init(app);
+    park::init(app);
     search::init(app);
     flush::spawn(app.clone(), wake);
     catalog::init(app);
@@ -197,15 +211,35 @@ fn identity_for(app: &AppHandle, account: Option<&str>) -> (Identity, Option<Me>
     }
 }
 
+/// C37 V108-C02 Connections ask Twitch for joins and leaves while either kind is on.
+fn membership(chat: &Chat) -> bool {
+    chat.joins.load(Ordering::Relaxed) || chat.parts.load(Ordering::Relaxed)
+}
+
+/// C37 V108-C02 Whether a JOIN or PART from `channel` becomes a line: its kind is on and the
+/// channel has under 1.000 viewers (`tabs::live::crowded`). Other commands always pass.
+fn presence_shown(app: &AppHandle, chat: &Chat, command: &str, channel: &str) -> bool {
+    let on = match command {
+        "JOIN" => chat.joins.load(Ordering::Relaxed),
+        "PART" => chat.parts.load(Ordering::Relaxed),
+        _ => return true,
+    };
+    on && !crate::tabs::live::crowded(app, channel)
+}
+
 /// After chat or highlight settings changed.
 pub fn on_settings(app: &AppHandle) {
     let Some(chat) = app.try_state::<Chat>() else { return };
     let c = app.state::<Settings>().read::<ChatSettings>(Partition::Chat);
     chat.delay_ms.store(i64::from(c.delay_tenths) * 100, Ordering::Relaxed);
     translate::on_settings(app, &c.translate_chats);
-    // C37 Connections ask for them when they log in. Asked on an open connection, Twitch
-    // sent nothing for the chats already joined (V104-04), so open ones log in again.
-    if chat.joins.swap(c.joins_leaves, Ordering::Relaxed) != c.joins_leaves && c.joins_leaves {
+    // C37 Connections ask for them when they log in, V108-C02 for either kind. Asked on an
+    // open connection, Twitch sent nothing for the chats already joined (V104-04), so open
+    // ones log in again. Turning both off keeps the connection: lines are dropped instead.
+    let was = membership(&chat);
+    chat.joins.store(c.joins, Ordering::Relaxed);
+    chat.parts.store(c.parts, Ordering::Relaxed);
+    if !was && membership(&chat) {
         for s in chat.lock().sessions.values() {
             s.client.reconnect();
         }
@@ -264,7 +298,7 @@ pub fn open(
     let mut inner = chat.lock();
     let key = (identity.clone(), login.clone());
     let joined = ensure_room(app, &mut inner, &key, me);
-    let fresh = joined.is_some();
+    let fresh = joined.is_some_and(|j| !j.restored);
     inner.next_view += 1;
     let id = inner.next_view;
     inner.views.insert(id, (key.clone(), window.to_owned()));
@@ -272,10 +306,10 @@ pub fn open(
         inner.follows.insert(id);
     }
     let entry = inner.rooms.get_mut(&key).expect("inserted above");
-    // V107-M1 Shown again after the background: the kept lines now, older ones bit by bit.
+    // V107-M1 Shown again after the budget shrank it: the kept lines now, older ones bit by bit.
     let refill = refill::on_open(fresh, entry.loaded, &entry.room);
     entry.room.set_background(false);
-    entry.shown += 1;
+    entry.last_shown = now_ms();
     let lines = chat.scrollback.load(Ordering::Relaxed);
     let mut snapshot = entry.room.snapshot_tail(if filters.is_empty() { lines } else { entry.room.keep() });
     if !filters.is_empty() {
@@ -305,8 +339,8 @@ pub fn open(
     if refill {
         refill::start(app, key.clone());
     }
-    if let Some(generation) = joined {
-        after_join(app, key, generation);
+    if let Some(joined) = joined {
+        after_join(app, key, joined);
     } else {
         // Pins are only checked for rooms on screen, so this one may be old.
         catalog::refresh_pin_now(app.clone(), key);
@@ -317,16 +351,41 @@ pub fn open(
     Ok(opened)
 }
 
-/// Joins a room unless it's joined already. A new one gives its channel's join generation.
-fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>) -> Option<u64> {
+/// A room that was just joined.
+#[derive(Clone, Copy)]
+struct Joined {
+    /// Its channel's join generation.
+    generation: u64,
+    /// V108-C01 It was parked.
+    restored: bool,
+    /// V108-C01 Its first history is still to load (a restored room may have it).
+    wants_history: bool,
+    /// V108-C01 Which join this is: loads for an earlier one are dropped.
+    epoch: u64,
+}
+
+/// Joins a room unless it's joined already, bringing back a parked one (V108-C01).
+fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>) -> Option<Joined> {
     if inner.rooms.contains_key(key) {
         return None;
     }
     let (identity, login) = key;
-    let mut room = Room::new(login, me);
+    let now = now_ms();
+    let parked = inner.parked.take(key);
+    let restored = parked.is_some();
+    // V108-C01 One closed before its history landed loads it now.
+    let history = parked.as_ref().is_some_and(|p| p.history);
+    let mut room = match parked {
+        Some(mut p) => {
+            p.room.resume(p.at, now);
+            p.room.set_me(me);
+            p.room
+        }
+        None => Room::new(login, me),
+    };
+    inner.next_epoch += 1;
+    let epoch = inner.next_epoch;
     room.set_keep(app.state::<Chat>().scrollback.load(Ordering::Relaxed));
-    // V107-M1 Small until a view opens.
-    room.set_background(true);
     room.set_rules(rules::current(app));
     room.set_hook(crate::plugins::line_hook(app));
     session::ensure(app, inner, identity).client.join(login);
@@ -340,24 +399,33 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
             last_sent: None,
             unread: News::default(),
             join_sent: None,
-            shown: 0,
-            loaded: false,
+            last_shown: now,
+            loaded: history,
+            history,
+            epoch,
         },
     );
-    Some(app.state::<Chat>().channels.room_opened(login))
+    Some(Joined {
+        generation: app.state::<Chat>().channels.room_opened(login),
+        restored,
+        wants_history: !history,
+        epoch,
+    })
 }
 
-/// Work for a new room once the lock is released: counter, catalogs, history.
-fn after_join(app: &AppHandle, key: RoomKey, generation: u64) {
+/// Work for a new room once the lock is released: counter, catalogs, history. A parked
+/// room that came back has its history (unless it never landed); the gap fills once
+/// it's joined.
+fn after_join(app: &AppHandle, key: RoomKey, joined: Joined) {
     crate::connections::notify(app);
     roles::emit(app);
     roles::check_soon(app);
     let c = app.state::<Settings>().read::<ChatSettings>(Partition::Chat);
-    let history = c.history.then_some(c.history_lines);
-    catalog::load_for_room(app.clone(), key, generation, history);
+    let history = (c.history && joined.wants_history).then_some(c.history_lines);
+    catalog::load_for_room(app.clone(), key, joined.generation, history, joined.epoch);
 }
 
-/// Leaves a room. Returns true if an account's join count changed.
+/// Leaves a room and parks it (V108-C01). Returns true if an account's join count changed.
 fn leave(app: &AppHandle, inner: &mut Inner, key: &RoomKey) -> bool {
     let Some(entry) = inner.rooms.remove(key) else { return false };
     if entry.unread.level != Unread::Seen {
@@ -376,7 +444,15 @@ fn leave(app: &AppHandle, inner: &mut Inner, key: &RoomKey) -> bool {
     }
     // V107-R16 The last room of the channel fires `Gone` for every per-channel cache.
     app.state::<Chat>().channels.room_closed(app, login);
+    park::park(inner, key.clone(), entry.room, entry.history);
     matches!(identity, Identity::Account(_))
+}
+
+/// V108-C01 An account signed out: its parked rooms go with it.
+pub fn forget_account(app: &AppHandle, user_id: &str) {
+    if let Some(chat) = app.try_state::<Chat>() {
+        chat.lock().parked.forget(&Identity::Account(user_id.to_owned()));
+    }
 }
 
 /// After a join's loads came back: whether the room is still open.
@@ -393,15 +469,15 @@ pub fn close(app: &AppHandle, view: u32) {
         shown::changed(app);
     }
     chat.channels.view_closed(app, &key.1);
+    let held = inner.held.contains(&key);
     let Some(entry) = inner.rooms.get_mut(&key) else { return };
     entry.views.retain(|s| s.id != view);
     if !entry.views.is_empty() {
         return;
     }
-    let shown = entry.shown;
-    if inner.held.contains(&key) {
-        drop(inner);
-        refill::later(app, key, shown);
+    if held {
+        // V108-C01 Hidden, it keeps everything until the line budget says otherwise.
+        entry.last_shown = now_ms();
         return;
     }
     let counted = leave(app, &mut inner, &key);
@@ -436,16 +512,16 @@ pub fn hold(app: &AppHandle, wanted: &[(Option<String>, String)]) {
     }
     let mut joined = Vec::new();
     for (key, me) in keys {
-        if let Some(generation) = ensure_room(app, &mut inner, &key, me) {
-            joined.push((key, generation));
+        if let Some(j) = ensure_room(app, &mut inner, &key, me) {
+            joined.push((key, j));
         }
     }
     drop(inner);
     if counted && joined.is_empty() {
         crate::connections::notify(app);
     }
-    for (key, generation) in joined {
-        after_join(app, key, generation);
+    for (key, j) in joined {
+        after_join(app, key, j);
     }
     crate::moderation::feeds::sync(app);
     roles::emit(app);
@@ -764,6 +840,7 @@ pub fn probe(app: &AppHandle) -> serde_json::Value {
     }
     serde_json::json!({
         "rooms": inner.rooms.len(), "sessions": inner.sessions.len(), "views": inner.views.len(),
-        "held": inner.held.len(), "channels": chat.channels.count(), "sinks": sinks, "outboxCap": outbox, "delayed": delayed,
+        "held": inner.held.len(), "parked": inner.parked.len(), "parkedLines": inner.parked.lines(),
+        "channels": chat.channels.count(), "sinks": sinks, "outboxCap": outbox, "delayed": delayed,
     })
 }

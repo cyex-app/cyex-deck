@@ -2,7 +2,6 @@
 //! Both kinds of reader also say whether to ask for joins and leaves (C37).
 
 use cyex_auth::chat_token;
-use std::sync::atomic::Ordering;
 
 use cyex_chat::irc::{Credentials, Login};
 use tauri::{AppHandle, Manager};
@@ -65,5 +64,5 @@ impl Credentials for AnonCreds {
 }
 
 fn joins(app: &AppHandle) -> bool {
-    app.try_state::<Chat>().is_some_and(|c| c.joins.load(Ordering::Relaxed))
+    app.try_state::<Chat>().is_some_and(|c| super::membership(&c))
 }

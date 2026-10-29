@@ -19,12 +19,16 @@ use crate::tabs::viewers;
 
 const POLL: Duration = Duration::from_secs(60);
 const EVENT: &str = "tabs:live";
+/// C37 V108-C02 From this many viewers on, a chat shows no joins or leaves.
+const CROWDED: u32 = 1000;
 
 #[derive(Default)]
 struct Live {
     channels: Mutex<Vec<ChannelInfo>>,
     /// Ids asked for in the last poll.
     asked: Mutex<HashSet<String>>,
+    /// V108-C02 Logins live with `CROWDED` viewers or more at the last poll.
+    crowded: Mutex<HashSet<String>>,
     wake: Arc<Notify>,
 }
 
@@ -89,6 +93,22 @@ pub fn is_live(app: &AppHandle, login: &str) -> bool {
     })
 }
 
+/// C37 V108-C02 Whether a chat had 1.000 viewers or more at the last poll. Offline chats and
+/// ones no tab has (unknown) count as small. Changes once a minute at most, with the poll.
+pub fn crowded(app: &AppHandle, login: &str) -> bool {
+    app.try_state::<Live>()
+        .is_some_and(|l| l.crowded.lock().unwrap_or_else(|p| p.into_inner()).contains(login))
+}
+
+/// V108-C02 The logins `crowded` answers yes for.
+fn crowded_logins(channels: &[ChannelInfo]) -> HashSet<String> {
+    channels
+        .iter()
+        .filter(|c| c.stream.as_ref().is_some_and(|s| s.viewers >= CROWDED))
+        .map(|c| c.login.clone())
+        .collect()
+}
+
 /// K4 The stream started or ended, or restarted (both live, new start time).
 fn flipped(old: &ChannelInfo, new: &ChannelInfo) -> bool {
     match (&old.stream, &new.stream) {
@@ -113,6 +133,8 @@ async fn poll(app: &AppHandle) {
             }
         }
     };
+
+    *live.crowded.lock().unwrap_or_else(|p| p.into_inner()) = crowded_logins(&channels);
 
     // V106-18 One point per tab channel per check; offline and left-out channels drop.
     if let Some(v) = app.try_state::<viewers::Viewers>() {
@@ -211,6 +233,12 @@ mod tests {
                 started_at: s.into(),
             }),
         }
+    }
+
+    #[test]
+    fn v108_02_crowded_from_a_thousand_live_viewers() {
+        let list = [ch("small", Some(("a", 999))), ch("big", Some(("a", 1000))), ch("off", None)];
+        assert_eq!(crowded_logins(&list), HashSet::from(["big".to_owned()]));
     }
 
     #[test]

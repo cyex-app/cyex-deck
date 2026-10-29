@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 import type { WindowInfo } from './bindings/WindowInfo';
 
@@ -14,6 +15,8 @@ export const windowsIpc = {
   /** Routes of the open pop-outs. */
   panels: () => invoke<string[]>('window_panels'),
   onPanels: (handler: (routes: string[]) => void) => listen<string[]>('panels:changed', (e) => handler(e.payload)),
+  /** V108-C09 This usercard was clicked again while open. */
+  onUsercardReopened: (handler: () => void) => getCurrentWebviewWindow().listen('usercard:reopened', () => handler()),
   saveLayout: (name: string) => invoke<void>('layout_save', { name }),
   applyLayout: (name: string) => invoke<void>('layout_apply', { name }),
   deleteLayout: (name: string) => invoke<void>('layout_delete', { name }),

@@ -81,9 +81,13 @@ timeoutPresets: Array<number>,
  */
 history: boolean, 
 /**
- * C37 Who joins and leaves, as lines. Twitch only tells in chats under 1.000 people.
+ * C37 V108-C02 Who joins the chat, as lines. Only in chats under 1.000 viewers.
  */
-joinsLeaves: boolean, 
+joins: boolean, 
+/**
+ * C37 V108-C02 Who leaves the chat, as lines. Only in chats under 1.000 viewers.
+ */
+parts: boolean, 
 /**
  * V101-03 How many, at most.
  */

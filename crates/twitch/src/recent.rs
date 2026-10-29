@@ -34,20 +34,22 @@ pub fn unavailable(e: &Error) -> String {
 }
 
 /// C24 Lines sent between two moments (unix ms), at most `limit`, and whether the service
-/// was still catching up on the channel (then it may lack some of them).
+/// was still catching up on the channel (then it may lack some of them). V108-C01 `lane`:
+/// Front for a chat on screen (a reopened tab's gap), Back otherwise.
 pub async fn recent_between(
     http: &Http,
     login: &str,
     after_ms: i64,
     before_ms: i64,
     limit: u32,
+    lane: Lane,
 ) -> Result<(Vec<String>, bool)> {
     let req = || {
         http.0
             .get(format!("{URL}/{login}"))
             .query(&[("limit", i64::from(limit)), ("after", after_ms), ("before", before_ms)])
     };
-    let r: Response = pace::json(Service::Recent, Lane::Back, req).await?;
+    let r: Response = pace::json(Service::Recent, lane, req).await?;
     let recovering = recovering(&r);
     Ok((unwrap(r)?, recovering))
 }

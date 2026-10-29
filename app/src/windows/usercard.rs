@@ -8,13 +8,16 @@ use std::time::Duration;
 
 use cyex_settings::Partition;
 use cyex_settings::schema::Windows;
-use tauri::{AppHandle, Manager, PhysicalPosition, WebviewUrl};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl};
 
 use super::panels::{PanelRegistry, label_for};
 use crate::icons;
 use crate::settings::Settings;
 
 const KIND: &str = "usercard";
+/// V108-C09 Sent to a card that was open already when its user is clicked again: it
+/// counts as opening it again (streamer mode blurs the picture again).
+const REOPENED_EVENT: &str = "usercard:reopened";
 const SIZE: (f64, f64) = (380.0, 560.0);
 const WIDTHS: std::ops::RangeInclusive<f64> = 340.0..=640.0;
 /// V107 Taller shows more of their messages; shorter than this cuts the profile part.
@@ -100,6 +103,7 @@ pub fn open(app: &AppHandle, channel: &str, login: &str) -> tauri::Result<()> {
     let route = format!("{KIND}/{channel}/{login}");
     let label = label_for(&route);
     if let Some(existing) = app.get_webview_window(&label) {
+        let _ = app.emit_to(&label, REOPENED_EVENT, ());
         existing.show()?;
         return existing.set_focus();
     }

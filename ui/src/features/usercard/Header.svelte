@@ -1,7 +1,8 @@
 <!-- V101-05 The usercard's head, after the 7TV extension's: banner behind, picture, name in
      its color or 7TV paint, the paint's name, roles and every badge they own (V102-13), and
      small buttons for the note, the logs and the Twitch profile. V101-23 switches the 7TV
-     picture for Twitch's. V102-25 A flag when Twitch hides the account. -->
+     picture for Twitch's. V102-25 A flag when Twitch hides the account. V108-C09 Streamer mode
+     blurs the picture until it is clicked. -->
 <script lang="ts">
   import Avatar from '../../components/Avatar.svelte';
   import Icon from '../../components/Icon.svelte';
@@ -11,10 +12,12 @@
   import type { Profile } from '../../ipc/bindings/Profile';
   import type { NameColor } from '../../ipc/bindings/NameColor';
   import { systemIpc } from '../../ipc/system';
+  import { windowsIpc } from '../../ipc/windows';
   import { settings } from '../../lib/settings.svelte';
   import { streamer } from '../../lib/streamer.svelte';
   import EarnedBadges from './EarnedBadges.svelte';
   import { suspendedFlag } from './suspended';
+  import { coverKey, covered } from './streamerCover';
   import { avatars } from '../emotes/avatars.svelte';
   import { looks } from '../emotes/looks.svelte';
   import { toggleWatch, watched } from './watch';
@@ -40,7 +43,31 @@
   const note = $derived(settings.v.chat.users[profile.id]);
   const localized = $derived(profile.displayName.toLowerCase() !== profile.login);
   const seventv = $derived(avatars.of(profile.login));
-  const picture = $derived(streamer.hides('hideAvatars') ? '' : (!twitchPic && seventv) || profile.avatar || '');
+  const picture = $derived((!twitchPic && seventv) || profile.avatar || '');
+
+  // V108-C09 The reveal lives only here: a new opening, another user or the other picture
+  // blurs it again.
+  let opening = $state(0);
+  let revealed = $state('');
+  const shownKey = $derived(
+    coverKey({ user: profile.id, source: !twitchPic && seventv ? '7tv' : 'twitch', opening }),
+  );
+  const blurred = $derived(covered(streamer.hides('hideAvatars'), !!picture, revealed, shownKey));
+  $effect(() => {
+    let stop: (() => void) | undefined;
+    let gone = false;
+    void windowsIpc
+      .onUsercardReopened(() => {
+        opening++;
+        revealed = '';
+      })
+      .then((un) => (gone ? un() : (stop = un)))
+      .catch(() => {});
+    return () => {
+      gone = true;
+      stop?.();
+    };
+  });
   const paintId = $derived(settings.v.chat.paints.seventv ? (looks.look(profile.id)?.paint ?? null) : null);
   const paint = $derived(looks.paintClass(paintId));
   const paintName = $derived(paint ? looks.paintName(paintId) : null);
@@ -59,13 +86,24 @@
 
 <header class:banner={!!profile.banner} style:--banner={profile.banner ? `url("${profile.banner}")` : null}>
   <div class="pic">
-    <Avatar src={picture} name={profile.displayName} size={60} />
-    {#if seventv && profile.avatar && !streamer.hides('hideAvatars')}
+    {#if blurred}
+      <button class="cover" aria-label="Streamer mode is on. Show the profile picture" onclick={() => (revealed = shownKey)}>
+        <span class="blur"><Avatar src={picture} name={profile.displayName} size={60} /></span>
+        <span class="over">Streamer mode enabled</span>
+        <span class="reveal">Click to reveal</span>
+      </button>
+    {:else}
+      <Avatar src={picture} name={profile.displayName} size={60} />
+    {/if}
+    {#if seventv && profile.avatar}
       <!-- V102-12 The logo of the picture shown; a click shows the other one. -->
       <button
         class="which"
         aria-label={twitchPic ? 'Twitch picture' : '7TV picture'}
-        onclick={() => (twitchPic = !twitchPic)}
+        onclick={() => {
+          twitchPic = !twitchPic;
+          revealed = '';
+        }}
         use:tooltip={twitchPic ? 'Show the 7TV picture' : 'Show the Twitch picture'}
         ><Icon name={twitchPic ? 'twitch' : 'seventv'} size={11} /></button
       >
@@ -141,10 +179,11 @@
     flex: none;
     align-self: flex-start;
   }
+  /* At the picture's corner, also with the reveal line under it. */
   .which {
     position: absolute;
+    top: 47px;
     right: -6px;
-    bottom: -4px;
     display: grid;
     place-items: center;
     width: 19px;
@@ -156,6 +195,61 @@
     color: var(--muted);
   }
   .which:hover {
+    color: var(--text);
+  }
+  /* V108-C09 The blur leaves only a smear of colour; the scrim keeps the text readable on
+     any picture in both themes. */
+  .cover {
+    display: block;
+    width: 60px;
+    padding: 0;
+    background: none;
+    border: 0;
+    color: var(--text);
+    text-align: center;
+    cursor: pointer;
+  }
+  .blur {
+    position: relative;
+    display: block;
+    width: 60px;
+    height: 60px;
+    overflow: hidden;
+    border-radius: var(--radius);
+  }
+  .blur :global(.avatar) {
+    filter: blur(12px);
+    transform: scale(1.4);
+  }
+  .blur::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
+  }
+  .over {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: grid;
+    place-items: center;
+    width: 60px;
+    height: 60px;
+    padding: 0 3px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1.15;
+  }
+  /* Wider than the picture: centred under it, spilling into the padding either side. */
+  .reveal {
+    display: flex;
+    justify-content: center;
+    margin-top: 3px;
+    color: var(--dim);
+    font-size: 0.68rem;
+    white-space: nowrap;
+  }
+  .cover:hover .reveal {
     color: var(--text);
   }
   .who {

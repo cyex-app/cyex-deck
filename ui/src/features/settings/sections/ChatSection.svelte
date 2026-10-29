@@ -250,8 +250,12 @@
     />
   </Row>
 {/if}
-<Row setting="chat.joinsLeaves" label="Joins and leaves" hint="Who opens or leaves the chat, a line every 10 seconds. Twitch only says so in chats under 1.000 people.">
-  <Toggle label="Joins and leaves" checked={c.joinsLeaves} onchange={(v) => settings.patch('chat', { joinsLeaves: v })} />
+<!-- C37 V108-C02 Each kind on its own; both only in chats under 1.000 viewers. -->
+<Row setting="chat.joins" label="Show joins" hint="Who opens the chat, a line every 10 seconds. Only in chats under 1.000 viewers.">
+  <Toggle label="Show joins" checked={c.joins} onchange={(v) => settings.patch('chat', { joins: v })} />
+</Row>
+<Row setting="chat.parts" label="Show leaves" hint="Who leaves the chat, a line every 10 seconds. Only in chats under 1.000 viewers.">
+  <Toggle label="Show leaves" checked={c.parts} onchange={(v) => settings.patch('chat', { parts: v })} />
 </Row>
 <Row setting="chat.showClient" label="Show where it was sent from" hint="An icon for messages from the website or the phone apps.">
   <Toggle label="Show where it was sent from" checked={c.showClient} onchange={(v) => settings.patch('chat', { showClient: v })} />

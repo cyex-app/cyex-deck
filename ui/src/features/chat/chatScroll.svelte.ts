@@ -9,12 +9,16 @@
 //   that moves the list while following snaps back down.
 // - Following starts again on the way down at the bottom, or when nothing is left to scroll.
 // - Paused: hover (unless the mouse rested, V101-15), the pause key, or a menu from this list.
+//   Typing counts as resting until the mouse really moves (V108-C04).
+// - The list's own height changes (the message box grows, V108-C05): at the bottom it stays
+//   there; otherwise the lines just above the box stay where they were.
 // - Scrolled up or paused, the drawn window holds; following again for SHRINK_MS shrinks it.
+// - V108-C01 A chat that opens draws FIRST lines; the list widens it to WINDOW a frame later.
 // - The first placement at the bottom ignores the pause (v1.07 t1): a chat that opens under a
 //   resting mouse still starts at its newest line.
 
 import { glideMs } from './glide.ts';
-import { around, hold, older, SHRINK_MS, startOf, type From } from './lineWindow.ts';
+import { around, FIRST, hold, older, SHRINK_MS, startOf, WINDOW, type From } from './lineWindow.ts';
 
 type Item = { id: string; ts: number };
 
@@ -58,6 +62,18 @@ export type Intent = 'bottom' | 'older' | null;
 /** Pixels from the bottom that still count as at the bottom. */
 const NEAR = 24;
 
+/**
+ * V108-C05 Where the list's scrollTop goes when its own height changed from `was` to `now`:
+ * at the bottom it stays at the bottom; otherwise it keeps its distance from the bottom, so
+ * the lines over the message box stay over it. `was.top` is from before the change: growing,
+ * the browser may already have pulled the top back.
+ */
+export function keepBottom(was: { top: number; client: number }, now: Metrics, atBottom: boolean): number {
+  const max = Math.max(0, now.height - now.client);
+  if (atBottom) return max;
+  return Math.min(max, Math.max(0, was.top + was.client - now.client));
+}
+
 export class ChatScroll<T extends Item = Item> {
   #following = $state(true);
   #below = $state(false);
@@ -71,6 +87,8 @@ export class ChatScroll<T extends Item = Item> {
   /** Last message when following ended. */
   #leftAt = $state<string | undefined>();
   #from = $state.raw<From>(null);
+  /** V108-C01 Lines drawn when following: FIRST until the list widens it, then WINDOW. */
+  #size = $state(FIRST);
 
   #src: ScrollSource<T>;
   #clock: Clock;
@@ -80,6 +98,10 @@ export class ChatScroll<T extends Item = Item> {
   #growing = false;
   #dragging = false;
   #lastTop = 0;
+  /** scrollTop when last measured. */
+  #top = 0;
+  /** Where the mouse last was, to tell a real move from one Chromium sends after a scroll. */
+  #at: string | undefined;
   #lastLines = -Infinity;
   #slideEnds = 0;
   /** What `#settle` last saw, to act on changes only. */
@@ -124,8 +146,20 @@ export class ChatScroll<T extends Item = Item> {
   /** V107-M6 The lines drawn. */
   get drawn(): readonly T[] {
     const shown = this.#src.lines();
-    const start = startOf(shown, this.#from);
+    const start = startOf(shown, this.#from, this.#size);
     return start > 0 ? shown.slice(start) : shown;
+  }
+
+  /** V108-C01 Still drawing only the first lines of a chat that opened. */
+  get narrow(): boolean {
+    return this.#size < WINDOW;
+  }
+
+  /** V108-C01 The first lines are on screen: draw the whole window. False when it was already. */
+  widen(): boolean {
+    if (this.#size >= WINDOW) return false;
+    this.#size = WINDOW;
+    return true;
   }
 
   /** New settings; false (nothing written) when they're the same. MessageList calls this from
@@ -140,13 +174,20 @@ export class ChatScroll<T extends Item = Item> {
   }
 
   /** The mouse came over the list. */
-  enter(): void {
+  enter(x?: number, y?: number): void {
     this.#hovering = true;
-    this.move();
+    this.#at = undefined;
+    this.move(x, y);
   }
 
-  /** V101-15 The mouse moved: chat pauses again, until it rests. */
-  move(): void {
+  /** V101-15 The mouse moved: chat pauses again, until it rests. The same point as before
+   *  (lines moved under a resting mouse) isn't a move. */
+  move(x?: number, y?: number): void {
+    if (x !== undefined) {
+      const at = `${x},${y}`;
+      if (at === this.#at) return;
+      this.#at = at;
+    }
     this.#still = false;
     this.#clock.clearTimeout(this.#stillTimer);
     const { pauseOnHover, pauseStillTenths } = this.#opts;
@@ -160,6 +201,7 @@ export class ChatScroll<T extends Item = Item> {
 
   exit(): void {
     this.#hovering = false;
+    this.#at = undefined;
     this.#still = false;
     this.#clock.clearTimeout(this.#stillTimer);
     this.#settle();
@@ -167,7 +209,16 @@ export class ChatScroll<T extends Item = Item> {
 
   /** C5 The pause key is down or up. */
   key(held: boolean): void {
+    if (held === this.#keyHeld) return;
     this.#keyHeld = held;
+    this.#settle();
+  }
+
+  /** V108-C04 The user typed: a hover pause lets go, as if the mouse rested, until it moves. */
+  typed(): void {
+    if (!this.#hovering || this.#still) return;
+    this.#clock.clearTimeout(this.#stillTimer);
+    this.#still = true;
     this.#settle();
   }
 
@@ -190,6 +241,13 @@ export class ChatScroll<T extends Item = Item> {
   /** The list was measured (after it moved itself). */
   measured(m: Metrics): void {
     this.#below = m.top + m.client < m.height - NEAR;
+    this.#top = m.top;
+  }
+
+  /** V108-C05 The list's own height changed (`m` is after, `was` its height before): where its
+   *  scrollTop goes. At the bottom, also paused there, it stays at the bottom. */
+  resized(m: Metrics, was: number): number {
+    return keepBottom({ top: this.#top, client: was }, m, !this.#below || this.sticks);
   }
 
   /** A scroll event. Says whether to go back to the bottom or draw older lines. */
@@ -225,7 +283,7 @@ export class ChatScroll<T extends Item = Item> {
   /** V107-M6 A jump to a line that isn't drawn: draws it. False when there's nothing to draw. */
   drawAround(id: string): boolean {
     const shown = this.#src.lines();
-    const next = around(shown, this.#from, shown.findIndex((m) => m.id === id));
+    const next = around(shown, this.#from, shown.findIndex((m) => m.id === id), undefined, this.#size);
     if (next === undefined) return false;
     this.#from = next;
     this.#settle();
@@ -259,7 +317,7 @@ export class ChatScroll<T extends Item = Item> {
 
   #older(): boolean {
     if (this.#growing) return false;
-    const next = older(this.#src.lines(), this.#from);
+    const next = older(this.#src.lines(), this.#from, undefined, this.#size);
     if (next === undefined) return false;
     this.#growing = true;
     this.#from = next;
@@ -283,7 +341,7 @@ export class ChatScroll<T extends Item = Item> {
     else this.#pausedAt ??= this.#src.messages().at(-1)?.id ?? '';
     // Scrolled up or paused: what's drawn stays put.
     if ((following !== last.following || (following && paused !== last.paused)) && (!following || paused))
-      this.#from = hold(this.#src.lines(), this.#from);
+      this.#from = hold(this.#src.lines(), this.#from, this.#size);
     const from = this.#from;
     // Back at the bottom for a moment: only the newest lines stay drawn.
     if (following !== last.following || paused !== last.paused || from !== last.from) {

@@ -1,6 +1,7 @@
 <!-- Scrolling message list (1.8). Follows new messages while at the bottom, sliding them
-     in when set (V103-12); pauses on hover or while the pause key is held (C5); marks where
-     you stopped reading (C5); a dated line where chat crosses midnight (C25).
+     in when set (V103-12); pauses on hover or while the pause key is held alone (C5, V108-C04);
+     keeps its bottom when the message box grows (V108-C05); marks where you stopped reading
+     (C5); a dated line where chat crosses midnight (C25).
      Clicks and tooltips are delegated here instead of being set on every line. -->
 <script lang="ts">
   import { onDestroy, tick, untrack } from 'svelte';
@@ -33,6 +34,7 @@
   import { lineKind, pluginItems } from '../plugins/pluginMenus';
   import { plugins } from '../plugins/plugins.svelte';
   import { ChatScroll } from './chatScroll.svelte';
+  import { editable, MODIFIERS, pauseHeld } from './pauseKey';
   import { nameMenu } from './nameMenu';
   import Line from './Line.svelte';
   import DateRow from '../../components/DateRow.svelte';
@@ -204,12 +206,40 @@
     slide = null;
   }
 
-  // C5 Pause key.
+  // V108-C05 The list's own height changed: the message box grew with a long message or a
+  // reply bar, or shrank again. At the bottom it stays there; scrolled up, the lines over the
+  // box stay over it instead of going under it.
+  let boxHeight = 0;
+  const box = new ResizeObserver(() => {
+    if (!list) return;
+    const was = boxHeight;
+    boxHeight = list.clientHeight;
+    if (!was || was === boxHeight) return;
+    const top = scroll.resized(metrics(list), was);
+    if (Math.abs(top - list.scrollTop) >= 1) {
+      stopScroll(list);
+      list.scrollTop = top;
+    }
+    measure();
+  });
+  onDestroy(() => box.disconnect());
+  $effect(() => {
+    const el = list;
+    if (!el) return;
+    boxHeight = 0;
+    box.observe(el);
+    return () => box.unobserve(el);
+  });
+
+  // C5 Pause key, V108-C04: only the modifier alone; in text fields only Alt (pauseKey.ts). Typing
+  // lets a hover pause go until the mouse moves again.
   $effect(() => {
     const key = c.pauseKey;
-    if (key === 'none') return;
-    const prop = ({ ctrl: 'ctrlKey', alt: 'altKey', shift: 'shiftKey' } as const)[key];
-    const sync = (e: KeyboardEvent) => scroll.key(e[prop]);
+    const sync = (e: KeyboardEvent) => {
+      const inField = editable(e.target);
+      if (inField && e.type === 'keydown' && !MODIFIERS.has(e.key)) scroll.typed();
+      scroll.key(pauseHeld(key, e, inField));
+    };
     const release = () => scroll.key(false);
     addEventListener('keydown', sync);
     addEventListener('keyup', sync);
@@ -255,6 +285,28 @@
   /** V107-M6 Only the newest lines are drawn; scrolled up or paused, what's drawn stays put
    * (chatScroll.svelte.ts). */
   const drawn = $derived(scroll.drawn);
+
+  // V108-C01 A chat that opens (a tab switch) draws its newest FIRST lines; the rest of the window
+  // goes in the frame after they're on screen, so an emote-spam chat isn't one 50+ ms task.
+  // Lines put in above move nothing: at the bottom it stays there, else on the same line.
+  let widening = 0;
+  $effect(() => {
+    if (!scroll.narrow || !drawn.length || widening) return;
+    widening = requestAnimationFrame(() => {
+      widening = requestAnimationFrame(() => {
+        const anchor = lines?.lastElementChild;
+        const top = anchor?.getBoundingClientRect().top ?? 0;
+        if (!scroll.widen()) return;
+        void tick().then(() => {
+          if (sticks) return toBottom();
+          const moved = anchor?.isConnected ? anchor.getBoundingClientRect().top - top : 0;
+          if (list && Math.abs(moved) >= 1) list.scrollTop += moved;
+          measure();
+        });
+      });
+    });
+  });
+  onDestroy(() => cancelAnimationFrame(widening));
 
   /** Near the top, older lines were put in above (chatScroll): the view stays on the same lines.
    * Measured before the lines are drawn. */
@@ -605,8 +657,8 @@
     {oncontextmenu}
     onmouseover={tips.onmouseover}
     onmouseout={tips.onmouseout}
-    onmousemove={() => scroll.move()}
-    onmouseenter={() => scroll.enter()}
+    onmousemove={(e) => scroll.move(e.clientX, e.clientY)}
+    onmouseenter={(e) => scroll.enter(e.clientX, e.clientY)}
     onmouseleave={() => scroll.exit()}
     role="log"
     data-arrows
