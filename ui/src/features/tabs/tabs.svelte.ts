@@ -173,9 +173,16 @@ class TabsStore {
     return !!tab && (this.muted.has(tab.id) || this.focusHushed(tab, tileId));
   }
 
+  /** V108-N13 The tab's stream tiles whose channel is on air now (a rerun plays too). */
+  liveStreamIds(tab: Tab): string[] {
+    return tiles(tab)
+      .filter((t) => !t.feed && t.show.player && this.live[t.channel.id]?.stream)
+      .map((t) => t.id);
+  }
+
   /** V108-N13 Another stream in the tab has the sound (a tile's own mute and volume stay as set). */
   focusHushed(tab: Tab, tileId: string): boolean {
-    return audioFocus.hushed(tab.id, tileId, streamIds(tab));
+    return audioFocus.hushed(tab.id, tileId, streamIds(tab), this.liveStreamIds(tab));
   }
 
   /** V106-25 What the tab's sound badge shows. A popped-out tab plays in its own window, so

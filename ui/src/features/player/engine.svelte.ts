@@ -223,6 +223,7 @@ export class Engine {
     if (swap) this.quietPause();
     this.dvr = dvr || !!replay;
     this.replay = !!replay;
+    if (replay) this.audioAway = false;
     this.origin = replay?.origin ?? 0;
     this.skipping = false;
     this.goneAhead = null;
@@ -621,7 +622,8 @@ export class Engine {
 
   /** Audio only: chosen, or by "Save resources" while out of sight. */
   private get audioNow(): boolean {
-    return this.choice === 'audio' || this.audioAway;
+    // V108-N24 A replay is its own playlist, with no audio-only track.
+    return !this.replay && (this.choice === 'audio' || this.audioAway);
   }
 
   /** V103-03 A minute out of sight: the lowest quality from the next segment on. What's

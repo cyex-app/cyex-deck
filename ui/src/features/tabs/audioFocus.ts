@@ -10,13 +10,17 @@ export interface FocusInput {
   enabled: boolean;
   /** V108-N14 The tile in theatre, if it is in this tab. */
   theatre: string | null;
+  /** The players whose channel is live; left out = all count as live. */
+  live?: readonly string[];
 }
 
 /** The tile that is heard, or null when every tile keeps its own sound. */
 export function heardTile(i: FocusInput): string | null {
   if (i.theatre && i.players.includes(i.theatre)) return i.theatre;
   if (!i.enabled || i.players.length < 2) return null;
-  return i.claimed && i.players.includes(i.claimed) ? i.claimed : i.players[0];
+  if (i.claimed && i.players.includes(i.claimed)) return i.claimed;
+  // Not picked: the first tile with a stream on air, else the first (all offline).
+  return i.players.find((p) => !i.live || i.live.includes(p)) ?? i.players[0];
 }
 
 /** Whether `tile` is silenced by the focus (its own mute and volume stay as they are). */

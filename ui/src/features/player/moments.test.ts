@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { Moment } from '../../ipc/bindings/Moment.ts';
-import { canGoThere, clipOffset, KEEP, marks, mergeMoments, momentText, newest, secsOf } from './moments.ts';
+import { canGoThere, clipOffset, KEEP, LIVE_CLIP_REACH, momentClip, marks, mergeMoments, momentText, newest, secsOf } from './moments.ts';
 
 const m = (id: number, over: Partial<Moment> = {}): Moment => ({
   id,
@@ -46,6 +46,13 @@ test('a clip ends the lead after the moment, never past now', () => {
   assert.equal(clipOffset(100, 500), 110);
   assert.equal(clipOffset(495, 500), 500);
   assert.equal(clipOffset(-20, 500), 0);
+});
+
+test('a recent moment clips live; an old one needs the archive video, else no clip', () => {
+  assert.deepEqual(momentClip(450, 500, null), { kind: 'live', offset: 460 });
+  assert.deepEqual(momentClip(100, 5000, 'v1'), { kind: 'vod', video: 'v1', offset: 110 });
+  assert.equal(momentClip(100, 5000, null), null);
+  assert.equal(momentClip(5000 - LIVE_CLIP_REACH, 5000, null)?.kind, 'live');
 });
 
 test('merging keeps ids once, in order, newest 200', () => {

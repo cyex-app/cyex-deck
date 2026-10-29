@@ -61,6 +61,19 @@ export function clipOffset(secs: number, uptime: number): number {
   return Math.max(0, Math.min(secs + CLIP_LEAD, uptime));
 }
 
+/** A live clip reaches back about this far (s); older moments need the archive video. */
+export const LIVE_CLIP_REACH = 120;
+
+export type MomentClip = { kind: 'live'; offset: number } | { kind: 'vod'; video: string; offset: number };
+
+/** How to clip a moment at `secs`: the live broadcast while it is within reach, else the
+ *  archive video (`video`, if the app knows it), else not at all. */
+export function momentClip(secs: number, uptime: number, video: string | null): MomentClip | null {
+  const offset = clipOffset(secs, uptime);
+  if (uptime - offset <= LIVE_CLIP_REACH) return { kind: 'live', offset };
+  return video ? { kind: 'vod', video, offset } : null;
+}
+
 /** New moments in, oldest first by id, no id twice, only the newest `KEEP`. */
 export function mergeMoments(have: readonly Moment[], found: readonly Moment[]): Moment[] {
   const seen = new Set(have.map((m) => m.id));

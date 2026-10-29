@@ -11,6 +11,7 @@
   import FollowButton from './FollowButton.svelte';
   import { tileEntries } from './menus';
   import { tabs } from './tabs.svelte';
+  import { audioFocus } from './audioFocus.svelte';
   import { theatre } from './theatre.svelte';
   import { bindingOf } from '../../lib/hotkeys.svelte';
 
@@ -41,7 +42,7 @@
     size={14}
     active={theatre.tile === tile.id}
     toggle
-    onclick={() => (theatre.tile === tile.id ? theatre.leave() : theatre.enter(tile.id))}
+    onclick={() => (theatre.tile === tile.id ? theatre.leave() : audioFocus.enterTheatre(tab.id, tile.id))}
   />
 {/if}
 {#if tiled}

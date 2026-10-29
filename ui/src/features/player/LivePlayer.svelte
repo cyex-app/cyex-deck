@@ -23,9 +23,9 @@
   import LiveButton from './LiveButton.svelte';
   import { DVR_GAP } from './liveEdge';
   import { behindText } from './liveKeys';
-  import { clipLiveAt } from './clipMake.svelte';
+  import { clipLiveAt, clipVideoAt } from './clipMake.svelte';
   import { type MomentRow, playerMenu } from './menu';
-  import { canGoThere, clipOffset, marks as momentMarks, momentText, newest, secsOf } from './moments';
+  import { canGoThere, marks as momentMarks, momentClip, momentText, newest, secsOf } from './moments';
   import { MomentsFeed } from './momentsFeed.svelte';
   import { clock } from './time';
   import { playerFullscreen } from './players.svelte';
@@ -238,7 +238,18 @@
   const goSource = $derived({ on: rewind.on, min: rewind.min, uptime: rewind.uptime });
   const barMarks = $derived(momentMarks(momentFeed.list, startedMs, goSource, rewind.start));
   /** The tab's account when it may clip (a moment's clip is a click, as the clip button). */
-  const clipper = $derived(tile.account && accounts.can('clips', tile.account) ? tile.account : null);
+  // A moment's clip needs a GQL sign-in (clips.rs), which Helix-only accounts lack.
+  const clipper = $derived(tile.account && accounts.can('clips', tile.account) && accounts.hasGql(tile.account) ? tile.account : null);
+
+  /** V108-N25 The moment's clip: live while in reach, else from the archive video; none when neither. */
+  function clipFor(secs: number | null): (() => void) | undefined {
+    if (secs === null || !clipper || !info?.stream) return undefined;
+    const plan = momentClip(secs, rewind.uptime, rewind.vodId);
+    if (!plan) return undefined;
+    return plan.kind === 'live'
+      ? () => void clipLiveAt(tile, clipper, tile.channel.id, plan.offset)
+      : () => void clipVideoAt(tile, clipper, tile.channel.id, plan.video, plan.offset);
+  }
 
   function momentRows(): MomentRow[] {
     return newest(momentFeed.list).map((m) => {
@@ -247,10 +258,7 @@
         time: secs === null ? '' : clock(secs),
         text: momentText(m),
         goThere: secs !== null && canGoThere(secs, goSource) ? () => rewind.seekTo(secs) : undefined,
-        clip:
-          secs !== null && clipper && info?.stream
-            ? () => void clipLiveAt(tile, clipper, tile.channel.id, clipOffset(secs, rewind.uptime))
-            : undefined,
+        clip: clipFor(secs),
       };
     });
   }

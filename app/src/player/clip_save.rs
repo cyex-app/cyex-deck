@@ -152,7 +152,9 @@ fn saving_error(e: &DownloadError) -> String {
     match e {
         DownloadError::Network(_) => "Couldn’t reach Twitch.".into(),
         DownloadError::Status(_) => "Twitch no longer has this file. Open the clip again.".into(),
+        DownloadError::Stalled => "Twitch stopped sending. Try again.".into(),
         DownloadError::Disk(_) => "Couldn’t write the file. Is the disk full?".into(),
+        DownloadError::Replace(_) => "Couldn’t replace the file. Is it open somewhere?".into(),
         DownloadError::Cancelled => "Stopped.".into(),
     }
 }
@@ -198,5 +200,7 @@ mod tests {
             "Twitch no longer has this file. Open the clip again."
         );
         assert!(saving_error(&DownloadError::Disk(std::io::Error::other("x"))).contains("disk"));
+        assert!(saving_error(&DownloadError::Replace(std::io::Error::other("x"))).contains("open somewhere"));
+        assert!(saving_error(&DownloadError::Stalled).contains("stopped"));
     }
 }

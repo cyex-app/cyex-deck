@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { markAt } from './seekMarks.ts';
+import { isClick, markAt } from './seekMarks.ts';
 
 const mk = (id: number, t: number) => ({ id, t, text: `m${id}`, kind: 'spike' });
 
@@ -19,4 +19,11 @@ test('the nearest of two wins; nothing to hit is null', () => {
   assert.equal(markAt([], 1, 1000, 500), null);
   assert.equal(markAt(list, 100, 0, 500), null);
   assert.equal(markAt(list, 100, 1000, 0), null);
+});
+
+test('a release under 3 px from the press is a click, further is a drag', () => {
+  assert.equal(isClick(100, 102), true);
+  assert.equal(isClick(100, 98), true);
+  assert.equal(isClick(100, 103), false);
+  assert.equal(isClick(100, 90), false);
 });

@@ -11,6 +11,13 @@ test('V108-N13 with no pick the first stream is heard', () => {
   assert.equal(hushedByFocus('b', two), true);
 });
 
+test('V108-N13 with no pick the first tile on air is heard, else the first', () => {
+  assert.equal(heardTile({ ...two, live: ['b'] }), 'b');
+  assert.equal(hushedByFocus('a', { ...two, live: ['b'] }), true);
+  assert.equal(heardTile({ ...two, live: [] }), 'a');
+  assert.equal(heardTile({ ...two, claimed: 'a', live: ['b'] }), 'a');
+});
+
 test('V108-N13 a click moves the sound; a tile that went away falls back to the first', () => {
   assert.equal(heardTile({ ...two, claimed: 'b' }), 'b');
   assert.equal(heardTile({ ...two, claimed: 'gone' }), 'a');

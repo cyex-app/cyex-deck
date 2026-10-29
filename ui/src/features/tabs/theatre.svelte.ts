@@ -30,6 +30,8 @@ if (typeof document !== 'undefined') {
   });
 
   window.addEventListener('keydown', (e) => {
+    // A text field (the chat box) keeps its Escape.
+    if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable]')) return;
     const leave = escLeaves(
       {
         key: e.key,

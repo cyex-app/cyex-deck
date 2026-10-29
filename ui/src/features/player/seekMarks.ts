@@ -8,6 +8,12 @@ export interface BarMark {
   kind: string;
 }
 
+/** A press-and-release that moved under 3 px is a click (it snaps to a tick); further is a drag
+ *  to exactly where it let go. */
+export function isClick(downX: number, upX: number): boolean {
+  return Math.abs(upX - downX) < 3;
+}
+
 /** The mark within `px` pixels of the pointer at `t` s on a bar of `duration` s over `width`
  *  px; the nearest when two are. null when none is near. */
 export function markAt(marks: readonly BarMark[], t: number, duration: number, width: number, px = 6): BarMark | null {

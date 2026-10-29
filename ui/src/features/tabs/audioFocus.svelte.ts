@@ -14,6 +14,12 @@ class AudioFocus {
     this.claims = new Map(this.claims).set(tab, tile);
   }
 
+  /** V108-N14 Puts `tile` in theatre and gives it the sound for good, so leaving theatre keeps it. */
+  enterTheatre(tab: string, tile: string): void {
+    this.claim(tab, tile);
+    theatre.enter(tile);
+  }
+
   forget(tab: string): void {
     if (!this.claims.has(tab)) return;
     const next = new Map(this.claims);
@@ -21,18 +27,19 @@ class AudioFocus {
     this.claims = next;
   }
 
-  input(tab: string, players: readonly string[]): FocusInput {
+  input(tab: string, players: readonly string[], live?: readonly string[]): FocusInput {
     return {
       players,
       claimed: this.claims.get(tab) ?? null,
       enabled: settings.v.appearance.audioFocus,
       theatre: theatre.tile,
+      live,
     };
   }
 
   /** The focus silences `tile` (one of `players`, the stream tiles of `tab`). */
-  hushed(tab: string, tile: string, players: readonly string[]): boolean {
-    return hushedByFocus(tile, this.input(tab, players));
+  hushed(tab: string, tile: string, players: readonly string[], live?: readonly string[]): boolean {
+    return hushedByFocus(tile, this.input(tab, players, live));
   }
 }
 

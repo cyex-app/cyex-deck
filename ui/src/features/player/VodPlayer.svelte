@@ -31,7 +31,7 @@
   import { watchPip, copyText, openLink, pipFor, playerKeys } from './tools';
   import Volume from './Volume.svelte';
   import Loading from '../../components/Loading.svelte';
-  import { keyTaken } from '../../lib/escape';
+  import { layer } from '../../lib/escape';
   import PipNotice from './PipNotice.svelte';
 
   interface Props {
@@ -55,14 +55,15 @@
 
   let { id, at, tile, account, shared, hushed = false, onclose, mini = false, held = false, listing = false, onexpand }: Props = $props();
 
-  /** Escape closes it (not in fullscreen, where Escape leaves that first; not while a menu or
-   *  dialog wants it or a text field has the keyboard). */
-  function onkeydown(e: KeyboardEvent) {
-    if (!onclose || mini || e.key !== 'Escape' || keyTaken(e) || document.fullscreenElement) return;
-    if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable]')) return;
-    e.preventDefault();
-    onclose();
-  }
+  // V108-N14 Escape closes it through the layer stack, so the key is used up here and theatre
+  // behind it stays. Not in fullscreen (that leaves first) or from a text field.
+  $effect(() => {
+    if (!onclose && !mini) return;
+    return layer('popover', () => {
+      const typing = (document.activeElement as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable]');
+      if (!document.fullscreenElement && !typing) onclose?.();
+    });
+  });
 
 
   let video = $state<HTMLVideoElement>();
@@ -168,7 +169,7 @@
   /** V108-N01 The account that may clip this video: the tab's own channel's video, with an
    *  account that can clip. Elsewhere (the stream manager, another channel's video) no clip. */
   const clipper = $derived(
-    account && tile && ownVideo(info?.channelLogin, tile.channel.login) && accounts.can('clips', account) ? account : null,
+    account && tile && ownVideo(info?.channelLogin, tile.channel.login) && accounts.can('clips', account) && accounts.hasGql(account) ? account : null,
   );
 
   /** V108-N01 A click: the video up to the play head, as the clip button does for the stream. */
@@ -248,7 +249,6 @@
   const key = (k: Parameters<typeof bindingOf>[0], label: string) => (bindingOf(k) ? `${label} (${bindingOf(k)})` : label);
 </script>
 
-<svelte:window {onkeydown} />
 
 <div class="vod {mini ? corner : ''}" class:mini class:held class:listing>
   <Shell bind:this={shell} {controls} {menu} pinned={!engine?.playing && !mini} onvolume={(s) => sound.step(s)}>

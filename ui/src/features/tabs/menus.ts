@@ -17,7 +17,6 @@ import { COLOR_ORDER, GROUP_COLORS } from './groupColors';
 import { audioFocus } from './audioFocus.svelte';
 import { dragged, layout } from './layout.svelte';
 import { tabs, streamIds, tiles } from './tabs.svelte';
-import { theatre } from './theatre.svelte';
 
 /** Menu for `tab`. `targets` are the selected tabs it acts on (`tab` included). */
 export function tabMenu(tab: Tab, targets: Tab[]): MenuEntry[] {
@@ -78,7 +77,7 @@ export function tileEntries(tab: Tab, tile: Tile): MenuEntry[] {
   const streams = streamIds(tab);
   return [
     ...(tile.show.player && !tile.feed
-      ? [{ label: 'Theatre', icon: 'expand' as const, hint: bindingOf('view.theatre'), run: () => theatre.enter(tile.id) }]
+      ? [{ label: 'Theatre', icon: 'expand' as const, hint: bindingOf('view.theatre'), run: () => audioFocus.enterTheatre(tab.id, tile.id) }]
       : []),
     ...(tile.show.player && !tile.feed && streams.length > 1 && settings.v.appearance.audioFocus
       ? [

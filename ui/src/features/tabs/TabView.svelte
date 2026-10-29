@@ -184,7 +184,7 @@
           style:width={px(r?.w ?? 0)}
           style:height={px(r?.h ?? 0)}
         >
-          <TileView {tile} {tab} {popout} {onsignin} background={background || aside} />
+          <TileView {tile} {tab} {popout} {onsignin} {background} />
         </div>
       {/if}
     {/each}
@@ -238,7 +238,7 @@
     position: absolute;
     display: flex;
   }
-  /* V108-N14 Out of sight while another tile is in theatre; still playing, hushed. */
+  /* V108-N14 Out of sight while another tile is in theatre; still playing, hushed, chat and mod view still mounted (the cell is 0 px, so its player goes to the away state). */
   .aside {
     visibility: hidden;
     pointer-events: none;

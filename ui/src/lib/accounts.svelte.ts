@@ -6,6 +6,7 @@ import type { AccountView } from '../ipc/bindings/AccountView';
 import type { ConnectionCount } from '../ipc/bindings/ConnectionCount';
 import type { AuthSnapshot } from '../ipc/bindings/AuthSnapshot';
 import type { Feature } from '../ipc/bindings/Feature';
+import { gqlUsable } from './gate';
 
 class AccountsStore {
   list = $state<AccountView[]>([]);
@@ -20,6 +21,11 @@ class AccountsStore {
   can(feature: Feature, userId?: string): boolean {
     const account = userId ? this.list.find((a) => a.userId === userId) : this.current;
     return account?.features.includes(feature) ?? false;
+  }
+
+  /** V108-N01 The account has a GQL sign-in: clips from a moment or a video need one (Helix can't). */
+  hasGql(userId?: string): boolean {
+    return gqlUsable(userId ? this.list.find((a) => a.userId === userId) : this.current);
   }
 
   /** Whether any signed-in account can use a tool. */

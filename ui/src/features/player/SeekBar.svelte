@@ -2,7 +2,7 @@
      that moment from Twitch's storyboard (P6). Drag or click to seek. -->
 <script lang="ts">
   import type { Storyboard } from '../../ipc/bindings/Storyboard';
-  import { type BarMark, markAt } from './seekMarks';
+  import { type BarMark, isClick, markAt } from './seekMarks';
   import { clock } from './time';
 
   interface Props {
@@ -63,8 +63,11 @@
     }
   }
 
+  let downX = 0;
+
   function ondown(e: PointerEvent) {
     dragging = true;
+    downX = e.clientX;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     hover = at(e);
   }
@@ -76,7 +79,7 @@
     if (!dragging) return;
     dragging = false;
     const t = at(e);
-    onseek(Math.max(min, near(t)?.t ?? t));
+    onseek(Math.max(min, (isClick(downX, e.clientX) ? near(t)?.t : undefined) ?? t));
   }
 
   const hit = $derived(hover === null || dragging ? null : near(hover));

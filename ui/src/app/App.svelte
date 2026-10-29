@@ -48,7 +48,7 @@
   import { heardTile } from '../features/tabs/audioFocus';
   import { streamIds, tabs, tiles } from '../features/tabs/tabs.svelte';
   import { theatre } from '../features/tabs/theatre.svelte';
-  import { stillHere, theatreTarget, toggled } from '../features/tabs/theatre';
+  import { stillHere, theatreTarget } from '../features/tabs/theatre';
   import type { Tab } from '../ipc/bindings/Tab';
   import type { LinkTarget } from '../ipc/bindings/LinkTarget';
   import { accountsIpc } from '../ipc/accounts';
@@ -94,7 +94,7 @@
   /** The tab drawn here now, not in its own window. */
   const shownTab = $derived(tab && !tabs.popped.has(tab.id) ? tab.id : null);
   /** V108-N14 A stream of the tab on screen fills the window: no tab bars, no side chrome. */
-  const theatreOn = $derived(!!tab && stillHere(theatre.tile, tiles(tab).map((t) => t.id)) !== null);
+  const theatreOn = $derived(!!shownTab && !!tab && stillHere(theatre.tile, tiles(tab).map((t) => t.id)) !== null);
   $effect(() => {
     if (theatre.tile && !theatreOn) untrack(() => theatre.leave());
   });
@@ -212,8 +212,9 @@
       toast.info(on ? 'Only live tabs' : 'All tabs', { key: 'tabs.onlyLive' }); // V106 a-6
     },
     'view.theatre': () => {
-      const target = theatre.tile ? null : tab ? theatreTarget(tiles(tab).map((t) => ({ id: t.id, player: !t.feed && t.show.player })), heardTile(audioFocus.input(tab.id, streamIds(tab)))) : null;
-      theatre.tile = toggled(theatre.tile, target);
+      const target = theatre.tile || !shownTab ? null : tab ? theatreTarget(tiles(tab).map((t) => ({ id: t.id, player: !t.feed && t.show.player })), heardTile(audioFocus.input(tab.id, streamIds(tab), tabs.liveStreamIds(tab)))) : null;
+      if (theatre.tile) theatre.leave();
+      else if (target && tab) audioFocus.enterTheatre(tab.id, target);
     },
     ...playerHotkeys,
   });

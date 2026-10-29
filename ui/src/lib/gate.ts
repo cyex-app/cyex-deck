@@ -15,6 +15,12 @@ export function lockFor(can: boolean, kind: TokenKind): TokenKind | null {
   return can ? null : kind;
 }
 
+/** V108-N01 The account has a GQL token worth using (the same states Rust's `usable()` takes). */
+export function gqlUsable(account: Pick<AccountView, 'gql'> | undefined): boolean {
+  const s = account?.gql?.state;
+  return s === 'checking' || s === 'valid' || s === 'offline';
+}
+
 /** Where a flag click lands in Settings → Accounts. GQL for an account signed in with
  * Twitch opens that account's token and code options; otherwise the matching way to
  * sign in. */
