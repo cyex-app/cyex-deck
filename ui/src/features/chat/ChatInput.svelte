@@ -400,7 +400,7 @@
     if (e.key !== 'Tab' && e.key !== 'Shift') cycle = null;
     if (suggest) {
       // V108-N09 One rule set for the list and the row (suggestKeys.ts).
-      const k = suggestKey(styleNow, e, suggest.index, suggest.items.length, suggest.arg);
+      const k = suggestKey(styleNow, { key: e.key, shift: e.shiftKey, ctrl: e.ctrlKey }, suggest.index, suggest.items.length, suggest.arg);
       if (k?.do === 'move') {
         e.preventDefault();
         suggest.index = k.index;

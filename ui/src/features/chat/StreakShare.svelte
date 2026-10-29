@@ -16,6 +16,7 @@
   import { errorText } from '../../lib/errors';
   import { formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
+  import { tabs } from '../tabs/tabs.svelte';
   import { streakText } from './streakShare';
 
   interface Props {
@@ -27,7 +28,8 @@
 
   let { account, login, channelId }: Props = $props();
 
-  /** Re-read while the stream is live, as a fallback to the PubSub topic. */
+  /** Re-read every minute while the channel is live (the app’s live state), as a fallback
+   * to the PubSub topic. A failed read doesn’t stop it. */
   const POLL_MS = 60_000;
 
   let streak = $state<Streak | null>(null);
@@ -45,7 +47,7 @@
       const next = await subsIpc.streak(a, l);
       if (mine === seq) streak = next;
     } catch {
-      // A failed read leaves what is shown; the next event or poll tries again.
+      // A failed read leaves what is shown; the next event or the next poll tries again.
     }
   }
 
@@ -61,7 +63,7 @@
       if (e.account === a && (!channelId || e.channelId === channelId)) void load();
     });
     const timer = setInterval(() => {
-      if (streak?.live) void load();
+      if (streak?.live || (channelId && tabs.live[channelId]?.stream)) void load();
     }, POLL_MS);
     return () => {
       clearInterval(timer);

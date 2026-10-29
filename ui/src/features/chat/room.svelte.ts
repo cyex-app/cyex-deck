@@ -2,7 +2,6 @@
 // Rust through batched events (1.8). Rust does the parsing; this only applies results.
 
 import { chatIpc } from '../../ipc/chat';
-import { sourceOnly } from '../../ipc/sourceOnly';
 import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
 import type { ConnStatus } from '../../ipc/bindings/ConnStatus';
 import type { Pinned } from '../../ipc/bindings/Pinned';
@@ -93,7 +92,6 @@ export class ChatRoom {
 
   close(): void {
     this.closed = true;
-    sourceOnly.set(this.view, false);
     if (this.frame) cancelAnimationFrame(this.frame);
     this.later = [];
     if (this.view) void chatIpc.close(this.view);

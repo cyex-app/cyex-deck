@@ -124,8 +124,6 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         chat::chat_close,
         chat::chat_shown,
         chat::chat_send,
-        chat::chat_send_own,
-        chat::chat_source_only_ok,
         chat::chat_global_catalog,
         chat::chat_channel_catalog,
         chat::chat_points,

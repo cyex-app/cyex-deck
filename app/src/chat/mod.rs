@@ -26,7 +26,6 @@ pub mod rules;
 pub mod run;
 pub mod search;
 mod send;
-pub mod source_only;
 mod session;
 pub mod shown;
 pub mod translate;

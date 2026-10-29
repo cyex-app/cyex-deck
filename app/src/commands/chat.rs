@@ -60,18 +60,6 @@ pub async fn chat_send(app: AppHandle, view: u32, text: String, reply_to: Option
     chat::run::input(&app, view, &text, reply_to).await
 }
 
-/// V108-N12 A plain line to this chat's own channel only (Shared Chat), over Helix.
-#[tauri::command]
-pub async fn chat_send_own(app: AppHandle, view: u32, text: String) -> CmdResult<()> {
-    chat::source_only::send(&app, view, &text).await
-}
-
-/// V108-N12 Whether this chat's account may send to its own channel only (`user:write:chat`).
-#[tauri::command]
-pub fn chat_source_only_ok(app: AppHandle, view: u32) -> bool {
-    chat::source_only::available(&app, view)
-}
-
 /// S1 A menu entry or usercard button.
 #[tauri::command]
 pub async fn chat_menu(app: AppHandle, view: u32, command: String, context: MenuContext) -> CmdResult<Option<UiAction>> {

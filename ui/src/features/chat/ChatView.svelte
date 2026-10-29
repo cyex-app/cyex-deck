@@ -43,7 +43,6 @@
   import PinnedBanner from './PinnedBanner.svelte';
   import RateMeter from './RateMeter.svelte';
   import { hiddenCount, inSharedSession } from './sharedChat';
-  import { sourceOnly } from '../../ipc/sourceOnly';
   import { ChatRoom } from './room.svelte';
   import SearchPopup from './SearchPopup.svelte';
   import ViewerList from './ViewerList.svelte';
@@ -342,7 +341,7 @@
     return may(caps, 'delete', w, line?.ts ?? null).why;
   });
 
-  // V108-N12 Shared Chat: the header offers "only this channel" and "send to this channel only"
+  // V108-N12 Shared Chat: the header offers "only this channel"
   // while lines from other channels keep coming in. Checked every 30 s, so it lets go when the
   // session ends.
   let clock = $state(Date.now());
@@ -352,26 +351,6 @@
   });
   const shared = $derived(inSharedSession(room.messages, clock));
   const hiddenHere = $derived(room.onlyHere ? hiddenCount(room.messages) : 0);
-  let ownOnly = $state(false);
-  let ownOk = $state(false);
-  $effect(() => {
-    const view = room.view;
-    if (!view || !room.account) {
-      ownOk = false;
-      return;
-    }
-    let dead = false;
-    chatIpc
-      .sourceOnlyOk(view)
-      .then((ok) => !dead && (ownOk = ok))
-      .catch(() => !dead && (ownOk = false));
-    return () => (dead = true);
-  });
-  // Only while it applies: a session that ended sends normally again.
-  $effect(() => {
-    const view = room.view;
-    sourceOnly.set(view, ownOnly && ownOk && shared);
-  });
 
   function openChannelCard() {
     chatIpc.openUsercard(login, login).catch((e) => toast.error(errorText(e)));
@@ -416,17 +395,6 @@
         active={room.onlyHere}
         toggle
         onclick={() => (room.onlyHere = !room.onlyHere)}
-      />
-    {/if}
-    {#if shared && ownOk}
-      <IconButton
-        icon="send"
-        label={ownOnly ? 'Sending to this channel only' : 'Send to this channel only'}
-        hint={ownOnly ? 'Your messages stay here. Click to send to every channel again.' : 'Keep your messages out of the other channels.'}
-        size={15}
-        active={ownOnly}
-        toggle
-        onclick={() => (ownOnly = !ownOnly)}
       />
     {/if}
     {#if modRole}

@@ -16,7 +16,6 @@ import type { RoomEvent } from './bindings/RoomEvent';
 import type { LinkInfo } from './bindings/LinkInfo';
 import type { MenuContext } from './bindings/MenuContext';
 import type { UiAction } from './bindings/UiAction';
-import { plainLine, sourceOnly } from './sourceOnly';
 
 export const chatIpc = {
   /** Opens a view on a channel's chat. Events arrive in 50 ms batches until `close`. */
@@ -38,13 +37,8 @@ export const chatIpc = {
   shown: () => invoke<ChatShown>('chat_shown'),
   onShown: (handler: (s: ChatShown) => void) => listen<ChatShown>('chat:shown', (e) => handler(e.payload)),
   /** Commands run in Rust (1.8); some ask the window to do something. */
-  send: (view: number, text: string, replyTo?: string): Promise<UiAction | null> =>
-    // V108-N12 In a Shared Chat with "this channel only" on, a plain line goes over Helix.
-    sourceOnly.has(view) && plainLine(text, replyTo)
-      ? invoke<void>('chat_send_own', { view, text }).then(() => null)
-      : invoke<UiAction | null>('chat_send', { view, text, replyTo }),
-  /** V108-N12 This account may send to its own channel only (`user:write:chat`). */
-  sourceOnlyOk: (view: number) => invoke<boolean>('chat_source_only_ok', { view }),
+  send: (view: number, text: string, replyTo?: string) =>
+    invoke<UiAction | null>('chat_send', { view, text, replyTo }),
   /** S1 A menu entry or usercard button. */
   menu: (view: number, command: string, context: MenuContext) =>
     invoke<UiAction | null>('chat_menu', { view, command, context }),

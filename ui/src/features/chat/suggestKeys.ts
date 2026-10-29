@@ -10,8 +10,8 @@ export type SuggestKey =
 
 export interface KeyInfo {
   key: string;
-  shift?: boolean;
-  ctrl?: boolean;
+  shift: boolean;
+  ctrl: boolean;
 }
 
 /** `null`: the key is not for the suggestions (the box handles it). List: Up/Down move, Tab

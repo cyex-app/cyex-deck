@@ -67,12 +67,16 @@
   }
 
   const login = $derived(profile.login);
-  const hide = (here: boolean) =>
-    withUndo(
+  // Undo puts the earlier list back as it was: /unhideuser would also drop a chat-only entry
+  // that "everywhere" replaced (V108-N07).
+  const hide = (here: boolean) => {
+    const before = $state.snapshot(settings.v.highlights.hiddenUsers);
+    return withUndo(
       here ? `${login} is hidden in this chat.` : `${login} is hidden.`,
       () => run(here ? `/hideuser ${login} here` : `/hideuser ${login}`),
-      () => run(`/unhideuser ${login}`),
+      () => void settings.patch('highlights', { hiddenUsers: before }),
     );
+  };
   /** V108-N07 Hide asks where: this chat or every chat. */
   function hideMenu(e: MouseEvent) {
     openMenu(
