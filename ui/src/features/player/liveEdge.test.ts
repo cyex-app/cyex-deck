@@ -13,6 +13,7 @@ import {
   pausedBehind,
   PAUSE_STOP_MS,
   rangeEnd,
+  replayChoice,
   resumePlan,
   stepTarget,
   uptimeAt,
@@ -60,6 +61,24 @@ test('key steps', () => {
   assert.deepEqual(stepTarget(50, 10, 100), { at: 60, edge: null });
 });
 
+test('V108-N24 a replay starts where it was recorded', () => {
+  assert.equal(dvrTarget(10, 400, 100), 100);
+  assert.equal(dvrTarget(250, 400, 100), 250);
+  assert.equal(dvrTarget(390, 400, 100), 'live');
+  assert.deepEqual(stepTarget(110, -30, 400, 100), { at: 100, edge: 'start' });
+  assert.deepEqual(stepTarget(200, -30, 400, 100), { at: 170, edge: null });
+  // Not more than the live gap recorded yet: nothing to go back to.
+  assert.deepEqual(stepTarget(400, -10, 400, 385), { at: 'live', edge: 'start' });
+});
+
+test('V108-N24 replay lengths', () => {
+  assert.equal(replayChoice(5), 5);
+  assert.equal(replayChoice(0), 0);
+  assert.equal(replayChoice(7), 5);
+  assert.equal(replayChoice(29), 30);
+  assert.equal(replayChoice(200), 30);
+});
+
 test('live config is today’s, without the dead catch-up rate', () => {
   assert.deepEqual(liveConfig(false), { liveSyncDuration: 8, liveMaxLatencyDuration: 20, backBufferLength: 10, maxBufferLength: 12, maxMaxBufferLength: 20 });
   assert.equal(liveConfig(true).liveSyncDuration, 4);
@@ -81,6 +100,12 @@ test('what play does after a pause', () => {
   assert.equal(resumePlan({ pausedMs: 500, inVod: false, stopped: true }), 'reopen');
   assert.equal(resumePlan({ pausedMs: 5000, inVod: true, stopped: false }), 'stay');
   assert.equal(resumePlan({ pausedMs: PAUSE_STOP_MS, inVod: true, stopped: true }), 'reload');
+  // V108-N24 The paused spot is still in the replay: on from there once past the live gap.
+  assert.equal(resumePlan({ pausedMs: 30_000, inVod: false, stopped: false, replay: true }), 'replay');
+  assert.equal(resumePlan({ pausedMs: PAUSE_STOP_MS + 1, inVod: false, stopped: true, replay: true }), 'replay');
+  assert.equal(resumePlan({ pausedMs: 15_000, inVod: false, stopped: false, replay: true }), 'sync');
+  assert.equal(resumePlan({ pausedMs: 30_000, inVod: false, stopped: false, replay: false }), 'sync');
+  assert.equal(resumePlan({ pausedMs: 30_000, inVod: true, stopped: false, replay: true }), 'stay');
 });
 
 test('chat bar text', () => {

@@ -20,7 +20,7 @@ export interface LiveState {
 }
 
 /** direct: not a live pause, it just plays. The rest is resumePlan's. */
-export type ResumeStep = 'wait' | 'direct' | 'play' | 'sync' | 'reopen' | 'stay' | 'reload';
+export type ResumeStep = 'wait' | 'direct' | 'play' | 'sync' | 'reopen' | 'stay' | 'reload' | 'replay';
 
 export const isJumping = (s: LiveState): boolean => s.phase === 'jumping' || s.phase === 'swapping';
 export const isSwapping = (s: LiveState): boolean => s.phase === 'swapping';
@@ -50,13 +50,13 @@ export const askPause = (s: LiveState): LiveState => (isJumping(s) ? { ...s, pen
 
 export function resumeStep(
   s: LiveState,
-  o: { live: boolean; holding: boolean; dvr: boolean; hasHls: boolean; now: number },
+  o: { live: boolean; holding: boolean; dvr: boolean; hasHls: boolean; now: number; replay?: boolean },
 ): { s: LiveState; step: ResumeStep; pos: number } {
   const pos = s.pausedPos;
   // Played again mid-jump after a pause: the jump plays when it lands.
   if (isJumping(s) && s.pendingPause) return { s: { ...s, pendingPause: false }, step: 'wait', pos };
   if (!o.live || o.holding || !isPaused(s)) return { s, step: 'direct', pos };
-  const step = resumePlan({ pausedMs: o.now - s.pausedAt, inVod: o.dvr, stopped: isStopped(s) || !o.hasHls });
+  const step = resumePlan({ pausedMs: o.now - s.pausedAt, inVod: o.dvr, stopped: isStopped(s) || !o.hasHls, replay: o.replay });
   return { s: { ...s, phase: 'playing', pausedAt: 0 }, step, pos };
 }
 

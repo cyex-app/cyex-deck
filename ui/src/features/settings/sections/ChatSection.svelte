@@ -257,6 +257,9 @@
 <Row setting="chat.parts" label="Show leaves" hint="Who leaves the chat, a line every 10 seconds. Only in chats under 1.000 viewers.">
   <Toggle label="Show leaves" checked={c.parts} onchange={(v) => settings.patch('chat', { parts: v })} />
 </Row>
+<Row setting="chat.rateMeter" label="Show messages per second" hint="How busy the chat is, in the header.">
+  <Toggle label="Show messages per second" checked={c.rateMeter} onchange={(v) => settings.patch('chat', { rateMeter: v })} />
+</Row>
 <Row setting="chat.showClient" label="Show where it was sent from" hint="An icon for messages from the website or the phone apps.">
   <Toggle label="Show where it was sent from" checked={c.showClient} onchange={(v) => settings.patch('chat', { showClient: v })} />
 </Row>

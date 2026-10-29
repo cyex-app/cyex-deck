@@ -275,6 +275,64 @@ fn ban_of(data: &Value) -> Option<BanStatus> {
     })
 }
 
+/// V108-N16 One channel's ban, timeout and warning counts for a user (read only).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ModCounts {
+    pub channel_id: String,
+    pub bans: u32,
+    pub timeouts: u32,
+    pub warnings: u32,
+}
+
+impl ModCounts {
+    pub fn any(&self) -> bool {
+        self.bans + self.timeouts + self.warnings > 0
+    }
+}
+
+/// Counts only, so it stays cheap over many channels. Same schema as [`VIEWER_CARD`].
+const COUNTS: &str = "query Counts($channelID: ID!, $targetID: ID!) {
+  viewerCardModLogs(channelID: $channelID, targetID: $targetID) {
+    bans: targetedActions(first: 1, type: BAN) { ...N }
+    timeouts: targetedActions(first: 1, type: TIMEOUT) { ...N }
+    warns: targetedActions(first: 1, type: WARN) { ...N }
+  }
+}
+fragment N on ModLogsTargetedActionsResult { ... on ModLogsTargetedActionsConnection { count } }";
+
+/// V108-N16 `target_id`'s ban, timeout and warning counts in each of `channel_ids` (the
+/// channels the account moderates), batched [`super::BATCH_MAX`] per request. Channels where
+/// Twitch refuses, or with nothing on them, are left out. Needs a token that moderates them.
+pub async fn counts_in(http: &Http, auth: Auth<'_>, channel_ids: &[String], target_id: &str) -> Result<Vec<ModCounts>> {
+    let mut out = Vec::new();
+    for chunk in channel_ids.chunks(super::BATCH_MAX) {
+        let ops: Vec<(&str, Value)> =
+            chunk.iter().map(|c| (COUNTS, json!({ "channelID": c, "targetID": target_id }))).collect();
+        let answers = super::batch(http, auth, &ops).await?;
+        for (id, answer) in chunk.iter().zip(answers) {
+            if let Ok(data) = answer {
+                let c = counts_of(id, &data);
+                if c.any() {
+                    out.push(c);
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
+fn counts_of(channel_id: &str, data: &Value) -> ModCounts {
+    let logs = &data["viewerCardModLogs"];
+    ModCounts {
+        channel_id: channel_id.to_owned(),
+        bans: count_of(logs, "bans"),
+        timeouts: count_of(logs, "timeouts"),
+        warnings: count_of(logs, "warns"),
+    }
+}
+
 /// Needs a token that moderates the channel; errors or empty otherwise.
 pub async fn history(http: &Http, auth: Auth<'_>, channel_id: &str, target_id: &str) -> Result<ModHistory> {
     let vars = json!({ "channelID": channel_id, "targetID": target_id });
@@ -560,6 +618,15 @@ fn read_channel_actions(data: &Value) -> Result<ChannelActionsPage> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn v108_n16_counts_read_per_channel() {
+        let d = json!({ "viewerCardModLogs": { "bans": { "count": 1 }, "timeouts": { "count": 4 }, "warns": {} } });
+        let c = counts_of("77", &d);
+        assert_eq!((c.bans, c.timeouts, c.warnings), (1, 4, 0));
+        assert!(c.any());
+        assert!(!counts_of("77", &json!({ "viewerCardModLogs": null })).any());
+    }
+
     use super::*;
 
     #[test]

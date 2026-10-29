@@ -111,6 +111,18 @@ pub fn chat_votes(app: AppHandle, login: String) -> Option<VotesUpdate> {
     votes::state(&app, &login.to_ascii_lowercase())
 }
 
+/// V108-N25 The moments found in a channel's chat so far, oldest first.
+#[tauri::command]
+pub fn chat_moments(app: AppHandle, login: String) -> Vec<cyex_chat::moments::Moment> {
+    chat::moments::list(&app, &login)
+}
+
+/// V108-N10 Messages per second in a channel's chat.
+#[tauri::command]
+pub fn chat_rate(app: AppHandle, login: String) -> cyex_chat::moments::Rate {
+    chat::moments::rate(&app, &login)
+}
+
 #[tauri::command]
 pub async fn chat_vote(app: AppHandle, view: u32, choice: String, points: Option<u32>) -> CmdResult<()> {
     votes::vote(&app, view, &choice, points).await

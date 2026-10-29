@@ -56,9 +56,14 @@ pub enum Kind {
     /// V103-15 AutoMod's held messages and the decisions on them (`<user>.<channel>`).
     /// Signed in as a mod there.
     AutomodQueue,
+    /// V108-N04 A channel's hype train (`hype-train-events-v2`). Anonymous.
+    HypeTrain,
+    /// V108-N23 The user's viewer milestones, watch streaks among them
+    /// (`viewer-milestones.<user>`). Signed in only.
+    ViewerMilestones,
 }
 
-const KINDS: [Kind; 19] = [
+const KINDS: [Kind; 21] = [
     Kind::Polls,
     Kind::Predictions,
     Kind::Celebrations,
@@ -78,6 +83,8 @@ const KINDS: [Kind; 19] = [
     Kind::GuestStarUser,
     Kind::ModActions,
     Kind::AutomodQueue,
+    Kind::HypeTrain,
+    Kind::ViewerMilestones,
 ];
 
 impl Kind {
@@ -102,6 +109,8 @@ impl Kind {
             Kind::GuestStarUser => "guest-star-user-v1.",
             Kind::ModActions => "chat_moderator_actions.",
             Kind::AutomodQueue => "automod-queue.",
+            Kind::HypeTrain => "hype-train-events-v2.",
+            Kind::ViewerMilestones => "viewer-milestones.",
         }
     }
 
@@ -135,6 +144,8 @@ impl Kind {
             Kind::GuestStarUser => 'j',
             Kind::ModActions => 'x',
             Kind::AutomodQueue => 'q',
+            Kind::HypeTrain => 'h',
+            Kind::ViewerMilestones => 'y',
         }
     }
 

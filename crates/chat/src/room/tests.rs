@@ -456,3 +456,48 @@ fn shared_rooms_are_the_recent_source_rooms() {
     assert_eq!(r.shared_rooms(400), ["3"]);
     assert!(r.shared_rooms(800).is_empty());
 }
+
+fn say_at(r: &mut Room, id: usize, text: &str, now_ms: i64) {
+    let raw = format!("@id=m{id};user-id=7;tmi-sent-ts=5 :u7!u@u PRIVMSG #chan :{text}");
+    r.handle_line(&Line::parse(&raw).unwrap(), now_ms, &NoEmotes);
+}
+
+#[test]
+fn v108_n25_a_burst_becomes_a_moment_labelled_by_its_word() {
+    let mut r = room();
+    let mut id = 0;
+    for s in 0..200 {
+        id += 1;
+        say_at(&mut r, id, &format!("calm talk {id}"), s * 1000);
+    }
+    assert!(r.take_moments().is_empty());
+    for s in 200..210 {
+        for _ in 0..6 {
+            id += 1;
+            say_at(&mut r, id, "clutch play", s * 1000 + 500);
+        }
+    }
+    let found = r.take_moments();
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].kind, crate::moments::MomentKind::Spike);
+    assert_eq!(found[0].label, "clutch");
+    assert_eq!(r.moments().len(), 1);
+    assert!(r.rate(209_900).per_sec > 4.0);
+}
+
+#[test]
+fn v108_n25_history_does_not_count_and_a_raid_is_a_moment() {
+    let mut r = room();
+    let lines: Vec<String> = (0..50)
+        .map(|i| format!("@id=h{i};user-id=7;tmi-sent-ts=5 :u7!u@u PRIVMSG #chan :old {i}"))
+        .collect();
+    r.history(&lines, 1_000, &NoEmotes);
+    assert_eq!(r.rate(1_000).peak, 0);
+    feed(
+        &mut r,
+        r"@id=r1;login=a;msg-id=raid;msg-param-displayName=Foo;msg-param-viewerCount=42;system-msg=42\sraiders\sfrom\sFoo\shave\sjoined!;user-id=9 :tmi.twitch.tv USERNOTICE #chan",
+    );
+    let found = r.take_moments();
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].kind, crate::moments::MomentKind::Raid);
+}

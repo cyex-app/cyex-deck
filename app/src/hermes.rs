@@ -108,6 +108,8 @@ async fn pump(app: AppHandle, mut rx: mpsc::UnboundedReceiver<Event>) {
             | Kind::AdsManager
             | Kind::GuestStarUser => crate::streammanager::on_hermes(&app, &e),
             Kind::ModActions | Kind::AutomodQueue => crate::moderation::feeds::on_hermes(&app, &e),
+            // V108-N04, V108-N23 Topics exist in the twitch crate; the handlers come with their UI phases.
+            Kind::HypeTrain | Kind::ViewerMilestones => {}
         }
     }
 }

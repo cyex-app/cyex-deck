@@ -37,6 +37,13 @@ export const WATCHING: Entry[] = [
     keywords: ['rewind', 'dvr', 'live vod', 'stream rewind', 'go back'],
   },
   {
+    id: 'player.replayMinutes',
+    page: 'player',
+    label: 'Replay',
+    description: 'Go back in what played here, where Twitch has no rewind.',
+    keywords: ['rewind', 'go back', 'replay', 'dvr', 'buffer', 'timeshift'],
+  },
+  {
     id: 'player.seekStep',
     page: 'player',
     label: 'Skip step',

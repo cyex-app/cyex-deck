@@ -85,6 +85,13 @@ export const CHAT: Entry[] = [
     keywords: ['part', 'parts', 'joins and leaves', 'viewers', 'presence'],
   },
   {
+    id: 'chat.rateMeter',
+    page: 'chat',
+    label: 'Show messages per second',
+    description: 'How busy the chat is, in the header.',
+    keywords: ['rate', 'speed', 'busy', 'msgs', 'meter', 'pace'],
+  },
+  {
     id: 'chat.showClient',
     page: 'chat',
     label: 'Show where it was sent from',

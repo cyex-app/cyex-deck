@@ -1,18 +1,28 @@
 // V1061-03 Twitch's Stream Rewind for one live player: whether Twitch offers it, the
 // stream's clock, and the moves between the live stream and the broadcast's VOD.
+// V108-N24 Without it, the replay of what played here: same bar, keys and chat bar, only
+// from where the replay starts. Two sources, one clock: seconds since the stream started.
 
 import { playerIpc } from '../../ipc/player';
 import { onShown, pageHidden } from '../../lib/awake';
 import type { Engine } from './engine.svelte';
-import { COALESCE_MS, DVR_RETRY_MS, DVR_YOUNG, dvrTarget, stepTarget, uptimeAt } from './liveEdge';
+import { COALESCE_MS, DVR_GAP, DVR_RETRY_MS, DVR_YOUNG, dvrTarget, stepTarget, uptimeAt } from './liveEdge';
 import type { SeekResult } from './liveKeys';
 import { clearRewound, hasOwn, setRewound } from './rewound.svelte';
 
 export interface RewindHost {
   engine(): Engine | undefined;
-  /** LivePlayer's `start`: live when `at` is null, else the VOD from `at` s. */
+  /** LivePlayer's `start`: live when `at` is null, else the VOD (or the replay) from `at` s. */
   open(at: number | null): Promise<void>;
+  /** V108-N24 The live session playing now, whose replay this is. */
+  liveId(): string | null;
 }
+
+/** Where going back plays from. */
+export type RewindMode = 'dvr' | 'replay';
+
+/** V108-N24 How often the replay's range is read while shown. */
+const RANGE_EVERY_S = 2;
 
 export class Rewind {
   vodId = $state<string | null>(null);
@@ -20,6 +30,12 @@ export class Rewind {
   ended = $state(false);
 
   private enabled = $state(false);
+  /** V108-N24 The replay setting, minutes (0 off). */
+  replayMinutes = $state(0);
+  /** V108-N24 What the replay holds, ms; null while it holds nothing. */
+  private range = $state.raw<{ from: number; to: number } | null>(null);
+  private ranges = 0;
+  private ticks = 0;
   private startedAt: string | null = null;
   private account: string | null = null;
   private key = '';
@@ -47,7 +63,9 @@ export class Rewind {
   }
 
   /** From LivePlayer's `$effect`: asks Twitch again when one of these changes. */
-  watch(o: { account: string | null; startedAt: string | null; enabled: boolean }): void {
+  watch(o: { account: string | null; startedAt: string | null; enabled: boolean; replay: number }): void {
+    this.replayMinutes = o.replay;
+    if (o.replay <= 0) this.range = null;
     const key = `${o.account}|${o.startedAt}|${o.enabled}`;
     if (key === this.key) return;
     this.key = key;
@@ -57,7 +75,7 @@ export class Rewind {
     if (!o.enabled) {
       if (o.startedAt) this.startedAt = o.startedAt;
       this.forget();
-      if (this.inVod) void this.toLive();
+      if (this.inDvr) void this.toLive();
       return;
     }
     if (o.startedAt === null) {
@@ -81,12 +99,52 @@ export class Rewind {
     void this.ask();
   }
 
-  get on(): boolean {
-    return this.enabled && this.vodId !== null;
+  /** Twitch's rewind when it's granted (it has the whole broadcast), else the replay once it
+   *  holds more than the live gap. */
+  get mode(): RewindMode | null {
+    if (this.enabled && this.vodId !== null) return 'dvr';
+    if (this.replayMinutes > 0 && this.range && this.secs(this.range.from) < this.uptime - DVR_GAP - 2) return 'replay';
+    return null;
   }
 
+  get on(): boolean {
+    return this.mode !== null;
+  }
+
+  /** Rewound: the rewind VOD or the replay plays. */
   get inVod(): boolean {
     return this.host.engine()?.dvr ?? false;
+  }
+
+  /** The rewind VOD plays (not the replay). */
+  private get inDvr(): boolean {
+    const e = this.host.engine();
+    return !!e?.dvr && !e.replay;
+  }
+
+  /** V108-N24 The earliest second that can play: the replay's start, 0 for Twitch's rewind. */
+  get min(): number {
+    return this.mode === 'replay' && this.range ? Math.max(0, this.secs(this.range.from)) : 0;
+  }
+
+  /** V108-N24 Where the bar starts: the whole broadcast, or the replay's length back from now
+   *  (what isn't recorded yet shows dimmed). */
+  get start(): number {
+    if (this.mode !== 'replay') return 0;
+    return Math.max(0, Math.min(this.min, this.uptime - this.replayMinutes * 60));
+  }
+
+  /** V108-N24 The stream's start in ms: the replay's clock. */
+  get origin(): number {
+    const t = this.startedAt ? Date.parse(this.startedAt) : NaN;
+    return Number.isNaN(t) ? 0 : t;
+  }
+
+  /** V108-N24 Where play after a long pause at `date` (ms) goes, null when the replay lost it. */
+  replayAt(date: number): number | null {
+    if (this.mode !== 'replay') return null;
+    const t = this.secs(date);
+    return t >= this.min && t <= this.uptime - DVR_GAP ? t : null;
   }
 
   /** Where the player is, in seconds since the stream started. */
@@ -115,14 +173,14 @@ export class Rewind {
     if (!this.on) return;
     this.pending = null;
     clearTimeout(this.flushTimer);
-    this.go(dvrTarget(t, this.uptime));
+    this.go(dvrTarget(t, this.uptime, this.min));
   }
 
   /** Keys. null: no rewind here, the key stays with the page (Q29). */
   seekBy(s: number): SeekResult | null {
     if (!this.on) return null;
     const base = typeof this.pending === 'number' ? this.pending : this.pending === 'live' ? this.uptime : this.pos;
-    const { at, edge } = stepTarget(base, s, this.uptime);
+    const { at, edge } = stepTarget(base, s, this.uptime, this.min);
     // Live is off after the end: nothing moves.
     if (at === 'live' && this.over) return { behind: Math.max(0, this.uptime - base), edge: null };
     this.pending = at;
@@ -184,7 +242,7 @@ export class Rewind {
     if (n !== this.asks) return;
     this.vodId = this.enabled ? id : null;
     if (id === null) {
-      if (this.inVod) void this.toLive();
+      if (this.inDvr) void this.toLive();
       // The VOD shows up a few seconds after the start.
       if (this.uptime < DVR_YOUNG) this.retry = setTimeout(() => void this.ask(), DVR_RETRY_MS);
     }
@@ -200,8 +258,28 @@ export class Rewind {
   private go(at: number | 'live'): void {
     if (at === 'live') return void this.toLive();
     const e = this.host.engine();
-    if (this.inVod && e) e.seekIn(at);
+    // In the same source: a seek. From live or the other source: it opens there.
+    if (this.inVod && e && e.replay === (this.mode === 'replay')) e.seekIn(at);
     else void this.host.open(at);
+  }
+
+  /** Seconds since the stream started for a date in ms. */
+  private secs(ms: number): number {
+    return (ms - this.origin) / 1000;
+  }
+
+  /** V108-N24 Reads what the replay holds, for the bar and the keys. */
+  private async readRange(): Promise<void> {
+    const id = this.host.liveId();
+    if (this.replayMinutes <= 0 || this.vodId !== null || !id) {
+      if (!id) this.range = null;
+      return;
+    }
+    const n = ++this.ranges;
+    const audio = this.host.engine()?.choice === 'audio';
+    const r = await playerIpc.replayRange(id, audio).catch(() => null);
+    if (n !== this.ranges) return;
+    this.range = r ? { from: r.from, to: r.to } : null;
   }
 
   /** The chat bar's entry (Q23); LivePlayer also calls it when the player fails, so the bar goes at once. */
@@ -221,6 +299,7 @@ export class Rewind {
     if (!hidden) this.uptime = up;
     const e = this.host.engine();
     if (!hidden) this.mark();
+    if (!hidden && this.ticks++ % RANGE_EVERY_S === 0) void this.readRange();
     // The VOD's edge stalls: nothing more to load there yet, live has it.
     if (this.inVod && e && e.waiting && !e.swapping && !this.ended && up - e.time < 40) {
       this.stalls += 1;

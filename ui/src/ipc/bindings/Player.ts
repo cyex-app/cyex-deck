@@ -29,4 +29,9 @@ liveRewind: boolean,
 /**
  * V1061-04 How far Left/Right and J/L jump, in seconds: 5, 10, 15 or 30 (Q24 a).
  */
-seekStep: number, };
+seekStep: number, 
+/**
+ * V108-N24 Replay what played here, in minutes (0 off, at most 30), where Twitch's own
+ * rewind isn't there.
+ */
+replayMinutes: number, };

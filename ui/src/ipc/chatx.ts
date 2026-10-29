@@ -13,8 +13,11 @@ import type { FeedOpened } from './bindings/FeedOpened';
 import type { Gif } from './bindings/Gif';
 import type { GifInfo } from './bindings/GifInfo';
 import type { GifSent } from './bindings/GifSent';
+import type { Moment } from './bindings/Moment';
+import type { MomentsFound } from './bindings/MomentsFound';
 import type { PowerUpBuy } from './bindings/PowerUpBuy';
 import type { PowerUps } from './bindings/PowerUps';
+import type { Rate } from './bindings/Rate';
 import type { Recording } from './bindings/Recording';
 import type { RecordingMeta } from './bindings/RecordingMeta';
 import type { VotesUpdate } from './bindings/VotesUpdate';
@@ -41,6 +44,11 @@ export const chatxIpc = {
     listen<{ channel: string; recording: boolean }>('chat:recording', (e) => cb(e.payload)),
   votes: (login: string) => invoke<VotesUpdate | null>('chat_votes', { login }),
   onVotes: (cb: (v: VotesUpdate) => void) => listen<VotesUpdate>('chat:votes', (e) => cb(e.payload)),
+  /** V108-N25 Moments found in a channel's chat so far, oldest first. */
+  moments: (login: string) => invoke<Moment[]>('chat_moments', { login }),
+  onMoments: (cb: (m: MomentsFound) => void) => listen<MomentsFound>('chat:moments', (e) => cb(e.payload)),
+  /** V108-N10 Messages per second in a channel's chat. */
+  rate: (login: string) => invoke<Rate>('chat_rate', { login }),
   vote: (view: number, choice: string, points?: number) => invoke<void>('chat_vote', { view, choice, points }),
   predict: (view: number, outcome: string, points: number) => invoke<void>('chat_predict', { view, outcome, points }),
   powerUps: (view: number) => invoke<PowerUps>('chat_power_ups', { view }),

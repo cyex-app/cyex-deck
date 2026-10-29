@@ -41,6 +41,30 @@ pub async fn create_clip(
     slug_of(&data)
 }
 
+/// V108-N01 Clips an archive VOD: `video_id` at `offset_secs` from its start. The clip
+/// covers the seconds before that point. Same errors as [`create_clip`].
+pub async fn create_clip_from_video(
+    http: &Http,
+    auth: Auth<'_>,
+    channel_id: &str,
+    video_id: &str,
+    offset_secs: f64,
+) -> Result<String> {
+    const Q: &str = "mutation($input: CreateClipInput!) {
+      createClip(input: $input) { clip { slug } error { code } }
+    }";
+    let data: Value = query(http, auth, Q, video_clip_vars(channel_id, video_id, offset_secs)).await?;
+    slug_of(&data)
+}
+
+fn video_clip_vars(channel_id: &str, video_id: &str, offset_secs: f64) -> Value {
+    json!({ "input": {
+        "broadcasterID": channel_id,
+        "videoID": video_id,
+        "offsetSeconds": offset_secs.max(0.0),
+    } })
+}
+
 fn slug_of(data: &Value) -> Result<String> {
     let made = &data["createClip"];
     if let Some(code) = made["error"]["code"].as_str() {
@@ -82,6 +106,14 @@ mod tests {
         assert!(matches!(slug_of(&offline), Err(Error::Refused(c)) if c == "CHANNEL_NOT_LIVE"));
         let empty = json!({ "createClip": null });
         assert!(matches!(slug_of(&empty), Err(Error::Refused(c)) if c == "UNKNOWN"));
+    }
+
+    #[test]
+    fn vod_clip_uses_video_id_only() {
+        let v = video_clip_vars("1", "2345", -4.0);
+        assert_eq!(v["input"]["videoID"], "2345");
+        assert!(v["input"].get("broadcastID").is_none());
+        assert_eq!(v["input"]["offsetSeconds"], 0.0);
     }
 
     #[test]

@@ -41,6 +41,7 @@
   import { runEntry, toItems, userMenus } from './menus.svelte';
   import MessageList from './MessageList.svelte';
   import PinnedBanner from './PinnedBanner.svelte';
+  import RateMeter from './RateMeter.svelte';
   import { ChatRoom } from './room.svelte';
   import SearchPopup from './SearchPopup.svelte';
   import ViewerList from './ViewerList.svelte';
@@ -369,6 +370,7 @@
         </span>
       {/if}
     </div>
+    {#if settings.v.chat.rateMeter}<RateMeter {login} />{/if}
     {#if modRole}
       <!-- V101-33 Mod mode: delete, timeout and ban in front of each line, per chat. -->
       <IconButton

@@ -17,9 +17,34 @@ use crate::player::{self, PlayerSession, Players};
 type CmdResult<T> = Result<T, String>;
 
 /// 1.1 A live stream for this window's player, signed in as `account` when it can (D19).
+/// `replay`: the player's key for going back in what it played (V108-N24).
 #[tauri::command]
-pub fn player_live(app: AppHandle, window: Window, login: String, account: Option<String>) -> PlayerSession {
-    player::open_live(&app, window.label(), &login, account.as_deref())
+pub fn player_live(
+    app: AppHandle,
+    window: Window,
+    login: String,
+    account: Option<String>,
+    replay: Option<String>,
+) -> PlayerSession {
+    player::open_live(&app, window.label(), &login, account.as_deref(), replay.as_deref())
+}
+
+/// V108-N24 Live session `id`'s replay from `at` (ms since 1970), None when it holds nothing.
+#[tauri::command]
+pub fn player_replay(app: AppHandle, id: String, at: f64, audio: bool) -> Option<player::replay::ReplayStart> {
+    player::replay::start(&app, &id, at as i64, audio)
+}
+
+/// V108-N24 What live session `id`'s replay holds now.
+#[tauri::command]
+pub fn player_replay_range(app: AppHandle, id: String, audio: bool) -> Option<player::replay::ReplayRange> {
+    player::replay::range(&app, &id, audio)
+}
+
+/// V108-N24 The player couldn't load this replay segment.
+#[tauri::command]
+pub fn player_replay_gone(app: AppHandle, id: String, uri: String) {
+    player::replay::gone(&app, &id, &uri);
 }
 
 /// 1.1 A VOD for this window's player.

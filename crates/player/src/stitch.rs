@@ -132,6 +132,20 @@ impl Stitcher {
         self.window.is_empty()
     }
 
+    /// V108-N24 The number the next segment gets: pass it to `since` after a push.
+    pub fn next_seq(&self) -> u64 {
+        self.next_seq
+    }
+
+    /// V108-N24 Segments numbered `seq` or later, with their discontinuity mark.
+    pub fn since(&self, seq: u64) -> impl Iterator<Item = (&Segment, bool)> {
+        self.window.iter().filter(move |o| o.seq >= seq).map(|o| (&o.segment, o.discontinuity))
+    }
+
+    pub fn target(&self) -> u32 {
+        self.target
+    }
+
     pub fn render(&self) -> String {
         let fmp4 = self.window.iter().any(|o| o.segment.map.is_some());
         let first = self.window.front().map_or(self.next_seq, |o| o.seq);
@@ -163,7 +177,7 @@ impl Stitcher {
     }
 }
 
-fn format_time(ms: i64) -> Option<String> {
+pub(crate) fn format_time(ms: i64) -> Option<String> {
     let t = OffsetDateTime::from_unix_timestamp_nanos(i128::from(ms) * 1_000_000).ok()?;
     t.format(format_description!(
         "[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:3]Z"

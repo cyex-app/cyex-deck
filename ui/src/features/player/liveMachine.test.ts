@@ -111,6 +111,11 @@ test('resumeStep branches', () => {
   assert.equal(r.step, 'reload');
   assert.equal(r.pos, 7);
   assert.equal(r.s.pausedAt, 0);
+  // V108-N24 The paused spot is in the replay: past the live gap it plays on from there.
+  const rp = resumeStep(pausedAt(1000), { ...liveRes, replay: true, now: 31_001 });
+  assert.equal(rp.step, 'replay');
+  assert.equal(rp.s.phase, 'playing');
+  assert.equal(resumeStep(pausedAt(1000), { ...liveRes, replay: true, now: 6000 }).step, 'sync');
 });
 
 test('V1061-01 two own pauses, one event: the user pause after it still counts', () => {

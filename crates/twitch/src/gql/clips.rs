@@ -67,6 +67,24 @@ pub struct ClipPlayback {
     pub vod_offset: Option<u32>,
 }
 
+impl ClipPlayback {
+    /// V108-N02 The MP4 to save: the landscape file of `height` (or the best one when that
+    /// height isn't there) and a file name for it, `<slug>-<height>p.mp4`. The URL is the
+    /// signed one the player plays. `None` for a clip without files.
+    pub fn download(&self, height: Option<u32>) -> Option<(String, String)> {
+        let q = height
+            .and_then(|h| self.qualities.iter().find(|q| q.height == h))
+            .or_else(|| self.qualities.first())?;
+        Some((q.url.clone(), format!("{}-{}p.mp4", file_stem(&self.clip.slug), q.height)))
+    }
+}
+
+/// A slug is safe in a file name already; this guards the odd one.
+fn file_stem(slug: &str) -> String {
+    let s: String = slug.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect();
+    if s.is_empty() { "clip".into() } else { s }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -327,6 +345,24 @@ struct RawQuality {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn v108_n02_download_picks_a_height_or_the_best() {
+        let d: ClipData = serde_json::from_str(
+            r#"{"clip":{"slug":"Funny-AbC","playbackAccessToken":{"signature":"s","value":"v"},
+              "videoQualities":[{"frameRate":30,"quality":"480","sourceURL":"https://c.example/480/index.mp4"},
+                                {"frameRate":60,"quality":"1080","sourceURL":"https://c.example/1080/index.mp4"}]}}"#,
+        )
+        .unwrap();
+        let p = playback(d.clip.unwrap()).unwrap();
+        let (url, name) = p.download(None).unwrap();
+        assert!(url.starts_with("https://c.example/1080/") && url.contains("sig=s"));
+        assert_eq!(name, "Funny-AbC-1080p.mp4");
+        assert_eq!(p.download(Some(480)).unwrap().1, "Funny-AbC-480p.mp4");
+        assert_eq!(p.download(Some(720)).unwrap().1, "Funny-AbC-1080p.mp4");
+        assert_eq!(file_stem("a/b c"), "a_b_c");
+        assert_eq!(file_stem(""), "clip");
+    }
+
     use super::*;
 
     #[test]

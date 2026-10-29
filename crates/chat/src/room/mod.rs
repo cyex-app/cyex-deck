@@ -8,6 +8,7 @@ mod gap;
 pub use gap::{GAP_NOTE, gap_may_miss};
 mod hook;
 mod keep;
+mod moments;
 mod presence;
 mod role;
 mod stack;
@@ -105,6 +106,8 @@ pub struct Room {
     presence: presence::Batches,
     /// V107-M7 Timeouts in a row, one line per user.
     timeouts: stack::Stacks,
+    /// V108-N25, V108-N10 Spikes and events found in live lines, and the messages-per-second count.
+    moments: crate::moments::Moments,
 }
 
 impl Room {
@@ -132,6 +135,7 @@ impl Room {
             lost_at: None,
             presence: presence::Batches::default(),
             timeouts: stack::Stacks::default(),
+            moments: crate::moments::Moments::default(),
         };
         room.state.own = room.initial_own();
         room
@@ -624,6 +628,8 @@ impl Room {
         if !self.hooked(&mut m, emotes) {
             return None;
         }
+        // V108-N25 Hidden lines count too: the chat was that busy.
+        self.moments.feed(&m, now_ms);
         let (shown, outcome) = self.screen(&mut m, now_ms);
         let m = Arc::new(m);
         // V106-33 A pop-up alone counts too.

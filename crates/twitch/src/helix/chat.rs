@@ -101,8 +101,20 @@ fn group(raw: Vec<RawEmote>) -> Vec<EmoteSet> {
 /// M11 Sends a chat message and returns its id; [`Error::Refused`] with Twitch's reason
 /// when it was dropped (AutoMod, slow mode, …).
 pub async fn send_message(http: &Http, auth: Auth<'_>, broadcaster_id: &str, sender_id: &str, text: &str) -> Result<String> {
-    let req = post(http, auth, "/chat/messages")
-        .json(&serde_json::json!({ "broadcaster_id": broadcaster_id, "sender_id": sender_id, "message": text }));
+    send_message_with(http, auth, broadcaster_id, sender_id, text, false).await
+}
+
+/// V108-N12 The same, and with `for_source_only` in a Shared Chat session the message stays
+/// in this channel instead of going to every channel in the session. Needs `user:write:chat`.
+pub async fn send_message_with(
+    http: &Http,
+    auth: Auth<'_>,
+    broadcaster_id: &str,
+    sender_id: &str,
+    text: &str,
+    source_only: bool,
+) -> Result<String> {
+    let req = post(http, auth, "/chat/messages").json(&send_body(broadcaster_id, sender_id, text, source_only));
     let page: Sent = json(req).await?;
     let first = page.data.into_iter().next().ok_or_else(|| Error::Refused("NOT_SENT".into()))?;
     match (first.is_sent, first.message_id) {
@@ -111,6 +123,15 @@ pub async fn send_message(http: &Http, auth: Auth<'_>, broadcaster_id: &str, sen
             first.drop_reason.map(|d| d.message).unwrap_or_else(|| "Twitch didn’t send it.".into()),
         )),
     }
+}
+
+/// The request body; `for_source_only` is only sent when asked for, so plain sends stay as before.
+fn send_body(broadcaster_id: &str, sender_id: &str, text: &str, source_only: bool) -> serde_json::Value {
+    let mut body = serde_json::json!({ "broadcaster_id": broadcaster_id, "sender_id": sender_id, "message": text });
+    if source_only {
+        body["for_source_only"] = serde_json::Value::Bool(true);
+    }
+    body
 }
 
 #[derive(Deserialize)]
@@ -144,6 +165,14 @@ pub async fn set_chat_color(http: &Http, auth: Auth<'_>, user_id: &str, color: &
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn source_only_is_sent_only_when_asked() {
+        let plain = send_body("1", "2", "hi", false);
+        assert!(plain.get("for_source_only").is_none());
+        assert_eq!(plain["message"], "hi");
+        assert_eq!(send_body("1", "2", "hi", true)["for_source_only"], true);
+    }
 
     #[test]
     fn emotes_group_by_set() {

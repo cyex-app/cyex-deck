@@ -14,6 +14,7 @@ pub mod global;
 pub mod identity;
 pub mod live;
 mod mention;
+pub mod moments;
 mod park;
 pub mod peek;
 pub mod points;

@@ -18,9 +18,13 @@
     tone?: 'accent' | 'neutral';
     /** rd-4 Read out at rest; while dragging it is `format` of the thumb. */
     valueText?: string;
+    /** V108-N24 Nothing to play before this: that part shows dimmed, a seek there lands here. */
+    min?: number;
+    /** V108-N24 The hover tip over the dimmed part. */
+    minText?: string;
   }
 
-  let { duration, time, buffered, storyboard, onwantpreview, onseek, format = clock, tone = 'accent', valueText }: Props = $props();
+  let { duration, time, buffered, storyboard, onwantpreview, onseek, format = clock, tone = 'accent', valueText, min = 0, minText }: Props = $props();
 
   let track = $state<HTMLElement>();
   let hover = $state<number | null>(null);
@@ -65,8 +69,10 @@
   function onup(e: PointerEvent) {
     if (!dragging) return;
     dragging = false;
-    onseek(at(e));
+    onseek(Math.max(min, at(e)));
   }
+
+  const tip = (t: number) => (t < min && minText ? minText : format(Math.max(min, t)));
 </script>
 
 <div
@@ -75,10 +81,10 @@
   role="slider"
   tabindex="-1"
   aria-label="Seek"
-  aria-valuemin={0}
+  aria-valuemin={Math.round(Math.max(0, min))}
   aria-valuemax={Math.round(duration)}
   aria-valuenow={Math.round(shown)}
-  aria-valuetext={dragging ? format(shown) : valueText}
+  aria-valuetext={dragging ? tip(shown) : valueText}
   onpointermove={onmove}
   onpointerleave={() => !dragging && (hover = null)}
   onpointerdown={ondown}
@@ -88,6 +94,7 @@
     <!-- s1-13 Scaled, not sized: no layout on every time update. -->
     <div class="buffered" style:transform="scaleX({frac(buffered)})"></div>
     <div class="played" class:neutral={tone === 'neutral'} style:transform="scaleX({frac(shown)})"></div>
+    {#if min > 0}<div class="gone" style:transform="scaleX({frac(min)})"></div>{/if}
   </div>
   <!-- d-8 The thumb, while hovering or dragging. -->
   <div class="knob-track" style:transform="translateX({pct(shown)})" aria-hidden="true">
@@ -104,7 +111,7 @@
           style:background-position="-{preview.x}px -{preview.y}px"
         ></div>
       {/if}
-      <span>{format(hover)}</span>
+      <span>{tip(hover)}</span>
     </div>
   {/if}
 </div>
@@ -131,7 +138,8 @@
     transform: scaleY(1.5);
   }
   .buffered,
-  .played {
+  .played,
+  .gone {
     position: absolute;
     inset: 0;
     border-radius: var(--radius-sm);
@@ -170,6 +178,11 @@
   }
   .played {
     background: var(--accent-hover);
+  }
+  /* V108-N24 Not recorded: darker than the rail, over the played part. */
+  .gone {
+    z-index: 1;
+    background: var(--scrim-strong);
   }
   .played.neutral {
     background: color-mix(in srgb, var(--on-video) 80%, transparent);

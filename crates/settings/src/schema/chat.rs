@@ -107,6 +107,8 @@ pub struct Chat {
     pub repeat_similarity: u8,
     /// C26 Show which app sent a message. Setting, off.
     pub show_client: bool,
+    /// V108-N10 Messages per second in the chat header. Setting, off.
+    pub rate_meter: bool,
     /// 1.52 Hover a link for a preview.
     pub link_previews: bool,
     /// 1.52
@@ -173,6 +175,7 @@ impl Default for Chat {
             repeats: false,
             repeat_similarity: 80,
             show_client: false,
+            rate_meter: false,
             link_previews: true,
             link_thumbnails: LinkThumbs::Medium,
             link_cards: false,

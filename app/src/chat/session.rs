@@ -280,6 +280,8 @@ fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_
         })
         .collect();
     let outcomes = entry.room.take_outcomes();
+    // V108-N25 Spikes and events this line made.
+    let moments = entry.room.take_moments();
     let live: Vec<_> = events
         .iter()
         .filter_map(|e| match e {
@@ -301,6 +303,9 @@ fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_
     // V102-21 A role change here: mod feeds (1.46) and every window.
     if role != role_before && let Identity::Account(_) = identity {
         super::roles::changed(app);
+    }
+    if !moments.is_empty() {
+        super::moments::announce(app, channel, moments);
     }
     let muted = super::rules::current(app).muted(channel);
     for (m, outcome) in outcomes {

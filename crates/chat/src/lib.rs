@@ -10,6 +10,7 @@ pub mod irc;
 pub mod lookalike;
 pub mod mentions;
 pub mod model;
+pub mod moments;
 mod room;
 pub mod rules;
 pub mod search;

@@ -17,6 +17,7 @@ use crate::backup::{self, Backups};
 use crate::fetch::{Fetch, Route};
 use crate::hls::master::{self, Variant};
 use crate::hls::media::{self, Media};
+use crate::replay::Shared;
 use crate::stitch::Stitcher;
 
 #[derive(Clone, Copy, Debug)]
@@ -47,6 +48,8 @@ pub struct Live<F> {
     login: String,
     options: Options,
     state: Mutex<State>,
+    /// V108-N24 Where what the player got is kept for going back.
+    replay: Option<Shared>,
 }
 
 struct State {
@@ -56,6 +59,8 @@ struct State {
     out: HashMap<usize, Stitcher>,
     backups: Backups,
     ad: AdState,
+    /// V108-N24 The variant last played, video and audio only: a replay keeps it read.
+    last: [Option<usize>; 2],
 }
 
 impl<F: Fetch> Live<F> {
@@ -70,8 +75,36 @@ impl<F: Fetch> Live<F> {
                 out: HashMap::new(),
                 backups,
                 ad: AdState::None,
+                last: [None; 2],
             }),
+            replay: None,
         }
+    }
+
+    /// V108-N24 Keeps what this session plays in `ring` (shared across a player's sessions).
+    pub fn with_replay(mut self, ring: Shared) -> Self {
+        self.replay = Some(ring);
+        self
+    }
+
+    pub fn replay_ring(&self) -> Option<&Shared> {
+        self.replay.as_ref()
+    }
+
+    /// V108-N24 The replay playlist (`audio`: the audio only track). Each request also reads
+    /// the stream's playlist, so the replay grows while the player is behind, and ends with
+    /// the stream.
+    pub async fn replay(&self, audio: bool) -> Result<String> {
+        let ring = self.replay.as_ref().ok_or_else(|| gone("no replay"))?;
+        let last = self.state.lock().await.last[usize::from(audio)];
+        if let Some(index) = last
+            && let Err(e) = self.media(index).await
+            && e.api_message().is_some_and(is_offline)
+        {
+            ring.lock().unwrap_or_else(|p| p.into_inner()).end();
+        }
+        let text = ring.lock().unwrap_or_else(|p| p.into_inner()).render(audio);
+        text.ok_or_else(|| gone("nothing to replay"))
     }
 
     /// The master hls.js starts from, each variant at `<index>.m3u8`. Errors carry
@@ -132,7 +165,10 @@ impl<F: Fetch> Live<F> {
             }
         };
         st.ad = ad;
+        let audio = variant.is_audio_only();
+        st.last[usize::from(audio)] = Some(index);
         let out = st.out.entry(index).or_default();
+        let before = out.next_seq();
         if self.options.block_ads {
             out.push(source, from.target_duration, ads::live_segments(&from));
         } else {
@@ -143,6 +179,11 @@ impl<F: Fetch> Live<F> {
         // the stream picks up at once after a break.
         if self.options.low_latency && !ads::in_break(&from) && !ads::ahead(&from) {
             out.push_prefetch(source, from.segments.last(), &from.prefetch);
+        }
+        if let Some(ring) = &self.replay {
+            ring.lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .record(index, audio, out.target(), out.since(before));
         }
         Ok((out.render(), ad))
     }
@@ -213,6 +254,11 @@ impl<F: Fetch> Live<F> {
         st.backups.pause(now);
         None
     }
+}
+
+/// usher's answer for a channel that isn't live.
+fn is_offline(message: &str) -> bool {
+    message.contains("Can not find channel") || message.contains("_or_offline")
 }
 
 pub(crate) fn gone(message: &str) -> Error {
@@ -428,6 +474,34 @@ mod tests {
         assert_eq!(ad, AdState::None);
         assert_eq!(uris(&text).last(), Some(&"https://main/7.ts"), "{text}");
         assert_eq!(text.matches("#EXT-X-DISCONTINUITY\n").count(), 2);
+    }
+
+    #[tokio::test]
+    async fn the_replay_keeps_what_was_served_without_ads_and_ends_with_the_stream() {
+        // V108-N24
+        let s = script();
+        let ring = crate::replay::Replay::shared(5);
+        let live = Live::new(&s, "xqc", OPTIONS).with_replay(ring.clone());
+        assert!(live.replay(false).await.is_err(), "nothing played yet");
+        set(&s, "https://popout/1080.m3u8", playlist("main", 0, 5, 0));
+        live.media(0).await.unwrap();
+        set(&s, "https://popout/1080.m3u8", playlist("main", 2, 9, 3));
+        set(&s, "https://site/1080.m3u8", playlist("site", 2, 9, 0));
+        live.media(0).await.unwrap();
+        // Behind: each replay request reads the stream on.
+        set(&s, "https://popout/1080.m3u8", playlist("main", 7, 12, 0));
+        let text = live.replay(false).await.unwrap();
+        let list = uris(&text);
+        assert!(!list.iter().any(|u| u.contains("main/6") || u.contains("main/7") || u.contains("main/8")), "{text}");
+        assert_eq!(list.first(), Some(&"https://main/0.ts"));
+        assert_eq!(list.last(), Some(&"https://main/12.ts"), "{text}");
+        assert!(text.contains("#EXT-X-PLAYLIST-TYPE:EVENT\n") && !text.contains("ENDLIST"));
+        assert!(live.replay(true).await.is_err(), "no audio only played");
+        // Offline: the replay ends.
+        s.masters.lock().unwrap().clear();
+        s.media.lock().unwrap().clear();
+        let text = live.replay(false).await.unwrap();
+        assert!(text.ends_with("#EXT-X-ENDLIST\n"), "{text}");
     }
 
     #[tokio::test]

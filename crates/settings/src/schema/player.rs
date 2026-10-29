@@ -20,6 +20,9 @@ pub struct Player {
     pub live_rewind: bool,
     /// V1061-04 How far Left/Right and J/L jump, in seconds: 5, 10, 15 or 30 (Q24 a).
     pub seek_step: u8,
+    /// V108-N24 Replay what played here, in minutes (0 off, at most 30), where Twitch's own
+    /// rewind isn't there.
+    pub replay_minutes: u8,
 }
 
 impl Default for Player {
@@ -31,11 +34,16 @@ impl Default for Player {
             mini_corner: Corner::BottomRight,
             live_rewind: true,
             seek_step: 10,
+            replay_minutes: 5,
         }
     }
 }
 
-impl Schema for Player {}
+impl Schema for Player {
+    fn sanitize(&mut self) {
+        self.replay_minutes = self.replay_minutes.min(30);
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export)]
@@ -90,5 +98,16 @@ mod tests {
         assert_eq!((p.live_rewind, p.seek_step), (true, 10));
         let p: Player = serde_json::from_str("{}").unwrap();
         assert_eq!((p.live_rewind, p.seek_step), (true, 10));
+    }
+
+    #[test]
+    fn replay_defaults_to_five_minutes_and_stops_at_thirty() {
+        assert_eq!(Player::default().replay_minutes, 5);
+        let mut p: Player = serde_json::from_str(r#"{"replayMinutes":200}"#).unwrap();
+        p.sanitize();
+        assert_eq!(p.replay_minutes, 30);
+        let mut p: Player = serde_json::from_str(r#"{"replayMinutes":0}"#).unwrap();
+        p.sanitize();
+        assert_eq!(p.replay_minutes, 0);
     }
 }

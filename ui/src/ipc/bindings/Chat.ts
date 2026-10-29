@@ -146,6 +146,10 @@ repeatSimilarity: number,
  */
 showClient: boolean, 
 /**
+ * V108-N10 Messages per second in the chat header. Setting, off.
+ */
+rateMeter: boolean, 
+/**
  * 1.52 Hover a link for a preview.
  */
 linkPreviews: boolean, 

@@ -36,6 +36,7 @@ import {
   userPause,
 } from './liveMachine';
 import { type Choice, levelFor, levelName, lowestLevel } from './quality';
+import { dateAt, nextAfter, type Piece, posAt } from './replayClock';
 import { stallStart, stallStep } from './stall';
 import { isTorn, tornDue, tornStart } from './torn';
 
@@ -75,8 +76,11 @@ export class Engine {
   failure = $state<Failure | null>(null);
   /** V103-07 Started paused: the levels are read, nothing loads until it plays. */
   holding = $state(false);
-  /** V1061-03 The source is the broadcast's VOD (Stream Rewind), not the live playlist. */
+  /** V1061-03 The source is the broadcast's VOD (Stream Rewind), not the live playlist.
+   *  V108-N24 Or the replay of what played here (`replay`): rewound all the same. */
   dvr = $state(false);
+  /** V108-N24 The source is the replay; `time` then counts seconds since `origin`. */
+  replay = $state(false);
   /** V1061-01 Seconds behind the live point on the live source, null when unknown or rewound. */
   behind = $state<number | null>(null);
   atLive = $state(true);
@@ -93,6 +97,11 @@ export class Engine {
   adBreak = false;
   /** Live players: reopens the stream, live when `at` is null, else the VOD from there. */
   onreopen: ((at: number | null) => void) | null = null;
+  /** V108-N24 Where play after a long pause goes in the replay (seconds since the start, for
+   *  a paused date), null when the replay doesn't hold it. */
+  replayAt: ((date: number) => number | null) | null = null;
+  /** V108-N24 A replay segment Twitch no longer has. */
+  ongone: ((uri: string) => void) | null = null;
 
   private hls: HlsType | null = null;
   private H: typeof HlsType | null = null;
@@ -117,6 +126,12 @@ export class Engine {
   private session: PlayerSession | null = null;
   /** VODs: where to begin, in seconds. */
   private startAt = -1;
+  /** V108-N24 The replay's clock start (ms), the stream's start. */
+  private origin = 0;
+  /** V108-N24 The live picture's date at the user's pause. */
+  private pausedDate: number | null = null;
+  /** V108-N24 A missing segment is being skipped. */
+  private skipping = false;
   private playerPx = 720;
   private recovered = 0;
   /** rd-2 Counts loads: only the newest makes an hls instance. */
@@ -179,17 +194,30 @@ export class Engine {
     };
   }
 
-  /** `hold`: paused until played (V103-07). `dvr`: the session is the rewind VOD (V1061-03). */
-  async start(session: PlayerSession, choice: Choice, startAt = -1, hold = false, dvr = false): Promise<void> {
+  /** `hold`: paused until played (V103-07). `dvr`: the session is the rewind VOD (V1061-03).
+   *  `replay`: it's the replay (V108-N24), `startAt` in its playlist; `at` is where that is in
+   *  seconds since `origin` (ms). */
+  async start(
+    session: PlayerSession,
+    choice: Choice,
+    startAt = -1,
+    hold = false,
+    dvr = false,
+    replay: { origin: number; at: number } | null = null,
+  ): Promise<void> {
     // Q14 a A swap: silent, nothing plays meanwhile.
     if (this.gone) return;
     const swap = !!this.hls;
     this.st = begin(this.st, swap, dvr);
     if (swap) this.quietPause();
-    this.dvr = dvr;
+    this.dvr = dvr || !!replay;
+    this.replay = !!replay;
+    this.origin = replay?.origin ?? 0;
+    this.skipping = false;
     clearTimeout(this.stopTimer);
     this.unhold();
-    if (dvr) this.time = startAt;
+    if (replay) this.time = replay.at;
+    else if (dvr) this.time = startAt;
     this.behind = null;
     this.sync = null;
     this.atLive = !dvr;
@@ -217,7 +245,9 @@ export class Engine {
 
   /** V1061-01 Play: a live player decides where it goes on (LivePlayer's play paths). */
   async resume(): Promise<void> {
-    const r = resumeStep(this.st, { live: this.live, holding: this.holding, dvr: this.dvr, hasHls: !!this.hls, now: performance.now() });
+    // V108-N24 A long pause plays on from its spot when the replay still holds it.
+    const back = this.liveSrc && this.pausedDate !== null ? (this.replayAt?.(this.pausedDate) ?? null) : null;
+    const r = resumeStep(this.st, { live: this.live, holding: this.holding, dvr: this.dvr, hasHls: !!this.hls, now: performance.now(), replay: back !== null });
     this.st = r.s;
     // Played again mid-jump after a pause: the jump plays when it lands.
     if (r.step === 'wait') return;
@@ -233,6 +263,8 @@ export class Engine {
       void this.video.play().catch(() => {});
     } else if (plan === 'sync') {
       await this.toLive(true);
+    } else if (plan === 'replay') {
+      this.onreopen?.(back);
     } else if (plan === 'reload') {
       if (this.hls) {
         this.hls.startLoad(pos);
@@ -306,10 +338,15 @@ export class Engine {
     else if (play) await v.play().catch(() => {});
   }
 
-  /** V1061-03 A seek inside the rewind VOD. */
+  /** V1061-03 A seek inside the rewind VOD. V108-N24 In the replay `t` counts from the
+   *  stream's start: placed by the segments' dates. */
   seekIn(t: number): void {
     if (!this.dvr) return;
-    this.video.currentTime = t;
+    if (this.replay) {
+      const pos = posAt(this.pieces(), this.origin + t * 1000);
+      if (pos === null) return;
+      this.video.currentTime = pos;
+    } else this.video.currentTime = t;
     this.time = t;
   }
 
@@ -317,6 +354,12 @@ export class Engine {
   async choose(choice: Choice): Promise<void> {
     const reload = (choice === 'audio') !== (this.choice === 'audio');
     this.choice = choice;
+    // V108-N24 The replay has what played, in its qualities: a new one counts from live on.
+    // To or from audio only it's the other track, from the same spot.
+    if (this.replay) {
+      if (reload) this.onreopen?.(this.time);
+      return;
+    }
     if (!reload) return this.apply(true);
     // A VOD carries on where it was.
     if (!this.liveSrc) this.startAt = this.video.currentTime;
@@ -405,7 +448,8 @@ export class Engine {
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       // V107-N7a The audio master has no video levels: the menu keeps the last ones, so a
       // quality can be picked straight from audio only (it offered just Auto before).
-      if (this.choice !== 'audio' || !this.levels.some((l) => l.height > 0)) {
+      // V108-N24 The replay is one playlist: the menu keeps the stream's levels too.
+      if (!this.replay && (this.choice !== 'audio' || !this.levels.some((l) => l.height > 0))) {
         this.levels = hls.levels
           .map((l, index) => ({ index, name: l.height ? levelName(l) : 'Audio only', height: l.height }))
           .sort((a, b) => b.height - a.height);
@@ -426,7 +470,9 @@ export class Engine {
       }
       void this.video.play().catch(() => {});
     });
-    hls.on(Hls.Events.LEVEL_SWITCHED, (_, d) => (this.level = d.level));
+    hls.on(Hls.Events.LEVEL_SWITCHED, (_, d) => {
+      if (!this.replay) this.level = d.level;
+    });
     // qd-2 The discontinuity the play head is in.
     hls.on(Hls.Events.FRAG_CHANGED, (_, d) => (this.playCc = d.frag.cc));
     hls.on(Hls.Events.LEVEL_UPDATED, (_, d) => {
@@ -489,6 +535,8 @@ export class Engine {
     if (!this.live) {
       return { ...common, backBufferLength: 20, maxBufferLength: 30, maxMaxBufferLength: 40, startPosition: this.startAt };
     }
+    // V108-N24 A segment Twitch no longer has stays gone: no retries, it's skipped.
+    if (this.replay) return { ...common, lowLatencyMode: false, ...dvrConfig(this.startAt), fragLoadPolicy: REPLAY_FRAG_POLICY };
     // V1061-03 The rewind VOD is an EVENT playlist: hls.js must not pull it to its edge.
     if (this.dvr) return { ...common, lowLatencyMode: false, ...dvrConfig(this.startAt) };
     // V1061-01 No catch-up rate: it does nothing without low latency mode (Q14 a).
@@ -497,7 +545,7 @@ export class Engine {
 
   private apply(smooth: boolean): void {
     const hls = this.hls;
-    if (!hls || this.choice === 'audio') return;
+    if (!hls || this.choice === 'audio' || this.replay) return;
     const i = levelFor(hls.levels, this.choice, this.playerPx, this.away.low);
     if (i < 0) return;
     if (!smooth) {
@@ -555,6 +603,7 @@ export class Engine {
   }
 
   private onError(Hls: typeof HlsType, d: ErrorData): void {
+    if (this.skipGone(Hls, d)) return;
     if (!d.fatal) return;
     const code = d.response?.code ?? 0;
     const body = String((d.networkDetails as XMLHttpRequest | undefined)?.responseText ?? '');
@@ -579,6 +628,24 @@ export class Engine {
     } else {
       this.fail('media');
     }
+  }
+
+  /** V108-N24 A replay segment Twitch no longer has: the replay learns of it and plays on
+   *  from the next one, live after the last. */
+  private skipGone(Hls: typeof HlsType, d: ErrorData): boolean {
+    const code = d.response?.code ?? 0;
+    const sn = d.frag?.sn;
+    if (!this.replay || d.details !== Hls.ErrorDetails.FRAG_LOAD_ERROR || !isClientError(code) || typeof sn !== 'number') return false;
+    if (this.skipping) return true;
+    this.skipping = true;
+    if (d.frag?.url) this.ongone?.(d.frag.url);
+    this.onreopen?.(nextAfter(this.pieces(), sn, this.origin));
+    return true;
+  }
+
+  /** V108-N24 The replay's segments. */
+  private pieces(): Piece[] {
+    return this.hls?.levels[0]?.details?.fragments ?? [];
   }
 
   private fail(f: Failure): void {
@@ -641,6 +708,7 @@ export class Engine {
    *  stands, when the element isn't there yet (a rewind VOD reopened while paused). */
   private markPaused(pos = this.video.currentTime): void {
     this.st = paused(this.st, performance.now(), pos);
+    this.pausedDate = this.liveSrc ? (this.hls?.playingDate?.getTime() ?? null) : null;
     this.hls?.pauseBuffering();
     // d-1 No pull to the edge while paused, and the readout counts up from here.
     this.behindAtPause = this.liveSrc ? this.behind : null;
@@ -707,8 +775,16 @@ export class Engine {
     this.checkTorn();
     // A swap shows the asked-for spot until the new source plays; after a failure the last spot stays.
     if (!this.swapping && !this.failure) {
-      this.time = v.currentTime;
-      this.bufferedEnd = rangeEnd(v.buffered, v.currentTime) ?? 0;
+      const end = rangeEnd(v.buffered, v.currentTime);
+      // V108-N24 The replay counts from the stream's start, by the segments' dates.
+      const date = this.replay ? dateAt(this.pieces(), v.currentTime) : null;
+      if (!this.replay) {
+        this.time = v.currentTime;
+        this.bufferedEnd = end ?? 0;
+      } else if (date !== null) {
+        this.time = (date - this.origin) / 1000;
+        this.bufferedEnd = end === null ? this.time : this.time + (end - v.currentTime);
+      }
     }
     const h = this.hls;
     if (!this.liveSrc || !h || this.swapping) {
@@ -770,6 +846,23 @@ function reloadNow(hls: HlsType): boolean {
   lc.loadPlaylist();
   return true;
 }
+
+/** V108-N24 The replay's segment loads: timeouts retry as usual, a 4xx never does. */
+const REPLAY_FRAG_POLICY: HlsConfig['fragLoadPolicy'] = {
+  default: {
+    maxTimeToFirstByteMs: 10_000,
+    maxLoadTimeMs: 120_000,
+    timeoutRetry: { maxNumRetry: 4, retryDelayMs: 0, maxRetryDelayMs: 0 },
+    errorRetry: {
+      maxNumRetry: 6,
+      retryDelayMs: 1000,
+      maxRetryDelayMs: 8000,
+      shouldRetry: (_c, _n, _timeout, res, retry) => retry && !isClientError(res?.code ?? 0),
+    },
+  },
+};
+
+const isClientError = (code: number): boolean => code >= 400 && code < 500;
 
 /** qd-2 How long a jump to live may load before a new instance takes over. */
 const JUMP_MS = 1500;

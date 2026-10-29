@@ -6,5 +6,6 @@ pub mod backup;
 pub mod fetch;
 pub mod hls;
 pub mod live;
+pub mod replay;
 pub mod stitch;
 pub mod vod;

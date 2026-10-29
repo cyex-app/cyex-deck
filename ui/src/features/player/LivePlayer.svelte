@@ -66,6 +66,10 @@
   let shell = $state<Shell>();
   let engine = $state<Engine>();
   let session: PlayerSession | null = null;
+  /** V108-N24 The live session playing (also while its replay plays), null on the rewind VOD. */
+  let liveId: string | null = null;
+  /** V108-N24 This player's replay: kept across its sessions while the channel stays. */
+  const replayKey = crypto.randomUUID();
   let ad = $state<AdState>('none');
   let stats = $state(false);
   let tries = 0;
@@ -91,6 +95,11 @@
     engine = e;
     // V1061-01 Play after a long pause, or a swept session, opens the stream afresh.
     e.onreopen = (at) => void start(e, e.choice, login, account, false, at);
+    // V108-N24 A long pause plays on from its spot in the replay; a segment Twitch lost is skipped.
+    e.replayAt = (date) => rewind.replayAt(date);
+    e.ongone = (uri) => {
+      if (liveId) void playerIpc.replayGone(liveId, uri);
+    };
     // The setting is where new players start; a change doesn't restart this one.
     void start(e, untrack(() => settings.v.player.quality), login, account, untrack(() => held));
     const ro = new ResizeObserver(([entry]) => e.fit(entry.contentRect.height * devicePixelRatio));
@@ -158,6 +167,7 @@
   const rewindHost = {
     engine: () => engine,
     open: (at: number | null) => (engine ? start(engine, engine.choice, login, account, false, at) : Promise.resolve()),
+    liveId: () => liveId,
   };
   let rewindLogin = untrack(() => login);
   let rewind = $state.raw(new Rewind(rewindHost, rewindLogin));
@@ -173,7 +183,12 @@
   });
   $effect(() => {
     const r = rewind;
-    const o = { account, startedAt: info?.stream?.startedAt ?? null, enabled: settings.v.player.liveRewind };
+    const o = {
+      account,
+      startedAt: info?.stream?.startedAt ?? null,
+      enabled: settings.v.player.liveRewind,
+      replay: settings.v.player.replayMinutes,
+    };
     untrack(() => r.watch(o));
   });
   // Q21 a An offline player drops the chat bar now, not on the next clock tick.
@@ -222,23 +237,39 @@
   const starts = latest();
 
   /** Only the newest start counts; a failure shows as "didn’t load" (and retries, see above).
-   *  `at`: the rewind VOD from there (V1061-03), null for live. What plays keeps playing until
-   *  the new session is in (Q14 a). */
+   *  `at`: the rewind VOD from there (V1061-03) or the replay (V108-N24), null for live. What
+   *  plays keeps playing until the new session is in (Q14 a). */
   async function start(e: Engine, choice: Choice, channel: string, as: string | null, hold = false, at: number | null = null) {
-    // The VOD went away since the seek (or the retry): live instead.
+    // The VOD or the replay went away since the seek (or the retry): live instead.
+    const mode = at === null ? null : rewind.mode;
     const vod = rewind.vodId;
-    if (at !== null && !vod) at = null;
+    if (mode === null || (mode === 'dvr' && !vod)) at = null;
     const current = starts.begin();
     const old = session;
     e.failure = null;
     if (!old) e.waiting = true;
     try {
-      const s = at === null ? await playerIpc.live(channel, as) : await playerIpc.vod(vod!, as);
+      // V108-N24 The replay is the live session's own: nothing new opens, nothing closes.
+      if (at !== null && mode === 'replay') {
+        const origin = rewind.origin;
+        const r = liveId ? await playerIpc.replay(liveId, origin + at * 1000, choice === 'audio') : null;
+        if (!current()) return;
+        if (r) {
+          session = r.session;
+          ad = 'none';
+          await e.start(r.session, choice, r.offset, hold, false, { origin, at });
+          if (old && old.id !== r.session.id) void playerIpc.close(old.id);
+          return;
+        }
+        at = null;
+      }
+      const s = at === null ? await playerIpc.live(channel, as, replayKey) : await playerIpc.vod(vod!, as);
       if (!current()) return void playerIpc.close(s.id);
       session = s;
+      liveId = at === null ? s.id : null;
       ad = 'none';
       await e.start(s, choice, at ?? -1, hold, at !== null);
-      if (old && old !== s) void playerIpc.close(old.id);
+      if (old && old.id !== s.id) void playerIpc.close(old.id);
     } catch {
       if (!current()) return;
       // A swap that failed leaves the old source playing.
@@ -448,16 +479,20 @@
     {#snippet bar()}
       {#if !mini}
         {#if rewind.on}
-          <!-- V1061-03 The whole broadcast; at live the thumb sits at the right end. -->
+          <!-- V1061-03 The whole broadcast; at live the thumb sits at the right end. V108-N24 The
+               replay: its length back from now, the part not recorded yet dimmed. -->
+          {@const b = rewind.start}
           <div class="rows">
             <SeekBar
-              duration={rewind.uptime}
-              time={rewind.pos}
-              buffered={rewind.inVod ? (engine?.bufferedEnd ?? 0) : rewind.uptime}
+              duration={rewind.uptime - b}
+              time={rewind.pos - b}
+              buffered={(rewind.inVod ? (engine?.bufferedEnd ?? 0) : rewind.uptime) - b}
+              min={rewind.min - b}
+              minText={rewind.mode === 'replay' ? `Replay covers the last ${rewind.replayMinutes} min` : undefined}
               tone="neutral"
-              format={(t) => (rewind.uptime - t < DVR_GAP ? 'Live' : behindText(rewind.uptime - t))}
+              format={(t) => (rewind.uptime - b - t < DVR_GAP ? 'Live' : behindText(rewind.uptime - b - t))}
               valueText={rewind.atLive ? 'Live' : `${behindText(rewind.behind ?? 0)} behind live`}
-              onseek={(t) => rewind.seekTo(t)}
+              onseek={(t) => rewind.seekTo(t + b)}
             />
             <div class="row">{@render row()}</div>
           </div>

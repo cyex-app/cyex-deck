@@ -8,15 +8,17 @@ mod clips;
 pub mod eventsub;
 mod follows;
 pub mod gueststar;
+pub mod moderated;
 pub mod moderation;
 pub mod modes;
 pub mod roles;
+pub mod schedule;
 pub mod stats;
 mod users;
 pub mod votes;
 pub mod whispers;
 
-pub use chat::{send_message, set_chat_color, user_emotes};
+pub use chat::{send_message, send_message_with, set_chat_color, user_emotes};
 pub use clips::{CreatedClip, create_clip};
 pub use follows::{followed_at, followed_ids, followed_live_ids};
 pub use users::{User, users_by_id, users_by_login};

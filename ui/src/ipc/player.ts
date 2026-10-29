@@ -10,6 +10,8 @@ import type { ClipPlayback } from './bindings/ClipPlayback';
 import type { ClipSort } from './bindings/ClipSort';
 import type { MadeClip } from './bindings/MadeClip';
 import type { PlayerSession } from './bindings/PlayerSession';
+import type { ReplayRange } from './bindings/ReplayRange';
+import type { ReplayStart } from './bindings/ReplayStart';
 import type { Story } from './bindings/Story';
 import type { Storyboard } from './bindings/Storyboard';
 import type { StoryRing } from './bindings/StoryRing';
@@ -19,7 +21,13 @@ import type { VideoSort } from './bindings/VideoSort';
 import type { VodProgress } from './bindings/VodProgress';
 
 export const playerIpc = {
-  live: (login: string, account: string | null) => invoke<PlayerSession>('player_live', { login, account }),
+  /** `replay`: the player's key, so what it plays is kept for going back (V108-N24). */
+  live: (login: string, account: string | null, replay: string | null = null) =>
+    invoke<PlayerSession>('player_live', { login, account, replay }),
+  /** V108-N24 Live session `id`'s replay from `at` (ms), null when it holds nothing. */
+  replay: (id: string, at: number, audio: boolean) => invoke<ReplayStart | null>('player_replay', { id, at, audio }),
+  replayRange: (id: string, audio: boolean) => invoke<ReplayRange | null>('player_replay_range', { id, audio }),
+  replayGone: (id: string, uri: string) => invoke<void>('player_replay_gone', { id, uri }),
   vod: (id: string, account: string | null) => invoke<PlayerSession>('player_vod', { id, account }),
   /** V1061-03 The VOD Twitch lets this account rewind in, or null. */
   rewind: (login: string, account: string | null) => invoke<string | null>('player_rewind', { login, account }),

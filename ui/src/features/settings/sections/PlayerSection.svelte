@@ -13,10 +13,13 @@
   import { errorText } from '../../../lib/errors';
   import Select from '../../../components/Select.svelte';
   import { stepChoice } from '../../player/liveKeys';
+  import { REPLAY_MINUTES, replayChoice } from '../../player/liveEdge';
 
   const p = $derived(settings.v.player);
 
   const STEPS = [5, 10, 15, 30].map((n) => ({ value: String(n), label: `${n} seconds` }));
+  // V108-N24
+  const REPLAYS = REPLAY_MINUTES.map((n) => ({ value: String(n), label: n ? `${n} minutes` : 'Off' }));
 
   const QUALITIES: { value: Quality; label: string }[] = [
     { value: 'auto', label: 'Auto: fits the player' },
@@ -57,6 +60,10 @@
 
 <Row setting="player.liveRewind" label="Live VODs" hint="Go back in live streams where Twitch allows it: Turbo, or a sub without ads.">
   <Toggle label="Live VODs" checked={p.liveRewind} onchange={(v) => settings.patch('player', { liveRewind: v })} />
+</Row>
+
+<Row setting="player.replayMinutes" label="Replay" hint="Go back in what played here, where Twitch has no rewind. Only what this player already loaded.">
+  <Select label="Replay" width="160px" value={String(replayChoice(p.replayMinutes))} options={REPLAYS} onchange={(v) => settings.patch('player', { replayMinutes: Number(v) })} />
 </Row>
 
 <Row setting="player.seekStep" label="Skip step" hint="How far Left and Right, or J and L, jump.">

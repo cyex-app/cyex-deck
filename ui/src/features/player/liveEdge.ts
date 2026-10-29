@@ -33,19 +33,28 @@ export function uptimeAt(startedAt: string | null, now: number): number {
   return Math.max(0, Math.floor((now - t) / 1000));
 }
 
-/** Bar seek: within DVR_GAP of uptime → 'live', else clamped to [0, uptime − DVR_GAP]. */
-export function dvrTarget(t: number, uptime: number): number | 'live' {
+/** Bar seek: within DVR_GAP of uptime → 'live', else clamped to [min, uptime − DVR_GAP].
+ *  `min`: where going back can start (0 for Twitch's rewind, the replay's start, V108-N24). */
+export function dvrTarget(t: number, uptime: number, min = 0): number | 'live' {
   if (uptime - t < DVR_GAP) return 'live';
-  return Math.max(0, t);
+  return Math.max(min, t);
 }
 
 /** Key step from `base`. Back into the gap lands at uptime − DVR_GAP (A-L5); forward into it → 'live'. */
-export function stepTarget(base: number, s: number, uptime: number): { at: number | 'live'; edge: 'start' | null } {
+export function stepTarget(base: number, s: number, uptime: number, min = 0): { at: number | 'live'; edge: 'start' | null } {
   const t = base + s;
   if (s > 0 && uptime - t < DVR_GAP) return { at: 'live', edge: null };
   const max = uptime - DVR_GAP;
-  if (max <= 0) return { at: 'live', edge: 'start' };
-  return { at: Math.min(max, Math.max(0, t)), edge: t < 0 ? 'start' : null };
+  if (max <= min) return { at: 'live', edge: 'start' };
+  return { at: Math.min(max, Math.max(min, t)), edge: t < min ? 'start' : null };
+}
+
+/** V108-N24 Replay lengths offered in settings, minutes; 0 is off. */
+export const REPLAY_MINUTES = [0, 2, 5, 10, 15, 30] as const;
+
+/** V108-N24 The offered length closest to `n` (a hand-edited setting still shows). */
+export function replayChoice(n: number): number {
+  return REPLAY_MINUTES.reduce((best, m) => (Math.abs(m - n) < Math.abs(best - n) ? m : best), 5);
 }
 
 /** A max latency hls.js never reaches: it doesn't pull the player to the edge. */
@@ -89,9 +98,11 @@ export function dvrConfig(startAt: number): Partial<HlsConfig> {
 }
 
 /** Q15 a, Q16 a What play does after a pause. A plain pause at live comes back live;
- *  only a deliberate rewind stays. */
-export function resumePlan(o: { pausedMs: number; inVod: boolean; stopped: boolean }): 'play' | 'sync' | 'reopen' | 'stay' | 'reload' {
+ *  only a deliberate rewind stays. V108-N24 With the paused spot still in the replay, a pause
+ *  longer than the live gap plays on from there. */
+export function resumePlan(o: { pausedMs: number; inVod: boolean; stopped: boolean; replay?: boolean }): 'play' | 'sync' | 'reopen' | 'stay' | 'reload' | 'replay' {
   if (o.inVod) return o.stopped ? 'reload' : 'stay';
+  if (o.replay && o.pausedMs > DVR_GAP * 1000) return 'replay';
   if (o.stopped || o.pausedMs >= PAUSE_STOP_MS) return 'reopen';
   if (o.pausedMs < 1000) return 'play';
   return 'sync';

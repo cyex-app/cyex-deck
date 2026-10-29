@@ -1,6 +1,7 @@
 //! `cyexhls://`: what hls.js loads. Twitch's playlist and VOD servers refuse the app's own
 //! origin, so they're fetched in Rust and served from here. Paths:
 //! `live/<id>/master.m3u8`, `live/<id>/audio.m3u8`, `live/<id>/<variant>.m3u8`,
+//! `live/<id>/replay.m3u8`, `live/<id>/replay-audio.m3u8` (V108-N24),
 //! `vod/<id>/master.m3u8`, `vod/<id>/audio.m3u8`, `vod/<id>/<variant>/index.m3u8`,
 //! `vod/<id>/<variant>/<segment>`. Also the pictures of chat recordings (X6):
 //! `rec/<id>/<file>`.
@@ -53,6 +54,8 @@ async fn route(app: &AppHandle, path: &str) -> Result<Response<Vec<u8>>, Error> 
             let kind = if rest.last().is_some_and(|f| f.ends_with(".mp4")) { "video/mp4" } else { "video/mp2t" };
             Ok(response(200, kind, live.mock_segment(&rest.join("/")).await?))
         }
+        (Kind::Live(live), "live", ["replay.m3u8"]) => Ok(playlist(live.replay(false).await?)),
+        (Kind::Live(live), "live", ["replay-audio.m3u8"]) => Ok(playlist(live.replay(true).await?)),
         (Kind::Live(live), "live", [file]) => {
             let index = file.strip_suffix(".m3u8").and_then(|n| n.parse().ok()).ok_or_else(missing)?;
             let (text, ad) = live.media(index).await?;

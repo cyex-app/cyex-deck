@@ -152,6 +152,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         chat_extra::recording_load,
         chat_extra::recording_delete,
         chat_extra::chat_votes,
+        chat_extra::chat_rate,
+        chat_extra::chat_moments,
         chat_extra::chat_vote,
         chat_extra::chat_predict,
         chat_extra::chat_power_ups,
@@ -383,5 +385,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         windows::layout_save,
         windows::layout_apply,
         windows::layout_delete,
+        player::player_replay,
+        player::player_replay_range,
+        player::player_replay_gone,
     ]
 }
