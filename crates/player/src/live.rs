@@ -495,7 +495,7 @@ mod tests {
         assert!(!list.iter().any(|u| u.contains("main/6") || u.contains("main/7") || u.contains("main/8")), "{text}");
         assert_eq!(list.first(), Some(&"https://main/0.ts"));
         assert_eq!(list.last(), Some(&"https://main/12.ts"), "{text}");
-        assert!(text.contains("#EXT-X-PLAYLIST-TYPE:EVENT\n") && !text.contains("ENDLIST"));
+        assert!(!text.contains("PLAYLIST-TYPE") && !text.contains("ENDLIST"));
         assert!(live.replay(true).await.is_err(), "no audio only played");
         // Offline: the replay ends.
         s.masters.lock().unwrap().clear();

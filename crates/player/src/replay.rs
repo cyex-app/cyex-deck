@@ -3,8 +3,9 @@
 //! the archive VOD (V1061-03 stays: no way around Twitch's perk). Ads were cut by the stitcher,
 //! so there are none in here.
 //!
-//! One track for video, one for audio only: they can't share a playlist. Each is served as an
-//! EVENT playlist with a date per segment; it grows while live and ends when the stream does.
+//! One track for video, one for audio only: they can't share a playlist. Each is served as a
+//! live playlist with a date per segment (not EVENT: the cap trims its front); it grows while
+//! live and ends when the stream does.
 //! About 150 B a segment: 30 min is under 200 KB.
 
 use std::collections::VecDeque;
@@ -21,6 +22,9 @@ pub const MAX_MINUTES: u8 = 30;
 /// playlist still loaded, same bytes, 8 min later. A missing segment younger than this is a
 /// hole; an older one says how long Twitch keeps them, and everything older goes.
 pub const KNOWN_LIFETIME_MS: i64 = 8 * 60_000;
+
+/// V108-N24 How far outside a track's range a start may ask and still be placed at its edge.
+pub const START_SLACK_MS: i64 = 30_000;
 
 /// One ring per player, shared by its live sessions (a reopen keeps what was recorded).
 pub type Shared = Arc<Mutex<Replay>>;
@@ -133,6 +137,13 @@ impl Replay {
         })
     }
 
+    /// V108-N24 Whether the track holds `at` (ms), give or take `START_SLACK_MS`. The other
+    /// track (audio only, or back to video) may not: it was only recorded while it played.
+    pub fn covers(&self, audio: bool, at: i64) -> bool {
+        self.range(audio)
+            .is_some_and(|r| at >= r.from - START_SLACK_MS && at <= r.to + START_SLACK_MS)
+    }
+
     /// Seconds into the playlist for `at` (ms). Before the first segment or in a hole: the
     /// next segment's start; past the end: the last one's start.
     pub fn offset(&self, audio: bool, at: i64) -> Option<f64> {
@@ -162,15 +173,18 @@ impl Replay {
             .map(|e| e.duration.ceil() as u32)
             .max()
             .unwrap_or(1);
+        // V108-N24 No EXT-X-PLAYLIST-TYPE: an EVENT playlist may never lose its front, and the
+        // cap trims it. A plain live playlist that slides, then ends with ENDLIST, is valid.
+        // The first entry's own mark isn't written (nothing before it), so it counts here.
         let mut out = String::from("#EXTM3U\n");
         let _ = write!(
             out,
-            "#EXT-X-VERSION:{}\n#EXT-X-PLAYLIST-TYPE:EVENT\n#EXT-X-TARGETDURATION:{}\n\
+            "#EXT-X-VERSION:{}\n#EXT-X-TARGETDURATION:{}\n\
              #EXT-X-MEDIA-SEQUENCE:{}\n#EXT-X-DISCONTINUITY-SEQUENCE:{}\n",
             if fmp4 { 6 } else { 3 },
             t.target.max(longest).max(1),
             first.seq,
-            t.gone_marks,
+            t.gone_marks + u64::from(first.discontinuity),
         );
         let mut map: Option<&str> = None;
         for (i, e) in t.entries.iter().enumerate() {
@@ -314,7 +328,7 @@ mod tests {
         rec(&mut r, 0, false, &segs("a", 2, 8));
         let text = r.render(false).unwrap();
         assert_eq!(uris(&text).len(), 8);
-        assert!(text.starts_with("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-PLAYLIST-TYPE:EVENT\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:0\n"));
+        assert!(text.starts_with("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:0\n"));
         assert!(text.contains(
             "#EXT-X-PROGRAM-DATE-TIME:2026-10-06T12:00:00.000Z\n#EXTINF:2.000,live\nhttps://a/0.ts\n"
         ));
@@ -398,6 +412,47 @@ mod tests {
         let text = r.render(false).unwrap();
         assert!(text.contains("#EXT-X-DISCONTINUITY-SEQUENCE:1\n"), "{text}");
         assert!(!text.contains("#EXT-X-DISCONTINUITY\n"));
+    }
+
+    #[test]
+    fn a_marked_first_entry_counts_its_mark() {
+        let mut r = Replay::new(1);
+        rec(&mut r, 0, false, &segs("a", 0, 10));
+        // Paused 20 s: the piece after the hole starts with a mark.
+        rec(&mut r, 0, false, &segs("a", 20, 50));
+        // The cap trimmed everything before the hole: the marked entry leads.
+        let text = r.render(false).unwrap();
+        assert_eq!(uris(&text)[0], "https://a/20.ts");
+        assert!(text.contains("#EXT-X-DISCONTINUITY-SEQUENCE:1\n"), "{text}");
+        assert!(!text.contains("#EXT-X-DISCONTINUITY\n"));
+        // One more leaves: the count stays.
+        rec(&mut r, 0, false, &segs("a", 50, 51));
+        assert!(r.render(false).unwrap().contains("#EXT-X-DISCONTINUITY-SEQUENCE:1\n"));
+    }
+
+    #[test]
+    fn no_playlist_type_while_it_slides_and_endlist_at_the_end() {
+        let mut r = Replay::new(1);
+        rec(&mut r, 0, false, &segs("a", 0, 40));
+        let text = r.render(false).unwrap();
+        assert!(!text.contains("PLAYLIST-TYPE"), "{text}");
+        r.end();
+        let text = r.render(false).unwrap();
+        assert!(!text.contains("PLAYLIST-TYPE") && text.ends_with("#EXT-X-ENDLIST\n"));
+    }
+
+    #[test]
+    fn covers_only_what_the_track_recorded() {
+        let mut r = Replay::new(30);
+        rec(&mut r, 0, false, &segs("v", 0, 300));
+        rec(&mut r, 5, true, &segs("au", 250, 300));
+        // 200 s back: video has it, audio only started 100 s back.
+        let at = T0 + 400_000;
+        assert!(r.covers(false, at));
+        assert!(!r.covers(true, at));
+        assert!(r.covers(true, T0 + 500_000 - START_SLACK_MS + 1000));
+        assert!(!r.covers(true, T0 + 700_000));
+        assert!(!Replay::new(5).covers(false, T0));
     }
 
     #[test]

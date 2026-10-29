@@ -38,10 +38,19 @@ fn ring(app: &AppHandle, id: &str) -> Option<Shared> {
     }
 }
 
-/// The replay of live session `id` from `at` (ms), None when it holds nothing there yet.
+/// The replay of live session `id` from `at` (ms), None when this track doesn't hold it (the
+/// player goes live then: a switch to or from audio only would land minutes off). `offset`
+/// is only a first guess: the ring may trim before the player reads the playlist, so the
+/// player places `at` by the segments' dates (V108-N24, engine.svelte.ts).
 pub fn start(app: &AppHandle, id: &str, at: i64, audio: bool) -> Option<ReplayStart> {
     let ring = ring(app, id)?;
-    let offset = ring.lock().unwrap_or_else(|p| p.into_inner()).offset(audio, at)?;
+    let offset = {
+        let r = ring.lock().unwrap_or_else(|p| p.into_inner());
+        if !r.covers(audio, at) {
+            return None;
+        }
+        r.offset(audio, at)?
+    };
     let base = format!("{}live/{id}/", protocol::base());
     Some(ReplayStart {
         session: PlayerSession {

@@ -42,7 +42,10 @@ impl Detector {
             return None;
         }
         let recent = b.count(now_ms, WINDOW, 0);
-        let base = b.count(now_ms, BASELINE, WINDOW) as f32 / BASELINE as f32;
+        // V108-N25 A room known for less than the whole baseline: its rate over what's known
+        // (over 290 s, a busy chat a minute in looked calm, and every open was a spike).
+        let span = (b.known_secs(now_ms) - WINDOW).clamp(1, BASELINE);
+        let base = b.count(now_ms, span, WINDOW) as f32 / span as f32;
         let rate = recent as f32 / WINDOW as f32;
         if recent < floor(base) || rate < (3.0 * base).max(base + 2.0) {
             return None;
@@ -86,6 +89,16 @@ mod tests {
         let mut b = Buckets::default();
         fill(&mut b, 0, 300, 8);
         assert!(Detector::default().check(&b, 299_500).is_none());
+    }
+
+    #[test]
+    fn a_busy_room_just_opened_does_not() {
+        let mut b = Buckets::default();
+        fill(&mut b, 0, 120, 8);
+        let mut d = Detector::default();
+        for s in 60..120 {
+            assert!(d.check(&b, s * 1000 + 500).is_none(), "spiked at {s} s");
+        }
     }
 
     #[test]

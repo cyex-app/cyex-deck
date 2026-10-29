@@ -41,3 +41,13 @@ export function nextAfter(pieces: readonly Piece[], sn: number, origin: number):
   const next = pieces.find((f) => dated(f) && (f.sn as number) > sn);
   return next?.programDateTime != null ? (next.programDateTime - origin) / 1000 : null;
 }
+
+/** V108-N24 Whether the play head has come to a missing segment that starts at `start`
+ *  (playlist seconds): there, or out of buffer before it. Ahead of it, the buffer plays out
+ *  first. `end`: the end of the buffered range the play head is in, null when it's in none. */
+export function goneDue(pos: number, end: number | null, start: number): boolean {
+  return pos >= start - 0.5 || end === null || end - pos < 0.5;
+}
+
+/** V108-N24 A load error that means Twitch doesn't have the segment (any other 4xx doesn't). */
+export const isGone = (code: number): boolean => code === 404 || code === 410;

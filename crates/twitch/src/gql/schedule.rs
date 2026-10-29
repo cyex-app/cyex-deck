@@ -74,7 +74,7 @@ fn next_of(u: ManyUser) -> Option<(String, Segment)> {
 impl From<RawSchedule> for Schedule {
     fn from(s: RawSchedule) -> Self {
         let mut segments: Vec<Segment> =
-            s.segments.into_iter().flatten().map(Segment::from).filter(|s| !s.start.is_empty()).collect();
+            s.segments.into_iter().flatten().flatten().map(Segment::from).filter(|s| !s.start.is_empty()).collect();
         // RFC 3339 in UTC sorts as text.
         segments.sort_by(|a, b| a.start.cmp(&b.start));
         Self {
@@ -128,8 +128,9 @@ struct Chan {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawSchedule {
+    /// V108-N03 Null as well as missing: `#[serde(default)]` alone fails on `null`.
     #[serde(default)]
-    segments: Vec<Option<RawSegment>>,
+    segments: Option<Vec<Option<RawSegment>>>,
     next_segment: Option<RawSegment>,
     interruption: Option<RawBreak>,
 }
@@ -187,6 +188,16 @@ mod tests {
         assert!(d.user.and_then(|u| u.channel).and_then(|c| c.schedule).is_none());
         let d: One = serde_json::from_str(r#"{"user":null}"#).unwrap();
         assert!(d.user.is_none());
+    }
+
+    #[test]
+    fn null_segments_read_empty() {
+        let d: One = serde_json::from_str(
+            r#"{"user":{"channel":{"schedule":{"segments":null,"nextSegment":null,"interruption":null}}}}"#,
+        )
+        .unwrap();
+        let s = Schedule::from(d.user.unwrap().channel.unwrap().schedule.unwrap());
+        assert_eq!(s, Schedule::default());
     }
 
     #[test]

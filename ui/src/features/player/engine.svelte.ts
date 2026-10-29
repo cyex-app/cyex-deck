@@ -36,7 +36,7 @@ import {
   userPause,
 } from './liveMachine';
 import { type Choice, levelFor, levelName, lowestLevel } from './quality';
-import { dateAt, nextAfter, type Piece, posAt } from './replayClock';
+import { dateAt, goneDue, isGone, nextAfter, type Piece, posAt } from './replayClock';
 import { stallStart, stallStep } from './stall';
 import { isTorn, tornDue, tornStart } from './torn';
 
@@ -132,6 +132,9 @@ export class Engine {
   private pausedDate: number | null = null;
   /** V108-N24 A missing segment is being skipped. */
   private skipping = false;
+  /** V108-N24 A missing segment ahead of the play head: where it starts (playlist seconds)
+   *  and where play goes on after it. Skipped when the play head gets there. */
+  private goneAhead: { start: number; next: number | null } | null = null;
   private playerPx = 720;
   private recovered = 0;
   /** rd-2 Counts loads: only the newest makes an hls instance. */
@@ -173,6 +176,7 @@ export class Engine {
       waiting: () => {
         this.waiting = true;
         this.checkTorn();
+        this.checkGone();
       },
       canplay: () => this.onCanplay(),
       timeupdate: () => this.tick(),
@@ -214,6 +218,7 @@ export class Engine {
     this.replay = !!replay;
     this.origin = replay?.origin ?? 0;
     this.skipping = false;
+    this.goneAhead = null;
     clearTimeout(this.stopTimer);
     this.unhold();
     if (replay) this.time = replay.at;
@@ -515,6 +520,17 @@ export class Engine {
         if (at !== null && this.hls === hls) hls.startLoad(at);
       });
     }
+    // V108-N24 The replay's offset was read before this playlist: the ring may have trimmed
+    // its front since, so the spot is placed again by the segments' dates.
+    if (this.replay) {
+      const at = this.origin + this.time * 1000;
+      hls.once(Hls.Events.LEVEL_LOADED, (_, d) => {
+        const pos = posAt(d.details.fragments, at);
+        if (this.hls !== hls || pos === null || Math.abs(pos - this.startAt) < 0.5) return;
+        this.startAt = pos;
+        if (!this.holding) hls.startLoad(pos);
+      });
+    }
     hls.loadSource(this.choice === 'audio' ? session.audio : session.url);
     hls.attachMedia(this.video);
   }
@@ -630,17 +646,29 @@ export class Engine {
     }
   }
 
-  /** V108-N24 A replay segment Twitch no longer has: the replay learns of it and plays on
-   *  from the next one, live after the last. */
+  /** V108-N24 A replay segment Twitch no longer has (404, 410): the replay learns of it and
+   *  plays on from the next one, live after the last. One ahead of the play head waits until
+   *  it gets there: what's buffered before it plays first. */
   private skipGone(Hls: typeof HlsType, d: ErrorData): boolean {
     const code = d.response?.code ?? 0;
     const sn = d.frag?.sn;
-    if (!this.replay || d.details !== Hls.ErrorDetails.FRAG_LOAD_ERROR || !isClientError(code) || typeof sn !== 'number') return false;
+    if (!this.replay || d.details !== Hls.ErrorDetails.FRAG_LOAD_ERROR || !isGone(code) || typeof sn !== 'number') return false;
     if (this.skipping) return true;
     this.skipping = true;
     if (d.frag?.url) this.ongone?.(d.frag.url);
-    this.onreopen?.(nextAfter(this.pieces(), sn, this.origin));
+    this.goneAhead = { start: d.frag?.start ?? 0, next: nextAfter(this.pieces(), sn, this.origin) };
+    this.checkGone();
     return true;
+  }
+
+  /** V108-N24 The play head reached the missing segment: on from the next one (or from
+   *  where a seek past it went). */
+  private checkGone(): void {
+    const g = this.goneAhead;
+    const v = this.video;
+    if (!g || !goneDue(v.currentTime, rangeEnd(v.buffered, v.currentTime), g.start)) return;
+    this.goneAhead = null;
+    this.onreopen?.(g.next === null ? null : Math.max(g.next, this.time));
   }
 
   /** V108-N24 The replay's segments. */
@@ -773,6 +801,7 @@ export class Engine {
   private tick(): void {
     const v = this.video;
     this.checkTorn();
+    this.checkGone();
     // A swap shows the asked-for spot until the new source plays; after a failure the last spot stays.
     if (!this.swapping && !this.failure) {
       const end = rangeEnd(v.buffered, v.currentTime);
@@ -847,7 +876,8 @@ function reloadNow(hls: HlsType): boolean {
   return true;
 }
 
-/** V108-N24 The replay's segment loads: timeouts retry as usual, a 4xx never does. */
+/** V108-N24 The replay's segment loads: timeouts retry as usual, a 4xx never does (a 404 or
+ *  410 is skipped, see `skipGone`; any other ends the replay). */
 const REPLAY_FRAG_POLICY: HlsConfig['fragLoadPolicy'] = {
   default: {
     maxTimeToFirstByteMs: 10_000,

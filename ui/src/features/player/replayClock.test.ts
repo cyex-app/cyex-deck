@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { dateAt, nextAfter, type Piece, posAt } from './replayClock.ts';
+import { dateAt, goneDue, isGone, nextAfter, type Piece, posAt } from './replayClock.ts';
 
 const T0 = Date.parse('2026-10-29T12:00:00Z');
 
@@ -42,4 +42,20 @@ test('the next segment after a missing one', () => {
   assert.equal(nextAfter(pieces, 11, origin), 604);
   assert.equal(nextAfter(pieces, 12, origin), 666);
   assert.equal(nextAfter(pieces, 13, origin), null);
+});
+
+test('a missing segment ahead waits for the play head', () => {
+  // Buffered 10..40, the missing one starts at 40: 30 s still play.
+  assert.equal(goneDue(12, 40, 40), false);
+  assert.equal(goneDue(39.8, 40, 40), true, 'there');
+  assert.equal(goneDue(20, 20.2, 40), true, 'out of buffer before it');
+  assert.equal(goneDue(20, null, 40), true, 'not in any buffer');
+});
+
+test('only 404 and 410 mean gone', () => {
+  assert.equal(isGone(404), true);
+  assert.equal(isGone(410), true);
+  assert.equal(isGone(403), false);
+  assert.equal(isGone(429), false);
+  assert.equal(isGone(0), false);
 });

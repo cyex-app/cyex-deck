@@ -20,11 +20,7 @@ pub fn from_notice(kind: NoticeKind, text: &str) -> Option<(MomentKind, String)>
         NoticeKind::Raid if !text.to_lowercase().contains("unraid") => {
             Some((MomentKind::Raid, shorten(text)))
         }
-        NoticeKind::Gift => {
-            let n = first_number(text)?;
-            (text.to_lowercase().contains("gifting") && n >= BIG_GIFT)
-                .then(|| (MomentKind::Gift, shorten(text)))
-        }
+        NoticeKind::Gift => (gift_count(text)? >= BIG_GIFT).then(|| (MomentKind::Gift, shorten(text))),
         NoticeKind::Announcement if !text.is_empty() => Some((MomentKind::Announcement, shorten(text))),
         _ => None,
     }
@@ -43,11 +39,15 @@ pub fn has_clip_link(body: &[Fragment]) -> bool {
     })
 }
 
-/// The first whole number in `s`.
-fn first_number(s: &str) -> Option<u32> {
-    let start = s.find(|c: char| c.is_ascii_digit())?;
-    let digits: String = s[start..].chars().take_while(char::is_ascii_digit).collect();
-    digits.parse().ok()
+/// V108-N25 The size of a gift bomb: the number right after "gifting" ("Foo is gifting 20
+/// Tier 1 Subs"), so a number in a name (xqc123) doesn't count. The line is Twitch's
+/// `system-msg`, which carries `msg-param-mass-gift-count` as that number.
+fn gift_count(s: &str) -> Option<u32> {
+    let lower = s.to_lowercase();
+    lower.match_indices("gifting ").find_map(|(i, w)| {
+        let digits: String = lower[i + w.len()..].chars().take_while(char::is_ascii_digit).collect();
+        digits.parse().ok()
+    })
 }
 
 fn shorten(s: &str) -> String {
@@ -92,6 +92,21 @@ mod tests {
         );
         assert!(from_notice(NoticeKind::Gift, "Foo gifted a Tier 1 sub to Baz").is_none());
         assert!(from_notice(NoticeKind::Gift, "Foo gifted a sub, 12 months in total").is_none());
+        // A number in a name isn't the count.
+        assert!(
+            from_notice(
+                NoticeKind::Gift,
+                "xqc123 is gifting 2 Tier 1 Subs to Bar's community!"
+            )
+            .is_none()
+        );
+        assert!(
+            from_notice(
+                NoticeKind::Gift,
+                "gifting99 is gifting 50 Tier 1 Subs to Bar's community!"
+            )
+            .is_some()
+        );
     }
 
     #[test]
