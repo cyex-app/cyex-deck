@@ -1,6 +1,7 @@
 <!-- S5 One plugin in Settings: who made it, what it may do, on or off, its settings,
      reload and console. Turning it on asks first when it wants permissions. -->
 <script lang="ts">
+  import { orToast } from '../../lib/orToast';
   import Button from '../../components/Button.svelte';
   import Dialog from '../../components/Dialog.svelte';
   import Icon from '../../components/Icon.svelte';
@@ -64,7 +65,7 @@
     <p class="meta muted">
       {[m.authors.join(', '), m.license].filter(Boolean).join(' · ')}
       {#if m.homepage}·
-        <Button small variant="link" onclick={() => void systemIpc.openChatLink(m.homepage!)}>{m.homepage.replace(/^https?:\/\//, '')}</Button
+        <Button small variant="link" onclick={() => orToast(systemIpc.openChatLink(m.homepage!), 'open the link')}>{m.homepage.replace(/^https?:\/\//, '')}</Button
         >{/if}
     </p>
   {/if}
@@ -106,7 +107,7 @@
   {/if}
 
   <footer>
-    <IconButton icon="folder" label="Open its folder" size={15} onclick={() => void pluginsIpc.openFolder(plugin.id)} />
+    <IconButton icon="folder" label="Open its folder" size={15} onclick={() => orToast(pluginsIpc.openFolder(plugin.id), 'open the folder')} />
     <IconButton
       icon="refresh"
       label="Reload"

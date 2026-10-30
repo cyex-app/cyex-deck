@@ -2,6 +2,7 @@
      too. A video plays in the app's VOD player; its ⋯ renames it (in the row), publishes or
      unpublishes it, copies the link or deletes it (a second click). -->
 <script lang="ts">
+  import { orToast } from '../../lib/orToast';
   import { untrack } from 'svelte';
 
   import Button from '../../components/Button.svelte';
@@ -180,7 +181,7 @@
   {:else}
     <PickBar picked={picked.size} total={videos.length} onall={list.pickAll}>
       {#if bulk && picked.size > 1}
-        <Button small variant="ghost" onclick={() => void smIpc.bulkStop()}>Stop</Button>
+        <Button small variant="ghost" onclick={() => orToast(smIpc.bulkStop(), 'stop')}>Stop</Button>
       {:else if picked.size}
         <IconButton icon="eye" label="Publish" hint="Anyone can watch them then." size={14} disabled={bulk} onclick={() => void many('publish')} />
         <IconButton icon="eyeOff" label="Unpublish" hint="Only you can see them then." size={14} disabled={bulk} onclick={() => void many('unpublish')} />

@@ -1,5 +1,6 @@
 <!-- S5 Lua plugins: the main switch, the plugins folder, and a card per plugin. -->
 <script lang="ts">
+  import { orToast } from '../../../lib/orToast';
   import Button from '../../../components/Button.svelte';
   import EmptyState from '../../../components/EmptyState.svelte';
   import Row from '../../../components/Row.svelte';
@@ -34,7 +35,7 @@
 </Row>
 
 <div class="actions" data-setting="plugins.list">
-  <Button small icon="folder" onclick={() => void pluginsIpc.openFolder()}>Open plugins folder</Button>
+  <Button small icon="folder" onclick={() => orToast(pluginsIpc.openFolder(), 'open the folder')}>Open plugins folder</Button>
   <Button small icon="refresh" onclick={lookAgain}>Look again</Button>
 </div>
 

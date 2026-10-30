@@ -4,6 +4,7 @@
      sit in the Rewards panel's toolbar and header. V107-R43 The mod view's reward requests
      use it on a channel the account moderates (`source`), reloaded by `pulse`. -->
 <script lang="ts">
+  import { orToast } from '../../lib/orToast';
   import { untrack } from 'svelte';
 
   import Button from '../../components/Button.svelte';
@@ -118,7 +119,7 @@
 {#if items.length}
   <PickBar picked={picked.size} total={items.length} onall={list.pickAll}>
     {#if busy && targets.length > 1}
-      <Button small variant="ghost" onclick={() => void smIpc.bulkStop()}>Stop</Button>
+      <Button small variant="ghost" onclick={() => orToast(smIpc.bulkStop(), 'stop')}>Stop</Button>
     {:else if picked.size || items.length === 1}
       <Button small disabled={busy} onclick={() => void settle(targets, 'FULFILLED')}>Complete</Button>
       <Button small variant="ghost" disabled={busy} onclick={() => void settle(targets, 'CANCELED')}>Reject</Button>
@@ -154,7 +155,7 @@
         <div class="main">
           <div class="head">
             {#if r.login}
-              <button class="who" type="button" onclick={() => r.login && void chatIpc.openUsercard(from.channel || sm.manager?.login || r.login, r.login)}>
+              <button class="who" type="button" onclick={() => r.login && orToast(chatIpc.openUsercard(from.channel || sm.manager?.login || r.login, r.login), 'open the card')}>
                 {r.name ?? r.login}
               </button>
             {:else}

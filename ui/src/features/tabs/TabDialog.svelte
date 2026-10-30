@@ -2,6 +2,7 @@
      the account it joins on, and an optional tab name. Also adds a channel into an
      existing tab (U3), or a feed tab (F4), and can put the channel in the miner (1.34). -->
 <script lang="ts">
+  import { orToast } from '../../lib/orToast';
   import Button from '../../components/Button.svelte';
   import Checkbox from '../../components/Checkbox.svelte';
   import Dialog from '../../components/Dialog.svelte';
@@ -115,7 +116,7 @@
       const id = await tabs.apply({ op: 'add', channel, show, account: who, alias: name, into: into ?? null });
       if (id) onopen(id);
     }
-    if (mine) void minerIpc.add(channel);
+    if (mine) orToast(minerIpc.add(channel), 'add it to the miner');
     busy = false;
     closeTabDialog();
   }

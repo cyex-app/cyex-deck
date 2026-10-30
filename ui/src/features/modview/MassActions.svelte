@@ -3,6 +3,7 @@
      get a hint. M1 /nuke lives on the chat input; here is the bulk-list tool for
      followbots and raids. -->
 <script lang="ts">
+  import { orToast } from '../../lib/orToast';
   import Button from '../../components/Button.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
@@ -93,7 +94,7 @@
 
   function stop() {
     stopping = true;
-    if (channelId) void modIpc.stopMassban(channelId, account);
+    if (channelId) orToast(modIpc.stopMassban(channelId, account), 'stop the ban run');
   }
 </script>
 

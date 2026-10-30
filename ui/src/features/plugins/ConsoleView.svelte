@@ -1,6 +1,7 @@
 <!-- S5 A plugin's console: its log as it comes in, and a line that runs Lua inside the
      plugin (`1 + 1` shows 2). Route: `plugin/<folder name>`. -->
 <script lang="ts">
+  import { orToast } from '../../lib/orToast';
   import { tick } from 'svelte';
 
   import IconButton from '../../components/IconButton.svelte';
@@ -85,7 +86,7 @@
 
   function clear() {
     entries = [];
-    void pluginsIpc.clearLog(id);
+    orToast(pluginsIpc.clearLog(id), 'clear the log');
   }
 
   function reload() {

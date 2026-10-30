@@ -1,6 +1,7 @@
 <!-- V1051-02/03 Pick your 7TV paint and badge. One panel for the view and the in-chat
      pop-up (`compact`). Nothing talks to 7TV until the account has said yes. -->
 <script lang="ts">
+  import { orToast } from '../../lib/orToast';
   import { onDestroy, onMount } from 'svelte';
 
   import Button from '../../components/Button.svelte';
@@ -116,7 +117,7 @@
         {#if !view.subscribed}
           <span class="note">
             Paints and badges are for 7TV subscribers.{store.anyUsable ? ' Items you’ve been gifted or won at events work without one.' : ''}
-            <Button variant="link" onclick={() => void systemIpc.openLink('https://7tv.app/store')}>7TV store</Button>
+            <Button variant="link" onclick={() => orToast(systemIpc.openLink('https://7tv.app/store'), 'open the link')}>7TV store</Button>
           </span>
         {/if}
       </div>

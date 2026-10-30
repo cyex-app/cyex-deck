@@ -2,6 +2,7 @@
      with a search. A clip plays in the app's clip player; its ⋯ copies the link or deletes
      it (a second click). Tick several to delete them at once. -->
 <script lang="ts">
+  import { orToast } from '../../lib/orToast';
   import { untrack } from 'svelte';
 
   import Button from '../../components/Button.svelte';
@@ -110,7 +111,7 @@
   {:else}
     <PickBar picked={picked.size} total={clips.length} onall={list.pickAll}>
       {#if busy && picked.size > 1}
-        <Button small variant="ghost" onclick={() => void smIpc.bulkStop()}>Stop</Button>
+        <Button small variant="ghost" onclick={() => orToast(smIpc.bulkStop(), 'stop')}>Stop</Button>
       {:else if picked.size}
         <ConfirmButton
           label="Delete"

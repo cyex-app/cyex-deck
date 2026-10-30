@@ -2,6 +2,7 @@
      do: the "Send to cyex deck" bookmark (7L), or the token pasted by hand (7K, the fallback).
      Rust checks it with 7TV and keeps it only when it's this Twitch account's; never logged. -->
 <script lang="ts">
+  import { orToast } from '../../lib/orToast';
   import { onDestroy } from 'svelte';
   import Button from '../../components/Button.svelte';
   import { cosmeticsIpc } from '../../ipc/cosmetics';
@@ -113,7 +114,7 @@
       <span class="n" aria-hidden="true">3</span>
       {#if waiting}
         <span class="live" aria-live="polite">Waiting for the bookmark…</span>
-        <Button small variant="ghost" onclick={() => void cosmeticsIpc.linkStop()}>Stop</Button>
+        <Button small variant="ghost" onclick={() => orToast(cosmeticsIpc.linkStop(), 'stop')}>Stop</Button>
       {:else}
         <span>Wait for it here, then click the bookmark.</span>
         <Button small variant="primary" disabled={busy} onclick={wait}>{consent ? 'Allow and wait' : 'Wait for the bookmark'}</Button>

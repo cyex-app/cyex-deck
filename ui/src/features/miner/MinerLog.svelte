@@ -1,6 +1,7 @@
 <!-- W4 The miner log, newest first (V106-27): points, chests, raids, bets, drops, channels
      and errors, with a filter per kind and Clear. Kept in memory, not saved. -->
 <script lang="ts">
+  import { orToast } from '../../lib/orToast';
   import { SvelteSet } from 'svelte/reactivity';
 
   import Button from '../../components/Button.svelte';
@@ -25,7 +26,7 @@
 <div class="log">
   <div class="top">
     <FilterChips {chips} onflip={flip} />
-    <span class="clear"><Button small variant="ghost" disabled={miner.log.length === 0} onclick={() => void minerIpc.clearLog()}>Clear</Button></span>
+    <span class="clear"><Button small variant="ghost" disabled={miner.log.length === 0} onclick={() => orToast(minerIpc.clearLog(), 'clear the log')}>Clear</Button></span>
   </div>
   <FeedList
     {rows}

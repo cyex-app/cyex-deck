@@ -4,6 +4,7 @@
      options as icons, then what it does, then Remove. When the page is too narrow for one
      line, what it does moves under the match as a whole. -->
 <script lang="ts" generics="T extends Record<string, unknown>">
+  import { orToast } from '../../../lib/orToast';
   import Checkbox from '../../../components/Checkbox.svelte';
   import IconButton from '../../../components/IconButton.svelte';
   import IconToggle from '../../../components/IconToggle.svelte';
@@ -82,7 +83,7 @@
 
   function soundMenu(e: MouseEvent, key: keyof T, path: string) {
     openMenuAt(e, [
-      { label: 'Play', icon: 'play', run: () => void soundIpc.play(path) },
+      { label: 'Play', icon: 'play', run: () => orToast(soundIpc.play(path), 'play the sound') },
       { label: 'Choose another file', icon: 'upload', run: () => void pickSound(key) },
       'separator',
       { label: 'Use the chime', icon: 'x', run: () => set(key, '') },
