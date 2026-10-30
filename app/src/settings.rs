@@ -182,7 +182,8 @@ impl Settings {
             store.get(p).clone()
         };
         self.after_change(app, &[(p, &value)], notify);
-        Ok(value)
+        // A side effect may have saved this partition again (global mentions' name row).
+        Ok(self.lock().get(p).clone())
     }
 
     /// Reads a partition typed, lets `f` change it and, if `f` returns true, saves it and
@@ -308,12 +309,15 @@ impl Settings {
             crate::plugins::on_settings(app);
         }
         if notify {
-            for (partition, value) in changed {
+            // The store's value now, not the one passed in: a side effect above may have
+            // saved the partition again, and its newer value must not be sent over.
+            for (partition, _) in changed {
+                let value = self.lock().get(*partition).clone();
                 let _ = app.emit(
                     CHANGED_EVENT,
                     Changed {
                         partition: *partition,
-                        value,
+                        value: &value,
                     },
                 );
             }

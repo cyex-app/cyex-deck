@@ -144,13 +144,18 @@ fn name_row(app: &AppHandle, global: &Global, h: &Highlights) -> bool {
     let accounts = crate::auth::accounts(app);
     // Nobody signed in yet: the next account change tries again.
     let Some(login) = accounts.default_account().map(|a| a.login.clone()) else { return false };
-    app.state::<Settings>()
+    // Only a real save syncs again: switched back on with the row still there, nothing is.
+    let mut saved = false;
+    let ok = app
+        .state::<Settings>()
         .update::<Highlights>(app, Partition::Highlights, |h| {
             let added = h.add_global_name(&login);
             let named = !std::mem::replace(&mut h.global_named, true);
-            added || named
+            saved = added || named;
+            saved
         })
-        .is_ok()
+        .is_ok();
+    ok && saved
 }
 
 /// V108-GM The tab when it's on, else the feed picked for them (none: rows' own feeds only).
