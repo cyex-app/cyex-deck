@@ -98,10 +98,46 @@ pub fn init(app: &AppHandle) {
 }
 
 /// The account's role in a channel, `None` when it has no mod rights there or no open room.
+/// An account's own channel is always its broadcaster's, room or not (S1: the stream
+/// manager's chat closes when its mod view opens, and an anonymous room says no role).
 pub fn role(app: &AppHandle, account: &str, login: &str) -> Option<ModRole> {
-    let chat = app.try_state::<Chat>()?;
-    let key = (Identity::Account(account.to_owned()), login.to_ascii_lowercase());
-    chat.lock().rooms.get(&key)?.room.role()
+    let from_room = app.try_state::<Chat>().and_then(|chat| {
+        let key = (Identity::Account(account.to_owned()), login.to_ascii_lowercase());
+        chat.lock().rooms.get(&key)?.room.role()
+    });
+    from_room.or_else(|| owns(&own_channels(app), account, login).then_some(ModRole::Broadcaster))
+}
+
+/// Every signed-in account as (user id, login).
+fn own_channels(app: &AppHandle) -> Vec<(String, String)> {
+    let Some(settings) = app.try_state::<crate::settings::Settings>() else {
+        return Vec::new();
+    };
+    let accounts: cyex_settings::schema::Accounts = settings.read(cyex_settings::Partition::Accounts);
+    accounts
+        .list
+        .into_iter()
+        .map(|a| (a.user_id, a.login.to_ascii_lowercase()))
+        .collect()
+}
+
+/// The channel is the account's own.
+fn owns(own: &[(String, String)], account: &str, login: &str) -> bool {
+    own.iter()
+        .any(|(id, l)| id == account && l.eq_ignore_ascii_case(login))
+}
+
+/// S1 The broadcaster role of each account in its own channel, where nothing else in
+/// `list` names that pair yet.
+fn own_roles(own: &[(String, String)], list: &[RoleEntry]) -> Vec<RoleEntry> {
+    own.iter()
+        .filter(|(id, login)| {
+            !list
+                .iter()
+                .any(|e| e.account == *id && e.channel == *login)
+        })
+        .map(|(id, login)| RoleEntry::new(id, login, ModRole::Broadcaster))
+        .collect()
 }
 
 /// Every open account's role, by channel.
@@ -126,6 +162,8 @@ pub fn snapshot(app: &AppHandle) -> Vec<RoleEntry> {
         let watched = roles.watched.lock().unwrap_or_else(|p| p.into_inner());
         list.extend(watched_roles(&watched, &rooms));
     }
+    let own = own_roles(&own_channels(app), &list);
+    list.extend(own);
     list.sort();
     list
 }
@@ -378,7 +416,7 @@ mod tests {
 
     use cyex_chat::model::ModRole;
 
-    use super::{Watch, acts, rewatch, watched_roles};
+    use super::{RoleEntry, Watch, acts, own_roles, owns, rewatch, watched_roles};
 
     #[test]
     fn only_changes_in_the_answer_act() {
@@ -441,5 +479,27 @@ mod tests {
             (roles[0].channel.as_str(), roles[0].role),
             ("a", ModRole::Moderator)
         );
+    }
+
+    /// S1 The own channel is the broadcaster's even without a room there (an anonymous
+    /// chat, or the stream manager's chat closed while its mod view opens).
+    #[test]
+    fn own_channel_is_always_broadcaster() {
+        let own = vec![("42".to_owned(), "me".to_owned()), ("7".to_owned(), "alt".to_owned())];
+        assert!(owns(&own, "42", "Me"));
+        assert!(!owns(&own, "42", "alt"), "another account's channel");
+        assert!(!owns(&own, "1", "me"), "another account in my channel");
+
+        // A room that already says so stays the one entry; the other account gets its own.
+        let have = vec![RoleEntry::new("42", "me", ModRole::Broadcaster)];
+        let added = own_roles(&own, &have);
+        assert_eq!(added.len(), 1);
+        assert_eq!(
+            (added[0].account.as_str(), added[0].channel.as_str(), added[0].role),
+            ("7", "alt", ModRole::Broadcaster)
+        );
+        assert!(added[0].may.broadcaster, "the mod view's gate reads this");
+        // No rooms at all: every account still moderates its own channel.
+        assert_eq!(own_roles(&own, &[]).len(), 2);
     }
 }

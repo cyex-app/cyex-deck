@@ -131,6 +131,7 @@ pub fn notify(app: &AppHandle) {
     crate::chat::retry_refused(app);
     crate::tabs::on_accounts_changed(app);
     crate::moderation::feeds::sync(app);
+    crate::chat::roles::emit(app); // S1 own channels are always the broadcaster's
     if app.try_state::<crate::streammanager::State>().is_some() {
         crate::streammanager::accounts_changed(app);
     }
