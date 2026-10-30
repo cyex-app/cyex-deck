@@ -42,7 +42,13 @@
     transition:
       background var(--fast),
       border-color var(--fast),
-      color var(--fast);
+      color var(--fast),
+      transform var(--fast) var(--ease);
+  }
+  /* Pressed at once, like the icon buttons (ka-4); the link has its own below. */
+  .btn:active:not(:disabled):not(.link) {
+    transform: scale(0.97);
+    transition: none;
   }
   .small {
     height: 27px;

@@ -129,7 +129,7 @@
       <span class="time">{formatLeft(left)}</span>
     </div>
     <div class="track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={pct}>
-      <div class="fill" style:width="{pct}%"></div>
+      <div class="fill" style:transform="scaleX({pct / 100})"></div>
     </div>
   </div>
 {:else if note}
@@ -182,7 +182,9 @@
   .fill {
     height: 100%;
     background: var(--twitch);
-    transition: width 0.3s ease-out;
+    /* Scaled, not resized: no layout per frame next to a playing stream. */
+    transform-origin: left;
+    transition: transform 0.3s ease-out;
   }
   @media (prefers-reduced-motion: reduce) {
     .fill {

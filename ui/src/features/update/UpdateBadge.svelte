@@ -82,7 +82,7 @@
           </p>
           {#if update.busy}
             <div class="bar" role="progressbar" aria-label="Update" aria-valuenow={update.percent ?? 0} aria-valuemin={0} aria-valuemax={100}>
-              <div class="fill" style:width="{update.percent ?? 0}%"></div>
+              <div class="fill" style:transform="scaleX({(update.percent ?? 0) / 100})"></div>
             </div>
             <span class="status" aria-live="polite">{update.progress}</span>
           {/if}
@@ -160,7 +160,8 @@
   .fill {
     height: 100%;
     background: var(--accent-line);
-    transition: width var(--base) ease-out;
+    transform-origin: left;
+    transition: transform var(--base) ease-out;
   }
   .status {
     color: var(--muted);

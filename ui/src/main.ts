@@ -3,8 +3,6 @@ import { mount } from 'svelte';
 import './design/tokens.css';
 import './design/emotes.css';
 import './design/fonts.css';
-import App from './app/App.svelte';
-import PanelApp from './app/PanelApp.svelte';
 import { applyCachedTheme } from './design/theme';
 import { askResume } from './features/tabs/resume.svelte';
 import { tabs } from './features/tabs/tabs.svelte';
@@ -21,6 +19,10 @@ if (panelRoute?.startsWith('overlay')) document.documentElement.classList.add('o
 
 applyCachedTheme();
 installFindBlock();
+// Each window loads only its own view (a pop-out or overlay doesn't parse the main window's),
+// fetched while the settings load.
+const panelView = panelRoute ? import('./app/PanelApp.svelte') : null;
+const mainView = panelRoute ? null : import('./app/App.svelte');
 await Promise.all([settings.load(), currentWindow.init(), accounts.load(), tabs.load()]);
 
 const target = document.getElementById('app')!;
@@ -34,6 +36,6 @@ if (!panelRoute && currentWindow.isMain) {
   await askResume();
 }
 
-export default panelRoute
-  ? mount(PanelApp, { target, props: { route: decodeURIComponent(panelRoute) } })
-  : mount(App, { target });
+export default panelView
+  ? mount((await panelView).default, { target, props: { route: decodeURIComponent(panelRoute!) } })
+  : mount((await mainView!).default, { target });

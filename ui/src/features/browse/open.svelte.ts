@@ -47,7 +47,20 @@ export interface Nav {
 
 const plain = (c: Channel): TabChannel => ({ id: c.id, login: c.login, name: c.name });
 
+/** Channels whose tab is on its way: a second click before Rust answers would add another. */
+const opening = new Set<string>();
+
 export async function openChannel(nav: Nav, c: Channel, how: OpenHow = {}): Promise<void> {
+  if (opening.has(c.id)) return;
+  opening.add(c.id);
+  try {
+    await openOnce(nav, c, how);
+  } finally {
+    opening.delete(c.id);
+  }
+}
+
+async function openOnce(nav: Nav, c: Channel, how: OpenHow): Promise<void> {
   const own = tabs.list.find((t) => {
     const list = tiles(t);
     return list.length === 1 && list[0].channel.id === c.id;
@@ -95,10 +108,18 @@ class Picked {
     this.list = [];
   }
 
+  private opening = false;
+
   async open(nav: Nav, layout: Layout): Promise<void> {
     const channels = this.list.map(plain);
-    if (!channels.length) return;
-    const id = await tabs.apply({ op: 'addMany', channels, show: LAYOUTS[layout], account: nav.account() });
+    if (!channels.length || this.opening) return;
+    this.opening = true;
+    let id: string | null;
+    try {
+      id = await tabs.apply({ op: 'addMany', channels, show: LAYOUTS[layout], account: nav.account() });
+    } finally {
+      this.opening = false;
+    }
     if (!id) return;
     this.clear();
     nav.show(id);

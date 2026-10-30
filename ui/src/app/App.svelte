@@ -20,13 +20,9 @@
   import DiscoverView from '../features/discover/DiscoverView.svelte';
   import HomeView from '../features/home/HomeView.svelte';
   import { miner } from '../features/miner/miner.svelte';
-  import MinerView from '../features/miner/MinerView.svelte';
   import ModViewPanel from '../features/modview/ModViewPanel.svelte';
   import { modviewPlace, modviewRoute } from '../features/modview/where.svelte';
-  import SettingsView from '../features/settings/SettingsView.svelte';
   import StreamManagerView from '../features/streammanager/StreamManagerView.svelte';
-  import SubsView from '../features/subs/SubsView.svelte';
-  import CosmeticsView from '../features/cosmetics/CosmeticsView.svelte';
   import { whispers } from '../features/whispers/whispers.svelte';
   import { isMentionsFeed, MENTIONS_FEED } from '../features/chat/mentionsTab';
   import { mentionsTab } from '../features/chat/mentionsTab.svelte';
@@ -67,6 +63,7 @@
   import { settings } from '../lib/settings.svelte';
   import { streamer } from '../lib/streamer.svelte';
   import { decodeSound } from '../lib/sound';
+  import { lazy } from '../lib/lazy';
   import { toast } from '../lib/toast.svelte';
   import { currentWindow } from '../lib/window.svelte';
   import DuplicatesDialog from '../features/settings/highlights/DuplicatesDialog.svelte';
@@ -75,6 +72,12 @@
   import StreamerBar from './StreamerBar.svelte';
   import { useRootEffects } from './root.svelte';
   import { useNavHistory } from '../lib/navHistory.svelte';
+
+  // Views opened now and then load after the window is up (see the warm-up below).
+  const minerView = lazy(() => import('../features/miner/MinerView.svelte'));
+  const subsView = lazy(() => import('../features/subs/SubsView.svelte'));
+  const cosmeticsView = lazy(() => import('../features/cosmetics/CosmeticsView.svelte'));
+  const settingsView = lazy(() => import('../features/settings/SettingsView.svelte'));
 
   type Fixed = 'home' | 'discover' | 'miner' | 'streamManager' | 'whispers' | 'subs' | 'cosmetics' | 'settings' | 'modview';
   /** Somewhere the main window can show. */
@@ -547,17 +550,21 @@
     {:else if fixed === 'discover'}
       <DiscoverView onopen={open} />
     {:else if fixed === 'miner' && canMine}
-      <MinerView onsettings={minerSettings} />
+      {#await minerView() then { default: MinerView }}<MinerView onsettings={minerSettings} />{/await}
     {:else if fixed === 'streamManager' && canManage}
       <StreamManagerView onpopout={popOutManager} onsignin={manageAccounts} />
     {:else if fixed === 'whispers' && canWhisper}
       <WhispersView onpopout={popOutWhispers} onsignin={manageAccounts} />
     {:else if fixed === 'subs'}
-      <SubsView onchannel={(c) => void openChannel({ show: open, account: () => accounts.current?.userId ?? null }, c)} onsignin={manageAccounts} />
+      {#await subsView() then { default: SubsView }}
+        <SubsView onchannel={(c) => void openChannel({ show: open, account: () => accounts.current?.userId ?? null }, c)} onsignin={manageAccounts} />
+      {/await}
     {:else if fixed === 'cosmetics'}
-      <CosmeticsView onclose={() => leaveView('cosmetics')} />
+      {#await cosmeticsView() then { default: CosmeticsView }}<CosmeticsView onclose={() => leaveView('cosmetics')} />{/await}
     {:else if fixed === 'settings'}
-      <SettingsView bind:section={settingsSection} onclose={() => leaveView('settings')} />
+      {#await settingsView() then { default: SettingsView }}
+        <SettingsView bind:section={settingsSection} onclose={() => leaveView('settings')} />
+      {/await}
     {:else}
       <HomeView onopen={open} ondiscover={() => show('discover')} onsignin={manageAccounts} />
     {/if}
