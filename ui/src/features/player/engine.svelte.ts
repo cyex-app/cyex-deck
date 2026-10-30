@@ -113,7 +113,9 @@ export class Engine {
   /** d-1 Behind live at the user's pause, null when unknown or not live; ticks once a second while paused. */
   private behindAtPause: number | null = null;
   private pauseTick: ReturnType<typeof setInterval> | undefined;
-  private stall = stallStart(0);
+  /** d-4 Counts from when the player was made, not from when the app started: a player that
+   *  hadn't moved by its first check (a tab opened while others load) read as stalled at once. */
+  private stall = stallStart(performance.now());
   private stallTimer: ReturnType<typeof setInterval> | undefined;
   private lastUpdate = 0;
   /** qd-2 Discontinuity (cc) of the fragment playing, null before one plays. */
@@ -238,6 +240,8 @@ export class Engine {
     this.choice = choice;
     this.startAt = startAt;
     this.holding = hold;
+    // d-4 A new source gets its full 10 s to start moving; a reopen after a stall keeps counting.
+    if (!this.stalled) this.stall = stallStart(performance.now(), this.video.currentTime);
     await this.load();
   }
 
