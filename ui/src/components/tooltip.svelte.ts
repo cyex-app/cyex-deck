@@ -101,8 +101,13 @@ function hide(): void {
   // Untracked: a layer that moves focus in its effect blurs a tipped trigger, and must not
   // re-run (and steal focus back) each time a tip shows inside it.
   if (untrack(() => tip.visible)) lastHidden = performance.now();
-  tip.visible = false;
   owner = null;
+  // C5 A trigger torn down inside an effect or derived (a menu closing) fires focusout/mouseleave
+  // while Svelte forbids state writes; the write waits a microtask, which is after the teardown.
+  if (!untrack(() => tip.visible)) return;
+  queueMicrotask(() => {
+    if (!owner) tip.visible = false;
+  });
 }
 
 // A scroll that moves the tip's element hides it, a resize always does, and so does Escape. Added at load, before
