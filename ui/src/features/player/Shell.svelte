@@ -169,15 +169,16 @@
   }
   .top {
     top: 0;
-    padding: 10px 12px 26px;
-    background: linear-gradient(var(--scrim-strong), transparent);
+    padding: 10px 12px 34px;
+    /* Solid behind the controls, fading only past them, so they read on any frame (bar too). */
+    background: linear-gradient(var(--scrim-strong) 55%, transparent);
   }
   .bar {
     bottom: 0;
-    padding: 26px 8px 6px;
+    padding: 34px 8px 6px;
     /* Narrow tiles fold the volume control (Volume.svelte). */
     container: bar / inline-size;
-    background: linear-gradient(transparent, var(--scrim-strong));
+    background: linear-gradient(transparent, var(--scrim-strong) 45%);
   }
   .shell:not(.show) .top :global(*),
   .shell:not(.show) .bar :global(*) {
