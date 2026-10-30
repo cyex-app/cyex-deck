@@ -12,7 +12,9 @@ export function soundTip(mode: TabSoundMode, tabMuted: boolean): string {
   return mode === 'muted' ? ' · playing muted' : '';
 }
 
-export function tabSoundMode(wouldPlay: boolean, tabMuted: boolean, heldMuted = false): TabSoundMode {
+export function tabSoundMode(wouldPlay: boolean, tabMuted: boolean, heldMuted = false, onAir = true): TabSoundMode {
+  // V106-25 No stream on air in the tab: no badge. The tab mute itself stays set.
+  if (!onAir) return 'silent';
   if (tabMuted) return 'muted';
   if (wouldPlay) return 'audible';
   return heldMuted ? 'muted' : 'silent';

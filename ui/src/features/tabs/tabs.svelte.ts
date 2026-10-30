@@ -198,12 +198,12 @@ class TabsStore {
     const players = tiles(tab).filter((t) => !t.feed && t.show.player);
     const heldMuted = this.held === tab.id && players.length > 0 && players.every((t) => t.muted);
     const heard = tiles(tab).filter((t) => !this.focusHushed(tab, t.id));
-    return tabSoundMode(sounding.wouldPlay(new Set(heard.map((t) => t.id))), this.muted.has(tab.id), heldMuted);
+    return tabSoundMode(sounding.wouldPlay(new Set(heard.map((t) => t.id))), this.muted.has(tab.id), heldMuted, this.liveStreamIds(tab).length > 0);
   }
 
-  /** V106-25 The tab has a player, so it can be muted. */
+  /** V106-25 The tab has a player on air, so it can be muted. */
   canPlay(tab: Tab): boolean {
-    return tiles(tab).some((t) => !t.feed && t.show.player);
+    return this.liveStreamIds(tab).length > 0;
   }
 
   /** Applies an edit. Resolves with the id of a new tab or group. */

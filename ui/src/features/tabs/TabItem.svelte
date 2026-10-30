@@ -70,7 +70,7 @@
     const account = first?.account ? accounts.list.find((a) => a.userId === first.account) : undefined;
     const who = account ? `as ${account.displayName}` : 'anonymous';
     const label = parts.length ? parts.join(' · ') : `${name} · Offline`;
-    const playing = soundTip(sound, tabs.muted.has(tab.id));
+    const playing = soundTip(sound, sound !== 'silent' && tabs.muted.has(tab.id));
     // No tip while something is dragged: it would sit on the ghost.
     return { label: `${label}${playing}`, hint: hint ? `${hint} (${who})` : who, when: () => !drag.item };
   });
@@ -144,7 +144,7 @@
     <span class="name">{name}</span>
     {#if unread === 'mention'}<MentionCount count={mentions} />{/if}
     <!-- V106 a-5, s3-7 The badge is only a picture; screen readers hear it here. -->
-    {#if tabs.muted.has(tab.id)}<span class="sr-only">, muted</span>{/if}
+    {#if sound !== 'silent' && tabs.muted.has(tab.id)}<span class="sr-only">, muted</span>{/if}
     {#if popped}<span class="popped"><Icon name="popout" size={12} /></span>{/if}
     {#if closeButton}
       <button
