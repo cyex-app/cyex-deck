@@ -4,6 +4,7 @@
      window; a typed name keeps it open (c-2). -->
 <script module lang="ts">
   import type { EmoteCard as Card } from '../../ipc/bindings/EmoteCard';
+  import type { Layer } from '../../ipc/bindings/Layer';
 
   /** ka-3, fb-1 The last pointer press and key: a card opened by a press (no key since)
    *  starts without a focus frame, even after a key (e.g. Esc) made the browser show them. */
@@ -13,6 +14,16 @@
     addEventListener('pointerdown', () => (pressed = performance.now()), true);
     addEventListener('keydown', () => (keyed = performance.now()), true);
   }
+
+  /** A press outside closed this emote's card; the click that follows on that same emote
+   *  closes it for good instead of opening it again. */
+  let pressedAway: { key: string; x: number; y: number; at: number } | null = null;
+  const SAME_CLICK_MS = 1000;
+  const at = (t: { emote: Layer; rect: DOMRect }) => ({
+    key: `${t.emote.provider}/${t.emote.id}`,
+    x: Math.round(t.rect.left),
+    y: Math.round(t.rect.top),
+  });
 
   /** fb-4 Details already shown this session: a card opened again has them at once. */
   const seen = new Map<string, Card>();
@@ -29,7 +40,6 @@
   import IconButton from '../../components/IconButton.svelte';
   import { hideTip, tip, tooltip } from '../../components/tooltip.svelte';
   import type { EmoteCard } from '../../ipc/bindings/EmoteCard';
-  import type { Layer } from '../../ipc/bindings/Layer';
   import { emotesIpc } from '../../ipc/emotes';
   import { notifyEvents } from '../../ipc/notify';
   import { systemIpc } from '../../ipc/system';
@@ -62,6 +72,18 @@
 
   let { target, login, account = null, onclose }: Props = $props();
 
+  // The press that closed this emote's card was on the emote itself: this click only closes.
+  // svelte-ignore state_referenced_locally
+  const again = (() => {
+    const was = pressedAway;
+    pressedAway = null;
+    const now = at(target);
+    return !!was && was.key === now.key && was.x === now.x && was.y === now.y && performance.now() - was.at < SAME_CLICK_MS;
+  })();
+  $effect(() => {
+    if (again) onclose();
+  });
+
   const WIDTH = 300;
 
   // The card is rebuilt for each new target, so the first pick is enough.
@@ -91,6 +113,7 @@
   }
 
   $effect(() => {
+    if (again) return;
     const e = shown;
     void reloads;
     const key = `${login}/${e.provider}/${e.id}/${target.sender ?? ''}`;
@@ -108,9 +131,13 @@
   });
 
   $effect(() => {
+    if (again) return;
     const down = (ev: MouseEvent) => {
       const t = ev.target as Element;
-      if (box && !box.contains(t) && !t.closest?.('[data-shared-menu]')) onclose();
+      if (box && !box.contains(t) && !t.closest?.('[data-shared-menu]')) {
+        pressedAway = { ...at(target), at: performance.now() };
+        onclose();
+      }
     };
     // c-2 Scrolling the card itself, or a draft in its name form, keeps it.
     const away = (ev: Event) => {
@@ -259,6 +286,7 @@
 <!-- R2 A browser link's cue: a small arrow out. In-app links have none. -->
 {#snippet out()}<span class="out" aria-hidden="true"><Icon name="popout" size={10} /></span>{/snippet}
 
+{#if !again}
 <div
   class="card"
   bind:this={box}
@@ -419,6 +447,7 @@
     <button class="hide" onclick={hide}><Icon name="eyeOff" size={14} />Hide</button>
   </div>
 </div>
+{/if}
 
 <style>
   .card {
