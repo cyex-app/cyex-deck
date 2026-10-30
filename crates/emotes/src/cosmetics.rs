@@ -240,6 +240,14 @@ impl Cosmetics {
             }
         }
         look.badges.retain(|b| self.badges.contains_key(b));
+        // V108-C10 One picture once: lists repeat a badge under two ids (Homies' developer
+        // badge sits in both team lists). The first in provider order stays.
+        let mut seen = std::collections::HashSet::new();
+        look.badges.retain(|b| {
+            let d = &self.badges[b];
+            let pic = if d.image2x.is_empty() { &d.image4x } else { &d.image2x };
+            pic.is_empty() || seen.insert(pic.clone())
+        });
         (!look.is_empty()).then_some(look)
     }
 
@@ -288,6 +296,26 @@ mod tests {
             color: None,
             replaces: None,
         }
+    }
+
+    // V108-C10
+    #[test]
+    fn look_drops_a_badge_whose_picture_is_already_there() {
+        let mut c = Cosmetics::default();
+        let mut a = badge(Provider::Seventv, "a");
+        a.image2x = "https://x/heart.png".into();
+        let mut b = badge(Provider::Bttv, "b");
+        b.image2x = "https://x/heart.png".into();
+        let mut d = badge(Provider::Ffz, "2");
+        d.image2x = "https://x/cat.png".into();
+        for x in [a, b, d] {
+            c.add_badge(x);
+        }
+        c.set_seventv("1", SevenChange::Badge(Some("a")));
+        c.set_bttv_badge("1", Some("b"));
+        c.set_ffz_users(vec![("2".into(), vec![1])]);
+        let ids: Vec<_> = c.look("1").unwrap().badges.into_iter().map(|b| b.id).collect();
+        assert_eq!(ids, ["a", "2"]);
     }
 
     #[test]

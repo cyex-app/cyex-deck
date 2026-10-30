@@ -49,7 +49,12 @@
   const isMod = (set: string) => set === 'moderator' || set === 'lead_moderator';
   /** Provider badges not already drawn in a Twitch badge's place. */
   const rest = $derived(
-    extra.filter((b) => !(on.twitch && b.replaces === 'moderator' && badges.some((r) => isMod(r.set)))),
+    extra.filter(
+      (b) =>
+        !(on.twitch && b.replaces === 'moderator' && badges.some((r) => isMod(r.set))) &&
+        // V108-C10 An FFZ VIP badge next to the VIP one (Twitch's or the room's) shows twice.
+        !(on.twitch && b.replaces === 'vip' && badges.some((r) => r.set === 'vip')),
+    ),
   );
 
   function hint(ref: Ref, b: BadgeInfo): string | undefined {
