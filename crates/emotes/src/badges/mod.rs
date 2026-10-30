@@ -5,6 +5,7 @@
 //! Their badges are `BadgeDef`s with `provider: Twitch` ("none of the emote providers") and an id
 //! `<set>:<name>`, so [`BadgeSet::of_id`] tells which switch governs them.
 
+pub mod art;
 pub mod badgehq;
 pub mod chatsen;
 pub mod dankchat;

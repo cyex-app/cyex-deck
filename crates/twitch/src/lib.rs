@@ -29,4 +29,4 @@ pub mod ws;
 
 pub use download::DownloadError;
 pub use error::{Error, Result};
-pub use http::{Http, RateLimit};
+pub use http::{BROWSER_AGENT, Http, RateLimit};

@@ -2,7 +2,8 @@
 //! name effects aren't shown (D22). The UI looks people up when it draws their name, so cosmetics that
 //! arrive after a message still show on it.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::sync::Mutex;
 
 use cyex_chat::model::Provider;
 use serde::Serialize;
@@ -87,6 +88,16 @@ const MAX_SEVENTV_USERS: usize = 20_000;
 /// V107-R1 BTTV badge holders kept at most, trimmed the same way (Pro badges come over the socket,
 /// one per person seen in any joined channel).
 const MAX_BTTV_USERS: usize = 20_000;
+/// V108-C10 Pictures asked about at most; past it the list starts over (the app's prints file
+/// answers repeats without a fetch).
+const MAX_ART_ASKED: usize = 20_000;
+
+/// V108-C10 Pictures already handed to the app for a print, and the new ones waiting.
+#[derive(Default)]
+struct ArtAsks {
+    asked: HashSet<String>,
+    waiting: Vec<String>,
+}
 
 #[derive(Default)]
 pub struct Cosmetics {
@@ -100,6 +111,15 @@ pub struct Cosmetics {
     bttv: Capped<String, String, MAX_BTTV_USERS>,
     /// V108-N06 Extra badge sets: user id → badge ids, one map per loaded set.
     extra: HashMap<BadgeSet, HashMap<String, Vec<String>>>,
+    /// V108-C10 Picture URL → the URL with the same art that counts for it (only where they differ).
+    art: HashMap<String, String>,
+    /// V108-C10 Filled while drawing (`look` takes `&self`).
+    art_asks: Mutex<ArtAsks>,
+}
+
+/// V108-C10 The picture two badges are compared by.
+fn picture_of(d: &BadgeDef) -> &str {
+    if d.image2x.is_empty() { &d.image4x } else { &d.image2x }
 }
 
 /// 7TV paint or badge, given or taken.
@@ -195,7 +215,70 @@ impl Cosmetics {
     /// V108-N06 Takes a set out (its switch went off) and frees its list.
     pub fn clear_extra(&mut self, set: BadgeSet) {
         self.extra.remove(&set);
-        self.badges.retain(|k, _| BadgeSet::of_id(&k.id) != Some(set));
+        // V108-C10 Its pictures leave the same-art map too (the app keeps their prints on disk).
+        let mut gone = HashSet::new();
+        self.badges.retain(|k, d| {
+            let keep = BadgeSet::of_id(&k.id) != Some(set);
+            if !keep {
+                gone.insert(picture_of(d).to_owned());
+            }
+            keep
+        });
+        if !gone.is_empty() {
+            self.art.retain(|url, canon| !gone.contains(url) && !gone.contains(canon));
+            let mut asks = self.art_asks.lock().unwrap_or_else(|p| p.into_inner());
+            asks.asked.retain(|u| !gone.contains(u));
+            asks.waiting.retain(|u| !gone.contains(u));
+        }
+    }
+
+    /// V108-C10 The same-art map from the app's prints. True when it changed.
+    pub fn set_art(&mut self, map: HashMap<String, String>) -> bool {
+        let changed = self.art != map;
+        self.art = map;
+        changed
+    }
+
+    /// V108-C10 Pictures the app already has a print for: never asked again.
+    pub fn art_known<'a>(&self, urls: impl IntoIterator<Item = &'a str>) {
+        let mut asks = self.art_asks.lock().unwrap_or_else(|p| p.into_inner());
+        asks.asked.extend(urls.into_iter().map(str::to_owned));
+    }
+
+    /// V108-C10 Pictures whose fetch failed: asked again the next time they meet on a line.
+    pub fn art_forget<'a>(&self, urls: impl IntoIterator<Item = &'a str>) {
+        let mut asks = self.art_asks.lock().unwrap_or_else(|p| p.into_inner());
+        for u in urls {
+            asks.asked.remove(u);
+        }
+    }
+
+    /// V108-C10 Some picture waits for a print.
+    pub fn art_waiting(&self) -> bool {
+        !self.art_asks.lock().unwrap_or_else(|p| p.into_inner()).waiting.is_empty()
+    }
+
+    /// V108-C10 Pictures that met another on a line and have no print yet.
+    pub fn take_art_asks(&self) -> Vec<String> {
+        std::mem::take(&mut self.art_asks.lock().unwrap_or_else(|p| p.into_inner()).waiting)
+    }
+
+    /// V108-C10 Hands this look's pictures to the app for prints, once each. Only a look with two
+    /// or more pictures can show the same art twice.
+    fn ask_art(&self, pictures: &[&str]) {
+        if pictures.len() < 2 {
+            return;
+        }
+        let mut asks = self.art_asks.lock().unwrap_or_else(|p| p.into_inner());
+        if asks.asked.len() >= MAX_ART_ASKED {
+            asks.asked.clear();
+        }
+        for p in pictures {
+            if !asks.asked.contains(*p) {
+                asks.asked.insert((*p).to_owned());
+                asks.waiting.push((*p).to_owned());
+            }
+        }
     }
 
     pub fn extra_loaded(&self, set: BadgeSet) -> bool {
@@ -241,12 +324,19 @@ impl Cosmetics {
         }
         look.badges.retain(|b| self.badges.contains_key(b));
         // V108-C10 One picture once: lists repeat a badge under two ids (Homies' developer
-        // badge sits in both team lists). The first in provider order stays.
-        let mut seen = std::collections::HashSet::new();
+        // badge sits in both team lists), and the same art sits at other URLs (`art`: one map
+        // lookup per badge). The first in provider order stays.
+        let pictures: Vec<&str> = look
+            .badges
+            .iter()
+            .map(|b| picture_of(&self.badges[b]))
+            .filter(|p| !p.is_empty())
+            .collect();
+        self.ask_art(&pictures);
+        let mut seen = HashSet::new();
         look.badges.retain(|b| {
-            let d = &self.badges[b];
-            let pic = if d.image2x.is_empty() { &d.image4x } else { &d.image2x };
-            pic.is_empty() || seen.insert(pic.clone())
+            let pic = picture_of(&self.badges[b]);
+            pic.is_empty() || seen.insert(self.art.get(pic).map_or(pic, String::as_str))
         });
         (!look.is_empty()).then_some(look)
     }
@@ -316,6 +406,66 @@ mod tests {
         c.set_ffz_users(vec![("2".into(), vec![1])]);
         let ids: Vec<_> = c.look("1").unwrap().badges.into_iter().map(|b| b.id).collect();
         assert_eq!(ids, ["a", "2"]);
+    }
+
+    // V108-C10 Same art at another URL: asked once, dropped once the map says so.
+    #[test]
+    fn look_asks_for_prints_and_drops_the_same_art() {
+        let mut c = Cosmetics::default();
+        let mut a = badge(Provider::Seventv, "a");
+        a.image2x = "https://x/heart.png".into();
+        let mut b = badge(Provider::Bttv, "b");
+        b.image2x = "https://y/heart.webp".into();
+        let mut d = badge(Provider::Ffz, "2");
+        d.image2x = "https://x/cat.png".into();
+        for x in [a, b, d] {
+            c.add_badge(x);
+        }
+        c.set_bttv_badge("9", Some("b"));
+        c.look("9");
+        assert!(c.take_art_asks().is_empty(), "one badge can't repeat");
+        c.set_bttv_badge("1", Some("b"));
+        c.set_seventv("1", SevenChange::Badge(Some("a")));
+        c.set_ffz_users(vec![("2".into(), vec![1])]);
+        assert_eq!(c.look("1").unwrap().badges.len(), 3, "no prints yet: all show");
+        assert_eq!(c.take_art_asks(), ["https://x/heart.png", "https://y/heart.webp", "https://x/cat.png"]);
+        c.look("1");
+        assert!(c.take_art_asks().is_empty(), "asked once");
+        assert!(c.set_art(HashMap::from([("https://y/heart.webp".into(), "https://x/heart.png".into())])));
+        let ids: Vec<_> = c.look("1").unwrap().badges.into_iter().map(|b| b.id).collect();
+        assert_eq!(ids, ["a", "2"]);
+        // A failed fetch is asked again.
+        c.art_forget(["https://x/cat.png"]);
+        c.look("1");
+        assert_eq!(c.take_art_asks(), ["https://x/cat.png"]);
+        // Known from the file: never asked.
+        let mut e = badge(Provider::Ffz, "3");
+        e.image2x = "https://z/known.png".into();
+        c.add_badge(e);
+        c.art_known(["https://z/known.png"]);
+        c.set_ffz_users(vec![("2".into(), vec![1]), ("3".into(), vec![1])]);
+        c.look("1");
+        assert!(c.take_art_asks().is_empty());
+    }
+
+    // V108-C10 A set switched off takes its pictures out of the same-art map.
+    #[test]
+    fn clearing_a_set_drops_its_art() {
+        use crate::badges::{BadgeSet, Loaded};
+        let mut c = Cosmetics::default();
+        let mut loaded = Loaded::default();
+        let mut def = badge(Provider::Twitch, "homies:u1");
+        def.image2x = "https://h/made.webp".into();
+        loaded.defs.push(def);
+        loaded.users.insert("1".into(), vec!["homies:u1".into()]);
+        c.set_extra(BadgeSet::Homies, loaded);
+        c.set_art(HashMap::from([
+            ("https://h/made.webp".into(), "https://t/team.png".into()),
+            ("https://o/other.png".into(), "https://t/team.png".into()),
+        ]));
+        c.clear_extra(BadgeSet::Homies);
+        assert_eq!(c.art.len(), 1);
+        assert!(c.art.contains_key("https://o/other.png"));
     }
 
     // V108-C10 Badges without a picture url aren't "the same picture".

@@ -61,7 +61,12 @@ pub fn looks_for(app: &AppHandle, users: &[String]) -> Looks {
     for u in users.iter().take(500) {
         inner.user_sets.touch(u.as_str());
     }
-    inner.cosmetics.looks(users.iter().take(500).map(String::as_str))
+    let looks = inner.cosmetics.looks(users.iter().take(500).map(String::as_str));
+    // V108-C10 Badges that met on a line wait for prints of their pictures.
+    let waiting = inner.cosmetics.art_waiting();
+    drop(inner);
+    super::art::nudge(app, waiting);
+    looks
 }
 
 /// V1051-03 What an account now wears.

@@ -3,6 +3,7 @@
 //! providers' sockets (`live`). Chat tokenizes with [`room`]; the UI looks up who wears
 //! what through `looks`.
 
+mod art;
 mod card;
 mod card_flags;
 pub mod edit;
@@ -136,6 +137,7 @@ pub fn init(app: &AppHandle) {
     providers::spawn_bttv(app.clone(), bttv_rx);
     looks::spawn(app.clone());
     extra::init(app);
+    art::init(app);
 }
 
 fn spawn(task: std::pin::Pin<Box<dyn Future<Output = ()> + Send>>) {

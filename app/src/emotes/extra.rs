@@ -15,7 +15,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use super::Emotes;
 
 /// The UI asks everyone it draws again.
-const EVENT: &str = "emotes:badge-sets";
+pub(super) const EVENT: &str = "emotes:badge-sets";
 /// Startup settles first.
 const FIRST: Duration = Duration::from_secs(4);
 /// After a failed fetch: first wait, doubled each time up to the refresh time.
@@ -125,6 +125,8 @@ async fn keep(app: AppHandle, set: BadgeSet, run: u64) {
                 app.state::<Emotes>().lock().cosmetics.set_extra(set, loaded);
                 eprintln!("emotes: {} badges: {badges} badges for {people} people", set.prefix());
                 let _ = app.emit(EVENT, ());
+                // V108-C10 Pictures that failed to load for comparing get another go.
+                super::art::retry(&app);
                 wait = badges::REFRESH;
             }
             Err(e) => {

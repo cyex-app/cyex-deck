@@ -28,6 +28,10 @@ pub mod thumb {
     pub fn all_clear(files: Vec<Vec<u8>>) -> Vec<Option<bool>> {
         vec![None; files.len()]
     }
+    /// V108-C10 Nothing to compare, so every badge shows.
+    pub fn squares(files: Vec<Vec<u8>>, _side: u32) -> Vec<Option<Vec<u8>>> {
+        vec![None; files.len()]
+    }
 }
 
 /// V1051-01 Nothing to name or play through outside Windows.

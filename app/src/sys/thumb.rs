@@ -35,6 +35,34 @@ pub fn all_clear(files: Vec<Vec<u8>>) -> Vec<Option<bool>> {
     .unwrap_or_else(|| vec![None; n])
 }
 
+/// V108-C10 Each file's first frame squeezed to `side` x `side` BGRA pixels (Fant, an area
+/// average), None when it won't decode. One thread and one factory for the list.
+pub fn squares(files: Vec<Vec<u8>>, side: u32) -> Vec<Option<Vec<u8>>> {
+    let n = files.len();
+    in_com(move || {
+        // SAFETY: the factory lives on this COM thread and drops before `in_com` leaves COM.
+        let factory = unsafe { factory() }.ok();
+        files
+            .iter()
+            .map(|f| factory.as_ref().and_then(|fa| square(fa, f, side)))
+            .collect()
+    })
+    .unwrap_or_else(|| vec![None; n])
+}
+
+fn square(factory: &IWICImagingFactory, bytes: &[u8], side: u32) -> Option<Vec<u8>> {
+    // SAFETY: plain WIC calls on objects owned by this function, on the caller's COM thread.
+    unsafe {
+        let (_, _, frame) = decode_frame(factory, bytes).ok()?;
+        let scaler = factory.CreateBitmapScaler().ok()?;
+        scaler.Initialize(&frame, side, side, WICBitmapInterpolationModeFant).ok()?;
+        let pixels = bgra(factory, &scaler).ok()?;
+        let mut px = vec![0u8; side as usize * side as usize * 4];
+        pixels.CopyPixels(std::ptr::null(), side * 4, &mut px).ok()?;
+        Some(px)
+    }
+}
+
 const PNG: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
 /// V106-24 Bigger than this a side counts as visible, unread.
 const CLEAR_MAX: u32 = 2048;
@@ -223,6 +251,14 @@ mod tests {
         let files = vec![vec![1, 2, 3], png_garbage, fixture("marc-26.jpg"), TINY.to_vec()];
         assert_eq!(all_clear(files), [None, None, None, Some(false)]);
         assert!(all_clear(Vec::new()).is_empty());
+    }
+
+    // V108-C10
+    #[test]
+    fn squares_are_side_by_side_bgra() {
+        let out = squares(vec![TINY.to_vec(), vec![1, 2, 3]], 8);
+        assert_eq!(out[0].as_ref().map(Vec::len), Some(8 * 8 * 4));
+        assert!(out[1].is_none());
     }
 
     #[test]

@@ -10,6 +10,10 @@ use crate::{Error, Result};
 #[derive(Clone)]
 pub struct Http(pub(crate) reqwest::Client, pub(crate) Option<std::sync::Arc<str>>);
 
+/// V108-C10 A desktop browser, for picture hosts that refuse the app's own user agent.
+pub const BROWSER_AGENT: &str =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+
 /// P4 #16 What a mock gets instead of the account's sign-in (SEC-01: never the real one).
 pub(crate) const MOCK_TOKEN: &str = "mock-token";
 pub(crate) const MOCK_CLIENT: &str = "mock-client";
@@ -79,30 +83,25 @@ impl Http {
 
     /// V106-24 A small file, or None when it's bigger than `max` (stops reading there).
     pub async fn get_small(&self, url: &str, max: usize) -> Result<Option<Vec<u8>>> {
-        let mut res = self
+        small(self.0.get(url), max).await
+    }
+
+    /// V108-C10 A small picture as a browser asks for it (some badge hosts refuse other user
+    /// agents), given up after `timeout`. None when it's bigger than `max`.
+    pub async fn get_small_as(
+        &self,
+        url: &str,
+        max: usize,
+        user_agent: &str,
+        timeout: Duration,
+    ) -> Result<Option<Vec<u8>>> {
+        let req = self
             .0
             .get(url)
-            .send()
-            .await
-            .map_err(|e| Error::Network(e.without_url()))?;
-        let status = res.status().as_u16();
-        if !(200..300).contains(&status) {
-            return Err(Error::Api {
-                status,
-                message: "request".into(),
-            });
-        }
-        if res.content_length().is_some_and(|n| n > max as u64) {
-            return Ok(None);
-        }
-        let mut out = Vec::new();
-        while let Some(chunk) = res.chunk().await.map_err(|e| Error::Network(e.without_url()))? {
-            out.extend_from_slice(&chunk);
-            if out.len() > max {
-                return Ok(None);
-            }
-        }
-        Ok(Some(out))
+            .header("User-Agent", user_agent)
+            .header("Accept", "image/webp,image/*")
+            .timeout(timeout);
+        small(req, max).await
     }
 
     /// X6 A picture to keep, refused when bigger than `max`.
@@ -216,6 +215,30 @@ pub(crate) fn retry_secs(headers: &reqwest::header::HeaderMap) -> Option<u64> {
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.trim().parse::<u64>().ok())
     })
+}
+
+/// V106-24 The body, or None when it's bigger than `max` (stops reading there). Errors never
+/// carry the URL.
+async fn small(req: RequestBuilder, max: usize) -> Result<Option<Vec<u8>>> {
+    let mut res = req.send().await.map_err(|e| Error::Network(e.without_url()))?;
+    let status = res.status().as_u16();
+    if !(200..300).contains(&status) {
+        return Err(Error::Api {
+            status,
+            message: "request".into(),
+        });
+    }
+    if res.content_length().is_some_and(|n| n > max as u64) {
+        return Ok(None);
+    }
+    let mut out = Vec::new();
+    while let Some(chunk) = res.chunk().await.map_err(|e| Error::Network(e.without_url()))? {
+        out.extend_from_slice(&chunk);
+        if out.len() > max {
+            return Ok(None);
+        }
+    }
+    Ok(Some(out))
 }
 
 /// Sends the request and decodes a JSON body, or turns an error status into `Error::Api`.
