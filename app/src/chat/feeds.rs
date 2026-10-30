@@ -4,7 +4,9 @@
 //! it, and deletions and timeouts in the source chat apply to the copies too.
 
 use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use cyex_chat::model::{ChatMessage, Flag, Gone, RoomEvent};
 use serde::Serialize;
@@ -14,6 +16,8 @@ use ts_rs::TS;
 
 /// Lines a feed keeps.
 const LINES: usize = 500;
+/// What reaches a feed goes out together after this long, like chat's own batches.
+const BATCH: Duration = Duration::from_millis(50);
 
 #[derive(Clone, Debug, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -53,12 +57,18 @@ struct Feed {
     lines: VecDeque<FeedLine>,
     /// View id, its window, its channel.
     views: Vec<(u32, String, View)>,
+    /// Not sent yet; `lines` already has them.
+    pending: Vec<FeedEvent>,
+    /// A new line came since the last batch (V107-H15).
+    news: bool,
 }
 
 #[derive(Default)]
 pub struct Feeds {
     feeds: Mutex<HashMap<String, Feed>>,
     next_view: Mutex<u32>,
+    /// A batch is on its way.
+    due: AtomicBool,
 }
 
 fn key(name: &str) -> String {
@@ -83,7 +93,6 @@ fn push(app: &AppHandle, channel: &str, message: &Arc<ChatMessage>, routes: &[St
     let Some(feeds) = app.try_state::<Feeds>() else {
         return;
     };
-    let alive = |w: &str| app.get_webview_window(w).is_some();
     let mut map = feeds.feeds.lock().unwrap_or_else(|p| p.into_inner());
     for name in routes {
         let feed = map.entry(key(name)).or_default();
@@ -100,10 +109,11 @@ fn push(app: &AppHandle, channel: &str, message: &Arc<ChatMessage>, routes: &[St
             feed.lines.pop_front();
         }
         feed.lines.push_back(line.clone());
-        send(feed, FeedEvent::Line { line }, &alive);
-        // V107-H15 The tab bar lights a feed tab nobody is looking at.
-        let _ = app.emit_to("main", "feed:news", key(name));
+        feed.pending.push(FeedEvent::Line { line });
+        feed.news = true;
     }
+    drop(map);
+    soon(app, &feeds);
 }
 
 /// Deletions and timeouts in a chat reach its copies.
@@ -133,8 +143,8 @@ pub fn moderate(app: &AppHandle, channel: &str, events: &[RoomEvent]) {
     let Some(feeds) = app.try_state::<Feeds>() else {
         return;
     };
-    let alive = |w: &str| app.get_webview_window(w).is_some();
     let mut map = feeds.feeds.lock().unwrap_or_else(|p| p.into_inner());
+    let mut any = false;
     for feed in map.values_mut() {
         let mut changed = Vec::new();
         for line in feed.lines.iter_mut().filter(|l| l.channel == channel) {
@@ -155,9 +165,12 @@ pub fn moderate(app: &AppHandle, channel: &str, events: &[RoomEvent]) {
                 changed.push(line.clone());
             }
         }
-        for line in changed {
-            send(feed, FeedEvent::Update { line }, &alive);
-        }
+        any |= !changed.is_empty();
+        feed.pending.extend(changed.into_iter().map(|line| FeedEvent::Update { line }));
+    }
+    drop(map);
+    if any {
+        soon(app, &feeds);
     }
 }
 
@@ -174,7 +187,9 @@ pub fn remove(app: &AppHandle, name: &str, keys: &[String]) {
     let Some(feed) = map.get_mut(&key(name)) else { return };
     let gone = drop_keys(&mut feed.lines, keys);
     if !gone.is_empty() {
-        send(feed, FeedEvent::Remove { keys: gone }, &alive);
+        // Queued lines go first, so a removal never lands before the line it removes.
+        send_pending(feed, &alive);
+        send(feed, vec![FeedEvent::Remove { keys: gone }], &alive);
     }
 }
 
@@ -195,8 +210,48 @@ fn drop_keys(lines: &mut VecDeque<FeedLine>, keys: &[String]) -> Vec<String> {
 
 /// V107-R1 Views whose window is gone leave: a closed window's channel still takes sends
 /// without an error, so they never left before.
-fn send(feed: &mut Feed, event: FeedEvent, alive: &dyn Fn(&str) -> bool) {
-    feed.views.retain(|(_, w, v)| alive(w) && v.send(vec![event.clone()]).is_ok());
+fn send(feed: &mut Feed, events: Vec<FeedEvent>, alive: &dyn Fn(&str) -> bool) {
+    feed.views.retain(|(_, w, v)| alive(w) && v.send(events.clone()).is_ok());
+}
+
+fn send_pending(feed: &mut Feed, alive: &dyn Fn(&str) -> bool) {
+    let events = std::mem::take(&mut feed.pending);
+    if !events.is_empty() {
+        send(feed, events, alive);
+    }
+}
+
+/// One batch per 50 ms for all feeds: a busy rule sends a list, not an event per line.
+fn soon(app: &AppHandle, feeds: &Feeds) {
+    if feeds.due.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(BATCH).await;
+        flush(&app);
+    });
+}
+
+fn flush(app: &AppHandle) {
+    let Some(feeds) = app.try_state::<Feeds>() else { return };
+    // Cleared first: what lands while this runs gets a batch of its own.
+    feeds.due.store(false, Ordering::Release);
+    let alive = |w: &str| app.get_webview_window(w).is_some();
+    let mut news = Vec::new();
+    {
+        let mut map = feeds.feeds.lock().unwrap_or_else(|p| p.into_inner());
+        for (name, feed) in map.iter_mut() {
+            send_pending(feed, &alive);
+            if std::mem::take(&mut feed.news) {
+                news.push(name.clone());
+            }
+        }
+    }
+    // V107-H15 The tab bar lights a feed tab nobody is looking at.
+    for name in news {
+        let _ = app.emit_to("main", "feed:news", name);
+    }
 }
 
 /// Starts streaming a feed. Returns the view id and the lines it has.
@@ -207,8 +262,11 @@ pub fn open(app: &AppHandle, name: &str, window: &str, view: View) -> (u32, Vec<
         *n += 1;
         *n
     };
+    let alive = |w: &str| app.get_webview_window(w).is_some();
     let mut map = feeds.feeds.lock().unwrap_or_else(|p| p.into_inner());
     let feed = map.entry(key(name)).or_default();
+    // The new view gets these in its lines; the queue goes to the views open before it.
+    send_pending(feed, &alive);
     feed.views.push((id, window.to_owned(), view));
     (id, feed.lines.iter().cloned().collect())
 }
@@ -263,8 +321,32 @@ mod tests {
             feed.views.push((i, format!("pop{i}"), Channel::new(|_| Ok(()))));
         }
         feed.views.push((1000, "main".into(), Channel::new(|_| Ok(()))));
-        send(&mut feed, FeedEvent::Line { line: line() }, &|w| w == "main");
+        send(&mut feed, vec![FeedEvent::Line { line: line() }], &|w| w == "main");
         assert_eq!(feed.views.len(), 1);
         assert_eq!(feed.views[0].1, "main");
+    }
+
+    #[test]
+    fn queued_lines_go_out_in_one_send_to_the_views_open_before() {
+        use std::sync::atomic::AtomicUsize;
+        let sends = Arc::new(AtomicUsize::new(0));
+        let counted = |n: &Arc<AtomicUsize>| {
+            let n = n.clone();
+            Channel::new(move |_| {
+                n.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            })
+        };
+        let mut feed = Feed::default();
+        feed.views.push((1, "main".into(), counted(&sends)));
+        for _ in 0..20 {
+            feed.pending.push(FeedEvent::Line { line: line() });
+        }
+        send_pending(&mut feed, &|_| true);
+        assert_eq!(sends.load(Ordering::Relaxed), 1);
+        assert!(feed.pending.is_empty());
+        // Nothing queued: nothing sent.
+        send_pending(&mut feed, &|_| true);
+        assert_eq!(sends.load(Ordering::Relaxed), 1);
     }
 }
