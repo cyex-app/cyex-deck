@@ -16,6 +16,7 @@
   import { catalogs } from '../chat/catalog.svelte';
   import Line from '../chat/Line.svelte';
   import { ChatRoom } from '../chat/room.svelte';
+  import { lookVars } from '../tabs/look';
   import { tabs, tiles } from '../tabs/tabs.svelte';
   import { errorText } from '../../lib/errors';
 
@@ -24,6 +25,8 @@
   const tileId = $derived(route.split('/')[1]);
   const tile = $derived(tabs.list.flatMap(tiles).find((t) => t.id === tileId));
   const o = $derived(settings.v.chat.overlay);
+  /** V108-N19 The tab's own text and emote size, when it has them. */
+  const look = $derived(lookVars(tabs.tabOf(tileId)?.look));
   /** Reopens the chat only when what it reads changes, not on every tab edit. */
   const key = $derived(tile ? `${tile.channel.login}/${tile.account}/${tile.filters.join()}` : '');
 
@@ -99,7 +102,8 @@
   class:no-badges={!o.badges}
   class:fading={o.fadeAfter > 0}
   style:--overlay-bg="color-mix(in srgb, var(--bg) {o.background}%, transparent)"
-  style:--chat-size="calc({settings.v.general.chatFontSize}px * {o.scale / 100})"
+  style:--chat-size="calc({look['--chat-size'] ?? `${settings.v.general.chatFontSize}px`} * {o.scale / 100})"
+  style:--emote-scale={look['--emote-scale']}
 >
   <div class="bar" class:shown={clickThrough && barHover} data-tauri-drag-region>
     <span class="title" data-tauri-drag-region>{tile?.channel.name ?? ''}</span>

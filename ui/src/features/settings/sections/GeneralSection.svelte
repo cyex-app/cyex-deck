@@ -14,7 +14,7 @@
   import { updateIpc } from '../../../ipc/update';
   import { formatTime } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
-  import { withoutHidden, withTag } from '../../discover/hidden';
+  import { MAX_HIDDEN_TAGS, withoutHidden, withTag } from '../../discover/hidden';
   import { checkText } from '../../update/updateText';
   import FontPicker from '../FontPicker.svelte';
   import ResetSection from '../ResetSection.svelte';
@@ -153,7 +153,13 @@
       addTag();
     }}
   >
-    <input class="field" maxlength="40" aria-label="Add a tag to hide" placeholder="Add a tag" bind:value={newTag} />
+    <input
+      class="field"
+      maxlength="40"
+      aria-label="Add a tag to hide"
+      placeholder={b.hiddenTags.length >= MAX_HIDDEN_TAGS ? 'List is full' : 'Add a tag'}
+      disabled={b.hiddenTags.length >= MAX_HIDDEN_TAGS}
+      bind:value={newTag} />
   </form>
   {#if b.hiddenTags.length}
     <div class="hid">

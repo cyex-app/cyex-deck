@@ -13,7 +13,6 @@
   let off = $state(new Set<string>());
   const keep = $derived(picked(all, off));
 
-  const close = () => (resumeDialog.open = false);
 
   function toggle(id: string, on: boolean) {
     const next = new Set(off);
@@ -23,13 +22,13 @@
   }
 
   async function go(ids: string[]) {
-    close();
-    await resumeWith(ids);
+    resumeDialog.open = false;
+    await resumeWith(all, ids);
   }
 </script>
 
 <!-- Escape keeps everything, as it was. -->
-<Dialog title="Reopen your tabs?" width={380} onclose={close} onsubmit={() => go(keep)}>
+<Dialog title="Reopen your tabs?" width={380} onclose={() => go(all)} onsubmit={() => keep.length && go(keep)}>
   <p class="lead">cyex deck closed unexpectedly. Pick the tabs to bring back.</p>
   <div class="list">
     {#each list as t (t.id)}

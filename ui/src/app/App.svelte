@@ -138,6 +138,8 @@
   /** The tab on screen, and the one playing out of sight before it so it never moves. */
   const mounted = $derived.by(() => {
     const list: Tab[] = [];
+    // V108-N21 Nothing plays or joins chat before the pick after a crash.
+    if (resumeDialog.open) return list;
     const held = tabs.held && tabs.held !== shownTab ? tabs.tab(tabs.held) : undefined;
     if (held && !tabs.popped.has(held.id)) list.push(held);
     const shown = tabs.tab(shownTab);

@@ -30,6 +30,14 @@ pub fn init(app: &AppHandle) {
     app.manage(mute::Muted::default());
     resume::init(app);
     import::init(app);
+    // V108-N21 After a crash they wait for the user's pick (`resume`).
+    if !resume::awaiting(app) {
+        start(app);
+    }
+}
+
+/// Joins the rooms and starts the live poll.
+fn start(app: &AppHandle) {
     rooms::sync(app);
     live::spawn(app);
 }

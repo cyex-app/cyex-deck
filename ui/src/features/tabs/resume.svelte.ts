@@ -13,11 +13,11 @@ export async function askResume(): Promise<void> {
   if (pending) resumeDialog.open = true;
 }
 
-/** Keeps `keep`; the rest wait in "Reopen closed tab". */
-export async function resumeWith(keep: string[]): Promise<void> {
+/** Of the tabs the dialog `shown`, keeps `keep`; the rest wait in "Reopen closed tab". */
+export async function resumeWith(shown: string[], keep: string[]): Promise<void> {
   const n = settings.begin('tabs');
   try {
-    const applied = await tabsIpc.resume(keep);
+    const applied = await tabsIpc.resume(shown, keep);
     await settings.finish('tabs', n, applied.tabs);
   } catch (e) {
     await settings.finish('tabs', n, undefined, false);

@@ -33,10 +33,11 @@ pub fn tabs_resume_pending(app: AppHandle) -> bool {
     tabs::resume_pending(&app)
 }
 
-/// V108-N21 Keeps the picked tabs, closes the rest into the reopen list.
+/// V108-N21 Of the tabs the dialog `shown`, keeps the picked ones and closes the rest into
+/// the reopen list. Starts the rooms and live poll held back since the crash.
 #[tauri::command]
-pub fn tabs_resume(app: AppHandle, keep: Vec<String>) -> CmdResult<tabs::TabsApplied> {
-    tabs::resume(&app, &keep)
+pub fn tabs_resume(app: AppHandle, shown: Vec<String>, keep: Vec<String>) -> CmdResult<tabs::TabsApplied> {
+    tabs::resume(&app, &shown, &keep)
 }
 
 /// U9 Chats with news nobody has seen. Changes arrive as `chat:unread`.

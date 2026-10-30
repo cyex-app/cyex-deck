@@ -47,7 +47,7 @@
     <StreamCard card={c} {nav} {oncategory} {ontag} {showGame} />
   {/each}
 </div>
-<PagedEnd {list} empty="No one is live here right now." />
+<PagedEnd {list} shown={shown.length} empty="No one is live here right now." />
 
 <style>
   .cards {

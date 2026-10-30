@@ -13,6 +13,9 @@ export interface Hidden {
 /** The most the settings keep (the Rust side trims to the same). */
 export const MAX_HIDDEN = 300;
 
+/** Same for tags; the Rust side keeps the first ones, so adding stops here. */
+export const MAX_HIDDEN_TAGS = 100;
+
 const key = (s: string) => s.trim().toLowerCase();
 
 export function categoryHidden(h: Hidden, c: { id?: string | null; name?: string | null }): boolean {
@@ -50,9 +53,9 @@ export function withHidden(list: readonly HiddenCategory[], cat: HiddenCategory)
 export const withoutHidden = (list: readonly HiddenCategory[], id: string): HiddenCategory[] =>
   list.filter((x) => x.id !== id);
 
-/** The tags with `text` added, unless it is empty or there already (any case). */
+/** The tags with `text` added, unless it is empty, there already (any case) or the list is full. */
 export function withTag(tags: readonly string[], text: string): string[] {
   const t = text.trim().replace(/^#/, '').trim();
-  if (!t || tags.some((x) => key(x) === key(t))) return [...tags];
+  if (!t || tags.length >= MAX_HIDDEN_TAGS || tags.some((x) => key(x) === key(t))) return [...tags];
   return [...tags, t];
 }

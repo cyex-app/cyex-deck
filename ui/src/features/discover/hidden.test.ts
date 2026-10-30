@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { ChannelCard } from '../../ipc/bindings/ChannelCard';
-import { cardHidden, categoryHidden, visibleCards, visibleCategories, withHidden, withoutHidden, withTag } from './hidden.ts';
+import { cardHidden, categoryHidden, visibleCards, visibleCategories, withHidden, withoutHidden, withTag, MAX_HIDDEN_TAGS } from './hidden.ts';
 
 const hidden = { categories: [{ id: '1', name: 'Slots' }], tags: ['NSFW'] };
 const none = { categories: [], tags: [] };
@@ -63,4 +63,10 @@ test('V108-N05 tags are added once, without a leading #', () => {
   assert.deepEqual(withTag(['NSFW'], ' #nsfw '), ['NSFW']);
   assert.deepEqual(withTag(['NSFW'], '#18+'), ['NSFW', '18+']);
   assert.deepEqual(withTag([], '  '), []);
+});
+
+test('tags stop being added at the cap', () => {
+  const full = Array.from({ length: MAX_HIDDEN_TAGS }, (_, i) => `t${i}`);
+  assert.deepEqual(withTag(full, 'more'), full);
+  assert.equal(withTag(full.slice(1), 'more').length, MAX_HIDDEN_TAGS);
 });

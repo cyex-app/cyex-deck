@@ -20,9 +20,9 @@ pub struct Event<'a> {
     pub cancelled: bool,
 }
 
-/// The calendar for `channel` (display name). Cancelled streams and ones with a
-/// time that doesn't parse are left out.
-pub fn calendar(channel: &str, events: &[Event], stamp: OffsetDateTime) -> String {
+/// The calendar for `channel` (display name, `login` builds the link). Cancelled streams
+/// and ones with a time that doesn't parse are left out.
+pub fn calendar(channel: &str, login: &str, events: &[Event], stamp: OffsetDateTime) -> String {
     let mut out = vec![
         "BEGIN:VCALENDAR".to_owned(),
         "VERSION:2.0".to_owned(),
@@ -51,7 +51,7 @@ pub fn calendar(channel: &str, events: &[Event], stamp: OffsetDateTime) -> Strin
         if let Some(c) = e.category.filter(|c| !c.is_empty()) {
             out.push(format!("DESCRIPTION:{}", escape(c)));
         }
-        out.push(format!("URL:https://www.twitch.tv/{}", url_safe(channel)));
+        out.push(format!("URL:https://www.twitch.tv/{}", url_safe(login)));
         out.push("END:VEVENT".to_owned());
     }
     out.push("END:VCALENDAR".to_owned());
@@ -123,6 +123,7 @@ mod tests {
     fn times_are_utc_and_lines_end_in_crlf() {
         let s = calendar(
             "Xx",
+            "xx",
             &[ev("a", "Ranked", "2026-10-30T20:00:00+02:00", Some("2026-10-30T22:30:00Z"), false)],
             stamp(),
         );
@@ -138,6 +139,7 @@ mod tests {
     fn cancelled_and_bad_times_are_skipped() {
         let s = calendar(
             "Xx",
+            "xx",
             &[
                 ev("a", "", "2026-10-30T18:00:00Z", None, true),
                 ev("b", "", "soon", None, false),
@@ -153,21 +155,27 @@ mod tests {
 
     #[test]
     fn an_end_before_the_start_falls_back_to_the_default_length() {
-        let s = calendar("Xx", &[ev("a", "T", "2026-10-30T18:00:00Z", Some("2026-10-30T17:00:00Z"), false)], stamp());
+        let s = calendar("Xx", "xx", &[ev("a", "T", "2026-10-30T18:00:00Z", Some("2026-10-30T17:00:00Z"), false)], stamp());
         assert!(s.contains("DTEND:20261030T200000Z"));
     }
 
     #[test]
     fn text_is_escaped() {
         assert_eq!(escape("a,b;c\\d\ne\r"), "a\\,b\\;c\\\\d\\ne");
-        let s = calendar("Xx", &[ev("a", "Rank, pt 2; late", "2026-10-30T18:00:00Z", None, false)], stamp());
+        let s = calendar("Xx", "xx", &[ev("a", "Rank, pt 2; late", "2026-10-30T18:00:00Z", None, false)], stamp());
         assert!(s.contains("SUMMARY:Xx: Rank\\, pt 2\\; late\r\n"));
+    }
+
+    #[test]
+    fn the_link_uses_the_login_not_the_display_name() {
+        let s = calendar("ストリーマー", " StreamerJP ", &[ev("a", "T", "2026-10-30T18:00:00Z", None, false)], stamp());
+        assert!(s.contains("URL:https://www.twitch.tv/streamerjp\r\n"));
     }
 
     #[test]
     fn long_lines_fold_on_character_edges() {
         let long = "é".repeat(60);
-        let s = calendar("Xx", &[ev("a", &long, "2026-10-30T18:00:00Z", None, false)], stamp());
+        let s = calendar("Xx", "xx", &[ev("a", &long, "2026-10-30T18:00:00Z", None, false)], stamp());
         for line in s.split("\r\n") {
             assert!(line.len() <= 75);
         }

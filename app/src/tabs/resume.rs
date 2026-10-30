@@ -2,7 +2,8 @@
 //! start and removed on a clean exit; finding it at the next start means the last run
 //! ended without one (crash, killed, power loss). The tabs themselves are saved as they
 //! change, so they are already loaded: picking only closes the ones left out, through the
-//! normal close, so they wait in "Reopen closed tab" (U10).
+//! normal close, so they wait in "Reopen closed tab" (U10). Until the user answers, the
+//! rooms and the live poll stay off, so a tab that crashed the app can't do it again.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -12,9 +13,10 @@ use tauri::{AppHandle, Manager};
 
 const MARKER: &str = "running";
 
-/// Set at start when the last run didn't end cleanly; taken once by the page.
+/// Set at start when the last run didn't end cleanly and there are tabs to pick from;
+/// cleared when the user answers.
 #[derive(Default)]
-pub struct Unclean(Mutex<bool>);
+pub struct Awaiting(Mutex<bool>);
 
 fn marker(local: &Path) -> PathBuf {
     local.join(MARKER)
@@ -33,14 +35,16 @@ fn end(local: &Path) {
     let _ = fs::remove_file(marker(local));
 }
 
-/// Tabs to close so only `keep` stay, in list order. Unknown ids in `keep` are ignored.
-fn to_close(all: &[String], keep: &[String]) -> Vec<String> {
-    all.iter().filter(|id| !keep.contains(id)).cloned().collect()
+/// Tabs to close so only `keep` stay: the ones the dialog `shown` minus `keep`, that still
+/// exist in `all`, in list order. Tabs opened since the dialog went up are left alone.
+fn to_close(all: &[String], shown: &[String], keep: &[String]) -> Vec<String> {
+    all.iter().filter(|id| shown.contains(id) && !keep.contains(id)).cloned().collect()
 }
 
 pub fn init(app: &AppHandle) {
     let unclean = crate::paths::local(app).is_ok_and(|l| begin(&l));
-    app.manage(Unclean(Mutex::new(unclean)));
+    let tabs_there = !app.state::<crate::settings::Settings>().read::<cyex_settings::schema::Tabs>(cyex_settings::Partition::Tabs).tabs.is_empty();
+    app.manage(Awaiting(Mutex::new(unclean && tabs_there)));
 }
 
 /// Runs on exit, after the settings are flushed.
@@ -50,14 +54,22 @@ pub fn clean_exit(app: &AppHandle) {
     }
 }
 
-/// True once per unclean start, when there are tabs to pick from.
-pub fn take_pending(app: &AppHandle) -> bool {
-    let flag = std::mem::take(&mut *app.state::<Unclean>().0.lock().unwrap_or_else(|p| p.into_inner()));
-    flag && !app.state::<crate::settings::Settings>().read::<cyex_settings::schema::Tabs>(cyex_settings::Partition::Tabs).tabs.is_empty()
+/// True from an unclean start until the user answers. Rooms and live stay off meanwhile.
+pub fn awaiting(app: &AppHandle) -> bool {
+    app.try_state::<Awaiting>().is_some_and(|a| *a.0.lock().unwrap_or_else(|p| p.into_inner()))
 }
 
-/// Keeps the tabs in `keep`, closes the rest (they go to the reopen list).
-pub fn resume(app: &AppHandle, keep: &[String]) -> Result<super::TabsApplied, String> {
+/// True while the page still has to ask (it asks again after a reload).
+pub fn take_pending(app: &AppHandle) -> bool {
+    awaiting(app)
+}
+
+/// Keeps the tabs in `keep` out of the `shown` ones, closes the rest (they go to the reopen
+/// list), then starts what was held back.
+pub fn resume(app: &AppHandle, shown: &[String], keep: &[String]) -> Result<super::TabsApplied, String> {
+    if let Some(a) = app.try_state::<Awaiting>() {
+        *a.0.lock().unwrap_or_else(|p| p.into_inner()) = false;
+    }
     let all: Vec<String> = app
         .state::<crate::settings::Settings>()
         .read::<cyex_settings::schema::Tabs>(cyex_settings::Partition::Tabs)
@@ -65,12 +77,15 @@ pub fn resume(app: &AppHandle, keep: &[String]) -> Result<super::TabsApplied, St
         .iter()
         .map(|t| t.id.clone())
         .collect();
-    let close = to_close(&all, keep);
-    if close.is_empty() {
+    let close = to_close(&all, shown, keep);
+    let out = if close.is_empty() {
         let tabs = app.state::<crate::settings::Settings>().read(cyex_settings::Partition::Tabs);
-        return Ok(super::TabsApplied { made: None, tabs });
-    }
-    super::apply(app, cyex_settings::schema::TabOp::Close { tabs: close })
+        Ok(super::TabsApplied { made: None, tabs })
+    } else {
+        super::apply(app, cyex_settings::schema::TabOp::Close { tabs: close })
+    };
+    super::start(app);
+    out
 }
 
 #[cfg(test)]
@@ -110,9 +125,10 @@ mod tests {
     #[test]
     fn closes_only_the_tabs_not_picked() {
         let all = ids(&["a", "b", "c"]);
-        assert_eq!(to_close(&all, &ids(&["a", "c"])), ids(&["b"]));
-        assert_eq!(to_close(&all, &ids(&["a", "b", "c"])), Vec::<String>::new());
-        assert_eq!(to_close(&all, &[]), all, "start empty");
-        assert_eq!(to_close(&all, &ids(&["zz"])), all, "unknown ids keep nothing");
+        assert_eq!(to_close(&all, &all, &ids(&["a", "c"])), ids(&["b"]));
+        assert_eq!(to_close(&all, &all, &ids(&["a", "b", "c"])), Vec::<String>::new());
+        assert_eq!(to_close(&all, &all, &[]), all, "start empty");
+        assert_eq!(to_close(&all, &all, &ids(&["zz"])), all, "unknown ids keep nothing");
+        assert_eq!(to_close(&all, &ids(&["a", "b"]), &ids(&["a"])), ids(&["b"]), "c wasn't shown");
     }
 }

@@ -30,8 +30,8 @@ if (!panelRoute) chatxIpc.setLanguage(navigator.language).catch(() => {});
 // V107-R12 Once after a crash, in the main window.
 if (!panelRoute && currentWindow.isMain) {
   void showCrashNote();
-  // V108-N21 And which tabs to bring back.
-  void askResume();
+  // V108-N21 And which tabs to bring back, before any tab mounts.
+  await askResume();
 }
 
 export default panelRoute

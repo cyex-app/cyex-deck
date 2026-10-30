@@ -9,6 +9,10 @@ use tauri::{AppHandle, Manager};
 use crate::settings::Settings;
 
 pub fn sync(app: &AppHandle) {
+    // V108-N21 Held back until the user has picked which tabs come back.
+    if super::resume::awaiting(app) {
+        return;
+    }
     let tabs: Tabs = app.state::<Settings>().read(Partition::Tabs);
     let mut wanted: Vec<(Option<String>, String)> = tabs
         .tiles()

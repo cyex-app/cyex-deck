@@ -472,6 +472,22 @@ fn hand_made_panel_layouts_are_kept_per_tile_until_reset() {
 }
 
 #[test]
+fn a_bad_chat_look_number_does_not_fail_the_tabs() {
+    // V108-N19
+    let t: Tabs = serde_json::from_value(serde_json::json!({
+        "tabs": [
+            {"id": "a", "look": {"chatSize": 300, "emoteSize": 120}},
+            {"id": "b", "look": {"chatSize": -5, "emoteSize": -1}},
+            {"id": "c", "look": {"chatSize": "big", "emoteSize": 70000}},
+        ]
+    }))
+    .unwrap();
+    assert_eq!(t.tabs.len(), 3);
+    assert_eq!(t.tabs[0].look, TabLook { chat_size: None, emote_size: Some(120) });
+    assert!(t.tabs[1].look.is_default() && t.tabs[2].look.is_default());
+}
+
+#[test]
 fn a_tabs_chat_look_is_kept_clamped_and_resettable() {
     // V108-N19
     let mut t = tabs(&["a", "b"]);

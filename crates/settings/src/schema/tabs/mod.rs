@@ -91,11 +91,24 @@ pub struct Tab {
 #[ts(export)]
 pub struct TabLook {
     /// Chat text size in px.
+    #[serde(deserialize_with = "lenient")]
     #[ts(optional = nullable)]
     pub chat_size: Option<u8>,
     /// Emote size in percent.
+    #[serde(deserialize_with = "lenient")]
     #[ts(optional = nullable)]
     pub emote_size: Option<u16>,
+}
+
+/// A size that isn't a whole number the type holds (negative, huge, text) reads as unset, so
+/// one bad value can't fail the whole tabs file.
+fn lenient<'de, D, T>(d: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: TryFrom<i64>,
+{
+    let v = serde_json::Value::deserialize(d)?;
+    Ok(v.as_i64().and_then(|n| T::try_from(n).ok()))
 }
 
 impl TabLook {

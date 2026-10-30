@@ -116,7 +116,8 @@ fn upcoming(segments: Vec<ScheduleSegment>, now: OffsetDateTime, max: usize) -> 
 }
 
 /// Cached entries still fresh, and the ids still to fetch. A next stream that has started
-/// is stale whatever its age.
+/// is only trusted for `CHANNEL_AGE` (the channel may be live now), so Home's minute poll
+/// doesn't refetch it every time.
 fn split(
     cache: &HashMap<String, Cached<Option<NextStream>>>,
     ids: &[String],
@@ -126,8 +127,9 @@ fn split(
     let (mut hit, mut miss) = (Vec::new(), Vec::new());
     for id in ids {
         let fresh = cache.get(id).filter(|c| {
-            now.duration_since(c.at) < NEXT_AGE
-                && c.value.as_ref().is_none_or(|n| parse(&n.start).is_some_and(|s| s > clock))
+            let age = now.duration_since(c.at);
+            age < NEXT_AGE
+                && (age < CHANNEL_AGE || c.value.as_ref().is_none_or(|n| parse(&n.start).is_some_and(|s| s > clock)))
         });
         match fresh {
             Some(c) => hit.extend(c.value.clone()),
@@ -231,7 +233,7 @@ pub async fn ics_text(app: &AppHandle, login: &str, name: &str) -> Result<Option
             cancelled: s.cancelled,
         })
         .collect();
-    Ok(Some(ics::calendar(name, &events, now)))
+    Ok(Some(ics::calendar(name, login, &events, now)))
 }
 
 #[cfg(test)]
@@ -295,6 +297,10 @@ mod tests {
         cache.insert("3".to_owned(), Cached { at: now, value: Some(next("3", "2026-10-30T11:00:00Z")) });
         let ids: Vec<String> = ["1", "2", "3", "4"].map(String::from).into();
         let (hit, miss) = split(&cache, &ids, now, clock);
+        assert_eq!(hit.iter().map(|n| n.id.as_str()).collect::<Vec<_>>(), ["1", "3"], "started: kept for a while");
+        assert_eq!(miss, ["4"]);
+        // Past that, a started one is refetched, the others stay.
+        let (hit, miss) = split(&cache, &ids, now + CHANNEL_AGE, clock);
         assert_eq!(hit.iter().map(|n| n.id.as_str()).collect::<Vec<_>>(), ["1"]);
         assert_eq!(miss, ["3", "4"]);
         // Old entries are refetched.

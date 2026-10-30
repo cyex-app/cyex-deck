@@ -56,7 +56,7 @@
     {#each shownAll as c (c.id)}<CategoryCard category={c} onopen={open} />{/each}
   </div>
 {/if}
-<PagedEnd {list} empty="No categories right now." />
+<PagedEnd {list} shown={shownAll.length} empty="No categories right now." />
 
 <style>
   h2 {
