@@ -28,6 +28,8 @@ export interface ScopeOptions {
   initial?: HTMLElement | null | ((node: HTMLElement) => HTMLElement | null | undefined);
   /** Give focus back on close (default true). */
   restore?: boolean;
+  /** Where focus goes on close when nothing useful had it on open (it was on the page body). */
+  fallback?: () => HTMLElement | null | undefined;
 }
 
 /** Whether a `tabindex` attribute leaves the element in the Tab order: `-1` (a roving
@@ -79,9 +81,11 @@ export function focusScope(node: HTMLElement, opts: ScopeOptions = {}): () => vo
 
   return () => {
     if (opts.trap) node.removeEventListener('keydown', onKey);
-    if (opts.restore === false || !before?.isConnected) return;
+    if (opts.restore === false) return;
     // Only when focus is still in the layer or was dropped; a click elsewhere keeps its target.
     const now = document.activeElement;
-    if (!now || now === document.body || node.contains(now)) before.focus({ preventScroll: true });
+    if (now && now !== document.body && !node.contains(now)) return;
+    const back = before?.isConnected && before !== document.body ? before : opts.fallback?.();
+    back?.focus({ preventScroll: true });
   };
 }

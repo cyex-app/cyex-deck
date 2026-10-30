@@ -97,12 +97,17 @@
     return () => clearTimeout(timer);
   });
 
+  /** Opened from the page body: closing hands focus to the chat box in view, if there is one. */
+  function chatInput(): HTMLElement | undefined {
+    return [...document.querySelectorAll<HTMLElement>('.compose textarea:not(:disabled)')].find((el) => el.getClientRects().length > 0);
+  }
+
   // The shared dialog layer: one Escape (after clearing the text), Tab stays inside, focus goes back.
   $effect(() => {
     if (!box) return;
     // Only one thing floats at a time: a menu that was open goes.
     closeMenu();
-    const release = focusScope(box, { trap: true, initial: firstField });
+    const release = focusScope(box, { trap: true, initial: firstField, fallback: chatInput });
     const off = layer('dialog', onclose);
     return () => {
       off();
