@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { logsMessageUrl } from './logsLink.ts';
+import { logsMessageUrl, logsUserUrl } from './logsLink.ts';
 
 const id = '7a1b0c3e-1111-2222-3333-444455556666';
 
@@ -23,4 +23,10 @@ test('no link for local lines, missing times or channels', () => {
   assert.equal(logsMessageUrl('xqc', { id: 'local-5', ts: 1 }), null);
   assert.equal(logsMessageUrl('xqc', { id, ts: 0 }), null);
   assert.equal(logsMessageUrl('', { id, ts: 1 }), null);
+});
+
+test('a user page, by login or by room id (V108-N17)', () => {
+  assert.equal(logsUserUrl('xqc', 'viewer1'), 'https://logs.cyex.app/?c=xqc&u=viewer1');
+  assert.equal(logsUserUrl('id:123', 'viewer1'), 'https://logs.cyex.app/?c=id%3A123&u=viewer1');
+  assert.equal(logsUserUrl('', 'viewer1'), null);
 });

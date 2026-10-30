@@ -47,6 +47,11 @@ pub fn remove(app: &AppHandle, kind: Kind, channel_id: &str) {
     }
 }
 
+/// Whether anything still follows the channel topic (the topic is counted).
+pub fn held(app: &AppHandle, kind: Kind, channel_id: &str) -> bool {
+    app.try_state::<Hub>().is_some_and(|hub| hub.anon.has(&Topic::new(kind, channel_id)))
+}
+
 /// Follows one of an account's own topics, signed in with its GQL token.
 pub fn add_user(app: &AppHandle, account: &str, kind: Kind) {
     add_user_topic(app, account, kind, account);

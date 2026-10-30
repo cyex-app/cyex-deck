@@ -304,13 +304,24 @@ fragment N on ModLogsTargetedActionsResult { ... on ModLogsTargetedActionsConnec
 
 /// V108-N16 `target_id`'s ban, timeout and warning counts in each of `channel_ids` (the
 /// channels the account moderates), batched [`super::BATCH_MAX`] per request. Channels where
-/// Twitch refuses, or with nothing on them, are left out. Needs a token that moderates them.
+/// Twitch refuses, or with nothing on them, are left out, and so is a request that fails (it
+/// is logged); only when every request fails is that an error. Needs a token that moderates them.
 pub async fn counts_in(http: &Http, auth: Auth<'_>, channel_ids: &[String], target_id: &str) -> Result<Vec<ModCounts>> {
     let mut out = Vec::new();
+    let mut failed = None;
+    let mut answered = false;
     for chunk in channel_ids.chunks(super::BATCH_MAX) {
         let ops: Vec<(&str, Value)> =
             chunk.iter().map(|c| (COUNTS, json!({ "channelID": c, "targetID": target_id }))).collect();
-        let answers = super::batch(http, auth, &ops).await?;
+        let answers = match super::batch(http, auth, &ops).await {
+            Ok(a) => a,
+            Err(e) => {
+                eprintln!("mod counts: {e}");
+                failed = Some(e);
+                continue;
+            }
+        };
+        answered = true;
         for (id, answer) in chunk.iter().zip(answers) {
             if let Ok(data) = answer {
                 let c = counts_of(id, &data);
@@ -319,6 +330,12 @@ pub async fn counts_in(http: &Http, auth: Auth<'_>, channel_ids: &[String], targ
                 }
             }
         }
+    }
+    // Every request failed: say so, rather than "no history anywhere".
+    if let Some(e) = failed
+        && !answered
+    {
+        return Err(e);
     }
     Ok(out)
 }

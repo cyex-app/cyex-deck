@@ -6,7 +6,7 @@ import { usercardIpc } from '../../ipc/rules';
 import { systemIpc } from '../../ipc/system';
 import { errorText } from '../../lib/errors';
 import { toast } from '../../lib/toast.svelte';
-import { logsMessageUrl } from './logsLink';
+import { logsMessageUrl, logsUserUrl } from './logsLink';
 
 /** "Jump to in logs": the message itself on logs.cyex.app, or no entry for a local line. */
 export function jumpInLogs(channel: string, m: ChatMessage) {
@@ -21,7 +21,13 @@ export function jumpInLogs(channel: string, m: ChatMessage) {
   ];
 }
 
-export function openInLogs(channel: string, login: string): void {
+/** `sourceRoomId`: a shared-chat line from another channel opens that channel's logs. */
+export function openInLogs(channel: string, login: string, sourceRoomId?: string | null): void {
+  if (sourceRoomId) {
+    const url = logsUserUrl(`id:${sourceRoomId}`, login);
+    if (url) systemIpc.openLink(url).catch((e) => toast.error(errorText(e)));
+    return;
+  }
   usercardIpc
     .run(channel, `/logs ${login}`, { login, userId: null, display: null, msgId: null, msg: null, msgTime: null })
     .catch((e) => toast.error(errorText(e)));

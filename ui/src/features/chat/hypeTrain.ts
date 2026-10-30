@@ -56,3 +56,12 @@ export function topLine(list: HypeConductor[], fmt: (n: number) => string = Stri
 export function endedText(level: number): string {
   return level > 1 ? `Level ${level - 1} reached` : 'Hype train ended';
 }
+
+/** How long the topic may stay quiet before a read that finds no train ends the one we show. */
+export const QUIET_MS = 90_000;
+
+/** A read found no train: the one on screen is over when its time ran out or the topic has
+ * been quiet for a while; otherwise the read is behind the topic. */
+export function trainOver(expiresAt: string | null, nowMs: number, heardMs: number): boolean {
+  return secondsLeft(expiresAt, nowMs) === 0 || nowMs - heardMs > QUIET_MS;
+}

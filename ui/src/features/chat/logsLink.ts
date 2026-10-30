@@ -19,3 +19,9 @@ export function logsMessageUrl(channel: string, m: Pick<ChatMessage, 'id' | 'ts'
   const q = new URLSearchParams({ c, d: day });
   return `${LOGS}?${q}#msg-${encodeURIComponent(m.id)}`;
 }
+
+/** A user's page on a channel's logs: `channel` is a login, or `id:<room id>` (shared chat). */
+export function logsUserUrl(channel: string, login: string): string | null {
+  if (!channel || !login) return null;
+  return `${LOGS}?${new URLSearchParams({ c: channel, u: login })}`;
+}

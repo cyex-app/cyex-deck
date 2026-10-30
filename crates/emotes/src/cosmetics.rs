@@ -318,6 +318,20 @@ mod tests {
         assert_eq!(ids, ["a", "2"]);
     }
 
+    // V108-C10 Badges without a picture url aren't "the same picture".
+    #[test]
+    fn look_keeps_every_badge_with_an_empty_image() {
+        let mut c = Cosmetics::default();
+        c.add_badge(badge(Provider::Seventv, "a"));
+        c.add_badge(badge(Provider::Bttv, "b"));
+        c.add_badge(badge(Provider::Ffz, "2"));
+        c.set_seventv("1", SevenChange::Badge(Some("a")));
+        c.set_bttv_badge("1", Some("b"));
+        c.set_ffz_users(vec![("2".into(), vec![1])]);
+        let ids: Vec<_> = c.look("1").unwrap().badges.into_iter().map(|b| b.id).collect();
+        assert_eq!(ids, ["a", "b", "2"]);
+    }
+
     #[test]
     fn looks_combine_providers_and_skip_unknown_badges() {
         let mut c = Cosmetics::default();

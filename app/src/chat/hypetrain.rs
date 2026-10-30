@@ -69,7 +69,8 @@ pub async fn read(app: &AppHandle, login: &str) -> Result<Option<Train>, String>
     if let Some(t) = &train
         && let Some(id) = super::channel_id_of(app, login)
     {
-        LEVELS.lock().unwrap_or_else(|p| p.into_inner()).insert(id, t.level);
+        // Seed only: a poll must not swallow the level-up the topic is about to report.
+        LEVELS.lock().unwrap_or_else(|p| p.into_inner()).entry(id).or_insert(t.level);
     }
     Ok(train)
 }
@@ -84,7 +85,10 @@ pub fn watch(app: &AppHandle, channel_id: &str, on: bool) {
         crate::hermes::add(app, Kind::HypeTrain, channel_id);
     } else {
         crate::hermes::remove(app, Kind::HypeTrain, channel_id);
-        LEVELS.lock().unwrap_or_else(|p| p.into_inner()).remove(channel_id);
+        // Other chats of the channel may still follow it; the level goes with the last one.
+        if !crate::hermes::held(app, Kind::HypeTrain, channel_id) {
+            LEVELS.lock().unwrap_or_else(|p| p.into_inner()).remove(channel_id);
+        }
     }
 }
 

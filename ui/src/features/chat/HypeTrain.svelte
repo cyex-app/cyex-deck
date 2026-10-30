@@ -1,6 +1,7 @@
 <!-- V108-N04 A slim bar at the top of a live chat while a hype train runs: level, progress to
      the next level, time left and the top giver. Kept current by the train's PubSub topic, plus
-     a read every minute while a train is known and once when the chat opens. After the train
+     a read every minute while a train is known and once when the chat opens (any chat of a
+     channel, live or not: the topic is cheap and a train only exists while live). After the train
      it says how far it got for a few seconds, then goes. Setting "Hype train bar" (on). -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
@@ -8,8 +9,7 @@
   import { hypeIpc } from '../../ipc/hypetrain';
   import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
-  import { tabs } from '../tabs/tabs.svelte';
-  import { endedText, formatLeft, mergeConductor, mergeProgress, progressPct, secondsLeft, topLine } from './hypeTrain';
+    import { endedText, formatLeft, mergeConductor, mergeProgress, progressPct, secondsLeft, topLine, trainOver } from './hypeTrain';
 
   interface Props {
     login: string;
@@ -27,10 +27,11 @@
   let note = $state<string | null>(null);
   let now = $state(Date.now());
   let seq = 0;
+  /** When the topic last said something, or a read last found the train. */
+  let heard = 0;
   let noteTimer: ReturnType<typeof setTimeout> | undefined;
 
   const on = $derived(settings.v.chat.hypeTrainBar);
-  const live = $derived(!!channelId && !!tabs.live[channelId]?.stream);
   const left = $derived(train ? secondsLeft(train.expiresAt, now) : 0);
   const pct = $derived(train ? progressPct(train.progress, train.goal) : 0);
   const top = $derived(train ? topLine(train.conductors, formatNumber) : null);
@@ -50,7 +51,9 @@
       if (next) {
         train = next;
         note = null;
-      } else if (train) {
+        heard = Date.now();
+      } else if (train && trainOver(train.expiresAt, Date.now(), heard)) {
+        // A read can lag behind the topic: only end a train the topic can't vouch for.
         finish(train.level);
       }
     } catch {
@@ -64,14 +67,18 @@
     train = null;
     note = null;
     seq++;
-    if (!on || !live || !id) return;
+    heard = 0;
+    if (!on || !id) return;
     void load();
     void hypeIpc.watch(id, true).catch(() => {});
     const off = hypeIpc.onChange((e) => {
       if (e.channelId !== id) return;
       const c = e.change;
+      heard = Date.now();
       if (c.kind === 'progress') {
         const fresh = !train;
+        // An older read still in flight must not land over this.
+        seq++;
         train = mergeProgress(train, c.train);
         note = null;
         // A train joined midway has no givers yet: read it once.

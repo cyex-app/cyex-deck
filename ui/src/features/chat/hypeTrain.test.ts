@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { HypeTrain } from '../../ipc/bindings/HypeTrain.ts';
-import { endedText, formatLeft, mergeConductor, mergeProgress, progressPct, secondsLeft, topLine } from './hypeTrain.ts';
+import { endedText, formatLeft, mergeConductor, mergeProgress, progressPct, secondsLeft, topLine, trainOver } from './hypeTrain.ts';
 
 const train = (o: Partial<HypeTrain> = {}): HypeTrain => ({
   id: 't1',
@@ -63,4 +63,13 @@ test('hype train conductors replace by source and the top one is named', () => {
 test('hype train closing note', () => {
   assert.equal(endedText(4), 'Level 3 reached');
   assert.equal(endedText(1), 'Hype train ended');
+});
+
+test('an empty read ends the train only when it ran out or the topic went quiet (V108-N04)', () => {
+  const now = Date.parse('2026-10-29T12:00:00Z');
+  const later = '2026-10-29T12:05:00Z';
+  assert.equal(trainOver(later, now, now - 5_000), false);
+  assert.equal(trainOver(later, now, now - 120_000), true);
+  assert.equal(trainOver('2026-10-29T11:59:00Z', now, now - 1_000), true);
+  assert.equal(trainOver(null, now, now), true);
 });

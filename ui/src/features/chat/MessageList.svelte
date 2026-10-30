@@ -38,6 +38,7 @@
   import { jumpInLogs, openInLogs } from './inLogs';
   import { ChatScroll } from './chatScroll.svelte';
   import { editable, MODIFIERS, pauseHeld } from './pauseKey';
+  import { layer } from '../../lib/escape';
   import { nameMenu } from './nameMenu';
   import Line from './Line.svelte';
   import DateRow from '../../components/DateRow.svelte';
@@ -298,8 +299,9 @@
   }
 
   function goAway() {
+    // `back` stays: a short blur must not wipe the marker or card; comeBack replaces it
+    // only when it finds a real away.
     turn++;
-    back = null;
     armed = false;
     leftAt ??= Date.now();
   }
@@ -374,12 +376,8 @@
   });
   $effect(() => {
     if (!back?.card) return;
-    const esc = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented || editable(e.target)) return;
-      closeCard();
-    };
-    addEventListener('keydown', esc);
-    return () => removeEventListener('keydown', esc);
+    // On the layer stack, so one Escape closes the topmost thing only (a popout, theatre).
+    return layer('popover', closeCard);
   });
 
   /** F6 Near-duplicates go when the setting says hide. */
@@ -627,7 +625,7 @@
               run: () => chatxIpc.translate(room.view, m.id).catch((err) => toast.error(errorText(err))),
             },
             { label: 'Their messages', icon: 'search' as const, run: () => onaction?.({ type: 'search', query: `from:${login}` }) },
-            { label: 'Open in logs', icon: 'scroll' as const, run: () => openInLogs(room.login, login) },
+            { label: 'Open in logs', icon: 'scroll' as const, run: () => openInLogs(room.login, login, m.source?.roomId) },
             ...jumpInLogs(room.login, m),
           ]
         : []),

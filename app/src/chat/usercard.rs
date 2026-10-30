@@ -244,9 +244,16 @@ pub struct OtherModCount {
     pub warnings: u32,
 }
 
-/// V108-N16 The channels each account moderates, read once per session.
-static MOD_CHANNELS: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<String, Vec<helix::moderated::ModChannel>>>> =
-    std::sync::LazyLock::new(Default::default);
+/// V108-N16 The channels each account moderates, with when they were read.
+type ModChannels = std::collections::HashMap<String, (std::time::Instant, Vec<helix::moderated::ModChannel>)>;
+static MOD_CHANNELS: std::sync::LazyLock<std::sync::Mutex<ModChannels>> = std::sync::LazyLock::new(Default::default);
+/// The moderated channels are re-read after this long (mods come and go).
+const MOD_CHANNELS_TTL: std::time::Duration = std::time::Duration::from_secs(30 * 60);
+
+/// V108-N16 The last counts per (account, user), so reopening a card doesn't query every channel.
+type CountsCache = std::collections::HashMap<(String, String), (std::time::Instant, Vec<(String, OtherModCount)>)>;
+static MOD_COUNTS: std::sync::LazyLock<std::sync::Mutex<CountsCache>> = std::sync::LazyLock::new(Default::default);
+const MOD_COUNTS_TTL: std::time::Duration = std::time::Duration::from_secs(2 * 60);
 
 /// V108-N16 Bans, timeouts and warnings `user_id` has in the other channels `account`
 /// moderates (read only). Empty when the token lacks `user:read:moderated_channels`, there
@@ -257,7 +264,22 @@ pub async fn other_mod_counts(
     channel: &str,
     user_id: &str,
 ) -> Result<Vec<OtherModCount>, String> {
-    let cached = MOD_CHANNELS.lock().unwrap_or_else(|p| p.into_inner()).get(account).cloned();
+    let key = (account.to_owned(), user_id.to_owned());
+    let fresh = |at: &std::time::Instant, ttl: std::time::Duration| at.elapsed() < ttl;
+    let mine = |all: &[(String, OtherModCount)]| -> Vec<OtherModCount> {
+        all.iter().filter(|(_, c)| !c.login.eq_ignore_ascii_case(channel)).map(|(_, c)| c.clone()).collect()
+    };
+    if let Some((at, all)) = MOD_COUNTS.lock().unwrap_or_else(|p| p.into_inner()).get(&key)
+        && fresh(at, MOD_COUNTS_TTL)
+    {
+        return Ok(mine(all));
+    }
+    let cached = MOD_CHANNELS
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .get(account)
+        .filter(|(at, _)| fresh(at, MOD_CHANNELS_TTL))
+        .map(|(_, l)| l.clone());
     let list = match cached {
         Some(l) => l,
         None => {
@@ -267,14 +289,15 @@ pub async fn other_mod_counts(
             let l = helix::moderated::moderated_channels(&http(app), crate::auth::helix_auth(&token, &client), account)
                 .await
                 .map_err(|e| e.to_string())?;
-            MOD_CHANNELS.lock().unwrap_or_else(|p| p.into_inner()).insert(account.to_owned(), l.clone());
+            MOD_CHANNELS
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .insert(account.to_owned(), (std::time::Instant::now(), l.clone()));
             l
         }
     };
-    let others: Vec<&helix::moderated::ModChannel> = list
-        .iter()
-        .filter(|c| !c.broadcaster_login.eq_ignore_ascii_case(channel) && c.broadcaster_id != user_id)
-        .collect();
+    // Every channel but the user's own; the card's channel is dropped after, so the result caches.
+    let others: Vec<&helix::moderated::ModChannel> = list.iter().filter(|c| c.broadcaster_id != user_id).collect();
     if others.is_empty() {
         return Ok(Vec::new());
     }
@@ -283,17 +306,23 @@ pub async fn other_mod_counts(
     let counts = cyex_twitch::gql::modlogs::counts_in(&http(app), crate::auth::gql_auth(&token, &client), &ids, user_id)
         .await
         .map_err(|e| e.to_string())?;
-    Ok(counts
+    let all: Vec<(String, OtherModCount)> = counts
         .into_iter()
         .filter_map(|c| {
             let ch = others.iter().find(|o| o.broadcaster_id == c.channel_id)?;
-            Some(OtherModCount {
-                login: ch.broadcaster_login.clone(),
-                name: ch.broadcaster_name.clone(),
-                bans: c.bans,
-                timeouts: c.timeouts,
-                warnings: c.warnings,
-            })
+            Some((
+                c.channel_id,
+                OtherModCount {
+                    login: ch.broadcaster_login.clone(),
+                    name: ch.broadcaster_name.clone(),
+                    bans: c.bans,
+                    timeouts: c.timeouts,
+                    warnings: c.warnings,
+                },
+            ))
         })
-        .collect())
+        .collect();
+    let out = mine(&all);
+    MOD_COUNTS.lock().unwrap_or_else(|p| p.into_inner()).insert(key, (std::time::Instant::now(), all));
+    Ok(out)
 }
