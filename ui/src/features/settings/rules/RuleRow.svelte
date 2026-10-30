@@ -120,7 +120,7 @@
       <NumberField label={f.label} min={0} max={1e9} unit={f.unit} width={f.width ?? '72px'} value={Number(v)} onchange={(n) => set(f.key, n)} />
     </span>
   {:else if f.kind === 'select'}
-    <span use:tooltip={tip(f)}>
+    <span class="sel" use:tooltip={tip(f)}>
       <Select label={f.label} width={f.width ?? '150px'} value={String(v)} options={f.options ?? []} onchange={(x) => set(f.key, x)} />
     </span>
   {:else if f.kind === 'area'}
@@ -422,6 +422,15 @@
   }
   .split .field {
     height: 26px;
+  }
+  /* A list is as tall as the row's text fields, not the 30 px of a settings row. */
+  .sel :global(.trigger) {
+    height: 28px;
+    min-height: 28px;
+  }
+  .split .sel :global(.trigger) {
+    height: 26px;
+    min-height: 26px;
   }
   .split .field.area {
     height: auto;
