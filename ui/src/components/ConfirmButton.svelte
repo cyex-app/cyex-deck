@@ -2,6 +2,7 @@
      (an ad, a payout, ending a session). -->
 <script lang="ts">
   import Button from './Button.svelte';
+  import { layer } from '../lib/escape';
   import type { IconName } from './icons';
 
   interface Props {
@@ -32,6 +33,15 @@
   }
 
   $effect(() => () => clearTimeout(timer));
+
+  // Escape while it waits only takes the question back; it doesn't leave the page behind it.
+  $effect(() => {
+    if (!armed) return;
+    return layer('popover', () => {
+      clearTimeout(timer);
+      armed = false;
+    });
+  });
 </script>
 
 <Button small {icon} {disabled} variant={armed ? 'danger' : variant} onclick={click}>{armed ? confirm : label}</Button>
