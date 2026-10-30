@@ -13,14 +13,15 @@
   import { rooms } from '../emotes/rooms.svelte';
   import { catalogs } from './catalog.svelte';
   import { saved } from './saved';
+  import type { BadgeRef } from './sharedBadges';
   import { badgeSrc } from './urls';
 
-  type Ref = { set: string; version: string; info?: string };
+  type Ref = BadgeRef;
 
   interface Props {
     badges: Ref[];
     channel: string;
-    /** The sender, for provider badges. Left out for shared-chat source badges. */
+    /** The sender, for provider badges. */
     userId?: string;
     /** V1051-03 The cosmetics preview: draw this look instead of the user's. */
     look?: Look | null;
@@ -57,6 +58,11 @@
     ),
   );
 
+  // V108-C10 Shared Chat badges from another room draw from that room's catalog, read once per room.
+  $effect(() => {
+    for (const room of new Set(badges.map((b) => b.room))) if (room) void catalogs.loadSource(room);
+  });
+
   function hint(ref: Ref, b: BadgeInfo): string | undefined {
     if (ref.set === 'subscriber' || ref.set === 'founder') return ref.info ? `${ref.info} ${ref.info === '1' ? 'month' : 'months'}` : undefined;
     return ref.info ?? (b.description && b.description !== b.title ? b.description : undefined);
@@ -64,6 +70,7 @@
 
   /** What draws in a Twitch badge's place: FFZ's version, or Twitch's own. */
   function stand(ref: Ref): BadgeDef | undefined {
+    if (ref.room) return undefined;
     if (isMod(ref.set)) return swaps.get('moderator') ?? room?.moderator ?? undefined;
     if (ref.set === 'vip') return room?.vip ?? undefined;
     return undefined;
@@ -90,8 +97,8 @@
     {#if sub}
       {@render provider(sub)}
     {:else}
-      {@const b = catalogs.badge(channel, ref.set, ref.version)}
-      {@const copy = saved(`badge:${ref.set}/${ref.version}`)}
+      {@const b = ref.room ? catalogs.sourceBadge(ref.room, ref.set, ref.version) : catalogs.badge(channel, ref.set, ref.version)}
+      {@const copy = ref.room ? undefined : saved(`badge:${ref.set}/${ref.version}`)}
       {#if copy}
         <img class="badge pale-edge" src={copy} alt={b?.title ?? ref.set} data-tip={b?.title ?? ref.set} data-tip-img={b?.image4x} />
       {:else if b}

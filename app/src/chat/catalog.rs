@@ -24,7 +24,12 @@ const PIN_POLL: Duration = Duration::from_secs(300);
 pub struct Catalogs {
     global: OnceCell<Arc<GlobalCatalog>>,
     channels: Mutex<HashMap<String, Arc<ChannelChat>>>,
+    /// V108-C10 Shared Chat source rooms' badges by room id, kept for the run.
+    sources: Mutex<HashMap<String, Arc<Vec<BadgeInfo>>>>,
 }
+
+/// V108-C10 Most source rooms kept; past it the list starts over.
+const SOURCES_MAX: usize = 64;
 
 /// Global badges and cheermotes, sent to the UI once.
 #[derive(Serialize, TS)]
@@ -102,6 +107,25 @@ pub async fn channel(app: &AppHandle, login: &str, fresh: bool) -> Result<Option
         map.insert(login.to_owned(), c.clone());
     }
     Ok(Some(c))
+}
+
+/// V108-C10 The badges of a Shared Chat line's source room, read once per room id.
+pub async fn source(app: &AppHandle, room_id: &str) -> Result<Arc<Vec<BadgeInfo>>, String> {
+    let catalogs = app.state::<Catalogs>();
+    let held = |m: &Mutex<HashMap<String, Arc<Vec<BadgeInfo>>>>| {
+        m.lock().unwrap_or_else(|p| p.into_inner()).get(room_id).cloned()
+    };
+    if let Some(b) = held(&catalogs.sources) {
+        return Ok(b);
+    }
+    let http = app.state::<Auth>().http.clone();
+    let b = Arc::new(gql::source_badges(&http, room_id).await.map_err(|e| e.to_string())?);
+    let mut map = catalogs.sources.lock().unwrap_or_else(|p| p.into_inner());
+    if map.len() >= SOURCES_MAX {
+        map.clear();
+    }
+    map.insert(room_id.to_owned(), b.clone());
+    Ok(b)
 }
 
 /// X6 A Twitch badge's 2x picture: the channel's own first, then the global one.

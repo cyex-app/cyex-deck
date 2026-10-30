@@ -46,6 +46,27 @@ class Catalogs {
     }
   }
 
+  /** V108-C10 Shared Chat source rooms' badge sets by room id. */
+  sources = $state.raw<Record<string, Map<string, BadgeInfo>>>({});
+
+  async loadSource(roomId: string): Promise<void> {
+    const key = `room:${roomId}`;
+    if (this.loading.has(key)) return;
+    this.loading.add(key);
+    try {
+      const list = await chatIpc.sourceBadges(roomId);
+      this.sources = { ...this.sources, [roomId]: new Map(list.map((b) => [`${b.set}/${b.version}`, b])) };
+    } catch {
+      this.loading.delete(key);
+    }
+  }
+
+  /** The source room's picture first, then the global one. Nothing until the room has loaded. */
+  sourceBadge(roomId: string, set: string, version: string): BadgeInfo | undefined {
+    const key = `${set}/${version}`;
+    return this.sources[roomId]?.get(key) ?? this.global.badges.get(key);
+  }
+
   badge(channel: string, set: string, version: string): BadgeInfo | undefined {
     const key = `${set}/${version}`;
     return this.channels[channel]?.badges.get(key) ?? this.global.badges.get(key);

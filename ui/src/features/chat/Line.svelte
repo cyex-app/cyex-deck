@@ -20,6 +20,7 @@
   import { isHot } from './hover.svelte';
   import { shownName } from './names';
   import { ownNameColor } from './ownColor';
+  import { lineBadges } from './sharedBadges';
   import { lineStacks } from './stacked';
   import { uploadLine } from './upload';
 
@@ -178,8 +179,7 @@
       {/if}
       {#if time}<span class="ts">{time}</span>{/if}
       {#if client}<span class="client" data-tip={client.label}><Icon name={client.icon} size={12} /></span>{/if}
-      {#if m.source}<Badges badges={m.source.badges} {channel} />{/if}
-      <Badges badges={sender.badges} {channel} userId={sender.id} {look} />
+      <Badges badges={lineBadges(m.source, sender.badges)} {channel} userId={sender.id} {look} />
       <span
         class="name {paint ?? ''}"
         class:painted={!!paint}

@@ -20,6 +20,9 @@ const CHANNEL: &str = "query($login: String!) { \
       cheer { cheerGroups { templateURL nodes { prefix tiers { bits } } } } } \
     channel(name: $login) { communityPointsSettings { POINTS } } }";
 
+/// V108-C10 Another channel's badges by room id (a Shared Chat line's `source-room-id`).
+const SOURCE_BADGES: &str = "query($id: ID!) { user(id: $id) { broadcastBadges { BADGE } } }";
+
 const PINNED: &str = "query($id: ID!) { channel(id: $id) { pinnedChatMessages(first: 1) { edges { node { \
     id type startsAt endsAt pinnedBy { login displayName } \
     pinnedMessage { id sender { id login displayName chatColor } \
@@ -139,6 +142,16 @@ pub async fn channel_chat(http: &Http, login: &str, cheer_colors: &[(u32, String
             .and_then(|c| c.community_points_settings)
             .map(Points::from),
     }))
+}
+
+/// V108-C10 A channel's own badge pictures by room id. Empty if the room doesn't exist.
+pub async fn source_badges(http: &Http, room_id: &str) -> Result<Vec<BadgeInfo>> {
+    let q = SOURCE_BADGES.replace("BADGE", BADGE_FIELDS);
+    let data: RawSource = query(http, Auth::PUBLIC, &q, json!({ "id": room_id })).await?;
+    Ok(data
+        .user
+        .map(|u| u.broadcast_badges.into_iter().flatten().map(BadgeInfo::from).collect())
+        .unwrap_or_default())
 }
 
 /// The channel's pinned message, if any.
@@ -280,6 +293,18 @@ impl From<RawBadge> for BadgeInfo {
             image4x: b.image4x,
         }
     }
+}
+
+#[derive(Deserialize)]
+struct RawSource {
+    user: Option<RawSourceUser>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawSourceUser {
+    #[serde(default)]
+    broadcast_badges: Vec<Option<RawBadge>>,
 }
 
 #[derive(Deserialize)]
