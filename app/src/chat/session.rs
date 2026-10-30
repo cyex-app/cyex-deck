@@ -355,9 +355,17 @@ fn fill_gap(app: AppHandle, key: RoomKey, (after, before, limit): (i64, i64, u32
             Ok(got) => got,
             Err(e) => {
                 eprintln!("chat: couldn't fill the gap in {}: {}", key.1, e.describe("recent-messages"));
-                say(&app, &key, "Couldn’t load what was missed while disconnected");
-                unfilled(&app, &key, after);
-                return;
+                // S2 Like the first history (C35), logs.cyex.app stands in.
+                match gap_from_logs(&http, &key.1, after, before, limit).await {
+                    Some(lines) => (lines, false),
+                    None => {
+                        if let Some(note) = gap_failed_note(&e) {
+                            say(&app, &key, note);
+                        }
+                        unfilled(&app, &key, after);
+                        return;
+                    }
+                }
             }
         };
         let emotes = crate::emotes::room(&app, account_of(&key.0), &key.1);
@@ -379,6 +387,23 @@ fn fill_gap(app: AppHandle, key: RoomKey, (after, before, limit): (i64, i64, u32
             say(&app, &key, cyex_chat::GAP_NOTE);
         }
     });
+}
+
+/// S2 The gap's lines from logs.cyex.app; `None` when it has none or can't be reached.
+async fn gap_from_logs(http: &cyex_twitch::Http, login: &str, after: i64, before: i64, limit: u32) -> Option<Vec<String>> {
+    let from = cyex_twitch::clock::rfc3339(after / 1000);
+    let to = cyex_twitch::clock::rfc3339(before / 1000 + 1);
+    cyex_twitch::logs::channel_lines(http, login, limit, &from, &to)
+        .await
+        .ok()
+        .filter(|l| !l.is_empty())
+}
+
+/// S2 What a failed gap fill says in chat. Nothing when the service never serves this
+/// channel: its first history already said so, and every reopen (a parked room, V108-C01)
+/// or reconnect would repeat it. "While disconnected" was wrong for a reopened chat.
+fn gap_failed_note(e: &cyex_twitch::Error) -> Option<&'static str> {
+    (!cyex_twitch::recent::lasting(e)).then_some("Couldn’t load what was missed")
 }
 
 /// V108-C01 A failed fill of a room closed meanwhile: restored, it asks for the span again.
@@ -478,6 +503,20 @@ mod tests {
 
     fn every(raw: &str) -> bool {
         for_every_room(&Line::parse(raw).unwrap())
+    }
+
+    #[test]
+    fn a_gap_the_service_never_serves_stays_quiet() {
+        let ignored = cyex_twitch::Error::Api {
+            status: 200,
+            message: "channel_ignored: ignored".into(),
+        };
+        assert_eq!(gap_failed_note(&ignored), None);
+        let down = cyex_twitch::Error::Api {
+            status: 503,
+            message: String::new(),
+        };
+        assert_eq!(gap_failed_note(&down), Some("Couldn’t load what was missed"));
     }
 
     #[test]
