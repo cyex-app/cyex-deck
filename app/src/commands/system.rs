@@ -10,7 +10,7 @@ type CmdResult<T> = Result<T, String>;
 /// field can't launch arbitrary URLs.
 /// Twitch, the emote providers' pages (1.41 emote cards) the logs site (1.36), the docs (V106-12) and Chat Vault
 /// (emote pages for Twitch emotes, 2026/10/18).
-const ALLOWED_HOSTS: [&str; 11] = [
+const ALLOWED_HOSTS: [&str; 12] = [
     "twitch.tv",
     "www.twitch.tv",
     "dev.twitch.tv",
@@ -21,6 +21,7 @@ const ALLOWED_HOSTS: [&str; 11] = [
     "frankerfacez.com",
     "logs.cyex.app",
     "cyex.app",
+    "seryxx.com",
     "chatvau.lt",
 ];
 
@@ -147,6 +148,7 @@ mod tests {
         assert!(!is_allowed("http://www.twitch.tv/activate"));
         assert!(!is_allowed("https://twitch.tv.evil.example/"));
         assert!(is_allowed("https://cyex.app/deck/docs/#commands"));
+        assert!(is_allowed("https://seryxx.com"));
         assert!(!is_allowed("http://cyex.app/deck/docs/"));
         assert!(!is_allowed("https://cyex.app.evil.example/"));
         assert!(!is_allowed("file:///C:/Windows"));

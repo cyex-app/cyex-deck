@@ -2,20 +2,16 @@
      a fixed list of 8 (design/fonts.ts). -->
 <script lang="ts">
   import SectionHead from '../SectionHead.svelte';
-  import { getVersion } from '@tauri-apps/api/app';
 
-  import Button from '../../../components/Button.svelte';
   import Icon from '../../../components/Icon.svelte';
   import Row from '../../../components/Row.svelte';
-  import Segmented from '../../../components/Segmented.svelte';
+  import PositionPicker from '../../../components/PositionPicker.svelte';
   import Stepper from '../../../components/Stepper.svelte';
   import Toggle from '../../../components/Toggle.svelte';
   import type { ChatPosition } from '../../../ipc/bindings/ChatPosition';
-  import { updateIpc } from '../../../ipc/update';
   import { formatTime } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
   import { MAX_HIDDEN_TAGS, withoutHidden, withTag } from '../../discover/hidden';
-  import { checkText } from '../../update/updateText';
   import FontPicker from '../FontPicker.svelte';
   import ResetSection from '../ResetSection.svelte';
 
@@ -38,28 +34,6 @@
   ];
 
   const pick = (family: string) => void settings.patch('general', { chatFontFamily: family });
-
-  // V105-20 "Check now": the answer sits next to the button.
-  let checking = $state(false);
-  let checked = $state('');
-  let version = $state('');
-  $effect(() => {
-    void getVersion()
-      .then((v) => (version = v))
-      .catch(() => {});
-  });
-
-  async function checkNow() {
-    checking = true;
-    checked = '';
-    try {
-      checked = checkText(await updateIpc.check(), version);
-    } catch {
-      checked = checkText({ kind: 'failed' });
-    } finally {
-      checking = false;
-    }
-  }
 </script>
 
 <SectionHead title="General" level={2} />
@@ -95,7 +69,8 @@
 
 <SectionHead title="Layout">Where chat and panels sit.</SectionHead>
 <Row setting="general.chatPosition" label="Chat position" hint="Which side of the player or a clip the chat sits on.">
-  <Segmented
+  <PositionPicker
+    kind="chat"
     label="Chat position"
     options={POSITIONS}
     value={g.chatPosition}
@@ -191,12 +166,6 @@
     onchange={(v) => settings.patch('general', { updates: { ...g.updates, prereleases: v } })}
   />
 </Row>
-<Row setting="general:checkNow" label={version ? `Version ${version}` : 'Version'} hint="Look for a newer one right away.">
-  {#if checked}<span class="checked">{checked}</span>{/if}
-  <Button small disabled={checking} onclick={() => void checkNow()}>{checking ? 'Checking…' : 'Check now'}</Button>
-</Row>
-<p class="privacy">Checks GitHub for new versions. Sends nothing about you or your accounts.</p>
-
 <ResetSection partition="general" page="general" />
 
 <style>
@@ -221,15 +190,6 @@
   .hide:hover {
     border-color: var(--border-strong);
     color: var(--text);
-  }
-  .checked {
-    color: var(--muted);
-    font-size: var(--text-sub);
-  }
-  .privacy {
-    margin: 8px 0 0;
-    color: var(--dim);
-    font-size: var(--text-hint);
   }
   .preview {
     margin: 4px 0 2px;

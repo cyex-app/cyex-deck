@@ -15,6 +15,7 @@
   import { countSearch, PAUSE_MS, removeRecent } from './recent';
   import RecentSearches from './RecentSearches.svelte';
   import SearchResults from './SearchResults.svelte';
+  import AboutSection from './sections/AboutSection.svelte';
   import AccountsSection from './sections/AccountsSection.svelte';
   import AppearanceSection from './sections/AppearanceSection.svelte';
   import AutomationsSection from './sections/AutomationsSection.svelte';
@@ -76,6 +77,7 @@
     miner: MinerSection,
     streammanager: StreamManagerSection,
     streamer: StreamerSection,
+    about: AboutSection,
   };
 
   const Section = $derived(VIEWS[section as PageId] ?? GeneralSection);

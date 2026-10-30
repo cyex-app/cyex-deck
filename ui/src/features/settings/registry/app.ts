@@ -71,11 +71,18 @@ export const APP: Entry[] = [
     keywords: ['update', 'version', 'beta', 'pre-release', 'prerelease', 'test build'],
   },
   {
-    id: 'general:checkNow',
-    page: 'general',
+    id: 'about:checkNow',
+    page: 'about',
     label: 'Version',
     description: 'Look for a new version right away.',
-    keywords: ['update', 'version', 'new version', 'github', 'check', 'check now'],
+    keywords: ['update', 'version', 'new version', 'github', 'check', 'check now', 'about', 'pre-release'],
+  },
+  {
+    id: 'about:credit',
+    page: 'about',
+    label: 'Made by',
+    description: 'Who made cyex deck, and where to find the rest of cyex.',
+    keywords: ['about', 'credit', 'author', 'seryxx', 'website', 'cyex.app', 'homepage', 'links'],
   },
 
   // Appearance

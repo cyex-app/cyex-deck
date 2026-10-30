@@ -51,6 +51,10 @@ export const GROUPS = [
       { id: 'streamer', label: 'Streamer mode', icon: 'monitor' },
     ],
   },
+  {
+    label: 'About',
+    pages: [{ id: 'about', label: 'About', icon: 'info' }],
+  },
 ] as const satisfies readonly { label: string; pages: readonly { id: string; label: string; icon: IconName }[] }[];
 
 export type PageId = (typeof GROUPS)[number]['pages'][number]['id'];

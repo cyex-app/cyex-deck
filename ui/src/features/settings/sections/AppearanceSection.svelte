@@ -2,6 +2,7 @@
   import SectionHead from '../SectionHead.svelte';
   import Button from '../../../components/Button.svelte';
   import Row from '../../../components/Row.svelte';
+  import PositionPicker from '../../../components/PositionPicker.svelte';
   import Segmented from '../../../components/Segmented.svelte';
   import Stepper from '../../../components/Stepper.svelte';
   import Toggle from '../../../components/Toggle.svelte';
@@ -174,7 +175,8 @@
 </Row>
 
 <Row setting="appearance.tabBarSide" label="Bar position">
-  <Segmented
+  <PositionPicker
+    kind="tabs"
     label="Bar position"
     options={SIDES}
     value={a.tabBarSide}
