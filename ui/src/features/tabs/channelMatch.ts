@@ -42,3 +42,14 @@ export function liveOrExact<T extends Candidate>(items: T[], typed: string): T[]
   const q = typed.trim().toLowerCase();
   return items.filter((c) => c.stream || c.login === q || c.name.toLowerCase() === q);
 }
+
+/** Paths on twitch.tv that aren't a channel. */
+const NOT_CHANNELS = new Set(['videos', 'directory', 'downloads', 'settings', 'subscriptions', 'wallet', 'inventory', 'p', 'search', 'login', 'signup']);
+
+/** The login in a pasted twitch.tv link (`https://www.twitch.tv/rvbdev?sr=a`, `twitch.tv/RvbDev/about`,
+ *  `twitch.tv/popout/rvbdev/chat`), lower case; null when the text isn't such a link. */
+export function loginFromLink(typed: string): string | null {
+  const m = /^(?:https?:\/\/)?(?:www\.|m\.|go\.)?twitch\.tv\/(?:popout\/|moderator\/)?([A-Za-z0-9_]{1,25})(?:[/?#].*)?$/i.exec(typed.trim());
+  const login = m?.[1].toLowerCase();
+  return login && !NOT_CHANNELS.has(login) ? login : null;
+}

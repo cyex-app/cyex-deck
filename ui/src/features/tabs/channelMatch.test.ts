@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { liveOrExact, matchChannels, type Candidate } from './channelMatch.ts';
+import { liveOrExact, loginFromLink, matchChannels, type Candidate } from './channelMatch.ts';
 
 const ch = (id: string, login: string, live = false, name = login): Candidate => ({
   id,
@@ -49,4 +49,15 @@ test('duplicates are dropped by id', () => {
 test('the switcher keeps live hits and the offline exact name', () => {
   const items = [ch('1', 'sery'), ch('2', 'sery2'), ch('3', 'sery3', true), ch('4', 'x', false, 'Sery')];
   assert.deepEqual(ids(liveOrExact(items, ' SERY ')), ['1', '3', '4']);
+});
+
+test('loginFromLink: channel links give the login, other text none', () => {
+  assert.equal(loginFromLink('https://www.twitch.tv/rvbdev'), 'rvbdev');
+  assert.equal(loginFromLink('twitch.tv/RvbDev'), 'rvbdev');
+  assert.equal(loginFromLink(' http://twitch.tv/rvbdev?sr=a&foo=1#x '), 'rvbdev');
+  assert.equal(loginFromLink('https://m.twitch.tv/rvbdev/about'), 'rvbdev');
+  assert.equal(loginFromLink('https://www.twitch.tv/popout/rvbdev/chat?popout='), 'rvbdev');
+  assert.equal(loginFromLink('https://www.twitch.tv/videos/123'), null);
+  assert.equal(loginFromLink('rvbdev'), null);
+  assert.equal(loginFromLink('https://example.com/rvbdev'), null);
 });

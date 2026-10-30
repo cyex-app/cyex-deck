@@ -13,7 +13,7 @@
   import { tabsIpc } from '../../ipc/tabs';
   import { formatNumber } from '../../lib/format';
   import { errorText } from '../../lib/errors';
-  import { matchChannels } from './channelMatch';
+  import { loginFromLink, matchChannels } from './channelMatch';
 
   interface Props {
     text: string;
@@ -64,8 +64,10 @@
     };
   }
 
-  async function look(input: string) {
-    asked = input;
+  async function look(typed: string) {
+    asked = typed;
+    // A pasted channel link is that channel's login, not a phrase to search for.
+    const input = loginFromLink(typed) ?? typed;
     try {
       let failed: unknown = null;
       const [exact, search] = await Promise.all([
@@ -77,7 +79,7 @@
               .catch(() => [] as ChannelInfo[])
           : Promise.resolve([] as ChannelInfo[]),
       ]);
-      if (asked !== input) return;
+      if (asked !== typed) return;
       const found = matchChannels(exact, search, input, MAX);
       if (!found.length && failed) throw failed;
       results = found;
@@ -86,7 +88,7 @@
       picked = found.length === 1 ? found[0] : (found.find((c) => c.login === q) ?? null);
       status = 'done';
     } catch (e) {
-      if (asked !== input) return;
+      if (asked !== typed) return;
       error = errorText(e);
       status = 'error';
     }
