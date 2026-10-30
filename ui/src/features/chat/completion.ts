@@ -125,3 +125,39 @@ export function insert(text: string, word: Word, value: string): { text: string;
   const after = text.slice(word.end).replace(/^\s?/, ' ');
   return { text: before + value + after, caret: before.length + value.length + 1 };
 }
+
+/** V108-MC "Mention users with a comma": a Tab cycle that puts `name,` (insert adds the space).
+ * Only for the first word of the message; stage `name` is a typed partial, whose first Tab
+ * still shows the plain name. */
+export interface CommaPlan {
+  /** User names only, as shown (with `@` if it was typed). */
+  items: string[];
+  index: number;
+  stage: 'name' | 'comma';
+}
+
+/** V108-MC The word starts the message and isn't a command. */
+export function startsMessage(text: string, word: Word): boolean {
+  return text.slice(0, word.start).trim() === '' && !word.text.startsWith('/');
+}
+
+/** V108-MC The comma cycle for these matches, or null when the best one isn't a user (emotes,
+ * plugin values: unchanged). An `@word` or an already complete name gets its comma at once. */
+export function commaStart(items: readonly string[], typed: string, isUser: (item: string) => boolean): CommaPlan | null {
+  if (!items.length || !isUser(items[0])) return null;
+  const same = items[0].toLowerCase() === typed.toLowerCase();
+  return { items: items.filter(isUser), index: 0, stage: typed.startsWith('@') || same ? 'comma' : 'name' };
+}
+
+/** V108-MC What goes in the box for this step: the name, or the name with its comma. */
+export function commaValue(plan: CommaPlan): string {
+  const name = plan.items[plan.index];
+  return plan.stage === 'comma' ? `${name},` : name;
+}
+
+/** V108-MC The next Tab: the plain name gets its comma first, then the other users cycle. */
+export function commaStep(plan: CommaPlan, back: boolean): CommaPlan {
+  if (plan.stage === 'name' && !back) return { ...plan, stage: 'comma' };
+  const n = plan.items.length;
+  return { ...plan, stage: 'comma', index: (plan.index + (back ? n - 1 : 1)) % n };
+}

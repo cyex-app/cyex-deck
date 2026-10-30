@@ -199,6 +199,10 @@ delayTenths: number,
  */
 spellCheck: boolean, 
 /**
+ * V108-MC Tab at the start of a message adds a comma: "@name, ". Setting, off.
+ */
+mentionComma: boolean, 
+/**
  * A send button inside the message box. Setting, on.
  */
 sendButton: boolean, 

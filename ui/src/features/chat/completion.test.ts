@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { complete, insert, rank, rankBest, RANK, wordAt, wordStarts } from './completion.ts';
+import { commaStart, commaStep, commaValue, complete, insert, rank, rankBest, RANK, startsMessage, wordAt, wordStarts } from './completion.ts';
 
 test('the word before the caret', () => {
   assert.deepEqual(wordAt('hi @fo', 6), { start: 3, end: 6, text: '@fo' });
@@ -70,4 +70,49 @@ test('V107-MI accents fold: cafe finds café, exact accents rank first', () => {
   assert.equal(rank('lecafé', 'cafe').rank, RANK.contains);
   assert.deepEqual(complete('cafe', ['café', 'cafeteria', 'cafe']), ['café', 'cafeteria']);
   assert.deepEqual(complete('café', ['cafe', 'café2', 'café']), ['cafe', 'café2']);
+});
+
+// V108-MC Mention users with a comma.
+const users = new Set(['seryxx', 'seryna', '@seryxx', '@seryna']);
+const isUser = (s: string) => users.has(s);
+
+test('V108-MC only the first word of a message that is not a command', () => {
+  assert.equal(startsMessage('ser', wordAt('ser', 3)), true);
+  assert.equal(startsMessage('  ser', wordAt('  ser', 5)), true);
+  assert.equal(startsMessage('hi ser', wordAt('hi ser', 6)), false);
+  assert.equal(startsMessage('/ser', wordAt('/ser', 4)), false);
+});
+
+test('V108-MC @name goes straight to the comma, then the others cycle with it', () => {
+  const p = commaStart(['@seryxx', '@seryna'], '@ser', isUser)!;
+  assert.equal(commaValue(p), '@seryxx,');
+  assert.equal(commaValue(commaStep(p, false)), '@seryna,');
+  assert.equal(commaValue(commaStep(commaStep(p, false), false)), '@seryxx,');
+  assert.equal(commaValue(commaStep(p, true)), '@seryna,');
+});
+
+test('V108-MC a partial name: the name, then the comma, then the others', () => {
+  let p = commaStart(['seryxx', 'seryna'], 'sery', isUser)!;
+  assert.equal(commaValue(p), 'seryxx');
+  p = commaStep(p, false);
+  assert.equal(commaValue(p), 'seryxx,');
+  p = commaStep(p, false);
+  assert.equal(commaValue(p), 'seryna,');
+  p = commaStep(p, false);
+  assert.equal(commaValue(p), 'seryxx,');
+});
+
+test('V108-MC a complete name gets the comma at once, any case; the others follow', () => {
+  let p = commaStart(['seryxx', 'seryna'], 'seryxx', isUser)!;
+  assert.equal(commaValue(p), 'seryxx,');
+  assert.equal(commaValue(commaStart(['seryxx'], 'SERYXX', isUser)!), 'seryxx,');
+  p = commaStep(p, false);
+  assert.equal(commaValue(p), 'seryna,');
+});
+
+test('V108-MC emotes and plugin values stay as they are; emotes are left out of the cycle', () => {
+  assert.equal(commaStart(['seryHype', 'seryxx'], 'sery', isUser), null);
+  assert.equal(commaStart([], 'sery', isUser), null);
+  const p = commaStart(['seryxx', 'seryHype', 'seryna'], 'sery', isUser)!;
+  assert.deepEqual(p.items, ['seryxx', 'seryna']);
 });

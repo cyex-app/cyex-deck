@@ -448,6 +448,9 @@
 <Row setting="chat.spellCheck" label="Spell check" hint="Underlines typos in the message box. Right-click one for fixes.">
   <Toggle label="Spell check" checked={c.spellCheck} onchange={(v) => settings.patch('chat', { spellCheck: v })} />
 </Row>
+<Row setting="chat.mentionComma" label="Mention users with a comma" hint="Tab at the start of a message adds a comma: “@name, ”.">
+  <Toggle label="Mention users with a comma" checked={c.mentionComma} onchange={(v) => settings.patch('chat', { mentionComma: v })} />
+</Row>
 <Row setting="chat.translateTo" label="Translate into" hint="For Translate and /translate. Each chat’s menu can translate everything.">
   <Select
     label="Translate into"

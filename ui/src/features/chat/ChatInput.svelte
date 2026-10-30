@@ -16,7 +16,7 @@
   import { accounts } from '../../lib/accounts.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { rankNames } from '../emotes/ranking';
-  import { insert, wordAt, type Word } from './completion';
+  import { commaStart, commaStep, commaValue, insert, startsMessage, wordAt, type CommaPlan, type Word } from './completion';
   import { formatNumber } from '../../lib/format';
   import { commandAt, commandHint, commandMatches, tabTakes } from './commandTab';
   import { argAt, argMatches } from './commandArgs';
@@ -92,7 +92,7 @@
   /** Commands and their arguments stay a list: Tab fills them and Enter sends. */
   const styleNow = $derived(suggest?.arg ? 'list' : suggestStyle);
   /** Tab cycling through matches for one word. */
-  let cycle: { word: Word; items: string[]; index: number } | null = null;
+  let cycle: { word: Word; items: string[]; index: number; comma?: CommaPlan } | null = null;
   /** S5 Plugins are being asked for matches. */
   let asking = false;
   /** V105-11 Images pasted or dropped, and the first-upload question. */
@@ -273,6 +273,15 @@
   /** C6 Tab: complete the word, Tab again for the next match. Plugins' matches (S5) go first.
    * V1041-01 The first word after `/` completes to the commands this chat can use. */
   async function tabComplete(back: boolean) {
+    if (cycle?.comma) {
+      // V108-MC The first word of the message: the name gets its comma, then the other users.
+      cycle.comma = commaStep(cycle.comma, back);
+      const value = commaValue(cycle.comma);
+      const word = cycle.word;
+      void put(word, value);
+      cycle.word = { start: word.start, end: word.start + value.length, text: value };
+      return;
+    }
     if (cycle) {
       const n = cycle.items.length;
       cycle.index = (cycle.index + (back ? n - 1 : 1)) % n;
@@ -319,8 +328,15 @@
     if (text !== before) return;
     const items = [...new Set(found)];
     if (!items.length) return;
-    void put(target, items[0]);
-    cycle = { word: { start: target.start, end: target.start + items[0].length, text: items[0] }, items, index: 0 };
+    // V108-MC "Mention users with a comma": only for the first word, never for a command.
+    let comma: CommaPlan | undefined;
+    if (settings.v.chat.mentionComma && !arg && command === null && startsMessage(text, word)) {
+      const names = new Set(sources.chatters());
+      comma = commaStart(items, word.text, (v) => names.has(v.replace(/^@/, ''))) ?? undefined;
+    }
+    const first = comma ? commaValue(comma) : items[0];
+    void put(target, first);
+    cycle = { word: { start: target.start, end: target.start + first.length, text: first }, items, index: 0, comma };
   }
 
   // P-01 The send path (plain, cheer, ask, Bits off) lives in cheerSend.ts.

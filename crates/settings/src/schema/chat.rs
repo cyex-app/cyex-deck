@@ -139,6 +139,8 @@ pub struct Chat {
     pub delay_tenths: u16,
     /// C18 Spell check in the message box. Setting, off.
     pub spell_check: bool,
+    /// V108-MC Tab at the start of a message adds a comma: "@name, ". Setting, off.
+    pub mention_comma: bool,
     /// A send button inside the message box. Setting, on.
     pub send_button: bool,
     /// V108-N09 `:` suggestions as a list above the box, or as a row.
@@ -204,6 +206,7 @@ impl Default for Chat {
             mod_buttons: ModButtons::default(),
             delay_tenths: 0,
             spell_check: false,
+            mention_comma: false,
             send_button: true,
             suggest_style: SuggestStyle::List,
             quick_replies: Vec::new(),
