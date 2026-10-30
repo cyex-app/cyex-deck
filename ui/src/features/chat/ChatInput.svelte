@@ -270,6 +270,24 @@
     suggest = null;
   }
 
+  /** V108-MC Tab on the open list with the comma setting: the picked user gets the comma
+   *  cycle a typed word gets ("@name," at once), further Tabs go to the other users. */
+  function commaPick(): boolean {
+    if (!suggest || !settings.v.chat.mentionComma || !startsMessage(text, suggest.word)) return false;
+    const names = new Set(sources.chatters());
+    const isUser = (v: string) => names.has(v.replace(/^@/, ''));
+    const values = suggest.items.map((x) => x.value);
+    const picked = values[suggest.index];
+    const plan = commaStart([picked, ...values.filter((v) => v !== picked)], suggest.word.text, isUser);
+    if (!plan) return false;
+    const word = suggest.word;
+    const first = commaValue(plan);
+    suggest = null;
+    void put(word, first);
+    cycle = { word: { start: word.start, end: word.start + first.length, text: first }, items: plan.items, index: 0, comma: plan };
+    return true;
+  }
+
   /** C6 Tab: complete the word, Tab again for the next match. Plugins' matches (S5) go first.
    * V1041-01 The first word after `/` completes to the commands this chat can use. */
   async function tabComplete(back: boolean) {
@@ -327,13 +345,15 @@
     // The box changed while plugins or Rust thought about it.
     if (text !== before) return;
     const items = [...new Set(found)];
-    if (!items.length) return;
     // V108-MC "Mention users with a comma": only for the first word, never for a command.
     let comma: CommaPlan | undefined;
     if (settings.v.chat.mentionComma && !arg && command === null && startsMessage(text, word)) {
       const names = new Set(sources.chatters());
+      // A name typed out in full isn't a match of itself: it still gets its comma.
+      if (names.has(bare) && !items.some((v) => v.replace(/^@/, '').toLowerCase() === bare.toLowerCase())) items.unshift(word.text);
       comma = commaStart(items, word.text, (v) => names.has(v.replace(/^@/, ''))) ?? undefined;
     }
+    if (!items.length) return;
     const first = comma ? commaValue(comma) : items[0];
     void put(target, first);
     cycle = { word: { start: target.start, end: target.start + first.length, text: first }, items, index: 0, comma };
@@ -424,7 +444,7 @@
       }
       if (k?.do === 'pick') {
         e.preventDefault();
-        accept();
+        if (e.key !== 'Tab' || !commaPick()) accept();
         return;
       }
       if (k?.do === 'close') {
