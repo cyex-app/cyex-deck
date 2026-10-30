@@ -56,7 +56,10 @@ pub fn ordered<'a>(sets: &'a [Arc<EmoteSet>], priority: &[Provider]) -> Vec<&'a 
 /// Everything one room's lines are tokenized with.
 #[derive(Clone, Default)]
 pub struct RoomEmotes {
+    /// The channel's own sets; they win over `global`.
     pub lookup: Arc<Lookup>,
+    /// The global sets, one lookup shared by every room (not a copy per channel).
+    pub global: Arc<Lookup>,
     /// C9 By Twitch user id.
     pub personal: Arc<HashMap<String, Arc<Lookup>>>,
     /// The reading account's id and its Twitch emotes.
@@ -76,7 +79,7 @@ impl Emotes for RoomEmotes {
                 return Some(e.found());
             }
         }
-        self.lookup.get(word).map(|e| e.found())
+        self.lookup.get(word).or_else(|| self.global.get(word)).map(|e| e.found())
     }
 }
 
@@ -112,11 +115,38 @@ mod tests {
     }
 
     #[test]
+    fn a_channel_layer_over_the_shared_globals_finds_what_one_lookup_did() {
+        let channel = vec![
+            set(Provider::Ffz, Scope::Channel, &["a", "f"]),
+            set(Provider::Bttv, Scope::Channel, &["a", "b"]),
+        ];
+        let globals = vec![
+            set(Provider::Seventv, Scope::Global, &["a", "b", "c"]),
+            set(Provider::Twitch, Scope::Global, &["c", "Kappa"]),
+        ];
+        let priority = [Provider::Twitch, Provider::Seventv, Provider::Bttv, Provider::Ffz];
+        let all: Vec<Arc<EmoteSet>> = channel.iter().chain(&globals).cloned().collect();
+        let one = RoomEmotes {
+            lookup: Arc::new(Lookup::build(ordered(&all, &priority))),
+            ..RoomEmotes::default()
+        };
+        let two = RoomEmotes {
+            lookup: Arc::new(Lookup::build(ordered(&channel, &priority))),
+            global: Arc::new(Lookup::build(ordered(&globals, &priority))),
+            ..RoomEmotes::default()
+        };
+        for word in ["a", "b", "c", "f", "Kappa", "none"] {
+            assert_eq!(one.find(word, "").map(|f| f.id), two.find(word, "").map(|f| f.id), "{word}");
+        }
+    }
+
+    #[test]
     fn personal_and_own_emotes_only_for_their_sender() {
         let room = RoomEmotes {
             lookup: Arc::new(Lookup::build([
                 set(Provider::Seventv, Scope::Channel, &["x"]).as_ref()
             ])),
+            global: Arc::default(),
             personal: Arc::new(HashMap::from([(
                 "7".to_owned(),
                 Arc::new(Lookup::build([set(
@@ -134,6 +164,7 @@ mod tests {
             )),
         };
         assert!(room.find("p", "7").is_some());
+        assert!(room.find("nope", "7").is_none());
         assert!(room.find("p", "8").is_none());
         assert!(room.find("Kappa", "1").is_some());
         assert!(room.find("Kappa", "2").is_none());

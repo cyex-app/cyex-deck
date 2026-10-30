@@ -30,7 +30,7 @@ use std::time::{Duration, Instant};
 use cyex_chat::model::Provider;
 use cyex_emotes::index::ordered;
 use cyex_emotes::seventv::socket::{EventApi, Topic as SevenTopic};
-use cyex_emotes::{Capped, Cosmetics, EmoteSet, Lookup, RoomEmotes};
+use cyex_emotes::{Capped, Cosmetics, EmoteSet, Lookup, RoomEmotes, Scope};
 use cyex_settings::Partition;
 use cyex_settings::schema::{Chat as ChatSettings, EmoteSource};
 use cyex_twitch::ws;
@@ -65,6 +65,8 @@ struct Inner {
     /// C11 Provider order, Twitch first.
     priority: Vec<Provider>,
     globals: Vec<Arc<EmoteSet>>,
+    /// C11 The global sets' lookup, shared by every room (was copied into each channel's).
+    global_lookup: Arc<Lookup>,
     /// The global sets are being fetched or asked for again (`retry::globals`).
     globals_loading: bool,
     /// B4 Providers whose global sets (and badges) answered, for good or with none.
@@ -113,6 +115,8 @@ struct Channel {
     /// FFZ's pictures for the room's mods and VIPs.
     ffz_badges: cyex_emotes::ffz::api::RoomBadges,
     lookup: Arc<Lookup>,
+    /// `lookup` has the global sets in it too, so the shared one is skipped.
+    whole: bool,
     ready: watch::Sender<bool>,
 }
 
@@ -176,12 +180,21 @@ impl Inner {
         let priority = self.priority.clone();
         let globals = self.globals.clone();
         if let Some(c) = self.channels.get_mut(login) {
-            let all: Vec<Arc<EmoteSet>> = c.sets.iter().chain(globals.iter()).cloned().collect();
-            c.lookup = Arc::new(Lookup::build(ordered(&all, &priority)));
+            // C11 Channel sets sort before every global one, so the channel's lookup over the
+            // shared global one finds what a lookup of both did. A global-scoped set among the
+            // channel's (none today) would mix in by provider: that channel builds both.
+            c.whole = c.sets.iter().any(|s| s.scope == Scope::Global);
+            let sets: Vec<Arc<EmoteSet>> = if c.whole {
+                c.sets.iter().chain(globals.iter()).cloned().collect()
+            } else {
+                c.sets.clone()
+            };
+            c.lookup = Arc::new(Lookup::build(ordered(&sets, &priority)));
         }
     }
 
     fn rebuild_all(&mut self) {
+        self.global_lookup = Arc::new(Lookup::build(ordered(&self.globals, &self.priority)));
         let logins: Vec<String> = self.channels.keys().cloned().collect();
         for l in logins {
             self.rebuild(&l);
@@ -288,12 +301,10 @@ pub fn room(app: &AppHandle, account: Option<&str>, login: &str) -> RoomEmotes {
         return RoomEmotes::default();
     };
     let inner = state.lock();
+    let channel = inner.channels.get(login);
     RoomEmotes {
-        lookup: inner
-            .channels
-            .get(login)
-            .map(|c| c.lookup.clone())
-            .unwrap_or_default(),
+        lookup: channel.map(|c| c.lookup.clone()).unwrap_or_default(),
+        global: channel.filter(|c| !c.whole).map(|_| inner.global_lookup.clone()).unwrap_or_default(),
         personal: inner.personal.clone(),
         mine: account.and_then(|a| inner.mine.get(a).map(|l| (a.to_owned(), l.clone()))),
     }
@@ -308,7 +319,8 @@ pub fn global(app: &AppHandle) -> RoomEmotes {
     load::globals(app);
     let inner = state.lock();
     RoomEmotes {
-        lookup: Arc::new(Lookup::build(ordered(&inner.globals, &inner.priority))),
+        lookup: Arc::default(),
+        global: inner.global_lookup.clone(),
         personal: inner.personal.clone(),
         mine: None,
     }
@@ -347,6 +359,7 @@ fn join(app: &AppHandle, login: &str, channel_id: &str, generation: u64) {
                     seventv_user: None,
                     ffz_badges: Default::default(),
                     lookup: Arc::new(Lookup::default()),
+                    whole: false,
                     ready,
                 },
             );
@@ -552,7 +565,6 @@ pub fn probe(app: &AppHandle) -> serde_json::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cyex_emotes::Scope;
 
     #[test]
     fn personal_state_empties_with_its_last_user() {
@@ -578,6 +590,7 @@ mod tests {
             seventv_user: None,
             ffz_badges: Default::default(),
             lookup: Arc::new(Lookup::default()),
+            whole: false,
             ready: watch::channel(false).0,
         }
     }

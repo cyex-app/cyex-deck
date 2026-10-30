@@ -306,6 +306,7 @@ mod tests {
             seventv_user: None,
             ffz_badges: Default::default(),
             lookup: Arc::default(),
+            whole: false,
             ready: tokio::sync::watch::channel(false).0,
         };
         let fetched = || Fetched {
