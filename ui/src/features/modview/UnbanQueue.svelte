@@ -64,8 +64,8 @@
   <ul>
     {#each list as r (r.id)}
       <li>
-        <div class="who"><b>{r.display}</b> · <span class="t">{when(r.createdAt)}</span></div>
-        {#if r.text}<div class="msg">{r.text}</div>{/if}
+        <div class="who"><b><bdi>{r.display}</bdi></b> · <span class="t">{when(r.createdAt)}</span></div>
+        {#if r.text}<div class="msg" dir="auto">{r.text}</div>{/if}
         <input placeholder="Note (optional)" aria-label="Note for {r.display}" maxlength="500" bind:value={note[r.id]} />
         <div class="row">
           <Button small disabled={busy[r.id]} onclick={() => resolve(r, true)}>Unban</Button>
