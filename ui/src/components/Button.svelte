@@ -119,4 +119,11 @@
   .btn:disabled {
     opacity: 0.5;
   }
+  /* A faded accent fill with its ink read as pale cyan with white text in the light theme;
+     a disabled primary is a flat accent tint with accent text instead (AA in both themes). */
+  .primary:disabled {
+    background: var(--accent-dim);
+    color: var(--accent-text);
+    opacity: 1;
+  }
 </style>
