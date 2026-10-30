@@ -4,6 +4,7 @@
 //! (1.10); closed rooms stay parked (V108-C01, `park`). Parsing and room logic live in
 //! `cyex_chat`.
 
+pub mod badge_refresh;
 pub mod catalog;
 pub mod channels;
 pub mod cheer;

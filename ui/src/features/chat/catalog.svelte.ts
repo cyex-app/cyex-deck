@@ -1,11 +1,15 @@
 // Badge and cheermote images (1.40). Global ones load once per window; each channel's
-// load when its chat opens. Channel entries win over global ones.
+// load when its chat opens. Channel entries win over global ones. V108-BD A badge a loaded
+// catalog lacks asks Rust to read it again; new ones arrive for every window (`chat:catalog`).
 
 import { SvelteMap } from 'svelte/reactivity';
 
 import { chatIpc } from '../../ipc/chat';
 import type { BadgeInfo } from '../../ipc/bindings/BadgeInfo';
+import type { CatalogUpdate } from '../../ipc/bindings/CatalogUpdate';
 import type { Cheermote } from '../../ipc/bindings/Cheermote';
+import { BadgeMisses, missScope } from './badgeMiss';
+import type { BadgeRef } from './sharedBadges';
 
 interface Catalog {
   badges: Map<string, BadgeInfo>;
@@ -26,10 +30,16 @@ class Catalogs {
   /** Keyed, so a channel loading wakes only the badges waiting on it, not every line of every chat. */
   channels = new SvelteMap<string, Catalog>();
   private loading = new Set<string>();
+  private misses = new BadgeMisses();
 
   async loadGlobal(): Promise<void> {
     if (this.loading.has('')) return;
     this.loading.add('');
+    // V108-BD Once per window: catalogs read again come in here.
+    if (!this.listening) {
+      this.listening = true;
+      void chatIpc.onCatalog((u) => this.apply(u)).catch(() => (this.listening = false));
+    }
     try {
       const g = await chatIpc.globalCatalog();
       this.global = index(g.badges, g.cheermotes);
@@ -79,6 +89,31 @@ class Catalogs {
   sourceBadge(roomId: string, set: string, version: string): BadgeInfo | undefined {
     const key = `${set}/${version}`;
     return this.sources.get(roomId)?.get(key) ?? this.global.badges.get(key);
+  }
+
+  private listening = false;
+
+  /** V108-BD A catalog read again; only ones this window holds are replaced. */
+  private apply(u: CatalogUpdate) {
+    if (u.kind === 'global') this.global = index(u.catalog.badges, u.catalog.cheermotes);
+    else if (u.kind === 'channel') {
+      if (this.channels.has(u.login)) this.channels.set(u.login, index(u.catalog.badges, u.catalog.cheermotes));
+    } else if (this.sources.has(u.id)) {
+      this.sources.set(u.id, new Map(u.room.badges.map((b) => [`${b.set}/${b.version}`, b])));
+      if (u.room.login) this.rooms.set(u.id, { login: u.room.login, name: u.room.name, avatar: u.room.avatar ?? null });
+    }
+  }
+
+  /** V108-BD A line's Twitch badge that neither its catalog nor the global one has, once
+   *  both have loaded: Rust reads them again (throttled), the first time per badge. */
+  missing(channel: string, ref: BadgeRef): void {
+    if (!this.global.badges.size) return;
+    const own = ref.room ? this.sources.get(ref.room) : this.channels.get(channel)?.badges;
+    if (!own) return;
+    const key = `${ref.set}/${ref.version}`;
+    if (own.has(key) || this.global.badges.has(key)) return;
+    if (!this.misses.first(missScope(channel, ref.room), ref.set, ref.version)) return;
+    void chatIpc.badgeMissing(ref.room ? null : channel, ref.room ?? null).catch(() => {});
   }
 
   badge(channel: string, set: string, version: string): BadgeInfo | undefined {

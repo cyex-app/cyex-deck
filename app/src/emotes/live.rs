@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use cyex_chat::model::Provider;
-use cyex_emotes::cosmetics::SevenChange;
+use cyex_emotes::cosmetics::{Cosmetics, SevenChange};
 use cyex_emotes::seventv::events::{Entitled, Event, SetChange};
 use cyex_emotes::seventv::{self};
 use cyex_emotes::{Emote, EmoteSet, Scope};
@@ -63,8 +63,15 @@ pub(super) fn resync(app: &AppHandle) {
 fn handle(app: &AppHandle, e: Event) {
     let state = app.state::<Emotes>();
     match e {
-        Event::Paint(p) => state.lock().cosmetics.add_paint(p.style()),
-        Event::Badge(b) => state.lock().cosmetics.add_badge(b),
+        Event::Paint(p) => {
+            let style = p.style();
+            let id = style.id.clone();
+            defined(app, |c| c.add_paint(style), SevenChange::Paint(Some(&id)));
+        }
+        Event::Badge(b) => {
+            let id = b.id.clone();
+            defined(app, |c| c.add_badge(b), SevenChange::Badge(Some(&id)));
+        }
         Event::Entitlement {
             added,
             kind,
@@ -106,6 +113,20 @@ fn handle(app: &AppHandle, e: Event) {
             }
         }
     }
+}
+
+/// V108-BD A paint or badge definition came in (`cosmetic.create`). New or changed, its wearers'
+/// looks go out again: one given before its definition arrived drew without it until now.
+fn defined(app: &AppHandle, add: impl FnOnce(&mut Cosmetics) -> bool, of: SevenChange<'_>) {
+    let state = app.state::<Emotes>();
+    let users = {
+        let mut inner = state.lock();
+        if !add(&mut inner.cosmetics) {
+            return;
+        }
+        inner.cosmetics.seventv_wearers(of)
+    };
+    looks::changed(app, users);
 }
 
 /// C9 A user got or lost a personal (or special) 7TV set.

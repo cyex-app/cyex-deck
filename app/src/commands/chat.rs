@@ -84,6 +84,19 @@ pub async fn chat_channel_catalog(app: AppHandle, login: String) -> CmdResult<Op
         .map(|c| catalog::channel_view(&c)))
 }
 
+/// V108-BD A line's Twitch badge isn't in its catalog: the channel's (`login`), a Shared Chat
+/// source room's (`room_id`) or, with neither, the global one. Read again in the background.
+#[tauri::command]
+pub fn chat_badge_missing(app: AppHandle, login: Option<String>, room_id: Option<String>) {
+    use chat::badge_refresh::{self, Scope};
+    let scope = match (room_id, login) {
+        (Some(id), _) => Scope::Room(id),
+        (None, Some(login)) => Scope::Channel(login),
+        (None, None) => Scope::Global,
+    };
+    badge_refresh::missing(&app, scope);
+}
+
 /// V108-C10 V108-N12 A Shared Chat source room: name, picture and its own badge pictures.
 #[tauri::command]
 pub async fn chat_source_badges(app: AppHandle, room_id: String) -> CmdResult<gql::SourceRoom> {

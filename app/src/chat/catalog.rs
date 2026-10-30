@@ -1,10 +1,10 @@
 //! Chat data from GQL (1.9, 1.40): badges and cheermotes, global once per run and per
-//! channel on join; reward names for redemptions; the pinned message, read on join and
+//! channel on join (V108-BD read again for a badge they lack, `badge_refresh`); reward names for redemptions; the pinned message, read on join and
 //! again when Hermes says it changed (`live.rs`), plus every 5 minutes while on screen.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use cyex_chat::build::Me;
 use cyex_chat::model::{ChatMessage, Fragment, Pinned, Provider, Sender};
@@ -12,9 +12,9 @@ use cyex_chat::tokenize::{Input, NoEmotes, tokenize};
 use cyex_twitch::gql::{self, BadgeInfo, ChannelChat, Cheermote, PinFragment, PinnedMessage, SourceRoom};
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
-use tokio::sync::OnceCell;
 use ts_rs::TS;
 
+use super::badge_refresh::{Scope, Throttle};
 use super::{Chat, RoomKey, now_ms, queue};
 use crate::auth::Auth;
 
@@ -22,10 +22,15 @@ const PIN_POLL: Duration = Duration::from_secs(300);
 
 #[derive(Default)]
 pub struct Catalogs {
-    global: OnceCell<Arc<GlobalCatalog>>,
+    /// V108-BD Replaced when a re-read finds new badges (`badge_refresh`).
+    global: Mutex<Option<Arc<GlobalCatalog>>>,
+    /// V108-BD One first read of the global catalog at a time.
+    global_once: tokio::sync::Mutex<()>,
     channels: Mutex<HashMap<String, Arc<ChannelChat>>>,
     /// V108-C10 Shared Chat source rooms (name, picture, badges) by room id, kept for the run.
     sources: Mutex<HashMap<String, Arc<SourceRoom>>>,
+    /// V108-BD When each catalog was last read, and re-reads on their way.
+    reads: Mutex<Throttle>,
 }
 
 /// V108-C10 Most source rooms kept; past it the list starts over.
@@ -43,7 +48,7 @@ pub struct GlobalCatalog {
 }
 
 /// One channel's badges and cheermotes. Looked up before the global ones.
-#[derive(Serialize, TS)]
+#[derive(Clone, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ChannelCatalog {
@@ -55,13 +60,23 @@ pub struct ChannelCatalog {
 impl Catalogs {
     /// V107-Bn The global catalog, if it loaded.
     pub fn global_cached(&self) -> Option<Arc<GlobalCatalog>> {
-        self.global.get().cloned()
+        self.global.lock().unwrap_or_else(|p| p.into_inner()).clone()
+    }
+
+    /// V108-BD The read times, under their lock.
+    pub(super) fn throttle<T>(&self, f: impl FnOnce(&mut Throttle) -> T) -> T {
+        f(&mut self.reads.lock().unwrap_or_else(|p| p.into_inner()))
+    }
+
+    fn was_read(&self, scope: Scope) {
+        self.throttle(|t| t.read(scope, Instant::now()));
     }
 }
 
 pub fn init(app: &AppHandle) {
     app.manage(Catalogs::default());
     app.state::<Chat>().channels.hook(on_channel);
+    super::badge_refresh::spawn(app);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         loop {
@@ -71,21 +86,32 @@ pub fn init(app: &AppHandle) {
     });
 }
 
+/// Read once, then kept (V108-BD until a re-read replaces it).
 pub async fn global(app: &AppHandle) -> Result<Arc<GlobalCatalog>, String> {
     let catalogs = app.state::<Catalogs>();
+    if let Some(g) = catalogs.global_cached() {
+        return Ok(g);
+    }
+    let _one = catalogs.global_once.lock().await;
+    if let Some(g) = catalogs.global_cached() {
+        return Ok(g);
+    }
+    read_global(app).await
+}
+
+/// V108-BD Reads the global catalog and keeps it, in place of the one before.
+pub(super) async fn read_global(app: &AppHandle) -> Result<Arc<GlobalCatalog>, String> {
     let http = app.state::<Auth>().http.clone();
-    catalogs
-        .global
-        .get_or_try_init(|| async {
-            let g = gql::global_chat(&http).await.map_err(|e| e.to_string())?;
-            Ok(Arc::new(GlobalCatalog {
-                badges: g.badges,
-                cheermotes: g.cheermotes,
-                cheer_colors: g.cheer_colors,
-            }))
-        })
-        .await
-        .cloned()
+    let g = gql::global_chat(&http).await.map_err(|e| e.to_string())?;
+    let g = Arc::new(GlobalCatalog {
+        badges: g.badges,
+        cheermotes: g.cheermotes,
+        cheer_colors: g.cheer_colors,
+    });
+    let catalogs = app.state::<Catalogs>();
+    *catalogs.global.lock().unwrap_or_else(|p| p.into_inner()) = Some(g.clone());
+    catalogs.was_read(Scope::Global);
+    Ok(g)
 }
 
 /// Cached while the channel is joined, unless `fresh`. `None` if the channel doesn't exist.
@@ -100,6 +126,7 @@ pub async fn channel(app: &AppHandle, login: &str, fresh: bool) -> Result<Option
     };
     let c = Arc::new(c);
     let catalogs = app.state::<Catalogs>();
+    catalogs.was_read(Scope::Channel(login.to_owned()));
     let mut map = catalogs.channels.lock().unwrap_or_else(|p| p.into_inner());
     // V107-R16 Only joined channels are kept; checked under this lock, so a leave's `Gone`
     // (fired after the registry changed) can't miss an insert.
@@ -111,15 +138,24 @@ pub async fn channel(app: &AppHandle, login: &str, fresh: bool) -> Result<Option
 
 /// V108-C10 A Shared Chat line's source room, read once per room id.
 pub async fn source(app: &AppHandle, room_id: &str) -> Result<Arc<SourceRoom>, String> {
-    let catalogs = app.state::<Catalogs>();
-    let held = |m: &Mutex<HashMap<String, Arc<SourceRoom>>>| {
-        m.lock().unwrap_or_else(|p| p.into_inner()).get(room_id).cloned()
-    };
-    if let Some(b) = held(&catalogs.sources) {
+    if let Some(b) = source_cached(app, room_id) {
         return Ok(b);
     }
+    read_source(app, room_id).await
+}
+
+/// V108-BD A source room as last read, if it was.
+pub(super) fn source_cached(app: &AppHandle, room_id: &str) -> Option<Arc<SourceRoom>> {
+    let catalogs = app.state::<Catalogs>();
+    catalogs.sources.lock().unwrap_or_else(|p| p.into_inner()).get(room_id).cloned()
+}
+
+/// V108-BD Reads a source room and keeps it, in place of the one before.
+pub(super) async fn read_source(app: &AppHandle, room_id: &str) -> Result<Arc<SourceRoom>, String> {
     let http = app.state::<Auth>().http.clone();
     let b = Arc::new(gql::source_badges(&http, room_id).await.map_err(|e| e.to_string())?);
+    let catalogs = app.state::<Catalogs>();
+    catalogs.was_read(Scope::Room(room_id.to_owned()));
     let mut map = catalogs.sources.lock().unwrap_or_else(|p| p.into_inner());
     if map.len() >= SOURCES_MAX {
         map.clear();
@@ -136,7 +172,7 @@ pub fn badge_url(app: &AppHandle, login: &str, set: &str, version: &str) -> Opti
     {
         return Some(b.image2x.clone());
     }
-    let global = app.state::<Catalogs>().global.get().cloned()?;
+    let global = app.state::<Catalogs>().global_cached()?;
     global.badges.iter().find(hit).map(|b| b.image2x.clone())
 }
 
@@ -146,6 +182,7 @@ fn on_channel(app: &AppHandle, e: &super::channels::Event) {
         && let Some(c) = app.try_state::<Catalogs>()
     {
         c.channels.lock().unwrap_or_else(|p| p.into_inner()).remove(*login);
+        c.throttle(|t| t.forget(&Scope::Channel((*login).to_owned())));
     }
 }
 

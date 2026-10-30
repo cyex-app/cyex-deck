@@ -132,6 +132,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         chat::chat_global_catalog,
         chat::chat_channel_catalog,
         chat::chat_source_badges,
+        chat::chat_badge_missing,
         chat::chat_points,
         chat::chat_viewers,
         chat::chat_redeem,

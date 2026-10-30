@@ -2,6 +2,7 @@ import { Channel, invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
 import type { SourceRoom } from './bindings/SourceRoom';
+import type { CatalogUpdate } from './bindings/CatalogUpdate';
 import type { ChannelCatalog } from './bindings/ChannelCatalog';
 import type { Chatters } from './bindings/Chatters';
 import type { ChatMessage } from './bindings/ChatMessage';
@@ -53,6 +54,12 @@ export const chatIpc = {
   /** V108-C10 A Shared Chat source room's own badges, by room id. */
   /** V108-C10 V108-N12 A Shared Chat source channel: name, picture, its own badges. */
   sourceBadges: (roomId: string) => invoke<SourceRoom>('chat_source_badges', { roomId }),
+  /** V108-BD A line's badge isn't in the channel's (or room's) catalog: Rust reads it again, throttled. */
+  badgeMissing: (login: string | null, roomId: string | null) =>
+    invoke<void>('chat_badge_missing', { login, roomId }),
+  /** V108-BD A catalog read again with new badges, for every window. */
+  onCatalog: (handler: (u: CatalogUpdate) => void) =>
+    listen<CatalogUpdate>('chat:catalog', (e) => handler(e.payload)),
   points: (view: number, fresh = true) => invoke<Points | null>('chat_points', { view, fresh }),
   /** 1.48, V101-35 Everyone when `account` moderates there, else Twitch's sample. */
   viewers: (account: string | null, channel: string) => invoke<Chatters>('chat_viewers', { account, channel }),

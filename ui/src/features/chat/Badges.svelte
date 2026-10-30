@@ -1,6 +1,7 @@
 <!-- Badges (1.37-1.40, 2.3): Twitch's, with FFZ's room pictures for mods and VIPs and
      FFZ's bot badge in place of the mod one; then 7TV, BTTV, FFZ and the extra sets (V108-N06). Each
-     provider and set has its toggle. Unknown Twitch badges are skipped until their catalog loads. -->
+     provider and set has its toggle. Unknown Twitch badges are skipped until their catalog loads
+     (V108-BD or is read again because it lacks them). -->
 <script lang="ts">
   import type { BadgeDef } from '../../ipc/bindings/BadgeDef';
   import type { BadgeInfo } from '../../ipc/bindings/BadgeInfo';
@@ -64,8 +65,15 @@
   );
 
   // V108-C10 Shared Chat badges from another room draw from that room's catalog, read once per room.
+  // V108-BD A badge neither catalog has (new since they were read) asks for a re-read, unless
+  // something else draws in its place.
   $effect(() => {
-    for (const b of badges) if (b.room) void catalogs.loadSource(b.room);
+    for (const b of badges) {
+      if (b.room) void catalogs.loadSource(b.room);
+      if (on.twitch && !stand(b) && (b.room || !saved(`badge:${b.set}/${b.version}`))) {
+        catalogs.missing(channel, b);
+      }
+    }
   });
 
   function hint(ref: Ref, b: BadgeInfo): string | undefined {

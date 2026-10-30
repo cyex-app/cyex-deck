@@ -129,12 +129,33 @@ pub enum SevenChange<'a> {
 }
 
 impl Cosmetics {
-    pub fn add_paint(&mut self, p: PaintStyle) {
+    /// V108-BD True when the paint is new or changed.
+    pub fn add_paint(&mut self, p: PaintStyle) -> bool {
+        if self.paints.get(&p.id) == Some(&p) {
+            return false;
+        }
         self.paints.insert(p.id.clone(), p);
+        true
     }
 
-    pub fn add_badge(&mut self, b: BadgeDef) {
-        self.badges.insert(b.key(), b);
+    /// V108-BD True when the badge is new or changed.
+    pub fn add_badge(&mut self, b: BadgeDef) -> bool {
+        let key = b.key();
+        if self.badges.get(&key) == Some(&b) {
+            return false;
+        }
+        self.badges.insert(key, b);
+        true
+    }
+
+    /// V108-BD 7TV users who wear this paint or badge. A definition that arrives after its
+    /// entitlement (or changes) sends their looks again; `look` skipped it until then.
+    pub fn seventv_wearers(&self, change: SevenChange<'_>) -> Vec<String> {
+        let wears = |u: &SevenUser| match change {
+            SevenChange::Paint(id) => id.is_some() && u.paint.as_deref() == id,
+            SevenChange::Badge(id) => id.is_some() && u.badge.as_deref() == id,
+        };
+        self.seventv.iter().filter(|(_, u)| wears(u)).map(|(k, _)| k.clone()).collect()
     }
 
     /// Returns true if the user's look changed.
@@ -595,6 +616,24 @@ mod tests {
         assert!((MAX_SEVENTV_USERS..=MAX_SEVENTV_USERS * 11 / 10).contains(&n));
         assert!(c.seventv.contains_key("29999"));
         assert!(!c.seventv.contains_key("0"));
+    }
+
+    // V108-BD A badge defined after it was given: its wearers are found, and their look has it.
+    #[test]
+    fn a_late_definition_finds_its_wearers() {
+        let mut c = Cosmetics::default();
+        c.set_seventv("1", SevenChange::Badge(Some("z")));
+        c.set_seventv("2", SevenChange::Badge(Some("y")));
+        c.set_seventv("3", SevenChange::Paint(Some("z")));
+        assert!(c.look("1").unwrap_or_default().badges.is_empty());
+        assert!(c.add_badge(badge(Provider::Seventv, "z")));
+        assert!(!c.add_badge(badge(Provider::Seventv, "z")));
+        assert_eq!(c.seventv_wearers(SevenChange::Badge(Some("z"))), ["1"]);
+        assert!(c.seventv_wearers(SevenChange::Badge(None)).is_empty());
+        assert_eq!(c.look("1").unwrap().badges.len(), 1);
+        let mut moved = badge(Provider::Seventv, "z");
+        moved.image2x = "https://x/new.png".into();
+        assert!(c.add_badge(moved));
     }
 
     #[test]
