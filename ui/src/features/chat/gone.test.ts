@@ -9,9 +9,12 @@ const line = (extra: Partial<ChatMessage> = {}): ChatMessage => ({ id: 'a', ts: 
 test('V107-R34 the note says how, and which mod when known', () => {
   assert.equal(goneNote({ how: 'deleted' }), '(deleted)');
   assert.equal(goneNote({ how: 'timedOut' }), '(timed out)', 'length unknown');
-  assert.equal(goneNote({ how: 'timedOut', secs: 600 }), '(timed out 600s)');
-  assert.equal(goneNote({ how: 'timedOut', secs: 600, by: 'x' }), '(timed out 600s by x)');
-  assert.equal(goneNote({ how: 'timedOut', secs: 86400 }), '(timed out 86.400s)');
+  assert.equal(goneNote({ how: 'timedOut', secs: 600 }), '(timed out 10m)');
+  assert.equal(goneNote({ how: 'timedOut', secs: 600, by: 'x' }), '(timed out 10m by x)');
+  assert.equal(goneNote({ how: 'timedOut', secs: 86400 }), '(timed out 1d)');
+  assert.equal(goneNote({ how: 'timedOut', secs: 3600 }), '(timed out 1h)');
+  assert.equal(goneNote({ how: 'timedOut', secs: 3600 + 1800 }), '(timed out 1h 30m)');
+  assert.equal(goneNote({ how: 'timedOut', secs: 30 }), '(timed out 30s)');
   assert.equal(goneNote({ how: 'banned', by: 'Kuni' }), '(banned by Kuni)');
   assert.equal(goneNote({ how: 'deleted', by: 'Mod B' }), '(deleted by Mod B)');
   assert.equal(goneNote(undefined), '', 'a plugin hid it: no note');

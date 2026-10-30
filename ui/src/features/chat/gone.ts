@@ -3,14 +3,14 @@
 
 import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
 import type { Gone } from '../../ipc/bindings/Gone';
-import { formatNumber } from '../../lib/format.ts';
+import { formatDuration } from '../../lib/format.ts';
 
 const WORDS: Record<Gone['how'], string> = { deleted: 'deleted', timedOut: 'timed out', banned: 'banned' };
 
 /** "(deleted)", "(timed out 600s by Kuni)"; nothing for a line hidden without Twitch saying why. */
 export function goneNote(gone: Gone | undefined): string {
   if (!gone) return '';
-  const secs = gone.how === 'timedOut' && gone.secs ? ` ${formatNumber(gone.secs)}s` : '';
+  const secs = gone.how === 'timedOut' && gone.secs ? ` ${formatDuration(gone.secs)}` : '';
   return `(${WORDS[gone.how]}${secs}${gone.by ? ` by ${gone.by}` : ''})`;
 }
 
