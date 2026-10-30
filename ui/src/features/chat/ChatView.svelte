@@ -43,7 +43,8 @@
   import MessageList from './MessageList.svelte';
   import PinnedBanner from './PinnedBanner.svelte';
   import RateMeter from './RateMeter.svelte';
-  import { hiddenCount, inSharedSession } from './sharedChat';
+  import { hiddenCount, inSharedSession, listNames } from './sharedChat';
+  import type { SharedParticipant } from '../../ipc/bindings/SharedParticipant';
   import { ChatRoom } from './room.svelte';
   import SearchPopup from './SearchPopup.svelte';
   import ViewerList from './ViewerList.svelte';
@@ -362,7 +363,31 @@
     const t = setInterval(() => (clock = Date.now()), 30_000);
     return () => clearInterval(t);
   });
-  const shared = $derived(inSharedSession(room.messages, clock));
+  /** V108-N12 Twitch's own word on the session (signed in with Helix), live; `null` until read. */
+  let sharedWith = $state<SharedParticipant[] | null>(null);
+  $effect(() => {
+    const channel = login;
+    let stop: (() => void) | undefined;
+    let gone = false;
+    void chatxIpc
+      .onShared((e) => {
+        if (e.channel === channel) sharedWith = e.participants;
+      })
+      .then((u) => (gone ? u() : (stop = u)));
+    chatxIpc
+      .sharedState(channel)
+      .then((p) => !gone && sharedWith === null && (sharedWith = p))
+      .catch(() => {});
+    return () => {
+      gone = true;
+      stop?.();
+      sharedWith = null;
+    };
+  });
+  /** The other channels; when Twitch said nothing, lines from them stand in (anonymous chats). */
+  const partners = $derived((sharedWith ?? []).filter((p) => p.login !== login));
+  const shared = $derived(partners.length > 0 || (!sharedWith?.length && inSharedSession(room.messages, clock)));
+  const partnerNames = $derived(listNames(partners.map((p) => p.name)));
   const hiddenHere = $derived(room.onlyHere ? hiddenCount(room.messages) : 0);
 
   function openChannelCard() {
@@ -397,6 +422,16 @@
       {/if}
     </div>
     {#if settings.v.chat.rateMeter}<RateMeter {login} />{/if}
+    {#if partners.length}
+      <!-- V108-N12 Who's in the shared chat, as Twitch says it; follows joins and leaves. -->
+      <span class="partners" use:tooltip={{ label: `Shared chat with ${partnerNames}` }}>
+        {#each partners.slice(0, 3) as p (p.id)}
+          {@const r = catalogs.room(p.id)}
+          {#if r?.avatar}<img src={r.avatar} alt="" />{:else}<span class="blank"></span>{/if}
+        {/each}
+        {#if partners.length > 3}<span class="more">+{partners.length - 3}</span>{/if}
+      </span>
+    {/if}
     {#if shared || room.onlyHere}
       <!-- V108-N12 Shared Chat. -->
       <IconButton
@@ -574,6 +609,29 @@
     gap: 4px;
     min-width: 0;
     overflow: hidden;
+  }
+  /* V108-N12 Overlapping pictures of the other channels, like Twitch's own header. */
+  .partners {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    padding-left: 4px;
+  }
+  .partners img,
+  .partners .blank {
+    width: 16px;
+    height: 16px;
+    margin-left: -4px;
+    border-radius: 50%;
+    border: 1px solid var(--page);
+    background: var(--surface);
+    object-fit: cover;
+  }
+  .partners .more {
+    margin-left: 3px;
+    color: var(--muted);
+    font-size: var(--text-hint);
+    font-variant-numeric: tabular-nums;
   }
   .mode {
     padding: 1px 6px;

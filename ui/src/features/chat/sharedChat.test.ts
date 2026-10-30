@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { SHARED_SEEN_MS, hiddenCount, inSharedSession, onlyHere } from './sharedChat.ts';
+import { SHARED_SEEN_MS, hiddenCount, inSharedSession, listNames, onlyHere } from './sharedChat.ts';
 
 const src = { roomId: '2', badges: [] };
 const line = (ts: number, source?: typeof src) => ({ ts, source });
@@ -23,4 +23,11 @@ test('V108-N12 only this channel drops foreign lines and leaves the room alone',
   assert.deepEqual(onlyHere(all).map((m) => m.ts), [1, 3]);
   assert.equal(all.length, 3);
   assert.equal(hiddenCount(all), 1);
+});
+
+test('partner names read as a sentence', () => {
+  assert.equal(listNames([]), '');
+  assert.equal(listNames(['A']), 'A');
+  assert.equal(listNames(['A', 'B']), 'A and B');
+  assert.equal(listNames(['A', 'B', 'C']), 'A, B and C');
 });

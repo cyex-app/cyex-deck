@@ -196,3 +196,9 @@ pub async fn chat_gif_send(
 ) -> CmdResult<GifSent> {
     powerups::gif_send(&app, view, &id, &url, &search).await
 }
+
+/// V108-N12 Who is in the channel's shared chat now (empty when it isn't in one).
+#[tauri::command]
+pub fn chat_shared_state(app: AppHandle, channel: String) -> Vec<chat::shared::SharedParticipant> {
+    chat::shared::state(&app, &channel)
+}

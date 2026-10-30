@@ -157,6 +157,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         chat_extra::chat_set_language,
         chat_extra::chat_record,
         chat_extra::chat_recording_state,
+        chat_extra::chat_shared_state,
         chat_extra::recordings_list,
         chat_extra::recording_load,
         chat_extra::recording_delete,

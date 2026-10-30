@@ -8,6 +8,8 @@ import type { Celebration } from './bindings/Celebration';
 import type { CheerInfo } from './bindings/CheerInfo';
 import type { CheerSent } from './bindings/CheerSent';
 import type { FeedEvent } from './bindings/FeedEvent';
+import type { SharedChatUpdate } from './bindings/SharedChatUpdate';
+import type { SharedParticipant } from './bindings/SharedParticipant';
 import type { FeedLine } from './bindings/FeedLine';
 import type { FeedOpened } from './bindings/FeedOpened';
 import type { Gif } from './bindings/Gif';
@@ -37,6 +39,9 @@ export const chatxIpc = {
   setLanguage: (lang: string) => invoke<void>('chat_set_language', { lang }),
   record: (view: number, on: boolean) => invoke<boolean>('chat_record', { view, on }),
   recording: (view: number) => invoke<boolean>('chat_recording_state', { view }),
+  /** V108-N12 Who's in the channel's shared chat now (itself included); empty when none is known. */
+  sharedState: (channel: string) => invoke<SharedParticipant[]>('chat_shared_state', { channel }),
+  onShared: (cb: (e: SharedChatUpdate) => void) => listen<SharedChatUpdate>('chat:shared', (e) => cb(e.payload)),
   recordings: () => invoke<RecordingMeta[]>('recordings_list'),
   /** X6 Meta and pictures; the events come over `onEvents` in parts, in order. */
   loadRecording: (id: string, onEvents: (part: [number, unknown][]) => void) => {

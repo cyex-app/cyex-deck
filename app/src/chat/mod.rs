@@ -27,6 +27,7 @@ pub mod rules;
 pub mod run;
 pub mod search;
 mod send;
+pub mod shared;
 mod session;
 pub mod shown;
 pub mod translate;
@@ -184,6 +185,7 @@ pub fn init(app: &AppHandle) {
     translate::init(app);
     votes::init(app);
     roles::init(app);
+    shared::init(app);
 }
 
 impl Chat {

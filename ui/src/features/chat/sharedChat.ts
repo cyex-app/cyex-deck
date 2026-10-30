@@ -31,3 +31,9 @@ export function hiddenCount(messages: readonly Pick<ChatMessage, 'source'>[]): n
   for (const m of messages) if (m.source) n++;
   return n;
 }
+
+/** "A", "A and B", "A, B and C". */
+export function listNames(names: readonly string[]): string {
+  if (names.length < 2) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+}

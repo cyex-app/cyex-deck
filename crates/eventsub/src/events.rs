@@ -578,3 +578,75 @@ mod whisper_tests {
         assert!(parse_whisper("channel.follow", &e).is_none());
     }
 }
+
+/// V108-N12 Shared chat (`channel.shared_chat.begin/update/end`) for the channel in the
+/// condition. UNVERIFIED against live traffic: fields follow Twitch's EventSub reference.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SharedChat {
+    /// `begin` (`begin: true`) or `update`: everyone in the session now, this channel included.
+    Now {
+        session_id: String,
+        begin: bool,
+        participants: Vec<Who>,
+    },
+    End {
+        session_id: String,
+    },
+}
+
+pub fn parse_shared(kind: &str, e: &Value) -> Option<SharedChat> {
+    let session_id = e.get("session_id")?.as_str()?.to_owned();
+    match kind {
+        "channel.shared_chat.begin" | "channel.shared_chat.update" => Some(SharedChat::Now {
+            session_id,
+            begin: kind.ends_with("begin"),
+            participants: e
+                .get("participants")?
+                .as_array()?
+                .iter()
+                .filter_map(|p| Who::read(p, "broadcaster_user"))
+                .collect(),
+        }),
+        "channel.shared_chat.end" => Some(SharedChat::End { session_id }),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod shared_tests {
+    use super::*;
+
+    fn who(id: &str, login: &str, name: &str) -> Who {
+        Who { id: id.into(), login: login.into(), name: name.into() }
+    }
+
+    fn shared(kind: &str, json: &str) -> Option<SharedChat> {
+        parse_shared(kind, &serde_json::from_str(json).unwrap())
+    }
+
+    #[test]
+    fn begin_and_update_list_everyone() {
+        let json = r#"{"broadcaster_user_id":"1971641","broadcaster_user_login":"streamer","broadcaster_user_name":"streamer",
+            "session_id":"2b64a92a-dbb8-424e-b1c3-304423ba1b6f","host_broadcaster_user_id":"1971641",
+            "host_broadcaster_user_login":"streamer","host_broadcaster_user_name":"streamer",
+            "participants":[{"broadcaster_user_id":"1971641","broadcaster_user_login":"streamer","broadcaster_user_name":"streamer"},
+            {"broadcaster_user_id":"112233","broadcaster_user_login":"streamer33","broadcaster_user_name":"Streamer33"}]}"#;
+        let want = |begin| SharedChat::Now {
+            session_id: "2b64a92a-dbb8-424e-b1c3-304423ba1b6f".into(),
+            begin,
+            participants: vec![who("1971641", "streamer", "streamer"), who("112233", "streamer33", "Streamer33")],
+        };
+        assert_eq!(shared("channel.shared_chat.begin", json), Some(want(true)));
+        assert_eq!(shared("channel.shared_chat.update", json), Some(want(false)));
+    }
+
+    #[test]
+    fn end_needs_only_the_session() {
+        let json = r#"{"broadcaster_user_id":"1971641","broadcaster_user_login":"streamer","broadcaster_user_name":"streamer",
+            "session_id":"2b64a92a","host_broadcaster_user_id":"1971641","host_broadcaster_user_login":"streamer",
+            "host_broadcaster_user_name":"streamer"}"#;
+        assert_eq!(shared("channel.shared_chat.end", json), Some(SharedChat::End { session_id: "2b64a92a".into() }));
+        assert_eq!(shared("channel.shared_chat.begin", json), None, "begin without participants is skipped");
+        assert_eq!(shared("channel.follow", json), None);
+    }
+}

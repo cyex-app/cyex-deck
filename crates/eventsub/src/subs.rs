@@ -289,6 +289,16 @@ pub fn whispers(user_id: &str) -> (&'static str, &'static str, Value) {
     ("user.whisper.message", "1", json!({ "user_id": user_id }))
 }
 
+/// V108-N12 What a chat follows for its channel: shared chat starting, changing and ending.
+/// The condition names only the channel and no scope is needed, so every account with a
+/// Helix sign-in can.
+pub fn shared_chat(broadcaster_id: &str) -> Vec<(&'static str, &'static str, Value)> {
+    ["channel.shared_chat.begin", "channel.shared_chat.update", "channel.shared_chat.end"]
+        .into_iter()
+        .map(|kind| (kind, "1", json!({ "broadcaster_user_id": broadcaster_id })))
+        .collect()
+}
+
 /// The channel an event or revocation is about.
 pub fn channel_of(condition: &Value) -> Option<&str> {
     condition
@@ -318,6 +328,13 @@ mod tests {
         assert_eq!(subs[0].2["moderator_user_id"].as_str(), Some("2"));
         let raid = &subs.iter().find(|(k, _, _)| *k == "channel.raid").unwrap().2;
         assert_eq!(channel_of(raid), Some("1"));
+    }
+
+    #[test]
+    fn v108_n12_shared_chat_names_only_the_channel() {
+        let subs = shared_chat("1");
+        assert_eq!(subs.iter().map(|s| s.0).collect::<Vec<_>>(), ["channel.shared_chat.begin", "channel.shared_chat.update", "channel.shared_chat.end"]);
+        assert!(subs.iter().all(|(_, v, c)| *v == "1" && c.as_object().unwrap().len() == 1 && channel_of(c) == Some("1")));
     }
 
     #[test]

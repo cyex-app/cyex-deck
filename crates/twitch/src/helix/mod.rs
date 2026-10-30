@@ -13,6 +13,7 @@ pub mod moderation;
 pub mod modes;
 pub mod roles;
 pub mod schedule;
+pub mod shared_chat;
 pub mod stats;
 mod users;
 pub mod votes;
