@@ -44,7 +44,7 @@ pub struct HeldItem {
     pub login: String,
     pub display: String,
     pub text: String,
-    /// `automod` category, or `blocked term`.
+    /// V108-N15 Wire form: `automod:<category>[:<level>]`, `blocked_term[:<text>]` or `blocked_link`.
     pub reason: String,
     #[ts(type = "number")]
     pub ts: i64,

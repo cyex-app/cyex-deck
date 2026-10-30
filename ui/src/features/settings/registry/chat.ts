@@ -92,6 +92,13 @@ export const CHAT: Entry[] = [
     keywords: ['rate', 'speed', 'busy', 'msgs', 'meter', 'pace'],
   },
   {
+    id: 'chat.hypeTrainBar',
+    page: 'chat',
+    label: 'Show hype trains',
+    description: 'A bar over the chat with the level, progress and time left while a hype train runs.',
+    keywords: ['hype', 'train', 'level', 'bar', 'bits', 'subs'],
+  },
+  {
     id: 'chat.showClient',
     page: 'chat',
     label: 'Show where it was sent from',
@@ -143,6 +150,20 @@ export const CHAT: Entry[] = [
     label: 'Last-read line',
     description: 'Marks where you were when you switched away.',
     keywords: ['unread', 'new messages'],
+  },
+  {
+    id: 'chat.catchUp',
+    page: 'chat',
+    label: 'Catch up',
+    description: 'After you were away, marks what is new and sums up what you missed.',
+    keywords: ['away', 'missed', 'unread', 'while you were away', 'new since'],
+  },
+  {
+    id: 'chat.catchUpMins',
+    page: 'chat',
+    label: 'Away for',
+    description: 'How long you stay away before chat catches you up.',
+    keywords: ['away', 'minutes', 'catch up'],
   },
   {
     id: 'chat.delayTenths',

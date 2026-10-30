@@ -10,6 +10,7 @@ import type { LogPage } from './bindings/LogPage';
 import type { MenuContext } from './bindings/MenuContext';
 import type { Menus } from './bindings/Menus';
 import type { NameChange } from './bindings/NameChange';
+import type { OtherModCount } from './bindings/OtherModCount';
 import type { SubStatus } from './bindings/SubStatus';
 import type { UiAction } from './bindings/UiAction';
 
@@ -32,6 +33,9 @@ export const usercardIpc = {
   /** M8 Twitch's mod logs, for a mod where logs.cyex.app has none. */
   modLogs: (account: string, channel: string, userId: string, cursor: string | null) =>
     invoke<LogPage>('user_mod_logs', { account, channel, userId, cursor }),
+  /** V108-N16 Their bans and timeouts in the other channels the account moderates; empty without the scope. */
+  otherModCounts: (account: string, channel: string, userId: string) =>
+    invoke<OtherModCount[]>('user_other_mod_counts', { account, channel, userId }),
   /** S1 A usercard button, run in an open view of `channel`. */
   run: (channel: string, command: string, context: MenuContext) =>
     invoke<UiAction | null>('usercard_run', { channel, command, context }),

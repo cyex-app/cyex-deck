@@ -24,6 +24,7 @@
   import Comments from './Comments.svelte';
   import Facts from './Facts.svelte';
   import Header from './Header.svelte';
+  import OtherChannels from './OtherChannels.svelte';
   import ModBar from './ModBar.svelte';
   import Timeline from './Timeline.svelte';
   import { theirIds, touches } from './userWatch';
@@ -214,6 +215,9 @@
         bind:editing
       />
       <Facts {profile} {channel} />
+      {#if !isChannel && accounts.current}
+        <OtherChannels {channel} userId={profile.id} account={accounts.current.userId} />
+      {/if}
       {#if !isChannel}
         <Actions {profile} {channel} />
         {#if modAccount}

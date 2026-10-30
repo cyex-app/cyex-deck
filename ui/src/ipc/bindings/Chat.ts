@@ -131,6 +131,14 @@ pauseKey: PauseKey,
  */
 lastReadLine: boolean, 
 /**
+ * V108-N18 Coming back after a while: a "New since you left" line and a summary card.
+ */
+catchUp: boolean, 
+/**
+ * V108-N18 Minutes away before chat catches you up.
+ */
+catchUpMins: number, 
+/**
  * V103-12 New messages slide in instead of popping up. Fast chats skip the slide.
  */
 smoothNewMessages: boolean, 
@@ -150,6 +158,10 @@ showClient: boolean,
  * V108-N10 Messages per second in the chat header. Setting, off.
  */
 rateMeter: boolean, 
+/**
+ * V108-N04 The hype train bar over the chat while a train runs.
+ */
+hypeTrainBar: boolean, 
 /**
  * 1.52 Hover a link for a preview.
  */

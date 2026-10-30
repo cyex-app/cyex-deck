@@ -38,6 +38,7 @@
   import ChatInput from './ChatInput.svelte';
   import CosmeticsPopup from '../cosmetics/CosmeticsPopup.svelte';
   import EventsButton from './EventsButton.svelte';
+  import HypeTrain from './HypeTrain.svelte';
   import { runEntry, toItems, userMenus } from './menus.svelte';
   import MessageList from './MessageList.svelte';
   import PinnedBanner from './PinnedBanner.svelte';
@@ -460,6 +461,7 @@
   {/if}
   <!-- V102-24 A short chat keeps its messages and message box: these scroll instead. -->
   <div class="banners">
+    <HypeTrain {login} channelId={room.state.channelId} />
     <EventsButton channel={login} pin={room.pinned} pinKnown={room.pinKnown} />
     {#if room.pinned}
       <PinnedBanner

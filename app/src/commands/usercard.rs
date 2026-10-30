@@ -5,7 +5,7 @@ use cyex_twitch::logs::{NameChange, SubStatus};
 use tauri::AppHandle;
 
 use crate::chat::run::{MenuContext, UiAction};
-use crate::chat::usercard::{self, FollowAge, LogPage};
+use crate::chat::usercard::{self, FollowAge, LogPage, OtherModCount};
 
 type CmdResult<T> = Result<T, String>;
 
@@ -51,6 +51,17 @@ pub async fn user_mod_logs(
     cursor: Option<String>,
 ) -> CmdResult<LogPage> {
     usercard::mod_logs(&app, &account, &channel, &user_id, cursor.as_deref()).await
+}
+
+/// V108-N16 Their bans and timeouts in the other channels the account moderates.
+#[tauri::command]
+pub async fn user_other_mod_counts(
+    app: AppHandle,
+    account: String,
+    channel: String,
+    user_id: String,
+) -> CmdResult<Vec<OtherModCount>> {
+    usercard::other_mod_counts(&app, &account, &channel, &user_id).await
 }
 
 /// S1 A usercard button, run in the card's channel.

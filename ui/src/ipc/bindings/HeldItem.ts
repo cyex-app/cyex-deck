@@ -5,6 +5,6 @@
  */
 export type HeldItem = { messageId: string, userId: string, login: string, display: string, text: string, 
 /**
- * `automod` category, or `blocked term`.
+ * V108-N15 Wire form: `automod:<category>[:<level>]`, `blocked_term[:<text>]` or `blocked_link`.
  */
 reason: string, ts: number, };

@@ -10,6 +10,7 @@ mod cosmetics;
 mod emotes;
 pub mod feeds;
 pub mod highlights;
+mod hypetrain;
 mod mentions;
 mod miner;
 mod moderation;
@@ -157,6 +158,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         chat_extra::chat_votes,
         chat_extra::chat_rate,
         chat_extra::chat_moments,
+        hypetrain::chat_hype_train,
+        hypetrain::chat_hype_watch,
         chat_extra::chat_vote,
         chat_extra::chat_predict,
         chat_extra::chat_power_ups,
@@ -176,6 +179,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         usercard::user_name_history,
         usercard::user_logs,
         usercard::user_mod_logs,
+        usercard::user_other_mod_counts,
         usercard::usercard_run,
         usercard::user_blocked,
         moderation::mod_roles,

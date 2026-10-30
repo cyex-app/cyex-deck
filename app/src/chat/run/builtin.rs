@@ -120,6 +120,7 @@ pub async fn run(
             done
         }
         "logs" => {
+            // V108-N17 Also the "Open in logs" menu entry; the page needs a user, so no name says who.
             let login = login_arg(args)?;
             crate::commands::system::open_allowed(app, cyex_twitch::logs::page_url(place.channel(), &login))?;
             done

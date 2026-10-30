@@ -18,6 +18,7 @@ import { pluginItems } from '../plugins/pluginMenus';
 import { plugins } from '../plugins/plugins.svelte';
 import { whispers } from '../whispers/whispers.svelte';
 import { runEntry, toItems, userMenus } from './menus.svelte';
+import { openInLogs } from './inLogs';
 import { plainText } from './text';
 import { blockUser, hideUser, type Run } from './undo';
 
@@ -62,6 +63,7 @@ export function nameMenu(c: NameMenu): MenuEntry[] {
     ...(c.onaction
       ? [{ label: 'Their messages', icon: 'search' as const, run: () => c.onaction!({ type: 'search', query: `from:${login}` }) }]
       : []),
+    { label: 'Open in logs', icon: 'scroll', run: () => openInLogs(channel, login) },
     { label: 'Copy name', icon: 'copy', run: () => void copy(login, 'Name') },
     ...(canMod ? ['separator' as const, ...userItems(caps, login, c.run, warn, standings.of(c.channel, login, c.standing))] : []),
     'separator',

@@ -11,6 +11,7 @@ mod creds;
 pub mod feeds;
 mod flush;
 pub mod global;
+pub mod hypetrain;
 pub mod identity;
 pub mod live;
 mod mention;

@@ -11,6 +11,7 @@ import { copy } from '../../lib/clipboard';
 import { errorText } from '../../lib/errors';
 import { toast } from '../../lib/toast.svelte';
 import { whispers } from '../whispers/whispers.svelte';
+import { jumpInLogs } from './inLogs';
 import { emoteMenu, notEmote, openPart, PARTS, type LineHost } from './lineEvents';
 import { plainText } from './text';
 
@@ -59,6 +60,8 @@ export function messageEntries(channel: string, m: ChatMessage, openRoom: (c: st
   return [
     { label: 'Copy message', icon: 'copy', run: () => void copy(plainText(m.body), 'Message') },
     { label: 'Open this chat', icon: 'list', run: () => openRoom(channel) },
+    // V108-N17 Global mentions are rarely in the chat's own scrollback.
+    ...(m.sender && !m.notice ? jumpInLogs(channel, m) : []),
   ];
 }
 

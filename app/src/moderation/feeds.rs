@@ -472,11 +472,29 @@ fn display(u: &events::Who) -> String {
     if u.name.is_empty() { u.login.clone() } else { u.name.clone() }
 }
 
+/// V108-N15 The reason on the wire, for `ui/.../feeds/heldReason.ts`: `automod:<category>[:<level>]`,
+/// `blocked_term[:<flagged text>]` or `blocked_link`. Anything else is passed through.
 fn held_reason(h: &events::Held) -> String {
     match h.reason.as_str() {
-        "blocked_term" => "blocked term".into(),
-        _ => h.category.clone().unwrap_or_else(|| "AutoMod".into()),
+        "blocked_term" => match flagged_text(&h.message.text, &h.boundaries) {
+            Some(t) => format!("blocked_term:{t}"),
+            None => "blocked_term".into(),
+        },
+        "blocked_link" => "blocked_link".into(),
+        _ => match (&h.category, h.level) {
+            (Some(c), Some(l)) => format!("automod:{c}:{l}"),
+            (Some(c), None) => format!("automod:{c}"),
+            _ => "AutoMod".into(),
+        },
     }
+}
+
+/// The first flagged range of `text` (code points, end inclusive), if it fits.
+fn flagged_text(text: &str, bounds: &[events::Boundary]) -> Option<String> {
+    let b = bounds.first()?;
+    let n = (b.end_pos.checked_sub(b.start_pos)? + 1) as usize;
+    let t: String = text.chars().skip(b.start_pos as usize).take(n).collect();
+    (!t.trim().is_empty()).then_some(t)
 }
 
 fn sent_secs(app: &AppHandle, channel_id: &str, login: &str, now: i64) -> Option<u32> {
@@ -509,5 +527,30 @@ mod tests {
         assert_eq!(left_secs(600_000, 900), Some(599));
         assert_eq!(left_secs(1_000, 1_000), None);
         assert_eq!(left_secs(1_000, 5_000), None);
+    }
+
+    // V108-N15
+    #[test]
+    fn held_reason_wire_forms() {
+        let mut h = events::Held {
+            message_id: "m".into(),
+            user: events::Who::default(),
+            message: events::Message { text: "you bad word".into(), ..Default::default() },
+            reason: "automod".into(),
+            category: Some("swearing".into()),
+            level: Some(3),
+            boundaries: vec![],
+            terms: vec![],
+            held_at: String::new(),
+        };
+        assert_eq!(held_reason(&h), "automod:swearing:3");
+        h.level = None;
+        assert_eq!(held_reason(&h), "automod:swearing");
+        h.reason = "blocked_term".into();
+        assert_eq!(held_reason(&h), "blocked_term");
+        h.boundaries = vec![events::Boundary { start_pos: 4, end_pos: 6 }];
+        assert_eq!(held_reason(&h), "blocked_term:bad");
+        h.reason = "blocked_link".into();
+        assert_eq!(held_reason(&h), "blocked_link");
     }
 }

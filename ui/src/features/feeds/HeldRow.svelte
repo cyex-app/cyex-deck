@@ -7,6 +7,7 @@
   import { modIpc } from '../../ipc/moderation';
   import { errorText } from '../../lib/errors';
   import { toast } from '../../lib/toast.svelte';
+  import { heldLabel } from './heldReason';
 
   interface Props {
     account: string;
@@ -69,7 +70,7 @@
 <div class="held" class:decided={status !== 'pending'}>
   <div class="who">
     {#if channel}<span class="chan">#{channel}</span>{/if}
-    <b>{item.display}</b> · <span class="reason">{item.reason}</span>
+    <b>{item.display}</b> · <span class="reason">{heldLabel(item.reason)}</span>
   </div>
   <div class="msg">{item.text}</div>
   {#if done}

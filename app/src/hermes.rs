@@ -115,8 +115,8 @@ async fn pump(app: AppHandle, mut rx: mpsc::UnboundedReceiver<Event>) {
             Kind::ModActions | Kind::AutomodQueue => crate::moderation::feeds::on_hermes(&app, &e),
             // V108-N23 The streak prompt reads again.
             Kind::ViewerMilestones => crate::subs::on_milestones(&app, &e),
-            // V108-N04 The handler comes with its UI phase.
-            Kind::HypeTrain => {}
+            // V108-N04 The hype train bar reads and merges it.
+            Kind::HypeTrain => crate::chat::hypetrain::on_event(&app, &e),
         }
     }
 }

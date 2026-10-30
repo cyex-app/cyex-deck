@@ -1,10 +1,11 @@
 <!-- Scrolling message list (1.8). Follows new messages while at the bottom, sliding them
      in when set (V103-12); pauses on hover or while the pause key is held alone (C5, V108-C04);
      keeps its bottom when the message box grows (V108-C05); marks where you stopped reading
-     (C5); a dated line where chat crosses midnight (C25).
+     (C5); a dated line where chat crosses midnight (C25); after a while away, "New since you
+     left" and a "While you were away" card (V108-N18).
      Clicks and tooltips are delegated here instead of being set on every line. -->
 <script lang="ts">
-  import { onDestroy, tick, untrack } from 'svelte';
+  import { onDestroy, onMount, tick, untrack } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
   import { menu, openMenu as showMenu, type MenuEntry } from '../../components/menu.svelte';
@@ -16,6 +17,7 @@
   import { chatIpc } from '../../ipc/chat';
   import { chatxIpc } from '../../ipc/chatx';
   import { pluginsIpc } from '../../ipc/plugins';
+  import { focus } from '../../lib/focus.svelte';
   import { formatDate, formatNumber } from '../../lib/format';
   import { reduced } from '../../lib/motion';
   import { EASE_OUT_CUBIC } from '../../lib/scrollMath';
@@ -33,6 +35,7 @@
   import { standings } from '../modview/standings.svelte';
   import { lineKind, pluginItems } from '../plugins/pluginMenus';
   import { plugins } from '../plugins/plugins.svelte';
+  import { jumpInLogs, openInLogs } from './inLogs';
   import { ChatScroll } from './chatScroll.svelte';
   import { editable, MODIFIERS, pauseHeld } from './pauseKey';
   import { nameMenu } from './nameMenu';
@@ -42,6 +45,10 @@
   import { runEntry, toItems, userMenus } from './menus.svelte';
   import { emoteMenu, enterClicks, lineTips, notEmote, openPart, PARTS, type LineHost } from './lineEvents';
   import { plainText } from './text';
+  import CatchUpCard, { type Row } from './CatchUpCard.svelte';
+  import { awayText, catchOf, isAway, isQuiet, lineAt, markerFor, summaryText } from './catchUp';
+  import { awayMarks } from './catchUpMarks';
+  import { momentText } from '../player/moments';
   import { readMarks, type ChatRoom } from './room.svelte';
   import { stripes } from './stripes';
   import { whispers } from '../whispers/whispers.svelte';
@@ -264,6 +271,115 @@
       const last = room.messages.at(-1)?.id;
       if (readKey && last) readMarks.set(readKey, last);
     };
+  });
+
+  /** V108-N18 What chat found when you came back after a while away. */
+  interface Back {
+    /** The line "New since you left" sits before; null: no lines to mark. */
+    markerId: string | null;
+    trimmed: boolean;
+    away: string;
+    summary: string;
+    rows: Row[];
+    /** The card is up. */
+    card: boolean;
+    at: number;
+  }
+  let back = $state.raw<Back | null>(null);
+  /** The card was seen with the list scrolled up; scrolling back to the bottom then closes it. */
+  let armed = false;
+  /** When the window or view was left; null while here. */
+  let leftAt: number | null = null;
+  /** Only the newest return counts (it waits for the moments). */
+  let turn = 0;
+
+  function closeCard() {
+    if (back?.card) back = { ...back, card: false };
+  }
+
+  function goAway() {
+    turn++;
+    back = null;
+    armed = false;
+    leftAt ??= Date.now();
+  }
+
+  async function comeBack(since: number) {
+    const mine = ++turn;
+    if (!isAway(since, Date.now(), c.catchUpMins)) return;
+    const found = await chatxIpc.moments(room.login).catch(() => []);
+    if (mine !== turn) return;
+    const lines = shown;
+    const marker = markerFor(lines, since);
+    const got = catchOf(lines, marker, found, since);
+    if (marker.id === null && isQuiet(got.summary)) return;
+    const byId = new Map(lines.map((m) => [m.id, m]));
+    const rows: Row[] = [
+      ...got.mentionIds.map((id) => {
+        const m = byId.get(id)!;
+        const who = m.sender?.display || m.sender?.login || '';
+        return { key: id, text: `${who ? `${who}: ` : ''}${plainText(m.body).slice(0, 120)}`, line: id };
+      }),
+      ...got.moments.map((m) => ({ key: `m${m.id}`, text: momentText(m), line: lineAt(lines, m.atMs) })),
+    ];
+    armed = false;
+    back = {
+      markerId: marker.id,
+      trimmed: marker.trimmed,
+      away: awayText(Date.now() - since),
+      summary: summaryText(got.summary),
+      rows,
+      card: !isQuiet(got.summary),
+      at: Date.now(),
+    };
+  }
+
+  // Away = the window not in front, or this view closed (the read key outlives it).
+  $effect(() => {
+    if (!c.catchUp) {
+      untrack(() => {
+        turn++;
+        back = null;
+        leftAt = null;
+      });
+      return;
+    }
+    const idle = focus.idle;
+    untrack(() => {
+      if (idle) return goAway();
+      const since = leftAt;
+      leftAt = null;
+      if (since !== null) void comeBack(since);
+    });
+  });
+  onMount(() => {
+    const since = readKey ? awayMarks.get(readKey) : undefined;
+    if (readKey) awayMarks.delete(readKey);
+    if (since !== undefined && untrack(() => c.catchUp)) void comeBack(since);
+  });
+  onDestroy(() => {
+    if (readKey && c.catchUp) awayMarks.set(readKey, leftAt ?? Date.now());
+  });
+
+  // The card goes when the list is back at the bottom after being scrolled up, or you wrote.
+  $effect(() => {
+    if (!back?.card) return;
+    if (!following) armed = true;
+    else if (armed) untrack(closeCard);
+  });
+  $effect(() => {
+    if (!back?.card) return;
+    const last = room.messages.at(-1);
+    if (last?.flags.includes('own') && last.ts >= back.at) untrack(closeCard);
+  });
+  $effect(() => {
+    if (!back?.card) return;
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || editable(e.target)) return;
+      closeCard();
+    };
+    addEventListener('keydown', esc);
+    return () => removeEventListener('keydown', esc);
   });
 
   /** F6 Near-duplicates go when the setting says hide. */
@@ -511,6 +627,8 @@
               run: () => chatxIpc.translate(room.view, m.id).catch((err) => toast.error(errorText(err))),
             },
             { label: 'Their messages', icon: 'search' as const, run: () => onaction?.({ type: 'search', query: `from:${login}` }) },
+            { label: 'Open in logs', icon: 'scroll' as const, run: () => openInLogs(room.login, login) },
+            ...jumpInLogs(room.login, m),
           ]
         : []),
       { label: 'Copy message', icon: 'copy', run: () => void copy(plainText(m.body), 'Message') },
@@ -668,9 +786,10 @@
   >
     <div bind:this={lines}>
       {#each drawn as m (m.id)}
+        {#if m.id === back?.markerId}<div class="since" role="separator"><span>New since you left</span></div>{/if}
         {#if dayStarts.has(m.id)}<DateRow label={formatDate(new Date(m.ts))} />{/if}
         <Line {m} channel={room.login} {canReply} stripe={stripe?.get(m.id) ?? false} mod={lineMod} />
-        {#if m.id === lastRead && m.id !== shown.at(-1)?.id}<hr class="last-read" />{/if}
+        {#if m.id === lastRead && m.id !== shown.at(-1)?.id && !back?.markerId}<hr class="last-read" />{/if}
       {/each}
     </div>
   </div>
@@ -679,6 +798,20 @@
   {/if}
   {#if card}
     {#key card}<EmoteCard target={card} login={room.login} account={room.account} onclose={() => (card = null)} />{/key}
+  {/if}
+  {#if back?.card}
+    <div class="catch" style:--catch-bottom={scroll.pill ? '42px' : null}>
+      <CatchUpCard
+        away={back.away}
+        summary={back.summary}
+        rows={back.rows}
+        canJump={back.markerId !== null}
+        trimmed={back.trimmed}
+        onjump={() => back?.markerId && jump(back.markerId)}
+        onpick={jump}
+        onclose={closeCard}
+      />
+    </div>
   {/if}
   {#if scroll.pill}
     <div class="fade" aria-hidden="true"></div>
@@ -729,6 +862,29 @@
     border: 0;
     border-top: 2px solid var(--red);
     opacity: 0.7;
+  }
+  /* V108-N18 The card sits over the list's bottom; its own box doesn't catch clicks. */
+  .catch {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .catch :global(.card) {
+    pointer-events: auto;
+  }
+  .since {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 10px;
+    color: var(--muted);
+    font: 600 0.72rem var(--font-mono);
+  }
+  .since::before,
+  .since::after {
+    content: '';
+    flex: 1;
+    border-top: 1px solid var(--accent);
   }
   /* A short fade under the pill, so it never sits on top of bare text. */
   .fade {

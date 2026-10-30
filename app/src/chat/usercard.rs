@@ -231,3 +231,69 @@ pub async fn mod_logs(
         cursor: page.cursor,
     })
 }
+
+/// V108-N16 One channel the account moderates where the user has a record.
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct OtherModCount {
+    pub login: String,
+    pub name: String,
+    pub bans: u32,
+    pub timeouts: u32,
+    pub warnings: u32,
+}
+
+/// V108-N16 The channels each account moderates, read once per session.
+static MOD_CHANNELS: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<String, Vec<helix::moderated::ModChannel>>>> =
+    std::sync::LazyLock::new(Default::default);
+
+/// V108-N16 Bans, timeouts and warnings `user_id` has in the other channels `account`
+/// moderates (read only). Empty when the token lacks `user:read:moderated_channels`, there
+/// is no GQL sign-in, or there is nothing to show; `channel` (the card's own) is left out.
+pub async fn other_mod_counts(
+    app: &AppHandle,
+    account: &str,
+    channel: &str,
+    user_id: &str,
+) -> Result<Vec<OtherModCount>, String> {
+    let cached = MOD_CHANNELS.lock().unwrap_or_else(|p| p.into_inner()).get(account).cloned();
+    let list = match cached {
+        Some(l) => l,
+        None => {
+            let Some((token, client)) = crate::auth::helix_scoped(app, account, "user:read:moderated_channels") else {
+                return Ok(Vec::new());
+            };
+            let l = helix::moderated::moderated_channels(&http(app), crate::auth::helix_auth(&token, &client), account)
+                .await
+                .map_err(|e| e.to_string())?;
+            MOD_CHANNELS.lock().unwrap_or_else(|p| p.into_inner()).insert(account.to_owned(), l.clone());
+            l
+        }
+    };
+    let others: Vec<&helix::moderated::ModChannel> = list
+        .iter()
+        .filter(|c| !c.broadcaster_login.eq_ignore_ascii_case(channel) && c.broadcaster_id != user_id)
+        .collect();
+    if others.is_empty() {
+        return Ok(Vec::new());
+    }
+    let Some((token, client)) = crate::auth::gql_token(app, account) else { return Ok(Vec::new()) };
+    let ids: Vec<String> = others.iter().map(|c| c.broadcaster_id.clone()).collect();
+    let counts = cyex_twitch::gql::modlogs::counts_in(&http(app), crate::auth::gql_auth(&token, &client), &ids, user_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(counts
+        .into_iter()
+        .filter_map(|c| {
+            let ch = others.iter().find(|o| o.broadcaster_id == c.channel_id)?;
+            Some(OtherModCount {
+                login: ch.broadcaster_login.clone(),
+                name: ch.broadcaster_name.clone(),
+                bans: c.bans,
+                timeouts: c.timeouts,
+                warnings: c.warnings,
+            })
+        })
+        .collect())
+}
