@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -36,7 +36,9 @@ pub struct LoadReport {
 pub struct Store {
     dir: PathBuf,
     values: BTreeMap<Partition, Value>,
-    dirty: BTreeSet<Partition>,
+    /// Partitions to write, each with the edit number of its latest change.
+    dirty: BTreeMap<Partition, u64>,
+    edits: u64,
     clock: Arc<dyn Clock>,
     old_mentions_unreadable: bool,
 }
@@ -128,7 +130,8 @@ impl Store {
         let mut store = Self {
             dir,
             values,
-            dirty: BTreeSet::new(),
+            dirty: BTreeMap::new(),
+            edits: 0,
             clock,
             old_mentions_unreadable: false,
         };
@@ -203,7 +206,7 @@ impl Store {
         let normalized = p.normalize(value)?;
         if self.values[&p] != normalized {
             self.values.insert(p, normalized);
-            self.dirty.insert(p);
+            self.mark_dirty(p);
         }
         Ok(&self.values[&p])
     }
@@ -225,36 +228,40 @@ impl Store {
 
     /// Writes `p` at the next flush even if unchanged: a one-time migration in `sanitize` ran on load.
     pub fn mark_dirty(&mut self, p: Partition) {
-        self.dirty.insert(p);
+        self.edits += 1;
+        self.dirty.insert(p, self.edits);
     }
 
     /// Writes changed partitions. Takes today's backup first if the day rolled over.
     pub fn flush(&mut self) -> Result<()> {
-        if self.dirty.is_empty() {
-            return Ok(());
-        }
-        // V107-A3 A missing backup must not stop saving, and one file that can't be written
-        // (held by a scanner, say) must not drop the others: a part leaves `dirty` only once
-        // its file is on disk. The first error is returned.
-        let mut first = backup::snapshot_if_due(&self.dir, self.clock.today()).err();
-        let todo: Vec<Partition> = self.dirty.iter().copied().collect();
-        for p in todo {
-            match self.write(p) {
-                Ok(()) => {
-                    self.dirty.remove(&p);
-                }
-                Err(e) => {
-                    first.get_or_insert(e);
-                }
-            }
-        }
-        first.map_or(Ok(()), Err)
+        let Some(job) = self.prepare_flush() else { return Ok(()) };
+        let done = job.run();
+        self.commit_flush(done)
     }
 
-    fn write(&self, p: Partition) -> Result<()> {
-        let json = serde_json::to_string_pretty(&self.values[&p])?;
-        fsutil::write_atomic(&self.dir.join(p.file_name()), json.as_bytes())?;
-        Ok(())
+    /// Copies out what a flush has to write, so the disk work can run without holding the
+    /// store (see [`FlushJob::run`]). `None` when nothing is dirty.
+    pub fn prepare_flush(&self) -> Option<FlushJob> {
+        if self.dirty.is_empty() {
+            return None;
+        }
+        let parts = self
+            .dirty
+            .iter()
+            .map(|(&p, &edit)| (p, edit, serde_json::to_string_pretty(&self.values[&p]).map_err(Error::from)))
+            .collect();
+        Some(FlushJob { dir: self.dir.clone(), today: self.clock.today(), parts })
+    }
+
+    /// Takes in the result of a [`FlushJob`]. A part leaves `dirty` only if its file was
+    /// written and it wasn't edited since `prepare_flush`. The first error is returned.
+    pub fn commit_flush(&mut self, done: FlushDone) -> Result<()> {
+        for (p, edit) in done.written {
+            if self.dirty.get(&p) == Some(&edit) {
+                self.dirty.remove(&p);
+            }
+        }
+        done.first.map_or(Ok(()), Err)
     }
 
     /// Rewrites partition `p` in every kept backup through `f` (e.g. to blank a value that has
@@ -473,6 +480,38 @@ fn from_backups(dir: &Path, p: Partition) -> Option<(Value, Value, Date)> {
         let v = p.normalize(raw.clone()).ok()?;
         Some((raw, v, date))
     })
+}
+
+/// The disk side of a flush: everything it needs, copied out of the [`Store`].
+pub struct FlushJob {
+    dir: PathBuf,
+    today: Date,
+    parts: Vec<(Partition, u64, Result<String>)>,
+}
+
+/// What a [`FlushJob`] got done, for [`Store::commit_flush`].
+pub struct FlushDone {
+    written: Vec<(Partition, u64)>,
+    first: Option<Error>,
+}
+
+impl FlushJob {
+    /// V107-A3 A missing backup must not stop saving, and one file that can't be written
+    /// (held by a scanner, say) must not drop the others.
+    pub fn run(self) -> FlushDone {
+        let mut first = backup::snapshot_if_due(&self.dir, self.today).err();
+        let mut written = Vec::new();
+        for (p, edit, json) in self.parts {
+            let res = json.and_then(|j| Ok(fsutil::write_atomic(&self.dir.join(p.file_name()), j.as_bytes())?));
+            match res {
+                Ok(()) => written.push((p, edit)),
+                Err(e) => {
+                    first.get_or_insert(e);
+                }
+            }
+        }
+        FlushDone { written, first }
+    }
 }
 
 #[cfg(test)]

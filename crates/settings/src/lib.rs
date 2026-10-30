@@ -30,5 +30,5 @@ pub use error::{Error, Result};
 pub use legacy::MergeReport;
 pub use partition::Partition;
 pub use schema::Schema;
-pub use store::{LoadReport, Store};
+pub use store::{FlushDone, FlushJob, LoadReport, Store};
 pub use transfer::{Bundle, MAX_IMPORT_BYTES, suggested_file_name};

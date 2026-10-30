@@ -21,6 +21,8 @@ const CHANGED_EVENT: &str = "settings:changed";
 pub struct Settings {
     store: Mutex<Store>,
     save_queued: AtomicBool,
+    /// Serializes flushes; the disk work runs without the store lock.
+    flushing: Mutex<()>,
     reset_on_load: Mutex<LoadNotice>,
     /// V105-11 The uploader's headers live here, not in the settings files or their backups.
     secrets: Arc<dyn SecretStore>,
@@ -134,6 +136,7 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(Settings {
         store: Mutex::new(store),
         save_queued: AtomicBool::new(false),
+        flushing: Mutex::new(()),
         reset_on_load: Mutex::new(LoadNotice::of(&report)),
         secrets,
     });
@@ -339,8 +342,13 @@ impl Settings {
 
     /// Writes what changed. True when it failed and something is still unsaved.
     fn flush(&self) -> bool {
+        // The disk work runs outside the store lock, so reads and patches don't wait on it.
+        // One flush at a time, so two never interleave writes.
+        let _flushing = self.flushing.lock().unwrap_or_else(|p| p.into_inner());
+        let Some(job) = self.lock().prepare_flush() else { return false };
+        let done = job.run();
         let mut store = self.lock();
-        match store.flush() {
+        match store.commit_flush(done) {
             Ok(()) => false,
             Err(e) => {
                 eprintln!("settings: save failed: {e}");

@@ -48,6 +48,24 @@ fn a_failed_write_keeps_that_part_dirty_and_saves_the_rest() {
     assert!(!store.is_dirty());
 }
 
+/// A part edited while its flush was writing stays dirty and is written next time.
+#[test]
+fn an_edit_during_a_flush_stays_dirty() {
+    let tmp = TempDir::new("store-flush-edit");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let (mut store, _) = open(tmp.path(), &clock);
+    store.patch(Partition::General, &json!({"chatFontSize": 15})).unwrap();
+    store.mark_dirty(Partition::Tabs);
+    let job = store.prepare_flush().unwrap();
+    store.patch(Partition::General, &json!({"chatFontSize": 16})).unwrap();
+    store.commit_flush(job.run()).unwrap();
+    assert!(store.is_dirty());
+    store.flush().unwrap();
+    assert!(!store.is_dirty());
+    let (again, _) = open(tmp.path(), &clock);
+    assert_eq!(again.get(Partition::General), store.get(Partition::General));
+}
+
 /// V107-A3 A backup that can't be taken doesn't stop the save.
 #[test]
 fn a_backup_that_fails_does_not_block_saving() {
