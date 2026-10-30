@@ -583,7 +583,7 @@
     border-radius: var(--radius);
     color: var(--muted);
     /* C6 Text under the buttons fades into the row instead of stopping at their edge. */
-    box-shadow: -10px 0 8px -3px var(--row-hover);
+    box-shadow: -10px 0 8px -3px var(--elevated);
   }
   .line:hover .reply {
     display: grid;
