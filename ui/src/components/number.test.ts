@@ -31,3 +31,11 @@ test('keys step, Shift and Page keys by ten, Home and End jump', () => {
   assert.equal(stepFor('End', false, 50, r), 100);
   assert.equal(stepFor('a', false, 50, r), null);
 });
+
+test('parseNumber: words and empty text are not numbers; out of range clamps', () => {
+  const r = { min: 1, max: 2147483647 };
+  assert.equal(parseNumber('abc', r), null);
+  assert.equal(parseNumber('', r), null);
+  assert.equal(parseNumber('0', r), 1);
+  assert.equal(parseNumber('99999999999', r), 2147483647);
+});

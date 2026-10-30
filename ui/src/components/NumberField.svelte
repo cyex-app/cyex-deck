@@ -17,9 +17,12 @@
     width?: string;
     disabled?: boolean;
     onchange: (value: number) => void;
+    /** Given: text that isn't a number stays in the box (flagged, not reverted) so the form
+     *  can block its save; Escape or a number clears it. */
+    oninvalid?: (bad: boolean) => void;
   }
 
-  let { value, min, max, step = 1, label, unit = '', width = '84px', disabled = false, onchange }: Props = $props();
+  let { value, min, max, step = 1, label, unit = '', width = '84px', disabled = false, onchange, oninvalid }: Props = $props();
 
   let text = $state('');
   let editing = $state(false);
@@ -29,8 +32,13 @@
 
   function commit() {
     if (!editing) return;
-    editing = false;
     const n = parseNumber(text, range);
+    if (n === null && oninvalid) {
+      oninvalid(true);
+      return;
+    }
+    editing = false;
+    oninvalid?.(false);
     if (n !== null && n !== value) onchange(n);
   }
 
@@ -41,6 +49,7 @@
       e.preventDefault();
       e.stopPropagation();
       editing = false;
+      oninvalid?.(false);
       return;
     }
     const base = editing ? (parseNumber(text, range) ?? value) : value;
@@ -48,6 +57,7 @@
     if (next === null) return;
     e.preventDefault();
     editing = false;
+    oninvalid?.(false);
     if (next !== value) onchange(next);
   }
 </script>
@@ -69,6 +79,7 @@
     oninput={(e) => {
       editing = true;
       text = e.currentTarget.value;
+      oninvalid?.(parseNumber(text, range) === null);
     }}
     onfocus={(e) => e.currentTarget.select()}
     onblur={commit}

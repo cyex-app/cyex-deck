@@ -6,7 +6,7 @@
   import NumberField from '../../components/NumberField.svelte';
   import type { SmRewardEdit } from '../../ipc/bindings/SmRewardEdit';
   import { rewardsIpc } from '../../ipc/rewards';
-  import { formatSecs, parseDuration } from '../../lib/format';
+  import { formatNumber, formatSecs, parseDuration } from '../../lib/format';
   import { limits } from './limits.svelte';
   import { focusIn, onEscape } from './onEscape';
   import { COLORS, sameEdit } from './rewardsLogic';
@@ -28,6 +28,8 @@
   // svelte-ignore state_referenced_locally
   let cooldownText = $state(start.cooldown ? formatSecs(start.cooldown) : '5m');
   let problems = $state<string[]>([]);
+  /** Text in the cost box that isn't a number; the saved cost would be the old one. */
+  let costBad = $state(false);
   /** BUG-08 Which check's answer `problems` is: only the newest counts, and a save before
    *  it came checks again first, so a slow answer for older fields can't let a bad edit through. */
   let asked = 0;
@@ -61,7 +63,7 @@
   });
 
   async function submit() {
-    if (!cooldownOk || !changed) return;
+    if (!cooldownOk || !changed || costBad) return;
     const edit = { ...e, title: e.title.trim(), prompt: e.prompt.trim() };
     if (!checked) {
       const mine = ++asked;
@@ -94,7 +96,7 @@
 >
   <div class="line">
     <input class="field grow" placeholder="Name" maxlength={lim?.rewardTitleMax} bind:value={e.title} aria-label="Name" use:focusIn />
-    <NumberField label="Cost in points" min={1} max={lim?.rewardCostMax ?? Number.MAX_SAFE_INTEGER} width="110px" unit="pts" value={e.cost} onchange={(n) => (e.cost = n)} />
+    <NumberField label="Cost in points" min={1} max={lim?.rewardCostMax ?? Number.MAX_SAFE_INTEGER} width="110px" unit="pts" value={e.cost} onchange={(n) => (e.cost = n)} oninvalid={(b) => (costBad = b)} />
   </div>
   <textarea class="field area" placeholder="Description (optional)" maxlength={lim?.rewardPromptMax} rows="2" bind:value={e.prompt} aria-label="Description"></textarea>
   <div class="colors" role="radiogroup" aria-label="Color">
@@ -148,13 +150,15 @@
       {/if}
     </div>
   </div>
-  {#if !cooldownOk}
+  {#if costBad}
+    <p class="note bad-text">Cost is a whole number from 1 to {formatNumber(lim?.rewardCostMax ?? 2147483647)}.</p>
+  {:else if !cooldownOk}
     <p class="note bad-text">Cooldowns look like 30s, 5m or 1h.</p>
   {:else if problems.length && e.title.trim()}
     <p class="note bad-text">{problems[0]}</p>
   {/if}
   <div class="line">
-    <Button small variant="primary" type="submit" disabled={busy || !cooldownOk || problems.length > 0 || !changed}>
+    <Button small variant="primary" type="submit" disabled={busy || costBad || !cooldownOk || problems.length > 0 || !changed}>
       {editing ? 'Save' : 'Create'}
     </Button>
     <Button small variant="ghost" onclick={oncancel}>Cancel</Button>
