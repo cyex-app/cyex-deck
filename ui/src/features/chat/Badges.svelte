@@ -18,6 +18,9 @@
 
   type Ref = BadgeRef;
 
+  /** Most lines have no FFZ stand-ins: one empty map for all of them. */
+  const NO_SWAPS: ReadonlyMap<string, BadgeDef> = new Map();
+
   interface Props {
     badges: Ref[];
     channel: string;
@@ -46,7 +49,9 @@
       .filter((b): b is BadgeDef => !!b);
   });
   /** FFZ badges that stand in for a Twitch one (the bot badge for mod). */
-  const swaps = $derived(new Map(extra.filter((b) => b.replaces).map((b) => [b.replaces!, b])));
+  const swaps = $derived(
+    extra.some((b) => b.replaces) ? new Map(extra.filter((b) => b.replaces).map((b) => [b.replaces!, b])) : NO_SWAPS,
+  );
   const isMod = (set: string) => set === 'moderator' || set === 'lead_moderator';
   /** Provider badges not already drawn in a Twitch badge's place. */
   const rest = $derived(
@@ -60,7 +65,7 @@
 
   // V108-C10 Shared Chat badges from another room draw from that room's catalog, read once per room.
   $effect(() => {
-    for (const room of new Set(badges.map((b) => b.room))) if (room) void catalogs.loadSource(room);
+    for (const b of badges) if (b.room) void catalogs.loadSource(b.room);
   });
 
   function hint(ref: Ref, b: BadgeInfo): string | undefined {

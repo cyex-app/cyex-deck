@@ -52,6 +52,7 @@
   import { momentText } from '../player/moments';
   import { readMarks, type ChatRoom } from './room.svelte';
   import { stripes } from './stripes';
+  import { dayStarts as findDayStarts } from './dayStarts';
   import { whispers } from '../whispers/whispers.svelte';
   import { errorText } from '../../lib/errors';
   import { copy } from '../../lib/clipboard';
@@ -440,18 +441,7 @@
   $effect(() => userMenus.track());
 
   /** C25 Messages that start a new day, by id. */
-  const dayStarts = $derived.by(() => {
-    const starts = new Set<string>();
-    const key = (d: Date) => d.getFullYear() * 10_000 + d.getMonth() * 100 + d.getDate();
-    // The first line gets a date too when it isn't from today (history from yesterday).
-    let last = key(new Date());
-    for (const m of shown) {
-      const day = key(new Date(m.ts));
-      if (day !== last) starts.add(m.id);
-      last = day;
-    }
-    return starts;
-  });
+  const dayStarts = $derived(findDayStarts(shown, Date.now()));
 
   /** V101-01 Stripe per line, kept while it's shown. */
   let striped = new Map<string, boolean>();
