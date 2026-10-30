@@ -12,6 +12,8 @@ use tauri::AppHandle;
 
 /// A plugin's own time limit, plus the trip to its thread and back.
 const WAIT: Duration = LINE.saturating_add(Duration::from_millis(5));
+/// The most a page of history waits for plugins, however long it is.
+const BATCH_WAIT: Duration = Duration::from_millis(250);
 
 pub struct PluginHook {
     pub app: AppHandle,
@@ -19,55 +21,77 @@ pub struct PluginHook {
 
 impl LineHook for PluginHook {
     fn check(&self, channel: &str, m: &ChatMessage) -> Option<LineChange> {
+        self.ask(channel, &[m], WAIT).pop().flatten()
+    }
+
+    /// History: every line goes to the plugins at once and the room waits once, a little
+    /// longer for a long page; lines not answered by then stay as they are.
+    fn check_all(&self, channel: &str, ms: &[&ChatMessage]) -> Vec<Option<LineChange>> {
+        let per_line = Duration::from_millis(1).saturating_mul(u32::try_from(ms.len()).unwrap_or(u32::MAX));
+        self.ask(channel, ms, WAIT.saturating_add(per_line).min(BATCH_WAIT))
+    }
+}
+
+impl PluginHook {
+    fn ask(&self, channel: &str, ms: &[&ChatMessage], wait: Duration) -> Vec<Option<LineChange>> {
+        let mut out = vec![None; ms.len()];
         if !super::wants_lines(&self.app) {
-            return None;
+            return out;
         }
         let plugins: Vec<_> = super::running(&self.app)
             .into_iter()
             .filter(|p| p.has(Event::Message))
             .collect();
         if plugins.is_empty() {
-            return None;
+            return out;
         }
-        let line = to_line(channel, m);
+        let lines: Vec<Line> = ms.iter().map(|m| to_line(channel, m)).collect();
         let (tx, rx) = mpsc::channel();
         let mut waiting = 0;
         for (i, p) in plugins.iter().enumerate() {
-            // One that's behind gets the line to read, but nobody waits on it.
-            if p.granted.change_chat && !p.behind() {
-                let tx = tx.clone();
-                if p.line(line.clone(), Some(Box::new(move |c| drop(tx.send((i, c)))))) {
-                    waiting += 1;
+            // One that's behind gets the lines to read, but nobody waits on it.
+            let waits = p.granted.change_chat && !p.behind();
+            for (n, line) in lines.iter().enumerate() {
+                if waits {
+                    let tx = tx.clone();
+                    if p.line(line.clone(), Some(Box::new(move |c| drop(tx.send((n, i, c)))))) {
+                        waiting += 1;
+                    }
+                } else {
+                    p.line(line.clone(), None);
                 }
-            } else {
-                p.line(line.clone(), None);
             }
         }
         drop(tx);
-        let until = Instant::now() + WAIT;
+        let until = Instant::now() + wait;
         let mut changes = Vec::new();
         while waiting > 0 {
             match rx.recv_timeout(until.saturating_duration_since(Instant::now())) {
-                Ok((i, c)) => {
+                Ok((n, i, c)) => {
                     waiting -= 1;
-                    changes.extend(c.map(|c| (i, c)));
+                    changes.extend(c.map(|c| (n, i, c)));
                 }
                 Err(_) => break,
             }
         }
         // Plugins in folder order; a later one's text or color wins.
-        changes.sort_by_key(|(i, _)| *i);
-        let mut out = LineChange::default();
-        for (_, c) in changes {
-            out.hide |= c.hide;
+        changes.sort_by_key(|(n, i, _)| (*n, *i));
+        for (n, _, c) in changes {
+            let o = out[n].get_or_insert_with(LineChange::default);
+            o.hide |= c.hide;
             if c.text.is_some() {
-                out.text = c.text;
+                o.text = c.text;
             }
             if c.highlight.is_some() {
-                out.highlight = c.highlight;
+                o.highlight = c.highlight;
             }
         }
-        (out != LineChange::default()).then_some(out)
+        for o in &mut out {
+            if o.as_ref().is_some_and(|c| *c == LineChange::default()) {
+                *o = None;
+            }
+        }
+        out
     }
 }
 

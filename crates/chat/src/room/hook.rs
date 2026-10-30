@@ -22,19 +22,36 @@ pub struct LineChange {
 pub trait LineHook: Send + Sync {
     /// Called with the room's channel login. Must answer quickly: the room waits.
     fn check(&self, channel: &str, m: &ChatMessage) -> Option<LineChange>;
+
+    /// A batch (history), in order: one wait for all of them instead of one per line.
+    fn check_all(&self, channel: &str, ms: &[&ChatMessage]) -> Vec<Option<LineChange>> {
+        ms.iter().map(|m| self.check(channel, m)).collect()
+    }
+}
+
+/// Applies a hook's answer; `false`: it hides the line.
+pub(super) fn changed(m: &mut ChatMessage, change: Option<LineChange>, emotes: &dyn Emotes) -> bool {
+    let Some(change) = change else { return true };
+    if change.hide {
+        return false;
+    }
+    apply(m, &change, emotes);
+    true
 }
 
 impl Room {
     /// `false`: a hook hides the line.
     pub(super) fn hooked(&self, m: &mut ChatMessage, emotes: &dyn Emotes) -> bool {
-        let Some(change) = self.hook.as_ref().and_then(|h| h.check(&self.login, m)) else {
-            return true;
-        };
-        if change.hide {
-            return false;
+        let change = self.hook.as_ref().and_then(|h| h.check(&self.login, m));
+        changed(m, change, emotes)
+    }
+
+    /// What the hook says about each of these lines, asked all at once.
+    pub(super) fn hook_all(&self, ms: &[&ChatMessage]) -> Vec<Option<LineChange>> {
+        match &self.hook {
+            Some(h) if !ms.is_empty() => h.check_all(&self.login, ms),
+            _ => vec![None; ms.len()],
         }
-        apply(m, &change, emotes);
-        true
     }
 
     /// S7 A plugin's change to a line that's in already: new text or a highlight in place;
@@ -233,5 +250,32 @@ mod tests {
         // New lines come in as before.
         assert_eq!(feed(&mut r, "3", "third", "").len(), 1);
         assert_eq!(r.snapshot().messages.len(), 1);
+    }
+
+    /// Counts how often the room asked, and hides "secret".
+    struct Counting(std::sync::atomic::AtomicUsize);
+    impl LineHook for Counting {
+        fn check(&self, _: &str, m: &ChatMessage) -> Option<LineChange> {
+            self.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            plain(&m.body).contains("secret").then(|| LineChange { hide: true, ..LineChange::default() })
+        }
+        fn check_all(&self, _: &str, ms: &[&ChatMessage]) -> Vec<Option<LineChange>> {
+            self.0.fetch_add(100, std::sync::atomic::Ordering::Relaxed);
+            ms.iter()
+                .map(|m| plain(&m.body).contains("secret").then(|| LineChange { hide: true, ..LineChange::default() }))
+                .collect()
+        }
+    }
+
+    #[test]
+    fn a_page_of_history_is_asked_about_once_and_answers_land_on_their_lines() {
+        let hook = Arc::new(Counting(std::sync::atomic::AtomicUsize::new(0)));
+        let mut r = Room::new("chan", None);
+        r.set_hook(Some(hook.clone()));
+        let line = |id: u32, text: &str| format!("@id={id};user-id=7;tmi-sent-ts={} :bob!bob@bob PRIVMSG #chan :{text}", 100 + id);
+        let old = r.history(&[line(1, "one"), line(2, "a secret"), line(3, "three"), line(4, "secret too"), line(5, "five")], 1_000, &NoEmotes);
+        let texts: Vec<String> = old.iter().map(|m| plain(&m.body)).collect();
+        assert_eq!(texts, ["one", "three", "five"]);
+        assert_eq!(hook.0.load(std::sync::atomic::Ordering::Relaxed), 100);
     }
 }

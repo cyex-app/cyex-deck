@@ -529,8 +529,13 @@ impl Room {
 
     /// History lines put in above the buffer. `before`: only lines older than this (V107-M1).
     fn older(&mut self, lines: &[String], before: Option<i64>, now_ms: i64, emotes: &dyn Emotes) -> Vec<Arc<ChatMessage>> {
+        enum Step {
+            Line(ChatMessage),
+            ClearUser { user_id: String, secs: Option<u64>, notice: ChatMessage },
+            Delete(String),
+        }
         let known: HashSet<String> = self.buffer.iter().map(|m| m.id.clone()).collect();
-        let mut old: Vec<ChatMessage> = Vec::new();
+        let mut steps: Vec<Step> = Vec::new();
         for raw in lines {
             let Some(line) = Line::parse(raw) else { continue };
             let incoming = {
@@ -544,15 +549,33 @@ impl Room {
                     | Incoming::Clear { notice: mut m }
                     | Incoming::Gift { message: mut m, .. },
                 ) => {
-                    if before.is_some_and(|b| m.ts >= b) {
+                    if before.is_some_and(|b| m.ts >= b) || known.contains(&m.id) {
                         continue;
                     }
                     self.mark_old(&mut m, before.is_some());
-                    if !known.contains(&m.id) && self.hooked(&mut m, emotes) && self.screen_old(&mut m) {
+                    steps.push(Step::Line(m));
+                }
+                Some(Incoming::ClearUser { user_id, secs, notice }) => steps.push(Step::ClearUser { user_id, secs, notice }),
+                Some(Incoming::Delete { id }) => steps.push(Step::Delete(id)),
+                _ => {}
+            }
+        }
+        // S5 Plugins get the whole page at once: one wait, not one per line.
+        let lines: Vec<&ChatMessage> = steps
+            .iter()
+            .filter_map(|s| if let Step::Line(m) = s { Some(m) } else { None })
+            .collect();
+        let mut changes = self.hook_all(&lines).into_iter();
+        let mut old: Vec<ChatMessage> = Vec::new();
+        for step in steps {
+            match step {
+                Step::Line(mut m) => {
+                    let change = changes.next().flatten();
+                    if hook::changed(&mut m, change, emotes) && self.screen_old(&mut m) {
                         old.push(m);
                     }
                 }
-                Some(Incoming::ClearUser { user_id, secs, notice: mut n }) => {
+                Step::ClearUser { user_id, secs, notice: mut n } => {
                     let gone = Gone::new(cleared(secs), None).with_secs(secs);
                     for m in &mut old {
                         if m.notice.is_none() && m.sender_id() == Some(user_id.as_str()) {
@@ -564,12 +587,11 @@ impl Room {
                         old.push(n);
                     }
                 }
-                Some(Incoming::Delete { id }) => {
+                Step::Delete(id) => {
                     if let Some(m) = old.iter_mut().find(|m| m.id == id) {
                         m.mark_gone(&Gone::new(GoneHow::Deleted, None));
                     }
                 }
-                _ => {}
             }
         }
         let room = self.limit().saturating_sub(self.buffer.len());
