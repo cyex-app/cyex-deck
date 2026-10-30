@@ -13,7 +13,8 @@ use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc::UnboundedReceiver;
 
 use super::edit::slot_of;
-use super::{Emotes, Inner, load, looks};
+use super::providers::{self, Which};
+use super::{Emotes, Inner, load, looks, retry};
 use crate::auth::Auth;
 
 /// Sets pushed before anyone claimed them are kept this many at most.
@@ -23,6 +24,38 @@ pub fn spawn(app: AppHandle, mut rx: UnboundedReceiver<Event>) {
     tauri::async_runtime::spawn(async move {
         while let Some(e) = rx.recv().await {
             handle(&app, e);
+        }
+    });
+}
+
+/// 7TV's socket was down: each loaded chat's 7TV user and active set read again, which also
+/// moves the subscriptions to a set that changed meanwhile. Changes to personal sets are not
+/// read again.
+pub(super) fn resync(app: &AppHandle) {
+    if !crate::hermes::resync_due("7tv") {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let joined: Vec<(String, String, u64)> = {
+            let state = app.state::<Emotes>();
+            let inner = state.lock();
+            inner
+                .channels
+                .iter()
+                .filter(|(_, c)| c.seventv_user.is_some())
+                .map(|(login, c)| (login.clone(), c.id.clone(), c.generation))
+                .collect()
+        };
+        let which = Which {
+            seventv: true,
+            ..Which::default()
+        };
+        let http = app.state::<Auth>().http.clone();
+        for (login, id, generation) in joined {
+            let lane = crate::chat::shown::lane(&app, &login);
+            let got = providers::channel(&http, &id, lane, which).await;
+            retry::merge(&app, &login, generation, which, got);
         }
     });
 }

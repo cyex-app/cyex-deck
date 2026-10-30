@@ -175,6 +175,13 @@ pub fn on_settings(app: &AppHandle) {
     tabs::on_changed(app);
 }
 
+/// A Hermes connection came back after a drop: the channel list reads again now, and the
+/// account's tabs look for a bonus chest that came meanwhile.
+pub fn resync(app: &AppHandle, account: &str) {
+    channels::nudge(app);
+    tabs::resync(app, account);
+}
+
 fn settings(app: &AppHandle) -> MinerSettings {
     app.state::<Settings>().read(Partition::Miner)
 }

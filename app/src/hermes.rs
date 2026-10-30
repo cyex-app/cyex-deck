@@ -5,7 +5,8 @@
 
 use std::collections::HashMap;
 use std::pin::Pin;
-use std::sync::{LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
+use std::time::{Duration, Instant};
 
 use cyex_twitch::hermes::{Event, Hermes, Kind, Topic};
 use cyex_twitch::ws::Pool;
@@ -22,7 +23,14 @@ pub struct Hub {
 pub fn init(app: &AppHandle) {
     let (tx, rx) = mpsc::unbounded_channel();
     app.manage(Hub {
-        anon: Pool::new(Hermes::anonymous, tx.clone(), spawn),
+        anon: Pool::new(
+            {
+                let app = app.clone();
+                move || Hermes::anonymous().on_resync(resync(&app, None))
+            },
+            tx.clone(),
+            spawn,
+        ),
         users: Mutex::default(),
         events: tx,
     });
@@ -65,9 +73,11 @@ pub fn add_user_topic(app: &AppHandle, account: &str, kind: Kind, id: &str) {
         let (app, id) = (app.clone(), account.to_owned());
         let make = move || {
             let (app, id) = (app.clone(), id.clone());
+            let on_resync = resync(&app, Some(id.clone()));
             Hermes::signed_in(Box::new(move || {
                 crate::auth::gql_token(&app, &id).map(|(token, _)| token)
             }))
+            .on_resync(on_resync)
         };
         Pool::new(make, hub.events.clone(), spawn)
     });
@@ -84,6 +94,46 @@ pub fn remove_user_topic(app: &AppHandle, account: &str, kind: Kind, id: &str) {
     if let Some(pool) = users.get(account) {
         pool.remove(&Topic::new(kind, id));
     }
+}
+
+/// Least time between two reads after reconnects for one connection owner.
+const RESYNC_GAP: Duration = Duration::from_secs(30);
+
+/// When each owner last read after a reconnect; a socket that flaps doesn't hammer the APIs.
+static RESYNCED: LazyLock<Mutex<HashMap<String, Instant>>> = LazyLock::new(Mutex::default);
+
+/// Whether `key` may read again now (and notes that it did). `crate::emotes` uses it too.
+pub(crate) fn resync_due(key: &str) -> bool {
+    due(&mut RESYNCED.lock().unwrap_or_else(|p| p.into_inner()), key, Instant::now())
+}
+
+fn due(last: &mut HashMap<String, Instant>, key: &str, now: Instant) -> bool {
+    if last.get(key).is_some_and(|t| now.saturating_duration_since(*t) < RESYNC_GAP) {
+        return false;
+    }
+    last.insert(key.to_owned(), now);
+    true
+}
+
+/// Called when a connection is back after a drop: what happened meanwhile is read again.
+/// Anonymous (`None`): polls and predictions of the open chats. An account: its whispers,
+/// bell count and the miner's channels.
+fn resync(app: &AppHandle, account: Option<String>) -> cyex_twitch::hermes::Resync {
+    let app = app.clone();
+    Arc::new(move || {
+        let key = account.as_deref().unwrap_or("");
+        if !resync_due(&format!("hermes:{key}")) {
+            return;
+        }
+        match account.as_deref() {
+            None => crate::chat::votes::resync(&app),
+            Some(id) => {
+                crate::whispers::resync(&app, id);
+                crate::bell::resync(&app, id);
+                crate::miner::resync(&app, id);
+            }
+        }
+    })
 }
 
 async fn pump(app: AppHandle, mut rx: mpsc::UnboundedReceiver<Event>) {
@@ -188,6 +238,16 @@ pub fn release(app: &AppHandle, label: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resyncs_wait_out_the_gap() {
+        let mut last = HashMap::new();
+        let t = Instant::now();
+        assert!(due(&mut last, "a", t));
+        assert!(!due(&mut last, "a", t + Duration::from_secs(5)));
+        assert!(due(&mut last, "b", t + Duration::from_secs(5)));
+        assert!(due(&mut last, "a", t + RESYNC_GAP));
+    }
 
     #[test]
     fn released_windows_dont_let_go_twice() {

@@ -41,6 +41,8 @@ pub struct Celebration {
 }
 
 struct Watched {
+    /// The account the chat reads with.
+    account: Option<String>,
     id: String,
     state: VotesUpdate,
 }
@@ -82,6 +84,7 @@ fn on_channel(app: &AppHandle, e: &super::channels::Event) {
             map.insert(
                 (*login).to_owned(),
                 Watched {
+                    account: account.map(str::to_owned),
                     id: String::new(),
                     state: VotesUpdate {
                         channel: (*login).to_owned(),
@@ -103,6 +106,25 @@ fn on_channel(app: &AppHandle, e: &super::channels::Event) {
         }
         _ => {}
     }
+}
+
+/// Hermes was down: every followed channel reads its poll and prediction again, one after
+/// the other (they may have ended meanwhile).
+pub fn resync(app: &AppHandle) {
+    let Some(votes) = app.try_state::<Votes>() else { return };
+    let watched: Vec<(String, Option<String>)> = {
+        let map = votes.channels.lock().unwrap_or_else(|p| p.into_inner());
+        map.iter()
+            .filter(|(_, w)| !w.id.is_empty())
+            .map(|(login, w)| (login.clone(), w.account.clone()))
+            .collect()
+    };
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        for (login, account) in watched {
+            load(&app, &login, account.as_deref(), false).await;
+        }
+    });
 }
 
 /// Reads the poll and prediction; subscribes the first time.

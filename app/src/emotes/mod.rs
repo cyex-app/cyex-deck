@@ -118,7 +118,17 @@ struct Channel {
 
 pub fn init(app: &AppHandle) {
     let (events, rx) = tokio::sync::mpsc::unbounded_channel();
-    let seventv = ws::Pool::new(EventApi::new, events, spawn);
+    let seventv = ws::Pool::new(
+        {
+            let app = app.clone();
+            move || {
+                let app = app.clone();
+                EventApi::new().on_resync(Arc::new(move || live::resync(&app)))
+            }
+        },
+        events,
+        spawn,
+    );
     let (events, bttv_rx) = tokio::sync::mpsc::unbounded_channel();
     let (bttv, task) = ws::start(cyex_emotes::bttv::socket::Socket, events);
     tauri::async_runtime::spawn(task);

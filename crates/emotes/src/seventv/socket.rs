@@ -3,6 +3,7 @@
 //! again (research/providers.md). F18 (v1.04 batch 2b) The app runs it as a `ws::Pool`: a
 //! full connection (about 80 chats) opens another, so no chat goes without live updates.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use serde_json::json;
@@ -51,13 +52,22 @@ impl Topic {
 
 pub struct EventApi {
     idle: Duration,
+    resync: Option<Arc<dyn Fn() + Send + Sync>>,
 }
 
 impl EventApi {
     pub fn new() -> Self {
         Self {
             idle: Duration::from_secs(135),
+            resync: None,
         }
+    }
+
+    /// Calls `f` after every reconnect, once the topics are sent again, so the owner can
+    /// read the sets it missed changes of.
+    pub fn on_resync(mut self, f: Arc<dyn Fn() + Send + Sync>) -> Self {
+        self.resync = Some(f);
+        self
     }
 }
 
@@ -96,6 +106,12 @@ impl Protocol for EventApi {
 
     fn idle(&self) -> Duration {
         self.idle
+    }
+
+    fn resynced(&mut self) {
+        if let Some(f) = &self.resync {
+            f();
+        }
     }
 
     fn read(&mut self, text: &str, out: &mpsc::UnboundedSender<Event>) -> Step {

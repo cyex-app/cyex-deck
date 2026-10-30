@@ -87,6 +87,18 @@ pub fn accounts_changed(app: &AppHandle) {
     emit_unseen(app);
     let Some(account) = wanted else { return };
     crate::hermes::add_user(app, &account, Kind::Onsite);
+    read_unseen(app, account);
+}
+
+/// The bell's socket was down: the unseen count reads again (items load when the list opens).
+pub fn resync(app: &AppHandle, account: &str) {
+    if app.try_state::<Bell>().is_some() && lock(app).account.as_deref() == Some(account) {
+        read_unseen(app, account.to_owned());
+    }
+}
+
+/// Reads the unseen count for `account`, if it's still the bell's.
+fn read_unseen(app: &AppHandle, account: String) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let Ok(c) = GqlCall::new(&app, &account) else {

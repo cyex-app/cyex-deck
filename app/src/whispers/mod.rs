@@ -214,6 +214,17 @@ pub fn load_threads(app: AppHandle, more: bool) {
     });
 }
 
+/// The whispers socket was down: the first page of threads reads again (new messages,
+/// read marks). Only for the account the whispers follow, and not while a read is running.
+pub fn resync(app: &AppHandle, account: &str) {
+    if app.try_state::<Whispers>().is_some_and(|w| {
+        let inner = w.0.lock().unwrap_or_else(|p| p.into_inner());
+        inner.me.as_ref().is_some_and(|m| m.id == account)
+    }) {
+        load_threads(app.clone(), false);
+    }
+}
+
 /// A conversation with `login`, loaded fresh. A new one if they never whispered.
 pub async fn open(app: &AppHandle, login: &str) -> Result<WhisperConversation, String> {
     let me = current(app)?;

@@ -42,6 +42,9 @@ pub trait Protocol: Send + 'static {
     fn gated(&self) -> bool {
         false
     }
+    /// Topics went out again on a connection after the first one: whatever happened while
+    /// it was down was missed, so read it again. Runs on the socket's task; keep it short.
+    fn resynced(&mut self) {}
 }
 
 pub enum Step {
@@ -96,6 +99,8 @@ async fn run<P: Protocol>(
 ) {
     let mut topics: HashSet<P::Topic> = HashSet::new();
     let mut backoff = Duration::ZERO;
+    // A connection has had its topics sent before; the next one is a reconnect.
+    let mut synced = false;
     loop {
         // Idle until there's something to follow.
         while topics.is_empty() {
@@ -150,6 +155,9 @@ async fn run<P: Protocol>(
             for t in &topics {
                 ok &= sink.send(Message::text(p.subscribe(t))).await.is_ok();
             }
+            if ok {
+                note_synced(&mut p, &mut synced);
+            }
         }
         let mut deadline = Instant::now() + p.idle();
         let mut heard = false;
@@ -171,6 +179,9 @@ async fn run<P: Protocol>(
                                 backoff = Duration::ZERO;
                                 for t in &topics {
                                     ok &= sink.send(Message::text(p.subscribe(t))).await.is_ok();
+                                }
+                                if ok {
+                                    note_synced(&mut p, &mut synced);
                                 }
                             }
                             Step::Ready => {}
@@ -202,6 +213,13 @@ async fn run<P: Protocol>(
         if !topics.is_empty() {
             backoff = next_backoff(backoff);
         }
+    }
+}
+
+/// Topics are out on a connection: the first time is a plain connect, later ones tell the protocol.
+fn note_synced<P: Protocol>(p: &mut P, synced: &mut bool) {
+    if std::mem::replace(synced, true) {
+        p.resynced();
     }
 }
 
@@ -407,6 +425,92 @@ mod tests {
         fn read(&mut self, _: &str, _: &mpsc::UnboundedSender<()>) -> Step {
             Step::Continue
         }
+    }
+
+    struct Counting {
+        url: String,
+        resyncs: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl Protocol for Counting {
+        type Topic = u32;
+        type Event = ();
+        fn url(&self) -> String {
+            self.url.clone()
+        }
+        fn subscribe(&self, _: &u32) -> String {
+            "sub".into()
+        }
+        fn unsubscribe(&self, _: &u32) -> String {
+            String::new()
+        }
+        fn limit(&self) -> usize {
+            10
+        }
+        fn idle(&self) -> Duration {
+            Duration::from_secs(60)
+        }
+        fn read(&mut self, _: &str, _: &mpsc::UnboundedSender<()>) -> Step {
+            Step::Continue
+        }
+        fn resynced(&mut self) {
+            self.resyncs.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+
+    #[test]
+    fn only_a_later_connect_resyncs() {
+        let mut p = Counting {
+            url: String::new(),
+            resyncs: Default::default(),
+        };
+        let mut synced = false;
+        note_synced(&mut p, &mut synced);
+        assert_eq!(p.resyncs.load(std::sync::atomic::Ordering::SeqCst), 0);
+        note_synced(&mut p, &mut synced);
+        note_synced(&mut p, &mut synced);
+        assert_eq!(p.resyncs.load(std::sync::atomic::Ordering::SeqCst), 2);
+    }
+
+    /// The first connect gives no signal; the one after a drop gives exactly one.
+    #[tokio::test]
+    async fn a_drop_and_reconnect_signals_once() {
+        use std::sync::atomic::Ordering::SeqCst;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("ws://{}/", listener.local_addr().unwrap());
+        let resyncs = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let (topics, task) = start(
+            Counting {
+                url,
+                resyncs: resyncs.clone(),
+            },
+            tx,
+        );
+        let task = tokio::spawn(task);
+        topics.add(1);
+        let wait = Duration::from_secs(10);
+        let accept = || async {
+            let (sock, _) = tokio::time::timeout(wait, listener.accept()).await.unwrap().unwrap();
+            let mut ws = tokio_tungstenite::accept_async(sock).await.unwrap();
+            let first = tokio::time::timeout(wait, ws.next()).await.unwrap().unwrap().unwrap();
+            assert_eq!(first.into_text().unwrap().as_str(), "sub");
+            ws
+        };
+        let first = accept().await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(resyncs.load(SeqCst), 0, "a first connect isn't a resync");
+        drop(first);
+        // Backoff is 1-5 s, then the second connection.
+        let second = accept().await;
+        let until = Instant::now() + wait;
+        while resyncs.load(SeqCst) == 0 && Instant::now() < until {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(resyncs.load(SeqCst), 1);
+        drop((second, topics));
+        task.abort();
     }
 
     /// V107-A6 A server that accepts and never answers the upgrade gets a fresh try.

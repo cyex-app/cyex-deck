@@ -196,10 +196,14 @@ pub struct Event {
 /// Reads the token fresh on each sign-in, so a refreshed one is used after reconnects.
 pub type Token = Box<dyn Fn() -> Option<String> + Send>;
 
+/// Runs when a connection after the first has its topics again.
+pub type Resync = std::sync::Arc<dyn Fn() + Send + Sync>;
+
 /// One connection. Anonymous for channel topics, or signed in for user topics too.
 #[derive(Default)]
 pub struct Hermes {
     token: Option<Token>,
+    resync: Option<Resync>,
 }
 
 impl Hermes {
@@ -209,7 +213,17 @@ impl Hermes {
 
     /// `token` is the account's GQL (Android TV) token, without `OAuth `.
     pub fn signed_in(token: Token) -> Self {
-        Self { token: Some(token) }
+        Self {
+            token: Some(token),
+            resync: None,
+        }
+    }
+
+    /// Calls `f` after every reconnect, once its topics are sent, so the owner can read what
+    /// it missed meanwhile.
+    pub fn on_resync(mut self, f: Resync) -> Self {
+        self.resync = Some(f);
+        self
     }
 }
 
@@ -253,6 +267,12 @@ impl Protocol for Hermes {
 
     fn gated(&self) -> bool {
         self.token.is_some()
+    }
+
+    fn resynced(&mut self) {
+        if let Some(f) = &self.resync {
+            f();
+        }
     }
 
     fn read(&mut self, text: &str, out: &mpsc::UnboundedSender<Event>) -> Step {
@@ -369,6 +389,18 @@ mod tests {
         let bad = r#"{"id":"c","type":"authenticateResponse","authenticateResponse":{"result":"error","error":"bad"}}"#;
         assert!(matches!(h.read(bad, &tx), Step::Reconnect));
         assert!(!Hermes::anonymous().gated());
+    }
+
+    #[test]
+    fn resync_calls_the_owner() {
+        let n = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let seen = n.clone();
+        let mut h = Hermes::anonymous().on_resync(std::sync::Arc::new(move || {
+            seen.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }));
+        h.resynced();
+        assert_eq!(n.load(std::sync::atomic::Ordering::SeqCst), 1);
+        Hermes::anonymous().resynced();
     }
 
     #[test]

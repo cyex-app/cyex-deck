@@ -71,6 +71,18 @@ pub fn on_changed(app: &AppHandle) {
     *have = want;
 }
 
+/// The points socket of `account` was down: its tabs' chats are checked for a waiting chest
+/// again (`check_chests`, within the minute).
+pub fn resync(app: &AppHandle, account: &str) {
+    if let Some(state) = app.try_state::<TabsState>() {
+        state
+            .checked
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .retain(|(a, _)| a != account);
+    }
+}
+
 /// (account, channel login) of every tile with an account.
 fn tab_pairs(app: &AppHandle) -> Vec<(String, String)> {
     let tabs: Tabs = app.state::<Settings>().read(Partition::Tabs);
