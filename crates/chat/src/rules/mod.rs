@@ -6,7 +6,7 @@
 mod compile;
 pub mod pcre;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use cyex_settings::schema::{Alert, BlockedShow, Highlights};
 
@@ -90,8 +90,8 @@ pub struct Rules {
     muted: HashSet<String>,
     /// C28
     hidden_users: HashSet<String>,
-    /// V108-N07 Hidden in one chat only: (user id, channel login).
-    hidden_here: HashSet<(String, String)>,
+    /// V108-N07 Hidden in one chat only: user id -> channel logins.
+    hidden_here: HashMap<String, HashSet<String>>,
     /// C32 Ignores only (V106-33: words have their own).
     lookalikes: bool,
     ignores: Vec<compile::Ignore>,
@@ -142,12 +142,13 @@ impl Rules {
             never: h.never.iter().cloned().collect(),
             muted: h.muted.iter().cloned().collect(),
             hidden_users: h.hidden_users.iter().filter(|u| u.channel.is_empty()).map(|u| u.id.clone()).collect(),
-            hidden_here: h
-                .hidden_users
-                .iter()
-                .filter(|u| !u.channel.is_empty())
-                .map(|u| (u.id.clone(), u.channel.clone()))
-                .collect(),
+            hidden_here: h.hidden_users.iter().filter(|u| !u.channel.is_empty()).fold(
+                HashMap::new(),
+                |mut by: HashMap<String, HashSet<String>>, u| {
+                    by.entry(u.id.clone()).or_default().insert(u.channel.clone());
+                    by
+                },
+            ),
             lookalikes: h.lookalikes,
             ignores: compile::ignores(&h.ignores),
             blocked: h.blocked.enabled.then_some(h.blocked.show),
@@ -189,7 +190,7 @@ impl Rules {
 
     /// V108-N07 `id` is hidden for you in `channel` (everywhere, or just there).
     pub fn hides_user(&self, id: &str, channel: &str) -> bool {
-        self.hidden_users.contains(id) || self.hidden_here.contains(&(id.to_owned(), channel.to_owned()))
+        self.hidden_users.contains(id) || self.hidden_here.get(id).is_some_and(|c| c.contains(channel))
     }
 
     /// F2 Hidden from `channel`'s room, given our role in it. Copies still go to `routes`.

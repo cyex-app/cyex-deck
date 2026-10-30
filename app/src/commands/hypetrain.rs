@@ -13,6 +13,6 @@ pub async fn chat_hype_train(app: AppHandle, login: String) -> Result<Option<Tra
 
 /// Follows the train's topic while a chat of a live channel shows the bar.
 #[tauri::command]
-pub fn chat_hype_watch(app: AppHandle, channel_id: String, on: bool) {
-    hypetrain::watch(&app, &channel_id, on);
+pub fn chat_hype_watch(app: AppHandle, window: tauri::WebviewWindow, channel_id: String, on: bool) {
+    hypetrain::watch(&app, window.label(), &channel_id, on);
 }

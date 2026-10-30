@@ -49,8 +49,8 @@ pub async fn subs_share_streak(
 
 /// V108-N23 Follows the milestones topic while a chat shows the streak prompt.
 #[tauri::command]
-pub fn subs_watch_streak(app: AppHandle, account: String, on: bool) {
-    subs::watch_streak(&app, &account, on);
+pub fn subs_watch_streak(app: AppHandle, window: tauri::WebviewWindow, account: String, on: bool) {
+    subs::watch_streak(&app, window.label(), &account, on);
 }
 
 #[tauri::command]

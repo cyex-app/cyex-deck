@@ -1,14 +1,18 @@
 <!-- V108-N04 A slim bar at the top of a live chat while a hype train runs: level, progress to
      the next level, time left and the top giver. Kept current by the train's PubSub topic, plus
-     a read every minute while a train is known and once when the chat opens (any chat of a
-     channel, live or not: the topic is cheap and a train only exists while live). After the train
+     a read every minute while a train is known and once when the chat opens, unless the app
+     knows the channel is offline (the topic is followed either way: it is cheap and reports a
+     train that starts later). After the train
      it says how far it got for a few seconds, then goes. Setting "Hype train bar" (on). -->
 <script lang="ts">
+  import { untrack } from 'svelte';
+
   import Icon from '../../components/Icon.svelte';
   import type { HypeTrain } from '../../ipc/bindings/HypeTrain';
   import { hypeIpc } from '../../ipc/hypetrain';
   import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
+  import { tabs } from '../tabs/tabs.svelte';
     import { endedText, formatLeft, mergeConductor, mergeProgress, progressPct, secondsLeft, topLine, trainOver } from './hypeTrain';
 
   interface Props {
@@ -69,7 +73,9 @@
     seq++;
     heard = 0;
     if (!on || !id) return;
-    void load();
+    // V108-N04 No read for a channel known to be offline; one outside the tabs is read.
+    const known = untrack(() => tabs.live[id]);
+    if (!known || known.stream) void load();
     void hypeIpc.watch(id, true).catch(() => {});
     const off = hypeIpc.onChange((e) => {
       if (e.channelId !== id) return;

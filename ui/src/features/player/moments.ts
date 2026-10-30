@@ -74,6 +74,12 @@ export function momentClip(secs: number, uptime: number, video: string | null): 
   return video ? { kind: 'vod', video, offset } : null;
 }
 
+/** V108-N25 How the clip button clips while rewound: the clip ends where the player is
+ *  (`pos`, stream seconds), from the live broadcast or the archive video like a moment's. */
+export function hereClip(pos: number, uptime: number, video: string | null): MomentClip | null {
+  return momentClip(Math.floor(pos) - CLIP_LEAD, uptime, video);
+}
+
 /** New moments in, oldest first by id, no id twice, only the newest `KEEP`. */
 export function mergeMoments(have: readonly Moment[], found: readonly Moment[]): Moment[] {
   const seen = new Set(have.map((m) => m.id));

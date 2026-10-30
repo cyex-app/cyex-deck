@@ -173,6 +173,8 @@ pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
         WindowEvent::Destroyed if window.label() == MAIN => app.exit(0),
         WindowEvent::Destroyed => {
             close_views(app, window.label());
+            // V108-N04/N23 Topics the page followed; its own cleanup never ran.
+            crate::hermes::release(app, window.label());
             crate::chat::shown::gone(app, window.label());
             panels::forget(app, window.label());
             overlay::forget(app, window.label());
@@ -193,6 +195,8 @@ pub fn on_page_load(webview: &Webview, payload: &PageLoadPayload<'_>) {
         PageLoadEvent::Started => {
             // V107-R1 A reload opens its views again; the old ones would stay as dead sinks.
             close_views(app, label);
+            // V108-N04/N23 The old page's topics; the new one follows them again.
+            crate::hermes::release(app, label);
             if shows_chats() {
                 crate::chat::shown::loading(app, label);
             }

@@ -323,6 +323,10 @@ pub async fn other_mod_counts(
         })
         .collect();
     let out = mine(&all);
-    MOD_COUNTS.lock().unwrap_or_else(|p| p.into_inner()).insert(key, (std::time::Instant::now(), all));
+    let mut counts = MOD_COUNTS.lock().unwrap_or_else(|p| p.into_inner());
+    // Expired cards go first, so the cache stays the size of the last two minutes.
+    counts.retain(|_, (at, _)| fresh(at, MOD_COUNTS_TTL));
+    counts.insert(key, (std::time::Instant::now(), all));
+    drop(counts);
     Ok(out)
 }

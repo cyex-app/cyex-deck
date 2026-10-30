@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 use std::pin::Pin;
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 
 use cyex_twitch::hermes::{Event, Hermes, Kind, Topic};
 use cyex_twitch::ws::Pool;
@@ -123,5 +123,84 @@ async fn pump(app: AppHandle, mut rx: mpsc::UnboundedReceiver<Event>) {
             // V108-N04 The hype train bar reads and merges it.
             Kind::HypeTrain => crate::chat::hypetrain::on_event(&app, &e),
         }
+    }
+}
+
+/// V108-N04/N23 A topic a window's page follows, so it's let go when the page goes away
+/// without its own cleanup (a popout closed, a reload).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Held {
+    Channel(Kind, String),
+    User(String, Kind),
+}
+
+/// What each window's page follows, by window label; one entry per `on`.
+static BY_WINDOW: LazyLock<Mutex<HashMap<String, Vec<Held>>>> = LazyLock::new(Mutex::default);
+
+/// Notes one `on` or `off` of `label`. False for an `off` the window never asked for (it was
+/// released already), which then must not let go of anyone else's count.
+fn note(by: &mut HashMap<String, Vec<Held>>, label: &str, held: Held, on: bool) -> bool {
+    if on {
+        by.entry(label.to_owned()).or_default().push(held);
+        return true;
+    }
+    let Some(list) = by.get_mut(label) else { return false };
+    let Some(i) = list.iter().position(|h| *h == held) else { return false };
+    list.swap_remove(i);
+    if list.is_empty() {
+        by.remove(label);
+    }
+    true
+}
+
+/// Follows (or stops following) a topic for a window's page. False when nothing changed.
+pub fn hold(app: &AppHandle, label: &str, held: Held, on: bool) -> bool {
+    if !note(&mut BY_WINDOW.lock().unwrap_or_else(|p| p.into_inner()), label, held.clone(), on) {
+        return false;
+    }
+    match (held, on) {
+        (Held::Channel(kind, id), true) => add(app, kind, &id),
+        (Held::Channel(kind, id), false) => remove(app, kind, &id),
+        (Held::User(account, kind), true) => add_user(app, &account, kind),
+        (Held::User(account, kind), false) => remove_user(app, &account, kind),
+    }
+    true
+}
+
+/// Drops one of the window's notes without letting go of the topic, for a caller that does
+/// more than `remove` (the hype train's level). False when the window didn't hold it.
+pub fn forget(label: &str, held: &Held) -> bool {
+    note(&mut BY_WINDOW.lock().unwrap_or_else(|p| p.into_inner()), label, held.clone(), false)
+}
+
+/// Lets go of everything a window's page followed: it closed or loads again.
+pub fn release(app: &AppHandle, label: &str) {
+    let gone = BY_WINDOW.lock().unwrap_or_else(|p| p.into_inner()).remove(label).unwrap_or_default();
+    for held in gone {
+        match held {
+            Held::Channel(Kind::HypeTrain, id) => crate::chat::hypetrain::unwatched(app, &id),
+            Held::Channel(kind, id) => remove(app, kind, &id),
+            Held::User(account, kind) => remove_user(app, &account, kind),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn released_windows_dont_let_go_twice() {
+        let mut by = HashMap::new();
+        let h = || Held::Channel(Kind::HypeTrain, "1".to_owned());
+        assert!(note(&mut by, "a", h(), true));
+        assert!(note(&mut by, "a", h(), true));
+        assert!(note(&mut by, "a", h(), false));
+        assert_eq!(by["a"].len(), 1);
+        // Another window's off never takes this one's count.
+        assert!(!note(&mut by, "b", h(), false));
+        by.remove("a");
+        assert!(!note(&mut by, "a", h(), false));
+        assert!(by.is_empty());
     }
 }

@@ -234,7 +234,10 @@ class TabsStore {
   }
 
   close(ids: string[]): void {
-    if (ids.length) void this.apply({ op: 'close', tabs: ids });
+    if (!ids.length) return;
+    // V108-N13 A closed tab's sound pick goes with it (a reopened tab starts with its first stream).
+    for (const id of ids) audioFocus.forget(id);
+    void this.apply({ op: 'close', tabs: ids });
   }
 
   /** U10 Resolves with the tab it brought back, if any. */

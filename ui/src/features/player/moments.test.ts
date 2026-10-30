@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { Moment } from '../../ipc/bindings/Moment.ts';
-import { canGoThere, clipOffset, KEEP, LIVE_CLIP_REACH, momentClip, marks, mergeMoments, momentText, newest, secsOf } from './moments.ts';
+import { canGoThere, clipOffset, hereClip, KEEP, LIVE_CLIP_REACH, momentClip, marks, mergeMoments, momentText, newest, secsOf } from './moments.ts';
 
 const m = (id: number, over: Partial<Moment> = {}): Moment => ({
   id,
@@ -53,6 +53,12 @@ test('a recent moment clips live; an old one needs the archive video, else no cl
   assert.deepEqual(momentClip(100, 5000, 'v1'), { kind: 'vod', video: 'v1', offset: 110 });
   assert.equal(momentClip(100, 5000, null), null);
   assert.equal(momentClip(5000 - LIVE_CLIP_REACH, 5000, null)?.kind, 'live');
+});
+
+test('V108-N25 a rewound clip ends where the player is', () => {
+  assert.deepEqual(hereClip(4950.6, 5000, null), { kind: 'live', offset: 4950 });
+  assert.deepEqual(hereClip(1000, 5000, 'v1'), { kind: 'vod', video: 'v1', offset: 1000 });
+  assert.equal(hereClip(1000, 5000, null), null);
 });
 
 test('merging keeps ids once, in order, newest 200', () => {

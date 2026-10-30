@@ -3,6 +3,10 @@
 //! Buying, gifting, changing tier and payment methods open Twitch's own pages in the
 //! app's Twitch window (`windows::twitch`, 3.8).
 
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
+use std::time::{Duration, Instant};
+
 use cyex_miner::events::{self as miner_events, Event as MinerEvent};
 use cyex_twitch::gql::milestones::{self, Milestone};
 use cyex_twitch::gql::subs::{self as api, ChannelSub, Subs, pages};
@@ -97,31 +101,70 @@ pub struct StreakChanged {
     pub channel_id: String,
 }
 
+/// V108-N23 A streak read is kept this long per (account, channel login), so every chat of a
+/// channel and each reopen don't each ask Twitch. A change on the topic drops the account's.
+const STREAK_AGE: Duration = Duration::from_secs(60);
+/// The most reads kept; past it the cache starts over.
+const STREAK_KEPT: usize = 64;
+
+#[derive(Default)]
+struct StreakCache(HashMap<(String, String), (Instant, Option<Milestone>)>);
+
+impl StreakCache {
+    fn get(&self, key: &(String, String), now: Instant) -> Option<Option<Milestone>> {
+        self.0.get(key).filter(|(at, _)| now.duration_since(*at) < STREAK_AGE).map(|(_, m)| m.clone())
+    }
+
+    fn put(&mut self, key: (String, String), milestone: Option<Milestone>, now: Instant) {
+        self.0.retain(|_, (at, _)| now.duration_since(*at) < STREAK_AGE);
+        if self.0.len() >= STREAK_KEPT {
+            self.0.clear();
+        }
+        self.0.insert(key, (now, milestone));
+    }
+
+    fn forget(&mut self, account: &str) {
+        self.0.retain(|(a, _), _| a != account);
+    }
+}
+
+static STREAKS: LazyLock<Mutex<StreakCache>> = LazyLock::new(Mutex::default);
+
+fn streaks() -> std::sync::MutexGuard<'static, StreakCache> {
+    STREAKS.lock().unwrap_or_else(|p| p.into_inner())
+}
+
 pub async fn streak(app: &AppHandle, account: &str, login: &str) -> Result<Streak, String> {
+    let key = (account.to_owned(), login.to_ascii_lowercase());
+    let live = crate::tabs::live::is_live(app, login);
+    if let Some(milestone) = streaks().get(&key, Instant::now()) {
+        return Ok(Streak { milestone, live });
+    }
     let c = call(app, account)?;
     let milestone = milestones::shareable_streak(&c.http, c.auth(), login).await.map_err(failed)?;
-    Ok(Streak { milestone, live: crate::tabs::live::is_live(app, login) })
+    streaks().put(key, milestone.clone(), Instant::now());
+    Ok(Streak { milestone, live })
 }
 
 /// V108-N23 Only from the user's click on Share.
 pub async fn share_streak(app: &AppHandle, account: &str, channel_id: &str, milestone_id: &str) -> Result<(), String> {
     let c = call(app, account)?;
-    milestones::share(&c.http, c.auth(), channel_id, milestone_id)
+    let out = milestones::share(&c.http, c.auth(), channel_id, milestone_id)
         .await
         .map_err(|e| match e {
             cyex_twitch::Error::Refused(code) => milestones::explain(&code).to_owned(),
             e => failed(e),
-        })
+        });
+    // The shared milestone is gone; the next read asks Twitch.
+    streaks().forget(account);
+    out
 }
 
 /// V108-N23 Follows (or stops following) the account's milestones topic while a chat shows
-/// the prompt. The topic is counted, so several chats can share it.
-pub fn watch_streak(app: &AppHandle, account: &str, on: bool) {
-    if on {
-        crate::hermes::add_user(app, account, Kind::ViewerMilestones);
-    } else {
-        crate::hermes::remove_user(app, account, Kind::ViewerMilestones);
-    }
+/// the prompt. The topic is counted, so several chats can share it; held per window
+/// (`label`), so a page that goes away without its cleanup lets go too.
+pub fn watch_streak(app: &AppHandle, label: &str, account: &str, on: bool) {
+    crate::hermes::hold(app, label, crate::hermes::Held::User(account.to_owned(), Kind::ViewerMilestones), on);
 }
 
 /// V108-N23 A `viewer-milestones` message: the chat of that channel reads again.
@@ -141,6 +184,8 @@ pub fn on_points(app: &AppHandle, e: &Event) {
 }
 
 fn changed(app: &AppHandle, account: &str, channel_id: String) {
+    // The read again must reach Twitch (the cache is by login, the topic says the id).
+    streaks().forget(account);
     let _ = app.emit(STREAK_EVENT, StreakChanged { account: account.to_owned(), channel_id });
 }
 
@@ -172,5 +217,24 @@ mod tests {
         assert_eq!(page("bits", "x").as_deref(), Some(pages::BITS));
         assert_eq!(page("nope", ""), None);
         assert_eq!(page("gift", ""), None);
+    }
+
+    #[test]
+    fn streak_reads_kept_a_minute_and_bounded() {
+        let mut c = StreakCache::default();
+        let t = Instant::now();
+        let key = |a: &str, l: &str| (a.to_owned(), l.to_owned());
+        c.put(key("1", "x"), None, t);
+        assert_eq!(c.get(&key("1", "x"), t + Duration::from_secs(59)), Some(None));
+        assert_eq!(c.get(&key("1", "x"), t + STREAK_AGE), None);
+        // Expired reads go on the next put.
+        c.put(key("1", "y"), None, t + STREAK_AGE);
+        assert_eq!(c.0.len(), 1);
+        for i in 0..STREAK_KEPT * 2 {
+            c.put(key("2", &i.to_string()), None, t + STREAK_AGE);
+        }
+        assert!(c.0.len() <= STREAK_KEPT);
+        c.forget("2");
+        assert!(c.0.keys().all(|(a, _)| a != "2"));
     }
 }

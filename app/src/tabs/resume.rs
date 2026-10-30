@@ -67,9 +67,10 @@ pub fn take_pending(app: &AppHandle) -> bool {
 /// Keeps the tabs in `keep` out of the `shown` ones, closes the rest (they go to the reopen
 /// list), then starts what was held back.
 pub fn resume(app: &AppHandle, shown: &[String], keep: &[String]) -> Result<super::TabsApplied, String> {
-    if let Some(a) = app.try_state::<Awaiting>() {
-        *a.0.lock().unwrap_or_else(|p| p.into_inner()) = false;
-    }
+    // V108-N21 Only the first answer starts what was held back; a second one would start it twice.
+    let was = app
+        .try_state::<Awaiting>()
+        .is_some_and(|a| std::mem::replace(&mut *a.0.lock().unwrap_or_else(|p| p.into_inner()), false));
     let all: Vec<String> = app
         .state::<crate::settings::Settings>()
         .read::<cyex_settings::schema::Tabs>(cyex_settings::Partition::Tabs)
@@ -84,7 +85,9 @@ pub fn resume(app: &AppHandle, shown: &[String], keep: &[String]) -> Result<supe
     } else {
         super::apply(app, cyex_settings::schema::TabOp::Close { tabs: close })
     };
-    super::start(app);
+    if was {
+        super::start(app);
+    }
     out
 }
 

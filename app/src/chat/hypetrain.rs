@@ -21,8 +21,14 @@ use cyex_chat::moments::MomentKind;
 
 const EVENT: &str = "chat:hype-train";
 
-/// The level last seen per channel id, so a rise is a moment and a repeat isn't.
-static LEVELS: LazyLock<Mutex<HashMap<String, u32>>> = LazyLock::new(Mutex::default);
+/// The train id and level last seen per channel id, so a rise is a moment and a repeat isn't.
+static LEVELS: LazyLock<Mutex<HashMap<String, Seen>>> = LazyLock::new(Mutex::default);
+
+#[derive(Clone, Debug, PartialEq)]
+struct Seen {
+    train: String,
+    level: u32,
+}
 
 /// What changed in a channel's train.
 #[derive(Clone, Debug, Serialize, TS)]
@@ -66,29 +72,47 @@ pub async fn read(app: &AppHandle, login: &str) -> Result<Option<Train>, String>
                 "Twitch didn’t answer. Try again in a bit.".to_owned()
             }
         })?;
-    if let Some(t) = &train
-        && let Some(id) = super::channel_id_of(app, login)
-    {
-        // Seed only: a poll must not swallow the level-up the topic is about to report.
-        LEVELS.lock().unwrap_or_else(|p| p.into_inner()).entry(id).or_insert(t.level);
+    if let Some(id) = super::channel_id_of(app, login) {
+        let mut levels = LEVELS.lock().unwrap_or_else(|p| p.into_inner());
+        match &train {
+            // Seed only: a poll must not swallow the level-up the topic is about to report.
+            Some(t) => {
+                let seen = Seen { train: t.id.clone(), level: t.level };
+                let entry = levels.entry(id).or_insert_with(|| seen.clone());
+                if !same_train(&entry.train, &t.id) {
+                    *entry = seen;
+                }
+            }
+            // V108-N04 No train: a stale level would hide the next train's moments.
+            None => {
+                levels.remove(&id);
+            }
+        }
     }
     Ok(train)
 }
 
 /// Follows (or stops following) the topic while a chat of a live channel shows the bar. The
-/// topic is counted, so several chats can share it.
-pub fn watch(app: &AppHandle, channel_id: &str, on: bool) {
+/// topic is counted, so several chats can share it. Held per window (`label`), so a page that
+/// goes away without its cleanup lets go too (`hermes::release`).
+pub fn watch(app: &AppHandle, label: &str, channel_id: &str, on: bool) {
     if channel_id.is_empty() {
         return;
     }
+    let held = crate::hermes::Held::Channel(Kind::HypeTrain, channel_id.to_owned());
     if on {
-        crate::hermes::add(app, Kind::HypeTrain, channel_id);
-    } else {
-        crate::hermes::remove(app, Kind::HypeTrain, channel_id);
-        // Other chats of the channel may still follow it; the level goes with the last one.
-        if !crate::hermes::held(app, Kind::HypeTrain, channel_id) {
-            LEVELS.lock().unwrap_or_else(|p| p.into_inner()).remove(channel_id);
-        }
+        crate::hermes::hold(app, label, held, true);
+    } else if crate::hermes::forget(label, &held) {
+        unwatched(app, channel_id);
+    }
+}
+
+/// One count of the topic let go. Other chats of the channel may still follow it; the level
+/// goes with the last one.
+pub fn unwatched(app: &AppHandle, channel_id: &str) {
+    crate::hermes::remove(app, Kind::HypeTrain, channel_id);
+    if !crate::hermes::held(app, Kind::HypeTrain, channel_id) {
+        LEVELS.lock().unwrap_or_else(|p| p.into_inner()).remove(channel_id);
     }
 }
 
@@ -113,6 +137,16 @@ pub fn on_event(app: &AppHandle, e: &Event) {
     let _ = app.emit(EVENT, HypeChanged { channel_id: id, change });
 }
 
+/// A topic message may carry no id; it then belongs to the train already seen.
+fn same_train(seen: &str, id: &str) -> bool {
+    id.is_empty() || seen.is_empty() || seen == id
+}
+
+/// The level last seen of this train; another train's level doesn't count (V108-N04).
+fn last_level(seen: Option<&Seen>, train: &str) -> Option<u32> {
+    seen.filter(|s| same_train(&s.train, train)).map(|s| s.level)
+}
+
 /// The label of a moment when `level` is higher than the last seen one.
 fn moment_label(last: Option<u32>, level: u32) -> Option<String> {
     match last {
@@ -126,9 +160,9 @@ fn moment_label(last: Option<u32>, level: u32) -> Option<String> {
 fn rose(app: &AppHandle, channel_id: &str, train: &Train) {
     let label = {
         let mut levels = LEVELS.lock().unwrap_or_else(|p| p.into_inner());
-        let label = moment_label(levels.get(channel_id).copied(), train.level);
+        let label = moment_label(last_level(levels.get(channel_id), &train.id), train.level);
         if label.is_some() {
-            levels.insert(channel_id.to_owned(), train.level);
+            levels.insert(channel_id.to_owned(), Seen { train: train.id.clone(), level: train.level });
         }
         label
     };
@@ -166,5 +200,15 @@ mod tests {
         assert_eq!(moment_label(Some(2), 3).as_deref(), Some("Hype train, level 3"));
         assert_eq!(moment_label(Some(3), 3), None);
         assert_eq!(moment_label(Some(3), 2), None);
+    }
+
+    #[test]
+    fn another_train_starts_over() {
+        let seen = Seen { train: "a".to_owned(), level: 4 };
+        assert_eq!(last_level(Some(&seen), "a"), Some(4));
+        assert_eq!(last_level(Some(&seen), ""), Some(4));
+        assert_eq!(last_level(Some(&seen), "b"), None);
+        assert_eq!(moment_label(last_level(Some(&seen), "b"), 1).as_deref(), Some("Hype train started"));
+        assert_eq!(last_level(None, "b"), None);
     }
 }

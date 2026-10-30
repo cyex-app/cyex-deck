@@ -1,8 +1,9 @@
 // V108-N16 One line per channel you mod where they have a record: "2 bans · 1 timeout".
 
 import type { OtherModCount } from '../../ipc/bindings/OtherModCount';
+import { formatNumber } from '../../lib/format.ts';
 
-const n = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
+const n = (count: number, word: string) => `${formatNumber(count)} ${word}${count === 1 ? '' : 's'}`;
 
 export function countText(c: Pick<OtherModCount, 'bans' | 'timeouts' | 'warnings'>): string {
   return [

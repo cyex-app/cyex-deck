@@ -158,11 +158,11 @@ pub async fn channel(app: &AppHandle, login: &str) -> Result<ChannelSchedule, St
     if value.vacation.as_ref().and_then(|v| parse(&v.end)).is_some_and(|e| e <= now) {
         value.vacation = None;
     }
-    state
-        .channels
-        .lock()
-        .await
-        .insert(login, Cached { at: Instant::now(), value: value.clone() });
+    let mut channels = state.channels.lock().await;
+    // V108-N03 Expired ones go first, so the cache only holds the last few minutes.
+    channels.retain(|_, c| c.at.elapsed() < CHANNEL_AGE);
+    channels.insert(login, Cached { at: Instant::now(), value: value.clone() });
+    drop(channels);
     Ok(value)
 }
 
@@ -203,6 +203,8 @@ pub async fn next(app: &AppHandle, ids: Vec<String>) -> Vec<NextStream> {
     }
     let mut cache = state.next.lock().await;
     let now = Instant::now();
+    // V108-N03 Expired ones go first, so unfollowed channels don't stay forever.
+    cache.retain(|_, c| now.duration_since(c.at) < NEXT_AGE);
     for (asked, nexts) in fetched {
         for id in asked {
             let value = nexts.iter().find(|n| n.id == id).cloned();

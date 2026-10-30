@@ -18,6 +18,7 @@
   import { latest } from '../../lib/latest';
   import { BASE, reduced } from '../../lib/motion';
   import { settings } from '../../lib/settings.svelte';
+  import { toast } from '../../lib/toast.svelte';
   import Celebration from './Celebration.svelte';
   import { Engine } from './engine.svelte';
   import LiveButton from './LiveButton.svelte';
@@ -25,7 +26,7 @@
   import { behindText } from './liveKeys';
   import { clipLiveAt, clipVideoAt } from './clipMake.svelte';
   import { type MomentRow, playerMenu } from './menu';
-  import { canGoThere, marks as momentMarks, momentClip, momentText, newest, secsOf } from './moments';
+  import { canGoThere, hereClip, marks as momentMarks, momentClip, momentText, newest, secsOf } from './moments';
   import { MomentsFeed } from './momentsFeed.svelte';
   import { clock } from './time';
   import { playerFullscreen } from './players.svelte';
@@ -249,6 +250,19 @@
     return plan.kind === 'live'
       ? () => void clipLiveAt(tile, clipper, tile.channel.id, plan.offset)
       : () => void clipVideoAt(tile, clipper, tile.channel.id, plan.video, plan.offset);
+  }
+
+  /** V108-N25 The clip button while rewound (the rewind VOD or the N24 replay) clips where the
+   *  player is, not the live edge: live while in reach, else from the archive video. */
+  function clipHere() {
+    if (!rewind.inVod) return onclip?.();
+    const plan = clipper ? hereClip(rewind.pos, rewind.uptime, rewind.vodId) : null;
+    if (!clipper || !plan) {
+      toast.info('Can’t clip that far back. Go live to clip.');
+      return;
+    }
+    if (plan.kind === 'live') void clipLiveAt(tile, clipper, tile.channel.id, plan.offset);
+    else void clipVideoAt(tile, clipper, tile.channel.id, plan.video, plan.offset);
   }
 
   function momentRows(): MomentRow[] {
@@ -552,7 +566,7 @@
   <Volume volume={sound.volume} muted={sound.muted} boost={sound.boost} onchange={sound.set} onboost={sound.setBoost} />
   <span class="grow"></span>
   {#if onclip}
-    <button class="ctl" aria-label="Clip" use:tooltip={{ label: 'Clip', hint: 'Clips the last seconds of the stream.' }} onclick={onclip}>
+    <button class="ctl" aria-label="Clip" use:tooltip={{ label: 'Clip', hint: rewind.inVod ? 'Clips the seconds up to here.' : 'Clips the last seconds of the stream.' }} onclick={clipHere}>
       <Icon name="scissors" size={17} />
     </button>
   {:else if clipOff}
