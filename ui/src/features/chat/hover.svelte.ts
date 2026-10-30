@@ -1,8 +1,13 @@
 // V107-M5 One pointer listener pair for every chat line (was two per line). It tracks which
-// line is under the pointer; only that line draws its hover buttons.
-import { SvelteSet } from 'svelte/reactivity';
+// line is under the pointer; only that line draws its hover buttons. Each line listens to
+// its own id, so a move from one line to the next wakes those two, not every line drawn
+// (a SvelteSet's `has` of a missing id wakes on any change).
+import { createSubscriber } from 'svelte/reactivity';
 
-const under = new SvelteSet<string>();
+type Slot = { subscribe: () => void; update?: () => void };
+
+const slots = new Map<string, Slot>();
+let under: string | null = null;
 let armed = false;
 
 function lineId(t: EventTarget | null): string | null {
@@ -10,9 +15,28 @@ function lineId(t: EventTarget | null): string | null {
 }
 
 function set(id: string | null) {
-  if (id !== null && under.size === 1 && under.has(id)) return;
-  under.clear();
-  if (id !== null) under.add(id);
+  if (id === under) return;
+  const was = under;
+  under = id;
+  if (was !== null) slots.get(was)?.update?.();
+  if (id !== null) slots.get(id)?.update?.();
+}
+
+function slot(id: string): Slot {
+  let s = slots.get(id);
+  if (s) return s;
+  const fresh: Slot = {
+    subscribe: createSubscriber((update) => {
+      fresh.update = update;
+      // The last line showing this id left.
+      return () => {
+        fresh.update = undefined;
+        if (slots.get(id) === fresh) slots.delete(id);
+      };
+    }),
+  };
+  slots.set(id, fresh);
+  return fresh;
 }
 
 function arm() {
@@ -26,5 +50,7 @@ function arm() {
 /** True while the pointer is over the line with this id. */
 export function isHot(id: string): boolean {
   arm();
-  return under.has(id);
+  // Outside an effect nothing would ever let go of the slot.
+  if ($effect.tracking()) slot(id).subscribe();
+  return under === id;
 }
