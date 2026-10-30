@@ -7,6 +7,8 @@
   import { listen } from '@tauri-apps/api/event';
   import { untrack } from 'svelte';
 
+  import Button from '../components/Button.svelte';
+  import EmptyState from '../components/EmptyState.svelte';
   import IconButton from '../components/IconButton.svelte';
   import MenuHost from '../components/MenuHost.svelte';
   import Toasts from '../components/Toasts.svelte';
@@ -521,6 +523,12 @@
 
 <svelte:window bind:innerWidth={width} />
 
+{#snippet broken(reset: () => void)}
+  <EmptyState icon="alert" text="Couldn’t show this.">
+    <Button small onclick={reset}>Try again</Button>
+  </EmptyState>
+{/snippet}
+
 {#if place === 'row' && !theatreOn}
   <div class="tab-row">
     <TabBar {current} onopen={open} />
@@ -536,37 +544,49 @@
   <main>
     {#each mounted as t (t.id)}
       <div class="slot" class:away={t.id !== shownTab}>
-        <TabView tab={t} background={t.id !== shownTab} onsignin={manageAccounts} />
+        <!-- One tab failing to draw shows that, not a blank window. -->
+        <svelte:boundary onerror={(e) => console.error('tab', e)}>
+          <TabView tab={t} background={t.id !== shownTab} onsignin={manageAccounts} />
+          {#snippet failed(_e, reset)}{@render broken(reset)}{/snippet}
+        </svelte:boundary>
       </div>
     {/each}
     {#if tab}
       {#if tabs.popped.has(tab.id)}
         <PoppedOut {tab} />
       {/if}
-    {:else if fixed === 'modview' && modviewPlace.login}
-      {#key modviewPlace.login}
-        <ModViewPanel route={modviewRoute(modviewPlace.login)} onpopout={popOutModview} />
-      {/key}
-    {:else if fixed === 'discover'}
-      <DiscoverView onopen={open} />
-    {:else if fixed === 'miner' && canMine}
-      {#await minerView() then { default: MinerView }}<MinerView onsettings={minerSettings} />{/await}
-    {:else if fixed === 'streamManager' && canManage}
-      <StreamManagerView onpopout={popOutManager} onsignin={manageAccounts} />
-    {:else if fixed === 'whispers' && canWhisper}
-      <WhispersView onpopout={popOutWhispers} onsignin={manageAccounts} />
-    {:else if fixed === 'subs'}
-      {#await subsView() then { default: SubsView }}
-        <SubsView onchannel={(c) => void openChannel({ show: open, account: () => accounts.current?.userId ?? null }, c)} onsignin={manageAccounts} />
-      {/await}
-    {:else if fixed === 'cosmetics'}
-      {#await cosmeticsView() then { default: CosmeticsView }}<CosmeticsView onclose={() => leaveView('cosmetics')} />{/await}
-    {:else if fixed === 'settings'}
-      {#await settingsView() then { default: SettingsView }}
-        <SettingsView bind:section={settingsSection} onclose={() => leaveView('settings')} />
-      {/await}
     {:else}
-      <HomeView onopen={open} ondiscover={() => show('discover')} onsignin={manageAccounts} />
+      <!-- A view failing to draw shows that; another view starts clean. -->
+      {#key fixed}
+        <svelte:boundary onerror={(e) => console.error('view', e)}>
+          {#if fixed === 'modview' && modviewPlace.login}
+            {#key modviewPlace.login}
+              <ModViewPanel route={modviewRoute(modviewPlace.login)} onpopout={popOutModview} />
+            {/key}
+          {:else if fixed === 'discover'}
+            <DiscoverView onopen={open} />
+          {:else if fixed === 'miner' && canMine}
+            {#await minerView() then { default: MinerView }}<MinerView onsettings={minerSettings} />{/await}
+          {:else if fixed === 'streamManager' && canManage}
+            <StreamManagerView onpopout={popOutManager} onsignin={manageAccounts} />
+          {:else if fixed === 'whispers' && canWhisper}
+            <WhispersView onpopout={popOutWhispers} onsignin={manageAccounts} />
+          {:else if fixed === 'subs'}
+            {#await subsView() then { default: SubsView }}
+              <SubsView onchannel={(c) => void openChannel({ show: open, account: () => accounts.current?.userId ?? null }, c)} onsignin={manageAccounts} />
+            {/await}
+          {:else if fixed === 'cosmetics'}
+            {#await cosmeticsView() then { default: CosmeticsView }}<CosmeticsView onclose={() => leaveView('cosmetics')} />{/await}
+          {:else if fixed === 'settings'}
+            {#await settingsView() then { default: SettingsView }}
+              <SettingsView bind:section={settingsSection} onclose={() => leaveView('settings')} />
+            {/await}
+          {:else}
+            <HomeView onopen={open} ondiscover={() => show('discover')} onsignin={manageAccounts} />
+          {/if}
+          {#snippet failed(_e, reset)}{@render broken(reset)}{/snippet}
+        </svelte:boundary>
+      {/key}
     {/if}
   </main>
 </div>

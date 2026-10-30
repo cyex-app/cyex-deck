@@ -1,3 +1,4 @@
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { mount } from 'svelte';
 
 import './design/tokens.css';
@@ -23,19 +24,36 @@ installFindBlock();
 // fetched while the settings load.
 const panelView = panelRoute ? import('./app/PanelApp.svelte') : null;
 const mainView = panelRoute ? null : import('./app/App.svelte');
-await Promise.all([settings.load(), currentWindow.init(), accounts.load(), tabs.load()]);
+async function start(): Promise<void> {
+  await Promise.all([settings.load(), currentWindow.init(), accounts.load(), tabs.load()]);
 
-const target = document.getElementById('app')!;
+  const target = document.getElementById('app')!;
 
-// C17 Translations go to the Windows language unless Settings says otherwise.
-if (!panelRoute) chatxIpc.setLanguage(navigator.language).catch(() => {});
-// V107-R12 Once after a crash, in the main window.
-if (!panelRoute && currentWindow.isMain) {
-  void showCrashNote();
-  // V108-N21 And which tabs to bring back, before any tab mounts.
-  await askResume();
+  // C17 Translations go to the Windows language unless Settings says otherwise.
+  if (!panelRoute) chatxIpc.setLanguage(navigator.language).catch(() => {});
+  // V107-R12 Once after a crash, in the main window.
+  if (!panelRoute && currentWindow.isMain) {
+    void showCrashNote();
+    // V108-N21 And which tabs to bring back, before any tab mounts.
+    await askResume();
+  }
+
+  if (panelView) mount((await panelView).default, { target, props: { route: decodeURIComponent(panelRoute!) } });
+  else mount((await mainView!).default, { target });
 }
 
-export default panelView
-  ? mount((await panelView).default, { target, props: { route: decodeURIComponent(panelRoute!) } })
-  : mount((await mainView!).default, { target });
+// A failed start (an IPC call refused, a view that won't load) says so instead of leaving
+// the window empty.
+start().catch((e: unknown) => {
+  console.error('start', e);
+  // The window has no title bar of its own yet, so the note brings its own Close.
+  const box = document.createElement('div');
+  box.className = 'start-failed';
+  const note = document.createElement('p');
+  note.textContent = 'cyex deck couldn’t start this window. Close it and try again.';
+  const close = document.createElement('button');
+  close.textContent = 'Close';
+  close.onclick = () => void getCurrentWindow().close();
+  box.append(note, close);
+  (document.getElementById('app') ?? document.body).replaceChildren(box);
+});
