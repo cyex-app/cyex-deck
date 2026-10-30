@@ -21,6 +21,7 @@
   import { shownName } from './names';
   import { ownNameColor } from './ownColor';
   import { lineBadges } from './sharedBadges';
+  import { catalogs } from './catalog.svelte';
   import { lineStacks } from './stacked';
   import { uploadLine } from './upload';
 
@@ -70,6 +71,8 @@
   /** V107-Mj Zalgo stays inside its line. */
   const stacked = $derived(lineStacks(m.body, notice?.text));
   const client = $derived(c.showClient && m.client ? CLIENTS[m.client] : null);
+  /** V108-N12 A Shared Chat line from another channel: that channel, once its room is read. */
+  const from = $derived(m.source ? catalogs.room(m.source.roomId) : undefined);
   const effect = $derived(c.effects ? effectOf(m) : null);
   /** 1.26 A whisper shown in a chat: who it's with, for the label and a click. */
   const whisperWith = $derived(has('whisper') && !inWhispers ? (m.whisperTo ?? sender?.login ?? null) : null);
@@ -179,6 +182,14 @@
       {/if}
       {#if time}<span class="ts">{time}</span>{/if}
       {#if client}<span class="client" data-tip={client.label}><Icon name={client.icon} size={12} /></span>{/if}
+      {#if m.source}<!-- V108-N12 Which channel of the shared chat it was sent in. -->{#if from?.avatar}<img
+            class="from"
+            src={from.avatar}
+            alt=""
+            data-tip="Message from {from.name}"
+            loading="lazy"
+            decoding="async"
+          />{:else}<span class="from" data-tip={from ? `Message from ${from.name}` : 'Message from another channel'}></span>{/if}{/if}
       <Badges badges={lineBadges(m.source, sender.badges)} {channel} userId={sender.id} {look} />
       <span
         class="name {paint ?? ''}"
@@ -390,6 +401,17 @@
     background: color-mix(in srgb, var(--red) 18%, transparent);
     color: var(--red);
     font: 700 0.8em var(--font-mono);
+  }
+  /* V108-N12 Badge-sized, round like every channel picture. */
+  .from {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    margin-right: 3px;
+    border-radius: 50%;
+    vertical-align: -3px;
+    background: var(--surface);
+    object-fit: cover;
   }
   /* C26 */
   .client {

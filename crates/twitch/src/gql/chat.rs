@@ -21,13 +21,25 @@ const CHANNEL: &str = "query($login: String!) { \
     channel(name: $login) { communityPointsSettings { POINTS } } }";
 
 /// V108-C10 Another channel's badges by room id (a Shared Chat line's `source-room-id`).
-const SOURCE_BADGES: &str = "query($id: ID!) { user(id: $id) { broadcastBadges { BADGE } } }";
+const SOURCE_BADGES: &str =
+    "query($id: ID!) { user(id: $id) { login displayName profileImageURL(width: 50) broadcastBadges { BADGE } } }";
 
 const PINNED: &str = "query($id: ID!) { channel(id: $id) { pinnedChatMessages(first: 1) { edges { node { \
     id type startsAt endsAt pinnedBy { login displayName } \
     pinnedMessage { id sender { id login displayName chatColor } \
       content { text fragments { text content { __typename ... on Emote { emoteID: id token } ... on User { login } } } } } \
     } } } } }";
+
+/// V108-N12 A Shared Chat line's source channel: who it is, its picture and its badges.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SourceRoom {
+    pub login: String,
+    pub name: String,
+    pub avatar: Option<String>,
+    pub badges: Vec<BadgeInfo>,
+}
 
 /// A Twitch chat badge (`set/version`).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
@@ -144,13 +156,19 @@ pub async fn channel_chat(http: &Http, login: &str, cheer_colors: &[(u32, String
     }))
 }
 
-/// V108-C10 A channel's own badge pictures by room id. Empty if the room doesn't exist.
-pub async fn source_badges(http: &Http, room_id: &str) -> Result<Vec<BadgeInfo>> {
+/// V108-C10 V108-N12 A channel by room id: name, picture and its own badge pictures. Empty if
+/// the room doesn't exist.
+pub async fn source_badges(http: &Http, room_id: &str) -> Result<SourceRoom> {
     let q = SOURCE_BADGES.replace("BADGE", BADGE_FIELDS);
     let data: RawSource = query(http, Auth::PUBLIC, &q, json!({ "id": room_id })).await?;
     Ok(data
         .user
-        .map(|u| u.broadcast_badges.into_iter().flatten().map(BadgeInfo::from).collect())
+        .map(|u| SourceRoom {
+            name: u.display_name.unwrap_or_else(|| u.login.clone()),
+            login: u.login,
+            avatar: u.profile_image_url.filter(|s| !s.is_empty()),
+            badges: u.broadcast_badges.into_iter().flatten().map(BadgeInfo::from).collect(),
+        })
         .unwrap_or_default())
 }
 
@@ -303,6 +321,11 @@ struct RawSource {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawSourceUser {
+    #[serde(default)]
+    login: String,
+    display_name: Option<String>,
+    #[serde(rename = "profileImageURL")]
+    profile_image_url: Option<String>,
     #[serde(default)]
     broadcast_badges: Vec<Option<RawBadge>>,
 }

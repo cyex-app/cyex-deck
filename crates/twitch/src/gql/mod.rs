@@ -58,8 +58,8 @@ pub use identity::{
 pub use videos::{Storyboard, Video, VideoKind, VideoSort, channel_videos, storyboard, video};
 
 pub use chat::{
-    BadgeInfo, ChannelChat, CheerTier, Cheermote, GlobalChat, PinFragment, PinSender, PinnedMessage, channel_chat,
-    global_chat, pinned, source_badges,
+    BadgeInfo, ChannelChat, CheerTier, Cheermote, GlobalChat, PinFragment, PinSender, PinnedMessage, SourceRoom,
+    channel_chat, global_chat, pinned, source_badges,
 };
 pub use points::{
     AutoReward, CustomReward, EmoteChoice, EmoteChoices, EmoteModifier, Modification, Points, Redeemed, balance,

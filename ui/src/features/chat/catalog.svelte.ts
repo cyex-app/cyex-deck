@@ -51,17 +51,28 @@ class Catalogs {
 
   /** V108-C10 Shared Chat source rooms' badge sets by room id. */
   sources = new SvelteMap<string, Map<string, BadgeInfo>>();
+  /** V108-N12 Who a Shared Chat source room is, for the picture in front of its lines. */
+  rooms = new SvelteMap<string, { login: string; name: string; avatar: string | null }>();
 
   async loadSource(roomId: string): Promise<void> {
     const key = `room:${roomId}`;
     if (this.loading.has(key)) return;
     this.loading.add(key);
     try {
-      const list = await chatIpc.sourceBadges(roomId);
-      this.sources.set(roomId, new Map(list.map((b) => [`${b.set}/${b.version}`, b])));
+      const room = await chatIpc.sourceBadges(roomId);
+      this.sources.set(roomId, new Map(room.badges.map((b) => [`${b.set}/${b.version}`, b])));
+      if (room.login) this.rooms.set(roomId, { login: room.login, name: room.name, avatar: room.avatar ?? null });
     } catch {
       this.loading.delete(key);
     }
+  }
+
+  /** V108-N12 A source room's name and picture; the first ask reads it (once per room). */
+  room(roomId: string): { login: string; name: string; avatar: string | null } | undefined {
+    const known = this.rooms.get(roomId);
+    // Read after the current update: a derived may ask, and it must not write state itself.
+    if (!known) queueMicrotask(() => void this.loadSource(roomId));
+    return known;
   }
 
   /** The source room's picture first, then the global one. Nothing until the room has loaded. */

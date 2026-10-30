@@ -9,7 +9,7 @@ use std::time::Duration;
 use cyex_chat::build::Me;
 use cyex_chat::model::{ChatMessage, Fragment, Pinned, Provider, Sender};
 use cyex_chat::tokenize::{Input, NoEmotes, tokenize};
-use cyex_twitch::gql::{self, BadgeInfo, ChannelChat, Cheermote, PinFragment, PinnedMessage};
+use cyex_twitch::gql::{self, BadgeInfo, ChannelChat, Cheermote, PinFragment, PinnedMessage, SourceRoom};
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 use tokio::sync::OnceCell;
@@ -24,8 +24,8 @@ const PIN_POLL: Duration = Duration::from_secs(300);
 pub struct Catalogs {
     global: OnceCell<Arc<GlobalCatalog>>,
     channels: Mutex<HashMap<String, Arc<ChannelChat>>>,
-    /// V108-C10 Shared Chat source rooms' badges by room id, kept for the run.
-    sources: Mutex<HashMap<String, Arc<Vec<BadgeInfo>>>>,
+    /// V108-C10 Shared Chat source rooms (name, picture, badges) by room id, kept for the run.
+    sources: Mutex<HashMap<String, Arc<SourceRoom>>>,
 }
 
 /// V108-C10 Most source rooms kept; past it the list starts over.
@@ -109,10 +109,10 @@ pub async fn channel(app: &AppHandle, login: &str, fresh: bool) -> Result<Option
     Ok(Some(c))
 }
 
-/// V108-C10 The badges of a Shared Chat line's source room, read once per room id.
-pub async fn source(app: &AppHandle, room_id: &str) -> Result<Arc<Vec<BadgeInfo>>, String> {
+/// V108-C10 A Shared Chat line's source room, read once per room id.
+pub async fn source(app: &AppHandle, room_id: &str) -> Result<Arc<SourceRoom>, String> {
     let catalogs = app.state::<Catalogs>();
-    let held = |m: &Mutex<HashMap<String, Arc<Vec<BadgeInfo>>>>| {
+    let held = |m: &Mutex<HashMap<String, Arc<SourceRoom>>>| {
         m.lock().unwrap_or_else(|p| p.into_inner()).get(room_id).cloned()
     };
     if let Some(b) = held(&catalogs.sources) {

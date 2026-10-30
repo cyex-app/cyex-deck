@@ -84,9 +84,9 @@ pub async fn chat_channel_catalog(app: AppHandle, login: String) -> CmdResult<Op
         .map(|c| catalog::channel_view(&c)))
 }
 
-/// V108-C10 A Shared Chat source room's own badge pictures.
+/// V108-C10 V108-N12 A Shared Chat source room: name, picture and its own badge pictures.
 #[tauri::command]
-pub async fn chat_source_badges(app: AppHandle, room_id: String) -> CmdResult<Vec<gql::BadgeInfo>> {
+pub async fn chat_source_badges(app: AppHandle, room_id: String) -> CmdResult<gql::SourceRoom> {
     Ok(catalog::source(&app, &room_id).await?.as_ref().clone())
 }
 

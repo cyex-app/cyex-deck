@@ -1,7 +1,7 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
-import type { BadgeInfo } from './bindings/BadgeInfo';
+import type { SourceRoom } from './bindings/SourceRoom';
 import type { ChannelCatalog } from './bindings/ChannelCatalog';
 import type { Chatters } from './bindings/Chatters';
 import type { ChatMessage } from './bindings/ChatMessage';
@@ -51,7 +51,8 @@ export const chatIpc = {
   globalCatalog: () => invoke<GlobalCatalog>('chat_global_catalog'),
   channelCatalog: (login: string) => invoke<ChannelCatalog | null>('chat_channel_catalog', { login }),
   /** V108-C10 A Shared Chat source room's own badges, by room id. */
-  sourceBadges: (roomId: string) => invoke<BadgeInfo[]>('chat_source_badges', { roomId }),
+  /** V108-C10 V108-N12 A Shared Chat source channel: name, picture, its own badges. */
+  sourceBadges: (roomId: string) => invoke<SourceRoom>('chat_source_badges', { roomId }),
   points: (view: number, fresh = true) => invoke<Points | null>('chat_points', { view, fresh }),
   /** 1.48, V101-35 Everyone when `account` moderates there, else Twitch's sample. */
   viewers: (account: string | null, channel: string) => invoke<Chatters>('chat_viewers', { account, channel }),
