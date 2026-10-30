@@ -3,10 +3,6 @@ import type { RecordingMeta } from "./RecordingMeta";
 
 export type Recording = { meta: RecordingMeta, 
 /**
- * (ms since start, event).
- */
-events: Array<[number, unknown]>, 
-/**
  * Asset key → file name, served at `<cyexhls>/rec/<id>/<file>`.
  */
 assets: { [key in string]: string }, };

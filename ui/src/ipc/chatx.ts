@@ -38,7 +38,12 @@ export const chatxIpc = {
   record: (view: number, on: boolean) => invoke<boolean>('chat_record', { view, on }),
   recording: (view: number) => invoke<boolean>('chat_recording_state', { view }),
   recordings: () => invoke<RecordingMeta[]>('recordings_list'),
-  loadRecording: (id: string) => invoke<Recording>('recording_load', { id }),
+  /** X6 Meta and pictures; the events come over `onEvents` in parts, in order. */
+  loadRecording: (id: string, onEvents: (part: [number, unknown][]) => void) => {
+    const channel = new Channel<[number, unknown][]>();
+    channel.onmessage = onEvents;
+    return invoke<Recording>('recording_load', { id, onEvents: channel });
+  },
   deleteRecording: (id: string) => invoke<void>('recording_delete', { id }),
   onRecording: (cb: (e: { channel: string; recording: boolean }) => void) =>
     listen<{ channel: string; recording: boolean }>('chat:recording', (e) => cb(e.payload)),

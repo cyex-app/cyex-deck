@@ -96,9 +96,20 @@ pub fn recordings_list(app: AppHandle) -> Vec<RecordingMeta> {
     record::list(&app)
 }
 
+/// X6 The recording's meta and pictures; its events follow over `on_events` in parts, the
+/// last one shorter than the rest (or empty).
 #[tauri::command(async)]
-pub fn recording_load(app: AppHandle, id: String) -> CmdResult<Recording> {
-    record::load(&app, &id)
+pub fn recording_load(app: AppHandle, id: String, on_events: Channel<record::Part>) -> CmdResult<Recording> {
+    let (head, file) = record::open(&app, &id)?;
+    match file {
+        Some(file) => drop(tauri::async_runtime::spawn_blocking(move || {
+            record::stream(file, |part| on_events.send(part).is_ok())
+        })),
+        None => {
+            let _ = on_events.send(Vec::new());
+        }
+    }
+    Ok(head)
 }
 
 #[tauri::command(async)]

@@ -5,7 +5,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
-use std::io::{BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -17,6 +17,8 @@ use ts_rs::TS;
 
 use super::{RoomKey, now_ms};
 
+/// X6 Events sent to a replay at a time: it starts on the first part while the rest reads.
+const PART: usize = 2_000;
 /// Pictures bigger than this are skipped (moltorino's cap).
 const MAX_ASSET: usize = 8 * 1024 * 1024;
 const EVENT: &str = "chat:recording";
@@ -302,14 +304,16 @@ pub fn list(app: &AppHandle) -> Vec<RecordingMeta> {
 #[ts(export)]
 pub struct Recording {
     pub meta: RecordingMeta,
-    /// (ms since start, event).
-    #[ts(type = "Array<[number, unknown]>")]
-    pub events: Vec<(i64, Value)>,
     /// Asset key → file name, served at `<cyexhls>/rec/<id>/<file>`.
     pub assets: HashMap<String, String>,
 }
 
-pub fn load(app: &AppHandle, id: &str) -> Result<Recording, String> {
+/// One part of a recording's events: (ms since start, event).
+pub type Part = Vec<(i64, Value)>;
+
+/// A recording's meta and pictures, and its events file to `stream`. Nothing is left out:
+/// the file is read in parts instead of whole, so a long one neither waits nor doubles in memory.
+pub fn open(app: &AppHandle, id: &str) -> Result<(Recording, Option<File>), String> {
     if !valid_id(id) {
         return Err("No such recording.".into());
     }
@@ -317,19 +321,27 @@ pub fn load(app: &AppHandle, id: &str) -> Result<Recording, String> {
     let meta: RecordingMeta =
         serde_json::from_str(&fs::read_to_string(d.join("meta.json")).map_err(|_| "No such recording.")?)
             .map_err(|e| e.to_string())?;
-    let events = fs::read_to_string(d.join("events.jsonl"))
-        .unwrap_or_default()
-        .lines()
-        .filter_map(|l| {
-            let v: Value = serde_json::from_str(l).ok()?;
-            Some((v["t"].as_i64()?, v.get("e")?.clone()))
-        })
-        .collect();
     let assets = fs::read_to_string(d.join("assets.json"))
         .ok()
         .and_then(|t| serde_json::from_str(&t).ok())
         .unwrap_or_default();
-    Ok(Recording { meta, events, assets })
+    Ok((Recording { meta, assets }, File::open(d.join("events.jsonl")).ok()))
+}
+
+/// Reads the events in order, `PART` at a time, until `send` says the replay is gone.
+pub fn stream(file: File, mut send: impl FnMut(Part) -> bool) {
+    let mut part = Vec::with_capacity(PART);
+    for line in BufReader::new(file).lines() {
+        let Ok(line) = line else { break };
+        let Ok(v) = serde_json::from_str::<Value>(&line) else { continue };
+        let (Some(t), Some(e)) = (v["t"].as_i64(), v.get("e")) else { continue };
+        part.push((t, e.clone()));
+        if part.len() == PART && !send(std::mem::replace(&mut part, Vec::with_capacity(PART))) {
+            return;
+        }
+    }
+    // The last part, even an empty one: the replay knows it has everything.
+    send(part);
 }
 
 pub fn delete(app: &AppHandle, id: &str) -> Result<(), String> {
@@ -374,5 +386,36 @@ mod tests {
             "https://cdn.frankerfacez.com/emote/1/animated/2"
         );
         assert_eq!(sniff(b"GIF89a"), "gif");
+    }
+
+    #[test]
+    fn every_event_comes_in_order_in_parts_and_a_closed_replay_stops_the_read() {
+        let path = std::env::temp_dir().join(format!("cyex-rec-stream-{}.jsonl", std::process::id()));
+        let mut text = String::new();
+        for t in 0..4_500 {
+            text.push_str(&format!("{{\"t\":{t},\"e\":{{\"type\":\"wipe\"}}}}
+"));
+            if t == 10 {
+                text.push_str("not json
+");
+            }
+        }
+        fs::write(&path, text).unwrap();
+        let mut got: Vec<usize> = Vec::new();
+        let mut ts: Vec<i64> = Vec::new();
+        stream(File::open(&path).unwrap(), |p| {
+            got.push(p.len());
+            ts.extend(p.iter().map(|(t, _)| *t));
+            true
+        });
+        assert_eq!(got, vec![PART, PART, 500]);
+        assert_eq!(ts, (0..4_500).collect::<Vec<i64>>());
+        let mut parts = 0;
+        stream(File::open(&path).unwrap(), |_| {
+            parts += 1;
+            false
+        });
+        assert_eq!(parts, 1);
+        let _ = fs::remove_file(&path);
     }
 }

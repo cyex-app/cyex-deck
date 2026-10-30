@@ -37,13 +37,20 @@
   /** Events applied so far. */
   let next = 0;
 
-  const events = $derived((rec?.events ?? []) as [number, RoomEvent][]);
-  const length = $derived(rec ? Math.max(rec.meta.endedMs - rec.meta.startedMs, events.at(-1)?.[0] ?? 0) : 0);
+  /** Every event read so far; a long recording comes in parts and plays from the first. */
+  const events: [number, RoomEvent][] = [];
+  /** The last event's time, so the length grows as parts come. */
+  let lastAt = $state(0);
+  const length = $derived(rec ? Math.max(rec.meta.endedMs - rec.meta.startedMs, lastAt) : 0);
 
   // svelte-ignore state_referenced_locally
   const id = route.split('/')[1] ?? '';
   chatxIpc
-    .loadRecording(id)
+    .loadRecording(id, (part) => {
+      // Pushed one by one: a spread of a big part would overflow the call stack.
+      for (const e of part as [number, RoomEvent][]) events.push(e);
+      lastAt = events.at(-1)?.[0] ?? 0;
+    })
     .then((r) => {
       useSaved(id, r.assets);
       rec = r;
