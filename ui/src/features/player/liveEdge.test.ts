@@ -86,6 +86,12 @@ test('live config is today’s, without the dead catch-up rate', () => {
   assert.equal('maxLiveSyncPlaybackRate' in liveConfig(false), false);
 });
 
+test('V108-LL low latency streams the segment being made; off and rewind load whole ones', () => {
+  assert.equal(liveConfig(true).progressive, true);
+  assert.equal('progressive' in liveConfig(false), false);
+  assert.equal('progressive' in dvrConfig(0), false);
+});
+
 test('rewind config', () => {
   const c = dvrConfig(42);
   assert.equal(c.startPosition, 42);
