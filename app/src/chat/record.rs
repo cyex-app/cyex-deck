@@ -145,7 +145,10 @@ pub fn stop(app: &AppHandle, key: &RoomKey) -> Option<RecordingMeta> {
 
 fn write_meta(dir: &std::path::Path, meta: &RecordingMeta) -> Result<(), String> {
     let text = serde_json::to_string_pretty(meta).map_err(|e| e.to_string())?;
-    fs::write(dir.join("meta.json"), text).map_err(|e| e.to_string())
+    // Through a temp file: a crash halfway leaves the old meta, not a broken recording.
+    let tmp = dir.join("meta.json.tmp");
+    fs::write(&tmp, text).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, dir.join("meta.json")).map_err(|e| e.to_string())
 }
 
 /// New events in a room: written down when it's being recorded.
@@ -156,6 +159,7 @@ pub fn events(app: &AppHandle, key: &RoomKey, events: &[RoomEvent]) {
         let mut live = recorder.live.lock().unwrap_or_else(|p| p.into_inner());
         let Some(rec) = live.get_mut(key) else { return };
         let t = now_ms() - rec.meta.started_ms;
+        let before = rec.meta.messages;
         for e in events {
             let keep = matches!(
                 e,
@@ -178,7 +182,8 @@ pub fn events(app: &AppHandle, key: &RoomKey, events: &[RoomEvent]) {
             let line = json!({ "t": t, "e": e });
             let _ = writeln!(rec.out, "{line}");
         }
-        if rec.meta.messages % 50 == 0 {
+        // Every 50 messages; a batch of only edits or deletes on a round count writes nothing.
+        if rec.meta.messages / 50 != before / 50 {
             let _ = rec.out.flush();
             let _ = write_meta(&rec.dir, &rec.meta);
         }

@@ -90,17 +90,18 @@ pub fn chat_recording_state(app: AppHandle, view: u32) -> CmdResult<bool> {
     Ok(record::is_recording(&app, &view_key(&app, view)?))
 }
 
-#[tauri::command]
+// Off the UI thread: these read or delete whole recordings on disk.
+#[tauri::command(async)]
 pub fn recordings_list(app: AppHandle) -> Vec<RecordingMeta> {
     record::list(&app)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn recording_load(app: AppHandle, id: String) -> CmdResult<Recording> {
     record::load(&app, &id)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn recording_delete(app: AppHandle, id: String) -> CmdResult<()> {
     record::delete(&app, &id)
 }

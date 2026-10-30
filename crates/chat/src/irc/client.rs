@@ -152,6 +152,20 @@ enum End {
     Lost { now: bool },
 }
 
+/// A stable session's end, or Twitch's first RECONNECT, comes back at once. Short sessions
+/// in a row (a RECONNECT right after the welcome too) wait 1, 2, 4… s up to a minute, with up
+/// to a quarter more at random so every client doesn't come back in the same second.
+fn next_backoff(prev: Duration, now: bool, stable: bool) -> Duration {
+    if stable || (now && prev.is_zero()) {
+        return Duration::ZERO;
+    }
+    let base = (prev * 2).clamp(Duration::from_secs(1), MAX_BACKOFF);
+    let spread = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| u64::from(d.subsec_millis()));
+    base + base.mul_f64(spread as f64 / 4000.0)
+}
+
 async fn run(
     creds: Arc<dyn Credentials>,
     connect: Connect,
@@ -174,11 +188,7 @@ async fn run(
             }
             End::Lost { now } => {
                 let _ = events.send(Event::Status(LinkStatus::Reconnecting));
-                backoff = if now || started.elapsed() >= STABLE {
-                    Duration::ZERO
-                } else {
-                    (backoff * 2).clamp(Duration::from_secs(1), MAX_BACKOFF)
-                };
+                backoff = next_backoff(backoff, now, started.elapsed() >= STABLE);
                 Some(backoff)
             }
         };
@@ -459,6 +469,19 @@ mod tests {
     use tokio::sync::Mutex;
 
     use super::*;
+
+    #[test]
+    fn reconnects_back_off_unless_the_session_held() {
+        let s = Duration::from_secs;
+        assert_eq!(next_backoff(Duration::ZERO, true, false), Duration::ZERO);
+        assert_eq!(next_backoff(s(8), false, true), Duration::ZERO);
+        // A second RECONNECT right after the first waits.
+        let first = next_backoff(Duration::ZERO, false, false);
+        assert!(first >= s(1) && first <= Duration::from_millis(1250));
+        let again = next_backoff(first, true, false);
+        assert!(again >= first * 2 && again <= (first * 2).mul_f64(1.25));
+        assert!(next_backoff(s(600), false, false) <= MAX_BACKOFF.mul_f64(1.25));
+    }
 
     /// The fake server's side of each connection the client opens.
     type Servers = Arc<Mutex<mpsc::UnboundedReceiver<DuplexStream>>>;

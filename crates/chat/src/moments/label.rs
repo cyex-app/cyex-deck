@@ -1,8 +1,9 @@
 //! V108-N25 What a spike was about: the emote or word most messages in it repeated.
 
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::sync::Arc;
 
-use crate::model::Fragment;
+use crate::model::{ChatMessage, Fragment};
 
 /// How far back the spike's words are looked at, ms.
 pub const SPAN_MS: i64 = 15_000;
@@ -52,15 +53,39 @@ pub fn terms(body: &[Fragment]) -> Vec<String> {
     out
 }
 
-#[derive(Debug, Default)]
-pub struct Recent {
-    lines: VecDeque<(i64, Vec<String>)>,
+/// What a kept line's words are read from.
+pub trait Body {
+    fn body(&self) -> &[Fragment];
 }
 
-impl Recent {
-    pub fn record(&mut self, now_ms: i64, body: &[Fragment]) {
-        let t = terms(body);
-        self.lines.push_back((now_ms, t));
+impl Body for Arc<ChatMessage> {
+    fn body(&self) -> &[Fragment] {
+        &self.body
+    }
+}
+
+impl Body for Vec<Fragment> {
+    fn body(&self) -> &[Fragment] {
+        self
+    }
+}
+
+/// The last lines, kept as they are (a shared message costs nothing more): their words are
+/// read only when a spike asks for its label, not for every line.
+#[derive(Debug)]
+pub struct Recent<B = Arc<ChatMessage>> {
+    lines: VecDeque<(i64, B)>,
+}
+
+impl<B> Default for Recent<B> {
+    fn default() -> Self {
+        Self { lines: VecDeque::new() }
+    }
+}
+
+impl<B: Body> Recent<B> {
+    pub fn record(&mut self, now_ms: i64, line: B) {
+        self.lines.push_back((now_ms, line));
         self.prune(now_ms);
         while self.lines.len() > MAX_LINES {
             self.lines.pop_front();
@@ -76,11 +101,11 @@ impl Recent {
     /// The most repeated term in the last `SPAN_MS`, if enough messages share one. Ties go
     /// to the term seen first.
     pub fn top(&self, now_ms: i64) -> Option<String> {
-        let live: Vec<&Vec<String>> = self
+        let live: Vec<Vec<String>> = self
             .lines
             .iter()
             .filter(|(t, _)| *t >= now_ms - SPAN_MS)
-            .map(|(_, v)| v)
+            .map(|(_, l)| terms(l.body()))
             .collect();
         if live.is_empty() {
             return None;
@@ -122,45 +147,45 @@ mod tests {
 
     #[test]
     fn the_most_repeated_term_wins() {
-        let mut r = Recent::default();
+        let mut r = Recent::<Vec<Fragment>>::default();
         for i in 0..10 {
-            r.record(1_000 + i, &text("KEKW so funny"));
+            r.record(1_000 + i, text("KEKW so funny"));
         }
         for i in 0..3 {
-            r.record(2_000 + i, &text("pog"));
+            r.record(2_000 + i, text("pog"));
         }
         assert_eq!(r.top(3_000).as_deref(), Some("kekw"));
     }
 
     #[test]
     fn one_person_spamming_inside_a_message_counts_once() {
-        let mut r = Recent::default();
-        r.record(0, &text("wow wow wow wow wow"));
-        r.record(1, &text("wow"));
+        let mut r = Recent::<Vec<Fragment>>::default();
+        r.record(0, text("wow wow wow wow wow"));
+        r.record(1, text("wow"));
         assert_eq!(r.top(2), None);
     }
 
     #[test]
     fn nothing_when_no_term_is_shared_enough() {
-        let mut r = Recent::default();
+        let mut r = Recent::<Vec<Fragment>>::default();
         for (i, w) in ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot"]
             .iter()
             .enumerate()
         {
-            r.record(i as i64, &text(w));
+            r.record(i as i64, text(w));
         }
         assert_eq!(r.top(10), None);
-        assert_eq!(Recent::default().top(10), None);
+        assert_eq!(Recent::<Vec<Fragment>>::default().top(10), None);
     }
 
     #[test]
     fn old_lines_fall_out() {
-        let mut r = Recent::default();
+        let mut r = Recent::<Vec<Fragment>>::default();
         for i in 0..5 {
-            r.record(i, &text("old news"));
+            r.record(i, text("old news"));
         }
         for i in 0..4 {
-            r.record(SPAN_MS + 100 + i, &text("fresh take"));
+            r.record(SPAN_MS + 100 + i, text("fresh take"));
         }
         assert_eq!(r.top(SPAN_MS + 200).as_deref(), Some("fresh"));
     }

@@ -13,6 +13,7 @@ mod rate;
 mod spike;
 
 use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
 
 use serde::Serialize;
 use ts_rs::TS;
@@ -102,7 +103,7 @@ pub struct Moments {
 
 impl Moments {
     /// A live message arrived (`now_ms`: when). History and gap lines don't come here.
-    pub fn feed(&mut self, m: &ChatMessage, now_ms: i64) {
+    pub fn feed(&mut self, m: &Arc<ChatMessage>, now_ms: i64) {
         if m.has(Flag::History) {
             return;
         }
@@ -116,7 +117,7 @@ impl Moments {
             return;
         }
         self.buckets.record(now_ms);
-        self.words.record(now_ms, &m.body);
+        self.words.record(now_ms, m.clone());
         if events::has_clip_link(&m.body) {
             self.clip_links.push_back(now_ms);
             while self

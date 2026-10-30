@@ -628,10 +628,10 @@ impl Room {
         if !self.hooked(&mut m, emotes) {
             return None;
         }
-        // V108-N25 Hidden lines count too: the chat was that busy.
-        self.moments.feed(&m, now_ms);
         let (shown, outcome) = self.screen(&mut m, now_ms);
         let m = Arc::new(m);
+        // V108-N25 Hidden lines count too: the chat was that busy.
+        self.moments.feed(&m, now_ms);
         // V106-33 A pop-up alone counts too.
         if outcome.pings() || !outcome.routes.is_empty() {
             self.outcomes.push((m.clone(), outcome));

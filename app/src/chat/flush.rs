@@ -11,7 +11,7 @@ use cyex_chat::model::{ChatMessage, Flag, Gone, RoomEvent};
 use tauri::{AppHandle, Manager};
 use tokio::sync::Notify;
 
-use super::{Chat, Entry, RoomKey, now_ms, passes};
+use super::{Chat, Entry, RoomKey, View, now_ms, passes};
 
 const BATCH: Duration = Duration::from_millis(50);
 
@@ -41,6 +41,8 @@ fn flush(app: &AppHandle) -> Option<i64> {
     let delay = chat.delay_ms.load(Ordering::Relaxed);
     let now = now_ms();
     let mut next: Option<i64> = None;
+    // Sent after the lock is let go: turning a big batch into JSON shouldn't hold up the IRC pump.
+    let mut out: Vec<(View, Vec<RoomEvent>)> = Vec::new();
     let mut inner = chat.lock();
     // S8 One room per channel tells plugins what happened.
     let reporters: Vec<RoomKey> = if crate::plugins::events::wanted(app) {
@@ -71,7 +73,7 @@ fn flush(app: &AppHandle) -> Option<i64> {
         // A closed window drops its channel; close() removes the view soon after.
         for sink in &entry.views {
             if sink.filters.is_empty() {
-                let _ = sink.view.send(batch.clone());
+                out.push((sink.view.clone(), batch.clone()));
                 continue;
             }
             let ok = |m: &ChatMessage| passes(&sink.filters, m, login, live);
@@ -89,9 +91,13 @@ fn flush(app: &AppHandle) -> Option<i64> {
                 })
                 .collect();
             if !mine.is_empty() {
-                let _ = sink.view.send(mine);
+                out.push((sink.view.clone(), mine));
             }
         }
+    }
+    drop(inner);
+    for (view, batch) in out {
+        let _ = view.send(batch);
     }
     next
 }

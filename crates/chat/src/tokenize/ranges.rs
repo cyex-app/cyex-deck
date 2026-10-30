@@ -72,7 +72,8 @@ fn find_item_start(s: &str, from: usize) -> Option<usize> {
 fn span_of(span: &str) -> Option<(usize, usize)> {
     let (a, b) = span.split_once('-')?;
     let (a, b) = (a.parse::<usize>().ok()?, b.parse::<usize>().ok()?);
-    (a <= b).then_some((a, b + 1))
+    // No wrap on a huge end (history and logs lines come from other services).
+    (a <= b).then_some((a, b.checked_add(1)?))
 }
 
 /// Sorts by start and drops ranges that overlap an earlier one or run past `len`.
@@ -80,7 +81,7 @@ pub fn clean(mut ranges: Vec<Range<'_>>, len: usize) -> Vec<Range<'_>> {
     ranges.sort_by_key(|r| r.start);
     let mut end = 0;
     ranges.retain(|r| {
-        let ok = r.start >= end && r.end <= len;
+        let ok = r.start >= end && r.start < r.end && r.end <= len;
         if ok {
             end = r.end;
         }
@@ -101,6 +102,9 @@ mod tests {
         assert_eq!(r[2].kind, RangeKind::Emote { id: "emotesv2_ab" });
         assert!(emotes("").is_empty());
         assert!(emotes("25:4-0/x").is_empty());
+        // An end of usize::MAX would wrap to 0 and slice backwards.
+        assert!(emotes("25:5-18446744073709551615").is_empty());
+        assert_eq!(clean(emotes("25:3-3"), 10).len(), 1);
     }
 
     #[test]

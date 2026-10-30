@@ -43,7 +43,8 @@ fn stats_account(app: &AppHandle) -> Option<String> {
         .or_else(|| crate::auth::accounts(app).default_id)
 }
 
-#[tauri::command]
+// Off the UI thread, like `miner_stats`: it reads the stats folder.
+#[tauri::command(async)]
 pub fn miner_stats_channels(app: AppHandle) -> Vec<StatsChannel> {
     stats_account(&app).map_or_else(Vec::new, |a| stats::channels(&app, &a))
 }
