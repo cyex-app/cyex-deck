@@ -237,6 +237,13 @@ export const CHAT: Entry[] = [
     keywords: ['typos', 'spelling'],
   },
   {
+    id: 'chat.mentionComma',
+    page: 'chat',
+    label: 'Mention users with a comma',
+    description: 'Tab at the start of a message adds a comma: “@name, ”.',
+    keywords: ['tab', 'complete', 'mention', 'comma', 'at'],
+  },
+  {
     id: 'chat.translateTo',
     page: 'chat',
     label: 'Translate into',
@@ -392,6 +399,22 @@ export const CHAT: Entry[] = [
     label: 'Global mentions',
     description: 'Searches every chat logs.cyex.app keeps. Uses about 0,8 GB an hour while on. Your list stays on this PC.',
     keywords: ['firehose', 'logs', 'everywhere', 'all chats', 'mention'],
+  },
+  {
+    id: 'highlights.globalTab',
+    page: 'highlights',
+    label: 'Global mentions tab',
+    description: 'An @ button next to Whispers. Off: they go to the feed you name.',
+    keywords: ['global mentions', 'own tab', 'title bar', 'at'],
+    anchor: 'highlights.global',
+  },
+  {
+    id: 'highlights.globalFeed',
+    page: 'highlights',
+    label: 'Global mentions feed',
+    description: 'The feed tab global mentions go to while their own tab is off.',
+    keywords: ['global mentions', 'feed', 'custom feed'],
+    anchor: 'highlights.global',
   },
   {
     id: 'highlights.globalList',

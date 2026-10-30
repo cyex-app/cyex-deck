@@ -52,6 +52,19 @@ lookalikes: boolean,
  */
 global: boolean, globalList: Array<PhraseRule>, 
 /**
+ * V108-GM Matches go to their own Global mentions tab (title bar); off: to `global_feed`.
+ */
+globalTab: boolean, 
+/**
+ * V108-GM The feed global mentions go to while their tab is off; empty: rows' own feeds only.
+ */
+globalFeed: string, 
+/**
+ * V108-GM Your name is a row of the list, not looked for on the side. An older file (no
+ * key) gets the account's name as a row once.
+ */
+globalNamed: boolean, 
+/**
  * F2
  */
 ignores: Array<IgnoreRule>, blocked: Blocked, 

@@ -17,10 +17,13 @@ test('a sound file shows its name', () => {
 
 test('a global row that goes nowhere says so (V107-H16)', () => {
   const r = { enabled: true, pattern: 'deck', show: false, route: '' };
-  assert.equal(goesNowhere(r), 'Goes nowhere: pick a feed or keep Mentions on.');
-  assert.equal(goesNowhere({ ...r, route: ' ' }), 'Goes nowhere: pick a feed or keep Mentions on.');
+  assert.equal(goesNowhere(r), 'Goes nowhere: pick a feed or keep Global tab on.');
+  assert.equal(goesNowhere({ ...r, route: ' ' }), 'Goes nowhere: pick a feed or keep Global tab on.');
   assert.equal(goesNowhere({ ...r, show: true }), null);
   assert.equal(goesNowhere({ ...r, route: 'Deck' }), null);
   assert.equal(goesNowhere({ ...r, enabled: false }), null);
   assert.equal(goesNowhere({ ...r, pattern: '' }), null);
+  // V108-GM No tab and no feed for global mentions: the tab choice lands nowhere either.
+  assert.equal(goesNowhere({ ...r, show: true }, false), 'Goes nowhere: pick a feed for it or for all global mentions.');
+  assert.equal(goesNowhere({ ...r, show: true, route: 'Deck' }, false), null);
 });

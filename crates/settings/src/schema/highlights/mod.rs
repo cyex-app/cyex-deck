@@ -61,6 +61,14 @@ pub struct Highlights {
     /// V104-02 Global mentions from logs.cyex.app.
     pub global: bool,
     pub global_list: Vec<PhraseRule>,
+    /// V108-GM Matches go to their own Global mentions tab (title bar); off: to `global_feed`.
+    pub global_tab: bool,
+    /// V108-GM The feed global mentions go to while their tab is off; empty: rows' own feeds only.
+    pub global_feed: String,
+    /// V108-GM Your name is a row of the list, not looked for on the side. An older file (no
+    /// key) gets the account's name as a row once.
+    #[serde(default)]
+    pub global_named: bool,
     /// F2
     pub ignores: Vec<IgnoreRule>,
     pub blocked: Blocked,
@@ -100,6 +108,9 @@ impl Default for Highlights {
             lookalikes: false,
             global: false,
             global_list: Vec::new(),
+            global_tab: true,
+            global_feed: String::new(),
+            global_named: true,
             ignores: Vec::new(),
             blocked: Blocked::default(),
             hidden_users: Vec::new(),
@@ -133,6 +144,11 @@ impl Schema for Highlights {
         for r in self.phrases.iter_mut().chain(&mut self.global_list) {
             clip(&mut r.pattern, MAX_PATTERN_CHARS);
             r.alert.sanitize();
+        }
+        self.global_feed = self.global_feed.trim().chars().take(MAX_ROUTE_CHARS).collect();
+        // V108-GM Off: nothing to carry over; switching it on adds the name anyway.
+        if !self.global {
+            self.global_named = true;
         }
         // V107-H16 Rows from before keep the Mentions tab; after that it's the row's choice.
         if !self.global_routes {
@@ -290,6 +306,7 @@ impl Highlights {
             .alerts()
             .map(|a| &a.route)
             .chain(self.ignores.iter().map(|r| &r.route))
+            .chain((!self.global_tab).then_some(&self.global_feed))
             .filter(|r| !r.is_empty())
             .cloned()
             .collect();
@@ -298,31 +315,32 @@ impl Highlights {
         names
     }
 
-    /// V104-02 What the firehose looks for while the switch is on: V107-Mq your names (each
-    /// signed-in account's login, whole word) with the Your name row's alerts while that row
-    /// is on, then the global list. Empty: nothing to find, so no connection.
-    pub fn global_rules(&self, names: &[&str]) -> Vec<PhraseRule> {
+    /// V104-02 What the firehose looks for while the switch is on: the global list (V108-GM
+    /// your name is a row of it). Empty: nothing to find, so no connection.
+    pub fn global_rules(&self) -> Vec<PhraseRule> {
         if !self.global {
             return Vec::new();
         }
-        let mine = names.iter().filter(|_| self.me.enabled).map(|n| n.trim()).filter(|n| !n.is_empty());
-        let mut out: Vec<PhraseRule> = Vec::new();
-        for n in mine {
-            if !out.iter().any(|r| r.pattern.eq_ignore_ascii_case(n)) {
-                out.push(PhraseRule {
-                    pattern: n.to_owned(),
-                    alert: self.me.alert.clone(),
-                    ..PhraseRule::default()
-                });
-            }
+        self.global_list
+            .iter()
+            .filter(|m| m.enabled && !m.pattern.trim().is_empty())
+            .cloned()
+            .collect()
+    }
+
+    /// V108-GM Puts `login` on the global list as a row of its own (whole word, Your name's
+    /// alerts, to the global tab) unless a row already looks for it. True when it added one.
+    pub fn add_global_name(&mut self, login: &str) -> bool {
+        let login = login.trim();
+        if login.is_empty() || self.global_list.iter().any(|r| !r.regex && r.pattern.trim().eq_ignore_ascii_case(login)) {
+            return false;
         }
-        out.extend(
-            self.global_list
-                .iter()
-                .filter(|m| m.enabled && !m.pattern.trim().is_empty())
-                .cloned(),
-        );
-        out
+        let mut alert = self.me.alert.clone();
+        alert.show = true;
+        alert.route = String::new();
+        self.global_list.insert(0, PhraseRule { pattern: login.to_owned(), whole_word: true, alert, ..PhraseRule::default() });
+        self.global_list.truncate(MAX_GLOBAL);
+        true
     }
 }
 
@@ -576,42 +594,58 @@ mod tests {
     }
 
     #[test]
-    fn global_needs_a_pattern_or_your_name() {
+    fn global_needs_a_pattern() {
         let mut h = Highlights {
             global: true,
             ..Highlights::default()
         };
-        assert!(h.global_rules(&[]).is_empty());
+        assert!(h.global_rules().is_empty());
         h.global_list.push(PhraseRule {
             pattern: "  ".into(),
             ..PhraseRule::default()
         });
-        assert!(h.global_rules(&[]).is_empty());
+        assert!(h.global_rules().is_empty());
         assert!(h.prune_blank(), "blank global rows go too");
         h.global_list.push(PhraseRule {
             pattern: "cyex".into(),
             ..PhraseRule::default()
         });
-        assert_eq!(h.global_rules(&[]).len(), 1);
+        assert_eq!(h.global_rules().len(), 1);
         h.global = false;
-        assert!(h.global_rules(&["seryxx"]).is_empty());
+        assert!(h.global_rules().is_empty());
     }
 
-    // V107-Mq
+    // V108-GM
     #[test]
-    fn global_looks_for_your_names_first_with_your_name_alerts() {
+    fn your_name_becomes_a_row_once_with_your_name_alerts() {
         let mut h = Highlights {
             global: true,
             ..Highlights::default()
         };
         h.me.alert.color = "#ff0000".into();
-        let r = h.global_rules(&["seryxx", "", "SERYXX", "cyexbot"]);
-        let names: Vec<&str> = r.iter().map(|x| x.pattern.as_str()).collect();
-        assert_eq!(names, ["seryxx", "cyexbot"]);
-        assert!(r.iter().all(|x| x.enabled && x.whole_word && !x.regex && x.alert.show && x.alert.sound));
-        assert_eq!(r[0].alert.color, "#ff0000");
+        h.me.alert.route = "Me".into();
+        assert!(h.add_global_name(" seryxx "));
+        assert!(!h.add_global_name("SERYXX"), "already there");
+        assert!(!h.add_global_name(""));
+        let r = h.global_rules();
+        assert_eq!(r.len(), 1);
+        assert!(r[0].enabled && r[0].whole_word && !r[0].regex && r[0].alert.show && r[0].alert.sound);
+        assert_eq!((r[0].pattern.as_str(), r[0].alert.color.as_str(), r[0].alert.route.as_str()), ("seryxx", "#ff0000", ""));
+        // It's an ordinary row: Your name off doesn't stop it, removing it does.
         h.me.enabled = false;
-        assert!(h.global_rules(&["seryxx"]).is_empty(), "Your name off: not looked for");
+        assert_eq!(h.global_rules().len(), 1);
+        h.global_list.clear();
+        assert!(h.global_rules().is_empty());
+    }
+
+    #[test]
+    fn an_old_file_still_needs_the_name_row_and_keeps_the_tab() {
+        let h: Highlights = serde_json::from_value(serde_json::json!({"global": true})).unwrap();
+        assert!(!h.global_named && h.global_tab);
+        assert!(Highlights::default().global_named);
+        let mut h = Highlights { global_tab: false, global_feed: "  Pings ".into(), ..Highlights::default() };
+        h.sanitize();
+        assert_eq!(h.routes(), ["Pings"]);
     }
 
     // V107-H16 Old rows get the Mentions tab back once; then turning it off sticks.

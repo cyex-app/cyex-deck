@@ -19,7 +19,6 @@
   import type { RegexFlavor } from '../../../ipc/bindings/RegexFlavor';
   import type { UserRule } from '../../../ipc/bindings/UserRule';
   import { mentionsIpc } from '../../../ipc/mentions';
-  import { accounts } from '../../../lib/accounts.svelte';
   import { settings } from '../../../lib/settings.svelte';
   import { mentionsTab } from '../../chat/mentionsTab.svelte';
   import HighlightImport from '../chatterino/HighlightImport.svelte';
@@ -161,8 +160,19 @@
   const mutedFields: Field<Login>[] = [{ key: 'login', label: 'Channel', kind: 'text', placeholder: 'Channel name', main: true }];
   /** V107-H16 Global rows pick the Mentions tab and/or a feed, like word rows; a row
    * with neither says so. Your names are looked for too (V107-Mq). */
-  const globalProblem = (r: PhraseRule, i: number) => globals.problem(r, i) ?? goesNowhere(r);
-  const hasGlobal = $derived(h.globalList.some((x) => x.enabled && x.pattern.trim()) || (h.me.enabled && accounts.list.length > 0));
+  const globalProblem = (r: PhraseRule, i: number) => globals.problem(r, i) ?? goesNowhere(r, h.globalTab || !!h.globalFeed.trim());
+  const hasGlobal = $derived(h.globalList.some((x) => x.enabled && x.pattern.trim()));
+  /** V108-GM A global row's tab choice is the Global mentions tab (or the feed picked for them). */
+  const globalFields = (r: PhraseRule): Field<PhraseRule>[] =>
+    wordFields(r).map((f) =>
+      f.key === 'show'
+        ? {
+            ...f,
+            label: h.globalTab ? 'Global tab' : 'Global feed',
+            hint: h.globalTab ? 'Shows it in the Global mentions tab.' : 'Copies it into the feed picked for global mentions.',
+          }
+        : f,
+    );
 </script>
 
 <SectionHead title="Highlights" level={2} setting="highlights:import">
@@ -248,18 +258,33 @@
   emptyIcon="smartphone"
 />
 
-<SectionHead title="Global mentions">Find out when you’re mentioned in chats you aren’t in. Your names count while Your name is on. Each row goes to the Mentions tab, a feed, or both.</SectionHead>
+<SectionHead title="Global mentions">Find out when you’re mentioned in chats you aren’t in. Switching it on adds your name as a row; remove it to look for other words only. Rows go to the Global mentions tab, a feed, or both.</SectionHead>
 <Row setting="highlights.global" label="Global mentions" hint="Searches every chat logs.cyex.app keeps. Uses about 0,8 GB an hour while on. Your list stays on this PC.">
   <Toggle label="Global mentions" checked={h.global} onchange={(v) => save({ global: v })} />
 </Row>
 {#if h.global}
+  <Row setting="highlights.globalTab" label="Own tab" hint="An @ button next to Whispers. Off: they go to the feed you name.">
+    <Toggle label="Own tab" checked={h.globalTab} onchange={(v) => save({ globalTab: v })} />
+  </Row>
+  {#if !h.globalTab}
+    <Row setting="highlights.globalFeed" label="Feed" hint="The feed tab they go to. Add a feed tab with this name to see them.">
+      <input
+        class="field"
+        maxlength="40"
+        aria-label="Feed for global mentions"
+        placeholder="Feed name"
+        value={h.globalFeed}
+        onchange={(e) => save({ globalFeed: e.currentTarget.value })}
+      />
+    </Row>
+  {/if}
   <p class="status" class:live={status.state === 'connected'}>
     <span class="dot"></span>{statusText(status, hasGlobal)}
   </p>
   <RuleList
     setting="highlights.globalList"
     items={h.globalList}
-    fields={wordFields}
+    fields={globalFields}
     layout="split"
     mainMin="110px"
     fallback="var(--accent)"

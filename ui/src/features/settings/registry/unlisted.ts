@@ -23,6 +23,7 @@ export const UNLISTED: Record<string, string> = {
   'highlights.mentionsMerged': 'Set once when Mentions moved into Highlights.',
   'highlights.duplicatesAsked': 'Set once the merge’s duplicates were answered.',
   'highlights.globalRoutes': 'Set once old global rows got the Mentions tab back (V107-H16).',
+  'highlights.globalNamed': 'Set once your name became a row of the global list (V108-GM).',
   'commands.vars': 'Set with /set in chat.',
   'player.miniCorner': 'Where you drag the mini player.',
   'chat.presenceOnOnce': 'Set once when presence was turned on for everyone.',

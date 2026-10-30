@@ -25,6 +25,8 @@ use ts_rs::TS;
 use crate::settings::Settings;
 
 const EVENT: &str = "mentions:global";
+/// V108-GM The feed behind the Global mentions tab in the title bar.
+pub const TAB_FEED: &str = "Global mentions";
 /// More matches than this in a second are dropped: a pattern that broad would bury the
 /// Mentions tab.
 const MAX_PER_SECOND: u32 = 20;
@@ -58,6 +60,8 @@ pub struct Global {
 #[derive(Default)]
 struct Shared {
     set: Mutex<Arc<MentionSet>>,
+    /// V108-GM Where a row's "tab" choice goes: the Global mentions tab or the chosen feed.
+    dest: Mutex<Option<Arc<str>>>,
     generation: AtomicU64,
 }
 
@@ -67,6 +71,8 @@ struct Inner {
     /// Which reader may report its status: an old one still closing doesn't.
     run: u64,
     status: GlobalStatus,
+    /// V108-GM The switch at the last sync: turning it on adds your name as a row.
+    was_on: Option<bool>,
 }
 
 impl Global {
@@ -92,10 +98,11 @@ pub fn sync(app: &AppHandle) {
         return;
     };
     let h: Highlights = app.state::<Settings>().read(Partition::Highlights);
-    // V107-Mq Your names too, from every signed-in account.
-    let accounts = crate::auth::accounts(app);
-    let names: Vec<&str> = accounts.list.iter().map(|a| a.login.as_str()).collect();
-    let set = MentionSet::new(&h.global_rules(&names));
+    if name_row(app, &global, &h) {
+        return; // saved: the change syncs again
+    }
+    let set = MentionSet::new(&h.global_rules());
+    *global.shared.dest.lock().unwrap_or_else(|p| p.into_inner()) = destination(&h);
     // Patterns that don't compile find nothing, so they don't keep it connected either.
     let active = !set.is_empty();
     *global.shared.set.lock().unwrap_or_else(|p| p.into_inner()) = Arc::new(set);
@@ -121,6 +128,57 @@ pub fn sync(app: &AppHandle) {
         }
         _ => {}
     }
+}
+
+/// V108-GM Switched on (or an older file, once): the default account's name becomes a row
+/// of the list, which people can see and remove. True when that was saved.
+fn name_row(app: &AppHandle, global: &Global, h: &Highlights) -> bool {
+    let turned_on = {
+        let mut inner = global.lock();
+        let was = inner.was_on.replace(h.global);
+        h.global && was == Some(false)
+    };
+    if !h.global || (h.global_named && !turned_on) {
+        return false;
+    }
+    let accounts = crate::auth::accounts(app);
+    // Nobody signed in yet: the next account change tries again.
+    let Some(login) = accounts.default_account().map(|a| a.login.clone()) else { return false };
+    app.state::<Settings>()
+        .update::<Highlights>(app, Partition::Highlights, |h| {
+            let added = h.add_global_name(&login);
+            let named = !std::mem::replace(&mut h.global_named, true);
+            added || named
+        })
+        .is_ok()
+}
+
+/// V108-GM The tab when it's on, else the feed picked for them (none: rows' own feeds only).
+fn destination(h: &Highlights) -> Option<Arc<str>> {
+    if h.global_tab {
+        Some(TAB_FEED.into())
+    } else {
+        Some(h.global_feed.trim()).filter(|f| !f.is_empty()).map(Arc::from)
+    }
+}
+
+/// A row's "Mentions" choice becomes `dest`; feeds of its own stay.
+fn place(routes: Vec<String>, dest: Option<&str>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for r in routes {
+        let r = if r.trim().eq_ignore_ascii_case(mentions::FEED) {
+            match dest {
+                Some(d) => d.to_owned(),
+                None => continue,
+            }
+        } else {
+            r
+        };
+        if !out.iter().any(|x| x.trim().eq_ignore_ascii_case(r.trim())) {
+            out.push(r);
+        }
+    }
+    out
 }
 
 fn set_status(app: &AppHandle, run: u64, status: GlobalStatus) {
@@ -178,6 +236,7 @@ struct Reader {
     app: AppHandle,
     shared: Arc<Shared>,
     set: Arc<MentionSet>,
+    dest: Option<Arc<str>>,
     generation: u64,
     scratch: String,
     colors: Colors,
@@ -192,6 +251,7 @@ impl Reader {
             app,
             shared,
             set: Arc::default(),
+            dest: None,
             generation: u64::MAX,
             scratch: String::new(),
             colors: Colors::default(),
@@ -206,6 +266,7 @@ impl Reader {
         let generation = self.shared.generation.load(Ordering::Acquire);
         if generation != self.generation {
             self.set = self.shared.set.lock().unwrap_or_else(|p| p.into_inner()).clone();
+            self.dest = self.shared.dest.lock().unwrap_or_else(|p| p.into_inner()).clone();
             self.generation = generation;
         }
         let Some(peek) = mentions::peek(raw) else { return };
@@ -249,7 +310,8 @@ impl Reader {
             color: (!color.is_empty()).then_some(color),
         });
         let m = Arc::new(m);
-        // V107-H16 The Mentions tab when the row asks for it, plus any feed of its own.
+        // V107-H16 V108-GM The global tab (or its feed) when the row asks for it, plus any feed of its own.
+        out.routes = place(std::mem::take(&mut out.routes), self.dest.as_deref());
         super::feeds::route_global(&self.app, channel, &m, &out.routes);
         // C27 Silent chats stay silent here too; pings come at most every few seconds.
         let quiet = rules.muted(channel);
@@ -286,7 +348,7 @@ mod tests {
             global_list: rows.to_vec(),
             ..Highlights::default()
         };
-        let set = MentionSet::new(&h.global_rules(&[]));
+        let set = MentionSet::new(&h.global_rules());
         outcome(&set, text, &mut String::new()).map(|(_, o)| o.routes)
     }
 
@@ -311,5 +373,20 @@ mod tests {
     fn two_rows_on_one_line_add_up_once() {
         let rows = [row("cyex", true, "Deck"), row("deck", true, "deck")];
         assert_eq!(routes(&rows, "cyex deck").unwrap(), ["Mentions", "Deck"]);
+    }
+
+    // V108-GM The row's tab choice lands in the global tab or the picked feed; own feeds stay.
+    #[test]
+    fn the_tab_choice_goes_where_global_mentions_go() {
+        let r = |v: &[&str]| v.iter().map(|x| (*x).to_owned()).collect::<Vec<_>>();
+        assert_eq!(place(r(&["Mentions", "Deck"]), Some(TAB_FEED)), [TAB_FEED, "Deck"]);
+        assert_eq!(place(r(&["Mentions", "Pings"]), Some("pings")), ["pings"]);
+        assert_eq!(place(r(&["Mentions", "Deck"]), None), ["Deck"]);
+        let mut h = Highlights { global_tab: false, ..Highlights::default() };
+        assert_eq!(destination(&h), None);
+        h.global_feed = " Pings ".into();
+        assert_eq!(destination(&h).as_deref(), Some("Pings"));
+        h.global_tab = true;
+        assert_eq!(destination(&h).as_deref(), Some(TAB_FEED));
     }
 }

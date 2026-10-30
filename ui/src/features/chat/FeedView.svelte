@@ -20,7 +20,7 @@
   import { FEED_CHAN, feedEvents } from './feedLines';
   import { lineTips } from './lineEvents';
   import Line from './Line.svelte';
-  import { isMentionsFeed, whenText } from './mentionsTab';
+  import { GLOBAL_FEED, feedKey, isMentionsFeed, whenText } from './mentionsTab';
   import { roomRoute } from './roomRoute';
   import { tooltip } from '../../components/tooltip.svelte';
 
@@ -94,6 +94,7 @@
   });
 
   const mentions = $derived(isMentionsFeed(name));
+  const globalFeed = $derived(feedKey(name) === feedKey(GLOBAL_FEED));
   const stamped = $derived(settings.v.chat.timestamps.show);
 
   function openRoom(channel: string) {
@@ -155,6 +156,8 @@
           Couldn’t load this feed. <button class="retry" onclick={open}>Retry</button>
         {:else if mentions}
           Nothing yet. Your mentions, and highlights with “Mentions tab” on, land here.
+        {:else if globalFeed}
+          Nothing yet. When someone mentions you in a chat you aren’t in, it shows up here.
         {:else}
           Nothing yet. Highlight rules with “{name}” as their custom feed send messages here.
         {/if}

@@ -4,6 +4,11 @@
 import { formatDate, formatTime } from '../../lib/format.ts';
 
 export const MENTIONS_FEED = 'Mentions';
+/** V108-GM The feed behind the Global mentions tab (Rust's `global::TAB_FEED`). */
+export const GLOBAL_FEED = 'Global mentions';
+
+/** How Rust keys a feed: trimmed, lowercase. */
+export const feedKey = (name: string) => name.trim().toLowerCase();
 
 /** Rust keys feeds by their trimmed, lowercase name. */
 export function isMentionsFeed(name: string | null | undefined): boolean {

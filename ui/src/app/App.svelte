@@ -26,6 +26,9 @@
   import { modviewPlace, modviewRoute } from '../features/modview/where.svelte';
   import StreamManagerView from '../features/streammanager/StreamManagerView.svelte';
   import { whispers } from '../features/whispers/whispers.svelte';
+  import FeedView from '../features/chat/FeedView.svelte';
+  import { globalTab } from '../features/chat/globalTab.svelte';
+  import { GLOBAL_FEED } from '../features/chat/mentionsTab';
   import { isMentionsFeed, MENTIONS_FEED } from '../features/chat/mentionsTab';
   import { mentionsTab } from '../features/chat/mentionsTab.svelte';
   import { roomRoute } from '../features/chat/roomRoute';
@@ -81,7 +84,7 @@
   const cosmeticsView = lazy(() => import('../features/cosmetics/CosmeticsView.svelte'));
   const settingsView = lazy(() => import('../features/settings/SettingsView.svelte'));
 
-  type Fixed = 'home' | 'discover' | 'miner' | 'streamManager' | 'whispers' | 'subs' | 'cosmetics' | 'settings' | 'modview';
+  type Fixed = 'home' | 'discover' | 'miner' | 'streamManager' | 'whispers' | 'mentions' | 'subs' | 'cosmetics' | 'settings' | 'modview';
   /** Somewhere the main window can show. */
   type Place = { tab: string } | { view: Fixed };
 
@@ -168,6 +171,13 @@
   const canManage = $derived(accounts.any('streamManager'));
   /** 1.26 Whispers show once the default account can whisper. */
   const canWhisper = $derived(accounts.can('whispers'));
+  /** V108-GM Global mentions have their own view while that's how they're shown. */
+  const hasGlobalTab = $derived(settings.v.highlights.global && settings.v.highlights.globalTab);
+  globalTab.start();
+  $effect(() => globalTab.show(fixed === 'mentions'));
+  $effect(() => {
+    if (!hasGlobalTab && fixed === 'mentions') untrack(() => leaveView('mentions'));
+  });
 
   // Follow the active tab when an edit moves it, e.g. closing the shown tab.
   $effect(() => {
@@ -512,6 +522,18 @@
         {#if whispers.state.unread}<span class="count">{whispers.state.unread > 99 ? '99+' : whispers.state.unread}</span>{/if}
       </div>
     {/if}
+    {#if hasGlobalTab}
+      <div class="with-count">
+        <IconButton
+          icon="at"
+          label="Global mentions"
+          hint={globalTab.unread ? `${globalTab.unread} new` : 'Mentions of you in chats you aren’t in.'}
+          active={fixed === 'mentions'}
+          onclick={() => toggleView('mentions')}
+        />
+        {#if globalTab.unread}<span class="count">{globalTab.unread > 99 ? '99+' : globalTab.unread}</span>{/if}
+      </div>
+    {/if}
     <ConnectionCounter />
     <AccountMenu onmanage={manageAccounts} onsubs={() => show('subs')} oncosmetics={() => show('cosmetics')} active={fixed === 'cosmetics'} streamer={streamerDot} />
     <UpdateBadge />
@@ -571,6 +593,8 @@
             <StreamManagerView onpopout={popOutManager} onsignin={manageAccounts} />
           {:else if fixed === 'whispers' && canWhisper}
             <WhispersView onpopout={popOutWhispers} onsignin={manageAccounts} />
+          {:else if fixed === 'mentions' && hasGlobalTab}
+            <FeedView name={GLOBAL_FEED} />
           {:else if fixed === 'subs'}
             {#await subsView() then { default: SubsView }}
               <SubsView onchannel={(c) => void openChannel({ show: open, account: () => accounts.current?.userId ?? null }, c)} onsignin={manageAccounts} />
