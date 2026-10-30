@@ -13,6 +13,19 @@ export async function askResume(): Promise<void> {
   if (pending) resumeDialog.open = true;
 }
 
+/** Pop-outs that join or play: resolves once the main window's pick is answered, at once
+ * when nothing is asked; `onheld` runs first when it has to wait. Listens before it peeks,
+ * so an answer in between isn't missed. */
+export async function whenResumed(onheld: () => void): Promise<void> {
+  let done = () => {};
+  const resumed = new Promise<void>((r) => (done = r));
+  const off = await tabsIpc.onResumed(() => done());
+  if (await tabsIpc.resumePending().catch(() => false)) onheld();
+  else done();
+  await resumed;
+  off();
+}
+
 /** Of the tabs the dialog `shown`, keeps `keep`; the rest wait in "Reopen closed tab". */
 export async function resumeWith(shown: string[], keep: string[]): Promise<void> {
   const n = settings.begin('tabs');

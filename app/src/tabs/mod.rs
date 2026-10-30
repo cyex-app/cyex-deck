@@ -13,7 +13,7 @@ mod resume;
 mod rooms;
 
 pub use closed::any as reopenable;
-pub use resume::{clean_exit, resume, take_pending as resume_pending};
+pub use resume::{clean_exit, resume, session_end, take_pending as resume_pending};
 
 pub use live::snapshot as live;
 

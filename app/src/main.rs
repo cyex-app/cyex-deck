@@ -106,6 +106,9 @@ fn main() {
             feeds::init(handle);
             alerts::init(handle);
             windows::init(handle)?;
+            // V108-N21 Shut down or log off can end the app before RunEvent::Exit.
+            let ends = handle.clone();
+            sys::frame::on_session_end(move |ending| tabs::session_end(&ends, ending));
             // V1051-01 The streams' speaker choice is set when the main page loads (windows::on_page_load).
             tray::init(handle)?;
             hotkeys::init(handle);

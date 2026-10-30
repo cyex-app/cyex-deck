@@ -18,6 +18,8 @@ export const tabsIpc = {
   resumePending: () => invoke<boolean>('tabs_resume_pending'),
   /** V108-N21 Keeps the picked tabs, closes the rest into the reopen list. */
   resume: (shown: string[], keep: string[]) => invoke<TabsApplied>('tabs_resume', { shown, keep }),
+  /** V108-N21 The pick was answered and the rooms started. */
+  onResumed: (handler: () => void) => listen('tabs:resumed', () => handler()),
   reopenable: () => invoke<boolean>('tabs_reopenable'),
   onReopenable: (handler: (any: boolean) => void) => listen<boolean>('tabs:reopenable', (e) => handler(e.payload)),
   /** U9 Chats with news nobody has seen. */

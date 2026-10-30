@@ -9,9 +9,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 const MARKER: &str = "running";
+/// V108-N21 The pick was answered and the rooms started: pop-outs that waited mount now.
+const RESUMED: &str = "tabs:resumed";
 
 /// Set at start when the last run didn't end cleanly and there are tabs to pick from;
 /// cleared when the user answers.
@@ -35,6 +37,16 @@ fn end(local: &Path) {
     let _ = fs::remove_file(marker(local));
 }
 
+/// V108-N21 Windows asks to end the session (`ending`), or takes the question back after
+/// another app said no: the marker goes, or comes back since this run goes on.
+fn session(local: &Path, ending: bool) {
+    if ending {
+        end(local);
+    } else {
+        let _ = begin(local);
+    }
+}
+
 /// Tabs to close so only `keep` stay: the ones the dialog `shown` minus `keep`, that still
 /// exist in `all`, in list order. Tabs opened since the dialog went up are left alone.
 fn to_close(all: &[String], shown: &[String], keep: &[String]) -> Vec<String> {
@@ -51,6 +63,18 @@ pub fn init(app: &AppHandle) {
 pub fn clean_exit(app: &AppHandle) {
     if let Ok(local) = crate::paths::local(app) {
         end(&local);
+    }
+}
+
+/// V108-N21 Shut down, restart or log off: the app (often in the tray) may be ended before
+/// `RunEvent::Exit`, so the settings are written and the marker removed here, the way a quit
+/// does. Called again when the end is called off, to put the marker back.
+pub fn session_end(app: &AppHandle, ending: bool) {
+    if ending {
+        crate::settings::flush_now(app);
+    }
+    if let Ok(local) = crate::paths::local(app) {
+        session(&local, ending);
     }
 }
 
@@ -87,6 +111,9 @@ pub fn resume(app: &AppHandle, shown: &[String], keep: &[String]) -> Result<supe
     };
     if was {
         super::start(app);
+        // V108-N21 After the close's `settings:changed`, so a waiting pop-out of a closed tab
+        // already reads it gone and closes instead of playing.
+        let _ = app.emit(RESUMED, ());
     }
     out
 }
@@ -121,6 +148,21 @@ mod tests {
         assert!(begin(&d), "the marker was left behind");
         end(&d);
         assert!(!begin(&d));
+        end(&d);
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_session_end_is_a_clean_exit_unless_called_off() {
+        let d = tmp("session");
+        assert!(!begin(&d));
+        session(&d, true);
+        assert!(!marker(&d).exists(), "shut down");
+        session(&d, false);
+        assert!(marker(&d).exists(), "called off: still running");
+        session(&d, true);
+        session(&d, true);
+        assert!(!begin(&d), "asked twice, still clean");
         end(&d);
         let _ = fs::remove_dir_all(&d);
     }

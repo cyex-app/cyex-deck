@@ -52,16 +52,27 @@ fn unpack(data: usize) -> Centi {
     ((v >> 32) as u32, v as u32)
 }
 
+type SessionEnd = Box<dyn Fn(bool) + Send + Sync>;
+
+/// V108-N21 Runs when Windows ends the session (true) or calls the end off (false).
+static SESSION_END: std::sync::OnceLock<SessionEnd> = std::sync::OnceLock::new();
+
+/// V108-N21 Shut down, restart or log off may end the app without `RunEvent::Exit`; `f` runs
+/// on the main thread from any subclassed window, so it may run more than once. Set once.
+pub fn on_session_end(f: impl Fn(bool) + Send + Sync + 'static) {
+    let _ = SESSION_END.set(Box::new(f));
+}
+
 #[cfg(windows)]
 mod imp {
     use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
     use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
     use windows::Win32::UI::WindowsAndMessaging::{
         GWL_STYLE, GetClientRect, GetWindowLongW, GetWindowRect, IsIconic, IsZoomed, MINMAXINFO,
-        WM_GETMINMAXINFO, WM_NCCALCSIZE, WM_NCDESTROY, WS_CAPTION,
+        WM_ENDSESSION, WM_GETMINMAXINFO, WM_NCCALCSIZE, WM_NCDESTROY, WM_QUERYENDSESSION, WS_CAPTION,
     };
 
-    use super::{Centi, min_track, outer_min, pack, unpack};
+    use super::{Centi, SESSION_END, min_track, outer_min, pack, unpack};
 
     /// Width and height of the window and of its client area now (physical px). Equal (no
     /// frame) when minimized or when either can't be read.
@@ -96,7 +107,9 @@ mod imp {
     /// answers WM_NCCALCSIZE first while the window is maximized and has no caption, which
     /// tao takes away only for fullscreen: the client area is then the whole window, which
     /// tao sized to the monitor. V106-01 WM_GETMINMAXINFO gets the zoom minimum (`data`) on
-    /// top of tao's. Every other message goes on to tao as before.
+    /// top of tao's. V108-N21 WM_QUERYENDSESSION and WM_ENDSESSION tell the app Windows is
+    /// ending the session (`on_session_end`), after tao answered. Every other message goes on
+    /// to tao as before.
     unsafe extern "system" fn on_message(
         hwnd: HWND,
         msg: u32,
@@ -128,6 +141,15 @@ mod imp {
                     let info = &mut *(lparam.0 as *mut MINMAXINFO);
                     info.ptMinTrackSize.x = info.ptMinTrackSize.x.max(w);
                     info.ptMinTrackSize.y = info.ptMinTrackSize.y.max(h);
+                }
+                return result;
+            }
+            if msg == WM_QUERYENDSESSION || msg == WM_ENDSESSION {
+                let result = DefSubclassProc(hwnd, msg, wparam, lparam);
+                // Query: ending unless the answer was no. End: wparam says whether it ends.
+                let ending = if msg == WM_QUERYENDSESSION { result.0 != 0 } else { wparam.0 != 0 };
+                if let Some(f) = SESSION_END.get() {
+                    f(ending);
                 }
                 return result;
             }

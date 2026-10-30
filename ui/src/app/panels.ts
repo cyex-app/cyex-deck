@@ -35,23 +35,25 @@ export interface PanelKind {
    * match `is_popup` in `app/src/windows/usercard.rs`. `none`: the panel draws its own
    * (U7 overlays). Default: the large pop-out frame (V104-03). */
   frame?: 'slim' | 'none';
+  /** V108-N21 Joins chats or plays: after a crash it waits for the main window's pick. */
+  waits?: boolean;
   component: Component<{ popout?: boolean; route: string }>;
 }
 
 export const PANELS: Record<string, PanelKind> = {
-  tab: { title: 'Tab', width: 420, height: 680, docks: true, component: TabPanel },
-  chat: { title: 'Chat', width: 380, height: 680, docks: true, component: ChatPanel },
-  room: { title: 'Chat', width: 380, height: 640, frame: 'slim', component: RoomPanel },
+  tab: { title: 'Tab', width: 420, height: 680, docks: true, waits: true, component: TabPanel },
+  chat: { title: 'Chat', width: 380, height: 680, docks: true, waits: true, component: ChatPanel },
+  room: { title: 'Chat', width: 380, height: 640, frame: 'slim', waits: true, component: RoomPanel },
   usercard: { title: 'User', width: 380, height: 560, frame: 'slim', component: UsercardView },
   recording: { title: 'Recording', width: 400, height: 640, component: RecordingView },
-  modview: { title: 'Mod view', width: 920, height: 680, docks: true, component: ModViewPanel },
+  modview: { title: 'Mod view', width: 920, height: 680, docks: true, waits: true, component: ModViewPanel },
   // V107-R29 One mod view panel, `modpanel/<login>/<panel>`; closing it docks it back into the mod view.
-  modpanel: { title: 'Mod view', width: 400, height: 560, docks: true, dockHint: 'Puts it back into the mod view.', component: ModPanelWindow },
-  streammanager: { title: 'Stream manager', width: 1000, height: 760, docks: true, component: StreamManagerView },
+  modpanel: { title: 'Mod view', width: 400, height: 560, docks: true, dockHint: 'Puts it back into the mod view.', waits: true, component: ModPanelWindow },
+  streammanager: { title: 'Stream manager', width: 1000, height: 760, docks: true, waits: true, component: StreamManagerView },
   // V107-R40 One stream manager panel, `smpanel/<panel>`.
   smpanel: { title: 'Stream manager', width: 400, height: 600, component: SmPanelWindow },
   whispers: { title: 'Whispers', width: 720, height: 560, docks: true, component: WhispersView },
-  overlay: { title: 'Overlay', width: 340, height: 420, frame: 'none', component: OverlayView },
+  overlay: { title: 'Overlay', width: 340, height: 420, frame: 'none', waits: true, component: OverlayView },
   plugin: { title: 'Plugin console', width: 620, height: 420, component: ConsoleView },
 };
 
