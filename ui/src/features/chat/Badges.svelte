@@ -70,7 +70,8 @@
 
   /** What draws in a Twitch badge's place: FFZ's version, or Twitch's own. */
   function stand(ref: Ref): BadgeDef | undefined {
-    if (ref.room) return undefined;
+    // V108-C10 FFZ's bot art is the person's, so it also stands in for another room's mod badge.
+    if (ref.room) return isMod(ref.set) ? swaps.get('moderator') : undefined;
     if (isMod(ref.set)) return swaps.get('moderator') ?? room?.moderator ?? undefined;
     if (ref.set === 'vip') return room?.vip ?? undefined;
     return undefined;
