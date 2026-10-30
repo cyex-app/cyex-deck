@@ -21,6 +21,8 @@ import { streamer } from '../lib/streamer.svelte';
 
 export function useRootEffects(): void {
   $effect(() => {
+    // V108-P1 Rust paints from its saved copy, so this waits for each save to land.
+    void settings.saved('appearance');
     void applyAppearance(settings.v.appearance);
   });
 

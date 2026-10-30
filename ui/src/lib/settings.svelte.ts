@@ -5,6 +5,7 @@ import { settingsIpc, type DeepPartial, type SettingsValues } from '../ipc/setti
 import type { Partition } from '../ipc/bindings/Partition';
 import { InFlight, mergePatch, sameJson, type Settled } from './mergePatch';
 import { partitionList } from './partitions';
+import { reconcile } from './reconcile';
 import { errorText } from './errors';
 import { toast } from './toast.svelte';
 
@@ -12,6 +13,20 @@ class SettingsStore {
   v = $state({} as SettingsValues);
   /** Edits sent and not answered yet: until then the store shows them already. */
   private flight = new InFlight<Partition>();
+  /** V108-P1 Saves landed per partition. */
+  private revs = $state<Partial<Record<Partition, number>>>({});
+
+  /** V108-P1 Changes each time Rust's copy of `partition` lands here (an answer, another
+   * window's change), even when nothing in `v` changed: for code that reads Rust's copy. */
+  saved(partition: Partition): number {
+    return this.revs[partition] ?? 0;
+  }
+
+  /** V108-P1 Lands a saved value in place, so only what changed wakes its readers. */
+  private put(partition: Partition, value: unknown): void {
+    reconcile(this.v as Record<Partition, unknown>, partition, value);
+    this.revs[partition] = (this.revs[partition] ?? 0) + 1;
+  }
 
   async load(): Promise<void> {
     this.v = await settingsIpc.all();
@@ -22,7 +37,7 @@ class SettingsStore {
         this.flight.miss(partition, value);
         return;
       }
-      (this.v as Record<Partition, unknown>)[partition] = value;
+      this.put(partition, value);
     });
     const { reset, restored, restoredFrom } = await settingsIpc.takeLoadReport();
     if (reset.length) {
@@ -40,7 +55,9 @@ class SettingsStore {
    * newest edit then replaces it with what was really saved. */
   async patch<P extends Partition>(partition: P, patch: DeepPartial<SettingsValues[P]>): Promise<void> {
     const n = this.flight.start(partition);
-    this.v[partition] = mergePatch($state.snapshot(this.v[partition]) as SettingsValues[P], patch);
+    // Plain, so no proxy of the store lands back in it (a row moved within its own list).
+    const shown = mergePatch($state.snapshot(this.v[partition]) as SettingsValues[P], $state.snapshot(patch));
+    reconcile(this.v as Record<Partition, unknown>, partition, shown);
     let value: SettingsValues[P] | undefined;
     try {
       value = await settingsIpc.patch(partition, patch);
@@ -79,12 +96,12 @@ class SettingsStore {
     for (let tries = 0; ; tries++) {
       const stale = done.missed !== undefined && !sameJson(done.missed.value, value);
       if (value !== undefined && !stale) {
-        this.v[partition] = value;
+        this.put(partition, value);
         return;
       }
       if (value === undefined && !stale && !readIfNone) return;
       if (tries === 3) {
-        if (value !== undefined) this.v[partition] = value;
+        if (value !== undefined) this.put(partition, value);
         return;
       }
       const n = this.flight.start(partition);
@@ -119,7 +136,7 @@ class SettingsStore {
   }
 
   async reset<P extends Partition>(partition: P): Promise<void> {
-    this.v[partition] = await settingsIpc.reset(partition);
+    this.put(partition, await settingsIpc.reset(partition));
   }
 }
 

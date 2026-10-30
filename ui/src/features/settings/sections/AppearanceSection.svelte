@@ -40,7 +40,8 @@
   /** The theme as painted, for the editor and the accent note. */
   let look = $state<ThemeLook | null>(null);
   $effect(() => {
-    void settings.v.appearance;
+    // V108-P1 The look Rust paints from what it saved, after each save.
+    void settings.saved('appearance');
     void themeIpc.look().then((l) => (look = l));
   });
 
