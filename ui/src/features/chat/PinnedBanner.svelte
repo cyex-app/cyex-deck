@@ -128,6 +128,35 @@
     return Number.isNaN(end) ? null : pinLeft(end - nowSecond());
   });
 
+  /** V108 The bar runs as a Web Animation started a frame after it mounts, not a CSS one: a
+   * keyframe animation on a node inserted together with the banner could stay unpainted until
+   * something else (folding) repainted the banner. Reruns when the span changes. */
+  function run(node: HTMLElement, p: { from: number; ms: number; still: boolean }) {
+    let anim: Animation | undefined;
+    let raf = 0;
+    const start = (q: typeof p) => {
+      anim?.cancel();
+      cancelAnimationFrame(raf);
+      node.style.transform = `scaleX(${q.from})`;
+      if (q.still || typeof node.animate !== 'function') return;
+      raf = requestAnimationFrame(() => {
+        anim = node.animate([{ transform: `scaleX(${q.from})` }, { transform: 'scaleX(0)' }], {
+          duration: q.ms,
+          easing: 'linear',
+          fill: 'forwards',
+        });
+      });
+    };
+    start(p);
+    return {
+      update: start,
+      destroy() {
+        cancelAnimationFrame(raf);
+        anim?.cancel();
+      },
+    };
+  }
+
   /** V107-P4 Mods: Unpin, Delete; everyone: Hide for yourself (paid pins have no mod items).
    * s3-1 Unpin and Delete act for everyone, so they ask once more over their own item, with
    * the menu still open, for 3 s (V107-P5). */
@@ -307,8 +336,7 @@
       {#key pin.id}
         <div
           class="timer"
-          class:still
-          style="--from:{span.frac};--dur:{Math.round(span.left)}ms"
+          use:run={{ from: span.frac, ms: Math.round(span.left), still }}
           aria-hidden="true"
         ></div>
       {/key}
@@ -359,7 +387,7 @@
     font-size: var(--text-hint);
     font-variant-numeric: tabular-nums;
   }
-  /* V106-19 Shrinks to the pin's end on the compositor; no per-frame script. */
+  /* V106-19 Shrinks to the pin's end on the compositor; no per-frame script (run, above). */
   .timer {
     position: absolute;
     left: 0;
@@ -370,19 +398,7 @@
     background: var(--accent-text);
     opacity: 0.7;
     transform-origin: left center;
-    transform: scaleX(var(--from));
-    animation: pin-run var(--dur) linear forwards;
-  }
-  .timer.still {
-    animation: none;
-  }
-  @keyframes pin-run {
-    from {
-      transform: scaleX(var(--from));
-    }
-    to {
-      transform: scaleX(0);
-    }
+    will-change: transform;
   }
   .pin.paid {
     border-color: var(--twitch);
