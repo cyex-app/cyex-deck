@@ -23,10 +23,12 @@
     flush?: boolean;
     /** What screen readers call it, e.g. "Notifications". */
     label?: string;
+    /** P6 false: opened by the app, not by you; the focus stays where it is (Escape still closes). */
+    focus?: boolean;
     children: Snippet;
   }
 
-  let { open = $bindable(), align = 'end', side = 'below', role = 'dialog', flush = false, label, children }: Props = $props();
+  let { open = $bindable(), align = 'end', side = 'below', role = 'dialog', flush = false, label, focus = true, children }: Props = $props();
 
   let box = $state<HTMLElement>();
 
@@ -43,7 +45,7 @@
     // V8 Opened by mouse, a panel takes focus itself (no ring on its first tab); a text field
     // still gets it, and the keyboard goes to the first stop.
     const byKey = document.activeElement?.matches(':focus-visible') ?? false;
-    const release = focusScope(node, {
+    const release = !focus ? () => {} : focusScope(node, {
       initial: () => {
         // A menu with a checked choice opens on it, so the keyboard starts where you are.
         if (role === 'menu') return items().find((el) => el.getAttribute('aria-checked') === 'true') ?? items()[0];
