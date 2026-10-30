@@ -7,6 +7,7 @@
   import { firstField, focusScope } from '../../lib/focusScope';
   import { floating } from '../../lib/place';
   import EmoteMenu from '../emotes/EmoteMenu.svelte';
+  import { emoteMenu } from '../emotes/menus';
   import type { ChatRoom } from './room.svelte';
 
   interface Props {
@@ -19,6 +20,11 @@
   let { login, account, oninsert, room }: Props = $props();
 
   let open = $state(false);
+
+  /** The menu's data starts on the way to the button, so it's there when the click lands (cached a minute). */
+  function warm() {
+    if (!open) emoteMenu(login, account).catch(() => {});
+  }
   let wrap = $state<HTMLElement>();
   let pop = $state<HTMLElement>();
 
@@ -41,7 +47,7 @@
 </script>
 
 <div class="wrap" bind:this={wrap}>
-  <button class="smile" class:on={open} aria-label="Emotes" aria-haspopup="dialog" aria-expanded={open} use:tooltip={{ label: 'Emotes', hint: 'Twitch, 7TV, BTTV, FFZ and emoji. Right-click one to keep it in Favorites.' }} onclick={() => (open = !open)}>
+  <button class="smile" class:on={open} aria-label="Emotes" aria-haspopup="dialog" aria-expanded={open} use:tooltip={{ label: 'Emotes', hint: 'Twitch, 7TV, BTTV, FFZ and emoji. Right-click one to keep it in Favorites.' }} onpointerenter={warm} onfocus={warm} onclick={() => (open = !open)}>
     <Icon name="smile" size={17} />
   </button>
   {#if open}
