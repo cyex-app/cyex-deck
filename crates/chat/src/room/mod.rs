@@ -63,6 +63,8 @@ pub struct PendingSend {
     pub action: bool,
     pub reply: Option<Reply>,
     pub at_ms: i64,
+    /// The `client-nonce` it went out with; Twitch's USERSTATE names it back.
+    pub nonce: Option<String>,
 }
 
 /// C16 A mass gift waiting for its single gifts.
@@ -390,6 +392,22 @@ impl Room {
         self.pending.push_back(send);
     }
 
+    /// The send with `nonce` didn't go out: Twitch won't answer it.
+    pub fn unsend(&mut self, nonce: &str) {
+        self.pending.retain(|p| p.nonce.as_deref() != Some(nonce));
+    }
+
+    /// The send a USERSTATE answers: the one with its nonce, or without one the oldest.
+    fn answered(&mut self, nonce: Option<&str>) -> Option<PendingSend> {
+        match nonce {
+            Some(n) => {
+                let i = self.pending.iter().position(|p| p.nonce.as_deref() == Some(n))?;
+                self.pending.remove(i)
+            }
+            None => self.pending.pop_front(),
+        }
+    }
+
     fn expire(&mut self, now_ms: i64) {
         while self.pending.front().is_some_and(|p| now_ms - p.at_ms > PENDING_TTL_MS) {
             self.pending.pop_front();
@@ -465,7 +483,7 @@ impl Room {
                 }
                 if let Some(id) = us.sent_id.clone() {
                     self.expire(now_ms);
-                    if let Some(p) = self.pending.pop_front() {
+                    if let Some(p) = self.answered(us.nonce.as_deref()) {
                         // V105-06 The reader may have brought our line already.
                         if !self.buffer.iter().any(|b| b.id == id) {
                             let m = self.echo(p, &us, id, now_ms, emotes);

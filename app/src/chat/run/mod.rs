@@ -316,7 +316,7 @@ fn known(app: &AppHandle, place: &Place, name: &str, custom: bool) -> bool {
 /// Plain text (or `/me`) to Twitch, after plugins had their say (S5).
 async fn send(app: &AppHandle, place: &Place, text: &str, reply_to: Option<String>) -> Result<(), String> {
     let text = crate::plugins::calls::sending(app, place.channel(), text).await?;
-    super::send_to(app, &place.key, &text, reply_to)
+    super::send_to(app, &place.key, &text, reply_to).await
 }
 
 /// V1051-04 What a menu entry or user card button adds, in the order of `menu()`'s context

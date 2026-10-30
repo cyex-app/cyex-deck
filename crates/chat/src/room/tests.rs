@@ -105,6 +105,7 @@ fn send_answer_before_join_is_not_a_refusal() {
         action: false,
         reply: None,
         at_ms: 900,
+        nonce: None,
     });
     feed(&mut r, &notice("msg_duplicate"));
     assert_eq!(r.status, ConnStatus::Connecting);
@@ -201,12 +202,41 @@ fn own_messages_are_echoed_from_userstate() {
         action: false,
         reply: None,
         at_ms: 900,
+        nonce: None,
     });
     let ev = feed(&mut r, "@badges=moderator/1;color=#FF0000;display-name=Me;id=sent1;mod=1 :tmi.twitch.tv USERSTATE #chan");
     let RoomEvent::Message { message } = &ev[0] else { panic!("{ev:?}") };
     assert_eq!((message.id.as_str(), plain(&message.body).as_str()), ("sent1", "hi there"));
     assert!(message.has(Flag::Own));
     assert_eq!(message.sender.as_ref().unwrap().badges[0].set, "moderator");
+}
+
+/// A lost send leaves no stale entry: the next USERSTATE shows its own text, matched by
+/// nonce, also when the lost one is still pending.
+#[test]
+fn echo_is_matched_by_nonce_after_a_lost_send() {
+    let mut r = room();
+    let send = |text: &str, nonce: &str| PendingSend {
+        text: text.into(),
+        action: false,
+        reply: None,
+        at_ms: 900,
+        nonce: Some(nonce.into()),
+    };
+    r.sending(send("lost", "n1"));
+    r.sending(send("dropped", "n2"));
+    r.unsend("n2");
+    r.sending(send("second", "n3"));
+    let ev = lines(feed(&mut r, "@badges=;client-nonce=n3;id=s3;mod=0 :tmi.twitch.tv USERSTATE #chan"));
+    let [RoomEvent::Message { message }] = ev.as_slice() else { panic!("{ev:?}") };
+    assert_eq!(plain(&message.body), "second");
+    // An echo for a send no longer pending shows nothing.
+    let ev = feed(&mut r, "@badges=;client-nonce=n2;id=s2;mod=0 :tmi.twitch.tv USERSTATE #chan");
+    assert!(lines(ev).is_empty());
+    // Without a nonce, the oldest.
+    let ev = lines(feed(&mut r, "@badges=;id=s1;mod=0 :tmi.twitch.tv USERSTATE #chan"));
+    let [RoomEvent::Message { message }] = ev.as_slice() else { panic!("{ev:?}") };
+    assert_eq!(plain(&message.body), "lost");
 }
 
 /// V105-06 A room whose rules highlight first messages.
@@ -224,6 +254,7 @@ fn sent(r: &mut Room) {
         action: false,
         reply: None,
         at_ms: 900,
+        nonce: None,
     });
 }
 
@@ -306,6 +337,7 @@ fn a_refused_send_is_dropped_and_explained() {
         action: false,
         reply: None,
         at_ms: 900,
+        nonce: None,
     });
     let ev = feed(&mut r, "@msg-id=msg_duplicate :tmi.twitch.tv NOTICE #chan :Your message was not sent");
     assert_eq!(ev.len(), 1);
@@ -366,6 +398,7 @@ fn cooldowns_from_slow_mode_and_timeouts() {
         action: false,
         reply: None,
         at_ms: 1_000,
+        nonce: None,
     });
     feed(&mut r, "@id=s1 :tmi.twitch.tv USERSTATE #chan");
     assert_eq!(r.state.wait_until, Some(11_000));

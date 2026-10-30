@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, ReadHalf, WriteHalf};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tokio::time::{Instant, interval, sleep, timeout};
 
 use super::limiter::Window;
@@ -25,6 +25,8 @@ const LOGIN_TIMEOUT: Duration = Duration::from_secs(10);
 /// Send our own PING after this long without any line.
 const IDLE_PING: Duration = Duration::from_secs(60);
 const PONG_TIMEOUT: Duration = Duration::from_secs(10);
+/// A send with no line back this long checks the link with a PING.
+const SEND_ANSWER: Duration = Duration::from_secs(5);
 const MAX_BACKOFF: Duration = Duration::from_secs(60);
 /// A session that lasted this long resets the backoff.
 const STABLE: Duration = Duration::from_secs(60);
@@ -85,7 +87,8 @@ pub enum Event {
 enum Cmd {
     Join(String),
     Part(String),
-    Send(String),
+    /// The line and whether it went out.
+    Send(String, oneshot::Sender<bool>),
     Reconnect,
     Stop,
 }
@@ -115,9 +118,13 @@ impl Client {
         let _ = self.tx.send(Cmd::Part(channel.to_ascii_lowercase()));
     }
 
-    /// A raw line, e.g. from [`write::privmsg`]. Dropped while disconnected.
-    pub fn send(&self, line: String) {
-        let _ = self.tx.send(Cmd::Send(line));
+    /// A raw line, e.g. from [`write::privmsg`]. Queued at once, in order; the future says
+    /// whether it was written. Between sessions, while logging in or on a write error it's
+    /// dropped and the answer is false.
+    pub fn send(&self, line: String) -> impl Future<Output = bool> + Send + use<> {
+        let (ack, done) = oneshot::channel();
+        let _ = self.tx.send(Cmd::Send(line, ack));
+        async move { done.await.unwrap_or(false) }
     }
 
     /// Reconnects now, e.g. with a new token after an auth failure.
@@ -216,7 +223,7 @@ async fn idle(rx: &mut mpsc::UnboundedReceiver<Cmd>, channels: &mut BTreeSet<Str
                 Some(Cmd::Join(c)) => { channels.insert(c); }
                 Some(Cmd::Part(c)) => { channels.remove(&c); }
                 Some(Cmd::Reconnect) => return true,
-                Some(Cmd::Send(_)) => {}
+                Some(Cmd::Send(_, ack)) => { let _ = ack.send(false); }
             },
         }
     }
@@ -274,7 +281,7 @@ async fn session(
                 Some(Cmd::Join(c)) => { channels.insert(c); }
                 Some(Cmd::Part(c)) => { channels.remove(&c); }
                 Some(Cmd::Reconnect) => return End::Lost { now: true },
-                Some(Cmd::Send(_)) => {}
+                Some(Cmd::Send(_, ack)) => { let _ = ack.send(false); }
             },
         }
     }
@@ -324,7 +331,17 @@ async fn session(
                         queue.retain(|q| *q != c);
                         if channels.remove(&c) { out.line(&write::part(&c)).await } else { Ok(()) }
                     }
-                    Some(Cmd::Send(line)) => out.line(&line).await,
+                    Some(Cmd::Send(line, ack)) => {
+                        let sent = out.line(&line).await;
+                        let _ = ack.send(sent.is_ok());
+                        // Twitch answers every send at once. Silence means a half-dead link:
+                        // the idle PING goes out `SEND_ANSWER` after the send, not a minute.
+                        let probe = Instant::now().checked_sub(IDLE_PING - SEND_ANSWER);
+                        if let Some(p) = probe.filter(|p| *p < last_rx) {
+                            last_rx = p;
+                        }
+                        sent
+                    }
                 };
                 if sent.is_err() {
                     return lost;
@@ -569,7 +586,7 @@ mod tests {
         s.say(":a!a@a PRIVMSG #foo :hi").await;
         assert_eq!(next_line(&mut events).await, ":a!a@a PRIVMSG #foo :hi");
 
-        client.send("PRIVMSG #foo :yo".into());
+        assert!(client.send("PRIVMSG #foo :yo".into()).await);
         assert_eq!(s.read().await, "PRIVMSG #foo :yo");
         client.part("foo");
         assert_eq!(s.read().await, "PART #foo");
@@ -648,6 +665,39 @@ mod tests {
             }
         }
         let _again = Server::accept(&servers).await;
+    }
+
+    /// A send while logging in or between sessions says it didn't go out.
+    #[tokio::test]
+    async fn a_send_while_not_connected_fails() {
+        let (client, mut events, servers) = start(Arc::new(Token));
+        let mut s = Server::accept(&servers).await;
+        for _ in 0..3 {
+            s.read().await;
+        }
+        assert!(!client.send("PRIVMSG #foo :early".into()).await);
+        s.say(":tmi.twitch.tv NOTICE * :Login authentication failed").await;
+        while events.recv().await != Some(Event::Status(LinkStatus::AuthFailed)) {}
+        assert!(!client.send("PRIVMSG #foo :between".into()).await);
+        client.stop();
+        assert!(!client.send("PRIVMSG #foo :stopped".into()).await);
+    }
+
+    /// A send nobody answers checks the link soon, not after the idle minute.
+    #[tokio::test(start_paused = true)]
+    async fn an_unanswered_send_pings_soon() {
+        let (client, mut events, servers) = start(Arc::new(Anonymous));
+        let mut s = Server::accept(&servers).await;
+        s.read().await;
+        s.read().await;
+        s.say(":tmi.twitch.tv 001 x :hi").await;
+        // Logged in first: a send before the welcome is refused.
+        while events.recv().await != Some(Event::Status(LinkStatus::Connected)) {}
+        let t0 = Instant::now();
+        assert!(client.send("PRIVMSG #foo :yo".into()).await);
+        assert_eq!(s.read().await, "PRIVMSG #foo :yo");
+        assert_eq!(s.read().await, "PING :tmi.twitch.tv");
+        assert!(t0.elapsed() <= SEND_ANSWER + Duration::from_secs(5));
     }
 
     /// V107-A7 A line that isn't UTF-8 shows with U+FFFD and the link stays up.

@@ -2,6 +2,8 @@
 //! instead of as a Twitch notice. Sends go out on the account's writer connection (V105-06).
 //! C21 dodges Twitch's 30 s duplicate check.
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use cyex_chat::PendingSend;
 use cyex_chat::irc::{Window, write};
 use cyex_chat::model::ConnStatus;
@@ -15,11 +17,36 @@ const DUPLICATE_MS: i64 = 30_000;
 /// V106-08 O4 A channel whose lines showed up this recently is still in the shared chat.
 const SHARED_SEEN_MS: i64 = 10 * 60 * 1000;
 
+/// A send the writer dropped (between sessions, logging in, a write error).
+const NOT_SENT: &str = "Couldn’t send. Try again.";
+
 /// Sends in a room, shown or not (timers and automations send to rooms no view shows).
-pub fn send_to(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<String>) -> Result<(), String> {
+/// Done once the line is written, or an error when it couldn't be.
+pub async fn send_to(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<String>) -> Result<(), String> {
+    let Some((sent, nonce)) = queue(app, key, text, reply_to)? else {
+        return Ok(());
+    };
+    if sent.await {
+        return Ok(());
+    }
+    // Twitch won't answer it: its echo can't take the next send's place.
+    let chat = app.state::<Chat>();
+    if let Some(entry) = chat.lock().rooms.get_mut(key) {
+        entry.room.unsend(&nonce);
+    }
+    Err(NOT_SENT.into())
+}
+
+/// Checks and queues the line; `None` when there was nothing to send.
+fn queue(
+    app: &AppHandle,
+    key: &RoomKey,
+    text: &str,
+    reply_to: Option<String>,
+) -> Result<Option<(impl Future<Output = bool> + use<>, String)>, String> {
     let text = text.trim();
     if text.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
     // V107-N1c A bare "/me" isn’t an unknown command; it just has no text.
     if text.eq_ignore_ascii_case("/me") || text.eq_ignore_ascii_case(".me") {
@@ -85,11 +112,13 @@ pub fn send_to(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<Stri
         out = dodge_duplicate(&out);
     }
     entry.last_sent = Some((out.clone(), now));
+    let nonce = nonce(now);
     entry.room.sending(PendingSend {
         text: body.to_owned(),
         action,
         reply,
         at_ms: now,
+        nonce: Some(nonce.clone()),
     });
     if let Identity::Account(account) = &key.0 {
         // V106-08 O4 In a shared chat, 7TV hears about every channel of it.
@@ -98,16 +127,24 @@ pub fn send_to(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<Stri
     }
     // F20 ".gg" as text, not as Twitch's command.
     let out = if action { out } else { typed::escape(out) };
-    client.send(write::privmsg(
+    let sent = client.send(write::privmsg(
         &key.1,
         &write::Outgoing {
             text: out,
             reply_to,
-            nonce: None,
+            nonce: Some(nonce.clone()),
             action,
         },
     ));
-    Ok(())
+    Ok(Some((sent, nonce)))
+}
+
+/// A `client-nonce` unique to this send, so its USERSTATE finds it. 32 characters, not all
+/// hex: C26 reads it as no known app, like Chatterino's lines.
+fn nonce(now_ms: i64) -> String {
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+    format!("cyex{:016x}{:012x}", now_ms as u64, seq & 0xffff_ffff_ffff)
 }
 
 /// V107-N1a Twitch counts the ACTION wrapper (9 chars) of a /me line toward the 500; a longer one
@@ -127,12 +164,21 @@ fn dodge_duplicate(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{dodge_duplicate, max_chars, typed};
+    use super::{dodge_duplicate, max_chars, nonce, typed};
+    use cyex_chat::model::Client;
 
     #[test]
     fn an_action_leaves_room_for_its_wrapper() {
         assert_eq!(max_chars(false), 500);
         assert_eq!(max_chars(true), 491);
+    }
+
+    #[test]
+    fn nonces_differ_and_name_no_app() {
+        let (a, b) = (nonce(1_792_694_804_267), nonce(1_792_694_804_267));
+        assert_ne!(a, b);
+        assert_eq!(a.len(), 32);
+        assert_eq!(Client::from_nonce(&a), None);
     }
 
     #[test]

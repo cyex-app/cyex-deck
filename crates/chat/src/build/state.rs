@@ -63,6 +63,8 @@ pub struct UserState {
     pub moderator: bool,
     /// Id of the message we just sent, when this follows a send.
     pub sent_id: Option<String>,
+    /// The `client-nonce` of that send, echoed back by Twitch.
+    pub nonce: Option<String>,
 }
 
 impl UserState {
@@ -73,6 +75,7 @@ impl UserState {
             display: line.tag("display-name").map(|d| d.into_owned()).filter(|d| !d.is_empty()),
             moderator: line.tag_flag("mod"),
             sent_id: line.tag_nonempty("id").map(str::to_owned),
+            nonce: line.tag_nonempty("client-nonce").map(str::to_owned),
         }
     }
 
@@ -113,6 +116,7 @@ mod tests {
             &Line::parse("@badges=vip/1;color=#FF0000;display-name=Me;id=abc;mod=0 :tmi.twitch.tv USERSTATE #c").unwrap(),
         );
         assert_eq!(u.sent_id.as_deref(), Some("abc"));
+        assert_eq!(u.nonce, None);
         let me = u.to_self("me", false);
         assert!(me.vip && me.role.is_none() && me.fast_lane() && !me.privileged());
         // V102-21 Lead mods, `mod=1` alone, and the channel's own account.
