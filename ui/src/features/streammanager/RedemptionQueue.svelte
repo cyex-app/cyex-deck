@@ -217,7 +217,12 @@
     font-size: 0.85rem;
   }
   .who {
-    flex: none;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 60%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     padding: 0;
     border: 0;
     background: none;
