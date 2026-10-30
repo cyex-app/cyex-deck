@@ -4,6 +4,7 @@
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::Ordering;
 
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -12,6 +13,7 @@ use tauri::{AppHandle, Manager};
 use ts_rs::TS;
 
 use cyex_core::version;
+use cyex_twitch::github::CANCELLED;
 
 use super::Updater;
 use crate::busy::Busy;
@@ -55,12 +57,13 @@ pub async fn run(app: AppHandle, on: Channel<UpdateProgress>) -> Result<(), Stri
         return Err(DOWNLOAD_FAILED.into());
     }
     let http = app.state::<Auth>().http.clone();
+    updater.stop.store(false, Ordering::Relaxed);
     let dir = temp_dir();
     fs::create_dir_all(&dir).map_err(|_| DOWNLOAD_FAILED)?;
     let path = dir.join(&installer.name);
     let mut last = u8::MAX;
     let got = http
-        .download(&installer.url, &path, installer.size, |done, total| {
+        .download(&installer.url, &path, installer.size, &updater.stop, |done, total| {
             let percent = (done * 100).checked_div(total).unwrap_or(0).min(100) as u8;
             if percent != last {
                 last = percent;
@@ -68,8 +71,12 @@ pub async fn run(app: AppHandle, on: Channel<UpdateProgress>) -> Result<(), Stri
             }
         })
         .await;
-    if got.is_err() {
+    if let Err(e) = got {
         let _ = fs::remove_file(&path);
+        // Stopped on purpose: back to the offer, no error.
+        if matches!(&e, cyex_twitch::Error::Api { message, .. } if message == CANCELLED) {
+            return Ok(());
+        }
         return Err(DOWNLOAD_FAILED.into());
     }
     let _ = on.send(UpdateProgress::Verifying);

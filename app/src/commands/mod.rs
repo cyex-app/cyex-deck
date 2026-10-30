@@ -56,6 +56,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         update::update_skip,
         update::update_later,
         update::update_install,
+        update::update_stop,
         update::update_open_notes,
         upload::upload_stage,
         upload::upload_preview,

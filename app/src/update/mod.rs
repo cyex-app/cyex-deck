@@ -39,6 +39,8 @@ pub struct Updater {
     state: Mutex<State>,
     /// An update is downloading.
     busy: AtomicBool,
+    /// "Stop" was pressed during the download.
+    stop: AtomicBool,
     /// "Later": no timed checks until the app starts again.
     later: AtomicBool,
 }
@@ -47,6 +49,11 @@ impl Updater {
     fn lock(&self) -> std::sync::MutexGuard<'_, State> {
         self.state.lock().unwrap_or_else(|e| e.into_inner())
     }
+}
+
+/// "Stop": the download ends and its file goes.
+pub fn stop(app: &AppHandle) {
+    app.state::<Updater>().stop.store(true, Ordering::Relaxed);
 }
 
 #[derive(Clone, Serialize, TS)]

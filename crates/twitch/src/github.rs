@@ -3,6 +3,7 @@
 
 use std::io::Write;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use cyex_core::version::{self, Version};
@@ -10,6 +11,15 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::{Error, Http, Result};
+
+/// How long a whole download may take.
+const DOWNLOAD_LIMIT: Duration = Duration::from_secs(30 * 60);
+/// How long no data may arrive before a download gives up.
+const DOWNLOAD_IDLE: Duration = Duration::from_secs(30);
+/// How often a waiting read looks at the stop flag.
+const DOWNLOAD_TICK: Duration = Duration::from_millis(200);
+/// The message of a download that was stopped.
+pub const CANCELLED: &str = "cancelled";
 
 pub const RELEASES: &str = "https://api.github.com/repos/cyex-app/cyex-deck/releases?per_page=20";
 
@@ -165,22 +175,37 @@ impl Http {
     }
 
     /// Streams `url` into `dest`, reporting `(done, total)`. Fails when more than `expected`
-    /// bytes arrive or the stream ends short of it; the caller deletes the file then.
+    /// bytes arrive, the stream ends short of it, nothing arrives for 30 s or `cancel` is set
+    /// (checked every 200 ms, data or not); the caller deletes the file then.
     pub async fn download(
         &self,
         url: &str,
         dest: &Path,
         expected: u64,
+        cancel: &AtomicBool,
+        on_progress: impl FnMut(u64, u64),
+    ) -> Result<()> {
+        self.release_download(url, dest, expected, cancel, on_progress, DOWNLOAD_IDLE).await
+    }
+
+    async fn release_download(
+        &self,
+        url: &str,
+        dest: &Path,
+        expected: u64,
+        cancel: &AtomicBool,
         mut on_progress: impl FnMut(u64, u64),
+        idle: Duration,
     ) -> Result<()> {
         let fail = |m: &str| Error::Api {
             status: 0,
             message: m.into(),
         };
+        // A slow line may take long; a stalled one is caught by `idle` instead.
         let mut res = self
             .0
             .get(url)
-            .timeout(Duration::from_secs(600))
+            .timeout(DOWNLOAD_LIMIT)
             .send()
             .await
             .map_err(|e| Error::Network(e.without_url()))?;
@@ -192,7 +217,21 @@ impl Http {
         }
         let mut file = std::fs::File::create(dest).map_err(|_| fail("file"))?;
         let mut done = 0u64;
-        while let Some(chunk) = res.chunk().await.map_err(|e| Error::Network(e.without_url()))? {
+        loop {
+            let next = tokio::time::timeout(idle, res.chunk());
+            tokio::pin!(next);
+            let read = loop {
+                if cancel.load(Ordering::Relaxed) {
+                    return Err(fail(CANCELLED));
+                }
+                tokio::select! {
+                    r = &mut next => break r,
+                    () = tokio::time::sleep(DOWNLOAD_TICK) => {}
+                }
+            };
+            let Some(chunk) = read.map_err(|_| fail("stalled"))?.map_err(|e| Error::Network(e.without_url()))? else {
+                break;
+            };
             done += chunk.len() as u64;
             if done > expected {
                 return Err(fail("too big"));
@@ -382,7 +421,7 @@ mod tests {
         let mut last = (0, 0);
         Http::new()
             .unwrap()
-            .download(&url, &dest, data.len() as u64, |d, t| last = (d, t))
+            .download(&url, &dest, data.len() as u64, &AtomicBool::new(false), |d, t| last = (d, t))
             .await
             .unwrap();
         assert_eq!(std::fs::read(&dest).unwrap(), data);
@@ -402,8 +441,57 @@ mod tests {
             let _ = s.write_all(&[7u8; 2000]);
         });
         let dest = std::env::temp_dir().join(format!("cyex-gh-test-cut-{}.bin", std::process::id()));
-        let res = Http::new().unwrap().download(&url, &dest, 4000, |_, _| {}).await;
+        let res = Http::new().unwrap().download(&url, &dest, 4000, &AtomicBool::new(false), |_, _| {}).await;
         assert!(res.is_err());
+        let _ = std::fs::remove_file(&dest);
+    }
+
+    /// Sends half the promised bytes, then stays quiet with the connection open.
+    fn serve_stalling() -> String {
+        let l = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/r", l.local_addr().unwrap());
+        std::thread::spawn(move || {
+            let (mut s, _) = l.accept().unwrap();
+            let mut buf = [0u8; 2048];
+            let _ = s.read(&mut buf);
+            let _ = s.write_all(b"HTTP/1.1 200 OK
+Content-Length: 4000
+Connection: close
+
+");
+            let _ = s.write_all(&[7u8; 2000]);
+            let _ = s.flush();
+            std::thread::sleep(Duration::from_secs(5));
+        });
+        url
+    }
+
+    #[tokio::test]
+    async fn a_stalled_download_gives_up() {
+        let dest = std::env::temp_dir().join(format!("cyex-gh-test-stall-{}.bin", std::process::id()));
+        let started = std::time::Instant::now();
+        let res = Http::new()
+            .unwrap()
+            .release_download(&serve_stalling(), &dest, 4000, &AtomicBool::new(false), |_, _| {}, Duration::from_millis(300))
+            .await;
+        assert!(matches!(res, Err(Error::Api { ref message, .. }) if message == "stalled"), "{res:?}");
+        assert!(started.elapsed() < Duration::from_secs(3));
+        let _ = std::fs::remove_file(&dest);
+    }
+
+    #[tokio::test]
+    async fn a_stopped_download_ends_while_no_data_comes() {
+        let dest = std::env::temp_dir().join(format!("cyex-gh-test-stop-{}.bin", std::process::id()));
+        let cancel = std::sync::Arc::new(AtomicBool::new(false));
+        let stop = cancel.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(300));
+            stop.store(true, Ordering::Relaxed);
+        });
+        let started = std::time::Instant::now();
+        let res = Http::new().unwrap().download(&serve_stalling(), &dest, 4000, &cancel, |_, _| {}).await;
+        assert!(matches!(res, Err(Error::Api { ref message, .. }) if message == CANCELLED), "{res:?}");
+        assert!(started.elapsed() < Duration::from_secs(3));
         let _ = std::fs::remove_file(&dest);
     }
 }

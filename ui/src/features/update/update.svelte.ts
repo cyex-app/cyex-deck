@@ -14,6 +14,8 @@ class UpdateStore {
   percent = $state<number | null>(null);
   error = $state('');
   busy = $state(false);
+  /** Still downloading, so Stop can end it (not once the file is being checked). */
+  downloading = $state(false);
   private started = false;
 
   /** "Later": the badge stays, but no timed checks and no pop-over until the next start.
@@ -45,18 +47,23 @@ class UpdateStore {
     on.onmessage = (p) => {
       this.progress = progressText(p);
       this.percent = p.kind === 'downloading' ? p.percent : 100;
+      this.downloading = p.kind === 'downloading';
     };
     try {
       await updateIpc.install(on);
-      // Back without restarting: let the button work again.
-      this.busy = false;
+      // Back without restarting (stopped): let the button work again.
     } catch (e) {
       // Rust's reasons are written for people (a bad hash or signature won't pass on a retry).
       this.error = typeof e === 'string' && e ? e : 'Couldn’t update. Try again.';
-      this.progress = '';
-      this.percent = null;
-      this.busy = false;
     }
+    this.progress = '';
+    this.percent = null;
+    this.downloading = false;
+    this.busy = false;
+  }
+
+  stop(): void {
+    if (this.downloading) void updateIpc.stop().catch(() => {});
   }
 
   deferLater(): void {

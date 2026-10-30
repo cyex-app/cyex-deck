@@ -18,6 +18,8 @@ export const updateIpc = {
   later: () => invoke<void>('update_later'),
   /** Downloads, checks the file and restarts into the new version. */
   install: (onEvent: Channel<UpdateProgress>) => invoke<void>('update_install', { onEvent }),
+  /** Ends the download; `install` then returns without an error. */
+  stop: () => invoke<void>('update_stop'),
   openNotes: () => invoke<void>('update_open_notes'),
   onAvailable: (cb: (u: Update | null) => void): Promise<UnlistenFn> =>
     listen<Update | null>('update://available', (e) => cb(e.payload)),

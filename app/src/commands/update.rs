@@ -48,6 +48,12 @@ pub async fn update_install(app: AppHandle, on_event: Channel<UpdateProgress>) -
     install::run(app, on_event).await
 }
 
+/// "Stop" during the download.
+#[tauri::command]
+pub fn update_stop(app: AppHandle) {
+    update::stop(&app);
+}
+
 /// "What's new" / "Open release page": the release's own page on github.com, nothing else.
 #[tauri::command]
 pub fn update_open_notes(app: AppHandle) -> CmdResult<()> {

@@ -88,7 +88,11 @@
           {/if}
           {#if update.error}<p class="error" role="alert">{update.error}</p>{/if}
         </div>
-        {#if !update.busy}
+        {#if update.downloading}
+          <div class="foot">
+            <Button small onclick={() => update.stop()}>Stop</Button>
+          </div>
+        {:else if !update.busy}
           <div class="foot">
             <span class="skip"><Button variant="ghost" small onclick={skip}>Skip this version</Button></span>
             <Button small onclick={later}>Later</Button>
