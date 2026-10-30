@@ -124,9 +124,10 @@ function goLive(e: KeyboardEvent): void | false {
   p!.say?.('Live');
 }
 
-/** Focused controls that use Space, M or F themselves. */
+/** Focused controls that use Space, M or F themselves. Sliders use only arrows,
+ * so Space and M still play and mute after the volume or seek bar was clicked. */
 const CONTROLS =
-  'button, a, select, [role="slider"], [role="radio"], [role="tab"], [role="option"], [role="listbox"], [role^="menuitem"], [role="checkbox"], [role="switch"]';
+  'button, a, select, [role="radio"], [role="tab"], [role="option"], [role="listbox"], [role^="menuitem"], [role="checkbox"], [role="switch"]';
 
 function withPlayer(f: (p: PlayerControls) => void): void | false {
   const p = players.active;

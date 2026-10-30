@@ -70,6 +70,8 @@ export function resetBinding(id: ActionId): Promise<void> {
 }
 
 function isTyping(target: EventTarget | null): boolean {
+  // A slider takes only arrows: Space, M and the rest still reach the hotkeys.
+  if (target instanceof HTMLInputElement && target.type === 'range') return false;
   return target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA)$/.test(target.tagName));
 }
 
