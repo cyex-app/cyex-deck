@@ -27,6 +27,14 @@
   }
   let wrap = $state<HTMLElement>();
   let pop = $state<HTMLElement>();
+  /** Esc with nothing to hand focus back to: the message box this button sits beside. */
+  const input = () => {
+    for (let at = wrap?.parentElement; at; at = at.parentElement) {
+      const box = at.querySelector<HTMLElement>('textarea:not(:disabled)');
+      if (box) return box;
+    }
+    return undefined;
+  };
 
   $effect(() => {
     if (!open || !pop) return;
@@ -36,7 +44,7 @@
       if (wrap && !wrap.contains(t) && !t.closest?.('[data-shared-menu]')) open = false;
     };
     const off = layer('popover', () => (open = false));
-    const release = focusScope(pop, { initial: firstField });
+    const release = focusScope(pop, { initial: firstField, fallback: input });
     addEventListener('mousedown', down, true);
     return () => {
       off();
