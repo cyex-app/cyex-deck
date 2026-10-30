@@ -20,6 +20,7 @@
   import { isHot } from './hover.svelte';
   import { shownName } from './names';
   import { ownNameColor } from './ownColor';
+  import { foldRecipients } from './recipients';
   import { lineBadges } from './sharedBadges';
   import { catalogs } from './catalog.svelte';
   import { lineStacks } from './stacked';
@@ -65,6 +66,8 @@
   const paint = $derived(looks.paintClass(paintId));
   const paintName = $derived(paint ? looks.paintName(paintId) : null);
   const recipients = $derived(notice?.recipients ?? []);
+  let recipientsOpen = $state(false);
+  const fold = $derived(foldRecipients(recipients, recipientsOpen));
   // C37 V108-C03 Joins and leaves: each name opens its usercard; the count stays text.
   const presence = $derived(notice?.presence);
   const hl = $derived(highlightStyle(m));
@@ -141,8 +144,14 @@
             tabindex="-1"
             data-user={login}>{login}</span
           >{/each}{presence.more ? ` +${formatNumber(presence.more)} more` : ''}{:else}{notice.text}{/if}
-      {#if recipients.length}<span class="recipients"> To {recipients.join(', ')}.</span>{/if}
     </div>
+    {#if recipients.length}
+      <!-- C16 One recipient per line, the long lists folded. -->
+      <ul class="recipients" aria-label="Recipients">
+        {#each fold.shown as r (r)}<li>{r}</li>{/each}
+      </ul>
+      {#if fold.hidden}<button class="more" onclick={() => (recipientsOpen = true)}>+{formatNumber(fold.hidden)} more</button>{/if}
+    {/if}
   {/if}
   {#if m.plugin && !sender && !notice}
     <!-- S7 A plugin's line: always its mark, never a name. -->
@@ -333,7 +342,28 @@
     text-decoration: underline;
   }
   .recipients {
+    margin: 2px 0 0;
+    padding: 0 0 0 10px;
+    list-style: none;
     color: var(--dim);
+    line-height: 1.3;
+  }
+  .recipients li {
+    overflow-wrap: anywhere;
+  }
+  .more {
+    margin: 2px 0 0 10px;
+    padding: 0 4px;
+    border: 0;
+    border-radius: 3px;
+    background: none;
+    color: var(--dim);
+    font: inherit;
+    cursor: pointer;
+  }
+  .more:hover {
+    background: var(--surface-hover);
+    color: var(--text);
   }
   .who {
     cursor: pointer;
