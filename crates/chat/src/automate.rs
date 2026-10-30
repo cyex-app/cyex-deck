@@ -71,11 +71,28 @@ impl Automations {
     }
 
     /// New rules; cooldowns and rate limits carry over for chats some rule is still for.
+    /// Counts are saved a little later than they run, so a rule with the same trigger keeps
+    /// the higher of its count here and the saved one.
     pub fn update(&mut self, c: &Commands) {
         let mut chats = std::mem::take(&mut self.chats);
+        let old = std::mem::take(&mut self.rules);
         *self = Self::new(c);
+        for (rule, was) in self.rules.iter_mut().zip(&old) {
+            if rule.cfg.trigger == was.cfg.trigger {
+                rule.cfg.count = rule.cfg.count.max(was.cfg.count);
+            }
+        }
         chats.retain(|channel, _| self.rules.iter().any(|r| r.cfg.channels.iter().any(|c| c == channel)));
         self.chats = chats;
+    }
+
+    /// Each rule's count, by its index in the settings list.
+    pub fn counts(&self) -> Vec<(usize, &str, u64)> {
+        self.rules
+            .iter()
+            .enumerate()
+            .map(|(i, r)| (i, r.cfg.trigger.as_str(), r.cfg.count))
+            .collect()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -332,5 +349,28 @@ mod tests {
         // The rule moves to another chat: the old chat's state goes.
         a.update(&cmds(vec![rule("other")]));
         assert!(a.chats.is_empty());
+    }
+
+    #[test]
+    fn counts_ahead_of_the_saved_ones_survive_an_update() {
+        let rule = |trigger: &str, count| Automation {
+            channels: vec!["chan".into()],
+            trigger: trigger.into(),
+            cooldown_secs: 0,
+            count,
+            ..Automation::default()
+        };
+        let cmds = |list| Commands { automations_on: true, automations: list, automation_limit: 20, ..Commands::default() };
+        let mut a = Automations::new(&cmds(vec![rule("hi", 4)]));
+        assert_eq!(a.check("chan", &user_msg(1), false, 0).map(|f| f.count), Some(5));
+        // Settings still say 4 (not saved yet): the run count stays.
+        a.update(&cmds(vec![rule("hi", 4)]));
+        assert_eq!(a.counts(), vec![(0, "hi", 5)]);
+        // Saved higher elsewhere: that wins.
+        a.update(&cmds(vec![rule("hi", 9)]));
+        assert_eq!(a.counts(), vec![(0, "hi", 9)]);
+        // Another trigger in that place starts from its own count.
+        a.update(&cmds(vec![rule("bye", 0)]));
+        assert_eq!(a.counts(), vec![(0, "bye", 0)]);
     }
 }

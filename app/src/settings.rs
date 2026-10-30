@@ -151,6 +151,7 @@ fn presence_pending(file: &Path) -> Option<bool> {
 }
 
 pub fn flush_now(app: &AppHandle) {
+    crate::chat::run::save_counts(app);
     if let Some(settings) = app.try_state::<Settings>() {
         settings.flush();
     }

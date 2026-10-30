@@ -11,6 +11,7 @@ mod host;
 pub mod registry;
 pub mod timers;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use cyex_chat::automate::Automations;
@@ -31,11 +32,15 @@ use host::AppHost;
 
 /// Commands calling commands stop here.
 const MAX_DEPTH: u32 = 8;
+/// S4 Automation counts are saved this long after a rule runs, so a busy chat writes the
+/// settings (and wakes every window) once, not on every answer.
+const COUNT_SAVE: std::time::Duration = std::time::Duration::from_secs(5);
 
 #[derive(Default)]
 pub struct CommandsState {
     list: Mutex<Arc<CommandList>>,
     pub(super) autos: Mutex<Automations>,
+    counts_due: AtomicBool,
 }
 
 pub fn init(app: &AppHandle) {
@@ -406,6 +411,36 @@ pub fn local(app: &AppHandle, key: &RoomKey, kind: NoticeKind, text: &str) {
     super::local_line(app, key, kind, text);
 }
 
+/// S4 Writes the counts automations ran up since the last save; on quit too.
+pub fn save_counts(app: &AppHandle) {
+    let Some(state) = app.try_state::<CommandsState>() else {
+        return;
+    };
+    if !state.counts_due.swap(false, Ordering::AcqRel) {
+        return;
+    }
+    // Copied out first: the save rebuilds the automations, which takes this lock.
+    let counts: Vec<(usize, String, u64)> = {
+        let autos = state.autos.lock().unwrap_or_else(|p| p.into_inner());
+        autos.counts().into_iter().map(|(i, t, n)| (i, t.to_owned(), n)).collect()
+    };
+    let _ = app
+        .state::<Settings>()
+        .update::<Commands>(app, Partition::Commands, |c| {
+            let mut changed = false;
+            for (i, trigger, n) in &counts {
+                if let Some(a) = c.automations.get_mut(*i)
+                    && a.trigger == *trigger
+                    && a.count < *n
+                {
+                    a.count = *n;
+                    changed = true;
+                }
+            }
+            changed
+        });
+}
+
 /// S4 Checks a live message against the automations.
 pub fn automate(app: &AppHandle, key: &RoomKey, m: &ChatMessage) {
     // V107-A9 No automations (or anonymous): no live-list scan either.
@@ -422,17 +457,13 @@ pub fn automate(app: &AppHandle, key: &RoomKey, m: &ChatMessage) {
     let Some(f) = fired else { return };
     let nick = m.sender.as_ref().map(|s| s.login.clone()).unwrap_or_default();
     let (app, key) = (app.clone(), key.clone());
-    let _ = app
-        .state::<Settings>()
-        .update::<Commands>(&app, Partition::Commands, |c| {
-            match c.automations.get_mut(f.rule) {
-                Some(a) => {
-                    a.count = f.count;
-                    true
-                }
-                None => false,
-            }
+    if !state.counts_due.swap(true, Ordering::AcqRel) {
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(COUNT_SAVE).await;
+            save_counts(&app);
         });
+    }
     tauri::async_runtime::spawn(async move {
         automation(&app, key, &f.response, &f.args, &nick, f.count, f.reply_to).await;
     });
