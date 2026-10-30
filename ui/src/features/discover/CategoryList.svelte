@@ -6,13 +6,20 @@
   import { discoverIpc } from '../../ipc/browse';
   import { accounts } from '../../lib/accounts.svelte';
   import CategoryCard from './CategoryCard.svelte';
+  import { settings } from '../../lib/settings.svelte';
   import { discover } from './discover.svelte';
+  import { visibleCategories } from './hidden';
   import { Paged } from './paged.svelte';
   import PagedEnd from './PagedEnd.svelte';
 
   const list = new Paged<Category>((after) => discoverIpc.categories(after));
   let followed = $state.raw<Category[]>([]);
   let settled = $state(false);
+
+  // V108-N05
+  const hidden = $derived({ categories: settings.v.browse.hiddenCategories, tags: [] });
+  const shownFollowed = $derived(visibleCategories(hidden, followed));
+  const shownAll = $derived(visibleCategories(hidden, list.items));
 
   const account = $derived(accounts.list.find((a) => a.isDefault && a.features.includes('follow'))?.userId);
 
@@ -37,16 +44,16 @@
   const open = (c: Category) => discover.go({ kind: 'category', slug: c.slug, name: c.name });
 </script>
 
-{#if followed.length}
+{#if shownFollowed.length}
   <h2>Yours</h2>
   <div class="grid">
-    {#each followed as c (c.id)}<CategoryCard category={c} onopen={open} />{/each}
+    {#each shownFollowed as c (c.id)}<CategoryCard category={c} onopen={open} />{/each}
   </div>
   <h2>All</h2>
 {/if}
 {#if settled}
   <div class="grid">
-    {#each list.items as c (c.id)}<CategoryCard category={c} onopen={open} />{/each}
+    {#each shownAll as c (c.id)}<CategoryCard category={c} onopen={open} />{/each}
   </div>
 {/if}
 <PagedEnd {list} empty="No categories right now." />

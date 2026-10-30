@@ -418,6 +418,7 @@
         {onsignin}
         onlink={(t) => openTarget(tile, t)}
         filters={tile.filters}
+        look={tab.look}
         onfilters={(filters) => void tabs.apply({ op: 'filters', tile: tile.id, filters })}
         onpopout={tile.show.player && !popout ? popChat : undefined}
         onoverlay={() => void popOut(`overlay/${tile.id}`)}

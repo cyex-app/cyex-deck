@@ -36,6 +36,8 @@
   import PoppedOut from '../features/tabs/PoppedOut.svelte';
   import Switcher from '../features/tabs/Switcher.svelte';
   import TabBar from '../features/tabs/TabBar.svelte';
+  import ResumeDialog from '../features/tabs/ResumeDialog.svelte';
+  import { resumeDialog } from '../features/tabs/resume.svelte';
   import TabOverlays from '../features/tabs/TabOverlays.svelte';
   import TabView from '../features/tabs/TabView.svelte';
   import UpdateBadge from '../features/update/UpdateBadge.svelte';
@@ -571,6 +573,7 @@
     onclose={() => (switcher = false)} />
 {/if}
 <TabOverlays onopen={open} />
+{#if resumeDialog.open}<ResumeDialog />{/if}
 <!-- V101-26 Kept on screen in fullscreen. -->
 <div class="layers" use:followFullscreen>
   <MenuHost />

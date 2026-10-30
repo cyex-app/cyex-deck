@@ -4,10 +4,11 @@ import type { FeedKind } from "./FeedKind";
 import type { GroupColor } from "./GroupColor";
 import type { PanelNode } from "./PanelNode";
 import type { TabChannel } from "./TabChannel";
+import type { TabLook } from "./TabLook";
 import type { TileShow } from "./TileShow";
 import type { Zone } from "./Zone";
 
-export type TabOp = { "op": "add", channel: TabChannel, show: TileShow, account: string | null, alias: string | null, into: string | null, } | { "op": "addMany", channels: Array<TabChannel>, show: TileShow, account: string | null, } | { "op": "edit", tile: string, channel: TabChannel, show: TileShow, account: string | null, } | { "op": "show", tile: string, show: TileShow, } | { "op": "rename", tab: string, alias: string | null, } | { "op": "activate", tab: string | null, } | { "op": "close", tabs: Array<string>, } | { "op": "closeTile", tile: string, } | { "op": "move", tab: string, before: string | null, group: string | null, } | { "op": "moveTile", tile: string, target: string, zone: Zone, } | { "op": "detach", tile: string, before: string | null, } | { "op": "sendTile", tile: string, tab: string, } | { "op": "resize", tab: string, columns: Array<number>, rows: Array<Array<number>>, } | { "op": "addFeed", name: string, 
+export type TabOp = { "op": "add", channel: TabChannel, show: TileShow, account: string | null, alias: string | null, into: string | null, } | { "op": "addMany", channels: Array<TabChannel>, show: TileShow, account: string | null, } | { "op": "edit", tile: string, channel: TabChannel, show: TileShow, account: string | null, } | { "op": "show", tile: string, show: TileShow, } | { "op": "rename", tab: string, alias: string | null, } | { "op": "activate", tab: string | null, } | { "op": "look", tab: string, look: TabLook, } | { "op": "close", tabs: Array<string>, } | { "op": "closeTile", tile: string, } | { "op": "move", tab: string, before: string | null, group: string | null, } | { "op": "moveTile", tile: string, target: string, zone: Zone, } | { "op": "detach", tile: string, before: string | null, } | { "op": "sendTile", tile: string, tab: string, } | { "op": "resize", tab: string, columns: Array<number>, rows: Array<Array<number>>, } | { "op": "addFeed", name: string, 
 /**
  * V106-07 `None` is a rules feed (Mentions, Custom feed).
  */

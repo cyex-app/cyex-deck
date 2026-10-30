@@ -9,9 +9,11 @@ pub mod import;
 pub mod live;
 pub mod mute;
 pub mod viewers;
+mod resume;
 mod rooms;
 
 pub use closed::any as reopenable;
+pub use resume::{clean_exit, resume, take_pending as resume_pending};
 
 pub use live::snapshot as live;
 
@@ -26,6 +28,7 @@ use crate::settings::Settings;
 pub fn init(app: &AppHandle) {
     app.manage(closed::ClosedTabs::default());
     app.manage(mute::Muted::default());
+    resume::init(app);
     import::init(app);
     rooms::sync(app);
     live::spawn(app);

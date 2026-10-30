@@ -3,7 +3,11 @@
 
 export const UNLISTED: Record<string, string> = {
   tabs: 'The tabs as you arrange them.',
-  browse: 'Home and Discover remember their own sort and favorites.',
+  'browse.layout': 'Home and Discover remember their own sort and favorites.',
+  'browse.liveSort': 'Home and Discover remember their own sort and favorites.',
+  'browse.offlineSort': 'Home and Discover remember their own sort and favorites.',
+  'browse.favorites': 'Home and Discover remember their own sort and favorites.',
+  'browse.languages': 'Home and Discover remember their own sort and favorites.',
   combos: 'Saved in the 7TV paint and badge menu or with /combo.',
   'emotes.favorites': 'The emote menu’s favorites.',
   'emotes.usage': 'The emote menu’s most used.',

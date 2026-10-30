@@ -27,6 +27,18 @@ pub fn tabs_reopenable(app: AppHandle) -> bool {
     tabs::reopenable(&app)
 }
 
+/// V108-N21 True once when the last run ended without a clean exit and tabs came back.
+#[tauri::command]
+pub fn tabs_resume_pending(app: AppHandle) -> bool {
+    tabs::resume_pending(&app)
+}
+
+/// V108-N21 Keeps the picked tabs, closes the rest into the reopen list.
+#[tauri::command]
+pub fn tabs_resume(app: AppHandle, keep: Vec<String>) -> CmdResult<tabs::TabsApplied> {
+    tabs::resume(&app, &keep)
+}
+
 /// U9 Chats with news nobody has seen. Changes arrive as `chat:unread`.
 #[tauri::command]
 pub fn tabs_unread(app: AppHandle) -> Vec<crate::chat::unread::RoomUnread> {

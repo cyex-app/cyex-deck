@@ -80,6 +80,37 @@ pub struct Tab {
     pub group: Option<String>,
     /// U3 Left to right, each a stack of tiles.
     pub columns: Vec<Column>,
+    /// V108-N19 This tab's chats look different from Settings.
+    pub look: TabLook,
+}
+
+/// V108-N19 Per-tab chat look. `None` follows Settings (`general.chatFontSize`,
+/// `chat.emoteSize`); "Reset to default" clears both. Filters (F3) are already per tile.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(default, rename_all = "camelCase")]
+#[ts(export)]
+pub struct TabLook {
+    /// Chat text size in px.
+    #[ts(optional = nullable)]
+    pub chat_size: Option<u8>,
+    /// Emote size in percent.
+    #[ts(optional = nullable)]
+    pub emote_size: Option<u16>,
+}
+
+impl TabLook {
+    /// Same limits as the settings they override.
+    pub const CHAT_SIZE: std::ops::RangeInclusive<u8> = 9..=32;
+    pub const EMOTE_SIZE: std::ops::RangeInclusive<u16> = 50..=300;
+
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+
+    fn sanitize(&mut self) {
+        self.chat_size = self.chat_size.map(|s| s.clamp(*Self::CHAT_SIZE.start(), *Self::CHAT_SIZE.end()));
+        self.emote_size = self.emote_size.map(|s| s.clamp(*Self::EMOTE_SIZE.start(), *Self::EMOTE_SIZE.end()));
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -330,6 +361,7 @@ impl Schema for Tabs {
                 return false;
             }
             t.alias = t.alias.take().map(|a| clip(&a, MAX_ALIAS_CHARS)).filter(|a| !a.is_empty());
+            t.look.sanitize();
             if t.group.as_ref().is_some_and(|g| !groups.contains(g)) {
                 t.group = None;
             }

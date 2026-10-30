@@ -10,7 +10,8 @@
   import QuickOpen from './QuickOpen.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
 
-  let { card, nav }: { card: ChannelCard; nav: Nav } = $props();
+  /** V108-N03 "next: 2026/10/30 20:00", when the channel has a stream planned. */
+  let { card, nav, next = '' }: { card: ChannelCard; nav: Nav; next?: string } = $props();
 
   const click = $derived(cardClick(nav, card));
   const last = $derived(since(card.lastLive));
@@ -31,6 +32,7 @@
       {last ? `Live ${last}` : 'Not live lately'}
     </span>
     {#if sub}<span class="sub" use:tooltip={{ label: sub }}>{sub}</span>{/if}
+    {#if next}<span class="next">{next}</span>{/if}
   </button>
   <div class="quick"><QuickOpen channel={card} {nav} flat /></div>
 </div>
@@ -84,6 +86,11 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .next {
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
   }
   .quick {
     position: absolute;

@@ -17,11 +17,13 @@
   import ChannelRow from '../browse/ChannelRow.svelte';
   import ChannelTile from '../browse/ChannelTile.svelte';
   import { sections } from '../browse/lists';
+  import { nextText } from '../browse/schedule';
   import type { Nav } from '../browse/open.svelte';
   import Peek from '../browse/Peek.svelte';
   import PickedBar from '../browse/PickedBar.svelte';
   import StreamCard from '../browse/StreamCard.svelte';
   import { discover } from '../discover/discover.svelte';
+  import { visibleCards } from '../discover/hidden';
   import { home } from './home.svelte';
   import Loading from '../../components/Loading.svelte';
   import SearchField from '../../components/SearchField.svelte';
@@ -43,9 +45,12 @@
 
   const prefs = $derived(settings.v.browse);
   const grid = $derived(prefs.layout === 'grid');
-  const lists = $derived(
-    sections(home.follows ?? [], home.favorites, { live: prefs.liveSort, offline: prefs.offlineSort }, query),
-  );
+  // V108-N05 Live channels in a hidden category, or with a hidden tag, are left out.
+  const hiddenIn = $derived({ categories: prefs.hiddenCategories, tags: prefs.hiddenTags });
+  const lists = $derived.by(() => {
+    const s = sections(home.follows ?? [], home.favorites, { live: prefs.liveSort, offline: prefs.offlineSort }, query);
+    return { ...s, live: visibleCards(hiddenIn, s.live) };
+  });
   const owner = $derived(accounts.list.find((a) => a.userId === home.account));
   const favoriteIds = $derived(prefs.favorites.map((c) => c.id).join());
 
@@ -128,14 +133,14 @@
     {#if offline(list).length}
       <div class="tiles">
         {#each offline(list) as c (c.id)}
-          <ChannelTile card={c} {nav} />
+          <ChannelTile card={c} {nav} next={nextText(home.next.get(c.id))} />
         {/each}
       </div>
     {/if}
   {:else}
     <div class="rows">
       {#each list as c (c.id)}
-        <ChannelRow card={c} {nav} />
+        <ChannelRow card={c} {nav} next={nextText(home.next.get(c.id))} />
       {/each}
     </div>
   {/if}

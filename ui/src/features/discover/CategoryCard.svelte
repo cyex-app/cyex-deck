@@ -1,9 +1,23 @@
 <!-- A category in discover (1.7): box art, name, viewers. -->
 <script lang="ts">
   import type { Category } from '../../ipc/bindings/Category';
+  import { openMenu } from '../../components/menu.svelte';
   import { formatShort } from '../../lib/format';
+  import { settings } from '../../lib/settings.svelte';
+  import { toast } from '../../lib/toast.svelte';
+  import { withHidden, withoutHidden } from './hidden';
 
   let { category, onopen }: { category: Category; onopen: (c: Category) => void } = $props();
+
+  // V108-N05 Right-click: leave the category out of Home and Discover (Undo on the toast).
+  function hide() {
+    const before = settings.v.browse.hiddenCategories;
+    void settings.patch('browse', { hiddenCategories: withHidden(before, { id: category.id, name: category.name }) });
+    toast.info(`Hid ${category.name}.`, {
+      key: 'hide-category',
+      action: { label: 'Undo', run: () => void settings.patch('browse', { hiddenCategories: withoutHidden(settings.v.browse.hiddenCategories, category.id) }) },
+    });
+  }
 
   /** Shown when Twitch has no box art. */
   const initials = $derived(
@@ -16,7 +30,11 @@
   );
 </script>
 
-<button class="cat" onclick={() => onopen(category)}>
+<button
+  class="cat"
+  onclick={() => onopen(category)}
+  oncontextmenu={(e) => (e.preventDefault(), openMenu(e, [{ label: 'Hide category', run: hide }]))}
+>
   <div class="art">
     {#if category.boxArt}<img src={category.boxArt} alt="" loading="lazy" decoding="async" />{:else}<span class="initials" aria-hidden="true">{initials}</span>{/if}
   </div>

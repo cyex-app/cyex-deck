@@ -470,3 +470,45 @@ fn hand_made_panel_layouts_are_kept_per_tile_until_reset() {
     apply(&mut t, TabOp::ResetLayout { tab: "a".into() });
     assert_eq!(layout(&t), None);
 }
+
+#[test]
+fn a_tabs_chat_look_is_kept_clamped_and_resettable() {
+    // V108-N19
+    let mut t = tabs(&["a", "b"]);
+    assert!(t.tabs[0].look.is_default());
+    let op: TabOp = serde_json::from_value(serde_json::json!({
+        "op": "look", "tab": "a", "look": {"chatSize": 18, "emoteSize": 150}
+    }))
+    .unwrap();
+    apply(&mut t, op);
+    assert_eq!(t.tabs[0].look, TabLook { chat_size: Some(18), emote_size: Some(150) });
+    assert!(t.tabs[1].look.is_default(), "only that tab");
+
+    let back: Tabs = serde_json::from_value(serde_json::to_value(&t).unwrap()).unwrap();
+    assert_eq!(back.tabs[0].look, t.tabs[0].look);
+    assert_eq!(back.tabs[0].id, "a", "uid stays");
+
+    apply(&mut t, TabOp::Look { tab: "a".into(), look: TabLook { chat_size: Some(99), emote_size: Some(1) } });
+    t.sanitize();
+    assert_eq!(t.tabs[0].look, TabLook { chat_size: Some(32), emote_size: Some(50) });
+
+    apply(&mut t, TabOp::Look { tab: "a".into(), look: TabLook::default() });
+    assert!(t.tabs[0].look.is_default());
+    let mut fresh = || "x".to_owned();
+    assert!(t.apply(TabOp::Look { tab: "gone".into(), look: TabLook::default() }, &mut fresh).is_err());
+}
+
+#[test]
+fn old_tab_files_load_without_a_look() {
+    // V108-N19 A file from before the field: the same tab, the default look.
+    let old = serde_json::json!({
+        "tabs": [{"id": "t1", "alias": "Mine", "columns": [{"size": 1.0, "tiles": [
+            {"id": "x1", "channel": {"id": "u1", "login": "xqc", "name": "xQc"}}
+        ]}]}]
+    });
+    let t: Tabs = serde_json::from_value(old).unwrap();
+    assert_eq!(t.tabs[0].id, "t1");
+    assert_eq!(t.tabs[0].alias.as_deref(), Some("Mine"));
+    assert!(t.tabs[0].look.is_default());
+    assert_eq!(t.tabs[0].columns[0].tiles[0].id, "x1");
+}

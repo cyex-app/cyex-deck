@@ -5,6 +5,7 @@
   import { getVersion } from '@tauri-apps/api/app';
 
   import Button from '../../../components/Button.svelte';
+  import Icon from '../../../components/Icon.svelte';
   import Row from '../../../components/Row.svelte';
   import Segmented from '../../../components/Segmented.svelte';
   import Stepper from '../../../components/Stepper.svelte';
@@ -13,11 +14,21 @@
   import { updateIpc } from '../../../ipc/update';
   import { formatTime } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
+  import { withoutHidden, withTag } from '../../discover/hidden';
   import { checkText } from '../../update/updateText';
   import FontPicker from '../FontPicker.svelte';
   import ResetSection from '../ResetSection.svelte';
 
   const g = $derived(settings.v.general);
+  const b = $derived(settings.v.browse);
+
+  // V108-N05
+  let newTag = $state('');
+  function addTag() {
+    const next = withTag(b.hiddenTags, newTag);
+    newTag = '';
+    if (next.length !== b.hiddenTags.length) void settings.patch('browse', { hiddenTags: next });
+  }
 
   const POSITIONS: { value: ChatPosition; label: string }[] = [
     { value: 'left', label: 'Left' },
@@ -108,6 +119,57 @@
   />
 </Row>
 
+<!-- V108-N05 Hidden in Home and Discover. Categories are hidden from their right-click menu. -->
+<SectionHead title="Home and Discover" />
+<Row
+  setting="browse.hiddenCategories"
+  label="Hidden categories"
+  hint={b.hiddenCategories.length ? 'Left out of Home and Discover.' : 'None. Right-click a category in Discover and pick Hide category.'}
+  stacked={b.hiddenCategories.length > 0}
+>
+  {#if b.hiddenCategories.length}
+    <div class="hid">
+      {#each b.hiddenCategories as c (c.id)}
+        <button
+          class="hide"
+          aria-label="Show {c.name} again"
+          onclick={() => void settings.patch('browse', { hiddenCategories: withoutHidden(b.hiddenCategories, c.id) })}
+        >
+          {c.name}<Icon name="x" size={12} />
+        </button>
+      {/each}
+    </div>
+  {/if}
+</Row>
+<Row
+  setting="browse.hiddenTags"
+  label="Hidden tags"
+  hint="Live streams with one of these tags are left out of Home and Discover."
+  stacked={b.hiddenTags.length > 0}
+>
+  <form
+    onsubmit={(e) => {
+      e.preventDefault();
+      addTag();
+    }}
+  >
+    <input class="field" maxlength="40" aria-label="Add a tag to hide" placeholder="Add a tag" bind:value={newTag} />
+  </form>
+  {#if b.hiddenTags.length}
+    <div class="hid">
+      {#each b.hiddenTags as t (t)}
+        <button
+          class="hide"
+          aria-label="Show {t} again"
+          onclick={() => void settings.patch('browse', { hiddenTags: b.hiddenTags.filter((x) => x !== t) })}
+        >
+          {t}<Icon name="x" size={12} />
+        </button>
+      {/each}
+    </div>
+  {/if}
+</Row>
+
 <SectionHead title="Updates" />
 <Row setting="general.updates.check" label="Check for updates" hint="At startup and every 8 hours.">
   <Toggle
@@ -132,6 +194,28 @@
 <ResetSection partition="general" page="general" />
 
 <style>
+  .hid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+  }
+  .hide {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 24px;
+    padding: 1px 8px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--muted);
+    font-size: 0.78rem;
+  }
+  .hide:hover {
+    border-color: var(--border-strong);
+    color: var(--text);
+  }
   .checked {
     color: var(--muted);
     font-size: var(--text-sub);

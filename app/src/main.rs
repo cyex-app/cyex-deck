@@ -122,6 +122,8 @@ fn main() {
     app.run(|app, event| {
         if let RunEvent::Exit = event {
             settings::flush_now(app);
+            // V108-N21
+            tabs::clean_exit(app);
         }
     });
 }

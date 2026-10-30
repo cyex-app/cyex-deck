@@ -3,9 +3,12 @@
 
 pub mod discover;
 pub mod follows;
+mod ics;
+pub mod schedule;
 
 use tauri::{AppHandle, Manager};
 
 pub fn init(app: &AppHandle) {
     app.manage(follows::Follows::default());
+    app.manage(schedule::Schedules::default());
 }

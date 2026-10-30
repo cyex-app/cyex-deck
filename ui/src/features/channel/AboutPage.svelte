@@ -13,6 +13,7 @@
   import { toast } from '../../lib/toast.svelte';
   import StoryRing from '../player/StoryRing.svelte';
   import Markdown from './Markdown.svelte';
+  import Schedule from './Schedule.svelte';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
@@ -98,6 +99,7 @@
         {#if about.lastStream.game}<span>({about.lastStream.game})</span>{/if}
       </p>
     {/if}
+    <Schedule login={about.login} name={about.name} />
     {#if about.socials.length}
       <div class="socials">
         {#each about.socials as s, i (i)}

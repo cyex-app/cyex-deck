@@ -5,8 +5,10 @@
   import type { ChannelCard } from '../../ipc/bindings/ChannelCard';
   import type { GameRef } from '../../ipc/bindings/GameRef';
   import type { Page } from '../../ipc/bindings/Page';
+  import { settings } from '../../lib/settings.svelte';
   import type { Nav } from '../browse/open.svelte';
   import StreamCard from '../browse/StreamCard.svelte';
+  import { visibleCards } from './hidden';
   import { Paged } from './paged.svelte';
   import PagedEnd from './PagedEnd.svelte';
 
@@ -25,6 +27,15 @@
   // svelte-ignore state_referenced_locally
   const list = new Paged<ChannelCard>(load);
 
+  // V108-N05 Inside a category its own name isn't a reason to hide (showGame is off there).
+  const shown = $derived(
+    visibleCards(
+      { categories: settings.v.browse.hiddenCategories, tags: settings.v.browse.hiddenTags },
+      list.items,
+      { game: showGame },
+    ),
+  );
+
   $effect(() => {
     void key;
     untrack(() => void list.reset(load));
@@ -32,7 +43,7 @@
 </script>
 
 <div class="cards">
-  {#each list.items as c (c.id)}
+  {#each shown as c (c.id)}
     <StreamCard card={c} {nav} {oncategory} {ontag} {showGame} />
   {/each}
 </div>

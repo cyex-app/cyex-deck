@@ -2,7 +2,8 @@
 // every minute while home shows. The switcher reads the follows too.
 
 import type { ChannelCard } from '../../ipc/bindings/ChannelCard';
-import { homeIpc } from '../../ipc/browse';
+import type { NextStream } from '../../ipc/bindings/NextStream';
+import { homeIpc, scheduleIpc } from '../../ipc/browse';
 import { accounts } from '../../lib/accounts.svelte';
 import { everyShown } from '../../lib/awake';
 import { errorText } from '../../lib/errors';
@@ -16,6 +17,8 @@ class HomeStore {
   picked = $state<string | null>(null);
   follows = $state.raw<ChannelCard[] | null>(null);
   favorites = $state.raw<ChannelCard[]>([]);
+  /** V108-N03 The next planned stream of offline follows and favorites, by channel id. */
+  next = $state.raw<ReadonlyMap<string, NextStream>>(new Map());
   error = $state<string | null>(null);
   loading = $state(false);
   /** Whose follows `follows` holds. */
@@ -36,6 +39,7 @@ class HomeStore {
 
   private refreshes = latest();
   private favSeq = latest();
+  private nextSeq = latest();
 
   async refresh(force = false): Promise<void> {
     const account = this.account;
@@ -51,6 +55,8 @@ class HomeStore {
     if (!live()) return;
     this.loading = false;
     if (favorites.status === 'fulfilled' && favLive()) this.favorites = favorites.value;
+    // V108-N03 Not awaited: the cards show first, the "next" lines follow.
+    void this.loadNext(follows.status === 'fulfilled' ? (follows.value ?? []) : (this.follows ?? []));
     if (this.account !== account) return;
     if (follows.status === 'fulfilled') {
       this.follows = follows.value;
@@ -60,6 +66,23 @@ class HomeStore {
       if (this.owner !== account) this.follows = null;
       // v1.07 A sentence, not the raw Rust error (or [object Object]).
       this.error = errorText(follows.reason, 'load who you follow');
+    }
+  }
+
+  /** V108-N03 One batched read for the offline channels on screen. The app keeps answers
+   *  15 minutes, so the minute poll costs nothing until they are old. Failures show nothing. */
+  private async loadNext(follows: ChannelCard[]): Promise<void> {
+    const ids = [...new Set([...follows, ...this.favorites].filter((c) => !c.stream).map((c) => c.id))];
+    if (!ids.length) {
+      this.next = new Map();
+      return;
+    }
+    const live = this.nextSeq.begin();
+    try {
+      const got = await scheduleIpc.next(ids);
+      if (live()) this.next = new Map(got.map((n) => [n.id, n]));
+    } catch {
+      // The lines stay as they were.
     }
   }
 

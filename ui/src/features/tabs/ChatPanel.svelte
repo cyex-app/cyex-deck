@@ -36,6 +36,7 @@
       account={tile.account}
       readKey={tile.id}
       filters={tile.filters}
+      look={tabs.tabOf(tileId)?.look}
       onfilters={(filters) => void tabs.apply({ op: 'filters', tile: tileId, filters })}
       onsignin={() => gate.ask('helix')}
       onlink={(target) => void emitTo('main', 'tile:link', { tile: tileId, target })}

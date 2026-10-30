@@ -29,7 +29,7 @@ pub use appearance::{
     Appearance, CustomTheme, MAX_THEMES, TabBarSide, TabDensity, TabRows, TabUnread, Wallpaper, WallpaperArea, WallpaperFit,
 };
 pub use builtin_themes::{builtin_theme, builtin_themes, is_builtin_id};
-pub use browse::{Browse, HomeLayout, LiveSort, OfflineSort};
+pub use browse::{Browse, HiddenCategory, HomeLayout, LiveSort, OfflineSort};
 pub use chat::{
     BadgeToggles, Chat, DeletedStyle, GifMode, LinkThumbs, ModButtons, NameStyle, Overlay, PaintToggles, SuggestStyle,
     PauseKey, Timestamps, UnlistedEmotes, UserNote,
@@ -55,7 +55,7 @@ pub use plugins::{PluginEntry, Plugins};
 pub use sound::{OutputDevice, Sound};
 pub use streammanager::{ActivityFilters, ModActionFilters, Obs, StreamManager};
 pub use tabs::{
-    Closed, Column, FeedKind, GroupColor, ImportColumn, ImportTab, Resolved, Tab, TabChannel, TabError, TabGroup, TabOp, Tabs, Tile, TileShow, Zone,
+    Closed, Column, FeedKind, GroupColor, ImportColumn, ImportTab, Resolved, Tab, TabChannel, TabError, TabGroup, TabLook, TabOp, Tabs, Tile, TileShow, Zone,
     random_id,
 };
 pub use uploader::Uploader;

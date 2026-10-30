@@ -9,6 +9,10 @@ use super::{Schema, TabChannel};
 const MAX_FAVORITES: usize = 300;
 /// H4
 const MAX_LANGUAGES: usize = 12;
+/// V108-N05
+const MAX_HIDDEN: usize = 300;
+/// V108-N05
+const MAX_HIDDEN_TAGS: usize = 100;
 
 /// Home and discover (1.6, 1.7).
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
@@ -26,6 +30,21 @@ pub struct Browse {
     pub favorites: Vec<TabChannel>,
     /// H4 Discover's language filter, as Twitch's codes (`EN`, `DE`). Empty shows all.
     pub languages: Vec<String>,
+    /// V108-N05 Categories left out of Home and Discover, by Twitch's id; the name is what
+    /// it was when hidden (the manage list shows it).
+    pub hidden_categories: Vec<HiddenCategory>,
+    /// V108-N05 Streams carrying one of these tags are left out (Twitch's content labels
+    /// such as mature ones aren't on the lists, so tags are what can be matched). Any case.
+    pub hidden_tags: Vec<String>,
+}
+
+/// V108-N05
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(default, rename_all = "camelCase")]
+#[ts(export)]
+pub struct HiddenCategory {
+    pub id: String,
+    pub name: String,
 }
 
 impl Schema for Browse {
@@ -45,6 +64,16 @@ impl Schema for Browse {
                 && seen.insert(l.clone())
         });
         self.languages.truncate(MAX_LANGUAGES);
+        let mut seen = HashSet::new();
+        self.hidden_categories.retain(|c| !c.id.is_empty() && seen.insert(c.id.clone()));
+        self.hidden_categories.truncate(MAX_HIDDEN);
+        for t in &mut self.hidden_tags {
+            *t = t.trim().to_owned();
+        }
+        let mut seen = HashSet::new();
+        self.hidden_tags
+            .retain(|t| !t.is_empty() && t.chars().count() <= 40 && seen.insert(t.to_lowercase()));
+        self.hidden_tags.truncate(MAX_HIDDEN_TAGS);
     }
 }
 
@@ -101,6 +130,19 @@ mod tests {
         let ids: Vec<&str> = b.favorites.iter().map(|c| c.id.as_str()).collect();
         assert_eq!(ids, ["1", "2"]);
         assert_eq!(b.languages, ["EN", "DE"]);
+    }
+
+    #[test]
+    fn hidden_lists_are_cleaned() {
+        let hide = |id: &str| HiddenCategory { id: id.into(), name: id.into() };
+        let mut b = Browse {
+            hidden_categories: vec![hide("1"), hide(""), hide("1"), hide("2")],
+            hidden_tags: vec![" NSFW ".into(), "nsfw".into(), "".into(), "x".repeat(41), "18+".into()],
+            ..Browse::default()
+        };
+        b.sanitize();
+        assert_eq!(b.hidden_categories.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(), ["1", "2"]);
+        assert_eq!(b.hidden_tags, ["NSFW", "18+"]);
     }
 
     #[test]

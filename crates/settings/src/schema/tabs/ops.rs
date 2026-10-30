@@ -7,7 +7,7 @@ use serde::Deserialize;
 use ts_rs::TS;
 
 use super::order::neighbor;
-use super::{ChatPosition, Column, FeedKind, GroupColor, PanelNode, Schema, Tab, TabChannel, TabGroup, Tabs, Tile, TileShow};
+use super::{ChatPosition, Column, FeedKind, GroupColor, PanelNode, Schema, Tab, TabChannel, TabLook, TabGroup, Tabs, Tile, TileShow};
 
 #[derive(Clone, Debug, Deserialize, TS)]
 #[serde(tag = "op", rename_all = "camelCase")]
@@ -41,6 +41,8 @@ pub enum TabOp {
     /// 1.22 `None` goes back to the channel names.
     Rename { tab: String, alias: Option<String> },
     Activate { tab: Option<String> },
+    /// V108-N19 The tab's chat text and emote size. `None` follows Settings.
+    Look { tab: String, look: TabLook },
     /// U5 One tab or several.
     Close { tabs: Vec<String> },
     /// Closing the last tile closes its tab.
@@ -174,6 +176,7 @@ impl Tabs {
                             alias,
                             group: None,
                             columns: Vec::new(),
+                            ..Tab::default()
                         });
                         id
                     }
@@ -239,6 +242,7 @@ impl Tabs {
                     alias: None,
                     group: None,
                     columns,
+                    ..Tab::default()
                 });
                 self.active = Some(id.clone());
                 Ok(Some(id))
@@ -268,6 +272,11 @@ impl Tabs {
             TabOp::Rename { tab, alias } => {
                 let i = self.tab_index(&tab)?;
                 self.tabs[i].alias = alias;
+                Ok(None)
+            }
+            TabOp::Look { tab, look } => {
+                let i = self.tab_index(&tab)?;
+                self.tabs[i].look = look;
                 Ok(None)
             }
             TabOp::Activate { tab } => {
@@ -318,6 +327,7 @@ impl Tabs {
                         alias: None,
                         group: None,
                         columns: vec![Column::of(moved, 1.0)],
+                        ..Tab::default()
                     },
                 );
                 self.active = Some(id.clone());
@@ -381,6 +391,7 @@ impl Tabs {
                     alias: None,
                     group: None,
                     columns: vec![Column::of(tile, 1.0)],
+                    ..Tab::default()
                 });
                 self.active = Some(id.clone());
                 Ok(Some(id))

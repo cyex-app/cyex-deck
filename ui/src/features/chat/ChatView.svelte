@@ -60,6 +60,8 @@
   import { pluginsIpc } from '../../ipc/plugins';
   import ResubBanner from '../subs/ResubBanner.svelte';
   import SubDialog from '../subs/SubDialog.svelte';
+  import type { TabLook } from '../../ipc/bindings/TabLook';
+  import { lookVars } from '../tabs/look';
 
   interface Props {
     login: string;
@@ -94,6 +96,8 @@
     follows?: boolean;
     /** V106-18 Channel id: shows the viewers chart button (live, and no stream header on this tile). */
     chart?: string;
+    /** V108-N19 The tab's own text and emote size over Settings. */
+    look?: TabLook;
   }
 
   let {
@@ -114,6 +118,7 @@
     modviewOpen = false,
     follows = false,
     chart,
+    look,
   }: Props = $props();
 
   // A chat view shows one channel for its whole life; a different one is a new view.
@@ -130,6 +135,13 @@
   // svelte-ignore state_referenced_locally
   votes.watch(login);
   onDestroy(() => room.close());
+
+  /** V108-N19 */
+  const lookStyle = $derived(
+    Object.entries(lookVars(look))
+      .map(([k, v]) => `${k}:${v}`)
+      .join(';') || undefined,
+  );
 
   let el = $state<HTMLElement>();
   /** V101-35 The viewer list shows instead of the messages. */
@@ -362,6 +374,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <section
   class="chat"
+  style={lookStyle}
   bind:this={el}
   onpointerdown={() => (lastUsed = el ?? null)}
   onfocusin={() => (lastUsed = el ?? null)}

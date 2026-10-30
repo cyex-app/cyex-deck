@@ -14,6 +14,10 @@ export const tabsIpc = {
   lookup: (input: string) => invoke<ChannelInfo[]>('tabs_lookup', { input }),
   /** U10 Reopens what the last close took; `made` is the tab it shows. */
   reopen: () => invoke<TabsApplied>('tabs_reopen'),
+  /** V108-N21 True once when the last run ended without a clean exit and tabs came back. */
+  resumePending: () => invoke<boolean>('tabs_resume_pending'),
+  /** V108-N21 Keeps the picked tabs, closes the rest into the reopen list. */
+  resume: (keep: string[]) => invoke<TabsApplied>('tabs_resume', { keep }),
   reopenable: () => invoke<boolean>('tabs_reopenable'),
   onReopenable: (handler: (any: boolean) => void) => listen<boolean>('tabs:reopenable', (e) => handler(e.payload)),
   /** U9 Chats with news nobody has seen. */

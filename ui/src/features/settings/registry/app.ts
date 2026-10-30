@@ -43,6 +43,20 @@ export const APP: Entry[] = [
     keywords: ['taskbar', 'system tray', 'background'],
   },
   {
+    id: 'browse.hiddenCategories',
+    page: 'general',
+    label: 'Hidden categories',
+    description: 'Left out of Home and Discover. Hide one with a right-click on it in Discover.',
+    keywords: ['hide', 'category', 'game', 'block', 'home', 'discover', 'unhide', 'slots'],
+  },
+  {
+    id: 'browse.hiddenTags',
+    page: 'general',
+    label: 'Hidden tags',
+    description: 'Live streams with one of these tags are left out of Home and Discover.',
+    keywords: ['hide', 'tag', 'label', 'content', 'mature', 'nsfw', 'block', 'home', 'discover'],
+  },
+  {
     id: 'general.updates.check',
     page: 'general',
     label: 'Check for updates',

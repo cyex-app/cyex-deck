@@ -12,15 +12,16 @@
   import QuickOpen from './QuickOpen.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
 
-  let { card, nav }: { card: ChannelCard; nav: Nav } = $props();
+  /** V108-N03 "next: 2026/10/30 20:00", when the channel has a stream planned. */
+  let { card, nav, next = '' }: { card: ChannelCard; nav: Nav; next?: string } = $props();
 
   const click = $derived(cardClick(nav, card));
   const stream = $derived(card.stream);
   const last = $derived(since(card.lastLive));
   // "Live 2 days ago · Just Chatting · title"; the full title rides in the tooltip.
-  const offline = $derived([last ? `Live ${last}` : '', card.lastGame, card.lastTitle].filter(Boolean).join(' · '));
+  const offline = $derived([last ? `Live ${last}` : '', next, card.lastGame, card.lastTitle].filter(Boolean).join(' · '));
   const ownPeek = (node: HTMLElement) => ({ destroy: () => unpeekFrom(node) });
-  const offlineTip = $derived([card.lastLive ? formatDate(new Date(card.lastLive)) : '', card.lastGame, card.lastTitle].filter(Boolean).join(' · '));
+  const offlineTip = $derived([card.lastLive ? formatDate(new Date(card.lastLive)) : '', next, card.lastGame, card.lastTitle].filter(Boolean).join(' · '));
 </script>
 
 <div class="row" class:picked={picked.has(card.id)}>

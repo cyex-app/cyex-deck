@@ -6,6 +6,7 @@ import './design/fonts.css';
 import App from './app/App.svelte';
 import PanelApp from './app/PanelApp.svelte';
 import { applyCachedTheme } from './design/theme';
+import { askResume } from './features/tabs/resume.svelte';
 import { tabs } from './features/tabs/tabs.svelte';
 import { chatxIpc } from './ipc/chatx';
 import { accounts } from './lib/accounts.svelte';
@@ -27,7 +28,11 @@ const target = document.getElementById('app')!;
 // C17 Translations go to the Windows language unless Settings says otherwise.
 if (!panelRoute) chatxIpc.setLanguage(navigator.language).catch(() => {});
 // V107-R12 Once after a crash, in the main window.
-if (!panelRoute && currentWindow.isMain) void showCrashNote();
+if (!panelRoute && currentWindow.isMain) {
+  void showCrashNote();
+  // V108-N21 And which tabs to bring back.
+  void askResume();
+}
 
 export default panelRoute
   ? mount(PanelApp, { target, props: { route: decodeURIComponent(panelRoute) } })

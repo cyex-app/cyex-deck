@@ -36,6 +36,7 @@ impl Tabs {
                 alias: imported.alias,
                 group: None,
                 columns: Vec::new(),
+                ..Tab::default()
             };
             let mut muted = false;
             for column in imported.columns {

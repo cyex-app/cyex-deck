@@ -16,6 +16,7 @@ import { openAdd, openEdit, openGroupDialog } from './dialog.svelte';
 import { COLOR_ORDER, GROUP_COLORS } from './groupColors';
 import { audioFocus } from './audioFocus.svelte';
 import { dragged, layout } from './layout.svelte';
+import { CHAT_SIZES, EMOTE_SIZES, isDefaultLook, withLook } from './look';
 import { tabs, streamIds, tiles } from './tabs.svelte';
 
 /** Menu for `tab`. `targets` are the selected tabs it acts on (`tab` included). */
@@ -57,6 +58,7 @@ export function tabMenu(tab: Tab, targets: Tab[]): MenuEntry[] {
   if (mute) entries.push(mute);
   // A popped-out tab's panels move in its own window, from the chat's menu.
   if (one && !popped) entries.push(...layoutEntries(tab));
+  if (one && !feed) entries.push(lookEntry(tab));
   const first = one && !feed ? mineFirstEntry(tiles(tab).map((t) => t.channel)) : null;
   if (first) entries.push(first);
   entries.push(
@@ -92,6 +94,7 @@ export function tileEntries(tab: Tab, tile: Tile): MenuEntry[] {
     ...(tile.feed ? [] : [{ label: 'Edit', icon: 'pencil' as const, run: () => openEdit(tab.id, tile.id) }, ...showEntries(tile)]),
     { label: 'Move to its own tab', icon: 'popout', run: () => void tabs.apply({ op: 'detach', tile: tile.id, before: null }) },
     ...layoutEntries(tab),
+    ...(tile.feed ? [] : [lookEntry(tab)]),
     'separator',
     { label: 'Close', icon: 'x', run: () => void tabs.apply({ op: 'closeTile', tile: tile.id }) },
   ];
@@ -110,6 +113,32 @@ export function layoutEntries(tab: Tab): MenuEntry[] {
     ...(dragged(tab) ? [{ label: 'Reset layout', icon: 'undo' as const, run: () => layout.reset(tab) }] : []),
     { label: 'Move panels', icon: 'layout', checked: on, run: () => layout.setUnlocked(tab.id, !on) },
   ];
+}
+
+/** V108-N19 Text and emote size for this tab's chats, over Settings. */
+function lookEntry(tab: Tab): MenuEntry {
+  const set = (patch: { chatSize?: number | null; emoteSize?: number | null }) => () =>
+    void tabs.apply({ op: 'look', tab: tab.id, look: withLook(tab.look, patch) });
+  const { chatSize, emoteSize } = tab.look ?? {};
+  const pick = (value: number | null | undefined, sizes: readonly number[], unit: string, key: 'chatSize' | 'emoteSize'): MenuEntry[] => [
+    { label: 'Default', checked: value == null, run: set({ [key]: null }) },
+    ...sizes.map((n) => ({ label: `${n}${unit}`, checked: value === n, run: set({ [key]: n }) })),
+  ];
+  return {
+    label: 'Chat look',
+    icon: 'chat',
+    items: [
+      { label: 'Text size', hint: chatSize != null ? `${chatSize}px` : undefined, items: pick(chatSize, CHAT_SIZES, 'px', 'chatSize') },
+      { label: 'Emote size', hint: emoteSize != null ? `${emoteSize}%` : undefined, items: pick(emoteSize, EMOTE_SIZES, '%', 'emoteSize') },
+      'separator',
+      {
+        label: 'Reset to default',
+        icon: 'undo',
+        disabled: isDefaultLook(tab.look),
+        run: () => void tabs.apply({ op: 'look', tab: tab.id, look: { chatSize: null, emoteSize: null } }),
+      },
+    ],
+  };
 }
 
 /** V101-20 Hide the chat or the stream, or bring it back, without the edit dialog. */

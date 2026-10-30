@@ -5,14 +5,20 @@
   import { discoverIpc } from '../../ipc/browse';
   import ChannelRow from '../browse/ChannelRow.svelte';
   import type { Nav } from '../browse/open.svelte';
+  import { settings } from '../../lib/settings.svelte';
   import CategoryCard from './CategoryCard.svelte';
   import { discover } from './discover.svelte';
+  import { visibleCategories } from './hidden';
   import { errorText } from '../../lib/errors';
 
   let { text, nav }: { text: string; nav: Nav } = $props();
 
   let channels = $state.raw<ChannelCard[]>([]);
   let categories = $state.raw<Category[]>([]);
+  // V108-N05 Hidden categories stay out of the results too; channels are shown as found.
+  const shownCategories = $derived(
+    visibleCategories({ categories: settings.v.browse.hiddenCategories, tags: [] }, categories),
+  );
   let cursor = $state<string | null>(null);
   let loading = $state(false);
   let error = $state<string | null>(null);
@@ -66,14 +72,14 @@
 
 {#if error}
   <p class="note">{error}</p>
-{:else if !loading && !channels.length && !categories.length}
+{:else if !loading && !channels.length && !shownCategories.length}
   <p class="note">Nothing found for “{text}”.</p>
 {/if}
 
-{#if categories.length}
+{#if shownCategories.length}
   <h2>Categories</h2>
   <div class="cats">
-    {#each categories as c (c.id)}
+    {#each shownCategories as c (c.id)}
       <CategoryCard category={c} onopen={(c) => discover.go({ kind: 'category', slug: c.slug, name: c.name })} />
     {/each}
   </div>
