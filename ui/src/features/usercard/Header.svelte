@@ -115,7 +115,7 @@
       <strong class={paint ?? ''} class:painted={!!paint} class:colored={!!color}>{note?.nickname || profile.displayName}</strong>
       {#if localized || note?.nickname}<span class="login">{profile.login}</span>{/if}
     </div>
-    {#if paintName}<span class="paint" style={colorVars}>{paintName}</span>{/if}
+    {#if paintName}<span class="paint"><span class="fill {paint}" aria-hidden="true"></span><span class="label">{paintName}</span></span>{/if}
     <div class="marks">
       {#if flag}<span class="role suspended {flag.tone}" use:tooltip={flag.hint}>{flag.label}</span>{/if}
       {#if profile.staff}<span class="role staff">Staff</span>{/if}
@@ -286,14 +286,38 @@
     color: var(--dim);
     font-size: 0.8rem;
   }
+  /* The paint is the box's background (its class sets picture or gradient, and the
+     shadows); a dark veil and a text shadow keep the name readable on any paint. */
   .paint {
+    position: relative;
     align-self: flex-start;
-    padding: 0 6px;
-    border-radius: var(--radius);
-    background: color-mix(in srgb, var(--cd, var(--accent)) 22%, transparent);
-    color: var(--text);
+    max-width: 100%;
+    padding: 1px 8px;
     font-size: 0.7rem;
     font-weight: 700;
+  }
+  .fill {
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius);
+    background-color: var(--elevated-2);
+    filter: var(--paint-shadow,);
+  }
+  .fill::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: rgb(0 0 0 / 0.28);
+  }
+  .label {
+    position: relative;
+    display: block;
+    overflow: hidden;
+    color: #fff;
+    text-overflow: ellipsis;
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.85);
+    white-space: nowrap;
   }
   .marks {
     display: flex;

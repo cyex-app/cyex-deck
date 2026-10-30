@@ -170,7 +170,7 @@ export function lineTips(root: () => HTMLElement | undefined) {
       hold(el);
       if (el.dataset.link) return linkTip(el);
       if (el.dataset.emoji) return emojiTip(el);
-      showTip(el, { label: el.dataset.tip ?? '', hint: el.dataset.hint, image: el.dataset.tipImg });
+      showTip(el, { label: el.dataset.tip ?? '', hint: el.dataset.hint, image: el.dataset.tipImg, paint: el.dataset.tipPaint });
     },
     onmouseout(e: MouseEvent) {
       const from = (e.target as HTMLElement).closest(TIPPED);

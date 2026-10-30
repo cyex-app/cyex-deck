@@ -187,7 +187,7 @@
         tabindex="-1"
         data-user={sender.login}
         data-tip={paintName}
-        data-hint={paintName ? '7TV paint' : null}>{name.name}</span
+        data-tip-paint={paintName ? paint : null}>{name.name}</span
       >{#if name.extra}<span class="extra">{` (${name.extra})`}</span>{/if}{#if !action}<span class="colon">{': '}</span>{:else}{' '}{/if}<span
         class="body"
         class:action

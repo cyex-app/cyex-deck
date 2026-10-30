@@ -13,6 +13,8 @@ export interface TipOptions {
   hint?: string;
   /** E6 A bigger picture above the label, e.g. an emote's. */
   image?: string;
+  /** A 7TV paint's class: the label is drawn in that paint. */
+  paint?: string;
   /** Shows only when this says so at that moment, e.g. while a label is cut off. */
   when?: () => boolean;
   /** ct-9 Where it goes when there's room; below by default. */
@@ -31,6 +33,7 @@ export const tip = $state({
   label: '',
   hint: '',
   image: '',
+  paint: '',
   preview: null as LinkPreview | null,
   /** The element it shows for, as it was when the tip opened. */
   anchor: null as Rect | null,
@@ -82,6 +85,7 @@ function show(node: HTMLElement, opts: TipOptions): void {
     tip.label = opts.label;
     tip.hint = hintFor(opts);
     tip.image = opts.image ?? '';
+    tip.paint = opts.paint ?? '';
     tip.preview = null;
     tip.anchor = node.getBoundingClientRect();
     tip.side = opts.side ?? 'below';
@@ -142,6 +146,7 @@ export function tooltip(node: HTMLElement, initial: TipOptions | string) {
       tip.label = opts.label;
       tip.hint = hintFor(opts);
       tip.image = opts.image ?? '';
+      tip.paint = opts.paint ?? '';
     },
     destroy() {
       if (owner === node) hide();

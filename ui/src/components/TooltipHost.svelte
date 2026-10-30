@@ -7,7 +7,7 @@
   <!-- V101-04 Under its element, or above it when there's no room below (or a side it asks for, ct-9). -->
   <div class="tip" class:pic={!!tip.image} role="tooltip" use:floating={{ anchor: tip.anchor, side: tip.side, align: 'center' }}>
     {#if tip.image}<img src={tip.image} alt="" />{/if}
-    <span class="name">{tip.label}</span>
+    <span class="name {tip.paint}" class:painted={!!tip.paint}>{tip.label}</span>
     {#if tip.hint}<span class="hint">{tip.hint}</span>{/if}
     {#if tip.preview}
       {@const p = tip.preview}
