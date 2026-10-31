@@ -69,7 +69,8 @@
   .close {
     position: absolute;
     top: 6px;
-    right: 6px;
+    /* Clear of the page's scrollbar (11px). */
+    right: 17px;
   }
   /* A small window: the whole window, as the page was. */
   @media (max-width: 900px), (max-height: 560px) {

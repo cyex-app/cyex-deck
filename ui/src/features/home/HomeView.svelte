@@ -81,7 +81,7 @@
   function pickAccount(e: MouseEvent) {
     const items: MenuEntry[] = home.able.map((id) => {
       const a = accounts.list.find((x) => x.userId === id)!;
-      return { label: a.displayName, checked: id === home.account, run: () => (home.picked = id) };
+      return { label: a.displayName, avatar: a.avatar, checked: id === home.account, run: () => (home.picked = id) };
     });
     openMenuAt(e, items);
   }
