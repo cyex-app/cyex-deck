@@ -17,6 +17,8 @@ pub struct ConnectionCount {
     pub joined: u32,
     /// V105-05 Channels (logins) Twitch didn't let it join, while their chat is open.
     pub refused: Vec<String>,
+    /// The logins of those chats, sorted (the joined-chats list).
+    pub channels: Vec<String>,
 }
 
 /// One entry per signed-in account, zeros included.
@@ -26,8 +28,8 @@ pub fn counts(app: &AppHandle) -> Vec<ConnectionCount> {
         .list
         .iter()
         .map(|a| {
-            let (joined, refused) = rooms.get(&a.user_id).cloned().unwrap_or_default();
-            ConnectionCount { user_id: a.user_id.clone(), joined, refused }
+            let (channels, refused) = rooms.get(&a.user_id).cloned().unwrap_or_default();
+            ConnectionCount { user_id: a.user_id.clone(), joined: channels.len() as u32, refused, channels }
         })
         .collect()
 }

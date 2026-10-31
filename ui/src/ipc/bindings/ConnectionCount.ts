@@ -11,4 +11,8 @@ joined: number,
 /**
  * V105-05 Channels (logins) Twitch didn't let it join, while their chat is open.
  */
-refused: Array<string>, };
+refused: Array<string>, 
+/**
+ * The logins of those chats, sorted (the joined-chats list).
+ */
+channels: Array<string>, };

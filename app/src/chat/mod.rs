@@ -807,10 +807,10 @@ fn queue(entry: &mut Entry, events: impl IntoIterator<Item = RoomEvent>, wake: &
     }
 }
 
-/// 1.13 Per account: chats open (refused ones not) and the logins Twitch refused (V105-05).
+/// 1.13 Per account: logins of the chats open (refused ones not) and the logins Twitch refused (V105-05).
 /// Takes the chat lock: callers must not hold it.
-pub(crate) fn account_rooms(app: &AppHandle) -> HashMap<String, (u32, Vec<String>)> {
-    let mut out: HashMap<String, (u32, Vec<String>)> = HashMap::new();
+pub(crate) fn account_rooms(app: &AppHandle) -> HashMap<String, (Vec<String>, Vec<String>)> {
+    let mut out: HashMap<String, (Vec<String>, Vec<String>)> = HashMap::new();
     let Some(chat) = app.try_state::<Chat>() else { return out };
     for ((identity, login), e) in &chat.lock().rooms {
         let Identity::Account(id) = identity else { continue };
@@ -818,10 +818,11 @@ pub(crate) fn account_rooms(app: &AppHandle) -> HashMap<String, (u32, Vec<String
         if e.room.status == ConnStatus::Refused {
             n.1.push(login.clone());
         } else {
-            n.0 += 1;
+            n.0.push(login.clone());
         }
     }
     for n in out.values_mut() {
+        n.0.sort();
         n.1.sort();
     }
     out

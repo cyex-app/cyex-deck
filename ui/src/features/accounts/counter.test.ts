@@ -5,7 +5,7 @@ import type { ConnectionCount } from '../../ipc/bindings/ConnectionCount';
 import { counterView } from './counter.ts';
 
 const name = (id: string) => (id === 'a' ? 'Bot' : 'Main');
-const count = (userId: string, joined: number, refused: string[] = []): ConnectionCount => ({ userId, joined, refused });
+const count = (userId: string, joined: number, refused: string[] = []): ConnectionCount => ({ userId, joined, refused, channels: [] });
 
 test('one account shows its open chats', () => {
   const v = counterView([count('a', 12)], 'a', name);
