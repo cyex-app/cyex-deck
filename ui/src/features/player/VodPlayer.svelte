@@ -6,6 +6,7 @@
 
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
+  import { useClipArm } from './clipArm.svelte';
   import type { PlayerSession } from '../../ipc/bindings/PlayerSession';
   import type { Storyboard } from '../../ipc/bindings/Storyboard';
   import type { Tile } from '../../ipc/bindings/Tile';
@@ -178,6 +179,8 @@
     void clipVideoAt(tile, clipper, tile.channel.id, id, vodClipOffset(video?.currentTime ?? 0, duration));
   }
 
+  const clipArm = useClipArm(clipHere);
+
   /** A fresh session, carrying on where it was. */
   async function reload() {
     const e = engine;
@@ -316,7 +319,7 @@
             <span class="clock">{clock(time)} / {clock(duration)}</span>
             <span class="grow"></span>
             {#if clipper}
-              <button class="ctl" aria-label="Clip" use:tooltip={{ label: 'Clip', hint: 'Clips the seconds before this point.' }} disabled={clipMaking.busy} onclick={clipHere}>
+              <button class="ctl" class:armed={clipArm.armed} aria-label={clipArm.armed ? 'Click again to clip' : 'Clip'} use:tooltip={clipArm.armed ? { label: 'Click again to clip' } : { label: 'Clip', hint: 'Clips the seconds before this point.' }} disabled={clipMaking.busy} onclick={clipArm.click}>
                 <Icon name="scissors" size={17} />
               </button>
             {/if}

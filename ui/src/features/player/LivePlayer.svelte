@@ -7,6 +7,7 @@
   import Avatar from '../../components/Avatar.svelte';
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
+  import { useClipArm } from './clipArm.svelte';
   import type { AdState } from '../../ipc/bindings/AdState';
   import type { ChannelInfo } from '../../ipc/bindings/ChannelInfo';
   import type { Corner } from '../../ipc/bindings/Corner';
@@ -264,6 +265,8 @@
     if (plan.kind === 'live') void clipLiveAt(tile, clipper, tile.channel.id, plan.offset);
     else void clipVideoAt(tile, clipper, tile.channel.id, plan.video, plan.offset);
   }
+
+  const clipArm = useClipArm(clipHere);
 
   function momentRows(): MomentRow[] {
     return newest(momentFeed.list).map((m) => {
@@ -566,7 +569,7 @@
   <Volume volume={sound.volume} muted={sound.muted} boost={sound.boost} onchange={sound.set} onboost={sound.setBoost} />
   <span class="grow"></span>
   {#if onclip}
-    <button class="ctl" aria-label="Clip" use:tooltip={{ label: 'Clip', hint: rewind.inVod ? 'Clips the seconds up to here.' : 'Clips the last seconds of the stream.' }} onclick={clipHere}>
+    <button class="ctl" class:armed={clipArm.armed} aria-label={clipArm.armed ? 'Click again to clip' : 'Clip'} use:tooltip={clipArm.armed ? { label: 'Click again to clip' } : { label: 'Clip', hint: rewind.inVod ? 'Clips the seconds up to here.' : 'Clips the last seconds of the stream.' }} onclick={clipArm.click}>
       <Icon name="scissors" size={17} />
     </button>
   {:else if clipOff}

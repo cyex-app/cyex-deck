@@ -209,6 +209,10 @@
     opacity: 1;
     background: color-mix(in srgb, var(--on-video) 12%, transparent);
   }
+  .shell :global(.ctl.armed) {
+    color: var(--red);
+    opacity: 1;
+  }
   .shell :global(.ctl.on) {
     color: #9cbcff;
   }
