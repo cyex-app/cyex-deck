@@ -2,8 +2,6 @@
 //! instead of as a Twitch notice. Sends go out on the account's writer connection (V105-06).
 //! C21 dodges Twitch's 30 s duplicate check.
 
-use std::sync::atomic::{AtomicU64, Ordering};
-
 use cyex_chat::PendingSend;
 use cyex_chat::irc::{Window, write};
 use cyex_chat::model::ConnStatus;
@@ -112,7 +110,7 @@ fn queue(
         out = dodge_duplicate(&out);
     }
     entry.last_sent = Some((out.clone(), now));
-    let nonce = nonce(now);
+    let nonce = nonce();
     entry.room.sending(PendingSend {
         text: body.to_owned(),
         action,
@@ -139,12 +137,10 @@ fn queue(
     Ok(Some((sent, nonce)))
 }
 
-/// A `client-nonce` unique to this send, so its USERSTATE finds it. 32 characters, not all
-/// hex: C26 reads it as no known app, like Chatterino's lines.
-fn nonce(now_ms: i64) -> String {
-    static SEQ: AtomicU64 = AtomicU64::new(0);
-    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
-    format!("cyex{:016x}{:012x}", now_ms as u64, seq & 0xffff_ffff_ffff)
+/// A `client-nonce` unique to this send, so its USERSTATE finds it: 32 random lowercase hex, as
+/// twitch.tv sends. Our own "cyex…" one read as abnormal to chat tools (user, 2026/11/01).
+fn nonce() -> String {
+    cyex_twitch::random::hex(16)
 }
 
 /// V107-N1a Twitch counts the ACTION wrapper (9 chars) of a /me line toward the 500; a longer one
@@ -174,11 +170,10 @@ mod tests {
     }
 
     #[test]
-    fn nonces_differ_and_name_no_app() {
-        let (a, b) = (nonce(1_792_694_804_267), nonce(1_792_694_804_267));
+    fn nonces_differ_and_look_like_the_website() {
+        let (a, b) = (nonce(), nonce());
         assert_ne!(a, b);
-        assert_eq!(a.len(), 32);
-        assert_eq!(Client::from_nonce(&a), None);
+        assert_eq!(Client::from_nonce(&a), Some(Client::Web));
     }
 
     #[test]

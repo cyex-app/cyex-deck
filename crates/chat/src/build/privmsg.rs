@@ -91,7 +91,8 @@ pub fn privmsg(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Option<ChatMessage> {
         source,
         flags,
         meta: Meta {
-            client: Client::from_nonce(line.raw_tag("client-nonce").unwrap_or("")),
+            // The deck's own nonce looks like the website's: our own lines name no app.
+            client: (!own).then(|| Client::from_nonce(line.raw_tag("client-nonce").unwrap_or(""))).flatten(),
             effect: (line.raw_tag("msg-id") == Some("animated-message"))
                 .then(|| line.tag_nonempty("animation-id").map(str::to_owned))
                 .flatten(),
@@ -200,6 +201,15 @@ mod tests {
     fn own_messages_never_count_as_mentions() {
         let m = build("@id=m3;user-id=42 :cyex!cyex@cyex.tmi.twitch.tv PRIVMSG #bar :cyex here", Some(&me()));
         assert!(m.has(Flag::Own) && !m.has(Flag::Mention));
+    }
+
+    #[test]
+    fn own_messages_name_no_app() {
+        let nonce = "client-nonce=0123456789abcdef0123456789abcdef";
+        let m = build(&format!("@id=m5;{nonce};user-id=42 :cyex!cyex@cyex.tmi.twitch.tv PRIVMSG #bar :hi"), Some(&me()));
+        assert_eq!(m.meta.client, None);
+        let m = build(&format!("@id=m6;{nonce};user-id=7 :foo!foo@foo.tmi.twitch.tv PRIVMSG #bar :hi"), Some(&me()));
+        assert_eq!(m.meta.client, Some(Client::Web));
     }
 
     #[test]
