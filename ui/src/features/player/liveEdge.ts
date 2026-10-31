@@ -74,7 +74,7 @@ export function pausedBehind(atPause: number | null, pausedMs: number): number |
 
 /** The live part of the hls.js config (today's values). */
 export function liveConfig(lowLatency: boolean): Partial<HlsConfig> {
-  const c: Partial<HlsConfig> = {
+  return {
     // Segments still being made sit at the end: start two from the end.
     liveSyncDuration: lowLatency ? 4 : 8,
     liveMaxLatencyDuration: maxLatency(lowLatency, false),
@@ -82,10 +82,6 @@ export function liveConfig(lowLatency: boolean): Partial<HlsConfig> {
     maxBufferLength: 12,
     maxMaxBufferLength: 20,
   };
-  // V108-LL The segment still being made plays while it arrives (fetch streaming), as on
-  // twitch.tv. Loaded whole, it played only once Twitch finished it: a full segment (2 s)
-  // further behind. Same start point, so the buffer is never smaller than before.
-  return lowLatency ? { ...c, progressive: true } : c;
 }
 
 /** The rewind VOD's config: an EVENT playlist hls.js would treat as live. A huge max
