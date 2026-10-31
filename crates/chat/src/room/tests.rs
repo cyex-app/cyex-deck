@@ -372,13 +372,13 @@ fn gift_subs_merge_into_their_mass_gift() {
     let mass = r"@id=g0;login=a;msg-id=submysterygift;msg-param-mass-gift-count=2;msg-param-origin-id=77;system-msg=A\sis\sgifting\s2;user-id=9 :tmi.twitch.tv USERNOTICE #chan";
     let one = |n: &str| {
         format!(
-            r"@id=g{n};login=a;msg-id=subgift;msg-param-community-gift-id=77;msg-param-origin-id=77;msg-param-recipient-display-name=R{n};system-msg=A\sgifted;user-id=9 :tmi.twitch.tv USERNOTICE #chan"
+            r"@id=g{n};login=a;msg-id=subgift;msg-param-community-gift-id=77;msg-param-origin-id=77;msg-param-recipient-display-name=R{n};msg-param-recipient-user-name=r{n};system-msg=A\sgifted;user-id=9 :tmi.twitch.tv USERNOTICE #chan"
         )
     };
     feed(&mut r, mass);
     let ev = feed(&mut r, &one("1"));
     assert!(
-        matches!(&ev[0], RoomEvent::Update { message } if message.notice.as_ref().unwrap().recipients == ["R1"])
+        matches!(&ev[0], RoomEvent::Update { message } if message.notice.as_ref().unwrap().recipients == [NoticeUser::new("R1", "r1")])
     );
     feed(&mut r, &one("2"));
     // The group is full: a third one stands alone.
@@ -386,7 +386,7 @@ fn gift_subs_merge_into_their_mass_gift() {
     assert!(matches!(&ev[0], RoomEvent::Message { .. }));
     let s = r.snapshot();
     assert_eq!(s.messages.len(), 2);
-    assert_eq!(s.messages[0].notice.as_ref().unwrap().recipients, ["R1", "R2"]);
+    assert_eq!(s.messages[0].notice.as_ref().unwrap().recipients, [NoticeUser::new("R1", "r1"), NoticeUser::new("R2", "r2")]);
 }
 
 #[test]

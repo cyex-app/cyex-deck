@@ -21,6 +21,7 @@
   import { shownName } from './names';
   import { ownNameColor } from './ownColor';
   import { foldRecipients } from './recipients';
+  import { splitNames } from './noticeNames';
   import { lineBadges } from './sharedBadges';
   import { catalogs } from './catalog.svelte';
   import { lineStacks } from './stacked';
@@ -68,6 +69,8 @@
   const recipients = $derived(notice?.recipients ?? []);
   let recipientsOpen = $state(false);
   const fold = $derived(foldRecipients(recipients, recipientsOpen));
+  // V108-C11 The gifter and a lone recipient in the text open their usercard.
+  const noticeParts = $derived(notice?.links.length ? splitNames(notice.text, notice.links) : null);
   // C37 V108-C03 Joins and leaves: each name opens its usercard; the count stays text.
   const presence = $derived(notice?.presence);
   const hl = $derived(highlightStyle(m));
@@ -143,12 +146,13 @@
             role="link"
             tabindex="-1"
             data-user={login}>{login}</span
-          >{/each}{presence.more ? ` +${formatNumber(presence.more)} more` : ''}{:else}{notice.text}{/if}
+          >{/each}{presence.more ? ` +${formatNumber(presence.more)} more` : ''}{:else if noticeParts}{#each noticeParts as p}{#if p.login}<span class="who" role="link" tabindex="-1" data-user={p.login}>{p.text}</span
+          >{:else}{p.text}{/if}{/each}{:else}{notice.text}{/if}
     </div>
     {#if recipients.length}
       <!-- C16 One recipient per line, the long lists folded. -->
       <ul class="recipients" aria-label="Recipients">
-        {#each fold.shown as r (r)}<li>{r}</li>{/each}
+        {#each fold.shown as r (r.login)}<li><span class="who" role="link" tabindex="-1" data-user={r.login}>{r.name}</span></li>{/each}
       </ul>
       {#if fold.hidden}<button class="more" onclick={() => (recipientsOpen = true)}>+{formatNumber(fold.hidden)} more</button>{/if}
     {/if}

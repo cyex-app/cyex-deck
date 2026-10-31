@@ -2,7 +2,7 @@
 //! Twitch's `system-msg` is the line's text; the user's own message, if any, is the body.
 
 use crate::irc::Line;
-use crate::model::{ChatMessage, Flag, Meta, Notice, NoticeKind, SharedSource};
+use crate::model::{ChatMessage, Flag, Meta, Notice, NoticeKind, NoticeUser, SharedSource};
 use crate::tokenize::{Input, tokenize};
 
 use super::sender::{badges, sender};
@@ -28,6 +28,8 @@ pub fn usernotice(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Option<Incoming> {
             .tag_nonempty("msg-param-color")
             .map(|c| c.to_ascii_lowercase());
     }
+
+    notice.links = gift_links(msg_id, line);
 
     let tokens = line.trailing().map(|text| {
         tokenize(
@@ -83,18 +85,55 @@ pub fn usernotice(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Option<Incoming> {
             origin,
             count: param("mass-gift-count").and_then(|c| c.parse().ok()).unwrap_or(1),
         }),
-        "subgift" => param("recipient-display-name")
-            .or_else(|| param("recipient-user-name"))
-            .map(|recipient| GiftLink::Single {
-                community: param("community-gift-id"),
-                recipient,
-            }),
+        "subgift" => recipient(&param).map(|recipient| GiftLink::Single {
+            community: param("community-gift-id"),
+            recipient,
+        }),
         _ => None,
     };
     Some(match gift {
         Some(gift) => Incoming::Gift { message, gift },
         None => Incoming::Message(message),
     })
+}
+
+/// V108-C11 The gifted user, with the login the usercard needs.
+fn recipient(param: &dyn Fn(&str) -> Option<String>) -> Option<NoticeUser> {
+    let login = param("recipient-user-name");
+    let name = param("recipient-display-name").or_else(|| login.clone())?;
+    let login = login.unwrap_or_else(|| name.to_lowercase());
+    Some(NoticeUser::new(name, login))
+}
+
+/// V108-C11 Names in a gift line's text that open a usercard. An anonymous gifter has none.
+fn gift_links(msg_id: &str, line: &Line<'_>) -> Vec<NoticeUser> {
+    let param = |key: &str| {
+        line.tag(&format!("msg-param-{key}"))
+            .filter(|v| !v.is_empty())
+            .map(|v| v.into_owned())
+    };
+    let mut links = Vec::new();
+    let anon = msg_id.starts_with("anon") || line.tag_nonempty("login") == Some("ananonymousgifter");
+    if matches!(msg_id, "subgift" | "submysterygift" | "communitypayforward" | "standardpayforward")
+        && !anon
+        && let Some(login) = line.tag_nonempty("login")
+    {
+        links.push(NoticeUser::new(who(line), login));
+    }
+    match msg_id {
+        "subgift" | "anonsubgift" => links.extend(recipient(&param)),
+        "communitypayforward" | "standardpayforward" => {
+            if let Some(login) = param("prior-gifter-user-name") {
+                let name = param("prior-gifter-display-name").unwrap_or_else(|| login.clone());
+                links.push(NoticeUser::new(name, login));
+            }
+            if msg_id == "standardpayforward" {
+                links.extend(recipient(&param));
+            }
+        }
+        _ => {}
+    }
+    links
 }
 
 fn who(line: &Line<'_>) -> String {
@@ -139,6 +178,13 @@ mod tests {
         let mut colors = Colors::default();
         let mut ctx = Ctx::new(None, &mut colors, 0);
         build(&Line::parse(raw).unwrap(), &mut ctx).unwrap()
+    }
+
+    fn links_of(raw: &str) -> Vec<NoticeUser> {
+        match run_any(raw) {
+            Incoming::Message(m) | Incoming::Gift { message: m, .. } => m.notice.unwrap().links,
+            other => panic!("{other:?}"),
+        }
     }
 
     fn run(raw: &str) -> ChatMessage {
@@ -194,7 +240,7 @@ mod tests {
             }
         );
         let Incoming::Gift { gift, .. } = run_any(
-            r"@id=g1;login=a;msg-id=subgift;msg-param-community-gift-id=777;msg-param-origin-id=777;msg-param-recipient-display-name=Bob;system-msg=A\sgifted;user-id=9 :tmi.twitch.tv USERNOTICE #c",
+            r"@id=g1;login=a;msg-id=subgift;msg-param-community-gift-id=777;msg-param-origin-id=777;msg-param-recipient-display-name=Bob;msg-param-recipient-user-name=bob;system-msg=A\sgifted;user-id=9 :tmi.twitch.tv USERNOTICE #c",
         ) else {
             panic!()
         };
@@ -202,9 +248,25 @@ mod tests {
             gift,
             GiftLink::Single {
                 community: Some("777".into()),
-                recipient: "Bob".into()
+                recipient: NoticeUser::new("Bob", "bob")
             }
         );
+    }
+
+    #[test]
+    fn gift_lines_link_gifter_and_recipient_by_login() {
+        let links = links_of(
+            r"@display-name=テスト;id=g2;login=tesuto;msg-id=subgift;msg-param-recipient-display-name=Bob;msg-param-recipient-user-name=bob_login;system-msg=テスト\sgifted\sa\ssub\sto\sBob;user-id=9 :tmi.twitch.tv USERNOTICE #c",
+        );
+        assert_eq!(links, [NoticeUser::new("テスト", "tesuto"), NoticeUser::new("Bob", "bob_login")]);
+    }
+
+    #[test]
+    fn anonymous_gifter_has_no_link() {
+        let links = links_of(
+            r"@id=g3;login=ananonymousgifter;msg-id=anonsubgift;msg-param-recipient-display-name=Bob;msg-param-recipient-user-name=bob;system-msg=An\sanonymous\suser\sgifted\sa\ssub\sto\sBob;user-id=9 :tmi.twitch.tv USERNOTICE #c",
+        );
+        assert_eq!(links, [NoticeUser::new("Bob", "bob")]);
     }
 
     #[test]

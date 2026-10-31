@@ -27,7 +27,7 @@ use crate::irc::Line;
 use crate::rules::{Outcome, Rules};
 use crate::similar::Repeats;
 use crate::model::{
-    ChatMessage, ConnStatus, Flag, Gone, GoneHow, Meta, NoticeKind, Pinned, Reply, RoomEvent, RoomState,
+    ChatMessage, ConnStatus, Flag, Gone, GoneHow, Meta, NoticeKind, NoticeUser, Pinned, Reply, RoomEvent, RoomState,
     Sender, plain,
 };
 use crate::tokenize::{Emotes, Input, tokenize};
@@ -631,7 +631,7 @@ impl Room {
         }
     }
 
-    fn merge_gift(&mut self, origin: &str, recipient: String) -> Option<RoomEvent> {
+    fn merge_gift(&mut self, origin: &str, recipient: NoticeUser) -> Option<RoomEvent> {
         let g = self.gifts.iter().position(|g| g.origin == origin)?;
         let id = self.gifts[g].message_id.clone();
         let slot = self.buffer.iter_mut().find(|m| m.id == id)?;

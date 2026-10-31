@@ -11,7 +11,9 @@ pub struct Notice {
     /// Ready to show, e.g. "Foo subscribed for 12 months."
     pub text: String,
     /// C16 Gift recipients merged into one line.
-    pub recipients: Vec<String>,
+    pub recipients: Vec<NoticeUser>,
+    /// V108-C11 Names inside `text` that open their usercard (the gifter, a lone recipient).
+    pub links: Vec<NoticeUser>,
     /// Announcement color: `primary`, `blue`, `green`, `orange`, `purple`.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -20,6 +22,24 @@ pub struct Notice {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub presence: Option<Presence>,
+}
+
+/// V108-C11 A user named in a notice: the name as shown (may be localized) and the login for the usercard.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct NoticeUser {
+    pub name: String,
+    pub login: String,
+}
+
+impl NoticeUser {
+    pub fn new(name: impl Into<String>, login: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            login: login.into(),
+        }
+    }
 }
 
 /// C37 V108-C03 Who joined or left, as the line shows them.
@@ -40,6 +60,7 @@ impl Notice {
             kind,
             text: text.into(),
             recipients: Vec::new(),
+            links: Vec::new(),
             color: None,
             presence: None,
         }

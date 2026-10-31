@@ -16,7 +16,7 @@ pub use sender::Colors;
 pub use state::{RoomStateUpdate, UserState};
 
 use crate::irc::Line;
-use crate::model::{ChatMessage, Meta, Notice, NoticeKind};
+use crate::model::{ChatMessage, Meta, Notice, NoticeKind, NoticeUser};
 use crate::tokenize::{Emotes, NoEmotes};
 
 /// The signed-in account reading this room.
@@ -83,7 +83,7 @@ pub enum GiftLink {
     /// "X is gifting 5 subs": the gifts that follow name its origin id.
     Mass { origin: String, count: usize },
     /// One gifted sub; `community` is the origin id of its mass gift, if any.
-    Single { community: Option<String>, recipient: String },
+    Single { community: Option<String>, recipient: NoticeUser },
 }
 
 #[derive(Debug)]
