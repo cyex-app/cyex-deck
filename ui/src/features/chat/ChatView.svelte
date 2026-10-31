@@ -63,6 +63,8 @@
   import SubDialog from '../subs/SubDialog.svelte';
   import type { TabLook } from '../../ipc/bindings/TabLook';
   import { lookVars } from '../tabs/look';
+  import { tabs } from '../tabs/tabs.svelte';
+  import { uptime } from '../player/time';
 
   interface Props {
     login: string;
@@ -309,6 +311,17 @@
     refused: 'Too many chats joined. Close a few, then open this one again.',
   };
 
+  /** Hovering the name shows the stream, if the last live check found one (user, 2026/11/01):
+   *  a chat-only tile still lights its tab's dot, and this says why. */
+  let hoverAt = $state(0);
+  const channelTip = $derived.by(() => {
+    const stream = Object.values(tabs.live).find((c) => c.login === login)?.stream;
+    if (!stream) return { label: 'Channel info', hint: 'Followers, roles and when they joined.' };
+    const up = uptime(stream.startedAt, hoverAt || Date.now());
+    const line = [`${stream.rerun ? 'Rerun' : 'Live'}${up ? ` ${up}` : ''}`, `${formatNumber(stream.viewers)} watching`, stream.game];
+    return { label: stream.title || 'Live', hint: line.filter(Boolean).join(' · ') };
+  });
+
   const modes = $derived.by(() => {
     const s = room.state;
     const list: { label: string; hint: string }[] = [];
@@ -407,7 +420,7 @@
   <!-- The header drags a tile in a tiled tab (U3); its buttons stay clickable. -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <header onpointerdown={onheaderdown}>
-    <button class="channel" onclick={openChannelCard} use:tooltip={{ label: 'Channel info', hint: 'Followers, roles and when they joined.' }}>{name ?? login}</button>
+    <button class="channel" onclick={openChannelCard} onpointerenter={() => (hoverAt = Date.now())} use:tooltip={channelTip}>{name ?? login}</button>
     <div class="modes">
       {#if recording}<span class="mode rec" use:tooltip={'Recording this chat'}>REC</span>{/if}
       {#if filters.length}<span class="mode" use:tooltip={{ label: 'Shown through filters', hint: 'Change them in ⋯ → Filters.' }}>Filtered</span>{/if}
