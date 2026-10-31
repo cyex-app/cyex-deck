@@ -49,8 +49,8 @@
   import { mods } from '../modview/moderation.svelte';
   import ModViewPanel from '../modview/ModViewPanel.svelte';
   import { modviewPlace, modviewRoute } from '../modview/where.svelte';
-  import { audioFocus } from './audioFocus.svelte';
-  import { claimsOnClick } from './audioFocus';
+  import { claimsOnClick, isControl } from './audioFocus';
+  import { takeSound } from './takeSound';
   import { drag } from './drag.svelte';
   import { chatSide, layout } from './layout.svelte';
   import { layoutEntries, tileEntries } from './menus';
@@ -357,7 +357,7 @@
    * so its volume button still reads the state it was clicked in. Not from a text box. */
   function pick(e: MouseEvent) {
     if (!tiled || !tile.show.player || tile.feed || !claimsOnClick(e.target as Element | null)) return;
-    audioFocus.claim(tab.id, tile.id);
+    takeSound(tab, tile, isControl(e.target as Element | null));
   }
 
   const names: Record<string, string> = { stream: 'stream', chat: 'chat', modview: 'mod view' };

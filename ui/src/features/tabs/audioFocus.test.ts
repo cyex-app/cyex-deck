@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { claimsOnClick, heardTile, hushedByFocus } from './audioFocus.ts';
+import { claimsOnClick, heardTile, hushedByFocus, isControl, unmutesOnClaim } from './audioFocus.ts';
 
 const two = { players: ['a', 'b'], claimed: null, enabled: true, theatre: null };
 
@@ -45,4 +45,23 @@ test('V108-N13 clicks in a text box leave the sound where it is', () => {
   assert.equal(claimsOnClick({ tagName: 'textarea' }), false);
   assert.equal(claimsOnClick({ tagName: 'DIV', isContentEditable: true }), false);
   assert.equal(claimsOnClick(null), true);
+});
+
+test('V108-N13 a click that takes the sound unmutes a tile the user had muted', () => {
+  const on = { silencedByFocus: true, tileMuted: true, onControl: false };
+  assert.equal(unmutesOnClaim(on), true);
+  // Already had the sound: its mute stays.
+  assert.equal(unmutesOnClaim({ ...on, silencedByFocus: false }), false);
+  // Not muted: nothing to undo.
+  assert.equal(unmutesOnClaim({ ...on, tileMuted: false }), false);
+  // On the player's own button or slider: that control decides.
+  assert.equal(unmutesOnClaim({ ...on, onControl: true }), false);
+});
+
+test('V108-N13 buttons and sliders count as controls', () => {
+  const hit = (s: string) => ({ closest: (q: string) => (q.includes(s) ? {} : null) });
+  assert.equal(isControl(hit('button')), true);
+  assert.equal(isControl(hit('[role="slider"]')), true);
+  assert.equal(isControl({ closest: () => null }), false);
+  assert.equal(isControl(null), false);
 });

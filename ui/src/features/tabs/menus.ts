@@ -15,6 +15,7 @@ import { tileState } from '../player/players.svelte';
 import { openAdd, openEdit, openGroupDialog } from './dialog.svelte';
 import { COLOR_ORDER, GROUP_COLORS } from './groupColors';
 import { audioFocus } from './audioFocus.svelte';
+import { takeSound } from './takeSound';
 import { dragged, layout } from './layout.svelte';
 import { CHAT_SIZES, EMOTE_SIZES, isDefaultLook, withLook } from './look';
 import { tabs, streamIds, tiles } from './tabs.svelte';
@@ -87,7 +88,7 @@ export function tileEntries(tab: Tab, tile: Tile): MenuEntry[] {
             label: 'Sound here',
             icon: 'volume' as const,
             checked: !tabs.focusHushed(tab, tile.id),
-            run: () => audioFocus.claim(tab.id, tile.id),
+            run: () => takeSound(tab, tile),
           },
         ]
       : []),

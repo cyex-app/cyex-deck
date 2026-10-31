@@ -37,3 +37,15 @@ export function claimsOnClick(target: { tagName?: string; isContentEditable?: bo
   const tag = (target.tagName ?? '').toUpperCase();
   return tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT';
 }
+
+/** V108-N13 A click that takes the sound also unmutes a tile the user had muted. Not when the
+ * focus left it alone (it already had the sound, so a mute stays) or the click was on one of the
+ * player's own buttons or sliders (its volume button decides for itself). */
+export function unmutesOnClaim(i: { silencedByFocus: boolean; tileMuted: boolean; onControl: boolean }): boolean {
+  return i.silencedByFocus && i.tileMuted && !i.onControl;
+}
+
+/** A click landed on a button or slider (the target or something around it). */
+export function isControl(target: { closest?: (s: string) => unknown } | null): boolean {
+  return !!target?.closest?.('button, [role="slider"], [role="menuitem"], a, input, select');
+}
