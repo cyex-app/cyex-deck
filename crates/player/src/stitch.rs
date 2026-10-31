@@ -14,6 +14,11 @@ use crate::hls::media::Segment;
 /// Segments kept, about Twitch's own window (14 × 2 s).
 const KEEP: usize = 15;
 
+/// V108-LL5 The target duration listed with low latency on. hls.js syncs no closer than one
+/// target duration from the listed end and Twitch lists 6, so a start and the Live jump
+/// landed 6 s back and caught up at 1,05×; with 3 (liveSyncDuration 5, liveEdge.ts) 3 to 5 s.
+const LOW_LATENCY_TARGET: u32 = 3;
+
 /// Where segments came from: 0 is the stream, others are backups.
 pub type Source = u8;
 
@@ -146,7 +151,18 @@ impl Stitcher {
         self.target
     }
 
-    pub fn render(&self) -> String {
+    /// V108-LL5 Low latency lists a shorter target duration, never under the longest
+    /// segment listed (rounded, as the HLS spec counts it) nor over Twitch's own.
+    fn listed_target(&self, low_latency: bool) -> u32 {
+        let full = self.target.max(1);
+        if !low_latency {
+            return full;
+        }
+        let longest = self.window.iter().map(|o| o.segment.duration.round() as u32).max().unwrap_or(0);
+        LOW_LATENCY_TARGET.max(longest).min(full)
+    }
+
+    pub fn render(&self, low_latency: bool) -> String {
         let fmp4 = self.window.iter().any(|o| o.segment.map.is_some());
         let first = self.window.front().map_or(self.next_seq, |o| o.seq);
         let mut out = String::from("#EXTM3U\n");
@@ -155,7 +171,7 @@ impl Stitcher {
             "#EXT-X-VERSION:{}\n#EXT-X-TARGETDURATION:{}\n#EXT-X-MEDIA-SEQUENCE:{first}\n\
              #EXT-X-DISCONTINUITY-SEQUENCE:{}\n",
             if fmp4 { 6 } else { 3 },
-            self.target.max(1),
+            self.listed_target(low_latency),
             self.gone_switches,
         );
         let mut map: Option<&str> = None;
@@ -215,10 +231,28 @@ mod tests {
         s.push(0, 6, &segs("a", 10, 13, 0));
         s.push(0, 6, &segs("a", 11, 15, 0));
         assert_eq!(uris(&s), ["https://a/10.ts", "https://a/11.ts", "https://a/12.ts", "https://a/13.ts", "https://a/14.ts"]);
-        let text = s.render();
+        let text = s.render(false);
         assert!(text.contains("#EXT-X-MEDIA-SEQUENCE:0\n"));
         assert!(text.contains("#EXT-X-TARGETDURATION:6\n"));
         assert!(!text.contains("DISCONTINUITY\n"));
+    }
+
+    #[test]
+    fn low_latency_lists_a_shorter_target() {
+        let mut s = Stitcher::default();
+        s.push(0, 6, &segs("a", 10, 13, 0));
+        assert!(s.render(true).contains("#EXT-X-TARGETDURATION:3\n"));
+        assert!(s.render(false).contains("#EXT-X-TARGETDURATION:6\n"));
+        // Never under a longer segment, never over Twitch's own; the replay keeps Twitch's.
+        let mut long = segs("a", 13, 15, 0);
+        long[0].duration = 4.6;
+        s.push(0, 6, &long);
+        assert!(s.render(true).contains("#EXT-X-TARGETDURATION:5\n"));
+        let mut longer = segs("a", 15, 16, 4000);
+        longer[0].duration = 9.0;
+        s.push(0, 6, &longer);
+        assert!(s.render(true).contains("#EXT-X-TARGETDURATION:6\n"));
+        assert_eq!(s.target(), 6);
     }
 
     #[test]
@@ -233,7 +267,7 @@ mod tests {
         s.push(0, 6, &segs("main", 12, 17, 0));
         assert_eq!(uris(&s)[5..], ["https://main/15.ts", "https://main/16.ts"]);
         assert!(s.window[5].discontinuity);
-        let text = s.render();
+        let text = s.render(false);
         assert_eq!(text.matches("#EXT-X-DISCONTINUITY\n").count(), 2);
     }
 
@@ -243,7 +277,7 @@ mod tests {
         s.push(0, 6, &segs("main", 0, 2, 0));
         s.push(1, 6, &segs("backup", 2, 4, 0));
         s.push(0, 6, &segs("main", 4, 4 + KEEP as u64, 0));
-        let text = s.render();
+        let text = s.render(false);
         assert!(text.contains("#EXT-X-DISCONTINUITY-SEQUENCE:1\n"), "{text}");
         assert!(text.contains("#EXT-X-MEDIA-SEQUENCE:4\n"));
     }
@@ -266,7 +300,7 @@ mod tests {
             .collect::<Vec<_>>();
         s.push(0, 6, &next);
         assert_eq!(s.window.len(), 5);
-        assert!(s.render().contains("#EXT-X-PROGRAM-DATE-TIME:2026-10-09T12:00:08.000Z\n#EXTINF:2.000,live\nhttps://edge.example/v1/segment/104.ts"));
+        assert!(s.render(false).contains("#EXT-X-PROGRAM-DATE-TIME:2026-10-09T12:00:08.000Z\n#EXTINF:2.000,live\nhttps://edge.example/v1/segment/104.ts"));
     }
 
     #[test]
@@ -297,7 +331,7 @@ mod tests {
         b[0].map = Some("https://b/init.mp4".into());
         s.push(0, 6, &a);
         s.push(1, 6, &b);
-        let text = s.render();
+        let text = s.render(false);
         assert!(text.starts_with("#EXTM3U\n#EXT-X-VERSION:6\n"));
         assert_eq!(text.matches("#EXT-X-MAP:").count(), 2);
     }

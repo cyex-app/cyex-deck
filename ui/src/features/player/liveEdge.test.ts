@@ -86,7 +86,7 @@ test('V108-N24 replay lengths', () => {
 
 test('live config is today’s, without the dead catch-up rate', () => {
   assert.deepEqual(liveConfig(false), { liveSyncDuration: 8, liveMaxLatencyDuration: 20, backBufferLength: 10, maxBufferLength: 12, maxMaxBufferLength: 20 });
-  assert.equal(liveConfig(true).liveSyncDuration, 4);
+  assert.equal(liveConfig(true).liveSyncDuration, 5);
   assert.equal(liveConfig(true).liveMaxLatencyDuration, 12);
   assert.equal('maxLiveSyncPlaybackRate' in liveConfig(false), false);
 });

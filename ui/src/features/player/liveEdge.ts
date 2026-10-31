@@ -91,9 +91,10 @@ export function pausedBehind(atPause: number | null, pausedMs: number): number |
 export function liveConfig(lowLatency: boolean): Partial<HlsConfig> {
   const c: Partial<HlsConfig> = {
     // Segments still being made sit at the end: start two from the end.
-    // V108-LL4 hls.js never syncs closer than one EXT-X-TARGETDURATION (6 on Twitch) from the listed
-    // end, so 4 or less all land 6 from the end; steer.ts takes it closer from there.
-    liveSyncDuration: lowLatency ? 4 : 8,
+    // V108-LL5 hls.js never syncs closer than one EXT-X-TARGETDURATION from the listed end; with
+    // low latency the stitched playlist lists 3 (stitch.rs), so 5 lands 5 to 3 s from it. 4 and
+    // 4,5 landed inside the held part of an fMP4 segment and stalled after a Live press.
+    liveSyncDuration: lowLatency ? 5 : 8,
     liveMaxLatencyDuration: maxLatency(lowLatency, false),
     backBufferLength: 10,
     maxBufferLength: 12,

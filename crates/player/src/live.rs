@@ -185,7 +185,7 @@ impl<F: Fetch> Live<F> {
                 .unwrap_or_else(|p| p.into_inner())
                 .record(index, audio, out.target(), out.since(before));
         }
-        Ok((out.render(), ad))
+        Ok((out.render(self.options.low_latency), ad))
     }
 
     #[cfg(feature = "mocks")]
