@@ -13,7 +13,7 @@ import { formatNumber } from '../../lib/format';
 import { settings } from '../../lib/settings.svelte';
 import { Away, awayMs, outOfSight } from './away';
 import { GRAPH_EVENT, graphDelay } from './gain';
-import { behindLive, dvrConfig, liveConfig, liveState, maxLatency, needsLiveSeek, PAUSE_STOP_MS, pausedBehind, rangeEnd } from './liveEdge';
+import { behindLive, broadcastLatency, dvrConfig, liveConfig, liveState, maxLatency, needsLiveSeek, PAUSE_STOP_MS, pausedBehind, rangeEnd } from './liveEdge';
 import {
   askPause,
   begin,
@@ -398,7 +398,8 @@ export class Engine {
       level: lvl ? (lvl.height ? levelName(lvl) : 'audio') : '',
       bitrate: lvl?.bitrate ?? 0,
       bandwidth: hls?.bandwidthEstimate ?? 0,
-      latency: this.liveSrc && hls ? hls.latency : null,
+      // V108-LL4 From the playing frame's date, as twitch.tv counts it (not hls.latency).
+      latency: this.liveSrc && hls ? broadcastLatency(Date.now(), hls.playingDate?.getTime()) : null,
       buffer,
       dropped: q ? `${formatNumber(q.droppedVideoFrames)} / ${formatNumber(q.totalVideoFrames)}` : '',
     };

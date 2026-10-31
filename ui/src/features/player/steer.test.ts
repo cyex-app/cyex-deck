@@ -20,14 +20,14 @@ test('V108-LL2 fast settles back to 1x once the spare is used up', () => {
   const s = new Steer();
   feed(s, 0, 6, 1.7);
   assert.equal(feed(s, 6, 8, 1.0), RATE_FAST, 'still spare: keeps going');
-  assert.equal(feed(s, 8, 14, 0.6), 1);
+  assert.equal(feed(s, 8, 14, 0.3), 1);
 });
 
 test('V108-LL2 a thin buffer slows down until it is safe again', () => {
   const s = new Steer();
   assert.equal(feed(s, 0, 6, 0.2), RATE_SLOW);
-  assert.equal(feed(s, 6, 12, 0.5), RATE_SLOW, 'between low and safe: stays slow');
-  assert.equal(feed(s, 12, 18, 0.9), 1);
+  assert.equal(feed(s, 6, 12, 0.3), RATE_SLOW, 'between low and safe: stays slow');
+  assert.equal(feed(s, 12, 18, 0.7), 1);
 });
 
 test('V108-LL2 a steady buffer in the band stays at 1x', () => {

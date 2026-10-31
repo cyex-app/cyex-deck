@@ -58,6 +58,20 @@ export function replayChoice(n: number): number {
   return REPLAY_MINUTES.reduce((best, m) => (Math.abs(m - n) < Math.abs(best - n) ? m : best), 5);
 }
 
+/** V108-LL4 s a slightly fast local clock may put a frame "in the future" and still count as 0. */
+export const CLOCK_SLACK = 0.5;
+
+/** V108-LL4 Latency as twitch.tv's stats show it: now minus the playing frame's program date time
+ *  (EXT-X-PROGRAM-DATE-TIME), in s. hls.latency is the distance to the playlist's end, which lists
+ *  Twitch's prefetch segments (not made yet) and so reads seconds too high. null without a date,
+ *  or when the clocks disagree by more than CLOCK_SLACK. */
+export function broadcastLatency(nowMs: number, playingDateMs: number | null | undefined): number | null {
+  if (playingDateMs == null || !Number.isFinite(playingDateMs) || !Number.isFinite(nowMs)) return null;
+  const s = (nowMs - playingDateMs) / 1000;
+  if (s < -CLOCK_SLACK) return null;
+  return Math.max(0, s);
+}
+
 /** A max latency hls.js never reaches: it doesn't pull the player to the edge. */
 export const NO_EDGE_PULL = 1e9;
 
@@ -77,6 +91,8 @@ export function pausedBehind(atPause: number | null, pausedMs: number): number |
 export function liveConfig(lowLatency: boolean): Partial<HlsConfig> {
   const c: Partial<HlsConfig> = {
     // Segments still being made sit at the end: start two from the end.
+    // V108-LL4 hls.js never syncs closer than one EXT-X-TARGETDURATION (6 on Twitch) from the listed
+    // end, so 4 or less all land 6 from the end; steer.ts takes it closer from there.
     liveSyncDuration: lowLatency ? 4 : 8,
     liveMaxLatencyDuration: maxLatency(lowLatency, false),
     backBufferLength: 10,

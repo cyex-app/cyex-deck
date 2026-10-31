@@ -4,7 +4,9 @@ import { test } from 'node:test';
 import { ProgressiveLoader } from './progressive.ts';
 import {
   behindLive,
+  broadcastLatency,
   chatBarText,
+  CLOCK_SLACK,
   dvrConfig,
   dvrTarget,
   liveConfig,
@@ -163,4 +165,17 @@ test('d-1 paused at live, behind counts up from the pause', () => {
   for (let i = 1; i < seq.length; i++) assert.ok(seq[i] > seq[i - 1]);
   assert.equal(pausedBehind(null, 5000), null);
   assert.equal(pausedBehind(3, -50), 3);
+});
+
+test("V108-LL4 latency from the playing frame's date", () => {
+  const now = 1_700_000_000_000;
+  assert.equal(broadcastLatency(now, now - 1380), 1.38);
+  assert.equal(broadcastLatency(now, now), 0);
+  // No program date time: nothing to show.
+  assert.equal(broadcastLatency(now, null), null);
+  assert.equal(broadcastLatency(now, undefined), null);
+  assert.equal(broadcastLatency(now, Number.NaN), null);
+  // A local clock a little behind reads 0; far behind is not a latency.
+  assert.equal(broadcastLatency(now, now + CLOCK_SLACK * 1000 - 100), 0);
+  assert.equal(broadcastLatency(now, now + CLOCK_SLACK * 1000 + 100), null);
 });

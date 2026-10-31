@@ -5,12 +5,13 @@
 
 /** s of samples the spare buffer is judged over: two segments' worth of swing. */
 export const STEER_WINDOW = 4;
-/** Least buffer over the window above which it speeds up, and the one it settles back to 1× at. */
-export const SPARE_FAST = 1.2;
-export const SPARE_DONE = 0.8;
-/** Least buffer under which it slows down, and the one it settles back to 1× at. */
-export const SPARE_LOW = 0.4;
-export const SPARE_SAFE = 0.7;
+/** Least buffer over the window above which it speeds up, and the one it settles back to 1× at.
+ *  V108-LL4 0.9/0.5 (was 1.2/0.8): about 0.35 s closer, 0 stalls in 180 s runs; 0.7/0.35 stalled. */
+export const SPARE_FAST = 0.9;
+export const SPARE_DONE = 0.5;
+/** Least buffer under which it slows down, and the one it settles back to 1× at (was 0.4/0.7). */
+export const SPARE_LOW = 0.25;
+export const SPARE_SAFE = 0.4;
 export const RATE_FAST = 1.05;
 export const RATE_SLOW = 0.95;
 
