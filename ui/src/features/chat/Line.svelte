@@ -225,12 +225,12 @@
   {#if firstLink?.t === 'link'}<LinkCard url={firstLink.url} />{/if}
   {#if hot && canReply && sender && !notice}
     <button class="reply" aria-label="Reply" data-reply={m.id} data-tip="Reply">
-      <Icon name="reply" size={14} />
+      <Icon name="reply" size={12} />
     </button>
   {/if}
   {#if hot && canPin}
     <button class="reply pin" class:alone={!canReply} aria-label="Pin" data-pin={m.id} data-tip="Pin">
-      <Icon name="pin" size={14} />
+      <Icon name="pin" size={12} />
     </button>
   {/if}
 </div>
@@ -569,18 +569,19 @@
   .del-hidden {
     display: none;
   }
+  /* Round and 20px, so a one-line row never crops it (user, 2026/11/01). */
   .reply {
     position: absolute;
-    top: 2px;
+    top: 1px;
     right: 6px;
     display: none;
     place-items: center;
-    width: 24px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     padding: 0;
     background: var(--elevated);
     border: 1px solid var(--border-strong);
-    border-radius: var(--radius);
+    border-radius: 50%;
     color: var(--muted);
     /* C6 Text under the buttons fades into the row instead of stopping at their edge. */
     box-shadow: -10px 0 8px -3px var(--elevated);
@@ -593,7 +594,7 @@
   }
   /* V101-34 Left of Reply, or in its place. */
   .pin {
-    right: 34px;
+    right: 30px;
   }
   .pin.alone {
     right: 6px;
