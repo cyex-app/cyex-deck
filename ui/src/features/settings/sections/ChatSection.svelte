@@ -81,8 +81,6 @@
     value: t,
     label: t === 0 ? 'Until the mouse leaves' : `${(t / 10).toString().replace('.', ',')}s`,
   }));
-  /** V108-N18 Minutes away before chat catches you up. */
-  const AWAY = [1, 2, 5, 10, 15, 30, 60].map((t) => ({ value: t, label: `${t} min` }));
   /** C19 FFZ's steps, in tenths of a second. */
   const DELAYS = [0, 3, 12, 50, 100, 150, 200, 300, 600].map((t) => ({
     value: t,
@@ -355,19 +353,6 @@
 </Row>
 <Row setting="chat.lastReadLine" label="Last-read line" hint="Marks where you were when you switched away.">
   <Toggle label="Last-read line" checked={c.lastReadLine} onchange={(v) => settings.patch('chat', { lastReadLine: v })} />
-</Row>
-<Row setting="chat.catchUp" label="Catch up" hint="After you were away, marks what is new and sums up what you missed.">
-  <Toggle label="Catch up" checked={c.catchUp} onchange={(v) => settings.patch('chat', { catchUp: v })} />
-</Row>
-<Row setting="chat.catchUpMins" label="Away for" hint="How long you stay away before chat catches you up.">
-  <Select
-    label="Away for"
-    width="140px"
-    disabled={!c.catchUp}
-    value={String(c.catchUpMins)}
-    options={choicesOf(AWAY)}
-    onchange={(v) => settings.patch('chat', { catchUpMins: Number(v) })}
-  />
 </Row>
 <Row setting="chat.delayTenths" label="Hold chat back" hint="Waits this long before showing messages, to match the stream’s delay.">
   <Select

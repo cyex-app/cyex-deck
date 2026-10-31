@@ -34,8 +34,6 @@ pub const SCROLLBACK: std::ops::RangeInclusive<u32> = 100..=8000;
 pub const HISTORY_LINES: std::ops::RangeInclusive<u32> = 50..=2000;
 /// V101-15 Longest hover pause after the mouse stops, in tenths of a second.
 const MAX_PAUSE_STILL_TENTHS: u16 = 600;
-/// V108-N18 Minutes away before chat catches you up.
-pub const CATCH_UP_MINS: std::ops::RangeInclusive<u16> = 1..=120;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(default, rename_all = "camelCase")]
@@ -105,10 +103,6 @@ pub struct Chat {
     pub pause_key: PauseKey,
     /// C5 Mark where you stopped reading when the window loses focus.
     pub last_read_line: bool,
-    /// V108-N18 Coming back after a while: a "New since you left" line and a summary card.
-    pub catch_up: bool,
-    /// V108-N18 Minutes away before chat catches you up.
-    pub catch_up_mins: u16,
     /// V103-12 New messages slide in instead of popping up. Fast chats skip the slide.
     pub smooth_new_messages: bool,
     /// C2 One line with a count when someone repeats themselves. Setting, off.
@@ -189,8 +183,6 @@ impl Default for Chat {
             pause_still_tenths: 0,
             pause_key: PauseKey::Alt,
             last_read_line: true,
-            catch_up: true,
-            catch_up_mins: 5,
             smooth_new_messages: false,
             repeats: false,
             repeat_similarity: 80,
@@ -255,7 +247,6 @@ impl Schema for Chat {
         self.scrollback = self.scrollback.clamp(*SCROLLBACK.start(), *SCROLLBACK.end());
         self.history_lines = self.history_lines.clamp(*HISTORY_LINES.start(), *HISTORY_LINES.end());
         self.pause_still_tenths = self.pause_still_tenths.min(MAX_PAUSE_STILL_TENTHS);
-        self.catch_up_mins = self.catch_up_mins.clamp(*CATCH_UP_MINS.start(), *CATCH_UP_MINS.end());
         let lang = self.translate_to.trim();
         let valid = lang.len() <= MAX_LANGUAGE_CHARS && lang.chars().all(|c| c.is_ascii_alphabetic() || c == '-');
         self.translate_to = if valid { lang.to_owned() } else { String::new() };

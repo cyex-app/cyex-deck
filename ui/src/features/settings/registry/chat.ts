@@ -152,20 +152,6 @@ export const CHAT: Entry[] = [
     keywords: ['unread', 'new messages'],
   },
   {
-    id: 'chat.catchUp',
-    page: 'chat',
-    label: 'Catch up',
-    description: 'After you were away, marks what is new and sums up what you missed.',
-    keywords: ['away', 'missed', 'unread', 'while you were away', 'new since'],
-  },
-  {
-    id: 'chat.catchUpMins',
-    page: 'chat',
-    label: 'Away for',
-    description: 'How long you stay away before chat catches you up.',
-    keywords: ['away', 'minutes', 'catch up'],
-  },
-  {
     id: 'chat.delayTenths',
     page: 'chat',
     label: 'Hold chat back',

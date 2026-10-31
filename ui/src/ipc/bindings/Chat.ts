@@ -131,14 +131,6 @@ pauseKey: PauseKey,
  */
 lastReadLine: boolean, 
 /**
- * V108-N18 Coming back after a while: a "New since you left" line and a summary card.
- */
-catchUp: boolean, 
-/**
- * V108-N18 Minutes away before chat catches you up.
- */
-catchUpMins: number, 
-/**
  * V103-12 New messages slide in instead of popping up. Fast chats skip the slide.
  */
 smoothNewMessages: boolean, 
