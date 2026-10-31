@@ -21,6 +21,7 @@ import {
   canplayCheck,
   failed,
   initial,
+  isJumping,
   isPaused,
   isSwapping,
   jumpBegin,
@@ -38,6 +39,7 @@ import {
   userPause,
 } from './liveMachine';
 import { type Choice, levelFor, levelName, lowestLevel } from './quality';
+import { Steer } from './steer';
 import { dateAt, goneDue, isGone, nextAfter, type Piece, posAt } from './replayClock';
 import { stallStart, stallStep } from './stall';
 import { isTorn, tornDue, tornStart } from './torn';
@@ -110,6 +112,8 @@ export class Engine {
   /** d-1 Behind live at the user's pause, null when unknown or not live; ticks once a second while paused. */
   private behindAtPause: number | null = null;
   private pauseTick: ReturnType<typeof setInterval> | undefined;
+  /** V108-LL2 */
+  private readonly steer = new Steer();
   /** d-4 Counts from when the player was made, not from when the app started: a player that
    *  hadn't moved by its first check (a tab opened while others load) read as stalled at once. */
   private stall = stallStart(performance.now());
@@ -558,7 +562,8 @@ export class Engine {
     if (this.replay) return { ...common, lowLatencyMode: false, ...dvrConfig(this.startAt), fragLoadPolicy: REPLAY_FRAG_POLICY };
     // V1061-03 The rewind VOD is an EVENT playlist: hls.js must not pull it to its edge.
     if (this.dvr) return { ...common, lowLatencyMode: false, ...dvrConfig(this.startAt) };
-    // V1061-01 No catch-up rate: it does nothing without low latency mode (Q14 a).
+    // V1061-01 No hls.js catch-up rate: it does nothing without low latency mode (Q14 a). V108-LL2
+    // steers the speed itself (steer.ts).
     return { ...common, lowLatencyMode: false, ...liveConfig(this.lowLatency) };
   }
 
@@ -840,12 +845,33 @@ export class Engine {
     if (!this.liveSrc || !h || this.swapping) {
       this.sync = null;
       this.behind = null;
+      this.unsteer();
       return;
     }
     this.sync = h.liveSyncPosition;
     const held = this.behindAtPause !== null && v.paused && isPaused(this.st);
     this.behind = held ? pausedBehind(this.behindAtPause, performance.now() - this.st.pausedAt) : behindLive(this.sync, v.currentTime);
     this.atLive = liveState(this.atLive ? 'live' : 'behind', this.behind) === 'live';
+    this.steerRate();
+  }
+
+  /** V108-LL2 Low latency at live: the speed creeps it closer while the buffer has spare seconds
+   *  and eases off when it runs thin (steer.ts). Anything else plays at 1x. */
+  private steerRate(): void {
+    const v = this.video;
+    const on = this.lowLatency && !v.paused && !v.seeking && !this.waiting && !this.adBreak && !this.holding && this.atLive && !isJumping(this.st);
+    if (!on) return this.unsteer();
+    const end = rangeEnd(v.buffered, v.currentTime);
+    if (end === null) return this.unsteer();
+    const rate = this.steer.step(performance.now() / 1000, end - v.currentTime);
+    if (v.playbackRate !== rate) v.playbackRate = rate;
+  }
+
+  private unsteer(): void {
+    if (this.steer.rate === 1 && this.video.playbackRate === 1) return this.steer.reset();
+    this.steer.reset();
+    // Only the live player steers; a VOD's own speed is left alone.
+    if (this.live) this.video.playbackRate = 1;
   }
 
   /** d-4 Once a second while live. */
