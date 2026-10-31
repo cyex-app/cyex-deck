@@ -1,7 +1,7 @@
 // V108-LL2 Closer to live by speed, as twitch.tv does: with low latency at live, the player plays a
-// little faster while the buffer holds spare seconds and a little slower when it runs thin. Whole
-// segments still load (progressive streaming froze the picture, 2026/10/31), so the buffer swings
-// by a segment (2 s) between reloads; the least of it over a few seconds is what is spare.
+// little faster while the buffer holds spare seconds and a little slower when it runs thin. The
+// buffer swings between loads (a whole segment, or an fMP4 segment's held second, V108-LL3); the
+// least of it over a few seconds is what is spare.
 
 /** s of samples the spare buffer is judged over: two segments' worth of swing. */
 export const STEER_WINDOW = 4;

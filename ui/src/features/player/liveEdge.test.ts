@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { ProgressiveLoader } from './progressive.ts';
 import {
   behindLive,
   chatBarText,
@@ -86,6 +87,13 @@ test('live config is today’s, without the dead catch-up rate', () => {
   assert.equal(liveConfig(true).liveSyncDuration, 4);
   assert.equal(liveConfig(true).liveMaxLatencyDuration, 12);
   assert.equal('maxLiveSyncPlaybackRate' in liveConfig(false), false);
+});
+
+test('V108-LL3 low latency streams the segment being made, through the fMP4 gate', () => {
+  assert.equal(liveConfig(true).progressive, true);
+  assert.equal(liveConfig(true).fLoader, ProgressiveLoader);
+  assert.equal('progressive' in liveConfig(false), false);
+  assert.equal('fLoader' in liveConfig(false), false);
 });
 
 test('rewind config', () => {

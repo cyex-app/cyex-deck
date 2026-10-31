@@ -2,6 +2,7 @@
 
 import type { HlsConfig } from 'hls.js';
 
+import { ProgressiveLoader } from './progressive.ts';
 import { clock } from './time.ts';
 
 export const ENTER_BEHIND = 4; // s behind before the button says so
@@ -74,7 +75,7 @@ export function pausedBehind(atPause: number | null, pausedMs: number): number |
 
 /** The live part of the hls.js config (today's values). */
 export function liveConfig(lowLatency: boolean): Partial<HlsConfig> {
-  return {
+  const c: Partial<HlsConfig> = {
     // Segments still being made sit at the end: start two from the end.
     liveSyncDuration: lowLatency ? 4 : 8,
     liveMaxLatencyDuration: maxLatency(lowLatency, false),
@@ -82,6 +83,9 @@ export function liveConfig(lowLatency: boolean): Partial<HlsConfig> {
     maxBufferLength: 12,
     maxMaxBufferLength: 20,
   };
+  // V108-LL3 Low latency plays the segment still being made as it arrives (progressive.ts):
+  // Twitch's newest frames show about a second sooner. Rewind, replay and VODs load whole.
+  return lowLatency ? { ...c, progressive: true, fLoader: ProgressiveLoader } : c;
 }
 
 /** The rewind VOD's config: an EVENT playlist hls.js would treat as live. A huge max
