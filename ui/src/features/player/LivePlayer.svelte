@@ -535,7 +535,7 @@
       {#if !mini}
         {#if rewind.on}
           <!-- V1061-03 The whole broadcast; at live the thumb sits at the right end. V108-N24 The
-               replay: its length back from now, the part not recorded yet dimmed. -->
+               replay: only what it holds, so nothing on the bar moves at live. -->
           {@const b = rewind.start}
           <div class="rows">
             <SeekBar
@@ -543,7 +543,6 @@
               time={rewind.pos - b}
               buffered={(rewind.inVod ? (engine?.bufferedEnd ?? 0) : rewind.uptime) - b}
               min={rewind.min - b}
-              minText={rewind.mode === 'replay' ? `Replay covers the last ${rewind.replayMinutes} min` : undefined}
               tone="neutral"
               marks={barMarks}
               format={(t) => (rewind.uptime - b - t < DVR_GAP ? 'Live' : behindText(rewind.uptime - b - t))}

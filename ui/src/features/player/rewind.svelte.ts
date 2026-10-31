@@ -127,11 +127,10 @@ export class Rewind {
     return this.mode === 'replay' && this.range ? Math.max(0, this.secs(this.range.from)) : 0;
   }
 
-  /** V108-N24 Where the bar starts: the whole broadcast, or the replay's length back from now
-   *  (what isn't recorded yet shows dimmed). */
+  /** V108-N24 Where the bar starts: the whole broadcast, or what the replay holds (user,
+   *  2026/10/31: a dimmed part for what isn't recorded yet crept across the bar every second). */
   get start(): number {
-    if (this.mode !== 'replay') return 0;
-    return Math.max(0, Math.min(this.min, this.uptime - this.replayMinutes * 60));
+    return this.mode === 'replay' ? this.min : 0;
   }
 
   /** V108-N24 The stream's start in ms: the replay's clock. */
