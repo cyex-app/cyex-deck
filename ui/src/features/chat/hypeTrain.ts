@@ -1,4 +1,5 @@
-// V108-N04 The hype train bar's pure parts: progress, time left, merging messages.
+// V108-N04 The hype train bar's pure parts: progress, time left, merging messages, the
+// closing stats.
 
 import type { HypeConductor } from '../../ipc/bindings/HypeConductor';
 import type { HypeTrain } from '../../ipc/bindings/HypeTrain';
@@ -7,6 +8,12 @@ import type { HypeTrain } from '../../ipc/bindings/HypeTrain';
 export function progressPct(progress: number, goal: number): number {
   if (!(goal > 0) || !(progress > 0)) return 0;
   return Math.min(100, Math.round((progress / goal) * 100));
+}
+
+/** The level's points, "1.234 / 2.000"; null when Twitch sent no goal. */
+export function progressText(progress: number, goal: number, fmt: (n: number) => string = String): string | null {
+  if (!(goal > 0)) return null;
+  return `${fmt(Math.max(0, progress || 0))} / ${fmt(goal)}`;
 }
 
 /** Whole seconds until `expiresAt` (RFC 3339), 0 once past or when unknown. */
@@ -49,6 +56,31 @@ export function topLine(list: HypeConductor[], fmt: (n: number) => string = Stri
   const who = top.name || top.login;
   const unit = top.source === 'BITS' ? ' bits' : top.source === 'SUBS' ? ' subs' : '';
   return top.total > 0 ? `${who} ${fmt(top.total)}${unit}` : who;
+}
+
+/** The train as it closed: the last read laid over the one held, when it is the same train.
+ * Subs and bits only come from reads, so the larger count wins. */
+export function closing(held: HypeTrain, last: HypeTrain | null): HypeTrain {
+  if (!last || (held.id && last.id && held.id !== last.id)) return held;
+  return {
+    ...held,
+    level: last.level || held.level,
+    progress: last.progress || held.progress,
+    goal: last.goal || held.goal,
+    total: Math.max(last.total, held.total),
+    endedAt: last.endedAt ?? held.endedAt,
+    conductors: last.conductors.length ? last.conductors : held.conductors,
+    subs: Math.max(last.subs, held.subs),
+    bits: Math.max(last.bits, held.bits),
+  };
+}
+
+/** "24 subs · 5.300 bits"; null when neither is known. */
+export function givenLine(subs: number, bits: number, fmt: (n: number) => string = String): string | null {
+  const parts: string[] = [];
+  if (subs > 0) parts.push(`${fmt(subs)} ${subs === 1 ? 'sub' : 'subs'}`);
+  if (bits > 0) parts.push(`${fmt(bits)} ${bits === 1 ? 'bit' : 'bits'}`);
+  return parts.length ? parts.join(' · ') : null;
 }
 
 /** "Level 3 reached" for the closing note; Twitch counts the level being worked on, so the

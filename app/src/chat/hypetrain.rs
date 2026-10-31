@@ -64,14 +64,7 @@ pub async fn read(app: &AppHandle, login: &str) -> Result<Option<Train>, String>
     let http = app.state::<Auth>().http.clone();
     let train = api::current(&http, GqlAuth::PUBLIC, &login.to_ascii_lowercase(), &now_text())
         .await
-        .map_err(|e| {
-            if e.is_network() {
-                "Couldn’t reach Twitch.".to_owned()
-            } else {
-                eprintln!("hype train: {e}");
-                "Twitch didn’t answer. Try again in a bit.".to_owned()
-            }
-        })?;
+        .map_err(told)?;
     if let Some(id) = super::channel_id_of(app, login) {
         let mut levels = LEVELS.lock().unwrap_or_else(|p| p.into_inner());
         match &train {
@@ -90,6 +83,21 @@ pub async fn read(app: &AppHandle, login: &str) -> Result<Option<Train>, String>
         }
     }
     Ok(train)
+}
+
+/// The channel's last train, ended or not, for the closing stats. Leaves the seen levels.
+pub async fn last(app: &AppHandle, login: &str) -> Result<Option<Train>, String> {
+    let http = app.state::<Auth>().http.clone();
+    api::latest(&http, GqlAuth::PUBLIC, &login.to_ascii_lowercase()).await.map_err(told)
+}
+
+fn told(e: cyex_twitch::Error) -> String {
+    if e.is_network() {
+        "Couldn’t reach Twitch.".to_owned()
+    } else {
+        eprintln!("hype train: {e}");
+        "Twitch didn’t answer. Try again in a bit.".to_owned()
+    }
 }
 
 /// Follows (or stops following) the topic while a chat of a live channel shows the bar. The

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { HypeTrain } from '../../ipc/bindings/HypeTrain.ts';
-import { endedText, formatLeft, mergeConductor, mergeProgress, progressPct, secondsLeft, topLine, trainOver } from './hypeTrain.ts';
+import { closing, endedText, formatLeft, givenLine, progressText, mergeConductor, mergeProgress, progressPct, secondsLeft, topLine, trainOver } from './hypeTrain.ts';
 
 const train = (o: Partial<HypeTrain> = {}): HypeTrain => ({
   id: 't1',
@@ -16,6 +16,8 @@ const train = (o: Partial<HypeTrain> = {}): HypeTrain => ({
   goldenKappa: false,
   treasure: false,
   conductors: [{ source: 'BITS', login: 'a', name: 'A', total: 5 }],
+  subs: 0,
+  bits: 0,
   ...o,
 });
 
@@ -72,4 +74,39 @@ test('an empty read ends the train only when it ran out or the topic went quiet 
   assert.equal(trainOver(later, now, now - 120_000), true);
   assert.equal(trainOver('2026-10-29T11:59:00Z', now, now - 1_000), true);
   assert.equal(trainOver(null, now, now), true);
+});
+
+test('hype train points to the next level read with dots (V108-N04)', () => {
+  const dots = (n: number) => String(n).replace(/\B(?=(\d{3})+$)/g, '.');
+  assert.equal(progressText(1234, 2000, dots), '1.234 / 2.000');
+  assert.equal(progressText(-5, 2000), '0 / 2000');
+  assert.equal(progressText(10, 0), null);
+});
+
+test('progress messages keep the subs and bits a read found', () => {
+  const m = mergeProgress(train({ subs: 4, bits: 300 }), train({ progress: 20, conductors: [] }));
+  assert.equal(m.subs, 4);
+  assert.equal(m.bits, 300);
+});
+
+test('the closing stats take the last read of the same train (V108-N04)', () => {
+  const held = train({ subs: 4, bits: 300, level: 3 });
+  const last = train({ subs: 13, bits: 1700, level: 4, endedAt: 'z', conductors: [] });
+  const c = closing(held, last);
+  assert.equal(c.level, 4);
+  assert.equal(c.subs, 13);
+  assert.equal(c.bits, 1700);
+  assert.equal(c.endedAt, 'z');
+  assert.equal(c.conductors.length, 1);
+  // A read behind the topic doesn't lower what was seen.
+  assert.equal(closing(train({ subs: 9 }), train({ subs: 2 })).subs, 9);
+  assert.equal(closing(held, train({ id: 'other', subs: 99 })).subs, 4);
+  assert.equal(closing(held, null), held);
+});
+
+test('subs and bits line', () => {
+  assert.equal(givenLine(24, 5300, (n) => `#${n}`), '#24 subs · #5300 bits');
+  assert.equal(givenLine(1, 1), '1 sub · 1 bit');
+  assert.equal(givenLine(0, 100), '100 bits');
+  assert.equal(givenLine(0, 0), null);
 });

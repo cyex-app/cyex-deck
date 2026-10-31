@@ -7,6 +7,9 @@
 //! `hype-train-approaching`, `hype-train-level-up`, `hype-train-end`,
 //! `hype-train-conductor-update` (`data.source` `BITS`/`SUBS`), `hype-train-rewards`.
 //! Every field is optional here, so a changed message degrades instead of failing.
+//! The subs and bits come from `execution.participations { source action quantity }`
+//! (validated anonymously 2026/11/01; values unseen live): the GQL read fills them, the
+//! PubSub messages don't carry them.
 
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -50,6 +53,10 @@ pub struct Train {
     pub golden_kappa: bool,
     pub treasure: bool,
     pub conductors: Vec<Conductor>,
+    /// Subs given in the train (own and gifted, any tier); 0 when unknown.
+    pub subs: u32,
+    /// Bits given in the train (cheers, polls, extensions); 0 when unknown.
+    pub bits: u32,
 }
 
 impl Train {
@@ -81,12 +88,18 @@ const READ: &str = "query($login: String!) { user(login: $login) { id channel { 
     id startedAt expiresAt endedAt \
     progress { level { value goal } goal progression total } \
     conductors { source participation { quantity } user { login displayName } } \
+    participations { source action quantity } \
     isGoldenKappaTrain isTreasureTrain } } } } }";
 
 /// The channel's train now; `None` when none is running.
 pub async fn current(http: &Http, auth: Auth<'_>, login: &str, now: &str) -> Result<Option<Train>> {
+    Ok(latest(http, auth, login).await?.filter(|t| t.running(now)))
+}
+
+/// The channel's last train, ended or not: the closing stats (V108-N04).
+pub async fn latest(http: &Http, auth: Auth<'_>, login: &str) -> Result<Option<Train>> {
     let data: Value = query(http, auth, READ, json!({ "login": login })).await?;
-    Ok(read(&data).filter(|t| t.running(now)))
+    Ok(read(&data))
 }
 
 fn read(data: &Value) -> Option<Train> {
@@ -106,7 +119,22 @@ fn read(data: &Value) -> Option<Train> {
             })
         })
         .collect();
+    (t.subs, t.bits) = given(&e["participations"]);
     (!t.id.is_empty()).then_some(t)
+}
+
+/// Subs and bits summed over the train's participations, by `source`.
+fn given(list: &Value) -> (u32, u32) {
+    let (mut subs, mut bits) = (0u32, 0u32);
+    for p in list.as_array().into_iter().flatten() {
+        let q = num(&p["quantity"]);
+        match p["source"].as_str() {
+            Some("SUBS") => subs = subs.saturating_add(q),
+            Some("BITS") => bits = bits.saturating_add(q),
+            _ => {}
+        }
+    }
+    (subs, bits)
 }
 
 fn num(v: &Value) -> u32 {
@@ -130,6 +158,8 @@ fn train_of(e: &Value) -> Train {
         golden_kappa: e["is_golden_kappa_train"].as_bool().or_else(|| e["isGoldenKappaTrain"].as_bool()).unwrap_or(false),
         treasure: e["is_treasure_train"].as_bool().or_else(|| e["isTreasureTrain"].as_bool()).unwrap_or(false),
         conductors: Vec::new(),
+        subs: 0,
+        bits: 0,
     }
 }
 
@@ -178,6 +208,24 @@ mod tests {
         assert_eq!(t.conductors[0].name, "A");
         assert!(t.running("2026-10-29T18:01:00Z"));
         assert!(!t.running("2026-10-29T18:06:00Z"));
+    }
+
+    #[test]
+    fn sums_subs_and_bits_by_source() {
+        let d = json!({ "user": { "channel": { "hypeTrain": { "execution": {
+            "id": "t1", "endedAt": "2026-10-29T18:09:00Z",
+            "progress": { "level": { "value": 4, "goal": 2000 }, "progression": 2100, "total": 9000 },
+            "participations": [
+              { "source": "SUBS", "action": "TIER_1_SUB", "quantity": 3 },
+              { "source": "SUBS", "action": "TIER_1_GIFTED_SUBSCRIPTION", "quantity": 10 },
+              { "source": "BITS", "action": "CHEER", "quantity": 1500 },
+              { "source": "BITS", "action": "BITS_ON_POLL", "quantity": 200 },
+              { "source": "OTHER", "quantity": 7 },
+              { "source": "BITS" }] } } } } });
+        let t = read(&d).unwrap();
+        assert_eq!((t.subs, t.bits), (13, 1700));
+        assert!(!t.running("2026-10-29T18:01:00Z"));
+        assert_eq!(given(&Value::Null), (0, 0));
     }
 
     #[test]

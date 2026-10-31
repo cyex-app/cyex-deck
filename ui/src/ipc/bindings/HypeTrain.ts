@@ -28,4 +28,12 @@ expiresAt: string | null,
 /**
  * RFC 3339; set once it has ended.
  */
-endedAt: string | null, goldenKappa: boolean, treasure: boolean, conductors: Array<HypeConductor>, };
+endedAt: string | null, goldenKappa: boolean, treasure: boolean, conductors: Array<HypeConductor>, 
+/**
+ * Subs given in the train (own and gifted, any tier); 0 when unknown.
+ */
+subs: number, 
+/**
+ * Bits given in the train (cheers, polls, extensions); 0 when unknown.
+ */
+bits: number, };
