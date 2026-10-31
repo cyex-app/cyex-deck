@@ -75,6 +75,10 @@ function isTyping(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA)$/.test(target.tagName));
 }
 
+/** V108-S1 The settings sheet is open: only these keys reach the tabs and players behind it. */
+export const keyHold = $state({ sheet: false });
+const OVER_SHEET: ReadonlySet<string> = new Set(['settings.open', 'tabs.switcher', 'zoom.in', 'zoom.out', 'zoom.reset']);
+
 /** Runs the handlers for their bound combos while the calling component is mounted. A
  *  handler that returns `false` leaves the key to the page, e.g. Space on a button. */
 export function useHotkeys(own: Partial<Record<ActionId, (e: KeyboardEvent) => unknown>>): void {
@@ -88,6 +92,8 @@ export function useHotkeys(own: Partial<Record<ActionId, (e: KeyboardEvent) => u
       // An open menu doesn't hold back the switcher: it opens and the menu goes (030e896).
       const switcherOverMenu = actionOfPress(combo) === 'tabs.switcher' && !e.defaultPrevented && layers.onlyMenus();
       if (keyTaken(e) && !switcherOverMenu) return;
+      const held = actionOfPress(combo);
+      if (keyHold.sheet && !(held && OVER_SHEET.has(held))) return;
       // Plain keys belong to text fields; only Ctrl/Alt combos fire while typing.
       if (isTyping(e.target) && !/^(Ctrl|Alt)\+/.test(combo)) return;
       const id = actionOfPress(combo);

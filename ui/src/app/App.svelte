@@ -82,9 +82,9 @@
   const minerView = lazy(() => import('../features/miner/MinerView.svelte'));
   const subsView = lazy(() => import('../features/subs/SubsView.svelte'));
   const cosmeticsView = lazy(() => import('../features/cosmetics/CosmeticsView.svelte'));
-  const settingsView = lazy(() => import('../features/settings/SettingsView.svelte'));
+  const settingsSheet = lazy(() => import('../features/settings/SettingsSheet.svelte'));
 
-  type Fixed = 'home' | 'discover' | 'miner' | 'streamManager' | 'whispers' | 'mentions' | 'subs' | 'cosmetics' | 'settings' | 'modview';
+  type Fixed = 'home' | 'discover' | 'miner' | 'streamManager' | 'whispers' | 'mentions' | 'subs' | 'cosmetics' | 'modview';
   /** Somewhere the main window can show. */
   type Place = { tab: string } | { view: Fixed };
 
@@ -93,6 +93,8 @@
   /** The tab picked here, shown before Rust confirms it as the active one. */
   let picked = $state<string | null>(tabs.active);
   let settingsSection = $state('general');
+  /** V108-S1 Settings show as a sheet over the tab or view, not in its place. */
+  let settingsOpen = $state(false);
   let switcher = $state(false);
 
   const side = $derived(settings.v.appearance.tabBarSide);
@@ -359,12 +361,14 @@
   }
 
   function show(view: Fixed) {
+    settingsOpen = false;
     if (fixed !== view) moved();
     fixed = view;
     tabs.activate(null);
   }
 
   function open(id: string) {
+    settingsOpen = false;
     if (fixed || current !== id) moved();
     // V107-H15 Taken before the old tab leaves the page.
     const typing = inOtherField(document.activeElement);
@@ -386,8 +390,15 @@
     if (fixed === view) leaveView(view);
     else show(view);
   }
+  /** V108-S1 Settings over where you are, on `page` if given. Theatre ends, as it did when they took the window. */
+  function openSettings(page?: string) {
+    if (page) settingsSection = page;
+    if (theatre.tile) theatre.leave();
+    settingsOpen = true;
+  }
   function toggleSettings() {
-    toggleView('settings');
+    if (settingsOpen) settingsOpen = false;
+    else openSettings();
   }
 
   /** V102-16 Pops a view out of here and goes back to where you were before it; when its
@@ -418,14 +429,12 @@
   }
 
   function manageAccounts() {
-    settingsSection = 'accounts';
-    show('settings');
+    openSettings('accounts');
   }
 
   /** V106-17 */
   function streamerSettings() {
-    settingsSection = 'streamer';
-    show('settings');
+    openSettings('streamer');
     streamer.closeBar();
   }
 
@@ -433,8 +442,7 @@
   const streamerDot = $derived(streamer.active && !(currentWindow.isMain && streamer.bar) ? (ownLive ? 'live' : 'on') : 'off');
 
   function minerSettings() {
-    settingsSection = 'miner';
-    show('settings');
+    openSettings('miner');
   }
 
   /** U4 Why streamer mode is on (or was turned off) and what a click does. */
@@ -537,7 +545,7 @@
     <ConnectionCounter />
     <AccountMenu onmanage={manageAccounts} onsubs={() => show('subs')} oncosmetics={() => show('cosmetics')} active={fixed === 'cosmetics'} streamer={streamerDot} />
     <UpdateBadge />
-    <IconButton icon="settings" label="Settings" hint="Everything you can change (Ctrl+,)." active={fixed === 'settings'} onclick={toggleSettings} />
+    <IconButton icon="settings" label="Settings" hint="Everything you can change (Ctrl+,)." active={settingsOpen} onclick={toggleSettings} />
     {/if}
   {/snippet}
 </WindowChrome>
@@ -552,12 +560,12 @@
 {/snippet}
 
 {#if place === 'row' && !theatreOn}
-  <div class="tab-row">
+  <div class="tab-row" inert={settingsOpen}>
     <TabBar {current} onopen={open} />
   </div>
 {/if}
 
-<div class="body {side}">
+<div class="body {side}" inert={settingsOpen}>
   {#if side !== 'top' && !theatreOn}
     <div class="side-bar" bind:this={sideBar}>
       <TabBar vertical={side !== 'bottom'} width={sideBarWidth(side, menusEdge)} {current} onopen={open} />
@@ -601,10 +609,6 @@
             {/await}
           {:else if fixed === 'cosmetics'}
             {#await cosmeticsView() then { default: CosmeticsView }}<CosmeticsView onclose={() => leaveView('cosmetics')} />{/await}
-          {:else if fixed === 'settings'}
-            {#await settingsView() then { default: SettingsView }}
-              <SettingsView bind:section={settingsSection} onclose={() => leaveView('settings')} />
-            {/await}
           {:else}
             <HomeView onopen={open} ondiscover={() => show('discover')} onsignin={manageAccounts} />
           {/if}
@@ -615,14 +619,16 @@
   </main>
 </div>
 
+{#if settingsOpen}
+  {#await settingsSheet() then { default: SettingsSheet }}
+    <SettingsSheet bind:section={settingsSection} onclose={() => (settingsOpen = false)} />
+  {/await}
+{/if}
 {#if switcher}
   <Switcher
     onopen={open}
-    onview={show}
-    onsettings={(page) => {
-      settingsSection = page;
-      show('settings');
-    }}
+    onview={(v) => (v === 'settings' ? openSettings() : show(v))}
+    onsettings={openSettings}
     onclose={() => (switcher = false)} />
 {/if}
 <TabOverlays onopen={open} />
