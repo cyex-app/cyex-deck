@@ -1,5 +1,6 @@
-<!-- V108-N23 Above the message box when the account has a watch streak it can share here.
-     Share posts Twitch's own streak notice; nothing is sent until the button is pressed. -->
+<!-- V108-N23 A slim row above the message box, styled like the reply row, when the account has a
+     watch streak it can share here. Share posts Twitch's own streak notice; nothing is sent
+     until the button is pressed. The x or Escape hides it for the run. -->
 <script module lang="ts">
   import { SvelteSet } from 'svelte/reactivity';
 
@@ -8,8 +9,8 @@
 </script>
 
 <script lang="ts">
-  import Button from '../../components/Button.svelte';
-  import IconButton from '../../components/IconButton.svelte';
+  import Icon from '../../components/Icon.svelte';
+  import { tooltip } from '../../components/tooltip.svelte';
   import type { Streak } from '../../ipc/bindings/Streak';
   import { subsIpc } from '../../ipc/subs';
   import { accounts } from '../../lib/accounts.svelte';
@@ -17,7 +18,7 @@
   import { formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import { tabs } from '../tabs/tabs.svelte';
-  import { streakText } from './streakShare';
+  import { streakShort, streakText } from './streakShare';
 
   interface Props {
     account: string | null;
@@ -34,6 +35,7 @@
 
   let streak = $state<Streak | null>(null);
   let busy = $state(false);
+  let row = $state<HTMLElement>();
   let seq = 0;
 
   const ready = $derived(account !== null && accounts.can('subs', account));
@@ -78,7 +80,7 @@
     busy = true;
     try {
       await subsIpc.shareStreak(account, channelId, m.id);
-      waved.add(m.id);
+      handBack(() => waved.add(m.id));
       toast.success('Shared in chat.');
     } catch (e) {
       toast.error(errorText(e));
@@ -86,26 +88,67 @@
       busy = false;
     }
   }
+
+  function dismiss() {
+    const m = milestone;
+    if (m) handBack(() => waved.add(m.id));
+  }
+
+  /** Hides the row; focus inside it goes to the message box, not the page. */
+  function handBack(hide: () => void) {
+    const box = row?.contains(document.activeElement) ? row.closest('.input')?.querySelector('textarea') : null;
+    hide();
+    box?.focus();
+  }
+
+  function onkeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      dismiss();
+    }
+  }
 </script>
 
 {#if milestone}
-  <div class="streak" role="status">
-    <span class="text">{streakText(milestone.value, formatNumber)}</span>
-    <Button small variant="primary" icon="star" disabled={busy || !channelId} onclick={share}>Share</Button>
-    <IconButton icon="x" label="Not now" size={14} onclick={() => waved.add(milestone.id)} />
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div class="streak" role="group" aria-label="Watch streak" bind:this={row} {onkeydown}>
+    <Icon name="zap" size={13} />
+    <span class="text"><span class="long">{streakText(milestone.value, formatNumber)}</span><span class="short">{streakShort(milestone.value, formatNumber)}</span></span>
+    <button
+      class="share"
+      disabled={busy || !channelId}
+      aria-busy={busy}
+      use:tooltip={{ label: 'Share in chat', hint: 'Twitch posts it in this chat for everyone.' }}
+      onclick={share}>{busy ? 'Sharing' : 'Share'}</button
+    >
+    <button class="close" aria-label="Not now" use:tooltip={'Not now'} onclick={dismiss}><Icon name="x" size={13} /></button>
   </div>
 {/if}
 
 <style>
+  /* Same row as the reply bar (ChatInput .reply-bar): no fill, dim text, 22px controls. */
   .streak {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin: 0 8px 6px;
-    padding: 6px 6px 6px 10px;
-    border-left: 3px solid var(--twitch);
-    background: color-mix(in srgb, var(--twitch) 8%, var(--surface));
-    border-radius: var(--radius);
+    gap: 6px;
+    margin-bottom: 6px;
+    color: var(--dim);
+    font-size: 0.8rem;
+    animation: in var(--base) ease-out;
+    container-type: inline-size;
+  }
+  .short {
+    display: none;
+  }
+  /* Narrow chat: "5-stream streak". */
+  @container (max-width: 279px) {
+    .long {
+      display: none;
+    }
+    .short {
+      display: inline;
+    }
   }
   .text {
     flex: 1;
@@ -113,7 +156,64 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .share {
+    flex: none;
+    height: 22px;
+    padding: 0 8px;
+    background: none;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
     color: var(--text);
+    font: inherit;
     font-weight: 600;
+    transition:
+      background var(--fast),
+      border-color var(--fast);
+  }
+  .share:hover:not(:disabled) {
+    background: var(--surface);
+    border-color: var(--accent-border);
+  }
+  .share:active:not(:disabled) {
+    opacity: 0.6;
+    transition: none;
+  }
+  .share:disabled {
+    color: var(--dim);
+  }
+  .close {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    background: none;
+    border: 0;
+    color: var(--dim);
+  }
+  .close::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+  }
+  .close:hover {
+    color: var(--text);
+  }
+  .close:active {
+    opacity: 0.6;
+    transition: none;
+  }
+  @keyframes in {
+    from {
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .streak {
+      animation: none;
+    }
   }
 </style>
