@@ -7,8 +7,10 @@ import {
   dvrConfig,
   dvrTarget,
   liveConfig,
+  LIVE_SNAP,
   liveState,
   maxLatency,
+  needsLiveSeek,
   NO_EDGE_PULL,
   pausedBehind,
   PAUSE_STOP_MS,
@@ -100,18 +102,29 @@ test('rewind config', () => {
 });
 
 test('what play does after a pause', () => {
-  assert.equal(resumePlan({ pausedMs: 500, inVod: false, stopped: false }), 'play');
-  assert.equal(resumePlan({ pausedMs: 5000, inVod: false, stopped: false }), 'sync');
+  // 2026/10/31 Any pause at live, however short, comes back fully live.
+  assert.equal(resumePlan({ pausedMs: 0, inVod: false, stopped: false }), 'sync');
+  assert.equal(resumePlan({ pausedMs: 500, inVod: false, stopped: false }), 'sync');
+  assert.equal(resumePlan({ pausedMs: 2000, inVod: false, stopped: false }), 'sync');
+  assert.equal(resumePlan({ pausedMs: 30_000, inVod: false, stopped: false }), 'sync');
+  assert.equal(resumePlan({ pausedMs: PAUSE_STOP_MS - 1, inVod: false, stopped: false }), 'sync');
   assert.equal(resumePlan({ pausedMs: PAUSE_STOP_MS, inVod: false, stopped: false }), 'reopen');
   assert.equal(resumePlan({ pausedMs: 500, inVod: false, stopped: true }), 'reopen');
   assert.equal(resumePlan({ pausedMs: 5000, inVod: true, stopped: false }), 'stay');
   assert.equal(resumePlan({ pausedMs: PAUSE_STOP_MS, inVod: true, stopped: true }), 'reload');
-  // V108-N24 The paused spot is still in the replay: on from there once past the live gap.
-  assert.equal(resumePlan({ pausedMs: 30_000, inVod: false, stopped: false, replay: true }), 'replay');
-  assert.equal(resumePlan({ pausedMs: PAUSE_STOP_MS + 1, inVod: false, stopped: true, replay: true }), 'replay');
-  assert.equal(resumePlan({ pausedMs: 15_000, inVod: false, stopped: false, replay: true }), 'sync');
-  assert.equal(resumePlan({ pausedMs: 30_000, inVod: false, stopped: false, replay: false }), 'sync');
-  assert.equal(resumePlan({ pausedMs: 30_000, inVod: true, stopped: false, replay: true }), 'stay');
+  // A deliberate rewind (Twitch's or the N24 replay) stays where it was, however long.
+  assert.equal(resumePlan({ pausedMs: 500, inVod: true, stopped: false }), 'stay');
+  assert.equal(resumePlan({ pausedMs: PAUSE_STOP_MS - 1, inVod: true, stopped: false }), 'stay');
+});
+
+test('going live moves the play head unless it is already there', () => {
+  assert.equal(needsLiveSeek(100, 100), false);
+  assert.equal(needsLiveSeek(100, 100 + 1), false);
+  assert.equal(needsLiveSeek(100, 100 - LIVE_SNAP / 2), false);
+  assert.equal(needsLiveSeek(100, 100 - LIVE_SNAP * 1.5), true);
+  // 2026/10/31 Under 1 s behind used to stay behind.
+  assert.equal(needsLiveSeek(100, 99.2), true);
+  assert.equal(needsLiveSeek(100, 68.4), true);
 });
 
 test('chat bar text', () => {

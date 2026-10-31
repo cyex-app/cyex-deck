@@ -13,7 +13,7 @@ import { formatNumber } from '../../lib/format';
 import { settings } from '../../lib/settings.svelte';
 import { Away, awayMs, outOfSight } from './away';
 import { GRAPH_EVENT, graphDelay } from './gain';
-import { behindLive, dvrConfig, liveConfig, liveState, maxLatency, PAUSE_STOP_MS, pausedBehind, rangeEnd } from './liveEdge';
+import { behindLive, dvrConfig, liveConfig, liveState, maxLatency, needsLiveSeek, PAUSE_STOP_MS, pausedBehind, rangeEnd } from './liveEdge';
 import {
   askPause,
   begin,
@@ -99,9 +99,6 @@ export class Engine {
   adBreak = false;
   /** Live players: reopens the stream, live when `at` is null, else the VOD from there. */
   onreopen: ((at: number | null) => void) | null = null;
-  /** V108-N24 Where play after a long pause goes in the replay (seconds since the start, for
-   *  a paused date), null when the replay doesn't hold it. */
-  replayAt: ((date: number) => number | null) | null = null;
   /** V108-N24 A replay segment Twitch no longer has. */
   ongone: ((uri: string) => void) | null = null;
 
@@ -132,8 +129,6 @@ export class Engine {
   private startAt = -1;
   /** V108-N24 The replay's clock start (ms), the stream's start. */
   private origin = 0;
-  /** V108-N24 The live picture's date at the user's pause. */
-  private pausedDate: number | null = null;
   /** V108-N24 A missing segment is being skipped. */
   private skipping = false;
   /** V108-N24 A missing segment ahead of the play head: where it starts (playlist seconds)
@@ -262,9 +257,7 @@ export class Engine {
 
   /** V1061-01 Play: a live player decides where it goes on (LivePlayer's play paths). */
   async resume(): Promise<void> {
-    // V108-N24 A long pause plays on from its spot when the replay still holds it.
-    const back = this.liveSrc && this.pausedDate !== null ? (this.replayAt?.(this.pausedDate) ?? null) : null;
-    const r = resumeStep(this.st, { live: this.live, holding: this.holding, dvr: this.dvr, hasHls: !!this.hls, now: performance.now(), replay: back !== null });
+    const r = resumeStep(this.st, { live: this.live, holding: this.holding, dvr: this.dvr, hasHls: !!this.hls, now: performance.now() });
     this.st = r.s;
     // Played again mid-jump after a pause: the jump plays when it lands.
     if (r.step === 'wait') return;
@@ -275,13 +268,11 @@ export class Engine {
     clearTimeout(this.stopTimer);
     const plan = r.step;
     const pos = r.pos;
-    if (plan === 'play' || plan === 'stay') {
+    if (plan === 'stay') {
       this.hls?.resumeBuffering();
       void this.video.play().catch(() => {});
     } else if (plan === 'sync') {
       await this.toLive(true);
-    } else if (plan === 'replay') {
-      this.onreopen?.(back);
     } else if (plan === 'reload') {
       if (this.hls) {
         this.hls.startLoad(pos);
@@ -318,7 +309,7 @@ export class Engine {
     const t = hls.liveSyncPosition;
     if (t === null) return void this.onreopen?.(null);
     const v = this.video;
-    if (t - v.currentTime < 1) {
+    if (!needsLiveSeek(t, v.currentTime)) {
       hls.resumeBuffering();
       if (play) void v.play().catch(() => {});
       return;
@@ -767,7 +758,6 @@ export class Engine {
    *  stands, when the element isn't there yet (a rewind VOD reopened while paused). */
   private markPaused(pos = this.video.currentTime): void {
     this.st = paused(this.st, performance.now(), pos);
-    this.pausedDate = this.liveSrc ? (this.hls?.playingDate?.getTime() ?? null) : null;
     this.hls?.pauseBuffering();
     // d-1 No pull to the edge while paused, and the readout counts up from here.
     this.behindAtPause = this.liveSrc ? this.behind : null;
@@ -799,7 +789,7 @@ export class Engine {
     const r = playedWhilePaused(this.st, { live: this.live, hasHls: !!this.hls, dvr: this.dvr, now: performance.now() });
     if (r.step === 'none') return;
     if (r.step === 'keep') {
-      // 'stay' or 'play': it already plays where it should.
+      // 'stay': a rewind plays on where it was.
       clearTimeout(this.stopTimer);
       this.st = r.s;
       this.hls?.resumeBuffering();

@@ -101,15 +101,21 @@ export function dvrConfig(startAt: number): Partial<HlsConfig> {
   };
 }
 
-/** Q15 a, Q16 a What play does after a pause. A plain pause at live comes back live;
- *  only a deliberate rewind stays. V108-N24 With the paused spot still in the replay, a pause
- *  longer than the live gap plays on from there. */
-export function resumePlan(o: { pausedMs: number; inVod: boolean; stopped: boolean; replay?: boolean }): 'play' | 'sync' | 'reopen' | 'stay' | 'reload' | 'replay' {
+/** Q15 a, Q16 a What play does after a pause. A pause at live comes back fully live, however
+ *  short (user, 2026/10/31: no play-on under 1 s, no play-on from the N24 replay); only a
+ *  deliberate rewind stays. */
+export function resumePlan(o: { pausedMs: number; inVod: boolean; stopped: boolean }): 'sync' | 'reopen' | 'stay' | 'reload' {
   if (o.inVod) return o.stopped ? 'reload' : 'stay';
-  if (o.replay && o.pausedMs > DVR_GAP * 1000) return 'replay';
   if (o.stopped || o.pausedMs >= PAUSE_STOP_MS) return 'reopen';
-  if (o.pausedMs < 1000) return 'play';
   return 'sync';
+}
+
+/** s behind the live point a jump to live leaves as is (a seek that small only stutters). */
+export const LIVE_SNAP = 0.3;
+
+/** Whether going live has to move the play head to `sync` (2026/10/31: it used to leave up to 1 s). */
+export function needsLiveSeek(sync: number, current: number): boolean {
+  return sync - current >= LIVE_SNAP;
 }
 
 /** Q23 "Chat is live. The stream is 2:14 behind." */

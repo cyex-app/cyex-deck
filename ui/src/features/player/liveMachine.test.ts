@@ -75,7 +75,7 @@ test('rd-2 a reopen while paused lands paused, and play then goes to live', () =
     const again = paused(t.s, 50_000, 0);
     // Play 20 s later: one sync to the live point, no reopen.
     assert.equal(resumeStep(again, { ...liveRes, now: 70_000 }).step, 'sync');
-    assert.equal(resumeStep(again, { ...liveRes, now: 50_500 }).step, 'play');
+    assert.equal(resumeStep(again, { ...liveRes, now: 50_500 }).step, 'sync');
   }
   // Played during the reopen: it plays when it lands.
   const w = resumeStep(begin(pausedAt(), true, false), { ...liveRes, now: 9e9 });
@@ -98,7 +98,7 @@ test('resumeStep branches', () => {
   assert.equal(resumeStep(pausedAt(), { ...liveRes, live: false, now: 9e9 }).step, 'direct');
   assert.equal(resumeStep(pausedAt(), { ...liveRes, holding: true, now: 9e9 }).step, 'direct');
   const quick = resumeStep(pausedAt(1000, 42), { ...liveRes, now: 1500 });
-  assert.equal(quick.step, 'play');
+  assert.equal(quick.step, 'sync');
   assert.equal(quick.pos, 42);
   assert.equal(quick.s.pausedAt, 0);
   assert.equal(quick.s.phase, 'playing');
@@ -111,11 +111,10 @@ test('resumeStep branches', () => {
   assert.equal(r.step, 'reload');
   assert.equal(r.pos, 7);
   assert.equal(r.s.pausedAt, 0);
-  // V108-N24 The paused spot is in the replay: past the live gap it plays on from there.
-  const rp = resumeStep(pausedAt(1000), { ...liveRes, replay: true, now: 31_001 });
-  assert.equal(rp.step, 'replay');
-  assert.equal(rp.s.phase, 'playing');
-  assert.equal(resumeStep(pausedAt(1000), { ...liveRes, replay: true, now: 6000 }).step, 'sync');
+  // 2026/10/31 A long pause at live goes live too (it played on from the N24 replay, 31.6 s behind).
+  const long = resumeStep(pausedAt(1000), { ...liveRes, now: 31_001 });
+  assert.equal(long.step, 'sync');
+  assert.equal(long.s.phase, 'playing');
 });
 
 test('V1061-01 two own pauses, one event: the user pause after it still counts', () => {
@@ -216,7 +215,9 @@ test('playedWhilePaused', () => {
   const o = { live: true, hasHls: true, dvr: false };
   assert.equal(playedWhilePaused(playing, { ...o, now: 0 }).step, 'none');
   assert.equal(playedWhilePaused(pausedAt(), { ...o, live: false, now: 0 }).step, 'none');
-  const k = playedWhilePaused(pausedAt(1000), { ...o, now: 1500 });
+  // 2026/10/31 A quick pause at live goes live too.
+  assert.equal(playedWhilePaused(pausedAt(1000), { ...o, now: 1500 }).step, 'resume');
+  const k = playedWhilePaused(pausedAt(1000), { ...o, dvr: true, now: 1500 });
   assert.equal(k.step, 'keep');
   assert.equal(k.s.phase, 'playing');
   assert.equal(k.s.pausedAt, 0);

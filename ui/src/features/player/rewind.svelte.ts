@@ -140,13 +140,6 @@ export class Rewind {
     return Number.isNaN(t) ? 0 : t;
   }
 
-  /** V108-N24 Where play after a long pause at `date` (ms) goes, null when the replay lost it. */
-  replayAt(date: number): number | null {
-    if (this.mode !== 'replay') return null;
-    const t = this.secs(date);
-    return t >= this.min && t <= this.uptime - DVR_GAP ? t : null;
-  }
-
   /** Where the player is, in seconds since the stream started. */
   get pos(): number {
     const e = this.host.engine();

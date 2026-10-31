@@ -20,7 +20,7 @@ export interface LiveState {
 }
 
 /** direct: not a live pause, it just plays. The rest is resumePlan's. */
-export type ResumeStep = 'wait' | 'direct' | 'play' | 'sync' | 'reopen' | 'stay' | 'reload' | 'replay';
+export type ResumeStep = 'wait' | 'direct' | 'sync' | 'reopen' | 'stay' | 'reload';
 
 export const isJumping = (s: LiveState): boolean => s.phase === 'jumping' || s.phase === 'swapping';
 export const isSwapping = (s: LiveState): boolean => s.phase === 'swapping';
@@ -50,13 +50,13 @@ export const askPause = (s: LiveState): LiveState => (isJumping(s) ? { ...s, pen
 
 export function resumeStep(
   s: LiveState,
-  o: { live: boolean; holding: boolean; dvr: boolean; hasHls: boolean; now: number; replay?: boolean },
+  o: { live: boolean; holding: boolean; dvr: boolean; hasHls: boolean; now: number },
 ): { s: LiveState; step: ResumeStep; pos: number } {
   const pos = s.pausedPos;
   // Played again mid-jump after a pause: the jump plays when it lands.
   if (isJumping(s) && s.pendingPause) return { s: { ...s, pendingPause: false }, step: 'wait', pos };
   if (!o.live || o.holding || !isPaused(s)) return { s, step: 'direct', pos };
-  const step = resumePlan({ pausedMs: o.now - s.pausedAt, inVod: o.dvr, stopped: isStopped(s) || !o.hasHls, replay: o.replay });
+  const step = resumePlan({ pausedMs: o.now - s.pausedAt, inVod: o.dvr, stopped: isStopped(s) || !o.hasHls });
   return { s: { ...s, phase: 'playing', pausedAt: 0 }, step, pos };
 }
 
@@ -98,13 +98,14 @@ export const brokeWhilePaused = (s: LiveState): LiveState => ({ ...s, phase: 'st
 
 export const failed = (s: LiveState): LiveState => (isJumping(s) ? { ...s, phase: 'playing' } : s);
 
-/** A play that skipped `resume()`. keep: it already plays where it should; resume: send it there. */
+/** A play that skipped `resume()`. keep: it already plays where it should (a rewind); resume:
+ *  send it there (live, after any pause: 2026/10/31). */
 export function playedWhilePaused(
   s: LiveState,
   o: { live: boolean; hasHls: boolean; dvr: boolean; now: number },
 ): { s: LiveState; step: 'none' | 'keep' | 'resume' } {
   if (!o.live || isJumping(s) || !isPaused(s)) return { s, step: 'none' };
-  if (o.hasHls && !isStopped(s) && (o.dvr || o.now - s.pausedAt < 1000)) return { s: { ...s, phase: 'playing', pausedAt: 0 }, step: 'keep' };
+  if (o.hasHls && !isStopped(s) && o.dvr) return { s: { ...s, phase: 'playing', pausedAt: 0 }, step: 'keep' };
   return { s, step: 'resume' };
 }
 

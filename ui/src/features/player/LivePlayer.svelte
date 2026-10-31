@@ -102,8 +102,7 @@
     engine = e;
     // V1061-01 Play after a long pause, or a swept session, opens the stream afresh.
     e.onreopen = (at) => void start(e, e.choice, login, account, false, at);
-    // V108-N24 A long pause plays on from its spot in the replay; a segment Twitch lost is skipped.
-    e.replayAt = (date) => rewind.replayAt(date);
+    // V108-N24 A segment Twitch lost is skipped.
     e.ongone = (uri) => {
       if (liveId) void playerIpc.replayGone(liveId, uri);
     };
