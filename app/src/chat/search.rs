@@ -52,6 +52,10 @@ pub async fn search(app: &AppHandle, view: Option<u32>, query: &str) -> Result<V
     if q.is_empty() {
         return Ok(Vec::new());
     }
+    // A pattern that doesn't compile would find nothing: say so instead.
+    if q.has_bad_pattern() {
+        return Err("Not a valid pattern".into());
+    }
     let (mut out, mut back, scrollback) = {
         let chat = app.state::<Chat>();
         let inner = chat.lock();

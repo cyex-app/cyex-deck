@@ -32,6 +32,8 @@
   // svelte-ignore state_referenced_locally
   let everywhere = $state(all);
   let results = $state.raw<FeedLine[]>([]);
+  /** A search the backend refused (a pattern that does not compile). */
+  let failure = $state('');
   let root = $state<HTMLElement>();
   let list = $state<HTMLElement>();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -111,10 +113,16 @@
         .search(scope, q)
         .then((r) => {
           if (stale) return;
+          failure = '';
           results = r.slice(-MAX_HITS);
           requestAnimationFrame(() => list && (list.scrollTop = list.scrollHeight));
         })
-        .catch(() => !stale && (results = []));
+        .catch((e) => {
+          if (stale) return;
+          results = [];
+          // Only the pattern refusal is worth showing; anything else reads as no match.
+          failure = typeof e === 'string' && e.startsWith('Not a valid') ? e : '';
+        });
     }, 150);
     return () => {
       stale = true;
@@ -141,7 +149,7 @@
         <Line m={r.message} channel={r.channel} />
       </div>
     {:else}
-      <p class="muted">{text.trim() ? 'Nothing found.' : `Type to search ${everywhere ? 'every open chat' : channel}.`}</p>
+      <p class="muted">{text.trim() ? (failure || 'Nothing found.') : `Type to search ${everywhere ? 'every open chat' : channel}.`}</p>
     {/each}
   </div>
   {#if results.length}<p class="count">{formatNumber(results.length)} found</p>{/if}

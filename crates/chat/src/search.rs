@@ -35,7 +35,11 @@ impl Query {
                 .split_once(':')
                 .filter(|(n, v)| !v.is_empty() && n.chars().all(char::is_alphanumeric))
             else {
-                terms.push((Term::Word(token.to_lowercase()), false));
+                // A phrase in quotes is one word group: its quotes are not part of it.
+                let phrase = token.trim_matches('"').trim();
+                if !phrase.is_empty() {
+                    terms.push((Term::Word(phrase.to_lowercase()), false));
+                }
                 continue;
             };
             let value = value.trim_matches('"');
@@ -83,6 +87,11 @@ impl Query {
 
     pub fn is_empty(&self) -> bool {
         self.terms.is_empty()
+    }
+
+    /// A `regex:` term that does not compile; it would match nothing.
+    pub fn has_bad_pattern(&self) -> bool {
+        self.terms.iter().any(|(t, _)| matches!(t, Term::Regex(None)))
     }
 
     /// `channel` is the login the message was seen in.
@@ -212,5 +221,19 @@ mod tests {
         assert!(q("-nothing:here") == q("-nothing:here"));
         assert!(!q("missing"));
         assert!(Query::parse("  ").is_empty());
+    }
+
+    #[test]
+    fn quoted_phrases_and_bad_patterns() {
+        let m = msg(
+            "@badges=;display-name=Bob;id=1;user-id=7 :bob!bob@bob PRIVMSG #forsen :look at this thing",
+        );
+        let q = |s: &str| Query::parse(s).matches(&m, "forsen");
+        assert!(q(r#""at this""#));
+        assert!(q(r#""LOOK at" thing"#));
+        assert!(!q(r#""this at""#));
+        assert!(Query::parse(r#""""#).is_empty());
+        assert!(Query::parse("regex:(").has_bad_pattern());
+        assert!(!Query::parse("regex:th.s from:bob").has_bad_pattern());
     }
 }
