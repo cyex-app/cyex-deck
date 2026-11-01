@@ -44,12 +44,13 @@
     { value: 'faded', label: 'Faded' },
     { value: 'hidden', label: 'Hidden' },
   ];
-  const NAMES: { value: NameStyle; label: string }[] = [
+  // V108-C20 Two choices over the one stored style (user, 2026/11/01): which name leads, and the other in brackets.
+  const FIRST: { value: 'display' | 'username'; label: string }[] = [
     { value: 'display', label: 'Display name' },
-    { value: 'displayLogin', label: 'Display name (username)' },
     { value: 'username', label: 'Username' },
-    { value: 'usernameDisplay', label: 'Username (display name)' },
   ];
+  const nameStyle = (first: 'display' | 'username', other: boolean): NameStyle =>
+    first === 'display' ? (other ? 'displayLogin' : 'display') : other ? 'usernameDisplay' : 'username';
   const PAUSE_KEYS: { value: PauseKey; label: string }[] = [
     { value: 'none', label: 'None' },
     { value: 'ctrl', label: 'Ctrl' },
@@ -249,8 +250,18 @@
 </Row>
 
 <SectionHead title="Messages" />
-<Row setting="chat.names" label="Names" hint="Which name comes first in chat. Usercards always show both.">
-  <Segmented label="Names" options={NAMES} value={c.names} onchange={(v) => settings.patch('chat', { names: v })} />
+<Row setting="chat.names" label="Name first" hint="Usercards always show both.">
+  <Segmented
+    label="Name first"
+    options={FIRST}
+    value={c.names.startsWith('username') ? 'username' : 'display'}
+    onchange={(v) => settings.patch('chat', { names: nameStyle(v, c.names === 'displayLogin' || c.names === 'usernameDisplay') })} />
+</Row>
+<Row label="Other name in brackets" hint="Only when it differs by more than capitals.">
+  <Toggle
+    label="Other name in brackets"
+    checked={c.names === 'displayLogin' || c.names === 'usernameDisplay'}
+    onchange={(v) => settings.patch('chat', { names: nameStyle(c.names.startsWith('username') ? 'username' : 'display', v) })} />
 </Row>
 <Row setting="chat.deleted" label="Deleted messages" hint="Removed by a mod, or from someone timed out or banned.">
   <Segmented

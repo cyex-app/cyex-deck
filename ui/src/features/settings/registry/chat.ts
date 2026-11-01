@@ -46,7 +46,7 @@ export const CHAT: Entry[] = [
     id: 'chat.names',
     page: 'chat',
     label: 'Names',
-    description: 'Which name comes first in chat, and whether the other shows in brackets.',
+    description: 'Which name comes first in chat, and whether the other one shows in brackets.',
     keywords: ['display name', 'login', 'username', 'nickname', 'localized'],
   },
   {
