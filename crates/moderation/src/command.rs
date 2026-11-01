@@ -46,7 +46,7 @@ pub enum ModCommand {
     SetLead { login: String, on: bool },
     Commercial { secs: u32 },
     Marker { text: String },
-    /// 1.9 Pins a message, for `secs` or until the stream ends.
+    /// 1.9 Pins a message, for `secs` or until unpinned (V108-C22).
     Pin { msg_id: String, secs: Option<u32> },
     /// M11 Sends a message and pins it, like Twitch's own `/pin <text>`. Twitch's usual
     /// 20 minutes when `secs` isn't given.

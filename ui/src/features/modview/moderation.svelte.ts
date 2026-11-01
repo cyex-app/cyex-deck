@@ -20,9 +20,10 @@ export function timeouts(): { label: string; secs: number }[] {
   return settings.v.chat.timeoutPresets.map((secs) => ({ label: formatDuration(secs), secs }));
 }
 
-/** V101-34 How long a pin stays: Twitch takes 30 s to 30 min, or until the stream ends. */
+/** V101-34 How long a pin stays: Twitch takes 30 s to 30 min, or no end. V108-C22 No end means
+ * until a mod unpins it, live or offline, not until the stream ends. */
 export const PIN_LENGTHS: { label: string; secs: number | null }[] = [
-  { label: 'Until the stream ends', secs: null },
+  { label: 'Until unpinned', secs: null },
   { label: formatSecs(30), secs: 30 },
   { label: formatSecs(60), secs: 60 },
   { label: formatSecs(300), secs: 300 },

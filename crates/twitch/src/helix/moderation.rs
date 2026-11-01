@@ -80,7 +80,7 @@ pub async fn treat(http: &Http, auth: Auth<'_>, room: Room<'_>, user_id: &str, s
 /// any whole second inside works, 29 and 1801 are refused). No duration = no end.
 pub const PIN_SECS: (u32, u32) = (30, 1800);
 
-/// 1.9 Pins a message for `secs` (clamped to [`PIN_SECS`]), or until the stream ends.
+/// 1.9 Pins a message for `secs` (clamped to [`PIN_SECS`]), or until unpinned (V108-C22).
 pub async fn pin(http: &Http, auth: Auth<'_>, room: Room<'_>, message_id: &str, secs: Option<u32>) -> Result<()> {
     let mut req = request(http, auth, Method::PUT, "/chat/pins")
         .query(&room.query())

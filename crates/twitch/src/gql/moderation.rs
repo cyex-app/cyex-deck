@@ -180,7 +180,7 @@ pub async fn treat_low_trust(http: &Http, auth: Auth<'_>, channel_id: &str, targ
 
 // V107-R42 Mod and VIP over GQL: `dashboard::roles::assign`.
 
-/// V101-34 Pins a chat message for `secs` (clamped to [`PIN_SECS`]), or until the stream ends.
+/// V101-34 Pins a chat message for `secs` (clamped to [`PIN_SECS`]), or until unpinned (V108-C22).
 /// Schema-checked 2026/10/11; the web client and the 7TV extension send `type: MOD`.
 pub async fn pin(http: &Http, auth: Auth<'_>, channel_id: &str, message_id: &str, secs: Option<u32>) -> Result<Option<String>> {
     const Q: &str = "mutation P($input: PinChatMessageInput!) {
@@ -255,7 +255,7 @@ mod tests {
         assert_eq!(v["input"]["type"], "MOD");
         assert_eq!(v["input"]["messageID"], "m");
         assert_eq!(v["input"]["durationSeconds"], 30);
-        // Until the stream ends: no duration at all.
+        // Until unpinned: no duration at all.
         assert!(pin_vars("1", "m", None)["input"].get("durationSeconds").is_none());
     }
 
