@@ -3,6 +3,7 @@
   import Button from '../../components/Button.svelte';
   import Checkbox from '../../components/Checkbox.svelte';
   import Dialog from '../../components/Dialog.svelte';
+  import { focusTabChat } from './focusChat';
   import { picked, reopenLabel } from './resume';
   import { resumeDialog, resumeWith } from './resume.svelte';
   import { label, tabs } from './tabs.svelte';
@@ -24,10 +25,18 @@
   async function go(ids: string[]) {
     resumeDialog.open = false;
     await resumeWith(all, ids);
+    // The dialog opened over nothing in particular: land in the chat of the tab on screen, not on the page.
+    if (list.length > 1 && tabs.active) focusTabChat(tabs.active, false);
   }
+
+  // Nothing to pick from with one tab or none: it stays, no question.
+  $effect(() => {
+    if (list.length < 2) void go(all);
+  });
 </script>
 
 <!-- Escape keeps everything, as it was. -->
+{#if list.length > 1}
 <Dialog title="Reopen your tabs?" width={380} onclose={() => go(all)} onsubmit={() => keep.length && go(keep)}>
   <p class="lead">cyex deck closed unexpectedly. Pick the tabs to bring back.</p>
   <div class="list">
@@ -41,6 +50,7 @@
     <Button variant="primary" disabled={!keep.length} onclick={() => go(keep)}>{reopenLabel(keep.length)}</Button>
   {/snippet}
 </Dialog>
+{/if}
 
 <style>
   .lead {
