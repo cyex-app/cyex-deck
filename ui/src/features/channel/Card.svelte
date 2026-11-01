@@ -39,6 +39,7 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+    width: 100%; /* V108-P1 a button shrinks to its text; the long title overran the next card */
     min-width: 0;
     padding: 0;
     background: none;
