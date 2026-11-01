@@ -291,7 +291,7 @@
           {channel}
           userId={profile.id}
           login={profile.login}
-          name={note?.nickname || profile.displayName}
+          name={profile.login}
           live={messages}
           bind:url={logsUrl}
           {modAccount}

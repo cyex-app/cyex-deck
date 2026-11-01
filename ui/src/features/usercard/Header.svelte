@@ -42,7 +42,10 @@
   let twitchPic = $state(false);
 
   const note = $derived(settings.v.chat.users[profile.id]);
-  const localized = $derived(profile.displayName.toLowerCase() !== profile.login);
+  const second = $derived.by(() => {
+    const n = note?.nickname || profile.displayName;
+    return n.toLowerCase() === profile.login.toLowerCase() ? '' : n;
+  });
   const seventv = $derived(avatars.of(profile.login));
   const picture = $derived((!twitchPic && seventv) || profile.avatar || '');
 
@@ -125,8 +128,23 @@
   <div class="who">
     <!-- V107-R35 The name is text to select, not a handle for the window. -->
     <div class="name no-drag" style={colorVars}>
-      <strong class={paint ?? ''} class:painted={!!paint} class:colored={!!color}>{note?.nickname || profile.displayName}</strong>
-      {#if localized || note?.nickname}<span class="login">{profile.login}</span>{/if}
+      <div class="names">
+        <!-- V108-C17 The login leads; the display name (or your nickname) sits under it in brackets. -->
+        <span class="line">
+          <strong class={paint ?? ''} class:painted={!!paint} class:colored={!!color}>{profile.login}</strong>
+          <button class="cp" aria-label="Copy name" use:tooltip={'Copy name'} onclick={() => copy(profile.login, 'Name')}
+            ><Icon name="copy" size={11} /></button
+          >
+        </span>
+        {#if second}
+          <span class="line sub">
+            <span class="display">({second})</span>
+            <button class="cp" aria-label="Copy name" use:tooltip={'Copy name'} onclick={() => copy(second, 'Name')}
+              ><Icon name="copy" size={11} /></button
+            >
+          </span>
+        {/if}
+      </div>
       <div class="tools">
         <IconButton
           icon="pencil"
@@ -284,7 +302,7 @@
   .name {
     display: flex;
     gap: 6px;
-    align-items: baseline;
+    align-items: flex-start;
     min-width: 0;
     font-size: 1.1rem;
   }
@@ -304,14 +322,50 @@
   :global(:root[data-theme='light']) .name .colored {
     color: var(--cl);
   }
-  .login {
+  .names {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .line {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    min-width: 0;
+  }
+  .line strong {
+    min-width: 0;
+  }
+  .display {
     min-width: 0;
     overflow: hidden;
     unicode-bidi: isolate;
     color: var(--dim);
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     text-overflow: ellipsis;
+    user-select: text;
     white-space: nowrap;
+  }
+  .cp {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: var(--radius);
+    color: var(--dim);
+    cursor: pointer;
+  }
+  .cp:hover {
+    color: var(--text);
+  }
+  .cp:active {
+    opacity: 0.6;
+    transition: none;
   }
   /* The paint is the box's background (its class sets picture or gradient, and the
      shadows); a dark veil and a text shadow keep the name readable on any paint. */
