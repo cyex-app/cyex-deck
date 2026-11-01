@@ -1,47 +1,56 @@
-<!-- A button that needs a second click within 3 s, for things viewers notice right away
-     (an ad, a payout, ending a session). -->
+<!-- A button for things viewers notice right away (an ad, a payout, ending a session) or that
+     are hard to undo. V108-C21 The click opens a small bubble clear of the button; moving onto
+     it and clicking (or Enter) does it. Escape, a click elsewhere or 3 s closes it. -->
 <script lang="ts">
   import Button from './Button.svelte';
-  import { layer } from '../lib/escape';
+  import ConfirmCallout from './ConfirmCallout.svelte';
   import type { IconName } from './icons';
 
   interface Props {
     label: string;
-    /** Shown after the first click, e.g. "Click again to run a 60s ad". */
+    /** Shown in the bubble, e.g. "Click to run a 60s ad". */
     confirm: string;
     icon?: IconName;
     disabled?: boolean;
     variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
     onconfirm: () => void;
-    /** V107-R4 Bind to show a warning while it waits for the second click. */
+    /** V107-R4 Bind to show a warning while the bubble waits. */
     armed?: boolean;
   }
 
   let { label, confirm, icon, disabled = false, variant = 'secondary', onconfirm, armed = $bindable(false) }: Props = $props();
 
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  let anchor = $state<HTMLElement>();
+  let pressX = $state<number>();
 
-  function click() {
-    if (!armed) {
-      armed = true;
-      timer = setTimeout(() => (armed = false), 3000);
-      return;
-    }
-    clearTimeout(timer);
-    armed = false;
-    onconfirm();
+  function click(e: MouseEvent) {
+    if (armed) return;
+    anchor = e.currentTarget as HTMLElement;
+    // Keyboard clicks have no pointer position.
+    pressX = e.detail === 0 ? undefined : e.clientX;
+    armed = true;
   }
 
-  $effect(() => () => clearTimeout(timer));
+  function done() {
+    armed = false;
+    anchor?.focus({ preventScroll: true });
+  }
 
-  // Escape while it waits only takes the question back; it doesn't leave the page behind it.
   $effect(() => {
-    if (!armed) return;
-    return layer('popover', () => {
-      clearTimeout(timer);
-      armed = false;
-    });
+    if (disabled) armed = false;
   });
 </script>
 
-<Button small {icon} {disabled} variant={armed ? 'danger' : variant} onclick={click}>{armed ? confirm : label}</Button>
+<Button small {icon} {disabled} {variant} onclick={click}>{label}</Button>
+{#if armed && anchor}
+  <ConfirmCallout
+    {anchor}
+    {pressX}
+    label={confirm}
+    onconfirm={() => {
+      armed = false;
+      onconfirm();
+    }}
+    ondismiss={done}
+  />
+{/if}

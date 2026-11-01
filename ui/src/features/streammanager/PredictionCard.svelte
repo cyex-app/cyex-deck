@@ -92,7 +92,7 @@
           {#if p.status === 'LOCKED'}
             <ConfirmButton
               label="Winner"
-              confirm="Click again to pay out"
+              confirm="Click to pay out"
               disabled={busy}
               onconfirm={() => end({ kind: 'resolve', winner: o.id }, `Paid out ${o.title}.`)}
             />
@@ -108,7 +108,7 @@
         <span class="wide-only">
           <ConfirmButton
             label="Refund everyone"
-            confirm="Click again to refund"
+            confirm="Click to refund"
             variant="ghost"
             disabled={busy}
             onconfirm={() => end({ kind: 'cancel' }, 'Refunded.')}

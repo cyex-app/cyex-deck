@@ -27,7 +27,7 @@
 
 <div class="reset">
   {#if armed && warn}<p class="warn" role="status">{warn}</p>{/if}
-  <ConfirmButton label="Reset" confirm="Click again to reset" icon="undo" variant="ghost" onconfirm={reset} bind:armed />
+  <ConfirmButton label="Reset" confirm="Click to reset" icon="undo" variant="ghost" onconfirm={reset} bind:armed />
 </div>
 
 <style>

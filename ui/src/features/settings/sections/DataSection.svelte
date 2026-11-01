@@ -180,7 +180,7 @@
 </SectionHead>
 {#each backups as date, i (date)}
   <Row label={labels[i]}>
-    <ConfirmButton label="Restore" confirm="Click again (current is kept)" onconfirm={() => restore(date)} />
+    <ConfirmButton label="Restore" confirm="Click to restore" onconfirm={() => restore(date)} />
   </Row>
 {:else}
   <p class="note">No backups yet. One is made each day you use cyex deck.</p>

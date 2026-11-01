@@ -12,7 +12,7 @@
   import ConfirmCallout from './ConfirmCallout.svelte';
   import GateFlag from './GateFlag.svelte';
   import Icon from './Icon.svelte';
-  import { back, closeMenu, menu, menuDisarm, menuMoveTo, pick, type MenuItem } from './menu.svelte';
+  import { back, closeMenu, menu, menuDisarm, menuHold, menuMoveTo, pick, type MenuItem } from './menu.svelte';
   import { tooltip } from './tooltip.svelte';
 
   let box = $state<HTMLElement>();
@@ -151,7 +151,7 @@
           aria-checked={entry.checked}
           disabled={entry.disabled}
           data-sub={entry.items ? '1' : undefined}
-          onclick={() => pick(entry)}
+          onclick={(e) => pick(entry, e.detail === 0)}
           use:tooltip={{ label: entry.note && settings.v.general.tooltips ? entry.note : '' }}
         >
           {#if entry.swatch}<span class="swatch" style:background={entry.swatch}></span>
@@ -170,7 +170,7 @@
   </div>
   {#if menu.armed?.confirm && armedRow}
     {@const armed = menu.armed}
-    <ConfirmCallout over anchor={armedRow} label={armed.confirm!} onconfirm={() => pick(armed)} ondismiss={menuDisarm} />
+    <ConfirmCallout over anchor={armedRow} label={armed.confirm!} onconfirm={() => pick(armed, true)} ondismiss={menuDisarm} onhold={menuHold} />
   {/if}
 {/if}
 

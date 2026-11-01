@@ -26,6 +26,11 @@ export function menuMoveTo(item: MenuItem): void {
   confirming.moveTo(item);
 }
 
+/** V108-C21 The pointer is on (true) or left (false) the armed item's bubble: the 3 s waits. */
+export function menuHold(on: boolean): void {
+  confirming.hold(on);
+}
+
 /** V107-P5 Escape: lets go of an armed item first; true when it did. */
 export function menuDisarm(): boolean {
   return confirming.cancel();
@@ -61,7 +66,7 @@ function shut(): void {
   menu.armed = null;
 }
 
-export function pick(item: MenuItem): void {
+export function pick(item: MenuItem, viaKey = false): void {
   if (item.disabled) return;
   if (item.lock) {
     shut();
@@ -74,7 +79,7 @@ export function pick(item: MenuItem): void {
     menu.stack = [...menu.stack, { title: item.label, items: tidy(item.items) }];
     return;
   }
-  if (!confirming.press(item, item.confirm)) return;
+  if (!confirming.press(item, item.confirm, viaKey)) return;
   shut();
   item.run?.();
 }

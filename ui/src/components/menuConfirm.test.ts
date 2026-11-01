@@ -42,15 +42,31 @@ test('V107-P5 an item without confirm runs at once', () => {
   assert.deepEqual(seen, []);
 });
 
-test('V107-P5 the first pick arms, the second runs and lets go', () => {
+test('V108-C21 a second click on the same item stays armed; the bubble (a key pick) runs it', () => {
   const { c, seen, t } = setup();
   assert.equal(c.press(del, del.confirm), false);
   assert.equal(c.armed, del);
   assert.equal(t.live, 1);
-  assert.equal(c.press(del, del.confirm), true);
+  assert.equal(c.press(del, del.confirm), false, 'double-click does nothing');
+  assert.equal(c.armed, del);
+  assert.equal(t.live, 1);
+  assert.equal(c.press(del, del.confirm, true), true);
   assert.equal(c.armed, null);
   assert.equal(t.live, 0, 'the timer is gone');
   assert.deepEqual(seen, [del, null]);
+});
+
+test('V108-C21 the pointer on the bubble holds the timer; leaving restarts it', () => {
+  const { c, t } = setup();
+  c.press(del, del.confirm);
+  c.hold(true);
+  assert.equal(t.live, 0, 'nothing can fire while held');
+  t.fire();
+  assert.equal(c.armed, del);
+  c.hold(false);
+  assert.equal(t.live, 1);
+  t.fire();
+  assert.equal(c.armed, null);
 });
 
 test('V107-P5 it lets go after 3 s', () => {

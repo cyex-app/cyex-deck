@@ -110,7 +110,7 @@ export function userItems(caps: Caps, login: string, run: Run, warn: () => void,
     { label: 'Unban', icon: 'undo', run: () => run(`/unban ${login}`) },
     // V101-30 What can't be undone comes last.
     ...(onMod.offered
-      ? [{ label: 'Ban', icon: 'gavel' as const, danger: true, note: onMod.note, run: () => run(`/ban ${login}`) }]
+      ? [{ label: 'Ban', icon: 'gavel' as const, danger: true, note: onMod.note, confirm: 'Click to ban', run: () => run(`/ban ${login}`) }]
       : []),
     'separator',
     ...treatItems(caps, login, run, is),
@@ -178,7 +178,7 @@ export function pinItems(msgId: string, run: Run): MenuEntry[] {
 export function messageItems(msgId: string, run: Run): MenuEntry[] {
   return [
     { label: 'Pin message', icon: 'pin', items: pinItems(msgId, run) },
-    { label: 'Delete message', icon: 'trash', danger: true, run: () => run(`/delete ${msgId}`) },
+    { label: 'Delete message', icon: 'trash', danger: true, confirm: 'Click to delete', run: () => run(`/delete ${msgId}`) },
   ];
 }
 

@@ -75,7 +75,7 @@
           {info.sub ? 'Renew or change tier' : 'Subscribe'}
         </Button>
         {#if info.canPrime && !info.sub}
-          <ConfirmButton label="Use my Prime sub" confirm="Click again to use it here" icon="gem" onconfirm={prime} />
+          <ConfirmButton label="Use my Prime sub" confirm="Click to use it here" icon="gem" onconfirm={prime} />
         {/if}
         <Button icon="gift" onclick={() => page('gift')}>Gift a sub</Button>
       </div>

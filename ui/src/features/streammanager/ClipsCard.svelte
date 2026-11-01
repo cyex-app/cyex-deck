@@ -115,7 +115,7 @@
       {:else if picked.size}
         <ConfirmButton
           label="Delete"
-          confirm="Click again to delete {count(picked.size, 'clip', 'clips')}"
+          confirm="Click to delete {count(picked.size, 'clip', 'clips')}"
           icon="trash"
           disabled={busy}
           onconfirm={() => void remove([...picked])}

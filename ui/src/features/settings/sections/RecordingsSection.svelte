@@ -43,7 +43,7 @@
     <Row label="#{r.channel}" hint="{when(r.startedMs)} · {long(r)} · {formatNumber(r.messages)} messages">
       <div class="actions">
         <Button small icon="play" onclick={() => void popOut(`recording/${r.id}`, `#${r.channel} recording`)}>Play</Button>
-        <ConfirmButton label="Delete" confirm="Click again to delete" icon="trash" variant="ghost" onconfirm={() => remove(r.id)} />
+        <ConfirmButton label="Delete" confirm="Click to delete" icon="trash" variant="ghost" onconfirm={() => remove(r.id)} />
       </div>
     </Row>
   {:else}

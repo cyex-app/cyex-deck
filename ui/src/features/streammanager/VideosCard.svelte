@@ -187,7 +187,7 @@
         <IconButton icon="eyeOff" label="Unpublish" hint="Only you can see them then." size={14} disabled={bulk} onclick={() => void many('unpublish')} />
         <ConfirmButton
           label="Delete"
-          confirm="Click again to delete {count(picked.size, 'video', 'videos')}"
+          confirm="Click to delete {count(picked.size, 'video', 'videos')}"
           icon="trash"
           disabled={bulk}
           onconfirm={() => void many('delete')}

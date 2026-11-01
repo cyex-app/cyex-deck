@@ -168,7 +168,7 @@
       <Button small variant="ghost" disabled={pasting} onclick={() => (pasting = true)}>Use your browser</Button>
     {/if}
     {#if account.seventv.consent}
-      <ConfirmButton label="Withdraw" confirm="Click again to withdraw" variant="ghost" onconfirm={withdraw} />
+      <ConfirmButton label="Withdraw" confirm="Click to withdraw" variant="ghost" onconfirm={withdraw} />
     {/if}
   </div>
 
@@ -240,7 +240,7 @@
       <!-- V102-20 -->
       <span class="locked"><Button small variant="ghost" icon="pencil" disabled>Twitch profile</Button><GateFlag kind="gql" /></span>
     {/if}
-    <ConfirmButton label="Remove account" confirm="Click again to remove" icon="trash" variant="ghost" onconfirm={removeAccount} />
+    <ConfirmButton label="Remove account" confirm="Click to remove" icon="trash" variant="ghost" onconfirm={removeAccount} />
   </footer>
 </section>
 

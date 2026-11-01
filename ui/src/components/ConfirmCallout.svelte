@@ -1,13 +1,15 @@
 <!-- V107-P4 A second click for something everyone sees (unpin, delete): a small red box
      hanging under the button it confirms, its notch on the button. Click or Enter does it;
      it goes away after 3 s, on Escape or a click elsewhere. Drawn over the page, so nothing
-     moves. V107-P5 `over` hangs it over a menu item instead; the menu keeps the timer,
+     moves. V108-C21 A bubble, not a box under the button: it sits clear of the control (the
+     notch on the press point), so a second click on the same spot never confirms; the pointer
+     has to move onto it. The 3 s waits while the pointer is on it. V107-P5 `over` hangs it over a menu item instead; the menu keeps the timer,
      the keys and the focus (menuConfirm.ts). -->
 <script lang="ts">
   import { untrack } from 'svelte';
 
   import { layer } from '../lib/escape';
-  import { calloutAbove, calloutAt, CONFIRM_MS, expiry } from './confirmCallout';
+  import { bubbleAt, calloutAbove, CONFIRM_MS, expiry } from './confirmCallout';
 
   interface Props {
     /** The button it hangs from. */
@@ -19,11 +21,22 @@
     ondismiss: () => void;
     /** V107-P5 Over a menu item, run by the menu: no timer, keys or focus of its own. */
     over?: boolean;
+    /** V108-C21 The press point's x, so the notch points at where it was clicked. */
+    pressX?: number;
+    /** V108-C21 Over mode: the pointer is on / left the bubble (the menu holds the timer). */
+    onhold?: (on: boolean) => void;
   }
 
-  let { anchor, label, onconfirm, ondismiss, over = false }: Props = $props();
+  let { anchor, label, onconfirm, ondismiss, over = false, pressX, onhold }: Props = $props();
 
   let box = $state<HTMLButtonElement>();
+  let timer: ReturnType<typeof expiry> | undefined;
+
+  function hold(on: boolean) {
+    if (over) onhold?.(on);
+    else if (on) timer?.pause();
+    else timer?.resume();
+  }
   let at = $state({ left: -9999, top: -9999, notch: 0, below: true });
 
   /** Over everything, so the banner's clipping doesn't cut it off. */
@@ -37,7 +50,7 @@
     const r = anchor.getBoundingClientRect();
     at = over
       ? calloutAbove(r, box.offsetWidth, box.offsetHeight, innerWidth)
-      : { ...calloutAt(r, box.offsetWidth, innerWidth), below: true };
+      : bubbleAt(r, box.offsetWidth, box.offsetHeight, innerWidth, innerHeight, 6, pressX);
   }
 
   // Once, when it shows: a parent redraw doesn't restart the 3 s.
@@ -58,7 +71,7 @@
 
   function start() {
     place();
-    const timer = expiry(ondismiss, CONFIRM_MS);
+    timer = expiry(ondismiss, CONFIRM_MS);
     const off = layer('popover', ondismiss);
     // After the menu has handed focus back to its button.
     const raf = requestAnimationFrame(() => box?.focus({ preventScroll: true }));
@@ -67,9 +80,12 @@
     };
     addEventListener('mousedown', down, true);
     addEventListener('resize', place);
+    addEventListener('scroll', place, true);
     addEventListener('blur', ondismiss);
     return () => {
-      timer.cancel();
+      timer?.cancel();
+      timer = undefined;
+      removeEventListener('scroll', place, true);
       off();
       cancelAnimationFrame(raf);
       removeEventListener('mousedown', down, true);
@@ -90,6 +106,8 @@
   use:toBody
   style="left:{at.left}px;top:{at.top}px;--notch:{at.notch}px"
   onmousedown={(e) => over && e.preventDefault()}
+  onpointerenter={() => hold(true)}
+  onpointerleave={() => hold(false)}
   onclick={onconfirm}
 >
   {label}
@@ -110,6 +128,23 @@
     font-weight: 600;
     white-space: nowrap;
     cursor: pointer;
+    /* Grows out of the notch. */
+    transform-origin: var(--notch) 0;
+    animation: bubble-in var(--fast) var(--ease);
+  }
+  .callout.up {
+    transform-origin: var(--notch) 100%;
+  }
+  @keyframes bubble-in {
+    from {
+      opacity: 0;
+      transform: scale(0.92);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .callout {
+      animation: none;
+    }
   }
   /* The notch: a small triangle on the button's middle. */
   .callout::before {

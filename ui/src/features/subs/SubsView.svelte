@@ -134,7 +134,7 @@
           {#if canStop(s)}
             <ConfirmButton
               label="Stop renewal"
-              confirm="Click again to stop"
+              confirm="Click to stop"
               variant="ghost"
               onconfirm={() => void stop(s.id, s.channel.name)}
             />

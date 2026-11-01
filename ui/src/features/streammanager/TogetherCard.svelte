@@ -155,7 +155,7 @@
     <div class="line">
       <ConfirmButton
         label="End session"
-        confirm="Click again to end it"
+        confirm="Click to end it"
         variant="ghost"
         disabled={busy}
         onconfirm={() => act(smIpc.togetherEnd(session.id), 'Session ended.')}

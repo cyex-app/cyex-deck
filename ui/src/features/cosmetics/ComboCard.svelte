@@ -42,7 +42,7 @@
       { label: 'Edit', icon: 'palette', run: () => combos.edit(combo) },
       { label: 'Duplicate', icon: 'copy', hint: 'Ctrl+D', disabled: combos.full, run: () => void combos.duplicate(combo) },
       'separator',
-      { label: 'Delete', icon: 'trash', danger: true, hint: 'Del', run: () => void combos.remove(combo) },
+      { label: 'Delete', icon: 'trash', danger: true, hint: 'Del', confirm: 'Click to delete', run: () => void combos.remove(combo) },
     ]);
   }
 </script>

@@ -105,7 +105,7 @@
     {#if stats?.since}<span class="note">Since {formatDate(new Date(stats.since))}</span>{/if}
     <span class="grow"></span>
     {#if stats?.since}
-      <ConfirmButton label="Delete stats" confirm="Click again to delete" variant="ghost" onconfirm={() => void clear()} />
+      <ConfirmButton label="Delete stats" confirm="Click to delete" variant="ghost" onconfirm={() => void clear()} />
     {/if}
   </div>
 

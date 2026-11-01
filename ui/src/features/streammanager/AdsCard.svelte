@@ -122,7 +122,7 @@
   <div class="line">
     <ConfirmButton
       label="Run ad"
-      confirm={`Click again to run a ${length}s ad`}
+      confirm={`Click to run a ${length}s ad`}
       disabled={!live || busy}
       onconfirm={run}
     />
