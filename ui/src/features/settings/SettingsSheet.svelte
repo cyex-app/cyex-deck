@@ -5,6 +5,7 @@
   import { fade } from 'svelte/transition';
 
   import IconButton from '../../components/IconButton.svelte';
+  import { tabbables, wrapTab } from '../../lib/focusScope';
   import { keyHold } from '../../lib/hotkeys.svelte';
   import SettingsView from './SettingsView.svelte';
 
@@ -17,6 +18,36 @@
 
   let box = $state<HTMLElement>();
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /** Menus, dialogs and tooltips opened from the sheet live outside it, in the layers host. */
+  const inLayer = (n: EventTarget | null) => n instanceof Element && !!n.closest('.layers');
+
+  // V108-S1 Tab stays in the sheet. Menus opened from it (outside it) keep their own Tab handling.
+  $effect(() => {
+    if (!box) return;
+    const sheet = box;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || e.defaultPrevented) return;
+      const at = document.activeElement;
+      if (inLayer(at) || inLayer(e.target)) return;
+      const stops = tabbables(sheet);
+      const next = wrapTab(stops.indexOf(at as HTMLElement), stops.length, e.shiftKey);
+      e.preventDefault();
+      (stops[next] ?? sheet).focus();
+    };
+    // The title bar stays clickable (a tab click closes the sheet) but has no tab menus behind it.
+    const onMenu = (e: MouseEvent) => {
+      if (sheet.contains(e.target as Node) || inLayer(e.target)) return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('contextmenu', onMenu, true);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('contextmenu', onMenu, true);
+    };
+  });
 
   $effect(() => {
     keyHold.sheet = true;
