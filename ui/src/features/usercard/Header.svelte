@@ -114,6 +114,37 @@
     <div class="name no-drag" style={colorVars}>
       <strong class={paint ?? ''} class:painted={!!paint} class:colored={!!color}>{note?.nickname || profile.displayName}</strong>
       {#if localized || note?.nickname}<span class="login">{profile.login}</span>{/if}
+      <div class="tools">
+        <IconButton
+          icon="pencil"
+          label="Nickname and note"
+          hint="Only you see them."
+          size={14}
+          active={editing}
+          toggle
+          onclick={() => (editing = !editing)}
+        />
+        <IconButton
+          icon="bell"
+          label={bell ? 'Stop highlighting' : 'Highlight their messages'}
+          hint="In every chat. Color and sound in Settings → Highlights."
+          size={14}
+          active={bell}
+          toggle
+          onclick={flipBell}
+        />
+        {#if logsUrl}
+          <IconButton icon="scroll" label="All logs" hint="logs.cyex.app" size={14} onclick={() => systemIpc.openLink(logsUrl)} />
+        {/if}
+        {#if !isChannel}
+          <IconButton
+            icon="twitch"
+            label="Open on Twitch"
+            size={14}
+            onclick={() => systemIpc.openLink(`https://www.twitch.tv/${profile.login}`)}
+          />
+        {/if}
+      </div>
     </div>
     {#if paintName}<span class="paint"><span class="fill {paint}" aria-hidden="true"></span><span class="label">{paintName}</span></span>{/if}
     <div class="marks">
@@ -124,37 +155,6 @@
     </div>
     <EarnedBadges login={profile.login} userId={profile.id} {channel} fallback={badges} />
     <button class="id" onclick={copyId} use:tooltip={'Copy user ID'}>ID {profile.id}</button>
-  </div>
-  <div class="tools">
-    <IconButton
-      icon="pencil"
-      label="Nickname and note"
-      hint="Only you see them."
-      size={14}
-      active={editing}
-      toggle
-      onclick={() => (editing = !editing)}
-    />
-    <IconButton
-      icon="bell"
-      label={bell ? 'Stop highlighting' : 'Highlight their messages'}
-      hint="In every chat. Color and sound in Settings → Highlights."
-      size={14}
-      active={bell}
-      toggle
-      onclick={flipBell}
-    />
-    {#if logsUrl}
-      <IconButton icon="scroll" label="All logs" hint="logs.cyex.app" size={14} onclick={() => systemIpc.openLink(logsUrl)} />
-    {/if}
-    {#if !isChannel}
-      <IconButton
-        icon="twitch"
-        label="Open on Twitch"
-        size={14}
-        onclick={() => systemIpc.openLink(`https://www.twitch.tv/${profile.login}`)}
-      />
-    {/if}
   </div>
 </header>
 
@@ -259,13 +259,12 @@
     gap: 3px;
     min-width: 0;
   }
-  /* Clear of the buttons in the corner (four at most, 4 x 28 + 3 x 2 + 6). */
+  /* The buttons are the end of this row, so the name gives way to their real width. */
   .name {
     display: flex;
     gap: 6px;
     align-items: baseline;
     min-width: 0;
-    padding-right: 124px;
     font-size: 1.1rem;
   }
   .name strong {
@@ -377,11 +376,13 @@
   .id:hover {
     color: var(--text);
   }
+  /* Hangs into the header's padding (6 px from the top and right edges) without making
+     the row taller. */
   .tools {
-    position: absolute;
-    top: 6px;
-    right: 6px;
     display: flex;
+    flex: none;
+    align-self: flex-start;
     gap: 2px;
+    margin: -6px -8px -6px auto;
   }
 </style>
