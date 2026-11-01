@@ -182,6 +182,8 @@ export class Engine {
       },
       pause: () => this.onPause(),
       waiting: () => {
+        // V108-LL6 Ran dry while steering (not a seek): keep more spare on this stream.
+        if (this.steer.steering && !video.seeking) this.steer.dry(performance.now() / 1000);
         this.waiting = true;
         this.checkTorn();
         this.checkGone();

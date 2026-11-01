@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { RATE_FAST, RATE_SLOW, Steer } from './steer.ts';
+import { MARGIN_MAX, MARGIN_STEP, RATE_FAST, RATE_SLOW, REST, Steer } from './steer.ts';
 
 /** Feeds a buffer that swings like whole 2 s segments: `low` right before a reload, `low + 2` after. */
 function feed(s: Steer, from: number, to: number, low: number): number {
@@ -41,4 +41,49 @@ test('V108-LL2 reset goes back to 1x and waits for a new window', () => {
   s.reset();
   assert.equal(s.rate, 1);
   assert.equal(feed(s, 6, 8, 1.7), 1);
+});
+
+test('V108-LL6 after a dry run it keeps more spare: no speed up at a spare that used to', () => {
+  const s = new Steer();
+  s.dry(0);
+  assert.equal(s.margin, MARGIN_STEP);
+  // 1.2 s spare: fast before (over 0.9), now under 0.9 + 0.5 and over 0.25 + 0.5.
+  assert.equal(feed(s, 0, 10, 1.2), 1);
+  // 0.6 s spare is thin now: it slows down to build the margin back.
+  assert.equal(feed(s, 10, 20, 0.6), RATE_SLOW);
+});
+
+test('V108-LL6 the margin adds up to a cap, survives a reset and wears off over minutes', () => {
+  const s = new Steer();
+  for (let i = 0; i < 10; i++) s.dry(i);
+  assert.equal(s.margin, MARGIN_MAX);
+  s.reset();
+  assert.equal(s.margin, MARGIN_MAX, 'a pause or a jump keeps it');
+  s.step(600, 1);
+  assert.ok(Math.abs(s.margin - (MARGIN_MAX - MARGIN_STEP)) < 0.02, `10 min wear one step off, got ${s.margin}`);
+  s.step(5000, 1);
+  assert.equal(s.margin, 0);
+});
+
+test('V108-LL6 back at 1x it rests before speeding up again', () => {
+  const s = new Steer();
+  feed(s, 0, 6, 1.7);
+  assert.equal(s.rate, RATE_FAST);
+  // Spare used up: back to 1x at t≈8.
+  let t = 6;
+  for (; s.rate !== 1; t += 0.25) s.step(t, 0.45);
+  const back = t;
+  // Plenty again at once: it waits REST s at 1x first.
+  for (; t < back + REST - 0.5; t += 0.25) assert.equal(s.step(t, 2), 1);
+  for (; t < back + REST + 4.5; t += 0.25) s.step(t, 2);
+  assert.equal(s.rate, RATE_FAST);
+});
+
+test('V108-LL6 a thin buffer still slows down at once, rest or not', () => {
+  const s = new Steer();
+  feed(s, 0, 6, 1.7);
+  let t = 6;
+  for (; s.rate !== 1; t += 0.25) s.step(t, 0.45);
+  for (const end = t + 0.5; t < end; t += 0.25) s.step(t, 0.1);
+  assert.equal(s.rate, RATE_SLOW);
 });

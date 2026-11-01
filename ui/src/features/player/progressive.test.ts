@@ -78,3 +78,95 @@ test('V108-LL3 an unknown track holds the whole segment', () => {
   assert.equal(g.push(all), null);
   assert.deepEqual(g.end(), cat(all, EMPTY_MOOF));
 });
+
+test('V108-LL6 a cut or broken init box gives no timescale and never throws', () => {
+  // tkhd and mdhd too short for the id and the timescale.
+  const cut = box('moov', box('trak', box('tkhd', words(0)), box('mdia', box('mdhd', words(0)))));
+  assert.equal(timescales(cut).size, 0);
+  // A v1 tkhd whose id would lie past its end.
+  const v1 = box('moov', box('trak', box('tkhd', words(0x01000000, 0, 0)), box('mdia', box('mdhd', words(0, 0, 0, 90000)))));
+  assert.equal(timescales(v1).size, 0);
+  // The init cut off mid-box.
+  const whole = init(1, 90000);
+  for (let n = 0; n < whole.length; n++) assert.doesNotThrow(() => timescales(whole.slice(0, n)));
+});
+
+test('V108-LL6 an open-ended (size 0) or broken box holds the rest, which comes whole', () => {
+  const scales = timescales(init(1, 90000));
+  const open = new Uint8Array(16); // size 0: "to the end"
+  open.set([0x66, 0x72, 0x65, 0x65], 4);
+  for (const odd of [open, words(4, 0x66726565)]) {
+    const g = new Fmp4Gate(scales);
+    const all = cat(frag(0), odd, frag(0.3), frag(0.6));
+    const out = g.push(all);
+    assert.equal(out, null);
+    assert.deepEqual(g.end(), cat(all, EMPTY_MOOF));
+  }
+});
+
+test('V108-LL6 a truncated moof never throws and the bytes all come once', () => {
+  const scales = timescales(init(1, 90000));
+  const f = frag(0.3);
+  // A moof whose tfdt is shorter than its time.
+  const bad = cat(box('moof', box('traf', box('tfhd', words(0, 1)), box('tfdt', new Uint8Array([1, 0, 0, 0, 0])))), box('mdat', new Uint8Array(4)));
+  const g = new Fmp4Gate(scales);
+  const all = cat(frag(0), bad, f);
+  const sent: Uint8Array[] = [];
+  for (let at = 0; at < all.length; at += 7) {
+    const out = g.push(all.slice(at, at + 7));
+    if (out) sent.push(out);
+  }
+  assert.deepEqual(cat(...sent, g.end()), cat(all, EMPTY_MOOF));
+});
+
+test('V108-LL6 many small chunks of a big segment: same bytes as one push, the buffer grows', () => {
+  const scales = timescales(init(1, 90000));
+  const all = cat(...[0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.4, 1.8].map((s) => frag(500 + s, 150_000)));
+  const g = new Fmp4Gate(scales);
+  const sent: Uint8Array[] = [];
+  for (let at = 0; at < all.length; at += 4096) {
+    const out = g.push(all.subarray(at, at + 4096));
+    if (out) sent.push(out);
+  }
+  assert.equal(sent.length >= 3, true);
+  for (const p of sent) assert.equal(p.byteOffset, 0, 'own buffer: hls.js may move it to its worker');
+  assert.deepEqual(cat(...sent, g.end()), cat(all, EMPTY_MOOF));
+});
+
+test('V108-LL6 a segment that began before its init was read still streams once it is', () => {
+  const g = new Fmp4Gate(new Map());
+  const fs = [0, 0.3, 0.6, 1.2].map((s) => frag(70 + s));
+  assert.equal(g.push(fs[0]), null);
+  assert.equal(g.push(fs[1]), null, 'no timescale: held');
+  g.rescale(timescales(init(1, 90000)));
+  const sent: Uint8Array[] = [];
+  for (const f of fs.slice(2)) {
+    const out = g.push(f);
+    if (out) sent.push(out);
+  }
+  // 0 and 0.3 go once the 0.6 moof is in; 0.6 is held with the rest (1.2 is past the cut).
+  assert.deepEqual(sent.map((s) => s.length), [fs[0].length + fs[1].length]);
+  assert.deepEqual(cat(...sent, g.end()), cat(...fs, EMPTY_MOOF));
+});
+
+test('V108-LL6 rescale does nothing once a piece went out', () => {
+  const g = new Fmp4Gate(timescales(init(1, 90000)));
+  const fs = [0, 0.3, 1.2].map((s) => frag(s));
+  const a = g.push(cat(fs[0], fs[1]));
+  g.rescale(timescales(init(1, 1000)));
+  const b = g.push(fs[2]);
+  assert.deepEqual(cat(...[a, b].filter((x): x is Uint8Array => !!x), g.end()), cat(...fs, EMPTY_MOOF));
+});
+
+test('V108-LL6 timescales known before the first moof: it streams as usual', () => {
+  const g = new Fmp4Gate(new Map());
+  g.rescale(timescales(init(1, 90000)));
+  const fs = [0, 0.3, 0.6, 1.2].map((s) => frag(40 + s));
+  const sent: Uint8Array[] = [];
+  for (const f of fs) {
+    const out = g.push(f);
+    if (out) sent.push(out);
+  }
+  assert.deepEqual(sent.map((s) => s.length), [fs[0].length, fs[1].length]);
+  assert.deepEqual(cat(...sent, g.end()), cat(...fs, EMPTY_MOOF));
+});
