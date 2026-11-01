@@ -12,10 +12,14 @@
   import { formatTime } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
   import { MAX_HIDDEN_TAGS, withoutHidden, withTag } from '../../discover/hidden';
+  import { discordBuild } from '../../discord/discord.svelte';
   import FontPicker from '../FontPicker.svelte';
   import ResetSection from '../ResetSection.svelte';
 
   const g = $derived(settings.v.general);
+  $effect(() => {
+    void discordBuild.load();
+  });
   const b = $derived(settings.v.browse);
 
   // V108-N05
@@ -85,6 +89,19 @@
 <!-- V103-11 The wheel glides Chatterino's way (lib/smoothScroll.ts); switches at once. -->
 <Row setting="general.smoothScroll" label="Smooth scrolling" hint="The mouse wheel glides instead of jumping, everywhere in the app.">
   <Toggle label="Smooth scrolling" checked={g.smoothScroll} onchange={(v) => settings.patch('general', { smoothScroll: v })} />
+</Row>
+<!-- V108-N26 Discord Rich Presence; greyed out in a build without a Discord app ID. -->
+<Row
+  setting="general.discordPresence"
+  label="Show on Discord"
+  hint={discordBuild.ok === false ? 'Needs a Discord app ID in this build.' : 'Your Discord profile shows the channel you watch, with a button to open it on Twitch.'}
+>
+  <Toggle
+    label="Show on Discord"
+    checked={g.discordPresence && discordBuild.ok === true}
+    disabled={discordBuild.ok !== true}
+    onchange={(v) => settings.patch('general', { discordPresence: v })}
+  />
 </Row>
 <Row setting="general.minimizeToTray" label="Minimize to tray" hint="Minimizing hides cyex deck in the tray instead of the taskbar.">
   <Toggle

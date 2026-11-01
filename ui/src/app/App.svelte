@@ -48,6 +48,7 @@
   import { stepTab } from '../features/tabs/cycle';
   import { heldAfterStart, nextHeld, playingNow } from '../features/tabs/hold';
   import { audioFocus } from '../features/tabs/audioFocus.svelte';
+  import { useDiscordPresence } from '../features/discord/discord.svelte';
   import { heardTile } from '../features/tabs/audioFocus';
   import { streamIds, tabs, tiles } from '../features/tabs/tabs.svelte';
   import { theatre } from '../features/tabs/theatre.svelte';
@@ -213,6 +214,7 @@
   });
 
   useRootEffects();
+  useDiscordPresence(() => (shownTab ? tab : undefined)); // V108-N26
   useHotkeys({
     'nav.home': () => show('home'),
     'nav.discover': () => show('discover'),

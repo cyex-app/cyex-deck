@@ -13,6 +13,7 @@ mod commands;
 mod cosmetics;
 mod connections;
 mod crash;
+mod discord;
 mod emotes;
 mod feeds;
 mod hermes;

@@ -36,6 +36,13 @@ export const APP: Entry[] = [
     keywords: ['scroll', 'scrolling', 'smooth', 'glide', 'wheel', 'mouse', 'animation', 'chatterino'],
   },
   {
+    id: 'general.discordPresence',
+    page: 'general',
+    label: 'Show on Discord',
+    description: 'Your Discord profile shows the channel you watch, with a button to open it on Twitch.',
+    keywords: ['discord', 'rich presence', 'activity', 'status', 'privacy', 'watching'],
+  },
+  {
     id: 'general.minimizeToTray',
     page: 'general',
     label: 'Minimize to tray',

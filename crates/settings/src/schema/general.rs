@@ -30,6 +30,8 @@ pub struct General {
     pub sound: Sound,
     /// V107-Mo The last settings searches, newest first. Local only (not in exports).
     pub recent_searches: Vec<String>,
+    /// V108-N26 Show the channel you watch on your Discord profile (Rich Presence). Off by default.
+    pub discord_presence: bool,
 }
 
 impl Default for General {
@@ -46,6 +48,7 @@ impl Default for General {
             updates: Updates::default(),
             sound: Sound::default(),
             recent_searches: Vec::new(),
+            discord_presence: false,
         }
     }
 }
