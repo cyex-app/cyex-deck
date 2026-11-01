@@ -1,6 +1,6 @@
 <!-- 1.14 Channel field: a name, user id or twitch.tv link, searched as you type. Suggestions come
      from Twitch's search plus the exact match (offline too), best match first (`matchChannels`).
-     Nothing is picked until one result is left or you choose; Enter takes the first, arrows move. -->
+     Nothing is picked until one result is left or you choose; Enter takes the first and adds it, arrows move. -->
 <script lang="ts">
   import { untrack } from 'svelte';
 
@@ -97,8 +97,9 @@
   function onkeydown(e: KeyboardEvent) {
     if (e.key === 'Enter') {
       e.preventDefault();
+      // V108-P6 Enter on a list takes the best match, as the note says.
+      if (!picked && results.length) picked = results[0];
       if (picked) onsubmit();
-      else if (results.length) picked = results[0];
     } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && results.length > 1) {
       e.preventDefault();
       const at = results.findIndex((c) => c.id === picked?.id);
