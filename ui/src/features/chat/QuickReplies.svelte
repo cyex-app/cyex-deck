@@ -5,6 +5,7 @@
   import { openMenuAt } from '../../components/menu.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import { settings } from '../../lib/settings.svelte';
+  import { menuLine } from './quickReplies';
 
   interface Props {
     /** Puts the phrase at the caret. */
@@ -16,12 +17,13 @@
   const replies = $derived(settings.v.chat.quickReplies);
 
   /** Long phrases are cut for the menu; the whole text goes in the box. */
-  const shown = (r: string) => (r.length > 60 ? `${r.slice(0, 59)}…` : r);
-
   function open(e: MouseEvent) {
     openMenuAt(
       e,
-      replies.map((r) => ({ label: shown(r), note: r.length > 60 ? r : undefined, run: () => oninsert(r) })),
+      replies.map((r) => {
+        const line = menuLine(r);
+        return { label: line.label, note: line.cut ? r : undefined, run: () => oninsert(r) };
+      }),
     );
   }
 </script>
