@@ -42,30 +42,39 @@ export interface PlayerControls {
 }
 
 class Players {
-  private list = $state.raw<PlayerControls[]>([]);
-  private last = $state.raw<PlayerControls | null>(null);
+  // V108-P3 Plain fields, not state: a player opening over another (a clip over the stream) writes
+  // the list while the old one's teardown reads it, and a read-modify-write on state lost the
+  // new player, so the keys reached nothing until a click. `version` only tells effects to look again.
+  private list: PlayerControls[] = [];
+  private last: PlayerControls | null = null;
+  private version = $state.raw({});
 
   /** A player that opens takes over, e.g. a clip over the stream. Returns the function
    *  that takes it off the list. */
   register(p: PlayerControls): () => void {
     this.list = [...this.list, p];
     this.last = p;
+    this.version = {};
     return () => {
       this.list = this.list.filter((x) => x !== p);
       if (this.last === p) this.last = null;
+      this.version = {};
     };
   }
 
   use(p: PlayerControls): void {
     this.last = p;
+    this.version = {};
   }
 
   get active(): PlayerControls | null {
+    void this.version;
     return this.last ?? this.list[0] ?? null;
   }
 
   /** Q27 a The player the arrow keys act on: the one used last if it is on screen, else the first that is. */
   get shown(): PlayerControls | null {
+    void this.version;
     const l = this.last;
     if (l?.visible?.()) return l;
     return this.list.find((p) => p.visible?.()) ?? null;
