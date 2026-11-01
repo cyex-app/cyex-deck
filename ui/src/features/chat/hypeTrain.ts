@@ -10,9 +10,11 @@ export function progressPct(progress: number, goal: number): number {
   return Math.min(100, Math.round((progress / goal) * 100));
 }
 
-/** The level's points, "1.234 / 2.000"; null when Twitch sent no goal. */
+/** The level's points, "1.234 / 2.000"; "Goal reached" once the points pass the goal (the
+ *  next level's message is on its way); null when Twitch sent no goal. */
 export function progressText(progress: number, goal: number, fmt: (n: number) => string = String): string | null {
   if (!(goal > 0)) return null;
+  if (progress >= goal) return 'Goal reached';
   return `${fmt(Math.max(0, progress || 0))} / ${fmt(goal)}`;
 }
 
@@ -30,7 +32,7 @@ export function formatLeft(seconds: number): string {
 }
 
 /** A progress message laid over the train we hold: it has no start time or conductors. */
-export function mergeProgress(held: HypeTrain | null, next: HypeTrain): HypeTrain {
+export function mergeProgress(held: HypeTrain | null, next: HypeTrain, nowMs = Date.now()): HypeTrain {
   if (!held || (next.id && held.id && next.id !== held.id)) return next;
   return {
     ...held,
@@ -38,7 +40,9 @@ export function mergeProgress(held: HypeTrain | null, next: HypeTrain): HypeTrai
     progress: next.progress,
     goal: next.goal || held.goal,
     total: next.total || held.total,
-    expiresAt: next.expiresAt ?? held.expiresAt,
+    // A message without a time keeps the held one only while it is still ahead; a time
+    // that has passed would end the train on the next tick.
+    expiresAt: next.expiresAt ?? (secondsLeft(held.expiresAt, nowMs) > 0 ? held.expiresAt : null),
     goldenKappa: next.goldenKappa || held.goldenKappa,
     treasure: next.treasure || held.treasure,
   };
@@ -49,13 +53,18 @@ export function mergeConductor(list: HypeConductor[], c: HypeConductor): HypeCon
   return [...list.filter((x) => x.source !== c.source), c];
 }
 
-/** The biggest giver, "Name 1.200 bits". */
-export function topLine(list: HypeConductor[], fmt: (n: number) => string = String): string | null {
+/** The biggest giver as two parts, so a long name can be cut and the amount stays. */
+export function topParts(list: HypeConductor[], fmt: (n: number) => string = String): { who: string; amount: string } | null {
   const top = [...list].filter((c) => c.name || c.login).sort((a, b) => b.total - a.total)[0];
   if (!top) return null;
-  const who = top.name || top.login;
   const unit = top.source === 'BITS' ? ' bits' : top.source === 'SUBS' ? ' subs' : '';
-  return top.total > 0 ? `${who} ${fmt(top.total)}${unit}` : who;
+  return { who: top.name || top.login, amount: top.total > 0 ? `${fmt(top.total)}${unit}` : '' };
+}
+
+/** The biggest giver, "Name 1.200 bits". */
+export function topLine(list: HypeConductor[], fmt: (n: number) => string = String): string | null {
+  const t = topParts(list, fmt);
+  return t ? (t.amount ? `${t.who} ${t.amount}` : t.who) : null;
 }
 
 /** The train as it closed: the last read laid over the one held, when it is the same train.

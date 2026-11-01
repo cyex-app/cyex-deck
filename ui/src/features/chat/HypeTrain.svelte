@@ -27,6 +27,7 @@
     progressText,
     secondsLeft,
     topLine,
+    topParts,
     trainOver,
   } from './hypeTrain';
 
@@ -58,7 +59,7 @@
   const on = $derived(settings.v.chat.hypeTrainBar);
   const left = $derived(train ? secondsLeft(train.expiresAt, now) : 0);
   const pct = $derived(train ? progressPct(train.progress, train.goal) : 0);
-  const top = $derived(train ? topLine(train.conductors, formatNumber) : null);
+  const top = $derived(train ? topParts(train.conductors, formatNumber) : null);
   const points = $derived(train ? progressText(train.progress, train.goal, formatNumber) : null);
   const given = $derived(note ? (givenLine(note.subs, note.bits, formatNumber) ?? topLine(note.conductors, formatNumber)) : null);
 
@@ -167,8 +168,9 @@
       <Icon name="zap" size={13} />
       <span class="level">Level {train.level}</span>
       {#if points}<span class="points">{points}</span>{/if}
-      {#if top}<span class="top">{top}</span>{/if}
-      <span class="time">{formatLeft(left)}</span>
+      {#if top}<span class="top"><span class="who">{top.who}</span>{#if top.amount}<span class="amount">{top.amount}</span>{/if}</span>{/if}
+      <!-- No countdown when Twitch sent no end time. -->
+      {#if train.expiresAt}<span class="time">{formatLeft(left)}</span>{/if}
     </div>
     <div class="track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={pct}>
       <div class="fill" style:transform="scaleX({pct / 100})"></div>
@@ -212,10 +214,19 @@
   .top {
     flex: 1;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    display: flex;
+    gap: 4px;
     white-space: nowrap;
     color: var(--muted);
+  }
+  /* The name gives way; the amount stays whole. */
+  .who {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .amount {
+    flex: none;
   }
   .points {
     white-space: nowrap;
@@ -252,6 +263,7 @@
     outline-offset: -2px;
   }
   .time {
+    flex: none;
     margin-left: auto;
     font-variant-numeric: tabular-nums;
     color: var(--muted);

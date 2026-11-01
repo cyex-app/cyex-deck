@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { HypeTrain } from '../../ipc/bindings/HypeTrain.ts';
-import { closing, endedText, formatLeft, givenLine, progressText, mergeConductor, mergeProgress, progressPct, secondsLeft, topLine, trainOver } from './hypeTrain.ts';
+import { closing, endedText, formatLeft, givenLine, progressText, mergeConductor, mergeProgress, progressPct, secondsLeft, topLine, topParts, trainOver } from './hypeTrain.ts';
 
 const train = (o: Partial<HypeTrain> = {}): HypeTrain => ({
   id: 't1',
@@ -81,6 +81,9 @@ test('hype train points to the next level read with dots (V108-N04)', () => {
   assert.equal(progressText(1234, 2000, dots), '1.234 / 2.000');
   assert.equal(progressText(-5, 2000), '0 / 2000');
   assert.equal(progressText(10, 0), null);
+  // Past the goal the level is done: no "5.000 / 2.000".
+  assert.equal(progressText(5000, 2000, dots), 'Goal reached');
+  assert.equal(progressText(2000, 2000, dots), 'Goal reached');
 });
 
 test('progress messages keep the subs and bits a read found', () => {
@@ -109,4 +112,22 @@ test('subs and bits line', () => {
   assert.equal(givenLine(1, 1), '1 sub · 1 bit');
   assert.equal(givenLine(0, 100), '100 bits');
   assert.equal(givenLine(0, 0), null);
+});
+
+test('a progress message without a time keeps the held one only while it is ahead (V108-N04)', () => {
+  const held = train({ expiresAt: '2026-10-29T18:05:00Z' });
+  const before = Date.parse('2026-10-29T18:00:00Z');
+  const after = Date.parse('2026-10-29T18:06:00Z');
+  assert.equal(mergeProgress(held, train({ id: '', expiresAt: null }), before).expiresAt, '2026-10-29T18:05:00Z');
+  assert.equal(mergeProgress(held, train({ id: '', expiresAt: null }), after).expiresAt, null);
+  assert.equal(mergeProgress(held, train({ id: '', expiresAt: '2026-10-29T18:09:00Z' }), after).expiresAt, '2026-10-29T18:09:00Z');
+  assert.equal(mergeProgress(null, train({ expiresAt: null })).expiresAt, null);
+});
+
+test('the top giver comes in two parts so a long name can be cut (V108-N04)', () => {
+  const long = [{ source: 'BITS' as const, login: 'x', name: 'N'.repeat(60), total: 1200 }];
+  assert.deepEqual(topParts(long, String), { who: 'N'.repeat(60), amount: '1200 bits' });
+  assert.deepEqual(topParts([{ source: 'SUBS' as const, login: 'a', name: '', total: 0 }]), { who: 'a', amount: '' });
+  assert.equal(topParts([]), null);
+  assert.equal(topLine(long, String), `${'N'.repeat(60)} 1200 bits`);
 });
