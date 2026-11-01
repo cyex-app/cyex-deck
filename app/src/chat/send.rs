@@ -8,10 +8,8 @@ use cyex_chat::model::ConnStatus;
 use tauri::{AppHandle, Manager};
 use tokio::time::Instant;
 
-use super::{Chat, Identity, RoomKey, now_ms, typed};
+use super::{Chat, Identity, RoomKey, now_ms, pace, typed};
 
-/// Twitch rejects the same text twice within this window.
-const DUPLICATE_MS: i64 = 30_000;
 /// V106-08 O4 A channel whose lines showed up this recently is still in the shared chat.
 const SHARED_SEEN_MS: i64 = 10 * 60 * 1000;
 
@@ -85,6 +83,13 @@ fn queue(
     }
     let fast = entry.room.state.own.as_ref().is_some_and(|o| o.fast_lane());
     let reply = reply_to.as_deref().and_then(|id| entry.room.reply_to(id));
+    // V108-C15 A normal chatter's sends wait their turn (about one a second per channel).
+    let mut pacer = entry.pacer;
+    let slot = if fast {
+        Instant::now()
+    } else {
+        pacer.take(Instant::now()).ok_or("Slow down: too many waiting.")?
+    };
 
     let session = inner.sessions.get_mut(&key.0).ok_or("Not connected yet.")?;
     // V105-06 Sends go out on the account's writer.
@@ -102,14 +107,15 @@ fn queue(
     }
 
     let entry = inner.rooms.get_mut(&key).ok_or("This chat is closed.")?;
-    let mut out = body.to_owned();
-    if let Some((last, at)) = &entry.last_sent
-        && *last == out
-        && now - at < DUPLICATE_MS
-    {
-        out = dodge_duplicate(&out);
-    }
-    entry.last_sent = Some((out.clone(), now));
+    entry.pacer = pacer;
+    let delay_ms = slot.saturating_duration_since(Instant::now()).as_millis() as i64;
+    let variant = pace::LastSent::next_variant(entry.last_sent.as_ref(), body, now + delay_ms);
+    let out = wording(body, variant);
+    entry.last_sent = Some(pace::LastSent {
+        body: body.to_owned(),
+        variant,
+        at_ms: now + delay_ms,
+    });
     let nonce = nonce();
     entry.room.sending(PendingSend {
         text: body.to_owned(),
@@ -125,7 +131,7 @@ fn queue(
     }
     // F20 ".gg" as text, not as Twitch's command.
     let out = if action { out } else { typed::escape(out) };
-    let sent = client.send(write::privmsg(
+    let line = write::privmsg(
         &key.1,
         &write::Outgoing {
             text: out,
@@ -133,7 +139,18 @@ fn queue(
             nonce: Some(nonce.clone()),
             action,
         },
-    ));
+    );
+    let (app, room) = (app.clone(), key);
+    let sent = async move {
+        if slot > Instant::now() {
+            tokio::time::sleep_until(slot).await;
+            // The chat was closed while the line waited.
+            if !app.state::<Chat>().lock().rooms.contains_key(&room) {
+                return false;
+            }
+        }
+        client.send(line).await
+    };
     Ok(Some((sent, nonce)))
 }
 
@@ -158,9 +175,18 @@ fn dodge_duplicate(text: &str) -> String {
     }
 }
 
+/// V108-C15 The text as it goes out: the user's own, or a repeat's other wordings.
+fn wording(text: &str, variant: u8) -> String {
+    match variant {
+        0 => text.to_owned(),
+        1 => dodge_duplicate(text),
+        _ => format!("{}{}", dodge_duplicate(text), typed::INVISIBLE),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{dodge_duplicate, max_chars, nonce, typed};
+    use super::{dodge_duplicate, max_chars, nonce, typed, wording};
     use cyex_chat::model::Client;
 
     #[test]
@@ -180,6 +206,15 @@ mod tests {
     fn duplicates_change_invisibly() {
         assert_eq!(dodge_duplicate("hi there"), "hi  there");
         assert_eq!(dodge_duplicate("hi"), "hi \u{34F}");
+    }
+
+    #[test]
+    fn repeat_wordings_all_differ() {
+        let w: Vec<_> = (0..3).map(|v| wording("A", v)).collect();
+        assert_eq!(w[0], "A");
+        assert!(w[0] != w[1] && w[1] != w[2] && w[0] != w[2]);
+        let w: Vec<_> = (0..3).map(|v| wording("a b", v)).collect();
+        assert!(w[0] != w[1] && w[1] != w[2] && w[0] != w[2]);
     }
 
     #[test]

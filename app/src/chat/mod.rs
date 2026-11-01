@@ -27,6 +27,7 @@ pub mod roles;
 pub mod rules;
 pub mod run;
 pub mod search;
+mod pace;
 mod send;
 pub mod shared;
 mod session;
@@ -133,7 +134,9 @@ struct Entry {
     /// C19 Messages held back until their time, oldest first.
     delayed: VecDeque<(i64, RoomEvent)>,
     /// C21 Last text we sent here, to dodge Twitch's duplicate check.
-    last_sent: Option<(String, i64)>,
+    last_sent: Option<pace::LastSent>,
+    /// V108-C15 When this room's next send may go out.
+    pacer: pace::Pacer,
     /// U9 News since a view last showed it.
     unread: News,
     /// V105-05 When our JOIN for this room last went out (ms), to time Twitch's answer.
@@ -402,6 +405,7 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
             outbox: Vec::new(),
             delayed: VecDeque::new(),
             last_sent: None,
+            pacer: pace::Pacer::default(),
             unread: News::default(),
             join_sent: None,
             last_shown: now,
