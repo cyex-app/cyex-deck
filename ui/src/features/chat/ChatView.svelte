@@ -315,7 +315,9 @@
    *  a chat-only tile still lights its tab's dot, and this says why. */
   let hoverAt = $state(0);
   const channelTip = $derived.by(() => {
-    const stream = Object.values(tabs.live).find((c) => c.login === login)?.stream;
+    // By id once the room knows it (a renamed channel keeps its id); by login until then.
+    const id = room.state.channelId;
+    const stream = (id ? tabs.live[id] : Object.values(tabs.live).find((c) => c.login === login))?.stream;
     if (!stream) return { label: 'Channel info', hint: 'Followers, roles and when they joined.' };
     const up = uptime(stream.startedAt, hoverAt || Date.now());
     const line = [`${stream.rerun ? 'Rerun' : 'Live'}${up ? ` ${up}` : ''}`, `${formatNumber(stream.viewers)} watching`, stream.game];
