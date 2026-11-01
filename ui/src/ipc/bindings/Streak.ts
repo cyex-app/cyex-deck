@@ -3,6 +3,7 @@ import type { ViewerMilestone } from "./ViewerMilestone";
 
 /**
  * V108-N23 What the account can share in a channel now, and whether the channel is live (the
- * chat then re-reads every minute as a fallback to the PubSub topic).
+ * chat then re-reads every minute as a fallback to the PubSub topic). `channel_id` is the
+ * channel Twitch answered for, so a chat drops an answer meant for another one.
  */
-export type Streak = { milestone: ViewerMilestone | null, live: boolean, };
+export type Streak = { milestone: ViewerMilestone | null, live: boolean, channelId: string | null, };

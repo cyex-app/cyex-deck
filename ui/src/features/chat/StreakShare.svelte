@@ -18,7 +18,7 @@
   import { formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import { tabs } from '../tabs/tabs.svelte';
-  import { streakShort, streakText } from './streakShare';
+  import { shown, streakShort, streakText } from './streakShare';
 
   interface Props {
     account: string | null;
@@ -39,7 +39,11 @@
   let seq = 0;
 
   const ready = $derived(account !== null && accounts.can('subs', account));
-  const milestone = $derived(streak?.milestone && !waved.has(streak.milestone.id) ? streak.milestone : null);
+  /** Who the shown answer was asked for. */
+  let asked = $state({ account: null as string | null, login: '' });
+  const milestone = $derived(
+    shown(streak, { ...asked, channelId: null }, { account, login, channelId }, (id) => waved.has(id)),
+  );
 
   async function load() {
     const [a, l] = [account, login];
@@ -47,7 +51,10 @@
     const mine = ++seq;
     try {
       const next = await subsIpc.streak(a, l);
-      if (mine === seq) streak = next;
+      if (mine === seq) {
+        asked = { account: a, login: l };
+        streak = next;
+      }
     } catch {
       // A failed read leaves what is shown; the next event or the next poll tries again.
     }
@@ -75,14 +82,18 @@
   });
 
   async function share() {
-    if (!account || !channelId || !milestone || busy) return;
+    // The channel Twitch answered for (the chat's own id can still be loading).
+    const channel = channelId ?? streak?.channelId;
+    if (!account || !channel || !milestone || busy) return;
     const m = milestone;
     busy = true;
     try {
-      await subsIpc.shareStreak(account, channelId, m.id);
+      await subsIpc.shareStreak(account, channel, m.id);
       handBack(() => waved.add(m.id));
       toast.success('Shared in chat.');
     } catch (e) {
+      // Never a dead button: a streak that didn't share stays hidden this run.
+      handBack(() => waved.add(m.id));
       toast.error(errorText(e));
     } finally {
       busy = false;
@@ -117,7 +128,7 @@
     <span class="text"><span class="long">{streakText(milestone.value, formatNumber)}</span><span class="short">{streakShort(milestone.value, formatNumber)}</span></span>
     <button
       class="share"
-      disabled={busy || !channelId}
+      disabled={busy}
       aria-busy={busy}
       use:tooltip={{ label: 'Share in chat', hint: 'Twitch posts it in this chat for everyone.' }}
       onclick={share}>{busy ? 'Sharing' : 'Share'}</button

@@ -9,7 +9,13 @@
 //!   `CAN_SHARE | CAN_NOT_SHARE | DO_NOT_SHARE | SHARED | UNKNOWN`. `state` is kept as text.
 //! - Live: PubSub `viewer-milestones.<user id>` (and `.<user id>.<channel id>`), events
 //!   `viewer-milestones-update` (`data.event_type`, `channel_id`, `watch_streak_value`),
-//!   `watch-streak`, `streak-recovered`. See [`topic`].
+//!   `watch-streak`, `streak-recovered`. See [`topic`]. twitch.tv's own left nav only acts on
+//!   `event_type` `achieved` (bundle 2026/11/01); a share fires an update too, so other
+//!   event types must not re-offer a streak.
+//! - `state` is `WatchStreakStateEnum` (validation error 2026/11/01); the bundle's only enum of
+//!   that shape is `ACTIVE | NONE | SUSPENDED`. twitch.tv's streak button calls a streak
+//!   shareable only once its value reaches the next threshold, so a `CAN_SHARE` milestone alone
+//!   isn't proof: [`pick`] takes the smallest one, never above a known current count.
 
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -56,27 +62,55 @@ pub fn topic(user_id: &str, channel_id: Option<&str>) -> String {
     }
 }
 
-/// What a `viewer-milestones-update` message says changed: the channel and, for a streak,
-/// the new count. `None` for other events.
+/// What a milestones message says: a streak was reached or kept in a channel, with the new
+/// count when it says one. `None` for anything else, a share's own update among them.
 pub fn update_of(payload: &Value) -> Option<(String, Option<u32>)> {
     let data = payload.get("data")?;
-    let channel = data.get("channel_id").and_then(Value::as_str)?.to_owned();
+    let reached = match payload.get("type").and_then(Value::as_str)? {
+        "viewer-milestones-update" => data.get("event_type").and_then(Value::as_str) == Some("achieved"),
+        "watch-streak" | "streak-recovered" => true,
+        _ => false,
+    };
+    if !reached {
+        return None;
+    }
+    let channel = data.get("channel_id").and_then(Value::as_str).filter(|c| !c.is_empty())?.to_owned();
     let streak = data.get("watch_streak_value").and_then(Value::as_u64).map(|v| v as u32);
     Some((channel, streak))
 }
 
-const READ: &str = "query($login: String!) { user(login: $login) { channel { self { \
+const READ: &str = "query($login: String!) { user(login: $login) { channel { id self { \
     viewerMilestones { id category value state shareStatus } } } } }";
 
-/// The account's milestones in a channel; empty signed out or when the channel has none.
-pub async fn milestones(http: &Http, auth: Auth<'_>, login: &str) -> Result<Vec<Milestone>> {
-    let data: Value = query(http, auth, READ, json!({ "login": login })).await?;
-    Ok(read(&data))
+/// One read of a channel: its id (to check the answer is for that chat) and the account's
+/// milestones there.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Read {
+    pub channel_id: Option<String>,
+    pub milestones: Vec<Milestone>,
 }
 
-/// The streak the account can share now, if any.
-pub async fn shareable_streak(http: &Http, auth: Auth<'_>, login: &str) -> Result<Option<Milestone>> {
-    Ok(milestones(http, auth, login).await?.into_iter().find(|m| m.is_streak() && m.can_share()))
+/// The account's milestones in a channel; empty signed out or when the channel has none.
+pub async fn milestones(http: &Http, auth: Auth<'_>, login: &str) -> Result<Read> {
+    let data: Value = query(http, auth, READ, json!({ "login": login })).await?;
+    Ok(Read {
+        channel_id: data["user"]["channel"]["id"].as_str().filter(|s| !s.is_empty()).map(str::to_owned),
+        milestones: read(&data),
+    })
+}
+
+/// The streak to offer from a read: a `WATCH_STREAK` that Twitch lets the account share, with
+/// a count, not suspended, not `skip`ped (shared or refused) and not above `ceiling` (the
+/// current count from the last event, when known). Several left: the smallest, since a
+/// higher one may be the next threshold rather than one reached.
+pub fn pick(milestones: &[Milestone], ceiling: Option<u32>, skip: impl Fn(&str) -> bool) -> Option<&Milestone> {
+    milestones
+        .iter()
+        .filter(|m| m.is_streak() && m.can_share() && m.value > 0)
+        .filter(|m| !matches!(m.state.as_str(), "NONE" | "SUSPENDED"))
+        .filter(|m| ceiling.is_none_or(|c| m.value <= c))
+        .filter(|m| !skip(&m.id))
+        .min_by_key(|m| m.value)
 }
 
 fn read(data: &Value) -> Vec<Milestone> {
@@ -155,6 +189,34 @@ mod tests {
         assert_eq!(all[3].value, 0);
     }
 
+    fn streak(id: &str, value: u32, state: &str, share: &str) -> Milestone {
+        Milestone {
+            id: id.into(),
+            category: WATCH_STREAK.into(),
+            value,
+            state: state.into(),
+            share_status: share.into(),
+        }
+    }
+
+    #[test]
+    fn pick_takes_the_smallest_shareable_streak_under_the_ceiling() {
+        let all = [
+            streak("s5", 5, "ACTIVE", "CAN_SHARE"),
+            streak("s3", 3, "ACTIVE", "CAN_SHARE"),
+            streak("old", 2, "ACTIVE", "SHARED"),
+            streak("sus", 1, "SUSPENDED", "CAN_SHARE"),
+            streak("zero", 0, "ACTIVE", "CAN_SHARE"),
+        ];
+        let none = |_: &str| false;
+        assert_eq!(pick(&all, None, none).map(|m| m.value), Some(3));
+        // 3 shared: 5 is left, but not above a known current count of 4.
+        let shared = |id: &str| id == "s3";
+        assert_eq!(pick(&all, Some(4), shared), None);
+        assert_eq!(pick(&all, Some(5), shared).map(|m| m.value), Some(5));
+        assert_eq!(pick(&all, Some(2), none), None);
+    }
+
     #[test]
     fn signed_out_or_no_channel_reads_empty() {
         assert!(read(&json!({ "user": { "channel": { "self": null } } })).is_empty());
@@ -180,5 +242,12 @@ mod tests {
             "data": { "event_type": "achieved", "channel_id": "9", "watch_streak_value": 6 } });
         assert_eq!(update_of(&p), Some(("9".into(), Some(6))));
         assert_eq!(update_of(&json!({ "data": {} })), None);
+        // A share's own update (or anything not reached) offers nothing new.
+        let shared = json!({ "type": "viewer-milestones-update",
+            "data": { "event_type": "shared", "channel_id": "9", "watch_streak_value": 5 } });
+        assert_eq!(update_of(&shared), None);
+        let kept = json!({ "type": "watch-streak", "data": { "channel_id": "9" } });
+        assert_eq!(update_of(&kept), Some(("9".into(), None)));
+        assert_eq!(update_of(&json!({ "type": "other", "data": { "channel_id": "9" } })), None);
     }
 }
