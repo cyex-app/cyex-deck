@@ -45,8 +45,8 @@
 
   const prefs = $derived(settings.v.browse);
   const grid = $derived(prefs.layout === 'grid');
-  // V108-N05 Live channels in a hidden category, or with a hidden tag, are left out.
-  const hiddenIn = $derived({ categories: prefs.hiddenCategories, tags: prefs.hiddenTags });
+  // V108-N05 Live channels with a hidden tag are left out. A hidden category is not: you follow them (user, 2026/11/01).
+  const hiddenIn = $derived({ categories: [], tags: prefs.hiddenTags });
   const lists = $derived.by(() => {
     const s = sections(home.follows ?? [], home.favorites, { live: prefs.liveSort, offline: prefs.offlineSort }, query);
     return { ...s, live: visibleCards(hiddenIn, s.live) };

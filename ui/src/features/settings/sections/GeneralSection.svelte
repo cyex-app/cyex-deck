@@ -116,7 +116,7 @@
 <Row
   setting="browse.hiddenCategories"
   label="Hidden categories"
-  hint={b.hiddenCategories.length ? 'Left out of Home and Discover.' : 'None. Right-click a category in Discover and pick Hide category.'}
+  hint={b.hiddenCategories.length ? 'Left out of Discover. Channels you follow still show on Home.' : 'None. Right-click a category in Discover and pick Hide category.'}
   stacked={b.hiddenCategories.length > 0}
 >
   {#if b.hiddenCategories.length}
