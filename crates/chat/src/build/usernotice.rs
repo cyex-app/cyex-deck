@@ -97,12 +97,17 @@ pub fn usernotice(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Option<Incoming> {
     })
 }
 
-/// V108-C11 The gifted user, with the login the usercard needs.
+/// V108-C11 The gifted user, with the login the usercard needs. Without Twitch's login it is
+/// empty (a display name can be CJK, so no guess) and the name shows as plain text.
 fn recipient(param: &dyn Fn(&str) -> Option<String>) -> Option<NoticeUser> {
     let login = param("recipient-user-name");
     let name = param("recipient-display-name").or_else(|| login.clone())?;
-    let login = login.unwrap_or_else(|| name.to_lowercase());
-    Some(NoticeUser::new(name, login))
+    Some(NoticeUser::new(name, login.unwrap_or_default()))
+}
+
+/// The recipient as a link in the text: only with a login.
+fn recipient_link(param: &dyn Fn(&str) -> Option<String>) -> Option<NoticeUser> {
+    recipient(param).filter(|u| !u.login.is_empty())
 }
 
 /// V108-C11 Names in a gift line's text that open a usercard. An anonymous gifter has none.
@@ -121,14 +126,14 @@ fn gift_links(msg_id: &str, line: &Line<'_>) -> Vec<NoticeUser> {
         links.push(NoticeUser::new(who(line), login));
     }
     match msg_id {
-        "subgift" | "anonsubgift" => links.extend(recipient(&param)),
+        "subgift" | "anonsubgift" => links.extend(recipient_link(&param)),
         "communitypayforward" | "standardpayforward" => {
             if let Some(login) = param("prior-gifter-user-name") {
                 let name = param("prior-gifter-display-name").unwrap_or_else(|| login.clone());
                 links.push(NoticeUser::new(name, login));
             }
             if msg_id == "standardpayforward" {
-                links.extend(recipient(&param));
+                links.extend(recipient_link(&param));
             }
         }
         _ => {}
@@ -259,6 +264,15 @@ mod tests {
             r"@display-name=テスト;id=g2;login=tesuto;msg-id=subgift;msg-param-recipient-display-name=Bob;msg-param-recipient-user-name=bob_login;system-msg=テスト\sgifted\sa\ssub\sto\sBob;user-id=9 :tmi.twitch.tv USERNOTICE #c",
         );
         assert_eq!(links, [NoticeUser::new("テスト", "tesuto"), NoticeUser::new("Bob", "bob_login")]);
+    }
+
+    /// No recipient-user-name: no guessed login (a CJK name lowercased is no login), no link.
+    #[test]
+    fn a_recipient_without_a_login_is_plain() {
+        let raw = r"@display-name=A;id=g4;login=a;msg-id=subgift;msg-param-community-gift-id=7;msg-param-origin-id=7;msg-param-recipient-display-name=テスト;system-msg=A\sgifted\sa\ssub\sto\sテスト;user-id=9 :tmi.twitch.tv USERNOTICE #c";
+        assert_eq!(links_of(raw), [NoticeUser::new("A", "a")]);
+        let Incoming::Gift { gift, .. } = run_any(raw) else { panic!() };
+        assert_eq!(gift, GiftLink::Single { community: Some("7".into()), recipient: NoticeUser::new("テスト", "") });
     }
 
     #[test]

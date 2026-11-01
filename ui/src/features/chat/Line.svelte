@@ -152,7 +152,7 @@
     {#if recipients.length}
       <!-- C16 One recipient per line, the long lists folded. -->
       <ul class="recipients" aria-label="Recipients">
-        {#each fold.shown as r (r.login)}<li><span class="who" role="link" tabindex="-1" data-user={r.login}>{r.name}</span></li>{/each}
+        {#each fold.shown as r, i (i)}<li>{#if r.login}<span class="who" role="link" tabindex="-1" data-user={r.login}>{r.name}</span>{:else}{r.name}{/if}</li>{/each}
       </ul>
       {#if fold.hidden}<button class="more" onclick={() => (recipientsOpen = true)}>+{formatNumber(fold.hidden)} more</button>{/if}
     {/if}
