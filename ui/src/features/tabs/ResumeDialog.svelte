@@ -25,8 +25,8 @@
   async function go(ids: string[]) {
     resumeDialog.open = false;
     await resumeWith(all, ids);
-    // The dialog opened over nothing in particular: land in the chat of the tab on screen, not on the page.
-    if (list.length > 1 && tabs.active) focusTabChat(tabs.active, false);
+    // Land in the chat of the tab on screen, not on the page, with or without the question.
+    if (tabs.active) focusTabChat(tabs.active, false);
   }
 
   // Nothing to pick from with one tab or none: it stays, no question.
