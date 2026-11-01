@@ -4,6 +4,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
 
+  import ConfirmCallout from '../../components/ConfirmCallout.svelte';
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import { useClipArm } from './clipArm.svelte';
@@ -319,9 +320,12 @@
             <span class="clock">{clock(time)} / {clock(duration)}</span>
             <span class="grow"></span>
             {#if clipper}
-              <button class="ctl" class:armed={clipArm.armed} class:making={clipMaking.busy} aria-label={clipArm.armed ? 'Click again to clip' : 'Clip'} use:tooltip={clipArm.armed ? { label: 'Click again to clip' } : { label: 'Clip', hint: 'Clips the seconds before this point.' }} disabled={clipMaking.busy} onclick={clipArm.click}>
+              <button class="ctl" class:armed={clipArm.armed} class:making={clipMaking.busy} aria-label="Clip" aria-expanded={clipArm.armed} use:tooltip={{ label: 'Clip', hint: 'Clips the seconds before this point.' }} disabled={clipMaking.busy} onclick={clipArm.click}>
                 <Icon name="scissors" size={17} />
               </button>
+              {#if clipArm.armed && clipArm.anchor}
+                <ConfirmCallout anchor={clipArm.anchor} pressX={clipArm.pressX} label="Click to clip" onconfirm={clipArm.confirm} ondismiss={clipArm.disarm} />
+              {/if}
             {/if}
             {#if engine}<GearButton {menu} />{/if}
             <button class="ctl" aria-label={playerFullscreen.on ? 'Exit fullscreen' : 'Fullscreen'} use:tooltip={key('player.fullscreen', playerFullscreen.on ? 'Exit fullscreen' : 'Fullscreen')} onclick={controls.toggleFullscreen}>

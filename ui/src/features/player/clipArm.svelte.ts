@@ -1,37 +1,34 @@
-// V108-CC The player's Clip button asks twice: the first click arms it for 3 s ("Click again
-// to clip"), the second makes the clip. Esc only disarms (a popover layer, as ConfirmButton).
-// Call during component init: it registers its own effects.
-
-import { layer } from '../../lib/escape';
-
-export const ARM_MS = 3000;
+// V108-CC The player's Clip button asks twice. V108-C21 The first click opens the confirm
+// bubble (ConfirmCallout) clear of the button; moving onto it and clicking makes the clip.
+// The bubble keeps the 3 s, Escape and clicks elsewhere.
 
 export function useClipArm(run: () => void) {
   let armed = $state(false);
-  let timer: ReturnType<typeof setTimeout> | undefined;
-
-  function disarm() {
-    clearTimeout(timer);
-    armed = false;
-  }
-
-  $effect(() => () => clearTimeout(timer));
-  $effect(() => {
-    if (!armed) return;
-    return layer('popover', disarm);
-  });
+  let anchor = $state<HTMLElement>();
+  let pressX = $state<number>();
 
   return {
     get armed() {
       return armed;
     },
-    click() {
-      if (!armed) {
-        armed = true;
-        timer = setTimeout(() => (armed = false), ARM_MS);
-        return;
-      }
-      disarm();
+    get anchor() {
+      return anchor;
+    },
+    get pressX() {
+      return pressX;
+    },
+    click(e: MouseEvent) {
+      if (armed) return;
+      anchor = e.currentTarget as HTMLElement;
+      // Keyboard clicks have no pointer position.
+      pressX = e.detail === 0 ? undefined : e.clientX;
+      armed = true;
+    },
+    disarm() {
+      armed = false;
+    },
+    confirm() {
+      armed = false;
       run();
     },
   };

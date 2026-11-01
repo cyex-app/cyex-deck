@@ -5,6 +5,7 @@
   import { onDestroy, tick, untrack } from 'svelte';
 
   import Avatar from '../../components/Avatar.svelte';
+  import ConfirmCallout from '../../components/ConfirmCallout.svelte';
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import { useClipArm } from './clipArm.svelte';
@@ -568,9 +569,12 @@
   <Volume volume={sound.volume} muted={sound.muted} boost={sound.boost} onchange={sound.set} onboost={sound.setBoost} />
   <span class="grow"></span>
   {#if onclip}
-    <button class="ctl" class:armed={clipArm.armed} class:making={clipMaking.busy} disabled={clipMaking.busy} aria-label={clipArm.armed ? 'Click again to clip' : 'Clip'} use:tooltip={clipArm.armed ? { label: 'Click again to clip' } : { label: 'Clip', hint: rewind.inVod ? 'Clips the seconds up to here.' : 'Clips the last seconds of the stream.' }} onclick={clipArm.click}>
+    <button class="ctl" class:armed={clipArm.armed} class:making={clipMaking.busy} disabled={clipMaking.busy} aria-label="Clip" aria-expanded={clipArm.armed} use:tooltip={{ label: 'Clip', hint: rewind.inVod ? 'Clips the seconds up to here.' : 'Clips the last seconds of the stream.' }} onclick={clipArm.click}>
       <Icon name="scissors" size={17} />
     </button>
+    {#if clipArm.armed && clipArm.anchor}
+      <ConfirmCallout anchor={clipArm.anchor} pressX={clipArm.pressX} label="Click to clip" onconfirm={clipArm.confirm} ondismiss={clipArm.disarm} />
+    {/if}
   {:else if clipOff}
     <button class="ctl off" aria-label="Clip" aria-disabled="true" use:tooltip={{ label: 'Clip', hint: clipOff }}>
       <Icon name="scissors" size={17} />

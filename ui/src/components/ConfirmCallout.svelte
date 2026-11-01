@@ -39,9 +39,10 @@
   }
   let at = $state({ left: -9999, top: -9999, notch: 0, below: true });
 
-  /** Over everything, so the banner's clipping doesn't cut it off. */
+  /** Over everything, so the banner's clipping doesn't cut it off; inside a fullscreen
+   *  player when there is one, or it wouldn't show. */
   function toBody(node: HTMLElement) {
-    document.body.appendChild(node);
+    (document.fullscreenElement ?? document.body).appendChild(node);
     return { destroy: () => node.remove() };
   }
 
