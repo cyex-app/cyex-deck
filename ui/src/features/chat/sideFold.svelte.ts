@@ -5,7 +5,7 @@ import { menu, openMenuAt } from '../../components/menu.svelte';
 import type { IconName } from '../../components/icons';
 import { shouldFold } from './sideFold';
 
-const ICONS: Record<string, IconName> = { points: 'points', bits: 'gem', identity: 'badge', emotes: 'smile', quick: 'chat' };
+const ICONS: Record<string, IconName> = { points: 'points', bits: 'bits', identity: 'badge', emotes: 'smile', quick: 'chat' };
 
 export class SideFold {
   folded = $state(false);

@@ -129,7 +129,7 @@
       hint: 'Pick an amount and a cheer, then send it with Enter.',
     }}
   >
-    <Icon name="gem" size={16} />
+    <Icon name="bits" size={16} />
   </button>
   <Popover bind:open align="start" side="above" label="Cheer">
     <div class="menu bits-menu">

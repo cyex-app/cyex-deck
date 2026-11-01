@@ -82,7 +82,7 @@
       'separator',
       // V102-20 Only with Twitch's own sign-in.
       { label: 'Subscriptions', icon: 'star', lock: walletLock, unlock: ask, run: onsubs },
-      { label: 'Get Bits', icon: 'gem', lock: walletLock, unlock: ask, run: bits },
+      { label: 'Get Bits', icon: 'bits', lock: walletLock, unlock: ask, run: bits },
       { label: 'Payment methods', icon: 'card', lock: walletLock, unlock: ask, run: wallet },
       // V108-04 These pages keep their own Twitch login.
       ...(current && !walletLock && !twitchPages.has(current.userId)
