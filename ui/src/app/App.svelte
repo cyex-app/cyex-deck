@@ -397,6 +397,11 @@
     if (page) settingsSection = page;
     if (theatre.tile) theatre.leave();
     settingsOpen = true;
+    // The sheet's chunk failed to load: no sheet, so nothing may stay inert behind it.
+    settingsSheet().catch(() => {
+      settingsOpen = false;
+      toast.error('Couldn’t open Settings. Try again.', { key: 'settings.load' });
+    });
   }
   function toggleSettings() {
     if (settingsOpen) settingsOpen = false;
@@ -624,6 +629,7 @@
 {#if settingsOpen}
   {#await settingsSheet() then { default: SettingsSheet }}
     <SettingsSheet bind:section={settingsSection} onclose={() => (settingsOpen = false)} />
+  {:catch}<!-- openSettings closes it and says so -->
   {/await}
 {/if}
 {#if switcher}
