@@ -51,6 +51,11 @@ pub fn refresh(app: &AppHandle, account: &str) {
         let api = crate::cosmetics::api(&app);
         match api.wearing(&account).await {
             Ok(Some(w)) => {
+                eprintln!(
+                    "emotes: own 7TV look for {account}: paint {:?}, badge {:?}",
+                    w.paint.as_ref().map(|p| p.id.as_str()),
+                    w.badge.as_ref().map(|b| b.id.as_str())
+                );
                 presence::remember_seventv(&app, &account, Some(w.seventv_id));
                 looks::wear(&app, &account, Worn::Paint(w.paint));
                 looks::wear(&app, &account, Worn::Badge(w.badge));
