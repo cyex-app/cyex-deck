@@ -1,6 +1,6 @@
 <!-- V101-05 The usercard's head, after the 7TV extension's: banner behind, picture, name in
      its color or 7TV paint, the paint's name, roles and every badge they own (V102-13), and
-     small buttons for the note, the logs and the Twitch profile. V101-23 switches the 7TV
+     small buttons for the note, the logs, the 7TV profile (V108-C16) and the Twitch profile. V101-23 switches the 7TV
      picture for Twitch's. V102-25 A flag when Twitch hides the account. V108-C09 Streamer mode
      blurs the picture until it is clicked. -->
 <script lang="ts">
@@ -11,6 +11,7 @@
   import type { Badge } from '../../ipc/bindings/Badge';
   import type { Profile } from '../../ipc/bindings/Profile';
   import type { NameColor } from '../../ipc/bindings/NameColor';
+  import { emotesIpc } from '../../ipc/emotes';
   import { systemIpc } from '../../ipc/system';
   import { windowsIpc } from '../../ipc/windows';
   import { settings } from '../../lib/settings.svelte';
@@ -67,6 +68,18 @@
       gone = true;
       stop?.();
     };
+  });
+  // V108-C16 Their 7TV account, for the profile button; none known hides it.
+  let seventvId = $state<string | null>(null);
+  $effect(() => {
+    const id = profile.id;
+    seventvId = null;
+    let gone = false;
+    void emotesIpc
+      .seventvUser(id)
+      .then((u) => !gone && (seventvId = u))
+      .catch(() => {});
+    return () => (gone = true);
   });
   const paintId = $derived(settings.v.chat.paints.seventv ? (looks.look(profile.id)?.paint ?? null) : null);
   const paint = $derived(looks.paintClass(paintId));
@@ -135,6 +148,14 @@
         />
         {#if logsUrl}
           <IconButton icon="scroll" label="All logs" hint="logs.cyex.app" size={14} onclick={() => systemIpc.openLink(logsUrl)} />
+        {/if}
+        {#if seventvId}
+          <IconButton
+            icon="seventv"
+            label="7TV profile"
+            size={14}
+            onclick={() => systemIpc.openLink(`https://7tv.app/users/${seventvId}`)}
+          />
         {/if}
         {#if !isChannel}
           <IconButton

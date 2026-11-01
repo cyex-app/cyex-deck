@@ -56,6 +56,15 @@ pub async fn emotes_avatar(app: AppHandle, login: String) -> Option<cyex_emotes:
     emotes::avatar(&app, &login).await
 }
 
+/// V108-C16 A Twitch user's 7TV user id, for the usercard's 7TV profile button.
+#[tauri::command]
+pub async fn emotes_seventv_user(app: AppHandle, twitch_id: String) -> Option<String> {
+    if twitch_id.is_empty() || !twitch_id.bytes().all(|b| b.is_ascii_alphanumeric()) {
+        return None;
+    }
+    emotes::seventv_user(&app, &twitch_id).await
+}
+
 /// V106-31/32 Reads what the account can edit on 7TV (kept 5 min unless `fresh`).
 #[tauri::command]
 pub async fn emotes_edit_warm(app: AppHandle, account: String, fresh: bool) -> Reachability {

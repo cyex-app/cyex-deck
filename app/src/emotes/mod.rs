@@ -91,6 +91,8 @@ struct Inner {
     twitch_sets: HashMap<(String, String), (Instant, TwitchSets)>,
     /// C23 7TV profile pictures by login; `None` = they have none.
     avatars: HashMap<String, Option<cyex_emotes::seventv::api::Avatar>>,
+    /// V108-C16 7TV user ids by Twitch id; `None` = no 7TV account.
+    seventv_ids: HashMap<String, Option<String>>,
     /// C13 Bot commands by channel id.
     bot_commands: HashMap<String, Vec<cyex_emotes::bttv::api::BotCommand>>,
     /// A channel's own Twitch emotes (E5), public, by channel id.
@@ -508,6 +510,24 @@ pub async fn avatar(app: &AppHandle, login: &str) -> Option<cyex_emotes::seventv
     }
     inner.avatars.insert(login, a.clone());
     a
+}
+
+/// V108-C16 A Twitch user's 7TV user id, cached for the run. `None`: no 7TV account or no answer.
+pub async fn seventv_user(app: &AppHandle, twitch_id: &str) -> Option<String> {
+    if let Some(a) = app.state::<Emotes>().lock().seventv_ids.get(twitch_id) {
+        return a.clone();
+    }
+    let http = app.state::<crate::auth::Auth>().http.clone();
+    let found = cyex_emotes::seventv::api::user_id(&http, twitch_id, cyex_twitch::pace::Lane::Front)
+        .await
+        .ok()?;
+    let state = app.state::<Emotes>();
+    let mut inner = state.lock();
+    if inner.seventv_ids.len() >= MAX_AVATARS {
+        inner.seventv_ids.clear();
+    }
+    inner.seventv_ids.insert(twitch_id.to_owned(), found.clone());
+    found
 }
 
 /// The account just got new Twitch emotes.

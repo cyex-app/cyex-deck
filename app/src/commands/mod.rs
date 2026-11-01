@@ -300,6 +300,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         emotes::emotes_room_badges,
         emotes::emotes_bot_commands,
         emotes::emotes_avatar,
+        emotes::emotes_seventv_user,
         emotes::emotes_edit_warm,
         emotes::emotes_edit_options,
         emotes::emotes_edit_name,

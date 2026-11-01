@@ -33,6 +33,8 @@ export const emotesIpc = {
   /** C13 */
   botCommands: (login: string) => invoke<BotCommand[]>('emotes_bot_commands', { login }),
   /** C23 */
+  /** V108-C16 Their 7TV user id, or null without a 7TV account. */
+  seventvUser: (twitchId: string) => invoke<string | null>('emotes_seventv_user', { twitchId }),
   avatar: (login: string) => invoke<Avatar | null>('emotes_avatar', { login }),
   /** V106-31/32 Reads what the account can edit on 7TV. */
   editWarm: (account: string, fresh = false) => invoke<Reachability>('emotes_edit_warm', { account, fresh }),
