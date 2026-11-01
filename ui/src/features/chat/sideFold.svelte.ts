@@ -5,7 +5,7 @@ import { menu, openMenuAt } from '../../components/menu.svelte';
 import type { IconName } from '../../components/icons';
 import { shouldFold } from './sideFold';
 
-const ICONS: Record<string, IconName> = { points: 'points', bits: 'gem', identity: 'badge', emotes: 'smile' };
+const ICONS: Record<string, IconName> = { points: 'points', bits: 'gem', identity: 'badge', emotes: 'smile', quick: 'chat' };
 
 export class SideFold {
   folded = $state(false);
@@ -34,7 +34,11 @@ export class SideFold {
       const first = s.firstElementChild as HTMLElement | null;
       return !first || !first.hidden;
     }).length;
-    this.folded = shouldFold(row.clientWidth, outside, this.send());
+    const inside = [...row.querySelectorAll<HTMLElement>('[data-in]')].filter((s) => {
+      const first = s.firstElementChild as HTMLElement | null;
+      return !!first && !first.hidden;
+    }).length;
+    this.folded = shouldFold(row.clientWidth, outside, this.send(), inside);
   };
 
   /** Watches the row's width and its buttons; call from an effect. */

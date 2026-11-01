@@ -13,10 +13,10 @@ test('wide chats keep their buttons', () => {
 });
 
 test('folds when the box would drop under 120 px', () => {
-  // 260 chat: row 244, two buttons and Send leave 244 - 64 - 38 - 4 = 138.
-  assert.equal(shouldFold(244, 2, true), false);
-  // 230 chat: row 214 leaves 108.
-  assert.equal(shouldFold(214, 2, true), true);
+  // 290 chat: row 274, two buttons and Send leave 274 - 64 - 38 - 4 = 168.
+  assert.equal(shouldFold(274, 2, true), false);
+  // 250 chat: row 234 leaves 128.
+  assert.equal(shouldFold(234, 2, true), true);
 });
 
 test('no outside buttons: only the width rule applies', () => {
@@ -24,5 +24,12 @@ test('no outside buttons: only the width rule applies', () => {
 });
 
 test('without Send there is more room', () => {
-  assert.equal(shouldFold(214, 2, false), false);
+  assert.equal(shouldFold(234, 2, false), false);
+});
+
+test('buttons inside the box count too', () => {
+  // Row 300, Send, three inside buttons: 300 - 38 - 90 - 4 = 168.
+  assert.equal(shouldFold(300, 0, true, 3), false);
+  // Row 250 leaves 118: the text area would be under 140.
+  assert.equal(shouldFold(250, 0, true, 3), true);
 });

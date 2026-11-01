@@ -493,18 +493,19 @@
     {#snippet pointsBtn()}<span class="slot" data-out data-side="points"><RewardsMenu {room} /></span>{/snippet}
     {#snippet bitsBtn()}{#if canChat && canCheer && !bitsOff}<span class="slot" data-out data-side="bits"><BitsButton {room} box={cheers} oninsert={pickCheer} /></span>{/if}{/snippet}
     {#snippet identityBtn()}<!-- V107-Mk Badge, name color and smileys for this channel. -->
-      {#if room.account && (accounts.can('badgePicker', room.account) || accounts.can('chatColor', room.account))}<span class="slot" data-side="identity"><IdentityButton account={room.account} login={room.login} /></span>{/if}{/snippet}
-    {#snippet emoteBtn()}<span class="slot" data-side="emotes"><EmoteButton login={room.login} account={room.account} {room} oninsert={(v) => void insertAtCaret(v)} /></span>{/snippet}
+      {#if room.account && (accounts.can('badgePicker', room.account) || accounts.can('chatColor', room.account))}<span class="slot" data-in data-side="identity"><IdentityButton account={room.account} login={room.login} /></span>{/if}{/snippet}
+    {#snippet emoteBtn()}<span class="slot" data-in data-side="emotes"><EmoteButton login={room.login} account={room.account} {room} oninsert={(v) => void insertAtCaret(v)} /></span>{/snippet}
+    {#snippet quickBtn()}<span class="slot" data-in data-side="quick"><QuickReplies oninsert={insertText} /></span>{/snippet}
     {#if side.folded && canChat}
       <!-- Narrow chat: the buttons wait under "…", which lists them. -->
       <div class="fold">
-        <div class="stash" bind:this={side.stash}>{@render pointsBtn()}{@render bitsBtn()}{@render identityBtn()}{@render emoteBtn()}</div>
+        <div class="stash" bind:this={side.stash}>{@render pointsBtn()}{@render bitsBtn()}{@render identityBtn()}{@render emoteBtn()}{@render quickBtn()}</div>
         <button
           class="more"
           aria-label="More"
           aria-haspopup="menu"
           aria-expanded={side.expanded}
-          use:tooltip={{ label: 'More', hint: 'Points, Bits, identity and emotes.' }}
+          use:tooltip={{ label: 'More', hint: 'Points, Bits, identity, emotes and quick replies.' }}
           onclick={side.open}
         >
           <Icon name="more" size={16} />
@@ -540,9 +541,8 @@
         </div>
       {/if}
       <!-- V108-N20 -->
-      <QuickReplies oninsert={insertText} />
       <!-- 1.43 GIFs are a tab in the emote menu. -->
-      {#if !side.folded}{@render identityBtn()}{@render emoteBtn()}{/if}
+      {#if !side.folded}{@render quickBtn()}{@render identityBtn()}{@render emoteBtn()}{/if}
       </div>
       {#if settings.v.chat.sendButton}
         <IconButton

@@ -27,7 +27,7 @@
 </script>
 
 {#if replies.length}
-  <button
+  <span class="wrap"><button
     class="quick"
     aria-label="Quick replies"
     aria-haspopup="menu"
@@ -35,10 +35,13 @@
     onclick={open}
   >
     <Icon name="chat" size={16} />
-  </button>
+  </button></span>
 {/if}
 
 <style>
+  .wrap {
+    display: contents;
+  }
   .quick {
     display: grid;
     place-items: center;
