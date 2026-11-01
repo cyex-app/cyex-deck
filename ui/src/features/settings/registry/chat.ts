@@ -46,8 +46,8 @@ export const CHAT: Entry[] = [
     id: 'chat.names',
     page: 'chat',
     label: 'Names',
-    description: 'Both adds the login when the display name is in another script.',
-    keywords: ['display name', 'login', 'username'],
+    description: 'Which name comes first in chat, and whether the other shows in brackets.',
+    keywords: ['display name', 'login', 'username', 'nickname', 'localized'],
   },
   {
     id: 'chat.deleted',

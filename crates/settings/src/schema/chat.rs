@@ -178,7 +178,7 @@ impl Default for Chat {
             deleted: DeletedStyle::Strike,
             alternate_lines: false,
             separators: false,
-            names: NameStyle::Both,
+            names: NameStyle::DisplayLogin,
             pause_on_hover: true,
             pause_still_tenths: 0,
             pause_key: PauseKey::Alt,
@@ -342,16 +342,23 @@ pub enum DeletedStyle {
     Hidden,
 }
 
-/// C20 Which name to show for users with a localized display name.
+/// C20 V108-C20 Which name comes first in the chat box, and whether the other shows in
+/// brackets. The bracket part only shows when the two differ beyond letter case.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum NameStyle {
+    /// Display name only.
     Display,
-    Login,
-    /// Display name, plus the login when they differ.
+    /// Display name, then the login in brackets. Was `both`, which still loads.
     #[default]
-    Both,
+    #[serde(alias = "both")]
+    DisplayLogin,
+    /// Login only, for everyone. Was `login`, which still loads.
+    #[serde(alias = "login")]
+    Username,
+    /// Login, then the display name in brackets.
+    UsernameDisplay,
 }
 
 /// C5
@@ -764,5 +771,19 @@ mod tests {
     #[test]
     fn old_file_without_flag_reads_false() {
         assert!(!serde_json::from_str::<Chat>("{}").unwrap().presence_on_once);
+    }
+
+    #[test]
+    fn v108_c20_old_name_styles_still_load() {
+        let read = |v: &str| {
+            serde_json::from_str::<Chat>(&format!(r#"{{"names":"{v}"}}"#)).unwrap().names
+        };
+        assert_eq!(read("display"), NameStyle::Display);
+        assert_eq!(read("login"), NameStyle::Username);
+        assert_eq!(read("both"), NameStyle::DisplayLogin);
+        assert_eq!(read("usernameDisplay"), NameStyle::UsernameDisplay);
+        assert_eq!(read("displayLogin"), NameStyle::DisplayLogin);
+        assert_eq!(serde_json::to_string(&NameStyle::Username).unwrap(), r#""username""#);
+        assert_eq!(Chat::default().names, NameStyle::DisplayLogin);
     }
 }

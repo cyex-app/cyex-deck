@@ -46,8 +46,9 @@
   ];
   const NAMES: { value: NameStyle; label: string }[] = [
     { value: 'display', label: 'Display name' },
-    { value: 'login', label: 'Login' },
-    { value: 'both', label: 'Both' },
+    { value: 'displayLogin', label: 'Display name (username)' },
+    { value: 'username', label: 'Username' },
+    { value: 'usernameDisplay', label: 'Username (display name)' },
   ];
   const PAUSE_KEYS: { value: PauseKey; label: string }[] = [
     { value: 'none', label: 'None' },
@@ -248,7 +249,7 @@
 </Row>
 
 <SectionHead title="Messages" />
-<Row setting="chat.names" label="Names" hint="Both adds the login when the display name is in another script.">
+<Row setting="chat.names" label="Names" hint="Which name comes first in chat. Usercards always show both.">
   <Segmented label="Names" options={NAMES} value={c.names} onchange={(v) => settings.patch('chat', { names: v })} />
 </Row>
 <Row setting="chat.deleted" label="Deleted messages" hint="Removed by a mod, or from someone timed out or banned.">

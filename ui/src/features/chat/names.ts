@@ -1,4 +1,4 @@
-// Which name a chatter shows under: local nickname (C3), display name or login (C20).
+// Which name a chatter shows under: local nickname (C3), display name or login, either first (C20).
 
 import type { NameStyle } from '../../ipc/bindings/NameStyle';
 import type { UserNote } from '../../ipc/bindings/UserNote';
@@ -10,7 +10,7 @@ export interface Who {
 
 export interface ShownName {
   name: string;
-  /** Shown dimmed after the name, e.g. the login of a localized name. */
+  /** Shown dimmed in brackets after the name; only when it differs beyond letter case. */
   extra?: string;
 }
 
@@ -20,12 +20,15 @@ export function isLocalized(w: Who): boolean {
 
 export function shownName(w: Who, style: NameStyle, note?: UserNote): ShownName {
   if (note?.nickname) return { name: note.nickname };
+  const localized = isLocalized(w);
   switch (style) {
-    case 'login':
-      return { name: w.login };
     case 'display':
       return { name: w.display };
-    case 'both':
-      return isLocalized(w) ? { name: w.display, extra: w.login } : { name: w.display };
+    case 'displayLogin':
+      return localized ? { name: w.display, extra: w.login } : { name: w.display };
+    case 'username':
+      return { name: w.login };
+    case 'usernameDisplay':
+      return localized ? { name: w.login, extra: w.display } : { name: w.login };
   }
 }
