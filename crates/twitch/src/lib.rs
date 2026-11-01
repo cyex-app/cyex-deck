@@ -18,6 +18,7 @@ mod http;
 pub mod id;
 pub mod logs;
 pub mod pace;
+pub mod preview;
 pub mod random;
 pub mod recent;
 pub mod resolver;

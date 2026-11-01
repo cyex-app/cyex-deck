@@ -1,13 +1,14 @@
 <!-- C30 A link's preview under its message. Asked for once the line scrolls into view;
-     Rust keeps the answers for the run. Clicks go through the list (`data-link`). -->
+     Rust keeps the answers (V108-C25). Clicks go through the list (`data-link`). -->
 <script lang="ts">
-  import type { LinkInfo } from '../../ipc/bindings/LinkInfo';
-  import { chatIpc } from '../../ipc/chat';
+  import type { LinkPreview } from '../../ipc/bindings/LinkPreview';
+  import { factText, kindText } from './linkFacts';
+  import { links } from './linkPreviews';
 
   let { url }: { url: string } = $props();
 
   let el = $state<HTMLElement>();
-  let info = $state<LinkInfo | null>(null);
+  let info = $state<LinkPreview | null>(null);
   const host = $derived.by(() => {
     try {
       return new URL(url).hostname.replace(/^www\./, '');
@@ -15,8 +16,13 @@
       return '';
     }
   });
-  /** Title, then the next line or two. */
-  const lines = $derived((info?.lines ?? []).filter((l) => l.length).slice(0, 3));
+  /** Title, then the next line or two: the subtitle, facts or the resolver's lines. */
+  const lines = $derived.by(() => {
+    if (!info) return [];
+    const facts = info.facts.map(factText).filter(Boolean).join(' · ');
+    const rest = info.lines.filter((l) => l.length).map((l) => l.map((p) => p.text).join(''));
+    return [info.title, info.subtitle, facts, ...rest].filter((t): t is string => !!t).slice(0, 3);
+  });
 
   $effect(() => {
     if (!el) return;
@@ -25,8 +31,8 @@
       (entries) => {
         if (!entries.some((e) => e.isIntersecting)) return;
         seen.disconnect();
-        chatIpc
-          .resolveLink(url)
+        links
+          .get(url)
           .then((i) => !gone && (info = i))
           .catch(() => {});
       },
@@ -44,12 +50,18 @@
 <div class="card" bind:this={el} class:empty={!info || (!lines.length && !info.thumbnail)}>
   {#if info && (lines.length || info.thumbnail)}
     <a class="inner" href={url} data-link={url} data-host={host}>
-      {#if info.thumbnail}<img src={info.thumbnail} alt="" loading="lazy" referrerpolicy="no-referrer" />{/if}
+      {#if info.thumbnail}<img
+          class:blur={info.nsfw}
+          src={info.thumbnail}
+          alt=""
+          loading="lazy"
+          referrerpolicy="no-referrer"
+        />{/if}
       <span class="text">
         {#each lines as line, i (i)}
-          <span class:first={i === 0}>{line.map((p) => p.text).join('')}</span>
+          <span class:first={i === 0}>{line}</span>
         {/each}
-        <span class="host">{host}</span>
+        <span class="host">{info.kind === 'web' ? host : kindText(info)}</span>
       </span>
     </a>
   {/if}
@@ -81,6 +93,9 @@
     object-fit: cover;
     border-radius: var(--radius);
     flex: none;
+  }
+  .blur {
+    filter: blur(10px);
   }
   .text {
     display: flex;

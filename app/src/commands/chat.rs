@@ -1,12 +1,11 @@
 //! Chat commands (1.8, 1.9, 1.36, 1.40, X2).
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::Arc;
 
 use cyex_chat::model::{ChatMessage, RoomEvent};
 use cyex_twitch::gql::modlogs::Chatters;
 use cyex_twitch::gql::{self, Points, Profile};
-use cyex_twitch::resolver::{self, LinkInfo};
+use cyex_twitch::preview::LinkPreview;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, WebviewWindow};
 
@@ -168,22 +167,11 @@ pub fn chat_user_messages(app: AppHandle, channel: String, user_id: String) -> V
     chat::recent_from(&app, &channel, &user_id)
 }
 
-/// X2 Where a link really goes, and 1.52 its preview. Cached for the run.
+/// X2 Where a link really goes, and 1.52 its card (V108-C25). `None`: nothing to show.
 #[tauri::command]
-pub async fn chat_resolve_link(app: AppHandle, url: String) -> CmdResult<Option<LinkInfo>> {
-    static CACHE: OnceLock<Mutex<HashMap<String, Option<LinkInfo>>>> = OnceLock::new();
-    let cache = CACHE.get_or_init(Mutex::default);
-    if let Some(hit) = cache.lock().unwrap_or_else(|p| p.into_inner()).get(&url) {
-        return Ok(hit.clone());
-    }
+pub async fn chat_resolve_link(app: AppHandle, url: String) -> Option<LinkPreview> {
     let http = app.state::<Auth>().http.clone();
-    let resolved = resolver::resolve(&http, &url).await.map_err(|e| e.to_string())?;
-    let mut cache = cache.lock().unwrap_or_else(|p| p.into_inner());
-    if cache.len() > 2000 {
-        cache.clear();
-    }
-    cache.insert(url, resolved.clone());
-    Ok(resolved)
+    chat::link_preview::get(&http, url).await
 }
 
 /// Public profile for the usercard (1.36), by login or id.

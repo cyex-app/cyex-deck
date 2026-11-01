@@ -11,13 +11,13 @@ import { systemIpc } from '../../ipc/system';
 import { copy } from '../../lib/clipboard';
 import { errorText } from '../../lib/errors';
 import { settings } from '../../lib/settings.svelte';
-import { streamer } from '../../lib/streamer.svelte';
 import { toast } from '../../lib/toast.svelte';
 import { emojiName } from '../emotes/emoji';
 import type { CardTarget } from '../emotes/emotes';
 import { cancelEmoteMenu, emoteEditMenu } from '../emotes/edit/menu';
 import { removeHere } from '../emotes/edit/run';
 import { hidden } from '../emotes/hidden.svelte';
+import { cardsShown, links } from './linkPreviews';
 import { flipUnlisted, unlistedBlurred } from '../emotes/unlisted';
 import { roomRoute } from './roomRoute';
 
@@ -116,6 +116,14 @@ export const notEmote = cancelEmoteMenu;
 const THUMBS = { off: 0, small: 100, medium: 200, large: 300 } as const;
 const TIPPED = '[data-tip],[data-link],[data-emoji]';
 
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www./, '');
+  } catch {
+    return '';
+  }
+}
+
 /** Tips for badges, links (X2, 1.52) and emoji (V102-07) inside `root`. c-4 A line that drops
  *  off, scrolls away or goes with the tab gives no mouseout, so its tip goes with it. */
 export function lineTips(root: () => HTMLElement | undefined) {
@@ -141,26 +149,24 @@ export function lineTips(root: () => HTMLElement | undefined) {
       .catch(() => {});
   }
 
-  /** The real domain right away, the final one once redirects are followed; a preview
-   *  with it when previews are on. */
+  /** The real domain right away, the final one once redirects are followed; with previews on,
+   *  V108-C25 a loading card at once, then the card or "No preview". */
   function linkTip(el: HTMLElement) {
     const url = el.dataset.link!;
     const host = el.dataset.host!;
-    showTip(el, { label: `Opens ${host}` });
-    chatIpc
-      .resolveLink(url)
-      .then((info) => {
-        if (!info || tipEl !== el) return;
-        if (info.link) {
-          const finalHost = new URL(info.link).hostname.replace(/^www\./, '');
-          if (finalHost !== host) retitleTip(`Opens ${host}, ends up on ${finalHost}`);
-        }
-        const c = settings.v.chat;
-        if (c.linkPreviews && !streamer.hides('hideLinkPreviews') && (info.lines.length || info.thumbnail)) {
-          previewTip(el, { lines: info.lines, thumbnail: info.thumbnail ?? '', thumbWidth: THUMBS[c.linkThumbnails] });
-        }
+    const shown = cardsShown();
+    showTip(el, { label: `Opens ${host}`, ...(shown && { card: { state: 'loading' } }) });
+    links
+      .get(url)
+      .then((p) => {
+        const finalHost = p?.finalUrl ? hostOf(p.finalUrl) : '';
+        if (finalHost && finalHost !== host) retitleTip(el, `Opens ${host}, ends up on ${finalHost}`);
+        if (!shown) return;
+        if (!p) return previewTip(el, { state: 'none' });
+        const thumbWidth = THUMBS[settings.v.chat.linkThumbnails];
+        previewTip(el, { state: 'ready', card: p, thumbWidth, blur: p.nsfw });
       })
-      .catch(() => {});
+      .catch(() => shown && previewTip(el, { state: 'none' }));
   }
 
   return {

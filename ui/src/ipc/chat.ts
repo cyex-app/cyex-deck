@@ -15,7 +15,7 @@ import type { EmoteRewardChoices } from './bindings/EmoteRewardChoices';
 import type { Points } from './bindings/Points';
 import type { Profile } from './bindings/Profile';
 import type { RoomEvent } from './bindings/RoomEvent';
-import type { LinkInfo } from './bindings/LinkInfo';
+import type { LinkPreview } from './bindings/LinkPreview';
 import type { MenuContext } from './bindings/MenuContext';
 import type { UiAction } from './bindings/UiAction';
 
@@ -79,8 +79,8 @@ export const chatIpc = {
   setSmilies: (account: string, name: string) => invoke<Smilies>('chat_set_smilies', { account, name }),
   userMessages: (channel: string, userId: string) =>
     invoke<ChatMessage[]>('chat_user_messages', { channel, userId }),
-  /** X2 Where a link ends up after redirects, and 1.52 its preview. */
-  resolveLink: (url: string) => invoke<LinkInfo | null>('chat_resolve_link', { url }),
+  /** X2 Where a link ends up after redirects, and 1.52 its card (V108-C25). Rust caches it. */
+  resolveLink: (url: string) => invoke<LinkPreview | null>('chat_resolve_link', { url }),
   profile: (login?: string, id?: string) => invoke<Profile | null>('user_profile', { login, id }),
   openUsercard: (channel: string, login: string) => invoke<void>('window_open_usercard', { channel, login }),
 };

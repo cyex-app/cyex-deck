@@ -14,6 +14,7 @@ mod flush;
 pub mod global;
 pub mod hypetrain;
 pub mod identity;
+pub mod link_preview;
 pub mod live;
 mod mention;
 pub mod moments;

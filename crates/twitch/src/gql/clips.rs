@@ -141,6 +141,18 @@ pub async fn clip(http: &Http, slug: &str) -> Result<Option<ClipPlayback>> {
     }
 }
 
+/// V108-C25 One clip's details without its files, for a link preview. `None` if it's gone.
+pub async fn clip_info(http: &Http, slug: &str) -> Result<Option<Clip>> {
+    let q = format!("query($slug: ID!) {{ clip(slug: $slug) {{ ...C }} }} {FIELDS}");
+    let data: InfoData = query(http, Auth::PUBLIC, &q, json!({ "slug": slug })).await?;
+    Ok(data.clip.map(Clip::from))
+}
+
+#[derive(Deserialize)]
+struct InfoData {
+    clip: Option<RawClip>,
+}
+
 /// V102-08 Whether Twitch has made the clip. Read before the rest: a clip still being made
 /// lacks what Twitch fills in later, so its answer isn't read at all until then.
 fn made(raw: &Value) -> Result<bool> {

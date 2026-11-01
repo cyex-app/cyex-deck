@@ -3,10 +3,11 @@
 
 import { untrack } from 'svelte';
 
-import type { LinkText } from '../ipc/bindings/LinkText';
+import type { LinkPreview } from '../ipc/bindings/LinkPreview';
 import type { Rect, Side } from '../lib/place';
 import { settings } from '../lib/settings.svelte';
 import { tipAllowed } from './tooltipGate';
+import { tipSlot } from './tipSlot';
 
 export interface TipOptions {
   label: string;
@@ -19,22 +20,23 @@ export interface TipOptions {
   when?: () => boolean;
   /** ct-9 Where it goes when there's room; below by default. */
   side?: Side;
+  /** V108-C25 A link's card under the label, e.g. loading until it's known. */
+  card?: TipCard;
 }
 
-/** 1.52 A link's preview under the label. */
-export interface LinkPreview {
-  lines: LinkText[][];
-  thumbnail: string;
-  /** 0 hides the picture. */
-  thumbWidth: number;
-}
+/** 1.52, V108-C25 A link's card: on its way, nothing to show, or the card. */
+export type TipCard =
+  | { state: 'loading' }
+  | { state: 'none' }
+  /** `thumbWidth` 0 hides the picture. */
+  | { state: 'ready'; card: LinkPreview; thumbWidth: number; blur: boolean };
 
 export const tip = $state({
   label: '',
   hint: '',
   image: '',
   paint: '',
-  preview: null as LinkPreview | null,
+  card: null as TipCard | null,
   /** The element it shows for, as it was when the tip opened. */
   anchor: null as Rect | null,
   side: 'below' as Side,
@@ -49,6 +51,9 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 let lastHidden = 0;
 /** The element the tip shows (or is about to show) for: only it may retitle it. */
 let owner: HTMLElement | null = null;
+/** V108-C25 Cards and titles that arrive before the tip shows wait here for it. */
+const cards = tipSlot<HTMLElement, TipCard>();
+const titles = tipSlot<HTMLElement, string>();
 
 /** For lists that delegate: one listener on the list instead of one per item. */
 export function showTip(node: HTMLElement, opts: TipOptions): void {
@@ -59,14 +64,14 @@ export function hideTip(): void {
   hide();
 }
 
-/** Changes the visible tip's text, e.g. once a link resolves. */
-export function retitleTip(label: string): void {
-  if (tip.visible) tip.label = label;
+/** Changes the text of the tip `node` shows (or is about to), e.g. once a link resolves. */
+export function retitleTip(node: HTMLElement, label: string): void {
+  if (titles.put(node, label) && tip.visible) tip.label = label;
 }
 
-/** 1.52 Adds a link's preview to the tip `node` shows, once it's known. */
-export function previewTip(node: HTMLElement, preview: LinkPreview): void {
-  if (owner === node) tip.preview = preview;
+/** 1.52 Sets the card of the tip `node` shows (or is about to), once it's known. */
+export function previewTip(node: HTMLElement, card: TipCard): void {
+  if (cards.put(node, card) && tip.visible) tip.card = card;
 }
 
 function hintFor(opts: TipOptions): string {
@@ -78,15 +83,17 @@ function show(node: HTMLElement, opts: TipOptions): void {
   // Nothing to say (e.g. a menu item without a note), or a drag is on (rb-1).
   if (!tipAllowed(opts, dragging())) return;
   owner = node;
+  cards.claim(node, opts.card);
+  titles.claim(node);
   const delay = performance.now() - lastHidden < WARM_MS ? 0 : SHOW_DELAY_MS;
   timer = setTimeout(() => {
     // rb-1 A drag that started during the delay.
-    if (dragging()) return;
-    tip.label = opts.label;
+    if (dragging() || owner !== node) return;
+    tip.label = titles.read(node) ?? opts.label;
     tip.hint = hintFor(opts);
     tip.image = opts.image ?? '';
     tip.paint = opts.paint ?? '';
-    tip.preview = null;
+    tip.card = cards.read(node) ?? null;
     tip.anchor = node.getBoundingClientRect();
     tip.side = opts.side ?? 'below';
     tip.visible = true;
@@ -102,6 +109,8 @@ function hide(): void {
   // re-run (and steal focus back) each time a tip shows inside it.
   if (untrack(() => tip.visible)) lastHidden = performance.now();
   owner = null;
+  cards.release();
+  titles.release();
   // C5 A trigger torn down inside an effect or derived (a menu closing) fires focusout/mouseleave
   // while Svelte forbids state writes; the write waits a microtask, which is after the teardown.
   if (!untrack(() => tip.visible)) return;

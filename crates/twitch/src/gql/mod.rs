@@ -45,7 +45,7 @@ pub mod whispers;
 pub use about::{About, LastStream, Panel, Social, about};
 pub use cards::{Category, ChannelCard, GameRef, LiveStream, Page, cards};
 pub use channels::{ChannelInfo, StreamInfo, channels_by_ids, lookup};
-pub use clips::{Clip, ClipPeriod, ClipPlayback, ClipQuality, ClipSort, channel_clips, clip};
+pub use clips::{Clip, ClipPeriod, ClipPlayback, ClipQuality, ClipSort, channel_clips, clip, clip_info};
 pub use comments::{Comment, comments};
 pub use directory::{CategoryStreams, StreamFilter, StreamSort, category, top_categories, top_streams};
 pub use emotes::{
