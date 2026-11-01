@@ -106,6 +106,20 @@
     return () => el.removeEventListener('wheel', onwheel);
   });
 
+  // Empty title-bar space beside the tabs (the drag area) opens the bar menu too.
+  $effect(() => {
+    const head = chrome ? bar?.closest('header') : null;
+    if (!head) return;
+    const on = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (e.defaultPrevented || !(t === head || t.classList.contains('fill'))) return;
+      e.preventDefault();
+      openMenu(e, barMenu());
+    };
+    head.addEventListener('contextmenu', on);
+    return () => head.removeEventListener('contextmenu', on);
+  });
+
   function select(tab: Tab, e: MouseEvent) {
     const visible = items.flatMap((i) => (i.kind === 'tab' ? [i.tab.id] : []));
     if (e.ctrlKey) {
