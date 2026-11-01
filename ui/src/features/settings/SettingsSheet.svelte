@@ -22,6 +22,19 @@
   /** Menus, dialogs and tooltips opened from the sheet live outside it, in the layers host. */
   const inLayer = (n: EventTarget | null) => n instanceof Element && !!n.closest('.layers');
 
+  /** The rest of a press that closed the sheet goes nowhere. Outlives the sheet, which is gone by then. */
+  function swallowRest() {
+    const kinds = ['mousedown', 'mouseup', 'click', 'auxclick'] as const;
+    const stop = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.type === 'click' || e.type === 'auxclick') done();
+    };
+    const done = () => kinds.forEach((k) => window.removeEventListener(k, stop, true));
+    kinds.forEach((k) => window.addEventListener(k, stop, true));
+    setTimeout(done, 1000);
+  }
+
   // V108-S1 Tab stays in the sheet. Menus opened from it (outside it) keep their own Tab handling.
   $effect(() => {
     if (!box) return;
@@ -41,11 +54,24 @@
       e.preventDefault();
       e.stopPropagation();
     };
+    // A click outside (the title bar's tabs and buttons) only closes the sheet; a second click
+    // acts (user, 2026/11/01). Dragging the window and its own buttons still work.
+    const onDown = (e: PointerEvent) => {
+      const at = e.target instanceof Element ? e.target : null;
+      if (!at || sheet.parentElement?.contains(at) || inLayer(at) || at.closest('.controls')) return;
+      onclose();
+      if (!at.closest('button, a, input, [role="tab"], [role="button"], [tabindex]')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      swallowRest();
+    };
     window.addEventListener('keydown', onKey, true);
     window.addEventListener('contextmenu', onMenu, true);
+    window.addEventListener('pointerdown', onDown, true);
     return () => {
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('contextmenu', onMenu, true);
+      window.removeEventListener('pointerdown', onDown, true);
     };
   });
 
