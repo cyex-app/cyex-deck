@@ -4,7 +4,9 @@
 //! a message that doesn't parse only tells the UI to read the train again.
 
 use std::collections::HashMap;
-use std::sync::{LazyLock, Mutex};
+use std::future::Future;
+use std::sync::{Arc, LazyLock, Mutex};
+use std::time::{Duration, Instant};
 
 use cyex_twitch::gql::Auth as GqlAuth;
 use cyex_twitch::gql::hypetrain::{self as api, Conductor, Event as Wire, Train};
@@ -23,6 +25,77 @@ const EVENT: &str = "chat:hype-train";
 
 /// The train id and level last seen per channel id, so a rise is a moment and a repeat isn't.
 static LEVELS: LazyLock<Mutex<HashMap<String, Seen>>> = LazyLock::new(Mutex::default);
+
+/// V108-N04 A read is kept this long per login and kind, so the chats of one channel (split,
+/// popped out, all told to read again by one topic message) ask Twitch once.
+const READ_AGE: Duration = Duration::from_secs(10);
+
+/// (login, ended) for [`api::current`] or [`api::latest`].
+type ReadKey = (String, bool);
+
+struct Kept {
+    at: Instant,
+    channel_id: Option<String>,
+    train: Option<Train>,
+}
+
+/// Reads kept a moment. Any topic message drops its channel's, and a read asked for before
+/// one isn't kept (`generation`).
+#[derive(Default)]
+struct Reads {
+    kept: HashMap<ReadKey, Kept>,
+    generation: u64,
+}
+
+impl Reads {
+    fn get(&self, key: &ReadKey, now: Instant) -> Option<Option<Train>> {
+        self.kept.get(key).filter(|k| now.duration_since(k.at) < READ_AGE).map(|k| k.train.clone())
+    }
+
+    fn put(&mut self, key: ReadKey, kept: Kept, generation: u64) {
+        if generation != self.generation {
+            return;
+        }
+        let now = kept.at;
+        self.kept.retain(|_, k| now.duration_since(k.at) < READ_AGE);
+        self.kept.insert(key, kept);
+    }
+
+    fn forget(&mut self, channel_id: &str, login: Option<&str>) {
+        self.generation += 1;
+        self.kept.retain(|(l, _), k| k.channel_id.as_deref() != Some(channel_id) && Some(l.as_str()) != login);
+    }
+}
+
+static READS: LazyLock<Mutex<Reads>> = LazyLock::new(Mutex::default);
+/// One read in flight per key; the others wait for it and take the kept answer.
+static GATES: LazyLock<Mutex<HashMap<ReadKey, Arc<tokio::sync::Mutex<()>>>>> = LazyLock::new(Mutex::default);
+
+fn reads() -> std::sync::MutexGuard<'static, Reads> {
+    READS.lock().unwrap_or_else(|p| p.into_inner())
+}
+
+async fn kept_or<F: Future<Output = Result<Option<Train>, String>>>(
+    app: &AppHandle,
+    login: &str,
+    ended: bool,
+    fetch: F,
+) -> Result<Option<Train>, String> {
+    let key = (login.to_owned(), ended);
+    let gate = GATES.lock().unwrap_or_else(|p| p.into_inner()).entry(key.clone()).or_default().clone();
+    let _one = gate.lock().await;
+    let generation = {
+        let r = reads();
+        if let Some(t) = r.get(&key, Instant::now()) {
+            return Ok(t);
+        }
+        r.generation
+    };
+    let train = fetch.await?;
+    let kept = Kept { at: Instant::now(), channel_id: super::channel_id_of(app, login), train: train.clone() };
+    reads().put(key, kept, generation);
+    Ok(train)
+}
 
 #[derive(Clone, Debug, PartialEq)]
 struct Seen {
@@ -62,9 +135,10 @@ fn now_text() -> String {
 /// The channel's train now, `None` when there is none.
 pub async fn read(app: &AppHandle, login: &str) -> Result<Option<Train>, String> {
     let http = app.state::<Auth>().http.clone();
-    let train = api::current(&http, GqlAuth::PUBLIC, &login.to_ascii_lowercase(), &now_text())
-        .await
-        .map_err(told)?;
+    let login = login.to_ascii_lowercase();
+    let fetch = async { api::current(&http, GqlAuth::PUBLIC, &login, &now_text()).await.map_err(told) };
+    let train = kept_or(app, &login, false, fetch).await?;
+    let login = login.as_str();
     if let Some(id) = super::channel_id_of(app, login) {
         let mut levels = LEVELS.lock().unwrap_or_else(|p| p.into_inner());
         match &train {
@@ -88,7 +162,9 @@ pub async fn read(app: &AppHandle, login: &str) -> Result<Option<Train>, String>
 /// The channel's last train, ended or not, for the closing stats. Leaves the seen levels.
 pub async fn last(app: &AppHandle, login: &str) -> Result<Option<Train>, String> {
     let http = app.state::<Auth>().http.clone();
-    api::latest(&http, GqlAuth::PUBLIC, &login.to_ascii_lowercase()).await.map_err(told)
+    let login = login.to_ascii_lowercase();
+    let fetch = async { api::latest(&http, GqlAuth::PUBLIC, &login).await.map_err(told) };
+    kept_or(app, &login, true, fetch).await
 }
 
 fn told(e: cyex_twitch::Error) -> String {
@@ -127,6 +203,8 @@ pub fn unwatched(app: &AppHandle, channel_id: &str) {
 /// A message of the topic.
 pub fn on_event(app: &AppHandle, e: &Event) {
     let id = e.topic.channel_id.clone();
+    let login = app.state::<Chat>().channels.login_of(&id);
+    reads().forget(&id, login.as_deref());
     let change = match api::event_of(&e.payload) {
         Some(Wire::Progress { train, .. }) => {
             rose(app, &id, &train);
@@ -200,6 +278,41 @@ fn rose(app: &AppHandle, channel_id: &str, train: &Train) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn kept(channel: &str, at: Instant) -> Kept {
+        Kept { at, channel_id: Some(channel.to_owned()), train: None }
+    }
+
+    #[test]
+    fn reads_are_kept_a_moment_and_dropped_by_the_topic() {
+        let mut r = Reads::default();
+        let t = Instant::now();
+        let key = |l: &str, ended| (l.to_owned(), ended);
+        r.put(key("a", false), kept("1", t), 0);
+        r.put(key("a", true), kept("1", t), 0);
+        r.put(key("b", false), kept("2", t), 0);
+        assert_eq!(r.get(&key("a", false), t + Duration::from_secs(9)), Some(None));
+        assert_eq!(r.get(&key("a", false), t + READ_AGE), None);
+        // A message for channel 1 drops both of its kinds, not channel 2's.
+        r.forget("1", None);
+        assert_eq!(r.get(&key("a", false), t), None);
+        assert_eq!(r.get(&key("a", true), t), None);
+        assert_eq!(r.get(&key("b", false), t), Some(None));
+        // By login too, when the read didn't know the id.
+        r.put(key("c", false), Kept { at: t, channel_id: None, train: None }, r.generation);
+        r.forget("3", Some("c"));
+        assert_eq!(r.get(&key("c", false), t), None);
+    }
+
+    #[test]
+    fn a_read_from_before_a_message_is_not_kept() {
+        let mut r = Reads::default();
+        let t = Instant::now();
+        let asked = r.generation;
+        r.forget("1", None);
+        r.put(("a".to_owned(), false), kept("1", t), asked);
+        assert_eq!(r.get(&("a".to_owned(), false), t), None);
+    }
 
     #[test]
     fn moments_on_start_and_level_ups_only() {
