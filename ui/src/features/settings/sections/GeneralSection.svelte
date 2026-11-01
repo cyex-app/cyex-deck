@@ -5,10 +5,8 @@
 
   import Icon from '../../../components/Icon.svelte';
   import Row from '../../../components/Row.svelte';
-  import PositionPicker from '../../../components/PositionPicker.svelte';
   import Stepper from '../../../components/Stepper.svelte';
   import Toggle from '../../../components/Toggle.svelte';
-  import type { ChatPosition } from '../../../ipc/bindings/ChatPosition';
   import { formatTime } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
   import { MAX_HIDDEN_TAGS, withoutHidden, withTag } from '../../discover/hidden';
@@ -34,13 +32,6 @@
     newTag = '';
     if (next.length !== b.hiddenTags.length) void settings.patch('browse', { hiddenTags: next });
   }
-
-  const POSITIONS: { value: ChatPosition; label: string }[] = [
-    { value: 'left', label: 'Left' },
-    { value: 'right', label: 'Right' },
-    { value: 'top', label: 'Top' },
-    { value: 'bottom', label: 'Bottom' },
-  ];
 
   const pick = (family: string) => void settings.patch('general', { chatFontFamily: family });
 </script>
@@ -75,17 +66,6 @@
   <span class="time">{formatTime(new Date())}</span>
   <b>seryxx</b>: this is how chat will look
 </div>
-
-<SectionHead title="Layout">Where chat and panels sit.</SectionHead>
-<Row setting="general.chatPosition" label="Chat position" hint="Which side of the player or a clip the chat sits on.">
-  <PositionPicker
-    kind="chat"
-    label="Chat position"
-    options={POSITIONS}
-    value={g.chatPosition}
-    onchange={(v) => settings.patch('general', { chatPosition: v })}
-  />
-</Row>
 
 <SectionHead title="App" />
 <Row setting="general.tooltips" label="Tooltips" hint="Short explanations when you hover buttons.">

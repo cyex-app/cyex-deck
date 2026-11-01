@@ -16,7 +16,7 @@ export const APP: Entry[] = [
   { id: 'general.pinnedSizeStep', page: 'general', label: 'Pinned message size', description: 'How much larger than chat text.', keywords: ['pinned', 'pin', 'text size', 'bigger'] },
   {
     id: 'general.chatPosition',
-    page: 'general',
+    page: 'appearance',
     label: 'Chat position',
     description: 'Which side of the player or a clip the chat sits on.',
     keywords: ['chat side', 'left', 'right', 'top', 'bottom', 'layout'],
@@ -141,6 +141,7 @@ export const APP: Entry[] = [
     id: 'appearance.tabBarSide',
     page: 'appearance',
     label: 'Tab bar position',
+    description: 'Click an edge of the layout picture: top, bottom, left or right.',
     keywords: ['vertical tabs', 'side bar', 'left', 'right', 'top', 'bottom'],
   },
   {

@@ -2,13 +2,12 @@
   import SectionHead from '../SectionHead.svelte';
   import Button from '../../../components/Button.svelte';
   import Row from '../../../components/Row.svelte';
-  import PositionPicker from '../../../components/PositionPicker.svelte';
+  import LayoutPicker from '../../../components/LayoutPicker.svelte';
   import Segmented from '../../../components/Segmented.svelte';
   import Stepper from '../../../components/Stepper.svelte';
   import Toggle from '../../../components/Toggle.svelte';
   import type { CustomTheme } from '../../../ipc/bindings/CustomTheme';
   import type { ThemeLook } from '../../../ipc/bindings/ThemeLook';
-  import type { TabBarSide } from '../../../ipc/bindings/TabBarSide';
   import type { TabDensity } from '../../../ipc/bindings/TabDensity';
   import type { TabRows } from '../../../ipc/bindings/TabRows';
   import type { TabUnread } from '../../../ipc/bindings/TabUnread';
@@ -24,6 +23,7 @@
   import { accentOf, accentToStore, choiceOf, DEFAULT_ACCENT, defaultAccentOf } from '../themes';
 
   const a = $derived(settings.v.appearance);
+  const g = $derived(settings.v.general);
   /** V106-02 The built-in themes, for the accent row (shared with ThemePicker). */
   let builtins = $state.raw<CustomTheme[]>([]);
   $effect(() => {
@@ -78,12 +78,6 @@
     { value: 'comfortable', label: 'Roomy' },
     { value: 'normal', label: 'Normal' },
     { value: 'compact', label: 'Compact' },
-  ];
-  const SIDES: { value: TabBarSide; label: string }[] = [
-    { value: 'top', label: 'Top' },
-    { value: 'bottom', label: 'Bottom' },
-    { value: 'left', label: 'Left' },
-    { value: 'right', label: 'Right' },
   ];
   /** F16 */
   const ROWS: { value: TabRows; label: string }[] = [
@@ -156,6 +150,21 @@
   />
 </Row>
 
+<SectionHead title="Layout">Where the tab bar and chat sit.</SectionHead>
+<Row
+  stacked
+  setting="appearance.tabBarSide general.chatPosition"
+  label="Window layout"
+  hint="Click an edge to move the tab bar, the middle to move chat. Arrow keys work too."
+>
+  <LayoutPicker
+    tabs={a.tabBarSide}
+    chat={g.chatPosition}
+    onTabs={(v) => settings.patch('appearance', { tabBarSide: v })}
+    onChat={(v) => settings.patch('general', { chatPosition: v })}
+  />
+</Row>
+
 <SectionHead title="Tabs">The tab bar at the top or side.</SectionHead>
 <Row setting="appearance.tabDensity" label="Tab size" hint="Compact fits more tabs.">
   <Segmented
@@ -171,16 +180,6 @@
     label="Close button on tabs"
     checked={a.tabCloseButton}
     onchange={(v) => settings.patch('appearance', { tabCloseButton: v })}
-  />
-</Row>
-
-<Row setting="appearance.tabBarSide" label="Bar position">
-  <PositionPicker
-    kind="tabs"
-    label="Bar position"
-    options={SIDES}
-    value={a.tabBarSide}
-    onchange={(v) => settings.patch('appearance', { tabBarSide: v })}
   />
 </Row>
 
@@ -222,8 +221,12 @@
   />
 </Row>
 
-<!-- V107-R4 Reset takes the custom themes too: say so when there are some. -->
-<ResetSection partition="appearance" warn={a.themes.length ? 'Your custom themes are deleted too.' : undefined} />
+<!-- V107-R4 Reset takes the custom themes too: say so when there are some. V108-S2 The chat side lives here now and resets too. -->
+<ResetSection
+  partition="appearance"
+  warn={a.themes.length ? 'Your custom themes are deleted too.' : undefined}
+  onreset={() => void settings.patch('general', { chatPosition: null } as never)}
+/>
 
 <style>
   .cap {
