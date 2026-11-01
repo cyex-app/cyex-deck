@@ -16,6 +16,13 @@ test('emotes before emoji', () => {
   assert.equal(items[1].value, '🍢');
 });
 
+test('an exact emote name comes first, even against emotes you use more', () => {
+  const emotes = ['Kappu', 'KappaWealth', 'Kappa'].map((name, i) => ({ name, provider: 'twitch' as const, id: String(i) }));
+  const used = (n: string) => (n === 'Kappu' ? 0 : n === 'KappaWealth' ? 1 : Infinity);
+  assert.equal(emoteItems('Kappa', emotes, [], 8, used)[0].label, 'Kappa');
+  assert.equal(emoteItems('kappa', emotes, [], 8, used)[0].label, 'Kappa');
+});
+
 test('bot commands by level', () => {
   const cmds = [
     { name: '!discord', bot: 'nightbot', level: 0, args: [] },

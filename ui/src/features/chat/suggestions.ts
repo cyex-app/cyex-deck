@@ -4,7 +4,7 @@
 import type { BotCommand } from '../../ipc/bindings/BotCommand';
 import type { ModRole } from '../../ipc/bindings/ModRole';
 import type { Provider } from '../../ipc/bindings/Provider';
-import { rankNames } from '../emotes/ranking.ts';
+import { rankEmotes } from '../emotes/ranking.ts';
 
 export interface Item {
   /** What goes in the box. */
@@ -38,7 +38,11 @@ export function emoteItems(
   used?: (name: string) => number,
 ): Item[] {
   const byName = new Map(emotes.map((e) => [e.name, e]));
-  const names = rankNames(prefix, byName.keys(), limit, used);
+  // Unlike Tab, `:` keeps the exact name: it ranks first (an exact match beats every prefix match).
+  const names = rankEmotes(
+    prefix,
+    [...byName.keys()].map((n) => ({ item: n, name: n, used: used?.(n) })),
+  ).slice(0, limit);
   const items: Item[] = names.map((n) => {
     const e = byName.get(n)!;
     return { value: n, label: n, emote: { provider: e.provider, id: e.id, animated: e.animated } };
