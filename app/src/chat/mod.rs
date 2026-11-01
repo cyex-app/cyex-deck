@@ -354,6 +354,7 @@ pub fn open(
         catalog::refresh_pin_now(app.clone(), key);
     }
     if let Some(a) = &opened.account {
+        crate::emotes::refresh_own_look(app, a);
         crate::emotes::presence::touch(app, a, &login, crate::emotes::presence::Why::Opened, &[]);
     }
     Ok(opened)

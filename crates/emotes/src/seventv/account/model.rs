@@ -150,7 +150,7 @@ struct RawBadgeTo {
 }
 
 #[derive(Deserialize)]
-struct RawBadge {
+pub(super) struct RawBadge {
     id: String,
     name: String,
     #[serde(default)]
@@ -342,7 +342,7 @@ fn inventory(raw: RawUser) -> Inventory {
     }
 }
 
-fn badge_entry(b: RawBadge, usable: bool) -> BadgeEntry {
+pub(super) fn badge_entry(b: RawBadge, usable: bool) -> BadgeEntry {
     let animated = b.images.iter().any(|i| i.frame_count > 1);
     let mut images: [Option<String>; 4] = Default::default();
     let mut stills: [Option<String>; 4] = Default::default();

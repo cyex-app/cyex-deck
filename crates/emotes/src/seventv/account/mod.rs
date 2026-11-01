@@ -8,6 +8,7 @@ pub mod query;
 pub mod set_query;
 pub mod sets;
 pub mod view;
+pub mod wearing;
 #[cfg(test)]
 mod edit_tests;
 #[cfg(test)]
@@ -67,6 +68,13 @@ impl Client {
         let vars = json!({ "tw": twitch_id, "product": SUB_PRODUCT });
         let (status, reset, body) = self.post(None, query::INVENTORY, vars).await?;
         Ok(model::Answer { status, reset, body })
+    }
+
+    /// V108-E1 The paint and badge the account wears now; `None` is no 7TV user.
+    pub async fn wearing(&self, twitch_id: &str) -> Result<Option<wearing::Wearing>, Error> {
+        let vars = json!({ "tw": twitch_id });
+        let (status, reset, body) = self.post(None, query::WEARING, vars).await?;
+        wearing::read(status, reset, &body)
     }
 
     pub async fn me(&self, token: &str) -> Result<Me, Error> {

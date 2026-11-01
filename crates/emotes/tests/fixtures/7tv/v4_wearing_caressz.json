@@ -1,0 +1,647 @@
+{
+  "data": {
+    "users": {
+      "userByConnection": {
+        "id": "01KB7N57EYTF67B9V4JY3SB6RD",
+        "style": {
+          "activePaint": {
+            "id": "01KC2M1QNZ1Q1E47KPM14VSERH",
+            "name": "Evelone",
+            "data": {
+              "layers": [
+                {
+                  "id": "01KC2MMGYA4K0XE948FKRM307F",
+                  "opacity": 1,
+                  "ty": {
+                    "__typename": "PaintLayerTypeImage",
+                    "images": [
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/1x_static.webp",
+                        "mime": "image/webp",
+                        "scale": 1,
+                        "frameCount": 1
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/2x_static.webp",
+                        "mime": "image/webp",
+                        "scale": 2,
+                        "frameCount": 1
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/3x_static.webp",
+                        "mime": "image/webp",
+                        "scale": 3,
+                        "frameCount": 1
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/4x_static.webp",
+                        "mime": "image/webp",
+                        "scale": 4,
+                        "frameCount": 1
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/1x_static.avif",
+                        "mime": "image/avif",
+                        "scale": 1,
+                        "frameCount": 1
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/2x_static.avif",
+                        "mime": "image/avif",
+                        "scale": 2,
+                        "frameCount": 1
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/3x_static.avif",
+                        "mime": "image/avif",
+                        "scale": 3,
+                        "frameCount": 1
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/4x_static.avif",
+                        "mime": "image/avif",
+                        "scale": 4,
+                        "frameCount": 1
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/1x_static.png",
+                        "mime": "image/png",
+                        "scale": 1,
+                        "frameCount": 1
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/2x_static.png",
+                        "mime": "image/png",
+                        "scale": 2,
+                        "frameCount": 1
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/3x_static.png",
+                        "mime": "image/png",
+                        "scale": 3,
+                        "frameCount": 1
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/4x_static.png",
+                        "mime": "image/png",
+                        "scale": 4,
+                        "frameCount": 1
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/1x.webp",
+                        "mime": "image/webp",
+                        "scale": 1,
+                        "frameCount": 100
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/2x.webp",
+                        "mime": "image/webp",
+                        "scale": 2,
+                        "frameCount": 100
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/3x.webp",
+                        "mime": "image/webp",
+                        "scale": 3,
+                        "frameCount": 100
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/4x.webp",
+                        "mime": "image/webp",
+                        "scale": 4,
+                        "frameCount": 100
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/1x.avif",
+                        "mime": "image/avif",
+                        "scale": 1,
+                        "frameCount": 100
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/2x.avif",
+                        "mime": "image/avif",
+                        "scale": 2,
+                        "frameCount": 100
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/3x.avif",
+                        "mime": "image/avif",
+                        "scale": 3,
+                        "frameCount": 100
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/4x.avif",
+                        "mime": "image/avif",
+                        "scale": 4,
+                        "frameCount": 100
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/1x.gif",
+                        "mime": "image/gif",
+                        "scale": 1,
+                        "frameCount": 100
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/2x.gif",
+                        "mime": "image/gif",
+                        "scale": 2,
+                        "frameCount": 100
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/3x.gif",
+                        "mime": "image/gif",
+                        "scale": 3,
+                        "frameCount": 100
+                      },
+                      {
+                        "url": "https://cdn.7tv.app/paint/01KC2M1QNZ1Q1E47KPM14VSERH/layer/01KC2MMGYA4K0XE948FKRM307F/4x.gif",
+                        "mime": "image/gif",
+                        "scale": 4,
+                        "frameCount": 100
+                      }
+                    ]
+                  }
+                }
+              ],
+              "shadows": [
+                {
+                  "color": {
+                    "hex": "#EC7600FF"
+                  },
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "blur": 1.5
+                }
+              ]
+            }
+          },
+          "activeBadge": {
+            "id": "01KB4X7XGZWPSJBP7FTFSRGZ90",
+            "name": "NNYS 2025",
+            "images": [
+              {
+                "url": "https://cdn.7tv.app/badge/01KB4X7XGZWPSJBP7FTFSRGZ90/1x.webp",
+                "mime": "image/webp",
+                "scale": 1,
+                "frameCount": 1
+              },
+              {
+                "url": "https://cdn.7tv.app/badge/01KB4X7XGZWPSJBP7FTFSRGZ90/2x.webp",
+                "mime": "image/webp",
+                "scale": 2,
+                "frameCount": 1
+              },
+              {
+                "url": "https://cdn.7tv.app/badge/01KB4X7XGZWPSJBP7FTFSRGZ90/3x.webp",
+                "mime": "image/webp",
+                "scale": 3,
+                "frameCount": 1
+              },
+              {
+                "url": "https://cdn.7tv.app/badge/01KB4X7XGZWPSJBP7FTFSRGZ90/4x.webp",
+                "mime": "image/webp",
+                "scale": 4,
+                "frameCount": 1
+              },
+              {
+                "url": "https://cdn.7tv.app/badge/01KB4X7XGZWPSJBP7FTFSRGZ90/1x.avif",
+                "mime": "image/avif",
+                "scale": 1,
+                "frameCount": 1
+              },
+              {
+                "url": "https://cdn.7tv.app/badge/01KB4X7XGZWPSJBP7FTFSRGZ90/2x.avif",
+                "mime": "image/avif",
+                "scale": 2,
+                "frameCount": 1
+              },
+              {
+                "url": "https://cdn.7tv.app/badge/01KB4X7XGZWPSJBP7FTFSRGZ90/3x.avif",
+                "mime": "image/avif",
+                "scale": 3,
+                "frameCount": 1
+              },
+              {
+                "url": "https://cdn.7tv.app/badge/01KB4X7XGZWPSJBP7FTFSRGZ90/4x.avif",
+                "mime": "image/avif",
+                "scale": 4,
+                "frameCount": 1
+              },
+              {
+                "url": "https://cdn.7tv.app/badge/01KB4X7XGZWPSJBP7FTFSRGZ90/1x.png",
+                "mime": "image/png",
+                "scale": 1,
+                "frameCount": 1
+              },
+              {
+                "url": "https://cdn.7tv.app/badge/01KB4X7XGZWPSJBP7FTFSRGZ90/2x.png",
+                "mime": "image/png",
+                "scale": 2,
+                "frameCount": 1
+              },
+              {
+                "url": "https://cdn.7tv.app/badge/01KB4X7XGZWPSJBP7FTFSRGZ90/3x.png",
+                "mime": "image/png",
+                "scale": 3,
+                "frameCount": 1
+              },
+              {
+                "url": "https://cdn.7tv.app/badge/01KB4X7XGZWPSJBP7FTFSRGZ90/4x.png",
+                "mime": "image/png",
+                "scale": 4,
+                "frameCount": 1
+              }
+            ]
+          }
+        },
+        "inventory": {
+          "paints": [
+            {
+              "to": {
+                "paintId": "01FQ8S87J8000BDD0YMN21KEXG"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01JFQV4W300XYMWDJW7E1TVY34"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01JR96WN6AZH2S6JVBATWYA585"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01K6ZYS5X6TF6EGK85Y9ZZR8YC"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KAJ3AVYAAKFSPZ5B05AB42WZ"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KB62BXZVZGP6E9XHAS25ZQCX"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KB62NJSY5DR1Y7H8GAY8C4C6"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KB67HS3KWD7TFBA7F5DJ5EVK"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KB67Z0C64BRG7R040788SJCM"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KB6884V95J2TEG4YDPKAM9BH"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KC2M1QNZ1Q1E47KPM14VSERH"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KDH5PXBBQHJ49XCEE34FH0HJ"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KDP2BCYQH80NJRS84B0CV4DF"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KDREVNA4XVTD3G04PWWDQMGF"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KDRFYE746SYMCS7CDC9733GX"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KDRGCG7MB9BYANBWDYYWZA42"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KG82FMSQ5W1X9J9VA708ZNCC"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KG84A8Y1T8W73T8PR13BZF7A"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KG85T1EQ2CHZW73QB9W0GBAS"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KG85VVBYG9KRKFME5E6GACB0"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KG85YVKV7YPFC98TMTB8QD1F"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KHHNFKPRFB5A1NCMPH44DGZF"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KJC4X1AX612462QN89EH0R5J"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KJC6HFRW7SXNVEX17QG57CTT"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KJF7MMQ0NYRQ93F2PS6DFPRW"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KJF82QWKC58XBH05S4BXJG64"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KMV88QART2BBN7QE382VRF7V"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KMVHRGY2PX88R5TDK354RW33"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KMVKP1Q9F1ZB3VKNDGC21SJW"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KMX9HD1NQKX4EMRSB045CE67"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KMXG1P52896435KQHE0FKR94"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KQ92ZQRGHYMNGXYNTVYF5AEB"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KQAN5ZR4ZD4X3VFA9NQS6DEA"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KQAPJ4PYCY8BJ7QB8FGS020E"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KQAQJ8AJ4GKASSDF69QGW60Q"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KQARKPY5QDJTKEQ4SST2450F"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KSJPW7PJZCRGMJJNH02GA4PP"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KSKJ7YSBNE4YVC0M8W29KAVJ"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KSR9GH10DBNAWF2BRKGQQJPV"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KSWJ243BFDB0B7KQRG38ZDGQ"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KSWJZBQBXFD3RKXKCB3NJQG9"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KSWWQGADNZAA4S0JKBZXSFP9"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KW7FPRMTQV8DFTAEDGRKSB9G"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KW7G4C5PGX30FFDBRXDNSY07"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KW7H0JWNJB13QMYWX7388149"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KW7KH09JXWYBNGFCBJMWDQYH"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KW7KH75HRAR2XY09ZN31P108"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KYQHQPRCXR4DE9TRCD8J66W9"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KYQHQZDSYDY8D8Z0Y10W3F0Y"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KYQHRD3TXQ1WDK8E2QE6MC9Q"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KYQHRHWH6S9EHZ3E0A8K9M2G"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01KYQHRNWXB75JTZGM0ZCVV4ZV"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01M17P95D5J3DZZJ15SVX5A4Z9"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01M19CDBRH9GW59HQQT9B4J16Y"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01M19CN02DVWS61PAVTEGT0KM0"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01M19D4SHRVM6MWQ4PJB9TG97T"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01M19D65G68Z3FGNQP0PGQ3GT6"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01M3QBDT5898F5FE44393ADKQ2"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01M3QBDYT0V77E2TXGW3SP6AEK"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01M3QBE4EMJZJQ558B9XTYKH4A"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01M3QBE8ZZAC1WF3CR4RNGGQVX"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01M3QBESQ89Z6DDENSWNYJDB1D"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01M66TXPTF6P98JEYN4AEKZHX4"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01M66TXW8TR5M8610W4NRS4ZEH"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01M66TY0JHHHRC9TRQ9XCXX6RY"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01M66TY810KZS3FBHS210G52DW"
+              }
+            },
+            {
+              "to": {
+                "paintId": "01M66TYCCW1KJHERVT03TXTXDN"
+              }
+            }
+          ],
+          "badges": [
+            {
+              "to": {
+                "badgeId": "01GAF8RWW8000E8VNG1S1RMTBA"
+              }
+            },
+            {
+              "to": {
+                "badgeId": "01GAF95ZTG000E8VNG1S1RMTBB"
+              }
+            },
+            {
+              "to": {
+                "badgeId": "01GAF994D8000E8VNG1S1RMTBC"
+              }
+            },
+            {
+              "to": {
+                "badgeId": "01GAF9BTB8000E8VNG1S1RMTBD"
+              }
+            },
+            {
+              "to": {
+                "badgeId": "01GAF9E5HG000E8VNG1S1RMTBE"
+              }
+            },
+            {
+              "to": {
+                "badgeId": "01KB4X7XGZWPSJBP7FTFSRGZ90"
+              }
+            },
+            {
+              "to": {
+                "badgeId": "01KCEQKHXY2WYWAQZM0QHQXRQ5"
+              }
+            },
+            {
+              "to": {
+                "badgeId": "01KYQHQ7FVRR3X4S0F2KG74207"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "extensions": {
+    "analyzer": {
+      "complexity": 52,
+      "depth": 10
+    }
+  }
+}

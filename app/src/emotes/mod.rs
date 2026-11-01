@@ -11,6 +11,7 @@ mod extra;
 mod live;
 mod load;
 mod looks;
+mod own;
 mod owned;
 pub mod menu;
 pub mod presence;
@@ -22,6 +23,7 @@ mod twitch_state;
 pub use card::{EmoteCard, card};
 pub use load::twitch_sets;
 pub use looks::{Worn, looks_for, wear};
+pub use own::refresh as refresh_own_look;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -149,6 +151,7 @@ pub fn init(app: &AppHandle) {
         globals_ready: watch::channel(false).0,
     });
     presence::init(app);
+    own::init(app);
     live::spawn(app.clone(), rx);
     providers::spawn_bttv(app.clone(), bttv_rx);
     looks::spawn(app.clone());

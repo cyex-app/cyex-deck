@@ -18,6 +18,25 @@ pub const INVENTORY: &str = r#"query Cosmetics($tw: String!, $product: Id!) {
     } } }
 }"#;
 
+/// V108-E1 What an account wears now, with both definitions, and the ids it may wear
+/// (7TV's presence shows only those). Needs no token; small next to `INVENTORY`.
+pub const WEARING: &str = r#"query Wearing($tw: String!) {
+  users { userByConnection(platform: TWITCH, platformId: $tw) {
+    id
+    style {
+      activePaint { id name data {
+        layers { id opacity ty { __typename
+          ... on PaintLayerTypeSingleColor { color { hex } }
+          ... on PaintLayerTypeLinearGradient { angle repeating stops { at color { hex } } }
+          ... on PaintLayerTypeRadialGradient { shape repeating stops { at color { hex } } }
+          ... on PaintLayerTypeImage { images { url mime scale frameCount } } } }
+        shadows { color { hex } offsetX offsetY blur } } }
+      activeBadge { id name images { url mime scale frameCount } }
+    }
+    inventory(includeInaccessible: false) { paints { to { paintId } } badges { to { badgeId } } }
+  } }
+}"#;
+
 /// The signed-in user: id and connections.
 pub const ME: &str = "query Me { users { me { id connections { platform platformId } } } }";
 
