@@ -25,7 +25,7 @@
   import LiveButton from './LiveButton.svelte';
   import { DVR_GAP } from './liveEdge';
   import { behindText } from './liveKeys';
-  import { clipLiveAt, clipVideoAt } from './clipMake.svelte';
+  import { clipLiveAt, clipMaking, clipVideoAt } from './clipMake.svelte';
   import { type MomentRow, playerMenu } from './menu';
   import { canGoThere, hereClip, marks as momentMarks, momentClip, momentText, newest, secsOf } from './moments';
   import { MomentsFeed } from './momentsFeed.svelte';
@@ -567,7 +567,7 @@
   <Volume volume={sound.volume} muted={sound.muted} boost={sound.boost} onchange={sound.set} onboost={sound.setBoost} />
   <span class="grow"></span>
   {#if onclip}
-    <button class="ctl" class:armed={clipArm.armed} aria-label={clipArm.armed ? 'Click again to clip' : 'Clip'} use:tooltip={clipArm.armed ? { label: 'Click again to clip' } : { label: 'Clip', hint: rewind.inVod ? 'Clips the seconds up to here.' : 'Clips the last seconds of the stream.' }} onclick={clipArm.click}>
+    <button class="ctl" class:armed={clipArm.armed} class:making={clipMaking.busy} disabled={clipMaking.busy} aria-label={clipArm.armed ? 'Click again to clip' : 'Clip'} use:tooltip={clipArm.armed ? { label: 'Click again to clip' } : { label: 'Clip', hint: rewind.inVod ? 'Clips the seconds up to here.' : 'Clips the last seconds of the stream.' }} onclick={clipArm.click}>
       <Icon name="scissors" size={17} />
     </button>
   {:else if clipOff}

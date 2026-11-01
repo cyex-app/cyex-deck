@@ -15,6 +15,15 @@ export const clipMaking = {
   get busy(): boolean {
     return busy;
   },
+  /** V108-P2 The live clip button (P9) takes the same single slot. False when one is running. */
+  begin(): boolean {
+    if (busy) return false;
+    busy = true;
+    return true;
+  },
+  end(): void {
+    busy = false;
+  },
 };
 
 type Where = Parameters<typeof openTarget>[0];

@@ -213,6 +213,12 @@
     color: var(--red);
     opacity: 1;
   }
+  /* V108-P2 A clip is being made: the button stays lit and waits. */
+  .shell :global(.ctl.making) {
+    color: var(--red);
+    opacity: 1;
+    cursor: progress;
+  }
   .shell :global(.ctl.on) {
     color: #9cbcff;
   }

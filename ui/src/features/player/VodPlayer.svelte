@@ -319,7 +319,7 @@
             <span class="clock">{clock(time)} / {clock(duration)}</span>
             <span class="grow"></span>
             {#if clipper}
-              <button class="ctl" class:armed={clipArm.armed} aria-label={clipArm.armed ? 'Click again to clip' : 'Clip'} use:tooltip={clipArm.armed ? { label: 'Click again to clip' } : { label: 'Clip', hint: 'Clips the seconds before this point.' }} disabled={clipMaking.busy} onclick={clipArm.click}>
+              <button class="ctl" class:armed={clipArm.armed} class:making={clipMaking.busy} aria-label={clipArm.armed ? 'Click again to clip' : 'Clip'} use:tooltip={clipArm.armed ? { label: 'Click again to clip' } : { label: 'Clip', hint: 'Clips the seconds before this point.' }} disabled={clipMaking.busy} onclick={clipArm.click}>
                 <Icon name="scissors" size={17} />
               </button>
             {/if}

@@ -14,6 +14,7 @@
   import { accounts } from '../../lib/accounts.svelte';
   import { toast } from '../../lib/toast.svelte';
   import ClipOverlay from '../player/ClipOverlay.svelte';
+  import { clipMaking } from '../player/clipMake.svelte';
   import ClipPlayer from '../player/ClipPlayer.svelte';
   import LivePlayer from '../player/LivePlayer.svelte';
   import { type Page, tileState } from '../player/players.svelte';
@@ -93,19 +94,22 @@
 
   /** P9 */
   async function makeClip() {
-    if (!account) return;
-    toast.info('Making a clip…');
+    if (!account || !clipMaking.begin()) return;
+    toast.info('Making a clip…', { key: 'clip' });
     try {
       const clip = await playerIpc.createClip(account, tile.channel.id);
       // V103-09 Twitch's editor is the next step, like on Twitch.
       if (clip.editing) {
-        toast.info('Pick the start and end in the Twitch window.');
+        toast.info('Pick the start and end in the Twitch window.', { key: 'clip' });
         return;
       }
       made = true;
       shared.overlay = clip.slug;
+      toast.success('Clip made', { key: 'clip' });
     } catch (e) {
-      toast.error(errorText(e));
+      toast.error(errorText(e), { key: 'clip' });
+    } finally {
+      clipMaking.end();
     }
   }
 
