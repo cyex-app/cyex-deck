@@ -3,7 +3,7 @@
 //! Buying, gifting, changing tier and payment methods open Twitch's own pages in the
 //! app's Twitch window (`windows::twitch`, 3.8).
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
@@ -104,9 +104,9 @@ pub struct StreakChanged {
 }
 
 /// V108-N23 A streak read is kept this long per (account, channel login), so every chat of a
-/// channel and each reopen don't each ask Twitch. A change on the topic drops the account's.
+/// channel and each reopen don't each ask Twitch. A change on the topic drops that channel's.
 const STREAK_AGE: Duration = Duration::from_secs(60);
-/// The most reads kept (channels and ids four times that); past it they start over.
+/// The most reads kept (channels and ids four times that); past it the oldest go.
 const STREAK_KEPT: usize = 64;
 
 /// What the app knows about one account's streak in one channel.
@@ -118,6 +118,20 @@ struct Seen {
     reached: Option<(Option<u32>, Instant)>,
 }
 
+impl Seen {
+    fn last(&self) -> Option<Instant> {
+        self.shared.map(|(_, t)| t).max(self.reached.map(|(_, t)| t))
+    }
+}
+
+/// Makes room for one more under `cap` by dropping the oldest entries (by `age`).
+fn make_room<K: Clone + Eq + std::hash::Hash, V, A: Ord>(map: &mut HashMap<K, V>, cap: usize, age: impl Fn(&V) -> A) {
+    while map.len() >= cap {
+        let Some(k) = map.iter().min_by_key(|(_, v)| age(v)).map(|(k, _)| k.clone()) else { return };
+        map.remove(&k);
+    }
+}
+
 /// V108-N23 Reads kept a minute, plus what decides whether a read's streak is offered: ids
 /// shared or refused never come back, a share hides the channel's row until a later "reached"
 /// event and a higher count, and a streak above that event's count is never offered (user
@@ -126,7 +140,11 @@ struct Seen {
 struct StreakBook {
     reads: HashMap<(String, String), (Instant, Read)>,
     seen: HashMap<(String, String), Seen>,
-    gone: HashSet<String>,
+    /// Ids shared or refused, and when.
+    gone: HashMap<String, Instant>,
+    /// Per account, bumped by every "reached" event or share: a read asked for before one
+    /// is not kept (it may predate the change).
+    generation: HashMap<String, u64>,
 }
 
 impl StreakBook {
@@ -134,23 +152,34 @@ impl StreakBook {
         self.reads.get(key).filter(|(at, _)| now.duration_since(*at) < STREAK_AGE).map(|(_, r)| r.clone())
     }
 
-    fn put(&mut self, key: (String, String), read: Read, now: Instant) {
+    fn generation(&self, account: &str) -> u64 {
+        self.generation.get(account).copied().unwrap_or(0)
+    }
+
+    /// Keeps a read asked for at `generation` (see [`Self::generation`]), unless a change came since.
+    fn put(&mut self, key: (String, String), read: Read, now: Instant, generation: u64) {
+        if self.generation(&key.0) != generation {
+            return;
+        }
         self.reads.retain(|_, (at, _)| now.duration_since(*at) < STREAK_AGE);
-        if self.reads.len() >= STREAK_KEPT {
-            self.reads.clear();
+        if !self.reads.contains_key(&key) {
+            make_room(&mut self.reads, STREAK_KEPT, |(at, _)| *at);
         }
         self.reads.insert(key, (now, read));
     }
 
-    fn forget(&mut self, account: &str) {
-        self.reads.retain(|(a, _), _| a != account);
+    /// Drops the account's read of this channel; reads asked for before now aren't kept.
+    fn forget(&mut self, account: &str, channel_id: &str) {
+        *self.generation.entry(account.to_owned()).or_default() += 1;
+        self.reads.retain(|(a, _), (_, r)| a != account || r.channel_id.as_deref() != Some(channel_id));
     }
 
     fn seen(&mut self, account: &str, channel_id: &str) -> &mut Seen {
-        if self.seen.len() >= STREAK_KEPT * 4 {
-            self.seen.clear();
+        let key = (account.to_owned(), channel_id.to_owned());
+        if !self.seen.contains_key(&key) {
+            make_room(&mut self.seen, STREAK_KEPT * 4, Seen::last);
         }
-        self.seen.entry((account.to_owned(), channel_id.to_owned())).or_default()
+        self.seen.entry(key).or_default()
     }
 
     /// The streak to offer from a read, or none.
@@ -162,7 +191,7 @@ impl StreakBook {
             .copied()
             .unwrap_or_default();
         let ceiling = seen.reached.and_then(|(v, _)| v);
-        let m = milestones::pick(&read.milestones, ceiling, |id| self.gone.contains(id))?;
+        let m = milestones::pick(&read.milestones, ceiling, |id| self.gone.contains_key(id))?;
         if let Some((value, at)) = seen.shared {
             // After a share only a newer "reached" event and a higher count bring it back.
             let newer = seen.reached.is_some_and(|(_, r)| r > at);
@@ -173,31 +202,29 @@ impl StreakBook {
         Some(m.clone())
     }
 
-    /// A "reached" event (topic or points) for this channel.
+    /// A "reached" event (topic or points) for this channel. One without a count (a points
+    /// gain) keeps the last count as the ceiling.
     fn reached(&mut self, account: &str, channel_id: &str, value: Option<u32>, now: Instant) {
-        self.forget(account);
-        self.seen(account, channel_id).reached = Some((value, now));
+        self.forget(account, channel_id);
+        let seen = self.seen(account, channel_id);
+        let value = value.or_else(|| seen.reached.and_then(|(v, _)| v));
+        seen.reached = Some((value, now));
     }
 
-    /// A share went through: the id is gone and the channel waits for a new event.
-    fn shared(&mut self, account: &str, channel_id: &str, milestone_id: &str, now: Instant) {
-        let value = self
-            .reads
-            .values()
-            .flat_map(|(_, r)| &r.milestones)
-            .find(|m| m.id == milestone_id)
-            .map_or(0, |m| m.value);
-        self.refused(milestone_id);
-        self.forget(account);
+    /// A share of the streak with this count went through: the id is gone and the channel
+    /// waits for a new event.
+    fn shared(&mut self, account: &str, channel_id: &str, milestone_id: &str, value: u32, now: Instant) {
+        self.refused(milestone_id, now);
+        self.forget(account, channel_id);
         self.seen(account, channel_id).shared = Some((value, now));
     }
 
     /// Shared, or Twitch wouldn't share it: never offered again this run.
-    fn refused(&mut self, milestone_id: &str) {
-        if self.gone.len() >= STREAK_KEPT * 4 {
-            self.gone.clear();
+    fn refused(&mut self, milestone_id: &str, now: Instant) {
+        if !self.gone.contains_key(milestone_id) {
+            make_room(&mut self.gone, STREAK_KEPT * 4, |at| *at);
         }
-        self.gone.insert(milestone_id.to_owned());
+        self.gone.insert(milestone_id.to_owned(), now);
     }
 }
 
@@ -210,13 +237,16 @@ fn streaks() -> std::sync::MutexGuard<'static, StreakBook> {
 pub async fn streak(app: &AppHandle, account: &str, login: &str) -> Result<Streak, String> {
     let key = (account.to_owned(), login.to_ascii_lowercase());
     let live = crate::tabs::live::is_live(app, login);
-    let cached = streaks().read(&key, Instant::now());
+    let (cached, generation) = {
+        let book = streaks();
+        (book.read(&key, Instant::now()), book.generation(account))
+    };
     let read = match cached {
         Some(r) => r,
         None => {
             let c = call(app, account)?;
             let r = milestones::milestones(&c.http, c.auth(), login).await.map_err(failed)?;
-            streaks().put(key, r.clone(), Instant::now());
+            streaks().put(key, r.clone(), Instant::now(), generation);
             r
         }
     };
@@ -224,19 +254,19 @@ pub async fn streak(app: &AppHandle, account: &str, login: &str) -> Result<Strea
     Ok(Streak { milestone, live, channel_id: read.channel_id })
 }
 
-/// V108-N23 Only from the user's click on Share.
-pub async fn share_streak(app: &AppHandle, account: &str, channel_id: &str, milestone_id: &str) -> Result<(), String> {
+/// V108-N23 Only from the user's click on Share. `value` is the shown streak's count.
+pub async fn share_streak(app: &AppHandle, account: &str, channel_id: &str, milestone_id: &str, value: u32) -> Result<(), String> {
     let c = call(app, account)?;
     let out = milestones::share(&c.http, c.auth(), channel_id, milestone_id).await;
     let mut book = streaks();
     match out {
         Ok(()) => {
-            book.shared(account, channel_id, milestone_id, Instant::now());
+            book.shared(account, channel_id, milestone_id, value, Instant::now());
             Ok(())
         }
         Err(cyex_twitch::Error::Refused(code)) => {
-            book.refused(milestone_id);
-            book.forget(account);
+            book.refused(milestone_id, Instant::now());
+            book.forget(account, channel_id);
             Err(milestones::explain(&code).to_owned())
         }
         Err(e) => Err(failed(e)),
@@ -307,18 +337,82 @@ mod tests {
         let mut c = StreakBook::default();
         let t = Instant::now();
         let key = |a: &str, l: &str| (a.to_owned(), l.to_owned());
-        c.put(key("1", "x"), Read::default(), t);
+        c.put(key("1", "x"), Read::default(), t, 0);
         assert_eq!(c.read(&key("1", "x"), t + Duration::from_secs(59)), Some(Read::default()));
         assert_eq!(c.read(&key("1", "x"), t + STREAK_AGE), None);
         // Expired reads go on the next put.
-        c.put(key("1", "y"), Read::default(), t + STREAK_AGE);
+        c.put(key("1", "y"), Read::default(), t + STREAK_AGE, 0);
         assert_eq!(c.reads.len(), 1);
+        // Past the bound the oldest go, not all.
+        let at = |i: usize| t + STREAK_AGE + Duration::from_millis(i as u64);
         for i in 0..STREAK_KEPT * 2 {
-            c.put(key("2", &i.to_string()), Read::default(), t + STREAK_AGE);
+            c.put(key("2", &i.to_string()), read(&i.to_string(), &[]), at(i), 0);
         }
-        assert!(c.reads.len() <= STREAK_KEPT);
-        c.forget("2");
-        assert!(c.reads.keys().all(|(a, _)| a != "2"));
+        assert_eq!(c.reads.len(), STREAK_KEPT);
+        assert!(c.reads.contains_key(&key("2", &(STREAK_KEPT * 2 - 1).to_string())));
+        assert!(!c.reads.contains_key(&key("2", "0")));
+        // A change in one channel drops only that channel's read.
+        c.forget("2", &(STREAK_KEPT * 2 - 1).to_string());
+        assert_eq!(c.reads.len(), STREAK_KEPT - 1);
+    }
+
+    /// A read asked for before a "reached" event or a share answers but isn't kept.
+    #[test]
+    fn a_read_from_before_a_change_is_not_kept() {
+        let mut b = StreakBook::default();
+        let t = Instant::now();
+        let key = ("1".to_owned(), "chan".to_owned());
+        let generation = b.generation("1");
+        b.reached("1", "9", Some(3), t);
+        b.put(key.clone(), read("9", &[m("a3", 3, "CAN_SHARE")]), t, generation);
+        assert_eq!(b.read(&key, t), None);
+        // Asked for after it: kept.
+        let generation = b.generation("1");
+        b.put(key.clone(), read("9", &[m("a3", 3, "CAN_SHARE")]), t, generation);
+        assert!(b.read(&key, t).is_some());
+        // Another channel's event leaves it.
+        b.reached("1", "8", Some(1), t);
+        assert!(b.read(&key, t).is_some());
+    }
+
+    #[test]
+    fn a_reached_event_without_a_count_keeps_the_ceiling() {
+        let mut b = StreakBook::default();
+        let t = Instant::now();
+        let r = read("9", &[m("a5", 5, "CAN_SHARE")]);
+        b.reached("1", "9", Some(4), t);
+        assert_eq!(b.offer("1", &r), None);
+        b.reached("1", "9", None, t + Duration::from_secs(1));
+        assert_eq!(b.offer("1", &r), None);
+        b.reached("1", "9", Some(5), t + Duration::from_secs(2));
+        assert_eq!(value(b.offer("1", &r)), Some(5));
+    }
+
+    /// The shared count comes from the caller, not from a read that may be gone by then.
+    #[test]
+    fn a_share_keeps_its_count_without_a_read() {
+        let mut b = StreakBook::default();
+        let t = Instant::now();
+        b.shared("1", "9", "a3", 3, t);
+        b.reached("1", "9", Some(5), t + Duration::from_secs(1));
+        assert_eq!(b.offer("1", &read("9", &[m("b3", 3, "CAN_SHARE")])), None);
+        assert_eq!(value(b.offer("1", &read("9", &[m("a5", 5, "CAN_SHARE")]))), Some(5));
+    }
+
+    #[test]
+    fn past_the_bound_the_newest_ids_and_channels_stay() {
+        let mut b = StreakBook::default();
+        let t = Instant::now();
+        let at = |i: usize| t + Duration::from_millis(i as u64);
+        for i in 0..STREAK_KEPT * 4 + 10 {
+            b.refused(&i.to_string(), at(i));
+            b.reached("1", &i.to_string(), Some(1), at(i));
+        }
+        assert_eq!(b.gone.len(), STREAK_KEPT * 4);
+        assert_eq!(b.seen.len(), STREAK_KEPT * 4);
+        let last = (STREAK_KEPT * 4 + 9).to_string();
+        assert!(b.gone.contains_key(&last) && !b.gone.contains_key("0"));
+        assert!(b.seen.contains_key(&("1".to_owned(), last)));
     }
 
     fn m(id: &str, value: u32, share: &str) -> Milestone {
@@ -348,8 +442,8 @@ mod tests {
         let before = read("9", &[m("a3", 3, "CAN_SHARE"), m("a5", 5, "CAN_SHARE")]);
         // The smaller one is offered, not the next threshold.
         assert_eq!(value(b.offer("1", &before)), Some(3));
-        b.put(("1".into(), "chan".into()), before, s(0));
-        b.shared("1", "9", "a3", s(1));
+        b.put(("1".into(), "chan".into()), before, s(0), 0);
+        b.shared("1", "9", "a3", 3, s(1));
         assert!(b.reads.is_empty());
         // The read right after (the share's own update, a poll) still lists a 5: hidden.
         let after = read("9", &[m("a3", 3, "SHARED"), m("a5", 5, "CAN_SHARE")]);
@@ -369,7 +463,7 @@ mod tests {
     fn streaks_stay_with_their_channel_and_account() {
         let mut b = StreakBook::default();
         let t = Instant::now();
-        b.shared("1", "9", "x", t);
+        b.shared("1", "9", "x", 4, t);
         // Another channel, or another account in this one, isn't held back by that share.
         assert_eq!(value(b.offer("1", &read("8", &[m("y", 5, "CAN_SHARE")]))), Some(5));
         assert_eq!(value(b.offer("2", &read("9", &[m("z", 5, "CAN_SHARE")]))), Some(5));
@@ -383,7 +477,7 @@ mod tests {
         let mut b = StreakBook::default();
         let r = read("9", &[m("a", 3, "CAN_SHARE")]);
         assert!(b.offer("1", &r).is_some());
-        b.refused("a");
+        b.refused("a", Instant::now());
         assert_eq!(b.offer("1", &r), None);
     }
 }

@@ -43,8 +43,9 @@ pub async fn subs_share_streak(
     account: String,
     channel_id: String,
     milestone_id: String,
+    value: u32,
 ) -> CmdResult<()> {
-    subs::share_streak(&app, &account, &channel_id, &milestone_id).await
+    subs::share_streak(&app, &account, &channel_id, &milestone_id, value).await
 }
 
 /// V108-N23 Follows the milestones topic while a chat shows the streak prompt.

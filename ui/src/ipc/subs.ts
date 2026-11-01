@@ -19,8 +19,8 @@ export const subsIpc = {
   /** V108-N23 The watch streak the account can share in a channel, if any. */
   streak: (account: string, login: string) => invoke<Streak>('subs_streak', { account, login }),
   /** V108-N23 Posts it to chat as Twitch's own notice. Only from a click. */
-  shareStreak: (account: string, channelId: string, milestoneId: string) =>
-    invoke<void>('subs_share_streak', { account, channelId, milestoneId }),
+  shareStreak: (account: string, channelId: string, milestoneId: string, value: number) =>
+    invoke<void>('subs_share_streak', { account, channelId, milestoneId, value }),
   /** V108-N23 Follows the milestones topic while a prompt could show. */
   watchStreak: (account: string, on: boolean) => invoke<void>('subs_watch_streak', { account, on }),
   onStreak: (handler: (e: StreakChanged) => void) => listen<StreakChanged>('subs:streak', (e) => handler(e.payload)),

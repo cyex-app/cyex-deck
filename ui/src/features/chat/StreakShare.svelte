@@ -88,13 +88,16 @@
     const m = milestone;
     busy = true;
     try {
-      await subsIpc.shareStreak(account, channel, m.id);
+      await subsIpc.shareStreak(account, channel, m.id, m.value);
       handBack(() => waved.add(m.id));
       toast.success('Shared in chat.');
     } catch (e) {
-      // Never a dead button: a streak that didn't share stays hidden this run.
-      handBack(() => waved.add(m.id));
+      // A refusal is kept out by the app, so the read again drops the row; a network error
+      // keeps it (the button works again) and says why.
       toast.error(errorText(e));
+      const box = focusedBox();
+      await load();
+      if (milestone?.id !== m.id) box?.focus();
     } finally {
       busy = false;
     }
@@ -107,9 +110,14 @@
 
   /** Hides the row; focus inside it goes to the message box, not the page. */
   function handBack(hide: () => void) {
-    const box = row?.contains(document.activeElement) ? row.closest('.input')?.querySelector('textarea') : null;
+    const box = focusedBox();
     hide();
     box?.focus();
+  }
+
+  /** The message box, when focus is inside the row. */
+  function focusedBox() {
+    return row?.contains(document.activeElement) ? row.closest('.input')?.querySelector('textarea') : null;
   }
 
   function onkeydown(e: KeyboardEvent) {
