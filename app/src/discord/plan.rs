@@ -1,6 +1,7 @@
 //! V108-N26 When to talk to Discord: it rate-limits activity updates, so changes are
-//! coalesced (only the newest wanted state is sent) and spaced; a missing Discord is retried
-//! quietly. Pure: the worker passes in the time.
+//! coalesced (only the newest wanted state is sent) and spaced, across reconnects too; a
+//! missing Discord is retried quietly. Nothing to show clears the activity and keeps the
+//! pipe for a while, so toggling doesn't reconnect each time. Pure: the worker passes in the time.
 
 use std::time::{Duration, Instant};
 
@@ -10,6 +11,8 @@ use super::activity::Watch;
 pub const SPACING: Duration = Duration::from_secs(15);
 /// Between two tries to reach a Discord that isn't there.
 pub const RETRY: Duration = Duration::from_secs(20);
+/// How long a pipe showing nothing stays open.
+pub const IDLE: Duration = Duration::from_secs(60);
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Step {
@@ -20,16 +23,21 @@ pub enum Step {
     Connect,
     /// Closing the pipe clears the activity at once.
     Disconnect,
-    Send(Watch),
+    /// An activity, or `None` to clear it.
+    Send(Option<Watch>),
 }
 
 #[derive(Default)]
 pub struct Plan {
     wanted: Option<Watch>,
-    sent: Option<Watch>,
+    /// What Discord shows over this pipe (a new pipe shows nothing).
+    shown: Option<Watch>,
     connected: bool,
+    /// Kept across reconnects: a new pipe doesn't reset Discord's limit.
     last_send: Option<Instant>,
     retry_at: Option<Instant>,
+    /// Since when the pipe has shown nothing.
+    blank_since: Option<Instant>,
 }
 
 impl Plan {
@@ -39,50 +47,57 @@ impl Plan {
     }
 
     pub fn step(&self, now: Instant) -> Step {
-        let Some(want) = &self.wanted else {
-            return if self.connected { Step::Disconnect } else { Step::Idle };
-        };
         if !self.connected {
+            if self.wanted.is_none() {
+                return Step::Idle;
+            }
             return match self.retry_at {
                 Some(t) if t > now => Step::Wait(t - now),
                 _ => Step::Connect,
             };
         }
-        if self.sent.as_ref() == Some(want) {
-            return Step::Idle;
+        if self.shown == self.wanted {
+            if self.wanted.is_some() {
+                return Step::Idle;
+            }
+            let close_at = self.blank_since.unwrap_or(now) + IDLE;
+            return if now >= close_at { Step::Disconnect } else { Step::Wait(close_at - now) };
         }
-        match self.last_send {
-            Some(t) if now < t + SPACING => Step::Wait(t + SPACING - now),
-            _ => Step::Send(want.clone()),
+        match self.last_send.map(|t| t + SPACING).filter(|&t| t > now) {
+            None => Step::Send(self.wanted.clone()),
+            // A clear that would have to wait: closing the pipe clears at once.
+            Some(_) if self.wanted.is_none() => Step::Disconnect,
+            Some(t) => Step::Wait(t - now),
         }
     }
 
-    pub fn connected(&mut self) {
+    pub fn connected(&mut self, now: Instant) {
         self.connected = true;
         self.retry_at = None;
-        self.sent = None;
-        self.last_send = None;
+        self.shown = None;
+        self.blank_since = Some(now);
     }
 
     pub fn connect_failed(&mut self, now: Instant) {
         self.retry_at = Some(now + RETRY);
     }
 
-    /// The pipe closed on its own (Discord quit): try again after a pause.
+    /// The pipe closed on its own (Discord quit) or stopped answering: try again after a pause.
     pub fn lost(&mut self, now: Instant) {
         self.connected = false;
-        self.sent = None;
+        self.shown = None;
         self.retry_at = Some(now + RETRY);
     }
 
     pub fn disconnected(&mut self) {
         self.connected = false;
-        self.sent = None;
+        self.shown = None;
         self.retry_at = None;
     }
 
-    pub fn sent(&mut self, w: Watch, now: Instant) {
-        self.sent = Some(w);
+    pub fn sent(&mut self, w: Option<Watch>, now: Instant) {
+        self.blank_since = if w.is_none() { Some(now) } else { None };
+        self.shown = w;
         self.last_send = Some(now);
     }
 }
@@ -93,6 +108,10 @@ mod tests {
 
     fn w(login: &str) -> Watch {
         Watch { login: login.into(), name: login.into(), avatar: None }
+    }
+
+    fn secs(n: u64) -> Duration {
+        Duration::from_secs(n)
     }
 
     #[test]
@@ -107,10 +126,10 @@ mod tests {
         let mut p = Plan::default();
         p.want(Some(w("a")));
         assert_eq!(p.step(t0), Step::Connect);
-        p.connected();
-        assert_eq!(p.step(t0), Step::Send(w("a")));
-        p.sent(w("a"), t0);
-        assert_eq!(p.step(t0 + Duration::from_secs(60)), Step::Idle);
+        p.connected(t0);
+        assert_eq!(p.step(t0), Step::Send(Some(w("a"))));
+        p.sent(Some(w("a")), t0);
+        assert_eq!(p.step(t0 + secs(60)), Step::Idle);
     }
 
     #[test]
@@ -118,12 +137,12 @@ mod tests {
         let t0 = Instant::now();
         let mut p = Plan::default();
         p.want(Some(w("a")));
-        p.connected();
-        p.sent(w("a"), t0);
+        p.connected(t0);
+        p.sent(Some(w("a")), t0);
         p.want(Some(w("b")));
         p.want(Some(w("c")));
-        assert_eq!(p.step(t0 + Duration::from_secs(5)), Step::Wait(Duration::from_secs(10)));
-        assert_eq!(p.step(t0 + SPACING), Step::Send(w("c")));
+        assert_eq!(p.step(t0 + secs(5)), Step::Wait(secs(10)));
+        assert_eq!(p.step(t0 + SPACING), Step::Send(Some(w("c"))));
     }
 
     #[test]
@@ -131,29 +150,54 @@ mod tests {
         let t0 = Instant::now();
         let mut p = Plan::default();
         p.want(Some(w("a")));
-        p.connected();
-        p.sent(w("a"), t0);
+        p.connected(t0);
+        p.sent(Some(w("a")), t0);
         p.want(Some(w("b")));
         p.want(Some(w("a")));
-        assert_eq!(p.step(t0 + Duration::from_secs(1)), Step::Idle);
+        assert_eq!(p.step(t0 + secs(1)), Step::Idle);
     }
 
     #[test]
-    fn nothing_wanted_closes_at_once() {
+    fn nothing_wanted_clears_and_keeps_the_pipe_a_while() {
         let t0 = Instant::now();
         let mut p = Plan::default();
         p.want(Some(w("a")));
-        p.connected();
-        p.sent(w("a"), t0);
+        p.connected(t0);
+        p.sent(Some(w("a")), t0);
+        let t1 = t0 + SPACING;
         p.want(None);
-        assert_eq!(p.step(t0), Step::Disconnect);
+        assert_eq!(p.step(t1), Step::Send(None));
+        p.sent(None, t1);
+        assert_eq!(p.step(t1 + secs(10)), Step::Wait(IDLE - secs(10)));
+        // Back on within the minute: same pipe, spaced from the clear.
+        p.want(Some(w("a")));
+        assert_eq!(p.step(t1 + secs(10)), Step::Wait(secs(5)));
+        assert_eq!(p.step(t1 + SPACING), Step::Send(Some(w("a"))));
+        p.sent(Some(w("a")), t1 + SPACING);
+        p.want(None);
+        let t2 = t1 + SPACING + SPACING;
+        assert_eq!(p.step(t2), Step::Send(None));
+        p.sent(None, t2);
+        assert_eq!(p.step(t2 + IDLE), Step::Disconnect);
         p.disconnected();
-        assert_eq!(p.step(t0), Step::Idle);
-        // A new start is not held back by the earlier send.
+        assert_eq!(p.step(t2 + IDLE), Step::Idle);
+    }
+
+    #[test]
+    fn a_clear_inside_the_spacing_closes_and_the_next_start_is_spaced() {
+        let t0 = Instant::now();
+        let mut p = Plan::default();
+        p.want(Some(w("a")));
+        p.connected(t0);
+        p.sent(Some(w("a")), t0);
+        p.want(None);
+        assert_eq!(p.step(t0 + secs(2)), Step::Disconnect);
+        p.disconnected();
         p.want(Some(w("b")));
-        assert_eq!(p.step(t0), Step::Connect);
-        p.connected();
-        assert_eq!(p.step(t0), Step::Send(w("b")));
+        assert_eq!(p.step(t0 + secs(3)), Step::Connect);
+        p.connected(t0 + secs(3));
+        assert_eq!(p.step(t0 + secs(3)), Step::Wait(secs(12)));
+        assert_eq!(p.step(t0 + SPACING), Step::Send(Some(w("b"))));
     }
 
     #[test]
@@ -163,7 +207,7 @@ mod tests {
         p.want(Some(w("a")));
         assert_eq!(p.step(t0), Step::Connect);
         p.connect_failed(t0);
-        assert_eq!(p.step(t0 + Duration::from_secs(5)), Step::Wait(Duration::from_secs(15)));
+        assert_eq!(p.step(t0 + secs(5)), Step::Wait(secs(15)));
         assert_eq!(p.step(t0 + RETRY), Step::Connect);
     }
 
@@ -172,11 +216,11 @@ mod tests {
         let t0 = Instant::now();
         let mut p = Plan::default();
         p.want(Some(w("a")));
-        p.connected();
-        p.sent(w("a"), t0);
+        p.connected(t0);
+        p.sent(Some(w("a")), t0);
         p.lost(t0);
         assert_eq!(p.step(t0), Step::Wait(RETRY));
-        p.connected();
-        assert_eq!(p.step(t0 + RETRY), Step::Send(w("a")));
+        p.connected(t0 + RETRY);
+        assert_eq!(p.step(t0 + RETRY), Step::Send(Some(w("a"))));
     }
 }
