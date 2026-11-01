@@ -8,6 +8,7 @@
 mod activity;
 mod frame;
 mod plan;
+mod status;
 
 use std::fs::OpenOptions;
 use std::io::{self, Read, Write};
@@ -21,6 +22,7 @@ use serde_json::Value;
 pub use activity::Watch;
 use activity::{Kind, activity as build_activity, handshake, set_activity};
 use plan::{Plan, Step};
+pub use status::DiscordStatus;
 
 /// The Discord app's ID, from the build (public, like the Twitch client IDs; kept out of the code).
 const CLIENT_ID: Option<&str> = match option_env!("DISCORD_CLIENT_ID") {
@@ -38,15 +40,20 @@ pub fn available() -> bool {
     CLIENT_ID.is_some()
 }
 
-static WORKER: Mutex<Option<Sender<Option<Watch>>>> = Mutex::new(None);
+/// What the window tells the worker.
+enum Msg {
+    Watch(Option<Watch>),
+    /// The setting is on (keep checking the link) or off.
+    Probe(bool),
+}
 
-/// What the window plays now, or `None` for nothing (or the setting off). Cheap to call often;
-/// the worker coalesces and spaces what reaches Discord.
-pub fn watch(w: Option<Watch>) {
+static WORKER: Mutex<Option<Sender<Msg>>> = Mutex::new(None);
+
+fn tell(m: Msg) {
     let Some(id) = CLIENT_ID else { return };
     let mut slot = WORKER.lock().unwrap_or_else(|e| e.into_inner());
     if slot.is_none() {
-        if w.is_none() {
+        if matches!(m, Msg::Watch(None) | Msg::Probe(false)) {
             return;
         }
         let (tx, rx) = mpsc::channel();
@@ -56,8 +63,25 @@ pub fn watch(w: Option<Watch>) {
         *slot = Some(tx);
     }
     if let Some(tx) = slot.as_ref() {
-        let _ = tx.send(w);
+        let _ = tx.send(m);
     }
+}
+
+/// What the window plays now, or `None` for nothing (or the setting off). Cheap to call often;
+/// the worker coalesces and spaces what reaches Discord.
+pub fn watch(w: Option<Watch>) {
+    tell(Msg::Watch(w));
+}
+
+/// The setting turned on or off. On: one connect right away so the status is real, then a
+/// check about once a minute (every 20 s while Discord is missing). Off: status back to Off.
+pub fn probe(on: bool) {
+    tell(Msg::Probe(on));
+}
+
+/// How the link stands now.
+pub fn status() -> DiscordStatus {
+    status::get()
 }
 
 // ---- the pipe, on its own thread ----
@@ -246,7 +270,14 @@ impl Start {
     }
 }
 
-fn run(rx: &mpsc::Receiver<Option<Watch>>, client_id: &str) {
+/// Publishes the link state, but only while the setting is on.
+fn report(plan: &Plan, connected: bool) {
+    if plan.probing() {
+        status::set(DiscordStatus::of_connect(connected));
+    }
+}
+
+fn run(rx: &mpsc::Receiver<Msg>, client_id: &str) {
     let mut plan = Plan::default();
     let mut conn: Option<Conn> = None;
     let mut start = Start::default();
@@ -260,8 +291,12 @@ fn run(rx: &mpsc::Receiver<Option<Watch>>, client_id: &str) {
                     Some(c) => {
                         conn = Some(c);
                         plan.connected(Instant::now());
+                        report(&plan, true);
                     }
-                    None => plan.connect_failed(Instant::now()),
+                    None => {
+                        plan.connect_failed(Instant::now());
+                        report(&plan, false);
+                    }
                 }
                 continue;
             }
@@ -277,6 +312,7 @@ fn run(rx: &mpsc::Receiver<Option<Watch>>, client_id: &str) {
                 } else {
                     conn = None;
                     plan.lost(Instant::now());
+                    report(&plan, false);
                 }
                 continue;
             }
@@ -290,9 +326,19 @@ fn run(rx: &mpsc::Receiver<Option<Watch>>, client_id: &str) {
             },
         };
         let Ok(first) = got else { return };
-        for w in std::iter::once(first).chain(rx.try_iter()) {
-            start.note(w.as_ref(), Instant::now(), now_secs());
-            plan.want(w);
+        for m in std::iter::once(first).chain(rx.try_iter()) {
+            match m {
+                Msg::Watch(w) => {
+                    start.note(w.as_ref(), Instant::now(), now_secs());
+                    plan.want(w);
+                }
+                Msg::Probe(on) => {
+                    plan.set_probe(on);
+                    if !on {
+                        status::set(DiscordStatus::Off);
+                    }
+                }
+            }
         }
     }
 }

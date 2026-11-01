@@ -3,6 +3,7 @@
 import { untrack } from 'svelte';
 
 import { discordIpc } from '../../ipc/discord';
+import type { DiscordStatus } from '../../ipc/bindings/DiscordStatus';
 import type { Tab } from '../../ipc/bindings/Tab';
 import { settings } from '../../lib/settings.svelte';
 import { heardTile } from '../tabs/audioFocus';
@@ -22,6 +23,18 @@ class Build {
       this.ok = false;
     }
   }
+}
+
+/** How the Discord link stands, polled while Settings shows the row (the link changes on its own). */
+export function pollDiscordStatus(active: () => boolean, set: (s: DiscordStatus) => void): () => void {
+  if (!active()) {
+    set('off');
+    return () => {};
+  }
+  const tick = () => void discordIpc.status().then(set, () => set('off'));
+  tick();
+  const id = setInterval(tick, 3000);
+  return () => clearInterval(id);
 }
 
 /** Whether this build has a Discord app ID (Settings greys the toggle out without). */
@@ -56,6 +69,12 @@ export function useDiscordPresence(shown: () => Tab | undefined): void {
   $effect(() => {
     const k = key;
     untrack(() => void discordIpc.watch(k ? JSON.parse(k) : null).catch(() => {}));
+  });
+  // The setting on makes Rust check the link now, so Settings can say whether Discord answers.
+  const on = $derived(discordBuild.ok === true && settings.v.general.discordPresence);
+  $effect(() => {
+    const v = on;
+    untrack(() => void discordIpc.probe(v).catch(() => {}));
   });
   // The window closing clears it too (Discord drops the activity with the pipe).
   $effect(() => () => void discordIpc.watch(null).catch(() => {}));

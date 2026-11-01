@@ -168,6 +168,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         chat_extra::chat_moments,
         discord::discord_available,
         discord::discord_watch,
+        discord::discord_probe,
+        discord::discord_status,
         hypetrain::chat_hype_train,
         hypetrain::chat_hype_watch,
         chat_extra::chat_vote,

@@ -33,6 +33,8 @@ pub struct Plan {
     /// What Discord shows over this pipe (a new pipe shows nothing).
     shown: Option<Watch>,
     connected: bool,
+    /// The setting is on: keep checking that Discord is there, even with nothing to show (V108-N26 status).
+    probe: bool,
     /// Kept across reconnects: a new pipe doesn't reset Discord's limit.
     last_send: Option<Instant>,
     retry_at: Option<Instant>,
@@ -46,9 +48,17 @@ impl Plan {
         self.wanted = w;
     }
 
+    pub fn set_probe(&mut self, on: bool) {
+        self.probe = on;
+    }
+
+    pub fn probing(&self) -> bool {
+        self.probe
+    }
+
     pub fn step(&self, now: Instant) -> Step {
         if !self.connected {
-            if self.wanted.is_none() {
+            if self.wanted.is_none() && !self.probe {
                 return Step::Idle;
             }
             return match self.retry_at {
@@ -118,6 +128,24 @@ mod tests {
     fn idle_without_a_want() {
         let p = Plan::default();
         assert_eq!(p.step(Instant::now()), Step::Idle);
+    }
+
+    #[test]
+    fn probing_connects_with_nothing_to_show_and_rechecks_after_idle() {
+        let t0 = Instant::now();
+        let mut p = Plan::default();
+        p.set_probe(true);
+        assert_eq!(p.step(t0), Step::Connect);
+        p.connect_failed(t0);
+        assert_eq!(p.step(t0 + secs(5)), Step::Wait(RETRY - secs(5)));
+        assert_eq!(p.step(t0 + RETRY), Step::Connect);
+        p.connected(t0);
+        assert_eq!(p.step(t0 + secs(5)), Step::Wait(IDLE - secs(5)));
+        assert_eq!(p.step(t0 + IDLE), Step::Disconnect);
+        p.disconnected();
+        assert_eq!(p.step(t0 + IDLE), Step::Connect);
+        p.set_probe(false);
+        assert_eq!(p.step(t0 + IDLE), Step::Idle);
     }
 
     #[test]

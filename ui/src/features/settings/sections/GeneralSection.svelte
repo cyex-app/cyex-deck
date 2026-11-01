@@ -12,7 +12,8 @@
   import { formatTime } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
   import { MAX_HIDDEN_TAGS, withoutHidden, withTag } from '../../discover/hidden';
-  import { discordBuild } from '../../discord/discord.svelte';
+  import type { DiscordStatus } from '../../../ipc/bindings/DiscordStatus';
+  import { discordBuild, pollDiscordStatus } from '../../discord/discord.svelte';
   import FontPicker from '../FontPicker.svelte';
   import ResetSection from '../ResetSection.svelte';
 
@@ -20,6 +21,10 @@
   $effect(() => {
     void discordBuild.load();
   });
+  // V108-N26 Status hint beside the Discord switch.
+  let discordLink = $state<DiscordStatus>('off');
+  const discordOn = $derived(discordBuild.ok === true && g.discordPresence);
+  $effect(() => pollDiscordStatus(() => discordOn, (s) => (discordLink = s)));
   const b = $derived(settings.v.browse);
 
   // V108-N05
@@ -96,6 +101,9 @@
   label="Show on Discord"
   hint={discordBuild.ok === false ? 'Needs a Discord app ID in this build.' : 'Your Discord profile shows the channel you watch, with a button to open it on Twitch.'}
 >
+  {#if discordOn && discordLink !== 'off'}
+    <span class="link-hint">{discordLink === 'connected' ? 'Connected' : "Discord isn't running"}</span>
+  {/if}
   <Toggle
     label="Show on Discord"
     checked={g.discordPresence && discordBuild.ok === true}
@@ -186,6 +194,10 @@
 <ResetSection partition="general" page="general" />
 
 <style>
+  .link-hint {
+    font-size: var(--text-hint);
+    color: var(--dim);
+  }
   .hid {
     display: flex;
     flex-wrap: wrap;
