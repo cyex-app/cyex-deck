@@ -10,15 +10,17 @@
     ad: boolean;
     /** Q21 a The stream is over while rewound. */
     ended: boolean;
+    /** V108-P5 The stream didn't load: no live badge, nothing to go to. */
+    failed?: boolean;
     /** rd-3 Stuck and reopening: it isn't live, whatever the play head says. */
     stalled?: boolean;
     hint: string;
     onlive: () => void;
   }
 
-  let { behind, atLive, ad, ended, stalled = false, hint, onlive }: Props = $props();
+  let { behind, atLive, ad, ended, failed = false, stalled = false, hint, onlive }: Props = $props();
 
-  const live = $derived(!stalled && (atLive || ad));
+  const live = $derived(!stalled && !failed && (atLive || ad));
   const secs = $derived(behind === null ? null : Math.round(behind));
 
   const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -31,20 +33,20 @@
     return plural(s, 'second');
   }
 
-  const label = $derived(ended ? 'Stream offline' : stalled ? 'Stalled. Go to live' : live ? 'Live' : secs === null ? 'Behind live. Go to live' : `${spoken(secs)} behind. Go to live`);
+  const label = $derived(ended ? 'Stream offline' : failed ? 'Not playing' : stalled ? 'Stalled. Go to live' : live ? 'Live' : secs === null ? 'Behind live. Go to live' : `${spoken(secs)} behind. Go to live`);
   // rd-3 Stalled: the behind look (a click goes to live), and it doesn't say "Live".
-  const text = $derived(ended ? 'Offline' : stalled ? 'Stalled' : live || secs === null ? 'Live' : behindText(secs));
-  const tip = $derived(ended ? '' : live ? 'Live' : hint ? `Go to live (${hint})` : 'Go to live');
+  const text = $derived(ended ? 'Offline' : failed ? 'Not playing' : stalled ? 'Stalled' : live || secs === null ? 'Live' : behindText(secs));
+  const tip = $derived(ended || failed ? '' : live ? 'Live' : hint ? `Go to live (${hint})` : 'Go to live');
 </script>
 
 <button
   class="live-btn"
-  class:behind={!live && !ended}
-  class:ended
+  class:behind={!live && !ended && !failed}
+  class:ended={ended || failed}
   aria-label={label}
-  aria-disabled={live || ended}
+  aria-disabled={live || ended || failed}
   use:tooltip={tip}
-  onclick={() => !live && !ended && onlive()}
+  onclick={() => !live && !ended && !failed && onlive()}
 >
   <span class="dot" aria-hidden="true"></span>
   <span class="txt">{text}</span>

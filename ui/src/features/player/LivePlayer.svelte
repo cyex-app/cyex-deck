@@ -533,7 +533,8 @@
 
     {#snippet bar()}
       {#if !mini}
-        {#if rewind.on}
+        <!-- V108-P5 A stream that didn't load has nothing to seek in. -->
+        {#if rewind.on && !failure}
           <!-- V1061-03 The whole broadcast; at live the thumb sits at the right end. V108-N24 The
                replay: only what it holds, so nothing on the bar moves at live. -->
           {@const b = rewind.start}
@@ -563,7 +564,7 @@
   <button class="ctl" aria-label={engine?.playing ? 'Pause' : 'Play'} use:tooltip={key('player.playPause', engine?.playing ? 'Pause' : 'Play')} onclick={controls.togglePlay}>
     <Icon name={engine?.playing ? 'pause' : 'play'} size={18} />
   </button>
-  <LiveButton behind={rewind.behind} atLive={rewind.atLive} stalled={!!engine?.stalled} ad={ad === 'waiting'} ended={rewind.over} hint={bindingOf('player.live')} onlive={() => void rewind.toLive()} />
+  <LiveButton behind={rewind.behind} atLive={rewind.atLive} stalled={!!engine?.stalled} ad={ad === 'waiting'} ended={rewind.over || failure === 'offline'} failed={!!failure} hint={bindingOf('player.live')} onlive={() => void rewind.toLive()} />
   <Volume volume={sound.volume} muted={sound.muted} boost={sound.boost} onchange={sound.set} onboost={sound.setBoost} />
   <span class="grow"></span>
   {#if onclip}
