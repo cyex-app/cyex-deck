@@ -128,7 +128,7 @@ test('chips: scope, then warnings (the state), then the rest (kb-3)', () => {
   const c = cardChips(card({ flags: ['channel', 'tier2', 'animated'], state: 'Archived' }), true);
   assert.deepEqual(
     c.map((x) => x.text),
-    ['Channel', 'Archived', 'Tier 2', 'Animated', 'Gigantified'],
+    ['Channel', 'Archived', 'Tier 2', 'Gigantified'],
   );
   assert.equal(c[0].tip, 'Belongs to a channel');
   assert.equal(c[2].tip, 'For subscribers at tier 2 and up');
@@ -161,14 +161,14 @@ test('7TV chips: overlaying, private, warnings, rename tip', () => {
   // Scope comes first even when the flags list it later.
   assert.deepEqual(
     cardChips(card({ flags: ['animated', 'global'] }), false).map((x) => x.text),
-    ['Global', 'Animated'],
+    ['Global'],
   );
 });
 
 test('Shared sits with the scope, before the warnings (fa-3)', () => {
   assert.deepEqual(
     cardChips(card({ provider: 'bttv', flags: ['channel', 'nsfw', 'animated', 'shared'] }), false).map((x) => x.text),
-    ['Channel', 'Shared', 'NSFW', 'Animated'],
+    ['Channel', 'Shared', 'NSFW'],
   );
 });
 

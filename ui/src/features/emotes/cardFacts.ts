@@ -166,7 +166,8 @@ function flagChip(f: CardFlag, info: EmoteCard): Chip {
 /** kb-3 The chips after the provider's: scope, then the warnings (the state among them),
  *  then the rest in the card's order and gigantified. */
 export function cardChips(info: EmoteCard | null, giant: boolean): Chip[] {
-  const flags = info?.flags ?? [];
+  // V108-C24 Animated says nothing the picture doesn't (user, 2026/11/01).
+  const flags = (info?.flags ?? []).filter((f) => f !== 'animated');
   const scope = flags.filter((f) => SCOPE.includes(f));
   const rest = flags.filter((f) => !SCOPE.includes(f));
   const chips = info ? [...scope, ...rest].map((f) => flagChip(f, info)) : [];
