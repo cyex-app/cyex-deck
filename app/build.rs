@@ -3,7 +3,11 @@ fn main() {
     // environment's DISCORD_CLIENT_ID, else the same line in the repo's .env. Missing or not
     // all digits: nothing is set and Rich Presence stays off in this build.
     println!("cargo:rerun-if-env-changed=DISCORD_CLIENT_ID");
-    println!("cargo:rerun-if-changed=../.env");
+    // A missing path would rerun this script on every build. A .env added later needs
+    // `cargo clean -p cyex-deck` (or DISCORD_CLIENT_ID in the environment).
+    if std::path::Path::new("../.env").exists() {
+        println!("cargo:rerun-if-changed=../.env");
+    }
     if let Some(id) = discord_client_id() {
         println!("cargo:rustc-env=DISCORD_CLIENT_ID={id}");
     }
