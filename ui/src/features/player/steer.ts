@@ -18,9 +18,9 @@ export const SPARE_SAFE = 0.4;
 export const RATE_FAST = 1.05;
 export const RATE_SLOW = 0.95;
 /** V108-LL6 s of spare added per dry run, the most it adds, and how fast it wears off (s per s:
- *  one step in 10 min). */
-export const MARGIN_STEP = 0.5;
-export const MARGIN_MAX = 1.5;
+ *  one step in 10 min). Halved (was 0.5 / 1.5) by the user: less delay on a bad stream. */
+export const MARGIN_STEP = 0.25;
+export const MARGIN_MAX = 0.75;
 export const MARGIN_DECAY = MARGIN_STEP / 600;
 /** V108-LL6 s at 1× before it speeds up again: the speed changed every few seconds at the band's
  *  edge (fast, 1×, slow within a second before a stall). */

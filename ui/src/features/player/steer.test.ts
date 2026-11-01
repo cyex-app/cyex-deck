@@ -47,10 +47,10 @@ test('V108-LL6 after a dry run it keeps more spare: no speed up at a spare that 
   const s = new Steer();
   s.dry(0);
   assert.equal(s.margin, MARGIN_STEP);
-  // 1.2 s spare: fast before (over 0.9), now under 0.9 + 0.5 and over 0.25 + 0.5.
-  assert.equal(feed(s, 0, 10, 1.2), 1);
-  // 0.6 s spare is thin now: it slows down to build the margin back.
-  assert.equal(feed(s, 10, 20, 0.6), RATE_SLOW);
+  // 1.1 s spare: fast before (over 0.9), now under 0.9 + 0.25 and over 0.25 + 0.25.
+  assert.equal(feed(s, 0, 10, 1.1), 1);
+  // 0.45 s spare is thin now: it slows down to build the margin back.
+  assert.equal(feed(s, 10, 20, 0.45), RATE_SLOW);
 });
 
 test('V108-LL6 the margin adds up to a cap, survives a reset and wears off over minutes', () => {
