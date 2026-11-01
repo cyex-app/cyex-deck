@@ -259,16 +259,18 @@
     gap: 3px;
     min-width: 0;
   }
-  /* Clear of the buttons in the corner. */
+  /* Clear of the buttons in the corner (four at most, 4 x 28 + 3 x 2 + 6). */
   .name {
     display: flex;
     gap: 6px;
     align-items: baseline;
     min-width: 0;
-    padding-right: 90px;
+    padding-right: 124px;
     font-size: 1.1rem;
   }
   .name strong {
+    /* Mixed or right-to-left names keep their own order and don't pull the login around. */
+    unicode-bidi: isolate;
     font-weight: 800;
     user-select: text;
     cursor: text;
@@ -283,8 +285,13 @@
     color: var(--cl);
   }
   .login {
+    min-width: 0;
+    overflow: hidden;
+    unicode-bidi: isolate;
     color: var(--dim);
     font-size: 0.8rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   /* The paint is the box's background (its class sets picture or gradient, and the
      shadows); a dark veil and a text shadow keep the name readable on any paint. */
