@@ -25,6 +25,35 @@
 
   const theme = $derived(settings.v.appearance.theme);
   let box = $state<HTMLElement>();
+  /** V108-N09 The row's scroller, and which of its ends hide chips. */
+  let strip = $state<HTMLElement>();
+  let more = $state({ left: false, right: false });
+
+  function measure() {
+    if (!strip) return;
+    const max = strip.scrollWidth - strip.clientWidth;
+    more = { left: strip.scrollLeft > 1, right: strip.scrollLeft < max - 1 };
+  }
+
+  /** A vertical wheel over the row scrolls it sideways. */
+  function wheelSideways(node: HTMLElement) {
+    const h = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX) || node.scrollWidth <= node.clientWidth) return;
+      e.preventDefault();
+      node.scrollLeft += e.deltaY;
+    };
+    node.addEventListener('wheel', h, { passive: false });
+    return { destroy: () => node.removeEventListener('wheel', h) };
+  }
+
+  $effect(() => {
+    void items;
+    if (!row || !strip) return;
+    measure();
+    const size = new ResizeObserver(measure);
+    size.observe(strip);
+    return () => size.disconnect();
+  });
 
   // Arrowing past the visible rows keeps the active one in view.
   $effect(() => {
@@ -34,7 +63,7 @@
   });
 </script>
 
-<div class="suggest" class:row bind:this={box} role="listbox" aria-orientation={row ? 'horizontal' : 'vertical'} use:floating={{ anchor, side: 'above', gap: 4, matchWidth: true }}>
+{#snippet chips()}
   {#each items as item, i (item.value)}
     <button
       class="item"
@@ -53,6 +82,16 @@
       {#if item.hint}<span class="hint">{item.hint}</span>{/if}
     </button>
   {/each}
+{/snippet}
+
+<div class="suggest" class:row bind:this={box} role="listbox" aria-orientation={row ? 'horizontal' : 'vertical'} use:floating={{ anchor, side: 'above', gap: 4, matchWidth: true }}>
+  {#if row}
+    <div class="strip" class:fade-l={more.left} class:fade-r={more.right} bind:this={strip} onscroll={measure} use:wheelSideways>
+      {@render chips()}
+    </div>
+  {:else}
+    {@render chips()}
+  {/if}
 </div>
 
 <style>
@@ -69,11 +108,26 @@
   }
   /* V108-N09 One line, newest match first; scrolls sideways when it is longer than the box. */
   .suggest.row {
+    max-height: none;
+    padding: 0;
+    overflow: hidden;
+  }
+  .strip {
     display: flex;
     gap: 2px;
-    max-height: none;
+    padding: 4px;
     overflow: auto hidden;
     scrollbar-width: none;
+  }
+  /* A soft edge where chips are hidden. */
+  .strip.fade-l {
+    mask-image: linear-gradient(to right, transparent, #000 24px);
+  }
+  .strip.fade-r {
+    mask-image: linear-gradient(to left, transparent, #000 24px);
+  }
+  .strip.fade-l.fade-r {
+    mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
   }
   .row .item {
     flex: none;
