@@ -136,7 +136,9 @@
   }
   function editReply(i: number, text: string) {
     const t = text.trim();
-    setReplies(t ? c.quickReplies.map((r, j) => (j === i ? t : r)) : c.quickReplies.filter((_, j) => j !== i));
+    // Emptied, or now the same as another phrase: this row goes (merged into the other).
+    const drop = !t || c.quickReplies.some((r, j) => j !== i && r === t);
+    setReplies(drop ? c.quickReplies.filter((_, j) => j !== i) : c.quickReplies.map((r, j) => (j === i ? t : r)));
   }
 
   /** M10 Mod mode's buttons: your timeout lengths plus any already picked. */
@@ -710,6 +712,10 @@
     width: 100%;
     min-width: 0;
     height: 28px;
+  }
+  /* The add field ends where the rows' fields end (gap 4 + the 20 px ×). */
+  .replies form {
+    padding-right: 24px;
   }
   .reply button {
     position: relative;
