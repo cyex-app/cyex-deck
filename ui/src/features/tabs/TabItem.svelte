@@ -169,12 +169,15 @@
     position: relative;
     display: flex;
     align-items: center;
-    flex: none;
+    /* V108-F10 Tabs give way (down to a floor) before a row wraps, so the "+" stays on the row. */
+    flex: 0 1 auto;
+    min-width: min(88px, 100%);
     /* Never wider than the bar: in a narrow window the name ends in "…" instead of being cut. */
     max-width: min(200px, 100%);
     min-height: calc(var(--tab-h) + 2 * var(--row-g, 0px));
   }
   .tab.vertical {
+    flex: none;
     width: 100%;
     min-width: 0;
     max-width: none;
