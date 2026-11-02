@@ -152,7 +152,8 @@ fn entities(s: &str) -> String {
                 "apos" => '\'',
                 _ => {
                     let n = name.strip_prefix("#x").map(|h| u32::from_str_radix(h, 16)).or_else(|| name.strip_prefix('#').map(str::parse))?;
-                    char::from_u32(n.ok()?)?
+                    // V108-F37 No NUL or ESC from a numeric entity; it stays as the text it was.
+                    char::from_u32(n.ok()?).filter(|c| !c.is_control())?
                 }
             };
             Some((c, e))
@@ -175,6 +176,12 @@ fn entities(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v108_f37_numeric_entities_never_make_control_characters() {
+        assert_eq!(entities("a&#0;b&#27;c&#x7;d"), "a&#0;b&#27;c&#x7;d");
+        assert_eq!(entities("&#65;&#x42;&amp;"), "AB&");
+    }
 
     fn parse(json: &str) -> Option<LinkInfo> {
         info(serde_json::from_str(json).unwrap())
