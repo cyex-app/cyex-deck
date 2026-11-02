@@ -2,7 +2,7 @@
 //! channel's FFZ room is read again every 10 minutes and after the chat reconnects. What changed
 //! becomes chat lines (no one named: FFZ does not say) and the channel's set follows.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use cyex_chat::model::Provider;
@@ -67,7 +67,34 @@ fn nothing_to_read(had_set: bool, has_set: bool) -> bool {
     !had_set && !has_set
 }
 
+/// V108-F33 Channels being read right now: a reconnect inside the 10-minute round must not
+/// read (and post the changes) a second time.
+static READING: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+struct Reading(String);
+
+impl Reading {
+    fn take(login: &str) -> Option<Self> {
+        let mut on = READING.lock().unwrap_or_else(PoisonError::into_inner);
+        if on.iter().any(|l| l == login) {
+            return None;
+        }
+        on.push(login.to_owned());
+        Some(Self(login.to_owned()))
+    }
+}
+
+impl Drop for Reading {
+    fn drop(&mut self) {
+        let mut on = READING.lock().unwrap_or_else(PoisonError::into_inner);
+        on.retain(|l| *l != self.0);
+    }
+}
+
 async fn check(app: &AppHandle, login: &str) {
+    let Some(_reading) = Reading::take(login) else {
+        return;
+    };
     let Some((id, generation, old)) = current(app, login) else {
         return;
     };
@@ -117,5 +144,14 @@ mod tests {
         assert!(!nothing_to_read(false, true));
         assert!(!nothing_to_read(true, false));
         assert!(!nothing_to_read(true, true));
+    }
+
+    #[test]
+    fn v108_f33_one_read_per_channel_at_a_time() {
+        let first = Reading::take("f33_a").expect("free");
+        assert!(Reading::take("f33_a").is_none());
+        assert!(Reading::take("f33_b").is_some());
+        drop(first);
+        assert!(Reading::take("f33_a").is_some());
     }
 }
