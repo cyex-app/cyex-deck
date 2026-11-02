@@ -45,7 +45,7 @@
   import { openTarget, playerHotkeys } from '../features/player/players.svelte';
   import { openChannel } from '../features/browse/open.svelte';
   import { barPlace, sideBarWidth } from '../features/tabs/barLayout';
-  import { stepTab } from '../features/tabs/cycle';
+  import { moveSlot, stepTab } from '../features/tabs/cycle';
   import { heldAfterStart, nextHeld, playingNow } from '../features/tabs/hold';
   import { audioFocus } from '../features/tabs/audioFocus.svelte';
   import { useDiscordPresence } from '../features/discord/discord.svelte';
@@ -229,6 +229,8 @@
     'tabs.reopen': () => void tabs.reopen().then((id) => id && open(id)),
     'tabs.next': () => step(1),
     'tabs.prev': () => step(-1),
+    'tabs.moveLeft': () => moveCurrent(-1),
+    'tabs.moveRight': () => moveCurrent(1),
     'tabs.onlyLive': () => {
       const on = !settings.v.appearance.tabOnlyLive;
       void settings.patch('appearance', { tabOnlyLive: on });
@@ -422,6 +424,12 @@
   function step(by: number) {
     const next = stepTab(tabs.shownIds(current), current, by, true);
     if (next) open(next);
+  }
+
+  /** V108-F07 Moves the open tab one place along the bar. */
+  function moveCurrent(by: number) {
+    const slot = current ? moveSlot(tabs.list, current, by) : null;
+    if (current && slot) void tabs.apply({ op: 'move', tab: current, ...slot });
   }
 
   /** Opens a channel by login, as a tab of its own. */

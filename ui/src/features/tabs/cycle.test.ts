@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { stepTab, WheelSteps } from './cycle.ts';
+import { moveSlot, stepTab, WheelSteps } from './cycle.ts';
 
 const ids = ['a', 'b', 'c'];
 
@@ -34,4 +34,13 @@ test('a notch is one tab, small deltas add up', () => {
   assert.equal(t.step(40, false, 1000), 0, 'the pause dropped the first 40');
   assert.equal(t.step(40, false, 1010), 0);
   assert.equal(t.step(40, false, 1020), 1);
+});
+
+test('V108-F07 moveSlot puts a tab one place left or right, and stops at the ends', () => {
+  const l = ['a', 'b', 'c'].map((id) => ({ id, group: null }));
+  assert.deepEqual(moveSlot(l, 'b', -1), { before: 'a', group: null });
+  assert.deepEqual(moveSlot(l, 'a', 1), { before: 'c', group: null }, 'a lands between b and c');
+  assert.equal(moveSlot(l, 'a', -1), null);
+  assert.equal(moveSlot(l, 'c', 1), null);
+  assert.equal(moveSlot(l, 'x', 1), null);
 });

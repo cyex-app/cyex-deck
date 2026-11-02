@@ -182,6 +182,22 @@ fn moving_a_tab() {
     assert_eq!(order(&t), ["a", "b", "c"]);
 }
 
+/// V108-F07 Moving a tab one place with the keyboard is a `Move` before its new neighbour,
+/// and the new order is what the store holds.
+#[test]
+fn moving_a_tab_one_place_keeps_the_new_order() {
+    let mut t = tabs(&["a", "b", "c"]);
+    let mv = |tab: &str, before: Option<&str>| TabOp::Move {
+        tab: tab.into(),
+        before: before.map(Into::into),
+        group: None,
+    };
+    apply(&mut t, mv("a", Some("c")));
+    assert_eq!(order(&t), ["b", "a", "c"]);
+    apply(&mut t, mv("c", Some("a")));
+    assert_eq!(order(&t), ["b", "c", "a"]);
+}
+
 #[test]
 fn groups_keep_their_tabs_together() {
     let mut t = tabs(&["a", "b", "c", "d"]);

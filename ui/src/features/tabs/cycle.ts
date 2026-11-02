@@ -1,6 +1,8 @@
 // Moving through tabs in the bar's order: Ctrl+Tab wraps around at the ends, the mouse
 // wheel over the tab bar stops there (V102-04).
 
+import { groupAt } from './zones.ts';
+
 /** The tab `by` steps from `current`, or null when that's past an end (and `wrap` is off).
  * From no tab (home, discover), forward is the first tab and back the last. */
 export function stepTab(ids: string[], current: string | null, by: number, wrap: boolean): string | null {
@@ -11,6 +13,22 @@ export function stepTab(ids: string[], current: string | null, by: number, wrap:
   const next = at + by;
   if (wrap) return ids[((next % n) + n) % n];
   return next < 0 || next >= n ? null : ids[next];
+}
+
+/** V108-F07 Where a tab goes when moved `by` places along the bar: the tab to put it before
+ * (null = the end) and the group it lands in, or null at an end of the bar. */
+export function moveSlot(
+  list: { id: string; group: string | null }[],
+  id: string,
+  by: number,
+): { before: string | null; group: string | null } | null {
+  const from = list.findIndex((t) => t.id === id);
+  if (from < 0 || !by) return null;
+  const to = from + by;
+  if (to < 0 || to >= list.length) return null;
+  const rest = list.filter((t) => t.id !== id);
+  const [prev, next] = [rest[to - 1], rest[to]];
+  return { before: next?.id ?? null, group: groupAt(prev, next, list[from].group) };
 }
 
 /** A mouse wheel notch is one tab. A touchpad's small deltas add up to one per 100 px, so

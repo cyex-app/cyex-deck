@@ -14,6 +14,8 @@ export const ACTIONS = {
   'tabs.reopen': { label: 'Reopen closed tab', default: 'Ctrl+Shift+T' },
   'tabs.next': { label: 'Next tab', default: 'Ctrl+Tab' },
   'tabs.prev': { label: 'Previous tab', default: 'Ctrl+Shift+Tab' },
+  'tabs.moveLeft': { label: 'Move the tab left', default: 'Ctrl+Shift+PageUp' },
+  'tabs.moveRight': { label: 'Move the tab right', default: 'Ctrl+Shift+PageDown' },
   'tabs.onlyLive': { label: 'Only live tabs on or off', default: 'Ctrl+Shift+L' },
   'player.playPause': { label: 'Play or pause', default: 'Space' },
   'player.mute': { label: 'Mute', default: 'M' },
