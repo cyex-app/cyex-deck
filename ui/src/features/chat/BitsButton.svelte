@@ -125,7 +125,8 @@
     aria-expanded={open}
     onclick={toggle}
     use:tooltip={{
-      label: balance != null ? `Cheer · ${formatNumber(balance)} Bits` : 'Cheer',
+      // V108-F05 No tip over the open panel (an empty label hides it).
+      label: open ? '' : balance != null ? `Cheer · ${formatNumber(balance)} Bits` : 'Cheer',
       hint: 'Pick an amount and a cheer, then send it with Enter.',
     }}
   >
