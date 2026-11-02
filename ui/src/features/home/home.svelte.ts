@@ -9,6 +9,7 @@ import { everyShown } from '../../lib/awake';
 import { errorText } from '../../lib/errors';
 import { latest } from '../../lib/latest';
 import { settings } from '../../lib/settings.svelte';
+import { toast } from '../../lib/toast.svelte';
 
 const POLL_MS = 60_000;
 
@@ -64,6 +65,8 @@ class HomeStore {
       this.error = null;
     } else {
       if (this.owner !== account) this.follows = null;
+      // V108-F11 The grid stays as it was; a refresh asked for by hand says it failed.
+      else if (force) toast.error("Couldn't refresh.", { key: 'home.refresh' });
       // v1.07 A sentence, not the raw Rust error (or [object Object]).
       this.error = errorText(follows.reason, 'load who you follow');
     }
