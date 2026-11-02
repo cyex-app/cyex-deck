@@ -53,3 +53,19 @@ export function loginFromLink(typed: string): string | null {
   const login = m?.[1].toLowerCase();
   return login && !NOT_CHANNELS.has(login) ? login : null;
 }
+
+/** V108-F12 (S3-01) What Enter does in the channel field. `wait`: the list still belongs to an older
+ *  text (or is being fetched), so look up what's typed now first. A channel: add it. null: nothing to add. */
+export function enterTarget<T extends { login: string }>(
+  typed: string,
+  asked: string,
+  status: 'idle' | 'looking' | 'done' | 'error',
+  results: T[],
+  picked: T | null,
+): T | 'wait' | null {
+  const t = typed.trim();
+  if (!t) return null;
+  if (picked && (status !== 'looking' || asked === t)) return picked;
+  if (status !== 'done' || asked !== t) return status === 'error' && asked === t ? null : 'wait';
+  return results[0] ?? null;
+}

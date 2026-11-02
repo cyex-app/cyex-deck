@@ -127,7 +127,8 @@
   {#if s.source === 'list'}
     <h2>Your list <span class="count">{list.length}</span></h2>
     <div class="add">
-      <div class="picker"><ChannelPicker bind:text bind:picked onsubmit={() => void add()} /></div>
+      <!-- V108-F12 (S3-01) Esc closes the suggestions. -->
+      <div class="picker" role="presentation" onkeydown={(e) => { if (e.key === 'Escape' && text) { e.stopPropagation(); text = ''; } }}><ChannelPicker bind:text bind:picked onsubmit={() => void add()} /></div>
       <Button disabled={!picked} onclick={() => void add()}>Add</Button>
     </div>
     {#if list.length}

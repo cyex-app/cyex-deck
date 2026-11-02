@@ -13,7 +13,7 @@
   import { tabsIpc } from '../../ipc/tabs';
   import { formatNumber } from '../../lib/format';
   import { errorText } from '../../lib/errors';
-  import { loginFromLink, matchChannels } from './channelMatch';
+  import { enterTarget, loginFromLink, matchChannels } from './channelMatch';
 
   interface Props {
     text: string;
@@ -29,6 +29,7 @@
   let status = $state<'idle' | 'looking' | 'done' | 'error'>('idle');
   let error = $state('');
   let asked = '';
+  let pending: ReturnType<typeof setTimeout> | undefined;
 
   // Looks up what's typed; picking a result doesn't start a new lookup.
   $effect(() => {
@@ -44,8 +45,8 @@
       if (picked && [picked.login, picked.id].includes(input.toLowerCase())) return;
       picked = null;
       status = 'looking';
-      const timer = setTimeout(() => void look(input), DEBOUNCE_MS);
-      return () => clearTimeout(timer);
+      pending = setTimeout(() => void look(input), DEBOUNCE_MS);
+      return () => clearTimeout(pending);
     });
   });
 
@@ -94,12 +95,22 @@
     }
   }
 
-  function onkeydown(e: KeyboardEvent) {
+  async function onkeydown(e: KeyboardEvent) {
     if (e.key === 'Enter') {
       e.preventDefault();
-      // V108-P6 Enter on a list takes the best match, as the note says.
-      if (!picked && results.length) picked = results[0];
-      if (picked) onsubmit();
+      // V108-F12 (S3-01) Enter acts on what's typed now: an older list never counts, so flush the lookup first.
+      let t = enterTarget(text, asked, status, results, picked);
+      if (t === 'wait') {
+        const typed = text.trim();
+        clearTimeout(pending);
+        await look(typed);
+        if (text.trim() !== typed) return;
+        t = enterTarget(text, asked, status, results, picked);
+      }
+      if (t && t !== 'wait') {
+        picked = t;
+        onsubmit();
+      }
     } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && results.length > 1) {
       e.preventDefault();
       const at = results.findIndex((c) => c.id === picked?.id);

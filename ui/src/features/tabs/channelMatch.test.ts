@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { liveOrExact, loginFromLink, matchChannels, type Candidate } from './channelMatch.ts';
+import { enterTarget, liveOrExact, loginFromLink, matchChannels, type Candidate } from './channelMatch.ts';
 
 const ch = (id: string, login: string, live = false, name = login): Candidate => ({
   id,
@@ -60,4 +60,14 @@ test('loginFromLink: channel links give the login, other text none', () => {
   assert.equal(loginFromLink('https://www.twitch.tv/videos/123'), null);
   assert.equal(loginFromLink('rvbdev'), null);
   assert.equal(loginFromLink('https://example.com/rvbdev'), null);
+});
+
+test('Enter waits when the list belongs to older text (S3-01)', () => {
+  const a = ch('1', 'abdu');
+  assert.equal(enterTarget('zzzz', 'ab', 'looking', [a], null), 'wait');
+  assert.equal(enterTarget('zzzz', 'ab', 'done', [a], null), 'wait');
+  assert.equal(enterTarget('ab', 'ab', 'done', [a], null), a);
+  assert.equal(enterTarget('zzzz', 'zzzz', 'done', [], null), null);
+  assert.equal(enterTarget('  ', 'ab', 'done', [a], null), null);
+  assert.equal(enterTarget('abdu', 'abdu', 'done', [a, ch('2', 'abdv')], a), a);
 });
