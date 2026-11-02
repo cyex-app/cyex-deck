@@ -400,6 +400,9 @@
     sent = [value, ...sent.filter((s) => s !== value)].slice(0, HISTORY);
     recall = -1;
     replyTo = null;
+    // V108-F04 A command that ran leaves no suggestion over the chat (and drops a lookup still out).
+    argSeq++;
+    suggest = null;
     if (!keep) text = leftOver(text, raw, value);
   }
 
