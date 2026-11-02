@@ -237,12 +237,21 @@ pub fn load_for_room(app: AppHandle, key: RoomKey, generation: u64, history: Opt
             crate::emotes::ready(&app, &key.1, std::time::Duration::from_secs(4)).await;
             super::session::load_history(app.clone(), key.clone(), lines, epoch);
         }
-        let rewards: HashMap<String, (String, u32)> = c
+        let mut rewards: HashMap<String, (String, u32)> = c
             .points
             .iter()
             .flat_map(|p| p.custom.iter())
             .map(|r| (r.id.clone(), (r.title.clone(), r.cost)))
             .collect();
+        // V108-C28 The points highlight arrives without an id: key it by its msg-id.
+        if let Some(a) = c
+            .points
+            .iter()
+            .flat_map(|p| p.automatic.iter())
+            .find(|a| a.kind == "SEND_HIGHLIGHTED_MESSAGE")
+        {
+            rewards.insert("highlighted-message".to_owned(), ("Highlight My Message".to_owned(), a.cost));
+        }
         {
             let chat = app.state::<Chat>();
             let mut inner = chat.lock();

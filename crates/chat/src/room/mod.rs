@@ -659,10 +659,10 @@ impl Room {
 
     /// A live message, unless the user's rules hide it.
     fn add(&mut self, mut m: ChatMessage, now_ms: i64, emotes: &dyn Emotes) -> Option<RoomEvent> {
-        if let Some(r) = m.reward.as_mut().filter(|r| r.title.is_none())
+        if let Some(r) = m.reward.as_mut().filter(|r| r.title.is_none() || r.cost.is_none())
             && let Some((title, cost)) = self.rewards.get(&r.id)
         {
-            r.title = Some(title.clone());
+            r.title.get_or_insert_with(|| title.clone());
             r.cost = Some(*cost);
         }
         if !self.hooked(&mut m, emotes) {

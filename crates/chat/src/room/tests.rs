@@ -426,6 +426,17 @@ fn redemptions_get_their_title_and_replies_their_header() {
 }
 
 #[test]
+fn points_highlight_gets_its_cost_when_known() {
+    let mut r = room();
+    feed(&mut r, "@id=h1;user-id=7;msg-id=highlighted-message :u!u@u PRIVMSG #chan :a");
+    r.set_rewards(HashMap::from([("highlighted-message".to_owned(), ("Highlight My Message".to_owned(), 100))]));
+    feed(&mut r, "@id=h2;user-id=7;msg-id=highlighted-message :u!u@u PRIVMSG #chan :b");
+    let s = r.snapshot();
+    let cost = |i: usize| s.messages[i].reward.as_ref().unwrap().cost;
+    assert_eq!((cost(0), cost(1)), (None, Some(100)));
+}
+
+#[test]
 fn recent_messages_of_a_user() {
     let mut r = room();
     for i in 0..15 {

@@ -83,11 +83,7 @@ pub fn privmsg(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Option<ChatMessage> {
         body,
         notice: None,
         reply,
-        reward: line.tag_nonempty("custom-reward-id").map(|id| RewardRef {
-            id: id.to_owned(),
-            title: None,
-            cost: None,
-        }),
+        reward: reward_of(line),
         source,
         flags,
         meta: Meta {
@@ -100,6 +96,27 @@ pub fn privmsg(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Option<ChatMessage> {
             gone: line.tag_flag("rm-deleted").then(|| Gone::new(GoneHow::Deleted, None)),
             ..Meta::default()
         },
+    })
+}
+
+/// Id the built-in highlight reward goes by in `RewardRef` (and the room's reward map,
+/// filled in `app/src/chat/catalog.rs`).
+const HIGHLIGHT_REWARD: &str = "highlighted-message";
+
+/// V108-C28 A custom reward by its id (name and cost come from the room); a points
+/// highlight has no id tag, so it gets the built-in one, cost filled in by the room.
+fn reward_of(line: &Line<'_>) -> Option<RewardRef> {
+    if let Some(id) = line.tag_nonempty("custom-reward-id") {
+        return Some(RewardRef {
+            id: id.to_owned(),
+            title: None,
+            cost: None,
+        });
+    }
+    (line.raw_tag("msg-id") == Some(HIGHLIGHT_REWARD)).then(|| RewardRef {
+        id: HIGHLIGHT_REWARD.to_owned(),
+        title: Some("Highlight My Message".to_owned()),
+        cost: None,
     })
 }
 
@@ -250,5 +267,16 @@ mod tests {
         assert!(m.has(Flag::Gigantified) && m.has(Flag::FirstMessage));
         let m = build("@id=m6;user-id=7;msg-id=animated-message;animation-id=simmer :foo!foo@foo.tmi.twitch.tv PRIVMSG #bar :hey", None);
         assert_eq!(m.meta.effect.as_deref(), Some("simmer"));
+        assert!(m.reward.is_none(), "power-ups cost bits, not a points line");
+    }
+
+    #[test]
+    fn points_highlight_is_a_reward_line() {
+        let m = build("@id=m7;user-id=7;msg-id=highlighted-message :foo!foo@foo.tmi.twitch.tv PRIVMSG #bar :look", None);
+        assert!(m.has(Flag::Highlighted));
+        let r = m.reward.as_ref().unwrap();
+        assert_eq!((r.title.as_deref(), r.cost), (Some("Highlight My Message"), None));
+        let m = build("@id=m8;user-id=7 :foo!foo@foo.tmi.twitch.tv PRIVMSG #bar :plain", None);
+        assert!(m.reward.is_none());
     }
 }
