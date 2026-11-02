@@ -578,6 +578,7 @@
       channel={login}
       query={search.query}
       all={search.all}
+      {account}
       onclose={() => (search = null)}
     />
   {/if}

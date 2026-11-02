@@ -11,20 +11,26 @@
   import { firstField, focusScope } from '../../lib/focusScope';
   import { actionFor, comboFromEvent } from '../../lib/hotkeys.svelte';
   import { formatNumber } from '../../lib/format';
-  import { lineClick } from './clicks';
+  import { openMenu } from '../../components/menu.svelte';
+  import type { CardTarget } from '../emotes/emotes';
+  import EmoteCard from '../emotes/EmoteCard.svelte';
+  import { emoteMenu, enterClicks, lineTips, notEmote, openPart, PARTS, type LineHost } from './lineEvents';
   import { findHits, searchTerms } from './searchHits';
   import Line from './Line.svelte';
   import { scrollWithin } from '../../lib/scrollWithin';
+  import { onDestroy } from 'svelte';
 
   interface Props {
     view: number;
     channel: string;
     query?: string;
     all?: boolean;
+    /** The account reading this chat, for 7TV edits from an emote's menu. */
+    account?: string | null;
     onclose: () => void;
   }
 
-  let { view, channel, query = '', all = false, onclose }: Props = $props();
+  let { view, channel, query = '', all = false, account = null, onclose }: Props = $props();
 
   // The popup starts from what it was opened with; typing takes over from there.
   // svelte-ignore state_referenced_locally
@@ -93,6 +99,37 @@
     };
   });
 
+  /** The emote card on screen. */
+  let card = $state<CardTarget | null>(null);
+  /** Lines act as in the chat (lineEvents.ts); in "All chats" each acts for its own channel. */
+  function host(el: HTMLElement): LineHost {
+    const room = el.closest<HTMLElement>('[data-channel]')?.dataset.channel ?? channel;
+    return {
+      channel: room,
+      account,
+      senderOf: (e) => {
+        const id = e.closest<HTMLElement>('[data-mid]')?.dataset.mid;
+        return results.find((r) => r.message.id === id)?.message.sender?.id;
+      },
+      openCard: (t) => (card = t),
+      openMenu,
+    };
+  }
+  const tips = lineTips(() => list);
+  onDestroy(tips.drop);
+
+  function onclick(e: MouseEvent) {
+    const el = (e.target as HTMLElement).closest<HTMLElement>(PARTS);
+    // A name or #channel inside the row's own data-channel wrapper is not a part itself.
+    if (el && !el.matches('div[data-channel]')) openPart(e, el, host(el));
+  }
+
+  function oncontextmenu(e: MouseEvent) {
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-emote]');
+    if (el) void emoteMenu(e, el, host(el));
+    else notEmote();
+  }
+
   function jump(by: number) {
     if (hits.length) cur = (cur + by + hits.length) % hits.length;
   }
@@ -141,10 +178,18 @@
     <span class="all"><Checkbox label="All chats" checked={everywhere} onchange={(v) => (everywhere = v)} /></span>
     <IconButton icon="x" label="Close" size={14} onclick={onclose} />
   </div>
-  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="results" bind:this={list} onclick={lineClick}>
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions, a11y_mouse_events_have_key_events -->
+  <div
+    class="results"
+    bind:this={list}
+    {onclick}
+    {oncontextmenu}
+    onkeydown={enterClicks}
+    onmouseover={tips.onmouseover}
+    onmouseout={tips.onmouseout}
+  >
     {#each results as r (`${r.channel}/${r.message.id}`)}
-      <div data-channel={r.channel}>
+      <div data-channel={r.channel} data-mid={r.message.id}>
         {#if everywhere}<div class="chan">#{r.channel}</div>{/if}
         <Line m={r.message} channel={r.channel} />
       </div>
@@ -152,6 +197,9 @@
       <p class="muted">{text.trim() ? (failure || 'Nothing found.') : `Type to search ${everywhere ? 'every open chat' : channel}.`}</p>
     {/each}
   </div>
+  {#if card}
+    {#key card}<EmoteCard target={card} login={channel} {account} onclose={() => (card = null)} />{/key}
+  {/if}
   {#if results.length}<p class="count">{formatNumber(results.length)} found</p>{/if}
 </div>
 
