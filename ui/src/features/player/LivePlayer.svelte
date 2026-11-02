@@ -701,6 +701,8 @@
     flex: 1;
     display: flex;
     flex-direction: column;
+    /* V108-C33 A little air between the seek bar and the buttons. */
+    gap: 4px;
     padding: 0 4px;
   }
   .row {
