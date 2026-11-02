@@ -135,7 +135,7 @@
   {#if m.reward}
     <div class="context reward">
       <Icon name="points" size={12} />
-      <span>{#if m.reward.title}Redeemed <b>{m.reward.title}</b>{#if m.reward.cost} · {formatNumber(m.reward.cost)}{/if}{:else}Redeemed a reward{/if}</span>
+      <span>{#if m.reward.title}Redeemed <b>{m.reward.title}</b>{#if m.reward.cost}{" · "}{formatNumber(m.reward.cost)}{/if}{:else}Redeemed a reward{/if}</span>
     </div>
   {/if}
   {#if notice}
