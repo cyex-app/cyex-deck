@@ -98,6 +98,7 @@
 
 <button
   class="callout"
+  data-layer
   type="button"
   class:over
   class:up={!at.below}

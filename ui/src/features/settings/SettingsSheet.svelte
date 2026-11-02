@@ -19,8 +19,9 @@
   let box = $state<HTMLElement>();
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  /** Menus, dialogs and tooltips opened from the sheet live outside it, in the layers host. */
-  const inLayer = (n: EventTarget | null) => n instanceof Element && !!n.closest('.layers');
+  /** Menus, dialogs and tooltips opened from the sheet live outside it, in the layers host.
+   *  V108-F06 So does a confirm bubble (on the body, [data-layer]): confirming Reset is inside. */
+  const inLayer = (n: EventTarget | null) => n instanceof Element && !!n.closest('.layers, [data-layer]');
 
   /** The rest of a press that closed the sheet goes nowhere. Outlives the sheet, which is gone by then. */
   function swallowRest() {
