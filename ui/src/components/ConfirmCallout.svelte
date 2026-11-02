@@ -76,10 +76,20 @@
     const off = layer('popover', ondismiss);
     // After the menu has handed focus back to its button.
     const raf = requestAnimationFrame(() => box?.focus({ preventScroll: true }));
+    // V108-F36 A press on the button itself leaves the bubble up; its click then closes it
+    // (the caller's own click handler would only open it again).
     const down = (e: MouseEvent) => {
-      if (!box?.contains(e.target as Node)) ondismiss();
+      const t = e.target as Node;
+      if (!box?.contains(t) && !anchor.contains(t)) ondismiss();
+    };
+    const again = (e: MouseEvent) => {
+      if (!anchor.contains(e.target as Node)) return;
+      e.stopPropagation();
+      e.preventDefault();
+      ondismiss();
     };
     addEventListener('mousedown', down, true);
+    addEventListener('click', again, true);
     addEventListener('resize', place);
     addEventListener('scroll', place, true);
     addEventListener('blur', ondismiss);
@@ -90,6 +100,7 @@
       off();
       cancelAnimationFrame(raf);
       removeEventListener('mousedown', down, true);
+      removeEventListener('click', again, true);
       removeEventListener('resize', place);
       removeEventListener('blur', ondismiss);
     };
