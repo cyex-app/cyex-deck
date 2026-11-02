@@ -564,6 +564,22 @@
   .del-faded .msg > :global(:not(.mods, .gone)) {
     opacity: 0.4;
   }
+  /* V108-F22 Light theme: dimmed and highlighted lines keep 4.5:1 text (S2b-03). */
+  :global(:root[data-theme='light']) .history {
+    opacity: 0.8;
+  }
+  :global(:root[data-theme='light']) .del-faded > :global(:not(.msg)),
+  :global(:root[data-theme='light']) .del-faded .msg > :global(:not(.mods, .gone)) {
+    opacity: 0.75;
+  }
+  :global(:root[data-theme='light']) .hl .ts,
+  :global(:root[data-theme='light']) .del-faded .ts,
+  :global(:root[data-theme='light']) .del-faded .context {
+    color: var(--muted);
+  }
+  :global(:root[data-theme='light']) .reward {
+    color: color-mix(in srgb, var(--twitch) 70%, #000);
+  }
   /* V107-R34 Why it went: small, dim, never struck, no taller row. */
   .gone {
     margin-left: 5px;
