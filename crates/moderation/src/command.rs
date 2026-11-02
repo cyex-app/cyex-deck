@@ -41,9 +41,6 @@ pub enum ModCommand {
     Shield(bool),
     Treat { login: String, how: Treatment },
     SetRole { login: String, role: Role, on: bool },
-    ListRole(Role),
-    /// V108-C26 Everyone with a role in the channel.
-    ListRoles,
     /// V107-R28 Gives (`on`) or takes the lead moderator role.
     SetLead { login: String, on: bool },
     Commercial { secs: u32 },
@@ -106,9 +103,7 @@ impl ModCommand {
     pub fn offered(&self) -> Need {
         match self {
             ModCommand::SetRole { .. } => Need::Lead,
-            ModCommand::ListRole(_)
-            | ModCommand::ListRoles
-            | ModCommand::SetLead { .. }
+            ModCommand::SetLead { .. }
             | ModCommand::Raid { .. }
             | ModCommand::Unraid
             | ModCommand::Commercial { .. }
@@ -124,7 +119,7 @@ pub const NAMES: &[&str] = &[
     "subscribers", "subscribersoff", "emoteonly", "emoteonlyoff", "uniquechat", "uniquechatoff", "r9kbeta",
     "r9kbetaoff", "announce", "announceblue", "announcegreen", "announceorange", "announcepurple", "shoutout", "so",
     "raid", "unraid", "warn", "shield", "shieldoff", "monitor", "unmonitor", "restrict", "unrestrict", "mod", "unmod",
-    "vip", "unvip", "mods", "vips", "roles", "commercial", "marker", "pin", "unpin", "leadmod", "unleadmod",
+    "vip", "unvip", "commercial", "marker", "pin", "unpin", "leadmod", "unleadmod",
 ];
 
 /// `None` when `name` isn't one of these commands; otherwise the action or a usage hint.
@@ -272,9 +267,6 @@ fn read(name: &str, args: &str) -> Result<ModCommand, String> {
             login: login()?,
             on: name == "leadmod",
         },
-        "mods" => C::ListRole(Role::Mod),
-        "vips" => C::ListRole(Role::Vip),
-        "roles" => C::ListRoles,
         "commercial" => {
             let secs = match first {
                 "" => 30,
@@ -417,9 +409,6 @@ mod tests {
             }
         );
         assert_eq!(ok("unmod x").offered(), Need::Lead);
-        assert_eq!(ok("mods").needs(), Need::Broadcaster);
-        assert_eq!(ok("roles"), ModCommand::ListRoles);
-        assert_eq!(ok("roles").needs(), Need::Broadcaster);
         let unlead = ModCommand::SetLead { login: "me".into(), on: false };
         assert_eq!((unlead.needs(), unlead.offered()), (Need::Mod, Need::Broadcaster), "V107-H3e");
         assert_eq!(ModCommand::SetLead { login: "bob".into(), on: true }.needs(), Need::Broadcaster);
@@ -460,9 +449,6 @@ mod tests {
             assert!(c.offered().allows(Some(LeadModerator)) && c.offered().allows(Some(Broadcaster)), "{line}");
             assert!(c.needs().allows(Some(Moderator)) && !c.needs().allows(None), "{line}");
         }
-        // Listing stays the broadcaster's: Helix only answers their token.
-        assert!(!ok("mods").needs().allows(Some(LeadModerator)));
-        assert!(!ok("vips").offered().allows(Some(LeadModerator)));
         // V107-R28 Lead mod is the broadcaster's alone.
         assert_eq!(ok("leadmod @Caressz"), ModCommand::SetLead { login: "caressz".into(), on: true });
         assert_eq!(ok("unleadmod caressz"), ModCommand::SetLead { login: "caressz".into(), on: false });
@@ -481,7 +467,8 @@ mod tests {
         assert_eq!(need("ban"), Some(Need::Mod));
         assert_eq!(need("slow"), Some(Need::Mod));
         assert_eq!(need("vip"), Some(Need::Lead));
-        assert_eq!(need("mods"), Some(Need::Broadcaster));
+        // V108-C27 Listing roles is the app's own, open to anyone.
+        assert_eq!(need("mods"), None);
         assert_eq!(need("commercial"), Some(Need::Broadcaster));
         assert_eq!(need("me"), None);
     }

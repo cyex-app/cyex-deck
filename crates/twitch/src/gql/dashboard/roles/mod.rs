@@ -5,6 +5,7 @@
 //! docs/research/twitch-api.md. Only the broadcaster may, except mod and VIP (lead mods too).
 
 pub mod list;
+pub mod public;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};

@@ -4,7 +4,7 @@
 
 use cyex_chat::model::ModRole;
 use cyex_moderation::roles::{Member, VipSlots, Wanted, merge};
-use cyex_twitch::gql::dashboard::{self, roles::{Role, list::{self, RoleHolder, RoleLists}}};
+use cyex_twitch::gql::dashboard::{self, roles::{Role, list::{self, RoleHolder, RoleLists}, public::{self, PublicLists}}};
 use serde::Serialize;
 use tauri::AppHandle;
 use ts_rs::TS;
@@ -43,10 +43,14 @@ pub struct RoleGroup {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct RoleListing {
-    /// In Twitch's order, a group for each role (empty ones too).
+    /// In Twitch's order, a group for each role read (empty ones too).
     pub groups: Vec<RoleGroup>,
     /// A list was cut short: some holders may be missing.
     pub truncated: bool,
+    /// V108-C27 Your own channel: every role, and the pop-up may give and take them.
+    pub own: bool,
+    /// V108-C27 Roles Twitch didn't share here (mods signed out).
+    pub unread: Vec<Role>,
 }
 
 /// The six lists as groups, in [`Role::ALL`] order.
@@ -59,28 +63,60 @@ fn groups(l: RoleLists) -> Vec<RoleGroup> {
         .collect()
 }
 
-/// V108-C26 Who holds which role in your own channel, with the dates Twitch gives.
-pub async fn listing(app: &AppHandle, account: &str, login: &str) -> Result<RoleListing, String> {
-    let actor = own(app, account, login)?;
-    let g = actor.gql().ok_or(NEEDS_GQL)?;
+/// V108-C26 Who holds which role, with the dates Twitch gives. V108-C27 Any channel: your
+/// own reads every role through the dashboard; elsewhere mods (with a sign-in) and VIPs,
+/// as twitch.tv's chat reads them.
+pub async fn listing(app: &AppHandle, account: Option<&str>, login: &str) -> Result<RoleListing, String> {
+    let channel = login.trim().trim_start_matches('#').to_ascii_lowercase();
+    let account = account.filter(|a| !a.is_empty());
+    let signed_in = account.and_then(|a| crate::auth::accounts(app).get(a).map(|x| x.login.to_ascii_lowercase()));
+    let gql = account.and_then(|a| crate::auth::gql_token(app, a));
     let http = http(app);
-    let ch = dashboard::Channel { http: &http, auth: g, base: None, id: &actor.channel_id };
-    let (lists, truncated) = list::role_lists(&ch).await.map_err(|e| e.to_string())?;
-    Ok(RoleListing { groups: groups(lists), truncated })
+    if let (Some(a), true, Some(_)) = (account, signed_in.as_deref() == Some(channel.as_str()), &gql) {
+        let actor = own(app, a, &channel)?;
+        let g = actor.gql().ok_or(NEEDS_GQL)?;
+        let ch = dashboard::Channel { http: &http, auth: g, base: None, id: &actor.channel_id };
+        let (lists, truncated) = list::role_lists(&ch).await.map_err(|e| e.to_string())?;
+        return Ok(RoleListing { groups: groups(lists), truncated, own: true, unread: Vec::new() });
+    }
+    let auth = crate::auth::gql_auth_or_public(gql.as_ref());
+    let (lists, truncated) = public::public_lists(&http, auth, None, &channel).await.map_err(|e| e.to_string())?;
+    Ok(public_listing(lists, truncated))
 }
 
-/// V108-C26 The listing as one chat line, for runs without a pop-up.
-pub fn line(l: &RoleListing) -> String {
+/// V108-C27 A channel's public lists as the pop-up's groups; a list not shared is `unread`.
+fn public_listing(l: PublicLists, truncated: bool) -> RoleListing {
+    let mut groups = Vec::new();
+    let mut unread = Vec::new();
+    for (role, people) in [(Role::Mod, l.mods), (Role::Vip, l.vips)] {
+        match people {
+            Some(people) => groups.push(RoleGroup { role, people }),
+            None => unread.push(role),
+        }
+    }
+    RoleListing { groups, truncated, own: false, unread }
+}
+
+/// V108-C26 The listing as one chat line, for runs without a pop-up. V108-C27 `role`: that
+/// role alone.
+pub fn line(l: &RoleListing, role: Option<Role>) -> String {
+    if let Some(r) = role.filter(|r| l.unread.contains(r)) {
+        return format!("Twitch doesn’t share the {}s here. Sign in to see them.", r.name());
+    }
     let parts: Vec<String> = l
         .groups
         .iter()
-        .filter(|g| !g.people.is_empty())
+        .filter(|g| !g.people.is_empty() && role.is_none_or(|r| r == g.role))
         .map(|g| {
             let names: Vec<&str> = g.people.iter().map(|p| p.display.as_str()).collect();
             format!("{}: {}", g.role.name(), names.join(", "))
         })
         .collect();
-    if parts.is_empty() { "No roles given.".into() } else { parts.join(". ") }
+    match role {
+        _ if !parts.is_empty() => parts.join(". "),
+        Some(r) => format!("No {}s.", r.name()),
+        None => "No roles given.".into(),
+    }
 }
 
 const STALE: &str = "The list didn’t refresh.";
@@ -193,9 +229,23 @@ mod tests {
         let g = groups(lists);
         assert_eq!(g.iter().map(|x| x.role).collect::<Vec<_>>(), Role::ALL);
         assert_eq!(g[1].people[0].granted_at.as_deref(), Some("2026-01-02T03:04:05Z"));
-        let l = line(&RoleListing { groups: g, truncated: false });
-        assert_eq!(l, "mod: A, B. VIP: C");
-        assert_eq!(line(&RoleListing { groups: groups(RoleLists::default()), truncated: false }), "No roles given.");
+        let all = RoleListing { groups: g, truncated: false, own: true, unread: Vec::new() };
+        assert_eq!(line(&all, None), "mod: A, B. VIP: C");
+        assert_eq!(line(&all, Some(Role::Vip)), "VIP: C");
+        assert_eq!(line(&RoleListing { groups: groups(RoleLists::default()), truncated: false, own: true, unread: Vec::new() }, None), "No roles given.");
+    }
+
+    #[test]
+    fn v108_c27_public_lists_say_what_twitch_kept_back() {
+        let who = RoleHolder { id: "1".into(), login: "v".into(), display: "V".into(), avatar: String::new(), granted_at: None };
+        let l = public_listing(PublicLists { mods: None, vips: Some(vec![who]) }, false);
+        assert_eq!(l.groups.iter().map(|g| g.role).collect::<Vec<_>>(), [Role::Vip]);
+        assert_eq!(l.unread, [Role::Mod]);
+        assert!(!l.own);
+        assert_eq!(line(&l, None), "VIP: V");
+        assert!(line(&l, Some(Role::Mod)).starts_with("Twitch doesn’t share the mods"));
+        let l = public_listing(PublicLists { mods: Some(Vec::new()), vips: Some(Vec::new()) }, true);
+        assert_eq!((l.groups.len(), l.unread.len(), l.truncated), (2, 0, true));
     }
 
     #[test]

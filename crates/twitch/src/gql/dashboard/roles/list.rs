@@ -37,7 +37,7 @@ pub struct RoleLists {
     pub agents: Vec<RoleHolder>,
 }
 
-const NODE: &str = "edges{ cursor grantedAt node{ id login displayName profileImageURL(width:50) } } pageInfo{ hasNextPage }";
+pub(super) const NODE: &str = "edges{ cursor grantedAt node{ id login displayName profileImageURL(width:50) } } pageInfo{ hasNextPage }";
 
 fn list_query() -> String {
     format!(
@@ -110,7 +110,7 @@ fn page(data: &Value, part: Part) -> (Vec<RoleHolder>, Option<String>) {
     (p.items, p.next)
 }
 
-fn holder(edge: &Value) -> Option<RoleHolder> {
+pub(super) fn holder(edge: &Value) -> Option<RoleHolder> {
     let UserRef { id, login, display, avatar } = UserRef::from_node(edge.get("node")?)?;
     Some(RoleHolder {
         id,

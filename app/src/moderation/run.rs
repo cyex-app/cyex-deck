@@ -67,11 +67,6 @@ pub async fn command(app: &AppHandle, account: &str, login: &str, cmd: ModComman
             super::roles::command(app, &actor, &who, role, on).await
         }
         C::SetLead { login: who, on } => super::roles::command(app, &actor, &who, Role::LeadMod, on).await,
-        C::ListRole(r) => list_role(app, &actor, r == HRole::Mod).await.map(Some),
-        C::ListRoles => {
-            let l = super::roles::manager::listing(app, &actor.account, &actor.channel).await?;
-            Ok(Some(super::roles::manager::line(&l)))
-        }
         C::Announce { color, text } => {
             let (auth, room) = helix_for(&actor, "announce")?;
             let http = http(app);
@@ -327,25 +322,6 @@ async fn treat(app: &AppHandle, actor: &Actor, who: &str, how: Treatment) -> Res
             .map_err(|e| e.to_string());
     }
     Err(no_token())
-}
-
-async fn list_role(app: &AppHandle, actor: &Actor, mods: bool) -> Result<String, String> {
-    let h = actor
-        .helix_scoped(app, if mods { "moderation:read" } else { "channel:read:vips" })
-        .ok_or("Listing needs a Helix sign-in.")?;
-    let list = if mods {
-        hr::moderators(&http(app), h, &actor.channel_id).await
-    } else {
-        hr::vips(&http(app), h, &actor.channel_id).await
-    }
-    .map_err(|e| codes::helix(status(&e), e.api_message().unwrap_or("")))?;
-    let names: Vec<&str> = list.iter().map(|u| u.user_name.as_str()).collect();
-    let what = if mods { "Mods" } else { "VIPs" };
-    Ok(if names.is_empty() {
-        format!("No {}.", what.to_lowercase())
-    } else {
-        format!("{what}: {}", names.join(", "))
-    })
 }
 
 /// Resolves the target's user id; bans over Helix need the id, not the login.

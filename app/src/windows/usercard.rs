@@ -67,11 +67,11 @@ pub fn on_focus(window: &tauri::Window, focused: bool) {
     });
 }
 
-/// The open usercard windows.
+/// The open cards: usercards and role lists.
 fn cards(app: &AppHandle) -> Vec<tauri::WebviewWindow> {
     super::panels::open_panels_all(app)
         .into_iter()
-        .filter(|(route, _)| is_usercard(route))
+        .filter(|(route, _)| is_card(route))
         .filter_map(|(_, label)| app.get_webview_window(&label))
         .collect()
 }
@@ -80,11 +80,22 @@ pub fn is_usercard(route: &str) -> bool {
     route == KIND || route.starts_with("usercard/")
 }
 
+/// V108-C27 The roles list of `/mods`, `/vips` and `/roles` (`roles/<channel>/<role>/<account>`).
+fn is_roles(route: &str) -> bool {
+    route.starts_with("roles/")
+}
+
+/// V108-C27 Cards: usercards and the roles list. Unpinned they close when you click
+/// elsewhere (a usercard opened from a list stacks on it), and layouts leave them out.
+pub fn is_card(route: &str) -> bool {
+    is_usercard(route) || is_roles(route)
+}
+
 /// V105-18 Pop-ups: usercards and `#channel` chats. Slim frame, small corners, and a
 /// pin that's never remembered: every new one starts unpinned. Must match the `slim`
 /// kinds in `ui/src/app/panels.ts`.
 pub fn is_popup(route: &str) -> bool {
-    is_usercard(route) || route.starts_with("room/")
+    is_card(route) || route.starts_with("room/")
 }
 
 /// Settings key for a route: all usercards share one entry, and so do the chats opened
@@ -94,6 +105,8 @@ pub fn settings_key(route: &str) -> &str {
         KIND
     } else if route.starts_with("room/") {
         "room"
+    } else if is_roles(route) {
+        "roles"
     } else {
         route
     }
@@ -155,12 +168,15 @@ pub fn near_cursor(app: &AppHandle, w: f64, h: f64) -> Option<PhysicalPosition<i
 
 #[cfg(test)]
 mod tests {
-    use super::is_popup;
+    use super::{is_card, is_popup, settings_key};
 
     #[test]
     fn popups_are_usercards_and_channel_chats() {
         assert!(is_popup("usercard/a/b"));
         assert!(is_popup("room/a"));
+        // V108-C27 The roles list is a card too: one saved size, closes like a usercard.
+        assert!(is_popup("roles/a/all/1") && is_card("roles/a/mod/") && !is_card("room/a"));
+        assert_eq!(settings_key("roles/a/vip/1"), "roles");
         assert!(!is_popup("chat/x"));
         assert!(!is_popup("modview/a"));
         assert!(!is_popup("overlay/x"));

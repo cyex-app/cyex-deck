@@ -186,14 +186,21 @@ pub async fn run(
             query: args.to_owned(),
         })),
         "popout" => Ok(Some(UiAction::Popout)),
-        // V108-C26 The pop-up needs a GQL sign-in for the dates; without one, the old line.
-        "mods" | "vips" | "roles" if place.ui && place.account().is_some_and(|a| crate::auth::gql_token(app, a).is_some()) => {
+        // V108-C26 The roles pop-up. V108-C27 In any chat, signed in or not; a run without
+        // a window (chains, timers, automations) gets the list as a line.
+        "mods" | "vips" | "roles" => {
             let role = match name {
                 "mods" => Some(cyex_moderation::roles::Role::Mod),
                 "vips" => Some(cyex_moderation::roles::Role::Vip),
                 _ => None,
             };
-            Ok(Some(UiAction::Roles { role }))
+            if place.ui {
+                return Ok(Some(UiAction::Roles { role }));
+            }
+            use crate::moderation::roles::manager;
+            let l = manager::listing(app, place.account(), place.channel()).await?;
+            local(app, &place.key, NoticeKind::Info, &manager::line(&l, role));
+            done
         }
         // V1051-03 Needs an account; the pop-up itself is in the window.
         "cosmetics" => {
@@ -262,6 +269,8 @@ pub(super) const OWN: &[&str] = &[
     "me", "echo", "help", "commands", "set", "chain", "foreach", "runin", "timer", "user", "usercard", "logs",
     "block", "unblock", "hideuser", "unhideuser", "mutepings", "tl", "translate", "vote", "search", "popout",
     "color", "cosmetics", "w", "whisper", "r", "nuke",
+    // V108-C27
+    "mods", "vips", "roles",
     // V1051-04
     "combo", "paint", "badge",
     // I106-3
@@ -273,7 +282,7 @@ pub(super) const OWN: &[&str] = &[
 /// `/timer` is not here: its line runs later, outside this check.
 const LOCAL: &[&str] = &[
     "echo", "help", "commands", "set", "chain", "foreach", "runin", "user", "usercard", "logs", "hideuser",
-    "unhideuser", "mutepings", "translate", "search", "popout", "cosmetics",
+    "unhideuser", "mutepings", "translate", "search", "popout", "cosmetics", "mods", "vips", "roles",
 ];
 
 /// V107-Mb A built-in that writes to Twitch (or 7TV) as the account: anything not [`LOCAL`],
@@ -519,12 +528,14 @@ mod tests {
         assert!(none(&anon, &["me", "w", "r", "tl", "color", "cosmetics", "block", "vote", "ban", "nuke"]));
         let viewer = usable(None, true);
         assert!(has(&viewer, &["me", "w", "whisper", "tl", "color", "cosmetics", "user"]));
-        assert!(none(&viewer, &["ban", "timeout", "unban", "warn", "nuke", "slow", "mods"]));
+        assert!(none(&viewer, &["ban", "timeout", "unban", "warn", "nuke", "slow"]));
+        // V108-C27 Anyone may list a channel's roles.
+        assert!(has(&anon, &["mods", "vips", "roles"]) && !writes("mods"));
         let m = usable(Some(ModRole::Moderator), true);
         assert!(has(&m, &["ban", "timeout", "unban", "untimeout", "warn", "nuke", "so", "pin", "r9kbeta"]));
-        assert!(none(&m, &["mod", "unmod", "vip", "unvip", "raid", "mods", "commercial"]));
+        assert!(none(&m, &["mod", "unmod", "vip", "unvip", "raid", "commercial"]));
         let lead = usable(Some(ModRole::LeadModerator), true);
-        assert!(has(&lead, &["mod", "unvip"]) && none(&lead, &["raid", "vips", "marker"]));
+        assert!(has(&lead, &["mod", "unvip"]) && none(&lead, &["raid", "marker"]));
         let owner = usable(Some(ModRole::Broadcaster), true);
         assert!(has(&owner, &["raid", "unraid", "mods", "vips", "commercial", "marker", "ban"]));
         // V1051-04 The 7TV commands are offered signed in, never anonymous.

@@ -5,6 +5,7 @@
 import type { Component } from 'svelte';
 
 import RecordingView from '../features/chat/RecordingView.svelte';
+import RolesWindow from '../features/chat/RolesWindow.svelte';
 import RoomPanel from '../features/chat/RoomPanel.svelte';
 import ModPanelWindow from '../features/modview/ModPanelWindow.svelte';
 import { INFO, isModPanel } from '../features/modview/panelInfo';
@@ -32,7 +33,7 @@ export interface PanelKind {
   /** V107-R29 Where it docks back to, when that isn't the main window. */
   dockHint?: string;
   /** V105-18 `slim`: a pop-up (usercards, `#channel` chats) with the slim header; must
-   * match `is_popup` in `app/src/windows/usercard.rs`. `none`: the panel draws its own
+   * match `is_popup` in `app/src/windows/usercard.rs` (V108-C27 role lists too). `none`: the panel draws its own
    * (U7 overlays). Default: the large pop-out frame (V104-03). */
   frame?: 'slim' | 'none';
   /** V108-N21 Joins chats or plays: after a crash it waits for the main window's pick. */
@@ -45,6 +46,8 @@ export const PANELS: Record<string, PanelKind> = {
   chat: { title: 'Chat', width: 380, height: 680, docks: true, waits: true, component: ChatPanel },
   room: { title: 'Chat', width: 380, height: 640, frame: 'slim', waits: true, component: RoomPanel },
   usercard: { title: 'User', width: 380, height: 560, frame: 'slim', component: UsercardView },
+  // V108-C27 /mods, /vips, /roles: a card like the usercard, `roles/<channel>/<role>/<account>`.
+  roles: { title: 'Roles', width: 380, height: 520, frame: 'slim', component: RolesWindow },
   recording: { title: 'Recording', width: 400, height: 640, component: RecordingView },
   modview: { title: 'Mod view', width: 920, height: 680, docks: true, waits: true, component: ModViewPanel },
   // V107-R29 One mod view panel, `modpanel/<login>/<panel>`; closing it docks it back into the mod view.
@@ -75,7 +78,7 @@ export function titleFor(route: string): string {
   // V102-14 The channel: the name is on the card already.
   if (kind === 'usercard' && a) return `#${a}`;
   // V105-18 Pop-ups show the channel, like the usercard.
-  if (kind === 'room' && a) return `#${a}`;
+  if ((kind === 'room' || kind === 'roles') && a) return `#${a}`;
   if (kind === 'modview' && a) return `Mod view · ${a}`;
   if (kind === 'modpanel' && a) {
     const id = route.split('/')[2] ?? '';

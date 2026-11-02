@@ -5,7 +5,6 @@
      nickname and note for them (C3) open from the pencil. Route: `usercard/<channel>/<login>`. -->
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
-  import { getCurrentWindow } from '@tauri-apps/api/window';
 
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import type { ModHistory } from '../../ipc/bindings/ModHistory';
@@ -16,6 +15,7 @@
   import { everyShown } from '../../lib/awake';
   import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
+  import { dragCard } from '../../lib/window.svelte';
   import { catalogs } from '../chat/catalog.svelte';
   import { mods } from '../modview/moderation.svelte';
   import { standingOf } from '../modview/standing';
@@ -179,15 +179,8 @@
   );
 
   /** V107-R35 The card moves its window from anywhere that isn't a control, text the user
-   *  types or the scroll window of messages and actions. */
-  const NO_DRAG = 'button, a, input, textarea, select, label, summary, [role="button"], [role="tab"], [contenteditable], .data > :not(.tabs), .no-drag';
-  function drag(e: MouseEvent) {
-    if (e.button !== 0 || e.detail > 1) return;
-    const t = e.target as Element | null;
-    if (!t || t.closest(NO_DRAG)) return;
-    e.preventDefault();
-    void getCurrentWindow().startDragging();
-  }
+   *  types or the scroll window of messages and actions (`dragCard`, shared with V108-C27). */
+  const drag = (e: MouseEvent) => dragCard(e, '.data > :not(.tabs)');
 
   function saveNote(field: 'nickname' | 'note' | 'color', value: string) {
     if (!profile) return;

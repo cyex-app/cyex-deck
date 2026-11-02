@@ -12,9 +12,10 @@ pub async fn roles_view(app: AppHandle, account: String, login: String) -> Resul
 }
 
 /// V108-C26 `/mods`, `/vips` and `/roles`: who holds which role, with the dates.
+/// V108-C27 Any channel `login`; `account` may be none (an anonymous chat).
 #[tauri::command]
-pub async fn roles_listing(app: AppHandle, account: String, login: String) -> Result<manager::RoleListing, String> {
-    manager::listing(&app, &account, &login).await
+pub async fn roles_listing(app: AppHandle, account: Option<String>, login: String) -> Result<manager::RoleListing, String> {
+    manager::listing(&app, account.as_deref(), &login).await
 }
 
 /// V107-R42 Gives and takes roles for `who` in one change; Rust picks the order. The lists

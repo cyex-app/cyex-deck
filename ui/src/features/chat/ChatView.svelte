@@ -37,8 +37,8 @@
   import { catalogs } from './catalog.svelte';
   import ChatInput from './ChatInput.svelte';
   import CosmeticsPopup from '../cosmetics/CosmeticsPopup.svelte';
-  import RolesPopup from './RolesPopup.svelte';
-  import type { ChannelRole } from '../../ipc/bindings/ChannelRole';
+  import { rolesRoute } from './roleList';
+  import { popOut } from '../../app/panels';
   import EventsButton from './EventsButton.svelte';
   import HypeTrain from './HypeTrain.svelte';
   import { runEntry, toItems, userMenus } from './menus.svelte';
@@ -203,17 +203,11 @@
     input?.focus();
   }
 
-  // V108-C26 /mods, /vips, /roles
-  let rolesOpen = $state<{ role: ChannelRole | null } | null>(null);
-  function closeRoles() {
-    rolesOpen = null;
-    input?.focus();
-  }
-
   function onaction(a: UiAction, retried = false) {
     if (a.type === 'search') search = { query: a.query, all: false };
     else if (a.type === 'cosmetics') cosmeticsOpen = true;
-    else if (a.type === 'roles') rolesOpen = { role: a.role ?? null };
+    // V108-C26 /mods, /vips, /roles. V108-C27 A card in its own window, in any chat.
+    else if (a.type === 'roles') void popOut(rolesRoute(login, a.role ?? null, account ?? null), `#${login}`);
     else if (a.type === 'sevenTvSignIn') {
       // /paint, /badge, /combo while signed out of 7TV: the sign-in pop-up, then the command again.
       if (retried || !account) toast.error('Sign in to 7TV first: /cosmetics.');
@@ -574,7 +568,6 @@
         /></div>
     {/if}
     {#if cosmeticsOpen && account}<CosmeticsPopup {account} onclose={closeCosmetics} />{/if}
-    {#if rolesOpen && account}{#key rolesOpen}<RolesPopup {account} {login} role={rolesOpen.role} onclose={closeRoles} />{/key}{/if}
   </div>
   <ResubBanner {account} {login} />
   <ChatInput bind:this={input} {room} bind:replyTo {onsignin} {onaction} />

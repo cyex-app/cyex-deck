@@ -167,7 +167,7 @@ pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
                 crate::upload::dropped(&uploads, paths);
             }
         }
-        WindowEvent::Focused(focused) if route_of(app, window.label()).is_some_and(|r| usercard::is_usercard(&r)) => {
+        WindowEvent::Focused(focused) if route_of(app, window.label()).is_some_and(|r| usercard::is_card(&r)) => {
             usercard::on_focus(window, *focused);
         }
         WindowEvent::Destroyed if window.label() == MAIN => app.exit(0),

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import type { RoleGroup } from '../../ipc/bindings/RoleGroup';
 import type { RoleHolder } from '../../ipc/bindings/RoleHolder';
-import { LIST_SORT, listTitle, shownGroups, total } from './roleList.ts';
+import { LIST_SORT, listTitle, parseRolesRoute, rolesRoute, shownGroups, total, unreadNote } from './roleList.ts';
 
 const p = (login: string, grantedAt: string | null = null): RoleHolder => ({ id: login, login, display: login.toUpperCase(), avatar: '', grantedAt });
 const groups: RoleGroup[] = [
@@ -37,4 +37,19 @@ test('titles and totals', () => {
   assert.equal(listTitle('vip'), 'VIPs');
   assert.equal(listTitle(null), 'Roles');
   assert.equal(total(groups), 5);
+});
+
+test('V108-C27 the window route round-trips, an odd role is all', () => {
+  assert.equal(rolesRoute('xqc', 'mod', '123'), 'roles/xqc/mod/123');
+  assert.equal(rolesRoute('xqc', null, null), 'roles/xqc/all/');
+  assert.deepEqual(parseRolesRoute('roles/xqc/mod/123'), { channel: 'xqc', role: 'mod', account: '123' });
+  assert.deepEqual(parseRolesRoute('roles/xqc/all/'), { channel: 'xqc', role: null, account: null });
+  assert.deepEqual(parseRolesRoute('roles/xqc/nope'), { channel: 'xqc', role: null, account: null });
+});
+
+test('V108-C27 a note for the roles Twitch kept back', () => {
+  assert.equal(unreadNote([], null, false), null);
+  assert.equal(unreadNote(['mod'], null, false), 'Sign in to see the mods.');
+  assert.equal(unreadNote(['mod'], 'mod', true), 'Twitch didn’t share the mods.');
+  assert.equal(unreadNote(['mod'], 'vip', false), null, 'only what was asked for');
 });

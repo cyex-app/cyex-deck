@@ -47,3 +47,25 @@ export function shownGroups(groups: RoleGroup[], role: ChannelRole | null, query
 export function total(groups: RoleGroup[]): number {
   return groups.reduce((n, g) => n + g.people.length, 0);
 }
+
+/** V108-C27 The list's own window: `roles/<channel>/<role or all>/<account or nothing>`. */
+export function rolesRoute(channel: string, role: ChannelRole | null, account: string | null): string {
+  return `roles/${channel}/${role ?? 'all'}/${account ?? ''}`;
+}
+
+const ROLE_KEYS = new Set<string>(Object.keys(GROUP_NAME));
+
+/** V108-C27 The route back as its parts; an unknown role reads as all of them. */
+export function parseRolesRoute(route: string): { channel: string; role: ChannelRole | null; account: string | null } {
+  const [, channel = '', role = '', account = ''] = route.split('/');
+  return { channel, role: ROLE_KEYS.has(role) ? (role as ChannelRole) : null, account: account || null };
+}
+
+/** V108-C27 What to say about roles Twitch kept back here (mods, signed out); null when
+ *  every role asked for came. */
+export function unreadNote(unread: ChannelRole[], role: ChannelRole | null, signedIn: boolean): string | null {
+  const missing = role ? unread.filter((r) => r === role) : unread;
+  if (!missing.length) return null;
+  const names = missing.map((r) => GROUP_NAME[r].toLowerCase()).join(' and ');
+  return signedIn ? `Twitch didn’t share the ${names}.` : `Sign in to see the ${names}.`;
+}

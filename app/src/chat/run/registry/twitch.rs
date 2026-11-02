@@ -350,30 +350,6 @@ pub(super) const CMDS: &[Cmd] = &[
     .args(&[NAME])
     .errs(&[USAGE_NAME, cyex_moderation::roles::NEEDS_GQL]),
     tw(
-        "mods",
-        "/mods",
-        "Lists the channel’s moderators, and since when.",
-        "V108-C26",
-        &[ex("/mods", "A list opens with each mod and the date they were made one.")],
-    )
-    .errs(&["Listing needs a Helix sign-in."]),
-    tw(
-        "vips",
-        "/vips",
-        "Lists the channel’s VIPs, and since when.",
-        "V108-C26",
-        &[ex("/vips", "A list opens with each VIP and the date they were made one.")],
-    )
-    .errs(&["Listing needs a Helix sign-in."]),
-    tw(
-        "roles",
-        "/roles",
-        "Lists everyone with a role in the channel, and since when.",
-        "V108-C26",
-        &[ex("/roles", "A list opens with lead mods, mods, VIPs and editors.")],
-    )
-    .errs(&[cyex_moderation::roles::NEEDS_GQL]),
-    tw(
         "commercial",
         "/commercial [30|60|90|120|150|180]",
         "Runs an ad break of that many seconds. Default 30.",

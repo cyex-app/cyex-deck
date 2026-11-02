@@ -61,13 +61,13 @@ pub fn route_of(app: &AppHandle, label: &str) -> Option<String> {
     app.state::<PanelRegistry>().lock().get(label).cloned()
 }
 
-/// Open panels as (route, window). Usercards aren't panels for layouts.
+/// Open panels as (route, window). Cards (usercards, role lists) aren't panels for layouts.
 pub fn open_panels(app: &AppHandle) -> Vec<(String, tauri::WebviewWindow)> {
     let routes: Vec<(String, String)> = app
         .state::<PanelRegistry>()
         .lock()
         .iter()
-        .filter(|(_, route)| !super::usercard::is_usercard(route))
+        .filter(|(_, route)| !super::usercard::is_card(route))
         .map(|(label, route)| (label.clone(), route.clone()))
         .collect();
     routes
@@ -85,13 +85,13 @@ pub fn open_panels_all(app: &AppHandle) -> Vec<(String, String)> {
         .collect()
 }
 
-/// Routes of the open pop-outs, usercards left out.
+/// Routes of the open pop-outs, cards left out.
 pub fn routes(app: &AppHandle) -> Vec<String> {
     let mut routes: Vec<String> = app
         .state::<PanelRegistry>()
         .lock()
         .values()
-        .filter(|r| !super::usercard::is_usercard(r))
+        .filter(|r| !super::usercard::is_card(r))
         .cloned()
         .collect();
     routes.sort();
@@ -106,7 +106,7 @@ fn notify(app: &AppHandle) {
 
 pub fn forget(app: &AppHandle, label: &str) {
     let removed = app.state::<PanelRegistry>().lock().remove(label);
-    if removed.is_some_and(|r| !super::usercard::is_usercard(&r)) {
+    if removed.is_some_and(|r| !super::usercard::is_card(&r)) {
         notify(app);
     }
 }
@@ -169,12 +169,12 @@ pub fn open_panel(app: &AppHandle, route: &str, title: &str, size: Option<(f64, 
         super::overlay::sync_tray(app);
     }
 
-    if !saved.geometry.is_some_and(|g| g.maximized) && route.starts_with("room/")
+    if !saved.geometry.is_some_and(|g| g.maximized) && (route.starts_with("room/") || route.starts_with("roles/"))
         && let (Ok(size), Ok(scale)) = (window.inner_size(), window.scale_factor())
         && let Some(at) = super::usercard::near_cursor(app, f64::from(size.width) / scale, f64::from(size.height) / scale)
     {
         // V102-03 A `#channel` chat opens next to where it was clicked, like a usercard,
-        // not on top of the last one.
+        // not on top of the last one. V108-C27 The roles list too.
         window.set_position(at)?;
     }
     icons::apply(&window.as_ref().window());

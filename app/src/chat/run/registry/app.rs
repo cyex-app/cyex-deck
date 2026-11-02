@@ -180,6 +180,22 @@ pub(super) const BEFORE: &[Cmd] = &[
         .changes(Window, "Opens a pop-out window.")
         .ex(&[ex("/popout", "(the chat pops out)")])
         .notes("Only a chat next to a stream pops out; anywhere else it shows “Only a chat next to a stream pops out.”"),
+    // V108-C27 Any chat; in your own channel the list also gives and takes roles.
+    Cmd::new("mods", "/mods", "Lists the channel’s mods, and since when.", "V108-C27")
+        .help("/mods")
+        .changes(Window, "Opens the roles pop-up.")
+        .ex(&[ex("/mods", "A list opens with each mod and the date they were made one.")])
+        .notes("Twitch shares mods only with a signed-in chat. In a chain or timer it’s a line instead."),
+    Cmd::new("vips", "/vips", "Lists the channel’s VIPs, and since when.", "V108-C27")
+        .help("/vips")
+        .changes(Window, "Opens the roles pop-up.")
+        .ex(&[ex("/vips", "A list opens with each VIP and the date they were made one.")])
+        .notes("In a chain or timer it’s a line instead."),
+    Cmd::new("roles", "/roles", "Lists everyone with a role in the channel, and since when.", "V108-C27")
+        .help("/roles")
+        .changes(Window, "Opens the roles pop-up.")
+        .ex(&[ex("/roles", "A list opens with mods and VIPs; in your own channel also lead mods, editors and artists.")])
+        .notes("In your own channel you can add and remove people there too."),
     Cmd::new("color", "/color #RRGGBB", "Changes your name color on Twitch.", "1.40")
         .help("/color")
         .args(&[req("color", "word").note("A hex color. Any color needs Prime or Turbo; named ones don’t.")])
