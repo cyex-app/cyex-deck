@@ -85,9 +85,24 @@ fn swap_seventv_set(pool: &ws::Pool<EventApi>, c: &mut Channel, set: Option<Emot
     }
 }
 
-/// Replaces a channel's 7TV set, e.g. after the channel switched sets.
-pub fn seventv_set(app: AppHandle, login: String, set_id: Option<String>) {
+/// Replaces a channel's 7TV set, e.g. after the channel switched sets. V108-C31 Says so in
+/// chat with the new set's name, unless it is the set already there.
+pub fn seventv_set(app: AppHandle, login: String, set_id: Option<String>, actor: Option<String>) {
     tauri::async_runtime::spawn(async move {
+        {
+            let state = app.state::<Emotes>();
+            let inner = state.lock();
+            let same = inner.channels.get(&login).is_some_and(|c| {
+                let mut have = c.sets.iter().filter(|s| s.provider == Provider::Seventv);
+                match &set_id {
+                    Some(id) => have.any(|s| s.id == *id),
+                    None => have.next().is_none(),
+                }
+            });
+            if same {
+                return;
+            }
+        }
         let lane = crate::chat::shown::lane(&app, &login);
         let set = match &set_id {
             Some(id) => match seventv::api::sets(&http(&app), std::slice::from_ref(id), lane).await {
@@ -109,8 +124,12 @@ pub fn seventv_set(app: AppHandle, login: String, set_id: Option<String>) {
         let Some(c) = inner.channels.get_mut(&login) else {
             return;
         };
+        let name = set.as_ref().and_then(|s| s.name.clone());
         swap_seventv_set(&state.seventv, c, set);
         inner.rebuild(&login);
+        drop(inner);
+        let text = super::live::switch_line(actor.as_deref(), name.as_deref(), set_id.is_none());
+        super::change_line(&app, &login, &text);
     });
 }
 

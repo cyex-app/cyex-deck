@@ -28,6 +28,8 @@ pub enum Event {
     Added {
         channel_id: String,
         emote: Emote,
+        /// V108-C31 The emote's maker (BTTV names no one who added it), display name.
+        by: Option<String>,
     },
     Renamed {
         channel_id: String,
@@ -107,6 +109,11 @@ pub fn parse(text: &str) -> Option<Event> {
             emote: serde_json::from_value::<RawEmote>(d["emote"].clone())
                 .ok()?
                 .emote(),
+            by: ["displayName", "name"]
+                .iter()
+                .find_map(|k| d.pointer(&format!("/emote/user/{k}"))?.as_str())
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned),
         }),
         "emote_update" => Some(Event::Renamed {
             channel_id: channel()?,
@@ -190,7 +197,7 @@ mod tests {
         assert!(badge.is_some());
         assert_eq!(emotes[0].name, "forsenBlunder");
         assert!(
-            matches!(&events[1], Event::Added { channel_id, emote } if channel_id == "71092938" && emote.name == "RareHug")
+            matches!(&events[1], Event::Added { channel_id, emote, by } if channel_id == "71092938" && emote.name == "RareHug" && by.as_deref() == Some("LIRIK"))
         );
         assert!(matches!(&events[2], Event::Renamed { name, .. } if name == "RareHugRenamed"));
         assert!(matches!(&events[3], Event::Removed { .. }));

@@ -2,3 +2,4 @@
 //! Research: `research/providers.md`.
 
 pub mod api;
+pub mod diff;

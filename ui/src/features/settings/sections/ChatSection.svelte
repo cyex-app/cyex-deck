@@ -291,6 +291,9 @@
 <Row setting="chat.parts" label="Show leaves" hint="Who leaves the chat, a line every 10 seconds. Only in chats under 1.000 viewers.">
   <Toggle label="Show leaves" checked={c.parts} onchange={(v) => settings.patch('chat', { parts: v })} />
 </Row>
+<Row setting="chat.emoteChanges" label="Show emote changes" hint="A line when a channel adds, removes or renames a 7TV, BTTV or FFZ emote.">
+  <Toggle label="Show emote changes" checked={c.emoteChanges} onchange={(v) => settings.patch('chat', { emoteChanges: v })} />
+</Row>
 <Row setting="chat.rateMeter" label="Show messages per second" hint="How busy the chat is, in the header.">
   <Toggle label="Show messages per second" checked={c.rateMeter} onchange={(v) => settings.patch('chat', { rateMeter: v })} />
 </Row>

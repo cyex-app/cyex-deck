@@ -265,35 +265,55 @@ fn bttv_event(app: &AppHandle, e: BttvEvent) {
                 looks::changed(app, [twitch_id]);
             }
         }
-        BttvEvent::Added { channel_id, emote } => {
-            let text = format!("{} was added to BTTV.", emote.name);
+        BttvEvent::Added { channel_id, emote, by } => {
+            let text = bttv_added_line(&emote.name, by.as_deref());
             change_channel(app, &channel_id, &text, |emotes| {
-                if !emotes.iter().any(|e| e.id == emote.id) {
-                    emotes.push(Arc::new(emote.clone()));
+                if emotes.iter().any(|e| e.id == emote.id && e.name == emote.name) {
+                    return false;
                 }
+                emotes.retain(|e| e.id != emote.id);
+                emotes.push(Arc::new(emote.clone()));
+                true
             });
         }
         BttvEvent::Renamed { channel_id, id, name } => {
             let old = find_name(app, &channel_id, &id);
+            if old.as_deref() == Some(name.as_str()) {
+                return;
+            }
             let text = match &old {
-                Some(old) => format!("BTTV emote {old} is now {name}."),
-                None => format!("{name} was renamed on BTTV."),
+                Some(old) => format!("The BTTV emote {old} is now {name}."),
+                None => format!("A BTTV emote is now {name}."),
             };
             change_channel(app, &channel_id, &text, |emotes| {
-                if let Some(slot) = emotes.iter_mut().find(|e| e.id == id) {
-                    let mut e = (**slot).clone();
-                    e.name.clone_from(&name);
-                    *slot = Arc::new(e);
-                }
+                let Some(slot) = emotes.iter_mut().find(|e| e.id == id) else {
+                    return false;
+                };
+                let mut e = (**slot).clone();
+                e.name.clone_from(&name);
+                *slot = Arc::new(e);
+                true
             });
         }
         BttvEvent::Removed { channel_id, id } => {
             let Some(name) = find_name(app, &channel_id, &id) else {
                 return;
             };
-            let text = format!("{name} was removed from BTTV.");
-            change_channel(app, &channel_id, &text, |emotes| emotes.retain(|e| e.id != id));
+            let text = format!("The BTTV emote {name} was removed.");
+            change_channel(app, &channel_id, &text, |emotes| {
+                let before = emotes.len();
+                emotes.retain(|e| e.id != id);
+                emotes.len() != before
+            });
         }
+    }
+}
+
+/// V108-C31 BTTV names the emote's maker, not who put it in the channel.
+pub(super) fn bttv_added_line(name: &str, by: Option<&str>) -> String {
+    match by {
+        Some(by) => format!("The BTTV emote {name} by {by} was added."),
+        None => format!("The BTTV emote {name} was added."),
     }
 }
 
@@ -311,26 +331,29 @@ fn find_name(app: &AppHandle, channel_id: &str, emote_id: &str) -> Option<String
         .map(|e| e.name.clone())
 }
 
-/// Edits the channel's BTTV set, then tells its chats (C10).
+/// Edits the channel's BTTV set, then tells its chats (C10), unless `edit` found nothing to do
+/// (V108-C31 a repeated event makes no second line).
 fn change_channel(
     app: &AppHandle,
     channel_id: &str,
     notice: &str,
-    edit: impl Fn(&mut Vec<Arc<cyex_emotes::Emote>>),
+    edit: impl Fn(&mut Vec<Arc<cyex_emotes::Emote>>) -> bool,
 ) {
     let state = app.state::<Emotes>();
     let logins: Vec<String> = {
         let mut inner = state.lock();
-        let logins: Vec<String> = inner
+        let all: Vec<String> = inner
             .channels
             .iter()
             .filter(|(_, c)| c.id == channel_id)
             .map(|(l, _)| l.clone())
             .collect();
-        for login in &logins {
+        let mut logins = Vec::new();
+        for login in &all {
             let Some(c) = inner.channels.get_mut(login) else {
                 continue;
             };
+            let changed;
             match c
                 .sets
                 .iter_mut()
@@ -338,8 +361,10 @@ fn change_channel(
             {
                 Some(set) => {
                     let mut next = (**set).clone();
-                    edit(&mut next.emotes);
-                    *set = Arc::new(next);
+                    changed = edit(&mut next.emotes);
+                    if changed {
+                        *set = Arc::new(next);
+                    }
                 }
                 None => {
                     let mut set = EmoteSet::new(
@@ -348,15 +373,31 @@ fn change_channel(
                         Scope::Channel,
                         Vec::new(),
                     );
-                    edit(&mut set.emotes);
-                    c.sets.push(Arc::new(set));
+                    changed = edit(&mut set.emotes);
+                    if changed {
+                        c.sets.push(Arc::new(set));
+                    }
                 }
             }
-            inner.rebuild(login);
+            if changed {
+                inner.rebuild(login);
+                logins.push(login.clone());
+            }
         }
         logins
     };
     for login in logins {
-        crate::chat::system_line(app, &login, notice);
+        super::change_line(app, &login, notice);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::bttv_added_line;
+
+    #[test]
+    fn bttv_lines_name_the_maker_when_known() {
+        assert_eq!(bttv_added_line("RareHug", Some("LIRIK")), "The BTTV emote RareHug by LIRIK was added.");
+        assert_eq!(bttv_added_line("RareHug", None), "The BTTV emote RareHug was added.");
     }
 }

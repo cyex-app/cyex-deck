@@ -249,6 +249,8 @@ fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_
             crate::connections::notify(app);
         }
         if let Some(span) = gap {
+            // V108-C31 FFZ has no live feed: read its room again after a drop.
+            crate::emotes::ffz_after_reconnect(app, channel);
             fill_gap(app.clone(), key, span);
         }
         return;

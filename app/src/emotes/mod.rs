@@ -8,6 +8,7 @@ mod card;
 mod card_flags;
 pub mod edit;
 mod extra;
+mod ffz_watch;
 mod live;
 mod load;
 mod looks;
@@ -24,6 +25,7 @@ pub use card::{EmoteCard, card};
 pub use load::twitch_sets;
 pub use looks::{Worn, looks_for, wear};
 pub use own::refresh as refresh_own_look;
+pub use ffz_watch::after_reconnect as ffz_after_reconnect;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -156,6 +158,7 @@ pub fn init(app: &AppHandle) {
     providers::spawn_bttv(app.clone(), bttv_rx);
     looks::spawn(app.clone());
     extra::init(app);
+    ffz_watch::init(app);
     art::init(app);
 }
 
@@ -167,6 +170,15 @@ impl Emotes {
     fn lock(&self) -> MutexGuard<'_, Inner> {
         self.inner.lock().unwrap_or_else(|p| p.into_inner())
     }
+}
+
+/// V108-C31 A line in every room of the channel that a provider's emotes changed, unless the
+/// user turned those lines off (`emoteChanges`).
+fn change_line(app: &AppHandle, login: &str, text: &str) {
+    if !app.state::<Settings>().read::<ChatSettings>(Partition::Chat).emote_changes {
+        return;
+    }
+    crate::chat::system_line(app, login, text);
 }
 
 fn priority(c: &ChatSettings) -> Vec<Provider> {

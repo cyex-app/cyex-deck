@@ -65,6 +65,8 @@ pub struct Chat {
     /// V106-08 Presence was turned on once for everyone.
     #[serde(default)]
     pub presence_on_once: bool,
+    /// V108-C31 A line in chat when a channel's 7TV, BTTV or FFZ emotes change.
+    pub emote_changes: bool,
     /// 2.5
     pub gifs: GifMode,
     /// 2.10
@@ -166,6 +168,7 @@ impl Default for Chat {
             hidden_emotes: Vec::new(),
             share_presence: true,
             presence_on_once: true,
+            emote_changes: true,
             gifs: GifMode::Show,
             timestamps: Timestamps::default(),
             timeout_presets: vec![60, 600, 3600, 86_400],

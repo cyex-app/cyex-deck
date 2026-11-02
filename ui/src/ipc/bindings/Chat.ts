@@ -66,6 +66,10 @@ sharePresence: boolean,
  */
 presenceOnOnce: boolean, 
 /**
+ * V108-C31 A line in chat when a channel's 7TV, BTTV or FFZ emotes change.
+ */
+emoteChanges: boolean, 
+/**
  * 2.5
  */
 gifs: GifMode, 

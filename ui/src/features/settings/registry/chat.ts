@@ -85,6 +85,13 @@ export const CHAT: Entry[] = [
     keywords: ['part', 'parts', 'joins and leaves', 'viewers', 'presence'],
   },
   {
+    id: 'chat.emoteChanges',
+    page: 'chat',
+    label: 'Show emote changes',
+    description: 'A line when a channel adds, removes or renames a 7TV, BTTV or FFZ emote.',
+    keywords: ['7tv', 'bttv', 'ffz', 'emote updates', 'live', 'system lines'],
+  },
+  {
     id: 'chat.rateMeter',
     page: 'chat',
     label: 'Show messages per second',

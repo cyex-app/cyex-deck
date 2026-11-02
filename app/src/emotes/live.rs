@@ -100,7 +100,11 @@ fn handle(app: &AppHandle, e: Event) {
             Entitled::EmoteSet => personal(app, added, ref_id, twitch_ids),
         },
         Event::SetChanged(c) => set_changed(app, c),
-        Event::ActiveSet { twitch_id, set_id } => {
+        Event::ActiveSet {
+            twitch_id,
+            set_id,
+            actor,
+        } => {
             let login = state
                 .lock()
                 .channels
@@ -108,8 +112,7 @@ fn handle(app: &AppHandle, e: Event) {
                 .find(|(_, c)| c.id == twitch_id)
                 .map(|(l, _)| l.clone());
             if let Some(login) = login {
-                crate::chat::system_line(app, &login, "The 7TV emote set changed.");
-                load::seventv_set(app.clone(), login, set_id);
+                load::seventv_set(app.clone(), login, set_id, actor);
             }
         }
     }
@@ -220,10 +223,9 @@ fn set_changed(app: &AppHandle, c: SetChange) {
     {
         let mut inner = state.lock();
         let logins = apply_to_channels(&mut inner, &c, &ours);
-        if let Some(actor) = &c.actor {
-            for login in &logins {
-                notices.push((login.clone(), lines(actor, &shown)));
-            }
+        // V108-C31 With or without a name: the channel's own set changing is news either way.
+        for login in &logins {
+            notices.push((login.clone(), lines(c.actor.as_deref(), &shown)));
         }
         if let Some(set) = inner.personal_sets.get(&c.set_id).cloned() {
             inner
@@ -244,7 +246,7 @@ fn set_changed(app: &AppHandle, c: SetChange) {
     }
     for (login, texts) in notices {
         for t in texts {
-            crate::chat::system_line(app, &login, &t);
+            super::change_line(app, &login, &t);
         }
     }
 }
@@ -290,14 +292,14 @@ pub(crate) fn apply_local(app: &AppHandle, c: &SetChange) {
             added: c.added.clone(),
             removed: Vec::new(),
             renamed: c.renamed.clone(),
+            set_renamed: None,
+            capacity: None,
         };
         apply_to_channels(&mut inner, &rest, &c.removed)
     };
-    if let Some(actor) = &c.actor {
-        for login in logins {
-            for t in lines(actor, c) {
-                crate::chat::system_line(app, &login, &t);
-            }
+    for login in logins {
+        for t in lines(c.actor.as_deref(), c) {
+            super::change_line(app, &login, &t);
         }
     }
 }
@@ -355,24 +357,61 @@ fn apply(set: &EmoteSet, c: &SetChange, ours: &[(String, String)]) -> EmoteSet {
         provider: set.provider,
         scope: set.scope,
         emotes,
+        name: c.set_renamed.as_ref().map(|(_, n)| n.clone()).or_else(|| set.name.clone()),
     }
 }
 
-/// C10 "xQc added the 7TV emote notL."
-fn lines(actor: &str, c: &SetChange) -> Vec<String> {
+/// C10 "xQc added the 7TV emote notL." V108-C31 Without a name: "The 7TV emote notL was added."
+/// Set renamed and size changes read the same way.
+fn lines(actor: Option<&str>, c: &SetChange) -> Vec<String> {
     let mut out = Vec::new();
     for e in &c.added {
-        out.push(format!("{actor} added the 7TV emote {}.", e.name));
+        out.push(match actor {
+            Some(a) => format!("{a} added the 7TV emote {}.", e.name),
+            None => format!("The 7TV emote {} was added.", e.name),
+        });
     }
     for (_, name) in &c.removed {
-        out.push(format!("{actor} removed the 7TV emote {name}."));
+        out.push(match actor {
+            Some(a) => format!("{a} removed the 7TV emote {name}."),
+            None => format!("The 7TV emote {name} was removed."),
+        });
     }
     for (_, old, new) in &c.renamed {
         if *old != new.name {
-            out.push(format!("{actor} renamed the 7TV emote {old} to {}.", new.name));
+            out.push(match actor {
+                Some(a) => format!("{a} renamed the 7TV emote {old} to {}.", new.name),
+                None => format!("The 7TV emote {old} is now {}.", new.name),
+            });
         }
     }
+    if let Some((old, new)) = &c.set_renamed {
+        out.push(match (actor, old.is_empty()) {
+            (Some(a), false) => format!("{a} renamed the 7TV set {old} to {new}."),
+            (Some(a), true) => format!("{a} renamed the 7TV set to {new}."),
+            (None, false) => format!("The 7TV set {old} is now {new}."),
+            (None, true) => format!("The 7TV set is now {new}."),
+        });
+    }
+    if let Some((_, size)) = c.capacity {
+        out.push(match actor {
+            Some(a) => format!("{a} set the 7TV set size to {size}."),
+            None => format!("The 7TV set size is now {size}."),
+        });
+    }
     out
+}
+
+/// V108-C31 The line for a channel switching to another set (or none).
+pub(super) fn switch_line(actor: Option<&str>, name: Option<&str>, off: bool) -> String {
+    match (actor, name, off) {
+        (Some(a), _, true) => format!("{a} turned off the 7TV emote set."),
+        (None, _, true) => "The 7TV emote set was turned off.".into(),
+        (Some(a), Some(n), _) => format!("{a} switched to the 7TV emote set {n}."),
+        (None, Some(n), _) => format!("The 7TV emote set is now {n}."),
+        (Some(a), None, _) => format!("{a} switched the 7TV emote set."),
+        (None, None, _) => "The 7TV emote set changed.".into(),
+    }
 }
 
 #[cfg(test)]
@@ -397,18 +436,46 @@ mod tests {
             added: vec![emote("3", "c")],
             removed: vec![("1".into(), "a".into())],
             renamed: vec![("2".into(), "b".into(), emote("2", "bee"))],
+            ..SetChange::default()
         };
         let next = apply(&set, &c, &[]);
         let names: Vec<&str> = next.emotes.iter().map(|e| e.name.as_str()).collect();
         assert_eq!(names, ["bee", "c"]);
         assert_eq!(
-            lines("xQc", &c),
+            lines(Some("xQc"), &c),
             [
                 "xQc added the 7TV emote c.",
                 "xQc removed the 7TV emote a.",
                 "xQc renamed the 7TV emote b to bee."
             ]
         );
+        assert_eq!(
+            lines(None, &c),
+            [
+                "The 7TV emote c was added.",
+                "The 7TV emote a was removed.",
+                "The 7TV emote b is now bee."
+            ]
+        );
+    }
+
+    #[test]
+    fn set_level_lines() {
+        let c = SetChange {
+            set_id: "s".into(),
+            set_renamed: Some(("Old".into(), "New".into())),
+            capacity: Some((Some(500), 600)),
+            ..SetChange::default()
+        };
+        assert_eq!(
+            lines(Some("xQc"), &c),
+            ["xQc renamed the 7TV set Old to New.", "xQc set the 7TV set size to 600."]
+        );
+        let set = EmoteSet::new("s", Provider::Seventv, Scope::Channel, Vec::new());
+        assert_eq!(apply(&set, &c, &[]).name.as_deref(), Some("New"));
+        assert_eq!(switch_line(Some("xQc"), Some("Hype"), false), "xQc switched to the 7TV emote set Hype.");
+        assert_eq!(switch_line(None, Some("Hype"), false), "The 7TV emote set is now Hype.");
+        assert_eq!(switch_line(None, None, true), "The 7TV emote set was turned off.");
     }
 
     #[test]

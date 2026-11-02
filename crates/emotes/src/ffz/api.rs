@@ -1,5 +1,5 @@
 //! FFZ over HTTP (1.39): global and room emotes with modifiers (C7), room mod and VIP
-//! badges, and FFZ's own badges. FFZ has no live updates in use.
+//! badges, and FFZ's own badges. FFZ has no live feed in use; `diff` finds what a re-read changed.
 
 use std::collections::HashMap;
 
@@ -60,6 +60,12 @@ pub async fn room(http: &Http, twitch_id: &str, lane: Lane) -> Result<Option<Roo
         }) => Ok(None),
         Err(e) => Err(e),
     }
+}
+
+/// V108-C31 A `/room/id/{id}` answer, for tests of what changed between two reads.
+#[cfg(test)]
+pub(crate) fn parse_room(json: &str) -> Option<Room> {
+    serde_json::from_str::<RawRoomData>(json).ok().map(Room::from)
 }
 
 /// FFZ's badges and who has them, as sorted Twitch ids (40.000+ people, kept small).

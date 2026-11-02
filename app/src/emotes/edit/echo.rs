@@ -138,6 +138,8 @@ impl Echoes {
                 .filter(|(id, _, new)| self.take(set, Kind::Rename, id, Some(&new.name)).is_none())
                 .cloned()
                 .collect(),
+            set_renamed: c.set_renamed.clone(),
+            capacity: c.capacity,
         };
         (shown, ours)
     }

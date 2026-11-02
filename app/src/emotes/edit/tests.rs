@@ -187,6 +187,7 @@ fn target_follows_7tv_events() {
         added: vec![Emote::new(Provider::Seventv, "C", "c")],
         removed: vec![("A".into(), "lagging".into())],
         renamed: vec![("B".into(), "b".into(), Emote::new(Provider::Seventv, "B", "bee"))],
+        ..SetChange::default()
     };
     t.apply_change(&c, &[]);
     assert_eq!(

@@ -42,6 +42,8 @@ pub enum Event {
     ActiveSet {
         twitch_id: String,
         set_id: Option<String>,
+        /// V108-C31 Who switched it, display name, when the frame says.
+        actor: Option<String>,
     },
 }
 
@@ -62,6 +64,10 @@ pub struct SetChange {
     pub removed: Vec<(String, String)>,
     /// (id, old name, new emote).
     pub renamed: Vec<(String, String, Emote)>,
+    /// V108-C31 The set itself renamed: (old, new).
+    pub set_renamed: Option<(String, String)>,
+    /// V108-C31 The set's size changed: (old, new).
+    pub capacity: Option<(Option<u32>, u32)>,
 }
 
 pub fn parse(text: &str) -> Frame {
@@ -160,9 +166,14 @@ fn active_set(body: &Value) -> Option<Event> {
         for v in u["value"].as_array().into_iter().flatten() {
             if v["key"] == "emote_set" {
                 let set_id = v.pointer("/value/id").and_then(Value::as_str).map(str::to_owned);
+                let actor = body
+                    .pointer("/actor/display_name")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned);
                 return Some(Event::ActiveSet {
                     twitch_id: twitch_id?.to_owned(),
                     set_id,
+                    actor,
                 });
             }
         }
@@ -285,8 +296,14 @@ struct RawSetUpdate {
 #[derive(Deserialize)]
 struct RawChange {
     key: String,
-    value: Option<RawActive>,
-    old_value: Option<RawActive>,
+    value: Option<Value>,
+    old_value: Option<Value>,
+}
+
+impl RawChange {
+    fn active(v: Option<Value>) -> Option<RawActive> {
+        serde_json::from_value(v?).ok()
+    }
 }
 
 /// v3 `ActiveEmote`.
@@ -345,18 +362,37 @@ impl From<RawSetUpdate> for SetChange {
         };
         for p in u.pushed.into_iter().filter(|p| p.key == "emotes") {
             // The server only fills personal sets with emotes approved for that.
-            if let Some(v) = p.value {
+            if let Some(v) = RawChange::active(p.value) {
                 c.added.push(v.emote());
             }
         }
         for p in u.pulled.into_iter().filter(|p| p.key == "emotes") {
-            if let Some(v) = p.old_value {
+            if let Some(v) = RawChange::active(p.old_value) {
                 c.removed.push((v.id, v.name));
             }
         }
-        for p in u.updated.into_iter().filter(|p| p.key == "emotes") {
-            if let (Some(old), Some(new)) = (p.old_value, p.value) {
-                c.renamed.push((old.id, old.name, new.emote()));
+        for p in u.updated {
+            match p.key.as_str() {
+                "emotes" => {
+                    if let (Some(old), Some(new)) = (RawChange::active(p.old_value), RawChange::active(p.value)) {
+                        c.renamed.push((old.id, old.name, new.emote()));
+                    }
+                }
+                "name" => {
+                    if let Some(new) = p.value.as_ref().and_then(Value::as_str) {
+                        let old = p.old_value.as_ref().and_then(Value::as_str).unwrap_or_default();
+                        if old != new {
+                            c.set_renamed = Some((old.to_owned(), new.to_owned()));
+                        }
+                    }
+                }
+                "capacity" => {
+                    if let Some(new) = p.value.as_ref().and_then(Value::as_u64) {
+                        let old = p.old_value.as_ref().and_then(Value::as_u64).map(|n| n as u32);
+                        c.capacity = Some((old, new as u32));
+                    }
+                }
+                _ => {}
             }
         }
         c
@@ -454,5 +490,37 @@ mod tests {
         };
         assert!(c.actor.is_none());
         assert_eq!(c.added[0].name, "nnysClap");
+    }
+
+    #[test]
+    fn set_name_and_size_changes() {
+        let f = parse(
+            r#"{"op":0,"d":{"type":"emote_set.update","body":{"id":"S","actor":{"display_name":"xQc"},
+            "updated":[{"key":"name","value":"New","old_value":"Old"},
+            {"key":"capacity","value":600,"old_value":500}]}}}"#,
+        );
+        let Frame::Event(e) = f else { panic!("{f:?}") };
+        let Event::SetChanged(c) = *e else { panic!() };
+        assert_eq!(c.set_renamed, Some(("Old".into(), "New".into())));
+        assert_eq!(c.capacity, Some((Some(500), 600)));
+        assert!(c.added.is_empty() && c.renamed.is_empty());
+    }
+
+    #[test]
+    fn active_set_switch_names_who() {
+        let f = parse(
+            r#"{"op":0,"d":{"type":"user.update","body":{"actor":{"display_name":"xQc",
+            "connections":[{"platform":"TWITCH","id":"71092938"}]},
+            "updated":[{"key":"connections","value":[{"key":"emote_set","value":{"id":"S2"}}]}]}}}"#,
+        );
+        let Frame::Event(e) = f else { panic!("{f:?}") };
+        assert_eq!(
+            *e,
+            Event::ActiveSet {
+                twitch_id: "71092938".into(),
+                set_id: Some("S2".into()),
+                actor: Some("xQc".into())
+            }
+        );
     }
 }
