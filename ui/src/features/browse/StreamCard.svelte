@@ -59,8 +59,9 @@
       {#if ontag && stream.tags.length}
         <div class="tags">
           {#each stream.tags.slice(0, 3) as t (t)}
-            <button class="chip" onclick={() => ontag(t)}>{t}</button>
+            <button class="chip" title={t} onclick={() => ontag(t)}>{t}</button>
           {/each}
+          {#if stream.tags.length > 3}<span class="more" title={stream.tags.slice(3).join(', ')}>+{stream.tags.length - 3}</span>{/if}
         </div>
       {/if}
     </div>
@@ -178,12 +179,22 @@
     overflow: hidden;
   }
   .chip {
-    flex: none;
+    flex: 0 1 auto;
+    min-width: 3em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     padding: 0 7px;
     height: 20px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-pill);
+    color: var(--muted);
+    font-size: 0.72rem;
+  }
+  .more {
+    flex: none;
+    align-self: center;
     color: var(--muted);
     font-size: 0.72rem;
   }
