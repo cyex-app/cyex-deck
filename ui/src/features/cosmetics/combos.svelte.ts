@@ -81,7 +81,8 @@ export class ComboStore {
     } catch (e) {
       this.store.sel.adopt(before);
       const err = asError(e);
-      this.store.say(errorText(err));
+      // V108-F12 (S3-07) a failed wear fades like other notes.
+      this.store.say(errorText(err), null, true);
       if (err.type !== 'down') void this.store.load();
       if (pickNeedsSignIn(this.store.status, true, err)) this.store.askSignIn(err.type === 'signInAgain', () => void this.apply(c));
     }
@@ -99,7 +100,7 @@ export class ComboStore {
       this.store.say('Done.', null, true);
     } catch (e) {
       this.store.sel.adopt(was);
-      this.store.say(errorText(asError(e)));
+      this.store.say(errorText(asError(e)), null, true);
     }
   }
 
