@@ -1,4 +1,4 @@
-<!-- V108-F01 card fits the window (min-width 0). V108-C26 /mods, /vips and /roles: who holds a role and since when. A name opens its usercard.
+<!-- V108-F02 role changes show busy, a toast and a fresh list. V108-F01 card fits the window (min-width 0). V108-C26 /mods, /vips and /roles: who holds a role and since when. A name opens its usercard.
      V108-C27 A card in its own window, like the usercard: drag it anywhere that isn't a
      control, pin it on top from the frame; unpinned it closes on a click elsewhere. Any
      chat: mods and VIPs as Twitch shares them; your own channel shows every role, and there
@@ -78,21 +78,21 @@
     chatIpc.openUsercard(channel, who).catch(() => {});
   }
 
-  /** One change through the Roles Manager's IPC (Rust picks the order and says the line),
-   *  then the list again. */
+  /** One change through the Roles Manager's IPC (Rust picks the order and says the line):
+   *  the row shows busy until the list is read again; a toast says how it went. */
   async function change(who: string, give: ChannelRole[], take: ChannelRole[]): Promise<boolean> {
     if (!account) return false;
     busy[who] = true;
     try {
       const v = await rolesIpc.set(account, channel, who, give, take);
-      if (v.line) toast.success(v.line);
+      toast.success(v.line || (take.length ? 'Role removed.' : 'Role given.'));
+      await load();
       return true;
     } catch (e) {
-      toast.error(errorText(e));
+      toast.error(errorText(e) || 'That didn’t go through.');
       return false;
     } finally {
       busy[who] = false;
-      void load();
     }
   }
 
