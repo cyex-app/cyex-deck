@@ -11,6 +11,7 @@
   import { catalogs } from './catalog.svelte';
   import { splitEmoji } from '../emotes/emoji/split';
   import ChatEmote from './ChatEmote.svelte';
+  import EmojiImg from './EmojiImg.svelte';
   import { prefetchLinks } from './linkPreviews';
   import { actTip, picSize, spanColor } from './pluginLine';
   import { saved } from './saved';
@@ -47,7 +48,7 @@
 
 {#each fragments as f, i (i)}
   {#if f.t === 'text'}{#each splitEmoji(f.text) as p, j (j)}{#if p.emoji}<span class="emoji" data-emoji={p.text}
-          >{p.text}</span
+          ><EmojiImg char={p.text} /></span
         >{:else}{p.text}{/if}{/each}{:else if f.t === 'emote'}{#if i === big}<span class="giant"><ChatEmote {f} giant /></span>{:else}<ChatEmote
         {f}
         giant={i === gigantified}

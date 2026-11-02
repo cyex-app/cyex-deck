@@ -9,6 +9,13 @@
 .emote {
   height: calc(2.15em * var(--emote-scale, 1));
 }
+/* V108-C30 Emoji pictures are as tall as a 1x emote. */
+.emoji-img {
+  height: calc(2.15em * var(--emote-scale, 1));
+  width: auto;
+  vertical-align: middle;
+  margin: 0;
+}
 .stack {
   display: inline-grid;
 }
