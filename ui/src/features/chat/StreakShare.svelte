@@ -1,6 +1,6 @@
 <!-- V108-N23 A slim row above the message box, styled like the reply row, when the account has a
      watch streak it can share here. Share posts Twitch's own streak notice; nothing is sent
-     until the button is pressed. The x or Escape hides it for the run. -->
+     until the button is pressed. The x, or Escape while focus is in the row, hides it for the run. -->
 <script module lang="ts">
   import { SvelteSet } from 'svelte/reactivity';
 
