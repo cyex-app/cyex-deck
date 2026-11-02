@@ -13,7 +13,7 @@
 </script>
 
 <script lang="ts">
-  import { onDestroy, type Snippet } from 'svelte';
+  import { onDestroy, tick, type Snippet } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
@@ -155,6 +155,14 @@
   let input = $state<ChatInput>();
   let replyTo = $state<ChatMessage | null>(null);
   let search = $state<{ query: string; all: boolean } | null>(null);
+  /** V108-F21 Closing the search hands focus back to the chat input when the opener is gone. */
+  function closeSearch() {
+    search = null;
+    void tick().then(() => {
+      const at = document.activeElement;
+      if (!at || at === document.body) input?.focus();
+    });
+  }
   let recording = $state(false);
   /** 1.28 The subscribe dialog is open. */
   let subscribing = $state(false);
@@ -579,7 +587,7 @@
       query={search.query}
       all={search.all}
       {account}
-      onclose={() => (search = null)}
+      onclose={closeSearch}
     />
   {/if}
 </section>
