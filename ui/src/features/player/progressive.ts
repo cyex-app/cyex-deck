@@ -121,9 +121,12 @@ export class Fmp4Gate {
   private scales: Map<number, number>;
   /** V108-LL6 Held only because the first moof's track had no timescale yet: nothing sent. */
   private blind = false;
+  /** V108-LL7 s into the segment a moof may start and still stream (Infinity: all of it). */
+  private readonly cut: number;
 
-  constructor(scales: Map<number, number>) {
+  constructor(scales: Map<number, number>, cut = FMP4_CUT) {
     this.scales = scales;
+    this.cut = cut;
   }
 
   /** Bytes for hls.js now, or null. */
@@ -186,7 +189,7 @@ export class Fmp4Gate {
           break;
         }
         this.base ??= t;
-        if (t - this.base >= FMP4_CUT) {
+        if (t - this.base >= this.cut) {
           this.holding = true;
           break;
         }
@@ -229,6 +232,10 @@ type FragLoader = Loader<FragmentLoaderContext>;
  *  fMP4 segments gated (Fmp4Gate). TS and everything else pass straight through. */
 export class ProgressiveLoader implements FragLoader {
   private readonly inner: FragLoader;
+  /** V108-LL7 Where the fMP4 gate holds the rest of a segment (fmp4Stream.ts streams it all). */
+  protected cut = FMP4_CUT;
+  /** V108-LL7 Bytes hls.js gathers before it passes a piece on; null keeps its 128 KB. */
+  protected chunk: number | null = null;
 
   constructor(config: HlsConfig) {
     this.inner = new config.loader(config) as unknown as FragLoader;
@@ -261,11 +268,13 @@ export class ProgressiveLoader implements FragLoader {
   load(context: FragmentLoaderContext, config: LoaderConfiguration, callbacks: LoaderCallbacks<FragmentLoaderContext>): void {
     const onProgress = callbacks.onProgress;
     const init = context.frag.initSegment;
+    // V108-LL7 hls.js streams in 128 KB pieces: a whole second and more at 480p and under.
+    if (this.chunk && onProgress && context.frag.sn !== 'initSegment') config = { ...config, highWaterMark: this.chunk };
     if (!onProgress || !init || context.frag.sn === 'initSegment') return this.inner.load(context, config, callbacks);
     // V108-LL6 A new init loads alongside its first segment: read once it's there (until then,
     // or if it never reads, the gate holds the segment and it comes whole).
     let scales = init.data ? timescales(init.data) : new Map<number, number>();
-    let gate = new Fmp4Gate(scales);
+    let gate = new Fmp4Gate(scales, this.cut);
     let retry = 0;
     const send = (stats: Parameters<typeof onProgress>[0], ctx: LoaderContext, data: Uint8Array | null, nd: Parameters<typeof onProgress>[3]) => {
       if (data) onProgress(stats, ctx as FragmentLoaderContext, data.buffer as ArrayBuffer, nd);
@@ -276,7 +285,7 @@ export class ProgressiveLoader implements FragLoader {
         // A retry starts the segment over.
         if (stats.retry !== retry) {
           retry = stats.retry;
-          gate = new Fmp4Gate(scales);
+          gate = new Fmp4Gate(scales, this.cut);
         }
         if (!scales.size && init.data) {
           scales = timescales(init.data);

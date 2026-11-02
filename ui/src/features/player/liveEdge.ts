@@ -2,6 +2,7 @@
 
 import type { HlsConfig } from 'hls.js';
 
+import { ll7Old, StreamLoader } from './fmp4Stream.ts';
 import { ProgressiveLoader } from './progressive.ts';
 import { clock } from './time.ts';
 
@@ -102,7 +103,8 @@ export function liveConfig(lowLatency: boolean): Partial<HlsConfig> {
   };
   // V108-LL3 Low latency plays the segment still being made as it arrives (progressive.ts):
   // Twitch's newest frames show about a second sooner. Rewind, replay and VODs load whole.
-  return lowLatency ? { ...c, progressive: true, fLoader: ProgressiveLoader } : c;
+  // V108-LL7 fMP4 streams whole too, in 32 KB pieces (fmp4Stream.ts).
+  return lowLatency ? { ...c, progressive: true, fLoader: ll7Old() ? ProgressiveLoader : StreamLoader } : c;
 }
 
 /** The rewind VOD's config: an EVENT playlist hls.js would treat as live. A huge max

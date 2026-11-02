@@ -40,6 +40,7 @@ import {
 } from './liveMachine';
 import { type Choice, levelFor, levelName, lowestLevel } from './quality';
 import { Steer } from './steer';
+import { exposeLive, ll7Old, streamFmp4 } from './fmp4Stream';
 import { dateAt, goneDue, isGone, nextAfter, type Piece, posAt } from './replayClock';
 import { stallStart, stallStep } from './stall';
 import { isTorn, tornDue, tornStart } from './torn';
@@ -443,6 +444,11 @@ export class Engine {
     this.dropHls();
     const hls = new Hls(this.config());
     this.hls = hls;
+    // V108-LL7 With low latency, fMP4 segments stream whole (fmp4Stream.ts).
+    if (this.liveSrc && !this.replay) {
+      if (this.lowLatency && !ll7Old()) streamFmp4(hls);
+      exposeLive(hls);
+    }
     this.H = Hls;
     // K3 A boosted video's picture waits for its Web Audio sound. A new delay reloads the
     // buffer at the play head, so it's in sync at once. Read again when the graph changes,

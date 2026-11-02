@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { ProgressiveLoader } from './progressive.ts';
+import { StreamLoader } from './fmp4Stream.ts';
 import {
   behindLive,
   broadcastLatency,
@@ -91,9 +91,9 @@ test('live config is today’s, without the dead catch-up rate', () => {
   assert.equal('maxLiveSyncPlaybackRate' in liveConfig(false), false);
 });
 
-test('V108-LL3 low latency streams the segment being made, through the fMP4 gate', () => {
+test('V108-LL3 low latency streams the segment being made (V108-LL7 all of it, 32 KB pieces)', () => {
   assert.equal(liveConfig(true).progressive, true);
-  assert.equal(liveConfig(true).fLoader, ProgressiveLoader);
+  assert.equal(liveConfig(true).fLoader, StreamLoader);
   assert.equal('progressive' in liveConfig(false), false);
   assert.equal('fLoader' in liveConfig(false), false);
 });
