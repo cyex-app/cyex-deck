@@ -11,6 +11,7 @@
   import IconButton from '../../components/IconButton.svelte';
   import Loading from '../../components/Loading.svelte';
   import { openMenu, type MenuEntry } from '../../components/menu.svelte';
+  import ConfirmCallout from '../../components/ConfirmCallout.svelte';
   import Card from '../../components/PanelCard.svelte';
   import SearchField from '../../components/SearchField.svelte';
   import Select from '../../components/Select.svelte';
@@ -23,7 +24,7 @@
   import { errorText } from '../../lib/errors';
   import { toast } from '../../lib/toast.svelte';
   import { cleanLogin, offFor, ROLE_HINT, ROLE_NAME, ROLES, roleCounts, type RoleFilter, ROLE_SORT, shownMembers, SORTS } from './rolesManager';
-  import { focusBack, focusIn, onEscape } from './onEscape';
+  import { focusIn, onEscape } from './onEscape';
   import SmBar from './SmBar.svelte';
   import SmProblem from './SmProblem.svelte';
   import { sm } from './streammanager.svelte';
@@ -40,8 +41,8 @@
   /** Rows with a change running, by login. */
   let busy = $state<Record<string, boolean>>({});
   /** The chip waiting for its second click: `login/role`. */
-  let armed = $state('');
-  let armTimer: ReturnType<typeof setTimeout> | undefined;
+  /** V108-F15 (S3-02) The role chip waiting for its second click (the confirm bubble). */
+  let armed = $state<{ anchor: HTMLElement; pressX?: number; role: ChannelRole; who: RoleMember } | null>(null);
   let now = $state(Date.now());
 
   let adding = $state(false);
@@ -99,22 +100,9 @@
     }
   }
 
-  async function take(r: RoleMember, role: ChannelRole) {
-    disarm();
-    await change(r.login, [], [role]);
+  function arm(e: MouseEvent, who: RoleMember, role: ChannelRole) {
+    armed = { anchor: e.currentTarget as HTMLElement, pressX: e.detail === 0 ? undefined : e.clientX, role, who };
   }
-
-  function arm(key: string) {
-    clearTimeout(armTimer);
-    armed = key;
-    armTimer = setTimeout(() => (armed = ''), 3000);
-  }
-
-  function disarm() {
-    clearTimeout(armTimer);
-    armed = '';
-  }
-  $effect(() => () => clearTimeout(armTimer));
 
   function addMenu(e: MouseEvent, r: RoleMember) {
     const items: MenuEntry[] = ROLES.filter((role) => !r.roles.includes(role)).map((role) => {
@@ -232,26 +220,14 @@
             </div>
             <div class="chips">
               {#each r.roles as role (role)}
-                {@const key = `${r.login}/${role}`}
-                {#if armed === key}
-                  <button
-                    class="chip confirm"
-                    disabled={busy[r.login]}
-                    use:focusIn
-                    use:onEscape={() => (disarm(), focusBack(key))}
-                    onclick={() => void take(r, role)}
-                    onblur={disarm}>Remove {ROLE_NAME[role]}?</button
-                  >
-                {:else}
-                  <span class="chip">
-                    {ROLE_NAME[role]}
-                    <button class="rm" data-back={key} aria-label="Remove {ROLE_NAME[role]}" disabled={busy[r.login]} onclick={() => arm(key)}>
-                      <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"
-                        ><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5" /><path d="M5 8h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg
-                      >
-                    </button>
-                  </span>
-                {/if}
+                <span class="chip">
+                  {ROLE_NAME[role]}
+                  <button class="rm" aria-label="Remove {ROLE_NAME[role]}" disabled={busy[r.login]} onclick={(e) => arm(e, r, role)}>
+                    <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"
+                      ><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5" /><path d="M5 8h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg
+                    >
+                  </button>
+                </span>
               {/each}
               {#if r.roles.length < ROLES.length}
                 <button class="chip plus" aria-label="Add a role for {r.display}" disabled={busy[r.login]} onclick={(e) => addMenu(e, r)}>
@@ -267,6 +243,22 @@
     {#if view?.truncated}<p class="note pad">Some may be missing. Refresh to try again.</p>{/if}
   {/if}
 </Card>
+{#if armed}
+  {@const a = armed}
+  <ConfirmCallout
+    anchor={a.anchor}
+    pressX={a.pressX}
+    label="Click to remove {ROLE_NAME[a.role]}"
+    onconfirm={() => {
+      armed = null;
+      void change(a.who.login, [], [a.role]);
+    }}
+    ondismiss={() => {
+      armed = null;
+      a.anchor.focus({ preventScroll: true });
+    }}
+  />
+{/if}
 
 <style>
   .grow {
@@ -410,13 +402,6 @@
   }
   .rm:hover:not(:disabled) {
     color: var(--red);
-  }
-  .chip.confirm {
-    padding: 0 7px;
-    border-color: var(--danger-solid);
-    background: var(--danger-solid);
-    color: #fff;
-    cursor: pointer;
   }
   .chip.plus {
     padding: 0 5px;

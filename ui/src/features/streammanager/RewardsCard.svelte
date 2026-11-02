@@ -142,7 +142,10 @@
         : { label: 'Pause', icon: 'pause', disabled: !r.enabled, note: 'Viewers see it but can’t redeem it.', run: () => void flip(r, { kind: 'paused', on: true }) },
       { label: 'Edit', icon: 'pencil', run: () => (editing = r.id) },
       'separator',
-      { label: 'Delete reward', icon: 'trash', danger: true, run: () => (confirming = r.id) },
+      // V108-F15 (S3-02) Nothing waiting: the menu's confirm bubble. With redemptions waiting there are two ways out, so the row asks.
+      r.waiting
+        ? { label: 'Delete reward', icon: 'trash', danger: true, run: () => (confirming = r.id) }
+        : { label: 'Delete reward', icon: 'trash', danger: true, confirm: 'Click to delete', run: () => remove(r, null) },
     ]);
   }
 
