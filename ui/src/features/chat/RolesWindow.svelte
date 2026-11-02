@@ -1,4 +1,4 @@
-<!-- V108-C26 /mods, /vips and /roles: who holds a role and since when. A name opens its usercard.
+<!-- V108-F01 card fits the window (min-width 0). V108-C26 /mods, /vips and /roles: who holds a role and since when. A name opens its usercard.
      V108-C27 A card in its own window, like the usercard: drag it anywhere that isn't a
      control, pin it on top from the frame; unpinned it closes on a click elsewhere. Any
      chat: mods and VIPs as Twitch shares them; your own channel shows every role, and there
@@ -198,6 +198,9 @@
   .card {
     display: flex;
     flex-direction: column;
+    flex: 1;
+    width: 100%;
+    min-width: 0;
     height: 100%;
     min-height: 0;
     background: var(--bg);
