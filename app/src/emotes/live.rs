@@ -147,12 +147,16 @@ fn personal(app: &AppHandle, added: bool, set_id: String, users: Vec<String>) {
                 sets.retain(|s| *s != set_id);
             }
         }
+        // V108-C32 Emotes that arrived before the grant fill the set meanwhile; its kind (personal
+        // or event set) and name are fetched below either way.
+        let mut provisional = false;
         if added
             && !inner.personal_sets.contains_key(&set_id)
             && let Some(emotes) = inner.unclaimed.remove(&set_id)
         {
             let set = EmoteSet::new(set_id.clone(), Provider::Seventv, Scope::Personal, emotes);
             inner.personal_sets.insert(set_id.clone(), Arc::new(set));
+            provisional = true;
         }
         for u in &users {
             inner.rebuild_personal(u);
@@ -161,9 +165,10 @@ fn personal(app: &AppHandle, added: bool, set_id: String, users: Vec<String>) {
         if !added {
             inner.prune_personal_sets(std::slice::from_ref(&set_id));
         }
-        added && !inner.personal_sets.contains_key(&set_id)
+        (added && (provisional || !inner.personal_sets.contains_key(&set_id)), provisional)
     };
-    if added && !missing {
+    let (missing, shown) = missing;
+    if added && (shown || !missing) {
         crate::chat::retokenize_users(app, &users);
     }
     if missing {
@@ -187,7 +192,10 @@ fn personal(app: &AppHandle, added: bool, set_id: String, users: Vec<String>) {
                 if !held {
                     continue;
                 }
-                set.scope = Scope::Personal;
+                // V108-C32 A granted set is personal only when 7TV says so; the rest are event sets.
+                if !matches!(set.scope, Scope::Personal | Scope::Special) {
+                    set.scope = Scope::Special;
+                }
                 inner.personal_sets.insert(set.id.clone(), Arc::new(set));
             }
             for u in &users {

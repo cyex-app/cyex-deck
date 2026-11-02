@@ -104,6 +104,7 @@ test('7TV set is named by its scope', () => {
     tip: 'Opens 7tv.app',
   });
   assert.equal(set(['personal']).value, 'Personal set');
+  assert.equal(set(['eventSet']).value, 'Event set');
   assert.equal(set(['global']).value, 'Global set');
 });
 

@@ -112,6 +112,7 @@ export function expectedFacts(provider: Provider, name: string): number {
 /** 7TV's set, named by what it's for. */
 function setName(flags: CardFlag[]): string {
   if (flags.includes('personal')) return 'Personal set';
+  if (flags.includes('eventSet')) return 'Event set';
   if (flags.includes('global')) return 'Global set';
   return 'Channel set';
 }
@@ -121,6 +122,7 @@ const FLAGS: Record<CardFlag, [text: string, tip: string]> = {
   global: ['Global', 'Works in every chat'],
   channel: ['Channel', 'In this channel’s set'],
   personal: ['Personal', 'From a personal set. Only its owner’s messages show it'],
+  eventSet: ['Event set', 'From an event set 7TV granted. Everyone with 7TV sees it'],
   shared: ['Shared', 'Another channel’s emote, added here'],
   tier1: ['Tier 1', 'For subscribers at tier 1 and up'],
   tier2: ['Tier 2', 'For subscribers at tier 2 and up'],
@@ -147,7 +149,7 @@ const FLAGS: Record<CardFlag, [text: string, tip: string]> = {
 
 const WARN: CardFlag[] = ['unlisted', 'nsfw'];
 /** kb-3, fa-3 Where it works (Shared too), first after the provider. */
-const SCOPE: CardFlag[] = ['global', 'channel', 'personal', 'shared'];
+const SCOPE: CardFlag[] = ['global', 'channel', 'personal', 'eventSet', 'shared'];
 /** kb-3 Shown with the warnings and never folded, but not in yellow. */
 const KEEP: CardFlag[] = ['private'];
 

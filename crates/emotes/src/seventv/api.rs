@@ -74,7 +74,7 @@ pub async fn global(http: &Http) -> Result<EmoteSet> {
 /// Sets by id, e.g. personal ones (C9). At most [`MAX_BATCH`]. B8 Paced.
 pub async fn sets(http: &Http, ids: &[String], lane: Lane) -> Result<Vec<EmoteSet>> {
     let q = format!(
-        "query($ids: [Id!]!) {{ emoteSets {{ emoteSets(ids: $ids) {{ id kind emotes {{ {ITEM} }} }} }} }}"
+        "query($ids: [Id!]!) {{ emoteSets {{ emoteSets(ids: $ids) {{ id name kind emotes {{ {ITEM} }} }} }} }}"
     );
     let ids = &ids[..ids.len().min(MAX_BATCH)];
     let data: Data<RawSets> = paced(http, lane, &q, json!({ "ids": ids })).await?;
@@ -84,14 +84,21 @@ pub async fn sets(http: &Http, ids: &[String], lane: Lane) -> Result<Vec<EmoteSe
         .emote_sets
         .into_iter()
         .map(|s| {
-            let scope = match s.kind.as_deref() {
-                Some("PERSONAL" | "SPECIAL") => Scope::Personal,
-                Some("GLOBAL") => Scope::Global,
-                _ => Scope::Channel,
-            };
+            let scope = scope_of(s.kind.as_deref());
             s.into_set(scope)
         })
         .collect())
+}
+
+/// V108-C32 What a set is for, by 7TV's kind: only PERSONAL is a user's personal set;
+/// SPECIAL ones are event sets 7TV granted (an entitlement).
+pub fn scope_of(kind: Option<&str>) -> Scope {
+    match kind {
+        Some("PERSONAL") => Scope::Personal,
+        Some("SPECIAL") => Scope::Special,
+        Some("GLOBAL") => Scope::Global,
+        _ => Scope::Channel,
+    }
 }
 
 /// The account's 7TV user id, if it has one (D21: presences go out under it). B8 Paced.
@@ -256,6 +263,8 @@ struct RawSetList {
 #[derive(Deserialize)]
 pub(crate) struct RawSet {
     id: String,
+    #[serde(default)]
+    name: Option<String>,
     kind: Option<String>,
     emotes: RawItems,
 }
@@ -364,7 +373,9 @@ impl RawSet {
                 Some(emote)
             })
             .collect();
-        EmoteSet::new(self.id, Provider::Seventv, scope, emotes)
+        let mut set = EmoteSet::new(self.id, Provider::Seventv, scope, emotes);
+        set.name = self.name.filter(|n| !n.is_empty());
+        set
     }
 }
 
@@ -547,6 +558,27 @@ mod tests {
         let first = d.data.emote_sets.emote_sets.into_iter().next().unwrap();
         assert_eq!(first.kind.as_deref(), Some("PERSONAL"));
         assert!(!first.into_set(Scope::Personal).emotes.is_empty());
+    }
+
+    #[test]
+    fn event_sets_are_not_personal() {
+        let d: Data<RawSets> = fixture("v4_emote_sets_batch.json");
+        let sets: Vec<EmoteSet> = d
+            .data
+            .emote_sets
+            .emote_sets
+            .into_iter()
+            .map(|s| {
+                let scope = scope_of(s.kind.as_deref());
+                s.into_set(scope)
+            })
+            .collect();
+        assert_eq!(sets[0].scope, Scope::Personal);
+        assert_eq!(sets[1].scope, Scope::Special);
+        assert_eq!(sets[1].name.as_deref(), Some("NNYS 2025"));
+        assert_eq!(scope_of(Some("GLOBAL")), Scope::Global);
+        assert_eq!(scope_of(Some("NORMAL")), Scope::Channel);
+        assert_eq!(scope_of(None), Scope::Channel);
     }
 
     #[test]

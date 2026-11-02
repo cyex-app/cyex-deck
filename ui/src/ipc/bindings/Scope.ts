@@ -3,4 +3,4 @@
 /**
  * What a set is for.
  */
-export type Scope = "global" | "channel" | "personal";
+export type Scope = "global" | "channel" | "personal" | "special";

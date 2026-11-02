@@ -45,8 +45,9 @@ pub fn ordered<'a>(sets: &'a [Arc<EmoteSet>], priority: &[Provider]) -> Vec<&'a 
     let rank = |p: Provider| priority.iter().position(|x| *x == p).unwrap_or(priority.len());
     let scope = |s: Scope| match s {
         Scope::Personal => 0,
-        Scope::Channel => 1,
-        Scope::Global => 2,
+        Scope::Special => 1,
+        Scope::Channel => 2,
+        Scope::Global => 3,
     };
     let mut out: Vec<&EmoteSet> = sets.iter().map(Arc::as_ref).collect();
     out.sort_by_key(|s| (scope(s.scope), rank(s.provider)));

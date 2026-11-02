@@ -139,8 +139,14 @@ fn provider_sections(sets: &[Arc<EmoteSet>], provider: Provider) -> Vec<MenuSect
     for (scope, title) in [
         (Scope::Personal, "Personal"),
         (Scope::Channel, "Channel"),
+        (Scope::Special, ""),
         (Scope::Global, "Global"),
     ] {
+        // V108-C32 Event sets 7TV granted: one section per set, named by the set, in name order.
+        if scope == Scope::Special {
+            out.extend(event_sections(sets, provider));
+            continue;
+        }
         // V105-04 Names are unique per section, so one emote under two names is listed twice, once per name.
         let mut seen = HashSet::new();
         let emotes: Vec<Emote> = sets
@@ -160,6 +166,36 @@ fn provider_sections(sets: &[Arc<EmoteSet>], provider: Provider) -> Vec<MenuSect
         }
     }
     out
+}
+
+/// V108-C32 One section per event set, by name then id so the order never shifts.
+fn event_sections(sets: &[Arc<EmoteSet>], provider: Provider) -> Vec<MenuSection> {
+    let mut found: Vec<&Arc<EmoteSet>> = sets
+        .iter()
+        .filter(|s| s.provider == provider && s.scope == Scope::Special && !s.emotes.is_empty())
+        .collect();
+    found.sort_by(|a, b| {
+        let key = |s: &EmoteSet| (s.name.as_deref().unwrap_or("").to_lowercase(), s.id.clone());
+        key(a).cmp(&key(b))
+    });
+    found
+        .into_iter()
+        .map(|s| {
+            let mut seen = HashSet::new();
+            let emotes: Vec<Emote> = s
+                .emotes
+                .iter()
+                .filter(|e| seen.insert(e.name.clone()))
+                .map(|e| (**e).clone())
+                .collect();
+            MenuSection {
+                id: format!("{provider:?}-special-{}", s.id).to_lowercase(),
+                title: s.name.clone().unwrap_or_else(|| "Event set".into()),
+                avatar: None,
+                emotes: open(emotes),
+            }
+        })
+        .collect()
 }
 
 /// Sections in menu order: this channel, other channels A-Z, then Twitch's own kinds.
@@ -401,6 +437,29 @@ mod tests {
             .map(|m| (m.emote.id.as_str(), m.emote.name.as_str()))
             .collect();
         assert_eq!(got, [("A", "uncPls"), ("A", "Oldheaddance"), ("B", "x")]);
+    }
+
+    #[test]
+    fn event_sets_have_their_own_sections_below_channel() {
+        let mk = |id: &str, name: Option<&str>, scope, emote: &str| {
+            let mut s = EmoteSet::new(id, Provider::Seventv, scope, vec![Emote::new(Provider::Seventv, emote, emote)]);
+            s.name = name.map(str::to_owned);
+            Arc::new(s)
+        };
+        let sets = [
+            mk("g", None, Scope::Global, "gl"),
+            mk("e2", Some("Zeta 2025"), Scope::Special, "z"),
+            mk("p", None, Scope::Personal, "me"),
+            mk("e1", Some("Halloween 2025"), Scope::Special, "h"),
+            mk("e3", None, Scope::Special, "n"),
+            mk("c", None, Scope::Channel, "ch"),
+        ];
+        let s = provider_sections(&sets, Provider::Seventv);
+        let titles: Vec<&str> = s.iter().map(|s| s.title.as_str()).collect();
+        assert_eq!(titles, ["Personal", "Channel", "Event set", "Halloween 2025", "Zeta 2025", "Global"]);
+        assert_eq!(s[3].id, "seventv-special-e1");
+        // BTTV and FFZ have none.
+        assert!(provider_sections(&sets, Provider::Bttv).is_empty());
     }
 
     #[test]

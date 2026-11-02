@@ -14,6 +14,8 @@ pub enum CardFlag {
     Global,
     Channel,
     Personal,
+    /// V108-C32 7TV: a set 7TV granted for an event, not a personal one.
+    EventSet,
     /// BTTV: another channel's emote this one added.
     Shared,
     Tier1,
@@ -87,14 +89,18 @@ fn twitch_type(info: &TwitchEmoteInfo) -> Option<CardFlag> {
 }
 
 /// A 7TV, BTTV or FFZ emote, with the kind of set it's in (`None`: not in a loaded set).
-/// 7TV shows only Global, and Personal when `personal`: the clicked message's sender owns it.
-pub fn third_party(e: &Emote, scope: Option<Scope>, personal: bool) -> Vec<CardFlag> {
+/// 7TV shows only Global, and Personal or Event set when `owned` gives the kind of the
+/// clicked message's sender's own set that has it.
+pub fn third_party(e: &Emote, scope: Option<Scope>, owned: Option<Scope>) -> Vec<CardFlag> {
     let mut out = Vec::new();
     if e.provider == Provider::Seventv {
         match scope {
             Some(Scope::Global) => out.push(CardFlag::Global),
-            _ if personal => out.push(CardFlag::Personal),
-            _ => {}
+            _ => match owned {
+                Some(Scope::Personal) => out.push(CardFlag::Personal),
+                Some(Scope::Special) => out.push(CardFlag::EventSet),
+                _ => {}
+            },
         }
     } else {
         match scope {
@@ -102,6 +108,7 @@ pub fn third_party(e: &Emote, scope: Option<Scope>, personal: bool) -> Vec<CardF
             Some(Scope::Global) => out.push(CardFlag::Global),
             Some(Scope::Channel) => out.push(CardFlag::Channel),
             Some(Scope::Personal) => out.push(CardFlag::Personal),
+            Some(Scope::Special) => out.push(CardFlag::EventSet),
             None => {}
         }
     }
@@ -225,15 +232,17 @@ mod tests {
         e.nsfw = true;
         e.original = Some("b".into());
         assert_eq!(
-            third_party(&e, Some(Scope::Channel), false),
+            third_party(&e, Some(Scope::Channel), None),
             [Animated, Overlaying, Private, Unlisted, Nsfw, Aliased]
         );
         // Personal only from the sender's own set, never from set membership.
         let p = Emote::new(Provider::Seventv, "E", "a");
-        assert_eq!(third_party(&p, Some(Scope::Personal), false), []);
-        assert_eq!(third_party(&p, Some(Scope::Channel), true), [Personal]);
-        assert_eq!(third_party(&p, None, true), [Personal]);
-        assert_eq!(third_party(&p, Some(Scope::Global), false), [Global]);
+        assert_eq!(third_party(&p, Some(Scope::Personal), None), []);
+        assert_eq!(third_party(&p, Some(Scope::Channel), Some(Scope::Personal)), [Personal]);
+        assert_eq!(third_party(&p, None, Some(Scope::Personal)), [Personal]);
+        // V108-C32 An event set is its own chip, never "Personal".
+        assert_eq!(third_party(&p, None, Some(Scope::Special)), [EventSet]);
+        assert_eq!(third_party(&p, Some(Scope::Global), None), [Global]);
     }
 
     #[test]
@@ -241,15 +250,15 @@ mod tests {
         let mut e = Emote::new(Provider::Bttv, "B", "SoSnowy");
         e.shared = true;
         e.zero_width = true;
-        assert_eq!(third_party(&e, Some(Scope::Channel), false), [Shared, Overlaying]);
+        assert_eq!(third_party(&e, Some(Scope::Channel), None), [Shared, Overlaying]);
         let g = Emote::new(Provider::Bttv, "B", "x");
-        assert_eq!(third_party(&g, Some(Scope::Global), false), [Global]);
+        assert_eq!(third_party(&g, Some(Scope::Global), None), [Global]);
     }
 
     #[test]
     fn ffz_modifier() {
         let mut e = Emote::new(Provider::Ffz, "1", "ffzHyper");
         e.modifier = Some(2);
-        assert_eq!(third_party(&e, Some(Scope::Global), false), [Global, Modifier]);
+        assert_eq!(third_party(&e, Some(Scope::Global), None), [Global, Modifier]);
     }
 }

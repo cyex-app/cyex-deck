@@ -103,6 +103,8 @@ pub enum Scope {
     Channel,
     /// C9 Only its owner's messages.
     Personal,
+    /// V108-C32 An event set 7TV granted to people (an entitlement), one section per set.
+    Special,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -111,6 +113,8 @@ pub struct EmoteSet {
     pub provider: Provider,
     pub scope: Scope,
     pub emotes: Vec<Arc<Emote>>,
+    /// V108-C31 7TV's name for the set, when it was asked for.
+    pub name: Option<String>,
 }
 
 impl EmoteSet {
@@ -120,6 +124,7 @@ impl EmoteSet {
             provider,
             scope,
             emotes: emotes.into_iter().map(Arc::new).collect(),
+            name: None,
         }
     }
 

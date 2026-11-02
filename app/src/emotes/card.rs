@@ -57,7 +57,9 @@ pub struct EmoteCard {
 }
 
 /// 1.41 Cards that loaded, per provider, emote and chat (Twitch: any chat), for an hour.
-static CARDS: LazyLock<Ttl<(Provider, String, String, bool), EmoteCard>> =
+type CardKey = (Provider, String, String, Option<Scope>);
+
+static CARDS: LazyLock<Ttl<CardKey, EmoteCard>> =
     LazyLock::new(|| Ttl::new(Duration::from_secs(60 * 60)));
 
 /// Facts about an emote. `login` is the chat it was clicked in; `sender` the id of the
@@ -72,7 +74,7 @@ pub async fn card(
 ) -> Result<EmoteCard, String> {
     let http = app.state::<Auth>().http.clone();
     let chat = if provider == Provider::Twitch { "" } else { login };
-    let personal = sender.is_some_and(|u| in_personal(app, u, provider, id));
+    let personal = sender.and_then(|u| in_personal(app, u, provider, id));
     let key = (provider, id.to_owned(), chat.to_owned(), personal);
     let mut card = match CARDS.get(&key) {
         Some(c) => c,
@@ -105,7 +107,7 @@ async fn third_party(
     provider: Provider,
     id: &str,
     name: &str,
-    personal: bool,
+    personal: Option<Scope>,
 ) -> (EmoteCard, bool) {
     let found = find(app, login, provider, id);
     let set_id = found.as_ref().map(|f| f.2.clone());
@@ -171,7 +173,7 @@ fn merge(local: &mut Emote, d: Emote, unknown: bool) {
 fn third_party_card(
     local: &Emote,
     scope: Option<Scope>,
-    personal: bool,
+    personal: Option<Scope>,
     set_id: Option<&str>,
     name: &str,
 ) -> EmoteCard {
@@ -274,16 +276,20 @@ fn apply(card: &mut EmoteCard, f: &twitch_state::Facts) {
     }
 }
 
-/// 7TV, BTTV, FFZ: this user's own personal sets have the emote.
-fn in_personal(app: &AppHandle, user: &str, provider: Provider, id: &str) -> bool {
+/// 7TV, BTTV, FFZ: the kind of this user's own granted set that has the emote (personal or event).
+fn in_personal(app: &AppHandle, user: &str, provider: Provider, id: &str) -> Option<Scope> {
     let state = app.state::<Emotes>();
     let inner = state.lock();
-    inner.user_sets.get(user).into_iter().flatten().any(|sid| {
-        inner
-            .personal_sets
-            .get(sid)
-            .is_some_and(|s| s.provider == provider && s.emotes.iter().any(|e| e.id == id))
-    })
+    inner
+        .user_sets
+        .get(user)
+        .into_iter()
+        .flatten()
+        .filter_map(|sid| inner.personal_sets.get(sid))
+        .filter(|s| s.provider == provider && s.emotes.iter().any(|e| e.id == id))
+        // A personal set wins over an event set holding the same emote.
+        .map(|s| s.scope)
+        .min_by_key(|s| u8::from(*s != Scope::Personal))
 }
 
 /// The emote as this chat knows it, the kind of set it's in, and that set's id.
@@ -454,19 +460,21 @@ mod tests {
         e.original = Some("b".into());
         e.zero_width = true;
         e.owner_id = Some("U".into());
-        let c = third_party_card(&e, Some(Scope::Channel), false, Some("S1"), "a");
+        let c = third_party_card(&e, Some(Scope::Channel), None, Some("S1"), "a");
         assert_eq!(
             c.flags,
             [CardFlag::Overlaying, CardFlag::Aliased]
         );
-        let p = third_party_card(&e, Some(Scope::Channel), true, None, "a");
+        let p = third_party_card(&e, Some(Scope::Channel), Some(Scope::Personal), None, "a");
         assert_eq!(p.flags[0], CardFlag::Personal);
+        let ev = third_party_card(&e, Some(Scope::Channel), Some(Scope::Special), None, "a");
+        assert_eq!(ev.flags[0], CardFlag::EventSet);
         assert_eq!(c.set_url.as_deref(), Some("https://7tv.app/emote-sets/S1"));
         assert_eq!(c.page.as_deref(), Some("https://7tv.app/emotes/E"));
         let b = third_party_card(
             &with_key(Provider::Bttv, "abc"),
             Some(Scope::Channel),
-            false,
+            None,
             Some("bttv-1"),
             "x",
         );
