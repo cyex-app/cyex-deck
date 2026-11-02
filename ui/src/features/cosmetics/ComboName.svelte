@@ -2,7 +2,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
 
-  import { cleanName, shortError } from './comboName';
+  import { cleanName, MAX_NAME, shortError } from './comboName';
 
   interface Props {
     value?: string;
@@ -58,7 +58,7 @@
   class="field"
   placeholder="Name"
   aria-label="Combo name"
-  maxlength={80}
+  maxlength={MAX_NAME}
   spellcheck="false"
   autocomplete="off"
   bind:value={text}
