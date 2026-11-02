@@ -53,7 +53,7 @@ class CurrentWindow {
 export const currentWindow = new CurrentWindow();
 
 /** V107-R35 Controls, links and text you type, where a press never moves the window. */
-const NO_DRAG = 'button, a, input, textarea, select, label, summary, [role="button"], [role="tab"], [contenteditable], .no-drag';
+const NO_DRAG = 'button, a, input, textarea, select, label, summary, [role="button"], [role="tab"], [role="option"], [contenteditable], .no-drag';
 
 /** V107-R35 Cards (usercards, V108-C27 the roles list) move their window from anywhere that
  *  isn't a control; `skip` adds the card's own parts that keep the mouse (a scroll list). */

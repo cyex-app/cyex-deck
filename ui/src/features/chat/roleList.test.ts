@@ -53,3 +53,11 @@ test('V108-C27 a note for the roles Twitch kept back', () => {
   assert.equal(unreadNote(['mod'], 'mod', true), 'Twitch didn’t share the mods.');
   assert.equal(unreadNote(['mod'], 'vip', false), null, 'only what was asked for');
 });
+
+test('V108-C27b the order follows the key and the direction, in every group', () => {
+  const at = (key: 'time' | 'name', desc: boolean) => shownGroups(groups, null, '', { key, desc }).map(logins);
+  assert.deepEqual(at('name', false), [['new', 'none', 'old'], ['amy', 'zed']]);
+  assert.deepEqual(at('name', true), [['old', 'none', 'new'], ['zed', 'amy']]);
+  assert.deepEqual(at('time', true)[0], ['new', 'old', 'none']);
+  assert.deepEqual(at('time', false)[0], ['old', 'new', 'none']);
+});

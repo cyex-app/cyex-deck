@@ -10,6 +10,7 @@
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
   import ConfirmCallout from '../../components/ConfirmCallout.svelte';
+  import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import SearchField from '../../components/SearchField.svelte';
   import Select from '../../components/Select.svelte';
@@ -20,6 +21,7 @@
   import { chatIpc } from '../../ipc/chat';
   import { rolesIpc } from '../../ipc/roles';
   import { errorText } from '../../lib/errors';
+  import { flip, pickKey } from '../../lib/sort';
   import { formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import { dragCard } from '../../lib/window.svelte';
@@ -52,6 +54,11 @@
   const none = $derived(role ? `No ${listTitle(role).toLowerCase()} yet.` : 'No roles given yet.');
   const own = $derived(!!listing?.own && !!account);
   const roleChoices = ROLES.map((r) => ({ value: r, label: ROLE_NAME[r] }));
+
+  /** A header click sorts by its column; the same column again flips the direction. */
+  function byColumn(key: ListSort['key']) {
+    sort = sort.key === key ? flip(sort) : pickKey(SORTS, sort, key);
+  }
 
   async function load() {
     try {
@@ -137,6 +144,15 @@
     {:else if !listing}
       <p class="note">Loading…</p>
     {:else}
+      {#if count > 0}
+        <div class="cols" class:own>
+          {#each [['name', 'Name'], ['time', 'Since']] as const as [k, text] (k)}
+            <button type="button" class="col label" class:on={sort.key === k} class:end={k === 'time'} aria-label="Sort by {text.toLowerCase()}" onclick={() => byColumn(k)}>
+              {text}{#if sort.key === k}<Icon name={sort.desc ? 'arrowDown' : 'arrowUp'} size={10} />{/if}
+            </button>
+          {/each}
+        </div>
+      {/if}
       {#if kept}<p class="note">{kept}</p>{/if}
       {#if groups.length === 0 && !(role && kept)}
         <p class="note">{query ? 'No one matches.' : none}</p>
@@ -232,7 +248,32 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: 4px 6px 8px;
+    padding: 0 6px 8px;
+  }
+  .cols {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 12px 4px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+  }
+  .cols.own {
+    padding-right: 38px;
+  }
+  .col {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    background: none;
+    border: 0;
+  }
+  .col:hover,
+  .col.on {
+    color: var(--text);
   }
   h3 {
     margin: 8px 6px 2px;
