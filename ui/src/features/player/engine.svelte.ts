@@ -610,7 +610,10 @@ export class Engine {
   /** V103-03 Out of sight is hidden on the page and not in picture in picture; V107-H1
    *  or the whole page hidden. True when the quality came back. */
   private sight(): boolean {
-    if (outOfSight(this.hidden, this.pageHidden, document.pictureInPictureElement === this.video)) this.away.hide();
+    const out = outOfSight(this.hidden, this.pageHidden, document.pictureInPictureElement === this.video);
+    // V108-P10 Out of sight it keeps more spare: late timers and the quality drop ran it dry.
+    this.steer.away = out;
+    if (out) this.away.hide();
     else if (this.away.show()) {
       if (this.audioAway) {
         // Back from audio only: the video track again, from the same spot.

@@ -25,6 +25,13 @@ export const MARGIN_DECAY = MARGIN_STEP / 600;
 /** V108-LL6 s at 1× before it speeds up again: the speed changed every few seconds at the band's
  *  edge (fast, 1×, slow within a second before a stall). */
 export const REST = 3;
+/** V108-P10 s of spare added while the player is out of sight (its tab in the background, the
+ *  window minimized or covered). There nobody sees the latency, but the page's timers are late
+ *  (WebView2 wakes a hidden page about once a second, measured up to 3 s and more), the next
+ *  segment's load waits for them, and the drop to the lowest quality (V103-03) loads a new
+ *  playlist first: with the usual 0.5-1 s spare both ran dry. It slows to RATE_SLOW until the
+ *  spare is there (about 50 s); back in sight it speeds up to the usual spare. */
+export const AWAY_SPARE = 2.5;
 
 export class Steer {
   private samples: { at: number; ahead: number }[] = [];
@@ -32,6 +39,8 @@ export class Steer {
   /** V108-LL6 Spare s added to every threshold after dry runs. */
   margin = 0;
   private marginAt: number | null = null;
+  /** V108-P10 Out of sight: AWAY_SPARE more spare. */
+  away = false;
   /** When it last went back to 1×. */
   private restAt = -Infinity;
 
@@ -43,7 +52,7 @@ export class Steer {
     // A full window first: a fresh start or seek has no swing to read yet.
     if (now - this.samples[0].at < STEER_WINDOW - 0.5) return this.rate;
     const spare = Math.min(...this.samples.map((s) => s.ahead));
-    const m = this.margin;
+    const m = this.margin + (this.away ? AWAY_SPARE : 0);
     const was = this.rate;
     if (this.rate > 1) this.rate = spare <= SPARE_DONE + m ? 1 : this.rate;
     else if (this.rate < 1) this.rate = spare >= SPARE_SAFE + m ? 1 : this.rate;

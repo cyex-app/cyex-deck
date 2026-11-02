@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { MARGIN_MAX, MARGIN_STEP, RATE_FAST, RATE_SLOW, REST, Steer } from './steer.ts';
+import { AWAY_SPARE, MARGIN_MAX, MARGIN_STEP, RATE_FAST, RATE_SLOW, REST, Steer } from './steer.ts';
 
 /** Feeds a buffer that swings like whole 2 s segments: `low` right before a reload, `low + 2` after. */
 function feed(s: Steer, from: number, to: number, low: number): number {
@@ -86,4 +86,24 @@ test('V108-LL6 a thin buffer still slows down at once, rest or not', () => {
   for (; s.rate !== 1; t += 0.25) s.step(t, 0.45);
   for (const end = t + 0.5; t < end; t += 0.25) s.step(t, 0.1);
   assert.equal(s.rate, RATE_SLOW);
+});
+
+test('V108-P10 out of sight it slows down to keep AWAY_SPARE more, back in sight it speeds up again', () => {
+  const s = new Steer();
+  // 1.7 s least buffer: spare enough in sight.
+  assert.equal(feed(s, 0, 6, 1.7), RATE_FAST);
+  s.away = true;
+  assert.equal(feed(s, 6, 12, 1.7), RATE_SLOW, 'out of sight 1.7 s is thin');
+  assert.equal(feed(s, 12, 18, 0.5 + AWAY_SPARE), 1, 'the extra spare is there: 1x, no speed up');
+  s.away = false;
+  assert.equal(feed(s, 18, 30, 0.5 + AWAY_SPARE), RATE_FAST, 'in sight again: the extra goes');
+});
+
+test('V108-P10 the away spare is not a dry-run margin: it neither wears off nor stays after', () => {
+  const s = new Steer();
+  s.away = true;
+  feed(s, 0, 6, 0.5);
+  assert.equal(s.margin, 0);
+  s.away = false;
+  assert.equal(feed(s, 6, 12, 0.5), 1);
 });
