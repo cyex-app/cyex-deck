@@ -206,6 +206,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         terms::mod_add_blocked_term,
         terms::mod_remove_blocked_term,
         roles::roles_view,
+        roles::roles_listing,
         roles::roles_set,
         roles::roles_vip_slots,
         moderation::mod_resolve_unban,

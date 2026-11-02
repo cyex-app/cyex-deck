@@ -4,7 +4,7 @@
 
 use cyex_chat::model::ModRole;
 use cyex_moderation::roles::{Member, VipSlots, Wanted, merge};
-use cyex_twitch::gql::dashboard::{self, roles::list};
+use cyex_twitch::gql::dashboard::{self, roles::{Role, list::{self, RoleHolder, RoleLists}}};
 use serde::Serialize;
 use tauri::AppHandle;
 use ts_rs::TS;
@@ -27,6 +27,60 @@ pub struct RolesView {
     pub line: Option<String>,
     /// V107-N4E A list was cut short or a later page failed: some holders may be missing.
     pub truncated: bool,
+}
+
+/// V108-C26 One role and who holds it, for `/mods`, `/vips` and `/roles`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RoleGroup {
+    pub role: Role,
+    pub people: Vec<RoleHolder>,
+}
+
+/// V108-C26 What the roles pop-up shows.
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RoleListing {
+    /// In Twitch's order, a group for each role (empty ones too).
+    pub groups: Vec<RoleGroup>,
+    /// A list was cut short: some holders may be missing.
+    pub truncated: bool,
+}
+
+/// The six lists as groups, in [`Role::ALL`] order.
+fn groups(l: RoleLists) -> Vec<RoleGroup> {
+    let RoleLists { lead_mods, mods, vips, editors, artists, agents } = l;
+    [lead_mods, mods, vips, editors, artists, agents]
+        .into_iter()
+        .zip(Role::ALL)
+        .map(|(people, role)| RoleGroup { role, people })
+        .collect()
+}
+
+/// V108-C26 Who holds which role in your own channel, with the dates Twitch gives.
+pub async fn listing(app: &AppHandle, account: &str, login: &str) -> Result<RoleListing, String> {
+    let actor = own(app, account, login)?;
+    let g = actor.gql().ok_or(NEEDS_GQL)?;
+    let http = http(app);
+    let ch = dashboard::Channel { http: &http, auth: g, base: None, id: &actor.channel_id };
+    let (lists, truncated) = list::role_lists(&ch).await.map_err(|e| e.to_string())?;
+    Ok(RoleListing { groups: groups(lists), truncated })
+}
+
+/// V108-C26 The listing as one chat line, for runs without a pop-up.
+pub fn line(l: &RoleListing) -> String {
+    let parts: Vec<String> = l
+        .groups
+        .iter()
+        .filter(|g| !g.people.is_empty())
+        .map(|g| {
+            let names: Vec<&str> = g.people.iter().map(|p| p.display.as_str()).collect();
+            format!("{}: {}", g.role.name(), names.join(", "))
+        })
+        .collect();
+    if parts.is_empty() { "No roles given.".into() } else { parts.join(". ") }
 }
 
 const STALE: &str = "The list didn’t refresh.";
@@ -124,6 +178,24 @@ mod tests {
 
     fn fresh() -> RolesView {
         RolesView { members: Vec::new(), vips: VipSlots::new(2, Some(10)), note: None, line: None, truncated: false }
+    }
+
+    #[test]
+    fn v108_c26_groups_follow_twitchs_order_and_keep_dates() {
+        let who = |l: &str, at: Option<&str>| RoleHolder {
+            id: "1".into(),
+            login: l.into(),
+            display: l.to_uppercase(),
+            avatar: String::new(),
+            granted_at: at.map(str::to_owned),
+        };
+        let lists = RoleLists { mods: vec![who("a", Some("2026-01-02T03:04:05Z")), who("b", None)], vips: vec![who("c", None)], ..Default::default() };
+        let g = groups(lists);
+        assert_eq!(g.iter().map(|x| x.role).collect::<Vec<_>>(), Role::ALL);
+        assert_eq!(g[1].people[0].granted_at.as_deref(), Some("2026-01-02T03:04:05Z"));
+        let l = line(&RoleListing { groups: g, truncated: false });
+        assert_eq!(l, "mod: A, B. VIP: C");
+        assert_eq!(line(&RoleListing { groups: groups(RoleLists::default()), truncated: false }), "No roles given.");
     }
 
     #[test]

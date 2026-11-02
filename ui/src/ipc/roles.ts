@@ -4,12 +4,15 @@
 import { invoke } from '@tauri-apps/api/core';
 
 import type { ChannelRole } from './bindings/ChannelRole';
+import type { RoleListing } from './bindings/RoleListing';
 import type { RolesView } from './bindings/RolesView';
 import type { VipSlots } from './bindings/VipSlots';
 
 export const rolesIpc = {
   /** Everyone with a role in your channel (`login`, the account's own). */
   view: (account: string, login: string) => invoke<RolesView>('roles_view', { account, login }),
+  /** V108-C26 Who holds which role, with the dates (`/mods`, `/vips`, `/roles`). */
+  listing: (account: string, login: string) => invoke<RoleListing>('roles_listing', { account, login }),
   /** V107-R42 Gives and takes roles for `who` in one change; Rust picks the order and
    *  says the line (`line`). The lists come back; a rejection is the line. */
   set: (account: string, login: string, who: string, give: ChannelRole[], take: ChannelRole[]) =>

@@ -11,6 +11,12 @@ pub async fn roles_view(app: AppHandle, account: String, login: String) -> Resul
     manager::view(&app, &account, &login).await
 }
 
+/// V108-C26 `/mods`, `/vips` and `/roles`: who holds which role, with the dates.
+#[tauri::command]
+pub async fn roles_listing(app: AppHandle, account: String, login: String) -> Result<manager::RoleListing, String> {
+    manager::listing(&app, &account, &login).await
+}
+
 /// V107-R42 Gives and takes roles for `who` in one change; Rust picks the order. The lists
 /// come back with the change's line; `Err` is the line when not all of it went through.
 #[tauri::command]

@@ -186,6 +186,15 @@ pub async fn run(
             query: args.to_owned(),
         })),
         "popout" => Ok(Some(UiAction::Popout)),
+        // V108-C26 The pop-up needs a GQL sign-in for the dates; without one, the old line.
+        "mods" | "vips" | "roles" if place.ui && place.account().is_some_and(|a| crate::auth::gql_token(app, a).is_some()) => {
+            let role = match name {
+                "mods" => Some(cyex_moderation::roles::Role::Mod),
+                "vips" => Some(cyex_moderation::roles::Role::Vip),
+                _ => None,
+            };
+            Ok(Some(UiAction::Roles { role }))
+        }
         // V1051-03 Needs an account; the pop-up itself is in the window.
         "cosmetics" => {
             if place.account().is_none() {

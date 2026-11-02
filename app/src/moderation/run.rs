@@ -68,6 +68,10 @@ pub async fn command(app: &AppHandle, account: &str, login: &str, cmd: ModComman
         }
         C::SetLead { login: who, on } => super::roles::command(app, &actor, &who, Role::LeadMod, on).await,
         C::ListRole(r) => list_role(app, &actor, r == HRole::Mod).await.map(Some),
+        C::ListRoles => {
+            let l = super::roles::manager::listing(app, &actor.account, &actor.channel).await?;
+            Ok(Some(super::roles::manager::line(&l)))
+        }
         C::Announce { color, text } => {
             let (auth, room) = helix_for(&actor, "announce")?;
             let http = http(app);

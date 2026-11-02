@@ -105,6 +105,12 @@ pub enum UiAction {
         query: String,
     },
     Popout,
+    /// V108-C26 `/mods`, `/vips` and `/roles`: the list pop-up. `role` opens on that role,
+    /// none on all of them.
+    Roles {
+        #[ts(optional = nullable)]
+        role: Option<cyex_moderation::roles::Role>,
+    },
     /// V1051-03 Open the 7TV paint and badge pop-up.
     Cosmetics,
     /// `/paint`, `/badge` or `/combo` needs 7TV's sign-in: the sign-in pop-up, then `command`

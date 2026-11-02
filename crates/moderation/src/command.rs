@@ -42,6 +42,8 @@ pub enum ModCommand {
     Treat { login: String, how: Treatment },
     SetRole { login: String, role: Role, on: bool },
     ListRole(Role),
+    /// V108-C26 Everyone with a role in the channel.
+    ListRoles,
     /// V107-R28 Gives (`on`) or takes the lead moderator role.
     SetLead { login: String, on: bool },
     Commercial { secs: u32 },
@@ -105,6 +107,7 @@ impl ModCommand {
         match self {
             ModCommand::SetRole { .. } => Need::Lead,
             ModCommand::ListRole(_)
+            | ModCommand::ListRoles
             | ModCommand::SetLead { .. }
             | ModCommand::Raid { .. }
             | ModCommand::Unraid
@@ -121,7 +124,7 @@ pub const NAMES: &[&str] = &[
     "subscribers", "subscribersoff", "emoteonly", "emoteonlyoff", "uniquechat", "uniquechatoff", "r9kbeta",
     "r9kbetaoff", "announce", "announceblue", "announcegreen", "announceorange", "announcepurple", "shoutout", "so",
     "raid", "unraid", "warn", "shield", "shieldoff", "monitor", "unmonitor", "restrict", "unrestrict", "mod", "unmod",
-    "vip", "unvip", "mods", "vips", "commercial", "marker", "pin", "unpin", "leadmod", "unleadmod",
+    "vip", "unvip", "mods", "vips", "roles", "commercial", "marker", "pin", "unpin", "leadmod", "unleadmod",
 ];
 
 /// `None` when `name` isn't one of these commands; otherwise the action or a usage hint.
@@ -271,6 +274,7 @@ fn read(name: &str, args: &str) -> Result<ModCommand, String> {
         },
         "mods" => C::ListRole(Role::Mod),
         "vips" => C::ListRole(Role::Vip),
+        "roles" => C::ListRoles,
         "commercial" => {
             let secs = match first {
                 "" => 30,
@@ -414,6 +418,8 @@ mod tests {
         );
         assert_eq!(ok("unmod x").offered(), Need::Lead);
         assert_eq!(ok("mods").needs(), Need::Broadcaster);
+        assert_eq!(ok("roles"), ModCommand::ListRoles);
+        assert_eq!(ok("roles").needs(), Need::Broadcaster);
         let unlead = ModCommand::SetLead { login: "me".into(), on: false };
         assert_eq!((unlead.needs(), unlead.offered()), (Need::Mod, Need::Broadcaster), "V107-H3e");
         assert_eq!(ModCommand::SetLead { login: "bob".into(), on: true }.needs(), Need::Broadcaster);

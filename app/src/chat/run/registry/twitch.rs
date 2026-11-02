@@ -352,19 +352,27 @@ pub(super) const CMDS: &[Cmd] = &[
     tw(
         "mods",
         "/mods",
-        "Lists the channel’s moderators.",
-        "1.50",
-        &[ex("/mods", "Mods: one, two.")],
+        "Lists the channel’s moderators, and since when.",
+        "V108-C26",
+        &[ex("/mods", "A list opens with each mod and the date they were made one.")],
     )
     .errs(&["Listing needs a Helix sign-in."]),
     tw(
         "vips",
         "/vips",
-        "Lists the channel’s VIPs.",
-        "1.50",
-        &[ex("/vips", "VIPs: one, two.")],
+        "Lists the channel’s VIPs, and since when.",
+        "V108-C26",
+        &[ex("/vips", "A list opens with each VIP and the date they were made one.")],
     )
     .errs(&["Listing needs a Helix sign-in."]),
+    tw(
+        "roles",
+        "/roles",
+        "Lists everyone with a role in the channel, and since when.",
+        "V108-C26",
+        &[ex("/roles", "A list opens with lead mods, mods, VIPs and editors.")],
+    )
+    .errs(&[cyex_moderation::roles::NEEDS_GQL]),
     tw(
         "commercial",
         "/commercial [30|60|90|120|150|180]",
