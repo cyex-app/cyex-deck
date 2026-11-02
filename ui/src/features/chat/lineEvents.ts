@@ -10,6 +10,7 @@ import { chatIpc } from '../../ipc/chat';
 import { systemIpc } from '../../ipc/system';
 import { copy } from '../../lib/clipboard';
 import { errorText } from '../../lib/errors';
+import { hostOf } from '../../lib/host';
 import { settings } from '../../lib/settings.svelte';
 import { toast } from '../../lib/toast.svelte';
 import { emojiName } from '../emotes/emoji';
@@ -115,14 +116,6 @@ export const notEmote = cancelEmoteMenu;
 /** 1.52 Picture widths, Chatterino's sizes. */
 const THUMBS = { off: 0, small: 100, medium: 200, large: 300 } as const;
 const TIPPED = '[data-tip],[data-link],[data-emoji]';
-
-function hostOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www./, '');
-  } catch {
-    return '';
-  }
-}
 
 /** Tips for badges, links (X2, 1.52) and emoji (V102-07) inside `root`. c-4 A line that drops
  *  off, scrolls away or goes with the tab gives no mouseout, so its tip goes with it. */

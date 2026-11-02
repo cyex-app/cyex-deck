@@ -1,3 +1,4 @@
+import { hostOf } from '../../lib/host.ts';
 import type { Panel } from '../../ipc/bindings/Panel';
 
 /** V106-21/24 A panel draws something: a title, text, or an image that loaded. */
@@ -12,12 +13,7 @@ export function linked(p: Panel): boolean {
 
 /** V106-22 What a screen reader says for a linked panel. */
 export function linkLabel(p: Panel): string {
-  let host = '';
-  try {
-    host = p.link ? new URL(p.link).hostname.replace(/^www\./, '') : '';
-  } catch {
-    host = '';
-  }
+  const host = p.link ? hostOf(p.link) : '';
   const opens = host ? `opens ${host}` : 'opens a link';
   return p.title ? `${p.title}, ${opens}` : `${opens[0].toUpperCase()}${opens.slice(1)}`;
 }

@@ -4,6 +4,7 @@
 import type { CardFlag } from '../../ipc/bindings/CardFlag';
 import type { EmoteCard } from '../../ipc/bindings/EmoteCard';
 import type { Provider } from '../../ipc/bindings/Provider';
+import { hostOf } from '../../lib/host.ts';
 import { formatDate, formatNumber, formatTime } from '../../lib/format.ts';
 
 export type Fact =
@@ -22,18 +23,9 @@ export interface Chip {
   keep?: boolean;
 }
 
-/** The hostname without `www.`, for "Opens 7tv.app". */
-function host(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return '';
-  }
-}
-
 /** "Opens 7tv.app", or `null` for a url that isn't one. */
 export function opensTip(url: string | null): string | null {
-  const at = url ? host(url) : '';
+  const at = url ? hostOf(url) : '';
   return at ? `Opens ${at}` : null;
 }
 

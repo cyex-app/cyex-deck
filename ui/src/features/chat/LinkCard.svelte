@@ -2,6 +2,7 @@
      Rust keeps the answers (V108-C25). Clicks go through the list (`data-link`). -->
 <script lang="ts">
   import type { LinkPreview } from '../../ipc/bindings/LinkPreview';
+  import { hostOf } from '../../lib/host';
   import { factText, kindText } from './linkFacts';
   import { links } from './linkPreviews';
 
@@ -9,13 +10,7 @@
 
   let el = $state<HTMLElement>();
   let info = $state<LinkPreview | null>(null);
-  const host = $derived.by(() => {
-    try {
-      return new URL(url).hostname.replace(/^www\./, '');
-    } catch {
-      return '';
-    }
-  });
+  const host = $derived(hostOf(url));
   /** Title, then the next line or two: the subtitle, facts or the resolver's lines. */
   const lines = $derived.by(() => {
     if (!info) return [];
