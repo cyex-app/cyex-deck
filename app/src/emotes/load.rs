@@ -85,24 +85,39 @@ fn swap_seventv_set(pool: &ws::Pool<EventApi>, c: &mut Channel, set: Option<Emot
     }
 }
 
+/// V108-F32 A 7TV set switch was asked for: its ticket.
+fn next_switch(c: &mut Channel) -> u64 {
+    c.seventv_switch += 1;
+    c.seventv_switch
+}
+
+/// V108-F32 No newer switch was asked for since `ticket`.
+fn still_newest(c: &Channel, ticket: u64) -> bool {
+    c.seventv_switch == ticket
+}
+
 /// Replaces a channel's 7TV set, e.g. after the channel switched sets. V108-C31 Says so in
 /// chat with the new set's name, unless it is the set already there.
 pub fn seventv_set(app: AppHandle, login: String, set_id: Option<String>, actor: Option<String>) {
     tauri::async_runtime::spawn(async move {
-        {
+        let (generation, ticket) = {
             let state = app.state::<Emotes>();
-            let inner = state.lock();
-            let same = inner.channels.get(&login).is_some_and(|c| {
-                let mut have = c.sets.iter().filter(|s| s.provider == Provider::Seventv);
-                match &set_id {
-                    Some(id) => have.any(|s| s.id == *id),
-                    None => have.next().is_none(),
-                }
-            });
+            let mut inner = state.lock();
+            let Some(c) = inner.channels.get_mut(&login) else {
+                return;
+            };
+            // Even a switch to the set already here makes older answers in flight stale.
+            let ticket = next_switch(c);
+            let mut have = c.sets.iter().filter(|s| s.provider == Provider::Seventv);
+            let same = match &set_id {
+                Some(id) => have.any(|s| s.id == *id),
+                None => have.next().is_none(),
+            };
             if same {
                 return;
             }
-        }
+            (c.generation, ticket)
+        };
         let lane = crate::chat::shown::lane(&app, &login);
         let set = match &set_id {
             Some(id) => match seventv::api::sets(&http(&app), std::slice::from_ref(id), lane).await {
@@ -121,7 +136,8 @@ pub fn seventv_set(app: AppHandle, login: String, set_id: Option<String>, actor:
         };
         let state = app.state::<Emotes>();
         let mut inner = state.lock();
-        let Some(c) = inner.channels.get_mut(&login) else {
+        // Gone, rejoined, or a newer switch was asked for meanwhile: this answer is stale.
+        let Some(c) = inner.live(&login, generation).filter(|c| still_newest(c, ticket)) else {
             return;
         };
         let name = set.as_ref().and_then(|s| s.name.clone());
@@ -304,6 +320,33 @@ mod tests {
             modifiers: Vec::new(),
         };
         vec![TwitchSet { id: "0".into(), owner: None, emotes: vec![emote("25", "Kappa"), emote("1", ":)")], tier: None }]
+    }
+
+    #[test]
+    fn v108_f32_only_the_newest_switch_lands() {
+        let mut inner = super::super::Inner::default();
+        let (ready, _) = tokio::sync::watch::channel(false);
+        inner.channels.insert(
+            "c".into(),
+            Channel {
+                id: "1".into(),
+                generation: 3,
+                retry: None,
+                sets: Vec::new(),
+                seventv_user: None,
+                seventv_switch: 0,
+                ffz_badges: Default::default(),
+                lookup: Arc::default(),
+                whole: false,
+                ready,
+            },
+        );
+        let a = next_switch(inner.channels.get_mut("c").unwrap());
+        let b = next_switch(inner.channels.get_mut("c").unwrap());
+        assert!(inner.live("c", 3).is_some_and(|c| still_newest(c, b)));
+        assert!(!inner.live("c", 3).is_some_and(|c| still_newest(c, a)));
+        // A rejoin is another generation.
+        assert!(inner.live("c", 4).is_none());
     }
 
     fn own(inner: &super::super::Inner, name: &str) -> String {

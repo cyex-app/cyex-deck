@@ -118,6 +118,8 @@ struct Channel {
     sets: Vec<Arc<EmoteSet>>,
     /// The channel's 7TV user and active set, for live updates.
     seventv_user: Option<String>,
+    /// V108-F30 Counts the 7TV set switches asked for; a late answer must still be the newest.
+    seventv_switch: u64,
     /// FFZ's pictures for the room's mods and VIPs.
     ffz_badges: cyex_emotes::ffz::api::RoomBadges,
     lookup: Arc<Lookup>,
@@ -374,6 +376,7 @@ fn join(app: &AppHandle, login: &str, channel_id: &str, generation: u64) {
                     retry: None,
                     sets: Vec::new(),
                     seventv_user: None,
+                    seventv_switch: 0,
                     ffz_badges: Default::default(),
                     lookup: Arc::new(Lookup::default()),
                     whole: false,
@@ -623,6 +626,7 @@ mod tests {
             retry: None,
             sets: Vec::new(),
             seventv_user: None,
+            seventv_switch: 0,
             ffz_badges: Default::default(),
             lookup: Arc::new(Lookup::default()),
             whole: false,

@@ -304,6 +304,7 @@ mod tests {
             retry: None,
             sets: vec![set(Provider::Bttv, Scope::Channel, "bttv-1")],
             seventv_user: None,
+            seventv_switch: 0,
             ffz_badges: Default::default(),
             lookup: Arc::default(),
             whole: false,
