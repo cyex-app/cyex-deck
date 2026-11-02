@@ -579,7 +579,9 @@
   /* Round and 20px, so a one-line row never crops it (user, 2026/11/01). */
   .reply {
     position: absolute;
-    top: 1px;
+    /* V108-C29 Centred on the whole row, however tall big emotes or a reply header make it. */
+    top: 50%;
+    transform: translateY(-50%);
     right: 6px;
     display: none;
     place-items: center;
