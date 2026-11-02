@@ -1,6 +1,7 @@
 <!-- A channel as a list row (1.6): live ones with category, title and viewers, offline
      ones with when they were last live (H1). Hovering a live one peeks at it. -->
 <script lang="ts">
+  import EmojiText from '../../components/EmojiText.svelte';
   import Avatar from '../../components/Avatar.svelte';
   import { openMenu } from '../../components/menu.svelte';
   import type { ChannelCard } from '../../ipc/bindings/ChannelCard';
@@ -43,7 +44,7 @@
     <span class="name">{card.name}</span>
     {#if stream}
       <span class="game">{stream.game?.name ?? ''}</span>
-      <span class="title">{stream.title}</span>
+      <span class="title"><EmojiText text={stream.title} /></span>
       <span class="num">{formatShort(stream.viewers)}</span>
       <span class="num dim">{uptimeShort(stream.startedAt)}</span>
     {:else}

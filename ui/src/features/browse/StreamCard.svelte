@@ -1,6 +1,7 @@
 <!-- A live channel as a card (1.6, 1.7): preview picture with viewers and uptime, then
      name, title and category. Hover shows the quick options. -->
 <script lang="ts">
+  import EmojiText from '../../components/EmojiText.svelte';
   import Avatar from '../../components/Avatar.svelte';
   import { openMenu } from '../../components/menu.svelte';
   import type { ChannelCard } from '../../ipc/bindings/ChannelCard';
@@ -47,7 +48,7 @@
     <Avatar src={card.avatar} name={card.name} size={32} />
     <div class="text">
       <span class="name">{card.name}</span>
-      <span class="title" title={stream.title}>{stream.title || 'Untitled'}</span>
+      <span class="title" title={stream.title}>{#if stream.title}<EmojiText text={stream.title} />{:else}Untitled{/if}</span>
       {#if showGame && stream.game}
         {#if oncategory}
           <button class="game link" onclick={() => oncategory(stream.game!)}>{stream.game.name}</button>
