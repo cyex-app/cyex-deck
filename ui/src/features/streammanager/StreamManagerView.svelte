@@ -94,15 +94,15 @@
 
   type Id = 'stream' | 'info' | 'activity' | 'actions' | 'modes' | 'poll' | 'prediction' | 'raid' | 'ads' | 'markers' | 'together' | 'followers' | 'roles' | 'rolesmgr' | 'rewards' | 'clips' | 'videos' | 'modset' | 'chat';
   const INFO: Record<Id, { title: string; hint: string; min: Box; tall: number }> = {
-    stream: { title: 'Stream', hint: 'Preview, viewers, followers, subs.', min: { w: 220, h: 200 }, tall: 320 },
-    info: { title: 'Stream info', hint: 'Title and category.', min: { w: 220, h: 160 }, tall: 280 },
+    stream: { title: 'Stream', hint: 'Preview, viewers, followers, subs.', min: { w: 220, h: 230 }, tall: 320 },
+    info: { title: 'Stream info', hint: 'Title and category.', min: { w: 220, h: 190 }, tall: 280 },
     activity: { title: 'Activity', hint: 'Follows, subs, cheers, raids, rewards.', min: { w: 240, h: 150 }, tall: 320 },
     actions: { title: 'Mod actions', hint: 'Bans, timeouts, deletes and more.', min: { w: 240, h: 150 }, tall: 300 },
     modes: { title: 'Chat settings', hint: 'Slow, followers-only, sub-only, emote-only.', min: { w: 200, h: 110 }, tall: 220 },
-    poll: { title: 'Poll', hint: 'Start or end a poll.', min: { w: 200, h: 110 }, tall: 280 },
-    prediction: { title: 'Prediction', hint: 'Start, lock or pay out.', min: { w: 200, h: 110 }, tall: 300 },
+    poll: { title: 'Poll', hint: 'Start or end a poll.', min: { w: 200, h: 170 }, tall: 280 },
+    prediction: { title: 'Prediction', hint: 'Start, lock or pay out.', min: { w: 200, h: 170 }, tall: 300 },
     raid: { title: 'Raid', hint: 'Raid another channel.', min: { w: 200, h: 110 }, tall: 240 },
-    ads: { title: 'Ads', hint: 'Run an ad, snooze, schedule.', min: { w: 200, h: 110 }, tall: 260 },
+    ads: { title: 'Ads', hint: 'Run an ad, snooze, schedule.', min: { w: 200, h: 150 }, tall: 260 },
     markers: { title: 'Markers', hint: 'Mark moments for your VOD.', min: { w: 200, h: 110 }, tall: 200 },
     together: { title: 'Stream Together', hint: 'Guests and join requests.', min: { w: 200, h: 110 }, tall: 260 },
     followers: { title: 'Followers', hint: 'Who follows you, and since when.', min: { w: 220, h: 160 }, tall: 360 },

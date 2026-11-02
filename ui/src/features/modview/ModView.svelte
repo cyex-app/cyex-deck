@@ -74,7 +74,7 @@
     [
       split('column', [leaf('stream'), leaf('chat')], [0.4, 0.6]),
       split('column', [leaf('activity'), leaf('actions'), leaf('terms')], [0.35, 0.4, 0.25]),
-      split('column', [leaf('automod'), leaf('unban'), leaf('rewards'), leaf('chatters'), leaf('mass')], [0.2, 0.14, 0.2, 0.28, 0.18]),
+      split('column', [leaf('automod'), leaf('unban'), leaf('rewards'), leaf('chatters'), leaf('mass')], [0.17, 0.21, 0.18, 0.24, 0.2]),
     ],
     [0.34, 0.33, 0.33],
   );

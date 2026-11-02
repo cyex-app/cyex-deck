@@ -21,7 +21,7 @@ export const INFO: Record<ModPanelId, ModPanelInfo> = {
   // V107-N3f Stacked, its filters take ~200 px: 300 left room for three lines.
   actions: { title: 'Mod actions', hint: 'Bans, timeouts, deletes and more.', min: { w: 240, h: 140 }, tall: 440, icon: 'gavel' },
   automod: { title: 'AutoMod queue', hint: 'Held messages to allow or deny.', min: { w: 200, h: 110 }, tall: 240 },
-  unban: { title: 'Unban requests', hint: 'Who asks to be unbanned.', min: { w: 200, h: 110 }, tall: 220, icon: 'undo' },
+  unban: { title: 'Unban requests', hint: 'Who asks to be unbanned.', min: { w: 200, h: 130 }, tall: 220, icon: 'undo' },
   chatters: { title: 'Viewers', hint: "Who’s in the chat.", min: { w: 200, h: 180 }, tall: 280, icon: 'users' },
   // V107-R31
   terms: { title: 'Blocked terms', hint: 'Words and phrases chat can’t use.', min: { w: 220, h: 160 }, tall: 280, icon: 'filter' },
