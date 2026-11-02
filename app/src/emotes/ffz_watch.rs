@@ -62,6 +62,11 @@ fn current(app: &AppHandle, login: &str) -> Option<Now> {
     Some((c.id.clone(), c.generation, old))
 }
 
+/// V108-F31 A channel with no FFZ set before and none now has nothing to put in or say.
+fn nothing_to_read(had_set: bool, has_set: bool) -> bool {
+    !had_set && !has_set
+}
+
 async fn check(app: &AppHandle, login: &str) {
     let Some((id, generation, old)) = current(app, login) else {
         return;
@@ -77,6 +82,9 @@ async fn check(app: &AppHandle, login: &str) {
         Some(r) => (r.set.map(Arc::new), Some(r.badges)),
         None => (None, None),
     };
+    if nothing_to_read(old.is_some(), set.is_some()) {
+        return;
+    }
     let new = set.as_ref().map(|s| s.emotes.clone()).unwrap_or_default();
     // Without an earlier set the room is new to us: put it in, say nothing.
     let changes = old.as_ref().map(|o| diff::diff(o, &new)).unwrap_or_default();
@@ -96,5 +104,18 @@ async fn check(app: &AppHandle, login: &str) {
         for line in diff::lines(&changes) {
             super::change_line(app, login, &line);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn v108_f31_no_ffz_set_before_or_now_is_skipped() {
+        assert!(nothing_to_read(false, false));
+        assert!(!nothing_to_read(false, true));
+        assert!(!nothing_to_read(true, false));
+        assert!(!nothing_to_read(true, true));
     }
 }
