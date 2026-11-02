@@ -20,7 +20,8 @@ export const SORTS = [TIME, NAME];
 export type ListSort = Sort<'time' | 'name'>;
 export const LIST_SORT: ListSort = { key: 'time', desc: true };
 
-const byName = (a: RoleHolder, b: RoleHolder) => byText(a.login, b.login);
+// V108-F03 By the name shown (display, any case, locale-aware); the login breaks a tie.
+const byName = (a: RoleHolder, b: RoleHolder) => byText(a.display, b.display) || byText(a.login, b.login);
 /** People with no date go last either way. */
 const byTime = byNumber((p: RoleHolder) => (p.grantedAt ? Date.parse(p.grantedAt) || 0 : 0));
 

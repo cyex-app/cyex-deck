@@ -61,3 +61,10 @@ test('V108-C27b the order follows the key and the direction, in every group', ()
   assert.deepEqual(at('time', true)[0], ['new', 'old', 'none']);
   assert.deepEqual(at('time', false)[0], ['old', 'new', 'none']);
 });
+
+test('V108-F03 A-Z follows the shown name, then the login', () => {
+  const q = (login: string, display: string): RoleHolder => ({ id: login, login, display, avatar: '', grantedAt: null });
+  const g: RoleGroup[] = [{ role: 'mod', people: [q('zzz', 'Alpha'), q('aaa', 'beta'), q('bbb', 'Beta'), q('ccc', 'Äpfel')] }];
+  const order = shownGroups(g, 'mod', '', { key: 'name', desc: false })[0].people.map((x) => x.login);
+  assert.deepEqual(order, ['zzz', 'ccc', 'aaa', 'bbb']);
+});
