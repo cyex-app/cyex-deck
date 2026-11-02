@@ -100,7 +100,7 @@
   });
 
   /** The emote card on screen. */
-  let card = $state<CardTarget | null>(null);
+  let card = $state<{ t: CardTarget; room: string } | null>(null);
   /** Lines act as in the chat (lineEvents.ts); in "All chats" each acts for its own channel. */
   function host(el: HTMLElement): LineHost {
     const room = el.closest<HTMLElement>('[data-channel]')?.dataset.channel ?? channel;
@@ -111,7 +111,7 @@
         const id = e.closest<HTMLElement>('[data-mid]')?.dataset.mid;
         return results.find((r) => r.message.id === id)?.message.sender?.id;
       },
-      openCard: (t) => (card = t),
+      openCard: (t) => (card = { t, room }),
       openMenu,
     };
   }
@@ -198,7 +198,7 @@
     {/each}
   </div>
   {#if card}
-    {#key card}<EmoteCard target={card} login={channel} {account} onclose={() => (card = null)} />{/key}
+    {#key card}<EmoteCard target={card.t} login={card.room} {account} onclose={() => (card = null)} />{/key}
   {/if}
   {#if results.length}<p class="count">{formatNumber(results.length)} found</p>{/if}
 </div>
