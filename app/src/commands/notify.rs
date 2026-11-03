@@ -83,3 +83,10 @@ pub async fn twitch_notify_channel(
 ) -> CmdResult<()> {
     profile::set_channel(&app, &account, &channel_id, &state).await
 }
+
+/// V108-C39 A card button asks for the main window to come to the front (it may be minimised or
+/// in the tray) before it switches tabs.
+#[tauri::command]
+pub fn notify_focus_main(app: AppHandle) {
+    crate::windows::show_main(&app);
+}

@@ -47,6 +47,21 @@ pub enum Open {
     Settings {
         page: String,
     },
+    /// V108-C39 A live alert's "Go to tab": that channel's tab (a new one if it was closed since).
+    Tab {
+        login: String,
+    },
+    /// V108-C39 A live alert's "Open tab": adds the channel's tab and stays where you are.
+    Background {
+        login: String,
+    },
+}
+
+impl Open {
+    /// Whether doing this brings the main window forward. Opening a tab in the background doesn't.
+    pub fn raises(&self) -> bool {
+        !matches!(self, Open::Background { .. })
+    }
 }
 
 pub struct Pop {
@@ -55,6 +70,21 @@ pub struct Pop {
     /// Picture URL, shown round.
     pub avatar: Option<String>,
     pub open: Open,
+    /// V108-C39 One button under the text: its label and what it opens.
+    pub action: Option<(String, Open)>,
+}
+
+/// What the Windows pop-up's button is called when it comes back as the activation argument.
+const ACTION: &str = "action";
+
+/// V108-C39 The live alert's tab button: "Go to tab" when the channel has one, else "Open tab".
+pub fn tab_action(login: &str, has_tab: bool) -> (String, Open) {
+    let login = login.to_owned();
+    if has_tab {
+        ("Go to tab".into(), Open::Tab { login })
+    } else {
+        ("Open tab".into(), Open::Background { login })
+    }
 }
 
 /// Shows a toast. Pictures are fetched first, so this returns before it shows. Streamer
@@ -72,14 +102,25 @@ pub fn show(app: &AppHandle, pop: Pop) {
         let _ = tauri::async_runtime::spawn_blocking(move || {
             let click_app = app.clone();
             let open = pop.open.clone();
+            let action = pop.action.clone();
             let mut toast = Toast::new(app_id())
                 .title(&pop.title)
                 .sound(None)
-                .on_activated(move |_| {
-                    windows::show_main(&click_app);
-                    let _ = click_app.emit_to(MAIN, OPEN_EVENT, open.clone());
+                .on_activated(move |arg| {
+                    // The body gives no argument; the button gives `ACTION`.
+                    let what = match (arg.as_deref(), &action) {
+                        (Some(ACTION), Some((_, o))) => o.clone(),
+                        _ => open.clone(),
+                    };
+                    if what.raises() {
+                        windows::show_main(&click_app);
+                    }
+                    let _ = click_app.emit_to(MAIN, OPEN_EVENT, what);
                     Ok(())
                 });
+            if let Some((label, _)) = &pop.action {
+                toast = toast.add_button(label, ACTION);
+            }
             if !pop.text.is_empty() {
                 toast = toast.text1(&pop.text);
             }
@@ -166,6 +207,16 @@ async fn cached_avatar(app: &AppHandle, url: &str) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_tab_button_follows_the_tab() {
+        let (label, open) = tab_action("a", true);
+        assert_eq!((label.as_str(), open.clone()), ("Go to tab", Open::Tab { login: "a".into() }));
+        assert!(open.raises());
+        let (label, open) = tab_action("a", false);
+        assert_eq!(label, "Open tab");
+        assert!(!open.raises());
+    }
 
     #[test]
     fn focus_stops_a_flash_once() {

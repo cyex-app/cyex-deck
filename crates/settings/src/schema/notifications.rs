@@ -32,6 +32,33 @@ pub struct LiveAlerts {
     pub sound: bool,
     /// Skip channels already live when the app starts.
     pub skip_at_start: bool,
+    /// V108-C39 Which channels alert: the followed ones, the ones with a tab, or both.
+    pub scope: LiveScope,
+}
+
+/// V108-C39 Where live alerts come from. Per-channel choices (`channels`) apply to all three.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum LiveScope {
+    /// Channels with a tab, followed or not.
+    Tabs,
+    /// Followed channels and channels with a tab.
+    Both,
+    /// Followed channels, each by its Twitch bell. An unknown value reads as this.
+    #[default]
+    #[serde(other)]
+    Followed,
+}
+
+impl LiveScope {
+    pub fn followed(self) -> bool {
+        self != Self::Tabs
+    }
+
+    pub fn tabs(self) -> bool {
+        self != Self::Followed
+    }
 }
 
 impl Default for LiveAlerts {
@@ -42,12 +69,14 @@ impl Default for LiveAlerts {
             toast: true,
             sound: false,
             skip_at_start: true,
+            scope: LiveScope::Followed,
         }
     }
 }
 
 impl LiveAlerts {
-    /// Whether a live channel alerts, given its Twitch bell.
+    /// Whether a live channel alerts, given its Twitch bell. A channel only in a tab has no
+    /// bell (V108-C39): it alerts unless the user turned it off.
     pub fn wants(&self, channel_id: &str, bell: bool) -> bool {
         self.enabled && self.channels.get(channel_id).copied().unwrap_or(bell)
     }
@@ -124,6 +153,18 @@ mod tests {
         assert!(!l.wants("1", true) && l.wants("2", false));
         l.enabled = false;
         assert!(!l.wants("2", true));
+    }
+
+    #[test]
+    fn scope_defaults_to_followed_and_reads_old_files() {
+        let l: LiveAlerts = serde_json::from_str(r#"{"enabled":true}"#).unwrap();
+        assert_eq!(l.scope, LiveScope::Followed);
+        let l: LiveAlerts = serde_json::from_str(r#"{"scope":"both"}"#).unwrap();
+        assert_eq!(l.scope, LiveScope::Both);
+        let l: LiveAlerts = serde_json::from_str(r#"{"scope":"nonsense"}"#).unwrap();
+        assert_eq!(l.scope, LiveScope::Followed);
+        assert!(LiveScope::Both.followed() && LiveScope::Both.tabs());
+        assert!(!LiveScope::Tabs.followed() && !LiveScope::Followed.tabs());
     }
 
     #[test]

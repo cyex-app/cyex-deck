@@ -57,6 +57,14 @@ export const ACCOUNT: Entry[] = [
     keywords: ['goes live', 'stream started', 'online', 'notify'],
   },
   {
+    id: 'notifications.live.scope',
+    page: 'notifications',
+    label: 'Live alerts for',
+    description: 'Followed channels, channels with a tab, or both.',
+    keywords: ['open tabs', 'followed', 'tab', 'scope'],
+    anchor: 'notifications.live.enabled',
+  },
+  {
     id: 'notifications.live.toast',
     page: 'notifications',
     label: 'Live alert pop-up',

@@ -10,6 +10,7 @@
   import Icon from '../../../components/Icon.svelte';
   import Row from '../../../components/Row.svelte';
   import Toggle from '../../../components/Toggle.svelte';
+  import type { LiveScope } from '../../../ipc/bindings/LiveScope';
   import type { TwitchChannelNotify } from '../../../ipc/bindings/TwitchChannelNotify';
   import type { TwitchNotifySwitch } from '../../../ipc/bindings/TwitchNotifySwitch';
   import { homeIpc } from '../../../ipc/browse';
@@ -23,6 +24,12 @@
   import Select from '../../../components/Select.svelte';
 
   const n = $derived(settings.v.notifications);
+  /** V108-C39 */
+  const SCOPES: { value: LiveScope; label: string }[] = [
+    { value: 'followed', label: 'Followed channels' },
+    { value: 'tabs', label: 'Open tabs' },
+    { value: 'both', label: 'Both' },
+  ];
   const account = $derived(accounts.current);
   /** Twitch's own settings need the extra Twitch features. */
   const twitch = $derived(!!account && accounts.can('onsiteNotifications', account.userId));
@@ -141,12 +148,15 @@
 
 <SectionHead title="Notifications" level={2}>Sounds and pop-ups for streams going live, whispers and Twitch’s bell.</SectionHead>
 
-<SectionHead title="When channels go live">Tell me when a followed channel starts.</SectionHead>
+<SectionHead title="When channels go live">Tell me when a channel starts.</SectionHead>
 <Row setting="notifications.live.enabled" label="Live alerts" hint={account ? 'For channels the default account follows. Each one follows its Twitch bell unless you pick below.' : 'For channels the default account follows. Sign in to get them.'}>
   <Toggle label="Live alerts" checked={n.live.enabled} onchange={(on) => patch({ live: { enabled: on } })} />
 </Row>
 {#if n.live.enabled}
-  <Row setting="notifications.live.toast" label="Pop-up" hint="A Windows notification. Click it to open the channel.">
+  <Row setting="notifications.live.scope" label="Live alerts for" hint="Open tabs: every channel that has a tab, followed or not. Your picks below still apply.">
+    <Select label="Live alerts for" width="200px" value={n.live.scope} options={SCOPES} onchange={(v) => patch({ live: { scope: v as LiveScope } })} />
+  </Row>
+  <Row setting="notifications.live.toast" label="Pop-up" hint="A Windows notification. Click it to open the channel, or use its button to open or go to the tab.">
     <Toggle label="Pop-up" checked={n.live.toast} onchange={(on) => patch({ live: { toast: on } })} />
   </Row>
   <Row setting="notifications.live.sound" label="Sound">
@@ -157,7 +167,7 @@
   </Row>
 {/if}
 
-<SectionHead title="Cards in the app">Small cards in the top right corner. Click one to open it.</SectionHead>
+<SectionHead title="Cards in the app">Small cards in the top right corner. Click one to open it; live cards also have a tab button.</SectionHead>
 <Row setting="notifications.cards.live" label="Someone goes live" hint={n.live.enabled ? 'Follows the live alerts above and their channels.' : 'Needs live alerts on.'}>
   <Toggle label="Live card" checked={n.cards.live} disabled={!n.live.enabled} onchange={(on) => patch({ cards: { live: on } })} />
 </Row>

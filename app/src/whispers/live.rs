@@ -141,6 +141,7 @@ pub(super) fn incoming(app: &AppHandle, thread_id: &str, m: api::Message, to: Op
                 title: name,
                 text: preview(&line),
                 avatar,
+                action: None,
                 open: Open::Whisper { login },
             },
         );

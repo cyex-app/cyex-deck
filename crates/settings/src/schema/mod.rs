@@ -48,7 +48,7 @@ pub use highlights::{
 pub use hotkeys::Hotkeys;
 pub use miner::{BetFilter, Bets, ChatPresence, DelayMode, FilterBy, FilterCmp, MAX_FIRST, MineSource, Miner, Rule, Strategy};
 pub use modview::Modview;
-pub use notifications::{InAppCards, Notifications};
+pub use notifications::{InAppCards, LiveAlerts, LiveScope, Notifications};
 pub use panels::{PanelNode, SplitDir, sanitize as sanitize_panels};
 pub use player::{Corner, Player, Quality};
 pub use plugins::{PluginEntry, Plugins};

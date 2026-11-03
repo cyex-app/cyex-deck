@@ -78,6 +78,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         notify::bell_state,
         notify::bell_list,
         notify::bell_seen,
+        notify::notify_focus_main,
         notify::bell_read,
         notify::bell_read_all,
         notify::bell_delete,

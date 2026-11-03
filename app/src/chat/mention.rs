@@ -51,6 +51,7 @@ pub fn notify(app: &AppHandle, channel: &str, m: &ChatMessage, outcome: &Outcome
                 },
                 text,
                 avatar: None,
+                action: None,
                 open: if global { Open::Room { login } } else { Open::Channel { login } },
             },
         );

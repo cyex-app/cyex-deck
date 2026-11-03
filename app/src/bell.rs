@@ -160,6 +160,7 @@ pub fn on_event(app: &AppHandle, e: &Event) {
                         title: unmark(&item.body),
                         text: String::new(),
                         avatar: item.thumbnail.clone(),
+                        action: None,
                         open: Open::Link {
                             url: item
                                 .url

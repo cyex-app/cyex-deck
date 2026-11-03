@@ -3,14 +3,17 @@
 //! Settings → Notifications. With only a Helix sign-in there's no bell to read, so every
 //! followed channel counts. Channels already live when the app starts stay quiet.
 //! V106-25 A channel that is only in muted tabs alerts without its sound.
+//! V108-C39 `live.scope` can add (or swap in) the channels that have a tab, read from the tabs'
+//! own live poll (`tabs::live`), so no extra request. A card or pop-up offers to open or jump
+//! to that channel's tab.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::Duration;
 
 use cyex_settings::Partition;
-use cyex_settings::schema::Notifications;
-use cyex_twitch::gql::{self, ChannelCard};
+use cyex_settings::schema::{LiveAlerts, Notifications, Tabs};
+use cyex_twitch::gql::{self, ChannelCard, ChannelInfo, GameRef, LiveStream};
 use tauri::{AppHandle, Manager};
 
 use crate::auth;
@@ -27,6 +30,10 @@ struct Seen {
     live: HashMap<String, Known>,
     /// Nothing polled yet for this account.
     fresh: bool,
+    /// V108-C39 Tab channels as of the last poll: id -> start time while live, and every id seen
+    /// (a tab opened since is a first look, silent).
+    tab_live: HashMap<String, String>,
+    tab_ids: HashSet<String>,
 }
 
 /// V106-07 A live followed channel as last seen.
@@ -62,6 +69,8 @@ async fn poll(app: &AppHandle) {
                 account: account.clone(),
                 live: HashMap::new(),
                 fresh: true,
+                tab_live: HashMap::new(),
+                tab_ids: HashSet::new(),
             };
         }
     }
@@ -72,17 +81,17 @@ async fn poll(app: &AppHandle) {
         return;
     };
 
+    let tab_cards = tab_channels(app);
     let (alerts, flips) = {
         let mut seen = lock(app);
         if seen.account.as_deref() != Some(account.as_str()) {
             return; // the default account changed while we asked
         }
         let quiet = seen.fresh && n.live.skip_at_start;
-        let alerts = news(&seen.live, &live, quiet)
-            .into_iter()
-            .filter(|(card, bell)| n.live.wants(&card.id, *bell))
-            .map(|(card, _)| card.clone())
-            .collect::<Vec<_>>();
+        let prior = Prior { followed: &seen.live, tab_live: &seen.tab_live, tab_ids: &seen.tab_ids };
+        let alerts = wanted(&n.live, &prior, &live, &tab_cards, quiet);
+        seen.tab_live = started_map(&tab_cards);
+        seen.tab_ids = tab_cards.iter().map(|c| c.id.clone()).collect();
         // V106-07 Live notifications feed: quiet on the first check (Q5), no bell filter.
         let flips = if seen.fresh { Vec::new() } else { live_flips(&seen.live, &live) };
         seen.live = live
@@ -149,6 +158,87 @@ fn news<'a>(
             before.get(&c.id).map(|k| &k.started) != Some(&s.started_at)
         })
         .collect()
+}
+
+/// V108-C39 What the last poll knew, to tell what is new now.
+struct Prior<'a> {
+    followed: &'a HashMap<String, Known>,
+    tab_live: &'a HashMap<String, String>,
+    tab_ids: &'a HashSet<String>,
+}
+
+fn started_map(cards: &[ChannelCard]) -> HashMap<String, String> {
+    cards
+        .iter()
+        .filter_map(|c| Some((c.id.clone(), c.stream.as_ref()?.started_at.clone())))
+        .collect()
+}
+
+/// V108-C39 The channels that have a tab, with their stream when live, from the tabs' own
+/// poll (up to a minute old). Empty before it first ran.
+fn tab_channels(app: &AppHandle) -> Vec<ChannelCard> {
+    let ids: HashSet<String> = app.state::<Settings>().read::<Tabs>(Partition::Tabs).channel_ids().into_iter().collect();
+    crate::tabs::live(app).iter().filter(|c| ids.contains(&c.id)).map(tab_card).collect()
+}
+
+fn tab_card(c: &ChannelInfo) -> ChannelCard {
+    ChannelCard {
+        id: c.id.clone(),
+        login: c.login.clone(),
+        name: c.name.clone(),
+        avatar: c.avatar.clone(),
+        stream: c.stream.as_ref().map(|s| LiveStream {
+            title: s.title.clone(),
+            viewers: s.viewers,
+            started_at: s.started_at.clone(),
+            rerun: s.rerun,
+            game: s.game.as_ref().map(|name| GameRef { id: String::new(), slug: String::new(), name: name.clone() }),
+            tags: Vec::new(),
+        }),
+        last_live: None,
+        last_game: None,
+        last_title: None,
+    }
+}
+
+/// V108-C39 Who alerts now: followed channels by the bell (when the scope has them), channels
+/// with a tab (when it has those; no bell, so on unless turned off for that channel), each
+/// once. A tab that opened since the last poll is a first look and stays quiet, so opening a
+/// live channel doesn't alert. A channel the followed side already alerted for isn't repeated
+/// when the tabs' poll catches up a minute later.
+fn wanted(
+    live: &LiveAlerts,
+    prior: &Prior<'_>,
+    followed: &[(ChannelCard, bool)],
+    tabs: &[ChannelCard],
+    quiet: bool,
+) -> Vec<ChannelCard> {
+    let mut out: Vec<ChannelCard> = Vec::new();
+    if live.scope.followed() {
+        out.extend(
+            news(prior.followed, followed, quiet)
+                .into_iter()
+                .filter(|(c, bell)| live.wants(&c.id, *bell))
+                .map(|(c, _)| c.clone()),
+        );
+    }
+    if live.scope.tabs() && !quiet {
+        for c in tabs {
+            let Some(s) = &c.stream else { continue };
+            let known = prior.tab_ids.contains(&c.id);
+            let new = prior.tab_live.get(&c.id) != Some(&s.started_at);
+            let done = out.iter().any(|o| o.id == c.id) || {
+                // The followed side saw this very stream earlier and (if its scope is on) alerted.
+                live.scope.followed()
+                    && prior.followed.get(&c.id).is_some_and(|k| k.started == s.started_at)
+                    && followed.iter().any(|(f, bell)| f.id == c.id && live.wants(&f.id, *bell))
+            };
+            if known && new && !done && live.wants(&c.id, true) {
+                out.push(c.clone());
+            }
+        }
+    }
+    out
 }
 
 /// V106-07 Streams that started (new, or started again) or ended since the last check.
@@ -234,6 +324,9 @@ fn alert(app: &AppHandle, n: &Notifications, card: ChannelCard, message: Option<
     if !n.live.toast {
         return;
     }
+    // V108-C39 The button follows the tabs as they are now ("Go to tab" or "Open tab").
+    let has_tab = app.state::<Settings>().read::<Tabs>(Partition::Tabs).channel_ids().contains(&card.id);
+    let action = Some(toasts::tab_action(&card.login, has_tab));
     toasts::show(
         app,
         Pop {
@@ -241,6 +334,7 @@ fn alert(app: &AppHandle, n: &Notifications, card: ChannelCard, message: Option<
             text,
             avatar: card.avatar.clone(),
             open: Open::Channel { login: card.login },
+            action,
         },
     );
 }
@@ -255,7 +349,7 @@ fn lock(app: &AppHandle) -> std::sync::MutexGuard<'_, Seen> {
 
 #[cfg(test)]
 mod tests {
-    use cyex_twitch::gql::LiveStream;
+    use cyex_settings::schema::LiveScope;
 
     use super::*;
 
@@ -295,6 +389,71 @@ mod tests {
             .collect();
         assert_eq!(ids, ["b", "c"]);
         assert!(news(&before, &now, true).is_empty());
+    }
+
+    fn scoped(scope: LiveScope) -> LiveAlerts {
+        LiveAlerts { scope, ..LiveAlerts::default() }
+    }
+
+    fn ids(v: Vec<ChannelCard>) -> Vec<String> {
+        v.into_iter().map(|c| c.id).collect()
+    }
+
+    fn offline(id: &str) -> ChannelCard {
+        ChannelCard { stream: None, ..live(id, "x").0 }
+    }
+
+    #[test]
+    fn scope_picks_followed_tabs_or_both() {
+        let before = HashMap::new();
+        let tab_live = HashMap::new();
+        let tab_ids: HashSet<String> = ["t".to_owned(), "f".to_owned()].into();
+        let prior = Prior { followed: &before, tab_live: &tab_live, tab_ids: &tab_ids };
+        let followed = [live("f", "1"), live("g", "1")];
+        let tabs = [live("t", "1").0, live("f", "1").0];
+        let run = |s| ids(wanted(&scoped(s), &prior, &followed, &tabs, false));
+        assert_eq!(run(LiveScope::Followed), ["f", "g"]);
+        assert_eq!(run(LiveScope::Tabs), ["t", "f"]);
+        assert_eq!(run(LiveScope::Both), ["f", "g", "t"]);
+    }
+
+    #[test]
+    fn a_channel_in_both_places_alerts_once() {
+        let before = HashMap::new();
+        let tab_live = HashMap::new();
+        let tab_ids: HashSet<String> = ["f".to_owned()].into();
+        let prior = Prior { followed: &before, tab_live: &tab_live, tab_ids: &tab_ids };
+        let got = wanted(&scoped(LiveScope::Both), &prior, &[live("f", "1")], &[live("f", "1").0], false);
+        assert_eq!(ids(got), ["f"]);
+        // The followed side alerted last minute; the tabs' poll catching up doesn't repeat it.
+        let before = HashMap::from([known("f", "1")]);
+        let prior = Prior { followed: &before, tab_live: &tab_live, tab_ids: &tab_ids };
+        assert!(wanted(&scoped(LiveScope::Both), &prior, &[live("f", "1")], &[live("f", "1").0], false).is_empty());
+    }
+
+    #[test]
+    fn a_tab_opened_since_stays_quiet_and_overrides_apply() {
+        let before = HashMap::new();
+        let tab_live = HashMap::new();
+        let none = HashSet::new();
+        let prior = Prior { followed: &before, tab_live: &tab_live, tab_ids: &none };
+        let tabs = [live("t", "1").0];
+        assert!(wanted(&scoped(LiveScope::Tabs), &prior, &[], &tabs, false).is_empty());
+        // Known before as offline, live now: alerts, unless turned off or the first poll.
+        let seen: HashSet<String> = ["t".to_owned()].into();
+        let prior = Prior { followed: &before, tab_live: &tab_live, tab_ids: &seen };
+        let mut l = scoped(LiveScope::Tabs);
+        assert_eq!(ids(wanted(&l, &prior, &[], &tabs, false)), ["t"]);
+        assert!(wanted(&l, &prior, &[], &tabs, true).is_empty());
+        l.channels.insert("t".into(), false);
+        assert!(wanted(&l, &prior, &[], &tabs, false).is_empty());
+        // Offline tab channels never alert; a restart does.
+        let off = [offline("t")];
+        assert!(wanted(&scoped(LiveScope::Tabs), &prior, &[], &off, false).is_empty());
+        let was = HashMap::from([("t".to_owned(), "1".to_owned())]);
+        let prior = Prior { followed: &before, tab_live: &was, tab_ids: &seen };
+        assert!(wanted(&scoped(LiveScope::Tabs), &prior, &[], &tabs, false).is_empty());
+        assert_eq!(ids(wanted(&scoped(LiveScope::Tabs), &prior, &[], &[live("t", "2").0], false)), ["t"]);
     }
 
     #[test]

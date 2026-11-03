@@ -66,6 +66,25 @@ pub fn dev_card(app: AppHandle, kind: String) -> Result<(), String> {
         tauri::async_runtime::spawn(async move { crate::badges::check(&app).await });
         return Ok(());
     }
+    // V108-C39 `live-tab` (the first tab's channel: the card offers "Go to tab"), `live-notab`
+    // (a channel with no tab: "Open tab") or `live:<login>`.
+    let login = match kind.as_str() {
+        "live-tab" => Some(
+            app.state::<Settings>()
+                .read::<cyex_settings::schema::Tabs>(Partition::Tabs)
+                .tiles()
+                .map(|t| t.channel.login.clone())
+                .find(|l| !l.is_empty())
+                .ok_or("no tab with a channel")?,
+        ),
+        "live-notab" => Some("nobodyhasatabforme".to_owned()),
+        other => other.strip_prefix("live:").map(str::to_owned),
+    };
+    if let Some(login) = login {
+        let open = Open::Channel { login: login.clone() };
+        show(&app, Card { kind: Kind::Live, title: format!("{login} is live"), text: "Just chatting\nA long title to see how it wraps".into(), image: None, open });
+        return Ok(());
+    }
     if let Some(rest) = kind.strip_prefix("live-message:") {
         // `live-message:<user id>:<login>`: a live card with that channel's real go-live message (read only).
         let (id, login) = rest.split_once(':').ok_or("live-message:<id>:<login>")?;
