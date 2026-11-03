@@ -21,7 +21,7 @@
 </script>
 
 <!-- Top right under the title bar, so the window buttons stay clear. Newest on top. Hover or
-     focus holds a card. Separate from the centre toasts. -->
+     focus holds a card; C37d it lets go only when neither the pointer nor focus is on it. Separate from the centre toasts. -->
 <div class="stack" role="region" aria-label="Notifications">
   {#each cards.items as c (c.id)}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -32,9 +32,9 @@
       in:fly={{ x: 16, duration: reduced() ? 0 : BASE }}
       out:fly={{ x: 12, duration: reduced() ? 0 : FAST }}
       onmouseenter={() => cards.hold(c.id)}
-      onmouseleave={() => cards.release(c.id)}
+      onmouseleave={(e) => !e.currentTarget.contains(document.activeElement) && cards.release(c.id)}
       onfocusin={() => cards.hold(c.id)}
-      onfocusout={() => cards.release(c.id)}
+      onfocusout={(e) => !e.currentTarget.matches(':hover') && !e.currentTarget.contains(e.relatedTarget as Node | null) && cards.release(c.id)}
     >
       <button class="body" onclick={() => act(c.id)}>
         <Avatar src={c.image} name={c.title} size={32} />
