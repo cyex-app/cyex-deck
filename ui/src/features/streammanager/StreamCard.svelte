@@ -55,7 +55,7 @@
             class="val"
             class:off
             aria-pressed={off}
-            aria-label="{st.label}, {off ? 'hidden' : 'shown'}"
+            aria-label="{st.label}, {off ? 'hidden' : st.text}"
             use:tooltip={off ? 'Show' : 'Hide'}
             onclick={() => flip(st.id)}
           >{off ? '•••' : st.text}</button>
@@ -124,7 +124,7 @@
     letter-spacing: 0.15em;
   }
   .val:focus-visible {
-    outline: 2px solid var(--accent-text);
+    outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
   }
   dd {
