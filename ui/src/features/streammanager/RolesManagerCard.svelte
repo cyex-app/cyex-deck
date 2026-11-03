@@ -250,12 +250,15 @@
     pressX={a.pressX}
     label="Click to remove {ROLE_NAME[a.role]}"
     onconfirm={() => {
+      // {@const} follows armed, so read it before clearing.
+      const { who, role } = a;
       armed = null;
-      void change(a.who.login, [], [a.role]);
+      void change(who.login, [], [role]);
     }}
     ondismiss={() => {
+      const { anchor } = a;
       armed = null;
-      a.anchor.focus({ preventScroll: true });
+      anchor.focus({ preventScroll: true });
     }}
   />
 {/if}
