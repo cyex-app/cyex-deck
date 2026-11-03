@@ -130,8 +130,8 @@
 >
   {@render children()}
   <SeekReadout bind:this={readout} />
-  {#if top}<div class="top">{@render top()}</div>{/if}
-  {#if bar}<div class="bar">{@render bar()}</div>{/if}
+  {#if top}<div class="top" data-bar>{@render top()}</div>{/if}
+  {#if bar}<div class="bar" data-bar>{@render bar()}</div>{/if}
 </div>
 
 <style>
@@ -163,8 +163,11 @@
     opacity: 0;
     transition: opacity var(--base) var(--ease);
   }
+  /* V108-F40 Keyboard focus in the controls shows them too, with the hover timings untouched. */
   .show .top,
-  .show .bar {
+  .show .bar,
+  .shell:has(:global([data-bar] :focus-visible)) .top,
+  .shell:has(:global([data-bar] :focus-visible)) .bar {
     opacity: 1;
   }
   .top {
@@ -180,8 +183,8 @@
     container: bar / inline-size;
     background: linear-gradient(transparent, var(--scrim-strong) 45%);
   }
-  .shell:not(.show) .top :global(*),
-  .shell:not(.show) .bar :global(*) {
+  .shell:not(.show):not(:has(:global([data-bar] :focus-visible))) .top :global(*),
+  .shell:not(.show):not(:has(:global([data-bar] :focus-visible))) .bar :global(*) {
     pointer-events: none;
   }
   .shell :global(video) {
