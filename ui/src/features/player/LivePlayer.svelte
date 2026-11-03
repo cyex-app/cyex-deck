@@ -317,6 +317,9 @@
           if (old && old.id !== r.session.id) void playerIpc.close(old.id);
           return;
         }
+        // V108-F47 The replay keeps each track on its own: audio only has nothing from before
+        // it was picked, so it goes live and says so (S4-02).
+        if (choice === 'audio') toast.info('Audio only starts at live.');
         at = null;
       }
       const s = at === null ? await playerIpc.live(channel, as, replayKey) : await playerIpc.vod(vod!, as);
