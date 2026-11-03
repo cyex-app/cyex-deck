@@ -194,7 +194,9 @@ pub fn watch(app: &AppHandle, label: &str, channel_id: &str, account: Option<&st
     if channel_id.is_empty() {
         return;
     }
-    if let Some(a) = account.filter(|a| !a.is_empty()) {
+    // V108-C35g Only a signed-in account is followed; a release always goes through, so it
+    // still clears the note after a sign-out.
+    if let Some(a) = account.filter(|a| !a.is_empty() && (!on || crate::auth::gql_token(app, a).is_some())) {
         crate::hermes::hold(app, label, crate::hermes::Held::User(a.to_owned(), Kind::HypeRewards), on);
     }
     let held = crate::hermes::Held::Channel(Kind::HypeTrain, channel_id.to_owned());
