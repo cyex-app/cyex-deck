@@ -74,11 +74,13 @@ impl Book {
     /// True (and noted) when no card showed for the pair lately.
     fn may_show(&mut self, account: &str, channel_id: &str, now: Instant) -> bool {
         self.shown.retain(|_, at| now.duration_since(*at) < SHOWN_GAP);
-        let key = (account.to_owned(), channel_id.to_owned());
-        if self.shown.contains_key(&key) {
+        // V108-C35g A card without a channel (the Rewards message may omit it) stands for
+        // every channel of the account, and the other way round.
+        let same = |(who, id): &(String, String)| who == account && (id == channel_id || id.is_empty() || channel_id.is_empty());
+        if self.shown.keys().any(same) {
             return false;
         }
-        self.shown.insert(key, now);
+        self.shown.insert((account.to_owned(), channel_id.to_owned()), now);
         true
     }
 }
@@ -227,6 +229,11 @@ mod tests {
         assert!(!b.may_show("me", "1", t + Duration::from_secs(5)));
         assert!(b.may_show("me", "2", t));
         assert!(b.may_show("me", "1", t + SHOWN_GAP));
+        // The empty channel key and a real one are the same train.
+        assert!(!b.may_show("me", "", t + SHOWN_GAP + Duration::from_secs(5)));
+        assert!(b.may_show("you", "", t));
+        assert!(!b.may_show("you", "3", t + Duration::from_secs(5)));
+        assert!(!b.may_show("me", "1", t + SHOWN_GAP + Duration::from_secs(5)));
     }
 
     #[test]
