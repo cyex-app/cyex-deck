@@ -1,5 +1,6 @@
 <!-- A channel's top clips (1.21). Signed out, Twitch lists at most 100 per filter. -->
 <script lang="ts">
+  import Button from '../../components/Button.svelte';
   import EmptyState from '../../components/EmptyState.svelte';
   import Icon from '../../components/Icon.svelte';
   import { openMenu } from '../../components/menu.svelte';
@@ -36,9 +37,12 @@
   let clips = $state<Clip[] | null>(null);
   const clipKeys = $derived(uniqueKeys(clips ?? [], (c) => c.slug));
   let problem = $state<string | null>(null);
+  /** V108-F45 Try again: a new number loads the list once more. */
+  let attempt = $state(0);
 
   $effect(() => {
     const [l, p, s] = [login, period, sort];
+    void attempt;
     let alive = true;
     clips = null;
     problem = null;
@@ -72,7 +76,9 @@
     <Segmented label="Order" options={SORTS} value={sort} onchange={(v) => (sort = v)} />
   </div>
   {#if problem}
-    <EmptyState icon="alert" text={problem} />
+    <EmptyState icon="alert" text={problem}>
+      <Button small onclick={() => attempt++}>Try again</Button>
+    </EmptyState>
   {:else if !clips}
     <Loading cards={12} kind="media" label="Loading" />
   {:else if !clips.length}
