@@ -3,22 +3,28 @@
      toast on every open, also from the dock's menu, and then read as "No pending requests").
      V108-C36 Like whispers: popped out and wide, the list on the left and the open request
      on the right (switch by picking another); docked or narrow, the list, and a request opens
-     over it with a Back button. The eye hides who banned them (`modview.hideBannedBy`). -->
+     over it with a Back button. The eye hides who banned them (`modview.hideBannedBy`).
+     V108-C36b The list says how many and sorts newest or oldest first; rows read "3 days ago ·
+     their message". Arrow keys move through it (side by side the request follows), Enter
+     opens, Escape goes back when stacked. Confirming a request opens the next one either way. -->
 <script lang="ts">
+  import { tick } from 'svelte';
+
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
   import EmptyState from '../../components/EmptyState.svelte';
-  import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import Card from '../../components/PanelCard.svelte';
+  import SortControl from '../../components/SortControl.svelte';
   import type { UnbanRequest } from '../../ipc/bindings/UnbanRequest';
   import { modIpc } from '../../ipc/moderation';
-  import { ago } from '../../lib/format';
+  import { ago, formatNumber } from '../../lib/format';
+  import { TIME, type Sort } from '../../lib/sort';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { errorText } from '../../lib/errors';
   import UnbanDetail from './UnbanDetail.svelte';
-  import { isSplit, nextAfter } from './unban';
+  import { isSplit, listMove, nextAfter, orderRequests } from './unban';
 
   let { account, login, popped = false }: { account: string; login: string; popped?: boolean } = $props();
 
@@ -30,10 +36,17 @@
   /** Stacked: the open request shows instead of the list. */
   let open = $state(false);
   let width = $state(0);
+  let sort = $state<Sort<'time'>>({ key: 'time', desc: true });
+  /** V108-C36b The request's (i), kept while switching between requests. */
+  let more = $state(false);
+  let rows = $state<HTMLElement>();
 
   const split = $derived(isSplit(popped, width));
   const hideBy = $derived(settings.v.modview.hideBannedBy);
+  const ordered = $derived(orderRequests(list, sort.desc));
   const current = $derived(list.find((r) => r.id === selected) ?? null);
+  /** The row that holds the list's one tab stop. */
+  const focusId = $derived(current?.id ?? ordered[0]?.id ?? null);
 
   function load() {
     loading = true;
@@ -43,7 +56,7 @@
         list = r;
         problem = '';
         // Side by side, the first one opens so the right pane is never empty for nothing.
-        if (!r.some((x) => x.id === selected)) selected = split ? (r[0]?.id ?? null) : null;
+        if (!r.some((x) => x.id === selected)) selected = split ? (orderRequests(r, sort.desc)[0]?.id ?? null) : null;
       })
       .catch((e) => (problem = errorText(e)))
       .finally(() => (loading = false));
@@ -51,7 +64,7 @@
   load();
 
   $effect(() => {
-    if (split && !selected && list.length) selected = list[0].id;
+    if (split && !selected && ordered.length) selected = ordered[0].id;
   });
 
   function pick(id: string) {
@@ -59,16 +72,38 @@
     open = true;
   }
 
+  const rowOf = (id: string) => rows?.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`);
+
+  async function back() {
+    open = false;
+    await tick();
+    if (selected) rowOf(selected)?.focus();
+  }
+
+  function onListKey(e: KeyboardEvent) {
+    const at = ordered.findIndex((r) => r.id === (document.activeElement as HTMLElement | null)?.dataset.id);
+    const to = listMove(e.key, Math.max(at, 0), ordered.length);
+    if (to === null) return;
+    e.preventDefault();
+    const id = ordered[to].id;
+    // Side by side the request follows the keys; stacked, Enter opens it.
+    selected = id;
+    rowOf(id)?.focus();
+  }
+
   async function resolve(r: UnbanRequest, approve: boolean, note: string) {
     if (busy[r.id]) return;
     busy[r.id] = true;
     try {
       await modIpc.resolveUnban(account, login, r.id, approve, note);
-      const next = nextAfter(list.map((x) => x.id), r.id);
+      const next = nextAfter(
+        ordered.map((x) => x.id),
+        r.id,
+      );
       list = list.filter((x) => x.id !== r.id);
-      // Side by side the next one opens; stacked, back to the list.
-      selected = split ? next : null;
-      open = false;
+      // The next one opens, side by side or stacked; with none left the (empty) list shows.
+      selected = next;
+      open = !!next;
     } catch (e) {
       toast.error(errorText(e));
     } finally {
@@ -80,7 +115,7 @@
 
   const asked = (iso: string) => {
     const t = Date.parse(iso);
-    return Number.isNaN(t) ? '' : ago(t);
+    return Number.isNaN(t) ? '' : ago(t, Date.now(), true);
   };
 </script>
 
@@ -100,21 +135,33 @@
   {#if problem && !list.length}
     <p class="empty">{problem} <Button small variant="link" onclick={load}>Retry</Button></p>
   {:else if !list.length}
-    <p class="empty">{loading ? 'Loading…' : 'No pending requests.'}</p>
+    {#if loading}<p class="empty">Loading…</p>{:else}<EmptyState icon="undo" text="No requests waiting." />{/if}
   {:else}
     <div class="unban" class:split bind:clientWidth={width}>
       <aside hidden={!split && open && !!current}>
-        <ul>
-          {#each list as r (r.id)}
+        <div class="head">
+          <span class="count">{formatNumber(list.length)} {list.length === 1 ? 'request' : 'requests'}</span>
+          <SortControl keys={[TIME]} {sort} label="Sort requests" onchange={(s) => (sort = s)} />
+        </div>
+        <!-- svelte-ignore a11y_no_noninteractive_element_interactions (arrow keys move between the rows' buttons) -->
+        <ul aria-label="Unban requests" bind:this={rows} onkeydown={onListKey}>
+          {#each ordered as r (r.id)}
             <li>
-              <button class="req" class:on={split && selected === r.id} onclick={() => pick(r.id)}>
-                <Avatar src={null} name={r.display || r.login} size={28} />
+              <button
+                class="req"
+                class:on={split && selected === r.id}
+                data-id={r.id}
+                tabindex={r.id === focusId ? 0 : -1}
+                aria-current={split && selected === r.id ? 'true' : undefined}
+                onclick={() => pick(r.id)}
+              >
+                <Avatar src={null} name={r.display || r.login} size={32} />
                 <span class="who">
-                  <span class="line1">
-                    <span class="name"><bdi>{r.display || r.login}</bdi></span>
-                    <span class="when">{asked(r.createdAt)}</span>
+                  <span class="name"><bdi>{r.display || r.login}</bdi></span>
+                  <span class="last">
+                    {#if asked(r.createdAt)}<span class="when">{asked(r.createdAt)}</span><span class="dot">·</span>{/if}
+                    <span class="text" class:none={!r.text} dir="auto">{r.text || 'No message'}</span>
                   </span>
-                  <span class="last" dir="auto">{r.text || 'No message.'}</span>
                 </span>
               </button>
             </li>
@@ -122,9 +169,6 @@
         </ul>
       </aside>
       <section hidden={!split && !(open && current)}>
-        {#if !split && current}
-          <button class="back" onclick={() => (open = false)}><Icon name="chevronLeft" size={14} /> Requests</button>
-        {/if}
         {#if current}
           {#key current.id}
             <UnbanDetail
@@ -132,6 +176,10 @@
               {login}
               request={current}
               {hideBy}
+              stacked={!split}
+              {more}
+              onmore={(v) => (more = v)}
+              onback={back}
               busy={!!busy[current.id]}
               onresolve={(approve, note) => resolve(current, approve, note)}
             />
@@ -153,22 +201,42 @@
     min-width: 0;
   }
   .unban.split {
-    grid-template-columns: minmax(200px, 280px) 1fr;
+    grid-template-columns: minmax(220px, 300px) 1fr;
   }
   aside[hidden],
   section[hidden] {
     display: none;
   }
   aside {
+    display: flex;
+    flex-direction: column;
     min-height: 0;
-    overflow-y: auto;
   }
   .split aside {
     border-right: 1px solid var(--border);
   }
+  .head {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: 38px;
+    padding: 0 6px 0 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .count {
+    color: var(--muted);
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
   ul {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
     margin: 0;
-    padding: 6px;
+    padding: 4px;
     list-style: none;
     display: flex;
     flex-direction: column;
@@ -177,9 +245,9 @@
   .req {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     width: 100%;
-    padding: 6px 8px;
+    padding: 8px 10px;
     background: none;
     border: 0;
     border-radius: var(--radius);
@@ -187,22 +255,21 @@
     transition: background-color var(--fast) ease-out;
   }
   .req:hover {
-    background: var(--surface-hover);
+    background: var(--row-hover);
   }
   .req.on {
     background: var(--accent-dim);
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+  .req:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
   }
   .who {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 1px;
-    min-width: 0;
-  }
-  .line1 {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
+    gap: 2px;
     min-width: 0;
   }
   .name {
@@ -210,44 +277,37 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-weight: 600;
-    font-size: 0.84rem;
-  }
-  .when {
-    margin-left: auto;
-    flex: none;
-    color: var(--dim);
-    font-size: 0.72rem;
-    font-variant-numeric: tabular-nums;
+    font-size: 0.86rem;
   }
   .last {
+    display: flex;
+    gap: 5px;
+    min-width: 0;
+    color: var(--muted);
+    font-size: var(--text-hint);
+    white-space: nowrap;
+  }
+  .when {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .dot {
+    flex: none;
+    color: var(--dim);
+  }
+  .text {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+  }
+  .text.none {
     color: var(--dim);
-    font-size: 0.78rem;
   }
   section {
     display: flex;
     flex-direction: column;
     min-width: 0;
     min-height: 0;
-  }
-  .back {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    align-self: flex-start;
-    margin: 6px 8px 0;
-    padding: 4px 6px;
-    background: none;
-    border: 0;
-    border-radius: var(--radius);
-    color: var(--muted);
-    font-size: 12px;
-  }
-  .back:hover {
-    color: var(--text);
-    background: var(--surface-hover);
   }
   .empty {
     margin: 0;

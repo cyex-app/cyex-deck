@@ -1,14 +1,22 @@
-<!-- V108-C36 One unban request in full, as Twitch's mod view shows it: who asks (picture,
-     account age, followers, sub, follow age, from the usercard's Facts), what they wrote and
-     when, their ban (reason, who, when; who can be hidden from the header's eye), their counts
-     from the mod logs, recent messages (logs.cyex.app, else Twitch's mod logs: the usercard's
-     Timeline), mod comments, their earlier requests, then a note and Approve or Deny. -->
+<!-- V108-C36 One unban request in full. V108-C36b Laid out as Twitch's mod view does it: who
+     asks (picture, name, account age) with an (i) for more; the ban in a row of short facts
+     (who, when, until, bans, timeouts) and its reason; then tabs for the chat log (it takes
+     every pixel left, ends with the ban as its last line), mod comments and, when there are
+     any, earlier requests; at the bottom their message as a quote, then Deny or Unban. The
+     note field shows only once one is picked (and focus moves into it); Confirm sends it and
+     the next request opens. Popped out and wide the ban row always shows and (i) adds the
+     rest (follow, sub, messages, warnings); narrow, (i) shows it all. The eye hides who
+     banned them in the facts and in the chat log's ban line. -->
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
 
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
+  import Icon from '../../components/Icon.svelte';
+  import type { IconName } from '../../components/icons';
+  import IconButton from '../../components/IconButton.svelte';
   import Loading from '../../components/Loading.svelte';
+  import { tooltip } from '../../components/tooltip.svelte';
   import type { ModHistory } from '../../ipc/bindings/ModHistory';
   import type { PastUnban } from '../../ipc/bindings/PastUnban';
   import type { Profile } from '../../ipc/bindings/Profile';
@@ -20,7 +28,8 @@
   import Comments from '../usercard/Comments.svelte';
   import Facts from '../usercard/Facts.svelte';
   import Timeline from '../usercard/Timeline.svelte';
-  import { bannedBy, messageCount, statusText } from './unban';
+  import { banLine, bannedBy, commentCount, messageCount, statusText } from './unban';
+  import { radioKey } from '../../components/select';
 
   interface Props {
     account: string;
@@ -30,20 +39,32 @@
     /** Who banned them shows as "Hidden". */
     hideBy: boolean;
     busy: boolean;
+    /** Narrow: the request stands alone with a Back button, and (i) holds every fact. */
+    stacked: boolean;
+    /** (i): the extra facts show (kept by the list while switching requests). */
+    more: boolean;
+    onmore: (on: boolean) => void;
+    onback: () => void;
     onresolve: (approve: boolean, note: string) => void;
   }
 
-  let { account, login, request, hideBy, busy, onresolve }: Props = $props();
+  let { account, login, request, hideBy, busy, stacked, more, onmore, onback, onresolve }: Props = $props();
 
   // One request for the component's life (the list keys it).
   // svelte-ignore state_referenced_locally
   const r = request;
+  const name = r.display || r.login;
+  const uid = $props.id();
 
   let profile = $state<Profile | null | undefined>(undefined);
   let history = $state<ModHistory | null | undefined>(undefined);
   let historyError = $state('');
-  let past = $state.raw<PastUnban[] | null>(null);
+  let past = $state.raw<PastUnban[]>([]);
   let note = $state('');
+  let decision = $state<'unban' | 'deny' | null>(null);
+  let tab = $state<'chat' | 'comments' | 'earlier'>('chat');
+  let noteBox = $state<HTMLTextAreaElement>();
+  let tabBar = $state<HTMLElement>();
 
   chatIpc
     .profile(r.login)
@@ -79,120 +100,247 @@
   };
 
   const ban = $derived(history?.ban ?? null);
-  const banWhen = $derived.by(() => {
-    if (!ban) return '';
-    const since = when(ban.since);
-    const until = when(ban.until);
-    if (until) return since ? `${since}, until ${until}` : `Until ${until}`;
-    return since;
+  const showBan = $derived(!stacked || more);
+  const tabs = $derived.by(() => {
+    const out: { id: typeof tab; label: string; icon: IconName; count: string }[] = [
+      { id: 'chat', label: 'Chat logs', icon: 'chat', count: history ? messageCount(history.messageCount) : '' },
+      { id: 'comments', label: 'Mod comments', icon: 'pencil', count: history ? commentCount(history.comments) : '' },
+    ];
+    if (past.length) out.push({ id: 'earlier', label: 'Earlier requests', icon: 'history', count: formatNumber(past.length) });
+    return out;
   });
+
+  function onTabKey(e: KeyboardEvent) {
+    const at = tabs.findIndex((t) => t.id === tab);
+    const to = radioKey(e, at, tabs.length);
+    if (to === null) return;
+    e.preventDefault();
+    tab = tabs[to].id;
+    (tabBar?.querySelectorAll<HTMLElement>('[role="tab"]')[to])?.focus();
+  }
+
+  /** Picking one shows the note field and moves into it; picking it again takes it back. */
+  async function choose(d: 'unban' | 'deny') {
+    decision = decision === d ? null : d;
+    if (!decision) return;
+    await tick();
+    noteBox?.focus({ preventScroll: true });
+  }
+
+  function confirm() {
+    if (!decision || busy) return;
+    onresolve(decision === 'unban', note);
+  }
+
+  function onNoteKey(e: KeyboardEvent) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      confirm();
+    } else if (e.key === 'Escape' && !e.isComposing) {
+      // Back to the choice, field closed; the note stays for a second pick.
+      e.preventDefault();
+      e.stopPropagation();
+      const was = decision;
+      decision = null;
+      document.getElementById(`${uid}-${was}`)?.focus();
+    }
+  }
+
+  function onkeydown(e: KeyboardEvent) {
+    if (stacked && e.key === 'Escape' && !e.defaultPrevented && !e.isComposing) {
+      e.preventDefault();
+      onback();
+    }
+  }
 </script>
 
-<div class="detail">
-  <div class="scroll">
-    <header>
-      <Avatar src={profile?.avatar} name={r.display || r.login} size={40} />
-      <div class="who">
-        <b class="name"><bdi>{r.display || r.login}</bdi></b>
+{#snippet banTail()}
+  {#if ban}
+    <p class="banline">
+      <Icon name="ban" size={13} />
+      <span class="what"><bdi>{banLine(ban, name, hideBy)}</bdi>{ban.until ? ` until ${when(ban.until)}` : ''}</span>
+      {#if ban.since}<span class="t">{when(ban.since)}</span>{/if}
+    </p>
+  {/if}
+{/snippet}
+
+<!-- svelte-ignore a11y_no_static_element_interactions (Escape goes back from anywhere inside) -->
+<div class="detail" {onkeydown}>
+  <header>
+    {#if stacked}<IconButton icon="chevronLeft" label="Back to requests" size={16} onclick={onback} />{/if}
+    <Avatar src={profile?.avatar} name={name} size={36} />
+    <div class="who">
+      <span class="nameline">
+        <b class="name"><bdi>{name}</bdi></b>
         {#if r.display && r.display.toLowerCase() !== r.login}<span class="login">{r.login}</span>{/if}
-      </div>
-    </header>
+      </span>
+      <span class="created">
+        <Icon name="cake" size={12} />
+        {#if profile?.createdAt}Account created {formatDate(new Date(profile.createdAt))}{:else if profile === undefined}&nbsp;{:else}Account age unknown{/if}
+      </span>
+    </div>
+    <IconButton
+      icon="info"
+      label={more ? 'Fewer details' : 'More details'}
+      hint="Follow, sub, messages and warnings here."
+      size={16}
+      active={more}
+      toggle
+      onclick={() => onmore(!more)}
+    />
+  </header>
 
-    <section>
-      <h4>Request <span class="t">{when(r.createdAt)}</span></h4>
-      {#if r.text}<p class="msg" dir="auto">{r.text}</p>{:else}<p class="dim">No message.</p>{/if}
-    </section>
-
-    <section>
-      <h4>Ban</h4>
-      {#if history === undefined}
-        <Loading rows={2} />
-      {:else if history === null}
-        <p class="dim">{historyError || 'Couldn’t load their mod history.'} <Button small variant="link" onclick={readHistory}>Retry</Button></p>
-      {:else if ban}
-        <dl>
-          <dt>Reason</dt>
-          <dd dir="auto">{ban.reason || 'No reason given'}</dd>
-          <dt>By</dt>
-          <dd class:dim={hideBy}><bdi>{bannedBy(ban.by, hideBy)}</bdi></dd>
-          {#if banWhen}
-            <dt>When</dt>
-            <dd class="t">{banWhen}</dd>
-          {/if}
-        </dl>
-      {:else}
-        <p class="dim">Not banned right now.</p>
-      {/if}
-    </section>
-
-    {#if profile}
-      <section class="facts">
-        <h4>Account</h4>
-        {#key profile.id}<Facts {profile} channel={login} />{/key}
-      </section>
-    {/if}
-
-    {#if history}
-      <section>
-        <h4>Here</h4>
-        <div class="counts">
-          <span><b>{messageCount(history.messageCount)}</b> messages</span>
-          <span><b>{formatNumber(history.timeouts)}</b> timeouts</span>
-          <span><b>{formatNumber(history.bans)}</b> bans</span>
-          <span><b>{formatNumber(history.warnings)}</b> warnings</span>
-        </div>
-      </section>
-    {/if}
-
-    <section>
-      <h4>Recent messages</h4>
-      <div class="box msgs">
-        <Timeline channel={login} userId={r.userId} login={r.login} name={r.display || r.login} live={[]} modAccount={account} {account} />
-      </div>
-    </section>
-
-    {#if history}
-      <section>
-        <h4>Mod comments</h4>
-        <div class="box comments">
-          <Comments comments={history.comments} channel={login} {account} targetId={r.userId} onchange={readHistory} />
-        </div>
-      </section>
-    {/if}
-
-    {#if past?.length}
-      <section>
-        <h4>Earlier requests</h4>
-        <ul class="past">
-          {#each past as p (p.id)}
-            <li>
-              <div class="meta">
-                <span class="status s-{p.status.toLowerCase()}">{statusText(p.status)}</span>
-                <span class="t">{when(p.createdAt)}</span>
-                {#if p.resolvedBy}<span class="by">· <bdi>{p.resolvedBy}</bdi></span>{/if}
+  {#if showBan || more}
+    <div class="facts">
+      {#if showBan}
+        {#if history === undefined}
+          <Loading rows={1} />
+        {:else if history === null}
+          <p class="dim">{historyError || 'Couldn’t load their mod history.'} <Button small variant="link" onclick={readHistory}>Retry</Button></p>
+        {:else}
+          <dl class="cols">
+            {#if ban}
+              <div class="by">
+                <dt>{ban.until ? 'Timed out by' : 'Banned by'}</dt>
+                <dd class:dim={hideBy || !ban.by?.trim()}><bdi>{bannedBy(ban.by, hideBy)}</bdi></dd>
               </div>
-              {#if p.text}<p class="msg" dir="auto">{p.text}</p>{/if}
-              {#if p.note}<p class="note" dir="auto">{p.note}</p>{/if}
-            </li>
-          {/each}
-        </ul>
-      </section>
+              {#if ban.since}<div><dt>{ban.until ? 'Timed out' : 'Banned'}</dt><dd class="t">{when(ban.since)}</dd></div>{/if}
+              {#if ban.until}<div><dt>Until</dt><dd class="t">{when(ban.until)}</dd></div>{/if}
+            {:else}
+              <div><dt>Ban</dt><dd class="dim">Not banned now</dd></div>
+            {/if}
+            <div><dt>Bans</dt><dd class="t">{formatNumber(history.bans)}</dd></div>
+            <div><dt>Timeouts</dt><dd class="t">{formatNumber(history.timeouts)}</dd></div>
+          </dl>
+          {#if ban}
+            <p class="reason" dir="auto" use:tooltip={ban.reason.length > 90 ? ban.reason : ''}>
+              <span class="lbl">Reason</span>
+              {#if ban.reason}{ban.reason}{:else}<span class="dim">None given</span>{/if}
+            </p>
+          {/if}
+        {/if}
+      {/if}
+      {#if more}
+        {#if history}
+          <dl class="cols">
+            <div><dt>Messages</dt><dd class="t">{messageCount(history.messageCount)}</dd></div>
+            <div><dt>Warnings</dt><dd class="t">{formatNumber(history.warnings)}</dd></div>
+          </dl>
+        {/if}
+        {#if profile}
+          <div class="extra">{#key profile.id}<Facts {profile} channel={login} />{/key}</div>
+        {/if}
+      {/if}
+    </div>
+  {/if}
+
+  <div class="tabs" role="tablist" aria-label="About {name}" bind:this={tabBar}>
+    {#each tabs as t (t.id)}
+      <button
+        role="tab"
+        id="{uid}-tab-{t.id}"
+        aria-selected={tab === t.id}
+        aria-controls="{uid}-pane"
+        tabindex={tab === t.id ? 0 : -1}
+        class:on={tab === t.id}
+        onclick={() => (tab = t.id)}
+        onkeydown={onTabKey}
+        use:tooltip={{ label: t.label }}
+      >
+        <Icon name={t.icon} size={14} />
+        <span class="tl">{t.label}</span>
+        {#if t.count}<span class="n">{t.count}</span>{/if}
+      </button>
+    {/each}
+  </div>
+
+  <div class="pane" id="{uid}-pane" role="tabpanel" aria-labelledby="{uid}-tab-{tab}">
+    {#if tab === 'chat'}
+      <Timeline
+        channel={login}
+        userId={r.userId}
+        login={r.login}
+        {name}
+        live={[]}
+        modAccount={account}
+        {account}
+        tail={ban ? banTail : undefined}
+      />
+    {:else if tab === 'comments'}
+      {#if history}
+        <Comments comments={history.comments} channel={login} {account} targetId={r.userId} onchange={readHistory} />
+      {:else}
+        <p class="dim pad">{history === null ? 'Couldn’t load comments.' : 'Loading…'}</p>
+      {/if}
+    {:else}
+      <ul class="past">
+        {#each past as p (p.id)}
+          <li>
+            <div class="meta">
+              <span class="status s-{p.status.toLowerCase()}">{statusText(p.status)}</span>
+              <span class="t">{when(p.createdAt)}</span>
+              {#if p.resolvedBy}<span class="rby">· <bdi>{p.resolvedBy}</bdi></span>{/if}
+            </div>
+            {#if p.text}<p class="msg" dir="auto">{p.text}</p>{:else}<p class="dim">No message.</p>{/if}
+            {#if p.note}<p class="note" dir="auto">{p.note}</p>{/if}
+          </li>
+        {/each}
+      </ul>
     {/if}
   </div>
 
   <footer>
-    <textarea
-      class="field"
-      rows="2"
-      maxlength="500"
-      placeholder="Note to them (optional)"
-      aria-label="Note for {r.display || r.login}"
-      bind:value={note}
-      disabled={busy}
-    ></textarea>
-    <div class="row">
-      <Button small variant="primary" disabled={busy} onclick={() => onresolve(true, note)}>Approve</Button>
-      <Button small variant="danger" disabled={busy} onclick={() => onresolve(false, note)}>Deny</Button>
+    <blockquote>
+      <span class="asked">Their request <span class="t">{when(r.createdAt)}</span></span>
+      {#if r.text}<p class="msg" dir="auto">{r.text}</p>{:else}<p class="dim">No message.</p>{/if}
+    </blockquote>
+
+    <div class="reveal" class:open={!!decision} inert={!decision}>
+      <div>
+        <textarea
+          class="field"
+          bind:this={noteBox}
+          rows="2"
+          maxlength="500"
+          placeholder={decision === 'deny' ? 'Why not? They’ll see this (optional)' : 'A note they’ll see (optional)'}
+          aria-label="Note for {name}"
+          bind:value={note}
+          disabled={busy}
+          onkeydown={onNoteKey}
+        ></textarea>
+      </div>
+    </div>
+
+    <div class="act">
+      <button
+        id="{uid}-deny"
+        class="pick deny"
+        class:on={decision === 'deny'}
+        aria-pressed={decision === 'deny'}
+        disabled={busy}
+        onclick={() => choose('deny')}
+      >
+        <Icon name={decision === 'deny' ? 'check' : 'x'} size={14} />Deny
+      </button>
+      <button
+        id="{uid}-unban"
+        class="pick unban"
+        class:on={decision === 'unban'}
+        aria-pressed={decision === 'unban'}
+        disabled={busy}
+        onclick={() => choose('unban')}
+      >
+        <Icon name={decision === 'unban' ? 'check' : 'lockOpen'} size={14} />Unban
+      </button>
+      <button
+        class="go"
+        disabled={!decision || busy}
+        onclick={confirm}
+        use:tooltip={{ label: 'Confirm', hint: 'Sends it and opens the next request. Ctrl+Enter in the note.' }}
+      >
+        <span class="gl">{busy ? 'Sending…' : 'Confirm'}</span>
+        <Icon name="chevronRight" size={15} />
+      </button>
     </div>
   </footer>
 </div>
@@ -200,140 +348,244 @@
 <style>
   .detail {
     flex: 1;
+    container: unban / inline-size;
     display: flex;
     flex-direction: column;
     min-width: 0;
     min-height: 0;
-  }
-  .scroll {
-    flex: 1;
-    min-height: 0;
+    /* A very short window scrolls the whole request rather than crushing the log. */
     overflow-y: auto;
-    padding: 10px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
   }
   header {
+    flex: none;
     display: flex;
     align-items: center;
     gap: 10px;
     min-width: 0;
+    padding: 10px 8px 10px 12px;
   }
   .who {
+    flex: 1;
     display: flex;
     flex-direction: column;
+    gap: 2px;
     min-width: 0;
   }
-  .name,
-  .login {
+  .nameline {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+  }
+  .name {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-size: 0.95rem;
   }
   .login {
-    color: var(--muted);
-    font-size: 0.78rem;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--dim);
+    font-size: var(--text-hint);
   }
-  section {
+  .created {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--muted);
+    font-size: var(--text-hint);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .created :global(svg) {
+    flex: none;
+    color: var(--dim);
+  }
+
+  /* The facts: label over value, columns that line up and wrap. */
+  .facts {
+    flex: none;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 8px;
+    max-height: 45%;
+    overflow-y: auto;
+    padding: 0 12px 10px;
+  }
+  .cols {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+    margin: 0;
+  }
+  .cols > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
     min-width: 0;
   }
-  h4 {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    margin: 0;
+  .cols .by {
+    max-width: min(100%, 240px);
+  }
+  dt {
     color: var(--dim);
-    font-size: 0.68rem;
+    font-size: var(--text-label);
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-  }
-  h4 .t {
-    text-transform: none;
-    letter-spacing: 0;
-    font-weight: 600;
-  }
-  .t {
-    color: var(--muted);
-    font-size: 0.74rem;
-    font-variant-numeric: tabular-nums;
-  }
-  .msg,
-  .note {
-    margin: 0;
-    font-size: 0.86rem;
-    overflow-wrap: anywhere;
-    white-space: pre-wrap;
-  }
-  .note {
-    color: var(--muted);
-    font-size: 0.8rem;
-  }
-  .dim {
-    margin: 0;
-    color: var(--dim);
-    font-size: 0.82rem;
-  }
-  dl {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 2px 10px;
-    margin: 0;
-    font-size: 0.84rem;
-  }
-  dt {
-    color: var(--muted);
+    white-space: nowrap;
   }
   dd {
     margin: 0;
     min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.84rem;
+    font-weight: 600;
+  }
+  .reason {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    margin: 0;
+    font-size: 0.84rem;
     overflow-wrap: anywhere;
   }
-  .facts :global(ul) {
+  .lbl {
+    margin-right: 6px;
+    color: var(--dim);
+    font-size: var(--text-label);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  /* Created is already under the name. */
+  .extra :global(li:first-child) {
+    display: none;
+  }
+  .extra :global(ul) {
     padding: 0;
   }
-  .counts {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 14px;
-    color: var(--muted);
-    font-size: 0.82rem;
-  }
-  .counts b {
-    color: var(--text);
+  .t {
     font-variant-numeric: tabular-nums;
   }
-  .box {
+  .dim {
+    margin: 0;
+    color: var(--dim);
+    font-weight: 400;
+  }
+  .pad {
+    padding: 12px;
+    font-size: 0.82rem;
+  }
+
+  /* Tabs: one hairline under them, the open one underlined in the text colour. */
+  .tabs {
+    flex: none;
+    display: flex;
+    gap: 2px;
+    padding: 0 8px;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabs button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+    height: 34px;
+    padding: 0 8px;
+    background: none;
+    border: 0;
+    box-shadow: inset 0 -2px 0 transparent;
+    color: var(--muted);
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition:
+      color var(--fast) ease-out,
+      box-shadow var(--fast) ease-out;
+  }
+  .tabs button:hover {
+    color: var(--text);
+  }
+  .tabs button.on {
+    color: var(--text);
+    box-shadow: inset 0 -2px 0 var(--text);
+  }
+  .tabs button:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+  }
+  .n {
+    color: var(--dim);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .on .n {
+    color: var(--muted);
+  }
+
+  /* The log takes all the height that's left. */
+  .pane {
+    flex: 1;
     display: flex;
     flex-direction: column;
+    min-height: 140px;
     background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
   }
-  .msgs {
-    height: 220px;
+  .banline {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin: 6px 0 2px;
+    padding: 4px 14px;
+    color: var(--red);
+    font-size: 0.82rem;
+    font-weight: 600;
   }
-  .comments {
-    max-height: 240px;
+  .banline :global(svg) {
+    flex: none;
+    align-self: center;
+  }
+  .banline .what {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .banline .t {
+    flex: none;
+    color: var(--dim);
+    font-size: 0.72rem;
   }
   .past {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
     margin: 0;
-    padding: 0;
+    padding: 8px 12px;
     list-style: none;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 10px;
   }
   .past li {
-    padding: 6px 8px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
   }
   .meta {
     display: flex;
@@ -341,10 +593,10 @@
     align-items: baseline;
     gap: 6px;
     min-width: 0;
-    font-size: 0.78rem;
+    font-size: var(--text-hint);
   }
   .status {
-    font-weight: 600;
+    font-weight: 700;
   }
   .s-approved {
     color: var(--green);
@@ -352,27 +604,165 @@
   .s-denied {
     color: var(--red);
   }
-  .by {
-    color: var(--muted);
+  .rby {
     min-width: 0;
+    color: var(--muted);
     overflow-wrap: anywhere;
   }
+  .msg,
+  .note {
+    margin: 0;
+    font-size: 0.84rem;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+  .note {
+    color: var(--muted);
+  }
+
+  /* The dock: their words, then the decision. */
   footer {
+    flex: none;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 8px 12px;
+    gap: 8px;
+    padding: 10px 12px;
     border-top: 1px solid var(--border);
   }
-  textarea {
-    width: 100%;
-    resize: vertical;
-    min-height: 34px;
-    font: inherit;
-    font-size: 0.82rem;
-  }
-  .row {
+  blockquote {
     display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 7.5em;
+    overflow-y: auto;
+    margin: 0;
+    padding: 2px 0 2px 10px;
+    box-shadow: inset 2px 0 0 var(--border-strong);
+  }
+  .asked {
+    color: var(--dim);
+    font-size: var(--text-hint);
+  }
+  .asked .t {
+    margin-left: 4px;
+  }
+  blockquote .dim {
+    font-size: 0.84rem;
+  }
+
+  /* The note opens under the quote, so Deny, Unban and Confirm stay where the pointer is. */
+  .reveal {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    margin-top: -8px;
+    transition:
+      grid-template-rows var(--base) var(--ease),
+      opacity var(--base) ease-out,
+      margin-top var(--base) var(--ease);
+  }
+  .reveal.open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    margin-top: 0;
+  }
+  .reveal > div {
+    min-height: 0;
+    overflow: hidden;
+    /* Room for the field's focus ring inside the clip. */
+    padding: 2px;
+    margin: -2px;
+  }
+  textarea {
+    display: block;
+    width: 100%;
+    min-height: 52px;
+    resize: vertical;
+    font: inherit;
+    font-size: 0.84rem;
+  }
+  .act {
+    display: flex;
+    align-items: center;
     gap: 6px;
+  }
+  .pick,
+  .go {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: var(--radius);
+    font-size: 0.84rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition:
+      background var(--fast) ease-out,
+      border-color var(--fast) ease-out,
+      color var(--fast) ease-out;
+  }
+  .pick {
+    background: var(--elevated);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+  }
+  .pick:hover:not(:disabled) {
+    background: var(--elevated-2);
+  }
+  .pick.deny.on {
+    background: color-mix(in srgb, var(--red) 14%, transparent);
+    border-color: var(--red);
+    color: var(--red);
+  }
+  .pick.unban.on {
+    background: var(--accent-dim);
+    border-color: var(--accent-border);
+    color: var(--accent-text);
+  }
+  .go {
+    margin-left: auto;
+    background: var(--accent);
+    border: 1px solid transparent;
+    color: var(--accent-ink);
+  }
+  .go:hover:not(:disabled) {
+    background: var(--accent-hover);
+  }
+  .go:disabled {
+    background: var(--elevated);
+    border-color: var(--border);
+    color: var(--dim);
+  }
+  .pick:active:not(:disabled),
+  .go:active:not(:disabled) {
+    transform: scale(0.97);
+    transition: none;
+  }
+  .pick:focus-visible,
+  .go:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+  .pick:disabled {
+    opacity: 0.6;
+  }
+
+  /* Narrow: tabs and Confirm go to icons (their names stay in the tooltips). */
+  @container unban (max-width: 420px) {
+    .tl,
+    .gl {
+      display: none;
+    }
+    .go {
+      width: 32px;
+      padding: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal {
+      transition: none;
+    }
   }
 </style>

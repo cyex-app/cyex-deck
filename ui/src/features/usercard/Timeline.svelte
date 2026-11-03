@@ -4,7 +4,7 @@
      logs.cyex.app has none, a mod gets Twitch's own mod logs instead. Emotes, names, links
      and badges act as in chat (lineEvents.ts); an emote's card opens over the card. -->
 <script lang="ts">
-  import { onDestroy, tick } from 'svelte';
+  import { onDestroy, tick, type Snippet } from 'svelte';
 
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import { usercardIpc } from '../../ipc/rules';
@@ -28,9 +28,11 @@
     modAccount?: string | null;
     /** The account reading this chat, for 7TV edits from an emote's menu. */
     account?: string | null;
+    /** V108-C36b A last line under the messages (the unban request's ban). */
+    tail?: Snippet;
   }
 
-  let { channel, userId, login, name, live, url = $bindable(''), modAccount = null, account = null }: Props = $props();
+  let { channel, userId, login, name, live, url = $bindable(''), modAccount = null, account = null, tail }: Props = $props();
 
   /** 1.41 The emote card on screen. */
   let card = $state<CardTarget | null>(null);
@@ -161,6 +163,7 @@
     {:else}
       {#if status === 'loading'}<Loading />{:else}<p class="empty">{name} hasn’t chatted here.</p>{/if}
     {/each}
+    {#if tail && status !== 'loading'}{@render tail()}{/if}
   </div>
 </div>
 {#if card}
