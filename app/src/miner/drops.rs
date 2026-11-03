@@ -2,7 +2,8 @@
 //! drops (every 15 minutes otherwise); earned drops are claimed 5-10 s apart. Twitch
 //! wants the game account linked before it hands a drop out.
 
-use std::sync::Mutex;
+use std::collections::HashSet;
+use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 
 use cyex_miner::stats::{Kind, Record};
@@ -43,14 +44,20 @@ fn card(app: &AppHandle, title: &str, name: &str, game: Option<&str>, image: Opt
 /// V108-C37 True the first time this drop instance is seen refused, so a drop that stays
 /// unclaimable doesn't pop up every minute.
 fn told_once(instance: &str) -> bool {
-    static SEEN: Mutex<Vec<String>> = Mutex::new(Vec::new());
-    let mut seen = SEEN.lock().unwrap_or_else(|p| p.into_inner());
-    if seen.iter().any(|s| s == instance) {
-        return false;
-    }
-    seen.push(instance.to_owned());
-    true
+    static SEEN: LazyLock<Mutex<HashSet<String>>> = LazyLock::new(Mutex::default);
+    first_time(&mut SEEN.lock().unwrap_or_else(|p| p.into_inner()), instance)
 }
+
+/// V108-C37d True when `instance` wasn't in `seen`; the set starts over past `SEEN_MAX`.
+fn first_time(seen: &mut HashSet<String>, instance: &str) -> bool {
+    if seen.len() > SEEN_MAX {
+        seen.clear();
+    }
+    seen.insert(instance.to_owned())
+}
+
+/// V108-C37d Refused instances kept before the list starts over.
+const SEEN_MAX: usize = 500;
 
 pub fn spawn(app: &AppHandle) {
     let app = app.clone();
@@ -162,4 +169,23 @@ async fn tick(app: &AppHandle) -> Duration {
         }
     }
     if busy { BUSY } else { IDLE }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn v108_c37d_a_refused_drop_is_told_once_and_the_list_stays_small() {
+        let mut seen = HashSet::new();
+        assert!(first_time(&mut seen, "a"));
+        assert!(!first_time(&mut seen, "a"));
+        assert!(first_time(&mut seen, "b"));
+        for i in 0..=SEEN_MAX {
+            first_time(&mut seen, &i.to_string());
+        }
+        // Past the cap it starts over: "a" is new again, the set never grows far beyond it.
+        assert!(first_time(&mut seen, "a"));
+        assert!(seen.len() <= SEEN_MAX + 1);
+    }
 }
