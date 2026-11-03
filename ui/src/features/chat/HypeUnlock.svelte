@@ -159,7 +159,7 @@
     place-items: center;
     width: 96px;
     /* V108-C35d Room for the 64 px emote, its padding and the overshoot. */
-    height: 88px;
+    height: 96px;
   }
   .glow {
     position: absolute;
