@@ -42,11 +42,14 @@
   function next() {
     clearTimeout(timer);
     current = queue.shift() ?? null;
+    // C35g A card removed under the pointer or focus fires no leave/focusout: drop the hold.
     if (current) arm();
+    else held = false;
   }
 
   function clear() {
     clearTimeout(timer);
+    held = false;
     queue = [];
     current = null;
   }
