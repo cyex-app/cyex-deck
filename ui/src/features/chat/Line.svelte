@@ -570,7 +570,14 @@
   :global(:root[data-theme='light']) .history {
     opacity: 1;
   }
-  :global(:root[data-theme='light']) .history .body {
+  /* V108-F48b Faded by colour, not opacity: --text 70 % over --bg (#1b1c20 on #f3f3f4 gives
+     #5c5d60, 6,0:1; the old --muted at 0.8 opacity read 3,2:1). Pictures fade on their own;
+     sub, gift, raid, announcement and moderation lines fade the same way. */
+  :global(:root[data-theme='light']) .history .body,
+  :global(:root[data-theme='light']) .history .notice-text {
+    color: color-mix(in srgb, var(--text) 70%, var(--bg));
+  }
+  :global(:root[data-theme='light']) .history .body :global(img) {
     opacity: 0.8;
   }
   :global(:root[data-theme='light']) .del-faded > :global(:not(.msg)),
