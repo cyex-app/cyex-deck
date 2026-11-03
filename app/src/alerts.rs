@@ -100,13 +100,15 @@ async fn poll(app: &AppHandle) {
         seen.fresh = false;
         (alerts, flips)
     };
-    let mut said = messages(app, &alerts).await;
+    // The feed first: it doesn't wait on the go-live messages.
+    for f in flips {
+        crate::feeds::live::flip(app, f);
+    }
+    // Only read the messages when a card or pop-up will show them.
+    let mut said = if n.cards.live || n.live.toast { messages(app, &alerts).await } else { HashMap::new() };
     for card in alerts {
         let message = said.remove(&card.id);
         alert(app, &n, card, message);
-    }
-    for f in flips {
-        crate::feeds::live::flip(app, f);
     }
 }
 
@@ -206,8 +208,7 @@ fn alert_text(card: &ChannelCard, message: Option<String>) -> String {
         text = if text.is_empty() {
             game.name.clone()
         } else {
-            format!("{text}
-{}", game.name)
+            format!("{text}\n{}", game.name)
         };
     }
     text

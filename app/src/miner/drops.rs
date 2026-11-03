@@ -33,8 +33,7 @@ pub struct DropProgress {
 
 /// V108-C37 A card for a drop that came in; a click opens the miner page.
 fn card(app: &AppHandle, title: &str, name: &str, game: Option<&str>, image: Option<String>) {
-    let text = game.map_or_else(|| name.to_owned(), |g| format!("{name}
-{g}"));
+    let text = game.map_or_else(|| name.to_owned(), |g| format!("{name}\n{g}"));
     cards::show(
         app,
         Card { kind: CardKind::Drop, title: title.into(), text, image, open: Open::Drops },
