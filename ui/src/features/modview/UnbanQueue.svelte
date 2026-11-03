@@ -48,18 +48,33 @@
   /** The row that holds the list's one tab stop. */
   const focusId = $derived(current?.id ?? ordered[0]?.id ?? null);
 
+  /** V108-C36f Counts reads, so only the latest one lands. */
+  let loadSeq = 0;
+  /** V108-C36f Requests confirmed here: a read that was out meanwhile must not bring them back. */
+  const done = new Set<string>();
+
   function load() {
     loading = true;
+    const mine = ++loadSeq;
     modIpc
       .unbanRequests(account, login)
-      .then((r) => {
+      .then((all) => {
+        if (mine !== loadSeq) return;
+        const r = all.filter((x) => !done.has(x.id));
         list = r;
         problem = '';
         // Side by side, the first one opens so the right pane is never empty for nothing.
         if (!r.some((x) => x.id === selected)) selected = split ? (orderRequests(r, sort.desc)[0]?.id ?? null) : null;
       })
-      .catch((e) => (problem = errorText(e)))
-      .finally(() => (loading = false));
+      .catch((e) => {
+        if (mine !== loadSeq) return;
+        // With rows showing, the panel's error line is hidden: say it as a toast.
+        if (list.length) toast.error(errorText(e));
+        else problem = errorText(e);
+      })
+      .finally(() => {
+        if (mine === loadSeq) loading = false;
+      });
   }
   load();
 
@@ -100,6 +115,7 @@
         ordered.map((x) => x.id),
         r.id,
       );
+      done.add(r.id);
       list = list.filter((x) => x.id !== r.id);
       // The next one opens, side by side or stacked; with none left the (empty) list shows.
       selected = next;
@@ -169,7 +185,8 @@
         </ul>
       </aside>
       <section hidden={!split && !(open && current)}>
-        {#if current}
+        <!-- Stacked, the request mounts when opened, not on each arrow key (its reads are many). -->
+        {#if current && (split || open)}
           {#key current.id}
             <UnbanDetail
               {account}
