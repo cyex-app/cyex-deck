@@ -25,9 +25,11 @@
     /** The view's board; a panel on its own (V107-R29) loads its own. */
     data?: ModBoard;
     host?: string | null;
+    /** V108-C36 In a window of its own (V107-R29). */
+    popped?: boolean;
   }
 
-  let { id, login, account, data: shared, host = null }: Props = $props();
+  let { id, login, account, data: shared, host = null, popped = false }: Props = $props();
 
   // svelte-ignore state_referenced_locally
   const data = shared ?? new ModBoard(() => login, () => account);
@@ -67,7 +69,7 @@
 {:else if id === 'automod'}
   <Card title="AutoMod queue" flush><AutomodQueue {account} {login} held={board.held} /></Card>
 {:else if id === 'unban'}
-  <UnbanQueue {account} {login} />
+  <UnbanQueue {account} {login} {popped} />
 {:else if id === 'chatters'}
   <Card title="Viewers" flush><ViewerList {account} {login} /></Card>
 {:else if id === 'terms'}

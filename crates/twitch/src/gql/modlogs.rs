@@ -50,6 +50,9 @@ pub struct BanStatus {
     pub until: Option<String>,
     pub by: Option<String>,
     pub reason: String,
+    /// V108-C36 When it was given, RFC 3339 (Twitch's `createdAt`).
+    #[ts(optional = nullable)]
+    pub since: Option<String>,
 }
 
 /// M3 A moderator's note on a user.
@@ -69,7 +72,7 @@ pub struct ModComment {
 /// V101-05 The lists as the 7TV extension reads them (schema-checked 2026/10/11).
 const VIEWER_CARD: &str = "query Card($channelID: ID!, $targetID: ID!) {
   ban: chatRoomBanStatus(channelID: $channelID, userID: $targetID) {
-    expiresAt isPermanent reason moderator { login displayName } }
+    createdAt expiresAt isPermanent reason moderator { login displayName } }
   viewerCardModLogs(channelID: $channelID, targetID: $targetID) {
     messages(first: 1000) { ... on ViewerCardModLogsMessagesConnection { count } }
     bans: targetedActions(first: 99, type: BAN) { ...Actions }
@@ -272,6 +275,7 @@ fn ban_of(data: &Value) -> Option<BanStatus> {
             .and_then(Value::as_str)
             .map(str::to_owned),
         reason: b.get("reason").and_then(Value::as_str).unwrap_or_default().to_owned(),
+        since: b.get("createdAt").and_then(Value::as_str).filter(|s| !s.is_empty()).map(str::to_owned),
     })
 }
 
@@ -375,7 +379,7 @@ pub async fn history(http: &Http, auth: Auth<'_>, channel_id: &str, target_id: &
 pub async fn ban_status(http: &Http, auth: Auth<'_>, channel_id: &str, target_id: &str) -> Result<Option<BanStatus>> {
     const Q: &str = "query Ban($channelID: ID!, $targetID: ID!) {
   ban: chatRoomBanStatus(channelID: $channelID, userID: $targetID) {
-    expiresAt isPermanent reason moderator { login displayName } } }";
+    createdAt expiresAt isPermanent reason moderator { login displayName } } }";
     let vars = json!({ "channelID": channel_id, "targetID": target_id });
     let data: Value = query(http, auth, Q, vars).await?;
     Ok(ban_of(&data))
@@ -454,6 +458,63 @@ pub async fn resolve_unban(http: &Http, auth: Auth<'_>, id: &str, approve: bool,
     };
     let _: Value = query(http, auth, op, json!({ "input": { "id": id, "resolverMessage": note } })).await?;
     Ok(())
+}
+
+/// V108-C36 One of a user's unban requests in a channel, any status, for the request's
+/// "Earlier requests".
+#[derive(Clone, Debug, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PastUnban {
+    pub id: String,
+    /// RFC 3339.
+    pub created_at: String,
+    pub text: String,
+    /// `PENDING`, `APPROVED`, `DENIED`, `ACKNOWLEDGED` or `CANCELED`.
+    pub status: String,
+    /// RFC 3339; `None` while pending.
+    pub resolved_at: Option<String>,
+    /// The mod who resolved it, display name first.
+    pub resolved_by: Option<String>,
+    /// The note they left for the user.
+    pub note: String,
+}
+
+/// V108-C36 `options.userID` narrows Twitch's list to one requester; no status: every one
+/// (validated against the schema 2026/11/03).
+const UNBAN_PAST: &str = "query P($id: ID!, $userID: ID!) { channel(id: $id) {
+  unbanRequests(first: 20, options: { order: NEWEST, userID: $userID }) {
+    edges { node { id createdAt requesterMessage status resolvedAt resolverMessage resolvedBy { login displayName } } }
+  } } }";
+
+/// V108-C36 Every unban request `user_id` made in the channel, newest first.
+pub async fn unban_past(http: &Http, auth: Auth<'_>, channel_id: &str, user_id: &str) -> Result<Vec<PastUnban>> {
+    let data: Value = query(http, auth, UNBAN_PAST, json!({ "id": channel_id, "userID": user_id })).await?;
+    Ok(past_of(&data))
+}
+
+fn past_of(data: &Value) -> Vec<PastUnban> {
+    let edges = data.pointer("/channel/unbanRequests/edges").and_then(Value::as_array);
+    let text = |v: &Value| v.as_str().unwrap_or_default().to_owned();
+    edges
+        .into_iter()
+        .flatten()
+        .filter_map(|e| {
+            let n = e.get("node")?;
+            Some(PastUnban {
+                id: n.get("id")?.as_str()?.to_owned(),
+                created_at: text(&n["createdAt"]),
+                text: text(&n["requesterMessage"]),
+                status: text(&n["status"]),
+                resolved_at: n["resolvedAt"].as_str().filter(|s| !s.is_empty()).map(str::to_owned),
+                resolved_by: ["displayName", "login"]
+                    .iter()
+                    .find_map(|k| n["resolvedBy"][k].as_str().filter(|s| !s.is_empty()))
+                    .map(str::to_owned),
+                note: text(&n["resolverMessage"]),
+            })
+        })
+        .collect()
 }
 
 /// 1.48, V101-35 The chatters in a channel, grouped, with the total Twitch reports.
@@ -726,6 +787,29 @@ mod tests {
         let p = json!({ "ban": { "expiresAt": null, "isPermanent": true, "reason": "spam", "moderator": null } });
         assert!(ban_of(&p).unwrap().until.is_none());
         assert!(ban_of(&json!({ "ban": null })).is_none());
+        // V108-C36 When it was given.
+        let s = json!({ "ban": { "createdAt": "2026-11-01T10:00:00Z", "isPermanent": true, "reason": "" } });
+        assert_eq!(ban_of(&s).unwrap().since.as_deref(), Some("2026-11-01T10:00:00Z"));
+        assert!(ban_of(&p).unwrap().since.is_none());
+    }
+
+    #[test]
+    fn v108_c36_past_unban_requests_read_every_status() {
+        let data = json!({ "channel": { "unbanRequests": { "edges": [
+            { "node": { "id": "r2", "createdAt": "2026-11-02T00:00:00Z", "requesterMessage": "again",
+              "status": "PENDING", "resolvedAt": null, "resolverMessage": null, "resolvedBy": null } },
+            { "node": { "id": "r1", "createdAt": "2026-10-01T00:00:00Z", "requesterMessage": "sorry",
+              "status": "DENIED", "resolvedAt": "2026-10-02T00:00:00Z", "resolverMessage": "no",
+              "resolvedBy": { "login": "m", "displayName": "" } } },
+            { "node": null }
+        ]}}});
+        let p = past_of(&data);
+        assert_eq!(p.len(), 2);
+        assert_eq!((p[0].status.as_str(), p[0].resolved_at.as_deref(), p[0].resolved_by.as_deref()), ("PENDING", None, None));
+        assert_eq!(p[0].note, "");
+        // An empty display name falls back to the login.
+        assert_eq!((p[1].resolved_by.as_deref(), p[1].note.as_str()), (Some("m"), "no"));
+        assert!(past_of(&json!({ "channel": null })).is_empty());
     }
 
     #[test]

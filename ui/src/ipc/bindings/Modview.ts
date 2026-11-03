@@ -40,4 +40,8 @@ chatKept?: boolean | null,
  * V107-Mg Per channel: the layout stays shared and keeps the panel, so other channels'
  * views still show it.
  */
-popped: { [key in string]: PanelNode }, };
+popped: { [key in string]: PanelNode }, 
+/**
+ * V108-C36 The unban requests hide who banned them (the eye in their header).
+ */
+hideBannedBy: boolean, };

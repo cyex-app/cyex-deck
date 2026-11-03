@@ -7,4 +7,8 @@ export type BanStatus = {
 /**
  * RFC 3339; `None` for a ban.
  */
-until: string | null, by: string | null, reason: string, };
+until: string | null, by: string | null, reason: string, 
+/**
+ * V108-C36 When it was given, RFC 3339 (Twitch's `createdAt`).
+ */
+since?: string | null, };

@@ -33,6 +33,8 @@ pub struct Modview {
     /// V107-Mg Per channel: the layout stays shared and keeps the panel, so other channels'
     /// views still show it.
     pub popped: BTreeMap<String, PanelNode>,
+    /// V108-C36 The unban requests hide who banned them (the eye in their header).
+    pub hide_banned_by: bool,
 }
 
 impl Schema for Modview {

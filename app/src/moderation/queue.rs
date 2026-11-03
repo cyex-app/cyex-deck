@@ -6,7 +6,7 @@ use std::collections::HashSet;
 
 use cyex_moderation::actions::ModLine;
 use cyex_twitch::gql;
-use cyex_twitch::gql::modlogs::{Chatters, ModHistory, UnbanRequest};
+use cyex_twitch::gql::modlogs::{Chatters, ModHistory, PastUnban, UnbanRequest};
 use cyex_twitch::helix::moderation as hm;
 use tauri::AppHandle;
 use time::OffsetDateTime;
@@ -67,6 +67,13 @@ pub async fn resolve_unban(app: &AppHandle, account: &str, login: &str, id: &str
         return hm::resolve_unban(&http(app), h, actor.room(), id, approve, note).await.map_err(err);
     }
     Err("This account can’t resolve unban requests.".into())
+}
+
+/// V108-C36 Every unban request a user made in the channel, newest first (GQL only).
+pub async fn unban_past(app: &AppHandle, account: &str, login: &str, user_id: &str) -> Result<Vec<PastUnban>, String> {
+    let actor = super::actor(app, account, login)?;
+    let g = actor.gql().ok_or("Earlier requests need a GQL sign-in.")?;
+    gql::modlogs::unban_past(&http(app), g, &actor.channel_id, user_id).await.map_err(err)
 }
 
 /// M3 A user's mod history and comments (GQL only).

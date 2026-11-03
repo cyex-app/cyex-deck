@@ -2,7 +2,7 @@
 //! mod view's snapshot and queue actions, mass actions and `/nuke`.
 
 use cyex_moderation::command;
-use cyex_twitch::gql::modlogs::{ModHistory, UnbanRequest};
+use cyex_twitch::gql::modlogs::{ModHistory, PastUnban, UnbanRequest};
 use tauri::AppHandle;
 
 use crate::moderation::nuke::NukePreview;
@@ -61,6 +61,12 @@ pub async fn mod_automod(app: AppHandle, account: String, channel: String, msg_i
 #[tauri::command]
 pub async fn mod_unban_requests(app: AppHandle, account: String, channel: String) -> Result<Vec<UnbanRequest>, String> {
     moderation::queue::unban_requests(&app, &account, &channel).await
+}
+
+/// V108-C36 A user's earlier unban requests in the channel.
+#[tauri::command]
+pub async fn mod_unban_past(app: AppHandle, account: String, channel: String, user_id: String) -> Result<Vec<PastUnban>, String> {
+    moderation::queue::unban_past(&app, &account, &channel, &user_id).await
 }
 
 #[tauri::command]

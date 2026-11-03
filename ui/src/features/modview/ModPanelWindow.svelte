@@ -15,7 +15,7 @@
 
 {#if target && account}
   {#key account}
-    <div class="one"><PanelBox ctl={{ unlocked: false, bare: true }}><ModPanelBody id={target.id} {login} {account} /></PanelBox></div>
+    <div class="one"><PanelBox ctl={{ unlocked: false, bare: true }}><ModPanelBody id={target.id} {login} {account} popped /></PanelBox></div>
   {/key}
 {:else}
   <p class="gone">You’re not moderating {login} right now. Open its chat with your mod account first.</p>

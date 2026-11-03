@@ -12,6 +12,7 @@ import type { RoleEntry } from './bindings/RoleEntry';
 import type { MassbanProgress } from './bindings/MassbanProgress';
 import type { ModHistory } from './bindings/ModHistory';
 import type { NukePreview } from './bindings/NukePreview';
+import type { PastUnban } from './bindings/PastUnban';
 import type { UnbanRequest } from './bindings/UnbanRequest';
 
 export type { ModRole };
@@ -44,6 +45,9 @@ export const modIpc = {
     invoke<void>('mod_remove_blocked_term', { account, channel, id }),
   unbanRequests: (account: string, channel: string) =>
     invoke<UnbanRequest[]>('mod_unban_requests', { account, channel }),
+  /** V108-C36 Every unban request the user made in the channel, newest first (GQL only). */
+  unbanPast: (account: string, channel: string, userId: string) =>
+    invoke<PastUnban[]>('mod_unban_past', { account, channel, userId }),
   resolveUnban: (account: string, channel: string, id: string, approve: boolean, note: string) =>
     invoke<void>('mod_resolve_unban', { account, channel, id, approve, note }),
   history: (account: string, channel: string, targetId: string) =>
