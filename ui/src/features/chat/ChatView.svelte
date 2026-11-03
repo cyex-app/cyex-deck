@@ -194,10 +194,14 @@
 
   $effect(() => userMenus.track());
 
-  const mine = (run: () => void) => () => (hotkeyTarget() === el ? run() : false);
+  const mine = (run: () => unknown) => () => (hotkeyTarget() === el ? run() : false);
+  let msgs = $state<MessageList>();
   useHotkeys({
     'chat.search': mine(() => (search = { query: search?.query ?? '', all: false })),
     'chat.searchAll': mine(() => (search = { query: search?.query ?? '', all: true })),
+    // V108-F54 Keyboard line selection; the list takes the keys while a line is picked.
+    'chat.lineUp': (e) => mine(() => msgs?.pickLine(-1, e.repeat) ?? false)(),
+    'chat.lineDown': (e) => mine(() => msgs?.pickLine(1, e.repeat) ?? false)(),
     'chat.similar': mine(() => {
       const hide = !settings.v.highlights.similar.hide;
       void settings.patch('highlights', { similar: { hide } });
@@ -554,6 +558,7 @@
   </div>
   <div class="body">
     <MessageList
+      bind:this={msgs}
       {room}
       {readKey}
       canReply={room.account !== null}
@@ -563,6 +568,7 @@
       onprefill={(t) => input?.prefill(t)}
       oninsert={(t) => input?.insertText(t)}
       {onaction}
+      onleave={() => input?.focus()}
     />
     <!-- V108-C35 Over the bottom of the messages, above the message box. -->
     <HypeUnlock account={room.account} channelId={room.state.channelId} oninsert={(t) => input?.insertText(t)} onclosed={() => input?.focus()} />

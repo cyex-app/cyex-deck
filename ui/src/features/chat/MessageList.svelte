@@ -1,7 +1,7 @@
 <!-- Scrolling message list (1.8). Follows new messages while at the bottom, sliding them
      in when set (V103-12); pauses on hover or while the pause key is held alone (C5, V108-C04);
      keeps its bottom when the message box grows (V108-C05); marks where you stopped reading
-     (C5); a dated line where chat crosses midnight (C25).
+     (C5); a dated line where chat crosses midnight (C25); a line picked with the keyboard (F54).
      Clicks and tooltips are delegated here instead of being set on every line. -->
 <script lang="ts">
   import { onDestroy, tick, untrack } from 'svelte';
@@ -34,6 +34,8 @@
   import { lineKind, pluginItems } from '../plugins/pluginMenus';
   import { plugins } from '../plugins/plugins.svelte';
   import { jumpInLogs, openInLogs } from './inLogs';
+  import { pick as pickHot } from './hover.svelte';
+  import { lineKey, lineLabel, revealDelta, stepLine } from './lineSelect';
   import { ChatScroll } from './chatScroll.svelte';
   import { editable, MODIFIERS, pauseHeld } from './pauseKey';
   import { nameMenu } from './nameMenu';
@@ -67,9 +69,11 @@
     oninsert?: (text: string) => void;
     /** A command asked the window to do something (search, pop out). */
     onaction?: (a: UiAction) => void;
+    /** V108-F54 The keyboard selection ended without an action: focus goes back to the box. */
+    onleave?: () => void;
   }
 
-  let { room, readKey, canReply, onreply, onlink, onmention, onprefill, oninsert, onaction }: Props = $props();
+  let { room, readKey, canReply, onreply, onlink, onmention, onprefill, oninsert, onaction, onleave }: Props = $props();
 
   const c = $derived(settings.v.chat);
   /** 1.57 Only where this account moderates: the pin button and mod mode (V101-33/34). */
@@ -378,11 +382,91 @@
   }
 
   function onkeydown(e: KeyboardEvent) {
+    if (picked !== null && !e.isComposing && lineKeyDown(e)) return;
     enterClicks(e);
-    if (['PageUp', 'ArrowUp', 'Home'].includes(e.key) && scrolls()) leave();
+    // Alt+Up is the line selection, which holds still without leaving the bottom (F54).
+    if (['PageUp', 'ArrowUp', 'Home'].includes(e.key) && !e.altKey && scrolls()) leave();
   }
 
+  /** V108-F54 The line picked with Alt+Up / Alt+Down (hotkeys chat.lineUp, chat.lineDown). */
+  let picked = $state<string | null>(null);
+  /** What a screen reader hears for the picked line. */
+  const heard = $derived(picked !== null ? (room.find(picked) ? lineLabel(room.find(picked)!) : '') : '');
+
+  function setPicked(id: string | null) {
+    picked = id;
+    pickHot(id);
+    scroll.pick(id !== null);
+  }
+
+  /** The line el, when it takes part: a deleted line the setting hides isn't drawn. */
+  const lineEl = (id: string) => list?.querySelector<HTMLElement>(`.line[data-id="${CSS.escape(id)}"]`) ?? null;
+
+  /** Moves the pick one line (-1 older, 1 newer); past the newest line it ends. False = not handled. */
+  export function pickLine(dir: -1 | 1, repeat = false): boolean {
+    if (!list) return false;
+    const ids = drawn
+      .filter((m) => !(m.flags.includes('deleted') && c.deleted === 'hidden'))
+      .map((m) => m.id);
+    const next = stepLine(ids, picked, dir);
+    if (next === null) {
+      if (picked === null) return false;
+      clearPick(true);
+      return true;
+    }
+    setPicked(next);
+    list.focus({ preventScroll: true });
+    void tick().then(() => {
+      const el = picked === next ? lineEl(next) : null;
+      if (!el || !list) return;
+      const delta = revealDelta(el.getBoundingClientRect(), list.getBoundingClientRect(), 12);
+      // Reduce motion: no smooth scroll; held keys jump too.
+      if (delta) list.scrollBy({ top: delta, behavior: repeat || reduced() ? 'auto' : 'smooth' });
+    });
+    return true;
+  }
+
+  /** Ends the pick; `back` hands the keyboard back to the message box. */
+  function clearPick(back = false) {
+    if (picked === null) return;
+    setPicked(null);
+    if (back) onleave?.();
+  }
+
+  /** Enter or R, P, M on the picked line press the buttons it shows, or open its menu. */
+  function lineKeyDown(e: KeyboardEvent): boolean {
+    const key = lineKey(e);
+    const el = picked !== null ? lineEl(picked) : null;
+    if (!key || !el) return false;
+    e.preventDefault();
+    if (key === 'clear') clearPick(true);
+    else if (key === 'menu') {
+      const r = el.getBoundingClientRect();
+      el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 24, clientY: r.top + r.height / 2 }));
+    } else {
+      // Only what the line offers: the same buttons the pointer gets.
+      const btn = el.querySelector<HTMLElement>(key === 'reply' ? '[data-reply]' : '[data-pin]');
+      btn?.click();
+      if (key === 'reply' && btn) clearPick();
+    }
+    return true;
+  }
+
+  function onfocusout(e: FocusEvent) {
+    // A menu or pop-up from the line takes the focus for a while; the pick stays for it.
+    if (picked === null || menu.open || (e.relatedTarget instanceof Node && list?.contains(e.relatedTarget))) return;
+    clearPick();
+  }
+
+  // The picked line left the chat (cleared, or scrolled out of the history).
+  $effect(() => {
+    if (picked !== null && !room.find(picked)) untrack(() => clearPick());
+  });
+  onDestroy(() => pickHot(null));
+
   function onpointerdown(e: PointerEvent) {
+    // The pointer takes over from the keyboard.
+    if (picked !== null && !(e.target as HTMLElement).closest('.acts')) clearPick();
     if (!list || e.clientX < list.getBoundingClientRect().right - 14) return;
     scroll.drag(true);
     stopGlide();
@@ -639,7 +723,7 @@
 <div class="wrap">
   <!-- Clicks and hovers are delegated from the lines' links, names and buttons, which
        are the interactive parts. -->
-  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions, a11y_mouse_events_have_key_events -->
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions, a11y_mouse_events_have_key_events, a11y_no_noninteractive_tabindex -->
   <div
     class="list"
     class:sep={c.separators}
@@ -648,6 +732,7 @@
     {onwheel}
     {onkeydown}
     {onpointerdown}
+    {onfocusout}
     {onclick}
     {oncontextmenu}
     onmouseover={tips.onmouseover}
@@ -656,6 +741,7 @@
     onmouseenter={(e) => scroll.enter(e.clientX, e.clientY)}
     onmouseleave={() => scroll.exit()}
     role="log"
+    tabindex="-1"
     data-arrows
     aria-live="off"
   >
@@ -667,6 +753,8 @@
       {/each}
     </div>
   </div>
+  <!-- V108-F54 The picked line, read out once as it is picked. -->
+  <div class="sr-only" aria-live="polite">{heard}</div>
   {#if warning}
     {#key warning}<WarnBox login={warning.login} anchor={warning.anchor} send={sendWarn} onclose={() => (warning = null)} />{/key}
   {/if}
@@ -713,6 +801,10 @@
     overflow-y: auto;
     overflow-x: hidden;
     padding: 4px 0;
+  }
+  /* The picked line shows the focus (the hover look and its buttons), not the list. */
+  .list:focus {
+    outline: none;
   }
   .sep :global(.line) {
     border-bottom: 1px solid var(--border);

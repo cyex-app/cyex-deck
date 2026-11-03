@@ -81,6 +81,8 @@ export class ChatScroll<T extends Item = Item> {
   #still = $state(false);
   #keyHeld = $state(false);
   #menu = $state(false);
+  /** V108-F54 A line is picked with the keyboard. */
+  #picked = $state(false);
   #opts = $state.raw<ScrollOpts>({ pauseOnHover: false, pauseStillTenths: 0 });
   /** Last message when the pause began. */
   #pausedAt = $state<string | undefined>();
@@ -119,7 +121,7 @@ export class ChatScroll<T extends Item = Item> {
   }
 
   get paused(): boolean {
-    return (this.#hovering && this.#opts.pauseOnHover && !this.#still) || this.#keyHeld || this.#menu;
+    return (this.#hovering && this.#opts.pauseOnHover && !this.#still) || this.#keyHeld || this.#menu || this.#picked;
   }
 
   /** Follow new lines now: following, and paused only once placed at the bottom. */
@@ -225,6 +227,13 @@ export class ChatScroll<T extends Item = Item> {
   /** A menu opened from this list is open. */
   menu(open: boolean): void {
     this.#menu = open;
+    this.#settle();
+  }
+
+  /** V108-F54 A line is picked with the keyboard (or not any more): chat holds still like on hover. */
+  pick(on: boolean): void {
+    if (on === this.#picked) return;
+    this.#picked = on;
     this.#settle();
   }
 

@@ -8,6 +8,8 @@ type Slot = { subscribe: () => void; update?: () => void };
 
 const slots = new Map<string, Slot>();
 let under: string | null = null;
+/** V108-F54 The line picked with the keyboard: hot like the one under the pointer. */
+let picked: string | null = null;
 let armed = false;
 
 function lineId(t: EventTarget | null): string | null {
@@ -47,10 +49,19 @@ function arm() {
   document.addEventListener('pointerout', (e) => e.relatedTarget === null && set(null), { passive: true });
 }
 
-/** True while the pointer is over the line with this id. */
+/** V108-F54 Picks a line (or none) for the keyboard; only it and the one before wake. */
+export function pick(id: string | null) {
+  if (id === picked) return;
+  const was = picked;
+  picked = id;
+  if (was !== null) slots.get(was)?.update?.();
+  if (id !== null) slots.get(id)?.update?.();
+}
+
+/** True while the pointer is over the line with this id, or the keyboard picked it. */
 export function isHot(id: string): boolean {
   arm();
   // Outside an effect nothing would ever let go of the slot.
   if ($effect.tracking()) slot(id).subscribe();
-  return under === id;
+  return under === id || picked === id;
 }

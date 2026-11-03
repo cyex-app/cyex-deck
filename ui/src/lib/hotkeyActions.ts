@@ -31,6 +31,9 @@ export const ACTIONS = {
   'view.theatre': { label: 'Theatre mode', default: 'Alt+T' },
   'chat.search': { label: 'Search this chat', default: 'Ctrl+F' },
   'chat.searchAll': { label: 'Search every chat', default: 'Ctrl+Shift+F' },
+  // V108-F54 Pick a chat line without the mouse: Reply and Pin, Enter / R / P / M on it.
+  'chat.lineUp': { label: 'Select the line above', default: 'Alt+ArrowUp' },
+  'chat.lineDown': { label: 'Select the line below', default: 'Alt+ArrowDown' },
   'chat.similar': { label: 'Hide or show near-duplicates', default: 'Ctrl+H' },
   'zoom.in': { label: 'Zoom in', default: 'Ctrl+=' },
   'zoom.out': { label: 'Zoom out', default: 'Ctrl+-' },

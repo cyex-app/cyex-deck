@@ -44,7 +44,7 @@
 
   let { m, channel, canReply = false, inWhispers = false, stripe = false, mod = null, look }: Props = $props();
 
-  /** The hover buttons exist only under the pointer: a long history has none to carry. */
+  /** The hover buttons exist only under the pointer (or the keyboard's pick, F54): a long history has none to carry. */
   const hot = $derived(isHot(m.id));
 
   const c = $derived(settings.v.chat);
@@ -102,6 +102,7 @@
 <div
   class="line kind-{notice?.kind ?? 'chat'} {hl.cls}"
   class:stripe
+  class:hot
   class:history={has('history')}
   class:similar={has('similar')}
   class:effect={!!effect}
@@ -267,7 +268,8 @@
   .stripe {
     background: var(--row-alt);
   }
-  .line:hover {
+  .line:hover,
+  .line.hot {
     background: var(--row-hover);
   }
   .ts {
@@ -615,7 +617,8 @@
   }
   /* V108-F51 Square, near-sharp, on the top right edge (user, 2026/11/03). The row lifts on
      hover and drops its paint containment so the bar can reach over the line above. */
-  .line:hover {
+  .line:hover,
+  .line.hot {
     z-index: 1;
     content-visibility: visible;
   }
@@ -629,7 +632,8 @@
     border-radius: 2px;
     box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
   }
-  .line:hover .acts {
+  .line:hover .acts,
+  .line.hot .acts {
     display: flex;
   }
   .acts button {
