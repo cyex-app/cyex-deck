@@ -82,9 +82,18 @@
     if (split && !selected && ordered.length) selected = ordered[0].id;
   });
 
+  let detail = $state<HTMLElement>();
+
+  /** V108-C36g Stacked, focus moves to the open request's Back button, so Escape goes back. */
+  async function focusDetail() {
+    await tick();
+    detail?.querySelector<HTMLElement>('button[aria-label="Back to requests"]')?.focus();
+  }
+
   function pick(id: string) {
     selected = id;
     open = true;
+    if (!split) void focusDetail();
   }
 
   const rowOf = (id: string) => rows?.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`);
@@ -120,8 +129,16 @@
       // The next one opens, side by side or stacked; with none left the (empty) list shows.
       selected = next;
       open = !!next;
+      // V108-C36g The removed request held focus: it goes to the next one.
+      if (next) {
+        if (split) {
+          await tick();
+          rowOf(next)?.focus();
+        } else void focusDetail();
+      }
     } catch (e) {
-      toast.error(errorText(e));
+      const who = r.display || r.login;
+      toast.error(`Couldn’t ${approve ? `unban ${who}` : `deny ${who}’s request`}: ${errorText(e)}`);
     } finally {
       busy[r.id] = false;
     }
@@ -184,7 +201,7 @@
           {/each}
         </ul>
       </aside>
-      <section hidden={!split && !(open && current)}>
+      <section bind:this={detail} hidden={!split && !(open && current)}>
         <!-- Stacked, the request mounts when opened, not on each arrow key (its reads are many). -->
         {#if current && (split || open)}
           {#key current.id}
