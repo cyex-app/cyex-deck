@@ -565,7 +565,11 @@
     opacity: 0.4;
   }
   /* V108-F22 Light theme: dimmed and highlighted lines keep 4.5:1 text (S2b-03). */
+  /* V108-F48 Only the message text fades: timestamp and name keep full contrast (Q-R02). */
   :global(:root[data-theme='light']) .history {
+    opacity: 1;
+  }
+  :global(:root[data-theme='light']) .history .body {
     opacity: 0.8;
   }
   :global(:root[data-theme='light']) .del-faded > :global(:not(.msg)),
