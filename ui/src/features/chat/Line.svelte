@@ -227,15 +227,16 @@
     </div>
   {/if}
   {#if firstLink?.t === 'link'}<LinkCard url={firstLink.url} />{/if}
-  {#if hot && canReply && sender && !notice}
-    <button class="reply" aria-label="Reply" data-reply={m.id} data-tip="Reply">
-      <Icon name="reply" size={12} />
-    </button>
-  {/if}
-  {#if hot && canPin}
-    <button class="reply pin" class:alone={!canReply} aria-label="Pin" data-pin={m.id} data-tip="Pin">
-      <Icon name="pin" size={12} />
-    </button>
+  {#if hot && ((canReply && sender && !notice) || canPin)}
+    <!-- V108-F51 One small square bar on the row's top right edge, over the line above like 7TV's. -->
+    <div class="acts">
+      {#if canPin}
+        <button aria-label="Pin" data-pin={m.id} data-tip="Pin"><Icon name="pin" size={12} /></button>
+      {/if}
+      {#if canReply && sender && !notice}
+        <button aria-label="Reply" data-reply={m.id} data-tip="Reply"><Icon name="reply" size={12} /></button>
+      {/if}
+    </div>
   {/if}
 </div>
 
@@ -596,37 +597,42 @@
   .del-hidden {
     display: none;
   }
-  /* Round and 20px, so a one-line row never crops it (user, 2026/11/01). */
-  .reply {
+  /* V108-F51 Square, near-sharp, on the top right edge (user, 2026/11/03). The row lifts on
+     hover and drops its paint containment so the bar can reach over the line above. */
+  .line:hover {
+    z-index: 1;
+    content-visibility: visible;
+  }
+  .acts {
     position: absolute;
-    /* V108-C29 Centred on the whole row, however tall big emotes or a reply header make it. */
-    top: 50%;
-    transform: translateY(-50%);
-    right: 6px;
+    top: -9px;
+    right: 8px;
     display: none;
-    place-items: center;
-    width: 20px;
-    height: 20px;
-    padding: 0;
     background: var(--elevated);
     border: 1px solid var(--border-strong);
-    border-radius: 50%;
-    color: var(--muted);
-    /* C6 Text under the buttons fades into the row instead of stopping at their edge. */
-    box-shadow: -10px 0 8px -3px var(--elevated);
+    border-radius: 2px;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
   }
-  .line:hover .reply {
+  .line:hover .acts {
+    display: flex;
+  }
+  .acts button {
     display: grid;
+    place-items: center;
+    width: 22px;
+    height: 20px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 1px;
+    color: var(--muted);
   }
-  .reply:hover {
+  .acts button + button {
+    border-left: 1px solid var(--border);
+  }
+  .acts button:hover {
+    background: var(--surface-hover);
     color: var(--text);
-  }
-  /* V101-34 Left of Reply, or in its place. */
-  .pin {
-    right: 30px;
-  }
-  .pin.alone {
-    right: 6px;
   }
   /* V101-33 Mod mode's buttons, in front of the line. */
   .mods {
