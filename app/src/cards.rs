@@ -66,6 +66,19 @@ pub fn dev_card(app: AppHandle, kind: String) -> Result<(), String> {
         tauri::async_runtime::spawn(async move { crate::badges::check(&app).await });
         return Ok(());
     }
+    if let Some(rest) = kind.strip_prefix("live-message:") {
+        // `live-message:<user id>:<login>`: a live card with that channel's real go-live message (read only).
+        let (id, login) = rest.split_once(':').ok_or("live-message:<id>:<login>")?;
+        let (id, login) = (id.to_owned(), login.to_owned());
+        tauri::async_runtime::spawn(async move {
+            let http = app.state::<crate::auth::Auth>().http.clone();
+            let said = cyex_twitch::gql::live_message::live_messages(&http, std::slice::from_ref(&id)).await;
+            let text = said.ok().and_then(|mut m| m.remove(&id)).unwrap_or_else(|| "Stream title (no message set)".into());
+            let open = Open::Channel { login: login.clone() };
+            show(&app, Card { kind: Kind::Live, title: format!("{login} is live"), text: format!("{text}\nJust Chatting"), image: None, open });
+        });
+        return Ok(());
+    }
     let (kind, title, text, open) = match kind.as_str() {
         "live" => (Kind::Live, "Mock channel is live", "Just chatting\nA long title to see how it wraps", Open::Channel { login: "mockchannel".into() }),
         "drop" => (Kind::Drop, "Drop claimed", "Mock Helmet (Mock Game)", Open::Drops),
