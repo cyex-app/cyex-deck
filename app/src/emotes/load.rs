@@ -1,6 +1,7 @@
 //! Fetching sets: global ones once per run, a channel's when its chat joins, and an
 //! account's own Twitch emotes (GQL sign-in first, else Helix with `user:read:emotes`).
 
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -10,7 +11,7 @@ use cyex_emotes::{Emote, EmoteSet, Lookup, Scope};
 use cyex_twitch::gql::smilies::{self, SmileyStyle};
 use cyex_twitch::gql::{self, EmoteSet as TwitchSet};
 use cyex_twitch::{Http, helix, ws};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 use super::providers::Which;
 use super::{Channel, Emotes};
@@ -169,6 +170,64 @@ pub async fn twitch_sets(
     Ok(store_sets(&mut state.lock(), key, sets?, style))
 }
 
+/// V108-C35 Reads the account's Twitch sets in a channel again and returns the emotes that
+/// weren't there before: against that channel's last read, else every channel's. Nothing
+/// known yet gives nothing new. A change drops the account's other channels' reads (they
+/// are read again when asked for) and tells the pages (`emotes:mine-changed`), so an open
+/// menu reads again; the same list again sends nothing.
+pub async fn refresh_diff(app: &AppHandle, account: &str, channel_id: &str) -> Result<Vec<gql::TwitchEmote>, String> {
+    let before = {
+        let state = app.state::<Emotes>();
+        let inner = state.lock();
+        known_ids(&inner.twitch_sets, account, channel_id)
+    };
+    let sets = twitch_sets(app, account, channel_id, true).await?;
+    let (added, changed) = diff(before.as_ref(), &sets);
+    if changed {
+        let state = app.state::<Emotes>();
+        let mut inner = state.lock();
+        inner.twitch_sets.retain(|(a, c), _| a != account || c == channel_id);
+        rebuild_mine(&mut inner, account);
+        drop(inner);
+        let _ = app.emit(MINE_CHANGED, serde_json::json!({ "account": account }));
+    }
+    Ok(added)
+}
+
+const MINE_CHANGED: &str = "emotes:mine-changed";
+
+/// V108-C35 The emote ids of the account's last read in `channel_id`, else of all its
+/// channels; `None` when there is none. Ids are by emote, not set.
+fn known_ids(
+    kept: &HashMap<(String, String), (Instant, super::TwitchSets)>,
+    account: &str,
+    channel_id: &str,
+) -> Option<(bool, HashSet<String>)> {
+    let ids = |s: &super::TwitchSets| s.iter().flat_map(|s| s.emotes.iter().map(|e| e.id.clone())).collect::<Vec<_>>();
+    if let Some((_, s)) = kept.get(&(account.to_owned(), channel_id.to_owned())) {
+        return Some((true, ids(s).into_iter().collect()));
+    }
+    let all: HashSet<String> = kept.iter().filter(|((a, _), _)| a == account).flat_map(|(_, (_, s))| ids(s)).collect();
+    (!all.is_empty()).then_some((false, all))
+}
+
+/// V108-C35 What came in, and whether the list changed: an emote came, or (against the same
+/// channel) one went.
+fn diff(before: Option<&(bool, HashSet<String>)>, sets: &[TwitchSet]) -> (Vec<gql::TwitchEmote>, bool) {
+    let Some((same, before)) = before else { return (Vec::new(), false) };
+    let mut seen = HashSet::new();
+    let added: Vec<gql::TwitchEmote> = sets
+        .iter()
+        .flat_map(|s| s.emotes.iter())
+        .filter(|e| !before.contains(&e.id) && seen.insert(e.id.clone()))
+        .cloned()
+        .collect();
+    let now: HashSet<&str> = sets.iter().flat_map(|s| s.emotes.iter().map(|e| e.id.as_str())).collect();
+    let gone = *same && before.iter().any(|id| !now.contains(id.as_str()));
+    let changed = !added.is_empty() || gone;
+    (added, changed)
+}
+
 /// Caches fetched sets in the account's smiley style. A style picked while the fetch ran
 /// wins over `read`, the one read alongside it.
 fn store_sets(inner: &mut super::Inner, key: (String, String), mut sets: Vec<TwitchSet>, read: SmileyStyle) -> super::TwitchSets {
@@ -183,6 +242,9 @@ fn store_sets(inner: &mut super::Inner, key: (String, String), mut sets: Vec<Twi
 /// The Twitch sets as Twitch lists them, through GQL or Helix.
 async fn fetch_sets(app: &AppHandle, account: &str, channel_id: &str) -> Result<Vec<TwitchSet>, String> {
     let http = http(app);
+    // V108-C35 Test builds: the hype train mock answers the account's emotes too.
+    #[cfg(feature = "mocks")]
+    let http = crate::chat::hype_mock::http(app, http);
     if let Some((token, client_id)) = gql_token(app, account) {
         let auth = crate::auth::gql_auth(&token, &client_id);
         gql::available_emotes(&http, auth, channel_id).await
@@ -320,6 +382,32 @@ mod tests {
             modifiers: Vec::new(),
         };
         vec![TwitchSet { id: "0".into(), owner: None, emotes: vec![emote("25", "Kappa"), emote("1", ":)")], tier: None }]
+    }
+
+    #[test]
+    fn v108_c35_new_emotes_against_the_last_read() {
+        let mut kept = HashMap::new();
+        assert_eq!(known_ids(&kept, "me", "1"), None);
+        // Nothing known: nothing is new, nothing changed.
+        assert_eq!(diff(None, &sets()), (Vec::new(), false));
+        let mut old = sets();
+        old[0].emotes.truncate(1);
+        kept.insert(("me".to_owned(), "2".to_owned()), (Instant::now(), Arc::new(old.clone())));
+        // Another channel's read stands in for this one.
+        let other = known_ids(&kept, "me", "1").unwrap();
+        assert!(!other.0 && other.1.contains("25"));
+        let (added, changed) = diff(Some(&other), &sets());
+        assert_eq!(added.iter().map(|e| e.name.as_str()).collect::<Vec<_>>(), [":)"]);
+        assert!(changed);
+        // The same list again sends nothing.
+        kept.insert(("me".to_owned(), "1".to_owned()), (Instant::now(), Arc::new(sets())));
+        let same = known_ids(&kept, "me", "1").unwrap();
+        assert!(same.0);
+        assert_eq!(diff(Some(&same), &sets()), (Vec::new(), false));
+        // One gone from the same channel is a change with nothing new.
+        assert_eq!(diff(Some(&same), &old), (Vec::new(), true));
+        // But one channel lacking another's emote is not.
+        assert_eq!(diff(Some(&other), &old), (Vec::new(), false));
     }
 
     #[test]

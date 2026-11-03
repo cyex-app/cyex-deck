@@ -1,6 +1,7 @@
 // V108-N04 The hype train bar's pure parts: progress, time left, merging messages, the
 // closing stats.
 
+import type { HypeChange } from '../../ipc/bindings/HypeChange';
 import type { HypeConductor } from '../../ipc/bindings/HypeConductor';
 import type { HypeTrain } from '../../ipc/bindings/HypeTrain';
 
@@ -105,4 +106,21 @@ export const QUIET_MS = 90_000;
  * been quiet for a while; otherwise the read is behind the topic. */
 export function trainOver(expiresAt: string | null, nowMs: number, heardMs: number): boolean {
   return secondsLeft(expiresAt, nowMs) === 0 || nowMs - heardMs > QUIET_MS;
+}
+
+/** V108-C35 Which celebration a topic message earns: a train starting (Twitch's start, or a
+ * first message at level 1), or a level up of the train held. A read never celebrates. */
+export type Burst = 'start' | 'level' | 'end';
+
+export function burstOf(held: HypeTrain | null, change: HypeChange): Burst | null {
+  if (change.kind === 'start') return held && held.id && held.id === change.train.id ? null : 'start';
+  if (change.kind !== 'progress') return null;
+  const next = change.train;
+  if (!held || (next.id && held.id && next.id !== held.id)) return next.level <= 1 ? 'start' : null;
+  return next.level > held.level ? 'level' : null;
+}
+
+/** V108-C35 The unlock card's line: "You unlocked 3 emotes". */
+export function unlockText(count: number): string {
+  return count === 1 ? 'You unlocked an emote' : `You unlocked ${count} emotes`;
 }

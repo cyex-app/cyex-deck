@@ -172,6 +172,8 @@ async fn pump(app: AppHandle, mut rx: mpsc::UnboundedReceiver<Event>) {
             Kind::ViewerMilestones => crate::subs::on_milestones(&app, &e),
             // V108-N04 The hype train bar reads and merges it.
             Kind::HypeTrain => crate::chat::hypetrain::on_event(&app, &e),
+            // V108-C35 The unlock card and a fresh emote list.
+            Kind::HypeRewards => crate::chat::hype_unlock::on_user_event(&app, &e),
         }
     }
 }

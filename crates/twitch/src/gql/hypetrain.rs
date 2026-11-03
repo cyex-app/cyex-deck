@@ -10,6 +10,13 @@
 //! The subs and bits come from `execution.participations { source action quantity }`
 //! (validated anonymously 2026/11/01; values unseen live): the GQL read fills them, the
 //! PubSub messages don't carry them.
+//!
+//! V108-C35 `hype-train-start` carries the whole train (GQL-shaped, as twitch.tv puts it in
+//! its cache) and is read like a progress message. The user's own topic
+//! `hype-train-events-v1.rewards.<user id>` says `hype-train-reward-eligibility`
+//! (`data { hypeTrainID, userID, isEligibleForRewards }`, from the bundle's handler) and
+//! may say `hype-train-rewards` (in the bundle's list of types, no handler left; the shape
+//! read here is the old PubSub one, every field optional). Neither seen live.
 
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -69,6 +76,8 @@ impl Train {
 /// What the topic can tell, per message.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
+    /// V108-C35 A train started; the message has the whole train.
+    Start(Train),
     /// A progress or level-up message; merge into the train.
     Progress { sequence: u64, train: Train },
     /// Twitch says one is about to start (`goal` events needed).
@@ -183,7 +192,59 @@ pub fn event_of(payload: &Value) -> Option<Event> {
                 .to_owned(),
             total: num(&data["participations"]["total"]).max(num(&data["participation"]["quantity"])),
         })),
+        "hype-train-start" => Some(Event::Start(train_of(data))),
         "hype-train-end" => Some(Event::End),
+        _ => None,
+    }
+}
+
+/// V108-C35 An emote a hype train gave the user.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RewardEmote {
+    pub id: String,
+    pub token: String,
+}
+
+/// V108-C35 What the user's rewards topic can tell.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum UserEvent {
+    /// Whether the user's part in a train counts for its rewards.
+    Eligible { train: String, eligible: bool },
+    /// Emotes the user was given; `channel_id` may be empty.
+    Rewards { channel_id: String, emotes: Vec<RewardEmote> },
+}
+
+/// The user rewards topic for a user id.
+pub fn rewards_topic(user_id: &str) -> String {
+    format!("hype-train-events-v1.rewards.{user_id}")
+}
+
+/// V108-C35 One message of the user's rewards topic. `None` for the rest.
+pub fn user_event_of(payload: &Value) -> Option<UserEvent> {
+    let data = &payload["data"];
+    let text = |v: &Value| v.as_str().filter(|s| !s.is_empty()).map(str::to_owned);
+    match payload["type"].as_str()? {
+        "hype-train-reward-eligibility" => Some(UserEvent::Eligible {
+            train: text(&data["hypeTrainID"]).or_else(|| text(&data["hype_train_id"])).unwrap_or_default(),
+            eligible: data["isEligibleForRewards"].as_bool().or_else(|| data["is_eligible_for_rewards"].as_bool())?,
+        }),
+        "hype-train-rewards" => {
+            let emotes = data["rewards"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                // Badges and the rest have no emote.
+                .filter(|r| r["type"].as_str().is_none_or(|t| t.eq_ignore_ascii_case("EMOTE")))
+                .filter_map(|r| {
+                    let e = &r["emote"];
+                    let id = text(&e["id"]).or_else(|| text(&r["emote_id"])).or_else(|| text(&r["id"]))?;
+                    let token = text(&e["token"]).or_else(|| text(&r["emote_token"])).or_else(|| text(&r["token"]))?;
+                    Some(RewardEmote { id, token })
+                })
+                .collect();
+            let channel_id = text(&data["channel_id"]).or_else(|| text(&data["channelID"])).unwrap_or_default();
+            Some(UserEvent::Rewards { channel_id, emotes })
+        }
         _ => None,
     }
 }
@@ -263,5 +324,35 @@ mod tests {
         assert_eq!(event_of(&json!({ "type": "hype-train-rewards", "data": {} })), None);
         assert_eq!(event_of(&json!({})), None);
         assert_eq!(topic("7"), "hype-train-events-v2.7");
+    }
+
+    #[test]
+    fn v108_c35_start_has_the_whole_train() {
+        let p = json!({ "type": "hype-train-start", "data": { "id": "t9", "startedAt": "2026-11-03T18:00:00Z",
+            "expiresAt": "2026-11-03T18:05:00Z", "progress": { "level": { "value": 1, "goal": 1000 }, "progression": 120, "total": 120 } } });
+        match event_of(&p).unwrap() {
+            Event::Start(t) => assert_eq!((t.id.as_str(), t.level, t.progress, t.goal), ("t9", 1, 120, 1000)),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn v108_c35_user_rewards_and_eligibility() {
+        let e = json!({ "type": "hype-train-reward-eligibility", "data": { "hypeTrainID": "t9", "userID": "5", "isEligibleForRewards": true } });
+        assert_eq!(user_event_of(&e), Some(UserEvent::Eligible { train: "t9".into(), eligible: true }));
+        // No answer either way is no message.
+        assert_eq!(user_event_of(&json!({ "type": "hype-train-reward-eligibility", "data": {} })), None);
+        let r = json!({ "type": "hype-train-rewards", "data": { "channel_id": "7", "completed_level": 3, "rewards": [
+            { "type": "EMOTE", "id": "301739462", "token": "HypeSleep" },
+            { "type": "BADGE", "id": "hype-train" },
+            { "emote": { "id": "301739463", "token": "HypeWave" } },
+            { "type": "EMOTE", "emote_id": "1", "emote_token": "" }] } });
+        let want = vec![
+            RewardEmote { id: "301739462".into(), token: "HypeSleep".into() },
+            RewardEmote { id: "301739463".into(), token: "HypeWave".into() },
+        ];
+        assert_eq!(user_event_of(&r), Some(UserEvent::Rewards { channel_id: "7".into(), emotes: want }));
+        assert_eq!(user_event_of(&json!({ "type": "other" })), None);
+        assert_eq!(rewards_topic("5"), "hype-train-events-v1.rewards.5");
     }
 }

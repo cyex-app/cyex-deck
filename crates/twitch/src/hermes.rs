@@ -61,9 +61,12 @@ pub enum Kind {
     /// V108-N23 The user's viewer milestones, watch streaks among them
     /// (`viewer-milestones.<user>`). Signed in only.
     ViewerMilestones,
+    /// V108-C35 The user's hype train rewards and whether they count for them
+    /// (`hype-train-events-v1.rewards.<user>`). Signed in only.
+    HypeRewards,
 }
 
-const KINDS: [Kind; 21] = [
+const KINDS: [Kind; 22] = [
     Kind::Polls,
     Kind::Predictions,
     Kind::Celebrations,
@@ -85,6 +88,7 @@ const KINDS: [Kind; 21] = [
     Kind::AutomodQueue,
     Kind::HypeTrain,
     Kind::ViewerMilestones,
+    Kind::HypeRewards,
 ];
 
 impl Kind {
@@ -111,6 +115,7 @@ impl Kind {
             Kind::AutomodQueue => "automod-queue.",
             Kind::HypeTrain => "hype-train-events-v2.",
             Kind::ViewerMilestones => "viewer-milestones.",
+            Kind::HypeRewards => "hype-train-events-v1.rewards.",
         }
     }
 
@@ -146,6 +151,7 @@ impl Kind {
             Kind::AutomodQueue => 'q',
             Kind::HypeTrain => 'h',
             Kind::ViewerMilestones => 'y',
+            Kind::HypeRewards => 'e',
         }
     }
 

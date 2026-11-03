@@ -22,7 +22,7 @@ mod ttl;
 mod twitch_state;
 
 pub use card::{EmoteCard, card};
-pub use load::twitch_sets;
+pub use load::{refresh_diff, twitch_emote, twitch_sets};
 pub use looks::{Worn, looks_for, wear};
 pub use own::refresh as refresh_own_look;
 pub use ffz_watch::after_reconnect as ffz_after_reconnect;
@@ -548,9 +548,15 @@ pub async fn seventv_user(app: &AppHandle, twitch_id: &str) -> Option<String> {
     found
 }
 
-/// The account just got new Twitch emotes.
+/// The account just got new Twitch emotes. V108-C35 Read again and compared, so an open
+/// menu updates when the list changed.
 pub fn refresh_mine(app: &AppHandle, account: &str, channel_id: &str) {
-    load::mine(app.clone(), account.to_owned(), channel_id.to_owned(), true);
+    let (app, account, channel_id) = (app.clone(), account.to_owned(), channel_id.to_owned());
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = load::refresh_diff(&app, &account, &channel_id).await {
+            eprintln!("emotes: no Twitch emotes for {account}: {e}");
+        }
+    });
 }
 
 /// V107-Mk The account picked another smiley style.

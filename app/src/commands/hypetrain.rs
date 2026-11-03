@@ -15,8 +15,9 @@ pub async fn chat_hype_train(app: AppHandle, login: String, ended: Option<bool>)
     }
 }
 
-/// Follows the train's topic while a chat of a live channel shows the bar.
+/// Follows the train's topic while a chat of a live channel shows the bar; with the chat's
+/// `account` (user id), its hype train rewards too (V108-C35).
 #[tauri::command]
-pub fn chat_hype_watch(app: AppHandle, window: tauri::WebviewWindow, channel_id: String, on: bool) {
-    hypetrain::watch(&app, window.label(), &channel_id, on);
+pub fn chat_hype_watch(app: AppHandle, window: tauri::WebviewWindow, channel_id: String, account: Option<String>, on: bool) {
+    hypetrain::watch(&app, window.label(), &channel_id, account.as_deref(), on);
 }

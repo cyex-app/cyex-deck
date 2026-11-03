@@ -12,6 +12,9 @@ mod creds;
 pub mod feeds;
 mod flush;
 pub mod global;
+#[cfg(feature = "mocks")]
+pub mod hype_mock;
+pub mod hype_unlock;
 pub mod hypetrain;
 pub mod identity;
 pub mod link_preview;

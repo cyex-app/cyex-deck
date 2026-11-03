@@ -21,6 +21,9 @@ export const emotesIpc = {
   onLooks: (cb: (looks: Looks) => void) => listen<Looks>('emotes:looks', (e) => cb(e.payload)),
   /** V108-N06 An extra badge set came in or went out: ask for the looks again. */
   onBadgeSets: (cb: () => void) => listen<null>('emotes:badge-sets', () => cb()),
+  /** V108-C35 An account's Twitch emotes changed (a hype train, a points unlock): menus read again. */
+  onMineChanged: (cb: (account: string) => void) =>
+    listen<{ account: string }>('emotes:mine-changed', (e) => cb(e.payload.account)),
   /** A channel's emotes finished loading. */
   onLoaded: (cb: (login: string) => void) => listen<string>('emotes:loaded', (e) => cb(e.payload)),
   /** 1.40 */

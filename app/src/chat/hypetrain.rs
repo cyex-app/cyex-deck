@@ -108,6 +108,8 @@ struct Seen {
 #[serde(tag = "kind", rename_all = "camelCase")]
 #[ts(export)]
 pub enum HypeChange {
+    /// V108-C35 A train started (Twitch's start message): the bar celebrates.
+    Start { train: Train },
     /// Progress or a level-up; the train has no conductors or start time here.
     Progress { train: Train },
     Conductor { conductor: Conductor },
@@ -132,9 +134,17 @@ fn now_text() -> String {
         .unwrap_or_default()
 }
 
+/// Twitch, or in test builds the hype train mock when it is set (V108-C35).
+fn http(app: &AppHandle) -> cyex_twitch::Http {
+    let http = app.state::<Auth>().http.clone();
+    #[cfg(feature = "mocks")]
+    let http = super::hype_mock::http(app, http);
+    http
+}
+
 /// The channel's train now, `None` when there is none.
 pub async fn read(app: &AppHandle, login: &str) -> Result<Option<Train>, String> {
-    let http = app.state::<Auth>().http.clone();
+    let http = http(app);
     let login = login.to_ascii_lowercase();
     let fetch = async { api::current(&http, GqlAuth::PUBLIC, &login, &now_text()).await.map_err(told) };
     let train = kept_or(app, &login, false, fetch).await?;
@@ -161,7 +171,7 @@ pub async fn read(app: &AppHandle, login: &str) -> Result<Option<Train>, String>
 
 /// The channel's last train, ended or not, for the closing stats. Leaves the seen levels.
 pub async fn last(app: &AppHandle, login: &str) -> Result<Option<Train>, String> {
-    let http = app.state::<Auth>().http.clone();
+    let http = http(app);
     let login = login.to_ascii_lowercase();
     let fetch = async { api::latest(&http, GqlAuth::PUBLIC, &login).await.map_err(told) };
     kept_or(app, &login, true, fetch).await
@@ -178,14 +188,20 @@ fn told(e: cyex_twitch::Error) -> String {
 
 /// Follows (or stops following) the topic while a chat of a live channel shows the bar. The
 /// topic is counted, so several chats can share it. Held per window (`label`), so a page that
-/// goes away without its cleanup lets go too (`hermes::release`).
-pub fn watch(app: &AppHandle, label: &str, channel_id: &str, on: bool) {
+/// goes away without its cleanup lets go too (`hermes::release`). V108-C35 With an
+/// `account`, its rewards topic too (counted the same way).
+pub fn watch(app: &AppHandle, label: &str, channel_id: &str, account: Option<&str>, on: bool) {
     if channel_id.is_empty() {
         return;
+    }
+    if let Some(a) = account.filter(|a| !a.is_empty()) {
+        crate::hermes::hold(app, label, crate::hermes::Held::User(a.to_owned(), Kind::HypeRewards), on);
     }
     let held = crate::hermes::Held::Channel(Kind::HypeTrain, channel_id.to_owned());
     if on {
         crate::hermes::hold(app, label, held, true);
+        #[cfg(feature = "mocks")]
+        super::hype_mock::start(app);
     } else if crate::hermes::forget(label, &held) {
         unwatched(app, channel_id);
     }
@@ -206,13 +222,19 @@ pub fn on_event(app: &AppHandle, e: &Event) {
     let login = app.state::<Chat>().channels.login_of(&id);
     reads().forget(&id, login.as_deref());
     let change = match api::event_of(&e.payload) {
+        Some(Wire::Start(train)) => {
+            rose(app, &id, &train);
+            HypeChange::Start { train }
+        }
         Some(Wire::Progress { train, .. }) => {
             rose(app, &id, &train);
             HypeChange::Progress { train }
         }
         Some(Wire::Conductor(conductor)) => HypeChange::Conductor { conductor },
         Some(Wire::End) => {
-            LEVELS.lock().unwrap_or_else(|p| p.into_inner()).remove(&id);
+            let seen = LEVELS.lock().unwrap_or_else(|p| p.into_inner()).remove(&id);
+            // V108-C35 The signed-in readers look for the emotes it gave.
+            super::hype_unlock::on_end(app, &id, seen.as_ref().map_or("", |s| s.train.as_str()));
             HypeChange::End
         }
         // The approaching notice and the rewards aren't shown.

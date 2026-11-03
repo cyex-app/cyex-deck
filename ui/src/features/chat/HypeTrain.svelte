@@ -5,7 +5,10 @@
      train that starts later). After the train
      it says how far it got and the subs and bits given (one more read of the ended train) for
      30 s, or until its x. Subs and bits come from GQL reads only; without them it names the
-     top giver. Setting "Hype train bar" (on). -->
+     top giver. Setting "Hype train bar" (on).
+     V108-C35 A short celebration when a train starts, levels up and ends: the bar's tint flashes
+     and its bolt pops (opacity and transform only, about 0,9 s; a new one cuts the last one
+     short). Reduced motion: the tint just shows for a moment. Reads never celebrate. -->
 <script lang="ts">
   import { untrack } from 'svelte';
 
@@ -25,6 +28,8 @@
     mergeProgress,
     progressPct,
     progressText,
+    burstOf,
+    type Burst,
     secondsLeft,
     topLine,
     topParts,
@@ -35,9 +40,11 @@
     login: string;
     /** The chat's channel id; the topic needs it. */
     channelId: string | null;
+    /** V108-C35 The chat's account (user id): its hype train rewards are followed too. */
+    account?: string | null;
   }
 
-  let { login, channelId }: Props = $props();
+  let { login, channelId, account = null }: Props = $props();
 
   const POLL_MS = 60_000;
   const NOTE_MS = 30_000;
@@ -55,6 +62,17 @@
   let lastTimer: ReturnType<typeof setTimeout> | undefined;
   /** Counts closing notes, so a late read lands only on its own. */
   let noteSeq = 0;
+  /** V108-C35 The celebration showing; `n` restarts it. */
+  let burst = $state<{ kind: Burst; n: number } | null>(null);
+  let burstN = 0;
+  let burstTimer: ReturnType<typeof setTimeout> | undefined;
+  const BURST_MS = 1_200;
+
+  function celebrate(kind: Burst) {
+    clearTimeout(burstTimer);
+    burst = { kind, n: ++burstN };
+    burstTimer = setTimeout(() => (burst = null), BURST_MS);
+  }
 
   const on = $derived(settings.v.chat.hypeTrainBar);
   const left = $derived(train ? secondsLeft(train.expiresAt, now) : 0);
@@ -74,6 +92,7 @@
     train = null;
     dismiss();
     note = held;
+    celebrate('end');
     noteTimer = setTimeout(() => (note = null), NOTE_MS);
     // One more read for the final subs and bits; it lands only while this note shows.
     const mine = seq;
@@ -108,6 +127,7 @@
 
   $effect(() => {
     const id = channelId;
+    const who = account;
     void login;
     train = null;
     note = null;
@@ -117,12 +137,19 @@
     // V108-N04 No read for a channel known to be offline; one outside the tabs is read.
     const known = untrack(() => tabs.live[id]);
     if (!known || known.stream) void load();
-    void hypeIpc.watch(id, true).catch(() => {});
+    void hypeIpc.watch(id, who, true).catch(() => {});
     const off = hypeIpc.onChange((e) => {
       if (e.channelId !== id) return;
       const c = e.change;
       heard = Date.now();
-      if (c.kind === 'progress') {
+      const b = burstOf(train, c);
+      if (c.kind === 'start') {
+        seq++;
+        train = c.train;
+        note = null;
+        // The start message has no givers: read it once.
+        void load();
+      } else if (c.kind === 'progress') {
         const fresh = !train;
         // An older read still in flight must not land over this.
         seq++;
@@ -137,16 +164,19 @@
       } else {
         void load();
       }
+      if (b) celebrate(b);
     });
     const poll = setInterval(() => {
       if (train) void load();
     }, POLL_MS);
     return () => {
       clearInterval(poll);
+      clearTimeout(burstTimer);
+      burst = null;
       clearTimeout(noteTimer);
       clearTimeout(lastTimer);
       void off.then((f) => f());
-      void hypeIpc.watch(id, false).catch(() => {});
+      void hypeIpc.watch(id, who, false).catch(() => {});
     };
   });
 
@@ -163,9 +193,10 @@
 </script>
 
 {#if train}
-  <div class="hype" role="status" aria-label="Hype train, level {train.level}">
+  <div class="hype" class:in={burst?.kind === 'start'} role="status" aria-label="Hype train, level {train.level}">
+    {#key burst?.n}{#if burst}<span class="flash" aria-hidden="true"></span>{/if}{/key}
     <div class="row">
-      <Icon name="zap" size={13} />
+      {#key burst?.n}<span class="zap" class:pop={!!burst}><Icon name="zap" size={13} /></span>{/key}
       <span class="level">Level {train.level}</span>
       {#if points}<span class="points">{points}</span>{/if}
       {#if top}<span class="top"><span class="who">{top.who}</span>{#if top.amount}<span class="amount">{top.amount}</span>{/if}</span>{/if}
@@ -178,8 +209,9 @@
   </div>
 {:else if note}
   <div class="hype" role="status">
+    {#key burst?.n}{#if burst}<span class="flash" aria-hidden="true"></span>{/if}{/key}
     <div class="row">
-      <Icon name="zap" size={13} />
+      {#key burst?.n}<span class="zap" class:pop={!!burst}><Icon name="zap" size={13} /></span>{/key}
       <span class="level">{endedText(note.level)}</span>
       {#if given}<span class="top">{given}</span>{/if}
       <button class="close" type="button" aria-label="Close" use:tooltip={{ label: 'Close' }} onclick={dismiss}>
@@ -191,6 +223,9 @@
 
 <style>
   .hype {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -281,9 +316,61 @@
     transform-origin: left;
     transition: transform 0.3s ease-out;
   }
+  /* V108-C35 The celebration: a flat tint over the bar that comes and goes, under the text. */
+  .flash {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: color-mix(in srgb, var(--twitch) 22%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    animation: flash 0.9s ease-out;
+  }
+  @keyframes flash {
+    15% {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+  .zap {
+    display: inline-flex;
+    flex: none;
+  }
+  .zap.pop {
+    animation: pop 0.45s var(--ease);
+  }
+  @keyframes pop {
+    35% {
+      transform: scale(1.4) rotate(-8deg);
+    }
+    to {
+      transform: none;
+    }
+  }
+  /* A train that starts comes in, as a popover does. */
+  .hype.in {
+    animation: enter var(--base) var(--ease);
+  }
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.98);
+    }
+  }
   @media (prefers-reduced-motion: reduce) {
     .fill {
       transition: none;
+    }
+    .hype.in,
+    .zap.pop {
+      animation: none;
+    }
+    /* A static highlight for the moment instead. */
+    .flash {
+      opacity: 0.7;
+      animation: none;
     }
   }
 </style>

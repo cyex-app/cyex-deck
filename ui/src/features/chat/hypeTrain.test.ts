@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { HypeTrain } from '../../ipc/bindings/HypeTrain.ts';
-import { closing, endedText, formatLeft, givenLine, progressText, mergeConductor, mergeProgress, progressPct, secondsLeft, topLine, topParts, trainOver } from './hypeTrain.ts';
+import { burstOf, unlockText, closing, endedText, formatLeft, givenLine, progressText, mergeConductor, mergeProgress, progressPct, secondsLeft, topLine, topParts, trainOver } from './hypeTrain.ts';
 
 const train = (o: Partial<HypeTrain> = {}): HypeTrain => ({
   id: 't1',
@@ -130,4 +130,24 @@ test('the top giver comes in two parts so a long name can be cut (V108-N04)', ()
   assert.deepEqual(topParts([{ source: 'SUBS' as const, login: 'a', name: '', total: 0 }]), { who: 'a', amount: '' });
   assert.equal(topParts([]), null);
   assert.equal(topLine(long, String), `${'N'.repeat(60)} 1200 bits`);
+});
+
+test('V108-C35 a start or a level up celebrates, the rest does not', () => {
+  const held = train({ id: 't1', level: 2 });
+  assert.equal(burstOf(null, { kind: 'start', train: train({ level: 1 }) }), 'start');
+  // The start of the train already held is no news.
+  assert.equal(burstOf(held, { kind: 'start', train: train({ id: 't1' }) }), null);
+  assert.equal(burstOf(null, { kind: 'progress', train: train({ level: 1 }) }), 'start');
+  // A train first heard of midway isn't a start.
+  assert.equal(burstOf(null, { kind: 'progress', train: train({ level: 3 }) }), null);
+  assert.equal(burstOf(held, { kind: 'progress', train: train({ id: 't1', level: 3 }) }), 'level');
+  assert.equal(burstOf(held, { kind: 'progress', train: train({ id: '', level: 2 }) }), null);
+  assert.equal(burstOf(held, { kind: 'progress', train: train({ id: 't2', level: 1 }) }), 'start');
+  assert.equal(burstOf(held, { kind: 'end' }), null);
+  assert.equal(burstOf(held, { kind: 'reread' }), null);
+});
+
+test('V108-C35 unlock line', () => {
+  assert.equal(unlockText(1), 'You unlocked an emote');
+  assert.equal(unlockText(3), 'You unlocked 3 emotes');
 });

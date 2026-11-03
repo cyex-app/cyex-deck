@@ -30,6 +30,7 @@
   import Loading from '../../components/Loading.svelte';
   import type { GifInfo } from '../../ipc/bindings/GifInfo';
   import { chatxIpc } from '../../ipc/chatx';
+  import { emotesIpc } from '../../ipc/emotes';
   import { ARROWS, moveFocus } from '../../lib/gridNav';
   import type { ChatRoom } from '../chat/room.svelte';
   import GifPicker from './GifPicker.svelte';
@@ -101,6 +102,16 @@
   }
 
   onMount(load);
+
+  // V108-C35 New Twitch emotes (a hype train, a points unlock) show while the menu is open.
+  onMount(() => {
+    const off = emotesIpc.onMineChanged((a) => {
+      if (a !== account) return;
+      forgetEmoteMenu(login);
+      load();
+    });
+    return () => void off.then((f) => f());
+  });
 
   onMount(() => {
     if (!room?.view) return void (gifInfo = null);

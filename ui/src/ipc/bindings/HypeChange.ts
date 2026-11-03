@@ -5,4 +5,4 @@ import type { HypeTrain } from "./HypeTrain";
 /**
  * What changed in a channel's train.
  */
-export type HypeChange = { "kind": "progress", train: HypeTrain, } | { "kind": "conductor", conductor: HypeConductor, } | { "kind": "end" } | { "kind": "reread" };
+export type HypeChange = { "kind": "start", train: HypeTrain, } | { "kind": "progress", train: HypeTrain, } | { "kind": "conductor", conductor: HypeConductor, } | { "kind": "end" } | { "kind": "reread" };

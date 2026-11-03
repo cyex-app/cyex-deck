@@ -16,7 +16,21 @@ export function forgetEmoteMenu(_login?: string): void {
   cache.clear();
 }
 
+let listening = false;
+
+/** V108-C35 The account's Twitch emotes changed: its menus are asked again. */
+function follow(): void {
+  if (listening) return;
+  listening = true;
+  void emotesIpc
+    .onMineChanged((account) => {
+      for (const key of [...cache.keys()]) if (key.endsWith(`|${account}`)) cache.delete(key);
+    })
+    .catch(() => (listening = false));
+}
+
 export function emoteMenu(login: string, account: string | null): Promise<EmoteMenu> {
+  follow();
   const key = `${login}|${account ?? ''}`;
   const now = Date.now();
   // L1 Expired ones go, so a channel opened once doesn't keep its menu all run.
