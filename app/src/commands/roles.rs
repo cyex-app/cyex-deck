@@ -37,3 +37,23 @@ pub async fn roles_set(
 pub async fn roles_vip_slots(app: AppHandle, account: String, channel: String) -> Result<Option<VipSlots>, String> {
     manager::vip_slots(&app, &account, &channel).await
 }
+
+/// V108-F49 The roles card grows to fit its longest name: never narrower than it opened,
+/// at most 720 px or the screen. `width` is the CSS width the card asked for.
+#[tauri::command]
+pub fn roles_fit(window: tauri::WebviewWindow, width: f64) -> Result<(), String> {
+    let scale = window.scale_factor().map_err(|e| e.to_string())?;
+    let size = window.inner_size().map_err(|e| e.to_string())?.to_logical::<f64>(scale);
+    let screen = window
+        .current_monitor()
+        .ok()
+        .flatten()
+        .map_or(f64::MAX, |m| f64::from(m.work_area().size.width) / scale);
+    let target = width.min(720.0).min(screen).max(size.width);
+    if target - size.width < 1.0 {
+        return Ok(());
+    }
+    window
+        .set_size(tauri::LogicalSize::new(target, size.height))
+        .map_err(|e| e.to_string())
+}

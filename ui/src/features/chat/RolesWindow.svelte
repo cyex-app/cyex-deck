@@ -1,11 +1,11 @@
-<!-- V108-F02 role changes show busy, a toast and a fresh list. V108-F01 card fits the window (min-width 0). V108-C26 /mods, /vips and /roles: who holds a role and since when. A name opens its usercard.
+<!-- V108-F49 The window widens to fit the longest name. V108-F02 role changes show busy, a toast and a fresh list. V108-F01 card fits the window (min-width 0). V108-C26 /mods, /vips and /roles: who holds a role and since when. A name opens its usercard.
      V108-C27 A card in its own window, like the usercard: drag it anywhere that isn't a
      control, pin it on top from the frame; unpinned it closes on a click elsewhere. Any
      chat: mods and VIPs as Twitch shares them; your own channel shows every role, and there
      + gives one and ⊖ takes one (the confirm bubble, V108-C21), as the Roles Manager does.
      Route: `roles/<channel>/<role or all>/<account>` (roleList.ts). -->
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
 
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
@@ -60,10 +60,19 @@
     sort = sort.key === key ? flip(sort) : pickKey(SORTS, sort, key);
   }
 
+  /** V108-F49 The window grows until the longest name fits; past the cap names still cut off. */
+  async function fit() {
+    await tick();
+    let over = 0;
+    for (const n of box?.querySelectorAll<HTMLElement>('.name') ?? []) over = Math.max(over, n.scrollWidth - n.clientWidth);
+    if (over > 0) rolesIpc.fit(window.innerWidth + over + 2).catch(() => {});
+  }
+
   async function load() {
     try {
       listing = await rolesIpc.listing(account, channel);
       error = '';
+      void fit();
     } catch (e) {
       error = errorText(e);
     }

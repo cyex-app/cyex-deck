@@ -209,6 +209,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         roles::roles_listing,
         roles::roles_set,
         roles::roles_vip_slots,
+        roles::roles_fit,
         moderation::mod_resolve_unban,
         moderation::mod_history,
         moderation::mod_comment_add,

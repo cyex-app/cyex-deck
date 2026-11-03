@@ -20,4 +20,6 @@ export const rolesIpc = {
     invoke<RolesView>('roles_set', { account, login, who, give, take }),
   /** The VIP slots when `channel` is the account's own; null elsewhere. */
   vipSlots: (account: string, channel: string) => invoke<VipSlots | null>('roles_vip_slots', { account, channel }),
+  /** V108-F49 Widens this roles window to `width` CSS px (it only grows, capped in Rust). */
+  fit: (width: number) => invoke<void>('roles_fit', { width }),
 };
