@@ -157,6 +157,17 @@
   </Row>
 {/if}
 
+<SectionHead title="Cards in the app">Small cards in the top right corner. Click one to open it.</SectionHead>
+<Row setting="notifications.cards.live" label="Someone goes live" hint={n.live.enabled ? 'Follows the live alerts above and their channels.' : 'Needs live alerts on.'}>
+  <Toggle label="Live card" checked={n.cards.live} disabled={!n.live.enabled} onchange={(on) => patch({ cards: { live: on } })} />
+</Row>
+<Row setting="notifications.cards.drops" label="A drop comes in" hint="When the miner claims one, or it’s ready but Twitch won’t hand it out.">
+  <Toggle label="Drop card" checked={n.cards.drops} onchange={(on) => patch({ cards: { drops: on } })} />
+</Row>
+<Row setting="notifications.cards.badges" label="You earn a badge" hint="Twitch doesn’t say when. Checked every 15 minutes while the app runs.">
+  <Toggle label="Badge card" checked={n.cards.badges} onchange={(on) => patch({ cards: { badges: on } })} />
+</Row>
+
 <SectionHead title="Whispers">Private messages sent to you.</SectionHead>
 <Row setting="notifications.whispers.toast" label="Pop-up" hint="While the app isn’t in front.">
   <Toggle label="Whisper pop-up" checked={n.whispers.toast} onchange={(on) => patch({ whispers: { toast: on } })} />

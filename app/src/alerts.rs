@@ -14,6 +14,7 @@ use cyex_twitch::gql::{self, ChannelCard};
 use tauri::{AppHandle, Manager};
 
 use crate::auth;
+use crate::cards::{self, Card, Kind as CardKind};
 use crate::settings::Settings;
 use crate::toasts::{self, Open, Pop};
 
@@ -185,22 +186,35 @@ fn alert(app: &AppHandle, n: &Notifications, card: ChannelCard) {
     if n.live.sound && !crate::tabs::mute::hushes_id(app, &card.id) {
         crate::sound::alert(app, None);
     }
-    if !n.live.toast {
-        return;
-    }
     let stream = card.stream.as_ref();
     let mut text = stream.map(|s| s.title.trim().to_owned()).unwrap_or_default();
     if let Some(game) = stream.and_then(|s| s.game.as_ref()) {
         text = if text.is_empty() {
             game.name.clone()
         } else {
-            format!("{text}\n{}", game.name)
+            format!("{text}
+{}", game.name)
         };
+    }
+    let title = format!("{} is live", card.name);
+    // V108-C37 The same alert as a card in the app's corner; it has its own switch.
+    cards::show(
+        app,
+        Card {
+            kind: CardKind::Live,
+            title: title.clone(),
+            text: text.clone(),
+            image: card.avatar.clone(),
+            open: Open::Channel { login: card.login.clone() },
+        },
+    );
+    if !n.live.toast {
+        return;
     }
     toasts::show(
         app,
         Pop {
-            title: format!("{} is live", card.name),
+            title,
             text,
             avatar: card.avatar.clone(),
             open: Open::Channel { login: card.login },

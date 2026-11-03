@@ -311,6 +311,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         player::player_vod,
         rewind::player_rewind,
         player::player_close,
+        #[cfg(feature = "mocks")]
+        crate::cards::dev_card,
         player::player_playing,
         player::player_clip,
         player::player_video,

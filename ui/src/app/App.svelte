@@ -11,6 +11,7 @@
   import EmptyState from '../components/EmptyState.svelte';
   import IconButton from '../components/IconButton.svelte';
   import MenuHost from '../components/MenuHost.svelte';
+  import NoticeCards from '../components/NoticeCards.svelte';
   import Toasts from '../components/Toasts.svelte';
   import UnlockDialog from '../features/unlock/UnlockDialog.svelte';
   import TooltipHost from '../components/TooltipHost.svelte';
@@ -309,6 +310,8 @@
       if (o.kind === 'channel') void openLogin(o.login);
       else if (o.kind === 'whisper') whispers.show(o.login);
       else if (o.kind === 'room') void popOut(roomRoute(o.login, null), `${o.login} chat`);
+      else if (o.kind === 'drops') (canMine ? show('miner') : gate.ask('gql')); // V108-C37
+      else if (o.kind === 'settings') openSettings(o.page);
       else follow(o.url, (l) => void openLogin(l));
     });
     return () => {
@@ -656,6 +659,7 @@
   <UnlockDialog />
   {#if settings.v.highlights?.duplicatesAsked === false}<DuplicatesDialog />{/if}
   <Toasts />
+  <NoticeCards />
 </div>
 
 <style>

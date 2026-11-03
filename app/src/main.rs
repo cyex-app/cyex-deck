@@ -8,6 +8,8 @@ mod bell;
 mod bell_dates;
 mod browse;
 mod busy;
+mod badges;
+mod cards;
 mod chat;
 mod commands;
 mod cosmetics;
@@ -106,6 +108,7 @@ fn main() {
             bell::init(handle);
             feeds::init(handle);
             alerts::init(handle);
+            badges::init(handle);
             windows::init(handle)?;
             // V108-N21 Shut down or log off can end the app before RunEvent::Exit.
             let ends = handle.clone();

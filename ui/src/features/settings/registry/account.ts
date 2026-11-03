@@ -86,6 +86,27 @@ export const ACCOUNT: Entry[] = [
     anchor: 'notifications.live.enabled',
   },
   {
+    id: 'notifications.cards.live',
+    page: 'notifications',
+    label: 'Live card',
+    description: 'A card in the corner of the app when a channel goes live. Follows the live alerts and their channel list.',
+    keywords: ['in-app', 'toast', 'pop-up', 'top right'],
+  },
+  {
+    id: 'notifications.cards.drops',
+    page: 'notifications',
+    label: 'Drop card',
+    description: 'A card in the corner of the app when the miner claims a drop, or one is ready but can’t be claimed.',
+    keywords: ['in-app', 'toast', 'pop-up', 'top right'],
+  },
+  {
+    id: 'notifications.cards.badges',
+    page: 'notifications',
+    label: 'Badge card',
+    description: 'A card in the corner of the app when you earn a badge. Checked every 15 minutes.',
+    keywords: ['in-app', 'toast', 'pop-up', 'top right'],
+  },
+  {
     id: 'notifications.whispers.toast',
     page: 'notifications',
     label: 'Whisper pop-up',

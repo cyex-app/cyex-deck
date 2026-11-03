@@ -41,6 +41,12 @@ pub enum Open {
     Link {
         url: String,
     },
+    /// V108-C37 A drop came in: the miner's page.
+    Drops,
+    /// V108-C37 A settings page.
+    Settings {
+        page: String,
+    },
 }
 
 pub struct Pop {

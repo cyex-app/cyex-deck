@@ -2,6 +2,7 @@
 //! drops (every 15 minutes otherwise); earned drops are claimed 5-10 s apart. Twitch
 //! wants the game account linked before it hands a drop out.
 
+use std::sync::Mutex;
 use std::time::Duration;
 
 use cyex_miner::stats::{Kind, Record};
@@ -11,6 +12,8 @@ use tauri::AppHandle;
 use ts_rs::TS;
 
 use super::log::LogKind;
+use crate::cards::{self, Card, Kind as CardKind};
+use crate::toasts::Open;
 use super::{gql_auth, http, lock, log, now_ms};
 
 const BUSY: Duration = Duration::from_secs(60);
@@ -26,6 +29,28 @@ pub struct DropProgress {
     pub image: Option<String>,
     pub minutes: u32,
     pub required: u32,
+}
+
+/// V108-C37 A card for a drop that came in; a click opens the miner page.
+fn card(app: &AppHandle, title: &str, name: &str, game: Option<&str>, image: Option<String>) {
+    let text = game.map_or_else(|| name.to_owned(), |g| format!("{name}
+{g}"));
+    cards::show(
+        app,
+        Card { kind: CardKind::Drop, title: title.into(), text, image, open: Open::Drops },
+    );
+}
+
+/// V108-C37 True the first time this drop instance is seen refused, so a drop that stays
+/// unclaimable doesn't pop up every minute.
+fn told_once(instance: &str) -> bool {
+    static SEEN: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    let mut seen = SEEN.lock().unwrap_or_else(|p| p.into_inner());
+    if seen.iter().any(|s| s == instance) {
+        return false;
+    }
+    seen.push(instance.to_owned());
+    true
 }
 
 pub fn spawn(app: &AppHandle) {
@@ -106,6 +131,7 @@ async fn tick(app: &AppHandle) -> Duration {
                 Ok(true) => {
                     let game = c.game.as_deref().map(|g| format!(" ({g})")).unwrap_or_default();
                     log::add(app, LogKind::Drop, None, format!("Claimed the drop “{}”{game}.", d.name));
+                    card(app, "Drop claimed", &d.name, c.game.as_deref(), d.image.clone());
                     if let Some(id) = &credit_to {
                         let rec = Record {
                             n: Some(d.name.clone()),
@@ -114,15 +140,21 @@ async fn tick(app: &AppHandle) -> Duration {
                         super::stats::record(app, &account, id, &rec);
                     }
                 }
-                Ok(false) => log::add(
-                    app,
-                    LogKind::Drop,
-                    None,
-                    format!(
-                        "Couldn’t claim “{}”. Is the game account linked on Twitch?",
-                        d.name
-                    ),
-                ),
+                Ok(false) => {
+                    log::add(
+                        app,
+                        LogKind::Drop,
+                        None,
+                        format!(
+                            "Couldn’t claim “{}”. Is the game account linked on Twitch?",
+                            d.name
+                        ),
+                    );
+                    // V108-C37 Ready but Twitch said no: worth a card, once per drop.
+                    if told_once(instance) {
+                        card(app, "Drop ready", &d.name, c.game.as_deref(), d.image.clone());
+                    }
+                }
                 Err(e) => {
                     eprintln!("miner: drop claim: {e}");
                     log::add(app, LogKind::Error, None, "Couldn’t claim the drop.");

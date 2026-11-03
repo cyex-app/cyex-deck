@@ -8,6 +8,7 @@ import type { BellItem } from './bindings/BellItem';
 import type { BellList } from './bindings/BellList';
 import type { BellPage } from './bindings/BellPage';
 import type { BellState } from './bindings/BellState';
+import type { NoticeCard } from './bindings/NoticeCard';
 import type { NotifyOpen } from './bindings/NotifyOpen';
 import type { TwitchNotify } from './bindings/TwitchNotify';
 import type { TwitchProfile } from './bindings/TwitchProfile';
@@ -48,6 +49,8 @@ export const notifyEvents = {
   /** A toast was clicked. Main window only. */
   onOpen: (cb: (o: NotifyOpen) => void): Promise<UnlistenFn> =>
     listen<NotifyOpen>('notify:open', (e) => cb(e.payload)),
+  /** V108-C37 A card for the top right corner. Main window only. */
+  onCard: (cb: (c: NoticeCard) => void): Promise<UnlistenFn> => listen<NoticeCard>('notify:card', (e) => cb(e.payload)),
   /** Asks the main window to open something, as a toast click does. */
   open: (o: NotifyOpen) => emitTo('main', 'notify:open', o),
 };

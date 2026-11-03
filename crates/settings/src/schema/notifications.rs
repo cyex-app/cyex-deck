@@ -14,6 +14,8 @@ pub struct Notifications {
     pub live: LiveAlerts,
     pub whispers: WhisperAlerts,
     pub bell: BellAlerts,
+    /// V108-C37 Cards in the app's top right corner.
+    pub cards: InAppCards,
 }
 
 /// 2.2 Alerts when followed channels go live. Which channels: Twitch's bell for each one,
@@ -90,6 +92,23 @@ impl Default for BellAlerts {
     }
 }
 
+/// V108-C37 Which things show a small card in the app's top right corner, next to the Windows
+/// pop-ups. Someone going live also follows the live alert switch and channel list.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(default, rename_all = "camelCase")]
+#[ts(export)]
+pub struct InAppCards {
+    pub live: bool,
+    pub drops: bool,
+    pub badges: bool,
+}
+
+impl Default for InAppCards {
+    fn default() -> Self {
+        Self { live: true, drops: true, badges: true }
+    }
+}
+
 impl Schema for Notifications {}
 
 #[cfg(test)]
@@ -112,5 +131,6 @@ mod tests {
         let n: Notifications = serde_json::from_str("{}").unwrap();
         assert_eq!(n, Notifications::default());
         assert!(n.whispers.inline && n.bell.toast && n.live.skip_at_start);
+        assert!(n.cards.live && n.cards.drops && n.cards.badges);
     }
 }
