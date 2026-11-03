@@ -29,7 +29,23 @@ pub struct MadeClip {
     pub editing: bool,
 }
 
+/// V108-F39 The HLS mock swaps only the video: the channel is still a real live one, so a
+/// clip would land on Twitch. With the mock on, clips are faked and nothing is sent.
+#[cfg(feature = "mocks")]
+fn mock_clip(app: &AppHandle) -> Option<MadeClip> {
+    crate::player::mock::base(app)?;
+    Some(MadeClip { slug: "MockClip".into(), editing: false })
+}
+
+#[cfg(not(feature = "mocks"))]
+fn mock_clip(_: &AppHandle) -> Option<MadeClip> {
+    None
+}
+
 pub async fn create(app: &AppHandle, account: &str, channel_id: &str) -> Result<MadeClip, String> {
+    if let Some(made) = mock_clip(app) {
+        return Ok(made);
+    }
     let http = app.state::<Auth>().http.clone();
     if let Some((token, client_id)) = auth::helix_scoped(app, account, "clips:edit") {
         let auth = crate::auth::helix_auth(&token, &client_id);
@@ -70,6 +86,9 @@ pub async fn create_at(
     channel_id: &str,
     offset_secs: f64,
 ) -> Result<MadeClip, String> {
+    if let Some(made) = mock_clip(app) {
+        return Ok(made);
+    }
     let http = app.state::<Auth>().http.clone();
     let (token, client_id) = auth::gql_token(app, account).ok_or("Clips need this tab to be signed in.")?;
     let auth = crate::auth::gql_auth(&token, &client_id);
@@ -94,6 +113,9 @@ pub async fn create_from_video(
     video_id: &str,
     offset_secs: f64,
 ) -> Result<MadeClip, String> {
+    if let Some(made) = mock_clip(app) {
+        return Ok(made);
+    }
     let http = app.state::<Auth>().http.clone();
     let (token, client_id) = auth::gql_token(app, account).ok_or("Clips need this tab to be signed in.")?;
     let auth = crate::auth::gql_auth(&token, &client_id);
