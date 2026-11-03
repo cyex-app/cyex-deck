@@ -196,12 +196,13 @@
   .unban {
     flex: 1;
     display: grid;
-    grid-template-columns: 1fr;
+    /* V108-C36d minmax(0, …): a long message must not size the column past the window. */
+    grid-template-columns: minmax(0, 1fr);
     min-height: 0;
     min-width: 0;
   }
   .unban.split {
-    grid-template-columns: minmax(220px, 300px) 1fr;
+    grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
   }
   aside[hidden],
   section[hidden] {
@@ -211,6 +212,7 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+    min-width: 0;
   }
   .split aside {
     border-right: 1px solid var(--border);

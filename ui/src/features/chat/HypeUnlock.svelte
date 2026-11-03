@@ -158,7 +158,8 @@
     display: grid;
     place-items: center;
     width: 96px;
-    height: 80px;
+    /* V108-C35d Room for the 64 px emote, its padding and the overshoot. */
+    height: 88px;
   }
   .glow {
     position: absolute;
@@ -201,6 +202,7 @@
     }
   }
   .emote img {
+    display: block;
     height: 64px;
     max-width: 160px;
     object-fit: contain;
