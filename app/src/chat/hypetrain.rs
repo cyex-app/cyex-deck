@@ -226,10 +226,13 @@ pub fn on_event(app: &AppHandle, e: &Event) {
     let change = match api::event_of(&e.payload) {
         Some(Wire::Start(train)) => {
             rose(app, &id, &train);
+            super::hype_unlock::on_start(app, &id, &train.id);
             HypeChange::Start { train }
         }
         Some(Wire::Progress { train, .. }) => {
             rose(app, &id, &train);
+            // V108-C35j Also a train first seen running.
+            super::hype_unlock::on_start(app, &id, &train.id);
             HypeChange::Progress { train }
         }
         Some(Wire::Conductor(conductor)) => HypeChange::Conductor { conductor },

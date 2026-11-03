@@ -56,6 +56,8 @@ struct Book {
     eligible: HashMap<(String, String), (bool, Instant)>,
     /// (account, channel id): when its last card showed.
     shown: HashMap<(String, String), Instant>,
+    /// (account, train id or channel id): a baseline read was started for the train.
+    baselined: HashMap<(String, String), Instant>,
 }
 
 impl Book {
@@ -71,6 +73,17 @@ impl Book {
         self.eligible.get(&(account.to_owned(), train.to_owned())).map(|(yes, _)| *yes)
     }
 
+    /// V108-C35j True (and noted) when the account's baseline read for the train is due.
+    fn claim_baseline(&mut self, account: &str, key: &str, cached: bool, eligible: Option<bool>, now: Instant) -> bool {
+        self.baselined.retain(|_, at| now.duration_since(*at) < KEEP);
+        let k = (account.to_owned(), key.to_owned());
+        if !needs_baseline(cached, self.baselined.contains_key(&k), eligible) {
+            return false;
+        }
+        self.baselined.insert(k, now);
+        true
+    }
+
     /// True (and noted) when no card showed for the pair lately.
     fn may_show(&mut self, account: &str, channel_id: &str, now: Instant) -> bool {
         self.shown.retain(|_, at| now.duration_since(*at) < SHOWN_GAP);
@@ -83,6 +96,13 @@ impl Book {
         self.shown.insert((account.to_owned(), channel_id.to_owned()), now);
         true
     }
+}
+
+/// V108-C35j Whether a train's start should read the account's emotes for a baseline: not
+/// when a list is cached, one was already asked for in this train, or Twitch said the part
+/// doesn't count.
+fn needs_baseline(cached: bool, done: bool, eligible: Option<bool>) -> bool {
+    !cached && !done && eligible != Some(false)
 }
 
 static BOOK: LazyLock<Mutex<Book>> = LazyLock::new(Mutex::default);
@@ -121,6 +141,26 @@ pub fn on_user_event(app: &AppHandle, e: &Event) {
             });
         }
         _ => {}
+    }
+}
+
+/// V108-C35j A train started (or was first seen running) in `channel_id`: an account reading
+/// it that has no emote list cached reads it once now, so the end-of-train diff has a
+/// baseline. Once per account and train; cheap when called on every progress message.
+pub fn on_start(app: &AppHandle, channel_id: &str, train: &str) {
+    let key = if train.is_empty() { channel_id } else { train };
+    for account in readers(app, channel_id) {
+        let eligible = book().eligible(&account, train);
+        let cached = crate::emotes::known(app, &account, channel_id).is_some();
+        if !book().claim_baseline(&account, key, cached, eligible, Instant::now()) {
+            continue;
+        }
+        let (app, channel_id) = (app.clone(), channel_id.to_owned());
+        tauri::async_runtime::spawn(async move {
+            if let Err(e) = crate::emotes::twitch_sets(&app, &account, &channel_id, false).await {
+                eprintln!("hype train: no baseline for {account}: {e}");
+            }
+        });
     }
 }
 
@@ -219,6 +259,22 @@ mod tests {
         b.note("me", "t2", true, t + KEEP);
         assert_eq!(b.eligible("me", "t1"), None);
         assert_eq!(b.eligible("me", "t2"), Some(true));
+    }
+
+    #[test]
+    fn v108_c35j_a_baseline_is_read_once_when_nothing_is_cached() {
+        assert!(needs_baseline(false, false, None));
+        assert!(needs_baseline(false, false, Some(true)));
+        assert!(!needs_baseline(true, false, None));
+        assert!(!needs_baseline(false, true, None));
+        assert!(!needs_baseline(false, false, Some(false)));
+        let mut b = Book::default();
+        let t = Instant::now();
+        assert!(b.claim_baseline("me", "t1", false, None, t));
+        assert!(!b.claim_baseline("me", "t1", false, None, t));
+        assert!(b.claim_baseline("you", "t1", false, None, t));
+        assert!(!b.claim_baseline("me", "t2", true, None, t));
+        assert!(b.claim_baseline("me", "t2", false, None, t));
     }
 
     #[test]
