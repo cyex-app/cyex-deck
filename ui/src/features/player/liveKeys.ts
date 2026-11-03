@@ -84,3 +84,11 @@ export function liveKeyAction(o: { repeat: boolean; owns: boolean; hasLive: bool
   if (o.owns || !o.hasLive) return 'pass';
   return o.repeat ? 'skip' : 'run';
 }
+
+/** V108-F43 A button in the player's own bar (`[data-bar]`, Shell.svelte) keeps only the keys that
+ *  press it (Space, Enter), so M, F and the rest still reach the player after a click or Tab onto
+ *  the bar. Other focused controls keep every key, as before. */
+export function barKeepsKey(target: Focus, e: { key: string }): boolean {
+  if (!target?.closest || !target.closest('[data-bar]')) return false;
+  return e.key === ' ' || e.key === 'Enter';
+}

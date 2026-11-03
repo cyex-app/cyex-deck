@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { FocusOrigin } from './focusOrigin.ts';
-import { liveKeyAction, OWN_ARROWS, ownsKey, TAB_ANY, seekText, stepChoice, Steps, stepText, behindText } from './liveKeys.ts';
+import { barKeepsKey, liveKeyAction, OWN_ARROWS, ownsKey, TAB_ANY, seekText, stepChoice, Steps, stepText, behindText } from './liveKeys.ts';
 
 /** qd-1 A DOM-like element: a tag, attributes and a parent; `closest` walks the real ancestor
  *  chain and matches the selector subset used here (tag, [a], [a="v"], [a^="v"], :not([...])). */
@@ -146,4 +146,13 @@ test('shift+right rules', () => {
   assert.equal(liveKeyAction({ repeat: false, owns: true, hasLive: true }), 'pass');
   assert.equal(liveKeyAction({ repeat: false, owns: false, hasLive: false }), 'pass');
   assert.equal(liveKeyAction({ repeat: false, owns: false, hasLive: true }), 'run');
+});
+
+test('V108-F43 a player bar button keeps only Space and Enter', () => {
+  const bar = el('div', { 'data-bar': '' });
+  const btn = el('button', {}, bar);
+  for (const k of [' ', 'Enter']) assert.equal(barKeepsKey(btn, key(k)), true, k);
+  for (const k of ['m', 'f', 'k']) assert.equal(barKeepsKey(btn, key(k)), false, k);
+  assert.equal(barKeepsKey(el('button'), key(' ')), false);
+  assert.equal(barKeepsKey(null, key(' ')), false);
 });

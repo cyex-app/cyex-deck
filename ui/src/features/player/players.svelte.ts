@@ -10,7 +10,7 @@ import type { TileShow } from '../../ipc/bindings/TileShow';
 import { CappedMap, useCapped } from '../../lib/capped';
 import { keyTaken } from '../../lib/escape';
 import { settings } from '../../lib/settings.svelte';
-import { liveKeyAction, ownsKey, type SeekResult, seekText, stepChoice, Steps } from './liveKeys';
+import { barKeepsKey, liveKeyAction, ownsKey, type SeekResult, seekText, stepChoice, Steps } from './liveKeys';
 
 /** V101-29 What Windows' media controls show for a player. */
 export interface MediaInfo {
@@ -85,9 +85,9 @@ export const players = new Players();
 
 /** S2 Player hotkeys, for `useHotkeys`. A key on a focused control stays with it. */
 export const playerHotkeys = {
-  'player.playPause': () => withPlayer((p) => p.togglePlay()),
-  'player.mute': () => withPlayer((p) => p.toggleMute()),
-  'player.fullscreen': () => withPlayer((p) => p.toggleFullscreen()),
+  'player.playPause': (e: KeyboardEvent) => withPlayer((p) => p.togglePlay(), e),
+  'player.mute': (e: KeyboardEvent) => withPlayer((p) => p.toggleMute(), e),
+  'player.fullscreen': (e: KeyboardEvent) => withPlayer((p) => p.toggleFullscreen(), e),
   'player.back': (e: KeyboardEvent) => keySeek(-1, e),
   'player.forward': (e: KeyboardEvent) => keySeek(1, e),
   'player.back2': (e: KeyboardEvent) => keySeek(-1, e),
@@ -138,10 +138,11 @@ function goLive(e: KeyboardEvent): void | false {
 const CONTROLS =
   'button, a, select, [role="radio"], [role="tab"], [role="option"], [role="listbox"], [role^="menuitem"], [role="checkbox"], [role="switch"]';
 
-function withPlayer(f: (p: PlayerControls) => void): void | false {
+// V108-F43 A button in the player bar presses with Space and Enter only; M, F and the rest reach the player.
+function withPlayer(f: (p: PlayerControls) => void, e: KeyboardEvent): void | false {
   const p = players.active;
   const focus = document.activeElement;
-  if (!p || (focus instanceof HTMLElement && focus.closest(CONTROLS))) {
+  if (!p || (focus instanceof HTMLElement && focus.closest(CONTROLS) && (!focus.closest('[data-bar]') || barKeepsKey(focus, e)))) {
     return false;
   }
   f(p);
