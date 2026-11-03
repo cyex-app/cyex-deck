@@ -12,7 +12,7 @@
      V108-C35b Progress is a percentage ("45 %": subs and bits both count) and the bar's own
      background fills with it, a washed pastel half rainbow (gold for a Golden Kappa train,
      with its Kappa for the bolt). A 2 px line along the bottom drains with the level's time
-     (element.animate, linear). Celebrations: the start sweeps the fill in, a sheen crosses
+     (element.animate, linear). The fill sweeps by animating its clip-path. Celebrations: the start sweeps the fill in, a sheen crosses
      and sparkles burst from the bolt; a level up sheens, pops the level and bursts; the end
      keeps where the last level got to (V108-C35c) and lets a few sparkles rise along it. 0,7 to 1,3 s, transform, opacity and
      the fill's clip only; reduced motion keeps the tint flash and drops the rest. Text is
@@ -76,6 +76,9 @@
   /** V108-C35 The celebration showing; `n` restarts it. */
   let burst = $state<{ kind: Burst; n: number } | null>(null);
   let burstN = 0;
+  /** C35g The last burst's number, kept after it ends: the mark and level restart on a new
+   * burst, not when one ends. */
+  let lastN = $state(0);
   let burstTimer: ReturnType<typeof setTimeout> | undefined;
   /** The longest celebration (the end's sparkles) and a little air. */
   const BURST_MS = 1_400;
@@ -83,6 +86,7 @@
   function celebrate(kind: Burst) {
     clearTimeout(burstTimer);
     burst = { kind, n: ++burstN };
+    lastN = burstN;
     burstTimer = setTimeout(() => (burst = null), BURST_MS);
   }
 
@@ -230,9 +234,11 @@
     };
   });
 
-  // The countdown ticks only while there is a train on screen.
+  // The countdown ticks only while there is a train on screen. C35g It keys on "is there a
+  // train", not the train object, so a message doesn't rebuild the interval.
+  const running = $derived(!!train);
   $effect(() => {
-    if (!train) return;
+    if (!running) return;
     now = Date.now();
     const t = setInterval(() => {
       now = Date.now();
@@ -261,8 +267,8 @@
       {/if}
     {/key}
     <div class="row">
-      {#key burst?.n}
-        <span class="mark" class:pop={!!burst}>
+      {#key lastN}
+        <span class="mark"class:pop={!!burst}>
           {#if kappa}
             <img src={kappa} alt="" use:tooltip={{ label: 'Golden Kappa train' }} />
           {:else}
@@ -272,12 +278,12 @@
       {/key}
       {#if train}
         <span class="level"
-          >Level {#key burst?.n}<span class="lv" class:pop={burst?.kind === 'level'}>{train.level}</span>{/key}</span
+          >Level {#key lastN}<span class="lv" class:pop={burst?.kind === 'level'}>{train.level}</span>{/key}</span
         >
-        <span class="pct" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={pct}>{pctText(pct)}</span>
+        <span class="pct" role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={pct}>{pctText(pct)}</span>
         {#if top}<span class="top"><span class="who">{top.who}</span>{#if top.amount}<span class="amount">{top.amount}</span>{/if}</span>{/if}
         <!-- No countdown when Twitch sent no end time. -->
-        {#if train.expiresAt}<span class="time">{formatLeft(left)}</span>{/if}
+        {#if train.expiresAt}<span class="time" aria-hidden="true">{formatLeft(left)}</span>{/if}
       {:else if note}
         <span class="level">{endedText(note.level)}</span>
         {#if given}<span class="top">{given}</span>{/if}
