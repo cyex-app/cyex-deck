@@ -56,12 +56,14 @@ export function pick(id: string | null) {
   picked = id;
   if (was !== null) slots.get(was)?.update?.();
   if (id !== null) slots.get(id)?.update?.();
+  // V108-F54b The line under the pointer gives way while one is picked, and comes back after.
+  if ((was === null) !== (id === null) && under !== null) slots.get(under)?.update?.();
 }
 
-/** True while the pointer is over the line with this id, or the keyboard picked it. */
+/** True for the line the keyboard picked, else the one under the pointer: one bar at a time. */
 export function isHot(id: string): boolean {
   arm();
   // Outside an effect nothing would ever let go of the slot.
   if ($effect.tracking()) slot(id).subscribe();
-  return under === id || picked === id;
+  return picked !== null ? picked === id : under === id;
 }
