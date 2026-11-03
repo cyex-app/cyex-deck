@@ -14,7 +14,7 @@
      with its Kappa for the bolt). A 2 px line along the bottom drains with the level's time
      (element.animate, linear). Celebrations: the start sweeps the fill in, a sheen crosses
      and sparkles burst from the bolt; a level up sheens, pops the level and bursts; the end
-     fills the bar and lets a few sparkles rise along it. 0,7 to 1,3 s, transform, opacity and
+     keeps where the last level got to (V108-C35c) and lets a few sparkles rise along it. 0,7 to 1,3 s, transform, opacity and
      the fill's clip only; reduced motion keeps the tint flash and drops the rest. Text is
      --text on the washed fill: at least 5,2:1 in both themes. -->
 <script lang="ts">
@@ -93,8 +93,8 @@
   /** V108-C35b The train on screen, running or just closed. */
   const shown = $derived(train ?? note);
   const look = $derived(lookOf(shown));
-  /** The closing note shows the bar full. */
-  const fill = $derived(train ? pct : 100);
+  /** V108-C35c The closing note keeps where the last level got to (full only when its goal was met). */
+  const fill = $derived(train ? pct : note ? progressPct(note.progress, note.goal) : 0);
   const theme = $derived(settings.v.appearance.theme);
   const kappa = $derived(look === 'gold' ? emoteImg('twitch', GOLDEN_KAPPA_ID, theme, { scale: density.scale }).src : '');
 
