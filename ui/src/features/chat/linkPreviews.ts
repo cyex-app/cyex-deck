@@ -1,5 +1,6 @@
 // V108-C25 The one queue every chat asks link cards through (1.52): hovers, cards under
-// messages (C30) and lines coming in.
+// messages (C30). V108-F46 Nothing is asked ahead of a hover: the resolver only sees
+// links you hover or show as cards (Q-O3).
 
 import type { LinkPreview } from '../../ipc/bindings/LinkPreview';
 import { chatIpc } from '../../ipc/chat';
@@ -12,10 +13,4 @@ export const links = linkQueue<LinkPreview | null>((url) => chatIpc.resolveLink(
 /** Cards show: previews on and streamer mode not hiding them. */
 export function cardsShown(): boolean {
   return !!settings.v.chat?.linkPreviews && !streamer.hides('hideLinkPreviews');
-}
-
-/** A drawn line's links, asked for ahead of a hover. */
-export function prefetchLinks(urls: readonly string[]): void {
-  if (!urls.length || !cardsShown()) return;
-  for (const u of urls) links.prefetch(u);
 }

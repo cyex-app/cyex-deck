@@ -12,18 +12,11 @@
   import { splitEmoji } from '../emotes/emoji/split';
   import ChatEmote from './ChatEmote.svelte';
   import EmojiImg from './EmojiImg.svelte';
-  import { prefetchLinks } from './linkPreviews';
   import { actTip, picSize, spanColor } from './pluginLine';
   import { saved } from './saved';
   import { cheerImg, cheerTier } from './urls';
 
   let { fragments, channel, giant = false }: { fragments: Fragment[]; channel: string; giant?: boolean } = $props();
-  /** V108-C25 A drawn message's links get their cards asked for ahead of a hover. */
-  $effect(() => {
-    const urls = fragments.flatMap((f) => (f.t === 'link' ? [f.url] : []));
-    if (urls.length) prefetchLinks(urls);
-  });
-
   const theme = $derived(settings.v.appearance.theme);
   const gifs = $derived(settings.v.chat.gifs);
   /** 1.42 Only when the message ends in a Twitch emote, like twitch.tv. The card knows it even with effects off. */
