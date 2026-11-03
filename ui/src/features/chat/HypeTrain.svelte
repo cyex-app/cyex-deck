@@ -148,6 +148,14 @@
     });
   }
 
+  /** V108-C35i Escape on the note's x closes it, the same way the x does. */
+  function onKey(e: KeyboardEvent) {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopPropagation();
+    dismiss();
+  }
+
   function finish(held: HypeTrain) {
     train = null;
     dismiss();
@@ -293,7 +301,7 @@
       {:else if note}
         <span class="level">{endedText(note.level)}</span>
         {#if given}<span class="top"><span class="who">{given}</span></span>{/if}
-        <button class="close" type="button" aria-label="Close" use:tooltip={{ label: 'Close' }} onclick={dismiss}>
+        <button class="close" type="button" aria-label="Close" use:tooltip={{ label: 'Close' }} onclick={dismiss} onkeydown={onKey}>
           <Icon name="x" size={12} />
         </button>
       {/if}
