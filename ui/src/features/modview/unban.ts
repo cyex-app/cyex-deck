@@ -83,9 +83,26 @@ export function commentCount(comments: readonly { shared: boolean }[]): string {
 /** The ban as the chat log's last line: "Kuni banned lumen_fox", "lumen_fox was timed out"
  *  when the eye hides who did it (or Twitch didn't say). */
 export function banLine(ban: { by: string | null; until: string | null }, name: string, hidden: boolean): string {
+  return banParts(ban, name, hidden)
+    .map((p) => p.text)
+    .join('');
+}
+
+/** V108-C36g The same line in pieces, so each name can sit in its own `<bdi>` (a mixed-direction
+ *  name must not scramble the words around it). */
+export function banParts(ban: { by: string | null; until: string | null }, name: string, hidden: boolean): { text: string; name: boolean }[] {
   const what = ban.until ? 'timed out' : 'banned';
   const by = ban.by?.trim();
-  return by && !hidden ? `${by} ${what} ${name}` : `${name} was ${what}`;
+  return by && !hidden
+    ? [
+        { text: by, name: true },
+        { text: ` ${what} `, name: false },
+        { text: name, name: true },
+      ]
+    : [
+        { text: name, name: true },
+        { text: ` was ${what}`, name: false },
+      ];
 }
 
 /** V108-C36e "1 year 3 months" from `since` to `now`; "under a month" below one. */

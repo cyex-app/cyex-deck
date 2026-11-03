@@ -28,7 +28,7 @@
   import Comments from '../usercard/Comments.svelte';
   import Facts from '../usercard/Facts.svelte';
   import Timeline from '../usercard/Timeline.svelte';
-  import { banLine, bannedBy, commentCount, followCell, messageCount, statusText, subCell } from './unban';
+  import { banParts, bannedBy, commentCount, followCell, messageCount, statusText, subCell } from './unban';
   import { usercardIpc } from '../../ipc/rules';
   import type { FollowAge } from '../../ipc/bindings/FollowAge';
   import type { SubStatus } from '../../ipc/bindings/SubStatus';
@@ -63,7 +63,8 @@
   let history = $state<ModHistory | null | undefined>(undefined);
   let historyError = $state('');
   let past = $state.raw<PastUnban[]>([]);
-  let note = $state('');
+  /** V108-C36g One note per choice: a deny reason doesn't turn into an unban note. */
+  const notes = $state({ unban: '', deny: '' });
   let decision = $state<'unban' | 'deny' | null>(null);
   let tab = $state<'chat' | 'comments' | 'earlier'>('chat');
   let noteBox = $state<HTMLTextAreaElement>();
@@ -148,7 +149,7 @@
 
   function confirm() {
     if (!decision || busy) return;
-    onresolve(decision === 'unban', note);
+    onresolve(decision === 'unban', notes[decision]);
   }
 
   function onNoteKey(e: KeyboardEvent) {
@@ -156,7 +157,7 @@
       e.preventDefault();
       confirm();
     } else if (e.key === 'Escape' && !e.isComposing) {
-      // Back to the choice, field closed; the note stays for a second pick.
+      // Back to the choice, field closed; the notes stay for a second pick.
       e.preventDefault();
       e.stopPropagation();
       const was = decision;
@@ -177,7 +178,7 @@
   {#if ban}
     <p class="banline">
       <Icon name="ban" size={13} />
-      <span class="what"><bdi>{banLine(ban, name, hideBy)}</bdi>{ban.until ? ` until ${when(ban.until)}` : ''}</span>
+      <span class="what">{#each banParts(ban, name, hideBy) as part}{#if part.name}<bdi>{part.text}</bdi>{:else}{part.text}{/if}{/each}{ban.until ? ` until ${when(ban.until)}` : ''}</span>
       {#if ban.since}<span class="t">{when(ban.since)}</span>{/if}
     </p>
   {/if}
@@ -325,7 +326,7 @@
           maxlength="500"
           placeholder={decision === 'deny' ? 'Why not? They’ll see this (optional)' : 'A note they’ll see (optional)'}
           aria-label="Note for {name}"
-          bind:value={note}
+          bind:value={notes[decision ?? 'unban']}
           disabled={busy}
           onkeydown={onNoteKey}
         ></textarea>
@@ -743,7 +744,8 @@
     color: var(--accent-text);
   }
   .go {
-    margin-left: auto;
+    /* V108-C36g Confirm stays beside the choices, however wide the dock. */
+    margin-left: 4px;
     background: var(--accent);
     border: 1px solid transparent;
     color: var(--accent-ink);

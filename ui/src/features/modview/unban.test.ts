@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { banLine, bannedBy, commentCount, followCell, isSplit, listMove, messageCount, nextAfter, orderRequests, spanText, statusText, subCell } from './unban.ts';
+import { banLine, banParts, bannedBy, commentCount, followCell, isSplit, listMove, messageCount, nextAfter, orderRequests, spanText, statusText, subCell } from './unban.ts';
 
 test('V108-C36 side by side only popped out and at least 480 px wide', () => {
   assert.equal(isSplit(true, 480), true);
@@ -88,4 +88,13 @@ test('V108-C36e follow and sub cells', () => {
   assert.equal(subCell({ months: 3, active: false, tier: null, gift: false, hidden: false }), 'Was 3 months');
   assert.equal(subCell({ months: 0, active: false, tier: null, gift: false, hidden: false }), 'Never');
   assert.equal(subCell({ months: 0, active: false, tier: null, gift: false, hidden: true }), 'Hidden');
+});
+
+test('the ban line comes in pieces, each name apart (V108-C36g)', () => {
+  assert.deepEqual(banParts({ by: 'Kuni', until: null }, 'lumen_fox', false), [
+    { text: 'Kuni', name: true },
+    { text: ' banned ', name: false },
+    { text: 'lumen_fox', name: true },
+  ]);
+  assert.deepEqual(banParts({ by: 'Kuni', until: null }, 'lumen_fox', true).map((p) => p.name), [true, false]);
 });
