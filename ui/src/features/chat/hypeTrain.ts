@@ -51,7 +51,8 @@ export function mergeConductor(list: HypeConductor[], c: HypeConductor): HypeCon
 export function topParts(list: HypeConductor[], fmt: (n: number) => string = String): { who: string; amount: string } | null {
   const top = [...list].filter((c) => c.name || c.login).sort((a, b) => b.total - a.total)[0];
   if (!top) return null;
-  const unit = top.source === 'BITS' ? ' bits' : top.source === 'SUBS' ? ' subs' : '';
+  // V108-C35h One sub is "1 sub".
+  const unit = top.source === 'BITS' ? ' bits' : top.source === 'SUBS' ? (top.total === 1 ? ' sub' : ' subs') : '';
   return { who: top.name || top.login, amount: top.total > 0 ? `${fmt(top.total)}${unit}` : '' };
 }
 

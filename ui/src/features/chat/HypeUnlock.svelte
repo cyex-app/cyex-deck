@@ -6,12 +6,13 @@
      revealed with a small overshoot, a glow and a ring of sparkles (about 1 s, transform and
      opacity only); reduced motion shows it plainly. -->
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { Emote } from '../../ipc/bindings/Emote';
   import { hypeIpc } from '../../ipc/hypetrain';
+  import { layers } from '../../lib/escape';
   import { focus } from '../../lib/focus.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { enqueue, isGoldenKappa, unlockLines } from './hypeLook';
@@ -23,9 +24,11 @@
     account: string | null;
     channelId: string | null;
     oninsert: (text: string) => void;
+    /** V108-C35h The last card closed by hand: focus goes back to the message box if it was lost. */
+    onclosed?: () => void;
   }
 
-  let { account, channelId, oninsert }: Props = $props();
+  let { account, channelId, oninsert, onclosed }: Props = $props();
 
   const SHOW_MS = 8_000;
 
@@ -47,6 +50,16 @@
     else held = false;
   }
 
+  /** Closed by hand (x or Escape). */
+  function close() {
+    next();
+    if (current) return;
+    void tick().then(() => {
+      const at = document.activeElement;
+      if (!at || at === document.body) onclosed?.();
+    });
+  }
+
   function clear() {
     clearTimeout(timer);
     held = false;
@@ -56,7 +69,8 @@
 
   function arm() {
     clearTimeout(timer);
-    if (!held) timer = setTimeout(next, SHOW_MS);
+    // V108-C35h The emote picker (or any layer) covers the card: it waits, so the emote isn't missed.
+    if (!held) timer = setTimeout(() => (layers.size ? arm() : next()), SHOW_MS);
   }
 
   function hold(on: boolean) {
@@ -102,9 +116,9 @@
     onpointerleave={() => hold(false)}
     onfocusin={() => hold(true)}
     onfocusout={() => hold(false)}
-    onkeydown={(e) => e.key === 'Escape' && next()}
+    onkeydown={(e) => e.key === 'Escape' && close()}
   >
-    <button class="close" type="button" aria-label="Close" use:tooltip={{ label: 'Close' }} onclick={next}>
+    <button class="close" type="button" aria-label="Close" use:tooltip={{ label: 'Close' }} onclick={close}>
       <Icon name="x" size={12} />
     </button>
     {#key current.id}
@@ -246,8 +260,8 @@
     z-index: 1;
     display: grid;
     place-items: center;
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     padding: 0;
     border: 0;
     border-radius: var(--radius);

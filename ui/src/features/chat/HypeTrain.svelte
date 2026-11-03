@@ -14,11 +14,11 @@
      with its Kappa for the bolt). A 2 px line along the bottom drains with the level's time
      (element.animate, linear). The fill sweeps by animating its clip-path. Celebrations: the start sweeps the fill in, a sheen crosses
      and sparkles burst from the bolt; a level up sheens, pops the level and bursts; the end
-     keeps where the last level got to (V108-C35c) and lets a few sparkles rise along it. 0,7 to 1,3 s, transform, opacity and
+     (V108-C35h no sheen) keeps where the last level got to (V108-C35c) and lets a few sparkles rise along it. 0,7 to 1,3 s, transform, opacity and
      the fill's clip only; reduced motion keeps the tint flash and drops the rest. Text is
      --text on the washed fill: at least 5,2:1 in both themes. -->
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
@@ -53,9 +53,11 @@
     channelId: string | null;
     /** V108-C35 The chat's account (user id): its hype train rewards are followed too. */
     account?: string | null;
+    /** V108-C35h Closing the note by hand hands focus back (to the message box) if it was on the note. */
+    onclosed?: () => void;
   }
 
-  let { login, channelId, account = null }: Props = $props();
+  let { login, channelId, account = null, onclosed }: Props = $props();
 
   const POLL_MS = 60_000;
   const NOTE_MS = 30_000;
@@ -140,6 +142,10 @@
     clearTimeout(noteTimer);
     clearTimeout(lastTimer);
     note = null;
+    void tick().then(() => {
+      const at = document.activeElement;
+      if (!at || at === document.body) onclosed?.();
+    });
   }
 
   function finish(held: HypeTrain) {
@@ -258,7 +264,7 @@
   >
     <div class="bg" aria-hidden="true">
       <div class="fill" class:sweep={burst?.kind === 'start'} style:background={gradient(look)} style:clip-path="inset(0 {100 - fill}% 0 0)"></div>
-      {#key burst?.n}{#if burst}<span class="flash"></span><span class="sheen"></span>{/if}{/key}
+      {#key burst?.n}{#if burst}<span class="flash"></span>{#if burst.kind !== 'end'}<span class="sheen"></span>{/if}{/if}{/key}
       {#if timer}<div class="timer" use:drain={timer}></div>{/if}
     </div>
     {#key burst?.n}
@@ -286,7 +292,7 @@
         {#if train.expiresAt}<span class="time" aria-hidden="true">{formatLeft(left)}</span>{/if}
       {:else if note}
         <span class="level">{endedText(note.level)}</span>
-        {#if given}<span class="top">{given}</span>{/if}
+        {#if given}<span class="top"><span class="who">{given}</span></span>{/if}
         <button class="close" type="button" aria-label="Close" use:tooltip={{ label: 'Close' }} onclick={dismiss}>
           <Icon name="x" size={12} />
         </button>
@@ -414,22 +420,24 @@
     gap: 4px;
     white-space: nowrap;
   }
-  /* The name gives way; the amount stays whole. */
+  /* V108-C35h The name gives way first, then the amount (a narrow chat); the countdown stays. */
   .who {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .amount {
-    flex: none;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .close {
     display: grid;
     place-items: center;
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     /* Keeps the note as slim as the bar. */
-    margin: -4px -4px -4px auto;
+    margin: -5px -4px -5px auto;
     padding: 0;
     border: 0;
     border-radius: var(--radius);

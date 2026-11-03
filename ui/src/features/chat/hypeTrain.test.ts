@@ -125,6 +125,9 @@ test('the top giver comes in two parts so a long name can be cut (V108-N04)', ()
   assert.deepEqual(topParts(long, String), { who: 'N'.repeat(60), amount: '1200 bits' });
   assert.deepEqual(topParts([{ source: 'SUBS' as const, login: 'a', name: '', total: 0 }]), { who: 'a', amount: '' });
   assert.equal(topParts([]), null);
+  // V108-C35h One sub is singular.
+  assert.deepEqual(topParts([{ source: 'SUBS' as const, login: 'a', name: 'A', total: 1 }], String), { who: 'A', amount: '1 sub' });
+  assert.deepEqual(topParts([{ source: 'SUBS' as const, login: 'a', name: 'A', total: 5 }], String), { who: 'A', amount: '5 subs' });
   assert.equal(topLine(long, String), `${'N'.repeat(60)} 1200 bits`);
 });
 

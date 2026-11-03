@@ -537,7 +537,7 @@
   {/if}
   <!-- V102-24 A short chat keeps its messages and message box: these scroll instead. -->
   <div class="banners">
-    <HypeTrain {login} channelId={room.state.channelId} account={room.account} />
+    <HypeTrain {login} channelId={room.state.channelId} account={room.account} onclosed={() => input?.focus()} />
     <EventsButton channel={login} pin={room.pinned} pinKnown={room.pinKnown} />
     {#if room.pinned}
       <PinnedBanner
@@ -565,7 +565,7 @@
       {onaction}
     />
     <!-- V108-C35 Over the bottom of the messages, above the message box. -->
-    <HypeUnlock account={room.account} channelId={room.state.channelId} oninsert={(t) => input?.insertText(t)} />
+    <HypeUnlock account={room.account} channelId={room.state.channelId} oninsert={(t) => input?.insertText(t)} onclosed={() => input?.focus()} />
     <!-- V101-35 Over the messages, so the list keeps its place underneath. -->
     {#if viewers}
       <div class="viewers"><ViewerList
