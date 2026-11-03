@@ -5,6 +5,10 @@
 //! is seen live, so a train's end also reads the account's emotes once (5 s on, again at
 //! 60 s when Twitch said it counts) and shows the hype train emotes that are new. A user Twitch
 //! said doesn't count reads nothing.
+//!
+//! V108-C35b A Golden Kappa train gives its participants the Golden Kappa (emote 80393,
+//! typed "Kappa", set 15940, Twitch type `UNKNOWN`) for 24 hours; a read that finds it new
+//! shows it whatever Twitch said about the part (`docs/research/hype-train.md`).
 
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
@@ -27,6 +31,8 @@ const FIRST_LOOK: Duration = Duration::from_secs(5);
 const SECOND_LOOK: Duration = Duration::from_secs(60);
 /// One card per account and channel in this long (the topic and the read may both find them).
 const SHOWN_GAP: Duration = Duration::from_secs(600);
+/// V108-C35b The Golden Kappa's emote id.
+const GOLDEN_KAPPA: &str = "80393";
 /// What Twitch said about a train is kept this long.
 const KEEP: Duration = Duration::from_secs(3 * 3600);
 
@@ -166,10 +172,10 @@ async fn fresh(app: &AppHandle, account: &str, channel_id: &str, eligible: bool)
     }
 }
 
-/// The new emotes the train gave: its own kind; with Twitch's word that the part counts,
-/// anything new (the kind is read from Twitch's type, unseen for these).
+/// The new emotes the train gave: its own kind and the Golden Kappa; with Twitch's word that
+/// the part counts, anything new (the kind is read from Twitch's type, unseen for these).
 fn picked(added: &[TwitchEmote], eligible: bool) -> Vec<&TwitchEmote> {
-    let hype: Vec<&TwitchEmote> = added.iter().filter(|e| e.kind == EmoteKind::HypeTrain).collect();
+    let hype: Vec<&TwitchEmote> = added.iter().filter(|e| e.kind == EmoteKind::HypeTrain || e.id == GOLDEN_KAPPA).collect();
     if hype.is_empty() && eligible { added.iter().collect() } else { hype }
 }
 
@@ -220,5 +226,14 @@ mod tests {
         let plain = [emote("a", EmoteKind::Subscription)];
         assert!(picked(&plain, false).is_empty());
         assert_eq!(picked(&plain, true).len(), 1);
+    }
+
+    #[test]
+    fn the_golden_kappa_counts_without_twitchs_word() {
+        // Twitch lists it as type UNKNOWN, which reads as Other.
+        let added = [emote("80393", EmoteKind::Other), emote("a", EmoteKind::Global)];
+        let got = picked(&added, false);
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].id, GOLDEN_KAPPA);
     }
 }

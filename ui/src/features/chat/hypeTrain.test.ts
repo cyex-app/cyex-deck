@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { HypeTrain } from '../../ipc/bindings/HypeTrain.ts';
-import { burstOf, unlockText, closing, endedText, formatLeft, givenLine, progressText, mergeConductor, mergeProgress, progressPct, secondsLeft, topLine, topParts, trainOver } from './hypeTrain.ts';
+import { burstOf, closing, endedText, formatLeft, givenLine, mergeConductor, mergeProgress, progressPct, secondsLeft, topLine, topParts, trainOver } from './hypeTrain.ts';
 
 const train = (o: Partial<HypeTrain> = {}): HypeTrain => ({
   id: 't1',
@@ -76,14 +76,10 @@ test('an empty read ends the train only when it ran out or the topic went quiet 
   assert.equal(trainOver(null, now, now), true);
 });
 
-test('hype train points to the next level read with dots (V108-N04)', () => {
-  const dots = (n: number) => String(n).replace(/\B(?=(\d{3})+$)/g, '.');
-  assert.equal(progressText(1234, 2000, dots), '1.234 / 2.000');
-  assert.equal(progressText(-5, 2000), '0 / 2000');
-  assert.equal(progressText(10, 0), null);
-  // Past the goal the level is done: no "5.000 / 2.000".
-  assert.equal(progressText(5000, 2000, dots), 'Goal reached');
-  assert.equal(progressText(2000, 2000, dots), 'Goal reached');
+test('V108-C35b progress is a percentage of the level, 100 only once met', () => {
+  assert.equal(progressPct(1999, 2000), 99);
+  assert.equal(progressPct(2000, 2000), 100);
+  assert.equal(progressPct(1, 2000), 0);
 });
 
 test('progress messages keep the subs and bits a read found', () => {
@@ -147,7 +143,3 @@ test('V108-C35 a start or a level up celebrates, the rest does not', () => {
   assert.equal(burstOf(held, { kind: 'reread' }), null);
 });
 
-test('V108-C35 unlock line', () => {
-  assert.equal(unlockText(1), 'You unlocked an emote');
-  assert.equal(unlockText(3), 'You unlocked 3 emotes');
-});

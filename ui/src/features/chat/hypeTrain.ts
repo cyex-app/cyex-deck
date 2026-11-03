@@ -5,18 +5,11 @@ import type { HypeChange } from '../../ipc/bindings/HypeChange';
 import type { HypeConductor } from '../../ipc/bindings/HypeConductor';
 import type { HypeTrain } from '../../ipc/bindings/HypeTrain';
 
-/** Progress to the next level, 0 to 100. */
+/** Progress to the next level, 0 to 100. Rounded down: 100 only once the goal is met.
+ * V108-C35b Shown as a percentage: subs and bits both count, so points mean little. */
 export function progressPct(progress: number, goal: number): number {
   if (!(goal > 0) || !(progress > 0)) return 0;
-  return Math.min(100, Math.round((progress / goal) * 100));
-}
-
-/** The level's points, "1.234 / 2.000"; "Goal reached" once the points pass the goal (the
- *  next level's message is on its way); null when Twitch sent no goal. */
-export function progressText(progress: number, goal: number, fmt: (n: number) => string = String): string | null {
-  if (!(goal > 0)) return null;
-  if (progress >= goal) return 'Goal reached';
-  return `${fmt(Math.max(0, progress || 0))} / ${fmt(goal)}`;
+  return Math.min(100, Math.floor((progress / goal) * 100));
 }
 
 /** Whole seconds until `expiresAt` (RFC 3339), 0 once past or when unknown. */
@@ -120,7 +113,3 @@ export function burstOf(held: HypeTrain | null, change: HypeChange): Burst | nul
   return next.level > held.level ? 'level' : null;
 }
 
-/** V108-C35 The unlock card's line: "You unlocked 3 emotes". */
-export function unlockText(count: number): string {
-  return count === 1 ? 'You unlocked an emote' : `You unlocked ${count} emotes`;
-}

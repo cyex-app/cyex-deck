@@ -1,5 +1,5 @@
-<!-- V108-N04 A slim bar at the top of a live chat while a hype train runs: level, the level's
-     points ("1.234 / 2.000") and a bar to the next level, time left and the top giver. Kept current by the train's PubSub topic, plus
+<!-- V108-N04 A slim bar at the top of a live chat while a hype train runs: level, progress to
+     the next level, time left and the top giver. Kept current by the train's PubSub topic, plus
      a read every minute while a train is known and once when the chat opens, unless the app
      knows the channel is offline (the topic is followed either way: it is cheap and reports a
      train that starts later). After the train
@@ -8,7 +8,15 @@
      top giver. Setting "Hype train bar" (on).
      V108-C35 A short celebration when a train starts, levels up and ends: the bar's tint flashes
      and its bolt pops (opacity and transform only, about 0,9 s; a new one cuts the last one
-     short). Reduced motion: the tint just shows for a moment. Reads never celebrate. -->
+     short). Reduced motion: the tint just shows for a moment. Reads never celebrate.
+     V108-C35b Progress is a percentage ("45 %": subs and bits both count) and the bar's own
+     background fills with it, a washed pastel half rainbow (gold for a Golden Kappa train,
+     with its Kappa for the bolt). A 2 px line along the bottom drains with the level's time
+     (element.animate, linear). Celebrations: the start sweeps the fill in, a sheen crosses
+     and sparkles burst from the bolt; a level up sheens, pops the level and bursts; the end
+     fills the bar and lets a few sparkles rise along it. 0,7 to 1,3 s, transform, opacity and
+     the fill's clip only; reduced motion keeps the tint flash and drops the rest. Text is
+     --text on the washed fill: at least 5,2:1 in both themes. -->
 <script lang="ts">
   import { untrack } from 'svelte';
 
@@ -16,6 +24,7 @@
   import { tooltip } from '../../components/tooltip.svelte';
   import type { HypeTrain } from '../../ipc/bindings/HypeTrain';
   import { hypeIpc } from '../../ipc/hypetrain';
+  import { density } from '../../lib/density.svelte';
   import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
   import { tabs } from '../tabs/tabs.svelte';
@@ -27,7 +36,6 @@
     mergeConductor,
     mergeProgress,
     progressPct,
-    progressText,
     burstOf,
     type Burst,
     secondsLeft,
@@ -35,6 +43,9 @@
     topParts,
     trainOver,
   } from './hypeTrain';
+  import { GOLDEN_KAPPA_ID, gradient, levelSpan, lookOf, msLeft, pctText, timerFraction } from './hypeLook';
+  import HypeSparks from './HypeSparks.svelte';
+  import { emoteImg } from './urls';
 
   interface Props {
     login: string;
@@ -66,7 +77,8 @@
   let burst = $state<{ kind: Burst; n: number } | null>(null);
   let burstN = 0;
   let burstTimer: ReturnType<typeof setTimeout> | undefined;
-  const BURST_MS = 1_200;
+  /** The longest celebration (the end's sparkles) and a little air. */
+  const BURST_MS = 1_400;
 
   function celebrate(kind: Burst) {
     clearTimeout(burstTimer);
@@ -78,7 +90,45 @@
   const left = $derived(train ? secondsLeft(train.expiresAt, now) : 0);
   const pct = $derived(train ? progressPct(train.progress, train.goal) : 0);
   const top = $derived(train ? topParts(train.conductors, formatNumber) : null);
-  const points = $derived(train ? progressText(train.progress, train.goal, formatNumber) : null);
+  /** V108-C35b The train on screen, running or just closed. */
+  const shown = $derived(train ?? note);
+  const look = $derived(lookOf(shown));
+  /** The closing note shows the bar full. */
+  const fill = $derived(train ? pct : 100);
+  const theme = $derived(settings.v.appearance.theme);
+  const kappa = $derived(look === 'gold' ? emoteImg('twitch', GOLDEN_KAPPA_ID, theme, { scale: density.scale }).src : '');
+
+  /** V108-C35b The timer is full at the level's time, fixed per end time: a later message
+   * with the same end time must not rescale it. */
+  let spanKey: string | null = null;
+  let spanMs = 0;
+  function spanOf(expiresAt: string): number {
+    if (expiresAt !== spanKey) {
+      spanKey = expiresAt;
+      spanMs = levelSpan(msLeft(expiresAt, Date.now()));
+    }
+    return spanMs;
+  }
+  const timer = $derived(train?.expiresAt ? { expiresAt: train.expiresAt, span: spanOf(train.expiresAt) } : null);
+
+  /** V108-C35b Drains the timer line from what is left to nothing, linear, off the main
+   * thread; started again only for a new end time. */
+  function drain(node: HTMLElement, t: { expiresAt: string; span: number } | null) {
+    let a: Animation | undefined;
+    let key = '';
+    const run = (t: { expiresAt: string; span: number } | null) => {
+      const k = t ? `${t.expiresAt}|${t.span}` : '';
+      if (k === key) return;
+      key = k;
+      a?.cancel();
+      const left = t ? msLeft(t.expiresAt, Date.now()) : 0;
+      const from = t ? timerFraction(left, t.span) : 0;
+      node.style.transform = `scaleX(${from})`;
+      if (left > 0) a = node.animate([{ transform: `scaleX(${from})` }, { transform: 'scaleX(0)' }], { duration: left, easing: 'linear', fill: 'forwards' });
+    };
+    run(t);
+    return { update: run, destroy: () => a?.cancel() };
+  }
   const given = $derived(note ? (givenLine(note.subs, note.bits, formatNumber) ?? topLine(note.conductors, formatNumber)) : null);
 
   function dismiss() {
@@ -192,31 +242,49 @@
   });
 </script>
 
-{#if train}
-  <div class="hype" class:in={burst?.kind === 'start'} role="status" aria-label="Hype train, level {train.level}">
-    {#key burst?.n}{#if burst}<span class="flash" aria-hidden="true"></span>{/if}{/key}
-    <div class="row">
-      {#key burst?.n}<span class="zap" class:pop={!!burst}><Icon name="zap" size={13} /></span>{/key}
-      <span class="level">Level {train.level}</span>
-      {#if points}<span class="points">{points}</span>{/if}
-      {#if top}<span class="top"><span class="who">{top.who}</span>{#if top.amount}<span class="amount">{top.amount}</span>{/if}</span>{/if}
-      <!-- No countdown when Twitch sent no end time. -->
-      {#if train.expiresAt}<span class="time">{formatLeft(left)}</span>{/if}
+{#if shown}
+  <div
+    class="hype"
+    class:gold={look === 'gold'}
+    class:in={burst?.kind === 'start'}
+    role="status"
+    aria-label={train ? `${look === 'gold' ? 'Golden Kappa train' : 'Hype train'}, level ${train.level}, ${pctText(pct)}` : undefined}
+  >
+    <div class="bg" aria-hidden="true">
+      <div class="fill" class:sweep={burst?.kind === 'start'} style:background={gradient(look)} style:clip-path="inset(0 {100 - fill}% 0 0)"></div>
+      {#key burst?.n}{#if burst}<span class="flash"></span><span class="sheen"></span>{/if}{/key}
+      {#if timer}<div class="timer" use:drain={timer}></div>{/if}
     </div>
-    <div class="track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={pct}>
-      <div class="fill" style:transform="scaleX({pct / 100})"></div>
-    </div>
-  </div>
-{:else if note}
-  <div class="hype" role="status">
-    {#key burst?.n}{#if burst}<span class="flash" aria-hidden="true"></span>{/if}{/key}
+    {#key burst?.n}
+      {#if burst}
+        <span class="fx" class:bolt={burst.kind !== 'end'}><HypeSparks kind={burst.kind === 'end' ? 'shower' : 'burst'} {look} /></span>
+      {/if}
+    {/key}
     <div class="row">
-      {#key burst?.n}<span class="zap" class:pop={!!burst}><Icon name="zap" size={13} /></span>{/key}
-      <span class="level">{endedText(note.level)}</span>
-      {#if given}<span class="top">{given}</span>{/if}
-      <button class="close" type="button" aria-label="Close" use:tooltip={{ label: 'Close' }} onclick={dismiss}>
-        <Icon name="x" size={12} />
-      </button>
+      {#key burst?.n}
+        <span class="mark" class:pop={!!burst}>
+          {#if kappa}
+            <img src={kappa} alt="" use:tooltip={{ label: 'Golden Kappa train' }} />
+          {:else}
+            <Icon name="zap" size={13} />
+          {/if}
+        </span>
+      {/key}
+      {#if train}
+        <span class="level"
+          >Level {#key burst?.n}<span class="lv" class:pop={burst?.kind === 'level'}>{train.level}</span>{/key}</span
+        >
+        <span class="pct" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={pct}>{pctText(pct)}</span>
+        {#if top}<span class="top"><span class="who">{top.who}</span>{#if top.amount}<span class="amount">{top.amount}</span>{/if}</span>{/if}
+        <!-- No countdown when Twitch sent no end time. -->
+        {#if train.expiresAt}<span class="time">{formatLeft(left)}</span>{/if}
+      {:else if note}
+        <span class="level">{endedText(note.level)}</span>
+        {#if given}<span class="top">{given}</span>{/if}
+        <button class="close" type="button" aria-label="Close" use:tooltip={{ label: 'Close' }} onclick={dismiss}>
+          <Icon name="x" size={12} />
+        </button>
+      {/if}
     </div>
   </div>
 {/if}
@@ -225,16 +293,86 @@
   .hype {
     position: relative;
     isolation: isolate;
-    overflow: hidden;
     display: flex;
     flex-direction: column;
-    gap: 4px;
     margin: 0 8px 6px;
-    padding: 5px 8px 6px;
-    border-left: 3px solid var(--twitch);
-    background: color-mix(in srgb, var(--twitch) 8%, var(--surface));
+    padding: 6px 8px 7px;
+    border: 1px solid var(--border);
     border-radius: var(--radius);
+    background: var(--surface);
     color: var(--text);
+    /* The washed fill: weak on dark so --text reads, stronger on light. */
+    --wash: 0.3;
+    --sheen: rgb(255 255 255 / 0.28);
+    --drain: color-mix(in srgb, var(--text) 45%, transparent);
+  }
+  :global(:root[data-theme='light']) .hype,
+  :global(.theme-light) .hype {
+    --wash: 0.6;
+    --sheen: rgb(255 255 255 / 0.75);
+  }
+  .hype.gold {
+    border-color: color-mix(in srgb, #e2a640 55%, var(--border));
+    --drain: #e2a640;
+  }
+  /* V108-C35b Fill, sheen and timer, clipped to the bar's corners; the sparkles may leave it. */
+  .bg {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+  .fill {
+    position: absolute;
+    inset: 0;
+    opacity: var(--wash);
+    /* Clipped, not resized: the colours stay put and the fill reveals them. */
+    transition: clip-path 0.6s var(--ease);
+  }
+  .fill.sweep {
+    animation: sweep 0.9s var(--ease);
+  }
+  @keyframes sweep {
+    from {
+      clip-path: inset(0 100% 0 0);
+    }
+  }
+  .sheen {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 40%;
+    background: linear-gradient(100deg, transparent, var(--sheen), transparent);
+    transform: translateX(-100%);
+    animation: sheen 0.9s cubic-bezier(0.77, 0, 0.175, 1) 0.15s both;
+  }
+  @keyframes sheen {
+    to {
+      transform: translateX(260%);
+    }
+  }
+  .timer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: var(--drain);
+    transform-origin: left;
+  }
+  .fx {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  /* The burst leaves from the bolt's middle. */
+  .fx.bolt {
+    left: 15px;
+    right: auto;
+    width: 0;
   }
   .row {
     display: flex;
@@ -246,13 +384,29 @@
     font-weight: 600;
     white-space: nowrap;
   }
+  .lv {
+    display: inline-block;
+    font-variant-numeric: tabular-nums;
+  }
+  .lv.pop {
+    animation: lv 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes lv {
+    from {
+      opacity: 0.4;
+      transform: scale(0.6) translateY(3px);
+    }
+  }
+  .pct {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
   .top {
     flex: 1;
     min-width: 0;
     display: flex;
     gap: 4px;
     white-space: nowrap;
-    color: var(--muted);
   }
   /* The name gives way; the amount stays whole. */
   .who {
@@ -262,11 +416,6 @@
   }
   .amount {
     flex: none;
-  }
-  .points {
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-    color: var(--muted);
   }
   .close {
     display: grid;
@@ -279,15 +428,12 @@
     border: 0;
     border-radius: var(--radius);
     background: none;
-    color: var(--muted);
+    color: var(--text);
     cursor: pointer;
-    transition:
-      background-color var(--fast) ease-out,
-      color var(--fast) ease-out;
+    transition: background-color var(--fast) ease-out;
   }
   .close:hover {
     background: var(--row-hover);
-    color: var(--text);
   }
   .close:active {
     opacity: 0.6;
@@ -301,30 +447,17 @@
     flex: none;
     margin-left: auto;
     font-variant-numeric: tabular-nums;
-    color: var(--muted);
   }
-  .track {
-    height: 3px;
-    border-radius: var(--radius);
-    background: var(--border);
-    overflow: hidden;
-  }
-  .fill {
-    height: 100%;
-    background: var(--twitch);
-    /* Scaled, not resized: no layout per frame next to a playing stream. */
-    transform-origin: left;
-    transition: transform 0.3s ease-out;
-  }
-  /* V108-C35 The celebration: a flat tint over the bar that comes and goes, under the text. */
+  /* V108-C35 The tint that comes and goes; with reduced motion it is the whole celebration. */
   .flash {
     position: absolute;
     inset: 0;
-    z-index: -1;
     background: color-mix(in srgb, var(--twitch) 22%, transparent);
     opacity: 0;
-    pointer-events: none;
     animation: flash 0.9s ease-out;
+  }
+  .gold .flash {
+    background: color-mix(in srgb, #e2a640 26%, transparent);
   }
   @keyframes flash {
     15% {
@@ -334,11 +467,17 @@
       opacity: 0;
     }
   }
-  .zap {
+  .mark {
     display: inline-flex;
     flex: none;
   }
-  .zap.pop {
+  .mark img {
+    width: 16px;
+    height: 16px;
+    margin: -2px 0;
+    object-fit: contain;
+  }
+  .mark.pop {
     animation: pop 0.45s var(--ease);
   }
   @keyframes pop {
@@ -364,8 +503,13 @@
       transition: none;
     }
     .hype.in,
-    .zap.pop {
+    .fill.sweep,
+    .mark.pop,
+    .lv.pop {
       animation: none;
+    }
+    .sheen {
+      display: none;
     }
     /* A static highlight for the moment instead. */
     .flash {
