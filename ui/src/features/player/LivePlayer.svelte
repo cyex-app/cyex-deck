@@ -467,7 +467,8 @@
   onpointercancel={() => (drag = null)}
   {onclickcapture}
 >
-  <Shell bind:this={shell} {controls} {menu} press={!mini} pinned={!engine?.playing} onvolume={(s) => sound.step(s)}>
+  <!-- V108-F42 A press on a tile that is hushed only moves the sound here (TileView pick): the tile that has it pauses. -->
+  <Shell bind:this={shell} {controls} {menu} press={!mini && !hushed} pinned={!engine?.playing} onvolume={(s) => sound.step(s)}>
     <video
       bind:this={video}
       playsinline

@@ -255,7 +255,8 @@
 
 
 <div class="vod {mini ? corner : ''}" class:mini class:held class:listing>
-  <Shell bind:this={shell} {controls} {menu} pinned={!engine?.playing && !mini} onvolume={(s) => sound.step(s)}>
+  <!-- V108-F42 As in LivePlayer: a hushed tile's press only moves the sound. -->
+  <Shell bind:this={shell} {controls} {menu} press={!hushed} pinned={!engine?.playing && !mini} onvolume={(s) => sound.step(s)}>
     <video
       bind:this={video}
       playsinline
