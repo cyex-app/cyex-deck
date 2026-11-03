@@ -75,6 +75,8 @@ async function openOnce(nav: Nav, c: Channel, how: OpenHow): Promise<void> {
     else nav.show(own.id);
     return;
   }
+  // V108-C39b Adding makes the new tab active; a background open goes back to what was on screen.
+  const before = tabs.active;
   const id = await tabs.apply({
     op: 'add',
     channel: plain(c),
@@ -85,7 +87,7 @@ async function openOnce(nav: Nav, c: Channel, how: OpenHow): Promise<void> {
   });
   if (!id) return;
   if (how.background) {
-    tabs.activate(null);
+    tabs.activate(before);
     toast.success(`Opened ${c.name} in a new tab.`);
   } else nav.show(id);
 }
