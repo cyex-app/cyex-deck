@@ -100,8 +100,10 @@ async fn poll(app: &AppHandle) {
         seen.fresh = false;
         (alerts, flips)
     };
+    let mut said = messages(app, &alerts).await;
     for card in alerts {
-        alert(app, &n, card);
+        let message = said.remove(&card.id);
+        alert(app, &n, card, message);
     }
     for f in flips {
         crate::feeds::live::flip(app, f);
@@ -182,12 +184,24 @@ fn live_flips(before: &HashMap<String, Known>, now: &[(ChannelCard, bool)]) -> V
     flips
 }
 
-fn alert(app: &AppHandle, n: &Notifications, card: ChannelCard) {
-    if n.live.sound && !crate::tabs::mute::hushes_id(app, &card.id) {
-        crate::sound::alert(app, None);
+/// V108-C37b The go-live messages the streamers set themselves, one read for all that just
+/// went live. Empty when there are none to ask about or the read fails (the title shows then).
+async fn messages(app: &AppHandle, alerts: &[ChannelCard]) -> HashMap<String, String> {
+    if alerts.is_empty() {
+        return HashMap::new();
     }
+    let http = app.state::<auth::Auth>().http.clone();
+    let ids: Vec<String> = alerts.iter().map(|c| c.id.clone()).collect();
+    gql::live_message::live_messages(&http, &ids).await.unwrap_or_else(|e| {
+        eprintln!("alerts: {e}");
+        HashMap::new()
+    })
+}
+
+/// The alert's text: the streamer's go-live message, else the stream title; the game under it.
+fn alert_text(card: &ChannelCard, message: Option<String>) -> String {
     let stream = card.stream.as_ref();
-    let mut text = stream.map(|s| s.title.trim().to_owned()).unwrap_or_default();
+    let mut text = message.unwrap_or_else(|| stream.map(|s| s.title.trim().to_owned()).unwrap_or_default());
     if let Some(game) = stream.and_then(|s| s.game.as_ref()) {
         text = if text.is_empty() {
             game.name.clone()
@@ -196,6 +210,14 @@ fn alert(app: &AppHandle, n: &Notifications, card: ChannelCard) {
 {}", game.name)
         };
     }
+    text
+}
+
+fn alert(app: &AppHandle, n: &Notifications, card: ChannelCard, message: Option<String>) {
+    if n.live.sound && !crate::tabs::mute::hushes_id(app, &card.id) {
+        crate::sound::alert(app, None);
+    }
+    let text = alert_text(&card, message);
     let title = format!("{} is live", card.name);
     // V108-C37 The same alert as a card in the app's corner; it has its own switch.
     cards::show(
@@ -282,5 +304,12 @@ mod tests {
         f.sort();
         assert_eq!(f, [("b".to_owned(), true), ("c".to_owned(), true), ("gone".to_owned(), false)]);
         assert_eq!(live_flips(&before, &now).iter().find(|f| f.id == "b").and_then(|f| f.title.clone()).as_deref(), Some("t"));
+    }
+
+    #[test]
+    fn the_streamers_message_replaces_the_title() {
+        let (card, _) = live("a", "1");
+        assert!(alert_text(&card, Some("Ranked grind!".into())).starts_with("Ranked grind!"));
+        assert!(alert_text(&card, None).starts_with('t'));
     }
 }

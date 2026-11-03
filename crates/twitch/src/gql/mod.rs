@@ -18,6 +18,7 @@ mod emotes;
 mod follows;
 pub mod gifs;
 pub mod hypetrain;
+pub mod live_message;
 mod identity;
 pub mod milestones;
 pub mod miner;
