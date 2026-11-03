@@ -91,20 +91,17 @@
     font-weight: 600;
     font-variant-numeric: tabular-nums;
   }
-  /* No side stripe: success and error get a small dot before the text. */
-  .toast.success .text::before,
-  .toast.error .text::before {
-    content: '';
-    display: inline-block;
-    width: 7px;
-    height: 7px;
-    margin: 0 8px 1px 0;
-    border-radius: 50%;
-    background: var(--green);
-    vertical-align: middle;
+  /* No side stripe: success and error are tinted green and red. */
+  .toast.success {
+    --tint: var(--green);
   }
-  .toast.error .text::before {
-    background: var(--red);
+  .toast.error {
+    --tint: var(--red);
+  }
+  .toast.success,
+  .toast.error {
+    background: color-mix(in srgb, var(--tint) 18%, color-mix(in srgb, var(--elevated) 78%, transparent));
+    border-color: color-mix(in srgb, var(--tint) 45%, var(--border-strong));
   }
   @keyframes in {
     from {
@@ -117,6 +114,10 @@
     .toast {
       background: var(--elevated);
       backdrop-filter: none;
+    }
+    .toast.success,
+    .toast.error {
+      background: color-mix(in srgb, var(--tint) 18%, var(--elevated));
     }
   }
 </style>
