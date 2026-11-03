@@ -176,11 +176,25 @@ pub async fn twitch_sets(
 /// are read again when asked for) and tells the pages (`emotes:mine-changed`), so an open
 /// menu reads again; the same list again sends nothing.
 pub async fn refresh_diff(app: &AppHandle, account: &str, channel_id: &str) -> Result<Vec<gql::TwitchEmote>, String> {
-    let before = {
-        let state = app.state::<Emotes>();
-        let inner = state.lock();
-        known_ids(&inner.twitch_sets, account, channel_id)
-    };
+    let before = known(app, account, channel_id);
+    refresh_diff_from(app, account, channel_id, before).await
+}
+
+/// V108-C35g The baseline `refresh_diff` would take now. A hype train takes it at its end,
+/// so a menu read in the 5 s before the card's look can't become the baseline.
+pub fn known(app: &AppHandle, account: &str, channel_id: &str) -> Option<Baseline> {
+    let state = app.state::<Emotes>();
+    let inner = state.lock();
+    known_ids(&inner.twitch_sets, account, channel_id)
+}
+
+/// V108-C35g `refresh_diff` against a baseline taken earlier with `known`.
+pub async fn refresh_diff_from(
+    app: &AppHandle,
+    account: &str,
+    channel_id: &str,
+    before: Option<Baseline>,
+) -> Result<Vec<gql::TwitchEmote>, String> {
     let sets = twitch_sets(app, account, channel_id, true).await?;
     let (added, changed) = diff(before.as_ref(), &sets);
     if changed {
@@ -196,13 +210,16 @@ pub async fn refresh_diff(app: &AppHandle, account: &str, channel_id: &str) -> R
 
 const MINE_CHANGED: &str = "emotes:mine-changed";
 
+/// Whether the ids are of the same channel, and the ids (see `known_ids`).
+pub type Baseline = (bool, HashSet<String>);
+
 /// V108-C35 The emote ids of the account's last read in `channel_id`, else of all its
 /// channels; `None` when there is none. Ids are by emote, not set.
 fn known_ids(
     kept: &HashMap<(String, String), (Instant, super::TwitchSets)>,
     account: &str,
     channel_id: &str,
-) -> Option<(bool, HashSet<String>)> {
+) -> Option<Baseline> {
     let ids = |s: &super::TwitchSets| s.iter().flat_map(|s| s.emotes.iter().map(|e| e.id.clone())).collect::<Vec<_>>();
     if let Some((_, s)) = kept.get(&(account.to_owned(), channel_id.to_owned())) {
         return Some((true, ids(s).into_iter().collect()));
@@ -213,7 +230,7 @@ fn known_ids(
 
 /// V108-C35 What came in, and whether the list changed: an emote came, or (against the same
 /// channel) one went.
-fn diff(before: Option<&(bool, HashSet<String>)>, sets: &[TwitchSet]) -> (Vec<gql::TwitchEmote>, bool) {
+fn diff(before: Option<&Baseline>, sets: &[TwitchSet]) -> (Vec<gql::TwitchEmote>, bool) {
     let Some((same, before)) = before else { return (Vec::new(), false) };
     let mut seen = HashSet::new();
     let added: Vec<gql::TwitchEmote> = sets
@@ -408,6 +425,23 @@ mod tests {
         assert_eq!(diff(Some(&same), &old), (Vec::new(), true));
         // But one channel lacking another's emote is not.
         assert_eq!(diff(Some(&other), &old), (Vec::new(), false));
+    }
+
+    #[test]
+    fn v108_c35g_a_baseline_taken_earlier_outlives_a_refresh() {
+        let mut old = sets();
+        old[0].emotes.truncate(1);
+        let mut kept = HashMap::new();
+        kept.insert(("me".to_owned(), "1".to_owned()), (Instant::now(), Arc::new(old)));
+        let baseline = known_ids(&kept, "me", "1").unwrap();
+        // Something else (the menu) reads the new list into the cache meanwhile.
+        kept.insert(("me".to_owned(), "1".to_owned()), (Instant::now(), Arc::new(sets())));
+        let live = known_ids(&kept, "me", "1").unwrap();
+        // The live cache as baseline finds nothing; the one taken earlier finds the emote.
+        assert_eq!(diff(Some(&live), &sets()), (Vec::new(), false));
+        let (added, changed) = diff(Some(&baseline), &sets());
+        assert_eq!(added.iter().map(|e| e.name.as_str()).collect::<Vec<_>>(), [":)"]);
+        assert!(changed);
     }
 
     #[test]

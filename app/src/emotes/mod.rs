@@ -22,7 +22,7 @@ mod ttl;
 mod twitch_state;
 
 pub use card::{EmoteCard, card};
-pub use load::{refresh_diff, twitch_emote, twitch_sets};
+pub use load::{Baseline, known, refresh_diff, refresh_diff_from, twitch_emote, twitch_sets};
 pub use looks::{Worn, looks_for, wear};
 pub use own::refresh as refresh_own_look;
 pub use ffz_watch::after_reconnect as ffz_after_reconnect;

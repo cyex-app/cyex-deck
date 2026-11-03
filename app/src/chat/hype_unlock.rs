@@ -22,6 +22,8 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use ts_rs::TS;
 
+use crate::emotes::Baseline;
+
 use super::{Chat, Identity};
 
 const EVENT: &str = "chat:hype-unlock";
@@ -128,8 +130,11 @@ pub fn on_end(app: &AppHandle, channel_id: &str, train: &str) {
         if eligible == Some(false) {
             continue;
         }
+        // V108-C35g The baseline is taken now: a menu or points read in the 5 s before the
+        // look would otherwise become it and hide the new emotes.
+        let before = crate::emotes::known(app, &account, channel_id);
         let (app, channel_id) = (app.clone(), channel_id.to_owned());
-        tauri::async_runtime::spawn(async move { look(app, account, channel_id, eligible == Some(true)).await });
+        tauri::async_runtime::spawn(async move { look(app, account, channel_id, eligible == Some(true), before).await });
     }
 }
 
@@ -152,18 +157,24 @@ fn readers(app: &AppHandle, channel_id: &str) -> Vec<String> {
     out
 }
 
-async fn look(app: AppHandle, account: String, channel_id: String, eligible: bool) {
+async fn look(app: AppHandle, account: String, channel_id: String, eligible: bool, before: Option<Baseline>) {
     tokio::time::sleep(FIRST_LOOK).await;
-    let mut found = fresh(&app, &account, &channel_id, eligible).await;
+    let mut found = fresh(&app, &account, &channel_id, eligible, Some(before)).await;
     if found.is_empty() && eligible {
         tokio::time::sleep(SECOND_LOOK).await;
-        found = fresh(&app, &account, &channel_id, eligible).await;
+        // The first read is the baseline now.
+        found = fresh(&app, &account, &channel_id, eligible, None).await;
     }
     show(&app, &account, &channel_id, found);
 }
 
-async fn fresh(app: &AppHandle, account: &str, channel_id: &str, eligible: bool) -> Vec<Emote> {
-    match crate::emotes::refresh_diff(app, account, channel_id).await {
+/// `before`: a baseline taken earlier (`Some`), or `None` for the cache as it is now.
+async fn fresh(app: &AppHandle, account: &str, channel_id: &str, eligible: bool, before: Option<Option<Baseline>>) -> Vec<Emote> {
+    let read = match before {
+        Some(before) => crate::emotes::refresh_diff_from(app, account, channel_id, before).await,
+        None => crate::emotes::refresh_diff(app, account, channel_id).await,
+    };
+    match read {
         Ok(added) => picked(&added, eligible).into_iter().map(crate::emotes::twitch_emote).collect(),
         Err(e) => {
             eprintln!("hype train: no emote list for {account}: {e}");
