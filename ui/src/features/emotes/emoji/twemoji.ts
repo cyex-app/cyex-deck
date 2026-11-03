@@ -4,7 +4,8 @@
 
 /** Pinned, so a package update never moves the pictures. */
 export const TWEMOJI_VERSION = '15.1.2';
-const BASE = `https://cdn.jsdelivr.net/npm/emoji-datasource-twitter@${TWEMOJI_VERSION}/img/twitter/64/`;
+/** V108-F50 The 64 px set ships with the app (ui/public/twemoji, licence there): no CDN. */
+const BASE = '/twemoji/64/';
 
 const VS16 = 0xfe0f;
 const PICTO = /^\p{Extended_Pictographic}$/u;

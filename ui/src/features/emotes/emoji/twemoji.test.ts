@@ -38,7 +38,7 @@ test('flags', () => {
   assert.equal(twemojiName('🇩🇪'), '1f1e9-1f1ea');
 });
 
-test('url is pinned and empty text has none', () => {
-  assert.match(twemojiUrl('😀')!, /emoji-datasource-twitter@\d+\.\d+\.\d+\/img\/twitter\/64\/1f600\.png$/);
+test('url is the bundled picture and empty text has none', () => {
+  assert.equal(twemojiUrl('😀'), '/twemoji/64/1f600.png');
   assert.equal(twemojiUrl(''), null);
 });
