@@ -528,7 +528,19 @@
       rotate: 1turn;
     }
   }
-  .history {
+  /* V108-F48c Dark theme: history lines fade by colour, not by 0.55 opacity over the whole
+     line (notice text 3,4:1, system notices 2,9:1, /me lines 2,4:1). Text is --text 60 % over
+     --bg (#e8e8ea on #1e1f23 gives #97989a, 5,7:1; 5,2:1 on --row-hover). Pictures keep the
+     opacity. A /me line keeps its name colour, which is held to 4,5:1 (C8). Timestamp and name
+     stay clear like in light (F48). */
+  .history .body,
+  .history .notice-text {
+    color: color-mix(in srgb, var(--text) 60%, var(--bg));
+  }
+  .history .body.action {
+    color: var(--cd);
+  }
+  .history .body :global(img) {
     opacity: 0.55;
   }
   .del-strike .body {
@@ -567,9 +579,6 @@
   }
   /* V108-F22 Light theme: dimmed and highlighted lines keep 4.5:1 text (S2b-03). */
   /* V108-F48 Only the message text fades: timestamp and name keep full contrast (Q-R02). */
-  :global(:root[data-theme='light']) .history {
-    opacity: 1;
-  }
   /* V108-F48b Faded by colour, not opacity: --text 70 % over --bg (#1b1c20 on #f3f3f4 gives
      #5c5d60, 6,0:1; the old --muted at 0.8 opacity read 3,2:1). Pictures fade on their own;
      sub, gift, raid, announcement and moderation lines fade the same way. */
