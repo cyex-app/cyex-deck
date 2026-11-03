@@ -7,4 +7,8 @@ export type UnbanRequest = { id: string, userId: string, login: string, display:
 /**
  * RFC 3339.
  */
-createdAt: string, };
+createdAt: string, 
+/**
+ * V108-C36b The requester's picture, for the list. None from Helix.
+ */
+avatar: string | null, };

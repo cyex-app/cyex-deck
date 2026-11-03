@@ -51,6 +51,7 @@ pub async fn unban_requests(app: &AppHandle, account: &str, login: &str) -> Resu
                 display: r.user_name,
                 text: r.text,
                 created_at: r.created_at,
+                avatar: None,
             })
             .collect());
     }

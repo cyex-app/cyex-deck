@@ -416,11 +416,13 @@ pub struct UnbanRequest {
     pub text: String,
     /// RFC 3339.
     pub created_at: String,
+    /// V108-C36b The requester's picture, for the list. None from Helix.
+    pub avatar: Option<String>,
 }
 
 const UNBAN_QUEUE: &str = "query Q($name: String!) {
   channel(name: $name) { unbanRequests(first: 50, options: { order: NEWEST, status: PENDING }) {
-    edges { node { id createdAt requesterMessage requester { id login displayName } } }
+    edges { node { id createdAt requesterMessage requester { id login displayName profileImageURL(width: 70) } } }
   } }
 }";
 
@@ -444,6 +446,7 @@ pub async fn unban_requests(http: &Http, auth: Auth<'_>, name: &str) -> Result<V
                 display: r.get("displayName").and_then(Value::as_str).unwrap_or_default().to_owned(),
                 text: n.get("requesterMessage").and_then(Value::as_str).unwrap_or_default().to_owned(),
                 created_at: n.get("createdAt").and_then(Value::as_str).unwrap_or_default().to_owned(),
+                avatar: r.get("profileImageURL").and_then(Value::as_str).filter(|s| !s.is_empty()).map(str::to_owned),
             })
         })
         .collect())

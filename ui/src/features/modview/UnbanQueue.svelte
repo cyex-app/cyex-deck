@@ -155,7 +155,7 @@
                 aria-current={split && selected === r.id ? 'true' : undefined}
                 onclick={() => pick(r.id)}
               >
-                <Avatar src={null} name={r.display || r.login} size={32} />
+                <Avatar src={r.avatar} name={r.display || r.login} size={32} />
                 <span class="who">
                   <span class="name"><bdi>{r.display || r.login}</bdi></span>
                   <span class="last">
