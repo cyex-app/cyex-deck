@@ -187,6 +187,12 @@ class TabsStore {
       .map((t) => t.id);
   }
 
+  /** V108-F42 Another stream of the tile's tab has the sound, so a press on it moves the sound here. */
+  soundElsewhere(tileId: string): boolean {
+    const tab = this.tabOf(tileId);
+    return !!tab && this.focusHushed(tab, tileId);
+  }
+
   /** V108-N13 Another stream in the tab has the sound (a tile's own mute and volume stay as set). */
   focusHushed(tab: Tab, tileId: string): boolean {
     return audioFocus.hushed(tab.id, tileId, streamIds(tab), this.liveStreamIds(tab));

@@ -46,6 +46,7 @@
   import { STALL_TEXT } from './stall';
   import { recheckDelay } from './recheck';
   import { onShown, pageHidden } from '../../lib/awake';
+  import { tabs } from '../tabs/tabs.svelte';
 
   interface Props {
     tile: Tile;
@@ -468,7 +469,7 @@
   {onclickcapture}
 >
   <!-- V108-F42 A press on a tile that is hushed only moves the sound here (TileView pick): the tile that has it pauses. -->
-  <Shell bind:this={shell} {controls} {menu} press={!mini && !hushed} pinned={!engine?.playing} onvolume={(s) => sound.step(s)}>
+  <Shell bind:this={shell} {controls} {menu} press={!mini && !hushed && !(tile && tabs.soundElsewhere(tile.id))} pinned={!engine?.playing} onvolume={(s) => sound.step(s)}>
     <video
       bind:this={video}
       playsinline

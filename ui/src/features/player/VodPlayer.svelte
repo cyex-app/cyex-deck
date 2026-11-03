@@ -35,6 +35,7 @@
   import Loading from '../../components/Loading.svelte';
   import { layer } from '../../lib/escape';
   import PipNotice from './PipNotice.svelte';
+  import { tabs } from '../tabs/tabs.svelte';
 
   interface Props {
     id: string;
@@ -256,7 +257,7 @@
 
 <div class="vod {mini ? corner : ''}" class:mini class:held class:listing>
   <!-- V108-F42 As in LivePlayer: a hushed tile's press only moves the sound. -->
-  <Shell bind:this={shell} {controls} {menu} press={!hushed} pinned={!engine?.playing && !mini} onvolume={(s) => sound.step(s)}>
+  <Shell bind:this={shell} {controls} {menu} press={!hushed && !(tile && tabs.soundElsewhere(tile.id))} pinned={!engine?.playing && !mini} onvolume={(s) => sound.step(s)}>
     <video
       bind:this={video}
       playsinline
