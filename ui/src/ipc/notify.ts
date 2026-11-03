@@ -53,4 +53,6 @@ export const notifyEvents = {
   onCard: (cb: (c: NoticeCard) => void): Promise<UnlistenFn> => listen<NoticeCard>('notify:card', (e) => cb(e.payload)),
   /** Asks the main window to open something, as a toast click does. */
   open: (o: NotifyOpen) => emitTo('main', 'notify:open', o),
+  /** V108-C39 Brings the main window to the front (it may be minimised or in the tray). */
+  focusMain: () => invoke<void>('notify_focus_main'),
 };

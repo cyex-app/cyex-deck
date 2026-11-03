@@ -44,7 +44,8 @@
   import TabView from '../features/tabs/TabView.svelte';
   import UpdateBadge from '../features/update/UpdateBadge.svelte';
   import { openTarget, playerHotkeys } from '../features/player/players.svelte';
-  import { openChannel } from '../features/browse/open.svelte';
+  import { type OpenHow, openChannel } from '../features/browse/open.svelte';
+  import { tabHolding } from '../components/noticeActions';
   import { barPlace, sideBarWidth } from '../features/tabs/barLayout';
   import { moveSlot, stepTab } from '../features/tabs/cycle';
   import { heldAfterStart, nextHeld, playingNow } from '../features/tabs/hold';
@@ -308,6 +309,8 @@
   $effect(() => {
     const open = notifyEvents.onOpen((o) => {
       if (o.kind === 'channel') void openLogin(o.login);
+      else if (o.kind === 'tab') goToTab(o.login); // V108-C39
+      else if (o.kind === 'background') void openLogin(o.login, { background: true });
       else if (o.kind === 'whisper') whispers.show(o.login);
       else if (o.kind === 'room') void popOut(roomRoute(o.login, null), `${o.login} chat`);
       else if (o.kind === 'drops') (canMine ? show('miner') : gate.ask('gql')); // V108-C37
@@ -435,12 +438,19 @@
     if (current && slot) void tabs.apply({ op: 'move', tab: current, ...slot });
   }
 
+  /** V108-C39 Switches to the tab that shows a channel; a new one if it closed since the card. */
+  function goToTab(login: string) {
+    const id = tabHolding(tabs.list.map((t) => ({ id: t.id, logins: tiles(t).map((x) => x.channel.login) })), login);
+    if (id) open(id);
+    else void openLogin(login);
+  }
+
   /** Opens a channel by login, as a tab of its own. */
-  async function openLogin(login: string) {
+  async function openLogin(login: string, how: OpenHow = {}) {
     try {
       const c = (await tabsIpc.lookup(login)).find((x) => x.login === login.toLowerCase());
       if (!c) return toast.error(`No channel called ${login}.`);
-      await openChannel({ show: open, account: () => accounts.current?.userId ?? null }, c);
+      await openChannel({ show: open, account: () => accounts.current?.userId ?? null }, c, how);
     } catch (e) {
       toast.error(errorText(e, 'open that channel'));
     }

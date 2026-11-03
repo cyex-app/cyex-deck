@@ -6,7 +6,10 @@
   import { cards } from '../lib/noticeCards.svelte';
   import { streamer } from '../lib/streamer.svelte';
   import { notifyEvents } from '../ipc/notify';
+  import { tabs, tiles } from '../features/tabs/tabs.svelte';
   import Avatar from './Avatar.svelte';
+  import Button from './Button.svelte';
+  import { type CardAction, cardAction } from './noticeActions';
   import Icon from './Icon.svelte';
 
   // V108-C37 Listens here, so the main window draws them and nothing else does.
@@ -20,6 +23,15 @@
     if (streamer.hides('noNotifications')) untrack(() => cards.items.map((c) => c.id)).forEach((id) => cards.dismiss(id));
   });
 
+  // V108-C39 Read at draw time, so the button is right if a tab opened or closed meanwhile.
+  const tabRefs = $derived(tabs.list.map((t) => ({ id: t.id, logins: tiles(t).map((x) => x.channel.login) })));
+
+  function press(id: number, a: CardAction) {
+    cards.dismiss(id);
+    if (a.raise) void notifyEvents.focusMain();
+    void notifyEvents.open(a.open);
+  }
+
   function act(id: number) {
     const c = cards.items.find((x) => x.id === id);
     cards.dismiss(id);
@@ -31,6 +43,7 @@
      focus holds a card; C37d it lets go only when neither the pointer nor focus is on it. Separate from the centre toasts. -->
 <div class="stack" role="region" aria-label="Notifications">
   {#each cards.items as c (c.id)}
+    {@const a = cardAction(c.kind, c.open, tabRefs)}
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions (hover and focus hold it; Escape from its buttons closes it) -->
     <div
       class="card {c.kind}"
@@ -53,6 +66,9 @@
         </span>
       </button>
       <button class="x" aria-label="Close" onclick={() => cards.dismiss(c.id)}><Icon name="x" size={10} /></button>
+      {#if a}
+        <div class="actions"><Button small onclick={() => press(c.id, a)}>{a.label}</Button></div>
+      {/if}
     </div>
   {/each}
 </div>
@@ -72,7 +88,7 @@
   .card {
     position: relative;
     display: flex;
-    align-items: stretch;
+    flex-direction: column;
     background: color-mix(in srgb, var(--elevated) 82%, transparent);
     backdrop-filter: blur(14px) saturate(1.2);
     border: 1px solid var(--border-strong);
@@ -114,6 +130,11 @@
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+  }
+  /* V108-C39 Under the text, level with it; a sibling of the body so a press never opens the card. */
+  .actions {
+    display: flex;
+    padding: 0 10px 9px 52px;
   }
   .x {
     position: absolute;
