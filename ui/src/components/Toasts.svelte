@@ -52,7 +52,6 @@
     background: color-mix(in srgb, var(--elevated) 78%, transparent);
     backdrop-filter: blur(14px) saturate(1.2);
     border: 1px solid var(--border-strong);
-    border-left: 3px solid var(--accent-line);
     border-radius: var(--radius);
     box-shadow: var(--shadow-pop);
     font-size: 0.85rem;
@@ -92,11 +91,20 @@
     font-weight: 600;
     font-variant-numeric: tabular-nums;
   }
-  .toast.success {
-    border-left-color: var(--green);
+  /* No side stripe: success and error get a small dot before the text. */
+  .toast.success .text::before,
+  .toast.error .text::before {
+    content: '';
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin: 0 8px 1px 0;
+    border-radius: 50%;
+    background: var(--green);
+    vertical-align: middle;
   }
-  .toast.error {
-    border-left-color: var(--red);
+  .toast.error .text::before {
+    background: var(--red);
   }
   @keyframes in {
     from {

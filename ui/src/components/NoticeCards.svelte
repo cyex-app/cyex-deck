@@ -67,17 +67,10 @@
     background: color-mix(in srgb, var(--elevated) 82%, transparent);
     backdrop-filter: blur(14px) saturate(1.2);
     border: 1px solid var(--border-strong);
-    border-left: 3px solid var(--accent-line);
     border-radius: var(--radius);
     box-shadow: var(--shadow-pop);
     font-size: 0.85rem;
     pointer-events: auto;
-  }
-  .card.drop {
-    border-left-color: var(--green);
-  }
-  .card.badge {
-    border-left-color: var(--yellow);
   }
   .body {
     flex: 1;

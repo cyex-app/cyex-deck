@@ -261,7 +261,6 @@
   }
   .req.on {
     background: var(--accent-dim);
-    box-shadow: inset 2px 0 0 var(--accent);
   }
   .req:focus-visible {
     outline: 2px solid var(--focus-ring);
