@@ -103,6 +103,12 @@
     background: color-mix(in srgb, var(--tint) 18%, color-mix(in srgb, var(--elevated) 78%, transparent));
     border-color: color-mix(in srgb, var(--tint) 45%, var(--border-strong));
   }
+  /* The accent on a red or green tint falls under 4.5:1; the action reads in text colour there. */
+  .toast.success .act,
+  .toast.error .act {
+    color: var(--text);
+    border-left-color: color-mix(in srgb, var(--tint) 35%, var(--border));
+  }
   @keyframes in {
     from {
       opacity: 0;

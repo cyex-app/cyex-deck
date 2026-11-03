@@ -55,6 +55,6 @@ export const STREAMING: Entry[] = [
   hide('hideAvatars', 'Hide profile pictures', 'Blurred on usercards until you click them.'),
   hide('hideModActions', 'Hide mod actions', 'Timeouts, bans and deleted messages.'),
   hide('hideWhispers', 'Hide whispers', 'In chat, and their pop-ups and sounds.'),
-  hide('noNotifications', 'No Windows notifications', 'Live alerts, whispers and the bell.'),
+  hide('noNotifications', 'No notifications', 'Windows pop-ups and cards in the app: live, drops, badges, whispers, the bell.'),
   hide('muteSounds', 'Mute alerts', 'Mentions, highlights and whispers.'),
 ];

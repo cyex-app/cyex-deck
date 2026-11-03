@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { flip } from 'svelte/animate';
   import { fly } from 'svelte/transition';
   import { BASE, FAST, reduced } from '../lib/motion';
   import { cards } from '../lib/noticeCards.svelte';
+  import { streamer } from '../lib/streamer.svelte';
   import { notifyEvents } from '../ipc/notify';
   import Avatar from './Avatar.svelte';
   import Icon from './Icon.svelte';
@@ -11,6 +13,11 @@
   $effect(() => {
     const off = notifyEvents.onCard((c) => cards.push(c));
     return () => void off.then((f) => f());
+  });
+
+  // V108-C37e Streamer mode coming on takes the cards already up off the screen too.
+  $effect(() => {
+    if (streamer.hides('noNotifications')) untrack(() => cards.items.map((c) => c.id)).forEach((id) => cards.dismiss(id));
   });
 
   function act(id: number) {
@@ -24,7 +31,7 @@
      focus holds a card; C37d it lets go only when neither the pointer nor focus is on it. Separate from the centre toasts. -->
 <div class="stack" role="region" aria-label="Notifications">
   {#each cards.items as c (c.id)}
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions (hover and focus hold it; Escape from its buttons closes it) -->
     <div
       class="card {c.kind}"
       role="status"
@@ -35,12 +42,14 @@
       onmouseleave={(e) => !e.currentTarget.contains(document.activeElement) && cards.release(c.id)}
       onfocusin={() => cards.hold(c.id)}
       onfocusout={(e) => !e.currentTarget.matches(':hover') && !e.currentTarget.contains(e.relatedTarget as Node | null) && cards.release(c.id)}
+      onkeydown={(e) => e.key === 'Escape' && cards.dismiss(c.id)}
     >
-      <button class="body" onclick={() => act(c.id)}>
+      <button class="body" title={c.text || undefined} onclick={() => act(c.id)}>
         <Avatar src={c.image} name={c.title} size={32} />
         <span class="words">
           <span class="title">{c.title}</span>
-          {#if c.text}<span class="text">{c.text}</span>{/if}
+          <!-- V108-C37e One line each: the go-live message (or title), then the game. -->
+          {#each c.text.split('\n').filter(Boolean).slice(0, 2) as line, i (i)}<span class="text">{line}</span>{/each}
         </span>
       </button>
       <button class="x" aria-label="Close" onclick={() => cards.dismiss(c.id)}><Icon name="x" size={10} /></button>

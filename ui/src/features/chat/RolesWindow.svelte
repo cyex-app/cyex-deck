@@ -173,7 +173,7 @@
           <div class="row" class:busy={busy[p.login]}>
             <button class="who" onclick={() => open(p.login)}>
               <Avatar src={p.avatar} name={p.display} size={22} />
-              <span class="name">{p.display}{#if p.display.toLowerCase() !== p.login}{' '}<span class="login">({p.login})</span>{/if}</span>
+              <span class="name" title={p.display.toLowerCase() !== p.login ? `${p.display} (${p.login})` : p.display}>{p.display}{#if p.display.toLowerCase() !== p.login}{' '}<span class="login">({p.login})</span>{/if}</span>
               {#if p.grantedAt}<When at={p.grantedAt} day />{/if}
             </button>
             {#if own}

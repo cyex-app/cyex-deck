@@ -23,7 +23,7 @@
     { key: 'hideAvatars', label: 'Profile pictures', hint: 'Blurred on usercards until you click them.' },
     { key: 'hideModActions', label: 'Mod actions', hint: 'Timeouts, bans and deleted messages.' },
     { key: 'hideWhispers', label: 'Whispers', hint: 'In chat, and their pop-ups and sounds.' },
-    { key: 'noNotifications', label: 'Windows notifications', hint: 'Live alerts, whispers and the bell.' },
+    { key: 'noNotifications', label: 'Notifications', hint: 'Windows pop-ups and cards in the app: live, drops, badges, whispers, the bell.' },
     { key: 'muteSounds', label: 'Sounds', hint: 'Mentions, highlights and whispers.' },
   ];
 
