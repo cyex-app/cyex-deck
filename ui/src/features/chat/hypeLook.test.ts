@@ -8,7 +8,7 @@ test('V108-C35b a Golden Kappa train is gold, every other one pastel', () => {
   assert.equal(lookOf({ goldenKappa: false }), 'pastel');
   assert.equal(lookOf(null), 'pastel');
   assert.ok(gradient('gold').includes(PALETTE.gold[0]) && gradient('gold').includes(PALETTE.gold[2]));
-  assert.ok(gradient('pastel').startsWith('linear-gradient(90deg, #ffbfa3'));
+  assert.ok(gradient('pastel').startsWith('linear-gradient(90deg, var(--hype-pastel-1)'));
   assert.notEqual(gradient('gold'), gradient('pastel'));
 });
 

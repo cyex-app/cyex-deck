@@ -158,11 +158,11 @@
     color: var(--text);
     text-align: center;
     animation: rise var(--base) var(--ease);
-    --glow: #b8a6ff;
+    --glow: var(--hype-glow);
   }
   .unlock.gold {
-    border-color: color-mix(in srgb, #e2a640 60%, var(--border-strong));
-    --glow: #f4c55a;
+    border-color: color-mix(in srgb, var(--hype-gold) 60%, var(--border-strong));
+    --glow: var(--hype-glow-gold);
   }
   @keyframes rise {
     from {

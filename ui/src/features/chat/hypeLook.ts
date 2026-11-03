@@ -7,16 +7,20 @@ export const GOLDEN_KAPPA_ID = '80393';
 
 export type Look = 'pastel' | 'gold';
 
+// V108-C35i The colours live in tokens.css (--hype-*); these are var() references (the
+// uses are inline styles, not canvas), so no hex is kept here.
+const hv = (name: string, n: number) => `var(--hype-${name}-${n})`;
+
 /** Three stops, left to right. The bar shows them washed out (see HypeTrain.svelte). */
 export const PALETTE: Record<Look, readonly [string, string, string]> = {
-  pastel: ['#ffbfa3', '#f5a9cf', '#b8a6ff'],
-  gold: ['#ffe08a', '#f4c55a', '#e2a640'],
+  pastel: [hv('pastel', 1), hv('pastel', 2), hv('pastel', 3)],
+  gold: [hv('gold', 1), hv('gold', 2), hv('gold', 3)],
 };
 
 /** Sparkles are drawn at full strength, so they read on the washed fill. */
 const SPARK: Record<Look, readonly string[]> = {
-  pastel: ['#ffb08f', '#f58fc2', '#a48dff', '#ffd3a8'],
-  gold: ['#ffd75e', '#f4b942', '#fff1b8', '#e8a12e'],
+  pastel: [1, 2, 3, 4].map((n) => hv('spark-pastel', n)),
+  gold: [1, 2, 3, 4].map((n) => hv('spark-gold', n)),
 };
 
 export function lookOf(t: { goldenKappa: boolean } | null | undefined): Look {

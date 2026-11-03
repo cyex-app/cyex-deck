@@ -315,17 +315,16 @@
     color: var(--text);
     /* The washed fill: weak on dark so --text reads, stronger on light. */
     --wash: 0.3;
-    --sheen: rgb(255 255 255 / 0.28);
+    --sheen: var(--hype-sheen);
     --drain: color-mix(in srgb, var(--text) 45%, transparent);
   }
   :global(:root[data-theme='light']) .hype,
   :global(.theme-light) .hype {
     --wash: 0.6;
-    --sheen: rgb(255 255 255 / 0.75);
   }
   .hype.gold {
-    border-color: color-mix(in srgb, #e2a640 55%, var(--border));
-    --drain: #e2a640;
+    border-color: color-mix(in srgb, var(--hype-gold) 55%, var(--border));
+    --drain: var(--hype-gold);
   }
   /* V108-C35b Fill, sheen and timer, clipped to the bar's corners; the sparkles may leave it. */
   .bg {
@@ -471,7 +470,7 @@
     animation: flash 0.9s ease-out;
   }
   .gold .flash {
-    background: color-mix(in srgb, #e2a640 26%, transparent);
+    background: color-mix(in srgb, var(--hype-gold) 26%, transparent);
   }
   @keyframes flash {
     15% {

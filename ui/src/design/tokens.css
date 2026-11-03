@@ -105,6 +105,27 @@
   --twitch-logo: #9146ff;
   /* V107-Mu Thin dark edge for pale pictures (badges, cheermotes); none in dark. */
   --edge-pale: none;
+  /* V108-C35i Hype train: the bar's washed fill (three stops, left to right), the same in both
+     themes; gold is the Golden Kappa train. Sparkles are drawn at full strength. */
+  --hype-pastel-1: #ffbfa3;
+  --hype-pastel-2: #f5a9cf;
+  --hype-pastel-3: #b8a6ff;
+  --hype-gold-1: #ffe08a;
+  --hype-gold-2: #f4c55a;
+  --hype-gold-3: #e2a640;
+  --hype-spark-pastel-1: #ffb08f;
+  --hype-spark-pastel-2: #f58fc2;
+  --hype-spark-pastel-3: #a48dff;
+  --hype-spark-pastel-4: #ffd3a8;
+  --hype-spark-gold-1: #ffd75e;
+  --hype-spark-gold-2: #f4b942;
+  --hype-spark-gold-3: #fff1b8;
+  --hype-spark-gold-4: #e8a12e;
+  /* Gold accents (border, timer line, flash) and the unlock card's glow. */
+  --hype-gold: #e2a640;
+  --hype-glow: #b8a6ff;
+  --hype-glow-gold: #f4c55a;
+  --hype-sheen: rgb(255 255 255 / 0.28);
 }
 .pale-edge {
   filter: var(--edge-pale);
@@ -114,6 +135,7 @@
 .theme-light {
   color-scheme: light;
   --edge-pale: drop-shadow(0 0 1px rgb(0 0 0 / 0.7)) drop-shadow(0 0 0.5px rgb(0 0 0 / 0.5));
+  --hype-sheen: rgb(255 255 255 / 0.75);
   --bg: #f3f3f4;
   --surface: #ffffff;
   --surface-hover: #f6f6f7;
