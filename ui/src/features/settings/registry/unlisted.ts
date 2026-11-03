@@ -39,6 +39,7 @@ export const UNLISTED: Record<string, string> = {
   'streammanager.alertBox': 'Turned on in the stream manager.',
   'streammanager.chat': 'The chat beside the stream manager.',
   'streammanager.chatKept': 'The stream manager’s chat shown or hidden by hand.',
+  'streammanager.hiddenStats': 'Stream card numbers hidden by a click in the stream manager.',
   'streammanager.layout': 'The stream manager’s panels as you arrange them.',
   'streammanager.locked': 'Locked and unlocked in the stream manager.',
   'streammanager.modActions': 'The mod actions filter in the stream manager.',

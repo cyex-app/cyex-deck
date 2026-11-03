@@ -29,6 +29,9 @@ pub struct StreamManager {
     /// until "Reset layout". `None` follows your channel's regular chat.
     #[ts(optional = nullable)]
     pub chat_kept: Option<bool>,
+    /// V108-C38 The Stream card's numbers hidden by a click (`viewers`, `uptime`, `followers`,
+    /// `subs`, `subPoints`), like Twitch's stream manager. Empty until one is hidden.
+    pub hidden_stats: Vec<String>,
 }
 
 impl Default for StreamManager {
@@ -42,6 +45,7 @@ impl Default for StreamManager {
             locked: true,
             mod_actions: ModActionFilters::default(),
             chat_kept: None,
+            hidden_stats: Vec::new(),
         }
     }
 }
@@ -153,11 +157,22 @@ pub struct Obs {
     pub folder: String,
 }
 
+/// V108-C38 The stats on the Stream card that can be hidden.
+const STAT_IDS: [&str; 5] = ["viewers", "uptime", "followers", "subs", "subPoints"];
+
 impl Schema for StreamManager {
     fn sanitize(&mut self) {
         let share = self.chat.share;
         self.chat.share = if share.is_finite() { share.clamp(0.15, 0.85) } else { ManagerChat::default().share };
         self.layout = sanitize_panels(self.layout.take());
+        // V108-C38 Only the known stats, each once.
+        let mut seen: Vec<String> = Vec::new();
+        for id in std::mem::take(&mut self.hidden_stats) {
+            if STAT_IDS.contains(&id.as_str()) && !seen.contains(&id) {
+                seen.push(id);
+            }
+        }
+        self.hidden_stats = seen;
     }
 }
 
@@ -194,5 +209,14 @@ mod tests {
         assert_eq!(kept.chat_kept, Some(false));
         let f: ModActionFilters = serde_json::from_str(r#"{"bans":false}"#).unwrap();
         assert!(!f.bans && f.timeouts && f.automod && f.other);
+    }
+
+    #[test]
+    fn hidden_stats_keep_known_ids_once() {
+        // V108-C38
+        let mut sm: StreamManager = serde_json::from_str(r#"{"hiddenStats":["subs","bogus","subs","viewers"]}"#).unwrap();
+        sm.sanitize();
+        assert_eq!(sm.hidden_stats, ["subs", "viewers"]);
+        assert!(StreamManager::default().hidden_stats.is_empty());
     }
 }

@@ -43,4 +43,9 @@ modActions: ModActionFilters,
  * V103-22 The chat panel brought back (`true`) or closed (`false`) by hand: it stays so
  * until "Reset layout". `None` follows your channel's regular chat.
  */
-chatKept?: boolean | null, };
+chatKept?: boolean | null, 
+/**
+ * V108-C38 The Stream card's numbers hidden by a click (`viewers`, `uptime`, `followers`,
+ * `subs`, `subPoints`), like Twitch's stream manager. Empty until one is hidden.
+ */
+hiddenStats: Array<string>, };
