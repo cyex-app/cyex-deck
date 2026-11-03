@@ -87,3 +87,31 @@ export function banLine(ban: { by: string | null; until: string | null }, name: 
   const by = ban.by?.trim();
   return by && !hidden ? `${by} ${what} ${name}` : `${name} was ${what}`;
 }
+
+/** V108-C36e "1 year 3 months" from `since` to `now`; "under a month" below one. */
+export function spanText(since: Date, now: Date): string {
+  let m = (now.getFullYear() - since.getFullYear()) * 12 + now.getMonth() - since.getMonth();
+  if (now.getDate() < since.getDate()) m -= 1;
+  if (m < 1) return 'under a month';
+  const part = (n: number, w: string) => (n ? `${n} ${w}${n === 1 ? '' : 's'}` : '');
+  return [part(Math.floor(m / 12), 'year'), part(m % 12, 'month')].filter(Boolean).join(' ');
+}
+
+/** V108-C36e The facts row's follow cell. null: no account here may ask (the cell goes). */
+export function followCell(f: { known: boolean; since: string | null } | null | undefined, now: Date): string | null {
+  if (!f?.known) return null;
+  if (!f.since) return 'Not following';
+  const d = new Date(f.since);
+  return Number.isNaN(d.getTime()) ? null : spanText(d, now);
+}
+
+const TIER: Record<string, string> = { '1': 'Tier 1', '2': 'Tier 2', '3': 'Tier 3', prime: 'Prime' };
+
+/** V108-C36e The facts row's sub cell: "Tier 1 · 5 months", "Was 3 months", "Never", "Hidden". */
+export function subCell(s: { months: number; active: boolean; tier: string | null; gift: boolean; hidden: boolean } | null | undefined): string | null {
+  if (!s) return null;
+  if (s.hidden) return 'Hidden';
+  const months = `${formatNumber(s.months)} month${s.months === 1 ? '' : 's'}`;
+  if (s.active) return `${s.tier ? (TIER[s.tier] ?? s.tier) : 'Subbed'}${s.gift ? ' gift' : ''} · ${months}`;
+  return s.months ? `Was ${months}` : 'Never';
+}

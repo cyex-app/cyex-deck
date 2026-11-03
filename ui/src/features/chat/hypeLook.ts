@@ -103,7 +103,7 @@ export function sparks(kind: SparkKind, look: Look): Spark[] {
 /** V108-C35b The unlock card's lines for one emote. */
 export function unlockLines(e: { id: string; name: string }): { title: string; sub: string } {
   if (isGoldenKappa(e.id)) return { title: 'Golden Kappa unlocked', sub: 'Yours for 24 hours' };
-  return { title: 'Emote unlocked', sub: e.name };
+  return { title: 'Hype train emote unlocked', sub: `${e.name} · yours to keep` };
 }
 
 /** New emotes join the queue once; the one showing and those waiting aren't added again. */

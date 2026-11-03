@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { banLine, bannedBy, commentCount, isSplit, listMove, messageCount, nextAfter, orderRequests, statusText } from './unban.ts';
+import { banLine, bannedBy, commentCount, followCell, isSplit, listMove, messageCount, nextAfter, orderRequests, spanText, statusText, subCell } from './unban.ts';
 
 test('V108-C36 side by side only popped out and at least 480 px wide', () => {
   assert.equal(isSplit(true, 480), true);
@@ -73,4 +73,19 @@ test('V108-C36b the ban line names the mod unless hidden or unknown', () => {
   assert.equal(banLine({ by: 'Kuni', until: '2026-11-04T00:00:00Z' }, 'lumen_fox', false), 'Kuni timed out lumen_fox');
   assert.equal(banLine({ by: 'Kuni', until: null }, 'lumen_fox', true), 'lumen_fox was banned');
   assert.equal(banLine({ by: ' ', until: '2026-11-04T00:00:00Z' }, 'lumen_fox', false), 'lumen_fox was timed out');
+});
+
+test('V108-C36e follow and sub cells', () => {
+  const now = new Date(2026, 10, 3);
+  assert.equal(spanText(new Date(2025, 7, 1), now), '1 year 3 months');
+  assert.equal(spanText(new Date(2026, 10, 1), now), 'under a month');
+  assert.equal(followCell({ known: false, since: null }, now), null);
+  assert.equal(followCell({ known: true, since: null }, now), 'Not following');
+  assert.equal(followCell({ known: true, since: new Date(2026, 4, 3).toISOString() }, now), '6 months');
+  assert.equal(subCell(null), null);
+  assert.equal(subCell({ months: 5, active: true, tier: '1', gift: false, hidden: false }), 'Tier 1 · 5 months');
+  assert.equal(subCell({ months: 1, active: true, tier: 'prime', gift: true, hidden: false }), 'Prime gift · 1 month');
+  assert.equal(subCell({ months: 3, active: false, tier: null, gift: false, hidden: false }), 'Was 3 months');
+  assert.equal(subCell({ months: 0, active: false, tier: null, gift: false, hidden: false }), 'Never');
+  assert.equal(subCell({ months: 0, active: false, tier: null, gift: false, hidden: true }), 'Hidden');
 });

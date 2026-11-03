@@ -1,7 +1,7 @@
 <!-- V108-C35 Emotes a hype train gave the chat's account: a card over the bottom of the chat,
      above the message box (not a chat line). A click puts the emote in the message box. It
      goes after 8 s (held while the pointer or focus is on it), or with its x or Escape.
-     V108-C35b One emote at a time, big and in the middle, "Emote unlocked" and its name; more
+     V108-C35b One emote at a time, big and in the middle, "Hype train emote unlocked" and "<name> · yours to keep"; more
      wait their turn (the Golden Kappa first, gold, "Yours for 24 hours"). The emote is
      revealed with a small overshoot, a glow and a ring of sparkles (about 1 s, transform and
      opacity only); reduced motion shows it plainly. -->

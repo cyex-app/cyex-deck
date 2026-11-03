@@ -47,7 +47,7 @@ test('V108-C35b sparkles: fixed paths, gold ones for a golden train', () => {
 test('V108-C35b the unlock card names the Golden Kappa and its day', () => {
   assert.ok(isGoldenKappa('80393') && !isGoldenKappa('25'));
   assert.deepEqual(unlockLines({ id: '80393', name: 'Kappa' }), { title: 'Golden Kappa unlocked', sub: 'Yours for 24 hours' });
-  assert.deepEqual(unlockLines({ id: '1902', name: 'Keepo' }), { title: 'Emote unlocked', sub: 'Keepo' });
+  assert.deepEqual(unlockLines({ id: '1902', name: 'Keepo' }), { title: 'Hype train emote unlocked', sub: 'Keepo · yours to keep' });
 });
 
 test('V108-C35b unlocked emotes show one at a time, no repeats, Golden Kappa first', () => {

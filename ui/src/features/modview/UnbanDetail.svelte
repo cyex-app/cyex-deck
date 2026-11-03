@@ -28,7 +28,10 @@
   import Comments from '../usercard/Comments.svelte';
   import Facts from '../usercard/Facts.svelte';
   import Timeline from '../usercard/Timeline.svelte';
-  import { banLine, bannedBy, commentCount, messageCount, statusText } from './unban';
+  import { banLine, bannedBy, commentCount, followCell, messageCount, statusText, subCell } from './unban';
+  import { usercardIpc } from '../../ipc/rules';
+  import type { FollowAge } from '../../ipc/bindings/FollowAge';
+  import type { SubStatus } from '../../ipc/bindings/SubStatus';
   import { radioKey } from '../../components/select';
 
   interface Props {
@@ -65,6 +68,22 @@
   let tab = $state<'chat' | 'comments' | 'earlier'>('chat');
   let noteBox = $state<HTMLTextAreaElement>();
   let tabBar = $state<HTMLElement>();
+
+  /** V108-C36e Follow age and sub sit in the facts row, not only behind (i). */
+  let follow = $state<FollowAge | null>(null);
+  let sub = $state<SubStatus | null>(null);
+  untrack(() => {
+    usercardIpc
+      .followAge(login, r.userId)
+      .then((f) => (follow = f))
+      .catch(() => {});
+    usercardIpc
+      .subStatus(r.login, login)
+      .then((s) => (sub = s))
+      .catch(() => {});
+  });
+  const followText = $derived(followCell(follow, new Date()));
+  const subText = $derived(subCell(sub));
 
   chatIpc
     .profile(r.login)
@@ -182,7 +201,7 @@
     <IconButton
       icon="info"
       label={more ? 'Fewer details' : 'More details'}
-      hint="Follow, sub, messages and warnings here."
+      hint="Messages, warnings, followers and earlier names."
       size={16}
       active={more}
       toggle
@@ -211,6 +230,8 @@
             {/if}
             <div><dt>Bans</dt><dd class="t">{formatNumber(history.bans)}</dd></div>
             <div><dt>Timeouts</dt><dd class="t">{formatNumber(history.timeouts)}</dd></div>
+            {#if followText}<div><dt>Following</dt><dd class:dim={followText === 'Not following'}>{followText}</dd></div>{/if}
+            {#if subText}<div><dt>Sub</dt><dd class:dim={subText === 'Never' || subText === 'Hidden'}>{subText}</dd></div>{/if}
           </dl>
           {#if ban}
             <p class="reason" dir="auto" use:tooltip={ban.reason.length > 90 ? ban.reason : ''}>
