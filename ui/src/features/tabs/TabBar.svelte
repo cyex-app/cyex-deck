@@ -241,8 +241,10 @@
   .bar::-webkit-scrollbar {
     width: 8px;
   }
+  /* V108-F44 Room for one tab (TabItem min 88px) and the plus, so the plus stays on the first row. */
   .chrome {
     flex: 0 1 auto;
+    min-width: 126px;
     align-self: stretch;
   }
   .vertical {
