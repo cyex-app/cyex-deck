@@ -247,11 +247,12 @@
     min-width: 126px;
     align-self: stretch;
   }
-  /* V108-F44b The bar is as wide as its content here. TabItem's percentage floor and cap count
-     as nothing when that width is worked out, so a short name added less than its 88 px and the
-     plus wrapped with two tabs. Plain pixels let the width add up; the tabs still shrink to 88. */
+  /* V108-F44b The bar is as wide as its content here. TabItem's percentage floor counts as
+     nothing when that width is worked out, so the plus wrapped with two short tabs.
+     V108-F44c No floor at all: each tab is as wide as its name (an 88 px floor padded short
+     names out); a full row wraps whole tabs. */
   .chrome :global(.tab) {
-    min-width: 88px;
+    min-width: 0;
     max-width: 200px;
   }
   .vertical {
