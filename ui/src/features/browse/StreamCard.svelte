@@ -47,7 +47,7 @@
   <div class="info">
     <Avatar src={card.avatar} name={card.name} size={32} />
     <div class="text">
-      <span class="name">{card.name}</span>
+      <span class="name" title={card.name}>{card.name}</span>
       <span class="title" title={stream.title}>{#if stream.title}<EmojiText text={stream.title} />{:else}Untitled{/if}</span>
       {#if showGame && stream.game}
         {#if oncategory}
@@ -143,7 +143,12 @@
     gap: 2px;
     min-width: 0;
   }
+  /* V108-F59e An unbreakable name ends in an ellipsis instead of pushing the card wider. */
   .name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-weight: 600;
     font-size: 0.85rem;
   }

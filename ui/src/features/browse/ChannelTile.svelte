@@ -27,7 +27,7 @@
     oncontextmenu={(e) => (e.preventDefault(), openMenu(e, cardMenu(nav, card)))}
   >
     <Avatar src={card.avatar} name={card.name} size={52} />
-    <span class="name">{card.name}</span>
+    <span class="name" title={card.name}>{card.name}</span>
     <span class="last" use:tooltip={{ label: card.lastLive ? formatDate(new Date(card.lastLive)) : '', when: () => !!card.lastLive }}>
       {last ? `Live ${last}` : 'Not live lately'}
     </span>
@@ -66,6 +66,7 @@
     min-width: 0;
   }
   .name {
+    min-width: 0;
     max-width: 100%;
     margin-top: 4px;
     font-weight: 600;
