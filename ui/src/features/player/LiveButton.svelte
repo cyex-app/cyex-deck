@@ -114,4 +114,18 @@
   .ended .dot {
     background: var(--on-video-dim);
   }
+  /* V108-F58 C2 Forced colours: live and behind differ by a ring; the dot keeps its colour. */
+  @media (forced-colors: active) {
+    .live-btn {
+      border: 1px solid ButtonText;
+      color: ButtonText;
+    }
+    .behind {
+      background: ButtonFace;
+      border-style: dashed;
+    }
+    .dot {
+      forced-color-adjust: none;
+    }
+  }
 </style>

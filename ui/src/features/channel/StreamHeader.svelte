@@ -190,6 +190,19 @@
     background: var(--accent-dim);
     color: var(--accent-text);
   }
+  /* V108-F58 C2 Forced colours: the open page is a Highlight block with a ring. */
+  @media (forced-colors: active) {
+    nav button {
+      color: ButtonText;
+    }
+    nav button.on {
+      background: Highlight;
+      color: HighlightText;
+      outline: 1px solid CanvasText;
+      outline-offset: -1px;
+      forced-color-adjust: none;
+    }
+  }
   @container (max-width: 560px) {
     .name {
       display: none;
