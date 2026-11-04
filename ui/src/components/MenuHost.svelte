@@ -31,6 +31,11 @@
     list;
     fieldError = '';
   });
+  // V108-F57f A shorter list leaves no stale rows behind for the callout or the focus to find.
+  $effect.pre(() => {
+    const n = list?.items.length ?? 0;
+    if (rows.length > n) rows.length = n;
+  });
 
   function fieldKey(e: KeyboardEvent, item: MenuItem) {
     if (e.key !== 'Enter' || !item.field) return;
@@ -172,6 +177,7 @@
     class:float-in={!keyed}
     data-shared-menu
     role="menu"
+    aria-label={list.title || 'Menu'}
     tabindex="-1"
     bind:this={box}
     use:floating={{ anchor: menu.anchor, align: menu.align, gap, edge: 6 }}
@@ -216,6 +222,8 @@
           aria-checked={entry.checked}
           disabled={entry.disabled}
           data-sub={entry.items ? '1' : undefined}
+          aria-haspopup={entry.items ? 'menu' : undefined}
+          aria-expanded={entry.items ? false : undefined}
           onclick={(e) => choose(entry, i, e.detail === 0)}
           use:tooltip={{ label: noteOf(entry) || entry.label, when: () => !!noteOf(entry) || cut(rows[i]) }}
         >
