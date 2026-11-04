@@ -52,7 +52,7 @@
 <SectionHead title="Windows" level={2}>A layout remembers where the main window and every pop-out sit, and whether they’re pinned.</SectionHead>
 
 <form class="save" data-setting="windows.layouts" onsubmit={save}>
-  <input class="field" placeholder="Layout name" maxlength="40" bind:value={drafts.layoutName} />
+  <input class="field" aria-label="Layout name" placeholder="Layout name" maxlength="40" bind:value={drafts.layoutName} />
   <Button type="submit" variant="primary" small icon="plus" disabled={!drafts.layoutName.trim()}>Save current</Button>
 </form>
 

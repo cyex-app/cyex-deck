@@ -40,11 +40,11 @@
 </script>
 
 {#if ring}
-  <button class="ring" class:unseen={ring.unseen} style:--size="{size}px" use:tooltip={{ label: 'Stories', hint: 'Short posts from the streamer.' }} onclick={onopen}>
+  <button class="ring" aria-label="{name}, stories" class:unseen={ring.unseen} style:--size="{size}px" use:tooltip={{ label: 'Stories', hint: 'Short posts from the streamer.' }} onclick={onopen}>
     <Avatar src={avatar} {name} size={size - 6} />
   </button>
 {:else if onplain}
-  <button class="plain" style:--size="{size}px" use:tooltip={'About'} onclick={onplain}>
+  <button class="plain" aria-label="About {name}" style:--size="{size}px" use:tooltip={'About'} onclick={onplain}>
     <Avatar src={avatar} {name} {size} />
   </button>
 {:else}
