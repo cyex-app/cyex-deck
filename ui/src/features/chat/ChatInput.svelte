@@ -150,6 +150,19 @@
       }
     });
   });
+  // V108-F57e First of the three: on an account change its cleanup (stop) runs before the new read starts.
+  $effect(() => {
+    const a = canChat ? room.account : null;
+    if (!a) return;
+    standing.start();
+    void standingIpc.watch(a, true).catch(() => {});
+    const off = standingIpc.onChange((e) => standing.changed(e.channelId, e.account, e.warning));
+    return () => {
+      void off.then((f) => f());
+      void standingIpc.watch(a, false).catch(() => {});
+      standing.stop();
+    };
+  });
   $effect(() => {
     // Untracked: the read must not follow every room state change.
     if (standingKey) untrack(() => void standing.load());
@@ -158,17 +171,6 @@
     if (!room.said) return;
     const t = setTimeout(() => void standing.load(), 1500);
     return () => clearTimeout(t);
-  });
-  $effect(() => {
-    const a = canChat ? room.account : null;
-    if (!a) return;
-    void standingIpc.watch(a, true).catch(() => {});
-    const off = standingIpc.onChange((e) => standing.changed(e.channelId, e.account, e.warning));
-    return () => {
-      void off.then((f) => f());
-      void standingIpc.watch(a, false).catch(() => {});
-      standing.stop();
-    };
   });
   // V107-B Cheering: same gate as power-ups.
   const canCheer = $derived(room.account !== null && accounts.can('powerUps', room.account));

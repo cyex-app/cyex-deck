@@ -20,6 +20,8 @@ export class Standing {
   /** The request this box sent, for when Twitch won't show the requester their own. */
   private sent = $state.raw<PastUnban | null>(null);
   private seq = 0;
+  /** V108-F57e Set by stop(): a read or a topic message after that does nothing. */
+  private dead = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(private readonly room: () => ChatRoom) {}
@@ -41,6 +43,7 @@ export class Standing {
   }
 
   async load(): Promise<void> {
+    if (this.dead) return;
     const who = this.who();
     if (!who) return;
     const seq = ++this.seq;
@@ -58,6 +61,7 @@ export class Standing {
 
   /** The next read, if the lock wants one. */
   private plan(): void {
+    if (this.dead) return;
     clearTimeout(this.timer);
     this.now = Date.now();
     const wait = nextRead(lockOf(this.input()), this.input());
@@ -72,6 +76,7 @@ export class Standing {
 
   /** The account's topic said something moved here; a warning comes with its words. */
   changed(channelId: string, account: string, warning: ChatWarning | null): void {
+    if (this.dead) return;
     const who = this.who();
     if (!who || who.account !== account || who.channelId !== channelId) return;
     if (warning) this.warning = warning;
@@ -115,7 +120,13 @@ export class Standing {
     }
   }
 
+  /** Reads are on again (the box's watch began; stop() ended the one before). */
+  start(): void {
+    this.dead = false;
+  }
+
   stop(): void {
+    this.dead = true;
     clearTimeout(this.timer);
     this.seq++;
   }
