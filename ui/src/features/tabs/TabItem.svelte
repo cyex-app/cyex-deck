@@ -474,6 +474,16 @@
     .active .pill {
       background: Highlight;
       color: HighlightText;
+      forced-color-adjust: none;
+    }
+    /* V108-F58 C2 The name takes the block's text colour, never a box of its own. */
+    .active .name {
+      background: transparent;
+      color: HighlightText;
+      text-decoration-color: HighlightText;
+    }
+    .active .x {
+      color: HighlightText;
     }
     .selected:not(.active) .pill {
       box-shadow: none;
