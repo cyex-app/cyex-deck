@@ -545,3 +545,32 @@ fn v108_n25_history_does_not_count_and_a_raid_is_a_moment() {
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].kind, crate::moments::MomentKind::Raid);
 }
+
+#[test]
+fn own_ban_timeout_and_warning_lock_the_box() {
+    // V108-C40
+    let restricted = |ev: &[RoomEvent]| {
+        ev.iter().find_map(|e| match e {
+            RoomEvent::Restricted { how } => Some(*how),
+            _ => None,
+        })
+    };
+    let mut r = room();
+    let ev = feed(&mut r, "@ban-duration=300;target-user-id=42 :tmi.twitch.tv CLEARCHAT #chan :me");
+    assert_eq!(restricted(&ev), Some(Restriction::TimedOut { secs: 300 }));
+    let ev = feed(&mut r, "@target-user-id=42 :tmi.twitch.tv CLEARCHAT #chan :me");
+    assert_eq!(restricted(&ev), Some(Restriction::Banned));
+    let ev = feed(&mut r, "@target-user-id=7 :tmi.twitch.tv CLEARCHAT #chan :someone");
+    assert_eq!(restricted(&ev), None, "someone else's ban");
+    let ev = feed(&mut r, "@msg-id=msg_banned :tmi.twitch.tv NOTICE #chan :You are permanently banned from talking in chan.");
+    assert_eq!(restricted(&ev), Some(Restriction::Banned));
+    let ev = feed(&mut r, "@msg-id=msg_timedout :tmi.twitch.tv NOTICE #chan :You are timed out for 42 more seconds.");
+    assert_eq!(restricted(&ev), Some(Restriction::TimedOut { secs: 42 }));
+    let ev = feed(&mut r, "@msg-id=msg_warned :tmi.twitch.tv NOTICE #chan :Acknowledge the warning to chat.");
+    assert_eq!(restricted(&ev), Some(Restriction::Warned));
+    let ev = feed(&mut r, "@msg-id=msg_slowmode :tmi.twitch.tv NOTICE #chan :You can talk again in 3 seconds.");
+    assert_eq!(restricted(&ev), None);
+    let mut anon = Room::new("Chan", None);
+    let ev = feed(&mut anon, "@msg-id=msg_banned :tmi.twitch.tv NOTICE #chan :x");
+    assert_eq!(restricted(&ev), None, "reading anonymously");
+}

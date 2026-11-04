@@ -27,8 +27,8 @@ use crate::irc::Line;
 use crate::rules::{Outcome, Rules};
 use crate::similar::Repeats;
 use crate::model::{
-    ChatMessage, ConnStatus, Flag, Gone, GoneHow, Meta, NoticeKind, NoticeUser, Pinned, Reply, RoomEvent, RoomState,
-    Sender, plain,
+    ChatMessage, ConnStatus, Flag, Gone, GoneHow, Meta, NoticeKind, NoticeUser, Pinned, Reply, Restriction, RoomEvent,
+    RoomState, Sender, plain,
 };
 use crate::tokenize::{Emotes, Input, tokenize};
 
@@ -465,6 +465,11 @@ impl Room {
                 if me && let Some(secs) = secs {
                     events.extend(self.wait(now_ms + secs as i64 * 1000));
                 }
+                // V108-C40 Our own ban or timeout locks the chat box.
+                if me {
+                    let how = secs.map_or(Restriction::Banned, |secs| Restriction::TimedOut { secs });
+                    events.push(RoomEvent::Restricted { how });
+                }
             }
             Incoming::Clear { notice } => {
                 events.push(RoomEvent::Cleared);
@@ -510,10 +515,16 @@ impl Room {
                     // where they're aimed; here the chat also counts as not joined).
                     events.extend(self.set_status(ConnStatus::Refused, now_ms));
                 }
+                let said = notice.notice.as_ref().map_or("", |n| n.text.as_str());
                 if matches!(msg_id.as_str(), "msg_slowmode" | "msg_timedout")
-                    && let Some(secs) = seconds_in(notice.notice.as_ref().map_or("", |n| n.text.as_str()))
+                    && let Some(secs) = seconds_in(said)
                 {
                     events.extend(self.wait(now_ms + secs * 1000));
+                }
+                if self.me.is_some()
+                    && let Some(how) = restriction(&msg_id, said)
+                {
+                    events.push(RoomEvent::Restricted { how });
                 }
                 events.extend(self.add(notice, now_ms, emotes));
             }
@@ -809,6 +820,17 @@ fn seconds_in(text: &str) -> Option<i64> {
     let words: Vec<&str> = text.split_whitespace().collect();
     let at = words.iter().position(|w| w.starts_with("second"))?;
     words[at.saturating_sub(2)..at].iter().rev().find_map(|w| w.parse().ok())
+}
+
+/// V108-C40 A NOTICE saying our account can't talk here. `msg_banned` and `msg_timedout` are
+/// Twitch's documented ids; a warning's id isn't known, so any `msg_` id naming one counts.
+fn restriction(msg_id: &str, text: &str) -> Option<Restriction> {
+    match msg_id {
+        "msg_banned" => Some(Restriction::Banned),
+        "msg_timedout" => seconds_in(text).map(|s| Restriction::TimedOut { secs: s.max(0) as u64 }),
+        id if id.starts_with("msg_") && id.contains("warn") => Some(Restriction::Warned),
+        _ => None,
+    }
 }
 
 /// V107-R34 A CLEARCHAT with a length is a timeout, without one a ban.

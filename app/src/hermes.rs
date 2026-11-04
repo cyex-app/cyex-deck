@@ -174,6 +174,8 @@ async fn pump(app: AppHandle, mut rx: mpsc::UnboundedReceiver<Event>) {
             Kind::HypeTrain => crate::chat::hypetrain::on_event(&app, &e),
             // V108-C35 The unlock card and a fresh emote list.
             Kind::HypeRewards => crate::chat::hype_unlock::on_user_event(&app, &e),
+            // V108-C40 The locked chat box reads again, or shows the warning.
+            Kind::ChatroomsUser => crate::chat::standing::on_event(&app, &e),
         }
     }
 }

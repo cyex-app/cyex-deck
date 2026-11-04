@@ -7,6 +7,7 @@ import type { ConnStatus } from '../../ipc/bindings/ConnStatus';
 import type { Pinned } from '../../ipc/bindings/Pinned';
 import type { RoomEvent } from '../../ipc/bindings/RoomEvent';
 import type { RoomState } from '../../ipc/bindings/RoomState';
+import type { Said } from './chatLock';
 import { settings } from '../../lib/settings.svelte';
 import { CappedMap } from '../../lib/capped';
 import { errorText } from '../../lib/errors';
@@ -47,6 +48,8 @@ export class ChatRoom {
   /** The account reading this chat, `null` when anonymous. */
   account = $state<string | null>(null);
   error = $state('');
+  /** V108-C40 What IRC last said about this account here (own ban, timeout, warning). */
+  said = $state.raw<Said | null>(null);
   /** V108-N12 Shared Chat: draw only this channel's lines. View state; the lines stay here. */
   onlyHere = $state(false);
   /** Set once Rust opened the view; effects can wait on it (V101-13). */
@@ -163,6 +166,9 @@ export class ChatRoom {
           break;
         case 'status':
           this.status = e.status;
+          break;
+        case 'restricted':
+          this.said = { how: e.how, at: Date.now() };
           break;
       }
     }

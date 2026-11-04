@@ -4,7 +4,7 @@
      sending again. Up recalls what you sent. Pasted or dropped images go to your upload host (V105-11).
      V108-N09 Suggestions as a row, V108-N20 quick replies, V108-N23 the watch streak prompt. -->
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
@@ -49,6 +49,9 @@
   import { pinText } from './pinSend';
   import { plainText } from './text';
   import { errorText } from '../../lib/errors';
+  import { standingIpc } from '../../ipc/standing';
+  import ChatLock from './ChatLock.svelte';
+  import { Standing } from './standing.svelte';
 
   interface Props {
     room: ChatRoom;
@@ -72,7 +75,7 @@
     () => row,
     () => settings.v.chat.sendButton,
   );
-  $effect(() => (canChat ? side.watch() : undefined));
+  $effect(() => (canChat && !lock ? side.watch() : undefined));
   let text = $state('');
   let error = $state('');
   let sent: string[] = [];
@@ -114,6 +117,35 @@
   });
 
   const canChat = $derived(room.account !== null && accounts.can('sendChat', room.account));
+
+  // V108-C40 Banned, timed out or warned here: the lock takes the box's place. Read at join,
+  // after every reconnect and a moment after IRC says something (Twitch's read lags a bit).
+  // svelte-ignore state_referenced_locally
+  const standing = new Standing(() => room);
+  const lock = $derived(canChat ? standing.lock : null);
+  const standingKey = $derived(
+    canChat && room.status === 'joined' && room.state.channelId ? `${room.account}:${room.state.channelId}` : '',
+  );
+  $effect(() => {
+    // Untracked: the read must not follow every room state change.
+    if (standingKey) untrack(() => void standing.load());
+  });
+  $effect(() => {
+    if (!room.said) return;
+    const t = setTimeout(() => void standing.load(), 1500);
+    return () => clearTimeout(t);
+  });
+  $effect(() => {
+    const a = canChat ? room.account : null;
+    if (!a) return;
+    void standingIpc.watch(a, true).catch(() => {});
+    const off = standingIpc.onChange((e) => standing.changed(e.channelId, e.account, e.warning));
+    return () => {
+      void off.then((f) => f());
+      void standingIpc.watch(a, false).catch(() => {});
+      standing.stop();
+    };
+  });
   // V107-B Cheering: same gate as power-ups.
   const canCheer = $derived(room.account !== null && accounts.can('powerUps', room.account));
   // svelte-ignore state_referenced_locally
@@ -492,6 +524,9 @@
   {#if suggest}
     <SuggestList items={suggest.items} index={suggest.index} onpick={accept} anchor={row} style={styleNow} />
   {/if}
+  {#if lock}
+    <ChatLock {lock} {standing} />
+  {:else}
   <div class="row" bind:this={row}>
     {#snippet pointsBtn()}<span class="slot" data-out data-side="points"><RewardsMenu {room} /></span>{/snippet}
     {#snippet bitsBtn()}{#if canChat && canCheer && !bitsOff}<span class="slot" data-out data-side="bits"><BitsButton {room} box={cheers} oninsert={pickCheer} /></span>{/if}{/snippet}
@@ -565,6 +600,7 @@
       </button>
     {/if}
   </div>
+  {/if}
   <!-- V1051-05 Over the box, so the box never moves. -->
   {#if up.upload.status}<p class="note uploading" role="status">{up.upload.status}</p>{/if}
   {#if error}<p class="note error" role="alert">{error}</p>{/if}

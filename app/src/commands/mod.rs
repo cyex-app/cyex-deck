@@ -12,6 +12,7 @@ mod emotes;
 pub mod feeds;
 pub mod highlights;
 mod hypetrain;
+mod standing;
 mod mentions;
 mod miner;
 mod moderation;
@@ -173,6 +174,10 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         discord::discord_status,
         hypetrain::chat_hype_train,
         hypetrain::chat_hype_watch,
+        standing::chat_standing,
+        standing::chat_request_unban,
+        standing::chat_ack_warning,
+        standing::chat_standing_watch,
         chat_extra::chat_vote,
         chat_extra::chat_predict,
         chat_extra::chat_power_ups,
@@ -315,6 +320,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         player::player_close,
         #[cfg(feature = "mocks")]
         crate::cards::dev_card,
+        #[cfg(feature = "mocks")]
+        standing::dev_standing,
         player::player_playing,
         player::player_clip,
         player::player_video,

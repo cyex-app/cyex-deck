@@ -3,6 +3,7 @@ import type { ChatMessage } from "./ChatMessage";
 import type { ConnStatus } from "./ConnStatus";
 import type { Gone } from "./Gone";
 import type { Pinned } from "./Pinned";
+import type { Restriction } from "./Restriction";
 import type { RoomState } from "./RoomState";
 
-export type RoomEvent = { "type": "message", message: ChatMessage, } | { "type": "update", message: ChatMessage, } | { "type": "delete", id: string, gone?: Gone, } | { "type": "clearUser", userId: string, gone: Gone, } | { "type": "cleared" } | { "type": "remove", id: string, } | { "type": "wipe" } | { "type": "pinned", pin: Pinned | null, } | { "type": "history", messages: Array<ChatMessage>, } | { "type": "gap", messages: Array<ChatMessage>, } | { "type": "state", state: RoomState, } | { "type": "status", status: ConnStatus, };
+export type RoomEvent = { "type": "message", message: ChatMessage, } | { "type": "update", message: ChatMessage, } | { "type": "delete", id: string, gone?: Gone, } | { "type": "clearUser", userId: string, gone: Gone, } | { "type": "cleared" } | { "type": "remove", id: string, } | { "type": "wipe" } | { "type": "pinned", pin: Pinned | null, } | { "type": "history", messages: Array<ChatMessage>, } | { "type": "gap", messages: Array<ChatMessage>, } | { "type": "state", state: RoomState, } | { "type": "status", status: ConnStatus, } | { "type": "restricted", how: Restriction, };

@@ -264,7 +264,7 @@ fn actions_of(v: &Value, field: &str) -> Vec<ModAction> {
         .collect()
 }
 
-fn ban_of(data: &Value) -> Option<BanStatus> {
+pub(crate) fn ban_of(data: &Value) -> Option<BanStatus> {
     let b = data.get("ban").filter(|b| b.is_object())?;
     let permanent = b.get("isPermanent").and_then(Value::as_bool).unwrap_or(false);
     Some(BanStatus {

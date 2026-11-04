@@ -36,6 +36,7 @@ pub mod rewind;
 pub mod schedule;
 mod search;
 pub mod smilies;
+pub mod standing;
 mod stories;
 pub mod subs;
 mod users;

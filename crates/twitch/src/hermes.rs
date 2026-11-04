@@ -64,9 +64,12 @@ pub enum Kind {
     /// V108-C35 The user's hype train rewards and whether they count for them
     /// (`hype-train-events-v1.rewards.<user>`). Signed in only.
     HypeRewards,
+    /// V108-C40 The user’s own bans, timeouts and warnings in any chat
+    /// (`chatrooms-user-v1.<user>`). Signed in only.
+    ChatroomsUser,
 }
 
-const KINDS: [Kind; 22] = [
+const KINDS: [Kind; 23] = [
     Kind::Polls,
     Kind::Predictions,
     Kind::Celebrations,
@@ -89,6 +92,7 @@ const KINDS: [Kind; 22] = [
     Kind::HypeTrain,
     Kind::ViewerMilestones,
     Kind::HypeRewards,
+    Kind::ChatroomsUser,
 ];
 
 impl Kind {
@@ -116,6 +120,7 @@ impl Kind {
             Kind::HypeTrain => "hype-train-events-v2.",
             Kind::ViewerMilestones => "viewer-milestones.",
             Kind::HypeRewards => "hype-train-events-v1.rewards.",
+            Kind::ChatroomsUser => "chatrooms-user-v1.",
         }
     }
 
@@ -152,6 +157,7 @@ impl Kind {
             Kind::HypeTrain => 'h',
             Kind::ViewerMilestones => 'y',
             Kind::HypeRewards => 'e',
+            Kind::ChatroomsUser => 'z',
         }
     }
 

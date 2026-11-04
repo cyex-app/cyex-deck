@@ -28,6 +28,7 @@ pub mod powerups;
 pub mod record;
 mod refill;
 pub mod roles;
+pub mod standing;
 pub mod rules;
 pub mod run;
 pub mod search;

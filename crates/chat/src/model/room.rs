@@ -156,4 +156,23 @@ pub enum RoomEvent {
     },
     State { state: RoomState },
     Status { status: ConnStatus },
+    /// V108-C40 Twitch told this chat's account it can't talk here: its own CLEARCHAT, or the
+    /// NOTICE a send got back. The chat box locks at once and reads the account's standing.
+    Restricted { how: Restriction },
+}
+
+/// V108-C40 What IRC said about our own account in a room.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+#[ts(export)]
+pub enum Restriction {
+    /// Banned for good.
+    Banned,
+    /// Timed out for `secs` from now.
+    TimedOut {
+        #[ts(type = "number")]
+        secs: u64,
+    },
+    /// A warning waits to be acknowledged (a NOTICE msg-id with `warn` in it; unconfirmed live).
+    Warned,
 }

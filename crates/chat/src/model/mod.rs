@@ -16,4 +16,4 @@ pub use notice::{Notice, NoticeKind, NoticeUser, Presence};
 pub use quote::{QUOTE_MAX, quote};
 pub(crate) use role::MOD_SETS;
 pub use role::ModRole;
-pub use room::{ConnStatus, Pinned, RoomEvent, RoomState, SelfState};
+pub use room::{ConnStatus, Pinned, Restriction, RoomEvent, RoomState, SelfState};
