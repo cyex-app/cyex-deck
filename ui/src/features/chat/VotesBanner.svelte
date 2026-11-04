@@ -11,6 +11,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { pollKey, pollLive, predictionKey, predictionLive, shows } from './eventStrip';
   import { eventStrip } from './eventStrip.svelte';
+  import { focusStrip } from './bannerFocus';
   import { pollLeft, predictionLeft, votes } from './votes.svelte';
   import { errorText } from '../../lib/errors';
   import NumberField from '../../components/NumberField.svelte';
@@ -86,7 +87,11 @@
         class="close"
         aria-label="Hide"
         use:tooltip={{ label: 'Hide', hint: 'Tucks it into the events button.' }}
-        onclick={() => eventStrip.hide(channel, { key, live })}
+        onclick={(e) => {
+          const host = e.currentTarget.closest('.banners');
+          eventStrip.hide(channel, { key, live });
+          void focusStrip(host);
+        }}
       >
         <Icon name="chevronUp" size={13} />
       </button>

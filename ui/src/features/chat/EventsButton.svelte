@@ -7,6 +7,7 @@
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { Pinned } from '../../ipc/bindings/Pinned';
+  import { focusBanner } from './bannerFocus';
   import { chatEvents, eventsLabel, withUnreadPin } from './eventStrip';
   import { eventStrip } from './eventStrip.svelte';
   import { votes } from './votes.svelte';
@@ -34,7 +35,11 @@
 </script>
 
 {#if count}
-  <button class="events" onclick={() => eventStrip.reopen(channel)} use:tooltip={'Show them again'}>
+  <button class="events" onclick={(e) => {
+      const host = e.currentTarget.closest('.banners');
+      eventStrip.reopen(channel);
+      void focusBanner(host);
+    }} use:tooltip={'Show them again'}>
     <Icon name="layers" size={14} />
     <span>{eventsLabel(count)}</span>
     <Icon name="chevronDown" size={13} />
