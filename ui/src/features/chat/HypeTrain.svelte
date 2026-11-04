@@ -137,11 +137,17 @@
   }
   const given = $derived(note ? (givenLine(note.subs, note.bits, formatNumber) ?? topLine(note.conductors, formatNumber)) : null);
 
-  function dismiss() {
+  /** V108-F57c Drops the note and its timers, no focus move: a train ending on its own must not pull focus. */
+  function clearNote() {
     noteSeq++;
     clearTimeout(noteTimer);
     clearTimeout(lastTimer);
     note = null;
+  }
+
+  /** Closed by hand: focus goes back to the message box if it was lost. */
+  function dismiss() {
+    clearNote();
     void tick().then(() => {
       const at = document.activeElement;
       if (!at || at === document.body) onclosed?.();
@@ -158,7 +164,7 @@
 
   function finish(held: HypeTrain) {
     train = null;
-    dismiss();
+    clearNote();
     note = held;
     celebrate('end');
     noteTimer = setTimeout(() => (note = null), NOTE_MS);
