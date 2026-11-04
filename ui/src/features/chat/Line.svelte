@@ -19,7 +19,7 @@
   import { CLIENTS, COSMIC, effectOf, highlightStyle } from './highlight';
   import LinkCard from './LinkCard.svelte';
   import { fxSleep } from './fxSleep';
-  import { isHot } from './hover.svelte';
+  import { isHot, isPicked } from './hover.svelte';
   import { HOVER_OWNER } from './hoverOwner';
   import { shownName } from './names';
   import { ownNameColor } from './ownColor';
@@ -50,6 +50,7 @@
   /** The hover buttons exist only under the pointer (or the keyboard's pick, F54): a long history has none to carry. */
   const hoverOwner = getContext<symbol | undefined>(HOVER_OWNER);
   const hot = $derived(isHot(m.id, hoverOwner));
+  const picked = $derived(isPicked(m.id, hoverOwner));
 
   const c = $derived(settings.v.chat);
   const has = (flag: ChatMessage['flags'][number]) => m.flags.includes(flag);
@@ -107,6 +108,7 @@
   class="line kind-{notice?.kind ?? 'chat'} {hl.cls}"
   class:stripe
   class:hot
+  class:picked
   class:history={has('history')}
   class:similar={has('similar')}
   class:effect={!!effect}
@@ -275,6 +277,12 @@
   .line:hover,
   .line.hot {
     background: var(--row-hover);
+  }
+  /* V108-F60a The line picked with the keyboard: the selection tint (like a chosen whisper
+     thread) and a faint inset outline, so it reads apart from plain hover. */
+  .line.picked {
+    background: var(--accent-dim);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
   }
   .ts {
     margin-right: 6px;

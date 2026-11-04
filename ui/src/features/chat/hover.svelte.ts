@@ -67,3 +67,9 @@ export function isHot(id: string, owner?: Owner): boolean {
   if ($effect.tracking()) slot(id).subscribe();
   return picked.hot(id, owner, under);
 }
+
+/** V108-F60a True only for the keyboard-picked line: it gets a selection look the hover doesn't. */
+export function isPicked(id: string, owner?: Owner): boolean {
+  if ($effect.tracking()) slot(id).subscribe();
+  return picked.picks(id, owner);
+}

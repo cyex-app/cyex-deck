@@ -23,6 +23,11 @@ export class Pick {
     return this.id !== null && owner !== undefined && owner === this.owner ? this.id === id : under === id;
   }
 
+  /** V108-F60a Whether `id` is the line the keyboard picked in this list (not just hovered). */
+  picks(id: string, owner: Owner | undefined): boolean {
+    return this.id !== null && owner !== undefined && owner === this.owner && this.id === id;
+  }
+
   /** Whether a pick of this owner is held (the line under the pointer gives way). */
   holds(owner: Owner): boolean {
     return this.id !== null && this.owner === owner;
