@@ -3,11 +3,11 @@
 //! silent; the app plays its own sound when that's on (V1051-01). Windows only shows local
 //! pictures, so avatars are cached in the local app data folder.
 
-use std::hash::{DefaultHasher, Hash, Hasher};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_winrt_notification::{IconCrop, Toast};
 use ts_rs::TS;
@@ -184,23 +184,51 @@ fn app_id() -> &'static str {
     if dev { Toast::POWERSHELL_APP_ID } else { APP_ID }
 }
 
+/// V108-F56i Most avatar files kept in the toast cache.
+const AVATARS_KEPT: usize = 200;
+
+/// A name that stays the same across runs (the std hasher's doesn't).
+fn avatar_name(url: &str) -> String {
+    let sum = Sha256::digest(url.as_bytes());
+    let hex: String = sum[..8].iter().map(|b| format!("{b:02x}")).collect();
+    let ext = if url.ends_with(".jpg") || url.ends_with(".jpeg") { "jpg" } else { "png" };
+    format!("{hex}.{ext}")
+}
+
+/// Drops all but the newest `keep` files (and stray `.part` ones) in `dir`.
+fn prune_avatars(dir: &Path, keep: usize) {
+    let Ok(read) = std::fs::read_dir(dir) else { return };
+    let mut files: Vec<(std::time::SystemTime, PathBuf)> = read
+        .filter_map(Result::ok)
+        .filter_map(|e| Some((e.metadata().ok()?.modified().ok()?, e.path())))
+        .collect();
+    files.sort_by_key(|f| std::cmp::Reverse(f.0));
+    for (_, p) in files.into_iter().skip(keep) {
+        let _ = std::fs::remove_file(p);
+    }
+}
+
 async fn cached_avatar(app: &AppHandle, url: &str) -> Option<PathBuf> {
+    static PRUNED: std::sync::Once = std::sync::Once::new();
     let dir = crate::paths::local(app).ok()?.join("toast-avatars");
-    let mut h = DefaultHasher::new();
-    url.hash(&mut h);
-    let ext = if url.ends_with(".jpg") || url.ends_with(".jpeg") {
-        "jpg"
-    } else {
-        "png"
-    };
-    let path = dir.join(format!("{:016x}.{ext}", h.finish()));
-    if path.exists() {
+    PRUNED.call_once(|| prune_avatars(&dir, AVATARS_KEPT));
+    let path = dir.join(avatar_name(url));
+    // A half-written or empty file counts as missing.
+    if std::fs::metadata(&path).is_ok_and(|m| m.len() > 0) {
         return Some(path);
     }
     let http = app.state::<crate::auth::Auth>().http.clone();
     let bytes = http.get_bytes(url, AVATAR_MAX).await.ok()?;
+    if bytes.is_empty() {
+        return None;
+    }
     std::fs::create_dir_all(&dir).ok()?;
-    std::fs::write(&path, bytes).ok()?;
+    let part = path.with_extension("part");
+    std::fs::write(&part, bytes).ok()?;
+    if std::fs::rename(&part, &path).is_err() {
+        let _ = std::fs::remove_file(&part);
+        return None;
+    }
     Some(path)
 }
 
@@ -216,6 +244,30 @@ mod tests {
         let (label, open) = tab_action("a", false);
         assert_eq!(label, "Open tab");
         assert!(!open.raises());
+    }
+
+    #[test]
+    fn avatar_names_are_stable_and_keep_the_extension() {
+        assert_eq!(avatar_name("https://x/a.png"), avatar_name("https://x/a.png"));
+        assert_ne!(avatar_name("https://x/a.png"), avatar_name("https://x/b.png"));
+        assert_eq!(avatar_name("https://x/a.png").len(), 16 + 4);
+        assert!(avatar_name("https://x/a.jpeg").ends_with(".jpg"));
+    }
+
+    #[test]
+    fn the_avatar_folder_keeps_the_newest() {
+        let dir = std::env::temp_dir().join(format!("cyex-avatars-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for i in 0..5 {
+            let f = std::fs::File::create(dir.join(format!("{i}.png"))).unwrap();
+            f.set_modified(std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1000 + i)).unwrap();
+        }
+        prune_avatars(&dir, 2);
+        let mut left: Vec<String> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        left.sort();
+        assert_eq!(left, ["3.png", "4.png"]);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
