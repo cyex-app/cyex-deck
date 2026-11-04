@@ -150,6 +150,8 @@
   <div class="body">
     {#if error}
       <p class="note">{error}</p>
+      <!-- V108-F60o -->
+      <div class="retry"><Button small onclick={() => void load()}>Try again</Button></div>
     {:else if !listing}
       <p class="note">Loading…</p>
     {:else}
@@ -335,6 +337,9 @@
   }
   .login {
     color: var(--dim);
+  }
+  .retry {
+    margin: 0 6px;
   }
   .note {
     margin: 8px 6px;

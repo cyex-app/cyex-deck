@@ -103,6 +103,8 @@
   const theme = $derived(settings.v.appearance.theme);
   const layers = $derived([target.emote, ...target.stack]);
 
+  /** V108-F60k How long the skeleton waits before offering Try again. */
+  const SLOW_MS = 8000;
   let reloads = $state(0);
   const reload = () => void reloads++;
 
@@ -127,7 +129,13 @@
         if (live) info = c;
       })
       .catch(() => live && (failed = true));
-    return () => (live = false);
+    // V108-F60k A slow 7TV read shows the retry note instead of a skeleton forever; an answer
+    // that still comes in later replaces it (the details branch is checked first).
+    const slow = setTimeout(() => live && !info && (failed = true), SLOW_MS);
+    return () => {
+      live = false;
+      clearTimeout(slow);
+    };
   });
 
   $effect(() => {

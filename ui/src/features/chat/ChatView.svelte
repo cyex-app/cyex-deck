@@ -152,6 +152,9 @@
   let el = $state<HTMLElement>();
   /** V101-35 The viewer list shows instead of the messages. */
   let viewers = $state(false);
+  /** V108-F60n Under this the header keeps the channel name's room: Viewers moves into ⋯. */
+  let chatW = $state(0);
+  const tight = $derived(chatW > 0 && chatW < 280);
   let chartOpen = $state(false);
   let input = $state<ChatInput>();
   let replyTo = $state<ChatMessage | null>(null);
@@ -270,6 +273,7 @@
     const ctx = { login, userId: null, display: name ?? login, msgId: null, msg: null, msgTime: null };
     // V101-30 Actions first, then switches; the search key is the one bound in Hotkeys.
     const items: MenuEntry[] = [
+      ...(tight ? [{ label: 'Viewers', icon: 'users' as const, checked: viewers, run: () => (viewers = !viewers) }] : []),
       { label: 'Search', icon: 'search', hint: bindingOf('chat.search'), run: () => (search = { query: '', all: false }) },
       { label: recording ? 'Stop recording' : 'Record chat', icon: 'record', run: record },
       // V102-20 Greyed out with its flag until the account can.
@@ -433,6 +437,7 @@
   class="chat"
   style={lookStyle}
   bind:this={el}
+  bind:clientWidth={chatW}
   onpointerdown={() => (lastUsed = el ?? null)}
   onfocusin={() => (lastUsed = el ?? null)}
 >
@@ -514,15 +519,17 @@
         <Popover bind:open={chartOpen} align="end" label="Viewers over time"><ViewerChart channelId={chart} /></Popover>
       </div>
     {/if}
-    <IconButton
-      icon="users"
-      label="Viewers"
-      hint="Who’s in this chat."
-      size={15}
-      active={viewers}
-      toggle
-      onclick={() => (viewers = !viewers)}
-    />
+    {#if !tight}
+      <IconButton
+        icon="users"
+        label="Viewers"
+        hint="Who’s in this chat."
+        size={15}
+        active={viewers}
+        toggle
+        onclick={() => (viewers = !viewers)}
+      />
+    {/if}
     {@render actions?.()}
     <IconButton
       icon="more"
@@ -683,6 +690,15 @@
   }
   .mode.compact {
     display: none;
+  }
+  /* V108-F60n Narrow: the buttons slim down and the chips give way before the name does. */
+  @container chat (max-width: 280px) {
+    header :global(.icon-btn) {
+      width: 24px;
+    }
+    .modes {
+      flex: 0 1 auto;
+    }
   }
   @container chat (max-width: 300px) {
     .mode.room {
