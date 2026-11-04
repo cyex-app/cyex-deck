@@ -5,6 +5,8 @@
      of rows and then a scrollbar, or all of them (F16); in the title bar the gaps between
      them still drag the window. "Only live tabs" leaves offline ones out (F17). -->
 <script lang="ts">
+  import { untrack } from 'svelte';
+
   import IconButton from '../../components/IconButton.svelte';
   import { openMenu } from '../../components/menu.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
@@ -118,6 +120,13 @@
     };
     head.addEventListener('contextmenu', on);
     return () => head.removeEventListener('contextmenu', on);
+  });
+
+  // V108-F57h Tabs that are gone (closed elsewhere, from the menu) leave the selection.
+  $effect(() => {
+    const ids = new Set(tabs.list.map((t) => t.id));
+    const stale = untrack(() => [...selected].filter((id) => !ids.has(id)));
+    if (stale.length) selected = new Set([...untrack(() => selected)].filter((id) => ids.has(id)));
   });
 
   function select(tab: Tab, e: MouseEvent) {

@@ -5,6 +5,8 @@
      The tab is the whole cell of its row, up to the window's top edge (V101-19); the pill
      inside is what shows. A thin divider sits between two plain tabs (V101-11); in a side bar it spans the bar (V106-05). -->
 <script lang="ts">
+  import { tick } from 'svelte';
+
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { Tab } from '../../ipc/bindings/Tab';
@@ -77,6 +79,24 @@
 
   /** Arrows move between tabs (Up/Down in a vertical bar), Home and End jump, Space and Enter open. */
   function onkey(e: KeyboardEvent) {
+    // V108-F57h Delete or Ctrl+W closes the focused tab the way its x does (confirm and undo apply);
+    // focus moves to a neighbour so it never drops to the page.
+    const closes = (e.key === 'Delete' && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) || (e.key.toLowerCase() === 'w' && e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey);
+    if (closes && e.target === e.currentTarget) {
+      e.preventDefault();
+      e.stopPropagation();
+      const el = e.currentTarget as HTMLElement;
+      const all = [...(el.closest('[data-tab-bar]')?.querySelectorAll<HTMLElement>('[role="tab"]') ?? [])];
+      const at = all.indexOf(el);
+      const near = all[at + 1] ?? all[at - 1];
+      onclose();
+      void tick().then(() => {
+        const a = document.activeElement;
+        if ((a && a !== document.body) || !near?.isConnected) return;
+        near.focus();
+      });
+      return;
+    }
     if (e.target !== e.currentTarget || e.ctrlKey || e.altKey || e.metaKey) return;
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
@@ -150,6 +170,7 @@
       <button
         class="x"
         tabindex="-1"
+        aria-hidden="true"
         aria-label="Close {name}"
         onclick={(e) => {
           e.stopPropagation();
@@ -343,7 +364,7 @@
     box-shadow: 0 0 0 1px var(--border);
     color: var(--muted);
     pointer-events: none;
-    animation: snd-in 160ms var(--ease, ease-out);
+    animation: snd-in var(--fast) var(--ease, ease-out);
   }
   /* Thin icon strokes would vanish at 9 px. */
   .snd :global(svg) {
