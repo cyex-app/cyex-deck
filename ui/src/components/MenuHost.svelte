@@ -87,6 +87,38 @@
     if (hit >= 0) items[hit].focus();
   }
 
+  /** V108-F55 Which item opened each submenu, so going back lands on it. */
+  let opener: number[] = [];
+  $effect.pre(() => {
+    if (menu.open) opener = [];
+  });
+  /** After the list changed: the keyboard lands on row `at` (or the first item); the pointer on the menu. */
+  function land(at: number) {
+    void tick().then(() => {
+      if (!box) return;
+      if (!byKeyboard()) return box.focus({ preventScroll: true });
+      const target = rows[at];
+      if (target?.isConnected && !(target as HTMLButtonElement).disabled) target.focus();
+      else box.querySelector<HTMLElement>('.item:not(:disabled):not(.head)')?.focus();
+    });
+  }
+  function goBack() {
+    if (menu.stack.length < 2) return;
+    const at = opener.pop() ?? 0;
+    back();
+    land(at);
+  }
+  function choose(entry: MenuItem, i: number, viaKey: boolean) {
+    if (entry.items && !entry.disabled && !entry.lock) {
+      opener.push(i);
+      pick(entry, viaKey);
+      // The keyboard starts on the first item of the new list.
+      land(-1);
+      return;
+    }
+    pick(entry, viaKey);
+  }
+
   // Keys go to the menu while it's open; focus goes back where it was when it closes.
   $effect(() => {
     if (!menu.open || !box) return;
@@ -114,7 +146,7 @@
       // V108-F55 Tab leaves the menu: it closes and the focus goes back to what opened it.
       else if (e.key === 'Tab') closeMenu();
       else if (e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.altKey && !e.metaKey) typeAhead(e.key);
-      else if (e.key === 'ArrowLeft' && menu.stack.length > 1) back();
+      else if (e.key === 'ArrowLeft' && menu.stack.length > 1) goBack();
       else if (e.key === 'ArrowRight' && document.activeElement instanceof HTMLElement && document.activeElement.dataset.sub) {
         document.activeElement.click();
       } else return;
@@ -146,7 +178,7 @@
     oncontextmenu={(e) => e.preventDefault()}
   >
     {#if menu.stack.length > 1}
-      <button class="item head" role="menuitem" onclick={back}>
+      <button class="item head" role="menuitem" onclick={goBack}>
         <Icon name="chevronLeft" size={14} />
         <span class="text">{list.title}</span>
       </button>
@@ -184,7 +216,7 @@
           aria-checked={entry.checked}
           disabled={entry.disabled}
           data-sub={entry.items ? '1' : undefined}
-          onclick={(e) => pick(entry, e.detail === 0)}
+          onclick={(e) => choose(entry, i, e.detail === 0)}
           use:tooltip={{ label: noteOf(entry) || entry.label, when: () => !!noteOf(entry) || cut(rows[i]) }}
         >
           {#if entry.swatch}<span class="swatch" style:background={entry.swatch}></span>
