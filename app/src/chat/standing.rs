@@ -4,6 +4,10 @@
 //! (`RoomEvent::Restricted`); the account's `chatrooms-user-v1` topic adds unbans and
 //! warnings while a chat box follows it. GQL: `cyex_twitch::gql::standing`.
 
+use std::collections::{HashMap, HashSet};
+use std::sync::{LazyLock, Mutex};
+use std::time::{Duration, Instant};
+
 use cyex_twitch::gql::standing::{self as api, Change, Standing, Warning};
 use cyex_twitch::hermes::{Event, Kind};
 use serde::Serialize;
@@ -86,14 +90,69 @@ pub fn watch(app: &AppHandle, label: &str, account: &str, on: bool) {
 
 /// A message on the account's `chatrooms-user-v1` topic.
 pub fn on_event(app: &AppHandle, e: &Event) {
-    // Unverified shapes: kept in the log so a real one can be checked (no names or tokens in it).
-    eprintln!("standing: topic {}", e.payload.get("type").and_then(|t| t.as_str()).unwrap_or("?"));
-    if let Some((channel_id, change)) = api::change_of(&e.payload) {
-        let warning = match change {
-            Change::Warned(w) => Some(w),
-            Change::Moved => None,
-        };
-        emit(app, &e.topic.channel_id, channel_id, warning);
+    // Unverified shapes: the first sighting of each type is logged so a real one can be
+    // checked (no names or tokens in it).
+    let kind = e.payload.get("type").and_then(|t| t.as_str()).unwrap_or("?");
+    if first_of(kind) {
+        let keys: Vec<&str> = e.payload.get("data").and_then(|d| d.as_object()).map(|o| o.keys().map(String::as_str).collect()).unwrap_or_default();
+        eprintln!("standing: topic {kind}, data keys {keys:?}");
+    }
+    let Some((channel_id, change)) = api::change_of(&e.payload) else { return };
+    let account = e.topic.channel_id.clone();
+    match change {
+        Change::Warned(w) => emit(app, &account, channel_id, Some(w)),
+        Change::Moved => match gate(&mut MOVED.lock().unwrap_or_else(|p| p.into_inner()), (account.clone(), channel_id.clone()), Instant::now()) {
+            Gate::Now => emit(app, &account, channel_id, None),
+            // A burst reads once more at its end, not once per message.
+            Gate::Later => {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(MOVED_GAP).await;
+                    MOVED.lock().unwrap_or_else(|p| p.into_inner()).remove(&(account.clone(), channel_id.clone()));
+                    emit(&app, &account, channel_id, None);
+                });
+            }
+            Gate::Skip => {}
+        },
+    }
+}
+
+/// V108-F56d Least time between two re-reads for one account and channel.
+const MOVED_GAP: Duration = Duration::from_secs(1);
+
+/// Per (account, channel): when it last passed, and whether a trailing read is booked.
+type Moved = HashMap<(String, String), (Instant, bool)>;
+static MOVED: LazyLock<Mutex<Moved>> = LazyLock::new(Mutex::default);
+static SEEN: LazyLock<Mutex<HashSet<String>>> = LazyLock::new(Mutex::default);
+
+fn first_of(kind: &str) -> bool {
+    SEEN.lock().unwrap_or_else(|p| p.into_inner()).insert(kind.to_owned())
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum Gate {
+    /// Tell the page now.
+    Now,
+    /// Too soon: one read is booked for when the gap is over.
+    Later,
+    /// Too soon, and one is booked already.
+    Skip,
+}
+
+fn gate(last: &mut Moved, key: (String, String), now: Instant) -> Gate {
+    match last.get_mut(&key) {
+        Some((at, booked)) if now.saturating_duration_since(*at) < MOVED_GAP => {
+            if *booked {
+                Gate::Skip
+            } else {
+                *booked = true;
+                Gate::Later
+            }
+        }
+        _ => {
+            last.insert(key, (now, false));
+            Gate::Now
+        }
     }
 }
 
@@ -204,6 +263,18 @@ pub mod mock {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn moved_reads_are_spaced_per_channel() {
+        let (mut m, t0) = (Moved::new(), Instant::now());
+        let k = |a: &str, c: &str| (a.to_owned(), c.to_owned());
+        assert_eq!(gate(&mut m, k("1", "9"), t0), Gate::Now);
+        assert_eq!(gate(&mut m, k("1", "9"), t0 + Duration::from_millis(200)), Gate::Later);
+        assert_eq!(gate(&mut m, k("1", "9"), t0 + Duration::from_millis(400)), Gate::Skip);
+        assert_eq!(gate(&mut m, k("1", "8"), t0 + Duration::from_millis(400)), Gate::Now, "another channel");
+        assert_eq!(gate(&mut m, k("2", "9"), t0 + Duration::from_millis(400)), Gate::Now, "another account");
+        assert_eq!(gate(&mut m, k("1", "9"), t0 + Duration::from_millis(1100)), Gate::Now);
+    }
 
     #[test]
     fn a_warning_event_names_account_and_channel() {
