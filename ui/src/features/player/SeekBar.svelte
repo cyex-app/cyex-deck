@@ -95,7 +95,7 @@
   aria-valuemin={Math.round(Math.max(0, min))}
   aria-valuemax={Math.round(duration)}
   aria-valuenow={Math.round(shown)}
-  aria-valuetext={dragging ? tip(shown) : valueText}
+  aria-valuetext={dragging ? tip(shown) : (valueText ?? `${format(shown)} of ${format(duration)}`)}
   onpointermove={onmove}
   onpointerleave={() => !dragging && (hover = null)}
   onpointerdown={ondown}

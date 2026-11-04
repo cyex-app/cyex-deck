@@ -257,6 +257,7 @@
   /** V108-N25 The clip button while rewound (the rewind VOD or the N24 replay) clips where the
    *  player is, not the live edge: live while in reach, else from the archive video. */
   function clipHere() {
+    if (failure) return;
     if (!rewind.inVod) return onclip?.();
     const plan = clipper ? hereClip(rewind.pos, rewind.uptime, rewind.vodId) : null;
     if (!clipper || !plan) {
@@ -574,7 +575,8 @@
   <Volume volume={sound.volume} muted={sound.muted} boost={sound.boost} onchange={sound.set} onboost={sound.setBoost} />
   <span class="grow"></span>
   {#if onclip}
-    <button class="ctl" class:armed={clipArm.armed} class:making={clipMaking.busy} disabled={clipMaking.busy} aria-label="Clip" aria-expanded={clipArm.armed} use:tooltip={{ label: 'Clip', hint: rewind.inVod ? 'Clips the seconds up to here.' : 'Clips the last seconds of the stream.' }} onclick={clipArm.click}>
+    <!-- V108-F58 C7 Nothing plays after a failed load: nothing to clip (aria-disabled keeps the tip). -->
+    <button class="ctl" class:off={!!failure} class:armed={clipArm.armed} class:making={clipMaking.busy} disabled={clipMaking.busy} aria-label="Clip" aria-disabled={failure ? 'true' : undefined} aria-expanded={clipArm.armed} use:tooltip={{ label: 'Clip', hint: failure ? 'Nothing is playing to clip.' : rewind.inVod ? 'Clips the seconds up to here.' : 'Clips the last seconds of the stream.' }} onclick={(e) => !failure && clipArm.click(e)}>
       <Icon name="scissors" size={17} />
     </button>
     {#if clipArm.armed && clipArm.anchor}
