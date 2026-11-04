@@ -2,6 +2,8 @@
      one, archived ones folded away), the open one on the right. In the main window or
      popped out. -->
 <script lang="ts">
+  import { tick } from 'svelte';
+
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
   import EmptyState from '../../components/EmptyState.svelte';
@@ -25,9 +27,11 @@
     route?: string;
     onpopout?: (login: string | null) => void;
     onsignin?: () => void;
+    /** V108-F60h Escape (main window only): the page closes. */
+    onclose?: () => void;
   }
 
-  let { popout = false, route = '', onpopout, onsignin }: Props = $props();
+  let { popout = false, route = '', onpopout, onsignin, onclose }: Props = $props();
 
   // svelte-ignore state_referenced_locally
   let selected = $state<string | null>(route.split('/')[1] || whispers.wanted);
@@ -74,6 +78,28 @@
     }
   });
 
+  let root = $state<HTMLElement>();
+
+  // V108-F60h Opened from the title bar (or a hotkey), focus goes in: the first thread, else
+  // the search. Not stolen from a field the user is typing in.
+  $effect(() => {
+    if (popout || !root) return;
+    const r = root;
+    void tick().then(() => {
+      const a = document.activeElement as HTMLElement | null;
+      if (a && a !== document.body && !a.closest('[data-whispers-toggle]') && a.offsetParent !== null) return;
+      const live = 'aside:not([hidden])';
+      (r.querySelector<HTMLElement>(`${live} .thread`) ?? r.querySelector<HTMLElement>(`${live} input`))?.focus();
+    });
+  });
+
+  function onkeydown(e: KeyboardEvent) {
+    if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing || popout || !onclose) return;
+    if ((e.target as HTMLElement).closest('textarea, [contenteditable]')) return;
+    e.preventDefault();
+    onclose();
+  }
+
   function pick(login: string) {
     selected = login;
     query = '';
@@ -119,7 +145,8 @@
     {#if onsignin}<Button variant="primary" icon="login" onclick={onsignin}>Sign in</Button>{/if}
   </div>
 {:else}
-  <div class="whispers" class:narrow bind:clientWidth={width}>
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="whispers" class:narrow bind:clientWidth={width} bind:this={root} {onkeydown}>
     <aside hidden={narrow && chatOpen}>
       <div class="top">
         <div class="search"><SearchField bind:value={query} label="Search or start a conversation" /></div>

@@ -5,7 +5,7 @@
      where it was when its window closes (V102-16). -->
 <script lang="ts">
   import { listen } from '@tauri-apps/api/event';
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
 
   import Button from '../components/Button.svelte';
   import EmptyState from '../components/EmptyState.svelte';
@@ -400,6 +400,11 @@
     if (fixed === view) leaveView(view);
     else show(view);
   }
+  /** V108-F60h Escape in the whispers page: back to where you were, focus on the title-bar button. */
+  function closeWhispers() {
+    leaveView('whispers');
+    void tick().then(() => document.querySelector<HTMLElement>('[data-whispers-toggle] button')?.focus());
+  }
   /** V108-S1 Settings over where you are, on `page` if given. Theatre ends, as it did when they took the window. */
   function openSettings(page?: string) {
     if (page) settingsSection = page;
@@ -547,12 +552,13 @@
     <IconButton icon="search" label="Go to" hint="Jump to a tab or open a channel (Ctrl+K)." onclick={() => (switcher = true)} />
     <BellButton onchannel={(l) => void openLogin(l)} />
     {#if canWhisper}
-      <div class="with-count">
+      <div class="with-count" data-whispers-toggle>
         <IconButton
           icon="whisper"
           label="Whispers"
           hint={whispers.state.unread ? `${whispers.state.unread} unread` : 'Your whispers (Ctrl+5).'}
           active={fixed === 'whispers'}
+          expanded={fixed === 'whispers'}
           onclick={() => toggleView('whispers')}
         />
         {#if whispers.state.unread}<span class="count">{whispers.state.unread > 99 ? '99+' : whispers.state.unread}</span>{/if}
@@ -628,7 +634,7 @@
           {:else if fixed === 'streamManager' && canManage}
             <StreamManagerView onpopout={popOutManager} onsignin={manageAccounts} />
           {:else if fixed === 'whispers' && canWhisper}
-            <WhispersView onpopout={popOutWhispers} onsignin={manageAccounts} />
+            <WhispersView onpopout={popOutWhispers} onsignin={manageAccounts} onclose={closeWhispers} />
           {:else if fixed === 'mentions' && hasGlobalTab}
             <FeedView name={GLOBAL_FEED} />
           {:else if fixed === 'subs'}

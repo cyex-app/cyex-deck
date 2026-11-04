@@ -26,6 +26,8 @@
     lock?: TokenKind | null;
     /** The button opens a menu or popup. */
     haspopup?: 'menu' | 'dialog';
+    /** V108-F60h The button opens a page or panel that is open now (aria-expanded). */
+    expanded?: boolean;
     onclick?: (e: MouseEvent) => void;
   }
 
@@ -42,6 +44,7 @@
     badge = false,
     lock = null,
     haspopup,
+    expanded,
     onclick,
   }: Props = $props();
 
@@ -60,6 +63,7 @@
   aria-label={label}
   aria-pressed={toggle ? active : undefined}
   aria-haspopup={haspopup}
+  aria-expanded={expanded}
   {disabled}
   onclick={click}
   use:tooltip={lock ? { label: `${label} · ${FLAGS[lock].label}`, hint: FLAGS[lock].hint } : { label, hint }}
