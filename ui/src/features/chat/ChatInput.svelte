@@ -131,6 +131,7 @@
   // focus back when the lock ends, only if it had it (or nothing has it now).
   let locked = false;
   let hadFocus = false;
+  let lockEl = $state<ReturnType<typeof ChatLock>>();
   let unlockNote = $state('');
   $effect.pre(() => {
     const now = !!lock;
@@ -142,6 +143,8 @@
         suggest = null;
         argSeq++;
         unlockNote = '';
+        // V108-F60b The box that had focus is gone: the lock's status takes it.
+        if (hadFocus) void tick().then(() => lockEl?.focus());
       } else {
         unlockNote = 'You can chat again.';
         void tick().then(() => {
@@ -540,7 +543,7 @@
 </script>
 
 <div class="input">
-  {#if replyTo}
+  {#if replyTo && !lock}
     <div class="reply-bar">
       <Icon name="reply" size={13} />
       <span>{#if replyTo.sender?.display}Replying to <b>@{replyTo.sender.display}</b>{:else}Replying to a message{/if}: {plainText(replyTo.body)}</span>
@@ -554,7 +557,7 @@
   {/if}
   <span class="sr-only" role="status">{unlockNote}</span>
   {#if lock}
-    <ChatLock {lock} {standing} />
+    <ChatLock bind:this={lockEl} {lock} {standing} />
   {:else}
   <div class="row" bind:this={row}>
     {#snippet pointsBtn()}<span class="slot" data-out data-side="points"><RewardsMenu {room} /></span>{/snippet}

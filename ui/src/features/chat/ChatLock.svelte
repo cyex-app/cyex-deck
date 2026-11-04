@@ -25,6 +25,11 @@
   let status = $state<HTMLElement>();
   const uid = $props.id();
 
+  /** V108-F60b The box above hands its focus here when the lock replaces it. */
+  export function focus() {
+    status?.focus();
+  }
+
   // U4 Streamer mode hides who did it, like mod actions in chat.
   const by = $derived(lock.kind !== 'warn' && lock.by && !streamer.hides('hideModActions') ? lock.by : null);
   const now = $derived(standing.now);
@@ -95,7 +100,7 @@
 <div class="lock {lock.kind}" role="status" tabindex="-1" bind:this={status}>
   <div class="head">
     <Icon name={lock.kind === 'warn' ? 'alert' : lock.kind === 'ban' ? 'ban' : 'clock'} size={14} />
-    <b>{title(lock)}{#if lock.kind === 'timeout'}<span aria-hidden="true"> · {ticking(lock, now)}</span>{/if}</b>
+    <b>{title(lock)}{#if lock.kind === 'timeout'}<span aria-hidden="true">&nbsp;· {ticking(lock, now)}</span>{/if}</b>
   </div>
 
   {#if lock.kind === 'warn'}
@@ -162,8 +167,10 @@
   .lock.ban {
     --tint: var(--red);
   }
+  /* V108-F60c Focus is set by code (a lock replacing the box), so :focus, not :focus-visible. */
   .lock:focus {
-    outline: none;
+    outline: 1px solid var(--focus-ring);
+    outline-offset: 1px;
   }
   .head {
     display: flex;
