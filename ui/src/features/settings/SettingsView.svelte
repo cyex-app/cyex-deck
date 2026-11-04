@@ -204,6 +204,8 @@
 
   async function jump(hit: Hit) {
     count(query);
+    // V108-F59h The box is empty again after a pick; the recent list stays away until you type.
+    recentAway = true;
     open(hit.entry.page);
     await tick();
     if (content) reveal(content, hit.entry.anchor ? [hit.entry.id, hit.entry.anchor] : [hit.entry.id]);
