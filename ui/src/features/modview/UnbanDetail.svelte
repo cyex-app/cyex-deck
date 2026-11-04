@@ -149,7 +149,8 @@
 
   function confirm() {
     if (!decision || busy) return;
-    onresolve(decision === 'unban', notes[decision]);
+    // V108-F58 C4 A note of only spaces or breaks is no note.
+    onresolve(decision === 'unban', notes[decision].trim());
   }
 
   function onNoteKey(e: KeyboardEvent) {
@@ -303,8 +304,8 @@
               <span class="t">{when(p.createdAt)}</span>
               {#if p.resolvedBy}<span class="rby">· <bdi>{p.resolvedBy}</bdi></span>{/if}
             </div>
-            {#if p.text}<p class="msg" dir="auto">{p.text}</p>{:else}<p class="dim">No message.</p>{/if}
-            {#if p.note}<p class="note" dir="auto">{p.note}</p>{/if}
+            {#if p.text}<p class="msg" dir="auto"><bdi>{p.text}</bdi></p>{:else}<p class="dim">No message.</p>{/if}
+            {#if p.note}<p class="note" dir="auto"><bdi>{p.note}</bdi></p>{/if}
           </li>
         {/each}
       </ul>
@@ -357,6 +358,7 @@
       <button
         class="go"
         disabled={!decision || busy}
+        aria-label={busy ? 'Sending' : 'Confirm'}
         onclick={confirm}
         use:tooltip={{ label: 'Confirm', hint: 'Sends it and opens the next request. Ctrl+Enter in the note.' }}
       >

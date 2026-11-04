@@ -196,7 +196,8 @@
                   <span class="name"><bdi>{r.display || r.login}</bdi></span>
                   <span class="last">
                     {#if asked(r.createdAt)}<span class="when">{asked(r.createdAt)}</span><span class="dot">·</span>{/if}
-                    <span class="text" class:none={!r.text} dir="auto">{r.text || 'No message'}</span>
+                    <!-- V108-F58 C13 bdi: mixed-direction text isolates, the ellipsis stays at the end. -->
+                    <span class="text" class:none={!r.text} dir="auto"><bdi>{r.text || 'No message'}</bdi></span>
                   </span>
                 </span>
               </button>
