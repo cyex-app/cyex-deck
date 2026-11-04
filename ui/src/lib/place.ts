@@ -147,6 +147,11 @@ export function floating(node: HTMLElement, opts: FloatOptions) {
     node.style.maxHeight = p.maxHeight === undefined ? '' : `${p.maxHeight}px`;
     node.style.overflow = p.maxWidth === undefined && p.maxHeight === undefined ? '' : 'auto';
     node.dataset.side = p.side;
+    // V108-F55 Where it grows from: the anchor's middle (or the pointer), held to its own box,
+    // so a menu or dropdown scales in from what opened it.
+    const ox = clamp((anchor.left + anchor.right) / 2 - p.left, 0, size.width);
+    const oy = clamp((anchor.top + anchor.bottom) / 2 - p.top, 0, size.height);
+    node.style.setProperty('--float-origin', `${Math.round(ox)}px ${Math.round(oy)}px`);
   };
   // U3-1 The window's layout settles after its resize event, so the anchor has moved by the
   // next frame: run again then, and when the anchor or the page resizes later.

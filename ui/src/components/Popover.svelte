@@ -11,8 +11,9 @@
 
   import { layer } from '../lib/escape';
   import { focusScope, tabbables } from '../lib/focusScope';
+  import { byKeyboard } from '../lib/motion';
   import { floating } from '../lib/place';
-  import { moveFor } from './select.ts';
+  import { matchTyped, moveFor } from './select.ts';
 
   interface Props {
     open: boolean;
@@ -31,6 +32,13 @@
   let { open = $bindable(), align = 'end', side = 'below', role = 'dialog', flush = false, label, focus = true, children }: Props = $props();
 
   let box = $state<HTMLElement>();
+  /** V108-F55 Opened from the keyboard (or by the app): there at once, no scale-in. */
+  let keyed = $state(false);
+  $effect.pre(() => {
+    if (open) keyed = !focus || byKeyboard();
+  });
+  let typed = '';
+  let typedAt = 0;
 
   const ITEMS = '[role^="menuitem"]:not([aria-disabled="true"]), button:not(:disabled)';
 
@@ -77,6 +85,24 @@
     if (role !== 'menu' || e.ctrlKey || e.altKey || e.metaKey) return;
     const list = items();
     const at = list.indexOf(document.activeElement as HTMLElement);
+    // V108-F55 Tab leaves a menu: it closes and the focus goes back to its button.
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      open = false;
+      return;
+    }
+    // V108-F55 Type-ahead, as in the shared menu, when the focus isn't in a text field.
+    if (e.key.length === 1 && e.key !== ' ' && !(e.target instanceof HTMLInputElement)) {
+      const now = Date.now();
+      typed = now - typedAt < 700 ? typed + e.key : e.key;
+      typedAt = now;
+      const hit = matchTyped(list.map((el) => ({ value: '', label: el.textContent?.trim() ?? '' })), typed, at);
+      if (hit >= 0) {
+        e.preventDefault();
+        list[hit].focus();
+      }
+      return;
+    }
     const to = at < 0 && (e.key === 'ArrowDown' || e.key === 'ArrowUp')
       ? (e.key === 'ArrowDown' ? 0 : list.length - 1)
       : moveFor(e.key, at, list.length);
@@ -91,6 +117,7 @@
   <div
     class="popover"
     class:flush
+    class:float-in={!keyed}
     bind:this={box}
     use:floating={{ anchor: box?.parentElement, side, align }}
     {role}

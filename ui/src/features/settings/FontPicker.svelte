@@ -26,14 +26,14 @@
 <div class="wrap">
   <button class="field trigger" aria-haspopup="menu" aria-expanded={open} onclick={() => (open = !open)}>
     <span class="name" style:font-family={face(current)}>{current}</span>
-    <Icon name="chevronDown" size={13} />
+    <Icon name="chevronDown" size={14} />
   </button>
   <Popover bind:open align="end" role="menu" label="Chat font">
     <div class="panel">
       {#each FONTS as name (name)}
-        <button class="row" class:on={name === current} role="menuitemradio" aria-checked={name === current} onclick={() => pick(name)}>
+        <button class="row" role="menuitemradio" aria-checked={name === current} onclick={() => pick(name)}>
           <span class="face" style:font-family={face(name)}>{name}</span>
-          {#if name === current}<Icon name="check" size={13} />{/if}
+          {#if name === current}<span class="tick"><Icon name="check" size={14} /></span>{/if}
         </button>
       {/each}
     </div>
@@ -56,7 +56,7 @@
   }
   .trigger :global(svg) {
     flex: none;
-    color: var(--muted);
+    color: var(--dim);
   }
   .name {
     overflow: hidden;
@@ -75,20 +75,26 @@
     gap: 8px;
     width: 100%;
     height: 30px;
-    padding: 0 10px;
+    padding: 0 8px;
     background: none;
     border: 0;
     border-radius: var(--radius);
-    color: var(--muted);
+    color: var(--text);
     font-size: 0.95rem;
     text-align: left;
   }
-  .row.on {
-    color: var(--text);
-  }
-  .row:hover,
-  .row:focus-visible {
+  .row:hover {
     background: var(--surface-hover);
+  }
+  /* V108-F55 The menus' focus: a ring inside the row, never the hover tint. */
+  .row:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+  }
+  .tick {
+    display: flex;
+    flex: none;
+    color: var(--accent-text);
   }
   /* Not `.label`: that global class (tokens.css) is the small capitals of section titles. */
   .face {

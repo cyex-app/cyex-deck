@@ -14,6 +14,7 @@
   import type { Points } from '../../ipc/bindings/Points';
   import { accounts } from '../../lib/accounts.svelte';
   import { formatNumber } from '../../lib/format';
+  import { ARROWS, nearest } from '../../lib/gridNav';
   import { toast } from '../../lib/toast.svelte';
   import EmotePick from './EmotePick.svelte';
   import { btnMemo, remember } from './btnCache';
@@ -22,6 +23,21 @@
   import type { ChatRoom } from './room.svelte';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
+
+  /** V108-F55 Arrows move through the tiles as they sit (three a row), not one long list. */
+  function gridKey(e: KeyboardEvent) {
+    const dir = ARROWS[e.key];
+    if (!dir || e.ctrlKey || e.altKey || e.metaKey) return;
+    const tiles = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('.reward:not(:disabled)')];
+    const at = tiles.indexOf(document.activeElement as HTMLElement);
+    if (at < 0) return;
+    const to = nearest(tiles.map((t) => t.getBoundingClientRect()), at, dir);
+    // At an edge the menu's own keys go on, e.g. up to the Pay with switch.
+    if (to < 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    tiles[to].focus();
+  }
 
   let { room }: { room: ChatRoom } = $props();
 
@@ -250,7 +266,8 @@
         <p class="note">No rewards here.</p>
       {:else}
         <span id="lack-{room.login}" class="sr">{NOT_ENOUGH}</span>
-        <div class="grid">
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="grid" onkeydown={gridKey}>
           {#each choices as c (c.id)}
             <!-- Paused or on cooldown is already greyed: one reason at a time. -->
             {@const lack = c.available && short(c.cost, balance)}

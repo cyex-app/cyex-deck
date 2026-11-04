@@ -3,6 +3,7 @@
      Home/End, typing a name, Enter or Space pick, Escape closes (lib/escape.ts). Same size as `.field`. -->
 <script lang="ts">
   import { layer } from '../lib/escape';
+  import { byKeyboard } from '../lib/motion';
   import { floating } from '../lib/place';
   import Avatar from './Avatar.svelte';
   import Icon from './Icon.svelte';
@@ -31,6 +32,10 @@
   let text = $state<HTMLElement>();
   /** The trigger's width in px when the list opened; `width` may be a percentage. */
   let triggerW = $state(0);
+  /** V108-F55 The list opened from the keyboard: no scale-in. The active row shows the focus
+   *  ring only while the keyboard moved it; under the pointer it's the hover tint. */
+  let keyed = $state(false);
+  let byKey = $state(false);
   let typed = '';
   let typedAt = 0;
 
@@ -43,6 +48,7 @@
     onopen?.();
     active = Math.max(selected, 0);
     triggerW = button?.getBoundingClientRect().width ?? 0;
+    keyed = byKey = byKeyboard();
     open = true;
   }
 
@@ -83,6 +89,7 @@
 
   function onkey(e: KeyboardEvent) {
     if (e.ctrlKey || e.altKey || e.metaKey) return;
+    byKey = true;
     if (e.key === 'Tab') return close();
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
@@ -140,7 +147,7 @@
     <Icon name="chevronDown" size={14} />
   </button>
   {#if open}
-    <div id="{uid}-list" class="list" role="listbox" aria-label={label} bind:this={list} style:min-width="{triggerW}px" use:floating={{ anchor: button, side: 'below', align: 'start' }}>
+    <div id="{uid}-list" class="list" class:float-in={!keyed} role="listbox" aria-label={label} bind:this={list} style:min-width="{triggerW}px" use:floating={{ anchor: button, side: 'below', align: 'start' }}>
       {#each options as o, i (o.value)}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <div
@@ -151,13 +158,16 @@
           aria-selected={i === selected}
           data-active={i === active}
           class:active={i === active}
+          class:key={byKey}
           class:on={i === selected}
-          onmousemove={() => (active = i)}
+          onmousemove={() => ((active = i), (byKey = false))}
           onmousedown={(e) => e.preventDefault()}
           onclick={() => pick(i)}
         >
           {#if o.picture !== undefined}<span class="pic"><Avatar src={o.picture} name={o.label} size={20} /></span>{/if}
           <span class="choice">{o.label}</span>
+          <!-- V108-F55 The pick has a check, not only the tint. -->
+          {#if i === selected}<span class="check"><Icon name="check" size={14} /></span>{/if}
         </div>
       {/each}
     </div>
@@ -209,6 +219,8 @@
     position: fixed;
     z-index: var(--z-popover);
     max-width: min(480px, calc(100vw - 16px));
+    /* V108-F55 A long list scrolls instead of filling the window. */
+    max-height: min(360px, calc(100vh - 16px));
     overflow-y: auto;
     padding: 4px;
     background: var(--elevated);
@@ -219,9 +231,10 @@
   .option {
     display: flex;
     align-items: center;
-    min-height: 28px;
+    /* V108-F55 The shared menu's rows: 30 px, the same corners. */
+    min-height: 30px;
     padding: 0 8px;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius);
     color: var(--text);
     cursor: pointer;
     gap: 8px;
@@ -229,14 +242,23 @@
   }
   /* Not .label: that global class is the section heading style. */
   .choice {
+    flex: 1;
     min-width: 0;
   }
-  .option.active {
-    background: var(--row-hover);
-    box-shadow: inset 0 0 0 1px var(--focus-ring);
+  .check {
+    display: flex;
+    flex: none;
   }
   .option.on {
     background: var(--accent-dim);
     color: var(--accent-text);
+  }
+  .option.active:not(.on) {
+    background: var(--surface-hover);
+  }
+  /* Moved there with the keys: the menus' focus ring, so it never reads as the pointer's row. */
+  .option.active.key {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
   }
 </style>

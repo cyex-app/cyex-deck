@@ -6,6 +6,7 @@
 
   import { layer } from '../lib/escape';
   import { focusScope } from '../lib/focusScope';
+  import { byKeyboard } from '../lib/motion';
   import { floating } from '../lib/place';
   import { settings } from '../lib/settings.svelte';
   import Avatar from './Avatar.svelte';
@@ -14,6 +15,7 @@
   import Icon from './Icon.svelte';
   import { back, closeMenu, menu, menuDisarm, menuHold, menuMoveTo, pick, type MenuItem } from './menu.svelte';
   import { tooltip } from './tooltip.svelte';
+  import { matchTyped } from './select.ts';
 
   let box = $state<HTMLElement>();
   const list = $derived(menu.stack.at(-1));
@@ -49,6 +51,14 @@
     void tick().then(() => requestAnimationFrame(() => requestAnimationFrame(reveal)));
   }
 
+  /** The note shown on hover, when hints are on. */
+  const noteOf = (item: MenuItem) => (item.note && settings.v.general.tooltips ? item.note : '');
+  /** V108-F55 A label cut off at the menu's width shows in full on hover. */
+  function cut(row: HTMLElement | undefined): boolean {
+    const text = row?.querySelector<HTMLElement>('.text');
+    return !!text && text.scrollWidth > text.clientWidth + 1;
+  }
+
   /** Moves the keyboard focus through the items that can be picked. */
   function move(step: number) {
     const items = [...(box?.querySelectorAll<HTMLElement>('.item:not(:disabled), .menu-field input') ?? [])];
@@ -56,6 +66,25 @@
     const at = items.indexOf(document.activeElement as HTMLElement);
     const next = at < 0 ? (step > 0 ? 0 : items.length - 1) : Math.min(Math.max(at + step, 0), items.length - 1);
     items[next].focus();
+  }
+
+  /** V108-F55 Opened from the keyboard: there at once, no scale-in. */
+  let keyed = $state(false);
+  $effect.pre(() => {
+    if (menu.open) keyed = byKeyboard();
+  });
+
+  /** V108-F55 Type-ahead: letters jump to the next item that starts with them. */
+  let typed = '';
+  let typedAt = 0;
+  function typeAhead(ch: string) {
+    const items = [...(box?.querySelectorAll<HTMLElement>('.item:not(:disabled):not(.head)') ?? [])];
+    const now = Date.now();
+    typed = now - typedAt < 700 ? typed + ch : ch;
+    typedAt = now;
+    const choices = items.map((el) => ({ value: '', label: el.querySelector('.text')?.textContent?.trim() ?? '' }));
+    const hit = matchTyped(choices, typed, items.indexOf(document.activeElement as HTMLElement));
+    if (hit >= 0) items[hit].focus();
   }
 
   // Keys go to the menu while it's open; focus goes back where it was when it closes.
@@ -82,6 +111,9 @@
       const steps: Record<string, number> = typing ? { ArrowDown: 1, ArrowUp: -1 } : { ArrowDown: 1, ArrowUp: -1, Home: -999, End: 999 };
       if (e.key in steps) move(steps[e.key]);
       else if (typing) return;
+      // V108-F55 Tab leaves the menu: it closes and the focus goes back to what opened it.
+      else if (e.key === 'Tab') closeMenu();
+      else if (e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.altKey && !e.metaKey) typeAhead(e.key);
       else if (e.key === 'ArrowLeft' && menu.stack.length > 1) back();
       else if (e.key === 'ArrowRight' && document.activeElement instanceof HTMLElement && document.activeElement.dataset.sub) {
         document.activeElement.click();
@@ -105,6 +137,7 @@
 {#if menu.open && list}
   <div
     class="menu"
+    class:float-in={!keyed}
     data-shared-menu
     role="menu"
     tabindex="-1"
@@ -152,7 +185,7 @@
           disabled={entry.disabled}
           data-sub={entry.items ? '1' : undefined}
           onclick={(e) => pick(entry, e.detail === 0)}
-          use:tooltip={{ label: entry.note && settings.v.general.tooltips ? entry.note : '' }}
+          use:tooltip={{ label: noteOf(entry) || entry.label, when: () => !!noteOf(entry) || cut(rows[i]) }}
         >
           {#if entry.swatch}<span class="swatch" style:background={entry.swatch}></span>
           {:else if entry.avatar !== undefined}<Avatar src={entry.avatar} name={entry.label} size={18} />
@@ -163,7 +196,7 @@
           {#if entry.lock}<GateFlag kind={entry.lock} still />{/if}
           {#if entry.warn}<span class="warn"><Icon name="alert" size={14} /></span>{/if}
           {#if entry.checked}<span class="check"><Icon name="check" size={14} /></span>{/if}
-          {#if entry.items}<Icon name="chevronRight" size={13} />{/if}
+          {#if entry.items}<Icon name="chevronRight" size={14} />{/if}
         </button>
       {/if}
     {/each}

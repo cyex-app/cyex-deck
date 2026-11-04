@@ -23,3 +23,17 @@ export const FAST = 120;
 export const BASE = 200;
 /** Things that travel far: drawer height, panel moves. */
 export const SLOW = 360;
+
+// V108-F55 What opened a menu: a key (the Menu key, Shift+F10, Enter on a button) opens it at
+// once; a click lets it scale in from its trigger. Keyboard use is fast and repeated, so it
+// doesn't wait on motion.
+let keyed = false;
+if (typeof addEventListener === 'function') {
+  addEventListener('keydown', () => (keyed = true), true);
+  addEventListener('pointerdown', () => (keyed = false), true);
+}
+
+/** True when the last input was a key, not the pointer. */
+export function byKeyboard(): boolean {
+  return keyed;
+}

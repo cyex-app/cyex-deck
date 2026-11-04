@@ -140,7 +140,8 @@
     align-items: center;
     gap: 9px;
     width: 100%;
-    height: 32px;
+    /* V108-F55 The menus' 30 px rows. */
+    height: 30px;
     padding: 0 8px;
     background: none;
     border: 0;

@@ -58,7 +58,7 @@
         <div class="list">
           {#each themes as t (t.id)}
             {@const on = t.id === activeId}
-            <button class="row" class:on role="menuitemradio" aria-checked={on} onclick={() => onpick(t.id)}>
+            <button class="row" role="menuitemradio" aria-checked={on} onclick={() => onpick(t.id)}>
               <span class="sw" style:background={bg(t)}><u style:background={fill(t)}></u></span>
               <span class="name">{t.name}</span>
               <span class="tick">{#if on}<Icon name="check" size={14} />{/if}</span>
@@ -117,22 +117,18 @@
     gap: 8px;
     width: 100%;
     height: 30px;
-    padding: 0 10px;
+    padding: 0 8px;
     background: none;
     border: 0;
     border-radius: var(--radius);
-    color: var(--muted);
-    font-size: 0.95rem;
+    color: var(--text);
     text-align: left;
   }
-  .row.on {
-    color: var(--text);
-  }
-  .row:hover,
-  .row:focus-visible {
+  .row:hover {
     background: var(--surface-hover);
   }
-  /* V106 ra-2 The ring sits inside the row: the scroller is as wide as the rows and clips it. */
+  /* V106 ra-2 The ring sits inside the row: the scroller is as wide as the rows and clips it.
+     V108-F55 Only the ring: the keyboard's row never looks like the pointer's. */
   .row:focus-visible {
     outline-offset: -2px;
   }
@@ -174,7 +170,7 @@
   }
   .sep {
     height: 1px;
-    margin: 4px 6px;
+    margin: 4px 0;
     background: var(--border);
   }
 </style>

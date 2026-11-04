@@ -343,6 +343,19 @@ h2 {
   white-space: nowrap;
 }
 
+/* V108-F55 Menus, dropdowns and pickers grow out of what opened them: `use:floating` sets
+   --float-origin. Opened from the keyboard they skip it (motion.ts byKeyboard). */
+@keyframes float-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+.float-in {
+  transform-origin: var(--float-origin, top left);
+  animation: float-in var(--fast) var(--ease);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
