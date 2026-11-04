@@ -116,6 +116,11 @@ impl Pace {
         Self { short: Window::new(SHORT.1), long: Window::new(LONG.1) }
     }
 
+    /// V108-F56j Nothing in either window: this account's entry can go.
+    fn idle(&mut self, now: Instant) -> bool {
+        self.short.is_idle(now) & self.long.is_idle(now)
+    }
+
     /// `Ok(None)`: a slot was taken. `Ok(Some(d))`: wait `d` and ask again. `Err`: the minute is used up.
     fn take(&mut self, now: Instant) -> Result<Option<Duration>, &'static str> {
         if self.long.wait(LONG.0, now).is_some() {
@@ -137,7 +142,9 @@ async fn pace(account: &str) -> Result<(), String> {
     loop {
         let wait = {
             let mut all = PACES.lock().unwrap_or_else(|e| e.into_inner());
-            all.entry(account.to_owned()).or_insert_with(Pace::new).take(Instant::now())?
+            let now = Instant::now();
+            all.retain(|_, p| !p.idle(now));
+            all.entry(account.to_owned()).or_insert_with(Pace::new).take(now)?
         };
         match wait {
             Some(d) => tokio::time::sleep(d).await,
@@ -222,6 +229,16 @@ fn helix_reason(e: &cyex_twitch::Error) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_idle_pace_can_be_dropped() {
+        let t0 = Instant::now();
+        let mut p = Pace::new();
+        assert!(p.idle(t0));
+        assert_eq!(p.take(t0), Ok(None));
+        assert!(!p.idle(t0));
+        assert!(p.idle(t0 + LONG.1));
+    }
 
     #[test]
     fn whispers_are_paced_per_second_and_capped_per_minute() {

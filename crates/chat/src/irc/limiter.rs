@@ -53,6 +53,12 @@ impl Window {
         }
     }
 
+    /// Whether nothing is left in the window now (V108-F56j: an idle one can be dropped).
+    pub fn is_idle(&mut self, now: Instant) -> bool {
+        self.expire(now);
+        self.sent.is_empty()
+    }
+
     /// When the next slot frees up, or `None` if one is free now.
     pub fn wait(&mut self, limit: usize, now: Instant) -> Option<Duration> {
         self.expire(now);

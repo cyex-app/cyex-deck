@@ -82,7 +82,12 @@ async fn kept_or<F: Future<Output = Result<Option<Train>, String>>>(
     fetch: F,
 ) -> Result<Option<Train>, String> {
     let key = (login.to_owned(), ended);
-    let gate = GATES.lock().unwrap_or_else(|p| p.into_inner()).entry(key.clone()).or_default().clone();
+    let gate = {
+        let mut gates = GATES.lock().unwrap_or_else(|p| p.into_inner());
+        // V108-F56j Gates nobody holds or waits on are dropped.
+        gates.retain(|_, g| Arc::strong_count(g) > 1);
+        gates.entry(key.clone()).or_default().clone()
+    };
     let _one = gate.lock().await;
     let generation = {
         let r = reads();
