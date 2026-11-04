@@ -18,6 +18,9 @@ const NEUTRAL_TEXT_CONTRAST: f64 = 11.0;
 /// Chroma (0 to 1) from which an accent counts as fully colored.
 const COLORED_CHROMA: f64 = 0.2;
 
+/// The strongest tint alpha accent text sits on (`accent_wash`).
+const TINT_WASH: f64 = 0.22;
+
 pub const WHITE: Rgb = Rgb::new(0xff, 0xff, 0xff);
 pub const BLACK: Rgb = Rgb::new(0, 0, 0);
 const DARK_INK: Rgb = Rgb::new(0x0e, 0x0f, 0x12);
@@ -207,8 +210,17 @@ pub fn accent_tokens_on(input: &str, theme: Theme, [page, surface]: [Rgb; 2]) ->
     let fill = push_until(base, away, |c| contrast(c, page) >= FILL_CONTRAST);
     let grayness = 1.0 - (base.chroma() / COLORED_CHROMA).min(1.0);
     let text_target = TEXT_CONTRAST + (NEUTRAL_TEXT_CONTRAST - TEXT_CONTRAST) * grayness;
+    // V108-F59k Accent text also sits on the accent tints (selected rows, the active Segmented
+    // button): measure against page and surface under the strongest tint (the wash), which
+    // is the fill on dark and the text itself on light.
     let text = push_until(base, away, |c| {
-        contrast(c, page) >= text_target && contrast(c, surface) >= text_target
+        let tint = match theme {
+            Theme::Dark => fill,
+            Theme::Light => c,
+        };
+        [page, surface].into_iter().all(|bg| {
+            contrast(c, bg) >= text_target && contrast(c, bg.mix(tint, TINT_WASH)) >= text_target
+        })
     });
     let hover = match theme {
         Theme::Dark => fill.mix(WHITE, 0.15),
@@ -230,7 +242,7 @@ pub fn accent_tokens_on(input: &str, theme: Theme, [page, surface]: [Rgb; 2]) ->
         accent_ink: ink.to_hex(),
         accent_text: text.to_hex(),
         accent_dim: tint.rgba(0.14),
-        accent_wash: tint.rgba(0.22),
+        accent_wash: tint.rgba(TINT_WASH),
         accent_border: tint.rgba(0.55),
         accent_line: fill.to_hex(), // already 3:1 on the page
     }
@@ -336,6 +348,31 @@ mod tests {
     }
 
     #[test]
+    fn accent_text_reads_on_its_own_tint() {
+        let themes: [(Theme, [Rgb; 2]); 5] = [
+            (Theme::Dark, Theme::Dark.builtin_backgrounds()),
+            (Theme::Light, Theme::Light.builtin_backgrounds()),
+            (Theme::Dark, [rgb("#0e0f13"), rgb("#15171c")]), // Midnight
+            (Theme::Dark, [rgb("#18141c"), rgb("#1f1a25")]), // Dusk
+            (Theme::Dark, [rgb("#0b1620"), rgb("#10202a")]),
+        ];
+        for (theme, bgs) in themes {
+            for input in ["#ff0000", "#ffff00", "#00ff00", DEFAULT_ACCENT] {
+                let t = accent_tokens_on(input, theme, bgs);
+                let tint = match theme {
+                    Theme::Dark => rgb(&t.accent),
+                    Theme::Light => rgb(&t.accent_text),
+                };
+                for bg in bgs {
+                    let under = bg.mix(tint, 0.14);
+                    let c = contrast(rgb(&t.accent_text), under);
+                    assert!(c >= TEXT_CONTRAST, "{input} {theme:?} {bgs:?}: text on tint {c:.2}");
+                }
+            }
+        }
+    }
+
+    #[test]
     fn fills_never_disappear_into_the_page() {
         for theme in [Theme::Dark, Theme::Light] {
             for input in ["#1e1f23", "#f3f3f4", "#ffff00", "#000080"] {
@@ -380,7 +417,8 @@ mod tests {
             }
         }
         // A colored accent keeps its hue: still pushed only to 4.5:1.
-        assert_eq!(accent_tokens("#ff69b4", Theme::Dark).accent_text, "#ff69b4");
+        // V108-F59k Only nudged as far as its own tint needs (#ff87c3), not toward white.
+        assert_eq!(accent_tokens("#ff69b4", Theme::Dark).accent_text, "#ff87c3");
     }
 
     #[test]
