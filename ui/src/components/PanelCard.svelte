@@ -5,6 +5,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
+  import { moreBelow } from '../lib/moreBelow';
   import { quietScroll } from '../lib/quietScroll';
   import { grabFrom, usePanel } from './panel';
   import IconButton from './IconButton.svelte';
@@ -21,6 +22,8 @@
   const panel = usePanel();
   const ctl = $derived(panel?.());
   const grab = $derived(grabFrom(ctl?.grab));
+  /** V108-F58 C1 More content under the bottom edge: a fade says so. */
+  let more = $state(false);
 </script>
 
 <section class="card">
@@ -37,11 +40,13 @@
     {/if}
   </header>
   {/if}
-  <div class="body" class:flush use:quietScroll>{@render children()}</div>
+  <div class="body" class:flush use:quietScroll use:moreBelow={(m) => (more = m)}>{@render children()}</div>
+  <div class="fade" class:on={more} aria-hidden="true"></div>
 </section>
 
 <style>
   .card {
+    position: relative;
     flex: 1;
     container-type: inline-size;
     display: flex;
@@ -147,6 +152,23 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+  .fade {
+    position: absolute;
+    inset: auto 0 0;
+    height: 22px;
+    background: linear-gradient(to bottom, transparent, var(--surface));
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--fast);
+  }
+  .fade.on {
+    opacity: 1;
+  }
+  @media (forced-colors: active) {
+    .fade {
+      display: none;
+    }
   }
   .body.flush {
     padding: 0;

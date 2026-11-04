@@ -94,23 +94,23 @@
 
   type Id = 'stream' | 'info' | 'activity' | 'actions' | 'modes' | 'poll' | 'prediction' | 'raid' | 'ads' | 'markers' | 'together' | 'followers' | 'roles' | 'rolesmgr' | 'rewards' | 'clips' | 'videos' | 'modset' | 'chat';
   const INFO: Record<Id, { title: string; hint: string; min: Box; tall: number }> = {
-    stream: { title: 'Stream', hint: 'Preview, viewers, followers, subs.', min: { w: 220, h: 230 }, tall: 320 },
+    stream: { title: 'Stream', hint: 'Preview, viewers, followers, subs.', min: { w: 220, h: 260 }, tall: 320 },
     info: { title: 'Stream info', hint: 'Title and category.', min: { w: 220, h: 190 }, tall: 280 },
     activity: { title: 'Activity', hint: 'Follows, subs, cheers, raids, rewards.', min: { w: 240, h: 150 }, tall: 320 },
     actions: { title: 'Mod actions', hint: 'Bans, timeouts, deletes and more.', min: { w: 240, h: 150 }, tall: 300 },
     modes: { title: 'Chat settings', hint: 'Slow, followers-only, sub-only, emote-only.', min: { w: 200, h: 110 }, tall: 220 },
-    poll: { title: 'Poll', hint: 'Start or end a poll.', min: { w: 200, h: 170 }, tall: 280 },
-    prediction: { title: 'Prediction', hint: 'Start, lock or pay out.', min: { w: 200, h: 170 }, tall: 300 },
+    poll: { title: 'Poll', hint: 'Start or end a poll.', min: { w: 200, h: 240 }, tall: 300 },
+    prediction: { title: 'Prediction', hint: 'Start, lock or pay out.', min: { w: 200, h: 250 }, tall: 320 },
     raid: { title: 'Raid', hint: 'Raid another channel.', min: { w: 200, h: 110 }, tall: 240 },
     ads: { title: 'Ads', hint: 'Run an ad, snooze, schedule.', min: { w: 200, h: 150 }, tall: 260 },
     markers: { title: 'Markers', hint: 'Mark moments for your VOD.', min: { w: 200, h: 110 }, tall: 200 },
     together: { title: 'Stream Together', hint: 'Guests and join requests.', min: { w: 200, h: 110 }, tall: 260 },
-    followers: { title: 'Followers', hint: 'Who follows you, and since when.', min: { w: 220, h: 160 }, tall: 360 },
+    followers: { title: 'Followers', hint: 'Who follows you, and since when.', min: { w: 220, h: 220 }, tall: 360 },
     rolesmgr: { title: 'Roles Manager', hint: 'Mods, VIPs, editors and more in your channel.', min: { w: 240, h: 180 }, tall: 380 },
     roles: { title: 'My assigned roles', hint: 'Channels where you mod, edit or lead mods.', min: { w: 220, h: 160 }, tall: 320 },
-    rewards: { title: 'Rewards', hint: 'Channel points rewards and the redemption queue.', min: { w: 260, h: 180 }, tall: 420 },
+    rewards: { title: 'Rewards', hint: 'Channel points rewards and the redemption queue.', min: { w: 260, h: 240 }, tall: 420 },
     clips: { title: 'Clips', hint: 'Your channel’s clips and the ones you made.', min: { w: 260, h: 200 }, tall: 440 },
-    videos: { title: 'Videos', hint: 'Past broadcasts, highlights and uploads.', min: { w: 260, h: 180 }, tall: 420 },
+    videos: { title: 'Videos', hint: 'Past broadcasts, highlights and uploads.', min: { w: 260, h: 220 }, tall: 420 },
     // V107-R38
     modset: { title: 'Moderation settings', hint: 'AutoMod, verification, chat rules, terms.', min: { w: 260, h: 180 }, tall: 460 },
     chat: { title: 'Chat', hint: 'Your chat, as you.', min: { w: 240, h: 200 }, tall: 460 },
@@ -118,6 +118,8 @@
   /** Page order; never changes. The chat is last, so stacked it's at the bottom. */
   const ORDER: Id[] = ['stream', 'info', 'modes', 'activity', 'actions', 'poll', 'prediction', 'raid', 'ads', 'markers', 'together', 'followers', 'roles', 'rolesmgr', 'rewards', 'clips', 'videos', 'modset', 'chat'];
   /** Where every panel sits by default; a closed one comes back here. */
+  /** V108-F58 C1 The stacked cards share their room by how tall their content is, not evenly. */
+  const POLL_COL: Id[] = ['poll', 'prediction', 'raid', 'ads', 'markers', 'together', 'followers', 'roles', 'rolesmgr', 'rewards', 'clips', 'videos', 'modset'];
   const full = (chatShare: number): Node =>
     split(
       'row',
@@ -127,7 +129,7 @@
           [
             split('column', [leaf('stream'), leaf('info'), leaf('modes')], [0.4, 0.35, 0.25]),
             split('column', [leaf('activity'), leaf('actions')], [0.6, 0.4]),
-            split('column', [leaf('poll'), leaf('prediction'), leaf('raid'), leaf('ads'), leaf('markers'), leaf('together'), leaf('followers'), leaf('roles'), leaf('rolesmgr'), leaf('rewards'), leaf('clips'), leaf('videos'), leaf('modset')]),
+            split('column', [leaf('poll'), leaf('prediction'), leaf('raid'), leaf('ads'), leaf('markers'), leaf('together'), leaf('followers'), leaf('roles'), leaf('rolesmgr'), leaf('rewards'), leaf('clips'), leaf('videos'), leaf('modset')], POLL_COL.map((id) => INFO[id].tall)),
           ],
           [0.36, 0.37, 0.27],
         ),
