@@ -155,9 +155,20 @@ fn news<'a>(
     now.iter()
         .filter(|(c, _)| {
             let Some(s) = &c.stream else { return false };
-            before.get(&c.id).map(|k| &k.started) != Some(&s.started_at)
+            !before.get(&c.id).is_some_and(|k| same_start(&k.started, &s.started_at))
         })
         .collect()
+}
+
+/// V108-F56h Whether two `started_at` texts are the same instant: the GQL and the Helix
+/// fallback may write it differently (`Z` or an offset, fractions), which isn't a restart.
+/// Texts that don't parse compare as text.
+fn same_start(a: &str, b: &str) -> bool {
+    use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+    match (OffsetDateTime::parse(a, &Rfc3339), OffsetDateTime::parse(b, &Rfc3339)) {
+        (Ok(x), Ok(y)) => x == y,
+        _ => a == b,
+    }
 }
 
 /// V108-C39 What the last poll knew, to tell what is new now.
@@ -226,11 +237,11 @@ fn wanted(
         for c in tabs {
             let Some(s) = &c.stream else { continue };
             let known = prior.tab_ids.contains(&c.id);
-            let new = prior.tab_live.get(&c.id) != Some(&s.started_at);
+            let new = !prior.tab_live.get(&c.id).is_some_and(|t| same_start(t, &s.started_at));
             let done = out.iter().any(|o| o.id == c.id) || {
                 // The followed side saw this very stream earlier and (if its scope is on) alerted.
                 live.scope.followed()
-                    && prior.followed.get(&c.id).is_some_and(|k| k.started == s.started_at)
+                    && prior.followed.get(&c.id).is_some_and(|k| same_start(&k.started, &s.started_at))
                     && followed.iter().any(|(f, bell)| f.id == c.id && live.wants(&f.id, *bell))
             };
             if known && new && !done && live.wants(&c.id, true) {
@@ -247,7 +258,7 @@ fn live_flips(before: &HashMap<String, Known>, now: &[(ChannelCard, bool)]) -> V
         .iter()
         .filter_map(|(c, _)| {
             let s = c.stream.as_ref()?;
-            (before.get(&c.id).map(|k| &k.started) != Some(&s.started_at)).then(|| crate::feeds::live::Flip {
+            (!before.get(&c.id).is_some_and(|k| same_start(&k.started, &s.started_at))).then(|| crate::feeds::live::Flip {
                 id: c.id.clone(),
                 login: c.login.clone(),
                 name: c.name.clone(),
@@ -290,10 +301,26 @@ async fn messages(app: &AppHandle, alerts: &[ChannelCard]) -> HashMap<String, St
     })
 }
 
+/// V108-F56f The longest go-live message or title an alert shows.
+const TEXT_MAX: usize = 140;
+
+/// The first line of `t`, trimmed and cut at `max` characters (with a `…`).
+fn short_line(t: &str, max: usize) -> String {
+    let first = t.trim().lines().next().unwrap_or_default().trim();
+    if first.chars().count() <= max {
+        return first.to_owned();
+    }
+    let mut out: String = first.chars().take(max - 1).collect();
+    out.truncate(out.trim_end().len());
+    out.push('…');
+    out
+}
+
 /// The alert's text: the streamer's go-live message, else the stream title; the game under it.
 fn alert_text(card: &ChannelCard, message: Option<String>) -> String {
     let stream = card.stream.as_ref();
-    let mut text = message.unwrap_or_else(|| stream.map(|s| s.title.trim().to_owned()).unwrap_or_default());
+    let line = |t: &str| short_line(t, TEXT_MAX);
+    let mut text = line(&message.unwrap_or_else(|| stream.map(|s| s.title.clone()).unwrap_or_default()));
     if let Some(game) = stream.and_then(|s| s.game.as_ref()) {
         text = if text.is_empty() {
             game.name.clone()
@@ -471,5 +498,25 @@ mod tests {
         let (card, _) = live("a", "1");
         assert!(alert_text(&card, Some("Ranked grind!".into())).starts_with("Ranked grind!"));
         assert!(alert_text(&card, None).starts_with('t'));
+    }
+
+    #[test]
+    fn long_messages_are_cut_to_one_line() {
+        assert_eq!(short_line("  one
+two ", 140), "one");
+        let cut = short_line(&"é".repeat(300), 140);
+        assert_eq!(cut.chars().count(), 140);
+        assert!(cut.ends_with('…'));
+        assert_eq!(short_line(&"a".repeat(140), 140).chars().count(), 140);
+    }
+
+    #[test]
+    fn same_instant_in_another_format_is_not_a_restart() {
+        assert!(same_start("2026-11-04T10:00:00Z", "2026-11-04T11:00:00+01:00"));
+        assert!(same_start("2026-11-04T10:00:00Z", "2026-11-04T10:00:00.000Z"));
+        assert!(!same_start("2026-11-04T10:00:00Z", "2026-11-04T10:05:00Z"));
+        assert!(same_start("1", "1") && !same_start("1", "2"));
+        let before = HashMap::from([known("a", "2026-11-04T10:00:00Z")]);
+        assert!(news(&before, &[live("a", "2026-11-04T10:00:00.000+00:00")], false).is_empty());
     }
 }
