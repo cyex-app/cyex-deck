@@ -69,7 +69,8 @@
 {:else if id === 'automod'}
   <Card title="AutoMod queue" flush><AutomodQueue {account} {login} held={board.held} /></Card>
 {:else if id === 'unban'}
-  <UnbanQueue {account} {login} {popped} />
+  <!-- V108-F57j Another account or channel reads its own queue. -->
+  {#key `${account}:${login}`}<UnbanQueue {account} {login} {popped} />{/key}
 {:else if id === 'chatters'}
   <Card title="Viewers" flush><ViewerList {account} {login} /></Card>
 {:else if id === 'terms'}

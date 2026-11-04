@@ -124,8 +124,11 @@
         ordered.map((x) => x.id),
         r.id,
       );
+      // V108-F57j Picked another meanwhile: that choice stays.
+      const mine = selected === r.id;
       done.add(r.id);
       list = list.filter((x) => x.id !== r.id);
+      if (!mine) return;
       // The next one opens, side by side or stacked; with none left the (empty) list shows.
       selected = next;
       open = !!next;
