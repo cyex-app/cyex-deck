@@ -8,7 +8,7 @@
   import Icon from '../../components/Icon.svelte';
   import { formatDate, formatNumber } from '../../lib/format';
   import { streamer } from '../../lib/streamer.svelte';
-  import { headline, REQUEST_MAX, unbanLine, type Lock } from './chatLock';
+  import { left, REQUEST_MAX, ticking, title, unbanLine, type Lock } from './chatLock';
   import type { Standing } from './standing.svelte';
 
   interface Props {
@@ -22,12 +22,16 @@
   let text = $state('');
   let field = $state<HTMLTextAreaElement>();
   let opener = $state<HTMLElement>();
+  let status = $state<HTMLElement>();
+  const uid = $props.id();
 
   // U4 Streamer mode hides who did it, like mod actions in chat.
   const by = $derived(lock.kind !== 'warn' && lock.by && !streamer.hides('hideModActions') ? lock.by : null);
   const now = $derived(standing.now);
   const unban = $derived(lock.kind === 'ban' ? lock.unban : null);
-  const line = $derived(unban ? unbanLine(unban, now) : '');
+  const waitAt = $derived(unban?.state === 'wait' ? unban.at : null);
+  // V108-F57a The countdowns tick in aria-hidden spans: the status itself stays still.
+  const line = $derived(unban && unban.state !== 'wait' ? unbanLine(unban, now) : '');
   const chars = $derived([...text].length);
   /** "by Kuni · since 2026/11/04" */
   const meta = $derived(
@@ -55,12 +59,25 @@
     opener?.querySelector('button')?.focus();
   }
 
+  /** V108-F57b Focus lands on the status once the control that had it is gone; a click elsewhere stays. */
+  async function settle() {
+    await tick();
+    const a = document.activeElement;
+    if (!a || a === document.body) status?.focus();
+  }
+
   async function send() {
-    if (chars > REQUEST_MAX || standing.busy) return;
+    if (!text.trim() || chars > REQUEST_MAX || standing.busy) return;
     if (await standing.requestUnban(text.trim())) {
       text = '';
       asking = false;
+      await settle();
     }
+  }
+
+  async function acknowledge() {
+    await standing.acknowledge();
+    if (!standing.error) await settle();
   }
 
   function onkeydown(e: KeyboardEvent) {
@@ -75,10 +92,10 @@
   }
 </script>
 
-<div class="lock {lock.kind}" role="status">
+<div class="lock {lock.kind}" role="status" tabindex="-1" bind:this={status}>
   <div class="head">
     <Icon name={lock.kind === 'warn' ? 'alert' : lock.kind === 'ban' ? 'ban' : 'clock'} size={14} />
-    <b>{headline(lock, now)}</b>
+    <b>{title(lock)}{#if lock.kind === 'timeout'}<span aria-hidden="true"> · {ticking(lock, now)}</span>{/if}</b>
   </div>
 
   {#if lock.kind === 'warn'}
@@ -90,7 +107,7 @@
     {/if}
     <p class="hint">Acknowledge it to chat again.</p>
     <div class="actions">
-      <Button variant="primary" small disabled={standing.busy} onclick={() => void standing.acknowledge()}>Acknowledge</Button>
+      <Button variant="primary" small disabled={standing.busy} onclick={() => void acknowledge()}>Acknowledge</Button>
     </div>
   {:else}
     {#if lock.reason}<p class="reason">{lock.reason}</p>{/if}
@@ -103,18 +120,20 @@
             bind:value={text}
             rows="3"
             aria-label="Why should you be unbanned?"
+            aria-describedby="{uid}-count"
             placeholder="Why should you be unbanned?"
             maxlength={REQUEST_MAX * 2}
             {onkeydown}
           ></textarea>
           <div class="actions">
-            <span class="count" class:over={chars > REQUEST_MAX}>{formatNumber(chars)}/{formatNumber(REQUEST_MAX)}</span>
+            <span id="{uid}-count" class="count" class:over={chars > REQUEST_MAX}>{formatNumber(chars)}/{formatNumber(REQUEST_MAX)}</span>
             <Button variant="ghost" small onclick={() => void close()}>Cancel</Button>
-            <Button variant="primary" small disabled={standing.busy || chars > REQUEST_MAX} onclick={() => void send()}>Send</Button>
+            <Button variant="primary" small disabled={standing.busy || !text.trim() || chars > REQUEST_MAX} onclick={() => void send()}>Send</Button>
           </div>
         </div>
       {:else}
         {#if line}<p class="hint">{line}</p>{/if}
+        {#if waitAt !== null}<p class="hint">Available in <span aria-hidden="true">{left(waitAt, now)}</span></p>{/if}
         {#if unban.state === 'ready' || unban.state === 'wait'}
           <div class="actions">
             <span bind:this={opener} class="opener">
@@ -142,6 +161,9 @@
   }
   .lock.ban {
     --tint: var(--red);
+  }
+  .lock:focus {
+    outline: none;
   }
   .head {
     display: flex;

@@ -102,6 +102,28 @@ export function left(until: number, now: number): string {
   return clock(Math.ceil(ms / 1000));
 }
 
+/** V108-F57a The lock's words without the ticking part: what a screen reader hears. */
+export function title(lock: Lock): string {
+  switch (lock.kind) {
+    case 'timeout':
+      return 'Timed out';
+    case 'ban':
+      return 'You’re banned here.';
+    case 'warn':
+      return 'You got a warning.';
+  }
+}
+
+/** V108-F57a The time left on a timeout, else ''. It ticks, so it stays out of the status. */
+export function ticking(lock: Lock, now: number): string {
+  return lock.kind === 'timeout' ? left(lock.until, now) : '';
+}
+
+/** V108-F57b When a lock ends, the box takes focus back only if it had it or nothing has it. */
+export function refocusBox(hadFocus: boolean, activeIsBody: boolean): boolean {
+  return hadFocus || activeIsBody;
+}
+
 /** The lock's one line. */
 export function headline(lock: Lock, now: number): string {
   switch (lock.kind) {

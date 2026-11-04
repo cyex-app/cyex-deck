@@ -51,6 +51,7 @@
   import { errorText } from '../../lib/errors';
   import { standingIpc } from '../../ipc/standing';
   import ChatLock from './ChatLock.svelte';
+  import { refocusBox } from './chatLock';
   import { Standing } from './standing.svelte';
 
   interface Props {
@@ -126,6 +127,29 @@
   const standingKey = $derived(
     canChat && room.status === 'joined' && room.state.channelId ? `${room.account}:${room.state.channelId}` : '',
   );
+  // V108-F57b The lock swaps the box out: a suggestion list goes with it, and the box gets
+  // focus back when the lock ends, only if it had it (or nothing has it now).
+  let locked = false;
+  let hadFocus = false;
+  let unlockNote = $state('');
+  $effect.pre(() => {
+    const now = !!lock;
+    untrack(() => {
+      if (now === locked) return;
+      locked = now;
+      if (now) {
+        hadFocus = !!box && document.activeElement === box;
+        suggest = null;
+        argSeq++;
+        unlockNote = '';
+      } else {
+        unlockNote = 'You can chat again.';
+        void tick().then(() => {
+          if (refocusBox(hadFocus, !document.activeElement || document.activeElement === document.body)) box?.focus();
+        });
+      }
+    });
+  });
   $effect(() => {
     // Untracked: the read must not follow every room state change.
     if (standingKey) untrack(() => void standing.load());
@@ -468,6 +492,8 @@
   }
 
   function onkeydown(e: KeyboardEvent) {
+    // V108-F57 An Enter that confirms an IME candidate is not a send.
+    if (e.key === 'Enter' && (e.isComposing || e.keyCode === 229)) return;
     if (e.key !== 'Tab' && e.key !== 'Shift') cycle = null;
     if (suggest) {
       // V108-N09 One rule set for the list and the row (suggestKeys.ts).
@@ -515,7 +541,7 @@
   {#if replyTo}
     <div class="reply-bar">
       <Icon name="reply" size={13} />
-      <span>Replying to <b>@{replyTo.sender?.display}</b>: {plainText(replyTo.body)}</span>
+      <span>{#if replyTo.sender?.display}Replying to <b>@{replyTo.sender.display}</b>{:else}Replying to a message{/if}: {plainText(replyTo.body)}</span>
       <button aria-label="Cancel reply" onclick={() => (replyTo = null)}><Icon name="x" size={13} /></button>
     </div>
   {/if}
@@ -524,6 +550,7 @@
   {#if suggest}
     <SuggestList items={suggest.items} index={suggest.index} onpick={accept} anchor={row} style={styleNow} />
   {/if}
+  <span class="sr-only" role="status">{unlockNote}</span>
   {#if lock}
     <ChatLock {lock} {standing} />
   {:else}

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { ChatStanding } from '../../ipc/bindings/ChatStanding';
-import { headline, left, lockOf, nextRead, unbanLine, unbanOf, type LockInput } from './chatLock.ts';
+import { headline, left, refocusBox, ticking, title, lockOf, nextRead, unbanLine, unbanOf, type LockInput } from './chatLock.ts';
 
 const NOW = Date.parse('2026-11-04T12:00:00Z');
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -84,4 +84,22 @@ test('reads again when it matters', () => {
   assert.equal(nextRead(null, input({})), null);
   const said = { how: { kind: 'banned' as const }, at: NOW };
   assert.equal(nextRead(null, input({ said, readAt: NOW + 100 })), 5_000, 'the read came too soon');
+});
+
+test('the status line is static, the time ticks apart from it', () => {
+  const st: ChatStanding = { ban: { until: iso(NOW + 299_500), by: 'Kuni', reason: '' }, unban: null, canRequest: null, request: null };
+  const lock = lockOf(input({ standing: st, readAt: NOW - 1000 }))!;
+  assert.equal(title(lock), 'Timed out');
+  assert.equal(title(lock), title(lock));
+  assert.equal(ticking(lock, NOW), '5:00');
+  assert.equal(ticking(lock, NOW + 1_000), '4:59');
+  const ban = lockOf(input({ standing: banned(1) }))!;
+  assert.equal(title(ban), 'You’re banned here.');
+  assert.equal(ticking(ban, NOW), '');
+});
+
+test('the box takes focus back only when it had it or nothing has', () => {
+  assert.equal(refocusBox(true, false), true);
+  assert.equal(refocusBox(false, true), true);
+  assert.equal(refocusBox(false, false), false);
 });
