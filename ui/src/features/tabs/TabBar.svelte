@@ -16,7 +16,7 @@
   import { openAdd, openEdit } from './dialog.svelte';
   import GroupChip from './GroupChip.svelte';
   import { GROUP_COLORS } from './groupColors';
-  import { barMaxHeight } from './barLayout';
+  import { barMaxHeight, plusFits } from './barLayout';
   import { stepTab, WheelSteps } from './cycle';
   import { barMenu, groupMenu, tabMenu } from './menus';
   import TabItem from './TabItem.svelte';
@@ -82,12 +82,16 @@
   let selected = $state<Set<string>>(new Set());
   let anchor: string | null = null;
   let bar = $state<HTMLElement>();
+  let addEl = $state<HTMLElement>();
 
   // Keep the shown tab in view when the bar scrolls.
   $effect(() => {
     if (!current || !bar) return;
     const tab = bar.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(current)}"]`);
-    if (tab) scrollWithin(tab, 'nearest');
+    if (!tab) return;
+    scrollWithin(tab, 'nearest');
+    // V108-F59d Past the row cap the "+" sits on a row below the last tab: when both fit, show it too.
+    if (addEl && !vertical && plusFits(tab.getBoundingClientRect().top, addEl.getBoundingClientRect().bottom, bar.clientHeight)) scrollWithin(addEl, 'nearest');
   });
 
   // V102-04 The wheel over the bar steps through tabs: down is the next one, up the one
@@ -226,7 +230,7 @@
       {hidden.size} offline
     </button>
   {/if}
-  <div class="add">
+  <div class="add" bind:this={addEl}>
     <IconButton icon="plus" label="Add a tab" hint="Any channel, by name, user id or link." size={15} onclick={() => openAdd()} />
   </div>
 </div>
@@ -261,8 +265,11 @@
      V108-F44c No floor at all: each tab is as wide as its name (an 88 px floor padded short
      names out); a full row wraps whole tabs. */
   .chrome :global(.tab) {
-    min-width: 0;
     max-width: 200px;
+  }
+  /* V108-F59f The row under the title bar (narrow window) is sized the same way: no 88 px floor. */
+  .bar:not(.vertical) :global(.tab) {
+    min-width: 0;
   }
   .vertical {
     flex-direction: column;

@@ -160,7 +160,8 @@
           <Icon name={sound === 'muted' ? 'volumeOff' : 'volume'} size={9} />
         </span>
       </span>
-    {:else if live}<span class="dot {live}"></span>{/if}
+    {:else if live}<span class="dot {live}"></span>
+    {:else if vertical}<!-- V108-F59g An empty slot, so names line up whether or not a dot shows. --><span class="slot" aria-hidden="true"></span>{/if}
     <span class="name">{name}</span>
     {#if unread === 'mention'}<MentionCount count={mentions} />{/if}
     <!-- V106 a-5, s3-7 The badge is only a picture; screen readers hear it here. -->

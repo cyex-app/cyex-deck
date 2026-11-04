@@ -54,3 +54,9 @@ export function hiddenTabs(list: readonly Tab[], on: boolean, keep: Iterable<str
 export function sideBarWidth(side: TabBarSide, edge: number): number | undefined {
   return side === 'left' && edge > 0 ? edge - 1 : undefined;
 }
+
+/** V108-F59d The shown tab and the "+" below it can both be in view in a bar `view` px tall
+ * (tops and bottoms in the same coordinates): the bar then scrolls to the "+" too. */
+export function plusFits(tabTop: number, plusBottom: number, view: number): boolean {
+  return plusBottom >= tabTop && plusBottom - tabTop <= view;
+}
