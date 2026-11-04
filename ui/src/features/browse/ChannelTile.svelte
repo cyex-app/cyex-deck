@@ -83,7 +83,7 @@
     max-width: 100%;
     color: var(--dim);
     font-size: 0.7rem;
-    opacity: 0.8;
+    /* V108-F59l No opacity: --dim already sits at 4.5:1 and 80 % of it fell to 3.4 (light). */
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

@@ -51,7 +51,7 @@ pub fn builtin(theme: Theme, key: &str) -> Option<Rgb> {
         (Theme::Light, "border") => "#dcdde1",
         (Theme::Light, "text") => "#1b1c20",
         (Theme::Light, "muted") => "#4f515a",
-        (Theme::Light, "dim") => "#6b6d76",
+        (Theme::Light, "dim") => "#63656e",
         (Theme::Light, "red") => "#c1352f",
         (Theme::Light, "yellow") => "#9a5c05",
         (Theme::Light, "green") => "#0f8a55",

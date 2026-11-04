@@ -220,9 +220,7 @@
   .arrows.gone {
     visibility: hidden;
   }
-  .rule.off .hint {
-    opacity: 0.7;
-  }
+  /* V108-F59l An off rule keeps its hint at --dim; 70 % opacity took it under 4.5:1. */
   .pair {
     display: inline-flex;
     gap: 6px;
