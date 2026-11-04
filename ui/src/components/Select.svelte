@@ -79,6 +79,14 @@
     };
   });
 
+  // V108-F57g The options changed under an open list: close if none are left, else keep the active row inside.
+  $effect(() => {
+    const n = options.length;
+    if (!open) return;
+    if (!n) close();
+    else if (active > n - 1) active = n - 1;
+  });
+
   // Keeps the active choice in view in a long list.
   $effect(() => {
     void active;
@@ -136,7 +144,7 @@
     {disabled}
     aria-haspopup="listbox"
     aria-expanded={open}
-    aria-controls="{uid}-list"
+    aria-controls={open ? `${uid}-list` : undefined}
     aria-activedescendant={open ? `${uid}-${active}` : undefined}
     onclick={() => (open ? close() : show())}
     onkeydown={onkey}
@@ -148,7 +156,7 @@
   </button>
   {#if open}
     <div id="{uid}-list" class="list" class:float-in={!keyed} role="listbox" aria-label={label} bind:this={list} style:min-width="{triggerW}px" use:floating={{ anchor: button, side: 'below', align: 'start' }}>
-      {#each options as o, i (o.value)}
+      {#each options as o, i (i)}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <div
           id="{uid}-{i}"
