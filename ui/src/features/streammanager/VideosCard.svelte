@@ -138,14 +138,14 @@
   function menu(e: MouseEvent, v: ManagedVideo) {
     const ready = v.state === 'ready';
     openMenuAt(e, [
-      { label: 'Play', icon: 'play', disabled: v.state === 'processing', run: () => (playing = { kind: 'vod', id: v.id }) },
+      { label: 'Play', icon: 'play', disabled: v.state === 'processing', note: v.state === 'processing' ? 'Still processing.' : undefined, run: () => (playing = { kind: 'vod', id: v.id }) },
       { label: 'Rename', icon: 'pencil', run: () => (editing = { id: v.id, text: v.title }) },
       v.public
-        ? { label: 'Unpublish', icon: 'eyeOff', disabled: !ready, note: 'Only you can see it then.', run: () => publish(v, false) }
-        : { label: 'Publish', icon: 'eye', disabled: !ready, note: 'Anyone can watch it then.', run: () => publish(v, true) },
+        ? { label: 'Unpublish', icon: 'eyeOff', disabled: !ready, note: ready ? 'Only you can see it then.' : 'Not ready yet.', run: () => publish(v, false) }
+        : { label: 'Publish', icon: 'eye', disabled: !ready, note: ready ? 'Anyone can watch it then.' : 'Not ready yet.', run: () => publish(v, true) },
       { label: 'Copy link', icon: 'link', run: () => void copy(videoLink(v.id), 'Link') },
       'separator',
-      { label: 'Delete video', icon: 'trash', danger: true, disabled: v.state === 'recording', note: 'Gone for good.', confirm: 'Click to delete', run: () => remove(v) },
+      { label: 'Delete video', icon: 'trash', danger: true, disabled: v.state === 'recording', note: v.state === 'recording' ? 'Can’t delete it while it records.' : 'Gone for good.', confirm: 'Click to delete', run: () => remove(v) },
     ]);
   }
 

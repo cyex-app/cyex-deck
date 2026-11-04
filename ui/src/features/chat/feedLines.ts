@@ -50,18 +50,19 @@ export function nameEntries(channel: string, login: string, openRoom: (c: string
       run: () => chatIpc.openUsercard(channel, login).catch((e) => toast.error(errorText(e))),
     },
     ...(accounts.can('whispers') ? [{ label: 'Whisper', icon: 'whisper' as const, run: () => whispers.show(login) }] : []),
-    { label: 'Copy name', icon: 'copy', run: () => void copy(login, 'Name') },
+    // V108-F55 Going somewhere before copy (menuItems.ts order).
     'separator',
     { label: 'Open this chat', icon: 'list', run: () => openRoom(channel) },
+    { label: 'Copy name', icon: 'copy', run: () => void copy(login, 'Name') },
   ];
 }
 
 export function messageEntries(channel: string, m: ChatMessage, openRoom: (c: string) => void): MenuEntry[] {
   return [
-    { label: 'Copy message', icon: 'copy', run: () => void copy(plainText(m.body), 'Message') },
     { label: 'Open this chat', icon: 'list', run: () => openRoom(channel) },
     // V108-N17 Global mentions are rarely in the chat's own scrollback.
     ...(m.sender && !m.notice ? jumpInLogs(channel, m) : []),
+    { label: 'Copy message', icon: 'copy', run: () => void copy(plainText(m.body), 'Message') },
   ];
 }
 

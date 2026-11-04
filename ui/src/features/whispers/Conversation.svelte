@@ -199,18 +199,11 @@
     if (!thread) return;
     const items: MenuEntry[] = [];
     if (history) {
-      items.push(
-        {
-          label: thread.muted ? 'Unmute alerts' : 'Mute alerts',
-          icon: 'bellOff',
-          run: () => void edit({ muted: !thread.muted }),
-        },
-        {
-          label: thread.archived ? 'Move back to the list' : 'Archive',
-          icon: 'archive',
-          run: () => void edit({ archived: !thread.archived }),
-        },
-      );
+      items.push({
+        label: thread.archived ? 'Move back to the list' : 'Archive',
+        icon: 'archive',
+        run: () => void edit({ archived: !thread.archived }),
+      });
       if (thread.temporary) {
         items.push({
           label: 'Take back their access',
@@ -219,7 +212,15 @@
           run: () => void edit({ revoke: true }, 'They can’t whisper you anymore.'),
         });
       }
-      items.push('separator');
+      // V108-F55 The switch after the actions (menuItems.ts order), its icon as on the tab menu.
+      items.push(
+        {
+          label: thread.muted ? 'Unmute alerts' : 'Mute alerts',
+          icon: thread.muted ? 'bell' : 'bellOff',
+          run: () => void edit({ muted: !thread.muted }),
+        },
+        'separator',
+      );
     }
     items.push({ label: 'Block', icon: 'ban', note: 'Blocks them on Twitch', danger: true, run: () => void block() });
     openMenuAt(e, items);

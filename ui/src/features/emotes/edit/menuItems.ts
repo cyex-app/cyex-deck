@@ -62,7 +62,7 @@ export function editEntries(o: EditOptions | null, h: EditHandlers): MenuEntry[]
   const here = o.here;
   if (here) {
     out.push(
-      { label: 'Rename…', icon: 'pencil', note: `In ${here.channel}’s 7TV emotes`, run: () => h.rename(here) },
+      { label: 'Rename', icon: 'pencil', note: `In ${here.channel}’s 7TV emotes`, run: () => h.rename(here) },
       { label: `Remove from ${here.channel}`, icon: 'trash', run: () => h.remove(here) },
     );
   }

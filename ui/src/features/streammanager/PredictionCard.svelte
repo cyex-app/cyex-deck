@@ -121,12 +121,9 @@
             size={14}
             disabled={busy}
             onclick={(e) =>
+              // V108-F55 One item with the menus' confirm bubble, not a submenu of one.
               openMenuAt(e, [
-                {
-                  label: 'Refund everyone',
-                  icon: 'x',
-                  items: [{ label: 'Refund all points', icon: 'x', danger: true, run: () => end({ kind: 'cancel' }, 'Refunded.') }],
-                },
+                { label: 'Refund everyone', icon: 'undo', danger: true, confirm: 'Click to refund', run: () => end({ kind: 'cancel' }, 'Refunded.') },
               ])}
           />
         </span>

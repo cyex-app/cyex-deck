@@ -139,7 +139,7 @@
     openMenuAt(e, [
       r.paused
         ? { label: 'Resume', icon: 'play', note: 'Viewers can redeem it again.', run: () => void flip(r, { kind: 'paused', on: false }) }
-        : { label: 'Pause', icon: 'pause', disabled: !r.enabled, note: 'Viewers see it but can’t redeem it.', run: () => void flip(r, { kind: 'paused', on: true }) },
+        : { label: 'Pause', icon: 'pause', disabled: !r.enabled, note: r.enabled ? 'Viewers see it but can’t redeem it.' : 'The reward is off.', run: () => void flip(r, { kind: 'paused', on: true }) },
       { label: 'Edit', icon: 'pencil', run: () => (editing = r.id) },
       'separator',
       // V108-F15 (S3-02) Nothing waiting: the menu's confirm bubble. With redemptions waiting there are two ways out, so the row asks.

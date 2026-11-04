@@ -86,7 +86,7 @@
       { label: 'Play', icon: 'play', run: () => orToast(soundIpc.play(path), 'play the sound') },
       { label: 'Choose another file', icon: 'upload', run: () => void pickSound(key) },
       'separator',
-      { label: 'Use the chime', icon: 'x', run: () => set(key, '') },
+      { label: 'Use the chime', icon: 'undo', run: () => set(key, '') },
     ]);
   }
 

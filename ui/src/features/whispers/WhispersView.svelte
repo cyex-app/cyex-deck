@@ -91,7 +91,7 @@
       {
         label: 'Block whispers from strangers',
         icon: 'lock',
-        note: 'Only people you follow or whispered can whisper you.',
+        note: s.history ? 'Only people you follow or whispered can whisper you.' : 'Needs a GQL sign-in.',
         checked: s.blockStrangers,
         disabled: !s.history,
         run: () => whispersIpc.blockStrangers(!s.blockStrangers).catch((err) => toast.error(errorText(err))),

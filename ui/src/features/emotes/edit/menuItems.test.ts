@@ -50,7 +50,7 @@ test('a whole blocked item greys', () => {
 test('here only and both', () => {
   const here = { setId: 's', channel: 'kuni', alias: 'KEKW' };
   const only = items(editEntries(opts({ here }), h));
-  assert.deepEqual(only.map((x) => x.label), ['Rename…', 'Remove from kuni']);
+  assert.deepEqual(only.map((x) => x.label), ['Rename', 'Remove from kuni']);
   const both = items(editEntries(opts({ here, add: { blocked: null, targets: [t('kuni')] } }), h));
   assert.equal(both.length, 3);
 });

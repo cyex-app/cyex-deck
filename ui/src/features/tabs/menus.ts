@@ -129,8 +129,8 @@ function lookEntry(tab: Tab): MenuEntry {
     label: 'Chat look',
     icon: 'chat',
     items: [
-      { label: 'Text size', hint: chatSize != null ? `${chatSize}px` : undefined, items: pick(chatSize, CHAT_SIZES, 'px', 'chatSize') },
-      { label: 'Emote size', hint: emoteSize != null ? `${emoteSize}%` : undefined, items: pick(emoteSize, EMOTE_SIZES, '%', 'emoteSize') },
+      { label: 'Text size', icon: 'wholeWord', hint: chatSize != null ? `${chatSize}px` : undefined, items: pick(chatSize, CHAT_SIZES, 'px', 'chatSize') },
+      { label: 'Emote size', icon: 'smile', hint: emoteSize != null ? `${emoteSize}%` : undefined, items: pick(emoteSize, EMOTE_SIZES, '%', 'emoteSize') },
       'separator',
       {
         label: 'Reset to default',

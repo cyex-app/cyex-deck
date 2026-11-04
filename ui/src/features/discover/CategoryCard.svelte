@@ -33,7 +33,7 @@
 <button
   class="cat"
   onclick={() => onopen(category)}
-  oncontextmenu={(e) => (e.preventDefault(), openMenu(e, [{ label: 'Hide category', run: hide }]))}
+  oncontextmenu={(e) => (e.preventDefault(), openMenu(e, [{ label: 'Hide category', icon: 'eyeOff', run: hide }]))}
 >
   <div class="art">
     {#if category.boxArt}<img src={category.boxArt} alt="" loading="lazy" decoding="async" />{:else}<span class="initials" aria-hidden="true">{initials}</span>{/if}

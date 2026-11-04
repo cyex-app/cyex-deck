@@ -93,7 +93,7 @@ export async function emoteMenu(e: MouseEvent, el: HTMLElement, host: LineHost):
   // Null: the user moved on or a newer right-click came in.
   if (!edits) return;
   host.openMenu(e, [
-    { label: 'Emote card', icon: 'smile', run: () => host.openCard(t) },
+    { label: 'Open emote card', icon: 'smile', run: () => host.openCard(t) },
     { label: 'Copy name', icon: 'copy', run: () => void copy(emote.name, 'Emote name') },
     'separator',
     {
