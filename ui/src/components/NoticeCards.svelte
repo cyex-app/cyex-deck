@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { flip } from 'svelte/animate';
   import { fly } from 'svelte/transition';
   import { BASE, FAST, reduced } from '../lib/motion';
@@ -32,6 +32,29 @@
     void notifyEvents.open(a.open);
   }
 
+  // V108-F57i A card closed by Escape or its x hands the focus on: the next card's body, else where it came from.
+  let stack = $state<HTMLElement>();
+  let cameFrom: HTMLElement | null = null;
+  function enter(e: FocusEvent) {
+    const from = e.relatedTarget;
+    if (from instanceof HTMLElement && !stack?.contains(from)) cameFrom = from;
+  }
+  function close(id: number, card: HTMLElement) {
+    const had = card.contains(document.activeElement);
+    const all = [...(stack?.querySelectorAll<HTMLElement>('.card') ?? [])];
+    const at = all.indexOf(card);
+    const near = all[at + 1] ?? all[at - 1];
+    const back = cameFrom;
+    cards.dismiss(id);
+    if (!had) return;
+    void tick().then(() => {
+      const a = document.activeElement;
+      if (a && a !== document.body) return;
+      const to = near?.isConnected ? near.querySelector<HTMLElement>('.body') : back?.isConnected ? back : null;
+      to?.focus();
+    });
+  }
+
   function act(id: number) {
     const c = cards.items.find((x) => x.id === id);
     cards.dismiss(id);
@@ -41,7 +64,7 @@
 
 <!-- Top right under the title bar, so the window buttons stay clear. Newest on top. Hover or
      focus holds a card; C37d it lets go only when neither the pointer nor focus is on it. Separate from the centre toasts. -->
-<div class="stack" role="region" aria-label="Notifications">
+<div class="stack" role="region" aria-label="Notifications" bind:this={stack}>
   {#each cards.items as c (c.id)}
     {@const a = cardAction(c.kind, c.open, tabRefs)}
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions (hover and focus hold it; Escape from its buttons closes it) -->
@@ -53,9 +76,9 @@
       out:fly={{ x: 12, duration: reduced() ? 0 : FAST }}
       onmouseenter={() => cards.hold(c.id)}
       onmouseleave={(e) => !e.currentTarget.contains(document.activeElement) && cards.release(c.id)}
-      onfocusin={() => cards.hold(c.id)}
+      onfocusin={(e) => (cards.hold(c.id), enter(e))}
       onfocusout={(e) => !e.currentTarget.matches(':hover') && !e.currentTarget.contains(e.relatedTarget as Node | null) && cards.release(c.id)}
-      onkeydown={(e) => e.key === 'Escape' && cards.dismiss(c.id)}
+      onkeydown={(e) => e.key === 'Escape' && close(c.id, e.currentTarget)}
     >
       <button class="body" title={c.text || undefined} onclick={() => act(c.id)}>
         <Avatar src={c.image} name={c.title} size={32} />
@@ -65,7 +88,7 @@
           {#each c.text.split('\n').filter(Boolean).slice(0, 2) as line, i (i)}<span class="text">{line}</span>{/each}
         </span>
       </button>
-      <button class="x" aria-label="Close" onclick={() => cards.dismiss(c.id)}><Icon name="x" size={10} /></button>
+      <button class="x" aria-label="Close" onclick={(e) => close(c.id, e.currentTarget.closest('.card') as HTMLElement)}><Icon name="x" size={10} /></button>
       {#if a}
         <div class="actions"><Button small onclick={() => press(c.id, a)}>{a.label}</Button></div>
       {/if}
@@ -149,6 +172,12 @@
     border: 0;
     border-radius: var(--radius-sm);
     color: var(--muted);
+  }
+  /* V108-F57i A 24 px hit area around the 18 px box; the look stays. */
+  .x::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
   }
   .x:hover {
     background: var(--surface-hover);
