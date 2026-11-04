@@ -3,6 +3,8 @@
      repeat counts (C2), near-duplicates (F6), the app it came from (C26), translations
      (C17), power-ups (1.42), link cards (C30) and inline whispers (1.26). -->
 <script lang="ts">
+  import { getContext } from 'svelte';
+
   import Icon from '../../components/Icon.svelte';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import type { Look } from '../../ipc/bindings/Look';
@@ -18,6 +20,7 @@
   import LinkCard from './LinkCard.svelte';
   import { fxSleep } from './fxSleep';
   import { isHot } from './hover.svelte';
+  import { HOVER_OWNER } from './hoverOwner';
   import { shownName } from './names';
   import { ownNameColor } from './ownColor';
   import { foldRecipients } from './recipients';
@@ -45,7 +48,8 @@
   let { m, channel, canReply = false, inWhispers = false, stripe = false, mod = null, look }: Props = $props();
 
   /** The hover buttons exist only under the pointer (or the keyboard's pick, F54): a long history has none to carry. */
-  const hot = $derived(isHot(m.id));
+  const hoverOwner = getContext<symbol | undefined>(HOVER_OWNER);
+  const hot = $derived(isHot(m.id, hoverOwner));
 
   const c = $derived(settings.v.chat);
   const has = (flag: ChatMessage['flags'][number]) => m.flags.includes(flag);

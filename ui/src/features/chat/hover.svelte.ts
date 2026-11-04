@@ -4,12 +4,14 @@
 // (a SvelteSet's `has` of a missing id wakes on any change).
 import { createSubscriber } from 'svelte/reactivity';
 
+import { Pick, type Owner } from './hoverPick';
+
 type Slot = { subscribe: () => void; update?: () => void };
 
 const slots = new Map<string, Slot>();
 let under: string | null = null;
-/** V108-F54 The line picked with the keyboard: hot like the one under the pointer. */
-let picked: string | null = null;
+/** V108-F54 The line picked with the keyboard: hot like the one under the pointer. V108-F57d Owned by its list. */
+const picked = new Pick();
 let armed = false;
 
 function lineId(t: EventTarget | null): string | null {
@@ -50,20 +52,18 @@ function arm() {
 }
 
 /** V108-F54 Picks a line (or none) for the keyboard; only it and the one before wake. */
-export function pick(id: string | null) {
-  if (id === picked) return;
-  const was = picked;
-  picked = id;
-  if (was !== null) slots.get(was)?.update?.();
-  if (id !== null) slots.get(id)?.update?.();
+export function pick(owner: Owner, id: string | null) {
+  const had = picked.holds(owner);
+  const changed = picked.set(owner, id);
+  for (const x of changed) slots.get(x)?.update?.();
   // V108-F54b The line under the pointer gives way while one is picked, and comes back after.
-  if ((was === null) !== (id === null) && under !== null) slots.get(under)?.update?.();
+  if (changed.length && had !== picked.holds(owner) && under !== null) slots.get(under)?.update?.();
 }
 
-/** True for the line the keyboard picked, else the one under the pointer: one bar at a time. */
-export function isHot(id: string): boolean {
+/** True for the line the keyboard picked in its own list, else the one under the pointer: one bar at a time. */
+export function isHot(id: string, owner?: Owner): boolean {
   arm();
   // Outside an effect nothing would ever let go of the slot.
   if ($effect.tracking()) slot(id).subscribe();
-  return picked !== null ? picked === id : under === id;
+  return picked.hot(id, owner, under);
 }

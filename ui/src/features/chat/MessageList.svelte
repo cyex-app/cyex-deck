@@ -4,7 +4,7 @@
      (C5); a dated line where chat crosses midnight (C25); a line picked with the keyboard (F54).
      Clicks and tooltips are delegated here instead of being set on every line. -->
 <script lang="ts">
-  import { onDestroy, tick, untrack } from 'svelte';
+  import { onDestroy, setContext, tick, untrack } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
   import { menu, openMenu as showMenu, type MenuEntry } from '../../components/menu.svelte';
@@ -34,6 +34,7 @@
   import { lineKind, pluginItems } from '../plugins/pluginMenus';
   import { plugins } from '../plugins/plugins.svelte';
   import { jumpInLogs, openInLogs } from './inLogs';
+  import { HOVER_OWNER } from './hoverOwner';
   import { pick as pickHot } from './hover.svelte';
   import { lineKey, lineLabel, revealDelta, stepLine } from './lineSelect';
   import { ChatScroll } from './chatScroll.svelte';
@@ -388,6 +389,9 @@
     if (['PageUp', 'ArrowUp', 'Home'].includes(e.key) && !e.altKey && scrolls()) leave();
   }
 
+  /** V108-F57d This list's name for its keyboard pick; its lines read it from the context. */
+  const owner = Symbol('list');
+  setContext(HOVER_OWNER, owner);
   /** V108-F54 The line picked with Alt+Up / Alt+Down (hotkeys chat.lineUp, chat.lineDown). */
   let picked = $state<string | null>(null);
   /** What a screen reader hears for the picked line. */
@@ -395,7 +399,7 @@
 
   function setPicked(id: string | null) {
     picked = id;
-    pickHot(id);
+    pickHot(owner, id);
     scroll.pick(id !== null);
   }
 
@@ -462,7 +466,7 @@
   $effect(() => {
     if (picked !== null && !room.find(picked)) untrack(() => clearPick());
   });
-  onDestroy(() => pickHot(null));
+  onDestroy(() => pickHot(owner, null));
 
   function onpointerdown(e: PointerEvent) {
     // The pointer takes over from the keyboard.
