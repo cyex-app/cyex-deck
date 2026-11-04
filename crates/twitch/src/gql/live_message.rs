@@ -19,7 +19,14 @@ pub async fn live_messages(http: &Http, ids: &[String]) -> Result<HashMap<String
     let q = "query($ids: [ID!]) { users(ids: $ids) { id broadcastSettings { liveUpNotificationInfo { liveUpNotification isDefault } } } }";
     let mut out = HashMap::new();
     for chunk in ids.chunks(BATCH) {
-        let data: Many = query(http, Auth::PUBLIC, q, json!({ "ids": chunk })).await?;
+        // One failed chunk keeps what the others gave (V108-F56g).
+        let data: Many = match query(http, Auth::PUBLIC, q, json!({ "ids": chunk })).await {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("live_messages: chunk failed: {e}");
+                continue;
+            }
+        };
         out.extend(data.users.into_iter().flatten().filter_map(custom));
     }
     Ok(out)
