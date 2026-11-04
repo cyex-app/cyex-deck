@@ -302,6 +302,11 @@ impl<P: Protocol> Pool<P> {
         inner.topics.contains_key(topic)
     }
 
+    /// Nothing is followed (an idle pool can be dropped, which ends its connections).
+    pub fn is_empty(&self) -> bool {
+        self.inner.lock().unwrap_or_else(|p| p.into_inner()).topics.is_empty()
+    }
+
     /// What each connection holds, by cost.
     pub fn loads(&self) -> Vec<usize> {
         let inner = self.inner.lock().unwrap_or_else(|p| p.into_inner());

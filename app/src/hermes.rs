@@ -90,9 +90,13 @@ pub fn remove_user(app: &AppHandle, account: &str, kind: Kind) {
 
 pub fn remove_user_topic(app: &AppHandle, account: &str, kind: Kind, id: &str) {
     let Some(hub) = app.try_state::<Hub>() else { return };
-    let users = hub.users.lock().unwrap_or_else(|p| p.into_inner());
-    if let Some(pool) = users.get(account) {
-        pool.remove(&Topic::new(kind, id));
+    let mut users = hub.users.lock().unwrap_or_else(|p| p.into_inner());
+    let Some(pool) = users.get(account) else { return };
+    pool.remove(&Topic::new(kind, id));
+    // V108-F56e An account with no topics left lets its connection go (the pool's handles
+    // close their tasks); the next `add_user` opens a fresh one.
+    if pool.is_empty() {
+        users.remove(account);
     }
 }
 
