@@ -117,6 +117,9 @@ pub(crate) struct Response<T> {
 #[derive(Deserialize)]
 pub(crate) struct GqlError {
     message: String,
+    /// Where in the answer the error sits (`["channel", "unbanRequestsSettings"]`).
+    #[serde(default)]
+    path: Vec<Value>,
 }
 
 /// Runs a raw query.

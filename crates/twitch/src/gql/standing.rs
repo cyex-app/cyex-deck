@@ -19,7 +19,7 @@ use serde_json::{Value, json};
 use ts_rs::TS;
 
 use super::modlogs::{self, BanStatus, PastUnban};
-use super::{Auth, query, query_partial};
+use super::{Auth, GqlError, Response, query, request, send_json, unwrap};
 use crate::{Error, Http, Result};
 
 /// The longest unban request message the box takes (Twitch's own limit isn't known).
@@ -58,8 +58,8 @@ const READ: &str = "query S($c: ID!, $u: ID!) {
 /// The standing of `user_id` (the signed-in account) in `channel_id`.
 pub async fn read(http: &Http, auth: Auth<'_>, channel_id: &str, user_id: &str) -> Result<Standing> {
     let vars = json!({ "c": channel_id, "u": user_id });
-    // Any part may be refused to a viewer; what came back still counts.
-    let data: Value = query_partial(http, auth, READ, vars, |_| true).await?;
+    let req = request(http, auth).json(&json!({ "query": READ, "variables": vars }));
+    let data = answer(send_json(req).await?)?;
     let mut s = standing_of(&data);
     if s.ban.as_ref().is_some_and(|b| b.until.is_none()) {
         s.request = modlogs::unban_past(http, auth, channel_id, user_id)
@@ -70,13 +70,29 @@ pub async fn read(http: &Http, auth: Auth<'_>, channel_id: &str, user_id: &str) 
     Ok(s)
 }
 
+/// The channel part may be refused to a viewer (`unbanRequestsSettings`), and what came back
+/// still counts. But a null ban next to an error that isn't about the channel could be a
+/// failed ban read, and "free to talk" there would unlock a banned account: that's an `Err`,
+/// so the page keeps what it knew.
+fn answer(res: Response<Value>) -> Result<Value> {
+    let uncertain = res.data.as_ref().is_some_and(|d| ban_uncertain(d, &res.errors));
+    if uncertain {
+        return unwrap(Response { data: None, errors: res.errors });
+    }
+    super::partial(res, |_| true)
+}
+
+fn ban_uncertain(data: &Value, errors: &[GqlError]) -> bool {
+    data["ban"].is_null() && errors.iter().any(|e| e.path.first().and_then(Value::as_str) != Some("channel"))
+}
+
 fn standing_of(data: &Value) -> Standing {
     let rules = &data["channel"]["unbanRequestsSettings"];
     Standing {
         ban: modlogs::ban_of(data),
         unban: rules.is_object().then(|| UnbanRules {
             enabled: rules["isEnabled"].as_bool().unwrap_or(false),
-            cooldown_minutes: rules["cooldownMinutes"].as_u64().unwrap_or(0) as u32,
+            cooldown_minutes: u32::try_from(rules["cooldownMinutes"].as_u64().unwrap_or(0)).unwrap_or(u32::MAX),
         }),
         can_request: data["channel"]["self"]["canRequestUnban"].as_bool(),
         request: None,
@@ -118,15 +134,20 @@ fn answered(payload: &Value, done: impl Fn(&Value) -> bool) -> Result<()> {
 /// plain line).
 pub fn explain(code: &str) -> &'static str {
     let c = code.to_ascii_uppercase();
-    if c.contains("ALREADY") || c.contains("PENDING") || c.contains("EXISTS") {
+    let has = |words: &[&str]| c.split('_').any(|t| words.contains(&t));
+    let has_seq = |a: &str, b: &str| {
+        let t: Vec<&str> = c.split('_').collect();
+        t.windows(2).any(|w| w[0] == a && w[1] == b)
+    };
+    if has(&["ALREADY", "PENDING", "EXISTS"]) {
         "You already asked. Wait for an answer."
-    } else if c.contains("COOLDOWN") || c.contains("TOO_SOON") || c.contains("RATE") || c.contains("THROTTLE") {
+    } else if has(&["COOLDOWN", "RATE", "THROTTLE", "THROTTLED"]) || has_seq("TOO", "SOON") {
         "Not yet. Try again later."
-    } else if c.contains("DISABLED") || c.contains("NOT_ENABLED") {
+    } else if has(&["DISABLED"]) || has_seq("NOT", "ENABLED") {
         "This channel doesn't take unban requests."
-    } else if c.contains("LONG") || c.contains("LENGTH") {
+    } else if has(&["LONG", "LENGTH"]) {
         "That message is too long."
-    } else if c.contains("NOT_BANNED") || c.contains("NO_WARNING") || c.contains("NOT_FOUND") {
+    } else if has_seq("NOT", "BANNED") || has_seq("NO", "WARNING") || has_seq("NOT", "FOUND") {
         "Nothing to do here anymore."
     } else {
         "Twitch said no. Try again later."
@@ -221,6 +242,43 @@ mod tests {
         assert!(answered(&json!({ "error": null }), |_| true).is_ok());
         assert_eq!(explain("ALREADY_PENDING"), "You already asked. Wait for an answer.");
         assert_eq!(explain("SOMETHING_NEW"), "Twitch said no. Try again later.");
+    }
+
+    #[test]
+    fn explains_by_whole_words() {
+        assert_eq!(explain("MODERATE_FAILED"), "Twitch said no. Try again later.");
+        assert_eq!(explain("RATE_LIMITED"), "Not yet. Try again later.");
+        assert_eq!(explain("REQUEST_TOO_SOON"), "Not yet. Try again later.");
+        assert_eq!(explain("NOT_BANNED"), "Nothing to do here anymore.");
+        assert_eq!(explain("MESSAGE_TOO_LONG"), "That message is too long.");
+    }
+
+    #[test]
+    fn ban_null_plus_errors_is_uncertain() {
+        let err = |path: &str| -> Vec<GqlError> {
+            serde_json::from_value(json!([{ "message": "x", "path": [path] }])).unwrap()
+        };
+        let none: Vec<GqlError> = serde_json::from_value(json!([{ "message": "x" }])).unwrap();
+        let d = json!({ "ban": null, "channel": { "unbanRequestsSettings": null } });
+        assert!(ban_uncertain(&d, &err("ban")), "the ban read failed");
+        assert!(ban_uncertain(&d, &none), "an error with no path could be anything");
+        assert!(!ban_uncertain(&d, &err("channel")), "a viewer refused the unban settings");
+        assert!(!ban_uncertain(&d, &[]));
+        assert!(!ban_uncertain(&json!({ "ban": { "isPermanent": true } }), &err("ban")));
+        let res: Response<Value> =
+            serde_json::from_value(json!({ "data": d, "errors": [{ "message": "service timeout", "path": ["ban"] }] })).unwrap();
+        assert!(answer(res).is_err());
+        let res: Response<Value> = serde_json::from_value(
+            json!({ "data": d, "errors": [{ "message": "no", "path": ["channel", "unbanRequestsSettings"] }] }),
+        )
+        .unwrap();
+        assert!(answer(res).is_ok());
+    }
+
+    #[test]
+    fn cooldown_saturates() {
+        let s = standing_of(&json!({ "channel": { "unbanRequestsSettings": { "isEnabled": true, "cooldownMinutes": 9_999_999_999u64 } } }));
+        assert_eq!(s.unban.unwrap().cooldown_minutes, u32::MAX);
     }
 
     #[test]
