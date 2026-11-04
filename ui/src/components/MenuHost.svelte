@@ -23,6 +23,7 @@
   const gap = $derived(menu.anchor.bottom > menu.anchor.top ? 4 : 0);
   /** V107-P5 The items' buttons, for the armed one's callout. */
   let rows = $state<HTMLElement[]>([]);
+  let head = $state<HTMLElement>();
   const armedRow = $derived(menu.armed && list ? rows[list.items.indexOf(menu.armed)] : undefined);
 
   /** V107 What a menu field said no to, shown under it until the list changes. */
@@ -184,7 +185,7 @@
     oncontextmenu={(e) => e.preventDefault()}
   >
     {#if menu.stack.length > 1}
-      <button class="item head" role="menuitem" onclick={goBack}>
+      <button class="item head" role="menuitem" onclick={goBack} use:tooltip={{ label: list.title, when: () => cut(head) }} bind:this={head}>
         <Icon name="chevronLeft" size={14} />
         <span class="text">{list.title}</span>
       </button>
@@ -307,8 +308,10 @@
     color: var(--muted);
     font-weight: 600;
   }
+  /* V108-F58 C9 min-width 0 lets the flex child shrink, so the ellipsis shows instead of a hard cut. */
   .text {
     flex: 1;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
