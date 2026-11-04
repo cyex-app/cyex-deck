@@ -101,7 +101,7 @@
     <SmBar>
       <SearchField small bind:value={query} placeholder="Search channels" />
       <div class="filters">
-        {#if filters.length > 2}<Segmented options={filters} value={role} label="Role" onchange={(v) => (role = v)} />{/if}
+        {#if filters.length > 2}<Segmented wrap options={filters} value={role} label="Role" onchange={(v) => (role = v)} />{/if}
         <span class="count">{formatNumber(list.length)} {list.length === 1 ? 'role' : 'roles'}</span>
       </div>
     </SmBar>

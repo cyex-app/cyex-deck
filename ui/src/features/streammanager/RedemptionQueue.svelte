@@ -4,6 +4,7 @@
      sit in the Rewards panel's toolbar and header. V107-R43 The mod view's reward requests
      use it on a channel the account moderates (`source`), reloaded by `pulse`. -->
 <script lang="ts">
+  import { cutTip } from '../../lib/cutTip';
   import { orToast } from '../../lib/orToast';
   import { untrack } from 'svelte';
 
@@ -161,7 +162,7 @@
             {:else}
               <span class="who gone">Someone</span>
             {/if}
-            <span class="what">{r.reward}</span>
+            <span class="what" use:cutTip={r.reward}>{r.reward}</span>
             <When at={r.at} {now} short />
           </div>
           {#if r.input}<p class="input">{r.input}</p>{/if}
