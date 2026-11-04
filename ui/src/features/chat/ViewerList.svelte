@@ -204,7 +204,7 @@
     background: var(--surface-hover);
   }
   .note {
-    margin: 8px 6px;
+    margin: 8px 10px;
     color: var(--muted);
     font-size: 0.8rem;
   }
