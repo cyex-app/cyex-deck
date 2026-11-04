@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick, untrack } from 'svelte';
+  import { untrack } from 'svelte';
   import { flip } from 'svelte/animate';
   import { fly } from 'svelte/transition';
   import { BASE, FAST, reduced } from '../lib/motion';
@@ -45,14 +45,9 @@
     const at = all.indexOf(card);
     const near = all[at + 1] ?? all[at - 1];
     const back = cameFrom;
+    // V108-F59b The card stays in the DOM while it fades out, so the target is chosen and focused before it goes.
+    if (had) (near?.isConnected ? near.querySelector<HTMLElement>('.body') : back?.isConnected ? back : null)?.focus();
     cards.dismiss(id);
-    if (!had) return;
-    void tick().then(() => {
-      const a = document.activeElement;
-      if (a && a !== document.body) return;
-      const to = near?.isConnected ? near.querySelector<HTMLElement>('.body') : back?.isConnected ? back : null;
-      to?.focus();
-    });
   }
 
   function act(id: number) {

@@ -5,13 +5,12 @@
      The tab is the whole cell of its row, up to the window's top edge (V101-19); the pill
      inside is what shows. A thin divider sits between two plain tabs (V101-11); in a side bar it spans the bar (V106-05). -->
 <script lang="ts">
-  import { tick } from 'svelte';
-
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { Tab } from '../../ipc/bindings/Tab';
   import { accounts } from '../../lib/accounts.svelte';
   import { formatNumber } from '../../lib/format';
+  import { waitGone } from '../../lib/waitGone';
   import { settings } from '../../lib/settings.svelte';
   import { keyFocused } from '../player/focusOrigin';
   import { drag } from './drag.svelte';
@@ -90,7 +89,8 @@
       const at = all.indexOf(el);
       const near = all[at + 1] ?? all[at - 1];
       onclose();
-      void tick().then(() => {
+      // V108-F59a The close can be async (confirm, undo); wait until the tab has really left the DOM.
+      void waitGone(() => !el.isConnected).then((gone) => {
         const a = document.activeElement;
         if ((a && a !== document.body) || !near?.isConnected) return;
         near.focus();
