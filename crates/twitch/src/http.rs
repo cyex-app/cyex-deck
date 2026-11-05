@@ -174,6 +174,40 @@ impl Http {
         Ok((status, reset, out))
     }
 
+    /// V109-T01 Any method with an optional bearer token and body (`(content type, bytes)`).
+    /// Returns the status and up to `max` bytes of the answer. Errors never carry the URL.
+    pub async fn send(
+        &self,
+        method: &str,
+        url: &str,
+        bearer: Option<&str>,
+        body: Option<(String, Vec<u8>)>,
+        max: usize,
+    ) -> Result<(u16, Vec<u8>)> {
+        let method = reqwest::Method::from_bytes(method.as_bytes()).map_err(|_| Error::Api {
+            status: 0,
+            message: "bad method".into(),
+        })?;
+        let mut req = self.0.request(method, url).timeout(Duration::from_secs(60));
+        if let Some(b) = bearer {
+            req = req.bearer_auth(b);
+        }
+        if let Some((content_type, bytes)) = body {
+            req = req.header("Content-Type", content_type).body(bytes);
+        }
+        let mut res = req.send().await.map_err(|e| Error::Network(e.without_url()))?;
+        let status = res.status().as_u16();
+        let mut out = Vec::new();
+        while out.len() < max {
+            match res.chunk().await.map_err(|e| Error::Network(e.without_url()))? {
+                Some(chunk) => out.extend_from_slice(&chunk),
+                None => break,
+            }
+        }
+        out.truncate(max);
+        Ok((status, out))
+    }
+
     /// V105-11 POST a ready body (the image uploader's multipart form) with extra headers.
     /// Returns the status and up to `max` bytes of the answer. Errors never carry the URL.
     pub async fn post_body(

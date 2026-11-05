@@ -109,7 +109,13 @@ pub fn init(app: &AppHandle) {
     // Pictures no theme uses any more (deleted themes, replaced wallpapers).
     let a: Appearance = app.state::<Settings>().read(Partition::Appearance);
     if let Some(dir) = wallpapers_dir(app) {
-        let used: Vec<&str> = a.themes.iter().map(|t| t.wallpaper.source.as_str()).collect();
+        // V109-T01 Earlier versions kept for "Go back" count as in use.
+        let used: Vec<&str> = a
+            .themes
+            .iter()
+            .flat_map(|t| std::iter::once(t).chain(t.link.history.iter().map(|c| &c.theme)))
+            .map(|t| t.wallpaper.source.as_str())
+            .collect();
         for entry in fs::read_dir(dir).into_iter().flatten().flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
             if !used.contains(&name.as_str()) {
@@ -121,6 +127,15 @@ pub fn init(app: &AppHandle) {
 
 fn wallpapers_dir(app: &AppHandle) -> Option<PathBuf> {
     crate::paths::config(app).ok().map(|d| d.join("wallpapers"))
+}
+
+/// V109-T01 Where a wallpaper file the app copied in lives (`Wallpaper::is_file` names only).
+pub fn wallpaper_path(app: &AppHandle, file: &str) -> Option<PathBuf> {
+    let probe = cyex_settings::schema::Wallpaper {
+        source: file.to_owned(),
+        ..Default::default()
+    };
+    probe.is_file().then(|| wallpapers_dir(app)).flatten().map(|d| d.join(file))
 }
 
 /// The page's address for a wallpaper file. WebView2 serves custom schemes as
@@ -180,8 +195,10 @@ pub fn handle(ctx: UriSchemeContext<'_, Wry>, request: Request<Vec<u8>>) -> Resp
     }
 }
 
-/// A theme ready to add: cleaned, with a fresh id.
-pub fn fresh(mut theme: CustomTheme) -> CustomTheme {
+/// A theme ready to add: cleaned, with a fresh id. V109-T01 A copy is never shared or tied
+/// to a link (the caller links an import after this).
+pub fn fresh(theme: CustomTheme) -> CustomTheme {
+    let mut theme = theme.content();
     theme.id = cyex_settings::schema::random_id();
     theme.sanitize();
     theme

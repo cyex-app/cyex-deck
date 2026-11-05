@@ -7,6 +7,7 @@ use ts_rs::TS;
 
 use super::Schema;
 use super::builtin_themes::{self, builtin_theme, is_builtin_id};
+use super::theme_link::ThemeLink;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(default, rename_all = "camelCase")]
@@ -168,6 +169,10 @@ pub struct CustomTheme {
     pub colors: BTreeMap<String, String>,
     pub accent: String,
     pub wallpaper: Wallpaper,
+    /// V109-T01 Shared on cyex.app or added from a link. Left out of the file when empty.
+    #[serde(skip_serializing_if = "ThemeLink::is_empty")]
+    #[ts(as = "Option<ThemeLink>", optional)]
+    pub link: ThemeLink,
 }
 
 impl Default for CustomTheme {
@@ -179,6 +184,7 @@ impl Default for CustomTheme {
             colors: BTreeMap::new(),
             accent: DEFAULT_ACCENT.into(),
             wallpaper: Wallpaper::default(),
+            link: ThemeLink::default(),
         }
     }
 }
@@ -208,6 +214,8 @@ impl CustomTheme {
         }
         w.dim = w.dim.min(MAX_DIM);
         w.blur = w.blur.min(MAX_BLUR);
+        self.link.sanitize();
+        self.update_link_flags();
     }
 }
 

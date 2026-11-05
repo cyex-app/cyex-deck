@@ -32,10 +32,14 @@ pub fn theme_builtins() -> Vec<CustomTheme> {
 /// U8 Adds a theme (a copy or a new one) with a fresh id and switches to it.
 #[tauri::command]
 pub fn theme_add(app: AppHandle, settings: State<Settings>, theme: CustomTheme) -> CmdResult<String> {
-    let theme = theme::fresh(theme);
+    add(&app, &settings, theme::fresh(theme))
+}
+
+/// Adds a theme that already has its fresh id (`theme::fresh`) and switches to it.
+pub(super) fn add(app: &AppHandle, settings: &Settings, theme: CustomTheme) -> CmdResult<String> {
     let id = theme.id.clone();
     let mut full = false;
-    settings.update::<Appearance>(&app, Partition::Appearance, |a| {
+    settings.update::<Appearance>(app, Partition::Appearance, |a| {
         full = !a.add_theme(theme);
         !full
     })?;
@@ -55,13 +59,6 @@ pub fn theme_code(settings: State<Settings>, id: String) -> CmdResult<String> {
         .find(|t| t.id == id)
         .ok_or("That theme is gone.")?;
     Ok(theme_code::to_code(t))
-}
-
-/// U8 Adds the theme in a share code and switches to it.
-#[tauri::command]
-pub fn theme_import(app: AppHandle, settings: State<Settings>, code: String) -> CmdResult<String> {
-    let theme = theme_code::from_code(&code).map_err(|_| "That isn’t a theme code.".to_owned())?;
-    theme_add(app, settings, theme)
 }
 
 /// U8 Picks a picture for a theme's wallpaper; returns its name in the app's folder,

@@ -40,6 +40,7 @@ mod subs;
 mod sys;
 mod tabs;
 mod theme;
+mod theme_share;
 mod toasts;
 mod tray;
 mod update;
@@ -105,6 +106,7 @@ fn main() {
             upload::init(handle);
             profile_images::init(handle);
             update::init(handle);
+            theme_share::init(handle);
             bell::init(handle);
             feeds::init(handle);
             alerts::init(handle);

@@ -21,6 +21,7 @@ mod plugins;
 mod sound;
 mod streammanager;
 mod tabs;
+mod theme_link;
 mod uploader;
 mod windows;
 
@@ -58,6 +59,7 @@ pub use tabs::{
     Closed, Column, FeedKind, GroupColor, ImportColumn, ImportTab, Resolved, Tab, TabChannel, TabError, TabGroup, TabLook, TabOp, Tabs, Tile, TileShow, Zone,
     random_id,
 };
+pub use theme_link::{Fetched, ID_LEN as LINK_ID_LEN, KEEP_COPIES, ThemeCopy, ThemeLink, Upstream, date_of, valid_link_id};
 pub use uploader::Uploader;
 pub use windows::{Geometry, Layout, PanelWindow, Windows};
 
