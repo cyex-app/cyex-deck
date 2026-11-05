@@ -20,6 +20,7 @@
   import { errorText } from '../../../lib/errors';
   import ThemeEditor from '../ThemeEditor.svelte';
   import ThemePicker from '../ThemePicker.svelte';
+  import { withLink } from '../themeLink';
   import { accentOf, accentToStore, choiceOf, DEFAULT_ACCENT, defaultAccentOf } from '../themes';
 
   const a = $derived(settings.v.appearance);
@@ -47,7 +48,9 @@
   });
 
   function saveTheme(next: CustomTheme) {
-    void settings.patch('appearance', { themes: a.themes.map((t) => (t.id === next.id ? next : t)) });
+    // V109-T01 The link is Rust's: keep the one saved, not the editor's copy.
+    const t = withLink(next, a.themes);
+    void settings.patch('appearance', { themes: a.themes.map((x) => (x.id === t.id ? t : x)) });
   }
 
   /** Deletes at once; Undo puts the theme back where it was, and switches to it again if it was in use. */
@@ -112,7 +115,7 @@
 <SectionHead title="Appearance" level={2} />
 
 <SectionHead title="Colors">The theme and accent color.</SectionHead>
-<Row setting="appearance.theme appearance.themes" label="Theme" hint="Make your own under Custom themes, or paste a code." stacked>
+<Row setting="appearance.theme appearance.themes" label="Theme" hint="Make your own under Custom themes, or paste a link." stacked>
   <ThemePicker {a} {builtins} {choice} />
 </Row>
 

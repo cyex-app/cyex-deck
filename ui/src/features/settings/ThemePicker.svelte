@@ -1,6 +1,6 @@
-<!-- V106-02 The theme row: Dark, Light and the built-ins as tiles; custom themes in their menu; theme code. -->
+<!-- V106-02 The theme row: Dark, Light and the built-ins as tiles; custom themes in their menu;
+     V109-T01 add one from a link or code. -->
 <script lang="ts">
-  import Button from '../../components/Button.svelte';
   import type { Appearance } from '../../ipc/bindings/Appearance';
   import type { CustomTheme } from '../../ipc/bindings/CustomTheme';
   import type { Theme } from '../../ipc/bindings/Theme';
@@ -10,6 +10,7 @@
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import CustomThemesMenu from './CustomThemesMenu.svelte';
+  import ThemeImport from './ThemeImport.svelte';
   import { accentOf, newThemeFrom, PLAIN_PREVIEW, type ThemeChoice } from './themes';
   import { radioKey } from '../../components/select';
 
@@ -66,17 +67,6 @@
       toast.error(errorText(e));
     }
   }
-
-  let code = $state('');
-  async function importCode() {
-    try {
-      await themeIpc.import(code);
-      code = '';
-      toast.success('Theme added.');
-    } catch (e) {
-      toast.error(errorText(e));
-    }
-  }
 </script>
 
 <!-- svelte-ignore a11y_interactive_supports_focus -->
@@ -105,11 +95,7 @@
 <div class="tools">
   <CustomThemesMenu themes={a.themes} activeId={a.themeId} onpick={pickId} onnew={newTheme}
     fill={(t) => fillOf(t.accent, t.base, t.id === a.themeId)} />
-  <span class="import">
-    <span class="code-label">Theme code</span>
-    <input class="field code" placeholder="Paste a code" aria-label="Theme code" bind:value={code} />
-    <Button small disabled={!code.trim()} onclick={importCode}>Add</Button>
-  </span>
+  <ThemeImport />
 </div>
 
 <style>
@@ -188,23 +174,6 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 8px;
-  }
-  .import {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-left: auto;
-    min-width: 0;
-  }
-  .code-label {
-    color: var(--muted);
-    font-size: 0.8rem;
-    white-space: nowrap;
-  }
-  .code {
-    flex: 0 1 180px;
-    min-width: 0;
-    height: 28px;
   }
   /* Forced colours: the preview keeps its own colours; the pick gets a Highlight frame. */
   @media (forced-colors: active) {

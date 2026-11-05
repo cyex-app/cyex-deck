@@ -35,6 +35,7 @@ mod subs;
 pub mod system;
 mod tabs;
 mod theme;
+mod theme_share;
 mod update;
 mod upload;
 mod usercard;
@@ -386,8 +387,17 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         theme::theme_builtins,
         theme::theme_add,
         theme::theme_code,
-        theme::theme_import,
         theme::theme_pick_wallpaper,
+        theme_share::theme_share,
+        theme_share::theme_share_update,
+        theme_share::theme_share_stop,
+        theme_share::theme_share_can_edit,
+        theme_share::theme_preview,
+        theme_share::theme_add_preview,
+        theme_share::theme_report,
+        theme_share::theme_link_update,
+        theme_share::theme_link_restore,
+        theme_share::theme_link_ignore,
         mentions::mentions_check,
         mentions::mentions_global_status,
         mentions::mentions_pick_sound,
