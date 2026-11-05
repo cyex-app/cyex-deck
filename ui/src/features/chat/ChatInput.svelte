@@ -751,10 +751,12 @@
   }
   /* V108-C40b The lock stands where the box did; the box's frame goes, the buttons keep their spots. */
   .compose.locked {
-    gap: 4px;
     background: none;
     border-color: transparent;
-    padding-right: 0;
+  }
+  /* Same gap and padding as unlocked (the buttons stay put); a little air after the lock. */
+  .compose.locked > :global(.lock) {
+    margin-right: 2px;
   }
   .compose:not(.locked):focus-within {
     border-color: var(--accent-border);
