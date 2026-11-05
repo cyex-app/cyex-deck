@@ -27,13 +27,14 @@
   }
   let wrap = $state<HTMLElement>();
   let pop = $state<HTMLElement>();
-  /** Esc with nothing to hand focus back to: the message box this button sits beside. */
+  /** Esc with nothing to hand focus back to: the message box this button sits beside.
+      V108-C40b While the chat is locked there is no box: this button takes it. */
   const input = () => {
     for (let at = wrap?.parentElement; at; at = at.parentElement) {
       const box = at.querySelector<HTMLElement>('textarea:not(:disabled)');
       if (box) return box;
     }
-    return undefined;
+    return wrap?.querySelector<HTMLElement>('.smile') ?? undefined;
   };
 
   $effect(() => {

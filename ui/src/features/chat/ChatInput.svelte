@@ -558,7 +558,7 @@
     <SuggestList items={suggest.items} index={suggest.index} onpick={accept} anchor={row} style={styleNow} />
   {/if}
   <span class="sr-only" role="status">{unlockNote}</span>
-  <div class="row" bind:this={row}>
+  <div class="row" class:locked={!!lock} bind:this={row}>
     {#snippet pointsBtn()}<span class="slot" data-out data-side="points"><RewardsMenu {room} locked={why} /></span>{/snippet}
     {#snippet bitsBtn()}{#if canChat && canCheer && !bitsOff}<span class="slot" data-out data-side="bits"><BitsButton {room} box={cheers} oninsert={pickCheer} locked={why} /></span>{/if}{/snippet}
     {#snippet identityBtn()}<!-- V107-Mk Badge, name color and smileys for this channel. -->
@@ -617,12 +617,12 @@
       <!-- 1.43 GIFs are a tab in the emote menu. -->
       {#if !side.folded}{@render quickBtn()}{@render identityBtn()}{@render emoteBtn()}{/if}
       </div>
-      {#if settings.v.chat.sendButton && !lock}
+      {#if settings.v.chat.sendButton}
         <IconButton
           icon="send"
           label="Send"
           hint="Enter"
-          disabled={!text.trim()}
+          disabled={!text.trim() || !!lock}
           onclick={() => {
             void send(false);
             box?.focus();
@@ -762,6 +762,10 @@
   /* Centred on a one-line box (34 px), like the emote button inside it. */
   .row > :global(.icon-btn) {
     margin-bottom: 2px;
+  }
+  /* V108-C40b Send keeps its spot while locked, unseen, so the buttons beside the lock never shift. */
+  .row.locked > :global(.icon-btn) {
+    visibility: hidden;
   }
   .compose :global(.smile) {
     height: 30px;
