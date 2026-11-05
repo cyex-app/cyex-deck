@@ -13,7 +13,8 @@
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
 
-  let { room, ondone }: { room: ChatRoom; ondone: () => void } = $props();
+  /** V108-C40b Why buying is off while the chat box is locked ('' when it isn't). */
+  let { room, ondone, locked = '' }: { room: ChatRoom; ondone: () => void; locked?: string } = $props();
 
   type Kind = 'effect' | 'gigantify' | 'celebration' | 'reward';
   interface Pick {
@@ -84,7 +85,7 @@
   }
 
   async function buy() {
-    if (!picked || problem || busy) return;
+    if (!picked || problem || busy || locked) return;
     if (!sure) return void (sure = true);
     busy = true;
     try {
@@ -101,6 +102,7 @@
 
   /** On, off cooldown, and affordable when the balance is known. */
   const ready = (p: { available: boolean; cooldownUntil: string | null; bits: number } | null) =>
+    !locked &&
     !!p &&
     p.available &&
     (!p.cooldownUntil || Date.parse(p.cooldownUntil) < Date.now()) &&
@@ -125,11 +127,12 @@
         onkeydown={(e) => e.key === 'Enter' && void buy()}
       />
     {/if}
+    {#if locked}<p class="note">{locked}</p>{/if}
     {#if problem && text}<p class="note">{problem}</p>{/if}
     {#if sure}<p class="ask">Spend {formatNumber(picked.bits)} Bits?</p>{/if}
     <div class="actions">
       <Button small variant="ghost" onclick={() => (sure ? (sure = false) : (picked = null))}>Back</Button>
-      <Button small variant="primary" disabled={busy || !!problem} onclick={buy}>
+      <Button small variant="primary" disabled={busy || !!problem || !!locked} onclick={buy}>
         {sure ? 'Spend' : 'Next'}
       </Button>
     </div>

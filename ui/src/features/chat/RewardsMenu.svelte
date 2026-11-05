@@ -39,7 +39,8 @@
     tiles[to].focus();
   }
 
-  let { room }: { room: ChatRoom } = $props();
+  /** V108-C40b `locked`: why redeeming is off while the chat box is locked ('' when it isn't). */
+  let { room, locked = '' }: { room: ChatRoom; locked?: string } = $props();
 
   interface Choice {
     id: string;
@@ -160,14 +161,14 @@
 
   /** Every reward asks once more before spending points. */
   function pick(c: Choice) {
-    if (!canRedeem || !c.available) return;
+    if (!canRedeem || !c.available || locked) return;
     picked = c;
     text = '';
     emote = null;
   }
 
   async function redeem() {
-    if (!picked || busy) return;
+    if (!picked || busy || locked) return;
     // V107-H11b Known to fail: say so here, Twitch isn't asked.
     const no = blocked(picked.cost, balance);
     if (no) return void toast.error(no);
@@ -225,8 +226,9 @@
         <!-- V102-20 -->
         <p class="note locked">Redeeming needs a GQL sign-in for this account. <GateFlag kind="gql" /></p>
       {/if}
+      {#if locked}<p class="note">{locked}</p>{/if}
       {#if page === 'bits'}
-        <PowerUps {room} ondone={() => (open = false)} />
+        <PowerUps {room} {locked} ondone={() => (open = false)} />
       {:else if picked}
         <div class="confirm">
           <div class="title">{picked.title} · {formatNumber(picked.cost)}</div>
@@ -253,7 +255,7 @@
             <Button
               small
               variant="primary"
-              disabled={busy || (picked.needsText && !text.trim()) || (!!picked.emote && !emote)}
+              disabled={busy || !!locked || (picked.needsText && !text.trim()) || (!!picked.emote && !emote)}
               onclick={redeem}
             >
               Redeem
@@ -276,10 +278,10 @@
               class:lack
               aria-disabled={lack ? 'true' : undefined}
               aria-describedby={lack ? `lack-${room.login}` : undefined}
-              disabled={!canRedeem || !c.available}
+              disabled={!canRedeem || !c.available || !!locked}
               style:--rc={c.color}
               onclick={() => pick(c)}
-              use:tooltip={{ label: c.title, hint: lack ? NOT_ENOUGH : (c.prompt ?? undefined) }}
+              use:tooltip={{ label: c.title, hint: locked || (lack ? NOT_ENOUGH : (c.prompt ?? undefined)) }}
             >
               <span class="tile">{#if c.image}<img src={c.image} alt="" />{/if}</span>
               <span class="rt">{c.title}</span>

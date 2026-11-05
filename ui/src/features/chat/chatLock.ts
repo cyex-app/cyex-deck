@@ -176,3 +176,17 @@ export function nextRead(lock: Lock | null, input: LockInput): number | null {
   }
   return null;
 }
+
+/** V108-C40b Why spending (points, Bits, power-ups) is off while the box is locked; '' when it isn't. */
+export function lockedWhy(lock: Lock | null): string {
+  switch (lock?.kind) {
+    case 'timeout':
+      return 'Not while you’re timed out.';
+    case 'ban':
+      return 'Not while you’re banned.';
+    case 'warn':
+      return 'Not until you acknowledge the warning.';
+    default:
+      return '';
+  }
+}

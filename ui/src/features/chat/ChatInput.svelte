@@ -51,7 +51,7 @@
   import { errorText } from '../../lib/errors';
   import { standingIpc } from '../../ipc/standing';
   import ChatLock from './ChatLock.svelte';
-  import { refocusBox } from './chatLock';
+  import { lockedWhy, refocusBox } from './chatLock';
   import { Standing } from './standing.svelte';
 
   interface Props {
@@ -76,7 +76,7 @@
     () => row,
     () => settings.v.chat.sendButton,
   );
-  $effect(() => (canChat && !lock ? side.watch() : undefined));
+  $effect(() => (canChat ? side.watch() : undefined));
   let text = $state('');
   let error = $state('');
   let sent: string[] = [];
@@ -124,6 +124,8 @@
   // svelte-ignore state_referenced_locally
   const standing = new Standing(() => room);
   const lock = $derived(canChat ? standing.lock : null);
+  // V108-C40b The side buttons stay while locked; spending (points, Bits) says why it is off.
+  const why = $derived(lockedWhy(lock));
   const standingKey = $derived(
     canChat && room.status === 'joined' && room.state.channelId ? `${room.account}:${room.state.channelId}` : '',
   );
@@ -556,12 +558,9 @@
     <SuggestList items={suggest.items} index={suggest.index} onpick={accept} anchor={row} style={styleNow} />
   {/if}
   <span class="sr-only" role="status">{unlockNote}</span>
-  {#if lock}
-    <ChatLock bind:this={lockEl} {lock} {standing} />
-  {:else}
   <div class="row" bind:this={row}>
-    {#snippet pointsBtn()}<span class="slot" data-out data-side="points"><RewardsMenu {room} /></span>{/snippet}
-    {#snippet bitsBtn()}{#if canChat && canCheer && !bitsOff}<span class="slot" data-out data-side="bits"><BitsButton {room} box={cheers} oninsert={pickCheer} /></span>{/if}{/snippet}
+    {#snippet pointsBtn()}<span class="slot" data-out data-side="points"><RewardsMenu {room} locked={why} /></span>{/snippet}
+    {#snippet bitsBtn()}{#if canChat && canCheer && !bitsOff}<span class="slot" data-out data-side="bits"><BitsButton {room} box={cheers} oninsert={pickCheer} locked={why} /></span>{/if}{/snippet}
     {#snippet identityBtn()}<!-- V107-Mk Badge, name color and smileys for this channel. -->
       {#if room.account && (accounts.can('badgePicker', room.account) || accounts.can('chatColor', room.account))}<span class="slot" data-in data-side="identity"><IdentityButton account={room.account} login={room.login} /></span>{/if}{/snippet}
     {#snippet emoteBtn()}<span class="slot" data-in data-side="emotes"><EmoteButton login={room.login} account={room.account} {room} oninsert={(v) => void insertAtCaret(v)} /></span>{/snippet}
@@ -587,7 +586,10 @@
       {#if bitsHold && !(canChat && canCheer && !bitsOff)}<span class="hold" data-out aria-hidden="true"></span>{/if}
     {/if}
     {#if canChat}
-      <div class="compose">
+      <div class="compose" class:locked={!!lock}>
+      {#if lock}
+        <ChatLock bind:this={lockEl} {lock} {standing} />
+      {:else}
       <textarea
         bind:this={box}
         bind:value={text}
@@ -610,11 +612,12 @@
           {#if chars >= SHOW_COUNT}<span class="count" class:over={chars > MAX} class:near={chars > MAX - 50}>{formatNumber(chars)}/{MAX}</span>{/if}
         </div>
       {/if}
+      {/if}
       <!-- V108-N20 -->
       <!-- 1.43 GIFs are a tab in the emote menu. -->
       {#if !side.folded}{@render quickBtn()}{@render identityBtn()}{@render emoteBtn()}{/if}
       </div>
-      {#if settings.v.chat.sendButton}
+      {#if settings.v.chat.sendButton && !lock}
         <IconButton
           icon="send"
           label="Send"
@@ -632,7 +635,6 @@
       </button>
     {/if}
   </div>
-  {/if}
   <!-- V1051-05 Over the box, so the box never moves. -->
   {#if up.upload.status}<p class="note uploading" role="status">{up.upload.status}</p>{/if}
   {#if error}<p class="note error" role="alert">{error}</p>{/if}
@@ -747,7 +749,14 @@
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
   }
-  .compose:focus-within {
+  /* V108-C40b The lock stands where the box did; the box's frame goes, the buttons keep their spots. */
+  .compose.locked {
+    gap: 4px;
+    background: none;
+    border-color: transparent;
+    padding-right: 0;
+  }
+  .compose:not(.locked):focus-within {
     border-color: var(--accent-border);
   }
   /* Centred on a one-line box (34 px), like the emote button inside it. */

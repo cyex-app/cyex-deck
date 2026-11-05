@@ -24,9 +24,11 @@
     room: ChatRoom;
     box: CheerBox;
     oninsert: (prefix: string, amount: number) => void;
+    /** V108-C40b Why cheering is off while the chat box is locked ('' when it isn't). */
+    locked?: string;
   }
 
-  let { room, box, oninsert }: Props = $props();
+  let { room, box, oninsert, locked = '' }: Props = $props();
 
   let open = $state(false);
   let amount = $state(100);
@@ -93,7 +95,7 @@
   }
 
   function pick(c: Cheermote) {
-    if (!canAfford(amount, rules)) return;
+    if (locked || !canAfford(amount, rules)) return;
     oninsert(c.prefix, amount);
     open = false;
   }
@@ -127,7 +129,7 @@
     use:tooltip={{
       // V108-F05 No tip over the open panel (an empty label hides it).
       label: open ? '' : balance != null ? `Cheer · ${formatNumber(balance)} Bits` : 'Cheer',
-      hint: 'Pick an amount and a cheer, then send it with Enter.',
+      hint: locked || 'Pick an amount and a cheer, then send it with Enter.',
     }}
   >
     <Icon name="bits" size={16} />
@@ -143,6 +145,7 @@
       {:else if !info}
         <Loading />
       {:else}
+        {#if locked}<p class="note">{locked}</p>{/if}
         {#if box.error}<p class="note">Balance may be out of date.</p>{/if}
         <div class="row" role="toolbar" tabindex="-1" aria-label="Amount" onkeydown={rove} onfocusin={track}>
           {#each presets as p (p.bits)}
@@ -169,7 +172,7 @@
                 class="style"
                 data-prefix={c.prefix}
                 tabindex={c.prefix === styleStop ? 0 : -1}
-                disabled={!ok}
+                disabled={!ok || !!locked}
                 aria-label="{c.prefix}{amount}"
                 onclick={() => pick(c)}
                 use:tooltip={{ label: `${c.prefix}${formatNumber(amount)}` }}

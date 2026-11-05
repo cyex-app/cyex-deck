@@ -155,6 +155,12 @@
 <style>
   .lock {
     --tint: var(--yellow);
+    /* V108-C40b Takes the message box's place in the row; a one-liner is as tall as the box. */
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 32px;
+    box-sizing: border-box;
+    justify-content: center;
     display: flex;
     flex-direction: column;
     gap: 4px;

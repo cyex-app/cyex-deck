@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { ChatStanding } from '../../ipc/bindings/ChatStanding';
-import { headline, left, refocusBox, ticking, title, lockOf, nextRead, unbanLine, unbanOf, type LockInput } from './chatLock.ts';
+import { headline, left, lockedWhy, refocusBox, ticking, title, lockOf, nextRead, unbanLine, unbanOf, type Lock, type LockInput } from './chatLock.ts';
 
 const NOW = Date.parse('2026-11-04T12:00:00Z');
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -102,4 +102,14 @@ test('the box takes focus back only when it had it or nothing has', () => {
   assert.equal(refocusBox(true, false), true);
   assert.equal(refocusBox(false, true), true);
   assert.equal(refocusBox(false, false), false);
+});
+
+test('lockedWhy names the lock, and is empty without one', () => {
+  const warn: Lock = { kind: 'warn', warning: { reason: '', rules: [] } };
+  const timeout: Lock = { kind: 'timeout', until: NOW + 1000, reason: '', by: null };
+  const ban: Lock = { kind: 'ban', reason: '', by: null, since: null, unban: { state: 'off' } };
+  assert.equal(lockedWhy(null), '');
+  assert.equal(lockedWhy(timeout), 'Not while you’re timed out.');
+  assert.equal(lockedWhy(ban), 'Not while you’re banned.');
+  assert.equal(lockedWhy(warn), 'Not until you acknowledge the warning.');
 });
