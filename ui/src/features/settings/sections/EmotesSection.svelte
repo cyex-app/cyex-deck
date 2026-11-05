@@ -21,7 +21,9 @@
     { key: 'seventv', label: '7TV' },
     { key: 'bttv', label: 'BTTV' },
     { key: 'ffz', label: 'FFZ' },
-  ] as const;
+    // V109-B02 Off: their list isn't fetched.
+    { key: 'cyex', label: 'cyex', hint: 'Founder, supporter and supporter+ badges from cyex deck.' },
+  ] as { key: 'twitch' | 'seventv' | 'bttv' | 'ffz' | 'cyex'; label: string; hint?: string }[];
   const UNLISTED: { value: UnlistedEmotes; label: string }[] = [
     { value: 'hide', label: 'Hide' },
     { value: 'blur', label: 'Blur' },
@@ -113,7 +115,7 @@
 
 <SectionHead title="Badges">The small icons before a name.</SectionHead>
 {#each BADGES as b (b.key)}
-  <Row setting="chat.badges.{b.key}" label="{b.label} badges">
+  <Row setting="chat.badges.{b.key}" label="{b.label} badges" hint={b.hint}>
     <Toggle
       label="{b.label} badges"
       checked={c.badges[b.key]}

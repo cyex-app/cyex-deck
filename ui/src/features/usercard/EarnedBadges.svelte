@@ -11,6 +11,8 @@
   import { settings } from '../../lib/settings.svelte';
   import Badges from '../chat/Badges.svelte';
   import { badgeSrc } from '../chat/urls';
+  import { isCyexBadge, usercardLine } from '../accounts/cyexBadges';
+  import { looks } from '../emotes/looks.svelte';
 
   interface Props {
     login: string;
@@ -28,6 +30,16 @@
   let row = $state<HTMLElement>();
 
   const twitch = $derived(settings.v.chat.badges.twitch);
+
+  /** V109-B02 A short line with their cyex badges ("cyex founder #37 · supporter+"). */
+  const cyexLine = $derived.by(() => {
+    if (!settings.v.chat.badges.cyex) return '';
+    const look = looks.look(userId);
+    const titles = (look?.badges ?? [])
+      .filter((b) => isCyexBadge(b.id))
+      .map((b) => looks.badge(b.provider, b.id)?.title ?? '');
+    return usercardLine(titles);
+  });
 
   $effect(() => {
     let live = true;
@@ -72,6 +84,7 @@
     <Badges badges={fallback} {channel} {userId} />
   {/if}
 </div>
+{#if cyexLine}<span class="cyex">{cyexLine}</span>{/if}
 {#if overflows || open}
   <button class="more" onclick={() => (open = !open)}>{open ? 'Show less' : 'Show more'}</button>
 {/if}
@@ -93,6 +106,13 @@
     width: 18px;
     height: 18px;
     margin-right: 3px;
+  }
+  .cyex {
+    color: var(--muted);
+    font-size: 0.72rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .more {
     align-self: flex-start;

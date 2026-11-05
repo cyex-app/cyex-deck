@@ -85,6 +85,13 @@ export const APP: Entry[] = [
     keywords: ['update', 'version', 'new version', 'github', 'check', 'check now', 'about', 'pre-release'],
   },
   {
+    id: 'about:badge',
+    page: 'about',
+    label: 'cyex badges',
+    description: 'Get a founder, supporter or supporter+ badge.',
+    keywords: ['cyex', 'badge', 'founder', 'supporter', 'support', 'donate', 'cosmetics'],
+  },
+  {
     id: 'about:credit',
     page: 'about',
     label: 'Made by',

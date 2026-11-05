@@ -9,6 +9,7 @@
   import { errorText } from '../../../lib/errors';
   import { toast } from '../../../lib/toast.svelte';
   import { checkText } from '../../update/updateText';
+  import { SHOP } from '../../accounts/cyexBadges';
   import SectionHead from '../SectionHead.svelte';
 
   let version = $state('');
@@ -53,6 +54,11 @@
   <Button small disabled={checking} onclick={() => void checkNow()}>{checking ? 'Checking…' : 'Check now'}</Button>
 </Row>
 <p class="note">Checks GitHub for new versions. Sends nothing about you or your accounts.</p>
+
+<!-- V109-B02 -->
+<Row setting="about:badge" label="cyex badges" hint="Founder, supporter or supporter+. Shows next to your name in chat.">
+  <Button small onclick={(e) => open(e, SHOP)}>Get a badge</Button>
+</Row>
 
 <Row setting="about:credit" label="Made by" hint="The rest of cyex lives on the homepage.">
   <span class="credit">

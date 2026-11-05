@@ -23,6 +23,13 @@ test('an extra badge follows its own switch, not Twitch badges', () => {
   assert.equal(badgeOn(b, { ...providers, twitch: false }, { ...off, badgehq: true }), true);
 });
 
+test('V109-B02 cyex badges follow the cyex switch', () => {
+  const b = { provider: 'twitch', id: 'cyex:founder-37' };
+  assert.equal(badgeOn(b, { ...providers, cyex: true, twitch: false }, off), true);
+  assert.equal(badgeOn(b, { ...providers, cyex: false }, off), false);
+  assert.equal(badgeOn(b, providers, off), false, 'no switch: off');
+});
+
 test('the built-in providers keep their switches', () => {
   assert.equal(badgeOn({ provider: 'seventv', id: 'a' }, providers, off), true);
   assert.equal(badgeOn({ provider: 'bttv', id: 'pro' }, providers, off), false);

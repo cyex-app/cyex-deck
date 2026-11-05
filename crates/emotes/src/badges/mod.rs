@@ -8,6 +8,7 @@
 pub mod art;
 pub mod badgehq;
 pub mod chatsen;
+pub mod cyex;
 pub mod dankchat;
 pub mod ffzap;
 pub mod homies;
@@ -34,15 +35,19 @@ pub enum BadgeSet {
     Chatsen,
     DankChat,
     Homies,
+    /// V109-B02 cyex's own badges. The app loads them itself (with an ETag, its own switch);
+    /// they draw before 7TV's, right after Twitch's.
+    Cyex,
 }
 
 impl BadgeSet {
-    pub const ALL: [BadgeSet; 5] = [
+    pub const ALL: [BadgeSet; 6] = [
         BadgeSet::FfzAp,
         BadgeSet::BadgeHq,
         BadgeSet::Chatsen,
         BadgeSet::DankChat,
         BadgeSet::Homies,
+        BadgeSet::Cyex,
     ];
 
     /// The start of every badge id of this set.
@@ -53,6 +58,7 @@ impl BadgeSet {
             BadgeSet::Chatsen => "chatsen",
             BadgeSet::DankChat => "dankchat",
             BadgeSet::Homies => "homies",
+            BadgeSet::Cyex => "cyex",
         }
     }
 
@@ -94,6 +100,11 @@ pub async fn fetch(http: &Http, set: BadgeSet) -> Result<Loaded> {
         BadgeSet::Chatsen => http.get_json::<chatsen::Raw>(chatsen::URL).await.map(Into::into),
         BadgeSet::DankChat => http.get_json::<dankchat::Raw>(dankchat::URL).await.map(Into::into),
         BadgeSet::Homies => homies::fetch(http).await,
+        BadgeSet::Cyex => {
+            let kinds = cyex::fetch_kinds(http, cyex::BASE).await.ok();
+            let snap = cyex::fetch_users(http, cyex::BASE, &mut cyex::Tagged::default()).await?;
+            Ok(cyex::build(kinds.as_ref(), cyex::BASE, &snap.unwrap_or_default().users))
+        }
     }
 }
 

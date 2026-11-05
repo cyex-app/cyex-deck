@@ -1,5 +1,5 @@
 <!-- Badges (1.37-1.40, 2.3): Twitch's, with FFZ's room pictures for mods and VIPs and
-     FFZ's bot badge in place of the mod one; then 7TV, BTTV, FFZ and the extra sets (V108-N06). Each
+     FFZ's bot badge in place of the mod one; then cyex's (V109-B02), 7TV, BTTV, FFZ and the extra sets (V108-N06). Each
      provider and set has its toggle. Unknown Twitch badges are skipped until their catalog loads
      (V108-BD or is read again because it lacks them). -->
 <script lang="ts">
