@@ -178,8 +178,9 @@
   <!-- V109-B02 -->
   <div class="line">
     <span class="name">cyex badges</span>
-    <span class="status muted">Founder, supporter and supporter+ in chat.</span>
-    <Button small variant="ghost" onclick={() => (cyexOpen = !cyexOpen)}>{cyexOpen ? 'Close' : 'Cosmetics'}</Button>
+    <span class="status muted">Your cyex badge next to your name in chat.</span>
+    <!-- V109-B03 -->
+    <Button small variant="ghost" onclick={() => (cyexOpen = !cyexOpen)}>{cyexOpen ? 'Close' : 'Edit'}</Button>
   </div>
   {#if cyexOpen}
     <div transition:slide={{ duration: reduced() ? 0 : BASE, easing: cubicOut }}><CyexCosmetics {account} /></div>

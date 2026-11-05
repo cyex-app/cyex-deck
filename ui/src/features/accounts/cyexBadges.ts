@@ -3,9 +3,11 @@
 
 import type { CyexMe } from '../../ipc/bindings/CyexMe.ts';
 import type { CyexPics } from '../../ipc/bindings/CyexPics.ts';
+import { formatDate, formatNumber } from '../../lib/format.ts';
 
-export const SHOP = 'https://cyex.app/deck/cosmetics';
-export const UPLOAD = 'https://cyex.app/deck/cosmetics#badge';
+/** V109-B03 The store tab of cyex.app's cosmetics page, and its own-badge tab. */
+export const STORE = 'https://cyex.app/deck/cosmetics#store';
+export const BADGE_PAGE = 'https://cyex.app/deck/cosmetics#badge';
 
 export type Main = 'founder' | 'supporter';
 export type Choice = Main | 'none';
@@ -58,12 +60,61 @@ export function shownBadges(me: CyexMe, founder: CyexPics, supporter: CyexPics):
   return out;
 }
 
-/** The Supporter+ picture's state when none is live. */
-export function plusNote(me: CyexMe): string {
-  const s = me.plus.badge?.status ?? '';
-  if (s === 'pending' || s === 'review' || s === 'waiting') return 'Waiting for review';
-  if (s === 'rejected') return 'Not approved. Upload another one.';
-  return 'No badge yet';
+/** V109-B03 The badge picker: owned ones can be picked, the rest show but stay off. */
+export interface BadgeOption {
+  value: Choice;
+  label: string;
+  owned: boolean;
+}
+
+export function badgeOptions(me: CyexMe): BadgeOption[] {
+  const n = founderNumber(me);
+  const founder = owns(me, 'founder');
+  return [
+    { value: 'founder', label: founder && n ? `Founder #${formatNumber(n)}` : 'Founder', owned: founder },
+    { value: 'supporter', label: 'Supporter', owned: owns(me, 'supporter') },
+    { value: 'none', label: 'None', owned: true },
+  ];
+}
+
+/** `2026-12-05T12:00:00Z` → `2026/12/05` (local day); unreadable text keeps its first 10 chars. */
+export function day(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso.slice(0, 10).replaceAll('-', '/') : formatDate(d);
+}
+
+/** V109-B03 Where the Supporter+ plan and its picture stand. `never`: no row at all. */
+export type PlusKind = 'never' | 'ended' | 'live' | 'review' | 'rejected' | 'empty';
+
+export interface PlusState {
+  kind: PlusKind;
+  /** The plan line under the label: `Renews 2026/12/05`, `Until …`, `Ended …`. */
+  plan: string;
+  /** What the picture is doing when none shows. */
+  note: string;
+  /** The one link: change or upload the picture (#badge), or renew (#store). */
+  link: { label: string; url: string } | null;
+}
+
+export function plusState(me: CyexMe): PlusState {
+  const p = me.plus;
+  if (!p.active) {
+    if (!p.until && !p.badge && !p.live) return { kind: 'never', plan: '', note: '', link: null };
+    return { kind: 'ended', plan: p.until ? `Ended ${day(p.until)}` : 'Ended', note: 'Not in chat while the plan is off', link: { label: 'Renew', url: STORE } };
+  }
+  const plan = p.renewsAt ? `Renews ${day(p.renewsAt)}` : p.until ? `Until ${day(p.until)}` : '';
+  const change = { label: 'Change picture', url: BADGE_PAGE };
+  const upload = { label: 'Upload a picture', url: BADGE_PAGE };
+  if (p.live) return { kind: 'live', plan, note: '', link: change };
+  const s = p.badge?.status ?? '';
+  if (s === 'pending' || s === 'review' || s === 'waiting') return { kind: 'review', plan, note: 'Waiting for review', link: change };
+  if (s === 'rejected') return { kind: 'rejected', plan, note: 'Not approved. Try another one.', link: upload };
+  return { kind: 'empty', plan, note: 'No picture yet', link: upload };
+}
+
+/** V109-B03 Nothing to set: no badge and never a Supporter+ plan. The store is the one action. */
+export function nothingToSet(me: CyexMe): boolean {
+  return nothingOwned(me) && plusState(me).kind === 'never';
 }
 
 /** The usercard's short line from the badge titles chat shows, e.g. `cyex founder #37 · supporter+`. */

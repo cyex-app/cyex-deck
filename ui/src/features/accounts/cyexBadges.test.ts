@@ -2,7 +2,21 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { CyexMe } from '../../ipc/bindings/CyexMe.ts';
-import { badgeTitle, choiceOf, isCyexBadge, nothingOwned, owns, plusNote, shownBadges, usercardLine } from './cyexBadges.ts';
+import {
+  BADGE_PAGE,
+  badgeOptions,
+  badgeTitle,
+  choiceOf,
+  day,
+  isCyexBadge,
+  nothingOwned,
+  nothingToSet,
+  owns,
+  plusState,
+  shownBadges,
+  STORE,
+  usercardLine,
+} from './cyexBadges.ts';
 
 const pic = (n: string) => ({ '1x': `${n}1`, '2x': `${n}2`, '4x': `${n}4` });
 
@@ -46,10 +60,44 @@ test('V109-B02 the preview shows what is shown, two at most, in order', () => {
   assert.deepEqual(shownBadges(me({ equipped: { main: 'founder', custom: true, shown: ['founder', 'custom'] } }), pic('f'), pic('s')), []);
 });
 
-test('V109-B02 the Supporter+ note and the usercard line', () => {
-  assert.equal(plusNote(me()), 'No badge yet');
-  const pending = me({ plus: { active: true, source: null, until: null, renewsAt: null, badge: { status: 'pending' }, live: null } });
-  assert.equal(plusNote(pending), 'Waiting for review');
+test('V109-B02 the usercard line', () => {
   assert.equal(usercardLine(['7TV Sub', 'cyex founder #37', 'cyex supporter+']), 'cyex founder #37 · supporter+');
   assert.equal(usercardLine(['FFZ Bot']), '');
+});
+
+const plus = (over: Partial<CyexMe['plus']>): CyexMe['plus'] => ({ active: true, source: 'paddle', until: null, renewsAt: null, badge: null, live: null, ...over });
+
+test('V109-B03 the badge picker: owned ones pick, the rest stay off', () => {
+  const none = badgeOptions(me());
+  assert.deepEqual(none.map((o) => [o.value, o.label, o.owned]), [
+    ['founder', 'Founder', false],
+    ['supporter', 'Supporter', false],
+    ['none', 'None', true],
+  ]);
+  const all = badgeOptions(me({ badges: [{ id: 'founder', number: 1234 }, { id: 'supporter', number: null }] }));
+  assert.equal(all[0].label, 'Founder #1.234');
+  assert.ok(all.every((o) => o.owned));
+});
+
+test('V109-B03 Supporter+ states: plan line, note and the one link', () => {
+  assert.equal(plusState(me()).kind, 'never');
+  assert.ok(nothingToSet(me()));
+  const live = plusState(me({ plus: plus({ renewsAt: '2026-12-05T12:00:00Z', until: '2026-12-05T12:00:00Z', live: pic('c') }) }));
+  assert.equal(live.kind, 'live');
+  assert.equal(live.plan, `Renews ${day('2026-12-05T12:00:00Z')}`);
+  assert.deepEqual(live.link, { label: 'Change picture', url: BADGE_PAGE });
+  const code = plusState(me({ plus: plus({ source: 'code', until: '2026-12-05T12:00:00Z' }) }));
+  assert.equal(code.kind, 'empty');
+  assert.ok(code.plan.startsWith('Until 2026/12/0'));
+  assert.equal(code.link?.label, 'Upload a picture');
+  assert.equal(plusState(me({ plus: plus({ badge: { status: 'pending' } }) })).note, 'Waiting for review');
+  assert.equal(plusState(me({ plus: plus({ badge: { status: 'rejected' } }) })).kind, 'rejected');
+  const ended = me({ plus: plus({ active: false, until: '2026-10-05T12:00:00Z', badge: { status: 'approved' }, live: pic('c') }) });
+  const e = plusState(ended);
+  assert.equal(e.kind, 'ended');
+  assert.ok(e.plan.startsWith('Ended 2026/10/0'));
+  assert.deepEqual(e.link, { label: 'Renew', url: STORE });
+  // An ended plan still has a row: not the empty store state.
+  assert.ok(nothingOwned(ended) && !nothingToSet(ended));
+  assert.equal(day('garbage-in'), 'garbage/in');
 });
