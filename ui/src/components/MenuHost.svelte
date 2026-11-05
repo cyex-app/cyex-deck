@@ -13,7 +13,7 @@
   import ConfirmCallout from './ConfirmCallout.svelte';
   import GateFlag from './GateFlag.svelte';
   import Icon from './Icon.svelte';
-  import { back, closeMenu, menu, menuDisarm, menuHold, menuMoveTo, pick, type MenuItem } from './menu.svelte';
+  import { back, closeMenu, menu, menuDisarm, menuHold, menuMoveTo, menuOwns, pick, type MenuItem } from './menu.svelte';
   import { tooltip } from './tooltip.svelte';
   import { matchTyped } from './select.ts';
 
@@ -142,7 +142,7 @@
     if (!menu.open) return;
     const onDown = (e: MouseEvent) => {
       const t = e.target as Element;
-      if (!box?.contains(t) && !t.closest?.('[data-menu-confirm]')) closeMenu();
+      if (!box?.contains(t) && !t.closest?.('[data-menu-confirm]') && !menuOwns(t)) closeMenu();
     };
     const onKey = (e: KeyboardEvent) => {
       const typing = document.activeElement instanceof HTMLInputElement;
