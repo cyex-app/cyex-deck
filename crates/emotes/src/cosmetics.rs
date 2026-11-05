@@ -306,8 +306,20 @@ impl Cosmetics {
         self.extra.contains_key(&set)
     }
 
+    /// V108-N06 A set's badges for `user`. They carry no emote provider: Twitch stands for "none".
+    fn push_extra(&self, look: &mut Look, set: BadgeSet, user: &str) {
+        for id in self.extra.get(&set).and_then(|u| u.get(user)).into_iter().flatten() {
+            look.badges.push(BadgeRef {
+                provider: Provider::Twitch,
+                id: id.clone(),
+            });
+        }
+    }
+
     pub fn look(&self, user: &str) -> Option<Look> {
         let mut look = Look::default();
+        // V109-B02 cyex's own come first, right after Twitch's.
+        self.push_extra(&mut look, BadgeSet::Cyex, user);
         // Drawn: counts as recent, so it outlives the trim.
         if let Some(u) = self.seventv.get(user) {
             look.paint = u.paint.clone().filter(|p| self.paints.contains_key(p));
@@ -335,13 +347,8 @@ impl Cosmetics {
             }
         }
         // V108-N06 Their badges carry no emote provider: Twitch stands for "none".
-        for set in BadgeSet::ALL {
-            for id in self.extra.get(&set).and_then(|u| u.get(user)).into_iter().flatten() {
-                look.badges.push(BadgeRef {
-                    provider: Provider::Twitch,
-                    id: id.clone(),
-                });
-            }
+        for set in BadgeSet::ALL.into_iter().filter(|s| *s != BadgeSet::Cyex) {
+            self.push_extra(&mut look, set, user);
         }
         look.badges.retain(|b| self.badges.contains_key(b));
         // V108-C10 One picture once: lists repeat a badge under two ids (Homies' developer

@@ -3,6 +3,7 @@
 //! Chatterino's link resolver (D8), translation (C17) and logs.cyex.app (1.36, its firehose
 //! V104-02).
 
+mod call;
 pub mod channel_input;
 pub mod clients;
 pub mod clock;
@@ -28,6 +29,7 @@ pub mod uploader;
 pub mod usher;
 pub mod ws;
 
+pub use call::{Call, Reply, Verb};
 pub use download::DownloadError;
 pub use error::{Error, Result};
 pub use http::{BROWSER_AGENT, Http, RateLimit};

@@ -324,6 +324,13 @@ export const CHAT: Entry[] = [
   badge('seventv', '7TV'),
   badge('bttv', 'BTTV'),
   badge('ffz', 'FFZ'),
+  {
+    id: 'chat.badges.cyex',
+    page: 'emotes',
+    label: 'cyex badges',
+    description: 'Founder, supporter and supporter+ badges from cyex deck.',
+    keywords: ['badges', 'cyex', 'founder', 'supporter', 'supporter+'],
+  },
   { id: 'chat.paints.seventv', page: 'emotes', label: '7TV name paints', keywords: ['paint', 'name color', 'gradient'] },
   {
     id: 'chat.paints.outlineLight',

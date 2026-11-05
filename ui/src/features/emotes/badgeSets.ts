@@ -19,12 +19,14 @@ export function setOf(id: string): keyof BadgeSets | null {
   return BADGE_SETS.some((s) => s.key === key) ? (key as keyof BadgeSets) : null;
 }
 
-/** Whether a provider badge is switched on: its set's switch, or its provider's. */
+/** Whether a provider badge is switched on: its set's switch, or its provider's. V109-B02 cyex
+ * badges (`cyex:…`) have their own switch beside the providers' (`chat.badges.cyex`). */
 export function badgeOn(
   b: { provider: string; id: string },
   providers: Record<string, boolean>,
   sets: BadgeSets,
 ): boolean {
+  if (b.id.startsWith('cyex:')) return !!providers.cyex;
   const set = setOf(b.id);
   return set ? sets[set] : !!providers[b.provider];
 }

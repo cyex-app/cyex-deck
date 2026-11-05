@@ -7,6 +7,7 @@ mod chat_extra;
 mod community;
 mod content;
 mod cosmetics;
+mod cyex;
 mod discord;
 mod emotes;
 pub mod feeds;
@@ -289,6 +290,9 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         streammanager::sm_obs_pick_folder,
         streammanager::sm_obs_files,
         streammanager::sm_obs_open_file,
+        cyex::cyex_view,
+        cyex::cyex_equip,
+        cyex::cyex_redeem,
         cosmetics::cosmetics_view,
         cosmetics::cosmetics_allow,
         cosmetics::cosmetics_select,
