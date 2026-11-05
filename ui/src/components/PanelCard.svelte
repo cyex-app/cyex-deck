@@ -185,8 +185,9 @@
   .body > :global(.line) {
     flex: none;
   }
-  /* The start button stays in reach while the choices above scroll. */
-  .body > :global(.foot) {
+  /* The start button stays in reach while the choices above scroll. V108-F58l Not in flush
+     bodies: there a list keeps its own padded foot (it sat on the card edge). */
+  .body:not(.flush) > :global(.foot) {
     position: sticky;
     bottom: -10px;
     margin-bottom: -10px;
@@ -194,7 +195,8 @@
     background: var(--surface);
     border-top: 1px solid var(--border);
   }
-  .body :global(.note) {
+  /* V108-F58l `own`: a list that pads its own note (the viewer list). */
+  .body :global(.note:not(.own)) {
     margin: 0;
     font-size: 0.78rem;
     color: var(--muted);

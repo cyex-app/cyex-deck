@@ -126,13 +126,13 @@
   <div class="find"><SearchField bind:value={query} placeholder="Find someone" small /></div>
   <div class="list">
     {#if error}
-      <p class="note">Couldn’t load the list: {error}</p>
+      <p class="note own">Couldn’t load the list: {error}</p>
     {:else if !data}
       <Loading />
     {:else if !listed}
-      <p class="note">Nobody’s in chat right now.</p>
+      <p class="note own">Nobody’s in chat right now.</p>
     {:else if !groups.length}
-      <p class="note">Nobody by that name here.</p>
+      <p class="note own">Nobody by that name here.</p>
     {:else}
       {#each groups as g (g.label)}
         <div class="group">{g.label} · {formatNumber(g.list.length)}</div>
@@ -142,11 +142,11 @@
           <button class="name" onclick={() => open(name)} oncontextmenu={(e) => menu(e, name, g.is)}>{name}</button>
         {/each}
         {#if g.list.length > SHOWN}
-          <p class="note">{formatNumber(g.list.length - SHOWN)} more. Type a name to find them.</p>
+          <p class="note own">{formatNumber(g.list.length - SHOWN)} more. Type a name to find them.</p>
         {/if}
       {/each}
       {#if !data.complete && !query.trim()}
-        <p class="note">
+        <p class="note own">
           Twitch lists everyone only for moderators. These are {formatNumber(listed)} of {formatNumber(Number(data.count))}.
         </p>
       {/if}

@@ -99,7 +99,7 @@
     activity: { title: 'Activity', hint: 'Follows, subs, cheers, raids, rewards.', min: { w: 240, h: 150 }, tall: 320 },
     actions: { title: 'Mod actions', hint: 'Bans, timeouts, deletes and more.', min: { w: 240, h: 150 }, tall: 300 },
     modes: { title: 'Chat settings', hint: 'Slow, followers-only, sub-only, emote-only.', min: { w: 200, h: 110 }, tall: 220 },
-    poll: { title: 'Poll', hint: 'Start or end a poll.', min: { w: 200, h: 240 }, tall: 300 },
+    poll: { title: 'Poll', hint: 'Start or end a poll.', min: { w: 200, h: 280 }, tall: 330 },
     prediction: { title: 'Prediction', hint: 'Start, lock or pay out.', min: { w: 200, h: 250 }, tall: 320 },
     raid: { title: 'Raid', hint: 'Raid another channel.', min: { w: 200, h: 110 }, tall: 240 },
     ads: { title: 'Ads', hint: 'Run an ad, snooze, schedule.', min: { w: 200, h: 150 }, tall: 260 },
