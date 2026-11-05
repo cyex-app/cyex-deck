@@ -214,7 +214,7 @@ pub mod mock {
     fn ban(until: Option<String>, since_secs_ago: i64) -> BanStatus {
         BanStatus {
             until,
-            by: Some("KuniModerator".into()),
+            by: None,
             reason: "Spamming links after being asked to stop".into(),
             since: Some(rfc3339(-since_secs_ago)),
         }
@@ -231,7 +231,7 @@ pub mod mock {
             text: "Sorry, it won't happen again.".into(),
             status: status.into(),
             resolved_at: (status != "PENDING").then(|| rfc3339(-600)),
-            resolved_by: (status != "PENDING").then(|| "KuniModerator".to_owned()),
+            resolved_by: None,
             note: note.into(),
         };
         let s = match kind {

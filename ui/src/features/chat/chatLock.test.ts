@@ -106,8 +106,8 @@ test('the box takes focus back only when it had it or nothing has', () => {
 
 test('lockedWhy names the lock, and is empty without one', () => {
   const warn: Lock = { kind: 'warn', warning: { reason: '', rules: [] } };
-  const timeout: Lock = { kind: 'timeout', until: NOW + 1000, reason: '', by: null };
-  const ban: Lock = { kind: 'ban', reason: '', by: null, since: null, unban: { state: 'off' } };
+  const timeout: Lock = { kind: 'timeout', until: NOW + 1000, reason: '' };
+  const ban: Lock = { kind: 'ban', reason: '', since: null, unban: { state: 'off' } };
   assert.equal(lockedWhy(null), '');
   assert.equal(lockedWhy(timeout), 'Not while you’re timed out.');
   assert.equal(lockedWhy(ban), 'Not while you’re banned.');

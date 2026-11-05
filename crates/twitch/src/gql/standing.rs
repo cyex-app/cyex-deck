@@ -1,8 +1,8 @@
 //! V108-C40 The account's own standing in a chat: a ban or timeout on it, whether it may ask
 //! for an unban (and its last request), and Twitch's chat warnings. Checked by wrong-typed
 //! validation probes 2026/11/04, signed out; neither mutation was ever run.
-//! - Read: `chatRoomBanStatus(channelID, userID) { createdAt expiresAt isPermanent reason
-//!   moderator }`, `channel(id) { unbanRequestsSettings { isEnabled cooldownMinutes } self {
+//! - Read: `chatRoomBanStatus(channelID, userID) { createdAt expiresAt isPermanent reason }`
+//!   (no `moderator`: Twitch never tells the account who acted on it, V108-C40e), `channel(id) { unbanRequestsSettings { isEnabled cooldownMinutes } self {
 //!   canRequestUnban } }` (`canRequestUnban: Boolean` on `ChannelSelfEdge`).
 //! - Own request: `channel.unbanRequests(options: {userID})` is the mod read (V108-C36); for
 //!   the requester it may be refused, so it's read apart and a failure means "unknown".
@@ -52,7 +52,7 @@ pub struct Standing {
 
 const READ: &str = "query S($c: ID!, $u: ID!) {
   ban: chatRoomBanStatus(channelID: $c, userID: $u) {
-    createdAt expiresAt isPermanent reason moderator { login displayName } }
+    createdAt expiresAt isPermanent reason }
   channel(id: $c) { unbanRequestsSettings { isEnabled cooldownMinutes } self { canRequestUnban } } }";
 
 /// The standing of `user_id` (the signed-in account) in `channel_id`.
@@ -89,7 +89,8 @@ fn ban_uncertain(data: &Value, errors: &[GqlError]) -> bool {
 fn standing_of(data: &Value) -> Standing {
     let rules = &data["channel"]["unbanRequestsSettings"];
     Standing {
-        ban: modlogs::ban_of(data),
+        // V108-C40e Never who did it, even if an answer carries it.
+        ban: modlogs::ban_of(data).map(|b| BanStatus { by: None, ..b }),
         unban: rules.is_object().then(|| UnbanRules {
             enabled: rules["isEnabled"].as_bool().unwrap_or(false),
             cooldown_minutes: u32::try_from(rules["cooldownMinutes"].as_u64().unwrap_or(0)).unwrap_or(u32::MAX),
@@ -219,7 +220,7 @@ mod tests {
         });
         let s = standing_of(&d);
         let ban = s.ban.unwrap();
-        assert_eq!((ban.until, ban.by.as_deref(), ban.reason.as_str()), (None, Some("Kuni"), "spam"));
+        assert_eq!((ban.until, ban.by.as_deref(), ban.reason.as_str()), (None, None, "spam"));
         assert_eq!(ban.since.as_deref(), Some("2026-11-04T10:00:00Z"));
         assert_eq!(s.unban, Some(UnbanRules { enabled: true, cooldown_minutes: 60 }));
         assert_eq!(s.can_request, Some(false));

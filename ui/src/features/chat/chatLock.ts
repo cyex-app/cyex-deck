@@ -31,8 +31,8 @@ export type Unban =
   | { state: 'closed'; last: PastUnban | null };
 
 export type Lock =
-  | { kind: 'timeout'; until: number; reason: string; by: string | null }
-  | { kind: 'ban'; reason: string; by: string | null; since: number | null; unban: Unban }
+  | { kind: 'timeout'; until: number; reason: string }
+  | { kind: 'ban'; reason: string; since: number | null; unban: Unban }
   | { kind: 'warn'; warning: ChatWarning };
 
 export interface LockInput {
@@ -58,21 +58,19 @@ export function lockOf({ standing, readAt, said, warning, now }: LockInput): Loc
   const ban = standing?.ban ?? null;
   const fresh = saidCounts(said, readAt) ? said : null;
   const reason = ban?.reason ?? '';
-  const by = ban?.by ?? null;
   if (fresh?.how.kind === 'banned' || (ban && ban.until === null)) {
     // A ban the read doesn't know yet has no reason or time; it fills in with the next read.
     const known = ban && ban.until === null;
     return {
       kind: 'ban',
       reason: known ? reason : '',
-      by: known ? by : null,
       since: known ? time(ban.since) : (fresh?.at ?? null),
       unban: unbanOf(known ? standing : null, known ? time(ban.since) : null, now),
     };
   }
   const until = fresh?.how.kind === 'timedOut' ? fresh.at + fresh.how.secs * 1000 : time(ban?.until);
   if (until !== null && until > now) {
-    return { kind: 'timeout', until, reason: fresh?.how.kind === 'timedOut' && !ban ? '' : reason, by: fresh && !ban ? null : by };
+    return { kind: 'timeout', until, reason: fresh?.how.kind === 'timedOut' && !ban ? '' : reason };
   }
   const warned = warning ?? (fresh?.how.kind === 'warned' ? { reason: '', rules: [] } : null);
   if (warned) return { kind: 'warn', warning: warned };

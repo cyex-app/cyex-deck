@@ -7,7 +7,6 @@
   import Button from '../../components/Button.svelte';
   import Icon from '../../components/Icon.svelte';
   import { formatDate, formatNumber } from '../../lib/format';
-  import { streamer } from '../../lib/streamer.svelte';
   import { left, REQUEST_MAX, ticking, title, unbanLine, type Lock } from './chatLock';
   import type { Standing } from './standing.svelte';
 
@@ -30,18 +29,14 @@
     status?.focus();
   }
 
-  // U4 Streamer mode hides who did it, like mod actions in chat.
-  const by = $derived(lock.kind !== 'warn' && lock.by && !streamer.hides('hideModActions') ? lock.by : null);
   const now = $derived(standing.now);
   const unban = $derived(lock.kind === 'ban' ? lock.unban : null);
   const waitAt = $derived(unban?.state === 'wait' ? unban.at : null);
   // V108-F57a The countdowns tick in aria-hidden spans: the status itself stays still.
   const line = $derived(unban && unban.state !== 'wait' ? unbanLine(unban, now) : '');
   const chars = $derived([...text].length);
-  /** "by Kuni · since 2026/11/04" */
-  const meta = $derived(
-    [by && `by ${by}`, lock.kind === 'ban' && lock.since && `since ${formatDate(new Date(lock.since))}`].filter(Boolean).join(' · '),
-  );
+  /** "since 2026/11/04". V108-C40e Never who did it: Twitch doesn't tell the account. */
+  const meta = $derived(lock.kind === 'ban' && lock.since ? `since ${formatDate(new Date(lock.since))}` : '');
 
   // A countdown ticks once a second; nothing ticks otherwise.
   $effect(() => (lock.kind === 'timeout' || unban?.state === 'wait' ? standing.tick() : undefined));
