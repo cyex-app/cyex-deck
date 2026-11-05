@@ -6,7 +6,7 @@
 
   import Button from '../../components/Button.svelte';
   import Icon from '../../components/Icon.svelte';
-  import { formatDate, formatNumber } from '../../lib/format';
+  import { formatDate, formatNumber, formatTime } from '../../lib/format';
   import { left, REQUEST_MAX, ticking, title, unbanLine, type Lock } from './chatLock';
   import type { Standing } from './standing.svelte';
 
@@ -133,11 +133,15 @@
         </div>
       {:else}
         {#if line}<p class="hint">{line}</p>{/if}
-        {#if waitAt !== null}<p class="hint">Available in <span aria-hidden="true">{left(waitAt, now)}</span></p>{/if}
         {#if unban.state === 'ready' || unban.state === 'wait'}
           <div class="actions">
             <span bind:this={opener} class="opener">
-              <Button small disabled={unban.state !== 'ready'} onclick={() => void ask()}>Request unban</Button>
+              <!-- V108-C40f The wait counts down on the button; a screen reader hears when it opens. -->
+              <Button small disabled={unban.state !== 'ready'} onclick={() => void ask()}
+                >Request unban{#if waitAt !== null}<span class="wait" aria-hidden="true">{left(waitAt, now)}</span><span class="sr-only"
+                    >, opens at {formatTime(new Date(waitAt))}</span
+                  >{/if}</Button
+              >
             </span>
           </div>
         {/if}
@@ -211,6 +215,10 @@
     align-items: center;
     justify-content: flex-end;
     gap: 6px;
+  }
+  .wait {
+    margin-left: 6px;
+    font-variant-numeric: tabular-nums;
   }
   .opener {
     display: contents;

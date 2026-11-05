@@ -65,7 +65,7 @@ export function lockOf({ standing, readAt, said, warning, now }: LockInput): Loc
       kind: 'ban',
       reason: known ? reason : '',
       since: known ? time(ban.since) : (fresh?.at ?? null),
-      unban: unbanOf(known ? standing : null, known ? time(ban.since) : null, now),
+      unban: unbanOf(known ? standing : null, known ? time(ban.since) : null, now, readAt),
     };
   }
   const until = fresh?.how.kind === 'timedOut' ? fresh.at + fresh.how.secs * 1000 : time(ban?.until);
@@ -77,8 +77,9 @@ export function lockOf({ standing, readAt, said, warning, now }: LockInput): Loc
   return null;
 }
 
-/** Whether an unban request can go out now, and if not, why or when. */
-export function unbanOf(standing: ChatStanding | null, since: number | null, now: number): Unban {
+/** Whether an unban request can go out now, and if not, why or when. `readAt`: when the
+ *  standing's read started; Twitch's "no" from before the wait ended is about the wait. */
+export function unbanOf(standing: ChatStanding | null, since: number | null, now: number, readAt = now): Unban {
   const rules = standing?.unban;
   if (!standing || !rules?.enabled) return { state: 'off' };
   const last = standing.request;
@@ -86,7 +87,8 @@ export function unbanOf(standing: ChatStanding | null, since: number | null, now
   if (standing.canRequest === true) return { state: 'ready', last };
   const at = since === null ? null : since + rules.cooldownMinutes * 60_000;
   if (at !== null && at > now) return { state: 'wait', at };
-  if (standing.canRequest === false) return { state: 'closed', last };
+  // V108-C40f The wait just ran out and the next read is on its way: ready, not "can't".
+  if (standing.canRequest === false && (at === null || readAt >= at)) return { state: 'closed', last };
   return { state: 'ready', last };
 }
 

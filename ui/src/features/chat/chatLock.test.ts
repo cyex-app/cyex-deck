@@ -53,6 +53,9 @@ test('the unban request opens after the cooldown', () => {
   assert.equal(unbanOf(banned(200), NOW - 200 * 60_000, NOW).state, 'ready');
   assert.equal(unbanOf(banned(10, { canRequest: true }), NOW - 600_000, NOW).state, 'ready', 'Twitch says yes');
   assert.equal(unbanOf(banned(200, { canRequest: false }), NOW - 200 * 60_000, NOW).state, 'closed');
+  // V108-C40f A "no" read during the wait doesn't close it once the wait is over.
+  assert.equal(unbanOf(banned(200, { canRequest: false }), NOW - 200 * 60_000, NOW, NOW - 30 * 60_000).state, 'ready');
+  assert.equal(unbanOf(banned(200, { canRequest: false }), NOW - 200 * 60_000, NOW, NOW - 10 * 60_000).state, 'closed');
   assert.equal(unbanOf(banned(200, { unban: { enabled: false, cooldownMinutes: 0 } }), null, NOW).state, 'off');
   assert.equal(unbanOf(null, null, NOW).state, 'off');
 });
