@@ -92,7 +92,7 @@
       // V108-F59a The close can be async (confirm, undo); wait until the tab has really left the DOM.
       void waitGone(() => !el.isConnected).then((gone) => {
         const a = document.activeElement;
-        if ((a && a !== document.body) || !near?.isConnected) return;
+        if (!gone || (a && a !== document.body) || !near?.isConnected) return;
         near.focus();
       });
       return;
