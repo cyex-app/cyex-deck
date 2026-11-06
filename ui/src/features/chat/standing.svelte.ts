@@ -10,6 +10,11 @@ import { errorText } from '../../lib/errors';
 import { lockOf, nextRead, type Lock, type LockInput } from './chatLock';
 import type { ChatRoom } from './room.svelte';
 
+/** V108-C40i Warnings IRC told of and not acknowledged yet, by `account:channelId`. A read never
+ * shows them and a remounted chat box has a new room, so they're kept here while the app runs. */
+const unacked = new Map<string, ChatWarning>();
+const NO_WORDS: ChatWarning = { reason: '', rules: [] };
+
 export class Standing {
   standing = $state.raw<ChatStanding | null>(null);
   readAt = $state(0);
@@ -35,7 +40,12 @@ export class Standing {
   private input(): LockInput {
     const s = this.standing;
     const standing = s && !s.request && this.sent && s.ban?.until === null ? { ...s, request: this.sent } : s;
-    return { standing, readAt: this.readAt, said: this.room().said, warning: this.warning, now: this.now };
+    const said = this.room().said;
+    const who = this.who();
+    const key = who ? `${who.account}:${who.channelId}` : '';
+    if (key && said?.how.kind === 'warned' && !unacked.has(key)) unacked.set(key, this.warning ?? NO_WORDS);
+    const warning = this.warning ?? (key ? (unacked.get(key) ?? null) : null);
+    return { standing, readAt: this.readAt, said, warning, now: this.now };
   }
 
   get lock(): Lock | null {
@@ -79,7 +89,10 @@ export class Standing {
     if (this.dead) return;
     const who = this.who();
     if (!who || who.account !== account || who.channelId !== channelId) return;
-    if (warning) this.warning = warning;
+    if (warning) {
+      this.warning = warning;
+      unacked.set(`${account}:${channelId}`, warning);
+    }
     void this.load();
   }
 
@@ -90,6 +103,7 @@ export class Standing {
     this.error = '';
     try {
       await standingIpc.acknowledge(who.account, who.channelId);
+      unacked.delete(`${who.account}:${who.channelId}`);
       this.warning = null;
       const r = this.room();
       if (r.said?.how.kind === 'warned') r.said = null;
