@@ -89,6 +89,14 @@ test('reads again when it matters', () => {
   assert.equal(nextRead(null, input({})), null);
   const said = { how: { kind: 'banned' as const }, at: NOW };
   assert.equal(nextRead(null, input({ said, readAt: NOW + 100 })), 5_000, 'the read came too soon');
+  // V108-C40h
+  const request = { id: '1', createdAt: iso(NOW), text: 'hi', status: 'PENDING', resolvedAt: null, resolvedBy: null, note: '' };
+  const pending = lockOf(input({ standing: banned(300, { canRequest: false, request }) }));
+  assert.equal(nextRead(pending, input({})), 30_000, 'a pending request is looked at often');
+  const late = input({ standing: banned(181, { canRequest: false }), readAt: NOW });
+  assert.equal(nextRead(lockOf(late), late), 15_000, 'Twitch still says no just after the wait');
+  const closed = input({ standing: banned(200, { canRequest: false }), readAt: NOW });
+  assert.equal(nextRead(lockOf(closed), closed), 180_000, 'a real no is looked at rarely');
 });
 
 test('the status line is static, the time ticks apart from it', () => {

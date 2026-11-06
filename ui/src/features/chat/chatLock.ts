@@ -28,7 +28,7 @@ export type Unban =
   | { state: 'ready'; last: PastUnban | null }
   | { state: 'pending'; request: PastUnban }
   /** Twitch says no more requests here; `last` when it's readable. */
-  | { state: 'closed'; last: PastUnban | null };
+  | { state: 'closed'; last: PastUnban | null; opened: number | null };
 
 export type Lock =
   | { kind: 'timeout'; until: number; reason: string }
@@ -89,7 +89,7 @@ export function unbanOf(standing: ChatStanding | null, since: number | null, now
   const at = since === null ? null : since + rules.cooldownMinutes * 60_000;
   if (at !== null && at > now) return { state: 'wait', at };
   // V108-C40f The wait just ran out and the next read is on its way: ready, not "can't".
-  if (standing.canRequest === false && (at === null || readAt >= at)) return { state: 'closed', last };
+  if (standing.canRequest === false && (at === null || readAt >= at)) return { state: 'closed', last, opened: at };
   return { state: 'ready', last };
 }
 
@@ -173,6 +173,10 @@ export function nextRead(lock: Lock | null, input: LockInput): number | null {
   if (lock?.kind === 'ban') {
     const u = lock.unban;
     if (u.state === 'wait') return Math.min(180_000, Math.max(1_000, u.at - input.now + 1_000));
+    // V108-C40h Twitch doesn't push these: a pending request is looked at every 30 s, and a
+    // "no" just after the wait ended (Twitch opens a little late) every 15 s for 10 min.
+    if (u.state === 'pending') return 30_000;
+    if (u.state === 'closed' && u.opened !== null && input.now - u.opened < 600_000) return 15_000;
     return 180_000;
   }
   return null;
