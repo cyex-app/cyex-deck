@@ -1,11 +1,10 @@
-// V108-N06 The extra badge sets (FFZ:AP, BadgeHQ, Chatsen, DankChat, Homies). Their badges arrive with
+// V108-N06 The extra badge sets (FFZ:AP, Chatsen, DankChat, Homies). Their badges arrive with
 // `provider: "twitch"` and an id like `ffzap:123`; the prefix says which switch governs them.
 
 import type { BadgeSets } from '../../ipc/bindings/BadgeSets.ts';
 
 export const BADGE_SETS: { key: keyof BadgeSets; label: string; hint: string }[] = [
   { key: 'ffzap', label: 'FFZ:AP', hint: 'Supporters of the FFZ add-on pack.' },
-  { key: 'badgehq', label: 'BadgeHQ', hint: 'Badges from badgehq.xyz.' },
   { key: 'chatsen', label: 'Chatsen', hint: 'People behind the Chatsen app and its supporters.' },
   { key: 'dankchat', label: 'DankChat', hint: 'People behind the DankChat app and its supporters.' },
   { key: 'homies', label: 'Homies', hint: 'Chatterino Homies, with the badges people made for themselves.' },

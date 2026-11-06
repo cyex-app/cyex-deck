@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import type { BadgeSets } from '../../ipc/bindings/BadgeSets.ts';
 import { BADGE_SETS, badgeOn, setOf } from './badgeSets.ts';
 
-const off: BadgeSets = { ffzap: false, badgehq: false, chatsen: false, dankchat: false, homies: false };
+const off: BadgeSets = { ffzap: false, chatsen: false, dankchat: false, homies: false };
 const providers = { twitch: true, seventv: true, bttv: false, ffz: true };
 
 test('ids tell their set', () => {
@@ -17,10 +17,10 @@ test('ids tell their set', () => {
 });
 
 test('an extra badge follows its own switch, not Twitch badges', () => {
-  const b = { provider: 'twitch', id: 'badgehq:founder' };
+  const b = { provider: 'twitch', id: 'ffzap:founder' };
   assert.equal(badgeOn(b, providers, off), false);
-  assert.equal(badgeOn(b, providers, { ...off, badgehq: true }), true);
-  assert.equal(badgeOn(b, { ...providers, twitch: false }, { ...off, badgehq: true }), true);
+  assert.equal(badgeOn(b, providers, { ...off, ffzap: true }), true);
+  assert.equal(badgeOn(b, { ...providers, twitch: false }, { ...off, ffzap: true }), true);
 });
 
 test('V109-B02 cyex badges follow the cyex switch', () => {

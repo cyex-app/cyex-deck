@@ -37,7 +37,7 @@
   const still = $derived(focus.still || (override !== undefined && focus.idle));
 
   const on = $derived(settings.v.chat.badges);
-  /** V108-N06 FFZ:AP, BadgeHQ, Chatsen, DankChat and Homies, each its own switch. */
+  /** V108-N06 FFZ:AP, Chatsen, DankChat and Homies, each its own switch. */
   const sets = $derived(settings.v.emotes.badgeSets);
   const room = $derived(on.ffz ? rooms.get(channel) : undefined);
   const extra = $derived.by(() => {
