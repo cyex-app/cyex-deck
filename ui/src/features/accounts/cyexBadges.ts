@@ -67,6 +67,8 @@ export function shownBadges(me: CyexMe, founder: CyexPics, supporter: CyexPics):
 export interface Slot1Kind {
   id: Main;
   label: (me: CyexMe) => string;
+  /** V109-B08 The row card's second line. */
+  sub: string;
   pics: (view: CyexView) => CyexPics | null;
 }
 
@@ -77,9 +79,10 @@ export const SLOT1_KINDS: readonly Slot1Kind[] = [
       const n = founderNumber(me);
       return n ? `Founder #${formatNumber(n)}` : 'Founder';
     },
+    sub: 'One-time',
     pics: (v) => (v.state === 'ready' ? v.founder : null),
   },
-  { id: 'supporter', label: () => 'Supporter', pics: (v) => (v.state === 'ready' ? v.supporter : null) },
+  { id: 'supporter', label: () => 'Supporter', sub: 'One-time', pics: (v) => (v.state === 'ready' ? v.supporter : null) },
 ];
 
 export interface Slot1Option {
@@ -101,6 +104,7 @@ export function slot1Current(me: CyexMe): Slot1Option | null {
 /** V109-B05 A card in slot 1's picker (the shared cosmetics grid takes this shape). */
 export interface PickerRow {
   name: string;
+  sub: string;
   animated: boolean;
   usable: boolean;
   item: { def: { id: string }; images: readonly string[]; stills: readonly string[] | null };
@@ -112,10 +116,23 @@ const picsList = (p: CyexPics | null) => (p ? [p['1x'], p['2x'] || p['1x'], p['4
 export function slot1Rows(me: CyexMe, view: CyexView): PickerRow[] {
   return SLOT1_KINDS.filter((k) => owns(me, k.id)).map((k) => ({
     name: k.label(me),
+    sub: k.sub,
     animated: false,
     usable: true,
     item: { def: { id: k.id }, images: picsList(k.pics(view)), stills: null },
   }));
+}
+
+/** V109-B08 Search and the tiles switch show from this many cards (None included) on. */
+export const SEARCH_FROM = 9;
+
+/** V109-B08 The badge grid's height for `cells` cards at `width`: every row shows, four at most. */
+export function gridHeight(cells: number, width: number, rows: boolean): number {
+  const gap = 6;
+  const [w, h] = rows ? [190, 44] : [72, 76];
+  const columns = Math.max(1, Math.floor((width + gap) / (w + gap)));
+  const lines = Math.min(4, Math.max(1, Math.ceil(cells / columns)));
+  return lines * h + (lines - 1) * gap;
 }
 
 /** Search by name; empty text keeps all. */

@@ -18,6 +18,8 @@ import {
   SLOT1_KINDS,
   slot1Current,
   slot1Pick,
+  gridHeight,
+  SEARCH_FROM,
   slot1Rows,
   slot1Missing,
   slot1Choice,
@@ -274,4 +276,15 @@ test('V109-B06 upload history rows', () => {
   assert.equal(rows[3].preview, null);
   assert.equal(rows[4].date, 'bad');
   assert.deepEqual(uploadRows({ items: [], live: null }), []);
+});
+
+test('V109-B08 the badge grid shows every row, four at most', () => {
+  assert.equal(gridHeight(3, 600, true), 44); // three row cards fit one line at 600 px
+  assert.equal(gridHeight(3, 400, true), 2 * 44 + 6); // two columns
+  assert.equal(gridHeight(3, 0, true), 3 * 44 + 2 * 6); // before it's measured: one column
+  assert.equal(gridHeight(40, 400, true), 4 * 44 + 3 * 6);
+  assert.equal(gridHeight(3, 300, false), 76);
+  assert.equal(SEARCH_FROM, 9);
+  const both = me({ badges: [{ id: 'founder', number: 7 }, { id: 'supporter', number: null }] });
+  assert.deepEqual(slot1Rows(both, { state: 'offline' }).map((r) => r.sub), ['One-time', 'One-time']);
 });

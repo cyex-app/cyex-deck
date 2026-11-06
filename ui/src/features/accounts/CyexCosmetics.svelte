@@ -1,11 +1,10 @@
 <!-- V109-B02/B03 cyex cosmetics of one account. No sign-in of its own: the app gets a cyex session
-     with the account's Twitch sign-in. B03 layout: the chat preview on top with the store link,
-     then the badges, a code behind a link. Nothing to set: one line and "Open store". Changes save
-     at once and roll back with the error.
-     V109-B04 The badges are two slots: slot 1 one one-time badge (from cache), slot 2 Supporter+
-     only, opened after a fresh look at the plan.
-     V109-B05 Slot 1 opens a picker (the 7TV pop-up's grid, None first, grid or list), slot 2 a
-     panel for the uploaded picture. Each slot has its own on/off switch. -->
+     with the account's Twitch sign-in. The chat preview on top with the store link, then the
+     badges, a code behind a link. Nothing to set: one line and "Open store". Changes save at once
+     and roll back with the error.
+     V109-B08 The badges sit inline, like the 7TV badge page: "Badge" (one one-time badge as row
+     cards, None first) and "Supporter+" (the uploaded picture, its review, the uploads). Each
+     section has its own switch in its header; no dropdowns, no pop-ups. -->
 <script lang="ts">
   import { tick, untrack } from 'svelte';
   import Button from '../../components/Button.svelte';
@@ -19,27 +18,28 @@
   import { systemIpc } from '../../ipc/system';
   import { density } from '../../lib/density.svelte';
   import { errorText } from '../../lib/errors';
+  import { formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import ItemGrid from '../cosmetics/ItemGrid.svelte';
-  import CyexPopup from './CyexPopup.svelte';
   import {
     filterRows,
+    gridHeight,
     nothingToSet,
     plusGate,
     plusPanel,
-    uploadRows,
-    type UploadRow,
     plusState,
     readSlot1,
     saveSlot1,
+    SEARCH_FROM,
     shownBadges,
-    SLOT1_KINDS,
     slot1Choice,
     slot1Current,
     slot1Missing,
     slot1Pick,
     slot1Rows,
     STORE,
+    uploadRows,
+    type UploadRow,
   } from './cyexBadges';
 
   let { account }: { account: AccountView } = $props();
@@ -54,21 +54,30 @@
   let redeeming = $state(false);
   let redeemed = $state('');
   let redeemError = $state('');
-  /** V109-B04 Slot 2 is checking the plan; what it found when that stopped it opening. */
-  let checking = $state(false);
+  /** V109-B04 What the plan check said when it couldn't tell. */
   let plusError = $state('');
-  let plusTried = $state(false);
-  /** V109-B05 The open pop-up and the slot button it hangs under. */
-  let popup = $state<{ slot: 1 | 2; anchor: HTMLElement } | null>(null);
   let search = $state('');
-  /** Grid or list, for this session. */
-  let listView = $state(false);
-  /** V109-B06 The upload history, loaded when the Supporter+ panel opens. */
+  /** V109-B08 Only with many badges: tiles instead of rows, for this session. */
+  let tiles = $state(false);
+  /** The badge grid's width, for its height. */
+  let gridW = $state(0);
+  /** V109-B06 The upload history, loaded after the plan check says the plan is on. */
   let uploads = $state<{ rows: UploadRow[]; loading: boolean; error: string }>({ rows: [], loading: false, error: '' });
+  let showAll = $state(false);
   let restoring = $state<number | null>(null);
   /** V109-B07 Owner previews as object URLs, by their API URL, while the editor is open. */
   let previews = $state<Record<string, string>>({});
   const asking = new Set<string>();
+  /** Slot 1's choice kept while its switch is off (per account, on this PC). */
+  let remembered = $state<string | null>(null);
+
+  const me = $derived(view?.state === 'ready' ? view.me : null);
+  const NO_PICS: CyexPics = { '1x': '', '2x': '', '4x': '' };
+  // One gate per account: a look from the last 30 s counts, the editor's own load included.
+  const gate = $derived.by(() => {
+    const id = account.userId;
+    return plusGate(() => cyexIpc.view(id));
+  });
 
   function dropPreviews() {
     for (const u of Object.values(previews)) URL.revokeObjectURL(u);
@@ -91,16 +100,6 @@
       // The placeholder stays.
     }
   }
-  /** Slot 1's choice kept while its switch is off (per account, on this PC). */
-  let remembered = $state<string | null>(null);
-
-  const me = $derived(view?.state === 'ready' ? view.me : null);
-  const NO_PICS: CyexPics = { '1x': '', '2x': '', '4x': '' };
-  // One gate per account: a look from the last 30 s opens slot 2 without asking again.
-  const gate = $derived.by(() => {
-    const id = account.userId;
-    return plusGate(() => cyexIpc.view(id));
-  });
 
   async function load() {
     loading = true;
@@ -112,16 +111,31 @@
     } finally {
       loading = false;
     }
+    void checkPlan();
   }
 
   $effect(() => {
     void account.userId;
     remembered = readSlot1(account.userId);
-    popup = null;
+    search = '';
+    showAll = false;
     uploads = { rows: [], loading: false, error: '' };
     untrack(dropPreviews);
     void load();
   });
+
+  /** V109-B08 The section is shown: the plan check (30 s cache), then the uploads when it's on. */
+  async function checkPlan() {
+    if (view?.state !== 'ready') return;
+    plusError = '';
+    const got = await gate.check();
+    if (got.kind === 'error') {
+      plusError = got.message;
+      return;
+    }
+    if (got.fetched && !saving) view = got.fetched;
+    if (got.kind === 'open') void loadUploads();
+  }
 
   const src = (p: CyexPics) => (density.scale === 1 ? p['1x'] : density.scale === 2 ? p['2x'] || p['1x'] : p['4x'] || p['2x'] || p['1x']);
 
@@ -158,7 +172,7 @@
     saveSlot1(account.userId, id);
   }
 
-  /** V109-B05 A card in slot 1: on at once with that badge; None takes it off and forgets it. */
+  /** V109-B05 A card: on at once with that badge; None takes it off and forgets it. */
   function pick1(id: string | null) {
     if (!me) return;
     if (id === null) remember(null);
@@ -168,7 +182,7 @@
     void save(next.main, me.equipped.custom);
   }
 
-  /** V109-B05 Slot 1's switch: off keeps the choice here, on puts it back. */
+  /** V109-B05 The Badge switch: off keeps the choice here, on puts it back. */
   function switch1(on: boolean) {
     if (!me) return;
     const choice = slot1Choice(me, remembered);
@@ -177,48 +191,7 @@
     void save(on ? choice : null, me.equipped.custom);
   }
 
-  function close() {
-    popup = null;
-    search = '';
-  }
-
-  /** The slot's own pop-up is open: its button closes it. */
-  const isOpen = (slot: 1 | 2) => popup?.slot === slot;
-
-  function openSlot1(e: MouseEvent) {
-    const el = e.currentTarget as HTMLElement;
-    if (!me) return;
-    if (isOpen(1)) return close();
-    search = '';
-    popup = { slot: 1, anchor: el };
-  }
-
-  async function openSlot2(e: MouseEvent) {
-    const el = e.currentTarget as HTMLElement;
-    if (!me || checking) return;
-    if (isOpen(2)) return close();
-    popup = null;
-    plusError = '';
-    // Busy only when it really asks the server: a cached look opens at once.
-    checking = !gate.fresh();
-    const got = await gate.check();
-    checking = false;
-    if (got.kind === 'error') {
-      plusError = got.message;
-      return;
-    }
-    // The fresh look also refreshes slot 1 and the preview.
-    if (got.fetched && !saving) view = got.fetched;
-    if (got.kind === 'locked') {
-      plusTried = true;
-      return;
-    }
-    if (!el.isConnected) return;
-    popup = { slot: 2, anchor: el };
-    void loadUploads();
-  }
-
-  /** V109-B06 After the plan check, never before: a locked slot asks for nothing more. */
+  /** V109-B06 After the plan check, never before: a locked section asks for nothing more. */
   async function loadUploads() {
     const id = account.userId;
     uploads = { rows: uploads.rows, loading: true, error: '' };
@@ -238,7 +211,7 @@
     restoring = row.id;
     try {
       await cyexIpc.restore(account.userId, row.id);
-      await Promise.all([load(), loadUploads()]);
+      await load();
     } catch (e) {
       uploads = { ...uploads, error: errorText(e) };
     } finally {
@@ -330,10 +303,12 @@
     {@const plus = plusState(me)}
     {@const choice = slot1Choice(me, remembered)}
     {@const on1 = !!slot1Current(me)}
-    {@const choiceLabel = choice ? SLOT1_KINDS.find((k) => k.id === choice)!.label(me) : 'None'}
-    {@const choicePics = choice ? SLOT1_KINDS.find((k) => k.id === choice)!.pics(view) : null}
+    {@const all = slot1Rows(me, view)}
+    {@const many = all.length + 1 > SEARCH_FROM}
+    {@const rows = many ? filterRows(all, search) : all}
     {@const locked = !me.plus.active}
     {@const panel = plusPanel(me)}
+    {@const shownUploads = showAll ? uploads.rows : uploads.rows.slice(0, 3)}
     <div class="box">
       <!-- What chat shows now, with the store beside it. -->
       <div class="preview">
@@ -346,85 +321,68 @@
         <Button small variant="link" icon="popout" hit onclick={() => open(STORE)}>Store</Button>
       </div>
 
-      <!-- V109-B04/B05 Two slots: the button opens its pop-up, the switch shows or hides it in chat. -->
-      <div class="slots">
-        <div class="slot" class:off={!on1}>
-          <button class="slot-open" aria-haspopup="dialog" aria-expanded={isOpen(1)} aria-label="Badge: {choiceLabel}" onclick={openSlot1}>
-            <span class="slot-key">Badge</span>
-            <span class="slot-value">
-              {#if choice && choicePics}<img class="badge" src={src(choicePics)} alt="" />{/if}
-              <span class="slot-text" class:none={!choice}>{choiceLabel}</span>
-            </span>
-            <Icon name="chevronDown" size={14} />
-          </button>
-          <Toggle label="Show badge in chat" checked={on1} disabled={!choice} onchange={switch1} />
+      <!-- V109-B08 Badge: one one-time badge, picked from row cards; the switch shows or hides it. -->
+      <section class="sec" aria-labelledby="cyex-badge-{account.userId}">
+        <div class="sec-head">
+          <span class="label" id="cyex-badge-{account.userId}">Badge</span>
+          <Toggle label="Show badge in chat" checked={on1} disabled={!choice || saving} onchange={switch1} />
         </div>
-        <div class="slot" class:off={locked || !me.equipped.custom}>
-          <button
-            class="slot-open"
-            aria-haspopup="dialog"
-            aria-expanded={isOpen(2)}
-            aria-busy={checking}
-            aria-label="Supporter+: {locked ? 'locked' : panel.review}"
-            onclick={(e) => void openSlot2(e)}
-            use:tooltip={locked ? { label: 'Supporter+ only', hint: 'A monthly plan in the store.' } : { label: '' }}
-          >
-            <span class="slot-key">Supporter+</span>
-            <span class="slot-value">
-              {#if locked}
-                <Icon name="lock" size={12} /><span class="slot-text none">Locked</span>
-              {:else}
-                {#if me.plus.live}<img class="badge" src={src(me.plus.live)} alt="" />{/if}
-                <span class="slot-text" class:none={!me.plus.live}>{me.plus.live ? 'Yours' : panel.review.split('.')[0]}</span>
-              {/if}
-            </span>
-            {#if checking}<span class="spin" aria-hidden="true"></span>{:else}<Icon name="chevronDown" size={14} />{/if}
-          </button>
-          <Toggle
-            label="Show Supporter+ badge in chat"
-            checked={!locked && me.equipped.custom}
-            disabled={locked}
-            onchange={(v) => void save(me.equipped.main, v)}
-          />
-        </div>
-      </div>
-
-      {#if popup?.slot === 1}
-        {@const rows = filterRows(slot1Rows(me, view), search)}
-        {@const cells = rows.length + 1}
-        <CyexPopup title="Badge" anchor={popup.anchor} onclose={close}>
+        {#if many}
           <div class="tools">
             <SearchField small placeholder="Search badges" value={search} oninput={(t) => (search = t)} />
-            <IconToggle icon="list" label="List view" pressed={listView} onchange={(v) => (listView = v)} />
+            <IconToggle icon="grid" label="Tiles" pressed={tiles} onchange={(v) => (tiles = v)} />
           </div>
-          <div class="grid" style:height="{Math.min(240, listView ? cells * 46 : Math.ceil(cells / 3) * 82)}px">
-            <ItemGrid kind="badge" {rows} selected={choice} name={account.displayName} label="Badges" list={listView} onpick={(id) => pick1(id)} />
-          </div>
-          {#if slot1Missing(me)}
-            <span class="more"><Button small variant="link" hit onclick={() => open(STORE)}>Get in store</Button></span>
+        {/if}
+        <div class="grid" class:off={!on1} bind:clientWidth={gridW} style:height="{gridHeight(rows.length + 1, gridW, !tiles)}px">
+          <ItemGrid kind="badge" {rows} selected={choice} name={account.displayName} label="Badge" asRows={!tiles} onpick={(id) => pick1(id)} />
+        </div>
+        {#if slot1Missing(me)}
+          <span class="more"><Button small variant="link" hit onclick={() => open(STORE)}>Get more in store</Button></span>
+        {/if}
+      </section>
+
+      <!-- V109-B08 Supporter+: the uploaded picture, its review and the uploads, after the plan check. -->
+      <section class="sec" aria-labelledby="cyex-plus-{account.userId}">
+        <div class="sec-head">
+          <span class="head-text">
+            <span class="label" id="cyex-plus-{account.userId}">Supporter+</span>
+            {#if plus.plan}<span class="plan">{plus.plan}</span>{/if}
+          </span>
+          {#if !locked}
+            <Toggle label="Show Supporter+ badge in chat" checked={me.equipped.custom} disabled={saving} onchange={(v) => void save(me.equipped.main, v)} />
           {/if}
-        </CyexPopup>
-      {:else if popup?.slot === 2}
-        <CyexPopup title="Supporter+" anchor={popup.anchor} onclose={close}>
-          <div class="plus-head">
-            {#if panel.picture}
-              <img class="plus-pic" src={panel.picture['4x'] || panel.picture['2x'] || panel.picture['1x']} alt="Your Supporter+ badge" />
+        </div>
+        {#if plusError}
+          <p class="msg bad" role="alert">{plusError}</p>
+        {:else if locked}
+          <p class="locked">
+            <Icon name="lock" size={12} />
+            <span class="note">{plus.kind === 'ended' ? 'Your own badge is off while the plan is.' : 'Your own badge in chat, with Supporter+.'}</span>
+            {#if plus.kind === 'ended' && plus.link}
+              {@const link = plus.link}
+              <Button small variant="link" hit onclick={() => open(link.url)}>{link.label}</Button>
             {:else}
-              <span class="plus-pic empty"><Icon name="image" size={24} /></span>
+              <Button small variant="link" hit onclick={() => open(STORE)}>Get it in store</Button>
             {/if}
-            <div class="plus-lines">
+          </p>
+        {:else}
+          <div class="own" class:off={!me.equipped.custom}>
+            {#if panel.picture}
+              <img class="own-pic" src={panel.picture['4x'] || panel.picture['2x'] || panel.picture['1x']} alt="Your Supporter+ badge" />
+            {:else}
+              <span class="own-pic empty"><Icon name="image" size={20} /></span>
+            {/if}
+            <span class="own-text">
               <strong>{panel.review}</strong>
               {#if panel.reason}<span class="reason">{panel.reason}</span>{/if}
-              {#if panel.plan}<span class="note">{panel.plan}</span>{/if}
-            </div>
+              {#if panel.link}
+                {@const link = panel.link}
+                <span><Button small icon="popout" onclick={() => open(link.url)}>{link.label}</Button></span>
+              {/if}
+            </span>
           </div>
-          {#if panel.link}
-            {@const link = panel.link}
-            <Button small icon="popout" onclick={() => open(link.url)}>{link.label}</Button>
-          {/if}
-          <!-- V109-B06 Earlier uploads, newest first. -->
-          <section class="uploads" aria-label="Uploads" aria-busy={uploads.loading}>
-            <span class="uploads-head">Uploads</span>
+          <div class="uploads" aria-busy={uploads.loading}>
+            <span class="label">Uploads</span>
             {#if uploads.error}
               <p class="msg bad" role="alert">{uploads.error}</p>
               <span><Button small variant="link" hit onclick={() => void loadUploads()}>Try again</Button></span>
@@ -434,7 +392,7 @@
               <span class="note">Nothing uploaded yet</span>
             {:else}
               <ul>
-                {#each uploads.rows as r (r.id)}
+                {#each shownUploads as r (r.id)}
                   <li>
                     {#if r.pics}
                       <img class="thumb" src={src(r.pics)} alt="" />
@@ -444,7 +402,7 @@
                       <span class="thumb empty"><Icon name="image" size={12} /></span>
                     {/if}
                     <span class="up-text">
-                      <span class="up-line"><span class:live={r.live}>{r.status}</span><span class="note">{r.date}</span></span>
+                      <span class="up-line"><span class:live={r.live}>{r.status}</span><span class="date">{r.date}</span></span>
                       {#if r.reason}<span class="reason">{r.reason}</span>{/if}
                     </span>
                     {#if r.restorable}
@@ -455,29 +413,17 @@
                   </li>
                 {/each}
               </ul>
+              {#if uploads.rows.length > 3}
+                <span>
+                  <Button small variant="link" hit onclick={() => (showAll = !showAll)}>
+                    {showAll ? 'Show less' : `Show all ${formatNumber(uploads.rows.length)}`}
+                  </Button>
+                </span>
+              {/if}
             {/if}
-          </section>
-        </CyexPopup>
-      {/if}
-
-      <!-- The plan in one line: renews, review, ended (with Renew), or why slot 2 stayed shut. -->
-      {#if plusError}
-        <p class="status msg bad" role="alert">{plusError}</p>
-      {:else if plus.kind !== 'never' || plusTried}
-        <p class="status" role="status">
-          {#if plus.kind === 'never'}
-            <span class="note">Only with Supporter+</span>
-            <Button small variant="link" hit onclick={() => open(STORE)}>Get it in store</Button>
-          {:else}
-            {#if plus.plan}<span class="note">{plus.plan}</span>{/if}
-            {#if plus.note && plus.kind !== 'ended'}<span class="note">· {plus.note}</span>{/if}
-            {#if plus.kind === 'ended' && plus.link}
-              {@const link = plus.link}
-              <Button small variant="link" hit onclick={() => open(link.url)}>{link.label}</Button>
-            {/if}
-          {/if}
-        </p>
-      {/if}
+          </div>
+        {/if}
+      </section>
 
       {#if error}<p class="msg bad err" role="alert">{error}</p>{/if}
       {@render codeArea()}
@@ -555,127 +501,40 @@
     height: 18px;
     flex: none;
   }
-  /* V109-B04 Two equal slots in a row, each a compact field-like button. */
-  .slots {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+  /* V109-B08 A section: the Settings row's header (label left, switch right), then its body. */
+  .sec {
+    display: flex;
+    flex-direction: column;
     gap: 8px;
-    padding: 10px 12px;
+    padding: 10px 12px 12px;
     border-bottom: 1px solid var(--border);
   }
-  /* A slot: the button that opens its pop-up, then its switch. */
-  .slot {
+  .sec-head {
     display: flex;
     align-items: center;
-    gap: 6px;
-    min-width: 0;
-    height: 44px;
-    padding-right: 10px;
-    background: var(--surface);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius);
-    transition: border-color var(--fast);
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 24px;
   }
-  .slot:has(.slot-open[aria-expanded='true']) {
-    border-color: var(--accent-border);
-  }
-  .slot-open {
+  .head-text {
     display: flex;
-    flex: 1;
-    align-items: center;
-    gap: 8px;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 10px;
     min-width: 0;
-    height: 100%;
-    padding: 0 8px 0 10px;
-    background: none;
-    border: 0;
-    border-right: 1px solid var(--border);
-    border-radius: var(--radius) 0 0 var(--radius);
-    color: var(--text);
-    text-align: left;
-    cursor: pointer;
-    transition: background var(--fast);
   }
-  .slot-open:hover {
-    background: var(--surface-hover);
-  }
-  .slot-open:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: -2px;
-  }
-  .slot-open > :global(svg) {
-    flex: none;
-    color: var(--dim);
-  }
-  /* Switched off: the choice stays in sight, quieter. */
-  .slot.off .slot-value img {
-    opacity: 0.45;
-  }
-  .slot.off .slot-text {
-    color: var(--muted);
-  }
-  .slot-key {
-    flex: none;
+  .label {
     color: var(--dim);
     font-size: var(--text-label);
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
   }
-  .slot-value {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-  }
-  .slot-value > :global(svg) {
-    flex: none;
+  .plan {
     color: var(--dim);
+    font-size: var(--text-hint);
+    font-variant-numeric: tabular-nums;
   }
-  .slot-text {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-weight: 600;
-  }
-  .slot-text.none {
-    color: var(--muted);
-    font-weight: 400;
-  }
-  /* Checking the plan: a 14 px ring where the chevron was, so nothing moves. */
-  .spin {
-    flex: none;
-    width: 14px;
-    height: 14px;
-    border: 2px solid var(--border-strong);
-    border-top-color: var(--muted);
-    border-radius: 50%;
-    animation: spin 0.9s linear infinite;
-  }
-  .slot-open[aria-busy='true'] {
-    cursor: progress;
-  }
-  .slot-open[aria-busy='true'] .slot-value {
-    opacity: 0.6;
-  }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .spin {
-      animation: none;
-    }
-  }
-  @media (prefers-contrast: more) {
-    .slot {
-      border-color: var(--text);
-    }
-  }
-  /* V109-B05 The pop-ups' parts. */
   .tools {
     display: flex;
     align-items: center;
@@ -689,27 +548,52 @@
     display: grid;
     grid-template-rows: minmax(0, 1fr);
   }
+  /* Switched off: the choice stays in sight and can be picked, quieter. */
+  .grid.off :global(.row img),
+  .own.off .own-pic {
+    opacity: 0.45;
+  }
+  .grid.off :global(.row .rn) {
+    color: var(--muted);
+  }
   .more {
     align-self: flex-start;
   }
-  .plus-head {
+  .locked {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    margin: 0;
+    color: var(--dim);
+  }
+  .own {
     display: flex;
     align-items: center;
     gap: 12px;
   }
-  .plus-pic {
+  .own-pic {
     flex: none;
     width: 72px;
     height: 72px;
     object-fit: contain;
     border-radius: var(--radius);
   }
-  .plus-pic.empty {
-    display: grid;
-    place-items: center;
+  .own-pic.empty {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background: var(--surface);
     border: 1px dashed var(--border-strong);
     color: var(--dim);
+  }
+  .own-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    min-width: 0;
   }
   .reason {
     color: var(--muted);
@@ -719,33 +603,25 @@
   .uploads {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding-top: 8px;
-    border-top: 1px solid var(--border);
-  }
-  .uploads-head {
-    color: var(--dim);
-    font-size: var(--text-label);
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    gap: 4px;
+    margin-top: 4px;
   }
   .uploads ul {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    max-height: 200px;
     margin: 0;
     padding: 0;
-    overflow-y: auto;
     list-style: none;
   }
   .uploads li {
     display: flex;
     align-items: center;
     gap: 8px;
-    min-height: 36px;
+    min-height: 32px;
     padding: 4px 0;
+  }
+  .uploads li + li {
+    border-top: 1px solid var(--border);
   }
   .thumb {
     flex: none;
@@ -774,27 +650,13 @@
     align-items: baseline;
     gap: 8px;
   }
-  .up-line .note {
+  .date {
+    color: var(--dim);
+    font-size: var(--text-hint);
     font-variant-numeric: tabular-nums;
   }
   .live {
     font-weight: 600;
-  }
-  .plus-lines {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-  .status {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 8px;
-    margin: 0;
-    min-height: 32px;
-    padding: 4px 12px;
-    border-bottom: 1px solid var(--border);
   }
   .code {
     display: flex;
@@ -823,9 +685,6 @@
     margin: 0;
     font-size: var(--text-hint);
   }
-  p.msg {
-    flex-basis: 100%;
-  }
   .err {
     padding: 6px 12px;
     border-bottom: 1px solid var(--border);
@@ -836,11 +695,8 @@
   .bad {
     color: var(--red);
   }
-  /* Narrow: the slots stack; the empty state's button goes under its text. */
+  /* Narrow: the empty state's button goes under its text. */
   @container (max-width: 420px) {
-    .slots {
-      grid-template-columns: 1fr;
-    }
     .empty {
       flex-direction: column;
       align-items: flex-start;

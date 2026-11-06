@@ -1,5 +1,7 @@
 <!-- V1051-03 Paints or badges in a windowed grid; the first cell is None.
-     V109-B05 Also the cyex badge picker: any row of that shape, and a one-column list view. -->
+     V109-B05 Also the cyex badges: any row of that shape.
+     V109-B08 `rows`: compact row cards (dot, 28 px picture, name and a second line), as many
+     columns of 190 px or more as fit; the pick is a tint and a filled dot, nothing scales. -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
@@ -14,6 +16,8 @@
 
   /** V109-B05 What a badge cell reads; 7TV's rows and the cyex picker's both have it. */
   type GridBadge = Pick<BadgeRow, 'name' | 'animated' | 'usable'> & {
+    /** V109-B08 The second line of a row card, e.g. `#37 · One-time`. */
+    sub?: string;
     item: { def: { id: string }; images: readonly string[]; stills: readonly string[] | null };
   };
   type Row = PaintRow | GridBadge;
@@ -30,10 +34,10 @@
     /** `usable` is false for subscriber-only items. */
     onpick: (id: string | null, usable: boolean) => void;
     /** V109-B05 Badges one per row, picture and name side by side. */
-    list?: boolean;
+    asRows?: boolean;
   }
 
-  let { kind, rows, selected, name, label, box = $bindable(0), onpick, list = false }: Props = $props();
+  let { kind, rows, selected, name, label, box = $bindable(0), onpick, asRows = false }: Props = $props();
 
   // V1051-03 Wide enough for the name in its paint, once per name and chat font; re-read when
   // a font finishes loading.
@@ -49,8 +53,9 @@
     return kind === 'paint' ? paintCellWidth(measureName(name)) : MIN_PAINT_CELL;
   });
 
-  /** V109-B05 Wider than half any picker, so the list keeps one column. */
-  const LIST_CELL = 200;
+  /** V109-B08 Row cards: at least this wide, and this tall. */
+  const ROW_W = 190;
+  const ROW_H = 44;
   const NONE = null;
   const items = $derived<(Row | null)[]>([NONE, ...rows]);
   const idOf = (r: Row) => ('style' in r.item ? r.item.style.id : r.item.def.id);
@@ -94,9 +99,10 @@
   {label}
   bind:box
   stretch
+  flat={asRows}
   chosen={(r) => keyOf(r) === (selected ?? NONE_KEY)}
-  cellWidth={kind === 'paint' ? paintW : list ? LIST_CELL : 72}
-  cellHeight={kind === 'paint' ? 48 : list ? 40 : 76}
+  cellWidth={kind === 'paint' ? paintW : asRows ? ROW_W : 72}
+  cellHeight={kind === 'paint' ? 48 : asRows ? ROW_H : 76}
   bind:active={() => active, (i) => (moved = keyOf(items[i]))}
   onpick={(i) => {
     const r = items[i];
@@ -105,7 +111,21 @@
 >
   {#snippet cell(r)}
     {@const on = (r ? idOf(r) : null) === selected}
-    <div class="item {kind}" class:list class:on class:lock={r && !r.usable} aria-disabled={r && !r.usable ? 'true' : undefined} use:tooltip={tip(r)}>
+    {#if asRows}
+      <div class="row" class:on>
+        <span class="dot" aria-hidden="true"></span>
+        {#if r && 'def' in r.item}
+          <img src={badgePicture(r.item.images, r.item.stills, 28, dpr, focus.idle)} width="28" height="28" alt="" decoding="async" />
+        {:else}
+          <span class="none"><Icon name="ban" size={18} /></span>
+        {/if}
+        <span class="txt">
+          <span class="rn">{r ? r.name : 'None'}</span>
+          {#if r && 'sub' in r && r.sub}<span class="rs">{r.sub}</span>{:else if !r}<span class="rs">No badge</span>{/if}
+        </span>
+      </div>
+    {:else}
+    <div class="item {kind}" class:on class:lock={r && !r.usable} aria-disabled={r && !r.usable ? 'true' : undefined} use:tooltip={tip(r)}>
       {#if kind === 'paint'}
         {#if r}
           <span class="back"><span class="painted paint-{idOf(r)} who">{name}</span></span>
@@ -133,11 +153,12 @@
           <span class="nm two">{r.name}</span>
         {/if}
       {:else}
-        <span class="none"><Icon name="ban" size={list ? 16 : 20} /></span>
+        <span class="none"><Icon name="ban" size={20} /></span>
         <span class="nm two">None</span>
       {/if}
       {#if on}<span class="check"><Icon name="check" size={12} /></span>{/if}
     </div>
+    {/if}
   {/snippet}
 </VirtualGrid>
 
@@ -239,30 +260,76 @@
     flex: none;
     object-fit: contain;
   }
-  /* V109-B05 List view: picture and name on one line. */
-  .badge.list {
-    flex-direction: row;
-    justify-content: flex-start;
+  /* V109-B08 Row cards. */
+  .row {
+    display: flex;
+    align-items: center;
     gap: 10px;
-    padding: 4px 10px;
-    text-align: left;
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    padding: 0 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    transition:
+      background var(--fast),
+      border-color var(--fast);
   }
-  .badge.list.on {
-    padding: 3px 9px;
+  .row:hover {
+    background: var(--row-hover);
+    border-color: var(--border-strong);
   }
-  .badge.list img,
-  .badge.list .none {
-    width: 24px;
-    height: 24px;
+  .row.on {
+    background: var(--accent-dim);
+    border-color: var(--accent-border);
   }
-  .badge.list .nm {
-    color: var(--text);
-    font-size: 0.85rem;
+  .dot {
+    flex: none;
+    box-sizing: border-box;
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: 50%;
+    transition:
+      border-color var(--fast),
+      box-shadow var(--fast);
   }
-  .badge.list .check {
-    top: 50%;
-    right: 10px;
-    transform: translateY(-50%);
+  .row.on .dot {
+    border: 4px solid var(--accent-text);
+  }
+  .row img,
+  .row .none {
+    flex: none;
+    width: 28px;
+    height: 28px;
+  }
+  .txt {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.25;
+  }
+  .rn {
+    overflow: hidden;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .row.on .rn {
+    color: var(--accent-text);
+  }
+  .rs {
+    overflow: hidden;
+    color: var(--dim);
+    font-size: var(--text-hint);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  @media (forced-colors: active) {
+    .row.on .dot {
+      border-color: Highlight;
+    }
   }
   .check {
     position: absolute;

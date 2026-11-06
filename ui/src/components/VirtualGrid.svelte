@@ -22,11 +22,13 @@
     /** The scroller's width, bar included: a header above can end where the grid does. */
     box?: number;
     cell: Snippet<[T, { index: number; active: boolean }]>;
+    /** V109-B08 Row cards: no press scale, and the focus ring sits inside the cell. */
+    flat?: boolean;
     /** Enter, Space, click. */
     onpick: (index: number) => void;
   }
 
-  let { items, key, label, cellWidth, cellHeight, gap = 6, stretch = false, active = $bindable(), box = $bindable(0), chosen, cell, onpick }: Props<T> = $props();
+  let { items, key, label, cellWidth, cellHeight, gap = 6, stretch = false, flat = false, active = $bindable(), box = $bindable(0), chosen, cell, onpick }: Props<T> = $props();
 
   const uid = $props.id();
   const KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
@@ -128,6 +130,7 @@
         id="{uid}-{index}"
         aria-selected={chosen ? chosen(item) : false}
         class:active={index === active}
+        class:flat
         style="--x:{p.x}px;--y:{p.y}px;width:{cw}px;height:{cellHeight}px"
         onclick={() => pick(index)}
       >
@@ -171,6 +174,15 @@
   .grid:focus-visible .cell.active {
     outline: 2px solid var(--focus-ring);
     outline-offset: 1px;
+  }
+  .cell.flat,
+  .cell.flat:active {
+    transition: none;
+    transform: translate(var(--x), var(--y));
+  }
+  .grid:focus-visible .cell.flat.active {
+    outline-offset: -2px;
+    border-radius: var(--radius);
   }
   @media (prefers-reduced-motion: reduce) {
     .cell {
