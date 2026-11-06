@@ -790,7 +790,7 @@
     /* Height follows the text; the width is the row's, not the placeholder's. */
     field-sizing: content;
     overflow-x: hidden;
-    font: var(--chat-size) / 1.45 var(--chat-font);
+    font: var(--chat-size) / 1.45 'Twemoji Box', var(--chat-font);
   }
   /* One line, cut with …, so a narrow chat doesn't get a two-line empty box. */
   textarea::placeholder {

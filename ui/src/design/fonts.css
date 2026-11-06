@@ -128,3 +128,15 @@
   src: url('./fonts/lato-latin-ext-700.woff2') format('woff2');
   unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
 }
+
+/* V109-F65 The message and whisper boxes draw emoji like the chat lines (Twemoji pictures):
+   Mozilla's Twemoji colour font v0.7.0 (Twemoji 14; licence in LICENSE-twemoji-mozilla.md).
+   Emoji only (no digits, #, *, (c) or (R)), so text keeps the chat font; Emoji 15 additions
+   fall back to Segoe UI Emoji. */
+@font-face {
+  font-family: 'Twemoji Box';
+  font-style: normal;
+  font-display: swap;
+  src: url('./fonts/twemoji-mozilla.ttf') format('truetype');
+  unicode-range: U+200D,U+203C,U+2049,U+20E3,U+2139,U+2194-21AA,U+231A-23FF,U+24C2,U+25AA-27BF,U+2934-2935,U+2B05-2B55,U+3030,U+303D,U+3297,U+3299,U+FE0F,U+1F000-1FAFF,U+E0020-E007F;
+}
