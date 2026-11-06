@@ -60,6 +60,11 @@ impl SmileyStyle {
     pub fn id_for(self, code: &str) -> Option<&'static str> {
         self.emotes().iter().find(|(c, _)| *c == code).map(|(_, id)| *id)
     }
+
+    /// The text that sends emote `id` (`:P`), for any style.
+    fn code_for(id: &str) -> Option<&'static str> {
+        Self::ALL.iter().find_map(|s| s.emotes().iter().find(|(_, i)| *i == id).map(|(c, _)| *c))
+    }
 }
 
 /// One style Twitch offers this account.
@@ -130,6 +135,13 @@ pub fn apply(sets: &mut Vec<EmoteSet>, style: SmileyStyle) {
     let smiley_sets = SmileyStyle::ALL.map(SmileyStyle::set_id);
     for set in sets.iter_mut().filter(|s| smiley_sets.contains(&s.id.as_str())) {
         set.emotes.retain(|e| !others.iter().any(|o| o.owns(&e.id)));
+        // Twitch names smileys by their old regex (`\:-?(p|P)`); the menu and Tab must
+        // insert what Twitch matches in a message (`:P`).
+        for e in &mut set.emotes {
+            if let Some(code) = SmileyStyle::code_for(&e.id) {
+                code.clone_into(&mut e.name);
+            }
+        }
     }
     sets.retain(|s| !(smiley_sets.contains(&s.id.as_str()) && s.emotes.is_empty()));
     if sets.iter().any(|s| s.emotes.iter().any(|e| style.owns(&e.id))) {
@@ -284,6 +296,11 @@ mod tests {
         let mut sets = vec![set("0", vec![emote("1", ":)", "0")]), set("42", vec![emote("499", ":)", "42")]), set("33", vec![emote("440", ":)", "33")])];
         apply(&mut sets, SmileyStyle::Monkey);
         assert_eq!(sets.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(), ["42"]);
+
+        // Twitch's regex names become the text that sends them.
+        let mut sets = vec![set("0", vec![emote("12", "\\:-?(p|P)", "0"), emote("1", "\\:-?\\)", "0"), emote("25", "Kappa", "0")])];
+        apply(&mut sets, SmileyStyle::Robot);
+        assert_eq!(sets[0].emotes.iter().map(|e| e.name.as_str()).collect::<Vec<_>>(), [":P", ":)", "Kappa"]);
 
         // Robot keeps set 0 as it is.
         let mut sets = vec![set("0", vec![emote("1", ":)", "0")])];
