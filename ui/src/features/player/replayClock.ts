@@ -36,6 +36,12 @@ export function posAt(pieces: readonly Piece[], date: number): number | null {
   return list[list.length - 1]!.start;
 }
 
+/** V108-N24b Where the replay's one start loads from: `date` (ms) placed in the playlist hls.js
+ *  just read (the ring may have trimmed its front since `offset` was read), else `offset`. */
+export function replayStart(pieces: readonly Piece[] | undefined, date: number, offset: number): number {
+  return posAt(pieces ?? [], date) ?? offset;
+}
+
 /** Seconds since `origin` (ms) of the segment after `sn`, null when it's the last. */
 export function nextAfter(pieces: readonly Piece[], sn: number, origin: number): number | null {
   const next = pieces.find((f) => dated(f) && (f.sn as number) > sn);

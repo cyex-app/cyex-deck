@@ -41,7 +41,7 @@ import {
 import { type Choice, levelFor, levelName, lowestLevel } from './quality';
 import { Steer } from './steer';
 import { exposeLive, ll7Old, streamFmp4 } from './fmp4Stream';
-import { dateAt, goneDue, isGone, nextAfter, type Piece, posAt } from './replayClock';
+import { dateAt, goneDue, isGone, nextAfter, type Piece, posAt, replayStart } from './replayClock';
 import { stallStart, stallStep } from './stall';
 import { isTorn, tornDue, tornStart } from './torn';
 
@@ -444,6 +444,8 @@ export class Engine {
     this.dropHls();
     const hls = new Hls(this.config());
     this.hls = hls;
+    // V108-N24 Where the replay was asked to start (ms), read before its playlist comes.
+    const replayAt = this.origin + this.time * 1000;
     // V108-LL7 With low latency, fMP4 segments stream whole (fmp4Stream.ts).
     if (this.liveSrc && !this.replay) {
       if (this.lowLatency && !ll7Old()) streamFmp4(hls);
@@ -476,6 +478,11 @@ export class Engine {
           .sort((a, b) => b.height - a.height);
       }
       this.apply(false);
+      // V108-N24b The replay's spot is placed in this very playlist (its segments are in by
+      // now) before anything loads. Placed again at LEVEL_LOADED, a second startLoad aborted
+      // the first segments mid-load and hls.js never loaded again: a spinner for good, Live
+      // dead, whenever the ring had trimmed its front since the offset was read.
+      if (this.replay) this.startAt = replayStart(hls.levels[0]?.details?.fragments, replayAt, this.startAt);
       if (this.holding) {
         this.waiting = false;
         return;
@@ -534,17 +541,6 @@ export class Engine {
         if (this.tornSn === tornSn) this.tornSn = null;
         const at = tornStart(d.details.fragments, tornSn, hls.liveSyncPosition);
         if (at !== null && this.hls === hls) hls.startLoad(at);
-      });
-    }
-    // V108-N24 The replay's offset was read before this playlist: the ring may have trimmed
-    // its front since, so the spot is placed again by the segments' dates.
-    if (this.replay) {
-      const at = this.origin + this.time * 1000;
-      hls.once(Hls.Events.LEVEL_LOADED, (_, d) => {
-        const pos = posAt(d.details.fragments, at);
-        if (this.hls !== hls || pos === null || Math.abs(pos - this.startAt) < 0.5) return;
-        this.startAt = pos;
-        if (!this.holding) hls.startLoad(pos);
       });
     }
     hls.loadSource(this.audioNow ? session.audio : session.url);
