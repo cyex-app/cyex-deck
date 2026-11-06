@@ -61,7 +61,16 @@ export class ChatRoom {
   private later: ChatMessage[][] = [];
   private frame = 0;
 
-  constructor(readonly login: string) {}
+  /** `only`: V109-C01 a view of part of the room (a reply thread) keeps just the lines it
+   *  accepts; edits and deletes only touch lines already kept. */
+  constructor(
+    readonly login: string,
+    private readonly only?: (m: ChatMessage) => boolean,
+  ) {}
+
+  private keep(list: ChatMessage[]): ChatMessage[] {
+    return this.only ? list.filter(this.only) : list;
+  }
 
   /** `filters`: F3 filter ids. `follows`: a view's own chat (V103-22). */
   async open(account: string | null, filters: string[] = [], follows = false): Promise<void> {
@@ -80,7 +89,7 @@ export class ChatRoom {
       this.view = opened.view;
       this.account = opened.account;
       const s = opened.snapshot;
-      this.messages = s.messages.slice(-maxLines());
+      this.messages = this.keep(s.messages).slice(-maxLines());
       this.state = s.state;
       this.status = s.status;
       this.pinned = s.pinned;
@@ -118,6 +127,7 @@ export class ChatRoom {
     for (const e of events) {
       switch (e.type) {
         case 'message':
+          if (this.only && !this.only(e.message)) break;
           // A repeated id would break the keyed list and stop the chat (T3): checked against every line.
           ids ??= new Set(list.map((m) => m.id));
           if (ids.has(e.message.id)) break;
@@ -149,11 +159,11 @@ export class ChatRoom {
           changed = true;
           break;
         case 'history':
-          this.later.push(e.messages.slice());
+          this.later.push(this.keep(e.messages).slice());
           history = true;
           break;
         case 'gap':
-          list = mergeByTime(list, e.messages);
+          list = mergeByTime(list, this.keep(e.messages));
           ids = null;
           changed = true;
           break;

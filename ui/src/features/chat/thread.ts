@@ -31,20 +31,13 @@ export function collect(list: readonly ChatMessage[], id: string): ChatMessage[]
   return out;
 }
 
-export interface Orphan {
-  login: string;
-  display: string;
-  body: string;
-}
-
-/** The first message when it has left the buffer: what the reply tags carry about it (a
- *  reply straight to it names its sender and text). `null` when it is here, or when no
- *  reply here answers it directly. */
-export function orphanRoot(list: readonly ChatMessage[], id: string): Orphan | null {
-  if (list.some((m) => m.id === id && !m.notice)) return null;
-  for (const m of list) {
-    const r = m.reply;
-    if (r && r.parentId === id && r.threadId === id) return { login: r.parentLogin, display: r.parentDisplay, body: r.parentBody };
-  }
+/** Who the thread's message box answers by default: its first message, or the newest line
+ *  when that has left the buffer (Rust needs the line to answer it; the reply keeps the
+ *  thread's id from it). `null`: nothing to answer. */
+export function defaultReply(lines: readonly ChatMessage[], id: string): ChatMessage | null {
+  const usable = (m: ChatMessage) => !m.notice && !!m.sender;
+  const first = lines.find((m) => m.id === id && usable(m));
+  if (first) return first;
+  for (let i = lines.length - 1; i >= 0; i--) if (usable(lines[i])) return lines[i];
   return null;
 }

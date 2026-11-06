@@ -1,27 +1,28 @@
 <!-- V109-C01 A reply thread in its own window, like the usercard: the message that started it
-     and every reply to it, live. Unpinned it closes on a click elsewhere; pin and resize from
-     the frame. "Follow" makes every new line in the thread ping like a reply to you (Rust,
-     `Room::follow_thread`; for this run). The thread is read from a view of the chat that
-     is open, so deletes and edits arrive as in the chat. Route: `thread/<channel>/<first id>`. -->
+     and every reply to it, live, in the chat's own list (a ChatRoom that keeps only the
+     thread's lines), so hover Reply, Pin (mods), the line menu, emotes and links work as in
+     chat. Unpinned it closes on a click elsewhere; pin and resize from the frame. The
+     "Follow" box makes every new line in the thread ping like a reply to you (Rust,
+     `Room::follow_thread`; for this run). The message box at the bottom answers the first
+     message by default (`defaultReply`), a line's Reply button answers that line instead, and
+     clearing the reply bar goes back to the default. Route: `thread/<channel>/<first id>`. -->
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
 
-  import Button from '../../components/Button.svelte';
+  import Checkbox from '../../components/Checkbox.svelte';
   import Loading from '../../components/Loading.svelte';
-  import { openMenu } from '../../components/menu.svelte';
+  import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import { chatIpc } from '../../ipc/chat';
   import { accounts } from '../../lib/accounts.svelte';
   import { errorText } from '../../lib/errors';
   import { formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import { dragCard } from '../../lib/window.svelte';
-  import EmoteCard from '../emotes/EmoteCard.svelte';
-  import type { CardTarget } from '../emotes/emotes';
   import { catalogs } from './catalog.svelte';
-  import Line from './Line.svelte';
-  import { emoteMenu, enterClicks, lineTips, notEmote, openPart, PARTS, type LineHost } from './lineEvents';
+  import ChatInput from './ChatInput.svelte';
+  import MessageList from './MessageList.svelte';
   import { ChatRoom } from './room.svelte';
-  import { collect, orphanRoot, parseThreadRoute } from './thread';
+  import { defaultReply, inThread, parseThreadRoute } from './thread';
 
   let { route }: { route: string; popout?: boolean } = $props();
 
@@ -29,24 +30,22 @@
   // svelte-ignore state_referenced_locally
   const { channel, threadId } = parseThreadRoute(route);
 
-  const room = new ChatRoom(channel);
-  const lines = $derived(collect(room.messages, threadId));
-  const orphan = $derived(orphanRoot(room.messages, threadId));
+  const room = new ChatRoom(channel, (m) => inThread(m, threadId));
   const loaded = $derived(room.view > 0 || !!room.error);
-  const replies = $derived(lines.filter((m) => m.id !== threadId).length);
+  const replies = $derived(room.messages.filter((m) => m.id !== threadId).length);
   let following = $state(false);
   let busy = $state(false);
-  let card = $state<CardTarget | null>(null);
-  let box = $state<HTMLElement>();
-  let inner = $state<HTMLElement>();
-  let atBottom = true;
+  let input = $state<ChatInput>();
+  let replyTo = $state<ChatMessage | null>(null);
+
+  // Nothing picked (or the bar cleared, or a send went out): answer the thread's first message.
+  const fallback = $derived(defaultReply(room.messages, threadId));
+  $effect(() => {
+    if (!replyTo && fallback && room.account) replyTo = fallback;
+  });
 
   void catalogs.loadGlobal();
   void catalogs.loadChannel(channel);
-
-  const account = $derived(room.account ?? accounts.current?.userId ?? null);
-  const host = (): LineHost => ({ channel, account, senderOf: () => undefined, openCard: (t) => (card = t), openMenu });
-  const tips = lineTips(() => inner);
 
   onMount(() => {
     void room.open(accounts.current?.userId ?? null, [], true);
@@ -55,15 +54,11 @@
       .then((on) => (following = on))
       .catch(() => {});
   });
-  onDestroy(() => {
-    tips.drop();
-    room.close();
-  });
+  onDestroy(() => room.close());
 
-  async function toggle() {
+  async function toggle(on: boolean) {
     if (busy) return;
     busy = true;
-    const on = !following;
     try {
       await chatIpc.threadFollow(channel, threadId, on);
       following = on;
@@ -74,86 +69,59 @@
     }
   }
 
-  function onclick(e: MouseEvent) {
-    const el = (e.target as HTMLElement).closest<HTMLElement>(PARTS);
-    if (el) openPart(e, el, host());
+  function reply(id: string) {
+    replyTo = room.find(id) ?? null;
   }
 
-  function oncontextmenu(e: MouseEvent) {
-    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-emote]');
-    if (el) void emoteMenu(e, el, host());
-    else notEmote();
-  }
-
-  function onscroll() {
-    if (!box) return;
-    tips.drop();
-    atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
-  }
-
-  // Starts at the newest reply and stays there while new ones come in and pictures load.
-  $effect(() => {
-    if (!box || !inner) return;
-    const list = box;
-    const ro = new ResizeObserver(() => {
-      if (atBottom) list.scrollTop = list.scrollHeight;
-    });
-    ro.observe(inner);
-    return () => ro.disconnect();
-  });
-
-  /** The window moves from anywhere that isn't a control or the scroll list (`dragCard`). */
-  const drag = (e: MouseEvent) => dragCard(e, '.list');
+  /** The window moves from the bar's free space (`dragCard` skips controls). */
+  const drag = (e: MouseEvent) => dragCard(e);
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="thread" onmousedown={drag}>
-  <div class="bar">
+<div class="thread">
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="bar" onmousedown={drag}>
     <span class="count">{replies ? `${formatNumber(replies)} ${replies === 1 ? 'reply' : 'replies'}` : 'Thread'}</span>
-    <Button
-      small
-      variant={following ? 'secondary' : 'primary'}
-      icon={following ? 'bellOff' : 'bell'}
+    <Checkbox
+      checked={following}
       disabled={busy}
-      onclick={() => void toggle()}>{following ? 'Unfollow' : 'Follow'}</Button
-    >
+      label="Follow"
+      hint="New replies in this thread ping you like a reply to you."
+      onchange={(on) => void toggle(on)}
+    />
   </div>
-  <!-- Clicks, keys and hovers are delegated from the lines' emotes, names and links. -->
-  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions, a11y_mouse_events_have_key_events -->
-  <div
-    class="list"
-    bind:this={box}
-    {onscroll}
-    {onclick}
-    {oncontextmenu}
-    onkeydown={enterClicks}
-    onmouseover={tips.onmouseover}
-    onmouseout={tips.onmouseout}
-  >
-    <div bind:this={inner}>
-      {#if orphan}
-        <p class="orphan"><b>{orphan.display}</b> <bdi>{orphan.body}</bdi></p>
-      {/if}
-      {#each lines as m (m.id)}<Line {m} {channel} replyHidden={lines[0]?.id === threadId ? threadId : undefined} />{/each}
-      {#if !lines.length && !orphan}
-        {#if !loaded}<Loading />{:else}<p class="empty">{room.error || 'This thread has left the chat.'}</p>{/if}
-      {/if}
-      {#if following}<p class="note">New replies ping you.</p>{/if}
-    </div>
+  <div class="body">
+    {#if !room.messages.length}
+      <div class="empty">{#if !loaded}<Loading />{:else}<p>{room.error || 'This thread has left the chat.'}</p>{/if}</div>
+    {:else}
+      <MessageList
+        {room}
+        thread={threadId}
+        canReply={room.account !== null}
+        onreply={reply}
+        onmention={(l) => input?.mention(l)}
+        onprefill={(t) => input?.prefill(t)}
+        oninsert={(t) => input?.insertText(t)}
+        onleave={() => input?.focus()}
+      />
+    {/if}
   </div>
+  <ChatInput bind:this={input} {room} bind:replyTo onsignin={() => toast.error('Sign in from the main window.')} />
 </div>
-{#if card}
-  {#key card}<EmoteCard target={card} login={channel} {account} onclose={() => (card = null)} />{/key}
-{/if}
 
 <style>
   .thread {
+    container: chat / inline-size;
+    position: relative;
     display: flex;
     flex: 1;
     flex-direction: column;
     min-width: 0;
     min-height: 0;
+    background: var(--page);
     user-select: text;
+  }
+  .thread > :global(.input) {
+    flex: none;
   }
   .bar {
     display: flex;
@@ -170,41 +138,20 @@
     font-size: 0.78rem;
     font-weight: 700;
   }
-  .list {
+  .body {
+    position: relative;
+    display: flex;
     flex: 1;
     min-height: 0;
-    overflow-y: auto;
-    background: var(--page);
-    padding-bottom: 4px;
-  }
-  /* The reply row names the line it answers; here that's the thread itself, nothing to jump to. */
-  .list :global(.context[data-jump]) {
-    cursor: default;
-  }
-  .list :global(.context[data-jump]:hover) {
-    color: inherit;
-  }
-  /* The first line when it has left the chat: what the reply tags carry, dimmed. */
-  .orphan {
-    margin: 0;
-    padding: 4px 10px;
-    color: var(--dim);
-    font-size: 0.87rem;
-    overflow-wrap: anywhere;
-  }
-  .orphan b {
-    color: var(--muted);
-  }
-  .note,
-  .empty {
-    margin: 0;
-    padding: 8px 14px;
-    color: var(--dim);
-    font-size: 0.78rem;
   }
   .empty {
-    padding-top: 40px;
-    text-align: center;
+    flex: 1;
+    padding: 40px 14px 0;
+    color: var(--dim);
     font-size: 0.82rem;
+    text-align: center;
+  }
+  .empty p {
+    margin: 0;
   }
 </style>

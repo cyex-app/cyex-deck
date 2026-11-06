@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
-import { collect, inThread, orphanRoot, parseThreadRoute, threadRoute } from './thread.ts';
+import { collect, defaultReply, inThread, parseThreadRoute, threadRoute } from './thread.ts';
 
 const line = (id: string, parent?: string, thread?: string, extra: Partial<ChatMessage> = {}) =>
   ({
@@ -11,6 +11,7 @@ const line = (id: string, parent?: string, thread?: string, extra: Partial<ChatM
     body: [],
     flags: [],
     ...(parent ? { reply: { parentId: parent, parentLogin: 'op', parentDisplay: 'Op', parentBody: 'first', threadId: thread ?? parent } } : {}),
+    sender: { id: 'u' },
     ...extra,
   }) as ChatMessage;
 
@@ -26,11 +27,13 @@ test('V109-C01 notices never belong to a thread', () => {
   assert.equal(inThread(line('a', 't', undefined, { notice: {} as never }), 't'), false);
 });
 
-test('V109-C01 a first line that left the buffer shows what the reply tag carries', () => {
-  const list = [line('a', 't'), line('b', 'a', 't')];
-  assert.deepEqual(orphanRoot(list, 't'), { login: 'op', display: 'Op', body: 'first' });
-  assert.equal(orphanRoot([line('t'), ...list], 't'), null, 'still here');
-  assert.equal(orphanRoot([line('b', 'a', 't')], 't'), null, 'no direct reply: nothing known');
+test('V109-C01 the message box answers the first line, else the newest', () => {
+  const list = [line('t'), line('a', 't'), line('b', 'a', 't')];
+  assert.equal(defaultReply(list, 't')?.id, 't');
+  assert.equal(defaultReply(list.slice(1), 't')?.id, 'b', 'first line gone: the newest');
+  assert.equal(defaultReply([], 't'), null);
+  const notice = line('n', 't', undefined, { notice: {} as never });
+  assert.equal(defaultReply([notice], 't'), null, 'a notice has nothing to answer');
 });
 
 test('V109-C01 the route round-trips', () => {

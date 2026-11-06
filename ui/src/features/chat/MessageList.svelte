@@ -74,9 +74,12 @@
     onaction?: (a: UiAction) => void;
     /** V108-F54 The keyboard selection ended without an action: focus goes back to the box. */
     onleave?: () => void;
+    /** V109-C01 The id of the thread this list shows (the thread window): a reply row jumps in the list instead of opening it, and replies to the first line don't repeat it. */
+    thread?: string;
   }
 
-  let { room, readKey, canReply, onreply, onlink, onmention, onprefill, oninsert, onaction, onleave }: Props = $props();
+  let { room, readKey, canReply, onreply, onlink, onmention, onprefill, oninsert, onaction, onleave, thread }: Props = $props();
+  const hideFor = $derived(thread && room.messages.some((x) => x.id === thread) ? thread : undefined);
 
   const c = $derived(settings.v.chat);
   /** 1.57 Only where this account moderates: the pin button and mod mode (V101-33/34). */
@@ -660,7 +663,7 @@
       whispers.show(d.whisper);
     } else if (d.reply) {
       onreply(d.reply);
-    } else if (d.thread && !e.shiftKey) {
+    } else if (d.thread && !e.shiftKey && !thread) {
       // V109-C01 The reply row opens the thread; Shift+click jumps to the parent.
       windowsIpc.openPanel(threadRoute(room.login, d.thread), `Thread · #${room.login}`, 380, 520).catch((err) => toast.error(errorText(err)));
     } else if (d.jump) {
@@ -757,7 +760,7 @@
     <div bind:this={lines}>
       {#each drawn as m (m.id)}
         {#if dayStarts.has(m.id)}<DateRow label={formatDate(new Date(m.ts))} />{/if}
-        <Line {m} channel={room.login} {canReply} stripe={stripe?.get(m.id) ?? false} mod={lineMod} />
+        <Line {m} channel={room.login} {canReply} stripe={stripe?.get(m.id) ?? false} mod={lineMod} replyHidden={hideFor} />
         {#if m.id === lastRead && m.id !== shown.at(-1)?.id}<hr class="last-read" />{/if}
       {/each}
     </div>
