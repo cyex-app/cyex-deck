@@ -85,10 +85,15 @@ fn is_roles(route: &str) -> bool {
     route.starts_with("roles/")
 }
 
-/// V108-C27 Cards: usercards and the roles list. Unpinned they close when you click
+/// V109-C01 A reply thread (`thread/<channel>/<first message id>`).
+fn is_thread(route: &str) -> bool {
+    route.starts_with("thread/")
+}
+
+/// V108-C27 Cards: usercards, the roles list and V109-C01 reply threads. Unpinned they close when you click
 /// elsewhere (a usercard opened from a list stacks on it), and layouts leave them out.
 pub fn is_card(route: &str) -> bool {
-    is_usercard(route) || is_roles(route)
+    is_usercard(route) || is_roles(route) || is_thread(route)
 }
 
 /// V105-18 Pop-ups: usercards and `#channel` chats. Slim frame, small corners, and a
@@ -107,6 +112,8 @@ pub fn settings_key(route: &str) -> &str {
         "room"
     } else if is_roles(route) {
         "roles"
+    } else if is_thread(route) {
+        "thread"
     } else {
         route
     }
@@ -177,6 +184,9 @@ mod tests {
         // V108-C27 The roles list is a card too: one saved size, closes like a usercard.
         assert!(is_popup("roles/a/all/1") && is_card("roles/a/mod/") && !is_card("room/a"));
         assert_eq!(settings_key("roles/a/vip/1"), "roles");
+        // V109-C01 A reply thread too.
+        assert!(is_popup("thread/a/m1") && is_card("thread/a/m1"));
+        assert_eq!(settings_key("thread/a/m1"), "thread");
         assert!(!is_popup("chat/x"));
         assert!(!is_popup("modview/a"));
         assert!(!is_popup("overlay/x"));

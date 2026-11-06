@@ -13,6 +13,24 @@ impl Room {
         self.rules = rules;
     }
 
+    /// V109-C01 Follows or unfollows the thread that starts at message `thread`.
+    pub fn follow_thread(&mut self, thread: &str, on: bool) {
+        if on {
+            self.followed.insert(thread.to_owned());
+        } else {
+            self.followed.remove(thread);
+        }
+    }
+
+    pub fn follows_thread(&self, thread: &str) -> bool {
+        self.followed.contains(thread)
+    }
+
+    /// V109-C01 Whether `m` is a reply inside a followed thread.
+    fn in_followed_thread(&self, m: &ChatMessage) -> bool {
+        !self.followed.is_empty() && m.reply.as_ref().is_some_and(|r| self.followed.contains(&r.thread_id))
+    }
+
     /// What arrived messages want from the app: sounds, the taskbar, feed tabs.
     pub fn take_outcomes(&mut self) -> Vec<(Arc<ChatMessage>, Outcome)> {
         std::mem::take(&mut self.outcomes)
@@ -82,6 +100,10 @@ impl Room {
             {
                 m.meta.repeat = self.repeats.count(check, &sender, &plain(&m.body), now_ms);
             }
+        }
+        // V109-C01 A new line in a followed thread counts as a reply to you (the Replies row).
+        if m.notice.is_none() && !m.has(Flag::Own) && self.in_followed_thread(m) {
+            m.set(Flag::RepliesToMe);
         }
         let mut outcome = rules.highlight(m);
         // Near-duplicates don't ping (Chatterino).

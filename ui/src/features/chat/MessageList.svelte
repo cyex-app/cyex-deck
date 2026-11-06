@@ -16,6 +16,7 @@
   import { chatIpc } from '../../ipc/chat';
   import { chatxIpc } from '../../ipc/chatx';
   import { pluginsIpc } from '../../ipc/plugins';
+  import { windowsIpc } from '../../ipc/windows';
   import { formatDate, formatNumber } from '../../lib/format';
   import { reduced } from '../../lib/motion';
   import { EASE_OUT_CUBIC } from '../../lib/scrollMath';
@@ -40,6 +41,7 @@
   import { ChatScroll } from './chatScroll.svelte';
   import { editable, MODIFIERS, pauseHeld } from './pauseKey';
   import { nameMenu } from './nameMenu';
+  import { threadRoute } from './thread';
   import Line from './Line.svelte';
   import DateRow from '../../components/DateRow.svelte';
   import WarnBox from './WarnBox.svelte';
@@ -640,7 +642,7 @@
 
   function onclick(e: MouseEvent) {
     const el = (e.target as HTMLElement).closest<HTMLElement>(
-      `${PARTS},[data-reply],[data-jump],[data-whisper],[data-mod],[data-pin],[data-act]`,
+      `${PARTS},[data-reply],[data-thread],[data-jump],[data-whisper],[data-mod],[data-pin],[data-act]`,
     );
     if (!el) return;
     const d = el.dataset;
@@ -658,6 +660,9 @@
       whispers.show(d.whisper);
     } else if (d.reply) {
       onreply(d.reply);
+    } else if (d.thread && !e.shiftKey) {
+      // V109-C01 The reply row opens the thread; Shift+click jumps to the parent.
+      windowsIpc.openPanel(threadRoute(room.login, d.thread), `Thread · #${room.login}`, 380, 520).catch((err) => toast.error(errorText(err)));
     } else if (d.jump) {
       jump(d.jump);
     }

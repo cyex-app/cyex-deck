@@ -130,7 +130,8 @@
       <span>{m.whisperTo ? `Whisper to ${m.whisperTo}` : 'Whisper'}</span>
     </div>
   {:else if m.reply}
-    <div class="context" data-jump={m.reply.parentId}>
+    <!-- V109-C01 A click opens the thread; Shift+click still jumps to the line it answers. -->
+    <div class="context" data-jump={m.reply.parentId} data-thread={m.reply.threadId}>
       <Icon name="replied" size={12} />
       <span>Replying to <b>@{m.reply.parentDisplay}</b>: <bdi>{m.reply.parentBody}</bdi></span>
     </div>

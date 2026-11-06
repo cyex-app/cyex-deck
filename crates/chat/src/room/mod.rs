@@ -110,6 +110,9 @@ pub struct Room {
     timeouts: stack::Stacks,
     /// V108-N25, V108-N10 Spikes and events found in live lines, and the messages-per-second count.
     moments: crate::moments::Moments,
+    /// V109-C01 Threads (their first message's id) the user follows: any new line in one pings
+    /// like a reply to you. Kept for the run, with the room.
+    followed: HashSet<String>,
 }
 
 impl Room {
@@ -138,6 +141,7 @@ impl Room {
             presence: presence::Batches::default(),
             timeouts: stack::Stacks::default(),
             moments: crate::moments::Moments::default(),
+            followed: HashSet::new(),
         };
         room.state.own = room.initial_own();
         room

@@ -167,6 +167,18 @@ pub fn chat_user_messages(app: AppHandle, channel: String, user_id: String) -> V
     chat::recent_from(&app, &channel, &user_id)
 }
 
+/// V109-C01 Follow a reply thread (by its first message's id): new lines in it ping like replies.
+#[tauri::command]
+pub fn chat_thread_follow(app: AppHandle, channel: String, thread: String, on: bool) {
+    chat::follow_thread(&app, &channel, &thread, on);
+}
+
+/// V109-C01 Whether the thread is followed.
+#[tauri::command]
+pub fn chat_thread_followed(app: AppHandle, channel: String, thread: String) -> bool {
+    chat::follows_thread(&app, &channel, &thread)
+}
+
 /// X2 Where a link really goes, and 1.52 its card (V108-C25). `None`: nothing to show.
 #[tauri::command]
 pub async fn chat_resolve_link(app: AppHandle, url: String) -> Option<LinkPreview> {

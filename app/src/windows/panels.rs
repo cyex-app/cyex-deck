@@ -169,12 +169,12 @@ pub fn open_panel(app: &AppHandle, route: &str, title: &str, size: Option<(f64, 
         super::overlay::sync_tray(app);
     }
 
-    if !saved.geometry.is_some_and(|g| g.maximized) && (route.starts_with("room/") || route.starts_with("roles/"))
+    if !saved.geometry.is_some_and(|g| g.maximized) && (route.starts_with("room/") || route.starts_with("roles/") || route.starts_with("thread/"))
         && let (Ok(size), Ok(scale)) = (window.inner_size(), window.scale_factor())
         && let Some(at) = super::usercard::near_cursor(app, f64::from(size.width) / scale, f64::from(size.height) / scale)
     {
         // V102-03 A `#channel` chat opens next to where it was clicked, like a usercard,
-        // not on top of the last one. V108-C27 The roles list too.
+        // not on top of the last one. V108-C27 The roles list too, V109-C01 a thread.
         window.set_position(at)?;
     }
     icons::apply(&window.as_ref().window());

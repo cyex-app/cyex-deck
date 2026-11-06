@@ -344,3 +344,57 @@ fn words_fold_per_row() {
     let mut r = cyex_room(&h);
     assert!(message(&feed(&mut r, "1", "7", "free раураl")).meta.highlight.is_some());
 }
+
+/// A reply from `user` in the thread that starts at `thread`, to someone else.
+fn in_thread(r: &mut Room, id: &str, user: &str, thread: &str) -> Vec<RoomEvent> {
+    let raw = format!(
+        "@id={id};user-id={user};tmi-sent-ts={id}000;reply-parent-msg-id={thread};reply-parent-user-login=op;reply-parent-display-name=Op;reply-parent-msg-body=x;reply-thread-parent-msg-id={thread} :u{user}!u@u PRIVMSG #chan :@Op text"
+    );
+    r.handle_line(&Line::parse(&raw).unwrap(), 1_000, &NoEmotes)
+}
+
+// V109-C01 A followed thread pings like a reply to you; others, your own lines and plain lines don't.
+#[test]
+fn followed_thread_pings_like_a_reply() {
+    use cyex_settings::schema::BuiltIn;
+    let h = Highlights {
+        replies: BuiltIn {
+            enabled: true,
+            alert: alert("#222222", true, "", ""),
+        },
+        ..Highlights::default()
+    };
+    let mut r = cyex_room(&h);
+    assert!(!message(&in_thread(&mut r, "1", "7", "t1")).has(Flag::Mention), "not followed yet");
+    r.take_outcomes();
+
+    r.follow_thread("t1", true);
+    assert!(r.follows_thread("t1") && !r.follows_thread("t2"));
+    let ev = in_thread(&mut r, "2", "7", "t1");
+    let m = message(&ev);
+    assert!(m.has(Flag::RepliesToMe) && m.has(Flag::Mention));
+    assert_eq!(m.meta.highlight.as_ref().and_then(|h| h.color.as_deref()), Some("#222222"));
+    let out = r.take_outcomes();
+    assert!(out[0].1.sound && out[0].1.routes == ["Mentions"]);
+
+    assert!(!message(&in_thread(&mut r, "3", "7", "t2")).has(Flag::Mention), "another thread");
+    assert!(!message(&feed(&mut r, "4", "7", "t1")).has(Flag::Mention), "not a reply");
+    // Your own line in it doesn't ping you.
+    let raw = "@id=5;user-id=42;tmi-sent-ts=5000;reply-parent-msg-id=t1;reply-parent-user-login=op;reply-parent-display-name=Op;reply-parent-msg-body=x;reply-thread-parent-msg-id=t1 :cyex!u@u PRIVMSG #chan :@Op me";
+    let ev = r.handle_line(&Line::parse(raw).unwrap(), 1_000, &NoEmotes);
+    assert!(!message(&ev).has(Flag::Mention));
+
+    r.follow_thread("t1", false);
+    assert!(!message(&in_thread(&mut r, "6", "7", "t1")).has(Flag::Mention), "unfollowed");
+}
+
+// V109-C01 With the Replies row off the thread stays quiet, like a reply to you.
+#[test]
+fn followed_thread_respects_the_replies_row() {
+    let mut h = Highlights::default();
+    h.replies.enabled = false;
+    let mut r = cyex_room(&h);
+    r.follow_thread("t1", true);
+    assert!(!message(&in_thread(&mut r, "1", "7", "t1")).has(Flag::Mention));
+    assert!(r.take_outcomes().iter().all(|(_, o)| *o == Outcome::default()));
+}
