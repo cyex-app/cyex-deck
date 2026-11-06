@@ -32,3 +32,9 @@ pub async fn cyex_badge_history(app: AppHandle, account: String) -> Result<CyexH
 pub async fn cyex_badge_restore(app: AppHandle, account: String, id: u64) -> Result<(), String> {
     cyex::restore(&app, &account, id).await
 }
+
+/// V109-B07 An own upload's preview picture (PNG bytes); rejects with the message to show.
+#[tauri::command]
+pub async fn cyex_badge_preview(app: AppHandle, account: String, url: String) -> Result<tauri::ipc::Response, String> {
+    cyex::preview(&app, &account, &url).await.map(tauri::ipc::Response::new)
+}

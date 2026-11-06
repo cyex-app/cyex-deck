@@ -20,4 +20,6 @@ export const cyexIpc = {
   history: (account: string) => invoke<CyexHistory>('cyex_badge_history', { account }),
   /** V109-B06 An earlier approved upload goes live. Rejects with the message to show. */
   restore: (account: string, id: number) => invoke<null>('cyex_badge_restore', { account, id }),
+  /** V109-B07 An own upload's preview (PNG bytes): `<img>` can't send the session. */
+  preview: (account: string, url: string) => invoke<ArrayBuffer>('cyex_badge_preview', { account, url }),
 };

@@ -7,7 +7,7 @@
      V109-B05 Slot 1 opens a picker (the 7TV pop-up's grid, None first, grid or list), slot 2 a
      panel for the uploaded picture. Each slot has its own on/off switch. -->
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import Button from '../../components/Button.svelte';
   import Icon from '../../components/Icon.svelte';
   import IconToggle from '../../components/IconToggle.svelte';
@@ -66,6 +66,31 @@
   /** V109-B06 The upload history, loaded when the Supporter+ panel opens. */
   let uploads = $state<{ rows: UploadRow[]; loading: boolean; error: string }>({ rows: [], loading: false, error: '' });
   let restoring = $state<number | null>(null);
+  /** V109-B07 Owner previews as object URLs, by their API URL, while the editor is open. */
+  let previews = $state<Record<string, string>>({});
+  const asking = new Set<string>();
+
+  function dropPreviews() {
+    for (const u of Object.values(previews)) URL.revokeObjectURL(u);
+    previews = {};
+    asking.clear();
+  }
+
+  $effect(() => dropPreviews);
+
+  /** Placeholder until it comes; a failure keeps the placeholder. */
+  async function loadPreview(url: string) {
+    if (previews[url] || asking.has(url)) return;
+    asking.add(url);
+    const id = account.userId;
+    try {
+      const bytes = await cyexIpc.preview(id, url);
+      if (id !== account.userId || !asking.has(url)) return;
+      previews = { ...previews, [url]: URL.createObjectURL(new Blob([bytes], { type: 'image/png' })) };
+    } catch {
+      // The placeholder stays.
+    }
+  }
   /** Slot 1's choice kept while its switch is off (per account, on this PC). */
   let remembered = $state<string | null>(null);
 
@@ -94,6 +119,7 @@
     remembered = readSlot1(account.userId);
     popup = null;
     uploads = { rows: [], loading: false, error: '' };
+    untrack(dropPreviews);
     void load();
   });
 
@@ -198,7 +224,9 @@
     uploads = { rows: uploads.rows, loading: true, error: '' };
     try {
       const h = await cyexIpc.history(id);
-      if (id === account.userId) uploads = { rows: uploadRows(h), loading: false, error: '' };
+      if (id !== account.userId) return;
+      uploads = { rows: uploadRows(h), loading: false, error: '' };
+      for (const r of uploads.rows) if (r.preview) void loadPreview(r.preview);
     } catch (e) {
       if (id === account.userId) uploads = { rows: [], loading: false, error: errorText(e) };
     }
@@ -410,8 +438,10 @@
                   <li>
                     {#if r.pics}
                       <img class="thumb" src={src(r.pics)} alt="" />
+                    {:else if r.preview && previews[r.preview]}
+                      <img class="thumb" src={previews[r.preview]} alt="" />
                     {:else}
-                      <span class="thumb empty" use:tooltip={{ label: 'Only approved pictures show here' }}><Icon name="image" size={12} /></span>
+                      <span class="thumb empty"><Icon name="image" size={12} /></span>
                     {/if}
                     <span class="up-text">
                       <span class="up-line"><span class:live={r.live}>{r.status}</span><span class="note">{r.date}</span></span>

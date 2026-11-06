@@ -88,6 +88,7 @@ enum Op<'a> {
     Redeem(&'a str),
     History,
     Restore(u64),
+    Preview(&'a str),
 }
 
 enum Out {
@@ -96,6 +97,7 @@ enum Out {
     Reward(Value),
     History(CyexHistory),
     Done,
+    Bytes(Vec<u8>),
 }
 
 enum Fail {
@@ -110,6 +112,7 @@ async fn run(http: &Http, base: &str, token: &str, op: &Op<'_>) -> Result<Out, A
         Op::Redeem(code) => api::redeem(http, base, token, code).await.map(Out::Reward),
         Op::History => api::history(http, base, token).await.map(|h| Out::History(h.tidy())),
         Op::Restore(id) => api::restore(http, base, token, *id).await.map(|()| Out::Done),
+        Op::Preview(url) => api::preview(http, url, token).await.map(Out::Bytes),
     }
 }
 
@@ -294,6 +297,22 @@ pub async fn restore(app: &AppHandle, account: &str, id: u64) -> Result<(), Stri
     }
     match with_session(app, account, Op::Restore(id)).await {
         Ok(Out::Done) => Ok(()),
+        Ok(_) => Err(words::OFFLINE.into()),
+        Err(f) => Err(fail_text(f)),
+    }
+}
+
+/// V109-B07 The picture of one of the account's own uploads that isn't public yet (pending,
+/// rejected): only an owner preview URL on the cyex API. Rejects with the message to show.
+pub async fn preview(app: &AppHandle, account: &str, url: &str) -> Result<Vec<u8>, String> {
+    if !known(app, account) {
+        return Err("Unknown account.".into());
+    }
+    if !api::preview_ok(&base(app), url) {
+        return Err("That picture isn’t yours to load.".into());
+    }
+    match with_session(app, account, Op::Preview(url)).await {
+        Ok(Out::Bytes(b)) => Ok(b),
         Ok(_) => Err(words::OFFLINE.into()),
         Err(f) => Err(fail_text(f)),
     }

@@ -251,7 +251,7 @@ test('V109-B06 upload history rows', () => {
   const rows = uploadRows({
     live: 12,
     items: [
-      { id: 14, images: null, status: 'rejected', reason: 'No text.', restorable: false, uploadedAt: '2026-11-03T12:00:00Z', reviewedAt: null },
+      { id: 14, images: pic('p'), status: 'rejected', reason: 'No text.', restorable: false, uploadedAt: '2026-11-03T12:00:00Z', reviewedAt: null },
       { id: 12, images: pic('a'), status: 'approved', reason: null, restorable: true, uploadedAt: '2026-10-20T12:00:00Z', reviewedAt: null },
       { id: 9, images: pic('b'), status: 'approved', reason: 'stale', restorable: true, uploadedAt: '2026-09-02T12:00:00Z', reviewedAt: null },
       { id: 5, images: null, status: 'pending', reason: null, restorable: false, uploadedAt: '2026-08-01T12:00:00Z', reviewedAt: null },
@@ -266,6 +266,12 @@ test('V109-B06 upload history rows', () => {
     [3, 'Odd', '', false, false],
   ]);
   assert.ok(rows[0].date.startsWith('2026/11/0'));
+  // V109-B07 Not approved: no direct picture, its owner preview instead.
+  assert.equal(rows[0].pics, null);
+  assert.equal(rows[0].preview, 'p2');
+  assert.equal(rows[1].preview, null);
+  assert.equal(rows[1].pics?.['1x'], 'a1');
+  assert.equal(rows[3].preview, null);
   assert.equal(rows[4].date, 'bad');
   assert.deepEqual(uploadRows({ items: [], live: null }), []);
 });

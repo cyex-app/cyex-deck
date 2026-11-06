@@ -208,6 +208,8 @@ export interface UploadRow {
   reason: string;
   live: boolean;
   restorable: boolean;
+  /** V109-B07 Not approved: the picture is an owner preview, loaded through the app's session. */
+  preview: string | null;
 }
 
 const STATUS: Record<string, string> = {
@@ -225,12 +227,13 @@ export function uploadRows(h: CyexHistory): UploadRow[] {
     const live = u.id === h.live;
     return {
       id: u.id,
-      pics: u.images,
+      pics: u.status === 'approved' ? u.images : null,
       date: day(u.uploadedAt),
       status: live ? 'Live' : (STATUS[u.status] ?? (u.status ? u.status[0].toUpperCase() + u.status.slice(1) : '')),
       reason: TURNED_DOWN.includes(u.status) ? (u.reason?.trim() ?? '') : '',
       live,
       restorable: u.restorable && !live,
+      preview: u.status !== 'approved' && u.images ? u.images['2x'] || u.images['1x'] || null : null,
     };
   });
 }

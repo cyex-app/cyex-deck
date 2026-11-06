@@ -6,8 +6,8 @@ import type { CyexPics } from "./CyexPics";
  */
 export type CyexUpload = { id: number, 
 /**
- * Only approved pictures are public; the others' owner previews need the website's
- * sign-in, so they come through as `None`; `None` too once the files are purged.
+ * Approved: public. Others: owner previews (`/me/badge/…`), loaded through
+ * `cyex_badge_preview` (V109-B07). `None` once the files are purged.
  */
 images: CyexPics | null, status: string, 
 /**

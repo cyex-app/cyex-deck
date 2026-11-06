@@ -98,8 +98,8 @@ impl CyexMe {
 pub struct CyexUpload {
     #[ts(type = "number")]
     pub id: u64,
-    /// Only approved pictures are public; the others' owner previews need the website's
-    /// sign-in, so they come through as `None`; `None` too once the files are purged.
+    /// Approved: public. Others: owner previews (`/me/badge/…`), loaded through
+    /// `cyex_badge_preview` (V109-B07). `None` once the files are purged.
     pub images: Option<CyexPics>,
     pub status: String,
     /// Rejected or removed: why.
@@ -121,12 +121,11 @@ pub struct CyexHistory {
 }
 
 impl CyexHistory {
-    /// Drops pictures the app can't load (anything not approved) and keeps 20 at most.
+    /// Keeps 20 at most; only approved uploads can be used again.
     pub fn tidy(mut self) -> Self {
         self.items.truncate(20);
         for u in &mut self.items {
             if u.status != "approved" {
-                u.images = None;
                 u.restorable = false;
             }
         }

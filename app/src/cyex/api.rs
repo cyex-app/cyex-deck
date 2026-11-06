@@ -122,6 +122,50 @@ pub async fn history(http: &Http, base: &str, token: &str) -> Result<CyexHistory
     send(http, Verb::Get, format!("{base}/plus/badges"), Some(token), None).await
 }
 
+/// V109-B07 Owner previews are small PNGs.
+const PREVIEW_MAX: usize = 256 << 10;
+const PNG_SIG: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
+
+/// V109-B07 An owner preview of the account's own upload, and nothing else:
+/// `{base}/me/badge/<id>/<file>.png`.
+pub fn preview_ok(base: &str, url: &str) -> bool {
+    let Some(rest) = url.strip_prefix(base.trim_end_matches('/')).and_then(|r| r.strip_prefix("/me/badge/")) else {
+        return false;
+    };
+    let mut parts = rest.split('/');
+    let (Some(id), Some(file), None) = (parts.next(), parts.next(), parts.next()) else {
+        return false;
+    };
+    let id_ok = (1..=12).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_digit());
+    let file_ok = file
+        .strip_suffix(".png")
+        .is_some_and(|f| (1..=8).contains(&f.len()) && f.bytes().all(|b| b.is_ascii_alphanumeric()));
+    id_ok && file_ok
+}
+
+/// A PNG answer, or the server's error.
+fn png(reply: &Reply) -> Result<Vec<u8>, ApiError> {
+    if (200..300).contains(&reply.status) {
+        return if reply.body.starts_with(&PNG_SIG) {
+            Ok(reply.body.clone())
+        } else {
+            Err(ApiError::Offline)
+        };
+    }
+    Err(read::<Value>(reply).err().unwrap_or(ApiError::Offline))
+}
+
+/// V109-B07 The picture behind an owner preview URL (checked with `preview_ok` first).
+pub async fn preview(http: &Http, url: &str, token: &str) -> Result<Vec<u8>, ApiError> {
+    let call = Call {
+        bearer: Some(token),
+        max: PREVIEW_MAX,
+        ..Call::default()
+    };
+    let reply = http.call(Verb::Get, url, call).await.map_err(|_| ApiError::Offline)?;
+    png(&reply)
+}
+
 /// V109-B06 Puts an earlier approved upload back live.
 pub async fn restore(http: &Http, base: &str, token: &str, id: u64) -> Result<(), ApiError> {
     send::<Value>(http, Verb::Post, format!("{base}/plus/badges/{id}/restore"), Some(token), None)
@@ -177,7 +221,42 @@ mod tests {
     }
 
     #[test]
-    fn history_reads_and_hides_private_pictures() {
+    fn previews_only_from_the_own_badge_path() {
+        let base = "https://api.cyex.app";
+        assert!(preview_ok(base, "https://api.cyex.app/me/badge/14/2x.png"));
+        assert!(preview_ok("https://api.cyex.app/", "https://api.cyex.app/me/badge/14/4x.png"));
+        for bad in [
+            "https://api.cyex.app/me/badge/14/2x.png?x=1",
+            "https://api.cyex.app/me/badge/14/../2x.png",
+            "https://api.cyex.app/me/badge/abc/2x.png",
+            "https://api.cyex.app/me/badge/14/2x.svg",
+            "https://api.cyex.app/me/badge/14/2x.png/more",
+            "https://api.cyex.app/me/equipped",
+            "https://api.cyex.app.evil.test/me/badge/14/2x.png",
+            "https://evil.test/me/badge/14/2x.png",
+            "http://api.cyex.app/me/badge/14/2x.png",
+            "https://api.cyex.app/me/badge//2x.png",
+            "https://api.cyex.app/me/badge/1234567890123/2x.png",
+        ] {
+            assert!(!preview_ok(base, bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn previews_must_be_png() {
+        let ok = Reply {
+            status: 200,
+            etag: None,
+            body: [&PNG_SIG[..], b"rest"].concat(),
+        };
+        assert_eq!(png(&ok).unwrap().len(), 12);
+        assert_eq!(png(&reply(200, "<html>")).unwrap_err(), ApiError::Offline);
+        assert_eq!(png(&reply(404, r#"{"error":"not_found","message":"x"}"#)).unwrap_err().code(), "not_found");
+        assert!(png(&reply(401, r#"{"error":"signed_out"}"#)).unwrap_err().signed_out());
+    }
+
+    #[test]
+    fn history_reads_and_only_approved_come_back() {
         let h: CyexHistory = read(&reply(
             200,
             r#"{"items":[
@@ -192,7 +271,7 @@ mod tests {
         assert_eq!(h.items.len(), 3);
         assert_eq!(h.items[0].images.as_ref().unwrap().x2, "https://a/2.png");
         assert_eq!(h.items[1].reason.as_deref(), Some("Too blurry."));
-        assert!(h.items[1].images.is_none() && !h.items[1].restorable, "not approved: no picture, no restore");
+        assert!(h.items[1].images.is_some() && !h.items[1].restorable, "not approved: its preview, no restore");
         assert!(h.items[2].restorable && h.items[2].images.is_none());
         let empty: CyexHistory = read(&reply(200, r#"{"items":[],"live":null}"#)).unwrap();
         assert!(empty.items.is_empty() && empty.live.is_none());
