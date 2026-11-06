@@ -28,7 +28,8 @@ export function range(
 }
 
 /** Keyboard: ArrowLeft/Right/Up/Down, Home, End, PageUp, PageDown. Returns the new index, clamped. */
-export function step(index: number, key: string, g: Geometry, count: number, viewH: number): number {
+/** `bounded`: Up from the top row stays put instead of jumping to the first cell (V109-B13). */
+export function step(index: number, key: string, g: Geometry, count: number, viewH: number, bounded = false): number {
   if (count <= 0) return 0;
   const last = count - 1;
   const page = Math.max(1, Math.floor(viewH / g.rowHeight)) * g.columns;
@@ -42,7 +43,7 @@ export function step(index: number, key: string, g: Geometry, count: number, vie
       next = index + 1;
       break;
     case 'ArrowUp':
-      next = index - g.columns;
+      next = bounded && row(index) === 0 ? index : index - g.columns;
       break;
     case 'ArrowDown':
       // A short last row: land on its end, but never leave the last row.

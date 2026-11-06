@@ -82,6 +82,17 @@
     return !!nm && nm.scrollWidth > nm.clientWidth;
   }
 
+  /** V109-B13 A row card's name cut by its ellipsis: the tip carries the whole of it. */
+  function rowTip(r: Row | null) {
+    return {
+      label: r ? r.name : 'None',
+      when: () => {
+        const rn = document.querySelector<HTMLElement>('.row:hover .rn');
+        return !!rn && rn.scrollWidth > rn.clientWidth;
+      },
+    };
+  }
+
   function tip(r: Row | null) {
     if (!r) return { label: 'None' };
     return {
@@ -112,7 +123,7 @@
   {#snippet cell(r)}
     {@const on = (r ? idOf(r) : null) === selected}
     {#if asRows}
-      <div class="row" class:on>
+      <div class="row" class:on use:tooltip={rowTip(r)}>
         <span class="dot" aria-hidden="true"></span>
         {#if r && 'def' in r.item}
           <img src={badgePicture(r.item.images, r.item.stills, 28, dpr, focus.idle)} width="28" height="28" alt="" decoding="async" />

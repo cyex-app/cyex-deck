@@ -41,6 +41,12 @@ test('step: rows, pages and the last row', () => {
   assert.equal(step(8, 'ArrowDown', short, 12, 270), 11);
 });
 
+test('step: bounded Up stays on the top row (V109-B13)', () => {
+  assert.equal(step(3, 'ArrowUp', g, 2000, 270, true), 3);
+  assert.equal(step(3, 'ArrowUp', g, 2000, 270), 0);
+  assert.equal(step(7, 'ArrowUp', g, 2000, 270, true), 2);
+});
+
 test('reveal: null when in view, else the nearest scrollTop', () => {
   assert.equal(reveal(3, g, 0, 270), null);
   assert.equal(reveal(30, g, 0, 270), 7 * 54 - 270 + 0);

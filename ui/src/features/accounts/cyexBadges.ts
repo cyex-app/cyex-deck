@@ -310,7 +310,7 @@ export type PlusKind = 'never' | 'ended' | 'live' | 'review' | 'rejected' | 'emp
 
 export interface PlusState {
   kind: PlusKind;
-  /** The plan line under the label: `Renews 2026/12/05`, `Until …`, `Ended …`. */
+  /** The plan line under the label: `Renews 2026/12/05`, `Free until …`, `Ended …`. */
   plan: string;
   /** What the picture is doing when none shows. */
   note: string;
@@ -324,7 +324,7 @@ export function plusState(me: CyexMe): PlusState {
     if (!p.until && !p.badge && !p.live) return { kind: 'never', plan: '', note: '', link: null };
     return { kind: 'ended', plan: p.until ? `Ended ${day(p.until)}` : 'Ended', note: 'Not in chat while the plan is off', link: { label: 'Renew', url: STORE } };
   }
-  const plan = p.renewsAt ? `Renews ${day(p.renewsAt)}` : p.until ? `Until ${day(p.until)}` : '';
+  const plan = p.renewsAt ? `Renews ${day(p.renewsAt)}` : p.until ? `Free until ${day(p.until)}` : '';
   const change = { label: 'Change picture', url: BADGE_PAGE };
   const upload = { label: 'Upload a picture', url: BADGE_PAGE };
   if (p.live) return { kind: 'live', plan, note: '', link: change };

@@ -241,7 +241,7 @@ test('V109-B03 Supporter+ states: plan line, note and the one link', () => {
   assert.deepEqual(live.link, { label: 'Change picture', url: BADGE_PAGE });
   const code = plusState(me({ plus: plus({ source: 'code', until: '2026-12-05T12:00:00Z' }) }));
   assert.equal(code.kind, 'empty');
-  assert.ok(code.plan.startsWith('Until 2026/12/0'));
+  assert.ok(code.plan.startsWith('Free until 2026/12/0'));
   assert.equal(code.link?.label, 'Upload a picture');
   assert.equal(plusState(me({ plus: plus({ badge: { status: 'pending' } }) })).note, 'Waiting for review');
   assert.equal(plusState(me({ plus: plus({ badge: { status: 'rejected' } }) })).kind, 'rejected');

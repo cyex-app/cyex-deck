@@ -22,7 +22,8 @@
     /** The scroller's width, bar included: a header above can end where the grid does. */
     box?: number;
     cell: Snippet<[T, { index: number; active: boolean }]>;
-    /** V109-B08 Row cards: no press scale, and the focus ring sits inside the cell. */
+    /** V109-B08 Row cards: no press scale, and the focus ring sits inside the cell. V109-B13 Also no
+     trailing gap under the last row and Up stays on the top row. */
     flat?: boolean;
     /** Enter, Space, click. */
     onpick: (index: number) => void;
@@ -93,11 +94,11 @@
     }
     if (!KEYS.has(e.key) || !items.length) return;
     e.preventDefault();
-    active = step(Math.max(0, active), e.key, g, items.length, viewH);
+    active = step(Math.max(0, active), e.key, g, items.length, viewH, flat);
     const to = scroller ? reveal(active, g, scroller.scrollTop, viewH) : null;
     if (scroller && to !== null) {
       scroller.scrollTop = to;
-      scrollTop = to;
+      scrollTop = scroller.scrollTop;
     }
   }
 
@@ -119,7 +120,7 @@
   onscroll={onscroll}
   {onkeydown}
 >
-  <div class="space" style:height="{g.rows * g.rowHeight}px">
+  <div class="space" style:height="{Math.max(0, g.rows * g.rowHeight - (flat && g.rows ? gap : 0))}px">
     {#each shown as item, i (key(item))}
       {@const index = win.first + i}
       {@const p = at(index)}

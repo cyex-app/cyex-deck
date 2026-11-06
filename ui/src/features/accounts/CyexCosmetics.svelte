@@ -21,6 +21,7 @@
   import { formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import ItemGrid from '../cosmetics/ItemGrid.svelte';
+  import Reason from './Reason.svelte';
   import {
     filterRows,
     gridHeight,
@@ -62,7 +63,7 @@
   /** The badge grid's width, for its height. */
   let gridW = $state(0);
   /** V109-B06 The upload history, loaded after the plan check says the plan is on. */
-  let uploads = $state<{ rows: UploadRow[]; loading: boolean; error: string }>({ rows: [], loading: false, error: '' });
+  let uploads = $state<{ rows: UploadRow[]; loading: boolean; error: string; loaded: boolean }>({ rows: [], loading: false, error: '', loaded: false });
   let showAll = $state(false);
   let restoring = $state<number | null>(null);
   /** V109-B07 Owner previews as object URLs, by their API URL, while the editor is open. */
@@ -118,7 +119,7 @@
     remembered = readSlot1(account.userId);
     search = '';
     showAll = false;
-    uploads = { rows: [], loading: false, error: '' };
+    uploads = { rows: [], loading: false, error: '', loaded: false };
     untrack(dropPreviews);
     void load();
   });
@@ -193,14 +194,14 @@
   /** V109-B06 After the plan check, never before: a locked section asks for nothing more. */
   async function loadUploads() {
     const id = account.userId;
-    uploads = { rows: uploads.rows, loading: true, error: '' };
+    uploads = { rows: uploads.rows, loading: true, error: '', loaded: false };
     try {
       const h = await cyexIpc.history(id);
       if (id !== account.userId) return;
-      uploads = { rows: uploadRows(h), loading: false, error: '' };
+      uploads = { rows: uploadRows(h), loading: false, error: '', loaded: true };
       for (const r of uploads.rows) if (r.preview) void loadPreview(r.preview);
     } catch (e) {
-      if (id === account.userId) uploads = { rows: [], loading: false, error: errorText(e) };
+      if (id === account.userId) uploads = { rows: [], loading: false, error: errorText(e), loaded: true };
     }
   }
 
@@ -251,9 +252,21 @@
   }
 </script>
 
+{#snippet uploadSkeleton()}
+  <ul aria-hidden="true">
+    {#each [0, 1, 2] as i (i)}
+      <li>
+        <span class="blob thumb"></span>
+        <span class="up-text"><span class="blob" style:width="{50 - i * 10}%" style:height="12px"></span></span>
+      </li>
+    {/each}
+  </ul>
+{/snippet}
+
 {#snippet codeArea()}
   <div class="code">
     {#if coding}
+      <div class="code-wrap">
       <form class="code-form" onsubmit={redeem}>
         <input
           class="field"
@@ -270,6 +283,7 @@
         <Button small variant="ghost" onclick={closeCode}>Cancel</Button>
       </form>
       {#if redeemError}<p class="msg bad" role="alert">{redeemError}</p>{/if}
+      </div>
     {:else}
       <Button small variant="link" hit onclick={() => void openCode()}>Have a code?</Button>
       {#if redeemed}<span class="msg ok" role="status">{redeemed}</span>{/if}
@@ -279,11 +293,33 @@
 
 <div class="cyex" aria-busy={loading}>
   {#if !view}
-    <div class="box state"><span class="note">Loading…</span></div>
+    <!-- V109-B13 The editor's shape, so nothing moves when it arrives. -->
+    <div class="box" role="status" aria-label="Loading">
+      <div class="preview" aria-hidden="true">
+        <span class="blob" style:width="160px" style:height="14px"></span>
+      </div>
+      <div class="sec" aria-hidden="true">
+        <div class="sec-head"><span class="blob" style:width="48px" style:height="12px"></span></div>
+        <div class="sk-cards">
+          <span class="blob card"></span><span class="blob card"></span><span class="blob card"></span>
+        </div>
+      </div>
+      <div class="sec" aria-hidden="true">
+        <div class="sec-head"><span class="blob" style:width="72px" style:height="12px"></span></div>
+        <div class="own">
+          <span class="blob own-pic"></span>
+          <span class="own-text"><span class="blob" style:width="90px" style:height="14px"></span></span>
+        </div>
+        <div class="uploads">
+          <span class="label">Uploads</span>
+          {@render uploadSkeleton()}
+        </div>
+      </div>
+    </div>
   {:else if view.state === 'offline'}
     <div class="box state">
       <span class="note">Can’t reach cyex right now.</span>
-      <Button small disabled={loading} onclick={() => void load()}>{loading ? 'Trying…' : 'Retry'}</Button>
+      <Button small disabled={loading} onclick={() => void load()}>{loading ? 'Trying…' : 'Try again'}</Button>
     </div>
   {:else if view.state === 'noToken'}
     <div class="box state"><span class="note">cyex needs this account’s Twitch sign-in. Sign in again above.</span></div>
@@ -356,7 +392,7 @@
         {:else if locked}
           <p class="locked">
             <Icon name="lock" size={12} />
-            <span class="note">{plus.kind === 'ended' ? 'Your own badge is off while the plan is.' : 'Your own badge in chat, with Supporter+.'}</span>
+            <span class="note">{plus.kind === 'ended' ? 'Your own badge is off while the plan is.' : 'Only with Supporter+'}</span>
             {#if plus.kind === 'ended' && plus.link}
               {@const link = plus.link}
               <Button small variant="link" hit onclick={() => open(link.url)}>{link.label}</Button>
@@ -373,7 +409,7 @@
             {/if}
             <span class="own-text">
               <strong>{panel.review}</strong>
-              {#if panel.reason}<span class="reason">{panel.reason}</span>{/if}
+              {#if panel.reason}<Reason text={panel.reason} />{/if}
               {#if panel.link}
                 {@const link = panel.link}
                 <span><Button small icon="popout" onclick={() => open(link.url)}>{link.label}</Button></span>
@@ -385,8 +421,8 @@
             {#if uploads.error}
               <p class="msg bad" role="alert">{uploads.error}</p>
               <span><Button small variant="link" hit onclick={() => void loadUploads()}>Try again</Button></span>
-            {:else if uploads.loading && !uploads.rows.length}
-              <span class="note">Loading…</span>
+            {:else if !uploads.loaded}
+              {@render uploadSkeleton()}
             {:else if !uploads.rows.length}
               <span class="note">Nothing uploaded yet</span>
             {:else}
@@ -402,7 +438,7 @@
                     {/if}
                     <span class="up-text">
                       <span class="up-line"><span class:live={r.live}>{r.status}</span><span class="date">{r.date}</span></span>
-                      {#if r.reason}<span class="reason">{r.reason}</span>{/if}
+                      {#if r.reason}<Reason text={r.reason} />{/if}
                     </span>
                     {#if r.restorable}
                       <Button small variant="link" hit disabled={restoring !== null} onclick={() => void restore(r)}>
@@ -568,7 +604,7 @@
   }
   .own {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 12px;
   }
   .own-pic {
@@ -594,11 +630,6 @@
     gap: 4px;
     min-width: 0;
   }
-  .reason {
-    color: var(--muted);
-    font-size: var(--text-hint);
-    overflow-wrap: anywhere;
-  }
   .uploads {
     display: flex;
     flex-direction: column;
@@ -614,7 +645,7 @@
   }
   .uploads li {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 8px;
     min-height: 32px;
     padding: 4px 0;
@@ -662,17 +693,23 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 4px 10px;
-    min-height: 40px;
+    min-height: 44px;
     padding: 6px 12px;
   }
   .empty + .code {
     border-top: 1px solid var(--border);
   }
+  .code-wrap {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
   .code-form {
     display: flex;
     align-items: center;
     gap: 6px;
-    flex: 1;
     min-width: 0;
   }
   .code-form input {
@@ -693,6 +730,47 @@
   }
   .bad {
     color: var(--red);
+  }
+  /* V109-B13 Loading: blocks the size of the real layout; reduced motion holds the shimmer still. */
+  .blob {
+    display: block;
+    background: linear-gradient(90deg, var(--surface-hover) 25%, var(--elevated-2) 50%, var(--surface-hover) 75%);
+    background-size: 300% 100%;
+    border-radius: var(--radius);
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+  .blob.card {
+    flex: 1;
+    max-width: 190px;
+    height: 44px;
+  }
+  .blob.thumb {
+    flex: none;
+    width: 24px;
+    height: 24px;
+  }
+  .sk-cards {
+    display: flex;
+    gap: 6px;
+  }
+  .own > .blob.own-pic {
+    flex: none;
+  }
+  .up-text > .blob {
+    margin-block: 4px;
+  }
+  @keyframes shimmer {
+    from {
+      background-position: 100% 0;
+    }
+    to {
+      background-position: 0 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .blob {
+      animation: none;
+    }
   }
   /* Narrow: the empty state's button goes under its text. */
   @container (max-width: 420px) {
