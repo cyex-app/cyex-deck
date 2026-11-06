@@ -3,6 +3,8 @@
 
 import type { CyexMe } from '../../ipc/bindings/CyexMe.ts';
 import type { CyexPics } from '../../ipc/bindings/CyexPics.ts';
+import type { CyexView } from '../../ipc/bindings/CyexView.ts';
+import type { MenuEntry } from '../../components/menuItems.ts';
 import { formatDate, formatNumber } from '../../lib/format.ts';
 
 /** V109-B03 The store tab of cyex.app's cosmetics page, and its own-badge tab. */
@@ -60,21 +62,104 @@ export function shownBadges(me: CyexMe, founder: CyexPics, supporter: CyexPics):
   return out;
 }
 
-/** V109-B03 The badge picker: owned ones can be picked, the rest show but stay off. */
-export interface BadgeOption {
-  value: Choice;
+/** V109-B04 Slot 1 holds one one-time badge. A new kind (e.g. a streak badge) is one more entry
+ *  here; its picture comes from `pics` of the view. */
+export interface Slot1Kind {
+  id: Main;
+  label: (me: CyexMe) => string;
+  pics: (view: CyexView) => CyexPics | null;
+}
+
+export const SLOT1_KINDS: readonly Slot1Kind[] = [
+  {
+    id: 'founder',
+    label: (me) => {
+      const n = founderNumber(me);
+      return n ? `Founder #${formatNumber(n)}` : 'Founder';
+    },
+    pics: (v) => (v.state === 'ready' ? v.founder : null),
+  },
+  { id: 'supporter', label: () => 'Supporter', pics: (v) => (v.state === 'ready' ? v.supporter : null) },
+];
+
+export interface Slot1Option {
+  id: Main;
   label: string;
   owned: boolean;
 }
 
-export function badgeOptions(me: CyexMe): BadgeOption[] {
-  const n = founderNumber(me);
-  const founder = owns(me, 'founder');
+export function slot1Options(me: CyexMe): Slot1Option[] {
+  return SLOT1_KINDS.map((k) => ({ id: k.id, label: k.label(me), owned: owns(me, k.id) }));
+}
+
+/** The equipped slot-1 badge, if the account still owns it. */
+export function slot1Current(me: CyexMe): Slot1Option | null {
+  const c = choiceOf(me);
+  return slot1Options(me).find((o) => o.id === c && o.owned) ?? null;
+}
+
+/** V109-B04 Slot 1's menu: owned badges and None, checks on what's worn. Picking the worn one
+ *  again takes it off. Kinds not owned: one store item at the end. */
+export function slot1Menu(me: CyexMe, act: { equip: (main: Main | null) => void; store: () => void }): MenuEntry[] {
+  const opts = slot1Options(me);
+  const worn = slot1Current(me)?.id ?? null;
   return [
-    { value: 'founder', label: founder && n ? `Founder #${formatNumber(n)}` : 'Founder', owned: founder },
-    { value: 'supporter', label: 'Supporter', owned: owns(me, 'supporter') },
-    { value: 'none', label: 'None', owned: true },
+    ...opts.filter((o) => o.owned).map((o) => ({ label: o.label, checked: worn === o.id, run: () => act.equip(worn === o.id ? null : o.id) })),
+    'separator',
+    { label: 'None', checked: worn === null, run: () => act.equip(null) },
+    ...(opts.some((o) => !o.owned) ? ['separator' as const, { label: 'Get in store', run: act.store }] : []),
   ];
+}
+
+/** V109-B04 Slot 2's menu (Supporter+ only): the picture page, then the on/off switch. */
+export function slot2Menu(me: CyexMe, act: { show: (on: boolean) => void; open: (url: string) => void }): MenuEntry[] {
+  const link = plusState(me).link;
+  const on = me.equipped.custom;
+  return [
+    ...(link ? [{ label: link.label, icon: 'popout' as const, run: () => act.open(link.url) }, 'separator' as const] : []),
+    { label: 'Show in chat', icon: 'eye', checked: on, run: () => act.show(!on) },
+  ];
+}
+
+/** V109-B04 What opening slot 2 found: the plan is on (open), off (locked), or the check failed. */
+export type PlusCheck =
+  | { kind: 'open' | 'locked'; /** A new view when it was fetched, null from the cache. */ fetched: CyexView | null }
+  | { kind: 'error'; message: string };
+
+export const PLUS_FRESH_MS = 30_000;
+const CHECK_FAILED = 'Couldn’t check Supporter+. Try again.';
+
+/** V109-B04 Slot 2 opens only after a fresh look at the plan; a look from the last 30 s counts. */
+export function plusGate(fetch: () => Promise<CyexView>, now: () => number = Date.now) {
+  let last: CyexMe | null = null;
+  let at = -Infinity;
+  let pending: Promise<PlusCheck> | null = null;
+  const keep = (v: CyexView) => {
+    if (v.state !== 'ready') return;
+    last = v.me;
+    at = now();
+  };
+  const fresh = () => !!last && now() - at < PLUS_FRESH_MS;
+  return {
+    /** A view loaded elsewhere (the editor opening) counts as a look. */
+    seen: keep,
+    fresh,
+    check(): Promise<PlusCheck> {
+      if (fresh()) return Promise.resolve({ kind: last!.plus.active ? 'open' : 'locked', fetched: null });
+      if (pending) return pending;
+      const p: Promise<PlusCheck> = fetch().then(
+        (v) => {
+          if (v.state !== 'ready') return { kind: 'error', message: v.state === 'noToken' ? 'Sign in again to check Supporter+.' : CHECK_FAILED };
+          keep(v);
+          return { kind: v.me.plus.active ? 'open' : 'locked', fetched: v };
+        },
+        () => ({ kind: 'error', message: CHECK_FAILED }),
+      );
+      pending = p;
+      void p.then(() => (pending = null));
+      return p;
+    },
+  };
 }
 
 /** `2026-12-05T12:00:00Z` → `2026/12/05` (local day); unreadable text keeps its first 10 chars. */
