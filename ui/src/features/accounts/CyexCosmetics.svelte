@@ -2,13 +2,17 @@
      with the account's Twitch sign-in. B03 layout: the chat preview on top with the store link,
      then the badges, a code behind a link. Nothing to set: one line and "Open store". Changes save
      at once and roll back with the error.
-     V109-B04 The badges are two slots that open the shared menu: slot 1 one one-time badge (from
-     cache), slot 2 Supporter+ only, opened after a fresh look at the plan. -->
+     V109-B04 The badges are two slots: slot 1 one one-time badge (from cache), slot 2 Supporter+
+     only, opened after a fresh look at the plan.
+     V109-B05 Slot 1 opens a picker (the 7TV pop-up's grid, None first, grid or list), slot 2 a
+     panel for the uploaded picture. Each slot has its own on/off switch. -->
 <script lang="ts">
   import { tick } from 'svelte';
   import Button from '../../components/Button.svelte';
   import Icon from '../../components/Icon.svelte';
-  import { closeMenu, openMenu } from '../../components/menu.svelte';
+  import IconToggle from '../../components/IconToggle.svelte';
+  import SearchField from '../../components/SearchField.svelte';
+  import Toggle from '../../components/Toggle.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { AccountView } from '../../ipc/bindings/AccountView';
   import { cyexIpc, type CyexMe, type CyexPics, type CyexView } from '../../ipc/cyex';
@@ -16,16 +20,23 @@
   import { density } from '../../lib/density.svelte';
   import { errorText } from '../../lib/errors';
   import { toast } from '../../lib/toast.svelte';
+  import ItemGrid from '../cosmetics/ItemGrid.svelte';
+  import CyexPopup from './CyexPopup.svelte';
   import {
-    type Main,
+    filterRows,
     nothingToSet,
     plusGate,
+    plusPanel,
     plusState,
+    readSlot1,
+    saveSlot1,
     shownBadges,
     SLOT1_KINDS,
+    slot1Choice,
     slot1Current,
-    slot1Menu,
-    slot2Menu,
+    slot1Missing,
+    slot1Pick,
+    slot1Rows,
     STORE,
   } from './cyexBadges';
 
@@ -45,6 +56,13 @@
   let checking = $state(false);
   let plusError = $state('');
   let plusTried = $state(false);
+  /** V109-B05 The open pop-up and the slot button it hangs under. */
+  let popup = $state<{ slot: 1 | 2; anchor: HTMLElement } | null>(null);
+  let search = $state('');
+  /** Grid or list, for this session. */
+  let listView = $state(false);
+  /** Slot 1's choice kept while its switch is off (per account, on this PC). */
+  let remembered = $state<string | null>(null);
 
   const me = $derived(view?.state === 'ready' ? view.me : null);
   const NO_PICS: CyexPics = { '1x': '', '2x': '', '4x': '' };
@@ -68,6 +86,8 @@
 
   $effect(() => {
     void account.userId;
+    remembered = readSlot1(account.userId);
+    popup = null;
     void load();
   });
 
@@ -101,21 +121,51 @@
     }
   }
 
-  /** The slot's own menu is open: its button closes it (V109-F61). */
-  const isOpen = (el: HTMLElement) => el.getAttribute('aria-expanded') === 'true';
+  function remember(id: string | null) {
+    remembered = id;
+    saveSlot1(account.userId, id);
+  }
+
+  /** V109-B05 A card in slot 1: on at once with that badge; None takes it off and forgets it. */
+  function pick1(id: string | null) {
+    if (!me) return;
+    if (id === null) remember(null);
+    const next = slot1Pick(me, id);
+    if (!next) return;
+    remember(next.main);
+    void save(next.main, me.equipped.custom);
+  }
+
+  /** V109-B05 Slot 1's switch: off keeps the choice here, on puts it back. */
+  function switch1(on: boolean) {
+    if (!me) return;
+    const choice = slot1Choice(me, remembered);
+    if (!choice) return;
+    remember(choice);
+    void save(on ? choice : null, me.equipped.custom);
+  }
+
+  function close() {
+    popup = null;
+    search = '';
+  }
+
+  /** The slot's own pop-up is open: its button closes it. */
+  const isOpen = (slot: 1 | 2) => popup?.slot === slot;
 
   function openSlot1(e: MouseEvent) {
     const el = e.currentTarget as HTMLElement;
     if (!me) return;
-    if (isOpen(el)) return closeMenu();
-    const m = me;
-    openMenu(el, slot1Menu(m, { equip: (main: Main | null) => void save(main, m.equipped.custom), store: () => open(STORE) }), 'start');
+    if (isOpen(1)) return close();
+    search = '';
+    popup = { slot: 1, anchor: el };
   }
 
   async function openSlot2(e: MouseEvent) {
     const el = e.currentTarget as HTMLElement;
     if (!me || checking) return;
-    if (isOpen(el)) return closeMenu();
+    if (isOpen(2)) return close();
+    popup = null;
     plusError = '';
     // Busy only when it really asks the server: a cached look opens at once.
     checking = !gate.fresh();
@@ -131,9 +181,8 @@
       plusTried = true;
       return;
     }
-    const m = view?.state === 'ready' ? view.me : null;
-    if (!m || !el.isConnected) return;
-    openMenu(el, slot2Menu(m, { show: (on) => void save(m.equipped.main, on), open }), 'start');
+    if (!el.isConnected) return;
+    popup = { slot: 2, anchor: el };
   }
 
   async function openCode() {
@@ -218,9 +267,12 @@
     </div>
   {:else if me && view.state === 'ready'}
     {@const plus = plusState(me)}
-    {@const worn = slot1Current(me)}
-    {@const wornPics = worn ? SLOT1_KINDS.find((k) => k.id === worn.id)?.pics(view) : null}
+    {@const choice = slot1Choice(me, remembered)}
+    {@const on1 = !!slot1Current(me)}
+    {@const choiceLabel = choice ? SLOT1_KINDS.find((k) => k.id === choice)!.label(me) : 'None'}
+    {@const choicePics = choice ? SLOT1_KINDS.find((k) => k.id === choice)!.pics(view) : null}
     {@const locked = !me.plus.active}
+    {@const panel = plusPanel(me)}
     <div class="box">
       <!-- What chat shows now, with the store beside it. -->
       <div class="preview">
@@ -233,37 +285,83 @@
         <Button small variant="link" icon="popout" hit onclick={() => open(STORE)}>Store</Button>
       </div>
 
-      <!-- V109-B04 Two slots, each a button that opens the shared menu under it. -->
+      <!-- V109-B04/B05 Two slots: the button opens its pop-up, the switch shows or hides it in chat. -->
       <div class="slots">
-        <button class="slot" aria-haspopup="menu" aria-label="Badge: {worn?.label ?? 'None'}" onclick={openSlot1}>
-          <span class="slot-key">Badge</span>
-          <span class="slot-value">
-            {#if worn && wornPics}<img class="badge" src={src(wornPics)} alt="" />{/if}
-            <span class="slot-text" class:none={!worn}>{worn?.label ?? 'None'}</span>
-          </span>
-          <Icon name="chevronDown" size={14} />
-        </button>
-        <button
-          class="slot"
-          class:locked
-          aria-haspopup="menu"
-          aria-busy={checking}
-          aria-label="Supporter+: {locked ? 'locked' : me.equipped.custom ? 'on' : 'off'}"
-          onclick={(e) => void openSlot2(e)}
-          use:tooltip={locked ? { label: 'Supporter+ only', hint: 'A monthly plan in the store.' } : { label: '' }}
-        >
-          <span class="slot-key">Supporter+</span>
-          <span class="slot-value">
-            {#if locked}
-              <Icon name="lock" size={12} /><span class="slot-text none">Locked</span>
-            {:else}
-              {#if me.equipped.custom && me.plus.live}<img class="badge" src={src(me.plus.live)} alt="" />{/if}
-              <span class="slot-text" class:none={!me.equipped.custom}>{me.equipped.custom ? 'On' : 'Off'}</span>
-            {/if}
-          </span>
-          {#if checking}<span class="spin" aria-hidden="true"></span>{:else}<Icon name="chevronDown" size={14} />{/if}
-        </button>
+        <div class="slot" class:off={!on1}>
+          <button class="slot-open" aria-haspopup="dialog" aria-expanded={isOpen(1)} aria-label="Badge: {choiceLabel}" onclick={openSlot1}>
+            <span class="slot-key">Badge</span>
+            <span class="slot-value">
+              {#if choice && choicePics}<img class="badge" src={src(choicePics)} alt="" />{/if}
+              <span class="slot-text" class:none={!choice}>{choiceLabel}</span>
+            </span>
+            <Icon name="chevronDown" size={14} />
+          </button>
+          <Toggle label="Show badge in chat" checked={on1} disabled={!choice} onchange={switch1} />
+        </div>
+        <div class="slot" class:off={locked || !me.equipped.custom}>
+          <button
+            class="slot-open"
+            aria-haspopup="dialog"
+            aria-expanded={isOpen(2)}
+            aria-busy={checking}
+            aria-label="Supporter+: {locked ? 'locked' : panel.review}"
+            onclick={(e) => void openSlot2(e)}
+            use:tooltip={locked ? { label: 'Supporter+ only', hint: 'A monthly plan in the store.' } : { label: '' }}
+          >
+            <span class="slot-key">Supporter+</span>
+            <span class="slot-value">
+              {#if locked}
+                <Icon name="lock" size={12} /><span class="slot-text none">Locked</span>
+              {:else}
+                {#if me.plus.live}<img class="badge" src={src(me.plus.live)} alt="" />{/if}
+                <span class="slot-text" class:none={!me.plus.live}>{me.plus.live ? 'Yours' : panel.review.split('.')[0]}</span>
+              {/if}
+            </span>
+            {#if checking}<span class="spin" aria-hidden="true"></span>{:else}<Icon name="chevronDown" size={14} />{/if}
+          </button>
+          <Toggle
+            label="Show Supporter+ badge in chat"
+            checked={!locked && me.equipped.custom}
+            disabled={locked}
+            onchange={(v) => void save(me.equipped.main, v)}
+          />
+        </div>
       </div>
+
+      {#if popup?.slot === 1}
+        {@const rows = filterRows(slot1Rows(me, view), search)}
+        {@const cells = rows.length + 1}
+        <CyexPopup title="Badge" anchor={popup.anchor} onclose={close}>
+          <div class="tools">
+            <SearchField small placeholder="Search badges" value={search} oninput={(t) => (search = t)} />
+            <IconToggle icon="list" label="List view" pressed={listView} onchange={(v) => (listView = v)} />
+          </div>
+          <div class="grid" style:height="{Math.min(240, listView ? cells * 46 : Math.ceil(cells / 3) * 82)}px">
+            <ItemGrid kind="badge" {rows} selected={choice} name={account.displayName} label="Badges" list={listView} onpick={(id) => pick1(id)} />
+          </div>
+          {#if slot1Missing(me)}
+            <span class="more"><Button small variant="link" hit onclick={() => open(STORE)}>Get in store</Button></span>
+          {/if}
+        </CyexPopup>
+      {:else if popup?.slot === 2}
+        <CyexPopup title="Supporter+" anchor={popup.anchor} onclose={close}>
+          <div class="plus-head">
+            {#if panel.picture}
+              <img class="plus-pic" src={panel.picture['4x'] || panel.picture['2x'] || panel.picture['1x']} alt="Your Supporter+ badge" />
+            {:else}
+              <span class="plus-pic empty"><Icon name="image" size={24} /></span>
+            {/if}
+            <div class="plus-lines">
+              <strong>{panel.review}</strong>
+              {#if panel.plan}<span class="note">{panel.plan}</span>{/if}
+            </div>
+          </div>
+          {#if panel.link}
+            {@const link = panel.link}
+            <Button small icon="popout" onclick={() => open(link.url)}>{link.label}</Button>
+          {/if}
+        </CyexPopup>
+      {/if}
 
       <!-- The plan in one line: renews, review, ended (with Renew), or why slot 2 stayed shut. -->
       {#if plusError}
@@ -368,40 +466,59 @@
     padding: 10px 12px;
     border-bottom: 1px solid var(--border);
   }
+  /* A slot: the button that opens its pop-up, then its switch. */
   .slot {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     min-width: 0;
     height: 44px;
-    padding: 0 10px;
+    padding-right: 10px;
     background: var(--surface);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
+    transition: border-color var(--fast);
+  }
+  .slot:has(.slot-open[aria-expanded='true']) {
+    border-color: var(--accent-border);
+  }
+  .slot-open {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    height: 100%;
+    padding: 0 8px 0 10px;
+    background: none;
+    border: 0;
+    border-right: 1px solid var(--border);
+    border-radius: var(--radius) 0 0 var(--radius);
     color: var(--text);
     text-align: left;
     cursor: pointer;
-    transition:
-      background var(--fast),
-      border-color var(--fast);
+    transition: background var(--fast);
   }
-  .slot:hover {
+  .slot-open:hover {
     background: var(--surface-hover);
   }
-  .slot:focus-visible {
+  .slot-open:focus-visible {
     outline: 2px solid var(--focus-ring);
-    outline-offset: 2px;
+    outline-offset: -2px;
   }
-  .slot:global([aria-expanded='true']) {
-    border-color: var(--accent-border);
-  }
-  .slot > :global(svg) {
+  .slot-open > :global(svg) {
     flex: none;
     color: var(--dim);
   }
+  /* Switched off: the choice stays in sight, quieter. */
+  .slot.off .slot-value img {
+    opacity: 0.45;
+  }
+  .slot.off .slot-text {
+    color: var(--muted);
+  }
   .slot-key {
     flex: none;
-    width: 74px;
     color: var(--dim);
     font-size: var(--text-label);
     font-weight: 700;
@@ -440,10 +557,10 @@
     border-radius: 50%;
     animation: spin 0.9s linear infinite;
   }
-  .slot[aria-busy='true'] {
+  .slot-open[aria-busy='true'] {
     cursor: progress;
   }
-  .slot[aria-busy='true'] .slot-value {
+  .slot-open[aria-busy='true'] .slot-value {
     opacity: 0.6;
   }
   @keyframes spin {
@@ -460,6 +577,48 @@
     .slot {
       border-color: var(--text);
     }
+  }
+  /* V109-B05 The pop-ups' parts. */
+  .tools {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tools > :global(:first-child) {
+    flex: 1;
+    min-width: 0;
+  }
+  .grid {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .more {
+    align-self: flex-start;
+  }
+  .plus-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .plus-pic {
+    flex: none;
+    width: 72px;
+    height: 72px;
+    object-fit: contain;
+    border-radius: var(--radius);
+  }
+  .plus-pic.empty {
+    display: grid;
+    place-items: center;
+    background: var(--surface);
+    border: 1px dashed var(--border-strong);
+    color: var(--dim);
+  }
+  .plus-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
   }
   .status {
     display: flex;

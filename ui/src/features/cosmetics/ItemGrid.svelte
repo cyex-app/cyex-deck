@@ -1,4 +1,5 @@
-<!-- V1051-03 Paints or badges in a windowed grid; the first cell is None. -->
+<!-- V1051-03 Paints or badges in a windowed grid; the first cell is None.
+     V109-B05 Also the cyex badge picker: any row of that shape, and a one-column list view. -->
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
@@ -11,7 +12,11 @@
   import type { BadgeRow, PaintRow } from './cosmetics.svelte';
   import { badgePicture } from './pictures';
 
-  type Row = PaintRow | BadgeRow;
+  /** V109-B05 What a badge cell reads; 7TV's rows and the cyex picker's both have it. */
+  type GridBadge = Pick<BadgeRow, 'name' | 'animated' | 'usable'> & {
+    item: { def: { id: string }; images: readonly string[]; stills: readonly string[] | null };
+  };
+  type Row = PaintRow | GridBadge;
 
   interface Props {
     kind: 'paint' | 'badge';
@@ -24,9 +29,11 @@
     box?: number;
     /** `usable` is false for subscriber-only items. */
     onpick: (id: string | null, usable: boolean) => void;
+    /** V109-B05 Badges one per row, picture and name side by side. */
+    list?: boolean;
   }
 
-  let { kind, rows, selected, name, label, box = $bindable(0), onpick }: Props = $props();
+  let { kind, rows, selected, name, label, box = $bindable(0), onpick, list = false }: Props = $props();
 
   // V1051-03 Wide enough for the name in its paint, once per name and chat font; re-read when
   // a font finishes loading.
@@ -42,6 +49,8 @@
     return kind === 'paint' ? paintCellWidth(measureName(name)) : MIN_PAINT_CELL;
   });
 
+  /** V109-B05 Wider than half any picker, so the list keeps one column. */
+  const LIST_CELL = 200;
   const NONE = null;
   const items = $derived<(Row | null)[]>([NONE, ...rows]);
   const idOf = (r: Row) => ('style' in r.item ? r.item.style.id : r.item.def.id);
@@ -86,8 +95,8 @@
   bind:box
   stretch
   chosen={(r) => keyOf(r) === (selected ?? NONE_KEY)}
-  cellWidth={kind === 'paint' ? paintW : 72}
-  cellHeight={kind === 'paint' ? 48 : 76}
+  cellWidth={kind === 'paint' ? paintW : list ? LIST_CELL : 72}
+  cellHeight={kind === 'paint' ? 48 : list ? 40 : 76}
   bind:active={() => active, (i) => (moved = keyOf(items[i]))}
   onpick={(i) => {
     const r = items[i];
@@ -96,7 +105,7 @@
 >
   {#snippet cell(r)}
     {@const on = (r ? idOf(r) : null) === selected}
-    <div class="item {kind}" class:on class:lock={r && !r.usable} aria-disabled={r && !r.usable ? 'true' : undefined} use:tooltip={tip(r)}>
+    <div class="item {kind}" class:list class:on class:lock={r && !r.usable} aria-disabled={r && !r.usable ? 'true' : undefined} use:tooltip={tip(r)}>
       {#if kind === 'paint'}
         {#if r}
           <span class="back"><span class="painted paint-{idOf(r)} who">{name}</span></span>
@@ -124,7 +133,7 @@
           <span class="nm two">{r.name}</span>
         {/if}
       {:else}
-        <span class="none">–</span>
+        <span class="none"><Icon name="ban" size={list ? 16 : 20} /></span>
         <span class="nm two">None</span>
       {/if}
       {#if on}<span class="check"><Icon name="check" size={12} /></span>{/if}
@@ -229,6 +238,31 @@
   img {
     flex: none;
     object-fit: contain;
+  }
+  /* V109-B05 List view: picture and name on one line. */
+  .badge.list {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 4px 10px;
+    text-align: left;
+  }
+  .badge.list.on {
+    padding: 3px 9px;
+  }
+  .badge.list img,
+  .badge.list .none {
+    width: 24px;
+    height: 24px;
+  }
+  .badge.list .nm {
+    color: var(--text);
+    font-size: 0.85rem;
+  }
+  .badge.list .check {
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
   }
   .check {
     position: absolute;

@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { type MenuItem, menuProblems } from '../../components/menuItems.ts';
 import type { CyexMe } from '../../ipc/bindings/CyexMe.ts';
 import type { CyexView } from '../../ipc/bindings/CyexView.ts';
 import {
@@ -18,9 +17,15 @@ import {
   shownBadges,
   SLOT1_KINDS,
   slot1Current,
-  slot1Menu,
+  slot1Pick,
+  slot1Rows,
+  slot1Missing,
+  slot1Choice,
+  filterRows,
+  plusPanel,
+  readSlot1,
+  saveSlot1,
   slot1Options,
-  slot2Menu,
   STORE,
   usercardLine,
 } from './cyexBadges.ts';
@@ -74,8 +79,6 @@ test('V109-B02 the usercard line', () => {
 
 const plus = (over: Partial<CyexMe['plus']>): CyexMe['plus'] => ({ active: true, source: 'paddle', until: null, renewsAt: null, badge: null, live: null, ...over });
 
-const items = (list: ReturnType<typeof slot1Menu>) => list.filter((e): e is MenuItem => e !== 'separator');
-
 test('V109-B04 slot 1 comes from the kinds list', () => {
   assert.deepEqual(SLOT1_KINDS.map((k) => k.id), ['founder', 'supporter']);
   assert.deepEqual(slot1Options(me()).map((o) => [o.id, o.label, o.owned]), [
@@ -92,49 +95,75 @@ test('V109-B04 slot 1 comes from the kinds list', () => {
   assert.equal(SLOT1_KINDS[0].pics({ state: 'offline' }), null);
 });
 
-test('V109-B04 slot 1 menu: owned badges, None, store; the checked one again takes it off', () => {
-  const calls: (string | null)[] = [];
-  const act = { equip: (m: string | null) => calls.push(m), store: () => calls.push('store') };
-  const m = me({ badges: [{ id: 'founder', number: 7 }], equipped: { main: 'founder', custom: false, shown: [] } });
-  const list = slot1Menu(m, act);
-  assert.deepEqual(menuProblems(list), []);
-  const it = items(list);
-  assert.deepEqual(it.map((i) => [i.label, i.checked]), [
-    ['Founder #7', true],
-    ['None', false],
-    ['Get in store', undefined],
+test('V109-B05 slot 1 picker: owned cards in kinds order, search, store link', () => {
+  const both = me({ badges: [{ id: 'supporter', number: null }, { id: 'founder', number: 7 }] });
+  const view: CyexView = { state: 'ready', me: both, founder: pic('f'), supporter: pic('s') };
+  const rows = slot1Rows(both, view);
+  assert.deepEqual(rows.map((r) => [r.item.def.id, r.name, r.usable]), [
+    ['founder', 'Founder #7', true],
+    ['supporter', 'Supporter', true],
   ]);
-  it[0].run!();
-  it[1].run!();
-  it[2].run!();
-  assert.deepEqual(calls, [null, null, 'store']);
-  // Nothing worn: None is checked; owning everything drops the store item.
-  const both = me({ badges: [{ id: 'founder', number: 7 }, { id: 'supporter', number: null }] });
-  const it2 = items(slot1Menu(both, act));
-  assert.deepEqual(it2.map((i) => [i.label, i.checked]), [
-    ['Founder #7', false],
-    ['Supporter', false],
-    ['None', true],
-  ]);
-  it2[1].run!();
-  assert.equal(calls.at(-1), 'supporter');
+  assert.deepEqual(rows[0].item.images, ['f1', 'f2', 'f4', 'f4']);
+  assert.deepEqual(filterRows(rows, ' sup ').map((r) => r.name), ['Supporter']);
+  assert.equal(filterRows(rows, '').length, 2);
+  assert.ok(!slot1Missing(both));
+  const one = me({ badges: [{ id: 'founder', number: 7 }] });
+  assert.deepEqual(slot1Rows(one, { state: 'offline' }).map((r) => r.item.images), [['', '', '', '']]);
+  assert.ok(slot1Missing(one));
 });
 
-test('V109-B04 slot 2 menu: the picture link, then the switch', () => {
-  const shown: boolean[] = [];
-  const opened: string[] = [];
-  const m = me({ plus: plus({ live: pic('c') }), equipped: { main: null, custom: true, shown: ['custom'] } });
-  const list = slot2Menu(m, { show: (on) => shown.push(on), open: (u) => opened.push(u) });
-  assert.deepEqual(menuProblems(list), []);
-  const it = items(list);
-  assert.deepEqual(it.map((i) => [i.label, i.checked]), [
-    ['Change picture', undefined],
-    ['Show in chat', true],
-  ]);
-  it[0].run!();
-  it[1].run!();
-  assert.deepEqual(opened, [BADGE_PAGE]);
-  assert.deepEqual(shown, [false]);
+test('V109-B05 slot 1 picks and the switch: picking turns on, None takes off, off keeps the choice', () => {
+  const owned = { badges: [{ id: 'founder', number: 7 }, { id: 'supporter', number: null }] };
+  const wearing = me({ ...owned, equipped: { main: 'founder', custom: true, shown: [] } });
+  assert.deepEqual(slot1Pick(wearing, 'supporter'), { main: 'supporter' });
+  assert.deepEqual(slot1Pick(wearing, null), { main: null });
+  assert.equal(slot1Pick(wearing, 'founder'), null); // already worn
+  assert.equal(slot1Pick(me({ equipped: { main: null, custom: false, shown: [] } }), 'founder'), null); // not owned
+  const off = me({ ...owned, equipped: { main: null, custom: false, shown: [] } });
+  assert.equal(slot1Choice(wearing, 'supporter'), 'founder');
+  assert.equal(slot1Choice(off, 'supporter'), 'supporter');
+  assert.equal(slot1Choice(off, null), null);
+  assert.equal(slot1Choice(me(), 'founder'), null); // remembered but not owned
+  assert.deepEqual(slot1Pick(off, 'supporter'), { main: 'supporter' });
+  assert.equal(slot1Pick(off, null), null);
+});
+
+test('V109-B05 slot 1 choice is kept per account while off', () => {
+  const store = new Map<string, string>();
+  const g = globalThis as { localStorage?: unknown };
+  g.localStorage = {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => void store.set(k, v),
+    removeItem: (k: string) => void store.delete(k),
+  };
+  try {
+    saveSlot1('1', 'supporter');
+    assert.equal(readSlot1('1'), 'supporter');
+    assert.equal(readSlot1('2'), null);
+    saveSlot1('1', null);
+    assert.equal(readSlot1('1'), null);
+  } finally {
+    delete g.localStorage;
+  }
+  // No storage at all: nothing kept, nothing thrown.
+  assert.equal(readSlot1('1'), null);
+  saveSlot1('1', 'founder');
+});
+
+test('V109-B05 the Supporter+ panel', () => {
+  const live = plusPanel(me({ plus: plus({ renewsAt: '2026-12-05T12:00:00Z', badge: { status: 'approved' }, live: pic('c') }) }));
+  assert.equal(live.review, 'Approved');
+  assert.equal(live.plan, `Active, renews ${day('2026-12-05T12:00:00Z')}`);
+  assert.equal(live.picture?.['1x'], 'c1');
+  assert.equal(live.link?.label, 'Change picture');
+  const review = plusPanel(me({ plus: plus({ until: '2026-12-05T12:00:00Z', badge: { status: 'pending' } }) }));
+  assert.equal(review.review, 'In review');
+  assert.ok(review.plan.startsWith('Active until 2026/12/0'));
+  assert.equal(plusPanel(me({ plus: plus({ badge: { status: 'rejected' } }) })).review, 'Not approved. Try another one.');
+  assert.equal(plusPanel(me({ plus: plus({}) })).review, 'No picture yet');
+  const ended = plusPanel(me({ plus: plus({ active: false, until: '2026-10-05T12:00:00Z' }) }));
+  assert.ok(ended.plan.startsWith('Ended 2026/10/0'));
+  assert.equal(ended.link?.label, 'Renew');
 });
 
 const ready = (active: boolean): CyexView => ({ state: 'ready', me: me({ plus: plus({ active }) }), founder: pic('f'), supporter: pic('s') });

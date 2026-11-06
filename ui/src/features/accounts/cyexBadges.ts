@@ -4,7 +4,6 @@
 import type { CyexMe } from '../../ipc/bindings/CyexMe.ts';
 import type { CyexPics } from '../../ipc/bindings/CyexPics.ts';
 import type { CyexView } from '../../ipc/bindings/CyexView.ts';
-import type { MenuEntry } from '../../components/menuItems.ts';
 import { formatDate, formatNumber } from '../../lib/format.ts';
 
 /** V109-B03 The store tab of cyex.app's cosmetics page, and its own-badge tab. */
@@ -98,27 +97,99 @@ export function slot1Current(me: CyexMe): Slot1Option | null {
   return slot1Options(me).find((o) => o.id === c && o.owned) ?? null;
 }
 
-/** V109-B04 Slot 1's menu: owned badges and None, checks on what's worn. Picking the worn one
- *  again takes it off. Kinds not owned: one store item at the end. */
-export function slot1Menu(me: CyexMe, act: { equip: (main: Main | null) => void; store: () => void }): MenuEntry[] {
-  const opts = slot1Options(me);
-  const worn = slot1Current(me)?.id ?? null;
-  return [
-    ...opts.filter((o) => o.owned).map((o) => ({ label: o.label, checked: worn === o.id, run: () => act.equip(worn === o.id ? null : o.id) })),
-    'separator',
-    { label: 'None', checked: worn === null, run: () => act.equip(null) },
-    ...(opts.some((o) => !o.owned) ? ['separator' as const, { label: 'Get in store', run: act.store }] : []),
-  ];
+/** V109-B05 A card in slot 1's picker (the shared cosmetics grid takes this shape). */
+export interface PickerRow {
+  name: string;
+  animated: boolean;
+  usable: boolean;
+  item: { def: { id: string }; images: readonly string[]; stills: readonly string[] | null };
 }
 
-/** V109-B04 Slot 2's menu (Supporter+ only): the picture page, then the on/off switch. */
-export function slot2Menu(me: CyexMe, act: { show: (on: boolean) => void; open: (url: string) => void }): MenuEntry[] {
-  const link = plusState(me).link;
-  const on = me.equipped.custom;
-  return [
-    ...(link ? [{ label: link.label, icon: 'popout' as const, run: () => act.open(link.url) }, 'separator' as const] : []),
-    { label: 'Show in chat', icon: 'eye', checked: on, run: () => act.show(!on) },
-  ];
+const picsList = (p: CyexPics | null) => (p ? [p['1x'], p['2x'] || p['1x'], p['4x'] || p['2x'] || p['1x'], p['4x'] || p['2x'] || p['1x']] : ['', '', '', '']);
+
+/** V109-B05 Slot 1's cards: the badges this account owns, in the kinds list's order. */
+export function slot1Rows(me: CyexMe, view: CyexView): PickerRow[] {
+  return SLOT1_KINDS.filter((k) => owns(me, k.id)).map((k) => ({
+    name: k.label(me),
+    animated: false,
+    usable: true,
+    item: { def: { id: k.id }, images: picsList(k.pics(view)), stills: null },
+  }));
+}
+
+/** Search by name; empty text keeps all. */
+export function filterRows<T extends { name: string }>(rows: readonly T[], text: string): T[] {
+  const t = text.trim().toLowerCase();
+  return t ? rows.filter((r) => r.name.toLowerCase().includes(t)) : [...rows];
+}
+
+/** Some slot-1 kind isn't owned: the picker keeps one quiet store link. */
+export function slot1Missing(me: CyexMe): boolean {
+  return SLOT1_KINDS.some((k) => !owns(me, k.id));
+}
+
+/** V109-B05 Slot 1's choice: what's worn, else the one remembered while it's switched off. */
+export function slot1Choice(me: CyexMe, remembered: string | null): Main | null {
+  const worn = slot1Current(me)?.id;
+  if (worn) return worn;
+  const r = SLOT1_KINDS.find((k) => k.id === remembered);
+  return r && owns(me, r.id) ? r.id : null;
+}
+
+/** V109-B05 The equip call for a pick in slot 1 (null: nothing to do). Picking turns the slot on. */
+export function slot1Pick(me: CyexMe, id: string | null): { main: Main | null } | null {
+  const main = (SLOT1_KINDS.find((k) => k.id === id && owns(me, k.id))?.id ?? null) as Main | null;
+  if (id !== null && !main) return null;
+  return main === (slot1Current(me)?.id ?? null) ? null : { main };
+}
+
+/** The slot-1 choice kept per account while the slot is off (the equip API has only `main`). */
+const REMEMBER_KEY = 'cyex.slot1.';
+
+export function readSlot1(account: string): string | null {
+  try {
+    return localStorage.getItem(REMEMBER_KEY + account);
+  } catch {
+    return null;
+  }
+}
+
+export function saveSlot1(account: string, id: string | null): void {
+  try {
+    if (id) localStorage.setItem(REMEMBER_KEY + account, id);
+    else localStorage.removeItem(REMEMBER_KEY + account);
+  } catch {
+    // Not kept: switching on again starts from None.
+  }
+}
+
+/** V109-B05 The Supporter+ panel: the picture, its review state, the plan, the one link. */
+export interface PlusPanel {
+  picture: CyexPics | null;
+  review: string;
+  plan: string;
+  link: { label: string; url: string } | null;
+}
+
+export function plusPanel(me: CyexMe): PlusPanel {
+  const s = plusState(me);
+  const p = me.plus;
+  const status = p.badge?.status ?? '';
+  const review = p.live
+    ? 'Approved'
+    : s.kind === 'review'
+      ? 'In review'
+      : s.kind === 'rejected' || status === 'rejected'
+        ? 'Not approved. Try another one.'
+        : 'No picture yet';
+  const plan = !p.active
+    ? s.plan
+    : p.renewsAt
+      ? `Active, renews ${day(p.renewsAt)}`
+      : p.until
+        ? `Active until ${day(p.until)}`
+        : 'Active';
+  return { picture: p.live, review, plan, link: s.link };
 }
 
 /** V109-B04 What opening slot 2 found: the plan is on (open), off (locked), or the check failed. */
