@@ -154,7 +154,7 @@
     border: 0;
     outline: none;
     color: var(--text);
-    font: var(--chat-size) / 1.45 var(--chat-font);
+    font: var(--chat-size) / 1.45 'Twemoji Box', var(--chat-font);
   }
   .count {
     flex: none;
