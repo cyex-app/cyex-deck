@@ -4,4 +4,8 @@ import type { CyexPics } from "./CyexPics";
 /**
  * V109-B10 One one-time badge of the catalog (store order), with its title and pictures.
  */
-export type CyexKind = { id: string, title: string, images: CyexPics, };
+export type CyexKind = { id: string, title: string, images: CyexPics, 
+/**
+ * V109-B12 The still frames when `images` move (official badges only).
+ */
+stills: CyexPics | null, };

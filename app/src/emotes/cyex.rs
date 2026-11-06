@@ -251,6 +251,7 @@ pub async fn catalog(app: &AppHandle, ids: &[String]) -> Vec<OneTime> {
                 id: (*id).to_owned(),
                 title: cyex::title(id, None, None),
                 images: cyex::pictures(None, &base, id),
+                still: None,
             })
             .collect(),
     }

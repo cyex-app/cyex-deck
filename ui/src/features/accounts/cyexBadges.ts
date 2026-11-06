@@ -64,7 +64,7 @@ export function oneTimeKinds(me: CyexMe, view: CyexView): CyexKind[] {
   const kinds = view.state === 'ready' ? view.kinds.filter((k) => kindOk(k.id)) : [];
   const extra = me.badges
     .filter((b) => owns(me, b.id) && !kinds.some((k) => k.id === b.id))
-    .map((b) => ({ id: b.id, title: fallbackTitle(b.id), images: { '1x': '', '2x': '', '4x': '' } }));
+    .map((b) => ({ id: b.id, title: fallbackTitle(b.id), images: { '1x': '', '2x': '', '4x': '' }, stills: null }));
   return [...kinds, ...extra.filter((k, i) => extra.findIndex((x) => x.id === k.id) === i)];
 }
 
@@ -122,9 +122,9 @@ export function slot1Rows(me: CyexMe, view: CyexView): PickerRow[] {
     .map((k) => ({
       name: kindLabel(me, k),
       sub: 'One-time',
-      animated: false,
+      animated: !!k.stills,
       usable: true,
-      item: { def: { id: k.id }, images: picsList(k.images), stills: null },
+      item: { def: { id: k.id }, images: picsList(k.images), stills: k.stills ? picsList(k.stills) : null },
     }));
 }
 

@@ -216,6 +216,7 @@ pub async fn view(app: &AppHandle, account: &str) -> CyexView {
                         x2: k.images.x2,
                         x4: k.images.x4,
                     },
+                    stills: k.still.map(|s| model::CyexPics { x1: s.x1, x2: s.x2, x4: s.x4 }),
                 })
                 .collect();
             CyexView::Ready { me, kinds }

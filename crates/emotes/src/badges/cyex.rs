@@ -73,6 +73,9 @@ struct Kind {
     title: String,
     #[serde(default)]
     images: Option<Images>,
+    /// V109-B12 Official badges may move (WebP); `images` is then their still frame.
+    #[serde(rename = "animatedUrls", default)]
+    animated: Option<Images>,
 }
 
 /// V109-B10 One one-time badge of the catalog.
@@ -81,6 +84,8 @@ pub struct OneTime {
     pub id: String,
     pub title: String,
     pub images: Images,
+    /// V109-B12 The still frames when `images` move.
+    pub still: Option<Images>,
 }
 
 impl Kinds {
@@ -94,11 +99,12 @@ impl Kinds {
             .iter()
             .filter(|k| k.id != CUSTOM && kind_ok(&k.id))
             .map(|k| {
-                let (images, title) = built_in(Some(self), base, &k.id);
+                let (images, title, still) = built_in(Some(self), base, &k.id);
                 OneTime {
                     id: k.id.clone(),
                     title: title.filter(|t| !t.trim().is_empty()).map_or_else(|| fallback_title(&k.id), |t| super::title(&t)),
                     images,
+                    still,
                 }
             })
             .collect()
@@ -243,8 +249,9 @@ pub fn pictures(kinds: Option<&Kinds>, base: &str, kind: &str) -> Images {
     built_in(kinds, base, kind).0
 }
 
-/// A one-time badge's pictures: from `/badges`, else the documented paths.
-fn built_in(kinds: Option<&Kinds>, base: &str, kind: &str) -> (Images, Option<String>) {
+/// A one-time badge's pictures: from `/badges`, else the documented paths. V109-B12 A moving
+/// one gives its WebP pictures and the still ones apart.
+fn built_in(kinds: Option<&Kinds>, base: &str, kind: &str) -> (Images, Option<String>, Option<Images>) {
     let k = kinds.and_then(|k| k.badges.iter().find(|b| b.id == kind));
     let images = k.and_then(|k| k.images.clone()).unwrap_or_else(|| {
         let at = |s: &str| format!("{base}/badges/v1/img/{kind}/{s}.png");
@@ -254,10 +261,14 @@ fn built_in(kinds: Option<&Kinds>, base: &str, kind: &str) -> (Images, Option<St
             x4: at("4x"),
         }
     });
-    (images, k.map(|k| k.title.clone()))
+    let title = k.map(|k| k.title.clone());
+    match k.and_then(|k| k.animated.clone()).filter(|a| sizes(a).is_some()) {
+        Some(moving) => (moving, title, Some(images)),
+        None => (images, title, None),
+    }
 }
 
-fn def(id: String, title: String, sizes: [&str; 3]) -> BadgeDef {
+fn def(id: String, title: String, sizes: [&str; 3], still: Option<String>) -> BadgeDef {
     BadgeDef {
         provider: Provider::Twitch,
         id,
@@ -265,7 +276,7 @@ fn def(id: String, title: String, sizes: [&str; 3]) -> BadgeDef {
         image1x: sizes[0].to_owned(),
         image2x: sizes[1].to_owned(),
         image4x: sizes[2].to_owned(),
-        still: None,
+        still,
         color: None,
         replaces: None,
     }
@@ -286,7 +297,7 @@ pub fn badge_id(user: &str, h: &Held) -> String {
 pub fn build<'a>(kinds: Option<&Kinds>, base: &str, users: impl IntoIterator<Item = (&'a String, &'a Vec<Held>)>) -> Loaded {
     let mut out = Loaded::default();
     // One look-up per kind, however many people hold it.
-    let mut one_time: HashMap<String, (Images, Option<String>)> = HashMap::new();
+    let mut one_time: HashMap<String, (Images, Option<String>, Option<Images>)> = HashMap::new();
     let custom_title = kinds.and_then(|k| k.badges.iter().find(|b| b.id == CUSTOM)).map(|k| k.title.clone());
     let mut made = std::collections::HashSet::new();
     for (user, list) in users {
@@ -294,19 +305,21 @@ pub fn build<'a>(kinds: Option<&Kinds>, base: &str, users: impl IntoIterator<Ite
             continue;
         }
         for h in shown(list) {
-            let (images, named) = if h.id == CUSTOM {
+            let (images, named, still) = if h.id == CUSTOM {
+                // Supporter+ pictures never move.
                 match &h.images {
-                    Some(i) => (i, custom_title.as_deref()),
+                    Some(i) => (i, custom_title.as_deref(), None),
                     None => continue,
                 }
             } else {
                 let k = one_time.entry(h.id.clone()).or_insert_with(|| built_in(kinds, base, &h.id));
-                (&k.0, k.1.as_deref())
+                (&k.0, k.1.as_deref(), k.2.as_ref())
             };
             let Some(sizes) = sizes(images) else { continue };
             let id = badge_id(user, h);
             if made.insert(id.clone()) {
-                out.defs.push(def(id.clone(), title(&h.id, h.number, named), sizes));
+                let still = still.and_then(|s| self::sizes(s)).map(|s| s[1].to_owned());
+                out.defs.push(def(id.clone(), title(&h.id, h.number, named), sizes, still));
             }
             out.give(user, &id);
         }
@@ -402,6 +415,30 @@ mod tests {
         assert_eq!(title(SUPPORTER, None, Some("  ")), "cyex supporter");
         assert_eq!(title(CUSTOM, Some(3), None), "cyex supporter+");
         assert_eq!(title("gold", Some(2), Some("cyex gold")), "cyex gold #2");
+    }
+
+    #[test]
+    fn an_official_badge_can_move_with_its_png_as_the_still() {
+        let kinds: Kinds = serde_json::from_str(
+            r#"{"badges":[{"id":"founder","title":"cyex founder","animated":true,
+                            "images":{"1x":"https://x/f1.png","2x":"https://x/f2.png","4x":"https://x/f4.png"},
+                            "animatedUrls":{"1x":"https://x/f1.webp","2x":"https://x/f2.webp","4x":"https://x/f4.webp"}},
+                           {"id":"supporter","title":"cyex supporter","animated":false,"images":null},
+                           {"id":"custom","title":"cyex supporter+","images":null}]}"#,
+        )
+        .unwrap();
+        let s = snap();
+        let l = build(Some(&kinds), BASE, &s.users);
+        let f = l.defs.iter().find(|d| d.id == "cyex:founder-37").unwrap();
+        assert_eq!((f.image1x.as_str(), f.still.as_deref()), ("https://x/f1.webp", Some("https://x/f2.png")));
+        let sp = l.defs.iter().find(|d| d.id == "cyex:supporter").unwrap();
+        assert_eq!(sp.still, None, "a still badge has no still frame");
+        let c = l.defs.iter().find(|d| d.id.starts_with("cyex:u")).unwrap();
+        assert_eq!(c.still, None, "Supporter+ pictures never move");
+        let list = kinds.one_time(BASE);
+        assert_eq!(list[0].images.x2, "https://x/f2.webp");
+        assert_eq!(list[0].still.as_ref().map(|s| s.x2.as_str()), Some("https://x/f2.png"));
+        assert_eq!(list[1].still, None);
     }
 
     #[test]

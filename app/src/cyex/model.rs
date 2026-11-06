@@ -142,6 +142,8 @@ pub struct CyexKind {
     pub id: String,
     pub title: String,
     pub images: CyexPics,
+    /// V109-B12 The still frames when `images` move (official badges only).
+    pub stills: Option<CyexPics>,
 }
 
 /// The cosmetics area of one account.
