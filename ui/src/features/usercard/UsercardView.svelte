@@ -61,6 +61,8 @@
 
   const note = $derived(profile ? settings.v.chat.users[profile.id] : undefined);
   const isChannel = $derived(login === channel);
+  // V109-F64 Your own card has nothing to block, hide or moderate.
+  const isSelf = $derived(!!profile?.id && (profile.id === accounts.current?.userId || profile.id === modAccount));
   const last = $derived(messages.at(-1));
 
   void catalogs.loadGlobal();
@@ -211,7 +213,7 @@
       {#if !isChannel && accounts.current}
         <OtherChannels {channel} userId={profile.id} account={accounts.current.userId} />
       {/if}
-      {#if !isChannel}
+      {#if !isChannel && !isSelf}
         <Actions {profile} {channel} />
         {#if modAccount}
           <ModBar
