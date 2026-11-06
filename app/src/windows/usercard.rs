@@ -51,12 +51,24 @@ pub fn on_focus(window: &tauri::Window, focused: bool) {
             return;
         }
         let app = window.app_handle();
-        let cards = cards(app);
-        // A card opened from this one (an @mention in its logs) stacks on it: both stay
-        // while you move between them, and go together once you click elsewhere.
-        if cards.iter().any(|w| w.is_focused().unwrap_or(false)) {
+        let open: Vec<(String, tauri::WebviewWindow)> = super::panels::open_panels_all(app)
+            .into_iter()
+            .filter(|(route, _)| is_card(route))
+            .filter_map(|(route, label)| app.get_webview_window(&label).map(|w| (route, w)))
+            .collect();
+        let focused = open.iter().find(|(_, w)| w.is_focused().unwrap_or(false));
+        if let Some((to, _)) = focused {
+            // V109-C01d A usercard opened from a reply thread goes when you click back on the thread.
+            let from = open.iter().find(|(_, w)| w.label() == window.label()).map(|(r, _)| r.as_str());
+            if closes_on_return(from, to) && !window.is_always_on_top().unwrap_or(false) {
+                focused_once().lock().unwrap_or_else(|p| p.into_inner()).remove(window.label());
+                let _ = window.close();
+            }
+            // A card opened from this one (an @mention in its logs) stacks on it: both stay
+            // while you move between them, and go together once you click elsewhere.
             return;
         }
+        let cards: Vec<tauri::WebviewWindow> = open.into_iter().map(|(_, w)| w).collect();
         for w in cards {
             let seen = focused_once().lock().unwrap_or_else(|p| p.into_inner()).contains(w.label());
             if seen && !w.is_always_on_top().unwrap_or(false) {
@@ -67,13 +79,10 @@ pub fn on_focus(window: &tauri::Window, focused: bool) {
     });
 }
 
-/// The open cards: usercards and role lists.
-fn cards(app: &AppHandle) -> Vec<tauri::WebviewWindow> {
-    super::panels::open_panels_all(app)
-        .into_iter()
-        .filter(|(route, _)| is_card(route))
-        .filter_map(|(_, label)| app.get_webview_window(&label))
-        .collect()
+/// V109-C01d A card left for a reply thread closes (it was opened from the thread); other
+/// cards stack and stay while you move between them.
+fn closes_on_return(from: Option<&str>, to: &str) -> bool {
+    is_thread(to) && from.is_some_and(|f| !is_thread(f))
 }
 
 pub fn is_usercard(route: &str) -> bool {
@@ -187,6 +196,10 @@ mod tests {
         // V109-C01 A reply thread too.
         assert!(is_popup("thread/a/m1") && is_card("thread/a/m1"));
         assert_eq!(settings_key("thread/a/m1"), "thread");
+        // V109-C01d Back on a thread, a usercard goes; between threads or usercards, both stay.
+        assert!(super::closes_on_return(Some("usercard/a/b"), "thread/a/m1"));
+        assert!(!super::closes_on_return(Some("thread/a/m2"), "thread/a/m1"));
+        assert!(!super::closes_on_return(Some("usercard/a/b"), "usercard/a/c"));
         assert!(!is_popup("chat/x"));
         assert!(!is_popup("modview/a"));
         assert!(!is_popup("overlay/x"));
