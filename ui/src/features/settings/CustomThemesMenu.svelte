@@ -8,6 +8,7 @@
   import { scrollBehavior } from '../../lib/motion';
   import { scrollWithin } from '../../lib/scrollWithin';
   import { PLAIN_PREVIEW } from './themes';
+  import { updateAvailable, updateLabel } from './themeLink';
 
   interface Props {
     themes: CustomTheme[];
@@ -58,9 +59,11 @@
         <div class="list">
           {#each themes as t (t.id)}
             {@const on = t.id === activeId}
+            {@const next = updateAvailable(t.link)}
             <button class="row" role="menuitemradio" aria-checked={on} onclick={() => onpick(t.id)}>
               <span class="sw" style:background={bg(t)}><u style:background={fill(t)}></u></span>
               <span class="name">{t.name}</span>
+              {#if next !== null}<span class="upd" title={updateLabel(next)}>v{next}</span>{/if}
               <span class="tick">{#if on}<Icon name="check" size={14} />{/if}</span>
             </button>
           {/each}
@@ -138,6 +141,16 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  /* V109-T01 A newer version of a theme from a link. */
+  .upd {
+    flex: none;
+    padding: 0 5px;
+    border: 1px solid var(--accent-border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: var(--text-hint);
+    line-height: 16px;
   }
   .tick {
     flex: none;

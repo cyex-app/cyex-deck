@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { dateAt, goneDue, isGone, nextAfter, type Piece, posAt } from './replayClock.ts';
+import { dateAt, goneDue, isGone, nextAfter, type Piece, posAt, replayStart } from './replayClock.ts';
 
 const T0 = Date.parse('2026-10-29T12:00:00Z');
 
@@ -35,6 +35,16 @@ test('init segments and missing dates are skipped', () => {
   const init: Piece = { sn: 'initSegment', start: 0, duration: 0, programDateTime: T0 - 1 };
   assert.equal(posAt([init, ...pieces], T0 + 1000), 1);
   assert.equal(dateAt([init, ...pieces], 0), T0);
+});
+
+test('V108-N24b the replay starts once, where the playlist it read has the spot', () => {
+  // The offset (5 s) was read with sn 10 still in the ring; the playlist hls.js got starts at
+  // sn 11. Placed here, before anything loads: no second startLoad (that one left hls.js stuck).
+  const trimmed = pieces.slice(1).map((p) => ({ ...p, start: p.start - 2 }));
+  assert.equal(replayStart(trimmed, T0 + 5000, 5), 3);
+  assert.equal(replayStart(pieces, T0 + 5000, 5), 5, 'nothing trimmed: the same spot');
+  assert.equal(replayStart(undefined, T0 + 5000, 5), 5, 'no segments read: the offset');
+  assert.equal(replayStart([{ sn: 1, start: 0, duration: 2, programDateTime: null }], T0, 7), 7, 'no dates: the offset');
 });
 
 test('the next segment after a missing one', () => {

@@ -572,6 +572,24 @@ pub fn recent_from(app: &AppHandle, channel: &str, user_id: &str) -> Vec<Arc<Cha
         .unwrap_or_default()
 }
 
+/// V109-C01 Follows (or stops following) the thread that starts at message `thread` in
+/// every open room of the channel; a new line in it pings like a reply to you. Kept for
+/// the run, with the room.
+pub fn follow_thread(app: &AppHandle, channel: &str, thread: &str, on: bool) {
+    let chat = app.state::<Chat>();
+    let mut inner = chat.lock();
+    for (_, e) in inner.rooms.iter_mut().filter(|((_, login), _)| login == channel) {
+        e.room.follow_thread(thread, on);
+    }
+}
+
+/// V109-C01 Whether the thread is followed in any open room of the channel.
+pub fn follows_thread(app: &AppHandle, channel: &str, thread: &str) -> bool {
+    let chat = app.state::<Chat>();
+    let inner = chat.lock();
+    inner.rooms.iter().any(|((_, login), e)| login == channel && e.room.follows_thread(thread))
+}
+
 /// A line only the user sees, in every view of one room.
 pub fn local_line(app: &AppHandle, key: &RoomKey, kind: NoticeKind, text: &str) {
     let Some(chat) = app.try_state::<Chat>() else { return };

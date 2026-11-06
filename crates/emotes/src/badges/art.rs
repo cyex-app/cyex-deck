@@ -11,7 +11,7 @@ pub const SIDE: u32 = 8;
 const LEN: usize = (SIDE * SIDE * 4) as usize;
 /// Twice the mean difference per channel (0..255) still counted as the same art: 2.5. Re-encodes
 /// of one badge measured 0 to 2.5; the closest different badges 3.7 and up (Homies, DankChat,
-/// FFZ:AP, BadgeHQ, Chatsen, 1.026 pictures, 2026/10/30).
+/// FFZ:AP, Chatsen, 1.026 pictures, 2026/10/30).
 const ALIKE_TWICE: u32 = 5;
 /// Mean alpha below this: too little picture to compare (a dot on a clear square), never merged.
 const MIN_COVER: u32 = 32;

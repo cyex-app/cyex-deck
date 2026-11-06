@@ -43,9 +43,11 @@
     mod?: LineMod | null;
     /** V1051-03 The cosmetics preview: draw this look instead of the sender's. */
     look?: Look | null;
+    /** V109-C01 The thread view: no "Replying to" row for a reply to this line (it is shown just above). */
+    replyHidden?: string;
   }
 
-  let { m, channel, canReply = false, inWhispers = false, stripe = false, mod = null, look }: Props = $props();
+  let { m, channel, canReply = false, inWhispers = false, stripe = false, mod = null, look, replyHidden }: Props = $props();
 
   /** The hover buttons exist only under the pointer (or the keyboard's pick, F54): a long history has none to carry. */
   const hoverOwner = getContext<symbol | undefined>(HOVER_OWNER);
@@ -129,8 +131,9 @@
       <Icon name="whisper" size={12} />
       <span>{m.whisperTo ? `Whisper to ${m.whisperTo}` : 'Whisper'}</span>
     </div>
-  {:else if m.reply}
-    <div class="context" data-jump={m.reply.parentId}>
+  {:else if m.reply && m.reply.parentId !== replyHidden}
+    <!-- V109-C01 A click opens the thread; Shift+click still jumps to the line it answers. -->
+    <div class="context" data-jump={m.reply.parentId} data-thread={m.reply.threadId}>
       <Icon name="replied" size={12} />
       <span>Replying to <b>@{m.reply.parentDisplay}</b>: <bdi>{m.reply.parentBody}</bdi></span>
     </div>

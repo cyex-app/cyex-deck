@@ -79,6 +79,9 @@ export const chatIpc = {
   setSmilies: (account: string, name: string) => invoke<Smilies>('chat_set_smilies', { account, name }),
   userMessages: (channel: string, userId: string) =>
     invoke<ChatMessage[]>('chat_user_messages', { channel, userId }),
+  /** V109-C01 Follow a reply thread (its first message's id): new lines in it ping like replies to you. */
+  threadFollow: (channel: string, thread: string, on: boolean) => invoke<void>('chat_thread_follow', { channel, thread, on }),
+  threadFollowed: (channel: string, thread: string) => invoke<boolean>('chat_thread_followed', { channel, thread }),
   /** X2 Where a link ends up after redirects, and 1.52 its card (V108-C25). Rust caches it. */
   resolveLink: (url: string) => invoke<LinkPreview | null>('chat_resolve_link', { url }),
   profile: (login?: string, id?: string) => invoke<Profile | null>('user_profile', { login, id }),

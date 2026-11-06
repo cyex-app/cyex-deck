@@ -1,4 +1,4 @@
-//! V108-N06 Extra badge sets from community services: FFZ:AP, BadgeHQ, Chatsen, DankChat and
+//! V108-N06 Extra badge sets from community services: FFZ:AP, Chatsen, DankChat and
 //! Homies. Each is one public list fetched at start and again slowly; who wears what is
 //! kept by Twitch user id in [`crate::Cosmetics`]. Nothing is asked per message.
 //!
@@ -6,8 +6,8 @@
 //! `<set>:<name>`, so [`BadgeSet::of_id`] tells which switch governs them.
 
 pub mod art;
-pub mod badgehq;
 pub mod chatsen;
+pub mod cyex;
 pub mod dankchat;
 pub mod ffzap;
 pub mod homies;
@@ -30,29 +30,31 @@ const MAX_USERS: usize = 100_000;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BadgeSet {
     FfzAp,
-    BadgeHq,
     Chatsen,
     DankChat,
     Homies,
+    /// V109-B02 cyex's own badges. The app loads them itself (with an ETag, its own switch);
+    /// they draw before 7TV's, right after Twitch's.
+    Cyex,
 }
 
 impl BadgeSet {
     pub const ALL: [BadgeSet; 5] = [
         BadgeSet::FfzAp,
-        BadgeSet::BadgeHq,
         BadgeSet::Chatsen,
         BadgeSet::DankChat,
         BadgeSet::Homies,
+        BadgeSet::Cyex,
     ];
 
     /// The start of every badge id of this set.
     pub fn prefix(self) -> &'static str {
         match self {
             BadgeSet::FfzAp => "ffzap",
-            BadgeSet::BadgeHq => "badgehq",
             BadgeSet::Chatsen => "chatsen",
             BadgeSet::DankChat => "dankchat",
             BadgeSet::Homies => "homies",
+            BadgeSet::Cyex => "cyex",
         }
     }
 
@@ -90,10 +92,14 @@ impl Loaded {
 pub async fn fetch(http: &Http, set: BadgeSet) -> Result<Loaded> {
     match set {
         BadgeSet::FfzAp => http.get_json::<ffzap::Raw>(ffzap::URL).await.map(Into::into),
-        BadgeSet::BadgeHq => http.get_json::<badgehq::Raw>(badgehq::URL).await.map(Into::into),
         BadgeSet::Chatsen => http.get_json::<chatsen::Raw>(chatsen::URL).await.map(Into::into),
         BadgeSet::DankChat => http.get_json::<dankchat::Raw>(dankchat::URL).await.map(Into::into),
         BadgeSet::Homies => homies::fetch(http).await,
+        BadgeSet::Cyex => {
+            let kinds = cyex::fetch_kinds(http, cyex::BASE).await.ok();
+            let snap = cyex::fetch_users(http, cyex::BASE, &mut cyex::Tagged::default()).await?;
+            Ok(cyex::build(kinds.as_ref(), cyex::BASE, &snap.unwrap_or_default().users))
+        }
     }
 }
 

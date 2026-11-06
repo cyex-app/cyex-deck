@@ -5,6 +5,7 @@
 pub mod browser;
 pub mod caps;
 mod chat;
+mod cyex;
 pub mod device;
 mod error;
 pub mod inspect;
@@ -20,6 +21,7 @@ mod view;
 
 pub use caps::Feature;
 pub use chat::{chat_token, chat_token_kind};
+pub use cyex::{CyexSession, CyexSessions};
 pub use error::AuthError;
 pub use kind::TokenKind;
 pub use secrets::Secret;

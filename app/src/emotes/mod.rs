@@ -6,6 +6,7 @@
 mod art;
 mod card;
 mod card_flags;
+pub mod cyex;
 pub mod edit;
 mod extra;
 mod ffz_watch;
@@ -160,6 +161,7 @@ pub fn init(app: &AppHandle) {
     providers::spawn_bttv(app.clone(), bttv_rx);
     looks::spawn(app.clone());
     extra::init(app);
+    cyex::init(app);
     ffz_watch::init(app);
     art::init(app);
 }
@@ -451,6 +453,7 @@ pub async fn ready(app: &AppHandle, login: &str, limit: Duration) {
 /// Chat settings changed: the provider order may have too (C11).
 pub fn on_settings(app: &AppHandle) {
     extra::sync(app);
+    cyex::sync(app);
     let Some(state) = app.try_state::<Emotes>() else {
         return;
     };

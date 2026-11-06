@@ -451,6 +451,8 @@ pub struct BadgeToggles {
     pub seventv: bool,
     pub bttv: bool,
     pub ffz: bool,
+    /// V109-B02 cyex badges (founder, supporter, supporter+). Off: their list isn't fetched.
+    pub cyex: bool,
 }
 
 impl Default for BadgeToggles {
@@ -460,6 +462,7 @@ impl Default for BadgeToggles {
             seventv: true,
             bttv: true,
             ffz: true,
+            cyex: true,
         }
     }
 }
@@ -548,6 +551,14 @@ impl Default for Timestamps {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v109_b02_cyex_badges_start_on_for_old_files() {
+        let b: BadgeToggles = serde_json::from_str(r#"{"seventv":false}"#).unwrap();
+        assert!(b.cyex && !b.seventv);
+        let off: BadgeToggles = serde_json::from_str(r#"{"cyex":false}"#).unwrap();
+        assert!(!off.cyex && off.twitch);
+    }
 
     #[test]
     fn paint_outline_defaults_on_for_old_files() {

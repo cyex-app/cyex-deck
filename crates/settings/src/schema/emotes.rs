@@ -25,13 +25,12 @@ pub struct Emotes {
     pub badge_sets: BadgeSets,
 }
 
-/// V108-N06 FFZ:AP, BadgeHQ, Chatsen, DankChat and Homies badges.
+/// V108-N06 FFZ:AP, Chatsen, DankChat and Homies badges.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(default, rename_all = "camelCase")]
 #[ts(export)]
 pub struct BadgeSets {
     pub ffzap: bool,
-    pub badgehq: bool,
     pub chatsen: bool,
     pub dankchat: bool,
     pub homies: bool,
@@ -172,9 +171,15 @@ mod tests {
     #[test]
     fn badge_sets_start_off_and_read_alone() {
         let e: Emotes = serde_json::from_str(r#"{"badgeSets":{"homies":true}}"#).unwrap();
-        assert!(e.badge_sets.homies && !e.badge_sets.ffzap && !e.badge_sets.badgehq);
+        assert!(e.badge_sets.homies && !e.badge_sets.ffzap);
         assert_eq!(Emotes::default().badge_sets, BadgeSets::default());
         assert!(!BadgeSets::default().chatsen && !BadgeSets::default().dankchat);
+    }
+
+    #[test]
+    fn removed_badgehq_key_in_old_files_is_ignored() {
+        let e: Emotes = serde_json::from_str(r#"{"badgeSets":{"badgehq":true,"ffzap":true}}"#).unwrap();
+        assert!(e.badge_sets.ffzap);
     }
 
     #[test]

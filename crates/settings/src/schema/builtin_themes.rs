@@ -19,6 +19,7 @@ fn theme(id: &str, name: &str, base: Theme, accent: &str, colors: &[(&str, &str)
             .collect(),
         accent: accent.into(),
         wallpaper: Wallpaper::default(),
+        link: Default::default(),
     }
 }
 

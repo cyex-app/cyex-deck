@@ -1,5 +1,6 @@
-<!-- U8 Editing one custom theme: its colors on top of dark or light, a wallpaper, and its
-     share code. Changes save as you go; Rust nudges colors that would hurt readability. -->
+<!-- U8 Editing one custom theme: its colors on top of dark or light, a wallpaper, and
+     sharing (V109-T01 a link, or the old code). Changes save as you go; Rust nudges colors
+     that would hurt readability. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import ColorField from './ColorField.svelte';
@@ -14,7 +15,8 @@
   import { toast } from '../../lib/toast.svelte';
   import { COLOR_NAMES, adjustedNote, appliedHex, isLink, keptNote } from './themes';
   import { errorText } from '../../lib/errors';
-  import { copy } from '../../lib/clipboard';
+  import ThemeLinkNotice from './ThemeLinkNotice.svelte';
+  import ThemeShare from './ThemeShare.svelte';
 
   interface Props {
     theme: CustomTheme;
@@ -95,17 +97,10 @@
     input.value = '';
   }
 
-  async function copyCode() {
-    try {
-      const ok = await copy(await themeIpc.code(theme.id), 'Theme code');
-      if (ok && w.source && !isLink(w.source)) toast.info('Your wallpaper file stays on this PC.');
-    } catch (e) {
-      toast.error(errorText(e));
-    }
-  }
 </script>
 
 <div class="editor" data-theme-editor>
+  <ThemeLinkNotice {theme} {flush} />
   <Row label="Name">
     <input
       class="field name"
@@ -190,7 +185,7 @@
   {/if}
 
   <div class="actions">
-    <Button small icon="copy" onclick={copyCode}>Copy theme code</Button>
+    <ThemeShare {theme} {flush} />
     <Button small icon="trash" variant="ghost" onclick={ondelete}>Delete theme</Button>
   </div>
 </div>
@@ -281,6 +276,7 @@
   .actions {
     display: flex;
     justify-content: space-between;
+    align-items: flex-start;
     gap: 8px;
     padding-top: 12px;
   }

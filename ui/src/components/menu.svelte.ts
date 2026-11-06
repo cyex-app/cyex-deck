@@ -5,6 +5,7 @@ import { gate } from '../lib/gate.svelte';
 import { type Align, point, type Rect } from '../lib/place';
 import { type MenuEntry, type MenuItem, tidy } from './menuItems';
 import { confirmer } from './menuConfirm';
+import { menuTrigger } from './menuTrigger';
 
 export type { MenuEntry, MenuField, MenuItem } from './menuItems';
 
@@ -18,6 +19,14 @@ export const menu = $state({
   /** V107-P5 The `confirm` item waiting for its second pick. */
   armed: null as MenuItem | null,
 });
+
+/** V109-F61 The button the open menu came from: clicking it again closes the menu. */
+const trigger = menuTrigger();
+
+/** The mouse-down is on the open menu's own button: the click that follows closes the menu. */
+export function menuOwns(node: EventTarget | null): boolean {
+  return trigger.owns(node);
+}
 
 const confirming = confirmer<MenuItem>((item) => (menu.armed = item));
 
@@ -42,6 +51,11 @@ export function openMenu(
   items: MenuEntry[],
   align: Align = 'start',
 ): void {
+  if (at instanceof Element && menu.open && trigger.isOpenFor(at)) {
+    shut();
+    return;
+  }
+  trigger.set(at instanceof Element ? at : null);
   menu.anchor = at instanceof Element ? at.getBoundingClientRect() : point(at.clientX, at.clientY);
   menu.align = align;
   confirming.cancel();
@@ -60,6 +74,7 @@ export function closeMenu(): void {
 
 /** L1 Closed menus keep no items: their run closures hold the chat or player they came from. */
 function shut(): void {
+  trigger.clear();
   confirming.cancel();
   menu.open = false;
   menu.stack = [];

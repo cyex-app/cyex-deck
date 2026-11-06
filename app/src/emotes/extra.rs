@@ -1,4 +1,4 @@
-//! V108-N06 Extra badge sets (FFZ:AP, BadgeHQ, Chatsen, DankChat, Homies). A set is fetched once
+//! V108-N06 Extra badge sets (FFZ:AP, Chatsen, DankChat, Homies). A set is fetched once
 //! its switch is on (a few seconds after start so startup stays quiet), kept in `Cosmetics`, and
 //! fetched again every few hours. Turning it off drops the list at once. One task per set; nothing
 //! runs per message.
@@ -49,7 +49,6 @@ pub fn init(app: &AppHandle) {
 fn wanted(s: &BadgeSets) -> HashSet<BadgeSet> {
     [
         (s.ffzap, BadgeSet::FfzAp),
-        (s.badgehq, BadgeSet::BadgeHq),
         (s.chatsen, BadgeSet::Chatsen),
         (s.dankchat, BadgeSet::DankChat),
         (s.homies, BadgeSet::Homies),

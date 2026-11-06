@@ -7,6 +7,7 @@ mod chat_extra;
 mod community;
 mod content;
 mod cosmetics;
+mod cyex;
 mod discord;
 mod emotes;
 pub mod feeds;
@@ -34,6 +35,7 @@ mod subs;
 pub mod system;
 mod tabs;
 mod theme;
+mod theme_share;
 mod update;
 mod upload;
 mod usercard;
@@ -145,6 +147,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         chat::chat_set_color,
         chat::chat_set_smilies,
         chat::chat_user_messages,
+        chat::chat_thread_follow,
+        chat::chat_thread_followed,
         chat::chat_resolve_link,
         chat::user_profile,
         chat::chat_menu,
@@ -289,6 +293,12 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         streammanager::sm_obs_pick_folder,
         streammanager::sm_obs_files,
         streammanager::sm_obs_open_file,
+        cyex::cyex_view,
+        cyex::cyex_equip,
+        cyex::cyex_redeem,
+        cyex::cyex_badge_history,
+        cyex::cyex_badge_restore,
+        cyex::cyex_badge_preview,
         cosmetics::cosmetics_view,
         cosmetics::cosmetics_allow,
         cosmetics::cosmetics_select,
@@ -382,8 +392,17 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         theme::theme_builtins,
         theme::theme_add,
         theme::theme_code,
-        theme::theme_import,
         theme::theme_pick_wallpaper,
+        theme_share::theme_share,
+        theme_share::theme_share_update,
+        theme_share::theme_share_stop,
+        theme_share::theme_share_can_edit,
+        theme_share::theme_preview,
+        theme_share::theme_add_preview,
+        theme_share::theme_report,
+        theme_share::theme_link_update,
+        theme_share::theme_link_restore,
+        theme_share::theme_link_ignore,
         mentions::mentions_check,
         mentions::mentions_global_status,
         mentions::mentions_pick_sound,
