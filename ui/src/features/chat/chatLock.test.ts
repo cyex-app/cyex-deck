@@ -77,6 +77,8 @@ test('a ban outranks a timeout, a timeout a warning', () => {
   const w = lockOf(input({ warning }))!;
   assert.equal(w.kind === 'warn' && w.warning.reason, 'be nice');
   assert.equal(lockOf(input({ said: { how: { kind: 'warned' }, at: NOW } }))?.kind, 'warn');
+  // V108-C40g A later read (which never knows of warnings) doesn't drop IRC's warning.
+  assert.equal(lockOf(input({ said: { how: { kind: 'warned' }, at: NOW - 60_000 }, readAt: NOW }))?.kind, 'warn');
 });
 
 test('reads again when it matters', () => {
