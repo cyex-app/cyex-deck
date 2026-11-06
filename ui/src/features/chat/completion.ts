@@ -161,3 +161,10 @@ export function commaStep(plan: CommaPlan, back: boolean): CommaPlan {
   const n = plan.items.length;
   return { ...plan, stage: 'comma', index: (plan.index + (back ? n - 1 : 1)) % n };
 }
+
+/** V109-F68 A word typed out exactly as an emote or name: the first Tab keeps it (and adds the
+ *  space), further Tabs cycle the other matches. Case must match. */
+export function keepExact(items: readonly string[], typed: string, known: (name: string) => boolean): string[] {
+  if (!typed || !known(typed)) return [...items];
+  return [typed, ...items.filter((v) => v !== typed)];
+}

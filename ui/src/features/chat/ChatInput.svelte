@@ -16,7 +16,7 @@
   import { accounts } from '../../lib/accounts.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { rankNames } from '../emotes/ranking';
-  import { commaStart, commaStep, commaValue, insert, startsMessage, wordAt, type CommaPlan, type Word } from './completion';
+  import { commaStart, commaStep, commaValue, insert, keepExact, startsMessage, wordAt, type CommaPlan, type Word } from './completion';
   import { formatNumber } from '../../lib/format';
   import { commandAt, commandHint, commandMatches, tabTakes } from './commandTab';
   import { argAt, argMatches } from './commandArgs';
@@ -407,7 +407,13 @@
     const found = await all().finally(() => (asking = false));
     // The box changed while plugins or Rust thought about it.
     if (text !== before) return;
-    const items = [...new Set(found)];
+    let items = [...new Set(found)];
+    // V109-F68 Typed out exactly (an emote or a name): the first Tab keeps it and adds the space.
+    if (!arg && command === null) {
+      const known = (v: string) =>
+        sources.emotes().some((e) => e.name === v) || sources.chatters().includes(v.replace(/^@/, ''));
+      items = keepExact(items, word.text, known);
+    }
     // V108-MC "Mention users with a comma": only for the first word, never for a command.
     let comma: CommaPlan | undefined;
     if (settings.v.chat.mentionComma && !arg && command === null && startsMessage(text, word)) {

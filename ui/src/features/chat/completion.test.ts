@@ -116,3 +116,12 @@ test('V108-MC emotes and plugin values stay as they are; emotes are left out of 
   const p = commaStart(['seryxx', 'seryHype', 'seryna'], 'sery', isUser)!;
   assert.deepEqual(p.items, ['seryxx', 'seryna']);
 });
+
+test('V109-F68 an exact emote stays first, then the others cycle', async () => {
+  const { keepExact } = await import('./completion.ts');
+  const known = new Set(['how', 'howdy', 'HOWL']);
+  assert.deepEqual(keepExact(['howdy', 'HOWL'], 'how', (n) => known.has(n)), ['how', 'howdy', 'HOWL']);
+  assert.deepEqual(keepExact(['howdy', 'HOWL'], 'ho', (n) => known.has(n)), ['howdy', 'HOWL']);
+  assert.deepEqual(keepExact(['howdy'], 'How', (n) => known.has(n)), ['howdy']);
+  assert.deepEqual(keepExact([], 'how', (n) => known.has(n)), ['how']);
+});
