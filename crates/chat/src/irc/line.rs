@@ -34,7 +34,13 @@ impl<'a> Line<'a> {
             Some(i) => (&rest[..i], Some(&rest[i + 2..])),
             None => match rest.strip_prefix(':') {
                 Some(t) => ("", Some(t)),
-                None => (rest, None),
+                // V109-F66 The colon is optional for a last param without spaces; the
+                // history service drops it (`PRIVMSG #chan Kappa`). One param stays a
+                // middle one (`JOIN #chan`).
+                None => match rest.trim_end_matches(' ').rsplit_once(' ') {
+                    Some((middle, last)) => (middle, Some(last)),
+                    None => (rest, None),
+                },
             },
         };
         Some(Self {
@@ -188,6 +194,17 @@ mod tests {
 
         let state = Line::parse("@emote-only=0;room-id=1;slow=10 :tmi.twitch.tv ROOMSTATE #chan").unwrap();
         assert_eq!(state.tag_num::<u32>("slow"), Some(10));
+    }
+
+    #[test]
+    fn v109_f66_a_one_word_message_without_the_colon() {
+        // As recent-messages.robotty.de sends an emote-only line.
+        let l = Line::parse("@id=a;historical=1 :regressz!regressz@regressz.tmi.twitch.tv PRIVMSG #satxris plaksa").unwrap();
+        assert_eq!((l.channel(), l.trailing()), (Some("satxris"), Some("plaksa")));
+        let emoji = Line::parse(":a!a@a PRIVMSG #chan 🚌 ").unwrap();
+        assert_eq!((emoji.channel(), emoji.trailing()), (Some("chan"), Some("🚌")));
+        let ban = Line::parse(":tmi.twitch.tv CLEARCHAT #chan someone").unwrap();
+        assert_eq!((ban.channel(), ban.trailing()), (Some("chan"), Some("someone")));
     }
 
     #[test]
