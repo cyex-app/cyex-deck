@@ -134,7 +134,7 @@
       {#if orphan}
         <p class="orphan"><b>{orphan.display}</b> <bdi>{orphan.body}</bdi></p>
       {/if}
-      {#each lines as m (m.id)}<Line {m} {channel} />{/each}
+      {#each lines as m (m.id)}<Line {m} {channel} replyHidden={lines[0]?.id === threadId ? threadId : undefined} />{/each}
       {#if !lines.length && !orphan}
         {#if !loaded}<Loading />{:else}<p class="empty">{room.error || 'This thread has left the chat.'}</p>{/if}
       {/if}
