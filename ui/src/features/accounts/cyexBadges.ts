@@ -3,6 +3,7 @@
 
 import type { CyexMe } from '../../ipc/bindings/CyexMe.ts';
 import type { CyexPics } from '../../ipc/bindings/CyexPics.ts';
+import type { CyexHistory } from '../../ipc/bindings/CyexHistory.ts';
 import type { CyexView } from '../../ipc/bindings/CyexView.ts';
 import { formatDate, formatNumber } from '../../lib/format.ts';
 
@@ -167,21 +168,27 @@ export function saveSlot1(account: string, id: string | null): void {
 export interface PlusPanel {
   picture: CyexPics | null;
   review: string;
+  /** V109-B06 Why the newest upload was turned down. */
+  reason: string;
   plan: string;
   link: { label: string; url: string } | null;
 }
 
+const REVIEWING = ['pending', 'review', 'waiting'];
+const TURNED_DOWN = ['rejected', 'removed'];
+
+/** V109-B06 The newest upload's state comes first; the live picture keeps showing meanwhile. */
 export function plusPanel(me: CyexMe): PlusPanel {
   const s = plusState(me);
   const p = me.plus;
   const status = p.badge?.status ?? '';
-  const review = p.live
-    ? 'Approved'
-    : s.kind === 'review'
-      ? 'In review'
-      : s.kind === 'rejected' || status === 'rejected'
-        ? 'Not approved. Try another one.'
-        : 'No picture yet';
+  let review = p.live ? 'Approved' : 'No picture yet';
+  let reason = '';
+  if (REVIEWING.includes(status)) review = p.live ? 'New picture in review' : 'In review';
+  else if (TURNED_DOWN.includes(status)) {
+    review = p.live ? 'New picture not approved' : 'Not approved';
+    reason = p.badge?.reason?.trim() || 'Try another one.';
+  }
   const plan = !p.active
     ? s.plan
     : p.renewsAt
@@ -189,7 +196,43 @@ export function plusPanel(me: CyexMe): PlusPanel {
       : p.until
         ? `Active until ${day(p.until)}`
         : 'Active';
-  return { picture: p.live, review, plan, link: s.link };
+  return { picture: p.live, review, reason, plan, link: s.link };
+}
+
+/** V109-B06 A line in the upload history. */
+export interface UploadRow {
+  id: number;
+  pics: CyexPics | null;
+  date: string;
+  status: string;
+  reason: string;
+  live: boolean;
+  restorable: boolean;
+}
+
+const STATUS: Record<string, string> = {
+  approved: 'Approved',
+  pending: 'In review',
+  review: 'In review',
+  waiting: 'In review',
+  rejected: 'Not approved',
+  removed: 'Removed',
+  withdrawn: 'Withdrawn',
+};
+
+export function uploadRows(h: CyexHistory): UploadRow[] {
+  return h.items.map((u) => {
+    const live = u.id === h.live;
+    return {
+      id: u.id,
+      pics: u.images,
+      date: day(u.uploadedAt),
+      status: live ? 'Live' : (STATUS[u.status] ?? (u.status ? u.status[0].toUpperCase() + u.status.slice(1) : '')),
+      reason: TURNED_DOWN.includes(u.status) ? (u.reason?.trim() ?? '') : '',
+      live,
+      restorable: u.restorable && !live,
+    };
+  });
 }
 
 /** V109-B04 What opening slot 2 found: the plan is on (open), off (locked), or the check failed. */

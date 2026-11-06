@@ -2,7 +2,7 @@
 
 use tauri::AppHandle;
 
-use crate::cyex::{self, CyexEquipped, CyexView};
+use crate::cyex::{self, CyexEquipped, CyexHistory, CyexView};
 
 #[tauri::command]
 pub async fn cyex_view(app: AppHandle, account: String) -> CyexView {
@@ -19,4 +19,16 @@ pub async fn cyex_equip(app: AppHandle, account: String, main: Option<String>, c
 #[tauri::command]
 pub async fn cyex_redeem(app: AppHandle, account: String, code: String) -> Result<String, String> {
     cyex::redeem(&app, &account, &code).await
+}
+
+/// V109-B06 The Supporter+ uploads; rejects with the message to show.
+#[tauri::command]
+pub async fn cyex_badge_history(app: AppHandle, account: String) -> Result<CyexHistory, String> {
+    cyex::history(&app, &account).await
+}
+
+/// V109-B06 Puts an earlier approved upload back live; rejects with the message to show.
+#[tauri::command]
+pub async fn cyex_badge_restore(app: AppHandle, account: String, id: u64) -> Result<(), String> {
+    cyex::restore(&app, &account, id).await
 }

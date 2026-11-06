@@ -17,7 +17,7 @@ use cyex_twitch::Http;
 use serde_json::Value;
 use tauri::{AppHandle, Manager};
 
-pub use model::{CyexEquipped, CyexMe, CyexView};
+pub use model::{CyexEquipped, CyexHistory, CyexMe, CyexView};
 
 use api::ApiError;
 
@@ -86,12 +86,16 @@ enum Op<'a> {
     Me,
     Equip(Option<&'a str>, bool),
     Redeem(&'a str),
+    History,
+    Restore(u64),
 }
 
 enum Out {
     Me(Box<CyexMe>),
     Equipped(CyexEquipped),
     Reward(Value),
+    History(CyexHistory),
+    Done,
 }
 
 enum Fail {
@@ -104,6 +108,8 @@ async fn run(http: &Http, base: &str, token: &str, op: &Op<'_>) -> Result<Out, A
         Op::Me => api::me(http, base, token).await.map(|m| Out::Me(Box::new(m))),
         Op::Equip(main, custom) => api::equip(http, base, token, *main, *custom).await.map(Out::Equipped),
         Op::Redeem(code) => api::redeem(http, base, token, code).await.map(Out::Reward),
+        Op::History => api::history(http, base, token).await.map(|h| Out::History(h.tidy())),
+        Op::Restore(id) => api::restore(http, base, token, *id).await.map(|()| Out::Done),
     }
 }
 
@@ -264,6 +270,30 @@ pub async fn redeem(app: &AppHandle, account: &str, code: &str) -> Result<String
     }
     match with_session(app, account, Op::Redeem(code)).await {
         Ok(Out::Reward(r)) => Ok(words::reward(&r)),
+        Ok(_) => Err(words::OFFLINE.into()),
+        Err(f) => Err(fail_text(f)),
+    }
+}
+
+/// V109-B06 The account's Supporter+ uploads, for the panel. Rejects with the message to show.
+pub async fn history(app: &AppHandle, account: &str) -> Result<CyexHistory, String> {
+    if !known(app, account) {
+        return Err("Unknown account.".into());
+    }
+    match with_session(app, account, Op::History).await {
+        Ok(Out::History(h)) => Ok(h),
+        Ok(_) => Err(words::OFFLINE.into()),
+        Err(f) => Err(fail_text(f)),
+    }
+}
+
+/// V109-B06 "Use again": an earlier approved upload goes live. Rejects with the message to show.
+pub async fn restore(app: &AppHandle, account: &str, id: u64) -> Result<(), String> {
+    if !known(app, account) {
+        return Err("Unknown account.".into());
+    }
+    match with_session(app, account, Op::Restore(id)).await {
+        Ok(Out::Done) => Ok(()),
         Ok(_) => Err(words::OFFLINE.into()),
         Err(f) => Err(fail_text(f)),
     }

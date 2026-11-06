@@ -7,4 +7,8 @@ export type CyexPlusBadge = {
 /**
  * `pending`, `approved`, `rejected`, … as the server says.
  */
-status: string, };
+status: string, 
+/**
+ * V109-B06 Why it was rejected or removed (empty when the server gave none).
+ */
+reason: string | null, };

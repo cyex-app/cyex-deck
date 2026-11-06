@@ -27,6 +27,8 @@
     nothingToSet,
     plusGate,
     plusPanel,
+    uploadRows,
+    type UploadRow,
     plusState,
     readSlot1,
     saveSlot1,
@@ -61,6 +63,9 @@
   let search = $state('');
   /** Grid or list, for this session. */
   let listView = $state(false);
+  /** V109-B06 The upload history, loaded when the Supporter+ panel opens. */
+  let uploads = $state<{ rows: UploadRow[]; loading: boolean; error: string }>({ rows: [], loading: false, error: '' });
+  let restoring = $state<number | null>(null);
   /** Slot 1's choice kept while its switch is off (per account, on this PC). */
   let remembered = $state<string | null>(null);
 
@@ -88,6 +93,7 @@
     void account.userId;
     remembered = readSlot1(account.userId);
     popup = null;
+    uploads = { rows: [], loading: false, error: '' };
     void load();
   });
 
@@ -183,6 +189,33 @@
     }
     if (!el.isConnected) return;
     popup = { slot: 2, anchor: el };
+    void loadUploads();
+  }
+
+  /** V109-B06 After the plan check, never before: a locked slot asks for nothing more. */
+  async function loadUploads() {
+    const id = account.userId;
+    uploads = { rows: uploads.rows, loading: true, error: '' };
+    try {
+      const h = await cyexIpc.history(id);
+      if (id === account.userId) uploads = { rows: uploadRows(h), loading: false, error: '' };
+    } catch (e) {
+      if (id === account.userId) uploads = { rows: [], loading: false, error: errorText(e) };
+    }
+  }
+
+  /** V109-B06 "Use again": that picture goes live; the view and the list follow. */
+  async function restore(row: UploadRow) {
+    if (restoring !== null) return;
+    restoring = row.id;
+    try {
+      await cyexIpc.restore(account.userId, row.id);
+      await Promise.all([load(), loadUploads()]);
+    } catch (e) {
+      uploads = { ...uploads, error: errorText(e) };
+    } finally {
+      restoring = null;
+    }
   }
 
   async function openCode() {
@@ -353,6 +386,7 @@
             {/if}
             <div class="plus-lines">
               <strong>{panel.review}</strong>
+              {#if panel.reason}<span class="reason">{panel.reason}</span>{/if}
               {#if panel.plan}<span class="note">{panel.plan}</span>{/if}
             </div>
           </div>
@@ -360,6 +394,39 @@
             {@const link = panel.link}
             <Button small icon="popout" onclick={() => open(link.url)}>{link.label}</Button>
           {/if}
+          <!-- V109-B06 Earlier uploads, newest first. -->
+          <section class="uploads" aria-label="Uploads" aria-busy={uploads.loading}>
+            <span class="uploads-head">Uploads</span>
+            {#if uploads.error}
+              <p class="msg bad" role="alert">{uploads.error}</p>
+              <span><Button small variant="link" hit onclick={() => void loadUploads()}>Try again</Button></span>
+            {:else if uploads.loading && !uploads.rows.length}
+              <span class="note">Loading…</span>
+            {:else if !uploads.rows.length}
+              <span class="note">Nothing uploaded yet</span>
+            {:else}
+              <ul>
+                {#each uploads.rows as r (r.id)}
+                  <li>
+                    {#if r.pics}
+                      <img class="thumb" src={src(r.pics)} alt="" />
+                    {:else}
+                      <span class="thumb empty" use:tooltip={{ label: 'Only approved pictures show here' }}><Icon name="image" size={12} /></span>
+                    {/if}
+                    <span class="up-text">
+                      <span class="up-line"><span class:live={r.live}>{r.status}</span><span class="note">{r.date}</span></span>
+                      {#if r.reason}<span class="reason">{r.reason}</span>{/if}
+                    </span>
+                    {#if r.restorable}
+                      <Button small variant="link" hit disabled={restoring !== null} onclick={() => void restore(r)}>
+                        {restoring === r.id ? 'Using…' : 'Use again'}
+                      </Button>
+                    {/if}
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          </section>
         </CyexPopup>
       {/if}
 
@@ -613,6 +680,75 @@
     background: var(--surface);
     border: 1px dashed var(--border-strong);
     color: var(--dim);
+  }
+  .reason {
+    color: var(--muted);
+    font-size: var(--text-hint);
+    overflow-wrap: anywhere;
+  }
+  .uploads {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+  .uploads-head {
+    color: var(--dim);
+    font-size: var(--text-label);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .uploads ul {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 200px;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    list-style: none;
+  }
+  .uploads li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+    padding: 4px 0;
+  }
+  .thumb {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+    border-radius: var(--radius);
+  }
+  .thumb.empty {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface);
+    border: 1px dashed var(--border-strong);
+    color: var(--dim);
+  }
+  .up-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .up-line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .up-line .note {
+    font-variant-numeric: tabular-nums;
+  }
+  .live {
+    font-weight: 600;
   }
   .plus-lines {
     display: flex;

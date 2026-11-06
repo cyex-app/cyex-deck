@@ -23,6 +23,7 @@ import {
   slot1Choice,
   filterRows,
   plusPanel,
+  uploadRows,
   readSlot1,
   saveSlot1,
   slot1Options,
@@ -159,7 +160,7 @@ test('V109-B05 the Supporter+ panel', () => {
   const review = plusPanel(me({ plus: plus({ until: '2026-12-05T12:00:00Z', badge: { status: 'pending' } }) }));
   assert.equal(review.review, 'In review');
   assert.ok(review.plan.startsWith('Active until 2026/12/0'));
-  assert.equal(plusPanel(me({ plus: plus({ badge: { status: 'rejected' } }) })).review, 'Not approved. Try another one.');
+  assert.equal(plusPanel(me({ plus: plus({ badge: { status: 'rejected', reason: null } }) })).review, 'Not approved');
   assert.equal(plusPanel(me({ plus: plus({}) })).review, 'No picture yet');
   const ended = plusPanel(me({ plus: plus({ active: false, until: '2026-10-05T12:00:00Z' }) }));
   assert.ok(ended.plan.startsWith('Ended 2026/10/0'));
@@ -232,4 +233,39 @@ test('V109-B03 Supporter+ states: plan line, note and the one link', () => {
   // An ended plan still has a row: not the empty store state.
   assert.ok(nothingOwned(ended) && !nothingToSet(ended));
   assert.equal(day('garbage-in'), 'garbage/in');
+});
+
+test('V109-B06 the panel shows why a picture was turned down', () => {
+  const r = plusPanel(me({ plus: plus({ badge: { status: 'rejected', reason: 'Too blurry.' } }) }));
+  assert.equal(r.review, 'Not approved');
+  assert.equal(r.reason, 'Too blurry.');
+  assert.equal(plusPanel(me({ plus: plus({ badge: { status: 'removed', reason: ' ' } }) })).reason, 'Try another one.');
+  const newer = plusPanel(me({ plus: plus({ live: pic('c'), badge: { status: 'rejected', reason: 'No text.' } }) }));
+  assert.equal(newer.review, 'New picture not approved');
+  assert.equal(newer.picture?.['1x'], 'c1');
+  assert.equal(plusPanel(me({ plus: plus({ live: pic('c'), badge: { status: 'pending', reason: null } }) })).review, 'New picture in review');
+  assert.equal(plusPanel(me({ plus: plus({ live: pic('c'), badge: { status: 'approved', reason: null } }) })).reason, '');
+});
+
+test('V109-B06 upload history rows', () => {
+  const rows = uploadRows({
+    live: 12,
+    items: [
+      { id: 14, images: null, status: 'rejected', reason: 'No text.', restorable: false, uploadedAt: '2026-11-03T12:00:00Z', reviewedAt: null },
+      { id: 12, images: pic('a'), status: 'approved', reason: null, restorable: true, uploadedAt: '2026-10-20T12:00:00Z', reviewedAt: null },
+      { id: 9, images: pic('b'), status: 'approved', reason: 'stale', restorable: true, uploadedAt: '2026-09-02T12:00:00Z', reviewedAt: null },
+      { id: 5, images: null, status: 'pending', reason: null, restorable: false, uploadedAt: '2026-08-01T12:00:00Z', reviewedAt: null },
+      { id: 3, images: null, status: 'odd', reason: null, restorable: false, uploadedAt: 'bad', reviewedAt: null },
+    ],
+  });
+  assert.deepEqual(rows.map((r) => [r.id, r.status, r.reason, r.live, r.restorable]), [
+    [14, 'Not approved', 'No text.', false, false],
+    [12, 'Live', '', true, false],
+    [9, 'Approved', '', false, true],
+    [5, 'In review', '', false, false],
+    [3, 'Odd', '', false, false],
+  ]);
+  assert.ok(rows[0].date.startsWith('2026/11/0'));
+  assert.equal(rows[4].date, 'bad');
+  assert.deepEqual(uploadRows({ items: [], live: null }), []);
 });

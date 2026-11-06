@@ -294,6 +294,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         cyex::cyex_view,
         cyex::cyex_equip,
         cyex::cyex_redeem,
+        cyex::cyex_badge_history,
+        cyex::cyex_badge_restore,
         cosmetics::cosmetics_view,
         cosmetics::cosmetics_allow,
         cosmetics::cosmetics_select,

@@ -6,7 +6,7 @@ use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
-use super::model::{CyexEquipped, CyexMe};
+use super::model::{CyexEquipped, CyexHistory, CyexMe};
 
 const MAX: usize = 1 << 20;
 
@@ -117,6 +117,18 @@ pub async fn redeem(http: &Http, base: &str, token: &str, code: &str) -> Result<
     Ok(a.reward)
 }
 
+/// V109-B06 The Supporter+ uploads (app session works there).
+pub async fn history(http: &Http, base: &str, token: &str) -> Result<CyexHistory, ApiError> {
+    send(http, Verb::Get, format!("{base}/plus/badges"), Some(token), None).await
+}
+
+/// V109-B06 Puts an earlier approved upload back live.
+pub async fn restore(http: &Http, base: &str, token: &str, id: u64) -> Result<(), ApiError> {
+    send::<Value>(http, Verb::Post, format!("{base}/plus/badges/{id}/restore"), Some(token), None)
+        .await
+        .map(|_| ())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -160,5 +172,29 @@ mod tests {
         let bare: CyexMe = read(&reply(200, r#"{"badges":[{"id":"founder"}]}"#)).unwrap();
         assert!(!bare.owns("founder"), "a founder without a number isn't owned");
         assert!(bare.equipped.main.is_none() && !bare.plus.active);
+        let rejected: CyexMe = read(&reply(200, r#"{"plus":{"badge":{"id":4,"status":"rejected","reason":"Too blurry."}}}"#)).unwrap();
+        assert_eq!(rejected.plus.badge.unwrap().reason.as_deref(), Some("Too blurry."));
+    }
+
+    #[test]
+    fn history_reads_and_hides_private_pictures() {
+        let h: CyexHistory = read(&reply(
+            200,
+            r#"{"items":[
+                {"id":9,"images":{"1x":"https://a/1.png","2x":"https://a/2.png","4x":"https://a/4.png"},"restorable":false,"status":"approved","uploadedAt":"2026-11-01T10:00:00Z","reviewedAt":"2026-11-01T12:00:00Z"},
+                {"id":8,"images":{"1x":"https://a/me/badge/8/1x.png"},"reason":"Too blurry.","restorable":true,"status":"rejected","uploadedAt":"2026-10-20T10:00:00Z"},
+                {"id":7,"images":null,"restorable":true,"status":"approved","uploadedAt":"2026-10-01T10:00:00Z","extra":1}
+            ],"live":9}"#,
+        ))
+        .unwrap();
+        let h = h.tidy();
+        assert_eq!(h.live, Some(9));
+        assert_eq!(h.items.len(), 3);
+        assert_eq!(h.items[0].images.as_ref().unwrap().x2, "https://a/2.png");
+        assert_eq!(h.items[1].reason.as_deref(), Some("Too blurry."));
+        assert!(h.items[1].images.is_none() && !h.items[1].restorable, "not approved: no picture, no restore");
+        assert!(h.items[2].restorable && h.items[2].images.is_none());
+        let empty: CyexHistory = read(&reply(200, r#"{"items":[],"live":null}"#)).unwrap();
+        assert!(empty.items.is_empty() && empty.live.is_none());
     }
 }

@@ -41,6 +41,8 @@ pub struct CyexOwned {
 pub struct CyexPlusBadge {
     /// `pending`, `approved`, `rejected`, … as the server says.
     pub status: String,
+    /// V109-B06 Why it was rejected or removed (empty when the server gave none).
+    pub reason: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -86,6 +88,49 @@ impl CyexMe {
 
     pub fn founder_number(&self) -> Option<u32> {
         self.badges.iter().find(|b| b.id == "founder").and_then(|b| b.number)
+    }
+}
+
+/// V109-B06 One Supporter+ upload in the history (`GET /plus/badges`).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(default, rename_all = "camelCase")]
+#[ts(export)]
+pub struct CyexUpload {
+    #[ts(type = "number")]
+    pub id: u64,
+    /// Only approved pictures are public; the others' owner previews need the website's
+    /// sign-in, so they come through as `None`; `None` too once the files are purged.
+    pub images: Option<CyexPics>,
+    pub status: String,
+    /// Rejected or removed: why.
+    pub reason: Option<String>,
+    /// Approved, not live, files kept: "Use again" brings it back.
+    pub restorable: bool,
+    pub uploaded_at: String,
+    pub reviewed_at: Option<String>,
+}
+
+/// V109-B06 The account's uploads, newest first, and which one is live.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(default)]
+#[ts(export)]
+pub struct CyexHistory {
+    pub items: Vec<CyexUpload>,
+    #[ts(type = "number | null")]
+    pub live: Option<u64>,
+}
+
+impl CyexHistory {
+    /// Drops pictures the app can't load (anything not approved) and keeps 20 at most.
+    pub fn tidy(mut self) -> Self {
+        self.items.truncate(20);
+        for u in &mut self.items {
+            if u.status != "approved" {
+                u.images = None;
+                u.restorable = false;
+            }
+        }
+        self
     }
 }
 
