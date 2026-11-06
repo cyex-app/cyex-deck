@@ -595,7 +595,7 @@
               run: () => chatxIpc.translate(room.view, m.id).catch((err) => toast.error(errorText(err))),
             },
             { label: 'Their messages', icon: 'search' as const, run: () => onaction?.({ type: 'search', query: `from:${login}` }) },
-            { label: 'Open in logs', icon: 'scroll' as const, run: () => openInLogs(room.login, login, m.source?.roomId) },
+            { label: 'Open their logs', icon: 'scroll' as const, run: () => openInLogs(room.login, login, m.source?.roomId) },
             ...jumpInLogs(room.login, m),
           ]
         : []),

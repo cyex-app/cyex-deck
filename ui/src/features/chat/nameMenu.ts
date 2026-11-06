@@ -63,7 +63,7 @@ export function nameMenu(c: NameMenu): MenuEntry[] {
     ...(c.onaction
       ? [{ label: 'Their messages', icon: 'search' as const, run: () => c.onaction!({ type: 'search', query: `from:${login}` }) }]
       : []),
-    { label: 'Open in logs', icon: 'scroll', run: () => openInLogs(channel, login) },
+    { label: 'Open their logs', icon: 'scroll', run: () => openInLogs(channel, login) },
     { label: 'Copy name', icon: 'copy', run: () => void copy(login, 'Name') },
     ...(canMod ? ['separator' as const, ...userItems(caps, login, c.run, warn, standings.of(c.channel, login, c.standing))] : []),
     'separator',
