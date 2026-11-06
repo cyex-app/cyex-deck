@@ -15,7 +15,9 @@ import {
   plusGate,
   plusState,
   shownBadges,
-  SLOT1_KINDS,
+  kindLabel,
+  kindOk,
+  oneTimeKinds,
   slot1Current,
   slot1Pick,
   gridHeight,
@@ -28,12 +30,18 @@ import {
   uploadRows,
   readSlot1,
   saveSlot1,
-  slot1Options,
   STORE,
   usercardLine,
 } from './cyexBadges.ts';
 
 const pic = (n: string) => ({ '1x': `${n}1`, '2x': `${n}2`, '4x': `${n}4` });
+
+/** The catalog as the view brings it (store order). */
+const KINDS = [
+  { id: 'founder', title: 'cyex founder', images: pic('f') },
+  { id: 'supporter', title: 'cyex supporter', images: pic('s') },
+];
+const viewOf = (m: CyexMe, kinds = KINDS): CyexView => ({ state: 'ready', me: m, kinds });
 
 function me(over: Partial<CyexMe> = {}): CyexMe {
   return {
@@ -58,7 +66,7 @@ test('V109-B02 a founder counts only with its number', () => {
   assert.ok(!owns(m, 'founder') && owns(m, 'supporter') && !owns(m, 'custom'));
   assert.ok(!nothingOwned(m));
   assert.ok(nothingOwned(me({ badges: [{ id: 'founder', number: null }] })));
-  assert.equal(choiceOf(me({ equipped: { main: 'other', custom: false, shown: [] } })), 'none');
+  assert.equal(choiceOf(me({ equipped: { main: 'Bad Id', custom: false, shown: [] } })), 'none');
 });
 
 test('V109-B02 the preview shows what is shown, two at most, in order', () => {
@@ -67,12 +75,13 @@ test('V109-B02 the preview shows what is shown, two at most, in order', () => {
     plus: { active: true, source: 'paddle', until: null, renewsAt: null, badge: null, live: pic('c') },
     equipped: { main: 'founder', custom: true, shown: ['custom', 'founder', 'supporter'] },
   });
-  const got = shownBadges(m, pic('f'), pic('s'));
+  const got = shownBadges(m, viewOf(m));
   assert.deepEqual(got.map((b) => b.title), ['cyex supporter+', 'cyex founder #7']);
   assert.equal(got[0].pics['2x'], 'c2');
-  assert.deepEqual(shownBadges(me({ equipped: { main: null, custom: false, shown: [] } }), pic('f'), pic('s')), []);
+  assert.deepEqual(shownBadges(me({ equipped: { main: null, custom: false, shown: [] } }), { state: 'offline' }), []);
   // Shown but not owned (stale): skipped.
-  assert.deepEqual(shownBadges(me({ equipped: { main: 'founder', custom: true, shown: ['founder', 'custom'] } }), pic('f'), pic('s')), []);
+  const stale = me({ equipped: { main: 'founder', custom: true, shown: ['founder', 'custom'] } });
+  assert.deepEqual(shownBadges(stale, viewOf(stale)), []);
 });
 
 test('V109-B02 the usercard line', () => {
@@ -82,25 +91,34 @@ test('V109-B02 the usercard line', () => {
 
 const plus = (over: Partial<CyexMe['plus']>): CyexMe['plus'] => ({ active: true, source: 'paddle', until: null, renewsAt: null, badge: null, live: null, ...over });
 
-test('V109-B04 slot 1 comes from the kinds list', () => {
-  assert.deepEqual(SLOT1_KINDS.map((k) => k.id), ['founder', 'supporter']);
-  assert.deepEqual(slot1Options(me()).map((o) => [o.id, o.label, o.owned]), [
-    ['founder', 'Founder', false],
-    ['supporter', 'Supporter', false],
-  ]);
+test('V109-B10 slot 1 comes from the catalog, any owned kind, numbered or not', () => {
   const all = me({ badges: [{ id: 'founder', number: 1234 }, { id: 'supporter', number: null }], equipped: { main: 'supporter', custom: false, shown: [] } });
-  assert.equal(slot1Options(all)[0].label, 'Founder #1.234');
-  assert.equal(slot1Current(all)?.id, 'supporter');
+  assert.equal(slot1Current(all), 'supporter');
   // Worn but not owned (stale): the slot is empty.
   assert.equal(slot1Current(me({ equipped: { main: 'founder', custom: false, shown: [] } })), null);
-  const view: CyexView = { state: 'ready', me: all, founder: pic('f'), supporter: pic('s') };
-  assert.equal(SLOT1_KINDS[1].pics(view)?.['1x'], 's1');
-  assert.equal(SLOT1_KINDS[0].pics({ state: 'offline' }), null);
+  const streak = { id: 'streak-1y', title: 'cyex 1 year streak', images: pic('y') };
+  const m = me({
+    badges: [{ id: 'streak-1y', number: 4 }, { id: 'founder', number: 37 }, { id: 'gold', number: null }],
+    equipped: { main: 'streak-1y', custom: false, shown: ['streak-1y'] },
+  });
+  const v = viewOf(m, [...KINDS, streak]);
+  // Store order first; an owned kind the catalog doesn't name yet goes last with a readable name.
+  assert.deepEqual(oneTimeKinds(m, v).map((k) => k.id), ['founder', 'supporter', 'streak-1y', 'gold']);
+  assert.deepEqual(slot1Rows(m, v).map((r) => r.name), ['Founder #37', '1 year streak #4', 'Gold']);
+  assert.equal(slot1Current(m), 'streak-1y');
+  assert.deepEqual(shownBadges(m, v).map((b) => b.title), ['cyex 1 year streak #4']);
+  assert.equal(badgeTitle('gold', 2), 'cyex gold #2');
+  assert.equal(badgeTitle('streak-1y', null, ' '), 'cyex streak 1y');
+  assert.equal(kindLabel(m, streak), '1 year streak #4');
+  assert.ok(slot1Missing(m, v), 'supporter not owned');
+  assert.deepEqual(slot1Pick(m, 'gold'), { main: 'gold' });
+  assert.ok(kindOk('streak-1y') && !kindOk('custom') && !kindOk('Bad Id') && !kindOk(''));
+  assert.equal(choiceOf(me({ equipped: { main: 'gold', custom: false, shown: [] } })), 'gold');
 });
 
 test('V109-B05 slot 1 picker: owned cards in kinds order, search, store link', () => {
   const both = me({ badges: [{ id: 'supporter', number: null }, { id: 'founder', number: 7 }] });
-  const view: CyexView = { state: 'ready', me: both, founder: pic('f'), supporter: pic('s') };
+  const view = viewOf(both);
   const rows = slot1Rows(both, view);
   assert.deepEqual(rows.map((r) => [r.item.def.id, r.name, r.usable]), [
     ['founder', 'Founder #7', true],
@@ -109,10 +127,10 @@ test('V109-B05 slot 1 picker: owned cards in kinds order, search, store link', (
   assert.deepEqual(rows[0].item.images, ['f1', 'f2', 'f4', 'f4']);
   assert.deepEqual(filterRows(rows, ' sup ').map((r) => r.name), ['Supporter']);
   assert.equal(filterRows(rows, '').length, 2);
-  assert.ok(!slot1Missing(both));
+  assert.ok(!slot1Missing(both, view));
   const one = me({ badges: [{ id: 'founder', number: 7 }] });
   assert.deepEqual(slot1Rows(one, { state: 'offline' }).map((r) => r.item.images), [['', '', '', '']]);
-  assert.ok(slot1Missing(one));
+  assert.ok(slot1Missing(one, viewOf(one)));
 });
 
 test('V109-B05 slot 1 picks and the switch: picking turns on, None takes off, off keeps the choice', () => {
@@ -169,7 +187,7 @@ test('V109-B05 the Supporter+ panel', () => {
   assert.equal(ended.link?.label, 'Renew');
 });
 
-const ready = (active: boolean): CyexView => ({ state: 'ready', me: me({ plus: plus({ active }) }), founder: pic('f'), supporter: pic('s') });
+const ready = (active: boolean): CyexView => viewOf(me({ plus: plus({ active }) }));
 
 test('V109-B04 slot 2 gate: a fresh look first, 30 s cache, failures stay shut', async () => {
   let t = 0;

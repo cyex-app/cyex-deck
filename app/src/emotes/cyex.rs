@@ -2,13 +2,15 @@
 //! seconds after start and every 30 minutes with its ETag, kept as one map (Twitch id → badges)
 //! and handed to `Cosmetics` as the `cyex` set. The switch (Chat → Emotes and badges) off: nothing
 //! is asked and the set goes. An account's own equip change shows in its chat at once.
+//! V109-B10 Badge kinds come from the catalog; a held id it doesn't name yet asks for the
+//! catalog again, once per id per session.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use cyex_emotes::badges::BadgeSet;
-use cyex_emotes::badges::cyex::{self, Held, Kinds, Tagged};
+use cyex_emotes::badges::cyex::{self, Held, Kinds, OneTime, Tagged};
 use cyex_settings::Partition;
 use cyex_settings::schema::Chat as ChatSettings;
 use tauri::{AppHandle, Emitter, Manager};
@@ -33,6 +35,21 @@ struct Book {
     users: HashMap<String, Vec<Held>>,
     /// Own accounts' badges after an equip change or a `/me` read.
     own: HashMap<String, (Instant, Vec<Held>)>,
+    /// V109-B10 Ids the catalog was asked again for, this session.
+    asked: HashSet<String>,
+}
+
+impl Book {
+    /// Ids not named by the catalog and not asked for yet; marks them asked.
+    fn ask_for<'a>(&mut self, held: impl IntoIterator<Item = &'a Held>) -> bool {
+        let new: Vec<String> = cyex::unknown(self.kinds.as_ref(), held)
+            .into_iter()
+            .filter(|id| !self.asked.contains(id))
+            .collect();
+        let any = !new.is_empty();
+        self.asked.extend(new);
+        any
+    }
 }
 
 #[derive(Default)]
@@ -131,6 +148,11 @@ async fn keep(app: AppHandle, run: u64) {
         match got {
             Ok(Some(snap)) => {
                 let people = snap.users.len();
+                // A kind the catalog doesn't name yet: ask for the catalog once more.
+                let again = st.lock().ask_for(snap.users.values().flatten());
+                if again && let Ok(k) = cyex::fetch_kinds(&http, &base).await {
+                    st.lock().kinds = Some(k);
+                }
                 {
                     let mut b = st.lock();
                     b.users = snap.users;
@@ -191,12 +213,46 @@ fn apply(app: &AppHandle) {
     let _ = app.emit(EVENT, ());
 }
 
-/// The pictures of a built-in badge (`founder`, `supporter`), for the cosmetics preview.
-pub fn pictures(app: &AppHandle, kind: &str) -> cyex::Images {
+/// V109-B10 The one-time badges of the catalog, for the cosmetics editor. `ids` the account
+/// holds that the catalog doesn't name yet ask for it again first (once per id per session);
+/// without a catalog at all it's asked for now.
+pub async fn catalog(app: &AppHandle, ids: &[String]) -> Vec<OneTime> {
     let base = crate::cyex::base(app);
-    match app.try_state::<State>() {
-        Some(st) => cyex::pictures(st.lock().kinds.as_ref(), &base, kind),
-        None => cyex::pictures(None, &base, kind),
+    let Some(st) = app.try_state::<State>() else {
+        return Vec::new();
+    };
+    let ask = {
+        let mut b = st.lock();
+        let held: Vec<Held> = ids
+            .iter()
+            .map(|id| Held {
+                id: id.clone(),
+                number: None,
+                images: None,
+            })
+            .collect();
+        let first = b.kinds.is_none() && b.asked.insert(String::new());
+        b.ask_for(&held) || first
+    };
+    if ask {
+        let http = app.state::<crate::auth::Auth>().http.clone();
+        if let Ok(k) = cyex::fetch_kinds(&http, &base).await {
+            st.lock().kinds = Some(k);
+            apply(app);
+        }
+    }
+    let b = st.lock();
+    match b.kinds.as_ref() {
+        Some(k) => k.one_time(&base),
+        // Offline: the two built-in ones, with their documented pictures.
+        None => [cyex::FOUNDER, cyex::SUPPORTER]
+            .iter()
+            .map(|id| OneTime {
+                id: (*id).to_owned(),
+                title: cyex::title(id, None, None),
+                images: cyex::pictures(None, &base, id),
+            })
+            .collect(),
     }
 }
 
@@ -235,6 +291,15 @@ mod tests {
             number: (id == "founder").then_some(1),
             images: None,
         }
+    }
+
+    #[test]
+    fn unknown_kinds_are_asked_for_once() {
+        let mut b = Book::default();
+        assert!(b.ask_for(&[held("streak-1y")]), "no catalog: ask");
+        assert!(!b.ask_for(&[held("streak-1y")]), "asked already this session");
+        assert!(b.ask_for(&[held("gold"), held("custom")]));
+        assert!(!b.ask_for(&[held("custom"), held("Bad Id")]), "custom and junk never ask");
     }
 
     #[test]

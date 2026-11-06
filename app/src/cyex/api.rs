@@ -210,7 +210,7 @@ mod tests {
         .unwrap();
         assert_eq!(me.twitch.display_name, "A");
         assert!(me.owns("founder") && me.owns("supporter") && !me.owns("custom"));
-        assert_eq!(me.founder_number(), Some(37));
+        assert_eq!(me.number_of("founder"), Some(37));
         assert_eq!(me.plus.badge.unwrap().status, "pending");
         assert_eq!(me.equipped.shown, ["founder"]);
         let bare: CyexMe = read(&reply(200, r#"{"badges":[{"id":"founder"}]}"#)).unwrap();

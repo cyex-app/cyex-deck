@@ -72,7 +72,6 @@
   let remembered = $state<string | null>(null);
 
   const me = $derived(view?.state === 'ready' ? view.me : null);
-  const NO_PICS: CyexPics = { '1x': '', '2x': '', '4x': '' };
   // One gate per account: a look from the last 30 s counts, the editor's own load included.
   const gate = $derived.by(() => {
     const id = account.userId;
@@ -313,7 +312,7 @@
       <!-- What chat shows now, with the store beside it. -->
       <div class="preview">
         <span class="line" aria-label="In chat">
-          {#each shownBadges(me, view.founder ?? NO_PICS, view.supporter ?? NO_PICS) as b (b.key)}
+          {#each shownBadges(me, view) as b (b.key)}
             <img class="badge" src={src(b.pics)} alt={b.title} use:tooltip={{ label: b.title }} />
           {/each}
           <strong class="who">{account.displayName}</strong><span class="said">: hi chat</span>
@@ -336,7 +335,7 @@
         <div class="grid" class:off={!on1} bind:clientWidth={gridW} style:height="{gridHeight(rows.length + 1, gridW, !tiles)}px">
           <ItemGrid kind="badge" {rows} selected={choice} name={account.displayName} label="Badge" asRows={!tiles} onpick={(id) => pick1(id)} />
         </div>
-        {#if slot1Missing(me)}
+        {#if slot1Missing(me, view)}
           <span class="more"><Button small variant="link" hit onclick={() => open(STORE)}>Get more in store</Button></span>
         {/if}
       </section>

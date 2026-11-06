@@ -2,7 +2,9 @@
 //! and the Supporter+ owner's own picture. One snapshot of everyone (`/badges/v1/users`), asked
 //! at start and every 30 minutes with `If-None-Match`; nothing is asked per message.
 //!
-//! At most two show per person: founder or supporter, then the Supporter+ badge ([`shown`]).
+//! At most two show per person: one one-time badge, then the Supporter+ badge ([`shown`]).
+//! V109-B10 One-time badges are any store item: kinds, titles and pictures come from the
+//! catalog (`/badges/v1/badges`); a numbered one shows "#n" whatever its kind.
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -41,7 +43,7 @@ pub struct Images {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Held {
     pub id: String,
-    /// Founders only.
+    /// Numbered badges (founder, and any limited store item).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub number: Option<u32>,
     /// Supporter+ only: the owner's own picture.
@@ -56,7 +58,8 @@ pub struct Snapshot {
     pub users: HashMap<String, Vec<Held>>,
 }
 
-/// `GET /badges/v1/badges`: titles and the built-in pictures.
+/// `GET /badges/v1/badges`: every one-time badge in store order (inactive ones too), then
+/// `custom`.
 #[derive(Debug, Default, Deserialize)]
 pub struct Kinds {
     #[serde(default)]
@@ -72,29 +75,84 @@ struct Kind {
     images: Option<Images>,
 }
 
-/// The equip rule: founder or supporter (founder first when both come), then Supporter+.
-/// Anything else is skipped.
+/// V109-B10 One one-time badge of the catalog.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OneTime {
+    pub id: String,
+    pub title: String,
+    pub images: Images,
+}
+
+impl Kinds {
+    pub fn knows(&self, id: &str) -> bool {
+        self.badges.iter().any(|k| k.id == id)
+    }
+
+    /// The one-time badges in store order, each with its pictures (or the documented path).
+    pub fn one_time(&self, base: &str) -> Vec<OneTime> {
+        self.badges
+            .iter()
+            .filter(|k| k.id != CUSTOM && kind_ok(&k.id))
+            .map(|k| {
+                let (images, title) = built_in(Some(self), base, &k.id);
+                OneTime {
+                    id: k.id.clone(),
+                    title: title.filter(|t| !t.trim().is_empty()).map_or_else(|| fallback_title(&k.id), |t| super::title(&t)),
+                    images,
+                }
+            })
+            .collect()
+    }
+}
+
+/// V109-B10 A kind id the app takes: lowercase letters, digits and dashes, like the store's.
+pub fn kind_ok(id: &str) -> bool {
+    let b = id.as_bytes();
+    (1..=40).contains(&b.len()) && b[0].is_ascii_lowercase() && b.iter().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == b'-')
+}
+
+/// V109-B10 Held ids the catalog doesn't name yet (`custom` and junk left out).
+pub fn unknown<'a>(kinds: Option<&Kinds>, held: impl IntoIterator<Item = &'a Held>) -> Vec<String> {
+    let mut out: Vec<String> = held
+        .into_iter()
+        .filter(|h| h.id != CUSTOM && kind_ok(&h.id) && !kinds.is_some_and(|k| k.knows(&h.id)))
+        .map(|h| h.id.clone())
+        .collect();
+    out.sort();
+    out.dedup();
+    out
+}
+
+/// The equip rule: one one-time badge (founder first, then supporter, then the first other
+/// one), then Supporter+. Junk ids are skipped.
 pub fn shown(list: &[Held]) -> Vec<&Held> {
     let main = list
         .iter()
         .find(|h| h.id == FOUNDER)
-        .or_else(|| list.iter().find(|h| h.id == SUPPORTER));
+        .or_else(|| list.iter().find(|h| h.id == SUPPORTER))
+        .or_else(|| list.iter().find(|h| h.id != CUSTOM && kind_ok(&h.id)));
     let custom = list.iter().find(|h| h.id == CUSTOM && h.images.is_some());
     main.into_iter().chain(custom).collect()
 }
 
-/// The tooltip: `cyex founder #37`, `cyex supporter`, `cyex supporter+`.
+/// A kind the catalog hasn't named: `streak-1y` → `cyex streak 1y`.
+fn fallback_title(kind: &str) -> String {
+    match kind {
+        FOUNDER => "cyex founder".to_owned(),
+        SUPPORTER => "cyex supporter".to_owned(),
+        CUSTOM => "cyex supporter+".to_owned(),
+        k => format!("cyex {}", k.replace('-', " ")),
+    }
+}
+
+/// The tooltip: `cyex founder #37`, `cyex supporter`, `cyex supporter+`; any numbered
+/// one-time badge gets its number.
 pub fn title(kind: &str, number: Option<u32>, named: Option<&str>) -> String {
-    let base = named.filter(|t| !t.trim().is_empty()).map_or_else(
-        || match kind {
-            FOUNDER => "cyex founder".to_owned(),
-            SUPPORTER => "cyex supporter".to_owned(),
-            _ => "cyex supporter+".to_owned(),
-        },
-        super::title,
-    );
-    match (kind, number) {
-        (FOUNDER, Some(n)) => format!("{base} #{n}"),
+    let base = named
+        .filter(|t| !t.trim().is_empty())
+        .map_or_else(|| fallback_title(kind), super::title);
+    match number {
+        Some(n) if kind != CUSTOM => format!("{base} #{n}"),
         _ => base,
     }
 }
@@ -180,12 +238,12 @@ fn sizes(i: &Images) -> Option<[&str; 3]> {
     Some([&i.x1, x2, x4])
 }
 
-/// The pictures of `founder` or `supporter`.
+/// The pictures of a one-time badge.
 pub fn pictures(kinds: Option<&Kinds>, base: &str, kind: &str) -> Images {
     built_in(kinds, base, kind).0
 }
 
-/// The built-in badges' pictures: from `/badges`, else the documented paths.
+/// A one-time badge's pictures: from `/badges`, else the documented paths.
 fn built_in(kinds: Option<&Kinds>, base: &str, kind: &str) -> (Images, Option<String>) {
     let k = kinds.and_then(|k| k.badges.iter().find(|b| b.id == kind));
     let images = k.and_then(|k| k.images.clone()).unwrap_or_else(|| {
@@ -213,21 +271,22 @@ fn def(id: String, title: String, sizes: [&str; 3]) -> BadgeDef {
     }
 }
 
-/// The badge id a held badge draws as (`cyex:founder-37`, `cyex:supporter`, `cyex:u123`).
+/// The badge id a held badge draws as (`cyex:founder-37`, `cyex:streak-1y-4`, `cyex:supporter`,
+/// `cyex:u123`).
 pub fn badge_id(user: &str, h: &Held) -> String {
     let p = BadgeSet::Cyex.prefix();
     match (h.id.as_str(), h.number) {
-        (FOUNDER, Some(n)) => format!("{p}:founder-{n}"),
         (CUSTOM, _) => format!("{p}:u{user}"),
-        (kind, _) => format!("{p}:{kind}"),
+        (kind, Some(n)) => format!("{p}:{kind}-{n}"),
+        (kind, None) => format!("{p}:{kind}"),
     }
 }
 
 /// Everyone's badges as a set for [`crate::Cosmetics`], with the equip rule applied.
 pub fn build<'a>(kinds: Option<&Kinds>, base: &str, users: impl IntoIterator<Item = (&'a String, &'a Vec<Held>)>) -> Loaded {
     let mut out = Loaded::default();
-    let founder = built_in(kinds, base, FOUNDER);
-    let supporter = built_in(kinds, base, SUPPORTER);
+    // One look-up per kind, however many people hold it.
+    let mut one_time: HashMap<String, (Images, Option<String>)> = HashMap::new();
     let custom_title = kinds.and_then(|k| k.badges.iter().find(|b| b.id == CUSTOM)).map(|k| k.title.clone());
     let mut made = std::collections::HashSet::new();
     for (user, list) in users {
@@ -235,13 +294,14 @@ pub fn build<'a>(kinds: Option<&Kinds>, base: &str, users: impl IntoIterator<Ite
             continue;
         }
         for h in shown(list) {
-            let (images, named) = match h.id.as_str() {
-                FOUNDER => (&founder.0, founder.1.as_deref()),
-                SUPPORTER => (&supporter.0, supporter.1.as_deref()),
-                _ => match &h.images {
+            let (images, named) = if h.id == CUSTOM {
+                match &h.images {
                     Some(i) => (i, custom_title.as_deref()),
                     None => continue,
-                },
+                }
+            } else {
+                let k = one_time.entry(h.id.clone()).or_insert_with(|| built_in(kinds, base, &h.id));
+                (&k.0, k.1.as_deref())
             };
             let Some(sizes) = sizes(images) else { continue };
             let id = badge_id(user, h);
@@ -264,6 +324,8 @@ mod tests {
         "71092938": [ { "id": "founder", "number": 37 }, { "id": "supporter" } ],
         "1294600497": [ { "id": "custom", "images": { "1x": "https://api.cyex.app/u/1.png", "2x": "https://api.cyex.app/u/2.png", "4x": "https://api.cyex.app/u/4.png" } } ],
         "5": [ { "id": "supporter" }, { "id": "custom", "images": { "1x": "https://a.b/1.png" } }, { "id": "future" } ],
+        "7": [ { "id": "streak-1y", "number": 4 } ],
+        "8": [ { "id": "Bad Id" } ],
         "not-a-number": [ { "id": "supporter" } ],
         "6": [ { "id": "custom" } ]
       }
@@ -287,7 +349,9 @@ mod tests {
         let ids = |u: &str| shown(&s.users[u]).iter().map(|h| h.id.clone()).collect::<Vec<_>>();
         assert_eq!(ids("71092938"), ["founder"], "founder wins over supporter");
         assert_eq!(ids("1294600497"), ["custom"]);
-        assert_eq!(ids("5"), ["supporter", "custom"], "unknown kinds are skipped");
+        assert_eq!(ids("5"), ["supporter", "custom"], "one one-time badge: supporter before others");
+        assert_eq!(ids("7"), ["streak-1y"], "V109-B10 any store kind shows");
+        assert!(ids("8").is_empty(), "junk ids are skipped");
         assert!(ids("6").is_empty(), "a custom badge without pictures is skipped");
     }
 
@@ -318,6 +382,9 @@ mod tests {
         assert_eq!(c.title, "cyex supporter+");
         assert_eq!((c.image2x.as_str(), c.image4x.as_str()), ("https://a.b/1.png", "https://a.b/1.png"));
         assert_eq!(l.defs.iter().filter(|d| d.id == "cyex:supporter").count(), 1, "one def per kind");
+        let st = l.defs.iter().find(|d| d.id == "cyex:streak-1y-4").unwrap();
+        assert_eq!(st.title, "cyex streak 1y #4", "not in the catalog yet: a readable name");
+        assert_eq!(st.image1x, "https://api.cyex.app/badges/v1/img/streak-1y/1x.png");
     }
 
     #[test]
@@ -334,6 +401,29 @@ mod tests {
         assert_eq!(title(FOUNDER, Some(1), None), "cyex founder #1");
         assert_eq!(title(SUPPORTER, None, Some("  ")), "cyex supporter");
         assert_eq!(title(CUSTOM, Some(3), None), "cyex supporter+");
+        assert_eq!(title("gold", Some(2), Some("cyex gold")), "cyex gold #2");
+    }
+
+    #[test]
+    fn the_catalog_lists_one_time_badges_in_store_order() {
+        let kinds: Kinds = serde_json::from_str(
+            r#"{"badges":[{"id":"founder","title":"cyex founder","images":null},
+                           {"id":"supporter","title":"cyex supporter","images":null},
+                           {"id":"streak-1y","title":"cyex 1 year","images":{"1x":"https://x/s1.png","2x":"https://x/s2.png","4x":"https://x/s4.png"}},
+                           {"id":"Bad","title":"x","images":null},
+                           {"id":"custom","title":"cyex supporter+","images":null}]}"#,
+        )
+        .unwrap();
+        let list = kinds.one_time(BASE);
+        assert_eq!(list.iter().map(|k| k.id.as_str()).collect::<Vec<_>>(), ["founder", "supporter", "streak-1y"]);
+        assert_eq!(list[2].title, "cyex 1 year");
+        assert_eq!(list[2].images.x2, "https://x/s2.png");
+        assert_eq!(list[0].images.x1, "https://api.cyex.app/badges/v1/img/founder/1x.png");
+        let s = snap();
+        let held = s.users.values().flatten();
+        assert_eq!(unknown(Some(&kinds), held), ["future"], "the catalog doesn't name it yet");
+        assert_eq!(unknown(None, s.users["71092938"].iter()), ["founder", "supporter"]);
+        assert!(kind_ok("streak-1y") && !kind_ok("Bad") && !kind_ok("") && !kind_ok("1x") && !kind_ok("a/b"));
     }
 
     #[test]
@@ -341,7 +431,7 @@ mod tests {
         let mut t = Tagged::default();
         assert_eq!(t.header(), None);
         let first = t.read(reply(200, Some("\"abc\""), SNAP)).unwrap().unwrap();
-        assert_eq!(first.users.len(), 5);
+        assert_eq!(first.users.len(), 7);
         assert_eq!(t.header(), Some("\"abc\""));
         assert!(t.read(reply(304, None, "")).unwrap().is_none(), "unchanged");
         assert_eq!(t.header(), Some("\"abc\""), "a 304 keeps the tag");

@@ -164,21 +164,12 @@ fn known(app: &AppHandle, account: &str) -> bool {
     crate::auth::accounts(app).get(account).is_some()
 }
 
-/// What the account's chat lines show now, from `equipped.shown`.
+/// What the account's chat lines show now, from `equipped.shown`. V109-B10 Any one-time badge
+/// the account owns, with its number.
 pub(crate) fn own_list(me: &CyexMe) -> Vec<Held> {
     let mut out = Vec::new();
     for id in me.equipped.shown.iter().take(2) {
         let held = match id.as_str() {
-            badges::FOUNDER => me.founder_number().map(|n| Held {
-                id: badges::FOUNDER.into(),
-                number: Some(n),
-                images: None,
-            }),
-            badges::SUPPORTER => me.owns(badges::SUPPORTER).then(|| Held {
-                id: badges::SUPPORTER.into(),
-                number: None,
-                images: None,
-            }),
             badges::CUSTOM => me.plus.live.as_ref().map(|p| Held {
                 id: badges::CUSTOM.into(),
                 number: None,
@@ -187,6 +178,11 @@ pub(crate) fn own_list(me: &CyexMe) -> Vec<Held> {
                     x2: p.x2.clone(),
                     x4: p.x4.clone(),
                 }),
+            }),
+            kind if badges::kind_ok(kind) && me.owns(kind) => Some(Held {
+                id: kind.to_owned(),
+                number: me.number_of(kind),
+                images: None,
             }),
             _ => None,
         };
@@ -208,19 +204,21 @@ pub async fn view(app: &AppHandle, account: &str) -> CyexView {
     match with_session(app, account, Op::Me).await {
         Ok(Out::Me(me)) => {
             keep_me(app, account, &me);
-            let pics = |kind: &str| {
-                let i = crate::emotes::cyex::pictures(app, kind);
-                model::CyexPics {
-                    x1: i.x1,
-                    x2: i.x2,
-                    x4: i.x4,
-                }
-            };
-            CyexView::Ready {
-                me,
-                founder: pics(badges::FOUNDER),
-                supporter: pics(badges::SUPPORTER),
-            }
+            let held: Vec<String> = me.badges.iter().map(|b| b.id.clone()).collect();
+            let kinds = crate::emotes::cyex::catalog(app, &held)
+                .await
+                .into_iter()
+                .map(|k| model::CyexKind {
+                    id: k.id,
+                    title: k.title,
+                    images: model::CyexPics {
+                        x1: k.images.x1,
+                        x2: k.images.x2,
+                        x4: k.images.x4,
+                    },
+                })
+                .collect();
+            CyexView::Ready { me, kinds }
         }
         Ok(_) | Err(Fail::Api(ApiError::Offline)) => CyexView::Offline,
         Err(Fail::NoToken) => CyexView::NoToken,
@@ -240,8 +238,9 @@ pub async fn equip(app: &AppHandle, account: &str, main: Option<String>, custom:
     if !known(app, account) {
         return Err("Unknown account.".into());
     }
-    if main.as_deref().is_some_and(|m| m != badges::FOUNDER && m != badges::SUPPORTER) {
-        return Err("Pick Founder, Supporter or None.".into());
+    // V109-B10 Any one-time badge; the server checks it's owned.
+    if main.as_deref().is_some_and(|m| m == badges::CUSTOM || !badges::kind_ok(m)) {
+        return Err("Pick one of your badges or None.".into());
     }
     match with_session(app, account, Op::Equip(main.as_deref(), custom)).await {
         Ok(Out::Equipped(eq)) => {
@@ -369,6 +368,14 @@ mod tests {
         assert_eq!(l[1].images.as_ref().unwrap().x2, "https://a/2.png");
         assert!(own_list(&me(&[])).is_empty(), "both off: nothing shows");
         assert_eq!(own_list(&me(&["supporter", "custom", "founder"])).len(), 2, "two at most");
+        let mut streak = me(&["streak-1y", "custom"]);
+        streak.badges.push(CyexOwned {
+            id: "streak-1y".into(),
+            number: Some(4),
+        });
+        let l = own_list(&streak);
+        assert_eq!((l[0].id.as_str(), l[0].number), ("streak-1y", Some(4)), "V109-B10 any owned kind, numbered");
+        assert!(own_list(&me(&["gold"])).is_empty(), "not owned: nothing");
         let mut bare = me(&["founder", "custom"]);
         bare.badges.clear();
         bare.plus.live = None;

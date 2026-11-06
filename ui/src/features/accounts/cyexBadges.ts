@@ -1,6 +1,9 @@
 // V109-B02 cyex badges: which show, their tooltips, and what the cosmetics area says. At most two
-// show: Founder or Supporter, then the Supporter+ badge.
+// show: one one-time badge, then the Supporter+ badge.
+// V109-B10 The one-time badges are the catalog's (`/badges/v1/badges`, store order): founder,
+// supporter and whatever the store adds. A numbered one shows "#n" whatever its kind.
 
+import type { CyexKind } from '../../ipc/bindings/CyexKind.ts';
 import type { CyexMe } from '../../ipc/bindings/CyexMe.ts';
 import type { CyexPics } from '../../ipc/bindings/CyexPics.ts';
 import type { CyexHistory } from '../../ipc/bindings/CyexHistory.ts';
@@ -11,37 +14,66 @@ import { formatDate, formatNumber } from '../../lib/format.ts';
 export const STORE = 'https://cyex.app/deck/cosmetics#store';
 export const BADGE_PAGE = 'https://cyex.app/deck/cosmetics#badge';
 
-export type Main = 'founder' | 'supporter';
-export type Choice = Main | 'none';
+/** A one-time badge id (`founder`, `supporter`, `streak-1y`, …). */
+export type Main = string;
 
 /** Chat badges of the cyex set carry ids like `cyex:founder-37`. */
 export function isCyexBadge(id: string): boolean {
   return id.startsWith('cyex:');
 }
 
-export function badgeTitle(kind: string, number?: number | null): string {
-  if (kind === 'founder') return number ? `cyex founder #${number}` : 'cyex founder';
-  if (kind === 'supporter') return 'cyex supporter';
-  return 'cyex supporter+';
+/** `streak-1y` → `cyex streak 1y`, for a kind the catalog doesn't name (yet). */
+function fallbackTitle(kind: string): string {
+  if (kind === 'custom') return 'cyex supporter+';
+  return `cyex ${kind.replaceAll('-', ' ')}`;
+}
+
+/** The tooltip: the catalog's title (or a readable one), plus `#n` on a numbered badge. */
+export function badgeTitle(kind: string, number?: number | null, named?: string | null): string {
+  const base = named?.trim() || fallbackTitle(kind);
+  return number && kind !== 'custom' ? `${base} #${number}` : base;
+}
+
+/** The kind ids the app takes: like the store's (lowercase, digits, dashes). */
+export function kindOk(id: string): boolean {
+  return /^[a-z][a-z0-9-]{0,39}$/.test(id) && id !== 'custom';
 }
 
 /** A founder counts only with its number. */
 export function owns(me: CyexMe, kind: string): boolean {
   if (kind === 'custom') return me.plus.active;
-  return me.badges.some((b) => b.id === kind && (kind !== 'founder' || b.number != null));
+  return kindOk(kind) && me.badges.some((b) => b.id === kind && (kind !== 'founder' || b.number != null));
 }
 
-export function founderNumber(me: CyexMe): number | null {
-  return me.badges.find((b) => b.id === 'founder')?.number ?? null;
+export function numberOf(me: CyexMe, kind: string): number | null {
+  return me.badges.find((b) => b.id === kind)?.number ?? null;
 }
 
+/** No one-time badge and no Supporter+. */
 export function nothingOwned(me: CyexMe): boolean {
-  return !owns(me, 'founder') && !owns(me, 'supporter') && !owns(me, 'custom');
+  return !me.badges.some((b) => owns(me, b.id)) && !owns(me, 'custom');
 }
 
-export function choiceOf(me: CyexMe): Choice {
+export function choiceOf(me: CyexMe): Main | 'none' {
   const m = me.equipped.main;
-  return m === 'founder' || m === 'supporter' ? m : 'none';
+  return m && kindOk(m) ? m : 'none';
+}
+
+/** V109-B10 The catalog's one-time badges, then any owned one it doesn't name yet. */
+export function oneTimeKinds(me: CyexMe, view: CyexView): CyexKind[] {
+  const kinds = view.state === 'ready' ? view.kinds.filter((k) => kindOk(k.id)) : [];
+  const extra = me.badges
+    .filter((b) => owns(me, b.id) && !kinds.some((k) => k.id === b.id))
+    .map((b) => ({ id: b.id, title: fallbackTitle(b.id), images: { '1x': '', '2x': '', '4x': '' } }));
+  return [...kinds, ...extra.filter((k, i) => extra.findIndex((x) => x.id === k.id) === i)];
+}
+
+/** The card's name: `cyex founder` → `Founder`, with `#n` when numbered. */
+export function kindLabel(me: CyexMe, k: CyexKind): string {
+  const name = k.title.replace(/^cyex\s+/i, '').trim() || k.id;
+  const n = numberOf(me, k.id);
+  const cap = name[0].toUpperCase() + name.slice(1);
+  return n ? `${cap} #${formatNumber(n)}` : cap;
 }
 
 export interface ShownBadge {
@@ -51,54 +83,25 @@ export interface ShownBadge {
 }
 
 /** What chat shows for the account now (`equipped.shown`), two at most, in order. */
-export function shownBadges(me: CyexMe, founder: CyexPics, supporter: CyexPics): ShownBadge[] {
+export function shownBadges(me: CyexMe, view: CyexView): ShownBadge[] {
+  const kinds = oneTimeKinds(me, view);
   const out: ShownBadge[] = [];
   for (const id of me.equipped.shown) {
     if (out.length === 2) break;
-    if (id === 'founder' && owns(me, 'founder')) out.push({ key: id, title: badgeTitle(id, founderNumber(me)), pics: founder });
-    else if (id === 'supporter' && owns(me, 'supporter')) out.push({ key: id, title: badgeTitle(id), pics: supporter });
-    else if (id === 'custom' && me.plus.live) out.push({ key: id, title: badgeTitle(id), pics: me.plus.live });
+    if (id === 'custom') {
+      if (me.plus.live) out.push({ key: id, title: badgeTitle(id), pics: me.plus.live });
+      continue;
+    }
+    const k = kinds.find((x) => x.id === id);
+    if (k && owns(me, id)) out.push({ key: id, title: badgeTitle(id, numberOf(me, id), k.title), pics: k.images });
   }
   return out;
 }
 
-/** V109-B04 Slot 1 holds one one-time badge. A new kind (e.g. a streak badge) is one more entry
- *  here; its picture comes from `pics` of the view. */
-export interface Slot1Kind {
-  id: Main;
-  label: (me: CyexMe) => string;
-  /** V109-B08 The row card's second line. */
-  sub: string;
-  pics: (view: CyexView) => CyexPics | null;
-}
-
-export const SLOT1_KINDS: readonly Slot1Kind[] = [
-  {
-    id: 'founder',
-    label: (me) => {
-      const n = founderNumber(me);
-      return n ? `Founder #${formatNumber(n)}` : 'Founder';
-    },
-    sub: 'One-time',
-    pics: (v) => (v.state === 'ready' ? v.founder : null),
-  },
-  { id: 'supporter', label: () => 'Supporter', sub: 'One-time', pics: (v) => (v.state === 'ready' ? v.supporter : null) },
-];
-
-export interface Slot1Option {
-  id: Main;
-  label: string;
-  owned: boolean;
-}
-
-export function slot1Options(me: CyexMe): Slot1Option[] {
-  return SLOT1_KINDS.map((k) => ({ id: k.id, label: k.label(me), owned: owns(me, k.id) }));
-}
-
-/** The equipped slot-1 badge, if the account still owns it. */
-export function slot1Current(me: CyexMe): Slot1Option | null {
+/** The equipped slot-1 badge id, if the account still owns it. */
+export function slot1Current(me: CyexMe): Main | null {
   const c = choiceOf(me);
-  return slot1Options(me).find((o) => o.id === c && o.owned) ?? null;
+  return c !== 'none' && owns(me, c) ? c : null;
 }
 
 /** V109-B05 A card in slot 1's picker (the shared cosmetics grid takes this shape). */
@@ -112,15 +115,17 @@ export interface PickerRow {
 
 const picsList = (p: CyexPics | null) => (p ? [p['1x'], p['2x'] || p['1x'], p['4x'] || p['2x'] || p['1x'], p['4x'] || p['2x'] || p['1x']] : ['', '', '', '']);
 
-/** V109-B05 Slot 1's cards: the badges this account owns, in the kinds list's order. */
+/** V109-B05/B10 Slot 1's cards: every one-time badge this account owns, in store order. */
 export function slot1Rows(me: CyexMe, view: CyexView): PickerRow[] {
-  return SLOT1_KINDS.filter((k) => owns(me, k.id)).map((k) => ({
-    name: k.label(me),
-    sub: k.sub,
-    animated: false,
-    usable: true,
-    item: { def: { id: k.id }, images: picsList(k.pics(view)), stills: null },
-  }));
+  return oneTimeKinds(me, view)
+    .filter((k) => owns(me, k.id))
+    .map((k) => ({
+      name: kindLabel(me, k),
+      sub: 'One-time',
+      animated: false,
+      usable: true,
+      item: { def: { id: k.id }, images: picsList(k.images), stills: null },
+    }));
 }
 
 /** V109-B08 Search and the tiles switch show from this many cards (None included) on. */
@@ -141,24 +146,22 @@ export function filterRows<T extends { name: string }>(rows: readonly T[], text:
   return t ? rows.filter((r) => r.name.toLowerCase().includes(t)) : [...rows];
 }
 
-/** Some slot-1 kind isn't owned: the picker keeps one quiet store link. */
-export function slot1Missing(me: CyexMe): boolean {
-  return SLOT1_KINDS.some((k) => !owns(me, k.id));
+/** Some catalog badge isn't owned: the section keeps one quiet store link. */
+export function slot1Missing(me: CyexMe, view: CyexView): boolean {
+  return oneTimeKinds(me, view).some((k) => !owns(me, k.id));
 }
 
 /** V109-B05 Slot 1's choice: what's worn, else the one remembered while it's switched off. */
 export function slot1Choice(me: CyexMe, remembered: string | null): Main | null {
-  const worn = slot1Current(me)?.id;
+  const worn = slot1Current(me);
   if (worn) return worn;
-  const r = SLOT1_KINDS.find((k) => k.id === remembered);
-  return r && owns(me, r.id) ? r.id : null;
+  return remembered && owns(me, remembered) ? remembered : null;
 }
 
 /** V109-B05 The equip call for a pick in slot 1 (null: nothing to do). Picking turns the slot on. */
 export function slot1Pick(me: CyexMe, id: string | null): { main: Main | null } | null {
-  const main = (SLOT1_KINDS.find((k) => k.id === id && owns(me, k.id))?.id ?? null) as Main | null;
-  if (id !== null && !main) return null;
-  return main === (slot1Current(me)?.id ?? null) ? null : { main };
+  if (id !== null && !owns(me, id)) return null;
+  return id === slot1Current(me) ? null : { main: id };
 }
 
 /** The slot-1 choice kept per account while the slot is off (the equip API has only `main`). */

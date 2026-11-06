@@ -25,7 +25,8 @@ pub struct CyexTwitch {
     pub avatar: Option<String>,
 }
 
-/// A badge the account owns: `founder` (with its number), `supporter`, `custom`.
+/// A badge the account owns: any one-time store badge (`founder`, `supporter`, …; numbered ones
+/// with their number), or `custom`.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(default)]
 #[ts(export)]
@@ -86,8 +87,9 @@ impl CyexMe {
             .any(|b| b.id == id && (id != "founder" || b.number.is_some()))
     }
 
-    pub fn founder_number(&self) -> Option<u32> {
-        self.badges.iter().find(|b| b.id == "founder").and_then(|b| b.number)
+    /// V109-B10 The number of a numbered badge the account owns.
+    pub fn number_of(&self, id: &str) -> Option<u32> {
+        self.badges.iter().find(|b| b.id == id).and_then(|b| b.number)
     }
 }
 
@@ -133,17 +135,22 @@ impl CyexHistory {
     }
 }
 
+/// V109-B10 One one-time badge of the catalog (store order), with its title and pictures.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct CyexKind {
+    pub id: String,
+    pub title: String,
+    pub images: CyexPics,
+}
+
 /// The cosmetics area of one account.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
 #[serde(tag = "state", rename_all = "camelCase")]
 #[ts(export)]
 pub enum CyexView {
-    /// With the built-in badges' pictures for the preview.
-    Ready {
-        me: Box<CyexMe>,
-        founder: CyexPics,
-        supporter: CyexPics,
-    },
+    /// With the catalog's one-time badges (titles, pictures) for the picker and the preview.
+    Ready { me: Box<CyexMe>, kinds: Vec<CyexKind> },
     /// Offline, or the server is down.
     Offline,
     /// The account has no Twitch token the server takes.
