@@ -72,7 +72,8 @@ export function lockOf({ standing, readAt, said, warning, now }: LockInput): Loc
   if (until !== null && until > now) {
     return { kind: 'timeout', until, reason: fresh?.how.kind === 'timedOut' && !ban ? '' : reason };
   }
-  const warned = warning ?? (fresh?.how.kind === 'warned' ? { reason: '', rules: [] } : null);
+  // V108-C40g A read never shows a warning, so IRC's word holds until it's acknowledged.
+  const warned = warning ?? (said?.how.kind === 'warned' ? { reason: '', rules: [] } : null);
   if (warned) return { kind: 'warn', warning: warned };
   return null;
 }
