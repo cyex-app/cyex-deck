@@ -25,7 +25,7 @@
       [
         { opacity: 0, transform: 'translate(-50%, -50%) scale(0.3) rotate(0deg)' },
         { opacity: 1, offset: twinkle ? 0.35 : 0.2 },
-        { opacity: 0, transform: `translate(calc(-50% + ${s.dx}px), calc(-50% + ${s.dy}px)) scale(${twinkle ? 0.6 : 1}) rotate(${s.star ? 90 : 0}deg)` },
+        { opacity: 0, transform: `translate(calc(-50% + ${s.dx}px), calc(-50% + ${s.dy}px)) scale(${twinkle ? 0.85 : 1}) rotate(${s.star ? 90 : 0}deg)` },
       ],
       { duration: DURATION[kind], delay: s.delay, easing: EASE, fill: 'both' },
     );

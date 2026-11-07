@@ -67,6 +67,7 @@
         {#each g.sections as s (s.id)}
           <button
             class:on={section === s.id}
+            aria-label={s.label}
             aria-current={section === s.id ? 'page' : undefined}
             onclick={() => go(s.id)}
             use:tooltip={{ label: s.label, when: () => (nav?.offsetWidth ?? 999) < 100 }}
