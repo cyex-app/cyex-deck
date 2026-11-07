@@ -65,7 +65,7 @@
     { view: 'streamManager', label: 'Stream manager', icon: 'radio', shown: () => accounts.any('streamManager') },
     { view: 'whispers', label: 'Whispers', icon: 'whisper', shown: () => accounts.can('whispers') },
     { view: 'cosmetics', label: '7TV paint and badge', icon: 'seventv', shown: () => accounts.list.length > 0 },
-    { view: 'cyex', label: 'cyex cosmetics', icon: 'badge', shown: () => accounts.list.length > 0 },
+    { view: 'cyex', label: 'cyex cosmetics', icon: 'cyex', shown: () => accounts.list.length > 0 },
     // V109-C04
     { view: 'dashboard', label: 'Creator dashboard', icon: 'layout', shown: () => accounts.list.length > 0 },
     { view: 'settings', label: 'Settings', icon: 'settings', shown: () => true },

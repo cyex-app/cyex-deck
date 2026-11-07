@@ -100,7 +100,7 @@
       // V1051-02 No lock: the view explains itself.
       { label: '7TV paint and badge', icon: 'seventv', run: oncosmetics },
       // V109-B14
-      { label: 'cyex cosmetics', icon: 'badge', run: oncyex },
+      { label: 'cyex cosmetics', icon: 'cyex', run: oncyex },
       'separator',
       { label: 'Manage accounts', icon: 'user', run: onmanage },
     ];

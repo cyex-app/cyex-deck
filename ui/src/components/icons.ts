@@ -162,6 +162,9 @@ export const ICONS = {
   regex:
     '<path d="M17 3v10"/><path d="m12.67 5.5 8.66 5"/><path d="m12.67 10.5 8.66-5"/><path d="M9 17a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-2z"/>',
   music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+  // V109-B14 The cyex mark (BrandMark's 25×22 bars scaled to fit), middle bar in the accent.
+  cyex:
+    '<g fill="currentColor" stroke="none" transform="translate(0 1.44) scale(0.96)"><rect width="15" height="6"/><rect x="7" y="8" width="18" height="6" style="fill:var(--accent)"/><rect y="16" width="15" height="6"/></g>',
   seventv:
     '<path fill="currentColor" stroke="none" transform="translate(0 3.44) scale(0.7273)" d="M2.383,0,0,4.127,1.473,6.676H11.7L3.426,21,4.9,23.551H9.66Q14.532,15.113,19.4,6.676L15.549,0ZM18.492,0l3.856,6.676h2.945l2.381-4.125L26.2,0Zm2.383,9.225L17.021,15.9l4.417,7.649H26.2L33,11.775l-1.473-2.55H26.764l-2.944,5.1Z"/>',
 } as const;
