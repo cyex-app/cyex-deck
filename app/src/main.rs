@@ -11,6 +11,7 @@ mod busy;
 mod badges;
 mod cards;
 mod chat;
+mod clips;
 mod commands;
 mod cosmetics;
 mod connections;

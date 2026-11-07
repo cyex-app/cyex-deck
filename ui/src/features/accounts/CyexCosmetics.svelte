@@ -322,7 +322,7 @@
       <Button small disabled={loading} onclick={() => void load()}>{loading ? 'Trying…' : 'Try again'}</Button>
     </div>
   {:else if view.state === 'noToken'}
-    <div class="box state"><span class="note">cyex needs this account’s Twitch sign-in. Sign in again above.</span></div>
+    <div class="box state"><span class="note">cyex needs this account’s Twitch sign-in. Sign in again in Settings, Accounts.</span></div>
   {:else if me && nothingToSet(me)}
     <div class="box">
       <div class="empty">

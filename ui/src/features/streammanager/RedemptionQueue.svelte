@@ -29,6 +29,7 @@
   import PickBar from './PickBar.svelte';
   import PickBox from './PickBox.svelte';
   import SmProblem from './SmProblem.svelte';
+  import { useOwner } from './owner';
   import { sm } from './streammanager.svelte';
   import When from './When.svelte';
 
@@ -44,8 +45,14 @@
   }
 
   let { filter, onchanged, source, pulse }: Props = $props();
+  // V109-C04 Unset: the stream manager's channel, or the creator dashboard's pick.
+  const owner = useOwner();
   // svelte-ignore state_referenced_locally
-  const from = source ?? { queue: rewardsIpc.queue, setStatus: rewardsIpc.setStatus, channel: '' };
+  const from = source ?? {
+    queue: (reward: string | null, cursor: string | null) => rewardsIpc.queue(reward, cursor, owner.account),
+    setStatus: (ids: string[], status: SmRedemptionStatus) => rewardsIpc.setStatus(ids, status, owner.account),
+    channel: '',
+  };
 
   let busy = $state(false);
   let now = $state(Date.now());
@@ -156,7 +163,7 @@
         <div class="main">
           <div class="head">
             {#if r.login}
-              <button class="who" type="button" onclick={() => r.login && orToast(chatIpc.openUsercard(from.channel || sm.manager?.login || r.login, r.login), 'open the card')}>
+              <button class="who" type="button" onclick={() => r.login && orToast(chatIpc.openUsercard(from.channel || owner.who?.login || r.login, r.login), 'open the card')}>
                 {r.name ?? r.login}
               </button>
             {:else}

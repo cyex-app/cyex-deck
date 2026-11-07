@@ -9,8 +9,8 @@ use crate::streammanager::bulk::Bulk;
 use crate::streammanager::rewards::{self, Saved};
 
 #[tauri::command]
-pub async fn sm_rewards(app: AppHandle) -> Result<Rewards, String> {
-    rewards::list(&app).await
+pub async fn sm_rewards(app: AppHandle, account: Option<String>) -> Result<Rewards, String> {
+    rewards::list(&app, account.as_deref()).await
 }
 
 #[tauri::command]
@@ -20,39 +20,40 @@ pub fn sm_reward_check(edit: RewardEdit) -> Vec<String> {
 
 /// The reward, and a warning when it was made but couldn't be turned off.
 #[tauri::command]
-pub async fn sm_reward_create(app: AppHandle, edit: RewardEdit) -> Result<Saved, String> {
-    rewards::create(&app, edit).await
+pub async fn sm_reward_create(app: AppHandle, account: Option<String>, edit: RewardEdit) -> Result<Saved, String> {
+    rewards::create(&app, account.as_deref(), edit).await
 }
 
 #[tauri::command]
-pub async fn sm_reward_update(app: AppHandle, id: String, edit: RewardEdit) -> Result<Reward, String> {
-    rewards::update(&app, id, edit).await
+pub async fn sm_reward_update(app: AppHandle, account: Option<String>, id: String, edit: RewardEdit) -> Result<Reward, String> {
+    rewards::update(&app, account.as_deref(), id, edit).await
 }
 
 #[tauri::command]
-pub async fn sm_reward_switch(app: AppHandle, id: String, switch: Switch) -> Result<Reward, String> {
-    rewards::switch(&app, id, switch).await
+pub async fn sm_reward_switch(app: AppHandle, account: Option<String>, id: String, switch: Switch) -> Result<Reward, String> {
+    rewards::switch(&app, account.as_deref(), id, switch).await
 }
 
 /// `waiting`: complete or refund its waiting redemptions.
 #[tauri::command]
-pub async fn sm_reward_delete(app: AppHandle, id: String, waiting: Option<Status>) -> Result<(), String> {
-    rewards::delete(&app, id, waiting).await
+pub async fn sm_reward_delete(app: AppHandle, account: Option<String>, id: String, waiting: Option<Status>) -> Result<(), String> {
+    rewards::delete(&app, account.as_deref(), id, waiting).await
 }
 
 #[tauri::command]
 pub async fn sm_redemptions(
     app: AppHandle,
+    account: Option<String>,
     reward: Option<String>,
     cursor: Option<String>,
 ) -> Result<Queue, String> {
-    rewards::queue(&app, reward, cursor).await
+    rewards::queue(&app, account.as_deref(), reward, cursor).await
 }
 
 /// Which went through, and why the rest didn't.
 #[tauri::command]
-pub async fn sm_redemptions_set(app: AppHandle, ids: Vec<String>, status: Status) -> Result<Bulk, String> {
-    rewards::set_status(&app, ids, status).await
+pub async fn sm_redemptions_set(app: AppHandle, account: Option<String>, ids: Vec<String>, status: Status) -> Result<Bulk, String> {
+    rewards::set_status(&app, account.as_deref(), ids, status).await
 }
 
 /// V107-R43 The rewards of a channel `account` moderates.

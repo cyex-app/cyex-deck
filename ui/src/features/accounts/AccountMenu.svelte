@@ -23,12 +23,18 @@
     onmanage,
     onsubs,
     oncosmetics,
+    oncyex,
+    ondashboard,
     active = false,
     streamer = 'off',
   }: {
     onmanage: () => void;
     onsubs: () => void;
     oncosmetics: () => void;
+    /** V109-B14 */
+    oncyex: () => void;
+    /** V109-C04 */
+    ondashboard: () => void;
     active?: boolean;
     /** V106-17 Streamer mode dot: on, or on while your own channel is live. */
     streamer?: 'off' | 'on' | 'live';
@@ -80,6 +86,9 @@
         run: () => pick(a.userId),
       })),
       'separator',
+      // V109-C04 Your channel's clips, videos, followers, roles, rewards and moderation.
+      { label: 'Creator dashboard', icon: 'layout', run: ondashboard },
+      'separator',
       // V102-20 Only with Twitch's own sign-in.
       { label: 'Subscriptions', icon: 'star', lock: walletLock, unlock: ask, run: onsubs },
       { label: 'Get Bits', icon: 'bits', lock: walletLock, unlock: ask, run: bits },
@@ -90,6 +99,8 @@
         : []),
       // V1051-02 No lock: the view explains itself.
       { label: '7TV paint and badge', icon: 'seventv', run: oncosmetics },
+      // V109-B14
+      { label: 'cyex cosmetics', icon: 'badge', run: oncyex },
       'separator',
       { label: 'Manage accounts', icon: 'user', run: onmanage },
     ];

@@ -27,8 +27,12 @@
   import RewardForm from './RewardForm.svelte';
   import { blank, facts, rewardOptions, toEdit, waiting } from './rewardsLogic';
   import { focusBack } from './onEscape';
+  import { useOwner } from './owner';
   import SmBar from './SmBar.svelte';
   import SmProblem from './SmProblem.svelte';
+
+  // V109-C04 The stream manager's channel, or the creator dashboard's pick.
+  const owner = useOwner();
 
   type View = 'rewards' | 'queue';
 
@@ -77,7 +81,7 @@
     const mine = ++seq;
     loading = true;
     try {
-      const r = await rewardsIpc.list();
+      const r = await rewardsIpc.list(owner.account);
       if (mine !== seq) return;
       data = r;
       failed = '';
@@ -105,10 +109,10 @@
     const id = editing ?? 'new';
     void hold(id, async () => {
       if (id !== 'new') {
-        put(await rewardsIpc.update(id, edit));
+        put(await rewardsIpc.update(id, edit, owner.account));
         toast.success('Reward saved.');
       } else {
-        const s = await rewardsIpc.create(edit);
+        const s = await rewardsIpc.create(edit, owner.account);
         put(s.reward);
         if (s.warning) toast.error(s.warning);
         else toast.success('Reward created.');
@@ -118,13 +122,13 @@
   }
 
   function flip(r: SmReward, change: SmRewardSwitch) {
-    void hold(r.id, async () => put(await rewardsIpc.switch(r.id, change)));
+    void hold(r.id, async () => put(await rewardsIpc.switch(r.id, change, owner.account)));
   }
 
   function remove(r: SmReward, waitingTo: SmRedemptionStatus | null) {
     void hold(r.id, async () => {
       try {
-        await rewardsIpc.remove(r.id, waitingTo);
+        await rewardsIpc.remove(r.id, waitingTo, owner.account);
         if (data) data.rewards = data.rewards.filter((x) => x.id !== r.id);
         if (filter === r.id) filter = '';
         toast.success('Reward deleted.');

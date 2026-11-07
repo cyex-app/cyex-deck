@@ -18,7 +18,6 @@
   import { toast } from '../../lib/toast.svelte';
   import { alsoSevenTv } from './alsoSevenTv.svelte';
   import GqlUnlock from './GqlUnlock.svelte';
-  import CyexCosmetics from './CyexCosmetics.svelte';
   import SevenTvPaste from './SevenTvPaste.svelte';
   import ProfileEditor from './ProfileEditor.svelte';
   import ProfileImages from './ProfileImages.svelte';
@@ -50,8 +49,6 @@
   let unlocking = $state(false);
   /** V108-7K The "Paste a 7TV token" steps. */
   let pasting = $state(false);
-  /** V109-B02 The cyex cosmetics area. */
-  let cyexOpen = $state(false);
   const showUnlock = $derived(
     (unlocking || signIn.offer === account.userId) && (account.gql === null || needsSignIn(account.gql)),
   );
@@ -174,17 +171,6 @@
       <ConfirmButton label="Withdraw" confirm="Click to withdraw" variant="ghost" onconfirm={withdraw} />
     {/if}
   </div>
-
-  <!-- V109-B02 -->
-  <div class="line">
-    <span class="name">cyex badges</span>
-    <span class="status muted">Your cyex badge next to your name in chat.</span>
-    <!-- V109-B03 -->
-    <Button small variant="ghost" onclick={() => (cyexOpen = !cyexOpen)}>{cyexOpen ? 'Close' : 'Edit'}</Button>
-  </div>
-  {#if cyexOpen}
-    <div transition:slide={{ duration: reduced() ? 0 : BASE, easing: cubicOut }}><CyexCosmetics {account} /></div>
-  {/if}
 
   {#if pasting && !(account.seventv.consent && account.seventv.signedIn)}<SevenTvPaste {account} onclose={() => (pasting = false)} />{/if}
 

@@ -42,8 +42,11 @@
     withPartial,
     withRule,
   } from './modset';
+  import { useOwner } from './owner';
   import SmProblem from './SmProblem.svelte';
 
+  // V109-C04 The stream manager's channel, or the creator dashboard's pick.
+  const owner = useOwner();
   let s = $state<ModsetSettings | null>(null);
   let failed = $state('');
   let busy = $state(false);
@@ -66,7 +69,7 @@
     failed = '';
     loading = true;
     modsetIpc
-      .read()
+      .read(owner.account)
       .then((r) => ok() && (s = r))
       .catch((e) => {
         if (!ok()) return;
@@ -95,7 +98,7 @@
     }
   }
 
-  const set = (change: ModsetChange) => run(() => modsetIpc.set(change));
+  const set = (change: ModsetChange) => run(() => modsetIpc.set(change, owner.account));
   const verify = (v: ModsetVerification) => set({ kind: 'verification', verification: v });
 
   async function addRule() {
@@ -110,7 +113,7 @@
   /** Rust checks it against the list shown (`have`), then Twitch. */
   async function addTerm() {
     const have = terms.map((t) => t.text);
-    if (await run(() => modsetIpc.addTerm(termList === 'permitted', term.trim(), have))) term = '';
+    if (await run(() => modsetIpc.addTerm(termList === 'permitted', term.trim(), have, owner.account))) term = '';
   }
 </script>
 
@@ -300,7 +303,7 @@
           {#each terms as t (t.id)}
             <li>
               <span class="text">{t.text}</span>
-              <ConfirmButton label="Remove" confirm="Remove?" variant="ghost" disabled={busy} onconfirm={() => void run(() => modsetIpc.removeTerm(termList === 'permitted', t.id))} />
+              <ConfirmButton label="Remove" confirm="Remove?" variant="ghost" disabled={busy} onconfirm={() => void run(() => modsetIpc.removeTerm(termList === 'permitted', t.id, owner.account))} />
             </li>
           {/each}
         </ul>

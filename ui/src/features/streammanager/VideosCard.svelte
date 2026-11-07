@@ -28,10 +28,12 @@
   import SmBar from './SmBar.svelte';
   import SmProblem from './SmProblem.svelte';
   import { bulkLines, count, type KindPick, kindOf, length, type Playing, VIDEO_KINDS, videoLine, videoLink, videoTag } from './content';
-  import { sm } from './streammanager.svelte';
+  import { useOwner } from './owner';
 
   limits.load();
 
+  // V109-C04 The stream manager's channel, or the creator dashboard's pick.
+  const owner = useOwner();
   let kind = $state<KindPick>('all');
   let playing = $state<Playing | null>(null);
   /** The row being renamed and its text. */
@@ -44,7 +46,7 @@
   // so a page for the old one is dropped.
   const list = new PagedList<ManagedVideo>({
     key: (v) => v.id,
-    fetch: (cursor) => contentIpc.videos(kindOf(kind), cursor).then((p) => ({ items: p.videos, next: p.cursor, total: p.total })),
+    fetch: (cursor) => contentIpc.videos(kindOf(kind), cursor, owner.account).then((p) => ({ items: p.videos, next: p.cursor, total: p.total })),
   });
   const videos = $derived(list.items);
   const picked = $derived(list.picked);
@@ -84,7 +86,7 @@
       return;
     }
     void busy(e.id, async () => {
-      const title = await contentIpc.renameVideo(e.id, e.text);
+      const title = await contentIpc.renameVideo(e.id, e.text, owner.account);
       patch(e.id, { title });
       editing = null;
       toast.success('Renamed.');
@@ -93,7 +95,7 @@
 
   function publish(v: ManagedVideo, on: boolean) {
     void busy(v.id, async () => {
-      const now = await contentIpc.publishVideo(v.id, on);
+      const now = await contentIpc.publishVideo(v.id, on, owner.account);
       patch(v.id, { public: now });
       toast.success(now ? 'Published.' : 'Unpublished. Only you can see it now.');
     });
@@ -111,7 +113,7 @@
     if (!ids.length || bulk) return;
     bulk = true;
     try {
-      const r = what === 'delete' ? await contentIpc.deleteVideos(ids) : await contentIpc.publishVideos(ids, what === 'publish');
+      const r = what === 'delete' ? await contentIpc.deleteVideos(ids, owner.account) : await contentIpc.publishVideos(ids, what === 'publish', owner.account);
       if (what === 'delete') list.remove(r.done);
       else for (const id of r.done) patch(id, { public: what === 'publish' });
       const say = bulkLines(r, ids.length, DID[what]);
@@ -127,7 +129,7 @@
 
   function remove(v: ManagedVideo) {
     void busy(v.id, async () => {
-      const r = await contentIpc.deleteVideos([v.id]);
+      const r = await contentIpc.deleteVideos([v.id], owner.account);
       if (r.done.includes(v.id)) {
         list.remove([v.id]);
         toast.success('Video deleted.');
@@ -244,7 +246,7 @@
   {/if}
 </Card>
 
-{#if playing}<ContentPlayer what={playing} account={sm.manager?.accountId ?? null} onclose={() => (playing = null)} />{/if}
+{#if playing}<ContentPlayer what={playing} account={owner.who?.accountId ?? null} onclose={() => (playing = null)} />{/if}
 
 <style>
   .bad {

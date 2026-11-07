@@ -45,7 +45,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 12px 20px;
+    padding: 12px 48px 12px 20px;
     border-bottom: 1px solid var(--border);
   }
   h1 {

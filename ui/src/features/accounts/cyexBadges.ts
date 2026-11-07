@@ -321,7 +321,9 @@ export interface PlusState {
 export function plusState(me: CyexMe): PlusState {
   const p = me.plus;
   if (!p.active) {
-    if (!p.until && !p.badge && !p.live) return { kind: 'never', plan: '', note: '', link: null };
+    // V109-F76 The server sends `badge: { status: 'none' }` to someone who never had a picture.
+    const picture = !!p.badge && p.badge.status !== 'none';
+    if (!p.until && !picture && !p.live) return { kind: 'never', plan: '', note: '', link: null };
     return { kind: 'ended', plan: p.until ? `Ended ${day(p.until)}` : 'Ended', note: 'Not in chat while the plan is off', link: { label: 'Renew', url: STORE } };
   }
   const plan = p.renewsAt ? `Renews ${day(p.renewsAt)}` : p.until ? `Free until ${day(p.until)}` : '';

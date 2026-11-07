@@ -56,7 +56,7 @@
 <p class="note">Checks GitHub for new versions. Sends nothing about you or your accounts.</p>
 
 <!-- V109-B02 -->
-<Row setting="about:badge" label="cyex badges" hint="Founder, supporter or supporter+. Shows next to your name in chat.">
+<Row setting="about:badge" label="cyex badges" hint="Founder, supporter or supporter+. Pick yours under cyex cosmetics in the account menu.">
   <Button small onclick={(e) => open(e, STORE)}>Get a badge</Button>
 </Row>
 

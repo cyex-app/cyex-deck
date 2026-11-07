@@ -13,7 +13,8 @@ use tauri::AppHandle;
 use ts_rs::TS;
 
 use super::bulk::{self, Bulk};
-use super::gql_call::{GqlCall, gql_call};
+use super::gql_call::GqlCall;
+use super::owner::own_call;
 use super::words;
 
 /// A saved reward, and what didn't go with it (CORR-03).
@@ -84,8 +85,8 @@ fn checked(e: &RewardEdit) -> Result<(), String> {
     }
 }
 
-pub async fn list(app: &AppHandle) -> Result<Rewards, String> {
-    list_on(&gql_call(app)?, said).await
+pub async fn list(app: &AppHandle, account: Option<&str>) -> Result<Rewards, String> {
+    list_on(&own_call(app, account)?, said).await
 }
 
 /// V107-R43 The rewards of `c`'s channel (the manager's, or one it moderates).
@@ -95,9 +96,9 @@ pub async fn list_on(c: &GqlCall, say: fn(&cyex_twitch::Error) -> String) -> Res
 
 /// New rewards start on; off is a second call. When that fails the reward is still made:
 /// it comes back with a warning, not as an error (CORR-03).
-pub async fn create(app: &AppHandle, edit: RewardEdit) -> Result<Saved, String> {
+pub async fn create(app: &AppHandle, account: Option<&str>, edit: RewardEdit) -> Result<Saved, String> {
     checked(&edit)?;
-    let c = gql_call(app)?;
+    let c = own_call(app, account)?;
     let ch = c.channel();
     let made = api::create(&ch, &edit).await.map_err(|e| said(&e))?;
     if edit.enabled {
@@ -113,24 +114,24 @@ fn off_failed(e: &cyex_twitch::Error) -> String {
     format!("Made it, but it’s still on. {}", said(e))
 }
 
-pub async fn update(app: &AppHandle, id: String, edit: RewardEdit) -> Result<Reward, String> {
+pub async fn update(app: &AppHandle, account: Option<&str>, id: String, edit: RewardEdit) -> Result<Reward, String> {
     checked(&edit)?;
-    let c = gql_call(app)?;
+    let c = own_call(app, account)?;
     api::update(&c.channel(), &id, &edit).await.map_err(|e| said(&e))
 }
 
-pub async fn switch(app: &AppHandle, id: String, s: Switch) -> Result<Reward, String> {
-    let c = gql_call(app)?;
+pub async fn switch(app: &AppHandle, account: Option<&str>, id: String, s: Switch) -> Result<Reward, String> {
+    let c = own_call(app, account)?;
     api::switch(&c.channel(), &id, s).await.map_err(|e| said(&e))
 }
 
-pub async fn delete(app: &AppHandle, id: String, waiting: Option<Status>) -> Result<(), String> {
-    let c = gql_call(app)?;
+pub async fn delete(app: &AppHandle, account: Option<&str>, id: String, waiting: Option<Status>) -> Result<(), String> {
+    let c = own_call(app, account)?;
     api::delete(&c.channel(), &id, waiting).await.map_err(|e| said(&e))
 }
 
-pub async fn queue(app: &AppHandle, reward: Option<String>, cursor: Option<String>) -> Result<Queue, String> {
-    queue_on(&gql_call(app)?, reward, cursor, said).await
+pub async fn queue(app: &AppHandle, account: Option<&str>, reward: Option<String>, cursor: Option<String>) -> Result<Queue, String> {
+    queue_on(&own_call(app, account)?, reward, cursor, said).await
 }
 
 pub async fn queue_on(
@@ -146,8 +147,8 @@ pub async fn queue_on(
 
 /// Completes or rejects (refunds) redemptions, 50 a call, paced (`bulk`). `done` lists the
 /// ids that went; a refusal midway stops there and says why (CORR-02).
-pub async fn set_status(app: &AppHandle, ids: Vec<String>, s: Status) -> Result<Bulk, String> {
-    set_status_on(app, &gql_call(app)?, ids, s, said).await
+pub async fn set_status(app: &AppHandle, account: Option<&str>, ids: Vec<String>, s: Status) -> Result<Bulk, String> {
+    set_status_on(app, &own_call(app, account)?, ids, s, said).await
 }
 
 /// V107-R43 [`set_status`] on `c`'s channel, through the same gate and pace.

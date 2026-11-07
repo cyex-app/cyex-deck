@@ -12,7 +12,8 @@ const GQL_ONLY: &str = "This needs the sign-in with a code (Settings → Account
 /// The fake sign-in the mock gets.
 const MOCK_TOKEN: &str = "mock-token";
 #[cfg(feature = "mocks")]
-const MOCK_VARS: [&str; 3] = [
+/// V109-C03 Also read by the clips manager (`app/src/clips`).
+pub(crate) const MOCK_VARS: [&str; 3] = [
     "CYEX_GQL_DASHBOARD_MOCK",
     "CYEX_GQL_CONTENT_MOCK",
     "CYEX_GQL_REWARDS_MOCK",

@@ -7,7 +7,7 @@ use cyex_twitch::Error;
 use cyex_twitch::gql::dashboard::modset::{self as ms, Change, ModSettings, TERM_MAX, TERM_MIN};
 use tauri::AppHandle;
 
-use super::gql_call::gql_call;
+use super::owner::own_call;
 use super::words;
 
 /// Twitch's answer as a line; a term on the list already first.
@@ -22,13 +22,13 @@ fn already(permitted: bool) -> String {
     if permitted { "That term is allowed already." } else { "That term is blocked already." }.into()
 }
 
-pub async fn read(app: &AppHandle) -> Result<ModSettings, String> {
-    let c = gql_call(app)?;
+pub async fn read(app: &AppHandle, account: Option<&str>) -> Result<ModSettings, String> {
+    let c = own_call(app, account)?;
     ms::read(&c.channel()).await.map_err(|e| words::gql(&e))
 }
 
-pub async fn set(app: &AppHandle, change: Change) -> Result<ModSettings, String> {
-    let c = gql_call(app)?;
+pub async fn set(app: &AppHandle, account: Option<&str>, change: Change) -> Result<ModSettings, String> {
+    let c = own_call(app, account)?;
     ms::set(&c.channel(), &change).await.map_err(|e| words::gql(&e))
 }
 
@@ -50,17 +50,23 @@ pub fn check(text: &str, have: &[String], permitted: bool) -> Result<String, Str
 }
 
 /// Adds a blocked or permitted term and reads everything back.
-pub async fn add_term(app: &AppHandle, permitted: bool, text: &str, have: &[String]) -> Result<ModSettings, String> {
+pub async fn add_term(
+    app: &AppHandle,
+    account: Option<&str>,
+    permitted: bool,
+    text: &str,
+    have: &[String],
+) -> Result<ModSettings, String> {
     let t = check(text, have, permitted)?;
-    let c = gql_call(app)?;
+    let c = own_call(app, account)?;
     ms::add_term(&c.channel(), permitted, &t).await.map_err(|e| say(&e, permitted))?;
-    read(app).await
+    read(app, account).await
 }
 
-pub async fn remove_term(app: &AppHandle, permitted: bool, id: &str) -> Result<ModSettings, String> {
-    let c = gql_call(app)?;
+pub async fn remove_term(app: &AppHandle, account: Option<&str>, permitted: bool, id: &str) -> Result<ModSettings, String> {
+    let c = own_call(app, account)?;
     ms::remove_term(&c.channel(), permitted, id).await.map_err(|e| words::gql(&e))?;
-    read(app).await
+    read(app, account).await
 }
 
 #[cfg(test)]

@@ -383,7 +383,7 @@
   /* S5, S6 One column width on every page, centred in the room beside the list. */
   .inner {
     box-sizing: border-box;
-    max-width: 760px;
+    max-width: 960px;
     margin-inline: auto;
     padding: 22px 28px 32px;
   }

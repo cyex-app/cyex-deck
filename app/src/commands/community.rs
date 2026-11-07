@@ -14,8 +14,13 @@ use crate::streammanager::words;
 
 /// A page of your followers, newest or oldest first, after `cursor`.
 #[tauri::command]
-pub async fn cm_followers(app: AppHandle, cursor: Option<String>, newest: bool) -> Result<Followers, String> {
-    let c = gql_call(&app)?;
+pub async fn cm_followers(
+    app: AppHandle,
+    account: Option<String>,
+    cursor: Option<String>,
+    newest: bool,
+) -> Result<Followers, String> {
+    let c = crate::streammanager::owner::own_call(&app, account.as_deref())?;
     community::followers(&c.channel(), cursor.as_deref(), newest)
         .await
         .map_err(|e| words::gql(&e))

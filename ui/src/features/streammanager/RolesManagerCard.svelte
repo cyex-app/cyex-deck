@@ -27,10 +27,12 @@
   import { focusIn, onEscape } from './onEscape';
   import SmBar from './SmBar.svelte';
   import SmProblem from './SmProblem.svelte';
-  import { sm } from './streammanager.svelte';
+  import { useOwner } from './owner';
   import When from './When.svelte';
 
-  const m = $derived(sm.manager);
+  // V109-C04 Shared with the creator dashboard: your channel there is the picked account's.
+  const owner = useOwner();
+  const m = $derived(owner.who);
 
   let view = $state<RolesView | null>(null);
   let loading = $state(true);

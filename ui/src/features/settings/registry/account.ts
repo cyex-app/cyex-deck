@@ -34,14 +34,6 @@ export const ACCOUNT: Entry[] = [
     anchor: 'accounts.list',
   },
   {
-    id: 'accounts:cyex',
-    page: 'accounts',
-    label: 'cyex badges',
-    description: 'Your cyex badges per account: which one shows, the Supporter+ badge and codes.',
-    keywords: ['cyex', 'cosmetics', 'badge', 'founder', 'supporter', 'supporter+', 'code', 'promo'],
-    anchor: 'accounts.list',
-  },
-  {
     id: 'accounts:code',
     page: 'accounts',
     label: 'Sign in with a code',

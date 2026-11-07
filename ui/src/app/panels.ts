@@ -98,7 +98,7 @@ export function titleFor(route: string): string {
   return PANELS[kind]?.title ?? 'cyex deck';
 }
 
-const SM_PANEL_TITLES: Record<string, string> = { followers: 'Followers', roles: 'My assigned roles', rolesmgr: 'Roles Manager', rewards: 'Rewards', clips: 'Clips', videos: 'Videos', modset: 'Moderation settings' };
+const SM_PANEL_TITLES: Record<string, string> = { roles: 'My assigned roles', rolesmgr: 'Roles Manager' };
 
 export async function popOut(route: string, title?: string): Promise<boolean> {
   const panel = panelFor(route);

@@ -17,6 +17,7 @@ pub mod limits;
 pub mod live;
 pub mod modset;
 pub mod obs;
+pub mod owner;
 pub mod rewards;
 pub mod stats;
 pub mod words;

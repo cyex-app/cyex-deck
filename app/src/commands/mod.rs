@@ -4,6 +4,7 @@ mod accounts;
 mod browse;
 mod chat;
 mod chat_extra;
+mod clips;
 mod community;
 mod content;
 mod cosmetics;
@@ -231,6 +232,9 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         community::cm_followers,
         community::cm_assigned,
         community::cm_step_down,
+        clips::clips_list,
+        clips::clips_delete,
+        clips::clips_edit,
         content::content_clips,
         content::content_delete_clips,
         content::content_videos,

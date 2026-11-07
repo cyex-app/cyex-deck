@@ -10,6 +10,7 @@ use tauri::AppHandle;
 
 use super::bulk::{self, Bulk};
 use super::gql_call::gql_call;
+use super::owner::own_call;
 use super::words;
 
 /// Twitch's answer as a line; this panel's own codes first.
@@ -27,18 +28,18 @@ pub async fn clips(app: &AppHandle, filter: clips::ClipFilter) -> Result<clips::
     clips::list(&c.channel(), &c.login, &filter).await.map_err(|e| say(&e))
 }
 
-pub async fn videos(app: &AppHandle, kind: Option<VideoKind>, cursor: Option<String>) -> Result<videos::VideoPage, String> {
-    let c = gql_call(app)?;
+pub async fn videos(app: &AppHandle, account: Option<&str>, kind: Option<VideoKind>, cursor: Option<String>) -> Result<videos::VideoPage, String> {
+    let c = own_call(app, account)?;
     videos::list(&c.channel(), kind, cursor.as_deref()).await.map_err(|e| say(&e))
 }
 
-pub async fn rename_video(app: &AppHandle, id: String, title: String) -> Result<String, String> {
-    let c = gql_call(app)?;
+pub async fn rename_video(app: &AppHandle, account: Option<&str>, id: String, title: String) -> Result<String, String> {
+    let c = own_call(app, account)?;
     videos::rename(&c.channel(), &id, &title).await.map_err(|e| say(&e))
 }
 
-pub async fn publish_video(app: &AppHandle, id: String, public: bool) -> Result<bool, String> {
-    let c = gql_call(app)?;
+pub async fn publish_video(app: &AppHandle, account: Option<&str>, id: String, public: bool) -> Result<bool, String> {
+    let c = own_call(app, account)?;
     videos::publish(&c.channel(), &id, public).await.map_err(|e| say(&e))
 }
 
@@ -48,16 +49,16 @@ pub async fn delete_clips(app: &AppHandle, slugs: Vec<String>) -> Result<Bulk, S
 }
 
 /// Publishes or unpublishes several videos; `done` lists the ones Twitch reads back changed.
-pub async fn publish_videos(app: &AppHandle, ids: Vec<String>, public: bool) -> Result<Bulk, String> {
-    let c = &gql_call(app)?;
+pub async fn publish_videos(app: &AppHandle, account: Option<&str>, ids: Vec<String>, public: bool) -> Result<Bulk, String> {
+    let c = &own_call(app, account)?;
     bulk::run(app, ids, videos::DELETE_MAX, say, |part| async move {
         videos::publish_many(&c.channel(), &part, public).await
     })
     .await
 }
 
-pub async fn delete_videos(app: &AppHandle, ids: Vec<String>) -> Result<Bulk, String> {
-    let c = &gql_call(app)?;
+pub async fn delete_videos(app: &AppHandle, account: Option<&str>, ids: Vec<String>) -> Result<Bulk, String> {
+    let c = &own_call(app, account)?;
     bulk::run(app, ids, videos::DELETE_MAX, say, |part| async move { videos::delete(&c.channel(), &part).await }).await
 }
 

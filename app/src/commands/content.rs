@@ -19,26 +19,31 @@ pub async fn content_delete_clips(app: AppHandle, slugs: Vec<String>) -> Result<
 }
 
 #[tauri::command]
-pub async fn content_videos(app: AppHandle, kind: Option<VideoKind>, cursor: Option<String>) -> Result<VideoPage, String> {
-    content::videos(&app, kind, cursor).await
+pub async fn content_videos(
+    app: AppHandle,
+    account: Option<String>,
+    kind: Option<VideoKind>,
+    cursor: Option<String>,
+) -> Result<VideoPage, String> {
+    content::videos(&app, account.as_deref(), kind, cursor).await
 }
 
 #[tauri::command]
-pub async fn content_rename_video(app: AppHandle, id: String, title: String) -> Result<String, String> {
-    content::rename_video(&app, id, title).await
+pub async fn content_rename_video(app: AppHandle, account: Option<String>, id: String, title: String) -> Result<String, String> {
+    content::rename_video(&app, account.as_deref(), id, title).await
 }
 
 #[tauri::command]
-pub async fn content_publish_video(app: AppHandle, id: String, public: bool) -> Result<bool, String> {
-    content::publish_video(&app, id, public).await
+pub async fn content_publish_video(app: AppHandle, account: Option<String>, id: String, public: bool) -> Result<bool, String> {
+    content::publish_video(&app, account.as_deref(), id, public).await
 }
 
 #[tauri::command]
-pub async fn content_publish_videos(app: AppHandle, ids: Vec<String>, public: bool) -> Result<Bulk, String> {
-    content::publish_videos(&app, ids, public).await
+pub async fn content_publish_videos(app: AppHandle, account: Option<String>, ids: Vec<String>, public: bool) -> Result<Bulk, String> {
+    content::publish_videos(&app, account.as_deref(), ids, public).await
 }
 
 #[tauri::command]
-pub async fn content_delete_videos(app: AppHandle, ids: Vec<String>) -> Result<Bulk, String> {
-    content::delete_videos(&app, ids).await
+pub async fn content_delete_videos(app: AppHandle, account: Option<String>, ids: Vec<String>) -> Result<Bulk, String> {
+    content::delete_videos(&app, account.as_deref(), ids).await
 }

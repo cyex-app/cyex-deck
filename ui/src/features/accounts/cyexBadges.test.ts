@@ -234,6 +234,8 @@ test('V109-B04 slot 2 gate: a fresh look first, 30 s cache, failures stay shut',
 
 test('V109-B03 Supporter+ states: plan line, note and the one link', () => {
   assert.equal(plusState(me()).kind, 'never');
+  // V109-F76 what the real server sends someone who never bought Supporter+
+  assert.equal(plusState(me({ plus: plus({ active: false, badge: { status: 'none' } }) })).kind, 'never');
   assert.ok(nothingToSet(me()));
   const live = plusState(me({ plus: plus({ renewsAt: '2026-12-05T12:00:00Z', until: '2026-12-05T12:00:00Z', live: pic('c') }) }));
   assert.equal(live.kind, 'live');

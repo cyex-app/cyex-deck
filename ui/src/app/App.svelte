@@ -85,9 +85,14 @@
   const minerView = lazy(() => import('../features/miner/MinerView.svelte'));
   const subsView = lazy(() => import('../features/subs/SubsView.svelte'));
   const cosmeticsView = lazy(() => import('../features/cosmetics/CosmeticsView.svelte'));
+  const cyexView = lazy(() => import('../features/accounts/CyexView.svelte'));
+  const dashboardView = lazy(() => import('../features/dashboard/CreatorDashboard.svelte'));
+  const sheetFrame = lazy(() => import('../components/Sheet.svelte'));
   const settingsSheet = lazy(() => import('../features/settings/SettingsSheet.svelte'));
 
-  type Fixed = 'home' | 'discover' | 'miner' | 'streamManager' | 'whispers' | 'mentions' | 'subs' | 'cosmetics' | 'modview';
+  type Fixed = 'home' | 'discover' | 'miner' | 'streamManager' | 'whispers' | 'mentions' | 'subs' | 'modview';
+  /** V109-B15 Pages that float over the window like Settings. */
+  type SheetPage = 'cosmetics' | 'cyex' | 'dashboard';
   /** Somewhere the main window can show. */
   type Place = { tab: string } | { view: Fixed };
 
@@ -98,6 +103,8 @@
   let settingsSection = $state('general');
   /** V108-S1 Settings show as a sheet over the tab or view, not in its place. */
   let settingsOpen = $state(false);
+  let sheetPage = $state<SheetPage | null>(null);
+  const SHEET_LABELS: Record<SheetPage, string> = { cosmetics: '7TV paint and badge', cyex: 'cyex cosmetics', dashboard: 'Creator dashboard' };
   let switcher = $state(false);
 
   const side = $derived(settings.v.appearance.tabBarSide);
@@ -372,6 +379,7 @@
 
   function show(view: Fixed) {
     settingsOpen = false;
+    sheetPage = null;
     if (fixed !== view) moved();
     fixed = view;
     tabs.activate(null);
@@ -379,6 +387,7 @@
 
   function open(id: string) {
     settingsOpen = false;
+    sheetPage = null;
     if (fixed || current !== id) moved();
     // V107-H15 Taken before the old tab leaves the page.
     const typing = inOtherField(document.activeElement);
@@ -409,12 +418,18 @@
   function openSettings(page?: string) {
     if (page) settingsSection = page;
     if (theatre.tile) theatre.leave();
+    sheetPage = null;
     settingsOpen = true;
     // The sheet's chunk failed to load: no sheet, so nothing may stay inert behind it.
     settingsSheet().catch(() => {
       settingsOpen = false;
       toast.error('Couldn’t open Settings. Try again.', { key: 'settings.load' });
     });
+  }
+  /** V109-B15 The 7TV and cyex cosmetics pages, V109-C04 the creator dashboard: a sheet like Settings. */
+  function openSheetPage(page: SheetPage) {
+    settingsOpen = false;
+    sheetPage = page;
   }
   function toggleSettings() {
     if (settingsOpen) settingsOpen = false;
@@ -577,7 +592,7 @@
       </div>
     {/if}
     <ConnectionCounter />
-    <AccountMenu onmanage={manageAccounts} onsubs={() => show('subs')} oncosmetics={() => show('cosmetics')} active={fixed === 'cosmetics'} streamer={streamerDot} />
+    <AccountMenu onmanage={manageAccounts} onsubs={() => show('subs')} oncosmetics={() => openSheetPage('cosmetics')} oncyex={() => openSheetPage('cyex')} ondashboard={() => openSheetPage('dashboard')} active={sheetPage !== null} streamer={streamerDot} />
     <UpdateBadge />
     <IconButton icon="settings" label="Settings" hint="Everything you can change (Ctrl+,)." active={settingsOpen} onclick={toggleSettings} />
     {/if}
@@ -641,8 +656,6 @@
             {#await subsView() then { default: SubsView }}
               <SubsView onchannel={(c) => void openChannel({ show: open, account: () => accounts.current?.userId ?? null }, c)} onsignin={manageAccounts} />
             {/await}
-          {:else if fixed === 'cosmetics'}
-            {#await cosmeticsView() then { default: CosmeticsView }}<CosmeticsView onclose={() => leaveView('cosmetics')} />{/await}
           {:else}
             <HomeView onopen={open} ondiscover={() => show('discover')} onsignin={manageAccounts} />
           {/if}
@@ -659,10 +672,23 @@
   {:catch}<!-- openSettings closes it and says so -->
   {/await}
 {/if}
+{#if sheetPage}
+  {#await sheetFrame() then { default: Sheet }}
+    <Sheet label={SHEET_LABELS[sheetPage]} onclose={() => (sheetPage = null)}>
+      {#if sheetPage === 'dashboard'}
+        {#await dashboardView() then { default: CreatorDashboard }}<CreatorDashboard />{/await}
+      {:else if sheetPage === 'cyex'}
+        {#await cyexView() then { default: CyexView }}<CyexView />{/await}
+      {:else}
+        {#await cosmeticsView() then { default: CosmeticsView }}<CosmeticsView onclose={() => (sheetPage = null)} />{/await}
+      {/if}
+    </Sheet>
+  {/await}
+{/if}
 {#if switcher}
   <Switcher
     onopen={open}
-    onview={(v) => (v === 'settings' ? openSettings() : show(v))}
+    onview={(v) => (v === 'settings' ? openSettings() : v === 'cosmetics' || v === 'cyex' || v === 'dashboard' ? openSheetPage(v) : show(v))}
     onsettings={openSettings}
     onclose={() => (switcher = false)} />
 {/if}

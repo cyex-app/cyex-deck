@@ -12,20 +12,25 @@ import type { SmRewardSaved } from './bindings/SmRewardSaved';
 import type { SmRewards } from './bindings/SmRewards';
 import type { SmRewardSwitch } from './bindings/SmRewardSwitch';
 
+/** V109-C04 `account`: whose channel (the creator dashboard's pick); unset, the stream manager's. */
 export const rewardsIpc = {
-  list: () => invoke<SmRewards>('sm_rewards'),
+  list: (account?: string | null) => invoke<SmRewards>('sm_rewards', { account }),
   /** What's wrong with it, one line each; empty when it can be saved. */
   check: (edit: SmRewardEdit) => invoke<string[]>('sm_reward_check', { edit }),
   /** `warning`: made, but a second step failed. */
-  create: (edit: SmRewardEdit) => invoke<SmRewardSaved>('sm_reward_create', { edit }),
-  update: (id: string, edit: SmRewardEdit) => invoke<SmReward>('sm_reward_update', { id, edit }),
-  switch: (id: string, change: SmRewardSwitch) => invoke<SmReward>('sm_reward_switch', { id, switch: change }),
+  create: (edit: SmRewardEdit, account?: string | null) => invoke<SmRewardSaved>('sm_reward_create', { edit, account }),
+  update: (id: string, edit: SmRewardEdit, account?: string | null) => invoke<SmReward>('sm_reward_update', { id, edit, account }),
+  switch: (id: string, change: SmRewardSwitch, account?: string | null) =>
+    invoke<SmReward>('sm_reward_switch', { id, switch: change, account }),
   /** `waiting`: complete or refund its waiting redemptions. */
-  remove: (id: string, waiting: SmRedemptionStatus | null) => invoke<void>('sm_reward_delete', { id, waiting }),
+  remove: (id: string, waiting: SmRedemptionStatus | null, account?: string | null) =>
+    invoke<void>('sm_reward_delete', { id, waiting, account }),
   /** Newest first; `reward` narrows it to one. */
-  queue: (reward: string | null, cursor: string | null) => invoke<SmQueue>('sm_redemptions', { reward, cursor }),
+  queue: (reward: string | null, cursor: string | null, account?: string | null) =>
+    invoke<SmQueue>('sm_redemptions', { reward, cursor, account }),
   /** Which went through, and why the rest didn't. */
-  setStatus: (ids: string[], status: SmRedemptionStatus) => invoke<SmBulk>('sm_redemptions_set', { ids, status }),
+  setStatus: (ids: string[], status: SmRedemptionStatus, account?: string | null) =>
+    invoke<SmBulk>('sm_redemptions_set', { ids, status, account }),
 };
 
 /** V107-R43 The same queue on a channel `account` moderates (the mod view's reward requests). */

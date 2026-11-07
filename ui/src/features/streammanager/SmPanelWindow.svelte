@@ -1,16 +1,12 @@
 <!-- V107-R40 One stream manager panel in a window of its own, route `smpanel/<panel>`.
      It opens the manager like the main view (ref-counted in Rust); the panel stays in the manager's
-     layout too, so closing this window changes nothing there. -->
+     layout too, so closing this window changes nothing there. V109-C04 The other panels moved
+     to the creator dashboard. -->
 <script lang="ts">
   import PanelBox from '../../components/PanelBox.svelte';
-  import ClipsCard from './ClipsCard.svelte';
-  import FollowersCard from './FollowersCard.svelte';
-  import ModSettingsCard from './ModSettingsCard.svelte';
-  import RewardsCard from './RewardsCard.svelte';
   import RolesCard from './RolesCard.svelte';
   import RolesManagerCard from './RolesManagerCard.svelte';
   import { sm } from './streammanager.svelte';
-  import VideosCard from './VideosCard.svelte';
 
   let { route }: { route: string; popout?: boolean } = $props();
   const id = $derived(route.split('/')[1] ?? '');
@@ -27,13 +23,9 @@
 {#if ready && sm.manager}
   <div class="one">
     <PanelBox ctl={{ unlocked: false, bare: true }}>
-      {#if id === 'followers'}<FollowersCard />
-      {:else if id === 'roles'}<RolesCard />
+      {#if id === 'roles'}<RolesCard />
       {:else if id === 'rolesmgr'}<RolesManagerCard />
-      {:else if id === 'rewards'}<RewardsCard />
-      {:else if id === 'clips'}<ClipsCard />
-      {:else if id === 'videos'}<VideosCard />
-      {:else if id === 'modset'}<ModSettingsCard />
+      {:else}<p class="gone">This is in the creator dashboard now.</p>
       {/if}
     </PanelBox>
   </div>

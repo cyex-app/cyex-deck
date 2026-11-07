@@ -22,16 +22,18 @@
   import LoadMore from './LoadMore.svelte';
   import SmBar from './SmBar.svelte';
   import SmProblem from './SmProblem.svelte';
-  import { sm } from './streammanager.svelte';
+  import { useOwner } from './owner';
   import When from './When.svelte';
 
-  const login = $derived(sm.manager?.login ?? '');
+  // V109-C04 The stream manager's channel, or the creator dashboard's pick.
+  const owner = useOwner();
+  const login = $derived(owner.who?.login ?? '');
 
   let sort = $state.raw(FOLLOW_SORT);
   let query = $state('');
   const newest = $derived(followsNewest(sort));
   /** Only the newest request counts, so a slow old one can't overwrite a newer list. */
-  const paged = new PagedList<CmFollower>({ key: (f) => f.id, fetch: (cursor) => cmIpc.followers(cursor, newest) });
+  const paged = new PagedList<CmFollower>({ key: (f) => f.id, fetch: (cursor) => cmIpc.followers(cursor, newest, owner.account) });
   const list = $derived(paged.items);
   const total = $derived(paged.total ?? 0);
   const loading = $derived(paged.loading);

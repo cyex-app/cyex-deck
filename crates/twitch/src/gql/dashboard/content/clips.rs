@@ -45,6 +45,8 @@ pub enum ClipsOf {
 pub enum ClipOrder {
     Views,
     Newest,
+    /// V109-C03
+    Oldest,
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize, TS)]
@@ -83,6 +85,7 @@ pub fn criteria(f: &ClipFilter) -> Value {
     let sort = match f.order {
         ClipOrder::Views => "VIEWS_DESC",
         ClipOrder::Newest => "CREATED_AT_DESC",
+        ClipOrder::Oldest => "CREATED_AT_ASC",
     };
     let role = match f.of {
         ClipsOf::Channel => "BROADCASTER",
@@ -274,6 +277,8 @@ mod tests {
         assert_eq!(c["role"], "CURATOR");
         assert_eq!(c["sort"], "CREATED_AT_DESC");
         assert_eq!(c["freeText"], "gg");
+        // V109-C03
+        assert_eq!(criteria(&filter(ClipsOf::Mine, ClipOrder::Oldest, ""))["sort"], "CREATED_AT_ASC");
     }
 
     #[test]
