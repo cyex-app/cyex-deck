@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import type { Scale } from '../../lib/scale.ts';
+import { pictureScale, type Scale } from '../../lib/scale.ts';
 import { badgeSrc, cheerImg, cheerTier, emoteImg, emoteLarge } from './urls.ts';
 
 const cheer = {
@@ -48,4 +48,21 @@ test('still frames for moving emotes', () => {
   // Not moving: 7TV has no still file for it.
   assert.equal(emoteImg('seventv', 'a', 'dark', { still: true, scale: 1 }).src, 'https://cdn.7tv.app/emote/a/1x.webp');
   assert.equal(emoteLarge('ffz', '9', 'dark', { animated: true }), 'https://cdn.frankerfacez.com/emote/9/animated/4');
+});
+
+test('cyex badges pick their picture by screen density like every badge (V109-F82)', () => {
+  const at = (k: string, e: string) => ({
+    image1x: `https://api.cyex.app/badges/v1/img/${k}/1x.${e}`,
+    image2x: `https://api.cyex.app/badges/v1/img/${k}/2x.${e}`,
+    image4x: `https://api.cyex.app/badges/v1/img/${k}/4x.${e}`,
+  });
+  for (const e of ['png', 'webp']) {
+    const b = at('supporter', e);
+    assert.equal(badgeSrc(b, pictureScale(1)), b.image1x);
+    assert.equal(badgeSrc(b, pictureScale(1.5)), b.image2x);
+    assert.equal(badgeSrc(b, pictureScale(2)), b.image2x);
+    assert.equal(badgeSrc(b, pictureScale(3)), b.image4x);
+  }
+  const custom = at('u/1294600497/h', 'png');
+  assert.ok(badgeSrc(custom, pictureScale(1.5)).endsWith('/2x.png'));
 });
