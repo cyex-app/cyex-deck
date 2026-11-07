@@ -55,5 +55,18 @@ export function goneDue(pos: number, end: number | null, start: number): boolean
   return pos >= start - 0.5 || end === null || end - pos < 0.5;
 }
 
+/** V109-F72 s the full replay's bar leaves off its front: the ring trims a whole segment at a
+ *  time (up to 6 s) and the clocks may disagree a little, so the oldest held second stays this
+ *  close behind `edge - keep`. */
+export const BAR_SLACK = 8;
+
+/** V109-F72 Where the replay's bar starts (stream seconds). Growing, at the oldest held second
+ *  (`from`), fixed. Full, `keep` s (the ring's length) before `edge` plus the slack: it slides
+ *  with the clock, smoothly. It was `from` itself, which jumps a segment each time the ring
+ *  trims (read every 2 s), so the thumb, the played part and the ticks sawtoothed left and back. */
+export function replayBarStart(from: number, edge: number, keep: number): number {
+  return keep > BAR_SLACK ? Math.max(from, edge - keep + BAR_SLACK) : from;
+}
+
 /** V108-N24 A load error that means Twitch doesn't have the segment (any other 4xx doesn't). */
 export const isGone = (code: number): boolean => code === 404 || code === 410;

@@ -29,6 +29,9 @@ pub struct ReplayRange {
     #[ts(type = "number")]
     pub to: i64,
     pub ended: bool,
+    /// V109-F72 How long the replay keeps, ms (`Replay::keep_ms`).
+    #[ts(type = "number")]
+    pub keep: i64,
 }
 
 fn ring(app: &AppHandle, id: &str) -> Option<Shared> {
@@ -70,6 +73,7 @@ pub fn range(app: &AppHandle, id: &str, audio: bool) -> Option<ReplayRange> {
         from: range.from,
         to: range.to,
         ended: r.ended(),
+        keep: r.keep_ms(),
     })
 }
 

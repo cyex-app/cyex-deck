@@ -129,6 +129,12 @@ impl Replay {
         self.ended
     }
 
+    /// V109-F72 How long a track keeps, ms: the setting, or less once Twitch was seen to drop
+    /// segments sooner. The bar of a full replay is this long.
+    pub fn keep_ms(&self) -> i64 {
+        self.lifetime_ms.map_or(self.cap_ms, |l| l.min(self.cap_ms))
+    }
+
     pub fn range(&self, audio: bool) -> Option<Range> {
         let e = &self.tracks[usize::from(audio)].entries;
         Some(Range {
@@ -518,6 +524,22 @@ mod tests {
         rec(&mut r, 0, false, &segs("a", 600, 700));
         let first = uris(&r.render(false).unwrap())[0].to_owned();
         assert_eq!(first, "https://a/400.ts");
+    }
+
+    #[test]
+    fn keep_is_the_setting_until_a_shorter_lifetime_is_seen() {
+        // V109-F72 The bar of a full replay is this long.
+        let mut r = Replay::new(30);
+        assert_eq!(r.keep_ms(), 30 * 60_000);
+        rec(&mut r, 0, false, &segs("a", 0, 600));
+        assert!(r.gone("https://a/299.ts"));
+        let keep = r.keep_ms();
+        assert!((KNOWN_LIFETIME_MS..30 * 60_000).contains(&keep), "{keep}");
+        // What it holds stays inside it.
+        let range = r.range(false).unwrap();
+        assert!(range.to - range.from <= keep + 2000, "{range:?}");
+        r.set_minutes(5);
+        assert_eq!(r.keep_ms(), 5 * 60_000);
     }
 
     #[test]

@@ -28,7 +28,7 @@
   import { behindText } from './liveKeys';
   import { clipLiveAt, clipMaking, clipVideoAt } from './clipMake.svelte';
   import { type MomentRow, playerMenu } from './menu';
-  import { canGoThere, hereClip, marks as momentMarks, momentClip, momentText, newest, secsOf } from './moments';
+  import { canGoThere, hereClip, marks as momentMarks, momentClip, momentText, newest, playingOffset, secsOf } from './moments';
   import { MomentsFeed } from './momentsFeed.svelte';
   import { clock } from './time';
   import { playerFullscreen } from './players.svelte';
@@ -59,8 +59,8 @@
     onclose?: () => void;
     /** 1.58 Pops the chat out, when the tile shows both. */
     onpopchat?: () => void;
-    /** P9 */
-    onclip?: () => void;
+    /** P9 V109-F73 `at`: where the frame on screen is in the broadcast (s), null when unknown. */
+    onclip?: (at: number | null) => void;
     /** V102-08 Why clipping is off here, e.g. an anonymous tab: the button shows greyed. */
     clipOff?: string | null;
     /** V103-07 Another player plays this stream: this one starts paused (and its tile muted). */
@@ -258,7 +258,7 @@
    *  player is, not the live edge: live while in reach, else from the archive video. */
   function clipHere() {
     if (failure) return;
-    if (!rewind.inVod) return onclip?.();
+    if (!rewind.inVod) return onclip?.(playingOffset(engine?.playingDate ?? null, rewind.origin));
     const plan = clipper ? hereClip(rewind.pos, rewind.uptime, rewind.vodId) : null;
     if (!clipper || !plan) {
       toast.info('Can’t clip that far back. Go live to clip.');
@@ -544,16 +544,18 @@
         {#if rewind.on && !failure}
           <!-- V1061-03 The whole broadcast; at live the thumb sits at the right end. V108-N24 The
                replay: only what it holds, so nothing on the bar moves at live. -->
+          <!-- V109-F72 One moment for the whole bar: its end and start read with the play head. -->
+          {@const end = rewind.edge}
           {@const b = rewind.start}
           <div class="rows">
             <SeekBar
-              duration={rewind.uptime - b}
+              duration={end - b}
               time={rewind.pos - b}
-              buffered={(rewind.inVod ? (engine?.bufferedEnd ?? 0) : rewind.uptime) - b}
+              buffered={(rewind.inVod ? (engine?.bufferedEnd ?? 0) : end) - b}
               min={rewind.min - b}
               tone="neutral"
               marks={barMarks}
-              format={(t) => (rewind.uptime - b - t < DVR_GAP ? 'Live' : behindText(rewind.uptime - b - t))}
+              format={(t) => (end - b - t < DVR_GAP ? 'Live' : behindText(end - b - t))}
               valueText={rewind.atLive ? 'Live' : `${behindText(rewind.behind ?? 0)} behind live`}
               onseek={(t) => rewind.seekTo(t + b)}
             />

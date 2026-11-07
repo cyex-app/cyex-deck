@@ -3,4 +3,8 @@
 /**
  * What the replay holds now, as program date times in ms.
  */
-export type ReplayRange = { from: number, to: number, ended: boolean, };
+export type ReplayRange = { from: number, to: number, ended: boolean, 
+/**
+ * V109-F72 How long the replay keeps, ms (`Replay::keep_ms`).
+ */
+keep: number, };

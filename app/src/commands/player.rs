@@ -5,7 +5,7 @@ use cyex_chat::build::replay::{Comment, replay};
 use cyex_chat::build::{Colors, Ctx};
 use cyex_chat::model::ChatMessage;
 use cyex_twitch::gql::{
-    self, About, Clip, ClipPeriod, ClipPlayback, ClipSort, Story, StoryRing, Storyboard, Video, VideoKind, VideoSort,
+    self, About, Clip, ClipPeriod, ClipSort, Story, StoryRing, Storyboard, Video, VideoKind, VideoSort,
 };
 use tauri::{AppHandle, Manager, Window};
 use time::OffsetDateTime;
@@ -64,14 +64,10 @@ pub fn player_playing(app: AppHandle, login: String) -> bool {
     player::plays(&app, &login)
 }
 
-/// 1.19, 1.20 A clip with its video files. `None` if it was deleted.
+/// 1.19, 1.20 A clip with its video files, or where it is (V109-F73: being made, failed, gone).
 #[tauri::command]
-pub async fn player_clip(app: AppHandle, slug: String) -> CmdResult<Option<ClipPlayback>> {
-    gql::clip(&http(&app), &slug).await.map_err(|e| match e {
-        // V102-08
-        cyex_twitch::Error::Refused(_) => "Twitch couldn’t make this clip.".into(),
-        e => message(e),
-    })
+pub async fn player_clip(app: AppHandle, slug: String) -> CmdResult<player::clips::ClipLookup> {
+    player::clips::lookup(&app, &slug).await.map_err(message)
 }
 
 #[tauri::command]
@@ -136,8 +132,14 @@ pub fn player_progress(app: AppHandle, ids: Vec<String>) -> Vec<player::position
 
 /// P9, V102-08 Clips the last seconds of the stream as `account`.
 #[tauri::command]
-pub async fn player_create_clip(app: AppHandle, account: String, channel_id: String) -> CmdResult<player::clips::MadeClip> {
-    player::clips::create(&app, &account, &channel_id).await
+/// V109-F73 `at`: where the player is in the broadcast (s), for a GQL clip's end.
+pub async fn player_create_clip(
+    app: AppHandle,
+    account: String,
+    channel_id: String,
+    at: Option<f64>,
+) -> CmdResult<player::clips::MadeClip> {
+    player::clips::create(&app, &account, &channel_id, at).await
 }
 
 /// V108-N25 Clips the live stream up to `offset_secs` into the broadcast, as `account`.

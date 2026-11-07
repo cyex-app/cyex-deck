@@ -107,6 +107,11 @@ export class Engine {
 
   private hls: HlsType | null = null;
   private H: typeof HlsType | null = null;
+
+  /** V109-F73 The live frame on screen's program date time (ms); null off live or unknown. */
+  get playingDate(): number | null {
+    return this.liveSrc ? (this.hls?.playingDate?.getTime() ?? null) : null;
+  }
   /** V1061-01 U11 Pause, jump and swap state (liveMachine.ts). */
   private st = $state.raw<LiveState>(initial());
   private stopTimer: ReturnType<typeof setTimeout> | undefined;

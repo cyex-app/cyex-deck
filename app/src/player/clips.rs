@@ -5,7 +5,7 @@
 //! account's Twitch window (start, end, title, publish). Without it the clip is the last
 //! 30 seconds, made as is.
 
-use cyex_twitch::gql::clip_create;
+use cyex_twitch::gql::{self, ClipPlayback, ClipState, clip_create};
 use cyex_twitch::helix;
 use cyex_twitch::Error;
 use serde::Serialize;
@@ -17,6 +17,7 @@ use ts_rs::TS;
 use crate::auth::{self, Auth};
 
 const OFFLINE: &str = "Clips only work while the channel is live.";
+const FAILED: &str = "Twitch couldn’t make this clip.";
 
 /// A clip just made (V103-09).
 #[derive(Clone, Debug, Serialize, TS)]
@@ -27,6 +28,52 @@ pub struct MadeClip {
     /// Twitch's editor opened in the account's Twitch window. False: the default last
     /// 30 seconds, nothing to edit here.
     pub editing: bool,
+}
+
+/// V109-F73 One clip as the clip player asks for it: a clip still being made isn't gone, and
+/// one Twitch couldn't make says so at once (both read as "not there" before, so a slow clip
+/// showed "Getting the clip ready…" for 30 s, then "This clip is gone.").
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(tag = "state", rename_all = "camelCase")]
+#[ts(export)]
+pub enum ClipLookup {
+    Ready { clip: Box<ClipPlayback> },
+    Making,
+    Failed,
+    Gone,
+}
+
+pub async fn lookup(app: &AppHandle, slug: &str) -> Result<ClipLookup, Error> {
+    let http = app.state::<Auth>().http.clone();
+    match gql::clip_state(&http, slug).await {
+        Ok(ClipState::Ready(clip)) => Ok(ClipLookup::Ready { clip }),
+        Ok(ClipState::Making) => Ok(ClipLookup::Making),
+        Ok(ClipState::Gone) => Ok(ClipLookup::Gone),
+        Err(Error::Refused(_)) => Ok(ClipLookup::Failed),
+        Err(e) => Err(e),
+    }
+}
+
+/// V109-F73 How long a new Helix clip may take before its editor opens anyway. Twitch's docs
+/// say a clip that isn't there after 15 s most likely failed.
+const EDITOR_WAIT_S: u64 = 30;
+const EDITOR_POLL_S: u64 = 2;
+
+/// V109-F73 Waits until Twitch has the clip's video, so its page doesn't open on an empty
+/// player: the page loads once and keeps the "?" of a clip that had no file yet. Err when
+/// Twitch couldn't make it; after the wait it opens anyway.
+async fn ready(app: &AppHandle, slug: &str) -> Result<(), String> {
+    for _ in 0..EDITOR_WAIT_S / EDITOR_POLL_S {
+        tokio::time::sleep(std::time::Duration::from_secs(EDITOR_POLL_S)).await;
+        match lookup(app, slug).await {
+            Ok(ClipLookup::Ready { .. }) => return Ok(()),
+            Ok(ClipLookup::Failed) => return Err(FAILED.into()),
+            // Gone right after it was made: Twitch's lists lag. A network blip: ask again.
+            Ok(ClipLookup::Making | ClipLookup::Gone) | Err(_) => {}
+        }
+    }
+    eprintln!("clips: {slug} not ready after {EDITOR_WAIT_S} s, opening the editor anyway");
+    Ok(())
 }
 
 /// V108-F39 The HLS mock swaps only the video: the channel is still a real live one, so a
@@ -42,7 +89,10 @@ fn mock_clip(_: &AppHandle) -> Option<MadeClip> {
     None
 }
 
-pub async fn create(app: &AppHandle, account: &str, channel_id: &str) -> Result<MadeClip, String> {
+/// `at`: V109-F73 where the player is in the broadcast (s, from the playing frame's date), so a
+/// GQL clip ends on what was seen, not on this PC's clock (ahead by the stream's delay and any
+/// clock drift). Helix takes no offset.
+pub async fn create(app: &AppHandle, account: &str, channel_id: &str, at: Option<f64>) -> Result<MadeClip, String> {
     if let Some(made) = mock_clip(app) {
         return Ok(made);
     }
@@ -52,6 +102,7 @@ pub async fn create(app: &AppHandle, account: &str, channel_id: &str) -> Result<
         let made = helix::create_clip(&http, auth, channel_id)
             .await
             .map_err(helix_error)?;
+        ready(app, &made.id).await?;
         // Twitch keeps the editor open until the clip is published, up to 24 hours.
         let editing = match crate::windows::twitch::open(app, account, &made.edit_url).await {
             Ok(()) => true,
@@ -71,7 +122,8 @@ pub async fn create(app: &AppHandle, account: &str, channel_id: &str) -> Result<
         .await
         .map_err(gql_error)?
         .ok_or(OFFLINE)?;
-    let offset = live_edge(&started, OffsetDateTime::now_utc()).ok_or(OFFLINE)?;
+    let edge = live_edge(&started, OffsetDateTime::now_utc()).ok_or(OFFLINE)?;
+    let offset = at.map_or(edge, |a| up_to(a, edge));
     let slug = clip_create::create_clip(&http, auth, channel_id, &broadcast, offset)
         .await
         .map_err(gql_error)?;

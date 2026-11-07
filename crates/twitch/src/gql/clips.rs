@@ -121,6 +121,26 @@ pub async fn channel_clips(http: &Http, login: &str, period: ClipPeriod, sort: C
 /// for a few seconds, and its files play black until then (V102-08). [`Error::Refused`]
 /// with `CLIP_FAILED` when Twitch couldn't make it.
 pub async fn clip(http: &Http, slug: &str) -> Result<Option<ClipPlayback>> {
+    Ok(match clip_state(http, slug).await? {
+        ClipState::Ready(p) => Some(*p),
+        ClipState::Making | ClipState::Gone => None,
+    })
+}
+
+/// V109-F73 Where one clip is. A clip still being made and a deleted one both read as `None`
+/// from [`clip`], so a slow clip was called gone after 30 s.
+#[derive(Debug)]
+pub enum ClipState {
+    Ready(Box<ClipPlayback>),
+    /// `CREATING`, or made with no file listed yet.
+    Making,
+    /// No such clip (deleted, or never made).
+    Gone,
+}
+
+/// Like [`clip`], telling a clip still being made from one that's gone. [`Error::Refused`]
+/// with `CLIP_FAILED` when Twitch couldn't make it.
+pub async fn clip_state(http: &Http, slug: &str) -> Result<ClipState> {
     let q = format!(
         "query($slug: ID!) {{ clip(slug: $slug) {{ ...C creationState videoOffsetSeconds video {{ id }} \
          playbackAccessToken(params: {{platform: \"web\", playerBackend: \"mediaplayer\", playerType: \"site\"}}) \
@@ -128,11 +148,16 @@ pub async fn clip(http: &Http, slug: &str) -> Result<Option<ClipPlayback>> {
          assets {{ type videoQualities {{ frameRate quality sourceURL }} }} }} }} {FIELDS}"
     );
     let raw: Value = query(http, Auth::PUBLIC, &q, json!({ "slug": slug })).await?;
+    state_of(raw, slug)
+}
+
+fn state_of(raw: Value, slug: &str) -> Result<ClipState> {
     if !made(&raw)? {
-        return Ok(None);
+        return Ok(ClipState::Making);
     }
     match serde_json::from_value::<ClipData>(raw.clone()) {
-        Ok(data) => Ok(data.clip.and_then(playback)),
+        Ok(ClipData { clip: None }) => Ok(ClipState::Gone),
+        Ok(ClipData { clip: Some(c) }) => Ok(playback(c).map_or(ClipState::Making, |p| ClipState::Ready(Box::new(p)))),
         Err(e) => {
             // V101-24 The answer, for the next shape Twitch comes up with.
             eprintln!("clips: unexpected answer for {slug}: {e}: {}", redacted(raw));
@@ -439,6 +464,24 @@ mod tests {
         assert!(made(&json!({ "clip": { "creationState": "CREATED" } })).unwrap());
         assert!(made(&json!({ "clip": null })).unwrap());
         assert!(made(&json!({ "clip": { "slug": "Old" } })).unwrap());
+    }
+
+    #[test]
+    fn a_slow_clip_is_making_not_gone() {
+        // V109-F73 The overlay called a clip still being made "gone" after 30 s.
+        let making = json!({ "clip": { "slug": "Fresh-AbC", "creationState": "CREATING" } });
+        assert!(matches!(state_of(making, "s").unwrap(), ClipState::Making));
+        // Made, but no file listed yet: still making.
+        let bare = json!({ "clip": { "slug": "x", "creationState": "CREATED",
+            "playbackAccessToken": { "signature": "s", "value": "v" }, "videoQualities": [], "assets": null } });
+        assert!(matches!(state_of(bare, "s").unwrap(), ClipState::Making));
+        assert!(matches!(state_of(json!({ "clip": null }), "s").unwrap(), ClipState::Gone));
+        let failed = json!({ "clip": { "creationState": "FAILED" } });
+        assert!(matches!(state_of(failed, "s"), Err(Error::Refused(c)) if c == "CLIP_FAILED"));
+        let ready = json!({ "clip": { "slug": "x", "creationState": "CREATED",
+            "playbackAccessToken": { "signature": "s", "value": "v" },
+            "videoQualities": [{ "frameRate": 30, "quality": "720", "sourceURL": "https://c/720.mp4" }], "assets": null } });
+        assert!(matches!(state_of(ready, "s").unwrap(), ClipState::Ready(_)));
     }
 
     #[test]

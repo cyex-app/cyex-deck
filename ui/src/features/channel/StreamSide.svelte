@@ -92,12 +92,12 @@
     if (page.kind === 'vod') shared.page = { kind: 'videos' };
   }
 
-  /** P9 */
-  async function makeClip() {
+  /** P9 V109-F73 `at`: the frame on screen in the broadcast (s), where a GQL clip ends. */
+  async function makeClip(at: number | null = null) {
     if (!account || !clipMaking.begin()) return;
     toast.info('Making a clip…', { key: 'clip' });
     try {
-      const clip = await playerIpc.createClip(account, tile.channel.id);
+      const clip = await playerIpc.createClip(account, tile.channel.id, at);
       // V103-09 Twitch's editor is the next step, like on Twitch.
       if (clip.editing) {
         toast.info('Pick the start and end in the Twitch window.', { key: 'clip' });

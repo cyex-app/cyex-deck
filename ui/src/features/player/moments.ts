@@ -80,6 +80,15 @@ export function hereClip(pos: number, uptime: number, video: string | null): Mom
   return momentClip(Math.floor(pos) - CLIP_LEAD, uptime, video);
 }
 
+/** V109-F73 Where the live clip button's clip ends: the frame on screen, by its program date
+ *  time (Twitch's clock), in seconds since the stream started (`origin`, ms). null without a
+ *  date or a start: the clip then ends at the app's own now. */
+export function playingOffset(dateMs: number | null, originMs: number): number | null {
+  if (dateMs === null || !Number.isFinite(dateMs) || !originMs) return null;
+  const s = (dateMs - originMs) / 1000;
+  return s > 0 ? s : null;
+}
+
 /** New moments in, oldest first by id, no id twice, only the newest `KEEP`. */
 export function mergeMoments(have: readonly Moment[], found: readonly Moment[]): Moment[] {
   const seen = new Set(have.map((m) => m.id));

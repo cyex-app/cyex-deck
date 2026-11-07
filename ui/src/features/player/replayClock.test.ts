@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { dateAt, goneDue, isGone, nextAfter, type Piece, posAt, replayStart } from './replayClock.ts';
+import { BAR_SLACK, dateAt, goneDue, isGone, nextAfter, type Piece, posAt, replayBarStart, replayStart } from './replayClock.ts';
 
 const T0 = Date.parse('2026-10-29T12:00:00Z');
 
@@ -68,4 +68,44 @@ test('only 404 and 410 mean gone', () => {
   assert.equal(isGone(403), false);
   assert.equal(isGone(429), false);
   assert.equal(isGone(0), false);
+});
+
+test('V109-F72 the full replay bar slides with the clock, not with each trimmed segment', () => {
+  // A 5 min ring of 2 s segments, trimmed as replay.rs does, its range read every 2 s, the bar
+  // drawn four times a second while the play head plays 60 s behind live. A moment's tick sits
+  // at stream second 500.
+  const keep = 300;
+  const latency = 3;
+  const tick = 500;
+  let from = 0;
+  let read = from;
+  let last: { start: number; thumb: number; tick: number; was: number } | null = null;
+  let hop = 0;
+  let oldHop = 0;
+  for (let i = 0; i < 4 * 600; i++) {
+    const edge = 400 + i / 4;
+    const newest = Math.floor((edge - latency) / 2) * 2;
+    while (newest - from >= keep) from += 2;
+    if (i % 8 === 0) read = from;
+    const start = replayBarStart(read, edge, keep);
+    const at = (t: number, s: number) => (t - s) / (edge - s);
+    const now = { start, thumb: at(edge - 60, start), tick: at(tick, start), was: at(tick, read) };
+    if (last && tick > start) {
+      assert.ok(start >= last.start, `the start never goes back (${start} < ${last.start})`);
+      assert.ok(start - last.start <= 0.25 + 1e-9, `the start moves with the clock (${start - last.start} at ${edge})`);
+      hop = Math.max(hop, Math.abs(now.thumb - last.thumb), Math.abs(now.tick - last.tick));
+      // Before: the bar started at what the ring held, read every 2 s.
+      oldHop = Math.max(oldHop, Math.abs(now.was - last.was));
+    }
+    assert.ok(start >= read, 'nothing on the bar before what the replay holds');
+    last = now;
+  }
+  assert.ok(hop < 0.0015, `thumb and ticks glide (${hop})`);
+  assert.ok(oldHop > 0.004, `the old bar's ticks hopped (${oldHop})`);
+});
+
+test('V109-F72 a replay still filling starts at its oldest second', () => {
+  assert.equal(replayBarStart(50, 120, 300), 50);
+  assert.equal(replayBarStart(50, 120, 0), 50, 'no length known: what it holds');
+  assert.equal(replayBarStart(50, 400, 300), 400 - 300 + BAR_SLACK);
 });

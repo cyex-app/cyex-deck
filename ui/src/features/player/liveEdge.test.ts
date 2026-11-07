@@ -9,6 +9,7 @@ import {
   CLOCK_SLACK,
   dvrConfig,
   dvrTarget,
+  edgeAt,
   liveConfig,
   LIVE_SNAP,
   liveState,
@@ -20,6 +21,7 @@ import {
   rangeEnd,
   replayChoice,
   resumePlan,
+  sameStart,
   stepTarget,
   uptimeAt,
 } from './liveEdge.ts';
@@ -178,4 +180,17 @@ test("V108-LL4 latency from the playing frame's date", () => {
   // A local clock a little behind reads 0; far behind is not a latency.
   assert.equal(broadcastLatency(now, now + CLOCK_SLACK * 1000 - 100), 0);
   assert.equal(broadcastLatency(now, now + CLOCK_SLACK * 1000 + 100), null);
+});
+
+test('V109-F72 the bar’s live point counts to the ms; the same start written two ways is no restart', () => {
+  const t0 = Date.parse('2026-11-07T10:00:00Z');
+  assert.equal(edgeAt('2026-11-07T10:00:00Z', t0 + 1250), 1.25);
+  assert.equal(uptimeAt('2026-11-07T10:00:00Z', t0 + 1250), 1, 'the clock stays whole seconds');
+  assert.equal(edgeAt(null, t0), 0);
+  assert.equal(edgeAt('2026-11-07T10:00:00Z', t0 - 5000), 0);
+  assert.equal(sameStart('2026-11-07T10:00:00Z', '2026-11-07T10:00:00.000+00:00'), true);
+  assert.equal(sameStart('2026-11-07T10:00:00Z', '2026-11-07T11:00:00+01:00'), true);
+  assert.equal(sameStart('2026-11-07T10:00:00Z', '2026-11-07T10:05:00Z'), false);
+  assert.equal(sameStart('x', 'x'), true);
+  assert.equal(sameStart('x', 'y'), false);
 });

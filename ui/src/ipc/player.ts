@@ -5,8 +5,8 @@ import type { About } from './bindings/About';
 import type { AdState } from './bindings/AdState';
 import type { ChatMessage } from './bindings/ChatMessage';
 import type { Clip } from './bindings/Clip';
+import type { ClipLookup } from './bindings/ClipLookup';
 import type { ClipPeriod } from './bindings/ClipPeriod';
-import type { ClipPlayback } from './bindings/ClipPlayback';
 import type { ClipSaveProgress } from './bindings/ClipSaveProgress';
 import type { ClipSort } from './bindings/ClipSort';
 import type { MadeClip } from './bindings/MadeClip';
@@ -35,7 +35,8 @@ export const playerIpc = {
   close: (id: string) => invoke<void>('player_close', { id }),
   /** V103-07 Another player plays this channel now, in any window. */
   playing: (login: string) => invoke<boolean>('player_playing', { login }),
-  clip: (slug: string) => invoke<ClipPlayback | null>('player_clip', { slug }),
+  /** V109-F73 Ready, still being made, failed or gone. */
+  clip: (slug: string) => invoke<ClipLookup>('player_clip', { slug }),
   video: (id: string) => invoke<Video | null>('player_video', { id }),
   storyboard: (id: string) => invoke<Storyboard | null>('player_storyboard', { id }),
   comments: (videoId: string, offset: number) => invoke<ChatMessage[]>('player_comments', { videoId, offset }),
@@ -44,7 +45,8 @@ export const playerIpc = {
   /** V107-Mv How far each VOD was watched; unstarted ones are left out. */
   progress: (ids: string[]) => invoke<VodProgress[]>('player_progress', { ids }),
   /** V103-09 With Sign in with Twitch, Twitch's editor opens in the account's Twitch window. */
-  createClip: (account: string, channelId: string) => invoke<MadeClip>('player_create_clip', { account, channelId }),
+  /** V109-F73 `at`: where the player is in the broadcast (s), so a GQL clip ends on what was seen. */
+  createClip: (account: string, channelId: string, at: number | null = null) => invoke<MadeClip>('player_create_clip', { account, channelId, at }),
   /** V108-N25 Clips the live broadcast up to `offsetSecs` into it (GQL sign-in). */
   createClipAt: (account: string, channelId: string, offsetSecs: number) =>
     invoke<MadeClip>('player_create_clip_at', { account, channelId, offsetSecs }),

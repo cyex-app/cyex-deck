@@ -35,6 +35,23 @@ export function uptimeAt(startedAt: string | null, now: number): number {
   return Math.max(0, Math.floor((now - t) / 1000));
 }
 
+/** V109-F72 Whether two stream start texts are the same instant; texts that don't parse
+ *  compare as text. */
+export function sameStart(a: string, b: string): boolean {
+  const x = Date.parse(a);
+  const y = Date.parse(b);
+  return Number.isNaN(x) || Number.isNaN(y) ? a === b : x === y;
+}
+
+/** V109-F72 Seconds since `startedAt` to the ms, for the bar: `uptimeAt` is whole seconds and
+ *  ticks once a second, so the bar's end stepped a second at a time under a smooth play head. */
+export function edgeAt(startedAt: string | null, now: number): number {
+  if (!startedAt) return 0;
+  const t = Date.parse(startedAt);
+  if (Number.isNaN(t)) return 0;
+  return Math.max(0, (now - t) / 1000);
+}
+
 /** Bar seek: within DVR_GAP of uptime → 'live', else clamped to [min, uptime − DVR_GAP].
  *  `min`: where going back can start (0 for Twitch's rewind, the replay's start, V108-N24). */
 export function dvrTarget(t: number, uptime: number, min = 0): number | 'live' {

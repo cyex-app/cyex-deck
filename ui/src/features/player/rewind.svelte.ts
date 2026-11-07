@@ -6,7 +6,8 @@
 import { playerIpc } from '../../ipc/player';
 import { onShown, pageHidden } from '../../lib/awake';
 import type { Engine } from './engine.svelte';
-import { COALESCE_MS, DVR_GAP, DVR_RETRY_MS, DVR_YOUNG, dvrTarget, stepTarget, uptimeAt } from './liveEdge';
+import { COALESCE_MS, DVR_GAP, DVR_RETRY_MS, DVR_YOUNG, dvrTarget, edgeAt, sameStart, stepTarget, uptimeAt } from './liveEdge';
+import { replayBarStart } from './replayClock';
 import type { SeekResult } from './liveKeys';
 import { clearRewound, hasOwn, setRewound } from './rewound.svelte';
 
@@ -33,7 +34,7 @@ export class Rewind {
   /** V108-N24 The replay setting, minutes (0 off). */
   replayMinutes = $state(0);
   /** V108-N24 What the replay holds, ms; null while it holds nothing. */
-  private range = $state.raw<{ from: number; to: number } | null>(null);
+  private range = $state.raw<{ from: number; to: number; keep: number } | null>(null);
   private ranges = 0;
   private ticks = 0;
   private startedAt: string | null = null;
@@ -89,7 +90,9 @@ export class Rewind {
     clearTimeout(this.endTimer);
     this.endTimer = undefined;
     this.uptime = uptimeAt(o.startedAt, Date.now());
-    if (before !== null && before !== o.startedAt && this.inVod) {
+    // V109-F72 By the instant: the GQL and the Helix fallback write the same start differently
+    // (`Z` or an offset, fractions, as V108-F56h found), which isn't a restart.
+    if (before !== null && !sameStart(before, o.startedAt) && this.inVod) {
       // A-L6 A restart is a new stream with a new VOD.
       this.forget();
       const e = this.host.engine();
@@ -122,15 +125,27 @@ export class Rewind {
     return !!e?.dvr && !e.replay;
   }
 
-  /** V108-N24 The earliest second that can play: the replay's start, 0 for Twitch's rewind. */
+  /** V108-N24 The earliest second that can play: the replay's bar start, 0 for Twitch's rewind. */
   get min(): number {
-    return this.mode === 'replay' && this.range ? Math.max(0, this.secs(this.range.from)) : 0;
+    return this.start;
   }
 
   /** V108-N24 Where the bar starts: the whole broadcast, or what the replay holds (user,
-   *  2026/10/31: a dimmed part for what isn't recorded yet crept across the bar every second). */
+   *  2026/10/31: a dimmed part for what isn't recorded yet crept across the bar every second).
+   *  V109-F72 Full, it slides with the clock instead of jumping with each trimmed segment. */
   get start(): number {
-    return this.mode === 'replay' ? this.min : 0;
+    if (this.mode !== 'replay' || !this.range) return 0;
+    return Math.max(0, replayBarStart(this.secs(this.range.from), this.edge, this.range.keep / 1000));
+  }
+
+  /** V109-F72 The live point for the bar, to the ms when it's read (`uptime` is whole seconds,
+   *  once a second, and waits while hidden). Read with the play head, it moves with it. */
+  get edge(): number {
+    const up = this.uptime;
+    // Read again on each of the engine's time updates, not only on the 1 s tick.
+    void this.host.engine()?.time;
+    if (this.ended || !this.startedAt) return up;
+    return Math.max(up, edgeAt(this.startedAt, Date.now()));
   }
 
   /** V108-N24 The stream's start in ms: the replay's clock. */
@@ -142,7 +157,7 @@ export class Rewind {
   /** Where the player is, in seconds since the stream started. */
   get pos(): number {
     const e = this.host.engine();
-    return this.inVod && e ? e.time : this.uptime;
+    return this.inVod && e ? e.time : this.edge;
   }
 
   get behind(): number | null {
@@ -271,7 +286,7 @@ export class Rewind {
     const audio = this.host.engine()?.choice === 'audio';
     const r = await playerIpc.replayRange(id, audio).catch(() => null);
     if (n !== this.ranges) return;
-    this.range = r ? { from: r.from, to: r.to } : null;
+    this.range = r ? { from: r.from, to: r.to, keep: r.keep } : null;
   }
 
   /** The chat bar's entry (Q23); LivePlayer also calls it when the player fails, so the bar goes at once. */

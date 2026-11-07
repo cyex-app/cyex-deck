@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { Moment } from '../../ipc/bindings/Moment.ts';
-import { canGoThere, clipOffset, hereClip, KEEP, LIVE_CLIP_REACH, momentClip, marks, mergeMoments, momentText, newest, secsOf } from './moments.ts';
+import { canGoThere, clipOffset, hereClip, KEEP, LIVE_CLIP_REACH, momentClip, marks, mergeMoments, momentText, newest, playingOffset, secsOf } from './moments.ts';
 
 const m = (id: number, over: Partial<Moment> = {}): Moment => ({
   id,
@@ -88,4 +88,12 @@ test('the menu lists the newest first', () => {
   assert.equal(got.length, 30);
   assert.equal(got[0]!.id, 40);
   assert.equal(got.at(-1)!.id, 11);
+});
+
+test('V109-F73 the live clip ends on the frame on screen, by Twitch’s clock', () => {
+  const origin = Date.parse('2026-11-07T10:00:00Z');
+  assert.equal(playingOffset(origin + 4_000_500, origin), 4000.5);
+  assert.equal(playingOffset(null, origin), null, 'no date: the app’s now');
+  assert.equal(playingOffset(origin + 1000, 0), null, 'no start');
+  assert.equal(playingOffset(origin - 1000, origin), null);
 });

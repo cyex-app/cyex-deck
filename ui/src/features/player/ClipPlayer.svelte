@@ -11,6 +11,7 @@
   import { playerIpc } from '../../ipc/player';
   import { bindingOf } from '../../lib/hotkeys.svelte';
   import { clipSaves } from './clipSave.svelte';
+  import { afterAsk, type Answer, ASK_MS } from './clipWait';
   import { isFresh } from './freshClips';
   import { playerMenu } from './menu';
   import { playerFullscreen } from './players.svelte';
@@ -79,30 +80,30 @@
     clearTimeout(waitTimer);
   });
 
-  /** A fresh clip isn't there right away: ask again for half a minute. */
+  /** A fresh clip isn't there right away: ask again while Twitch makes it (V109-F73, clipWait.ts). */
   async function load(s: string, tries: number) {
+    const made = fresh || isFresh(s);
+    let answer: Answer;
+    let failure: unknown = null;
     try {
       const c = await playerIpc.clip(s);
       if (gone) return;
-      if (c) {
-        clip = c;
-        onloaded?.(c);
-      } else if (tries < 10) {
-        problem = 'Getting the clip ready…';
-        waitTimer = setTimeout(() => void load(s, tries + 1), 3000);
-      } else {
-        problem = 'This clip is gone.';
+      if (c.state === 'ready') {
+        problem = null;
+        clip = c.clip;
+        onloaded?.(c.clip);
+        return;
       }
+      answer = c.state;
     } catch (e) {
       if (gone) return;
       // V102-08 A clip just made can answer oddly until Twitch is done with it.
-      if ((fresh || isFresh(s)) && tries < 10) {
-        problem = 'Getting the clip ready…';
-        waitTimer = setTimeout(() => void load(s, tries + 1), 3000);
-      } else {
-        problem = errorText(e);
-      }
+      answer = 'error';
+      failure = e;
     }
+    const next = afterAsk(answer, tries + 1, made);
+    problem = next.text ?? errorText(failure);
+    if (next.retry) waitTimer = setTimeout(() => void load(s, tries + 1), ASK_MS);
   }
 
   /** V102-08 Twitch lists a new clip's files a moment before its servers have them, and a
