@@ -17,6 +17,7 @@ export const ACTIONS = {
   'tabs.moveLeft': { label: 'Move the tab left', default: 'Ctrl+Shift+PageUp' },
   'tabs.moveRight': { label: 'Move the tab right', default: 'Ctrl+Shift+PageDown' },
   'tabs.onlyLive': { label: 'Only live tabs on or off', default: 'Ctrl+Shift+L' },
+  'tabs.lock': { label: 'Lock tabs on or off', default: '' },
   'player.playPause': { label: 'Play or pause', default: 'Space' },
   'player.mute': { label: 'Mute', default: 'M' },
   'player.fullscreen': { label: 'Fullscreen', default: 'F' },

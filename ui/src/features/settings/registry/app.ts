@@ -167,6 +167,13 @@ export const APP: Entry[] = [
     keywords: ['hide offline', 'offline tabs', 'live only', 'filter tabs'],
   },
   {
+    id: 'appearance.tabLock',
+    page: 'appearance',
+    label: 'Lock tabs',
+    description: "Tabs can't be dragged or rearranged.",
+    keywords: ['lock', 'freeze tabs', 'drag', 'rearrange', 'reorder', 'move tabs', 'accident'],
+  },
+  {
     id: 'appearance.audioFocus',
     page: 'appearance',
     label: 'One stream with sound',

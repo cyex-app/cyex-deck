@@ -65,6 +65,7 @@ export function tabMenu(tab: Tab, targets: Tab[]): MenuEntry[] {
   entries.push(
     { label: one ? 'Group' : `Group ${targets.length} tabs`, icon: 'tag', items: groupItems(targets) },
     onlyLiveEntry(),
+    lockEntry(),
     'separator',
     { label: one ? 'Close' : `Close ${targets.length} tabs`, icon: 'x', run: () => tabs.close(ids) },
     { label: 'Close other tabs', icon: 'x', disabled: !others.length, run: () => tabs.close(others) },
@@ -175,6 +176,7 @@ export function barMenu(): MenuEntry[] {
   return [
     { label: 'Add a tab', icon: 'plus', hint: bindingOf('tabs.new') || undefined, run: () => openAdd() },
     onlyLiveEntry(),
+    lockEntry(),
     'separator',
     reopenEntry(),
   ];
@@ -189,6 +191,18 @@ function onlyLiveEntry(): MenuEntry {
     hint: bindingOf('tabs.onlyLive') || undefined,
     checked: on,
     run: () => void settings.patch('appearance', { tabOnlyLive: !on }),
+  };
+}
+
+/** V109-U05 Stops tabs from being dragged or moved by key. */
+function lockEntry(): MenuEntry {
+  const on = settings.v.appearance.tabLock;
+  return {
+    label: 'Lock tabs',
+    icon: 'lock',
+    hint: bindingOf('tabs.lock') || undefined,
+    checked: on,
+    run: () => void settings.patch('appearance', { tabLock: !on }),
   };
 }
 

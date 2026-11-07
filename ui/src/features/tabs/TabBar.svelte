@@ -7,6 +7,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
 
+  import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import { openMenu } from '../../components/menu.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
@@ -230,6 +231,16 @@
       {hidden.size} offline
     </button>
   {/if}
+  {#if settings.v.appearance.tabLock}
+    <button
+      class="locked"
+      aria-label="Tabs locked"
+      use:tooltip={{ label: 'Tabs locked', hint: 'Click to unlock.' }}
+      onclick={() => void settings.patch('appearance', { tabLock: false })}
+    >
+      <Icon name="lock" size={12} />
+    </button>
+  {/if}
   <div class="add" bind:this={addEl}>
     <IconButton icon="plus" label="Add a tab" hint="Any channel, by name, user id or link." size={15} onclick={() => openAdd()} />
   </div>
@@ -295,6 +306,29 @@
     align-self: flex-start;
   }
   /* F17 How many tabs "Only live tabs" leaves out; a click shows them again. */
+  .locked {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    margin: 0 2px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: var(--radius);
+    color: var(--dim);
+    cursor: pointer;
+  }
+  .locked:hover {
+    color: var(--text);
+    background: var(--surface-hover);
+  }
+  .locked:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+
   .offline {
     flex: none;
     align-self: center;

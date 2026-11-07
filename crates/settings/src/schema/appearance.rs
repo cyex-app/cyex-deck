@@ -30,6 +30,8 @@ pub struct Appearance {
     pub tab_max_rows: u8,
     /// F17 Hide tabs whose channels are all offline (the one on screen stays).
     pub tab_only_live: bool,
+    /// V109-U05 Tabs can't be dragged or moved with the keyboard.
+    pub tab_lock: bool,
     /// V108-N13 In a tab with several streams only one has sound; a click on a tile moves it.
     pub audio_focus: bool,
     /// U9 What lights up a tab in the background.
@@ -58,6 +60,7 @@ impl Default for Appearance {
             tab_rows: TabRows::Limit,
             tab_max_rows: DEFAULT_TAB_ROWS,
             tab_only_live: false,
+            tab_lock: false,
             audio_focus: true,
             tab_unread: TabUnread::All,
             themes: Vec::new(),
@@ -371,8 +374,8 @@ mod tests {
         assert_eq!(a.tab_max_rows, 10);
         let old: Appearance = serde_json::from_str(r#"{"tabDensity":"compact"}"#).unwrap();
         assert_eq!(
-            (old.tab_rows, old.tab_max_rows, old.tab_only_live),
-            (TabRows::Limit, 3, false)
+            (old.tab_rows, old.tab_max_rows, old.tab_only_live, old.tab_lock),
+            (TabRows::Limit, 3, false, false)
         );
     }
 

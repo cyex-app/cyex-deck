@@ -41,6 +41,10 @@ tabMaxRows: number,
  */
 tabOnlyLive: boolean, 
 /**
+ * V109-U05 Tabs can't be dragged or moved with the keyboard.
+ */
+tabLock: boolean, 
+/**
  * V108-N13 In a tab with several streams only one has sound; a click on a tile moves it.
  */
 audioFocus: boolean, 

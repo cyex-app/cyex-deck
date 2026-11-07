@@ -245,6 +245,11 @@
       void settings.patch('appearance', { tabOnlyLive: on });
       toast.info(on ? 'Only live tabs' : 'All tabs', { key: 'tabs.onlyLive' }); // V106 a-6
     },
+    'tabs.lock': () => {
+      const on = !settings.v.appearance.tabLock;
+      void settings.patch('appearance', { tabLock: on });
+      toast.info(on ? 'Tabs locked' : 'Tabs unlocked', { key: 'tabs.lock' });
+    },
     'view.theatre': () => {
       const target = theatre.tile || !shownTab ? null : tab ? theatreTarget(tiles(tab).map((t) => ({ id: t.id, player: !t.feed && t.show.player })), heardTile(audioFocus.input(tab.id, streamIds(tab), tabs.liveStreamIds(tab)))) : null;
       if (theatre.tile) theatre.leave();
@@ -454,6 +459,7 @@
 
   /** V108-F07 Moves the open tab one place along the bar. */
   function moveCurrent(by: number) {
+    if (settings.v.appearance.tabLock) return; // V109-U05
     const slot = current ? moveSlot(tabs.list, current, by) : null;
     if (current && slot) void tabs.apply({ op: 'move', tab: current, ...slot });
   }

@@ -207,6 +207,10 @@
   />
 </Row>
 
+<Row setting="appearance.tabLock" label="Lock tabs" hint="Tabs can’t be dragged or rearranged.">
+  <Toggle label="Lock tabs" checked={a.tabLock} onchange={(v) => settings.patch('appearance', { tabLock: v })} />
+</Row>
+
 <Row setting="appearance.audioFocus" label="One stream with sound" hint="With several streams in a tab, only one is heard. Click a stream to move the sound.">
   <Toggle
     label="One stream with sound"

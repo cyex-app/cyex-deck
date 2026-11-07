@@ -5,6 +5,8 @@
 // reorder a list's rows (V105-14, V105-15).
 
 import { hideTip } from '../../components/tooltip.svelte';
+import { settings } from '../../lib/settings.svelte';
+import { dragBlocked, dropBlocked } from './lock';
 import type { Zone } from '../../ipc/bindings/Zone';
 import type { Edge } from '../../lib/panels';
 import { tabs, tiles } from './tabs.svelte';
@@ -61,6 +63,7 @@ class Drag {
   /** Call on pointerdown. Dragging starts once the pointer moves a little. */
   begin(e: PointerEvent, item: DragItem, label: string): void {
     if (e.button !== 0) return;
+    if (dragBlocked(settings.v.appearance.tabLock, item)) return; // V109-U05
     const start = { x: e.clientX, y: e.clientY };
     const move = (ev: PointerEvent) => {
       if (!this.item) {
@@ -80,7 +83,7 @@ class Drag {
       removeEventListener('keydown', key);
       removeEventListener('blur', cancel);
       document.body.classList.remove('dragging');
-      if (drop && this.item && this.target) apply(this.item, this.target);
+      if (drop && this.item && this.target && !dropBlocked(settings.v.appearance.tabLock, this.item, this.target)) apply(this.item, this.target);
       this.item = null;
       this.target = null;
     };
