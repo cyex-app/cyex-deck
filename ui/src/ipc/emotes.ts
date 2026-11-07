@@ -17,6 +17,8 @@ import type { RoomBadges } from './bindings/RoomBadges';
 export const emotesIpc = {
   /** Who wears what among these users (1.37-1.39). */
   looks: (users: string[]) => invoke<Looks>('emotes_looks', { users }),
+  /** V109-F78 Read this user's 7TV paint and badge when a card opens; the answer arrives as a looks push. */
+  cardLook: (twitchId: string) => invoke<void>('emotes_card_look', { twitchId }),
   /** Looks that changed, a quarter second after. */
   onLooks: (cb: (looks: Looks) => void) => listen<Looks>('emotes:looks', (e) => cb(e.payload)),
   /** V108-N06 An extra badge set came in or went out: ask for the looks again. */

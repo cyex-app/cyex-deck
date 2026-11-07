@@ -72,6 +72,56 @@ pub fn refresh(app: &AppHandle, account: &str) {
     });
 }
 
+/// V109-F78 Twitch ids are digits; anything else never reaches 7TV.
+fn is_twitch_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 20 && id.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// V109-F78 Most users kept in the asked list.
+const MAX_ASKED: usize = 2000;
+
+/// What a card shows for someone else: 7TV pushes a paint and badge only for chatters it met
+/// through a presence in a chat this app listens to, so a user from the Mentions feed, a
+/// channel not open here, or another window may have none. Reads their profile (public, no
+/// token), at most every few minutes per user, and gives only what they wear.
+pub fn card_look(app: &AppHandle, twitch_id: &str) {
+    if !is_twitch_id(twitch_id) {
+        return;
+    }
+    let Some(own) = app.try_state::<Own>() else {
+        return;
+    };
+    {
+        let mut asked = own.asked.lock().unwrap_or_else(|p| p.into_inner());
+        if asked.len() >= MAX_ASKED {
+            asked.clear();
+        }
+        if !due(&mut asked, twitch_id, Instant::now()) {
+            return;
+        }
+    }
+    let app = app.clone();
+    let id = twitch_id.to_owned();
+    tauri::async_runtime::spawn(async move {
+        match crate::cosmetics::api(&app).wearing(&id).await {
+            Ok(Some(w)) => {
+                if w.paint.is_some() {
+                    looks::wear(&app, &id, Worn::Paint(w.paint));
+                }
+                if w.badge.is_some() {
+                    looks::wear(&app, &id, Worn::Badge(w.badge));
+                }
+            }
+            Ok(None) => {}
+            Err(_) => {
+                if let Some(own) = app.try_state::<Own>() {
+                    own.asked.lock().unwrap_or_else(|p| p.into_inner()).remove(&id);
+                }
+            }
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -84,5 +134,22 @@ mod tests {
         assert!(due(&mut asked, "2", t + Duration::from_secs(60)));
         assert!(due(&mut asked, "1", t + EVERY));
         assert!(!due(&mut asked, "1", t + EVERY + Duration::from_secs(1)));
+    }
+
+    // V109-F78
+    #[test]
+    fn card_lookups_take_twitch_ids_only() {
+        assert!(is_twitch_id("71092938"));
+        assert!(!is_twitch_id(""));
+        assert!(!is_twitch_id("12 3"));
+        assert!(!is_twitch_id("abc\"){"));
+    }
+
+    // V109-F78
+    #[test]
+    fn a_card_user_is_read_once_until_it_is_old() {
+        let (mut asked, t) = (HashMap::new(), Instant::now());
+        assert!(due(&mut asked, "71092938", t));
+        assert!(!due(&mut asked, "71092938", t + Duration::from_secs(5)));
     }
 }

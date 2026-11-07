@@ -84,6 +84,11 @@
       .catch(() => {});
     return () => (gone = true);
   });
+  // V109-F78 7TV only pushes a paint and badge for chatters it met in a chat open here; a card from
+  // Mentions, another channel or a pop-out reads that user's profile once, and the look arrives as a push.
+  $effect(() => {
+    if (settings.v.chat.paints.seventv && profile.id) void emotesIpc.cardLook(profile.id).catch(() => {});
+  });
   const paintId = $derived(settings.v.chat.paints.seventv ? (looks.look(profile.id)?.paint ?? null) : null);
   const paint = $derived(looks.paintClass(paintId));
   const paintName = $derived(paint ? looks.paintName(paintId) : null);

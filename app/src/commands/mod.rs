@@ -318,6 +318,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         cosmetics::cosmetics_apply,
         cosmetics::combos_change,
         emotes::emotes_looks,
+        emotes::emotes_card_look,
         emotes::emotes_menu,
         emotes::emotes_card,
         emotes::emotes_room_badges,

@@ -15,6 +15,13 @@ pub fn emotes_looks(app: AppHandle, users: Vec<String>) -> Looks {
     emotes::looks_for(&app, &users)
 }
 
+/// V109-F78 A usercard opened: read what this user wears from 7TV, if it isn't known yet.
+/// The answer comes as a normal looks push.
+#[tauri::command]
+pub fn emotes_card_look(app: AppHandle, twitch_id: String) {
+    emotes::card_look(&app, &twitch_id);
+}
+
 /// 1.40 Everything the emote menu shows for a chat and the account reading it.
 #[tauri::command]
 pub async fn emotes_menu(

@@ -11,6 +11,7 @@ import type { Looks } from '../../ipc/bindings/Looks';
 import type { PaintStyle } from '../../ipc/bindings/PaintStyle';
 import { emotesIpc } from '../../ipc/emotes';
 import { applyAnswer, applyPushed } from './lookMap';
+import { paintClassOf } from './paintGate';
 import { loadAll, loadPicture, paintUrls } from './paintPics';
 
 const BATCH_MS = 60;
@@ -40,6 +41,10 @@ class LooksStore {
   /** V1051-03 Bumped when the preview defines a new paint, so a line already drawn picks it up. */
   private defined = $state(0);
   private definedN = 0;
+  /** V109-F78 Paints whose rules are in the sheet (a name wears the class only then). */
+  private ready = new Set<string>();
+  /** Bumped when rules land after the picture loads, so names asking before redraw. */
+  private readyTick = $state(0);
   /** V101-36 Paint names by id, for the tip on a painted name. */
   private paintNames = new Map<string, string>();
   private sheet: HTMLStyleElement | null = null;
@@ -59,13 +64,14 @@ class LooksStore {
   /** CSS class for a paint, or `null` if it can't be drawn. */
   paintClass(id: string | null): string | null {
     void this.defined;
+    void this.readyTick;
     if (!id) return null;
     if (!this.paints.has(id)) {
       const p = this.pending.get(id);
       if (!p) return null;
       this.insert([p]);
     }
-    return `paint-${id}`;
+    return paintClassOf(id, this.ready);
   }
 
   /** V101-36 What 7TV calls a paint. */
@@ -145,7 +151,11 @@ class LooksStore {
       this.pending.delete(p.id);
       // 1.37 Picture paints wait for their pictures (paintPics.ts); a failed CSS picture never recovers.
       const urls = paintUrls(p);
-      if (urls.length) void loadAll(urls, loadPicture, sleep).then(() => this.addRules(p));
+      if (urls.length)
+        void loadAll(urls, loadPicture, sleep).then(() => {
+          this.addRules(p);
+          this.readyTick++;
+        });
       else this.addRules(p);
       any = true;
     }
@@ -162,6 +172,7 @@ class LooksStore {
         // A rule the engine can't read: that name just stays plain.
       }
     }
+    this.ready.add(p.id);
   }
 }
 
