@@ -61,8 +61,9 @@ export function clipOffset(secs: number, uptime: number): number {
   return Math.max(0, Math.min(secs + CLIP_LEAD, uptime));
 }
 
-/** A live clip reaches back about this far (s); older moments need the archive video. */
-export const LIVE_CLIP_REACH = 120;
+/** A live clip reaches back about this far (s); older moments need the archive video.
+ *  V109-F77 60, not 120: Twitch only clips about the last minute or so of a live stream. */
+export const LIVE_CLIP_REACH = 60;
 
 export type MomentClip = { kind: 'live'; offset: number } | { kind: 'vod'; video: string; offset: number };
 
