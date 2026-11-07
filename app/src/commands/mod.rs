@@ -9,7 +9,6 @@ mod community;
 mod content;
 mod cosmetics;
 mod cyex;
-mod discord;
 mod emotes;
 pub mod feeds;
 pub mod highlights;
@@ -174,10 +173,6 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         chat_extra::chat_votes,
         chat_extra::chat_rate,
         chat_extra::chat_moments,
-        discord::discord_available,
-        discord::discord_watch,
-        discord::discord_probe,
-        discord::discord_status,
         hypetrain::chat_hype_train,
         hypetrain::chat_hype_watch,
         standing::chat_standing,

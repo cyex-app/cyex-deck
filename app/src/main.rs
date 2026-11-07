@@ -17,7 +17,6 @@ mod cosmetics;
 mod connections;
 mod crash;
 mod cyex;
-mod discord;
 mod emotes;
 mod feeds;
 mod hermes;

@@ -49,8 +49,4 @@ sound: Sound,
 /**
  * V107-Mo The last settings searches, newest first. Local only (not in exports).
  */
-recentSearches: Array<string>, 
-/**
- * V108-N26 Show the channel you watch on your Discord profile (Rich Presence). Off by default.
- */
-discordPresence: boolean, };
+recentSearches: Array<string>, };

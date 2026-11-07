@@ -106,7 +106,7 @@
   />
 {/snippet}
 
-<!-- V109-F83 `{/if}{#each rest` stays joined: whitespace between the two groups drew as an extra gap. -->
+<!-- V109-F83 The Twitch block and the rest block below stay on one line: whitespace between them drew as an extra gap. -->
 {#if on.twitch}
   {#each badges as ref (ref.set)}
     {@const sub = stand(ref)}
