@@ -5,4 +5,4 @@ import type { CyexMe } from "./CyexMe";
 /**
  * The cosmetics area of one account.
  */
-export type CyexView = { "state": "ready", me: CyexMe, kinds: Array<CyexKind>, } | { "state": "offline" } | { "state": "noToken" };
+export type CyexView = { "state": "ready", me: CyexMe, kinds: Array<CyexKind>, } | { "state": "offline" } | { "state": "noToken" } | { "state": "refused" };

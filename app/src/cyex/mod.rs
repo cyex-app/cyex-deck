@@ -68,17 +68,17 @@ fn http(app: &AppHandle) -> Http {
     app.state::<crate::auth::Auth>().http.clone()
 }
 
-/// The account's Twitch tokens, the deck's own first. A mock never gets a real one.
-fn twitch_tokens(app: &AppHandle, account: &str, mocked: bool) -> Vec<String> {
+/// The account's Twitch tokens, the deck's own first, each with whether it is a Helix (Sign in
+/// with Twitch) one. A mock never gets a real one.
+fn twitch_tokens(app: &AppHandle, account: &str, mocked: bool) -> Vec<(String, bool)> {
     if mocked {
-        return vec![format!("mock-token:{account}")];
+        return vec![(format!("mock-token:{account}"), true)];
     }
-    let mut out: Vec<String> = [crate::auth::helix_token(app, account), crate::auth::gql_token(app, account)]
+    let mut out: Vec<(String, bool)> = [(crate::auth::helix_token(app, account), true), (crate::auth::gql_token(app, account), false)]
         .into_iter()
-        .flatten()
-        .map(|(access, _)| access)
+        .filter_map(|(t, helix)| t.map(|(access, _)| (access, helix)))
         .collect();
-    out.dedup();
+    out.dedup_by(|a, b| a.0 == b.0);
     out
 }
 
@@ -101,7 +101,10 @@ enum Out {
 }
 
 enum Fail {
+    /// No Helix token (Sign in with Twitch) on the account.
     NoToken,
+    /// V109-B16 A Helix token the server refused.
+    Refused,
     Api(ApiError),
 }
 
@@ -122,7 +125,7 @@ async fn make(app: &AppHandle, account: &str, http: &Http, base: &str) -> Result
     let st = app.state::<Cyex>();
     let _one = st.making.lock().await;
     let mut last = Fail::NoToken;
-    for access in twitch_tokens(app, account, base != badges::BASE) {
+    for (access, helix) in twitch_tokens(app, account, base != badges::BASE) {
         match api::session(http, base, &access).await {
             Ok(s) => {
                 let Some(session) = CyexSession::new(&s.session_token, &s.expires_at) else {
@@ -133,7 +136,11 @@ async fn make(app: &AppHandle, account: &str, http: &Http, base: &str) -> Result
                 }
                 return Ok(session.token);
             }
-            Err(e) if matches!(e.code(), "wrong_client" | "bad_token") => last = Fail::NoToken,
+            Err(e) if matches!(e.code(), "wrong_client" | "bad_token") => {
+                if helix {
+                    last = Fail::Refused;
+                }
+            }
             Err(e) => return Err(Fail::Api(e)),
         }
     }
@@ -222,15 +229,24 @@ pub async fn view(app: &AppHandle, account: &str) -> CyexView {
             CyexView::Ready { me, kinds }
         }
         Ok(_) | Err(Fail::Api(ApiError::Offline)) => CyexView::Offline,
-        Err(Fail::NoToken) => CyexView::NoToken,
-        Err(Fail::Api(e)) if e.signed_out() || matches!(e.code(), "bad_token" | "wrong_client") => CyexView::NoToken,
-        Err(Fail::Api(_)) => CyexView::Offline,
+        Err(f) => failed_view(&f),
+    }
+}
+
+/// V109-B16 What the pop-up shows when the session failed: nothing to sign in with, a sign-in the
+/// server refused, or offline.
+fn failed_view(f: &Fail) -> CyexView {
+    match f {
+        Fail::NoToken => CyexView::NoToken,
+        Fail::Refused => CyexView::Refused,
+        Fail::Api(e) if e.signed_out() || matches!(e.code(), "bad_token" | "wrong_client") => CyexView::Refused,
+        Fail::Api(_) => CyexView::Offline,
     }
 }
 
 fn fail_text(f: Fail) -> String {
     match f {
-        Fail::NoToken => "cyex didn’t take this account’s sign-in. Sign in again.".to_owned(),
+        Fail::NoToken | Fail::Refused => "cyex didn’t take this account’s sign-in. Sign in again.".to_owned(),
         Fail::Api(e) => words::error(&e),
     }
 }
@@ -359,6 +375,13 @@ mod tests {
         });
         m.equipped.shown = shown.iter().map(|s| (*s).to_owned()).collect();
         m
+    }
+
+    #[test]
+    fn sign_in_states_tell_none_from_refused() {
+        assert_eq!(failed_view(&Fail::NoToken), CyexView::NoToken);
+        assert_eq!(failed_view(&Fail::Refused), CyexView::Refused);
+        assert_eq!(failed_view(&Fail::Api(ApiError::Offline)), CyexView::Offline);
     }
 
     #[test]

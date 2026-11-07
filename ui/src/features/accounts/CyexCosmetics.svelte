@@ -22,6 +22,8 @@
   import { toast } from '../../lib/toast.svelte';
   import ItemGrid from '../cosmetics/ItemGrid.svelte';
   import Reason from './Reason.svelte';
+  import { signInNeed } from './cyexSignIn';
+  import { signIn } from './signIn.svelte';
   import {
     filterRows,
     gridHeight,
@@ -99,6 +101,15 @@
     } catch {
       // The placeholder stays.
     }
+  }
+
+  const need = $derived(view ? signInNeed(view) : null);
+  const waiting = $derived(signIn.kind === 'helix' && signIn.forUser === account.userId);
+
+  /** V109-B16 The app's Sign in with Twitch for this account; the editor loads when it's done. */
+  async function signInHere() {
+    const id = account.userId;
+    if (await signIn.start('helix', id) && id === account.userId) await load();
   }
 
   async function load() {
@@ -321,8 +332,15 @@
       <span class="note">Can’t reach cyex right now.</span>
       <Button small disabled={loading} onclick={() => void load()}>{loading ? 'Trying…' : 'Try again'}</Button>
     </div>
-  {:else if view.state === 'noToken'}
-    <div class="box state"><span class="note">cyex needs this account’s Twitch sign-in. Sign in again in Settings, Accounts.</span></div>
+  {:else if need}
+    <div class="box state">
+      <span class="note">{need.text}</span>
+      {#if waiting}
+        <Button small onclick={() => signIn.cancel()}>Cancel</Button>
+      {:else}
+        <Button small variant="primary" disabled={signIn.kind !== null} onclick={() => void signInHere()}>{need.button}</Button>
+      {/if}
+    </div>
   {:else if me && nothingToSet(me)}
     <div class="box">
       <div class="empty">

@@ -155,6 +155,8 @@ pub enum CyexView {
     Ready { me: Box<CyexMe>, kinds: Vec<CyexKind> },
     /// Offline, or the server is down.
     Offline,
-    /// The account has no Twitch token the server takes.
+    /// V109-B16 The account has no Helix token (Sign in with Twitch), only the code sign-in.
     NoToken,
+    /// V109-B16 The server refused the account's Helix token.
+    Refused,
 }

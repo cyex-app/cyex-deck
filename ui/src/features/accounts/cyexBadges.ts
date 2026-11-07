@@ -286,7 +286,7 @@ export function plusGate(fetch: () => Promise<CyexView>, now: () => number = Dat
       if (pending) return pending;
       const p: Promise<PlusCheck> = fetch().then(
         (v) => {
-          if (v.state !== 'ready') return { kind: 'error', message: v.state === 'noToken' ? 'Sign in again to check Supporter+.' : CHECK_FAILED };
+          if (v.state !== 'ready') return { kind: 'error', message: (v.state === 'noToken' || v.state === 'refused') ? 'Sign in again to check Supporter+.' : CHECK_FAILED };
           keep(v);
           return { kind: v.me.plus.active ? 'open' : 'locked', fetched: v };
         },
