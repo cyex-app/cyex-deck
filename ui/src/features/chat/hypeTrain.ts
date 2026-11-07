@@ -106,6 +106,12 @@ export function trainOver(expiresAt: string | null, nowMs: number, heardMs: numb
  * first message at level 1), or a level up of the train held. A read never celebrates. */
 export type Burst = 'start' | 'level' | 'end';
 
+/** V109-C02 What each celebration plays. The end now sweeps the fill in to where the train
+ * got to, sheens across, pops its result text and rains confetti inside the bar. */
+export function burstParts(kind: Burst): { sweep: boolean; sheen: boolean; popLevel: boolean; popResult: boolean; confetti: boolean } {
+  return { sweep: kind !== 'level', sheen: true, popLevel: kind === 'level', popResult: kind === 'end', confetti: kind === 'end' };
+}
+
 export function burstOf(held: HypeTrain | null, change: HypeChange): Burst | null {
   if (change.kind === 'start') return held && held.id && held.id === change.train.id ? null : 'start';
   if (change.kind !== 'progress') return null;

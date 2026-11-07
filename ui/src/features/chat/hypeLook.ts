@@ -93,8 +93,8 @@ export function sparks(kind: SparkKind, look: Look): Spark[] {
     });
   }
   if (kind === 'shower') {
-    const xs = [7, 19, 30, 42, 53, 64, 76, 87, 95];
-    return xs.map((x, i) => ({ x, y: 55 + (i % 2) * 15, dx: (i % 3) - 1, dy: -(10 + (i % 4) * 3), delay: (i * 47) % 400, size: 4 + (i % 3), color: color(i), star: i % 2 === 0 }));
+    const xs = [5, 13, 21, 30, 38, 47, 55, 63, 72, 80, 88, 95];
+    return xs.map((x, i) => ({ x, y: 55 + (i % 2) * 15, dx: (i % 3) - 1, dy: -(10 + (i % 4) * 3), delay: (i * 47) % 360, size: 4 + (i % 3), color: color(i), star: i % 2 === 0 }));
   }
   const n = 8;
   return Array.from({ length: n }, (_, i) => {

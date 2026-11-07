@@ -14,6 +14,7 @@
   import { rooms } from '../emotes/rooms.svelte';
   import { catalogs } from './catalog.svelte';
   import { saved } from './saved';
+  import { subHint } from './subTier';
   import type { BadgeRef } from './sharedBadges';
   import { badgeSrc } from './urls';
 
@@ -77,7 +78,7 @@
   });
 
   function hint(ref: Ref, b: BadgeInfo): string | undefined {
-    if (ref.set === 'subscriber' || ref.set === 'founder') return ref.info ? `${ref.info} ${ref.info === '1' ? 'month' : 'months'}` : undefined;
+    if (ref.set === 'subscriber' || ref.set === 'founder') return subHint(ref.set, ref.version, ref.info);
     return ref.info ?? (b.description && b.description !== b.title ? b.description : undefined);
   }
 

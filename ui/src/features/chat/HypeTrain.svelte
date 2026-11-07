@@ -15,7 +15,10 @@
      (element.animate, linear). The fill sweeps by animating its clip-path. Celebrations: the start sweeps the fill in, a sheen crosses
      and sparkles burst from the bolt; a level up sheens, pops the level and bursts; the end
      (V108-C35h no sheen) keeps where the last level got to (V108-C35c) and lets a few sparkles rise along it. 0,7 to 1,3 s, transform, opacity and
-     the fill's clip only; reduced motion keeps the tint flash and drops the rest. Text is
+     the fill's clip only; reduced motion keeps the tint flash and drops the rest.
+     V109-C02 The end is bigger (hypeTrain.ts burstParts): the fill sweeps in to where the train got
+     to, the sheen crosses, the result text pops and a dozen confetti bits rain inside the bar
+     (clipped to it); about 1,3 s, composite properties and the fill's clip only. Text is
      --text on the washed fill: at least 5,2:1 in both themes. -->
 <script lang="ts">
   import { tick, untrack } from 'svelte';
@@ -37,6 +40,7 @@
     mergeProgress,
     progressPct,
     burstOf,
+    burstParts,
     type Burst,
     secondsLeft,
     topLine,
@@ -101,6 +105,7 @@
   const look = $derived(lookOf(shown));
   /** V108-C35c The closing note keeps where the last level got to (full only when its goal was met). */
   const fill = $derived(train ? pct : note ? progressPct(note.progress, note.goal) : 0);
+  const parts = $derived(burstParts(burst?.kind ?? 'level'));
   const theme = $derived(settings.v.appearance.theme);
   const kappa = $derived(look === 'gold' ? emoteImg('twitch', GOLDEN_KAPPA_ID, theme, { scale: density.scale }).src : '');
 
@@ -277,13 +282,13 @@
     aria-label={train ? `${look === 'gold' ? 'Golden Kappa train' : 'Hype train'}, level ${train.level}, ${pctText(pct)}` : undefined}
   >
     <div class="bg" aria-hidden="true">
-      <div class="fill" class:sweep={burst?.kind === 'start'} style:background={gradient(look)} style:clip-path="inset(0 {100 - fill}% 0 0)"></div>
-      {#key burst?.n}{#if burst}<span class="flash"></span>{#if burst.kind !== 'end'}<span class="sheen"></span>{/if}{/if}{/key}
+      <div class="fill" class:sweep={!!burst && parts.sweep} style:background={gradient(look)} style:clip-path="inset(0 {100 - fill}% 0 0)"></div>
+      {#key burst?.n}{#if burst}<span class="flash"></span>{#if parts.sheen}<span class="sheen"></span>{/if}{/if}{/key}
       {#if timer}<div class="timer" use:drain={timer}></div>{/if}
     </div>
     {#key burst?.n}
       {#if burst}
-        <span class="fx" class:bolt={burst.kind !== 'end'}><HypeSparks kind={burst.kind === 'end' ? 'shower' : 'burst'} {look} /></span>
+        <span class="fx" class:bolt={burst.kind !== 'end'} class:clip={burst.kind === 'end'}><HypeSparks kind={burst.kind === 'end' ? 'shower' : 'burst'} {look} /></span>
       {/if}
     {/key}
     <div class="row">
@@ -298,14 +303,14 @@
       {/key}
       {#if train}
         <span class="level"
-          >Level {#key lastN}<span class="lv" class:pop={burst?.kind === 'level'}>{train.level}</span>{/key}</span
+          >Level {#key lastN}<span class="lv" class:pop={!!burst && parts.popLevel}>{train.level}</span>{/key}</span
         >
         <span class="pct" role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={pct}>{pctText(pct)}</span>
         {#if top}<span class="top"><span class="who">{top.who}</span>{#if top.amount}<span class="amount">{top.amount}</span>{/if}</span>{/if}
         <!-- No countdown when Twitch sent no end time. -->
         {#if train.expiresAt}<span class="time" aria-hidden="true">{formatLeft(left)}</span>{/if}
       {:else if note}
-        <span class="level">{endedText(note.level)}</span>
+        {#key lastN}<span class="level" class:res={!!burst && parts.popResult}>{endedText(note.level)}</span>{/key}
         {#if given}<span class="top"><span class="who">{given}</span></span>{/if}
         <button class="close" type="button" aria-label="Close" use:tooltip={{ label: 'Close' }} onclick={dismiss} onkeydown={onKey}>
           <Icon name="x" size={12} />
@@ -394,6 +399,11 @@
     pointer-events: none;
   }
   /* The burst leaves from the bolt's middle. */
+  /* V109-C02 The end's confetti stays inside the bar. */
+  .fx.clip {
+    overflow: hidden;
+    border-radius: inherit;
+  }
   .fx.bolt {
     left: 15px;
     right: auto;
@@ -420,6 +430,17 @@
     from {
       opacity: 0.4;
       transform: scale(0.6) translateY(3px);
+    }
+  }
+  /* V109-C02 The result text pops in as the sweep lands. */
+  .level.res {
+    display: inline-block;
+    animation: res 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s backwards;
+  }
+  @keyframes res {
+    from {
+      opacity: 0;
+      transform: scale(0.8) translateY(3px);
     }
   }
   .pct {
@@ -532,6 +553,7 @@
     .hype.in,
     .fill.sweep,
     .mark.pop,
+    .level.res,
     .lv.pop {
       animation: none;
     }

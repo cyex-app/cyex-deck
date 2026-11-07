@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { HypeTrain } from '../../ipc/bindings/HypeTrain.ts';
-import { burstOf, closing, endedText, formatLeft, givenLine, mergeConductor, mergeProgress, progressPct, secondsLeft, topLine, topParts, trainOver } from './hypeTrain.ts';
+import { burstOf, burstParts, closing, endedText, formatLeft, givenLine, mergeConductor, mergeProgress, progressPct, secondsLeft, topLine, topParts, trainOver } from './hypeTrain.ts';
 
 const train = (o: Partial<HypeTrain> = {}): HypeTrain => ({
   id: 't1',
@@ -146,3 +146,11 @@ test('V108-C35 a start or a level up celebrates, the rest does not', () => {
   assert.equal(burstOf(held, { kind: 'reread' }), null);
 });
 
+
+test('V109-C02 the end plays the biggest celebration; a level up does not sweep', () => {
+  const end = burstParts('end');
+  assert.deepEqual(end, { sweep: true, sheen: true, popLevel: false, popResult: true, confetti: true });
+  assert.equal(burstParts('level').sweep, false);
+  assert.equal(burstParts('level').popLevel, true);
+  assert.equal(burstParts('start').confetti, false);
+});

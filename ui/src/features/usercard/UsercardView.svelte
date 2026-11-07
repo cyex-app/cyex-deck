@@ -12,6 +12,7 @@
   import { chatIpc } from '../../ipc/chat';
   import { modIpc } from '../../ipc/moderation';
   import { accounts } from '../../lib/accounts.svelte';
+  import { isOwnCard } from './isMe';
   import { everyShown } from '../../lib/awake';
   import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
@@ -62,7 +63,8 @@
   const note = $derived(profile ? settings.v.chat.users[profile.id] : undefined);
   const isChannel = $derived(login === channel);
   // V109-F64 Your own card has nothing to block, hide or moderate.
-  const isSelf = $derived(!!profile?.id && (profile.id === accounts.current?.userId || profile.id === modAccount));
+  // V109-F70 Any signed-in account, not only the default one.
+  const isSelf = $derived(isOwnCard(profile?.id, accounts.list.map((a) => a.userId), modAccount));
   const last = $derived(messages.at(-1));
 
   void catalogs.loadGlobal();

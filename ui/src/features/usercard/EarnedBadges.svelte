@@ -1,5 +1,6 @@
 <!-- V102-13 Every Twitch badge someone owns in the channel (Twitch's public
-     `channelViewer.earnedBadges`, no sign-in needed), then their 7TV, BTTV and FFZ badges.
+     `channelViewer.earnedBadges`, no sign-in needed). V109-F71 Earned ones first, no role
+     badges (mod, VIP...) and no 7TV, BTTV, FFZ, Chatterino or cyex ones.
      One line at most, with "Show more" when they don't fit, like the 7TV extension's card.
      Until the list loads, or if it can't, the badges from their last message show. -->
 <script lang="ts">
@@ -11,8 +12,7 @@
   import { settings } from '../../lib/settings.svelte';
   import Badges from '../chat/Badges.svelte';
   import { badgeSrc } from '../chat/urls';
-  import { isCyexBadge, usercardLine } from '../accounts/cyexBadges';
-  import { looks } from '../emotes/looks.svelte';
+  import { cardBadges } from './badgeLine';
 
   interface Props {
     login: string;
@@ -22,7 +22,7 @@
     fallback: Badge[];
   }
 
-  let { login, userId, channel, fallback }: Props = $props();
+  let { login, channel, fallback }: Props = $props();
 
   let earned = $state.raw<BadgeInfo[] | null>(null);
   let open = $state(false);
@@ -30,16 +30,8 @@
   let row = $state<HTMLElement>();
 
   const twitch = $derived(settings.v.chat.badges.twitch);
-
-  /** V109-B02 A short line with their cyex badges ("cyex founder #37 · supporter+"). */
-  const cyexLine = $derived.by(() => {
-    if (!settings.v.chat.badges.cyex) return '';
-    const look = looks.look(userId);
-    const titles = (look?.badges ?? [])
-      .filter((b) => isCyexBadge(b.id))
-      .map((b) => looks.badge(b.provider, b.id)?.title ?? '');
-    return usercardLine(titles);
-  });
+  const shown = $derived(cardBadges(earned ?? []));
+  const shownFallback = $derived(cardBadges(fallback));
 
   $effect(() => {
     let live = true;
@@ -69,7 +61,7 @@
 
 <div class="row" class:open bind:this={row}>
   {#if earned && twitch}
-    {#each earned as b (`${b.set}/${b.version}`)}
+    {#each shown as b (`${b.set}/${b.version}`)}
       <img
         class="badge pale-edge"
         src={badgeSrc(b, density.scale)}
@@ -79,12 +71,10 @@
         use:tooltip={{ label: b.title, hint: b.description && b.description !== b.title ? b.description : undefined }}
       />
     {/each}
-    <Badges badges={[]} {channel} {userId} />
   {:else}
-    <Badges badges={fallback} {channel} {userId} />
+    <Badges badges={shownFallback} {channel} />
   {/if}
 </div>
-{#if cyexLine}<span class="cyex">{cyexLine}</span>{/if}
 {#if overflows || open}
   <button class="more" onclick={() => (open = !open)}>{open ? 'Show less' : 'Show more'}</button>
 {/if}
@@ -106,13 +96,6 @@
     width: 18px;
     height: 18px;
     margin-right: 3px;
-  }
-  .cyex {
-    color: var(--muted);
-    font-size: 0.72rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .more {
     align-self: flex-start;

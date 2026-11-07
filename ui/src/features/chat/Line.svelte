@@ -632,10 +632,13 @@
   }
   /* V108-F51 Square, near-sharp, on the top right edge (user, 2026/11/03). The row lifts on
      hover and drops its paint containment so the bar can reach over the line above. */
+  /* V109-F69 Only the paint clip goes on hover. Layout and style containment stay (content-
+     visibility: auto had them), so the row lays out exactly as at rest and nothing moves. */
   .line:hover,
   .line.hot {
     z-index: 1;
     content-visibility: visible;
+    contain: layout style;
   }
   .acts {
     position: absolute;
