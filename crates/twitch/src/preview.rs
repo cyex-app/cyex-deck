@@ -239,6 +239,7 @@ mod tests {
             channel_name: "DexM".into(),
             clipped_by: Some("Someone".into()),
             game: None,
+            edit_restricted: None,
         }
     }
 

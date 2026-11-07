@@ -235,6 +235,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         clips::clips_list,
         clips::clips_delete,
         clips::clips_edit,
+        clips::clips_rename,
         content::content_clips,
         content::content_delete_clips,
         content::content_videos,

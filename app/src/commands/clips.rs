@@ -16,6 +16,12 @@ pub async fn clips_delete(app: AppHandle, account: String, slugs: Vec<String>) -
     clips::delete(&app, &account, slugs).await
 }
 
+/// V109-C05 Renames one clip; the title Twitch kept.
+#[tauri::command]
+pub async fn clips_rename(app: AppHandle, account: String, slug: String, title: String) -> Result<String, String> {
+    clips::rename(&app, &account, &slug, &title).await
+}
+
 /// True: Twitch's editor opened in the account's Twitch window; false: a mock run.
 #[tauri::command]
 pub async fn clips_edit(app: AppHandle, account: String, slug: String) -> Result<bool, String> {

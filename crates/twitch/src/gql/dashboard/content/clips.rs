@@ -1,6 +1,7 @@
 //! V107-R39 Clips manager: clips of your channel or clips you made, by period, order and a
 //! search, and deleting them by slug. Same shapes as Twitch's `ContentClipsManager_User`
-//! and the bulk delete's `deleteClips(input: {slugs})`.
+//! and the bulk delete's `deleteClips(input: {slugs})`. V109-C05 Renaming one: Twitch's
+//! `ClipsTitleEdit_UpdateClip` (docs/research/clips-manager.md).
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -19,7 +20,7 @@ pub const DELETE_MAX: usize = 25;
 const LIST: &str = "query ContentClips($login: String!, $limit: Int, $cursor: Cursor, $criteria: UserClipsInput) { \
     user(login: $login) { clips(first: $limit, after: $cursor, criteria: $criteria) { pageInfo { hasNextPage } \
     edges { cursor node { slug title viewCount createdAt durationSeconds thumbnailURL \
-    broadcaster { login displayName } curator { login displayName } game { displayName } } } } } }";
+    broadcaster { login displayName } curator { login displayName } game { displayName } isViewerEditRestricted } } } } }";
 /// Who clipped (or which channels) for a filter; Twitch's clips manager fills its people
 /// filter from this. `TERM` is CURATOR or BROADCASTER.
 const PEOPLE: &str = "query ContentClipPeople($login: String!, $criteria: UserClipsInput!) { user(login: $login) { \
@@ -28,6 +29,11 @@ const PEOPLE: &str = "query ContentClipPeople($login: String!, $criteria: UserCl
 /// People a search looks through at most.
 const PEOPLE_MAX: usize = 20;
 const DELETE: &str = "mutation DeleteClips($input: DeleteClipsInput!) { deleteClips(input: $input) { clips { slug } } }";
+/// V109-C05 Twitch's own title edit, word for word (its `ClipsTitleEdit` component).
+const RENAME: &str = "mutation ClipsTitleEdit_UpdateClip($input: UpdateClipInput!) { \
+    updateClip(input: $input) { clip { id title } error { message } } }";
+/// V109-C05 Longest title, as Twitch's field cuts it (`slice(0, 100)`: UTF-16 units).
+pub const TITLE_MAX: usize = 100;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -203,6 +209,42 @@ pub async fn delete(ch: &Channel<'_>, slugs: &[String]) -> Result<Vec<String>> {
     read_delete(ch.write(DELETE, "deleteClips", json!({ "slugs": slugs })).await?)
 }
 
+/// V109-C05 The `UpdateClipInput` for a new title, trimmed as Twitch sends it, or why not
+/// (`EMPTY`, `TOO_LONG`).
+pub fn rename_input(slug: &str, title: &str) -> Result<Value> {
+    let t = title.trim();
+    if t.is_empty() {
+        return Err(Error::Refused("EMPTY".into()));
+    }
+    if t.encode_utf16().count() > TITLE_MAX {
+        return Err(Error::Refused("TOO_LONG".into()));
+    }
+    Ok(json!({ "title": t, "slug": slug }))
+}
+
+/// V109-C05 Renames one clip. Returns the title Twitch kept. Twitch's refusal comes back as
+/// `Refused(message)` (e.g. `invalid_title`): its words, not a code.
+pub async fn rename(ch: &Channel<'_>, slug: &str, title: &str) -> Result<String> {
+    let input = rename_input(slug, title)?;
+    let sent = input["title"].as_str().unwrap_or_default().to_owned();
+    let data = crate::gql::run_at(ch.http, ch.auth, ch.base, RENAME, json!({ "input": input })).await?;
+    read_rename(data, &sent)
+}
+
+/// An `updateClip` answer: the title kept (`sent` if Twitch didn't echo it), or the
+/// refusal's message. A `null` payload is not done.
+pub(crate) fn read_rename(data: Value, sent: &str) -> Result<String> {
+    let p = &data["updateClip"];
+    if p.is_null() {
+        return Err(Error::Refused(super::super::NOT_DONE.into()));
+    }
+    if let Some(e) = p.get("error").filter(|e| !e.is_null()) {
+        let m = e["message"].as_str().map(str::trim).filter(|m| !m.is_empty()).unwrap_or("UNKNOWN");
+        return Err(Error::Refused(m.to_owned()));
+    }
+    Ok(p.pointer("/clip/title").and_then(Value::as_str).unwrap_or(sent).to_owned())
+}
+
 /// The slugs a `deleteClips` payload lists.
 pub(crate) fn read_delete(payload: Value) -> Result<Vec<String>> {
     let clips = payload.get("clips").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
@@ -222,6 +264,8 @@ struct RawClip {
     broadcaster: Option<RawUser>,
     curator: Option<RawUser>,
     game: Option<RawGame>,
+    /// V109-C05 Twitch's per-viewer flag: set, a clipper may no longer edit it.
+    is_viewer_edit_restricted: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -255,6 +299,7 @@ impl From<RawClip> for Clip {
             channel_login: login,
             clipped_by: curator.filter(|n| !n.is_empty()),
             game: c.game.and_then(|g| g.display_name).filter(|n| !n.is_empty()),
+            edit_restricted: c.is_viewer_edit_restricted,
         }
     }
 }
@@ -398,6 +443,53 @@ mod tests {
         let many: Vec<String> = (0..=DELETE_MAX).map(|i| i.to_string()).collect();
         assert!(matches!(delete(&off(), &many).await, Err(Error::Refused(_))));
         assert!(delete(&off(), &[]).await.unwrap().is_empty());
+    }
+
+    #[test]
+    fn v109_c05_rename_input_is_twitchs() {
+        assert_eq!(rename_input("Fast-Clip", "  gg wp ").unwrap(), json!({ "title": "gg wp", "slug": "Fast-Clip" }));
+        assert!(matches!(rename_input("A", " \n "), Err(Error::Refused(c)) if c == "EMPTY"));
+        assert!(rename_input("A", &"x".repeat(TITLE_MAX)).is_ok());
+        assert!(matches!(rename_input("A", &"x".repeat(TITLE_MAX + 1)), Err(Error::Refused(c)) if c == "TOO_LONG"));
+        // UTF-16 units, as Twitch's field counts: 50 emoji are 100.
+        assert!(rename_input("A", &"🎉".repeat(50)).is_ok());
+        assert!(rename_input("A", &"🎉".repeat(51)).is_err());
+    }
+
+    #[test]
+    fn v109_c05_reads_the_kept_title_or_the_refusal() {
+        let ok = json!({ "updateClip": { "clip": { "id": "1", "title": "Kept" }, "error": null } });
+        assert_eq!(read_rename(ok, "sent").unwrap(), "Kept");
+        assert_eq!(read_rename(json!({ "updateClip": { "clip": null, "error": null } }), "sent").unwrap(), "sent");
+        let bad = json!({ "updateClip": { "clip": null, "error": { "message": "invalid_title" } } });
+        assert!(matches!(read_rename(bad, "x"), Err(Error::Refused(c)) if c == "invalid_title"));
+        let blank = json!({ "updateClip": { "error": { "message": "" } } });
+        assert!(matches!(read_rename(blank, "x"), Err(Error::Refused(c)) if c == "UNKNOWN"));
+        assert!(matches!(read_rename(json!({ "updateClip": null }), "x"), Err(Error::Refused(c)) if c == NOT_DONE));
+    }
+
+    #[tokio::test]
+    async fn v109_c05_rename_sends_twitchs_document() {
+        let m = serve([r#"{"data":{"updateClip":{"clip":{"id":"9","title":"New one"},"error":null}}}"#]);
+        assert_eq!(rename(&m.channel(), "Fast-Clip", " New one ").await.unwrap(), "New one");
+        let sent = &m.sent()[0];
+        assert!(query(sent).starts_with("mutation ClipsTitleEdit_UpdateClip($input: UpdateClipInput!)"));
+        assert!(query(sent).contains("updateClip(input: $input) { clip { id title } error { message } }"));
+        assert_eq!(sent["variables"], json!({ "input": { "title": "New one", "slug": "Fast-Clip" } }));
+        // Refused before anything leaves the app.
+        assert!(rename(&off(), "A", "").await.is_err());
+    }
+
+    #[test]
+    fn v109_c05_list_reads_edit_restricted() {
+        let data = json!({ "user": { "clips": { "pageInfo": { "hasNextPage": false }, "edges": [
+            { "cursor": "a", "node": { "slug": "A", "isViewerEditRestricted": true } },
+            { "cursor": "b", "node": { "slug": "B", "isViewerEditRestricted": false } },
+            { "cursor": "c", "node": { "slug": "C" } } ] } } });
+        let p = read_list(data).unwrap();
+        let r: Vec<Option<bool>> = p.clips.iter().map(|c| c.edit_restricted).collect();
+        assert_eq!(r, [Some(true), Some(false), None]);
+        assert!(LIST.contains("isViewerEditRestricted"));
     }
 
     #[tokio::test]

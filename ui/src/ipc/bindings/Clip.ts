@@ -8,4 +8,9 @@ createdAt: string,
 /**
  * Seconds.
  */
-duration: number, thumbnail: string | null, channelLogin: string, channelName: string, clippedBy: string | null, game: string | null, };
+duration: number, thumbnail: string | null, channelLogin: string, channelName: string, clippedBy: string | null, game: string | null, 
+/**
+ * V109-C05 Only the clips manager asks (Twitch’s `isViewerEditRestricted`): true, the
+ * one who clipped it may no longer edit it; the channel owner still may.
+ */
+editRestricted?: boolean, };

@@ -1,8 +1,8 @@
 <!-- V109-C03 Clips manager for one signed-in account: clips of its channel (by anyone) or
      clips it made (anywhere), by time and order, with a search and paging. A row plays in
      the app's clip player; ⋯ saves it as MP4 (V108-N02), copies the link, opens Twitch's
-     editor for clips you made (V103-09) or deletes it (second click). Tick several to
-     delete them at once. Self-contained: the host (the creator dashboard) gives the account. -->
+     editor for clips you made (V103-09), renames it in the row (V109-C05) or deletes it
+     (second click). Tick several to delete them at once. Self-contained: the host (the creator dashboard) gives the account. -->
 <script lang="ts">
   import { untrack } from 'svelte';
 
@@ -34,7 +34,7 @@
   import PickBar from '../streammanager/PickBar.svelte';
   import PickBox from '../streammanager/PickBox.svelte';
   import SmProblem from '../streammanager/SmProblem.svelte';
-  import { emptyLine, madeBy, ORDERS, WHOSE } from './clips';
+  import { canRename, emptyLine, madeBy, ORDERS, TITLE_MAX, titleCheck, WHOSE } from './clips';
 
   interface Props {
     /** The signed-in account's user id; its channel is its own. */
@@ -53,6 +53,9 @@
   let sent = $state('');
   let busy = $state(false);
   let playing = $state<Playing | null>(null);
+  /** V109-C05 The row being renamed, its text and Twitch’s last refusal. */
+  let editing = $state<{ slug: string; text: string; error: string } | null>(null);
+  let saving = $state(false);
 
   const me = $derived(accounts.list.find((a) => a.userId === account));
   const names = $derived(me ? [me.login, me.displayName] : []);
@@ -74,7 +77,10 @@
 
   $effect(() => {
     void [account, of, period, order, sent];
-    untrack(() => void list.reload({ clear: true }));
+    untrack(() => {
+      editing = null;
+      void list.reload({ clear: true });
+    });
   });
 
   const day = (iso: string) => {
@@ -110,6 +116,38 @@
     }
   }
 
+  /** V109-C05 Enter: Twitch’s title edit; the row shows the kept title at once. */
+  async function saveTitle() {
+    const e = editing;
+    const c = e && clips.find((x) => x.slug === e.slug);
+    if (!e || !c || saving) return;
+    const check = titleCheck(e.text, c.title);
+    if (!check) {
+      editing = null;
+      return;
+    }
+    if ('error' in check) {
+      e.error = check.error;
+      return;
+    }
+    saving = true;
+    try {
+      const title = await clipsIpc.rename(account, c.slug, check.title);
+      list.patch(c.slug, (x) => ({ ...x, title }));
+      if (editing?.slug === c.slug) editing = null;
+      toast.success('Renamed.');
+    } catch (err) {
+      if (editing?.slug === c.slug) editing.error = errorText(err, 'rename the clip');
+    } finally {
+      saving = false;
+    }
+  }
+
+  function focus(node: HTMLInputElement) {
+    node.focus();
+    node.select();
+  }
+
   function menu(e: MouseEvent, c: Clip) {
     e.preventDefault();
     const saving = clipSaves.has(c.slug);
@@ -119,14 +157,24 @@
         ? { label: 'Stop saving', icon: 'x', hint: clipSaves.text(c.slug), run: () => clipSaves.cancel(c.slug) }
         : { label: 'Save as MP4', icon: 'download', run: () => void clipSaves.save(c.slug) },
       { label: 'Copy link', icon: 'link', run: () => void copy(clipLink(c), 'Link') },
+      ...(canRename(c, of, me?.login)
+        ? [{ label: 'Rename', icon: 'pencil' as const, run: () => (editing = { slug: c.slug, text: c.title, error: '' }) }]
+        : []),
       ...(madeBy(c, of, names)
-        ? [{ label: 'Edit on Twitch', icon: 'pencil' as const, note: 'Title, start and end, in Twitch’s editor', run: () => void edit(c) }]
+        ? [{ label: 'Edit on Twitch', icon: 'scissors' as const, note: 'Title, start and end, in Twitch’s editor', run: () => void edit(c) }]
         : []),
       'separator',
       { label: 'Delete clip', icon: 'trash', danger: true, note: 'Gone for good.', confirm: 'Click to delete', run: () => void remove([c.slug]) },
     ]);
   }
 </script>
+
+{#snippet thumb(c: Clip)}
+  <span class="thumb">
+    {#if c.thumbnail}<img src={c.thumbnail} alt="" loading="lazy" />{/if}
+    <span class="len">{length(c.duration)}</span>
+  </span>
+{/snippet}
 
 <section class="clips" aria-label="Clips">
   <div class="bar">
@@ -163,19 +211,50 @@
       {#each clips as c (c.slug)}
         <li class:on={picked.has(c.slug)} oncontextmenu={(e) => menu(e, c)}>
           <PickBox label="Pick {c.title || 'clip'}" checked={picked.has(c.slug)} onchange={() => list.toggle(c.slug)} />
-          <button class="item" onclick={() => (playing = { kind: 'clip', slug: c.slug })}>
-            <span class="thumb">
-              {#if c.thumbnail}<img src={c.thumbnail} alt="" loading="lazy" />{/if}
-              <span class="len">{length(c.duration)}</span>
-            </span>
-            <span class="text">
-              <b>{c.title || 'Untitled'}</b>
-              <span class="meta">
-                {#if who(c)}<span class="who">{who(c)}</span>{/if}
-                <span class="data">{[day(c.createdAt), views(c.views)].filter(Boolean).join(' · ')}</span>
+          {#if editing?.slug === c.slug}
+            {@render thumb(c)}
+            <form
+              class="rename"
+              onsubmit={(e) => {
+                e.preventDefault();
+                void saveTitle();
+              }}
+            >
+              <input
+                class="field"
+                aria-label="Clip title"
+                aria-invalid={!!editing.error}
+                aria-describedby="rename-{c.slug}"
+                maxlength={TITLE_MAX}
+                placeholder="Title"
+                readonly={saving}
+                bind:value={editing.text}
+                use:focus
+                oninput={() => editing && (editing.error = '')}
+                onkeydown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    editing = null;
+                  }
+                }}
+              />
+              <span id="rename-{c.slug}" class="hint" class:bad={!!editing.error} aria-live="polite">
+                {editing.error || `${TITLE_MAX - editing.text.length} left · Enter saves, Esc cancels`}
               </span>
-            </span>
-          </button>
+            </form>
+          {:else}
+            <button class="item" onclick={() => (playing = { kind: 'clip', slug: c.slug })}>
+              {@render thumb(c)}
+              <span class="text">
+                <b>{c.title || 'Untitled'}</b>
+                <span class="meta">
+                  {#if who(c)}<span class="who">{who(c)}</span>{/if}
+                  <span class="data">{[day(c.createdAt), views(c.views)].filter(Boolean).join(' · ')}</span>
+                </span>
+              </span>
+            </button>
+          {/if}
           {#if clipSaves.has(c.slug)}<span class="saving">{clipSaves.text(c.slug)}</span>{/if}
           <IconButton icon="more" label="More for {c.title || 'clip'}" size={14} onclick={(e) => menu(e, c)} />
         </li>
@@ -325,5 +404,22 @@
   .saving {
     flex: none;
     color: var(--dim);
+  }
+  .rename {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .rename .field {
+    min-width: 0;
+  }
+  .hint {
+    color: var(--dim);
+    font-size: 0.72rem;
+  }
+  .hint.bad {
+    color: var(--red);
   }
 </style>

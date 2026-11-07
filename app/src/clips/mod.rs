@@ -2,8 +2,8 @@
 //! clips of its own channel (by anyone). Same GQL as the stream manager's Clips panel
 //! (V107-R39, `gql::dashboard::content::clips`), but for any account, not only the
 //! manager's. Delete goes through the paced bulk runner (`streammanager::bulk`). Editing is
-//! Twitch's own clip editor in the account's Twitch window (V103-09): Twitch has no title
-//! edit we could find (docs/research/clips-manager.md). Mocks: `CYEX_GQL_DASHBOARD_MOCK`
+//! Twitch's own clip editor in the account's Twitch window (V103-09); V109-C05 a rename is
+//! Twitch's title-only `updateClip` (docs/research/clips-manager.md). Mocks: `CYEX_GQL_DASHBOARD_MOCK`
 //! with `tools/mock/clips.mjs` (or `content.mjs`), as `streammanager::gql_call` reads it.
 
 use cyex_twitch::gql::dashboard::content::clips::{self, ClipFilter, ClipPage};
@@ -35,6 +35,29 @@ pub async fn delete(app: &AppHandle, account: &str, slugs: Vec<String>) -> Resul
         clips::delete(&c.channel(), &part).await
     })
     .await
+}
+
+/// V109-C05 A new title for one clip; the title Twitch kept, or Twitch's refusal in words.
+pub async fn rename(app: &AppHandle, account: &str, slug: &str, title: &str) -> Result<String, String> {
+    if !valid_slug(slug) {
+        return Err("That isn’t a clip.".into());
+    }
+    let c = call(app, account)?;
+    clips::rename(&c.channel(), slug, title).await.map_err(|e| rename_words(&e))
+}
+
+/// Twitch's own lines for its title field (`ClipsTitleEdit`): `invalid_title` or a `403:`
+/// is the words; anything else is Twitch's message as it came.
+fn rename_words(e: &cyex_twitch::Error) -> String {
+    use cyex_twitch::Error::Refused;
+    match e {
+        Refused(c) if c == "EMPTY" => "Add a title.".into(),
+        Refused(c) if c == "TOO_LONG" => format!("Titles can be {} characters at most.", clips::TITLE_MAX),
+        Refused(m) if m.eq_ignore_ascii_case("invalid_title") || m.contains("403:") => {
+            "Twitch didn’t take that title. Check the words and try again.".into()
+        }
+        e => words::gql(e),
+    }
 }
 
 /// Twitch's clip editor for `slug`, the page `POST /clips` hands back as `edit_url`.
@@ -76,6 +99,16 @@ fn valid_slug(s: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v109_c05_rename_lines() {
+        use cyex_twitch::Error::Refused;
+        assert_eq!(rename_words(&Refused("EMPTY".into())), "Add a title.");
+        assert!(rename_words(&Refused("TOO_LONG".into())).contains("100"));
+        assert!(rename_words(&Refused("invalid_title".into())).contains("didn’t take"));
+        assert!(rename_words(&Refused("403: Forbidden".into())).contains("didn’t take"));
+        assert_eq!(rename_words(&Refused("clip is locked".into())), "Twitch turned that down (clip is locked).");
+    }
 
     #[test]
     fn v109_c03_edit_url_is_twitchs_editor() {

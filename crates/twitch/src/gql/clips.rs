@@ -49,6 +49,11 @@ pub struct Clip {
     pub channel_name: String,
     pub clipped_by: Option<String>,
     pub game: Option<String>,
+    /// V109-C05 Only the clips manager asks (Twitch’s `isViewerEditRestricted`): true, the
+    /// one who clipped it may no longer edit it; the channel owner still may.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub edit_restricted: Option<bool>,
 }
 
 /// A clip and its video files, best first. Plain MP4s that play in a `<video>`.
@@ -327,6 +332,7 @@ impl From<RawClip> for Clip {
             channel_name,
             clipped_by: c.curator.map(|u| u.display_name).filter(|n| !n.is_empty()),
             game: c.game.map(|g| g.display_name).filter(|n| !n.is_empty()),
+            edit_restricted: None,
         }
     }
 }
