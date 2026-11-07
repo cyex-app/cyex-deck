@@ -15,6 +15,7 @@
 <script lang="ts">
   import { onDestroy, tick, type Snippet } from 'svelte';
 
+  import Button from '../../components/Button.svelte';
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import Popover from '../../components/Popover.svelte';
@@ -330,7 +331,21 @@
     authFailed: 'Twitch didn’t accept this account. Sign in again in Settings → Accounts.',
     unavailable: 'This channel is suspended or doesn’t exist.',
     refused: 'Too many chats joined. Close a few, then open this one again.',
+    // V109-F80 Twitch keeps a chat from an account banned there.
+    banned: 'You’re banned here, so Twitch keeps this chat from this account.',
+    noAnswer: 'Twitch didn’t let this chat in.',
   };
+  /** V109-F81 A chat that isn't in offers to try again, never a silent "Not connected yet." */
+  const STUCK: ConnStatus[] = ['refused', 'banned', 'noAnswer'];
+  let rejoining = $state(false);
+  function rejoin() {
+    if (!room.view || rejoining) return;
+    rejoining = true;
+    chatIpc
+      .rejoin(room.view)
+      .catch((err) => toast.error(errorText(err)))
+      .finally(() => (rejoining = false));
+  }
 
   /** Hovering the name shows the stream, if the last live check found one (user, 2026/11/01):
    *  a chat-only tile still lights its tab's dot, and this says why. */
@@ -542,8 +557,9 @@
   {#if room.error}
     <p class="status bad">{room.error}</p>
   {:else if STATUS[room.status]}
-    <p class="status" class:bad={['authFailed', 'unavailable', 'refused'].includes(room.status)}>
-      {STATUS[room.status]}
+    <p class="status" class:bad={['authFailed', 'unavailable', ...STUCK].includes(room.status)}>
+      <span>{STATUS[room.status]}</span>
+      {#if STUCK.includes(room.status)}<Button variant="link" small disabled={rejoining} onclick={rejoin}>Reconnect</Button>{/if}
     </p>
   {/if}
   <!-- V102-24 A short chat keeps its messages and message box: these scroll instead. -->
@@ -745,5 +761,11 @@
   }
   .status.bad {
     color: var(--yellow);
+  }
+  .status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 8px;
   }
 </style>

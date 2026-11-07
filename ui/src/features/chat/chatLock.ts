@@ -4,6 +4,7 @@
 
 import type { ChatStanding } from '../../ipc/bindings/ChatStanding';
 import type { ChatWarning } from '../../ipc/bindings/ChatWarning';
+import type { KnownStanding } from '../../ipc/bindings/KnownStanding';
 import type { PastUnban } from '../../ipc/bindings/PastUnban';
 import type { Restriction } from '../../ipc/bindings/Restriction';
 import { formatDate, formatTime } from '../../lib/format.ts';
@@ -21,6 +22,8 @@ export interface Said {
 }
 
 export type Unban =
+  /** V109-F79 No read has shown this ban yet (IRC's word alone): nothing to say about requests. */
+  | { state: 'unknown' }
   /** The channel takes no requests (or didn't say). */
   | { state: 'off' }
   /** Open from `at` (ms). */
@@ -49,6 +52,30 @@ const time = (s: string | null | undefined): number | null => {
   return Number.isNaN(t) ? null : t;
 };
 
+/** V109-F79 The newer of two words from IRC (the app's kept one and this room's own). */
+export function newest(a: Said | null, b: Said | null): Said | null {
+  if (!a) return b;
+  if (!b) return a;
+  return b.at >= a.at ? b : a;
+}
+
+/** V109-F79 The lock's input from what the app knows for this account and channel (kept
+ *  while the app runs, so a remounted box, a pop-out or a reopened chat starts locked) and
+ *  what this room's IRC said. */
+export function inputOf(k: KnownStanding, said: Said | null, now: number): LockInput {
+  const s = k.standing;
+  // The request this app sent, for when Twitch won't show the requester their own.
+  const standing = s && !s.request && k.sent && s.ban?.until === null ? { ...s, request: k.sent } : s;
+  return { standing, readAt: k.readAt, said: newest(k.said, said), warning: k.warning, now };
+}
+
+/** V109-F79 When the next read is due: a read that doubted a known ban asks again in 5 s. */
+export function nextReadOf(k: KnownStanding, input: LockInput): number | null {
+  return k.doubt > 0 ? 5_000 : nextRead(lockOf(input), input);
+}
+
+export const NOTHING_KNOWN: KnownStanding = { standing: null, readAt: 0, said: null, sent: null, warning: null, doubt: 0 };
+
 /** IRC's word counts until a read that started after it says otherwise. */
 export function saidCounts(said: Said | null, readAt: number): boolean {
   return !!said && said.at + READ_LAG_MS > readAt;
@@ -65,7 +92,7 @@ export function lockOf({ standing, readAt, said, warning, now }: LockInput): Loc
       kind: 'ban',
       reason: known ? reason : '',
       since: known ? time(ban.since) : (fresh?.at ?? null),
-      unban: unbanOf(known ? standing : null, known ? time(ban.since) : null, now, readAt),
+      unban: known ? unbanOf(standing, time(ban.since), now, readAt) : { state: 'unknown' },
     };
   }
   const until = fresh?.how.kind === 'timedOut' ? fresh.at + fresh.how.secs * 1000 : time(ban?.until);
@@ -140,6 +167,8 @@ export function headline(lock: Lock, now: number): string {
 /** The unban line under a ban: what can be done and when. */
 export function unbanLine(u: Unban, now: number): string {
   switch (u.state) {
+    case 'unknown':
+      return '';
     case 'off':
       return 'This channel doesn’t take unban requests.';
     case 'wait':

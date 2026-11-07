@@ -8,12 +8,15 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
+use cyex_chat::model::Restriction;
+use cyex_twitch::gql::modlogs::PastUnban;
 use cyex_twitch::gql::standing::{self as api, Change, Standing, Warning};
 use cyex_twitch::hermes::{Event, Kind};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 use ts_rs::TS;
 
+use super::known::{self, Known, Took};
 use crate::whispers::GqlCall;
 
 pub const EVENT: &str = "chat:standing";
@@ -48,14 +51,59 @@ fn failed(e: cyex_twitch::Error) -> String {
     }
 }
 
-/// The account's standing in `channel_id` now.
-pub async fn read(app: &AppHandle, account: &str, channel_id: &str) -> Result<Standing, String> {
+/// The account's standing in `channel_id` now, folded into what was known (V109-F79). A
+/// ban that ended joins the chat again where Twitch kept it from the account (V109-F81).
+pub async fn read(app: &AppHandle, account: &str, channel_id: &str) -> Result<Known, String> {
+    let started = super::now_ms();
+    let read = fetch(app, account, channel_id).await?;
+    let mut took = Took::Stale;
+    let k = known::update(account, channel_id, |k| took = known::take_read(k, read, started));
+    if rejoins(&took, &k) {
+        super::session::rejoin_banned(app, account, channel_id);
+    }
+    Ok(k)
+}
+
+/// V109-F81 A read that leaves the account free here lets a chat a ban kept out join again.
+fn rejoins(took: &Took, k: &Known) -> bool {
+    let free = k.standing.as_ref().is_some_and(|s| s.ban.is_none());
+    matches!(took, Took::Ended) || (matches!(took, Took::Kept) && free)
+}
+
+async fn fetch(app: &AppHandle, account: &str, channel_id: &str) -> Result<Standing, String> {
     #[cfg(feature = "mocks")]
     if let Some(s) = mock::read(account, channel_id) {
         return Ok(s);
     }
     let c = call(app, account)?;
     api::read(&c.http, c.auth(), channel_id, account).await.map_err(failed)
+}
+
+/// V109-F79 What's known without asking Twitch: for a chat box that opens, and when a read failed.
+pub fn known(account: &str, channel_id: &str) -> Known {
+    known::get(account, channel_id)
+}
+
+/// V109-F79 IRC told a room of our own ban, timeout or warning.
+pub fn said(account: &str, channel_id: &str, how: Restriction, at: i64) {
+    known::update(account, channel_id, |k| known::take_said(k, how, at));
+}
+
+fn now_rfc3339() -> String {
+    time::OffsetDateTime::now_utc().format(&time::format_description::well_known::Rfc3339).unwrap_or_default()
+}
+
+fn sent(account: &str, channel_id: &str, message: &str) {
+    let request = PastUnban {
+        id: String::new(),
+        created_at: now_rfc3339(),
+        text: message.to_owned(),
+        status: "PENDING".into(),
+        resolved_at: None,
+        resolved_by: None,
+        note: String::new(),
+    };
+    known::update(account, channel_id, |k| k.sent = Some(request));
 }
 
 /// Only from the user's click on Send in the unban request form.
@@ -66,20 +114,35 @@ pub async fn request_unban(app: &AppHandle, account: &str, channel_id: &str, mes
     }
     #[cfg(feature = "mocks")]
     if mock::request(account, channel_id, message) {
+        sent(account, channel_id, message);
         return Ok(());
     }
     let c = call(app, account)?;
-    api::request_unban(&c.http, c.auth(), channel_id, message).await.map_err(failed)
+    api::request_unban(&c.http, c.auth(), channel_id, message).await.map_err(failed)?;
+    sent(account, channel_id, message);
+    Ok(())
 }
 
 /// Only from the user's click on Acknowledge.
 pub async fn acknowledge(app: &AppHandle, account: &str, channel_id: &str) -> Result<(), String> {
     #[cfg(feature = "mocks")]
     if mock::acknowledge(account, channel_id) {
+        acknowledged(account, channel_id);
         return Ok(());
     }
     let c = call(app, account)?;
-    api::acknowledge_warning(&c.http, c.auth(), channel_id).await.map_err(failed)
+    api::acknowledge_warning(&c.http, c.auth(), channel_id).await.map_err(failed)?;
+    acknowledged(account, channel_id);
+    Ok(())
+}
+
+fn acknowledged(account: &str, channel_id: &str) {
+    known::update(account, channel_id, |k| {
+        k.warning = None;
+        if k.said.is_some_and(|s| s.how == Restriction::Warned) {
+            k.said = None;
+        }
+    });
 }
 
 /// Follows (or stops following) the account's own moderation topic while a chat box of it
@@ -102,7 +165,12 @@ pub fn on_event(app: &AppHandle, e: &Event) {
     match change {
         Change::Warned(w) => emit(app, &account, channel_id, Some(w)),
         Change::Moved => match gate(&mut MOVED.lock().unwrap_or_else(|p| p.into_inner()), (account.clone(), channel_id.clone()), Instant::now()) {
-            Gate::Now => emit(app, &account, channel_id, None),
+            Gate::Now => {
+                // V109-F81 Maybe an unban: a chat a ban kept out tries again (a ban still on
+                // answers msg_banned and it stays out).
+                super::session::rejoin_banned(app, &account, &channel_id);
+                emit(app, &account, channel_id, None)
+            }
             // A burst reads once more at its end, not once per message.
             Gate::Later => {
                 let app = app.clone();
@@ -157,6 +225,9 @@ fn gate(last: &mut Moved, key: (String, String), now: Instant) -> Gate {
 }
 
 fn emit(app: &AppHandle, account: &str, channel_id: String, warning: Option<Warning>) {
+    if let Some(w) = &warning {
+        known::update(account, &channel_id, |k| k.warning = Some(w.clone()));
+    }
     let _ = app.emit(EVENT, StandingChanged { account: account.to_owned(), channel_id, warning });
 }
 
@@ -274,6 +345,21 @@ mod tests {
         assert_eq!(gate(&mut m, k("1", "8"), t0 + Duration::from_millis(400)), Gate::Now, "another channel");
         assert_eq!(gate(&mut m, k("2", "9"), t0 + Duration::from_millis(400)), Gate::Now, "another account");
         assert_eq!(gate(&mut m, k("1", "9"), t0 + Duration::from_millis(1100)), Gate::Now);
+    }
+
+    #[test]
+    fn an_unban_read_rejoins_and_a_doubted_one_waits() {
+        // V109-F81
+        use cyex_twitch::gql::modlogs::BanStatus;
+        let ban = Standing { ban: Some(BanStatus { until: None, by: None, reason: String::new(), since: None }), ..Default::default() };
+        let mut k = Known::default();
+        let took = known::take_read(&mut k, ban, 1_000);
+        assert!(!rejoins(&took, &k), "still banned");
+        let took = known::take_read(&mut k, Standing::default(), 2_000);
+        assert_eq!(took, Took::Doubted);
+        assert!(!rejoins(&took, &k), "one read isn't enough");
+        let took = known::take_read(&mut k, Standing::default(), 8_000);
+        assert!(rejoins(&took, &k), "the unban is sure: join again");
     }
 
     #[test]

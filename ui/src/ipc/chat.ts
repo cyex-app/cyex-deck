@@ -35,6 +35,8 @@ export const chatIpc = {
     return invoke<ChatOpened>('chat_open', { login, account, filters, follows, onEvent: channel });
   },
   close: (view: number) => invoke<void>('chat_close', { view }),
+  /** V109-F81 Sends the JOIN again for a chat that isn't in; true when it went out. */
+  rejoin: (view: number) => invoke<boolean>('chat_rejoin', { view }),
   /** V103-22 Where the regular chats show, by window, and which windows still load. */
   shown: () => invoke<ChatShown>('chat_shown'),
   onShown: (handler: (s: ChatShown) => void) => listen<ChatShown>('chat:shown', (e) => handler(e.payload)),

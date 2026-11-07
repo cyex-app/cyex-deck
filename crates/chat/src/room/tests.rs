@@ -121,12 +121,13 @@ fn anonymous_rooms_are_never_refused() {
 #[test]
 fn unanswered_join_refuses_only_while_waiting() {
     let mut r = room();
+    // V109-F80 Silence isn't the join limit: the chat just isn't joined.
     let ev = r.join_unanswered(5);
-    assert!(matches!(ev.as_slice(), [RoomEvent::Status { status: ConnStatus::Refused }]));
+    assert!(matches!(ev.as_slice(), [RoomEvent::Status { status: ConnStatus::NoAnswer }]));
     let mut r = room();
     r.set_status(ConnStatus::Joined, 0);
     r.set_status(ConnStatus::Reconnecting, 1);
-    assert!(has_status(&r.join_unanswered(5), ConnStatus::Refused));
+    assert!(has_status(&r.join_unanswered(5), ConnStatus::NoAnswer));
     let mut r = room();
     r.set_status(ConnStatus::Joined, 0);
     assert!(r.join_unanswered(5).is_empty());
@@ -135,6 +136,35 @@ fn unanswered_join_refuses_only_while_waiting() {
     r.set_status(ConnStatus::Unavailable, 0);
     assert!(r.join_unanswered(5).is_empty());
     assert_eq!(r.status, ConnStatus::Unavailable);
+}
+
+#[test]
+fn a_ban_at_join_is_a_ban_not_the_join_limit() {
+    // V109-F80 A banned account's JOIN gets msg_banned instead of the echo.
+    let mut r = room();
+    let ev = feed(&mut r, "@msg-id=msg_banned :tmi.twitch.tv NOTICE #chan :You are permanently banned from talking in chan.");
+    assert_eq!(r.status, ConnStatus::Banned);
+    assert!(!has_status(&ev, ConnStatus::Refused));
+    assert!(ev.iter().any(|e| matches!(e, RoomEvent::Restricted { how: Restriction::Banned })), "the box locks");
+    let mut r = room();
+    feed(&mut r, &notice("msg_channel_blocked"));
+    assert_eq!(r.status, ConnStatus::Banned);
+    // Unbanned later: the next JOIN echo lets it in.
+    r.set_status(ConnStatus::Joined, 2);
+    assert_eq!(r.status, ConnStatus::Joined);
+}
+
+#[test]
+fn channel_and_send_notices_before_join_are_not_the_join_limit() {
+    // V109-F80
+    for id in ["msg_timedout", "msg_slowmode", "msg_subsonly", "msg_followersonly", "msg_r9k", "msg_ratelimit", "msg_warned", "msg_requires_verified_phone_number"] {
+        let mut r = room();
+        feed(&mut r, &notice(id));
+        assert_eq!(r.status, ConnStatus::Connecting, "{id}");
+    }
+    let mut r = room();
+    feed(&mut r, &notice("some_new_reason"));
+    assert_eq!(r.status, ConnStatus::Refused, "an unknown one still counts");
 }
 
 #[test]

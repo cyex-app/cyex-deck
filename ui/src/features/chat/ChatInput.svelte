@@ -118,6 +118,9 @@
   });
 
   const canChat = $derived(room.account !== null && accounts.can('sendChat', room.account));
+  // V109-F81 Sends can't go out from a chat that isn't in: the box says so instead of taking a
+  // line that only gets "Not connected yet." (the header names why and offers Reconnect).
+  const out = $derived(['banned', 'noAnswer', 'refused', 'unavailable', 'authFailed'].includes(room.status));
 
   // V108-C40 Banned, timed out or warned here: the lock takes the box's place. Read at join,
   // after every reconnect and a moment after IRC says something (Twitch's read lags a bit).
@@ -127,7 +130,10 @@
   // V108-C40b The side buttons stay while locked; spending (points, Bits) says why it is off.
   const why = $derived(lockedWhy(lock));
   const standingKey = $derived(
-    canChat && room.status === 'joined' && room.state.channelId ? `${room.account}:${room.state.channelId}` : '',
+    // V109-F80 A chat Twitch keeps from a banned account never joins: it reads all the same.
+    canChat && (room.status === 'joined' || room.status === 'banned') && room.state.channelId
+      ? `${room.account}:${room.state.channelId}`
+      : '',
   );
   // V108-F57b The lock swaps the box out: a suggestion list goes with it, and the box gets
   // focus back when the lock ends, only if it had it (or nothing has it now).
@@ -161,7 +167,7 @@
     if (!a) return;
     standing.start();
     void standingIpc.watch(a, true).catch(() => {});
-    const off = standingIpc.onChange((e) => standing.changed(e.channelId, e.account, e.warning));
+    const off = standingIpc.onChange((e) => standing.changed(e.channelId, e.account));
     return () => {
       void off.then((f) => f());
       void standingIpc.watch(a, false).catch(() => {});
@@ -451,7 +457,7 @@
   async function send(keep: boolean, repeat = false) {
     const raw = text;
     const value = raw.trim();
-    if (!value || !canChat || chat.busy) return;
+    if (!value || !canChat || out || chat.busy) return;
     // M11 A mod's `/pin <text>`: how long first, then send and pin.
     const pinned = pinText(value);
     if (pinned !== null && room.account && mods.role(room.account, room.login)) return askPin(room.account, value, pinned);
@@ -602,7 +608,8 @@
         rows="1"
         aria-label={replyTo ? 'Reply' : `Message #${room.login}`}
         maxlength={MAX_CHARS * 2}
-        placeholder={replyTo ? (side.folded ? 'Reply' : 'Write a reply') : side.folded ? 'Message' : `Message #${room.login}`}
+        placeholder={out ? 'Not in this chat' : replyTo ? (side.folded ? 'Reply' : 'Write a reply') : side.folded ? 'Message' : `Message #${room.login}`}
+        disabled={out}
         spellcheck={settings.v.chat.spellCheck}
         data-native-menu={settings.v.chat.spellCheck ? '' : undefined}
         oninput={updateSuggest}
@@ -628,7 +635,7 @@
           icon="send"
           label="Send"
           hint="Enter"
-          disabled={!text.trim() || !!lock}
+          disabled={!text.trim() || !!lock || out}
           onclick={() => {
             void send(false);
             box?.focus();

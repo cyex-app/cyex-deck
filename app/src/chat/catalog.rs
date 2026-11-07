@@ -230,6 +230,18 @@ pub fn load_for_room(app: AppHandle, key: RoomKey, generation: u64, history: Opt
         {
             return;
         }
+        // V109-F80 A chat Twitch keeps from a banned account gets no ROOMSTATE: the id comes from here.
+        {
+            let chat = app.state::<Chat>();
+            let mut inner = chat.lock();
+            if let Some(entry) = inner.rooms.get_mut(&key)
+                && entry.room.state.channel_id.is_none()
+            {
+                entry.room.state.channel_id = Some(c.channel_id.clone());
+                let state = entry.room.state.clone();
+                queue(entry, [cyex_chat::model::RoomEvent::State { state }], &chat.wake);
+            }
+        }
         if let Some(a) = super::account_of(&key.0) {
             crate::emotes::join_account(&app, a, &c.channel_id);
         }

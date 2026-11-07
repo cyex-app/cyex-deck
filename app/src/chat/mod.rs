@@ -35,6 +35,7 @@ pub mod search;
 mod pace;
 mod send;
 pub mod shared;
+pub mod known;
 mod session;
 pub mod shown;
 pub mod translate;
@@ -146,6 +147,8 @@ struct Entry {
     unread: News,
     /// V105-05 When our JOIN for this room last went out (ms), to time Twitch's answer.
     join_sent: Option<i64>,
+    /// V109-F80 Its unanswered JOIN was sent once more.
+    join_retried: bool,
     /// V108-C01 When a view last showed it (ms): the line budget shrinks the oldest first.
     last_shown: i64,
     /// V107-M1 Its first history is in (or failed): a refill won't race it.
@@ -414,6 +417,7 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
             pacer: pace::Pacer::default(),
             unread: News::default(),
             join_sent: None,
+            join_retried: false,
             last_shown: now,
             loaded: history,
             history,
@@ -652,6 +656,12 @@ pub fn whisper_line(app: &AppHandle, m: Arc<ChatMessage>) {
         let ev = entry.room.local(m.clone());
         queue(entry, [ev], &chat.wake);
     }
+}
+
+/// V109-F81 Joins the room a view shows once more, if it isn't in.
+pub fn rejoin_view(app: &AppHandle, view: u32) -> bool {
+    let Some(key) = app.state::<Chat>().view_key(view) else { return false };
+    session::rejoin(app, &key, false)
 }
 
 /// The channel id for a login: the registry's, else whichever open room knows it.

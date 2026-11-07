@@ -123,25 +123,38 @@ fn joining(app: &AppHandle, identity: &Identity, channels: Vec<String>) {
     });
 }
 
-/// The chats of `channels` still waiting on the JOIN sent at `stamp` become refused.
+/// The chats of `channels` still waiting on the JOIN sent at `stamp` ask once more; the
+/// second silence marks them not joined (V109-F80: not the join limit).
 fn unanswered(app: &AppHandle, identity: &Identity, channels: &[String], stamp: i64) {
     let chat = app.state::<Chat>();
     let mut inner = chat.lock();
     let now = now_ms();
     let mut any = false;
+    let mut again = Vec::new();
     for c in channels {
         let Some(e) = inner.rooms.get_mut(&(identity.clone(), c.clone())) else { continue };
         // Sent again since (a reconnect): that JOIN has its own wait.
         if e.join_sent != Some(stamp) {
             continue;
         }
+        if !e.join_retried && e.room.waiting() {
+            e.join_retried = true;
+            again.push(c.clone());
+            continue;
+        }
         let events = e.room.join_unanswered(now);
         if events.is_empty() {
             continue;
         }
-        eprintln!("chat: no answer to JOIN #{c} in 20 s, counted as refused");
+        eprintln!("chat: no answer to JOIN #{c} twice, not joined");
         queue(e, events, &chat.wake);
         any = true;
+    }
+    if let Some(session) = inner.sessions.get(identity) {
+        for c in &again {
+            eprintln!("chat: no answer to JOIN #{c} in 20 s, asking again");
+            session.client.rejoin(c);
+        }
     }
     drop(inner);
     if any {
@@ -161,6 +174,7 @@ fn link_status(app: &AppHandle, identity: &Identity, link: LinkStatus) {
         // V105-05 A JOIN in flight died with the link: the 20 s wait isn't Twitch's answer.
         if matches!(link, LinkStatus::Reconnecting | LinkStatus::AuthFailed) {
             entry.join_sent = None;
+            entry.join_retried = false;
         }
         let status = match link {
             // A fresh connect alone doesn't clear the warning; Twitch's JOIN echo does (V105-05).
@@ -183,6 +197,54 @@ fn link_status(app: &AppHandle, identity: &Identity, link: LinkStatus) {
     // V105-05 A refused chat that lost its link isn't refused anymore: the counter follows.
     if moved {
         crate::connections::notify(app);
+    }
+}
+
+/// V109-F81 Joins a chat that isn't in (banned and now maybe not, unanswered, refused) once
+/// more. `only_banned`: just a chat Twitch kept from the account for a ban (the ban may
+/// have ended). True when a JOIN went out.
+pub fn rejoin(app: &AppHandle, key: &RoomKey, only_banned: bool) -> bool {
+    let chat = app.state::<Chat>();
+    let mut inner = chat.lock();
+    let Some(e) = inner.rooms.get_mut(key) else { return false };
+    let stuck = match e.room.status {
+        ConnStatus::Banned => true,
+        ConnStatus::NoAnswer | ConnStatus::Refused | ConnStatus::Connecting => !only_banned,
+        _ => false,
+    };
+    if !stuck {
+        return false;
+    }
+    e.join_retried = false;
+    let was_refused = e.room.status == ConnStatus::Refused;
+    let events = e.room.set_status(ConnStatus::Connecting, now_ms());
+    queue(e, events, &chat.wake);
+    if let Some(session) = inner.sessions.get(&key.0) {
+        session.client.rejoin(&key.1);
+    }
+    drop(inner);
+    if was_refused {
+        crate::connections::notify(app);
+    }
+    true
+}
+
+/// V109-F81 The account's chats of `channel_id` that a ban kept out, joined again.
+pub fn rejoin_banned(app: &AppHandle, account: &str, channel_id: &str) {
+    let keys: Vec<RoomKey> = app
+        .state::<Chat>()
+        .lock()
+        .rooms
+        .iter()
+        .filter(|((id, _), e)| {
+            matches!(id, Identity::Account(a) if a == account)
+                && e.room.status == ConnStatus::Banned
+                && e.room.state.channel_id.as_deref() == Some(channel_id)
+        })
+        .map(|(k, _)| k.clone())
+        .collect();
+    for k in keys {
+        rejoin(app, &k, true);
     }
 }
 
@@ -241,6 +303,7 @@ fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_
 
     if line.command == "JOIN" && own(entry.room.me(), line.nick()) {
         entry.join_sent = None;
+        entry.join_retried = false;
         let events = entry.room.set_status(ConnStatus::Joined, now_ms());
         queue(entry, events, &chat.wake);
         let gap = entry.room.take_gap(now_ms());

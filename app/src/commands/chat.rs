@@ -45,6 +45,13 @@ pub fn chat_close(app: AppHandle, view: u32) {
     chat::close(&app, view);
 }
 
+/// V109-F81 The Reconnect on a chat that isn't in (no answer, refused, or banned and maybe
+/// not anymore): sends its JOIN again.
+#[tauri::command]
+pub fn chat_rejoin(app: AppHandle, view: u32) -> bool {
+    chat::rejoin_view(&app, view)
+}
+
 /// V103-22 Where the regular chats show and which windows are still loading; changes come
 /// as `chat:shown`.
 #[tauri::command]

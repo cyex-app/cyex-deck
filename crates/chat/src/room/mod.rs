@@ -314,11 +314,12 @@ impl Room {
         events
     }
 
-    /// V105-05 Our JOIN went unanswered: the chat counts as refused, unless it got in or
-    /// went away for another reason meanwhile.
+    /// V105-05 Our JOIN went unanswered (the app asked once more first): the chat isn't
+    /// joined, unless it got in or went away for another reason meanwhile. V109-F80 Silence
+    /// alone isn't blamed on the join limit.
     pub fn join_unanswered(&mut self, now_ms: i64) -> Vec<RoomEvent> {
         if self.waiting() {
-            self.set_status(ConnStatus::Refused, now_ms)
+            self.set_status(ConnStatus::NoAnswer, now_ms)
         } else {
             Vec::new()
         }
@@ -326,7 +327,7 @@ impl Room {
 
     /// V105-05 Our JOIN is out and Twitch hasn't confirmed it. A suspended, refused or
     /// rejected chat isn't waiting anymore.
-    fn waiting(&self) -> bool {
+    pub fn waiting(&self) -> bool {
         matches!(self.status, ConnStatus::Connecting | ConnStatus::Reconnecting)
     }
 
@@ -517,7 +518,11 @@ impl Room {
                 } else if !answered && self.me.is_some() && self.waiting() {
                     // V105-05 Twitch spoke instead of letting us in (Chatterino shows such notices
                     // where they're aimed; here the chat also counts as not joined).
-                    events.extend(self.set_status(ConnStatus::Refused, now_ms));
+                    // V109-F80 A ban is a ban, not the join limit, and so is any notice Twitch
+                    // uses for a channel or a send; only one it uses for nothing else is.
+                    if let Some(status) = refusal(&msg_id) {
+                        events.extend(self.set_status(status, now_ms));
+                    }
                 }
                 let said = notice.notice.as_ref().map_or("", |n| n.text.as_str());
                 if matches!(msg_id.as_str(), "msg_slowmode" | "msg_timedout")
@@ -834,6 +839,38 @@ fn restriction(msg_id: &str, text: &str) -> Option<Restriction> {
         "msg_timedout" => seconds_in(text).map(|s| Restriction::TimedOut { secs: s.max(0) as u64 }),
         id if id.starts_with("msg_") && id.contains("warn") => Some(Restriction::Warned),
         _ => None,
+    }
+}
+
+/// V109-F80 What a NOTICE in place of our JOIN echo makes of the chat. A banned account gets
+/// `msg_banned` (or `msg_channel_blocked`) when it joins: Twitch keeps the chat from it
+/// (Chatterino forks read such a chat anonymously). Twitch's documented channel and send
+/// notices (docs/research/chat-clients.md) say nothing about the limit. Only another one
+/// counts as refused, the limit's answer being undocumented.
+fn refusal(msg_id: &str) -> Option<ConnStatus> {
+    const KNOWN: &[&str] = &[
+        "msg_duplicate",
+        "msg_ratelimit",
+        "msg_slowmode",
+        "msg_timedout",
+        "msg_followersonly",
+        "msg_followersonly_zero",
+        "msg_subsonly",
+        "msg_emoteonly",
+        "msg_r9k",
+        "msg_verified_email",
+        "msg_requires_verified_phone_number",
+        "msg_bad_characters",
+        "msg_rejected",
+        "msg_rejected_mandatory",
+        "msg_suspended",
+        "unrecognized_cmd",
+        "tos_ban",
+    ];
+    match msg_id {
+        "msg_banned" | "msg_channel_blocked" => Some(ConnStatus::Banned),
+        id if KNOWN.contains(&id) || restriction(id, "").is_some() => None,
+        _ => Some(ConnStatus::Refused),
     }
 }
 

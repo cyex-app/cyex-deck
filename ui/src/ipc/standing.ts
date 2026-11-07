@@ -3,11 +3,14 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
-import type { ChatStanding } from './bindings/ChatStanding';
+import type { KnownStanding } from './bindings/KnownStanding';
 import type { StandingChanged } from './bindings/StandingChanged';
 
 export const standingIpc = {
-  read: (account: string, channelId: string) => invoke<ChatStanding>('chat_standing', { account, channelId }),
+  /** Asks Twitch; the answer is folded into what the app knew (V109-F79). */
+  read: (account: string, channelId: string) => invoke<KnownStanding>('chat_standing', { account, channelId }),
+  /** V109-F79 What the app knows for this account and channel, without asking Twitch. */
+  known: (account: string, channelId: string) => invoke<KnownStanding>('chat_standing_known', { account, channelId }),
   /** Only from the unban form's Send. */
   requestUnban: (account: string, channelId: string, message: string) =>
     invoke<void>('chat_request_unban', { account, channelId, message }),

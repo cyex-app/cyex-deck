@@ -11,7 +11,7 @@ use cyex_chat::model::{ChatMessage, Flag, Gone, RoomEvent};
 use tauri::{AppHandle, Manager};
 use tokio::sync::Notify;
 
-use super::{Chat, Entry, RoomKey, View, now_ms, passes};
+use super::{Chat, Entry, Identity, RoomKey, View, now_ms, passes};
 
 const BATCH: Duration = Duration::from_millis(50);
 
@@ -56,6 +56,16 @@ fn flush(app: &AppHandle) -> Option<i64> {
     for (key, entry) in inner.rooms.iter_mut() {
         let login = &key.1;
         let mut batch = std::mem::take(&mut entry.outbox);
+        // V109-F79 IRC's word on our own ban, timeout or warning outlives this room's views.
+        if let Identity::Account(account) = &key.0 {
+            for e in &batch {
+                if let RoomEvent::Restricted { how } = e
+                    && let Some(c) = entry.room.state.channel_id.clone().or_else(|| chat.channels.id(login))
+                {
+                    super::standing::said(account, &c, *how, now);
+                }
+            }
+        }
         if delay > 0 || !entry.delayed.is_empty() {
             batch = hold(entry, batch, now, delay);
             if let Some((at, _)) = entry.delayed.front() {

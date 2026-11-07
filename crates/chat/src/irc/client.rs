@@ -86,6 +86,8 @@ pub enum Event {
 
 enum Cmd {
     Join(String),
+    /// V109-F80 Sends the JOIN again for a channel already asked for.
+    Rejoin(String),
     Part(String),
     /// The line and whether it went out.
     Send(String, oneshot::Sender<bool>),
@@ -112,6 +114,11 @@ impl Client {
 
     pub fn join(&self, channel: &str) {
         let _ = self.tx.send(Cmd::Join(channel.to_ascii_lowercase()));
+    }
+
+    /// V109-F80 Asks for a channel once more (its JOIN went unanswered).
+    pub fn rejoin(&self, channel: &str) {
+        let _ = self.tx.send(Cmd::Rejoin(channel.to_ascii_lowercase()));
     }
 
     pub fn part(&self, channel: &str) {
@@ -220,7 +227,7 @@ async fn idle(rx: &mut mpsc::UnboundedReceiver<Cmd>, channels: &mut BTreeSet<Str
             () = &mut wait => return true,
             cmd = rx.recv() => match cmd {
                 None | Some(Cmd::Stop) => return false,
-                Some(Cmd::Join(c)) => { channels.insert(c); }
+                Some(Cmd::Join(c) | Cmd::Rejoin(c)) => { channels.insert(c); }
                 Some(Cmd::Part(c)) => { channels.remove(&c); }
                 Some(Cmd::Reconnect) => return true,
                 Some(Cmd::Send(_, ack)) => { let _ = ack.send(false); }
@@ -278,7 +285,7 @@ async fn session(
             }
             cmd = rx.recv() => match cmd {
                 None | Some(Cmd::Stop) => return End::Stop,
-                Some(Cmd::Join(c)) => { channels.insert(c); }
+                Some(Cmd::Join(c) | Cmd::Rejoin(c)) => { channels.insert(c); }
                 Some(Cmd::Part(c)) => { channels.remove(&c); }
                 Some(Cmd::Reconnect) => return End::Lost { now: true },
                 Some(Cmd::Send(_, ack)) => { let _ = ack.send(false); }
@@ -323,6 +330,13 @@ async fn session(
                     Some(Cmd::Reconnect) => return End::Lost { now: true },
                     Some(Cmd::Join(c)) => {
                         if channels.insert(c.clone()) {
+                            queue.push_back(c);
+                        }
+                        Ok(())
+                    }
+                    Some(Cmd::Rejoin(c)) => {
+                        channels.insert(c.clone());
+                        if !queue.contains(&c) {
                             queue.push_back(c);
                         }
                         Ok(())
@@ -588,6 +602,10 @@ mod tests {
 
         assert!(client.send("PRIVMSG #foo :yo".into()).await);
         assert_eq!(s.read().await, "PRIVMSG #foo :yo");
+        // V109-F80 A second join of the same channel sends nothing; a rejoin asks again.
+        client.join("foo");
+        client.rejoin("foo");
+        assert_eq!(s.read().await, "JOIN #foo");
         client.part("foo");
         assert_eq!(s.read().await, "PART #foo");
     }

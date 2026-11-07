@@ -101,9 +101,15 @@ pub enum ConnStatus {
     AuthFailed,
     /// The channel is suspended or doesn't exist.
     Unavailable,
-    /// V105-05 Twitch didn't let us in: no answer to our JOIN within 20 s, or a notice instead.
-    /// Usually too many chats joined.
+    /// V105-05 Twitch didn't let us in: a notice it doesn't use for anything else came instead
+    /// of the JOIN echo. Usually too many chats joined.
     Refused,
+    /// V109-F80 Twitch keeps this chat from the account: it's banned there (`msg_banned` or
+    /// `msg_channel_blocked` in place of the JOIN echo). Never the join limit.
+    Banned,
+    /// V109-F80 The JOIN went unanswered twice (20 s each). Not joined, and not blamed on the
+    /// limit; the next reconnect tries again.
+    NoAnswer,
 }
 
 #[derive(Clone, Debug, Serialize, TS)]

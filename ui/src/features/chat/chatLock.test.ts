@@ -2,7 +2,26 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { ChatStanding } from '../../ipc/bindings/ChatStanding';
-import { headline, left, lockedWhy, refocusBox, ticking, title, lockOf, nextRead, unbanLine, unbanOf, type Lock, type LockInput } from './chatLock.ts';
+import type { KnownStanding } from '../../ipc/bindings/KnownStanding';
+import {
+  headline,
+  inputOf,
+  left,
+  lockedWhy,
+  newest,
+  nextReadOf,
+  NOTHING_KNOWN,
+  refocusBox,
+  ticking,
+  title,
+  lockOf,
+  nextRead,
+  unbanLine,
+  unbanOf,
+  type Lock,
+  type LockInput,
+} from './chatLock.ts';
+import { cached, keep, keyOf } from './standingCache.ts';
 
 const NOW = Date.parse('2026-11-04T12:00:00Z');
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -125,4 +144,56 @@ test('lockedWhy names the lock, and is empty without one', () => {
   assert.equal(lockedWhy(timeout), 'Not while you’re timed out.');
   assert.equal(lockedWhy(ban), 'Not while you’re banned.');
   assert.equal(lockedWhy(warn), 'Not until you acknowledge the warning.');
+});
+
+// V109-F79 The lock is kept per account and channel, not per chat box.
+const knownOf = (p: Partial<KnownStanding>): KnownStanding => ({ ...NOTHING_KNOWN, ...p });
+
+test('a remounted box (tab switch, reopened chat) starts from what was kept, locked', () => {
+  const key = keyOf('42', '9');
+  // The first box: IRC said banned, then a read showed the ban with its wait.
+  keep(key, knownOf({ standing: banned(60), readAt: NOW - 1_000, said: { how: { kind: 'banned' }, at: NOW - 2_000 } }));
+  // The new box has a new room that heard nothing.
+  const again = inputOf(cached(key) ?? NOTHING_KNOWN, null, NOW);
+  const lock = lockOf(again)!;
+  assert.equal(lock.kind, 'ban');
+  assert.deepEqual(lock.kind === 'ban' && lock.unban, { state: 'wait', at: NOW + 2 * 3_600_000 }, 'the unban wait stays');
+  assert.equal(cached(keyOf('42', '8')), null, 'another channel knows nothing');
+  assert.equal(cached(keyOf('43', '9')), null, 'another account knows nothing');
+});
+
+test('IRC’s word kept by the app locks a new box before any read (rejoin, pop-out)', () => {
+  const k = knownOf({ said: { how: { kind: 'banned' }, at: NOW - 60_000 } });
+  const lock = lockOf(inputOf(k, null, NOW))!;
+  assert.equal(lock.kind, 'ban');
+  // Not "This channel doesn't take unban requests." before a read says so.
+  assert.equal(lock.kind === 'ban' && lock.unban.state, 'unknown');
+  assert.equal(lock.kind === 'ban' && unbanLine(lock.unban, NOW), '');
+});
+
+test('a send refused with msg_banned or msg_timedout locks the box again', () => {
+  // A read long ago said free; the send's NOTICE comes in on this room.
+  const k = knownOf({ standing: { ban: null, unban: null, canRequest: null, request: null }, readAt: NOW - 600_000 });
+  assert.equal(lockOf(inputOf(k, null, NOW)), null);
+  assert.equal(lockOf(inputOf(k, { how: { kind: 'banned' }, at: NOW }, NOW))?.kind, 'ban');
+  assert.equal(lockOf(inputOf(k, { how: { kind: 'timedOut', secs: 42 }, at: NOW }, NOW))?.kind, 'timeout');
+});
+
+test('the newer word from IRC wins; a read in doubt asks again in 5 s', () => {
+  const a = { how: { kind: 'banned' as const }, at: NOW - 10 };
+  const b = { how: { kind: 'timedOut' as const, secs: 5 }, at: NOW };
+  assert.equal(newest(a, b), b);
+  assert.equal(newest(b, a), b);
+  assert.equal(newest(null, a), a);
+  const k = knownOf({ standing: banned(60), readAt: NOW - 1_000, doubt: NOW });
+  assert.equal(nextReadOf(k, inputOf(k, null, NOW)), 5_000);
+  const sure = { ...k, doubt: 0 };
+  assert.equal(nextReadOf(sure, inputOf(sure, null, NOW)), 180_000, 'the wait is long: every 3 min');
+});
+
+test('the request this app sent shows pending in any box', () => {
+  const sent = { id: '', createdAt: iso(NOW), text: 'sorry', status: 'PENDING', resolvedAt: null, resolvedBy: null, note: '' };
+  const k = knownOf({ standing: banned(300, { canRequest: false }), readAt: NOW, sent });
+  const lock = lockOf(inputOf(k, null, NOW))!;
+  assert.equal(lock.kind === 'ban' && lock.unban.state, 'pending');
 });

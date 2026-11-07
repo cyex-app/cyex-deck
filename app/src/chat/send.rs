@@ -76,6 +76,7 @@ fn queue(
     match entry.room.status {
         ConnStatus::Joined => {}
         ConnStatus::AuthFailed => return Err("Twitch didn’t accept this account. Sign in again in Settings.".into()),
+        ConnStatus::Banned => return Err("You’re banned here.".into()),
         _ => return Err("Not connected yet.".into()),
     }
     if let Some(until) = entry.room.state.wait_until.filter(|u| *u > now) {
