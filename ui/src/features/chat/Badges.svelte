@@ -106,6 +106,7 @@
   />
 {/snippet}
 
+<!-- V109-F83 `{/if}{#each rest` stays joined: whitespace between the two groups drew as an extra gap. -->
 {#if on.twitch}
   {#each badges as ref (ref.set)}
     {@const sub = stand(ref)}
@@ -130,8 +131,7 @@
       {/if}
     {/if}
   {/each}
-{/if}
-{#each rest as b (`${b.provider}:${b.id}`)}
+{/if}{#each rest as b (`${b.provider}:${b.id}`)}
   {@render provider(b)}
 {/each}
 
