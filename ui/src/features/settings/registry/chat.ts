@@ -17,7 +17,7 @@ function builtIn(key: string, label: string, description: string, keywords: stri
 }
 
 /** A badge switch on the Emotes and badges page. */
-const badge = (key: string, name: string): Entry => ({ id: `chat.badges.${key}`, page: 'emotes', label: `${name} badges` });
+const badge = (key: string, name: string): Entry => ({ id: `chat.badges.${key}`, page: 'emotes', label: `${name} badges`, keywords: ['cosmetics'] });
 
 export const CHAT: Entry[] = [
   // Chat
@@ -329,9 +329,9 @@ export const CHAT: Entry[] = [
     page: 'emotes',
     label: 'cyex badges',
     description: 'Founder, supporter and supporter+ badges from cyex deck.',
-    keywords: ['badges', 'cyex', 'founder', 'supporter', 'supporter+'],
+    keywords: ['badges', 'cyex', 'founder', 'supporter', 'supporter+', 'cosmetics'],
   },
-  { id: 'chat.paints.seventv', page: 'emotes', label: '7TV name paints', keywords: ['paint', 'name color', 'gradient'] },
+  { id: 'chat.paints.seventv', page: 'emotes', label: '7TV name paints', keywords: ['paint', 'name color', 'gradient', 'cosmetics'] },
   {
     id: 'chat.paints.outlineLight',
     page: 'emotes',

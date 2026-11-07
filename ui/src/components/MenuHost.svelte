@@ -13,7 +13,7 @@
   import ConfirmCallout from './ConfirmCallout.svelte';
   import GateFlag from './GateFlag.svelte';
   import Icon from './Icon.svelte';
-  import { back, closeMenu, menu, menuDisarm, menuHold, menuMoveTo, menuOwns, pick, type MenuItem } from './menu.svelte';
+  import { back, closeMenu, menu, menuDisarm, menuHold, menuMoveTo, menuOpener, menuOwns, pick, type MenuItem } from './menu.svelte';
   import { tooltip } from './tooltip.svelte';
   import { matchTyped } from './select.ts';
 
@@ -128,7 +128,7 @@
   // Keys go to the menu while it's open; focus goes back where it was when it closes.
   $effect(() => {
     if (!menu.open || !box) return;
-    const release = focusScope(box);
+    const release = focusScope(box, { fallback: menuOpener });
     // Escape closes the menu only, not what it sits on (e.g. a clip).
     // V107-P5 An armed item lets go first.
     const off = layer('menu', () => menuDisarm() || closeMenu());

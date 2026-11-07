@@ -182,6 +182,13 @@
     background: var(--accent-dim);
     color: var(--accent-text);
   }
+  /* V109-F84 Forced colours drop the tint: the current page gets a Highlight outline. */
+  @media (forced-colors: active) {
+    nav button.on {
+      outline: 2px solid Highlight;
+      outline-offset: -2px;
+    }
+  }
   .content {
     flex: 1;
     display: flex;

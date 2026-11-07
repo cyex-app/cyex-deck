@@ -42,11 +42,13 @@ interface Score {
   rank: number;
   close: number;
   field: number;
+  /** 1 when the match is only inside a word ("clock" for "lock"): at equal rank, a whole word or a word start comes first. */
+  mid: number;
   /** Length of the text that matched: of two equal matches, the shorter is the closer fit. */
   len: number;
 }
 
-const NONE: Score = { rank: RANK.none, close: 0, field: Infinity, len: Infinity };
+const NONE: Score = { rank: RANK.none, close: 0, field: Infinity, mid: 1, len: Infinity };
 
 /** Accents off and spaces folded, like match-sorter. */
 export function fold(text: string): string {
@@ -76,10 +78,13 @@ function best(doc: Doc, term: string, phrase: boolean, floor: number): Score {
       const r = rank(text, term);
       if (r.rank < Math.max(min, floor, phrase ? RANK.contains : RANK.letters)) continue;
       const capped = Math.min(r.rank, max);
+      // V109-F84 A page name caps whole-word hits at "contains": they still beat a hit inside a word.
+      const mid = r.rank === RANK.contains ? 1 : 0;
       const better =
         capped > top.rank ||
-        (capped === top.rank && (r.close > top.close || (r.close === top.close && text.length < top.len)));
-      if (better) top = { rank: capped, close: r.close, field, len: text.length };
+        (capped === top.rank &&
+          (mid < top.mid || (mid === top.mid && (r.close > top.close || (r.close === top.close && text.length < top.len)))));
+      if (better) top = { rank: capped, close: r.close, field, mid, len: text.length };
     }
   });
   return top;
@@ -119,6 +124,7 @@ export function search(docs: readonly Doc[], query: string, limit = 60): Hit[] {
     (a, b) =>
       a.tier - b.tier ||
       b.rank - a.rank ||
+      a.mid - b.mid ||
       b.close - a.close ||
       a.field - b.field ||
       a.len - b.len ||

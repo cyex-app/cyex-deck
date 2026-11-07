@@ -292,7 +292,7 @@
     {#each GROUPS as g (g.label)}
       <div class="group">{g.label}</div>
       {#each g.pages as p (p.id)}
-        <button class:on={!searching && section === p.id} aria-current={!searching && section === p.id ? 'page' : undefined} onclick={() => open(p.id)} use:tooltip={{ label: p.label, when: () => (nav?.offsetWidth ?? 999) < 100 }}>
+        <button class:on={!searching && section === p.id} aria-label={p.label} aria-current={!searching && section === p.id ? 'page' : undefined} onclick={() => open(p.id)} use:tooltip={{ label: p.label, when: () => (nav?.offsetWidth ?? 999) < 100 }}>
           <Icon name={p.icon} size={15} />
           <span>{p.label}</span>
         </button>
@@ -342,6 +342,8 @@
   .box.top {
     display: none;
     margin-bottom: 16px;
+    /* V109-F84 Clear of the sheet's close button. */
+    margin-right: 24px;
   }
   .group {
     padding: 12px 10px 4px;
@@ -373,6 +375,13 @@
   nav button.on {
     background: var(--accent-dim);
     color: var(--accent-text);
+  }
+  /* V109-F84 Forced colours drop the tint: the current page gets a Highlight outline. */
+  @media (forced-colors: active) {
+    nav button.on {
+      outline: 2px solid Highlight;
+      outline-offset: -2px;
+    }
   }
   .content {
     flex: 1;

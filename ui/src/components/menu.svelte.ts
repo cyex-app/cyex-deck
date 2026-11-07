@@ -28,6 +28,12 @@ export function menuOwns(node: EventTarget | null): boolean {
   return trigger.owns(node);
 }
 
+/** V109-F84 The button the last menu opened from; closing the menu hands it the focus if nothing else has it. */
+let opener: Element | null = null;
+export function menuOpener(): HTMLElement | null {
+  return opener instanceof HTMLElement && opener.isConnected ? opener : null;
+}
+
 const confirming = confirmer<MenuItem>((item) => (menu.armed = item));
 
 /** V107-P5 The pointer or keyboard went to `item`: an armed other item lets go. */
@@ -56,6 +62,7 @@ export function openMenu(
     return;
   }
   trigger.set(at instanceof Element ? at : null);
+  opener = at instanceof Element ? at : null;
   menu.anchor = at instanceof Element ? at.getBoundingClientRect() : point(at.clientX, at.clientY);
   menu.align = align;
   confirming.cancel();

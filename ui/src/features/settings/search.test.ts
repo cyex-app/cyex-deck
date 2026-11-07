@@ -109,3 +109,20 @@ test('S3 marks what matched, and the breadcrumb drops a repeat', () => {
   assert.equal(whereOf(pages[1]), 'Chat');
   assert.equal(whereOf({ ...pages[0], group: 'App' }), 'App › General');
 });
+
+test('V109-F84 a whole word on the page name beats a hit inside a word', () => {
+  const docs = buildIndex(
+    [entry('inside', 'Mischat tweak'), entry('page', 'Font', { page: 'chat' }), entry('start', 'Lock tabs'), entry('clock', 'Clock')],
+    pages,
+  );
+  // "chat" as a page name is capped at contains, yet it stays ahead of "mischat".
+  assert.deepEqual(ids(docs, 'chat'), ['page', 'inside']);
+  // A word start leads; the hit inside a word ("Clock") follows.
+  assert.deepEqual(ids(docs, 'lock'), ['start', 'clock']);
+});
+
+test('V109-F84 "cosmetics" finds the 7TV paints and the badge rows', () => {
+  const docs = buildIndex(ENTRIES, PAGES);
+  const found = ids(docs, 'cosmetics');
+  for (const id of ['chat.paints.seventv', 'chat.badges.cyex', 'chat.badges.seventv']) assert.ok(found.includes(id), id);
+});

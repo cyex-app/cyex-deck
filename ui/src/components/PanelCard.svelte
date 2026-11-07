@@ -14,10 +14,12 @@
     title: string;
     tools?: Snippet;
     flush?: boolean;
+    /** V109-F85 Fixed under the scrolling body (a form's start button); renders nothing when empty. */
+    foot?: Snippet;
     children: Snippet;
   }
 
-  let { title, tools, flush = false, children }: Props = $props();
+  let { title, tools, flush = false, foot, children }: Props = $props();
 
   const panel = usePanel();
   const ctl = $derived(panel?.());
@@ -40,8 +42,11 @@
     {/if}
   </header>
   {/if}
-  <div class="body" class:flush use:quietScroll use:moreBelow={(m) => (more = m)}>{@render children()}</div>
-  <div class="fade" class:on={more} aria-hidden="true"></div>
+  <div class="scroller">
+    <div class="body" class:flush use:quietScroll use:moreBelow={(m) => (more = m)}>{@render children()}</div>
+    <div class="fade" class:on={more} aria-hidden="true"></div>
+  </div>
+  {#if foot}<div class="pfoot">{@render foot()}</div>{/if}
 </section>
 
 <style>
@@ -143,6 +148,25 @@
     .body :global(.narrow-only) {
       display: contents;
     }
+  }
+  .scroller {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .pfoot {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .pfoot:empty {
+    display: none;
   }
   .body {
     flex: 1;

@@ -647,9 +647,12 @@
     padding: 0 6px 0 8px;
     border-bottom: 1px solid var(--border);
   }
-  /* The name gives way first (…); the mode chips stay whole as long as they can. */
+  /* V109-F85 The name wins: the chips collapse to one icon chip (container query below) and
+     clip before the name is cut; only a very long name still gives way (…). */
   .channel {
     flex: 0 1 auto;
+    flex-shrink: 0;
+    max-width: 55%;
     min-width: 3ch;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -664,7 +667,7 @@
     background: var(--surface-hover);
   }
   .modes {
-    flex: 1 0 auto;
+    flex: 1 1 0;
     display: flex;
     gap: 4px;
     min-width: 0;
@@ -716,7 +719,7 @@
       flex: 0 1 auto;
     }
   }
-  @container chat (max-width: 300px) {
+  @container chat (max-width: 400px) {
     .mode.room {
       display: none;
     }

@@ -21,11 +21,14 @@
 
   let { label, onclose, ownEscape = false, children }: Props = $props();
 
+  const TEXT_TYPES = new Set(['text', 'search', 'email', 'url', 'number', 'password', 'tel']);
+
   /** Escape closes unless something inside took it; a filled text field keeps it to clear itself. */
   function onkeydown(e: KeyboardEvent) {
     if (ownEscape || e.key !== 'Escape' || e.defaultPrevented || e.isComposing) return;
-    const el = e.target instanceof HTMLInputElement ? e.target : null;
-    if (el && el.value) return;
+    // V109-F84 Only text-like fields count: a checkbox's value is "on" and would block Escape.
+    const el = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement ? e.target : null;
+    if (el && el.value && (el instanceof HTMLTextAreaElement || TEXT_TYPES.has(el.type))) return;
     e.preventDefault();
     onclose();
   }

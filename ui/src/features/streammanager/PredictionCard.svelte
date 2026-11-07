@@ -154,10 +154,12 @@
         onchange={(v) => (betWindow = Number(v))}
       />
     </div>
-    <div class="line foot">
-      <Button small variant="primary" disabled={!ready || busy} onclick={start}>Start prediction</Button>
-    </div>
   {/if}
+  {#snippet foot()}
+    {#if !open}
+      <Button small variant="primary" disabled={!ready || busy} onclick={start}>Start prediction</Button>
+    {/if}
+  {/snippet}
 </Card>
 
 <style>

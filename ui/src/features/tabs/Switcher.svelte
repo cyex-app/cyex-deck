@@ -102,6 +102,9 @@
 
   /** Opened from the page body: closing hands focus to the chat box in view, if there is one. */
   function chatInput(): HTMLElement | undefined {
+    // V109-F84 Over a sheet (Settings): back into the sheet, not the page behind it.
+    const sheet = document.querySelector<HTMLElement>('.sheet[role="dialog"]');
+    if (sheet) return sheet;
     return [...document.querySelectorAll<HTMLElement>('.compose textarea:not(:disabled)')].find((el) => el.getClientRects().length > 0);
   }
 

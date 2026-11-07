@@ -44,3 +44,16 @@ test('signed out: no Twitch emotes, third party stays', () => {
   assert.deepEqual(got.map((x) => x.name).sort(), ['chanWow', 'okayChamp']);
   assert.deepEqual(completionEmotes(null, [seen('twitch', '9', 'x')]), []);
 });
+
+test('V109-F85 names are case-sensitive: Twitch LUL and BTTV LuL both complete, an exact LUL stays', async () => {
+  const both: EmoteMenu = {
+    ...menu,
+    seventv: [],
+    twitch: [{ id: 'g', title: 'Global', avatar: null, emotes: [e('twitch', '425618', 'LUL')] }],
+    bttv: [{ id: 'b', title: 'Global', avatar: null, emotes: [e('bttv', 'x1', 'LuL')] }],
+  };
+  const names = completionEmotes(both, []).map((x) => x.name);
+  assert.deepEqual(names.sort(), ['LUL', 'LuL']);
+  const { keepExact } = await import('../chat/completion.ts');
+  assert.deepEqual(keepExact(rankNames('LUL', names), 'LUL', (n) => names.includes(n)), ['LUL', 'LuL']);
+});

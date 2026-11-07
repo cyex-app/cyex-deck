@@ -4,7 +4,7 @@
      editor for clips you made (V103-09), renames it in the row (V109-C05) or deletes it
      (second click). Tick several to delete them at once. Self-contained: the host (the creator dashboard) gives the account. -->
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
 
   import Button from '../../components/Button.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
@@ -134,13 +134,21 @@
     try {
       const title = await clipsIpc.rename(account, c.slug, check.title);
       list.patch(c.slug, (x) => ({ ...x, title }));
-      if (editing?.slug === c.slug) editing = null;
+      if (editing?.slug === c.slug) stopEditing(c.slug);
       toast.success('Renamed.');
     } catch (err) {
       if (editing?.slug === c.slug) editing.error = errorText(err, 'rename the clip');
     } finally {
       saving = false;
     }
+  }
+
+  let rows = $state<HTMLElement>();
+
+  /** V109-F84 The rename field is gone: the focus goes to the row's title button, not the page. */
+  function stopEditing(slug: string) {
+    editing = null;
+    void tick().then(() => document.activeElement === document.body && rows?.querySelector<HTMLElement>(`li[data-slug="${CSS.escape(slug)}"] .item`)?.focus());
   }
 
   function focus(node: HTMLInputElement) {
@@ -176,7 +184,7 @@
   </span>
 {/snippet}
 
-<section class="clips" aria-label="Clips">
+<section class="clips" aria-label="Clips" bind:this={rows}>
   <div class="bar">
     <SearchField small bind:value={search} placeholder={of === 'mine' ? 'Search titles or channels' : 'Search titles or clippers'} />
     <div class="filters">
@@ -209,7 +217,7 @@
     </PickBar>
     <ul>
       {#each clips as c (c.slug)}
-        <li class:on={picked.has(c.slug)} oncontextmenu={(e) => menu(e, c)}>
+        <li class:on={picked.has(c.slug)} data-slug={c.slug} oncontextmenu={(e) => menu(e, c)}>
           <PickBox label="Pick {c.title || 'clip'}" checked={picked.has(c.slug)} onchange={() => list.toggle(c.slug)} />
           {#if editing?.slug === c.slug}
             {@render thumb(c)}
@@ -235,7 +243,7 @@
                   if (e.key === 'Escape') {
                     e.preventDefault();
                     e.stopPropagation();
-                    editing = null;
+                    stopEditing(c.slug);
                   }
                 }}
               />

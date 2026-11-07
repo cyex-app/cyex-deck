@@ -52,6 +52,8 @@
     gap: 8px 16px;
     /* b-2 The h2's bottom margin sits on the row, so the title centers on the buttons. */
     margin-bottom: 14px;
+    /* V109-F84 Room for the sheet's close button in the top right corner. */
+    padding-right: 16px;
   }
   .head h2 {
     margin: 0;
@@ -63,6 +65,19 @@
     align-items: center;
     gap: 8px;
     height: 0;
+  }
+  /* V109-F84 A narrow page: the buttons go under the title instead of past the edge. */
+  @container (max-width: 780px) {
+    .head {
+      flex-wrap: wrap;
+    }
+    .acts {
+      flex-wrap: wrap;
+      height: auto;
+    }
+    .head + .sub {
+      margin-top: 0;
+    }
   }
   h2 + .sub,
   .head + .sub {

@@ -722,6 +722,13 @@
     margin-right: 4px;
     border-right: 1px solid var(--border);
   }
+  /* V109-F84 Forced colours drop the tint: the open one gets a Highlight outline. */
+  @media (forced-colors: active) {
+    .fixed-tabs :global(.icon-btn.active) {
+      outline: 2px solid Highlight;
+      outline-offset: -2px;
+    }
+  }
   /* V101-19 Up to the window's top edge. */
   .fixed-tabs :global(.icon-btn::after) {
     content: '';

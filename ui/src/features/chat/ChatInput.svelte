@@ -528,6 +528,7 @@
         return;
       }
       if (k?.do === 'close') {
+        e.preventDefault();
         suggest = null;
         return;
       }

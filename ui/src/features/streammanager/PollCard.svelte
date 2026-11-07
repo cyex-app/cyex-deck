@@ -125,10 +125,12 @@
         <NumberField label="Points per vote" min={1} max={1000000} width="110px" value={cost} onchange={(n) => (cost = n)} />
       {/if}
     </div>
-    <div class="line foot">
-      <Button small variant="primary" disabled={!ready || busy} onclick={start}>Start poll</Button>
-    </div>
   {/if}
+  {#snippet foot()}
+    {#if !poll}
+      <Button small variant="primary" disabled={!ready || busy} onclick={start}>Start poll</Button>
+    {/if}
+  {/snippet}
 </Card>
 
 <style>

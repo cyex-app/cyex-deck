@@ -146,8 +146,9 @@
   --text: #1b1c20;
   --muted: #4f515a;
   --dim: #63656e;
-  --shadow: rgba(20, 22, 30, 0.12);
-  --overlay: rgba(243, 243, 244, 0.7);
+  --shadow: rgba(20, 22, 30, 0.2);
+  /* V109-F84 A dim, not a veil: a light veil over a light page left a pop-up with no edge. */
+  --overlay: rgba(20, 22, 30, 0.32);
   --neutral-chip: #e6e7ea;
   --row-hover: rgba(20, 22, 30, 0.035);
   --row-alt: rgba(20, 22, 30, 0.015);

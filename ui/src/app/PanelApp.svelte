@@ -34,10 +34,21 @@
   if (waits) void whenResumed(() => (waiting = 'held')).then(() => (waiting = null));
 
   /** B3 Pop-ups (usercards, `#channel` chats) close on Escape once nothing else wants it:
-   *  a menu or dialog took it already, and a text field keeps it for itself. */
+   *  a menu or dialog took it already, and a text field with text clears first. */
   function onkeydown(e: KeyboardEvent) {
     if (e.key !== 'Escape' || panel?.frame !== 'slim' || keyTaken(e) || e.isComposing) return;
-    if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable]')) return;
+    const field = e.target as HTMLElement | null;
+    if (field?.closest?.('select, [contenteditable]')) return;
+    if (field?.closest?.('input, textarea')) {
+      // V109-F85 A text box clears first (the emote picker's pattern); an empty one lets the card close.
+      const box = field as HTMLInputElement | HTMLTextAreaElement;
+      if (box.value) {
+        e.preventDefault();
+        box.value = '';
+        box.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+    }
     e.preventDefault();
     void currentWindow.close();
   }

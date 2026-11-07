@@ -302,7 +302,8 @@
   .add :global(.icon-btn) {
     height: var(--tab-h);
   }
-  .vertical .add {
+  .vertical .add,
+  .vertical .locked {
     align-self: flex-start;
   }
   /* F17 How many tabs "Only live tabs" leaves out; a click shows them again. */
@@ -310,8 +311,10 @@
     flex: none;
     display: grid;
     place-items: center;
-    width: 22px;
-    height: 22px;
+    /* V109-F85 The size and vertical centre of the plus, on every side. */
+    align-self: center;
+    width: 30px;
+    height: var(--tab-h);
     margin: 0 2px;
     padding: 0;
     background: none;
