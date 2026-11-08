@@ -338,4 +338,16 @@
       gap: 8px;
     }
   }
+  /* V110-F44 Very narrow: the name gets the room. "Raiding" goes (the label still says it) and
+     the timer sits over Join again, so the end takes one short column. */
+  @container (max-width: 280px) {
+    .l1 .dim {
+      display: none;
+    }
+    .end {
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 3px;
+    }
+  }
 </style>
