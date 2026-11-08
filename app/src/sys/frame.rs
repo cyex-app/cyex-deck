@@ -108,7 +108,8 @@ mod imp {
     /// tao takes away only for fullscreen: the client area is then the whole window, which
     /// tao sized to the monitor. V106-01 WM_GETMINMAXINFO gets the zoom minimum (`data`) on
     /// top of tao's. V108-N21 WM_QUERYENDSESSION and WM_ENDSESSION tell the app Windows is
-    /// ending the session (`on_session_end`), after tao answered. Every other message goes on
+    /// ending the session (`on_session_end`), after tao answered. V110-F02/F03 Display, power,
+    /// session and drag messages are passed to `paint` first. Every other message goes on
     /// to tao as before.
     unsafe extern "system" fn on_message(
         hwnd: HWND,
@@ -122,6 +123,8 @@ mod imp {
         // calls only read the window's state or pass the message on. For WM_GETMINMAXINFO,
         // a non-null `lparam` points to the MINMAXINFO Windows passes with this message,
         // valid and writable for the duration of the call and not aliased by anything else.
+        // V110-F02/F03 Display, power, session and drag notices; read only, the message goes on.
+        crate::sys::paint::on_message(msg, wparam, lparam);
         unsafe {
             if msg == WM_NCCALCSIZE
                 && wparam.0 != 0

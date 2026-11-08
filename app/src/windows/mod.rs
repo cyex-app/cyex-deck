@@ -3,6 +3,7 @@
 mod geometry;
 mod layouts;
 mod login;
+pub mod paint;
 mod placement;
 mod private;
 pub mod overlay;
@@ -74,6 +75,7 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
     app.manage(PanelRegistry::default());
     app.manage(overlay::ClickThrough::default());
     app.manage(LowMemory::default());
+    paint::init(app);
     zoom::init(app);
     let saved: Windows = app.state::<Settings>().read(Partition::Windows);
     let main = builder(app, MAIN, WebviewUrl::default())
@@ -87,6 +89,7 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
     geometry::keep_main(app, saved.main.as_ref(), placed);
     icons::apply(&main.as_ref().window());
     crate::sys::frame::attach(&main);
+    paint::watch(&main);
     main.show()?;
     Ok(())
 }
@@ -151,6 +154,10 @@ pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
     if let WindowEvent::Resized(_) = event {
         memory_level(app, window);
     }
+    // V110-F02 A moved or resized window gets a fresh start in the frame watchdog.
+    if let WindowEvent::Moved(_) | WindowEvent::Resized(_) = event {
+        paint::touch(app, window.label());
+    }
     // V106-35 Any cyex window in front stops the taskbar flash (Q7).
     if let WindowEvent::Focused(true) = event {
         crate::toasts::focused(app);
@@ -179,6 +186,7 @@ pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
             panels::forget(app, window.label());
             overlay::forget(app, window.label());
             low_memory_windows(app).remove(window.label());
+            paint::forget(app, window.label());
         }
         _ => {}
     }
@@ -193,6 +201,9 @@ pub fn on_page_load(webview: &Webview, payload: &PageLoadPayload<'_>) {
     let shows_chats = || label == MAIN || route_of(app, label).is_some_and(|r| panels::shows_chats(&r));
     match payload.event() {
         PageLoadEvent::Started => {
+            // V110-F01 Once per webview; V110-F02 the new page gets its load grace.
+            paint::attach(webview);
+            paint::page_started(app, label);
             // V107-R1 A reload opens its views again; the old ones would stay as dead sinks.
             close_views(app, label);
             // V108-N04/N23 The old page's topics; the new one follows them again.

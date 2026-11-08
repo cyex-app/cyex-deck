@@ -13,11 +13,13 @@ import { systemIpc } from '../ipc/system';
 import { plugins } from '../features/plugins/plugins.svelte';
 import { density } from '../lib/density.svelte';
 import { focus } from '../lib/focus.svelte';
+import { startFrameWatch } from '../lib/frameWatch';
 import { startMemTrim } from '../lib/memTrim';
 import { guardNativeMenu } from '../lib/nativeMenu';
 import { settings } from '../lib/settings.svelte';
 import { startSmoothScroll } from '../lib/smoothScroll';
 import { streamer } from '../lib/streamer.svelte';
+import { currentWindow } from '../lib/window.svelte';
 
 export function useRootEffects(): void {
   $effect(() => {
@@ -67,5 +69,7 @@ export function useRootEffects(): void {
   $effect(() => plugins.start());
   // L2 A full garbage collection now and then while idle (Rust keeps it to one per 5 min).
   $effect(() => startMemTrim(systemIpc.trimMemory));
+  // V110-F02 The main window tells Rust it still draws (the frame watchdog).
+  $effect(() => (currentWindow.isMain ? startFrameWatch(systemIpc.frame) : undefined));
   useMediaSession();
 }

@@ -21,13 +21,21 @@ class Focus {
   start(): () => void {
     const on = () => (this.active = true);
     const off = () => (this.active = false);
-    const vis = () => (this.visible = document.visibilityState === 'visible');
+    // V110-F04 A missed focus event could keep emotes still for good: a click or the window
+    // showing again reads the real state.
+    const check = () => (this.active = document.hasFocus());
+    const vis = () => {
+      this.visible = document.visibilityState === 'visible';
+      check();
+    };
     addEventListener('focus', on);
     document.addEventListener('visibilitychange', vis);
     addEventListener('blur', off);
+    addEventListener('pointerdown', check, { capture: true, passive: true });
     return () => {
       removeEventListener('focus', on);
       removeEventListener('blur', off);
+      removeEventListener('pointerdown', check, { capture: true });
       document.removeEventListener('visibilitychange', vis);
     };
   }

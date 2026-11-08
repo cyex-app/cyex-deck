@@ -24,6 +24,11 @@ pub fn dir(local: &Path) -> PathBuf {
     local.join("logs")
 }
 
+/// V110-F02 The logs folder, once `install` ran (`windows::paint` writes `paint.log` there).
+pub fn logs_dir() -> Option<&'static Path> {
+    DIR.get().map(PathBuf::as_path)
+}
+
 /// Runs right after the data folders are known. The local offset is read now: reading it
 /// inside the hook, with other threads running, isn't reliable.
 pub fn install(local: &Path) {

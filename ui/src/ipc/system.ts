@@ -12,5 +12,7 @@ export const systemIpc = {
   pictureCacheSize: () => invoke<number>('system_picture_cache_size'),
   /** L2 One full garbage collection in the page process. At most every 5 min, whoever asks. */
   trimMemory: () => invoke<void>('system_trim_memory'),
+  /** V110-F02 The main page drew a frame (`true`, about once a second) or went hidden (`false`). */
+  frame: (visible: boolean) => invoke<void>('system_frame', { visible }),
   openUpload: (url: string) => invoke<void>('upload_open_link', { url }),
 };

@@ -11,6 +11,7 @@ pub mod devtools;
 pub mod fatal;
 pub mod flash;
 pub mod frame;
+pub mod paint;
 #[cfg(feature = "mocks")]
 pub mod heap;
 #[cfg(windows)]

@@ -377,6 +377,9 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         system::system_clear_picture_cache,
         system::system_picture_cache_size,
         system::system_trim_memory,
+        system::system_frame,
+        #[cfg(feature = "mocks")]
+        system::dev_paint,
         tabs::tabs_apply,
         tabs::tabs_reopen,
         tabs::tabs_reopenable,

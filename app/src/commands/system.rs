@@ -102,6 +102,20 @@ pub async fn system_trim_memory(app: AppHandle) -> CmdResult<()> {
     Ok(())
 }
 
+/// V110-F02 The main page's frame ping (about once a second while shown), or `visible`
+/// false once when it goes hidden. Cheap: one lock and a timestamp.
+#[tauri::command]
+pub fn system_frame(app: AppHandle, window: tauri::Window, visible: bool) {
+    crate::windows::paint::frame(&app, window.label(), visible);
+}
+
+/// V110-F02 Mocks only: `nudge`, `freeze` or `state` (`windows::paint::dev`).
+#[cfg(feature = "mocks")]
+#[tauri::command]
+pub fn dev_paint(app: AppHandle, action: String) -> serde_json::Value {
+    crate::windows::paint::dev(&app, &action)
+}
+
 fn trim_due(last: Option<std::time::Instant>, now: std::time::Instant) -> bool {
     last.is_none_or(|l| now.saturating_duration_since(l) >= TRIM_GAP)
 }
