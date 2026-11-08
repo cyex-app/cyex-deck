@@ -142,7 +142,9 @@
   $effect.pre(() => {
     void src;
     const v = untrack(() => video);
-    if (v?.currentSrc) carry = { t: v.currentTime, paused: v.paused };
+    // V110-F69 Paused only if it had played: a file swapped before autoplay started (the resize
+    // that follows the first layout) is not "paused by the user"; a carried pause (kicked) stays.
+    if (v?.currentSrc) carry = { t: v.currentTime, paused: v.paused && (v.played.length > 0 || kicked === v.currentSrc) };
   });
 
   function onloadedmetadata() {
