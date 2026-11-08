@@ -33,4 +33,14 @@
   i:nth-child(3) {
     top: 16px;
   }
+  /* V110-F47 Forced colours drop backgrounds: the bars take the text and highlight colours. */
+  @media (forced-colors: active) {
+    i {
+      forced-color-adjust: none;
+      background: CanvasText;
+    }
+    i:nth-child(2) {
+      background: Highlight;
+    }
+  }
 </style>
