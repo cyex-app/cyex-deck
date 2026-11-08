@@ -24,7 +24,7 @@
   import { mods } from '../modview/moderation.svelte';
   import { modviewPlace } from '../modview/where.svelte';
   import { PAGES } from '../settings/registry/pages';
-  import { liveOrExact } from './channelMatch';
+  import { couldBeChannel, liveOrExact } from './channelMatch';
   import { openAdd } from './dialog.svelte';
   import MentionCount from './MentionCount.svelte';
   import { label, tabs, tiles } from './tabs.svelte';
@@ -49,6 +49,8 @@
     live?: 'live' | 'rerun' | null;
     /** V107-Mr Unseen mentions, for a tab. */
     mentions?: number;
+    /** V110-F28 A quiet note, not something to run. */
+    quiet?: boolean;
     /** How well it matches what's typed (`rank`). */
     score?: number;
     run: () => void;
@@ -214,13 +216,18 @@
           )
       : [];
     const exact = [...followed, ...live].some((c) => c.label.toLowerCase() === q);
-    const open: Choice[] =
-      q && !exact
-        ? [{ key: '+', label: `Open ${query.trim()}`, hint: 'New tab', icon: 'plus', run: () => void openTyped() }]
-        : [];
     // Best match first; ties keep tabs, then followed, views, settings pages, search.
     const rest = [...tabChoices, ...followed, ...views, ...modviews, ...pages, ...live];
     if (q) rest.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    // V110-F28 Only text that could be a channel gets "Open"; anything else, a quiet note.
+    const open: Choice[] =
+      q && !exact
+        ? couldBeChannel(typed)
+          ? [{ key: '+', label: `Open ${typed}`, hint: 'New tab', icon: 'plus', run: () => void openTyped() }]
+          : rest.length
+            ? []
+            : [{ key: '-', label: 'Not a channel name', quiet: true, run: () => {} }]
+        : [];
     return [...rest, ...open];
   });
 
@@ -262,7 +269,7 @@
   }
 
   function run(c: Choice | undefined) {
-    if (!c) return;
+    if (!c || c.quiet) return;
     onclose();
     c.run();
   }
@@ -291,6 +298,7 @@
           <button
             class="choice"
             class:on={i === index}
+            class:quiet={c.quiet}
             role="option"
             aria-selected={i === index}
             onmouseenter={() => (index = i)}
@@ -360,6 +368,17 @@
   }
   .choice.on {
     background: var(--surface-hover);
+  }
+  /* V110-F28 */
+  .choice.quiet {
+    cursor: default;
+  }
+  .choice.quiet .text {
+    color: var(--dim);
+    font-weight: 400;
+  }
+  .choice.quiet .dot {
+    visibility: hidden;
   }
   .text {
     flex: 1;

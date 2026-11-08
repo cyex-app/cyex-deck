@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { enterTarget, liveOrExact, loginFromLink, matchChannels, type Candidate } from './channelMatch.ts';
+import { couldBeChannel, enterTarget, liveOrExact, loginFromLink, matchChannels, type Candidate } from './channelMatch.ts';
 
 const ch = (id: string, login: string, live = false, name = login): Candidate => ({
   id,
@@ -70,4 +70,18 @@ test('Enter waits when the list belongs to older text (S3-01)', () => {
   assert.equal(enterTarget('zzzz', 'zzzz', 'done', [], null), null);
   assert.equal(enterTarget('  ', 'ab', 'done', [a], null), null);
   assert.equal(enterTarget('abdu', 'abdu', 'done', [a, ch('2', 'abdv')], a), a);
+});
+
+test('V110-F28 couldBeChannel: logins of 4 to 25 characters and twitch.tv links', () => {
+  assert.equal(couldBeChannel('rvbdev'), true);
+  assert.equal(couldBeChannel(' @RvbDev '), true);
+  assert.equal(couldBeChannel('#rvb_dev1'), true);
+  assert.equal(couldBeChannel('abc'), false);
+  assert.equal(couldBeChannel('a'.repeat(26)), false);
+  assert.equal(couldBeChannel('two words'), false);
+  assert.equal(couldBeChannel('rvb-dev'), false);
+  assert.equal(couldBeChannel('???'), false);
+  assert.equal(couldBeChannel('https://www.twitch.tv/rvbdev'), true);
+  assert.equal(couldBeChannel('twitch.tv/ab'), true);
+  assert.equal(couldBeChannel('https://www.twitch.tv/videos/123'), false);
 });

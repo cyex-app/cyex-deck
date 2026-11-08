@@ -69,3 +69,11 @@ export function enterTarget<T extends { login: string }>(
   if (status !== 'done' || asked !== t) return status === 'error' && asked === t ? null : 'wait';
   return results[0] ?? null;
 }
+
+/** V110-F28 Whether typed text could name a channel: a login (4 to 25 of a-z, 0-9 and _, after
+ *  an @ or # and case are dropped) or a twitch.tv link. The switcher offers "Open …" only then. */
+export function couldBeChannel(typed: string): boolean {
+  const t = typed.trim();
+  if (loginFromLink(t)) return true;
+  return /^[a-z0-9_]{4,25}$/.test(t.replace(/^[@#]+/, '').toLowerCase());
+}
