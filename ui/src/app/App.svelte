@@ -47,7 +47,7 @@
   import { type OpenHow, openChannel } from '../features/browse/open.svelte';
   import { tabHolding } from '../components/noticeActions';
   import { aboveChat, BAR_HOST } from '../features/tabs/aboveChat.svelte';
-  import { barPlace, sideBarWidth } from '../features/tabs/barLayout';
+  import { aboveOneRow, barPlace, sideBarWidth } from '../features/tabs/barLayout';
   import { moveSlot, stepTab } from '../features/tabs/cycle';
   import { heldAfterStart, nextHeld, playingNow } from '../features/tabs/hold';
   import { audioFocus } from '../features/tabs/audioFocus.svelte';
@@ -110,6 +110,7 @@
 
   const side = $derived(settings.v.appearance.tabBarSide);
   let width = $state(innerWidth);
+  let height = $state(innerHeight); // V110-F42
   const current = $derived(fixed ? null : tabs.tab(picked) ? picked : tabs.active);
   const tab = $derived(tabs.tab(current));
   /** The tab drawn here now, not in its own window. */
@@ -665,7 +666,7 @@
 </WindowChrome>
 {#if currentWindow.isMain && streamer.bar}<StreamerBar onsettings={streamerSettings} narrow={width < 420} />{/if}
 
-<svelte:window bind:innerWidth={width} />
+<svelte:window bind:innerWidth={width} bind:innerHeight={height} />
 
 {#snippet broken(reset: () => void)}
   <EmptyState icon="alert" text="Couldn’t show this.">
@@ -743,7 +744,7 @@
     style:top="{f.y}px"
     style:width="{f.w}px"
   >
-    <TabBar {current} onopen={open} />
+    <TabBar {current} onopen={open} oneRow={aboveOneRow(f.w, height)} />
   </div>
 {/if}
 
@@ -877,7 +878,9 @@
     min-width: 0;
     padding: 0 6px;
     background: var(--page);
-    border-bottom: 1px solid var(--border);
+    /* V110-F41 Over the video it needs an edge and a lift (floating surface). */
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-pop);
   }
   main {
     flex: 1;

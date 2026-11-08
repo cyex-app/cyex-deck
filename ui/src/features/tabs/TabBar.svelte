@@ -34,9 +34,11 @@
     onopen: (id: string) => void;
     /** V106-26 Set by the window for a left bar; else the tab size's width. */
     width?: number;
+    /** V110-F42 One row, whatever the setting (Above chat in a narrow column or short window). */
+    oneRow?: boolean;
   }
 
-  let { vertical = false, chrome = false, current, onopen, width }: Props = $props();
+  let { vertical = false, chrome = false, current, onopen, width, oneRow = false }: Props = $props();
 
   type Item = { kind: 'group'; group: TabGroup; count: number } | { kind: 'tab'; tab: Tab; color?: string };
 
@@ -54,7 +56,7 @@
   const maxHeight = $derived.by(() => {
     if (vertical) return undefined;
     const a = settings.v.appearance;
-    const rows = barMaxHeight(a.tabRows, a.tabMaxRows, size.h + 6);
+    const rows = oneRow ? barMaxHeight('limit', 1, size.h + 6) : barMaxHeight(a.tabRows, a.tabMaxRows, size.h + 6);
     return chrome && a.tabRows === 'limit' ? `max(var(--row, 0px), ${rows})` : rows;
   });
   /** F17 */

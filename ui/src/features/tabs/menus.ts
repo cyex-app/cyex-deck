@@ -15,6 +15,7 @@ import { modviewPlace } from '../modview/where.svelte';
 import { tileState } from '../player/players.svelte';
 import { openAdd, openEdit, openGroupDialog } from './dialog.svelte';
 import { COLOR_ORDER, GROUP_COLORS } from './groupColors';
+import { setBarSide } from './barSide';
 import { audioFocus } from './audioFocus.svelte';
 import { takeSound } from './takeSound';
 import { dragged, layout } from './layout.svelte';
@@ -191,7 +192,7 @@ function positionEntry(): MenuEntry {
     label,
     hint,
     checked: now === value,
-    run: () => void settings.patch('appearance', { tabBarSide: value }),
+    run: () => setBarSide(value),
   });
   return {
     label: 'Tab bar position',

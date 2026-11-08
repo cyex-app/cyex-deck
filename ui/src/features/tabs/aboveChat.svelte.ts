@@ -12,6 +12,7 @@ import { settings } from '../../lib/settings.svelte';
 import { type AboveBar, aboveBar, type BarHold, chatBeside, inHold, type Rect, startsHold } from './barLayout';
 import { chatSide } from './layout.svelte';
 import { tabs, tiles } from './tabs.svelte';
+import { theatre } from './theatre.svelte';
 
 /** Context key: the window tells its tab views which tab is on screen and how to open one. */
 export const BAR_HOST = Symbol('tabBarHost');
@@ -95,6 +96,7 @@ class AboveChat {
         stream: t.show.player,
         chat: t.show.chat,
         chatPopped: tabs.chats.has(t.id),
+        theatre: !!theatre.tile && all.some((x) => x.id === theatre.tile),
         side: chatSide(t),
       })
     );

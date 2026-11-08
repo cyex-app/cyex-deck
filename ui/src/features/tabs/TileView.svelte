@@ -58,6 +58,7 @@
   import TabBar from './TabBar.svelte';
   import TileActions from './TileActions.svelte';
   import { chatRoute, DEFAULT_RATIO, tabs, tiles } from './tabs.svelte';
+  import { aboveOneRow } from './barLayout';
   import { chatSideOf, shareOf, TILE_PANELS, tileMin, tileTree, turnedShares } from './tileLayout';
 
   interface Props {
@@ -136,6 +137,9 @@
   // V110-F11 While the window holds the bar elsewhere, the chat keeps its room free (`spacer`).
   const barHere = $derived(!!host && !background && !popout && host.current === tab.id ? aboveChat.bar(tab) : null);
   const barOver = $derived(!!barHere?.own);
+  // V110-F42 Measured: the chat column's width (the bar's own box) and the window's height.
+  let barW = $state(0);
+  let winH = $state(innerHeight);
   const ratio = $derived(fit?.moved ? (movedRatio ?? fit.ratio) : (fit?.ratio ?? tile.ratio));
 
   // V102-26 Where the mod view goes in the stream's area, next to the chat as fitted above.
@@ -382,6 +386,8 @@
   const names: Record<string, string> = { stream: 'stream', chat: 'chat', modview: 'mod view' };
 </script>
 
+<svelte:window bind:innerHeight={winH} />
+
 {#snippet actions()}
   {#if canMod && !showChat}
     <!-- V102-26 Where no chat carries the shield. -->
@@ -477,7 +483,7 @@
     <!-- V110-U52 Always the same wrapper, so the chat isn't rebuilt when the bar comes or goes. -->
     <div class="chat-col" data-chat-col>
       {#if barOver && host}
-        <div class="above-bar" data-bar-box data-bar-above><TabBar current={host.current} onopen={host.open} /></div>
+        <div class="above-bar" data-bar-box data-bar-above bind:clientWidth={barW}><TabBar current={host.current} onopen={host.open} oneRow={aboveOneRow(barW, winH)} /></div>
       {:else if barHere?.spacer}
         <div class="above-bar" style:height="{barHere.spacer}px"></div>
       {/if}

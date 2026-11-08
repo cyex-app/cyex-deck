@@ -1,5 +1,5 @@
 // Moving through tabs in the bar's order: Ctrl+Tab wraps around at the ends, the mouse
-// wheel over the tab bar stops there (V102-04).
+// wheel over the tab bar wraps too (V107-H15).
 
 import { groupAt } from './zones.ts';
 

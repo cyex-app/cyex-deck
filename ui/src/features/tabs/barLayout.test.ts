@@ -10,7 +10,9 @@ import {
   barPlace,
   type BarHold,
   type ChatBeside,
+  aboveOneRow,
   chatBeside,
+  sideBeforeAbove,
   hiddenTabs,
   inHold,
   NARROW,
@@ -106,7 +108,7 @@ test('V110-U52 above chat: only where the chat is beside the stream', () => {
   assert.equal(barPlace('aboveChat', 720, true), 'above');
   assert.equal(barPlace('top', 1280, true), 'chrome', 'other sides ignore it');
   assert.equal(barPlace('left', 1280, true), 'left');
-  const ok: ChatBeside = { tiles: 1, feed: false, stream: true, chat: true, chatPopped: false, side: 'right' };
+  const ok: ChatBeside = { tiles: 1, feed: false, stream: true, chat: true, chatPopped: false, theatre: false, side: 'right' };
   assert.equal(chatBeside(ok), true);
   assert.equal(chatBeside({ ...ok, side: 'left' }), true);
   assert.equal(chatBeside({ ...ok, side: 'bottom' }), false, 'chat under');
@@ -116,6 +118,7 @@ test('V110-U52 above chat: only where the chat is beside the stream', () => {
   assert.equal(chatBeside({ ...ok, chatPopped: true }), false, 'chat in its own window');
   assert.equal(chatBeside({ ...ok, feed: true }), false);
   assert.equal(chatBeside({ ...ok, tiles: 2 }), false, 'several tiles');
+  assert.equal(chatBeside({ ...ok, theatre: true }), false, 'V110-F38 theatre mode hides the bar');
 });
 
 test('V110-F11 no hold: the bar follows the tab on screen', () => {
@@ -158,4 +161,18 @@ test('V110-F11 the hold ends once the pointer leaves the box', () => {
   assert.equal(inHold(r, 111, 40), false);
   assert.equal(inHold(r, 50, 19), false);
   assert.equal(inHold(r, 50, 61), false);
+});
+
+test('V110-F40 Above chat off goes back to the stored side, else Top', () => {
+  for (const s of ['bottom', 'left', 'right'] as const) assert.equal(sideBeforeAbove(s), s);
+  for (const s of [null, undefined, '', 'top', 'aboveChat', 'diagonal', 3]) assert.equal(sideBeforeAbove(s), 'top');
+});
+
+test('V110-F42 Above chat: one row for a narrow chat column or a short window', () => {
+  assert.equal(aboveOneRow(400, 800), false);
+  assert.equal(aboveOneRow(259, 800), true);
+  assert.equal(aboveOneRow(260, 800), false);
+  assert.equal(aboveOneRow(400, 559), true);
+  assert.equal(aboveOneRow(400, 560), false);
+  assert.equal(aboveOneRow(0, 0), false, 'not measured yet');
 });

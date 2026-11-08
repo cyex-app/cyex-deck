@@ -30,6 +30,8 @@ export interface ChatBeside {
   stream: boolean;
   chat: boolean;
   chatPopped: boolean;
+  /** V110-F38 Theatre mode is on for this tab: no tab bar anywhere (V108-N14). */
+  theatre: boolean;
   /** Where the chat sits (the tile's, else Settings'). */
   side: 'left' | 'right' | 'top' | 'bottom';
 }
@@ -37,7 +39,7 @@ export interface ChatBeside {
 /** V110-U52 Whether the chat is beside the stream: one tile with both, the chat left or
  * right. The measured turns (too narrow, mod view, arranged by hand) come on top of this. */
 export function chatBeside(i: ChatBeside): boolean {
-  return i.tiles === 1 && !i.feed && i.stream && i.chat && !i.chatPopped && (i.side === 'left' || i.side === 'right');
+  return !i.theatre && i.tiles === 1 && !i.feed && i.stream && i.chat && !i.chatPopped && (i.side === 'left' || i.side === 'right');
 }
 
 /** A box on screen in CSS px. */
@@ -73,6 +75,14 @@ export function aboveBar(applies: boolean, hold: BarHold | null): AboveBar {
   if (!hold) return { above: applies, own: applies, float: null, spacer: 0 };
   if (!hold.above) return { above: false, own: false, float: null, spacer: 0 };
   return { above: true, own: false, float: hold.rect, spacer: applies ? hold.rect.h : 0 };
+}
+
+/** V110-F42 Above chat leaves the chat this much: a column narrower than `ABOVE_NARROW` px or a
+ * window shorter than `ABOVE_SHORT` px gets a bar of one row (it scrolls within it, V110-U51). */
+export const ABOVE_NARROW = 260;
+export const ABOVE_SHORT = 560;
+export function aboveOneRow(colWidth: number, winHeight: number): boolean {
+  return (colWidth > 0 && colWidth < ABOVE_NARROW) || (winHeight > 0 && winHeight < ABOVE_SHORT);
 }
 
 /** V110-F11 A hold starts when the tab on screen changes while the pointer is on the bar (a
@@ -127,4 +137,10 @@ export function sideBarWidth(side: TabBarSide, edge: number): number | undefined
  * (tops and bottoms in the same coordinates): the bar then scrolls to the "+" too. */
 export function plusFits(tabTop: number, plusBottom: number, view: number): boolean {
   return plusBottom >= tabTop && plusBottom - tabTop <= view;
+}
+
+/** V110-F40 The side "Above chat" goes back to when it is turned off: the one stored when it
+ * was turned on, if it is a real side, else Top. */
+export function sideBeforeAbove(stored: unknown): Exclude<TabBarSide, 'aboveChat'> {
+  return stored === 'bottom' || stored === 'left' || stored === 'right' ? stored : 'top';
 }

@@ -14,6 +14,7 @@
   import { themeIpc } from '../../../ipc/theme';
   import { settings } from '../../../lib/settings.svelte';
   import { ZOOMS } from '../../../lib/zoom';
+  import { setBarSide } from '../../tabs/barSide';
   import { toast } from '../../../lib/toast.svelte';
   import ColorField from '../ColorField.svelte';
   import ResetSection from '../ResetSection.svelte';
@@ -172,7 +173,7 @@
   <Toggle
     label="Tabs above chat"
     checked={a.tabBarSide === 'aboveChat'}
-    onchange={(v) => settings.patch('appearance', { tabBarSide: v ? 'aboveChat' : 'top' })}
+    onchange={(v) => setBarSide(v ? 'aboveChat' : 'back')}
   />
 </Row>
 
