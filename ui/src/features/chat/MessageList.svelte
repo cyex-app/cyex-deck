@@ -36,6 +36,7 @@
   import { lineKind, pluginItems } from '../plugins/pluginMenus';
   import { plugins } from '../plugins/plugins.svelte';
   import { jumpInLogs, openInLogs } from './inLogs';
+  import { centreShift, holding } from './jumpHold';
   import { HOVER_OWNER } from './hoverOwner';
   import { pick as pickHot } from './hover.svelte';
   import { lineKey, lineLabel, revealDelta, shiftReply, stepLine } from './lineSelect';
@@ -368,6 +369,7 @@
   });
 
   function toBottom() {
+    letGo();
     if (list) {
       stopScroll(list);
       list.scrollTop = list.scrollHeight;
@@ -403,12 +405,14 @@
   }
 
   function onwheel(e: WheelEvent) {
+    letGo();
     if (e.deltaY < 0 && scrolls()) leave();
   }
 
   function onkeydown(e: KeyboardEvent) {
     if (picked !== null && !e.isComposing && lineKeyDown(e)) return;
     enterClicks(e);
+    if (['PageUp', 'PageDown', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) letGo();
     // Alt+Up is the line selection, which holds still without leaving the bottom (F54).
     if (['PageUp', 'ArrowUp', 'Home'].includes(e.key) && !e.altKey && scrolls()) leave();
   }
@@ -500,6 +504,7 @@
     if (!list || e.clientX < list.getBoundingClientRect().right - 14) return;
     scroll.drag(true);
     stopGlide();
+    letGo();
     addEventListener('pointerup', () => scroll.drag(false), { once: true });
   }
 
@@ -778,12 +783,41 @@
     }
     scroll.jumped();
     scrollWithin(target, 'center');
+    holdCentred(target);
     // Reduce motion: lit, then off, without the fade.
     target?.animate([{ background: 'var(--accent-wash)' }, { background: 'transparent' }], {
       duration: 1200,
       easing: reduced() ? 'steps(1, end)' : 'linear',
     });
   }
+
+  /** V110-F43 The line a jump went to stays in the middle while the layout settles (jumpHold.ts):
+   *  lines sizing in, the pill's strip and history dropping off the top no longer move it away.
+   *  The wheel, scroll keys, the scrollbar or the pill let go at once. */
+  let held = 0;
+  function holdCentred(el: HTMLElement) {
+    letGo();
+    const start = performance.now();
+    let moved = start;
+    const step = () => {
+      const now = performance.now();
+      if (!list || !el.isConnected || !holding(now, start, moved)) return void (held = 0);
+      const view = list.getBoundingClientRect();
+      const by = centreShift({ top: view.top + list.clientTop, height: list.clientHeight }, el.getBoundingClientRect());
+      if (Math.abs(by) >= 1) {
+        const top = list.scrollTop;
+        list.scrollTop = top + by;
+        if (Math.abs(list.scrollTop - top) >= 1) moved = now;
+      }
+      held = requestAnimationFrame(step);
+    };
+    held = requestAnimationFrame(step);
+  }
+  function letGo() {
+    cancelAnimationFrame(held);
+    held = 0;
+  }
+  onDestroy(letGo);
 
   /** S7 A plugin's piece was clicked. Links go through the link path instead. */
   function actClick(a: Act) {
