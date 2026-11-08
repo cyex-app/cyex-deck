@@ -158,7 +158,7 @@
 
 {#if raid}
   <div class="wrap">
-    <div class="raid" role="status" aria-label="Raiding {raid.targetName}, {viewersText(raid.viewers, formatNumber)}, {left === 'now' ? 'going now' : `${left} left`}">
+    <div class="raid" role="status" aria-label="Raiding {raid.targetName}, {viewersText(raid.viewers, formatNumber)}">
       <span class="av" aria-hidden="true"><Avatar src={raid.targetAvatar} name={raid.targetName} size={32} /></span>
       <div class="body">
         <span class="l1">
@@ -174,12 +174,13 @@
           >
                   </span>
         <span class="l2">
-          {#if about}<span class="about" title={about}>{about}</span><span class="sep" aria-hidden="true">·</span>{/if}
+          {#if about}<span class="about" use:tooltip={about}>{about}</span><span class="sep" aria-hidden="true">·</span>{/if}
           <span class="going">{formatNumber(raid.viewers)} {raid.viewers === 1 ? 'viewer' : 'viewers'} going</span>
         </span>
       </div>
       <div class="end">
-        <span class="left">{left}</span>
+        <!-- V110-F23 Not read out: it changes every second. -->
+        <span class="left" aria-hidden="true">{left}</span>
         {#if canTick}
           <span class="tick"><Checkbox label="Join" hint="Go along when the raid goes" checked={ticked} disabled={busy} onchange={tick} /></span>
         {:else if canCancel}

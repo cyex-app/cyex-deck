@@ -56,7 +56,7 @@ class RaidStore {
       .catch(() => {});
     raidIpc
       .read(channelId)
-      .then((r) => r && !this.byChannel.has(channelId) && this.put(channelId, r))
+      .then((r) => r && this.counts.has(channelId) && !this.byChannel.has(channelId) && this.put(channelId, r)) // V110-F23 not after the chat closed
       .catch(() => {});
     let done = false;
     return () => {
