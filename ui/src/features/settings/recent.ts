@@ -34,7 +34,8 @@ const refines = (a: string, b: string) => {
  */
 export function countSearch(list: readonly string[], query: string, earlier = ''): string[] | null {
   const q = clean(query);
-  if (!q) return null;
+  // V110-F35 One character is a keystroke on the way, not a search.
+  if (Array.from(q).length < 2) return null;
   const e = clean(earlier);
   const base = e && refines(e, q) ? removeRecent(list, e) : list;
   const next = addRecent(base, q);

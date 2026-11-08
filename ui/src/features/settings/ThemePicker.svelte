@@ -11,12 +11,16 @@
   import { toast } from '../../lib/toast.svelte';
   import CustomThemesMenu from './CustomThemesMenu.svelte';
   import ThemeImport from './ThemeImport.svelte';
-  import { accentOf, newThemeFrom, PLAIN_PREVIEW, type ThemeChoice } from './themes';
+  import { accentOf, evenColumns, newThemeFrom, PLAIN_PREVIEW, type ThemeChoice } from './themes';
   import { radioKey } from '../../components/select';
 
   let { a, builtins, choice }: { a: Appearance; builtins: readonly CustomTheme[]; choice: ThemeChoice } = $props();
 
   const BASES: Theme[] = ['dark', 'light'];
+
+  /** V110-F35 Even columns: the tiles never leave one alone on the last row. */
+  let width = $state(0);
+  const cols = $derived(evenColumns(BASES.length + builtins.length, Math.floor((width + 8) / 100)));
 
   const preview = (t: CustomTheme) => {
     const b = PLAIN_PREVIEW[t.base];
@@ -70,7 +74,7 @@
 </script>
 
 <!-- svelte-ignore a11y_interactive_supports_focus -->
-<div class="themes" role="radiogroup" aria-label="Theme" onkeydown={keys}>
+<div class="themes" role="radiogroup" aria-label="Theme" onkeydown={keys} bind:clientWidth={width} style:grid-template-columns={width ? `repeat(${cols}, 92px)` : undefined}>
   {#each BASES as base (base)}
     {@const b = PLAIN_PREVIEW[base]}
     <button class="theme" role="radio" aria-checked={!a.themeId && a.theme === base}
@@ -100,8 +104,8 @@
 
 <style>
   .themes {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 92px);
     gap: 8px;
   }
   .theme {

@@ -122,3 +122,13 @@ test('new theme names take the first free number, never "copy copy"', () => {
   assert.equal(freeThemeName(named('My theme', 'My theme 2', 'my theme 4')), 'My theme 3');
   assert.equal(freeThemeName(named('My theme 2')), 'My theme');
 });
+
+test('V110-F35 evenColumns: no lone tile on the last row', async () => {
+  const { evenColumns } = await import('./themes.ts');
+  assert.equal(evenColumns(6, 8), 8);
+  assert.equal(evenColumns(7, 6), 5);
+  assert.equal(evenColumns(13, 6), 5);
+  assert.equal(evenColumns(7, 2), 2);
+  assert.equal(evenColumns(9, 4), 3);
+  assert.equal(evenColumns(5, 0), 1);
+});

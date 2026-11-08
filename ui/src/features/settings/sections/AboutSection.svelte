@@ -48,12 +48,11 @@
 <Row
   setting="about:checkNow"
   label={version ? `cyex deck ${version}` : 'cyex deck'}
-  hint={pre ? 'A pre-release. Look for a newer one right away.' : 'Look for a newer one right away.'}
+  hint="{pre ? 'A pre-release. ' : ''}Checks GitHub for a newer one right away. Sends nothing about you or your accounts."
 >
   {#if checked}<span class="checked">{checked}</span>{/if}
   <Button small disabled={checking} onclick={() => void checkNow()}>{checking ? 'Checking…' : 'Check now'}</Button>
 </Row>
-<p class="note">Checks GitHub for new versions. Sends nothing about you or your accounts.</p>
 
 <!-- V109-B02 -->
 <Row setting="about:badge" label="cyex badges" hint="Founder, supporter or supporter+. Pick yours under cyex cosmetics in the account menu.">
@@ -72,11 +71,6 @@
   .checked {
     color: var(--muted);
     font-size: var(--text-sub);
-  }
-  .note {
-    margin: 8px 0 0;
-    color: var(--dim);
-    font-size: var(--text-hint);
   }
   .credit {
     display: flex;

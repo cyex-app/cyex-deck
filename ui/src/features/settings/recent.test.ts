@@ -44,3 +44,9 @@ test('V107-Mo a long search is cut by characters, never inside an emoji', () => 
   assert.equal(Array.from(odd).length, 80);
   assert.equal(odd, odd.toWellFormed());
 });
+
+test('V110-F35 a single character is not counted', () => {
+  assert.equal(countSearch(['old'], 'f'), null);
+  assert.equal(countSearch(['old'], ' f '), null);
+  assert.deepEqual(countSearch(['old'], 'fo'), ['fo', 'old']);
+});

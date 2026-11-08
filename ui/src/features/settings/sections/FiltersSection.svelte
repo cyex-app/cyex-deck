@@ -12,7 +12,6 @@
   import type { Field } from '../rules/fields';
   import RuleList from '../rules/RuleList.svelte';
   import NumberField from '../../../components/NumberField.svelte';
-  import Button from '../../../components/Button.svelte';
   import { tooltip } from '../../../components/tooltip.svelte';
   import { untrack } from 'svelte';
   import { settingsPlace } from '../place.svelte';
@@ -60,10 +59,10 @@
 
 <!-- b-15 One line, so exactly one space sits before the button. -->
 <SectionHead title="Filters" level={2} docs="filters"
-  >A chat shows only what passes its filters. Pick them from the chat’s menu. Same language as Chatterino. <Button
-    small
-    variant="link"
-    onclick={toggleNames}>{showNames ? 'Hide' : 'Show'} what you can use</Button
+  >A chat shows only what passes its filters. Pick them from the chat’s menu. Same language as Chatterino. <button
+    type="button"
+    class="doclink"
+    onclick={toggleNames}>{showNames ? 'Hide' : 'Show'} what you can use</button
   ></SectionHead
 >
 {#if showNames}
@@ -106,6 +105,22 @@
 </Row>
 
 <style>
+  /* V110-F35 Looks like the Docs link beside it (SectionHead). */
+  .doclink {
+    padding: 0;
+    background: none;
+    border: 0;
+    color: var(--muted);
+    font: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--border-strong);
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+  .doclink:hover {
+    color: var(--text);
+    text-decoration-color: currentColor;
+  }
   .names {
     display: flex;
     flex-wrap: wrap;

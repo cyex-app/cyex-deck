@@ -119,18 +119,21 @@
         value={w.burst}
         onchange={(n) => set({ burst: n < 2 ? 0 : n, burstSecs: n < 2 ? 0 : w.burstSecs || 10 })}
       />
-      <span class="hint">messages in</span>
-      <NumberField
-        label="Seconds"
-        min={1}
-        max={600}
-        unit="s"
-        width="72px"
-        disabled={w.burst < 2}
-        value={w.burstSecs || 10}
-        onchange={(n) => set({ burstSecs: n })}
-      />
-      <span class="hint">0: off</span>
+      <!-- V110-F35 Off reads "Off · 2 or more turns it on", not a bare 0. -->
+      {#if w.burst < 2}
+        <span class="hint">Off · 2 or more turns it on</span>
+      {:else}
+        <span class="hint">messages in</span>
+        <NumberField
+          label="Seconds"
+          min={1}
+          max={600}
+          unit="s"
+          width="72px"
+          value={w.burstSecs || 10}
+          onchange={(n) => set({ burstSecs: n })}
+        />
+      {/if}
     </span>
 
     <span class="lbl"></span>

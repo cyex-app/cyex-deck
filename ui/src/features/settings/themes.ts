@@ -143,3 +143,11 @@ export function newThemeFrom(a: Appearance, c: ThemeChoice): CustomTheme {
 function blankWallpaper(): CustomTheme['wallpaper'] {
   return { source: '', area: 'window', dim: 70, blur: 0, fit: 'cover' };
 }
+
+/** V110-F35 Columns for `count` theme tiles when `fit` fit across: the most that leave no
+ *  lone tile on the last row (7 tiles in 6 columns would). One row, or nothing fits: `fit`. */
+export function evenColumns(count: number, fit: number): number {
+  if (fit < 3 || count <= fit) return Math.max(fit, 1);
+  for (let c = fit; c >= 2; c--) if (count % c !== 1) return c;
+  return fit;
+}

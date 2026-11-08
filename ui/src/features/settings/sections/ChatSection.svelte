@@ -890,11 +890,15 @@
     background: var(--surface-hover);
     color: var(--text);
   }
+  /* V110-F35 Picked: accent-dim fill and accent text (cyex-app), not a faint border. */
   .pick[aria-pressed='true'] {
-    border-color: var(--border-strong);
-    background: var(--surface-hover);
-    box-shadow: 0 0 0 1px var(--border-strong);
-    color: var(--text);
+    border-color: var(--accent-border);
+    background: var(--accent-dim);
+    color: var(--accent-text);
+  }
+  .pick[aria-pressed='true']:hover:not(:disabled) {
+    background: var(--accent-dim);
+    color: var(--accent-text);
   }
   .pick:disabled {
     opacity: 0.5;
