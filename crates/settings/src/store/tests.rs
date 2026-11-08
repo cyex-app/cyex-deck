@@ -518,6 +518,41 @@ fn a_file_cut_short_comes_back_from_the_backup() {
     assert!(report.restored.is_empty() && report.reset.is_empty());
 }
 
+/// V110-F56 A snapshot dated after today (the clock was ahead once) is not the newest good copy.
+#[test]
+fn a_future_dated_backup_is_not_used_to_recover() {
+    let tmp = TempDir::new("store-recover-future");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let now = tmp.path().join("backups/2026-10-09");
+    let future = tmp.path().join("backups/2026-10-20");
+    fs::create_dir_all(&now).unwrap();
+    fs::create_dir_all(&future).unwrap();
+    fs::write(now.join("general.json"), r#"{"chatFontSize": 13}"#).unwrap();
+    fs::write(future.join("general.json"), r#"{"chatFontSize": 17}"#).unwrap();
+    fs::write(tmp.path().join("general.json"), "").unwrap();
+    let (store, report) = open(tmp.path(), &clock);
+    assert_eq!(report.restored, vec![(Partition::General, day(9))]);
+    assert_eq!(store.read::<General>(Partition::General).chat_font_size, 13);
+}
+
+/// V110-F56 Only the newest five `.broken-*` files of a partition stay.
+#[test]
+fn old_broken_files_are_pruned() {
+    let tmp = TempDir::new("store-broken-prune");
+    for i in 0..8 {
+        fs::write(tmp.path().join(format!("general.broken-2026100{i}-120000.json")), "x").unwrap();
+    }
+    fs::write(tmp.path().join("chat.broken-20261001-120000.json"), "x").unwrap();
+    prune_broken(&tmp.path().join("general.json"), BROKEN_KEEP);
+    let left = |stem: &str| {
+        fs::read_dir(tmp.path()).unwrap().filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().starts_with(stem)).count()
+    };
+    assert_eq!(left("general.broken-"), 5);
+    assert_eq!(left("chat.broken-"), 1);
+    assert!(tmp.path().join("general.broken-20261007-120000.json").exists());
+    assert!(!tmp.path().join("general.broken-20261002-120000.json").exists());
+}
+
 #[test]
 fn no_readable_backup_still_means_defaults() {
     let tmp = TempDir::new("store-recover-none");

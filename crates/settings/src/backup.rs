@@ -1,7 +1,10 @@
 //! Daily snapshots of the settings files (2.8).
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{LazyLock, Mutex};
+use std::time::{Duration, Instant};
 
 use time::{Date, OffsetDateTime, PrimitiveDateTime};
 use time::macros::format_description;
@@ -31,6 +34,30 @@ pub(crate) fn snapshot_dir(settings_dir: &Path, date: Date) -> PathBuf {
 /// Copies the current files into today's snapshot unless it exists, then prunes old ones.
 /// Returns whether a snapshot was written.
 pub(crate) fn snapshot_if_due(settings_dir: &Path, today: Date) -> Result<bool> {
+    // V110-F56 After a failure (a full disk, a locked folder) it waits an hour instead of
+    // copying everything again on every flush.
+    let mut failed = FAILED.lock().unwrap_or_else(|p| p.into_inner());
+    if failed.get(settings_dir).is_some_and(|t| t.elapsed() < RETRY) {
+        return Ok(false);
+    }
+    let res = snapshot_due(settings_dir, today);
+    match &res {
+        Ok(_) => {
+            failed.remove(settings_dir);
+        }
+        Err(_) => {
+            failed.insert(settings_dir.to_owned(), Instant::now());
+        }
+    }
+    res
+}
+
+/// V110-F56 How long a failed daily backup waits before trying again.
+const RETRY: Duration = Duration::from_secs(60 * 60);
+
+static FAILED: LazyLock<Mutex<HashMap<PathBuf, Instant>>> = LazyLock::new(Mutex::default);
+
+fn snapshot_due(settings_dir: &Path, today: Date) -> Result<bool> {
     let target = snapshot_dir(settings_dir, today);
     if target.exists() {
         // t5 Prune anyway: copies left from before (another build, a restore, a clock change)
@@ -52,20 +79,40 @@ pub(crate) fn snapshot_if_due(settings_dir: &Path, today: Date) -> Result<bool> 
 
     // Copy into a temp folder first so a crash never leaves a half snapshot.
     let root = settings_dir.join(BACKUP_DIR);
-    let staging = root.join(format!(".partial-{}", date_key(today)));
-    if staging.exists() {
-        fs::remove_dir_all(&staging)?;
-    }
-    fs::create_dir_all(&staging)?;
-    for file in &files {
-        fs::copy(
-            file,
-            staging.join(file.file_name().expect("settings files have names")),
-        )?;
-    }
-    fs::rename(&staging, &target)?;
+    stage(&root, &format!(".partial-{}", date_key(today)), &files, &target)?;
     prune(&root, today)?;
     Ok(true)
+}
+
+/// V110-F56 Copies `files` into a `.partial-*` folder, then renames it to `target`. A failure
+/// removes the folder again, so none is left behind.
+fn stage(root: &Path, partial: &str, files: &[PathBuf], target: &Path) -> Result<()> {
+    let staging = root.join(partial);
+    let copy = || -> std::io::Result<()> {
+        if staging.exists() {
+            fs::remove_dir_all(&staging)?;
+        }
+        fs::create_dir_all(&staging)?;
+        for file in files {
+            fs::copy(file, staging.join(file.file_name().expect("settings files have names")))?;
+        }
+        fs::rename(&staging, target)
+    };
+    copy().inspect_err(|_| {
+        let _ = fs::remove_dir_all(&staging);
+    })?;
+    Ok(())
+}
+
+/// V110-F56 Removes `.partial-*` folders a crash left in the backups folder. Run at open,
+/// before anything stages a new one.
+pub(crate) fn sweep_partials(settings_dir: &Path) {
+    let Ok(entries) = fs::read_dir(settings_dir.join(BACKUP_DIR)) else { return };
+    for entry in entries.filter_map(|e| e.ok()) {
+        if entry.file_name().to_string_lossy().starts_with(".partial-") {
+            let _ = fs::remove_dir_all(entry.path());
+        }
+    }
 }
 
 /// V107-N10a A file the day's backup may take: one that's broken today would push the last
@@ -131,15 +178,7 @@ pub(crate) fn snapshot_now(settings_dir: &Path, now: OffsetDateTime) -> Result<O
         return Ok(Some(name));
     }
     let root = settings_dir.join(BACKUP_DIR);
-    let staging = root.join(format!(".partial-{name}"));
-    if staging.exists() {
-        fs::remove_dir_all(&staging)?;
-    }
-    fs::create_dir_all(&staging)?;
-    for file in &files {
-        fs::copy(file, staging.join(file.file_name().expect("settings files have names")))?;
-    }
-    fs::rename(&staging, &target)?;
+    stage(&root, &format!(".partial-{name}"), &files, &target)?;
     for old in list_snapshots(settings_dir)?.into_iter().skip(SNAPSHOT_KEEP) {
         fs::remove_dir_all(named_dir(settings_dir, &old))?;
     }
@@ -181,6 +220,34 @@ mod tests {
 
     fn write_settings(dir: &Path, contents: &str) {
         fs::write(dir.join("general.json"), contents).unwrap();
+    }
+
+    #[test]
+    fn v110_f56_a_failed_copy_leaves_no_partial_and_waits() {
+        let tmp = TempDir::new("backup-fail");
+        let root = tmp.path().join(BACKUP_DIR);
+        fs::create_dir_all(&root).unwrap();
+        let missing = vec![tmp.path().join("gone.json")];
+        assert!(stage(&root, ".partial-x", &missing, &root.join("x")).is_err());
+        assert!(!root.join(".partial-x").exists());
+        // A blocked staging folder (a file in its place) fails the day's backup; the next flush skips it.
+        write_settings(tmp.path(), "{\"v\":1}");
+        fs::write(root.join(".partial-2026-10-01"), "x").unwrap();
+        assert!(snapshot_if_due(tmp.path(), day(1)).is_err());
+        fs::remove_file(root.join(".partial-2026-10-01")).unwrap();
+        assert!(!snapshot_if_due(tmp.path(), day(1)).unwrap(), "waits an hour");
+        assert!(list(tmp.path()).unwrap().is_empty());
+    }
+
+    #[test]
+    fn v110_f56_stale_partials_are_swept() {
+        let tmp = TempDir::new("backup-sweep");
+        let root = tmp.path().join(BACKUP_DIR);
+        fs::create_dir_all(root.join(".partial-2026-10-01")).unwrap();
+        fs::create_dir_all(root.join("2026-10-01")).unwrap();
+        sweep_partials(tmp.path());
+        assert!(!root.join(".partial-2026-10-01").exists());
+        assert!(root.join("2026-10-01").exists());
     }
 
     #[test]

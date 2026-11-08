@@ -55,6 +55,7 @@ impl Store {
         let dir = dir.into();
         fs::create_dir_all(&dir)?;
         let mut report = LoadReport::default();
+        backup::sweep_partials(&dir);
         // V107-N10a A full disk or a locked backups folder no longer stops the app starting.
         if let Err(e) = backup::snapshot_if_due(&dir, clock.today()) {
             report.io_errors.push(format!("today's backup: {e}"));
@@ -87,7 +88,7 @@ impl Store {
             // V107-N10a Nothing in it reads (cut short, empty, not JSON): the newest backup
             // that still reads, before defaults.
             let recovered = match (&read, &salvaged) {
-                (Err(_), None) => from_backups(&dir, p),
+                (Err(_), None) => from_backups(&dir, p, clock.today()),
                 _ => None,
             };
             let value = match read {
@@ -471,11 +472,36 @@ fn quarantine(path: &Path, clock: &dyn Clock, report: &mut LoadReport) {
     if let Err(e) = fs::rename(path, path.with_file_name(format!("{stem}.broken-{stamp}.json"))) {
         report.io_errors.push(format!("setting {} aside: {e}", path.display()));
     }
+    prune_broken(path, BROKEN_KEEP);
+}
+
+/// V110-F56 How many `<name>.broken-*.json` files stay per partition.
+const BROKEN_KEEP: usize = 5;
+
+/// Keeps the newest `keep` of `<stem>.broken-<stamp>.json` next to `path` (stamps sort by time).
+fn prune_broken(path: &Path, keep: usize) {
+    let (Some(dir), Some(stem)) = (path.parent(), path.file_stem()) else { return };
+    let prefix = format!("{}.broken-", stem.to_string_lossy());
+    let Ok(entries) = fs::read_dir(dir) else { return };
+    let mut broken: Vec<_> = entries
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            let n = e.file_name().to_string_lossy().into_owned();
+            n.starts_with(&prefix) && n.ends_with(".json")
+        })
+        .map(|e| e.path())
+        .collect();
+    broken.sort_unstable();
+    let extra = broken.len().saturating_sub(keep);
+    for old in broken.into_iter().take(extra) {
+        let _ = fs::remove_file(old);
+    }
 }
 
 /// V107-N10a The partition from the newest daily backup that reads cleanly: (raw, normalized, day).
-fn from_backups(dir: &Path, p: Partition) -> Option<(Value, Value, Date)> {
-    backup::list(dir).ok()?.into_iter().find_map(|date| {
+/// V110-F56 A folder dated after `today` (the clock was once ahead) is skipped.
+fn from_backups(dir: &Path, p: Partition, today: Date) -> Option<(Value, Value, Date)> {
+    backup::list(dir).ok()?.into_iter().filter(|d| *d <= today).find_map(|date| {
         let raw = read_raw(&backup::snapshot_dir(dir, date).join(p.file_name())).ok()??;
         let v = p.normalize(raw.clone()).ok()?;
         Some((raw, v, date))
