@@ -5,7 +5,7 @@
 
   import Icon from '../../../components/Icon.svelte';
   import Row from '../../../components/Row.svelte';
-  import Stepper from '../../../components/Stepper.svelte';
+  import NumberField from '../../../components/NumberField.svelte';
   import Toggle from '../../../components/Toggle.svelte';
   import { formatTime } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
@@ -34,8 +34,9 @@
   <FontPicker value={g.chatFontFamily} onpick={pick} />
 </Row>
 <Row setting="general.chatFontSize" label="Size">
-  <Stepper
+  <NumberField
     label="Chat font size"
+    steppers
     value={g.chatFontSize}
     min={9}
     max={32}
@@ -44,8 +45,10 @@
   />
 </Row>
 <Row setting="general.pinnedSizeStep" label="Pinned messages" hint="How much larger than chat text.">
-  <Stepper
+  <NumberField
     label="Pinned message size"
+    steppers
+    width="130px"
     value={g.pinnedSizeStep}
     min={0}
     max={8}

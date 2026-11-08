@@ -4,7 +4,7 @@
   import Row from '../../../components/Row.svelte';
   import LayoutPicker from '../../../components/LayoutPicker.svelte';
   import Segmented from '../../../components/Segmented.svelte';
-  import Stepper from '../../../components/Stepper.svelte';
+  import NumberField from '../../../components/NumberField.svelte';
   import Toggle from '../../../components/Toggle.svelte';
   import type { CustomTheme } from '../../../ipc/bindings/CustomTheme';
   import type { ThemeLook } from '../../../ipc/bindings/ThemeLook';
@@ -197,8 +197,9 @@
 <Row setting="appearance.tabRows" label="Rows of tabs" hint="For a bar at the top or bottom. Past that it scrolls.">
   <Segmented label="Rows of tabs" options={ROWS} value={a.tabRows} onchange={(v) => settings.patch('appearance', { tabRows: v })} />
   {#if a.tabRows === 'limit'}
-    <Stepper
+    <NumberField
       label="Most rows"
+      steppers
       value={a.tabMaxRows}
       min={1}
       max={10}

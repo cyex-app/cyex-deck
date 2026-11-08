@@ -2,7 +2,6 @@
      near-duplicate messages (F6). -->
 <script lang="ts">
   import Row from '../../../components/Row.svelte';
-  import Stepper from '../../../components/Stepper.svelte';
   import Toggle from '../../../components/Toggle.svelte';
   import type { FilterDef } from '../../../ipc/bindings/FilterDef';
   import type { FilterName } from '../../../ipc/bindings/FilterName';
@@ -91,13 +90,13 @@
   <Toggle label="Hide them" checked={s.hide} onchange={(v) => sim({ hide: v })} />
 </Row>
 <Row setting="highlights.similar.threshold" label="How alike" hint="Percent. Higher only catches closer copies.">
-  <NumberField label="How alike" min={50} max={100} width="80px" unit="%" value={s.threshold} onchange={(n) => sim({ threshold: n })} />
+  <NumberField label="How alike" steppers min={50} max={100} width="80px" unit="%" value={s.threshold} onchange={(n) => sim({ threshold: n })} />
 </Row>
 <Row setting="highlights.similar.maxAgeSecs" label="Within" hint="Seconds back to compare with.">
-  <NumberField label="Within" min={1} max={600} width="80px" unit="s" value={s.maxAgeSecs} onchange={(n) => sim({ maxAgeSecs: n })} />
+  <NumberField label="Within" steppers min={1} max={600} width="80px" unit="s" value={s.maxAgeSecs} onchange={(n) => sim({ maxAgeSecs: n })} />
 </Row>
 <Row setting="highlights.similar.depth" label="Messages back" hint="How many earlier messages to compare with.">
-  <Stepper label="Messages back" value={s.depth} min={1} max={5} onchange={(v) => sim({ depth: v })} />
+  <NumberField label="Messages back" steppers width="80px" value={s.depth} min={1} max={5} onchange={(v) => sim({ depth: v })} />
 </Row>
 <Row setting="highlights.similar.sameUser" label="Only from the same person" hint="Ignores matches between different people.">
   <Toggle label="Only from the same person" checked={s.sameUser} onchange={(v) => sim({ sameUser: v })} />
