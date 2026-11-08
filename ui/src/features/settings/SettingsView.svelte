@@ -13,6 +13,7 @@
   import { reveal } from './reveal';
   import { buildIndex, search, type Hit } from './search';
   import { settingsPlace } from './place.svelte';
+  import { settingsJump } from './jump.svelte';
   import { countSearch, PAUSE_MS, removeRecent } from './recent';
   import RecentSearches from './RecentSearches.svelte';
   import SearchResults from './SearchResults.svelte';
@@ -99,6 +100,13 @@
     }
   });
   onDestroy(() => void settings.pruneBlank());
+  // V110-U43 A link from a chat asked for one setting: shown once its page has rendered.
+  $effect(() => {
+    if (!settingsJump.pending || !content) return;
+    const id = settingsJump.take();
+    if (!id) return;
+    void tick().then(() => requestAnimationFrame(() => content && reveal(content, [id])));
+  });
 
   const docs = buildIndex([...ENTRIES, ...hotkeyEntries(ACTIONS)], PAGES);
   // V107-Mo Coming back to Settings brings the search back (place.svelte.ts).

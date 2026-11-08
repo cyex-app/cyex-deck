@@ -1,26 +1,35 @@
-<!-- V110-U43 A raid counting down from the channel this chat shows, in the pinned message's
-     slot and look: who it goes to (avatar and name open their usercard), how many viewers
-     go along (live from Twitch, about once a second) and the time left. It goes when the
-     raid goes or is called off; Rust adds "Raided X with N viewers" to the chat. With
-     Settings → Chat → "Join raid button" (off), signed-in chats get "Join raid": it joins
-     through Twitch and opens the channel, stream and chat, in its own tab window, which can
-     be closed or docked back into the tabs. Never joins by itself. -->
+<!-- V110-U43 A raid counting down from the channel this chat shows, a card in the pinned
+     message's slot and look: the target's avatar, "Raiding <name>" (opens their usercard), their
+     stream title and category when known with how many viewers go along (live from Twitch, about
+     once a second), the time left and a bar along the bottom edge that drains over the countdown
+     (one compositor animation; under reduced motion a static bar updated each second). It goes
+     when the raid goes or is called off; Rust adds "Raided X with N viewers" to the chat.
+     "Join raid" shows only with Settings → Chat → "Join raid button" (off); without it a signed-in
+     chat gets a quiet "Join raids…" that opens that setting. Joins through Twitch and opens the
+     channel, stream and chat in its own tab window. Never joins by itself. In your own channel
+     you are the one raiding: no Join, no link, and "Cancel raid" (asks first). -->
 <script lang="ts">
+  import { untrack } from 'svelte';
+
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
-  import Icon from '../../components/Icon.svelte';
+  import ConfirmButton from '../../components/ConfirmButton.svelte';
   import { hideTip, tooltip } from '../../components/tooltip.svelte';
   import type { SmRaid } from '../../ipc/bindings/SmRaid';
   import { chatIpc } from '../../ipc/chat';
+  import { notifyEvents } from '../../ipc/notify';
   import { raidIpc } from '../../ipc/raid';
+  import { smIpc } from '../../ipc/streammanager';
+  import { tabsIpc } from '../../ipc/tabs';
   import { popOut } from '../../app/panels';
   import { nowSecond } from '../../lib/clock.svelte';
   import { errorText } from '../../lib/errors';
   import { formatNumber } from '../../lib/format';
+  import { reduced } from '../../lib/motion';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { tabRoute, tabs, tiles } from '../tabs/tabs.svelte';
-  import { joinShows, raidLeft, viewersText } from './raidBanner';
+  import { cancelShows, joinShows, optInShows, ownChannel, raidAbout, raidBar, raidFrac, raidLeft, viewersText } from './raidBanner';
   import { raids } from './raids.svelte';
 
   interface Props {
@@ -45,7 +54,86 @@
   /** The raid joined from here, so Join doesn't show twice. */
   let joined = $state<string | null>(null);
   let busy = $state(false);
-  const canJoin = $derived(joinShows(settings.v.chat.raidJoin, raid?.id ?? null, account, joined));
+  const own = $derived(ownChannel(account, channelId));
+  const canJoin = $derived(joinShows(settings.v.chat.raidJoin, raid?.id ?? null, account, joined, own));
+  const optIn = $derived(optInShows(settings.v.chat.raidJoin, raid?.id ?? null, account, own));
+
+  // The account that runs the stream manager, asked only in your own channel during a raid.
+  let managerId = $state<string | null>(null);
+  $effect(() => {
+    if (!own || !raid) return;
+    let gone = false;
+    smIpc
+      .manager()
+      .then((m) => !gone && (managerId = m?.accountId ?? null))
+      .catch(() => {});
+    return () => {
+      gone = true;
+    };
+  });
+  const canCancel = $derived(cancelShows(raid?.id ?? null, own, managerId, channelId));
+  let canceling = $state(false);
+
+  async function cancel() {
+    if (canceling) return;
+    canceling = true;
+    try {
+      await smIpc.unraid();
+      toast.success('Raid canceled.');
+    } catch (e) {
+      toast.error(errorText(e));
+    } finally {
+      canceling = false;
+    }
+  }
+
+  // The target's stream title and category, when Twitch lists them; looked up once per target.
+  let about = $state('');
+  $effect(() => {
+    const login = raid?.targetLogin;
+    if (!login) {
+      about = '';
+      return;
+    }
+    let gone = false;
+    tabsIpc
+      .lookup(login)
+      .then((list) => {
+        if (gone) return;
+        const s = list.find((c) => c.login === login)?.stream;
+        about = raidAbout(s?.title, s?.game);
+      })
+      .catch(() => {
+        if (!gone) about = '';
+      });
+    return () => {
+      gone = true;
+    };
+  });
+
+  // Reduce motion can flip while a raid shows.
+  let still = $state(reduced());
+  $effect(() => {
+    if (typeof matchMedia !== 'function') return;
+    const q = matchMedia('(prefers-reduced-motion: reduce)');
+    const flip = () => (still = q.matches);
+    q.addEventListener('change', flip);
+    return () => q.removeEventListener('change', flip);
+  });
+  /** The bar from the real start and go times. Read when the times change (the key below
+   * restarts the animation), not every second. */
+  const timeKey = $derived(raid ? `${raid.id}:${raid.createdAt}:${raid.goesAt}` : '');
+  const bar = $derived.by(() => {
+    timeKey;
+    return untrack(() => (raid ? raidBar(raid.createdAt, raid.goesAt, Date.now()) : null));
+  });
+  /** Reduced motion: the bar's level, moved by the clock. */
+  const level = $derived(raid && still ? raidFrac(raid.createdAt, raid.goesAt, nowSecond()) : 1);
+
+  function openJoinSetting() {
+    hideTip();
+    notifyEvents.openSetting('chat', 'chat.raidJoin').catch(() => {});
+  }
 
   function usercard(login: string) {
     hideTip();
@@ -61,11 +149,11 @@
   /** The raided channel's own tab (only it in there), or a new one, then in its own window. */
   async function openPopped(r: SmRaid, who: string | null) {
     if (!r.targetId) return;
-    const own = tabs.list.find((t) => {
+    const mine = tabs.list.find((t) => {
       const list = tiles(t);
       return list.length === 1 && list[0].channel.id === r.targetId;
     });
-    let id = own?.id ?? null;
+    let id = mine?.id ?? null;
     if (!id) {
       // Adding makes the new tab active; the main window goes back to what it showed.
       const before = tabs.active;
@@ -101,36 +189,67 @@
 </script>
 
 {#if raid}
-  <div class="raid" role="status" aria-label="Raiding {raid.targetName}, {viewersText(raid.viewers, formatNumber)}, {left === 'now' ? 'going now' : `${left} left`}">
-    <Icon name="users" size={14} />
-    <span
-      class="who"
-      role="link"
-      tabindex="0"
-      aria-label="{raid.targetName}, open usercard"
-      use:tooltip={{ label: raid.targetName, hint: 'Opens their usercard.' }}
-      onclick={() => usercard(raid.targetLogin)}
-      onkeydown={(e) => cardKey(e, raid.targetLogin)}
-    >
-      <Avatar src={raid.targetAvatar} name={raid.targetName} size={20} />
-      <span class="text"><span class="dim">Raiding</span> <strong>{raid.targetName}</strong></span>
-    </span>
-    <span class="meta">{viewersText(raid.viewers, formatNumber)}</span>
-    <span class="left">{left}</span>
-    {#if canJoin}
-      <Button small variant="primary" disabled={busy} onclick={join}>Join raid</Button>
-    {/if}
+  <div class="wrap">
+    <div class="raid" role="status" aria-label="Raiding {raid.targetName}, {viewersText(raid.viewers, formatNumber)}, {left === 'now' ? 'going now' : `${left} left`}">
+      <span class="av" aria-hidden="true"><Avatar src={raid.targetAvatar} name={raid.targetName} size={32} /></span>
+      <div class="body">
+        <span class="l1">
+          <span class="dim">Raiding</span>
+          <span
+            class="name"
+            role="link"
+            tabindex="0"
+            aria-label="{raid.targetName}, open usercard"
+            use:tooltip={{ label: raid.targetName, hint: 'Opens their usercard.' }}
+            onclick={() => usercard(raid.targetLogin)}
+            onkeydown={(e) => cardKey(e, raid.targetLogin)}>{raid.targetName}</span
+          >
+                  </span>
+        <span class="l2">
+          {#if about}<span class="about" title={about}>{about}</span><span class="sep" aria-hidden="true">·</span>{/if}
+          <span class="going">{formatNumber(raid.viewers)} {raid.viewers === 1 ? 'viewer' : 'viewers'} going</span>
+        </span>
+      </div>
+      <div class="end">
+        <span class="left">{left}</span>
+        {#if canJoin}
+          <Button small variant="primary" disabled={busy} onclick={join}>Join raid</Button>
+        {:else if canCancel}
+          <ConfirmButton label="Cancel raid" confirm="Click to cancel the raid" variant="danger" disabled={canceling} onconfirm={cancel} />
+        {:else if optIn}
+          <button class="link" onclick={openJoinSetting}>Join raids…</button>
+        {/if}
+      </div>
+      {#if bar}
+        {#key `${timeKey}:${still}`}
+          <div
+            class="bar"
+            class:run={!still}
+            style:--from={bar.from}
+            style:--dur="{bar.ms}ms"
+            style:--delay="{bar.delay}ms"
+            style:transform={still ? `scaleX(${level})` : undefined}
+            aria-hidden="true"
+          ></div>
+        {/key}
+      {/if}
+    </div>
   </div>
 {/if}
 
 <style>
+  .wrap {
+    container-type: inline-size;
+    margin: 6px 8px 2px;
+  }
   .raid {
+    position: relative;
+    overflow: hidden;
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin: 6px 8px 2px;
-    padding: 5px 8px 5px 10px;
-    min-height: 32px;
+    gap: 10px;
+    padding: 8px 10px 10px;
+    min-height: 48px;
     background: var(--surface);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
@@ -138,48 +257,132 @@
     font-size: calc(var(--chat-size) * 0.9);
     line-height: 1.3;
   }
-  .raid > :global(svg) {
+  .av {
     flex: none;
-  }
-  .who {
     display: flex;
-    align-items: center;
-    gap: 6px;
+  }
+  .body {
     flex: 1;
     min-width: 0;
-    cursor: pointer;
-    border-radius: var(--radius-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
   }
-  .who:hover strong {
-    text-decoration: underline;
-  }
-  .who:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 1px;
-  }
-  .text {
+  .l1,
+  .l2 {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .text strong {
-    color: var(--text);
-    font-weight: 700;
+  .l2 {
+    color: var(--dim);
+    font-size: var(--text-hint);
   }
   .dim {
     color: var(--dim);
   }
-  .meta,
-  .left {
+  .name {
+    color: var(--text);
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .name:hover {
+    text-decoration: underline;
+  }
+  .name:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+  .about {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .going,
+  .sep {
     flex: none;
     font-variant-numeric: tabular-nums;
-    white-space: nowrap;
+  }
+  .end {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
   }
   .left {
-    color: var(--dim);
+    color: var(--text);
+    font-family: var(--font-mono);
     font-size: var(--text-hint);
+    font-variant-numeric: tabular-nums;
     min-width: 3ch;
     text-align: right;
+    white-space: nowrap;
+  }
+  .link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--dim);
+    font: inherit;
+    font-size: var(--text-hint);
+    cursor: pointer;
+    white-space: nowrap;
+    border-radius: var(--radius-sm);
+  }
+  .link:hover {
+    color: var(--text);
+    text-decoration: underline;
+  }
+  .link:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+  /* Drains over the countdown on the compositor: one animation, set from the remaining time. */
+  .bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    /* Readable on either theme, whatever the accent. */
+    background: var(--accent-text);
+    transform-origin: left center;
+    transform: scaleX(var(--from, 1));
+  }
+  .bar.run {
+    will-change: transform;
+    animation: drain var(--dur) var(--delay) linear forwards;
+  }
+  @keyframes drain {
+    from {
+      transform: scaleX(var(--from, 1));
+    }
+    to {
+      transform: scaleX(0);
+    }
+  }
+  /* Narrow chats: one line, the viewers beside the name. */
+  @container (max-width: 320px) {
+    .raid {
+      padding: 6px 8px 9px;
+      min-height: 0;
+      gap: 8px;
+    }
+    /* No room for the count beside the name; it stays in the screen reader label. */
+    .l2 {
+      display: none;
+    }
+    .end {
+      flex-direction: row-reverse;
+      align-items: center;
+      gap: 8px;
+    }
   }
 </style>

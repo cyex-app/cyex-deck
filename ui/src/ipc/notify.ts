@@ -53,6 +53,11 @@ export const notifyEvents = {
   onCard: (cb: (c: NoticeCard) => void): Promise<UnlistenFn> => listen<NoticeCard>('notify:card', (e) => cb(e.payload)),
   /** Asks the main window to open something, as a toast click does. */
   open: (o: NotifyOpen) => emitTo('main', 'notify:open', o),
+  /** V110-U43 Main window only: Settings opens on `page` and shows the setting `id`. */
+  onSetting: (cb: (s: { page: string; id: string }) => void): Promise<UnlistenFn> =>
+    listen<{ page: string; id: string }>('settings:reveal', (e) => cb(e.payload)),
+  /** V110-U43 Asks the main window to open Settings at one setting (from any window). */
+  openSetting: (page: string, id: string) => emitTo('main', 'settings:reveal', { page, id }),
   /** V108-C39 Brings the main window to the front (it may be minimised or in the tray). */
   focusMain: () => invoke<void>('notify_focus_main'),
 };

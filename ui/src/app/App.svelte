@@ -58,6 +58,7 @@
   import type { LinkTarget } from '../ipc/bindings/LinkTarget';
   import { accountsIpc } from '../ipc/accounts';
   import { notifyEvents } from '../ipc/notify';
+  import { settingsJump } from '../features/settings/jump.svelte';
   import { soundIpc } from '../ipc/sound';
   import { pluginsIpc } from '../ipc/plugins';
   import { tabsIpc } from '../ipc/tabs';
@@ -311,6 +312,15 @@
         // Back where it was, unless you went somewhere else meanwhile.
         if (isHere(d.at)) show(d.view);
       }
+    });
+    return () => void off.then((f) => f());
+  });
+
+  // V110-U43 A link in a chat to one setting: its page opens and the row lights up.
+  $effect(() => {
+    const off = notifyEvents.onSetting((s) => {
+      settingsJump.ask(s.id);
+      openSettings(s.page);
     });
     return () => void off.then((f) => f());
   });
