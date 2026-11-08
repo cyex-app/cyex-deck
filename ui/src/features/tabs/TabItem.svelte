@@ -73,7 +73,9 @@
     const label = parts.length ? parts.join(' · ') : `${name} · Offline`;
     const playing = soundTip(sound, sound !== 'silent' && tabs.muted.has(tab.id));
     // No tip while something is dragged: it would sit on the ghost.
-    return { label: `${label}${playing}`, hint: hint ? `${hint} (${who})` : who, when: () => !drag.item };
+    // V110-F67 The underline is unread chat (U9, V108-C08); say so.
+    const news = unread === 'mention' ? ' · You were mentioned' : unread === 'message' ? ' · New messages' : '';
+    return { label: `${label}${playing}${news}`, hint: hint ? `${hint} (${who})` : who, when: () => !drag.item };
   });
 
   /** Arrows move between tabs (Up/Down in a vertical bar), Home and End jump, Space and Enter open. */
