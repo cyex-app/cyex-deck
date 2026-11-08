@@ -2,14 +2,16 @@
      Rust keeps the answers (V108-C25). Clicks go through the list (`data-link`).
      V110-C66 The card has its final box from the first frame: a skeleton the same size until the
      answer comes, the picture's box drawn before it loads. Nothing on the line moves when it
-     fills in; a link with nothing to show keeps a one-line box when on screen, and closes
-     when off screen (the list keeps what is read in place). -->
+     fills in; a link with nothing to show ("No preview") keeps the same box when on screen, so
+     nothing jumps, and closes when off screen (the list keeps what is read in place).
+     V110-F22 One observer serves every card, and each card finds its scroll parent once. -->
 <script lang="ts">
   import type { LinkPreview } from '../../ipc/bindings/LinkPreview';
   import { hostOf } from '../../lib/host';
   import { CARD_HEIGHT, CARD_PIC, cardAfter, cardLines, type CardState } from './cardBox';
   import { kindText } from './linkFacts';
   import { embeds } from './linkPreviews';
+  import { leaveScreen, nearScreen } from './nearScreen';
 
   let { url }: { url: string } = $props();
 
@@ -20,16 +22,22 @@
   const host = $derived(hostOf(url));
   const lines = $derived(cardLines(info));
 
-  /** The nearest scrolling ancestor's box, or the window's. */
+  /** The nearest scrolling ancestor, or none for the window. Found once per card. */
+  let scroller: HTMLElement | null | undefined;
   function viewport(node: HTMLElement): { top: number; bottom: number } {
-    for (let p = node.parentElement; p; p = p.parentElement) {
-      const y = getComputedStyle(p).overflowY;
-      if (y === 'auto' || y === 'scroll') {
-        const r = p.getBoundingClientRect();
-        return { top: r.top, bottom: r.bottom };
+    if (scroller === undefined) {
+      scroller = null;
+      for (let p = node.parentElement; p; p = p.parentElement) {
+        const y = getComputedStyle(p).overflowY;
+        if (y === 'auto' || y === 'scroll') {
+          scroller = p;
+          break;
+        }
       }
     }
-    return { top: 0, bottom: innerHeight };
+    if (!scroller) return { top: 0, bottom: innerHeight };
+    const r = scroller.getBoundingClientRect();
+    return { top: r.top, bottom: r.bottom };
   }
 
   function arrived(node: HTMLElement, i: LinkPreview | null) {
@@ -43,22 +51,15 @@
     if (!el) return;
     const node = el;
     let gone = false;
-    // Asked a screen ahead, so the card is filled while it is still off screen.
-    const seen = new IntersectionObserver(
-      (entries) => {
-        if (!entries.some((e) => e.isIntersecting)) return;
-        seen.disconnect();
-        embeds
-          .get(url)
-          .then((i) => !gone && arrived(node, i))
-          .catch(() => !gone && arrived(node, null));
-      },
-      { rootMargin: '600px 0px' },
-    );
-    seen.observe(node);
+    nearScreen(node, () => {
+      embeds
+        .get(url)
+        .then((i) => !gone && arrived(node, i))
+        .catch(() => !gone && arrived(node, null));
+    });
     return () => {
       gone = true;
-      seen.disconnect();
+      leaveScreen(node);
     };
   });
 </script>
@@ -92,7 +93,7 @@
       <span class="text"><span class="host">{host}</span><span>No preview</span></span>
     </a>
   {:else if phase === 'wait'}
-    <div class="inner skel" role="status" aria-label="Loading preview">
+    <div class="inner skel" aria-hidden="true">
       <span class="pic" style:width="{CARD_PIC.w}px" style:height="{CARD_PIC.h}px"></span>
       <span class="text">
         <span class="bar" style:width="70%"></span>

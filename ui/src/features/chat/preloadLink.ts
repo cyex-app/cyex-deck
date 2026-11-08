@@ -1,6 +1,6 @@
 // V110-C66 A trusted link (Rust marked it `embed`) is asked for once it is on screen, so its
 // hover preview opens at once. One observer for all of them, no margin: lines in view only.
-// Other links wait for the hover (V108-F46). Off when previews are off or streamer mode hides them.
+// Other links wait for the hover (V108-F46). Off when previews are off (it asks the next time the link is in view) or streamer mode hides them.
 
 import { cardsShown, embeds } from './linkPreviews';
 
@@ -12,8 +12,11 @@ function observer(): IntersectionObserver {
     for (const e of entries) {
       if (!e.isIntersecting) continue;
       const url = urls.get(e.target);
+      // V110-F22 Asked only when previews show; otherwise it stays watched and asks on its
+      // next time in view, once previews are turned on.
+      if (!url || !cardsShown()) continue;
       seen!.unobserve(e.target);
-      if (url && cardsShown()) embeds.get(url).catch(() => {});
+      embeds.get(url).catch(() => {});
     }
   }));
 }
