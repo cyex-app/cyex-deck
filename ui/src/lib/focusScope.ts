@@ -64,6 +64,29 @@ export function wrapTab(at: number, count: number, back: boolean): number {
   return (at + (back ? -1 : 1) + count) % count;
 }
 
+/** V110-F70 Where Tab goes when focus is on something that is not a stop (a roving nav button at
+ *  tabindex -1): `after[i]` says stop i comes after the focused element in document order. The
+ *  next or previous stop in document order, wrapping at the ends. */
+export function stopAround(after: boolean[], back: boolean): number {
+  if (!after.length) return -1;
+  if (!back) {
+    const i = after.indexOf(true);
+    return i < 0 ? 0 : i;
+  }
+  const i = after.lastIndexOf(false);
+  return i < 0 ? after.length - 1 : i;
+}
+
+/** The stop Tab or Shift+Tab reaches from `at` among `stops`; works when `at` is not one of them. */
+export function tabTarget(stops: HTMLElement[], at: Element | null, back: boolean): number {
+  const i = at ? stops.indexOf(at as HTMLElement) : -1;
+  if (i >= 0 || !at) return wrapTab(i, stops.length, back);
+  return stopAround(
+    stops.map((s) => !!(at.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING)),
+    back,
+  );
+}
+
 /** Moves focus into `node`; returns the cleanup that gives it back. */
 export function focusScope(node: HTMLElement, opts: ScopeOptions = {}): () => void {
   const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -73,7 +96,7 @@ export function focusScope(node: HTMLElement, opts: ScopeOptions = {}): () => vo
   const onKey = (e: KeyboardEvent) => {
     if (e.key !== 'Tab' || e.defaultPrevented) return;
     const stops = tabbables(node);
-    const next = wrapTab(stops.indexOf(document.activeElement as HTMLElement), stops.length, e.shiftKey);
+    const next = tabTarget(stops, document.activeElement, e.shiftKey);
     e.preventDefault();
     (stops[next] ?? node).focus();
   };

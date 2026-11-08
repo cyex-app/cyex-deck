@@ -8,7 +8,7 @@
   import { fade } from 'svelte/transition';
 
   import IconButton from './IconButton.svelte';
-  import { tabbables, wrapTab } from '../lib/focusScope';
+  import { tabbables, tabTarget } from '../lib/focusScope';
   import { keyHold } from '../lib/hotkeys.svelte';
 
   interface Props {
@@ -62,7 +62,7 @@
       const at = document.activeElement;
       if (inLayer(at) || inLayer(e.target)) return;
       const stops = tabbables(sheet);
-      const next = wrapTab(stops.indexOf(at as HTMLElement), stops.length, e.shiftKey);
+      const next = tabTarget(stops, at, e.shiftKey);
       e.preventDefault();
       (stops[next] ?? sheet).focus();
     };
