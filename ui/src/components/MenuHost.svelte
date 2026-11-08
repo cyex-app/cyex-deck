@@ -290,10 +290,14 @@
     opacity: 0.45;
   }
   /* V102-20 Greyed out, but the flag still takes you to the sign-in. */
-  .item.locked .text,
+  /* V110-F36 Locked reads as locked by its dim color and the lock, not by fading the text under
+     4,5:1 (it was 2,85:1 in the light theme): --dim is 5,4:1 or more in every theme. */
+  .item.locked {
+    color: var(--dim);
+  }
   .item.locked .swatch,
   .item.locked > :global(svg) {
-    opacity: 0.45;
+    opacity: 0.7;
   }
   .item.danger {
     color: var(--red);
