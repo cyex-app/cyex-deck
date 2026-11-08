@@ -226,7 +226,11 @@
     if (a.type === 'search') search = { query: a.query, all: false };
     else if (a.type === 'cosmetics') cosmeticsOpen = true;
     // V108-C26 /mods, /vips, /roles. V108-C27 A card in its own window, in any chat.
-    else if (a.type === 'roles') void popOut(rolesRoute(login, a.role ?? null, account ?? null), `#${login}`);
+    // V110-C67 `/roles forsen` lists another channel.
+    else if (a.type === 'roles') {
+      const target = a.channel ?? login;
+      void popOut(rolesRoute(target, a.role ?? null, account ?? null), `#${target}`);
+    }
     else if (a.type === 'sevenTvSignIn') {
       // /paint, /badge, /combo while signed out of 7TV: the sign-in pop-up, then the command again.
       if (retried || !account) toast.error('Sign in to 7TV first: /cosmetics.');

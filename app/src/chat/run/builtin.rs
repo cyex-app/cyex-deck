@@ -194,11 +194,14 @@ pub async fn run(
                 "vips" => Some(cyex_moderation::roles::Role::Vip),
                 _ => None,
             };
+            // V110-C67 `/roles forsen`: another channel, tabbed or not.
+            let channel = roles_channel(args)?;
             if place.ui {
-                return Ok(Some(UiAction::Roles { role }));
+                return Ok(Some(UiAction::Roles { role, channel }));
             }
             use crate::moderation::roles::manager;
-            let l = manager::listing(app, place.account(), place.channel()).await?;
+            let target = channel.as_deref().unwrap_or(place.channel());
+            let l = manager::listing(app, place.account(), target).await?;
             local(app, &place.key, NoticeKind::Info, &manager::line(&l, role));
             done
         }
@@ -471,9 +474,30 @@ async fn translate_one(app: &AppHandle, text: &str, to: &str) -> Result<String, 
         .ok_or_else(|| "Nothing came back.".into())
 }
 
+/// V110-C67 The channel after `/mods`, `/vips` or `/roles`: `forsen`, `@forsen` or
+/// `#forsen`, any case. None when nothing follows.
+fn roles_channel(args: &str) -> Result<Option<String>, String> {
+    let Some(word) = args.split_whitespace().next() else { return Ok(None) };
+    let login = word.trim_start_matches(['@', '#']).to_ascii_lowercase();
+    let ok = (1..=25).contains(&login.len()) && login.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_');
+    if ok { Ok(Some(login)) } else { Err(format!("{word} isn’t a channel name.")) }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn roles_takes_an_optional_channel() {
+        // V110-C67
+        assert_eq!(roles_channel(""), Ok(None));
+        assert_eq!(roles_channel("  "), Ok(None));
+        assert_eq!(roles_channel("forsen"), Ok(Some("forsen".into())));
+        assert_eq!(roles_channel("@Forsen extra"), Ok(Some("forsen".into())));
+        assert_eq!(roles_channel("#x_y_1"), Ok(Some("x_y_1".into())));
+        assert!(roles_channel("not-a-name").is_err());
+        assert!(roles_channel(&"a".repeat(26)).is_err());
+    }
 
     #[test]
     fn chain_and_foreach_are_capped() {

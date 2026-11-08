@@ -106,10 +106,12 @@ pub enum UiAction {
     },
     Popout,
     /// V108-C26 `/mods`, `/vips` and `/roles`: the list pop-up. `role` opens on that role,
-    /// none on all of them.
+    /// none on all of them. V110-C67 `channel`: another channel named after the command.
     Roles {
         #[ts(optional = nullable)]
         role: Option<cyex_moderation::roles::Role>,
+        #[ts(optional = nullable)]
+        channel: Option<String>,
     },
     /// V1051-03 Open the 7TV paint and badge pop-up.
     Cosmetics,

@@ -181,20 +181,23 @@ pub(super) const BEFORE: &[Cmd] = &[
         .ex(&[ex("/popout", "(the chat pops out)")])
         .notes("Only a chat next to a stream pops out; anywhere else it shows “Only a chat next to a stream pops out.”"),
     // V108-C27 Any chat; in your own channel the list also gives and takes roles.
-    Cmd::new("mods", "/mods", "Lists the channel’s mods, and since when.", "V108-C27")
+    Cmd::new("mods", "/mods [channel]", "Lists the channel’s mods, and since when.", "V108-C27")
         .help("/mods")
         .changes(Window, "Opens the roles pop-up.")
-        .ex(&[ex("/mods", "A list opens with each mod and the date they were made one.")])
+        .ex(&[ex("/mods", "A list opens with each mod and the date they were made one."), ex("/mods forsen", "Another channel’s mods.")])
         .notes("Twitch shares mods only with a signed-in chat. In a chain or timer it’s a line instead."),
-    Cmd::new("vips", "/vips", "Lists the channel’s VIPs, and since when.", "V108-C27")
+    Cmd::new("vips", "/vips [channel]", "Lists the channel’s VIPs, and since when.", "V108-C27")
         .help("/vips")
         .changes(Window, "Opens the roles pop-up.")
-        .ex(&[ex("/vips", "A list opens with each VIP and the date they were made one.")])
+        .ex(&[ex("/vips", "A list opens with each VIP and the date they were made one."), ex("/vips forsen", "Another channel’s VIPs.")])
         .notes("In a chain or timer it’s a line instead."),
-    Cmd::new("roles", "/roles", "Lists everyone with a role in the channel, and since when.", "V108-C27")
+    Cmd::new("roles", "/roles [channel]", "Lists everyone with a role in the channel, and since when.", "V108-C27")
         .help("/roles")
         .changes(Window, "Opens the roles pop-up.")
-        .ex(&[ex("/roles", "A list opens with mods and VIPs; in your own channel also lead mods, editors and artists.")])
+        .ex(&[
+            ex("/roles", "A list opens with mods and VIPs; in your own channel also lead mods, editors and artists."),
+            ex("/roles forsen", "The same list for another channel, tabbed or not."),
+        ])
         .notes("In your own channel you can add and remove people there too."),
     Cmd::new("color", "/color #RRGGBB", "Changes your name color on Twitch.", "1.40")
         .help("/color")
