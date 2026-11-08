@@ -15,7 +15,7 @@ use super::{gql_auth, http, lock, log, now_ms};
 
 /// A prediction was created or changed on a watched channel.
 pub fn consider(app: &AppHandle, account: &str, channel_id: &str, p: Prediction) {
-    if p.status != "ACTIVE" || p.mine.is_some() || !lock(app).bets.insert(p.id.clone()) {
+    if p.status != "ACTIVE" || p.mine.is_some() || !super::first_time(&mut lock(app).bets, &p.id) {
         return;
     }
     let s = super::settings(app).bets;

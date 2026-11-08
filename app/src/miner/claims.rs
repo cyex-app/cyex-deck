@@ -78,7 +78,7 @@ pub async fn moment(app: &AppHandle, account: &str, channel_id: &str, moment_id:
 
 /// Joins a raid once, so its points come along.
 pub async fn raid(app: &AppHandle, account: &str, channel_id: &str, raid_id: &str, target: &str) {
-    if !lock(app).raids.insert(raid_id.to_owned()) {
+    if !super::first_time(&mut lock(app).raids, raid_id) {
         return;
     }
     let Some((token, client_id)) = crate::auth::gql_token(app, account) else {

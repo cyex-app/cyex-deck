@@ -62,9 +62,26 @@ pub fn get(account: &str, channel_id: &str) -> Known {
 /// Changes the pair's entry and hands back what it is now.
 pub fn update(account: &str, channel_id: &str, f: impl FnOnce(&mut Known)) -> Known {
     let mut m = all();
+    trim(&mut m);
     let k = m.entry(key(account, channel_id)).or_default();
     f(k);
     k.clone()
+}
+
+/// V110-F58 Most pairs kept; past it the half read longest ago goes (they are read again on demand).
+const CAP: usize = 400;
+
+fn trim(m: &mut HashMap<Key, Known>) {
+    if m.len() < CAP {
+        return;
+    }
+    let mut at: Vec<i64> = m.values().map(|k| k.read_at.max(k.said.map_or(0, |s| s.at))).collect();
+    at.sort_unstable();
+    let cut = at[at.len() / 2];
+    m.retain(|_, k| k.read_at.max(k.said.map_or(0, |s| s.at)) >= cut);
+    if m.len() >= CAP {
+        m.clear();
+    }
 }
 
 fn ms(s: Option<&str>) -> Option<i64> {
@@ -164,6 +181,18 @@ mod tests {
     use super::*;
 
     const NOW: i64 = 1_800_000_000_000;
+
+    #[test]
+    fn v110_f58_the_map_stays_under_its_cap() {
+        let mut m = HashMap::new();
+        for i in 0..CAP {
+            m.insert((String::new(), i.to_string()), Known { read_at: i as i64 + 1, ..Known::default() });
+        }
+        trim(&mut m);
+        assert!(m.len() < CAP);
+        assert!(m.contains_key(&(String::new(), (CAP - 1).to_string())), "the newest stay");
+        assert!(!m.contains_key(&(String::new(), "0".to_owned())));
+    }
 
     fn iso(ms: i64) -> String {
         let t = time::OffsetDateTime::from_unix_timestamp_nanos(ms as i128 * 1_000_000).unwrap();

@@ -208,6 +208,10 @@ enum Gate {
 }
 
 fn gate(last: &mut Moved, key: (String, String), now: Instant) -> Gate {
+    // V110-F58 Pairs past their gap with no read booked are forgotten.
+    if last.len() > 200 {
+        last.retain(|_, (at, booked)| *booked || now.saturating_duration_since(*at) < MOVED_GAP);
+    }
     match last.get_mut(&key) {
         Some((at, booked)) if now.saturating_duration_since(*at) < MOVED_GAP => {
             if *booked {
@@ -334,6 +338,16 @@ pub mod mock {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v110_f58_old_pairs_are_forgotten() {
+        let (mut m, t0) = (Moved::new(), Instant::now());
+        for i in 0..250 {
+            gate(&mut m, ("1".to_owned(), i.to_string()), t0);
+        }
+        gate(&mut m, ("1".to_owned(), "x".to_owned()), t0 + Duration::from_secs(5));
+        assert_eq!(m.len(), 1);
+    }
 
     #[test]
     fn moved_reads_are_spaced_per_channel() {
