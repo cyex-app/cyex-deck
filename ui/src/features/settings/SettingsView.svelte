@@ -391,6 +391,11 @@
     /* The column stays put when a page is short enough to need no scrollbar. */
     scrollbar-gutter: stable;
   }
+  /* V110-F25 The scrollbar starts below the sheet's close button, so the × never covers its
+     thumb (small windows, where the sheet fills the window). */
+  .content::-webkit-scrollbar-track {
+    margin-top: 40px;
+  }
   /* S5, S6 One column width on every page, centred in the room beside the list. */
   .inner {
     box-sizing: border-box;
