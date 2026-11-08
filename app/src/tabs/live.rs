@@ -135,6 +135,7 @@ async fn poll(app: &AppHandle) {
     };
 
     *live.crowded.lock().unwrap_or_else(|p| p.into_inner()) = crowded_logins(&channels);
+    crate::chat::rules::note_live(app, &channels);
 
     // V106-18 One point per tab channel per check; offline and left-out channels drop.
     if let Some(v) = app.try_state::<viewers::Viewers>() {

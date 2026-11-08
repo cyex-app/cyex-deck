@@ -17,6 +17,8 @@ export const OPT = {
     hint: 'Also matches letters that only look the same, like Cyrillic а or 𝐟𝐚𝐧𝐜𝐲 text.',
     icon: 'languages',
   },
+  // V110-C57
+  wordsOnly: { label: 'Colour only the matched words', hint: 'The line stays plain; just the matching words get the colour.', icon: 'palette' },
   regex: { label: 'Regex', hint: 'The pattern is a regular expression.', icon: 'regex' },
   flavor: { label: 'Regex flavor', hint: 'Which regex rules the pattern follows.' },
   color: { label: 'Color', hint: 'Tints the message. × goes back to the default.' },

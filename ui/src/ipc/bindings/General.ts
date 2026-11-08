@@ -30,6 +30,14 @@ tooltips: boolean,
  */
 minimizeToTray: boolean, 
 /**
+ * V110-U50 Closing the main window hides it to the tray; Quit in the tray menu quits.
+ */
+closeToTray: boolean, 
+/**
+ * V110-U50 The "still running in the tray" toast was shown once. Not a setting.
+ */
+closeToTrayTold: boolean, 
+/**
  * V103-11 The mouse wheel glides in every scrollable area, as in Chatterino. The page
  * does it, so a change applies at once.
  */

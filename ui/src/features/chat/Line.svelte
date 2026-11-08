@@ -151,7 +151,7 @@
   {/if}
   {#if notice}
     <div class="notice-text">
-      {#if !sender && time}<span class="ts">{time}</span>{/if}{#if upLine}Uploaded <a class="up" href={upLine.link} data-upload={upLine.link}>{upLine.link}</a>{#if upLine.deletion}
+      {#if !sender && time}<span class="ts" data-stamp={m.ts}>{time}</span>{/if}{#if upLine}Uploaded <a class="up" href={upLine.link} data-upload={upLine.link}>{upLine.link}</a>{#if upLine.deletion}
         · delete: <a class="up" href={upLine.deletion} data-upload={upLine.deletion}>{upLine.deletion}</a>{/if}{:else if presence}{presence.joined ? 'joined: ' : 'parted: '}{#each presence.names as login, i (login)}{i ? ', ' : ''}<span
             class="who"
             role="link"
@@ -171,7 +171,7 @@
   {#if m.plugin && !sender && !notice}
     <!-- S7 A plugin's line: always its mark, never a name. -->
     <div class="msg">
-      {#if time}<span class="ts">{time}</span>{/if}
+      {#if time}<span class="ts" data-stamp={m.ts}>{time}</span>{/if}
       <span class="from-plugin" data-tip="From {m.plugin.name}" data-hint="A plugin"><Icon name="puzzle" size={12} /></span>
       <span class="body"><Body fragments={m.body} {channel} /></span>
     </div>
@@ -204,7 +204,7 @@
           {/each}
         </span>
       {/if}
-      {#if time}<span class="ts">{time}</span>{/if}
+      {#if time}<span class="ts" data-stamp={m.ts}>{time}</span>{/if}
       {#if client}<span class="client" data-tip={client.label}><Icon name={client.icon} size={12} /></span>{/if}
       {#if m.source}<!-- V108-N12 Which channel of the shared chat it was sent in. -->{#if from?.avatar}<img
             class="from"
@@ -226,7 +226,7 @@
       >{#if name.extra}<span class="extra">{` (${name.extra})`}</span>{/if}{#if !action}<span class="colon">{': '}</span>{:else}{' '}{/if}<span
         class="body"
         class:action
-        dir="auto"><Body fragments={m.body} {channel} giant={has('gigantified')} /></span
+        dir="auto"><Body fragments={m.body} {channel} giant={has('gigantified')} words={m.highlight?.words} /></span
       >{#if m.repeat}<span class="repeat" data-tip="Said {m.repeat} times in a row">×{m.repeat}</span>{/if}{#if gone}<span
           class="gone">{gone}</span
         >{/if}

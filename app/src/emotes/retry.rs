@@ -38,7 +38,7 @@ async fn run(app: AppHandle, login: String, id: String, generation: u64, mut fai
             return;
         }
         let http = app.state::<crate::auth::Auth>().http.clone();
-        let got = providers::channel(&http, &id, lane, failed).await;
+        let got = providers::channel(&http, &id, lane, failed, providers::current(&app).sets_off).await;
         let now = got.failed;
         log_in(failed, now, &format!("emotes for {id}"), n + 1);
         if !merge(&app, &login, generation, failed, got) {

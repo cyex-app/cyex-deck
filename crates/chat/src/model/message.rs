@@ -147,6 +147,22 @@ pub struct Highlight {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub color: Option<String>,
+    /// V110-C57 Only these words take the color, the line stays plain (a phrase rule with
+    /// "colour only the matched words").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub words: Option<Vec<WordMark>>,
+}
+
+/// V110-C57 A matched stretch inside one text fragment, in UTF-16 units (what the page counts).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct WordMark {
+    /// Index in the message's body.
+    pub frag: u16,
+    pub from: u32,
+    pub to: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]

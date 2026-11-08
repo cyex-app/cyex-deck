@@ -32,6 +32,10 @@ pub struct Compiled {
     find: Find,
     whole_word: bool,
     fold: bool,
+    /// V110-C57 Colour only the matched words: `spans` has something to find them with.
+    pub words_only: bool,
+    /// V110-C57 The same pattern with the word edges as look-arounds, so a match is the word alone.
+    spans_re: Option<Regex>,
     /// Where it is in its settings list.
     pub index: usize,
     pub alert: Alert,
@@ -97,6 +101,7 @@ fn compile(m: &Mention, index: usize) -> Result<(Compiled, Option<&'static str>)
         m.pattern.clone()
     };
     let mut note = None;
+    let mut spans_re = None;
     let find = if !m.regex && pattern.is_ascii() {
         let needle: Box<[u8]> = pattern.trim().as_bytes().into();
         Find::Ascii {
@@ -117,15 +122,25 @@ fn compile(m: &Mention, index: usize) -> Result<(Compiled, Option<&'static str>)
         let body = if m.whole_word {
             format!(r"(?:^|[^\w])(?:{})(?:[^\w]|$)", t.pattern)
         } else {
-            t.pattern
+            t.pattern.clone()
         };
-        let re = RegexBuilder::new(&body)
-            .case_insensitive(t.ignore_case || !m.case_sensitive)
-            .backtrack_limit(BACKTRACK_LIMIT)
-            .delegate_size_limit(SIZE_LIMIT)
-            .delegate_dfa_size_limit(SIZE_LIMIT)
-            .build()
-            .map_err(|e| short_error(&e.to_string()))?;
+        let build = |body: &str| {
+            RegexBuilder::new(body)
+                .case_insensitive(t.ignore_case || !m.case_sensitive)
+                .backtrack_limit(BACKTRACK_LIMIT)
+                .delegate_size_limit(SIZE_LIMIT)
+                .delegate_dfa_size_limit(SIZE_LIMIT)
+                .build()
+        };
+        let re = build(&body).map_err(|e| short_error(&e.to_string()))?;
+        if m.words_only {
+            let edged = if m.whole_word {
+                format!(r"(?<![\w])(?:{})(?![\w])", t.pattern)
+            } else {
+                t.pattern.clone()
+            };
+            spans_re = build(&edged).ok();
+        }
         Find::Regex(re)
     };
     Ok((
@@ -134,6 +149,8 @@ fn compile(m: &Mention, index: usize) -> Result<(Compiled, Option<&'static str>)
             // The regex carries its own word edges.
             whole_word: m.whole_word && !m.regex && pattern.is_ascii(),
             fold: m.lookalikes,
+            words_only: m.words_only,
+            spans_re,
             index,
             alert: m.alert.clone(),
         },
@@ -155,6 +172,36 @@ pub(crate) fn short_error(e: &str) -> String {
 }
 
 impl Compiled {
+    /// V110-C57 Where this mention sits in `text`, as char ranges (a look-alike fold keeps
+    /// char positions), at most [`MAX_SPANS`]. Empty when it isn't a words-only rule.
+    pub fn spans(&self, text: &str) -> Vec<(usize, usize)> {
+        if !self.words_only {
+            return Vec::new();
+        }
+        let folded;
+        let text = if self.fold && !text.is_ascii() {
+            folded = lookalike::fold(text);
+            folded.as_str()
+        } else {
+            text
+        };
+        let bytes: Vec<(usize, usize)> = match &self.find {
+            Find::Ascii { needle, case_sensitive } => ascii_spans(text, needle, *case_sensitive, |s, e| {
+                !self.whole_word || edges(text, s, e)
+            }),
+            Find::Regex(_) => self.spans_re.as_ref().map_or_else(Vec::new, |re| {
+                re.find_iter(text)
+                    .map_while(Result::ok)
+                    .filter(|m| m.end() > m.start())
+                    .map(|m| (m.start(), m.end()))
+                    .take(MAX_SPANS)
+                    .collect()
+            }),
+        };
+        let at = |b: usize| text[..b].chars().count();
+        bytes.into_iter().map(|(s, e)| (at(s), at(e))).collect()
+    }
+
     fn matches(&self, text: &str) -> bool {
         match &self.find {
             Find::Ascii {
@@ -214,6 +261,33 @@ fn find_ascii(
         }
     }
     false
+}
+
+/// Most words one rule colours in a line.
+pub const MAX_SPANS: usize = 32;
+
+/// Every place `needle` sits in `text` (byte ranges, not overlapping) where `ok` agrees.
+fn ascii_spans(
+    text: &str,
+    needle: &[u8],
+    case_sensitive: bool,
+    mut ok: impl FnMut(usize, usize) -> bool,
+) -> Vec<(usize, usize)> {
+    let hay = text.as_bytes();
+    let n = needle.len();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while n > 0 && i + n <= hay.len() && out.len() < MAX_SPANS {
+        let window = &hay[i..i + n];
+        let same = if case_sensitive { window == needle } else { window.eq_ignore_ascii_case(needle) };
+        if same && ok(i, i + n) {
+            out.push((i, i + n));
+            i += n;
+        } else {
+            i += 1;
+        }
+    }
+    out
 }
 
 /// A list of mentions, compiled. Ones that are off, empty or don't compile are left out.
@@ -446,6 +520,21 @@ mod tests {
         let set = MentionSet::new(&[m("nope"), pinged]);
         let hit = set.first("hey cyex", &mut String::new()).unwrap();
         assert_eq!((hit.index, hit.alert.sound_file.as_str()), (1, "C:\\a.wav"));
+    }
+
+    /// V110-C57 Words-only rules say where they matched; others say nothing.
+    #[test]
+    fn spans_of_words_and_regexes() {
+        let spans = |r: Mention, text: &str| MentionSet::new(&[r]).first(text, &mut String::new()).unwrap().spans(text);
+        let word = Mention { words_only: true, ..m("cyex") };
+        assert_eq!(spans(word.clone(), "hi CYEX and cyex!"), [(3, 7), (12, 16)]);
+        assert_eq!(spans(word, "über cyex"), [(5, 9)], "chars, not bytes");
+        let loose = Mention { words_only: true, whole_word: false, ..m("ex") };
+        assert_eq!(spans(loose, "cyexex"), [(2, 4), (4, 6)]);
+        let re = Mention { words_only: true, regex: true, ..m(r"c\w+x") };
+        assert_eq!(spans(re, "a cyex b"), [(2, 6)], "the word, without the edges the match needs");
+        let plain = m("cyex");
+        assert!(spans(plain, "cyex").is_empty());
     }
 
     #[test]

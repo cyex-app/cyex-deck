@@ -4,6 +4,7 @@ use cyex_settings::schema::{Alert, IgnoreRule, SentFrom, UserRule};
 use fancy_regex::RegexBuilder as FancyBuilder;
 use regex::{NoExpand, Regex, RegexBuilder};
 
+use super::when::Cond;
 use crate::model::Client;
 
 /// V105-16 Highlight patterns for people (and `import_regex`): Rust syntax with lookaround
@@ -78,6 +79,8 @@ pub enum Replacement {
 pub struct Rule {
     pub matcher: HighlightMatcher,
     pub alert: Alert,
+    /// V110-C59
+    pub when: Option<Cond>,
 }
 
 pub struct Ignore {
@@ -85,6 +88,8 @@ pub struct Ignore {
     pub block: bool,
     pub replace: Replacement,
     pub route: String,
+    /// V110-C59
+    pub when: Option<Cond>,
 }
 
 /// V105-12 Empty rules (one being filled in) match nothing.
@@ -99,6 +104,7 @@ pub fn users(rules: &[UserRule]) -> Vec<Rule> {
                 HighlightMatcher::or_never(&format!("^{}$", regex::escape(&r.login)), false)
             },
             alert: r.alert.clone(),
+            when: Cond::new(r.when.as_ref()),
         })
         .collect()
 }
@@ -120,6 +126,7 @@ pub fn ignores(rules: &[IgnoreRule]) -> Vec<Ignore> {
                 Replacement::Plain(r.replace.clone())
             },
             route: r.route.clone(),
+            when: Cond::new(r.when.as_ref()),
         })
         .collect()
 }

@@ -54,7 +54,7 @@ pub(super) fn resync(app: &AppHandle) {
         let http = app.state::<Auth>().http.clone();
         for (login, id, generation) in joined {
             let lane = crate::chat::shown::lane(&app, &login);
-            let got = providers::channel(&http, &id, lane, which).await;
+            let got = providers::channel(&http, &id, lane, which, Which::default()).await;
             retry::merge(&app, &login, generation, which, got);
         }
     });

@@ -30,6 +30,7 @@
   import { modSlots, type LineMod } from '../modview/lineMod';
   import { messageItems, mods, pinItems, userItems } from '../modview/moderation.svelte';
   import { may, whose, type Act as ModAct } from '../modview/may';
+  import { onModTarget } from '../modview/lineMod';
   import { standingOf } from '../modview/standing';
   import { standings } from '../modview/standings.svelte';
   import { lineKind, pluginItems } from '../plugins/pluginMenus';
@@ -41,6 +42,8 @@
   import { ChatScroll } from './chatScroll.svelte';
   import { editable, MODIFIERS, pauseHeld } from './pauseKey';
   import { nameMenu } from './nameMenu';
+  import { actionFor, defaultTimeout, triggerOf } from './nameClick';
+  import ScrollMarks from './ScrollMarks.svelte';
   import { threadRoute } from './thread';
   import Line from './Line.svelte';
   import DateRow from '../../components/DateRow.svelte';
@@ -98,6 +101,8 @@
   );
 
   let list = $state<HTMLElement>();
+  /** V110-C55 The scrollbar's ticks. */
+  let marks = $state<ReturnType<typeof ScrollMarks>>();
   /** The lines inside `list`; V103-12 slides move this. */
   let lines = $state<HTMLElement>();
   // svelte-ignore state_referenced_locally
@@ -478,10 +483,25 @@
   function onpointerdown(e: PointerEvent) {
     // The pointer takes over from the keyboard.
     if (picked !== null && !(e.target as HTMLElement).closest('.acts')) clearPick();
+    const tick = e.button === 0 ? marks?.pick(e.clientX, e.clientY) : null;
+    if (tick) tickPress(tick, e);
     if (!list || e.clientX < list.getBoundingClientRect().right - 14) return;
     scroll.drag(true);
     stopGlide();
     addEventListener('pointerup', () => scroll.drag(false), { once: true });
+  }
+
+  /** V110-C55 A press on a scrollbar tick goes to its line when let go in place. A drag of the
+   *  thumb or a held press on the track is the scrollbar's own. */
+  function tickPress(id: string, e: PointerEvent) {
+    const { clientX: x, clientY: y } = e;
+    const done = (up: MouseEvent) => {
+      removeEventListener('pointerup', done);
+      removeEventListener('mouseup', done);
+      if (Math.hypot(up.clientX - x, up.clientY - y) < 4) jump(id);
+    };
+    addEventListener('pointerup', done);
+    addEventListener('mouseup', done);
   }
 
   function jumpDown() {
@@ -652,6 +672,47 @@
     }
   }
 
+  /** V110-M20 A click on a name runs what Settings → Chat binds to it. False: the usercard opens. */
+  function nameClick(e: MouseEvent, el: HTMLElement): boolean {
+    const trigger = triggerOf(e);
+    if (!trigger) return false;
+    const login = el.dataset.user!;
+    const line = el.closest<HTMLElement>('[data-id]');
+    const m = line ? room.find(line.dataset.id!) : undefined;
+    const mine = m?.sender?.login === login;
+    const badges = badgesOf(login, m);
+    const act = actionFor(c.nameClicks[trigger], {
+      reply: canReply && mine && shiftReply(true, m!, canSend ? canSend() : true),
+      mention: !!onmention,
+      mod:
+        !!caps &&
+        may(caps, 'user', whose({ id: mine ? m!.sender!.id : '', login, badges }, room.account, room.login)).offered &&
+        onModTarget(caps, standingOf(badges)?.mod).offered,
+    });
+    if (act === 'usercard') return false;
+    e.preventDefault();
+    hideTip();
+    if (act === 'reply') onreply(m!.id);
+    else if (act === 'mention') onmention?.(login);
+    else if (act === 'copy') void copy(login, 'Name');
+    else if (act === 'timeout') void command(`/timeout ${login} ${defaultTimeout(c.timeoutPresets)}`);
+    else if (act === 'ban') {
+      openMenu(e, [{ label: `Ban ${login}`, icon: 'gavel', danger: true, confirm: 'Click to ban', run: () => void command(`/ban ${login}`) }]);
+    } else if (act === 'logs') openInLogs(room.login, login, m?.source?.roomId);
+    return true;
+  }
+
+  /** V110-M20 The middle button: its binding, or nothing (it used to start the page's auto-scroll). */
+  function onauxclick(e: MouseEvent) {
+    if (e.button !== 1) return;
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-user]');
+    if (el && !nameClick(e, el)) openPart(e, el, host());
+  }
+
+  function onmousedown(e: MouseEvent) {
+    if (e.button === 1 && (e.target as HTMLElement).closest('[data-user]')) e.preventDefault();
+  }
+
   function onclick(e: MouseEvent) {
     const el = (e.target as HTMLElement).closest<HTMLElement>(
       `${PARTS},[data-reply],[data-thread],[data-jump],[data-whisper],[data-mod],[data-pin],[data-act]`,
@@ -666,6 +727,8 @@
       hideTip();
       menuHere = true;
       showMenu(el, pinItems(d.pin, command), 'end');
+    } else if (d.user && nameClick(e, el)) {
+      return;
     } else if (openPart(e, el, host())) {
       return;
     } else if (d.whisper) {
@@ -755,6 +818,8 @@
     {onpointerdown}
     {onfocusout}
     {onclick}
+    {onauxclick}
+    {onmousedown}
     {oncontextmenu}
     onmouseover={tips.onmouseover}
     onmouseout={tips.onmouseout}
@@ -774,6 +839,7 @@
       {/each}
     </div>
   </div>
+  {#if c.scrollMarks}<ScrollMarks bind:this={marks} {list} {lines} messages={drawn} />{/if}
   <!-- V108-F54 The picked line, read out once as it is picked. -->
   <div class="sr-only" aria-live="polite">{heard}</div>
   {#if warning}

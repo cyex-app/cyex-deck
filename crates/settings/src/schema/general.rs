@@ -19,6 +19,10 @@ pub struct General {
     pub tooltips: bool,
     /// U2 Minimizing the main window hides it to the tray.
     pub minimize_to_tray: bool,
+    /// V110-U50 Closing the main window hides it to the tray; Quit in the tray menu quits.
+    pub close_to_tray: bool,
+    /// V110-U50 The "still running in the tray" toast was shown once. Not a setting.
+    pub close_to_tray_told: bool,
     /// V103-11 The mouse wheel glides in every scrollable area, as in Chatterino. The page
     /// does it, so a change applies at once.
     pub smooth_scroll: bool,
@@ -41,6 +45,8 @@ impl Default for General {
             chat_position: ChatPosition::Right,
             tooltips: true,
             minimize_to_tray: false,
+            close_to_tray: false,
+            close_to_tray_told: false,
             smooth_scroll: true,
             streamer: StreamerMode::default(),
             updates: Updates::default(),

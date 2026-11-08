@@ -18,6 +18,9 @@
   import { splitList, withAlpha, type Field } from './fields';
   import Select from '../../../components/Select.svelte';
   import NumberField from '../../../components/NumberField.svelte';
+  import type { When } from '../../../ipc/bindings/When';
+  import RuleWhen from './RuleWhen.svelte';
+  import { whenSummary } from './when';
 
   interface Props {
     item: T;
@@ -44,6 +47,8 @@
     handle?: string;
     /** V106-10 An empty grip-wide column, so fixed rows line up with rows that have a grip. */
     gripSlot?: boolean;
+    /** V110-C59 Split rows: the rule has a `when` (channels, live, role…), edited under the row. */
+    conditions?: boolean;
   }
 
   let {
@@ -61,7 +66,12 @@
     slots = 0,
     handle,
     gripSlot = false,
+    conditions = false,
   }: Props = $props();
+
+  let condOpen = $state(false);
+  const when = $derived(item.when as When | null | undefined);
+  const summary = $derived(conditions ? whenSummary(when) : null);
 
   const split = $derived(layout === 'split');
   const shown = $derived(fields.filter((f) => !f.when || f.when(item)));
@@ -192,9 +202,30 @@
           {#each wide as f (f.key)}{@render cell(f)}{/each}
         </div>
       {/if}
+      {#if conditions}
+        <span class="does">
+          <IconToggle
+            icon="filter"
+            label={condOpen ? 'Hide conditions' : 'Conditions'}
+            hint={summary ?? 'Only in some channels or categories, while live, as mod, or after a burst.'}
+            pressed={!!summary || condOpen}
+            onchange={() => (condOpen = !condOpen)}
+          />
+        </span>
+      {/if}
     </div>
     <span class="del">{#if ondelete}<IconButton icon="trash" label="Delete" size={14} onclick={ondelete} />{/if}</span>
     {#if problem}<p class="problem">{problem}</p>{:else if note}<p class="note">{note}</p>{/if}
+    {#if conditions && (condOpen || summary)}
+      <div class="cond">
+        <RuleWhen
+          {when}
+          open={condOpen}
+          onopen={() => (condOpen = true)}
+          onchange={(w) => onchange({ ...item, when: w })}
+        />
+      </div>
+    {/if}
   </div>
 {:else}
   <div class="rule" class:off={item.enabled === false} data-setting={setting}>
@@ -313,7 +344,8 @@
     display: none;
   }
   .split.noon .problem,
-  .split.noon .note {
+  .split.noon .note,
+  .split.noon .cond {
     grid-column: 1 / -1;
   }
   .split > .on,
@@ -331,11 +363,13 @@
     grid-template-columns: 18px minmax(0, 1fr) 26px;
   }
   .split.grab .problem,
-  .split.grab .note {
+  .split.grab .note,
+  .split.grab .cond {
     grid-column: 3 / -1;
   }
   .split.grab.noon .problem,
-  .split.grab.noon .note {
+  .split.grab.noon .note,
+  .split.grab.noon .cond {
     grid-column: 2 / -1;
   }
   /* One icon toggle (26px) and its gap. */
@@ -352,8 +386,17 @@
     height: 26px;
   }
   .split .problem,
-  .split .note {
+  .split .note,
+  .split .cond {
     grid-column: 2 / -1;
+  }
+  /* V110-C59 */
+  .cond {
+    display: flex;
+    min-width: 0;
+  }
+  .cond > :global(.when) {
+    flex: 1 1 auto;
   }
   .body {
     display: flex;

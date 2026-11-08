@@ -166,6 +166,7 @@ pub fn build(app: &AppHandle, plugin: &str, login: &str, line: NewLine) -> ChatM
             highlight: line.highlight.map(|c| Highlight {
                 kind: HighlightKind::Rule,
                 color: (!c.is_empty()).then_some(c),
+                words: None,
             }),
             plugin: Some(PluginTag {
                 id: plugin.to_owned(),

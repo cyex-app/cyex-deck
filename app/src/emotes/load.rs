@@ -31,7 +31,7 @@ pub(super) fn globals(app: &AppHandle) {
     let want = {
         let state = app.state::<Emotes>();
         let mut inner = state.lock();
-        let want = Which::ALL.minus(inner.globals_done);
+        let want = inner.idle.not().minus(inner.globals_done);
         if inner.globals_loading || !want.any() {
             return;
         }
@@ -44,13 +44,26 @@ pub(super) fn globals(app: &AppHandle) {
 /// A channel's sets for join `generation`. B1 Put in like a retry's (`retry::merge`), in
 /// place of what a socket change or an earlier join put in first.
 pub fn channel(app: AppHandle, login: String, id: String, generation: u64) {
+    let idle = app.state::<Emotes>().lock().idle;
+    channel_of(app, login, id, generation, idle.not());
+}
+
+/// V110-E13 The sets of those in `want` only: a join asks for what's switched on, turning a
+/// provider on asks for just that one.
+pub(super) fn channel_of(app: AppHandle, login: String, id: String, generation: u64, want: Which) {
     globals(&app);
+    if !want.any() {
+        // Nothing to fetch: the room is as ready as it gets.
+        super::retry::merge(&app, &login, generation, want, super::providers::Fetched::default());
+        return;
+    }
     tauri::async_runtime::spawn(async move {
         let http = http(&app);
         let lane = crate::chat::shown::lane(&app, &login);
-        let got = super::providers::channel(&http, &id, lane, Which::ALL).await;
+        let sets_off = super::providers::current(&app).sets_off;
+        let got = super::providers::channel(&http, &id, lane, want, sets_off).await;
         let failed = got.failed;
-        if super::retry::merge(&app, &login, generation, Which::ALL, got) && failed.any() {
+        if super::retry::merge(&app, &login, generation, want, got) && failed.any() {
             super::retry::spawn(app, login, id, generation, failed);
         }
     });
@@ -104,6 +117,10 @@ pub fn seventv_set(app: AppHandle, login: String, set_id: Option<String>, actor:
         let (generation, ticket) = {
             let state = app.state::<Emotes>();
             let mut inner = state.lock();
+            // V110-E13 With 7TV emotes off a channel's set switch changes nothing here.
+            if inner.sets_off.seventv {
+                return;
+            }
             let Some(c) = inner.channels.get_mut(&login) else {
                 return;
             };

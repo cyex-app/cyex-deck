@@ -13,6 +13,7 @@
   import type { SmAdSettings } from '../../ipc/bindings/SmAdSettings';
   import { smIpc } from '../../ipc/streammanager';
   import { formatDuration, formatSecs } from '../../lib/format';
+  import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import Card from '../../components/PanelCard.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
@@ -21,9 +22,10 @@
   import { errorText } from '../../lib/errors';
   import Select from '../../components/Select.svelte';
 
-  const LENGTHS = [30, 60, 90, 120, 180].map((v) => ({ value: v, label: formatSecs(v) }));
+  /** V110-M23 Your ad lengths and default (Settings > Chat). */
+  const LENGTHS = $derived(settings.v.chat.adPresets.map((v) => ({ value: v, label: formatSecs(v) })));
 
-  let length = $state(60);
+  let length = $state(settings.v.chat.adLength);
   let schedule = $state<AdSchedule | null>(null);
   let adSet = $state<SmAdSettings | null>(null);
   /** D5 Minutes before an ad for the reminder. */

@@ -153,9 +153,15 @@ async fn pump(app: AppHandle, mut rx: mpsc::UnboundedReceiver<Event>) {
                 crate::chat::live::on_event(&app, &e);
                 crate::miner::on_channel_event(&app, &e);
             }
-            Kind::Playback | Kind::Raid => {
+            Kind::Playback => {
                 crate::miner::on_channel_event(&app, &e);
                 crate::streammanager::on_hermes(&app, &e);
+            }
+            Kind::Raid => {
+                crate::miner::on_channel_event(&app, &e);
+                crate::streammanager::on_hermes(&app, &e);
+                // V110-U43 The raid banner over the channel's chats.
+                crate::chat::raid::on_event(&app, &e);
             }
             Kind::Moments => crate::miner::on_channel_event(&app, &e),
             Kind::UserPoints => {

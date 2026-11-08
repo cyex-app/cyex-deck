@@ -14,6 +14,7 @@ mod highlights;
 mod hotkeys;
 mod miner;
 mod modview;
+mod name_clicks;
 mod notifications;
 mod panels;
 mod player;
@@ -46,9 +47,13 @@ pub use highlights::{
     Alert, AppRule, BadgeRule, Blocked, BlockedShow, BuiltIn, FilterDef, HiddenUser, Highlights, IgnoreRule, PhraseRule,
     RegexFlavor, SOUND_TYPES, SentFrom, Similarity, UserRule, is_sound_file,
 };
+// V110-C59
+pub use highlights::{LiveWhen, RoleWhen, When};
 pub use hotkeys::Hotkeys;
 pub use miner::{BetFilter, Bets, ChatPresence, DelayMode, FilterBy, FilterCmp, MAX_FIRST, MineSource, Miner, Rule, Strategy};
 pub use modview::Modview;
+// V110-M20
+pub use name_clicks::{NameClick, NameClicks};
 pub use notifications::{InAppCards, LiveAlerts, LiveScope, Notifications};
 pub use panels::{PanelNode, SplitDir, sanitize as sanitize_panels};
 pub use player::{Corner, Player, Quality};

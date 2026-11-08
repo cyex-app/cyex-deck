@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use super::when::When;
+
 pub(super) const MAX_PATTERN_CHARS: usize = 500;
 pub(super) const MAX_ROUTE_CHARS: usize = 40;
 const MAX_PATH_CHARS: usize = 1000;
@@ -134,9 +136,15 @@ pub struct PhraseRule {
     pub whole_word: bool,
     /// Look-alike letters count (Cyrillic а for a, 𝐟𝐚𝐧𝐜𝐲 text).
     pub lookalikes: bool,
+    /// V110-C57 Colour only the matched words; the line itself stays plain.
+    pub words_only: bool,
     #[serde(flatten)]
     #[ts(flatten)]
     pub alert: Alert,
+    /// V110-C59 Only applies while these hold. `None` (older files too): always.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub when: Option<When>,
 }
 
 impl Default for PhraseRule {
@@ -151,7 +159,9 @@ impl Default for PhraseRule {
             case_sensitive: false,
             whole_word: true,
             lookalikes: false,
+            words_only: false,
             alert: Alert::default(),
+            when: None,
         }
     }
 }
@@ -181,6 +191,10 @@ pub struct UserRule {
     #[serde(flatten)]
     #[ts(flatten)]
     pub alert: Alert,
+    /// V110-C59 Only applies while these hold. `None` (older files too): always.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub when: Option<When>,
 }
 
 impl Default for UserRule {
@@ -190,6 +204,7 @@ impl Default for UserRule {
             login: String::new(),
             regex: false,
             alert: Alert::default(),
+            when: None,
         }
     }
 }
@@ -205,6 +220,10 @@ pub struct BadgeRule {
     #[serde(flatten)]
     #[ts(flatten)]
     pub alert: Alert,
+    /// V110-C59 Only applies while these hold. `None` (older files too): always.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub when: Option<When>,
 }
 
 impl Default for BadgeRule {
@@ -213,6 +232,7 @@ impl Default for BadgeRule {
             enabled: true,
             badge: String::new(),
             alert: Alert::default(),
+            when: None,
         }
     }
 }
@@ -239,6 +259,10 @@ pub struct AppRule {
     #[serde(flatten)]
     #[ts(flatten)]
     pub alert: Alert,
+    /// V110-C59 Only applies while these hold. `None` (older files too): always.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub when: Option<When>,
 }
 
 impl Default for AppRule {
@@ -247,6 +271,7 @@ impl Default for AppRule {
             enabled: true,
             app: SentFrom::Web,
             alert: Alert::default(),
+            when: None,
         }
     }
 }
@@ -266,6 +291,10 @@ pub struct IgnoreRule {
     pub replace: String,
     /// F4 A hidden message still goes to this feed tab.
     pub route: String,
+    /// V110-C59 Only applies while these hold. `None` (older files too): always.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub when: Option<When>,
 }
 
 impl Default for IgnoreRule {
@@ -278,6 +307,7 @@ impl Default for IgnoreRule {
             block: false,
             replace: "***".into(),
             route: String::new(),
+            when: None,
         }
     }
 }

@@ -23,6 +23,7 @@ mod notify;
 mod player;
 mod plugins;
 mod profile_images;
+mod raid;
 mod rewards;
 mod rewind;
 mod roles;
@@ -175,6 +176,9 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         chat_extra::chat_moments,
         hypetrain::chat_hype_train,
         hypetrain::chat_hype_watch,
+        raid::chat_raid,
+        raid::chat_raid_watch,
+        raid::chat_raid_join,
         standing::chat_standing,
         standing::chat_standing_known,
         standing::chat_request_unban,

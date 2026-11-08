@@ -151,7 +151,9 @@ pub fn parse(text: &str, regex: impl Fn(&str) -> Result<String, String>) -> Resu
             case_sensitive: p.case,
             whole_word: !p.regex,
             lookalikes: false,
+            words_only: false,
             alert: alert(p.alert, p.sound, p.show_in_mentions, &p.sound_url, &p.color),
+            when: None,
         });
     }
     for u in section.users {
@@ -167,6 +169,7 @@ pub fn parse(text: &str, regex: impl Fn(&str) -> Result<String, String>) -> Resu
             login: stored,
             regex: u.regex,
             alert: alert(u.alert, u.sound, u.show_in_mentions, &u.sound_url, &u.color),
+            when: None,
         });
     }
     for b in section.badges {
@@ -184,6 +187,7 @@ pub fn parse(text: &str, regex: impl Fn(&str) -> Result<String, String>) -> Resu
                 enabled: true,
                 badge,
                 alert: alert(b.alert, b.sound, b.show_in_mentions, &b.sound_url, &b.color),
+                when: None,
             });
         }
     }

@@ -25,6 +25,9 @@ mod park;
 pub mod peek;
 pub mod points;
 pub mod powerups;
+pub mod raid;
+#[cfg(feature = "mocks")]
+pub mod raid_mock;
 pub mod record;
 mod refill;
 pub mod roles;
@@ -93,6 +96,9 @@ pub struct Chat {
     joins: AtomicBool,
     /// C37 V108-C02 Leaves as lines.
     parts: AtomicBool,
+    /// V110-M28 `chat.readWhileBanned`: a chat Twitch keeps from a banned account is read
+    /// through the anonymous connection.
+    read_banned: AtomicBool,
     /// V107-R16 Joined channels, their ids and generations.
     pub channels: channels::Registry<AppHandle>,
 }
@@ -157,6 +163,9 @@ struct Entry {
     history: bool,
     /// V108-C01 Which join this is (`Inner::next_epoch`).
     epoch: u64,
+    /// V110-M28 Banned here and read through the anonymous connection meanwhile: its lines
+    /// are routed into this room (`session::mirror`).
+    mirror: bool,
 }
 
 #[derive(Serialize, TS)]
@@ -178,6 +187,7 @@ pub fn init(app: &AppHandle) {
         scrollback: AtomicUsize::new(cyex_chat::BUFFER),
         joins: AtomicBool::new(false),
         parts: AtomicBool::new(false),
+        read_banned: AtomicBool::new(true),
         channels: channels::Registry::default(),
     });
     app.state::<Chat>().channels.hook(crate::emotes::on_channel);
@@ -259,6 +269,9 @@ pub fn on_settings(app: &AppHandle) {
         for s in chat.lock().sessions.values() {
             s.client.reconnect();
         }
+    }
+    if chat.read_banned.swap(c.read_while_banned, Ordering::Relaxed) != c.read_while_banned {
+        session::resync_mirrors(app);
     }
     let keep = c.scrollback as usize;
     if chat.scrollback.swap(keep, Ordering::Relaxed) != keep {
@@ -404,6 +417,7 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
     let epoch = inner.next_epoch;
     room.set_keep(app.state::<Chat>().scrollback.load(Ordering::Relaxed));
     room.set_rules(rules::current(app));
+    rules::stream_into(app, &mut room);
     room.set_hook(crate::plugins::line_hook(app));
     session::ensure(app, inner, identity).client.join(login);
     inner.rooms.insert(
@@ -422,6 +436,7 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
             loaded: history,
             history,
             epoch,
+            mirror: false,
         },
     );
     Some(Joined {
@@ -452,7 +467,13 @@ fn leave(app: &AppHandle, inner: &mut Inner, key: &RoomKey) -> bool {
     }
     let (identity, login) = key;
     if let Some(s) = inner.sessions.get(identity) {
-        s.client.part(login);
+        // V110-M28 The anonymous connection keeps a channel a banned room still reads through.
+        if !(matches!(identity, Identity::Anon) && session::mirrored_here(inner, login)) {
+            s.client.part(login);
+        }
+    }
+    if entry.mirror {
+        session::release_anon(inner, login);
     }
     let still_used = inner.rooms.keys().any(|(i, _)| i == identity);
     if !still_used && let Some(s) = inner.sessions.remove(identity) {

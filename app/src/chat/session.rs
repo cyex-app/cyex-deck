@@ -284,7 +284,103 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
         return;
     }
     let Some(channel) = line.channel() else { return };
+    // V110-M28 The anonymous connection also feeds the banned rooms that read through it.
+    if matches!(identity, Identity::Anon) {
+        mirror(app, channel, &line, raw);
+    }
     room_line(app, identity, channel, &line, raw);
+}
+
+/// V110-M28 What a room's anonymous mirror does after a status change.
+#[derive(Debug, PartialEq, Eq)]
+enum Mirror {
+    Start,
+    Stop,
+}
+
+/// V110-M28 Whether a room starts or stops reading through the anonymous connection. Starts
+/// when Twitch keeps the chat from the account for a ban and the setting is on; stops once
+/// the account is in (or the setting is off). Trying to get back in (`Connecting`,
+/// `Reconnecting`) keeps it, so a failed rejoin leaves no gap.
+fn mirror_step(account: bool, status: ConnStatus, mirrored: bool, read: bool) -> Option<Mirror> {
+    if !account {
+        return None;
+    }
+    match (mirrored, status) {
+        (false, ConnStatus::Banned) if read => Some(Mirror::Start),
+        (true, _) if !read => Some(Mirror::Stop),
+        (true, ConnStatus::Banned | ConnStatus::Connecting | ConnStatus::Reconnecting) => None,
+        (true, _) => Some(Mirror::Stop),
+        _ => None,
+    }
+}
+
+/// V110-M28 Puts the room's anonymous mirror right for its status. The anonymous join doesn't
+/// count toward the account's chat limit (`joining` skips it).
+pub(super) fn sync_mirror(app: &AppHandle, inner: &mut Inner, key: &RoomKey) {
+    let read = app.state::<Chat>().read_banned.load(std::sync::atomic::Ordering::Relaxed);
+    let Some(e) = inner.rooms.get_mut(key) else { return };
+    match mirror_step(matches!(key.0, Identity::Account(_)), e.room.status, e.mirror, read) {
+        Some(Mirror::Start) => {
+            e.mirror = true;
+            ensure(app, inner, &Identity::Anon).client.join(&key.1);
+        }
+        Some(Mirror::Stop) => {
+            e.mirror = false;
+            release_anon(inner, &key.1);
+        }
+        None => {}
+    }
+}
+
+/// V110-M28 The setting changed: every account room settles.
+pub(super) fn resync_mirrors(app: &AppHandle) {
+    let Some(chat) = app.try_state::<Chat>() else { return };
+    let mut inner = chat.lock();
+    let keys: Vec<RoomKey> = inner.rooms.keys().cloned().collect();
+    for k in &keys {
+        sync_mirror(app, &mut inner, k);
+    }
+}
+
+/// V110-M28 A banned room reads `channel` through the anonymous connection.
+pub(super) fn mirrored_here(inner: &Inner, channel: &str) -> bool {
+    inner.rooms.iter().any(|((_, c), e)| e.mirror && c == channel)
+}
+
+/// V110-M28 A mirror ended: the anonymous connection leaves the channel unless an anonymous
+/// room or another mirror still needs it, and stops when it has nothing left.
+pub(super) fn release_anon(inner: &mut Inner, channel: &str) {
+    let anon_room = inner.rooms.keys().any(|(i, c)| matches!(i, Identity::Anon) && c == channel);
+    if !anon_room
+        && !mirrored_here(inner, channel)
+        && let Some(s) = inner.sessions.get(&Identity::Anon)
+    {
+        s.client.part(channel);
+    }
+    let idle = !inner.rooms.keys().any(|(i, _)| matches!(i, Identity::Anon)) && !inner.rooms.values().any(|e| e.mirror);
+    if idle && let Some(s) = inner.sessions.remove(&Identity::Anon) {
+        s.client.stop();
+    }
+}
+
+/// V110-M28 Routes a line from the anonymous connection into the banned rooms of `channel`.
+fn mirror(app: &AppHandle, channel: &str, line: &Line<'_>, raw: &str) {
+    // Its own join and part (and other anonymous readers') say nothing.
+    if matches!(line.command, "JOIN" | "PART") && line.nick().starts_with("justinfan") {
+        return;
+    }
+    let to: Vec<Identity> = app
+        .state::<Chat>()
+        .lock()
+        .rooms
+        .iter()
+        .filter(|((i, c), e)| e.mirror && c == channel && matches!(i, Identity::Account(_)))
+        .map(|((i, _), _)| i.clone())
+        .collect();
+    for id in &to {
+        room_line(app, id, channel, line, raw);
+    }
 }
 
 fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_>, raw: &str) {
@@ -307,6 +403,7 @@ fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_
         let events = entry.room.set_status(ConnStatus::Joined, now_ms());
         queue(entry, events, &chat.wake);
         let gap = entry.room.take_gap(now_ms());
+        sync_mirror(app, &mut inner, &key);
         drop(inner);
         if was_refused {
             crate::connections::notify(app);
@@ -361,6 +458,7 @@ fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_
         .any(|e| matches!(e, RoomEvent::Delete { .. } | RoomEvent::ClearUser { .. }))
         .then(|| events.clone());
     queue(entry, events, &chat.wake);
+    sync_mirror(app, &mut inner, &key);
     drop(inner);
 
     if refused != was_refused {
@@ -556,6 +654,23 @@ fn say(app: &AppHandle, key: &RoomKey, text: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v110_m28_a_banned_room_reads_anonymously_until_it_is_let_in() {
+        use ConnStatus::*;
+        // Starts on the ban, only with the setting on and only for an account.
+        assert_eq!(mirror_step(true, Banned, false, true), Some(Mirror::Start));
+        assert_eq!(mirror_step(true, Banned, false, false), None);
+        assert_eq!(mirror_step(false, Banned, false, true), None);
+        assert_eq!(mirror_step(true, Joined, false, true), None);
+        // Trying to get back in keeps it; being in, or the setting going off, ends it.
+        for s in [Banned, Connecting, Reconnecting] {
+            assert_eq!(mirror_step(true, s, true, true), None, "{s:?}");
+        }
+        assert_eq!(mirror_step(true, Joined, true, true), Some(Mirror::Stop));
+        assert_eq!(mirror_step(true, AuthFailed, true, true), Some(Mirror::Stop));
+        assert_eq!(mirror_step(true, Banned, true, false), Some(Mirror::Stop));
+    }
 
     #[test]
     fn only_our_own_join_counts_as_joined() {

@@ -3,7 +3,11 @@
 /**
  * D2 A raid counting down from your channel.
  */
-export type SmRaid = { id: string, targetLogin: string, targetName: string, targetAvatar: string, 
+export type SmRaid = { id: string, 
+/**
+ * V110-U43 The raided channel's id, to open it.
+ */
+targetId: string, targetLogin: string, targetName: string, targetAvatar: string, 
 /**
  * Viewers going along.
  */

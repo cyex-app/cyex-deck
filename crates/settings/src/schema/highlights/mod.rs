@@ -4,11 +4,13 @@
 
 mod logins;
 mod rules;
+mod when;
 
 pub use rules::{
     Alert, AppRule, BadgeRule, Blocked, BlockedShow, BuiltIn, FilterDef, HiddenUser, IgnoreRule, PhraseRule,
     RegexFlavor, SOUND_TYPES, SentFrom, Similarity, UserRule, is_sound_file,
 };
+pub use when::{LiveWhen, RoleWhen, When};
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -145,6 +147,13 @@ impl Schema for Highlights {
             clip(&mut r.pattern, MAX_PATTERN_CHARS);
             r.alert.sanitize();
         }
+        // V110-C59 Global rows match chats you aren't in: no conditions there.
+        for r in &mut self.phrases {
+            when::sanitize(&mut r.when);
+        }
+        for r in &mut self.global_list {
+            r.when = None;
+        }
         self.global_feed = self.global_feed.trim().chars().take(MAX_ROUTE_CHARS).collect();
         // V108-GM Off: nothing to carry over; switching it on adds the name anyway.
         if !self.global {
@@ -165,16 +174,19 @@ impl Schema for Highlights {
             }
             clip(&mut r.login, MAX_PATTERN_CHARS);
             r.alert.sanitize();
+            when::sanitize(&mut r.when);
         }
         self.users.truncate(MAX_RULES);
         for r in &mut self.badges {
             r.badge = r.badge.trim().to_ascii_lowercase();
             clip(&mut r.badge, MAX_BADGE_CHARS);
             r.alert.sanitize();
+            when::sanitize(&mut r.when);
         }
         self.badges.truncate(MAX_RULES);
         for r in &mut self.apps {
             r.alert.sanitize();
+            when::sanitize(&mut r.when);
         }
         self.apps.truncate(MAX_RULES);
         for list in [&mut self.never, &mut self.muted] {
@@ -200,6 +212,7 @@ impl Schema for Highlights {
             clip(&mut r.pattern, MAX_PATTERN_CHARS);
             clip(&mut r.replace, MAX_PATTERN_CHARS);
             r.route = r.route.trim().chars().take(MAX_ROUTE_CHARS).collect();
+            when::sanitize(&mut r.when);
         }
         self.filters.retain_mut(|f| {
             clip(&mut f.name, MAX_NAME_CHARS);

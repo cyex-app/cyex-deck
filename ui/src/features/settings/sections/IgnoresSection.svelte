@@ -48,6 +48,7 @@
 <SectionHead title="Words">Hide messages that contain these.</SectionHead>
 <RuleList
   setting="highlights.ignores"
+  conditions
   items={h.ignores}
   {fields}
   layout="split"

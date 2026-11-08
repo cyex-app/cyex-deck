@@ -313,6 +313,7 @@ impl Reader {
         m.meta.highlight = Some(Highlight {
             kind: HighlightKind::Mention,
             color: (!color.is_empty()).then_some(color),
+            words: None,
         });
         let m = Arc::new(m);
         // V107-H16 V108-GM The global tab (or its feed) when the row asks for it, plus any feed of its own.

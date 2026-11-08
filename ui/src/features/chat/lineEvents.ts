@@ -10,6 +10,7 @@ import { chatIpc } from '../../ipc/chat';
 import { systemIpc } from '../../ipc/system';
 import { copy } from '../../lib/clipboard';
 import { errorText } from '../../lib/errors';
+import { formatStamp } from '../../lib/format';
 import { hostOf } from '../../lib/host';
 import { settings } from '../../lib/settings.svelte';
 import { toast } from '../../lib/toast.svelte';
@@ -115,7 +116,7 @@ export const notEmote = cancelEmoteMenu;
 
 /** 1.52 Picture widths, Chatterino's sizes. */
 const THUMBS = { off: 0, small: 100, medium: 200, large: 300 } as const;
-const TIPPED = '[data-tip],[data-link],[data-emoji]';
+const TIPPED = '[data-tip],[data-link],[data-emoji],[data-stamp]';
 
 /** Tips for badges, links (X2, 1.52) and emoji (V102-07) inside `root`. c-4 A line that drops
  *  off, scrolls away or goes with the tab gives no mouseout, so its tip goes with it. */
@@ -169,6 +170,8 @@ export function lineTips(root: () => HTMLElement | undefined) {
       hold(el);
       if (el.dataset.link) return linkTip(el);
       if (el.dataset.emoji) return emojiTip(el);
+      // V110-C65 A line's time: the full date and time.
+      if (el.dataset.stamp) return showTip(el, { label: formatStamp(Number(el.dataset.stamp)) });
       showTip(el, { label: el.dataset.tip ?? '', hint: el.dataset.hint, image: el.dataset.tipImg, paint: el.dataset.tipPaint });
     },
     onmouseout(e: MouseEvent) {

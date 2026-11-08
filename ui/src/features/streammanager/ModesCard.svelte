@@ -5,6 +5,7 @@
   import type { ChatModes } from '../../ipc/bindings/ChatModes';
   import type { SmMode } from '../../ipc/bindings/SmMode';
   import { smIpc } from '../../ipc/streammanager';
+  import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import Card from '../../components/PanelCard.svelte';
   import { errorText } from '../../lib/errors';
@@ -14,18 +15,12 @@
   import Loading from '../../components/Loading.svelte';
   import Button from '../../components/Button.svelte';
 
-  /** Minimum follow age, in minutes. 0 = any follower. */
-  const FOLLOW: { value: number; label: string }[] = [
+  /** V110-M23 Your lengths (Settings > Chat); "Any follower" is always first. */
+  const FOLLOW = $derived([
     { value: 0, label: 'Any follower' },
-    { value: 10, label: formatSecs(600) },
-    { value: 30, label: formatSecs(1800) },
-    { value: 60, label: formatSecs(3600) },
-    { value: 1440, label: formatSecs(86_400) },
-    { value: 10080, label: formatSecs(604_800) },
-    { value: 43200, label: formatSecs(2_592_000) },
-    { value: 129600, label: formatSecs(7_776_000) },
-  ];
-  const SLOW = [3, 5, 10, 20, 30, 60, 120];
+    ...settings.v.chat.followPresets.map((m) => ({ value: m, label: formatSecs(m * 60) })),
+  ]);
+  const SLOW = $derived(settings.v.chat.slowPresets);
 
   let modes = $state<ChatModes | null>(null);
   let failed = $state(false);

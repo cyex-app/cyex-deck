@@ -64,6 +64,23 @@ pub fn rebuild(app: &AppHandle) {
     }
 }
 
+/// V110-C59 Live state and category for rule conditions, after each live check.
+pub fn note_live(app: &AppHandle, channels: &[gql::ChannelInfo]) {
+    let Some(chat) = app.try_state::<Chat>() else { return };
+    for entry in chat.lock().rooms.values_mut() {
+        if let Some(c) = channels.iter().find(|c| c.login == entry.room.login) {
+            entry.room.set_stream(c.stream.is_some(), c.stream.as_ref().and_then(|s| s.game.as_deref()));
+        }
+    }
+}
+
+/// V110-C59 A new room starts with what the last live check said.
+pub fn stream_into(app: &AppHandle, room: &mut cyex_chat::Room) {
+    if let Some(c) = crate::tabs::live::snapshot(app).into_iter().find(|c| c.login == room.login) {
+        room.set_stream(c.stream.is_some(), c.stream.as_ref().and_then(|s| s.game.as_deref()));
+    }
+}
+
 /// F2 Every signed-in account's block list, Helix first, else GQL.
 pub fn load_blocked(app: AppHandle) {
     tauri::async_runtime::spawn(async move {

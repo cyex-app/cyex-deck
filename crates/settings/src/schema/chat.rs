@@ -6,12 +6,20 @@ use ts_rs::TS;
 use super::Schema;
 use super::emotes::{EmoteKey, EmoteSource, dedupe};
 use super::highlights::clean_color;
+use super::name_clicks::NameClicks;
 
 /// Twitch's longest timeout: 14 days.
 const MAX_TIMEOUT_SECS: u32 = 1_209_600;
 const MAX_TIMEOUT_PRESETS: usize = 8;
 /// M10 Timeout buttons mod mode can show.
 const MAX_MOD_TIMEOUTS: usize = 4;
+/// V110-M23 Slow mode lengths in seconds (Twitch: 3 to 120), follow ages in minutes (0 is
+/// "any follower" and always there; up to 3 months), ad lengths in seconds (Twitch: 30 to
+/// 180 in steps of 30). Each list holds at most this many.
+const SLOW_SECS: std::ops::RangeInclusive<u32> = 3..=120;
+const FOLLOW_MINUTES: std::ops::RangeInclusive<u32> = 1..=129_600;
+const AD_SECS: [u32; 6] = [30, 60, 90, 120, 150, 180];
+const MAX_MODE_PRESETS: usize = 10;
 /// V105-15 Entries in the button order, off timeouts included.
 const MAX_MOD_ORDER: usize = 32;
 const MAX_NICKNAME_CHARS: usize = 25;
@@ -45,8 +53,17 @@ pub struct Chat {
     pub paints: PaintToggles,
     /// 2.3
     pub twitch_emotes: bool,
-    /// 2.3 7TV, BTTV and FFZ emotes as one group.
-    pub third_party_emotes: bool,
+    /// V110-E13 7TV emotes. Off: not fetched, not drawn, not offered, not in the order.
+    pub seventv_emotes: bool,
+    /// V110-E13 BTTV emotes, as `seventv_emotes`.
+    pub bttv_emotes: bool,
+    /// V110-E13 FFZ emotes, as `seventv_emotes`.
+    pub ffz_emotes: bool,
+    /// V110-E13 The one switch from before for all three: read once, then the three take over.
+    /// Never written back.
+    #[serde(rename = "thirdPartyEmotes", skip_serializing)]
+    #[ts(skip)]
+    pub old_third_party_emotes: Option<bool>,
     /// 2.4
     pub unlisted_emotes: UnlistedEmotes,
     /// V106-30 The user picked show or blur for unlisted emotes. Until then the emote card offers
@@ -73,6 +90,16 @@ pub struct Chat {
     pub timestamps: Timestamps,
     /// 2.11 Quick timeout durations in seconds, shortest first.
     pub timeout_presets: Vec<u32>,
+    /// V110-M23 Slow mode lengths in seconds, shortest first.
+    pub slow_presets: Vec<u32>,
+    /// V110-M23 Followers-only ages in minutes, shortest first. "Any follower" is always offered.
+    pub follow_presets: Vec<u32>,
+    /// V110-M23 Ad lengths in seconds, shortest first.
+    pub ad_presets: Vec<u32>,
+    /// V110-M23 The ad length picked when the stream manager opens.
+    pub ad_length: u32,
+    /// V110-M28 While banned in a chat, keep reading it anonymously.
+    pub read_while_banned: bool,
     /// C1 Load recent messages when joining.
     pub history: bool,
     /// C37 V108-C02 Who joins the chat, as lines. Only in chats under 1.000 viewers.
@@ -105,6 +132,10 @@ pub struct Chat {
     pub pause_key: PauseKey,
     /// C5 Mark where you stopped reading when the window loses focus.
     pub last_read_line: bool,
+    /// V110-C55 Ticks on the scrollbar at highlights, mentions and event lines. Click one to go there.
+    pub scroll_marks: bool,
+    /// V110-M20 What clicking a name does (click, middle, Ctrl, Shift).
+    pub name_clicks: NameClicks,
     /// V103-12 New messages slide in instead of popping up. Fast chats skip the slide.
     pub smooth_new_messages: bool,
     /// C2 One line with a count when someone repeats themselves. Setting, off.
@@ -117,6 +148,8 @@ pub struct Chat {
     pub rate_meter: bool,
     /// V108-N04 The hype train bar over the chat while a train runs.
     pub hype_train_bar: bool,
+    /// V110-U43 A "Join raid" button on the raid banner. Joining is always by hand. Off.
+    pub raid_join: bool,
     /// 1.52 Hover a link for a preview.
     pub link_previews: bool,
     /// 1.52
@@ -159,7 +192,10 @@ impl Default for Chat {
             badges: BadgeToggles::default(),
             paints: PaintToggles::default(),
             twitch_emotes: true,
-            third_party_emotes: true,
+            seventv_emotes: true,
+            bttv_emotes: true,
+            ffz_emotes: true,
+            old_third_party_emotes: None,
             unlisted_emotes: UnlistedEmotes::Blur,
             unlisted_chosen: false,
             emote_priority: EmoteSource::THIRD_PARTY.to_vec(),
@@ -172,6 +208,11 @@ impl Default for Chat {
             gifs: GifMode::Show,
             timestamps: Timestamps::default(),
             timeout_presets: vec![60, 600, 3600, 86_400],
+            slow_presets: vec![3, 5, 10, 20, 30, 60, 120],
+            follow_presets: vec![10, 30, 60, 1440, 10_080, 43_200, 129_600],
+            ad_presets: AD_SECS[..5].to_vec(),
+            ad_length: 60,
+            read_while_banned: true,
             history: true,
             joins: false,
             parts: false,
@@ -186,12 +227,15 @@ impl Default for Chat {
             pause_still_tenths: 0,
             pause_key: PauseKey::Alt,
             last_read_line: true,
+            scroll_marks: true,
+            name_clicks: NameClicks::default(),
             smooth_new_messages: false,
             repeats: false,
             repeat_similarity: 80,
             show_client: false,
             rate_meter: false,
             hype_train_bar: true,
+            raid_join: false,
             link_previews: true,
             link_thumbnails: LinkThumbs::Medium,
             link_cards: false,
@@ -216,6 +260,7 @@ impl Default for Chat {
 impl Schema for Chat {
     fn sanitize(&mut self) {
         self.cheer_confirm_bits = self.cheer_confirm_bits.max(1);
+        self.name_clicks.sanitize();
         // V106-30 Anyone on show or hide already chose. Never sets false.
         if self.unlisted_emotes != UnlistedEmotes::Blur {
             self.unlisted_chosen = true;
@@ -230,11 +275,35 @@ impl Schema for Chat {
             self.joins = true;
             self.parts = true;
         }
+        // V110-E13 The old switch for all three sets each of them, once.
+        if let Some(on) = self.old_third_party_emotes.take() {
+            self.seventv_emotes = on;
+            self.bttv_emotes = on;
+            self.ffz_emotes = on;
+        }
         let presets = &mut self.timeout_presets;
         presets.retain(|s| (1..=MAX_TIMEOUT_SECS).contains(s));
         presets.sort_unstable();
         presets.dedup();
         presets.truncate(MAX_TIMEOUT_PRESETS);
+        // V110-M23 Each list: in range, sorted, once, never empty (empty gets the defaults).
+        let fix = |list: &mut Vec<u32>, ok: &dyn Fn(u32) -> bool, default: Vec<u32>| {
+            list.retain(|s| ok(*s));
+            list.sort_unstable();
+            list.dedup();
+            list.truncate(MAX_MODE_PRESETS);
+            if list.is_empty() {
+                *list = default;
+            }
+        };
+        let d = Self::default();
+        fix(&mut self.slow_presets, &|s| SLOW_SECS.contains(&s), d.slow_presets);
+        fix(&mut self.follow_presets, &|s| FOLLOW_MINUTES.contains(&s), d.follow_presets);
+        fix(&mut self.ad_presets, &|s| AD_SECS.contains(&s), d.ad_presets);
+        // The default is one of the lengths on offer.
+        if !self.ad_presets.contains(&self.ad_length) {
+            self.ad_length = if self.ad_presets.contains(&60) { 60 } else { self.ad_presets[0] };
+        }
         // C11 Each third-party provider once; missing ones go last in the default order.
         let mut order: Vec<EmoteSource> = Vec::new();
         for s in self.emote_priority.iter().chain(EmoteSource::THIRD_PARTY.iter()) {
@@ -605,6 +674,23 @@ mod tests {
     }
 
     #[test]
+    fn sanitize_mode_presets() {
+        let mut c = Chat {
+            slow_presets: vec![30, 1, 30, 500, 5],
+            follow_presets: vec![],
+            ad_presets: vec![45, 90, 30],
+            ad_length: 45,
+            ..Chat::default()
+        };
+        c.sanitize();
+        assert_eq!(c.slow_presets, [5, 30]);
+        assert_eq!(c.follow_presets, Chat::default().follow_presets);
+        assert_eq!(c.ad_presets, [30, 90]);
+        assert_eq!(c.ad_length, 30);
+        assert!(Chat::default().read_while_banned);
+    }
+
+    #[test]
     fn sanitize_completes_the_emote_priority() {
         let mut c = Chat {
             emote_priority: vec![EmoteSource::Ffz, EmoteSource::Twitch, EmoteSource::Ffz],
@@ -775,6 +861,27 @@ mod tests {
         assert!(!d.joins && !d.parts && !d.old_joins_leaves);
         let new = read(r#"{"joins":true}"#);
         assert!(new.joins && !new.parts);
+    }
+
+    #[test]
+    fn v110_e13_old_third_party_switch_sets_all_three() {
+        let read = |j: &str| {
+            let mut c: Chat = serde_json::from_str(j).unwrap();
+            c.sanitize();
+            c
+        };
+        let off = read(r#"{"thirdPartyEmotes":false,"someFutureKey":1}"#);
+        assert!(!off.seventv_emotes && !off.bttv_emotes && !off.ffz_emotes);
+        let on = read(r#"{"thirdPartyEmotes":true}"#);
+        assert!(on.seventv_emotes && on.bttv_emotes && on.ffz_emotes);
+        // Written back without the old key, so one turned on again sticks.
+        let mut saved = serde_json::to_value(&off).unwrap();
+        assert!(saved.get("thirdPartyEmotes").is_none());
+        saved["bttvEmotes"] = true.into();
+        let again = read(&saved.to_string());
+        assert!(!again.seventv_emotes && again.bttv_emotes && !again.ffz_emotes);
+        let d = read("{}");
+        assert!(d.seventv_emotes && d.bttv_emotes && d.ffz_emotes);
     }
 
     #[test]

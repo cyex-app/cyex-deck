@@ -98,6 +98,8 @@ pub fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window(MAIN) {
         let _ = w.unminimize();
         let _ = w.show();
+        // V110-U50 Back from the tray after a close: the page is awake again.
+        set_low_memory(app, MAIN, false);
         let _ = w.set_focus();
     }
 }
@@ -163,6 +165,13 @@ pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
         crate::toasts::focused(app);
     }
     match event {
+        // V110-U50 × and Alt+F4 hide the main window to the tray; Tray -> Quit still exits.
+        WindowEvent::CloseRequested { api, .. }
+            if close_to_tray(window.label(), &app.state::<Settings>().read::<General>(Partition::General)) =>
+        {
+            api.prevent_close();
+            hide_on_close(app, window);
+        }
         WindowEvent::Resized(_) if window.label() == MAIN && hides_to_tray(app, window) => {
             let _ = window.hide();
         }
@@ -246,16 +255,19 @@ fn low_memory_windows(app: &AppHandle) -> std::sync::MutexGuard<'_, std::collect
 /// A minimized window (or one in the tray) lets WebView2 give memory back; it goes back to
 /// normal once restored. Each change is sent once.
 fn memory_level(app: &AppHandle, window: &tauri::Window) {
-    let low = window.is_minimized().unwrap_or(false);
+    set_low_memory(app, window.label(), window.is_minimized().unwrap_or(false));
+}
+
+fn set_low_memory(app: &AppHandle, label: &str, low: bool) {
     let changed = {
         let mut set = low_memory_windows(app);
         if low {
-            set.insert(window.label().to_owned())
+            set.insert(label.to_owned())
         } else {
-            set.remove(window.label())
+            set.remove(label)
         }
     };
-    if changed && let Some(w) = app.get_webview_window(window.label()) {
+    if changed && let Some(w) = app.get_webview_window(label) {
         crate::sys::low_memory(&w, low);
     }
 }
@@ -267,4 +279,33 @@ fn hides_to_tray(app: &AppHandle, window: &tauri::Window) -> bool {
             .state::<Settings>()
             .read::<General>(Partition::General)
             .minimize_to_tray
+}
+
+/// V110-U50 What closing the main window does: stay in the tray when the setting is on.
+/// Pop-outs close as before.
+pub fn close_to_tray(label: &str, g: &General) -> bool {
+    label == MAIN && g.close_to_tray
+}
+
+/// V110-U50 Closing the main window with the setting on: hide it like minimize-to-tray does
+/// (the page goes low-memory and not visible, so the frame watchdog leaves it alone), and say
+/// once that the app is still running.
+fn hide_on_close(app: &AppHandle, window: &tauri::Window) {
+    let _ = window.hide();
+    set_low_memory(app, window.label(), true);
+    let settings = app.state::<Settings>();
+    if settings.read::<General>(Partition::General).close_to_tray_told {
+        return;
+    }
+    let _ = settings.patch(app, Partition::General, &json!({ "closeToTrayTold": true }), false);
+    crate::toasts::show(
+        app,
+        crate::toasts::Pop {
+            title: "cyex deck is still running in the tray.".into(),
+            text: String::new(),
+            avatar: None,
+            open: crate::toasts::Open::Settings { page: "general".into() },
+            action: None,
+        },
+    );
 }

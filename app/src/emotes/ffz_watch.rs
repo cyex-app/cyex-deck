@@ -95,6 +95,10 @@ async fn check(app: &AppHandle, login: &str) {
     let Some(_reading) = Reading::take(login) else {
         return;
     };
+    // V110-E13 FFZ emotes off: nothing to compare.
+    if app.state::<Emotes>().lock().sets_off.ffz {
+        return;
+    }
     let Some((id, generation, old)) = current(app, login) else {
         return;
     };

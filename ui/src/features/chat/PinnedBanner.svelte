@@ -3,8 +3,12 @@
      mods can take it down (V101-34) or delete the message (V107), from its ⋮ menu (V107-P4). It always starts open, with who sent and who pinned
      it, both names open their usercard (V107-P5); folding is for this pin only (V106-19). A pin that ends shows a timer bar. Its text is semibold and a step larger than chat
      (Settings → General, V105-03), so it reads at a glance. In a short chat it folds to one
-     line by itself, so chat lines stay in view (V107-R3). -->
+     line by itself, so chat lines stay in view (V107-R3). V110-U43 While a raid banner shows it
+     folds to one line, and opens again after unless it was folded by hand; hidden or closed
+     stays so. -->
 <script lang="ts">
+  import { untrack } from 'svelte';
+
   import Icon from '../../components/Icon.svelte';
   import { openMenuAt, type MenuEntry } from '../../components/menu.svelte';
   import type { Pinned } from '../../ipc/bindings/Pinned';
@@ -26,6 +30,7 @@
   import { nowSecond } from '../../lib/clock.svelte';
   import { pinLeft, pinSpan } from './pinTimer';
   import { lineStacks } from './stacked';
+  import { handFold, newPin, PIN_OPEN, raidFold, raidSlim, type PinFold } from './raidBanner';
 
   interface Props {
     pin: Pinned;
@@ -38,13 +43,22 @@
     ondelete?: () => void;
     /** V107 Why Delete is greyed out (Twitch's rules), or null. */
     deleteWhy?: string | null;
+    /** V110-U43 A raid banner shows above: folded to one line until it goes. */
+    raiding?: boolean;
   }
 
-  let { pin, channel, account = null, onunpin, ondelete, deleteWhy = null }: Props = $props();
+  let { pin, channel, account = null, onunpin, ondelete, deleteWhy = null, raiding = false }: Props = $props();
 
   /** V106-19 Open on every new pin; clicking folds it to two lines (one while the chat is
    * short, A13). Never saved. */
-  let open = $state(true);
+  let fold = $state<PinFold>(PIN_OPEN);
+  const open = $derived(fold.open);
+  /** V110-U43 Folds for a raid and back after it, the way it was before. */
+  $effect(() => {
+    const r = raiding;
+    untrack(() => (fold = raidFold(fold, r)));
+  });
+  const slim = $derived(raidSlim(fold));
   let el = $state<HTMLElement>();
   let short = $state(false);
   let textEl = $state<HTMLElement>();
@@ -54,7 +68,7 @@
   const shown = $derived(short ? handOpen : open);
   function toggle() {
     if (short) handOpen = !handOpen;
-    else open = !open;
+    else fold = handFold(fold);
   }
 
   /** A13 Under this the chat has little room for messages, so the banner takes one line. */
@@ -85,7 +99,7 @@
     if (!el || typeof IntersectionObserver !== 'function') return;
     let was = false;
     const io = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && !was) open = true;
+      if (entry.isIntersecting && !was) untrack(() => (fold = newPin(raiding)));
       was = entry.isIntersecting;
     });
     io.observe(el);
@@ -95,7 +109,7 @@
   const key = $derived(pinKey(pin.id));
   $effect(() => {
     key;
-    open = true;
+    untrack(() => (fold = newPin(raiding)));
     handOpen = false;
   });
 
@@ -259,11 +273,11 @@
 </script>
 
 {#if shows(eventStrip.of(channel), key)}
-  <div class="pin" class:paid={pin.paid} class:open={shown} class:short bind:this={el}>
+  <div class="pin" class:paid={pin.paid} class:open={shown} class:short class:slim bind:this={el}>
     <Icon name="pin" size={14} />
     <div class="main">
       <!-- V107-R3 Folded in a short chat: the text's one line only. -->
-      {#if ((sender && name) || pin.by || left) && (shown || !short)}
+      {#if ((sender && name) || pin.by || left) && (shown || !short) && !slim}
         <div class="head">
           <span class="who">
             {#if sender && name}
@@ -436,7 +450,8 @@
     line-clamp: 2;
     overflow: hidden;
   }
-  .pin.short:not(.open) .text {
+  .pin.short:not(.open) .text,
+  .pin.slim:not(.open) .text {
     -webkit-line-clamp: 1;
     line-clamp: 1;
   }

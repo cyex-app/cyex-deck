@@ -6,6 +6,7 @@ import type { EmoteSource } from "./EmoteSource";
 import type { GifMode } from "./GifMode";
 import type { LinkThumbs } from "./LinkThumbs";
 import type { ModButtons } from "./ModButtons";
+import type { NameClicks } from "./NameClicks";
 import type { NameStyle } from "./NameStyle";
 import type { Overlay } from "./Overlay";
 import type { PaintToggles } from "./PaintToggles";
@@ -29,9 +30,17 @@ paints: PaintToggles,
  */
 twitchEmotes: boolean, 
 /**
- * 2.3 7TV, BTTV and FFZ emotes as one group.
+ * V110-E13 7TV emotes. Off: not fetched, not drawn, not offered, not in the order.
  */
-thirdPartyEmotes: boolean, 
+seventvEmotes: boolean, 
+/**
+ * V110-E13 BTTV emotes, as `seventv_emotes`.
+ */
+bttvEmotes: boolean, 
+/**
+ * V110-E13 FFZ emotes, as `seventv_emotes`.
+ */
+ffzEmotes: boolean, 
 /**
  * 2.4
  */
@@ -81,6 +90,26 @@ timestamps: Timestamps,
  * 2.11 Quick timeout durations in seconds, shortest first.
  */
 timeoutPresets: Array<number>, 
+/**
+ * V110-M23 Slow mode lengths in seconds, shortest first.
+ */
+slowPresets: Array<number>, 
+/**
+ * V110-M23 Followers-only ages in minutes, shortest first. "Any follower" is always offered.
+ */
+followPresets: Array<number>, 
+/**
+ * V110-M23 Ad lengths in seconds, shortest first.
+ */
+adPresets: Array<number>, 
+/**
+ * V110-M23 The ad length picked when the stream manager opens.
+ */
+adLength: number, 
+/**
+ * V110-M28 While banned in a chat, keep reading it anonymously.
+ */
+readWhileBanned: boolean, 
 /**
  * C1 Load recent messages when joining.
  */
@@ -135,6 +164,14 @@ pauseKey: PauseKey,
  */
 lastReadLine: boolean, 
 /**
+ * V110-C55 Ticks on the scrollbar at highlights, mentions and event lines. Click one to go there.
+ */
+scrollMarks: boolean, 
+/**
+ * V110-M20 What clicking a name does (click, middle, Ctrl, Shift).
+ */
+nameClicks: NameClicks, 
+/**
  * V103-12 New messages slide in instead of popping up. Fast chats skip the slide.
  */
 smoothNewMessages: boolean, 
@@ -158,6 +195,10 @@ rateMeter: boolean,
  * V108-N04 The hype train bar over the chat while a train runs.
  */
 hypeTrainBar: boolean, 
+/**
+ * V110-U43 A "Join raid" button on the raid banner. Joining is always by hand. Off.
+ */
+raidJoin: boolean, 
 /**
  * 1.52 Hover a link for a preview.
  */

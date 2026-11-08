@@ -1,5 +1,6 @@
-<!-- Emotes, badges and paints (2.3, 2.4, C11, E2, E3, E4, D21). Stored in the chat
-     partition, except the extra badge sets (V108-N06), which are in emotes. -->
+<!-- Emotes, badges and paints (2.3, 2.4, C11, E2, E3, E4, D21, V110-E13). Stored in the chat
+     partition, except the extra badge sets (V108-N06), which are in emotes. One group per
+     provider holds its switches. -->
 <script lang="ts">
   import SectionHead from '../SectionHead.svelte';
   import Icon from '../../../components/Icon.svelte';
@@ -9,21 +10,13 @@
   import type { EmoteSource } from '../../../ipc/bindings/EmoteSource';
   import type { UnlistedEmotes } from '../../../ipc/bindings/UnlistedEmotes';
   import { settings } from '../../../lib/settings.svelte';
-  import { BADGE_SETS } from '../../emotes/badgeSets';
+  import { GROUPS } from '../emoteGroups';
+  import ProviderGroup from './ProviderGroup.svelte';
   import { PROVIDER_NAMES } from '../../emotes/emotes';
   import { hidden } from '../../emotes/hidden.svelte';
 
   const c = $derived(settings.v.chat);
-  const sets = $derived(settings.v.emotes.badgeSets);
 
-  const BADGES = [
-    { key: 'twitch', label: 'Twitch' },
-    { key: 'seventv', label: '7TV' },
-    { key: 'bttv', label: 'BTTV' },
-    { key: 'ffz', label: 'FFZ' },
-    // V109-B02 Off: their list isn't fetched.
-    { key: 'cyex', label: 'cyex', hint: 'Founder, supporter and supporter+ badges from cyex deck.' },
-  ] as { key: 'twitch' | 'seventv' | 'bttv' | 'ffz' | 'cyex'; label: string; hint?: string }[];
   const UNLISTED: { value: UnlistedEmotes; label: string }[] = [
     { value: 'hide', label: 'Hide' },
     { value: 'blur', label: 'Blur' },
@@ -38,11 +31,21 @@
 
   const name = (s: EmoteSource) => (s === 'emoji' ? 'Emoji' : PROVIDER_NAMES[s]);
 
+  /** V110-E13 Providers switched off aren't ranked; the rest keep their order. */
+  const ON: Record<string, boolean> = $derived({
+    seventv: c.seventvEmotes,
+    bttv: c.bttvEmotes,
+    ffz: c.ffzEmotes,
+  });
+  const ranked = $derived(c.emotePriority.filter((s) => ON[s] !== false));
+
   function move(i: number, by: number) {
-    const order = [...c.emotePriority];
     const j = i + by;
-    if (j < 0 || j >= order.length) return;
-    [order[i], order[j]] = [order[j], order[i]];
+    if (j < 0 || j >= ranked.length) return;
+    const order = [...c.emotePriority];
+    const a = order.indexOf(ranked[i]);
+    const b = order.indexOf(ranked[j]);
+    [order[a], order[b]] = [order[b], order[a]];
     void settings.patch('chat', { emotePriority: order });
   }
 
@@ -53,17 +56,7 @@
 
 <SectionHead title="Emotes and badges" level={2} />
 
-<SectionHead title="Emotes">Where emotes come from and how big they are.</SectionHead>
-<Row setting="chat.twitchEmotes" label="Twitch emotes">
-  <Toggle label="Twitch emotes" checked={c.twitchEmotes} onchange={(v) => settings.patch('chat', { twitchEmotes: v })} />
-</Row>
-<Row setting="chat.thirdPartyEmotes" label="7TV, BTTV and FFZ emotes" hint="Extra emote sets made by the community.">
-  <Toggle
-    label="7TV, BTTV and FFZ emotes"
-    checked={c.thirdPartyEmotes}
-    onchange={(v) => settings.patch('chat', { thirdPartyEmotes: v })}
-  />
-</Row>
+<SectionHead title="Emotes">How big they are and which wins. Which services they come from is under Providers.</SectionHead>
 <Row setting="chat.unlistedEmotes" label="Unlisted 7TV emotes" hint="Emotes 7TV hasn’t approved for public listing.">
   <Segmented
     label="Unlisted 7TV emotes"
@@ -84,13 +77,13 @@
 </Row>
 <Row setting="chat.emotePriority" label="Which wins" hint="When two have an emote with the same name. The channel’s emotes still beat global ones.">
   <ol class="order">
-    {#each c.emotePriority as s, i (s)}
+    {#each ranked as s, i (s)}
       <li>
         <span>{i + 1}. {name(s)}</span>
         <button aria-label="Move {name(s)} up" disabled={i === 0} onclick={() => move(i, -1)}>
           <Icon name="chevronUp" size={14} />
         </button>
-        <button aria-label="Move {name(s)} down" disabled={i === c.emotePriority.length - 1} onclick={() => move(i, 1)}>
+        <button aria-label="Move {name(s)} down" disabled={i === ranked.length - 1} onclick={() => move(i, 1)}>
           <Icon name="chevronDown" size={14} />
         </button>
       </li>
@@ -113,41 +106,23 @@
   {/if}
 </Row>
 
-<SectionHead title="Badges">The small icons before a name.</SectionHead>
-{#each BADGES as b (b.key)}
-  <Row setting="chat.badges.{b.key}" label="{b.label} badges" hint={b.hint}>
-    <Toggle
-      label="{b.label} badges"
-      checked={c.badges[b.key]}
-      onchange={(v) => settings.patch('chat', { badges: { [b.key]: v } })}
-    />
-  </Row>
+<SectionHead title="Providers">Emotes, badges and name paints from each service. The switch on a line is for all of them.</SectionHead>
+{#each GROUPS as g (g.key)}
+  <ProviderGroup group={g}>
+    {#snippet extra()}
+      {#if g.key === 'seventv'}
+        <Row setting="chat.paints.outlineLight" label="Outline paints in light themes" hint="A thin dark edge, so pale paints stay readable.">
+          <Toggle
+            label="Outline paints in light themes"
+            checked={c.paints.outlineLight}
+            disabled={!c.paints.seventv}
+            onchange={(v) => settings.patch('chat', { paints: { outlineLight: v } })}
+          />
+        </Row>
+      {/if}
+    {/snippet}
+  </ProviderGroup>
 {/each}
-<!-- V108-N06 Off until picked: turning one on loads that service’s list. -->
-{#each BADGE_SETS as b (b.key)}
-  <Row setting="emotes.badgeSets.{b.key}" label="{b.label} badges" hint={b.hint}>
-    <Toggle
-      label="{b.label} badges"
-      checked={sets[b.key]}
-      onchange={(v) => settings.patch('emotes', { badgeSets: { [b.key]: v } })}
-    />
-  </Row>
-{/each}
-<Row setting="chat.paints.seventv" label="7TV name paints" hint="Colorful names for 7TV users.">
-  <Toggle
-    label="7TV name paints"
-    checked={c.paints.seventv}
-    onchange={(v) => settings.patch('chat', { paints: { seventv: v } })}
-  />
-</Row>
-<Row setting="chat.paints.outlineLight" label="Outline paints in light themes" hint="A thin dark edge, so pale paints stay readable.">
-  <Toggle
-    label="Outline paints in light themes"
-    checked={c.paints.outlineLight}
-    disabled={!c.paints.seventv}
-    onchange={(v) => settings.patch('chat', { paints: { outlineLight: v } })}
-  />
-</Row>
 
 <SectionHead title="Sharing">Let other cyex users see that you’re here.</SectionHead>
 <Row

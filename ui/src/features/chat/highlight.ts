@@ -16,6 +16,8 @@ export const CLIENTS: Record<Client, { icon: IconName; label: string }> = {
 export function highlightStyle(m: ChatMessage): { cls: string; vars: string } {
   const h = m.highlight;
   if (!h) return { cls: '', vars: '' };
+  // V110-C57 Only the matched words take the color (Body draws them); the line stays plain.
+  if (h.words?.length && !m.notice) return { cls: `hlw hl-${h.kind}`, vars: h.color ? `--hl:${h.color}` : '' };
   if (h.color) return { cls: 'hl', vars: `--hl:${h.color}` };
   if (m.notice) return { cls: '', vars: '' };
   return { cls: `hl hl-${h.kind}`, vars: '' };

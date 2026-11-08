@@ -176,7 +176,9 @@ fn word(r: &OldMentionRule) -> PhraseRule {
         case_sensitive: r.case_sensitive,
         whole_word: r.whole_word,
         lookalikes: r.lookalikes,
+        words_only: false,
         alert: alert(&r.alert),
+        when: None,
     }
 }
 

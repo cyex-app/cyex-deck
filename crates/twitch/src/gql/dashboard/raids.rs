@@ -92,6 +92,8 @@ fn picks(data: &Value) -> Vec<RaidPick> {
 #[ts(export, rename = "SmRaid")]
 pub struct RaidStatus {
     pub id: String,
+    /// V110-U43 The raided channel's id, to open it.
+    pub target_id: String,
     pub target_login: String,
     pub target_name: String,
     pub target_avatar: String,
@@ -128,6 +130,7 @@ pub fn parse_raid(msg: &Value, channel_id: &str) -> Option<RaidEvent> {
             let login = s("target_login");
             Some(RaidEvent::Update(RaidStatus {
                 id,
+                target_id: s("target_id"),
                 target_name: Some(s("target_display_name")).filter(|n| !n.is_empty()).unwrap_or_else(|| login.clone()),
                 target_login: login,
                 target_avatar: s("target_profile_image"),
@@ -152,6 +155,7 @@ mod tests {
             "target_viewer_count": "1234", "viewer_count": 682, "force_raid_now_seconds": 90, "raid_created_at": 1000 } });
         let Some(RaidEvent::Update(s)) = parse_raid(&msg, "7") else { panic!() };
         assert_eq!((s.target_name.as_str(), s.viewers, s.goes_at), ("Kuni", 682, 1090));
+        assert_eq!(s.target_id, "9");
         assert_eq!(parse_raid(&msg, "8"), None, "someone else's raid");
         let go = json!({ "type": "raid_go_v2", "raid": { "id": "r1", "source_id": "7" } });
         assert_eq!(parse_raid(&go, "7"), Some(RaidEvent::Done { id: "r1".into() }));

@@ -113,6 +113,10 @@ pub struct Room {
     /// V109-C01 Threads (their first message's id) the user follows: any new line in one pings
     /// like a reply to you. Kept for the run, with the room.
     followed: HashSet<String>,
+    /// V110-C59 Live or not and the category (lowercase), from the app's live check; `None`: not known.
+    stream: Option<(bool, Option<String>)>,
+    /// V110-C59 Senders' recent message times, while a rule counts bursts.
+    bursts: crate::rules::when::Bursts,
 }
 
 impl Room {
@@ -142,6 +146,8 @@ impl Room {
             timeouts: stack::Stacks::default(),
             moments: crate::moments::Moments::default(),
             followed: HashSet::new(),
+            stream: None,
+            bursts: crate::rules::when::Bursts::default(),
         };
         room.state.own = room.initial_own();
         room

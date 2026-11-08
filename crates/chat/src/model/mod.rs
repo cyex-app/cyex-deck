@@ -10,7 +10,7 @@ mod room;
 pub use fragment::{Act, EmoteLook, Fragment, Layer, LinkTarget, Provider, SpanColor, SpanStyle, mods, plain};
 pub use message::{
     Badge, ChatMessage, Client, Flag, Gone, GoneHow, Highlight, HighlightKind, Meta, NameColor, PluginTag, Reply,
-    RewardRef, Sender, SharedSource, Translation,
+    RewardRef, Sender, SharedSource, Translation, WordMark,
 };
 pub use notice::{Notice, NoticeKind, NoticeUser, Presence};
 pub use quote::{QUOTE_MAX, quote};

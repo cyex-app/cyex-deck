@@ -38,6 +38,8 @@
     layout?: 'flow' | 'split';
     /** Option icons to make room for, see RuleRow. */
     slots?: number;
+    /** V110-C59 Rows have conditions, see RuleRow. */
+    conditions?: boolean;
   }
 
   let {
@@ -57,6 +59,7 @@
     setting,
     layout,
     slots,
+    conditions,
   }: Props = $props();
 
   const fieldsOf = (item: T, i: number) => (typeof fields === 'function' ? fields(item, i) : fields);
@@ -84,6 +87,7 @@
     fields={fieldsOf(item, i)}
     {layout}
     {slots}
+    {conditions}
     {mainMin}
     {fallback}
     {handle}

@@ -3,8 +3,9 @@
 use std::sync::Arc;
 
 use super::Room;
-use crate::model::{ChatMessage, Flag, ModRole, RoomEvent, Translation, plain};
-use crate::rules::{Outcome, Role, Rules};
+use crate::model::{ChatMessage, Flag, RoomEvent, Translation, plain};
+use crate::rules::when::Ctx;
+use crate::rules::{Outcome, Rules};
 use crate::similar::{SimilarCheck, dice, lcs_ratio, normalize};
 
 impl Room {
@@ -62,12 +63,33 @@ impl Room {
         (!text.is_empty()).then(|| text.join(" "))
     }
 
-    /// F2 Rules for blocked users depend on our role (V102-21's one check).
-    fn rules_role(&self) -> Role {
-        match self.role() {
-            Some(ModRole::Broadcaster) => Role::Broadcaster,
-            Some(_) => Role::Moderator,
-            None => Role::Viewer,
+    /// V110-C59 What the app's live check last said: live or not, and the category.
+    pub fn set_stream(&mut self, live: bool, category: Option<&str>) {
+        self.stream = Some((live, category.filter(|_| live).map(str::to_lowercase)));
+    }
+
+    /// F2, V110-C59 What rules see of this room for `m`: our role (V102-21's one check),
+    /// live state, category. `recent`: the sender's message times, live lines only.
+    fn ctx<'a>(&'a self, m: &ChatMessage, recent: Option<&'a std::collections::VecDeque<i64>>) -> Ctx<'a> {
+        let own = self.state.own.as_ref();
+        Ctx {
+            channel: &self.login,
+            live: self.stream.as_ref().map(|s| s.0),
+            category: self.stream.as_ref().and_then(|s| s.1.as_deref()),
+            role: own.and_then(|o| o.role),
+            vip: own.is_some_and(|o| o.vip),
+            first: m.has(Flag::FirstMessage),
+            ts: m.ts,
+            recent,
+        }
+    }
+
+    /// V110-C59 Counts the sender's line when some rule asks for bursts.
+    fn note_burst(&mut self, m: &ChatMessage) {
+        if let (Some(keep), Some(s)) = (self.rules.burst(), m.sender.as_ref())
+            && m.notice.is_none()
+        {
+            self.bursts.note(&s.id, m.ts, keep);
         }
     }
 
@@ -75,7 +97,10 @@ impl Room {
     pub(super) fn screen(&mut self, m: &mut ChatMessage, now_ms: i64) -> (bool, Outcome) {
         let rules = self.rules.clone();
         let mut routes = Vec::new();
-        if m.sender.is_some() && rules.hidden(m, &self.login, self.rules_role(), &mut routes) {
+        self.note_burst(m);
+        let recent = rules.burst().and_then(|_| self.bursts.get(m.sender_id()?));
+        let ctx = self.ctx(m, recent);
+        if m.sender.is_some() && rules.hidden(m, &ctx, &mut routes) {
             return (
                 false,
                 Outcome {
@@ -84,7 +109,7 @@ impl Room {
                 },
             );
         }
-        rules.replace(m);
+        rules.replace(m, &ctx);
         if m.notice.is_none()
             && let Some(sender) = m.sender.as_ref().map(|s| s.id.clone())
         {
@@ -105,7 +130,9 @@ impl Room {
         if m.notice.is_none() && !m.has(Flag::Own) && self.in_followed_thread(m) {
             m.set(Flag::RepliesToMe);
         }
-        let mut outcome = rules.highlight(m);
+        let recent = rules.burst().and_then(|_| self.bursts.get(m.sender_id()?));
+        let ctx = self.ctx(m, recent);
+        let mut outcome = rules.highlight(m, &ctx);
         // Near-duplicates don't ping (Chatterino).
         if m.has(Flag::Similar) {
             outcome.sound = false;
@@ -118,11 +145,12 @@ impl Room {
     /// History: hidden ones are left out, the rest highlighted, without sounds.
     pub(super) fn screen_old(&mut self, m: &mut ChatMessage) -> bool {
         let rules = self.rules.clone();
-        if m.sender.is_some() && rules.hidden(m, &self.login, self.rules_role(), &mut Vec::new()) {
+        let ctx = self.ctx(m, None);
+        if m.sender.is_some() && rules.hidden(m, &ctx, &mut Vec::new()) {
             return false;
         }
-        rules.replace(m);
-        rules.highlight(m);
+        rules.replace(m, &ctx);
+        rules.highlight(m, &ctx);
         true
     }
 
@@ -174,3 +202,5 @@ impl Room {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod when_tests;

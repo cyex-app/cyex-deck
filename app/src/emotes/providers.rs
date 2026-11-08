@@ -9,12 +9,15 @@ use cyex_emotes::bttv::{self, socket::Event as BttvEvent};
 use cyex_emotes::ffz::{self, api::RoomBadges};
 use cyex_emotes::seventv;
 use cyex_emotes::{EmoteSet, Scope};
+use cyex_settings::Partition;
+use cyex_settings::schema::Chat as ChatSettings;
 use cyex_twitch::Http;
 use cyex_twitch::pace::{Lane, Service};
 use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc::UnboundedReceiver;
 
 use super::{Emotes, looks};
+use crate::settings::Settings;
 
 /// What a global fetch brought: the sets of the providers that answered.
 pub struct Globals {
@@ -32,10 +35,12 @@ pub async fn globals(app: &AppHandle, http: &Http, want: Which) -> Globals {
     async fn ask<T>(on: bool, f: impl Future<Output = cyex_twitch::Result<T>>) -> Option<cyex_twitch::Result<T>> {
         if on { Some(f.await) } else { None }
     }
+    // V110-E13 A provider whose emotes are off gets no sets; its badges still come.
+    let sets = current(app).sets_off.not();
     let (s, b, f, bb, fb) = tokio::join!(
-        ask(want.seventv, seventv::api::global(http)),
-        ask(want.bttv, bttv::api::global(http)),
-        ask(want.ffz, ffz::api::global(http)),
+        ask(want.seventv && sets.seventv, seventv::api::global(http)),
+        ask(want.bttv && sets.bttv, bttv::api::global(http)),
+        ask(want.ffz && sets.ffz, ffz::api::global(http)),
         ask(want.bttv, bttv::api::badges(http)),
         ask(want.ffz, ffz::api::badges(http))
     );
@@ -129,6 +134,20 @@ impl Which {
         ffz: true,
     };
 
+    /// Everything but these.
+    pub fn not(self) -> Which {
+        Which::ALL.minus(self)
+    }
+
+    pub fn has(self, p: Provider) -> bool {
+        match p {
+            Provider::Seventv => self.seventv,
+            Provider::Bttv => self.bttv,
+            Provider::Ffz => self.ffz,
+            Provider::Twitch => false,
+        }
+    }
+
     pub fn any(self) -> bool {
         self.seventv || self.bttv || self.ffz
     }
@@ -151,6 +170,25 @@ impl Which {
     }
 }
 
+/// V110-E13 What the emote switches ask for.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Plan {
+    /// Providers whose emotes are off: no sets, not drawn, not in the order.
+    pub sets_off: Which,
+    /// Providers nothing is fetched for: emotes off and, for BTTV and FFZ, badges off too.
+    pub idle: Which,
+}
+
+pub fn plan(c: &ChatSettings) -> Plan {
+    let on = Which { seventv: c.seventv_emotes, bttv: c.bttv_emotes, ffz: c.ffz_emotes };
+    let fetch = Which { seventv: on.seventv, bttv: on.bttv || c.badges.bttv, ffz: on.ffz || c.badges.ffz };
+    Plan { sets_off: on.not(), idle: fetch.not() }
+}
+
+pub fn current(app: &AppHandle) -> Plan {
+    plan(&app.state::<Settings>().read::<ChatSettings>(Partition::Chat))
+}
+
 /// What a channel fetch brought.
 #[derive(Default)]
 pub struct Fetched {
@@ -165,7 +203,8 @@ pub struct Fetched {
 
 /// A channel's 7TV, BTTV and FFZ sets (those in `want`), and FFZ's mod and VIP pictures.
 /// V107-P2 `lane`: the tab on screen goes ahead of background ones.
-pub async fn channel(http: &Http, id: &str, lane: Lane, want: Which) -> Fetched {
+/// V110-E13 `sets_off`: those whose sets are dropped (FFZ is still asked for its badges).
+pub async fn channel(http: &Http, id: &str, lane: Lane, want: Which, sets_off: Which) -> Fetched {
     let b = async {
         if want.bttv {
             Some(bttv::api::channel(http, id, lane).await)
@@ -207,7 +246,7 @@ pub async fn channel(http: &Http, id: &str, lane: Lane, want: Which) -> Fetched 
     }
     match f {
         Some(Ok(Some(room))) => {
-            out.ffz = room.set.map(Arc::new);
+            out.ffz = room.set.filter(|_| !sets_off.ffz).map(Arc::new);
             out.badges = Some(room.badges);
         }
         Some(Ok(None)) => out.badges = Some(RoomBadges::default()),
@@ -342,6 +381,9 @@ fn change_channel(
     let state = app.state::<Emotes>();
     let logins: Vec<String> = {
         let mut inner = state.lock();
+        if inner.sets_off.bttv {
+            return;
+        }
         let all: Vec<String> = inner
             .channels
             .iter()
@@ -393,7 +435,21 @@ fn change_channel(
 
 #[cfg(test)]
 mod tests {
-    use super::bttv_added_line;
+    use super::{Which, bttv_added_line, plan};
+    use cyex_settings::schema::Chat;
+
+    #[test]
+    fn v110_e13_plan_follows_the_switches() {
+        let all = plan(&Chat::default());
+        assert_eq!((all.sets_off, all.idle), (Which::default(), Which::default()));
+        let mut c = Chat { seventv_emotes: false, bttv_emotes: false, ..Chat::default() };
+        let p = plan(&c);
+        assert!(p.sets_off.seventv && p.sets_off.bttv && !p.sets_off.ffz);
+        // 7TV has nothing else to fetch; BTTV still has its badges.
+        assert!(p.idle.seventv && !p.idle.bttv);
+        c.badges.bttv = false;
+        assert!(plan(&c).idle.bttv);
+    }
 
     #[test]
     fn bttv_lines_name_the_maker_when_known() {

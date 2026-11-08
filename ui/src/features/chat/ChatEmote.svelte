@@ -24,7 +24,9 @@
   const still = $derived(focus.still);
 
   function shows(provider: Provider, id: string): boolean {
-    if (provider === 'twitch' ? !c.twitchEmotes : !c.thirdPartyEmotes) return false;
+    // V110-E13 Each service has its own switch.
+    const on = { twitch: c.twitchEmotes, seventv: c.seventvEmotes, bttv: c.bttvEmotes, ffz: c.ffzEmotes }[provider];
+    if (!on) return false;
     return !hidden.has(provider, id);
   }
 

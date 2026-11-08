@@ -251,6 +251,25 @@ fn precedence() {
     assert_eq!(o.routes, ["Feed", "Mentions", "Other"]);
 }
 
+// V110-C57 The first rule's matched words ride on the highlight, in the text fragment they are in.
+#[test]
+fn matched_words_only() {
+    let h = Highlights {
+        phrases: vec![PhraseRule {
+            words_only: true,
+            ..word("deck", alert("#333333", false, "", ""))
+        }],
+        ..Highlights::default()
+    };
+    let mut r = cyex_room(&h);
+    let raw = "@id=1;user-id=7;tmi-sent-ts=1000 :u7!u@u PRIVMSG #chan :love the deck a lot";
+    let ev = r.handle_line(&Line::parse(raw).unwrap(), 1_000, &NoEmotes);
+    let hl = message(&ev).meta.highlight.as_ref().unwrap();
+    let marks = hl.words.as_ref().unwrap();
+    assert_eq!(marks.len(), 1);
+    assert_eq!((marks[0].from, marks[0].to), (9, 13));
+}
+
 // V106-33
 #[test]
 fn name_and_reply_are_separate() {

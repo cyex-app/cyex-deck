@@ -104,6 +104,7 @@ fn apply(m: &mut ChatMessage, change: &LineChange, emotes: &dyn Emotes) {
         m.meta.highlight = Some(Highlight {
             kind: HighlightKind::Rule,
             color: (!color.is_empty()).then(|| color.clone()),
+            words: None,
         });
     }
 }

@@ -12,13 +12,17 @@
   import type { LinkThumbs } from '../../../ipc/bindings/LinkThumbs';
   import type { ModButton } from '../../../ipc/bindings/ModButton';
   import type { ModButtons } from '../../../ipc/bindings/ModButtons';
+  import type { NameClick } from '../../../ipc/bindings/NameClick';
+  import type { NameClicks } from '../../../ipc/bindings/NameClicks';
   import type { NameStyle } from '../../../ipc/bindings/NameStyle';
   import type { PauseKey } from '../../../ipc/bindings/PauseKey';
   import type { SuggestStyle } from '../../../ipc/bindings/SuggestStyle';
-  import { formatDuration, formatNumber, formatTime } from '../../../lib/format';
+  import { formatDuration, formatNumber, formatSecs, formatTime } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
   import { addTimeout, buttonKey, buttonOn, canAddButton, fullOrder, retimeButton, toggleButton } from '../../modview/lineMod';
   import { timeoutSecs } from '../../modview/timeoutLength';
+  import ModePresets from './ModePresets.svelte';
+  import { adSecs, followMinutes, slowSecs } from '../../modview/modePresets';
   import ResetSection from '../ResetSection.svelte';
   import Select from '../../../components/Select.svelte';
   import { choicesOf } from '../../../components/select.ts';
@@ -52,6 +56,23 @@
   ];
   const nameStyle = (first: 'display' | 'username', other: boolean): NameStyle =>
     first === 'display' ? (other ? 'displayLogin' : 'display') : other ? 'usernameDisplay' : 'username';
+  // V110-M20 What a click on a name can do. Time out and Ban only work where you moderate; elsewhere the usercard opens.
+  const NAME_ACTIONS: { value: NameClick; label: string }[] = [
+    { value: 'usercard', label: 'Open usercard' },
+    { value: 'reply', label: 'Reply' },
+    { value: 'mention', label: 'Mention in the box' },
+    { value: 'copy', label: 'Copy name' },
+    { value: 'timeout', label: 'Time out (mods)' },
+    { value: 'ban', label: 'Ban, asks first (mods)' },
+    { value: 'logs', label: 'Open logs' },
+    { value: 'none', label: 'Nothing' },
+  ];
+  const NAME_CLICKS: { key: keyof NameClicks; label: string }[] = [
+    { key: 'plain', label: 'Click on a name' },
+    { key: 'middle', label: 'Middle-click on a name' },
+    { key: 'ctrl', label: 'Ctrl+click on a name' },
+    { key: 'shift', label: 'Shift+click on a name' },
+  ];
   const PAUSE_KEYS: { value: PauseKey; label: string }[] = [
     { value: 'none', label: 'None' },
     { value: 'ctrl', label: 'Ctrl' },
@@ -227,6 +248,10 @@
 <Row setting="chat.history" label="Recent history" hint="Shows the last messages, dimmed, when you open a chat.">
   <Toggle label="Recent history" checked={c.history} onchange={(v) => settings.patch('chat', { history: v })} />
 </Row>
+<!-- V110-M28 -->
+<Row setting="chat.readWhileBanned" label="Keep reading when banned" hint="A chat you're banned in keeps showing messages, read without your account. You still can't send.">
+  <Toggle label="Keep reading when banned" checked={c.readWhileBanned} onchange={(v) => settings.patch('chat', { readWhileBanned: v })} />
+</Row>
 <Row setting="chat.historyLines" label="History to load" hint="Up to this many. The history service keeps 800 per channel.">
   <NumberField label="History to load" steppers width="110px" min={50} max={2000} step={50} disabled={!c.history} value={c.historyLines} onchange={(n) => settings.patch('chat', { historyLines: n })} />
 </Row>
@@ -248,6 +273,21 @@
     checked={c.names === 'displayLogin' || c.names === 'usernameDisplay'}
     onchange={(v) => settings.patch('chat', { names: nameStyle(c.names.startsWith('username') ? 'username' : 'display', v) })} />
 </Row>
+{#each NAME_CLICKS as n, i (n.key)}
+  <Row
+    setting={`chat.nameClicks.${n.key}`}
+    label={n.label}
+    hint={i === 0 ? 'Right-click still opens the menu, and Shift+right-click on a line replies.' : undefined}
+  >
+    <Select
+      label={n.label}
+      width="220px"
+      value={c.nameClicks[n.key]}
+      options={n.key === 'plain' ? NAME_ACTIONS.filter((a) => a.value !== 'none') : NAME_ACTIONS}
+      onchange={(v) => settings.patch('chat', { nameClicks: { ...c.nameClicks, [n.key]: v as NameClick } })}
+    />
+  </Row>
+{/each}
 <Row setting="chat.deleted" label="Deleted messages" hint="Removed by a mod, or from someone timed out or banned.">
   <Segmented
     label="Deleted messages"
@@ -284,6 +324,9 @@
 </Row>
 <Row setting="chat.hypeTrainBar" label="Show hype trains" hint="A bar over the chat with the level, progress and time left while a hype train runs.">
   <Toggle label="Show hype trains" checked={c.hypeTrainBar} onchange={(v) => settings.patch('chat', { hypeTrainBar: v })} />
+</Row>
+<Row setting="chat.raidJoin" label="Join raid button" hint="Shows a button to join a raid. Joining is always your choice.">
+  <Toggle label="Join raid button" checked={c.raidJoin} onchange={(v) => settings.patch('chat', { raidJoin: v })} />
 </Row>
 <Row setting="chat.showClient" label="Show where it was sent from" hint="An icon for messages from the website or the phone apps.">
   <Toggle label="Show where it was sent from" checked={c.showClient} onchange={(v) => settings.patch('chat', { showClient: v })} />
@@ -355,6 +398,9 @@
 </Row>
 <Row setting="chat.lastReadLine" label="Last-read line" hint="Marks where you were when you switched away.">
   <Toggle label="Last-read line" checked={c.lastReadLine} onchange={(v) => settings.patch('chat', { lastReadLine: v })} />
+</Row>
+<Row setting="chat.scrollMarks" label="Scrollbar marks" hint="Small ticks on the scrollbar for highlights, mentions and events. Click one to jump there.">
+  <Toggle label="Scrollbar marks" checked={c.scrollMarks} onchange={(v) => settings.patch('chat', { scrollMarks: v })} />
 </Row>
 <Row setting="chat.delayTenths" label="Hold chat back" hint="Waits this long before showing messages, to match the stream’s delay.">
   <Select
@@ -475,6 +521,47 @@
     </form>
   {/if}
   {#if presetError}<span class="field-error" role="alert">{presetError}</span>{/if}
+</Row>
+<!-- V110-M23 Lengths for the mode menus and the ad picker in the stream manager. -->
+<ModePresets
+  setting="chat.slowPresets"
+  label="Slow mode lengths"
+  hint="Choices when you set slow mode. 3s to 2m."
+  values={c.slowPresets}
+  show={formatSecs}
+  parse={slowSecs}
+  placeholder="Add, e.g. 45s"
+  onsave={(list) => void settings.patch('chat', { slowPresets: list })}
+/>
+<ModePresets
+  setting="chat.followPresets"
+  label="Followers-only ages"
+  hint="Choices for how long someone must have followed. Any follower is always there. Up to 3 months."
+  values={c.followPresets}
+  show={(m) => formatSecs(m * 60)}
+  parse={followMinutes}
+  placeholder="Add, e.g. 2d"
+  onsave={(list) => void settings.patch('chat', { followPresets: list })}
+/>
+<ModePresets
+  setting="chat.adPresets"
+  label="Ad lengths"
+  hint="Choices for a commercial: 30s to 3m in steps of 30s."
+  values={c.adPresets}
+  show={formatSecs}
+  parse={adSecs}
+  placeholder="Add, e.g. 150s"
+  max={6}
+  onsave={(list) => void settings.patch('chat', { adPresets: list })}
+/>
+<Row setting="chat.adLength" label="Default ad length" hint="Picked when the stream manager opens.">
+  <Select
+    label="Default ad length"
+    width="110px"
+    value={String(c.adLength)}
+    options={c.adPresets.map((v) => ({ value: String(v), label: formatSecs(v) }))}
+    onchange={(v) => settings.patch('chat', { adLength: Number(v) })}
+  />
 </Row>
 <Row setting="chat.modButtons" label="Mod mode buttons" hint="In front of lines while mod mode is on. Up to 4 timeouts." stacked>
   <button class="pick" aria-pressed={mb.delete} onclick={() => flipMod({ delete: !mb.delete })}>Delete</button>

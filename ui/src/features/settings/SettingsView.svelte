@@ -9,6 +9,7 @@
   import { quietScroll } from '../../lib/quietScroll';
   import { settings } from '../../lib/settings.svelte';
   import { ENTRIES, GROUPS, hotkeyEntries, PAGES, type PageId } from './registry/index';
+  import { openFor as openEmoteGroupFor } from './emoteGroups';
   import { reveal } from './reveal';
   import { buildIndex, search, type Hit } from './search';
   import { settingsPlace } from './place.svelte';
@@ -206,6 +207,7 @@
     count(query);
     // V108-F59h The box is empty again after a pick; the recent list stays away until you type.
     recentAway = true;
+    openEmoteGroupFor(hit.entry.id);
     open(hit.entry.page);
     await tick();
     if (content) reveal(content, hit.entry.anchor ? [hit.entry.id, hit.entry.anchor] : [hit.entry.id]);

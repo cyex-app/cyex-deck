@@ -101,6 +101,8 @@ pub async fn menu(app: &AppHandle, login: &str, account: Option<&str>) -> Result
         .into_iter()
         .flatten()
         .filter_map(|id| inner.personal_sets.get(id).cloned())
+        // V110-E13 Emotes switched off aren't offered.
+        .filter(|s| !inner.sets_off.has(s.provider))
         .collect();
     let all: Vec<Arc<EmoteSet>> = personal
         .into_iter()

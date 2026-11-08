@@ -76,6 +76,7 @@
     { key: 'lookalikes', kind: 'check', ...OPT.lookalikes },
     { key: 'regex', kind: 'check', ...OPT.regex },
     { key: 'flavor', kind: 'select', options: FLAVORS, width: '96px', when: (x) => x.regex, ...OPT.flavor },
+    { key: 'wordsOnly', kind: 'check', ...OPT.wordsOnly },
     ...alert<PhraseRule>(),
   ];
   /** Q12 New word rows go to the Mentions tab: what most people mean by a mention. */
@@ -87,6 +88,7 @@
     caseSensitive: false,
     wholeWord: true,
     lookalikes: false,
+    wordsOnly: false,
     show: true,
   });
 
@@ -204,6 +206,7 @@
 <SectionHead title="Words">Highlight messages that contain these.</SectionHead>
 <RuleList
   setting="highlights.phrases"
+  conditions
   items={h.phrases}
   fields={wordFields}
   layout="split"
@@ -221,6 +224,7 @@
 <SectionHead title="People">Highlight everything these users write.</SectionHead>
 <RuleList
   setting="highlights.users"
+  conditions
   items={h.users}
   fields={userFields}
   slots={2}
@@ -235,6 +239,7 @@
 <SectionHead title="Badges">Highlight messages from people with these badges.</SectionHead>
 <RuleList
   setting="highlights.badges"
+  conditions
   items={h.badges}
   fields={badgeFields}
   layout="split"
@@ -248,6 +253,7 @@
 <SectionHead title="Sent from">Highlight messages sent from these apps.</SectionHead>
 <RuleList
   setting="highlights.apps"
+  conditions
   items={h.apps}
   fields={appFields}
   layout="split"

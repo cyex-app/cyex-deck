@@ -43,6 +43,13 @@ export const APP: Entry[] = [
     keywords: ['taskbar', 'system tray', 'background'],
   },
   {
+    id: 'general.closeToTray',
+    page: 'general',
+    label: 'Close to tray',
+    description: 'Closing the window keeps cyex deck running in the tray. Quit from the tray menu.',
+    keywords: ['close', 'exit', 'quit', 'x', 'system tray', 'background'],
+  },
+  {
     id: 'browse.hiddenCategories',
     page: 'general',
     label: 'Hidden categories',

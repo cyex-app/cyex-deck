@@ -106,6 +106,13 @@ export const CHAT: Entry[] = [
     keywords: ['hype', 'train', 'level', 'bar', 'bits', 'subs'],
   },
   {
+    id: 'chat.raidJoin',
+    page: 'chat',
+    label: 'Join raid button',
+    description: 'Shows a button to join a raid. Joining is always your choice.',
+    keywords: ['raid', 'join', 'follow', 'banner'],
+  },
+  {
     id: 'chat.showClient',
     page: 'chat',
     label: 'Show where it was sent from',
@@ -158,6 +165,27 @@ export const CHAT: Entry[] = [
     description: 'Marks where you were when you switched away.',
     keywords: ['unread', 'new messages'],
   },
+  {
+    id: 'chat.scrollMarks',
+    page: 'chat',
+    label: 'Scrollbar marks',
+    description: 'Small ticks on the scrollbar for highlights, mentions and events. Click one to jump there.',
+    keywords: ['scrollbar', 'highlight', 'mention', 'ticks', 'jump', 'event'],
+  },
+  ...(
+    [
+      ['plain', 'Click on a name', 'click'],
+      ['middle', 'Middle-click on a name', 'middle'],
+      ['ctrl', 'Ctrl+click on a name', 'ctrl'],
+      ['shift', 'Shift+click on a name', 'shift'],
+    ] as const
+  ).map(([key, label, word]) => ({
+    id: `chat.nameClicks.${key}`,
+    page: 'chat' as const,
+    label,
+    description: 'What it does: usercard, reply, mention, copy the name, time out, ban, open logs, or nothing.',
+    keywords: ['name', word, 'usercard', 'reply', 'mention', 'copy', 'timeout', 'ban', 'logs', 'binding'],
+  })),
   {
     id: 'chat.delayTenths',
     page: 'chat',
@@ -251,6 +279,41 @@ export const CHAT: Entry[] = [
     keywords: ['durations', 'moderation', 'mod'],
   },
   {
+    id: 'chat.slowPresets',
+    page: 'chat',
+    label: 'Slow mode lengths',
+    description: 'Choices when you set slow mode. 3s to 2m.',
+    keywords: ['moderation', 'mod', 'durations', 'seconds', 'presets'],
+  },
+  {
+    id: 'chat.followPresets',
+    page: 'chat',
+    label: 'Followers-only ages',
+    description: 'Choices for how long someone must have followed. Any follower is always there. Up to 3 months.',
+    keywords: ['moderation', 'mod', 'durations', 'follow age', 'presets'],
+  },
+  {
+    id: 'chat.adPresets',
+    page: 'chat',
+    label: 'Ad lengths',
+    description: 'Choices for a commercial: 30s to 3m in steps of 30s.',
+    keywords: ['commercial', 'ads', 'stream manager', 'presets'],
+  },
+  {
+    id: 'chat.adLength',
+    page: 'chat',
+    label: 'Default ad length',
+    description: 'Picked when the stream manager opens.',
+    keywords: ['commercial', 'ads', 'stream manager'],
+  },
+  {
+    id: 'chat.readWhileBanned',
+    page: 'chat',
+    label: 'Keep reading when banned',
+    description: "A chat you're banned in keeps showing messages, read without your account. You still can't send.",
+    keywords: ['ban', 'banned', 'anonymous', 'read only'],
+  },
+  {
     id: 'chat.modButtons',
     page: 'chat',
     label: 'Mod mode buttons',
@@ -285,12 +348,10 @@ export const CHAT: Entry[] = [
 
   // Emotes and badges
   { id: 'chat.twitchEmotes', page: 'emotes', label: 'Twitch emotes' },
-  {
-    id: 'chat.thirdPartyEmotes',
-    page: 'emotes',
-    label: '7TV, BTTV and FFZ emotes',
-    keywords: ['third-party', 'seventv', 'betterttv', 'frankerfacez'],
-  },
+  // V110-E13 One per service; 7TV's, BTTV's and FFZ's badges and 7TV's paints sit in the same groups.
+  { id: 'chat.seventvEmotes', page: 'emotes', label: '7TV emotes', keywords: ['third-party', 'seventv', '7tv'] },
+  { id: 'chat.bttvEmotes', page: 'emotes', label: 'BTTV emotes', keywords: ['third-party', 'betterttv', 'bttv'] },
+  { id: 'chat.ffzEmotes', page: 'emotes', label: 'FFZ emotes', keywords: ['third-party', 'frankerfacez', 'ffz'] },
   {
     id: 'chat.unlistedEmotes',
     page: 'emotes',

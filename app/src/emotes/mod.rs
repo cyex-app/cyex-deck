@@ -39,7 +39,7 @@ use cyex_emotes::{Capped, Cosmetics, EmoteSet, Lookup, RoomEmotes, Scope};
 use cyex_settings::Partition;
 use cyex_settings::schema::{Chat as ChatSettings, EmoteSource};
 use cyex_twitch::ws;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::watch;
 
 use crate::settings::Settings;
@@ -69,6 +69,9 @@ pub struct Emotes {
 struct Inner {
     /// C11 Provider order, Twitch first.
     priority: Vec<Provider>,
+    /// V110-E13 Providers whose emotes are switched off, and those nothing is fetched for.
+    sets_off: Which,
+    idle: Which,
     globals: Vec<Arc<EmoteSet>>,
     /// C11 The global sets' lookup, shared by every room (was copied into each channel's).
     global_lookup: Arc<Lookup>,
@@ -145,10 +148,14 @@ pub fn init(app: &AppHandle) {
     let (events, bttv_rx) = tokio::sync::mpsc::unbounded_channel();
     let (bttv, task) = ws::start(cyex_emotes::bttv::socket::Socket, events);
     tauri::async_runtime::spawn(task);
-    let priority = priority(&app.state::<Settings>().read::<ChatSettings>(Partition::Chat));
+    let chat = app.state::<Settings>().read::<ChatSettings>(Partition::Chat);
+    let priority = priority(&chat);
+    let plan = providers::plan(&chat);
     app.manage(Emotes {
         inner: Mutex::new(Inner {
             priority,
+            sets_off: plan.sets_off,
+            idle: plan.idle,
             ..Inner::default()
         }),
         seventv,
@@ -185,14 +192,21 @@ fn change_line(app: &AppHandle, login: &str, text: &str) {
     crate::chat::system_line(app, login, text);
 }
 
+/// C11 The order, Twitch first. V110-E13 Providers switched off aren't in it.
 fn priority(c: &ChatSettings) -> Vec<Provider> {
+    let off = providers::plan(c).sets_off;
     let mut out = vec![Provider::Twitch];
-    out.extend(c.emote_priority.iter().filter_map(|s| match s {
-        EmoteSource::Seventv => Some(Provider::Seventv),
-        EmoteSource::Bttv => Some(Provider::Bttv),
-        EmoteSource::Ffz => Some(Provider::Ffz),
-        _ => None,
-    }));
+    out.extend(
+        c.emote_priority
+            .iter()
+            .filter_map(|s| match s {
+                EmoteSource::Seventv => Some(Provider::Seventv),
+                EmoteSource::Bttv => Some(Provider::Bttv),
+                EmoteSource::Ffz => Some(Provider::Ffz),
+                _ => None,
+            })
+            .filter(|p| !off.has(*p)),
+    );
     out
 }
 
@@ -200,6 +214,7 @@ impl Inner {
     fn rebuild(&mut self, login: &str) {
         let priority = self.priority.clone();
         let globals = self.globals.clone();
+        let off = self.sets_off;
         if let Some(c) = self.channels.get_mut(login) {
             // C11 Channel sets sort before every global one, so the channel's lookup over the
             // shared global one finds what a lookup of both did. A global-scoped set among the
@@ -210,12 +225,14 @@ impl Inner {
             } else {
                 c.sets.clone()
             };
-            c.lookup = Arc::new(Lookup::build(ordered(&sets, &priority)));
+            c.lookup = Arc::new(Lookup::build(ordered(&sets, &priority).into_iter().filter(|s| !off.has(s.provider))));
         }
     }
 
     fn rebuild_all(&mut self) {
-        self.global_lookup = Arc::new(Lookup::build(ordered(&self.globals, &self.priority)));
+        let off = self.sets_off;
+        self.global_lookup =
+            Arc::new(Lookup::build(ordered(&self.globals, &self.priority).into_iter().filter(|s| !off.has(s.provider))));
         let logins: Vec<String> = self.channels.keys().cloned().collect();
         for l in logins {
             self.rebuild(&l);
@@ -230,6 +247,7 @@ impl Inner {
             .into_iter()
             .flatten()
             .filter_map(|id| self.personal_sets.get(id).cloned())
+            .filter(|s| !self.sets_off.has(s.provider))
             .collect();
         let lookup = (!sets.is_empty()).then(|| self.shared_lookup(sets));
         // V107-M3 In place; copies only while a room still holds the old map.
@@ -450,18 +468,66 @@ pub async fn ready(app: &AppHandle, login: &str, limit: Duration) {
     .await;
 }
 
-/// Chat settings changed: the provider order may have too (C11).
+/// Chat settings changed: the provider order may have too (C11). V110-E13 So may the emote
+/// switches: a provider turned off loses its sets here; one turned on is fetched now, no restart.
 pub fn on_settings(app: &AppHandle) {
     extra::sync(app);
     cyex::sync(app);
     let Some(state) = app.try_state::<Emotes>() else {
         return;
     };
-    let p = priority(&app.state::<Settings>().read::<ChatSettings>(Partition::Chat));
-    let mut inner = state.lock();
-    if inner.priority != p {
+    let chat = app.state::<Settings>().read::<ChatSettings>(Partition::Chat);
+    let p = priority(&chat);
+    let plan = providers::plan(&chat);
+    let (fetch, joined) = {
+        let mut inner = state.lock();
+        let (was_off, was_idle) = (inner.sets_off, inner.idle);
+        if inner.priority == p && was_off == plan.sets_off && was_idle == plan.idle {
+            return;
+        }
         inner.priority = p;
+        inner.sets_off = plan.sets_off;
+        inner.idle = plan.idle;
+        let newly_off = plan.sets_off.minus(was_off);
+        if newly_off.any() {
+            drop_sets(&mut inner, &state.seventv, newly_off);
+        }
         inner.rebuild_all();
+        let users: Vec<String> = inner.user_sets.keys().cloned().collect();
+        for u in users {
+            inner.rebuild_personal(&u);
+        }
+        // Asked for again: emotes back on, or (BTTV, FFZ) badges back on with nothing fetched.
+        let fetch = was_off.minus(plan.sets_off).or(was_idle.minus(plan.idle));
+        inner.globals_done = inner.globals_done.minus(fetch);
+        let joined: Vec<(String, String, u64)> =
+            inner.channels.iter().map(|(l, c)| (l.clone(), c.id.clone(), c.generation)).collect();
+        (fetch, joined)
+    };
+    for (login, _, _) in &joined {
+        let _ = app.emit("emotes:loaded", login);
+    }
+    if fetch.any() {
+        load::globals(app);
+        for (login, id, generation) in joined {
+            load::channel_of(app.clone(), login, id, generation, fetch);
+        }
+    }
+}
+
+/// V110-E13 A provider's sets go: global, each channel's and, for 7TV, their socket topics.
+fn drop_sets(inner: &mut Inner, seventv: &ws::Pool<EventApi>, off: Which) {
+    inner.globals.retain(|s| !off.has(s.provider));
+    for c in inner.channels.values_mut() {
+        if off.seventv {
+            for s in c.sets.iter().filter(|s| s.provider == Provider::Seventv) {
+                seventv.remove(&SevenTopic::Set(s.id.clone()));
+            }
+            if let Some(u) = c.seventv_user.take() {
+                seventv.remove(&SevenTopic::User(u));
+            }
+        }
+        c.sets.retain(|s| !off.has(s.provider));
     }
 }
 

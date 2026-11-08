@@ -73,6 +73,10 @@
     onchange={(v) => settings.patch('general', { minimizeToTray: v })}
   />
 </Row>
+<!-- V110-U50 -->
+<Row setting="general.closeToTray" label="Close to tray" hint="Closing the window keeps cyex deck running in the tray. Quit from the tray menu.">
+  <Toggle label="Close to tray" checked={g.closeToTray} onchange={(v) => settings.patch('general', { closeToTray: v })} />
+</Row>
 
 <!-- V108-N05 Hidden in Home and Discover. Categories are hidden from their right-click menu. -->
 <SectionHead title="Home and Discover" />

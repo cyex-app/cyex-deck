@@ -5,6 +5,7 @@
      data attributes. -->
 <script lang="ts">
   import type { Fragment } from '../../ipc/bindings/Fragment';
+  import type { WordMark } from '../../ipc/bindings/WordMark';
   import { density } from '../../lib/density.svelte';
   import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
@@ -13,10 +14,22 @@
   import ChatEmote from './ChatEmote.svelte';
   import EmojiImg from './EmojiImg.svelte';
   import { actTip, picSize, spanColor } from './pluginLine';
+  import { splitMarked } from './wordMarks';
   import { saved } from './saved';
   import { cheerImg, cheerTier } from './urls';
 
-  let { fragments, channel, giant = false }: { fragments: Fragment[]; channel: string; giant?: boolean } = $props();
+  let {
+    fragments,
+    channel,
+    giant = false,
+    words,
+  }: {
+    fragments: Fragment[];
+    channel: string;
+    giant?: boolean;
+    /** V110-C57 Matched words of a highlight rule that colours only those. */
+    words?: readonly WordMark[];
+  } = $props();
   const theme = $derived(settings.v.appearance.theme);
   const gifs = $derived(settings.v.chat.gifs);
   /** 1.42 Only when the message ends in a Twitch emote, like twitch.tv. The card knows it even with effects off. */
@@ -39,10 +52,14 @@
   }
 </script>
 
+{#snippet chars(text: string)}{#each splitEmoji(text) as p, j (j)}{#if p.emoji}<span class="emoji" data-emoji={p.text}
+        ><EmojiImg char={p.text} /></span
+      >{:else}{p.text}{/if}{/each}{/snippet}
+
 {#each fragments as f, i (i)}
-  {#if f.t === 'text'}{#each splitEmoji(f.text) as p, j (j)}{#if p.emoji}<span class="emoji" data-emoji={p.text}
-          ><EmojiImg char={p.text} /></span
-        >{:else}{p.text}{/if}{/each}{:else if f.t === 'emote'}{#if i === big}<span class="giant"><ChatEmote {f} giant /></span>{:else}<ChatEmote
+  {#if f.t === 'text'}{#if words?.some((w) => w.frag === i)}{#each splitMarked(f.text, words.filter((w) => w.frag === i)) as seg, k (k)}{#if seg.hit}<span
+            class="word">{@render chars(seg.text)}</span
+          >{:else}{@render chars(seg.text)}{/if}{/each}{:else}{@render chars(f.text)}{/if}{:else if f.t === 'emote'}{#if i === big}<span class="giant"><ChatEmote {f} giant /></span>{:else}<ChatEmote
         {f}
         giant={i === gigantified}
       />{/if}{:else if f.t === 'mention'}<span class="mention" role="link" tabindex="-1" data-user={f.login}>{f.text}</span
@@ -139,6 +156,11 @@
   .giant :global(.emote) {
     height: 112px;
     margin: 4px 0;
+  }
+  /* V110-C57 A matched word of a "colour only the matched words" rule. */
+  .word {
+    background: color-mix(in srgb, var(--hl, var(--accent-line)) 38%, transparent);
+    border-radius: 2px;
   }
   .mention {
     font-weight: 700;

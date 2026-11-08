@@ -5,6 +5,8 @@
 
 mod compile;
 pub mod pcre;
+pub mod when;
+mod words;
 
 use std::collections::{HashMap, HashSet};
 
@@ -15,6 +17,7 @@ use crate::mentions::{self, MentionSet};
 use crate::model::{ChatMessage, Client, Flag, Fragment, Highlight, HighlightKind, NoticeKind, plain};
 use crate::similar::{RepeatCheck, SimilarCheck};
 use compile::Rule;
+use when::{Cond, Ctx};
 
 /// V105-16 A Chatterino (PCRE2) highlight pattern in the Rust flavor, ready to store, or
 /// why it can't be imported.
@@ -82,9 +85,13 @@ pub struct Rules {
     replies: Option<Alert>,
     /// V106-33 Old mentions and phrases, in list order.
     words: MentionSet,
+    /// V110-C59 Each word row's conditions, by its place in the list.
+    word_when: Vec<Option<Cond>>,
     users: Vec<Rule>,
-    badges: Vec<(String, compile::BadgeMatch, Alert)>,
-    apps: Vec<(Client, Alert)>,
+    badges: Vec<(String, compile::BadgeMatch, Alert, Option<Cond>)>,
+    apps: Vec<(Client, Alert, Option<Cond>)>,
+    /// V110-C59 The longest burst any rule asks for, (messages, ms): rooms count only then.
+    burst: Option<(usize, i64)>,
     never: HashSet<String>,
     /// C27 Channels that never ping.
     muted: HashSet<String>,
@@ -118,27 +125,42 @@ impl Rules {
         .map(|(k, b)| (k, b.alert.clone()))
         .collect();
         let s = &h.similar;
+        let word_when: Vec<Option<Cond>> = h.phrases.iter().map(|p| Cond::new(p.when.as_ref())).collect();
+        let users = compile::users(&h.users);
+        let badges: Vec<_> = h
+            .badges
+            .iter()
+            .filter(|b| b.enabled && !b.is_blank())
+            .map(|b| {
+                let (set, want) = compile::badge(&b.badge);
+                (set, want, b.alert.clone(), Cond::new(b.when.as_ref()))
+            })
+            .collect();
+        let apps: Vec<_> = h
+            .apps
+            .iter()
+            .filter(|a| a.enabled)
+            .map(|a| (compile::client(a.app), a.alert.clone(), Cond::new(a.when.as_ref())))
+            .collect();
+        let ignores = compile::ignores(&h.ignores);
+        let burst = word_when
+            .iter()
+            .chain(users.iter().map(|r| &r.when))
+            .chain(badges.iter().map(|b| &b.3))
+            .chain(apps.iter().map(|a| &a.2))
+            .chain(ignores.iter().map(|i| &i.when))
+            .filter_map(|c| c.as_ref()?.burst())
+            .reduce(|a, b| (a.0.max(b.0), a.1.max(b.1)));
         Self {
             builtin,
             me: h.me.enabled.then(|| h.me.alert.clone()),
             replies: h.replies.enabled.then(|| h.replies.alert.clone()),
             words: MentionSet::new(&h.phrases),
-            users: compile::users(&h.users),
-            badges: h
-                .badges
-                .iter()
-                .filter(|b| b.enabled && !b.is_blank())
-                .map(|b| {
-                    let (set, want) = compile::badge(&b.badge);
-                    (set, want, b.alert.clone())
-                })
-                .collect(),
-            apps: h
-                .apps
-                .iter()
-                .filter(|a| a.enabled)
-                .map(|a| (compile::client(a.app), a.alert.clone()))
-                .collect(),
+            word_when,
+            users,
+            badges,
+            apps,
+            burst,
             never: h.never.iter().cloned().collect(),
             muted: h.muted.iter().cloned().collect(),
             hidden_users: h.hidden_users.iter().filter(|u| u.channel.is_empty()).map(|u| u.id.clone()).collect(),
@@ -150,7 +172,7 @@ impl Rules {
                 },
             ),
             lookalikes: h.lookalikes,
-            ignores: compile::ignores(&h.ignores),
+            ignores,
             blocked: h.blocked.enabled.then_some(h.blocked.show),
             blocked_ids: HashSet::new(),
             similar: s.enabled.then(|| SimilarCheck {
@@ -162,6 +184,11 @@ impl Rules {
             similar_own: s.own,
             repeat: None,
         }
+    }
+
+    /// V110-C59 Rooms keep each sender's recent message times only when this is set.
+    pub fn burst(&self) -> Option<(usize, i64)> {
+        self.burst
     }
 
     pub fn set_blocked(&mut self, ids: HashSet<String>) {
@@ -193,8 +220,14 @@ impl Rules {
         self.hidden_users.contains(id) || self.hidden_here.get(id).is_some_and(|c| c.contains(channel))
     }
 
-    /// F2 Hidden from `channel`'s room, given our role in it. Copies still go to `routes`.
-    pub fn hidden(&self, m: &ChatMessage, channel: &str, role: Role, routes: &mut Vec<String>) -> bool {
+    /// F2 Hidden from `ctx`'s room, given our role in it. Copies still go to `routes`.
+    pub fn hidden(&self, m: &ChatMessage, ctx: &Ctx, routes: &mut Vec<String>) -> bool {
+        let channel = ctx.channel;
+        let role = match ctx.role {
+            Some(crate::model::ModRole::Broadcaster) => Role::Broadcaster,
+            Some(_) => Role::Moderator,
+            None => Role::Viewer,
+        };
         if m.sender.as_ref().is_some_and(|s| self.hides_user(&s.id, channel)) {
             return true;
         }
@@ -215,7 +248,7 @@ impl Rules {
         for ig in self
             .ignores
             .iter()
-            .filter(|i| i.block && i.matcher.is_match(&text))
+            .filter(|i| i.block && when::holds(i.when.as_ref(), ctx) && i.matcher.is_match(&text))
         {
             hide = true;
             if !ig.route.is_empty() {
@@ -226,8 +259,8 @@ impl Rules {
     }
 
     /// F2 Swaps ignored words in the text parts of a message.
-    pub fn replace(&self, m: &mut ChatMessage) {
-        for ig in self.ignores.iter().filter(|i| !i.block) {
+    pub fn replace(&self, m: &mut ChatMessage, ctx: &Ctx) {
+        for ig in self.ignores.iter().filter(|i| !i.block && when::holds(i.when.as_ref(), ctx)) {
             for f in &mut m.body {
                 if let Fragment::Text { text } = f
                     && let Some(new) = ig.matcher.replace(text, &ig.replace)
@@ -242,7 +275,8 @@ impl Rules {
     /// order: your name, replies, words), and every match adds its sound, flash and feed tabs.
     /// V106-33 `Flag::Mention` is settled here: your name or a reply only while that row is
     /// on (O2: off is fully off), or a word with the Mentions tab on (Q10).
-    pub fn highlight(&self, m: &mut ChatMessage) -> Outcome {
+    /// V110-C59 A rule whose conditions don't hold in `ctx` is skipped.
+    pub fn highlight(&self, m: &mut ChatMessage, ctx: &Ctx) -> Outcome {
         let mut pick = Pick::default();
         let builtin = |k: HighlightKind| self.builtin.iter().find(|(b, _)| *b == k).map(|(_, a)| a);
         let own = m.has(Flag::Own);
@@ -266,23 +300,40 @@ impl Rules {
                 pick.out.feed();
             }
             if !own && !self.words.is_empty() {
-                self.words.each_match(&plain(&m.body), &mut String::new(), |r| {
+                let text = plain(&m.body);
+                self.words.each_match(&text, &mut String::new(), |r| {
+                    // V110-C59
+                    if !when::holds(self.word_when.get(r.index).and_then(Option::as_ref), ctx) {
+                        return;
+                    }
+                    // V110-C57 The rule that sets the color may keep it to its matched words.
+                    let first = pick.hit.is_none();
+                    let marked = first && r.words_only;
                     if r.alert.show {
                         pick.mention(&r.alert);
                         mentioned = true;
                     } else {
                         pick.take(HighlightKind::Rule, &r.alert);
                     }
+                    if marked && let Some(h) = pick.hit.as_mut() {
+                        let marks = words::marks(&m.body, &r.spans(&text));
+                        h.words = (!marks.is_empty()).then_some(marks);
+                    }
                 });
             }
             if own && let Some(a) = builtin(HighlightKind::Own) {
                 pick.take(HighlightKind::Own, a);
             }
-            for r in self.users.iter().filter(|r| r.matcher.is_match(&sender.login)) {
+            for r in self
+                .users
+                .iter()
+                .filter(|r| when::holds(r.when.as_ref(), ctx) && r.matcher.is_match(&sender.login))
+            {
                 pick.take(HighlightKind::Rule, &r.alert);
             }
-            for (set, want, a) in &self.badges {
-                if sender
+            for (set, want, a, c) in &self.badges {
+                if when::holds(c.as_ref(), ctx)
+                    && sender
                     .badges
                     .iter()
                     .any(|b| b.set == *set && want.matches(&b.version))
@@ -291,7 +342,11 @@ impl Rules {
                 }
             }
             if let Some(client) = m.meta.client {
-                for (_, a) in self.apps.iter().filter(|(c, _)| *c == client) {
+                for (_, a, _) in self
+                    .apps
+                    .iter()
+                    .filter(|(c, _, w)| *c == client && when::holds(w.as_ref(), ctx))
+                {
                     pick.take(HighlightKind::Rule, a);
                 }
             }
@@ -341,6 +396,7 @@ impl Pick {
             self.hit = Some(Highlight {
                 kind,
                 color: (!color.is_empty()).then(|| color.to_owned()),
+                words: None,
             });
         }
     }

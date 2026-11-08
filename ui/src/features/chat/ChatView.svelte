@@ -46,6 +46,8 @@
   import { runEntry, toItems, userMenus } from './menus.svelte';
   import MessageList from './MessageList.svelte';
   import PinnedBanner from './PinnedBanner.svelte';
+  import RaidBanner from './RaidBanner.svelte';
+  import { raids } from './raids.svelte';
   import RateMeter from './RateMeter.svelte';
   import { hiddenCount, inSharedSession, listNames } from './sharedChat';
   import type { SharedParticipant } from '../../ipc/bindings/SharedParticipant';
@@ -557,8 +559,10 @@
   {#if room.error}
     <p class="status bad">{room.error}</p>
   {:else if STATUS[room.status]}
-    <p class="status" class:bad={['authFailed', 'unavailable', ...STUCK].includes(room.status)}>
-      <span>{STATUS[room.status]}</span>
+    <!-- V110-M28 Banned, the chat still reads: the app listens without the account. -->
+    {@const reading = room.status === 'banned' && settings.v.chat.readWhileBanned}
+    <p class="status" class:bad={!reading && ['authFailed', 'unavailable', ...STUCK].includes(room.status)}>
+      <span>{reading ? 'Reading anonymously while you’re banned.' : STATUS[room.status]}</span>
       {#if STUCK.includes(room.status)}<Button variant="link" small disabled={rejoining} onclick={rejoin}>Reconnect</Button>{/if}
     </p>
   {/if}
@@ -566,6 +570,8 @@
   <div class="banners">
     <HypeTrain {login} channelId={room.state.channelId} account={room.account} onclosed={() => input?.focus()} />
     <EventsButton channel={login} pin={room.pinned} pinKnown={room.pinKnown} />
+    <!-- V110-U43 -->
+    <RaidBanner channel={login} channelId={room.state.channelId} account={room.account} />
     {#if room.pinned}
       <PinnedBanner
         pin={room.pinned}
@@ -574,6 +580,7 @@
         onunpin={modRole && !room.pinned.paid ? unpin : undefined}
         ondelete={modRole && !room.pinned.paid ? deletePinned : undefined}
         {deleteWhy}
+        raiding={!!raids.of(room.state.channelId)}
       />
     {/if}
     <VotesBanner channel={login} view={() => room.view} signedIn={room.account !== null} />
