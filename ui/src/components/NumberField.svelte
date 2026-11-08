@@ -166,7 +166,8 @@
   }
   .steps button {
     flex: 1;
-    width: 20px;
+    /* V110-F31 24 px wide to hit; the two share the field's height. */
+    width: 24px;
     padding: 0;
     display: grid;
     place-items: center;

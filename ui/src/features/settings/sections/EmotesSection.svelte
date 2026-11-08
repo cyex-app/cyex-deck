@@ -190,12 +190,19 @@
     font-size: var(--text-hint);
   }
   .chip button {
+    position: relative;
     width: 20px;
     height: 20px;
     padding: 0;
     background: none;
     border: 0;
     color: var(--dim);
+  }
+  /* V110-F31 24 px to hit. */
+  .chip button::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
   }
   .chip button:hover {
     color: var(--red);

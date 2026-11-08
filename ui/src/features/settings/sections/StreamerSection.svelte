@@ -114,11 +114,15 @@
   .chip button:hover {
     color: var(--text);
   }
-  /* 24 px to hit: the glyph box is about 15 px. */
+  /* V110-F31 24 px to hit: the glyph box is about 15 px, so the pad is a fixed 24 px square centred on it. */
   .chip button::before {
     content: '';
     position: absolute;
-    inset: -5px;
+    top: 50%;
+    left: 50%;
+    width: 24px;
+    height: 24px;
+    transform: translate(-50%, -50%);
   }
   .field {
     width: 160px;

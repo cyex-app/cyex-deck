@@ -365,6 +365,15 @@
     color: var(--dim);
     cursor: pointer;
   }
+  /* V110-F31 24 px to hit, 18 px to see. */
+  .cp {
+    position: relative;
+  }
+  .cp::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+  }
   .cp:hover {
     color: var(--text);
   }
