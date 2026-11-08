@@ -26,11 +26,18 @@ pub fn base() -> String {
 pub fn handle(ctx: UriSchemeContext<'_, Wry>, req: Request<Vec<u8>>, responder: UriSchemeResponder) {
     let app = ctx.app_handle().clone();
     let path = req.uri().path().to_owned();
+    let origin = req.headers().get("Origin").and_then(|v| v.to_str().ok()).and_then(allowed_origin).map(str::to_owned);
     tauri::async_runtime::spawn(async move {
-        let res = match route(&app, &path).await {
+        let mut res = match route(&app, &path).await {
             Ok(r) => r,
             Err(e) => failure(&e),
         };
+        // V110-F60 hls.js asks from the app's page, which is another origin than this scheme's:
+        // only that page may read the reply.
+        if let Some(o) = origin.and_then(|o| o.parse().ok()) {
+            res.headers_mut().insert("Access-Control-Allow-Origin", o);
+            res.headers_mut().insert("Vary", tauri::http::HeaderValue::from_static("Origin"));
+        }
         responder.respond(res);
     });
 }
@@ -76,6 +83,13 @@ async fn route(app: &AppHandle, path: &str) -> Result<Response<Vec<u8>>, Error> 
     }
 }
 
+/// V110-F60 The origins the app's own page has: the built page on Windows (`tauri.localhost`,
+/// http or https), elsewhere `tauri://localhost`, and the dev server.
+fn allowed_origin(origin: &str) -> Option<&str> {
+    const OWN: [&str; 4] = ["http://tauri.localhost", "https://tauri.localhost", "tauri://localhost", "http://localhost:5173"];
+    OWN.contains(&origin).then_some(origin)
+}
+
 fn playlist(text: String) -> Response<Vec<u8>> {
     response(200, "application/vnd.apple.mpegurl", text.into_bytes())
 }
@@ -95,7 +109,6 @@ fn response(status: u16, content_type: &str, body: Vec<u8>) -> Response<Vec<u8>>
     Response::builder()
         .status(status)
         .header("Content-Type", content_type)
-        .header("Access-Control-Allow-Origin", "*")
         .header("Cache-Control", "no-store")
         .body(body)
         .unwrap_or_default()
@@ -105,5 +118,18 @@ fn missing() -> Error {
     Error::Api {
         status: 404,
         message: "gone".into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn v110_f60_only_the_apps_own_page_may_read_replies() {
+        assert_eq!(allowed_origin("http://tauri.localhost"), Some("http://tauri.localhost"));
+        assert_eq!(allowed_origin("https://example.com"), None);
+        assert_eq!(allowed_origin("http://tauri.localhost.evil.com"), None);
+        assert_eq!(allowed_origin("null"), None);
     }
 }

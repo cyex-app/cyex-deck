@@ -50,7 +50,7 @@ fn random_p() -> String {
 /// A playlist. Usher's refusals come back as errors carrying its `error_code`, e.g.
 /// `content_geoblocked`, or its text, e.g. `Can not find channel` (offline).
 pub async fn text(http: &Http, url: &str) -> Result<String> {
-    let body = get(http, url).await?;
+    let body = get(http, url, MAX_PLAYLIST).await?;
     String::from_utf8(body).map_err(|_| Error::Api {
         status: 200,
         message: "not text".into(),
@@ -59,17 +59,37 @@ pub async fn text(http: &Http, url: &str) -> Result<String> {
 
 /// A VOD segment.
 pub async fn bytes(http: &Http, url: &str) -> Result<Vec<u8>> {
-    get(http, url).await
+    get(http, url, MAX_SEGMENT).await
 }
 
-async fn get(http: &Http, url: &str) -> Result<Vec<u8>> {
-    let res = http.0.get(url).send().await.map_err(Error::Network)?;
+/// V110-F59 Most a playlist or a VOD segment may be; a larger reply is refused.
+const MAX_PLAYLIST: usize = 2 * 1024 * 1024;
+const MAX_SEGMENT: usize = 64 * 1024 * 1024;
+
+async fn get(http: &Http, url: &str, max: usize) -> Result<Vec<u8>> {
+    let mut res = http.0.get(url).send().await.map_err(Error::Network)?;
     let status = res.status();
-    let body = res.bytes().await.map_err(Error::Network)?;
+    let mut body = Vec::new();
+    if res.content_length().is_some_and(|n| n > max as u64) {
+        return Err(too_big(status.as_u16()));
+    }
+    while let Some(chunk) = res.chunk().await.map_err(Error::Network)? {
+        if body.len() + chunk.len() > max {
+            return Err(too_big(status.as_u16()));
+        }
+        body.extend_from_slice(&chunk);
+    }
     if status.is_success() {
-        return Ok(body.to_vec());
+        return Ok(body);
     }
     Err(usher_error(status.as_u16(), &body))
+}
+
+fn too_big(status: u16) -> Error {
+    Error::Api {
+        status,
+        message: "reply too large".into(),
+    }
 }
 
 /// Usher sends `[{"error": "...", "error_code": "..."}]`.

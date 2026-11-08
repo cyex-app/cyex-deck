@@ -54,8 +54,12 @@ pub struct VodProgress {
 /// Written beside, then moved over: a crash mid-write can't cut the file short and lose all 500.
 fn write_whole(file: &std::path::Path, json: &str) -> std::io::Result<()> {
     let tmp = file.with_extension("json.tmp");
-    fs::write(&tmp, json)?;
-    fs::rename(&tmp, file)
+    // V110-F59 A failed write or move leaves no `.tmp` behind.
+    fs::write(&tmp, json)
+        .and_then(|()| fs::rename(&tmp, file))
+        .inspect_err(|_| {
+            let _ = fs::remove_file(&tmp);
+        })
 }
 
 impl Positions {
@@ -154,6 +158,16 @@ mod tests {
 
     fn one(p: &Positions, id: &str) -> Option<VodProgress> {
         p.progress(&[id.to_owned()]).pop()
+    }
+
+    #[test]
+    fn v110_f59_a_failed_move_leaves_no_tmp_file() {
+        let dir = std::env::temp_dir().join(format!("cyex-pos-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("p.json")).unwrap(); // a folder in the file's place: the move fails
+        assert!(write_whole(&dir.join("p.json"), "{}").is_err());
+        assert!(!dir.join("p.json.tmp").exists());
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
