@@ -228,12 +228,23 @@
   // V108-C05 The list's own height changed: the message box grew with a long message or a
   // reply bar, or shrank again. At the bottom it stays there; scrolled up, the lines over the
   // box stay over it instead of going under it.
+  const PILL_STRIP = 40; // 8 below + 26 pill + 6 above; keep in step with `.reserve` and `.more`
   let boxHeight = 0;
+  // V110-F06 The strip under the list that the pill sits in (px); see `.reserve`.
+  let reserved = 0;
   const box = new ResizeObserver(() => {
     if (!list) return;
     const was = boxHeight;
     boxHeight = list.clientHeight;
+    const strip = scroll.pill ? PILL_STRIP : 0;
+    const stripDelta = strip - reserved;
+    reserved = strip;
     if (!was || was === boxHeight) return;
+    // Only the pill's strip came or went: the lines stay where they are on screen.
+    if (stripDelta && Math.abs(was - boxHeight - stripDelta) < 1) {
+      measure();
+      return;
+    }
     const top = scroll.resized(metrics(list), was);
     if (Math.abs(top - list.scrollTop) >= 1) {
       stopScroll(list);
@@ -811,6 +822,7 @@
   <div
     class="list"
     class:sep={c.separators}
+    class:reserve={scroll.pill}
     bind:this={list}
     {onscroll}
     {onwheel}
@@ -849,7 +861,6 @@
     {#key card}<EmoteCard target={card} login={room.login} account={room.account} onclose={() => (card = null)} />{/key}
   {/if}
   {#if scroll.pill}
-    <div class="fade" aria-hidden="true"></div>
     <button class="more" onclick={jumpDown}>
       <Icon name="arrowDown" size={13} />
       {fresh > 0 ? `${formatNumber(fresh)} new` : following ? 'Paused' : 'More messages'}
@@ -902,15 +913,11 @@
     border-top: 2px solid var(--red);
     opacity: 0.7;
   }
-  /* A short fade under the pill, so it never sits on top of bare text. */
-  .fade {
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    height: 44px;
-    background: linear-gradient(transparent, var(--page));
-    pointer-events: none;
+  /* V110-F06 While the pill shows, the list ends above it (8px under + 26px pill + 6px above =
+     PILL_STRIP in the script), so the pill never covers a line or its buttons. The scroll
+     position is kept when the strip comes or goes, so no line moves on screen. */
+  .reserve {
+    margin-bottom: 40px;
   }
   .more {
     position: absolute;
