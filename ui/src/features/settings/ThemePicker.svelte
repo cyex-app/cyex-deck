@@ -107,6 +107,11 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, 92px);
     gap: 8px;
+    /* V110-F68 A full line of its own in the control's wrapping row, so the measured width is
+       the space on offer and not the grid's own columns (F35's even columns measured itself and
+       fell to one column); the tools row wraps below it. */
+    flex: 1 1 100%;
+    min-width: 0;
   }
   .theme {
     display: flex;
