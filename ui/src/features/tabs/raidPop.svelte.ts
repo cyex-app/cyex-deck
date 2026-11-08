@@ -47,6 +47,15 @@ export function useRaidPop(): void {
     const off = raidIpc.onGo((go) => void openRaided(go));
     return () => void off.then((f) => f());
   });
+  // V110-F18 Marks left by a crash or a closed app: once the windows are known, a mark only
+  // stays for a tab that is still there and popped out. The rest lose the mark; no tab closes.
+  let swept = false;
+  $effect(() => {
+    if (!tabs.ready || swept) return;
+    swept = true;
+    const popped = tabs.popped;
+    untrack(() => raidTabs.keep(tabs.list.map((t) => t.id).filter((id) => popped.has(id))));
+  });
   // A raid window that closed without docking takes its tab along.
   const seen = new Set<string>();
   $effect(() => {

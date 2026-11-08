@@ -21,6 +21,7 @@ import { hiddenTabs } from './barLayout';
 import { bumped, cleared, mentionNews, type FeedCounts } from './feedNews';
 import { markColor } from './markColor';
 import { muter } from './muter';
+import { dockRaid } from './raidTabs';
 import { sounding } from './sounding.svelte';
 import { tabSoundMode, type TabSoundMode } from './tabSound';
 import { errorText } from '../../lib/errors';
@@ -44,6 +45,8 @@ class TabsStore {
   live = $state.raw<Record<string, ChannelInfo>>({});
   /** Tabs shown in their own window. */
   popped = $state.raw<Set<string>>(new Set());
+  /** V110-F18 The windows list has been read once (`popped` is real, not just empty). */
+  ready = $state(false);
   /** 1.58 Tiles whose chat is in its own window. */
   chats = $state.raw<Set<string>>(new Set());
   /** U9 Chats with news, by `account/login`. */
@@ -154,6 +157,7 @@ class TabsStore {
     ]);
     this.setLive(live);
     this.setPopped(panels);
+    this.ready = true;
     this.setUnread(unread, true);
     this.reopenable = reopenable;
     this.muted = new Set(muted);
@@ -267,6 +271,7 @@ class TabsStore {
 
   /** 3.14 Closes the tab's own window; it's back in the main window. */
   dock(id: string): void {
+    dockRaid(id); // V110-F18 a raid pop-out's tab stays; a plain one has no mark
     windowsIpc.closePanel(tabRoute(id)).catch((e) => toast.error(errorText(e)));
   }
 

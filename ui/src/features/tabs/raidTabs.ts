@@ -27,4 +27,12 @@ export const raidTabs = {
   add: (id: string) => write([...read().filter((x) => x !== id), id]),
   /** Docked (kept as a tab) or closed. */
   drop: (id: string) => write(read().filter((x) => x !== id)),
+  /** V110-F18 Keeps only these marks. */
+  keep: (ids: readonly string[]) => write(read().filter((x) => ids.includes(x))),
 };
+
+/** V110-F18 The one way a raid pop-out is docked (the frame's Dock back, "Bring it back" in the
+ * main window, the tab's menu): the mark goes first, so the tab survives the window closing. */
+export function dockRaid(id: string): void {
+  raidTabs.drop(id);
+}
