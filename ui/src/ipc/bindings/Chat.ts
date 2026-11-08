@@ -196,10 +196,6 @@ rateMeter: boolean,
  */
 hypeTrainBar: boolean, 
 /**
- * V110-U43 A "Join raid" button on the raid banner. Joining is always by hand. Off.
- */
-raidJoin: boolean, 
-/**
  * 1.52 Hover a link for a preview.
  */
 linkPreviews: boolean, 

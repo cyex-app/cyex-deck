@@ -58,7 +58,6 @@
   import type { LinkTarget } from '../ipc/bindings/LinkTarget';
   import { accountsIpc } from '../ipc/accounts';
   import { notifyEvents } from '../ipc/notify';
-  import { settingsJump } from '../features/settings/jump.svelte';
   import { soundIpc } from '../ipc/sound';
   import { pluginsIpc } from '../ipc/plugins';
   import { tabsIpc } from '../ipc/tabs';
@@ -77,6 +76,7 @@
   import DuplicatesDialog from '../features/settings/highlights/DuplicatesDialog.svelte';
   import { focusTabChat, inOtherField } from '../features/tabs/focusChat';
   import { popOut } from './panels';
+  import { useRaidPop } from '../features/tabs/raidPop.svelte';
   import StreamerBar from './StreamerBar.svelte';
   import { useRootEffects } from './root.svelte';
   import { useNavHistory } from '../lib/navHistory.svelte';
@@ -316,14 +316,8 @@
     return () => void off.then((f) => f());
   });
 
-  // V110-U43 A link in a chat to one setting: its page opens and the row lights up.
-  $effect(() => {
-    const off = notifyEvents.onSetting((s) => {
-      settingsJump.ask(s.id);
-      openSettings(s.page);
-    });
-    return () => void off.then((f) => f());
-  });
+  // V110-U43 A ticked raid went: the raided channel pops out.
+  useRaidPop();
 
   // 2.2, 1.26 Toasts: a click opens the channel, the conversation or the link.
   $effect(() => {

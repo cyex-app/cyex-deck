@@ -3,9 +3,7 @@ import { test } from 'node:test';
 import {
   cancelShows,
   handFold,
-  joinShows,
   newPin,
-  optInShows,
   ownChannel,
   PIN_OPEN,
   raidAbout,
@@ -14,16 +12,16 @@ import {
   raidFrac,
   raidLeft,
   raidSlim,
+  raidTabsToClose,
+  tickShows,
   viewersText,
 } from './raidBanner.ts';
 
-test('join shows only by setting, signed in, once per raid', () => {
-  assert.equal(joinShows(false, 'r1', '900', null), false, 'off by default');
-  assert.equal(joinShows(true, 'r1', '900', null), true);
-  assert.equal(joinShows(true, null, '900', null), false, 'no raid');
-  assert.equal(joinShows(true, 'r1', null, null), false, 'signed out');
-  assert.equal(joinShows(true, 'r1', '900', 'r1'), false, 'joined');
-  assert.equal(joinShows(true, 'r2', '900', 'r1'), true, 'a new raid');
+test('the Join tick always shows in another channel while signed in, no setting', () => {
+  assert.equal(tickShows('r1', '900'), true);
+  assert.equal(tickShows(null, '900'), false, 'no raid');
+  assert.equal(tickShows('r1', null), false, 'signed out');
+  assert.equal(tickShows('r1', '900', true), false, 'your own channel');
 });
 
 test('countdown reads like a clock', () => {
@@ -69,19 +67,11 @@ test('a new pin during a raid starts folded', () => {
   assert.deepEqual(raidFold(newPin(true), false), PIN_OPEN);
 });
 
-test('the opt-in link shows only while joining is off, signed in, in another channel', () => {
-  assert.equal(optInShows(false, 'r1', '900', false), true);
-  assert.equal(optInShows(true, 'r1', '900', false), false, 'the button shows instead');
-  assert.equal(optInShows(false, null, '900', false), false, 'no raid');
-  assert.equal(optInShows(false, 'r1', null, false), false, 'signed out');
-  assert.equal(optInShows(false, 'r1', '900', true), false, 'your own channel');
-});
-
-test('in your own channel there is no Join and no link, only Cancel for the manager account', () => {
+test('in your own channel there is no Join tick, only Cancel for the manager account', () => {
   assert.equal(ownChannel('900', '900'), true);
   assert.equal(ownChannel('900', '7'), false);
   assert.equal(ownChannel(null, '900'), false);
-  assert.equal(joinShows(true, 'r1', '900', null, true), false);
+  assert.equal(tickShows('r1', '900', ownChannel('900', '900')), false);
   assert.equal(cancelShows('r1', true, '900', '900'), true);
   assert.equal(cancelShows('r1', false, '900', '900'), false, 'not your channel');
   assert.equal(cancelShows('r1', true, '55', '900'), false, 'the manager runs another channel');
@@ -115,4 +105,21 @@ test('the second line keeps what it has', () => {
   assert.equal(raidAbout('', 'Celeste'), 'Celeste');
   assert.equal(raidAbout('  ', null), '');
   assert.equal(raidAbout('Just chatting', undefined), 'Just chatting');
+});
+
+test('a raid pop-out that closed without docking takes its tab with it', () => {
+  const seen = new Set<string>();
+  assert.deepEqual(raidTabsToClose(['t1'], new Set(), seen), [], 'not shown yet: kept');
+  assert.deepEqual(raidTabsToClose(['t1'], new Set(['t1']), seen), [], 'shown');
+  assert.deepEqual(raidTabsToClose(['t1'], new Set(['t1']), seen), []);
+  assert.deepEqual(raidTabsToClose(['t1'], new Set(), seen), ['t1'], 'window closed: the tab goes');
+  assert.equal(seen.has('t1'), false);
+});
+
+test('a docked raid pop-out keeps its tab', () => {
+  const seen = new Set<string>();
+  raidTabsToClose(['t1'], new Set(['t1']), seen);
+  // Dock back drops the mark before the window closes.
+  assert.deepEqual(raidTabsToClose([], new Set(), seen), []);
+  assert.equal(seen.size, 0);
 });

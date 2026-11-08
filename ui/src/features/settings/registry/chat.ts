@@ -106,13 +106,6 @@ export const CHAT: Entry[] = [
     keywords: ['hype', 'train', 'level', 'bar', 'bits', 'subs'],
   },
   {
-    id: 'chat.raidJoin',
-    page: 'chat',
-    label: 'Join raid button',
-    description: 'Shows a button to join a raid. Joining is always your choice.',
-    keywords: ['raid', 'join', 'follow', 'banner'],
-  },
-  {
     id: 'chat.showClient',
     page: 'chat',
     label: 'Show where it was sent from',

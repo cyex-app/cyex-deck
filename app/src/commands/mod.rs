@@ -180,6 +180,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         raid::chat_raid,
         raid::chat_raid_watch,
         raid::chat_raid_join,
+        raid::chat_raid_leave,
+        raid::chat_raid_ticked,
         standing::chat_standing,
         standing::chat_standing_known,
         standing::chat_request_unban,

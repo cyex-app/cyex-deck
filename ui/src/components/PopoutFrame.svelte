@@ -19,11 +19,20 @@
     docks?: boolean;
     /** V107-R29 Where it docks back to, when that isn't the main window. */
     dockHint?: string;
+    /** V110-U43 A real close beside "Dock back": the view is only here for now (a raided channel). */
+    closes?: boolean;
+    /** V110-U43 Called before "Dock back" closes the window. */
+    ondock?: () => void;
     /** V105-18 `slim` for pop-ups. */
     variant?: 'large' | 'slim';
   }
 
-  let { title, docks = false, dockHint = 'Puts it back into the main window.', variant = 'large' }: Props = $props();
+  let { title, docks = false, dockHint = 'Puts it back into the main window.', closes = false, ondock, variant = 'large' }: Props = $props();
+
+  function dock() {
+    ondock?.();
+    currentWindow.close();
+  }
 </script>
 
 <header class="frame" class:slim={variant === 'slim'} data-tauri-drag-region>
@@ -58,8 +67,11 @@
         label="Dock back"
         hint={dockHint}
         size={13}
-        onclick={currentWindow.close}
+        onclick={dock}
       />
+      {#if closes}
+        <IconButton icon="x" label="Close" danger size={13} onclick={currentWindow.close} />
+      {/if}
     {:else}
       <IconButton icon="x" label="Close" danger size={13} onclick={currentWindow.close} />
     {/if}

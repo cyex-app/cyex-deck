@@ -2,7 +2,10 @@
 //! shows, read from the same Hermes topic as the stream manager's countdown (D2,
 //! `raid.<channel id>`). Followed per chat view while it is open (counted, so the chats of a
 //! channel share it), for that channel only. When the raid goes, one line in its chats.
-//! Joining is only ever by hand (`join`), through GQL `joinRaid` like the miner.
+//! Joining is only ever by hand: ticking "Join" on the banner calls GQL `joinRaid` like the
+//! miner (`join`), per raid id. Twitch has no leave call that we know of, so unticking only
+//! drops the pop-up (`leave`). When the raid goes, the ticked raid's channel opens in a
+//! pop-out of the main window (`chat:raid-go`); a cancelled raid forgets the tick.
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{LazyLock, Mutex};
@@ -18,6 +21,12 @@ use ts_rs::TS;
 use super::Chat;
 
 const EVENT: &str = "chat:raid";
+/// A raid's tick changed (or was cleared by the raid going or being called off).
+const JOIN_EVENT: &str = "chat:raid-join";
+/// The ticked raid went: the main window opens the raided channel.
+const GO_EVENT: &str = "chat:raid-go";
+/// Ticked raids kept (a stale tick only costs this much).
+const JOINED_KEPT: usize = 20;
 /// Ended raid ids kept, so a late update or the repeated go messages (Twitch sends about
 /// five) don't bring the banner back or add a second line.
 const ENDED_KEPT: usize = 50;
@@ -35,6 +44,23 @@ pub struct RaidChanged {
     pub went: bool,
 }
 
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RaidJoinChanged {
+    pub raid_id: String,
+    pub on: bool,
+}
+
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RaidGo {
+    pub raid: RaidStatus,
+    /// The account that ticked Join.
+    pub account: String,
+}
+
 /// What a topic message does to the banner.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Step {
@@ -43,13 +69,15 @@ pub enum Step {
     /// It went: the banner goes and the chat gets a line.
     Went(RaidStatus),
     /// Called off.
-    Gone,
+    Gone(RaidStatus),
 }
 
 #[derive(Default)]
 pub struct Raids {
     by_channel: HashMap<String, RaidStatus>,
     ended: VecDeque<String>,
+    /// Raid id and the account that ticked Join, oldest first.
+    joined: Vec<(String, String)>,
 }
 
 impl Raids {
@@ -77,13 +105,39 @@ impl Raids {
                     return Step::Keep;
                 };
                 self.by_channel.remove(channel_id);
-                if went { Step::Went(cur) } else { Step::Gone }
+                if went { Step::Went(cur) } else { Step::Gone(cur) }
             }
         }
     }
 
     pub fn current(&self, channel_id: &str, now: i64) -> Option<RaidStatus> {
         self.by_channel.get(channel_id).filter(|r| r.goes_at + STALE_SECS > now).cloned()
+    }
+
+    /// Join ticked for the raid by `account` (once per raid id).
+    pub fn tick(&mut self, raid_id: &str, account: &str) {
+        self.joined.retain(|(id, _)| id != raid_id);
+        self.joined.push((raid_id.to_owned(), account.to_owned()));
+        if self.joined.len() > JOINED_KEPT {
+            self.joined.remove(0);
+        }
+    }
+
+    /// Join unticked. Returns whether it was ticked.
+    pub fn untick(&mut self, raid_id: &str) -> bool {
+        let n = self.joined.len();
+        self.joined.retain(|(id, _)| id != raid_id);
+        self.joined.len() != n
+    }
+
+    /// The raid ended: its tick goes, and tells who ticked it.
+    pub fn take_tick(&mut self, raid_id: &str) -> Option<String> {
+        let i = self.joined.iter().position(|(id, _)| id == raid_id)?;
+        Some(self.joined.remove(i).1)
+    }
+
+    pub fn ticked(&self) -> Vec<String> {
+        self.joined.iter().map(|(id, _)| id.clone()).collect()
     }
 
     pub fn forget(&mut self, channel_id: &str) {
@@ -133,10 +187,23 @@ pub fn on_event(app: &AppHandle, e: &Event) {
     let (raid, went) = match step {
         Step::Keep => return,
         Step::Show(r) => (Some(r), false),
-        Step::Gone => (None, false),
+        Step::Gone(r) => {
+            // Called off: nothing opens and the tick clears.
+            let ticked = raids().take_tick(&r.id).is_some();
+            if ticked {
+                let _ = app.emit(JOIN_EVENT, RaidJoinChanged { raid_id: r.id, on: false });
+            }
+            (None, false)
+        }
         Step::Went(r) => {
             if let Some(login) = app.state::<Chat>().channels.login_of(id) {
                 super::notice_line(app, &login, NoticeKind::Raid, &went_line(&r));
+            }
+            // Only a ticked raid opens its channel, once.
+            let who = raids().take_tick(&r.id);
+            if let Some(account) = who {
+                let _ = app.emit(JOIN_EVENT, RaidJoinChanged { raid_id: r.id.clone(), on: false });
+                let _ = app.emit_to(crate::windows::MAIN, GO_EVENT, RaidGo { raid: r, account });
             }
             (None, true)
         }
@@ -152,7 +219,20 @@ fn http(app: &AppHandle) -> cyex_twitch::Http {
     http
 }
 
-/// Joins the raid as `account`, only ever from the banner's button.
+/// The raids with Join ticked, for a chat that opens mid-raid.
+pub fn ticked() -> Vec<String> {
+    raids().ticked()
+}
+
+/// Join unticked before the raid went: only the pop-up is dropped (no leave call is known).
+pub fn leave(app: &AppHandle, raid_id: &str) {
+    let was = raids().untick(raid_id);
+    if was {
+        let _ = app.emit(JOIN_EVENT, RaidJoinChanged { raid_id: raid_id.to_owned(), on: false });
+    }
+}
+
+/// Joins the raid as `account`, only ever from the banner's tick. Ticked on success.
 pub async fn join(app: &AppHandle, account: &str, raid_id: &str) -> Result<(), String> {
     let pair = crate::auth::gql_token(app, account);
     #[cfg(feature = "mocks")]
@@ -168,7 +248,10 @@ pub async fn join(app: &AppHandle, account: &str, raid_id: &str) -> Result<(), S
             eprintln!("raid join: {e}");
             "Couldn’t join the raid.".to_owned()
         }
-    })
+    })?;
+    raids().tick(raid_id, account);
+    let _ = app.emit(JOIN_EVENT, RaidJoinChanged { raid_id: raid_id.to_owned(), on: true });
+    Ok(())
 }
 
 #[cfg(test)]
@@ -210,10 +293,50 @@ mod tests {
         r.step("8", RaidEvent::Update(raid("b", 6)), false);
         // Another raid's end leaves this one.
         assert_eq!(r.step("7", RaidEvent::Done { id: "b".into() }, false), Step::Keep);
-        assert_eq!(r.step("7", RaidEvent::Done { id: "a".into() }, false), Step::Gone);
+        assert_eq!(r.step("7", RaidEvent::Done { id: "a".into() }, false), Step::Gone(raid("a", 5)));
         assert_eq!(r.current("8", 1000), Some(raid("b", 6)));
         // A new raid after a cancel shows.
         assert_eq!(r.step("7", RaidEvent::Update(raid("c", 1)), false), Step::Show(raid("c", 1)));
+    }
+
+    #[test]
+    fn tick_is_per_raid_and_opens_only_on_go() {
+        let mut r = Raids::default();
+        r.step("7", RaidEvent::Update(raid("a", 5)), false);
+        assert_eq!(r.take_tick("a"), None, "go without a tick opens nothing");
+        r.tick("a", "900");
+        assert_eq!(r.ticked(), vec!["a".to_owned()]);
+        // A new raid starts unticked.
+        r.step("7", RaidEvent::Done { id: "a".into() }, false);
+        r.step("7", RaidEvent::Update(raid("b", 5)), false);
+        assert!(!r.ticked().contains(&"b".to_owned()));
+        // The tick goes with the raid: taken once, by who ticked it.
+        assert_eq!(r.take_tick("a"), Some("900".to_owned()));
+        assert_eq!(r.take_tick("a"), None);
+    }
+
+    #[test]
+    fn untick_drops_the_tick_and_cancel_clears_it() {
+        let mut r = Raids::default();
+        r.tick("a", "900");
+        assert!(r.untick("a"));
+        assert!(!r.untick("a"));
+        assert_eq!(r.take_tick("a"), None, "unticked: go opens nothing");
+        r.tick("c", "900");
+        r.step("7", RaidEvent::Update(raid("c", 1)), false);
+        assert_eq!(r.step("7", RaidEvent::Done { id: "c".into() }, false), Step::Gone(raid("c", 1)));
+        assert_eq!(r.take_tick("c"), Some("900".to_owned()), "taken by the cancel handler, then gone");
+        assert_eq!(r.take_tick("c"), None);
+    }
+
+    #[test]
+    fn ticks_are_bounded() {
+        let mut r = Raids::default();
+        for i in 0..(JOINED_KEPT + 5) {
+            r.tick(&format!("r{i}"), "900");
+        }
+        assert_eq!(r.ticked().len(), JOINED_KEPT);
+        assert!(!r.ticked().contains(&"r0".to_owned()));
     }
 
     #[test]

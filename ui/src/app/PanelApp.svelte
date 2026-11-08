@@ -11,6 +11,7 @@
   import TooltipHost from '../components/TooltipHost.svelte';
   import { playerHotkeys } from '../features/player/players.svelte';
   import TabOverlays from '../features/tabs/TabOverlays.svelte';
+  import { raidTabs } from '../features/tabs/raidTabs';
   import { whenResumed } from '../features/tabs/resume.svelte';
   import { keyTaken } from '../lib/escape';
   import { useHotkeys } from '../lib/hotkeys.svelte';
@@ -22,6 +23,9 @@
   let { route }: { route: string } = $props();
 
   const panel = $derived(panelFor(route));
+  /** V110-U43 A raided channel's pop-out: closing it closes the tab made for it, Dock back keeps it. */
+  const raidId = $derived(route.startsWith('tab/') ? route.split('/')[1] : '');
+  const raided = $derived(raidId !== '' && raidTabs.has(raidId));
 
   useRootEffects();
 
@@ -58,7 +62,7 @@
 <svelte:window {onkeydown} />
 
 {#if panel?.frame !== 'none'}
-  <PopoutFrame title={currentWindow.title ?? titleFor(route)} docks={panel?.docks} dockHint={panel?.dockHint} variant={panel?.frame === 'slim' ? 'slim' : 'large'} />
+  <PopoutFrame title={currentWindow.title ?? titleFor(route)} docks={panel?.docks} dockHint={panel?.dockHint} closes={raided} ondock={() => raidTabs.drop(raidId)} variant={panel?.frame === 'slim' ? 'slim' : 'large'} />
 {/if}
 
 <main>

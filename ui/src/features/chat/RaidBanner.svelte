@@ -4,32 +4,28 @@
      once a second), the time left and a bar along the bottom edge that drains over the countdown
      (one compositor animation; under reduced motion a static bar updated each second). It goes
      when the raid goes or is called off; Rust adds "Raided X with N viewers" to the chat.
-     "Join raid" shows only with Settings → Chat → "Join raid button" (off); without it a signed-in
-     chat gets a quiet "Join raids…" that opens that setting. Joins through Twitch and opens the
-     channel, stream and chat in its own tab window. Never joins by itself. In your own channel
-     you are the one raiding: no Join, no link, and "Cancel raid" (asks first). -->
+     A signed-in chat of another channel always has a "Join" tick, unticked for every new raid.
+     Ticking joins through Twitch; unticking before it goes only drops the pop-up (Twitch has no
+     leave call we know of). When the ticked raid goes, Rust tells the main window, which opens the
+     raided channel in a pop-out (features/tabs/raidPop.ts). Nothing joins without the tick. In
+     your own channel you are the one raiding: no tick, and "Cancel raid" (asks first). -->
 <script lang="ts">
   import { untrack } from 'svelte';
 
   import Avatar from '../../components/Avatar.svelte';
-  import Button from '../../components/Button.svelte';
+  import Checkbox from '../../components/Checkbox.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
   import { hideTip, tooltip } from '../../components/tooltip.svelte';
-  import type { SmRaid } from '../../ipc/bindings/SmRaid';
   import { chatIpc } from '../../ipc/chat';
-  import { notifyEvents } from '../../ipc/notify';
   import { raidIpc } from '../../ipc/raid';
   import { smIpc } from '../../ipc/streammanager';
   import { tabsIpc } from '../../ipc/tabs';
-  import { popOut } from '../../app/panels';
   import { nowSecond } from '../../lib/clock.svelte';
   import { errorText } from '../../lib/errors';
   import { formatNumber } from '../../lib/format';
   import { reduced } from '../../lib/motion';
-  import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
-  import { tabRoute, tabs, tiles } from '../tabs/tabs.svelte';
-  import { cancelShows, joinShows, optInShows, ownChannel, raidAbout, raidBar, raidFrac, raidLeft, viewersText } from './raidBanner';
+  import { cancelShows, ownChannel, raidAbout, raidBar, raidFrac, raidLeft, tickShows, viewersText } from './raidBanner';
   import { raids } from './raids.svelte';
 
   interface Props {
@@ -51,12 +47,12 @@
   const raid = $derived(raids.of(channelId));
   const left = $derived(raid ? raidLeft(raid.goesAt, nowSecond()) : '');
 
-  /** The raid joined from here, so Join doesn't show twice. */
-  let joined = $state<string | null>(null);
   let busy = $state(false);
+  /** The tick while a join or leave is on its way, so a failed call puts it back. */
+  let pending = $state<boolean | null>(null);
   const own = $derived(ownChannel(account, channelId));
-  const canJoin = $derived(joinShows(settings.v.chat.raidJoin, raid?.id ?? null, account, joined, own));
-  const optIn = $derived(optInShows(settings.v.chat.raidJoin, raid?.id ?? null, account, own));
+  const canTick = $derived(tickShows(raid?.id ?? null, account, own));
+  const ticked = $derived(pending ?? raids.ticked(raid?.id ?? null));
 
   // The account that runs the stream manager, asked only in your own channel during a raid.
   let managerId = $state<string | null>(null);
@@ -130,11 +126,6 @@
   /** Reduced motion: the bar's level, moved by the clock. */
   const level = $derived(raid && still ? raidFrac(raid.createdAt, raid.goesAt, nowSecond()) : 1);
 
-  function openJoinSetting() {
-    hideTip();
-    notifyEvents.openSetting('chat', 'chat.raidJoin').catch(() => {});
-  }
-
   function usercard(login: string) {
     hideTip();
     chatIpc.openUsercard(channel, login).catch((err) => toast.error(errorText(err)));
@@ -146,44 +137,21 @@
     usercard(login);
   }
 
-  /** The raided channel's own tab (only it in there), or a new one, then in its own window. */
-  async function openPopped(r: SmRaid, who: string | null) {
-    if (!r.targetId) return;
-    const mine = tabs.list.find((t) => {
-      const list = tiles(t);
-      return list.length === 1 && list[0].channel.id === r.targetId;
-    });
-    let id = mine?.id ?? null;
-    if (!id) {
-      // Adding makes the new tab active; the main window goes back to what it showed.
-      const before = tabs.active;
-      id = await tabs.apply({
-        op: 'add',
-        channel: { id: r.targetId, login: r.targetLogin, name: r.targetName },
-        show: { player: true, chat: true },
-        account: who,
-        alias: null,
-        into: null,
-      });
-      if (!id) return;
-      tabs.activate(before);
-    }
-    await popOut(tabRoute(id), r.targetName);
-  }
-
-  async function join() {
+  /** Ticking joins the raid on Twitch; unticking before it goes only drops the pop-up. */
+  async function tick(on: boolean) {
     const r = raid;
     const who = account;
     if (!r || !who || busy) return;
     busy = true;
+    pending = on;
     try {
-      await raidIpc.join(who, r.id);
-      joined = r.id;
-      await openPopped(r, who);
+      if (on) await raidIpc.join(who, r.id);
+      else await raidIpc.leave(r.id);
     } catch (e) {
       toast.error(errorText(e));
     } finally {
       busy = false;
+      pending = null;
     }
   }
 </script>
@@ -212,12 +180,10 @@
       </div>
       <div class="end">
         <span class="left">{left}</span>
-        {#if canJoin}
-          <Button small variant="primary" disabled={busy} onclick={join}>Join raid</Button>
+        {#if canTick}
+          <span class="tick"><Checkbox label="Join" hint="Go along when the raid goes" checked={ticked} disabled={busy} onchange={tick} /></span>
         {:else if canCancel}
           <ConfirmButton label="Cancel raid" confirm="Click to cancel the raid" variant="danger" disabled={canceling} onconfirm={cancel} />
-        {:else if optIn}
-          <button class="link" onclick={openJoinSetting}>Join raids…</button>
         {/if}
       </div>
       {#if bar}
@@ -325,24 +291,10 @@
     text-align: right;
     white-space: nowrap;
   }
-  .link {
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--dim);
-    font: inherit;
+  .tick {
+    color: var(--muted);
     font-size: var(--text-hint);
-    cursor: pointer;
-    white-space: nowrap;
-    border-radius: var(--radius-sm);
-  }
-  .link:hover {
-    color: var(--text);
-    text-decoration: underline;
-  }
-  .link:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 1px;
+    line-height: 1;
   }
   /* Drains over the countdown on the compositor: one animation, set from the remaining time. */
   .bar {

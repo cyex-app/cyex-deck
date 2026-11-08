@@ -17,8 +17,20 @@ pub fn chat_raid_watch(app: AppHandle, window: tauri::WebviewWindow, channel_id:
     raid::watch(&app, window.label(), &channel_id, on);
 }
 
-/// Joins the raid as the chat's account. Only from the banner's button, never by itself.
+/// Joins the raid as the chat's account. Only from the banner's tick, never by itself.
 #[tauri::command]
 pub async fn chat_raid_join(app: AppHandle, account: String, raid_id: String) -> Result<(), String> {
     raid::join(&app, &account, &raid_id).await
+}
+
+/// Join unticked before the raid went: only the pop-up is dropped.
+#[tauri::command]
+pub fn chat_raid_leave(app: AppHandle, raid_id: String) {
+    raid::leave(&app, &raid_id);
+}
+
+/// Raid ids with Join ticked, for a chat that opens mid-raid.
+#[tauri::command]
+pub fn chat_raid_ticked() -> Vec<String> {
+    raid::ticked()
 }

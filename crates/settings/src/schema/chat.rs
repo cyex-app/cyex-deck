@@ -148,8 +148,6 @@ pub struct Chat {
     pub rate_meter: bool,
     /// V108-N04 The hype train bar over the chat while a train runs.
     pub hype_train_bar: bool,
-    /// V110-U43 A "Join raid" button on the raid banner. Joining is always by hand. Off.
-    pub raid_join: bool,
     /// 1.52 Hover a link for a preview.
     pub link_previews: bool,
     /// 1.52
@@ -235,7 +233,6 @@ impl Default for Chat {
             show_client: false,
             rate_meter: false,
             hype_train_bar: true,
-            raid_join: false,
             link_previews: true,
             link_thumbnails: LinkThumbs::Medium,
             link_cards: false,
@@ -620,6 +617,13 @@ impl Default for Timestamps {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v110_u43_old_raid_join_key_is_ignored() {
+        let c: Chat = serde_json::from_str(r#"{"raidJoin":true,"rateMeter":true}"#).unwrap();
+        assert!(c.rate_meter, "the rest of the file still loads");
+        assert_eq!(serde_json::to_value(&c).unwrap().get("raidJoin"), None, "and the key is gone on the next save");
+    }
 
     #[test]
     fn v109_b02_cyex_badges_start_on_for_old_files() {

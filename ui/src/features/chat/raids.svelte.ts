@@ -2,7 +2,7 @@
 // Each chat follows its channel's topic while it's open (RaidBanner); one listener here
 // keeps the list, so the pin and every chat of the channel see the same raid.
 
-import { SvelteMap } from 'svelte/reactivity';
+import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
 import type { SmRaid } from '../../ipc/bindings/SmRaid';
 import { raidIpc } from '../../ipc/raid';
@@ -13,6 +13,8 @@ const STALE_S = 30;
 
 class RaidStore {
   private readonly byChannel = new SvelteMap<string, SmRaid>();
+  /** Raid ids with Join ticked. Rust holds them and clears them when the raid goes or is called off. */
+  private readonly ticks = new SvelteSet<string>();
   private started = false;
   /** Open chats per channel, in this window. */
   private readonly counts = new Map<string, number>();
@@ -21,6 +23,11 @@ class RaidStore {
   of(channelId: string | null): SmRaid | null {
     const r = channelId ? this.byChannel.get(channelId) : undefined;
     return r && nowSecond() / 1000 < r.goesAt + STALE_S ? r : null;
+  }
+
+  /** Join is ticked for this raid. Per raid id: a new raid starts unticked. */
+  ticked(raidId: string | null): boolean {
+    return !!raidId && this.ticks.has(raidId);
   }
 
   /** Listens from the first chat on; later calls do nothing. */
@@ -32,6 +39,9 @@ class RaidStore {
       .catch(() => {
         this.started = false;
       });
+    raidIpc
+      .onTick((e) => (e.on ? this.ticks.add(e.raidId) : this.ticks.delete(e.raidId)))
+      .catch(() => {});
   }
 
   /** A chat of the channel opened: its topic is followed (counted in Rust) and a raid
@@ -40,6 +50,10 @@ class RaidStore {
     this.start();
     this.counts.set(channelId, (this.counts.get(channelId) ?? 0) + 1);
     void raidIpc.watch(channelId, true).catch(() => {});
+    raidIpc
+      .ticked()
+      .then((ids) => ids.forEach((id) => this.ticks.add(id)))
+      .catch(() => {});
     raidIpc
       .read(channelId)
       .then((r) => r && !this.byChannel.has(channelId) && this.put(channelId, r))

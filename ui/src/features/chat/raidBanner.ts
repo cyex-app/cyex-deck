@@ -1,27 +1,15 @@
-// V110-U43 The raid banner's rules: when Join shows, the countdown, and what the pinned
+// V110-U43 The raid banner's rules: when the Join tick shows, the countdown, and what the pinned
 // message does while a raid shows (folded to one line, then back the way it was).
 
-/** Join shows only when the setting is on, a raid counts down, the chat is signed in and it
- * wasn't joined yet. Joining is never automatic. */
-export function joinShows(
-  setting: boolean,
-  raidId: string | null,
-  account: string | null,
-  joined: string | null,
-  own = false,
-): boolean {
-  return setting && !!raidId && !!account && joined !== raidId && !own;
+/** The "Join" tick shows while a raid counts down, in a signed-in chat of another channel.
+ * It is always there (no setting); nothing joins until it is ticked. */
+export function tickShows(raidId: string | null, account: string | null, own = false): boolean {
+  return !!raidId && !!account && !own;
 }
 
 /** The chat's account is the channel's broadcaster: the raid is theirs, they are the one raiding. */
 export function ownChannel(account: string | null, channelId: string | null): boolean {
   return !!account && !!channelId && account === channelId;
-}
-
-/** The quiet "Join raids…" link: the setting is off, a raid counts down, the chat is signed in
- * and it isn't your own channel. It only opens the setting; nothing is joined. */
-export function optInShows(setting: boolean, raidId: string | null, account: string | null, own: boolean): boolean {
-  return !setting && !!raidId && !!account && !own;
 }
 
 /** "Cancel raid" shows in your own channel for the raid the stream manager's account runs
@@ -103,4 +91,16 @@ export function newPin(raiding: boolean): PinFold {
 /** Folded for the raid: the one-line form (no head, one line of text). */
 export function raidSlim(s: PinFold): boolean {
   return s.before !== null && !s.hand && !s.open;
+}
+
+/** Raid pop-outs the app made (tab ids) that lost their window and were not docked: the tab
+ * was only there for the pop-out, so it goes. `seen` remembers which were popped out once. */
+export function raidTabsToClose(marked: readonly string[], popped: ReadonlySet<string>, seen: Set<string>): string[] {
+  const out: string[] = [];
+  for (const id of marked) {
+    if (popped.has(id)) seen.add(id);
+    else if (seen.has(id)) out.push(id);
+  }
+  for (const id of [...seen]) if (!marked.includes(id) || out.includes(id)) seen.delete(id);
+  return out;
 }

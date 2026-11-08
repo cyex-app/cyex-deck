@@ -325,9 +325,6 @@
 <Row setting="chat.hypeTrainBar" label="Show hype trains" hint="A bar over the chat with the level, progress and time left while a hype train runs.">
   <Toggle label="Show hype trains" checked={c.hypeTrainBar} onchange={(v) => settings.patch('chat', { hypeTrainBar: v })} />
 </Row>
-<Row setting="chat.raidJoin" label="Join raid button" hint="Shows a button to join a raid. Joining is always your choice.">
-  <Toggle label="Join raid button" checked={c.raidJoin} onchange={(v) => settings.patch('chat', { raidJoin: v })} />
-</Row>
 <Row setting="chat.showClient" label="Show where it was sent from" hint="An icon for messages from the website or the phone apps.">
   <Toggle label="Show where it was sent from" checked={c.showClient} onchange={(v) => settings.patch('chat', { showClient: v })} />
 </Row>
