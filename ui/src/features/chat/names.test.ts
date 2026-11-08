@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { shownName } from './names.ts';
+import { replyParentName, shownName } from './names.ts';
 
 const plain = { login: 'foo', display: 'Foo' };
 const local = { login: 'sai', display: 'サイ' };
@@ -22,4 +22,13 @@ test('username first, for everyone', () => {
 test('a nickname wins', () => {
   assert.deepEqual(shownName(local, 'displayLogin', { nickname: 'Sai', note: '' }), { name: 'Sai' });
   assert.deepEqual(shownName(plain, 'displayLogin', { nickname: '', note: 'x' }), { name: 'Foo' });
+});
+
+test('a reply header names its parent by the setting', () => {
+  const r = { parentLogin: 'sai', parentDisplay: 'サイ' };
+  assert.equal(replyParentName(r, 'username'), 'sai');
+  assert.equal(replyParentName(r, 'usernameDisplay'), 'sai');
+  assert.equal(replyParentName(r, 'display'), 'サイ');
+  assert.equal(replyParentName(r, 'displayLogin'), 'サイ');
+  assert.equal(replyParentName({ parentLogin: '', parentDisplay: 'Foo' }, 'username'), 'Foo');
 });

@@ -27,6 +27,7 @@
   import { CheerBox } from './bits.svelte';
   import { btnMemo, remember } from './btnCache';
   import { catalogs } from './catalog.svelte';
+  import { shownName } from './names';
   import { cheerTotal, setCheer } from './cheer';
   import { ChatSend, leftOver, type CheerAsk } from './cheerSend';
   import CheerConfirm from './CheerConfirm.svelte';
@@ -561,7 +562,7 @@
   {#if replyTo && !lock}
     <div class="reply-bar">
       <Icon name="reply" size={13} />
-      <span>{#if replyTo.sender?.display}Replying to <b>@{replyTo.sender.display}</b>{:else}Replying to a message{/if}: {plainText(replyTo.body)}</span>
+      <span>{#if replyTo.sender?.display}Replying to <b>@{shownName(replyTo.sender, settings.v.chat.names).name}</b>{:else}Replying to a message{/if}: {plainText(replyTo.body)}</span>
       <button aria-label="Cancel reply" onclick={() => (replyTo = null)}><Icon name="x" size={13} /></button>
     </div>
   {/if}

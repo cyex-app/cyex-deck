@@ -32,3 +32,8 @@ export function shownName(w: Who, style: NameStyle, note?: UserNote): ShownName 
       return localized ? { name: w.login, extra: w.display } : { name: w.login };
   }
 }
+
+/** V110-F05 The name a reply header gives its parent: by the Names setting, like a chat line. */
+export function replyParentName(r: { parentLogin: string; parentDisplay: string }, style: NameStyle): string {
+  return shownName({ login: r.parentLogin || r.parentDisplay, display: r.parentDisplay || r.parentLogin }, style).name;
+}

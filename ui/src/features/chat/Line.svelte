@@ -21,7 +21,7 @@
   import { fxSleep } from './fxSleep';
   import { isHot, isPicked } from './hover.svelte';
   import { HOVER_OWNER } from './hoverOwner';
-  import { shownName } from './names';
+  import { replyParentName, shownName } from './names';
   import { ownNameColor } from './ownColor';
   import { foldRecipients } from './recipients';
   import { splitNames } from './noticeNames';
@@ -58,6 +58,7 @@
   const has = (flag: ChatMessage['flags'][number]) => m.flags.includes(flag);
   const sender = $derived(m.sender);
   const name = $derived(sender ? shownName(sender, c.names, c.users[sender.id]) : null);
+  const replyParent = $derived(m.reply ? replyParentName(m.reply, c.names) : '');
   const action = $derived(has('action'));
   const deleted = $derived(has('deleted'));
   const notice = $derived(m.notice);
@@ -135,7 +136,7 @@
     <!-- V109-C01 A click opens the thread; Shift+click still jumps to the line it answers. -->
     <div class="context" data-jump={m.reply.parentId} data-thread={m.reply.threadId}>
       <Icon name="replied" size={12} />
-      <span>Replying to <b>@{m.reply.parentDisplay}</b>: <bdi>{m.reply.parentBody}</bdi></span>
+      <span>Replying to <b>@{replyParent}</b>: <bdi>{m.reply.parentBody}</bdi></span>
     </div>
   {/if}
   <!-- V105-06 A first message can also be a reply: both show. -->

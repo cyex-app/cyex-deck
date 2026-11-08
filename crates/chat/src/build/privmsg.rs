@@ -149,27 +149,39 @@ fn names_in(body: &[Fragment], names: &[String]) -> bool {
     })
 }
 
+/// V110-F05 Drops the leading `@parent` of a reply (login or display name, any case, then a
+/// space or the end) so only the content shows. A later mention stays. A body that is only
+/// the mention is kept as it is, so the line isn't blank.
 fn strip_reply_mention(body: &mut Vec<Fragment>, login: &str, display: &str) {
-    match body.first_mut() {
-        Some(Fragment::Mention { login: l, .. }) if l.eq_ignore_ascii_case(login) => {
-            body.remove(0);
+    let names = [login, display];
+    let hit = |t: &str, n: &str| !n.is_empty() && t.strip_prefix('@').is_some_and(|r| r.to_lowercase() == n.to_lowercase());
+    let mut next = body.clone();
+    match next.first_mut() {
+        Some(Fragment::Mention { text, .. }) if names.iter().any(|n| hit(text, n)) => {
+            next.remove(0);
         }
         Some(Fragment::Text { text }) => {
-            let prefix = format!("@{display} ");
-            if text.starts_with(&prefix) && text.len() > prefix.len() {
-                text.drain(..prefix.len());
-            }
-            return;
+            let cut = names.iter().filter(|n| !n.is_empty()).find_map(|n| {
+                let end = 1 + n.len();
+                let head = text.get(..end)?;
+                let rest = &text[end..];
+                (hit(head, n) && (rest.is_empty() || rest.starts_with(' '))).then_some(end)
+            });
+            let Some(end) = cut else { return };
+            text.drain(..end);
         }
         _ => return,
     }
-    if let Some(Fragment::Text { text }) = body.first_mut() {
+    if let Some(Fragment::Text { text }) = next.first_mut() {
         let trimmed = text.trim_start_matches(' ');
         if trimmed.is_empty() {
-            body.remove(0);
+            next.remove(0);
         } else {
             *text = trimmed.to_owned();
         }
+    }
+    if !next.is_empty() {
+        *body = next;
     }
 }
 
@@ -187,6 +199,34 @@ mod tests {
 
     fn me() -> Me {
         Me::new("42", "cyex", "Cyex")
+    }
+
+    fn strip(text: &str, login: &str, display: &str) -> String {
+        let mut body = tokenize(&Input { text, sender: "7", emotes: "", gifs: "", bits: 0 }, &[], &crate::tokenize::NoEmotes).body;
+        strip_reply_mention(&mut body, login, display);
+        plain(&body)
+    }
+
+    #[test]
+    fn strip_cases() {
+        assert_eq!(strip("@sai hi there", "sai", "Sai"), "hi there", "login");
+        assert_eq!(strip("@Sai hi", "sai", "Sai"), "hi", "display name");
+        assert_eq!(strip("@SAI hi", "sai", "Sai"), "hi", "case");
+        assert_eq!(strip("@\u{79c1}\u{306f} hi", "watashi", "\u{79c1}\u{306f}"), "hi", "CJK display");
+        assert_eq!(strip("hi @sai", "sai", "Sai"), "hi @sai", "not at the start");
+        assert_eq!(strip("@bob @sai hi", "sai", "Sai"), "@bob @sai hi", "another user");
+        assert_eq!(strip("@sai hi @sai", "sai", "Sai"), "hi @sai", "later mention stays");
+        assert_eq!(strip("@sai", "sai", "Sai"), "@sai", "only the mention is kept");
+        assert_eq!(strip("@saint hi", "sai", "Sai"), "@saint hi", "longer name");
+    }
+
+    #[test]
+    fn reply_with_only_an_emote_after_the_mention() {
+        let m = build(
+            "@id=m9;user-id=7;emotes=25:4-8;reply-parent-msg-id=p1;reply-parent-user-login=sai;reply-parent-display-name=\u{30b5}\u{30a4};reply-parent-msg-body=x :foo!foo@foo.tmi.twitch.tv PRIVMSG #bar :@\u{30b5}\u{30a4} Kappa",
+            None,
+        );
+        assert!(matches!(m.body.first(), Some(Fragment::Emote { .. })), "{:?}", m.body);
     }
 
     #[test]
