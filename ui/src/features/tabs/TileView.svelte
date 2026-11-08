@@ -10,7 +10,7 @@
      stream never moves in the page, so it never restarts. V103-07 The mod view's stream
      panel shows this tile's player in its place. -->
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { getContext, onDestroy, untrack } from 'svelte';
 
   import { popOut } from '../../app/panels';
   import IconButton from '../../components/IconButton.svelte';
@@ -52,8 +52,10 @@
   import { claimsOnClick, isControl } from './audioFocus';
   import { takeSound } from './takeSound';
   import { drag } from './drag.svelte';
+  import { aboveChat, BAR_HOST, type BarHost } from './aboveChat.svelte';
   import { chatSide, layout } from './layout.svelte';
   import { layoutEntries, tileEntries } from './menus';
+  import TabBar from './TabBar.svelte';
   import TileActions from './TileActions.svelte';
   import { chatRoute, DEFAULT_RATIO, tabs, tiles } from './tabs.svelte';
   import { chatSideOf, shareOf, TILE_PANELS, tileMin, tileTree, turnedShares } from './tileLayout';
@@ -119,6 +121,20 @@
   });
 
   const shownSide = $derived(fit?.side ?? chatSide(tile));
+
+  // V110-U52 "Above chat": the tab bar over this tile's chat. Only for the one tile of the tab
+  // on screen, with the chat beside the stream as the user set it: the chat turned under the
+  // stream to fit, a mod view, or a hand-made arrangement send the bar back to the top (the
+  // window asks `aboveChat` too, so exactly one of the two draws it).
+  const host = getContext<BarHost | undefined>(BAR_HOST);
+  const barAway = $derived(!!fit?.moved || modWanted || custom !== null);
+  $effect(() => {
+    if (background || popout) return;
+    const away = barAway;
+    untrack(() => aboveChat.mark(tab.id, away));
+  });
+  onDestroy(() => aboveChat.mark(tab.id, false));
+  const barOver = $derived(!!host && !background && !popout && host.current === tab.id && aboveChat.applies(tab));
   const ratio = $derived(fit?.moved ? (movedRatio ?? fit.ratio) : (fit?.ratio ?? tile.ratio));
 
   // V102-26 Where the mod view goes in the stream's area, next to the chat as fitted above.
@@ -457,7 +473,13 @@
       {@render beside()}
     {/if}
   {:else if id === 'chat'}
-    {@render chat(grabOf(ctl))}
+    <!-- V110-U52 Always the same wrapper, so the chat isn't rebuilt when the bar comes or goes. -->
+    <div class="chat-col">
+      {#if barOver && host}
+        <div class="above-bar"><TabBar current={host.current} onopen={host.open} /></div>
+      {/if}
+      <div class="chat-body">{@render chat(grabOf(ctl))}</div>
+    </div>
   {:else if id === 'modview'}
     <ModViewPanel
       route={modviewRoute(tile.channel.login)}
@@ -505,6 +527,29 @@
     min-width: 0;
     min-height: 0;
     display: flex;
+  }
+  .chat-col {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .chat-body {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+  }
+  /* V110-U52 A normal row of the chat column: not a drag area, as wide as the chat. */
+  .above-bar {
+    display: flex;
+    flex-direction: column;
+    flex: none;
+    min-width: 0;
+    padding: 0 6px;
+    background: var(--page);
+    border-bottom: 1px solid var(--border);
   }
   .beside {
     position: relative;

@@ -309,6 +309,9 @@ pub enum TabDensity {
 pub enum TabBarSide {
     #[default]
     Top,
+    /// V110-U52 Across the top of the chat column only, while the chat is beside the stream;
+    /// otherwise (and without a chat there) the normal top place.
+    AboveChat,
     Bottom,
     Left,
     Right,
@@ -340,6 +343,29 @@ pub enum TabUnread {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tab_bar_side_above_chat_roundtrips() {
+        let a: Appearance = serde_json::from_str(r#"{"tabBarSide":"aboveChat"}"#).unwrap();
+        assert_eq!(a.tab_bar_side, TabBarSide::AboveChat);
+        let json = serde_json::to_value(&a).unwrap();
+        assert_eq!(json["tabBarSide"], "aboveChat");
+    }
+
+    #[test]
+    fn tab_bar_side_old_files_still_load() {
+        for (s, want) in [
+            ("top", TabBarSide::Top),
+            ("bottom", TabBarSide::Bottom),
+            ("left", TabBarSide::Left),
+            ("right", TabBarSide::Right),
+        ] {
+            let a: Appearance = serde_json::from_str(&format!(r#"{{"tabBarSide":"{s}"}}"#)).unwrap();
+            assert_eq!(a.tab_bar_side, want);
+        }
+        let none: Appearance = serde_json::from_str("{}").unwrap();
+        assert_eq!(none.tab_bar_side, TabBarSide::Top, "missing = top");
+    }
 
     fn with_theme(t: CustomTheme) -> Appearance {
         Appearance {

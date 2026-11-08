@@ -1,6 +1,7 @@
 <!-- V108-S2 One small window drawing for both layout settings: click a screen edge to move the tab bar, the middle to move chat. The drawing is the live preview. -->
 <script lang="ts">
   import {
+    aboveSplit,
     barSplit,
     chatSplit,
     chatZone,
@@ -19,7 +20,8 @@
 
   type Kind = 'tabs' | 'chat';
   interface Props {
-    tabs: Side;
+    /** V110-U52 `aboveChat` is drawn over the chat column; the Top radio stands for it. */
+    tabs: Side | 'aboveChat';
     chat: Side;
     onTabs: (side: Side) => void;
     onChat: (side: Side) => void;
@@ -29,9 +31,13 @@
 
   const NAMES: Record<Kind, string> = { tabs: 'Tab bar position', chat: 'Chat position' };
 
-  const split = $derived(barSplit(tabs));
-  const parts = $derived(chatSplit(chat, split.rest));
-  const vertical = $derived(tabs === 'left' || tabs === 'right');
+  const above = $derived(tabs === 'aboveChat');
+  /** The radio the tab bar's pick lights. */
+  const tabSide = $derived<Side>(tabs === 'aboveChat' ? 'top' : tabs);
+  const over = $derived(above ? aboveSplit(chat) : null);
+  const split = $derived(over ?? barSplit(tabSide));
+  const parts = $derived(over ?? chatSplit(chat, split.rest));
+  const vertical = $derived(tabSide === 'left' || tabSide === 'right');
 
   /** What the pointer or the keyboard is on right now. */
   let hover = $state<{ kind: Kind; side: Side } | null>(null);
@@ -44,9 +50,9 @@
     return aim.kind === 'tabs' ? barSplit(aim.side).bar : chatSplit(aim.side, split.rest).chat;
   });
 
-  const caption = $derived(aim ? sayPick(aim.kind, aim.side) : `${sayPick('tabs', tabs)} · ${sayPick('chat', chat).replace('Chat', 'chat')}`);
+  const caption = $derived(aim ? sayPick(aim.kind, aim.side) : `${above ? 'Tabs above chat' : sayPick('tabs', tabSide)} · ${sayPick('chat', chat).replace('Chat', 'chat')}`);
 
-  const value = (kind: Kind) => (kind === 'tabs' ? tabs : chat);
+  const value = (kind: Kind) => (kind === 'tabs' ? tabSide : chat);
   const pick = (kind: Kind, side: Side) => (kind === 'tabs' ? onTabs(side) : onChat(side));
   const zone = (kind: Kind, side: Side) => toClip(kind === 'tabs' ? tabZone(side) : chatZone(side));
 
@@ -74,7 +80,9 @@
     return [0, 1, 2].map((i) =>
       vertical
         ? { x: bar.x + 6, y: bar.y + 8 + i * 17, w: bar.w - 12, h: 11 }
-        : { x: bar.x + 8 + i * 44, y: bar.y + 6, w: 38, h: bar.h - 12 },
+        : bar.w < 200
+          ? { x: bar.x + 6 + i * 30, y: bar.y + 6, w: 24, h: bar.h - 12 }
+          : { x: bar.x + 8 + i * 44, y: bar.y + 6, w: 38, h: bar.h - 12 },
     );
   });
   const LINES = [0.78, 0.5, 0.66, 0.4, 0.58];

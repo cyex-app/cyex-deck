@@ -148,8 +148,8 @@ export const APP: Entry[] = [
     id: 'appearance.tabBarSide',
     page: 'appearance',
     label: 'Tab bar position',
-    description: 'Click an edge of the layout picture: top, bottom, left or right.',
-    keywords: ['vertical tabs', 'side bar', 'left', 'right', 'top', 'bottom'],
+    description: 'Click an edge of the layout picture: top, bottom, left or right. Or put the tabs above the chat.',
+    keywords: ['vertical tabs', 'side bar', 'left', 'right', 'top', 'bottom', 'above chat', 'over chat'],
   },
   {
     id: 'appearance.tabRows',

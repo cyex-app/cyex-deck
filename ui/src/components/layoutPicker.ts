@@ -11,7 +11,7 @@ export const TITLE = 18;
 export const BODY: Rect = { x: 0, y: TITLE, w: W, h: H - TITLE };
 
 const BAR_ACROSS = 44; // a side bar's width
-const BAR_ALONG = 24; // a top or bottom bar's height
+export const BAR_ALONG = 24; // a top or bottom bar's height
 const CHAT_SHARE = 0.36;
 
 export const SIDES: readonly Side[] = ['top', 'bottom', 'left', 'right'];
@@ -122,3 +122,20 @@ export function sayPick(kind: 'tabs' | 'chat', side: Side): string {
 export const toPoints = (pts: Pt[]) => pts.map(([a, b]) => `${a},${b}`).join(' ');
 export const toClip = (pts: Pt[]) =>
   `polygon(${pts.map(([a, b]) => `${((a / W) * 100).toFixed(3)}% ${((b / H) * 100).toFixed(3)}%`).join(', ')})`;
+
+/** V110-U52 "Above chat" drawn: the bar over the chat column, and what is left of it for the chat.
+ * Chat on the top or bottom has no column to sit over, so the bar goes to the top like the app does. */
+export function aboveSplit(chat: Side): { bar: Rect; rest: Rect; chat: Rect; player: Rect } {
+  if (chat !== 'left' && chat !== 'right') {
+    const { bar, rest } = barSplit('top');
+    return { bar, rest, ...chatSplit(chat, rest) };
+  }
+  const parts = chatSplit(chat, BODY);
+  const c = parts.chat;
+  return {
+    bar: { x: c.x, y: c.y, w: c.w, h: BAR_ALONG },
+    rest: BODY,
+    chat: { x: c.x, y: c.y + BAR_ALONG, w: c.w, h: c.h - BAR_ALONG },
+    player: parts.player,
+  };
+}

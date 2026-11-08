@@ -5,7 +5,7 @@
      where it was when its window closes (V102-16). -->
 <script lang="ts">
   import { listen } from '@tauri-apps/api/event';
-  import { tick, untrack } from 'svelte';
+  import { setContext, tick, untrack } from 'svelte';
 
   import Button from '../components/Button.svelte';
   import EmptyState from '../components/EmptyState.svelte';
@@ -46,6 +46,7 @@
   import { openTarget, playerHotkeys } from '../features/player/players.svelte';
   import { type OpenHow, openChannel } from '../features/browse/open.svelte';
   import { tabHolding } from '../components/noticeActions';
+  import { aboveChat, BAR_HOST } from '../features/tabs/aboveChat.svelte';
   import { barPlace, sideBarWidth } from '../features/tabs/barLayout';
   import { moveSlot, stepTab } from '../features/tabs/cycle';
   import { heldAfterStart, nextHeld, playingNow } from '../features/tabs/hold';
@@ -109,12 +110,21 @@
 
   const side = $derived(settings.v.appearance.tabBarSide);
   let width = $state(innerWidth);
-  /** F03 Where the tab bar goes now. */
-  const place = $derived(barPlace(side, width));
   const current = $derived(fixed ? null : tabs.tab(picked) ? picked : tabs.active);
   const tab = $derived(tabs.tab(current));
   /** The tab drawn here now, not in its own window. */
   const shownTab = $derived(tab && !tabs.popped.has(tab.id) ? tab.id : null);
+  /** V110-U52 "Above chat" holds for the tab on screen (its tile draws the bar); else the bar goes to the top. */
+  const barAbove = $derived(!!shownTab && !resumeDialog.open && aboveChat.applies(tab));
+  /** F03 Where the tab bar goes now. */
+  const place = $derived(barPlace(side, width, barAbove));
+  // V110-U52 The tab views draw the bar over their chat; they need the shown tab and a way to open one.
+  setContext(BAR_HOST, {
+    get current() {
+      return current;
+    },
+    open: (id: string) => open(id),
+  });
   /** V108-N14 A stream of the tab on screen fills the window: no tab bars, no side chrome. */
   const theatreOn = $derived(!!shownTab && !!tab && stillHere(theatre.tile, tiles(tab).map((t) => t.id)) !== null);
   $effect(() => {
@@ -623,7 +633,7 @@
 {/if}
 
 <div class="body {side}" inert={settingsOpen}>
-  {#if side !== 'top' && !theatreOn}
+  {#if (place === 'bottom' || place === 'left' || place === 'right') && !theatreOn}
     <div class="side-bar" bind:this={sideBar}>
       <TabBar vertical={side !== 'bottom'} width={sideBarWidth(side, menusEdge)} {current} onopen={open} />
     </div>

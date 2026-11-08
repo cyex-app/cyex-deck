@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import type { Tab } from '../../ipc/bindings/Tab';
 import type { Tile } from '../../ipc/bindings/Tile';
-import { ALL_KEEP, barMaxHeight, barPlace, hiddenTabs, NARROW, plusFits, sideBarWidth } from './barLayout.ts';
+import { ALL_KEEP, barMaxHeight, barPlace, type ChatBeside, chatBeside, hiddenTabs, NARROW, plusFits, sideBarWidth } from './barLayout.ts';
 
 function tile(channel: string, feed: string | null = null): Tile {
   return {
@@ -83,4 +83,23 @@ test('V108-F59d plusFits: the tab and the plus share the view or not', () => {
   assert.equal(plusFits(100, 190, 100), true);
   assert.equal(plusFits(100, 201, 100), false);
   assert.equal(plusFits(100, 90, 100), false);
+});
+
+test('V110-U52 above chat: only where the chat is beside the stream', () => {
+  assert.equal(barPlace('aboveChat', 1280, true), 'above');
+  assert.equal(barPlace('aboveChat', 1280, false), 'chrome', 'falls back to the top');
+  assert.equal(barPlace('aboveChat', 720, false), 'row', 'and the narrow-window row');
+  assert.equal(barPlace('aboveChat', 720, true), 'above');
+  assert.equal(barPlace('top', 1280, true), 'chrome', 'other sides ignore it');
+  assert.equal(barPlace('left', 1280, true), 'left');
+  const ok: ChatBeside = { tiles: 1, feed: false, stream: true, chat: true, chatPopped: false, side: 'right' };
+  assert.equal(chatBeside(ok), true);
+  assert.equal(chatBeside({ ...ok, side: 'left' }), true);
+  assert.equal(chatBeside({ ...ok, side: 'bottom' }), false, 'chat under');
+  assert.equal(chatBeside({ ...ok, side: 'top' }), false, 'chat over');
+  assert.equal(chatBeside({ ...ok, chat: false }), false, 'no chat');
+  assert.equal(chatBeside({ ...ok, stream: false }), false, 'chat only');
+  assert.equal(chatBeside({ ...ok, chatPopped: true }), false, 'chat in its own window');
+  assert.equal(chatBeside({ ...ok, feed: true }), false);
+  assert.equal(chatBeside({ ...ok, tiles: 2 }), false, 'several tiles');
 });

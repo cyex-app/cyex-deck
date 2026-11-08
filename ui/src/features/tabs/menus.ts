@@ -5,6 +5,7 @@
 
 import type { MenuEntry } from '../../components/menu.svelte';
 import type { Tab } from '../../ipc/bindings/Tab';
+import type { TabBarSide } from '../../ipc/bindings/TabBarSide';
 import type { TabGroup } from '../../ipc/bindings/TabGroup';
 import type { Tile } from '../../ipc/bindings/Tile';
 import { bindingOf } from '../../lib/hotkeys.svelte';
@@ -177,9 +178,32 @@ export function barMenu(): MenuEntry[] {
     { label: 'Add a tab', icon: 'plus', hint: bindingOf('tabs.new') || undefined, run: () => openAdd() },
     onlyLiveEntry(),
     lockEntry(),
+    positionEntry(),
     'separator',
     reopenEntry(),
   ];
+}
+
+/** V110-U52 Where the bar sits, with "Above chat" (over the chat column, while the chat is beside the stream). */
+function positionEntry(): MenuEntry {
+  const now = settings.v.appearance.tabBarSide;
+  const side = (label: string, value: TabBarSide, hint?: string): MenuEntry => ({
+    label,
+    hint,
+    checked: now === value,
+    run: () => void settings.patch('appearance', { tabBarSide: value }),
+  });
+  return {
+    label: 'Tab bar position',
+    icon: 'layout',
+    items: [
+      side('Top', 'top'),
+      side('Above chat', 'aboveChat', 'Only when the chat is beside the stream.'),
+      side('Bottom', 'bottom'),
+      side('Left', 'left'),
+      side('Right', 'right'),
+    ],
+  };
 }
 
 /** F17 Hides tabs whose channels are offline. */

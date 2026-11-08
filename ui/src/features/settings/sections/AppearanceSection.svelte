@@ -167,6 +167,14 @@
     onChat={(v) => settings.patch('general', { chatPosition: v })}
   />
 </Row>
+<!-- V110-U52 -->
+<Row label="Tabs above chat" hint="Only when the chat is beside the stream.">
+  <Toggle
+    label="Tabs above chat"
+    checked={a.tabBarSide === 'aboveChat'}
+    onchange={(v) => settings.patch('appearance', { tabBarSide: v ? 'aboveChat' : 'top' })}
+  />
+</Row>
 
 <SectionHead title="Tabs">The tab bar at the top or side.</SectionHead>
 <Row setting="appearance.tabDensity" label="Tab size" hint="Compact fits more tabs.">

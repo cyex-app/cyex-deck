@@ -9,13 +9,35 @@ import type { TabRows } from '../../ipc/bindings/TabRows';
 /** F03 Below this window width (CSS px) top tabs get their own row under the title bar. */
 export const NARROW = 900;
 
-/** `chrome`: in the title bar; `row`: a full-width row under it; else the side bar. */
-export type BarPlace = 'chrome' | 'row' | Exclude<TabBarSide, 'top'>;
+/** `chrome`: in the title bar; `row`: a full-width row under it; `above`: over the chat
+ * column inside the tab (V110-U52); else the side bar. */
+export type BarPlace = 'chrome' | 'row' | 'above' | Exclude<TabBarSide, 'top' | 'aboveChat'>;
 
-/** F03 Where the bar goes. A width of 0 (not measured yet) counts as wide. */
-export function barPlace(side: TabBarSide, width: number): BarPlace {
-  if (side !== 'top') return side;
+/** F03 Where the bar goes. A width of 0 (not measured yet) counts as wide. V110-U52 "Above
+ * chat" is `above` while `aboveChat` says it applies, else the normal top place. */
+export function barPlace(side: TabBarSide, width: number, aboveChat = false): BarPlace {
+  if (side === 'aboveChat' && aboveChat) return 'above';
+  if (side !== 'top' && side !== 'aboveChat') return side;
   return width > 0 && width < NARROW ? 'row' : 'chrome';
+}
+
+/** What V110-U52 needs to know about a tab: its tiles and how the one tile's chat sits. */
+export interface ChatBeside {
+  /** Tiles in the tab. */
+  tiles: number;
+  feed: boolean;
+  /** The tile shows its stream and its chat, the chat not in its own window. */
+  stream: boolean;
+  chat: boolean;
+  chatPopped: boolean;
+  /** Where the chat sits (the tile's, else Settings'). */
+  side: 'left' | 'right' | 'top' | 'bottom';
+}
+
+/** V110-U52 Whether the chat is beside the stream: one tile with both, the chat left or
+ * right. The measured turns (too narrow, mod view, arranged by hand) come on top of this. */
+export function chatBeside(i: ChatBeside): boolean {
+  return i.tiles === 1 && !i.feed && i.stream && i.chat && !i.chatPopped && (i.side === 'left' || i.side === 'right');
 }
 
 /** F16 "All" still leaves this much of the window's height to the tab under the bar. */
