@@ -18,7 +18,7 @@ export const OPT = {
     icon: 'languages',
   },
   // V110-C57
-  wordsOnly: { label: 'Colour only the matched words', hint: 'The line stays plain; just the matching words get the colour.', icon: 'palette' },
+  wordsOnly: { label: 'Color only the matched words', hint: 'The line stays plain; just the matching words get the color.', icon: 'palette' },
   regex: { label: 'Regex', hint: 'The pattern is a regular expression.', icon: 'regex' },
   flavor: { label: 'Regex flavor', hint: 'Which regex rules the pattern follows.' },
   color: { label: 'Color', hint: 'Tints the message. × goes back to the default.' },
