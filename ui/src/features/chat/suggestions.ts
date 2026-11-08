@@ -29,7 +29,9 @@ export interface EmojiName {
   name: string;
 }
 
-/** Emotes first (V107-R7 the one emote order), then emoji by short name. */
+/** Emotes and emoji in one order (V107-R7): how well the name matches first, so `:sob`
+ *  shows 😭 before SoBayed and CoolStoryBob (V110-F10); on a tie emotes go first. Emoji found
+ *  only by a search word come after. */
 export function emoteItems(
   prefix: string,
   emotes: EmoteName[],
@@ -38,18 +40,20 @@ export function emoteItems(
   used?: (name: string) => number,
 ): Item[] {
   const byName = new Map(emotes.map((e) => [e.name, e]));
+  type Hit = { emote: EmoteName } | { emoji: EmojiName };
   // Unlike Tab, `:` keeps the exact name: it ranks first (an exact match beats every prefix match).
-  const names = rankEmotes(
-    prefix,
-    [...byName.keys()].map((n) => ({ item: n, name: n, used: used?.(n) })),
-  ).slice(0, limit);
-  const items: Item[] = names.map((n) => {
-    const e = byName.get(n)!;
-    return { value: n, label: n, emote: { provider: e.provider, id: e.id, animated: e.animated } };
-  });
+  const ranked = rankEmotes<Hit>(prefix, [
+    ...[...byName.values()].map((e) => ({ item: { emote: e }, name: e.name, used: used?.(e.name) })),
+    ...emoji.map((e) => ({ item: { emoji: e }, name: e.name })),
+  ]).slice(0, limit);
+  const items: Item[] = ranked.map((h) =>
+    'emote' in h
+      ? { value: h.emote.name, label: h.emote.name, emote: { provider: h.emote.provider, id: h.emote.id, animated: h.emote.animated } }
+      : { value: h.emoji.char, label: `:${h.emoji.name}:`, glyph: h.emoji.char },
+  );
   for (const e of emoji) {
     if (items.length >= limit) break;
-    items.push({ value: e.char, label: `:${e.name}:`, glyph: e.char });
+    if (!items.some((i) => i.glyph === e.char)) items.push({ value: e.char, label: `:${e.name}:`, glyph: e.char });
   }
   return items;
 }

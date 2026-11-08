@@ -43,9 +43,19 @@
   -webkit-text-fill-color: transparent;
   background-clip: text;
   -webkit-background-clip: text;
-  /* The painted box ends at the line box and would cut g, y, p, j: grow it, and cancel the growth. */
-  padding-block: 0.25em;
-  margin-block: -0.25em;
+  /* The painted box ends at the line box and would cut g, y, p, j: grow it, and cancel the growth.
+     V110-F08 The growth is a multiple of 4 px: the clipped text is drawn from the box's top, which
+     is snapped to a device pixel on its own. With 0.25em (3,5 px at 14) the box top sat at a half
+     pixel from the baseline, and on 15 to 80 % of line positions the name landed a pixel lower
+     than the text beside it. Whole 4 px is whole device pixels at 100, 125, 150, 175 and 200 %. */
+  --pb: 4px;
+  padding-block: var(--pb);
+  margin-block: calc(-1 * var(--pb));
+}
+@supports (width: round(1px, 1px)) {
+  .painted {
+    --pb: max(4px, round(0.25em, 4px));
+  }
 }
 /* V107-R35 Selected, a paint's see-through fill left an empty grey box: the text shows in
    the theme's text color on the selection instead. */

@@ -5,6 +5,7 @@
 mod builtin;
 mod cosmetics;
 mod seventv_edit;
+mod spam;
 pub use builtin::{block_user, reserved};
 pub mod complete;
 mod host;

@@ -199,6 +199,14 @@ pub(super) const BEFORE: &[Cmd] = &[
             ex("/roles forsen", "The same list for another channel, tabbed or not."),
         ])
         .notes("In your own channel you can add and remove people there too."),
+    // V110-C69
+    Cmd::new("spam", "/spam count message", "Sends one message up to 100 times, as fast as Twitch takes it.", "V110-C69")
+        .help("/spam")
+        .ex(&[
+            ex("/spam 10 hello", "hello goes out 10 times; repeats change invisibly so Twitch takes them."),
+            ex("/spam stop", "Stops the ones still running in this chat."),
+        ])
+        .notes("Mods, VIPs and the broadcaster send at once, others about one a second. Text or /me only."),
     Cmd::new("color", "/color #RRGGBB", "Changes your name color on Twitch.", "1.40")
         .help("/color")
         .args(&[req("color", "word").note("A hex color. Any color needs Prime or Turbo; named ones don’t.")])

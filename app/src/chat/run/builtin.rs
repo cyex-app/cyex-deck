@@ -79,6 +79,23 @@ pub async fn run(
         // I106-3
         "add" | "remove" | "rename" => super::seventv_edit::run(app, place, name, args).await,
         "set" => set_var(app, args).map(|()| None),
+        // V110-C69 The same line up to 100 times, as fast as Twitch takes it.
+        "spam" => match super::spam::parse(args)? {
+            super::spam::Spam::Stop => {
+                super::spam::stop(&place.key);
+                done
+            }
+            super::spam::Spam::Run { count, text } => {
+                // Off the caller: a long run doesn't hold the box or a chain.
+                let (app, place) = (app.clone(), place.clone());
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = super::spam::run(&app, &place, count, &text).await {
+                        local(&app, &place.key, NoticeKind::Error, &e);
+                    }
+                });
+                done
+            }
+        },
         "chain" => {
             for (i, part) in capped(split_chain(args))?.into_iter().enumerate() {
                 gap(i).await;
@@ -278,6 +295,8 @@ pub(super) const OWN: &[&str] = &[
     "combo", "paint", "badge",
     // I106-3
     "add", "remove", "rename",
+    // V110-C69
+    "spam",
 ];
 
 /// V107-Mb The app’s commands that never write to Twitch or 7TV: they show, open or change
@@ -310,6 +329,8 @@ pub(super) const SIGNED_IN: &[&str] = &["me", "tl", "vote", "color", "cosmetics"
     "combo", "paint", "badge",
     // I106-3
     "add", "remove", "rename",
+    // V110-C69
+    "spam",
 ];
 
 /// V1041-01 Who may run a built-in (1.57): Twitch's mod commands as they parse, `/nuke` any

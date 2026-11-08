@@ -38,3 +38,10 @@ test('bot commands by level', () => {
   assert.equal(viewerLevel({ role: 'leadModerator', vip: false, sub: false }), 4);
   assert.equal(viewerLevel({ role: 'broadcaster', vip: false, sub: false }), 5);
 });
+
+test('an emoji named exactly what is typed comes before emotes that only start with it (V110-F10)', () => {
+  const emotes = ['SoBayed', 'CoolStoryBob', 'Isaboobs3'].map((name, i) => ({ name, provider: 'twitch' as const, id: String(i) }));
+  const items = emoteItems('sob', emotes, [{ char: '😭', name: 'sob' }]);
+  assert.equal(items[0].glyph, '😭');
+  assert.equal(items[1].label, 'SoBayed');
+});
