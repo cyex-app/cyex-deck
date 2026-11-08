@@ -505,16 +505,27 @@
 
   /** V110-C55 A press on a scrollbar tick goes to its line when let go in place. A drag of the
    *  thumb or a held press on the track is the scrollbar's own. */
+  let endPress: (() => void) | null = null;
   function tickPress(id: string, e: PointerEvent) {
+    // V110-F21 One press at a time, and its listeners go with the press (a cancel, a close).
+    endPress?.();
     const { clientX: x, clientY: y } = e;
-    const done = (up: MouseEvent) => {
+    const stop = () => {
       removeEventListener('pointerup', done);
       removeEventListener('mouseup', done);
+      removeEventListener('pointercancel', stop);
+      endPress = null;
+    };
+    const done = (up: MouseEvent) => {
+      stop();
       if (Math.hypot(up.clientX - x, up.clientY - y) < 4) jump(id);
     };
     addEventListener('pointerup', done);
     addEventListener('mouseup', done);
+    addEventListener('pointercancel', stop);
+    endPress = stop;
   }
+  onDestroy(() => endPress?.());
 
   function jumpDown() {
     scroll.toNewest();

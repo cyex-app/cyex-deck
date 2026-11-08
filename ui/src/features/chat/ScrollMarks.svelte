@@ -70,6 +70,8 @@
     const h = Math.round(height * dpr);
     if (cv.width !== w) cv.width = w;
     if (cv.height !== h) cv.height = h;
+    // V110-F21 The list's height, not the wrapper's: the pill's reserve makes the wrapper taller.
+    cv.style.height = `${height}px`;
     const g = cv.getContext('2d');
     if (!g) return;
     g.clearRect(0, 0, w, h);
@@ -111,6 +113,9 @@
     return nearest(ticks, clientY - r.top)?.id ?? null;
   }
 </script>
+
+<!-- V110-F21 A new pixel ratio (another monitor, zoom) comes with a resize. -->
+<svelte:window onresize={schedule} />
 
 <canvas bind:this={canvas} class="marks" width={TRACK} aria-hidden="true"></canvas>
 
