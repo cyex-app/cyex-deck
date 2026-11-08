@@ -475,12 +475,13 @@
   }
 
   /** A line (or cheer) went out: into the Up history; unless `keep`, the part that was sent
-   *  leaves the box and text typed while it was sending stays. The reply is done either way
-   *  (V107-H1e: a cheer kept it, so the next line went out as a reply). */
+   *  leaves the box and text typed while it was sending stays. A plain send ends the reply
+   *  (V107-H1e: a cheer kept it, so the next line went out as a reply); V110-C68 Ctrl+Enter
+   *  keeps it too, so every repeat goes out as the same reply. */
   function wentOut(raw: string, value: string, keep: boolean) {
     sent = [value, ...sent.filter((s) => s !== value)].slice(0, HISTORY);
     recall = -1;
-    replyTo = null;
+    if (!keep) replyTo = null;
     // V108-F04 A command that ran leaves no suggestion over the chat (and drops a lookup still out).
     argSeq++;
     suggest = null;
