@@ -98,9 +98,10 @@
   const slots = $derived(modButtons && mod ? mod.slots : []);
   /** V107-R44 The broadcaster's timeout or ban on a mod takes the mod role: said in the tip. */
   const roleNote = $derived(slots.length && takesModRole(mod, sender, channel) ? MOD_ROLE_NOTE : undefined);
-  /** C30 The first link, for a card under the message. V110-C66 Trusted links only (`embed`). */
+  /** C30 The first link, for a card under the message. V110-C66 Trusted links only (`embed`).
+   *  V110-F45 A deleted or timed-out line loses its card; Strike and Faded keep only the text. */
   const firstLink = $derived(
-    c.linkCards && c.linkPreviews && !streamer.hides('hideLinkPreviews')
+    c.linkCards && c.linkPreviews && !deleted && !streamer.hides('hideLinkPreviews')
       ? m.body.find((f) => f.t === 'link' && f.embed && !f.target)
       : undefined,
   );
