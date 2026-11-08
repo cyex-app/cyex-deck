@@ -3,6 +3,7 @@
   import DragList from '../../../components/DragList.svelte';
   import Icon from '../../../components/Icon.svelte';
   import type { IconName } from '../../../components/icons';
+  import NumberField from '../../../components/NumberField.svelte';
   import Row from '../../../components/Row.svelte';
   import Segmented from '../../../components/Segmented.svelte';
   import Toggle from '../../../components/Toggle.svelte';
@@ -73,11 +74,8 @@
     { value: 'medium', label: 'Medium' },
     { value: 'large', label: 'Large' },
   ];
-  /** V101-02, V101-03 Chatterino goes up to 8.000 kept and 2.000 loaded. */
-  const KEPT = [100, 200, 500, 1000, 2000, 4000, 8000].map((n) => ({ value: n, label: formatNumber(n) }));
   // V107-B "Every cheer" is 1.
   const CHEER_ASK = [1, 100, 500, 1000, 5000, 10000].map((n) => ({ value: n, label: n === 1 ? 'Every cheer' : `${formatNumber(n)} Bits` }));
-  const LOADED = [50, 100, 200, 500, 800, 1000, 2000].map((n) => ({ value: n, label: formatNumber(n) }));
   /** V101-15 Tenths of a second; 0 waits for the mouse to leave. */
   const STILL = [0, 5, 10, 20, 50].map((t) => ({
     value: t,
@@ -230,23 +228,10 @@
   <Toggle label="Recent history" checked={c.history} onchange={(v) => settings.patch('chat', { history: v })} />
 </Row>
 <Row setting="chat.historyLines" label="History to load" hint="Up to this many. The history service keeps 800 per channel.">
-  <Select
-    label="History to load"
-    width="120px"
-    disabled={!c.history}
-    value={String(c.historyLines)}
-    options={choicesOf(LOADED)}
-    onchange={(v) => settings.patch('chat', { historyLines: Number(v) })}
-  />
+  <NumberField label="History to load" steppers width="110px" min={50} max={2000} step={50} disabled={!c.history} value={c.historyLines} onchange={(n) => settings.patch('chat', { historyLines: n })} />
 </Row>
 <Row setting="chat.scrollback" label="Messages kept" hint="Per chat. Older ones drop off the top; more uses more memory.">
-  <Select
-    label="Messages kept"
-    width="120px"
-    value={String(c.scrollback)}
-    options={choicesOf(KEPT)}
-    onchange={(v) => settings.patch('chat', { scrollback: Number(v) })}
-  />
+  <NumberField label="Messages kept" steppers width="110px" min={100} max={8000} step={100} value={c.scrollback} onchange={(n) => settings.patch('chat', { scrollback: n })} />
 </Row>
 
 <SectionHead title="Messages" />

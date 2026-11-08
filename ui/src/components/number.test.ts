@@ -39,3 +39,36 @@ test('parseNumber: words and empty text are not numbers; out of range clamps', (
   assert.equal(parseNumber('0', r), 1);
   assert.equal(parseNumber('99999999999', r), 2147483647);
 });
+
+import { rangeNote, readNumber } from './number.ts';
+
+const g = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+const kept = { min: 100, max: 8000 };
+
+test('messages-kept range: dots, empty, huge, negative, decimals', () => {
+  assert.equal(parseNumber('1.000', kept), 1000);
+  assert.equal(parseNumber('1000', kept), 1000);
+  assert.equal(parseNumber('', kept), null);
+  assert.equal(parseNumber('   ', kept), null);
+  assert.equal(parseNumber('99999999999999', kept), 8000);
+  assert.equal(parseNumber('-5', kept), 100);
+  assert.equal(parseNumber('250,7', kept), 251);
+  assert.equal(parseNumber('250.4', kept), 250);
+  assert.equal(parseNumber('1e999', kept), null);
+});
+
+test('readNumber is unclamped', () => {
+  assert.equal(readNumber('9.000'), 9000);
+  assert.equal(readNumber('x'), null);
+  assert.equal(readNumber(''), null);
+});
+
+test('rangeNote names the limit that was passed', () => {
+  assert.equal(rangeNote('9000', kept, g), 'Max 8.000');
+  assert.equal(rangeNote('9.000', kept, g), 'Max 8.000');
+  assert.equal(rangeNote('5', kept, g), 'Min 100');
+  assert.equal(rangeNote('-5', kept, g), 'Min 100');
+  assert.equal(rangeNote('500', kept, g), null);
+  assert.equal(rangeNote('abc', kept, g), null);
+  assert.equal(rangeNote('', kept, g), null);
+});

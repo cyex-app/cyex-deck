@@ -47,3 +47,23 @@ export function stepFor(key: string, shift: boolean, value: number, range: Numbe
       return null;
   }
 }
+
+/** What was typed as a plain number, not clamped; null when it isn't one. Same reading as parseNumber. */
+export function readNumber(text: string): number | null {
+  let t = text.trim().replace(/\s/g, '');
+  if (!t) return null;
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  else if (/^-?\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** "Max 5.000" / "Min 100" when the typed number is outside the range; null when it fits or isn't a number.
+ *  `fmt` groups the digits. */
+export function rangeNote(text: string, { min, max }: NumberRange, fmt: (n: number) => string): string | null {
+  const n = readNumber(text);
+  if (n === null) return null;
+  if (n > max) return `Max ${fmt(max)}`;
+  if (n < min) return `Min ${fmt(min)}`;
+  return null;
+}
