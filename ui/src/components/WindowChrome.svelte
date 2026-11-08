@@ -106,4 +106,24 @@
     flex: none;
     height: var(--row);
   }
+  /* V110-F26 Narrow (zoom 200 % on a small screen): the fixed parts shrink so Minimize,
+     Maximize and Close always stay on screen. The drag strip gives way first. */
+  @media (max-width: 600px) {
+    .fill {
+      flex-basis: 0;
+    }
+    .brand {
+      width: 34px;
+    }
+    .end {
+      padding-right: 2px;
+    }
+    .end :global(.icon-btn),
+    .chrome :global(.fixed-tabs .icon-btn) {
+      width: 26px;
+    }
+    .controls :global(.icon-btn.chrome) {
+      width: 34px;
+    }
+  }
 </style>
