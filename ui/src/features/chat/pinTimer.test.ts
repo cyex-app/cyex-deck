@@ -35,6 +35,8 @@ test('the countdown reads m:ss, h:mm:ss from an hour, rounding up (V107)', () =>
   assert.equal(pinLeft(3_599_000), '59:59');
   assert.equal(pinLeft(3_600_000), '1:00:00');
   assert.equal(pinLeft(3_723_000), '1:02:03');
-  assert.equal(pinLeft(0), '0:00');
-  assert.equal(pinLeft(-500), '0:00');
+  assert.equal(pinLeft(1), '0:01');
+  // V110-F46 Over: no "0:00" while Twitch hasn't taken the pin down yet.
+  assert.equal(pinLeft(0), null);
+  assert.equal(pinLeft(-500), null);
 });

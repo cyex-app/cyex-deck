@@ -81,10 +81,9 @@ pub async fn run(
         "set" => set_var(app, args).map(|()| None),
         // V110-C69 The same line up to 100 times, as fast as Twitch takes it.
         "spam" => match super::spam::parse(args)? {
-            super::spam::Spam::Stop => {
-                super::spam::stop(&place.key);
-                done
-            }
+            // V110-F46 A stop with nothing running says so.
+            super::spam::Spam::Stop if super::spam::stop(&place.key) => done,
+            super::spam::Spam::Stop => Err("Nothing to stop.".into()),
             super::spam::Spam::Run { count, text } => {
                 // Claimed here, so a stop right after finds it.
                 let claim = super::spam::begin(&place.key)?;

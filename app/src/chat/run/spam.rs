@@ -39,7 +39,7 @@ pub fn parse(args: &str) -> Result<Spam, String> {
         return Err(USAGE.into());
     }
     if count > MAX {
-        return Err(format!("{MAX} at most."));
+        return Err(format!("Up to {MAX}."));
     }
     let text = text.trim();
     if text.is_empty() {
@@ -92,11 +92,12 @@ pub fn begin(key: &RoomKey) -> Result<Claim, String> {
     Ok(Claim { key: key.clone(), stopped })
 }
 
-/// Ends the run in that chat (also when the chat is left).
-pub fn stop(key: &RoomKey) {
-    if let Some(f) = runs().get(key) {
-        f.store(true, Ordering::Relaxed);
-    }
+/// Ends the run in that chat (also when the chat is left). False when none was running.
+pub fn stop(key: &RoomKey) -> bool {
+    let m = runs();
+    let Some(f) = m.get(key) else { return false };
+    f.store(true, Ordering::Relaxed);
+    true
 }
 
 /// What the loop does next.
@@ -177,7 +178,7 @@ mod tests {
         assert_eq!(parse("3 hi there"), Ok(Spam::Run { count: 3, text: "hi there".into() }));
         assert_eq!(parse(" 100  /me waves "), Ok(Spam::Run { count: 100, text: "/me waves".into() }));
         assert_eq!(parse("STOP"), Ok(Spam::Stop));
-        assert_eq!(parse("101 hi"), Err("100 at most.".into()));
+        assert_eq!(parse("101 hi"), Err("Up to 100.".into()));
         assert!(parse("0 hi").is_err());
         assert!(parse("hi 3").is_err());
         assert!(parse("3").is_err());
@@ -193,7 +194,7 @@ mod tests {
         assert_eq!(begin(&k).err().as_deref(), Some("Already spamming. /spam stop first."));
         assert!(begin(&key("spamtest_b")).is_ok());
         assert!(!r.is_stopped());
-        stop(&k);
+        assert!(stop(&k));
         assert!(r.is_stopped());
         drop(r);
         // The entry goes with the run: nothing piles up, and a new run starts unstopped.
@@ -201,7 +202,7 @@ mod tests {
         let again = begin(&k).unwrap();
         assert!(!again.is_stopped());
         // Stopping a chat with no run leaves no entry.
-        stop(&key("spamtest_nobody"));
+        assert!(!stop(&key("spamtest_nobody")));
         assert!(!runs().contains_key(&key("spamtest_nobody")));
     }
 

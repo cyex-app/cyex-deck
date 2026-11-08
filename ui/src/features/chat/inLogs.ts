@@ -8,13 +8,13 @@ import { errorText } from '../../lib/errors';
 import { toast } from '../../lib/toast.svelte';
 import { logsMessageUrl, logsUserUrl } from './logsLink';
 
-/** "Jump to in logs": the message itself on logs.cyex.app, or no entry for a local line. */
+/** "Show in logs": the message itself on logs.cyex.app, or no entry for a local line. */
 export function jumpInLogs(channel: string, m: ChatMessage) {
   const url = logsMessageUrl(channel, m);
   if (!url) return [];
   return [
     {
-      label: 'Jump to in logs',
+      label: 'Show in logs',
       icon: 'scroll' as const,
       run: () => systemIpc.openLink(url).catch((e) => toast.error(errorText(e))),
     },

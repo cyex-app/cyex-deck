@@ -25,12 +25,15 @@
     class:live={p.live}
     style:min-width={p.thumbnail && c.thumbWidth ? `${Math.max(200, c.thumbWidth)}px` : undefined}
   >
-    <span class="site">
-      {kindText(p)}
-      {#if p.kind === 'channel' || (p.kind === 'video' && p.live)}
-        <span class="state" class:on={p.live}>{p.live ? 'Live' : 'Offline'}</span>
-      {/if}
-    </span>
+    <!-- V110-F46 A web page's site is its host, which the tip's "Opens x.com" already says. -->
+    {#if p.kind !== 'web'}
+      <span class="site">
+        {kindText(p)}
+        {#if p.kind === 'channel' || (p.kind === 'video' && p.live)}
+          <span class="state" class:on={p.live}>{p.live ? 'Live' : 'Offline'}</span>
+        {/if}
+      </span>
+    {/if}
     {#if p.title || p.subtitle || p.avatar}
       <div class="head">
         {#if p.avatar}<img class="avatar" src={p.avatar} alt="" referrerpolicy="no-referrer" />{/if}
