@@ -218,13 +218,13 @@
                 {#if r.prompt}<p class="prompt">{r.prompt}</p>{/if}
                 {#if f.length || w}
                   <p class="facts">
-                    {f.join(' · ')}{#if w}{f.length ? ' · ' : ''}<button class="wait" type="button" onclick={() => openQueue(r.id)}>{w}</button>{/if}
+                    {#each f as x, i (x)}{i ? ' · ' : ''}{#if x === 'Paused'}<span class="paused">Paused, can’t be redeemed</span>{:else}{x}{/if}{/each}{#if w}{f.length ? ' · ' : ''}<button class="wait" type="button" onclick={() => openQueue(r.id)}>{w}</button>{/if}
                   </p>
                 {/if}
               </div>
               {#if confirming !== r.id}
                 <span class="acts">
-                  <Toggle label="Reward on" checked={r.enabled} disabled={isBusy(r.id)} onchange={(on) => flip(r, { kind: 'enabled', on })} />
+                  <Toggle label="Enabled" checked={r.enabled} disabled={isBusy(r.id)} onchange={(on) => flip(r, { kind: 'enabled', on })} />
                   <span class="more" data-back={r.id}><IconButton icon="more" label="More for {r.title}" size={14} disabled={isBusy(r.id)} onclick={(e) => menu(e, r)} /></span>
                 </span>
               {/if}
@@ -330,6 +330,11 @@
   }
   .facts {
     color: var(--dim);
+  }
+  /* V110-F33 The switch is "Enabled"; a paused reward stays enabled, so it says so apart from it. */
+  .paused {
+    color: var(--text);
+    font-weight: 600;
   }
   .wait {
     padding: 0;
