@@ -595,14 +595,41 @@ pub enum GifMode {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(from = "TimestampsFile", rename_all = "camelCase")]
 #[ts(export)]
 pub struct Timestamps {
     pub show: bool,
     pub seconds: bool,
     /// V110-U53 24-hour by default (3.2). Files from before read the old `hour12` bool.
-    #[serde(alias = "hour12")]
     pub clock: ClockFormat,
+}
+
+/// What a settings file holds for [`Timestamps`]: `clock`, and `hour12` from before it. A file
+/// with both loads (V110-F17), `clock` winning.
+#[derive(Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct TimestampsFile {
+    show: bool,
+    seconds: bool,
+    clock: Option<ClockFormat>,
+    hour12: Option<ClockFormat>,
+}
+
+impl Default for TimestampsFile {
+    fn default() -> Self {
+        let d = Timestamps::default();
+        Self { show: d.show, seconds: d.seconds, clock: None, hour12: None }
+    }
+}
+
+impl From<TimestampsFile> for Timestamps {
+    fn from(f: TimestampsFile) -> Self {
+        Self {
+            show: f.show,
+            seconds: f.seconds,
+            clock: f.clock.or(f.hour12).unwrap_or_default(),
+        }
+    }
 }
 
 /// V110-U53 The clock timestamps use.
@@ -626,7 +653,12 @@ impl<'de> Deserialize<'de> for ClockFormat {
         Ok(match Raw::deserialize(d)? {
             Raw::Old(true) => Self::H12,
             Raw::Text(t) if t == "h12" => Self::H12,
-            _ => Self::H24,
+            Raw::Text(t) if t == "h24" => Self::H24,
+            Raw::Text(t) => {
+                eprintln!("settings: unknown clock {t:?}, using 24-hour");
+                Self::H24
+            }
+            Raw::Old(false) => Self::H24,
         })
     }
 }
@@ -649,6 +681,14 @@ mod tests {
     fn v110_u53_clock_reads_the_old_bool_and_the_new_enum() {
         let old: Chat = serde_json::from_str(r#"{"timestamps":{"hour12":true}}"#).unwrap();
         assert_eq!(old.timestamps.clock, ClockFormat::H12);
+        // V110-F17 Both keys in one file load, `clock` winning; unknown text falls back to 24-hour.
+        let both: Chat =
+            serde_json::from_str(r#"{"timestamps":{"hour12":true,"clock":"h24","show":false}}"#).unwrap();
+        assert_eq!((both.timestamps.clock, both.timestamps.show), (ClockFormat::H24, false));
+        let both: Chat = serde_json::from_str(r#"{"timestamps":{"hour12":false,"clock":"h12"}}"#).unwrap();
+        assert_eq!(both.timestamps.clock, ClockFormat::H12);
+        let odd: Chat = serde_json::from_str(r#"{"timestamps":{"clock":"h99"}}"#).unwrap();
+        assert_eq!(odd.timestamps.clock, ClockFormat::H24);
         let old: Chat = serde_json::from_str(r#"{"timestamps":{"hour12":false}}"#).unwrap();
         assert_eq!(old.timestamps.clock, ClockFormat::H24);
         let new: Chat = serde_json::from_str(r#"{"timestamps":{"clock":"h12"}}"#).unwrap();
