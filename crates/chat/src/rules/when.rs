@@ -42,10 +42,15 @@ pub struct Ctx<'a> {
     pub recent: Option<&'a VecDeque<i64>>,
 }
 
-fn sorted(list: &[String]) -> Box<[String]> {
+/// `login`: names of channels, where a typed `#` or `@` isn't part of the name. Category names
+/// keep theirs.
+fn sorted(list: &[String], login: bool) -> Box<[String]> {
     let mut v: Vec<String> = list
         .iter()
-        .map(|s| s.trim().trim_start_matches(['#', '@']).to_lowercase())
+        .map(|s| {
+            let s = s.trim();
+            if login { s.trim_start_matches(['#', '@']) } else { s }.to_lowercase()
+        })
         .filter(|s| !s.is_empty())
         .collect();
     v.sort();
@@ -61,11 +66,11 @@ impl Cond {
     /// `None` when nothing is set: the rule always applies.
     pub fn new(when: Option<&When>) -> Option<Self> {
         let w = when.filter(|w| !w.is_always())?;
-        let channels = sorted(&w.channels);
+        let channels = sorted(&w.channels, true);
         let c = Self {
             not_channels: w.not_channels && !channels.is_empty(),
             channels,
-            categories: sorted(&w.categories),
+            categories: sorted(&w.categories, false),
             live: w.live,
             role: w.role,
             burst: (w.burst >= 2).then(|| (usize::from(w.burst), i64::from(w.burst_secs.max(1)) * 1000)),
@@ -188,6 +193,14 @@ mod tests {
         assert!(Cond::new(Some(&When::default())).is_none());
         assert!(Cond::new(Some(&When { not_channels: true, ..When::default() })).is_none());
         assert!(holds(None, &ctx()));
+    }
+
+    #[test]
+    fn category_names_keep_their_symbols() {
+        let c = when(|w| w.categories = vec!["#Art".into(), " @Home ".into()]);
+        assert!(c.holds(&Ctx { category: Some("#art"), ..ctx() }));
+        assert!(c.holds(&Ctx { category: Some("@home"), ..ctx() }));
+        assert!(!c.holds(&Ctx { category: Some("art"), ..ctx() }));
     }
 
     #[test]
