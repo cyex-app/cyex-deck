@@ -1,5 +1,5 @@
-<!-- Title bar of the main window (3.9): mark, title or custom content, pin,
-     minimize, maximize, close. Pop-outs and pop-ups have PopoutFrame (V104-03, V105-18). Empty
+<!-- Title bar of the main window (3.9): mark, title or custom content, then room for pin,
+     minimize, maximize and close (V110-F50: WindowControls, last in the page for Tab). Pop-outs and pop-ups have PopoutFrame (V104-03, V105-18). Empty
      areas drag the window. Grows with content that wraps (the main window's tab rows,
      V101-38); everything else stays on the first row. -->
 <script lang="ts">
@@ -7,7 +7,6 @@
 
   import { currentWindow } from '../lib/window.svelte';
   import BrandMark from './BrandMark.svelte';
-  import IconButton from './IconButton.svelte';
 
   interface Props {
     title?: string;
@@ -30,27 +29,8 @@
   <!-- Also where a dragged tile becomes its own tab (U3). -->
   <div class="fill" data-tauri-drag-region data-drop-bar></div>
   {#if end}<div class="end">{@render end()}</div>{/if}
-  <div class="controls">
-    <IconButton
-      chrome
-      icon="pin"
-      label={currentWindow.pinned ? 'Unpin' : 'Pin on top'}
-      hint="Keeps this window above everything else."
-      active={currentWindow.pinned}
-      onclick={() => currentWindow.togglePin()}
-    />
-    <IconButton chrome icon="minimize" label="Minimize" onclick={currentWindow.minimize} />
-    {#if currentWindow.isMain}
-      <IconButton
-        chrome
-        icon={currentWindow.maximized ? 'restore' : 'maximize'}
-        label={currentWindow.maximized ? 'Restore' : 'Maximize'}
-        size={14}
-        onclick={currentWindow.toggleMaximize}
-      />
-    {/if}
-    <IconButton chrome danger icon="x" label="Close" onclick={currentWindow.close} />
-  </div>
+  <!-- V110-F50 WindowControls draws the window's buttons over this gap. -->
+  <div class="controls-gap" style:--buttons={currentWindow.isMain ? 4 : 3}></div>
 </header>
 
 <style>
@@ -101,9 +81,9 @@
     position: absolute;
     inset: -3.5px 0;
   }
-  .controls {
-    display: flex;
+  .controls-gap {
     flex: none;
+    width: calc(var(--buttons) * 44px);
     height: var(--row);
   }
   /* V110-F26 Narrow (zoom 200 % on a small screen): the fixed parts shrink so Minimize,
@@ -122,8 +102,8 @@
     .chrome :global(.fixed-tabs .icon-btn) {
       width: 26px;
     }
-    .controls :global(.icon-btn.chrome) {
-      width: 34px;
+    .controls-gap {
+      width: calc(var(--buttons) * 34px);
     }
   }
 </style>

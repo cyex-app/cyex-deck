@@ -16,6 +16,7 @@
   import UnlockDialog from '../features/unlock/UnlockDialog.svelte';
   import TooltipHost from '../components/TooltipHost.svelte';
   import WindowChrome from '../components/WindowChrome.svelte';
+  import WindowControls from '../components/WindowControls.svelte';
   import AccountMenu from '../features/accounts/AccountMenu.svelte';
   import BellButton from '../features/bell/BellButton.svelte';
   import { follow } from '../features/bell/follow';
@@ -776,6 +777,8 @@
 {/if}
 <TabOverlays onopen={open} />
 {#if resumeDialog.open}<ResumeDialog />{/if}
+<!-- V110-F50 Last in Tab order, drawn in the title bar. -->
+<WindowControls />
 <!-- V101-26 Kept on screen in fullscreen. -->
 <div class="layers" use:followFullscreen>
   <MenuHost />
