@@ -134,7 +134,9 @@
     untrack(() => aboveChat.mark(tab.id, away));
   });
   onDestroy(() => aboveChat.mark(tab.id, false));
-  const barOver = $derived(!!host && !background && !popout && host.current === tab.id && aboveChat.applies(tab));
+  // V110-F11 While the window holds the bar elsewhere, the chat keeps its room free (`spacer`).
+  const barHere = $derived(!!host && !background && !popout && host.current === tab.id ? aboveChat.bar(tab) : null);
+  const barOver = $derived(!!barHere?.own);
   const ratio = $derived(fit?.moved ? (movedRatio ?? fit.ratio) : (fit?.ratio ?? tile.ratio));
 
   // V102-26 Where the mod view goes in the stream's area, next to the chat as fitted above.
@@ -476,7 +478,9 @@
     <!-- V110-U52 Always the same wrapper, so the chat isn't rebuilt when the bar comes or goes. -->
     <div class="chat-col">
       {#if barOver && host}
-        <div class="above-bar"><TabBar current={host.current} onopen={host.open} /></div>
+        <div class="above-bar" data-bar-box data-bar-above><TabBar current={host.current} onopen={host.open} /></div>
+      {:else if barHere?.spacer}
+        <div class="above-bar" style:height="{barHere.spacer}px"></div>
       {/if}
       <div class="chat-body">{@render chat(grabOf(ctl))}</div>
     </div>

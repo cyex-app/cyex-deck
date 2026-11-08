@@ -115,7 +115,35 @@
   /** The tab drawn here now, not in its own window. */
   const shownTab = $derived(tab && !tabs.popped.has(tab.id) ? tab.id : null);
   /** V110-U52 "Above chat" holds for the tab on screen (its tile draws the bar); else the bar goes to the top. */
-  const barAbove = $derived(!!shownTab && !resumeDialog.open && aboveChat.applies(tab));
+  // V110-F11 Held while the pointer stays on the bar after it changed the tab (`aboveChat.hold`).
+  const aboveNow = $derived(aboveChat.bar(shownTab && !resumeDialog.open ? tab : undefined));
+  const barAbove = $derived(aboveNow.above);
+  // V110-F11 The tab on screen changes: a bar under the pointer stays where it is. Runs before
+  // the page updates, so it still measures the old bar.
+  let barTab: string | null = untrack(() => current);
+  $effect.pre(() => {
+    const now = current;
+    if (now === barTab) return;
+    barTab = now;
+    untrack(() => aboveChat.hold());
+  });
+  // V110-F11 It goes where the tab on screen wants it once the pointer leaves it.
+  $effect(() => {
+    if (!aboveChat.held) return;
+    const move = (e: PointerEvent) => aboveChat.release(e.clientX, e.clientY);
+    const off = () => aboveChat.release();
+    const root = document.documentElement;
+    addEventListener('pointermove', move);
+    root.addEventListener('pointerleave', off);
+    addEventListener('blur', off);
+    addEventListener('resize', off);
+    return () => {
+      removeEventListener('pointermove', move);
+      root.removeEventListener('pointerleave', off);
+      removeEventListener('blur', off);
+      removeEventListener('resize', off);
+    };
+  });
   /** F03 Where the tab bar goes now. */
   const place = $derived(barPlace(side, width, barAbove));
   // V110-U52 The tab views draw the bar over their chat; they need the shown tab and a way to open one.
@@ -684,6 +712,22 @@
   </main>
 </div>
 
+{#if aboveNow.float && !theatreOn}
+  <!-- V110-F11 Held over a chat: the bar stays at its box while the tab under it changes. -->
+  {@const f = aboveNow.float}
+  <div
+    class="bar-float"
+    data-bar-box
+    data-bar-above
+    inert={settingsOpen}
+    style:left="{f.x}px"
+    style:top="{f.y}px"
+    style:width="{f.w}px"
+  >
+    <TabBar {current} onopen={open} />
+  </div>
+{/if}
+
 {#if settingsOpen}
   {#await settingsSheet() then { default: SettingsSheet }}
     <SettingsSheet bind:section={settingsSection} onclose={() => (settingsOpen = false)} />
@@ -800,6 +844,18 @@
     display: flex;
     flex-direction: column;
     flex: none;
+    padding: 0 6px;
+    background: var(--page);
+    border-bottom: 1px solid var(--border);
+  }
+  /* V110-F11 The held bar over a chat: the tile's own `.above-bar` look, fixed in place. */
+  .bar-float {
+    position: fixed;
+    z-index: calc(var(--z-popover) - 1);
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    min-width: 0;
     padding: 0 6px;
     background: var(--page);
     border-bottom: 1px solid var(--border);

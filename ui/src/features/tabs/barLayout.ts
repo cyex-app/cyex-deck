@@ -40,6 +40,52 @@ export function chatBeside(i: ChatBeside): boolean {
   return i.tiles === 1 && !i.feed && i.stream && i.chat && !i.chatPopped && (i.side === 'left' || i.side === 'right');
 }
 
+/** A box on screen in CSS px. */
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** V110-F11 The bar as it was when the tab on screen changed under the pointer: over a chat
+ * column (`above`) or at the top, and its box. Kept until the pointer leaves that box. */
+export interface BarHold {
+  above: boolean;
+  rect: Rect;
+}
+
+/** V110-F11 How "Above chat" draws the bar now. `above`: the window leaves the top free (no
+ * title-bar or row bar). `own`: the tile on screen draws the bar over its chat. `float`: the
+ * window draws it fixed at this box instead. `spacer`: the tile's chat keeps this many px free
+ * at its top, so it doesn't move once the hold ends and the tile draws its own bar there. */
+export interface AboveBar {
+  above: boolean;
+  own: boolean;
+  float: Rect | null;
+  spacer: number;
+}
+
+/** V110-F11 Where "Above chat" puts the bar for the tab on screen. `applies`: the tab qualifies
+ * (`AboveChat.applies`). While held, the bar stays where it was and the tab under it already
+ * switches: held at the top it stays there; held over a chat it floats at the same box. */
+export function aboveBar(applies: boolean, hold: BarHold | null): AboveBar {
+  if (!hold) return { above: applies, own: applies, float: null, spacer: 0 };
+  if (!hold.above) return { above: false, own: false, float: null, spacer: 0 };
+  return { above: true, own: false, float: hold.rect, spacer: applies ? hold.rect.h : 0 };
+}
+
+/** V110-F11 A hold starts when the tab on screen changes while the pointer is on the bar (a
+ * wheel notch, a click, a close), with "Above chat" set and the bar in view. */
+export function startsHold(side: TabBarSide, hovered: boolean, rect: Rect | null): boolean {
+  return side === 'aboveChat' && hovered && !!rect && rect.w > 0 && rect.h > 0;
+}
+
+/** V110-F11 The point is still on the held bar (edges count). */
+export function inHold(rect: Rect, x: number, y: number): boolean {
+  return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
+}
+
 /** F16 "All" still leaves this much of the window's height to the tab under the bar. */
 export const ALL_KEEP = 160;
 
