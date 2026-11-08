@@ -7,7 +7,7 @@ mod links;
 mod ranges;
 mod targets;
 
-pub use embed::{TRUSTED_HOSTS, trusted as trusted_link, trusted_host};
+pub use embed::{MEDIA_HOSTS, TRUSTED_HOSTS, media_host, trusted as trusted_link, trusted_host, trusted_media};
 pub use links::detect as detect_link;
 
 use ranges::RangeKind;

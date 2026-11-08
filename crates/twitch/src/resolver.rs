@@ -42,11 +42,19 @@ pub struct LinkText {
 fn base() -> String {
     #[cfg(any(test, feature = "mocks"))]
     if let Ok(u) = std::env::var("CYEX_LINK_RESOLVER_MOCK")
-        && u.starts_with("http://127.0.0.1:")
+        && mock_ok(&u)
     {
         return u.trim_end_matches('/').to_owned();
     }
     URL.to_owned()
+}
+
+/// The test hook may only point at this machine: http, host 127.0.0.1, no sign-in part.
+#[cfg(any(test, feature = "mocks"))]
+fn mock_ok(u: &str) -> bool {
+    url::Url::parse(u).is_ok_and(|u| {
+        u.scheme() == "http" && u.host_str() == Some("127.0.0.1") && u.username().is_empty() && u.password().is_none()
+    })
 }
 
 /// `None` if the resolver has nothing on it.
@@ -187,6 +195,23 @@ fn entities(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_test_hook_only_points_at_this_machine() {
+        assert!(mock_ok("http://127.0.0.1:9000"));
+        assert!(mock_ok("http://127.0.0.1:9000/"));
+        for u in [
+            "http://127.0.0.1:80@evil.com/",
+            "http://user:pw@127.0.0.1:9000",
+            "http://127.0.0.1.evil.com:9000",
+            "https://127.0.0.1:9000",
+            "http://localhost:9000",
+            "http://evil.com/127.0.0.1:",
+            "",
+        ] {
+            assert!(!mock_ok(u), "{u}");
+        }
+    }
 
     #[test]
     fn v108_f37_numeric_entities_never_make_control_characters() {

@@ -201,7 +201,10 @@ pub async fn chat_embed_link(app: AppHandle, url: String) -> Option<LinkPreview>
         return None;
     }
     let http = app.state::<Auth>().http.clone();
-    chat::link_preview::get(&http, url).await
+    // V110-F15 It loads unasked, so its picture must come from a known host.
+    let mut card = chat::link_preview::get(&http, url).await?;
+    card.thumbnail = card.thumbnail.filter(|t| cyex_chat::tokenize::trusted_media(t));
+    Some(card)
 }
 
 /// Public profile for the usercard (1.36), by login or id.
