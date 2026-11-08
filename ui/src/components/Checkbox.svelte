@@ -10,16 +10,18 @@
     disabled?: boolean;
     /** A dash instead of a tick: some, not all, of a group. Shown only while unchecked. */
     indeterminate?: boolean;
+    /** V110-F39 A long label stays on one line and ends in an ellipsis (give `hint` the full text). */
+    ellipsis?: boolean;
     onchange: (checked: boolean) => void;
   }
 
-  let { checked, label, hint, disabled = false, indeterminate = false, onchange }: Props = $props();
+  let { checked, label, hint, disabled = false, indeterminate = false, ellipsis = false, onchange }: Props = $props();
 </script>
 
-<label class="check" class:disabled use:tooltip={hint ?? ''}>
+<label class="check" class:disabled class:ellipsis use:tooltip={hint ?? ''}>
   <input type="checkbox" {checked} {disabled} indeterminate={indeterminate && !checked} onchange={(e) => onchange(e.currentTarget.checked)} />
   <span class="box">{#if checked}<Icon name="check" size={12} />{:else if indeterminate}<span class="dash"></span>{/if}</span>
-  {label}
+  {#if ellipsis}<span class="text">{label}</span>{:else}{label}{/if}
 </label>
 
 <style>
@@ -31,6 +33,16 @@
     align-items: center;
     gap: 7px;
     cursor: pointer;
+  }
+  .ellipsis {
+    display: flex;
+    min-width: 0;
+  }
+  .text {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
   .disabled {
     opacity: 0.5;

@@ -41,7 +41,7 @@
   <p class="lead">cyex deck closed unexpectedly. Pick the tabs to bring back.</p>
   <div class="list">
     {#each list as t (t.id)}
-      <Checkbox checked={!off.has(t.id)} label={t.name} onchange={(c) => toggle(t.id, c)} />
+      <Checkbox checked={!off.has(t.id)} label={t.name} hint={t.name} ellipsis onchange={(c) => toggle(t.id, c)} />
     {/each}
   </div>
 
@@ -62,6 +62,7 @@
     flex-direction: column;
     gap: 8px;
     max-height: 280px;
+    overflow-x: hidden; /* V110-F39 */
     overflow-y: auto;
   }
 </style>
