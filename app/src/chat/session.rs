@@ -348,6 +348,16 @@ pub(super) fn mirrored_here(inner: &Inner, channel: &str) -> bool {
     inner.rooms.iter().any(|((_, c), e)| e.mirror && c == channel)
 }
 
+/// V110-F53 Nothing reads through the anonymous connection: no anonymous room and no mirror.
+pub(super) fn anon_idle(inner: &Inner) -> bool {
+    idle_without(inner.rooms.iter().map(|((i, _), e)| (i, e.mirror)))
+}
+
+/// `rooms` as (identity, is a mirror).
+fn idle_without<'a>(mut rooms: impl Iterator<Item = (&'a Identity, bool)>) -> bool {
+    !rooms.any(|(i, mirror)| mirror || matches!(i, Identity::Anon))
+}
+
 /// V110-M28 A mirror ended: the anonymous connection leaves the channel unless an anonymous
 /// room or another mirror still needs it, and stops when it has nothing left.
 pub(super) fn release_anon(inner: &mut Inner, channel: &str) {
@@ -358,8 +368,7 @@ pub(super) fn release_anon(inner: &mut Inner, channel: &str) {
     {
         s.client.part(channel);
     }
-    let idle = !inner.rooms.keys().any(|(i, _)| matches!(i, Identity::Anon)) && !inner.rooms.values().any(|e| e.mirror);
-    if idle && let Some(s) = inner.sessions.remove(&Identity::Anon) {
+    if anon_idle(inner) && let Some(s) = inner.sessions.remove(&Identity::Anon) {
         s.client.stop();
     }
 }
@@ -670,6 +679,15 @@ mod tests {
         assert_eq!(mirror_step(true, Joined, true, true), Some(Mirror::Stop));
         assert_eq!(mirror_step(true, AuthFailed, true, true), Some(Mirror::Stop));
         assert_eq!(mirror_step(true, Banned, true, false), Some(Mirror::Stop));
+    }
+
+    #[test]
+    fn v110_f53_the_anonymous_connection_stays_for_a_mirror() {
+        let acc = Identity::Account("1".into());
+        assert!(idle_without([(&acc, false)].into_iter()));
+        assert!(!idle_without([(&acc, true)].into_iter()), "a banned room reads through it");
+        assert!(!idle_without([(&Identity::Anon, false)].into_iter()));
+        assert!(idle_without(std::iter::empty()));
     }
 
     #[test]

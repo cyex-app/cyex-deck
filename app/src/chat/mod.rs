@@ -477,7 +477,8 @@ fn leave(app: &AppHandle, inner: &mut Inner, key: &RoomKey) -> bool {
     if entry.mirror {
         session::release_anon(inner, login);
     }
-    let still_used = inner.rooms.keys().any(|(i, _)| i == identity);
+    // V110-F53 The anonymous connection also stays while a banned-chat mirror reads through it.
+    let still_used = if matches!(identity, Identity::Anon) { !session::anon_idle(inner) } else { inner.rooms.keys().any(|(i, _)| i == identity) };
     if !still_used && let Some(s) = inner.sessions.remove(identity) {
         s.client.stop();
         if let Some(w) = &s.writer {
