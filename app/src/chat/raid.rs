@@ -72,10 +72,19 @@ pub enum Step {
     Gone(RaidStatus),
 }
 
+/// What ticking Join for a raid came to.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Tick {
+    On,
+    /// The raid had ended; the raid itself when it went.
+    Ended(Option<RaidStatus>),
+}
+
 #[derive(Default)]
 pub struct Raids {
     by_channel: HashMap<String, RaidStatus>,
-    ended: VecDeque<String>,
+    /// Raids that ended, and the raid itself when it went (a Join that finishes late opens it).
+    ended: VecDeque<(String, Option<RaidStatus>)>,
     /// Raid id and the account that ticked Join, oldest first.
     joined: Vec<(String, String)>,
 }
@@ -85,7 +94,7 @@ impl Raids {
     pub fn step(&mut self, channel_id: &str, ev: RaidEvent, went: bool) -> Step {
         match ev {
             RaidEvent::Update(r) => {
-                if self.ended.contains(&r.id) {
+                if self.is_ended(&r.id) {
                     return Step::Keep;
                 }
                 if self.by_channel.get(channel_id) == Some(&r) {
@@ -95,19 +104,39 @@ impl Raids {
                 Step::Show(r)
             }
             RaidEvent::Done { id } => {
-                if !self.ended.contains(&id) {
-                    self.ended.push_back(id.clone());
+                let cur = self.by_channel.get(channel_id).filter(|c| c.id == id).cloned();
+                if !self.is_ended(&id) {
+                    self.ended.push_back((id.clone(), cur.clone().filter(|_| went)));
                     if self.ended.len() > ENDED_KEPT {
                         self.ended.pop_front();
                     }
                 }
-                let Some(cur) = self.by_channel.get(channel_id).filter(|c| c.id == id).cloned() else {
+                let Some(cur) = cur else {
                     return Step::Keep;
                 };
                 self.by_channel.remove(channel_id);
                 if went { Step::Went(cur) } else { Step::Gone(cur) }
             }
         }
+    }
+
+    fn is_ended(&self, raid_id: &str) -> bool {
+        self.ended.iter().any(|(id, _)| id == raid_id)
+    }
+
+    /// Drops banner state whose raid is long past (its end message was missed).
+    pub fn purge(&mut self, now: i64) {
+        self.by_channel.retain(|_, r| r.goes_at + STALE_SECS > now);
+    }
+
+    /// A Join that finished: ticked unless the raid already ended, checked in one go with the
+    /// tick so a go in between can't leave a stale one.
+    pub fn tick_live(&mut self, raid_id: &str, account: &str) -> Tick {
+        if let Some((_, went)) = self.ended.iter().find(|(id, _)| id == raid_id) {
+            return Tick::Ended(went.clone());
+        }
+        self.tick(raid_id, account);
+        Tick::On
     }
 
     pub fn current(&self, channel_id: &str, now: i64) -> Option<RaidStatus> {
@@ -183,9 +212,25 @@ pub fn on_event(app: &AppHandle, e: &Event) {
     let id = &e.topic.channel_id;
     let Some(ev) = parse_raid(&e.payload, id) else { return };
     let went = e.payload["type"] == "raid_go_v2";
-    let step = raids().step(id, ev, went);
+    let done = match &ev {
+        RaidEvent::Done { id } => Some(id.clone()),
+        RaidEvent::Update(_) => None,
+    };
+    let step = {
+        let mut r = raids();
+        r.purge(crate::auth::unix_now());
+        r.step(id, ev, went)
+    };
     let (raid, went) = match step {
-        Step::Keep => return,
+        Step::Keep => {
+            // A go or cancel with no banner for it still takes the tick.
+            if let Some(raid_id) = done
+                && raids().take_tick(&raid_id).is_some()
+            {
+                let _ = app.emit(JOIN_EVENT, RaidJoinChanged { raid_id, on: false });
+            }
+            return;
+        }
         Step::Show(r) => (Some(r), false),
         Step::Gone(r) => {
             // Called off: nothing opens and the tick clears.
@@ -249,9 +294,21 @@ pub async fn join(app: &AppHandle, account: &str, raid_id: &str) -> Result<(), S
             "Couldn’t join the raid.".to_owned()
         }
     })?;
-    raids().tick(raid_id, account);
-    let _ = app.emit(JOIN_EVENT, RaidJoinChanged { raid_id: raid_id.to_owned(), on: true });
-    Ok(())
+    // The raid may have gone while Twitch took the join: tick only if it didn't.
+    let tick = raids().tick_live(raid_id, account);
+    match tick {
+        Tick::On => {
+            let _ = app.emit(JOIN_EVENT, RaidJoinChanged { raid_id: raid_id.to_owned(), on: true });
+            Ok(())
+        }
+        // Twitch joined us and the raid went: the pop-out opens as if the tick had been there.
+        Tick::Ended(Some(raid)) => {
+            let account = account.to_owned();
+            let _ = app.emit_to(crate::windows::MAIN, GO_EVENT, RaidGo { raid, account });
+            Ok(())
+        }
+        Tick::Ended(None) => Err("The raid already ended.".to_owned()),
+    }
 }
 
 #[cfg(test)]
@@ -327,6 +384,43 @@ mod tests {
         assert_eq!(r.step("7", RaidEvent::Done { id: "c".into() }, false), Step::Gone(raid("c", 1)));
         assert_eq!(r.take_tick("c"), Some("900".to_owned()), "taken by the cancel handler, then gone");
         assert_eq!(r.take_tick("c"), None);
+    }
+
+    #[test]
+    fn a_join_that_finishes_after_the_go_is_not_ticked() {
+        let mut r = Raids::default();
+        r.step("7", RaidEvent::Update(raid("a", 5)), false);
+        assert_eq!(r.tick_live("a", "900"), Tick::On);
+        r.untick("a");
+        r.step("7", RaidEvent::Done { id: "a".into() }, true);
+        // The go came first: nothing stale is left, and the raid comes back to open.
+        assert_eq!(r.tick_live("a", "900"), Tick::Ended(Some(raid("a", 5))));
+        assert!(r.ticked().is_empty());
+        // Called off: no raid to open.
+        r.step("7", RaidEvent::Update(raid("b", 5)), false);
+        r.step("7", RaidEvent::Done { id: "b".into() }, false);
+        assert_eq!(r.tick_live("b", "900"), Tick::Ended(None));
+        assert!(r.ticked().is_empty());
+    }
+
+    #[test]
+    fn a_go_without_a_banner_still_ends_the_raid() {
+        let mut r = Raids::default();
+        r.tick("x", "900");
+        assert_eq!(r.step("7", RaidEvent::Done { id: "x".into() }, true), Step::Keep);
+        // The handler takes the tick on a Keep.
+        assert_eq!(r.take_tick("x"), Some("900".to_owned()));
+        assert_eq!(r.tick_live("x", "900"), Tick::Ended(None));
+    }
+
+    #[test]
+    fn purge_drops_old_banner_state() {
+        let mut r = Raids::default();
+        r.step("7", RaidEvent::Update(raid("a", 5)), false);
+        r.purge(1090 + STALE_SECS - 1);
+        assert!(r.by_channel.contains_key("7"));
+        r.purge(1090 + STALE_SECS);
+        assert!(r.by_channel.is_empty());
     }
 
     #[test]
