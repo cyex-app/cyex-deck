@@ -45,3 +45,11 @@ test('an emoji named exactly what is typed comes before emotes that only start w
   assert.equal(items[0].glyph, '😭');
   assert.equal(items[1].label, 'SoBayed');
 });
+
+test('letters merely in order are no match for `:`, an acronym is (V110-F49)', () => {
+  const emotes = ['CoolStoryBob', 'cdprSonbird', 'SoBayed', 'SmallOrangeBird'].map((name, i) => ({ name, provider: 'twitch' as const, id: String(i) }));
+  assert.deepEqual(
+    emoteItems('sob', emotes, []).map((i) => i.label),
+    ['SoBayed', 'SmallOrangeBird'],
+  );
+});

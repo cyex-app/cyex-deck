@@ -5,6 +5,7 @@ import type { BotCommand } from '../../ipc/bindings/BotCommand';
 import type { ModRole } from '../../ipc/bindings/ModRole';
 import type { Provider } from '../../ipc/bindings/Provider';
 import { rankEmotes } from '../emotes/ranking.ts';
+import { RANK } from './completion.ts';
 
 export interface Item {
   /** What goes in the box. */
@@ -31,7 +32,8 @@ export interface EmojiName {
 
 /** Emotes and emoji in one order (V107-R7): how well the name matches first, so `:sob`
  *  shows 😭 before SoBayed and CoolStoryBob (V110-F10); on a tie emotes go first. Emoji found
- *  only by a search word come after. */
+ *  only by a search word come after. V110-F49 Like Tab (V110-F09), letters that merely come in
+ *  order ("cdprSonbird" for `:sob`) aren't a match; acronyms are. */
 export function emoteItems(
   prefix: string,
   emotes: EmoteName[],
@@ -45,7 +47,7 @@ export function emoteItems(
   const ranked = rankEmotes<Hit>(prefix, [
     ...[...byName.values()].map((e) => ({ item: { emote: e }, name: e.name, used: used?.(e.name) })),
     ...emoji.map((e) => ({ item: { emoji: e }, name: e.name })),
-  ]).slice(0, limit);
+  ], RANK.acronym).slice(0, limit);
   const items: Item[] = ranked.map((h) =>
     'emote' in h
       ? { value: h.emote.name, label: h.emote.name, emote: { provider: h.emote.provider, id: h.emote.id, animated: h.emote.animated } }
