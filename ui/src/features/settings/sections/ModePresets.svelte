@@ -1,6 +1,8 @@
 <!-- V110-M23 An editable list of lengths for a mode (slow mode, followers only, ads): chips
      with ×, and a field that takes a typed one. Same look as the timeout buttons. -->
 <script lang="ts">
+  import { tick } from 'svelte';
+
   import Row from '../../../components/Row.svelte';
   import type { Parsed } from '../../modview/modePresets';
   import { withPreset } from '../../modview/modePresets';
@@ -24,7 +26,14 @@
   let { setting, label, hint, values, show, parse, placeholder, onsave, max = 10, keep = [] }: Props = $props();
 
   let text = $state('');
+  let addBox = $state<HTMLInputElement>();
   let error = $state('');
+
+  /** V110-F24 The chip with focus is gone after its ×: focus moves to the add field. */
+  function remove(v: number) {
+    onsave(values.filter((x) => x !== v));
+    void tick().then(() => addBox?.focus());
+  }
 
   function add() {
     const p = parse(text);
@@ -42,7 +51,7 @@
     <span class="chip">
       {show(v)}
       {#if !keep.includes(v) && values.length > 1}
-        <button aria-label="Remove {show(v)}" onclick={() => onsave(values.filter((x) => x !== v))}>×</button>
+        <button aria-label="Remove {show(v)}" onclick={() => remove(v)}>×</button>
       {/if}
     </span>
   {/each}
@@ -54,6 +63,7 @@
       }}
     >
       <input
+        bind:this={addBox}
         class="field add"
         class:bad={!!error}
         aria-label="Add a length to {label}"

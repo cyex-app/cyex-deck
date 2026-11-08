@@ -3,7 +3,7 @@
      remembered; the group's switch is on while any of them is. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import Icon from '../../../components/Icon.svelte';
   import Row from '../../../components/Row.svelte';
   import Toggle from '../../../components/Toggle.svelte';
@@ -26,13 +26,13 @@
 
   let { group, extra }: { group: Group; extra?: Snippet } = $props();
 
-  let open = $state(false);
+  // V110-F24 Starts as it was left, so a remembered-open group doesn't flash closed.
+  let open = $state(untrack(() => isOpen(group.key)));
   const v = $derived(settings.v);
   const on = $derived(masterOn(v, group));
   const single = $derived(group.children.length === 1);
 
   onMount(() => {
-    open = isOpen(group.key);
     const pick = (e: Event) => {
       if ((e as CustomEvent<string>).detail === group.key) open = true;
     };
@@ -51,10 +51,17 @@
     if (p.emotes) await settings.patch('emotes', p.emotes);
   }
 
-  /** All off remembers what was on; on brings that back. */
-  function master(next: boolean) {
-    if (!next) setMemo(group.key, snapshot(v, group));
-    void apply(masterStates(group, next, next ? memo(group.key) : undefined));
+  /** All off remembers what was on; on brings that back. V110-F24 The memo is kept only once
+   * both partitions took the change; if one did not, the other goes back to what it was. */
+  async function master(next: boolean) {
+    const before = snapshot(v, group);
+    const states = masterStates(group, next, next ? memo(group.key) : undefined);
+    await apply(states);
+    if (states.every(([c, to]) => read(settings.v, c) === to)) {
+      if (!next) setMemo(group.key, before);
+      return;
+    }
+    await apply(group.children.map((c): [Child, boolean] => [c, before[c.id]]));
   }
 </script>
 
@@ -70,7 +77,7 @@
         {#if !open}<span class="dim">{summary(v, group)}</span>{/if}
       </button>
     {/if}
-    <Toggle label="{group.label}: everything" checked={on} onchange={master} />
+    <Toggle label="{group.label}: everything" checked={on} onchange={(next) => void master(next)} />
   </div>
   {#if !single && open}
     <div class="kids">

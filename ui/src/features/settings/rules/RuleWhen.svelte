@@ -26,6 +26,14 @@
     onchange(cleanWhen({ ...w, ...patch }));
   }
 
+  /** V110-F24 A typed list is written back cleaned, so the box shows what was kept even when the
+   * list is the same as before (and the box's own value wouldn't change). */
+  function typed(e: Event & { currentTarget: HTMLInputElement }, split: (t: string) => string[], key: 'channels' | 'categories') {
+    const list = split(e.currentTarget.value);
+    e.currentTarget.value = list.join(', ');
+    set({ [key]: list });
+  }
+
   const SCOPE = [
     { value: 'only', label: 'Only there' },
     { value: 'never', label: 'Never there' },
@@ -53,11 +61,11 @@
         placeholder="Any channel"
         spellcheck="false"
         value={w.channels.join(', ')}
-        onchange={(e) => set({ channels: splitChannels(e.currentTarget.value) })}
+        onchange={(e) => typed(e, splitChannels, 'channels')}
       />
       {#if w.channels.length}
         <Segmented
-          label="Channels"
+          label="Channel scope"
           neutral
           options={SCOPE}
           value={w.notChannels ? 'never' : 'only'}
@@ -74,7 +82,7 @@
         placeholder="Any, or Just Chatting, Minecraft"
         spellcheck="false"
         value={w.categories.join(', ')}
-        onchange={(e) => set({ categories: splitCategories(e.currentTarget.value) })}
+        onchange={(e) => typed(e, splitCategories, 'categories')}
       />
     </span>
 

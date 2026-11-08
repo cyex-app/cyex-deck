@@ -3,6 +3,8 @@
      decimal mark). Up/Down step, Shift or Page keys by ten, Home/End jump; each step saves.
      Something that isn't a number goes back to the last value. -->
 <script lang="ts">
+  import { onDestroy } from 'svelte';
+
   import { formatNumber } from '../lib/format';
   import { parseNumber, rangeNote, stepFor } from './number.ts';
 
@@ -39,6 +41,8 @@
     note = t;
     if (t) noteTimer = setTimeout(() => (note = ''), 4000);
   }
+
+  onDestroy(() => clearTimeout(noteTimer)); // V110-F24
 
   function nudge(dir: 1 | -1) {
     const base = editing ? (parseNumber(text, range) ?? value) : value;
