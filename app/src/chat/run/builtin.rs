@@ -86,10 +86,12 @@ pub async fn run(
                 done
             }
             super::spam::Spam::Run { count, text } => {
+                // Claimed here, so a stop right after finds it.
+                let claim = super::spam::begin(&place.key)?;
                 // Off the caller: a long run doesn't hold the box or a chain.
                 let (app, place) = (app.clone(), place.clone());
                 tauri::async_runtime::spawn(async move {
-                    if let Err(e) = super::spam::run(&app, &place, count, &text).await {
+                    if let Err(e) = super::spam::run(&app, &place, claim, count, &text).await {
                         local(&app, &place.key, NoticeKind::Error, &e);
                     }
                 });

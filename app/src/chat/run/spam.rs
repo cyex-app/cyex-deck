@@ -1,11 +1,15 @@
 //! V110-C69 `/spam <count> <message>`: the same line up to [`MAX`] times, as fast as Twitch
 //! takes it. Each send goes through the normal path, so the pacing and duplicate dodging of
 //! V108-C15 apply (mods, VIPs and the broadcaster go out at once, others about one a second).
-//! `/spam stop` ends the ones running in that chat.
+//! `/spam stop` ends the one running in that chat (V110-F12: one at a time per chat, a line the
+//! pacer still holds is dropped, leaving the chat ends it, and it gives up after about 3 s a line).
 
 use std::collections::HashMap;
-use std::sync::{LazyLock, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 use std::time::Duration;
+
+use tokio::time::Instant;
 
 use super::{Place, RoomKey};
 
@@ -48,31 +52,106 @@ pub fn parse(args: &str) -> Result<Spam, String> {
     Ok(Spam::Run { count, text: text.to_owned() })
 }
 
-/// Each chat's stop counter: a `/spam` ends when it moves.
-static STOPS: LazyLock<Mutex<HashMap<RoomKey, u64>>> = LazyLock::new(Default::default);
+/// The `/spam` running in each chat, with its stop flag. An entry lives as long as its run.
+static RUNS: LazyLock<Mutex<HashMap<RoomKey, Arc<AtomicBool>>>> = LazyLock::new(Default::default);
 
-fn stop_count(key: &RoomKey) -> u64 {
-    STOPS.lock().map(|m| m.get(key).copied().unwrap_or(0)).unwrap_or(0)
+fn runs() -> MutexGuard<'static, HashMap<RoomKey, Arc<AtomicBool>>> {
+    RUNS.lock().unwrap_or_else(|p| p.into_inner())
 }
 
+/// A running `/spam`: its entry ends when this is dropped.
+pub struct Claim {
+    key: RoomKey,
+    stopped: Arc<AtomicBool>,
+}
+
+impl Claim {
+    fn is_stopped(&self) -> bool {
+        self.stopped.load(Ordering::Relaxed)
+    }
+}
+
+impl Drop for Claim {
+    fn drop(&mut self) {
+        let mut m = runs();
+        if m.get(&self.key).is_some_and(|f| Arc::ptr_eq(f, &self.stopped)) {
+            m.remove(&self.key);
+        }
+    }
+}
+
+/// Starts a run in the chat, one at a time. Called before the task is spawned, so a
+/// `/spam stop` right after can't miss it.
+pub fn begin(key: &RoomKey) -> Result<Claim, String> {
+    let mut m = runs();
+    if m.contains_key(key) {
+        return Err("Already spamming. /spam stop first.".into());
+    }
+    let stopped = Arc::new(AtomicBool::new(false));
+    m.insert(key.clone(), stopped.clone());
+    Ok(Claim { key: key.clone(), stopped })
+}
+
+/// Ends the run in that chat (also when the chat is left).
 pub fn stop(key: &RoomKey) {
-    if let Ok(mut m) = STOPS.lock() {
-        *m.entry(key.clone()).or_default() += 1;
+    if let Some(f) = runs().get(key) {
+        f.store(true, Ordering::Relaxed);
+    }
+}
+
+/// What the loop does next.
+#[derive(Debug, PartialEq, Eq)]
+enum Next {
+    Send,
+    Done,
+    Stopped,
+    TimedOut,
+}
+
+/// Total time one run may take: about 3 s a line.
+fn deadline(count: u32) -> Duration {
+    Duration::from_secs(3 * u64::from(count))
+}
+
+fn next(stopped: bool, sent: u32, count: u32, elapsed: Duration) -> Next {
+    if stopped {
+        Next::Stopped
+    } else if sent >= count {
+        Next::Done
+    } else if elapsed > deadline(count) {
+        Next::TimedOut
+    } else {
+        Next::Send
     }
 }
 
 /// Sends `text` `count` times; the number that went out.
-pub async fn run(app: &tauri::AppHandle, place: &Place, count: u32, text: &str) -> Result<u32, String> {
-    let started = stop_count(&place.key);
+pub async fn run(
+    app: &tauri::AppHandle,
+    place: &Place,
+    claim: Claim,
+    count: u32,
+    text: &str,
+) -> Result<u32, String> {
+    let begun = Instant::now();
     let mut sent = 0;
-    while sent < count {
+    loop {
+        match next(claim.is_stopped(), sent, count, begun.elapsed()) {
+            Next::Send => {}
+            Next::Done | Next::Stopped => return Ok(sent),
+            Next::TimedOut => return Err(format!("Stopped after {sent}: took too long.")),
+        }
         let mut waited = Duration::ZERO;
         loop {
-            if stop_count(&place.key) != started {
+            if claim.is_stopped() {
                 return Ok(sent);
             }
-            match super::send(app, place, text, None).await {
+            let flag = claim.stopped.clone();
+            let cancel: super::Cancel = Box::new(move || flag.load(Ordering::Relaxed));
+            match super::send_until(app, place, text, cancel).await {
                 Ok(()) => break,
+                // A line the pacer still held when stop came is dropped, not an error.
+                Err(_) if claim.is_stopped() => return Ok(sent),
                 Err(e) if e.starts_with("Slow down") && waited < GIVE_UP => {
                     tokio::time::sleep(RETRY).await;
                     waited += RETRY;
@@ -83,12 +162,15 @@ pub async fn run(app: &tauri::AppHandle, place: &Place, count: u32, text: &str) 
         }
         sent += 1;
     }
-    Ok(sent)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn key(c: &str) -> RoomKey {
+        (crate::chat::Identity::Anon, c.to_owned())
+    }
 
     #[test]
     fn parses_count_and_text() {
@@ -102,5 +184,34 @@ mod tests {
         assert!(parse("3   ").is_err());
         assert!(parse("").is_err());
         assert_eq!(parse("5 /ban x"), Err("Only text or /me can be spammed.".into()));
+    }
+
+    #[test]
+    fn one_run_per_chat_and_stop_reaches_it() {
+        let k = key("spamtest_a");
+        let r = begin(&k).unwrap();
+        assert_eq!(begin(&k).err().as_deref(), Some("Already spamming. /spam stop first."));
+        assert!(begin(&key("spamtest_b")).is_ok());
+        assert!(!r.is_stopped());
+        stop(&k);
+        assert!(r.is_stopped());
+        drop(r);
+        // The entry goes with the run: nothing piles up, and a new run starts unstopped.
+        assert!(!runs().contains_key(&k));
+        let again = begin(&k).unwrap();
+        assert!(!again.is_stopped());
+        // Stopping a chat with no run leaves no entry.
+        stop(&key("spamtest_nobody"));
+        assert!(!runs().contains_key(&key("spamtest_nobody")));
+    }
+
+    #[test]
+    fn next_step_rules() {
+        let s = Duration::from_secs;
+        assert_eq!(next(false, 0, 5, s(0)), Next::Send);
+        assert_eq!(next(false, 5, 5, s(1)), Next::Done);
+        assert_eq!(next(true, 2, 5, s(1)), Next::Stopped);
+        assert_eq!(next(false, 2, 5, s(15)), Next::Send);
+        assert_eq!(next(false, 2, 5, s(16)), Next::TimedOut);
     }
 }

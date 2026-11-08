@@ -19,7 +19,18 @@ const NOT_SENT: &str = "Couldn’t send. Try again.";
 /// Sends in a room, shown or not (timers and automations send to rooms no view shows).
 /// Done once the line is written, or an error when it couldn't be.
 pub async fn send_to(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<String>) -> Result<(), String> {
-    let Some((sent, nonce)) = queue(app, key, text, reply_to)? else {
+    send_to_until(app, key, text, reply_to, None).await
+}
+
+/// [`send_to`] where `cancel` is asked once the pacer's wait is over: true drops the line.
+pub async fn send_to_until(
+    app: &AppHandle,
+    key: &RoomKey,
+    text: &str,
+    reply_to: Option<String>,
+    cancel: Option<Box<dyn Fn() -> bool + Send>>,
+) -> Result<(), String> {
+    let Some((sent, nonce)) = queue(app, key, text, reply_to, cancel)? else {
         return Ok(());
     };
     if sent.await {
@@ -39,6 +50,7 @@ fn queue(
     key: &RoomKey,
     text: &str,
     reply_to: Option<String>,
+    cancel: Option<Box<dyn Fn() -> bool + Send>>,
 ) -> Result<Option<(impl Future<Output = bool> + use<>, String)>, String> {
     let text = text.trim();
     if text.is_empty() {
@@ -149,6 +161,9 @@ fn queue(
             if !app.state::<Chat>().lock().rooms.contains_key(&room) {
                 return false;
             }
+        }
+        if cancel.is_some_and(|c| c()) {
+            return false;
         }
         client.send(line).await
     };

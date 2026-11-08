@@ -50,7 +50,7 @@ mod writer;
 
 use writer::Writer;
 
-pub use send::send_to;
+pub use send::{send_to, send_to_until};
 pub use session::retry_refused;
 
 use unread::{News, Unread};
@@ -462,6 +462,8 @@ fn after_join(app: &AppHandle, key: RoomKey, joined: Joined) {
 /// Leaves a room and parks it (V108-C01). Returns true if an account's join count changed.
 fn leave(app: &AppHandle, inner: &mut Inner, key: &RoomKey) -> bool {
     let Some(entry) = inner.rooms.remove(key) else { return false };
+    // V110-F12 A `/spam` there ends with the chat.
+    run::room_left(key);
     if entry.unread.level != Unread::Seen {
         unread::emit(app, key, News::default());
     }

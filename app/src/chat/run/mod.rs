@@ -333,6 +333,20 @@ async fn send(app: &AppHandle, place: &Place, text: &str, reply_to: Option<Strin
     super::send_to(app, &place.key, &text, reply_to).await
 }
 
+/// Asks a send still waiting for the pacer whether to drop out.
+type Cancel = Box<dyn Fn() -> bool + Send>;
+
+/// [`send`] for `/spam`: a line the pacer still holds when `cancel` turns true isn't sent.
+async fn send_until(app: &AppHandle, place: &Place, text: &str, cancel: Cancel) -> Result<(), String> {
+    let text = crate::plugins::calls::sending(app, place.channel(), text).await?;
+    super::send_to_until(app, &place.key, &text, None, Some(cancel)).await
+}
+
+/// A chat was left: its `/spam` ends.
+pub fn room_left(key: &RoomKey) {
+    spam::stop(key);
+}
+
 /// V1051-04 What a menu entry or user card button adds, in the order of `menu()`'s context
 /// (the registry checks these names), and `msg-time` after them.
 const MENU_VALUES: [&str; 5] = ["nick", "display-nick", "user-id", "msg-id", "msg"];
