@@ -56,8 +56,13 @@ const across = (s: Side) => s === 'left' || s === 'right';
  * panel would get less than `other` px. `margin` is added to the chat's. */
 function share(len: number, ratio: number, chat: number, other: number, margin: number): number | null {
   const want = Math.max(len * ratio, chat + margin);
-  return len - want >= other ? Math.max(ratio, chat / len) : null;
+  // V110-F07 A share dragged to the other panel's least size, saved as f32, can come back a
+  // hair over it: that never counts as too small, or the panels turned round on release.
+  return len - want >= other - SLACK ? Math.max(ratio, chat / len) : null;
 }
+
+/** V110-F07 Under a pixel: rounding, not room. */
+export const SLACK = 0.5;
 
 /** Stacked: the stream at its full width's 16:9 height where it can, the chat below. */
 function stackedShare(box: Box): number {

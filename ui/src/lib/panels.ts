@@ -440,10 +440,23 @@ export function dragSizes(s: Split, rect: Rect, index: number, at: number, mins:
   const hi = before + pair - Math.min(mins[index] / len, pair / 2);
   const cut = Math.min(Math.max((at - start) / len, lo), hi);
   const sizes = [...s.sizes];
-  sizes[index - 1] = cut - before;
+  sizes[index - 1] = snapShare(cut - before, lo - before, hi - before);
   sizes[index] = pair - sizes[index - 1];
   return sizes;
 }
+
+/** V110-F07 A dragged share in steps of 1/10.000 (under half a pixel on a 4K screen), kept
+ * inside `lo`..`hi`. Rust stores shares as f32: a value this short comes back from the save
+ * as sent, so the layout drawn on release is the one drawn while dragging. */
+export function snapShare(v: number, lo = 0, hi = 1): number {
+  const step = (n: number, f: (x: number) => number) => f(n * SHARE_STEPS) / SHARE_STEPS;
+  let s = step(v, Math.round);
+  if (s < lo) s = step(lo, Math.ceil);
+  if (s > hi) s = step(hi, Math.floor);
+  return s < lo || s > hi ? v : s;
+}
+
+const SHARE_STEPS = 10_000;
 
 /** A layout patch for the settings store, which merges objects (RFC 7386): the keys of the
  * other kind of node are cleared, so a panel never keeps a split's fields or back. */

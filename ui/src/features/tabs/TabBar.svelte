@@ -19,6 +19,7 @@
   import { GROUP_COLORS } from './groupColors';
   import { barMaxHeight, plusFits } from './barLayout';
   import { stepTab, WheelSteps } from './cycle';
+  import { inScrollbar, scrollBox, WHEEL_REACH } from './scrollZone';
   import { barMenu, groupMenu, tabMenu } from './menus';
   import TabItem from './TabItem.svelte';
   import { tabs, tiles } from './tabs.svelte';
@@ -103,14 +104,25 @@
     if (!el) return;
     const onwheel = (e: WheelEvent) => {
       if (e.ctrlKey) return;
+      // V110-U51 On the scrollbar, or just beside it, the wheel scrolls the bar.
+      if (inScrollbar(scrollBox(el), e.clientX, WHEEL_REACH)) return;
       e.preventDefault();
       const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
       const by = wheel.step(delta, e.deltaMode !== WheelEvent.DOM_DELTA_PIXEL, e.timeStamp);
       const next = stepTab(tabs.shownIds(current), current, by, true);
       if (next) onopen(next);
     };
+    // V110-U51 A press on the scrollbar drags its thumb, not the window: Tauri's drag-region
+    // handler listens on the document, so stopping the press here keeps it from moving the window.
+    const ondown = (e: MouseEvent) => {
+      if (inScrollbar(scrollBox(el), e.clientX)) e.stopPropagation();
+    };
     el.addEventListener('wheel', onwheel, { passive: false });
-    return () => el.removeEventListener('wheel', onwheel);
+    el.addEventListener('mousedown', ondown);
+    return () => {
+      el.removeEventListener('wheel', onwheel);
+      el.removeEventListener('mousedown', ondown);
+    };
   });
 
   // Empty title-bar space beside the tabs (the drag area) opens the bar menu too.

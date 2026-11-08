@@ -58,7 +58,9 @@
     tray?: TrayItem[] | null;
     /** Shown when no panel is. */
     empty?: string;
-    onresize?: (path: number[], sizes: number[]) => void;
+    /** V110-F07 A promise (a save that round-trips through Rust) keeps the dragged sizes
+     * shown until it settles. */
+    onresize?: (path: number[], sizes: number[]) => unknown;
     onreset?: (path: number[], index: number) => void;
     ondrop?: (panel: string, target: string | null, edge: Edge) => void;
     onclose?: (panel: string) => void;
@@ -172,8 +174,9 @@
   });
 
   function resizeStart(e: PointerEvent, d: Divider) {
-    if (!resizable || e.button !== 0 || !shown || !inner) return;
-    const s = nodeAt(shown, d.path) as Split | null;
+    if (!resizable || e.button !== 0 || !drawn || !inner) return;
+    // As drawn: a save still on its way holds the last drag's sizes.
+    const s = nodeAt(drawn, d.path) as Split | null;
     if (!s || !('dir' in s)) return;
     e.preventDefault();
     e.stopPropagation();
@@ -205,10 +208,17 @@
       teardown = null;
     };
     // Also ends on a cancelled pointer or a lost window, and when this unmounts.
+    // V110-F07 The dragged sizes stay shown until the save is back: dropped at once, the
+    // panels jumped to the old shares (or turned round to fit them) for a few frames.
     const up = () => {
       stop();
-      if (live) onresize?.(live.path, live.sizes);
-      live = null;
+      const sent = live;
+      const saving = sent ? onresize?.(sent.path, sent.sizes) : undefined;
+      if (saving instanceof Promise) {
+        void saving.finally(() => {
+          if (live === sent) live = null;
+        });
+      } else live = null;
     };
     teardown?.();
     teardown = () => {

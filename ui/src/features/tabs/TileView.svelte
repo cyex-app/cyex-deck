@@ -263,28 +263,30 @@
   const hosted = $derived<Record<string, Rect | null>>(slot ? { stream: hostRect } : {});
 
   /** Kept with the tile; the default half is saved as none, so "Reset layout" has nothing to undo. */
-  function setModShare(share: number) {
-    void tabs.apply({ op: 'modviewShare', tile: tile.id, share: Math.abs(share - MODVIEW_SHARE) < 0.005 ? null : share });
+  function setModShare(share: number): Promise<unknown> {
+    // V110-F07 Only the half itself: a dragged share near it is kept as dragged, or it jumped on release.
+    return tabs.apply({ op: 'modviewShare', tile: tile.id, share: Math.abs(share - MODVIEW_SHARE) < 1e-6 ? null : share });
   }
 
   /** `share` is the chat's. Turned round, the divider only moves it for now. */
-  function setRatio(share: number) {
-    if (fit?.moved) movedRatio = share;
-    else void tabs.apply({ op: 'ratio', tile: tile.id, ratio: share });
+  function setRatio(share: number): Promise<unknown> | undefined {
+    if (!fit?.moved) return tabs.apply({ op: 'ratio', tile: tile.id, ratio: share });
+    movedRatio = share;
   }
 
-  function resized(path: number[], sizes: number[]) {
+  /** V110-F07 Returns the save, so the layout keeps the dragged sizes until it's back. */
+  function resized(path: number[], sizes: number[]): Promise<unknown> | undefined {
     const s = shown ? nodeAt(shown, path) : null;
     if (!s || !isSplit(s)) return;
     if (!custom) {
       const which = shareOf(s);
-      if (which?.kind === 'chat') setRatio(sizes[which.index]);
-      else if (which?.kind === 'modview') setModShare(sizes[which.index]);
+      if (which?.kind === 'chat') return setRatio(sizes[which.index]);
+      if (which?.kind === 'modview') return setModShare(sizes[which.index]);
       return;
     }
     const at = matchSplit(custom, shown!, path);
-    if (at) void tabs.apply({ op: 'layout', tile: tile.id, layout: setSizes(custom, at, sizes) });
-    else temp = { key: splitKey(s), sizes };
+    if (at) return tabs.apply({ op: 'layout', tile: tile.id, layout: setSizes(custom, at, sizes) });
+    temp = { key: splitKey(s), sizes };
   }
 
   /** V101-14 A double-click on a divider puts it back. */
@@ -295,11 +297,11 @@
       const which = shareOf(s);
       // Turned round to fit, the chat goes back to its fitted share, not 28 % of the height.
       if (which?.kind === 'chat' && fit?.moved) movedRatio = null;
-      else if (which?.kind === 'chat') setRatio(DEFAULT_RATIO);
-      else if (which?.kind === 'modview') setModShare(MODVIEW_SHARE);
+      else if (which?.kind === 'chat') void setRatio(DEFAULT_RATIO);
+      else if (which?.kind === 'modview') void setModShare(MODVIEW_SHARE);
       return;
     }
-    resized(path, s.parts.map(() => 1 / s.parts.length));
+    void resized(path, s.parts.map(() => 1 / s.parts.length));
   }
 
   /** V103-05 A panel dropped on a side of another. Just a stream and a chat is kept as the

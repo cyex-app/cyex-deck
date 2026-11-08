@@ -13,6 +13,7 @@ import {
   STREAM_HEAD,
   tileNeed,
 } from './fit.ts';
+import { dragSizes, leaf, snapShare, split, type Split } from './panels.ts';
 
 test('a roomy tile keeps the user layout', () => {
   assert.deepEqual(fitTile({ w: 1600, h: 900 }, 'right', 0.28), { side: 'right', ratio: 0.28, moved: false });
@@ -145,4 +146,54 @@ test('beside a chat with no stream it takes the whole rest', () => {
   assert.equal(fitModview(area(500, 600, { side: 'right', ratio: 0.5 }, null)).hideChat, true);
   // The chat goes under the mod view before that (V102-24 with the mod view's size).
   assert.equal(fitTile({ w: 500, h: 700 }, 'right', 0.3, false, MODVIEW).side, 'bottom');
+});
+
+// V110-F07 What Rust's f32 share comes back as: the shortest decimal that reads back as the
+// same f32 (serde_json via ryu), parsed by JS.
+const echo = (x: number) => {
+  for (let p = 1; p <= 9; p++) {
+    const s = Number(x.toPrecision(p));
+    if (Math.fround(s) === Math.fround(x)) return s;
+  }
+  return Math.fround(x);
+};
+
+test('F07 a divider let go at the stream least size keeps the layout, before and after the save', () => {
+  const len = 1373;
+  const box = { w: len, h: 700 };
+  const mins = [MIN.streamW, MIN.chatW];
+  const s = split('row', [leaf('stream'), leaf('chat')], [0.72, 0.28]) as Split;
+  // Dragged all the way left: the stream at its 240 px, the chat has the rest.
+  const sizes = dragSizes(s, { x: 0, y: 0, w: len, h: 700 }, 1, 0, mins);
+  const drag = sizes[1];
+  const during = fitTile(box, 'right', drag);
+  const saved = fitTile(box, 'right', echo(drag));
+  assert.equal(during.moved, false);
+  assert.equal(saved.moved, false);
+  assert.equal(saved.side, during.side);
+  assert.ok(Math.abs(saved.ratio - during.ratio) * len < 0.01);
+});
+
+test('F07 every dragged share fits the same way once saved', () => {
+  for (const len of [481, 700, 1000, 1373, 1920, 2560, 3840]) {
+    const s = split('row', [leaf('stream'), leaf('chat')], [0.72, 0.28]) as Split;
+    for (let at = 0; at <= len; at += 7) {
+      const sizes = dragSizes(s, { x: 0, y: 0, w: len, h: 600 }, 1, at, [MIN.streamW, MIN.chatW]);
+      const a = fitTile({ w: len, h: 600 }, 'right', sizes[1]);
+      const b = fitTile({ w: len, h: 600 }, 'right', echo(sizes[1]));
+      assert.equal(b.moved, a.moved, `${len} ${at}`);
+      assert.equal(a.moved, false, `${len} ${at}`);
+      assert.ok(Math.abs(a.ratio - b.ratio) * len < 0.01, `${len} ${at}`);
+    }
+  }
+});
+
+test('F07 a snapped share comes back from f32 exactly as sent', () => {
+  for (let i = 0; i <= 1000; i++) {
+    const v = snapShare(i / 1000 + 0.000037);
+    assert.equal(echo(v), v);
+  }
+  // Kept inside its bounds even when rounding would cross one.
+  assert.equal(snapShare(0.17478, 0.174781, 0.9), 0.1748);
+  assert.equal(snapShare(0.82526, 0.1, 0.825259), 0.8252);
 });
