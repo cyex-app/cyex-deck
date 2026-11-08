@@ -233,7 +233,7 @@
               {@render thumb(v)}
               <span class="text">
                 <b class="title">{v.title || 'Untitled'}</b>
-                <span class="meta">{#if tag}<span class="tag" class:live={v.state === 'recording'}>{tag}</span>{/if}{videoLine(v)}</span>
+                <span class="meta">{#if tag}<span class="tag" class:live={v.state === 'recording'}>{tag}</span>{" "}{/if}{videoLine(v)}</span>
               </span>
             </button>
             <IconButton icon="more" label="More for {v.title || 'video'}" size={14} onclick={(e) => menu(e, v)} />
