@@ -112,12 +112,21 @@ pub(crate) fn resync_due(key: &str) -> bool {
 }
 
 fn due(last: &mut HashMap<String, Instant>, key: &str, now: Instant) -> bool {
-    if last.get(key).is_some_and(|t| now.saturating_duration_since(*t) < RESYNC_GAP) {
+    if wait(last, key, now).is_some() {
         return false;
     }
     last.insert(key.to_owned(), now);
     true
 }
+
+/// V110-F57 How long until `key` may read again, `None` when it may now.
+fn wait(last: &HashMap<String, Instant>, key: &str, now: Instant) -> Option<Duration> {
+    let since = now.saturating_duration_since(*last.get(key)?);
+    RESYNC_GAP.checked_sub(since).filter(|d| !d.is_zero())
+}
+
+/// V110-F57 Keys with a trailing resync waiting for its gap to pass.
+static TRAILING: LazyLock<Mutex<std::collections::HashSet<String>>> = LazyLock::new(Mutex::default);
 
 /// Called when a connection is back after a drop: what happened meanwhile is read again.
 /// Anonymous (`None`): polls and predictions of the open chats. An account: its whispers,
@@ -125,19 +134,38 @@ fn due(last: &mut HashMap<String, Instant>, key: &str, now: Instant) -> bool {
 fn resync(app: &AppHandle, account: Option<String>) -> cyex_twitch::hermes::Resync {
     let app = app.clone();
     Arc::new(move || {
-        let key = account.as_deref().unwrap_or("");
-        if !resync_due(&format!("hermes:{key}")) {
+        let key = format!("hermes:{}", account.as_deref().unwrap_or(""));
+        if resync_due(&key) {
+            read_again(&app, account.as_deref());
             return;
         }
-        match account.as_deref() {
-            None => crate::chat::votes::resync(&app),
-            Some(id) => {
-                crate::whispers::resync(&app, id);
-                crate::bell::resync(&app, id);
-                crate::miner::resync(&app, id);
-            }
+        // V110-F57 A drop inside the gap still gets its read, once the gap is over: what came
+        // meanwhile was missed by the earlier read.
+        let left = wait(&RESYNCED.lock().unwrap_or_else(|p| p.into_inner()), &key, Instant::now());
+        if let Some(left) = left
+            && TRAILING.lock().unwrap_or_else(|p| p.into_inner()).insert(key.clone())
+        {
+            let (app, account) = (app.clone(), account.clone());
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(left).await;
+                TRAILING.lock().unwrap_or_else(|p| p.into_inner()).remove(&key);
+                if resync_due(&key) {
+                    read_again(&app, account.as_deref());
+                }
+            });
         }
     })
+}
+
+fn read_again(app: &AppHandle, account: Option<&str>) {
+    match account {
+        None => crate::chat::votes::resync(app),
+        Some(id) => {
+            crate::whispers::resync(app, id);
+            crate::bell::resync(app, id);
+            crate::miner::resync(app, id);
+        }
+    }
 }
 
 async fn pump(app: AppHandle, mut rx: mpsc::UnboundedReceiver<Event>) {
@@ -261,6 +289,16 @@ mod tests {
         assert!(!due(&mut last, "a", t + Duration::from_secs(5)));
         assert!(due(&mut last, "b", t + Duration::from_secs(5)));
         assert!(due(&mut last, "a", t + RESYNC_GAP));
+    }
+
+    #[test]
+    fn v110_f57_a_blocked_resync_knows_how_long_to_wait() {
+        let mut last = HashMap::new();
+        let t = Instant::now();
+        assert_eq!(wait(&last, "a", t), None);
+        due(&mut last, "a", t);
+        assert_eq!(wait(&last, "a", t + Duration::from_secs(5)), Some(Duration::from_secs(25)));
+        assert_eq!(wait(&last, "a", t + RESYNC_GAP), None);
     }
 
     #[test]
