@@ -151,7 +151,19 @@
     if (!video || !c) return;
     video.currentTime = c.t;
     // Before autoplay kicks in: it stays paused.
-    if (c.paused) video.pause();
+    if (c.paused) {
+      video.pause();
+      kicked = video.currentSrc;
+    }
+  }
+  /** V110-F61 The first canplay of each file starts it when the attribute alone didn't (a clip
+   *  opened from the Clips page sat paused at 0:00). A paused carry-over stays paused. */
+  let kicked = '';
+  function oncanplay() {
+    retrying = false;
+    if (!video || kicked === video.currentSrc) return;
+    kicked = video.currentSrc;
+    if (video.paused && !video.ended) void video.play().catch(() => {});
   }
   const name = (q: { height: number; frameRate: number }) => `${q.height}p${q.frameRate > 31 ? Math.round(q.frameRate) : ''}`;
 
@@ -245,7 +257,7 @@
       onplay={() => (playing = true)}
       onpause={() => (playing = false)}
       {onloadedmetadata}
-      oncanplay={() => (retrying = false)}
+      {oncanplay}
       {onerror}
       {ontimeupdate}
     ></video>
