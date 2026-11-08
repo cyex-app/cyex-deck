@@ -53,3 +53,18 @@ test('a failed ask frees its place', async () => {
   assert.equal(await q.get('x'), 'ok');
   assert.equal(q.stats().running, 0);
 });
+
+test('a limit keeps only that many asks running; the rest wait in order (V110-C66)', async () => {
+  const a = asker();
+  const q = linkQueue(a.ask, 2);
+  const got = ['a', 'b', 'c', 'd'].map((u) => q.get(u));
+  await tick();
+  assert.deepEqual(a.calls, ['a', 'b']);
+  await a.answer('a');
+  assert.deepEqual(a.calls, ['a', 'b', 'c']);
+  await a.answer('b');
+  await a.answer('c');
+  await a.answer('d');
+  assert.deepEqual(await Promise.all(got), ['card a', 'card b', 'card c', 'card d']);
+  assert.equal(q.stats().running, 0);
+});

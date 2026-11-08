@@ -19,7 +19,12 @@
 {:else}
   {@const p = c.card}
   {@const facts = p.facts.map((f) => ({ text: factText(f), num: numeric(f) })).filter((f) => f.text)}
-  <div class="card tip-card" class:live={p.live}>
+  <!-- V110-C66 With a picture the card is as wide as the picture size asked for. -->
+  <div
+    class="card tip-card"
+    class:live={p.live}
+    style:min-width={p.thumbnail && c.thumbWidth ? `${Math.max(200, c.thumbWidth)}px` : undefined}
+  >
     <span class="site">
       {kindText(p)}
       {#if p.kind === 'channel' || (p.kind === 'video' && p.live)}

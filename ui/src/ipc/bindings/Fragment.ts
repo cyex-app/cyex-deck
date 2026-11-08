@@ -30,7 +30,12 @@ size?: [number, number], } | { "t": "mention", text: string, login: string, } | 
 /**
  * Twitch clips and VODs open in the app.
  */
-target: LinkTarget | null, } | { "t": "cheer", prefix: string, amount: number, } | { "t": "gif", id: string, url: string, } | { "t": "span", text: string, color?: SpanColor, style?: SpanStyle, tip?: string, act?: Act, } | { "t": "image", src: string, 
+target: LinkTarget | null, 
+/**
+ * V110-C66 On the trusted list (`tokenize::TRUSTED_HOSTS`): may be a card under the
+ * message and asked for ahead of a hover.
+ */
+embed: boolean, } | { "t": "cheer", prefix: string, amount: number, } | { "t": "gif", id: string, url: string, } | { "t": "span", text: string, color?: SpanColor, style?: SpanStyle, tip?: string, act?: Act, } | { "t": "image", src: string, 
 /**
  * `url 2x, url 4x` for sharper screens.
  */

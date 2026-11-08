@@ -193,6 +193,17 @@ pub async fn chat_resolve_link(app: AppHandle, url: String) -> Option<LinkPrevie
     chat::link_preview::get(&http, url).await
 }
 
+/// V110-C66 The same card for a card under a message or an ask ahead of a hover: only for
+/// links on the trusted list (https, listed domain), anything else is `None` unasked.
+#[tauri::command]
+pub async fn chat_embed_link(app: AppHandle, url: String) -> Option<LinkPreview> {
+    if !cyex_chat::tokenize::trusted_link(&url) {
+        return None;
+    }
+    let http = app.state::<Auth>().http.clone();
+    chat::link_preview::get(&http, url).await
+}
+
 /// Public profile for the usercard (1.36), by login or id.
 #[tauri::command]
 pub async fn user_profile(app: AppHandle, login: Option<String>, id: Option<String>) -> CmdResult<Option<Profile>> {

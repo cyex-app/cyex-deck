@@ -413,19 +413,27 @@
 </Row>
 
 <SectionHead title="Links" />
-<Row setting="chat.linkPreviews" label="Previews" hint="Hover a link for its title and picture.">
+<Row
+  setting="chat.linkPreviews"
+  label="Previews"
+  hint="Hover a link for its title and picture. Links from trusted sites load as they scroll into view, so the preview opens at once."
+>
   <Toggle label="Previews" checked={c.linkPreviews} onchange={(v) => settings.patch('chat', { linkPreviews: v })} />
 </Row>
-<Row setting="chat.linkThumbnails" label="Picture size">
+<Row setting="chat.linkThumbnails" label="Preview size" hint="How big the picture is in the hover preview.">
   <Segmented
-    label="Picture size"
+    label="Preview size"
     options={THUMBS}
     value={c.linkThumbnails}
     onchange={(v) => settings.patch('chat', { linkThumbnails: v })}
   />
 </Row>
-<Row setting="chat.linkCards" label="Cards under messages" hint="Also shows the preview below the message.">
-  <Toggle label="Cards under messages" checked={c.linkCards} onchange={(v) => settings.patch('chat', { linkCards: v })} />
+<Row
+  setting="chat.linkCards"
+  label="Cards under messages"
+  hint="Shows a card below the message for links from trusted sites. Needs Previews."
+>
+  <Toggle label="Cards under messages" disabled={!c.linkPreviews} checked={c.linkCards} onchange={(v) => settings.patch('chat', { linkCards: v })} />
 </Row>
 
 <SectionHead title="GIFs and effects">Moving emotes and message effects.</SectionHead>

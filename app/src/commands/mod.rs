@@ -152,6 +152,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         chat::chat_thread_follow,
         chat::chat_thread_followed,
         chat::chat_resolve_link,
+        chat::chat_embed_link,
         chat::user_profile,
         chat::chat_menu,
         chat::chat_commands,

@@ -2,10 +2,12 @@
 //! then words: provider emotes (with zero-width stacking and modifiers, C7), mentions,
 //! cheers, links.
 
+mod embed;
 mod links;
 mod ranges;
 mod targets;
 
+pub use embed::{TRUSTED_HOSTS, trusted as trusted_link, trusted_host};
 pub use links::detect as detect_link;
 
 use ranges::RangeKind;
@@ -258,6 +260,7 @@ impl Builder<'_> {
             self.pending.push_str(link.lead);
             self.push(Fragment::Link {
                 text: link.text.to_owned(),
+                embed: embed::trusted(&link.url),
                 url: link.url,
                 host: link.host,
                 target: link.target,
@@ -489,6 +492,7 @@ mod tests {
                     url: "https://twitch.tv/bar".into(),
                     host: "twitch.tv".into(),
                     target: None,
+                    embed: true,
                 },
                 Fragment::text("."),
             ]

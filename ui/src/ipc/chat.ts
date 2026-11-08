@@ -86,6 +86,8 @@ export const chatIpc = {
   threadFollowed: (channel: string, thread: string) => invoke<boolean>('chat_thread_followed', { channel, thread }),
   /** X2 Where a link ends up after redirects, and 1.52 its card (V108-C25). Rust caches it. */
   resolveLink: (url: string) => invoke<LinkPreview | null>('chat_resolve_link', { url }),
+  /** V110-C66 The same card for links on the trusted list only (Rust checks); `null` for any other. */
+  embedLink: (url: string) => invoke<LinkPreview | null>('chat_embed_link', { url }),
   profile: (login?: string, id?: string) => invoke<Profile | null>('user_profile', { login, id }),
   openUsercard: (channel: string, login: string) => invoke<void>('window_open_usercard', { channel, login }),
 };

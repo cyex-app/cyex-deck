@@ -131,12 +131,14 @@ mod tests {
             url: "https://clips.twitch.tv/x".into(),
             host: "clips.twitch.tv".into(),
             target: Some(LinkTarget::Clip { slug: "x".into() }),
+            embed: true,
         };
         let other = Fragment::Link {
             text: "t".into(),
             url: "https://example.com".into(),
             host: "example.com".into(),
             target: None,
+            embed: false,
         };
         assert!(has_clip_link(&[Fragment::Text { text: "a".into() }, clip]));
         assert!(!has_clip_link(&[other]));

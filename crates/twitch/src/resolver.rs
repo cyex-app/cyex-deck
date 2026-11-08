@@ -38,10 +38,21 @@ pub struct LinkText {
     pub bold: bool,
 }
 
+/// V110-C66 The resolver; in mocks builds `CYEX_LINK_RESOLVER_MOCK=http://127.0.0.1:<port>` stands in.
+fn base() -> String {
+    #[cfg(any(test, feature = "mocks"))]
+    if let Ok(u) = std::env::var("CYEX_LINK_RESOLVER_MOCK")
+        && u.starts_with("http://127.0.0.1:")
+    {
+        return u.trim_end_matches('/').to_owned();
+    }
+    URL.to_owned()
+}
+
 /// `None` if the resolver has nothing on it.
 pub async fn resolve(http: &Http, url: &str) -> Result<Option<LinkInfo>> {
     let encoded: String = url::form_urlencoded::byte_serialize(url.as_bytes()).collect();
-    let res: Response = json(http.0.get(format!("{URL}/{encoded}"))).await?;
+    let res: Response = json(http.0.get(format!("{}/{encoded}", base()))).await?;
     Ok(info(res))
 }
 

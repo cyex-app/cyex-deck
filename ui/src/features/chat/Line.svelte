@@ -98,10 +98,10 @@
   const slots = $derived(modButtons && mod ? mod.slots : []);
   /** V107-R44 The broadcaster's timeout or ban on a mod takes the mod role: said in the tip. */
   const roleNote = $derived(slots.length && takesModRole(mod, sender, channel) ? MOD_ROLE_NOTE : undefined);
-  /** C30 The first link, for a card under the message. */
+  /** C30 The first link, for a card under the message. V110-C66 Trusted links only (`embed`). */
   const firstLink = $derived(
     c.linkCards && c.linkPreviews && !streamer.hides('hideLinkPreviews')
-      ? m.body.find((f) => f.t === 'link' && !f.target)
+      ? m.body.find((f) => f.t === 'link' && f.embed && !f.target)
       : undefined,
   );
 </script>

@@ -19,6 +19,7 @@ import type { CardTarget } from '../emotes/emotes';
 import { cancelEmoteMenu, emoteEditMenu } from '../emotes/edit/menu';
 import { removeHere } from '../emotes/edit/run';
 import { hidden } from '../emotes/hidden.svelte';
+import { PREVIEW_PX } from './cardBox';
 import { cardsShown, links } from './linkPreviews';
 import { flipUnlisted, unlistedBlurred } from '../emotes/unlisted';
 import { roomRoute } from './roomRoute';
@@ -115,7 +116,6 @@ export async function emoteMenu(e: MouseEvent, el: HTMLElement, host: LineHost):
 export const notEmote = cancelEmoteMenu;
 
 /** 1.52 Picture widths, Chatterino's sizes. */
-const THUMBS = { off: 0, small: 100, medium: 200, large: 300 } as const;
 const TIPPED = '[data-tip],[data-link],[data-emoji],[data-stamp]';
 
 /** Tips for badges, links (X2, 1.52) and emoji (V102-07) inside `root`. c-4 A line that drops
@@ -157,7 +157,7 @@ export function lineTips(root: () => HTMLElement | undefined) {
         if (finalHost && finalHost !== host) retitleTip(el, `Opens ${host}, ends up on ${finalHost}`);
         if (!shown) return;
         if (!p) return previewTip(el, { state: 'none' });
-        const thumbWidth = THUMBS[settings.v.chat.linkThumbnails];
+        const thumbWidth = PREVIEW_PX[settings.v.chat.linkThumbnails];
         previewTip(el, { state: 'ready', card: p, thumbWidth, blur: p.nsfw });
       })
       .catch(() => shown && previewTip(el, { state: 'none' }));

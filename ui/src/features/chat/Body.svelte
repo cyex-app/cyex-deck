@@ -14,6 +14,7 @@
   import ChatEmote from './ChatEmote.svelte';
   import EmojiImg from './EmojiImg.svelte';
   import { actTip, picSize, spanColor } from './pluginLine';
+  import { preloadLink } from './preloadLink';
   import { splitMarked } from './wordMarks';
   import { saved } from './saved';
   import { cheerImg, cheerTier } from './urls';
@@ -68,6 +69,7 @@
     >
   {:else if f.t === 'link'}<a
       class="link"
+      use:preloadLink={f.embed ? f.url : ''}
       href={f.url}
       data-link={f.url}
       data-host={f.host}

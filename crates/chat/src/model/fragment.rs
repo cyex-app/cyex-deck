@@ -48,6 +48,9 @@ pub enum Fragment {
         host: String,
         /// Twitch clips and VODs open in the app.
         target: Option<LinkTarget>,
+        /// V110-C66 On the trusted list (`tokenize::TRUSTED_HOSTS`): may be a card under the
+        /// message and asked for ahead of a hover.
+        embed: bool,
     },
     /// Bits: `cheer100`.
     Cheer {
