@@ -20,6 +20,8 @@ const SEEN: usize = 300;
 const MAX_BACKOFF: Duration = Duration::from_secs(60);
 /// Extra wait on top of the keepalive Twitch promised.
 const SLACK: Duration = Duration::from_secs(5);
+/// V110-F52 A session must live this long before its drop restarts the backoff.
+const STABLE: Duration = Duration::from_secs(60);
 
 type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
@@ -71,6 +73,7 @@ async fn run(mut stop: watch::Receiver<()>, out: mpsc::UnboundedSender<Out>) {
             backoff = next(backoff);
             continue;
         };
+        let started = Instant::now();
         let mut keepalive = Duration::from_secs(10);
         // Only Twitch's own messages count as signs of life, not pings.
         let mut deadline = Instant::now() + keepalive + SLACK;
@@ -88,7 +91,6 @@ async fn run(mut stop: watch::Receiver<()>, out: mpsc::UnboundedSender<Out>) {
             deadline = Instant::now() + keepalive + SLACK;
             match frame::parse(&text) {
                 Some(Frame::Welcome { session_id, keepalive_secs }) => {
-                    backoff = Duration::ZERO;
                     keepalive = Duration::from_secs(keepalive_secs.max(1));
                     deadline = Instant::now() + keepalive + SLACK;
                     let _ = out.send(Out::Welcome(session_id));
@@ -123,7 +125,7 @@ async fn run(mut stop: watch::Receiver<()>, out: mpsc::UnboundedSender<Out>) {
             }
         }
         let _ = out.send(Out::Lost);
-        backoff = next(backoff);
+        backoff = next(if started.elapsed() >= STABLE { Duration::ZERO } else { backoff });
     }
 }
 
@@ -153,10 +155,29 @@ async fn moved(url: &str, stop: &mut watch::Receiver<()>) -> Option<(Socket, u64
     Some((ws, welcome))
 }
 
+/// 1-3 s at first (jittered), then doubling with up to a quarter on top.
 fn next(backoff: Duration) -> Duration {
+    let ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| u64::from(d.subsec_millis()));
     if backoff.is_zero() {
-        Duration::from_secs(1)
+        Duration::from_millis(1000 + ms % 2000)
     } else {
-        (backoff * 2).min(MAX_BACKOFF)
+        let base = (backoff * 2).min(MAX_BACKOFF);
+        base + base / 4 * (ms % 1000) as u32 / 1000
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn backoff_starts_jittered_and_grows_to_a_cap() {
+        let first = next(Duration::ZERO);
+        assert!((1000..3000).contains(&(first.as_millis() as u64)));
+        let grown = next(Duration::from_secs(4));
+        assert!(grown >= Duration::from_secs(8) && grown < Duration::from_secs(10));
+        assert!(next(Duration::from_secs(600)) <= MAX_BACKOFF + MAX_BACKOFF / 4);
     }
 }

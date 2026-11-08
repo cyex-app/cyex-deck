@@ -15,6 +15,8 @@ use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
 const MAX_BACKOFF: Duration = Duration::from_secs(120);
+/// How long a connection must live before its drop counts as a fresh start.
+const STABLE: Duration = Duration::from_secs(60);
 /// V107-A6 A connect (TCP, TLS, upgrade) that takes longer is given up and retried.
 #[cfg(not(test))]
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
@@ -148,6 +150,7 @@ async fn run<P: Protocol>(
             continue;
         };
         let (mut sink, mut stream) = ws.split();
+        let started = Instant::now();
         let gated = p.gated();
         let mut ready = !gated;
         let mut ok = true;
@@ -160,23 +163,17 @@ async fn run<P: Protocol>(
             }
         }
         let mut deadline = Instant::now() + p.idle();
-        let mut heard = false;
         while ok {
             tokio::select! {
                 msg = stream.next() => match msg {
                     Some(Ok(Message::Text(text))) => {
                         deadline = Instant::now() + p.idle();
-                        if !heard && !gated {
-                            backoff = Duration::ZERO;
-                        }
-                        heard = true;
                         match p.read(&text, &events) {
                             Step::Continue => {}
                             Step::Reconnect => break,
                             Step::Reply(line) => ok = sink.send(Message::text(line)).await.is_ok(),
                             Step::Ready if !ready => {
                                 ready = true;
-                                backoff = Duration::ZERO;
                                 for t in &topics {
                                     ok &= sink.send(Message::text(p.subscribe(t))).await.is_ok();
                                 }
@@ -210,10 +207,16 @@ async fn run<P: Protocol>(
                 _ = sleep_until(deadline) => break,
             }
         }
+        // V110-F52 Only a connection that lived a while earns a fresh start.
         if !topics.is_empty() {
-            backoff = next_backoff(backoff);
+            backoff = after_session(backoff, started.elapsed());
         }
     }
+}
+
+/// V110-F52 A connection that held for `STABLE` starts the backoff over; a short one keeps growing it.
+fn after_session(prev: Duration, lived: Duration) -> Duration {
+    next_backoff(if lived >= STABLE { Duration::ZERO } else { prev })
 }
 
 /// Topics are out on a connection: the first time is a plain connect, later ones tell the protocol.
@@ -341,6 +344,14 @@ fn next_backoff(prev: Duration) -> Duration {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn short_sessions_keep_growing_the_backoff() {
+        let grown = after_session(Duration::from_secs(8), Duration::from_secs(2));
+        assert_eq!(grown, Duration::from_secs(16));
+        let fresh = after_session(Duration::from_secs(8), STABLE);
+        assert!((1000..5000).contains(&(fresh.as_millis() as u64)));
+    }
 
     #[test]
     fn backoff_grows_to_a_cap() {
