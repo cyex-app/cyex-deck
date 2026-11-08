@@ -110,6 +110,11 @@ pub fn decide(p: &Page, g: &Gate, now: Instant) -> Step {
     }
 }
 
+/// V110-F16 The step when the reload was refused: a nudge, but only once per `RELOAD_GAP`.
+fn skipped_reload(nudges: &mut RateLimit, at: Instant) -> Step {
+    if nudges.take(at) { Step::Nudge } else { Step::None }
+}
+
 /// At most one go per `gap`.
 #[derive(Clone, Copy, Debug)]
 pub struct RateLimit {
@@ -138,6 +143,8 @@ struct Entry {
     gate: Gate,
     reloads: RateLimit,
     hidden_nudges: RateLimit,
+    /// V110-F16 After a skipped reload: one more nudge per reload gap, not one per retry.
+    skipped_nudges: RateLimit,
     /// The stall (its `frame`) already logged as unanswered.
     unanswered: Option<Instant>,
 }
@@ -257,6 +264,8 @@ pub fn frame(app: &AppHandle, label: &str, visible: bool) {
             restart(&mut e.page, now);
             e.page.visible = true;
         }
+        // A late ping for a window that closed doesn't bring its entry back.
+        None if app.get_webview_window(label).is_none() => {}
         None => {
             pages.insert(
                 label.to_owned(),
@@ -265,6 +274,7 @@ pub fn frame(app: &AppHandle, label: &str, visible: bool) {
                     gate: Gate::default(),
                     reloads: RateLimit::new(RELOAD_GAP),
                     hidden_nudges: RateLimit::new(HIDDEN_GAP),
+                    skipped_nudges: RateLimit::new(RELOAD_GAP),
                     unanswered: None,
                 },
             );
@@ -397,7 +407,11 @@ fn gate(app: &AppHandle, state: &Paint, label: &str) -> Option<Gate> {
 async fn check(app: &AppHandle, state: &Paint, now: Instant) {
     let labels: Vec<String> = lock(&state.pages).keys().cloned().collect();
     for label in labels {
-        let Some(g) = gate(app, state, &label) else { continue };
+        let Some(g) = gate(app, state, &label) else {
+            // The window is gone: drop what a late ping may have left.
+            lock(&state.pages).remove(&label);
+            continue;
+        };
         let stalled = {
             let mut pages = lock(&state.pages);
             let Some(e) = pages.get_mut(&label) else { continue };
@@ -444,12 +458,16 @@ async fn check(app: &AppHandle, state: &Paint, now: Instant) {
                     Step::Reload
                 }
                 Step::Reload => {
+                    // Looked at again after `RETRY`, but nudged once per reload gap.
                     e.page.nudged = Some(at);
-                    log(&format!(
-                        "{label}: still no frame, reload skipped (one ran under {} s ago): nudge again",
-                        RELOAD_GAP.as_secs()
-                    ));
-                    Step::Nudge
+                    let step = skipped_reload(&mut e.skipped_nudges, at);
+                    if step == Step::Nudge {
+                        log(&format!(
+                            "{label}: still no frame, reload skipped (one ran under {} s ago): nudge again",
+                            RELOAD_GAP.as_secs()
+                        ));
+                    }
+                    step
                 }
             }
         };
@@ -528,6 +546,16 @@ mod tests {
 
     fn secs(s: u64) -> Duration {
         Duration::from_secs(s)
+    }
+
+    #[test]
+    fn a_skipped_reload_nudges_once_per_gap() {
+        let t0 = Instant::now();
+        let mut l = RateLimit::new(RELOAD_GAP);
+        assert_eq!(skipped_reload(&mut l, t0), Step::Nudge);
+        assert_eq!(skipped_reload(&mut l, t0 + secs(3)), Step::None);
+        assert_eq!(skipped_reload(&mut l, t0 + secs(119)), Step::None);
+        assert_eq!(skipped_reload(&mut l, t0 + secs(120)), Step::Nudge);
     }
 
     fn shown() -> Gate {

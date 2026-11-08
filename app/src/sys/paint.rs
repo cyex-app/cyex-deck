@@ -117,26 +117,31 @@ mod imp {
     pub fn nudge(webview: &tauri::Webview, done: impl FnOnce(Result<(), String>) + Send + 'static) {
         let sent = webview.with_webview(move |w| {
             let c = w.controller();
+            // V110-F16 Every restoring call runs even when an earlier one failed, so a webview is
+            // never left one px narrow or hidden; the first error is what comes back.
+            let mut r: windows::core::Result<()> = Ok(());
+            let mut keep = |x: windows::core::Result<()>| {
+                if r.is_ok() {
+                    r = x;
+                }
+            };
             // SAFETY: plain COM calls on the controller Tauri hands us and plain reads of its
             // parent window, all on the UI thread; out pointers are locals.
-            let r = unsafe {
-                (|| -> windows::core::Result<()> {
-                    let mut hwnd = HWND::default();
-                    c.ParentWindow(&mut hwnd)?;
-                    let mut b = RECT::default();
-                    c.Bounds(&mut b)?;
-                    if b.right - b.left > 1 {
-                        c.SetBounds(RECT { right: b.right - 1, ..b })?;
-                        c.SetBounds(b)?;
-                    }
-                    c.NotifyParentWindowPositionChanged()?;
-                    if !hwnd.is_invalid() && IsWindowVisible(hwnd).as_bool() && !IsIconic(hwnd).as_bool() {
-                        c.SetIsVisible(false)?;
-                        c.SetIsVisible(true)?;
-                    }
-                    Ok(())
-                })()
-            };
+            unsafe {
+                let mut hwnd = HWND::default();
+                keep(c.ParentWindow(&mut hwnd));
+                let mut b = RECT::default();
+                keep(c.Bounds(&mut b));
+                if b.right - b.left > 1 {
+                    keep(c.SetBounds(RECT { right: b.right - 1, ..b }));
+                    keep(c.SetBounds(b));
+                }
+                keep(c.NotifyParentWindowPositionChanged());
+                if !hwnd.is_invalid() && IsWindowVisible(hwnd).as_bool() && !IsIconic(hwnd).as_bool() {
+                    keep(c.SetIsVisible(false));
+                    keep(c.SetIsVisible(true));
+                }
+            }
             done(r.map_err(|e| e.to_string()));
         });
         if let Err(e) = sent {
