@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { lineKey, lineLabel, revealDelta, stepLine } from './lineSelect.ts';
+import { lineKey, lineLabel, revealDelta, shiftReply, stepLine } from './lineSelect.ts';
 
 const ids = ['a', 'b', 'c'];
 
@@ -82,4 +82,19 @@ test('V108-F54 a screen reader hears name and text, or the notice', () => {
   const body = [{ t: 'text', text: 'hello ' }, { t: 'emote', name: 'Kappa' }] as never;
   assert.equal(lineLabel({ sender: { display: 'Kuni' } as never, body, notice: null }), 'Kuni: hello Kappa');
   assert.equal(lineLabel({ sender: null, body: [], notice: { text: 'Chat was cleared' } as never }), 'Chat was cleared');
+});
+
+test('V110-C01 Shift+right-click replies on a user message when the box can send', () => {
+  const user = { sender: { login: 'a' } as never };
+  assert.equal(shiftReply(true, user, true), true);
+  assert.equal(shiftReply(false, user, true), false);
+  assert.equal(shiftReply(true, user, false), false);
+});
+
+test('V110-C01 Shift+right-click does not reply on notices, plugin lines or deleted lines', () => {
+  const sender = { login: 'a' } as never;
+  assert.equal(shiftReply(true, {}, true), false);
+  assert.equal(shiftReply(true, { sender, notice: { text: 'x' } as never }, true), false);
+  assert.equal(shiftReply(true, { sender, plugin: {} as never }, true), false);
+  assert.equal(shiftReply(true, { sender, gone: {} as never }, true), false);
 });

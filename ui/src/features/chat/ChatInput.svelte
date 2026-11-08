@@ -302,6 +302,11 @@
     sources.load();
   }
 
+  /** V110-C01 Whether a send would go out now: signed in, allowed, in the chat and not locked. */
+  export function canSend() {
+    return canChat && !lock && !out;
+  }
+
   /** Back to the box, e.g. after a pop-up closes. */
   export function focus() {
     box?.focus();

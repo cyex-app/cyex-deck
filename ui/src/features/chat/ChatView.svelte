@@ -585,6 +585,7 @@
       {room}
       {readKey}
       canReply={room.account !== null}
+      canSend={() => input?.canSend() ?? false}
       onreply={reply}
       {onlink}
       onmention={(l) => input?.mention(l)}

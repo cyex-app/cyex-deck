@@ -37,7 +37,7 @@
   import { jumpInLogs, openInLogs } from './inLogs';
   import { HOVER_OWNER } from './hoverOwner';
   import { pick as pickHot } from './hover.svelte';
-  import { lineKey, lineLabel, revealDelta, stepLine } from './lineSelect';
+  import { lineKey, lineLabel, revealDelta, shiftReply, stepLine } from './lineSelect';
   import { ChatScroll } from './chatScroll.svelte';
   import { editable, MODIFIERS, pauseHeld } from './pauseKey';
   import { nameMenu } from './nameMenu';
@@ -61,6 +61,8 @@
     /** Where the last-read line sits is kept under this key while the view is closed. */
     readKey?: string;
     canReply: boolean;
+    /** V110-C01 Whether the box can send right now (not locked, banned or read-only). */
+    canSend?: () => boolean;
     onreply: (id: string) => void;
     /** Twitch clips and VODs open in the app (1.19, 1.20, P7) instead of the browser. */
     onlink?: (target: LinkTarget) => void;
@@ -78,7 +80,7 @@
     thread?: string;
   }
 
-  let { room, readKey, canReply, onreply, onlink, onmention, onprefill, oninsert, onaction, onleave, thread }: Props = $props();
+  let { room, readKey, canReply, canSend, onreply, onlink, onmention, onprefill, oninsert, onaction, onleave, thread }: Props = $props();
   const hideFor = $derived(thread && room.messages.some((x) => x.id === thread) ? thread : undefined);
 
   const c = $derived(settings.v.chat);
@@ -586,7 +588,7 @@
     const canPin = !canMod && at('pin');
     const canDelete = canPin && at('delete');
     openMenu(e, [
-      ...(canReply && m.sender && !m.notice ? [{ label: 'Reply', icon: 'reply' as const, run: () => onreply(m.id) }] : []),
+      ...(canReply && m.sender && !m.notice ? [{ label: 'Reply', icon: 'reply' as const, hint: 'Shift+R-click', run: () => onreply(m.id) }] : []),
       ...(m.sender && !m.notice
         ? [
             {
@@ -631,6 +633,13 @@
     if (target.closest('a, input, textarea')) return;
     const line = target.closest<HTMLElement>('[data-id]');
     const m = line ? room.find(line.dataset.id!) : undefined;
+    // V110-C01 Shift+right-click replies at once, like the line's Reply button.
+    if (m && canReply && shiftReply(e.shiftKey, m, canSend ? canSend() : true)) {
+      e.preventDefault();
+      hideTip();
+      onreply(m.id);
+      return;
+    }
     const name = target.closest<HTMLElement>('[data-user]');
     if (name) {
       e.preventDefault();

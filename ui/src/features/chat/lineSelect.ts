@@ -59,3 +59,10 @@ export function lineLabel(m: Pick<ChatMessage, 'sender' | 'body' | 'notice'>): s
   const text = plainText(m.body) || m.notice?.text || '';
   return m.sender ? `${m.sender.display}: ${text}` : text;
 }
+
+/** V110-C01 Shift+right-click on a line replies at once, as the line's Reply button does. Only
+ *  on a real user message (not a notice, plugin line or deleted line) and only where the box
+ *  can send; otherwise the normal menu opens. */
+export function shiftReply(shift: boolean, m: Pick<ChatMessage, 'sender' | 'notice' | 'plugin' | 'gone'>, canSend: boolean): boolean {
+  return shift && canSend && !!m.sender && !m.notice && !m.plugin && !m.gone;
+}

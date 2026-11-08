@@ -97,6 +97,7 @@
         {room}
         thread={threadId}
         canReply={room.account !== null}
+        canSend={() => input?.canSend() ?? false}
         onreply={reply}
         onmention={(l) => input?.mention(l)}
         onprefill={(t) => input?.prefill(t)}
