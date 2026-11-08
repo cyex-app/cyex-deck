@@ -42,7 +42,7 @@ import { type Choice, levelFor, levelName, lowestLevel } from './quality';
 import { Steer } from './steer';
 import { exposeLive, ll7Old, streamFmp4 } from './fmp4Stream';
 import { dateAt, goneDue, isGone, nextAfter, type Piece, posAt, replayStart } from './replayClock';
-import { stallStart, stallStep } from './stall';
+import { BUFFER_NOTE_MS, stallStart, stallStep } from './stall';
 import { isTorn, tornDue, tornStart } from './torn';
 
 let hlsModule: Promise<typeof HlsType> | null = null;
@@ -98,6 +98,8 @@ export class Engine {
   note = $state<string | null>(null);
   /** d-4 Playing live, the picture hasn't moved for 10 s: it reopens every 10 s until it does. */
   stalled = $state(false);
+  /** V110-F62 The picture has been frozen for BUFFER_NOTE_MS, not yet stalled: a quiet note. */
+  buffering = $state(false);
   /** d-4 Set by LivePlayer: an ad break waits on purpose, that's no stall. */
   adBreak = false;
   /** Live players: reopens the stream, live when `at` is null, else the VOD from there. */
@@ -895,6 +897,7 @@ export class Engine {
     const date = this.hls?.playingDate?.getTime() ?? null;
     const r = stallStep(this.stall, { now: performance.now(), pos: v.currentTime, active, ready, date, edge: this.edgeDate });
     this.stall = r.s;
+    this.buffering = active && !this.stalled && r.action === 'none' && !r.s.stalled && performance.now() - r.s.at >= BUFFER_NOTE_MS;
     if (r.action === 'clear') this.stalled = false;
     if (r.action !== 'retry') return;
     this.stalled = true;

@@ -2,6 +2,9 @@
 // reopens, again STALL_MS after each try, until the picture moves.
 
 export const STALL_MS = 10_000;
+/** V110-F62 A frozen picture says "Buffering…" after this, before the stall note at STALL_MS. */
+export const BUFFER_NOTE_MS = 5000;
+export const BUFFER_TEXT = 'Buffering…';
 export const STALL_TEXT = 'Stream stalled. Trying again…';
 /** rd-3 Once stalled, it takes this many checks (seconds) of steady play to clear: a reopen's
  *  new source plays a moment and stalls again, and the note flickered with each try. */

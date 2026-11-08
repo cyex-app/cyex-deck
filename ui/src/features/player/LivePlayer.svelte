@@ -43,7 +43,7 @@
   import PipNotice from './PipNotice.svelte';
   import { Rewind } from './rewind.svelte';
   import SeekBar from './SeekBar.svelte';
-  import { STALL_TEXT } from './stall';
+  import { BUFFER_TEXT, STALL_TEXT } from './stall';
   import { recheckDelay } from './recheck';
   import { onShown, pageHidden } from '../../lib/awake';
   import { tabs } from '../tabs/tabs.svelte';
@@ -511,6 +511,9 @@
     {:else if engine?.stalled}
       <!-- rd-3 On a plate: it reads on bright frames too. -->
       <div class="center stall"><span class="plate">{STALL_TEXT}</span></div>
+    {:else if engine?.buffering}
+      <!-- V110-F62 Frozen for a few seconds: a quiet note, no button, before the stall note. -->
+      <div class="center stall"><span class="plate">{BUFFER_TEXT}</span></div>
     {:else if engine?.waiting && slow}
       <div class="busy"><Loading video size="large" /></div>
     {/if}
@@ -518,7 +521,7 @@
       <span class="chip">{ad === 'backup' ? 'Skipping an ad break' : 'Ad'}</span>
     {/if}
     {#if !mini}<Celebration login={tile.channel.login} />{/if}
-    {#if stats && engine}
+    {#if stats && engine && !pip}
       <Stats read={() => engine!.stats()} {video} onclose={() => (stats = false)} />
     {/if}
     {#if mini}
