@@ -45,6 +45,7 @@
   import { keyTaken } from '../../lib/escape';
   import { isFindKey, visibleSearchbox } from '../../lib/findKey';
   import { recording } from '../../lib/hotkeys.svelte';
+  import { rovingIndex } from '../../lib/rovingIndex';
 
   interface Props {
     /** Open page id. Bindable so other views can jump to a page. */
@@ -198,6 +199,19 @@
     e.stopPropagation();
   }
 
+  /** V110-F32 The nav is one Tab stop: the page you are on (else the first), and Up, Down, Home
+   *  and End move between pages; Enter or Space opens one. */
+  const stop = $derived(PAGES.some((p) => p.id === section) ? section : PAGES[0].id);
+  function navkey(e: KeyboardEvent) {
+    const from = (e.target as HTMLElement).closest<HTMLElement>('button[data-page]');
+    if (!from || e.altKey || e.ctrlKey || e.metaKey) return;
+    const list = [...(nav?.querySelectorAll<HTMLElement>('button[data-page]') ?? [])];
+    const to = rovingIndex(e.key, list.indexOf(from), list.length);
+    if (to === null) return;
+    e.preventDefault();
+    list[to].focus();
+  }
+
   function open(id: string) {
     query = '';
     section = id;
@@ -289,12 +303,13 @@
 {/snippet}
 
 <div class="settings" bind:this={root}>
-  <nav bind:this={nav} use:quietScroll>
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions (arrow keys of the buttons inside) -->
+  <nav bind:this={nav} use:quietScroll onkeydown={navkey}>
     {@render searchBox('side')}
     {#each GROUPS as g (g.label)}
       <div class="group">{g.label}</div>
       {#each g.pages as p (p.id)}
-        <button class:on={!searching && section === p.id} aria-label={p.label} aria-current={!searching && section === p.id ? 'page' : undefined} onclick={() => open(p.id)} use:tooltip={{ label: p.label, when: () => (nav?.offsetWidth ?? 999) < 100 }}>
+        <button data-page={p.id} tabindex={stop === p.id ? 0 : -1} class:on={!searching && section === p.id} aria-label={p.label} aria-current={!searching && section === p.id ? 'page' : undefined} onclick={() => open(p.id)} use:tooltip={{ label: p.label, when: () => (nav?.offsetWidth ?? 999) < 100 }}>
           <Icon name={p.icon} size={15} />
           <span>{p.label}</span>
         </button>
