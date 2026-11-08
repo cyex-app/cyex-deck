@@ -26,19 +26,14 @@ pub struct Minute<'a> {
     pub game: Option<(&'a str, &'a str)>,
 }
 
-/// spade's address, read from twitch.tv's settings script.
-pub async fn find_url(http: &Http) -> String {
+/// spade's address, read from twitch.tv's settings script. `None` when it couldn't be read
+/// (the caller falls back to [`URL`] and tries again later).
+pub async fn find_url(http: &Http) -> Option<String> {
     let headers = [("User-Agent".to_owned(), PAGE_AGENT.to_owned())];
-    let Ok(page) = http.get_text(PAGE, &headers, 2_000_000).await else {
-        return URL.into();
-    };
-    let Some(script) = settings_script(&page) else {
-        return URL.into();
-    };
-    match http.get_text(script, &headers, 2_000_000).await {
-        Ok(js) => spade_url(&js).unwrap_or(URL).to_owned(),
-        Err(_) => URL.into(),
-    }
+    let page = http.get_text(PAGE, &headers, 2_000_000).await.ok()?;
+    let script = settings_script(&page)?;
+    let js = http.get_text(script, &headers, 2_000_000).await.ok()?;
+    spade_url(&js).map(str::to_owned)
 }
 
 fn settings_script(page: &str) -> Option<&str> {

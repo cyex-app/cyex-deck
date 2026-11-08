@@ -22,6 +22,14 @@ const DROPS_CHECKED: usize = 20;
 const FOLLOWS_AGE: Duration = Duration::from_secs(15 * 60);
 const USER_KINDS: [Kind; 2] = [Kind::UserPoints, Kind::UserPredictions];
 
+/// V110-F54 The least time between two refreshes that a wake starts.
+const MIN_GAP: Duration = Duration::from_secs(5);
+
+/// How much of [`MIN_GAP`] is left `since` a refresh began.
+fn gap_left(since: Duration) -> Duration {
+    MIN_GAP.saturating_sub(since)
+}
+
 /// (id, login, name)
 type Named = (String, String, String);
 
@@ -38,10 +46,14 @@ pub fn spawn(app: &AppHandle) {
         let wake = app.state::<Miner>().wake.clone();
         let mut follows = Follows::default();
         loop {
+            let started = Instant::now();
             refresh(&app, &mut follows).await;
             tokio::select! {
                 () = tokio::time::sleep(POLL) => {}
-                () = wake.notified() => {}
+                () = wake.notified() => {
+                    // V110-F54 Settings and tab changes come in bursts: wakes inside the gap run once, after it.
+                    tokio::time::sleep(gap_left(started.elapsed())).await;
+                }
             }
         }
     });
@@ -369,6 +381,12 @@ pub fn nudge(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v110_f54_wakes_wait_out_the_gap() {
+        assert_eq!(gap_left(Duration::from_secs(1)), Duration::from_secs(4));
+        assert_eq!(gap_left(Duration::from_secs(9)), Duration::ZERO);
+    }
     use cyex_settings::schema::TabChannel;
 
     fn ch(id: &str) -> TabChannel {

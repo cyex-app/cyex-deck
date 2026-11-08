@@ -65,8 +65,10 @@ struct State {
     raids: HashSet<String>,
     bets: HashSet<String>,
     drop_progress: Vec<drops::DropProgress>,
-    /// spade's address, read from twitch.tv once per run.
+    /// spade's address, read from twitch.tv once it reads (a failure isn't kept).
     spade: Option<String>,
+    /// V110-F55 When the last read of it failed: the fallback address serves until it is due again.
+    spade_failed: Option<std::time::Instant>,
 }
 
 struct Chan {
@@ -205,9 +207,39 @@ async fn spade_url(app: &AppHandle) -> String {
     if let Some(url) = lock(app).spade.clone() {
         return url;
     }
-    let url = cyex_twitch::spade::find_url(&http(app)).await;
-    lock(app).spade = Some(url.clone());
-    url
+    let fallback = || cyex_twitch::spade::URL.to_owned();
+    if !retry_due(lock(app).spade_failed.map(|t| t.elapsed())) {
+        return fallback();
+    }
+    match cyex_twitch::spade::find_url(&http(app)).await {
+        Some(url) => {
+            lock(app).spade = Some(url.clone());
+            url
+        }
+        None => {
+            lock(app).spade_failed = Some(std::time::Instant::now());
+            fallback()
+        }
+    }
+}
+
+/// V110-F58 Most ids the raids and bets sets remember.
+const ONCE_CAP: usize = 500;
+
+/// True the first time `id` is seen. The set is cleared when it passes [`ONCE_CAP`]: an id
+/// that old belongs to a raid or prediction that is long over.
+fn first_time(set: &mut HashSet<String>, id: &str) -> bool {
+    if set.len() >= ONCE_CAP {
+        set.clear();
+    }
+    set.insert(id.to_owned())
+}
+
+/// V110-F55 A failed read of spade's address is tried again after this long.
+const SPADE_RETRY: std::time::Duration = std::time::Duration::from_secs(5 * 60);
+
+fn retry_due(since_failure: Option<std::time::Duration>) -> bool {
+    since_failure.is_none_or(|d| d >= SPADE_RETRY)
 }
 
 fn http(app: &AppHandle) -> cyex_twitch::Http {
@@ -272,4 +304,28 @@ fn name_of(app: &AppHandle, channel_id: &str) -> Option<(String, String)> {
         .iter()
         .find(|c| c.id == channel_id)
         .map(|c| (c.login.clone(), c.name.clone()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn v110_f58_ids_count_once_and_the_set_stays_small() {
+        let mut set = HashSet::new();
+        assert!(first_time(&mut set, "a"));
+        assert!(!first_time(&mut set, "a"));
+        for i in 0..2 * ONCE_CAP {
+            first_time(&mut set, &i.to_string());
+        }
+        assert!(set.len() <= ONCE_CAP);
+    }
+
+    #[test]
+    fn v110_f55_a_failed_spade_read_is_tried_again_later() {
+        assert!(retry_due(None));
+        assert!(!retry_due(Some(Duration::from_secs(30))));
+        assert!(retry_due(Some(SPADE_RETRY)));
+    }
 }
