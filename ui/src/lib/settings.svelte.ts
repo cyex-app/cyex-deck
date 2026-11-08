@@ -8,7 +8,7 @@ import { partitionList } from './partitions';
 import { reconcile } from './reconcile';
 import { errorText } from './errors';
 import { toast } from './toast.svelte';
-import { setAppClock } from './format';
+import { useClockSource } from './format';
 
 class SettingsStore {
   v = $state({} as SettingsValues);
@@ -19,9 +19,8 @@ class SettingsStore {
 
   constructor() {
     // V110-U53 Every time the app shows follows Time format, not only chat timestamps.
-    $effect.root(() => {
-      $effect(() => setAppClock(this.v.chat?.timestamps?.clock ?? 'h24'));
-    });
+    // V110-F20 Read from the state itself, so what shows a time follows the setting live.
+    useClockSource(() => this.v.chat?.timestamps?.clock ?? 'h24');
   }
 
   /** V108-P1 Changes each time Rust's copy of `partition` lands here (an answer, another

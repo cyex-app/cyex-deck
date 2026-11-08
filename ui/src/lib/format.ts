@@ -87,11 +87,19 @@ export interface TimeOptions {
 
 /** V110-U53 The Time format setting, for times shown without their own options. */
 let appClock: 'h24' | 'h12' = 'h24';
+let clockOf: () => 'h24' | 'h12' = () => appClock;
+/** Fixes the clock (tests, or before the settings store exists). */
 export function setAppClock(clock: 'h24' | 'h12'): void {
   appClock = clock;
+  clockOf = () => appClock;
+}
+/** V110-F20 The settings store hands over a reader of its own state, so a template or `$derived`
+ * calling `formatTime(d)` follows the setting (this file stays free of runes for the node tests). */
+export function useClockSource(get: () => 'h24' | 'h12'): void {
+  clockOf = get;
 }
 
-export function formatTime(d: Date, { seconds = false, clock = appClock }: TimeOptions = {}): string {
+export function formatTime(d: Date, { seconds = false, clock = clockOf() }: TimeOptions = {}): string {
   const s = seconds ? `:${pad(d.getSeconds())}` : '';
   if (clock !== 'h12') return `${pad(d.getHours())}:${pad(d.getMinutes())}${s}`;
   const h = d.getHours() % 12 || 12;

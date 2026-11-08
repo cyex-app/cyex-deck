@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { ago, formatBytes, formatDate, formatDuration, formatFactor, formatNumber, formatSecs, formatShort, formatStamp, formatTime, parseDuration } from './format.ts';
+import { ago, formatBytes, formatDate, formatDuration, formatFactor, formatNumber, formatSecs, formatShort, formatStamp, formatTime, parseDuration, setAppClock, useClockSource } from './format.ts';
 
 const at = new Date(2026, 9, 9, 14, 3, 7);
 const morning = new Date(2026, 0, 2, 0, 5, 0);
@@ -115,4 +115,15 @@ test('compact durations', () => {
 test('V110-C65 the hover stamp is yyyy/mm/dd HH:mm:ss, 24-hour', () => {
   assert.equal(formatStamp(new Date(2026, 10, 8, 14, 3, 9).getTime()), '2026/11/08 14:03:09');
   assert.equal(formatStamp(new Date(2026, 0, 2, 0, 5, 0).getTime()), '2026/01/02 00:05:00');
+});
+
+test('V110-F20 formatTime without options reads the clock source each call', () => {
+  let clock: 'h24' | 'h12' = 'h24';
+  useClockSource(() => clock);
+  const d = new Date(2026, 10, 8, 14, 5);
+  assert.equal(formatTime(d), '14:05');
+  clock = 'h12';
+  assert.equal(formatTime(d), '2:05 pm');
+  assert.equal(formatTime(d, { clock: 'h24' }), '14:05');
+  setAppClock('h24');
 });
