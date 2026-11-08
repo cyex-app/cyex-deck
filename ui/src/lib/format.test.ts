@@ -20,8 +20,8 @@ test('times are 24-hour by default (3.2)', () => {
 });
 
 test('12-hour timestamps when chosen (2.10)', () => {
-  assert.equal(formatTime(at, { hour12: true }), '2:03 pm');
-  assert.equal(formatTime(morning, { hour12: true, seconds: true }), '12:05:00 am');
+  assert.equal(formatTime(at, { clock: 'h12' }), '2:03 pm');
+  assert.equal(formatTime(morning, { clock: 'h12', seconds: true }), '12:05:00 am');
 });
 
 test('durations format to two units at most', () => {

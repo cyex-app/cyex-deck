@@ -7,12 +7,14 @@ import { hideTip } from '../../components/tooltip.svelte';
 import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
 import { chatIpc } from '../../ipc/chat';
 import { accounts } from '../../lib/accounts.svelte';
+import { settings } from '../../lib/settings.svelte';
 import { copy } from '../../lib/clipboard';
 import { errorText } from '../../lib/errors';
 import { toast } from '../../lib/toast.svelte';
 import { whispers } from '../whispers/whispers.svelte';
 import { jumpInLogs } from './inLogs';
 import { emoteMenu, notEmote, openPart, PARTS, type LineHost } from './lineEvents';
+import { fullMessage } from './fullMessage';
 import { plainText } from './text';
 
 /** Each feed line sits in an element with this attribute: the chat it was said in. */
@@ -63,6 +65,7 @@ export function messageEntries(channel: string, m: ChatMessage, openRoom: (c: st
     // V108-N17 Global mentions are rarely in the chat's own scrollback.
     ...(m.sender && !m.notice ? jumpInLogs(channel, m) : []),
     { label: 'Copy message', icon: 'copy', run: () => void copy(plainText(m.body), 'Message') },
+    { label: 'Copy full message', icon: 'copy', run: () => void copy(fullMessage(m, settings.v.chat.names, settings.v.chat.timestamps, m.sender ? settings.v.chat.users[m.sender.id] : undefined), 'Message') },
   ];
 }
 

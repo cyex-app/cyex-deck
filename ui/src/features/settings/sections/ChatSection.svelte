@@ -44,6 +44,10 @@
     { value: 'link', label: 'Link' },
     { value: 'text', label: 'Plain text' },
   ];
+  const CLOCKS: { value: 'h24' | 'h12'; label: string }[] = [
+    { value: 'h24', label: '24h' },
+    { value: 'h12', label: '12h' },
+  ];
   const DELETED: { value: DeletedStyle; label: string }[] = [
     { value: 'strike', label: 'Strike' },
     { value: 'faded', label: 'Faded' },
@@ -355,12 +359,12 @@
     onchange={(v) => settings.patch('chat', { timestamps: { seconds: v } })}
   />
 </Row>
-<Row setting="chat.timestamps.hour12" label="12-hour clock">
-  <Toggle
-    label="12-hour clock"
-    disabled={!c.timestamps.show}
-    checked={c.timestamps.hour12}
-    onchange={(v) => settings.patch('chat', { timestamps: { hour12: v } })}
+<Row setting="chat.timestamps.clock" label="Time format">
+  <Segmented
+    label="Time format"
+    options={CLOCKS}
+    value={c.timestamps.clock}
+    onchange={(v) => settings.patch('chat', { timestamps: { clock: v } })}
   />
 </Row>
 

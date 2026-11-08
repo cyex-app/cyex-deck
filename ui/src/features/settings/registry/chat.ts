@@ -117,11 +117,11 @@ export const CHAT: Entry[] = [
   { id: 'chat.timestamps.show', page: 'chat', label: 'Show timestamps', keywords: ['time', 'clock'] },
   { id: 'chat.timestamps.seconds', page: 'chat', label: 'Seconds in timestamps', keywords: ['time', 'clock'] },
   {
-    id: 'chat.timestamps.hour12',
+    id: 'chat.timestamps.clock',
     page: 'chat',
-    label: '12-hour clock',
-    description: 'For timestamps.',
-    keywords: ['am pm', '24-hour', 'time format'],
+    label: 'Time format',
+    description: '24h or 12h (am and pm) for every time the app shows.',
+    keywords: ['12 hour', '24 hour', 'am pm', 'clock', '12-hour', '24-hour'],
   },
   {
     id: 'chat.pauseOnHover',

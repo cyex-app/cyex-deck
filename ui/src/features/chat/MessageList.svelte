@@ -50,6 +50,7 @@
   import WarnBox from './WarnBox.svelte';
   import { runEntry, toItems, userMenus } from './menus.svelte';
   import { emoteMenu, enterClicks, lineTips, notEmote, openPart, PARTS, type LineHost } from './lineEvents';
+  import { fullMessage } from './fullMessage';
   import { plainText } from './text';
   import { readMarks, type ChatRoom } from './room.svelte';
   import { stripes } from './stripes';
@@ -633,6 +634,7 @@
           ]
         : []),
       { label: 'Copy message', icon: 'copy', run: () => void copy(plainText(m.body), 'Message') },
+      { label: 'Copy full message', icon: 'copy', run: () => void copy(fullMessage(m, settings.v.chat.names, settings.v.chat.timestamps, m.sender ? settings.v.chat.users[m.sender.id] : undefined), 'Message') },
       ...(canMod && caps
         ? [
             'separator' as const,

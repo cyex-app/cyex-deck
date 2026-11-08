@@ -8,6 +8,7 @@ import { partitionList } from './partitions';
 import { reconcile } from './reconcile';
 import { errorText } from './errors';
 import { toast } from './toast.svelte';
+import { setAppClock } from './format';
 
 class SettingsStore {
   v = $state({} as SettingsValues);
@@ -15,6 +16,13 @@ class SettingsStore {
   private flight = new InFlight<Partition>();
   /** V108-P1 Saves landed per partition. */
   private revs = $state<Partial<Record<Partition, number>>>({});
+
+  constructor() {
+    // V110-U53 Every time the app shows follows Time format, not only chat timestamps.
+    $effect.root(() => {
+      $effect(() => setAppClock(this.v.chat?.timestamps?.clock ?? 'h24'));
+    });
+  }
 
   /** V108-P1 Changes each time Rust's copy of `partition` lands here (an answer, another
    * window's change), even when nothing in `v` changed: for code that reads Rust's copy. */

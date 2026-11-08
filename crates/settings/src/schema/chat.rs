@@ -600,8 +600,35 @@ pub enum GifMode {
 pub struct Timestamps {
     pub show: bool,
     pub seconds: bool,
-    /// 24-hour by default (3.2).
-    pub hour12: bool,
+    /// V110-U53 24-hour by default (3.2). Files from before read the old `hour12` bool.
+    #[serde(alias = "hour12")]
+    pub clock: ClockFormat,
+}
+
+/// V110-U53 The clock timestamps use.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum ClockFormat {
+    #[default]
+    H24,
+    H12,
+}
+
+impl<'de> Deserialize<'de> for ClockFormat {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Raw {
+            Old(bool),
+            Text(String),
+        }
+        Ok(match Raw::deserialize(d)? {
+            Raw::Old(true) => Self::H12,
+            Raw::Text(t) if t == "h12" => Self::H12,
+            _ => Self::H24,
+        })
+    }
 }
 
 impl Default for Timestamps {
@@ -609,7 +636,7 @@ impl Default for Timestamps {
         Self {
             show: true,
             seconds: false,
-            hour12: false,
+            clock: ClockFormat::H24,
         }
     }
 }
@@ -617,6 +644,20 @@ impl Default for Timestamps {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v110_u53_clock_reads_the_old_bool_and_the_new_enum() {
+        let old: Chat = serde_json::from_str(r#"{"timestamps":{"hour12":true}}"#).unwrap();
+        assert_eq!(old.timestamps.clock, ClockFormat::H12);
+        let old: Chat = serde_json::from_str(r#"{"timestamps":{"hour12":false}}"#).unwrap();
+        assert_eq!(old.timestamps.clock, ClockFormat::H24);
+        let new: Chat = serde_json::from_str(r#"{"timestamps":{"clock":"h12"}}"#).unwrap();
+        assert_eq!(new.timestamps.clock, ClockFormat::H12);
+        let v = serde_json::to_value(&new).unwrap();
+        assert_eq!(v["timestamps"]["clock"], "h12");
+        assert_eq!(v["timestamps"].get("hour12"), None);
+        assert_eq!(Chat::default().timestamps.clock, ClockFormat::H24);
+    }
 
     #[test]
     fn v110_u43_old_raid_join_key_is_ignored() {

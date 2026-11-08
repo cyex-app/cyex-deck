@@ -82,17 +82,23 @@ export function ago(ms: number, now = Date.now(), words = false): string {
 
 export interface TimeOptions {
   seconds?: boolean;
-  hour12?: boolean;
+  clock?: 'h24' | 'h12';
 }
 
-export function formatTime(d: Date, { seconds = false, hour12 = false }: TimeOptions = {}): string {
+/** V110-U53 The Time format setting, for times shown without their own options. */
+let appClock: 'h24' | 'h12' = 'h24';
+export function setAppClock(clock: 'h24' | 'h12'): void {
+  appClock = clock;
+}
+
+export function formatTime(d: Date, { seconds = false, clock = appClock }: TimeOptions = {}): string {
   const s = seconds ? `:${pad(d.getSeconds())}` : '';
-  if (!hour12) return `${pad(d.getHours())}:${pad(d.getMinutes())}${s}`;
+  if (clock !== 'h12') return `${pad(d.getHours())}:${pad(d.getMinutes())}${s}`;
   const h = d.getHours() % 12 || 12;
   return `${h}:${pad(d.getMinutes())}${s} ${d.getHours() < 12 ? 'am' : 'pm'}`;
 }
 
-/** V110-C65 The full time of a line, for a hover: 2026/11/08 14:03:09, 24-hour, seconds always. */
+/** V110-C65 The full time of a line, for a hover: 2026/11/08 14:03:09 in the Time format, seconds always. */
 export function formatStamp(ms: number): string {
   const d = new Date(ms);
   return `${formatDate(d)} ${formatTime(d, { seconds: true })}`;
