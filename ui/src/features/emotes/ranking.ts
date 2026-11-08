@@ -51,7 +51,8 @@ export function rankEmotes<T>(typed: string, candidates: Iterable<Candidate<T>>,
 }
 
 /** C6 Tab and `:` completion: names in the same order, each once, what's typed exactly
- *  left out. `used` as in `Candidate`. */
+ *  left out. `used` as in `Candidate`. V110-F09 Letters merely in order don't count ("jul"
+ *  isn't jinxlul): with no prefix, word, contains or acronym match, Tab does nothing. */
 export function rankNames(
   typed: string,
   names: Iterable<string>,
@@ -65,5 +66,5 @@ export function rankNames(
     seen.add(n);
     all.push({ item: n, name: n, used: used(n) });
   }
-  return rankEmotes(typed, all).slice(0, limit);
+  return rankEmotes(typed, all, RANK.acronym).slice(0, limit);
 }

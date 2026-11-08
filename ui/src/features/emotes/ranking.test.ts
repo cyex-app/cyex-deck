@@ -78,3 +78,8 @@ test('V107-R7 locked emotes come last, and the weakest match kept is the callerâ
   // The first place in the most-used list counts.
   assert.deepEqual([...usageRank([{ emote: { source: 'twitch', id: '1', name: 'a' } }, { emote: { source: 'twitch', id: '1', name: 'a' } }])], [['twitch:1', 0]]);
 });
+
+test('Tab skips names that only hold the letters in order (V110-F09)', () => {
+  assert.deepEqual(rankNames('jul', ['jinxlul', 'juliet', 'xjulx']), ['juliet', 'xjulx']);
+  assert.deepEqual(rankNames('jul', ['jinxlul']), []);
+});
